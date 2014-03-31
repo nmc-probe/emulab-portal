@@ -481,7 +481,7 @@ if (! isset($create)) {
 	    "You do not appear to be a member of any projects in which ".
 	    "you have permission to create new profiles";
     }
-    if ($action == "edit" || $action == "delete") {
+    if ($action == "edit" || $action == "delete" || "snapshot") {
 	if (!isset($idx)) {
 	    $errors["error"] = "No profile specified for edit/delete!";
 	}
@@ -498,6 +498,9 @@ if (! isset($create)) {
 		DBQueryFatal("delete from apt_profiles where idx='$idx'");
 		header("Location: $APTBASE/myprofiles.php");
 		return;
+	    }
+	    else if ($action == "snapshot") {
+		$defaults["profile_rspec"]       = $profile->rspec();
 	    }
 	    else {
 		$defaults["profile_uuid"]        = $profile->uuid();

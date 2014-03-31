@@ -147,7 +147,8 @@ if (isset($ajax_request)) {
 	}
         # Only extend for 24 hours. More later.
 	$expires_time = strtotime($slice->expires());
-	if ($expires_time > time() + (3600 * 36)) {
+	if ($expires_time > time() + (3600 * 24)) {
+	    sleep(2);
 	    SPITAJAX_ERROR(1, "You still have lots of time left!");
 	    return;
 	}
@@ -169,8 +170,12 @@ if (isset($ajax_request)) {
 		   "A request to extend your APT experiment was made and ".
 		   "granted.\n".
 		   "Your reason was:\n\n". $ajax_argument . "\n\n".
-		   "Your experiment will now expire at $new_expires\n",
+		   "Your experiment will now expire at $new_expires.\n\n".
+		   "You can request another extension tomorrow.\n",
 		   "CC: $TBMAIL_OPS");
+	}
+	elseif ($retval > 0) {
+	    SPITAJAX_ERROR(1, $suexec_output);
 	}
 	else {
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
@@ -223,11 +228,11 @@ elseif ($instance_status == "provisioned") {
 echo "<div class='row'>
       <div class='col-lg-6  col-lg-offset-3
                   col-md-8  col-md-offset-2
-                  col-sm-8  col-sm-offset-2
+                  col-sm-10 col-sm-offset-1
                   col-xs-12 col-xs-offset-0'>\n";
 echo "<div class='panel panel-default'>\n";
 echo "<div class='panel-body'>\n";
-echo "<table class='table table-condensed' $style>\n";
+echo "<table class='table table-condensed nospaceafter' $style>\n";
 echo "<tr>\n";
 echo "<td id='statusmessage-container' colspan=2 $style class='$bgtype'>\n";
 echo "<h4 id='statusmessage'>$statustext</h4>\n";
@@ -253,9 +258,10 @@ echo "<td class='uk-width-4-5' $style>$slice_urn</td>\n";
 echo "</tr>\n";
 echo "<tr>\n";
 echo "<td class='uk-width-1-5' $style>State:</td>\n";
-echo "<td id='quickvm_status'
-          class='uk-width-4-5' $style>
-          <font $color>$instance_status</font>\n";
+echo "<td class='uk-width-4-5' $style>
+        <span id='quickvm_status'>
+         <font $color>$instance_status</font>
+        </span>\n";
 echo "</td>\n";
 echo "</tr>\n";
 echo "<tr>\n";
@@ -270,11 +276,11 @@ echo "<td class='uk-width-4-5' $style>
 echo "</tr>\n";
 echo "</table>\n";
 echo "<div class='pull-right'>\n";
-echo "  <button class='btn btn-success' $disabled
+echo "  <button class='btn btn-xs btn-success' $disabled
            id='extend_button' type=button
 	   data-toggle='modal' data-target='#extend_modal'>
            Extend</button>\n";
-echo "  <button class='btn btn-danger' $disabled
+echo "  <button class='btn btn-xs btn-danger' $disabled
            id='terminate_button' type=button
 	   data-toggle='modal' data-target='#terminate_modal'>
            Terminate</button>\n";
@@ -289,7 +295,7 @@ echo "</div>\n";
 # will actually fill in the div though, since it is markdown and that
 # is more easily done on the client side for now.
 #
-echo "<div class='row invisible' id='instructions_panel'>
+echo "<div class='row hidden' id='instructions_panel'>
       <div class='col-lg-6  col-lg-offset-3
                   col-md-8  col-md-offset-2
                   col-sm-8  col-sm-offset-2
@@ -467,6 +473,9 @@ echo "<!-- This is a modal -->
         </div>
         </div>
       </div>\n";
+
+SpitWaitModal("waitwait");
+SpitOopsModal("oops");
 
 SPITFOOTER();
 ?>

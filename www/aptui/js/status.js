@@ -1,10 +1,11 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'js/quickvm_sup',
+require(['jquery', 'js/quickvm_sup', 
 	 'tablesorter', 'tablesorterwidgets', 'bootstrap'],
 function ($, sup)
 {
     'use strict';
+    var CurrentTopo = null;
 
     function initialize()
     {
@@ -62,6 +63,7 @@ function ($, sup)
 		// This is considered the home page, for now.
 		window.location.replace('instantiate.php');
 	    }
+	    sup.ShowModal("#waitwait");
 
 	    var $xmlthing = sup.CallMethod("terminate", null,
 					   window.APT_OPTIONS.uuid, null);
@@ -118,6 +120,7 @@ function ($, sup)
 		$("#terminate_button").prop("disabled", false);
 		$("#extend_button").prop("disabled", false);
 		ShowTopo(uuid);
+		StartResizeWatchdog()
 	    }
 	    else if (status == 'failed') {
 		bgtype = "bg-danger";
@@ -134,9 +137,11 @@ function ($, sup)
 	    }
 	    else if (status == 'terminating' || status == 'terminated') {
 		status_html = "<font color=red>" + status + "</font>";
+		bgtype = "bg-danger";
+		statustext = "Your experiment has been terminated!";
 		$("#terminate_button").prop("disabled", true);
 		$("#extend_button").prop("disabled", true);
-		StartCountdownClock.stop = 0;
+		StartCountdownClock.stop = 1;
 	    }
 	    $("#statusmessage").html(statustext);
 	    $("#statusmessage-container")
@@ -153,7 +158,7 @@ function ($, sup)
     //
     // Install a window resize handler to redraw the topomap.
     //
-    function StartResizeWatchdog(uuid)
+    function StartResizeWatchdog()
     {
 	var resizeTimer;
 
@@ -165,7 +170,7 @@ function ($, sup)
 	    // Must clear the div for the D3 library.
 	    $("#showtopo_statuspage").html("<div></div>");
 	    $("#showtopo_statuspage").removeClass("invisible");
-	    ShowTopo(uuid);
+	    ReDrawTopoMap();
 	}
 
 	//
@@ -208,6 +213,9 @@ function ($, sup)
 
 	// variables for time units
 	var days, hours, minutes, seconds;
+
+	// text color.
+	var color = "";
     
 	// update the tag with id "countdown" every 1 second
 	var updater = setInterval(function () {
@@ -244,7 +252,7 @@ function ($, sup)
 		clearInterval(updater);
 		return;
 	    }
- 
+
 	    // do some time calculations
 	    days = parseInt(seconds_left / 86400);
 	    seconds_left = seconds_left % 86400;
@@ -265,9 +273,40 @@ function ($, sup)
 		seconds = "0" + seconds;
 
 	    var countdown =
-		days + ":" + hours + ":" + minutes + ":" + seconds;  
+		days + ":" + hours + ":" + minutes + ":" + seconds;
+	    var newcolor   = "";
+	    var statusbg   = "";
+	    var statustext = "Your experiment is ready";
 
 	    $("#quickvm_countdown").html(countdown);
+
+	    seconds_left = (target_date - current_date) / 1000;
+	    if (seconds_left < 3600) {
+		newcolor   = "text-danger";
+		statusbg   = "bg-danger";
+		statustext = "Extend your experiment before it expires!";
+	    }	    
+	    else if (seconds_left < 2 * 3600) {
+		newcolor   = "text-warning";
+		statusbg   = "bg-warning";
+		statustext = "Your experiment is going to expire soon!";
+	    }
+	    else {
+		newcolor = "";
+		statusbg = "hidden";
+	    }
+	    if (newcolor != color) {
+		$("#quickvm_countdown")
+		    .removeClass("text-warning text-danger")
+		    .addClass(newcolor);
+
+		$("#statusmessage").html(statustext);
+		$("#statusmessage-container")
+		    .removeClass('bg-success bg-danger hidden')
+		    .addClass(statusbg);
+
+		color = newcolor;
+	    }
 	}, 1000);
     }
 
@@ -284,16 +323,20 @@ function ($, sup)
 	    return;
 	}
 	var callback = function(json) {
+	    sup.HideModal("#waitwait");
+	    
 	    console.info(json.value);
+	    var message;
 	
 	    if (json.code) {
 		if (json.code < 0) {
-		    alert("Could not extend experiment. " +
-			  "Please try again later");
+		    message = "Could not extend experiment. " +
+			"Please try again later";
 		}
 		else {
-		    alert("Could not extend experiment: " + json.value);
+		    message = "Could not extend experiment: " + json.value;
 		}
+		sup.SpitOops("oops", message);
 		return;
 	    }
 	    $("#quickvm_expires").html(json.value);
@@ -301,8 +344,9 @@ function ($, sup)
 	    // Reset the countdown clock.
 	    StartCountdownClock.reset = json.value;
 	}
-	var $xmlthing = sup.CallMethod("request_extension", null, uuid, reason);
 	sup.HideModal('#extend_modal');
+	sup.ShowModal("#waitwait");
+	var $xmlthing = sup.CallMethod("request_extension", null, uuid, reason);
 	$xmlthing.done(callback);
     }
 	
@@ -321,7 +365,7 @@ function ($, sup)
             var url   = jsonauth.baseurl + ':' + port + '/' + '#' +
 		encodeURIComponent(document.location.href) + ',' + session;
             console.info(url);
-            var iwidth  = $('#' + id).width();
+	    var iwidth = "100%";
             var iheight = 400;
 
             $('#' + id).html('<iframe id="' + id + '_iframe" ' +
@@ -457,11 +501,19 @@ function ($, sup)
 		    // Stick the text in
 		    $('#instructions_text').html(marked(text));
 		    // Make the div visible.
-		    $('#instructions_panel').removeClass("invisible");
+		    $('#instructions_panel').removeClass("hidden");
 		});
 	    });
 	    // Find all of the nodes, and put them into the list tab.
 	    // Clear current table.
+	    //
+	    // Special case for a topology of a single node; start the
+	    // ssh tab right away.
+	    //
+	    var nodecount = 0;
+	    var nodehostport = null;
+	    var nodename = null;
+	    
             $('#listview_table > tbody').html("");
 	    $(xml).find("node").each(function() {
 		var node   = $(this).attr("client_id");
@@ -484,8 +536,11 @@ function ($, sup)
 			"   <span class='glyphicon glyphicon-log-in'><span>" +
 			"  </button>";
 		    console.info(ssh);
-
-		    // Use this to attach handlers to things that do not exist.
+		    nodehostport = hostport;
+		    nodename = node;
+			
+		    // Use this to attach handlers to things that do not
+		    // exist in the dom yet.
 		    $('#listview_table').off('click', '#sshbutton_' + node);
 		    $('#listview_table').on('click',
 					    '#sshbutton_' + node, function () {
@@ -496,18 +551,34 @@ function ($, sup)
 		    '<tr><td>' + node + '</td><td>' + ssh + '</td><td>' +
 			href + '</td></tr>'
 		);
+		nodecount++;
 	    });
 
+	    // Stash this for resize watchdog redraw.
+	    CurrentTopo = topo;
+	    ReDrawTopoMap();
 	    $("#showtopo_container").removeClass("invisible");
-	    // Subtract -2 cause of the border. 
-	    sup.maketopmap("#showtopo_statuspage",
-			   $("#showtopo_statuspage").outerWidth() - 2,
-			   300, topo,
-			   // Callback for ssh.
-			   function(arg1, arg2) { NewSSHTab(arg1, arg2); });
+
+	    // And start up ssh for single node topologies.
+	    if (nodecount == 1 && nodehostport) {
+		NewSSHTab(nodehostport, nodename);
+	    }
 	}
 	var $xmlthing = sup.CallMethod("manifest", null, uuid, null);
 	$xmlthing.done(callback);
+    }
+
+    function ReDrawTopoMap()
+    {
+	// Activate the "profile" tab or else the map has no size.
+	$('#quicktabs a[href="#profile"]').tab('show');
+	
+	// Subtract -2 cause of the border. 
+	sup.maketopmap("#showtopo_statuspage",
+		       $("#showtopo_statuspage").outerWidth() - 2,
+		       300, CurrentTopo,
+		       // Callback for ssh.
+		       function(arg1, arg2) { NewSSHTab(arg1, arg2); });
     }
 
     $(document).ready(initialize);
