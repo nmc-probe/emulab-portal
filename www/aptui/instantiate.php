@@ -413,7 +413,7 @@ if (!$this_user) {
     }
     elseif (User::LookupByUid($formfields["username"])) {
         # Do not allow uid overlap with real users.
-	$errors["username"] = "Already in use";
+	$errors["username"] = "Already in use - if you have an Emulab account, log in first";
     }
 }
 if (!isset($formfields["profile"]) || $formfields["profile"] == "") {
