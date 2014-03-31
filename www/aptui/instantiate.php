@@ -312,7 +312,7 @@ function SPITFORM($formfields, $newuser, $errors)
 		   "$am_options</select>");
     }
     echo "</fieldset>
-           <button class='btn btn-success pull-right'
+           <button class='btn btn-success pull-right' id='instantiate_submit'
               type='submit' name='create'>Create!
            </button>
            <br> 
@@ -342,6 +342,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "</form>\n";
 
     SpitTopologyViewModal("quickvm_topomodal", $profile_array);
+    SpitWaitModal("waitwait");
 
     echo "<script type='text/javascript'>\n";
     echo "    window.PROFILE = '" . $formfields["profile"] . "';\n";
@@ -582,6 +583,9 @@ if (count($errors)) {
 # This option is used to tell the backend that it is okay to look
 # in the emulab users table.
 #
+if (isset($_SERVER['REMOTE_ADDR'])) { 
+    putenv("REMOTE_ADDR=" . $_SERVER['REMOTE_ADDR']);
+}
 $opt  = ($this_user ? "-l" : "");
 $opt .= ($aggregate_urn != "" ? " -a '$aggregate_urn'" : "");
 
