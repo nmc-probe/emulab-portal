@@ -269,14 +269,14 @@ function SPITFORM($formfields, $newuser, $errors)
     #
     if (!isset($profile)) {
         echo "<div id='profile_well' class='form-group well well-md'>
-                <span id='selected_profile_text' class='pull-left'>
-                </span>
                 <input id='selected_profile' type='hidden' 
                        name='formfields[profile]'/>
-                  <button id='profile' class='btn btn-primary btn-xs pull-right' 
+                  <button id='profile' class='btn btn-primary btn-xs pull-left' 
                          type='button' name='profile_button'>
                     Select a Profile
-                  </button>\n";
+                  </button>
+                  <span id='selected_profile_text' class='pull-left'>
+                  </span> \n";
         if ($errors && array_key_exists("profile", $errors)) {
             echo "<label class='control-label' for='inputError'>" .
                 $errors["profile"] .
