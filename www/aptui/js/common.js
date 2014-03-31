@@ -16,6 +16,7 @@ window.APT_OPTIONS.config = function ()
 	    'tablesorter': 'js/lib/jquery.tablesorter.min',
 	    'tablesorterwidgets': 'js/lib/jquery.tablesorter.widgets.min',
 	    'marked': 'js/lib/marked',
+	    'moment': 'js/lib/moment',
 	},
 	shim: {
 	    'bootstrap': { deps: ['jquery'] },

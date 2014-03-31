@@ -194,6 +194,8 @@ $slice_expires   = "n/a";
 if (isset($slice)) {
     $slice_urn       = $slice->urn();
     $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
+    # Simpler version for directly displaying
+    $slice_expires_text   = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
 }
 $instance_status = $instance->status();
 $creator_uid     = $creator->uid();
@@ -271,7 +273,7 @@ echo "</tr>\n";
 echo "<tr>\n";
 echo "<td class='uk-width-1-5' $style>Expires:</td>\n";
 echo "<td class='uk-width-4-5' $style>
-         <span id='quickvm_expires'>$slice_expires</span> - Time left: 
+         <span id='quickvm_expires'>$slice_expires_text</span> - Time left: 
          <span id='quickvm_countdown'></span></td>\n";
 echo "</tr>\n";
 echo "</table>\n";

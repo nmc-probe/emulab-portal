@@ -1,8 +1,8 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'js/quickvm_sup', 
-	 'tablesorter', 'tablesorterwidgets', 'bootstrap'],
-function ($, sup)
+require(['jquery', 'js/quickvm_sup', 'moment',
+	 'tablesorter', 'tablesorterwidgets', 'bootstrap' ],
+function ($, sup, moment)
 {
     'use strict';
     var CurrentTopo = null;
@@ -236,8 +236,7 @@ function ($, sup)
 		// Reformat in local time and show the user.
 		var local_date = new Date(when);
 
-		var local_string = local_date.format("yyyy-mm-dd HH:MM:ss Z");
-		$("#quickvm_expires").html(local_string);
+		$("#quickvm_expires").html(moment(local_date).calendar());
 
 		// Countdown also based on local time. 
 		target_date = local_date.getTime();
@@ -339,7 +338,7 @@ function ($, sup)
 		sup.SpitOops("oops", message);
 		return;
 	    }
-	    $("#quickvm_expires").html(json.value);
+	    $("#quickvm_expires").html(moment(json.value).calendar());
 	
 	    // Reset the countdown clock.
 	    StartCountdownClock.reset = json.value;
