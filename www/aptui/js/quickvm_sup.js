@@ -339,6 +339,14 @@ function ConvertManifestToJSON(name, xml)
     return json;
 }
 
+// Spit out the oops modal.
+function SpitOops(id, msg)
+{
+    var modal_text_name = "#" + id + "_text";
+    $(modal_text_name).html(msg);
+    ShowModal("#" + id);
+}
+
 // Exports from this module for use elsewhere
 return {
     ShowModal: ShowModal,
@@ -346,5 +354,6 @@ return {
     CallMethod: CallMethod,
     ConvertManifestToJSON: ConvertManifestToJSON,
     maketopmap: maketopmap,
+    SpitOops: SpitOops,
 };
 });
