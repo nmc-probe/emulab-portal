@@ -295,7 +295,14 @@ function SPITFORM($formfields, $showverify, $errors)
 function SPITABOUTACCT()  {
 
     SpitCollapsiblePanel("aboutacct","Do I need an account?",<<<'ENDBODY'
-    <p>Maybe!</p>
+<p>You don't need an account to give Apt a try! Many of the public profiles can
+    be used without one - check out the list on the <a href="/">home 
+    page</a>.</p>
+<p>For accountability reasons, however, you will be limited in certain ways 
+    if you don't have an account. Users with a full account (free!) can use
+    a larger set of profiles, can hold resources for longer, may request larger 
+    virtual machines and bare metal machines, and more. You will also need an 
+    account if you want to create profiles of your own.</p>
 ENDBODY
     );
 }
