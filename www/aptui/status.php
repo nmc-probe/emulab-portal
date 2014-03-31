@@ -300,21 +300,14 @@ echo "<div class='row hidden' id='instructions_panel'>
                   col-md-8  col-md-offset-2
                   col-sm-8  col-sm-offset-2
                   col-xs-12 col-xs-offset-0'>\n";
-echo "<div class='panel panel-default'>\n";
-echo "<div class='panel-heading'>
-        <a data-toggle='collapse' data-target='#instructions_collapse'
-           href='#'>Usage Instructions
-            <span class='glyphicon glyphicon-chevron-right pull-right'>
-            </span></a>
-      </div>\n";
-echo "<div class='panel-collapse collapse' id='instructions_collapse'>\n";
-echo "<div class='panel-body' id='instructions_text'>\n";
-echo "</div>\n"; # panel-body
-echo "</div>\n"; # collapse
-echo "</div>\n"; # panel
+SpitCollapsiblePanel("instructions", "Profile Instructions",<<<BODYEND
+<div id="instructions_text">
+</div>
+BODYEND
+);
+
 echo "</div>\n"; # cols
 echo "</div>\n"; # row
-
 #
 # The topo diagram goes inside this div, when it becomes available.
 #
