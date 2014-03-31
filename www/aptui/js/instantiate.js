@@ -32,6 +32,11 @@ function ($, sup)
 	    UpdateProfileSelection($('.selected'));
 	    sup.HideModal('#quickvm_topomodal');
 	});
+	$('#instantiate_submit').click(function (event) {
+	    sup.ShowModal("#waitwait");
+	    return true;
+	});
+	
 
         UpdateProfileSelection($('#profile_name li[value = ' +
 				 window.PROFILE + ']'));
