@@ -175,6 +175,21 @@ if ($VIRTNODE_NETWORK =~ /^(\d+\.\d+\.\d+)\.0$/) {
 }
 
 #
+# Sorry these are hardwired. 
+#
+my $EMULAB_VCNET_BOSS = "172.17.254.254";
+my $EMULAB_VCNET_OPS  = "172.17.253.254";
+
+$str = "replace into default_firewall_vars values ".
+    "('EMULAB_VCNET_BOSS', '$EMULAB_VCNET_BOSS'), ".
+    "('EMULAB_VCNET_OPS',  '$EMULAB_VCNET_OPS')";
+
+print "$str\n"
+    if (!$doit);
+DBQueryFatal($str)
+    if ($doit);
+
+#
 # Create EMULAB_MCADDR and EMULAB_MCPORT variables
 #
 
