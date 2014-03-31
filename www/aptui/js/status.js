@@ -208,17 +208,11 @@ function ($, sup, moment)
 	// date counting down to
 	var target_date;
 
-	// Need the timezone offset to format a local time.
-	var timeOffsetInHours = (new Date().getTimezoneOffset()/60) * (-1);
-
-	// variables for time units
-	var days, hours, minutes, seconds;
-
 	// text color.
 	var color = "";
     
 	// update the tag with id "countdown" every 1 second
-	var updater = setInterval(function () {
+	var updaer = setInterval(function () {
 	    // Clock stop
 	    if (StartCountdownClock.stop) {
 		// Amazing that this works!
@@ -236,7 +230,7 @@ function ($, sup, moment)
 		// Reformat in local time and show the user.
 		var local_date = new Date(when);
 
-		$("#quickvm_expires").html(moment(local_date).calendar());
+		$("#quickvm_expires").html(moment(when).calendar());
 
 		// Countdown also based on local time. 
 		target_date = local_date.getTime();
@@ -252,34 +246,12 @@ function ($, sup, moment)
 		return;
 	    }
 
-	    // do some time calculations
-	    days = parseInt(seconds_left / 86400);
-	    seconds_left = seconds_left % 86400;
-     
-	    hours = parseInt(seconds_left / 3600);
-	    seconds_left = seconds_left % 3600;
-     
-	    minutes = parseInt(seconds_left / 60);
-	    seconds = parseInt(seconds_left % 60);
-	    
-	    if (days <= 9)
-		days = "0" + days;
-	    if (hours <= 9)
-		hours = "0" + hours;
-	    if (minutes <= 9)
-		minutes = "0" + minutes;
-	    if (seconds <= 9)
-		seconds = "0" + seconds;
-
-	    var countdown =
-		days + ":" + hours + ":" + minutes + ":" + seconds;
 	    var newcolor   = "";
 	    var statusbg   = "";
 	    var statustext = "Your experiment is ready";
 
-	    $("#quickvm_countdown").html(countdown);
+	    $("#quickvm_countdown").html(moment(when).fromNow());
 
-	    seconds_left = (target_date - current_date) / 1000;
 	    if (seconds_left < 3600) {
 		newcolor   = "text-danger";
 		statusbg   = "bg-danger";

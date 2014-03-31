@@ -273,8 +273,7 @@ echo "</tr>\n";
 echo "<tr>\n";
 echo "<td class='uk-width-1-5' $style>Expires:</td>\n";
 echo "<td class='uk-width-4-5' $style>
-         <span id='quickvm_expires'>$slice_expires_text</span> - Time left: 
-         <span id='quickvm_countdown'></span></td>\n";
+         <span id='quickvm_expires'>$slice_expires_text</span> (<span id='quickvm_countdown'></span>)</td>\n";
 echo "</tr>\n";
 echo "</table>\n";
 echo "<div class='pull-right'>\n";
