@@ -122,6 +122,8 @@ function SPITFORM($formfields, $showverify, $errors)
     #
     if (array_key_exists("error", $errors)) {
 	echo "<font color=red>" . $errors["error"] . "</font>";
+    } else {
+        SPITABOUTACCT();
     }
     
     echo "<form id='quickvm_signup_form'
@@ -285,6 +287,27 @@ function SPITFORM($formfields, $showverify, $errors)
     echo "</script>\n";
     echo "<script src='js/lib/require.js' data-main='js/signup'></script>";
     SPITFOOTER();
+}
+
+#
+# Spit information about Apt accounts
+#
+function SPITABOUTACCT()  {
+?>
+    <div class="panel panel-info">
+
+        <div class="panel-heading">
+           <h5><a data-toggle="collapse" href="#aboutacct">Do I Need An Account? <span class="glyphicon glyphicon-chevron-right pull-right"></span></a></h5>
+         </div>
+
+         <div id="aboutacct" class="panel-collapse collapse">
+
+           <div class="panel-body">
+            <p>Maybe!</p>
+           </div>
+         </div>
+     </div>
+<?php
 }
 
 if (isset($finished) && $finished) {
