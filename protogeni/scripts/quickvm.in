@@ -299,9 +299,7 @@ my $profile_object = APT_Profile->Lookup($value);
 if (!defined($profile_object)) {
     fatal("No such profile: $value");
 }
-my $rspecstr =
-    ($profile_object->public() ?
-     $profile_object->Condomize() : $profile_object->rspec());
+my $rspecstr = $profile_object->CheckFirewall($profile_object->public());
 $profile = $profile_object->idx();
 
 #
@@ -432,8 +430,8 @@ if (!defined($slice)) {
     $slice_certificate->Delete();
     fatal("Could not create new slice object for $slice_urn");
 }
-# These get quick expirations.
-if ($slice->SetExpiration(time() + (3 * 3600)) != 0) {
+# These get quick expirations, unless it is a real user.
+if ($slice->SetExpiration(time() + (($localuser ? 16 : 3) * 3600)) != 0) {
     $slice->Delete();
     fatal("Could not set the slice expiration for $slice_urn");
 }
@@ -441,12 +439,24 @@ my $slice_uuid = $slice->uuid();
 
 # Create a slice credential
 my $slice_credential =
-    GeniCredential->CreateSigned($slice,
-				 $geniuser,
-				 $GeniCredential::LOCALSA_FLAG);
+    GeniCredential->Create($slice,
+			   $geniuser);
 if (!defined($slice_credential)) {
     $slice->Delete();
     fatal("Could not create credential for $slice_urn");
+}
+
+#
+# Need to set the credential expiration to match the slice expiration,
+# before we sign it.
+#
+$slice_credential->SetExpiration(time() + (($localuser ? 16 : 3) * 3600));
+
+# And sign it.
+if ($slice_credential->Sign($GeniCredential::LOCALSA_FLAG) != 0) {
+    $slice_credential->Delete();
+    $slice->Delete();
+    fatal("Could not sign credential");
 }
 
 #
@@ -789,6 +799,9 @@ sub Extend($$)
 				      $speaksfor_credential->asString()]});
 
     if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	if ($response->code() == GENIRESPONSE_REFUSED) {
+	    UserError($response->output());
+	}
 	fatal("RenewSlice failed: ".
 	      (defined($response) ? $response->output() : "") . "\n");
     }
