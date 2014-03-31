@@ -177,12 +177,12 @@ if ($VIRTNODE_NETWORK =~ /^(\d+\.\d+\.\d+)\.0$/) {
 #
 # Sorry these are hardwired. 
 #
-my $EMULAB_VCNET_BOSS = "172.17.254.254";
-my $EMULAB_VCNET_OPS  = "172.17.253.254";
+my $EMULAB_VCBOSS = "172.17.254.254";
+my $EMULAB_VCOPS  = "172.17.253.254";
 
 $str = "replace into default_firewall_vars values ".
-    "('EMULAB_VCNET_BOSS', '$EMULAB_VCNET_BOSS'), ".
-    "('EMULAB_VCNET_OPS',  '$EMULAB_VCNET_OPS')";
+    "('EMULAB_VCBOSS', '$EMULAB_VCBOSS'), ".
+    "('EMULAB_VCOPS',  '$EMULAB_VCOPS')";
 
 print "$str\n"
     if (!$doit);

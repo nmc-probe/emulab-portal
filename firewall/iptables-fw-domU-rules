@@ -83,7 +83,7 @@ iptables -A OUTSIDE -s EMULAB_GWIP,EMULAB_VGWIP -j ACCEPT # BASIC,CLOSED,ELABINE
 
 # On a non-segmented control network (like an IG rack), boss/ops
 # have aliases on the virtual node network. Allows these though.
-iptables -A OUTSIDE -s EMULAB_VCNET_BOSS,EMULAB_VCNET_OPS -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A OUTSIDE -s EMULAB_VCBOSS,EMULAB_VCOPS -j ACCEPT # BASIC,CLOSED,ELABINELAB
 
 #
 # No one on the inside can talk to other experiments' nodes and visa-versa.
