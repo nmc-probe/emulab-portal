@@ -6692,7 +6692,7 @@ sub SetSliceExpiration($$$$@)
     return 0;
     
   bad:
-    return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $message);
+    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef, $message);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
