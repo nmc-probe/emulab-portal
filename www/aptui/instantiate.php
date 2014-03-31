@@ -252,7 +252,7 @@ function SPITFORM($formfields, $newuser, $errors)
 
 	$formatter("keyfile",
 		   "<span class='help-block'>
-                     SSH Public Key (choose file or paste in)</span>".
+                     Optional: Your SSH public key (upload a file or paste it in the text box)</span>".
 		   "<input type=file name='keyfile'>");
 
 	$formatter("sshkey", 
