@@ -312,9 +312,9 @@ sub MarkModified($)
 # Condomize a profile rspec by inserting the necessary firewall section
 # to each of the nodes.
 #
-sub Condomize($)
+sub CheckFirewall($$)
 {
-    my ($self) = @_;
+    my ($self, $condomize) = @_;
 
     # Must be a real reference. 
     return -1
@@ -326,28 +326,37 @@ sub Condomize($)
 	return undef;
     }
     foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
-	#
-	# No settings is easy; wrap it tight.
-	#
-	if (!GeniXML::HasFirewallSettings($ref)) {
-	    my $firewall = GeniXML::AddElement("firewall", $ref,
-					       $GeniXML::EMULAB_NS);
-	    GeniXML::SetText("style", $firewall, "closed");
-	    next;
+	if ($condomize) {
+	    #
+	    # No settings is easy; wrap it tight.
+	    #
+	    if (!GeniXML::HasFirewallSettings($ref)) {
+		my $firewall = GeniXML::AddElement("firewall", $ref,
+						   $GeniXML::EMULAB_NS);
+		GeniXML::SetText("style", $firewall, "closed");
+		next;
+	    }
+	    #
+	    # Make sure the existing section has a reasonable setting.
+	    #
+	    my $settings = GeniXML::FindNodesNS("n:firewall", $ref,
+						$GeniXML::EMULAB_NS)->pop();
+	    my $style = GeniXML::GetText("style", $settings);
+	    if (!defined($style) || $style ne "basic" || $style ne "closed") {
+		GeniXML::SetText("style", $settings, "closed");
+	    }
 	}
 	#
-	# Make sure the existing section has a reasonable setting.
+	# Quick pass over the exceptions to see if we need to substitute
+	# the callers IP address.
 	#
-	my $settings = GeniXML::FindNodesNS("n:firewall", $ref,
-					    $GeniXML::EMULAB_NS)->pop();
-	my $style = GeniXML::GetText("style", $settings);
-	if (!defined($style) || $style ne "basic" || $style ne "closed") {
-	    GeniXML::SetText("style", $settings, "closed");
+	foreach my $exception (GeniXML::FindNodesNS("n:firewall/n:exception",
+				$ref, $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    my $ip = GeniXML::GetText("ip", $exception);
+	    if (defined($ip) && $ip eq "myip" && exists($ENV{'REMOTE_ADDR'})) {
+		GeniXML::SetText("ip", $exception, $ENV{'REMOTE_ADDR'});
+	    }
 	}
-
-	#
-	# What about exceptions?
-	#
     }
     return GeniXML::Serialize($rspec);
 }
