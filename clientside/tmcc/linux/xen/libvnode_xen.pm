@@ -216,6 +216,8 @@ my $ISREMOTENODE = REMOTEDED();
 my $BRIDGENAME   = "xenbr0";
 my $VIFROUTING   = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
+my $TMCD_PORT	 = 7777;
+
 #
 # Information about the running Xen hypervisor
 #
@@ -1213,17 +1215,27 @@ sub vnodePreConfig($$$$$){
 	# a temp hack to get a new ntp.conf into all containers on next
 	# reboot. Will remove later.
 	#
-	# No one uses FreeBSD, just mount as linux.
+	# Make sure its a Linux partition. If not, ignore it.
 	#
-	$fixups = 1;
-	$vninfo->{'os'} = "Linux";
-	my $devname = "$VGNAME/${vnode_id}p2";
+	my $devname = "$VGNAME/${vnode_id}";
 	$devname =~ s/\-/\-\-/g;
 	$devname =~ s/\//\-/g;
-	$private->{'rootpartition'} = "/dev/mapper/$devname";
-	# Must be a package. Ick.
+	my $devfile = "/dev/mapper/$devname";
+	print STDERR "$devfile\n";
 	return 0
-	    if (! -e $private->{'rootpartition'});
+	    if (! -e $devfile);
+	
+	my $stype = `sfdisk $devfile -c 2`;
+	chomp($stype);
+	return 0
+	    if ($? || $stype == 0);
+
+	print STDERR "stype $stype\n";
+	
+	
+	$fixups = 1;
+	$vninfo->{'os'} = "Linux";
+	$private->{'rootpartition'} = "${devfile}p2";
     }
     
     #
@@ -1292,11 +1304,11 @@ sub vnodePreConfig($$$$$){
 	    goto bad
 		if ($?);
 	}
-	# XXX this should no longer be needed, but just in case
+	# XXX We need this for libsetup to know it is in a XENVM.
 	if (! -e "$vnoderoot/var/emulab/boot/vmname" ) {
 	    mysystem2("echo '$vnode_id' > $vnoderoot/var/emulab/boot/vmname");
 	    goto bad
-		if ($?);
+		if (0 && $?);
 	}
 	# change the devices in fstab
 	my $ldisk = ($xeninfo{xen_major} >= 4 ? "xvd" : "sd");
@@ -1305,8 +1317,44 @@ sub vnodePreConfig($$$$$){
 		  "  $vnoderoot/etc/fstab");
 	goto bad
 	    if ($?);
+
+	# enable the correct device for console
+	if (-f "$vnoderoot/etc/inittab") {
+	    mysystem2("sed -i.bak -e 's/xvc0/console/' ".
+		      "  $vnoderoot/etc/inittab");
+	}
+	if (-f "$vnoderoot/etc/init/ttyS0.conf") {
+	    mysystem2("sed -i.bak -e 's/ttyS0/hvc0/' ".
+		      "  $vnoderoot/etc/init/ttyS0.conf");
+	}
     }
     else {
+	# XXX We need this for libsetup to know it is in a XENVM.
+	# Note that the FreeBSD images put /var on another partition
+	# and it would be difficult to get that mounted.  So stick it
+	# in /etc/emulab, and arrange for rc.local to move it into
+	# place.
+	if (! -e "$vnoderoot/etc/emulab/vmname" ) {
+	    mysystem2("echo '$vnode_id' > $vnoderoot/etc/emulab/vmname");
+	    goto bad
+		if ($?);
+	}
+	if (! -e "$vnoderoot/etc/rc.local" ) {
+	    mysystem2("echo '#!/bin/sh' > $vnoderoot/etc/rc.local");
+	    goto bad
+		if ($?);
+	}
+	open(RCL, ">>$vnoderoot/etc/rc.local") 
+	    or goto bad;
+	print RCL "\n";
+	print RCL "if [ -e \"/etc/emulab/vmname\" ]; then\n";
+	print RCL "    /bin/mv -f /etc/emulab/vmname /var/emulab/boot\n";
+	print RCL "fi\n\n";
+	close(RCL);
+	mysystem2("/bin/chmod +x $vnoderoot/etc/rc.local");
+	    goto bad
+		if ($?);
+	
 	if (-e "$vnoderoot/etc/dumpdates") {
 	    mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/da0s1;' ".
 		      "  $vnoderoot/etc/dumpdates");
@@ -1355,6 +1403,7 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     my $isroutable = isRoutable($ip);
 
     my $fmac = fixupMac($mac);
+    my (undef,$ctrlip) = findControlNet();
     # Note physical host control net IF is really a bridge
     my ($cbridge) = ($ISREMOTENODE ? ($BRIDGENAME) : findControlNet());
     my $cscript = "$VMDIR/$vnode_id/cnet-$mac";
@@ -1373,6 +1422,83 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 		 'fqdn', => $longdomain,
 		 'mac' => $fmac};
     createControlNetworkScript($vmid, $stuff, $cscript);
+
+    #
+    # Set up the chains. We always create them, and if there is no
+    # firewall, they default to accept. This makes things easier in
+    # the control network script (emulab-cnet.pl).
+    #
+    # Do not worry if these fail; we will catch it below when we add
+    # the rules. Or I could look to see if the chains already exist,
+    # but why bother.
+    #
+    DoIPtables("-N INCOMING_${vnode_id}");
+    DoIPtables("-F INCOMING_${vnode_id}");
+    DoIPtables("-N OUTGOING_${vnode_id}");
+    DoIPtables("-F OUTGOING_${vnode_id}");
+
+    # Match existing dynamic rules as early as possible.
+    DoIPtables("-A INCOMING_${vnode_id} -m conntrack ".
+	       "  --ctstate RELATED,ESTABLISHED -j ACCEPT");
+    DoIPtables("-A OUTGOING_${vnode_id} -m conntrack ".
+	       "  --ctstate RELATED,ESTABLISHED -j ACCEPT");
+    
+    if ($vnconfig->{'fwconfig'}->{'fwinfo'}->{'TYPE'} eq "none") {
+	DoIPtables("-A INCOMING_${vnode_id} -j ACCEPT") == 0
+	    or return -1;
+	DoIPtables("-A OUTGOING_${vnode_id} -j ACCEPT") == 0
+	    or return -1;
+    }
+    else {
+	my @rules = ();
+
+	if (0) {
+	    push(@rules, "-A INCOMING_${vnode_id} -j LOG ".
+		 "  --log-prefix 'IIN ${vnode_id}: ' --log-level 5");
+	    push(@rules, "-A OUTGOING_${vnode_id} -j LOG ".
+		 "  --log-prefix 'OOUT ${vnode_id}: ' --log-level 5");
+	}
+
+	#
+	# These rules allows the container to talk to the TMCC proxy.
+	# If you change this port, change emulab-cnet.pl too.
+	#
+	my $local_tmcd_port = $TMCD_PORT + $vmid;
+	push(@rules,
+	     "-A OUTGOING_${vnode_id} -p tcp ".
+	     "-d $ctrlip --dport $local_tmcd_port ".
+	     "-m conntrack --ctstate NEW -j ACCEPT");
+	push(@rules,
+	     "-A OUTGOING_${vnode_id} -p udp ".
+	     "-d $ctrlip --dport $local_tmcd_port ".
+	     "-m conntrack --ctstate NEW -j ACCEPT");
+
+	#
+	# Need to do some substitution first.
+	#
+	foreach my $rule (@{ $vnconfig->{'fwconfig'}->{'fwrules'} }) {
+	    my $rulestr = $rule->{'RULE'};
+	    $rulestr =~ s/\s+me\s+/ $ctrlip /g;
+	    $rulestr =~ s/\s+INSIDE\s+/ OUTGOING_${vnode_id} /g;
+	    $rulestr =~ s/\s+OUTSIDE\s+/ INCOMING_${vnode_id} /g;
+	    $rulestr =~ s/^iptables //;
+	    push(@rules, $rulestr);
+	}
+
+	#
+	# For debugging, we want to log any packets that get to the bottom,
+	# since they are going to get dropped.
+	#
+	if (0) {
+	    push(@rules, "-A INCOMING_${vnode_id} -j LOG ".
+		 "  --log-prefix 'IN ${vnode_id}: ' --log-level 5");
+	    push(@rules, "-A OUTGOING_${vnode_id} -j LOG ".
+	     "  --log-prefix 'OUT ${vnode_id}: ' --log-level 5");
+	}
+	
+	DoIPtables(@rules) == 0
+	    or return -1;
+    }
 
     # Create a DHCP entry
     $vninfo->{'dhcp'} = {};
@@ -1581,7 +1707,7 @@ sub vnodePreConfigExpNetwork($$$$)
 	    my $veth = "greth.${vmid}.${unit}";
 	    my $gre  = "gre$vmid.$unit";
 	    my $br   = "br$vmid.$unit";
-	    if (! -d "/sys/class/net/$br/bridge") {
+	    if (! -e "/sys/class/net/$br/flags") {
 		mysystem2("$OVSCTL add-br $br");
 		if ($?) {
 		    TBScriptUnlock();
@@ -1754,7 +1880,7 @@ sub vnodeBoot($$$$)
 	#
 	print "Container did not start, halting for retry ...\n";
 	vnodeHalt($vnode_id, $vmid, $vnconfig, $private);
-	print "Container halted, waiting for it do disappear ...\n";
+	print "Container halted, waiting for it to disappear ...\n";
 	$countdown = 10;
 	while ($countdown >= 0) {
 	    sleep(5);
@@ -1848,6 +1974,12 @@ sub vnodeDestroy($$$$)
     # Always do this.
     return -1
 	if (vnodeTearDown($vnode_id, $vmid, $vnconfig, $private));
+
+    # Kill the chains.
+    DoIPtables("-F INCOMING_${vnode_id}");
+    DoIPtables("-X INCOMING_${vnode_id}");
+    DoIPtables("-F OUTGOING_${vnode_id}");
+    DoIPtables("-X OUTGOING_${vnode_id}");
 
     # DHCP entry...
     if (exists($vninfo->{'dhcp'})) {

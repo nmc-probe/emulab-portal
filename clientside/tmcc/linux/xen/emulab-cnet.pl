@@ -145,6 +145,7 @@ my ($jail_network,$jail_netmask) = findVirtControlNet();
 my $fs_jailip = "172.17.253.254";
 
 # Each container gets a tmcc proxy running on another port.
+# If this changes, look at firewall handling in libvnode_xen.
 my $local_tmcd_port = $TMCD_PORT + $vmid;
 
 # Need this too.
@@ -184,7 +185,7 @@ sub Online()
 	       "-m physdev --physdev-in $vif --physdev-is-bridged ".
 	       "--physdev-out $outer_controlif -j DROP")
 	== 0 or return -1;
-    
+
     #
     # We turn on antispoofing. In bridge mode, vif-bridge adds a rule
     # to allow outgoing traffic. But vif-route does this wrong, so we
@@ -192,14 +193,70 @@ sub Online()
     # incoming packets go throught the FORWARD table, which is set to
     # DROP for antispoofing.
     #
+    # Everything goes through the per vnode INCOMING/OUTGOING tables
+    # which are set up in libvnode_xen. If firewalling is not on, then
+    # these chains just accept everything. 
+    #
     if ($VIFROUTING) {
 	DoIPtables("-A FORWARD -i $vif -s $vnode_ip ".
-		   "  -m mac --mac-source $vnode_mac -j ACCEPT")
+		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}")
 	    == 0 or return -1;
-	DoIPtables("-A FORWARD -o $vif -d $vnode_ip -j ACCEPT")
+	DoIPtables("-A FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}")
+	    == 0 or return -1;
+
+	#
+	# Another wrinkle. We have to think about packets coming from
+	# the container and addressed to the physical host. Send them
+	# through OUTGOING chain for filtering, rather then adding
+	# another chain. We make sure there are appropriate rules in
+	# the OUTGOING chain to protect the host.
+	# 
+	DoIPtables("-A INPUT -i $vif -s $vnode_ip ".
+		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}")
+	    == 0 or return -1;
+
+	#
+	# This rule effectively says that if the packet was not filtered 
+	# by the INCOMING chain during forwarding, it must be okay to
+	# output to the container; we do not want it to go through the
+	# dom0 rules.
+	#
+	DoIPtables("-A OUTPUT -o $vif -j ACCEPT")
 	    == 0 or return -1;
     }
-    
+    else {
+	#
+	# Bridge mode. vif-bridge stuck some rules in that we do not
+	# want, so insert some new rules ahead of them to capture the
+	# packets we want to filter. But we still have to allow the
+	# DHCP request packets through.
+	#
+	DoIPtables("-I FORWARD -m physdev --physdev-is-bridged ".
+		   " --physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}")
+	    == 0 or return -1;
+	    
+	DoIPtables("-I FORWARD -m physdev --physdev-is-bridged ".
+		   " --physdev-out $vif -j INCOMING_${vnode_id}")
+	    == 0 or return -1;
+
+	#
+	# Another wrinkle. We have to think about packets coming from
+	# the container and addressed to the physical host. Send them
+	# through OUTGOING chain for filtering, rather then adding
+	# another chain. We make sure there are appropriate rules in
+	# the OUTGOING chain to protect the host.
+	#
+	# XXX: We cannot use the input interface or bridge options, cause
+	# if the vnode_ip is unroutable, the packet appears to come from
+	# eth0, according to iptables logging. WTF!
+	# 
+	DoIPtables("-A INPUT -s $vnode_ip ".
+		   "  -j OUTGOING_${vnode_id}")
+	    == 0 or return -1;
+
+	DoIPtables("-A OUTPUT -d $vnode_id -j ACCEPT")
+	    == 0 or return -1;
+    }
     # Start a tmcc proxy (handles both TCP and UDP)
     my $tmccpid = fork();
     if ($tmccpid) {
@@ -356,8 +413,22 @@ sub Offline()
     # See above. 
     if ($VIFROUTING) {
 	DoIPtables("-D FORWARD -i $vif -s $vnode_ip ".
-		   "  -m mac --mac-source $vnode_mac -j ACCEPT");
-	DoIPtables("-D FORWARD -o $vif -d $vnode_ip -j ACCEPT");
+		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	DoIPtables("-D FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}");
+
+	DoIPtables("-D INPUT -i $vif -s $vnode_ip ".
+		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	DoIPtables("-D OUTPUT -o $vif -j ACCEPT");
+	
+    }
+    else {
+	DoIPtables("-D FORWARD -m physdev --physdev-is-bridged ".
+		   " --physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}");
+	DoIPtables("-D FORWARD -m physdev --physdev-is-bridged ".
+		   " --physdev-out $vif -j INCOMING_${vnode_id}");
+	DoIPtables("-D INPUT -s $vnode_ip ".
+		   "  -j OUTGOING_${vnode_id}");
+	DoIPtables("-D OUTPUT -d $vnode_id -j ACCEPT");
     }
 
     # tmcc
