@@ -129,21 +129,6 @@ body {
   height: 402px;
 }
 
-#profile_well {
-  height: 32px;
-  padding: 0 0 0 0px;
-  margin-bottom: 10px;
-}
-
-#profile_well #selected_profile_text {
-  margin-top: 5px;
-  margin-left: 9px;
-}
-
-#profile_well #profile {
-  padding: 5px;
-}
-
 #showtopo_nopicker {
   border: 1px solid #000;
 }

@@ -268,14 +268,13 @@ function SPITFORM($formfields, $newuser, $errors)
     # profile
     #
     if (!isset($profile)) {
-        echo "<div id='profile_well' class='form-group well well-md'>
-                <input id='selected_profile' type='hidden' 
-                       name='formfields[profile]'/>
-                  <button id='profile' class='btn btn-primary btn-xs pull-left' 
-                         type='button' name='profile_button'>
-                    Select a Profile
-                  </button>
-                  <span id='selected_profile_text' class='pull-left'>
+        echo "<div class='form-group row'>";
+        echo "<input id='selected_profile' type='hidden' 
+                       name='formfields[profile]'/>";
+        echo "<div class='col-md-8'><div class='panel panel-default'>\n";
+        echo "<div class='panel-heading'>
+                  <span class='panel-title'>Selected Profile: </span>
+                  <span id='selected_profile_text'>
                   </span> \n";
         if ($errors && array_key_exists("profile", $errors)) {
             echo "<label class='control-label' for='inputError'>" .
@@ -284,8 +283,15 @@ function SPITFORM($formfields, $newuser, $errors)
         }
         echo " </div>\n";
         # Note: Following line is also duplicated above
-        echo "  <span class=''
-                      id='selected_profile_description'></span>\n";
+        echo "  <div class='panel-body' id='selected_profile_description'></div>\n";
+        echo "</div></div>"; # End of panel
+        echo "<div class='col-md-4 text-right'><button id='profile' class='btn btn-primary btn-md' 
+                         type='button' name='profile_button'>
+                    Select a Profile
+                  </button></div>";
+
+
+        #echo "</div>"; # End of row
     }
     else {
 	echo "<input id='selected_profile' type='hidden'
@@ -296,6 +302,7 @@ function SPITFORM($formfields, $newuser, $errors)
         # Needs more work.
 	echo "<input type='hidden' name='profile' value='$profile'>\n";
     }
+
     if (isset($this_user) && ISADMIN()) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
@@ -312,10 +319,11 @@ function SPITFORM($formfields, $newuser, $errors)
 		   "$am_options</select>");
     }
     echo "</fieldset>
-           <button class='btn btn-success pull-right' id='instantiate_submit'
+           <div class='col-md-6 col-md-offset-3'>
+           <button class='btn btn-success btn-block' id='instantiate_submit'
               type='submit' name='create'>Create!
            </button>
-           <br> 
+           </div>
         </div>
         </div>
         </div>
