@@ -530,18 +530,7 @@ function RedirectLoginPage()
 
 function SpitAboutApt()
 {
-?>
-
-<div class="panel panel-info">
-
-<div class="panel-heading">
-   <h5><a data-toggle="collapse" href="#aboutapt">What is Apt? <span class="glyphicon glyphicon-chevron-right pull-right"></span></a></h5>
-</div>
-
-<div id="aboutapt" class="panel-collapse collapse">
-
-<div class="panel-body">
-
+    SpitCollapsiblePanel("aboutapt","What is Apt?",<<<'ENDBODY'
 <p>
 Apt is a testbed facility built around <em>profiles</em>.
 A profile describes an <em>experiment</em>; when you instantiate a profile,
@@ -576,11 +565,31 @@ Apt is funded by the National Science Foundation under award CNS-1338155 and
 <p>
 For help, bug reports, or other questions, come join the <a href="https://groups.google.com/forum/#!forum/apt-users">Discussion Forum</a>
 </p>
+ENDBODY
+    );
+
+}
+
+function SpitCollapsiblePanel($id, $title, $body) {
+
+?>
+
+<div class="panel panel-info">
+
+<div class="panel-heading">
+<h5><a data-toggle="collapse" href="#<?php echo $id; ?>"><?php echo $title; ?><span class="glyphicon glyphicon-chevron-right pull-right"></span></a></h5>
+</div>
+
+<div id="<?php echo $id; ?>" class="panel-collapse collapse">
+
+<div class="panel-body">
+
+<?php echo $body; ?>
 
 </div> <!-- Panel body -->
 </div> <!-- Collapser -->
 </div> <!-- Panel -->
-<?
+<?php
 }
 
 ?>

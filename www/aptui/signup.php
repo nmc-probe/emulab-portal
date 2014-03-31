@@ -293,21 +293,11 @@ function SPITFORM($formfields, $showverify, $errors)
 # Spit information about Apt accounts
 #
 function SPITABOUTACCT()  {
-?>
-    <div class="panel panel-info">
 
-        <div class="panel-heading">
-           <h5><a data-toggle="collapse" href="#aboutacct">Do I Need An Account? <span class="glyphicon glyphicon-chevron-right pull-right"></span></a></h5>
-         </div>
-
-         <div id="aboutacct" class="panel-collapse collapse">
-
-           <div class="panel-body">
-            <p>Maybe!</p>
-           </div>
-         </div>
-     </div>
-<?php
+    SpitCollapsiblePanel("aboutacct","Do I need an account?",<<<'ENDBODY'
+    <p>Maybe!</p>
+ENDBODY
+    );
 }
 
 if (isset($finished) && $finished) {
