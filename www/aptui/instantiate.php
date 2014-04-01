@@ -271,7 +271,7 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "<div class='form-group row'>";
         echo "<input id='selected_profile' type='hidden' 
                        name='formfields[profile]'/>";
-        echo "<div class='col-md-8'><div class='panel panel-default'>\n";
+        echo "<div class='col-md-12'><div class='panel panel-default'>\n";
         echo "<div class='panel-heading'>
                   <span class='panel-title'><strong>Selected Profile:</strong> 
                   <span id='selected_profile_text'>
@@ -283,15 +283,18 @@ function SPITFORM($formfields, $newuser, $errors)
         }
         echo " </div>\n";
         # Note: Following line is also duplicated above
-        echo "  <div class='panel-body' id='selected_profile_description'></div>\n";
-        echo "</div></div>"; # End of panel
-        echo "<div class='col-md-4 text-right'><button id='profile' class='btn btn-primary btn-md' 
+        echo "<div class='panel-body'>";
+        echo "  <div id='selected_profile_description'></div>\n";
+        echo "</div>";
+        echo "<div class='panel-footer'>";
+        echo "<button id='profile' class='btn btn-primary btn-md pull-right' 
                          type='button' name='profile_button'>
-                    Select a Profile
-                  </button></div>";
+                    Change Profile
+                  </button>";
+        echo "<div class='clearfix'></div>";
+        echo "</div>";
+        echo "</div></div>"; # End of panel
 
-
-        #echo "</div>"; # End of row
     }
     else {
 	echo "<input id='selected_profile' type='hidden'
