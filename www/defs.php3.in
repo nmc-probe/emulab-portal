@@ -145,6 +145,7 @@ $TBEMAILCOOKIE  = "MyEmailCookie" . $TBCOOKIESUFFIX;
 $TBLOGINCOOKIE  = "NewLoginCookie" . $TBCOOKIESUFFIX;
 
 $HTTPTAG        = "http://";
+$HTTPSTAG       = "https://";
 
 $TBMAIL_OPS		= "Testbed Ops <$TBMAILADDR_OPS>";
 $TBMAIL_WWW		= "Testbed WWW <$TBMAILADDR_WWW>";
@@ -474,7 +475,7 @@ function ADDPUBKEY($cmdandargs) {
 # Verify a URL.
 #
 function CHECKURL($url, &$error) {
-    global $HTTPTAG;
+    global $HTTPTAG, $HTTPSTAG;
 
     if (strlen($url)) {
 	if (strstr($url, " ")) {
@@ -482,8 +483,9 @@ function CHECKURL($url, &$error) {
 	    return 0;
 	}
 	
-	if (strcmp($HTTPTAG, substr($url, 0, strlen($HTTPTAG)))) {
-	    $error = "URL is malformed; must begin with $HTTPTAG!";
+	if (strcmp($HTTPTAG, substr($url, 0, strlen($HTTPTAG))) &&
+	    strcmp($HTTPSTAG, substr($url, 0, strlen($HTTPSTAG)))) {
+	    $error = "URL is malformed; must begin with $HTTPTAG or $HTTPSTAG!";
 	    return 0;
 	}
 
