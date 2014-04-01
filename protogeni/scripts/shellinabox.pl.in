@@ -257,7 +257,7 @@ $UID = $EUID;
 # Shove this header out so that we can do cross site xmlrpc.
 print "Access-Control-Allow-Origin: *\n";
 
-my $cmd = "shellinaboxd " . ($debug ? "-d" : "-v") . " " .
+my $cmd = "shellinaboxd --no-beep " . ($debug ? "-d" : "-v") . " " .
     "--certfile=${CERTFILE} --keyfile=${KEYFILE} ".
     "--cgi -c $TB/etc -s '/:$uid:$gid:$where:$command'";
 
