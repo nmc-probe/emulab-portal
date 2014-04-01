@@ -412,10 +412,9 @@ else {
 	"         style='padding-right:20px; border-right: 1px solid #ccc;'>";
 }
 echo "        <h4>Extend for 24 hours</h4>
-                If you want to extend this experiment so that it does
-                not self-terminate at the time shown, just tell us why
-                and we will extend it for another 24 hours.
-		Watch for an email message that says its been done. 
+                If you need to keep these resources for longer,
+                tell us why and we'll extend it for another 24 hours.
+		Watch for a confirmation message via email.
               <form id='extend_request_form' role='form'>
                <div class='row'>
                 <div class='col-lg-12 col-md-12'>
