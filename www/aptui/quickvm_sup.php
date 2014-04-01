@@ -128,21 +128,30 @@ function SPITHEADER($thinheader = 0)
 	echo "<li id='loginstatus' class='apt-left'>".
 	    ($login_user ? "<p class='navbar-text'>$login_uid logged in</p>" : "") . "</li>\n";
 
-	if (!NOLOGINS() && !$login_user) {
-	    echo "<li id='signupitem' class='apt-left'>" .
-                    "<form><a class='btn btn-primary navbar-btn'
-                           id='signupbutton'
-                           href='signup.php'>
-                        Sign Up</a></form></li>
-                  \n";
-	    echo "<li id='loginitem' class='apt-left'>" .
-                    "<form><a class='btn btn-primary navbar-btn'
-                           id='loginbutton'
-	                   data-toggle='modal'
-                           href='#quickvm_login_modal'
-                           data-target='#quickvm_login_modal'>
-                        Login</a></form></li>
-                  \n";
+	if (!NOLOGINS()) {
+	    if (!$login_user) {
+		echo "<li id='signupitem' class='apt-left'>" .
+                        "<form><a class='btn btn-primary navbar-btn'
+                                id='signupbutton'
+                                href='signup.php'>
+                              Sign Up</a></form></li>
+                     \n";
+		echo "<li id='loginitem' class='apt-left'>" .
+		         "<form><a class='btn btn-primary navbar-btn'
+                              id='loginbutton'
+	                      data-toggle='modal'
+                              href='#quickvm_login_modal'
+                              data-target='#quickvm_login_modal'>
+                            Login</a></form></li>
+                      \n";
+	    }
+	    else {
+		echo "<li class='apt-left'>" .
+		         "<form><a class='btn btn-primary navbar-btn'
+                              href='logout.php'>
+                            Logout</a></form></li>
+                      \n";
+	    }
 	}
     }
     echo "   </ul>
