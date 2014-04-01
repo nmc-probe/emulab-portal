@@ -83,12 +83,11 @@ body {
 
 #footer a {
   height: 1.0em;
-  color: #fff;
+  color: #ddd;
 }
 
 #footer a:hover {
-  height: 1.0em;
-  color: #ccc;
+  color: #fff;
 }
 
 #footer #elabpower {
