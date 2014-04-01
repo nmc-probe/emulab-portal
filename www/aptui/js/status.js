@@ -106,7 +106,7 @@ function ($, sup, moment)
 	    
 	    if (status == 'provisioned') {
 		$("#quickvm_progress_bar").width("66%");
-		status_html = "booted";
+		status_html = "booting";
 	    }
 	    else if (status == 'ready') {
 		bgtype = "bg-success";

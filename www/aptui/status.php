@@ -225,8 +225,8 @@ elseif ($instance_status == "created") {
     $spinwidth = "33";
 }
 elseif ($instance_status == "provisioned") {
-    # Rob prefers booted.
-    $instance_status = "booted"; 
+    # Rob prefers booting.
+    $instance_status = "booting"; 
     $spinwidth = "66";
 }
 
@@ -280,10 +280,12 @@ echo "<td class='uk-width-4-5' $style>
 echo "</tr>\n";
 echo "</table>\n";
 echo "<div class='pull-right'>\n";
+if (0) {
 echo "  <a class='btn btn-xs btn-primary' $disabled
            id='snapshot_button' type=button
 	   href='manage_profile.php?action=snapshot&snapuuid=$uuid'>
            Snapshot</a>\n";
+}
 echo "  <button class='btn btn-xs btn-success' $disabled
            id='extend_button' type=button
 	   data-toggle='modal' data-target='#extend_modal'>
