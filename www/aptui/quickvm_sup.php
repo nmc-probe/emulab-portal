@@ -128,16 +128,14 @@ function SPITHEADER($thinheader = 0)
 	echo "<li id='loginstatus' class='apt-left'>".
 	    ($login_user ? "<p class='navbar-text'>$login_uid logged in</p>" : "") . "</li>\n";
 
-	if (!NOLOGINS()) {
-	    echo "<li id='signupitem' class='apt-left'" .
-		($login_user ? "class='hidden'" : "") . ">" .
+	if (!NOLOGINS() && !$login_user) {
+	    echo "<li id='signupitem' class='apt-left'>" .
                     "<form><a class='btn btn-primary navbar-btn'
                            id='signupbutton'
                            href='signup.php'>
                         Sign Up</a></form></li>
                   \n";
-	    echo "<li id='loginitem' class='apt-left'" .
-		($login_user ? "class='hidden'" : "") . ">" .
+	    echo "<li id='loginitem' class='apt-left'>" .
                     "<form><a class='btn btn-primary navbar-btn'
                            id='loginbutton'
 	                   data-toggle='modal'
