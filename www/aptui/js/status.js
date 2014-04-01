@@ -497,11 +497,12 @@ function ($, sup, moment)
 		    var host   = login.attr("hostname");
 		    var port   = login.attr("port");
 		    var url    = "ssh://" + user + "@" + host + ":" + port +"/";
-		    href       = "<a href='" + url + "'>" + url + "</a>";
+		    var sshcmd = "ssh -p " + port + " " + user + "@" + host;
+		    href       = "<a href='" + url + "'><kbd>" + sshcmd + "</kbd></a>";
 		    console.info(url);
 		
 		    var hostport  = host + ":" + port;
-		    ssh = "<button class='btn btn-primary btn-xs' " +
+		    ssh = "<button class='btn btn-primary btn-sm' " +
 			"    id='" + "sshbutton_" + node + "' " +
 			"    type='button'>" +
 			"   <span class='glyphicon glyphicon-log-in'><span>" +

@@ -342,7 +342,7 @@ echo "  <ul id='quicktabs' class='nav nav-tabs'>
                   <tr>
                     <th>Node</th>
                     <th>Shell (in-browser)</th>
-                    <th>SSH URL <small>(if you provided your own key)</small>
+                    <th>SSH command <small>(if you provided your own key)</small>
                      </th>
                   </tr>
                 </thead>
