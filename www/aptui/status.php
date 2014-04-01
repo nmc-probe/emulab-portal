@@ -202,6 +202,7 @@ $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
 $profile         = Profile::Lookup($instance->profile_idx());
 $profile_name    = $profile->name();
+$profile_idx     = $profile->idx();
 $color           = "";
 $bgtype          = "bg-info";
 $statustext      = "Please wait while we get your experiment ready";
@@ -224,6 +225,8 @@ elseif ($instance_status == "created") {
     $spinwidth = "33";
 }
 elseif ($instance_status == "provisioned") {
+    # Rob prefers booted.
+    $instance_status = "booted"; 
     $spinwidth = "66";
 }
 
@@ -277,6 +280,10 @@ echo "<td class='uk-width-4-5' $style>
 echo "</tr>\n";
 echo "</table>\n";
 echo "<div class='pull-right'>\n";
+echo "  <a class='btn btn-xs btn-primary' $disabled
+           id='snapshot_button' type=button
+	   href='manage_profile.php?action=snapshot&snapuuid=$uuid'>
+           Snapshot</a>\n";
 echo "  <button class='btn btn-xs btn-success' $disabled
            id='extend_button' type=button
 	   data-toggle='modal' data-target='#extend_modal'>

@@ -35,10 +35,5 @@ window.APT_OPTIONS.config = function ()
 
 window.APT_OPTIONS.initialize = function (sup)
 {
-    if (window.APT_OPTIONS.isNewUser)
-    {
-	sup.ShowModal('#verify_modal');
-    }
-
     $('body').show();
 }

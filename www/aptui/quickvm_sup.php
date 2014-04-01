@@ -23,6 +23,7 @@
 #
 $APTHOST	= "$WWWHOST";
 $APTBASE	= "$TBBASE/apt";
+$APTMAIL        = $TBMAIL_OPS;
 
 #
 # Global flag to disable accounts. We do this on some pages which
@@ -42,6 +43,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTHOST      = "www.aptlab.net";
     $WWWHOST      = "www.aptlab.net";
     $APTBASE      = "https://www.aptlab.net";
+    $APTMAIL      = "APT Operations <testbed-ops@aptlab.net>";
 }
 
 #
@@ -275,6 +277,7 @@ function SpitVerifyModal($id, $label)
                        </div>
                        <div class='form-group'>
                         <button class='btn btn-primary form-control'
+                            id='verify_modal_submit'
                             type='submit' name='create'>
                             $label</button>
                        </div>

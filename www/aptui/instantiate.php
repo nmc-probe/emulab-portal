@@ -157,7 +157,7 @@ while ($row = mysql_fetch_array($query_result)) {
 
 function SPITFORM($formfields, $newuser, $errors)
 {
-    global $TBBASE, $TBMAIL_OPS;
+    global $TBBASE, $APTMAIL;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
 
     # XSS prevention.
@@ -346,7 +346,7 @@ function SPITFORM($formfields, $newuser, $errors)
 		 "Here is your user verification code. Please copy and\n".
 		 "paste this code into the box on the experiment page.\n\n".
 		 "      $stuffing\n",
-		 "From: $TBMAIL_OPS");
+		 "From: $APTMAIL");
 	    echo "<input type='hidden' name='stuffing' value='$stuffing' />";
 	}
     }

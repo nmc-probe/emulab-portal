@@ -506,7 +506,7 @@ if (!$this_user) {
 		 "Here is your user verification code. Please copy and\n".
 		 "paste this code into the box on the account page.\n\n".
 		 "\t" . $_SESSION["verify_key"] . "\n",
-		 "From: $TBMAIL_OPS");
+		 "From: $APTMAIL");
 	
 	    #
             # Respit complete form but show the verify email modal.

@@ -11,6 +11,14 @@ function ($, sup)
     {
 	window.APT_OPTIONS.initialize(sup);
 
+	if (window.APT_OPTIONS.isNewUser) {
+	    $('#verify_modal_submit').click(function (event) {
+		sup.HideModal('#verify_modal');
+		sup.ShowModal("#waitwait");
+		return true;
+	    });
+	    sup.ShowModal('#verify_modal');
+	}
         $('#quickvm_topomodal').on('hidden.bs.modal', function() {
             ShowProfileList($('.current'))
         });
@@ -36,8 +44,6 @@ function ($, sup)
 	    sup.ShowModal("#waitwait");
 	    return true;
 	});
-	
-
         UpdateProfileSelection($('#profile_name li[value = ' +
 				 window.PROFILE + ']'));
     }
