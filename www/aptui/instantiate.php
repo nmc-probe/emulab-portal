@@ -217,9 +217,12 @@ function SPITFORM($formfields, $newuser, $errors)
     # If linked to a specific profile, description goes here
     #
     if ($profile) {
+        echo "  <p>Fill out the form below to run an experiment using this profile:</p>\n";
         # Note: Following line is also duplicated below
-        echo "  <span class='' style='display: inline-block; margin-bottom: 10px'
-                      id='selected_profile_description'></span>\n";
+        echo "  <blockquote><p><span id='selected_profile_description'></span></p></blockquote>\n";
+        echo "  <p>When you click the &quot;Create&quot; button, the virtual or
+                   physical machines described in the profile will be booted
+                   on Apt's hardware<p>\n";
     }
 
     echo "   <fieldset>\n";
