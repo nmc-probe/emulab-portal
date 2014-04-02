@@ -326,6 +326,23 @@ sub CheckFirewall($$)
 	return undef;
     }
     foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	my @routable_control_ip =
+	    GeniXML::FindNodesNS("n:routable_control_ip",
+				 $ref,
+				 $GeniXML::EMULAB_NS)->get_nodelist();
+	my $virtualization_type = GeniXML::GetVirtualizationSubtype($ref);
+	#
+	# If a XEN container but not a routable IP, then use the basic
+	# rules instead of closed, so that ssh is allowed in on the
+	# alternate port. That is the only real difference between basic
+	# and closed.
+	#
+	my $style = "closed";
+	if (defined($virtualization_type) &&
+	    $virtualization_type eq "emulab-xen" && !@routable_control_ip) {
+	    $style = "basic";
+	}
+	
 	if ($condomize) {
 	    #
 	    # No settings is easy; wrap it tight.
@@ -333,7 +350,7 @@ sub CheckFirewall($$)
 	    if (!GeniXML::HasFirewallSettings($ref)) {
 		my $firewall = GeniXML::AddElement("firewall", $ref,
 						   $GeniXML::EMULAB_NS);
-		GeniXML::SetText("style", $firewall, "closed");
+		GeniXML::SetText("style", $firewall, $style);
 		next;
 	    }
 	    #
@@ -343,7 +360,7 @@ sub CheckFirewall($$)
 						$GeniXML::EMULAB_NS)->pop();
 	    my $style = GeniXML::GetText("style", $settings);
 	    if (!defined($style) || $style ne "basic" || $style ne "closed") {
-		GeniXML::SetText("style", $settings, "closed");
+		GeniXML::SetText("style", $settings, $style);
 	    }
 	}
 	#
