@@ -142,6 +142,13 @@ function ($, sup)
 	    $('#renderer_modal_div').html(marked(text));
 	    sup.ShowModal("#renderer_modal");
 	});
+	// Ditto the description.
+	$('#profile_description').dblclick(function() {
+	    var text = $(this).val();
+	    var marked = require("marked");
+	    $('#renderer_modal_div').html(marked(text));
+	    sup.ShowModal("#renderer_modal");
+	});
 
 	/*
 	 * If editing, need to suck the description and instructions
@@ -246,31 +253,33 @@ function ($, sup)
 	var sub   = $(tour).find("steps");
 	$(sub).remove();
 	xml = AddTourSubSection(xml, "steps");
-	
-	// Get all data rows from the steps tab;e
-	var data = $('#profile_steps').appendGrid('getAllValue');
 
-	// And create each step.
-	for (var i = 0; i < data.length; i++) {
-	    var desc = data[i].Description;
-	    var id   = data[i].ID;
-	    var type = data[i].Type;
+	if ($('#profile_steps').appendGrid('getRowCount')) {
+	    // Get all data rows from the steps table
+	    var data = $('#profile_steps').appendGrid('getAllValue');
 
-	    // Skip completely empty rows.
-	    if (desc == "" && id == "" && type == "") {
-		continue;
+	    // And create each step.
+	    for (var i = 0; i < data.length; i++) {
+		var desc = data[i].Description;
+		var id   = data[i].ID;
+		var type = data[i].Type;
+
+		// Skip completely empty rows.
+		if (desc == "" && id == "" && type == "") {
+		    continue;
+		}
+		// But error on partially empty rows.
+		if (desc == "" || id == "" || type == "") {
+		    alert("Partial step data in step " + i);
+		    return -1;
+		}
+		var newdoc = $.parseXML('<step point_type="' + type + '" ' +
+					'point_id="' + id + '">' +
+					'<description type="text">' + desc +
+					'</description>' +
+					'</step>');
+		$(tour).find("steps").append($(newdoc).find("step"));
 	    }
-	    // But error on partially empty rows.
-	    if (desc == "" || id == "" || type == "") {
-		alert("Partial step data in step " + i);
-		return -1;
-	    }
-	    var newdoc = $.parseXML('<step point_type="' + type + '" ' +
-				    'point_id="' + id + '">' +
-				    '<description type="text">' + desc +
-				    '</description>' +
-				    '</step>');
-	    $(tour).find("steps").append($(newdoc).find("step"));
 	}
 	// Write it back to the text area.
 	var s = new XMLSerializer();
@@ -304,7 +313,7 @@ function ($, sup)
 	    var text;
 	    
 	    if (which == "description") {
-		text = "<description type='text'></description>";
+		text = "<description type='markdown'></description>";
 	    }
 	    else if (which == "description") {
 		text = "<instructions type='markdown'></instructions>";

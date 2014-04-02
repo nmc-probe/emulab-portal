@@ -2,7 +2,7 @@ window.APT_OPTIONS.config();
 
 require(['jquery', 'js/quickvm_sup',
 	 // jQuery modules
-	 'bootstrap', 'formhelpers', 'filestyle'],
+	 'bootstrap', 'formhelpers', 'filestyle', 'marked'],
 function ($, sup)
 {
     'use strict';
@@ -102,7 +102,8 @@ function ($, sup)
 	    var description = null;
 	    $(xml).find("rspec_tour").each(function() {
 		$(this).find("description").each(function() {
-		    description = $(this).text();
+		    var marked = require("marked");
+		    description = marked($(this).text());
 		});
 	    });
 	    if (!description) {
