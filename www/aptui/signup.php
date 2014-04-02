@@ -303,6 +303,8 @@ function SPITABOUTACCT()  {
     a larger set of profiles, can hold resources for longer, may request larger 
     virtual machines and bare metal machines, and more. You will also need an 
     account if you want to create profiles of your own.</p>
+    <p>If you already have an account on Emulab.net, you may log in using
+    that same acount on Aptlab.net.</p>
 ENDBODY
     );
 }
