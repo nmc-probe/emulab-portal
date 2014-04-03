@@ -23,6 +23,8 @@ USE_GMAKE=	YES
 
 CONFIGURE_ARGS+=--without-tcpwrappers
 
+NO_STAGE=	yes
+
 # for now only install the daemon
 INSTALL_WRKSRC=	${WRKSRC}/tftpd
 

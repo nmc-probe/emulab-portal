@@ -90,9 +90,15 @@ RUN_DEPENDS=	\
 	mysqlhotcopy:${PORTSDIR}/databases/mysql50-scripts
 
 .if ${PORTVERSION} == "1.2"
+.if ${OSMAJOR} >= 10
+# the egg is dead, long live the egg!
+RUN_DEPENDS+=	\
+	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/misc/emulab-py-m2crypto-noegg
+.else
 # must handle patching of m2crypto when the port is built
 RUN_DEPENDS+=	\
 	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/misc/emulab-py-m2crypto
+.endif
 .else
 # for older version we can patch the standard m2crypto once installed
 RUN_DEPENDS+=	\
@@ -118,4 +124,5 @@ NO_BUILD=	yes
 
 do-install:	# empty
 
+NO_STAGE=	yes
 .include <bsd.port.mk>

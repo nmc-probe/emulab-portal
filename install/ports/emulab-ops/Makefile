@@ -28,7 +28,9 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 # We must make sure PERL is built with this.
 #
 .MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if ${PORTVERSION} == "5.1"
+.if ${PORTVERSION} == "6.0"
+.MAKEFLAGS+=	PERL_VERSION=5.14.4 PERL_VER=5.14 PERL_ARCH=mach
+.elif ${PORTVERSION} == "5.1"
 .MAKEFLAGS+=	PERL_VERSION=5.12.5 PERL_VER=5.12 PERL_ARCH=mach
 .elif ${PORTVERSION} == "5.0"
 .MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
@@ -56,7 +58,7 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 # agrees with what is in the emulab-ops and emulab-php* metaports.
 #
 .MAKEFLAGS+=	-DWITH_APACHE
-.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1")
+.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 .MAKEFLAGS+=	APACHE_PORT=www/apache22
 .MAKEFLAGS+=	WITH_SUEXEC=yes
 .else
@@ -87,7 +89,7 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 BUILD_DEPENDS=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql${MYSQL_VER}
 .elif (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-       ${PORTVERSION} == "5.1")
+       ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 # back to a standard p5-DBD-mysql${MYSQL_VER} install
 BUILD_DEPENDS=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/DBD/mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql${MYSQL_VER} \
@@ -147,7 +149,7 @@ RUN_DEPENDS+= ${LOCALBASE}/libexec/elvind:${PORTSDIR}/misc/elvind
 
 # apache related ports
 .if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-       ${PORTVERSION} == "5.1")
+       ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
 	${LOCALBASE}/libexec/apache22/mod_ssl.so:${PORTSDIR}/${APACHE_PORT} \
 	${LOCALBASE}/libexec/apache22/mod_fastcgi.so:${PORTSDIR}/www/mod_fastcgi
@@ -158,7 +160,11 @@ RUN_DEPENDS+=	\
 .endif
 
 # m2crypto port
-.if (${PORTVERSION} == "3.0" || ${PORTVERSION} == "3.1" || \
+.if ${PORTVERSION} == "6.0"
+# the egg is dead, long live the egg!
+RUN_DEPENDS+=	\
+	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/misc/emulab-py-m2crypto-noegg
+.elif (${PORTVERSION} == "3.0" || ${PORTVERSION} == "3.1" || \
      ${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
      ${PORTVERSION} == "5.1")
 # must handle patching of m2crypto when the port is built
@@ -174,13 +180,19 @@ RUN_DEPENDS+=	\
 
 # misc. old vs. new port stuff
 .if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1")
+     ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
 	autoconf:${PORTSDIR}/devel/autoconf \
 	libtool:${PORTSDIR}/devel/libtool
 .else
 RUN_DEPENDS+=	\
 	autoconf-2.13:${PORTSDIR}/devel/autoconf213
+.endif
+
+.if ${OSMAJOR} >= 10
+# include GCC for now to build Emulab SW (nsverify)
+RUN_DEPENDS+= \
+	${LOCALBASE}/bin/gcc46:${PORTSDIR}/lang/gcc46
 .endif
 
 .if ${OSMAJOR} >= 6
@@ -213,4 +225,5 @@ USE_PERL5=	yes
 
 do-install:	# empty
 
+NO_STAGE=	yes
 .include <bsd.port.mk>

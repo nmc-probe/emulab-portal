@@ -14,14 +14,12 @@ sub Install($$$)
 	if ($isupdate);
 
     Phase "ports", "Installing ports", sub {
-	if (!ExecQuiet("$PKG_INFO -e $FS_PORT")) {
-	    PhaseSkip("Ports already installed");
-	}
+	DoneIfPackageInstalled($FS_PORT, 1);
 	Phase "packages", "Installing packages", sub {
 	    if (!$packagedir) {
 		PhaseSkip("No package directory provided");
 	    }
-	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $FS_PORT");
+	    AddPackage($FS_PORT, $packagedir);
 	};
 	PhaseSkip("Package directory provided; not installing from sources")
 	    if ($packagedir);

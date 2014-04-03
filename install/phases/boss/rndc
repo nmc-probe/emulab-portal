@@ -17,8 +17,8 @@ sub Install($$$)
 	my $RNDC_KEY     = "/etc/namedb/rndc.key";
 	my $RNDC_CONFGEN = "/usr/sbin/rndc-confgen";
 
-	# Bind9 port prior to FreeBSD6
-	if ($FBSD_MAJOR < 6) {
+	# Bind9 was a port prior to FreeBSD6 and again after FreeBSD9!
+	if (! -x $RNDC_CONFGEN) {
 	    $RNDC_KEY     = "/usr/local/etc/rndc.key";
 	    $RNDC_CONFGEN = "/usr/local/sbin/rndc-confgen";
 	}

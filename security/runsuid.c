@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012 University of Utah and the Flux Group.
+ * Copyright (c) 2012-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -37,6 +37,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <assert.h>
 #include <sys/param.h>

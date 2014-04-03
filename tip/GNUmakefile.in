@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -44,7 +44,7 @@ ifneq ($(wildcard /usr/kerberos/bin/krb5-config),)
 endif
 endif
 
-CC = gcc -g -O2 -DUSESOCKETS -I$(TESTBED_SRCDIR)/capture -I$(OBJDIR)
+CFLAGS = -g -O2 -DUSESOCKETS -I$(TESTBED_SRCDIR)/capture -I$(OBJDIR)
 
 OBJS = cmds.o cmdtab.o hunt.o partab.o \
        remote.o tip.o value.o vars.o getcap.o
@@ -57,30 +57,30 @@ TUNNELOBJS = tiptunnel.o
 LIBS=
 
 tip.old:	$(OBJS)
-	$(CC) $(LDSTATIC) -o tip $(OBJS) $(LIBS)
+	$(CC) $(CFLAGS) $(LDSTATIC) -o tip $(OBJS) $(LIBS)
 
 tip:	$(TESTBED_SRCDIR)/tip/tip.deprecation
 	cp $(TESTBED_SRCDIR)/tip/tip.deprecation tip
 
 tiptunnel.o: tiptunnel.c $(TESTBED_SRCDIR)/capture/capdecls.h
-	$(CC) $(SSLFLAGS) -o tiptunnel.o -c $<
+	$(CC) $(CFLAGS) $(SSLFLAGS) -o tiptunnel.o -c $<
 
 tiptunnel: tiptunnel.o
-	$(CC) $(LDSTATIC) -o tiptunnel tiptunnel.o $(SSLLIBS)
+	$(CC) $(CFLAGS) $(LDSTATIC) -o tiptunnel tiptunnel.o $(SSLLIBS)
 
 # 'console' is tiptunnel, without SSL, and with localmode on by default.
 
 console.bin.o: tiptunnel.c $(TESTBED_SRCDIR)/capture/capdecls.h
-	$(CC) -DLOCALBYDEFAULT -o console.bin.o -c $<
+	$(CC) $(CFLAGS) -DLOCALBYDEFAULT -o console.bin.o -c $<
 
 console.bin: console.bin.o
-	$(CC) -o console.bin console.bin.o
+	$(CC) $(CFLAGS) -o console.bin console.bin.o
 
 tippty.o: tiptunnel.c $(TESTBED_SRCDIR)/capture/capdecls.h
-	$(CC) -DTIPPTY -o $@ -c $<
+	$(CC) $(CFLAGS) -DTIPPTY -o $@ -c $<
 
 tippty: tippty.o
-	$(CC) -o $@ $< $(PTYLIBS)
+	$(CC) $(CFLAGS) -o $@ $< $(PTYLIBS)
 
 $(OBJS): tipconf.h tip.h
 

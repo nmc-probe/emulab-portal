@@ -37,6 +37,7 @@ UNIQUENAME=	${PKGNAMEPREFIX}${PORTNAME}${PKGNAMESUFFIX}
 # PORTREVISION handling
 DHCP_PORTREVISION=	${PORTREVISION_CLIENT}
 
+NO_STAGE=	yes
 .include <bsd.port.pre.mk>
 
 # Global variables

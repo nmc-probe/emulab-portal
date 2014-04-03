@@ -24,6 +24,10 @@ LIB_DEPENDS=	snmp.4:${PORTSDIR}/misc/net-snmp4
 WRKSRC=		${WRKDIR}/${DISTNAME}/perl/SNMP
 
 PERL_CONFIGURE=	yes
+USES=		perl5
+USE_PERL5=	configure
+
+NO_STAGE=	yes
 
 post-install:
 		@${INSTALL_DATA} ${WRKSRC}/README \

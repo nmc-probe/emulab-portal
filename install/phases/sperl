@@ -1,5 +1,5 @@
 #
-# Check that perl is installed properly.
+# Check that suidperl is installed properly.
 #
 use strict;
 use libinstall;
@@ -28,8 +28,16 @@ sub Install($$$)
 		}
 	    }
 	}
+	#
+	# If perl is not installed, skip this
+	#
+	else {
+	    PhaseSkip("Perl is not installed!");
+	}
+
 	Phase "sperl", "Checking for sperl", sub {
-	    if (ExecQuiet("$PKG_INFO -L -x perl-5 | fgrep -q -s sperl") == 0) {
+	    # XXX old school pkg tools, anything newer won't have suid perl
+	    if (ExecQuiet("pkg_info -L -x perl-5 | fgrep -q -s sperl") == 0) {
 		PhaseSkip("Perl is okay");
 	    }
 	    PhaseFail("setuid perl is not set up properly. Read the wiki!");

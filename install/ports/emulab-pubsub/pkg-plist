@@ -1,4 +1,5 @@
 libexec/pubsubd
+libexec/clusterd
 include/pubsub/pubsub.h
 include/pubsub/elvin_hash.h
 lib/libpubsub.a

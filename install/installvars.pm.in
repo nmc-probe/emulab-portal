@@ -64,7 +64,11 @@ $BOSS_PORT = "emulab-boss-1.8";
 $OPS_PORT  = "emulab-ops-1.4"; 
 $FS_PORT   = "emulab-fs-1.4";
 if ($FBSD_MAJOR > 4) {
-    if ($FBSD_MAJOR > 9 || ($FBSD_MAJOR == 9 && $FBSD_MINOR > 1)) {
+    if ($FBSD_MAJOR > 9) {
+	$BOSS_PORT = "emulab-boss-6.0";
+	$OPS_PORT = "emulab-ops-6.0";
+	$FS_PORT = "emulab-fs-6.0";
+    } elsif ($FBSD_MAJOR == 9 && $FBSD_MINOR > 1) {
 	$BOSS_PORT = "emulab-boss-5.1";
 	$OPS_PORT = "emulab-ops-5.1";
 	$FS_PORT = "emulab-fs-5.1";
@@ -129,7 +133,10 @@ $SELFLOAD_PATCH		= "$main::TOP_SRCDIR/patches/SelfLoader.patch";
 #
 $PYM2_PKG = "py25-m2crypto-0.19.1";
 $PY_VER   = "python2.5";
-if ($FBSD_MAJOR > 8 || ($FBSD_MAJOR == 8 && $FBSD_MINOR > 2)) {
+if ($FBSD_MAJOR > 9) {
+    $PYM2_PKG = "py27-m2crypto-0.21.1_1";
+    $PY_VER = "python2.7";
+} elsif ($FBSD_MAJOR > 8 || ($FBSD_MAJOR == 8 && $FBSD_MINOR > 2)) {
     $PYM2_PKG = "py27-m2crypto-0.21.1";
     $PY_VER = "python2.7";
 } elsif ($FBSD_MAJOR > 7 || ($FBSD_MAJOR == 7 && $FBSD_MINOR > 2)) {
@@ -211,9 +218,6 @@ $PATCH			= "/usr/bin/patch";
 $CAT			= "/bin/cat";
 $NEWALIASES		= "/usr/bin/newaliases";
 $SH			= "/bin/sh";
-$PKG_ADD		= "/usr/sbin/pkg_add";
-$PKG_DEL		= "/usr/sbin/pkg_delete";
-$PKG_INFO		= "/usr/sbin/pkg_info";
 $PWD			= "/bin/pwd";
 $CP			= "/bin/cp";
 $MV			= "/bin/mv";
@@ -266,7 +270,6 @@ $RCLOCAL		= "/etc/rc.local";
 $PHP_INI		= "/usr/local/etc/php.ini";
 $SENDMAIL_CF		= "/etc/mail/sendmail.cf";
 $INETD_CONF		= "/etc/inetd.conf";
-$NAMED_PIDFILE		= "$VARRUN/named.pid";
 $ETCSSH			= "/etc/ssh";
 $SSH_CONFIG	        = "$ETCSSH/ssh_config";
 $LOADER_CONF		= "/boot/loader.conf";

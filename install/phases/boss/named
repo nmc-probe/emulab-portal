@@ -31,8 +31,16 @@ sub Install($$$)
 
 	if (!$isupdate) {
 	    # Starting at 6.0 we use the default version of bind, not the port.
-	    my $named_control = ($FBSD_MAJOR < 6 ?
-				 "$RCDIR/1.named.sh" : "/etc/rc.d/named");
+	    # Starting at 10.0 we are back to a port!
+	    my $named_control = "/etc/rc.d/named";
+	    if ($FBSD_MAJOR < 6 && -e "$RCDIR/1.named.sh") {
+		$named_control = "$RCDIR/1.named.sh";
+	    } elsif ($FBSD_MAJOR >= 10 && -e "/usr/local/etc/rc.d/named") {
+		$named_control = "/usr/local/etc/rc.d/named";
+		if (-e "/etc/rc.d/named") {
+		    rename("/etc/rc.d/named", "/etc/rc.d/.named.NOPE");
+		}
+	    }
 	    
 	    Phase "stopping", "Stopping named", sub {
 		if (ExecQuiet("killall -s named")) {
@@ -53,11 +61,15 @@ sub Install($$$)
 		# script.
 		#
 		if ($FBSD_MAJOR >= 6) {
-		    unlink($NAMED_PIDFILE)
-			if ( -e "$NAMED_PIDFILE");
-		    if (ExecQuiet("$named_control start") &&
-			! -e "$NAMED_PIDFILE") {
-			PhaseFail("Unable to start named: ");
+		    my $pf1 = "$VARRUN/named.pid";
+		    my $pf2 = "$VARRUN/named/named.pid";
+		    unlink($pf1, $pf2);
+		    if (ExecQuiet("$named_control start")) {
+			PhaseFail("Unable to start named");
+		    }
+		    sleep 1;
+		    if (! -e $pf1 && ! -e $pf2) {
+			PhaseFail("Unable to start named");
 		    }
 		} else {
 		    ExecQuietFatal("$named_control start");

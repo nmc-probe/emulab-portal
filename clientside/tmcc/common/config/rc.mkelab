@@ -285,7 +285,7 @@ my %emulabconfig = (
 
 # Version of FreeBSD.
 my $FBSD_VERSION = 4;
-if (`uname -r` =~ /^(\d\.\d*)/) {
+if (`uname -r` =~ /^(\d+\.\d*)/) {
     $FBSD_VERSION = $1;
 }
 else {
@@ -352,6 +352,8 @@ sub RecreateDir($$);
 sub CreateOpsJail($);
 sub SetupOpsJail();
 sub FindExtraFSConfig($);
+sub AddPackage($$$);
+sub DelPackage($@);
 
 #
 # Boot Action.
@@ -624,7 +626,7 @@ sub doboot()
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-5.0";
 	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-9.0-packages.tar.gz";
 	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-3.0";
-    } elsif ($FBSD_VERSION >= 9.2) {
+    } elsif ($FBSD_VERSION >= 9.2 && $FBSD_VERSION < 10.0) {
 	my $suf = ($FBSD_ARCH eq "amd64") ? "-64" : "";
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/9.2/packages${suf}";
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
@@ -634,19 +636,39 @@ sub doboot()
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-5.1";
 	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-9.2-packages${suf}.tar.gz";
 	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-3.1";
+    } elsif ($FBSD_VERSION >= 10.0) {
+	my $suf = ($FBSD_ARCH eq "amd64") ? "-64" : "";
+	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/10.0/packages${suf}";
+	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{FS_PKG}       = "emulab-fs-6.0";
+	$emulabconfig{OPS_PKG}      = "emulab-ops-6.0";
+	$emulabconfig{BOSS_PKG}     = "emulab-boss-6.0";
+	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-10.0-packages${suf}.tar.gz";
+	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-4.0";
     }
+    #
+    # If there is a package tarball, prefer that and grab it now.
+    # XXX note that we do not download into $TBDIR, it gets moved later.
+    #
     if (exists($emulabconfig{"PACKAGE_TARBALL"})) {
 	$emulabconfig{FS_PKG_DIR}   = "$TBDIR/packages";
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
 
-	#
-	# Grab the package tarball now.
-	# XXX note that we do not download into $TBDIR, it gets moved later.
-	#
 	mysystem("fetch -q -o /usr/packages.tar.gz ".
 		 "'http://${bossname}/downloads/" .
 		 $emulabconfig{PACKAGE_TARBALL} . "'");
+    }
+    #
+    # Otherwise, make sure the NFS-mounted package directories exist.
+    #
+    else {
+	if (! -e $emulabconfig{"BOSS_PKG_DIR"} ||
+	    ! -e $emulabconfig{"OPS_PKG_DIR"} ||
+	    ! -e $emulabconfig{"FS_PKG_DIR"}) {
+	    SetupFatal("Could not locate boss/ops/fs packages");
+	}
     }
 
     #
@@ -685,9 +707,9 @@ sub doboot()
     mysystem("echo '$passhash' | /usr/sbin/pw usermod toor -H 0");
     mysystem("echo '$passhash' | /usr/sbin/pw usermod root -H 0");
 
-    if (!$opsjail) {
+    if (!exists($emulabconfig{PACKAGE_TARBALL})) {
 	#
-	# XXX To avoid NFS errors while copying goo from outer boss.
+	# XXX To avoid NFS errors while copying goo from outer FS.
 	#
 	system("sysctl vfs.nfs.eacces_retry_enable=1 >/dev/null 2>&1");    
 	system("sysctl vfs.nfs.eacces_retry_count=20 >/dev/null 2>&1");
@@ -976,8 +998,7 @@ sub SetupFsNode()
 
 	print "Installing the fs metaport.\n";
 	RecreateDir("/usr/ports", 1);
-	$ENV{"PKG_PATH"} = $emulabconfig{FS_PKG_DIR};
-	mysystem("pkg_add $emulabconfig{FS_PKG} >/tmp/perrs 2>&1");
+	AddPackage($emulabconfig{FS_PKG}, $emulabconfig{FS_PKG_DIR}, 0);
     }
 
     #
@@ -1487,29 +1508,31 @@ sub SetupOpsNode($)
 	
 	print "Removing conflicting packages.\n";
 	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
-	system("pkg_delete -r -x mysql-client")
+	DelPackage(1, "mysql-client")
 	    if (-e "/usr/local/bin/mysql");
+	DelPackage(0, "emacs")
+	    if (-e "$pdir/emacs-23");
+    
+	# XXX 8.2+ images have rpm-3 installed
+	if ($FBSD_VERSION >= 8.2) {
+	    DelPackage(0, "rpm-3");
+	}
 
-	if (-e "$pdir/emacs-23") {
-	    system("pkg_delete -f -x emacs");
+	# XXX 10.x images have py-distribute installed
+	if ($FBSD_VERSION == 10.0) {
+	    DelPackage(0, "py27-distribute");
 	}
-    
-	# XXX 8.x images have rpm-3 installed
-	if ($FBSD_VERSION == 8.2 || $FBSD_VERSION == 8.3) {
-	    system("pkg_delete -f -x rpm-3");
-	}
-    
+
 	# XXX 7.3 image is out of sync right now
 	if ($FBSD_VERSION == 7.3) {
-	    system("pkg_delete -f -x python25 -x py25");
-	    system("pkg_delete -f -x sudo -x png -x tiff");
-	    system("pkg_delete -f -x git -x rpm -x p5-libwww");
+	    DelPackage(0, "python25", "py25",
+		       "sudo", "png", "tiff",
+		       "git", "rpm", "p5-libwww");
 	}
 
 	print "Installing the ops metaport.\n";
 	RecreateDir("/usr/ports", 1);
-	$ENV{"PKG_PATH"} = $emulabconfig{OPS_PKG_DIR};
-	mysystem("pkg_add $emulabconfig{OPS_PKG} >/tmp/perrs 2>&1");
+	AddPackage($emulabconfig{OPS_PKG}, $emulabconfig{OPS_PKG_DIR}, 0);
 
 	if ($isfs) {
 	    # XXX if not set, derive from the OPS info
@@ -1517,11 +1540,11 @@ sub SetupOpsNode($)
 		$emulabconfig{FS_PKG_DIR} = $emulabconfig{OPS_PKG_DIR};
 		($emulabconfig{FS_PKG} = $emulabconfig{OPS_PKG}) =~ s/ops/fs/;
 	    }
+	    print "Installing the fs metaport.\n";
+	    AddPackage($emulabconfig{FS_PKG}, $emulabconfig{FS_PKG_DIR}, 0);
 	}
 	if (-e "$pdir/emacs-23") {
-	    $ENV{"PKG_PATH"} = "$pdir/emacs-23";
-	    system("pkg_add $pdir/emacs-23/emacs*");
-	    $ENV{"PKG_PATH"} = "$pdir";
+	    AddPackage("$pdir/emacs-23", "emacs-23.2_4,2", 0);
 	}
     }
 
@@ -2167,31 +2190,35 @@ sub SetupBossNode($)
 	
 	print "Removing conflicting packages.\n";
 	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
-	system("pkg_delete -r -x mysql-client")
+	DelPackage(1, "mysql-client")
 	    if (-e "/usr/local/bin/mysql");
-	system("pkg_delete -x net-snmp")
+	DelPackage(0, "emacs")
+	    if (-e "$pdir/emacs-23");
+	DelPackage(0, "net-snmp")
 	    if (-e "/usr/local/include/net-snmp");
 
-	# XXX 8.x images have rpm-3 installed
-	if ($FBSD_VERSION == 8.2 || $FBSD_VERSION == 8.3) {
-	    system("pkg_delete -f -x rpm-3");
-	}
-    
-	# XXX 7.3 image is out of sync right now
-	if ($FBSD_VERSION == 7.3) {
-	    system("pkg_delete -f -x python25 -x py25");
-	    system("pkg_delete -f -x sudo -x png -x tiff");
-	    system("pkg_delete -f -x git -x rpm -x p5-libwww");
+	# XXX 8.2+ images have dhcp3 client installed, but we need dhcp4
+	# XXX 8.2+ images have rpm-3 installed
+	if ($FBSD_VERSION >= 8.2) {
+	    DelPackage(0, "isc-dhcp3");
+	    DelPackage(0, "rpm-3");
 	}
 
-	if (-e "$pdir/emacs-23") {
-	    system("pkg_delete -f -x emacs");
+	# XXX 10.x images have py-distribute installed
+	if ($FBSD_VERSION == 10.0) {
+	    DelPackage(0, "py27-distribute");
 	}
-	
+
+	# XXX 7.3 image is out of sync right now
+	if ($FBSD_VERSION == 7.3) {
+	    DelPackage(0, "python25", "py25",
+		       "sudo", "png", "tiff",
+		       "git", "rpm", "p5-libwww");
+	}
+
 	print "Installing the boss metaport.\n";
 	RecreateDir("/usr/ports", 1);
-	$ENV{"PKG_PATH"} = $emulabconfig{BOSS_PKG_DIR};
-	mysystem("pkg_add -f $emulabconfig{BOSS_PKG} >/tmp/perrs 2>&1");
+	AddPackage($emulabconfig{BOSS_PKG}, $emulabconfig{BOSS_PKG_DIR}, 1);
 
 	if ($isfs) {
 	    # XXX if not set, derive from the OPS info
@@ -2199,18 +2226,17 @@ sub SetupBossNode($)
 		$emulabconfig{FS_PKG_DIR} = $emulabconfig{OPS_PKG_DIR};
 		($emulabconfig{FS_PKG} = $emulabconfig{OPS_PKG}) =~ s/ops/fs/;
 	    }
+	    print "Installing the fs metaport.\n";
+	    AddPackage($emulabconfig{FS_PKG}, $emulabconfig{FS_PKG_DIR}, 0);
 	}
 
 	if ($emulabconfig{"LOAD_PROTOGENI"}) {
 	    print "Installing the protogeni metaport.\n";
 	    # XXX lives in the boss package dir
-	    $ENV{"PKG_PATH"} = $emulabconfig{BOSS_PKG_DIR};
-	    mysystem("pkg_add -f $emulabconfig{PGENI_PKG} >>/tmp/perrs 2>&1");
+	    AddPackage($emulabconfig{PGENI_PKG}, $emulabconfig{BOSS_PKG_DIR}, 1);
 	}
 	if (-e "$pdir/emacs-23") {
-	    $ENV{"PKG_PATH"} = "$pdir/emacs-23";
-	    system("pkg_add $pdir/emacs-23/emacs*");
-	    $ENV{"PKG_PATH"} = "$pdir";
+	    AddPackage("$pdir/emacs-23", "emacs-23.2_4,2", 0);
 	}
     }
 
@@ -2827,26 +2853,30 @@ sub SetupOpsJail()
 	}
 	print "Removing conflicting packages.\n";
 	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
-	system("pkg_delete -r -x mysql-client")
+	DelPackage(1, "mysql-client")
 	    if (-e "/usr/local/bin/mysql");
     
-	# XXX 8.x images have rpm-3 installed
-	if ($FBSD_VERSION == 8.2 || $FBSD_VERSION == 8.3) {
-	    system("pkg_delete -f -x rpm-3");
+	# XXX 8.2+ images have rpm-3 installed
+	if ($FBSD_VERSION >= 8.2) {
+	    DelPackage(0, "rpm-3");
 	}
-    
+
+	# XXX 10.x images have py-distribute installed
+	if ($FBSD_VERSION == 10.0) {
+	    DelPackage(0, "py27-distribute");
+	}
+
 	# XXX 7.3 image is out of sync right now
 	if ($FBSD_VERSION == 7.3) {
-	    system("pkg_delete -f -x python25 -x py25");
-	    system("pkg_delete -f -x sudo -x png -x tiff");
-	    system("pkg_delete -f -x git -x rpm -x p5-libwww");
+	    DelPackage(0, "python25", "py25",
+		       "sudo", "png", "tiff",
+		       "git", "rpm", "p5-libwww");
 	}
 
 	print "Installing the ops metaport.\n";
 	RecreateDir("/usr/ports", 1);
 	# Mounted from outside the jail.
-	$ENV{"PKG_PATH"} = "/packages";
-	mysystem("pkg_add $emulabconfig{OPS_PKG} >/tmp/perrs 2>&1");
+	AddPackage($emulabconfig{OPS_PKG}, "/packages", 0);
     }
 
     #
@@ -3270,7 +3300,12 @@ sub CreateDefsFile($)
 		    last SWITCH;
 		};
 		/^NSVERIFY$/ && do {
-		    print OUTDEFS "NSVERIFY=1\n";
+		    if ($FBSD_VERSION >= 10.0) {
+			# XXX ns-2.34 does not build with clang or gcc46
+			print OUTDEFS "NSVERIFY=0\n";
+		    } else {
+			print OUTDEFS "NSVERIFY=1\n";
+		    }
 		    last SWITCH;
 		};
 		/^NOSHAREDFS$/ && do {
@@ -3607,4 +3642,46 @@ sub RecreateDir($$)
     if ($docreate) {
 	mysystem("mkdir -p $dir");
     }
+}
+
+#
+# Hide differences in the package tools
+#
+sub AddPackage($$$)
+{
+    my ($pkg, $pkgdir, $force) = @_;
+
+    my $args = $force ? "-f" : "";
+    if ($FBSD_VERSION >= 10.0) {
+	my $path = defined($pkgdir) ? "$pkgdir/$pkg.txz" : "$pkg.txz";
+	if (! -e $path) {
+	    SetupFatal("No package file '$path'!");
+	}
+	mysystem("pkg add $args $path >>/tmp/perrs 2>&1");
+    } else {
+	$ENV{"PKG_PATH"} = $pkgdir;
+	mysystem("pkg_add $args $pkg >>/tmp/perrs 2>&1");
+    }
+}
+
+sub DelPackage($@)
+{
+    my ($recursive,@pkgs) = @_;
+
+    my ($cmd, $args, $list);
+    $args = "-f";
+    if ($FBSD_VERSION >= 10.0) {
+	$cmd = "pkg delete";
+	$args .= " -y";
+	$args .= " -R"
+	    if ($recursive);
+    } else {
+	$cmd = "pkg_delete";
+	$args .= " -r"
+	    if ($recursive);
+    }
+    $list = "-x " . join(" -x ", @pkgs);
+
+    # note: non-fatal
+    system("$cmd $args $list");
 }

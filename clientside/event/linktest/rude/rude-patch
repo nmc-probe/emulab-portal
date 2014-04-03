@@ -278,7 +278,7 @@ diff -c -r1.1.1.1 -r1.4
   /*
 !  * wait_for_xmit(): Wait for certain period of time in busy-loop
    */
-  __inline__ void wait_for_xmit(struct timeval *target, struct timeval *now)
+! __inline__ void wait_for_xmit(struct timeval *target, struct timeval *now)
   {
     while(1){
 -     gettimeofday(now,NULL);
@@ -322,7 +322,7 @@ diff -c -r1.1.1.1 -r1.4
 ! /*
 !  * wait_for_xmit(): Wait for certain period of time
    */
-  __inline__ void wait_for_xmit(struct timeval *target, struct timeval *now)
+! static __inline__ void wait_for_xmit(struct timeval *target, struct timeval *now)
   {
 +   gettimeofday(now,NULL);
 +   if (usecpertick) {

@@ -24,7 +24,9 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 # We must make sure PERL is built with this.
 #
 .MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if ${PORTVERSION} == "5.1"
+.if ${PORTVERSION} == "6.0"
+.MAKEFLAGS+=	PERL_VERSION=5.14.4 PERL_VER=5.14 PERL_ARCH=mach
+.elif ${PORTVERSION} == "5.1"
 .MAKEFLAGS+=	PERL_VERSION=5.12.5 PERL_VER=5.12 PERL_ARCH=mach
 .elif ${PORTVERSION} == "5.0"
 .MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
@@ -52,7 +54,7 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 # agrees with what is in the emulab-ops and emulab-php* metaports.
 #
 .MAKEFLAGS+=	-DWITH_APACHE
-.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1")
+.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 .MAKEFLAGS+=	APACHE_PORT=www/apache22
 .MAKEFLAGS+=	WITH_SUEXEC=yes
 .else
@@ -83,7 +85,7 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 BUILD_DEPENDS=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql${MYSQL_VER}
 .elif (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-       ${PORTVERSION} == "5.1")
+       ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 # back to a standard p5-DBD-mysql5x install
 BUILD_DEPENDS=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/DBD/mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql${MYSQL_VER} \
@@ -167,7 +169,7 @@ RUN_DEPENDS+=	\
 	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb \
 	mysqlhotcopy:${PORTSDIR}/databases/mysql${MYSQL_VER}-scripts
 
-.if ${PORTVERSION} == "5.1"
+.if (${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
 	kmetis:${PORTSDIR}/math/metis4
 .else
@@ -177,7 +179,7 @@ RUN_DEPENDS+=	\
 
 # apache related ports
 .if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1")
+     ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
 	${LOCALBASE}/libexec/apache22/mod_ssl.so:${PORTSDIR}/${APACHE_PORT} \
 	${LOCALBASE}/libexec/apache22/mod_fastcgi.so:${PORTSDIR}/www/mod_fastcgi
@@ -188,7 +190,11 @@ RUN_DEPENDS+=	\
 .endif
 
 # m2crypto port
-.if (${PORTVERSION} == "3.0" || ${PORTVERSION} == "3.1" || \
+.if ${PORTVERSION} == "6.0"
+# the egg is dead, long live the egg!
+RUN_DEPENDS+=	\
+	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/misc/emulab-py-m2crypto-noegg
+.elif (${PORTVERSION} == "3.0" || ${PORTVERSION} == "3.1" || \
      ${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
      ${PORTVERSION} == "5.1")
 # must handle patching of m2crypto when the port is built
@@ -202,7 +208,7 @@ RUN_DEPENDS+=	\
 
 # dhcpd port
 .if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1")
+     ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
 	dhcpd:${PORTSDIR}/net/isc-dhcp42-server
 .elif (${PORTVERSION} == "3.1" || ${PORTVERSION} == "3.0")
@@ -215,7 +221,7 @@ RUN_DEPENDS+=	\
 
 # misc. old vs. new port stuff
 .if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1")
+     ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
 	autoconf:${PORTSDIR}/devel/autoconf \
 	libtool:${PORTSDIR}/devel/libtool
@@ -235,11 +241,20 @@ RUN_DEPENDS+=	\
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Privileges/Drop.pm:${PORTSDIR}/misc/p5-Privileges-Drop \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/IO/EventMux.pm:${PORTSDIR}/misc/p5-IO-EventMux \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/IO/EventMux/Socket/MsgHdr.pm:${PORTSDIR}/misc/p5-IO-EventMux-Socket-MsgHdr
-.if (${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1")
+.if (${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 # perl 5.12 and beyond wants this
 RUN_DEPENDS+= \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Class/ISA.pm:${PORTSDIR}/devel/p5-Class-ISA
 .endif
+.endif
+
+.if ${OSMAJOR} >= 10
+# bind is no longer part of the base system
+RUN_DEPENDS+= \
+	${LOCALBASE}/sbin/rndc:${PORTSDIR}/dns/bind99
+# include GCC for now to build Emulab SW (assign)
+RUN_DEPENDS+= \
+	${LOCALBASE}/bin/gcc46:${PORTSDIR}/lang/gcc46
 .endif
 
 .if ${OSMAJOR} >= 6
@@ -276,6 +291,7 @@ NO_BUILD=	yes
 
 do-install:	# empty
 
+NO_STAGE=	yes
 .include <bsd.port.mk>
 
 vars:

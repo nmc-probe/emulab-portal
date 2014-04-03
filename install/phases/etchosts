@@ -13,7 +13,6 @@ sub Install($$$)
     my $boss_string = "${BOSSNODE_IP}\t${BOSSNODE} boss";
     my $ops_string  = "${USERNODE_IP}\t@OPS_NAMES";
     my $fs_string;
-
     if ($USERNODE_IP eq $FSNODE_IP) {
 	$ops_string .= " ${FSNODE} fs";
     }
@@ -23,6 +22,18 @@ sub Install($$$)
     else {
 	$fs_string = "${FSNODE_IP}\t${FSNODE} fs";
     }
+
+    # XXX toss in "ntp1" for the benefit of boss which starts ntp before named
+    if ($USERNODE_IP eq $NTPSERVER) {
+	$ops_string .= " ntp1";
+    }
+    elsif ($BOSSNODE_IP eq $NTPSERVER) {
+	$boss_string .= " ntp1";
+    }
+    elsif (defined($fs_string) && $FSNODE_IP eq $NTPSERVER) {
+	$fs_string .= " ntp1";
+    }
+
     my $string = "$boss_string\n$ops_string";
     $string   .= "\n$fs_string" if (defined($fs_string));
 

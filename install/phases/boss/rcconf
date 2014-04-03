@@ -57,16 +57,26 @@ sub Install($$$)
 	    }
 	}
 
-	# Starting at FreeBSD 6 we use the default version of bind, not the port.
+	#
+	# Starting at FreeBSD 6 we use the default version of bind,
+	# not the port. Er, back to a port as of FreeBSD 10.
+	#
 	if ($FBSD_MAJOR < 6) {
 	    push(@strings, qq|named_enable="NO"|);
 	}
-	else {
+	elsif ($FBSD_MAJOR < 10) {
 	    push(@strings, (qq|named_enable="YES"|,
 			    qq|named_chrootdir=""|,
 			    qq|named_flags=""|,
 			    qq|named_uid="root"|,
-			    qq|named_pidfile="$NAMED_PIDFILE"|));
+			    qq|named_pidfile="$VARRUN/named.pid"|));
+	}
+	else {
+	    push(@strings, (qq|named_enable="YES"|,
+			    qq|named_conf="/etc/namedb/named.conf"|,
+			    qq|named_chrootdir=""|,
+			    qq|named_flags=""|,
+			    qq|named_uid="root"|));
 	}
 
 	# At FreeBSD 6, they also changed the name of the ntp start var.

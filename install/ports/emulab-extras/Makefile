@@ -1,5 +1,7 @@
 # ports collection makefile for: emulab-extras
 
+.include "../emulab-boss/Makefile.emulab"
+
 PORTNAME=	emulab-extras
 PORTVERSION=	1.0
 CATEGORIES=	misc
@@ -17,6 +19,22 @@ NO_BUILD=	yes
 # net-snmp port, ask silly questions without this option.
 #
 .MAKEFLAGS+=	-DBATCH
+
+#
+# Make sure we don't get the wrong version of Perl..
+#
+.MAKEFLAGS+=	ENABLE_SUIDPERL=yes
+.if ${EMULAB_PORTVERSION} == "6.0"
+.MAKEFLAGS+=	PERL_VERSION=5.14.4 PERL_VER=5.14 PERL_ARCH=mach
+.elif ${EMULAB_PORTVERSION} == "5.1"
+.MAKEFLAGS+=	PERL_VERSION=5.12.5 PERL_VER=5.12 PERL_ARCH=mach
+.elif ${EMULAB_PORTVERSION} == "5.0"
+.MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
+.elif (${EMULAB_PORTVERSION} == "3.1" || ${EMULAB_PORTVERSION} == "4.0")
+.MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
+.elif ${EMULAB_PORTVERSION} == "3.0"
+.MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
+.endif
 
 #
 # Emacs configuration options. Controls the worst of the excesses.
@@ -61,11 +79,16 @@ RUN_DEPENDS=	\
         ${LOCALBASE}/sbin/e2fsck:${PORTSDIR}/sysutils/e2fsprogs \
         ${LOCALBASE}/sbin/portupgrade:${PORTSDIR}/ports-mgmt/portupgrade \
         ${PYTHON_SITELIBDIR}/svn/client.py:${PORTSDIR}/devel/py-subversion \
-        ${LOCALBASE}/bin/xterm:${PORTSDIR}/x11/xterm \
+        ${LOCALBASE}/bin/xterm:${PORTSDIR}/x11/xterm
+
+.if ${OSMAJOR} < 10
+RUN_DEPENDS+=	\
         ${LOCALBASE}/sbin/portaudit:${PORTSDIR}/ports-mgmt/portaudit
+.endif
 
 USE_PYTHON=	yes
 
 do-install:	# empty
 
+NO_STAGE=	yes
 .include <bsd.port.mk>

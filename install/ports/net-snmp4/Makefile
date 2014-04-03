@@ -22,6 +22,7 @@ NO_IGNORE=	yes
 #DEPRECATED=	Use net-mgmt/net-snmp port instead
 #EXPIRATION_DATE=2009-07-01
 
+#USE_GCC= yes
 GNU_CONFIGURE=	yes
 USE_PERL5=	yes
 USE_LDCONFIG=	yes
@@ -36,6 +37,8 @@ CONFIGURE_ARGS+=	--with-defaults --with-sys-contact=nobody@no.where
 .else
 IS_INTERACTIVE=	yes
 .endif
+
+NO_STAGE=	yes
 
 MAN1=		snmpbulkget.1 snmpbulkwalk.1 snmpcmd.1 snmpconf.1 snmpd.1 \
 		snmpdelta.1 snmpdf.1 snmpget.1 snmpgetnext.1 snmpnetstat.1 \
@@ -130,6 +133,10 @@ post-patch:
 		-e 's|%%LTMAIN%%|${LTMAIN}|g' \
 		${WRKSRC}/aclocal.m4
 	@${REINPLACE_CMD} -e 's|echo aout|echo elf|' ${WRKSRC}/configure
+
+# FreeBSD 10.x got rid of mbstat
+post-configure:
+	echo "#undef MBSTAT_SYMBOL" >> ${WRKSRC}/s/freebsd.h
 
 post-install:
 	@( cd ${PREFIX}/bin && ${STRIP_CMD} ${BIN} )

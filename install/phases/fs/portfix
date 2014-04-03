@@ -16,22 +16,17 @@ sub Install($$$)
     # XXX Temporary.
     Phase "portfixup", "Fixing up packages", sub {
 	Phase "rsync", "Looking for rsync and installing", sub {
-	    if (!ExecQuiet("$PKG_INFO -x rsync")) {
-		PhaseSkip("rsync already installed");
-	    }
+	    DoneIfPackageInstalled("rsync");
 	    my $pname = GetPackage("rsync", $packagedir);
-	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    AddPackage($pname, $packagedir);
 	};
 	Phase "samba", "Looking for Samba and installing", sub {
 	    if (!$WINSUPPORT) {
 		PhaseSkip("Windows support not enabled");
 	    }
-	    if (!ExecQuiet("$PKG_INFO -x samba")) {
-		PhaseSkip("samba already installed");
-	    }
-
+	    DoneIfPackageInstalled("samba");
 	    my $pname = GetPackage("samba", $packagedir);
-	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    AddPackage($pname, $packagedir);
 	};
     };
 

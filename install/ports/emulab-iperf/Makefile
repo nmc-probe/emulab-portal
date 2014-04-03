@@ -25,4 +25,5 @@ PLIST_FILES=	bin/emulab-iperf
 CONFIGURE_ARGS+=	--prefix=${PREFIX}
 CONFIGURE_ARGS+=	--disable-ipv6
 
+NO_STAGE=	yes
 .include <bsd.port.post.mk>

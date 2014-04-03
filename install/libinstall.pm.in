@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -436,10 +436,12 @@ sub DoneIfIdentical($$) {
 #
 # Done if package installed.
 #
-sub DoneIfPackageInstalled($) {
-    my ($pname) = @_;
-    my $foo = `$PKG_INFO -x $pname 2>&1`;
-    if (! $?) {
+sub DoneIfPackageInstalled($;$) {
+    my ($pname,$exact) = @_;
+
+    $exact = 0
+	if (!defined($exact));
+    if (InstalledPackage($pname, $exact)) {
 	PhaseSkip("already installed");
     }
 }
@@ -781,7 +783,7 @@ sub FetchFileFatal($$) {
 # Locate the proper version of a package to install by looking
 # at the available package tarballs.
 #
-# Must be called "in phase" since we will PhashFail on errors.
+# Must be called "in phase" since we will PhaseFail on errors.
 #
 sub GetPackage($$) {
     my ($prefix, $packagedir) = @_;
@@ -789,15 +791,87 @@ sub GetPackage($$) {
     PhaseFail("Must provide -p (packagedir) argument!")
 	if (!$packagedir);
 
-    my $pname = `ls $packagedir/$prefix-*.tbz 2>/dev/null`;
+    my $pname = `ls $packagedir/$prefix-*.txz 2>/dev/null`;
     if ($?) {
-	$pname = `ls $packagedir/$prefix-*.tgz 2>/dev/null`;
-	PhaseFail("Cannot find $prefix package in $packagedir!")
-	    if ($?);
+	$pname = `ls $packagedir/$prefix-*.tbz 2>/dev/null`;
+	if ($?) {
+	    $pname = `ls $packagedir/$prefix-*.tgz 2>/dev/null`;
+	    PhaseFail("Cannot find $prefix package in $packagedir!")
+		if ($?);
+	}
     }
     chomp($pname);
 
     return $pname;
+}
+
+#
+# Return the name of any installed package matching the given regex or exact
+# name (if $exact != 0). If there are multiple matches, we warn and return
+# the first. Return undef if no match.
+#
+sub InstalledPackage($$) {
+    my ($pname, $exact) = @_;
+    my (@foo, $args);
+
+    if (-x "/usr/sbin/pkg_info") {
+	# note: use extended REs to match new pkg tool
+	$args = $exact ? "-I" : "-I -X";
+	@foo = `pkg_info $args $pname 2>/dev/null`;
+    } elsif (-x "/usr/sbin/pkg") {
+	$args = $exact ? "" : "-x";
+	@foo = `pkg info $args $pname 2>/dev/null`;
+    } else {
+	PhaseFail("No package tools found!?");
+    }
+
+    if ($? == 0 && @foo > 0) {
+	if (@foo > 1) {
+	    print STDERR "WARNING: '$pname' matches multiple packages, returning first\n";
+	}
+	if ($foo[0] =~ /^(\S+)/) {
+	    return $1;
+	}
+    }
+    return undef;
+}
+
+sub AddPackage($$) {
+    my ($pname, $packagedir) = @_;
+
+    if (-x "/usr/sbin/pkg_add") {
+	ExecQuietFatal("env PKG_PATH=$packagedir pkg_add $pname");
+    } elsif (-x "/usr/sbin/pkg") {
+	ExecQuietFatal("pkg add $packagedir/$pname.txz");
+    } else {
+	PhaseFail("No package tools found!?");
+    }
+}
+
+sub DelPackage($$$) {
+    my ($pname, $recursive, $fatal) = @_;
+    my ($cmd, $args);
+
+    $args = "-f";
+    if (-x "/usr/sbin/pkg_delete") {
+	$cmd = "pkg_delete";
+	$args .= " -r"
+	    if ($recursive);
+    } elsif (-x "/usr/sbin/pkg") {
+	$cmd = "pkg delete";
+	$args .= " -y";
+	$args .= " -R"
+	    if ($recursive);
+    } else {
+	PhaseFail("No package tools found!?");
+    }
+    $args .= "-x $pname";
+
+    if ($fatal) {
+	ExecQuietFatal("$cmd $args");
+    } else {
+	ExecQuiet("$cmd $args");
+    }
 }
 
 #

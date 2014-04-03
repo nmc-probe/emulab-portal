@@ -34,4 +34,5 @@ post-install:
 	${RM} -f ${PREFIX}/bin/telnet-client
 	${RM} -f ${PREFIX}/bin/telnet-proxy
 
+NO_STAGE=	yes
 .include <bsd.port.mk>

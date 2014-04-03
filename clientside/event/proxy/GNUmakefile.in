@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,7 +36,7 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 
 LIBTBDIR    = $(TESTBED_LIBOBJDIR)/libtb
 LIBEVENTDIR = $(TESTBED_LIBOBJDIR)/event
-CPPC        = g++
+CPPC        = $(CXX)
 
 # Rules to make sure that some libraries we need from other directories get
 # built first

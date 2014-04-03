@@ -5,7 +5,9 @@
 .include "../emulab-boss/Makefile.emulab"
 
 # XXX deal with out-of-sync-edness of meta ports
-.if ${EMULAB_PORTVERSION} == "5.1"
+.if ${EMULAB_PORTVERSION} == "6.0"
+PORTVERSION=	4.0
+.elif ${EMULAB_PORTVERSION} == "5.1"
 PORTVERSION=	3.1
 .elif ${EMULAB_PORTVERSION} == "5.0"
 PORTVERSION=	3.0
@@ -35,6 +37,17 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 # We must make sure PERL is built with this.
 #
 .MAKEFLAGS+=	ENABLE_SUIDPERL=yes
+.if ${EMULAB_PORTVERSION} == "6.0"
+.MAKEFLAGS+=	PERL_VERSION=5.14.4 PERL_VER=5.14 PERL_ARCH=mach
+.elif ${EMULAB_PORTVERSION} == "5.1"
+.MAKEFLAGS+=	PERL_VERSION=5.12.5 PERL_VER=5.12 PERL_ARCH=mach
+.elif ${EMULAB_PORTVERSION} == "5.0"
+.MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
+.elif (${EMULAB_PORTVERSION} == "3.1" || ${EMULAB_PORTVERSION} == "4.0")
+.MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
+.elif ${EMULAB_PORTVERSION} == "3.0"
+.MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
+.endif
 
 #
 # For SWIG, so that it doesn't feel the need to suck in php and apache
@@ -77,4 +90,5 @@ NO_BUILD=	yes
 
 do-install:	# empty
 
+NO_STAGE=	yes
 .include <bsd.port.mk>

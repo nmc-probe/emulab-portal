@@ -21,6 +21,8 @@ LIB_DEPENDS=	gd.4:${PORTSDIR}/graphics/gd
 PERL_CONFIGURE=	yes
 CONFIGURE_ARGS=	-options "JPEG,FT,XPM" -lib_gd_path ${LOCALBASE} -lib_ft_path ${LOCALBASE} -lib_png_path ${LOCALBASE} -lib_zlib_path ${LOCALBASE}
 
+NO_STAGE=	yes
+
 MAN3=		GD.3 GD::Polyline.3
 
 .include <bsd.port.mk>

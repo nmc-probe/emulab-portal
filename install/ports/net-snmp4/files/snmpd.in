@@ -13,7 +13,7 @@
 . /etc/rc.subr
 
 name=snmpd
-rcvar=`set_rcvar`
+rcvar=${name}_enable
 
 command=/usr/local/sbin/${name}
 pidfile=/var/run/${name}.pid

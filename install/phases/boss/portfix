@@ -15,44 +15,38 @@ sub Install($$$)
 
     Phase "portfixup", "Fixing up packages", sub {
 	Phase "rsync", "Looking for rsync", sub {
-	    if (!ExecQuiet("$PKG_INFO -x rsync")) {
-		PhaseSkip("rsync already installed");
-	    }
+	    DoneIfPackageInstalled("rsync");
 	    my $pname = GetPackage("rsync", $packagedir);
-	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    AddPackage($pname, $packagedir);
 	};
 	if ($FBSD_MAJOR >= 6) {
 	    # Temporary for template stuff
 	    Phase "Simple", "Looking for Simple XML Parser", sub {
-		if (!ExecQuiet("$PKG_INFO -x p5-XML-Simple")) {
-		    PhaseSkip("p5-XML-Simple already installed");
-		}
+		DoneIfPackageInstalled("p5-XML-Simple");
 		my $pname = GetPackage("p5-XML-Simple", $packagedir);
-		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+		AddPackage($pname, $packagedir);
 	    };
 	    if ($ARCHSUPPORT) {
 		Phase "Subversion", "Looking for Subversion", sub {
-		    if (!ExecQuiet("$PKG_INFO -x subversion")) {
-			PhaseSkip("subversion already installed");
-		    }
+		    DoneIfPackageInstalled("subversion");
 		    my $pname;
 		    if ($FBSD_MAJOR > 6) {
 			$pname = GetPackage("py-subversion", $packagedir);
 		    } else {
 			$pname = GetPackage("subversion-python", $packagedir);
 		    }
-		    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+		    AddPackage($pname, $packagedir);
 		};
 	    }
 	}
 	if ($WINSUPPORT) {
 	    Phase "gcc30", "Looking for GCC 3.0 and installing", sub {
-		if ($FBSD_MAJOR > 4 ||
-		    !ExecQuiet("$PKG_INFO -x gcc30")) {
-		    PhaseSkip("GCC 3.0 or greater already installed");
+		if ($FBSD_MAJOR > 4) {
+		    PhaseSkip("not needed");
 		}
+		DoneIfPackageInstalled("gcc30");
 		my $pname = GetPackage("gcc30", $packagedir);
-		ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+		AddPackage($pname, $packagedir);
 	    };
 	}
 	if ($FBSD_MAJOR > 6) {
@@ -78,25 +72,34 @@ sub Install($$$)
 		my $pydir = "/usr/local/lib/$PY_VER/site-packages";
 		my $egg = `ls -d $pydir/M2Crypto-*-py*-*.egg 2>/dev/null | tail -1`;
 		chomp($egg);
-		if (! -x $EASYINSTALL) {
-		    PhaseSkip("python easy_install missing");
-		}
 		if ($egg eq "") {
 		    PhaseSkip("egg not found");
 		}
 		if (-d "$egg") {
 		    PhaseSkip("egg already unpacked");
 		}
+		if (! -x $EASYINSTALL) {
+		    PhaseSkip("python easy_install missing");
+		}
 		# XXX swig must be installed for easyinstall to exit correctly
 		Phase "swig", "Installing swig", sub {
 		    DoneIfPackageInstalled("swig");
 		    my $pname = GetPackage("swig", $packagedir);
-		    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+		    AddPackage($pname, $packagedir);
 		};
 		ExecQuietFatal("mv $egg /var/tmp/");
 		$egg =~ s/$pydir//;
 		ExecQuietFatal("$EASYINSTALL -N -H None -Z /var/tmp$egg");
 		ExecQuietFatal("mv /var/tmp$egg $pydir/$egg.bak");
+	    };
+	}
+	if ($FBSD_MAJOR >= 10) {
+	    Phase "bind-compat", "Creating /etc/namedb for backward compat", sub {
+		PhaseSkip("already exists")
+		    if (-e "/etc/namedb");
+		PhaseSkip("bind not installed?")
+		    if (! -d "/usr/local/etc/namedb");
+		ExecQuietFatal("ln -sf /usr/local/etc/namedb /etc/namedb");
 	    };
 	}
     };

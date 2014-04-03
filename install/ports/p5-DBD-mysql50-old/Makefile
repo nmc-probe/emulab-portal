@@ -33,6 +33,8 @@ USE_MYSQL=	yes
 
 PERL_CONFIGURE=	yes
 
+NO_STAGE=	yes
+
 MAN3=	Bundle::DBD::mysql.3 DBD::mysql.3 DBD::mysql::INSTALL.3 Mysql.3
 
 .include <bsd.port.pre.mk>

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009 University of Utah and the Flux Group.
+# Copyright (c) 2009-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -48,9 +48,6 @@ my $PWD        = "/bin/pwd";
 my $PW         = "/usr/sbin/pw";
 my $PATCH      = "/usr/bin/patch";
 my $SSH_KEYGEN = "/usr/bin/ssh-keygen";
-my $PKG_INFO   = "/usr/sbin/pkg_info";
-my $PKG_ADD    = "/usr/sbin/pkg_add";
-my $PKG_DEL    = "/usr/sbin/pkg_delete";
 my $TOUCH      = "/usr/bin/touch";
 my $SSH_INIT   = "/usr/bin/ssh -1";
 my $SCP_INIT   = "/usr/bin/scp -1";
@@ -287,9 +284,7 @@ Phase "dirs", "Setting directory permissions", sub {
 };
 
 Phase "ports", "Installing ports", sub {
-    if (!ExecQuiet("$PKG_INFO -e $PORTNAME")) {
-	PhaseSkip("Package already installed");
-    }
+    DoneIfPackageInstalled($PORTNAME);
     Phase "pcopy", "Copying ports into place", sub {
 	DoneIfExists("$PORTSMISCDIR/emulab-clrhouse");
 	ExecQuietFatal("$SH $SRCDIR/ports/ports-install");
@@ -302,20 +297,16 @@ Phase "ports", "Installing ports", sub {
 
 Phase "portfixup", "Fixing up packages", sub {
     Phase "rsync", "Looking for rsync", sub {
-	if (!ExecQuiet("$PKG_INFO -x rsync")) {
-	    PhaseSkip("rsync already installed");
-	}
+	DoneIfPackageInstalled("rsync");
 	my $pname = GetPackage("rsync", $packagedir);
-	ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	AddPackage($pname, $packagedir);
     };
     if ($FBSD_MAJOR == 6) {
 	# Temporary for template stuff
 	Phase "Simple", "Looking for Simple XML Parser", sub {
-	    if (!ExecQuiet("$PKG_INFO -x p5-XML-Simple")) {
-		PhaseSkip("p5-XML-Simple already installed");
-	    }
+	    DoneIfPackageInstalled("p5-XML-Simple");
 	    my $pname = GetPackage("p5-XML-Simple", $packagedir);
-	    ExecQuietFatal("$ENV PKG_PATH=$packagedir $PKG_ADD $pname");
+	    AddPackage($pname, $packagedir);
 	};
     }
 };
@@ -324,10 +315,11 @@ Phase "patches", "Applying patches", sub {
     Phase "m2cryptopatch", "Patching m2crypto", sub {
 	my $patchfile = $M2CRYPTO_PATCH;
 	
-	if (ExecQuiet("$PKG_INFO -I -x m2crypto | fgrep -q -s '0.17'") == 0) {
+	my $pkg = InstalledPackage("m2crypto", 0);
+	if ($pkg && $pkg =~ /0\.17/) {
 	    $patchfile = "${patchfile}-0.17";
 	}
-	elsif (ExecQuiet("$PKG_INFO -I -x m2crypto | fgrep -q -s '0.13'") == 0) {
+	elsif ($pkg && $pkg =~ /0\.13/) {
 	    $patchfile = "${patchfile}-0.13";
 	}
 	if (!ExecQuiet("$PATCH -C -f -l -R -p0 -i $patchfile")) {
