@@ -49,6 +49,12 @@ my $USERNODE_IP        = "@USERNODE_IP@";
 my $FSNODE_IP          = "@FSNODE_IP@";
 my $FRISBEE_MCASTADDR  = "@FRISEBEEMCASTADDR@";
 my $FRISBEE_MCASTPORT  = "@FRISEBEEMCASTPORT@";
+#
+# Sorry these are hardwired; boss/ops addresses on the virtual control
+# network, on non-segmented networks like the IG racks.
+#
+my $EMULAB_VCBOSS      = "172.17.254.254";
+my $EMULAB_VCOPS       = "172.17.253.254";
 
 #
 # Untaint the path
@@ -175,14 +181,23 @@ if ($VIRTNODE_NETWORK =~ /^(\d+\.\d+\.\d+)\.0$/) {
 }
 
 #
-# Sorry these are hardwired. 
+# Boss/Ops on the virtual control network, non-segmented.
 #
-my $EMULAB_VCBOSS = "172.17.254.254";
-my $EMULAB_VCOPS  = "172.17.253.254";
-
 $str = "replace into default_firewall_vars values ".
     "('EMULAB_VCBOSS', '$EMULAB_VCBOSS'), ".
     "('EMULAB_VCOPS',  '$EMULAB_VCOPS')";
+
+print "$str\n"
+    if (!$doit);
+DBQueryFatal($str)
+    if ($doit);
+
+#
+# FS can have a virtual control network address, but ignore fs/ops
+# distinction. 
+#
+$str = "replace into default_firewall_vars values ".
+    "('EMULAB_FSIPS', '$FSNODE_IP,$EMULAB_VCOPS') ";
 
 print "$str\n"
     if (!$doit);
