@@ -2541,6 +2541,13 @@ sub CreateVnodes($$$)
 	    }
 	    $node->SetNodeHistory(TB_NODEHISTORY_OP_CREATE(),
 				   $user, $experiment);
+	    #
+	    # On a shared node, generate a new root password so that
+	    # tmcd can return it in the jail config call. On a dedicated
+	    # node, the physical host password is used.
+	    #
+	    $node->NewRootPasswd()
+		if (defined($sharing_mode) && $sharing_mode);
 	}
     }
     @$rptr = @created;
@@ -2559,6 +2566,7 @@ sub CreateVnodes($$$)
 	    DBQueryWarn("delete from node_activity where node_id='$vnodeid'");
 	    DBQueryWarn("delete from node_idlestats where node_id='$vnodeid'");
 	    DBQueryWarn("delete from iface_counters where node_id='$vnodeid'");
+	    DBQueryWarn("delete from node_attributes where node_id='$vnodeid'");
 	}
     }
     DBQueryFatal("unlock tables");
@@ -2958,7 +2966,7 @@ sub NewRootPasswd($)
     my $hash    = TBGenSecretKey();
 
     # But only part of it.
-    $hash = substr($hash, 0, 10);
+    $hash = substr($hash, 0, 12);
 
     DBQueryWarn("replace into node_attributes set ".
 		"  node_id='$node_id',".
