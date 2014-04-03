@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2004-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -128,6 +128,7 @@ int node_agent_invariant(node_agent_t na)
 {
 	assert(na != NULL);
 	assert(local_agent_invariant(&na->na_local_agent));
+	return 1;
 }
 
 static char *expand_nodeids(sched_event_t *se)

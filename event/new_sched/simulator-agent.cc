@@ -504,11 +504,11 @@ static int strreltime(char *buf, size_t buflen, time_t secs)
     secs = secs % 60;
 
     if (hours)
-	snprintf(buf, buflen, "%s%dh%dm%ds", signage, hours, mins, secs);
+	snprintf(buf, buflen, "%s%dh%dm%ds", signage, hours, mins, (int)secs);
     else if (mins)
-	snprintf(buf, buflen, "%s%dm%ds", signage, mins, secs);
+	snprintf(buf, buflen, "%s%dm%ds", signage, mins, (int)secs);
     else
-	snprintf(buf, buflen, "%s%ds", signage, secs);
+	snprintf(buf, buflen, "%s%ds", signage, (int)secs);
     return retval;
 }
 

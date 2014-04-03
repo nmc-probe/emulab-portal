@@ -1,7 +1,7 @@
 /*
  * emulab_proxy.cpp
  *
- * Copyright (c) 2004 The University of Utah and the Flux Group.
+ * Copyright (c) 2004-2014 The University of Utah and the Flux Group.
  * All rights reserved.
  *
  * This file is licensed under the terms of the GNU Public License.  
@@ -39,7 +39,7 @@ EmulabResponse::EmulabResponse(xmlrpc_c::value result)
 	std::map<std::string, xmlrpc_c::value> result_map;
 	std::map<std::string, xmlrpc_c::value>::iterator p;
 
-	if (!result.type() == xmlrpc_c::value::TYPE_STRUCT)
+	if (result.type() != xmlrpc_c::value::TYPE_STRUCT)
 	{
 		throw girerr::error("Invalid response from server");
 	}

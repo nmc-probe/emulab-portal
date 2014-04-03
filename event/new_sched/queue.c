@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -142,7 +142,7 @@ sched_event_enqueue(sched_event_t event)
 		    "enqueued event (event=(notification=%p, "
 		    "time=(tv_sec=%ld, tv_usec=%ld)))\n",
 		    event.notification,
-		    event.time.tv_sec,
+		    (long int)event.time.tv_sec,
 		    event.time.tv_usec);
     }
 
@@ -213,7 +213,7 @@ sched_event_dequeue(sched_event_t *event, int wait)
 	    if (debug > 3) {
 		    fprintf(stderr,
 			    "sleeping until time=(tv_sec=%ld, tv_usec=%ld).\n",
-			    event->time.tv_sec, event->time.tv_usec);
+			    (long int)event->time.tv_sec, event->time.tv_usec);
 	    }
 
 	    if ((err = pthread_cond_timedwait(&event_queue_cond,
@@ -272,7 +272,7 @@ sched_event_dequeue(sched_event_t *event, int wait)
 		    "dequeued event (event=(notification=%p, "
 		    "time=(tv_sec=%ld, tv_usec=%ld)))\n",
 		    event->notification,
-		    event->time.tv_sec,
+		    (long int)event->time.tv_sec,
 		    event->time.tv_usec);
     }
 
@@ -312,7 +312,7 @@ sched_event_queue_dump_node_and_descendents(FILE *fp, int index, int level)
         fprintf(fp, " ");
     }
     fprintf(fp, "node %d: event=(time=(tv_sec=%ld, tv_usec=%ld))\n", index,
-            event_queue[index].time.tv_sec,
+            (long int)event_queue[index].time.tv_sec,
             event_queue[index].time.tv_usec);
     fflush(fp);
 

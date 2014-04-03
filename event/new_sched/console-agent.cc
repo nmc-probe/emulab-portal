@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2004-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -84,6 +84,7 @@ int console_agent_invariant(console_agent_t ca)
 {
 	assert(ca != NULL);
 	assert(local_agent_invariant(&ca->ca_local_agent));
+	return 1;
 }
 
 static void do_start(console_agent_t ca, sched_event_t *se)

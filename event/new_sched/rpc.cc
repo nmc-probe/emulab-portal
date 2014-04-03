@@ -158,6 +158,8 @@ RPC_connect(xmlrpc_c::clientXmlTransport **transport)
 	
 	if (pthread_mutex_unlock(&rpc_data.mutex) != 0)
 		assert(0);
+
+	return retval;
 }
 
 static void
