@@ -11891,7 +11891,7 @@ static char *getgeniuseremail( tmcdreq_t *reqp ) {
 static char *getgenimanifest( tmcdreq_t *reqp ) {
     
 	MYSQL_RES	*res;
-	char		buf[MYBUFSIZE];
+	char		buf[ MAXTMCDPACKET ];
 
 	res = mydb_query( "SELECT m.manifest FROM `geni-cm`.geni_slivers AS s, "
 			  "`geni-cm`.geni_manifests AS m WHERE "
@@ -12238,7 +12238,7 @@ struct genicommand {
 
 COMMAND_PROTOTYPE(dogenicommands)
 {
-    char buf[ 0x4000 ], *p;
+    char buf[ MAXTMCDPACKET ], *p;
     int i, maxlen, first = 1;
 
     buf[ 0 ] = 0; /* NUL */
@@ -12283,7 +12283,7 @@ COMMAND_PROTOTYPE(dogeniall)
 {
     /* Glob all the other stuff into a JSON structure.  Hey, at least
        it's not XML! */
-    char buf[ 0x4000 ], *p;
+    char buf[ MAXTMCDPACKET ], *p;
     int i, first = 1;
 
     buf[ 0 ] = 0; /* NUL */
