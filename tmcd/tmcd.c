@@ -173,6 +173,7 @@ int		mydb_update(char *query, ...);
 static int	safesymlink(char *name1, char *name2);
 static int      getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
 			     unsigned int *mtime, unsigned int *chunks);
+static int	getrandomchars(char *buf, int len);
 
 /* socket timeouts */
 static int	readtimo = READTIMO;
@@ -7354,38 +7355,17 @@ COMMAND_PROTOTYPE(doisalive)
  */
 COMMAND_PROTOTYPE(doipodinfo)
 {
-	char		buf[MYBUFSIZE], *bp;
-	unsigned char	randdata[16], hashbuf[16*2+1];
-	int		fd, cc, i;
+	char		buf[MYBUFSIZE], hashbuf[BUFSIZ];
 
 	if (!tcp) {
 		error("IPODINFO: %s: Cannot do this in UDP mode!\n",
 		      reqp->nodeid);
 		return 1;
 	}
-
-	if ((fd = open("/dev/urandom", O_RDONLY)) < 0) {
-		errorc("opening /dev/urandom");
+	if (getrandomchars(hashbuf, 32)) {
+		error("IPODINFO: no random chars for password\n");
 		return 1;
 	}
-	if ((cc = read(fd, randdata, sizeof(randdata))) < 0) {
-		errorc("reading /dev/urandom");
-		close(fd);
-		return 1;
-	}
-	if (cc != sizeof(randdata)) {
-		error("Short read from /dev/urandom: %d", cc);
-		close(fd);
-		return 1;
-	}
-	close(fd);
-
-	bp = (char *)hashbuf;
-	for (i = 0; i < sizeof(randdata); i++) {
-		bp += sprintf(bp, "%02x", randdata[i]);
-	}
-	*bp = '\0';
-
 	mydb_update("update nodes set ipodhash='%s' "
 		    "where node_id='%s'",
 		    hashbuf, reqp->nodeid);
@@ -7678,6 +7658,38 @@ COMMAND_PROTOTYPE(dojailconfig)
 		}
 		mysql_free_result(res);
 	}
+
+	/*
+	 * Per jail root password hash if one has been set.
+	 */
+	res = mydb_query("select attrvalue from node_attributes "
+			 " where node_id='%s' and "
+			 "       attrkey='root_password'",
+			 1, reqp->nodeid);
+	
+	if (!res) {
+		error("JAILCONFIG: %s: DB Error getting root_password.\n",
+		      reqp->nodeid);
+		return 1;
+	}
+	if ((nrows = (int)mysql_num_rows(res))) {
+		row = mysql_fetch_row(res);
+		if (row[0] && row[0][0]) {
+			char saltbuf[BUFSIZ], *bp;
+
+			if (getrandomchars(saltbuf, 8) != 0) {
+				snprintf(saltbuf, sizeof(saltbuf),
+					 "%ud", time(NULL));
+			}
+			sprintf(buf, "$1$%s", saltbuf);
+			bp = crypt(row[0], buf);
+
+			bufp  = buf;
+			bufp += OUTPUT(bufp, ebufp - bufp, "ROOTHASH=%s\n", bp);
+			client_writeback(sock, buf, strlen(buf), tcp);
+		}
+	}
+	mysql_free_result(res);
 
 	/*
 	 * Now return the IP interface list that this jail has access to.
@@ -9489,43 +9501,33 @@ COMMAND_PROTOTYPE(dorootpswd)
 {
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
-	char		buf[MYBUFSIZE], hashbuf[MYBUFSIZE], *bp;
+	char		buf[BUFSIZ], hashbuf[BUFSIZ], saltbuf[BUFSIZ], *bp;
+	char		*nodeid = reqp->pnodeid;
+
+	/*
+	 * On a virtnode, we return the password for the physical
+	 * host, but not on a shared node, it needs its own.
+	 */
+	if (reqp->isvnode && reqp->sharing_mode[0]) {
+		nodeid = reqp->nodeid;
+	}
 
 	res = mydb_query("select attrvalue from node_attributes "
 			 " where node_id='%s' and "
 			 "       attrkey='root_password'",
-			 1, reqp->pnodeid);
+			 1, nodeid);
 
 	if (!res || (int)mysql_num_rows(res) == 0) {
-		unsigned char	randdata[5];
-		int		fd, cc, i;
-
-		if ((fd = open("/dev/urandom", O_RDONLY)) < 0) {
-			errorc("opening /dev/urandom");
+		if (getrandomchars(hashbuf, 12)) {
+			error("DOROOTPSWD: no random chars for password\n");
+			if (res)
+				mysql_free_result(res);
 			return 1;
 		}
-		if ((cc = read(fd, randdata, sizeof(randdata))) < 0) {
-			errorc("reading /dev/urandom");
-			close(fd);
-			return 1;
-		}
-		if (cc != sizeof(randdata)) {
-			error("Short read from /dev/urandom: %d", cc);
-			close(fd);
-			return 1;
-		}
-		close(fd);
-
-		bp = hashbuf;
-		for (i = 0; i < sizeof(randdata); i++) {
-			bp += sprintf(bp, "%02x", randdata[i]);
-		}
-		*bp = '\0';
-
 		mydb_update("replace into node_attributes set "
 			    "  node_id='%s', "
 			    "  attrkey='root_password',attrvalue='%s'",
-			    reqp->nodeid, hashbuf);
+			    nodeid, hashbuf);
 	}
 	else {
 		row = mysql_fetch_row(res);
@@ -9538,7 +9540,11 @@ COMMAND_PROTOTYPE(dorootpswd)
 	 * Need to crypt() this for the node since we obviously do not want
 	 * to return the plain text.
 	 */
-	sprintf(buf, "$1$%s", hashbuf);
+	if (getrandomchars(saltbuf, 8)) {
+		error("DOROOTPSWD: no random chars for salt\n");
+		return 1;
+	}
+	sprintf(buf, "$1$%s", saltbuf);
 	bp = crypt(hashbuf, buf);
 
 	OUTPUT(buf, sizeof(buf), "HASH=%s\n", bp);
@@ -12488,3 +12494,35 @@ COMMAND_PROTOTYPE(dotiplineinfo)
 	return 0;
 }
 
+static int
+getrandomchars(char *buf, int len)
+{
+	unsigned char	randdata[MYBUFSIZE];
+	int		fd, cc, i;
+	char		*bp;
+
+	if ((fd = open("/dev/urandom", O_RDONLY)) < 0) {
+		errorc("opening /dev/urandom");
+		return 1;
+	}
+	if ((cc = read(fd, randdata, len)) < 0) {
+		errorc("reading /dev/urandom");
+		close(fd);
+		return 1;
+	}
+	if (cc != len) {
+		error("Short read from /dev/urandom: %d", len);
+		close(fd);
+		return 1;
+	}
+	bp = buf;
+	for (i = 0; i < len;) {
+		cc = sprintf(bp, "%02x", randdata[i]);
+		i  += cc;
+		bp += cc;
+	}
+	buf[len] = '\0';
+	
+	close(fd);
+	return 0;
+}
