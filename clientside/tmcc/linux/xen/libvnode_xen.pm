@@ -1327,6 +1327,25 @@ sub vnodePreConfig($$$$$){
 	    mysystem2("sed -i.bak -e 's/ttyS0/hvc0/' ".
 		      "  $vnoderoot/etc/init/ttyS0.conf");
 	}
+	#
+	# Change the password if possible. If something goes wrong,
+	# it is handy to be able to get on on the console. 
+	#
+	if (exists($vnconfig->{'config'}->{'ROOTHASH'})) {
+	    my $hash = $vnconfig->{'config'}->{'ROOTHASH'};
+
+	    mysystem2("sed -i.bak -e 's,root:[^:]*,root:$hash,' ".
+		      "  $vnoderoot/etc/shadow");
+	    if (system("grep -q toor $vnoderoot/etc/shadow") == 0) {
+		mysystem2("sed -i.bak -e 's,toor:[^:]*,toor:$hash,' ".
+			  "  $vnoderoot/etc/shadow");
+	    }
+	}
+	# Testing a theory; remove all this iscsi stuff to see if that
+	# is causing problems with the control network interface going
+	# offline after boot.
+	mysystem2("/bin/rm -vf $vnoderoot/etc/init/*iscsi*");
+	mysystem2("/bin/rm -vf $vnoderoot/etc/init.d/*iscsi*");
     }
     else {
 	# XXX We need this for libsetup to know it is in a XENVM.
