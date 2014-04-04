@@ -26,27 +26,7 @@
 
 #include "port.h"
 
-/*
- * We have to do these includes differently depending on which version of gcc
- * we're compiling with
- */
-#ifdef NEW_GCC
-#include <ext/hash_map>
-#ifdef NEWER_GCC
-  #include <backward/hash_fun.h>
-#else
-  #include <ext/hash_fun.h>
-#endif
-
-using namespace __gnu_cxx;
-#define RANDOM() random()
-#else
-#include <hash_map>
-#define RANDOM() std::random()
-#endif
-
 #include <utility>
-#include "port.h"
 #include "fstring.h"
 
 #include <boost/graph/adjacency_list.hpp>
@@ -74,6 +54,15 @@ using namespace __gnu_cxx;
 namespace __gnu_cxx
 {
 #endif
+#ifdef __clang__
+    template<> struct std::hash< std::string >
+    {
+        size_t operator()( const std::string& x ) const
+        {
+            return hash< const char* >()( x.c_str() );
+        }
+    };
+#else
     template<> struct hash< std::string >
     {
         size_t operator()( const std::string& x ) const
@@ -81,6 +70,7 @@ namespace __gnu_cxx
             return hash< const char* >()( x.c_str() );
         }
     };
+#endif
 #ifdef NEW_GCC
 }
 #endif

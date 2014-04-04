@@ -27,17 +27,6 @@
 #include "port.h"
 #include "fstring.h"
 
-/*
- * We have to do these includes differently depending on which version of gcc
- * we're compiling with
- */
-#ifdef NEW_GCC
-#include <ext/hash_map>
-using namespace __gnu_cxx;
-#else
-#include <hash_map>
-#endif
-
 #include <iostream>
 using namespace std;
 

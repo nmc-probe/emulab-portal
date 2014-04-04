@@ -42,19 +42,6 @@ using namespace boost;
 #include <string>
 using namespace std;
 
-/*
- * We have to do these includes differently depending on which version of gcc
- * we're compiling with
- */
-#ifdef NEW_GCC
-#include <ext/hash_set>
-#include <ext/hash_map>
-using namespace __gnu_cxx;
-#else
-#include <hash_set>
-#include <hash_map>
-#endif
-
 // Icky, but I can't include virtual.h here
 class tb_vnode;
 typedef hash_set<tb_vnode*,hashptr<tb_vnode*> > tb_vnode_set;
@@ -363,8 +350,10 @@ template <class T> struct pairhash {
     size_t operator()(pair<T,T> const &A) const {
 #ifdef NEW_GCC
 	__gnu_cxx::hash<T> H;
-#else
+#elif ! defined __clang__
         ::hash<T> H;
+#else
+	std::hash<T> H;
 #endif
 	return (H(A.first) | H(A.second));
     }

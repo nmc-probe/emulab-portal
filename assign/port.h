@@ -46,17 +46,29 @@
  *   hash_map with tr1::unordered_map in <tr1/unordered_map>
  */
 #if (__GNUC__ == 3 && __GNUC_MINOR__ > 0) || (__GNUC__ > 3)
+#ifndef __clang__
 #define NEW_GCC
+#endif
 #endif
 
 #if (__GNUC__ == 4 && __GNUC_MINOR__ >= 3) || (__GNUC__ > 4)
+#ifndef __clang__
 #define NEWER_GCC
+#endif
+#endif
+
+#ifdef __clang__
+#undef NEW_GCC
+#undef NEWER_GCC
+#include <forward_list>
+template<typename T>
+using slist = std::forward_list<T>;
 #endif
 
 #ifdef NEW_GCC
 #include <ext/slist>
 using namespace __gnu_cxx;
-#else
+#elif ! defined __clang__
 #include <slist>
 #endif
 
@@ -64,6 +76,42 @@ using namespace __gnu_cxx;
 #define BOOST_PMAP_HEADER <boost/property_map/property_map.hpp>
 #else
 #define BOOST_PMAP_HEADER <boost/property_map.hpp>
+#endif
+
+/*
+ * We have to do these includes differently depending on which version of gcc
+ * we're compiling with
+ */
+#ifdef NEW_GCC
+#include <ext/hash_map>
+#include <ext/hash_set>
+#ifdef NEWER_GCC
+  #include <backward/hash_fun.h>
+#else
+  #include <ext/hash_fun.h>
+#endif
+
+using namespace __gnu_cxx;
+#define RANDOM() random()
+#elif ! defined __clang__
+#include <hash_map>
+#include <hash_set>
+#define RANDOM() std::random()
+#endif
+
+#ifdef __clang__
+
+#include <functional>
+#include <unordered_map>
+#include <unordered_set>
+
+template < typename T, typename U, typename F=std::hash<T> >
+using hash_map = std::unordered_map<T, U, F>;
+
+template < typename T, typename F=std::hash<T> >
+using hash_set = std::unordered_set<T, F>;
+#define RANDOM() std::rand()
+
 #endif
 
 #else

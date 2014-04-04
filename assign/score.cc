@@ -28,19 +28,6 @@ static const char rcsid[] = "$Id: score.cc,v 1.69 2009-12-09 22:53:44 ricci Exp 
 #include <iostream>
 #include <float.h>
 
-/*
- * We have to do these includes differently depending on which version of gcc
- * we're compiling with
- */
-#ifdef NEW_GCC
-#include <ext/hash_map>
-#include <ext/hash_set>
-using namespace __gnu_cxx;
-#else
-#include <hash_map>
-#include <hash_set>
-#endif
-
 #include <boost/config.hpp>
 #include <boost/utility.hpp>
 #include BOOST_PMAP_HEADER

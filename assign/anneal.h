@@ -36,19 +36,6 @@ using namespace boost;
 #include <iostream>
 using namespace std;
 
-/*
- * We have to do these includes differently depending on which version of gcc
- * we're compiling with
- */
-#ifdef NEW_GCC
-#include <ext/hash_map>
-#include <ext/slist>
-using namespace __gnu_cxx;
-#else
-#include <hash_map>
-#include <slist>
-#endif
-
 #include <math.h>
 
 #include "delay.h"

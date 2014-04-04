@@ -158,7 +158,7 @@ void anneal(bool scoring_selftest, bool check_fixed_nodes,
   double deltatemp, deltaavg;
 
   // List of unassigned virtual nodes
-  slist<vvertex> unassigned_nodes;
+  list<vvertex> unassigned_nodes;
 
 #ifdef VERBOSE
   cout << "Initialized to cycles="<<cycles<<" mintrans="
@@ -511,7 +511,7 @@ void anneal(bool scoring_selftest, bool check_fixed_nodes,
       if (! unassigned_nodes.empty()) {
         // Pick a random node from the list of unassigned nodes
         int choice = RANDOM() % unassigned_nodes.size();
-        slist<vvertex>::iterator uit = unassigned_nodes.begin();
+        list<vvertex>::iterator uit = unassigned_nodes.begin();
         for (int i = 0; i < choice; i++) { uit++; }
         assert(uit != unassigned_nodes.end());
 

@@ -52,7 +52,7 @@ using namespace std;
   #include <ext/hash_fun.h>
 #endif
 using namespace __gnu_cxx;
-#else
+#elif ! defined __clang__
 #include <stl_hash_fun.h>
 #endif
 
@@ -211,16 +211,25 @@ class fstring {
 };
 
 // A hash function for fstrings
-#ifdef NEW_GCC
+#if defined NEW_GCC
 namespace __gnu_cxx {
 #endif
+#if defined __clang__
+template<> struct std::hash<fstring> {
+  size_t operator()(const fstring& __str) const
+  {
+  	return (size_t)__str.hash();
+  }
+};
+#else
 template<> struct hash<fstring> {
   size_t operator()(const fstring& __str) const
   {
   	return (size_t)__str.hash();
   }
 };
-#ifdef NEW_GCC
+#endif
+#if defined NEW_GCC
 }
 #endif
 

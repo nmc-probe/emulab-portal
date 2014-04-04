@@ -31,17 +31,6 @@ static const char rcsid[] = "$Id: pclass.cc,v 1.31 2009-06-15 19:42:26 ricci Exp
 #include <list>
 #include <algorithm>
 
-/*
- * We have to do these includes differently depending on which version of gcc
- * we're compiling with
- */
-#ifdef NEW_GCC
-#include <ext/hash_map>
-using namespace __gnu_cxx;
-#else
-#include <hash_map>
-#endif
-
 #include <boost/config.hpp>
 #include <boost/utility.hpp>
 #include BOOST_PMAP_HEADER

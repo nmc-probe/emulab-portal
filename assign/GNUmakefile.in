@@ -31,6 +31,16 @@ NEWER_BOOST	= @NEWER_BOOST@
 include $(OBJDIR)/Makeconf
 
 #
+# XXX tmp hack for FreeBSD 10 with clang:
+# Doesn't compile right now with clang so use gcc46 instead.
+#
+#ifneq ($(wildcard /usr/bin/clang),)
+#CC=gcc46
+#CPP=cpp46
+#CXX=g++46
+#endif
+
+#
 # Uncomment these to build with gcc3.3
 #
 #CC=gcc33
@@ -48,7 +58,7 @@ OBJS=parse_top.o parse_ptop.o assign.o pclass.o vclass.o score.o \
      config.o
 LIBS+= -lm
 LDFLAGS+= -pipe -O3
-CXXFLAGS = -pipe -I/usr/local/include -ftemplate-depth-40
+CXXFLAGS = -pipe -I/usr/local/include -ftemplate-depth-80 -Wno-c++11-extensions
 # For OSX w/ macports
 CXXFLAGS += -I/opt/local/include
 LIBS += -L/opt/local/lib

@@ -38,13 +38,6 @@
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 using namespace boost;
 
-#ifdef NEW_GCC
-#include <ext/hash_set>
-using namespace __gnu_cxx;
-#else
-#include <hash_set>
-#endif
-
 #include <list>
 #include <vector>
 using namespace std;
