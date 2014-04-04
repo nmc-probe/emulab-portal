@@ -13,5 +13,5 @@ PATCHDIR=	$(PORTSDIR)/security/py-m2crypto/files
 
 NO_STAGE=yes
 
-PKGORIGIN=		misc/emulab-py-m2crypto
+PKGORIGIN=		misc/emulab-py-m2crypto-noegg
 .include "../../security/py-m2crypto/Makefile"
