@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -536,7 +536,7 @@ sub CreateSliver($)
     #
     $mypid = $PID;
     
-    if ($aggregate->Start($API_VERSION, 0) != 0) {
+    if ($aggregate->Start($API_VERSION) != 0) {
 	if ($PID == $mypid) {
 	    $slice->UnLock();
 	    print STDERR "Could not start sliver.\n";
@@ -804,6 +804,17 @@ sub RestartSliver($)
 			$slice_urn, $sliver_urns, $credentials, $manifest);
 }
 
+sub ReloadSliver($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $sliver_urns  = $argref->{'sliver_urns'} || $argref->{'component_urns'};
+    my $credentials  = $argref->{'credentials'};
+
+    return SliverAction("reload",
+			$slice_urn, $sliver_urns, $credentials, undef);
+}
+
 sub SliverAction($$$$$)
 {
     my ($action, $slice_urn, $sliver_urns, $credentials, $manifest) = @_;
@@ -839,6 +850,10 @@ sub SliverAction($$$$$)
     return $slice
 	if (defined($slice) && GeniResponse::IsResponse($slice));
 
+    #
+    # I think this allows the CM to perform an action without
+    # the slice credential?
+    #
     if ( (!defined($slice)) && 
           ($credential->target_urn() =~ /\+authority\+cm$/)) {
           # administrative credentials are presented.
@@ -918,6 +933,12 @@ sub SliverAction($$$$$)
 					    "Sliver is not started (yet)");
 	    }
 	}
+	elsif ($action eq "reload") {
+	    if ($object->state() ne "started" && $object->state() ne "stopped"){
+		return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				    "Sliver is not started or stopped (yet)");
+	    }
+	}
 	return 0;
     };
     my $PerformAction = sub {
@@ -926,13 +947,16 @@ sub SliverAction($$$$$)
 	my $exitval = 0;
 
 	if ($action eq "start") {
-	    $exitval = $object->Start($API_VERSION, 0);
+	    $exitval = $object->Start($API_VERSION);
 	}
 	elsif ($action eq "stop") {
 	    $exitval = $object->Stop($API_VERSION);
 	}
 	elsif ($action eq "restart") {
-	    $exitval = $object->Start($API_VERSION, 1);
+	    $exitval = $object->Restart($API_VERSION);
+	}
+	elsif ($action eq "reload") {
+	    $exitval = $object->Reload($API_VERSION);
 	}
 	return GeniResponse->Create(GENIRESPONSE_ERROR, 
 				    "Could not $action sliver")
@@ -957,7 +981,7 @@ sub SliverAction($$$$$)
 	goto bad
 	    if (GeniResponse::IsResponse($response));
 	    
-	if ($action eq "start" || $action eq "restart") {
+	if ($action eq "start" || $action eq "restart" || $action eq "reload"){
 	    if (defined($manifest) &&
 		$aggregate->ProcessManifest($manifest)) {
 		$response = GeniResponse->Create(GENIRESPONSE_ERROR,

@@ -858,28 +858,49 @@ sub ProcessManifest($$)
     return 0;
 }
 
+sub Start($$)
+{
+    my ($self, $version) = @_;
+
+    return $self->Action($version, "start");
+}
+
+sub Restart($$)
+{
+    my ($self, $version) = @_;
+
+    return $self->Action($version, "restart");
+}
+
+sub Reload($$)
+{
+    my ($self, $version) = @_;
+
+    return $self->Action($version, "reload");
+}
+
 #
-# Start all the slivers in the aggregate. Start is special since it
-# sorta means reboot, and the only thing we reboot are nodes. And,
-# since we might have multiple vnodes on a pnode, we want to be efficient
-# about it.
+# Start/Restart/reload all the slivers in the aggregate. Start is
+# special since it sorta means reboot, and the only thing we reboot
+# are nodes. And, since we might have multiple vnodes on a pnode, we
+# want to be efficient about it.
 #
 # XXX Is is assumed that there is a single toplevel aggregate for the
 # slice, so we can get all the nodes.
 #
-sub Start($$$)
+sub Action($$$)
 {
-    my ($self, $version, $restart) = @_;
+    my ($self, $version, $action) = @_;
     $self->ClearBootFailure();
     my $msg = "Internal Error: ";
+    my $restart = ($action eq "restart" ? 1 : 0);
+    my $reload  = ($action eq "reload" ? 1 : 0);
     require Lan;
     require OSinfo;
     require Image;
 
     return -1
 	if (! ref($self));
-    $restart = 0
-	if (!defined($restart));
 
     # Clear last error.
     $self->SetErrorLog("");    
@@ -928,7 +949,7 @@ sub Start($$$)
     }
     # The nodes will not boot locally unless there is a DNS record,
     # but we also need it before we can issue the reloads.
-    if (system("$NAMEDSETUP")) {
+    if (!$reload && system("$NAMEDSETUP")) {
 	$msg .= "$NAMEDSETUP failed\n";
 	goto bad;
     }
@@ -979,9 +1000,10 @@ sub Start($$$)
 	    #
 	    # Since this is an aggregate, some slivers may already be
 	    # in the started state. Skip those, unless doing a restart.
+	    # But reload is allowed in either started or stopped state.
 	    #
 	    next
-		if ($sliver->state() eq "started" && !$restart);
+		if (! $reload && ($sliver->state() eq "started" && !$restart));
 	    
 	    if ($node->isvirtnode()) {
 		# A virtnode on a shared physical node needs reboot or setup
@@ -1016,7 +1038,7 @@ sub Start($$$)
 		    $msg .= "Error determining if $osinfo is loaded on $vnode";
 		    goto bad;
 		}
-		if (! $isloaded) {
+		if (!$isloaded || $reload) {
 		    my $image = $osinfo->MapToImage("pcvm");
 		    if (defined($image)) {
 			print STDERR "Setting $vnode to load $image\n";
@@ -1039,6 +1061,9 @@ sub Start($$$)
 			if (exists($reboots{$vnode->node_id()})) {
 			    delete($reboots{$vnode->node_id()});
 			    $vnodekills{$vnode->node_id()} = $vnode;
+			    $vnodes{$node->node_id()} = $vnode;
+			}
+			elsif ($reload) {
 			    $vnodes{$node->node_id()} = $vnode;
 			}
 		    }
@@ -1074,6 +1099,10 @@ sub Start($$$)
 		    if (exists($poweron{$physnodeid}) ||
 			exists($reboots{$physnodeid}) ||
 			exists($reloads{$physnodeid}));
+		#
+		# We continue below, but now looking at the physical node
+		# that the vnode is running one. 
+		#
 	    }
 	    #
 	    # If the node is not imageable, then there is not much to
@@ -1118,7 +1147,7 @@ sub Start($$$)
 		$msg .= "Error determining if $osinfo is loaded on $node";
 		goto bad;
 	    }
-	    if (! $isloaded) {
+	    if (!$isloaded || $reload) {
 		print STDERR "  Setting up a reload for $node\n";
 		
 		my $image = $osinfo->MapToImage($node->type());
@@ -1237,7 +1266,7 @@ sub Start($$$)
 	}
     }
 
-    if ($version >= 2) {
+    if ($version >= 2 && !$reload) {
 	#
 	# Dump the manifest into the experiment directory.
 	#
@@ -1443,16 +1472,18 @@ sub Start($$$)
     #
     # Start the event scheduler.
     #
-    my $action = ($restart ? "replay" : "start");
-    system("$EVENTSYS $action $pid,$eid");
-    if ($?) {
-	$msg .= "Failed to (re)start the event system";
-	if ($TB ne "/usr/testbed") {
-	    # Not sure why this is failing.
-	    print STDERR "$msg\n";
-	}
-	else {
-	    goto bad;
+    if (!$reload) {
+	my $action = ($restart ? "replay" : "start");
+	system("$EVENTSYS $action $pid,$eid");
+	if ($?) {
+	    $msg .= "Failed to (re)start the event system";
+	    if ($TB ne "/usr/testbed") {
+		# Not sure why this is failing.
+		print STDERR "$msg\n";
+	    }
+	    else {
+		goto bad;
+	    }
 	}
     }
 

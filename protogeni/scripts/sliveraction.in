@@ -36,7 +36,7 @@ use Getopt::Std;
 # 
 sub usage()
 {
-    print "Usage: sliveraction [-f] start|stop|restart <urn>\n";
+    print "Usage: sliveraction [-f] start|stop|restart|reload <urn>\n";
     exit(1);
 }
 sub fatal($);
@@ -125,7 +125,7 @@ if (!defined($aggregate)) {
 }
 GeniUtil::FlipToGeniUser();
 if ($action eq "start") {
-    $aggregate->Start(2, 0) == 0
+    $aggregate->Start(2) == 0
 	or fatal("Could not start $aggregate");
 }
 elsif ($action eq "stop") {
@@ -133,7 +133,11 @@ elsif ($action eq "stop") {
 	or fatal("Could not stop $aggregate");
 }
 elsif ($action eq "restart") {
-    $aggregate->Start(2, 1) == 0
+    $aggregate->Restart(2) == 0
+	or fatal("Could not restart $aggregate");
+}
+elsif ($action eq "reload") {
+    $aggregate->Reload(2) == 0
 	or fatal("Could not restart $aggregate");
 }
 #

@@ -1084,6 +1084,8 @@ sub PerformOperationalAction
 	return GeniCMV2::RestartSliver($args);
     } elsif ($action eq 'geni_stop') {
 	return GeniCMV2::StopSliver($args);
+    } elsif ($action eq 'geni_reload') {
+	return GeniCMV2::ReloadSliver($args);
     } elsif ($action eq 'geni_update_users') {
 	if (!exists($options->{"geni_users"})) {
 	    return GeniResponse->MalformedArgsResponse("No keys provided!");

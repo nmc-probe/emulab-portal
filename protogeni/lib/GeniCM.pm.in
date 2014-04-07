@@ -4266,7 +4266,7 @@ sub StartSliver($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "FlipToUser Error");
     }
-    if (!$impotent && $sliver->Start($API_VERSION, 0) != 0) {
+    if (!$impotent && $sliver->Start($API_VERSION) != 0) {
 	$slice->UnLock();
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Could not start sliver/aggregate");

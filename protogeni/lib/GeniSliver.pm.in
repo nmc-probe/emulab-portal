@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2011, 2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -72,6 +72,7 @@ my $PLABNODE       = "$TB/sbin/plabnodewrapper";
 my $VNODESETUP     = "$TB/sbin/vnode_setup";
 my $GENTOPOFILE    = "$TB/libexec/gentopofile";
 my $POWER          = "$TB/bin/power";
+my $OSLOAD         = "$TB/bin/os_load";
 
 # Cache of instances to avoid regenerating them.
 my %slivers      = ();
@@ -1124,12 +1125,35 @@ sub ProcessManifest($$)
     return 0;
 }
 
-#
-# Start (or restart) a node. Basically, a reboot.
-#
-sub Start($$$)
+sub Start($$)
 {
-    my ($self, $version, $restart) = @_;
+    my ($self, $version) = @_;
+
+    return $self->Action($version, "start");
+}
+
+sub Restart($$)
+{
+    my ($self, $version) = @_;
+
+    return $self->Action($version, "restart");
+}
+
+sub Reload($$)
+{
+    my ($self, $version) = @_;
+
+    return $self->Action($version, "reload");
+}
+
+#
+# Start, Restart, and Reload.
+#
+sub Action($$$)
+{
+    my ($self, $version, $action) = @_;
+    my $restart = ($action eq "restart" ? 1 : 0);
+    my $reload  = ($action eq "reload" ? 1 : 0);
 
     return -1
 	if (! ref($self));
@@ -1158,24 +1182,31 @@ sub Start($$$)
     if ($reservation->SameExperiment($experiment)) {
 	my $node_id = $node->node_id();
 
+	if ($reload) {
+	    system("$OSLOAD -c -s $node_id");
+	    return -1
+		if ($?);
+	}
+
 	#
 	# Reboot and wait?
 	#
-	if ($node->isvirtnode() && $node->sharing_mode()) {
-	    if ($node->eventstate() eq TBDB_NODESTATE_SHUTDOWN()) {
+	if ($node->isvirtnode()) {
+	    if ($self->state() eq "stopped") {
 		system("$VNODESETUP -j -m $pid $eid $node_id");
+	    }
+	    elsif ($restart) {
+		system("$NODEREBOOT $node_id");
 	    }
 	}
 	else {
 	    #
 	    # Look to see if local physical node was stopped (powered off).
 	    #
-	    if (!$node->isvirtnode() &&
-		!$node->isremotenode() &&
-		$self->state() eq "stopped") {
+	    if ($self->state() eq "stopped") {
 		system("$POWER on $node_id");
 	    }
-	    else {
+	    elsif ($restart) {
 		system("$NODEREBOOT $node_id");
 	    }
 	}
@@ -1223,12 +1254,10 @@ sub Stop($$)
 	my $node_id = $node->node_id();
 
 	#
-	# Reboot and wait?
+	# Virtnodes are "halted" which shuts down the VM but leaves the disks.
 	#
-	if ($node->isvirtnode() && $node->sharing_mode()) {
-	    if ($node->eventstate() eq TBDB_NODESTATE_SHUTDOWN()) {
-		system("$VNODESETUP -j -k -m $pid $eid $node_id");
-	    }
+	if ($node->isvirtnode()) {
+	    system("$VNODESETUP -j -h -m $pid $eid $node_id");
 	}
 	else {
 	    system("$POWER off $node_id");
