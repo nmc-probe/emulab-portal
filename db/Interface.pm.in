@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2013 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1154,6 +1154,29 @@ sub type($)            { return $_[0]->field('type'); }
 sub logical($)         { return $_[0]->field('logical'); }
 sub trunkid($)         { return $_[0]->field('trunkid'); }
 sub IsActive($)        { return ($_[0]->type() eq "Unused" ? 0 : 1); }
+
+#
+# Find me a wire from either side using nodeid,card,port.
+#
+sub LookupAny($$$$)
+{
+    my ($class, $nodeid, $card, $port) = @_;
+
+    my $query_result =
+	DBQueryWarn("select * from wires ".
+		    "where (node_id1='$nodeid' and ".
+		    "       card1='$card' and port1='$port') or ".
+		    "      (node_id2='$nodeid' and ".
+		    "       card2='$card' and port2='$port')");
+
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my $wire = {};
+    $wire->{"DBROW"}  = $query_result->fetchrow_hashref();
+    bless($wire, $class);
+    return $wire;
+}
 
 #
 # Delete a logical wire and its interfaces.
