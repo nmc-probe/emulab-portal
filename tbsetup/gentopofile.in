@@ -933,6 +933,8 @@ if ($havepmap) {
 		if (exists($bridges{$node0}));
 
 	    my $mac0 = $member0->{"mac"};
+	    my $encap0 = $member0->{"encap"};
+	    my $dstyle0 = $member0->{"dstyle"};
 	    if (!defined($mac0)) {
 		if (0) {
 		    print $LTPOUT "E No link info found for $vlan/$memb0\n";
@@ -941,11 +943,13 @@ if ($havepmap) {
 		else {
 		    # Lets not confuse the ptop parser. 
 		    $mac0 = "000000000000";
+		    $encap0 = "none"
+			if (!defined($encap0));
+		    $dstyle0 = "dnode"
+			if (!defined($dstyle0));
 		}
 	    }
-	    my $encap0 = $member0->{"encap"};
-	    my $dstyle0 = $member0->{"dstyle"};
-	    
+
 	    foreach my $memb1 (@members) {
 		next
 		    if ($memb0 eq $memb1);
