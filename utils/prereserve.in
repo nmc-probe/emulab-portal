@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -413,7 +413,8 @@ sub StartReservation($)
     }
     
     #
-    # First see if we can find enough (or any) nodes to satisfy the prereserve.
+    # First see if we can find enough (or any) nodes to satisfy the
+    # prereserve, from nodes already prereserved.
     #
     $query_result =
 	DBQueryFatal("select node_id from nodes where reserved_pid='$pid'");
@@ -429,7 +430,7 @@ sub StartReservation($)
     }
 
     #
-    # First check free nodes.
+    # Then check free/allocated nodes of each type.
     #
     foreach my $type (@types) {
 	last
@@ -440,7 +441,37 @@ sub StartReservation($)
 	if ($type ne "*") {
 	    $tclause = "and node_types.type='$type'";
 	}
-    
+
+	#
+	# check for nodes already reserved to the project, but without
+	# reserved_pid set; they count against a prereserve request and
+	# also need to be updated.
+	#
+	$query_result =
+	    DBQueryFatal("select reserved.node_id from reserved ".
+			 "left join nodes on nodes.node_id=reserved.node_id ".
+			 "left join node_types on node_types.type=nodes.type ".
+			 "where nodes.role='testnode' and ".
+			 "      node_types.class='pc' and ".
+			 "      nodes.reserved_pid is null and ".
+			 "      reserved.pid='$pid' $tclause");
+	
+	while (my ($node_id) = $query_result->fetchrow_array()) {
+	    DBQueryFatal("update nodes set reserved_pid='$pid' ".
+			 "where node_id='$node_id'");
+	    $current++;
+	    $tcount++;
+	    last
+		if ($current >= $count);
+	}
+	if ($tcount) {
+	    print "Set reserved_pid for $tcount (allocated)" .
+		($type eq "*" ? "" : " $type") . " nodes.\n";
+
+	    last
+		if ($current >= $count);
+	}
+
 	$query_result =
 	    DBQueryFatal("select nodes.node_id from nodes ".
 			 "left join reserved on ".
@@ -450,7 +481,8 @@ sub StartReservation($)
 			 "      nodes.role='testnode' and ".
 			 "      node_types.class='pc' and ".
 			 "      nodes.reserved_pid is null $tclause");
-    
+
+	$tcount = 0;
 	while (my ($node_id) = $query_result->fetchrow_array()) {
 	    DBQueryFatal("update nodes set reserved_pid='$pid' ".
 			 "where node_id='$node_id'");
@@ -465,7 +497,7 @@ sub StartReservation($)
 	}
     }
     if ($current >= $count) {
-	print "Got as many nodes as you wanted from the free pool. Yippie!\n";
+	print "Got as many nodes as you wanted. Yippie!\n";
     }
     #
     # Update the reservation entry, and mark as active.
