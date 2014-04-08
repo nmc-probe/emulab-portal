@@ -790,17 +790,19 @@ sub vnodeCreate($$$$)
 	    my $auxchar = ord('c');
 	    my @stanzas = ();
 	    
+	    my $dpre = "xvd";
 	    foreach my $disk (keys(%{$private->{'disks'}})) {
 		my ($lvname,$vndisk,$vdisk) = @{$private->{'disks'}->{$disk}};
-		if ($vdisk =~ /^sd(\w)$/ || $vdisk =~ /^xvd(\w)$/) {
-		    $auxchar = ord($1)
-			if (ord($1) > $auxchar);
+		if ($vdisk =~ /^(sd)(\w)$/ || $vdisk =~ /^(xvd)(\w)$/ ||
+		    $vdisk =~ /^(hd)(\w)$/) {
+		    $dpre = $1;
+		    $auxchar = ord($2)
+			if (ord($2) > $auxchar);
 		}
 		# Generate a new set of stanzas. see below.
 		push(@stanzas, "'phy:$vndisk,$vdisk,w'");
 	    }
-	    my $vdisk = ($xeninfo{xen_major} >= 4 ? 'xvd' : "sd") .
-		chr($auxchar);
+	    my $vdisk = $dpre .	chr($auxchar);
 	    my $auxlvname = "${vnode_id}.${vdisk}";
 	    
 	    if (!findLVMLogicalVolume($auxlvname)) {
@@ -830,19 +832,27 @@ sub vnodeCreate($$$$)
     # We get the OS and version from loadinfo.
     #
     my $vdiskprefix = "sd";	# yes, this is right for FBSD too
+    my $ishvm = 0;
     my $os;
     
     if ($imagemetadata->{'PARTOS'} =~ /freebsd/i) {
 	$os = "FreeBSD";
+
+	# XXX we assume that all 10.0 and above will be PVHVM
+	if ($imagemetadata->{'OSVERSION'} >= 10) {
+	    $ishvm = 1;
+	    $vdiskprefix = "hd";
+	}
     }
     else {
 	$os = "Linux";
 
 	if ($xeninfo{xen_major} >= 4) {
-	    $vdiskprefix = 'xvd';
+	    $vdiskprefix = "xvd";
 	}
     }
     $private->{'os'} = $os;
+    $private->{'ishvm'} = $ishvm;
 
     # All of the disk stanzas for the config file.
     my @alldisks = ();
@@ -988,12 +998,15 @@ sub vnodeCreate($$$$)
     # Extract kernel and ramdisk.
     #
     if ($os eq "FreeBSD") {
-	my $kernel = ExtractKernelFromFreeBSDImage($vnode_id,
-						   $private->{'rootpartition'},
-						   "$VMDIR/$vnode_id");
-	    
+	my $kernel =
+	    ExtractKernelFromFreeBSDImage($vnode_id,
+					  $private->{'rootpartition'},
+					  "$VMDIR/$vnode_id");
 	if (!defined($kernel)) {
-	    if ($imagemetadata->{'OSVERSION'} >= 9) {
+	    if ($imagemetadata->{'OSVERSION'} >= 10) {
+		# we only support HVM for 10+ kernels
+		$kernel = "NO-PV-KERNELS";
+	    } elsif ($imagemetadata->{'OSVERSION'} >= 9) {
 		$kernel = "/boot/freebsd9/kernel";
 	    }
 	    elsif ($imagemetadata->{'OSVERSION'} >= 8) {
@@ -1007,7 +1020,11 @@ sub vnodeCreate($$$$)
 		      "no FreeBSD kernel for '$imagename' on $vnode_id");
 	    }
 	}
-	$image{'kernel'} = $kernel;
+	if ($ishvm) {
+	    undef $image{'kernel'};
+	} else {
+	    $image{'kernel'} = $kernel;
+	}
 	undef $image{'ramdisk'};
     }
     else {
@@ -1111,8 +1128,10 @@ sub vnodeCreate($$$$)
     # a failure down the road, we just accumulate the config info in a string
     # and write it out right before we boot.
     #
-    # BSD stuff inspired by:
+    # BSD PV stuff inspired by:
     # http://wiki.freebsd.org/AdrianChadd/XenHackery
+    # BSD PVHVM stuff inspired by:
+    # http://wiki.xen.org/wiki/Testing_FreeBSD_PVHVM
     #
     $vninfo->{'cffile'} = [];
 
@@ -1126,16 +1145,38 @@ sub vnodeCreate($$$$)
 	addConfig($vninfo, "bootloader = '$bootloader'", 2);
     }
     else {
-	addConfig($vninfo, "kernel = '$kernel'", 2);
+	addConfig($vninfo, "kernel = '$kernel'", 2)
+	    if (defined($kernel));
 	addConfig($vninfo, "ramdisk = '$ramdisk'", 2)
 	    if (defined($ramdisk));
     }
     addConfig($vninfo, "disk = [" . join(",", @alldisks) . "]", 2);
 
     if ($os eq "FreeBSD") {
-	addConfig($vninfo, "extra = 'boot_verbose=1" .
-		  ",vfs.root.mountfrom=ufs:/dev/da0s1a".
-		  ",kern.bootfile=/boot/kernel/kernel'", 2);
+	if ($ishvm) {
+	    my $xdir = "/usr/lib/xen-4.3";
+
+	    addConfig($vninfo, "extra = 'boot_verbose=1'", 2);
+
+	    addConfig($vninfo, "builder='hvm'", 2);
+	    addConfig($vninfo, "firmware_override='$xdir/boot/hvmloader'", 2);
+	    addConfig($vninfo, "device_model_override='$xdir/bin/qemu-dm'", 2);
+	    addConfig($vninfo,
+		      "device_model_version='qemu-xen-traditional'", 2);
+	    addConfig($vninfo, "xen_platform_pci=1", 2);
+	    addConfig($vninfo, "boot='c'", 2);
+	    addConfig($vninfo, "serial='pty'", 2);
+	    addConfig($vninfo, "apic=1", 2);
+	    addConfig($vninfo, "acpi=1", 2);
+	    addConfig($vninfo, "pae=1", 2);
+	    addConfig($vninfo, "vnc=0", 2);
+	    addConfig($vninfo, "sdl=0", 2);
+	    addConfig($vninfo, "stdvga=0", 2);
+	} else {
+	    addConfig($vninfo, "extra = 'boot_verbose=1" .
+		      ",vfs.root.mountfrom=ufs:/dev/da0s1a".
+		      ",kern.bootfile=/boot/kernel/kernel'", 2);
+	}
     } else {
 	addConfig($vninfo, "root = '/dev/$rootvdisk ro'", 2);
 	addConfig($vninfo, "extra = ".
@@ -1179,7 +1220,7 @@ sub vnodeCreate($$$$)
 # Here we just mount it and invoke the callback.
 #
 # XXX note that the callback only works when we can mount the VM OS's
-# filesystems!  Since all we do right now is Linux, this is easy.
+# filesystems!  We know how to do this for Linux and FreeBSD.
 #
 sub vnodePreConfig($$$$$){
     my ($vnode_id, $vmid, $vnconfig, $private, $callback) = @_;
@@ -1263,7 +1304,11 @@ sub vnodePreConfig($$$$$){
     # deal with FBSD filesystems. 
     #
     if ($vninfo->{'os'} eq "FreeBSD") {
-	mysystem("mount -t ufs -o ufstype=44bsd $dev $vnoderoot");
+	mysystem2("mount -t ufs -o ufstype=44bsd $dev $vnoderoot");
+	if ($?) {
+	    # try UFS2
+	    mysystem("mount -t ufs -o ufstype=ufs2 $dev $vnoderoot");
+	}
     }
     else {
 	mysystem("mount $dev $vnoderoot");
@@ -1294,9 +1339,6 @@ sub vnodePreConfig($$$$$){
 	}
     }
 
-    #
-    # For FreeBSD, we would have to mount the /var partition. 
-    #
     if ($vninfo->{'os'} ne "FreeBSD") {
 	# Should be handled in libsetup.pm, but just in case
 	if (! -e "$vnoderoot/var/emulab/boot/localevserver" ) {
@@ -1348,11 +1390,13 @@ sub vnodePreConfig($$$$$){
 	mysystem2("/bin/rm -vf $vnoderoot/etc/init.d/*iscsi*");
     }
     else {
+	#
 	# XXX We need this for libsetup to know it is in a XENVM.
 	# Note that the FreeBSD images put /var on another partition
 	# and it would be difficult to get that mounted.  So stick it
 	# in /etc/emulab, and arrange for rc.local to move it into
 	# place.
+	#
 	if (! -e "$vnoderoot/etc/emulab/vmname" ) {
 	    mysystem2("echo '$vnode_id' > $vnoderoot/etc/emulab/vmname");
 	    goto bad
@@ -1374,13 +1418,14 @@ sub vnodePreConfig($$$$$){
 	    goto bad
 		if ($?);
 	
+	my $ldisk = $vninfo->{'ishvm'} ? "ada0s1" : "da0s1";
 	if (-e "$vnoderoot/etc/dumpdates") {
-	    mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/da0s1;' ".
+	    mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
 		      "  $vnoderoot/etc/dumpdates");
 	    goto bad
 		if ($?);
 	}
-	mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/da0s1;' ".
+	mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
 		  "  $vnoderoot/etc/fstab");
 	goto bad
 	    if ($?);
@@ -2283,6 +2328,20 @@ sub CreatePrimaryDisk($$$$)
     # If not a whole disk image, need to construct an MBR.
     #
     if ($loadslice != 0) {
+	#
+	# HVM FreeBSD needs real MBR boot code.
+	#
+	if ($imagemetadata->{'PARTOS'} =~ /freebsd/i &&
+	    $imagemetadata->{'OSVERSION'} >= 10) {
+	    my $boot = "$VMDIR/$target/boot0";
+	    print STDERR "libvnode_xen: no boot0 code for FreeBSD HVM boot\n"
+		if (! -e "$boot");
+	    if (mysystem2("dd if=$boot of=$rootvndisk bs=512 count=1")) {
+		print STDERR "libvnode_xen: could not install FreeBSD boot0\n";
+		return -1;
+	    }
+	}
+
 	#
 	# We put the image into the same slice that tmcd
 	# tells us it should be in, but we leave the other slice
@@ -3554,8 +3613,8 @@ sub parseXenDiskInfo($$)
 	    # Need to pull out the lvm name from the device path.
 	    my $lvname = basename($device);
 		
-	    # The root disk is marked by sda or xvda.
-	    if ($2 eq "sda" || $2 eq "xvda") {
+	    # The root disk is marked by sda, xvda or hda.
+	    if ($2 eq "sda" || $2 eq "xvda" || $2 eq "hda") {
 		$disks->{$vnode_id} = [$lvname, $device, $vndisk];
 	    }
 	    else {
@@ -3984,11 +4043,16 @@ sub ExtractKernelFromFreeBSDImage($$$)
     my ($lvname, $lvmpath, $outdir) = @_;
     my $mntpath = "/mnt/$lvname";
     my $kernel  = undef;
+    my $mbrboot = undef;
 
     return undef
 	if (! -e $mntpath && mysystem2("mkdir -p $mntpath"));
 
     mysystem2("mount -t ufs -o ro,ufstype=44bsd $lvmpath $mntpath");
+    if ($?) {
+	# try UFS2
+	mysystem2("mount -t ufs -o ro,ufstype=ufs2 $lvmpath $mntpath");
+    }
     return undef
 	if ($?);
 
@@ -4010,6 +4074,10 @@ sub ExtractKernelFromFreeBSDImage($$$)
 	    # See if there is a xen section. If not, then we cannot use it.
 	    #
 	    mysystem2("nm $kernelfile | grep -q xen_guest");
+	    if ($?) {
+		# XXX PVHVM kernel
+		mysystem2("nm $kernelfile | grep -q xen_features");
+	    }
 	    goto skip
 		if ($?);
 	}
@@ -4018,6 +4086,18 @@ sub ExtractKernelFromFreeBSDImage($$$)
 	    if ($?);
 	$kernel = "$outdir/kernel";
     }
+
+    #
+    # Extract the boot0 code for HVM boots.
+    #
+    if (-e "$mntpath/boot/boot0") {
+	my $bootfile = "$mntpath/boot/boot0";
+
+	mysystem2("/bin/cp -pf $bootfile $outdir/boot0");
+	goto skip
+	    if ($?);
+    }
+
   skip:
     mysystem2("umount $mntpath");
     return undef
