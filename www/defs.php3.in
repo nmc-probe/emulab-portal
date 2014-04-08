@@ -176,6 +176,28 @@ $RSS_HEADER_PGENINEWS =
    "<link rel=\"alternate\" type=\"application/rss+xml\" " .
    "title=\"ProtoGeni News\" href=\"$TBDOCBASE/news-rss.php3?protogeni=1\"/>";
 
+$RSS_HEADER_PNNEWS =
+   "<link rel=\"alternate\" type=\"application/rss+xml\" " .
+   "title=\"PhantomNet News\" href=\"$TBDOCBASE/news-rss.php3?phantomnet=1\"/>";
+
+#
+# Below is a rather ugly solution for changing aspects of the UI based on
+# the incoming apache virtual server name.
+#
+if (strpos($_SERVER['SERVER_NAME'],'phantomnet') !== false) {
+  $WWWHOST	= "www.phantomnet.org";
+  $WWW		= $WWWHOST;
+  $OURDOMAIN    = "phantomnet.org";
+  $THISHOMEBASE	= "PhantomNet.Org";
+  $TBAUTHDOMAIN	= ".$OURDOMAIN";
+  $TBBASE	= "https://$WWWHOST";
+  $TBDOCBASE	= "http://$WWWHOST";
+  $TBWWW	= "<$TBBASE/>";
+  $WIKINODE     = "wiki.phantomnet.org";
+  $WIKIDOCS     = "http://${WIKINODE}/wikidocs/wiki";
+}
+
+
 #
 # Database constants and the like.
 #
@@ -612,7 +634,7 @@ function YesNo($bool) {
 #
 # See if someone is logged in, and if they need to be redirected.
 #
-function CheckRedirect($wwwbase) {
+function CheckRedirect() {
     global $stayhome;
 
     if (($this_user = CheckLogin($check_status))) {
@@ -629,11 +651,11 @@ function CheckRedirect($wwwbase) {
 	    if ($check_status == CHECKLOGIN_LOGGEDIN) {
 		if ($firstinitstate == "createproject") {
                     # Zap to NewProject Page,
-		    header("Location: $wwwbase/newproject.php3");
+		    header("Location: $TBBASE/newproject.php3");
 		}
 		else {
                     # Zap to My Emulab page.
-		    header("Location: $wwwbase/".
+		    header("Location: $TBBASE/".
 			   CreateURL("showuser", $this_user));
 		}
 		exit;

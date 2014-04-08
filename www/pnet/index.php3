@@ -21,7 +21,7 @@
 # 
 # }}}
 #
-require("pnetdefs.php3");
+require("defs.php3");
 
 $optargs = OptionalPageArguments("stayhome", PAGEARG_BOOLEAN);
 
@@ -29,12 +29,17 @@ $optargs = OptionalPageArguments("stayhome", PAGEARG_BOOLEAN);
 # The point of this is to redirect logged in users to their My Emulab
 # page. 
 #
-CheckRedirect($PNETBASE);
+CheckRedirect();
 
 #
 # PhantomNet Header
 #
-PAGEHEADER("PhantomNet - Mobility Testbed Platform",NULL,$RSS_HEADER_PNNEWS);
+$pnetview = array('hide_sidebar' => 1, 'hide_banner' => 0,
+		  'show_topbar' => "pnet", 'show_bottombar' => 'pnet',
+		  'hide_copyright' => 0, 'show_pnet' => 1);
+
+PAGEHEADER("PhantomNet - Mobility Testbed Platform", $pnetview,
+	   $RSS_HEADER_PNNEWS);
 
 #
 # Show special banner message, if set.
@@ -54,5 +59,5 @@ readfile("index-phantomnet.html");
 #
 # Standard Testbed Footer
 # 
-PAGEFOOTER();
+PAGEFOOTER($pnetview);
 ?>
