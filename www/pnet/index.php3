@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,15 +31,7 @@ $optargs = OptionalPageArguments("stayhome", PAGEARG_BOOLEAN);
 #
 CheckRedirect();
 
-#
-# PhantomNet Header
-#
-$pnetview = array('hide_sidebar' => 1, 'hide_banner' => 0,
-		  'show_topbar' => "pnet", 'show_bottombar' => 'pnet',
-		  'hide_copyright' => 0, 'show_pnet' => 1);
-
-PAGEHEADER("PhantomNet - Mobility Testbed Platform", $pnetview,
-	   $RSS_HEADER_PNNEWS);
+PAGEHEADER("PhantomNet - Mobility Testbed", NULL, $RSS_HEADER_PNNEWS);
 
 #
 # Show special banner message, if set.
@@ -59,5 +51,5 @@ readfile("index-phantomnet.html");
 #
 # Standard Testbed Footer
 # 
-PAGEFOOTER($pnetview);
+PAGEFOOTER();
 ?>

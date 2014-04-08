@@ -195,8 +195,15 @@ if (strpos($_SERVER['SERVER_NAME'],'phantomnet') !== false) {
   $TBWWW	= "<$TBBASE/>";
   $WIKINODE     = "wiki.phantomnet.org";
   $WIKIDOCS     = "http://${WIKINODE}/wikidocs/wiki";
+  $IS_PNET      = 1;
 }
 
+#
+# PhantomNet view declaration
+#
+$PNETVIEW = array('hide_sidebar' => 1, 'hide_banner' => 0,
+		  'show_topbar' => "pnet", 'show_bottombar' => 'pnet',
+		  'hide_copyright' => 0, 'show_pnet' => 1);
 
 #
 # Database constants and the like.
