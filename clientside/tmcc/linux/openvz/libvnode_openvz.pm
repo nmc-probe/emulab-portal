@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2047,6 +2047,7 @@ sub vz_vnodePreConfigExpNetwork {
 	    my $inetip   = $tunnel->{"tunnel_ip"};
 	    my $peerip   = $tunnel->{"tunnel_peerip"};
 	    my $mask     = $tunnel->{"tunnel_ipmask"};
+	    my $mac      = $tunnel->{"tunnel_mac"};
 	    my $unit     = $tunnel->{"tunnel_unit"};
 	    my $grekey   = $tunnel->{"tunnel_tag"};
 	    my $gre;
@@ -2138,8 +2139,10 @@ sub vz_vnodePreConfigExpNetwork {
 	    my $veth = "veth$vmid.tun$unit";
 	    # device name inside the container
 	    my $eth  = "gre$unit";
+	    # mac inside the container.
+	    my $ethmac = fixupMac($mac);
 	    
-	    $netif_strs{$eth} = "$eth,,$veth";
+	    $netif_strs{$eth} = "$eth,$ethmac,$veth";
 	    if ($elabifs ne '') {
 		$elabifs .= ';';
 	    }
