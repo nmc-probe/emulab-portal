@@ -299,7 +299,7 @@ my $profile_object = APT_Profile->Lookup($value);
 if (!defined($profile_object)) {
     fatal("No such profile: $value");
 }
-my $rspecstr = $profile_object->CheckFirewall($profile_object->public());
+my $rspecstr = $profile_object->CheckFirewall(!$localuser);
 $profile = $profile_object->idx();
 
 #
