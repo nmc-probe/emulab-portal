@@ -945,6 +945,21 @@ AC_SUBST(HAVE_XERCES)
 AC_SUBST(NEWER_BOOST)
 
 #
+# Are we building with Clang?
+# Taken from MesaLib configure via chromium.
+#
+AC_MSG_CHECKING([if compiling with clang])
+AC_COMPILE_IFELSE(
+[AC_LANG_PROGRAM([], [[
+#ifndef __clang__
+       not clang
+#endif
+]])],
+[USING_CLANG=yes], [USING_CLANG=no])
+AC_MSG_RESULT([$USING_CLANG])
+AC_SUBST(USING_CLANG)
+
+#
 # Testing mode.  In testing mode scripts should not effect hardware state.
 # This is designed to be used with the testsuite software which operates
 # on a test copy of the DB.
