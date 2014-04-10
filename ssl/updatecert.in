@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2010, 2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -36,11 +36,14 @@ use Getopt::Std;
 # 
 sub usage()
 {
-    print "Usage: updatecert [-d] <certfile.pem>\n";
+    print "Usage: updatecert [-d] [-o file | -w] [-k keyfile] <certfile.pem>\n";
     exit(1);
 }
-my $optlist = "d";
-my $debug   = 0;
+my $optlist   = "do:k:w";
+my $debug     = 0;
+my $overwrite = 0;
+my $outfile;
+my $keyfile;
 
 #
 # Configure variables
@@ -60,7 +63,7 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
 # Protos
 sub fatal($);
-sub UpdateCert($);
+sub UpdateCert($$);
 
 #
 # Turn off line buffering on output
@@ -86,21 +89,37 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"d"})) {
     $debug++;
 }
+if (defined($options{"o"})) {
+    $outfile = $options{"o"};
+}
+elsif (defined($options{"w"})) {
+    $overwrite = 1;
+}
+if (defined($options{"k"})) {
+    $keyfile = $options{"k"};
+}
 usage()
     if (!@ARGV);
 my $certfile = $ARGV[0];
+$keyfile = $certfile
+    if (!defined($keyfile));
 
 fatal("No such file: $certfile")
     if (! -e $certfile);
 
-exit(UpdateCert($certfile));
+exit(UpdateCert($certfile, $keyfile));
 
 #
 # Update a certificate using the installed CA.
 #
-sub UpdateCert($)
+sub UpdateCert($$)
 {
-    my ($file) = @_;
+    my ($certfile, $keyfile) = @_;
+
+    $keyfile = `realpath $keyfile`;
+    chomp($keyfile);
+    $certfile = `realpath $certfile`;
+    chomp($certfile);
 
     #
     # Make sure we can get find the private key in the file, and
@@ -109,8 +128,8 @@ sub UpdateCert($)
     my $privkey;
     my $string;
     
-    open(CERT, $file)
-	or fatal("Could not open $file");
+    open(CERT, $keyfile)
+	or fatal("Could not open $keyfile");
     while (<CERT>) {
 	my $line = $_;
 	if ($line =~ /^-----BEGIN RSA/) {
@@ -127,10 +146,8 @@ sub UpdateCert($)
     }
     close(CERT);
     if (!defined($privkey)) {
-	fatal("Could not find private key in $file");
+	fatal("Could not find private key in $keyfile");
     }
-    $file = `realpath $file`;
-    chomp($file);
 
     #
     # CD to the workdir, and then serialize on the lock file since
@@ -169,24 +186,46 @@ sub UpdateCert($)
     printf SER "%08x\n", $serial;
     close(SER);
 
-    system("$OPENSSL x509 -x509toreq -in $file -signkey $file >$newreq");
+    system("$OPENSSL x509 -x509toreq -in $certfile ".
+	   "   -signkey $keyfile -out $newreq");
     if ($?) {
 	fatal("Could not create new certificate request");
     }
     system("$OPENSSL ca -batch -policy policy_match -days 2000 ".
 	   " -name CA_syscerts -config $CACONFIG -in $newreq ".
-	   " -extensions typical_extensions ".
+	   " -extensions typical_extensions -md sha1 ".
 	   " -cert $EMULAB_CERT -keyfile $EMULAB_KEY -out $newcert");
     if ($?) {
 	fatal("Could not create new certificate");
     }
 
-    # Put the private key back into the new file.
-    open(CERT, ">>$newcert")
-	or fatal("Could not open $newcert for writing");
-    print CERT $privkey;
-    close(CERT);
-    print "New certificate written to $newcert\n";
+    # Put the private key back into the new file, if they were originally
+    # in the same file.
+    if ($certfile eq $keyfile) {
+	open(CERT, ">>$newcert")
+	    or fatal("Could not open $newcert for writing");
+	print CERT $privkey;
+	close(CERT);
+    }
+    if (defined($outfile) || $overwrite) {
+	$outfile = $certfile
+	    if ($overwrite);
+
+	if ($overwrite) {
+	    system("/bin/mv -f $outfile ${outfile}.bak");
+	    fatal("Could not backup $outfile to ${outfile}.bak")
+		if ($?);
+	}
+	system("/bin/mv -f $newcert $outfile");
+	fatal("Could not rename $newcert to $outfile")
+	    if ($?);
+	
+	print "New certificate written to $outfile\n";
+    }
+    else {
+	system("/bin/cat $newcert");
+	unlink($newcert);
+    }
     TBScriptUnlock();
 
     return 0;
