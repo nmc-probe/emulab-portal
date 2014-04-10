@@ -2681,11 +2681,15 @@ sub ListActiveSlivers($)
 	print STDERR "Could not load clearinghouse certificate\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    
-    # The target has to match the clearinghouse (delegated credential).
-    if ($credential->target_urn() ne $certificate->urn()) {
+
+    #
+    # The target has to match the clearinghouse or the local CM.
+    # Might be (usually is) a delegated credential.
+    #
+    if ($credential->target_urn() ne $certificate->urn() &&
+	$credential->target_urn() ne $authority->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Only the clearinghouse can do this!");
+				    "Only the CH or local CM can do this!");
     }
     my $query_result =
 	DBQueryWarn("select a.idx,m.manifest from geni_aggregates as a ".
