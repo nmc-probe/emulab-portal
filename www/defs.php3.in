@@ -181,19 +181,20 @@ $RSS_HEADER_PNNEWS =
    "title=\"PhantomNet News\" href=\"$TBDOCBASE/news-rss.php3?phantomnet=1\"/>";
 
 #
-# Below is a rather ugly solution for changing aspects of the UI based on
-# the incoming apache virtual server name.
+# Below is an inelegant solution for changing aspects of the UI based on
+# the incoming apache virtual server name (for PhantomNet).
 #
-if (strpos($_SERVER['SERVER_NAME'],'phantomnet') !== false) {
-  $WWWHOST	= "www.phantomnet.org";
+$IS_PNET = 0;
+if (strpos($_SERVER['SERVER_NAME'],'phantom') !== false) {
+  $WWWHOST	= $_SERVER['SERVER_NAME'];
+  $OURDOMAIN    = implode(".", array_slice(explode(".",$WWWHOST),1));
   $WWW		= $WWWHOST;
-  $OURDOMAIN    = "phantomnet.org";
-  $THISHOMEBASE	= "PhantomNet.Org";
+  $THISHOMEBASE	= "PhantomNet";
   $TBAUTHDOMAIN	= ".$OURDOMAIN";
   $TBBASE	= "https://$WWWHOST";
   $TBDOCBASE	= "http://$WWWHOST";
   $TBWWW	= "<$TBBASE/>";
-  $WIKINODE     = "wiki.phantomnet.org";
+  $WIKINODE     = "wiki.$OURDOMAIN";
   $WIKIDOCS     = "http://${WIKINODE}/wikidocs/wiki";
   $IS_PNET      = 1;
 }
