@@ -8949,7 +8949,7 @@ sub UpLoadTunnels($)
 	    $iface0->SetAttribute("tunnel_ipmask", $mask) ||
 	    $iface0->SetAttribute("tunnel_serverport", $ipport) ||
 	    $iface0->SetAttribute("tunnel_lan", $virtlan->vname()) ||
-	    $iface0->SetAttribute("tunnel_unit", $iface0->memberid() + 1) ||
+	    $iface0->SetAttribute("tunnel_unit", $member0->vport() + 1) ||
 	    $iface0->SetAttribute("tunnel_tag", $tunnel_tag) ||
 	    $iface0->SetAttribute("tunnel_mac", $iface0_mac) ||
 	    $iface0->SetAttribute("tunnel_style", $virtlan->_encapstyle())) {
@@ -8966,7 +8966,7 @@ sub UpLoadTunnels($)
 	    $iface1->SetAttribute("tunnel_ipmask", $mask) ||
 	    $iface1->SetAttribute("tunnel_serverport", $ipport) ||
 	    $iface1->SetAttribute("tunnel_lan", $virtlan->vname()) ||
-	    $iface1->SetAttribute("tunnel_unit", $iface1->memberid() + 1) ||
+	    $iface1->SetAttribute("tunnel_unit", $member1->vport() + 1) ||
 	    $iface1->SetAttribute("tunnel_tag", $tunnel_tag) ||
 	    $iface1->SetAttribute("tunnel_mac", $iface1_mac) ||
 	    $iface1->SetAttribute("tunnel_style", $virtlan->_encapstyle())) {
