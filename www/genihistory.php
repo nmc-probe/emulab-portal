@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -133,9 +133,11 @@ if (1) {
 	}
     }
     $query_result =
-	DBQueryFatal("select a.*,s.idx as slice_idx ".
+	DBQueryFatal("select a.*,c.DN,s.idx as slice_idx ".
 		     "  from aggregate_history as a ".
 		     "left join geni_slices as s on s.uuid=a.slice_uuid ".
+		     "left join geni_certificates as c on ".
+		     "     c.urn=a.creator_urn ".
 		     "where a.type='Aggregate' $clause ".
 		     "order by a.idx desc limit 20",
 		     $dblink);
@@ -143,8 +145,8 @@ if (1) {
     $table = array('#id'	   => 'aggregate',
 		   '#title'        => "Aggregate History",
 		   '#headings'     => array("idx"          => "ID",
-					    "slice_hrn"    => "Slice HRN/URN",
-					    "creator_hrn"  => "Creator HRN/URN",
+					    "slice_hrn"    => "Slice",
+					    "creator_hrn"  => "Creator",
 					    "created"      => "Created",
 					    "Destroyed"    => "Destroyed",
 					    "Manifest"     => "Manifest"));
@@ -163,6 +165,7 @@ if (1) {
 	    $creator_urn = $row["creator_urn"];
 	    $created     = $row["created"];
 	    $destroyed   = $row["destroyed"];
+	    $DN          = $row["DN"];
 
 	    # If we have urns, show those instead.
 	    $slice_info = $slice_hrn;
@@ -172,6 +175,17 @@ if (1) {
 	    $creator_info = $creator_hrn;
 	    if (isset($creator_urn)) {
 		$creator_info = "$creator_urn";
+	    }
+	    if (isset($DN) &&
+		#
+		# See if we can find the email.
+		#
+		(preg_match("/emailAddress=([A-Z0-9._%-]+@".
+			    "[A-Z0-9.-]+\.[A-Z]{2,4})/i", $DN, $matches) ||
+		 preg_match("/\/emailAddress=(.*)/", $DN, $matches) ||
+		 preg_match("/^emailAddress=(.*),/", $DN, $matches))) {
+
+		$creator_info .= "<br>" . $matches[1];
 	    }
 	    if ($destroyed) {
 		$url = "<a href='showslicelogs.php?slice_uuid=$slice_uuid'>";
