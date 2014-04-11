@@ -58,6 +58,7 @@ CREATE TABLE `geni_slices` (
   `shutdown` datetime default NULL,
   `locked` datetime default NULL,
   `stitch_locked` datetime default NULL,
+  `hosed` tinyint(1) NOT NULL default '0',
   `creator_uuid` varchar(40) NOT NULL default '',
   `creator_urn` tinytext,
   `speaksfor_uuid` varchar(40) default NULL,
