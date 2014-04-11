@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,7 +35,7 @@ SYSTEM         := $(shell uname -s)
 include $(OBJDIR)/Makeconf
 
 RC_SCRIPTS	= 2.mysql-server.sh 3.mfrisbeed.sh 3.testbed.sh \
-		  2.dhcpd.sh 1.mysql-client.sh 
+		  2.dhcpd.sh 1.mysql-client.sh 2.tbdbcheck.sh
 SUBBOSS_SCRIPTS	= 2.dhcpd.sh 3.mfrisbeed-subboss.sh arplock.sh
 OPS_SCRIPTS     = 3.and.sh 1.mysql-client.sh 1.mysql-server.sh arplock-opsfs.sh
 ifeq ($(ELVINCOMPAT),1)
