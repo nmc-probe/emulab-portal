@@ -498,7 +498,7 @@ sub CreateSliver($)
 	}
 	return $response;
     }
-    my ($sliver_credential, $sliver_manifest) = @{ $response->{'value'} };
+    my ($sliver_credential) = @{ $response->{'value'} };
 
     #
     # Leave the slice intact on error, so we can go look at it. 
@@ -514,6 +514,9 @@ sub CreateSliver($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Internal Error");
     }
+    # We get the manifest from the aggregate object, so that the
+    # expiration goes in.
+    my $sliver_manifest = $aggregate->GetManifest(1);
 
     #
     # At this point we want to return and let the startsliver proceed
