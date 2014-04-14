@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -151,7 +151,7 @@ $ENV{'MYUUID'} = $certificate->uuid();
 $ENV{'MYURN'} = "urn:publicid:IDN+@OURDOMAIN@+authority+cm";
 
 if (!$oneshot) {
-    if (CheckDaemonRunning("expire_daemon")) {
+    if (!$impotent && CheckDaemonRunning("expire_daemon")) {
 	fatal("Not starting another expire daemon!");
     }
     # Go to ground.
@@ -160,7 +160,7 @@ if (!$oneshot) {
 	    exit(0);
 	}
     }
-    if (MarkDaemonRunning("expire_daemon")) {
+    if (!$impotent && MarkDaemonRunning("expire_daemon")) {
 	fatal("Could not mark daemon as running!");
     }
 }
@@ -262,6 +262,8 @@ my %warned  = ();
 my %expires = ();
 my $hours   = 24;
 my $grace   = $hours * 3600;
+# Always warn within an hour of expiration, even short lived slices.
+my $minwarn = 3600;
 
 #
 # Send out warnings about 24 hours ahead of time.
@@ -272,21 +274,33 @@ sub WarnSlices()
 	GeniDB::DBQueryWarn("select idx,expires,UNIX_TIMESTAMP(expires), ".
 			    "   UNIX_TIMESTAMP(created) ".
 			    "  from geni_slices ".
-			    "where shutdown is null and isplaceholder=0");
+			    "where shutdown is null and ".
+			    "      hosed=0 and isplaceholder=0");
 
     while (my ($idx,$expires,$stamp,$created) =
 	   $query_result->fetchrow_array()) {
 	if (exists($expires{$idx})) {
-	    if ($expires{$idx} == $stamp) {
-		# Already warned, skip.
-	    }
-	    else {
+	    #
+	    # We use expires to mark first warning, and to indicate that
+	    # the user changed the expiration time since the that first
+	    # warning.
+	    #
+	    if ($expires{$idx} != $stamp) {
 		# Expiration changed, delete and catch in the next loop
 		print STDERR "Expiration changed for slice $idx to $expires\n";
 		delete($expires{$idx});
 		delete($warned{$idx});
+		next;
 	    }
-	    next;
+	    # Already warned. We skip after first warning, until within
+	    # an hour of expiration, and then skip again after the second
+	    # warning. The warned array marks the second warning.
+	    next if
+		(exists($warned{$idx}));
+
+	    # Waiting to send out second warning. 
+	    next 
+		if ($stamp - time() > $minwarn);
 	}
 	#
 	# If expiration is greater then 24 hours out, skip. 
@@ -299,7 +313,6 @@ sub WarnSlices()
 	    next;
 	}
 	my $slice = GeniSlice->Lookup($idx);
-
 	if (!defined($slice)) {
 	    # Slice is gone, lets not worry.
 	    delete($expires{$idx});
@@ -338,46 +351,56 @@ sub WarnSlices()
 	    $diff = POSIX::ceil($diff / 3600);
 	    $unit = "hours";
 	}
-	
-	if ($impotent) {
-	    if ($stamp - $created < $grace) {
-		print STDERR
-		    "Short lived sliver is going to expire: ".
-		    "$geniuser,$idx,$hrn,$diff $unit\n";
-	    }
-	    else {
-		print STDERR
-		    "Would send mail to $geniuser: $idx,$hrn,$diff $unit\n";
-	    }
-	    $warned{$idx}  = time();
+
+	#
+	# If nothing is in the expires array, then this is first warning. 
+	#
+	# If this was created in the last hour, skip the actual
+	# email. Wait until the second warning. 
+	#
+	if ($stamp - $created < $minwarn) {
+	    print STDERR "Skipping email for just created sliver $aggregate\n";
 	    $expires{$idx} = $stamp;
 	    $slice->UnLock();
 	    goto skip;
 	}
-	#
-	# If this is a short lived slice then do not bother to send
-	# email. Assume negative reenforcement will teach users what
-	# to do.
-	#
-	if ($stamp - $created < $grace) {
+	
+	if ($impotent) {
 	    print STDERR
-		"Short lived sliver is going to expire: ".
-		"$geniuser,$idx,$hrn,$diff $unit\n";
+		"Would send mail to $geniuser: $idx,$hrn,$diff $unit\n";
 	}
 	else {
 	    print STDERR
 		"Sending mail to $geniuser about expiring sliver $aggregate\n";
-	    SENDMAIL($emailaddr, "Sliver $sliver_urn expiring",
+	}
+	if (!exists($expires{$idx})) {
+	    print STDERR "--> This is first warning\n";
+	    $expires{$idx} = $stamp;
+
+	    #
+	    # Watch for startup condition; we do not want to send two
+	    # emails right away cause we started up close to expiraton
+	    # time of a sliver.
+	    #
+	    if ($stamp - time() <= $minwarn) {
+		print STDERR "--> And second warning\n";
+		$warned{$idx} = time();
+	    }
+	}
+	else {
+	    print STDERR "--> This is second warning\n";
+	    $warned{$idx} = time();
+	}
+	if (! $impotent) {
+	    SENDMAIL($emailaddr, "Sliver expiring at $OURDOMAIN",
 		     "Sliver $sliver_urn\n".
 		     "from slice $urn,\n".
-		     "is going to expire in approximately $diff $unit.\n".
-		     "Please renew it or let it expire if you not using it.\n",
+		     "is going to expire in approximately $diff $unit.\n\n".
+		     "Please renew it".
+		     " or let it expire if you are not using it anymore.\n",
 		     undef);
 	}
-	$warned{$idx}  = time();
-	$expires{$idx} = $stamp;
 	$slice->UnLock();
-	
       skip:
 	$slice->Flush()
 	    if (defined($slice));
@@ -568,7 +591,8 @@ sub ReportLockedSlices()
     my $msg = "";
     
     my $query_result =
-	GeniDB::DBQueryWarn("select idx,locked from geni_slices ".
+	GeniDB::DBQueryWarn("select idx,locked,hosed,now() > expires ".
+			    "  from geni_slices ".
 			    "where locked is not null and ".
 			    "      DATE_SUB(NOW(),INTERVAL 1 DAY) >= locked");
     if (!$query_result) {
@@ -578,7 +602,8 @@ sub ReportLockedSlices()
     return
 	if (!$query_result->numrows);
 
-    while (my ($idx, $locked) = $query_result->fetchrow_array()) {
+    while (my ($idx, $locked, $hosed, $expired) =
+	   $query_result->fetchrow_array()) {
 	my $slice = GeniSlice->Lookup($idx);
 
 	if (!defined($slice)) {
@@ -587,9 +612,47 @@ sub ReportLockedSlices()
 	}
 	my $urn = $slice->urn();
 	
-	$msg .= "$urn : $locked\n";
+	# If hosed, we have already tried to clean it up, but failed.
+	# Just add to the report, again.
+	goto hosed
+	    if ($hosed);
 
-	print STDERR "$urn : locked since $locked\n";
+	goto hosed
+	    if ($impotent);
+
+	if ($expired) {
+	    my $logfile;
+	    my $experiment  = $slice->GetExperiment();
+	    my $slice_uuid  = $slice->uuid();
+	    my $output = emutil::ExecQuiet("$CLEANUPSLICE -f -m $slice_uuid");
+	    my $status = $?;
+	    if (defined($experiment)) {
+		my $gid_idx = $experiment->gid_idx();
+		my $logfile = Logfile->CreateFromString($gid_idx, $output);
+		if (defined($logfile)) {
+		    $logfile->SetMetadata([["slice_idx",  $slice->idx()],
+					   ["slice_urn",  $slice->urn()],
+					   ["slice_uuid", $slice->uuid()],
+					   # For web interface listing
+					   ["Method",     "Cleanup"],
+					  ], 1);
+		    $logfile->Store();
+		}
+	    }
+	    else {
+		print STDERR "$output\n";
+	    }
+	    if ($status) {
+		$hosed = 1;
+		$slice->SetHosedFlag(1);
+	    }
+	}
+	
+      hosed:
+	$msg .= ($hosed ? "Hosed - " : "") . "$urn : $locked\n";
+	print STDERR
+	    ($hosed ? "Hosed - " : "") . "$urn : locked since $locked\n";
+	$slice->Flush();
     }
     return
 	if ($msg eq "");
@@ -647,8 +710,13 @@ sub ReportOrphanedCerts()
 	if (!$query_result->numrows);
 
     while (my ($uuid, $urn) = $query_result->fetchrow_array()) {
-	$msg .= "$uuid : $urn\n";
-
+	if (!$impotent) {
+	    GeniDB::DBQueryWarn("delete from geni_certificates ".
+				"where uuid='$uuid'");
+	}
+	else {
+	    $msg .= "$uuid : $urn\n";
+	}
 	print STDERR "$uuid,$urn : orphaned certificates\n";
     }
     return
@@ -890,7 +958,8 @@ sub CheckIdle()
     my $query_result =
 	GeniDB::DBQueryWarn("select idx,UNIX_TIMESTAMP(created) ".
 			    "  from geni_slices ".
-			    "where shutdown is null and isplaceholder=0");
+			    "where shutdown is null and ".
+			    "      hosed=0 and isplaceholder=0");
 
     while (my ($idx,$created) = $query_result->fetchrow_array()) {
 	my $slice = GeniSlice->Lookup($idx);
@@ -1187,8 +1256,7 @@ sub CheckIdle()
 }    
 
 if ($oneshot) {
-    CheckIdle()
-	if ($idlecheck);
+    WarnSlices();
     exit(0);
 }
 
@@ -1196,6 +1264,7 @@ if ($oneshot) {
 sleep(5);
 ReportLockedSlices();
 ReportOrphanedCerts();
+CheckIdle();
 
 my $reportcounter = 0;
 my $idlecounter   = 0;
@@ -1219,6 +1288,11 @@ while (1) {
     
     print "Running at ".
 	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
+
+    if (1) {
+	WarnSlices();
+	goto loop;
+    }
     
     ExpireTickets();
     WarnSlices();
@@ -1247,6 +1321,7 @@ while (1) {
     Node->FlushAll();
     GeniUtil::FlushCaches();
 
+  loop:
     print "Sleeping for $SLEEP_INTERVAL seconds ...\n";
     sleep($SLEEP_INTERVAL);
 }
