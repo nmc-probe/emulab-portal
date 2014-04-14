@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -91,7 +91,7 @@ params["rspec"]       = rspec
 params["impotent"]    = 0
 rval,response = do_method("cm", "GetTicket", params, version="2.0")
 if rval:
-    Fatal("Could not get ticket")
+    Fatal(response["value"])
     pass
 ticket = response["value"]
 print str(ticket)
