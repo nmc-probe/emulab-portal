@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -1174,6 +1174,27 @@ sub SetName($$)
 	or return -1;
     
     $self->{'SLICE'}->{'name'} = $name;
+    return 0;
+}
+
+#
+# Set the hosed field.
+#
+sub SetHosedFlag($$)
+{
+    my ($self, $hosed) = @_;
+    my $uuid  = $self->uuid();
+
+    $hosed = ($hosed ? 1 : 0);
+
+    my $query_result =
+	DBQueryWarn("update geni_slices set hosed='$hosed' " .
+		    "where uuid='$uuid'");
+    
+    return -1
+	if (!$query_result);
+
+    $self->{'SLICE'}->{'hosed'} = $hosed;
     return 0;
 }
 
