@@ -712,16 +712,18 @@ sub DeleteSlice($)
     }
 
     #
-    # If a monitor process is running, then cancel it so that
-    # we do not leave it behind on a slice/experiment that is
-    # now gone.
+    # If a monitor process is running, then the slice is busy.
+    # This might mean that the user will not be able to delete
+    # the slice for a long time, but we are having problems with
+    # users canceling slices before they finish setting up, and
+    # the XEN client side is not handling this very well. Note that
+    # the cleanupslice script calls GeniCM::CleanupDeadSlice()
+    # directly, which *does* kill the monitor, so admin cleanup
+    # is not affected.
     #
     if ($slice->monitor_pid()) {
-	my $response = GeniCM::KillMonitor($slice);
-	if (GeniResponse::IsResponse($response)) {
-	    $slice->UnLock();
-	    return $response;
-	}
+	$slice->UnLock();
+	return GeniResponse->MonitorResponse();
     }
     
     if (GeniCM::CleanupDeadSlice($slice, 1) != 0) {
