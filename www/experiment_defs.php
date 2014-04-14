@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -559,6 +559,24 @@ class Experiment
 	return $row[0];
     }
 
+    #
+    # Return formated time/date string at which autoswap will occur
+    # (if enabled).
+    #
+    function AutoSwapTime() {
+	$idx = $this->idx();
+	# Let mysql do the work
+	$query_result =
+	    DBQueryWarn("select date_add(expt_swapped,".
+			"                interval autoswap_timeout minute) ".
+			"       as autoswap_date ".
+			"  from experiments ".
+			"where idx='$idx'");
+
+	$row = mysql_fetch_array($query_result);
+	return $row[0];
+    }
+
     var $lastact_query =
 	"greatest(last_tty_act,last_net_act,last_cpu_act,last_ext_act)";
 
@@ -778,9 +796,13 @@ class Experiment
 	else
 	    $idleswap = "<b>No</b> $noidleswap";
 
-	if ($autoswap)
-	    $autoswap = "<b>Yes</b> (after $autoswap_str)";
-	else
+	if ($autoswap) {
+	    $autoswap = "<b>Yes</b>";
+	    $str = $this->AutoSwapTime();
+	    if ($str && $swappable == "Yes" && $exp_state == "active")
+		$autoswap .= "<b>, auto-swapout at $str</b>";
+	    $autoswap .= " ($autoswap_str from swapin)";
+	} else
 	    $autoswap = "No";
 
 	if ($idle_ignore)
