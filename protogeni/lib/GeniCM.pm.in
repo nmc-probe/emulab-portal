@@ -2148,7 +2148,15 @@ sub GetTicketAuxAux($$$$$$$$$$)
     $output =
 	GeniUtil::ExecQuiet("$MAPPER -a -d -v -u -z -o $tmpfile $pid $eid");
     if ($?) {
-	my $logstuff = "";
+	my $logstuff     = "";
+	my $errorstr     = "";
+	my $solution;
+	my $insolution   = 0;
+	my $violations;
+	my $inviolations = 0;
+	my $precheck;
+	my $inprecheck   = 0;
+	my $errorcode = GENIRESPONSE_ERROR;
 	
 	unlink($tmpfile);
 	if ($isupdate) {
@@ -2156,15 +2164,94 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    $slice_experiment->RestorePhysicalState();
 	}
 	#
-	# Find the important lines and print them first.
+	# Find the important lines and print them first if we cannot
+	# determine a specific reason and error code. Also copy out
+	# everything after Violations until the end of the Solution,
+	# in case there are no top level errors
 	#
 	while ($output =~ /^(.*)$/gm) {
-	    my $line = $1;
-	    if ($line =~ /^\*\*\* .*$/) {
+	    my $line = $1 . "\n";
+
+	    #
+	    # The assign_wrapper2 script wraps assign, and basically
+	    # prints a bunch of stuff a second time. But it helpfully
+	    # print a tag line we can watch for. We can stop parsing
+	    # when we see it.
+	    #
+	    last
+		if ($line =~ /^ASSIGN FAILED/);
+
+	    # Want just the first set of violations / solution / precheck.
+	    if (!defined($precheck) && $line =~ /precheck:$/) {
+		$inprecheck = 1;
+		$precheck   = "";
+	    }
+	    elsif (!defined($violations) &&
+		$line =~ /Violations:\s*(\d*)/ && $1 != 0) {
+		$violations   = "";
+		$inviolations = 1;
+		$inprecheck   = 0;
+	    }
+	    elsif ($inviolations && $line =~ /^Nodes:/) {
+		$inviolations = 0;
+		$inprecheck   = 0;
+		$insolution   = 1;
+		$solution     = "";
+	    }
+	    elsif ($line =~ /^End Solution/i) {
+		$inviolations = 0;
+		$insolution   = 0;
+		$inprecheck   = 0;
+	    }
+	    if ($inprecheck &&
+		$line !~ /^Node/ && $line !~ /^Type/ && $line !~ /^Policy/) {
+		
+		if ($line =~ /^\*\*\*[\s\w]*precheck failed/) {
+		    $errorstr = "Precheck failure";
+		}
+		elsif ($line =~ /^Annealing/) {
+		    $inprecheck = 0;
+		}
+		else {
+		    $precheck .= $line;
+		}
+	    }
+	    elsif ($inviolations) {
+		$violations .= $line;
+
+		# Attempt to parse the violations into something human readable.
+		if ($line =~ /no_connect:\s*1/ || $line =~ /bandwidth:\s*1/) {
+		    $errorstr  = "Not enough bandwidth to connect some nodes"; 
+		    $errorcode = GENIRESPONSE_INSUFFICIENT_BANDWIDTH();
+		}
+		elsif ($line =~ /pnode_load:\s*1/) {
+		    $errorstr  = "Too many VMs requested on physical host"; 
+		    $errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
+		}
+		elsif ($line =~ /unassigned:\s*1/) {
+		    $errorstr  = "Not enough nodes with fast enough interfaces";
+		    $errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
+		}
+	    }
+	    elsif ($insolution) {
+		$solution .= $line;
+	    }
+	    elsif ($line =~ /^\*\*\*/) {
+		#
+		# Other bad things marked by ***
+		#
 		$logstuff .= $line;
 	    }
 	}
-	$logstuff .= "\n";
+
+	#
+	# We send back as little as what we think might be useful to
+	# the user, but the entire error output lands in the log file.
+	#
+	$logstuff .= $precheck
+	    if (defined($precheck));
+	$logstuff .= $solution
+	    if (defined($solution));
 	
 	# Dump the vtop.
 	if (-e "$pid-$eid.vtop") {
@@ -2184,7 +2271,6 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    my $log = `cat assign.log`;
 	    print STDERR $log . "\n";
 	    print STDERR "----------------------------------------------\n";
-	    $logstuff .= $log;
 	}
 
 	# Dump the output to STDERR for debugging.
@@ -2193,8 +2279,10 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	print STDERR $output;
 
 	$response =
-	    GeniResponse->Create(GENIRESPONSE_ERROR,
-				 "Could not map to resources", $logstuff);
+	    GeniResponse->Create($errorcode,
+				 "Could not map to resources" .
+				 ($errorstr ne "" ? ": $errorstr" : ""),
+				 $logstuff);
 	# So we can find things later.
 	$slice_experiment->SaveLogFiles();
 	goto bad;
@@ -6451,7 +6539,7 @@ sub ReserveLocalVlanTag($$$)
 	    $info->{'exptidx'} == $experiment->idx()) {
 	    $optmsg = ": already in use by link '" . $info->{'vname'} . "'";
 	}
-	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+	return GeniResponse->Create(GENIRESPONSE_VLAN_UNAVAILABLE, undef,
 		    "vlan tag $tag for '$lanname' not available${optmsg}");
     }
 
@@ -6478,7 +6566,7 @@ sub ReserveLocalVlanTag($$$)
     if ($?) {
 	$vlan->Destroy()
 	    if ($createdvlan);
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+	return GeniResponse->Create(GENIRESPONSE_UNAVAILABLE, undef,
 				    "Error reserving vlan tag for $lanname");
     }
     $vlan->Destroy()
