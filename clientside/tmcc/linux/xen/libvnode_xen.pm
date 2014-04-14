@@ -1780,10 +1780,34 @@ sub vnodePreConfigExpNetwork($$$$)
 		# Record tunnel bridge created. 
 		$private->{'tunnelbridges'}->{$br} = $br;
 
-		mysystem2("$OVSCTL add-port $br $gre -- set interface $gre ".
-			  "  type=gre options:remote_ip=$dsthost " .
-			  "           options:local_ip=$srchost " .
-			  (1 ? "      options:key=$grekey" : ""));
+		#
+		# Watch for a tunnel to a container on this same node,
+		# and create a patch port instead, since gre will fail.
+		#
+		if ($srchost eq $dsthost) {
+		    #
+		    # We need to form a pair of patch port names that
+		    # both sides can agree on and be unique. Both sides
+		    # know the tag (gre key) and both sides know both IPs.
+		    # So use the tag, and concat the last octet of the IPs.
+		    #
+		    my ($myoctet)  = ($inetip =~ /\d+\.\d+\.\d+\.(\d+)/);
+		    my ($hisoctet) = ($peerip =~ /\d+\.\d+\.\d+\.(\d+)/);
+
+		    my $myport   = "g" . $grekey . "." . $myoctet;
+		    my $hisport  = "g" . $grekey . "." . $hisoctet;
+		    
+		    mysystem2("$OVSCTL add-port $br $myport -- ".
+			      " set interface $myport type=patch ".
+			      "                       options:peer=$hisport");
+		}
+		else {
+		    mysystem2("$OVSCTL add-port $br $gre -- ".
+			      "  set interface $gre ".
+			      "  type=gre options:remote_ip=$dsthost " .
+			      "           options:local_ip=$srchost " .
+			      (1 ? "      options:key=$grekey" : ""));
+		}
 		if ($?) {
 		    TBScriptUnlock();
 		    return -1;
