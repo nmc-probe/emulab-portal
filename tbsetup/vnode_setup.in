@@ -24,6 +24,7 @@
 #
 use English;
 use Getopt::Std;
+use POSIX ":sys_wait_h";
 
 #
 # Set up the vnode state on a virtual (multiplexed) node.
@@ -61,7 +62,7 @@ my $PGENISUPPORT= @PROTOGENI_SUPPORT@;
 
 my $SAVEUID     = $UID;
 my $ssh		= "$TB/bin/sshtb -n";
-my $debug       = 0;
+my $debug       = 1;
 my $force       = 0;
 my $failed      = 0;
 my $killmode    = 0;
@@ -547,6 +548,19 @@ while (1) {
                 die("*** $0:\n".
                     "    exec failed!\n");
             }
+	    #
+	    # TBForkCmd() returns the full exit status, but we cannot
+	    # pass that to exit directly. Watch for a TERM signal,
+	    # so we can tell the parent we exited cause of the timeout.
+	    #
+	    if ($exval) {
+		if (WIFSIGNALED($exval)) {
+		    $exval = WTERMSIG($exval);
+		}
+		else {
+		    $exval = $exval >> 8;
+		}
+	    }
 	    exit($exval);
 	}
     } else {
@@ -607,10 +621,13 @@ while (1) {
             $childpid = wait();
             alarm 0;
             $exitstatus = $?;
+	    print STDERR "Child return $exitstatus\n";
         };
         if ($@) {
-            die unless $@ =~ /alarm clock/;
-            next;
+	    next
+		if ($@ =~ /alarm clock/);
+
+	    die("bad exit from eval\n");
         }
 
 	#
@@ -625,8 +642,11 @@ while (1) {
 	# Look up to see what vnode, etc. this was associated with - if we
 	# don't know about this child, ignore it
 	#
+	if (! exists($child_vnodes{$childpid})) {
+	    print STDERR "Unknown child $childpid returned from wait\n";
+	    next;
+	}
 	my $aref = $child_vnodes{$childpid};
-	next unless @$aref;	
 	my ($nodeobj, $mode, $birthtime) = @$aref;
 	my $vnode = $nodeobj->node_id();
 	my $pnode = $nodeobj->phys_nodeid();	
@@ -640,11 +660,8 @@ while (1) {
 	    print STDERR "vnode $vnode $mode on $pnode returned $?.\n"
 		if $debug;
 
-	    if ($exitstatus == 256) {
-		print STDERR "$vnode is not running sshd.\n" if $debug;
-	    }
-	    elsif ($exitstatus == 15) {
-		print STDERR "$vnode is wedged.\n" if $debug;
+	    if ($exitstatus == 15) {
+		print STDERR "$pnode is wedged.\n" if $debug;
 	    }
 	    elsif ($exitstatus >> 8 == 99) {
 		print STDERR "$vnode did not allocate properly.\n" if $debug;
@@ -654,18 +671,17 @@ while (1) {
 	    
 	    warn("*** $0:\n".
 		 "    Virtual node $vnode $mode failure!\n");
-	}
 
-	if ($nodeobj->isplabdslice()) {
 	    #
-	    # If the node was in the setup process, then mark its allocstate
-	    # as down so os_setup knows not to bother waiting for it. DEAD
-	    # is a temp state, different then DOWN. It indicates the node
-	    # was never instantiated (important distinction for plab). 
+	    # If the node was in the setup process, then set its state
+	    # to TBFAILED so that anything waiting knows its toast.
+	    # We set it to SHUTDOWN above. 
 	    #
-	    if ($exitstatus &&
-		(($mode eq "setup") || ($mode eq "reboot"))) {
-		$nodeobj->SetAllocState(TBDB_ALLOCSTATE_DEAD());
+	    if ($mode eq "setup" || $mode eq "reboot") {
+		$nodeobj->Refresh();
+		# Avoid duplicate state as it annoys stated. 
+		$nodeobj->SetEventState(TBDB_NODESTATE_TBFAILED())
+		    if (!$nodeobj->eventstate() ne TBDB_NODESTATE_TBFAILED());
 	    }
 	}
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -635,6 +635,9 @@ sub killvnode(;$)
 	# vnodesetup and Emulab would never hear back from it.
 	killvserver();
     }
+    # We used to exit with non-zero since we considered 30 seconds of
+    # waiting to be failure, but that is not the case on a really busy
+    # host, so let the caller do the usual wait for failure or timeout.
     return 0;
 }
 
@@ -925,8 +928,9 @@ sub removeconfdir($)
 
 #
 # Totally gross; wait for the watchdog to startup before exiting. This
-# indicates the vnode is running. If nothing after minute, assume the
-# vnode had a problem and exit accordingly. 
+# indicates the vnode is running, but also gives us a chance to look
+# for setup failure from the direct child, so we can tell the caller.
+# Otherwise, need to use the normal wait path (timeout or TBFAILED).
 # 
 sub hackwaitandexit($)
 {
@@ -966,7 +970,7 @@ sub hackwaitandexit($)
 	    }
 	}
     }
-    exit(1);
+    exit(0);
 }
 
 #

@@ -473,6 +473,7 @@ sub downloadImage($$$$) {
     my $addr = $reload_args_ref->{"ADDR"};
     my $FRISBEE = "/usr/local/etc/emulab/frisbee";
     my $IMAGEUNZIP = "/usr/local/bin/imageunzip";
+    my $command = "";
 
     if (!defined($addr) || $addr eq "") {
 	# frisbee master server world
@@ -493,10 +494,8 @@ sub downloadImage($$$$) {
 	    $todiskopt = "-N";
 	}
 	if ($server && $imageid) {
-	    mysystem2("$FRISBEE -f -M 64 $proxyopt $todiskopt ".
-		     "         -S $server -B 30 -F $imageid $imagepath");
-	    return -1
-		if ($?);
+	    $command = "$FRISBEE -f -M 64 $proxyopt $todiskopt ".
+		"         -S $server -B 30 -F $imageid $imagepath";
 	}
 	else {
 	    print STDERR "Could not parse frisbee loadinfo\n";
@@ -507,20 +506,45 @@ sub downloadImage($$$$) {
 	my $mcastaddr = $1;
 	my $mcastport = $2;
 
-	mysystem2("$FRISBEE -f -M 64 -m $mcastaddr -p $mcastport $imagepath");
-	return -1
-	    if ($?);
+	$command = "$FRISBEE -f -M 64 -m $mcastaddr -p $mcastport $imagepath";
     }
     elsif ($addr =~ /^http/) {
 	if ($todisk) {
-	    mysystem("wget -nv -N -O - '$addr' | ".
-		     "$IMAGEUNZIP -f -W 32 - $imagepath");
-	} else {
-	    mysystem("wget -nv -N -O $imagepath '$addr'");
+	    $command = "wget -nv -N -O - '$addr' | ".
+		"$IMAGEUNZIP -f -W 32 - $imagepath";
+	}
+	else {
+	    $command = "wget -nv -N -O $imagepath '$addr'";
 	}
     }
+    print STDERR $command . "\n";
+    
+    #
+    # Run the command protected by an alarm to avoid trying forever,
+    # as frisbee is prone to doing.
+    #
+    my $childpid = fork();
+    if ($childpid) {
+	local $SIG{ALRM} = sub { kill("TERM", $childpid); };
+	alarm 60 * 30;
+	waitpid($childpid, 0);
+	my $stat = $?;
+	alarm 0;
 
-    return 0;
+	if ($stat) {
+	    print STDERR "  returned $stat ... \n";
+	    return -1;
+	}
+	return 0;
+    }
+    else {
+	#
+	# We have blocked most signals in mkvnode, including TERM.
+	#
+	local $SIG{TERM} = 'DEFAULT';
+	exec($command);
+	exit(1);
+    }
 }
 
 #

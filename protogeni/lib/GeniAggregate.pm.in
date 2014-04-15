@@ -1461,10 +1461,13 @@ sub Action($$$)
 	my @node_ids = keys(%vnodes);
 
 	#
-	# Should waiting be an option?
+	# There are so many ways this can throw an error, lets
+	# not give up here, but go ahead and use the monitor
+	# to wait for nodes since some might actually boot. Unless
+	# the exit code indicates abject failure (-1).
 	#
 	system("$VNODESETUP -j -m $pid $eid @node_ids");
-	if ($?) {
+	if ($? && $? >> 8 == 256) {
 	    $msg .= "Failed to set up vnodes @node_ids";
 	    goto bad;
 	}
