@@ -2192,7 +2192,8 @@ sub CreateVnodes($$$)
     # those. Must do this with tables locked, of course.
     #
     DBQueryFatal("lock tables nodes write, reserved write, ".
-		 "node_attributes write, ".
+		 "node_attributes write, node_idlestats write, ".
+		 "iface_counters write, ".
 		 "node_status write, node_hostkeys write, node_activity write,".
 		 "virt_node_public_addr write, virt_node_attributes read");
 
