@@ -178,7 +178,8 @@ CREATE TABLE `geni_certificates` (
   `privkey` text,
   `uri` text,
   `urn` text,
-  PRIMARY KEY  (`uuid`)
+  PRIMARY KEY  (`uuid`),
+  UNIQUE KEY `urn` (`urn`(255))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 DROP TABLE IF EXISTS `geni_crls`;
