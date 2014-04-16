@@ -246,7 +246,10 @@ my $alllogs  = "$LOGDIR/tbvnode-${vnodeid}.all";
 if ($killit || $haltit) {
     if (! -e $pidfile) {
 	die("*** $0:\n".
-	    "    No pid for $vnodeid manager!\n");
+	    "    No pid for $vnodeid manager!\n")
+	    if ($haltit);
+	# Not an error if not running. 
+	exit(0);
     }
     exit(killvnode());
 }
@@ -610,6 +613,11 @@ sub killvnode(;$)
 	unlink($pidfile);
     }
     elsif (kill($sigtosend, $mpid) == 0) {
+	# No worries if killing it, just return.
+	if ($!{ESRCH} && !$haltit) {
+	    unlink($pidfile);
+	    return 0;
+	}
 	print"*** Could not kill($sigtosend) process $mpid: $!\n";
 	return -1;
     }
