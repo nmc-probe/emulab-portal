@@ -34,11 +34,14 @@
  * These seem to make things happier when compiling on Linux
  */
 #ifdef __linux__
-#define __PREFER_BSD
-#define __USE_BSD
-#define __FAVOR_BSD
+#include <features.h>
+#define __PREFER_BSD	1
+#define __USE_BSD	1
+#define __FAVOR_BSD	1
+#if 0	/* by including features.h above, we should not need this */
 #define uh_ulen len
 #define th_off doff
+#endif
 #endif
 
 #include <sys/types.h>

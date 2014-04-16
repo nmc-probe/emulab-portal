@@ -2328,8 +2328,14 @@ sub os_nfsmount($$)
 	$opts .= ",rsize=1024,wsize=1024";
     }
 
-    if (system("/bin/mount -o $opts $remote $local")
-	&& system("/bin/mount -o udp $remote $local")) {
+    #
+    # XXX newer mount commands default to v4 and don't recognize "nolock".
+    # Since we are not setup for v4 now anyway, explicitly try vers=3 first
+    # and then fall back on vers=2 and then nothing.
+    #
+    if (system("/bin/mount -o vers=3,$opts $remote $local") &&
+	system("/bin/mount -o vers=2,$opts $remote $local") &&
+	system("/bin/mount -o udp $remote $local")) {
 	return 1;
     }
 
