@@ -402,7 +402,7 @@ class reload:
 
     def apply(self):
         try:
-            opts, req_args = getopt.getopt(self.argv, "i:p:m:sre:",
+            opts, req_args = getopt.getopt(self.argv, "i:p:m:sre:c",
                                            [ "help" ]);
             pass
         except getopt.error, e:
@@ -431,6 +431,9 @@ class reload:
                 pass
             elif opt == "-r":
                 params["reboot"] = "no";
+                pass
+            elif opt == "-c":
+                params["usecurrent"] = "yes";
                 pass
             elif opt == "-e":
                 pid,eid = string.split(val, ",")
@@ -466,6 +469,7 @@ class reload:
 	print "    -s    - Do *not* wait for nodes to finish reloading";
 	print "    -m    - Specify internal image id (instead of -i and -p)";
 	print "    -r    - Do *not* reboot nodes; do that yourself";
+        print "    -c    - Reload nodes with the image currently on them";
  	print "    -e    - Reboot all nodes in an experiment";
 	print "  node    - Node to reboot (pcXXX)";
         wrapperoptions();
