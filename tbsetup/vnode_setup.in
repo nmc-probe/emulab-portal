@@ -239,8 +239,14 @@ foreach my $node (@nodes) {
     my $allocstate = $nodeobj->allocstate();
     my $geninode   = $nodeobj->isfednode();
     my $shared     = defined($nodeobj->sharing_mode());
+    
     next
 	if (!$nodeobj->isvirtnode());
+
+    # fake nodes that are not rebootable, also skip. Maybe we just
+    # skip all fakenodes, but not sure yet.
+    next
+	if ($nodeobj->isfakenode() && !$nodeobj->rebootable());
 
     # Special hack for SPP nodes. Need to generalize this.
     if ($shared && $nodeobj->type eq "sppvm") {
