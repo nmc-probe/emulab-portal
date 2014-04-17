@@ -982,7 +982,8 @@ sub vz_vnodeCreate {
 	    "snapshot size $snapSize MB.\n";
     }
 
-    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_GLOBALWAIT(), 1800)
+    # Plain old serial lock.
+    if (TBScriptLock($imagelockname, 0, 1800)
 	!= TBSCRIPTLOCK_OKAY()) {
 	fatal("Could not get $imagelockname lock after a long time!");
     }
