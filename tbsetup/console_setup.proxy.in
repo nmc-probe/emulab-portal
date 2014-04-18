@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2002, 2004 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -165,6 +165,12 @@ foreach my $tipname ( keys %tipgroup ) {
     # set its mode too. 
     #
     $gid = getgrnam($grp);
+    if (!defined($gid)) {
+	print STDERR "*** Group '$grp' does not exist, ".
+	    "console for $tipname will not be available\n";
+	$grp = "wheel";
+	$gid = 0;
+    }
     chown(0, $gid, $filename) or
 	die("Could not chown(0, $gid) $filename: $!");
     chmod(0640, $filename) or
