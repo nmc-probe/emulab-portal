@@ -185,8 +185,12 @@ function SPITFORM($formfields, $errors)
     # to let the user choose.
     #
     if (count($projlist) == 1 || $editing) {
-	$pid = ($editing ? $formfields["profile_pid"] : $projlist[0]);
-	
+	if ($editing) {
+	    $pid = $formfields["profile_pid"];
+	}
+	else {
+	    list($pid) = each($projlist);
+	}
 	$formatter("profile_pid", null,
 		   "<p class='form-control-static'>$pid</p>");
 	echo "<input type='hidden' name='formfields[profile_pid]' ".
