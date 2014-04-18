@@ -58,8 +58,10 @@ my $MKDIR	= "/bin/mkdir";
 my $MOUNT	= "/sbin/mount";
 my $UMOUNT	= "/sbin/umount";
 my $MKFS	= "/sbin/newfs";
-my $FSCK	= "/sbin/fsck";
+my $BSD_FSCK	= "/sbin/fsck";
+my $EXT_FSCK	= "/usr/local/sbin/e2fsck";
 my $ISCSI	= "/sbin/iscontrol";
+my $ISCSID	= "/usr/sbin/iscsid";
 my $ISCSICNF	= "/etc/iscsi.conf";
 my $SMARTCTL	= "/usr/local/sbin/smartctl";
 my $GEOM	= "/sbin/geom";
@@ -135,26 +137,55 @@ my $VINUMSS	= "81920";
 # and that will contain the magic string!
 # 
 
-sub iscsi_to_dev($)
+sub iscsi_to_dev($$$)
 {
-    my ($session) = @_;
+    my ($so, $session, $retries) = @_;
 
-    #
-    # XXX this is a total hack
-    #
-    my @lines = `ls /dev/da* 2>&1`;
-    foreach (@lines) {
-	if (m#^/dev/(da\d+)$#) {
-	    my $dev = $1;
-	    my @out = `camcontrol identify $dev -v 2>&1`;
-	    foreach my $line (@out) {
-		if ($line =~ /^\(pass\d+:iscsi(\d+):/) {
-		    if ($1 == $session) {
-			return $dev;
+again:
+    if ($so->{'USE_ISCSID'}) {
+	my @lines = `$ISCSI -Lv 2>&1`;
+	my $sess;
+	foreach (@lines) {
+	    if (/^Session ID:\s+(\d+)/) {
+		$sess = $1;
+		next;
+	    }
+	    if (/^Device nodes:\s+(\S+)/) {
+		if (defined($sess) && $sess eq $session) {
+		    my $dev = $1;
+		    # make sure the device node has appeared
+		    if (-e "/dev/$dev") {
+			return $1;
+		    }
+		    last;
+		}
+		next;
+	    }
+	}
+    } else {
+	#
+	# XXX this is a total hack
+	#
+	my @lines = `ls /dev/da* 2>&1`;
+	foreach (@lines) {
+	    if (m#^/dev/(da\d+)$#) {
+		my $dev = $1;
+		my @out = `camcontrol identify $dev -v 2>&1`;
+		foreach my $line (@out) {
+		    if ($line =~ /^\(pass\d+:iscsi(\d+):/) {
+			if ($1 == $session) {
+			    return $dev;
+			}
 		    }
 		}
 	    }
 	}
+    }
+    if ($retries > 0) {
+	$retries--;
+	#warn("    retrying device lookup...\n");
+	sleep(1);
+	goto again;
     }
 
     return undef;
@@ -261,24 +292,58 @@ sub is_iscsi_dev($)
     return 1;
 }
 
-sub uuid_to_session($)
+sub uuid_to_session($$$)
 {
-    my ($uuid) = @_;
+    my ($so, $uuid, $retries) = @_;
 
-    my @lines = `sysctl net.iscsi_initiator 2>&1`;
-    foreach (@lines) {
-	if (/net\.iscsi_initiator\.(\d+)\.targetname: $uuid/) {
-	    return $1;
+again:
+    if ($so->{'USE_ISCSID'}) {
+	my @lines = `$ISCSI -Lv 2>&1`;
+	my $sess;
+	foreach (@lines) {
+	    if (/^Session ID:\s+(\d+)/) {
+		$sess = $1;
+		next;
+	    }
+	    if (/^Target name:\s+(\S+)/) {
+		if ($1 eq $uuid && defined($sess)) {
+		    return $sess;
+		}
+		next;
+	    }
 	}
+    } else {
+	my @lines = `sysctl net.iscsi_initiator 2>&1`;
+	foreach (@lines) {
+	    if (/net\.iscsi_initiator\.(\d+)\.targetname: $uuid/) {
+		return $1;
+	    }
+	}
+    }
+    if ($retries > 0) {
+	$retries--;
+	sleep(1);
+	#warn("    retrying session lookup...\n");
+	goto again;
     }
 
     return undef;
 }
 
-sub uuid_to_daemonpid($)
+sub uuid_to_daemonpid($$)
 {
-    my ($uuid) = @_;
+    my ($so, $uuid) = @_;
     my $session;
+
+    if ($so->{'USE_ISCSID'}) {
+	if (-e "/var/run/iscsid.pid") {
+	    my $p = `cat /var/run/iscsid.pid`;
+	    if ($p =~ /^(\d+)/) {
+		return $1;
+	    }
+	}
+	return undef;
+    }
 
     my @lines = `sysctl net.iscsi_initiator 2>&1`;
     foreach (@lines) {
@@ -292,7 +357,6 @@ sub uuid_to_daemonpid($)
 	    }
 	}
     }
-
     return undef;
 }
 
@@ -725,6 +789,7 @@ sub os_init_storage($)
     my $gotiscsi = 0;
     my $needavol = 0;
     my $needall = 0;
+    my $sanmounts = 0;
 
     my %so = ();
 
@@ -752,6 +817,9 @@ sub os_init_storage($)
 	    $gotnonlocal++;
 	    if ($href->{'PROTO'} eq "iSCSI") {
 		$gotiscsi++;
+		if ($href->{'MOUNTPOINT'}) {
+		    $sanmounts++;
+		}
 	    }
 	}
     }
@@ -798,7 +866,7 @@ sub os_init_storage($)
 		    warn("*** storage: could not enable zfs in /etc/rc.conf\n");
 		    return undef;
 		}
-		print FD "# added by $BINDIR/rc/rc.storage\n";
+		print FD "# zfs_enable added by $BINDIR/rc/rc.storage\n";
 		print FD "zfs_enable=\"YES\"\n";
 		close(FD);
 
@@ -822,7 +890,7 @@ sub os_init_storage($)
 		    warn("*** storage: could not enable gvinum in /boot/loader.conf\n");
 		    return undef;
 		}
-		print FD "# added by $BINDIR/rc/rc.storage\n";
+		print FD "# geom_vinum_load added by $BINDIR/rc/rc.storage\n";
 		print FD "geom_vinum_load=\"YES\"\n";
 		close(FD);
 
@@ -858,18 +926,47 @@ sub os_init_storage($)
     if ($gotiscsi) {
 	my $redir = ">/dev/null 2>&1";
 
+	if (-x "$ISCSID") {
+	    $so{'USE_ISCSID'} = 1;
+	    $ISCSI = "/usr/bin/iscsictl";
+	} else {
+	    $so{'USE_ISCSID'} = 0;
+	}
+
 	if (! -x "$ISCSI") {
 	    warn("*** storage: $ISCSI does not exist, cannot continue\n");
 	    return undef;
 	}
 
 	#
-	# XXX load initiator driver
+	# Load initiator driver.
 	#
-	if (mysystem("kldstat | grep -q iscsi_initiator") &&
-	    mysystem("kldload iscsi_initiator.ko $redir")) {
-	    warn("*** storage: Could not load iscsi_initiator kernel module\n");
-	    return undef;
+	# For iscsid (FreeBSD 10+), we add an enable to /etc/rc.d and
+	# fire it up the first time.
+	#
+	# XXX for the old iscsi_initiator, we load/unload it manually
+	#
+	if ($so{'USE_ISCSID'}) {
+	    if (mysystem("grep -q 'iscsid_enable=\"YES\"' /etc/rc.conf")) {
+		if (!open(FD, ">>/etc/rc.conf")) {
+		    warn("*** storage: could not enable iscsid in /etc/rc.conf\n");
+		    return undef;
+		}
+		print FD "# iscsid_enable added by $BINDIR/rc/rc.storage\n";
+		print FD "iscsid_enable=\"YES\"\n";
+		close(FD);
+
+		# and do a one-time start
+		if (-x "/etc/rc.d/iscsid") {
+		    mysystem("/etc/rc.d/iscsid start");
+		}
+	    }
+	} else {
+	    if (mysystem("kldstat | grep -q iscsi_initiator") &&
+		mysystem("kldload iscsi_initiator.ko $redir")) {
+		warn("*** storage: Could not load iscsi_initiator kernel module\n");
+		return undef;
+	    }
 	}
     }
 
@@ -974,20 +1071,25 @@ sub os_check_storage_element($$)
 	# First, check and see if there is a session active for this
 	# blockstore. If not we must start one.
 	#
-	my $session = uuid_to_session($uuid);
+	my $session = uuid_to_session($so, $uuid, 0);
 	if (!defined($session)) {
-	    if (mysystem("$ISCSI -c $ISCSICNF -n $bsid $redir")) {
+	    my $cmd = ($so->{'USE_ISCSID'} ? "-A" : "");
+	    if (mysystem("$ISCSI $cmd -c $ISCSICNF -n $bsid $redir")) {
 		warn("*** $bsid: could not create iSCSI session\n");
 		return -1;
 	    }
-	    sleep(1);
-	    $session = uuid_to_session($uuid);
+	    sleep(2);
+	    $session = uuid_to_session($so, $uuid, 2);
+	    if (!defined($session)) {
+		warn("*** $bsid: iSCSI session not created\n");
+		return -1;
+	    }
 	}
 
 	#
 	# Figure out the device name from the session.
 	#
-	my $dev = iscsi_to_dev($session);
+	my $dev = iscsi_to_dev($so, $session, 2);
 	if (!defined($dev)) {
 	    warn("*** $bsid: found iSCSI session but could not find device\n");
 	    return -1;
@@ -1041,8 +1143,21 @@ sub os_check_storage_element($$)
 		    return -1;
 		}
 
-		# fsck it in case of an abrupt shutdown
-		if (mysystem("$FSCK $fopt -t $fstype /dev/$dev $redir")) {
+		#
+		# fsck it in case of an abrupt shutdown.
+		#
+		# Note that we invoke EXT fsck directly as the FBSD 10.x
+		# era port does not install everything correctly for use
+		# by "fsck -t ext2fs".
+		#
+		my $FSCK = $BSD_FSCK;
+		if ($fstype eq "ext2fs" && -x "$EXT_FSCK") {
+		    $FSCK = $EXT_FSCK;
+		} else {
+		    $fopt .= " -t $fstype";
+		}
+
+		if (mysystem("$FSCK $fopt /dev/$dev $redir")) {
 		    warn("*** $bsid: fsck of /dev/$dev failed\n");
 		    return -1;
 		}
@@ -1270,8 +1385,20 @@ sub os_create_storage($$)
 		return 0;
 	    }
 
-	    if (mysystem("$FSCK $fopt -t $fstype $mdev $redir")) {
-		warn("*** $lv: fsck of persistent store $mdev failed\n");
+	    #
+	    # Note that we invoke EXT fsck directly as the FBSD 10.x
+	    # era port does not install everything correctly for use
+	    # by "fsck -t ext2fs".
+	    #
+	    my $FSCK = $BSD_FSCK;
+	    if ($fstype eq "ext2fs" && -x "$EXT_FSCK") {
+		$FSCK = $EXT_FSCK;
+	    } else {
+		$fopt .= " -t $fstype";
+	    }
+
+	    if (mysystem("$FSCK $fopt $mdev $redir")) {
+		warn("*** $lv: fsck ($fstype) of persistent store $mdev failed\n");
 		return 0;
 	    }
 	}
@@ -1329,7 +1456,6 @@ sub os_create_storage_element($$$)
 	my $hostip = $href->{'HOSTIP'};
 	my $uuid = $href->{'UUID'};
 	my $bsid = $href->{'VOLNAME'};
-	my $cmd;
 
 	# record all the output for debugging
 	my $redir = "";
@@ -1347,16 +1473,22 @@ sub os_create_storage_element($$$)
 		warn("*** could not update $ISCSICNF\n");
 		return 0;
 	    }
+	    my $pre = "";
+	    if ($so->{'USE_ISCSID'} && $uuid =~ /^([^:]+:)/) {
+		$pre = $1;
+	    }
 	    my $hname = `hostname`;
 	    chomp($hname);
 	    print FD <<EOF;
 $bsid {
-    initiatorname = $hname
+    initiatorname = $pre$hname
     targetname    = $uuid
     targetaddress = $hostip
 }
 EOF
-	    close(FD);   
+	    close(FD);
+	    # keep iscsictl happy
+	    chmod(0640, $ISCSICNF);
 	} else {
 	    warn("*** $bsid: trying to create but already exists!?\n");
 	    return 0;
@@ -1365,21 +1497,22 @@ EOF
 	#
 	# Everything has been setup, start the daemon.
 	#
-	if (mysystem("$ISCSI -c $ISCSICNF -n $bsid $redir")) {
+	my $cmd = ($so->{'USE_ISCSID'} ? "-A" : "");
+	if (mysystem("$ISCSI $cmd -c $ISCSICNF -n $bsid $redir")) {
 	    warn("*** $bsid: could not create iSCSI session\n");
 	    return 0;
 	}
-	sleep(1);
+	sleep(2);
 
 	#
 	# Find the session ID and device name.
 	#
-	my $session = uuid_to_session($uuid);
+	my $session = uuid_to_session($so, $uuid, 2);
 	if (!defined($session)) {
 	    warn("*** $bsid: could not find iSCSI session\n");
 	    return 0;
 	}
-	my $dev = iscsi_to_dev($session);
+	my $dev = iscsi_to_dev($so, $session, 2);
 	if (!defined($dev)) {
 	    warn("*** $bsid: could not map iSCSI session to device\n");
 	    return 0;
@@ -1790,14 +1923,24 @@ sub os_remove_storage_element($$$)
 	    }
 	}
 
-	#
-	# Find the daemon instance and HUP it.
-	# XXX continue even if we could not kill it.
-	#
-	my $pid = uuid_to_daemonpid($uuid);
-	if (defined($pid)) {
-	    if (mysystem("kill -HUP $pid $redir")) {
-		warn("*** $bsid: could not kill $ISCSI daemon\n");
+	if ($so->{'USE_ISCSID'}) {
+	    if (mysystem("$ISCSI -R -c $ISCSICNF -n $bsid")) {
+		warn("*** $bsid: could not remove $ISCSI session\n");
+	    } else {
+		sleep(1);
+	    }
+	} else {
+	    #
+	    # Find the daemon instance and HUP it.
+	    # XXX continue even if we could not kill it.
+	    #
+	    my $pid = uuid_to_daemonpid($so, $uuid);
+	    if (defined($pid)) {
+		if (mysystem("kill -HUP $pid $redir")) {
+		    warn("*** $bsid: could not kill $ISCSI daemon\n");
+		} else {
+		    sleep(1);
+		}
 	    }
 	}
 
@@ -1808,6 +1951,7 @@ sub os_remove_storage_element($$$)
 	    if (open(OFD, "<$ISCSICNF") && open(NFD, ">$ISCSICNF.new")) {
 		# parser!? we don't need no stinkin parser...
 		my $inentry = 0;
+		my $copied = 0;
 		while (<OFD>) {
 		    if (/^$bsid {/) {
 			$inentry = 1;
@@ -1819,13 +1963,27 @@ sub os_remove_storage_element($$$)
 		    }
 		    if (!$inentry) {
 			print NFD $_;
+			$copied = 1;
 		    }
 		}
 		close(OFD);
 		close(NFD);
-		if (mysystem("mv -f $ISCSICNF.new $ISCSICNF")) {
-		    warn("*** $bsid: could not update $ISCSICNF\n");
-		    return 0;
+		if ($copied) {
+		    if (mysystem("mv -f $ISCSICNF.new $ISCSICNF")) {
+			warn("*** $bsid: could not update $ISCSICNF\n");
+			return 0;
+		    }
+		    # keep iscsictl happy
+		    chmod(0640, $ISCSICNF);
+		} else {
+		    # nothing left in the file, remove it and iscsid_enable
+		    unlink("$ISCSICNF", "$ISCSICNF.new");
+		    if (!mysystem("grep -q '^# iscsid_enable added by.*rc.storage' /etc/rc.conf")) {
+			if (mysystem("sed -i -e '/^# iscsid_enable added by.*rc.storage/,+1d' /etc/rc.conf")) {
+			    warn("*** $lv: could not remove iscsid_enable from /etc/rc.conf\n");
+			}
+		    }
+		    # XXX we should kldunload the iscsi module, but it hangs
 		}
 	    }
 	}
@@ -1997,8 +2155,8 @@ sub os_remove_storage_slice($$$)
 		#
 		# If we are the one that enabled ZFS, disable it
 		#
-		if (!mysystem("grep -q '^# added by.*rc.storage' /etc/rc.conf")) {
-		    if (mysystem("sed -i -e '/^# added by.*rc.storage/,+1d' /etc/rc.conf")) {
+		if (!mysystem("grep -q '^# zfs_enable added by.*rc.storage' /etc/rc.conf")) {
+		    if (mysystem("sed -i -e '/^# zfs_enable added by.*rc.storage/,+1d' /etc/rc.conf")) {
 			warn("*** $lv: could not remove zfs_enable from /etc/rc.conf\n");
 		    }
 		}
@@ -2049,7 +2207,7 @@ sub os_remove_storage_slice($$$)
 		if (mysystem("$GVINUM stop $redir")) {
 		    warn("*** $lv: could not stop gvinum$logmsg\n");
 		}
-		if (mysystem("sed -i -e '/^# added by.*rc.storage/,+1d' /boot/loader.conf")) {
+		if (mysystem("sed -i -e '/^# geom_vinum_load added by.*rc.storage/,+1d' /boot/loader.conf")) {
 		    warn("*** $lv: could not remove vinum load from /boot/loader.conf\n");
 		}
 	    }
