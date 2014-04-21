@@ -1273,6 +1273,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	protogeni/rspec-emulab/0.2/GNUmakefile \
 	protogeni/rspec-emulab/2/GNUmakefile \
         apt/GNUmakefile \
+        collab/GNUmakefile \
         collab/trac/GNUmakefile \
         collab/plone/GNUmakefile \
         collab/jabber/GNUmakefile \
