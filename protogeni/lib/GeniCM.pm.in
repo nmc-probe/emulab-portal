@@ -2528,13 +2528,9 @@ sub GetTicketAuxAux($$$$$$$$$$)
 				"Could not find a free vlan tag for $linkname");
 		    goto bad;
 		}
-		#
-		# Do this in "blockmode" so that snmpit does not throw an error
-		# if one of the tags is not available.
-		#
 		print STDERR
-		    "Trying to allocate vlan tags for $linkname: @tags\n";
-		system("$SNMPIT --blockmode -A ".
+		    "Trying to allocate one tag for $linkname: @tags\n";
+		system("$SNMPIT -A ".
 		       "$pid $eid $lanid," . join(",", @tags));
 		if ($?) {
 		    $vlan->Destroy()
