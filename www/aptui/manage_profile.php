@@ -26,6 +26,7 @@ include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
 include("profile_defs.php");
+include("instance_defs.php");
 $page_title = "Manage Profile";
 $notifyupdate = 0;
 
@@ -40,6 +41,7 @@ $this_user = CheckLogin($check_status);
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "action",      PAGEARG_STRING,
 				 "idx",         PAGEARG_INTEGER,
+				 "snapuuid",    PAGEARG_STRING,
 				 "finished",    PAGEARG_BOOLEAN,
 				 "formfields",  PAGEARG_ARRAY);
 
@@ -48,7 +50,7 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 #
 function SPITFORM($formfields, $errors)
 {
-    global $this_user, $projlist, $action, $idx, $notifyupdate;
+    global $this_user, $projlist, $action, $idx, $notifyupdate, $snapuuid;
     $editing = 0;
 
     if ($action == "edit") {
@@ -143,9 +145,13 @@ function SPITFORM($formfields, $errors)
     if ($notifyupdate) {
 	echo "<font color=green><center>Update Successful!</center></font>";
     }
-    # Mark as editing mode on post.
-    if ($editing) {     
-	echo "<input type='hidden' name='action' value='edit'>\n";
+    # Send action back through. 
+    if (isset($action)) {     
+	echo "<input type='hidden' name='action' value='$action'>\n";
+	# And include the experiment getting snapped. 
+	if (isset($snapuuid)) {
+	    echo "<input type='hidden' name='snapuuid' value='$snapuuid'>\n";
+	}
     }
     echo "      </div></div><fieldset>\n";
 
@@ -221,7 +227,7 @@ function SPITFORM($formfields, $errors)
     # See below for the modal. So, we need buttons to display the source
     # modal, the topo modal, in addition to a file chooser for a new rspec.
     #
-    $invisible = ($editing ? "" : "invisible");
+    $invisible = (isset($action) ? "" : "invisible");
     
     $rspec_html =
 	"<div class='row'>
@@ -453,9 +459,13 @@ function SPITFORM($formfields, $errors)
             </div>
           </div>
           </div>\n";
+
+    SpitWaitModal("waitwait");
+    SpitOopsModal("oops");
     
     echo "<script type='text/javascript'>\n";
-    echo "    window.EDITING = $editing;\n";
+    echo "    window.EDITING  = " . (isset($action) ? 1 : 0) . ";\n";
+    echo "    window.SNAPWAIT = " . (isset($snapuuid) ? 1 : 0) . ";\n";
     echo "</script>\n";
     echo "<script src='js/lib/require.js' data-main='js/manage_profile'>
           </script>";
@@ -474,7 +484,7 @@ $this_idx = $this_user->uid_idx();
 #
 # See what projects the user can do this in.
 #
-$projlist = $this_user->ProjectAccessList($TB_PROJECT_MAKEIMAGEID);
+$projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
 
 if (! isset($create)) {
     $errors   = array();
@@ -485,55 +495,76 @@ if (! isset($create)) {
 	    "You do not appear to be a member of any projects in which ".
 	    "you have permission to create new profiles";
     }
-    if ($action == "edit" || $action == "delete" || "snapshot") {
-	if (!isset($idx)) {
-	    $errors["error"] = "No profile specified for edit/delete!";
-	}
-	else {
-	    $profile = Profile::Lookup($idx);
-	    
-	    if (!$profile) {
-		SPITUSERERROR("No such profile!");
+    if (isset($action) &&
+	($action == "edit" || $action == "delete" || "snapshot")) {
+	if ($action == "snapshot") {
+	    if (! (isset($snapuuid) && IsValidUUID($snapuuid))) {
+		$errors["error"] = "No experiment specified for snapshot!";
 	    }
-	    else if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+	    $instance = Instance::Lookup($snapuuid);
+	    if (!$instance) {
+		SPITUSERERROR("No such instance to snapshot!");
+	    }
+	    else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 		SPITUSERERROR("Not enough permission!");
 	    }
-	    else if ($action == "delete") {
-		DBQueryFatal("delete from apt_profiles where idx='$idx'");
-		header("Location: $APTBASE/myprofiles.php");
-		return;
+	    $profile = Profile::Lookup($instance->profile_idx());
+	    if (!$profile) {
+		SPITUSERERROR("Cannot load profile for instance!");
 	    }
-	    else if ($action == "snapshot") {
-		$defaults["profile_rspec"]       = $profile->rspec();
+	    else if ($this_idx != $profile->creator_idx() &&
+		     !$profile->ispublic() && !ISADMIN()) {
+		SPITUSERERROR("Not enough permission!");
+	    }
+	    $defaults["profile_rspec"] = $profile->rspec();
+	}
+	else {
+	    if (! isset($idx)) {
+		$errors["error"] = "No profile specified for edit/delete!";
 	    }
 	    else {
-		$defaults["profile_uuid"]        = $profile->uuid();
-		$defaults["profile_pid"]         = $profile->pid();
-		$defaults["profile_description"] = $profile->description();
-		$defaults["profile_name"]        = $profile->name();
-		$defaults["profile_rspec"]       = $profile->rspec();
-		$defaults["profile_created"]     = $profile->created();
-		$defaults["profile_url"]         = $profile->url();
-		$defaults["profile_listed"]      =
-		    ($profile->listed() ? "checked" : "");
-		$defaults["profile_who"] =
-		    ($profile->shared() ? "shared" : 
-		     ($profile->ispublic() ? "public" : "private"));
+		$profile = Profile::Lookup($idx);
+	    
+		if (!$profile) {
+		    SPITUSERERROR("No such profile!");
+		}
+		else if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+		    SPITUSERERROR("Not enough permission!");
+		}
+		else if ($action == "delete") {
+		    DBQueryFatal("delete from apt_profiles where idx='$idx'");
+		    header("Location: $APTBASE/myprofiles.php");
+		    return;
+		}
+		else {
+		    $defaults["profile_uuid"]        = $profile->uuid();
+		    $defaults["profile_pid"]         = $profile->pid();
+		    $defaults["profile_description"] = $profile->description();
+		    $defaults["profile_name"]        = $profile->name();
+		    $defaults["profile_rspec"]       = $profile->rspec();
+		    $defaults["profile_created"]     = $profile->created();
+		    $defaults["profile_url"]         = $profile->url();
+		    $defaults["profile_listed"]      =
+			($profile->listed() ? "checked" : "");
+		    $defaults["profile_who"] =
+			($profile->shared() ? "shared" : 
+			 ($profile->ispublic() ? "public" : "private"));
 
-		#
-		# If we are displaying after a successful edit, and it
-		# just happened (by looking at the modify time), show
-		# a message that the update was successful. This is pretty
-		# crappy, but I do not want to go for a fancy thing (popover)
-		# just yet, maybe later.
-		#
-		if (isset($finished) && $profile->modified()) {
-		    $mod = new DateTime($profile->modified());
-		    if ($mod) {
-			$now  = new DateTime("now");
-			$diff = $now->getTimestamp() - $mod->getTimestamp();
-			if ($diff < 2) {
-			    $notifyupdate = 1;
+		    #
+		    # If we are displaying after a successful edit, and it
+		    # just happened (by looking at the modify time), show
+		    # a message that the update was successful. This is pretty
+		    # crappy, but I do not want to go for a fancy thing
+                    # just yet, maybe later.
+		    #
+		    if (isset($finished) && $profile->modified()) {
+			$mod = new DateTime($profile->modified());
+			if ($mod) {
+			    $now  = new DateTime("now");
+			    $diff = $now->getTimestamp() - $mod->getTimestamp();
+			    if ($diff < 2) {
+				$notifyupdate = 1;
+			    }
 			}
 		    }
 		}
@@ -625,6 +656,32 @@ else {
     }
 }
 
+#
+# Sanity check the snapuuid argument. 
+#
+if (isset($action) && $action == "snapshot") {
+    if (! IsValidUUID($snapuuid)) {
+	$errors["error"] = "Invalid experiment specified for snapshot!";
+    }
+    $instance = Instance::Lookup($snapuuid);
+    if (!$instance) {
+	$errors["error"] = "No such experiment to snapshot!";
+    }
+    else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
+	$errors["error"] = "Not enough permission!";
+    }
+    else {
+	$profile = Profile::Lookup($instance->profile_idx());
+	if (!$profile) {
+	    $errors["error"] = "Cannot load profile for instance!";
+	}
+	else if ($this_idx != $profile->creator_idx() &&
+		 !$profile->ispublic() && !ISADMIN()) {
+	    $errors["error"] = "Not enough permission!";
+	}
+    }
+}
+
 # Present these errors before we call out to do anything else.
 if (count($errors)) {
     SPITFORM($formfields, $errors);
@@ -686,6 +743,9 @@ else {
 # Call out to the backend.
 #
 $optarg = ($action == "edit" ? "-u" : "");
+if (isset($snapuuid)) {
+    $optarg .= "-s " . escapeshellarg($snapuuid);
+}
 $retval = SUEXEC($this_user->uid(), $project->unix_gid(),
 		 "webmanage_profile $optarg $xmlname",
 		 SUEXEC_ACTION_IGNORE);

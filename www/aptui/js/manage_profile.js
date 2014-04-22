@@ -117,6 +117,7 @@ function ($, sup)
 		event.preventDefault();
 		return false;
 	    }
+	    sup.ShowModal("#waitwait");
 	    return true;
 	});
 

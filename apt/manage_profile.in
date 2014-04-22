@@ -33,22 +33,25 @@ use CGI;
 #
 sub usage()
 {
-    print("Usage: manage_profile [-u] <xmlfile>\n");
+    print("Usage: manage_profile [-u | -s uuid] <xmlfile>\n");
     print("Usage: manage_profile -r profile\n");
     exit(-1);
 }
-my $optlist     = "dur";
+my $optlist     = "durs:";
 my $debug       = 0;
 my $verify      = 0;	# Check data and return status only.
 my $update      = 0;
 my $delete      = 0;
 my $skipadmin   = 0;
+my $snapuuid;
+my $instance;
 
 #
 # Configure variables
 #
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
+my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
 
 #
 # Untaint the path
@@ -71,6 +74,9 @@ use emutil;
 use User;
 use Project;
 use APT_Profile;
+use APT_Instance;
+use GeniXML;
+use GeniHRN;
 
 # Protos
 sub fatal($);
@@ -93,6 +99,9 @@ if (defined($options{"v"})) {
 }
 if (defined($options{"u"})) {
     $update = 1;
+}
+if (defined($options{"s"})) {
+    $snapuuid = $options{"s"};
 }
 if (@ARGV != 1) {
     usage();
@@ -233,6 +242,26 @@ elsif (!$project->AccessCheck($this_user, TB_PROJECT_MAKEIMAGEID())) {
     $errors{"profile_pid"} = "Not enough permission in this project";
 }
 
+#
+# Are we going to snapshot a node in an experiment? If so we
+# sanity check to make sure there is just one node. 
+#
+if (defined($snapuuid)) {
+    $instance = APT_Instance->Lookup($snapuuid);
+    if (!defined($instance)) {
+	fatal("Could not look up instance $snapuuid");
+    }
+    my $manifest = GeniXML::Parse($instance->manifest());
+    if (! defined($manifest)) {
+	fatal("Could not parse manifest");
+    }
+    my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
+    if (@nodes != 1) {
+	$errors{"error"} = "Too many nodes (> 1) to snapshot";
+	UserError();
+    }
+}
+
 my $profile = APT_Profile->Lookup($new_args{"pid"}, $new_args{"name"});
 
 if ($update) {
@@ -262,6 +291,56 @@ else {
 	    UserError();
 	}
 	fatal("Could not create new profile");
+    }
+}
+
+#
+# Now do the snapshot operation.
+#
+if (defined($instance)) {
+    my $manifest = GeniXML::Parse($instance->manifest());
+    if (! defined($manifest)) {
+	fatal("Could not parse manifest");
+    }
+    my ($node) = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
+    my $sliver_urn = GeniXML::GetSliverId($node);
+    my $apt_uuid   = $instance->uuid();
+    my $imagename  = $profile->name();
+
+    my $command = "$QUICKVM -s $apt_uuid $sliver_urn $imagename";
+    #
+    # This returns pretty fast, and then the imaging takes place in
+    # the background at the aggregate. quickvm keeps a process running
+    # in the background waiting for the sliver to unlock and the
+    # sliverstatus to indicate the node is running again. 
+    #
+    my $output = emutil::ExecQuiet($command);
+    if ($?) {
+	$profile->Delete();
+	fatal("Failed to create disk image!");
+    }
+    #
+    # Parse the output to get the new image urn, then stick that
+    # into the rspec, and update the database.
+    #
+    my $image_urn;
+    if ($output =~ /^(urn:.*),/) {
+	$image_urn = $1;
+    }
+    else {
+	$profile->Delete();
+	fatal("Could not find image urn in:\n$output");
+    }
+    my $rspec = GeniXML::Parse($profile->rspec());
+    if (! defined($rspec)) {
+	$profile->Delete();
+	fatal("Could not parse rspec");
+    }
+    ($node) = GeniXML::FindNodes("n:node", $rspec)->get_nodelist();
+    GeniXML::SetDiskImage($node, $image_urn);
+    if ($profile->Update({"rspec" => GeniXML::Serialize($rspec)})) {
+	$profile->Delete();
+	fatal("Could not update rspec");
     }
 }
 exit(0);

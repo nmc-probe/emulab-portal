@@ -111,7 +111,12 @@ if (! (isset($this_user) && ISADMIN())) {
 	    isset($_COOKIE['quickvm_user']) &&
 	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
 	if ($ajax_request) {
-	    SPITAJAX_ERROR(1, "You do not have permission!");
+	    if ($check_status & CHECKLOGIN_TIMEDOUT) {
+		SPITAJAX_ERROR(2, "Your login has timed out!");
+	    }
+	    else {
+		SPITAJAX_ERROR(1, "You do not have permission!");
+	    }
 	    exit();
 	}
 	PAGEERROR("You do not have permission to look at this experiment!");
@@ -221,6 +226,12 @@ elseif ($instance_status == "ready") {
     $bgtype = "bg-success";
     $statustext = "Your experiment is ready!";
 }
+elseif ($instance_status == "imaging") {
+    $color = "color=green";
+    $spin  = 0;
+    $bgtype = "bg-warning";
+    $statustext = "Your experiment is ready!";
+}
 elseif ($instance_status == "created") {
     $spinwidth = "33";
 }
@@ -280,11 +291,11 @@ echo "<td class='uk-width-4-5' $style>
 echo "</tr>\n";
 echo "</table>\n";
 echo "<div class='pull-right'>\n";
-if (0) {
-echo "  <a class='btn btn-xs btn-primary' $disabled
-           id='snapshot_button' type=button
-	   href='manage_profile.php?action=snapshot&snapuuid=$uuid'>
-           Snapshot</a>\n";
+if (isset($this_user) && ISADMIN()) {
+    echo "  <a class='btn btn-xs btn-primary' $disabled hidden
+               id='snapshot_button' type=button
+    	       href='manage_profile.php?action=snapshot&snapuuid=$uuid'>
+               Snapshot</a>\n";
 }
 echo "  <button class='btn btn-xs btn-success' $disabled
            id='extend_button' type=button
@@ -335,8 +346,13 @@ echo "  <ul id='quicktabs' class='nav nav-tabs'>
           </li>
 	  <li>
              <a href='#listview' data-toggle='tab'>List View</a>
-          </li>
-	</ul>
+          </li>\n";
+if (isset($this_user) && ISADMIN()) {
+    echo "<li>
+             <a href='#manifest' data-toggle='tab'>Manifest</a>
+          </li>\n";
+}
+echo "	</ul>
 	<div id='quicktabs_content' class='tab-content'>
           <div class='tab-pane active' id='profile'>
 	    <div id='showtopo_statuspage'></div>
@@ -359,8 +375,14 @@ echo "  <ul id='quicktabs' class='nav nav-tabs'>
                 </tbody>
               </table>
             </div>
-	  </div>
-	</div>\n";
+          </div>\n";
+if (isset($this_user) && ISADMIN()) {
+    echo "<div class='tab-pane' id='manifest'>
+              <textarea id='manifest_textarea' style='width: 100%;'
+                        type='textarea'></textarea>
+	  </div>\n";
+}
+echo " </div>\n";
 echo "</div>\n"; # quicktabs
 echo "</div>\n"; # body
 echo "</div>\n"; # container

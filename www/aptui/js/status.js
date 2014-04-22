@@ -6,6 +6,7 @@ function ($, sup, moment)
 {
     'use strict';
     var CurrentTopo = null;
+    var nodecount   = 0;
 
     function initialize()
     {
@@ -55,9 +56,7 @@ function ($, sup, moment)
 	    event.preventDefault();
 	    
 	    sup.HideModal('#terminate_modal');
-	    // Disable buttons.
-	    $("#terminate_button").prop("disabled", true);
-	    $("#extend_button").prop("disabled", true);
+	    ButtonDisable();
 
 	    var callback = function(json) {
 		// This is considered the home page, for now.
@@ -87,14 +86,22 @@ function ($, sup, moment)
     // Call back for above.
     function StatusWatchCallBack(uuid, json)
     {
-	// Check to see if the static variable has been initialized
+	// Flag to indicate that we have seen ready and do not
+	// need to do initial stuff. We need this cause the
+	// the staus can change later, back to busy for a while.
+	if (typeof StatusWatchCallBack.active == 'undefined') {
+            // It has not... perform the initilization
+            StatusWatchCallBack.active = 0;
+	}
+	// Flag so we know status has changed since last check.
 	if (typeof StatusWatchCallBack.laststatus == 'undefined') {
             // It has not... perform the initilization
             StatusWatchCallBack.laststatus = "";
 	}
 	var status = json.value;
 	if (json.code) {
-	    status = "terminated";
+	    alert("The server has returned an error: " + json.value);
+	    status = "unknown";
 	}
 	var status_html = "";
     
@@ -118,10 +125,12 @@ function ($, sup, moment)
 		    $("#quickvm_progress").addClass("progress-bar-success");
 		    $("#quickvm_progress_bar").width("100%");
 		}
-		$("#terminate_button").prop("disabled", false);
-		$("#extend_button").prop("disabled", false);
-		ShowTopo(uuid);
-		StartResizeWatchdog()
+		if (! StatusWatchCallBack.active) {
+		    ShowTopo(uuid);
+		    StartResizeWatchdog()
+		    StatusWatchCallBack.active = 1;
+		}
+		ButtonEnable();
 	    }
 	    else if (status == 'failed') {
 		bgtype = "bg-danger";
@@ -134,14 +143,19 @@ function ($, sup, moment)
 		    $("#quickvm_progress").addClass("progress-bar-danger");
 		    $("#quickvm_progress_bar").width("100%");
 		}
-		$("#terminate_button").prop("disabled", false);
+		ButtonDisable();
+	    }
+	    else if (status == 'imaging') {
+		bgtype = "bg-warning";
+		statustext = "Your experiment is busy while we copy your disk ";
+		status_html = "<font color=red>imaging</font>";
+		ButtonDisable();
 	    }
 	    else if (status == 'terminating' || status == 'terminated') {
 		status_html = "<font color=red>" + status + "</font>";
 		bgtype = "bg-danger";
 		statustext = "Your experiment has been terminated!";
-		$("#terminate_button").prop("disabled", true);
-		$("#extend_button").prop("disabled", true);
+		ButtonDisable();
 		StartCountdownClock.stop = 1;
 	    }
 	    $("#statusmessage").html(statustext);
@@ -151,8 +165,38 @@ function ($, sup, moment)
 	    $("#quickvm_status").html(status_html);
 	} 
 	StatusWatchCallBack.laststatus = status;
-	if (! (status == 'terminating' || status == 'terminated')) {    
+	if (! (status == 'terminating' || status == 'terminated' ||
+	       status == 'unknown')) {
 	    setTimeout(function f() { GetStatus(uuid) }, 5000);
+	}
+    }
+
+    //
+    // Enable/Disable buttons. 
+    //
+    function ButtonEnable()
+    {
+	ButtonState(1);
+    }
+    function ButtonDisable()
+    {
+	ButtonState(0);
+    }
+    function ButtonState(enable)
+    {
+	if (enable) {
+	    $("#terminate_button").prop("disabled", false);
+	    $("#extend_button").prop("disabled", false);
+	    if ($nodecount == 1) {
+		$("#snapshot_button").prop("disabled", false);
+	    }
+	}
+	else {
+	    $("#terminate_button").prop("disabled", true);
+	    $("#extend_button").prop("disabled", true);
+	    if ($nodecount == 1) {
+		$("#snapshot_button").prop("disabled", true);
+	    }
 	}
     }
 
@@ -213,7 +257,7 @@ function ($, sup, moment)
 	var color = "";
     
 	// update the tag with id "countdown" every 1 second
-	var updaer = setInterval(function () {
+	var updater = setInterval(function () {
 	    // Clock stop
 	    if (StartCountdownClock.stop) {
 		// Amazing that this works!
@@ -462,6 +506,11 @@ function ($, sup, moment)
 
 	    console.info(json.value);
 
+	    if ($("#manifest_textarea").length) {
+		$("#manifest_textarea").html(json.value);
+		$("#manifest_textarea").css("height", "300");
+	    }
+
 	    // Suck the instructions out of the tour and put them into
 	    // the Usage area.
 	    $(xml).find("rspec_tour").each(function() {
@@ -482,7 +531,6 @@ function ($, sup, moment)
 	    // Special case for a topology of a single node; start the
 	    // ssh tab right away.
 	    //
-	    var nodecount = 0;
 	    var nodehostport = null;
 	    var nodename = null;
 	    
@@ -531,6 +579,12 @@ function ($, sup, moment)
 	    CurrentTopo = topo;
 	    ReDrawTopoMap();
 	    $("#showtopo_container").removeClass("invisible");
+
+	    // If a single node, show the snapshot button. Only
+	    // single node experiments can do this.
+	    if (nodecount == 1) {
+		$("#snapshot_button").removeClass("invisible");
+	    }
 
 	    // And start up ssh for single node topologies.
 	    if (nodecount == 1 && nodehostport) {
