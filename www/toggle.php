@@ -126,7 +126,7 @@ elseif ($type == "webfreeze") {
 }
 elseif ($type == "adminflag") {
     # This is active on geni racks only.
-    if (!$GENIRACK) {
+    if (1 || !$GENIRACK) {
 	USERERROR("This toggle is disabled on non-geni racks!", 1);
     }
     # must be admin
