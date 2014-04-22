@@ -398,7 +398,8 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 	    fatal("vnode $vnodeid in reloading, but got no loadinfo!");
 	}
 	else {
-	    if ($tmp[0]->{"IMAGEID"} =~ /^([-\d\w]+),([-\d\w]+),([-\d\w]+)$/) {
+	    if ($tmp[0]->{"IMAGEID"} =~
+		/^([-\d\w]+),([-\d\w]+),([-\d\w\.]+)$/) {
 		$vnconfig{"reloadinfo"} = $tmp[0];
 		$vnconfig{"image"}      = "$1-$2-$3";
 	    }

@@ -484,7 +484,8 @@ sub downloadImage($$$$) {
 	if ($reload_args_ref->{"SERVER"} =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
 	    $server = $1;
 	}
-	if ($reload_args_ref->{"IMAGEID"} =~ /^([-\d\w]+),([-\d\w]+),([-\d\w]+)$/) {
+	if ($reload_args_ref->{"IMAGEID"} =~
+	    /^([-\d\w]+),([-\d\w]+),([-\d\w\.]+)$/) {
 	    $imageid = "$1/$3";
 	}
 	if (SHAREDHOST()) {
