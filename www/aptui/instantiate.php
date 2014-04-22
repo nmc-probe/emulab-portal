@@ -493,6 +493,11 @@ if (isset($_FILES['keyfile']) &&
 
     $localfile = $_FILES['keyfile']['tmp_name'];
     $args["sshkey"] = file_get_contents($localfile);
+    #
+    # The filename will be lost on another trip through the browser.
+    # So stick the key into the box.
+    #
+    $formfields["sshkey"] = $args["sshkey"];
 }
 elseif (isset($formfields["sshkey"]) && $formfields["sshkey"] != "") {
     $args["sshkey"] = $formfields["sshkey"];
