@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -126,7 +126,7 @@ $opstate = <<'OPSTATE';
   <state name="geni_configuring">
     <wait type="geni_success" next="geni_ready" />
     <wait type="geni_failure" next="geni_failed" />
-    <description>Booting takes a significant amount of time, so it
+    <description>Booting/Reloading takes a significant amount of time, so it
     happens asynchronously while the node is in this
     state.</description>
   </state>
@@ -136,6 +136,9 @@ $opstate = <<'OPSTATE';
     </action>
     <action name="geni_stop" next="geni_stopping">
       <description>Power down or stop the node.</description>
+    </action>
+    <action name="geni_reload" next="geni_configuring">
+      <description>Reload the node</description>
     </action>
     <action name="geni_update_users" next="geni_updating_users">
       <description>Update user SSH keys.</description>
