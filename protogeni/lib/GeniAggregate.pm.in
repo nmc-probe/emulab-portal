@@ -2730,6 +2730,7 @@ sub Start($$)
 	    my $count    = 600;
 	    my $interval = 30;
 	    my $manifest;
+	    my $dstip;
 	    while ($count >= 0) {
 		my $blob = $authority->Resolve($slice->urn());
 		if (defined($blob)) {
@@ -2788,7 +2789,15 @@ sub Start($$)
 		    $msg = "Could not get routable IP for $component_id";
 		    goto bad;
 		}
-		$member->SetAttribute("tunnel_dstip", $nodeblob->{'physctrl'});
+		$dstip = $nodeblob->{'physctrl'};
+		$member->SetAttribute("tunnel_dstip", $dstip);
+		last;
+	    }
+	    # If we cannot find the peer in the manifest, user
+	    # almost certainly made a mistake in the rspec.
+	    if (!defined($dstip)) {
+		$msg = "Could not find remote IP for $peerid in $tunnel";
+		goto bad;
 	    }
 	}
     }
