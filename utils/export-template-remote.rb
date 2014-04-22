@@ -1,6 +1,6 @@
 #!/usr/bin/ruby
 #
-# Copyright (c) 2012-2013 University of Utah and the Flux Group.
+# Copyright (c) 2012-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -51,7 +51,7 @@ class EmulabExport
 
     def create_image()
         raise "Failed fetching ec2-utils" unless
-            system("wget http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip" +
+            system("wget http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools-1.4.0.9.zip" + 
             " -O " + @workdir + "/ec2-ami-tools.zip")
         raise "Failed unzippinging ec2-utils" unless
             system("unzip " + @workdir +"/ec2-ami-tools.zip")
