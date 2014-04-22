@@ -591,7 +591,7 @@ sub ReportLockedSlices()
     my $msg = "";
     
     my $query_result =
-	GeniDB::DBQueryWarn("select idx,locked,hosed,now() > expires ".
+	GeniDB::DBQueryWarn("select idx,locked,expires,hosed,now() > expires ".
 			    "  from geni_slices ".
 			    "where locked is not null and ".
 			    "      DATE_SUB(NOW(),INTERVAL 1 DAY) >= locked");
@@ -602,7 +602,7 @@ sub ReportLockedSlices()
     return
 	if (!$query_result->numrows);
 
-    while (my ($idx, $locked, $hosed, $expired) =
+    while (my ($idx, $locked, $expires,$hosed, $expired) =
 	   $query_result->fetchrow_array()) {
 	my $slice = GeniSlice->Lookup($idx);
 
@@ -649,9 +649,9 @@ sub ReportLockedSlices()
 	}
 	
       hosed:
-	$msg .= ($hosed ? "Hosed - " : "") . "$urn : $locked\n";
+	$msg .= ($hosed ? "Hosed - " : "") . "$urn : $locked, $expires\n";
 	print STDERR
-	    ($hosed ? "Hosed - " : "") . "$urn : locked since $locked\n";
+	    ($hosed ? "Hosed - " : "") . "$urn : locked since $locked, expires at $expires\n";
 	$slice->Flush();
     }
     return
