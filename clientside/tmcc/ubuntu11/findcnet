@@ -97,6 +97,22 @@ static_widearea_config()
 export LANG=C
 iface="$1"
 
+cnetfile="/var/run/cnet"
+cnetif=''
+
+# We only need the lock if the file doesn't exist.
+# XXX keep this lightweight as it can be called many times from
+# ifquery in the udev path.
+if [ -f $cnetfile ]; then
+    cnetif=`cat $cnetfile`
+    if [ "$cnetif" = $iface ]; then
+	echo cnet
+    else
+	echo $iface
+    fi
+    exit 0
+fi
+
 lockdir=/var/lock/findcnet
 
 . /etc/emulab/paths.sh
@@ -106,9 +122,6 @@ while ! mkdir $lockdir 2> /dev/null; do
 done
 
 echo "`date`: $iface: starting" >>$LOGDIR/dhclient.log
-
-cnetfile="/var/run/cnet"
-cnetif=''
 
 #
 # We use /var/run to store the current idea of the cnet interface

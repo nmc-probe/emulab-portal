@@ -20,7 +20,7 @@ mapping eth*
 # via the mapping above.  Here we just make sure that if shutdown, we
 # remove the indicator file so that we will re-DHCP next time.
 #
-auto eth0 eth1 eth2 eth3 eth4 eth5 eth6 eth7 eth8 eth9
+auto eth0
 iface cnet inet manual
     up echo "Emulab control net is $IFACE"
     up /usr/local/etc/emulab/xenbridge-setup $IFACE

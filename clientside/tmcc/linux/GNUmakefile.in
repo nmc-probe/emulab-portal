@@ -310,7 +310,23 @@ openvz-install:	dir-install
 	# No destdir in this symlink!
 	-ln -sf $(CLIENT_BINDIR)/vzumount-elab.sh /etc/vz/conf/vps.umount
 
-xen-install:	dir-install
+xen-udev-install:
+	@if [ -d "/etc/udev/rules.d" ]; then \
+	    for f in $(SRCDIR)/xen/udev/*.rules; do \
+		echo $(INSTALL) -m 644 $$f /etc/udev/rules.d/; \
+		$(INSTALL) -m 644 $$f /etc/udev/rules.d/; \
+	    done; \
+	fi
+
+xen-upstart-install:
+	@if [ -d "/etc/init" ]; then \
+	    for f in $(SRCDIR)/xen/init/*; do \
+		echo $(INSTALL) -m 644 $$f /etc/init/; \
+		$(INSTALL) -m 644 $$f /etc/init/; \
+	    done; \
+	fi
+
+xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/../common/vnodesetup $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/../common/mkvnode.pl $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/../common/bootvnodes $(BINDIR)/

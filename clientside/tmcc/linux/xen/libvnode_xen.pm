@@ -4100,7 +4100,7 @@ sub ExtractKernelFromFreeBSDImage($$$)
 	    mysystem2("nm $kernelfile | grep -q xen_guest");
 	    if ($?) {
 		# XXX PVHVM kernel
-		mysystem2("nm $kernelfile | grep -q xen_features");
+		mysystem2("nm $kernelfile | grep -q xen_hvm_init");
 	    }
 	    goto skip
 		if ($?);
@@ -4267,5 +4267,3 @@ sub CreateVnodeUnlock()
 }
 
 1;
-
-
