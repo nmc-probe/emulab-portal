@@ -700,6 +700,30 @@ sub GetDiskImage($)
     return $result;
 }
 
+sub SetDiskImage($$)
+{
+    my ($node, $urn) = @_;
+    my $diskref   = undef;
+    if (IsVersion0($node)) {
+	$diskref = FindFirst("n:disk_image", $node);
+	if (!defined($diskref)) {
+	    $diskref = AddElement("disk_image", $node);
+	}
+    }
+    else {
+	my $type = FindFirst("n:sliver_type", $node);
+	if (! defined($type)) {
+	    $type = AddElement("sliver_type", $node);
+	}
+	$diskref = FindFirst("n:disk_image", $type);
+	if (!defined($diskref)) {
+	    $diskref = AddElement("disk_image", $type);
+	}
+    }
+    GeniXML::SetText("name", $diskref, $urn);
+    return $diskref;
+}
+
 sub GetExclusive($)
 {
     my ($node) = @_;
