@@ -42,9 +42,10 @@ sub usage()
     print "Usage: quickvm [-l] [-u uuid] [-a aggregate] <xmlfile>\n";
     print "Usage: quickvm -k <uuid>\n";
     print "Usage: quickvm -e <seconds> <uuid>\n";
+    print "Usage: quickvm -s <uuid> <sliver_urn> <imagename>\n";
     exit(1);
 }
-my $optlist = "dkve:lu:a:";
+my $optlist = "dkve:lu:a:s";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
@@ -53,6 +54,7 @@ my $DDCURN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
 my $localuser = 0;;
 my $xmlfile;
 my $extend;
+my $snapshot;
 my $quickuuid;
 my $aggregate;
 
@@ -61,6 +63,7 @@ sub fatal($);
 sub UserError($);
 sub Terminate($);
 sub Extend($$);
+sub SnapShot($$$);
 
 #
 # Configure variables
@@ -127,13 +130,16 @@ if (defined($options{"l"})) {
 if (defined($options{"k"})) {
     $killit = 1;
 }
+if (defined($options{"s"})) {
+    $snapshot = 1;
+}
 if (defined($options{"e"})) {
     $extend = $options{"e"};
 }
 if (defined($options{"u"})) {
     $quickuuid = $options{"u"};
 }
-if (@ARGV != 1) {
+if (@ARGV < 1) {
     usage();
 }
 if ($killit) {
@@ -143,6 +149,12 @@ elsif ($extend) {
     if ($extend !~ /^\d*$/) {
 	usage();
     }
+    $quickuuid = shift(@ARGV);
+}
+elsif ($snapshot) {
+    usage()
+	if (@ARGV != 3);
+    
     $quickuuid = shift(@ARGV);
 }
 else {
@@ -242,6 +254,9 @@ if ($killit) {
 }
 elsif ($extend) {
     exit(Extend($quickuuid, $extend));
+}
+elsif ($snapshot) {
+    exit(SnapShot($quickuuid, $ARGV[0], $ARGV[1]));
 }
 
 #
@@ -672,6 +687,13 @@ sub Terminate($)
     fatal("Could not sign speaksfor credential")
 	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
 
+    #
+    # Lock the slice in case it is doing something else, like taking
+    # a disk image.
+    #
+    if ($slice->Lock()) {
+	fatal("Slice is busy, cannot lock it");
+    }
     my $old_status = $instance->status();
     $instance->SetStatus("terminating");
 
@@ -709,6 +731,7 @@ sub Terminate($)
 	     $response->code() != GENIRESPONSE_SEARCHFAILED &&
 	     $response->code() != GENIRESPONSE_BUSY)) {
 	    $instance->SetStatus($old_status);
+	    $slice->UnLock();
 	    fatal("DeleteSlice failed: ".
 		  (defined($response) ? $response->output() : "") . "\n");
 	}
@@ -726,6 +749,7 @@ sub Terminate($)
 	}
     }
     if (!$tries) {
+	$slice->UnLock();
 	$instance->SetStatus($old_status);
 	fatal("DeleteSlice failed: Slice was busy for way too long");
     }
@@ -806,5 +830,168 @@ sub Extend($$)
 	      (defined($response) ? $response->output() : "") . "\n");
     }
     $slice->SetExpiration($new_expires);
+    exit(0);
+}
+
+#
+# SnapShot.
+#
+sub SnapShot($$$)
+{
+    my ($uuid, $sliver_urn, $imagename) = @_;
+
+    my $instance = APT_Instance->Lookup($uuid);
+    if (! defined($instance)) {
+	fatal("No such quick VM: $uuid");
+    }
+    my $old_status = $instance->status();
+    if ($old_status ne "ready") {
+	fatal("Instance must be in the ready state to take a snapshot");
+    }
+    if (defined($instance->aggregate_urn()) &&
+	$instance->aggregate_urn() ne $CMURN) {
+	$CMURN = $instance->aggregate_urn();
+	
+	$cm_authority = GeniAuthority->Lookup($CMURN);
+	if (!defined($cm_authority)) {
+	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
+	    if (!defined($cm_authority)) {    
+		fatal("Could not load CM authority object");
+	    }
+	}
+    }
+    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
+    if (!defined($geniuser)) {
+	fatal("No creator for quick VM: $uuid");
+    }
+    my $slice = GeniSlice->Lookup($instance->slice_uuid());
+    if (!defined($slice)) {
+	if ($instance->status() eq "failed") {
+	    goto done;
+	}
+	fatal("No slice for quick VM: $uuid");
+    }
+
+    # Create a slice credential
+    my $slice_credential =
+	GeniCredential->CreateSigned($slice,
+				     $geniuser,
+				     $GeniCredential::LOCALSA_FLAG);
+    if (!defined($slice_credential)) {
+	fatal("Could not create credential for $slice");
+    }
+    my $speaksfor_credential = GeniCredential->Create($geniuser, $sa_authority);
+    fatal("Could not create speaksfor credential")
+	if (!defined($speaksfor_credential));
+    $speaksfor_credential->SetType("speaksfor");
+    fatal("Could not sign speaksfor credential")
+	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
+
+    #
+    # We do this with slice locked.
+    #
+    if ($slice->Lock()) {
+	fatal("Slice is busy, cannot lock it");
+    }
+    $instance->SetStatus("imaging");
+
+    my $response =
+	Genixmlrpc::CallMethod($cm_authority->url(), undef,
+			       "CreateImage",
+			       { "slice_urn"  => $slice->urn(),
+				 "sliver_urn" => $sliver_urn,
+				 "imagename"  => $imagename,
+				 "credentials" =>
+				     [$slice_credential->asString(),
+				      $speaksfor_credential->asString()]});
+
+    if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	$instance->SetStatus($old_status);
+	$slice->UnLock();
+	fatal("CreateImage failed: ".
+	      (defined($response) ? $response->output() : "") . "\n");
+    }
+    #
+    # Lets print the URN and URL to stdout for the caller to grab.
+    # Could be better.
+    #
+    my ($image_urn, $image_url) = @{ $response->value() };
+    
+    #
+    # Exit and leave child to poll. We are looking for the sliver
+    # to unlock, which means the createimage is done. What we do
+    # not know is if it failed to acrtually create the image. Need
+    # to think about this.
+    #
+    if (!$debug) {
+	my $child = fork();
+	if ($child) {
+	    # Parent exits but avoid libaudit email.
+	    AuditAbort();
+	    print "$image_urn,$image_url\n";
+	    exit(0);
+	}
+	# Let parent exit;
+	sleep(2);
+	# All of the logging magic happens in here.
+	libaudit::AuditFork();
+    }
+    my $seconds  = 1200;
+    my $interval = 15;
+    my $ready    = 0;
+    my $failed   = 0;
+
+    while ($seconds > 0) {
+	sleep($interval);
+	$seconds -= $interval;
+    
+	my $response =
+	    Genixmlrpc::CallMethod($cm_authority->url(), undef,
+				   "SliverStatus",
+				   { "slice_urn"   => $slice->urn(),
+				     "credentials" =>
+					 [$slice_credential->asString(),
+					  $speaksfor_credential->asString()]});
+
+	if (!defined($response) || !defined($response->value()) ||
+	    ($response->code() != GENIRESPONSE_SUCCESS &&
+	     $response->code() != GENIRESPONSE_BUSY)) {
+	    print STDERR "SliverStatus failed";
+	    if (defined($response)) {
+		print STDERR ": " . $response->output();
+	    }
+	    print STDERR "\n";
+	    $failed = 1;
+	    last;
+	}
+	next
+	    if ($response->code() == GENIRESPONSE_BUSY);
+
+	my $blob = $response->value();
+	if (exists($blob->{'public_url'})) {
+	    $public_url = $blob->{'public_url'};
+	}
+	if ($blob->{'status'} eq "ready") {
+	    $ready = 1;
+	    last;
+	}
+	elsif ($blob->{'status'} eq "failed") {
+	    $failed = 1;
+	    last;
+	}
+    }
+    if ($failed) {
+	print STDERR "Imaging failed\n";
+    }
+    elsif (!$ready) {
+	print STDERR "Imaging timed out\n"; 
+    }
+    else {
+	# Leave the slice locked if it failed; need to think about
+	# what we should do. 
+	$slice->UnLock();
+	$instance->SetStatus("ready");
+    }
+  done:
     exit(0);
 }
