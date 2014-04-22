@@ -109,7 +109,8 @@ foreach my $tipname ( keys %tipgroup ) {
     # in rolling the file. Inconvenient for the user to have the log keep
     # rolling.
     #
-    if (getgrgid($gid) eq $grp) {
+    my ($cgrp) = getgrgid($gid);
+    if (defined($cgrp) && $cgrp eq $grp) {
 	goto setperms;
     }
 
