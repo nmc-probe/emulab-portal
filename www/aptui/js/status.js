@@ -187,14 +187,14 @@ function ($, sup, moment)
 	if (enable) {
 	    $("#terminate_button").prop("disabled", false);
 	    $("#extend_button").prop("disabled", false);
-	    if ($nodecount == 1) {
+	    if (nodecount == 1) {
 		$("#snapshot_button").prop("disabled", false);
 	    }
 	}
 	else {
 	    $("#terminate_button").prop("disabled", true);
 	    $("#extend_button").prop("disabled", true);
-	    if ($nodecount == 1) {
+	    if (nodecount == 1) {
 		$("#snapshot_button").prop("disabled", true);
 	    }
 	}
