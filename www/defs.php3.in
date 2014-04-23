@@ -181,30 +181,16 @@ $RSS_HEADER_PNNEWS =
    "title=\"PhantomNet News\" href=\"$TBDOCBASE/news-rss.php3?phantomnet=1\"/>";
 
 #
-# Below is an inelegant solution for changing aspects of the UI based on
-# the incoming apache virtual server name (for PhantomNet).
+# See if we should override any of the global web variables based on the
+# virtual domain.  We include a site-dependent definitions file.
 #
-$IS_PNET = 0;
-if (strpos($_SERVER['SERVER_NAME'],'phantom') !== false) {
-  $WWWHOST	= $_SERVER['SERVER_NAME'];
-  $OURDOMAIN    = implode(".", array_slice(explode(".",$WWWHOST),1));
-  $WWW		= $WWWHOST;
-  $THISHOMEBASE	= "PhantomNet";
-  $TBAUTHDOMAIN	= ".$OURDOMAIN";
-  $TBBASE	= "https://$WWWHOST";
-  $TBDOCBASE	= "http://$WWWHOST";
-  $TBWWW	= "<$TBBASE/>";
-  $WIKINODE     = "wiki.$OURDOMAIN";
-  $WIKIDOCS     = "http://${WIKINODE}/wikidocs/wiki";
-  $IS_PNET      = 1;
+$ALTERNATE_DOMAINS = array();
+$DOMVIEW           = NULL;
+$altdomfile = strtolower("alternate_domains_${OURDOMAIN}.php");
+if (file_exists($altdomfile)) {
+    include($altdomfile);
 }
-
-#
-# PhantomNet view declaration
-#
-$PNETVIEW = array('hide_sidebar' => 1, 'hide_banner' => 0,
-		  'show_topbar' => "pnet", 'show_bottombar' => 'pnet',
-		  'hide_copyright' => 0, 'show_pnet' => 1);
+SetDomainDefs();
 
 #
 # Database constants and the like.
@@ -670,6 +656,59 @@ function CheckRedirect() {
 	    }
 	}
     }
+}
+
+#
+# Loop over the $ALTERNATE_DOMAINS global array and see if the incoming
+# request asked for a virtual domain for which we have an alternate set
+# of definitions and/or view.
+#
+# Return 1 if a domain in the array matched, 0 otherwise.  Has MAJOR
+# side effects: updates/overrides many top-level variables.
+#
+function SetDomainDefs()
+{
+    global $WWWHOST, $OURDOMAIN, $WWW, $THISHOMEBASE, $TBAUTHDOMAIN, $TBBASE;
+    global $TBDOCBASE, $TBWWW, $WIKINODE, $TBMAINSITE;
+    global $ALTERNATE_DOMAINS;
+
+    foreach ($ALTERNATE_DOMAINS as list($dpat, $ovr)) {
+	if (preg_match($dpat, $_SERVER['SERVER_NAME']) == 1) {
+	    # Replacement defs derived from the virtual domain itself.
+	    $WWWHOST	  = $_SERVER['SERVER_NAME'];
+	    $OURDOMAIN    = implode(".", array_slice(explode(".",$WWWHOST),1));
+	    $WWW	  = $WWWHOST;
+	    $TBAUTHDOMAIN = ".$OURDOMAIN";
+	    $TBBASE	  = "https://$WWWHOST";
+	    $TBDOCBASE	  = "http://$WWWHOST";
+	    $TBWWW	  = "<$TBBASE/>";
+
+	    # Defs that may be overriden in the domain's configuration array
+	    if (isset($ovr['THISHOMEBASE'])) {
+		$THISHOMEBASE = $ovr['THISHOMEBASE'];
+	    }
+	    if (isset($ovr['WIKINODE'])) {
+		$WIKINODE     = $ovr['WIKINODE'];
+	    } else {
+		$WIKINODE     = "wiki.$OURDOMAIN";
+	    }
+	    if (isset($ovr['WIKIDOCS'])) {
+		$WIKIDOCS     = $ovr['WIKIDOCS'];
+	    } else {
+		$WIKIDOCS     = "http://${WIKINODE}/wikidocs/wiki";
+	    }
+	    if (isset($ovr['DOMVIEW'])) {
+		$DOMVIEW      = $ovr['DOMVIEW'];
+	    }
+
+	    # Given that this is an alternate domain, clear TBMAINSITE
+	    $TBMAINSITE = 0;
+	    
+	    # Bail after the first domain match.
+	    return 1;
+	}
+    }
+    return 0;
 }
 
 #

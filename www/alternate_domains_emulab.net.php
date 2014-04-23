@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -21,35 +21,24 @@
 # 
 # }}}
 #
-require("defs.php3");
 
-$optargs = OptionalPageArguments("stayhome", PAGEARG_BOOLEAN);
-
-#
-# The point of this is to redirect logged in users to their My Emulab
-# page. 
-#
-CheckRedirect();
-
-PAGEHEADER("PhantomNet - Mobility Testbed", NULL, $RSS_HEADER_PNNEWS);
+# Alternate domain def structures.  The first element of the outermost
+# array is the regex pattern to match against $_SERVER['SERVER_NAME'].
+# The second element is another array that contains key-value pairs
+# for various top-level variable overrides.  See SetDomainDefs() in
+# defs.php3 for more info.
 
 #
-# Show special banner message, if set.
+# PhantomNet view declaration
 #
-$message = TBGetSiteVar("web/banner");
-if ($message != "") {
-    echo "<center><font color=Red size=+1>\n";
-    echo "$message\n";
-    echo "</font></center><br>\n";
-}
+$PNET_DOMVIEW = array('hide_sidebar' => 0, 'hide_banner' => 0,
+		      'show_topbar' => "pnet", 'show_bottombar' => 'pnet',
+		      'hide_copyright' => 0, 'show_pnet' => 1);
 
-#
-# PhantomNet front page content.
-#
-readfile("index-phantomnet.html");
+$ALTERNATE_DOMAINS[] = 
+    array('phantom', 
+	  array('THISHOMEBASE' => 'PhantomNet',
+		'DOMVIEW' => $PNET_DOMVIEW
+		));
 
-#
-# Standard Testbed Footer
-# 
-PAGEFOOTER();
 ?>

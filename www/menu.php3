@@ -1041,7 +1041,6 @@ function PAGEHEADER($title, $view = NULL, $extra_headers = NULL,
     global $TBBASE, $TBDOCBASE, $THISHOMEBASE;
     global $BASEPATH, $drewheader, $autorefresh;
     global $TBMAINSITE;
-    global $IS_PNET, $PNETVIEW;
 
     $drewheader = 1;
     if (isset($_GET['refreshrate']) && is_numeric($_GET['refreshrate'])) {
@@ -1058,12 +1057,14 @@ function PAGEHEADER($title, $view = NULL, $extra_headers = NULL,
 
     #
     # If no view options were specified, get the ones for the current user.
-    # if no user specific view, see if we are coming in via Phantomnet.
+    # if no user specific view, see if we are coming in via a virtual domain
+    # with an alternate view.
     #
     if (!$view) {
 	$view = GETUSERVIEW();
-	if (empty($view) && $IS_PNET) {
-	    $view = $PNETVIEW;
+	# See if there is a domain override.
+	if (empty($view)) {
+	    $view = GETDOMVIEW();
 	}
     }
 
@@ -1209,7 +1210,6 @@ function PAGEFOOTER($view = NULL) {
     global $TBDOCBASE, $TBMAILADDR, $THISHOMEBASE, $BASEPATH, $TBBASE;
     global $TBMAINSITE, $bodyclosestring, $currently_busy;
     global $login_user, $javascript_debug, $sortedtables;
-    global $IS_PNET, $PNETVIEW;
 
     if ($currently_busy) {
 	CLEARBUSY();
@@ -1218,12 +1218,13 @@ function PAGEFOOTER($view = NULL) {
 
     #
     # If no view options were specified, get the ones for the current user.
-    # if no user specific view, see if we are coming in via Phantomnet.
+    # if no user specific view, see if we are coming in via a virtual
+    # domain with an alternate view.
     #
     if (!$view) {
 	$view = GETUSERVIEW();
-	if (empty($view) && $IS_PNET) {
-	    $view = $PNETVIEW;
+	if (empty($view)) {
+	    $view = GETDOMVIEW();
 	}
     }
 
@@ -1480,6 +1481,20 @@ function GETUSERVIEW() {
     } else {
 	return array();
     }
+}
+
+#
+# Get a view, based on incoming virtual domain name.  See SetDomainDefs()
+# in defs.php3 for more details.
+#
+function GETDOMAINVIEW() {
+    global $DOMVIEW;
+
+    if (isset($DOMVIEW)) {
+	return $DOMVIEW;
+    }
+
+    return array();
 }
 
 #
