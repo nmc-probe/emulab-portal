@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,12 +39,12 @@ sub usage()
 {
     print STDERR "Usage: initilo.pl [-d] [-n] <ilopswd> <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -b <nodeid>\n";
-    print STDERR "Usage: initilo.pl [-d] [-n] -o <nodeid>\n";
+    print STDERR "Usage: initilo.pl [-d] [-n] -o | -i <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -k <nodeid> ...\n";
     print STDERR "Usage: initilo.pl [-d] [-n] [-c | -r] <ip> <ilopswd>\n";
     exit(-1);
 }
-my $optlist	= "dncobskr";
+my $optlist	= "dncobskri";
 my $debug	= 0;
 my $impotent    = 0;
 my $control     = 0;
@@ -52,6 +52,7 @@ my $dooutlet    = 0;
 my $doilokey    = 0;
 my $bootorder   = 0;
 my $resetilo    = 0;
+my $noipmi      = 0;
 my $tempfile    = "/tmp/$$.xml";
 
 #
@@ -74,6 +75,7 @@ sub SetupControlNode($$);
 sub DoOutlet($);
 sub DoIloKey($);
 sub DoResetILO($$);
+sub NoIPMI($$);
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/site/bin';
@@ -114,6 +116,9 @@ if (defined($options{"c"})) {
 if (defined($options{"k"})) {
     $doilokey = 1;
 }
+if (defined($options{"i"})) {
+    $noipmi = 1;
+}
 if (defined($options{"b"})) {
     $bootorder = 1;
 }
@@ -142,6 +147,7 @@ my $setupgoo  = `cat $SRCDIR/setupilo.xml`;
 my $resetgoo  = `cat $SRCDIR/resetilo.xml`;
 my $chpswdgoo = `cat $SRCDIR/chpswd.xml`;
 my $sshkeygoo = `cat $SRCDIR/addsshkey.xml`;
+my $noipmigoo = `cat $SRCDIR/noipmi.xml`;
 
 # The pubkey.
 my $pubkey = `cat ${DSAKEY}.pub`;
@@ -171,6 +177,12 @@ if ($dooutlet) {
 	if (@ARGV != 1);
 
     exit(DoOutlet($ARGV[0]));
+}
+if ($noipmi) {
+    usage()
+	if (@ARGV != 1);
+
+    exit(NoIPMI($ARGV[0], $elabmanpswd));
 }
 if ($doilokey) {
     usage()
@@ -541,3 +553,32 @@ sub DoResetILO($$)
     return 0;
 }
 
+#
+# Disable IPMI
+#
+sub NoIPMI($$)
+{
+    my ($nodeid, $pswd) = @_;
+    my $iloIP;
+
+    if ($nodeid eq "control-ilo") {
+	$iloIP = $nodeid;
+    }
+    else {
+	my $node = Node->Lookup($ARGV[0]);
+	if (!defined($node)) {
+	    Fatal("No such node");
+	}
+	# This has to be in the interfaces table already.
+	my $management_interface = Interface->LookupManagement($node);
+	if (!defined($management_interface)) {
+	    Fatal("No management interface for $node");
+	}
+	$iloIP = $management_interface->IP();
+    }
+    my $xmlgoo = sprintf($noipmigoo, $pswd);
+    if (SendXML($iloIP, $xmlgoo)) {
+	Fatal("Failed to send xmlgoo to $iloIP");
+    }
+    return 0;
+}
