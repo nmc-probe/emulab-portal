@@ -351,19 +351,11 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/mkimagecache $(BINDIR)/
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(BINDIR)/grub
 	$(INSTALL) -m 755 $(SRCDIR)/xen/pygrub $(BINDIR)/
-	@if [ -d "/usr/lib/xen-default/lib/python" ]; then \
-	    echo $(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
-		/usr/lib/xen-default/lib/python/grub; \
-	    $(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
-		/usr/lib/xen-default/lib/python/grub; \
-	elif [ -d "/usr/lib/xen-4.4/lib/python" ]; then \
-	    echo $(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
-		/usr/lib/xen-4.4/lib/python/grub; \
-	    $(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
-		/usr/lib/xen-4.4/lib/python/grub; \
-	else \
-	    echo "could not install GrubConf.py!"; \
+	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.4" ]; then \
+	    ln -sf xen-4.4 /usr/lib/xen-default; \
 	fi
+	$(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
+		/usr/lib/xen-default/lib/python/grub/
 
 genirack-install:
 	$(INSTALL) -m 755 $(SRCDIR)/xen/restorevm.pl $(BINDIR)/restorevm.pl
