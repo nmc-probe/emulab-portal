@@ -1154,22 +1154,17 @@ sub vnodeCreate($$$$)
 
     if ($os eq "FreeBSD") {
 	if ($ishvm) {
-	    my $xdir = "/usr/lib/xen-4.3";
-
 	    addConfig($vninfo, "extra = 'boot_verbose=1'", 2);
 
 	    addConfig($vninfo, "builder='hvm'", 2);
-	    addConfig($vninfo, "firmware_override='$xdir/boot/hvmloader'", 2);
-	    addConfig($vninfo, "device_model_override='$xdir/bin/qemu-dm'", 2);
-	    addConfig($vninfo,
-		      "device_model_version='qemu-xen-traditional'", 2);
 	    addConfig($vninfo, "xen_platform_pci=1", 2);
 	    addConfig($vninfo, "boot='c'", 2);
 	    addConfig($vninfo, "serial='pty'", 2);
 	    addConfig($vninfo, "apic=1", 2);
 	    addConfig($vninfo, "acpi=1", 2);
 	    addConfig($vninfo, "pae=1", 2);
-	    addConfig($vninfo, "vnc=0", 2);
+	    # XXX wont start without vnc=1
+	    addConfig($vninfo, "vnc=1", 2);
 	    addConfig($vninfo, "sdl=0", 2);
 	    addConfig($vninfo, "stdvga=0", 2);
 	} else {
@@ -2355,11 +2350,24 @@ sub CreatePrimaryDisk($$$$)
 	#
 	# HVM FreeBSD needs real MBR boot code.
 	#
+	# XXX chicken-and-egg problem here: we cannot extract the boot
+	# code until we have layed down the initial virtual disk (which
+	# we are doing now...) but we have to put down the boot code
+	# before we run sfdisk to fill in the partition table. So we
+	# fall back on a hardwired copy of the bootcode. This could all
+	# go away if we didn't boot via the MBR...
+	#
 	if ($imagemetadata->{'PARTOS'} =~ /freebsd/i &&
 	    $imagemetadata->{'OSVERSION'} >= 10) {
 	    my $boot = "$VMDIR/$target/boot0";
-	    print STDERR "libvnode_xen: no boot0 code for FreeBSD HVM boot\n"
-		if (! -e "$boot");
+	    if (! -e "$boot") {
+		$boot = "/boot/freebsd10/boot0";
+		if (! -e "$boot") {
+		    print STDERR
+			"libvnode_xen: no boot0 code for FreeBSD HVM boot\n";
+		    return -1;
+		}
+	    }
 	    if (mysystem2("dd if=$boot of=$rootvndisk bs=512 count=1")) {
 		print STDERR "libvnode_xen: could not install FreeBSD boot0\n";
 		return -1;
