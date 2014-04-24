@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,7 +32,7 @@ my $DUMPDATES   = "/etc/dumpdates";
 my @DBFILES     = ();
 my @SYSVARDIRS  = ("lib/dhcp", "lib/dhclient", "lib/dhcp3", "spool/clientmqueue",
 		   "log/audit", "log/account", "log/mysql", "log/ntpstats");
-my @VARDIRS	= ("logs", "db", "jails", "boot", "lock");
+my @VARDIRS	= ("logs", "db", "jails", "boot", "lock", "vms");
 my @SOCKETS	= ("/dev/log", "/var/run/acpid.socket");
 my $FSTAB       = "/etc/fstab";
 my $LOGDIR      = "/var/log";
@@ -341,7 +341,13 @@ system("rm -f /var/lib/rpm/__db*");
 
 print "Clearing out directories in $VARDIR ...\n";
 foreach my $dir (@VARDIRS) {
-    if (-d "$VARDIR/$dir") {
+    # If it is a symlink, make it a real directory
+    # XXX really just for vnode dirs ("vms")
+    if (-l "$VARDIR/$dir") {
+	unlink("$VARDIR/$dir");
+	mkdir("$VARDIR/$dir", 0755);
+    }
+    elsif (-d "$VARDIR/$dir") {
 	system("rm -rf $VARDIR/$dir/*");
     }
 }
