@@ -146,20 +146,27 @@ if { ${::GLOBALS::elabinelab_singlenet} == 0 } {
     }
 }
 
+set xenos XEN41-64-STD
+if {[info exists ::TBCOMPAT::elabinelab_nodeos("xenhost")]} {
+    namespace eval TBCOMPAT {
+	set xenos $elabinelab_nodeos("xenhost")
+    }
+}
+
 if {[info exists ::TBCOMPAT::elabinelab_nodeos("boss")]} {
     namespace eval TBCOMPAT {
-        tb-set-node-os $myboss $elabinelab_nodeos("boss") XEN41-64-STD
+        tb-set-node-os $myboss $elabinelab_nodeos("boss") $xenos
     }
 } else {
-    tb-set-node-os $myboss XEN-GUEST-FBSD90-STD XEN41-64-STD
+    tb-set-node-os $myboss XEN-GUEST-FBSD90-STD $xenos
 }
 
 if {[info exists ::TBCOMPAT::elabinelab_nodeos("ops")]} {
     namespace eval TBCOMPAT {
-        tb-set-node-os $myops $elabinelab_nodeos("ops") XEN41-64-STD
+        tb-set-node-os $myops $elabinelab_nodeos("ops") $xenos
     }
 } else {
-    tb-set-node-os $myops XEN-GUEST-FBSD90-STD XEN41-64-STD
+    tb-set-node-os $myops XEN-GUEST-FBSD90-STD $xenos
 }
 
 #
