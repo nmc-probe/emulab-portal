@@ -2527,7 +2527,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_VLAN_UNAVAILABLE,
 					     undef,
-				"Could not find a free vlan tag for $linkname");
+				"Error reserving vlan tag for $linkname");
 		    goto bad;
 		}
 		print STDERR
@@ -2540,7 +2540,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_VLAN_UNAVAILABLE,
 					     undef,
-			"Could not reserve a vlan tag for $linkname");
+				 "Error reserving vlan tag for $linkname");
 		    goto bad;
 		}
 		$vlan->Destroy()
@@ -2551,7 +2551,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		print STDERR "Did not find the reserved tag for $linkname\n";
 		$response = GeniResponse->Create(GENIRESPONSE_VLAN_UNAVAILABLE,
 						 undef,
-				 "Could not reserve a vlan tag for $linkname");
+				 "Error reserving vlan tag for $linkname");
 		goto bad;
 	    }
 	    print STDERR "Got tag $tag for $linkname\n";
@@ -2676,8 +2676,9 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		}
 		# This should not happen. 
 		print STDERR "Did not find the reserved tag for $linkname\n";
-		$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-						 "Error reserving vlan tag");
+		$response = GeniResponse->Create(GENIRESPONSE_VLAN_UNAVAILABLE,
+						 undef,
+				 "Error reserving vlan tag for $linkname");
 		goto bad;
 	    }
 	    # Try again.
