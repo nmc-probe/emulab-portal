@@ -304,21 +304,9 @@ function WRITEPLABBOTTOMBAR() {
 
 }
 
-#
-# WRITESIDEBAR(): Write the menu. The actual menu options the user
-# sees depends on the login status and the DB status.
-#
-function WRITESIDEBAR() {
-    global $login_status, $login_user, $pid, $gid;
-    global $TBBASE, $TBDOCBASE, $BASEPATH, $WIKISUPPORT, $MAILMANSUPPORT;
-    global $BUGDBSUPPORT, $BUGDBURL, $CVSSUPPORT, $CHATSUPPORT, $TRACSUPPORT;
-    global $PROTOGENI;
-    global $CHECKLOGIN_WIKINAME, $TBMAINSITE;
-    global $THISHOMEBASE;
-    global $EXPOSETEMPLATES;
-    global $currentusage, $FANCYBANNER, $ELABINELAB, $PLABSUPPORT;
-    global $WIKIDOCURL;
-    $firstinitstate = TBGetFirstInitState();
+function GETNEWSINFO() {
+    global $TBBASE, $TBDOCBASE;
+    global $login_user;
 
     #
     # get post time of most recent news;
@@ -350,6 +338,14 @@ function WRITESIDEBAR() {
 	}
     }
 
+
+    return array($newsBase, $newsDate, $newNews);
+}
+
+function WRITETOPMIDBAR($newsBase, $newNews, $product="Emulab") {
+    global $TBBASE;
+    global $login_user, $login_status;
+
     if ($login_user) {
 	echo "<td>\n";
 	echo "<div class='midtopcell'>\n";
@@ -362,7 +358,7 @@ function WRITESIDEBAR() {
 	if ($login_status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID)) {
 	    echo "<a class=midtopcell ".
 		"href='$TBBASE/" . CreateURL("showuser", $login_user) . "'>".
-		"My Emulab</a>\n";
+		"My $product</a>\n";
 
 	    echo " <font color=grey>|</font> ";
 
@@ -427,72 +423,27 @@ function WRITESIDEBAR() {
 	echo "<tr id=spacer><td id=spacer></td></tr>";
 	echo "<tr><td>";
     }
-   
-    NavMenuStart();
-    NavMenuSection("information", "Information");
-    NavMenuButton("Home", "$TBDOCBASE/index.php3?stayhome=1");
+}
 
-    if (0 == strcasecmp($THISHOMEBASE, "emulab.net")) {
-	$rootEmulab = 1;
-    } else {
-	$rootEmulab = 0;
-    }
-    if ($rootEmulab) {
-	NavMenuButton("Other Emulabs", 
-		      "$WIKIDOCURL/OtherEmulabs");
-    } else {
-	NavMenuButton("Utah Emulab", "http://www.emulab.net/");
-    }
-
-    if ($newNews) {
-	NavMenuButtonNew("News $newsDate", "$newsBase/news.php3");
-    } else {
-	NavMenuButton("News $newsDate", "$newsBase/news.php3");
-    }
-
-    NavMenuButton("Documentation", "$WIKIDOCURL");
-    NavMenuButtonNew("Forums", "http://groups.google.com/group/emulab-users");
-
-    if ($rootEmulab) {
-	# Leave New here about 2 weeks
-        NavMenuButton("Papers and Talks (Jul 18)", "$TBDOCBASE/pubs.php3");
-	NavMenuButton("Emulab Software (Sep 1)", "$TBDOCBASE/software.php3");
-
-	NavMenuButton("List People",
-		      "$TBDOCBASE/people.php3");
-	NavMenuButton("Photo Gallery",
-		      "$TBDOCBASE/gallery/gallery.php3");
-	NavMenuButton("Emulab Users",
-		      "$TBDOCBASE/doc/docwrapper.php3?docname=users.html");
-	NavMenuButton("Emulab Sponsors",
-		      "$TBDOCBASE/docwrapper.php3?docname=sponsors.html");
-    }
-    else {
-	NavMenuButton("Projects on Emulab", "$TBDOCBASE/projectlist.php3");
-    }
-    if ($TBMAINSITE) {
-	NavMenuButton("<font color=red>In Memoriam</font>",
-		      "$TBDOCBASE/jay.php");
-    }
-
-    # The search box.  Placed in a table so the text input fills available
-    # space.
-    if (! $login_user) {
-	NavMenuSectionEnd();
-	echo "<div id='searchrow'>
+function PUTSEARCHBOX($newsBase) {
+    echo "<div id='searchrow'>
         <form method='get' action='$newsBase/search.php3'>
         <table border='0' cellspacing='0' cellpadding='0'><tr>
              <td width='100%'><input class='textInputEmpty' name='query'
                         value='Search Documentation' id='searchbox'
                         onfocus='focus_text(this, \"Search Documentation\")'
                         onblur='blur_text(this, \"Search Documentation\")' />
-               </td>
+             </td>
 	     <td><input type='submit' id='searchsub' value=Go /></td>
         </table>
         </form>
 	</div>\n";
-    }
-    
+}
+
+function WRITELOGINBOX($firstinitstate=0) {
+    global $TBBASE, $TBDOCBASE, $BASEPATH;
+    global $login_status;
+
     #
     # Cons up a nice message.
     # 
@@ -565,6 +516,12 @@ function WRITESIDEBAR() {
 	    WRITESIDEBARNOTICE($message);
 	}
     }
+}
+
+function WRITEEXPERIMENTMENU($firstinitstate, $product="Emulab") {
+    global $TBBASE, $TBDOCBASE;
+    global $WIKISUPPORT, $CHECKLOGIN_WIKINAME, $EXPOSETEMPLATES;
+    global $login_status, $login_user;
 
     # Start Interaction section if going to spit out interaction options.
     if ($login_status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID)) {
@@ -602,7 +559,7 @@ function WRITESIDEBAR() {
 			         CreateURL("moduserinfo", $login_user));
 	    }
 	    else {
-		NavMenuButton("My Emulab",
+		NavMenuButton("My $product",
 			      "$TBBASE/" . CreateURL("showuser", $login_user));
 
 		#
@@ -659,6 +616,183 @@ function WRITESIDEBAR() {
 			  "$TBBASE/joinproject.php3");
 	}
     }
+}
+
+function WRITEADMINMENU() {
+    global $TBBASE, $TBDOCBASE;
+    global $PROTOGENI;
+    global $login_status;
+
+    # Optional ADMIN menu.
+    if ($login_status & CHECKLOGIN_LOGGEDIN && ISADMIN()) {
+	NavMenuSection("administration", "Administration");
+	
+	NavMenuButton("List Projects",
+		      "$TBBASE/showproject_list.php3");
+	NavMenuButton("List Users",
+		      "$TBBASE/showuser_list.php3");
+
+	NavMenuButton("View Testbed Stats",
+		      "$TBBASE/showstats.php3");
+
+	NavMenuButton("Resource Usage Visualization",
+		      "$TBBASE/rusage_viz.php");
+
+	NavMenuButton("Approve New Projects",
+		      "$TBBASE/approveproject_list.php3");
+
+	NavMenuButton("Edit Site Variables",
+		      "$TBBASE/editsitevars.php3");
+
+	if ($TBMAINSITE) {
+	    NavMenuButton("Emulab Site List",
+			  "$TBBASE/showsite_list.php");
+	}
+
+	NavMenuButton("Show Shared Node Pool",
+		      "$TBBASE/showpool.php");
+
+	$query_result = DBQUeryFatal("select new_node_id from new_nodes");
+	if (mysql_num_rows($query_result) > 0) {
+	    NavMenuButtonNew("Add Testbed Nodes",
+			     "$TBBASE/newnodes_list.php3");
+	}
+	else {
+	    NavMenuButtonNew("Add Testbed Nodes",
+			     "$TBBASE/newnodes_list.php3");
+	}
+	if ($PROTOGENI) {
+	    NavMenuButton("ProtoGeni Slices",
+			  "$TBBASE/genislices.php");
+	    NavMenuButton("ProtoGeni History",
+			  "$TBBASE/genihistory.php");
+	}
+    }
+}
+
+#
+# WRITESIDEBARPNET(): Write the "sidebar" menu for PhantomNet.
+#
+function WRITESIDEBARPNET() {
+    global $login_status, $login_user;
+    global $TBBASE, $TBDOCBASE, $BASEPATH;
+    global $TBMAINSITE, $THISHOMEBASE;
+    global $WIKIDOCURL;
+
+    list($newsBase, $newsDate, $newNews) = GETNEWSINFO();
+
+    WRITETOPMIDBAR($newsBase, $newNews, "PhantomNet");
+
+    NavMenuStart();
+    NavMenuSection("information", "Information");
+    NavMenuButton("Home", "$TBDOCBASE/index.php3?stayhome=1");
+
+    if ($newNews) {
+	NavMenuButtonNew("News $newsDate", "$newsBase/news.php3");
+    } else {
+	NavMenuButton("News $newsDate", "$newsBase/news.php3");
+    }
+
+    NavMenuButton("Documentation", "$WIKIDOCURL");
+    NavMenuButtonNew("Forums", "http://groups.google.com/group/emulab-users");
+
+    # The search box.  Placed in a table so the text input fills available
+    # space.
+    if (! $login_user) {
+	NavMenuSectionEnd();
+	PUTSEARCHBOX();
+    }
+
+    WRITELOGINBOX();
+    WRITEEXPERIMENTMENU(0,"PhantomNet");
+    WRITEADMINMENU();
+
+    # Terminate Interaction menu and render.
+    NavMenuRender();
+    
+    if ($login_user) {
+	echo "</td></tr></table>\n";
+	
+	# Close up div at start of navmenu
+	echo "</div>\n";
+	echo "</td>\n";
+    }
+}
+
+#
+# WRITESIDEBAR(): Write the menu. The actual menu options the user
+# sees depends on the login status and the DB status.
+#
+function WRITESIDEBAR() {
+    global $login_status, $login_user, $pid, $gid;
+    global $TBBASE, $TBDOCBASE, $BASEPATH, $WIKISUPPORT, $MAILMANSUPPORT;
+    global $BUGDBSUPPORT, $BUGDBURL, $CVSSUPPORT, $CHATSUPPORT, $TRACSUPPORT;
+    global $CHECKLOGIN_WIKINAME, $TBMAINSITE;
+    global $THISHOMEBASE;
+    global $currentusage, $FANCYBANNER, $ELABINELAB, $PLABSUPPORT;
+    global $WIKIDOCURL;
+    $firstinitstate = TBGetFirstInitState();
+
+    list($newsBase, $newsDate, $newNews) = GETNEWSINFO();
+
+    WRITETOPMIDBAR($newsBase, $newNews);
+   
+    NavMenuStart();
+    NavMenuSection("information", "Information");
+    NavMenuButton("Home", "$TBDOCBASE/index.php3?stayhome=1");
+
+    if (0 == strcasecmp($THISHOMEBASE, "emulab.net")) {
+	$rootEmulab = 1;
+    } else {
+	$rootEmulab = 0;
+    }
+    if ($rootEmulab) {
+	NavMenuButton("Other Emulabs", 
+		      "$WIKIDOCURL/OtherEmulabs");
+    } else {
+	NavMenuButton("Utah Emulab", "http://www.emulab.net/");
+    }
+
+    if ($newNews) {
+	NavMenuButtonNew("News $newsDate", "$newsBase/news.php3");
+    } else {
+	NavMenuButton("News $newsDate", "$newsBase/news.php3");
+    }
+
+    NavMenuButton("Documentation", "$WIKIDOCURL");
+    NavMenuButtonNew("Forums", "http://groups.google.com/group/emulab-users");
+
+    if ($rootEmulab) {
+	# Leave New here about 2 weeks
+        NavMenuButton("Papers and Talks (Jul 18)", "$TBDOCBASE/pubs.php3");
+	NavMenuButton("Emulab Software (Sep 1)", "$TBDOCBASE/software.php3");
+
+	NavMenuButton("List People",
+		      "$TBDOCBASE/people.php3");
+	NavMenuButton("Photo Gallery",
+		      "$TBDOCBASE/gallery/gallery.php3");
+	NavMenuButton("Emulab Users",
+		      "$TBDOCBASE/doc/docwrapper.php3?docname=users.html");
+	NavMenuButton("Emulab Sponsors",
+		      "$TBDOCBASE/docwrapper.php3?docname=sponsors.html");
+    }
+    else {
+	NavMenuButton("Projects on Emulab", "$TBDOCBASE/projectlist.php3");
+    }
+    if ($TBMAINSITE) {
+	NavMenuButton("<font color=red>In Memoriam</font>",
+		      "$TBDOCBASE/jay.php");
+    }
+
+    # The search box.  Placed in a table so the text input fills available
+    # space.
+    if (! $login_user) {
+	NavMenuSectionEnd();
+	PUTSEARCHBOX();
+    }
+
+    WRITELOGINBOX($firstinitstate);
+    WRITEEXPERIMENTMENU($firstinitstate);
 
     # And now the Collaboration menu.
     if (($login_status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID)) &&
@@ -723,51 +857,8 @@ function WRITESIDEBAR() {
 	}
     }
 
-    # Optional ADMIN menu.
-    if ($login_status & CHECKLOGIN_LOGGEDIN && ISADMIN()) {
-	NavMenuSection("administration", "Administration");
-	
-	NavMenuButton("List Projects",
-		      "$TBBASE/showproject_list.php3");
-	NavMenuButton("List Users",
-		      "$TBBASE/showuser_list.php3");
+    WRITEADMINMENU();
 
-	NavMenuButton("View Testbed Stats",
-		      "$TBBASE/showstats.php3");
-
-	NavMenuButton("Resource Usage Visualization",
-		      "$TBBASE/rusage_viz.php");
-
-	NavMenuButton("Approve New Projects",
-		      "$TBBASE/approveproject_list.php3");
-
-	NavMenuButton("Edit Site Variables",
-		      "$TBBASE/editsitevars.php3");
-
-	if ($TBMAINSITE) {
-	    NavMenuButton("Emulab Site List",
-			  "$TBBASE/showsite_list.php");
-	}
-
-	NavMenuButton("Show Shared Node Pool",
-		      "$TBBASE/showpool.php");
-
-	$query_result = DBQUeryFatal("select new_node_id from new_nodes");
-	if (mysql_num_rows($query_result) > 0) {
-	    NavMenuButtonNew("Add Testbed Nodes",
-			     "$TBBASE/newnodes_list.php3");
-	}
-	else {
-	    NavMenuButtonNew("Add Testbed Nodes",
-			     "$TBBASE/newnodes_list.php3");
-	}
-	if ($PROTOGENI) {
-	    NavMenuButton("ProtoGeni Slices",
-			  "$TBBASE/genislices.php");
-	    NavMenuButton("ProtoGeni History",
-			  "$TBBASE/genihistory.php");
-	}
-    }
     if (0 && $login_user) {
 	NavMenuSection("Status", "Status");
 	
@@ -781,6 +872,7 @@ function WRITESIDEBAR() {
 		      "$freepcs Free PCs, $reload PCs reloading<br> ".
 		      "$users users logged in, $active active experiments");
     }
+
     # Terminate Interaction menu and render.
     NavMenuRender();
     
@@ -1108,6 +1200,9 @@ function PAGEHEADER($title, $view = NULL, $extra_headers = NULL,
 	    "<img border='0' alt='ProtoGENI' src='$BASEPATH/protogeni.png'>".
 	    "</td></tr></table>\n";
 	$contentname = "fullcontent";
+    }
+    elseif (VIEWSET($view, 'show_pnet')) {
+	WRITEPNETSIDEBAR();
     }
     elseif (!VIEWSET($view, 'hide_sidebar')) {
 	WRITESIDEBAR();
