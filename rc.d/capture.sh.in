@@ -27,12 +27,12 @@ if [ ! -x $bindir/capture ]; then
 fi
 
 case "$1" in
-start|faststart)
+start|faststart|quietstart|onestart|forcestart)
     ;;
-restart)
+restart|fastrestart|quietrestart|onerestart|forcerestart)
     killall capture
     ;;
-stop)
+stop|faststop|quietstop|onestop|forcestop)
     killall capture && echo -n ' capture'
     exit 0
     ;;

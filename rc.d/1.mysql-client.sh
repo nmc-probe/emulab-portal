@@ -6,10 +6,10 @@
 # KEYWORD: shutdown
 
 case "$1" in
-	start|faststart)
+	start|faststart|quietstart|onestart|forcestart)
 		/sbin/ldconfig -m /usr/local/lib/mysql
 		;;
-	stop)
+	stop|faststop|quietstop|onestop|forcestop)
 		;;
 	*)
 		echo ""

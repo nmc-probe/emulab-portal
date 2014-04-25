@@ -14,7 +14,7 @@ DBNAME="@TBDBNAME@"
 LOGFILE="/var/log/mysqlcheck.log"
 
 case "$1" in
-	start)
+	start|faststart|quietstart|onestart|forcestart)
 		rm -f $LOGFILE
 		if [ $MAINSITE == "0" ]; then
 		    echo "*** Checking $DBNAME ..." >> $LOGFILE
@@ -29,7 +29,7 @@ case "$1" in
 		    mysqlcheck --auto-repair geni-cm >> $LOGFILE
 		fi
 		;;
-	stop)
+	stop|faststop|quietstop|onestop|forcestop)
 		;;
 	*)
 		echo ""

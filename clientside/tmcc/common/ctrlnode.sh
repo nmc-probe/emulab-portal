@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2004 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -27,10 +27,10 @@
 # Boottime initialization of the control node (aka ops, users, etc).
 #
 case "$1" in
-start)
+start|faststart|quietstart|onestart|forcestart)
 	$BINDIR/rc/rc.ctrlnode -b boot
 	;;
-stop)
+stop|faststop|quietstop|onestop|forcestop)
 	$BINDIR/rc/rc.ctrlnode shutdown 
 	;;
 *)

@@ -1,13 +1,13 @@
 #!/bin/sh
 
 case "$1" in
-	start)
+	start|faststart|quietstart|onestart|forcestart)
 		if [ -x /usr/local/sbin/named ]; then
 			sleep 1
 		        /usr/local/sbin/named -c /etc/namedb/named.conf
 		fi
 		;;
-	stop)
+	stop|faststop|quietstop|onestop|forcestop)
 		/usr/bin/killall named > /dev/null 2>&1 && echo -n ' named'
 		;;
 	*)

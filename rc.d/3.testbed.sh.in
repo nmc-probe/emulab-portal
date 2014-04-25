@@ -9,7 +9,7 @@
 # KEYWORD: shutdown
 
 case "$1" in
-	start|faststart)
+	start|faststart|quietstart|onestart|forcestart)
 		#
 		# See if the testbed is "shutdown"; The variable has three values.
 	        #  0  - Testbed is enabled.
@@ -142,7 +142,7 @@ case "$1" in
 			fi
 		fi
 		;;
-	stop)
+	stop|faststop|quietstop|onestop|forcestop)
 		if [ -r /var/run/bootinfo.pid ]; then
 			kill `cat /var/run/bootinfo.pid`
 		fi

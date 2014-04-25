@@ -38,9 +38,9 @@ if [ ! -x $bindir/mfrisbeed ]; then
 fi
 
 case "$1" in
-start|faststart)
+start|faststart|quietstart|onestart|forcestart)
     ;;
-restart)
+restart|fastrestart|quietrestart|onerestart|forcerestart)
     if [ -f /var/run/mfrisbeed_wrapper.pid ]; then
 	kill `cat /var/run/mfrisbeed_wrapper.pid` >/dev/null 2>&1
 	rm -f /var/run/mfrisbeed_wrapper.pid
@@ -50,7 +50,7 @@ restart)
 	rm -f /var/run/mfrisbeed.pid
     fi
     ;;
-stop)
+stop|faststop|quietstop|onestop|forcestop)
     echo -n ' mfrisbeed'
     if [ -f /var/run/mfrisbeed_wrapper.pid ]; then
 	kill `cat /var/run/mfrisbeed_wrapper.pid` >/dev/null 2>&1

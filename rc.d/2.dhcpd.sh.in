@@ -6,7 +6,7 @@ elabinelab="@ELABINELAB@"
 configfile="/usr/local/etc/dhcpd.conf"
 extraifs="@DHCPD_EXTRAIFS@"
 case "$1" in
-	start)
+	start|faststart|quietstart|onestart|forcestart)
 		# limit to control network
 		cnetif=
 		if [ $elabinelab != "1" -a -x @prefix@/sbin/findif ]; then
@@ -18,7 +18,7 @@ case "$1" in
 			  /usr/local/sbin/dhcpd -f $cnetif $extraifs -cf $configfile
 		fi
 		;;
-	stop)
+	stop|faststop|quietstop|onestop|forcestop)
 		if [ -r /var/run/dhcpd_wrapper.pid ]; then
 			kill `cat /var/run/dhcpd_wrapper.pid`
 		fi
