@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2012 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -365,7 +365,7 @@ sub RemoteDoList(@)
 
     my $response = commonTail("list",$arg);
     tbdie({cause => 'hardware'},
-          "elabinelab::vlansv2 returns '" . $response->{"code"} . "'\n")
+          "elabinelab::vlansv3 returns '" . $response->{"code"} . "'\n")
 	if ($response->{"code"});
     my $xmlback = $response->{"value"};
     if (!defined($xmlback) || $xmlback eq "") { return @list; }
@@ -378,7 +378,7 @@ sub RemoteDoList(@)
     foreach my $vlres (split ',', $xmlback) {
 	my ($name, $num, $mems) = split '#', $vlres;
 	tbdie({cause => 'hardware'},
-	      "elabinelab::vlansv2 returned bogus info: '$xmlback'\n")
+	      "elabinelab::vlansv3 returned bogus info: '$xmlback'\n")
 	    if (!defined($num) || !defined($mems));
 	$Names{$num} = $name;
         @{$Members{$num}} = ();
