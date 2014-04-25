@@ -2589,10 +2589,15 @@ sub SetupBossNode($)
   skipsetup:
     #
     # Tack the frisbee mcast addr ipfw rule onto end of /etc/rc.local.
+    # XXX no clue anymore about what this was accomplishing. But since
+    # firewalling is not enabled--and thus ipfw not loaded--except in
+    # the non-singlenet case, we restrict it to that.
     #
-    mysystem("echo 'ipfw add 10 allow udp from any to 224.0.0.0/4' ".
-	     "   >> /etc/rc.local")
-	if (! $emulabconfig{"CONFIG_GENIRACK"});
+    if (! $emulabconfig{"CONFIG_SINGLECNET"} &&
+	! $emulabconfig{"CONFIG_GENIRACK"}) {
+	mysystem("echo 'ipfw add 10 allow udp from any to 224.0.0.0/4' ".
+		 "   >> /etc/rc.local");
+    }
 
     #
     # Hmm, need to run this at startup though.
