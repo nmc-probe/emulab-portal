@@ -73,6 +73,7 @@ $EXPOSEARCHIVE  = 0;
 $EXPOSETEMPLATES= 0;
 $USERSELECTUIDS = 1;
 $REMOTEWIKIDOCS = @REMOTEWIKIDOCS@;
+$FLAVOR         = "Emulab";
 $GMAP_API_KEY   = "@GMAP_API_KEY@";
 $NONAMEDSETUP	= @DISABLE_NAMED_SETUP@;
 $OPS_VM		= @OPSVM_ENABLE@;
@@ -670,7 +671,7 @@ function SetDomainDefs()
 {
     global $WWWHOST, $OURDOMAIN, $WWW, $THISHOMEBASE, $TBAUTHDOMAIN, $TBBASE;
     global $TBDOCBASE, $TBWWW, $WIKINODE, $TBMAINSITE;
-    global $ALTERNATE_DOMAINS, $DOMVIEW;
+    global $ALTERNATE_DOMAINS, $FLAVOR, $DOMVIEW;
 
     foreach ($ALTERNATE_DOMAINS as $altdom) {
 	list($dpat, $ovr) = $altdom;
@@ -687,6 +688,7 @@ function SetDomainDefs()
 	    # Defs that may be overriden in the domain's configuration array
 	    if (isset($ovr['THISHOMEBASE'])) {
 		$THISHOMEBASE = $ovr['THISHOMEBASE'];
+		$FLAVOR       = $THISHOMEBASE;
 	    }
 	    if (isset($ovr['WIKINODE'])) {
 		$WIKINODE     = $ovr['WIKINODE'];
