@@ -1487,7 +1487,7 @@ function GETUSERVIEW() {
 # Get a view, based on incoming virtual domain name.  See SetDomainDefs()
 # in defs.php3 for more details.
 #
-function GETDOMAINVIEW() {
+function GETDOMVIEW() {
     global $DOMVIEW;
 
     if (isset($DOMVIEW)) {

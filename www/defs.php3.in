@@ -670,9 +670,10 @@ function SetDomainDefs()
 {
     global $WWWHOST, $OURDOMAIN, $WWW, $THISHOMEBASE, $TBAUTHDOMAIN, $TBBASE;
     global $TBDOCBASE, $TBWWW, $WIKINODE, $TBMAINSITE;
-    global $ALTERNATE_DOMAINS;
+    global $ALTERNATE_DOMAINS, $DOMVIEW;
 
-    foreach ($ALTERNATE_DOMAINS as list($dpat, $ovr)) {
+    foreach ($ALTERNATE_DOMAINS as $altdom) {
+	list($dpat, $ovr) = $altdom;
 	if (preg_match($dpat, $_SERVER['SERVER_NAME']) == 1) {
 	    # Replacement defs derived from the virtual domain itself.
 	    $WWWHOST	  = $_SERVER['SERVER_NAME'];
