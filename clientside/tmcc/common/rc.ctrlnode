@@ -187,7 +187,7 @@ sub doboot()
 sub doshutdown()
 {
     print("Informing Emulab Control that we are are rebooting\n");
-    if (tmcc(TMCCCMD_STATE, "SHUTDOWN") < 0) {
+    if (tmcc(TMCCCMD_STATE, "SHUTDOWN", undef, ("timeout" => 3)) < 0) {
 	fatal("Error sending SHUTDOWN to Emulab Control!");
     }
 }
