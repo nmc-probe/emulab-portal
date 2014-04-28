@@ -22,19 +22,24 @@
  */
 
 td, th {
-  border-color: #A97A7A;
-  background-color: #F1FAFA;
+  background-color: #ADD6FF;
 }
 
 th {
-  background-color: #E1EAEA;
+  background-color: #ADD6FF;
 }
 th.center {
-  background-color: #E1EAEA;
+  background-color: #ADD6FF;
 }
-
+ 
 table {
-  background-color: #D39999
+  background-color: #ADD6FF;
+
 }
 
-table.nogrid { border-color: #A97A7A; background-color:#D39999; }
+table.nogrid { border-color: #ADD6FF; background-color:#ADD6FF; }
+
+#contentheader {
+  background-color: #A3C2FF;
+  color: #000;
+}

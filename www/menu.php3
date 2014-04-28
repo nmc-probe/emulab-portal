@@ -940,12 +940,12 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
             of handling it. NS47 does not understand '@import'. -->
     	    <style type='text/css' media='all'>
             <!-- @import url($BASEPATH/style.css?version=1); -->
-            <!-- @import url($BASEPATH/cssmenu-new.css); -->";
+            <!-- @import url($BASEPATH/cssmenu-new.css); -->\n";
     # Is this an alternate view with it's own style overrides?
     if (isset($view) && VIEWSET($view, 'css-override')) {
 	$ovrfile = "override-". strtolower($THISHOMEBASE) .".css";
 	if (file_exists($ovrfile)) {
-	    echo "<!-- @import url($BASEPATH/$ovrfile); -->";
+	    echo "            <!-- @import url($BASEPATH/$ovrfile); -->\n";
 	}
     }
     elseif (1 && !$MAINPAGE) {
