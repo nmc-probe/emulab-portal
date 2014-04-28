@@ -675,7 +675,7 @@ function WRITEPNETSIDEBAR() {
 
     NavMenuStart();
     NavMenuSection("information", "Information");
-    NavMenuButton("Home", "$TBDOCBASE/index.php3?stayhome=1");
+    NavMenuButton("Home", "$TBDOCBASE/pnet-index.php?stayhome=1");
 
     if ($newNews) {
 	NavMenuButtonNew("News $newsDate", "$newsBase/news.php3");
@@ -684,7 +684,7 @@ function WRITEPNETSIDEBAR() {
     }
 
     NavMenuButton("Documentation", "$WIKIDOCURL");
-    NavMenuButtonNew("Forums", "http://groups.google.com/group/emulab-users");
+    NavMenuButtonNew("Forums", "http://groups.google.com/group/phantomnet-users");
 
     # The search box.  Placed in a table so the text input fills available
     # space.
