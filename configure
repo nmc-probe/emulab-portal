@@ -6843,6 +6843,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/fedora/GNUmakefile clientside/tmcc/fedora/supfile \
  clientside/tmcc/fedora15/GNUmakefile \
  clientside/tmcc/linux-sg/GNUmakefile clientside/tmcc/ubuntu7/GNUmakefile \
+ clientside/tmcc/centos6/GNUmakefile \
  clientside/tmcc/ubuntu10/GNUmakefile \
  clientside/tmcc/ubuntu11/GNUmakefile \
  clientside/tmcc/freebsd5/GNUmakefile clientside/tmcc/freebsd5/supfile \
