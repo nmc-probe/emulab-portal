@@ -32,8 +32,8 @@
 # PhantomNet view declaration
 #
 $PNET_DOMVIEW = array('hide_sidebar' => 0, 'hide_banner' => 0,
-		      'show_topbar' => "pnet", 'show_bottombar' => 'pnet',
-		      'hide_copyright' => 0, 'show_pnet' => 1);
+		      'hide_copyright' => 0, 'show_pnet' => 1,
+		      'css-override' => 1);
 
 $ALTERNATE_DOMAINS[] = 
     array('/phantom/', 

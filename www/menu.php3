@@ -510,7 +510,7 @@ function WRITELOGINBOX($loginbox_content) {
 
 function WRITEEXPERIMENTMENU($firstinitstate) {
     global $TBBASE, $TBDOCBASE;
-    global $WIKISUPPORT, $CHECKLOGIN_WIKINAME, $EXPOSETEMPLATES;
+    global $WIKISUPPORT, $CHECKLOGIN_WIKINAME, $EXPOSETEMPLATES, $FLAVOR;
     global $login_status, $login_user;
 
     # Start Interaction section if going to spit out interaction options.
@@ -918,7 +918,7 @@ function WRITESIMPLESIDEBAR($menudefs) {
 # spits out beginning part of page
 #
 function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
-        $extra_headers = NULL ) {
+			$extra_headers = NULL, $view = NULL ) {
     global $BASEPATH, $TBMAINSITE, $THISHOMEBASE, $ELABINELAB, $FANCYBANNER;
     global $TBDIR, $WWW;
     global $MAINPAGE;
@@ -941,8 +941,14 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
     	    <style type='text/css' media='all'>
             <!-- @import url($BASEPATH/style.css?version=1); -->
             <!-- @import url($BASEPATH/cssmenu-new.css); -->";
-    
-    if (1 && !$MAINPAGE) {
+    # Is this an alternate view with it's own style overrides?
+    if (isset($view) && VIEWSET($view, 'css-override')) {
+	$ovrfile = "override-". strtolower($THISHOMEBASE) .".css";
+	if (file_exists($ovrfile)) {
+	    echo "<!-- @import url($BASEPATH/$ovrfile); -->";
+	}
+    }
+    elseif (1 && !$MAINPAGE) {
 	echo "<!-- @import url($BASEPATH/style-nonmain.css); -->";
     }
     echo "</style>\n";
@@ -1205,7 +1211,7 @@ function PAGEHEADER($title, $view = NULL, $extra_headers = NULL,
     $nocontent = VIEWSET($view, 'hide_sidebar') && !VIEWSET($view, 'menu');
     PAGEBEGINNING( $title, $nobanner,
 		   $nocontent,
-		   $extra_headers );
+		   $extra_headers, $view );
     if (VIEWSET($view, 'show_protogeni')) {
 	echo "<table id=topcelltablefoo ".
 	    "cellspacing=0 cellpadding=0 border=0><tr>".
