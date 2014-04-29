@@ -695,10 +695,10 @@ function SetDomainDefs()
 	    } else {
 		$WIKINODE     = "wiki.$OURDOMAIN";
 	    }
-	    if (isset($ovr['WIKIDOCS'])) {
-		$WIKIDOCS     = $ovr['WIKIDOCS'];
+	    if (isset($ovr['WIKIDOCURL'])) {
+		$WIKIDOCURL   = $ovr['WIKIDOCURL'];
 	    } else {
-		$WIKIDOCS     = "http://${WIKINODE}/wikidocs/wiki";
+		$WIKIDOCURL   = "http://${WIKINODE}/wikidocs/wiki";
 	    }
 	    if (isset($ovr['DOMVIEW'])) {
 		$DOMVIEW      = $ovr['DOMVIEW'];
