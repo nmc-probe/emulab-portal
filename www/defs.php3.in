@@ -670,7 +670,7 @@ function CheckRedirect() {
 function SetDomainDefs()
 {
     global $WWWHOST, $OURDOMAIN, $WWW, $THISHOMEBASE, $TBAUTHDOMAIN, $TBBASE;
-    global $TBDOCBASE, $TBWWW, $WIKINODE, $TBMAINSITE;
+    global $TBDOCBASE, $TBWWW, $WIKINODE, $WIKIDOCURL, $TBMAINSITE;
     global $ALTERNATE_DOMAINS, $FLAVOR, $DOMVIEW;
 
     foreach ($ALTERNATE_DOMAINS as $altdom) {

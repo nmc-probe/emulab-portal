@@ -38,6 +38,7 @@ $PNET_DOMVIEW = array('hide_sidebar' => 0, 'hide_banner' => 0,
 $ALTERNATE_DOMAINS[] = 
     array('/phantom/', 
 	  array('THISHOMEBASE' => 'PhantomNet',
+		'WIKINODE' => 'wiki.phantomnet.org',
 		'DOMVIEW' => $PNET_DOMVIEW
 		));
 
