@@ -2,10 +2,13 @@ window.APT_OPTIONS.config();
 
 require(['jquery', 'js/quickvm_sup',
 	 // jQuery modules
-	 'bootstrap', 'formhelpers', 'filestyle', 'marked'],
+	 'bootstrap', 'formhelpers', 'filestyle', 'marked', 'jacks'],
 function ($, sup)
 {
     'use strict';
+
+    var jacksInstance;
+    var jacksUpdate;
 
     function initialize()
     {
@@ -89,7 +92,7 @@ function ($, sup)
 	    
 	    var xmlDoc = $.parseXML(json.value.rspec);
 	    var xml    = $(xmlDoc);
-	    var topo   = sup.ConvertManifestToJSON(profile, xml);
+//	    var topo   = sup.ConvertManifestToJSON(profile, xml);
     
 	    $('#showtopo_title').html("<h3>" + json.value.name + "</h3>");
 
@@ -117,9 +120,32 @@ function ($, sup)
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
 
+	    if (! jacksInstance)
+	    {
+		jacksInstance = new window.Jacks({
+		    mode: 'viewer',
+		    source: 'rspec',
+		    root: '#showtopo_div',
+		    size: { x: 643, y: 300 },
+		    nodeSelect: false,
+		    readyCallback: function (input, output) {
+			jacksUpdate = input;
+			jacksUpdate.trigger('change-topology',
+					    [{ rspec: json.value.rspec }]);
+		    }
+		});
+	    }
+	    else if (jacksUpdate)
+	    {
+		jacksUpdate.trigger('change-topology',
+				    [{ rspec: json.value.rspec }]);
+	    }
+
+/*
 	    sup.maketopmap("#showtopo_div",
 			   ($("#showtopo_div").outerWidth()),
 			   300, topo, null);
+*/
 	}
 	var $xmlthing = sup.CallMethod("getprofile", null, 0, profile);
 	$xmlthing.done(callback);

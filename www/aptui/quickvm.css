@@ -142,6 +142,7 @@ body {
 #showtopo_description,
 #showtopo_div {
   width: 643px;
+  height: 300px;
 }
 #showtopo_nopicker {
   width: 850px;
@@ -252,11 +253,11 @@ body {
 #showtopo_buttons {
   margin-bottom: 10px;
 }
-
+/*
 #showtopo_div {
   border: 1px solid #000;
 }
-
+*/
 .nospaceafter {
   margin-bottom: 5px;
 }

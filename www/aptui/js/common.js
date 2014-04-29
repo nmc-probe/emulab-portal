@@ -17,6 +17,8 @@ window.APT_OPTIONS.config = function ()
 	    'tablesorterwidgets': 'js/lib/jquery.tablesorter.widgets.min',
 	    'marked': 'js/lib/marked',
 	    'moment': 'js/lib/moment',
+	    'underscore': 'js/lib/underscore-min',
+	    'jacks': 'https://www.emulab.net/protogeni/jacks-stable/js/jacks'
 	},
 	shim: {
 	    'bootstrap': { deps: ['jquery'] },
@@ -29,6 +31,7 @@ window.APT_OPTIONS.config = function ()
 	    'tablesorter': { deps: ['jquery'] },
 	    'tablesorterwidgets': { deps: ['tablesorter'] },
 	    'marked' : { exports: 'marked' },
+	    'underscore': { exports: '_' }
 	},
     });
 }

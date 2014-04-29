@@ -378,7 +378,7 @@ function SpitTopologyViewModal($modal_name, $profile_array)
                   <div class='pull-right'>
                     <span id='showtopo_title'></span>
                     <div class='panel-body'>
-                     <div id='showtopo_div'></div>
+                     <div id='showtopo_div' class='jacks'></div>
                      <span class='pull-left' id='showtopo_description'></span>
                     </div>
                    </div>

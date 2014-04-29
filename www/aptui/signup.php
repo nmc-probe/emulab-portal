@@ -55,258 +55,47 @@ function SPITFORM($formfields, $showverify, $errors)
     echo "<link rel='stylesheet'
                 href='formhelpers/css/bootstrap-formhelpers.min.css'>\n";
 
-    # XSS prevention.
-    while (list ($key, $val) = each ($formfields)) {
-	$formfields[$key] = CleanString($val);
-    }
-    # XSS prevention.
-    if ($errors) {
-	while (list ($key, $val) = each ($errors)) {
-	    $errors[$key] = CleanString($val);
-	}
-    }
-    $data_country = "";
-    $data_state   = "";
-    if (array_key_exists("country", $formfields) &&
-	$formfields["country"] != "") {
-	$data_country = $formfields["country"];
-    }
-    if (array_key_exists("state", $formfields) &&
-	$formfields["state"] != "") {
-	$data_state = $formfields["state"];
-    }
-
-    $formatter = function($field, $html) use ($errors) {
-	$class = "form-group";
-	if (array_key_exists($field, $errors)) {
-	    $class .= " has-error";
-	}
-	echo "<div class='$class sidebyside-form'>\n";
-	echo "$html\n";
-	if (array_key_exists($field, $errors)) {
-	    echo "<label class='control-label' for='inputError'>" .
-		$errors[$field] . "</label>\n";
-	}
-	echo "</div>\n";
-    };
-
     SPITHEADER(1);
 
-    echo "<div class='row'>
-           <div class='col-lg-8  col-lg-offset-2
-                       col-md-10 col-md-offset-1
-                       col-sm-10 col-sm-offset-1
-                       col-xs-12'>\n";
-    echo " <div class='panel panel-default'>
-            <div class='panel-heading'>
-              <h3 class='panel-title'>\n";
-    if ($this_user) {
-	if ($joinproject) {
-	    $button_label = "Join Project";
-	    echo $button_label;
-	}
-	else {
-	    $button_label = "Create Project";
-	    echo $button_label;
-	}
-    }
-    else {
-	echo "Create Account";
-    }
-    echo "    </h3>
-             </div>
-            <div class='panel-body'>\n";
-
-    #
-    # Look for non-specific error.
-    #
-    if (array_key_exists("error", $errors)) {
-	echo "<font color=red>" . $errors["error"] . "</font>";
-    } else {
-        SPITABOUTACCT();
-    }
-    
-    echo "<form id='quickvm_signup_form'
-            class='form-horizontal' role='form'
-            enctype='multipart/form-data'
-            method='post' action='signup.php'>\n";
-
-    echo "  <div class='row'>\n";
-    if (!$this_user) {
-	echo "   <div class='col-sm-6'>\n";
-    }
-    else {
-	echo "   <div class='col-sm-12'>\n";
-    }
-    
-    # Want to pass this along for later.
-    if ($joinproject) {
-	echo "<input type='hidden' name='joinproject' value=1>\n";
-    }
-
-    # Must be inside the form.
-    if ($showverify) {
-	SpitVerifyModal("verify_modal", $button_label);
-    }
-    
-    #
-    # It is not possible to pass through the keyfile name, but we
-    # can get its contents and just pass it along in the form. We
-    # do this cause if we spit the form back out with the verify email
-    # modal, we will lose the ssh keyfile setting. 
-    #
-    if (isset($_FILES['keyfile']) &&
-	$_FILES['keyfile']['name'] != "" &&
-	$_FILES['keyfile']['name'] != "none") {
-	
-	echo "<input type='hidden' name='formfields[pubkey]' ".
-	    "value='" .
-	    CleanString(file_get_contents($_FILES['keyfile']['tmp_name'])) .
-	    "'>";
-    }
-    elseif (isset($formfields["pubkey"]) && $formfields["pubkey"] != "") {
-	echo "<input type='hidden' name='formfields[pubkey]' ".
-	    "value='" . CleanString($formfields["pubkey"]) . "'>";
-    }
-    
-    if (!$this_user) {
-	echo "    <fieldset>
-                   <legend>Personal Information</legend>\n";
-	$formatter("uid",			  
-		   "<input name=\"formfields[uid]\"
-		       value='" . $formfields["uid"] . "'
-                       class='form-control'
-                       placeholder='Username' autofocus type='text'>");
-	$formatter("fullname",
-		   "<input name=\"formfields[fullname]\"
-		       value='" . $formfields["fullname"] . "'
-                       class='form-control'
-                       placeholder='Full Name' type='text'>");
-	$formatter("email",
-		   "<input name=\"formfields[email]\"
-		       value='" . $formfields["email"] . "'
-                       class='form-control'
-                       placeholder='Email' type='text'>");
-	$formatter("affiliation",
-		   "<input name=\"formfields[affiliation]\"
-		       value='" . $formfields["affiliation"] . "'
-                       class='form-control'
-                       placeholder='Institutional Affiliation' type='text'>");
-	$formatter("country",
-		   "<select id='signup_countries' name=\"formfields[country]\"
-                       class='form-control bfh-countries'
-                       data-country='$data_country'
-                       data-blank='false' data-ask='true'>
-                    </select>");
-	$formatter("state",
-		   "<select  id='signup_states' name=\"formfields[state]\"
-                       class='form-control bfh-states'
-		       data-state='$data_state'
-		       data-country='signup_countries' data-ask='true'
-                       placeholder='State' data-blank='false'></select>");
-	$formatter("city",
-		   "<input name=\"formfields[city]\"
-		       value='" . $formfields["city"] . "'
-                       class='form-control'
-                       placeholder='City' type='text'>");
-	$formatter("keyfile",
-		   "<span class='help-block'>SSH Public Key file</span>".
-		   "<input type=file name='keyfile'
-                           placeholder='SSH Public Key File'>");
-	$formatter("password1",
-		   "<input name=\"formfields[password1]\"
-		       value='" . $formfields["password1"] . "'
-                       type='password'
-                       class='form-control'
-                       placeholder='Password' />");
-	$formatter("password2",
-		   "<input name=\"formfields[password2]\"
-		       value='" . $formfields["password2"] . "'
-                       type='password'
-                       class='form-control'
-                       placeholder='Confirm Password' />");
-	echo "     </fieldset>\n";
-	echo "    </div>\n";
-	echo "   <div class='col-sm-6'>\n";
-    }
-    echo "       <fieldset>";
-    if ($joinproject) {
-	echo "   <legend>Project Name</legend>\n";
-    }
-    else {
-	echo "   <legend>Project Information</legend>\n";
-    }
-    $formatter("pid",
-	       "<input name=\"formfields[pid]\"
-		       value='" . $formfields["pid"] . "'
-                       class='form-control'
-                       placeholder='Project Name' type='text'>");
-    if (! $joinproject) {
-	#
-	# Creating a new project.
-	#
-	$formatter("proj_title",
-		   "<input name=\"formfields[proj_title]\"
-		       value='" . $formfields["proj_title"] . "'
-                       class='form-control'
-                       placeholder='Project Title (short sentence)' type='text'>");
-	$formatter("proj_url",
-		   "<input name=\"formfields[proj_url]\"
-		       value='" . $formfields["proj_url"] . "'
-                       class='form-control'
-                       placeholder='Project Page URL' type='text'>");
-	$formatter("proj_why",
-		   "<textarea name=\"formfields[proj_why]\"
-		       rows=8
-                       class='form-control'
-                       placeholder='Project Description (details)'
-                       type='textarea'>" .
-		    $formfields["proj_why"] . "</textarea>");
-    }
-    echo "      </fieldset>
-              </div>
-             </div>
-            <div class='row sidebyside-form'>
-               <button class='btn btn-primary btn-xs pull-left'
-                   type='button' name='reset' id='reset-form'>
-                      Reset Form</button>
-               <button class='btn btn-primary btm-sm pull-right'
-                   type='submit' name='create'>$button_label</button>
-            </div>
-            </form>
-            </div>
-           </div>
-          </div>
-         </div>
-       \n";
-
+    echo "<div id='signup-body'></div>\n";
+    echo "<script type='text/plain' id='form-json'>\n";
+    echo htmlentities(json_encode($formfields)) . "\n";
+    echo "</script>\n";
+    echo "<script type='text/plain' id='error-json'>\n";
+    echo htmlentities(json_encode($errors));
+    echo "</script>\n";
     echo "<script type='text/javascript'>\n";
+
+    # XSS prevention.
+    # TODO: Leigh These CleanStrings() should be moot. Double check this.
+#    while (list ($key, $val) = each ($formfields)) {
+#        echo "\"" . CleanString($key) . "\": \"" . CleanString($val) . "\",\n";
+#    }
+#    echo "};\n";
+
+#    echo "window.APT_OPTIONS.errors = {\n";
+    # XSS prevention.
+#    if ($errors) {
+#	while (list ($key, $val) = each ($errors)) {
+#	        echo "\"" . CleanString($key) . "\": \"" . CleanString($val) . "\",\n";
+#	}
+#    }
+#    echo "};\n";
+
+    if ($joinproject) {
+      echo "window.APT_OPTIONS.joinproject = true;\n";
+    }
     if ($showverify) {
         echo "window.APT_OPTIONS.ShowVerifyModal = true;\n";
     }
+    if ($this_user) {
+      echo "window.APT_OPTIONS.this_user = true;\n";
+    }
+
     echo "</script>\n";
+
     echo "<script src='js/lib/require.js' data-main='js/signup'></script>";
     SPITFOOTER();
-}
-
-#
-# Spit information about Apt accounts
-#
-function SPITABOUTACCT()  {
-
-    SpitCollapsiblePanel("aboutacct","Do I need an account?",<<<'ENDBODY'
-<p>You don't need an account to give Apt a try! Many of the public profiles can
-    be used without one - check out the list on the <a href="/">home 
-    page</a>.</p>
-<p>For accountability reasons, however, you will be limited in certain ways 
-    if you don't have an account. Users with a full account (free!) can use
-    a larger set of profiles, can hold resources for longer, may request larger 
-    virtual machines and bare metal machines, and more. You will also need an 
-    account if you want to create profiles of your own.</p>
-    <p>If you already have an account on Emulab.net, you may log in using
-    that same acount on Aptlab.net.</p>
-ENDBODY
-    );
 }
 
 if (isset($finished) && $finished) {
