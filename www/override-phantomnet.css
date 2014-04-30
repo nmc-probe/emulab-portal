@@ -38,6 +38,14 @@ table {
 
 table.nogrid { border-color: #000; background-color:#ADD6FF; }
 
+#fancybannercell {
+  background-image: url("pnet-background.png");
+}
+
+div.topcell {
+  background-image: none;
+}
+
 #contentheader {
   background-color: #1975FF;
   color: #FFF;
@@ -55,4 +63,28 @@ ul.submenu {
   border-right: solid 1px black;
   border-left: solid 1px black;
   border-bottom: solid 1px black;
+}
+
+.rightcontenttitle {
+  background-color: #1975FF;
+  color: #FFF;
+}
+
+.menuheader {
+  background-color: #1975FF;
+  color: #FFF;
+  text-align: center;
+}
+
+ul.navmenu {
+  background-color: #FFF;
+}
+
+.leftcell {
+  background-color: #FFF;
+  padding-bottom: 5px;
+}
+
+#searchrow form, #searchrow table, #searchrow table td {
+  background-color: #FFF;
 }

@@ -696,11 +696,11 @@ function WRITEPNETSIDEBAR() {
     $lbox_content = 
 	"<a href=\"$TBBASE/reqpnetaccount.php\">".
 	"<img alt=\"Request Account\" border=0 ".
-	"src=\"$BASEPATH/requestaccount.gif\" width=\"144\" height=\"32\"></a>".
+	"src=\"$BASEPATH/pnet-rqaccount.png\" width=\"144\" height=\"32\"></a>".
 	"<strong>or</strong>".
 	"<a href=\"$TBBASE/login.php3\">".
         "<img alt=\"logon\" border=0 ".
-	"src=\"$BASEPATH/logon.gif\" width=\"144\" height=\"32\"></a>\n";
+	"src=\"$BASEPATH/pnet-login.png\" width=\"144\" height=\"32\"></a>\n";
 
     WRITELOGINBOX($lbox_content);
     WRITEEXPERIMENTMENU(0);
