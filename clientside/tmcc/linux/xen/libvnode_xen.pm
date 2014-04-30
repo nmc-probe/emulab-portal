@@ -841,7 +841,6 @@ sub vnodeCreate($$$$)
 	# XXX we assume that all 10.0 and above will be PVHVM
 	if ($imagemetadata->{'OSVERSION'} >= 10) {
 	    $ishvm = 1;
-	    $vdiskprefix = "hd";
 	}
     }
     else {
@@ -1413,7 +1412,7 @@ sub vnodePreConfig($$$$$){
 	    goto bad
 		if ($?);
 	
-	my $ldisk = $vninfo->{'ishvm'} ? "ada0s1" : "da0s1";
+	my $ldisk = "da0s1";
 	if (-e "$vnoderoot/etc/dumpdates") {
 	    mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
 		      "  $vnoderoot/etc/dumpdates");
