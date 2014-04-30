@@ -242,6 +242,14 @@ if (-d $XLOGDIR) {
     closedir(LOG);
 }
 
+# Other log subdirs that we totally clean out
+foreach my $subdir ("fsck", "installer", "news", "upstart") {
+    if (-d "$LOGDIR/$subdir") {
+	print "Cleaning $subdir logfiles ...\n";
+	system("rm -rf $LOGDIR/$subdir/*");
+    }
+}
+
 print "Removing accounting files ...\n";
 if ( -f "$LOGDIR/pacct" ) {
     unlink("$LOGDIR/pacct");
