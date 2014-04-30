@@ -567,11 +567,11 @@ class Experiment
 	$idx = $this->idx();
 	# Let mysql do the work
 	$query_result =
-	    DBQueryWarn("select date_add(expt_swapped,".
-			"                interval autoswap_timeout minute) ".
+	    DBQueryWarn("select date_add(s.swapin_last,".
+			"                interval e.autoswap_timeout minute) ".
 			"       as autoswap_date ".
-			"  from experiments ".
-			"where idx='$idx'");
+			"  from experiments as e, experiment_stats as s ".
+			"where s.exptidx=e.idx and idx='$idx'");
 
 	$row = mysql_fetch_array($query_result);
 	return $row[0];
