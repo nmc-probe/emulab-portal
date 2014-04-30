@@ -59,7 +59,10 @@ case $os in
 	;;
 esac
 
-unset -v d ; declare -a d=($(ifconfig -a | grep $delimiter))
+# Ignore virtual devices that won't be in the DB
+badboys="^(ifb|xenbr|vlan)"
+
+unset -v d ; declare -a d=($(ifconfig -a | grep $delimiter | grep -Ev $badboys))
 declare -i cnt=0;
 ifinfo[0]=''
 for ((idx=0; idx<${#d[*]};idx++)) ; do
