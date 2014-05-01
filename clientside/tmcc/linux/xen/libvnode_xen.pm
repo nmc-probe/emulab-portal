@@ -4249,7 +4249,7 @@ sub CreateVnodeLock()
     my $tries = 1000;
     
     while ($tries) {
-	for (my $i = 0; $i < 4; $i++) {
+	for (my $i = 0; $i < 3; $i++) {
 	    my $token  = "createvnode_${i}";
 	    my $locked = TBScriptLock($token, TBSCRIPTLOCK_NONBLOCKING(),
 				      0, \$createvnode_lockref);
@@ -4261,7 +4261,7 @@ sub CreateVnodeLock()
 	}
 	print "Still trying to get the create lock at " . time() . "\n"
 	    if (($tries % 60) == 0);
-	sleep(2);
+	sleep(4);
 	$tries--;
     }
     print STDERR "Could not get the createvnode lock after a long time!\n";
