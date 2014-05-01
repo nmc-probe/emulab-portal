@@ -2314,7 +2314,7 @@ sub CreatePrimaryDisk($$$$)
 	foreach my $line
 	    (`dd if=$basedisk bs=1M count=$chunks | $IMAGEDUMP - 2>&1`){
 		if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
-		    $lv_size = $2 / 2;
+		    $lv_size = ($2 + 1) / 2;
 		    last;
 		}
 	}
@@ -2631,7 +2631,7 @@ sub createImageDisk($$$)
 	foreach my $line
 	    (`dd if=$imagepath bs=1M count=$chunks | $IMAGEDUMP - 2>&1`) {
 		if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
-		    $lv_size = $2 / 2;
+		    $lv_size = ($2 - 1) / 2;
 		    last;
 		}
 	}
