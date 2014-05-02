@@ -1,9 +1,8 @@
-window.APT_OPTIONS.config();
+window.APT_OPTIONS.configNoQuery();
 
-require(['jquery', 'js/quickvm_sup',
-	 // jQuery modules
-	 'bootstrap', 'formhelpers', 'filestyle', 'marked', 'jacks'],
-function ($, sup)
+require([// jQuery modules
+	 'formhelpers', 'filestyle', 'marked', 'jacks'],
+function ()
 {
     'use strict';
 
@@ -12,15 +11,15 @@ function ($, sup)
 
     function initialize()
     {
-	window.APT_OPTIONS.initialize(sup);
+	window.APT_OPTIONS.initialize();
 
 	if (window.APT_OPTIONS.isNewUser) {
 	    $('#verify_modal_submit').click(function (event) {
-		sup.HideModal('#verify_modal');
-		sup.ShowModal("#waitwait");
+		$('#verify_modal').modal('hide');
+		$("#waitwait").modal('show');
 		return true;
 	    });
-	    sup.ShowModal('#verify_modal');
+	    $('#verify_modal').modal('show');
 	}
         $('#quickvm_topomodal').on('hidden.bs.modal', function() {
             ShowProfileList($('.current'))
@@ -32,7 +31,7 @@ function ($, sup)
 	});
 	$('button#profile').click(function (event) {
 	    event.preventDefault();
-	    sup.ShowModal('#quickvm_topomodal');
+	    $('#quickvm_topomodal').modal('show');
 	});
 	$('li.profile-item').click(function (event) {
 	    event.preventDefault();
@@ -41,10 +40,10 @@ function ($, sup)
 	$('button#showtopo_select').click(function (event) {
 	    event.preventDefault();
 	    UpdateProfileSelection($('.selected'));
-	    sup.HideModal('#quickvm_topomodal');
+	    $('#quickvm_topomodal').modal('hide');
 	});
 	$('#instantiate_submit').click(function (event) {
-	    sup.ShowModal("#waitwait");
+	    $("#waitwait").modal('show');
 	    return true;
 	});
         UpdateProfileSelection($('#profile_name li[value = ' +
@@ -92,7 +91,6 @@ function ($, sup)
 	    
 	    var xmlDoc = $.parseXML(json.value.rspec);
 	    var xml    = $(xmlDoc);
-//	    var topo   = sup.ConvertManifestToJSON(profile, xml);
     
 	    $('#showtopo_title').html("<h3>" + json.value.name + "</h3>");
 
@@ -140,15 +138,31 @@ function ($, sup)
 		jacksUpdate.trigger('change-topology',
 				    [{ rspec: json.value.rspec }]);
 	    }
-
-/*
-	    sup.maketopmap("#showtopo_div",
-			   ($("#showtopo_div").outerWidth()),
-			   300, topo, null);
-*/
 	}
-	var $xmlthing = sup.CallMethod("getprofile", null, 0, profile);
+	var $xmlthing = CallMethod("getprofile", null, 0, profile);
 	$xmlthing.done(callback);
+    }
+
+    function CallMethod(method, callback, uuid, arg)
+    {
+	return $.ajax({
+	    // the URL for the request
+	    url: window.location.href,
+ 
+	    // the data to send (will be converted to a query string)
+	    data: {
+		uuid: uuid,
+		ajax_request: 1,
+		ajax_method: method,
+		ajax_argument: arg,
+	    },
+ 
+	    // whether this is a POST or GET request
+	    type: (arg ? "GET" : "GET"),
+ 
+	    // the type of data we expect back
+	    dataType : "json",
+	});
     }
 
     $(document).ready(initialize);
