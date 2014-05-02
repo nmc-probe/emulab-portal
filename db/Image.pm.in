@@ -206,6 +206,38 @@ sub ActiveImages($)
 }
 
 #
+# Return a list of all images of the given format for the given pid.
+# If format is NULL, return all formats. If pid is NULL, return for all pids.
+# List is names of the form "pid/imagename".
+#
+sub ListAll($$$)
+{
+    my ($class, $format, $pid);
+    my @result = ();
+
+    my $clause = "";
+    if (defined($format) && $format =~ /^([-\w]+)$/) {
+	$clause .= ($clause ? " and" : "where");
+	$clause .= " format='$1'";
+    }
+    if (defined($pid) && $pid =~ /^([-\w]+)$/) {
+	$clause .= ($clause ? " and" : "where");
+	$clause .= " pid='$1'";
+    }
+
+    my $query_result =
+	DBQueryWarn("select pid,imagename from images $clause ".
+		    "order by pid,imagename");
+    if ($query_result) {
+	while (my ($pid,$name) = $query_result->fetchrow_array()) {
+	    push(@result, "$pid/$name");
+	}
+    }
+
+    return @result;
+}
+
+#
 # Refresh a class instance by reloading from the DB.
 #
 sub Refresh($)
@@ -830,6 +862,31 @@ sub UnLockTables($)
 }
 
 #
+# Return updated time for image as a UNIX timestamp via the passed ref.
+# Return 0 on success, non-zero otherwise.
+#
+sub GetUpdate($$)
+{
+    my ($self,$stampp) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid     = $self->imageid();
+
+    my $result = DBQueryWarn("select UNIX_TIMESTAMP(updated) from images ".
+			     "where imageid='$imageid'");
+    if ($result && $result->numrows) {
+	my ($stamp) = $result->fetchrow_array();
+	$$stampp = $stamp;
+	return 0;
+    }
+
+    return -1;
+}
+
+#
 # Mark the update time in the record,
 #
 sub MarkUpdate($$;$)
@@ -888,6 +945,29 @@ sub SetHash($$)
 
     return -1
 	if (! DBQueryWarn("update images set hash=$safe_hash " .
+			  "where imageid='$imageid'"));
+
+    return 0;
+}
+
+#
+# Set the sector range of an image.
+#
+sub SetRange($$$;$)
+{
+    my ($self,$start,$end,$ssize) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid = $self->imageid();
+    $ssize = 512
+	if (!defined($ssize));
+
+    return -1
+	if (! DBQueryWarn("update images set ".
+			  "  lba_low=$start,lba_high=$end,lba_size=$ssize ".
 			  "where imageid='$imageid'"));
 
     return 0;
