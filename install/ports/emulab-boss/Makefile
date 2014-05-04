@@ -167,7 +167,8 @@ RUN_DEPENDS+=	\
 	git:${PORTSDIR}/devel/git \
         curl:${PORTSDIR}/ftp/curl \
 	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb \
-	mysqlhotcopy:${PORTSDIR}/databases/mysql${MYSQL_VER}-scripts
+	mysqlhotcopy:${PORTSDIR}/databases/mysql${MYSQL_VER}-scripts \
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/JSON.pm:${PORTSDIR}/converters/p5-JSON
 
 .if (${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
