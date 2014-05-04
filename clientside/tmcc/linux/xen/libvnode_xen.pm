@@ -3369,6 +3369,15 @@ sub createExpBridges($$$)
 		$pdev = $link->{'physical_dev'};
 		my $iface = findIface($pmac);
 
+		#
+		# Jumbos; set MTU before we create the vlan device, which
+		# will inherit that MTU. Yep, we probably do this multiple
+		# times per interface, but its harmless.
+		#
+		mysystem2("$IFCONFIG $iface mtu 9000");
+		goto bad
+		    if ($?);
+
 		if (! -d "/sys/class/net/$pdev") {
 		    mysystem2("$VLANCONFIG set_name_type DEV_PLUS_VID_NO_PAD");
 		    mysystem2("$VLANCONFIG add $iface $tag");
