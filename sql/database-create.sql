@@ -1926,6 +1926,7 @@ CREATE TABLE `images` (
   `auth_key` varchar(512) default NULL,
   `decryption_key` varchar(256) default NULL,
   `hash` varchar(64) default NULL,
+  `size` bigint(20) unsigned NOT NULL default '0',
   `lba_low` bigint(20) unsigned NOT NULL default '0',
   `lba_high` bigint(20) unsigned NOT NULL default '0',
   `lba_size` int(10) unsigned NOT NULL default '512',
