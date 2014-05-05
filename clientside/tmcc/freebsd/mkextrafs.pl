@@ -196,6 +196,7 @@ if ($mounted =~ /^${fsdevice} on (\S*)/) {
 # See what the current type is for the partition
 #
 my $stype = -1;
+my $soffset = -1;
 if (!open(FD, "fdisk -s /dev/$disk 2>&1|")) {
     die("*** $0:\n".
         "    $disk: could not get partition info\n");
@@ -220,9 +221,10 @@ while (<FD>) {
     #  1:          63    12305790 0xa5 0x80
     #  ...
     #
-    if (/^\s*([1-4]):\s+\d+\s+\d+\s+(0x\S\S)\s+/) {
+    if (/^\s*([1-4]):\s+(\d+)\s+\d+\s+(0x\S\S)\s+/) {
 	my $part = $1;
-	my $type = hex($2);
+	my $offset = $2;
+	my $type = hex($3);
 
 	#
 	# If there is a valid partition on the disk and they are
@@ -238,6 +240,10 @@ while (<FD>) {
 	}
 	if ($slice == $part) {
 	    $stype = $type;
+	    # XXX need to remember the offset as well
+	    if ($usegeom) {
+		$soffset = $offset;
+	    }
 	    last;
 	}
     }
@@ -279,10 +285,14 @@ if (!$forceit) {
 # Dark magic to allow us to modify the open boot disk
 #
 if ($usegeom && $slice != 0) {
+    my $oarg = "";
     if ($stype != 0) {
 	mysystem("gpart delete -i $slice $disk");
+	if ($soffset >= 0) {
+	    $oarg = "-b $soffset";
+	}
     }
-    mysystem("gpart add -i $slice -t freebsd $disk");
+    mysystem("gpart add -i $slice -t freebsd $oarg $disk");
     $stype = 165;
 }
 
