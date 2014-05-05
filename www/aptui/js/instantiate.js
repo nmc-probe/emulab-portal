@@ -1,7 +1,7 @@
 window.APT_OPTIONS.configNoQuery();
 
 require([// jQuery modules
-	 'formhelpers', 'filestyle', 'marked', 'jacks'],
+        'formhelpers', 'filestyle', 'marked', 'jacks'],
 function ()
 {
     'use strict';

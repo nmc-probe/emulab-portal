@@ -60,7 +60,7 @@ window.APT_OPTIONS.configNoQuery = function ()
 	    'bootstrap': { },
 	    'jquery-ui': { },
 	    'jquery-grid': { deps: ['jquery-ui'] },
-	    'formhelpers': { deps: ['bootstrap']},
+	    'formhelpers': { /*deps: ['bootstrap']*/},
 	    'dateformat': { exports: 'dateFormat' },
 	    'd3': { exports: 'd3' },
 	    'filestyle': { deps: ['bootstrap']},

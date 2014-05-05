@@ -139,7 +139,10 @@ body {
   width: 950px;
 }
 
-#showtopo_description,
+#showtopo_description {
+  width: 643px;
+}
+
 #showtopo_div {
   width: 643px;
   height: 300px;

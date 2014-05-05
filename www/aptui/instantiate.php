@@ -365,6 +365,7 @@ function SPITFORM($formfields, $newuser, $errors)
     }
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+    echo "<script src='bootstrap/js/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/instantiate'></script>";
 }
 
