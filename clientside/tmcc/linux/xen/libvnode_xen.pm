@@ -852,6 +852,7 @@ sub vnodeCreate($$$$)
 	}
 	
 	TBScriptUnlock();
+	CreateVnodeUnlock();
 	goto done;
     }
 
