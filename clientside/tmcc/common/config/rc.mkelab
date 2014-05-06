@@ -3598,11 +3598,6 @@ sub FindExtraFSConfig($)
 	foreach my $disk (@disks) {
 	    my ($dev,$path) = split(":", $disk);
 	    if (defined($path) && $path eq $mountpoint) {
-		# FreeBSD PVHVMs use "ada" rather than "da"
-		if ($XENVM && $FBSD_VERSION >= 10.0 &&
-		    $dev =~ /^da(\d+)$/) {
-		    $dev = "ada$1";
-		}
 		return $dev;
 	    }
 	}
