@@ -774,13 +774,10 @@ sub vnodeCreate($$$$)
 
 	mysystem2("$RESTOREVM -t $VMDIR/$vnode_id $vnode_id /mnt/$imagename");
 	if ($?) {
-	    mysystem2("umount /mnt/$imagename");
 	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot restore logical volumes from $imagename");
 	}
-	mysystem2("umount /mnt/$imagename");
-
 	if ($inreload) {
 	    libutil::setState("RELOADDONE");
 	    sleep(4);
@@ -2536,8 +2533,22 @@ sub createImageDisk($$$)
     my $nochunks = 0;
     my $lv_size;
 
+    #
     # We are locked by the caller with a shared lock.
-
+    #
+    # Need to promote to an exclusive lock.
+    #
+    TBScriptUnlock();
+    if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname write lock".
+	    "after a long time!\n";
+	return -1;
+    }
+    # Ick.
+    if (exists($raref->{'MBRVERS'}) && $raref->{'MBRVERS'} == 99) {
+	$unpack = 1;
+    }
+    
     #
     # Do we have the right image file already? No need to download it
     # again if the timestamp matches. Note that we are using the mod
@@ -2555,21 +2566,19 @@ sub createImageDisk($$$)
 		#
 		utime(time(), $mtime, $imagedatepath);
 		print "Found existing disk: $lvmpath.\n";
-		return 0;
+		goto bad
+		    if ($unpack && ! -e "/mnt/$image" &&
+			mysystem2("mkdir -p /mnt/$image"));
+		goto bad
+		    if ($unpack && ! -e "/mnt/$image/.mounted" &&
+			mysystem2("mount $imagepath /mnt/$image"));
+
+		goto okay;
 	    }
 	    print "mtime for $lvmpath differ: local $mtime, server $tstamp\n";
 	}
     }
 
-    #
-    # Need to promote to an exclusive lock.
-    #
-    TBScriptUnlock();
-    if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get $imagelockname write lock".
-	    "after a long time!\n";
-	return -1;
-    }
     if (findLVMLogicalVolume($lvname)) {
 	# For the package case.
 	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image")) {
@@ -2595,7 +2604,6 @@ sub createImageDisk($$$)
     # XXX Using MBRVERS for now, need something else.
     #
     if (exists($raref->{'MBRVERS'}) && $raref->{'MBRVERS'} == 99) {
-	$unpack  = 1;
 	$lv_size = 6 * 1024;
     }
     elsif (!exists($raref->{'IMAGECHUNKS'})) {
@@ -2713,6 +2721,7 @@ sub createImageDisk($$$)
     #
     StoreImageMetadata($image, $raref);
 
+  okay:
     # And back to a shared lock.
     TBScriptUnlock();
     if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
