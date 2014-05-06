@@ -65,6 +65,7 @@ $MAILMANURL     = "http://${USERNODE}/mailman";
 $OPSCVSURL      = "http://${USERNODE}/cvsweb/cvsweb.cgi";
 $OPSJETIURL     = "http://${USERNODE}/jabber/jeti.php";
 $WIKIDOCURL     = "http://${WIKINODE}/wikidocs/wiki";
+$FORUMURL       = "http://groups.google.com/group/emulab-users";
 $MIN_UNIX_UID   = @MIN_UNIX_UID@;
 $MIN_UNIX_GID   = @MIN_UNIX_GID@;
 $EXPOSELINKTEST = 1;
@@ -670,7 +671,7 @@ function CheckRedirect() {
 function SetDomainDefs()
 {
     global $WWWHOST, $OURDOMAIN, $WWW, $THISHOMEBASE, $TBAUTHDOMAIN, $TBBASE;
-    global $TBDOCBASE, $TBWWW, $WIKINODE, $WIKIDOCURL, $TBMAINSITE;
+    global $TBDOCBASE, $TBWWW, $WIKINODE, $WIKIDOCURL, $TBMAINSITE, $FORUMURL;
     global $ALTERNATE_DOMAINS, $FLAVOR, $DOMVIEW;
 
     foreach ($ALTERNATE_DOMAINS as $altdom) {
@@ -699,6 +700,9 @@ function SetDomainDefs()
 		$WIKIDOCURL   = $ovr['WIKIDOCURL'];
 	    } else {
 		$WIKIDOCURL   = "http://${WIKINODE}/wikidocs/wiki";
+	    }
+	    if (isset($ovr['FORUMURL'])) {
+	        $FORUMURL     = $ovr['FORUMURL'];
 	    }
 	    if (isset($ovr['DOMVIEW'])) {
 		$DOMVIEW      = $ovr['DOMVIEW'];

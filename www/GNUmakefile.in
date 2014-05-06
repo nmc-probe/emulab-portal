@@ -278,7 +278,6 @@ apt-install: 	$(addprefix $(INSTALL_WWWDIR)/apt/, $(ALLAPTUI)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/formhelpers/css/, $(ALLHELPCSS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/formhelpers/js/, $(ALLHELPJS))
 
-
 post-install:
 
 boss-install:	install

@@ -39,6 +39,7 @@ $ALTERNATE_DOMAINS[] =
     array('/phantom/', 
 	  array('THISHOMEBASE' => 'PhantomNet',
 		'WIKINODE' => 'wiki.phantomnet.org',
+		'FORUMURL' => 'http://groups.google.com/group/phantomnet-users',
 		'DOMVIEW' => $PNET_DOMVIEW
 		));
 

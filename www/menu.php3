@@ -667,7 +667,7 @@ function WRITEPNETSIDEBAR() {
     global $login_status, $login_user;
     global $TBBASE, $TBDOCBASE, $BASEPATH;
     global $TBMAINSITE, $THISHOMEBASE;
-    global $WIKIDOCURL;
+    global $WIKIDOCURL, $FORUMURL;
 
     list($newsBase, $newsDate, $newNews) = GETNEWSINFO();
 
@@ -684,7 +684,7 @@ function WRITEPNETSIDEBAR() {
     }
 
     NavMenuButton("Documentation", "$WIKIDOCURL");
-    NavMenuButtonNew("Forums", "http://groups.google.com/group/phantomnet-users");
+    NavMenuButtonNew("Forums", "$FORUMURL");
 
     # The search box.  Placed in a table so the text input fills available
     # space.
@@ -729,7 +729,7 @@ function WRITESIDEBAR() {
     global $CHECKLOGIN_WIKINAME, $TBMAINSITE;
     global $THISHOMEBASE;
     global $currentusage, $FANCYBANNER, $ELABINELAB, $PLABSUPPORT;
-    global $WIKIDOCURL;
+    global $WIKIDOCURL, $FORUMURL;
     $firstinitstate = TBGetFirstInitState();
 
     list($newsBase, $newsDate, $newNews) = GETNEWSINFO();
@@ -759,7 +759,7 @@ function WRITESIDEBAR() {
     }
 
     NavMenuButton("Documentation", "$WIKIDOCURL");
-    NavMenuButtonNew("Forums", "http://groups.google.com/group/emulab-users");
+    NavMenuButtonNew("Forums", "$FORUMURL");
 
     if ($rootEmulab) {
 	# Leave New here about 2 weeks
@@ -1324,6 +1324,7 @@ function PAGEFOOTER($view = NULL) {
     global $TBDOCBASE, $TBMAILADDR, $THISHOMEBASE, $BASEPATH, $TBBASE;
     global $TBMAINSITE, $bodyclosestring, $currently_busy;
     global $login_user, $javascript_debug, $sortedtables;
+    global $FORUMURL;
 
     if ($currently_busy) {
 	CLEARBUSY();
@@ -1374,12 +1375,12 @@ function PAGEFOOTER($view = NULL) {
     
     if ($login_user) {
 	echo "    <td class=reportbug>Questions? Join the ";
-	echo "      <a href='http://groups.google.com/group/emulab-users'>";
+	echo "      <a href='$FORUMURL'>";
 	echo "        Help Forum</a>";
 	echo "    </td>";
     }
     echo "        <td class=contact>Bug? Join the ";
-    echo "          <a href='http://groups.google.com/group/emulab-users'>";
+    echo "          <a href='$FORUMURL'>";
     echo "             Help Forum</a>";
     echo "        </td>";
     echo "       </tr>\n";
