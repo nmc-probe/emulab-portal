@@ -1061,6 +1061,7 @@ REPLACE INTO `table_regex` VALUES ('images','size','int','redirect','default:big
 REPLACE INTO `table_regex` VALUES ('images','lba_low','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_high','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_size','int','redirect','default:int',0,0,NULL);
+REPLACE INTO table_regex VALUES ('images','relocatable','text','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('node_types','new_type','text','redirect','default:tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('node_types','node_type','text','regex','^[-\\w]+$',1,30,NULL);
 REPLACE INTO table_regex VALUES ('node_types','class','text','regex','^[\\w]+$',1,30,NULL);

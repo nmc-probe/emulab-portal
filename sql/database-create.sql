@@ -1930,6 +1930,7 @@ CREATE TABLE `images` (
   `lba_low` bigint(20) unsigned NOT NULL default '0',
   `lba_high` bigint(20) unsigned NOT NULL default '0',
   `lba_size` int(10) unsigned NOT NULL default '512',
+  `relocatable` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL,
   `locker_pid` int(11) default '0',
   `metadata_url` tinytext,

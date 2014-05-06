@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2012 University of Utah and the Flux Group.
+# Copyright (c) 2012-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -138,21 +138,32 @@ if (! -R $imagepath) {
     }
 }
 
-my ($isize, $imtime, $secmin, $secmax);
+my ($isize, $imtime, $secmin, $secmax, $relocatable);
 
 #
-# Use imagedump to get the sector range. It prints:
+# Use imagedump to get the sector range and whether the image is relocatable.
+# It prints:
 # ...
+#   1 relocations covering 276 bytes
 #   covered sector range: [0-12305790]
 # ...
+# Note that even if an image has no relocations, it might still be relocatable.
+# But, this is the best we can do!
 #
+$relocatable = 0;
 if ($showrange) {
     if (-x $imagedump) {
 	foreach my $line (`$imagedump $imagepath 2>&1`) {
 	    if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
 		$secmin = $1;
 		$secmax = $2;
-		last;
+		next;
+	    }
+	    if ($line =~ /(\d+) relocations covering/) {
+		if ($1 > 0) {
+		    $relocatable = 1;
+		}
+		next;
 	    }
 	}
     }
@@ -198,6 +209,7 @@ if ($showall) {
     printf "minsect=%lu\n", $secmin;
     printf "maxsect=%lu\n", $secmax;
     printf "secsize=512\n";
+    printf "relocatable=%d\n", $relocatable;
 }
 
 exit(0);

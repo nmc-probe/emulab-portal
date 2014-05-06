@@ -212,7 +212,7 @@ sub ActiveImages($)
 #
 sub ListAll($$$)
 {
-    my ($class, $format, $pid);
+    my ($class, $format, $pid) = @_;
     my @result = ();
 
     my $clause = "";
@@ -887,6 +887,36 @@ sub GetUpdate($$)
 }
 
 #
+# Get the disk offset at which the image will be loaded.
+# For a "whole disk" (loadpart == 0) image, it is always 0.
+# For a "partition" image, it depends on the MBR type of the image.
+#
+# Returns -1 if the offset could not be determined (e.g., unknown MBR).
+#
+sub GetDiskOffset($)
+{
+    my ($self) = @_;
+
+    # XXX these should come out of the DB or not exist at all!
+    my %mbr = (
+	"1" => [0, 63,  6281415, 12562830, 12819870],
+	"2" => [0, 63, 12305853, 24611643, 26712000]
+    );
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    return -1
+	if (! exists($mbr{$self->mbr_version()}));
+
+    return -1
+	if ($self->loadpart() > 4);
+
+    return $mbr{$self->mbr_version()}[$self->loadpart()];
+}
+
+#
 # Mark the update time in the record,
 #
 sub MarkUpdate($$;$)
@@ -951,23 +981,50 @@ sub SetHash($$)
 }
 
 #
-# Set the sector range of an image.
+# Set the size.
 #
-sub SetRange($$$;$)
+sub SetSize($$)
 {
-    my ($self,$start,$end,$ssize) = @_;
+    my ($self, $size) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid   = $self->imageid();
+
+    return -1
+	if (! DBQueryWarn("update images set size=$size " .
+			  "where imageid='$imageid'"));
+
+    return 0;
+}
+
+#
+# Set the sector range of an image.
+# Note that lba_size and reloc flag are left alone unless explicitly specified.
+#
+sub SetRange($$$;$$)
+{
+    my ($self,$start,$end,$ssize,$isreloc) = @_;
 
     # Must be a real reference. 
     return -1
 	if (! ref($self));
 
     my $imageid = $self->imageid();
-    $ssize = 512
-	if (!defined($ssize));
+
+    my $clause = "";
+    if (defined($ssize)) {
+	$clause .= ",lba_size=$ssize";
+    }
+    if (defined($isreloc)) {
+	$clause .= ",relocatable=$isreloc";
+    }
 
     return -1
 	if (! DBQueryWarn("update images set ".
-			  "  lba_low=$start,lba_high=$end,lba_size=$ssize ".
+			  "  lba_low=$start,lba_high=$end$clause ".
 			  "where imageid='$imageid'"));
 
     return 0;
