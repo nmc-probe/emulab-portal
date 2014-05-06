@@ -33,7 +33,7 @@
 #
 $PNET_DOMVIEW = array('hide_sidebar' => 0, 'hide_banner' => 0,
 		      'hide_copyright' => 0, 'show_pnet' => 1,
-		      'css-override' => 1);
+		      'css-override' => 1, 'hide_elab' => 1);
 
 $ALTERNATE_DOMAINS[] = 
     array('/phantom/', 

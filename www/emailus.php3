@@ -29,9 +29,13 @@ include("defs.php3");
 PAGEHEADER("Contact Us");
 
 echo "
-      To ask questions about using Emulab or to report bugs, please
-      join the <a href='http://groups.google.com/group/emulab-users'>
-      Help Forum</a>.
+      To ask questions about using $FLAVOR or to report bugs, please
+      join the <a href='$FORUMURL'>
+      Help Forum</a>.";
+
+$view = GETDOMVIEW();
+if (!VIEWSET($view, 'hide_elab')) {
+    echo "
       <br>
       <br>
       If you are interested in creating your own Emulab, please take a look
@@ -41,6 +45,7 @@ echo "
       For additional information on creating your own Emulab, send email
       to $TBMAILADDR
       \n";
+}
 
 #
 # Standard Testbed Footer
