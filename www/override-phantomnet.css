@@ -88,3 +88,10 @@ ul.navmenu {
 #searchrow form, #searchrow table, #searchrow table td {
   background-color: #FFF;
 }
+
+img.centerimage {
+    display: block;
+    border: solid 0px #000000;
+    margin-left: auto;
+    margin-right: auto;
+}
