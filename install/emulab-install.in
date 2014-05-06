@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2013 University of Utah and the Flux Group.
+# Copyright (c) 2010-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -236,7 +236,7 @@ if ($single) {
     @files = ($phase);
 }
 elsif ($server eq "boss") {
-    @files = ('sperl', 'usersgroups', 'dirs', 'tftp',
+    @files = ('perl', 'usersgroups', 'dirs', 'tftp',
 	      'boss/ports', 'boss/portfix', 'boss/patches', 'cracklib',
 	      'apache', 'boss/rcfiles', 'ntpd', 'boss/rcconf', 'boss/syslog',
 	      'boss/database', 'etchosts', 'resolvetest',
@@ -258,13 +258,13 @@ elsif ($server eq "boss") {
 	     );
 }
 elsif ($server eq "fs") {
-    @files = ('sperl', 'usersgroups', 'dirs',
+    @files = ('perl', 'usersgroups', 'dirs',
 	      'fs/ports', 'fs/portfix', 'ntpd', 'ops/rcconf',
 	      'etchosts', 'resolvetest', 'ops/syslog', 'exports', 'quotas',
 	      'sudoers', 'samba', 'ops/ssh');
 }
 elsif ($server eq "ops") {
-    @files = ('sperl', 'usersgroups', 'dirs', 'etchosts', 'resolvetest',
+    @files = ('perl', 'usersgroups', 'dirs', 'etchosts', 'resolvetest',
 	      'ops/ports', 'ops/portfix', 'ops/patches', 'ntpd', 'ops/rcconf',
 	      'ops/sendmail', 'ops/syslog', 'exports', 'nfsmounts',
 	      'ops/crontab', 'sudoers', 'samba', 'ops/ssh', 'capture',

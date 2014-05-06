@@ -1,11 +1,12 @@
 #
-# Check that suidperl is installed properly.
+# Check installed perl:
+# - must support 64-bit ints,
+# - if it supports suidperl, make sure it is installed correctly.
 #
 use strict;
 use libinstall;
 use installvars;
 
-my $PERL     = "/usr/bin/perl";
 my $SUIDPERL = "/usr/bin/suidperl";
 
 sub Install($$$)
@@ -16,23 +17,21 @@ sub Install($$$)
     return 0
 	if ($isupdate);
 
-    Phase "perl", "Checking for setuid perl", sub {
+    Phase "perl64", "Checking for 64-bit int support", sub {
+	if (ExecQuiet("perl -V | grep -q 'use64bitint=define'")) {
+	    PhaseFail("None; you need a new version of perl");
+	}
+    };
+
+    Phase "perlsuid", "Checking for setuid perl", sub {
 	#
 	# See if suidperl is supported. Perl 5.12 and beyond don't have it.
 	#
-	if (-x $PERL) {
-	    my $vstr = `$PERL -v | grep version`;
-	    if ($vstr =~ /This is perl 5, version (\d+),/) {
-		if (int($1) >= 12) {
-		    PhaseSkip("Not used");
-		}
+	my $vstr = `perl -v | grep version`;
+	if ($vstr =~ /This is perl 5, version (\d+),/) {
+	    if (int($1) >= 12) {
+		PhaseSkip("Not used");
 	    }
-	}
-	#
-	# If perl is not installed, skip this
-	#
-	else {
-	    PhaseSkip("Perl is not installed!");
 	}
 
 	Phase "sperl", "Checking for sperl", sub {
@@ -42,6 +41,7 @@ sub Install($$$)
 	    }
 	    PhaseFail("setuid perl is not set up properly. Read the wiki!");
 	};
+
         #
         # New version perl does not appear to require this anymore. In fact, it
         # seems to break things if it is!
@@ -59,6 +59,7 @@ sub Install($$$)
 	    };
 	}
     };
+
     return 0;
 }
 
