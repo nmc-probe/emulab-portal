@@ -172,7 +172,7 @@ MYSQL_RES *	mydb_query(char *query, int ncols, ...);
 int		mydb_update(char *query, ...);
 static int	safesymlink(char *name1, char *name2);
 static int      getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
-			     unsigned int *mtime, unsigned int *chunks);
+			     unsigned int *mtime, off_t *isize);
 static int	getrandomchars(char *buf, int len);
 
 /* socket timeouts */
@@ -5195,8 +5195,10 @@ COMMAND_PROTOTYPE(doloadinfo)
 	 * Get the address the node should contact to load its image
 	 */
 	res = mydb_query("select loadpart,OS,mustwipe,mbr_version,access_key,"
-			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path, "
-			 "   o.version,pa.partition "
+			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path,"
+			 "   o.version,pa.partition,i.size,"
+			 "   lba_low,i.lba_high,i.lba_size,i.relocatable,"
+			 "   UNIX_TIMESTAMP(updated) "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
 			 "left join frisbee_blobs as f on f.imageid=i.imageid "
@@ -5207,7 +5209,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 			 "     pa.node_id=r.node_id and "
 			 "     pa.osid=i.default_osid and loadpart=0 "
 			 "where r.node_id='%s' order by r.idx",
-			 13, reqp->nodeid);
+			 19, reqp->nodeid);
 
 	if (!res) {
 		error("doloadinfo: %s: DB Error getting loading address!\n",
@@ -5544,14 +5546,16 @@ COMMAND_PROTOTYPE(doloadinfo)
 				       row[8], row[9], row[7]);
 
 			/*
-			 * Vnodes also get a time stamp for the imagepath.
-			 * This is not strictly necessary since the master
-			 * frisbee server will return this info, but vnodes
-			 * use this to create a file name before calling
-			 * the server.
+			 * All images version 38 and above, or just vnodes
+			 * prior to that get additional info:
+			 *
+			 * all nodes v38+: mtime, chunks, sector range and
+			 *                 size, relocatable flag
+			 * pre-v38 vnodes: mtime, chunks.
 			 */
-			if (reqp->isvnode) {
+			if (vers >= 38 || reqp->isvnode) {
 				unsigned int mtime, chunks;
+				off_t isize;
 				
 				if (!row[10] || !row[10][0]) {
 					error("doloadinfo: %s: No path"
@@ -5560,15 +5564,70 @@ COMMAND_PROTOTYPE(doloadinfo)
 					mysql_free_result(res);
 					return 1;
 				}
-				if (getImageInfo(row[10], reqp->nodeid,
-						 row[8], row[7], &mtime, &chunks)) {
-					mysql_free_result(res);
-					return 1;
+				/*
+				 * If mtime and size are set in the DB, use
+				 * those values. Otherwise, take extraordinary
+				 * measures to get the values.
+				 */
+				if (row[13] && row[13][0])
+					isize = (off_t)strtoll(row[13], 0, 0);
+				else
+					isize = 0;
+				if (row[18] && row[18][0])
+					mtime = strtol(row[18], 0, 0);
+				else
+					mtime = 0;
+				if (isize == 0 || mtime == 0) {
+					if (getImageInfo(row[10], reqp->nodeid,
+							 row[8], row[7],
+							 &mtime, &isize)) {
+						mysql_free_result(res);
+						return 1;
+					}
 				}
 				bufp += OUTPUT(bufp, ebufp - bufp,
 					       " IMAGEMTIME=%u", mtime);
+				/* XXX assumes chunksize of 1MB */
+				chunks = (unsigned)((isize + 1024*1024 - 1) /
+						    (1024*1024));
 				bufp += OUTPUT(bufp, ebufp - bufp,
 					       " IMAGECHUNKS=%u", chunks);
+				/*
+				 * Starting with version 38, we return DB
+				 * info about the sector range occupied by
+				 * the image and whether it is relocatable.
+				 *
+				 * XXX if lba_high==0 then assume the DB
+				 * fields have not been initialized and
+				 * don't return this info.
+				 */
+				if (vers >= 38 && row[15] && row[15][0] &&
+				    strcmp(row[15], "0") != 0) {
+					if (row[14]) {
+						bufp += OUTPUT(bufp,
+							       ebufp - bufp,
+							       " IMAGELOW=%s",
+							       row[14]);
+					}
+					if (row[15]) {
+						bufp += OUTPUT(bufp,
+							       ebufp - bufp,
+							       " IMAGEHIGH=%s",
+							       row[15]);
+					}
+					if (row[16]) {
+						bufp += OUTPUT(bufp,
+							       ebufp - bufp,
+							       " IMAGESSIZE=%s",
+							       row[16]);
+					}
+					if (row[17]) {
+						bufp += OUTPUT(bufp,
+							       ebufp - bufp,
+							       " IMAGERELOC=%s",
+							       row[17]);
+					}
+				}
 			}
 		}
 		/* Tack on the newline, finally */
@@ -12332,7 +12391,7 @@ COMMAND_PROTOTYPE(dogeniinvalid)
  */
 static int
 getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
-	     unsigned int *mtime, unsigned int *chunks)
+	     unsigned int *mtime, off_t *isize)
 {
 	struct stat sb;
 
@@ -12390,7 +12449,7 @@ getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
 			goto badimage2;
 	}
 	*mtime  = sb.st_mtime;
-	*chunks = sb.st_size / (1024*1024);
+	*isize = sb.st_size;
 	return 0;
 }
 
