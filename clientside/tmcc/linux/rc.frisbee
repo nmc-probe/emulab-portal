@@ -66,6 +66,7 @@ get_value()
 # versions of the MBR:
 #	v1 (partition 1 size 6281352)
 #	v2 (partition 1 size 12305790)
+#	v3 (partition 1 size 33554432)
 # Currently we only install a new MBR if the existing one is the
 # wrong size, just in case the user has customized the boot program.
 #
@@ -91,6 +92,9 @@ tweakmbr()
 			;;
 		12305790s)
 			cur_mbr_ver=2
+			;;
+		33554432s)
+			cur_mbr_ver=3
 			;;
 		s)
 			echo "Found no MBR on $disk, installing version $new_mbr_ver"
