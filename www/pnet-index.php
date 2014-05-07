@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -21,31 +21,32 @@
 # 
 # }}}
 #
-include("defs.php3");
+require("defs.php3");
+
+$optargs = OptionalPageArguments("stayhome", PAGEARG_BOOLEAN);
 
 #
-# Standard Testbed Header
+# The point of this is to redirect logged in users to their My Emulab
+# page. 
 #
-PAGEHEADER("Contact Us");
+CheckRedirect();
 
-echo "
-      To ask questions about using $FLAVOR or to report bugs, please
-      join the <a href='$FORUMURL'>
-      Help Forum</a>.";
+PAGEHEADER("PhantomNet - Mobility Testbed", NULL, $RSS_HEADER_PNNEWS);
 
-$view = GETDOMVIEW();
-if (!VIEWSET($view, 'hide_elab')) {
-    echo "
-      <br>
-      <br>
-      If you are interested in creating your own Emulab, please take a look
-      at the <a href='https://users.emulab.net/trac/emulab/wiki/HWRecommend'>
-      Emulab Wiki</a>.
-      <br>
-      For additional information on creating your own Emulab, send email
-      to $TBMAILADDR
-      \n";
+#
+# Show special banner message, if set.
+#
+$message = TBGetSiteVar("web/banner");
+if ($message != "") {
+    echo "<center><font color=Red size=+1>\n";
+    echo "$message\n";
+    echo "</font></center><br>\n";
 }
+
+#
+# PhantomNet front page content.
+#
+readfile("index-phantomnet.html");
 
 #
 # Standard Testbed Footer

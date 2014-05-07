@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2003 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,26 +26,24 @@ include("defs.php3");
 #
 # Standard Testbed Header
 #
-PAGEHEADER("Contact Us");
+PAGEHEADER("Request a New PhantomNet Account");
 
-echo "
-      To ask questions about using $FLAVOR or to report bugs, please
-      join the <a href='$FORUMURL'>
-      Help Forum</a>.";
-
-$view = GETDOMVIEW();
-if (!VIEWSET($view, 'hide_elab')) {
-    echo "
-      <br>
-      <br>
-      If you are interested in creating your own Emulab, please take a look
-      at the <a href='https://users.emulab.net/trac/emulab/wiki/HWRecommend'>
-      Emulab Wiki</a>.
-      <br>
-      For additional information on creating your own Emulab, send email
-      to $TBMAILADDR
-      \n";
-}
+echo "<center><font size=+1>
+       If you already have a PhantomNet account,
+       <a href=login.php3>
+       <font color=red>please log on first!</font></a>
+       <br><br>
+       <a href=joinproject.php3>Join an Existing Project</a>.
+       <br>
+       or
+       <br>
+       <a href=newproject.php3>Start a New Project</a>.
+       <br>
+       <font size=-1>
+       If you are a <font color=red>student (undergrad or graduate)</font>,
+       please do not try to start a project!<br> Your advisor must do it.
+       </font>
+      </font></center><br>\n";
 
 #
 # Standard Testbed Footer
