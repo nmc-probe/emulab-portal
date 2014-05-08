@@ -227,10 +227,38 @@ if { $opsdisks != {} } {
 }
 
 #
-# We need at least this much memory.
+# CPUs.
+# XXX can only support more than 1 right now with FreeBSD 10.0.
 #
-$myboss add-attribute XEN_MEMSIZE 1000
-$myops  add-attribute XEN_MEMSIZE 1000
+set bosscpus [tb-get-elabinelab-role-attribute "boss" "XEN_CORES"]
+if { $bosscpus != {} } {
+   $myboss add-attribute XEN_CORES $bosscpus
+} else {
+   $myboss add-attribute XEN_CORES 1
+}
+set opscpus [tb-get-elabinelab-role-attribute "ops" "XEN_CORES"]
+if { $opscpus != {} } {
+   $myops add-attribute XEN_CORES $opscpus
+} else {
+   $myops add-attribute XEN_CORES 1
+}
+
+#
+# Memory.
+# XXX note default of 1000 rather than 1024 so it maps on pc3000?
+#
+set bossmem [tb-get-elabinelab-role-attribute "boss" "XEN_MEMSIZE"]
+if { $bossmem != {} } {
+    $myboss add-attribute XEN_MEMSIZE $bossmem
+} else {
+    $myboss add-attribute XEN_MEMSIZE 1000
+}
+set opsmem [tb-get-elabinelab-role-attribute "ops" "XEN_MEMSIZE"]
+if { $opsmem != {} } {
+    $myops add-attribute XEN_MEMSIZE $opsmem
+} else {
+    $myops add-attribute XEN_MEMSIZE 1000
+}
 
 #
 # Tell ElabinElab setup (rc.mkelab) as well.
