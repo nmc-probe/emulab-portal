@@ -186,13 +186,30 @@ my $MIN_MB_DOM0MEM = 256;
 # Minimum acceptible size (in GB) of LVM VG for domUs.
 my $XEN_MIN_VGSIZE = ($MAX_VNODES * $MIN_GB_DISK);
 
-# XXX fixed-for-now LV size for all logical disks. This number reflects
-# the actual size of all of our single slice images. Size in 1k blocks.
-my $XEN_LDSIZE    = 6152895;
-# And this is the swap size. Also the same as our version 2 mbr.
-my $XEN_SWAPSIZE  = 1024 * 1024 * 2;
-# And room for an empty slice so we can mimic our MBR.
-my $XEN_EMPTYSIZE = 1024;
+#
+# When loading an Emulab partition image, we use a compressed version of our
+# standard MBR layout:
+#
+# MBR 1 or 2 FreeBSD:
+#    P1: 6GB (XEN_LDSIZE) offset at 63, OS goes here
+#    P2: 1MB (XEN_EMPTYSIZE), as small as we can make it
+#    P3: 1GB (XEN_SWAPSIZE), standard MBR2 swap size
+# MBR 1 or 2 Linux:
+#    P1: 1MB (XEN_EMPTYSIZE), as small as we can make it
+#    P2: 6GB (XEN_LDSIZE) offset at 63, OS goes here
+#    P3: 1GB (XEN_SWAPSIZE), standard MBR2 swap size
+# MBR 3:
+#    P1: 16GB (XEN_LDSIZE_3) offset at 2048, standard OS partition
+#    P2: 1MB (XEN_EMPTYSIZE), as small as we can make it
+#    P3: 1GB (XEN_SWAPSIZE), standard MBR2 swap size
+#
+# P4 is sized based on what the user told us.
+# Sizes below are in 1K blocks.
+#
+my $XEN_LDSIZE    =  6152895;
+my $XEN_LDSIZE_3  = 16777216;
+my $XEN_SWAPSIZE  =  1048576;
+my $XEN_EMPTYSIZE =     1024;
 
 # IFBs
 my $IFBDB      = "/var/emulab/db/ifbdb";
@@ -435,9 +452,13 @@ sub rootPreConfig($)
     }
 
     #
+    # Make sure pieces are at least a GiB.
+    #
+    my %devs = libvnode::findSpareDisks(1 * 1024);
+
+    #
     # Turn on write caching. Hacky. 
     #
-    my %devs = libvnode::findSpareDisks();
     foreach my $dev (keys(%devs)) {
 	mysystem2("hdparm -W1 /dev/$dev");
     }
@@ -2313,8 +2334,9 @@ sub CreatePrimaryDisk($$$$)
 	#
 	foreach my $line
 	    (`dd if=$basedisk bs=1M count=$chunks | $IMAGEDUMP - 2>&1`){
+		# N.B.: lastsect+1 == # sectors, +1 again to round up
 		if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
-		    $lv_size = ($2 + 1) / 2;
+		    $lv_size = ($2 + 1 + 1) / 2;
 		    last;
 		}
 	}
@@ -2385,19 +2407,35 @@ sub CreatePrimaryDisk($$$$)
 	    print STDERR "libvnode_xen: could not create $partfile\n";
 	    return -1;
 	}
+	my $mbrvers = 2;
+	if (exists($imagemetadata->{'MBRVERS'})) {
+	    $mbrvers = $imagemetadata->{'MBRVERS'};
+	}
+
 	#
 	# sfdisk is very tempermental about its inputs. Using
 	# sector sizes seems to be the best way to avoid complaints.
-	#
-	# We mirror our version 2 MBR layout ...
 	#
 	my ($slice1_size,$slice2_size);
 	my ($slice1_type,$slice2_type);
 	# pygrub really likes there to be an active partition.
 	my ($slice1_active,$slice2_active);
-
 	my $slice1_start = 63; 
-	if ($loadslice == 1) {
+
+	if ($mbrvers == 3) {
+	    $slice1_start = 2048;
+	    $slice1_size  = $XEN_LDSIZE_3 * 2;
+	    $slice2_size  = $XEN_EMPTYSIZE * 2;
+	    if ($imagemetadata->{'PARTOS'} =~ /freebsd/i) {
+		$slice1_type  = "0xA5";
+	    } else {
+		$slice1_type  = "L";
+	    }
+	    $slice2_type  = 0;
+	    $slice1_active= ",*";
+	    $slice2_active= "";
+	}
+	elsif ($loadslice == 1) {
 	    $slice1_size  = $XEN_LDSIZE * 2;
 	    $slice2_size  = ($XEN_EMPTYSIZE * 2) - 63;
 	    $slice1_type  = "0xA5";
@@ -2564,6 +2602,15 @@ sub createImageDisk($$$)
 	# sized LVM. 
 	#
 	$lv_size = $raref->{'IMAGECHUNKS'};
+
+	#
+	# tmcd may also tell us the sector range of the uncompressed data.
+	# Extract useful tidbits from that.
+	#
+	if (exists($raref->{'IMAGELOW'}) && exists($raref->{'IMAGEHIGH'})) {
+	    $raref->{'LVSIZE'} =
+		$raref->{'IMAGEHIGH'} - $raref->{'IMAGELOW'} + 1;
+	}
     }
     if (mysystem2("lvcreate -n $lvname -L ${lv_size}m $VGNAME")) {
 	print STDERR "libvnode_xen: could not create disk for $image\n";
@@ -2626,20 +2673,27 @@ sub createImageDisk($$$)
 	# run imagedump on it to find out how big it will be when
 	# uncompressed.
 	#
-	my $lv_size;
+	my $isize;
 		
 	foreach my $line
 	    (`dd if=$imagepath bs=1M count=$chunks | $IMAGEDUMP - 2>&1`) {
 		if ($line =~ /covered sector range: \[(\d+)-(\d+)\]/) {
-		    $lv_size = ($2 - 1) / 2;
+		    # N.B.: lastsect+1 == # sectors, +1 again to round up
+		    $isize = int(($2 + 1 + 1) / 2);
 		    last;
 		}
 	}
-	if (!defined($lv_size)) {
+	if (!defined($isize)) {
 	    print STDERR "libvnode_xen: could not get size of $imagepath\n";
 	    goto bad;
 	}
-	$raref->{'LVSIZE'} = $lv_size;
+	if (exists($raref->{'LVSIZE'}) && $isize != $raref->{'LVSIZE'}) {
+	    print STDERR
+		"libvnode_xen: WARNING: computed LVSIZE ($isize) != ".
+		"provided LVSIZE (" . $raref->{'LVSIZE'} . "); ".
+		"using computed size.\n";
+	}
+	$raref->{'LVSIZE'} = $isize;
 	unlink($imagepath);
     }
     # reload has finished, file is written... so let's set its mtime

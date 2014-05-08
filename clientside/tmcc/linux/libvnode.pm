@@ -147,21 +147,26 @@ sub removePortForward($) {
 
 #
 # A spare disk or disk partition is one whose partition ID is 0 and is not
-# mounted and is not in /etc/fstab AND is larger than 8GB.  Yes, this means 
-# it's possible that we might steal partitions that are in /etc/fstab by 
-# UUID -- oh well.
+# mounted and is not in /etc/fstab AND is >= the specified minsize (in MiB).
+# Yes, this means it's possible that we might steal partitions that are
+# in /etc/fstab by UUID -- oh well.
 #
 # This function returns a hash of device name => part number => size (bytes);
 # note that a device name => size entry is filled IF the device has no
 # partitions.
 #
-sub findSpareDisks() {
+sub findSpareDisks($) {
+    my ($minsize) = @_;
+
     my %retval = ();
     my %mounts = ();
     my %ftents = ();
 
     # /proc/partitions prints sizes in 1K phys blocks
     my $BLKSIZE = 1024;
+
+    # convert minsize to 1K blocks
+    $minsize *= 1024;
 
     open (MFD,"/proc/mounts") 
 	or die "open(/proc/mounts): $!";
@@ -188,7 +193,8 @@ sub findSpareDisks() {
     while (my $line = <PFD>) {
 	chomp($line);
 	if ($line =~ /^\s*\d+\s+\d+\s+(\d+)\s+([a-zA-Z]+)$/) {
-	    if (!defined($mounts{"/dev/$2"}) && !defined($ftents{"/dev/$2"})) {
+	    if (!defined($mounts{"/dev/$2"}) && !defined($ftents{"/dev/$2"}) &&
+		$1 >= $minsize) {
 		$retval{$2}{"size"} = $BLKSIZE * $1;
 	    }
 	}
@@ -238,7 +244,7 @@ sub findSpareDisks() {
 		if ($?) {
 		    print STDERR "WARNING: findSpareDisks: error running 'sfdisk --print-id /dev/$dev $part': $! ... ignoring /dev/$dev$part\n";
 		}
-		elsif ($output eq "0") {
+		elsif ($output eq "0" && $1 >= $minsize) {
 		    $retval{$dev}{"$part"}{"size"} = $BLKSIZE * $1;
 		}
 	    }

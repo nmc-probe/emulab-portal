@@ -336,7 +336,7 @@ sub vz_rootPreConfig($)
 
 	if (system("vgs $LVMDEBUGOPTS | grep -E -q '^[ ]+openvz.*\$'")) {
 	    my $blockdevs = "";
-	    my %devs = libvnode::findSpareDisks();
+	    my %devs = libvnode::findSpareDisks(1 * 1024);
 	    my $totalSize = 0;
 	    foreach my $dev (keys(%devs)) {
 		if (defined($devs{$dev}{"size"})) {
