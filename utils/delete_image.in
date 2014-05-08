@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -137,8 +137,14 @@ if ($?) {
 #
 if ($purge) {
     my $filename = $image->path();
+    my $hashfile;
+    if ($filename =~ /^(.*)\.ndz$/) {
+	$hashfile = "$1.sha1";
+    } else {
+	$hashfile = "$filename.sha1";
+    }
     $EUID = 0;
-    foreach my $file ($filename, "${filename}.sha1", "${filename}.bak") {
+    foreach my $file ($filename, $hashfile, "${filename}.bak") {
 	if (-e $file) {
 	    if (! unlink($file)) {
 		SENDMAIL($TBOPS,
