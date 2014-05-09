@@ -58,6 +58,15 @@ sub Install($$$)
 			       "   $SUDO -u $PROTOUSER $WAP ".
 			       "   perl load-descriptors -a $localfile");
 	    };
+	    #
+	    # XXX the metadata file may not contain any or all of the newer
+	    # DB state. So we update the metadata using imagevalidate.
+	    #
+	    Phase "${imagename}_validate", "Validating DB info for image.", sub {
+		my $iname = TBOPSPID() . "/" . $imagename;
+		ExecQuietFatal("$SUDO -u $PROTOUSER ".
+			       "$PREFIX/sbin/imagevalidate -uq $iname");
+	    };
 	}
 
 	#

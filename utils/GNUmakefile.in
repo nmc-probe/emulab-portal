@@ -49,7 +49,7 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  prereserve grantimage getimages localize_mfs \
 		  management_iface sharevlan check-shared-bw \
 		  addspecialdevice addspecialiface imagehash clone_image \
-		  addvpubaddr imageinfo ctrladdr image_import \
+		  addvpubaddr imageinfo imagevalidate ctrladdr image_import \
 		  prereserve_check tcppd addexternalnetwork \
 		  update_sitevars delete_image sitecheckin sitecheckin_client \
 		  mktestbedtest fixrootcert addservers poolmonitor \

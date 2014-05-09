@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -131,6 +131,7 @@ my $friskiller  = "$TB/sbin/frisbeehelper";
 my $osselect    = "$TB/bin/os_select";
 my $checkquota  = "$TB/sbin/checkquota";
 my $imagehash	= "$TB/bin/imagehash";
+my $imagevalidate = "$TB/sbin/imagevalidate";
 my $SHA1	= "/sbin/sha1";
 my $SCP		= "/usr/bin/scp";
 my $def_devtype	= "ad";
@@ -811,34 +812,34 @@ if (! -x $imagehash ||
 }
 
 #
-# Hash the file itself since we really want an integrity check
-# on the image file.
+# Update fields in the DB related to the image.
 #
-my $hashfile = "${filename}.sha1";
-my $filehash = `$SHA1 $filename`;
-if ($?) {
-    fatal("Could not generate sha1 hash of $filename");
+# Note that we do not do this for "standard" images since they get uploaded
+# into /proj/emulab-ops rather than /usr/testbed. We could automatically move
+# the image into place here, but that makes us nervous. We prefer an admin do
+# that by hand after testing the new image!
+#
+my $tbopsmsg = "";
+if ($isglobal && $usepath) {
+    $tbopsmsg =
+	"Did not update DB state for global image $pid/$imagename since\n".
+	"image was written to '$filename'\n".
+	"instead of $TB/images. Move image into place and run:\n".
+	"    $imagevalidate -uq $pid/$imagename\n";
 }
-if ($filehash =~ /^SHA1.*= (\w*)$/) {
-    if ($isglobal && $usepath) {
-	print "*** WARNING: Not updating SHA1 in DB record since the ".
-	    "image was written to /proj!\n";
-	print "    See $hashfile instead\n";
-    }
-    else {
-	$image->SetHash($1) == 0
-	    or fatal("Failed to set the hash for $image");
-    }
+elsif (system("$imagevalidate -uq $pid/$imagename") != 0) {
+    $tbopsmsg =
+	"DB state update for image $pid/$imagename failed, try again with:\n".
+	"    $imagevalidate -u $pid/$imagename\n";
 }
-else {
-    fatal("Could not parse the sha1 hash: '$filehash'")
+if ($tbopsmsg) {
+    SENDMAIL($TBOPS,
+	     "Image DB state update failure for $pid/$imagename",
+	     $tbopsmsg,
+	     $TBOPS,
+	     undef,
+	     ());
 }
-unlink($hashfile)
-    if (-e $hashfile);
-open(HASH, ">$hashfile") or
-    fatal("Could not open $hashfile for writing: $!");
-print HASH $filehash;
-close($hashfile);
 
 print "Image creation succeeded.\n";
 print "Image written to $filename.\n";

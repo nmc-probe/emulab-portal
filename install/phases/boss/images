@@ -4,12 +4,13 @@
 use strict;
 use libinstall;
 use installvars;
+use EmulabConstants;
 
 my $UTAHURL       = "http://www.emulab.net/downloads";
 my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-v3.xml";
 my $GENDEV        = "$TOP_SRCDIR/install/descriptors-gendev.xml";
 my @STDIMAGES     = ("FBSD82-STD", "FEDORA15-STD");
-my @MBRS          = ("emulab-mbr.dd", "emulab-mbr2.dd");
+my @MBRS          = ("emulab-mbr.dd", "emulab-mbr2.dd", "emulab-mbr3.dd");
 my $STDIMAGESURL  = "$UTAHURL/images-STD";
 
 sub Install($$$)
@@ -96,6 +97,16 @@ sub Install($$$)
 		ExecQuietFatal("cd $TOP_OBJDIR/install; ".
 			       "   $SUDO -u $PROTOUSER $WAP ".
 			       "   perl load-descriptors -a $localfile");
+	    };
+
+	    #
+	    # XXX the metadata file may not contain any or all of the newer
+	    # DB state. So we update the metadata using imagevalidate.
+	    #
+	    Phase "${imagename}_validate", "Validating DB info for image.", sub {
+		my $iname = TBOPSPID() . "/" . $imagename;
+		ExecQuietFatal("$SUDO -u $PROTOUSER ".
+			       "$PREFIX/sbin/imagevalidate -uq $iname");
 	    };
 	}
 	foreach my $mbr (@MBRS) {
