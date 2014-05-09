@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -85,12 +85,17 @@ $ENV{'PATH'} = "/tmp:/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:".
     "/usr/local/bin:/usr/site/bin:/usr/site/sbin:/usr/local/etc/emulab";
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
+my $FBSDVERS;
+if (`uname -r` =~ /^(\d+)\./) {
+    $FBSDVERS = $1;
+}
+
 #
 # Determine if we should use the "geom" tools to make everything happen.
 # Empirically, this seems to only be needed for FreeBSD 8 and above.
 #
 my $usegeom = 0;
-if (`uname -r` =~ /^(\d+)\./ && $1 > 7) {
+if ($FBSDVERS > 7) {
     $usegeom = $1;
 }
 
@@ -164,8 +169,13 @@ my $fsdevice   = "/dev/${slicedev}${partition}";
 # Note: we will create the BSD 'e' partition later.
 #
 if ($slice == 0) {
-    $slicedev = "${disk}s1";
-    $fsdevice = "/dev/${slicedev}e";
+    if ($FBSDVERS >= 10) {
+	$slicedev = "${disk}p1";
+	$fsdevice = "/dev/$slicedev";
+    } else {
+	$slicedev = "${disk}s1";
+	$fsdevice = "/dev/${slicedev}e";
+    }
 }
 
 #
@@ -190,6 +200,45 @@ my $mounted = `mount | egrep '^${fsdevice}'`;
 if ($mounted =~ /^${fsdevice} on (\S*)/) {
     die("*** $0:\n".
 	"    $fsdevice is already mounted on $1\n");
+}
+
+#
+# As of FreeBSD 10, I am tired of fighting the old MBR tools.
+# So for whole disks (slice == 0) we are going to use GPT so that we
+# can get good (1M) alignment and potentially big-ass partitions with
+# a minimum of fuss.
+#
+# This means that you cannot image those partitions since imagezip
+# does not yet (as of 05/2014) understand GPT. But we have no mechanism
+# for capturing an image from anything but the system disk anyway.
+#
+if ($FBSDVERS >= 10 && $slice == 0) {
+    my @out = `gpart show $disk 2>/dev/null`;
+    if ($? == 0) {
+	# first line should tell us how the drive is partitioned
+	my $format = "UNKNOWN";
+	if ($out[0] =~ /^=>\s*\d+\s+\d+\s+$disk\s+(\S+)\s+/) {
+	    $format = $1;
+	}
+	if ($forceit) {
+	    mysystem("gpart destroy -F $disk");
+	} else {
+	    die("*** $0:\n".
+		"    $disk is already partitioned (type $format), ".
+		"use -f to override\n");
+	}
+    }
+    mysystem("gpart create -s gpt $disk");
+    mysystem("gpart add -i 1 -t freebsd-ufs -a 1m $disk");
+
+    mysystem("newfs -U $fsdevice");
+    mysystem("echo \"$fsdevice $mountpoint ufs rw 0 2\" >> /etc/fstab");
+
+    if (!$nomount) {
+	mysystem("mount $mountpoint");
+	mysystem("mkdir $mountpoint/local");
+    }
+    exit(0);
 }
 
 #
