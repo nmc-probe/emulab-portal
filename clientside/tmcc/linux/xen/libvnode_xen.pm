@@ -554,6 +554,12 @@ sub rootPreConfig($)
     #
     # Need these to avoid overflowing the NAT tables.
     #
+    mysystem2("$MODPROBE nf_conntrack");
+    if ($?) {
+	print STDERR "ERROR: could not load nf_conntrack module!\n";
+	TBScriptUnlock();
+	return -1;
+    }
     mysystem("$SYSCTL -w ".
 	     "  net.netfilter.nf_conntrack_generic_timeout=120");
     mysystem("$SYSCTL -w ".

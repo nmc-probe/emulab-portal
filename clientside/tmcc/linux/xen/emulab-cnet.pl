@@ -254,7 +254,7 @@ sub Online()
 		   "  -j OUTGOING_${vnode_id}")
 	    == 0 or return -1;
 
-	DoIPtables("-A OUTPUT -d $vnode_id -j ACCEPT")
+	DoIPtables("-A OUTPUT -d $vnode_ip -j ACCEPT")
 	    == 0 or return -1;
     }
     # Start a tmcc proxy (handles both TCP and UDP)
@@ -428,7 +428,7 @@ sub Offline()
 		   " --physdev-out $vif -j INCOMING_${vnode_id}");
 	DoIPtables("-D INPUT -s $vnode_ip ".
 		   "  -j OUTGOING_${vnode_id}");
-	DoIPtables("-D OUTPUT -d $vnode_id -j ACCEPT");
+	DoIPtables("-D OUTPUT -d $vnode_ip -j ACCEPT");
     }
 
     # tmcc
