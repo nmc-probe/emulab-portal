@@ -24,13 +24,13 @@ sub Install($$$)
     }
 
     # XXX toss in "ntp1" for the benefit of boss which starts ntp before named
-    if ($USERNODE_IP eq $NTPSERVER) {
+    if ($NTPSERVER eq "ops") {
 	$ops_string .= " ntp1";
     }
-    elsif ($BOSSNODE_IP eq $NTPSERVER) {
+    elsif ($NTPSERVER eq "boss") {
 	$boss_string .= " ntp1";
     }
-    elsif (defined($fs_string) && $FSNODE_IP eq $NTPSERVER) {
+    elsif (defined($fs_string) && $NTPSERVER eq "fs") {
 	$fs_string .= " ntp1";
     }
 
