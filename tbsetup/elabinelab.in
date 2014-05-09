@@ -340,6 +340,9 @@ if (-e "$expdir/rc.mkelab") {
 my $mkextrafs = "";
 if (-e "$TB/etc/mkextrafs.pl") {
     $mkextrafs = "$TB/etc/mkextrafs.pl";
+    if (-e "$expdir/mkextrafs.pl") {
+	$mkextrafs = "$expdir/mkextrafs.pl";
+    }
 }
 print "Copying $mkelab $mkextrafs to ${bossnode}";
 print "/${opsnode}"
