@@ -127,7 +127,7 @@ function STARTLOG($object)
     if (!is_a($object, 'Logfile')) {
 	$object = $object->GetLogfile();
     }
-    $url = CreateURL("spewlogfile", $object);
+    $url = CreateURL("fetchlogfile", $object);
 
     echo "<center>\n";
     echo "<img id='load_busy' src='busy.gif'>
