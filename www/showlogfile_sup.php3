@@ -143,20 +143,13 @@ function STARTLOG($object)
 	 "<script type='text/javascript' language='javascript'
                   src='mungelog.js'>
           </script>\n";
-    echo "<script type='text/javascript' language='javascript'>\n";
-    echo "if (is_chrome == false && is_safari == false) {
-              SetupOutputArea('outputframe', true);
-          }\n";
-    echo "</script><div>
-         <iframe id='downloader' name='downloader'
+    echo "<iframe id='downloader' name='downloader'
                  class='downloader' src='$url'
                  onload='ml_handleReadyState(LOG_STATE_LOADED);'>
          </iframe></div>\n";
     echo "<script type='text/javascript' language='javascript'>\n";
-    echo "if (is_chrome || is_safari) {
-	    HideFrame('outputframe');
-	    ShowDownLoader('downloader');
-         }\n";
+    echo "  HideFrame('outputframe');\n";
+    echo "  ShowDownLoader('downloader');\n";
     echo "</script>";
 }
 
