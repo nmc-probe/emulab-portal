@@ -3823,5 +3823,19 @@ sub SyncTaintStates($)
     return $self->SetTaintStates(@taint_states);
 }
 
+#
+# We have a problem with pcvms on remoteded machines. The typing is
+# messed up, not sure what to do yet. Might not be worth fixing since
+# Utah is the only site that does this stuff.
+#
+sub OnRemoteNode($)
+{
+    my ($self) = @_;
+    my $physhost = $self->GetPhysHost();
+    return 0
+	if (!defined($physhost));
+    return $physhost->isremotenode();
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;

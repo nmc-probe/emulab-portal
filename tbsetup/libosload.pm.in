@@ -595,7 +595,8 @@ sub osload ($$) {
 	    foreach my $i (@imageidxs) {
 		# This is passed along so that remote node can request the file.
 		# Make sure the image object has an access key defined.
-		if ($nodeobject->isremotenode() && !defined($access_keys[$i])) {
+		if (($nodeobject->isremotenode() || $nodeobject->OnRemoteNode())
+		    && !defined($access_keys[$i])) {
 		    $access_keys[$i] = TBGenSecretKey();
 		    
 		    $rowref->{'access_key'} = $access_keys[$i];
