@@ -33,7 +33,7 @@ INSERT INTO sitevariables VALUES ('watchdog/interval','30','60','Interval in min
 INSERT INTO sitevariables VALUES ('watchdog/ntpdrift',NULL,'240','Interval in minutes between reporting back NTP drift changes (0==never report)',0);
 INSERT INTO sitevariables VALUES ('watchdog/cvsup',NULL,'720','Interval in minutes between remote node checks for software updates (0==never check)',0);
 INSERT INTO sitevariables VALUES ('watchdog/isalive/local',NULL,'3','Interval in minutes between local node status reports (0==never report)',0);
-INSERT INTO sitevariables VALUES ('watchdog/isalive/vnode',NULL,'10','Interval in minutes between virtual node status reports (0==never report)',0);
+INSERT INTO sitevariables VALUES ('watchdog/isalive/vnode',NULL,'5','Interval in minutes between virtual node status reports (0==never report)',0);
 INSERT INTO sitevariables VALUES ('watchdog/isalive/plab',NULL,'10','Interval in minutes between planetlab node status reports (0==never report)',0);
 INSERT INTO sitevariables VALUES ('watchdog/isalive/wa',NULL,'1','Interval in minutes between widearea node status reports (0==never report)',0);
 INSERT INTO sitevariables VALUES ('watchdog/isalive/dead_time','10','120','Time, in minutes, after which to consider a node dead if it has not checked in via tha watchdog',0);
