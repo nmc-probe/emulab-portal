@@ -92,6 +92,8 @@ CREATE TABLE `apt_profiles` (
   `public` tinyint(1) NOT NULL default '0',
   `shared` tinyint(1) NOT NULL default '0',
   `listed` tinyint(1) NOT NULL default '0',
+  `locked` datetime default NULL,
+  `status` varchar(32) default NULL,
   `weburi` tinytext,
   `description` mediumtext,
   `rspec` mediumtext,
@@ -5204,6 +5206,36 @@ CREATE TABLE `vlans` (
   PRIMARY KEY  (`id`),
   KEY `pid` (`pid`,`eid`,`virtual`),
   KEY `exptidx` (`exptidx`,`virtual`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `web_sessions`
+--
+
+DROP TABLE IF EXISTS `web_sessions`;
+CREATE TABLE `web_sessions` ( 
+  `session_id` varchar(128) binary NOT NULL default '', 
+  `session_expires` datetime NOT NULL default '0000-00-00 00:00:00',
+  `session_data` text, 
+  PRIMARY KEY  (`session_id`) 
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `web_tasks`
+--
+
+DROP TABLE IF EXISTS `web_tasks`;
+CREATE TABLE `web_tasks` ( 
+  `task_id` varchar(128) binary NOT NULL default '', 
+  `created` datetime NOT NULL default '0000-00-00 00:00:00',
+  `modified` datetime NOT NULL default '0000-00-00 00:00:00',
+  `exited` datetime default NULL,
+  `process_id` int(11) default '0',
+  `object_uuid` varchar(40) NOT NULL default '',
+  `exitcode` tinyint(3) default '0',
+  `task_data` text, 
+  PRIMARY KEY  (`task_id`),
+  KEY `object_uuid` (`object_uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
