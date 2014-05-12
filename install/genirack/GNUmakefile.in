@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -27,7 +27,8 @@ SUBDIR		= install/genirack
 
 include $(OBJDIR)/Makeconf
 
-TARGETS = initnodes.pl initilo.pl mknewconfig
+TARGETS		= initnodes.pl initilo.pl mknewconfig
+LIBFILES        = addsshkey.xml	resetilo.xml chpswd.xml	noipmi.xml setupilo.xml
 
 #
 # Force dependencies on the scripts so that they will be rerun through
@@ -37,7 +38,13 @@ all: $(TARGETS)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-install: $(INSTALL_SBINDIR)/initilo.pl
+install: $(INSTALL_SBINDIR)/initilo.pl \
+         $(addprefix $(INSTALL_LIBDIR)/ilo/, $(LIBFILES))
 
 clean: 
 	rm -f $(TARGETS)
+
+$(INSTALL_LIBDIR)/ilo/%: %
+	@echo "Installing $<"
+	-mkdir -p $(INSTALL_LIBDIR)/ilo
+	$(INSTALL) $< $@

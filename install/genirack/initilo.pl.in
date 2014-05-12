@@ -61,7 +61,7 @@ my $tempfile    = "/tmp/$$.xml";
 my $TB	      = "@prefix@";
 my $TBOPS     = "@TBOPSEMAIL@";
 my $ILOPSWD   = "$TB/etc/ilo.pswd";
-my $SRCDIR    = "@srcdir@";
+my $XMLDIR    = "$TB/lib/ilo";
 my $CURL      = "/usr/local/bin/curl";
 my $DSAKEY    = "/root/.ssh/id_dsa";
 my $SUDO      = "/usr/local/bin/sudo";
@@ -143,11 +143,11 @@ my $elabmanpswd = `cat $ILOPSWD`;
 chomp($elabmanpswd);
 
 # The XML goo.
-my $setupgoo  = `cat $SRCDIR/setupilo.xml`;
-my $resetgoo  = `cat $SRCDIR/resetilo.xml`;
-my $chpswdgoo = `cat $SRCDIR/chpswd.xml`;
-my $sshkeygoo = `cat $SRCDIR/addsshkey.xml`;
-my $noipmigoo = `cat $SRCDIR/noipmi.xml`;
+my $setupgoo  = `cat $XMLDIR/setupilo.xml`;
+my $resetgoo  = `cat $XMLDIR/resetilo.xml`;
+my $chpswdgoo = `cat $XMLDIR/chpswd.xml`;
+my $sshkeygoo = `cat $XMLDIR/addsshkey.xml`;
+my $noipmigoo = `cat $XMLDIR/noipmi.xml`;
 
 # The pubkey.
 my $pubkey = `cat ${DSAKEY}.pub`;
@@ -180,9 +180,14 @@ if ($dooutlet) {
 }
 if ($noipmi) {
     usage()
-	if (@ARGV != 1);
+	if (!@ARGV);
 
-    exit(NoIPMI($ARGV[0], $elabmanpswd));
+    while (@ARGV) {
+	my $who = shift(@ARGV);
+
+	NoIPMI($who, $elabmanpswd);
+    }
+    exit(0);
 }
 if ($doilokey) {
     usage()
@@ -408,12 +413,15 @@ sub SendXML($$)
     #
     # Ship this off with curl. 
     #
-    my $cmd = "$CURL -k --data-binary \@${tempfile} https://$ip/ribcl";
+    my $cmd = "$CURL -m 15 -k --data-binary \@${tempfile} https://$ip/ribcl";
     print "$cmd\n";
     if (!$impotent) {
 	my $output = emutil::ExecQuiet($cmd);
 	if ($?) {
 	    print $output;
+	    if ($? >> 8 == 28) {
+		return 28;
+	    }
 	    Fatal("ribcl failed");
 	}
 	my @lines = split('\n', $output);
@@ -427,6 +435,9 @@ sub SendXML($$)
 		    my $line = shift(@lines);
 		    $line =~ s/\s*MESSAGE=//;
 		    print "$line\n";
+		    if ($line =~ /not supported/i) {
+			return 1;
+		    }
 		    Fatal("ribcl failed");
 		}
 	    }
@@ -565,7 +576,7 @@ sub NoIPMI($$)
 	$iloIP = $nodeid;
     }
     else {
-	my $node = Node->Lookup($ARGV[0]);
+	my $node = Node->Lookup($nodeid);
 	if (!defined($node)) {
 	    Fatal("No such node");
 	}
@@ -577,8 +588,11 @@ sub NoIPMI($$)
 	$iloIP = $management_interface->IP();
     }
     my $xmlgoo = sprintf($noipmigoo, $pswd);
-    if (SendXML($iloIP, $xmlgoo)) {
-	Fatal("Failed to send xmlgoo to $iloIP");
+    if (my $ret = SendXML($iloIP, $xmlgoo)) {
+	print STDERR "Failed to send xmlgoo to $nodeid ($iloIP)\n"
+	    if ($ret == 28);
+	exit(1)
+	    if ($ret < 0);
     }
     return 0;
 }

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,7 +50,8 @@ all: $(TARGETS) all-subdirs
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-install: $(INSTALL_LIBDIR)/libinstall.pm \
+install: install-subdirs \
+	$(INSTALL_LIBDIR)/libinstall.pm \
 	$(INSTALL_LIBDIR)/installvars.pm \
 	$(INSTALL_SBINDIR)/update-install \
 	$(INSTALL_SBINDIR)/update-testbed \

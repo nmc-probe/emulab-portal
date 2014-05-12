@@ -6,6 +6,7 @@
     <!-- Set the autologout timeout to 120 minutes                 -->
     <MOD_GLOBAL_SETTINGS>
       <IPMI_DCMI_OVER_LAN_ENABLED value="N"/>
+      <SNMP_ACCESS_ENABLED value="N"/>
     </MOD_GLOBAL_SETTINGS>
   </RIB_INFO>
  </LOGIN>
