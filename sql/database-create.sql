@@ -5213,11 +5213,11 @@ CREATE TABLE `vlans` (
 --
 
 DROP TABLE IF EXISTS `web_sessions`;
-CREATE TABLE `web_sessions` ( 
-  `session_id` varchar(128) binary NOT NULL default '', 
+CREATE TABLE `web_sessions` (
+  `session_id` varchar(128) NOT NULL default '', 
   `session_expires` datetime NOT NULL default '0000-00-00 00:00:00',
-  `session_data` text, 
-  PRIMARY KEY  (`session_id`) 
+  `session_data` text,
+  PRIMARY KEY  (`session_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -5225,15 +5225,15 @@ CREATE TABLE `web_sessions` (
 --
 
 DROP TABLE IF EXISTS `web_tasks`;
-CREATE TABLE `web_tasks` ( 
-  `task_id` varchar(128) binary NOT NULL default '', 
+CREATE TABLE `web_tasks` (
+  `task_id` varchar(128) NOT NULL default '',
   `created` datetime NOT NULL default '0000-00-00 00:00:00',
   `modified` datetime NOT NULL default '0000-00-00 00:00:00',
   `exited` datetime default NULL,
   `process_id` int(11) default '0',
   `object_uuid` varchar(40) NOT NULL default '',
   `exitcode` tinyint(3) default '0',
-  `task_data` text, 
+  `task_data` text,
   PRIMARY KEY  (`task_id`),
   KEY `object_uuid` (`object_uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;

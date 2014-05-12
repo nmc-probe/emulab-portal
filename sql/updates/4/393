@@ -21,7 +21,7 @@ sub DoUpdate($$$)
     }
     if (!DBTableExists("web_sessions")) {
 	DBQueryFatal("CREATE TABLE `web_sessions` ( ".
-		     " `session_id` varchar(128) binary NOT NULL default '', ".
+		     " `session_id` varchar(128) NOT NULL default '', ".
 		     " `session_expires` datetime NOT NULL ".
 		     "          default '0000-00-00 00:00:00', ".
 		     " `session_data` text, ".
@@ -30,7 +30,7 @@ sub DoUpdate($$$)
     }
     if (!DBTableExists("web_tasks")) {
 	DBQueryFatal("CREATE TABLE `web_tasks` ( ".
-		     " `task_id` varchar(128) binary NOT NULL default '', ".
+		     " `task_id` varchar(128) NOT NULL default '', ".
 		     " `created` datetime NOT NULL ".
 		     "             default '0000-00-00 00:00:00', ".
 		     " `modified` datetime NOT NULL ".
