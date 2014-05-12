@@ -37,11 +37,11 @@
 
           // If the user is scrolled to the bottom, make sure they
           // stay scrolled to the bottom after appending.
-          var shouldScroll = (document.body.scrollHeight - document.body.clientHeight == document.body.scrollTop);
+          var shouldScroll = ((document.body.scrollHeight > document.body.clientHeight) || (document.body.scrollHeight - document.body.scrollTop === document.body.clientHeight));
           $('pre').append(_.escape(newText));
           if (shouldScroll)
           {
-            document.body.scrollTop = document.body.scrollHeight - document.body.clientHeight;
+            document.body.scrollTop = document.body.scrollHeight;
           }
         }
       };
