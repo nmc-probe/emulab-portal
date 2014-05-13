@@ -34,6 +34,9 @@ my $ILOPASSWORD  = "$PREFIX/etc/ilo.pswd";
 my $ELABPASSWORD = "$PREFIX/etc/elabman.pswd";
 my $HPPASSWORD   = "$PREFIX/etc/switch.pswd";
 my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-9.0-ports.tar.gz";
+if ($FBSD_MAJOR >= 10) {
+    $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-10.0-ports.tar.gz";
+}
 my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
 my $DEFAULTOSID  = "FEDORA15-STD";
 my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU12-64-STD");

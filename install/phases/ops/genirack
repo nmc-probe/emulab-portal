@@ -11,6 +11,9 @@ my $CONFIGVARS   = "$PREFIX/configvars.txt";
 my $RACKNTPCONF  = "$TOP_SRCDIR/install/genirack/ntp.conf";
 my $ETCNTPCONF   = "/etc/ntp.conf";
 my $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-9.0-ports.tar.gz";
+if ($FBSD_MAJOR >= 10) {
+    $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-10.0-ports.tar.gz";
+}
 
 sub Install($$$)
 {
