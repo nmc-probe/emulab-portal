@@ -1941,11 +1941,13 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
 	    if ($sharing_mode{$node1}) {
 		$bw =
 		    $interfacestate{"$node1:$iface1"}->{'remaining_bandwidth'};
+		#
+		# Zero bandwidth is okay, and causes assign to use the
+		# no_bandwith error instead of the no_connect error.
+		#
 		if ($bw < 0) {
 		    $bw = 0;
 		}
-		next
-		    if ($bw == 0);
 	    }
 
 	    print_simple_link($node1, $iface1,
