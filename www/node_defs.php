@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -469,12 +469,14 @@ class Node
     # Show node record.
     #
     function Show($flags = 0) {
+	global $IPV6_ENABLED, $IPV6_SUBNET_PREFIX;
+	
 	$node_id = $this->node_id();
 	$short   = ($flags & SHOWNODE_SHORT  ? 1 : 0);
 	$noperm  = ($flags & SHOWNODE_NOPERM ? 1 : 0);
     
 	$query_result =
-	    DBQueryFatal("select n.*,na.*,r.vname,r.pid,r.eid,i.IP, ".
+	    DBQueryFatal("select n.*,na.*,r.vname,r.pid,r.eid,i.IP,i.mac, ".
 			 "greatest(last_tty_act,last_net_act,last_cpu_act,".
 			 "last_ext_act) as last_act, ".
 			 "  t.isvirtnode,t.isremotenode,t.isplabdslice, ".
@@ -553,6 +555,7 @@ class Node
 	$alloctime          = $row["allocated"];
 	$downtime           = $row["down"];
 	$uuid               = $row["node_uuid"];
+	$mac		    	= $row["mac"];
 
 	if (!$def_boot_cmd_line)
 	    $def_boot_cmd_line = "&nbsp;";
@@ -904,6 +907,25 @@ class Node
                       <td>Control Net IP:</td>
                       <td class=left>$IP</td>
                   </tr>\n";
+
+		if ($IPV6_ENABLED) {
+		    $v = substr($mac, 1, 1);
+		    $v = base_convert($v,16,2);
+		    $v = str_pad($v, 4, '0', STR_PAD_LEFT);
+		    if (substr($v,2,1) == '0')
+			$v = substr_replace($v, '1', 2, 1);
+		    else
+			$v = substr_replace($v, '0', 2, 1);
+		    $v = base_convert($v,2,16);
+		    $IP6 = $IPV6_SUBNET_PREFIX . ':' . substr($mac,0,1) . $v .
+			substr($mac,2,2) . ':' . substr($mac,4,2) . 'ff:fe' .
+			substr($mac,6,2) . ':' . substr($mac,8,4) . "\n";
+
+		    echo "<tr>
+                           <td>Control Net IPv6:</td>
+                           <td class=left>$IP6</td>
+                          </tr>\n";
+		}
 		if ($mngmnt_IP) {
 		    echo "<tr>
                           <td>Management IP:</td>
