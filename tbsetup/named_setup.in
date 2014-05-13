@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,6 +24,7 @@
 use English;
 use Socket;
 use strict;
+use Net::IP;
 
 #
 # Suck out virtual names and create CNAME map entries.
@@ -42,6 +43,7 @@ sub make_forward_zonefile($$$);
 sub isroutable($);
 sub IsJailIP($);
 sub process_nodes($);
+sub make_ipv6_reverse_zonefile($$);
 
 #
 # Configure variables
@@ -53,7 +55,9 @@ my $DISABLED    = "@DISABLE_NAMED_SETUP@";
 my $OURDOMAIN   = "@OURDOMAIN@";
 my $VIRTNODE_NETWORK   = "@VIRTNODE_NETWORK@";
 my $VIRTNODE_NETMASK   = "@VIRTNODE_NETMASK@";
-
+my $IPV6_ENABLED       = @IPV6_ENABLED@;
+my $IPV6_SUBNET_PREFIX = "@IPV6_SUBNET_PREFIX@";
+		  
 my $mapdir			= "/etc/namedb";
 my $mapfile			= "${mapdir}/${OURDOMAIN}.db";
 my $mapfiletail			= "$mapfile.tail";
@@ -63,6 +67,11 @@ my $mapfile_internal_tail	= "$mapfile_internal.tail";
 my $vnodesfile			= "$mapdir/vnodes.${OURDOMAIN}.db";
 my $vnodesback 			= "$mapdir/vnodes.${OURDOMAIN}.db.backup";
 my $reversedir			= "$mapdir/reverse";
+my $reverse_ipv6		= "$reversedir/${IPV6_SUBNET_PREFIX}.db";
+# Switch colon to dot since colon causes gmake to act strange.
+$reverse_ipv6 =~ s/\:/./g;
+my $reverse_ipv6_head		= "${reverse_ipv6}.head";
+my $reverse_ipv6_tail		= "${reverse_ipv6}.tail";
 my $restart_named		= 1;
 my $sortem			= 0; # set to 1 to generated IP-sorted file
 my $dbg	= 0;
@@ -119,11 +128,11 @@ if ((my $locked = TBScriptLock("named", 1)) != TBSCRIPTLOCK_OKAY()) {
 #
 my $db_result =
     DBQueryFatal("select n.node_id, n.role, null, i.IP, i.role, ".
-                 "    r.inner_elab_role, i.IPaliases ".
+                 "    r.inner_elab_role, i.IPaliases, i.mac ".
 		 "  from nodes as n join interfaces as i ".
 		 "left join reserved as r on r.node_id=n.node_id ".
 		 "where (n.node_id=i.node_id and ".
-                 "       (n.role='testnode' or n.role='virtnode')) ".
+                 "       (n.role='powerctrl' or n.role='testnode' or n.role='virtnode')) ".
 		 "    and i.IP is not null ".
 		 "    and (i.role='" . TBDB_IFACEROLE_CONTROL() . "' or " .
 		 "         i.role='" . TBDB_IFACEROLE_MANAGEMENT() . "')");
@@ -252,7 +261,6 @@ if (-e $mapfile_internal_head) {
     assemble_zonefile($mapfile_internal);
 }
 
-
 #
 # Look for reverse zone files that we may need to make
 #
@@ -289,7 +297,11 @@ while (my $dirent = readdir(DIR)) {
     close MAP;
 
     assemble_zonefile("$reversedir/$basename");
-    
+}
+
+if ($IPV6_ENABLED) {
+    make_ipv6_reverse_zonefile($reverse_ipv6_tail,\%routable);
+    assemble_zonefile($reverse_ipv6);
 }
 closedir DIR;
 
@@ -330,6 +342,7 @@ sub process_nodes($) {
 	my $irole   = $row[4];
 	my $inner_elab_role = $row[5];
 	my $IPaliases = $row[6];
+	my $mac	    = $row[7];
 
 	#
 	# For most nodes, we get the IP address from the interfaces table;
@@ -342,8 +355,8 @@ sub process_nodes($) {
 	    warn "named_setup: No IP for node $node_id!\n";
 	    next;
 	}
-
-        #
+       	
+	#
 	# Special treatment for gateway interfaces - we give act as if they
 	# are a separate node
 	#
@@ -392,6 +405,34 @@ sub process_nodes($) {
 		    inner_elab_role => $inner_elab_role
 		};
 	    }
+	}
+	if ($IPV6_ENABLED && $mac) {
+	    # Calculate modified EUI-64 from MAC address
+	    my $v = substr($mac, 1, 1);
+	    $v = unpack("B4", pack("H1", $v));
+	    if (substr($v, 2, 1) == '0') {
+		substr($v, 2, 1, '1');
+	    }
+	    else {
+		substr($v, 2, 1, '0');
+	    }
+	    $v = unpack("H1", pack("B4", $v));
+
+	    my $IP6 = $IPV6_SUBNET_PREFIX . ':' . substr($mac,0,1) . $v .
+		substr($mac,2,2) . ':' . substr($mac,4,2) . 'ff:fe' .
+		substr($mac,6,2) . ':' . substr($mac,8,4);
+	    
+	    # Make new node_rec with IP6 address in IP field
+	    my $node_rec6 = {
+		IP   => $IP6,
+		role => $nrole,
+		inner_elab_role => $inner_elab_role,
+	    };
+
+	    # Push it to the routable & unroutable stack, add prefix to create
+	    # a different node_id key
+	    $routable{"_V6_" . $node_id} = $node_rec6;
+	    $unroutable{"_V6_" . $node_id} = $node_rec6;
 	}
 
 	#
@@ -518,6 +559,47 @@ sub byip {
 }
 
 #
+# Make Reverse IPv6 zonefile
+#
+
+sub make_ipv6_reverse_zonefile($$) {
+    my ($filename, $addresses) = @_;
+    open(MAP, ">$filename") || fatal("Couldn't open $filename\n");
+    print MAP "\n";
+    print MAP ";\n";
+    print MAP "; DO NOT EDIT below this point. Auto generated map entries!\n";
+    print MAP ";\n";
+    print MAP "\n";
+    print MAP "\n";
+    print MAP ";\n";
+    print MAP "; Nodes\n";
+    print MAP ";\n";
+    print MAP "\n";
+    my @list = keys(%$addresses);
+    if ($sortem) {
+        $laddrs = $addresses;
+        @list = sort byip @list;
+    }
+    for my $node_id (@list) {
+        my $node_rec = $$addresses{$node_id};
+
+	if ($node_id =~ /^_V6_(.*)$/) {
+	    $node_id = $1;
+	    my $ipv6 = $node_rec->{IP};
+	    $ipv6 =~ s/[\n|\r]//g;
+	    my $convert_ip = new Net::IP ($ipv6)
+		or die (Net::IP::Error());
+	    print MAP $convert_ip->reverse_ip() . "\tIN\tPTR\t" .
+		$node_id . "." . $OURDOMAIN . ".\n";
+	}
+    }
+
+    print MAP "\n";
+    close(MAP);
+}
+
+
+#
 # Make a forward zone file, from the given map of addresses and CNAMEs
 #
 sub make_forward_zonefile($$$) {
@@ -552,8 +634,13 @@ sub make_forward_zonefile($$$) {
 	if (($node_rec->{role} eq "virtnode") && (!$cnames->{$node_id})) {
 	    next;
 	}
-
-	print MAP "$node_id\tIN\tA\t$node_rec->{IP}\n";
+	if ($node_id =~ /^_V6_(.*)$/) {
+	    $node_id = $1;
+	    print MAP $node_id . "\tIN\tAAAA\t$node_rec->{IP}\n";
+	}
+	else {
+	    print MAP "$node_id\tIN\tA\t$node_rec->{IP}\n";
+	}
 	if ($domx) {
 	    if (defined($node_rec->{inner_elab_role}) &&
 		($node_rec->{inner_elab_role} eq "ops" ||
@@ -583,7 +670,7 @@ sub make_forward_zonefile($$$) {
 	#
 	# Only print out CNAMEs for nodes that are actually going into this map
 	#
-	next unless ($addresses->{$pname});
+	next unless ($addresses->{$pname} || $addresses->{"_V6_" . $pname});
 
 	#
 	# Write out every CNAME for this pnode

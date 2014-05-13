@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,6 +33,8 @@ OURDOMAIN       = @OURDOMAIN@
 # This is silly. Needs to be done properly.
 TESTBED_NETWORK          = @TESTBED_NETWORK@
 EXTERNAL_TESTBED_NETWORK = @EXTERNAL_TESTBED_NETWORK@
+IPV6_ENABLED             = @IPV6_ENABLED@
+IPV6_SUBNET_PREFIX       = @IPV6_SUBNET_PREFIX@
 
 REVERSE_MAPNAME          = \
 		$(shell echo @TESTBED_NETWORK@ | sed -e 's,.0$$,,')
@@ -43,13 +45,20 @@ REVFILES                 = $(REVERSE_MAPNAME).db.head
 ifneq ($(REVERSE_MAPNAME), $(EXTERNAL_REVERSE_MAPNAME))
 REVFILES                += $(EXTERNAL_REVERSE_MAPNAME).db.head
 endif
+ifeq ($(IPV6_ENABLED),1)
+IPV6_MAPNAME             = \
+		$(shell echo @IPV6_SUBNET_PREFIX@ | sed -e 's,\:,\.,g')
+REVFILES                += $(IPV6_MAPNAME).db.head
+endif
 
 BOSSTOKEN       = $(shell echo @BOSSNODE@ | sed -e 's/\..*//')
 USERTOKEN       = $(shell echo @USERNODE@ | sed -e 's/\..*//')
 
-NAMED_FILES	= named.conf.template named_makeconf named_makerev reverse.head \
+NAMED_FILES	= named.conf.template named_makeconf named_makerev \
+		 reverse.head \
 		 resolv.conf localhost.rev forward.head named_makeforw \
-		 $(REVFILES) $(OURDOMAIN).db.head $(OURDOMAIN).internal.db.head \
+		 $(REVFILES) $(OURDOMAIN).db.head\
+		 $(OURDOMAIN).internal.db.head \
 		 named.conf resolv.conf.ops mail.access
 
 include $(OBJDIR)/Makeconf

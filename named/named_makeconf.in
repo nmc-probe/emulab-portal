@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -61,10 +61,20 @@ my $NAMED_FORWARDERS   = "@NAMED_FORWARDERS@";
 my $VIRTNODE_NETWORK   = "@VIRTNODE_NETWORK@";
 my $VIRTNODE_NETMASK   = "@VIRTNODE_NETMASK@";
 my $NAMED_ALSONOTIFY   = "@NAMED_ALSONOTIFY@";
+my $IPV6_ENABLED       = @IPV6_ENABLED@;
+my $IPV6_SUBNET_PREFIX = "@IPV6_SUBNET_PREFIX@";
+my $IPV6_MAPFILE       = "";
+if ($IPV6_ENABLED) {
+    $IPV6_MAPFILE = $IPV6_SUBNET_PREFIX . ".db";    
+    # Switch : to dot since colon causes gmake to act strange.
+    $IPV6_MAPFILE =~ s/\:/./g;
+}
+
+# Protos
+sub ReverseDottedIPV6($);
 
 # Testbed libraries.
 use lib "@prefix@/lib";
-#use libdb;
 
 # Simple is good. I stole this out of a google search.
 my @NETMASKS =
@@ -173,6 +183,14 @@ while (<IF>) {
 		}
 	    }
 	    elsif ($2 eq "internal_network_reverse_zones") {
+		if ($IPV6_ENABLED) {
+		    my $dotted_reverse = ReverseDottedIPV6($IPV6_SUBNET_PREFIX);
+
+		    print $1 . "zone \"${dotted_reverse}.ip6.arpa\" in {\n";
+		    print $1 . "\ttype master;\n";
+		    print $1 . "\tfile \"reverse/${IPV6_MAPFILE}\";\n";
+		    print $1 . "};\n\n";
+		}
 		for (my $i = $ic; $i <= $ic + (255 - $imc); $i++) {
 		    my $dotted           = "${ia}.${ib}.${i}";
 		    my $dotted_reverse   = "${i}.${ib}.${ia}";
@@ -193,6 +211,14 @@ while (<IF>) {
 		}
 	    }
 	    elsif ($2 eq "external_network_reverse_zones") {
+		if ($IPV6_ENABLED) {
+		    my $dotted_reverse = ReverseDottedIPV6($IPV6_SUBNET_PREFIX);
+
+		    print $1 . "zone \"${dotted_reverse}.ip6.arpa\" in {\n";
+		    print $1 . "\ttype master;\n";
+		    print $1 . "\tfile \"reverse/${IPV6_MAPFILE}\";\n";
+		    print $1 . "};\n\n";
+		}
 		for (my $i = $ec; $i <= $ec + (255 - $emc); $i++) {
 		    my $dotted           = "${ea}.${eb}.${i}";
 		    my $dotted_reverse   = "${i}.${eb}.${ea}";
@@ -201,6 +227,38 @@ while (<IF>) {
 		    print $1 . "\ttype master;\n";
 		    print $1 . "\tfile \"reverse/${dotted}.db\";\n";
 		    print $1 . "};\n";		    
+		}
+	    }
+	    elsif ($2 eq "internal_network_extra_stuff") {
+		if (-e "/etc/namedb/internal.named.conf") {
+		    open(EXTRA, "/etc/namedb/internal.named.conf") or
+			die("*** $0:\n".
+			    "    Could not open internal.named.conf!\n");
+		    print $1 . "#\n";
+		    print $1 . "# Fragment included from internal.named.conf\n";
+		    print $1 . "#\n";
+		    while (<EXTRA>) {
+			print $1 . $_;
+		    }
+		    close(EXTRA);
+		    print $1 .
+			"# End of fragment included from internal.named.conf\n";
+		}
+	    }
+	    elsif ($2 eq "external_network_extra_stuff") {
+		if (-e "/etc/namedb/external.named.conf") {
+		    open(EXTRA, "/etc/namedb/external.named.conf") or
+			die("*** $0:\n".
+			    "    Could not open external.named.conf!\n");
+		    print $1 . "#\n";
+		    print $1 . "# Fragment included from external.named.conf\n";
+		    print $1 . "#\n";
+		    while (<EXTRA>) {
+			print $1 . $_;
+		    }
+		    close(EXTRA);
+		    print $1 .
+			"# End of fragment included from external.named.conf\n";
 		}
 	    }
 	    else {
@@ -215,3 +273,26 @@ while (<IF>) {
 }
 close(IF);
 exit(0);
+
+#
+# Helper to form a dotted reverse for IPv6
+#
+sub ReverseDottedIPV6($)
+{
+    my ($ipv6) = @_;
+    my @digits = ();
+
+    foreach my $nibblet (split(":", $ipv6)) {
+	if ($nibblet =~ /^(\w)(\w)(\w)(\w)$/) {
+	    push(@digits, $1, $2, $3, $4);
+	}
+	else {
+	    die("*** $0:\n".
+		"    Bad format for ipv6 address: $IPV6_SUBNET_PREFIX!\n");
+	}
+    }
+    my $dotted = join(".", reverse(@digits));
+    return $dotted;
+}
+
+

@@ -44,6 +44,7 @@ view "internal" {
 	  };
 
     %internal_network_reverse_zones%
+    %internal_network_extra_stuff%
 };
 
 view "external" {
@@ -67,5 +68,6 @@ view "external" {
 	  };
 
     %external_network_reverse_zones%
+    %external_network_extra_stuff%
 };
 

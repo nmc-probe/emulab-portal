@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -63,10 +63,11 @@ my $PUBLIC_NETMASK     = "@PUBLIC_NETMASK@";
 my $NAMED_FORWARDERS   = "@NAMED_FORWARDERS@";
 my $VIRTNODE_NETWORK   = "@VIRTNODE_NETWORK@";
 my $VIRTNODE_NETMASK   = "@VIRTNODE_NETMASK@";
+my $IPV6_ENABLED       = @IPV6_ENABLED@;
+my $IPV6_SUBNET_PREFIX = "@IPV6_SUBNET_PREFIX@";
 
 # Testbed libraries.
 use lib "@prefix@/lib";
-#use libdb;
 
 #
 # This is for the dotted and reverse dotted notation needed for the
@@ -164,6 +165,29 @@ for (my $i = $ic; $i <= $ic + (255 - $imc); $i++) {
 	print REV "${1}\tIN\tPTR\tfs.${OURDOMAIN}.\n";
     }
     close(REV);
+}
+
+if ($IPV6_ENABLED) {
+    my $revfile = ${IPV6_SUBNET_PREFIX} . ".db.head";
+    my @digits = ();
+
+    # Switch : to dot since it messes up gmake.
+    $revfile =~ s/\:/./g;
+
+    foreach my $nibblet (split(":", $IPV6_SUBNET_PREFIX)) {
+	if ($nibblet =~ /^(\w)(\w)(\w)(\w)$/) {
+	    push(@digits, $1, $2, $3, $4);
+	}
+	else {
+	    die("*** $0:\n".
+		"    Bad format for ipv6 address: $IPV6_SUBNET_PREFIX!\n");
+	}
+    }
+    my $dotted = join(".", reverse(@digits));
+
+    print "Generating IPV6 reverse lookup file ...\n";
+    system("cp -f reverse.head $revfile") == 0 or
+	die("Unable to copy $infile to $revfile\n");
 }
 
 # No need is just one big IP space.
