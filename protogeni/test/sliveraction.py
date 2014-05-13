@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -46,8 +46,9 @@ if len(REQARGS) < 1:
     sys.exit(1)
 else:
     action = REQARGS[0]
-    if action != "start" and action != "stop" and action != "restart":
-        print >> sys.stderr, "Action must be one of start/stop/restart"
+    if (action != "start" and action != "stop" and
+        action != "restart" and action != "reload"):
+        print >> sys.stderr, "Action must be one of start/stop/restart/reload"
         sys.exit(1)
         pass
     if len(REQARGS) == 2:
@@ -94,6 +95,8 @@ if action == "start":
     method = "StartSliver"
 elif action == "stop":
     method = "StopSliver"
+elif action == "reload":
+    method = "ReloadSliver"
 else:
     method = "RestartSliver"
     pass
