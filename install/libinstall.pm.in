@@ -842,7 +842,15 @@ sub AddPackage($$) {
     if (-x "/usr/sbin/pkg_add") {
 	ExecQuietFatal("env PKG_PATH=$packagedir pkg_add $pname");
     } elsif (-x "/usr/sbin/pkg") {
-	ExecQuietFatal("pkg add $packagedir/$pname.txz");
+	# must have the prefix
+	if ($pname !~ /^$packagedir\//) {
+	    $pname = "$packagedir/$pname";
+	}
+	# and the suffix
+	if ($pname !~ /\.txz$/) {
+	    $pname .= ".txz";
+	}
+	ExecQuietFatal("pkg add $pname");
     } else {
 	PhaseFail("No package tools found!?");
     }

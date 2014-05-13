@@ -215,6 +215,9 @@ $TOUCH			= "/usr/bin/touch";
 $CHOWN			= "/usr/sbin/chown";
 $PW			= "/usr/sbin/pw";
 $PATCH			= "/usr/bin/patch";
+if ($FBSD_MAJOR >= 10) {
+    $PATCH		.= " --posix";
+}
 $CAT			= "/bin/cat";
 $NEWALIASES		= "/usr/bin/newaliases";
 $SH			= "/bin/sh";
