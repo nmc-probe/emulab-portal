@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -176,11 +176,15 @@ my %packlist =
 my $needpkgs = 0;
 
 Phase "ports", "Installing ports", sub {
+    # Check for new package tools
+    if (-x "/usr/sbin/pkg") {
+	$PKG_INFO = "/usr/sbin/pkg info -g";
+    }
     foreach my $pkgname (sort(keys(%packlist))) {
 	my $pkgdir = $packlist{$pkgname};
 
 	Phase "$pkgname", "Checking for $pkgname", sub {
-	    if (!ExecQuiet("$PKG_INFO -E '${pkgname}*'")) {
+	    if (!ExecQuiet("$PKG_INFO -e '${pkgname}*'")) {
 		PhaseSkip("Already installed");
 	    }
 	    ExecQuietFatal("cd $pkgdir; make -DBATCH install");

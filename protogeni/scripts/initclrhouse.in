@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -115,13 +115,18 @@ my %packlist = ("libxml2>=2.6.26"       => "/usr/ports/textproc/libxml2",
 		);
 my $needpkgs = 0;
 
+# Check for new package tools
+if (-x "/usr/sbin/pkg") {
+    $PKG_INFO = "/usr/sbin/pkg info -g";
+}
+
 foreach my $pkgname (sort(keys(%packlist))) {
     my $pkgdir = $packlist{$pkgname};
     
     print STDERR "Checking for package $pkgname\n";
 
     next
-	if (system("$PKG_INFO -E '${pkgname}*' >/dev/null") == 0);
+	if (system("$PKG_INFO -e '${pkgname}*' >/dev/null") == 0);
 
     print STDERR "Please install $pkgdir\n";
     $needpkgs++;
