@@ -2220,7 +2220,8 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		$violations .= $line;
 
 		# Attempt to parse the violations into something human readable.
-		if ($line =~ /no_connect:\s*1/ || $line =~ /bandwidth:\s*1/) {
+		if ($line =~ /no_connect:\s*\d*/ ||
+		    $line =~ /bandwidth:\s*\d*/) {
 		    $errorstr  = "Not enough bandwidth to connect some nodes"; 
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_BANDWIDTH();
 		}
