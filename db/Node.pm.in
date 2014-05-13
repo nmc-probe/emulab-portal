@@ -1283,6 +1283,8 @@ sub external_resource_key($) {
     return L__reservation($_[0], 'external_resource_key'); }
 sub inner_elab_role($) {
     return L__reservation($_[0], 'inner_elab_role'); }
+sub inner_elab_boot($) {
+    return L__reservation($_[0], 'inner_elab_boot'); }
 
 #
 # Load all attributes from the node_attributes table, 
