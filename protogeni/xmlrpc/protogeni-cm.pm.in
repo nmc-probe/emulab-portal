@@ -102,6 +102,7 @@ elsif ($GENI_VERSION eq "2.0") {
 	"InjectEvent"       => \&GeniCMV2::InjectEvent,
 	"CreateImage"       => \&GeniCMV2::CreateImage,
 	"DeleteImage"       => \&GeniCMV2::DeleteImage,
+	"ImageInfo"         => \&GeniCMV2::ImageInfo,
 	"ListImages"        => \&GeniCMV2::ListImages,
 	"ShareLan"          => \&GeniCMV2::ShareLan,
 	"UnShareLan"        => \&GeniCMV2::UnShareLan,
