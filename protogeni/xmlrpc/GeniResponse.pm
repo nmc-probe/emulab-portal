@@ -79,6 +79,8 @@ sub GENIRESPONSE_VLAN_UNAVAILABLE(){24; }
 sub GENIRESPONSE_INSUFFICIENT_BANDWIDTH(){25; }
 sub GENIRESPONSE_INSUFFICIENT_NODES(){26; }
 sub GENIRESPONSE_NOT_IMPLEMENTED(){100; }
+# This is HTTP_SERVICE_UNAVAILABLE
+sub GENIRESPONSE_SERVER_UNAVAILABLE() {503;}
 sub GENIRESPONSE()		  { return $current_response; }
 
 my @GENIRESPONSE_STRINGS =
@@ -101,6 +103,15 @@ my @GENIRESPONSE_STRINGS =
      "Expired",
      "In Progress",
      "Already Exists",
+     "Error 18",
+     "Error 19",
+     "Error 20",
+     "Error 21",
+     "Error 22",
+     "Error 23",
+     "Vlan Unavailable",
+     "Insufficient Bandwidth",
+     "Insufficient Nodes",
     );
 $GENIRESPONSE_STRINGS[GENIRESPONSE_NOT_IMPLEMENTED] = "Not Implemented";
 sub GENIRESPONSE_STRING($)
