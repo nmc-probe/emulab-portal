@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -848,13 +848,13 @@ sub UpdateUser(;$)
 	$remshellarg = "-s $NOLOGIN";
     }
     else {
-	# Leave local shell alone if an admin.
-	$locshellarg = "-s $PBAG"
-	    if (!$usr_admin);
-	# Special treatment for PROTUSER and GENIRACKs
-	$locshellarg = "-s " . $shellpaths{"tcsh"} . " "
-	    if ($usr_admin && ($user eq $PROTOUSER || $GENIRACK));
-
+	# Admin users get a local shell.
+	if ($usr_admin) {
+	    $locshellarg = "-s " . $shellpaths{"tcsh"};
+	}
+	else {
+	    $locshellarg = "-s $PBAG"
+	}
 	if (!defined($usr_shell) ||
 	    !exists($shellpaths{$usr_shell})) {
 	    $remshellarg = "-s " . $shellpaths{"tcsh"};
