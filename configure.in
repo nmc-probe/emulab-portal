@@ -255,6 +255,7 @@ AC_SUBST(PROTOGENI_RPCNAME)
 AC_SUBST(GENI_PUBRPCPORT)
 AC_SUBST(PROTOGENI_URL)
 AC_SUBST(PROTOGENI_GENIRACK)
+AC_SUBST(PROTOGENI_NICKNAME)
 AC_SUBST(STANDALONE_CLEARINGHOUSE)
 AC_SUBST(GMAP_API_KEY)
 AC_SUBST(NODE_USAGE_SUPPORT)
@@ -392,6 +393,7 @@ PROTOGENI_RPCPORT=12369
 PROTOGENI_RPCNAME=""
 GENI_PUBRPCPORT=12370
 PROTOGENI_GENIRACK=0
+PROTOGENI_NICKNAME="unknown"
 STANDALONE_CLEARINGHOUSE=0
 NODE_USAGE_SUPPORT=0
 EXP_VIS_SUPPORT=0
@@ -474,6 +476,43 @@ fi
 # XXX this can optionally be set in the defs file
 if test -n "$FSDIR_SCRATCH"; then
     SCRATCHROOT_DIR="/scratch"
+fi
+
+# Try to guess ProtoGENI nickname if it wasn't specified explicitly,
+# for backward compatibility (nobody used to care what they were called)
+if test x"$PROTOGENI_NICKNAME" = x"unknown"; then
+    case $OURDOMAIN in
+    *utah.geniracks.net) PROTOGENI_NICKNAME="utah-ig";;
+    *utahddc.geniracks.net) PROTOGENI_NICKNAME="utahddc-ig";;
+    *gpolab.bbn.com) PROTOGENI_NICKNAME="gpo-ig";;
+    *northwestern.edu) PROTOGENI_NICKNAME="northwestern-ig";;
+    *lan.sdn.uky.edu) PROTOGENI_NICKNAME="uky-ig";;
+    *kettering.edu) PROTOGENI_NICKNAME="kettering-ig";;
+    *rnoc.gatech.edu) PROTOGENI_NICKNAME="gatech-ig";;
+    *cs.princeton.edu) PROTOGENI_NICKNAME="princeton-ig";;
+    *clemson.edu) PROTOGENI_NICKNAME="clemson-ig";;
+    *ku.gpeni.net) PROTOGENI_NICKNAME="kansas-ig";;
+    *nyu.edu) PROTOGENI_NICKNAME="nyu-ig";;
+    *uidaho.edu) PROTOGENI_NICKNAME="idaho-ig";;
+    *maxgigapop.net) PROTOGENI_NICKNAME="max-ig";;
+    *nysernet.org) PROTOGENI_NICKNAME="nysernet-ig";;
+    *sox.net) PROTOGENI_NICKNAME="sox-ig";;
+    *illinois.edu) PROTOGENI_NICKNAME="illinois-ig";;
+    *rnet.missouri.edu) PROTOGENI_NICKNAME="missouri-ig";;
+    *wisc.edu) PROTOGENI_NICKNAME="wisconsin-ig";;
+    *rutgers.edu) PROTOGENI_NICKNAME="rutgers-ig";;
+    *stanford.edu) PROTOGENI_NICKNAME="stanford-ig";;
+    *it.cornell.edu) PROTOGENI_NICKNAME="cornell-ig";;
+    *lsu.edu) PROTOGENI_NICKNAME="lsu-ig";;
+    *case.edu) PROTOGENI_NICKNAME="cwru-ig";;
+    *iu.edu) PROTOGENI_NICKNAME="moxi-ig";;
+    *uchicago.edu) PROTOGENI_NICKNAME="uchicago-ig";;
+    *metrodatacenter.com) PROTOGENI_NICKNAME="ohmetrodc-ig";;
+    *nps.edu) PROTOGENI_NICKNAME="nps-ig";;
+    *osu.edu) PROTOGENI_NICKNAME="osu-ig";;
+    *umkc.edu) PROTOGENI_NICKNAME="umkc-ig";;
+    *idre.ucla.edu) PROTOGENI_NICKNAME="ucla-ig";;
+    esac
 fi
 
 #
@@ -854,6 +893,7 @@ else
                     event/example/tbsend.py event/example/tbrecv.py \
 		    event/example/eventdebug.pl \
 		    event/proxy/GNUmakefile \
+		    event/monitoring/GNUmakefile \		    
 		    event/nsetrafgen/GNUmakefile \
 		    event/nsetrafgen/nseinput.tcl \
 		    event/nsetrafgen/nse-makepatch \

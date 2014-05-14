@@ -48,7 +48,8 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  reservevlans delgeniuser delegatecredential \
 		  updatecert fixcerts initcerts cacontrol webcacontrol \
 		  genextendcred rspeclint chstats listactive \
-		  maptoslice webmaptoslice setexpiration quickvm webquickvm
+		  maptoslice webmaptoslice setexpiration quickvm webquickvm \
+		  mondbd
 
 ifeq ($(ISCLEARINGHOUSE),1)
 PSBIN_STUFF     += ch_daemon

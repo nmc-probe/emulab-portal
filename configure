@@ -656,10 +656,10 @@ TBROBOCOPSEMAIL_NOSLASH
 TBROBOCOPSEMAIL
 TBOPSEMAIL_NOSLASH
 TBOPSEMAIL
+IPV6_SUBNET_PREFIX
+IPV6_ENABLED
 BROWSER_CONSOLE_ENABLE
 EC2META_ENABLE
-IPV6_ENABLED
-IPV6_SUBNET_PREFIX
 NOSITECHECKIN
 SPEWFROMOPS
 FIREWALL_OPS_LOCALRULETMPL
@@ -687,6 +687,7 @@ NOSTACKMIB
 NODE_USAGE_SUPPORT
 GMAP_API_KEY
 STANDALONE_CLEARINGHOUSE
+PROTOGENI_NICKNAME
 PROTOGENI_GENIRACK
 PROTOGENI_URL
 GENI_PUBRPCPORT
@@ -4937,6 +4938,11 @@ done
 
 
 
+
+
+;
+;
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -5018,8 +5024,8 @@ EXTERNAL_NTPSERVER3="2.pool.ntp.org"
 EXTERNAL_NTPSERVER4="3.pool.ntp.org"
 NTPDRIFTFILE="/var/db/ntp.drift"
 UNIFIED_BOSS_AND_OPS=0
-DISABLE_DHCPD_INSTALL=0
 DISABLE_NAMED_INSTALL=0
+DISABLE_DHCPD_INSTALL=0
 DISABLE_NAMED_SETUP=0
 FRISEBEEMCASTADDR="234.5.6"
 FRISEBEEMCASTPORT=3564
@@ -5042,6 +5048,7 @@ PROTOGENI_RPCPORT=12369
 PROTOGENI_RPCNAME=""
 GENI_PUBRPCPORT=12370
 PROTOGENI_GENIRACK=0
+PROTOGENI_NICKNAME="unknown"
 STANDALONE_CLEARINGHOUSE=0
 NODE_USAGE_SUPPORT=0
 EXP_VIS_SUPPORT=0
@@ -5128,6 +5135,43 @@ fi
 # XXX this can optionally be set in the defs file
 if test -n "$FSDIR_SCRATCH"; then
     SCRATCHROOT_DIR="/scratch"
+fi
+
+# Try to guess ProtoGENI nickname if it wasn't specified explicitly,
+# for backward compatibility (nobody used to care what they were called)
+if test x"$PROTOGENI_NICKNAME" = x"unknown"; then
+    case $OURDOMAIN in
+    *utah.geniracks.net) PROTOGENI_NICKNAME="utah-ig";;
+    *utahddc.geniracks.net) PROTOGENI_NICKNAME="utahddc-ig";;
+    *gpolab.bbn.com) PROTOGENI_NICKNAME="gpo-ig";;
+    *northwestern.edu) PROTOGENI_NICKNAME="northwestern-ig";;
+    *lan.sdn.uky.edu) PROTOGENI_NICKNAME="uky-ig";;
+    *kettering.edu) PROTOGENI_NICKNAME="kettering-ig";;
+    *rnoc.gatech.edu) PROTOGENI_NICKNAME="gatech-ig";;
+    *cs.princeton.edu) PROTOGENI_NICKNAME="princeton-ig";;
+    *clemson.edu) PROTOGENI_NICKNAME="clemson-ig";;
+    *ku.gpeni.net) PROTOGENI_NICKNAME="kansas-ig";;
+    *nyu.edu) PROTOGENI_NICKNAME="nyu-ig";;
+    *uidaho.edu) PROTOGENI_NICKNAME="idaho-ig";;
+    *maxgigapop.net) PROTOGENI_NICKNAME="max-ig";;
+    *nysernet.org) PROTOGENI_NICKNAME="nysernet-ig";;
+    *sox.net) PROTOGENI_NICKNAME="sox-ig";;
+    *illinois.edu) PROTOGENI_NICKNAME="illinois-ig";;
+    *rnet.missouri.edu) PROTOGENI_NICKNAME="missouri-ig";;
+    *wisc.edu) PROTOGENI_NICKNAME="wisconsin-ig";;
+    *rutgers.edu) PROTOGENI_NICKNAME="rutgers-ig";;
+    *stanford.edu) PROTOGENI_NICKNAME="stanford-ig";;
+    *it.cornell.edu) PROTOGENI_NICKNAME="cornell-ig";;
+    *lsu.edu) PROTOGENI_NICKNAME="lsu-ig";;
+    *case.edu) PROTOGENI_NICKNAME="cwru-ig";;
+    *iu.edu) PROTOGENI_NICKNAME="moxi-ig";;
+    *uchicago.edu) PROTOGENI_NICKNAME="uchicago-ig";;
+    *metrodatacenter.com) PROTOGENI_NICKNAME="ohmetrodc-ig";;
+    *nps.edu) PROTOGENI_NICKNAME="nps-ig";;
+    *osu.edu) PROTOGENI_NICKNAME="osu-ig";;
+    *umkc.edu) PROTOGENI_NICKNAME="umkc-ig";;
+    *idre.ucla.edu) PROTOGENI_NICKNAME="ucla-ig";;
+    esac
 fi
 
 #
@@ -5721,6 +5765,7 @@ else
                     event/example/tbsend.py event/example/tbrecv.py \
 		    event/example/eventdebug.pl \
 		    event/proxy/GNUmakefile \
+		    event/monitoring/GNUmakefile \
 		    event/nsetrafgen/GNUmakefile \
 		    event/nsetrafgen/nseinput.tcl \
 		    event/nsetrafgen/nse-makepatch \

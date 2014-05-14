@@ -43,6 +43,9 @@ SUBDIRS        += new_sched
 endif
 endif
 SUBDIRS	       += stated
+ifeq ($(PROTOGENI),1)
+SUBDIRS        += monitoring
+endif
 endif
 
 all:	etc-subdir all-subdirs

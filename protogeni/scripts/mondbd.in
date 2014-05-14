@@ -1,0 +1,259 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2014 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+use strict;
+use English;
+
+#
+# Populate the monitoring database.
+# 
+
+#
+# Configure variables
+#
+my $TB		 = "@prefix@";
+my $TBOPS        = "@TBOPSEMAIL@";
+my $DBNAME	 = "@TBDBNAME@";
+my $DOMAIN       = "@OURDOMAIN@";
+my $URL          = "https://www.$DOMAIN:5001";
+my $PGENISUPPORT = @PROTOGENI_SUPPORT@;
+my $NICKNAME	 = "@PROTOGENI_NICKNAME@";
+my $LOGFILE      = "$TB/log/expire_daemon.log";
+
+# un-taint path
+$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+# Protos
+sub fatal($);
+	  
+#
+# Turn off line buffering on output
+#
+$| = 1; 
+
+if ($UID != 0) {
+    fatal("Must be root to run this script\n");
+}
+
+#
+# Exit if not a protogeni site.
+#
+if (! $PGENISUPPORT) {
+    exit(0);
+}
+
+# Load the Testbed support stuff.
+use lib "@prefix@/lib";
+use libaudit;
+use libdb;
+use libtestbed;
+use emdbi;
+use emutil;
+use Experiment;
+use Interface;
+use Node;
+use OSinfo;
+
+my $ts = time() . "000000";
+my $expire = ( time() - 24 * 60 * 60 ) . "000000";
+
+# Connect to the monitoring DB.
+my $db = emdbi::NewTBDBHandle( "monitoring" );
+my $tbdb = emdbi::NewTBDBHandle( $DBNAME );
+
+if (CheckDaemonRunning("mondbd")) {
+    fatal("Not starting another monitoring daemon!");
+}
+# Go to background.
+if (TBBackGround($LOGFILE)) {
+    exit(0);
+}
+
+if (MarkDaemonRunning("mondbd")) {
+    fatal("Could not mark daemon as running!");
+}
+
+#
+# Setup a signal handler for newsyslog.
+#
+sub handler()
+{
+    my $SAVEEUID = $EUID;
+    
+    $EUID = 0;
+    ReOpenLog($LOGFILE);
+    $EUID = $SAVEEUID;
+}
+$SIG{HUP} = \&handler;
+
+sub AddInterfaces($$) {
+
+    my ($n, $node) = @_;
+    my @interfaces;
+
+    Interface->LookupAll( $node, \@interfaces );
+
+    foreach my $interface( @interfaces ) {
+	my $i = $interface->iface();
+	my $addr = $interface->IP();
+	my $role = $interface->role();
+	my $speed;
+	my $packets;
+
+	if( $interface->TypeCapability( "ethernet_defspeed", \$speed ) < 0 ) {
+	    $speed = 1000000;
+	}
+
+	$speed *= 100;
+	$packets = $speed / 80;
+
+	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface SET " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/node#', " .
+			     "id='${DOMAIN}_interface_$n:$i'," .
+			     "selfRef='$URL/info/interface/${DOMAIN}_interface_$n:$i'," .
+			     "urn='urn:publicid:IDN+$DOMAIN+interface+$n:$i'," .
+			     "ts='$ts'," .
+			     "address_type='ipv4'," .
+			     "address_address='$addr'," .
+			     "properties\$role='$role'," .
+			     "properties\$max_bps='$speed'," .
+			     "properties\$max_pps='$packets'" );
+
+	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node_interface SET " .
+			     "id='${DOMAIN}_interface_$n:$i'," .
+			     "node_id='${DOMAIN}_node_$n'," .
+			     "urn='urn:publicid:IDN+$DOMAIN+interface+$n:$i'," .
+			     "selfRef='$URL/info/interface/${DOMAIN}_interface_$n:$i'" );
+    }
+}
+
+while (1) {
+    # Add the local CM.
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate WHERE ts < $expire" );
+    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate SET " .
+			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/aggregate#', " .
+			 "id='$NICKNAME'," .
+			 "selfRef='$URL/info/aggregate/$NICKNAME'," .
+			 "urn='urn:publicid:IDN+$DOMAIN+authority+cm'," .
+			 "ts='$ts'," .
+			 "measRef='$URL/data/'" );
+
+    # Add local XEN nodes and interfaces from the shared pool.
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node WHERE ts < $expire" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interface WHERE ts < $expire" );
+    emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_node WRITE, " .
+			 "ops_interface WRITE, " .
+			 "ops_aggregate_resource WRITE, " .
+			 "ops_node_interface WRITE" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate_resource" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node_interface" );
+    # The shared pool experiment isn't named consistently across sites.
+    # Rather than fixing it, let's just grab everything we can find and
+    # hope for the best.
+    my @nodes = ExpNodes( "emulab-ops", "shared-node", 1, 1 );
+    my @morenodes = ExpNodes( "emulab-ops", "shared-nodes", 1, 1 );
+    push( @nodes, @morenodes );
+
+    foreach my $n ( @nodes ) {
+	my $node = Node->Lookup( $n );
+	my $os = OSinfo->Lookup( $node->def_boot_osid() );
+
+	next unless $os->osname =~ /XEN/;
+
+	my $mem = $node->memory() * 1024;
+
+	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/node#', " .
+			     "id='${DOMAIN}_node_$n'," .
+			     "selfRef='$URL/info/node/${DOMAIN}_node_$n'," .
+			     "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
+			     "ts='$ts'," .
+			     "properties\$mem_total_kb='$mem'," .
+			     "properties\$vm_server_type='xen'" );
+
+	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
+			     "id='${DOMAIN}_node_$n'," .
+			     "aggregate_id='$NICKNAME'," .
+			     "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
+			     "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
+
+	AddInterfaces( $n, $node );
+    }
+
+    my $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT node_id FROM nodes " .
+					    "WHERE type='interconnect'" );
+    if( $query_result && $query_result->numrows) {
+	my @fakenodes;
+
+	while( @fakenodes = $query_result->fetchrow_array() ) {
+	    my ($n) = @fakenodes;
+	    my $node = Node->Lookup( $n );
+
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
+				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/node#', " .
+				 "id='${DOMAIN}_node_$n'," .
+				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
+				 "ts='$ts'" );
+
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
+				 "id='${DOMAIN}_node_$n'," .
+				 "aggregate_id='$NICKNAME'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
+				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
+	    
+	    AddInterfaces( $n, $node );
+
+	    # FIXME also add portstats data to ops_interface_* tables
+	}
+    }
+
+    emdbi::DBQueryWarnN( $db, "UNLOCK TABLES" );
+
+    sleep( 60 );
+
+    # FIXME add slice, sliver, user, vlan information
+}
+
+sub fatal($)
+{
+    my ($msg) = @_;
+
+    #
+    # Send a message to the testbed list. 
+    #
+    SENDMAIL($TBOPS,
+	     "ProtoGENI monitoring daemon died",
+	     $msg,
+	     $TBOPS);
+    MarkDaemonStopped("mondbd");
+    die("*** $0:\n".
+	"    $msg\n");
+}
