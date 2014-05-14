@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -201,20 +201,32 @@ sub CallMethod($$$@)
 	#
 	#$IO::Socket::SSL::DEBUG = 4;
 	$Net::SSLeay::slowly = 1;
-	
-	$IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_key_file'} =
-	    $context->keyfile();	    
-	$IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_cert_file'} =
-	    $context->certfile();	    
-	$IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_use_cert'} = 1;
 
+	if ($FBSD_MAJOR >= 10) {
+	    IO::Socket::SSL::set_defaults('SSL_key_file' => $context->keyfile(),
+				'SSL_cert_file' => $context->certfile(),
+				'SSL_use_cert' => 1);
+	}
+	else {
+	    $IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_key_file'} =
+		$context->keyfile();	    
+	    $IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_cert_file'} =
+		$context->certfile();	    
+	    $IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_use_cert'} = 1;
+	}
 	#
 	# If we have a passphrase in the context, then provide a callback
 	# to hand it back. Otherwise the user gets prompted for it.
 	#
-	if (defined($context->password())) {
-	    $IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_passwd_cb'} =
-		sub { return $context->password(); };
+	if (defined($context->password())) {	
+	    if ($FBSD_MAJOR >= 10) {
+		IO::Socket::SSL::set_defaults('SSL_passwd_cb' =>
+					  sub { return $context->password(); });
+	    }
+	    else {
+		$IO::Socket::SSL::GLOBAL_CONTEXT_ARGS->{'SSL_passwd_cb'} =
+		    sub { return $context->password(); };
+	    }
 	}
     }
     else {
