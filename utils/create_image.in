@@ -74,6 +74,7 @@ my $usessh   = 0;
 my $usenfs   = 0;
 my $usefup   = 1;
 my $noemail  = 0;
+my $webtask;
 
 #
 # Configure variables
@@ -98,6 +99,7 @@ use User;
 use Image;
 use OSinfo;
 use Logfile;
+use WebTask;
 
 #
 # Turn off line buffering on output
@@ -422,6 +424,12 @@ if ($image->Lock()) {
 }
 $needunlock = 1;
 
+# See if a web task is tracking this image creation.
+$webtask = WebTask->LookupByObject($image->uuid());
+if (defined($webtask)) {
+    $webtask->AutoStore(1);
+}
+
 #
 # Be sure to kill off running frisbee. If a node is trying to load that
 # image, well tough. 
@@ -657,6 +665,10 @@ elsif ($isvirtnode) {
     fatal("'$cmd' failed")
 	if ($?);
 
+    # Mark webtask
+    $webtask->status("imaging")
+	if (defined($webtask));
+
     $EUID = $UID = $SAVEUID;
 
     #
@@ -703,6 +715,10 @@ if ($usessh) {
 	goto done;
     }
 
+    # Mark webtask
+    $webtask->status("imaging")
+	if (defined($webtask));
+
     #
     # ...execute command and wait!
     #
@@ -715,6 +731,10 @@ if ($usessh) {
     $args{'timeout'} = $maxwait + $checkwait;
     $args{'pfunc'}     = \&check_progress;
     $args{'pinterval'} = $checkwait;
+
+    # Mark webtask
+    $webtask->status("imaging")
+	if (defined($webtask));
 
     my $retry = 1;
     while ($retry) {
@@ -791,6 +811,9 @@ if ($result != 0) {
 }
 
 ec2done:
+if (defined($webtask)) {
+    $webtask->status("finishing");
+}
 #
 # Everything worked, create the hash signature file.
 #
@@ -867,6 +890,10 @@ if (defined($logfile)) {
     $logfile->Close();
     $image->ClearLogFile();
 }
+if (defined($webtask)) {
+    $webtask->status("ready");
+    $webtask->Exited(0);
+}
 $image->Unlock();
 exit 0;
 
@@ -932,6 +959,12 @@ sub fatal($)
 	# Close up the log file so the webpage stops.
 	$logfile->Close();
 	$image->ClearLogFile();
+    }
+    
+    if (defined($webtask)) {
+	$webtask->status("failed");
+	$webtask->imagesize(0);
+	$webtask->Exited(1);
     }
     $image->Unlock()
 	if ($needunlock);
@@ -1026,7 +1059,9 @@ sub check_progress($$)
 	    " it has been ". $curtdiff ." minutes.".
 	    " Current image size: $cursize bytes.\n";
     }
-
+    if (defined($webtask)) {
+	$webtask->imagesize($cursize / 1024);
+    }
     return 1;
 }
 
