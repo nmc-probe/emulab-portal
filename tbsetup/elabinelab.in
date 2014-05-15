@@ -194,6 +194,7 @@ if (! defined($this_user)) {
 my $user_uid   = $this_user->uid();
 my $user_name  = $this_user->name();
 my $user_email = $this_user->email();
+my $user_dir   = $this_user->HomeDir();
 
 TBDebugTimeStampsOn();
 
@@ -355,6 +356,7 @@ system("scp $mkelab $mkextrafs ${opsnode}:/var/run/")
     if (defined($opsnode));
 system("scp $mkelab $mkextrafs ${fsnode}:/var/run/")
     if (defined($fsnode));
+system("scp $user_dir/.ssl/emulab.pem ${bossnode}:/var/run/");
 
 if (defined($fsnode)) {
     TBDebugTimeStamp("Setting up fsnode");
