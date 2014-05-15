@@ -2024,7 +2024,12 @@ sub SetupBossNode($)
     }
 
     # Copy over creators ssl certificate for XMLRPC. See below.
-    mysystem("cp -fp ~${creator}/.ssl/emulab.pem $stuffdir");
+    if (-e "/var/run/emulab.pem") {
+	mysystem("cp -fp /var/run/emulab.pem $stuffdir");
+    }
+    else {
+	mysystem("cp -fp ~${creator}/.ssl/emulab.pem $stuffdir");
+    }
     # Copy extra ssh pub key for adding to elabman.
     mysystem("cp -fp ~${creator}/.ssh/elabinelab.pub $stuffdir")
 	if (-e "/users/${creator}/.ssh/elabinelab.pub");
