@@ -377,5 +377,53 @@ sub CheckFirewall($$)
     }
     return GeniXML::Serialize($rspec);
 }
+
+#
+# Lock and Unlock
+#
+sub Lock($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+    return -1
+	if (!DBQueryWarn("lock tables apt_profiles write"));
+
+    my $idx = $self->idx();
+
+    my $query_result =
+	DBQueryWarn("update apt_profiles set locked=now() " .
+		    "where idx='$idx' and locked is null");
+
+    if (! $query_result ||
+	$query_result->numrows == 0) {
+	DBQueryWarn("unlock tables");
+	return -1;
+    }
+    DBQueryWarn("unlock tables");
+    $self->{'PROFILE'}->{'locked'} = time();
+    return 0;
+}
+
+sub Unlock($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $idx = $self->idx();
+
+    return -1
+	if (! DBQueryWarn("update apt_profiles set ".
+			  "locked=null where idx='$idx'"));
+    
+    $self->{'PROFILE'}->{'locked'} = 0;
+    return 0;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
