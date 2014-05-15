@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2005-2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -127,28 +127,33 @@ function STARTLOG($object)
     if (!is_a($object, 'Logfile')) {
 	$object = $object->GetLogfile();
     }
-    $url = CreateURL("fetchlogfile", $object);
+    $url = CreateURL("spewlogfile", $object);
 
-    echo "<center>\n";
-    echo "<img id='load_busy' src='busy.gif'>
+    #
+    # If the logfile is open, put up the spinner.
+    #
+    if ($object->isopen()) {
+	echo "<center>\n";
+	echo "<img id='load_busy' src='busy.gif'>
                    <span id='load_loading'> Working ...</span>";
-    echo "</center>\n";
-    echo "<br>\n";
-    
-    echo "<div align=center><iframe class='outputframe' ".
-	"id='outputframe' name='outputframe'></iframe></div>\n";
+	echo "</center>\n";
+	echo "<br>\n";
 
-    echo "<script type='text/javascript' language='javascript' src='json.js'>
-          </script>".
-	 "<script type='text/javascript' language='javascript'
-                  src='mungelog.js'>
-          </script>\n";
+        echo "<script>
+              function loadFinished() {
+                  var busyimg     = getObjbyName('load_busy');
+                  var loadingspan = getObjbyName('load_loading');
+
+                  busyimg.style.display = 'none';
+                  busyimg.src           = '1px.gif';
+                  loadingspan.innerHTML = '<center><b>Done!</b></center>';
+              }
+              </script>\n";
+    }
     echo "<iframe id='downloader' name='downloader'
-                 class='downloader' src='$url'
-                 onload='ml_handleReadyState(LOG_STATE_LOADED);'>
+                 class='downloader' src='$url'>
          </iframe></div>\n";
     echo "<script type='text/javascript' language='javascript'>\n";
-    echo "  HideFrame('outputframe');\n";
     echo "  ShowDownLoader('downloader');\n";
     echo "</script>";
 }

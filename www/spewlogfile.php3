@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,7 +33,8 @@ $anonopt   = ($this_user ? "" : "-a");
 #
 # Verify page arguments.
 #
-$reqargs = RequiredPageArguments("logfile", PAGEARG_LOGFILE);
+$reqargs = RequiredPageArguments("logfile",  PAGEARG_LOGFILE);
+$optargs = OptionalPageArguments("asajax",   PAGEARG_BOOLEAN);
 
 if (! isset($logfile)) {
     PAGEARGERROR("Must provide either a logfile ID");
@@ -41,6 +42,22 @@ if (! isset($logfile)) {
 
 # Check permission in the backend.
 $logfileid = $logfile->logid();
+
+#
+# Spew is broken in Chrome, so we have switched to a pure ajax
+# approach (thanks Jon!). If the logfile is currently open, we
+# return an HTML fragment that requests this page again, but as
+# an ajax request, so that the client gets periodic updates.
+#
+if (!isset($asajax) && $logfile->isopen()) {
+   header("Content-type: text/html; charset=utf-8");
+   header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+   header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+   header("Cache-Control: no-cache, must-revalidate");
+   header("Pragma: no-cache");
+   readfile("fetchlogfile.php3");
+   return;
+}
 
 #
 # A cleanup function to keep the child from becoming a zombie, since

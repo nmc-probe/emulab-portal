@@ -1,10 +1,3 @@
-<?php
-   header("Content-type: text/html; charset=utf-8");
-   header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
-   header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
-   header("Cache-Control: no-cache, must-revalidate");
-   header("Pragma: no-cache");
-?>
 <!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN'
           'http://www.w3.org/TR/html4/loose.dtd'>
 <html>
@@ -18,8 +11,8 @@
       // the current path.
       var url = window.location.protocol + '//' +
         window.location.host +
-        '/spewlogfile.php3' +
-        window.location.search;
+        '/spewlogfile.php3' + 
+        window.location.search + '&isajax=1';
 
       // Fetch spewlogfile via AJAX call
       var xhr = new XMLHttpRequest();
@@ -45,6 +38,18 @@
             window.scroll(window.scrollX, document.body.scrollHeight);
           }
         }
+	//
+	// Request is done, we got everything. 
+	//
+	if (xhr.readyState == 4) {
+	    #
+	    # This will clear th busy indicators in the outer page,
+	    # if there are any.
+	    #
+            if (typeof(parent.loadFinished) == "function") {
+		parent.loadFinished();
+	    }
+	}
       };
       // Invoke the AJAX
       xhr.open('get', url, true);
