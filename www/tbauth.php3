@@ -974,6 +974,7 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null, $adminon = 0)
     global $WIKISUPPORT, $WIKICOOKIENAME;
     global $BUGDBSUPPORT, $BUGDBCOOKIENAME, $TRACSUPPORT, $TRACCOOKIENAME;
     global $TBLIBEXEC_DIR, $EXP_VIS;
+    $flushtime = time() - 1000000;
     
     # Caller makes these checks too.
     if (!TBvalid_uid($uid)) {
@@ -1053,8 +1054,6 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null, $adminon = 0)
     # for a different user, sitting in the brower. 
     # 
     if ($WIKISUPPORT) {
-	$flushtime = time() - 1000000;
-	    
 	setcookie($WIKICOOKIENAME, "", $flushtime, "/",
 		  $TBAUTHDOMAIN, $TBSECURECOOKIES);
     }
@@ -1070,15 +1069,11 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null, $adminon = 0)
     # Ditto for bugdb
     # 
     if ($BUGDBSUPPORT) {
-	$flushtime = time() - 1000000;
-	    
 	setcookie($BUGDBCOOKIENAME, "", $flushtime, "/",
 		  $TBAUTHDOMAIN, $TBSECURECOOKIES);
     }
     # These cookie names are still in flux. 
     if ($TRACSUPPORT) {
-	$flushtime = time() - 1000000;
-	    
 	setcookie("trac_auth_emulab", "", $flushtime, "/",
 		  $TBAUTHDOMAIN, $TBSECURECOOKIES);
 	setcookie("trac_auth_emulab_priv", "", $flushtime, "/",
@@ -1088,6 +1083,9 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null, $adminon = 0)
 	setcookie("trac_auth_protogeni_priv", "", $flushtime, "/",
 		  $TBAUTHDOMAIN, $TBSECURECOOKIES);
     }
+    # Clear the PHP session cookie, in case someone is using sessions.
+    setcookie(session_name(), "", $flushtime, "/",
+	      $TBAUTHDOMAIN, $TBSECURECOOKIES);
 	
     DBQueryFatal("update users set ".
 		 "       weblogin_failcount=0,weblogin_failstamp=0 ".
