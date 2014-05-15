@@ -180,6 +180,16 @@ sub LookupByURL($$)
 }
 
 #
+# Lookup a "system" osid, meaning one in the emulab-ops project.
+#
+sub LookupByName($$)
+{
+    my ($class, $imagename) = @_;
+
+    return Image->Lookup(TBOPSPID(), $imagename);
+}
+
+#
 # Get a list of all running frisbee images.
 # XXX if this is actually used, it will have to be fixed; DB no longer
 # tracks running frisbee daemons.
