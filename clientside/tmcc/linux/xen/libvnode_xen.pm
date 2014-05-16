@@ -222,6 +222,9 @@ my $RTTABLES       = "/etc/iproute2/rt_tables";
 # Temporary; later kernel version increases this.
 my $MAXROUTETTABLE = 255;
 
+# Whether or not to use only unpartitioned (unused) disks to form the Xen VG.
+my $LVM_FULLDISKONLY = 0;
+
 # LVM snapshots suck.
 my $DOSNAP = 0;
 
@@ -482,7 +485,7 @@ sub rootPreConfig($)
 		$blockdevs .= " /dev/$dev";
 		$totalSize += $devs{$dev}{"size"};
 	    }
-	    else {
+	    elsif ($LVM_FULLDISKONLY == 0) {
 		foreach my $part (keys(%{$devs{$dev}})) {
 		    $blockdevs .= " /dev/${dev}${part}";
 		    $totalSize += $devs{$dev}{$part}{"size"};
