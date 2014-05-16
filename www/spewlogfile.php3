@@ -34,7 +34,7 @@ $anonopt   = ($this_user ? "" : "-a");
 # Verify page arguments.
 #
 $reqargs = RequiredPageArguments("logfile",  PAGEARG_LOGFILE);
-$optargs = OptionalPageArguments("asajax",   PAGEARG_BOOLEAN);
+$optargs = OptionalPageArguments("isajax",   PAGEARG_BOOLEAN);
 
 if (! isset($logfile)) {
     PAGEARGERROR("Must provide either a logfile ID");
@@ -49,7 +49,7 @@ $logfileid = $logfile->logid();
 # return an HTML fragment that requests this page again, but as
 # an ajax request, so that the client gets periodic updates.
 #
-if (!isset($asajax) && $logfile->isopen()) {
+if (!isset($isajax) && $logfile->isopen()) {
    header("Content-type: text/html; charset=utf-8");
    header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
    header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");

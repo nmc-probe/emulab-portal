@@ -9,9 +9,7 @@
       var lastIndex = 0;
       // The url is the same as this one with 'spewlogfile.php3' instead of
       // the current path.
-      var url = window.location.protocol + '//' +
-        window.location.host +
-        '/spewlogfile.php3' + 
+      var url = 'spewlogfile.php3' + 
         window.location.search + '&isajax=1';
 
       // Fetch spewlogfile via AJAX call
@@ -31,7 +29,6 @@
           // If the user is scrolled to the bottom, make sure they
           // stay scrolled to the bottom after appending.
           var shouldScroll = (document.body.scrollHeight - window.scrollY === window.innerHeight);
-	  console.log(document.body.scrollHeight, window.scrollY, window.innerHeight);
           $('pre').append(_.escape(newText));
           if (shouldScroll)
           {
