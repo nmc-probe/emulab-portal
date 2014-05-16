@@ -295,7 +295,7 @@ if (isset($this_user) && ISADMIN()) {
     echo "  <a class='btn btn-xs btn-primary' $disabled hidden
                id='snapshot_button' type=button
     	       href='manage_profile.php?action=snapshot&snapuuid=$uuid'>
-               Snapshot</a>\n";
+               Clone</a>\n";
 }
 echo "  <button class='btn btn-xs btn-success' $disabled
            id='extend_button' type=button
