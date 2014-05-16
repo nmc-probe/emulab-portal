@@ -138,8 +138,9 @@ if (isset($profile)) {
 #
 $query_result =
     DBQueryFatal("select * from apt_profiles ".
-		 "where public=1 " .
-		 ($this_user ? "or creator_idx=" . $this_user->uid_idx() : ""));
+		 "where locked is null and (public=1 " .
+		 ($this_user ? "or creator_idx=" . $this_user->uid_idx() : "").
+		 ")");
 while ($row = mysql_fetch_array($query_result)) {
     $profile_array[$row["uuid"]] = $row["name"];
     if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
