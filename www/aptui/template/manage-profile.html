@@ -65,7 +65,13 @@
 			   data-key="profile_pid"			
 			   placeholder='Please Select'>
 		     <% _.each(projects, function(name) { %>
-	                <option value='<%= name %>'><%= name %></option>
+	                <option 
+			  <% if (_.has(formfields, 'profile_pid') &&
+			         formfields.profile_pid == name) { %>
+			     selected
+			  <% } %>
+			  value='<%= name %>'><%= name %>
+			</option>
 			<% }); %>
 		   </select>
 		<% } %>

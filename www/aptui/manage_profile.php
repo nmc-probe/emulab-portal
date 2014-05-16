@@ -247,6 +247,7 @@ if (! isset($create)) {
 	if (count($projlist) == 1) {
 	    $defaults["profile_pid"] = $projlist[0];
 	}
+	$defaults["profile_who"]   = "shared";
     }
     SPITFORM($defaults, $errors);
     return;
