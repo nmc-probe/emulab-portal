@@ -56,7 +56,7 @@ function ($, sup, moment)
 	    event.preventDefault();
 	    
 	    sup.HideModal('#terminate_modal');
-	    ButtonDisable();
+	    DisableButtons();
 
 	    var callback = function(json) {
 		// This is considered the home page, for now.
@@ -130,7 +130,7 @@ function ($, sup, moment)
 		    StartResizeWatchdog()
 		    StatusWatchCallBack.active = 1;
 		}
-		ButtonEnable();
+		EnableButtons();
 	    }
 	    else if (status == 'failed') {
 		bgtype = "bg-danger";
@@ -143,19 +143,20 @@ function ($, sup, moment)
 		    $("#quickvm_progress").addClass("progress-bar-danger");
 		    $("#quickvm_progress_bar").width("100%");
 		}
-		ButtonDisable();
+		DisableButtons();
+		EnableButton("terminate");
 	    }
 	    else if (status == 'imaging') {
 		bgtype = "bg-warning";
-		statustext = "Your experiment is busy while we copy your disk ";
+		statustext = "Your experiment is busy while we copy your disk";
 		status_html = "<font color=red>imaging</font>";
-		ButtonDisable();
+		DisableButtons();
 	    }
 	    else if (status == 'terminating' || status == 'terminated') {
 		status_html = "<font color=red>" + status + "</font>";
 		bgtype = "bg-danger";
 		statustext = "Your experiment has been terminated!";
-		ButtonDisable();
+		DisableButtons();
 		StartCountdownClock.stop = 1;
 	    }
 	    $("#statusmessage").html(statustext);
@@ -174,29 +175,42 @@ function ($, sup, moment)
     //
     // Enable/Disable buttons. 
     //
-    function ButtonEnable()
+    function EnableButtons()
     {
-	ButtonState(1);
+	EnableButton("terminate");
+	EnableButton("extend");
+	EnableButton("snapshot");
     }
-    function ButtonDisable()
+    function DisableButtons()
     {
-	ButtonState(0);
+	DisableButton("terminate");
+	DisableButton("extend");
+	DisableButton("snapshot");
     }
-    function ButtonState(enable)
+    function EnableButton(button)
     {
+	ButtonState(button, 1);
+    }
+    function DisableButton(button)
+    {
+	ButtonState(button, 0);
+    }
+    function ButtonState(button, enable)
+    {
+	if (button == "terminate")
+	    button = "#terminate_button";
+	else if (button == "extend")
+	    button = "#extend_button";
+	else if (button == "snapshot" && nodecount == 1)
+	    button = "#snapshot_button";
+	else
+	    return;
+
 	if (enable) {
-	    $("#terminate_button").prop("disabled", false);
-	    $("#extend_button").prop("disabled", false);
-	    if (nodecount == 1) {
-		$("#snapshot_button").prop("disabled", false);
-	    }
+	    $(button).removeAttr("disabled");
 	}
 	else {
-	    $("#terminate_button").prop("disabled", true);
-	    $("#extend_button").prop("disabled", true);
-	    if (nodecount == 1) {
-		$("#snapshot_button").prop("disabled", true);
-	    }
+	    $(button).attr("disabled", "disabled");
 	}
     }
 
@@ -584,6 +598,7 @@ function ($, sup, moment)
 	    // single node experiments can do this.
 	    if (nodecount == 1) {
 		$("#snapshot_button").removeClass("invisible");
+		EnableButton("snapshot");
 	    }
 
 	    // And start up ssh for single node topologies.
