@@ -43,10 +43,6 @@ $optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
 RedirectSecure();
 $this_user = CheckLogin($check_status);
 if (!$this_user) {
-    if (isset($ajax_request)) {
-	SPITAJAX_ERROR(1, "You are not logged in anymore");
-	exit();
-    }
     RedirectLoginPage();
     exit();
 }
