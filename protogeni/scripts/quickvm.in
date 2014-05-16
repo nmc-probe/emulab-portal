@@ -45,7 +45,7 @@ sub usage()
     print "Usage: quickvm -s <uuid> <sliver_urn> <imagename>\n";
     exit(1);
 }
-my $optlist = "dkve:lu:a:s";
+my $optlist = "dkve:lu:a:st:f";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
@@ -54,7 +54,10 @@ my $DDCURN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
 my $localuser = 0;;
 my $xmlfile;
 my $extend;
+my $webtask;
+my $webtask_id;
 my $snapshot;
+my $foreground = 0;
 my $quickuuid;
 my $aggregate;
 
@@ -106,6 +109,7 @@ use GeniHRN;
 use Genixmlrpc;
 use GeniResponse;
 use GeniXML;
+use WebTask;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -127,6 +131,9 @@ if (defined($options{"v"})) {
 if (defined($options{"l"})) {
     $localuser = 1;
 }
+if (defined($options{"f"})) {
+    $foreground = 1;
+}
 if (defined($options{"k"})) {
     $killit = 1;
 }
@@ -135,6 +142,9 @@ if (defined($options{"s"})) {
 }
 if (defined($options{"e"})) {
     $extend = $options{"e"};
+}
+if (defined($options{"t"})) {
+    $webtask_id = $options{"t"};
 }
 if (defined($options{"u"})) {
     $quickuuid = $options{"u"};
@@ -893,10 +903,26 @@ sub SnapShot($$$)
     if ($slice->Lock()) {
 	fatal("Slice is busy, cannot lock it");
     }
+
+    #
+    # We got a webtask ID, which means we want to store the status
+    # in the webtask structure. Look it up, create if it does not
+    # exist.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	if (!defined($webtask)) {
+	    fatal("Could not locate webtask for $webtask_id")
+	}
+    }
     $instance->SetStatus("imaging");
 
+    # For debugging.
+    my $cmurl = $cm_authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/;
+
     my $response =
-	Genixmlrpc::CallMethod($cm_authority->url(), undef,
+	Genixmlrpc::CallMethod($cmurl, undef,
 			       "CreateImage",
 			       { "slice_urn"  => $slice->urn(),
 				 "sliver_urn" => $sliver_urn,
@@ -916,14 +942,24 @@ sub SnapShot($$$)
     # Could be better.
     #
     my ($image_urn, $image_url) = @{ $response->value() };
+
+    #
+    # We got a webtask ID, which means we want to create a web task
+    # structure to track its progress.
+    #
+    if (defined($webtask)) {
+	$webtask->image_urn($image_urn);
+	$webtask->image_url($image_url);
+	$webtask->Store();
+    }
     
     #
     # Exit and leave child to poll. We are looking for the sliver
     # to unlock, which means the createimage is done. What we do
-    # not know is if it failed to acrtually create the image. Need
+    # not know is if it failed to actually create the image. Need
     # to think about this.
     #
-    if (!$debug) {
+    if (! ($debug || $foreground)) {
 	my $child = fork();
 	if ($child) {
 	    # Parent exits but avoid libaudit email.
@@ -936,8 +972,12 @@ sub SnapShot($$$)
 	# All of the logging magic happens in here.
 	libaudit::AuditFork();
     }
+    # Bind the process id.
+    $webtask->SetProcessID($PID)
+	if (defined($webtask));
+    
     my $seconds  = 1200;
-    my $interval = 15;
+    my $interval = 5;
     my $ready    = 0;
     my $failed   = 0;
 
@@ -946,7 +986,7 @@ sub SnapShot($$$)
 	$seconds -= $interval;
     
 	my $response =
-	    Genixmlrpc::CallMethod($cm_authority->url(), undef,
+	    Genixmlrpc::CallMethod($cmurl, undef,
 				   "SliverStatus",
 				   { "slice_urn"   => $slice->urn(),
 				     "credentials" =>
@@ -971,6 +1011,55 @@ sub SnapShot($$$)
 	if (exists($blob->{'public_url'})) {
 	    $public_url = $blob->{'public_url'};
 	}
+	if (defined($webtask)) {
+	    #
+	    # Need to find the sliver inside the blob.
+	    #
+	    my $sliverblob = $blob->{'details'}->{$sliver_urn};
+	    if (defined($sliverblob)) {
+		$webtask->state($sliverblob->{'state'});
+		$webtask->rawstate($sliverblob->{'rawstate'});
+	    }
+	}
+	if ($blob->{'status'} eq "failed") {
+	    $failed = 1;
+	    last;
+	}
+	#
+	# We are watching for the image status to report ready or failed.
+	#
+	$response =
+	    Genixmlrpc::CallMethod($cmurl, undef,
+				   "ImageInfo",
+				   { "image_urn"   => $image_urn,
+				     "credentials" =>
+					 [$slice_credential->asString(),
+					  $speaksfor_credential->asString()]});
+
+	if (!defined($response) || !defined($response->value()) ||
+	    ($response->code() != GENIRESPONSE_SUCCESS &&
+	     $response->code() != GENIRESPONSE_BUSY)) {
+	    print STDERR "ImageInfo failed";
+	    if (defined($response)) {
+		print STDERR ": " . $response->output();
+	    }
+	    print STDERR "\n";
+	    next;
+	}
+	next
+	    if ($response->code() == GENIRESPONSE_BUSY);
+
+	$blob = $response->value();
+
+	if (defined($webtask)) {
+	    if (exists($blob->{'size'})) {
+		$webtask->image_size($blob->{'size'});
+	    }
+	    if (exists($blob->{'status'})) {
+		$webtask->image_status($blob->{'status'});
+	    }
+	    $webtask->Store();
+	}
 	if ($blob->{'status'} eq "ready") {
 	    $ready = 1;
 	    last;
@@ -982,15 +1071,26 @@ sub SnapShot($$$)
     }
     if ($failed) {
 	print STDERR "Imaging failed\n";
+	$webtask->Exited(1)
+	    if (defined($webtask));
+	exit(1);
     }
     elsif (!$ready) {
 	print STDERR "Imaging timed out\n"; 
+	$webtask->Exited(60)
+	    if (defined($webtask));
+	exit(1);
     }
     else {
 	# Leave the slice locked if it failed; need to think about
 	# what we should do. 
 	$slice->UnLock();
 	$instance->SetStatus("ready");
+	# We garbage collect these later, so anyone waiting has a chance
+	# to see the exit status
+	$webtask->Exited(0)
+	    if (defined($webtask));
+	print "$image_urn,$image_url\n";
     }
   done:
     exit(0);

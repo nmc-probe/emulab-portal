@@ -27,6 +27,8 @@ use Getopt::Std;
 use XML::Simple;
 use Data::Dumper;
 use CGI;
+use POSIX ":sys_wait_h";
+use POSIX qw(setsid);
 
 #
 # Back-end script to manage APT profiles.
@@ -37,7 +39,7 @@ sub usage()
     print("Usage: manage_profile -r profile\n");
     exit(-1);
 }
-my $optlist     = "durs:";
+my $optlist     = "durs:t:";
 my $debug       = 0;
 my $verify      = 0;	# Check data and return status only.
 my $update      = 0;
@@ -45,6 +47,8 @@ my $delete      = 0;
 my $skipadmin   = 0;
 my $snapuuid;
 my $instance;
+my $webtask;
+my $webtask_id;
 
 #
 # Configure variables
@@ -77,6 +81,7 @@ use APT_Profile;
 use APT_Instance;
 use GeniXML;
 use GeniHRN;
+use WebTask;
 
 # Protos
 sub fatal($);
@@ -102,6 +107,9 @@ if (defined($options{"u"})) {
 }
 if (defined($options{"s"})) {
     $snapuuid = $options{"s"};
+}
+if (defined($options{"t"})) {
+    $webtask_id = $options{"t"};
 }
 if (@ARGV != 1) {
     usage();
@@ -307,7 +315,22 @@ if (defined($instance)) {
     my $apt_uuid   = $instance->uuid();
     my $imagename  = $profile->name();
 
-    my $command = "$QUICKVM -s $apt_uuid $sliver_urn $imagename";
+    #
+    # Grab the webtask object so we can watch it. We are looking
+    # for it to finish, so we can unlock the profile for use. 
+    #
+    $webtask = WebTask->Create($profile->uuid(), $webtask_id);
+    if (!defined($webtask)) {
+	$profile->Delete();
+    }
+
+    if ($profile->Lock()) {
+	$profile->Delete();
+	fatal("Could not lock new profile");
+    }
+
+    my $command = "$QUICKVM " . ($webtask_id ? "-t $webtask_id " : " ") .
+	"-s $apt_uuid $sliver_urn $imagename";
     #
     # This returns pretty fast, and then the imaging takes place in
     # the background at the aggregate. quickvm keeps a process running
@@ -317,6 +340,7 @@ if (defined($instance)) {
     my $output = emutil::ExecQuiet($command);
     if ($?) {
 	$profile->Delete();
+	$webtask->Delete();
 	fatal("Failed to create disk image!");
     }
     #
@@ -342,6 +366,36 @@ if (defined($instance)) {
 	$profile->Delete();
 	fatal("Could not update rspec");
     }
+
+    #
+    # Exit and leave child to poll.
+    #
+    if (! $debug) {
+	my $child = fork();
+	if ($child) {
+	    exit(0);
+	}
+	# Let parent exit;
+	sleep(2);
+        POSIX::setsid();
+    }
+    my $seconds  = 1200;
+    my $interval = 5;
+
+    while ($seconds >= 0) {
+	sleep($interval);
+	$seconds -= $interval;
+
+	$webtask->Refresh();
+	last
+	    if (defined($webtask->exited()));
+    }
+    if ($webtask->exitcode()) {
+	$profile->Delete();
+	exit(1);
+    }
+    $profile->Unlock();
+    exit(0);
 }
 exit(0);
 
