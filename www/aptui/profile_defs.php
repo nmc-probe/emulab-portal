@@ -82,6 +82,8 @@ class Profile
     function weburi()	    { return $this->field('weburi'); }
     function description()  { return $this->field('description'); }
     function rspec()	    { return $this->field('rspec'); }
+    function locked()	    { return $this->field('status'); }
+    function status()	    { return $this->field('locked'); }
     
     # Hmm, how does one cause an error in a php constructor?
     function IsValid() {
@@ -135,6 +137,13 @@ class Profile
 	}
 	$this->profile    = mysql_fetch_array($query_result);
 	$this->project    = null;
+	return 0;
+    }
+
+    # Delete should probably move to the backend?
+    function Delete() {
+	$idx = $this->idx();
+	DBQueryFatal("delete from apt_profiles where idx='$idx'");
 	return 0;
     }
 
