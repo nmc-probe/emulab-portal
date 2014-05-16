@@ -919,7 +919,7 @@ sub SnapShot($$$)
 
     # For debugging.
     my $cmurl = $cm_authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    #$cmurl =~ s/protogeni/protogeni\/stoller/;
 
     my $response =
 	Genixmlrpc::CallMethod($cmurl, undef,
