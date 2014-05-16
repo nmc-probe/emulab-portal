@@ -5,10 +5,12 @@ require(['jquery', 'js/quickvm_sup',
 function ($, sup)
 {
     'use strict';
+    var ajaxurl = null;
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+	ajaxurl  = window.AJAXURL;
 
 	var table = $(".tablesorter")
 		.tablesorter({
@@ -65,7 +67,8 @@ function ($, sup)
  			   ($("#showtopo_nopicker").outerWidth() - 2),
 			   300, topo, null);
 	};
-	var $xmlthing = sup.CallMethod("getprofile", null, 0, profile);
+	var $xmlthing = sup.CallServerMethod(ajaxurl, "GetProfile",
+				     	     {"uuid" : profile});
 	$xmlthing.done(callback);
     }
 

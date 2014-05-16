@@ -35,6 +35,30 @@ function CallMethod(method, callback, uuid, arg)
     });
 }
 
+function CallServerMethod(url, method, args)
+{
+    if (url == null) {
+	url = 'https://' + window.location.host + '/apt/server-ajax.php';
+    }
+    return $.ajax({
+	// the URL for the request
+	url: url,
+ 
+	// the data to send (will be converted to a query string)
+	data: {
+	    ajax_request:   1,
+	    ajax_method:    method,
+	    ajax_args:      args,
+	},
+ 
+	// whether this is a POST or GET request
+	type: "POST",
+ 
+	// the type of data we expect back
+	dataType : "json",
+    });
+}
+
 function maketopmap(divname, width, height, json, sshcallback)
 {
 	var ismousedown = false;
@@ -352,6 +376,7 @@ return {
     ShowModal: ShowModal,
     HideModal: HideModal,
     CallMethod: CallMethod,
+    CallServerMethod: CallServerMethod,
     ConvertManifestToJSON: ConvertManifestToJSON,
     maketopmap: maketopmap,
     SpitOops: SpitOops,

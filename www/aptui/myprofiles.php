@@ -31,10 +31,7 @@ $page_title = "My Profiles";
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
-				 "all",           PAGEARG_BOOLEAN,
-				 "ajax_request",  PAGEARG_BOOLEAN,
-				 "ajax_method",   PAGEARG_STRING,
-				 "ajax_argument", PAGEARG_STRING);
+				 "all",           PAGEARG_BOOLEAN);
 
 #
 # Get current user.
@@ -42,10 +39,6 @@ $optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
 RedirectSecure();
 $this_user = CheckLogin($check_status);
 if (!$this_user) {
-    if (isset($ajax_request)) {
-	SPITAJAX_ERROR(1, "You are not logged in anymore");
-	exit();
-    }
     RedirectLoginPage();
     exit();
 }
@@ -54,41 +47,12 @@ if (!isset($target_user)) {
 }
 if (!$this_user->SameUser($target_user)) {
     if (!ISADMIN()) {
-	if (isset($ajax_request)) {
-	    SPITAJAX_ERROR(1, "You do not have permission to do this");
-	}
-	else {
-	    SPITUSERERROR("You do not have permission to view ".
-			  "target user's profiles");
-	}
+	SPITUSERERROR("You do not have permission to view ".
+		      "target user's profiles");
 	exit();
     }
 }
 $target_idx = $target_user->uid_idx();
-
-#
-# Deal with ajax requests.
-#
-if (isset($ajax_request)) {
-    if ($ajax_method == "getprofile") {
-	$profile_idx = addslashes($ajax_argument);
-	$query_result =
-	    DBQueryWarn("select * from apt_profiles ".
-			"where idx='$profile_idx'");
-
-	if (!$query_result || !mysql_num_rows($query_result)) {
-	    SPITAJAX_ERROR(1, "No such profile $profile_idx!");
-	    exit();
-	}
-	$row = mysql_fetch_array($query_result);
-	
-	SPITAJAX_RESPONSE(array('rspec' => $row['rspec'],
-				'name'  => $row['name'],
-				'idx'   => $row['idx'],
-				'description' => $row['description']));
-    }
-    exit();
-}
 
 SPITHEADER(1);
 
@@ -215,6 +179,10 @@ echo "<!-- This is the topology view modal -->
         </div>
       </div>\n";
 
+
+echo "<script type='text/javascript'>\n";
+echo "    window.AJAXURL  = 'server-ajax.php';\n";
+echo "</script>\n";
 echo "<script src='js/lib/require.js' data-main='js/myprofiles'></script>\n";
 
 SPITFOOTER();

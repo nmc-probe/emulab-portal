@@ -1,18 +1,87 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'js/quickvm_sup', 
+require(['jquery', 'underscore', 'js/quickvm_sup',
+	 'js/lib/text!template/manage-profile.html',
+	 'js/lib/text!template/waitwait-modal.html',
+	 'js/lib/text!template/imaging-modal.html',
+	 'js/lib/text!template/renderer-modal.html',
+	 'js/lib/text!template/showtopo-modal.html',
+	 'js/lib/text!template/rspectextview-modal.html',
 	 // jQuery modules
 	 'bootstrap','filestyle','marked','jquery-ui','jquery-grid'],
-function ($, sup)
+	function ($, _, sup,
+		  manageString, waitwaitString, imagingString,
+		  rendererString, showtopoString, rspectextviewString)
 {
     'use strict';
     var editing = 0;
+    var uuid    = null;
+    var snapping= 0;
+    var gotrspec = 0;
+    var ajaxurl = "";
+    var manageTemplate    = _.template(manageString);
+    var waitwaitTemplate  = _.template(waitwaitString);
+    var imagingTemplate   = _.template(imagingString);
+    var rendererTemplate  = _.template(rendererString);
+    var showtopoTemplate  = _.template(showtopoString);
+    var rspectextTemplate = _.template(rspectextviewString);
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
-	editing = window.EDITING;
+	editing  = window.EDITING;
+	snapping = window.SNAPPING;
+	uuid     = window.UUID;
+	ajaxurl  = window.AJAXURL;
+
+	var fields   = JSON.parse(_.unescape($('#form-json')[0].textContent));
+	var errors   = JSON.parse(_.unescape($('#error-json')[0].textContent));
+	var projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+
+	// Notice if we have an rspec in the formfields, to start from.
+	if (_.has(fields, "profile_rspec")) {
+	    gotrspec = 1;
+	}
+
+	// Generate the templates.
+	var manage_html   = manageTemplate({
+	    formfields:		fields,
+	    projects:		projlist,
+	    title:		window.TITLE,
+	    notifyupdate:	window.UPDATED,
+	    editing:		editing,
+	    gotrspec:		gotrspec,
+	    action:		window.ACTION,
+	    button_label:       window.BUTTONLABEL,
+	    uuid:		window.UUID,
+	    snapuuid:		(window.SNAPUUID || null),
+	    general_error:      (errors.error || ''),
+	});
+	manage_html = formatter(manage_html, errors).html();
+	$('#manage-body').html(manage_html);
 	
+    	var waitwait_html = waitwaitTemplate({});
+	$('#waitwait_div').html(waitwait_html);
+    	var imaging_html = imagingTemplate({});
+	$('#imaging_div').html(imaging_html);
+    	var showtopo_html = showtopoTemplate({});
+	$('#showtopomodal_div').html(showtopo_html);
+    	var renderer_html = rendererTemplate({});
+	$('#renderer_div').html(renderer_html);
+    	var rspectext_html = rspectextTemplate({});
+	$('#rspectext_div').html(rspectext_html);
+
+	//
+	// Fix for filestyle problem; not a real class I guess, it
+	// runs at page load, and so the filestyle'd button in the
+	// form is not as it should be.
+	//
+	$('#rspecfile').each(function() {
+	    $(this).filestyle({input      : false,
+			       buttonText : $(this).attr('data-buttonText'),
+			       classButton: $(this).attr('data-classButton')});
+	});
+
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
@@ -74,20 +143,6 @@ function ($, sup)
 	    $('#profile_rspec_textarea').css({"opacity":"0.2"});
 	    $('#profile_rspec_textarea').animate({"opacity":"1.0"}, 1500);
 	});
-	if (0) {
-	// Enable the Modify button if the form changes.
-        $('#quickvm_create_profile_form :input').each(function() {
-	    // Need to use keyup since an input does not "change"
-	    // until focus is lost.
-	    $(this).keyup(function() {
-		$('#profile_submit_button').prop('disabled', false);
-	    });
-	});
-	// This one for the checkboxes.
-        $('#quickvm_create_profile_form').change(function() {
-	    $('#profile_submit_button').prop('disabled', false);
-	});
-	}
 	// Auto select the URL if the user clicks in the box.
 	$('#profile_url').click(function() {
 	    $(this).focus();
@@ -117,7 +172,7 @@ function ($, sup)
 		event.preventDefault();
 		return false;
 	    }
-	    sup.ShowModal("#waitwait");
+	    WaitWait();
 	    return true;
 	});
 
@@ -152,12 +207,12 @@ function ($, sup)
 	});
 
 	/*
-	 * If editing, need to suck the description and instructions
+	 * If we were given an rspec, suck the description and instructions
 	 * out of the rspec and put them into the text boxes. But
 	 * watch for some already in the description box, it is an old
 	 * one and we want to use it if no description in the rspec.
 	 */
-	if (editing) {
+	if (gotrspec) {
 	    var old_text = $('#profile_description').val();
 	    if (old_text != "") {
 		ChangeHandlerAux("description");
@@ -171,9 +226,72 @@ function ($, sup)
 	     * Not editing, so disable the text boxes until we get
 	     * an rspec via the file chooser. 
 	     */
-	    $('#profile_instructions').prop("disabled", true);
-	    $('#profile_description').prop("disabled", true);
+	    DisableButton('profile_instructions');
+	    DisableButton('profile_description');
 	}
+	//
+	// If taking a disk image, throw up the modal that tracks progress.
+	//
+	if (snapping) {
+	    DisableButtons();
+	    ShowProgressModal();
+	}
+	else {
+	    EnableButtons();
+	}
+    }
+
+    // Formatter for the form. This did not work out nicely at all!
+    function formatter(fieldString, errors)
+    {
+	var root   = $(fieldString);
+	var list   = root.find('.format-me');
+	list.each(function (index, item) {
+	    if (item.dataset) {
+		var key     = item.dataset['key'];
+		var margin  = 15;
+		var colsize = 12;
+
+		if ($(item).attr('data-compact')) {
+		    margin = 5;
+		}
+		var outerdiv = $("<div class='form-group' " +
+				 "     style='margin-bottom: " + margin +
+				 "px;'></div>");
+
+		if ($(item).attr('data-label')) {
+		    var label_text =
+			"<label for='" + key + "' " +
+			" class='col-sm-2 control-label'> " +
+			item.dataset['label'];
+		    
+		    if ($(item).attr('data-help')) {
+			label_text = label_text +
+			    "<a href='#' class='btn btn-xs' " +
+			    " data-toggle='popover' " +
+			    " data-content='" + item.dataset['help'] + "'>" +
+			    "<span class='glyphicon glyphicon-question-sign'>" +
+			    " </span></a>";
+		    }
+		    label_text = label_text + "</label>";
+		    outerdiv.append($(label_text));
+		    colsize = 10;
+		}
+		var innerdiv = $("<div class='col-sm-" + colsize + "'></div>");
+		innerdiv.html($(item).clone());
+		
+		if (_.has(errors, key)) {
+		    outerdiv.addClass('has-error');
+		    innerdiv.append('<label class="control-label" ' +
+				    'for="inputError">' +
+				    _.escape(errors[key]) + '</label>');
+		}
+		outerdiv.append(innerdiv);
+		$(item).after(outerdiv);
+		$(item).remove();
+	    }
+	});
+	return root;
     }
 
     /*
@@ -390,6 +508,152 @@ function ($, sup)
 	sup.maketopmap("#showtopo_nopicker",
  		   ($("#showtopo_nopicker").outerWidth() - 2),
 		       300, topo, null);
+    }
+
+    //
+    // Progress Modal
+    //
+    var imaging_modal_display = true;
+    var imaging_modal_active  = false;
+	
+    function ShowProgressModal()
+    {
+	//
+	// Ask the server for information to populate the imaging modal. 
+	//
+	var callback = function(json) {
+	    console.info(json);
+	    var value = json.value;
+	    
+	    if (json.code) {
+		if (imaging_modal_active) {
+		    sup.HideModal("#imaging-modal");
+		    imaging_modal_active = false;
+		    $('#imaging_modal').off('hidden.bs.modal');
+		}
+		EnableButton("profile_delete_button");
+		return;
+	    }
+
+	    if (! imaging_modal_active && imaging_modal_display) {
+		sup.ShowModal("#imaging-modal");
+		imaging_modal_active  = true;
+		imaging_modal_display = false;
+
+		// Handler so we know the user closed the modal.
+		$('#imaging_modal').on('hidden.bs.modal', function (e) {
+		    imaging_modal_active = false;
+		    $('#imaging_modal').off('hidden.bs.modal');
+		})		
+	    }
+
+	    //
+	    // Fill in the details. 
+	    //
+	    if (! _.has(value, "node_status")) {
+		value["node_status"] = "unknown";
+	    }
+	    if (! _.has(value, "image_size")) {
+		value["image_size"] = "unknown";
+	    }	    
+	    $('#imaging_modal_node_status').html(value["node_status"]);
+	    $('#imaging_modal_image_size').html(value["image_size"]);
+
+	    if (_.has(value, "image_status")) {
+		var status = value["image_status"];
+
+		if (status == "imaging") {
+		    $('#tracker-imaging').removeClass('progtrckr-todo');
+		    $('#tracker-imaging').addClass('progtrckr-done');
+		}
+		if (status == "finishing") {
+		    $('#tracker-imaging').removeClass('progtrckr-todo');
+		    $('#tracker-imaging').addClass('progtrckr-done');
+		    $('#tracker-finishing').removeClass('progtrckr-todo');
+		    $('#tracker-finishing').addClass('progtrckr-done');
+		}
+		else if (status == "ready") {
+		    $('#tracker-imaging').removeClass('progtrckr-todo');
+		    $('#tracker-imaging').addClass('progtrckr-done');
+		    $('#tracker-finishing').removeClass('progtrckr-todo');
+		    $('#tracker-finishing').addClass('progtrckr-done');
+		    $('#tracker-ready').removeClass('progtrckr-todo');
+		    $('#tracker-ready').addClass('progtrckr-done');
+		    $('#imaging-spinner').addClass("invisible");
+		    EnableButtons();
+		    return;
+		}
+		else if (status == "failed") {
+		    $('#tracker-imaging').removeClass('progtrckr-todo');
+		    $('#tracker-imaging').addClass('progtrckr-done');
+		    $('#tracker-finishing').removeClass('progtrckr-todo');
+		    $('#tracker-finishing').addClass('progtrckr-done');
+		    $('#tracker-ready').removeClass('progtrckr-todo');
+		    $('#tracker-ready').addClass('progtrckr-done');
+		    $('#tracker-ready').html("Failed");
+		    $('#imaging-spinner').addClass("invisible");
+		    EnableButton("profile_delete_button");
+		    return;
+		}
+	    }
+	    //
+	    // Done, we need to do something here if we exited before
+	    // ready or failed above. 
+	    //
+	    if (_.has(value, "exited")) {
+		$('#imaging-spinner').addClass("invisible");
+		EnableButtons();
+		return;
+	    }
+	    
+	    // And check again in a little bit.
+	    setTimeout(function f() { ShowProgressModal() }, 5000);
+	}
+
+	var $xmlthing = sup.CallServerMethod(ajaxurl, "SnapShotStatus",
+					     {"uuid" : uuid});
+	$xmlthing.done(callback);
+    }
+
+    //
+    // Show the waitwait modal.
+    //
+    function WaitWait()
+    {
+	sup.ShowModal('#waitwait-modal');
+    }
+
+    //
+    // Enable/Disable buttons. 
+    //
+    function EnableButtons()
+    {
+	EnableButton("profile_delete_button");
+	EnableButton("profile_instantiate_button");
+	EnableButton("profile_submit_button");
+    }
+    function DisableButtons()
+    {
+	DisableButton("profile_delete_button");
+	DisableButton("profile_instantiate_button");
+	DisableButton("profile_submit_button");
+    }
+    function EnableButton(button)
+    {
+	ButtonState(button, 1);
+    }
+    function DisableButton(button)
+    {
+	ButtonState(button, 0);
+    }
+    function ButtonState(button, enable)
+    {
+	if (enable) {
+	    $('#' + button).removeAttr("disabled");
+	}
+	else {
+	    $('#' + button).attr("disabled", "disabled");
+	}
     }
 
     $(document).ready(initialize);
