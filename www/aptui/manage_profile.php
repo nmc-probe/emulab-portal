@@ -23,16 +23,21 @@
 #
 chdir("..");
 include("defs.php3");
+include_once("webtask.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("profile_defs.php");
 include("instance_defs.php");
+# Must be after quickvm_sup.php since it changes the auth domain.
+include_once("../session.php");
 $page_title = "Manage Profile";
 $notifyupdate = 0;
+$notifysnapshot = 0;
 
 #
 # Get current user.
 #
+RedirectSecure();
 $this_user = CheckLogin($check_status);
 
 #
@@ -41,436 +46,10 @@ $this_user = CheckLogin($check_status);
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "action",      PAGEARG_STRING,
 				 "idx",         PAGEARG_INTEGER,
+				 "uuid",        PAGEARG_STRING,
 				 "snapuuid",    PAGEARG_STRING,
 				 "finished",    PAGEARG_BOOLEAN,
 				 "formfields",  PAGEARG_ARRAY);
-
-#
-# Spit the form
-#
-function SPITFORM($formfields, $errors)
-{
-    global $this_user, $projlist, $action, $idx, $notifyupdate, $snapuuid;
-    $editing = 0;
-
-    if ($action == "edit") {
-	$button_label = "Modify";
-	$title        = "Modify Profile";
-	$editing = 1;
-	$uuid         = $formfields["profile_uuid"];
-    }
-    else  {
-	$button_label = "Create";
-	$title        = "Create Profile";
-    }
-    
-    # XSS prevention.
-    while (list ($key, $val) = each ($formfields)) {
-	$formfields[$key] = CleanString($val);
-    }
-    # XSS prevention.
-    if ($errors) {
-	while (list ($key, $val) = each ($errors)) {
-	    $errors[$key] = CleanString($val);
-	}
-    }
-
-    $format_label = function($field, $label, $help = null) {
-	echo "  <label for='$field' ".
-	"         class='col-sm-2 control-label'>$label ";
-	if ($help) {
-	    echo "<a href='#' class='btn btn-xs'
-                     data-toggle='popover' data-content='$help'>".
-		    "<span class='glyphicon glyphicon-question-sign'>
-                      </span></a>";
-	}
-	echo "  </label>\n";
-    };
-
-    $formatter = function($field, $label, $html, $help = null, $compact = 0)
-		use ($errors, $format_label) {
-	$class = "form-group";
-	if ($errors && array_key_exists($field, $errors)) {
-	    $class .= " has-error";
-	}
-	$size = 12;
-	$margin = ($compact ? 5 : 15);
-	echo "<div class='$class' style='margin-bottom: ${margin}px;'>\n";
-	if ($label) {
-	    $format_label($field, $label, $help);
-	    $size = 10;
-	}
-	echo "  <div class='col-sm-${size}'>\n";
-	echo "     $html\n";
-	if ($errors && array_key_exists($field, $errors)) {
-	    echo "<label class='control-label' for='inputError'>" .
-		$errors[$field] . "</label>\n";
-	}
-	echo "  </div>\n";
-	echo "</div>\n";
-    };
-
-    SPITHEADER(1);
-
-    echo "<link rel='stylesheet'
-            href='jquery-ui/css/smoothness/jquery-ui-1.10.4.custom.min.css'>\n";
-    echo "<link rel='stylesheet'
-            href='jquery.appendGrid/css/jquery.appendGrid-1.3.1.min.css'>\n";
-
-    echo "<div class='row'>
-           <div class='col-lg-8  col-lg-offset-2
-                       col-md-10 col-md-offset-1
-                       col-sm-10 col-sm-offset-1
-                       col-xs-12'>\n";
-    echo "  <div class='panel panel-default'>
-             <div class='panel-heading'>
-              <h3 class='panel-title'>$title</h3>
-             </div>
-             <div class='panel-body'>\n";
-
-    echo "   <form id='quickvm_create_profile_form'
-                   class='form-horizontal' role='form'
-                   enctype='multipart/form-data'
-                   method='post' action='manage_profile.php'>\n";
-    echo "    <div class='row'>\n";
-    echo "     <div class='col-sm-12'>\n";
-
-    #
-    # Look for non-specific error.
-    #
-    if ($errors && array_key_exists("error", $errors)) {
-	echo "<font color=red><center>" . $errors["error"] . "</center></font>";
-    }
-    # Did we just complete an update.
-    if ($notifyupdate) {
-	echo "<font color=green><center>Update Successful!</center></font>";
-    }
-    # Send action back through. 
-    if (isset($action)) {     
-	echo "<input type='hidden' name='action' value='$action'>\n";
-	# And include the experiment getting snapped. 
-	if (isset($snapuuid)) {
-	    echo "<input type='hidden' name='snapuuid' value='$snapuuid'>\n";
-	}
-    }
-    echo "      </div></div><fieldset>\n";
-
-    # First row has both name and project, which makes the layout odd.
-    echo "<div class='row'>\n";
-    $format_label("profile_name", "Name",
-		  ($editing ? null :
-		   "alphanumeric, dash, underscore, no whitespace"));
-    echo "<div class='col-sm-4'>\n";
-
-    # In editing mode, pass through static values.
-    if ($editing) {
-	$formatter("profile_name", null,
-		   "<p class='form-control-static'>" .
-		       $formfields["profile_name"] . "</p>");
-		   
-	echo "<input type='hidden' name='formfields[profile_name]' ".
-		"value='" . $formfields["profile_name"] . "'>\n";
-    }
-    else {
-	$formatter("profile_name", null,
-		   "<input name=\"formfields[profile_name]\"
-		       id='profile_name'
-		       value='" . $formfields["profile_name"] . "'
-                       class='form-control'
-                       placeholder='' type='text'>");
-    }
-    # End of first half of row
-    echo "  </div>\n";
-    # Second half of the row.
-    $format_label("profile_pid", "Project");
-    echo "<div class='col-sm-4'>\n";
-
-    #
-    # If user is a member of only one project, then just pass it
-    # through, no need for the user to see it. Otherwise we have
-    # to let the user choose.
-    #
-    if (count($projlist) == 1 || $editing) {
-	if ($editing) {
-	    $pid = $formfields["profile_pid"];
-	}
-	else {
-	    list($pid) = each($projlist);
-	}
-	$formatter("profile_pid", null,
-		   "<p class='form-control-static'>$pid</p>");
-	echo "<input type='hidden' name='formfields[profile_pid]' ".
-		"value='$pid'>\n";
-    }
-    else {
-	$pid_options = "<option value=''>Please Select</option>\n";
-	while (list($project) = each($projlist)) {
-	    $selected = "";
-	    if ($formfields["profile_pid"] == $project) {
-		$selected = "selected";
-	    }
-	    $pid_options .= 
-		"<option $selected value='$project'>$project</option>\n";
-	}
-	$formatter("profile_pid", null,
-		   "<select name=\"formfields[profile_pid]\"
-		            id='profile_pid' class='form-control'
-                            placeholder='Please Select'>$pid_options</select>");
-    }
-    # End of first row.
-    echo "  </div>
-          </div>\n";
-    echo "</fieldset><fieldset>\n";
-
-    #
-    # In edit mode, display current rspec in text area inside a modal.
-    # See below for the modal. So, we need buttons to display the source
-    # modal, the topo modal, in addition to a file chooser for a new rspec.
-    #
-    $invisible = (isset($action) ? "" : "invisible");
-    
-    $rspec_html =
-	"<div class='row'>
-           <div class='col-xs-3'>
-                <input name='rspecfile' id='rspecfile' type=file
-                 class='filestyle'
-	         data-classButton='btn btn-primary btn-xs'
-                 data-input='false'
-                 data-buttonText='Choose " . ($editing ? "new" : "") . " file'>
-           </div>
-	   <div class='col-xs-2'>
-              <button class='btn btn-primary btn-xs $invisible'
-                      id='showtopo_modal_button'>
-                      Show</button>
-           </div>
-           <div class='col-xs-2'>
-              <button class='btn btn-primary btn-xs $invisible' type='button'
-                      id='show_rspec_textarea_button'
-                      data-toggle='collapse' data-target='#rspec_textarea'>
-                      Edit</button>
-           </div>
-         </div>
-         <div class='collapse' id='rspec_textarea'
-                 style='margin-top: 4px;'>
-              <div class='row'>
-                <div class='col-xs-12'>
- 	          <textarea name=\"formfields[profile_rspec]\"
-		            id='profile_rspec_textarea'
-		            rows=5
-                            class='form-control'
-                            type='textarea'>" .
-		     $formfields["profile_rspec"] . "</textarea>
-                </div>
-              </div>
-              <div class='row' style='margin-top: 4px;'>
-                <div class='col-xs-12'>
-                  <button class='btn btn-primary btn-xs' type='button'
-                          id='expand_rspec_modal_button'>
-                        Expand</button>
-                </div>
-              </div>
-          </div>\n";
-
-    $formatter("profile_rspec", "Your rspec", $rspec_html);
-
-    $formatter("profile_description", "Description",
-	       "<textarea name=\"formfields[profile_description]\"
-		          id='profile_description'
-		          rows=3
-                          class='form-control'
-                          placeholder=''
-                          type='textarea'>" .
-	       $formfields["profile_description"] . "</textarea>",
-	       "Briefly describe what this profile does");
-
-    $formatter("profile_instructions", "Instructions",
-	       "<textarea name=\"formfields[profile_instructions]\"
-		          id='profile_instructions'
-		          rows=3
-                          class='form-control'
-                          placeholder=''
-                          type='textarea'></textarea>",
-	       "Briefly describe how to use this profile after it starts. ".
-	       "Double click to see it rendered.");
-
-    # Hide this until the steps table is initialized from the rspec.
-    echo "<div class='row hidden' id='profile_steps_div'>\n";
-    $format_label("profile_steps", "Steps");
-    echo "<div class='col-sm-10'>\n";
-    echo "<table id='profile_steps' class='col-sm-12'></table>\n";
-    echo "</div></div>\n";
-
-    echo "<div class='row'>\n";
-    echo "<div class='col-sm-10 col-sm-offset-2'>\n";
-    $formatter("profile_listed", null,
-	       "<div class='checkbox' >
-                <label><input name=\"formfields[profile_listed]\" ".
-	               $formfields["profile_listed"] .
-	       "       id='profile_listed' value=checked
-                       type=checkbox> ".
-	       "List on the home page for anyone to view.</label></div>",
-	       null, true);
-    echo "  </div>\n";
-    echo "</div>\n";
-
-    echo "<div class='row'>\n";
-    echo "<div class='col-sm-10 col-sm-offset-2'>\n";
-    echo "Who can instantiate your profile?";
-    echo "  </div>\n";
-    echo "</div>\n";
-    
-    echo "<div class='row'>\n";
-    echo "  <div class='col-sm-9 col-sm-offset-3'>\n";
-    $formatter("profile_who", null,
-	       "<div class='radio'>
-                 <label>
-                  <input type='radio' name='formfields[profile_who]' " .
-   	          ($formfields["profile_who"] == 'public' ? "checked " : " ") .
-                      "value='public'>
-                   <em>Anyone</em> on the internet (guest users)
-    	         </label>
-                </div>
-                <div class='radio'>
-                 <label>
-                  <input type='radio' name='formfields[profile_who]' ".
-  	          ($formfields["profile_who"] == 'shared' ? "checked " : " ") .
-                      "value='shared'>
-                   Only registered users of the APT website
-    	         </label>
-                </div>
-                <div class='radio'>
-                 <label>
-                  <input type='radio' name='formfields[profile_who]' ".
-	          ($formfields["profile_who"] == 'private' ? "checked " : " ") .
-                      "value='private'>
-                   Only members of your project
-    	         </label>
-                </div>",
-	       null, false);
-    echo "  </div>\n";
-    echo "</div>\n";
-    
-    if ($editing) {
-    	$formatter("profile_url", "Shared URL",
-		   "<input name=\"formfields[profile_url]\"
-		       id='profile_url' readonly
-		       value='" . $formfields["profile_url"] . "'
-                       class='form-control'
-                       placeholder='' type='text'>",
-		   "Anyone with this URL can instantiate this profile",
-		   false);
-    }
-    echo "      </fieldset>\n";
-
-    echo "<div class='form-group'>
-            <div class='col-sm-offset-2 col-sm-10'>
-               <button class='btn btn-primary btn-sm pull-right'
-                   id='profile_submit_button'
-                   style='margin-right: 10px;'
-                   type='submit' name='create'>$button_label</button>\n";
-    if ($editing) {
-	echo " <a class='btn btn-primary btn-sm pull-right'
-                   style='margin-right: 10px;'
-                   href='instantiate.php?profile=$uuid'
-                   type='submit' name='create'>Instantiate</a>\n";
-	echo " <a class='btn btn-danger btn-sm pull-left'
-                   style='margin-right: 10px;'
-                   href='manage_profile.php?action=delete&idx=$idx'
-                   type='button' name='delete'>Delete</a>\n";
-    }
-    echo "     </div>\n";
-    echo "    </div>\n";
-
-    echo "<!-- This is the rspec text view modal -->
-          <div id='rspec_modal' class='modal fade'>
-          <div class='modal-dialog'>
-            <div class='modal-content'>
-               <div class='modal-header'>
-                <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>
-                   &times;</button>
-                <button type='button' class='btn btn-primary btn-xs pull-right'
-                   style='margin-right: 10px;'
-                   id='collapse_rspec_modal_button'>
-                   Collapse</button>
-                <h3>rspec XML</h3>
-               </div>
-               <div class='modal-body'>
-                 <div class='panel panel-default'>
-                    <div class='panel-body'>
-	              <textarea name=\"formfields[profile_rspec_modal]\"
-		          id='modal_profile_rspec_textarea'
-		          rows=20
-                          class='form-control'
-                          type='textarea'></textarea>
-                    </div>
-                 </div>
-               </div>
-            </div>
-          </div>
-          </div>\n";
-    
-    echo "   </form></div>\n";
-    echo "  </div>\n";
-    echo " </div>\n";
-    echo "</div>\n";
-
-    echo "<!-- This is the topology view modal -->
-          <div id='quickvm_topomodal' class='modal fade'>
-          <div class='modal-dialog' id='showtopo_dialog'>
-            <div class='modal-content'>
-               <div class='modal-header'>
-                <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>
-                   &times;</button>
-                <h3>Topology Viewer</h3>
-               </div>
-               <div class='modal-body'>
-                 <!-- This topo diagram goes inside this div -->
-                 <div class='panel panel-default'
-                            id='showtopo_container'>
-                    <div class='panel-body'>
-                     <div id='showtopo_nopicker'></div>
-                    </div>
-                 </div>
-               </div>
-            </div>
-          </div>
-          </div>\n";
-    
-    echo "<!-- This is the renderer modal -->
-          <div id='renderer_modal' class='modal fade'>
-          <div class='modal-dialog'>
-            <div class='modal-content'>
-               <div class='modal-header'>
-                <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>
-                   &times;</button>
-                <h3>Markdown Renderer</h3>
-               </div>
-               <div class='modal-body'>
-                 <!-- This rendering goes inside this div -->
-                 <div class='panel panel-default'>
-                    <div class='panel-body'>
-                     <div id='renderer_modal_div'></div>
-                    </div>
-                 </div>
-               </div>
-            </div>
-          </div>
-          </div>\n";
-
-    SpitWaitModal("waitwait");
-    SpitOopsModal("oops");
-    
-    echo "<script type='text/javascript'>\n";
-    echo "    window.EDITING  = " . (isset($action) ? 1 : 0) . ";\n";
-    echo "    window.SNAPWAIT = " . (isset($snapuuid) ? 1 : 0) . ";\n";
-    echo "</script>\n";
-    echo "<script src='js/lib/require.js' data-main='js/manage_profile'>
-          </script>";
-    SPITFOOTER();
-}
 
 #
 # The user must be logged in.
@@ -482,21 +61,103 @@ if (!$this_user) {
 $this_idx = $this_user->uid_idx();
 
 #
+# Spit the form
+#
+function SPITFORM($formfields, $errors)
+{
+    global $this_user, $projlist, $action;
+    global $notifyupdate, $notifysnapshot, $snapuuid;
+    $editing = 0;
+
+    if ($action == "edit") {
+	$button_label = "Modify";
+	$title        = "Modify Profile";
+	$editing      = 1;
+	$uuid         = $formfields["profile_uuid"];
+    }
+    else  {
+	$button_label = "Create";
+	$title        = "Create Profile";
+    }
+
+    SPITHEADER(1);
+
+    # Place to hang the toplevel template.
+    echo "<div id='manage-body'></div>\n";
+
+    # I think this will take care of XSS prevention?
+    echo "<script type='text/plain' id='form-json'>\n";
+    echo htmlentities(json_encode($formfields)) . "\n";
+    echo "</script>\n";
+    echo "<script type='text/plain' id='error-json'>\n";
+    echo htmlentities(json_encode($errors));
+    echo "</script>\n";
+
+    # Pass project list through. Need to convert to list without groups.
+    # When editing, pass through a single value. The template treats a
+    # a single value as a read-only field.
+    $plist = array();
+    if ($editing) {
+	$plist[] = $formfields["profile_pid"];
+    }
+    else {
+	while (list($project) = each($projlist)) {
+	    $plist[] = $project;
+	}
+    }
+    echo "<script type='text/plain' id='projects-json'>\n";
+    echo htmlentities(json_encode($plist));
+    echo "</script>\n";
+    
+    echo "<link rel='stylesheet'
+            href='jquery-ui/css/smoothness/jquery-ui-1.10.4.custom.min.css'>\n";
+    echo "<link rel='stylesheet'
+            href='jquery.appendGrid/css/jquery.appendGrid-1.3.1.min.css'>\n";
+    # For progress bubbles in the imaging modal.
+    echo "<link rel='stylesheet' href='progress.css'>\n";
+
+    echo "<script type='text/javascript'>\n";
+    echo "    window.EDITING  = " . ($editing ? 1 : 0) . ";\n";
+    echo "    window.UUID     = " . (isset($uuid) ? "'$uuid'" : "null") . ";\n";
+    echo "    window.UPDATED  = $notifyupdate;\n";
+    echo "    window.SNAPPING = $notifysnapshot;\n";
+    echo "    window.AJAXURL  = 'server-ajax.php';\n";
+    echo "    window.ACTION   = '$action';\n";
+    echo "    window.TITLE    = '$title';\n";
+    echo "    window.BUTTONLABEL = '$button_label';\n";
+    if (isset($snapuuid)) {
+	echo "    window.SNAPUUID = '$snapuuid';\n";
+    }
+    echo "</script>\n";
+    echo "<script src='js/lib/require.js' data-main='js/manage_profile'>
+          </script>";
+    
+    SPITFOOTER();
+}
+
+#
 # See what projects the user can do this in.
 #
 $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
 
+# We use a session.
+session_start();
+
 if (! isset($create)) {
     $errors   = array();
     $defaults = array();
+
+    # Default action is create.
+    if (! isset($action) || $action == "") {
+	$action = "create";
+    }
     
     if (! (isset($projlist) && count($projlist))) {
 	$errors["error"] =
 	    "You do not appear to be a member of any projects in which ".
 	    "you have permission to create new profiles";
     }
-    if (isset($action) &&
-	($action == "edit" || $action == "delete" || "snapshot")) {
+    if ($action == "edit" || $action == "delete" || $action == "snapshot") {
 	if ($action == "snapshot") {
 	    if (! (isset($snapuuid) && IsValidUUID($snapuuid))) {
 		$errors["error"] = "No experiment specified for snapshot!";
@@ -517,22 +178,33 @@ if (! isset($create)) {
 		SPITUSERERROR("Not enough permission!");
 	    }
 	    $defaults["profile_rspec"] = $profile->rspec();
+	    $defaults["profile_who"]   = "shared";
 	}
 	else {
-	    if (! isset($idx)) {
+	    if (! (isset($idx) || isset($uuid))) {
 		$errors["error"] = "No profile specified for edit/delete!";
 	    }
 	    else {
-		$profile = Profile::Lookup($idx);
-	    
+		# This can also be a uuid.
+		if (isset($idx)) {
+		    $profile = Profile::Lookup($idx);
+		}
+		elseif (isset($uuid)) {
+		    $profile = Profile::Lookup($uuid);
+		}
 		if (!$profile) {
 		    SPITUSERERROR("No such profile!");
+		}
+		else if ($profile->locked()) {
+		    SPITUSERERROR("Profile is currently locked!");
 		}
 		else if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
 		    SPITUSERERROR("Not enough permission!");
 		}
 		else if ($action == "delete") {
-		    DBQueryFatal("delete from apt_profiles where idx='$idx'");
+		    $profile->Delete();
+		    session_unset();
+		    session_destroy();
 		    header("Location: $APTBASE/myprofiles.php");
 		    return;
 		}
@@ -550,25 +222,30 @@ if (! isset($create)) {
 			($profile->shared() ? "shared" : 
 			 ($profile->ispublic() ? "public" : "private"));
 
+		    # Warm fuzzy message.
+		    if (isset($_SESSION["notifyupdate"])) {
+			$notifyupdate = 1;
+			unset($_SESSION["notifyupdate"]);
+		    }
+
 		    #
-		    # If we are displaying after a successful edit, and it
-		    # just happened (by looking at the modify time), show
-		    # a message that the update was successful. This is pretty
-		    # crappy, but I do not want to go for a fancy thing
-                    # just yet, maybe later.
+		    # See if we have a task running in the background
+		    # for this profile. At the moment it can only be a
+		    # snapshot task. If there is one, we have to tell
+		    # the js code to show the status of the snapshot.
 		    #
-		    if (isset($finished) && $profile->modified()) {
-			$mod = new DateTime($profile->modified());
-			if ($mod) {
-			    $now  = new DateTime("now");
-			    $diff = $now->getTimestamp() - $mod->getTimestamp();
-			    if ($diff < 2) {
-				$notifyupdate = 1;
-			    }
-			}
+		    $webtask = WebTask::LookupByObject($profile->uuid());
+		    if ($webtask && ! $webtask->exited()) {
+			$notifysnapshot = 1;
 		    }
 		}
 	    }
+	}
+    }
+    else {
+	# Default the project if in only one project.
+	if (count($projlist) == 1) {
+	    $defaults["profile_pid"] = $projlist[0];
 	}
     }
     SPITFORM($defaults, $errors);
@@ -660,7 +337,7 @@ else {
 # Sanity check the snapuuid argument. 
 #
 if (isset($action) && $action == "snapshot") {
-    if (! IsValidUUID($snapuuid)) {
+    if (!isset($snapuuid) || $snapuuid == "" || !IsValidUUID($snapuuid)) {
 	$errors["error"] = "Invalid experiment specified for snapshot!";
     }
     $instance = Instance::Lookup($snapuuid);
@@ -745,7 +422,12 @@ else {
 $optarg = ($action == "edit" ? "-u" : "");
 if (isset($snapuuid)) {
     $optarg .= "-s " . escapeshellarg($snapuuid);
+
+    # We want to pass a webtask id along. 
+    $webtask_id = md5(uniqid(rand(),1));
+    $optarg .= " -t " . $webtask_id;
 }
+
 $retval = SUEXEC($this_user->uid(), $project->unix_gid(),
 		 "webmanage_profile $optarg $xmlname",
 		 SUEXEC_ACTION_IGNORE);
@@ -765,7 +447,7 @@ if ($retval) {
 	}
 	else {
 	    foreach ($parsed->error as $error) {
-		$errors[(string)$error['name']] = $error;
+		$errors[(string)$error['name']] = (string)$error;
 	    }
 	}
     }
@@ -779,19 +461,16 @@ if (count($errors)) {
 #
 # Need the index to pass back through.
 #
-$pid  = $formfields["profile_pid"];
-$name = $formfields["profile_name"];
-$query_result =
-    DBQueryFatal("select idx from apt_profiles ".
-		 "where pid='$pid' and name='$name'");
-if (!$query_result || !mysql_num_rows($query_result)) {
-    header("Location: $APTBASE/myprofiles.php");
+$profile = Profile::LookupByName($project, $formfields["profile_name"]);
+if ($profile) {
+    $uuid = $profile->uuid();
 }
 else {
-    $row = mysql_fetch_array($query_result);
-    $idx = $row["idx"];
-    header("Location: $APTBASE/manage_profile.php?action=edit&idx=$idx".
-	   "&finished=1");
+    header("Location: $APTBASE/myprofiles.php");
 }
+if ($action == "edit") {
+    $_SESSION["notifyupdate"] = 1;
+}
+header("Location: $APTBASE/manage_profile.php?action=edit&uuid=$uuid");
 
 ?>

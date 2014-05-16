@@ -147,6 +147,7 @@ JSFILES += $(wildcard $(SRCDIR)/js/*.js)
 BLOBFILES += $(wildcard blob/*.php3)
 
 APTUIFILES  = $(wildcard $(SRCDIR)/aptui/*.php)
+APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.ajax)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.css)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.png)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.gif)

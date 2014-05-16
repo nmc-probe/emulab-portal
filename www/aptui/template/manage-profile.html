@@ -1,0 +1,275 @@
+<div class='row'>
+  <div class='col-lg-8 col-lg-offset-2
+              col-md-10 col-md-offset-1
+              col-sm-10 col-sm-offset-1
+              col-xs-12'>
+    <div class='panel panel-default'>
+      <div class='panel-heading'>
+        <h3 class='panel-title'><%= title %></h3>
+      </div>
+      <div class='panel-body'>
+	<form id='quickvm_create_profile_form'
+              class='form-horizontal' role='form'
+              enctype='multipart/form-data'
+              method='post' action='manage_profile.php'>
+	  <div class='row'>
+	    <div class='col-sm-12'>
+	      <% if (general_error) { %>
+	        <center><font color=red><%- general_error %></font></center>
+	      <% } %>
+	      <% if (notifyupdate) { %>
+	        <font color=green><center>Update Successful!</center></font>
+	      <% } %>
+	      <!-- Hidden variables -->
+	      <input type='hidden' name='action' value='<%= action %>'>
+	      <% if (snapuuid) { %>
+	          <input type='hidden' name='snapuuid' value='<%= snapuuid %>'>
+	      <% } %>
+	    </div>
+	  </div>
+	  <fieldset>
+	    <!-- First row has both name and project,
+		 which makes the layout odd. -->
+	    <div class='row'>
+	      <label for='profile_name'
+		     class='col-sm-2 control-label'>Name
+		<a href='#' class='btn btn-xs'
+		   data-toggle='popover'
+		   data-content='alphanumeric, dash, underscore, no whitespace'>
+		  <span class='glyphicon glyphicon-question-sign'></span>
+		</a>
+	      </label>
+	      <div class='col-sm-4'>
+		<!-- In editing mode, pass through static values. -->
+	        <input name="formfields[profile_name]"
+		       <% if (editing) { %>readonly<% } %>
+		       value="<%- formfields.profile_name %>"
+		       class="form-control format-me"
+		       data-key="profile_name">
+
+		<!-- End of first half of row -->
+	      </div>
+	      <!-- Second half of the row. Project Selection -->
+	      <label for='profile_pid'
+		     class='col-sm-2 control-label'>Project</label>
+	      <div class='col-sm-4'>
+		<% if (projects.length == 1) { %>
+	          <input name="formfields[profile_pid]" readonly
+		       value="<%- formfields.profile_pid %>"
+		       class="form-control format-me"
+		       data-key="profile_pid">
+		<% } else { %>
+		   <select name="formfields[profile_pid]"
+			   id='profile_pid' 
+			   class='form-control format-me'
+			   data-key="profile_pid"			
+			   placeholder='Please Select'>
+		     <% _.each(projects, function(name) { %>
+	                <option value='<%= name %>'><%= name %></option>
+			<% }); %>
+		   </select>
+		<% } %>
+		<!--  End of first row. -->
+	      </div>
+            </div>
+	  </fieldset>
+	  <fieldset>
+	    <div class='format-me'
+		 data-key='profile_rspec' data-label='Your rspec'>
+	      <div class='row'>
+		<div class='col-xs-3'>
+                  <input class='filestyle' type='file'
+			 name='rspecfile' id='rspecfile' 
+			 data-classButton='btn btn-primary btn-xs'
+			 data-input='false'
+			 data-buttonText='Choose file'>
+		</div>
+		<div class='col-xs-2'>
+		  <button class='btn btn-primary btn-xs
+			  <% if (! gotrspec) { %>invisible<% } %>'
+			  id='showtopo_modal_button'>
+                    Show</button>
+		</div>
+		<div class='col-xs-2'>
+		  <button class='btn btn-primary btn-xs
+		          <% if (! gotrspec) { %>invisible<% } %>'
+			  type='button'
+			  id='show_rspec_textarea_button'
+			  data-toggle='collapse' data-target='#rspec_textarea'>
+                    Edit</button>
+		</div>
+              </div>
+              <div class='collapse' id='rspec_textarea'
+                   style='margin-top: 4px;'>
+		<div class='row'>
+                  <div class='col-xs-12'>
+ 	            <textarea name="formfields[profile_rspec]"
+		              id='profile_rspec_textarea'
+		              rows=5
+                              class='form-control format-me'
+                              type='textarea' data-key='profile_rspec'
+			      ><%- formfields.profile_rspec %></textarea>
+                  </div>
+		</div>
+		<div class='row' style='margin-top: 4px;'>
+                  <div class='col-xs-12'>
+                    <button class='btn btn-primary btn-xs' type='button'
+                            id='expand_rspec_modal_button'>
+                      Expand</button>
+                  </div>
+		</div>
+              </div>
+	    </div>
+	    <textarea name=formfields[profile_description]
+		      id='profile_description'
+		      rows=3
+                      class='form-control format-me'
+                      type='textarea'
+		      data-key='profile_description'
+		      data-label='Description'
+		      data-help='Briefly describe what this profile does'
+		      ><%- formfields.profile_description %></textarea>
+	    <textarea name=formfields[profile_instructions]
+		      id='profile_instructions'
+		      rows=3
+                      class='form-control format-me'
+		      data-key='profile_instructions'
+		      data-label='Instructions'
+		      data-help='Briefly describe how to use this
+		                 profile after it starts.'
+                      type='textarea'></textarea>
+	    
+	    <!-- Steps Table; hidden until the table is initialized
+	         from the rspec. -->
+	    <div class='row hidden' id='profile_steps_div'>
+	      <label for='profile_steps'
+		     class='col-sm-2 control-label'>Steps</label>
+	      <div class='col-sm-10'>
+		<table id='profile_steps' class='col-sm-12'></table>
+	      </div>
+	    </div>
+
+	    <!-- Public listing checkbox -->
+	    <div class='row'>
+	      <div class='col-sm-10 col-sm-offset-2'>
+		<div class='checkbox format-me' data-compact='yep'>
+                  <label>
+		    <input name=formfields[profile_listed]
+			   <%- formfields.profile_listed %>
+			   data-key='profile_listed'
+			   id='profile_listed' value='checked'
+			   type='checkbox'>List on the home page for
+		    anyone to view.
+		  </label>
+		</div>
+	      </div>
+	    </div>
+
+	    <!-- Permission checkboxes. -->
+	    <div class='row'>
+	      <div class='col-sm-10 col-sm-offset-2'>
+		Who can instantiate your profile?
+	      </div>
+	    </div>
+
+	    <div class='row'>
+	      <div class='col-sm-9 col-sm-offset-3'>
+		<div class='format-me' data-key='profile_who'>
+		  <div class='radio'>
+                    <label>
+                      <input type='radio' name='formfields[profile_who]'
+		             <% if (formfields.profile_who == "public") {
+				%>checked<% } %>
+			     value='public'>
+                      <em>Anyone</em> on the internet (guest users)
+    	            </label>
+                  </div>
+                  <div class='radio'>
+                    <label>
+                      <input type='radio' name='formfields[profile_who]'
+		             <% if (formfields.profile_who == "shared") {
+				%>checked<% } %>
+			     value='shared'>
+                      Only registered users of the APT website
+    	            </label>
+                  </div>
+                  <div class='radio'>
+                    <label>
+                      <input type='radio' name='formfields[profile_who]'
+		             <% if (formfields.profile_who == "private") {
+				%>checked<% } %>
+			     value='private'>
+                      Only members of your project
+    	            </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+	    <!-- The private URL -->
+	    <% if (editing) { %>
+	    <input name="formfields[profile_url]"
+		   value="<%- formfields.profile_url %>"
+		   id='profile_url' readonly
+                   class='form-control format-me'
+		   data-key='profile_url'
+		   data-label='Shared URL'
+		   data-help='Anyone with this URL can instantiate
+		                 this profile'
+                   type='text'>
+	    <% } %>
+	  </fieldset>
+	  
+	  <!-- Buttons -->
+	  <div class='form-group'>
+            <div class='col-sm-offset-2 col-sm-10'>
+              <button class='btn btn-primary btn-sm pull-right' disabled
+                      id='profile_submit_button'
+                      style='margin-right: 10px;'
+                      type='submit' name='create'>
+		<%- button_label %>	
+	      </button>
+
+	      <% if (editing) { %>
+	      <a class='btn btn-primary btn-sm pull-right' disabled
+                 id='profile_instantiate_button'
+                 style='margin-right: 10px;'
+                 href='instantiate.php?profile=<%= uuid %>'
+                 type='submit' name='create'>Instantiate
+	      </a>
+	      <button class='btn btn-danger btn-sm pull-left' disabled
+                 id='profile_delete_button'
+                 style='margin-right: 10px;'
+     		 data-toggle='modal' data-target='#delete_modal'
+                 type='button' name='delete'>Delete
+	      </button>
+	      <% } %>
+	    </div>
+	  </div>
+	  <div id='rspectext_div'></div>
+	  </form>
+      </div>
+    </div>
+  </div>
+  <!-- Confirm Deletion -->
+  <div id='delete_modal' class='modal fade'>
+    <div class='modal-dialog'>
+      <div class='modal-content'>
+	<div class='modal-body'>
+         <button type='button' class='close' data-dismiss='modal'
+                   aria-hidden='true'>&times;</button>
+         <center><h3>Confirm to Delete</h3>
+         <a class='btn btn-danger btn-sm
+		 id='delete-confirm'
+                 href='manage_profile.php?action=delete&uuid=<%= uuid %>'
+                 type='button' name='delete'>Confirm</a></center>
+	</div>
+      </div>
+    </div>
+  </div>
+  <!-- place to hang the modals for now -->
+  <div id='showtopomodal_div'></div>
+  <div id='waitwait_div'></div>
+  <div id='imaging_div'></div>
+  <div id='renderer_div'></div>
+</div>
