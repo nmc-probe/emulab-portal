@@ -229,7 +229,7 @@ function SPITAJAX_RESPONSE($value)
 function SPITAJAX_ERROR($code, $msg)
 {
     $results = array(
-	'code'  => code,
+	'code'  => $code,
 	'value' => $msg
 	);
     echo json_encode($results);
