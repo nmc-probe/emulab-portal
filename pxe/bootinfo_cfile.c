@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2003 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -102,7 +102,7 @@ parse_host(char *name)
 	if (!isdigit(name[0])) {
 		he = gethostbyname(name);
 		if (he == 0) {
-			error("%s: unknown host", name);
+			error("%s: unknown host\n", name);
 			return 0;
 		}
 		return *(int *)he->h_addr;
@@ -121,7 +121,7 @@ parse_configs(char *filename)
 	int	ipaddr;
 
 	if ((fp = fopen(filename, "r")) == NULL) {
-		error("%s: cannot open", filename);
+		error("%s: cannot open\n", filename);
 		return 1;
 	}
 
@@ -133,7 +133,7 @@ parse_configs(char *filename)
 			continue;
 
 		if (numconfigs >= MAX_CONFIGS) {
-			error("%s: too many lines", filename);
+			error("%s: too many lines\n", filename);
 			fclose(fp);
 			return 1;
 		}
@@ -143,7 +143,7 @@ parse_configs(char *filename)
 		configp = (struct config *) calloc(sizeof *configp, 1);
 		if (!configp) {
 		bad:
-			error("%s: parse error", filename);
+			error("%s: parse error\n", filename);
 			fclose(fp);
 			close_bootinfo_db();
 			return 1;

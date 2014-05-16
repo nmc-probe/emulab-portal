@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -131,7 +131,7 @@ main(int argc, char **argv)
 
 	err = bootinfo_init();
 	if (err) {
-		error("could not initialize bootinfo");
+		error("could not initialize bootinfo\n");
 		exit(1);
 	}
 	/* Create socket from which to read. */
@@ -198,7 +198,7 @@ onhup(int sig)
 	close_bootinfo_db();
 	err = open_bootinfo_db();
 	if (err) {
-		error("Could not reopen database");
+		error("Could not reopen database\n");
 		exit(1);
 	}
 }

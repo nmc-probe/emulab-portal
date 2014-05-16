@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2013 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -135,16 +135,16 @@ event_register_withkeyfile_withretry(char *name, int threaded,
 	int		cc;
 
 	if ((fp = fopen(keyfile, "r")) == NULL) {
-		ERROR("could not open keyfile: %s", keyfile);
+		ERROR("could not open keyfile: %s\n", keyfile);
 		return 0;
 	}
 	if ((cc = fread(buf, sizeof(char), sizeof(buf), fp)) == 0) {
-		ERROR("could not read keyfile: %s", keyfile);
+		ERROR("could not read keyfile: %s\n", keyfile);
 		fclose(fp);
 		return 0;
 	}
 	if (cc == sizeof(buf)) {
-		ERROR("keyfile is too big: %s", keyfile);
+		ERROR("keyfile is too big: %s\n", keyfile);
 		fclose(fp);
 		return 0;
 	}
@@ -214,8 +214,12 @@ event_register_withkeydata_withretry(char *name, int threaded,
 	int                 scanres;
 	FILE               *fp;
 
-	ERROR("could not get IP address from hostname, "
-              "reading IP from %s.\n", IPADDRFILE);
+	if (strlen(hostname)) {
+		ERROR("could not get IP address from hostname");
+	} else {
+		ERROR("hostname not set or not fully qualified");
+	}
+	fprintf(stderr, ", reading IP from %s.\n", IPADDRFILE);
         /* Try getting the node's ID from BOOTDIR/myip before giving up. */
 	fp = fopen(IPADDRFILE, "r");
 	if (fp != NULL) {
@@ -231,7 +235,7 @@ event_register_withkeydata_withretry(char *name, int threaded,
             }
             snprintf(ipaddr, sizeof(ipaddr), "%u.%u.%u.%u", o1, o2, o3, o4);
         } else {
-            ERROR("could not get IP from local file %s either!", IPADDRFILE);
+            ERROR("could not get IP from local file %s either!\n", IPADDRFILE);
             return 0;
         }
     }
@@ -276,7 +280,7 @@ event_register_withkeydata_withretry(char *name, int threaded,
       sstr = strrchr(cp, '/');
     }
     if (!sstr) {
-      ERROR("could not parse: %s", name);
+      ERROR("could not parse: %s\n", name);
       goto bad;
     }
     *sstr++ = '\0';
@@ -1191,7 +1195,9 @@ addclause(char *tag, char *clause, char *exp, int size, int *index)
 	char	*bp;
 	char    clausecopy[EXPRESSION_LENGTH], *strp = clausecopy;
 	char	buf[EXPRESSION_LENGTH];
+#if 0
 	int     needglob = 1;
+#endif
 
 	/* Must copy clause since we use strsep! */
 	if (strlen(clause) >= sizeof(clausecopy)-1)
@@ -1208,8 +1214,10 @@ addclause(char *tag, char *clause, char *exp, int size, int *index)
 		if (! *bp)
 			continue;
 
+#if 0
 		if (! strcmp("*", bp))
 			needglob = 0;
+#endif
 		
 		count += snprintf(&buf[count], sizeof(buf) - count,
 				  "%s %s == \"%s\" ",
@@ -2240,7 +2248,7 @@ event_notification_t event_notification_create_v(event_handle_t handle,
 	address_tuple_t tuple;
 
 	if ((tuple = address_tuple_alloc()) == NULL) {
-		ERROR("could not allocate address tuple");
+		ERROR("could not allocate address tuple\n");
 		errno = ENOMEM;
 	}
 	else {
@@ -2304,7 +2312,7 @@ event_notification_t event_notification_create_v(event_handle_t handle,
 				when = va_arg(args, struct timeval *);
 				break;
 			default:
-				ERROR("unknown tag value");
+				ERROR("unknown tag value\n");
 				errno = EINVAL;
 				return 0;
 			}
@@ -2313,7 +2321,7 @@ event_notification_t event_notification_create_v(event_handle_t handle,
 		
 		if ((retval = event_notification_alloc(handle,
 						       tuple)) == NULL) {
-			ERROR("could not allocate notification");
+			ERROR("could not allocate notification\n");
 			errno = ENOMEM;
 		}
 		else {
@@ -2355,7 +2363,7 @@ int event_do_v(event_handle_t handle, ea_tag_t tag, va_list args)
 	
 	if ((en = event_notification_create_v(handle, &when,
 					      tag, args)) == NULL) {
-		ERROR("could not allocate notification");
+		ERROR("could not allocate notification\n");
 		errno = ENOMEM;
 	}
 	else {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2004, 2007 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -118,7 +118,7 @@ bievent_send(struct in_addr ipaddr, void *opaque, char *event)
 	    info("Sending event %s for node %s\n", event, nodeid);
 
 	if (event_notify(event_handle, notification) == 0) {
-		error("Unable to send notification!");
+		error("Unable to send notification!\n");
 		event_notification_free(event_handle, notification);
 
 		/*

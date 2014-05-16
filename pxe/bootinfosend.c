@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -121,13 +121,13 @@ main(int argc, char **argv)
 
 	err = open_bootinfo_db();
 	if (err) {
-		error("could not open database");
+		error("could not open database\n");
 		exit(1);
 	}
 #ifdef EVENTSYS
 	err = bievent_init();
 	if (err) {
-		error("could not initialize event system");
+		error("could not initialize event system\n");
 		exit(1);
 	}
 #endif

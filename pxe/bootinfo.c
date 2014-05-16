@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2013 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -60,18 +60,18 @@ bootinfo_init(void)
 	/* Initialize data base */
 	err = open_bootinfo_db();
 	if (err) {
-		error("could not open database");
+		error("could not open database\n");
 		return -1;
 	}
 	err = bicache_init();
 	if (err) {
-		error("could not initialize cache");
+		error("could not initialize cache\n");
 		return -1;
 	}
 #ifdef EVENTSYS
 	err = bievent_init();
 	if (err) {
-		error("could not initialize event system");
+		error("could not initialize event system\n");
 		return -1;
 	}
 #endif
