@@ -27,6 +27,30 @@ chdir("apt");
 include("quickvm_sup.php");
 
 #
+# Poor man routing description.
+#
+$routing = array("myprofiles" =>
+			array("file"    => "myprofiles.ajax",
+			      "methods" => array("GetProfile" =>
+						      "Do_GetProfile")),
+		 "manage_profile" =>
+			array("file"    => "manage_profile.ajax",
+			      "methods" => array("SnapShotStatus" =>
+						      "Do_SnapShotStatus")),
+		 "status" =>
+			array("file"    => "status.ajax",
+			      "methods" => array("GetInstanceStatus" =>
+						   "Do_GetInstanceStatus",
+						 "TerminateInstance" =>
+						    "Do_TerminateInstance",
+						 "GetInstanceManifest" =>
+						    "Do_GetInstanceManifest",
+						 "GetSSHAuthObject" =>
+						    "Do_GetSSHAuthObject",
+						 "RequestExtension" =>
+						    "Do_RequestExtension")));
+
+#
 # Redefine this so we return XML instead of html for all errors.
 #
 $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
@@ -38,34 +62,64 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
 };
 
 #
-# At this point, must always be a logged in user.
+# Included file determines if guest user okay.
 #
 $this_user = CheckLogin($check_status);
-if (!$this_user) {
-    SPITAJAX_ERROR(2, "Your login has timed out");
-    return;
+
+#
+# Check user login, called by included code. Basically just a
+# way to let guest users pass through when allowed, without
+# duplicating the code in each file.
+#
+function CheckLoginForAjax($guestokay = 0)
+{
+    global $this_user, $check_status;
+
+    # Known user, but timed out.
+    if ($check_status & CHECKLOGIN_TIMEDOUT) {
+	SPITAJAX_ERROR(2, "Your login has timed out");
+	exit(2);
+    }
+    # Logged in user always okay.
+    if (isset($this_user)) {
+	if ($check_status & CHECKLOGIN_MAYBEVALID) {
+	    SPITAJAX_ERROR(2, "Your login cannot be verified. Cookie problem?");
+	    exit(2);
+	}
+	return;
+    }
+    if (!$guestokay) {
+	SPITAJAX_ERROR(2, "Your are not logged in");	
+	exit(2);
+    }
+    # Guest user okay, but the cookie must exist.
+    if (isset($_COOKIE['quickvm_user'])) {
+	return;
+    }
+    SPITAJAX_ERROR(2, "Who are you?");
+    exit(2);
 }
-$this_idx = $this_user->uid_idx();
 
 #
 # Verify page arguments.
 #
-$optargs = RequiredPageArguments("ajax_request",  PAGEARG_BOOLEAN,
+$optargs = RequiredPageArguments("ajax_route",    PAGEARG_STRING,
 				 "ajax_method",   PAGEARG_STRING,
 				 "ajax_args",     PAGEARG_ARRAY);
 
 #
-# If we get more then a few, this will be annyoing.
+# Verify page and method.
 #
-if ($ajax_method == "SnapShotStatus") {
-    include("manage_profile.ajax");
-    Do_SnapShotStatus();
+if (! array_key_exists($ajax_route, $routing)) {
+    SPITAJAX_ERROR(1, "Invalid route: $ajax_route");
+    exit(1);
 }
-if ($ajax_method == "GetProfile") {
-    include("myprofiles.ajax");
-    Do_GetProfile();
+if (! array_key_exists($ajax_method, $routing[$ajax_route]["methods"])) {
+    SPITAJAX_ERROR(1, "Invalid method: $ajax_route,$ajax_method");
+    exit(1);
 }
-else {
-    SPITAJAX_ERROR(1, "Unknown request");
-}
+
+include($routing[$ajax_route]["file"]);
+call_user_func($routing[$ajax_route]["methods"][$ajax_method]);
+
 ?>

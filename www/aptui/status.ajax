@@ -1,0 +1,213 @@
+<?php
+#
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+# Local Variables:
+# mode:php
+# End:
+ #
+chdir("..");
+include_once("geni_defs.php");
+chdir("apt");
+include_once("profile_defs.php");
+include_once("instance_defs.php");
+
+# Guest users okay. This will not return if it fails.
+CheckLoginForAjax(1);
+
+# Set these globals below.
+$instance = null;
+$creator  = null;
+
+#
+# Locate the objects and check permission.
+#
+function StatusSetupAjax()
+{
+    global $this_user, $ajax_args;
+    global $instance, $creator;
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing instance uuid");
+	return 1;
+    }
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "no such instance uuid: $uuid");
+	return 1;
+    }
+    $creator = GeniUser::Lookup("sa", $instance->creator_uuid());
+    if (! $creator) {
+	$creator = User::LookupByUUID($instance->creator_uuid());
+    }
+    if (!$creator) {
+	SPITAJAX_ERROR(1, "no such instance creator");
+	return 1;
+    }
+    # Admin users do whatever the like.
+    if (isset($this_user) && ISADMIN()) {
+	return 0;
+    }
+    # An experiment created by a real user, can be accessed by that user only.
+    # Ditto a guest user; must be the same guest.
+    if (! ((get_class($creator) == "User" &&
+	    isset($this_user) && $creator->uuid() == $this_user->uuid()) ||
+	   (get_class($creator) == "GeniUser" &&
+	    isset($_COOKIE['quickvm_user']) &&
+	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
+	SPITAJAX_ERROR(1, "You do not have permission!");
+	return 1;
+    }
+    return 0;
+}
+
+#
+# Status/
+#
+function Do_GetInstanceStatus()
+{
+    global $instance, $creator;
+
+    if (StatusSetupAjax()) {
+	return;
+    }
+    SPITAJAX_RESPONSE($instance->status());
+}
+
+#
+# Terminate.
+#
+function Do_TerminateInstance()
+{
+    global $instance, $creator;
+
+    if (StatusSetupAjax()) {
+	return;
+    }
+    $uuid = $instance->uuid();
+
+    # This needs work.
+    SUEXEC("nobody", "nobody", "webquickvm -k $uuid",
+	   SUEXEC_ACTION_IGNORE);
+    SPITAJAX_RESPONSE("");
+}
+
+#
+# Manifest.
+#
+function Do_GetInstanceManifest()
+{
+    global $instance, $creator;
+
+    if (StatusSetupAjax()) {
+	return;
+    }
+
+    SPITAJAX_RESPONSE($instance->manifest());
+}
+
+#
+# SSH Auth Object
+#
+function Do_GetSSHAuthObject()
+{
+    global $instance, $creator;
+    global $ajax_args;
+
+    if (!isset($ajax_args["hostport"])) {
+	SPITAJAX_ERROR(1, "Missing hostport");
+	return 1;
+    }
+    $hostport = $ajax_args["hostport"];
+    
+    if (StatusSetupAjax()) {
+	return;
+    }
+    $nodeid = $ajax_args["nodeid"];
+    $auth   = SSHAuthObject($creator->uid(), $hostport);
+    if (!$auth) {
+	SPITAJAX_ERROR(1, "Could not create authentication object");
+	return;
+    }
+    SPITAJAX_RESPONSE($auth);
+}
+
+#
+# Request automatic extension.
+#
+function Do_RequestInstanceExtension()
+{
+    global $instance, $creator;
+    global $ajax_args;
+
+    if (!isset($ajax_args["reason"])) {
+	SPITAJAX_ERROR(1, "Missing reason");
+	return 1;
+    }
+    $reason = $ajax_args["reason"];
+
+    if (StatusSetupAjax()) {
+	return;
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	return 1;
+    }
+    # Only extend for 24 hours. More later.
+    $expires_time = strtotime($slice->expires());
+    if ($expires_time > time() + (3600 * 24)) {
+	sleep(2);
+	SPITAJAX_ERROR(1, "You still have lots of time left!");
+	return;
+    }
+    $retval = SUEXEC("nobody", "nobody",
+		     "webquickvm -e " . 3600 * 24 . " $uuid",
+		     SUEXEC_ACTION_CONTINUE);
+
+    if ($retval == 0) {
+    # Refresh. 
+	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+	$new_expires = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
+
+	SPITAJAX_RESPONSE($new_expires);
+
+	TBMAIL($creator->email(),
+	       "APT Extension: $uuid",
+	       "A request to extend your APT experiment was made and ".
+	       "granted.\n".
+	       "Your reason was:\n\n". $reason . "\n\n".
+	       "Your experiment will now expire at $new_expires.\n\n".
+	       "You can request another extension tomorrow.\n",
+	       "CC: $TBMAIL_OPS");
+    }
+    elseif ($retval > 0) {
+	SPITAJAX_ERROR(1, $suexec_output);
+    }
+    else {
+	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+    }
+}
+
+?>

@@ -7,10 +7,12 @@ function ($, sup, moment)
     'use strict';
     var CurrentTopo = null;
     var nodecount   = 0;
+    var ajaxurl     = null;
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+	ajaxurl = window.APT_OPTIONS.AJAXURL;
 
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
@@ -64,9 +66,11 @@ function ($, sup, moment)
 	    }
 	    sup.ShowModal("#waitwait");
 
-	    var $xmlthing = sup.CallMethod("terminate", null,
-					   window.APT_OPTIONS.uuid, null);
-	    $xmlthing.done(callback);
+	    var xmlthing = sup.CallServerMethod(ajaxurl,
+						"status",
+						"TerminateInstance",
+					 {"uuid" : window.APT_OPTIONS.uuid});
+	    xmlthing.done(callback);
 	});
 
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
@@ -79,8 +83,11 @@ function ($, sup, moment)
 	var callback = function(json) {
 	    StatusWatchCallBack(uuid, json);
 	}
-	var $xmlthing = sup.CallMethod("status", null, uuid, null);
-	$xmlthing.done(callback);
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "GetInstanceStatus",
+					     {"uuid" : uuid});
+	xmlthing.done(callback);
     }
 
     // Call back for above.
@@ -376,8 +383,12 @@ function ($, sup, moment)
 	}
 	sup.HideModal('#extend_modal');
 	sup.ShowModal("#waitwait");
-	var $xmlthing = sup.CallMethod("request_extension", null, uuid, reason);
-	$xmlthing.done(callback);
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "RequestInstanceExtension",
+					    {"uuid"   : uuid,
+					      "reason" : reason});
+	xmlthing.done(callback);
     }
 	
     //
@@ -502,8 +513,11 @@ function ($, sup, moment)
 		StartSSH(tabname, json.value);
 	    }
 	}
-	var xmlthing = sup.CallMethod("ssh_authobject", null,
-				      window.APT_OPTIONS.uuid, hostport);
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "GetSSHAuthObject",
+					    {"uuid" : window.APT_OPTIONS.uuid,
+					     "hostport" : hostport});
 	xmlthing.done(callback);
     }
     //
@@ -606,8 +620,11 @@ function ($, sup, moment)
 		NewSSHTab(nodehostport, nodename);
 	    }
 	}
-	var $xmlthing = sup.CallMethod("manifest", null, uuid, null);
-	$xmlthing.done(callback);
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "GetInstanceManifest",
+					    {"uuid" : uuid});
+	xmlthing.done(callback);
     }
 
     function ReDrawTopoMap()

@@ -56,6 +56,10 @@ function ($, sup)
 	var index;
     
 	var callback = function(json) {
+	    if (json.code) {
+		alert("Failed to get rspec for topology viewer: " + json.value);
+		return;
+	    }
 	    var xmlDoc = $.parseXML(json.value.rspec);
 	    var xml    = $(xmlDoc);
 	    var topo   = sup.ConvertManifestToJSON(profile, xml);
@@ -67,7 +71,9 @@ function ($, sup)
  			   ($("#showtopo_nopicker").outerWidth() - 2),
 			   300, topo, null);
 	};
-	var $xmlthing = sup.CallServerMethod(ajaxurl, "GetProfile",
+	var $xmlthing = sup.CallServerMethod(ajaxurl,
+					     "myprofiles",
+					     "GetProfile",
 				     	     {"uuid" : profile});
 	$xmlthing.done(callback);
     }

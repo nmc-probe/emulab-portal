@@ -35,7 +35,7 @@ function CallMethod(method, callback, uuid, arg)
     });
 }
 
-function CallServerMethod(url, method, args)
+function CallServerMethod(url, route, method, args)
 {
     if (url == null) {
 	url = 'https://' + window.location.host + '/apt/server-ajax.php';
@@ -46,7 +46,7 @@ function CallServerMethod(url, method, args)
  
 	// the data to send (will be converted to a query string)
 	data: {
-	    ajax_request:   1,
+	    ajax_route:     route,
 	    ajax_method:    method,
 	    ajax_args:      args,
 	},

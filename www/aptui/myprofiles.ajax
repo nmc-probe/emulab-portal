@@ -30,13 +30,18 @@ include_once("webtask.php");
 chdir("apt");
 include_once("profile_defs.php");
 
+# Logged in users only. This will not return if it fails.
+CheckLoginForAjax();
+
 #
 # Return info about specific profile.
 #
 function Do_GetProfile()
 {
-    global $this_idx;
+    global $this_user;
     global $ajax_args;
+    
+    $this_idx = $this_user->uid_idx();
 
     if (!isset($ajax_args["uuid"])) {
 	SPITAJAX_ERROR(1, "Missing profile uuid");

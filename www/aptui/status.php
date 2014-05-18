@@ -40,15 +40,9 @@ $this_user = CheckLogin($check_status);
 #
 # Verify page arguments.
 #
-$reqargs = OptionalPageArguments("uuid",          PAGEARG_STRING,
-				 "ajax_request",  PAGEARG_BOOLEAN,
-				 "ajax_method",   PAGEARG_STRING,
-				 "ajax_argument", PAGEARG_STRING);
+$reqargs = OptionalPageArguments("uuid",          PAGEARG_STRING);
+
 if (!isset($uuid)) {
-    if ($ajax_request) {
-	SPITAJAX_ERROR(1, "must provide uuid");
-	exit();
-    }
     SPITHEADER(1);
     echo "<div class='align-center'>
             <p class='lead text-center'>
@@ -64,10 +58,6 @@ if (!isset($uuid)) {
 #
 $instance = Instance::Lookup($uuid);
 if (!$instance) {
-    if ($ajax_request) {
-	SPITAJAX_ERROR(1, "no such instance uuid: $uuid");
-	exit();
-    }
     SPITHEADER(1);
     echo "<div class='align-center'>
             <p class='lead text-center'>
@@ -85,10 +75,6 @@ if (! $creator) {
     $creator = User::LookupByUUID($instance->creator_uuid());
 }
 if (!$creator) {
-    if ($ajax_request) {
-	SPITAJAX_ERROR(1, "no such instance creator uuid");
-	exit();
-    }
     SPITHEADER(1);
     echo "<div class='align-center'>
             <p class='lead text-center'>
@@ -110,87 +96,11 @@ if (! (isset($this_user) && ISADMIN())) {
 	   (get_class($creator) == "GeniUser" &&
 	    isset($_COOKIE['quickvm_user']) &&
 	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
-	if ($ajax_request) {
-	    if ($check_status & CHECKLOGIN_TIMEDOUT) {
-		SPITAJAX_ERROR(2, "Your login has timed out!");
-	    }
-	    else {
-		SPITAJAX_ERROR(1, "You do not have permission!");
-	    }
-	    exit();
-	}
 	PAGEERROR("You do not have permission to look at this experiment!");
     }
 }
 $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 
-#
-# Deal with ajax requests.
-#
-if (isset($ajax_request)) {
-    if ($ajax_method == "status") {
-	SPITAJAX_RESPONSE($instance->status());
-    }
-    elseif ($ajax_method == "terminate") {
-	SUEXEC("nobody", "nobody", "webquickvm -k $uuid",
-	       SUEXEC_ACTION_IGNORE);
-	SPITAJAX_RESPONSE("");
-    }
-    elseif ($ajax_method == "manifest") {
-	SPITAJAX_RESPONSE($instance->manifest());
-    }
-    elseif ($ajax_method == "ssh_authobject") {
-	#
-	#
-	#
-	SPITAJAX_RESPONSE(SSHAuthObject($creator->uid(), $ajax_argument));
-    }
-    elseif ($ajax_method == "request_extension") {
-	if (!isset($slice)) {
-	    SPITAJAX_ERROR(1, "Nothing to extend!");
-	    return;
-	}
-        # Only extend for 24 hours. More later.
-	$expires_time = strtotime($slice->expires());
-	if ($expires_time > time() + (3600 * 24)) {
-	    sleep(2);
-	    SPITAJAX_ERROR(1, "You still have lots of time left!");
-	    return;
-	}
-	
-	$retval =
-	    SUEXEC("nobody", "nobody", "webquickvm -e " . 3600 * 24 . " $uuid",
-		   SUEXEC_ACTION_CONTINUE);
-
-	if ($retval == 0) {
-	    # Refresh. 
-	    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-	    $new_expires = gmdate("Y-m-d\TH:i:s\Z",
-				  strtotime($slice->expires()));
-	    
-	    SPITAJAX_RESPONSE($new_expires);
-
-	    TBMAIL($creator->email(),
-		   "APT Extension: $uuid",
-		   "A request to extend your APT experiment was made and ".
-		   "granted.\n".
-		   "Your reason was:\n\n". $ajax_argument . "\n\n".
-		   "Your experiment will now expire at $new_expires.\n\n".
-		   "You can request another extension tomorrow.\n",
-		   "CC: $TBMAIL_OPS");
-	}
-	elseif ($retval > 0) {
-	    SPITAJAX_ERROR(1, $suexec_output);
-	}
-	else {
-	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
-	}
-    }
-    elseif ($ajax_method == "extend") {
-	SPITAJAX_ERROR(1, "Not implemented yet!");
-    }
-    exit();
-}
 SPITHEADER(1);
 
 $style = "style='border: none;'";
@@ -394,6 +304,7 @@ echo "  window.APT_OPTIONS.uuid = '" . $uuid . "';\n";
 echo "  window.APT_OPTIONS.sliceExpires = '" . $slice_expires . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
+echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 echo "</script>\n";
 echo "<script src='js/lib/require.js' data-main='js/status'></script>";
 

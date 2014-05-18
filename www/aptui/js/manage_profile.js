@@ -610,7 +610,9 @@ require(['jquery', 'underscore', 'js/quickvm_sup',
 	    setTimeout(function f() { ShowProgressModal() }, 5000);
 	}
 
-	var $xmlthing = sup.CallServerMethod(ajaxurl, "SnapShotStatus",
+	var $xmlthing = sup.CallServerMethod(ajaxurl,
+					     "manage_profile",
+					     "SnapShotStatus",
 					     {"uuid" : uuid});
 	$xmlthing.done(callback);
     }
