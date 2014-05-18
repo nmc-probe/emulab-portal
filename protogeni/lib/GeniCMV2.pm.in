@@ -1166,12 +1166,14 @@ sub SliverStatus($)
 	}
 	$blob->{'details'}->{$sliver_urn} = {
 	    "component_urn" => $resource_id,
-	    "rawstate"      => (defined($sliver->rawstate()) ?
-				$sliver->rawstate() : "unknown"),
 	    "state"  => $state,
 	    "status" => $status,
 	    "error"  => $error,
 	};
+	if (ref($sliver) eq "GeniSliver::Node" &&
+	    defined($sliver->rawstate())) {
+	    $blob->{'rawstate'} = $sliver->rawstate();
+	}
     }
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
