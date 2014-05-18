@@ -277,6 +277,11 @@ if (ChangeBootOrder($iloIP)) {
 DoIloKey($node_id);
 
 #
+# Disable IPMI.
+#
+NoIPMI($node_id, $elabmanpswd);
+
+#
 # This resets the ilo.
 #
 DoResetILO($iloIP, $elabmanpswd);
@@ -478,6 +483,8 @@ sub SetupControlNode($$)
     if (SendXML($ip, $xmlgoo)) {
 	Fatal("Failed to send addsshkey xml to $ip");
     }
+    NoIPMI("control-ilo", $elabmanpswd);
+    
     #
     # Save this off. Maybe we should put the control node into the
     # Emulab DB?
