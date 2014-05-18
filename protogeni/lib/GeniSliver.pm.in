@@ -141,6 +141,7 @@ sub Lookup($$)
     $self->{'AGGREGATE'}   = undef;	# server
     $self->{'RSPEC'}       = undef;	# server
     $self->{'CERTIFICATE'} = undef;
+    $self->{'RAWSTATE'}    = undef;
 
     my $rspec_string = $self->{'SLIVER'}->{'rspec_string'};
     if (defined($rspec_string) && $rspec_string ne "") {
@@ -300,6 +301,7 @@ sub aggregate_uuid($)	{ return field($_[0], "aggregate_uuid"); }
 sub rspec_string($)     { return field($_[0], "rspec_string"); }
 sub status($)		{ return field($_[0], "status"); }
 sub state($)		{ return field($_[0], "state"); }
+sub rawstate($)		{ return $_[0]->{'RAWSTATE'}; }
 sub ErrorLog($)		{ return field($_[0], "errorlog"); }
 sub cert($)		{ return GetCertificate($_[0])->cert(); }
 sub rspec($)            { return $_[0]->{'RSPEC'}; }
@@ -1304,6 +1306,9 @@ sub ComputeStatus($$)
 	print STDERR "$node was already released from $self\n";
 	return -1;
     }
+    # Stash this away. 
+    $self->{'RAWSTATE'} = $node->eventstate();
+    
     #
     # Special state for updating user accounts. We never go into the
     # state unless the sliver was started/ready, so we know we can go
@@ -1319,6 +1324,32 @@ sub ComputeStatus($$)
 	    $self->SetState("started");
 	}
     }
+    elsif ($self->state() eq "imaging") {
+	$status = "changing";
+	goto done;
+    }
+    elsif ($reservation->elab_in_elab()) {
+	#
+	# The inner nodes do not tell us what is happening, so we just
+	# call them ready when inner_elab_boot is set, which means that
+	# inner elab is setup and running okay. Inner boss/ops do tell
+	# us their state, so we use that to determine ready.
+	#
+	if ($node->eventstate() eq TBDB_NODESTATE_TBFAILED()) {
+	    $status = "failed";
+	    goto done;
+	}
+	elsif ($node->inner_elab_role() eq "node") {
+	    $status = ($node->inner_elab_boot() ? "ready" : "notready");
+	    goto done;
+	}
+	elsif (!$node->inner_elab_boot()) {
+	    $status = "notready";
+	    goto done;
+	}
+	# Fall through, waiting for ISUP for boss/ops.
+    }
+    
     #
     # Emulab does not return "unknown" ... we always know ...
     #

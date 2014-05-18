@@ -37,8 +37,8 @@ use strict;
 use Exporter;
 use vars qw(@ISA @EXPORT);
 
-@ISA    = "Exporter";
-@EXPORT = qw ( );
+@ISA    = qw(Exporter);
+@EXPORT = qw();
 
 use GeniDB;
 use Genixmlrpc;
@@ -746,6 +746,20 @@ sub GetTicketAuxAux($$$$$$$$$$)
 				  "objecttype" => "6"});
 
     #
+    # Look for toplevel elabinelab section.
+    #
+    my $elabinelab_settings = GeniXML::GetElabInElabSettings($rspec);
+    if (defined($elabinelab_settings)) {
+	$virtexperiment->elab_in_elab(1);
+	if (exists($elabinelab_settings->{'singlenet'})) {
+	    $virtexperiment->elabinelab_singlenet(1);
+	}
+	if (exists($elabinelab_settings->{'xen'})) {
+	    $virtexperiment->multiplex_factor(2);
+	}
+    }
+
+    #
     # An rspec is a structure that requests specific nodes. If those
     # nodes are available, then reserve it. Otherwise the ticket
     # cannot be granted.
@@ -1389,6 +1403,47 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    close(STARTUP);
 	    chmod(0755, $startfile);
 	    } # END TEMPORARY ELSE
+	}
+
+	my $elabsettings = GeniXML::GetElabInElabSettings($ref);
+	if (defined($elabsettings)) {
+	    my $extradisksize;
+	    my $extradiskmnts;
+	    
+	    if (exists($elabsettings->{'role'})) {
+		my $erole = $elabsettings->{'role'};
+		my $role;
+		
+		$nodeblob->{'inner_elab_role'} = $erole;
+
+		if ($erole =~ /boss/) {
+		    $extradisksize = "disk1:10G,disk2:10G,disk3:10G";
+		    $extradiskmnts =
+			"da1:/usr/testbed,da2:/usr/testbed/data,da3:".
+			"/usr/testbed/log";
+		    $role = "boss";
+		}
+		else {
+		    $extradisksize = "disk1:4G,disk2:10G,disk3:10G";
+		    $extradiskmnts =
+			"da1:/usr/testbed,da2:/q,da3:/share";
+		    $role = "ops";
+		}
+		$virtexperiment->NewTableRow("virt_node_attributes",
+					     {"vname"     => $node_nickname,
+					      "attrkey"   => "XEN_EXTRADISKS",
+					      "attrvalue" => $extradisksize});
+		$virtexperiment->NewTableRow("elabinelab_attributes",
+					     {"role"      => $role,
+					      "attrkey"   => "EXTRADISKS",
+					      "attrvalue" => $extradiskmnts,
+					      "ordering"  => 0});
+	    }
+	    else {
+		$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+						 "No role for elabinelab");
+		goto bad;
+	    }
 	}
 
 	my $virtnode = $virtexperiment->NewTableRow("virt_nodes", $nodeblob);

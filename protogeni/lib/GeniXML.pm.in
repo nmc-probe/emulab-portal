@@ -871,6 +871,21 @@ sub GetXenSettings($)
     return $result;
 }
 
+sub GetElabInElabSettings($)
+{
+    my ($ref) = @_;
+    my $result = {};
+
+    my $settings = FindNodesNS("n:elabinelab", $ref, $EMULAB_NS)->pop();
+    return undef
+	if (!defined($settings));
+    
+    foreach my $attr ($settings->attributes()) {
+	$result->{$attr->nodeName} = $attr->getValue();
+    }
+    return $result;
+}
+
 sub HasFirewallSettings($)
 {
     my ($node) = @_;

@@ -36,8 +36,8 @@ use strict;
 use Exporter;
 use vars qw(@ISA @EXPORT);
 
-@ISA    = "Exporter";
-@EXPORT = qw ( );
+@ISA    = qw(Exporter);
+@EXPORT = qw();
 
 # Must come after package declaration!
 use GeniDB;
@@ -89,6 +89,7 @@ my $GENELISTS      = "$TB/sbin/genelists";
 my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $ARPLOCKDOWN    = "$TB/sbin/arplockdown";
 my $TARFILES_SETUP = "$TB/bin/tarfiles_setup";
+my $ELAB_SETUP     = "$TB/sbin/elabinelab";
 
 # Cache of instances to avoid regenerating them.
 my %aggregates     = ();
@@ -485,6 +486,28 @@ sub SliverList($$)
     @$pref = @result;
     return 0;
     
+}
+
+#
+# Look for any slivers with provided state.
+#
+sub CheckSliverStates($$)
+{
+    my ($self, $state) = @_;
+
+    my @slivers = ();
+    if ($self->SliverList(\@slivers) != 0) {
+	print STDERR "Could not get sliver list for $self\n";
+	return -1;
+    }
+    foreach my $sliver (@slivers) {
+	next
+	    if (ref($sliver) ne "GeniSliver::Node");
+
+	return 1
+	    if ($sliver->state() eq $state);
+    }
+    return 0;
 }
 
 #
@@ -934,6 +957,8 @@ sub Action($$$)
     my %reloads  = ();
     my %vnodekills = ();
     my %imageinfo  = ();
+    my @waitvnodes = ();
+    my @waitpnodes = ();
     # See "bad" label below; want to know what sliver failed (if any).
     my $sliver;
 
@@ -1015,6 +1040,7 @@ sub Action($$$)
 			$vnodes{$node->node_id} = $node;
 		    }
 		}
+		push(@waitvnodes, $node);
 		# See below.
 		$vnode = $node;
 		$vnode->_parent(undef);
@@ -1104,6 +1130,8 @@ sub Action($$$)
 		# that the vnode is running one. 
 		#
 	    }
+	    push(@waitpnodes, $node);
+	    
 	    #
 	    # If the node is not imageable, then there is not much to
 	    # do except turn it on or reboot it. I am assuming that a
@@ -1227,9 +1255,6 @@ sub Action($$$)
     
     # See "bad" label below.
     $sliver = undef;
-
-    my @waitvnodes = values(%vnodes);
-    my @waitpnodes = (values(%poweron), values(%reboots));
 
     # Want to make sure we see fresh logs (and do not store the same log).
     foreach my $node (@waitpnodes, @waitpnodes) {
@@ -1497,10 +1522,32 @@ sub Action($$$)
 	$sliver->SetState("started")
 	    if (ref($sliver) eq "GeniSliver::Node");
     }
-    if (1) {
-	$self->WaitForNodes(@waitpnodes, @waitvnodes);
+    my @failed   = ();
+    my $childpid = $self->WaitForNodes(\@failed, @waitpnodes, @waitvnodes);
+    # Parent returns
+    return 0
+	if ($childpid > 0);
+    return -1
+	if ($childpid < 0);
+
+    # Waiting is done. 
+    if ($experiment->elab_in_elab()) {
+	#
+	# We cannot use ComputeState since it knows about elabinelab,
+	# we need to know that all the nodes are ISUP, so we used the
+	# @failed list returned from WaitForNodes().n
+	#
+	if (@failed) {
+	    print STDERR
+		"Some nodes did not boot, not doing elabinelab setup\n";
+	    return -1;
+	}
+	print STDERR "Setting up elabinelab. This could take a while!\n";
+	if (system("$ELAB_SETUP $pid $eid")) {
+	    print STDERR "Failed to setup elabinelab!\n";
+	    return -1;
+	}
     }
-    
     return 0;
 
   bad:
@@ -1519,9 +1566,9 @@ sub Action($$$)
 #
 # Wait for nodes
 #
-sub WaitForNodes($@)
+sub WaitForNodes($$@)
 {
-    my ($self, @nodes) = @_;
+    my ($self, $pfailed, @nodes) = @_;
     my %nodes = ();
     my @waitstates = (TBDB_NODESTATE_TBFAILED, TBDB_NODESTATE_ISUP);
 
@@ -1558,7 +1605,7 @@ sub WaitForNodes($@)
     #
     my $mypid = main::WrapperFork();
     if ($mypid) {
-	return 0;
+	return $mypid;
     }
     $slice->SetMonitorPid($PID);
 
@@ -1764,6 +1811,9 @@ sub WaitForNodes($@)
 		 "in $urn failed.\n\n" .
 		 "$logs\n\n",
 		 $TBOPS, "Cc: $TBOPS");
+
+	# Tell caller.
+	@$pfailed = @failed;
     }
     # Too late, but reset before return; do not want it left set.
     $slice->LockTables();
