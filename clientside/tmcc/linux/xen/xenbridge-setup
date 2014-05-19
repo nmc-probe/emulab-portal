@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2012-2013 University of Utah and the Flux Group.
+# Copyright (c) 2012-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,11 +38,12 @@ use libgenvnode;
 # Default bridgename
 my $XENBR = "xenbr0";
 # Locations of some binaries we use, really should be in liblocsetup.pm
-my $BRCTL = "brctl";
-my $IPBIN = "ip";
-my $IFCONFIGBIN = "ifconfig";
+my $BRCTL = "/sbin/brctl";
+my $IPBIN = "/bin/ip";
+my $IFCONFIGBIN = "/sbin/ifconfig";
 my $OVSCTL = "/usr/local/bin/ovs-vsctl";
 my $USE_OPENVSWITCH = 0;
+my $NOIP = 0;
 
 sub usage()
 {
@@ -51,7 +52,7 @@ sub usage()
     print  "Use -b option to name bridge (defaults to xenbr0)\n";
     exit(1);
 }
-my $optlist  = "b:o";
+my $optlist  = "b:No";
 my %options  = ();
 if (! getopts($optlist, \%options)) {
     usage();
@@ -61,6 +62,9 @@ if (defined($options{"b"})) {
 }
 if (defined($options{"o"})) {
     $USE_OPENVSWITCH = 1;
+}
+if (defined($options{"N"})) {
+    $NOIP = 1;
 }
 
 my $interface = undef;
@@ -104,6 +108,7 @@ if (!defined($interface)) {
     if (-e $cnetfile) {
         $interface = `cat $cnetfile`;
         chomp $interface;
+	$NOIP = 0;
     } else {
         die "Unable to open control net file $cnetfile\n";
     }
@@ -125,30 +130,40 @@ while (!eof(IFOUTPUT)) {
         $netmask = $2;
     }
 }
-if (!$address || !$netmask) {
+if ($NOIP) {
+    # N.B. even if there was an IP, we do not propogate it
+    $address = undef;
+} elsif (!$address || !$netmask) {
     die "xenbridge-setup: Unable to determine IP address and mask for $interface\n";
 }
 
-print "xenbridge-setup: Using IP address $address and mask $netmask\n";
+if ($address) {
+    print "xenbridge-setup: Using IP address $address and mask $netmask\n";
+} else {
+    print "xenbridge-setup: Not assigning IP address\n";
+}
 
 #
 # Get the default route
 #
-my ($defroute, $defiface);
-open(ROUTEOUTPUT,"$IPBIN route list |")
-    or die "xenbridge-setup: Unable to get route list!\n";
-while (!eof(ROUTEOUTPUT)) {
-    my $line = <ROUTEOUTPUT>;
-    chomp $line;
-    if ($line =~ /^default via (\d+\.\d+\.\d+\.\d+)/) {
-	$defroute = $1;
+my $defiface = "";
+my $defroute;
+if (!$NOIP) {
+    open(ROUTEOUTPUT,"$IPBIN route list |")
+	or die "xenbridge-setup: Unable to get route list!\n";
+    while (!eof(ROUTEOUTPUT)) {
+	my $line = <ROUTEOUTPUT>;
+	chomp $line;
+	if ($line =~ /^default via (\d+\.\d+\.\d+\.\d+)/) {
+	    $defroute = $1;
+	}
+	if ($line =~ /^default via [\w\.\/]*\s*dev\s*([\w]*)/) {
+	    $defiface = $1;
+	}
     }
-    if ($line =~ /^default via [\w\.\/]*\s*dev\s*([\w]*)/) {
-	$defiface = $1;
+    if (!$defroute) {
+	die "xenbridge-setup: Unable to determine default route\n";
     }
-}
-if (!$defroute) {
-    die "xenbridge-setup: Unable to determine default route\n";
 }
 my $iscontrol = ($defiface eq $interface ? 1 : 0);
 if ($iscontrol) {
@@ -168,9 +183,9 @@ die "xenbridge-setup: Unable to create bridge $XENBR\n"
     if ($?);
 
 #
-# Remove address from the control net
+# Remove address from the interface
 #
-if (system "$IPBIN address flush dev $interface\n") {
+if (!$NOIP && system("$IPBIN address flush dev $interface\n")) {
     die "xenbridge-setup: Unable to remove $address from $interface\n";
 }
 
@@ -187,10 +202,17 @@ die "xenbridge-setup: Unable to add $interface to bridge $XENBR\n"
     if ($?);
 
 # 
-# Move IP address from the old control net to the bridge
+# Move IP address from the old interface to the bridge (if necessary)
+# and bring up the interface.
 #
-if (system "$IFCONFIGBIN $XENBR inet $address netmask $netmask") {
-    die "xenbridge-setup: Unable to add address $address to bridge $XENBR\n";
+if (!$NOIP) {
+    if (system("$IFCONFIGBIN $XENBR inet $address netmask $netmask")) {
+	die "xenbridge-setup: Unable to add address $address to bridge $XENBR\n";
+    }
+} else {
+    if (system("$IFCONFIGBIN $XENBR up")) {
+	die "xenbridge-setup: Cannot bring up bridge $XENBR\n";
+    }
 }
 
 #
