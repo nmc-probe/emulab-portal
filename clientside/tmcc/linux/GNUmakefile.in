@@ -361,6 +361,7 @@ genirack-install:
 	$(INSTALL) -m 755 $(SRCDIR)/xen/restorevm.pl $(BINDIR)/restorevm.pl
 	$(INSTALL) -m 755 $(SRCDIR)/xen/capturevm.pl $(BINDIR)/capturevm.pl
 	$(INSTALL) -m 755 $(SRCDIR)/xen/xenbridge-setup $(BINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/xenbridge-setup-genirack $(SYSETCDIR)/xen/
 
 OPENVZGUEST_TEMPLATE  = /vz.save/template/cache/emulab-default.tar.gz
 OPENVZGUEST           = /vz/template/cache/emulab-default.tar.gz
