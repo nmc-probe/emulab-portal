@@ -317,7 +317,8 @@ if (!$project) {
     $errors["profile_pid"] = "No such project";
 }
 # User better be a member.
-if (!$project->IsMember($this_user, $isapproved) || !$isapproved) {
+if (!ISADMIN() &&
+    (!$project->IsMember($this_user, $isapproved) || !$isapproved)) {
     $errors["profile_pid"] = "Illegal project";
 }
 
