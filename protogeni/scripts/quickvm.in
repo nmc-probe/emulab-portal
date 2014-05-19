@@ -205,7 +205,7 @@ else {
 # Email record.
 if (! $debug) {
     AuditStart(0, undef, LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY());
-    AddAuditInfo("cc", "apt-logs\@flux.utah.edu");
+    AddAuditInfo("cc", "aptnet-logs\@flux.utah.edu");
 }
 
 # Connect to the SA DB.
