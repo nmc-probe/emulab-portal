@@ -201,7 +201,7 @@ echo "<td class='uk-width-4-5' $style>
 echo "</tr>\n";
 echo "</table>\n";
 echo "<div class='pull-right'>\n";
-if (isset($this_user) && ISADMIN()) {
+if (isset($this_user)) {
     echo "  <a class='btn btn-xs btn-primary' $disabled hidden
                id='snapshot_button' type=button
     	       href='manage_profile.php?action=snapshot&snapuuid=$uuid'>

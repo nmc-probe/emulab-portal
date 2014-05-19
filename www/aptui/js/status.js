@@ -385,7 +385,7 @@ function ($, sup, moment)
 	sup.ShowModal("#waitwait");
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
-					    "RequestInstanceExtension",
+					    "RequestExtension",
 					    {"uuid"   : uuid,
 					      "reason" : reason});
 	xmlthing.done(callback);

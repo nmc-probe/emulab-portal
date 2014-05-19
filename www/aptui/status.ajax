@@ -155,10 +155,11 @@ function Do_GetSSHAuthObject()
 #
 # Request automatic extension.
 #
-function Do_RequestInstanceExtension()
+function Do_RequestExtension()
 {
     global $instance, $creator;
     global $ajax_args;
+    global $TBMAIL_OPS;
 
     if (!isset($ajax_args["reason"])) {
 	SPITAJAX_ERROR(1, "Missing reason");
