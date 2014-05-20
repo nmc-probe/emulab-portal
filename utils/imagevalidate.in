@@ -59,7 +59,7 @@ sub usage()
 	  "               default is 'all'\n");
     exit(-1);
 }
-my $optlist    = "dfnupqRaP:UH:V:";
+my $optlist    = "dfnupqRaP:UH:V:F";
 my $debug      = 0;
 my $showinfo   = 0;
 my $update     = 0;
@@ -165,6 +165,11 @@ if (defined($options{"V"})) {
 }
 @images = @ARGV;
 
+my $fixit = 0;
+if (defined($options{"F"})) {
+    $fixit = 1;
+}
+
 my ($user,$user_uid);
 if ($UID) {
     $user = User->ThisUser();
@@ -241,6 +246,12 @@ sub doimage($)
     $image->GetUpdate(\$stamp);
     $stamp = 0
 	if (!defined($stamp));
+
+    if ($fixit) {
+	print "$pidimage: fixing hash file\n";
+	makehashfile($path, $hash);
+	return 0;
+    }
 
     if ($showinfo) {
 	print "$pidimage: path: $path\n";
@@ -486,7 +497,8 @@ sub makehashfile($$)
 
     unlink($hashfile);
     if (open(HASH, ">$hashfile")) {
-	print HASH $hash;
+	# XXX recreate the sha1 output format for compatibility
+	print HASH "SHA1 ($imagepath) = $hash\n";
 	close($hashfile);
 	system("touch -r $imagepath $hashfile");
     }
