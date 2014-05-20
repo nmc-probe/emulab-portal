@@ -173,12 +173,14 @@ if (! isset($create)) {
 	    if (!$profile) {
 		SPITUSERERROR("Cannot load profile for instance!");
 	    }
-	    else if ($this_idx != $profile->creator_idx() &&
-		     !$profile->ispublic() && !ISADMIN()) {
-		SPITUSERERROR("Not enough permission!");
-	    }
 	    $defaults["profile_rspec"] = $profile->rspec();
 	    $defaults["profile_who"]   = "shared";
+            # Default the project if in only one project.
+	    if (count($projlist) == 1) {
+		list($project) = each($projlist);
+		reset($projlist);
+		$defaults["profile_pid"] = $project;
+	    }
 	}
 	else {
 	    if (! (isset($idx) || isset($uuid))) {
@@ -245,7 +247,9 @@ if (! isset($create)) {
     else {
 	# Default the project if in only one project.
 	if (count($projlist) == 1) {
-	    $defaults["profile_pid"] = $projlist[0];
+	    list($project) = each($projlist);
+	    reset($projlist);
+	    $defaults["profile_pid"] = $project;
 	}
 	$defaults["profile_who"]   = "shared";
     }
