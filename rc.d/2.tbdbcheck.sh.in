@@ -13,20 +13,22 @@ PROTOGENI="@PROTOGENI_SUPPORT@"
 DBNAME="@TBDBNAME@"
 LOGFILE="/var/log/mysqlcheck.log"
 
+command=/usr/local/bin/mysqlcheck
+
 case "$1" in
 	start|faststart|quietstart|onestart|forcestart)
 		rm -f $LOGFILE
 		if [ $MAINSITE == "0" ]; then
 		    echo "*** Checking $DBNAME ..." >> $LOGFILE
-		    mysqlcheck --auto-repair $DBNAME >> $LOGFILE
+		    $command --auto-repair $DBNAME >> $LOGFILE
 		fi
 		if [ $PROTOGENI != "0" ]; then
 		    echo "*** Checking geni ..." >> $LOGFILE
-		    mysqlcheck --auto-repair geni >> $LOGFILE
+		    $command --auto-repair geni >> $LOGFILE
 		    echo "*** Checking geni-ch ..." >> $LOGFILE
-		    mysqlcheck --auto-repair geni-ch >> $LOGFILE
+		    $command --auto-repair geni-ch >> $LOGFILE
 		    echo "*** Checking geni-cm ..." >> $LOGFILE
-		    mysqlcheck --auto-repair geni-cm >> $LOGFILE
+		    $command --auto-repair geni-cm >> $LOGFILE
 		fi
 		;;
 	stop|faststop|quietstop|onestop|forcestop)
