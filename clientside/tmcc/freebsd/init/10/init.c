@@ -41,7 +41,7 @@ static const char copyright[] =
 static char sccsid[] = "@(#)init.c	8.1 (Berkeley) 7/15/93";
 #endif
 static const char rcsid[] =
-  "$FreeBSD: head/sbin/init/init.c 236020 2012-05-25 19:45:01Z jilles $";
+  "$FreeBSD: releng/10.0/sbin/init/init.c 254288 2013-08-13 18:51:26Z jilles $";
 #endif /* not lint */
 
 #include <sys/param.h>
@@ -1788,7 +1788,8 @@ setprocresources(const char *cname)
 	login_cap_t *lc;
 	if ((lc = login_getclassbyname(cname, NULL)) != NULL) {
 		setusercontext(lc, (struct passwd*)NULL, 0,
-		    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES);
+		    LOGIN_SETPRIORITY | LOGIN_SETRESOURCES |
+		    LOGIN_SETLOGINCLASS | LOGIN_SETCPUMASK);
 		login_close(lc);
 	}
 }
