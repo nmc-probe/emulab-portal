@@ -692,7 +692,11 @@ sub Describe
 
     my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
     return $slice
-	if (GeniResponse::IsResponse($slice));
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				"No such slice here")
+	if (! defined($slice));
+    
     my $ticket = GeniTicket->SliceTicket($slice);
     if (! defined($slice) ||
 	(! defined($ticket) && ! defined($aggregate))) {
