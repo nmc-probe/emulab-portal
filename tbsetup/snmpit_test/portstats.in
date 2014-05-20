@@ -1,7 +1,7 @@
 #!/usr/bin/perl -T
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -148,7 +148,7 @@ if (!$opt{p} && !$opt{s}) {
 my @passedPorts = ();
 foreach my $arg (@ARGV) {
     if ($opt{s}) {
-        if ($arg =~ /^([-\w\.\/]+)$/) {
+        if ($arg =~ /^([-\w\.\/:]+)$/) {
             $arg = $1;
         }
         else {
@@ -228,7 +228,14 @@ if ($opt{s}) {
     foreach my $port (@passedPorts) {
         if ($port =~ /^[^.]+\.\d+\/\d+$/) {
 	    push @ports, convertPortFromString($port);
-	} else {
+	}
+        elsif ($port =~ /^[^:]+:\d+\.\d+$/) {
+	    push @ports, convertPortFromString($port);
+        }
+        elsif ($port =~ /^[^:]+:\w+$/) {
+	    push @ports, convertPortFromString($port);
+	}
+	else {
 	    print "'$port' not in correct switch.port syntax, ignoring\n";
 	}
     }
