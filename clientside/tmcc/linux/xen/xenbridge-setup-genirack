@@ -36,8 +36,8 @@ my $IPBIN = "/bin/ip";
 my $IFCONFIGBIN = "/sbin/ifconfig";
 my $JAILGW   = "172.16.0.1";
 my $JAILMASK = "255.240.0.0";
-# For ilo.
-my $MNGGW    = "10.249.249.1";
+# For ilo. Boss takes .254
+my $MNGGW    = "10.249.249.253";
 my $MNGMASK  = "255.255.255.0";
 my $NOIP = 0;
 
