@@ -62,7 +62,7 @@ $target_uuid = $target_user->uuid();
 SPITHEADER(1);
 
 echo "<link rel='stylesheet'
-            href='tablesorter.css'>\n";
+            href='css/tablesorter.css'>\n";
 
 $query_result =
     DBQueryFatal("select * from apt_instances ".
@@ -138,7 +138,7 @@ echo " </div>
       </div>\n";
 
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
-echo "<script src='bootstrap/js/bootstrap.js'></script>\n";
+echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/myexperiments'></script>\n";
 
 SPITFOOTER();

@@ -1,8 +1,8 @@
 window.APT_OPTIONS.config();
 
-require(['js/quickvm_sup', // jQuery modules
+require(['underscore', 'js/quickvm_sup', // jQuery modules
         'formhelpers', 'filestyle', 'marked', 'jacks'],
-function (sup)
+function (_, sup)
 {
     'use strict';
 

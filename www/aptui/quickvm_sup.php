@@ -57,7 +57,7 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
     }
     echo $msg;
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
-    echo "<script src='bootstrap/js/bootstrap.js'></script>\n";
+    echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/null.js'></script>\n";
     SPITFOOTER();
     die("");
@@ -86,8 +86,8 @@ function SPITHEADER($thinheader = 0)
     echo "<html>
       <head>
         <title>$title</title>
-        <link rel='stylesheet' href='bootstrap/css/bootstrap.css'>
-        <link rel='stylesheet' href='quickvm.css'>
+        <link rel='stylesheet' href='css/bootstrap.css'>
+        <link rel='stylesheet' href='css/quickvm.css'>
 	<script src='js/common.js'></script>
         <script src='https://www.emulab.net/emulab_sup.js'></script>
       </head>
@@ -240,7 +240,7 @@ function SPITAJAX_ERROR($code, $msg)
 function SPITNULLREQUIRE()
 {
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
-    echo "<script src='bootstrap/js/bootstrap.js'></script>\n";
+    echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/null'></script>\n";
 }
 

@@ -57,7 +57,7 @@ $target_idx = $target_user->uid_idx();
 SPITHEADER(1);
 
 echo "<link rel='stylesheet'
-            href='tablesorter.css'>\n";
+            href='css/tablesorter.css'>\n";
 
 $query_result =
     DBQueryFatal("select *,DATE(created) as created ".
@@ -184,7 +184,7 @@ echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL  = 'server-ajax.php';\n";
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
-echo "<script src='bootstrap/js/bootstrap.js'></script>\n";
+echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/myprofiles'></script>\n";
 
 SPITFOOTER();

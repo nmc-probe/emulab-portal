@@ -148,19 +148,15 @@ BLOBFILES += $(wildcard blob/*.php3)
 
 APTUIFILES  = $(wildcard $(SRCDIR)/aptui/*.php)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.ajax)
-APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.css)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.png)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.gif)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/.htaccess)
 APTJSFILES  = $(wildcard $(SRCDIR)/aptui/js/*.js)
 APTLIBFILES = $(wildcard $(SRCDIR)/aptui/js/lib/*.js)
 APTTEMPLATES = $(wildcard $(SRCDIR)/aptui/template/*.html)
-UIKITFILES  = $(wildcard $(SRCDIR)/aptui/uikit/fonts/*)
-BOOTSTFONTS = $(wildcard $(SRCDIR)/aptui/bootstrap/fonts/*)
-BOOTSTCSS   = $(wildcard $(SRCDIR)/aptui/bootstrap/css/*)
-BOOTSTJS    = $(wildcard $(SRCDIR)/aptui/bootstrap/js/*)
-HELPERSCSS  = $(wildcard $(SRCDIR)/aptui/formhelpers/css/*)
-HELPERSJS   = $(wildcard $(SRCDIR)/aptui/formhelpers/js/*)
+APTCSSFILES = $(wildcard $(SRCDIR)/aptui/css/*.css)
+APTFONTS = $(wildcard $(SRCDIR)/aptui/fonts/*)
+APTIMAGES = $(wildcard $(SRCDIR)/aptui/images/*)
 
 # need to make it *.gz; with simply "*", 
 # we end up sucking over "CVS"
@@ -222,12 +218,9 @@ ALLAPTUI  = $(notdir $(APTUIFILES))
 ALLAPTJS  = $(notdir $(APTJSFILES))
 ALLAPTLIB = $(notdir $(APTLIBFILES))
 ALLAPTTEMPLATES = $(notdir $(APTTEMPLATES))
-ALLUIKITFONTS = $(notdir $(UIKITFILES))
-ALLBOOTSTFONTS = $(notdir $(BOOTSTFONTS))
-ALLBOOTSTCSS   = $(notdir $(BOOTSTCSS))
-ALLBOOTSTJS    = $(notdir $(BOOTSTJS))
-ALLHELPCSS     = $(notdir $(HELPERSCSS))
-ALLHELPJS      = $(notdir $(HELPERSJS))
+ALLAPTCSS = $(notdir $(APTCSSFILES))
+ALLAPTFONTS = $(notdir $(APTFONTS))
+ALLAPTIMAGES = $(notdir $(APTIMAGES))
 
 INSTALLFILES = $(addprefix $(INSTALL_SBINDIR)/, htmlinstall) \
 	$(addprefix $(INSTALL_WWWDIR)/, $(ALLFILES)) \
@@ -273,11 +266,9 @@ apt-install: 	$(addprefix $(INSTALL_WWWDIR)/apt/, $(ALLAPTUI)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/js/, $(ALLAPTJS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/js/lib/, $(ALLAPTLIB)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/template/, $(ALLAPTTEMPLATES)) \
-	$(addprefix $(INSTALL_WWWDIR)/apt/bootstrap/css/, $(ALLBOOTSTCSS)) \
-	$(addprefix $(INSTALL_WWWDIR)/apt/bootstrap/js/, $(ALLBOOTSTJS)) \
-	$(addprefix $(INSTALL_WWWDIR)/apt/bootstrap/fonts/, $(ALLBOOTSTFONTS)) \
-	$(addprefix $(INSTALL_WWWDIR)/apt/formhelpers/css/, $(ALLHELPCSS)) \
-	$(addprefix $(INSTALL_WWWDIR)/apt/formhelpers/js/, $(ALLHELPJS))
+	$(addprefix $(INSTALL_WWWDIR)/apt/css/, $(ALLAPTCSS)) \
+	$(addprefix $(INSTALL_WWWDIR)/apt/fonts/, $(ALLAPTFONTS)) \
+	$(addprefix $(INSTALL_WWWDIR)/apt/images/, $(ALLAPTIMAGES))
 
 post-install:
 
