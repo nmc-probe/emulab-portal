@@ -434,7 +434,7 @@ require(['underscore', 'js/quickvm_sup',
 	    if (which == "description") {
 		text = "<description type='markdown'></description>";
 	    }
-	    else if (which == "description") {
+	    else if (which == "instructions") {
 		text = "<instructions type='markdown'></instructions>";
 	    }
 	    else if (which == "steps") {
