@@ -22,7 +22,7 @@ function (sup, moment)
 
 	// Use an unload event to terminate any shells.
 	$(window).bind("unload", function() {
-	    console.info("Unload function called");
+//	    console.info("Unload function called");
 	
 	    $('#quicktabs_content div').each(function () {
 		var $this = $(this);
@@ -232,7 +232,7 @@ function (sup, moment)
 	// This does the actual work, called from the timer.
 	//
 	function resizeFunction() {
-	    console.info("resizing topo");
+//	    console.info("resizing topo");
 	    // Must clear the div for the D3 library.
 	    $("#showtopo_statuspage").html("<div></div>");
 	    $("#showtopo_statuspage").removeClass("invisible");
@@ -354,7 +354,7 @@ function (sup, moment)
     function RequestExtension(uuid)
     {
 	var reason = $("#why_extend").val();
-	console.info(reason);
+//	console.info(reason);
 	if (reason.length < 30) {
 	    alert("Your reason is too short! Say more please.");
 	    return;
@@ -362,7 +362,7 @@ function (sup, moment)
 	var callback = function(json) {
 	    sup.HideModal("#waitwait");
 	    
-	    console.info(json.value);
+//	    console.info(json.value);
 	    var message;
 	
 	    if (json.code) {
@@ -405,7 +405,7 @@ function (sup, moment)
 
             var url   = jsonauth.baseurl + ':' + port + '/' + '#' +
 		encodeURIComponent(document.location.href) + ',' + session;
-            console.info(url);
+//            console.info(url);
 	    var iwidth = "100%";
             var iheight = 400;
 
@@ -421,7 +421,7 @@ function (sup, moment)
 			   { "url": jsonauth.baseurl + ':' + port + '/quit' +
 			     '?session=' + session },
 			   function(e) {
-			       console.info("killssh: " + e.data.url);
+//			       console.info("killssh: " + e.data.url);
 			       $.ajax({
      				   url: e.data.url,
 				   type: 'GET',
@@ -504,7 +504,7 @@ function (sup, moment)
 	// Ask the server for an authentication object that allows
 	// to start an ssh shell.
 	var callback = function(json) {
-	    console.info(json.value);
+//	    console.info(json.value);
 
 	    if (json.code) {
 		alert("Failed to gain authentication for ssh.");
@@ -527,12 +527,12 @@ function (sup, moment)
     function ShowTopo(uuid)
     {
 	var callback = function(json) {
-	    console.info(json.value);
+//	    console.info(json.value);
 	    var xmlDoc = $.parseXML(json.value);
 	    var xml    = $(xmlDoc);
 	    var topo   = sup.ConvertManifestToJSON(null, xml);
 
-	    console.info(json.value);
+//	    console.info(json.value);
 
 	    if ($("#manifest_textarea").length) {
 		$("#manifest_textarea").html(json.value);
@@ -576,7 +576,7 @@ function (sup, moment)
 		    var url    = "ssh://" + user + "@" + host + ":" + port +"/";
 		    var sshcmd = "ssh -p " + port + " " + user + "@" + host;
 		    href       = "<a href='" + url + "'><kbd>" + sshcmd + "</kbd></a>";
-		    console.info(url);
+//		    console.info(url);
 		
 		    var hostport  = host + ":" + port;
 		    ssh = "<button class='btn btn-primary btn-sm' " +
@@ -584,7 +584,7 @@ function (sup, moment)
 			"    type='button'>" +
 			"   <span class='glyphicon glyphicon-log-in'><span>" +
 			"  </button>";
-		    console.info(ssh);
+//		    console.info(ssh);
 		    nodehostport = hostport;
 		    nodename = node;
 			

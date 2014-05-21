@@ -83,8 +83,6 @@ function (_, sup)
 	}
 
 	var callback = function(json) {
-	    console.info(json.value);
-
 	    if (json.code) {
 		alert("Could not get profile: " + json.value);
 		return;
@@ -131,6 +129,11 @@ function (_, sup)
 			jacksUpdate = input;
 			jacksUpdate.trigger('change-topology',
 					    [{ rspec: json.value.rspec }]);
+		    },
+		    show: {
+			rspec: false,
+			tour: false,
+			version: false
 		    }
 		});
 	    }
