@@ -1,6 +1,6 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'underscore', 'js/quickvm_sup',
+require(['underscore', 'js/quickvm_sup',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/imaging-modal.html',
@@ -8,8 +8,8 @@ require(['jquery', 'underscore', 'js/quickvm_sup',
 	 'js/lib/text!template/showtopo-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
 	 // jQuery modules
-	 'bootstrap','filestyle','marked','jquery-ui','jquery-grid'],
-	function ($, _, sup,
+	 'filestyle','marked','jquery-ui','jquery-grid'],
+	function (_, sup,
 		  manageString, waitwaitString, imagingString,
 		  rendererString, showtopoString, rspectextviewString)
 {

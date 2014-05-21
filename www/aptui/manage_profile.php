@@ -110,9 +110,9 @@ function SPITFORM($formfields, $errors)
     echo "</script>\n";
     
     echo "<link rel='stylesheet'
-            href='jquery-ui/css/smoothness/jquery-ui-1.10.4.custom.min.css'>\n";
+            href='jquery-ui-1.10.4.custom.min.css'>\n";
     echo "<link rel='stylesheet'
-            href='jquery.appendGrid/css/jquery.appendGrid-1.3.1.min.css'>\n";
+            href='jquery.appendGrid-1.3.1.min.css'>\n";
     # For progress bubbles in the imaging modal.
     echo "<link rel='stylesheet' href='progress.css'>\n";
 
@@ -129,6 +129,8 @@ function SPITFORM($formfields, $errors)
 	echo "    window.SNAPUUID = '$snapuuid';\n";
     }
     echo "</script>\n";
+    echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+    echo "<script src='bootstrap/js/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/manage_profile'>
           </script>";
     

@@ -1,9 +1,9 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'js/quickvm_sup',
+require(['js/quickvm_sup'
 	 // jQuery modules
-	 'bootstrap'],
-function ($, sup)
+	 ],
+function (sup)
 {
     'use strict';
 

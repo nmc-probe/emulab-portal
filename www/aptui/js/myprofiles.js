@@ -1,8 +1,8 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'js/quickvm_sup',
-	 'tablesorter', 'tablesorterwidgets', 'bootstrap'],
-function ($, sup)
+require(['js/quickvm_sup',
+	 'tablesorter', 'tablesorterwidgets'],
+function (sup)
 {
     'use strict';
     var ajaxurl = null;

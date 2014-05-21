@@ -1,8 +1,8 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'js/quickvm_sup', 'moment',
-	 'tablesorter', 'tablesorterwidgets', 'bootstrap' ],
-function ($, sup, moment)
+require(['js/quickvm_sup', 'moment',
+	 'tablesorter', 'tablesorterwidgets'],
+function (sup, moment)
 {
     'use strict';
     var CurrentTopo = null;

@@ -306,6 +306,8 @@ echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 echo "</script>\n";
+echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+echo "<script src='bootstrap/js/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/status'></script>";
 
 #

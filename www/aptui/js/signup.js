@@ -1,14 +1,14 @@
 window.APT_OPTIONS.config();
 
-require(['jquery', 'underscore', 'js/quickvm_sup',
+require(['underscore', 'js/quickvm_sup',
 	 'js/lib/text!template/about-account.html',
 	 'js/lib/text!template/verify-modal.html',
 	 'js/lib/text!template/signup-personal.html',
 	 'js/lib/text!template/signup-project.html',
 	 'js/lib/text!template/signup.html',
 	 // jQuery modules
-	 'bootstrap', 'formhelpers'],
-function ($, _, sup,
+	 'formhelpers'],
+function (_, sup,
 	  aboutString, verifyString, personalString,
 	  projectString, signupString)
 {

@@ -1,8 +1,8 @@
-window.APT_OPTIONS.configNoQuery();
+window.APT_OPTIONS.config();
 
-require([// jQuery modules
+require(['js/quickvm_sup', // jQuery modules
         'formhelpers', 'filestyle', 'marked', 'jacks'],
-function ()
+function (sup)
 {
     'use strict';
 
@@ -48,6 +48,7 @@ function ()
 	});
         UpdateProfileSelection($('#profile_name li[value = ' +
 				 window.PROFILE + ']'));
+	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
     }
 
     function resetForm($form) {
@@ -139,30 +140,8 @@ function ()
 				    [{ rspec: json.value.rspec }]);
 	    }
 	}
-	var $xmlthing = CallMethod("getprofile", null, 0, profile);
+	var $xmlthing = sup.CallMethod("getprofile", null, 0, profile);
 	$xmlthing.done(callback);
-    }
-
-    function CallMethod(method, callback, uuid, arg)
-    {
-	return $.ajax({
-	    // the URL for the request
-	    url: window.location.href,
- 
-	    // the data to send (will be converted to a query string)
-	    data: {
-		uuid: uuid,
-		ajax_request: 1,
-		ajax_method: method,
-		ajax_argument: arg,
-	    },
- 
-	    // whether this is a POST or GET request
-	    type: (arg ? "GET" : "GET"),
- 
-	    // the type of data we expect back
-	    dataType : "json",
-	});
     }
 
     $(document).ready(initialize);

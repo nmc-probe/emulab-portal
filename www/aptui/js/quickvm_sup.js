@@ -1,5 +1,5 @@
-define(['jquery', 'd3', 'dateformat', 'marked'],
-function ($, d3) {
+define(['d3', 'dateformat', 'marked'],
+function (d3) {
 
 function ShowModal(which) 
 {
