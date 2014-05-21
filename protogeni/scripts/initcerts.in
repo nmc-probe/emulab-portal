@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -311,6 +311,8 @@ if ($asch) {
     system("$ADDAUTHORITY -c $SESCERT ses") == 0
 	or fatal("Could not add SES certificate");
 }
+system("$TB/sbin/openvpn-setup") == 0
+    or fatal("Could not setup openvpn certificates");
 
 #
 # Local SiteVars to hold the UUIDs.
