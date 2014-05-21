@@ -90,6 +90,8 @@ shared-network emulab {
 	}
  }
 
+ %%management
+
  #
  # Private network; for virtual (jailed) nodes.
  #
