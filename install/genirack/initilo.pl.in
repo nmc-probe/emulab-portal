@@ -41,7 +41,8 @@ sub usage()
     print STDERR "Usage: initilo.pl [-d] [-n] -b <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -o | -i <nodeid>\n";
     print STDERR "Usage: initilo.pl [-d] [-n] -k <nodeid> ...\n";
-    print STDERR "Usage: initilo.pl [-d] [-n] [-c | -r] <ip> <ilopswd>\n";
+    print STDERR "Usage: initilo.pl [-d] [-n] -c <ip> <ilopswd>\n";
+    print STDERR "Usage: initilo.pl [-d] [-n] -r <ip | pcxx> [ilopswd]\n";
     exit(-1);
 }
 my $optlist	= "dncobskri";
@@ -168,9 +169,9 @@ if ($control) {
 }
 if ($resetilo) {
     usage()
-	if (@ARGV != 2);
+	if (@ARGV < 1);
 
-    exit(DoResetILO($ARGV[0], $ARGV[1]));
+    exit(DoResetILO($ARGV[0], (@ARGV == 2 ? $ARGV[1] : $elabmanpswd)));
 }
 if ($dooutlet) {
     usage()
@@ -284,7 +285,7 @@ NoIPMI($node_id, $elabmanpswd);
 #
 # This resets the ilo.
 #
-DoResetILO($iloIP, $elabmanpswd);
+DoResetILO($node_id, $elabmanpswd);
 
 exit(0);
 
@@ -562,11 +563,24 @@ sub DoIloKey($)
 #
 sub DoResetILO($$)
 {
-    my ($ip, $pswd) = @_;
+    my ($iloIP, $pswd) = @_;
+
+    if ($iloIP =~ /^pc/) {
+	my $node = Node->Lookup($iloIP);
+	if (!defined($node)) {
+	    Fatal("No such node");
+	}
+	# This has to be in the interfaces table already.
+	my $management_interface = Interface->LookupManagement($node);
+	if (!defined($management_interface)) {
+	    Fatal("No management interface for $node");
+	}
+	$iloIP = $management_interface->IP();
+    }
     
     my $xmlgoo = sprintf($resetgoo, $pswd);
-    if (SendXML($ip, $xmlgoo)) {
-	Fatal("Failed to send xmlgoo to $ip");
+    if (SendXML($iloIP, $xmlgoo)) {
+	Fatal("Failed to send xmlgoo to $iloIP");
     }
     return 0;
 }
