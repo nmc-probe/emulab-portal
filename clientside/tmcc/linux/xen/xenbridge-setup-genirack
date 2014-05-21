@@ -36,6 +36,9 @@ my $IPBIN = "/bin/ip";
 my $IFCONFIGBIN = "/sbin/ifconfig";
 my $JAILGW   = "172.16.0.1";
 my $JAILMASK = "255.240.0.0";
+# For ilo.
+my $MNGGW    = "10.249.249.1";
+my $MNGMASK  = "255.255.255.0";
 my $NOIP = 0;
 
 sub usage()
@@ -169,5 +172,9 @@ if ($iscontrol &&
 if ($iscontrol &&
     system "$IFCONFIGBIN ${XENBR}:1 inet $JAILGW netmask $JAILMASK up") {
     die "xenbridge-setup: Unable to add $JAILGW alias to $XENBR\n";
+}
+if ($iscontrol &&
+    system "$IFCONFIGBIN ${XENBR}:2 inet $MNGGW netmask $MNGMASK up") {
+    die "xenbridge-setup: Unable to add $MNGGW alias to $XENBR\n";
 }
 
