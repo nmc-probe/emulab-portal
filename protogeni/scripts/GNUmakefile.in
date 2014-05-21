@@ -37,7 +37,7 @@ PGENISUPPORT    = @PROTOGENI_SUPPORT@
 include $(OBJDIR)/Makeconf
 
 SBIN_STUFF	= cleanupslice gencabundle cleanupticket aptssh-setup \
-		  sliveraction
+		  sliveraction openvpn-setup
 
 PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  addauthority getcacerts \
