@@ -360,10 +360,6 @@ if (isset($action) && $action == "snapshot") {
 	if (!$profile) {
 	    $errors["error"] = "Cannot load profile for instance!";
 	}
-	else if ($this_idx != $profile->creator_idx() &&
-		 !$profile->ispublic() && !ISADMIN()) {
-	    $errors["error"] = "Not enough permission!";
-	}
     }
 }
 
