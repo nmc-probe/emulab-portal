@@ -103,7 +103,7 @@ function SPITHEADER($thinheader = 0)
          <div class='navbar navbar-static-top' role='navigation'>
            <div class='navbar-inner'>
              <div class='brand'>
-                 <img src='aptlogo.png'/>
+                 <img src='images/aptlogo.png'/>
              </div>
              <ul class='nav navbar-nav navbar-right apt-right'>";
     if (!$disable_accounts) {
@@ -114,7 +114,7 @@ function SPITHEADER($thinheader = 0)
 				 "type", "adminon", "value", 0);
 		
 		echo "<a href='/$url'>
-                             <img src='/redball.gif'
+                             <img src='images/redball.gif'
                                   style='height: 10px;'
                                   border='0' alt='Admin On'></a>\n";
 	    }
@@ -123,7 +123,7 @@ function SPITHEADER($thinheader = 0)
 				 "type", "adminon", "value", 1);
 
 		echo "<a href='/$url'>
-                              <img src='/greenball.gif'
+                              <img src='images/greenball.gif'
                                    style='height: 10px;'
                                    border='0' alt='Admin Off'></a>\n";
 	    }
@@ -196,7 +196,7 @@ function SPITFOOTER()
         <div class='pull-left'>
           <a href='http://www.emulab.net' target='_blank'>
              Powered by
-             <img src='emulab-whiteout.png' id='elabpower'></a>
+             <img src='images/emulab-whiteout.png' id='elabpower'></a>
         </div>
 	<span>Question or comment? Join the
            <a href='https://groups.google.com/forum/#!forum/apt-users'
@@ -415,7 +415,7 @@ function SpitWaitModal($id)
                 <center><h3>Please Wait</h3></center>
                </div>
                <div class='modal-body'>
-                 <center><img src='spinner.gif' /></center>
+                 <center><img src='images/spinner.gif' /></center>
                </div>
             </div>
             </div>

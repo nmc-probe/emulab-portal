@@ -74,7 +74,7 @@ if (mysql_num_rows($query_result) == 0) {
 	"<a href='instantiate.php'>start one?</a></b><br><br>";
 
     if (ISADMIN()) {
-	$message .= "<img src='/redball.gif'>".
+	$message .= "<img src='images/redball.gif'>".
 	    "<a href='myexperiments.php?all=1'>Show all user Experiments</a>";
     }
     SPITUSERERROR($message);
@@ -131,7 +131,7 @@ echo "   </tbody>
         </table>\n";
 
 if (ISADMIN() && !isset($all)) {
-    echo "<img src='/redball.gif'>
+    echo "<img src='images/redball.gif'>
           <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
 }
 echo " </div>

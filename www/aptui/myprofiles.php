@@ -70,7 +70,7 @@ if (mysql_num_rows($query_result) == 0) {
 	"<a href='manage_profile.php'>create one?</a></b><br><br>";
 
     if (ISADMIN()) {
-	$message .= "<img src='/redball.gif'>".
+	$message .= "<img src='images/redball.gif'>".
 	    "<a href='myprofiles.php?all=1'>Show all user Profile</a>";
     }
     SPITUSERERROR($message);
@@ -150,7 +150,7 @@ echo "   </tbody>
         </table>\n";
 
 if (ISADMIN() && !isset($all)) {
-    echo "<img src='/redball.gif'>
+    echo "<img src='images/redball.gif'>
           <a href='myprofiles.php?all=1'>Show all user Profiles</a>\n";
 }
 echo"   </div>
