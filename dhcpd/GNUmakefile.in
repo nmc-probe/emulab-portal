@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2004 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,6 +30,7 @@ ETCDIR          = /usr/local/etc
 
 DHCPD_FILES	= dhcpd.conf.template
 SUBBOSS_DHCPD_FILES	= dhcpd.conf.subboss.template
+DISABLE_DHCPD_INSTALL   = @DISABLE_DHCPD_INSTALL@
 
 include $(OBJDIR)/Makeconf
 
@@ -41,10 +42,24 @@ all: $(DHCPD_FILES)
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-subboss-install:	$(ETCDIR)/dhcpd.conf.subboss.template
+ifeq ($(DISABLE_DHCPD_INSTALL),0)
+install:		install-real
+subboss-install:	subboss-install-real
+else
+install:	
+	@echo "Refusing to install cause DISABLE_DHCPD_INSTALL=1"
+	@echo "Use the install-real target if you are sure"
+subboss-install:	
+	@echo "Refusing to install cause DISABLE_DHCPD_INSTALL=1"
+	@echo "Use the subboss-install-real target if you are sure"
+endif
+
+subboss-install-real: \
+	$(ETCDIR)/dhcpd.conf.subboss.template
 	-chmod 664 $(ETCDIR)/dhcpd.conf.subboss.template
 
-install:	$(ETCDIR)/dhcpd.conf.template $(ETCDIR)/dhcpd.conf.subboss.template
+install-real: \
+	$(ETCDIR)/dhcpd.conf.template $(ETCDIR)/dhcpd.conf.subboss.template
 	-chmod 664 $(ETCDIR)/dhcpd.conf.template
 
 clean: 
