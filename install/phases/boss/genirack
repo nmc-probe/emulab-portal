@@ -444,6 +444,10 @@ sub Install($$$)
 	    push(@strings,
 		 "ifconfig_xn0_alias0=\"inet 172.17.254.254 ".
 		 "netmask 255.240.0.0\"");
+	    # ilo network. The control node takes .253
+	    push(@strings,
+		 "ifconfig_xn0_alias1=\"inet 10.249.249.254 ".
+		 "netmask 255.255.255.0\"");
 	    # Actual default router.
 	    push(@strings,
 		 "defaultrouter=\"" . $configvars{"GENIRACK_ROUTER"} . "\"");
@@ -488,6 +492,9 @@ sub Install($$$)
 	my $ILOIP = $configvars{"GENIRACK_ILOIP"};
 
 	Phase "nodes", "Adding nodes to the DB", sub {
+	    PhaseSkip("No ILO definitions file")
+		if (! -e $RACKILO);
+	    
 	    my $query_result =
 		DBQueryWarn("select node_id from nodes where node_id='pc1'");
 	    PhaseFail("DB error")
