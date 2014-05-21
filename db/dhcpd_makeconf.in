@@ -1,6 +1,6 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,6 +24,7 @@
 use English;
 use Getopt::Std;
 use Fcntl ':flock';
+use Socket;
 
 #
 # dhcpd_makeconf - helper script to create dhcpd.conf files from the database.
@@ -51,6 +52,8 @@ my $restart = 0;
 #
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
+my $BOSSNODE_IP = "@BOSSNODE_IP@";
+my $OURDOMAIN   = "@OURDOMAIN@";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/sbin:/usr/local/bin';
@@ -90,6 +93,12 @@ my $template        = $DHCPD_TEMPLATE;
 my $outfile	    = "/tmp/dhcpd_makeconf.$$";
 my $OUT		    = *STDOUT;
 my %subboss_dhcp_servers;
+my %management_ifaces;
+my $MANAGEMENT_NETWORK = "10.249.249.0";
+my $MANAGEMENT_NETMASK = "255.255.255.0";
+my $MANAGEMENT_GATEWAY = "10.249.249.253";
+my $m_network = inet_ntoa(inet_aton($MANAGEMENT_NETWORK) &
+			  inet_aton($MANAGEMENT_NETMASK));
 
 sub RestartSubbossDhcp($$);
 sub SetupPXEBoot($$$$);
@@ -279,6 +288,18 @@ while (<IF>) {
 		    
 		    # Management ports, nothing special to do.
 		    if ($role eq TBDB_IFACEROLE_MANAGEMENT()) {
+			my $network = inet_ntoa(inet_aton($ip) &
+						inet_aton($MANAGEMENT_NETMASK));
+			
+			#
+			# Ick, hack to get management interfaces onto
+			# a different subnet in the dhcpd file. Needs to
+			# be further generalized.
+			#
+			if ($network eq $m_network) {
+			    push(@management_ifaces, [$node_id, $ip, $mac]);
+			    next;
+			}
 			$hostname =
 			    "${spaces}\toption host-name \"${node_id}-mng\";\n";
 			goto spit;
@@ -388,6 +409,43 @@ while (<IF>) {
 		    print $OUT "${spaces}\tfixed-address $ip;\n";
 		    print $OUT "${spaces}}\n\n";
 		}
+	} elsif (/^(\s*)\%\%management/) {
+	    my $spaces = $1;
+	    my $net  = $MANAGEMENT_NETWORK;
+	    my $mask = $MANAGEMENT_NETMASK;
+	    my $gate = $MANAGEMENT_GATEWAY;
+	    
+	    if (@management_ifaces) {
+		my @lines =
+		    ("subnet $net netmask $mask {",
+		     "    option subnet-mask          $mask;",
+		     "    option routers              $gate;",
+		     "    option domain-name-servers  $BOSSNODE_IP;",
+		     "    option domain-name          \"$OURDOMAIN\";",
+		     "    next-server                 $BOSSNODE_IP;",
+		     "",
+		     "",
+		     "    group {");
+		foreach my $ref (@management_ifaces) {
+		    my ($hostname, $ip, $mac) = @{$ref};
+		    # naming convention.
+		    $hostname .= "-mng";
+
+		    # Need to make MAC look right..
+		    $mac =~ s/(..)\B/$1:/g;
+
+		    push(@lines,
+			 "        host $ip {",
+			 "            hardware ethernet $mac;",
+			 "            option host-name \"$hostname\";",
+			 "            fixed-address $ip;",
+			 "        }\n");
+		}
+		@lines = (@lines, "   }", "}");
+		foreach my $line (@lines) {
+		    print $OUT $spaces . $line . "\n";
+		}
+	    }
 	} else {
 	    # It's a regular line
 	    print $OUT $_;
