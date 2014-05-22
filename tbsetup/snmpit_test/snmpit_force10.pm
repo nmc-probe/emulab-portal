@@ -274,17 +274,17 @@ sub readifIndex($) {
 
     foreach my $result (@{$rows}) {
 	my ($name,$iid,$descr) = @{$result};
-	$self->debug("got $name, $iid, descr $descr ",2);
+	$self->debug("got $name, $iid, descr $descr\n",2);
 	if ($name ne "ifDescr") {
 	    warn "$id: WARNING: Foreign snmp var returned: $name";
 	    return 0;
 	}
 	
 	# will match "GigabitEthernet 9/47" but not "Vlan 123"
-	if ($descr =~ /(\w*)\s+(\d+)\/(\d+)$/) {
+	if ($descr =~ /(\w*)\s*(\d+)\/(\d+)\/?(\d+)?$/) {
 	    my $type = $1;
 	    my $module = $2;
-	    my $port = $3;
+	    my $port = defined($4) ? $4 : $3;
 	    # Note: Force10 modules and ports start at 0 instead of 1.
 	    my $modport = "${module}.${port}";
 	    my $ifIndex = $iid;

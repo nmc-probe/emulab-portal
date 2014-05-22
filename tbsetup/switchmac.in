@@ -54,6 +54,7 @@ use snmpit_cisco;
 use snmpit_foundry;
 use snmpit_nortel;
 use snmpit_hp;
+use snmpit_force10;
 
 my $MASTER_COMMUNITY = "@SNMP_RW_COMMUNITY@";
 my $ELABINELAB = @ELABINELAB@;
@@ -214,6 +215,8 @@ SWITCH:
 	    $switchtype = "hp"; last;};
 	(/^foundry/) && do { $snmpversion = "1"; $useindexing = 0;
 	    $switchtype = "foundry"; last;};
+	(/^force10/) && do { $snmpversion = "2c"; $useindexing = 0;
+	    $switchtype = "force10"; last;};
 
 	warn "WARNING: Switch type $type is not supported for $switch!\n";
 	next SWITCHLOOP;
@@ -261,6 +264,9 @@ SWITCH:
 	}
 	if ($switchtype eq "hp") {
 	    $device = new snmpit_hp($switch,$debug,$community);
+	}
+	if ($switchtype eq "force10") {
+	    $device = new snmpit_force10($switch,$debug,$community);
 	}
     }
 
@@ -423,7 +429,8 @@ SWITCH:
 		#
 		my $modport;
 		if (($switchtype eq "cisco") || ($switchtype eq "foundry") ||
-		    ($switchtype eq "hp") || ($switchtype eq "nortel")) {
+		    ($switchtype eq "hp") || ($switchtype eq "nortel") ||
+		    ($switchtype eq "force10")) {
 		    ($modport) = $device->convertPortFormat(2, $ifIndex);
 		} else {
 		    $modport = "1.$ifIndex";
