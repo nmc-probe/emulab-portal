@@ -16,6 +16,7 @@ sub usage {
     print "-r      - Rsync software to rack.\n";
     print "-b      - Build the software (with reconfig).\n";
     print "-i      - Install on each rack.\n";
+    print "-l      - List all racks.\n";
     print "-p arg  - Update shared pool on each rack.\n";
     print "          arg is type,func where type=xen|openvz\n";
     print "-u      - Do Utah rack.\n";
