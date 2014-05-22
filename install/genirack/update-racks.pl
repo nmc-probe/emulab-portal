@@ -20,8 +20,10 @@ sub usage {
     print "          arg is type,func where type=xen|openvz\n";
     print "-u      - Do Utah rack.\n";
     print "-d      - Do DDC rack.\n";
+    print "-a      - Do APT rack.\n";
     print "-U      - Skip Utah rack.\n";
     print "-D      - Skip DDC rack.\n";
+    print "-A      - Skip APT rack.\n";
     print "-7      - Just G7 racks.\n";
     print "-8      - Just G8 racks.\n";
     print "-f      - Run function instead. Add -F to shutdown testbed\n";
@@ -30,7 +32,7 @@ sub usage {
     print "rack    - Specific rack, or all racks\n";
     exit(1);
 }
-my $optlist    = "binuUdDhfFrlc78tsp:";
+my $optlist    = "binuUdDhfFrlc78tsp:aA";
 my $rebuild    = 0;
 my $install    = 0;
 my $rsync      = 0;
@@ -41,75 +43,70 @@ my $dopool;
 my $rack;
 
 my $TB       = "/usr/testbed";
-my $UTAHRACK = "boss.utah.geniracks.net";
-my $DDCRACK  = "boss.utahddc.geniracks.net",
-my %G7RACKS  = ("bbn"       => "boss.instageni.gpolab.bbn.com",
-		"nwu"       => "boss.instageni.northwestern.edu",
-		"uky"       => "boss.lan.sdn.uky.edu",
-		"kettering" => "boss.geni.kettering.edu",
-		"gatech"    => "boss.instageni.rnoc.gatech.edu",
-		"princeton" => "boss.instageni.cs.princeton.edu",
-		"clemson"   => "boss.instageni.clemson.edu",
-		"kansas"    => "boss.instageni.ku.gpeni.net",
-		"nyu"       => "boss.genirack.nyu.edu",
-		"idaho"     => "boss.instageni.uidaho.edu",
+my $UTAHBOSS = "boss.utah.geniracks.net";
+my $UTAHCTRL = "control.utah.geniracks.net";
+my $DDCBOSS  = "boss.utahddc.geniracks.net",
+my $DDCCTRL  = "control.utahddc.geniracks.net",
+my $APTBOSS  = "boss.apt.emulab.net",
+my $APTCTRL  = "boss.apt.emulab.net",
+my %G7RACKS  = ("bbn"       => [ "boss.instageni.gpolab.bbn.com",
+				 "gpolab.control-nodes.geniracks.net" ],
+		"nwu"       => [ "boss.instageni.northwestern.edu",
+				 "nu.control-nodes.geniracks.net" ],
+		"uky"       => [ "boss.lan.sdn.uky.edu",
+				 "uky.control-nodes.geniracks.net" ],
+		"kettering" => [ "boss.geni.kettering.edu",
+				 "kettering.control-nodes.geniracks.net"],
+		"gatech"    => [ "boss.instageni.rnoc.gatech.edu",
+				 "gatech.control-nodes.geniracks.net" ],
+		"princeton" => [ "boss.instageni.cs.princeton.edu",
+				 "princeton.control-nodes.geniracks.net" ],
+		"clemson"   => [ "boss.instageni.clemson.edu",
+				 "clemson.control-nodes.geniracks.net" ],
+		"kansas"    => [ "boss.instageni.ku.gpeni.net",
+				 "kansas.control-nodes.geniracks.net" ],
+		"nyu"       => [ "boss.genirack.nyu.edu",
+				 "nyu.control-nodes.geniracks.net" ],
+		"idaho"     => [ "boss.instageni.uidaho.edu",
+				 "idaho.control-nodes.geniracks.net" ],
 );
-my @G7RACKS  = values(%G7RACKS);
-
-my %G8RACKS = ("max"        => "boss.instageni.maxgigapop.net",
-	       "nysernet"   => "boss.instageni.nysernet.org",
-	       "sox"        => "boss.instageni.sox.net",
-	       "urbana"     => "boss.instageni.illinois.edu",
-	       "missouri"   => "boss.instageni.rnet.missouri.edu",
-	       "wisc"       => "boss.instageni.wisc.edu",
-	       "rutgers"    => "boss.instageni.rutgers.edu",
-	       "stanford"   => "boss.instageni.stanford.edu",
-	       "cornell"    => "boss.geni.it.cornell.edu",
-	       "lsu"	    => "boss.instageni.lsu.edu",
-	       "case"	    => "boss.geni.case.edu",
-	       "moxi"	    => "boss.instageni.iu.edu",
-	       "chicago"    => "boss.geni.uchicago.edu",
-	       "metro"	    => "boss.instageni.metrodatacenter.com",
-	       "nps"        => "boss.instageni.nps.edu",
-	       "ohio"       => "boss.instageni.osu.edu",
-	       "umkc"       => "boss.instageni.umkc.edu",
-	       "ucla"	    => "boss.instageni.idre.ucla.edu",
+my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
+				 "max.control-nodes.geniracks.net" ],
+	       "nysernet"   => [ "boss.instageni.nysernet.org",
+				 "nysernet.control-nodes.geniracks.net" ],
+	       "sox"        => [ "boss.instageni.sox.net",
+				 "sox.control-nodes.geniracks.net" ],
+	       "urbana"     => [ "boss.instageni.illinois.edu",
+				 "urbana.control-nodes.geniracks.net" ],
+	       "missouri"   => [ "boss.instageni.rnet.missouri.edu",
+				 "missouri.control-nodes.geniracks.net" ],
+	       "wisc"       => [ "boss.instageni.wisc.edu",
+				 "wisc.control-nodes.geniracks.net" ],
+	       "rutgers"    => [ "boss.instageni.rutgers.edu",
+				 "rutgers.control-nodes.geniracks.net" ],
+	       "stanford"   => [ "boss.instageni.stanford.edu",
+				 "stanford.control-nodes.geniracks.net" ],
+	       "cornell"    => [ "boss.geni.it.cornell.edu",
+				 "cornell.control-nodes.geniracks.net" ],
+	       "lsu"	    => [ "boss.instageni.lsu.edu",
+				 "lsu.control-nodes.geniracks.net" ],
+	       "case"	    => [ "boss.geni.case.edu",
+				 "casewestern.control-nodes.geniracks.net" ],
+	       "moxi"	    => [ "boss.instageni.iu.edu",
+				 "moxi.control-nodes.geniracks.net" ],
+	       "chicago"    => [ "boss.geni.uchicago.edu",
+				 "chicago.control-nodes.geniracks.net" ],
+	       "metro"	    => [ "boss.instageni.metrodatacenter.com",
+				 "dublin.control-nodes.geniracks.net" ],
+	       "nps"        => [ "boss.instageni.nps.edu",
+				 "nps.control-nodes.geniracks.net" ],
+	       "ohio"       => [ "boss.instageni.osu.edu",
+				 "ohio.control-nodes.geniracks.net" ],
+	       "umkc"       => [ "boss.instageni.umkc.edu",
+				 "umkc.control-nodes.geniracks.net" ],
+	       "ucla"	    => [ "boss.instageni.idre.ucla.edu",
+				 "ucla.control-nodes.geniracks.net" ],
 );
-my @G8RACKS  = values(%G8RACKS);
-my @ALLRACKS = (@G7RACKS, @G8RACKS);
-    
-my @ALLCONTROL = (
-    "utahddc.control.geniracks.net",
-    "gpolab.control-nodes.geniracks.net",
-    "nu.control-nodes.geniracks.net",
-    "uky.control-nodes.geniracks.net",
-    "kettering.control-nodes.geniracks.net",
-    "gatech.control-nodes.geniracks.net",
-    "princeton.control-nodes.geniracks.net",
-    "clemson.control-nodes.geniracks.net",
-    "kansas.control-nodes.geniracks.net",
-    "nyu.control-nodes.geniracks.net",
-    "max.control-nodes.geniracks.net",
-    "nysernet.control-nodes.geniracks.net",
-    "sox.control-nodes.geniracks.net",
-    "missouri.control-nodes.geniracks.net",
-    # Illinois
-    "urbana.control-nodes.geniracks.net",
-    "rutgers.control-nodes.geniracks.net",
-    "stanford.control-nodes.geniracks.net",
-    "cornell.control-nodes.geniracks.net",
-    "lsu.control-nodes.geniracks.net",
-    "wisconsin.control-nodes.geniracks.net",
-    "casewestern.control-nodes.geniracks.net",
-    "chicago.control-nodes.geniracks.net",
-    "moxi.control-nodes.geniracks.net",
-    "dublin.control-nodes.geniracks.net",
-    "nps.control-nodes.geniracks.net",
-    "idaho.control-nodes.geniracks.net",
-);
-my @TODO = ($UTAHRACK, $DDCRACK, @ALLRACKS);
-my %SKIP = ();
-my $HOME = "/home/stoller";
 
 sub fatal($)
 {
@@ -136,8 +133,20 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"h"})) {
     usage();
 }
+# Look at "control" option before setting racks.
+my $which    = (defined($options{"c"}) ? 1 : 0);
+my $UTAHRACK = (defined($options{"c"}) ? $UTAHCTRL : $UTAHBOSS);
+my $DDCRACK  = (defined($options{"c"}) ? $DDCCTRL  : $DDCBOSS);
+my $APTRACK  = (defined($options{"c"}) ? $APTCTRL  : $APTBOSS);
+my @G7RACKS  = map { $G7RACKS{$_}[$which] } keys(%G7RACKS);
+my @G8RACKS  = map { $G8RACKS{$_}[$which] } keys(%G8RACKS);
+my @ALLRACKS = (@G7RACKS, @G8RACKS);
+my @TODO     = ($UTAHRACK, $DDCRACK, @ALLRACKS);
+my %SKIP     = ();
+my $HOME     = "/home/stoller";
+
 if (defined($options{"l"})) {
-    foreach my $name (defined($options{"c"}) ? @ALLCONTROL : @ALLRACKS) {
+    foreach my $name (@ALLRACKS) {
 	print "$name\n";
     }
     exit(0);
@@ -164,8 +173,11 @@ if (defined($options{"p"})) {
     $dopool = $options{"p"};
     $dofunc = 1;
 }
-if (defined($options{"u"}) || defined($options{"d"})) {
+if (defined($options{"u"}) || defined($options{"d"}) ||
+    defined($options{"a"})) {
     @TODO = ();
+    push(@TODO, $APTRACK)
+	if (defined($options{"a"}));
     push(@TODO, $UTAHRACK)
 	if (defined($options{"u"}));
     push(@TODO, $DDCRACK)
@@ -191,10 +203,10 @@ elsif (@ARGV) {
 	    push(@TODO, $arg);
 	}
 	elsif (exists($G7RACKS{$arg})) {
-	    push(@TODO, $G7RACKS{$arg});
+	    push(@TODO, $G7RACKS{$arg}[$which]);
 	}
 	elsif (exists($G8RACKS{$arg})) {
-	    push(@TODO, $G8RACKS{$arg});
+	    push(@TODO, $G8RACKS{$arg}[$which]);
 	}
 	else {
 	    fatal("No such rack: $arg");
@@ -244,30 +256,36 @@ if ($dofunc && !$install) {
 	    $command = "$devel/update-shared.pl -t $type -f $func ".
 		(defined($limit) ? "-l $limit" : "");
 	}
+	elsif (0) {
+	    $command = "mkdir /home/elabman/openvpn"
+	}
 	elsif (1) {
-	    $command = "/usr/testbed/sbin/wap ".
-		"/usr/testbed/sbin/delete_image -p ".
-		"ch-geni-net,OVSxenOpenFlowTutorial";
+	    $command =
+		"cd emulab-devel/obj/dhcpd; gmake; sudo gmake install; ".
+		"cd ..; dhcpd_makeconf -i -r";
+	}
+	elsif (0) {
+	    $command = "scp -p /usr/testbed/etc/openvpn-server.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/openvpn-dh.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/emulab.pem elabman\@control:openvpn; scp -p openvpn/openvpn.conf elabman\@control:openvpn";
+	}
+	elsif (0) {
+	    $command = "cd /usr/ports/converters/p5-JSON; ".
+		"sudo make install; ".
+		"cd /usr/ports/net-mgmt/p5-Net-IP; ".
+		"sudo make install";
 	}
 	elsif (0) {
 	    $command = "sudo -u geniuser /usr/testbed/sbin/wap ".
 		"/usr/testbed/sbin/image_import -g -p ch-geni-net ".
 		"https://www.utahddc.geniracks.net/image_metadata.php\\\?uuid=da660c93-2134-11e3-85ef-000000000000";
 	}
-	elsif (0) {
-	    $command = "sudo scp ".
-		"$devel/clientside/tmcc/common/mkvnode.pl ".
-		"$devel/clientside/tmcc/common/libsetup.pm ".
-		"$devel/clientside/tmcc/linux/xen/libvnode_xen.pm ".
-		"  vhost3.shared-nodes.emulab-ops:/usr/local/etc/emulab";
+	elsif (1) {
+	    $command =
+		"sudo /usr/testbed/sbin/initilo.pl -i ".
+		"    pc1 pc2 pc3 pc4 pc5 control-ilo";
 	}
 	elsif (0) {
 	    $command = "sudo scp $devel/xendomains ".
 		"  vhost3.shared-nodes.emulab-ops:/usr/local/etc/emulab";
-	}
-	elsif (1) {
-	    $command =
-		"cd emulab-devel/obj/rc.d; sudo gmake install";
 	}
 	elsif (0) {
 	    $command = "sudo ssh vhost1.shared-nodes.emulab-ops ".
