@@ -257,6 +257,9 @@ if ($dofunc && !$install) {
 	    $command = "$devel/update-shared.pl -t $type -f $func ".
 		(defined($limit) ? "-l $limit" : "");
 	}
+	elsif (1) {
+	    $command = "cd /tmp; wget http://www.emulab.net/downloads/ops-monitoring.tar.gz && cd /usr/local && sudo tar xf /tmp/ops-monitoring.tar.gz; mysqladmin create monitoring; cd /usr/local/ops-monitoring/local/unit-tests && python ./local_table_reset.py; sudo /usr/testbed/sbin/protogeni/mondbd";
+	}
 	elsif (0) {
 	    $command = "mkdir /home/elabman/openvpn"
 	}
@@ -405,7 +408,7 @@ if ($rsync) {
 	print "rsyncing $rack ...\n";
 	print "-> rsyncing emulab-devel\n";
 	system("rsync -a --timeout=30 --delete ".
-	       "--exclude-from .rsyncignore ".
+	       "--exclude-from $HOME/.rsyncignore ".
 	       "     $HOME/testbed-noelvin/emulab-devel ".
 	       "     $HOME/testbed-noelvin/reconfig.rack ".
 	       "  elabman\@${rack}:emulab-devel");

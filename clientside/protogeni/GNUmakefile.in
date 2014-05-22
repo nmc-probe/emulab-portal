@@ -34,7 +34,7 @@ PROGRAMS	= shared-node-monitor
 
 include $(OBJDIR)/Makeconf
 
-all: $(PROGRAMS)
+all:
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
@@ -54,6 +54,12 @@ LDFLAGS  += -L$(TESTBED_LIBOBJDIR)/event
 LIBS     += -levent -lcrypto
 LIBS     += -lm -L/usr/local/lib -lpubsub 
 LDFLAGS  += $(LDSTATIC)
+
+shared-node-monitor: shared-node-monitor.o $(TESTBED_LIBOBJDIR)/event/libevent.a
+	$(CC) $(LDFLAGS) -o $@ shared-node-monitor.o $(LIBS)
+
+shared-node-monitor.o: shared-node-monitor.c 
+	$(CC) $(CFLAGS) -o $@ $<
 
 boss-install:
 
