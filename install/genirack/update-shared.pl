@@ -50,6 +50,13 @@ if (@ARGV) {
 }
 else {
     #
+    # Set the limit=1 when using the rebuild function.
+    #
+    if ($fname eq "BuildClientSide") {
+	$limit = 1;
+    }
+
+    #
     # Get list of nodes in the shared pool, for the given type.
     #
     my $osname = ($type eq "xen" ? "XEN43-64-STD" : "FEDORA15-OPENVZ-STD");
