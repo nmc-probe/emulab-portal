@@ -120,7 +120,7 @@ if (! -e $CLIENTCERT || $regen) {
 
 if (! -e $DHFILE || $regen) {
     print "Creating OpenVPN Diffie Hellman key file  ...\n";
-    system("$OPENSSL dhparam -out $DHFILE 1024")
+    system("$OPENSSL dhparam -out $DHFILE 1024") == 0
 	or fatal("Could not generate $DHFILE");
 }
 exit(0);
