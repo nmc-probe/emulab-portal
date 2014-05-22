@@ -1945,8 +1945,9 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
 		# Zero bandwidth is okay, and causes assign to use the
 		# no_bandwith error instead of the no_connect error.
 		#
-		if ($bw < 0) {
-		    $bw = 0;
+		if ($bw <= 0) {
+		    # Well, zero is not okay, but 1 will do what we need.
+		    $bw = 1;
 		}
 	    }
 
