@@ -46,39 +46,7 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "stuffing",      PAGEARG_STRING,
 				 "verify",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
-				 "formfields",    PAGEARG_ARRAY,
-				 "ajax_request",  PAGEARG_BOOLEAN,
-				 "ajax_method",   PAGEARG_STRING,
-				 "ajax_argument", PAGEARG_STRING);
-
-#
-# Deal with ajax requests.
-#
-if (isset($ajax_request)) {
-    if ($ajax_method == "getprofile") {
-	#
-	# We require the UUID on this path, until proper permission
-	# checks are done; too easy to guess an index.
-	#
-	if (!IsValidUUID($ajax_argument)) {
-	    SPITAJAX_ERROR(1, "Not a valid UUID: $ajax_argument");
-	    exit();
-	}
-	$obj = Profile::Lookup($ajax_argument);
-	if (!$obj) {
-	    SPITAJAX_ERROR(1, "No such profile $ajax_argument");
-	    exit();
-	}
-	#
-	# Need permission checks here.
-	#
-	SPITAJAX_RESPONSE(array('rspec'       => $obj->rspec(),
-				'name'        => $obj->name(),
-				'description' => $obj->description()));
-    }
-    exit();
-
-}
+				 "formfields",    PAGEARG_ARRAY);
 
 $profile_default  = "OneVM";
 $profile_array    = array();
@@ -361,6 +329,7 @@ function SPITFORM($formfields, $newuser, $errors)
 
     echo "<script type='text/javascript'>\n";
     echo "    window.PROFILE = '" . $formfields["profile"] . "';\n";
+    echo "    window.AJAXURL = 'server-ajax.php';\n";
     if ($newuser) {
 	echo "window.APT_OPTIONS.isNewUser = true;\n";
     }

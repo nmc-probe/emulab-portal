@@ -16,6 +16,7 @@ window.APT_OPTIONS.config = function ()
 	    'marked': 'js/lib/marked',
 	    'moment': 'js/lib/moment',
 	    'underscore': 'js/lib/underscore-min',
+	    'filesize': 'js/lib/filesize.min',
 	    'jacks': 'https://www.emulab.net/protogeni/jacks-stable/js/jacks'
 	},
 	shim: {
@@ -28,7 +29,8 @@ window.APT_OPTIONS.config = function ()
 	    'tablesorter': { },
 	    'tablesorterwidgets': { deps: ['tablesorter'] },
 	    'marked' : { exports: 'marked' },
-	    'underscore': { exports: '_' }
+	    'underscore': { exports: '_' },
+	    'filesize' : { exports: 'filesize' },
 	},
     });
 };

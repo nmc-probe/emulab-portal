@@ -8,10 +8,12 @@ function (_, sup)
 
     var jacksInstance;
     var jacksUpdate;
+    var ajaxurl;
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize();
+	ajaxurl = window.AJAXURL;
 
 	if (window.APT_OPTIONS.isNewUser) {
 	    $('#verify_modal_submit').click(function (event) {
@@ -143,7 +145,9 @@ function (_, sup)
 				    [{ rspec: json.value.rspec }]);
 	    }
 	}
-	var $xmlthing = sup.CallMethod("getprofile", null, 0, profile);
+	var $xmlthing = sup.CallServerMethod(ajaxurl,
+					     "instantiate", "GetProfile",
+					     {"uuid" : profile});
 	$xmlthing.done(callback);
     }
 

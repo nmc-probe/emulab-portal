@@ -1,19 +1,73 @@
 window.APT_OPTIONS.config();
 
-require(['js/quickvm_sup', 'moment',
+require(['underscore', 'js/quickvm_sup', 'moment',
+	 'js/lib/text!template/status.html',
+	 'js/lib/text!template/waitwait-modal.html',
+	 'js/lib/text!template/oops-modal.html',
+	 'js/lib/text!template/register-modal.html',
+	 'js/lib/text!template/terminate-modal.html',
+	 'js/lib/text!template/extend-modal.html',
+	 'js/lib/text!template/clone-help.html',
 	 'tablesorter', 'tablesorterwidgets'],
-function (sup, moment)
+function (_, sup, moment, statusString, waitwaitString, oopsString,
+	  registerString, terminateString, extendString, cloneHelpString)
 {
     'use strict';
     var CurrentTopo = null;
     var nodecount   = 0;
     var ajaxurl     = null;
+    var statusTemplate    = _.template(statusString);
+    var waitwaitTemplate  = _.template(waitwaitString);
+    var oopsTemplate      = _.template(oopsString);
+    var registerTemplate  = _.template(registerString);
+    var terminateTemplate = _.template(terminateString);
+    var extendTemplate    = _.template(extendString);
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
 	ajaxurl = window.APT_OPTIONS.AJAXURL;
 
+	// Generate the templates.
+	var template_args = {
+	    uuid:		window.APT_OPTIONS.UUID,
+	    profileName:	window.APT_OPTIONS.profileName,
+	    sliceURN:		window.APT_OPTIONS.sliceURN,
+	    sliceExpires:	window.APT_OPTIONS.sliceExpires,
+	    sliceExpiresText:	window.APT_OPTIONS.sliceExpiresText,
+	    creatorUid:		window.APT_OPTIONS.creatorUid,
+	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
+	    registered:		window.APT_OPTIONS.registered,
+	};
+	var status_html   = statusTemplate(template_args);
+	$('#status-body').html(status_html);
+    	var waitwait_html = waitwaitTemplate(template_args);
+	$('#waitwait_div').html(waitwait_html);
+    	var oops_html = oopsTemplate(template_args);
+	$('#oops_div').html(oops_html);
+    	var register_html = registerTemplate(template_args);
+	$('#register_div').html(register_html);
+    	var extend_html = extendTemplate(template_args);
+	$('#extend_div').html(extend_html);
+    	var terminate_html = terminateTemplate(template_args);
+	$('#terminate_div').html(terminate_html);
+
+	//
+	// Look at initial status to determine if we show the progress bar.
+	//
+	var spinwidth = 0;
+	var instanceStatus = window.APT_OPTIONS.instanceStatus;
+	if (instanceStatus == "created") {
+	    spinwidth = "33";
+	}
+	else if (instanceStatus == "provisioned") {
+	    spinwidth = "66";
+	}
+	if (spinwidth) {
+	    $("#status_progress_bar").width(spinwidth + "%");
+	    $('#status_progress_outerdiv').removeClass("hidden");
+	}
+	
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
@@ -48,6 +102,41 @@ function (sup, moment)
 	    win.focus();
 	});
 	
+	// Handler for the Clone button.
+	$('button#clone_button').click(function (event) {
+	    event.preventDefault();
+	    window.location.replace('manage_profile.php?action=clone' +
+				    '&snapuuid=' + window.APT_OPTIONS.uuid);
+	});
+
+	//
+	// Attach a hover popover to explain what Clone means. We need
+	// the hover action delayed by our own code, since we want to
+	// use a manual trigger to close the popover, or else the user
+	// will not have enough time to read the content. 
+	//
+	var popover_timer;
+
+	$("button#clone_button").mouseenter(function(){
+	    popover_timer = setTimeout(function() {
+		$('button#clone_button').popover({
+		    html:     true,
+		    content:  cloneHelpString +
+			'<span id=clone_popover_close class=close>' +
+			'&times;</span>',
+		    trigger:  'manual',
+		    placement:'left',
+		    container:'body',
+		});
+		$('button#clone_button').popover('show');
+		$('#clone_popover_close').on('click', function(e) {
+		    $('button#clone_button').popover('hide');
+		});
+	    },1000)
+	}).mouseleave(function(){
+	    clearTimeout(popover_timer);
+	});
+	
 	$('button#request-extension').click(function (event) {
 	    event.preventDefault();
 	    RequestExtension(window.APT_OPTIONS.uuid);
@@ -64,7 +153,7 @@ function (sup, moment)
 		// This is considered the home page, for now.
 		window.location.replace('instantiate.php');
 	    }
-	    sup.ShowModal("#waitwait");
+	    sup.ShowModal("#waitwait-modal");
 
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
 						"status",
@@ -119,18 +208,18 @@ function (sup, moment)
 	    var statustext = "Please wait while we get your experiment ready";
 	    
 	    if (status == 'provisioned') {
-		$("#quickvm_progress_bar").width("66%");
+		$("#status_progress_bar").width("66%");
 		status_html = "booting";
 	    }
 	    else if (status == 'ready') {
 		bgtype = "bg-success";
 		statustext = "Your experiment is ready!";
 		status_html = "<font color=green>ready</font>";
-		if ($("#quickvm_progress").length) {
-		    $("#quickvm_progress").removeClass("progress-striped");
-		    $("#quickvm_progress").removeClass("active");
-		    $("#quickvm_progress").addClass("progress-bar-success");
-		    $("#quickvm_progress_bar").width("100%");
+		if ($("#status_progress_div").length) {
+		    $("#status_progress_div").removeClass("progress-striped");
+		    $("#status_progress_div").removeClass("active");
+		    $("#status_progress_div").addClass("progress-bar-success");
+		    $("#status_progress_bar").width("100%");
 		}
 		if (! StatusWatchCallBack.active) {
 		    ShowTopo(uuid);
@@ -144,11 +233,11 @@ function (sup, moment)
 		statustext = "Something went wrong, sorry! " +
 		    "We've been notified.";
 		status_html = "<font color=red>failed</font>";
-		if ($("#quickvm_progress").length) {
-		    $("#quickvm_progress").removeClass("progress-striped");
-		    $("#quickvm_progress").removeClass("active");
-		    $("#quickvm_progress").addClass("progress-bar-danger");
-		    $("#quickvm_progress_bar").width("100%");
+		if ($("#status_progress_div").length) {
+		    $("#status_progress_div").removeClass("progress-striped");
+		    $("#status_progress_div").removeClass("active");
+		    $("#status_progress_div").addClass("progress-bar-danger");
+		    $("#status_progress_bar").width("100%");
 		}
 		DisableButtons();
 		EnableButton("terminate");
@@ -186,13 +275,13 @@ function (sup, moment)
     {
 	EnableButton("terminate");
 	EnableButton("extend");
-	EnableButton("snapshot");
+	EnableButton("clone");
     }
     function DisableButtons()
     {
 	DisableButton("terminate");
 	DisableButton("extend");
-	DisableButton("snapshot");
+	DisableButton("clone");
     }
     function EnableButton(button)
     {
@@ -208,8 +297,8 @@ function (sup, moment)
 	    button = "#terminate_button";
 	else if (button == "extend")
 	    button = "#extend_button";
-	else if (button == "snapshot" && nodecount == 1)
-	    button = "#snapshot_button";
+	else if (button == "clone" && nodecount == 1)
+	    button = "#clone_button";
 	else
 	    return;
 
@@ -360,7 +449,7 @@ function (sup, moment)
 	    return;
 	}
 	var callback = function(json) {
-	    sup.HideModal("#waitwait");
+	    sup.HideModal("#waitwait-modal");
 	    
 //	    console.info(json.value);
 	    var message;
@@ -382,7 +471,7 @@ function (sup, moment)
 	    StartCountdownClock.reset = json.value;
 	}
 	sup.HideModal('#extend_modal');
-	sup.ShowModal("#waitwait");
+	sup.ShowModal("#waitwait-modal");
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
 					    "RequestExtension",
@@ -608,15 +697,15 @@ function (sup, moment)
 	    ReDrawTopoMap();
 	    $("#showtopo_container").removeClass("invisible");
 
-	    // If a single node, show the snapshot button. Only
+	    // If a single node, show the clone button. Only
 	    // single node experiments can do this.
 	    if (nodecount == 1) {
-		$("#snapshot_button").removeClass("invisible");
-		EnableButton("snapshot");
+		$("#clone_button").removeClass("invisible");
+		EnableButton("clone");
 	    }
 
 	    // And start up ssh for single node topologies.
-	    if (nodecount == 1 && nodehostport) {
+	    if (nodecount == 1 && nodehostport && 0) {
 		NewSSHTab(nodehostport, nodename);
 	    }
 	}

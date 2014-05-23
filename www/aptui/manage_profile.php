@@ -32,7 +32,7 @@ include("instance_defs.php");
 include_once("../session.php");
 $page_title = "Manage Profile";
 $notifyupdate = 0;
-$notifysnapshot = 0;
+$notifyclone = 0;
 
 #
 # Get current user.
@@ -66,7 +66,7 @@ $this_idx = $this_user->uid_idx();
 function SPITFORM($formfields, $errors)
 {
     global $this_user, $projlist, $action;
-    global $notifyupdate, $notifysnapshot, $snapuuid;
+    global $notifyupdate, $notifyclone, $snapuuid;
     $editing = 0;
 
     if ($action == "edit") {
@@ -120,7 +120,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.EDITING  = " . ($editing ? 1 : 0) . ";\n";
     echo "    window.UUID     = " . (isset($uuid) ? "'$uuid'" : "null") . ";\n";
     echo "    window.UPDATED  = $notifyupdate;\n";
-    echo "    window.SNAPPING = $notifysnapshot;\n";
+    echo "    window.SNAPPING = $notifyclone;\n";
     echo "    window.AJAXURL  = 'server-ajax.php';\n";
     echo "    window.ACTION   = '$action';\n";
     echo "    window.TITLE    = '$title';\n";
@@ -159,14 +159,14 @@ if (! isset($create)) {
 	    "You do not appear to be a member of any projects in which ".
 	    "you have permission to create new profiles";
     }
-    if ($action == "edit" || $action == "delete" || $action == "snapshot") {
-	if ($action == "snapshot") {
+    if ($action == "edit" || $action == "delete" || $action == "clone") {
+	if ($action == "clone") {
 	    if (! (isset($snapuuid) && IsValidUUID($snapuuid))) {
-		$errors["error"] = "No experiment specified for snapshot!";
+		$errors["error"] = "No experiment specified for clone!";
 	    }
 	    $instance = Instance::Lookup($snapuuid);
 	    if (!$instance) {
-		SPITUSERERROR("No such instance to snapshot!");
+		SPITUSERERROR("No such instance to clone!");
 	    }
 	    else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 		SPITUSERERROR("Not enough permission!");
@@ -235,12 +235,12 @@ if (! isset($create)) {
 		    #
 		    # See if we have a task running in the background
 		    # for this profile. At the moment it can only be a
-		    # snapshot task. If there is one, we have to tell
-		    # the js code to show the status of the snapshot.
+		    # clone task. If there is one, we have to tell
+		    # the js code to show the status of the clone.
 		    #
 		    $webtask = WebTask::LookupByObject($profile->uuid());
 		    if ($webtask && ! $webtask->exited()) {
-			$notifysnapshot = 1;
+			$notifyclone = 1;
 		    }
 		}
 	    }
@@ -344,13 +344,13 @@ else {
 #
 # Sanity check the snapuuid argument. 
 #
-if (isset($action) && $action == "snapshot") {
+if (isset($action) && $action == "clone") {
     if (!isset($snapuuid) || $snapuuid == "" || !IsValidUUID($snapuuid)) {
-	$errors["error"] = "Invalid experiment specified for snapshot!";
+	$errors["error"] = "Invalid experiment specified for clone!";
     }
     $instance = Instance::Lookup($snapuuid);
     if (!$instance) {
-	$errors["error"] = "No such experiment to snapshot!";
+	$errors["error"] = "No such experiment to clone!";
     }
     else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	$errors["error"] = "Not enough permission!";

@@ -31,14 +31,22 @@ include("quickvm_sup.php");
 #
 $routing = array("myprofiles" =>
 			array("file"    => "myprofiles.ajax",
+			      "guest"   => false,
+			      "methods" => array("GetProfile" =>
+						      "Do_GetProfile")),
+		 "instantiate" =>
+			array("file"    => "instantiate.ajax",
+			      "guest"   => true,
 			      "methods" => array("GetProfile" =>
 						      "Do_GetProfile")),
 		 "manage_profile" =>
 			array("file"    => "manage_profile.ajax",
-			      "methods" => array("SnapShotStatus" =>
-						      "Do_SnapShotStatus")),
+			      "guest"   => false,
+			      "methods" => array("CloneStatus" =>
+						      "Do_CloneStatus")),
 		 "status" =>
 			array("file"    => "status.ajax",
+			      "guest"   => true,
 			      "methods" => array("GetInstanceStatus" =>
 						   "Do_GetInstanceStatus",
 						 "TerminateInstance" =>
@@ -71,7 +79,7 @@ $this_user = CheckLogin($check_status);
 # way to let guest users pass through when allowed, without
 # duplicating the code in each file.
 #
-function CheckLoginForAjax($guestokay = 0)
+function CheckLoginForAjax($guestokay = false)
 {
     global $this_user, $check_status;
 
@@ -118,7 +126,7 @@ if (! array_key_exists($ajax_method, $routing[$ajax_route]["methods"])) {
     SPITAJAX_ERROR(1, "Invalid method: $ajax_route,$ajax_method");
     exit(1);
 }
-
+CheckLoginForAjax($routing[$ajax_route]["guest"]);
 include($routing[$ajax_route]["file"]);
 call_user_func($routing[$ajax_route]["methods"][$ajax_method]);
 

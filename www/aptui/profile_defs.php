@@ -84,6 +84,11 @@ class Profile
     function rspec()	    { return $this->field('rspec'); }
     function locked()	    { return $this->field('status'); }
     function status()	    { return $this->field('locked'); }
+
+    # Private means only in the same project.
+    function IsPrivate() {
+	return !($this->ispublic() || $this->shared());
+    }
     
     # Hmm, how does one cause an error in a php constructor?
     function IsValid() {

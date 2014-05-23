@@ -271,6 +271,9 @@ body {
 .text-danger {
   color: red;
 }
+.border-none {
+  border: none;
+}
 
 /*
 .panel-body {
@@ -347,4 +350,9 @@ body {
 
 blockquote #selected_profile_description {
     font-size: 14px;
+}
+
+.popover
+{
+    min-width: 350px ! important;
 }

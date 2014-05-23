@@ -1,6 +1,6 @@
 window.APT_OPTIONS.config();
 
-require(['underscore', 'js/quickvm_sup',
+require(['underscore', 'js/quickvm_sup', 'filesize',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/imaging-modal.html',
@@ -9,7 +9,7 @@ require(['underscore', 'js/quickvm_sup',
 	 'js/lib/text!template/rspectextview-modal.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
-	function (_, sup,
+	function (_, sup, filesize,
 		  manageString, waitwaitString, imagingString,
 		  rendererString, showtopoString, rspectextviewString)
 {
@@ -269,6 +269,8 @@ require(['underscore', 'js/quickvm_sup',
 			label_text = label_text +
 			    "<a href='#' class='btn btn-xs' " +
 			    " data-toggle='popover' " +
+			    " data-html='true' " +
+			    " data-delay='{\"hide\":1000}' " +
 			    " data-content='" + item.dataset['help'] + "'>" +
 			    "<span class='glyphicon glyphicon-question-sign'>" +
 			    " </span></a>";
@@ -522,7 +524,6 @@ require(['underscore', 'js/quickvm_sup',
 	// Ask the server for information to populate the imaging modal. 
 	//
 	var callback = function(json) {
-	    console.info(json);
 	    var value = json.value;
 	    
 	    if (json.code) {
@@ -553,7 +554,11 @@ require(['underscore', 'js/quickvm_sup',
 	    if (! _.has(value, "node_status")) {
 		value["node_status"] = "unknown";
 	    }
-	    if (! _.has(value, "image_size")) {
+	    if (_.has(value, "image_size")) {
+		// We get KB to avoid overflow along the way. 
+		value["image_size"] = filesize(value["image_size"] * 1024);
+	    }
+	    else {
 		value["image_size"] = "unknown";
 	    }	    
 	    $('#imaging_modal_node_status').html(value["node_status"]);
@@ -612,7 +617,7 @@ require(['underscore', 'js/quickvm_sup',
 
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "manage_profile",
-					     "SnapShotStatus",
+					     "CloneStatus",
 					     {"uuid" : uuid});
 	$xmlthing.done(callback);
     }

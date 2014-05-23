@@ -21,18 +21,11 @@
 # 
 # }}}
 #
-# Local Variables:
-# mode:php
-# End:
- #
 chdir("..");
 include_once("geni_defs.php");
 chdir("apt");
 include_once("profile_defs.php");
 include_once("instance_defs.php");
-
-# Guest users okay. This will not return if it fails.
-CheckLoginForAjax(1);
 
 # Set these globals below.
 $instance = null;
@@ -210,5 +203,7 @@ function Do_RequestExtension()
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
     }
 }
-
+# Local Variables:
+# mode:php
+# End:
 ?>

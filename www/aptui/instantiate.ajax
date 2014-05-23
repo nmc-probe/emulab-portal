@@ -34,24 +34,41 @@ function Do_GetProfile()
     global $this_user;
     global $ajax_args;
     
-    $this_idx = $this_user->uid_idx();
-
     if (!isset($ajax_args["uuid"])) {
 	SPITAJAX_ERROR(1, "Missing profile uuid");
 	return;
     }
-    $profile = Profile::Lookup($ajax_args["uuid"]);
+    $uuid = $ajax_args["uuid"];
+    if (!IsValidUUID($uuid)) {
+	SPITAJAX_ERROR(1, "Not a valid UUID: $uuid");
+	return;
+    }
+    $profile = Profile::Lookup($uuid);
     if (!$profile) {
-	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	SPITAJAX_ERROR(1, "No such profile $uuid");
 	return;
     }
-    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
-	SPITAJAX_ERROR(1, "Not enough permission");
-	return;
+    
+    #
+    # We need permission checks on this path.
+    #
+    if (! $profile->ispublic()) {
+	if (! isset($this_user)) {
+	    SPITAJAX_ERROR(1, "You must be logged in to access profile");
+	    return;
+	}
+	if (!(ISADMIN() ||
+	      $this_user->uid_idx() == $profile->creator_idx() ||
+	      ($profile->IsPrivate() &&
+	       $profile->GetProject()->IsMember($this_user, $approved) &&
+	       $approved))) {
+	    SPITAJAX_ERROR(1, "Not enough permission to access profile");
+	    return;
+	}
     }
-    SPITAJAX_RESPONSE(array('rspec' => $profile->rspec(),
-			    'name'  => $profile->name(),
-			    'idx'   => $profile->idx(),
+    SPITAJAX_RESPONSE(array('rspec'       => $profile->rspec(),
+			    'name'        => $profile->name(),
+			    'idx'         => $profile->idx(),
 			    'description' => $profile->description()));
 }
 # Local Variables:

@@ -101,318 +101,37 @@ if (! (isset($this_user) && ISADMIN())) {
 }
 $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 
-SPITHEADER(1);
-
-$style = "style='border: none;'";
-$slice_urn       = "n/a";
-$slice_expires   = "n/a";
-if (isset($slice)) {
-    $slice_urn       = $slice->urn();
-    $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
-    # Simpler version for directly displaying
-    $slice_expires_text   = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
-}
 $instance_status = $instance->status();
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
 $profile         = Profile::Lookup($instance->profile_idx());
 $profile_name    = $profile->name();
 $profile_idx     = $profile->idx();
-$color           = "";
-$bgtype          = "bg-info";
-$statustext      = "Please wait while we get your experiment ready";
-$disabled        = "disabled";
-$spin            = 1;
-if ($instance_status == "failed") {
-    $color = "color=red";
-    $spin  = 0;
-    $bgtype = "bg-danger";
-    $statustext = "Something went wrong, sorry! We've been notified.";
-}
-elseif ($instance_status == "ready") {
-    $color = "color=green";
-    $spin  = 0;
-    $disabled = "";
-    $bgtype = "bg-success";
-    $statustext = "Your experiment is ready!";
-}
-elseif ($instance_status == "imaging") {
-    $color = "color=green";
-    $spin  = 0;
-    $bgtype = "bg-warning";
-    $statustext = "Your experiment is ready!";
-}
-elseif ($instance_status == "created") {
-    $spinwidth = "33";
-}
-elseif ($instance_status == "provisioned") {
-    # Rob prefers booting.
-    $instance_status = "booting"; 
-    $spinwidth = "66";
-}
+$slice_urn       = $slice->urn();
+$slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
+$slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
+$registered      = (isset($this_user) ? "true" : "false");
 
-echo "<div class='row'>
-      <div class='col-lg-6  col-lg-offset-3
-                  col-md-8  col-md-offset-2
-                  col-sm-10 col-sm-offset-1
-                  col-xs-12 col-xs-offset-0'>\n";
-echo "<div class='panel panel-default'>\n";
-echo "<div class='panel-body'>\n";
-echo "<table class='table table-condensed nospaceafter' $style>\n";
-echo "<tr>\n";
-echo "<td id='statusmessage-container' colspan=2 $style class='$bgtype'>\n";
-echo "<h4 id='statusmessage'>$statustext</h4>\n";
-echo "</td>\n";
-echo "</tr>\n";
-if ($spin) {
-    echo "<tr>\n";
-    echo "<td colspan=2 $style>\n";
-    echo "<div id='quickvm_spinner'>\n";
-    echo " <div id='quickvm_progress'
-                class='progress progress-striped active'>\n";
-    echo "  <div class='progress-bar' role='progressbar'
-                 id='quickvm_progress_bar'
-                 style='width: ${spinwidth}%;'></div>\n";
-    echo " </div>\n";
-    echo "</div>\n";
-    echo "</td>\n";
-    echo "</tr>\n";
-}
-echo "<tr>\n";
-echo "<td class='uk-width-1-5' $style>URN:</td>\n";
-echo "<td class='uk-width-4-5' $style>$slice_urn</td>\n";
-echo "</tr>\n";
-echo "<tr>\n";
-echo "<td class='uk-width-1-5' $style>State:</td>\n";
-echo "<td class='uk-width-4-5' $style>
-        <span id='quickvm_status'>
-         <font $color>$instance_status</font>
-        </span>\n";
-echo "</td>\n";
-echo "</tr>\n";
-echo "<tr>\n";
-echo "<td class='uk-width-1-5' $style>Profile:</td>\n";
-echo "<td class='uk-width-4-5' $style>$profile_name</td>\n";
-echo "</tr>\n";
-echo "<tr>\n";
-echo "<td class='uk-width-1-5' $style>Expires:</td>\n";
-echo "<td class='uk-width-4-5' $style>
-         <span id='quickvm_expires'>$slice_expires_text</span> (<span id='quickvm_countdown'></span>)</td>\n";
-echo "</tr>\n";
-echo "</table>\n";
-echo "<div class='pull-right'>\n";
-if (isset($this_user)) {
-    echo "  <a class='btn btn-xs btn-primary' $disabled hidden
-               id='snapshot_button' type=button
-    	       href='manage_profile.php?action=snapshot&snapuuid=$uuid'>
-               Clone</a>\n";
-}
-echo "  <button class='btn btn-xs btn-success' $disabled
-           id='extend_button' type=button
-	   data-toggle='modal' data-target='#extend_modal'>
-           Extend</button>\n";
-echo "  <button class='btn btn-xs btn-danger' $disabled
-           id='terminate_button' type=button
-	   data-toggle='modal' data-target='#terminate_modal'>
-           Terminate</button>\n";
-echo "</div>\n";
-echo "</div>\n";
-echo "</div>\n";
-echo "</div>\n";
-echo "</div>\n";
+SPITHEADER(1);
 
-#
-# Add a div for the instructions if there are instructions. The client
-# will actually fill in the div though, since it is markdown and that
-# is more easily done on the client side for now.
-#
-echo "<div class='row hidden' id='instructions_panel'>
-      <div class='col-lg-6  col-lg-offset-3
-                  col-md-8  col-md-offset-2
-                  col-sm-8  col-sm-offset-2
-                  col-xs-12 col-xs-offset-0'>\n";
-SpitCollapsiblePanel("instructions", "Profile Instructions",<<<BODYEND
-<div id="instructions_text">
-</div>
-BODYEND
-);
-
-echo "</div>\n"; # cols
-echo "</div>\n"; # row
-#
-# The topo diagram goes inside this div, when it becomes available.
-#
-echo "<div class='row'>
-      <div class='col-lg-10  col-lg-offset-1
-                  col-md-10  col-md-offset-1
-                  col-sm-10  col-sm-offset-1
-                  col-xs-12 col-xs-offset-0'>\n";
-echo "<div class='panel panel-default invisible' id='showtopo_container'>\n";
-echo "<div class='panel-body'>\n";
-echo "<div id='quicktabs_div'>\n";
-echo "  <ul id='quicktabs' class='nav nav-tabs'>
-	  <li class='active'>
-             <a href='#profile' data-toggle='tab'>Topology View</a>
-          </li>
-	  <li>
-             <a href='#listview' data-toggle='tab'>List View</a>
-          </li>\n";
-if (isset($this_user) && ISADMIN()) {
-    echo "<li>
-             <a href='#manifest' data-toggle='tab'>Manifest</a>
-          </li>\n";
-}
-echo "	</ul>
-	<div id='quicktabs_content' class='tab-content'>
-          <div class='tab-pane active' id='profile'>
-	    <div id='showtopo_statuspage'></div>
-            <small>Click on a node to open a shell on that node. 
-                   Click and drag to move things around.</small>
-	  </div>
-          <div class='tab-pane' id='listview'>
-	    <div id='showtopo_listview'>
-              <table class='table table-striped table-hover table-condensed'
-                     id='listview_table'>
-                <thead>
-                  <tr>
-                    <th>Node</th>
-                    <th>Shell (in-browser)</th>
-                    <th>SSH command <small>(if you provided your own key)</small>
-                     </th>
-                  </tr>
-                </thead>
-                <tbody>
-                </tbody>
-              </table>
-            </div>
-          </div>\n";
-if (isset($this_user) && ISADMIN()) {
-    echo "<div class='tab-pane' id='manifest'>
-              <textarea id='manifest_textarea' style='width: 100%;'
-                        type='textarea'></textarea>
-	  </div>\n";
-}
-echo " </div>\n";
-echo "</div>\n"; # quicktabs
-echo "</div>\n"; # body
-echo "</div>\n"; # container
-echo "</div>\n"; # cols
-echo "</div>\n"; # row
+# Place to hang the toplevel template.
+echo "<div id='status-body'></div>\n";
 
 echo "<script type='text/javascript'>\n";
 echo "  window.APT_OPTIONS.uuid = '" . $uuid . "';\n";
+echo "  window.APT_OPTIONS.instanceStatus = '" . $instance_status . "';\n";
+echo "  window.APT_OPTIONS.profileName = '" . $profile_name . "';\n";
+echo "  window.APT_OPTIONS.sliceURN = '" . $slice_urn . "';\n";
 echo "  window.APT_OPTIONS.sliceExpires = '" . $slice_expires . "';\n";
+echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
+echo "  window.APT_OPTIONS.registered = $registered;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/status'></script>";
-
-#
-# A modal to tell people how to register
-#
-echo "<!-- This is a modal -->
-      <div id='register_modal' class='modal fade'>
-        <div class='modal-dialog'>
-        <div class='modal-content'>
-        <div class='modal-header'>
-          <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>&times;</button>
-          <h3>Register for an account</h3>
-        </div>
-        <div class='modal-body'>
-          <p>If you want to design your own experiments, have more then
-             one active experiment at a time, or extend the life of an
-             experiment longer, you should register for a full account.
-             Click on the link below to take you to the registration page.
-          </p><br>
-               <button class='btn btn-primary align-center'
-	          id='register-account'
-                  type='submit' name='register'>Register</button>
-        </div>
-        </div>
-        </div>
-      </div>\n";
-
-#
-# A modal to tell people how to extend their experiment
-#
-echo "<!-- This is a modal -->
-      <div id='extend_modal' class='modal fade'>
-        <div class='modal-dialog'>
-        <div class='modal-content'>
-         <div class='modal-body'>
-          <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>&times;</button>
-          <div class='clearfix'></div>
-          <div class='row'>\n";
-if ($this_user) {
-    echo "   <div class='col-sm-12'>";
-}
-else {
-    echo "   <div class='col-lg-7 col-md-7' ".
-	"         style='padding-right:20px; border-right: 1px solid #ccc;'>";
-}
-echo "        <h4>Extend for 24 hours</h4>
-                If you need to keep these resources for longer,
-                tell us why and we'll extend it for another 24 hours.
-		Watch for a confirmation message via email.
-              <form id='extend_request_form' role='form'>
-               <div class='row'>
-                <div class='col-lg-12 col-md-12'>
-                <textarea id='why_extend' name='why_extend'
-                          class='form-control'
-                          placeholder='Tell us a good story please.'
-                          class='align-center-inline'
-                          rows=5></textarea>
-               </div></div>
-               <br>
-               <button class='btn btn-primary btn-sm align-center'
-	               id='request-extension'
-                       type='submit' name='request'>Request Extension</button>
-              </form>
-            </div>\n";
-if (!$this_user) {
-    echo "  <div class='col-lg-5 col-md-5'>
-               <h4>Extend for longer</h4>
-               If you want to be able to use resources for more than 24
-                   hours, you will need to <a href='signup.php'>sign up</a>
-                   for an account, or
-                   <a data-toggle='modal' data-dismiss='modal'
-                      href='#quickvm_login_modal'
-                      data-target='#quickvm_login_modal'>log in</a> if you 
-                      already have an acount at aptlab.net or emulab.net</a>
-            </div>\n";
-}
-echo "      </div>
-            </div>
-           </div>
-        </div>
-      </div>\n";
-
-#
-# A modal to verify termination.
-#
-echo "<!-- This is a modal -->
-      <div id='terminate_modal' class='modal fade'>
-        <div class='modal-dialog'>
-        <div class='modal-content'>
-        <div class='modal-body'>
-         <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>&times;</button>
-         <p>Are you sure you want to terminate this experiment? 
-            Click on the button below if you are really sure.</p><br>
-             <button class='btn btn-primary align-center' id='terminate'
-                type='submit' name='terminate'>Terminate</button>
-        </div>
-        </div>
-        </div>
-      </div>\n";
-
-SpitWaitModal("waitwait");
-SpitOopsModal("oops");
 
 SPITFOOTER();
 ?>

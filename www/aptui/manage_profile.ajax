@@ -21,22 +21,15 @@
 # 
 # }}}
 #
-# Local Variables:
-# mode:php
-# End:
-
 chdir("..");
 include_once("webtask.php");
 chdir("apt");
 include_once("profile_defs.php");
 
-# Logged in users only. This will not return if it fails.
-CheckLoginForAjax();
-
 #
-# Return snapshot status.
+# Return clone status.
 #
-function Do_SnapShotStatus()
+function Do_CloneStatus()
 {
     global $this_user;
     global $ajax_args;
@@ -69,10 +62,24 @@ function Do_SnapShotStatus()
 	$blob["exited"]   = $webtask->exited();
 	$blob["exitcode"] = $webtask->exitcode();
     }
-    $blob["image_size"]   = $taskdata["image_size"];
+    #
+    # Size is in KB to avoid bigint problems. But kill the KB.
+    # 
+    if (isset($taskdata["image_size"])) {
+	if (preg_match("/^(\d+)KB$/", $taskdata["image_size"], $matches)) {
+	    $taskdata["image_size"] = $matches[1]; 
+	}
+	$blob["image_size"] = $taskdata["image_size"];
+    }
+    else {
+	$blob["image_size"] = 0;
+    }
     $blob["node_status"]  = $taskdata["rawstate"];
     $blob["image_status"] = $taskdata["image_status"];
     
     SPITAJAX_RESPONSE($blob);
 }
+# Local Variables:
+# mode:php
+# End:
 ?>
