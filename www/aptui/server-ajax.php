@@ -100,12 +100,6 @@ function CheckLoginForAjax($guestokay = false)
 	SPITAJAX_ERROR(2, "Your are not logged in");	
 	exit(2);
     }
-    # Guest user okay, but the cookie must exist.
-    if (isset($_COOKIE['quickvm_user'])) {
-	return;
-    }
-    SPITAJAX_ERROR(2, "Who are you?");
-    exit(2);
 }
 
 #
