@@ -69,6 +69,11 @@ my $ChassisInfo = {
         "maxPortsPerModule"     => 64,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 768, # Number of bits per module
     },
+    "force10-z9000" => {
+        "moduleSlots"           => 1,   # Max # of modules in chassis
+        "maxPortsPerModule"     => 128, # Max # of ports in any module
+        "bitmaskBitsPerModule"  => 128, # Number of bits per module
+    },
 };
 
 # XXX - The static offset approach appears to be unrealiable, so we look up
