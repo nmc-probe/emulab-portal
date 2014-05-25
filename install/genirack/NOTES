@@ -276,7 +276,18 @@ Setting up an InstaGeni Rack. First, we need the following info:
     	file "reverse/192.1.242.db";
     };
 
-  Run named_setup. Tail /var/log/messages to look for errors. 
+  Run named_setup. Tail /var/log/messages to look for errors.
+
+* Copy the openvpn certs from boss over to the control node.
+
+	boss> scp -p /usr/testbed/etc/openvpn-server.pem elabman@control:openvpn
+	boss> scp -p /usr/testbed/etc/emulab.pem elabman@control:openvpn
+
+* Start the openvpn server on the control node.
+
+	control> cd /etc/openvpn
+	control> sudo ln -s ~elabman/openvpn/openvpn.conf emulab.conf
+	control> sudo /etc/rc3.d/S16openvpn start
 
 * Now it is time to power on the experimental nodes. If all goes well,
   they will boot up into FreeBSD MFS and be in the hwdown experiment.

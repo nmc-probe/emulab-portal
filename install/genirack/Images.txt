@@ -109,7 +109,13 @@ command to save the errors.
 	boss> exit
 
 Grab (inner) boss:/usr/testbed/etc/elabman.pswd and store it in our
-file. See Utah (outer) boss:~stoller/genirack/racks/pswd.txt. 
+file. See Utah (outer) boss:~stoller/genirack/racks/pswd.txt.
+
+*** New: Grab /usr/testbed/etc/{emulab.pem,openvpn-client.pem} and put
+    them in the rack subdir (in a "vpn" subdir please) on outer boss.
+    This is what we need to connect to the VPN (openvpn) that will be
+    running on the control node, that allows you to access the ilo
+    managment interfaces remotely.
 
 Now ssh (as root) into inner ops:
 
