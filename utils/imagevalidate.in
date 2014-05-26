@@ -379,7 +379,7 @@ sub doimage($)
 		if ($update) {
 		    print("$pidimage: hash: ")
 			if (!$quiet);
-		    if ($image->SetHash($1) == 0) {
+		    if ($image->SetHash($filehash) == 0) {
 			makehashfile($path, $filehash);
 			$changed = 1;
 			print "[FIXED]\n"
