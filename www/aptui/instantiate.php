@@ -590,7 +590,7 @@ if ($retval != 0) {
     }
     else {
 	if (count($suexec_output_array)) {
-	    $line = $suexec_output_array[$i];
+	    $line = $suexec_output_array[0];
 	    $errors["error"] = $line;
 	}
 	else {

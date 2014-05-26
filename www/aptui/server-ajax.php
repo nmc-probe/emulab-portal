@@ -56,7 +56,11 @@ $routing = array("myprofiles" =>
 						 "GetSSHAuthObject" =>
 						    "Do_GetSSHAuthObject",
 						 "RequestExtension" =>
-						    "Do_RequestExtension")));
+						     "Do_RequestExtension",
+						 "SnapShot" =>
+						     "Do_Snapshot",
+						 "SnapshotStatus" =>
+						     "Do_SnapshotStatus")));
 
 #
 # Redefine this so we return XML instead of html for all errors.

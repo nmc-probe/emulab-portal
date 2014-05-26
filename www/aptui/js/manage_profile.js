@@ -1,17 +1,17 @@
 window.APT_OPTIONS.config();
 
-require(['underscore', 'js/quickvm_sup', 'filesize',
+require(['underscore', 'js/quickvm_sup', 'filesize', 'js/image',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
-	 'js/lib/text!template/imaging-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
 	 'js/lib/text!template/showtopo-modal.html',
+	 'js/lib/text!template/oops-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
-	function (_, sup, filesize,
-		  manageString, waitwaitString, imagingString,
-		  rendererString, showtopoString, rspectextviewString)
+function (_, sup, filesize, ShowImagingModal,
+	  manageString, waitwaitString, 
+	  rendererString, showtopoString, oopsString, rspectextviewString)
 {
     'use strict';
     var editing = 0;
@@ -21,10 +21,10 @@ require(['underscore', 'js/quickvm_sup', 'filesize',
     var ajaxurl = "";
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
-    var imagingTemplate   = _.template(imagingString);
     var rendererTemplate  = _.template(rendererString);
     var showtopoTemplate  = _.template(showtopoString);
     var rspectextTemplate = _.template(rspectextviewString);
+    var oopsTemplate      = _.template(oopsString);
 
     function initialize()
     {
@@ -62,14 +62,14 @@ require(['underscore', 'js/quickvm_sup', 'filesize',
 	
     	var waitwait_html = waitwaitTemplate({});
 	$('#waitwait_div').html(waitwait_html);
-    	var imaging_html = imagingTemplate({});
-	$('#imaging_div').html(imaging_html);
     	var showtopo_html = showtopoTemplate({});
 	$('#showtopomodal_div').html(showtopo_html);
     	var renderer_html = rendererTemplate({});
 	$('#renderer_div').html(renderer_html);
     	var rspectext_html = rspectextTemplate({});
 	$('#rspectext_div').html(rspectext_html);
+    	var oops_html = oopsTemplate({});
+	$('#oops_div').html(oops_html);
 
 	//
 	// Fix for filestyle problem; not a real class I guess, it
@@ -515,111 +515,24 @@ require(['underscore', 'js/quickvm_sup', 'filesize',
     //
     // Progress Modal
     //
-    var imaging_modal_display = true;
-    var imaging_modal_active  = false;
-	
     function ShowProgressModal()
     {
-	//
-	// Ask the server for information to populate the imaging modal. 
-	//
-	var callback = function(json) {
-	    var value = json.value;
-	    
-	    if (json.code) {
-		if (imaging_modal_active) {
-		    sup.HideModal("#imaging-modal");
-		    imaging_modal_active = false;
-		    $('#imaging_modal').off('hidden.bs.modal');
-		}
-		EnableButton("profile_delete_button");
-		return;
-	    }
-
-	    if (! imaging_modal_active && imaging_modal_display) {
-		sup.ShowModal("#imaging-modal");
-		imaging_modal_active  = true;
-		imaging_modal_display = false;
-
-		// Handler so we know the user closed the modal.
-		$('#imaging_modal').on('hidden.bs.modal', function (e) {
-		    imaging_modal_active = false;
-		    $('#imaging_modal').off('hidden.bs.modal');
-		})		
-	    }
-
-	    //
-	    // Fill in the details. 
-	    //
-	    if (! _.has(value, "node_status")) {
-		value["node_status"] = "unknown";
-	    }
-	    if (_.has(value, "image_size")) {
-		// We get KB to avoid overflow along the way. 
-		value["image_size"] = filesize(value["image_size"] * 1024);
-	    }
-	    else {
-		value["image_size"] = "unknown";
-	    }	    
-	    $('#imaging_modal_node_status').html(value["node_status"]);
-	    $('#imaging_modal_image_size').html(value["image_size"]);
-
-	    if (_.has(value, "image_status")) {
-		var status = value["image_status"];
-
-		if (status == "imaging") {
-		    $('#tracker-imaging').removeClass('progtrckr-todo');
-		    $('#tracker-imaging').addClass('progtrckr-done');
-		}
-		if (status == "finishing") {
-		    $('#tracker-imaging').removeClass('progtrckr-todo');
-		    $('#tracker-imaging').addClass('progtrckr-done');
-		    $('#tracker-finishing').removeClass('progtrckr-todo');
-		    $('#tracker-finishing').addClass('progtrckr-done');
-		}
-		else if (status == "ready") {
-		    $('#tracker-imaging').removeClass('progtrckr-todo');
-		    $('#tracker-imaging').addClass('progtrckr-done');
-		    $('#tracker-finishing').removeClass('progtrckr-todo');
-		    $('#tracker-finishing').addClass('progtrckr-done');
-		    $('#tracker-ready').removeClass('progtrckr-todo');
-		    $('#tracker-ready').addClass('progtrckr-done');
-		    $('#imaging-spinner').addClass("invisible");
-		    EnableButtons();
-		    return;
-		}
-		else if (status == "failed") {
-		    $('#tracker-imaging').removeClass('progtrckr-todo');
-		    $('#tracker-imaging').addClass('progtrckr-done');
-		    $('#tracker-finishing').removeClass('progtrckr-todo');
-		    $('#tracker-finishing').addClass('progtrckr-done');
-		    $('#tracker-ready').removeClass('progtrckr-todo');
-		    $('#tracker-ready').addClass('progtrckr-done');
-		    $('#tracker-ready').html("Failed");
-		    $('#imaging-spinner').addClass("invisible");
-		    EnableButton("profile_delete_button");
-		    return;
-		}
-	    }
-	    //
-	    // Done, we need to do something here if we exited before
-	    // ready or failed above. 
-	    //
-	    if (_.has(value, "exited")) {
-		$('#imaging-spinner').addClass("invisible");
-		EnableButtons();
-		return;
-	    }
-	    
-	    // And check again in a little bit.
-	    setTimeout(function f() { ShowProgressModal() }, 5000);
-	}
-
-	var $xmlthing = sup.CallServerMethod(ajaxurl,
-					     "manage_profile",
-					     "CloneStatus",
-					     {"uuid" : uuid});
-	$xmlthing.done(callback);
+	ShowImagingModal(function()
+			 {
+			     return sup.CallServerMethod(ajaxurl,
+							 "manage_profile",
+							 "CloneStatus",
+							 {"uuid" : uuid});
+			 },
+			 function(failed)
+			 {
+			     if (failed) {
+				 EnableButton("profile_delete_button");
+			     }
+			     else {
+				 EnableButtons();
+			     }
+			 });
     }
 
     //

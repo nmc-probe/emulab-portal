@@ -1019,6 +1019,7 @@ sub SnapShot($$$)
 	    if (defined($sliverblob)) {
 		$webtask->state($sliverblob->{'state'});
 		$webtask->rawstate($sliverblob->{'rawstate'});
+		$webtask->Store();
 	    }
 	}
 	if ($blob->{'status'} eq "failed") {

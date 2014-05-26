@@ -1,0 +1,294 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use strict;
+use Getopt::Std;
+use XML::Simple;
+use Data::Dumper;
+use CGI;
+use POSIX ":sys_wait_h";
+use POSIX qw(setsid);
+
+#
+# Back-end script to manage APT profiles.
+#
+sub usage()
+{
+    print("Usage: manage_instance -s instance [imagename]\n");
+    print("Usage: manage_instance -r instance\n");
+    exit(-1);
+}
+my $optlist     = "dsrt:";
+my $debug       = 0;
+my $delete      = 0;
+my $snapshot    = 0;
+my $webtask;
+my $webtask_id;
+my $webtask_delete;
+
+#
+# Configure variables
+#
+my $TB		= "@prefix@";
+my $TBOPS       = "@TBOPSEMAIL@";
+my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
+
+#
+# Untaint the path
+#
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/usr/bin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Load the Testbed support stuff.
+#
+use lib "@prefix@/lib";
+use EmulabConstants;
+use emdb;
+use emutil;
+use User;
+use Project;
+use APT_Profile;
+use APT_Instance;
+use GeniXML;
+use GeniHRN;
+use WebTask;
+
+# Protos
+sub fatal($);
+sub DoSnapshot();
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"s"})) {
+    $snapshot = 1;
+}
+if (defined($options{"r"})) {
+    $delete = 1;
+}
+if (defined($options{"t"})) {
+    $webtask_id = $options{"t"};
+}
+if (@ARGV < 1) {
+    usage();
+}
+# The web interface (and in the future the xmlrpc interface) sets this.
+my $this_user = User->ImpliedUser();
+if (! defined($this_user)) {
+    $this_user = User->ThisUser();
+    if (!defined($this_user)) {
+	fatal("You ($UID) do not exist!");
+    }
+}
+
+my $uuid     = shift(@ARGV);
+my $instance = APT_Instance->Lookup($uuid);
+if (!defined($instance)) {
+    fatal("No such instance $uuid");
+}
+
+if ($snapshot) {
+    DoSnapshot();
+}
+exit(0);
+
+#
+# Take a snapshot. Implies a single node instance, for now.
+#
+sub DoSnapshot()
+{
+    #
+    # If we get an imagename on the command line, the caller is
+    # saying it is responsible. If we do not get one, we create
+    # the name and update the underlying profile with the new image
+    # urn.
+    #
+    my $imagename;
+    my $update_profile = 0;
+    my $rspec;
+    
+    my $profile = APT_Profile->Lookup($instance->profile_idx());
+    if (!defined($profile)) {
+	fatal("Could not lookup profile for instance");
+    }
+    if (@ARGV) {
+	$imagename = shift(@ARGV);
+    }
+    else {
+	$imagename = $profile->name();
+	$update_profile = 1;
+    }
+    
+    #
+    # Sanity check to make sure there is just one node. 
+    #
+    my $manifest = GeniXML::Parse($instance->manifest());
+    if (! defined($manifest)) {
+	fatal("Could not parse manifest");
+    }
+    my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
+    if (@nodes != 1) {
+	fatal("Too many nodes (> 1) to snapshot");
+    }
+    my ($node)     = @nodes;
+    my $sliver_urn = GeniXML::GetSliverId($node);
+
+    #
+    # But we eventually update the rspec, so get that.
+    #
+    if ($update_profile) {
+	$rspec = GeniXML::Parse($profile->rspec());
+	if (! defined($rspec)) {
+	    fatal("Could not parse rspec for profile");
+	}
+	($node) = GeniXML::FindNodes("n:node", $rspec)->get_nodelist();
+    }
+
+    #
+    # Create the webtask object.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	$webtask_delete = 0;
+    }
+    #
+    # We always create one for the called script. Makes it easy to
+    # communicate.
+    #
+    if (!defined($webtask)) {
+	$webtask = WebTask->Create($instance->uuid(), $webtask_id);
+	if (!defined($webtask)) {
+	    fatal("Could not create webtask object");
+	}
+	# We created this cause caller did not specify it needed one,
+	# so we will delete it when we are done. 
+	if (!defined($webtask_id)) {
+	    $webtask_id = $webtask_id->task_id();
+	    $webtask_delete = 1;
+	}
+    }
+    # Convenient.
+    $webtask->AutoStore(1);
+
+    my $command = "$QUICKVM -t $webtask_id -s $uuid $sliver_urn $imagename";
+
+    #
+    # This returns pretty fast, and then the imaging takes place in
+    # the background at the aggregate. quickvm keeps a process running
+    # in the background waiting for the sliver to unlock and the
+    # sliverstatus to indicate the node is running again. 
+    #
+    my $output = emutil::ExecQuiet($command);
+    if ($?) {
+	$webtask->Delete()
+	    if ($webtask_delete);
+	print STDERR $output;
+	fatal("Failed to create disk image");
+    }
+    #
+    # Parse the output to get the new image urn, we will stick that
+    # into the rspec if the operation succeeds.
+    #
+    my $image_urn;
+    if ($output =~ /^(urn:.*),/) {
+	$image_urn = $1;
+    }
+    else {
+	$webtask->Delete()
+	    if ($webtask_delete);
+	fatal("Could not find image urn in:\n$output");
+    }
+
+    #
+    # Exit and leave child to poll.
+    #
+    if (! $debug) {
+	my $child = fork();
+	if ($child) {
+	    # Pass info to caller.
+	    print $output;
+	    exit(0);
+	}
+	# Let parent exit;
+	sleep(2);
+        POSIX::setsid();
+    }
+    my $seconds  = 1200;
+    my $interval = 5;
+
+    while ($seconds >= 0) {
+	sleep($interval);
+	$seconds -= $interval;
+
+	# Pick up new DB values.
+	$webtask->Refresh();
+	last
+	    if (defined($webtask->exited()));
+    }
+    if ($webtask->exitcode()) {
+	$webtask->Delete()
+	    if ($webtask_delete);
+	exit(1);
+    }
+    if ($update_profile) {
+	GeniXML::SetDiskImage($node, $image_urn);
+	if ($profile->Update({"rspec" => GeniXML::Serialize($rspec)})) {
+	    fatal("Could not update rspec with new image urn");
+	}
+    }
+    $webtask->Delete()
+	if ($webtask_delete);
+    exit(0);
+}
+exit(0);
+
+sub fatal($)
+{
+    my ($mesg) = @_;
+
+    print STDERR "*** $0:\n".
+	         "    $mesg\n";
+    # Exit with negative status so web interface treats it as system error.
+    exit(-1);
+}
+
+sub escapeshellarg($)
+{
+    my ($str) = @_;
+
+    $str =~ s/[^[:alnum:]]/\\$&/g;
+    return $str;
+}
+

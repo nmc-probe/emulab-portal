@@ -2,28 +2,27 @@
 <div class="panel panel-info">
   <div class="panel-heading">
     <h5>
-	<center>What does Clone mean?</center>
+	<center>What does Snapshot mean?</center>
     </h5>
   </div>
   <div class="panel-body">
       <p>
-	Clone allows you to quickly convert a running experiment into
-	a <em>new</em> profile, capturing the disk contents of your
-	node and saving it away for later use by experiments based on
-	the new profile.
+	Snapshot will make a copy of your disk, saving it away for
+	future experiments based on the same profile. This is a
+	complete disk copy, everything is saved. The next user to
+	instantiate this profile will use this new disk image.
       </p>
       <p>
-	When you click on Clone, you will be taken to Create Profile
-	page. All you need to do is choose a new name for your profile
-	and click Create. 
+	If your profile is already using a disk image created via
+	snapshot (or Clone), the original disk image is saved for
+	you. Note that only one copy of the image is saved. 
       </p>
       <p>
-	The node in your original experiment will be shutdown, and a
-	disk image captured. You will be able to track the progress of
-	the image capture as it proceeds. When it is done, the "Ready"
-	flag will be checked, and your new profile is ready for use.
-	You can then instantiate that profile just like you did the
-	original profile.
+	After you click to confirm, the node in your experiment will
+	be shutdown, and a disk image captured. You will be able to
+	track the progress of the image capture as it proceeds. When
+	it is done, the "Ready" flag will be checked, and your node
+	rebooted. 
       </p>
     </div>
   </div>

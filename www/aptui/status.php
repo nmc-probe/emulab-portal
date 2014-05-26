@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 include_once("osinfo_defs.php");
 include_once("geni_defs.php");
+include_once("webtask.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("profile_defs.php");
@@ -111,6 +112,25 @@ $slice_urn       = $slice->urn();
 $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
 $slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
 $registered      = (isset($this_user) ? "true" : "false");
+$profile_public  = ($profile->ispublic() ? "true" : "false");
+$snapping        = 0;
+
+#
+# See if we have a task running in the background for this instance.
+# At the moment it can only be a snapshot task. If there is one, we
+# have to tell the js code to show the status of the snapshot.
+#
+# XXX we could be imaging for a new profile (Cloning) instead. In that
+# case the webtask object will not be attached to the instance, but to
+# whatever profile is cloning. We do not know that profile here, so we
+# cannot show that progress. Needs more thought.
+#
+if ($instance_status == "imaging") {
+    $webtask = WebTask::LookupByObject($instance->uuid());
+    if ($webtask && ! $webtask->exited()) {
+	$snapping = 1;
+    }
+}
 
 SPITHEADER(1);
 
@@ -121,17 +141,21 @@ echo "<script type='text/javascript'>\n";
 echo "  window.APT_OPTIONS.uuid = '" . $uuid . "';\n";
 echo "  window.APT_OPTIONS.instanceStatus = '" . $instance_status . "';\n";
 echo "  window.APT_OPTIONS.profileName = '" . $profile_name . "';\n";
+echo "  window.APT_OPTIONS.profilePublic = " . $profile_public . ";\n";
 echo "  window.APT_OPTIONS.sliceURN = '" . $slice_urn . "';\n";
 echo "  window.APT_OPTIONS.sliceExpires = '" . $slice_expires . "';\n";
 echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "  window.APT_OPTIONS.registered = $registered;\n";
+echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/status'></script>";
+# For progress bubbles in the imaging modal.
+echo "<link rel='stylesheet' href='css/progress.css'>\n";
 
 SPITFOOTER();
 ?>

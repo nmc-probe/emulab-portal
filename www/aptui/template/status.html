@@ -48,11 +48,21 @@
 	    </td>
 	  </tr>
 	</table>
+	<!--
+	<div class='pull-left'>
+	  <span class='glyphicon glyphicon-question-sign'
+		style='font-size:24px'></span>
+	</div>
+	-->
 	<div class='pull-right'>
 	  <% if (registered) { %>
-	  <button class='btn btn-xs btn-primary' disabled hidden
+	  <button class='btn btn-xs btn-primary hidden' disabled
 		  id='clone_button' type=button>
             Clone</button>
+	  <button class='btn btn-xs btn-primary hidden' disabled
+		  id='snapshot_button' type=button
+		  data-toggle='modal' data-target='#snapshot_modal'>
+            Snapshot</button>
 	  <% } %>
 	  <button class='btn btn-xs btn-success' disabled
 		  id='extend_button' type=button
@@ -148,9 +158,29 @@
 </div>
 <div>
   <!-- place to hang the modals for now -->
+  <div id='snapshot_modal' class='modal fade'>
+    <div class='modal-dialog'>
+      <div class='modal-content'>
+	<div class='modal-header'>
+          <button type='button' class='close' data-dismiss='modal'
+                  aria-hidden='true'>&times;</button>
+          <center><h3>Confirm to Snapshot</h3>
+	</div>
+	<div class='modal-body'>
+	  Performing a snapshot will create a new disk image and
+	  modify the profile. This is okay, but please confirm.
+	  <br>
+	  <br>
+          <button class='btn btn-danger btn-sm align-center' type='button'
+		  id='snapshot_confirm'>Confirm</button></center>
+	</div>
+      </div>
+    </div>
+  </div>
   <div id='waitwait_div'></div>
   <div id='terminate_div'></div>
   <div id='oops_div'></div>
   <div id='register_div'></div>
   <div id='extend_div'></div>
+  <div id='imaging_div'></div>
 </div>

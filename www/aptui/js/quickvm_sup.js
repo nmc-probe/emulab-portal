@@ -13,28 +13,6 @@ function HideModal(which)
     $( which ).modal('hide');
 }
     
-function CallMethod(method, callback, uuid, arg)
-{
-    return $.ajax({
-	// the URL for the request
-	url: window.location.href,
- 
-	// the data to send (will be converted to a query string)
-	data: {
-	    uuid: uuid,
-	    ajax_request: 1,
-	    ajax_method: method,
-	    ajax_argument: arg,
-	},
- 
-	// whether this is a POST or GET request
-	type: (arg ? "GET" : "GET"),
- 
-	// the type of data we expect back
-	dataType : "json",
-    });
-}
-
 function CallServerMethod(url, route, method, args)
 {
     if (url == null) {
@@ -366,16 +344,16 @@ function ConvertManifestToJSON(name, xml)
 // Spit out the oops modal.
 function SpitOops(id, msg)
 {
+    var modal_name = "#" + id + "_modal";
     var modal_text_name = "#" + id + "_text";
     $(modal_text_name).html(msg);
-    ShowModal("#" + id);
+    ShowModal(modal_name);
 }
 
 // Exports from this module for use elsewhere
 return {
     ShowModal: ShowModal,
     HideModal: HideModal,
-    CallMethod: CallMethod,
     CallServerMethod: CallServerMethod,
     ConvertManifestToJSON: ConvertManifestToJSON,
     maketopmap: maketopmap,

@@ -1,6 +1,6 @@
 window.APT_OPTIONS.config();
 
-require(['underscore', 'js/quickvm_sup', 'moment',
+require(['underscore', 'js/quickvm_sup', 'moment', 'js/image',
 	 'js/lib/text!template/status.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',
@@ -8,14 +8,18 @@ require(['underscore', 'js/quickvm_sup', 'moment',
 	 'js/lib/text!template/terminate-modal.html',
 	 'js/lib/text!template/extend-modal.html',
 	 'js/lib/text!template/clone-help.html',
+	 'js/lib/text!template/snapshot-help.html',
 	 'tablesorter', 'tablesorterwidgets'],
-function (_, sup, moment, statusString, waitwaitString, oopsString,
-	  registerString, terminateString, extendString, cloneHelpString)
+function (_, sup, moment, ShowImagingModal,
+	  statusString, waitwaitString, oopsString,
+	  registerString, terminateString, extendString,
+	  cloneHelpString, snapshotHelpString)
 {
     'use strict';
     var CurrentTopo = null;
     var nodecount   = 0;
     var ajaxurl     = null;
+    var uuid        = null;
     var statusTemplate    = _.template(statusString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var oopsTemplate      = _.template(oopsString);
@@ -27,10 +31,11 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
     {
 	window.APT_OPTIONS.initialize(sup);
 	ajaxurl = window.APT_OPTIONS.AJAXURL;
+	uuid    = window.APT_OPTIONS.uuid;
 
 	// Generate the templates.
 	var template_args = {
-	    uuid:		window.APT_OPTIONS.UUID,
+	    uuid:		uuid,
 	    profileName:	window.APT_OPTIONS.profileName,
 	    sliceURN:		window.APT_OPTIONS.sliceURN,
 	    sliceExpires:	window.APT_OPTIONS.sliceExpires,
@@ -106,7 +111,14 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 	$('button#clone_button').click(function (event) {
 	    event.preventDefault();
 	    window.location.replace('manage_profile.php?action=clone' +
-				    '&snapuuid=' + window.APT_OPTIONS.uuid);
+				    '&snapuuid=' + uuid);
+	});
+
+	// Handler for the Snapshot confirm button.
+	$('button#snapshot_confirm').click(function (event) {
+	    event.preventDefault();
+	    sup.HideModal('#snapshot_modal');
+	    StartSnapshot();
 	});
 
 	//
@@ -135,11 +147,39 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 	    },1000)
 	}).mouseleave(function(){
 	    clearTimeout(popover_timer);
+	}).click(function(){
+	    clearTimeout(popover_timer);
+	});
+	
+	$("button#snapshot_button").mouseenter(function(){
+	    popover_timer = setTimeout(function() {
+		$('button#snapshot_button').popover({
+		    html:     true,
+		    content:  snapshotHelpString +
+			'<span id=snapshot_popover_close class=close>' +
+			'&times;</span>',
+		    trigger:  'manual',
+		    placement:'left',
+		    container:'body',
+		});
+		$('button#snapshot_button').popover('show');
+		$('#snapshot_popover_close').on('click', function(e) {
+		    $('button#snapshot_button').popover('hide');
+		});
+		// Kill popover if user clicks through. 
+		$('button#snapshot_button').on('click', function(e) {
+		    $('button#snapshot_button').popover('hide');
+		});
+	    },1000)
+	}).mouseleave(function(){
+	    clearTimeout(popover_timer);
+	}).click(function(){
+	    clearTimeout(popover_timer);
 	});
 	
 	$('button#request-extension').click(function (event) {
 	    event.preventDefault();
-	    RequestExtension(window.APT_OPTIONS.uuid);
+	    RequestExtension(uuid);
 	});
 
 	// Terminate an experiment.
@@ -158,12 +198,15 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
 						"status",
 						"TerminateInstance",
-					 {"uuid" : window.APT_OPTIONS.uuid});
+						{"uuid" : uuid});
 	    xmlthing.done(callback);
 	});
 
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
-	GetStatus(window.APT_OPTIONS.uuid);
+	GetStatus(uuid);
+	if (window.APT_OPTIONS.snapping) {
+	    ShowProgressModal();
+	}
     }
 
     // Periodically ask the server for the status and update the display.
@@ -276,12 +319,14 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 	EnableButton("terminate");
 	EnableButton("extend");
 	EnableButton("clone");
+	EnableButton("snapshot");
     }
     function DisableButtons()
     {
 	DisableButton("terminate");
 	DisableButton("extend");
 	DisableButton("clone");
+	DisableButton("snapshot");
     }
     function EnableButton(button)
     {
@@ -299,6 +344,8 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 	    button = "#extend_button";
 	else if (button == "clone" && nodecount == 1)
 	    button = "#clone_button";
+	else if (button == "snapshot" && nodecount == 1)
+	    button = "#snapshot_button";
 	else
 	    return;
 
@@ -605,7 +652,7 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
 					    "GetSSHAuthObject",
-					    {"uuid" : window.APT_OPTIONS.uuid,
+					    {"uuid" : uuid,
 					     "hostport" : hostport});
 	xmlthing.done(callback);
     }
@@ -700,8 +747,10 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 	    // If a single node, show the clone button. Only
 	    // single node experiments can do this.
 	    if (nodecount == 1) {
-		$("#clone_button").removeClass("invisible");
+		$("#clone_button").removeClass("hidden");
 		EnableButton("clone");
+		$("#snapshot_button").removeClass("hidden");
+		EnableButton("snapshot");
 	    }
 
 	    // And start up ssh for single node topologies.
@@ -727,6 +776,49 @@ function (_, sup, moment, statusString, waitwaitString, oopsString,
 		       300, CurrentTopo,
 		       // Callback for ssh.
 		       function(arg1, arg2) { NewSSHTab(arg1, arg2); });
+    }
+
+    function ShowProgressModal()
+    {
+	ShowImagingModal(function()
+			 {
+			     return sup.CallServerMethod(ajaxurl,
+							 "status",
+							 "SnapshotStatus",
+							 {"uuid" : uuid});
+			 },
+			 function(failed)
+			 {
+			     if (failed) {
+				 EnableButtons();
+			     }
+			     else {
+				 EnableButtons();
+			     }
+			 });
+    }
+
+    //
+    // Request to start a snapshot. This assumes a single node of course.
+    //
+    function StartSnapshot()
+    {
+	sup.ShowModal('#waitwait-modal');
+
+	var callback = function(json) {
+	    sup.HideModal('#waitwait-modal');
+	    
+	    if (json.code) {
+		sup.SpitOops("oops", "Could not start snapshot: " + json.value);
+		return;
+	    }
+	    ShowProgressModal();
+	}
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "SnapShot",
+					    {"uuid" : uuid});
+	xmlthing.done(callback);
     }
 
     $(document).ready(initialize);
