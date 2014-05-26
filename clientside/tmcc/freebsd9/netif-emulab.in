@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -135,6 +135,9 @@ cnet_start()
 	for _if in $network_interfaces; do
 	case $_if in
 	lo*|gif*|faith*|tun*|plip*|usbus*|ipfw*)
+		;;
+	# XXX skip IPoIB and Mellanox IB as eth
+	ib[0-9]|mlxen*)
 		;;
 	# XXX skip Intel 10Gb for now; they require huge numbers of mbufs
 	ix[0-9])

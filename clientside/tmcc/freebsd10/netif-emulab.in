@@ -111,6 +111,9 @@ cnet_start()
 	case $_if in
 	lo*|gif*|faith*|tun*|plip*|usbus*|ipfw*)
 		;;
+	# XXX skip IPoIB and Mellanox IB as eth
+	ib[0-9]|mlxen*)
+		;;
 	# XXX skip Intel 10Gb for now; they require huge numbers of mbufs
 	ix[0-9])
 		;;
