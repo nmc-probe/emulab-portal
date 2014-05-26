@@ -35,6 +35,7 @@ TESTBED_NETWORK          = @TESTBED_NETWORK@
 EXTERNAL_TESTBED_NETWORK = @EXTERNAL_TESTBED_NETWORK@
 IPV6_ENABLED             = @IPV6_ENABLED@
 IPV6_SUBNET_PREFIX       = @IPV6_SUBNET_PREFIX@
+DISABLE_NAMED_INSTALL    = @DISABLE_NAMED_INSTALL@
 
 REVERSE_MAPNAME          = \
 		$(shell echo @TESTBED_NETWORK@ | sed -e 's,.0$$,,')
@@ -92,7 +93,16 @@ install:
 	@echo "Are you sure you want to reinstall the namedb files!"
 	@echo "Use the install-real target if you are sure"
 
-install-real:	resolv.conf \
+ifeq ($(DISABLE_NAMED_INSTALL),0)
+install-real:	install-real-force
+else
+install-real:	
+	@echo "Refusing to install cause DISABLE_NAMED_INSTALL=1";
+	@echo "Use the install-real-force target if you are sure"
+endif
+
+install-real-force: \
+		resolv.conf \
 		$(NAMEDB_DIR)/named.conf \
 		$(NAMEDB_DIR)/localhost.rev \
 		$(NAMEDB_DIR)/$(OURDOMAIN).db.head \
