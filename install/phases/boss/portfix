@@ -102,6 +102,18 @@ sub Install($$$)
 		ExecQuietFatal("ln -sf /usr/local/etc/namedb /etc/namedb");
 	    };
 	}
+	if ($PGENISUPPORT) {
+	    Phase "mod_wsgi3", "Looking for mod_wsgi3 and installing", sub {
+		DoneIfPackageInstalled("mod_wsgi3");
+		my $pname = GetPackage("mod_wsgi3", $packagedir);
+		AddPackage($pname, $packagedir);
+	    }
+	    Phase "py-flask", "Looking for py-flask and installing", sub {
+		DoneIfPackageInstalled("py-flask");
+		my $pname = GetPackage("py-flask", $packagedir);
+		AddPackage($pname, $packagedir);
+	    }
+	}
     };
 
     return 0;
