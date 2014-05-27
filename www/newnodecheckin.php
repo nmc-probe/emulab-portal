@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -66,14 +66,33 @@ foreach ($_GET as $key => $value) {
 		}
 	        $interfaces[$ifacenum]["card"] = $ifacenum;
 	    } else {
-		echo "Bad interface name $value!";
+		echo "Bad interface name ". CleanString($value). ", ignored!";
+	        $interfaces[$ifacenum]["bad"] = 1;
 		continue;
 	    }
 	} else if ($vartype == "driver") {
-	    $interfaces[$ifacenum]["type"] = $value;
+	    if (preg_match("/^([a-z]+)$/i",$value,$matches)) {
+		$interfaces[$ifacenum]["type"] = $matches[1];
+	    } else {
+		echo "Bad interface type ". CleanString($value). ", ignored!";
+	        $interfaces[$ifacenum]["bad"] = 1;
+		continue;
+	    }
 	} else {
-	    $interfaces[$ifacenum]["mac"] = $value;
+	    if (preg_match("/^([0-9a-f]+)$/i",$value,$matches)) {
+		$interfaces[$ifacenum]["mac"] = $matches[1];
+	    } else {
+		echo "Bad interface MAC ". CleanString($value). ", ignored!";
+	        $interfaces[$ifacenum]["bad"] = 1;
+		continue;
+	    }
 	}
+    }
+}
+# weed out bad ones
+foreach ($interfaces as $i => $interface) {
+    if (isset($interface["bad"])) {
+	unset($interfaces[$i]);
     }
 }
 
