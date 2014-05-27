@@ -24,6 +24,7 @@
 #include <mysql/mysql.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include "event.h"
 
 static MYSQL db;

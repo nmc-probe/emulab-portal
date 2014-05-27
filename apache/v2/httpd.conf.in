@@ -204,7 +204,9 @@ LoadModule disk_cache_module libexec/apache22/mod_disk_cache.so
 #LoadModule file_cache_module libexec/apache22/mod_file_cache.so
 #LoadModule mem_cache_module libexec/apache22/mod_mem_cache.so
 LoadModule cgi_module libexec/apache22/mod_cgi.so
+<IfDefine PGENI>
 LoadModule wsgi_module libexec/apache22/mod_wsgi.so
+</IfDefine>
 
 #
 # The following modules are not loaded by default:

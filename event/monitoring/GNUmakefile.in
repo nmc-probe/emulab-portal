@@ -53,6 +53,7 @@ LDFLAGS  += -L$(TESTBED_LIBOBJDIR)
 LDFLAGS  += -L$(TESTBED_LIBOBJDIR)/event
 LIBS      = -levent -lcrypto
 LIBS     += -L/usr/local/lib -lpubsub -lm
+LIBS     += -L/usr/local/lib/mysql -lmysqlclient
 LDFLAGS  += $(LDSTATIC)
 
 shared-node-listener: shared-node-listener.c

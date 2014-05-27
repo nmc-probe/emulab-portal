@@ -60,7 +60,7 @@ shared-node-monitor: shared-node-monitor.o $(TESTBED_LIBOBJDIR)/event/libevent.a
 	$(CC) $(LDFLAGS) -o $@ shared-node-monitor.o $(LIBS)
 
 shared-node-monitor.o: shared-node-monitor.c 
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ -c $<
 else
 shared-node-monitor:
 endif
@@ -77,7 +77,7 @@ client-install: client
 	-mkdir -p $(USRBINDIR)
 	$(INSTALL_PROGRAM) $(SRCDIR)/geni-get $(USRBINDIR)
 ifeq ($(SYSTEM),Linux)
-	$(INSTALL_PROGRAM) shared-node-monitor $(DESTDIR)$CLIENT_BINDIR)/shared-node-monitor
+	$(INSTALL_PROGRAM) shared-node-monitor $(DESTDIR) $(CLIENT_BINDIR)/shared-node-monitor
 endif
 
 subboss:

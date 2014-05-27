@@ -26,6 +26,7 @@ TESTBED_SRCDIR	= @top_srcdir@
 OBJDIR		= ..
 SUBDIR		= event
 ISMAINSITE      = @TBMAINSITE@
+PROTOGENI       = @PROTOGENI_SUPPORT@
 
 include $(OBJDIR)/Makeconf
 

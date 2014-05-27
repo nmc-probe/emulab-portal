@@ -133,6 +133,12 @@ sub UpdateClientSide($)
     return -1
 	if ($?);
 
+    system("sudo ssh $opts $node ".
+	   " 'cd $eltb/$objdir/protogeni; ".
+	   "    make client-install >& /tmp/install.log'");
+    return -1
+	if ($?);
+
     return 0;
 }
 
