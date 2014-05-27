@@ -1451,6 +1451,14 @@ sub vnodePreConfig($$$$$){
 		  "  $vnoderoot/etc/fstab");
 	goto bad
 	    if ($?);
+
+	#
+	# In HVM the emulated RTC is UTC.
+	# Make sure FreeBSD knows that.
+	#
+	if ($vninfo->{'ishvm'}) {
+	    unlink("$vnoderoot/etc/wall_cmos_clock");
+	}
     }
     #
     # We have to do what slicefix does when it localizes an image.
