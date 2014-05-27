@@ -81,7 +81,9 @@ RUN_DEPENDS+= \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Crypt/X509.pm:${PORTSDIR}/security/p5-Crypt-X509 \
 	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Crypt/OpenSSL/X509.pm:${PORTSDIR}/security/p5-Crypt-OpenSSL-X509 \
 ${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/XML/SemanticDiff.pm:${PORTSDIR}/textproc/p5-XML-SemanticDiff \
-	xmlsec1:${PORTSDIR}/security/xmlsec1
+	xmlsec1:${PORTSDIR}/security/xmlsec1 \
+	${LOCALBASE}/libexec/apache22/mod_wsgi.so:${PORTSDIR}/www/mod_wsgi3 \
+	${PYTHON_PKGNAMEPREFIX}flask:${PORTSDIR}/www/py-flask
 
 USE_PERL5=	yes
 USE_PYTHON=	yes
