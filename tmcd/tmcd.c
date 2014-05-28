@@ -2480,7 +2480,7 @@ COMMAND_PROTOTYPE(doifconfig)
 			}
 			bufp = buf;
 			bufp += OUTPUT(bufp, ebufp - bufp,
-				       "INTERFACE IFACETYPE=any "
+				       "INTERFACE IFACETYPE=gre "
 				       "INET=%s MASK=%s MAC=%s "
 				       "SPEED=100Mbps DUPLEX=full "
 				       "IFACE= RTABID= LAN=%s\n",
