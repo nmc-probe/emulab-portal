@@ -106,6 +106,20 @@ function (_, sup, moment, ShowImagingModal,
 	    var win   = window.open(url, '_blank');
 	    win.focus();
 	});
+
+	// Setup the extend modal.
+	$('button#extend_button').click(function (event) {
+	    event.preventDefault();
+	    $('#why_extend').val('');
+	    // Countdown characters needed for a good story.
+	    $('#why_extend').on('focus keyup', function (e) {
+		var len   = $('#why_extend').val().length;
+		var left  = 120 - len;
+		var msg   = "You need at least " + left + " more characters";
+		$('#extend_counter_msg').html(msg);
+	    });
+	    sup.ShowModal('#extend_modal');
+	});
 	
 	// Handler for the Clone button.
 	$('button#clone_button').click(function (event) {
