@@ -1,6 +1,5 @@
-window.APT_OPTIONS.config();
-
-require(['underscore', 'js/quickvm_sup', 'moment', 'js/image',
+require([window.APT_OPTIONS.configObject,
+	 'underscore', 'js/quickvm_sup', 'moment', 'js/image',
 	 'js/lib/text!template/status.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',

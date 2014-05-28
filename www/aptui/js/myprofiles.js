@@ -1,6 +1,5 @@
-window.APT_OPTIONS.config();
-
-require(['js/quickvm_sup',
+require(window.APT_OPTIONS.configObject,
+	['js/quickvm_sup',
 	 'tablesorter', 'tablesorterwidgets'],
 function (sup)
 {

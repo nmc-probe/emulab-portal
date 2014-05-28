@@ -1,6 +1,5 @@
-window.APT_OPTIONS.config();
-
-require(['underscore', 'js/quickvm_sup',
+require(window.APT_OPTIONS.configObject,
+	['underscore', 'js/quickvm_sup',
 	 'js/lib/text!template/about-account.html',
 	 'js/lib/text!template/verify-modal.html',
 	 'js/lib/text!template/signup-personal.html',

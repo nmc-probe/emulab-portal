@@ -133,6 +133,10 @@ body {
   border: 1px solid #000;
 }
 
+#showtopo_div {
+    height: 300px;
+}
+
 @media (min-width: 970px) {
 
 #showtopo_dialog {
@@ -145,7 +149,6 @@ body {
 
 #showtopo_div {
   width: 643px;
-  height: 300px;
 }
 #showtopo_nopicker {
   width: 850px;

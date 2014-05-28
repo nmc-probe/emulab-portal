@@ -1,6 +1,5 @@
-window.APT_OPTIONS.config();
-
-require(['underscore', 'js/quickvm_sup', 'filesize', 'js/image',
+require(window.APT_OPTIONS.configObject,
+	['underscore', 'js/quickvm_sup', 'filesize', 'js/image',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',

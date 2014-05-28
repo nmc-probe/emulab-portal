@@ -1,6 +1,7 @@
-window.APT_OPTIONS.config();
+//window.APT_OPTIONS.config();
 
-require(['underscore', 'js/quickvm_sup', // jQuery modules
+require(window.APT_OPTIONS.configObject,
+	['underscore', 'js/quickvm_sup', // jQuery modules
         'formhelpers', 'filestyle', 'marked', 'jacks'],
 function (_, sup)
 {
@@ -125,7 +126,7 @@ function (_, sup)
 		    mode: 'viewer',
 		    source: 'rspec',
 		    root: '#showtopo_div',
-		    size: { x: 643, y: 300 },
+//		    size: { x: 643, y: 300 },
 		    nodeSelect: false,
 		    readyCallback: function (input, output) {
 			jacksUpdate = input;
