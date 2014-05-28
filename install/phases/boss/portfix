@@ -107,12 +107,12 @@ sub Install($$$)
 		DoneIfPackageInstalled("mod_wsgi3");
 		my $pname = GetPackage("mod_wsgi3", $packagedir);
 		AddPackage($pname, $packagedir);
-	    }
+	    };
 	    Phase "py-flask", "Looking for py-flask and installing", sub {
 		DoneIfPackageInstalled("py-flask");
 		my $pname = GetPackage("py-flask", $packagedir);
 		AddPackage($pname, $packagedir);
-	    }
+	    };
 	}
     };
 
