@@ -417,6 +417,17 @@ sub os_ifconfig_line($$$$$$$$;$$$)
     my ($uplines, $downlines);
 
     #
+    # Inside a container, we get a regular interface, but tmcd sets the
+    # type=gre so we know to set the MTU properly. This number seems to
+    # work for both openvz and xen containers. 
+    #
+    if ($iface_type eq "gre" && GENVNODE()) {
+	$uplines   = "$IFCONFIGBIN $iface $inet netmask $mask mtu 1450 up";
+	$downlines = "$IFCONFIGBIN $iface down";
+	return ($uplines, $downlines);
+    }
+
+    #
     # Special handling for new style interfaces (which have settings).
     # This should all move into per-type modules at some point.
     #
