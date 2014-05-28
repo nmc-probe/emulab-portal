@@ -66,6 +66,7 @@ install:		$(INSTALL_SBINDIR)/protogeni/shared-node-listener
 
 client:
 client-install:
+control-install:
 
 clean:
 	/bin/rm -f *.o $(PROGRAMS) *-debug
