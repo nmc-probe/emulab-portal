@@ -53,12 +53,15 @@ sub Install($$$)
 	    ExecQuietFatal("cd $BUILDDIR; make install");
 	};
 	Phase "json", "Installing json port", sub {
+	    DoneIfPackageInstalled("p5-JSON");
 	    ExecQuietFatal("cd /usr/ports/converters/p5-JSON; make install");
 	};
 	Phase "hmac", "Installing hmac digest port", sub {
+	    DoneIfPackageInstalled("p5-Digest-HMAC");
 	    ExecQuietFatal("cd /usr/ports/security/p5-Digest-HMAC; make install");
 	};
 	Phase "sha1", "Installing sha1 digest port", sub {
+	    DoneIfPackageInstalled("p5-Digest-SHA1");
 	    ExecQuietFatal("cd /usr/ports/security/p5-Digest-SHA1; make install");
 	};
 	Phase "logfile", "Creating $LOGFILE", sub {

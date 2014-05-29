@@ -168,9 +168,7 @@ RUN_DEPENDS+=	\
         curl:${PORTSDIR}/ftp/curl \
 	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb \
 	mysqlhotcopy:${PORTSDIR}/databases/mysql${MYSQL_VER}-scripts \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/JSON.pm:${PORTSDIR}/converters/p5-JSON \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Net/IP.pm:${PORTSDIR}/net-mgmt/p5-Net-IP
-
+	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/JSON.pm:${PORTSDIR}/converters/p5-JSON
 
 .if (${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
