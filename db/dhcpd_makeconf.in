@@ -54,6 +54,9 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
 my $BOSSNODE_IP = "@BOSSNODE_IP@";
 my $OURDOMAIN   = "@OURDOMAIN@";
+my $MANAGEMENT_NETWORK = "@MANAGEMENT_NETWORK@";
+my $MANAGEMENT_NETMASK = "@MANAGEMENT_NETMASK@";
+my $MANAGEMENT_GATEWAY = "@MANAGEMENT_ROUTER@";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/sbin:/usr/local/bin';
@@ -94,9 +97,6 @@ my $outfile	    = "/tmp/dhcpd_makeconf.$$";
 my $OUT		    = *STDOUT;
 my %subboss_dhcp_servers;
 my %management_ifaces;
-my $MANAGEMENT_NETWORK = "10.249.249.0";
-my $MANAGEMENT_NETMASK = "255.255.255.0";
-my $MANAGEMENT_GATEWAY = "10.249.249.253";
 my $m_network = inet_ntoa(inet_aton($MANAGEMENT_NETWORK) &
 			  inet_aton($MANAGEMENT_NETMASK));
 
