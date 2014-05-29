@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1027,6 +1027,7 @@ sub ParseArgs()
 	#
 	if (! ($tempnsfile =~ /^\/tmp\/[-\w]+-\d+\.nsfile/) &&
 	    ! ($tempnsfile =~ /^\/tmp\/\d+\.ns/) &&
+	    ! ($tempnsfile =~ /^\/tmp\/php[-\w]+/) &&
 	    ! ($tempnsfile =~ /^\/var\/tmp\/php[-\w]+/) &&
 	    ! TBValidUserDir($tempnsfile, $ISFS)) {
 	    tberror({type => 'primary', severity => SEV_ERROR,
