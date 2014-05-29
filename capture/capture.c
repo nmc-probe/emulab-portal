@@ -668,11 +668,11 @@ main(int argc, char **argv)
 #ifdef  USESOCKETS
 	    if (remotemode) {
 		if (netmode() != 0)
-		    die("Could not establish connection to %s\n", Devname);
+		    die("Could not establish connection to %s", Devname);
 	    }
 	    else if (programmode) {
 		if (progmode() != 0)
-		    die("Could not start program %s\n", Devname);
+		    die("Could not start program %s", Devname);
 	    }
 	    else
 #endif
@@ -1059,15 +1059,14 @@ capture(void)
 					close(devfd);
 					if (remotemode) {
 						warning("remote socket closed;"
-						"attempting to reconnect");
+						" attempting to reconnect");
 						while (netmode() != 0) {
 							usleep(5000000);
 						}
 					}
 					else {
-						warning("sub program died "
-							"attempting to "
-							"restart");
+						warning("sub-program died;"
+						" attempting to restart");
 						while (progmode() != 0) {
 							usleep(5000000);
 						}
@@ -1683,19 +1682,48 @@ int
 progmode()
 {
 	int		pipefds[2];
+	sigset_t	mask;
 
-	/*
-	 * We probably need a check for a respawning loop.
-	 */
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pipefds) < 0) {
 		warning("socketpair(): %s", geterr(errno));
 		return -1;
 	}
+	/* avoid races with deadchild */
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGCHLD);
+	sigprocmask(SIG_BLOCK, &mask, 0);
+
 	if ((progpid = fork()) < 0) {
 		warning("fork(): %s", geterr(errno));
+		sigprocmask(SIG_UNBLOCK, &mask, 0);
+		close(pipefds[0]);
+		close(pipefds[1]);
 		return -1;
 	}
 	if (progpid) {
+		int status;
+
+		/*
+		 * Wait a short time and see if it dies right off the bat.
+		 * Otherwise we will get into a fast respawn loop.
+		 */
+		usleep(1000000);
+		if (waitpid(progpid, &status, WNOHANG) == progpid) {
+			char buf[256];
+			int cc;
+
+			warning("program (pid=%d) died immediately, "
+				"status=0x%x, output:", progpid, status);
+			cc = read(pipefds[0], buf, sizeof(buf)-1);
+			if (cc > 0) {
+				buf[cc] = '\0';
+				warning("%s ...", buf);
+			}
+			sigprocmask(SIG_UNBLOCK, &mask, 0);
+			close(pipefds[0]);
+			close(pipefds[1]);
+			return -1;
+		}
 		close(pipefds[1]);
 		devfd = pipefds[0];
 
@@ -1703,6 +1731,7 @@ progmode()
 			warning("%s: fcntl(O_NONBLOCK): %s", Devname,
 				geterr(errno));
 			close(devfd);
+			sigprocmask(SIG_UNBLOCK, &mask, 0);
 			return -1;
 		}
 	}
@@ -1731,6 +1760,7 @@ progmode()
 		execvp(programargv[1], &programargv[1]);
 		exit(666);
 	}
+	sigprocmask(SIG_UNBLOCK, &mask, 0);
 	return 0;
 }
 #endif
@@ -2385,7 +2415,7 @@ handshake(void)
 	if (setjmp(deadline)) {
 		alarm(0);
 		signal(SIGALRM, SIG_DFL);
-		warning("Timed out connecting to %s\n", Bossnode);
+		warning("Timed out connecting to %s", Bossnode);
 		close(sock);
 		return -1;
 	}

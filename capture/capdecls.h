@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2002, 2008 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -25,9 +25,7 @@
 #define LOGGERPORT	858
 #define DEVPATH		"/dev"
 #define TIPPATH		"/dev/tip"
-#ifdef HPBSD
-#define LOGPATH		"/usr/adm/tiplogs"
-#else
+#ifndef LOGPATH
 #define LOGPATH		"/var/log/tiplogs"
 #endif
 /* Socket based tip/capture uses an ACL file to hold key below. */
