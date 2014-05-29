@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -662,9 +662,7 @@ sub PipeTo($$$)
     #
     # Write the certificate to the child.
     #
-    print CHILD "-----BEGIN CERTIFICATE-----\n";
-    print CHILD $self->cert();
-    print CHILD "-----END CERTIFICATE-----\n";
+    print CHILD $self->toString();
     if ($withkey && $self->privkey()) {
 	print CHILD "-----BEGIN RSA PRIVATE KEY-----\n";
 	print CHILD $self->privkey();
@@ -732,9 +730,7 @@ sub WriteToFile($;$)
     
     # We want this file to be passed back. 
     my ($tempfile, $filename) = tempfile(UNLINK => 1);
-    print $tempfile "-----BEGIN CERTIFICATE-----\n";
-    print $tempfile $self->cert();
-    print $tempfile "-----END CERTIFICATE-----\n";
+    print $tempfile $self->toString();
     if ($withkey && $self->privkey()) {
 	print $tempfile "-----BEGIN RSA PRIVATE KEY-----\n";
 	
@@ -750,6 +746,18 @@ sub WriteToFile($;$)
 	print $tempfile "-----END RSA PRIVATE KEY-----\n";
     }
     return $filename;
+}
+
+sub toString($)
+{
+    my ($self) = @_;
+    my $string = "";
+
+    $string .= "-----BEGIN CERTIFICATE-----\n";
+    $string .= $self->cert();
+    $string .= "-----END CERTIFICATE-----\n";
+    
+    return $string;
 }
 
 #
@@ -1250,7 +1258,8 @@ sub URL($)              { return undef; }
 sub URN($)              { return field($_[0], "urn"); }
 sub certfile($)		{ return undef; }
 sub GetCertificate($)   { return $_[0]; }
-sub WriteToFile($$)      { return GeniCertificate::WriteToFile($_[0], $_[1]); }
+sub WriteToFile($$)     { return GeniCertificate::WriteToFile($_[0], $_[1]); }
+sub toString($)		{ return GeniCertificate::toString($_[0]); }
 #
 # Need to add DN to the emulab table.
 #

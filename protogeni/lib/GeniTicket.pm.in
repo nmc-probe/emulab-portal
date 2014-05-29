@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -766,8 +766,8 @@ sub RunSigner($$)
 
     my $idx         = $self->seqno();
     my $expires     = $self->redeem_before();
-    my $target_cert = $self->target_cert()->cert();
-    my $owner_cert  = $self->owner_cert()->cert();
+    my $target_cert = $self->target_cert()->toString();
+    my $owner_cert  = $self->owner_cert()->toString();
     my $ticket_uuid = $self->{'ticket_uuid'};
     my $rspec_xml   = GeniXML::Serialize($self->rspec());
 
