@@ -93,6 +93,22 @@ sub Install($$$)
 		ExecQuietFatal("mv /var/tmp$egg $pydir/$egg.bak");
 	    };
 	}
+	if ($FBSD_MAJOR == 9) {
+	    #
+	    # Ports that were added after the 9.0 packages were made.
+	    # As of 05/2014, the 9.0 stuff is still needed on geniracks.
+	    #
+	    Phase "p5-Net-IP", "Looking for p5-Net-IP and installing", sub {
+		DoneIfPackageInstalled("p5-Net-IP");
+		my $pname = GetPackage("p5-Net-IP", $packagedir);
+		AddPackage($pname, $packagedir);
+	    };
+	    Phase "p5-JSON", "Looking for p5-JSON and installing", sub {
+		DoneIfPackageInstalled("p5-JSON");
+		my $pname = GetPackage("p5-JSON", $packagedir);
+		AddPackage($pname, $packagedir);
+	    };
+	}
 	if ($FBSD_MAJOR >= 10) {
 	    Phase "bind-compat", "Creating /etc/namedb for backward compat", sub {
 		PhaseSkip("already exists")
