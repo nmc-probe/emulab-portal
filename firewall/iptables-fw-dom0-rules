@@ -143,6 +143,14 @@ iptables -A INPUT -p gre -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 iptables -A OUTPUT -p gre -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 
 #
+# Event Proxy. So we do not actually need this on XEN dom0, but we use these
+# rules on openvz too (no prerouting rule). We might want to try restricting
+# these to just the local node, but probably not worth the effort.
+#
+iptables -A INPUT -p tcp -d me -s EMULAB_CNET --dport 16505 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
+iptables -A INPUT -p tcp -d me -s EMULAB_VCNET --dport 16505 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED,ELABINELAB
+
+#
 # Set up default policies for the standard chains
 # For all but the wide-open case, the default should
 # be to DROP.
