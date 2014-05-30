@@ -177,14 +177,16 @@ my $needpkgs = 0;
 
 Phase "ports", "Installing ports", sub {
     # Check for new package tools
+    my $pkgarg = "-E";
     if (-x "/usr/sbin/pkg") {
-	$PKG_INFO = "/usr/sbin/pkg info -g";
+	$PKG_INFO = "/usr/sbin/pkg info";
+	$pkgarg = "-g -e";
     }
     foreach my $pkgname (sort(keys(%packlist))) {
 	my $pkgdir = $packlist{$pkgname};
 
 	Phase "$pkgname", "Checking for $pkgname", sub {
-	    if (!ExecQuiet("$PKG_INFO -e '${pkgname}*'")) {
+	    if (!ExecQuiet("$PKG_INFO $pkgarg '${pkgname}*'")) {
 		PhaseSkip("Already installed");
 	    }
 	    ExecQuietFatal("cd $pkgdir; make -DBATCH install");
