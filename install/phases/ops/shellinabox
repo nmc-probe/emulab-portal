@@ -53,7 +53,7 @@ sub Install($$$)
 	    ExecQuietFatal("cd $BUILDDIR; make install");
 	};
 	Phase "json", "Installing json port", sub {
-	    DoneIfPackageInstalled("p5-JSON-2");
+	    DoneIfPackageInstalled("p5-JSON");
 	    ExecQuietFatal("cd /usr/ports/converters/p5-JSON; make install");
 	};
 	Phase "hmac", "Installing hmac digest port", sub {

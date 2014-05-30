@@ -781,7 +781,8 @@ sub FetchFileFatal($$) {
 
 #
 # Locate the proper version of a package to install by looking
-# at the available package tarballs.
+# at the available package tarballs. Note that we do "ls -t"
+# so that if there is more than one package, we will return the latest.
 #
 # Must be called "in phase" since we will PhaseFail on errors.
 #
@@ -791,18 +792,27 @@ sub GetPackage($$) {
     PhaseFail("Must provide -p (packagedir) argument!")
 	if (!$packagedir);
 
-    my $pname = `ls $packagedir/$prefix-*.txz 2>/dev/null`;
+    my @pname = `ls -t $packagedir/$prefix-*.txz 2>/dev/null`;
     if ($?) {
-	$pname = `ls $packagedir/$prefix-*.tbz 2>/dev/null`;
+	@pname = `ls -t $packagedir/$prefix-*.tbz 2>/dev/null`;
 	if ($?) {
-	    $pname = `ls $packagedir/$prefix-*.tgz 2>/dev/null`;
+	    @pname = `ls -t $packagedir/$prefix-*.tgz 2>/dev/null`;
 	    PhaseFail("Cannot find $prefix package in $packagedir!")
 		if ($?);
 	}
     }
-    chomp($pname);
+    chomp(@pname);
 
-    return $pname;
+    if (@pname > 1) {
+	# if it matched more than one package, find one with exactly one '-'
+	foreach my $pn (@pname) {
+	    if ($pn =~ /^$packagedir\/$prefix-[^-]+\.t[bgx]z$/) {
+		return $pn;
+	    }
+	}
+    }
+
+    return $pname[0];
 }
 
 #

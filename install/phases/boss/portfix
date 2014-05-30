@@ -104,8 +104,8 @@ sub Install($$$)
 		AddPackage($pname, $packagedir);
 	    };
 	    Phase "p5-JSON", "Looking for p5-JSON and installing", sub {
-		DoneIfPackageInstalled("p5-JSON-2");
-		my $pname = GetPackage("p5-JSON-2", $packagedir);
+		DoneIfPackageInstalled("p5-JSON");
+		my $pname = GetPackage("p5-JSON", $packagedir);
 		AddPackage($pname, $packagedir);
 	    };
 	}
