@@ -142,7 +142,8 @@ if ($daemon && TBBackGround($logname)) {
 #
 # Shortcut for xen shutdown
 #
-if (GENVNODETYPE() eq "xen" && defined($action) && $action eq "halt") {
+if (GENVNODE() &&
+    GENVNODETYPE() eq "xen" && defined($action) && $action eq "halt") {
     my $toolstack = `grep TOOLSTACK /etc/default/xen`;
     my $XM = "/usr/sbin/xm";
     if ($toolstack =~ /xl$/) {
