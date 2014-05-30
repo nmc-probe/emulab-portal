@@ -121,10 +121,7 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#showtopo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    // The rspec is taken from the text area.
-	    var xmlDoc  = $.parseXML($('#profile_rspec_textarea').val());
-	    var xml     = $(xmlDoc);
-	    
-	    ShowRspecTopo(xml);
+	    ShowRspecTopo($('#profile_rspec_textarea').val());
 	});
 	$('#expand_rspec_modal_button').click(function (event) {
 	    $('#modal_profile_rspec_textarea').val(
@@ -500,15 +497,8 @@ function (_, sup, filesize, ShowImagingModal,
     //
     function ShowRspecTopo(xml)
     {
-	var topo   = sup.ConvertManifestToJSON(null, xml);
-	console.info(topo);
-
 	sup.ShowModal("#quickvm_topomodal");
-
-	// Subtract -2 cause of the border. 
-	sup.maketopmap("#showtopo_nopicker",
- 		   ($("#showtopo_nopicker").outerWidth() - 2),
-		       300, topo, null);
+	sup.maketopmap("#showtopo_nopicker", xml, null);
     }
 
     //

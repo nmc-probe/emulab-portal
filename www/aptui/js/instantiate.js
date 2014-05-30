@@ -2,13 +2,11 @@
 
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', // jQuery modules
-        'formhelpers', 'filestyle', 'marked', 'jacks'],
+        'formhelpers', 'filestyle', 'marked'],
 function (_, sup)
 {
     'use strict';
 
-    var jacksInstance;
-    var jacksUpdate;
     var ajaxurl;
 
     function initialize()
@@ -120,31 +118,7 @@ function (_, sup)
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
 
-	    if (! jacksInstance)
-	    {
-		jacksInstance = new window.Jacks({
-		    mode: 'viewer',
-		    source: 'rspec',
-		    root: '#showtopo_div',
-//		    size: { x: 643, y: 300 },
-		    nodeSelect: false,
-		    readyCallback: function (input, output) {
-			jacksUpdate = input;
-			jacksUpdate.trigger('change-topology',
-					    [{ rspec: json.value.rspec }]);
-		    },
-		    show: {
-			rspec: false,
-			tour: false,
-			version: false
-		    }
-		});
-	    }
-	    else if (jacksUpdate)
-	    {
-		jacksUpdate.trigger('change-topology',
-				    [{ rspec: json.value.rspec }]);
-	    }
+	    sup.maketopmap('#showtopo_div', json.value.rspec, null);
 	}
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "instantiate", "GetProfile",

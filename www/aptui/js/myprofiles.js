@@ -59,16 +59,8 @@ function (sup)
 		alert("Failed to get rspec for topology viewer: " + json.value);
 		return;
 	    }
-	    var xmlDoc = $.parseXML(json.value.rspec);
-	    var xml    = $(xmlDoc);
-	    var topo   = sup.ConvertManifestToJSON(profile, xml);
-
 	    sup.ShowModal("#quickvm_topomodal");
-
-	    // Subtract -2 cause of the border. 
-	    sup.maketopmap("#showtopo_nopicker",
- 			   ($("#showtopo_nopicker").outerWidth() - 2),
-			   300, topo, null);
+	    sup.maketopmap('#showtopo_nopicker', json.value.rspec, null);
 	};
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "myprofiles",

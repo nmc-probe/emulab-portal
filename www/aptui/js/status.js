@@ -1,5 +1,5 @@
-require([window.APT_OPTIONS.configObject,
-	 'underscore', 'js/quickvm_sup', 'moment', 'js/image',
+require(window.APT_OPTIONS.configObject,
+	['underscore', 'js/quickvm_sup', 'moment', 'js/image',
 	 'js/lib/text!template/status.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',
@@ -15,7 +15,6 @@ function (_, sup, moment, ShowImagingModal,
 	  cloneHelpString, snapshotHelpString)
 {
     'use strict';
-    var CurrentTopo = null;
     var nodecount   = 0;
     var ajaxurl     = null;
     var uuid        = null;
@@ -279,7 +278,6 @@ function (_, sup, moment, ShowImagingModal,
 		}
 		if (! StatusWatchCallBack.active) {
 		    ShowTopo(uuid);
-		    StartResizeWatchdog()
 		    StatusWatchCallBack.active = 1;
 		}
 		EnableButtons();
@@ -368,41 +366,6 @@ function (_, sup, moment, ShowImagingModal,
 	else {
 	    $(button).attr("disabled", "disabled");
 	}
-    }
-
-    //
-    // Install a window resize handler to redraw the topomap.
-    //
-    function StartResizeWatchdog()
-    {
-	var resizeTimer;
-
-	//
-	// This does the actual work, called from the timer.
-	//
-	function resizeFunction() {
-//	    console.info("resizing topo");
-	    // Must clear the div for the D3 library.
-	    $("#showtopo_statuspage").html("<div></div>");
-	    $("#showtopo_statuspage").removeClass("invisible");
-	    ReDrawTopoMap();
-	}
-
-	//
-	// When we get (the first of a series) of resize events,
-	// we want to throw away the current topograph and set a
-	// timer that will run a little while later, to redraw
-	// it in the newly sized container. But, resize events might
-	// come pouring in as the user moves the moouse, so we just
-	// kill the old one each time, and eventually it will fire
-	// after the user stops dinking around.
-	//
-	$(window).resize(function() {
-	    $("#showtopo_statuspage").addClass("invisible");
-	
-	    clearTimeout(resizeTimer);
-	    resizeTimer = setTimeout(resizeFunction, 250);
-	});
     }
 
     //
@@ -669,6 +632,9 @@ function (_, sup, moment, ShowImagingModal,
 					     "hostport" : hostport});
 	xmlthing.done(callback);
     }
+
+    var hostportList = {};
+
     //
     // Show the topology inside the topo container. Called from the status
     // watchdog and the resize wachdog. Replaces the current topo drawing.
@@ -676,17 +642,13 @@ function (_, sup, moment, ShowImagingModal,
     function ShowTopo(uuid)
     {
 	var callback = function(json) {
-//	    console.info(json.value);
-	    var xmlDoc = $.parseXML(json.value);
-	    var xml    = $(xmlDoc);
-	    var topo   = sup.ConvertManifestToJSON(null, xml);
-
-//	    console.info(json.value);
-
 	    if ($("#manifest_textarea").length) {
 		$("#manifest_textarea").html(json.value);
 		$("#manifest_textarea").css("height", "300");
 	    }
+
+	    var xmlDoc = $.parseXML(json.value);
+	    var xml = $(xmlDoc);
 
 	    // Suck the instructions out of the tour and put them into
 	    // the Usage area.
@@ -728,6 +690,7 @@ function (_, sup, moment, ShowImagingModal,
 //		    console.info(url);
 		
 		    var hostport  = host + ":" + port;
+		    hostportList[node] = hostport;
 		    ssh = "<button class='btn btn-primary btn-sm' " +
 			"    id='" + "sshbutton_" + node + "' " +
 			"    type='button'>" +
@@ -752,10 +715,11 @@ function (_, sup, moment, ShowImagingModal,
 		nodecount++;
 	    });
 
-	    // Stash this for resize watchdog redraw.
-	    CurrentTopo = topo;
-	    ReDrawTopoMap();
 	    $("#showtopo_container").removeClass("invisible");
+	    $('#quicktabs a[href="#profile"]').tab('show');
+	    sup.maketopmap('#showtopo_statuspage', json.value, function(ssh, clientId) {
+		NewSSHTab(hostportList[clientId], clientId);
+	    });
 
 	    // If a single node, show the clone button. Only
 	    // single node experiments can do this.
@@ -776,19 +740,6 @@ function (_, sup, moment, ShowImagingModal,
 					    "GetInstanceManifest",
 					    {"uuid" : uuid});
 	xmlthing.done(callback);
-    }
-
-    function ReDrawTopoMap()
-    {
-	// Activate the "profile" tab or else the map has no size.
-	$('#quicktabs a[href="#profile"]').tab('show');
-	
-	// Subtract -2 cause of the border. 
-	sup.maketopmap("#showtopo_statuspage",
-		       $("#showtopo_statuspage").outerWidth() - 2,
-		       300, CurrentTopo,
-		       // Callback for ssh.
-		       function(arg1, arg2) { NewSSHTab(arg1, arg2); });
     }
 
     function ShowProgressModal()

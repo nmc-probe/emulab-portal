@@ -171,7 +171,7 @@ echo "<!-- This is the topology view modal -->
               <div class='panel panel-default'
                          id='showtopo_container'>
                 <div class='panel-body'>
-                  <div id='showtopo_nopicker'></div>
+                  <div id='showtopo_nopicker' class='jacks'></div>
                 </div>
               </div>
             </div>
