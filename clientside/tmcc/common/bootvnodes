@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -125,6 +125,9 @@ my $islinux = ($sysname eq "Linux");
 # ...
 my $isfreenas = -e "/etc/rc.freenas" ? 1 : 0;
 
+# Nodes come and go ...
+configtmcc("nocache", 1);
+
 #
 # Put this into the background and log its output. We *must* do this cause
 # we do not want to halt the boot if the testbed is down!
@@ -134,6 +137,19 @@ if ($daemon && TBBackGround($logname)) {
     # Parent exits normally
     #
     exit(0);
+}
+
+#
+# Shortcut for xen shutdown
+#
+if (GENVNODETYPE() eq "xen" && defined($action) && $action eq "halt") {
+    my $toolstack = `grep TOOLSTACK /etc/default/xen`;
+    my $XM = "/usr/sbin/xm";
+    if ($toolstack =~ /xl$/) {
+	$XM = "/usr/sbin/xl";
+    }
+    system("$XM shutdown -a -w");
+    exit($? >> 8);
 }
 
 #
