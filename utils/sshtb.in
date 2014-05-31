@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -110,7 +110,8 @@ if (!defined($hostname)) {
 #
 my @cmdargs;
 
-if ($hostname eq $FSNODE && $FSNODE eq $BOSSNODE) {
+if ($hostname eq $BOSSNODE ||
+    ($hostname eq $FSNODE && $FSNODE eq $BOSSNODE)) {
     @cmdargs  = "@ARGV";
     $runlocal = 1;
 }

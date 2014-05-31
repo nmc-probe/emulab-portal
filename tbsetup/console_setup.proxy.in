@@ -35,7 +35,7 @@ use English;
 # to the capture process, and then reset the files to the proper group.
 #
 #
-my $TIPLOGDIR   = "/var/log/tiplogs";
+my $TIPLOGDIR   = "/usr/testbed/log/tiplogs";
 my $TIPDEVDIR   = "/dev/tip";
 my $dbg		= 1;
 my %tipgroup    = ();

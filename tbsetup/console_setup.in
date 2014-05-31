@@ -179,7 +179,7 @@ foreach my $server (keys(%cmdargs)) {
     my $args = $cmdargs{$server};
 
     if (system("$SSH -host $server $PROG $args")) {
-	print STDERR "*** Failed: $SSH $server $PROG $args: $?\n";
+	print STDERR "*** Failed: $SSH -host $server $PROG $args: $?\n";
 	exit 1;
     }
 }
