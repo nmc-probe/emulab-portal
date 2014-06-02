@@ -285,7 +285,7 @@ function StartConsole(id, authobject)
 	}
     }
     var callback_failed = function(jqXHR, textStatus) {
-	var acceptURL = jsonauth.baseurl + '/accept_root.html';
+	var acceptURL = jsonauth.baseurl + '/accept_cert.html';
 	
 	console.log("Request failed: " + textStatus);
 	
