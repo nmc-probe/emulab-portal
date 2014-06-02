@@ -734,7 +734,8 @@ sub DeleteSlice($)
 	return GeniResponse->MonitorResponse();
     }
     # If any slivers are imaging, then we are busy as well.
-    if ($aggregate->CheckSliverStates("imaging")) {
+    if (defined($aggregate) &&
+	$aggregate->CheckSliverStates("imaging")) {
 	$slice->UnLock();
 	return GeniResponse->BusyResponse();
     }
