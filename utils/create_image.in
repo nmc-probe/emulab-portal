@@ -669,8 +669,6 @@ elsif ($isvirtnode) {
     $webtask->status("imaging")
 	if (defined($webtask));
 
-    $EUID = $UID = $SAVEUID;
-
     #
     # Now execute command and wait.
     #
@@ -679,6 +677,7 @@ elsif ($isvirtnode) {
     } else {
 	$result = run_with_ssh($command, undef);
     }
+    $EUID = $UID = $SAVEUID;
     goto done;
 }
 
