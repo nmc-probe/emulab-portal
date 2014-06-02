@@ -90,6 +90,7 @@ control-install:
 
 clean:
 	rm -f *.o core *.pl *.pm *.py $(SBIN_STUFF) $(PSBIN_STUFF)
+	rm -f shellinabox.pl aptssh-setup
 
 $(INSTALL_SBINDIR)/protogeni/%: %
 	@echo "Installing $<"
