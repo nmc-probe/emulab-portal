@@ -341,6 +341,11 @@ if ($usegeom && $slice != 0) {
 	    $oarg = "-b $soffset";
 	}
     }
+    # XXX it appears that in FBSD 10, even if the type is 0,
+    # we still need to force the location.
+    elsif ($FBSDVERS >= 10 && $soffset >= 0) {
+	$oarg = "-b $soffset";
+    }
     mysystem("gpart add -i $slice -t freebsd $oarg $disk");
     $stype = 165;
 }
