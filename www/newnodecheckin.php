@@ -110,7 +110,7 @@ if (count($interfaces)) {
     $query_result = DBQueryFatal("select n.node_id from " .
 	"nodes as n left join interfaces as i " .
 	"on n.node_id=i.node_id " .
-	"where i.mac='$testmac'");
+	"where i.mac='$testmac' or i.guid='$testmac'");
     if  (mysql_num_rows($query_result)) {
         $row = mysql_fetch_array($query_result);
 	$node_id = $row["node_id"];
@@ -128,8 +128,7 @@ if (count($interfaces)) {
     $query_result = DBQueryFatal("select n.new_node_id, n.node_id from " .
 	"new_nodes as n left join new_interfaces as i " .
 	"on n.new_node_id=i.new_node_id " .
-	"where i.mac='$testmac'");
-
+	"where i.mac='$testmac' or i.guid='$testmac'");
     if  (mysql_num_rows($query_result)) {
         $row = mysql_fetch_array($query_result);
 	$id = $row["new_node_id"];
@@ -222,12 +221,23 @@ $new_node_id = $row[0];
 echo "Node ID is $new_node_id\n";
 
 foreach ($interfaces as $interface) {
-	$card = $interface["card"];
-	$mac = $interface["mac"];
-	$type = $interface["type"];
-	DBQueryFatal("insert into new_interfaces set " .
-	    "new_node_id=$new_node_id, card=$card, mac='$mac', " .
-	    "interface_type='$type'");
+    $card = $interface["card"];
+    $mac = $interface["mac"];
+    $type = $interface["type"];
+    $clause = "";
+    # XXX not a 6 byte value, assume it is a guid
+    # XXX probably should check interface_capabilities for the type
+    if (strlen($mac) != 12) {
+	$clause = ", guid='$mac'";
+	# XXX 16 bytes implies an Infiniband port GUID to us
+	# cons up what would be the mac
+	if (strlen($mac) == 16) {
+	    $mac = substr($mac, 0, 6) . substr($mac, 10, 6);
+	}
+    }
+    DBQueryFatal("insert into new_interfaces set " .
+	"new_node_id=$new_node_id, card=$card, mac='$mac', " .
+	"interface_type='$type'$clause");
 }
 
 #
@@ -292,6 +302,7 @@ function find_free_id($prefix) {
     # First, check to see if there's a recent entry in new_nodes we can name
     # this node after
     #
+    $ndigits = 0;
     $query_result = DBQueryFatal("select node_id from new_nodes " .
         "order by created desc limit 1");
     if (mysql_num_rows($query_result)) {
@@ -300,7 +311,19 @@ function find_free_id($prefix) {
 	#
 	# Try to figure out if this is in some format we can increment
 	#
-	if (preg_match("/^(.*[^\d])(\d+)$/",$old_node_id,$matches)) {
+	if (preg_match("/^(.*[^\d])(0\d+)$/",$old_node_id,$matches)) {
+	    $base = $matches[1];
+	    $number = $matches[2];
+	    $ndigits = strlen($number);
+	    echo "Matches $ndigits-digit pcXXX format";
+	    $fmt = "%0" . $ndigits . "d";
+	    $number = sprintf($fmt, $number + 1);
+	    $potential_name = $base . $number;
+	    if (!check_node_exists($potential_name)) {
+		return array($base, $number);
+	    }
+	    $prefix = $base;
+	} elseif (preg_match("/^(.*[^\d])(\d+)$/",$old_node_id,$matches)) {
 	    echo "Matches pcXXX format";
 	    # pcXXX format
 	    $base = $matches[1];
@@ -309,6 +332,7 @@ function find_free_id($prefix) {
 	    if (!check_node_exists($potential_name)) {
 		return array($base,($number +1));
 	    }
+	    $prefix = $base;
 	} elseif (preg_match("/^(.*)-([a-zA-Z])$/",$old_node_id,$matches)) {
 	    # Something like WAIL's (type-rack-A) format
 	    $base = $matches[1];
@@ -318,6 +342,7 @@ function find_free_id($prefix) {
 	    if (!check_node_exists($potential_name)) {
 		return array($base . '-', $newchar);
 	    }
+	    $prefix = $base;
 	}
     }
 
@@ -327,10 +352,16 @@ function find_free_id($prefix) {
     # hasn't been used yet - put in a silly little guard to prevent an
     # infinite loop in case of bugs.
     #
+    if ($ndigits) {
+	$fmt = "%0" . $ndigits . "d";
+    }
     $node_number = 0;
     while ($node_number < 10000) {
-	$node_number++;
-    	$potential_name = $prefix . $node_number;
+	$number = ++$node_number;
+	if ($ndigits) {
+	    $number = sprintf($fmt, $number);
+	}
+    	$potential_name = $prefix . $number;
 	if (!check_node_exists($potential_name)) {
 	    break;
 	}

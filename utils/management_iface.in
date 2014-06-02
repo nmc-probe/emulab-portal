@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -158,7 +158,7 @@ my $IP      = shift();
 
 # Convert mac to DB representation.
 if ($mac =~ /(\w\w):(\w\w):(\w\w):(\w\w):(\w\w):(\w\w)/) {
-    $mac = "$1$2$3$4$5$6";
+    $mac = lc("$1$2$3$4$5$6");
 }
 
 # Verify optional switch info

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -237,7 +237,7 @@ NODE: foreach my $node_id (@node_ids) {
     #
     # Grab the node's MACs from the new_interfaces table
     #
-    $query_result = DBQueryFatal("SELECT card, MAC, interface_type, " .
+    $query_result = DBQueryFatal("SELECT card, mac, guid, interface_type, " .
 	"switch_id, switch_card, switch_port, cable, len, role, port, IP " .
 	"FROM new_interfaces WHERE new_node_id='$new_node_id'");
     if (!$query_result->num_rows()) {
@@ -246,7 +246,7 @@ NODE: foreach my $node_id (@node_ids) {
     }
 
     my %interfaces;
-    while (my ($card, $MAC, $iface_type, $switch_id, $switch_card,
+    while (my ($card, $MAC, $guid, $iface_type, $switch_id, $switch_card,
 	    $switch_port, $cable, $len, $ifrole, $port, $iface_IP) = $query_result->fetchrow()) {
 	#
 	# Get some more information about this interface type
@@ -278,7 +278,7 @@ NODE: foreach my $node_id (@node_ids) {
 	#
 	# Stash it away...
 	#
-	$interfaces{$card} = [$MAC, $iface_type, $max_speed, $full_duplex,
+	$interfaces{$card} = [$MAC, $guid, $iface_type, $max_speed, $full_duplex,
 			      $switch_id, $switch_card, $switch_port, $cable,
 			      $len, $ifrole, $port, $iface_IP];
 
@@ -451,8 +451,9 @@ NODE: foreach my $node_id (@node_ids) {
     }
 
     while (my ($card, $aref) = each %interfaces) {
-	my ($MAC, $iface_type, $max_speed, $duplex, $switch_id, $switch_card,
-	    $switch_port, $cable, $len, $ifrole, $port, $iface_IP) = @$aref;
+	my ($MAC, $guid, $iface_type, $max_speed, $duplex,
+	    $switch_id, $switch_card, $switch_port, $cable, $len,
+	    $ifrole, $port, $iface_IP) = @$aref;
 	my $iface = "eth$card";
 	my $wire_type;
 	my $iface_role;
@@ -485,15 +486,17 @@ NODE: foreach my $node_id (@node_ids) {
 	if (! defined($iface_IP)) {
 	    $iface_IP  = "";
 	}
+	my $guidstr = defined($guid) ? "guid='$guid'," : "";
 
 	if (!$useScriptFeature || !defined($port))
 	{
 	    $port = 1;
 	}
-	DBQueryFatal("INSERT INTO interfaces SET node_id='$node_id', " .
-	    "card=$card, port='$port', mac='$MAC', IP='$iface_IP', " .
-	    "interface_type='$iface_type', iface='$iface', uuid=UUID(), " .
-	    "current_speed='$max_speed', duplex=$duplex, role='$iface_role'");
+	DBQueryFatal("INSERT INTO interfaces SET node_id='$node_id'," .
+		     "card=$card,port='$port',mac='$MAC',$guidstr".
+		     "IP='$iface_IP',interface_type='$iface_type',".
+		     "iface='$iface',uuid=UUID(),current_speed='$max_speed',".
+		     "duplex=$duplex,role='$iface_role'");
 
 	DBQueryFatal("INSERT INTO interface_state SET node_id='$node_id', " .
 	    "card=$card, port='$port', iface='$iface'");

@@ -59,6 +59,7 @@ my $FORMAT     = "/sbin/newfs_msdos";
 my $MOUNTPOINT = "/mnt";
 my $MOUNT      = "/sbin/mount";
 my $UNMOUNT    = "/sbin/umount";
+my $IBSTAT     = "/usr/bin/ibstat";
 
 #
 # Error codes, and how many times we beep to indicate each one.
@@ -90,6 +91,11 @@ my $BEEP_SLEEP          = 3; # In seconds
 my $FLOPPY_REMOVED  = 0;
 my $FLOPPY_INSERTED = 1;
 
+my $FBSD_VERS = 8;
+if (`uname -r` =~ /^(\d+)\.\d+/) {
+    $FBSD_VERS = $1;
+}
+
 #
 # What type of client this node is. Possible values:
 # testnode - The default, a regular testbed node
@@ -106,7 +112,7 @@ my $headless	= 0;
 my $writefloppy	= 0;
 my $testing	= 0;
 my $bossnode	= "";
-
+my $checkib	= 0;
 
 my $uniquifier;
 foreach my $arg (@ARGV) {
@@ -116,6 +122,7 @@ foreach my $arg (@ARGV) {
 		/h/ && do { $headless = 1; last; };
 		/w/ && do { $writefloppy = 1; last; };
 		/t/ && do { $testing = 1; last; };
+		/I/ && do { $checkib = 1; last; };
 		/o/ && do { $client_type = "ops"; last; };
 	    };
 	}
@@ -139,6 +146,16 @@ sub usage {
 }
 
 #
+# XXX for now, auto detect whether we should check for IB.
+# Otherwise you have to modify the FS of the MFS to add the option..messy!
+#
+if (system("sysctl -q sys.class.infiniband_verbs.abi_version") == 0) {
+    $checkib = 1;
+} else {
+    $checkib = 0;
+}
+
+#
 # Find out what our boss node was, so we don't have to hardcode it here - allow
 # the user to provide one on the command line, though, so that we can run tests
 # on nodes that aren't in the testbed
@@ -149,6 +166,33 @@ if (!$bossnode) {
     $bossnode = $1;
     if (!$bossnode) {
 	error_fatal($ERROR_NOBOSS,"Unable to parse boss name from '$bossinfo'\n");
+    }
+}
+
+#
+# XXX we can only handle infiniband user FreeBSD 9 or above and
+# only if we have the ibstat tool installed.
+#
+if ($checkib) {
+    if ($FBSD_VERS < 9 || ! -x "$IBSTAT") {
+	message("WARNING: not running IB-enabled newnode MFS, disabled IB collection.\n");
+	$checkib = 0;
+    }
+    #
+    # XXX if IB checking is enabled and we have a Mellanox VPI-enabled
+    # card, put the card in autodetect.
+    #
+    elsif (!$testing) {
+	my @out = `sysctl sys.device | grep mlx4_core`;
+	foreach my $line (@out) {
+	    if ($line =~ /^(sys.device.mlx4_core0.mlx4_port)(\d+):\s+(\S+)/) {
+		if (($3 eq "ib" || $3 eq "eth") && system("sysctl $1$2=auto")) {
+		    message("WARNING: Could not put mlx4 port $2 in auto\n");
+		} else {
+		    sleep(1);
+		}
+	    }
+	}
     }
 }
 
@@ -355,14 +399,16 @@ sub freebsd_find_interfaces {
     #
     my @ifconfig_lines = `$IFCONFIG`;
     my @ifaces;
+    my @ibifaces;
     my $iface = "";
     my $mac;
+    my $isib = 0;
     my $status;
     foreach my $line (@ifconfig_lines) {
 	chomp $line;
 	SWITCH: for ($line) {
 	    #
-	    # A line beginning a new interface
+	    # A line beginning a new interface.
 	    #
 	    (/^(\w+):/) && do {
 		if ($iface) {
@@ -370,13 +416,25 @@ sub freebsd_find_interfaces {
 		    # We have an old interface to save away, but only if it's
 		    # Ethernet
 		    #
-		    if ($mac) {
+		    if ($mac && !$isib) {
 			push @ifaces, [$iface, $mac, $status];
 		    }
 		}
 
 		$iface = $1;
 		$mac = $status = "";
+
+		#
+		# XXX we ignore IPoIB (ibN) here if we are checking for IB.
+		# We will use ibstat below to collect the info.
+		#
+		if ($checkib && $iface =~ /^ib\d+/) {
+		    push @ibifaces, $iface;
+		    $isib = 1;
+		} else {
+		    $isib = 0;
+		}
+
 		last SWITCH;
 	    };
 
@@ -407,8 +465,28 @@ sub freebsd_find_interfaces {
     #
     # Get the last one
     #
-    if ($iface && $mac) {
+    if ($iface && $mac && !$isib) {
 	push @ifaces, [$iface, $mac, $status];
+    }
+
+    #
+    # For infiniband, interfaces will show up as IPoIB (ibN) devices.
+    # We attempt to canonicalize the info here, by returning "ib?" and
+    # using ibstat to get the port GUID and returning that for the MAC.
+    #
+    if (@ibifaces > 0) {
+	my $ibix = 0;
+	my @ibout = `$IBSTAT -p`;
+	chomp @ibout;
+	foreach my $line (@ibout) {
+	    if ($line =~ /^0x([0-9a-fA-F]{16})/) {
+		my $mac = $1;
+		my $iface = "ib$ibix";
+		$ibix++;
+		push @ifaces, [$iface, $mac, "down"];
+		next;
+	    }
+	}
     }
 
     #
@@ -600,7 +678,7 @@ sub linux_get_cpuspeed {
 
 
 #
-# Teach the switch where we are
+# Teach the switch where we are.
 #
 sub teachswitch {
     system "$TEACHSWITCH &" and message("Unable to start teachswitch: $!\n");

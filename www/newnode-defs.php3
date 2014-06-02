@@ -176,11 +176,15 @@ function guess_IP ($prefix, $number) {
     # We want to be able to handle both numeric and character 'number's 
     # Figure out which we have
     #
+    $ndigits = 0;
     if (! is_numeric($number)) {
 	$using_char = 1;
 	$number = ord($number);
     } else {
 	$using_char = 0;
+	if (preg_match("/^(0\d+)$/",$number)) {
+	    $ndigits = strlen($number);
+	}
     }
 
     #
@@ -193,6 +197,9 @@ function guess_IP ($prefix, $number) {
     while ($i > 0) {
         if ($using_char) {
 	    $node = $prefix . chr($i);
+	} elseif ($ndigits) {
+	    $fmt = "%0" . $ndigits . "d";
+	    $node = $prefix . sprintf($fmt, $i);
 	} else {
 	    $node = $prefix . $i;
 	}
