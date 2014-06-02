@@ -72,7 +72,7 @@ my $ChassisInfo = {
     "force10-z9000" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 128, # Max # of ports in any module
-        "bitmaskBitsPerModule"  => 128, # Number of bits per module
+        "bitmaskBitsPerModule"  => 1024, # Number of bits per module
     },
 };
 
