@@ -276,11 +276,14 @@ Setting up an InstaGeni Rack. First, we need the following info:
     	file "reverse/192.1.242.db";
     };
 
-  Run named_setup. Tail /var/log/messages to look for errors.
+* Run named_setup. Tail /var/log/messages to look for errors.
+
+	boss> named_setup
 
 * Copy the openvpn certs from boss over to the control node.
 
 	boss> scp -p /usr/testbed/etc/openvpn-server.pem elabman@control:openvpn
+	boss> scp -p /usr/testbed/etc/openvpn-dh.pem elabman@control:openvpn
 	boss> scp -p /usr/testbed/etc/emulab.pem elabman@control:openvpn
 
 * Start the openvpn server on the control node.
