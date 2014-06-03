@@ -3754,7 +3754,10 @@ sub ClrTipAclUrl($)
     my $node_id = $self->node_id();
     
     DBQueryWarn("update tiplines set urlhash=NULL,urlstamp=0 ".
-		"where node_id='$node_id'");
+		"where node_id='$node_id'")
+	or return -1;
+
+    return 0;
 }
 
 # Stubs for calling "libTaintStates" common taint handling code
