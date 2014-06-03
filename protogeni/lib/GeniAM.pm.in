@@ -1158,6 +1158,15 @@ sub PerformOperationalAction
 	
 	return GeniCMV2::UnShareLan($args);
     }
+    elsif ($action eq 'geni_console_url') {
+	if (!exists($options->{"geni_console_sliver"})) {
+	    return GeniResponse->MalformedArgsResponse("No sliver provided!");
+	}
+	$args->{'slice_urn'}   = $slice->urn();
+	$args->{'sliver_urn'}  = $options->{"geni_console_sliver"};
+
+	return GeniCMV2::ConsoleURL($args);
+    }
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
 				"Invalid operational action");
 }
