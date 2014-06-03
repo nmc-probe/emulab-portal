@@ -83,6 +83,7 @@ sub doSetOpenflowListener($$$);
 sub doEnableOpenflowListener($$);
 sub doReserveVlanTags($$@);
 sub doUnReserveVlanTags($$@);
+sub doSetVlanOnTrunks($$@);
 
 #
 # Defaults
@@ -210,7 +211,7 @@ GetOptions(\%opt,
     'of-disable=s', 'of-enable=s', 'of-controller=s', 'of-listener=s',
     'o=s@{1,1}', 'redirect-err', 'blockmode', 'syncvlans', 'impotent',
     'shadow', 'skip-supplied', 'whol-magic', 'backtraceonwarning',
-    'prunestalevlans');
+    'prunestalevlans','setvlanontrunks','resetvlanontrunks','clearvlanontrunks');
 
 if ($opt{h}) {
     exit &usage;
@@ -368,6 +369,14 @@ if ($opt{t} || $opt{r} || $opt{D} || $opt{R} || $opt{X} ||
     # Set the @ports array so that we'll do proper permission checking on it
     #
     @ports = ($opt{T});
+} elsif ($opt{'setvlanontrunks'} || $opt{'resetvlanontrunks'} ||
+         $opt{'clearvlanontrunks'}) {
+    if (!@ARGV) {
+	tberror "At least one VLAN required";
+	exit &usage;
+    }
+    @optvlanids = @ARGV;
+
 } elsif ($opt{'of-controller'}) {
     #
     # Options that take the pid eid and connection string
@@ -437,6 +446,9 @@ if ($opt{F}) { push @commands, ["synchleader"]; }
 if ($opt{A}) { push @commands, ["reservetags"]; }
 if ($opt{'syncvlans'}) { push @commands, ["syncvlans"]; }
 if ($opt{'prunestalevlans'}) { push @commands, ["prunestalevlans"]; }
+if ($opt{'setvlanontrunks'}) { push @commands, ["setvlanontrunks"]; }
+if ($opt{'resetvlanontrunks'}) { push @commands, ["resetvlanontrunks"]; }
+if ($opt{'clearvlanontrunks'}) { push @commands, ["clearvlanontrunks"]; }
 
 # This option combines with reset/remove
 if ($opt{C} && !($opt{r} || $opt{o})) { push @commands, ["unreservetags"]; }
@@ -821,6 +833,12 @@ COMMAND: foreach my $command (@commands) {
             }
             last;
         };
+	(/resetvlanontrunks/ || /setvlanontrunks/ || /clearvlanontrunks/) && do {
+	    @devicenames = ($supplied_switches && !$skip_supplied)?
+			   @supplied_switches : getTestSwitches();
+	    @vlans = @optvlanids;
+	    last;
+	};
 	(/reset/) && do {
 	    #
             # We operate on all stacks that we have recorded as having VLANs
@@ -1210,6 +1228,11 @@ COMMAND: foreach my $command (@commands) {
 	    $exitval += syncVlansFromTables($experiment,\@stacks,@vlans);
 	    last;
 	}; # /tables/ && do
+	(/setvlanontrunks/ || /resetvlanontrunks/ || /clearvlanontrunks/) && do {
+	    $exitval +=
+		doSetVlanOnTrunks(\@stacks, $operation, @vlans);
+	    last;
+	}; # /trunkenable/ && do
 	/reset/ && do {
 	    $exitval += doReset(\@stacks,@vlans);
 	    last;
@@ -4216,3 +4239,48 @@ sub doPruneStaleVlans($)
     }
     return 0;
 }
+
+#
+# Set vlans on the trunks it needs to span switches.
+#
+sub doSetVlanOnTrunks($$@) {
+    my $stacks = shift;
+    my $op = shift;
+    my @vlans = @_;
+    my $errors = 0;
+
+    my $reset = ($op eq "resetvlanontrunks" ? 1 : 0);
+    my $clear = ($op eq "clearvlanontrunks" ? 1 : 0);
+
+    if ($ELABINELAB) {
+	print STDERR "doSetVlanOnTrunks: not in ELABINELAB!\n";
+	return 1;
+    }
+    if (@$stacks != 1) {
+	die "setvlanontrunks should only involve one stack\n" .
+	    "Stacks are " . join(",",@$stacks) . "\n";
+    }
+    my $stack = $$stacks[0];
+
+    foreach my $vlanid (@vlans) {
+	if ($reset || $clear) {
+	    print "Clearing vlan $vlanid on trunks\n";
+	    if (! $stack->setVlanOnSwitchTrunks($vlanid, 0)) {
+		print STDERR "*** could not clear vlan $vlanid on trunks\n";
+		$errors++;
+		next;
+	    }
+	    # requested just a clear operation.
+	    next
+		if ($clear);
+	}
+	print "Setting vlan $vlanid on trunks\n";
+	if (! $stack->setVlanOnSwitchTrunks($vlanid, 1)) {
+	    print STDERR "*** could not set vlan $vlanid on trunks\n";
+	    $errors++;
+	    next;
+	}
+    }
+    return $errors;
+}
+
