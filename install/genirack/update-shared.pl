@@ -187,6 +187,19 @@ sub EnableFirewall($)
     return 0;
 }
 
+sub FixFirewall($)
+{
+    my ($node) = @_;
+
+    system("sudo ssh $opts $node ".
+	   " 'iptables -A INPUT -p tcp -d $node -s 172.16.0.0/12 ".
+	   "    --dport 16505 -m conntrack --ctstate NEW -j ACCEPT");
+    return -1
+	if ($?);
+
+    return 0;
+}
+
 sub JumboEnable($)
 {
     my ($node) = @_;
@@ -195,6 +208,23 @@ sub JumboEnable($)
 	   " 'ifconfig eth1 mtu 9000; ifconfig eth2 mtu 9000; ".
 	   "  ifconfig eth3 mtu 9000; ifconfig eth1.1750 mtu 9000; ".
 	   "  ifconfig eth2.1750 mtu 9000; ifconfig eth3.1750 mtu 9000 '");
+    return -1
+	if ($?);
+
+    return 0;
+}
+
+sub UpdateVZGuest($)
+{
+    my ($node) = @_;
+    
+    system("sudo scp $opts $eltb/emulab-devel/stuff/emulab-default.tar.gz ".
+	   "    ${node}:/vz/template/cache");
+    return -1
+	if ($?);
+
+    system("sudo scp $opts $eltb/emulab-devel/stuff/emulab-default.tar.gz ".
+	   "    ${node}:/vz.save/template/cache");
     return -1
 	if ($?);
 

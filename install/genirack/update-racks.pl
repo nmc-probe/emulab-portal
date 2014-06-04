@@ -14,6 +14,7 @@ sub usage {
     print "Usage: $0 [options] [rack]\n";
     print "Options:\n";
     print "-r      - Rsync software to rack.\n";
+    print "-R      -   (just install/genirack directory)\n";
     print "-b      - Build the software (with reconfig).\n";
     print "-i      - Install on each rack.\n";
     print "-l      - List all racks.\n";
@@ -28,16 +29,19 @@ sub usage {
     print "-7      - Just G7 racks.\n";
     print "-8      - Just G8 racks.\n";
     print "-f      - Run function instead. Add -F to shutdown testbed\n";
+    print "          Add -o to ssh to ops instead\n";
     print "-s      - No parallelization in -r, -f, or -b.\n";
     print "-t      - Tag source with instageni-YYYYMMDD\n";
     print "rack    - Specific rack, or all racks\n";
     exit(1);
 }
-my $optlist    = "binuUdDhfFrlc78tsp:aA";
+my $optlist    = "binuUdDhfForlc78tsp:aAR";
 my $rebuild    = 0;
 my $install    = 0;
 my $rsync      = 0;
+my $rsyncupd   = 0;
 my $dofunc     = 0;
+my $dofuncops  = 0;
 my $dotag      = 0;
 my $nopar      = 0;
 my $dopool;
@@ -163,12 +167,19 @@ if (defined($options{"f"})) {
     if (defined($options{"F"})) {
 	$dofunc++;
     }
+    if (defined($options{"o"})) {
+	$dofuncops++;
+    }
 }
 if (defined($options{"b"})) {
     $rebuild = 1;
 }
 if (defined($options{"r"})) {
     $rsync = 1;
+}
+if (defined($options{"R"})) {
+    $rsync    = 1;
+    $rsyncupd = 1;
 }
 if (defined($options{"p"})) {
     $dopool = $options{"p"};
@@ -245,7 +256,10 @@ if ($dofunc && !$install) {
 		return 1;
 	    }
 	}
-	my $devel = "emulab-devel/emulab-devel";
+	my $rackops = $rack;
+	$rackops =~ s/^boss/ops/;
+	my $devel  = "emulab-devel/emulab-devel";
+	my $devobj = "emulab-devel/obj";
 	
 	print "-> Running function ...\n";
 	my $command = "";
@@ -257,35 +271,32 @@ if ($dofunc && !$install) {
 	    $command = "$devel/update-shared.pl -t $type -f $func ".
 		(defined($limit) ? "-l $limit" : "");
 	}
-	elsif (1) {
+	elsif (0) {
+	    $command = "cd emulab-devel/obj/event/monitoring && sudo gmake install && /usr/testbed/sbin/protogeni/shared-node-listener &";
+	}
+	elsif (0) {
 	    $command = "cd /tmp; wget http://www.emulab.net/downloads/ops-monitoring.tar.gz && cd /usr/local && sudo tar xf /tmp/ops-monitoring.tar.gz; mysqladmin create monitoring; cd /usr/local/ops-monitoring/local/unit-tests && python ./local_table_reset.py; sudo /usr/testbed/sbin/protogeni/mondbd";
 	}
 	elsif (0) {
-	    $command = "mkdir /home/elabman/openvpn"
+	    system("mkdir -p /home/stoller/genirack/racks/certs/$rack");
+	    system("scp elabman\@${rack}:/usr/testbed/etc/{emulab.pem,openvpn-client.pem} /home/stoller/genirack/racks/certs/$rack");
+	    $command = "ls /dev/null";
 	}
-	elsif (1) {
+	elsif (0) {
 	    $command =
 		"cd emulab-devel/obj/dhcpd; gmake; sudo gmake install; ".
-		"cd ..; dhcpd_makeconf -i -r";
+		"cd ..; /usr/testbed/sbin/dhcpd_makeconf -i -r";
 	}
 	elsif (0) {
-	    $command = "scp -p /usr/testbed/etc/openvpn-server.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/openvpn-dh.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/emulab.pem elabman\@control:openvpn; scp -p openvpn/openvpn.conf elabman\@control:openvpn";
+	    $command = "scp -p /usr/testbed/etc/openvpn-server.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/openvpn-dh.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/emulab.pem elabman\@control:openvpn; scp -p $devel/openvpn/openvpn.conf elabman\@control:openvpn";
 	}
 	elsif (0) {
-	    $command = "cd /usr/ports/converters/p5-JSON; ".
-		"sudo make install; ".
-		"cd /usr/ports/net-mgmt/p5-Net-IP; ".
-		"sudo make install";
+	    $command = "cd /etc/openvpn; sudo ln -s /home/elabman/openvpn/openvpn.conf emulab.conf; sudo /etc/rc3.d/S16openvpn start";
 	}
 	elsif (0) {
 	    $command = "sudo -u geniuser /usr/testbed/sbin/wap ".
 		"/usr/testbed/sbin/image_import -g -p ch-geni-net ".
 		"https://www.utahddc.geniracks.net/image_metadata.php\\\?uuid=da660c93-2134-11e3-85ef-000000000000";
-	}
-	elsif (1) {
-	    $command =
-		"sudo /usr/testbed/sbin/initilo.pl -i ".
-		"    pc1 pc2 pc3 pc4 pc5 control-ilo";
 	}
 	elsif (0) {
 	    $command = "sudo scp $devel/xendomains ".
@@ -298,8 +309,14 @@ if ($dofunc && !$install) {
 		" net.netfilter.nf_conntrack_max=131071";
 	}
 	elsif (0) {
-	    $command = "sudo ssh vhost3.shared-nodes.emulab-ops ".
-		"/etc/rc3.d/S23ntp restart";
+	    $command =
+		"cd /users/elabman/$devobj/install; ".
+		"  sudo perl emulab-install -b -i ops/shellinabox ops";
+	}
+	elsif (0) {
+	    $command =
+		"cd /users/elabman/$devobj/install; ".
+		"  sudo perl emulab-install -b -i boss/shellinabox boss";
 	}
 	elsif (0) {
 	    # Utah Rack is vhost2. Sheesh.
@@ -338,11 +355,13 @@ if ($dofunc && !$install) {
 		"emulab-ops,FEDORA15-STD";
 	}
 	else {
-	    $command = "cat emulab-devel/emulab-devel/foo.sql | mysql tbdb";
+	    $command =
+		"cat emulab-devel/emulab-devel/install/genirack/foo.sql | ".
+		"   mysql tbdb";
 	}
 	#$command = "($command >& /tmp/function.log)";
-	
-	if (SSH($rack, $command)) {
+
+	if (SSH(($dofuncops ? $rackops : $rack), $command)) {
 	    print STDERR "Error running '$command' on $rack\n";
 	    return 2;
 	}
@@ -406,6 +425,19 @@ if ($rsync) {
 	my ($rack) = @_;
 
 	print "rsyncing $rack ...\n";
+
+	if ($rsyncupd) {
+	    print "-> rsyncing emulab-devel/install/genirack\n";
+	    system("rsync -a --timeout=30 --delete ".
+		   "--exclude-from $HOME/.rsyncignore ".
+		   "     $HOME/testbed-noelvin/emulab-devel/install/genirack ".
+		   "  elabman\@${rack}:emulab-devel/emulab-devel/install");
+	    if ($?) {
+		print STDERR "** $rack: error rsyncing emulab-devel\n";
+		return 1;
+	    }
+	    return 0;
+	}
 	print "-> rsyncing emulab-devel\n";
 	system("rsync -a --timeout=30 --delete ".
 	       "--exclude-from $HOME/.rsyncignore ".
@@ -432,6 +464,7 @@ if ($rsync) {
 	    print STDERR "** $rack: error rsyncing shellinabox\n";
 	    return 1;
 	}
+	return 0;
     };
 
     # List of racks that we can proceed with.
