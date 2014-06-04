@@ -15,7 +15,7 @@ window.APT_OPTIONS.configObject = {
 	'moment': 'js/lib/moment',
 	'underscore': 'js/lib/underscore-min',
 	'filesize': 'js/lib/filesize.min',
-	'jacks': 'https://www.emulab.net/protogeni/jacks-devel/js/jacks'
+	'jacks': 'https://www.emulab.net/protogeni/jacks-stable/js/jacks'
     },
     shim: {
 	'jquery-ui': { },
