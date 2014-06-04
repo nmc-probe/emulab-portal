@@ -44,7 +44,7 @@ if (isset($key)) {
 	DBQueryFatal("select node_id,urlstamp from tiplines ".
 		     "where node_id='$node_id' and urlhash='$safe_key' and ".
 		     "      urlstamp!=0 and ".
-		     "      (UNIX_TIMESTAMP(now()) - urlstamp) < 30");
+		     "      (UNIX_TIMESTAMP(now()) - urlstamp) < 300");
     
     if (mysql_num_rows($query_result) == 0) {
 	USERERROR("Invalid node, invalid key or key has expired", 1);
