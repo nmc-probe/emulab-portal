@@ -2241,14 +2241,6 @@ sub Credential2SliceAggregate($)
         $slice = GeniSlice->Lookup($target_uuid);
     }
     if (defined($slice)) {
-	#
-	# Make sure the certificate has not changed. If it has, then
-	# this is really a new slice. That is an error. 
-	#
-	if (!$target_cert->SameCert($slice)) {
-	    return (GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				 "Duplicate slice URN already exists here"));
-	}
 	$aggregate = GeniAggregate->SliceAggregate($slice);
     }
     else {
@@ -2263,6 +2255,31 @@ sub Credential2SliceAggregate($)
 		    $aggregate = undef;
 		}
 	    }
+	}
+    }
+    
+    #
+    # Make sure the certificate has not changed. If it has, we have to
+    # check the UUID, since we need to support regen of the
+    # certificate, which will change the version number.  Which means
+    # a straight comparison will fail. So look to see if the UUID is
+    # the same. If so, we store the new certificate.
+    #
+    if (defined($slice) && !$target_cert->SameCert($slice)) {
+	if ($target_cert->uuid() eq $slice->uuid()) {
+	    print STDERR "Updating certificate for $slice to $target_cert\n";
+	    $slice->GetCertificate()->Delete();
+	    $slice->Flush();
+	    $target_cert->Store();
+	    $slice = GeniSlice->Lookup($target_cert->urn());
+	    if (!defined($slice)) {
+		return (GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				     "Problem updating slice certificate"));
+	    }
+	}
+	else {
+	    return (GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				 "Duplicate slice URN already exists here"));
 	}
     }
     return ($slice, $aggregate);
@@ -3107,6 +3124,18 @@ sub ConsoleURL($)
     if (! $experiment->SameExperiment($node->Reservation())) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Node is not in the proper experiment");
+    }
+    #
+    # Not all nodes have a tipline.
+    #
+    my $tipserver;
+    if ($node->TipServer(\$tipserver)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Internal error getting console server");
+    }
+    if (!defined($tipserver)) {
+	return GeniResponse->Create(GENIRESPONSE_UNAVAILABLE, undef,
+				    "No console server for node");
     }
     my $url = $node->GenTipAclUrl();
     if (!defined($url)) {
