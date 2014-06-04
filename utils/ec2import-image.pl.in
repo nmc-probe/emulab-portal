@@ -236,7 +236,7 @@ if (system("$cmd")) {
 
 cleanup:
 # Clean up the directory.
-if (! $debug) {
+if ($debug <= 1) {
 	print STDOUT "Performing cleanup...\n";
 	system("$sudo /bin/rm -rf $workdir 2>/dev/null");
 	system("echo 'rm -Rf ~/.emulab' | ssh -o UserKnownHostsFile=/dev/null ".
