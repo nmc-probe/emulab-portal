@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2013 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -102,7 +102,7 @@ void dolog(int level, char *format, ...);
 int val2speed(int val);
 void rawmode(char *devname, int speed);
 int netmode();
-int progmode();
+int progmode(int isrestart);
 void writepid(void);
 void createkey(void);
 int handshake(void);
@@ -671,7 +671,7 @@ main(int argc, char **argv)
 		    die("Could not establish connection to %s", Devname);
 	    }
 	    else if (programmode) {
-		if (progmode() != 0)
+		if (progmode(0) != 0)
 		    die("Could not start program %s", Devname);
 	    }
 	    else
@@ -1067,7 +1067,7 @@ capture(void)
 					else {
 						warning("sub-program died;"
 						" attempting to restart");
-						while (progmode() != 0) {
+						while (progmode(1) != 0) {
 							usleep(5000000);
 						}
 					}
@@ -1350,17 +1350,43 @@ deadchild(int sig)
 #ifdef	USESOCKETS
 	int	status, rval;
 
+	/*
+	 * We may be receiving a delayed signal after being blocked
+	 * in progmode(). Make sure there really is a child process.
+	 */
+	if (progpid < 0) {
+		/* XXX sanity check */
+		if ((rval = waitpid(-1, &status, WNOHANG)) > 0)
+			dolog(LOG_NOTICE,
+			      "waitpid found unexpected child %d (0x%x)\n",
+			      rval, status);
+		return;
+	}
+
 	rval = waitpid(progpid, &status, WNOHANG);
 	if (rval < 0) {
-		die("waitpid(%d): %s", progpid, geterr(errno));
+		warning("waitpid(%d): %s", progpid, geterr(errno));
+		progpid = -1;
+		return;
 	}
+	/*
+	 * Huh, something must have died, so do a wait and find it.
+	 */
 	if (rval == 0) {
-		dolog(LOG_NOTICE, "waitpid returned zero");
+		dolog(LOG_NOTICE, "waitpid returned zero, doing general wait");
+		do {
+			rval = waitpid(-1, &status, WNOHANG);
+			if (rval > 0)
+				dolog(LOG_NOTICE, "  pid %d: status=0x%x\n",
+				      rval, status);
+		} while (rval > 0);
+		progpid = -1;
 		return;
 	}
 	if (rval != progpid) {
 		die("waitpid(%d): waitpid returned some other pid", progpid);
 	}
+	progpid = -1;
 	dolog(LOG_NOTICE, "child died");
 #endif	/* USESOCKETS */
 }
@@ -1679,10 +1705,16 @@ netmode()
  * The console line is really a pipe connected to a program we start.
  */
 int
-progmode()
+progmode(int isrestart)
 {
 	int		pipefds[2];
 	sigset_t	mask;
+	int		rv = -1;
+
+	/* token attempt to clean up previous child */
+	if (isrestart && progpid > 0) {
+		deadchild(SIGCHLD);
+	}
 
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, pipefds) < 0) {
 		warning("socketpair(): %s", geterr(errno));
@@ -1695,10 +1727,9 @@ progmode()
 
 	if ((progpid = fork()) < 0) {
 		warning("fork(): %s", geterr(errno));
-		sigprocmask(SIG_UNBLOCK, &mask, 0);
 		close(pipefds[0]);
 		close(pipefds[1]);
-		return -1;
+		goto err;
 	}
 	if (progpid) {
 		int status;
@@ -1707,7 +1738,7 @@ progmode()
 		 * Wait a short time and see if it dies right off the bat.
 		 * Otherwise we will get into a fast respawn loop.
 		 */
-		usleep(1000000);
+		usleep(2000000);
 		if (waitpid(progpid, &status, WNOHANG) == progpid) {
 			char buf[256];
 			int cc;
@@ -1719,10 +1750,11 @@ progmode()
 				buf[cc] = '\0';
 				warning("%s ...", buf);
 			}
-			sigprocmask(SIG_UNBLOCK, &mask, 0);
 			close(pipefds[0]);
 			close(pipefds[1]);
-			return -1;
+			/* don't confuse deadchild */
+			progpid = -1;
+			goto err;
 		}
 		close(pipefds[1]);
 		devfd = pipefds[0];
@@ -1731,9 +1763,9 @@ progmode()
 			warning("%s: fcntl(O_NONBLOCK): %s", Devname,
 				geterr(errno));
 			close(devfd);
-			sigprocmask(SIG_UNBLOCK, &mask, 0);
-			return -1;
+			goto err;
 		}
+		rv = 0;
 	}
 	else {
 		int	i, max;
@@ -1757,11 +1789,13 @@ progmode()
 		for (i = 3; i < max; i++)
 			(void) close(i); 		
 
+		sigprocmask(SIG_UNBLOCK, &mask, 0);
 		execvp(programargv[1], &programargv[1]);
 		exit(666);
 	}
+ err:
 	sigprocmask(SIG_UNBLOCK, &mask, 0);
-	return 0;
+	return rv;
 }
 #endif
 
