@@ -111,6 +111,8 @@ my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
 				 "umkc.control-nodes.geniracks.net" ],
 	       "ucla"	    => [ "boss.instageni.idre.ucla.edu",
 				 "ucla.control-nodes.geniracks.net" ],
+	       "uky2"       => [ "boss.pks2.sdn.uky.edu",
+				 "uky2.control-nodes.geniracks.net" ],
 );
 
 sub fatal($)
