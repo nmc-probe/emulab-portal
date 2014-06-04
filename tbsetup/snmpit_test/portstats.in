@@ -1,4 +1,4 @@
-#!/usr/bin/perl -T
+#!/usr/bin/perl
 
 #
 # Copyright (c) 2000-2014 University of Utah and the Flux Group.
@@ -494,9 +494,9 @@ if ($opt{q}) {
 #
 # Build up the heading a format strings
 #
-my @heading1 = ('              ');
-my @heading2 = ('Port          ');
-my @format   = ('@<<<<<<<<<<<<<');
+my @heading1 = ('                         ');
+my @heading2 = ('Port                     ');
+my @format   = ('@<<<<<<<<<<<<<<<<<<<<<<<<');
 
 foreach my $line (@oids{@oids}) {
     my ($heading,$format) = @$line;
