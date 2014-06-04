@@ -1159,11 +1159,13 @@ sub PerformOperationalAction
 	return GeniCMV2::UnShareLan($args);
     }
     elsif ($action eq 'geni_console_url') {
-	if (!exists($options->{"geni_console_sliver"})) {
+	if (!exists($args->{'sliver_urns'})) {
 	    return GeniResponse->MalformedArgsResponse("No sliver provided!");
 	}
+	my ($sliver_urn) = @{$args->{'sliver_urns'}};
+	
 	$args->{'slice_urn'}   = $slice->urn();
-	$args->{'sliver_urn'}  = $options->{"geni_console_sliver"};
+	$args->{'sliver_urn'}  = $sliver_urn;
 
 	return GeniCMV2::ConsoleURL($args);
     }
