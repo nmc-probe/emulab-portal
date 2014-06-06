@@ -43,7 +43,7 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  grabswitchconfig backupswitches cvsinit checkquota \
 		  spewconlog opsdb_control newnode suchown archive_list \
                   wanodecheckin wanodecreate spewimage \
-                  anonsendmail epmodeset fixexpinfo node_traffic \
+                  anonsendmail epmodeset fixexpinfo node_traffic switch_traffic \
 		  dumpdescriptor subboss_tftpboot_sync testbed-control \
 		  archive-expinfo grantfeature emulabfeature addblob readblob \
 		  prereserve grantimage getimages localize_mfs \
