@@ -157,6 +157,8 @@ sub IP($)      { return field($_[0], 'IP'); }
 sub role($)    { return field($_[0], 'role'); }
 sub type($)    { return field($_[0], 'interface_type'); }
 sub logical($) { return field($_[0], 'logical'); }
+sub speed($)   { return field($_[0], 'current_speed'); }
+sub current_speed($) { return field($_[0], 'current_speed'); }
 sub mask($)    { return field($_[0], 'mask'); }
 sub uuid($)    { return field($_[0], 'uuid'); }
 # Wires table
