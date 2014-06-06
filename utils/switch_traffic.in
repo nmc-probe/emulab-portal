@@ -37,6 +37,7 @@ sub usage()
     print STDERR "-h          This message\n";
 #   print STDERR "-r          Show only traffic received by each switch\n";
 #   print STDERR "-s          Show only traffic sent by each node\n";
+    print STDERR "-l          No sorting\n";
     print STDERR "-i seconds  Show stats over a <seconds>-period interval\n";
 #   print STDERR "-C          Show control net traffic\n";
     exit(-1);
@@ -49,12 +50,13 @@ sub Display($);
 sub fatal($);
 sub diffResults($$);
 
-my $optlist  = "Ci:rsd";
+my $optlist  = "Ci:rsdl";
 my $debug    = 0;
 my $interval = 0;
 my $send     = 1;
 my $recv     = 1;
 my $docnet   = 0;
+my $nosort   = 0;
 
 #
 # Configure variables
@@ -121,6 +123,9 @@ if (defined($options{"s"})) {
 }
 if (defined($options{"C"})) {
     $docnet = 1;
+}
+if (defined($options{"l"})) {
+    $nosort = 1;
 }
 if (defined($options{"i"})) {
     $interval = int($options{"i"});
@@ -189,16 +194,8 @@ if (@ARGV) {
     }
 }
 else {
-    #
-    # We do not want to query both sides of the same wires.
-    # Maybe useful if trying to find faults, but I will leave that
-    # to someone else to deal with.
-    #
     foreach my $sw1 (keys(%alltrunks)) {
 	foreach my $sw2 (keys(%{ $alltrunks{$sw1} })) {
-	    next
-		if (exists($trunks{$sw2}));
-
 	    $trunks{$sw1}->{$sw2} = $alltrunks{$sw1}->{$sw2};
 	}
     }
@@ -390,14 +387,31 @@ sub Aggregate($$)
 sub Display($)
 {
     my ($results) = @_;
+    my @list  = ();
+    my %shown = ();
+
+    if ($nosort && @ARGV) {
+	foreach my $arg (@ARGV) {
+	    push(@list, $arg)
+		if (exists($results->{$arg}));
+	}
+    }
+    else {
+	@list = sort {$a cmp $b} keys(%{$results});
+    }
 
     printf("%-20s %12s %12s %10s %12s %12s %10s\n", "Trunk", "InOctets",
 	   "InUpkts", "InNUpkts", "OutOctets", "OutUpkts", "OutNUpkts");
     print "-------------------------------------------------------------";
     print "---------------------------------\n";
 	   
-    foreach my $sw1 (sort {$a cmp $b} keys(%{$results})) {
+    foreach my $sw1 (@list) {
 	foreach my $sw2 (keys(%{$results->{$sw1}})) {
+	  again:
+	    next
+		if (exists($shown{"$sw2:$sw1"}));
+	    $shown{"$sw2:$sw1"} = 1;
+	    
 	    my $counts  = $results->{$sw1}->{$sw2};
 	    my $swname1 = $sw1;
 	    my $swname2 = $sw2;
@@ -419,6 +433,17 @@ sub Display($)
 		   $counts->{"inupkts"}, $counts->{"innpkts"},
 		   $counts->{"outoctets"},
 		   $counts->{"outupkts"}, $counts->{"outnpkts"});
+
+	    #
+	    # But we want to show the other direction right underneath
+	    # it, cause that is way less confusing then showing later.
+	    #
+	    if (exists($results->{$sw2}) && exists($results->{$sw2}->{$sw1})) {
+		my $tmp = $sw1;
+		$sw1 = $sw2;
+		$sw2 = $tmp;
+		goto again;
+	    }
 	}
     }
 }
