@@ -332,6 +332,30 @@ sub BulkLookup($$$)
     return 0;
 }
 
+#
+# Lookup all nodes of a type
+#
+sub LookupByType($$)
+{
+    my ($class, $type) = @_;
+    my @result = ();
+
+    my $query_result =
+	DBQueryWarn("select node_id from nodes as n where n.type='$type'");
+    return ()
+	if (!$query_result);
+
+    while (my ($node_id) = $query_result->fetchrow_array()) {
+	my $node = Node->Lookup($node_id);
+	if (!defined($node)) {
+	    print STDERR "No such node $node_id\n";
+	    next;
+	}
+	push(@result, $node);
+    }
+    return @result;
+}
+
 sub Create($$$$)
 {
     my ($class, $node_id, $experiment, $argref) = @_;
