@@ -63,11 +63,14 @@ Usage: $0 [-h] <-p | <pid> <eid> > [vname ...] [vname:port ...]
 -e    Show only error counters
 -a    Show all stats
 -z    Zero out counts for selected counters, after printing
--q    Quiet: don't actually print counts - useful with -z
+-q    Quiet: do not actually print counts - useful with -z
+-r    csv output, no headers, comma separated.
+-l    no sorting.
 -c    Print absolute, rather than relative, counts
--p    The machines given are physical, not virtual, node IDs. No pid and
-      eid should be given when using this option.
--s    Ports are specified in switch.port syntax
+-p    The machines given are physical, not virtual, node IDs.
+      No pid,eid should be given when using this option.
+-s    Ports are specified in switch.port syntax.
+      No pid,eid should be given when using this option.
 -C    List control net, rather than experimental net, ports
 
 If only pid and eid are given, prints out information about all ports in the
@@ -89,7 +92,7 @@ END
 #
 my %opt = ();
 Getopt::Long::Configure("no_ignore_case");
-GetOptions(\%opt,'h','a','e','p','b','z','q','c','s','C');
+GetOptions(\%opt,'h','a','e','p','b','z','q','c','s','C','r','l');
 
 if ($opt{h}) {
     exit &usage;
@@ -312,8 +315,8 @@ elsif ($opt{p}) {
 # Find out which devices these ports are on
 #
 my %portMap = mapPortsToDevices(@ports);
+my %stats   = ();
 
-my @stats;
 DEVICE: foreach my $name (keys %portMap) {
     my @ports = @{$portMap{$name}};
     my %oidwarned = ();
@@ -478,9 +481,9 @@ DEVICE: foreach my $name (keys %portMap) {
 	}
 
 	#
-	# Throw this onto a list, so that we can sort it
+	# Save for printing.
 	#
-	push @stats, [Port->isPort($port)?$port->toString():$port,@$result];
+	$stats{(Port->isPort($port)?$port->toString():$port)} = $result;
     }
 }
 
@@ -488,6 +491,26 @@ DEVICE: foreach my $name (keys %portMap) {
 # Exit now if they wanted quiet operation
 #
 if ($opt{q}) {
+    exit(0);
+}
+
+# Convert the port list back to strings. Easier.
+@ports = map { Port->isPort($_) ? $_->toString() : $_ } @ports;
+
+# Sorted?
+if (! $opt{l}) {
+    @ports = sort {$a cmp $b} @ports;
+}
+
+#
+# Raw format.
+#
+if ($opt{r}) {
+    foreach my $port (@ports) {
+	my @numbers = @{$stats{$port}};
+	my $string  = join(",", @numbers);
+	print "$port,$string\n";
+    }
     exit(0);
 }
 
@@ -524,6 +547,7 @@ print "-" x length($heading1),"\n";
 #
 # Finally, print out the results
 #
-foreach $::line (sort {$$a[0] cmp $$b[0]} @stats) {
+foreach my $port (@ports) {
+    $::line = [$port, @{$stats{$port}}];
     write;
 }
