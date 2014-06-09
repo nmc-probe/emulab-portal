@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -129,7 +129,7 @@ sub iloctrl($$@) {
 		print "$@";
 		return -1;
 	    }
-	    return 0;
+	    return $tret;
 	};
 	my @results = ();
 	my @ilos    = values(%ilo_nodeinfo);
@@ -431,7 +431,7 @@ sub ipmiexec($$$$$$$;$) {
 	if ($usekey);
 
     my $output = `$ipmicmd 2>&1`;
-    my $stat = $?;
+    my $stat = ($? >> 8);
 
     # And clear them again
     delete $ENV{'IPMI_PASSWORD'};
