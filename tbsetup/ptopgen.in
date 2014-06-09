@@ -2224,6 +2224,18 @@ sub print_header {
 		}
 		print "</rspec_shared_vlan>\n";
 	    }
+
+	    $result = DBQueryFatal("select IP from virt_node_public_addr");
+	    if ($result->rows > 0) {
+		my $configured = $result->rows;
+		
+		$result = DBQueryFatal("select IP from virt_node_public_addr ".
+				       "where node_id is null");
+		my $available = $configured - $result->rows;
+		
+		print "<rspec_routable_addresses xmlns=\"" . $emulabns . "\" " .
+		    "configured='$configured' available='$available' />\n";
+	    }
 	    print $opstate . "\n";
 	}
     }
