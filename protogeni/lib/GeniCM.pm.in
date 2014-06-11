@@ -1023,7 +1023,8 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			    $osname = "OPENVZ-STD";
 			}
 		    }
-		    elsif ($virtualization_subtype eq "emulab-xen") {
+		    elsif ($virtualization_subtype eq "emulab-xen" ||
+			   $virtualization_subtype eq "default-vm") {
 			# Allow caller to set the image to use, but also
 			# trick to set the parent. 
 			if (defined($osinfo)) {
