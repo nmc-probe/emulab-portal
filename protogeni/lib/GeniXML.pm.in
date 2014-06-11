@@ -43,7 +43,7 @@ GetVirtualizationType SetVirtualizationSubtype GetVirtualizationSubtype
 GetExclusive SetExclusive GetLinkManager SetText GetText Serialize
 CreateDocument AddElement RemoveChild PolicyExists GetMask
 GetDiskImage IsUntaggedLan IsTaggedLan GetHopLinkID GetCapabilitySection
-GetSuggestedVlanFromHop SetVlanTagInHop);
+GetSuggestedVlanFromHop GetAvailableVlanFromHop SetVlanTagInHop);
 
 use English;
 use Data::Dumper;
@@ -1193,6 +1193,17 @@ sub GetSuggestedVlanFromHop($)
     my $tag = GeniXML::GetText("suggestedVLANRange", $capref);
     $tag = undef
 	if (defined($tag) && ! looks_like_number($tag));
+    return $tag;
+}
+
+sub GetAvailableVlanFromHop($)
+{
+    my ($hopref) = @_;
+    my $capref   = GetHopCapabilitySection($hopref);
+    return undef
+	if (!defined($capref));
+
+    my $tag = GeniXML::GetText("vlanRangeAvailability", $capref);
     return $tag;
 }
 

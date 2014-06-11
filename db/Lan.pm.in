@@ -3941,6 +3941,7 @@ use libdb;
 use libtestbed;
 use English;
 use Lan;
+use String::Util 'trim';
 use overload ('""' => 'Stringify');
 
 #
@@ -4040,22 +4041,66 @@ sub VlanTagOkay($$)
     }
 }
 
+sub VlanToSet($$)
+{
+    my ($self, $vlanString) = @_;
+    my %result = ();
+    if ($vlanString =~ /(([0-9]+)(-[0-9]+)?)+/) {
+	# vlans is a comma-delimited list
+	my @vlans = split(",", $vlanString);
+	foreach my $range (@vlans) {
+	    # Each range is either a single vlan number or min-max inclusive.
+	    my ($min, $max) = split("-", $range);
+	    if (! defined($max)) {
+		$max = $min;
+	    }
+	    my $i = $min;
+	    for ($i = $min; $i <= $max; $i += 1) {
+		%result{$i} = 1;
+	    }
+	}
+    }
+    return %result;
+}
+
 sub CalculateVlans($)
 {
     my ($self) = @_;
+    $self->{'VLANSET'} = $($self->VlanToSet($self->vlans()));
+
     # vlans is a comma-delimited list
-    my @vlans = split(",", $self->vlans());
-    foreach my $range (@vlans) {
-	# Each range is either a single vlan number or min-max inclusive.
-	my ($min, $max) = split("-", $range);
-	if (! defined($max)) {
-	    $max = $min;
-	}
-	my $i = $min;
-	for ($i = $min; $i <= $max; $i += 1) {
-	    $self->{'VLANSET'}->{$i} = 1;
+#    my @vlans = split(",", $self->vlans());
+#    foreach my $range (@vlans) {
+#	# Each range is either a single vlan number or min-max inclusive.
+#	my ($min, $max) = split("-", $range);
+#	if (! defined($max)) {
+#	    $max = $min;
+#	}
+#	my $i = $min;
+#	for ($i = $min; $i <= $max; $i += 1) {
+#	    $self->{'VLANSET'}->{$i} = 1;
+#	}
+#    }
+}
+
+# Return a list of vlans from the VLANSET, but only those which are
+# also included in the restrictionString
+sub GetRestrictedVlans($$)
+{
+    my ($self, $restrictionString) = @_;
+    $restrictionString = trim($restrictionString);
+    my %result = ();
+    if ($restrictionString eq "" || $restrictionString eq "any") {
+	%result = %{ $self->{'VLANSET'} };
+    } else {
+	my %restriction = $self->VlanToSet($restrictionString);
+	foreach my $candidate (keys(%{ $self->{'VLANSET'} })) {
+	    if (%restriction{$candidate}) {
+		$result{$candidate} = 1;
+	    }
 	}
     }
+    return %result;
 }
 
 # Return the list calculated above.
