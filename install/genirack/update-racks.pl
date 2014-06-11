@@ -285,11 +285,6 @@ if ($dofunc && !$install) {
 	    $command = "ls /dev/null";
 	}
 	elsif (0) {
-	    $command =
-		"cd emulab-devel/obj/dhcpd; gmake; sudo gmake install; ".
-		"cd ..; /usr/testbed/sbin/dhcpd_makeconf -i -r";
-	}
-	elsif (0) {
 	    $command = "scp -p /usr/testbed/etc/openvpn-server.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/openvpn-dh.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/emulab.pem elabman\@control:openvpn; scp -p $devel/openvpn/openvpn.conf elabman\@control:openvpn";
 	}
 	elsif (0) {
@@ -319,14 +314,6 @@ if ($dofunc && !$install) {
 	    $command =
 		"cd /users/elabman/$devobj/install; ".
 		"  sudo perl emulab-install -b -i boss/shellinabox boss";
-	}
-	elsif (0) {
-	    # Utah Rack is vhost2. Sheesh.
-	    $command =
-		"sudo ssh vhost1.shared-nodes.emulab-ops ".
-		"   systemctl restart ntpd.service; " .
-		"sudo ssh vhost2.shared-nodes.emulab-ops ".
-		"  systemctl restart ntpd.service; ";
 	}
 	elsif (0) {
 	    $command =
