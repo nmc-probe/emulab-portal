@@ -1,18 +1,34 @@
-<input name="formfields[pid]" value="<%- formfields.pid %>"
-       class="form-control" data-key="pid"
-       placeholder="Project Name" type="text">
-
-<% if (! joinproject) { %>
-  <!--  Creating a new project. -->
-  <input name="formfields[proj_title]" value="<%- formfields.proj_title %>"
-	 class="form-control" data-key="proj_title"
-	 placeholder="Project Title (short sentence)" type="text">
-  <input name="formfields[proj_url]" value="<%- formfields.proj_url %>"
-	 class="form-control" data-key="proj_url"
-	 placeholder="Project Page URL" type="text">
-  <textarea name="formfields[proj_why]" rows="8"
-	    class="form-control" data-key="proj_why"
-	    placeholder="projectDescription (details)" type="textarea">
-    <%- formfields.proj_why %>
-  </textarea>
-<% } %>
+<div>
+<ul class='nav nav-tabs' id='project_tabs'>
+  <li class='active'>
+    <a href='#join_tab' data-toggle='tab'>Join Project</a>
+  </li>
+  <li>
+    <a href='#start_tab' data-toggle='tab'>Start Project</a>
+  </li>
+</ul>
+<div class='tab-content'>
+  <div class='tab-pane active' id='join_tab'>
+    <input name="formfields[pid]" value="<%- formfields.pid %>"
+	   id="form_join_pid"
+	   class="form-control format-me" data-key="pid"
+	   placeholder="Project Name" type="text">
+  </div>
+  <div class='tab-pane' id='start_tab'>
+    <input name="formfields[pid]" value="<%- formfields.pid %>"
+	   id="form_start_pid"
+	   class="form-control format-me" data-key="pid"
+	   placeholder="Project Name" type="text">
+    <input name="formfields[proj_title]" value="<%- formfields.proj_title %>"
+	   class="form-control format-me" data-key="proj_title"
+	   placeholder="Project Title (short sentence)" type="text">
+    <input name="formfields[proj_url]" value="<%- formfields.proj_url %>"
+	   class="form-control format-me" data-key="proj_url"
+	   placeholder="Project Page URL" type="text">
+    <textarea name="formfields[proj_why]" rows="8"
+	      class="form-control format-me" data-key="proj_why"
+	      placeholder="Project Description (details)"
+	      type="textarea"><%- formfields.proj_why %></textarea>
+  </div>
+</div>
+</div>

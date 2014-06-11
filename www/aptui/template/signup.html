@@ -20,9 +20,6 @@
 	      method='post' action='signup.php'>
 	  <div class='row'>
 	    <div class='<% if (this_user) { %>col-sm-12<% } else { %>col-sm-6<% } %>'>
-	      <% if (joinproject) { %>
-	        <input type='hidden' name='joinproject' value=1>
-	      <% } %>
 	      <%= verify_modal %>
 	      <input type='hidden' name='formfields[pubkey]'
 		     value='<%- pubkey %>'>
@@ -36,11 +33,7 @@
 	      <% } %>
 	      <fieldset>
 		<legend>
-		  <% if (joinproject) { %>
-		    Project Name
-		  <% } else { %>
-		    Project Information
-		  <% } %>
+		  Project Information
 		</legend>
 		<%= project_fields %>
 	      </fieldset>
@@ -52,6 +45,7 @@
 	     Reset Form
 	   </button>
            <button class='btn btn-primary btm-sm pull-right'
+		   id='submit_button'
                    type='submit' name='create'><%- button_label %></button>
 	 </div>
 	</form>

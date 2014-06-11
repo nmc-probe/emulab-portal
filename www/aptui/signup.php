@@ -25,6 +25,8 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+# Do not create anything, just do the checks.
+$debug = 1;
 
 #
 # Get current user.
@@ -82,8 +84,9 @@ function SPITFORM($formfields, $showverify, $errors)
 #    }
 #    echo "};\n";
 
-    if ($joinproject) {
-      echo "window.APT_OPTIONS.joinproject = true;\n";
+    if (isset($joinproject)) {
+	$joinproject = ($joinproject ? "true" : "false");
+	echo "window.APT_OPTIONS.joinproject = $joinproject;\n";
     }
     if ($showverify) {
         echo "window.APT_OPTIONS.ShowVerifyModal = true;\n";
@@ -315,8 +318,9 @@ if (!$this_user) {
     }
 }
 
-if (0) {
-    TBERROR("New APT User" . print_r($formfields, TRUE), 0);
+if ($debug) {
+    TBERROR("New APT User ($joinproject)" .
+	    print_r($formfields, TRUE), 0);
     SPITFORM($formfields, 0, $errors);
     return;
 }
@@ -389,6 +393,15 @@ if (!$this_user) {
 	SPITFORM($formfields, 0, $errors);
 	return;
     }
+}
+elseif ($joinproject) {
+    $group = $project->LoadDefaultGroup();
+    if ($project->AddNewMember($this_user) < 0) {
+	TBERROR("Could not add new user to project group $pid", 1);
+    }
+    $group->NewMemberNotify($this_user);
+    header("Location: instantiate.php");
+    return;
 }
 
 #
