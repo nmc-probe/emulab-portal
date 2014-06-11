@@ -66,6 +66,7 @@ my $WINSUPPORT  = @WINSUPPORT@;
 my $ISOLATEADMIN= @ISOLATEADMINS@;
 my $NOSHAREDFS	= @NOSHAREDFS@;
 my $LINUX_FSNODE= @LINUX_FSNODE@;
+my $NFSMAPTOUSER= "@NFSMAPTOUSER@";
 
 # XXX for TESTMODE: output to stdout
 my $TOSTDOUT	= 0;
@@ -427,8 +428,8 @@ foreach my $str ( keys(%ipgroups) ) {
 	    if ($debug);
     }
     else {
-	print MAP "$str -maproot=root @iplist\n";
-	print "$str -maproot=root @iplist\n"
+	print MAP "$str -maproot=$NFSMAPTOUSER @iplist\n";
+	print "$str -maproot=$NFSMAPTOUSER @iplist\n"
 	    if ($debug);
     }
 }

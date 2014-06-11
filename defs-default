@@ -161,3 +161,9 @@ WINDOWS_KEY_7PRO_X86=""
 # Fancy new browser in the console support
 #
 BROWSER_CONSOLE_ENABLE=1
+
+#
+# Map root to a user with no quota to avoid root filling up
+# NFS mounted file systems.
+#
+NFSMAPTOUSER=emaproot
