@@ -29,10 +29,19 @@
 #
 use strict;
 use English;
+use Getopt::Std;
 
 #
 # Populate the monitoring database.
 # 
+
+sub usage()
+{
+    print "Usage: mondbd [-d] [-i]\n";
+    exit(1);
+}
+my $optlist   = "d";
+my $debug     = 0;
 
 #
 # Configure variables
@@ -45,6 +54,9 @@ my $URL          = "https://www.$DOMAIN:5001";
 my $PGENISUPPORT = @PROTOGENI_SUPPORT@;
 my $NICKNAME	 = "@PROTOGENI_NICKNAME@";
 my $LOGFILE      = "$TB/log/expire_daemon.log";
+my $PORTSTATS    = "$TB/bin/portstats";
+
+my $INTERVAL     = 120;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -69,6 +81,14 @@ if (! $PGENISUPPORT) {
     exit(0);
 }
 
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug++;
+}
+
 # Load the Testbed support stuff.
 use lib "@prefix@/lib";
 use libaudit;
@@ -91,9 +111,12 @@ my $tbdb = emdbi::NewTBDBHandle( $DBNAME );
 if (CheckDaemonRunning("mondbd")) {
     fatal("Not starting another monitoring daemon!");
 }
-# Go to background.
-if (TBBackGround($LOGFILE)) {
-    exit(0);
+
+if( !$debug) {
+    # Go to background.
+    if (TBBackGround($LOGFILE)) {
+	exit(0);
+    }
 }
 
 if (MarkDaemonRunning("mondbd")) {
@@ -154,6 +177,8 @@ sub AddInterfaces($$) {
     }
 }
 
+my %portcounters;
+
 while (1) {
     # Add the local CM.
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate WHERE ts < $expire" );
@@ -207,6 +232,7 @@ while (1) {
 	AddInterfaces( $n, $node );
     }
 
+    my @fakenodenames = ();
     my $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT node_id FROM nodes " .
 					    "WHERE type='interconnect'" );
     if( $query_result && $query_result->numrows) {
@@ -214,6 +240,7 @@ while (1) {
 
 	while( @fakenodes = $query_result->fetchrow_array() ) {
 	    my ($n) = @fakenodes;
+	    push( @fakenodenames, @fakenodes );
 	    my $node = Node->Lookup( $n );
 
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
@@ -230,14 +257,67 @@ while (1) {
 				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
 	    
 	    AddInterfaces( $n, $node );
-
-	    # FIXME also add portstats data to ops_interface_* tables
 	}
     }
 
     emdbi::DBQueryWarnN( $db, "UNLOCK TABLES" );
 
-    sleep( 60 );
+    # Add traffic counters for the (fake) switch nodes.  Do this after
+    # unlocking the database, because we invoke portstats, which is slow.
+    # We lose atomicity, but since we're only doing appends, it doesn't
+    # really matter.
+    foreach my $n ( @fakenodenames ) {
+	open( P, "$PORTSTATS -s $n:eth0|" );
+	# ignore 3 lines of headers
+	<P>;
+	<P>;
+	<P>;
+	# Do any fake nodes we care about have more than one interface?  Let's
+	# assume not.
+	if( <P> =~ /(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/ ) {
+	    my @counts = ( $2, $3 + $4, $5, $6 + $7 );
+
+	    if( exists( $portcounters{$n} ) ) {
+		my $oldcounts = $portcounters{$n};
+
+		my $rx_b = ( $counts[ 0 ] - $$oldcounts[ 0 ] ) / $INTERVAL;
+		my $rx_p = ( $counts[ 1 ] - $$oldcounts[ 1 ] ) / $INTERVAL;
+		my $tx_b = ( $counts[ 2 ] - $$oldcounts[ 2 ] ) / $INTERVAL;
+		my $tx_p = ( $counts[ 3 ] - $$oldcounts[ 3 ] ) / $INTERVAL;
+
+		if( ( $rx_b >= 0 ) && ( $rx_p >= 0 ) &&
+		    ( $rx_b >= 0 ) && ( $rx_p >= 0 ) ) {
+		    emdbi::DBQueryWarnN( $db, "INSERT INTO " .
+					 "ops_interface_rx_bps SET " .
+					 "id='${DOMAIN}_interface_$n:eth0'," .
+					 "ts='$ts'," .
+					 "v=$rx_b;" );
+		    emdbi::DBQueryWarnN( $db, "INSERT INTO " .
+					 "ops_interface_rx_pps SET " .
+					 "id='${DOMAIN}_interface_$n:eth0'," .
+					 "ts='$ts'," .
+					 "v=$rx_p;" );
+		    emdbi::DBQueryWarnN( $db, "INSERT INTO " .
+					 "ops_interface_tx_bps SET " .
+					 "id='${DOMAIN}_interface_$n:eth0'," .
+					 "ts='$ts'," .
+					 "v=$tx_b;" );
+		    emdbi::DBQueryWarnN( $db, "INSERT INTO " .
+					 "ops_interface_tx_pps SET " .
+					 "id='${DOMAIN}_interface_$n:eth0'," .
+					 "ts='$ts'," .
+					 "v=$tx_p;" );
+		    # We don't count errors.  Does anybody care?  If they
+		    # do, we could insert rows of zeroes.
+		}
+	    }
+
+	    $portcounters{$n} = \@counts;
+	}
+	close( P );
+    }
+
+    sleep( $INTERVAL );
 
     # FIXME add slice, sliver, user, vlan information
 }
