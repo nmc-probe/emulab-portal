@@ -158,6 +158,7 @@ use lib '@srcdir@';
 use English;
 use libinstall;
 use Getopt::Std;
+use Cwd qw(realpath);
 
 #
 # Handle command-line options
@@ -329,7 +330,7 @@ Phase "patches", "Applying patches", sub {
     };
     Phase "Mysql.pm.patch", "Patching Mysql.pm", sub {
 	my $patchfile = $MYSQL_PM_PATCH;
-	$patchfile = `realpath $patchfile`;
+	$patchfile = realpath($patchfile);
 	chomp $patchfile;
 
 	my $dir;

@@ -28,6 +28,7 @@ use XML::Simple;
 use Data::Dumper;
 use IO::Handle;
 use URI::Escape;
+use Cwd qw(realpath);
 
 #
 # Create a new node from a XML description. 
@@ -140,7 +141,7 @@ else {
 	}
 
 	# Use realpath to resolve any symlinks.
-	my $translated = `realpath $xmlfile`;
+	my $translated = realpath($xmlfile);
 	if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
 	    $xmlfile = $1;
 	}

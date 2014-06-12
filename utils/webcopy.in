@@ -24,6 +24,7 @@
 #
 
 use English;
+use Cwd qw(realpath);
 
 #
 # Configure variables
@@ -56,14 +57,14 @@ if (@ARGV != 2) {
     usage();
 }
 
-$src = `realpath $ARGV[0]`;
+$src = realpath($ARGV[0]);
 if ($src =~ /^([-\w\/.]+)$/) {
     $src = $1;
 } else {
     die("*** Tainted source: $src\n");
 }
 
-$dst = `realpath $ARGV[1]`;
+$dst = realpath($ARGV[1]);
 if ($dst =~ /^([-\w\/.]+)$/) {
     $dst = $1;
 } else {

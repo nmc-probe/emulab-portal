@@ -23,6 +23,7 @@
 #
 use English;
 use File::Basename;
+use Cwd qw(realpath);
 
 #
 # Forceably chown a directory hierarchy to the real uid of the invoker.
@@ -88,7 +89,7 @@ else {
     die("*** Tainted source: $pathname\n");
 }
 
-$pathname = `realpath $pathname`;
+$pathname = realpath($pathname);
 
 if ($pathname =~ /^([-\w\/.]+)$/) {
     $pathname = $1;

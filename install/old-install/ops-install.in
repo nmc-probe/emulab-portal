@@ -99,6 +99,7 @@ use lib '@srcdir@';
 use English;
 use libinstall;
 use Getopt::Std;
+use Cwd qw(realpath);
 
 #
 # Handle command-line options
@@ -377,7 +378,7 @@ Phase "dirs", "Setting directory permissions", sub {
 		PhaseFail("Directory $dir does not exist");
 	    }
 	    # Use the real path, to avoid symlink problems
-	    my $realdir = `realpath $dir`;
+	    my $realdir = realpath($dir);
 	    chomp $realdir;
 	    my ($mode,$group) = (stat($realdir))[2,5];
 	    # Fix up the mode (strip file type)
@@ -789,7 +790,7 @@ Phase "exports", "Setting up exports", sub {
 	if ($ISFS) {
 	    @dirs = (grep(!/^$SHAREROOT$/, @MOUNTPOINTS), @dirs);
 	}
-	@dirs = map {`realpath $_`} @dirs;
+	@dirs = map {realpath($_)} @dirs;
 	chomp @dirs;
 	my %filesystems;
 	foreach my $dir (@dirs) {
@@ -812,7 +813,7 @@ Phase "exports", "Setting up exports", sub {
 	    # /share is special. We want to export to boss read-write,
 	    # but to the control network read-only.
 	    #
-	    my $realdir = `realpath $SHAREROOT`;
+	    my $realdir = realpath($SHAREROOT);
 	    chomp($realdir);
 	    push(@exports_lines,
 		 "$realdir\t$BOSSNODE -maproot=root");

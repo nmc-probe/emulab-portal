@@ -29,6 +29,7 @@ use POSIX qw(strftime);
 use Errno qw(EDQUOT);
 use XML::Simple;
 use Data::Dumper;
+use Cwd qw(realpath);
 
 #
 # Create a new experiment template. 
@@ -739,7 +740,7 @@ sub ParseArgs()
 	#
 	# Use realpath to resolve any symlinks.
 	#
-	my $translated = `realpath $inputfile`;
+	my $translated = realpath($inputfile);
 	if ($translated =~ /^([-\w\.\/]+)$/) {
 	    $inputfile = $1;
 	}

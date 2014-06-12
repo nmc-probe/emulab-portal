@@ -26,6 +26,7 @@ use English;
 use Getopt::Std;
 use POSIX qw(setsid :sys_wait_h);
 use File::Basename;
+use Cwd qw(realpath);
 
 #
 # Image Creation Tuneables.
@@ -391,7 +392,7 @@ if ($isglobal && ($filename =~ /^\/usr\/testbed/)) {
 #
 # Use realpath to resolve any symlinks.
 #
-my $translated = `realpath $filename`;
+my $translated = realpath($filename);
 if ($translated =~ /^([-\w\.\/\+]+)$/) {
     $filename = $1;
 }

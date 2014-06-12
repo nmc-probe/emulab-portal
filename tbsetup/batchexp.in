@@ -27,6 +27,7 @@ use POSIX qw(isatty setsid);
 use POSIX qw(strftime);
 use Errno qw(EDQUOT);
 use RPC::XML;
+use Cwd qw(realpath);
 
 #
 # Create an experiment. The experiment is either run immediately, or
@@ -1006,7 +1007,7 @@ sub ParseArgs()
 	#
 	# Use realpath to resolve any symlinks.
 	#
-	my $translated = `realpath $tempnsfile`;
+	my $translated = realpath($tempnsfile);
 	if ($translated =~ /^([-\w\.\/]+)$/) {
 	    $tempnsfile = $1;
 	}

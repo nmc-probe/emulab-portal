@@ -33,6 +33,7 @@ use Getopt::Std;
 use XML::Simple;
 use File::Temp qw(tempfile);
 use Data::Dumper;
+use Cwd qw(realpath);
 
 #
 # Create a quick VM.
@@ -192,7 +193,7 @@ else {
 	}
 
 	# Use realpath to resolve any symlinks.
-	my $translated = `realpath $xmlfile`;
+	my $translated = realpath($xmlfile);
 	if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
 	    $xmlfile = $1;
 	}

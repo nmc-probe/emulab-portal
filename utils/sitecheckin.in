@@ -28,6 +28,7 @@ use XML::Simple;
 use Data::Dumper;
 use Date::Parse;
 use Time::Local;
+use Cwd qw(realpath);
 
 #
 # Add (or update) an emulab site record. 
@@ -117,7 +118,7 @@ else {
 }
 
 # Use realpath to resolve any symlinks.
-my $translated = `realpath $xmlfile`;
+my $translated = realpath($xmlfile);
 if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
     $xmlfile = $1;
 }
