@@ -470,8 +470,8 @@ class reload:
 	print "    -m    - Specify internal image id (instead of -i and -p)";
 	print "    -r    - Do *not* reboot nodes; do that yourself";
         print "    -c    - Reload nodes with the image currently on them";
- 	print "    -e    - Reboot all nodes in an experiment";
-	print "  node    - Node to reboot (pcXXX)";
+ 	print "    -e    - Reload all nodes in the given experiment";
+	print "  node    - Node to reload (pcXXX)";
         wrapperoptions();
         return
     pass
