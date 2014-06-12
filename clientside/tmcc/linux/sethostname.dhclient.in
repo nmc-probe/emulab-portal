@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -54,11 +54,24 @@ use libsetup;
 use libtmcc;
 
 #
-# We assume that we are in the same domain as our boss node
+# We assume that we are in the same domain as our boss node.
+#
+# Note: tmccbossname can fail if the DNS is not responding properly.
+# Sometimes this is transient and is caused by the control net interface
+# getting tweaked (down/up'ed, speed/duplex changed) during the DHCP process.
+# Hence we wait a couple of seconds and retry if this happens.
 #
 my $bossname = tmccbossname();
-$bossname = "UNKNOWN"
-    if (!defined($bossname));
+if (!$bossname) {
+    for (my $i = 1; $i <= 3; $i++) {
+	print STDERR "Waiting for DNS...\n";
+	sleep($i);
+	$bossname = tmccbossname();
+	last if ($bossname);
+    }
+    $bossname = "UNKNOWN"
+	if (!defined($bossname));
+}
 if ($bossname =~ /^[^\.]+\.(.*)$/) {
     $domain = ".$1";
 } else {
