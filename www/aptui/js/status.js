@@ -18,6 +18,8 @@ function (_, sup, moment, ShowImagingModal,
     var nodecount   = 0;
     var ajaxurl     = null;
     var uuid        = null;
+    var status_collapsed  = false;
+    var status_message    = "";
     var statusTemplate    = _.template(statusString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var oopsTemplate      = _.template(oopsString);
@@ -30,6 +32,7 @@ function (_, sup, moment, ShowImagingModal,
 	window.APT_OPTIONS.initialize(sup);
 	ajaxurl = window.APT_OPTIONS.AJAXURL;
 	uuid    = window.APT_OPTIONS.uuid;
+	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 
 	// Generate the templates.
 	var template_args = {
@@ -41,6 +44,8 @@ function (_, sup, moment, ShowImagingModal,
 	    creatorUid:		window.APT_OPTIONS.creatorUid,
 	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
 	    registered:		window.APT_OPTIONS.registered,
+	    // The status panel starts out collapsed.
+	    status_panel_show:  (instanceStatus == "ready" ? false : true),
 	};
 	var status_html   = statusTemplate(template_args);
 	$('#status-body').html(status_html);
@@ -59,7 +64,6 @@ function (_, sup, moment, ShowImagingModal,
 	// Look at initial status to determine if we show the progress bar.
 	//
 	var spinwidth = 0;
-	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 	if (instanceStatus == "created") {
 	    spinwidth = "33";
 	}
@@ -214,6 +218,28 @@ function (_, sup, moment, ShowImagingModal,
 	    xmlthing.done(callback);
 	});
 
+	/*
+	 * Attach an event handler to the profile status collapse.
+	 * We want to change the text inside the collapsed view
+	 * to the expiration countdown, but remove it when expanded.
+	 * In other words, user always sees the expiration.
+	 */
+	$('#profile_status_collapse').on('hide.bs.collapse', function () {
+	    status_collapsed = true;
+	    // Copy the current expiration over.
+	    var current_expiration = $("#instance_expiration").html();
+	    $('#status_message').html("Profile Expires: " +
+				      current_expiration);
+	});
+	$('#profile_status_collapse').on('show.bs.collapse', function () {
+	    status_collapsed = false;
+	    // Reset to status message.
+	    $('#status_message').html(status_message);
+	});
+	if (instanceStatus == "ready") {
+ 	    $('#profile_status_collapse').trigger('hide.bs.collapse');
+	}
+
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
 	GetStatus(uuid);
 	if (window.APT_OPTIONS.snapping) {
@@ -259,16 +285,16 @@ function (_, sup, moment, ShowImagingModal,
 	if (status != StatusWatchCallBack.laststatus) {
 	    status_html = status;
 
-	    var bgtype = "";
-	    var statustext = "Please wait while we get your experiment ready";
+	    var bgtype = "panel_info";
+	    status_message = "Please wait while we get your experiment ready";
 	    
 	    if (status == 'provisioned') {
 		$("#status_progress_bar").width("66%");
 		status_html = "booting";
 	    }
 	    else if (status == 'ready') {
-		bgtype = "bg-success";
-		statustext = "Your experiment is ready!";
+		bgtype = "panel-success";
+		status_message = "Your experiment is ready!";
 		status_html = "<font color=green>ready</font>";
 		if ($("#status_progress_div").length) {
 		    $("#status_progress_div").removeClass("progress-striped");
@@ -283,8 +309,8 @@ function (_, sup, moment, ShowImagingModal,
 		EnableButtons();
 	    }
 	    else if (status == 'failed') {
-		bgtype = "bg-danger";
-		statustext = "Something went wrong, sorry! " +
+		bgtype = "panel-danger";
+		status_message = "Something went wrong, sorry! " +
 		    "We've been notified.";
 		status_html = "<font color=red>failed</font>";
 		if ($("#status_progress_div").length) {
@@ -297,21 +323,25 @@ function (_, sup, moment, ShowImagingModal,
 		EnableButton("terminate");
 	    }
 	    else if (status == 'imaging') {
-		bgtype = "bg-warning";
-		statustext = "Your experiment is busy while we copy your disk";
+		bgtype = "panel-warning";
+		status_message = "Your experiment is busy while we  " +
+		    "copy your disk";
 		status_html = "<font color=red>imaging</font>";
 		DisableButtons();
 	    }
 	    else if (status == 'terminating' || status == 'terminated') {
 		status_html = "<font color=red>" + status + "</font>";
-		bgtype = "bg-danger";
-		statustext = "Your experiment has been terminated!";
+		bgtype = "panel-danger";
+		status_message = "Your experiment has been terminated!";
 		DisableButtons();
 		StartCountdownClock.stop = 1;
 	    }
-	    $("#statusmessage").html(statustext);
-	    $("#statusmessage-container")
-		.removeClass('bg-success bg-danger')
+	    if (!status_collapsed) {
+		$("#status_message").html(status_message);
+	    }
+	    $("#status_panel")
+		.removeClass('panel-success panel-danger ' +
+			     'panel-warning panel-default panel-info')
 		.addClass(bgtype);
 	    $("#quickvm_status").html(status_html);
 	} 
@@ -432,26 +462,36 @@ function (_, sup, moment, ShowImagingModal,
 
 	    if (seconds_left < 3600) {
 		newcolor   = "text-danger";
-		statusbg   = "bg-danger";
+		statusbg   = "panel-danger";
 		statustext = "Extend your experiment before it expires!";
 	    }	    
 	    else if (seconds_left < 2 * 3600) {
 		newcolor   = "text-warning";
-		statusbg   = "bg-warning";
+		statusbg   = "panel-warning";
 		statustext = "Your experiment is going to expire soon!";
 	    }
 	    else {
 		newcolor = "";
-		statusbg = "hidden";
+		statusbg = "";
 	    }
 	    if (newcolor != color) {
 		$("#quickvm_countdown")
 		    .removeClass("text-warning text-danger")
 		    .addClass(newcolor);
 
-		$("#statusmessage").html(statustext);
-		$("#statusmessage-container")
-		    .removeClass('bg-success bg-danger hidden')
+		if (status_collapsed) {
+		    // Save for when user "shows" the status panel.
+		    status_message = statustext;
+		    // And update the panel header with new expiration.
+		    $('#status_message').html("Profile Expires: " +
+			$("#instance_expiration").html());
+		}
+		else {
+		    $("#status_message").html(statustext);
+		}
+		$("#status_panel")
+		    .removeClass('panel-success panel-danger ' +
+				 'panel-info panel-default panel-info')
 		    .addClass(statusbg);
 
 		color = newcolor;
