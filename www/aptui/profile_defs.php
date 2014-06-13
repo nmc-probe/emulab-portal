@@ -160,7 +160,14 @@ class Profile
 	
 	$uuid = $this->uuid();
 
-	return "$APTBASE/p/$uuid";
+	if ($this->ispublic()) {
+	    $pid  = $this->pid();
+	    $name = $this->name();
+	    return "$APTBASE/p/$pid/$name";
+	}
+	else {
+	    return "$APTBASE/p/$uuid";	    
+	}
     }
 }
 ?>
