@@ -22,10 +22,7 @@ function (_, sup,
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
- 	$('button#reset-form').click(function (event) {
-	    event.preventDefault();
-	    clearForm($('#quickvm_signup_form'));
-	});
+
 	var fields = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors = JSON.parse(_.unescape($('#error-json')[0].textContent));
 	renderForm(fields, errors,
@@ -33,74 +30,25 @@ function (_, sup,
 		   window.APT_OPTIONS.ShowVerifyModal,
 		   window.APT_OPTIONS.this_user);
 
-	// Carry this forward.
-	if (window.APT_OPTIONS.ShowVerifyModal) {
-	    var $jval = (window.APT_OPTIONS.joinproject ? "1" : "0");
-	    
-	    $('#quickvm_signup_form').append("<input type='hidden' " +
-					     "  id='joinproject' " +
-					     "  name='joinproject' " +
-					     "  value='jval' />");
-	}
-	// But if bound, make sure we have proper tab active.
-	if (typeof window.APT_OPTIONS.joinproject === 'undefined' ||
-	    !window.APT_OPTIONS.joinproject) {
-	    $("#project_tabs a:last").tab('show');
-	}
-	else {
-	    $("#project_tabs a:first").tab('show');
-	}
-
 	/*
-	 * Intercept the submit so we can check to see if the user
-	 * is joining or starting a project. We do this by looking
-	 * to see which of the tabs is active.
-	 *
-	 * XXX Both tabs need the same formfields[pid] entry, but
-	 * it does not work to have two input fields with the same
-	 * name, so yank the input field out of the inactive tab.
-	 *
-	 * Also add the joinproject boolean so the server side knows
-	 * what the user is doing (join or start).
+	 * When switching from start to join, show the hidden fields
+	 * and change the button.
 	 */
-	$('button#submit_button').click(function (event) {
-	    if ($('#join_tab').hasClass('active')) {
-		$('#joinproject').remove();
-		$('#quickvm_signup_form').append("<input type='hidden' " +
-						 "  id='joinproject' " +
-						 "  name='joinproject' " +
-						 "  value='1' />");
-		$('#form_start_pid').remove();
+	$("input[id='startorjoin']").change(function(e){
+	    if ($(this).val() == "join") {
+		$('#start_project_rollup').addClass("hidden");
+		$('#submit_button').text("Join Project");
 	    }
 	    else {
-		$('#joinproject').remove();
-		$('#quickvm_signup_form').append("<input type='hidden' " +
-						 "  id='joinproject' " +
-						 "  name='joinproject' " +
-						 "  value='0' />");
-		$('#form_join_pid').remove();
+		$('#start_project_rollup').removeClass("hidden");
+		$('#submit_button').text("Start Project");
 	    }
 	});
-
-	/*
-	 * When the user toggles from one tab to the other, change
-	 * the label in the button.
-	 */
-	if (window.APT_OPTIONS.this_user) {
-	    $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
-		if ($('#join_tab').hasClass('active')) {
-		    $('#submit_button').text("Join Project");
-		}
-		else {
-		    $('#submit_button').text("Start Project");
-		}
-	    });
-	}
     }
 
     function renderForm(formfields, errors, joinproject, showVerify, thisUser)
     {
-	var buttonLabel = calculateButtonLabel(joinproject, thisUser);
+	var buttonLabel = (joinproject ? "Join Project" : "Start Project");
 	var about = aboutTemplate({});
 	var verify = verifyTemplate({
 	    id: 'verify_modal',
@@ -139,23 +87,6 @@ function (_, sup,
     function clearForm($form)
     {
 	$form.find('input:text, input:password, select, textarea').val('');
-    }
-
-    function calculateButtonLabel(joinproject, thisUser)
-    {
-	var result = 'Create Account';
-	if (thisUser)
-	{
-	    if (joinproject)
-	    {
-		result = 'Join Project';
-	    }
-	    else
-	    {
-		result = 'Create Project';
-	    }
-	}
-	return result;
     }
 
     function formatter(fieldString, errors)

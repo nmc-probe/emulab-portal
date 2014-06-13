@@ -3,14 +3,21 @@
        col-md-8  col-md-offset-2
        col-sm-10 col-sm-offset-1
        col-xs-12 col-xs-offset-0'>
-    <div class='panel panel-default'>
-      <div class='panel-body'>
-	<table class='table table-condensed nospaceafter border-none'>
-	  <tr>
-	    <td id='statusmessage-container' colspan=2 class='border-node'>
-	      <h4 id='statusmessage'></h4>
-	    </td>
-	  </tr>
+    <div class='panel panel-default' id='status_panel'>
+      <div class="panel-heading">
+	<h5>
+	  <a data-toggle="collapse" id="profile_status_toggle"
+	     href="#profile_status_collapse">
+	    <span id='status_message'></span>
+	    <span class="glyphicon glyphicon-chevron-right pull-right"></span>
+	  </a>
+	</h5>
+      </div>
+      <div id="profile_status_collapse"
+	   class="panel-collapse collapse
+		  <% if (status_panel_show) { %>in<% } %>">
+	<div class='panel-body'>
+	  <table class='table table-condensed nospaceafter border-none'>
 	  <!-- The spinner will start out invisible -->
 	  <tr>
 	    <td colspan=2 class='border-none'>
@@ -42,35 +49,36 @@
 	  </tr>
 	  <tr>
 	    <td class='border-none'>Expires:</td>
-	    <td class='border-none'>
+	    <td class='border-none' id='instance_expiration'>
               <span id='quickvm_expires'><%- sliceExpiresText %></span>
 	      (<span id='quickvm_countdown'></span>)
 	    </td>
 	  </tr>
-	</table>
-	<!--
-	<div class='pull-left'>
-	  <span class='glyphicon glyphicon-question-sign'
-		style='font-size:24px'></span>
-	</div>
-	-->
-	<div class='pull-right'>
-	  <% if (registered) { %>
-	  <button class='btn btn-xs btn-primary hidden' disabled
-		  id='clone_button' type=button>
-            Clone</button>
-	  <button class='btn btn-xs btn-primary hidden' disabled
-		  id='snapshot_button' type=button
-		  data-toggle='modal' data-target='#snapshot_modal'>
-            Snapshot</button>
-	  <% } %>
-	  <button class='btn btn-xs btn-success' disabled
-		  id='extend_button' type=button>
-            Extend</button>
-	  <button class='btn btn-xs btn-danger' disabled
-		  id='terminate_button' type=button
-		  data-toggle='modal' data-target='#terminate_modal'>
-            Terminate</button>
+	  </table>
+	  <!--
+	  <div class='pull-left'>
+	    <span class='glyphicon glyphicon-question-sign'
+		  style='font-size:24px'></span>
+	  </div>
+	  -->
+	  <div class='pull-right'>
+	    <% if (registered) { %>
+	    <button class='btn btn-xs btn-primary hidden' disabled
+		    id='clone_button' type=button>
+              Clone</button>
+	    <button class='btn btn-xs btn-primary hidden' disabled
+		    id='snapshot_button' type=button
+		    data-toggle='modal' data-target='#snapshot_modal'>
+              Snapshot</button>
+	    <% } %>
+	    <button class='btn btn-xs btn-success' disabled
+		    id='extend_button' type=button>
+              Extend</button>
+	    <button class='btn btn-xs btn-danger' disabled
+		    id='terminate_button' type=button
+		    data-toggle='modal' data-target='#terminate_modal'>
+              Terminate</button>
+	  </div>
 	</div>
       </div>
     </div>

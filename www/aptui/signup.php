@@ -26,7 +26,7 @@ include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
 # Do not create anything, just do the checks.
-$debug = 1;
+$debug = 0;
 
 #
 # Get current user.
@@ -68,22 +68,6 @@ function SPITFORM($formfields, $showverify, $errors)
     echo "</script>\n";
     echo "<script type='text/javascript'>\n";
 
-    # XSS prevention.
-    # TODO: Leigh These CleanStrings() should be moot. Double check this.
-#    while (list ($key, $val) = each ($formfields)) {
-#        echo "\"" . CleanString($key) . "\": \"" . CleanString($val) . "\",\n";
-#    }
-#    echo "};\n";
-
-#    echo "window.APT_OPTIONS.errors = {\n";
-    # XSS prevention.
-#    if ($errors) {
-#	while (list ($key, $val) = each ($errors)) {
-#	        echo "\"" . CleanString($key) . "\": \"" . CleanString($val) . "\",\n";
-#	}
-#    }
-#    echo "};\n";
-
     if (isset($joinproject)) {
 	$joinproject = ($joinproject ? "true" : "false");
 	echo "window.APT_OPTIONS.joinproject = $joinproject;\n";
@@ -105,7 +89,8 @@ function SPITFORM($formfields, $showverify, $errors)
 
 if (isset($finished) && $finished) {
     SPITHEADER(1);
-    echo "Thank you! Your project application is being considered by the approval committee, and you should hear back within 72 hours.";
+    echo "Thank you! Stay tuned for email about your request, be sure ".
+	"to set your spam filter to allow email from '@${OURDOMAIN}'.";
     SPITNULLREQUIRE();
     SPITFOOTER();
     exit(0);
@@ -127,6 +112,9 @@ if (! isset($create)) {
     if (isset($email)) {
 	$defaults["email"] = CleanString($email);
     }
+    # Default to join
+    $defaults["startorjoin"] = "join";
+    $joinproject = 1;
     
     SPITFORM($defaults, 0, $errors);
     return;
@@ -136,6 +124,18 @@ if (! isset($create)) {
 # Otherwise, must validate and redisplay if errors
 #
 $errors = array();
+
+#
+# Check for start or join right away so we know what we be doing.
+#
+if (!isset($formfields["startorjoin"]) || $formfields["startorjoin"] == "") {
+    $errors["error"] = "Neither start or join selected";
+    SPITFORM($defaults, 0, $errors);
+    return;
+}
+if ($formfields["startorjoin"] == "join") {
+    $joinproject = 1;
+}
 
 #
 # These fields are required
@@ -400,7 +400,7 @@ elseif ($joinproject) {
 	TBERROR("Could not add new user to project group $pid", 1);
     }
     $group->NewMemberNotify($this_user);
-    header("Location: instantiate.php");
+    header("Location: signup.php?finished=1");
     return;
 }
 
