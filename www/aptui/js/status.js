@@ -149,9 +149,7 @@ function (_, sup, moment, ShowImagingModal,
 	    popover_timer = setTimeout(function() {
 		$('button#clone_button').popover({
 		    html:     true,
-		    content:  cloneHelpString +
-			'<span id=clone_popover_close class=close>' +
-			'&times;</span>',
+		    content:  cloneHelpString,
 		    trigger:  'manual',
 		    placement:'left',
 		    container:'body',
@@ -171,9 +169,7 @@ function (_, sup, moment, ShowImagingModal,
 	    popover_timer = setTimeout(function() {
 		$('button#snapshot_button').popover({
 		    html:     true,
-		    content:  snapshotHelpString +
-			'<span id=snapshot_popover_close class=close>' +
-			'&times;</span>',
+		    content:  snapshotHelpString,
 		    trigger:  'manual',
 		    placement:'left',
 		    container:'body',
@@ -285,7 +281,7 @@ function (_, sup, moment, ShowImagingModal,
 	if (status != StatusWatchCallBack.laststatus) {
 	    status_html = status;
 
-	    var bgtype = "panel_info";
+	    var bgtype = "panel-info";
 	    status_message = "Please wait while we get your experiment ready";
 	    
 	    if (status == 'provisioned') {
@@ -757,17 +753,23 @@ function (_, sup, moment, ShowImagingModal,
 
 	    $("#showtopo_container").removeClass("invisible");
 	    $('#quicktabs a[href="#profile"]').tab('show');
-	    sup.maketopmap('#showtopo_statuspage', json.value, function(ssh, clientId) {
-		NewSSHTab(hostportList[clientId], clientId);
+	    sup.maketopmap('#showtopo_statuspage', json.value,
+			   function(ssh, clientId) {
+			       NewSSHTab(hostportList[clientId], clientId);
 	    });
 
-	    // If a single node, show the clone button. Only
-	    // single node experiments can do this.
+	    /*
+	     * If a single node, show the clone button and maybe the
+	     * the snapshot; the user must own the profile it was
+	     * created from in order to do a snapshot. 
+	     */
 	    if (nodecount == 1) {
 		$("#clone_button").removeClass("hidden");
 		EnableButton("clone");
-		$("#snapshot_button").removeClass("hidden");
-		EnableButton("snapshot");
+		if (window.APT_OPTIONS.cansnap) {
+		    $("#snapshot_button").removeClass("hidden");
+		    EnableButton("snapshot");
+		}
 	    }
 
 	    // And start up ssh for single node topologies.
