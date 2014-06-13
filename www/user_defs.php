@@ -285,6 +285,7 @@ class User
 	return (is_null($this->user) ? -1 : $this->user[$name]);
     }
     function uid_idx()		{ return $this->field("uid_idx"); }
+    function idx()		{ return $this->field("uid_idx"); }
     function uid()		{ return $this->field("uid"); }
     function webid()		{ return $this->field("uid_idx"); }
     function dbid()		{ return $this->field("uid_idx"); }
