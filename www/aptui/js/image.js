@@ -82,7 +82,8 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 			$('#tracker-finishing').addClass('progtrckr-done');
 			$('#tracker-ready').removeClass('progtrckr-todo');
 			$('#tracker-ready').addClass('progtrckr-done');
-			$('#imaging-spinner').addClass("invisible");
+			$('#imaging-spinner').addClass("hidden");
+			$('#imaging-close').removeClass("hidden");
 			completion_callback(0);
 			return;
 		    }
@@ -95,6 +96,7 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 			$('#tracker-ready').addClass('progtrckr-done');
 			$('#tracker-ready').html("Failed");
 			$('#imaging-spinner').addClass("invisible");
+			$('#imaging-close').removeClass("hidden");
 			completion_callback(1);
 			return;
 		    }
@@ -104,7 +106,8 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 		// ready or failed above. 
 		//
 		if (_.has(value, "exited")) {
-		    $('#imaging-spinner').addClass("invisible");
+		    $('#imaging-spinner').addClass("hidden");
+		    $('#imaging-close').removeClass("hidden");
 		    completion_callback(0);
 		    return;
 		}
