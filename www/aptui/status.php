@@ -113,6 +113,10 @@ $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
 $slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
 $registered      = (isset($this_user) ? "true" : "false");
 $profile_public  = ($profile->ispublic() ? "true" : "false");
+$cansnap         = ((isset($this_user) &&
+		     $this_user->idx() == $creator->idx() &&
+		     $this_user->idx() == $profile->creator_idx()) ||
+		    ISADMIN() ? 1 : 0);
 $snapping        = 0;
 
 #
@@ -148,6 +152,7 @@ echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "  window.APT_OPTIONS.registered = $registered;\n";
+echo "  window.APT_OPTIONS.cansnap = $cansnap;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 echo "</script>\n";
