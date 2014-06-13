@@ -1159,7 +1159,7 @@ class User
 	    $trust_clause = "trust!='$trust_none'";
 	}
 	elseif ($access_type == $TB_PROJECT_MAKEGROUP) {
-	    $trust_clause = "trust='$trust_project'";
+	    $trust_clause = "trust='$trust_group'";
 	}
 	elseif ($access_type == $TB_PROJECT_CREATEEXPT) {
 	    $trust_clause =
