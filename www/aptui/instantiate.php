@@ -424,7 +424,7 @@ else {
     $geniuser = GeniUser::LookupByEmail("sa", $formfields["email"]);
     if ($geniuser) {
 	if ($geniuser->name() != $formfields["username"]) {    
-            $errors["email"] = "Already in use - if you have an Emulab account, log in first";
+            $errors["email"] = "Already in use by another guest user";
 	    unset($geniuser);
 	}
     }
