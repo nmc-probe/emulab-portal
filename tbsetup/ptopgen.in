@@ -2231,7 +2231,7 @@ sub print_header {
 		
 		$result = DBQueryFatal("select IP from virt_node_public_addr ".
 				       "where node_id is null");
-		my $available = $configured - $result->rows;
+		my $available = $result->rows;
 		
 		print "<rspec_routable_addresses xmlns=\"" . $emulabns . "\" " .
 		    "configured='$configured' available='$available' />\n";
