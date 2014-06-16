@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,6 +29,9 @@ include("defs.php3");
 $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
+
+# This will not return if its a sajax request.
+include("showlogfile_sup.php3");
 
 #
 # Verify page arguments.
@@ -114,18 +117,12 @@ if (!isset($confirmed)) {
 # We run a wrapper script that does all the work.
 #
 if ($clear) {
-    STARTBUSY("Clearing the panic button");
-}
-else {
-    STARTBUSY("Pressing the panic button");
-}
-if ($clear) {
     $opt = "-r";
 }
 else {
     $opt = "-l $level";
 }
-$retval = SUEXEC($uid, "$unix_pid,$unix_gid", "webpanic $opt $pid $eid",
+$retval = SUEXEC($uid, "$unix_pid,$unix_gid", "webpanic -w $opt $pid $eid",
 		 SUEXEC_ACTION_IGNORE);
 
 #
@@ -139,25 +136,23 @@ if ($retval < 0) {
     #
     die("");
 }
-STOPBUSY();
 
 #
 # Exit status >0 means the operation could not proceed.
 # Exit status =0 means the experiment is terminating in the background.
 #
-echo "<br>\n";
 if ($retval) {
     echo "<h3>Panic Button failure</h3>";
     echo "<blockquote><pre>$suexec_output<pre></blockquote>";
 }
 else {
     if ($clear) {
-	echo "<h3>The panic situation has been cleared!</h3><br>\n";
+	echo "<h3>Clearing the panic button!</h3>\n";
     }
     else {
-	echo "<h3>The panic button has been pressed!</h3><br>
-                You will need to contact testbed operations to continue.\n";
+	echo "<h3>Pressing the panic button!</h3>\n";
     }
+    STARTLOG($experiment);
 }
 
 #

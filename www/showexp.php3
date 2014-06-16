@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -581,10 +581,11 @@ if ($isadmin) {
 	    WRITESUBMENUBUTTON("Panic Mode (level 1)",
 			       CreateURL("panicbutton", $experiment,
 					 "level", 1));
-	    WRITESUBMENUBUTTON("Panic Mode (level 2)",
-			       CreateURL("panicbutton", $experiment,
-					 "level", 2));
-
+	    if (! $geniflags) {
+		WRITESUBMENUBUTTON("Panic Mode (level 2)",
+				   CreateURL("panicbutton", $experiment,
+					     "level", 2));
+	    }
 	    WRITESUBMENUBUTTON("Force Swap Out (Idle-Swap)",
 			       CreateURL("swapexp", $experiment,
 					 "inout", "out", "force", 1));

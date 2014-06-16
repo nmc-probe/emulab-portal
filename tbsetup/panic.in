@@ -38,13 +38,15 @@ sub usage()
 	  "-l level - Level 1; reboot nodes into the admin MFS\n".
 	  "         - Level 2; disable the control network\n".
 	  "-r       - Reset panic state (admin people only)\n".
+	  "-w       - From web interface, create a log file.\n".
 	  "<pid>    - The project the experiment belongs to\n".
 	  "<eid>    - The experiment name (id)\n");
     exit(-1);
 }
-my $optlist = "rl:";
+my $optlist = "rl:w";
 my $reset   = 0;
 my $level   = 1;
+my $dolog   = 0;
 
 sub fatal($);
 sub DoIt();
@@ -78,6 +80,7 @@ sub ExitWithStatus($$)
 #
 my $TB     = "@prefix@";
 my $TBOPS  = "@TBOPSEMAIL@";
+my $snmpit = "$TB/bin/snmpit";
 
 #
 # Testbed Support libraries
@@ -88,8 +91,11 @@ use libtestbed;
 use Firewall;
 use Experiment;
 use User;
+use Logfile;
+use libaudit;
 
-my $snmpit    = "$TB/bin/snmpit";
+# Locals
+my $logfile;
     
 #
 # Untaint the path
@@ -115,6 +121,9 @@ if (@ARGV != 2) {
 }
 if (defined($options{"r"})) {
     $reset = 1;
+}
+if (defined($options{"w"})) {
+    $dolog = 1;
 }
 if (defined($options{"l"})) {
     $level = 1;
@@ -197,6 +206,26 @@ if ($experiment->IsFirewalled()) {
 }
 
 #
+# Coming from the web, use a logfile for spewing.
+#
+if ($dolog) {
+    $logfile = $experiment->CreateLogFile("panic");
+    if (defined($logfile)) {
+	# We want it to spew to the web.
+	$experiment->SetLogFile($logfile);
+	# Mark it open since we are going to start using it right away.
+	$logfile->Open();
+
+        # Use libaudit to handle the logging and demonizing.
+	my $childpid = LogStart(1, $logfile->filename(),
+				LIBAUDIT_NODELETE()|LIBAUDIT_LOGTBOPS());
+	if ($childpid) {
+	    exit(0);
+	}
+    }
+}
+
+#
 # XXX - At this point a failure is going to leave things in an
 # inconsistent state.
 #
@@ -219,6 +248,11 @@ SENDMAIL("$user_name <$user_email>",
 	 "$user_name <$user_email>",
 	 "Cc:  $swapper_name <$swapper_email>\n".
 	 "Bcc: $TBOPS");
+
+if (defined($logfile)) {
+    # Close up the log file so the webpage stops.
+    $experiment->CloseLogFile();
+}
 exit(0);
 
 sub fatal($)
