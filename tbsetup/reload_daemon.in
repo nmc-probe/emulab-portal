@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -60,10 +60,13 @@ $ENV{'TBLOG_OFF'} = "yep";
 # Testbed Support library
 use lib "@prefix@/lib";
 use libdb;
+use libosload;
 use libtestbed;
 use Experiment;
 use Node;
 use NodeType;
+use EmulabFeatures;
+use User;
 
 #
 # These come from the library.
@@ -76,11 +79,12 @@ my $RPPENDINGEID= NODEREPOSPENDING_EID;
 my $NODEDEAD_PID= NODEDEAD_PID;
 my $NODEDEAD_EID= NODEDEAD_EID;
 
+sub myosload($$$$);
+sub logit($);
 sub fatal($);
 sub notify($);
 sub freefromreloading($);
 		      
-my $os_load	= "$TB/bin/os_load -s -R";
 my $sched_reload= "$TB/sbin/sched_reload";
 my $reboot	= "$TB/bin/node_reboot";
 my $tbrsync     = "$TB/bin/tbrsync";
@@ -164,7 +168,7 @@ sub handler()
 $SIG{HUP} = \&handler
     if (!$debug);
 
-print "Reload Daemon starting... pid $$, at ".`date`;
+logit("Reload Daemon starting... pid $$");
 
 # We use this a lot.
 my $reloading_experiment = Experiment->Lookup($RELOADPID, $RELOADEID);
@@ -239,18 +243,18 @@ while (1) {
 		    " $tag_query");
 
     if (! $query_result) {
-	print "DB Error. Waiting a bit.\n";
+	logit("DB Error. Waiting a bit.");
 	next;
     }
 
     while (($node, $mustwipe) = $query_result->fetchrow) {
 	$idle=0;
 	#
-	# If this was a node that failed os_load, then instead of rebooting,
-	# send it back through os_load.
+	# If this was a node that failed osload, then instead of rebooting,
+	# send it back through osload.
 	# 
 	if ($failed{$node}) {
-	    print "$node failed an earlier os_load. Trying again\n";
+	    logit("$node failed an earlier osload. Trying again.");
 	    push(@retry_list, [$node, $mustwipe]);
 	    delete $failed{$node};
 	    # Skip any reboots. 
@@ -258,8 +262,8 @@ while (1) {
 	    next;
 	}
 	if (!$retried{$node}) {
-	    print "\nReload appears wedged at ".`date`.
-		"Power cycling and trying once more!\n";
+	    logit("\nReload appears wedged. ".
+		  "Power cycling and trying once more!");
 		
 	    if (system("$reboot -f $node")) {
 		notify("$node was wedged, but could not be rebooted.\n".
@@ -306,7 +310,7 @@ while (1) {
 		    " $tag_query");
     
     if (! $query_result) {
-	print "DB Error. Waiting a bit.\n";
+	logit("DB Error. Waiting a bit.");
 	next;
     }
 
@@ -357,7 +361,7 @@ while (1) {
 		    "order by a.node_id");
 
     if (! $query_result) {
-	print "DB Error. Waiting a bit.\n";
+	logit("DB Error. Waiting a bit.");
 	next;
     }
     $count = $query_result->numrows;
@@ -382,7 +386,7 @@ while (1) {
 	# If any non-imageable nodes made it this far, just free them now
 	#
 	if (!$imageable) {
-	    print "Skipping non-imageable node $node\n";
+	    logit("Skipping non-imageable node $node.");
 	    freefromreloading($node);
 	    next;
 	}
@@ -397,7 +401,8 @@ while (1) {
 	next;
     }
 
-    print "Trying to reload $nodes at ".`date`;
+    logit("Trying to reload $nodes.");
+    $nodes = "";
 
     #
     # What we do depends on whether its a free node or a node reserved
@@ -455,7 +460,7 @@ while (1) {
 	#
 	# The node is reserved into the special pid/eid, as the result
 	# of a sched_reload while it was still allocated to an experiment.
-	# We change the reservation EID over and fire up an os_load
+	# We change the reservation EID over and fire up an osload
 	# directly.
 	#
 	foreach $ref (@pending_list) {
@@ -472,56 +477,49 @@ while (1) {
 	# It is now safe to clear this.
 	@retry_list = ();
 
-	# Now run an os_load for each image
-	
+	#
+	# Now run an OS load for each image.
+	# We invoke libosload directly rather than calling os_load,
+	# not so much for efficiency but because it gives us more
+	# precise knowledge about failures.
+	#
 	foreach my $idid (keys %imagenodes) {
 
-	    my $nodelist = join(" ",@{$imagenodes{$idid}});
-	    my $os_load_flags = "";
+	    my @nodelist = @{$imagenodes{$idid}};
+	    my $nodestr = join(' ', @nodelist);
 
 	    ($imageid, $mustzero) = split("/", $idid);
 
-	    #
-	    # We only add the -m flag to os_load if we found a specific image
-	    # above. Omitting it causes os_load to pick the default image for
-	    # the node's type
-	    #
-	    if ($imageid) {
-		$os_load_flags .= " -m $imageid";
-	    }
+	    logit("Invoking osload on $nodestr.");
 
-	    #
-	    # Handle optional zeroing of the disk
-	    #
-	    if ($mustzero) {
-		$os_load_flags .= " -z $mustzero";
-	    }
-
-	    print "Running '$os_load $os_load_flags $nodelist' at ".`date`;
-
-	    if (system("$os_load $os_load_flags $nodelist")) {
-		#
-		# This should not fail, but it does when the DB gets busy.
-		#
-		notify("$os_load $os_load_flags failed on $nodelist. ".
+	    my @failedload = ();
+	    if (myosload($imageid, $mustzero, \@nodelist, \@failedload)) {
+		$nodestr = join(' ', @failedload);
+		notify("OS load failed on $nodestr. ".
 		       "That is not supposed to happen.\n".
 		       "Attempting to recover from this unfortunate ".
 		       "situation!\n");
 
 		# Record the failure list. If we get to the 15 minute
-		# retry, call os_load again instead of rebooting.
-		foreach my $node (@{$imagenodes{$idid}}) {
+		# retry, call osload again instead of rebooting.
+		foreach my $node (@failedload) {
 		    $failed{$node} = $time;		    
+		}
+		foreach my $node (@nodelist) {
+		    if (!$failed{$node}) {
+			$nodes .= "$node ";
+		    }
 		}
 	    }
 	    else {
-		print "os_load done at ".`date`;
+		$nodes .= "$nodestr ";
+		logit("osload done.");
 	    }
 	}
     }
 	
     if (@other_list > 0 ) {
-	my $nodes = join(" ", map { $_->[0] } @other_list);
+	my $nodestr = join(" ", map { $_->[0] } @other_list);
 
 	#
 	# Call sched_reload with the "force" option, which says that if
@@ -533,27 +531,85 @@ while (1) {
 	# default, and sched_reload will pick that up from the database
 	# in the absence of a -i option. 
 	#
-	if (system("$sched_reload -f $nodes")) {
+	logit("Invoking sched_reload on $nodestr.");
+	if (system("$sched_reload -f $nodestr")) {
 	    #
 	    # Could not get it. Wait and go around again.
 	    #
-	    print "$sched_reload failed on $nodes. Waiting a bit.\n";
+	    logit("$sched_reload failed on $nodestr. Waiting a bit.");
 	    next;
 	}
-
+	$nodes .= "$nodestr ";
     }
-    $stamp = DBDateTime();
-	
-    print "Reload of $nodes has started at $stamp.\n";
+
+    logit("Reload of $nodes has started.");
 
     #
     # For Frisbee reloads, we don't wait for the node to finish reloading,
     # since the whole point is to let many nodes load at once.
     #
-    print "Not waiting for frisbee reload of $nodes.\n";
+    logit("Not waiting for frisbee reload of $nodes.");
     next;
 }
 
+sub myosload($$$$)
+{
+    my ($imageid, $mustzero, $nlist, $failedp) = @_;
+
+    my %osloadargs  = ();
+    my %nodestatus = ();
+    my $failed = 0;
+
+    $osloadargs{'waitmode'} = 0;
+    $osloadargs{'zerofree'} = $mustzero;
+    # XXX we don't set prepare?
+    #$osloadargs{'prepare'}  = 1;
+    $osloadargs{'nodelist'} = [ @{$nlist} ];
+    # No imageid means to load the default image.
+    $osloadargs{'imageids'} = [ $imageid ]
+	if ($imageid);
+
+    # XXX replicate what os_load does
+    my $oquerymax = $libdb::DBQUERY_MAXTRIES;
+    $libdb::DBQUERY_MAXTRIES = 30;
+
+    my $user = User->ThisUser();
+    my $experiment = $reloading_experiment;
+    my $group = $experiment->GetGroup();
+    if (EmulabFeatures->FeatureEnabled("NewOsload",$user,$group,$experiment)) {
+	require libosload_new;
+
+	my $loadobj = libosload_new->New();
+	$loadobj->debug($debug);
+	#
+	# XXX basically, tell devices that might be reconfig'd via push
+	# from us (like switches) that a reconfig should follow the reload!
+	#
+	$osloadargs{'reconfig'} = 1;
+
+	# add a few more things for feature checks down the line:
+	$osloadargs{'user'} = $user;
+	$osloadargs{'experiment'} = $experiment;
+	$osloadargs{'group'} = $group;
+	$failed = $loadobj->osload(\%osloadargs, \%nodestatus);
+    } else {
+	$failed = osload(\%osloadargs, \%nodestatus);
+    }
+
+    if ($failed) {
+	my @list = ();
+	foreach my $node (keys %nodestatus) {
+	    if ($nodestatus{$node}) {
+		push @list, $node;
+	    }
+	}
+	@{$failedp} = @list;
+    }
+
+    $libdb::DBQUERY_MAXTRIES = $oquerymax;
+
+    return $failed;
+}
 
 #
 # free up the node and clear any assocaited reload DB state.
@@ -589,9 +645,8 @@ sub freefromreloading($) {
 		return;
 	    }
 	    if ($node->MoveReservation($target_experiment) == 0) {
-		print "Reposition pending nodes moved to $RPPENDINGEID at ".
-		    `date`;
-		
+		logit("Reposition pending nodes moved to $RPPENDINGEID.");
+
 		$node->SetNodeHistory(TB_NODEHISTORY_OP_MOVE, undef,
 				      $target_experiment);
 	    }
@@ -601,6 +656,14 @@ sub freefromreloading($) {
 	    $node->SetNodeHistory(TB_NODEHISTORY_OP_FREE, undef, $experiment);
 	}
     }
+}
+
+sub logit($)
+{
+    my ($msg) = @_;
+    my $stamp = localtime();
+
+    print "$stamp: $msg\n";
 }
 
 sub fatal($)
@@ -615,7 +678,8 @@ sub fatal($)
 sub notify($)
 {
     my($mesg) = $_[0];
+    my $stamp = localtime();
 
-    print "$mesg\n";
+    print "$stamp: $mesg\n";
     SENDMAIL($TBOPS, "Reload Daemon Message", $mesg, $TBOPS);
 }
