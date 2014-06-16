@@ -76,6 +76,7 @@ my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $TBLOGS        = "@TBLOGSEMAIL@";
 my $OURDOMAIN     = "@OURDOMAIN@";
+my $MAINSITE      = @TBMAINSITE@;
 my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
 my $SACERT	  = "$TB/etc/genisa.pem";
 my $CMCERT	  = "$TB/etc/genicm.pem";
@@ -223,6 +224,7 @@ my $sa_authority = GeniAuthority->Lookup($sa_certificate->urn());
 if (!defined($sa_authority)) {
     fatal("Could not load SA authority object");
 }
+my $speaker_signer = $GeniCredential::LOCALSA_FLAG;
 
 #
 # We want to contact our local CM to create the sliver.
@@ -360,9 +362,20 @@ chomp($sshkey)
 #
 my $geniuser = GeniUser->Lookup($user_urn, $localuser);
 if (!defined($geniuser)) {
+    #
+    # In Utah, check for alternate SA
+    #
+    if ($MAINSITE) {
+	$user_urn = GeniHRN::Generate("aptlab.net", "user", $user_uid);
+	$user_hrn = "aptlab.${user_uid}";
+    }
+    $geniuser = GeniUser->Lookup($user_urn, 0);
+}
+if (!defined($geniuser)) {
     if ($localuser) {
 	fatal("Could not lookup local user $user_urn");
     }
+    
     #
     # Do not allow overlap with local users.
     #
@@ -380,11 +393,14 @@ if (!defined($geniuser)) {
     if ($auth_token !~ /^[\w]+$/) {
 	fatal("Bad auth token: $auth_token");
     }
-
-    my $certificate = GeniCertificate->Create({"urn"   => $user_urn,
-					       "hrn"   => $user_hrn,
-					       "email" => $user_email,
-					       "showuuid" => 1});
+    my $blob = {"urn"      => $user_urn,
+		"hrn"      => $user_hrn,
+		"email"    => $user_email,
+		"showuuid" => 1};
+    if ($MAINSITE) {
+	$blob->{'useaptca'} = 1;
+    }
+    my $certificate = GeniCertificate->Create($blob);
     fatal("Could not create certificate")
 	if (!defined($certificate));
 
@@ -404,6 +420,17 @@ if (!defined($geniuser)) {
 my $user_uuid = $geniuser->uuid();
 # So we know this user has dome something lately.
 $geniuser->BumpActivity();
+# We get the -l flag on initial create only.
+$localuser = ($geniuser->IsLocal() ? 1 : 0);
+
+#
+# Guest users use the apt CA, and so we must sign the speaksfor
+# credential with the APT SA as well so that the target of the
+# speaksfor credential is in the same namespace as the signer.
+#
+if (!$localuser && $MAINSITE) {
+    $speaker_signer = "/usr/testbed/etc/utah-apt.sa";
+}
 
 # Remember key. For now we accept only one key. We store it simply
 # so we can display it again for the user in the web interface.
@@ -495,7 +522,7 @@ fatal("Could not create speaksfor credential")
     if (!defined($speaksfor_credential));
 $speaksfor_credential->SetType("speaksfor");
 fatal("Could not sign speaksfor credential")
-    if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
+    if ($speaksfor_credential->Sign($speaker_signer));
 
 #
 # Got this far, lets create a quickvm record.
@@ -691,12 +718,13 @@ sub Terminate($)
     if (!defined($slice_credential)) {
 	fatal("Could not create credential for $slice");
     }
-    my $speaksfor_credential = GeniCredential->Create($geniuser, $sa_authority);
+    my $speaksfor_credential = GeniCredential->Create($geniuser,
+						      $sa_authority);
     fatal("Could not create speaksfor credential")
 	if (!defined($speaksfor_credential));
     $speaksfor_credential->SetType("speaksfor");
     fatal("Could not sign speaksfor credential")
-	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
+	if ($speaksfor_credential->Sign($speaker_signer));
 
     #
     # Lock the slice in case it is doing something else, like taking
@@ -817,12 +845,13 @@ sub Extend($$)
     if (!defined($slice_credential)) {
 	fatal("Could not create credential for $slice");
     }
-    my $speaksfor_credential = GeniCredential->Create($geniuser, $sa_authority);
+    my $speaksfor_credential = GeniCredential->Create($geniuser,
+						      $sa_authority);
     fatal("Could not create speaksfor credential")
 	if (!defined($speaksfor_credential));
     $speaksfor_credential->SetType("speaksfor");
     fatal("Could not sign speaksfor credential")
-	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
+	if ($speaksfor_credential->Sign($speaker_signer));
 
     my $response =
 	Genixmlrpc::CallMethod($cm_authority->url(), undef,
@@ -891,12 +920,13 @@ sub SnapShot($$$)
     if (!defined($slice_credential)) {
 	fatal("Could not create credential for $slice");
     }
-    my $speaksfor_credential = GeniCredential->Create($geniuser, $sa_authority);
+    my $speaksfor_credential = GeniCredential->Create($geniuser,
+						      $sa_authority);
     fatal("Could not create speaksfor credential")
 	if (!defined($speaksfor_credential));
     $speaksfor_credential->SetType("speaksfor");
     fatal("Could not sign speaksfor credential")
-	if ($speaksfor_credential->Sign($GeniCredential::LOCALSA_FLAG));
+	if ($speaksfor_credential->Sign($speaker_signer));
 
     #
     # We do this with slice locked.

@@ -57,6 +57,7 @@ my $TBAPPROVAL     = "@TBAPPROVALEMAIL@";
 my $TBAUDIT   	   = "@TBAUDITEMAIL@";
 my $BOSSNODE       = "@BOSSNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
+my $MAINSITE 	   = @TBMAINSITE@;
 my $SIGNCRED	   = "$TB/sbin/signgenicred";
 my $VERIFYCRED	   = "$TB/sbin/verifygenicred";
 my $NFREE	   = "$TB/bin/nfree";
@@ -209,8 +210,18 @@ sub Create($$;$)
     my ($authority, $type, $name) = GeniHRN::Parse($urn);
     my $caflag = $type eq "authority" ? "" : "-n";
     my $showuuidflag = $showuuid ? " -U " : "";
-    if (! open(CERT, "$MKCERT $caflag -i \"$urn\" $url -e \"$email\" $hrn " .
-	       "$showuuidflag$uuid |")) {
+    # Utah Specific.
+    my $altcaopt = "";
+    if ($MAINSITE) {
+	if (exists($argref->{'useaptca'})) {
+	    $altcaopt = "-d -a /usr/testbed/etc/utah-apt.ca";
+	}
+    }
+    my $cmd = "$MKCERT $altcaopt $caflag ".
+	"-i \"$urn\" $url -e \"$email\" $hrn $showuuidflag$uuid";
+    print STDERR "$cmd\n";
+    
+    if (! open(CERT, "$cmd |")) {
 	print STDERR "Could not start $MKCERT\n";
 	return undef;
     }
