@@ -39,6 +39,7 @@ my $TB	      = "@prefix@";
 my $TBOPS     = "@TBOPSEMAIL@";
 my $POWER     = "$TB/bin/power";
 my $SNMPIT    = "$TB/bin/snmpit";
+my $VNODESETUP= "$TB/sbin/vnode_setup";
 
 # Flags.
 sub FWSETUP()		{ return 1; }
@@ -608,6 +609,7 @@ sub Panic($$$)
     }
     my @nodes = ();
     $experiment->LocalNodeListNames(\@nodes, 1);
+    my @vnodes = $experiment->VirtNodeList(1);
 	
     if ($which == PANIC_ZAP()) {
 	$level = $experiment->paniced();
@@ -692,6 +694,15 @@ sub Panic($$$)
 	if ($level == 1) {
 	    goto nonodes
 		if (!@nodes);
+
+	    #
+	    # Do the VMs. We continue if we get errors, want to do
+	    # as much as possible.
+	    #
+	    if (@vnodes) {
+		print "Restarting all containers ...\n";
+		system("$VNODESETUP -d -f -j $pid $eid");
+	    }
 	    
 	    #
 	    # Turn admin mode back off and reboot back to the old OS
@@ -732,9 +743,18 @@ sub Panic($$$)
     elsif ($which == PANIC_PANIC()) {
 	if ($level == 1) {
 	    #
+	    # Do the VMs. We continue if we get errors, want to do
+	    # as much as possible.
+	    #
+	    if (@vnodes) {
+		print "Halting all containers ...\n";
+		system("$VNODESETUP -d -f -h $pid $eid");
+	    }
+	    
+	    #
 	    # Boot into the admin MFS
 	    #
-	    print "Booting all nodes into admin mode and waiting ...\n";
+	    print "Booting all phys nodes into admin mode and waiting ...\n";
 	    
 	    my %myargs;
 	    $myargs{'name'} = "$0";

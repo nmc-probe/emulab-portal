@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2013 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2754,6 +2754,53 @@ sub NodeList($;$$)
     while (my ($nodeid,$isvirt) = $query_result->fetchrow_array()) {
 	next
 	    if ($isvirt && !$includevirtual);
+	push(@nodenames, $nodeid);
+    }
+    return @nodenames
+	if ($namesonly);
+
+    my @nodes = ();
+
+    foreach my $nodeid (@nodenames) {
+	my $node = Node->Lookup($nodeid);
+	if (!defined($node)) {
+	    print STDERR "*** Could not map $nodeid to its object\n";
+	    return undef;
+	}
+	push(@nodes, $node);
+    }
+    return @nodes;
+}
+
+#
+# Return list of experiment nodes (objects or just names)
+#
+sub VirtNodeList($$)
+{
+    my ($self, $namesonly) = @_;
+    my @nodenames = ();
+
+    # Must be a real reference. 
+    return undef
+	if (! ref($self));
+    $namesonly = 0
+	if (!defined($namesonly));
+
+    my $pid = $self->pid();
+    my $eid = $self->eid();
+
+    my $query_result =
+	DBQueryWarn("select r.node_id,nt.isvirtnode from reserved as r ".
+		    "left join nodes as n on n.node_id=r.node_id ".
+		    "left join node_types as nt on nt.type=n.type ".
+		    "where r.pid='$pid' and r.eid='$eid' and ".
+		    "      nt.isvirtnode=1");
+    return undef
+	if (!$query_result);
+    return ()
+	if (!$query_result->numrows);
+
+    while (my ($nodeid) = $query_result->fetchrow_array()) {
 	push(@nodenames, $nodeid);
     }
     return @nodenames
