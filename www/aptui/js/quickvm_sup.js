@@ -68,7 +68,8 @@ function maketopmap(divname, xml, sshcallback)
 	    show: {
 		rspec: false,
 		tour: false,
-		version: false
+		version: false,
+		menu: false
 	    }
 	});
     }

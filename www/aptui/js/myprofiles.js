@@ -60,7 +60,9 @@ function (sup)
 		return;
 	    }
 	    sup.ShowModal("#quickvm_topomodal");
-	    sup.maketopmap('#showtopo_nopicker', json.value.rspec, null);
+	    $("#quickvm_topomodal").one("shown.bs.modal", function () {
+		sup.maketopmap('#showtopo_nopicker', json.value.rspec, null);
+	    });
 	};
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "myprofiles",

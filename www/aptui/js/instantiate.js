@@ -22,7 +22,7 @@ function (_, sup)
 	    });
 	    $('#verify_modal').modal('show');
 	}
-        $('#quickvm_topomodal').on('hidden.bs.modal', function() {
+        $('#quickvm_topomodal').on('shown.bs.modal', function() {
             ShowProfileList($('.current'))
         });
 
@@ -41,14 +41,16 @@ function (_, sup)
 	$('button#showtopo_select').click(function (event) {
 	    event.preventDefault();
 	    UpdateProfileSelection($('.selected'));
+	    ShowProfileList($('.selected'));
 	    $('#quickvm_topomodal').modal('hide');
 	});
 	$('#instantiate_submit').click(function (event) {
 	    $("#waitwait").modal('show');
 	    return true;
 	});
-        UpdateProfileSelection($('#profile_name li[value = ' +
-				 window.PROFILE + ']'));
+	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
+        UpdateProfileSelection(startProfile);
+	ShowProfileList(startProfile, true);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
     }
 
@@ -69,10 +71,9 @@ function (_, sup)
 	    });
 	    $(selectedElement).addClass('current');
 	}
-	ShowProfileList(selectedElement);
     }
 
-    function ShowProfileList(selectedElement)
+    function ShowProfileList(selectedElement, justTitle)
     {
 	var profile = $(selectedElement).attr('value');
 
@@ -118,7 +119,9 @@ function (_, sup)
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
 
-	    sup.maketopmap('#showtopo_div', json.value.rspec, null);
+	    if (! justTitle) {
+		sup.maketopmap('#showtopo_div', json.value.rspec, null);
+	    }
 	}
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "instantiate", "GetProfile",
