@@ -4,6 +4,7 @@
 use strict;
 use libinstall;
 use installvars;
+use Cwd qw(realpath);
 
 sub Install($$$)
 {
@@ -40,7 +41,7 @@ sub Install($$$)
 		      PhaseFail("Directory $dir does not exist");
 		  }
 		  # Use the real path, to avoid symlink problems
-		  my $realdir = `realpath $dir`;
+		  my $realdir = realpath($dir);
 		  chomp $realdir;
 		  my ($mode,$group) = (stat($realdir))[2,5];
 		  # Fix up the mode (strip file type)

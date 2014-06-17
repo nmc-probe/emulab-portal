@@ -369,6 +369,7 @@ use lib '@srcdir@';
 use English;
 use libinstall;
 use Getopt::Std;
+use Cwd qw(realpath);
 
 #
 # Handle command-line options
@@ -799,7 +800,7 @@ Phase "patches", "Applying patches", sub {
     if ($FBSD_MAJOR < 8) {
 	Phase "Mysql.pm.patch", "Patching Mysql.pm", sub {
 	    my $patchfile = $MYSQL_PM_PATCH;
-	    $patchfile = `realpath $patchfile`;
+	    $patchfile = realpath($patchfile);
 	    chomp $patchfile;
 	    
 	    my $dir;
@@ -1291,7 +1292,7 @@ Phase "exports", "Setting up exports", sub {
 	else {
 	    @dirs = @EXPORTDIRS;
 	}
-	@dirs = map {`realpath $_`} @dirs;
+	@dirs = map {realpath($_)} @dirs;
 	chomp @dirs;
 	my %filesystems;
 	foreach my $dir (@dirs) {
@@ -1315,7 +1316,7 @@ Phase "exports", "Setting up exports", sub {
 	    # /share is special. We want to export to boss read-write,
 	    # but to the control network read-only.
 	    #
-	    my $realdir = `realpath $SHAREROOT`;
+	    my $realdir = realpath($SHAREROOT);
 	    chomp($realdir);
 	    push(@exports_lines,
 		 "$realdir\t$BOSSNODE -maproot=root");

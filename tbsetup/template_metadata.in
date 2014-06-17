@@ -24,6 +24,7 @@
 use English;
 use strict;
 use Getopt::Std;
+use Cwd qw(realpath);
 
 #
 # Add metadata to a template.
@@ -238,7 +239,7 @@ sub ParseArgs()
 	#
 	# Use realpath to resolve any symlinks.
 	#
-	my $translated = `realpath $inputfile`;
+	my $translated = realpath($inputfile);
 	if ($translated =~ /^([-\w\.\/]+)$/) {
 	    $inputfile = $1;
 	}

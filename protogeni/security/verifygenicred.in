@@ -34,6 +34,7 @@ use XML::LibXML;
 use Data::Dumper;
 use Date::Parse;
 use Time::Local;
+use Cwd qw(realpath);
 
 #
 # Verify a GENI credential.
@@ -148,7 +149,7 @@ else {
     fatal("Tainted filename: $xmlfile");
 }
 # Use realpath to resolve any symlinks.
-my $translated = `realpath $xmlfile`;
+my $translated = realpath($xmlfile);
 if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
     $xmlfile = $1;
 }

@@ -25,6 +25,7 @@ use strict;
 use English;
 use Getopt::Std;
 use POSIX qw(mktime);
+use Cwd qw(realpath);
 
 #
 # Spew a tar/rpm file to stdout. 
@@ -148,7 +149,7 @@ sub VerifyFile()
     # Use realpath to remove any symlinks to make sure we are not going
     # to hand out a file outside the appropriate files systems.
     #
-    my $translated = `realpath $file`;
+    my $translated = realpath($file);
     if ($translated =~ /^([-\@\w\.\/]+)$/) {
 	$translated = $1;
     }

@@ -31,6 +31,7 @@ use XML::Simple;
 use File::Find;
 use File::stat;
 use Data::Dumper;
+use Cwd qw(realpath);
 
 #
 # Start/Stop/Pause experiment runs ...
@@ -995,7 +996,7 @@ sub ParseArgs()
 	#
 	# Use realpath to resolve any symlinks.
 	#
-	my $translated = `realpath $inputfile`;
+	my $translated = realpath($inputfile);
 	if ($translated =~ /^([-\w\.\/]+)$/) {
 	    $inputfile = $1;
 	}

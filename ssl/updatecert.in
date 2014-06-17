@@ -30,6 +30,7 @@
 use strict;
 use English;
 use Getopt::Std;
+use Cwd qw(realpath);
 
 #
 # Update a certificate using the existing private key.
@@ -116,9 +117,9 @@ sub UpdateCert($$)
 {
     my ($certfile, $keyfile) = @_;
 
-    $keyfile = `realpath $keyfile`;
+    $keyfile = realpath($keyfile);
     chomp($keyfile);
-    $certfile = `realpath $certfile`;
+    $certfile = realpath($certfile);
     chomp($certfile);
 
     #

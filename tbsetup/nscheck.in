@@ -25,6 +25,7 @@
 
 use English;
 use Getopt::Std;
+use Cwd qw(realpath);
 
 #
 # Syntax check an NS file.
@@ -103,7 +104,7 @@ else {
 #
 # Use realpath to resolve any symlinks.
 #
-my $translated = `realpath $tempfile`;
+my $translated = realpath($tempfile);
 if ($translated =~ /^([-\w\.\/]+)$/) {
     $tempfile = $1;
 }

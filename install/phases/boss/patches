@@ -4,6 +4,7 @@
 use strict;
 use libinstall;
 use installvars;
+use Cwd qw(realpath);
 
 sub Install($$$)
 {
@@ -42,7 +43,7 @@ sub Install($$$)
 	if ($FBSD_MAJOR < 8) {
 	    Phase "Mysql.pm.patch", "Patching Mysql.pm", sub {
 		my $patchfile = $MYSQL_PM_PATCH;
-		$patchfile = `realpath $patchfile`;
+		$patchfile = realpath($patchfile);
 		chomp $patchfile;
 		
 		my $dir;

@@ -27,6 +27,7 @@ use English;
 use Getopt::Std;
 use POSIX qw(isatty setsid);
 use RPC::XML;
+use Cwd qw(realpath);
 
 #
 # This gets invoked from the Web interface.
@@ -286,7 +287,7 @@ if ($inout eq "modify" && @ARGV > 2) {
     #
     # Use realpath to resolve any symlinks.
     #
-    my $translated = `realpath $tempnsfile`;
+    my $translated = realpath($tempnsfile);
     if ($translated =~ /^([-\w\.\/]+)$/) {
 	$tempnsfile = $1;
     }
