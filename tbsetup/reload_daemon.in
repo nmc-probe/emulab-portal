@@ -542,14 +542,16 @@ while (1) {
 	$nodes .= "$nodestr ";
     }
 
-    logit("Reload of $nodes has started.");
-
-    #
-    # For Frisbee reloads, we don't wait for the node to finish reloading,
-    # since the whole point is to let many nodes load at once.
-    #
-    logit("Not waiting for frisbee reload of $nodes.");
-    next;
+    if ($nodes) {
+	logit("Reload of $nodes has started.");
+	#
+	# For Frisbee reloads, we don't wait for the node to finish reloading,
+	# since the whole point is to let many nodes load at once.
+	#
+	logit("Not waiting for frisbee reload of $nodes.");
+    } else {
+	logit("No nodes eligible for reload.");
+    }
 }
 
 sub myosload($$$$)
