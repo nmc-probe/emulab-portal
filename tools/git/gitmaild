@@ -313,6 +313,9 @@ sub call_gitlab_api($) {
     # Super simple, make the call
     my $request = HTTP::Request->new(GET => $url);
     my $ua = LWP::UserAgent->new;
+    # Hack to make this work even if one has a self-signed cert, a cert signed
+    # by a less well known authority, etc.
+    $ua->ssl_opts( verify_hostnames => 0 );
     my $response = $ua->request($request);
     if ($verbose) {
         print "\n" . "="x80 . "\n";
