@@ -59,6 +59,9 @@ my $BASEURL = "https://gitlab.flux.utah.edu/";
 # the gitlab API
 my $BASEPATH = "/home/git/repositories";
 
+# Path where logging info will be sent
+my $LOGFILE = "/home/git/gitmaild.log";
+
 # If set, send to members, not archivemail, by default - ie. act as if 
 # noarchive=1 was passed in the URL
 my $NOARCHIVE_DEFAULT = 0;
@@ -122,7 +125,7 @@ $SIG{CHLD}="IGNORE";
 if (!$debug) {
     chdir("/")                      || die "can't chdir to /: $!";
     open(STDIN,  "< /dev/null")     || die "can't read /dev/null: $!";
-    open(STDOUT, "> /dev/null")     || die "can't write to /dev/null: $!";
+    open(STDOUT, ">> $LOGFILE")      || die "can't write to $LOGFILE: $!";
     defined(my $pid = fork())       || die "can't fork: $!";
     exit if $pid;                   # non-zero now means I am the parent
     (setsid() != -1)                || die "Can't start a new session: $!";
