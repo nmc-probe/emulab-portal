@@ -158,7 +158,7 @@ sub AddInterfaces($$) {
 	$packets = $speed / 80;
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface SET " .
-			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/interface#', " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/port#', " .
 			     "id='${DOMAIN}_interface_$n:$i'," .
 			     "selfRef='$URL/info/interface/${DOMAIN}_interface_$n:$i'," .
 			     "urn='urn:publicid:IDN+$DOMAIN+interface+$n:$i'," .
