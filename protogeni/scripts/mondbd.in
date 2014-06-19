@@ -133,7 +133,7 @@ sub handler()
 }
 $SIG{HUP} = \&handler;
 
-sub AddInterfaces($$) {
+sub AddInterfaces($$$) {
 
     my ($n, $node, $ts) = @_;
     my @interfaces;
