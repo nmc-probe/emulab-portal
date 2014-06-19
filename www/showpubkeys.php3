@@ -235,9 +235,9 @@ function SPITFORM($formfields, $errors)
           </blockquote></blockquote></blockquote>\n";
 
     echo "<font color=red>NOTE:</font> We use the
-          <a href=www.openssh.org>OpenSSH</a> key format, which has a slightly
+          <a href=http://www.openssh.org/>OpenSSH</a> key format, which has a slightly
           different protocol 2 public key format than some of the commercial 
-          vendors such as <a href=www.ssh.com>SSH Communications</a>. If you
+          vendors such as <a href=http://www.ssh.com/>SSH Communications</a>. If you
           use one of these commercial vendors, then please upload the public
           key file and we will convert it for you.\n";
 }
