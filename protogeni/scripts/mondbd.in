@@ -101,9 +101,6 @@ use Interface;
 use Node;
 use OSinfo;
 
-my $ts = time() . "000000";
-my $expire = ( time() - 24 * 60 * 60 ) . "000000";
-
 # Connect to the monitoring DB.
 my $db = emdbi::NewTBDBHandle( "monitoring" );
 my $tbdb = emdbi::NewTBDBHandle( $DBNAME );
@@ -138,7 +135,7 @@ $SIG{HUP} = \&handler;
 
 sub AddInterfaces($$) {
 
-    my ($n, $node) = @_;
+    my ($n, $node, $ts) = @_;
     my @interfaces;
 
     Interface->LookupAll( $node, \@interfaces );
@@ -180,6 +177,9 @@ sub AddInterfaces($$) {
 my %portcounters;
 
 while (1) {
+    my $ts = time() . "000000";
+    my $expire = ( time() - 24 * 60 * 60 ) . "000000";
+
     # Add the local CM.
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate WHERE ts < $expire" );
     emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate SET " .
@@ -229,7 +229,7 @@ while (1) {
 			     "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
 			     "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
 
-	AddInterfaces( $n, $node );
+	AddInterfaces( $n, $node, $ts );
     }
 
     my @fakenodenames = ();
@@ -256,7 +256,7 @@ while (1) {
 				 "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
 				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
 	    
-	    AddInterfaces( $n, $node );
+	    AddInterfaces( $n, $node, $ts );
 	}
     }
 
