@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -109,7 +109,7 @@ my $query_result;
 if ($type eq "user") {
     $query_result =
 	GeniDB::DBQueryFatal("select uuid from geni_slices ".
-			     "where creator_token='$token'");
+			     "where creator_urn='$token'");
 }
 elsif ($type eq "sliver") {
     $query_result =
