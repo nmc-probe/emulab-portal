@@ -38,10 +38,12 @@ function (_, sup,
 	    if ($(this).val() == "join") {
 		$('#start_project_rollup').addClass("hidden");
 		$('#submit_button').text("Join Project");
+		$('#signup_panel_title').text("Join Project");
 	    }
 	    else {
 		$('#start_project_rollup').removeClass("hidden");
 		$('#submit_button').text("Start Project");
+		$('#signup_panel_title').text("Start Project");
 	    }
 	});
     }
