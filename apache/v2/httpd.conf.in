@@ -1811,7 +1811,7 @@ SSLCACertificateFile @prefix@/etc/genica.bundle
 # Another bundle of CRLs.
 SSLCARevocationFile @prefix@/etc/genicrl.bundle
 
-WSGIDaemonProcess localstore threads=5 python-eggs=/usr/local/ops-monitoring/local/eggs
+WSGIDaemonProcess localstore processes=5 threads=1 python-eggs=/usr/local/ops-monitoring/local/eggs 
 WSGIScriptAlias / /usr/local/ops-monitoring/local/wsgi/localstore.wsgi
 <Directory "/usr/local/ops-monitoring/local/wsgi">
 	WSGIProcessGroup localstore
