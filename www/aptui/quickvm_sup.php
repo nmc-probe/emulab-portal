@@ -161,7 +161,9 @@ function SPITHEADER($thinheader = 0)
     echo "   </ul>
              <ul class='nav navbar-nav navbar-left apt-left'>
                 <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
-                       href='instantiate.php'>Home</a></form></li>\n";
+                       href='instantiate.php'>Home</a></form></li>
+                <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
+                       href='http://docs.aptlab.net'>Manual</a></form></li>\n";
     if (!$disable_accounts) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left ".
 	    (!$login_user ? "hidden" : "") . "'>" .
