@@ -224,7 +224,7 @@ function (_, sup, moment, ShowImagingModal,
 	    status_collapsed = true;
 	    // Copy the current expiration over.
 	    var current_expiration = $("#instance_expiration").html();
-	    $('#status_message').html("Profile Expires: " +
+	    $('#status_message').html("Experiment expires: " +
 				      current_expiration);
 	});
 	$('#profile_status_collapse').on('show.bs.collapse', function () {
@@ -479,7 +479,7 @@ function (_, sup, moment, ShowImagingModal,
 		    // Save for when user "shows" the status panel.
 		    status_message = statustext;
 		    // And update the panel header with new expiration.
-		    $('#status_message').html("Profile Expires: " +
+		    $('#status_message').html("Experiment expires: " +
 			$("#instance_expiration").html());
 		}
 		else {
