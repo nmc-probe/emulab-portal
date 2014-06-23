@@ -36,7 +36,7 @@ use Getopt::Std;
 # 
 sub usage()
 {
-    print "Usage: maptoslice <urn> | <ip> | <mac>\n";
+    print "Usage: maptoslice <urn> | <ip> | <mac> | vlan\n";
     exit(1);
 }
 sub fatal($);
@@ -89,7 +89,11 @@ my ($type, $id);
 # Connect to the proper DB.
 DBSetDefault(DBConnect(GENICM_DBNAME()));
 
-if ($token =~ /^[\w]+$/) {
+if ($token =~ /^\d+$/ && $token <= 4096) {
+    $type = "vlan";
+    $id   = $token;
+}
+elsif ($token =~ /^[\w]+$/) {
     $type = "mac";
     $id   = $token;
 }
@@ -146,6 +150,27 @@ elsif ($type eq "ip" || $type eq "mac") {
     $query_result =
 	GeniDB::DBQueryFatal("select slice_uuid from geni_slivers ".
 			     "where resource_id='$nodeid'");
+}
+elsif ($type eq "vlan") {
+    $query_result =
+	emdb::DBQueryFatal("(select s.slice_uuid ".
+			   "  from reserved_vlantags as v ".
+			   " left join experiment_stats as s on ".
+			   "      s.exptidx=v.exptidx ".
+			   " where v.tag='$id' and s.slice_uuid is not null)".
+			   " union ".
+			   "(select s.slice_uuid ".
+			   "  from reserved_vlantags as v ".
+			   " left join lan_member_attributes as a on ".
+			   "      a.lanid=v.lanid and ".
+			   "      a.attrkey='portlan_exptidx' ".
+			   " left join experiments as e on ".
+			   "      e.idx=a.attrvalue ".
+			   " left join experiment_stats as s on ".
+			   "      s.exptidx=a.attrvalue ".
+			   " where v.tag='$id' and ".
+			   "       e.idx is not null and ".
+			   "       s.slice_uuid is not null)");
 }
 else {
     fatal("Do not know how to map token to a slice!");
