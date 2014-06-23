@@ -467,7 +467,7 @@ main(int argc, char **argv)
 	Machine = argv[0];
 	programargv = argv;
 
-	(void) snprintf(strbuf, sizeof(strbuf), PIDNAME, LOGPATH, argv[0]);
+	(void) snprintf(strbuf, sizeof(strbuf), PIDNAME, logpath, argv[0]);
 	Pidname = newstr(strbuf);
 	(void) snprintf(strbuf, sizeof(strbuf), LOGNAME, logpath, argv[0]);
 	Logname = newstr(strbuf);

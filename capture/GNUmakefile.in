@@ -42,13 +42,14 @@ client: capture capquery caplog caplog.bin
 include $(TESTBED_SRCDIR)/GNUmakerules
 
 DBFLAGS	+= -I/usr/local/include -I$(TESTBED_LIBSRCDIR)/libtb
+LOGPATH  = $(TBROOT)/log/tiplogs
 
 #
 # Define LOG_DROPS to record warnings in syslog whenever chars were dropped
 # due to the output device/pty being full.
 #
 CFLAGS += -Wall -g -O2 -DLOG_DROPS -I${OBJDIR} -DLOG_TESTBED=$(LOG_TESTBED)
-CFLAGS += -DLOGPATH=\"$(TBROOT)/log/tiplogs\" 
+CFLAGS += -DLOGPATH=\"$(LOGPATH)\" 
 LDFLAGS  += $(LDSTATIC)
 
 ifeq ($(SYSTEM),Linux)
