@@ -2590,6 +2590,9 @@ sub CreateVnodes($$$)
 	    $interface->Delete();
 	}
 	foreach my $vnodeid (@created) {
+	    DBQueryWarn("update virt_node_public_addr set ".
+			"  node_id=NULL,card='0',port='0' ".
+			"where node_id='$vnodeid'");
 	    DBQueryWarn("delete from reserved where node_id='$vnodeid'");
 	    DBQueryWarn("delete from nodes where node_id='$vnodeid'");
 	    DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
@@ -2620,13 +2623,13 @@ sub DeleteVnodes(@)
     
     foreach my $vnodeid (@vnodes) {
 	my $interface = Interface->LookupControl($vnodeid);
-	if( defined( $interface ) ) {
-	    my $addr = $interface->IP();
-	    DBQueryWarn( "UPDATE virt_node_public_addr SET node_id=NULL, " .
-			 "card='0', port='0' WHERE IP='$addr'" );
+	if (defined($interface)) {
 	    $interface->Delete();
 	}
-
+	DBQueryWarn("update virt_node_public_addr set ".
+		    "  node_id=NULL,card='0',port='0' ".
+		    "where node_id='$vnodeid'");
+	
 	DBQueryWarn("delete from node_bootlogs where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_hostkeys where node_id='$vnodeid'");
 	DBQueryWarn("delete from node_status where node_id='$vnodeid'");
