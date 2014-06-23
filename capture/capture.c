@@ -357,7 +357,7 @@ sslverify(SSL *ssl, char *requiredunit)
 int
 main(int argc, char **argv)
 {
-	char strbuf[MAXPATHLEN], *newstr();
+	char strbuf[MAXPATHLEN], *newstr(), *logpath = LOGPATH;
 	int op, i;
 	struct sigaction sa;
 	extern int optind;
@@ -371,7 +371,7 @@ main(int argc, char **argv)
 	else
 		Progname = *argv;
 
-	while ((op = getopt(argc, argv, "rds:Hb:ip:c:T:aonu:v:PmMLC")) != EOF)
+	while ((op = getopt(argc, argv, "rds:Hb:ip:c:T:aonu:v:PmMLCl:")) != EOF)
 		switch (op) {
 #ifdef	USESOCKETS
 #ifdef  WITHSSL
@@ -422,6 +422,9 @@ main(int argc, char **argv)
 		case 'n':
 			nologfile = 1;
 			break;
+		case 'l':
+			logpath = optarg;
+			break;
 		case 'L':
 			stamplast = 1;
 			break;
@@ -466,9 +469,9 @@ main(int argc, char **argv)
 
 	(void) snprintf(strbuf, sizeof(strbuf), PIDNAME, LOGPATH, argv[0]);
 	Pidname = newstr(strbuf);
-	(void) snprintf(strbuf, sizeof(strbuf), LOGNAME, LOGPATH, argv[0]);
+	(void) snprintf(strbuf, sizeof(strbuf), LOGNAME, logpath, argv[0]);
 	Logname = newstr(strbuf);
-	(void) snprintf(strbuf, sizeof(strbuf), RUNNAME, LOGPATH, argv[0]);
+	(void) snprintf(strbuf, sizeof(strbuf), RUNNAME, logpath, argv[0]);
 	Runname = newstr(strbuf);
 	(void) snprintf(strbuf, sizeof(strbuf), TTYNAME, TIPPATH, argv[0]);
 	Ttyname = newstr(strbuf);
