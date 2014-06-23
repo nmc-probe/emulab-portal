@@ -773,7 +773,7 @@ function (_, sup, moment, ShowImagingModal,
 	    }
 
 	    // And start up ssh for single node topologies.
-	    if (nodecount == 1 && nodehostport && 0) {
+	    if (nodecount == 1 && nodehostport) {
 		NewSSHTab(nodehostport, nodename);
 	    }
 	}
