@@ -19,6 +19,7 @@ use Getopt::Long;
 use JSON;
 use Cwd 'abs_path';
 use File::Basename;
+use Data::Dumper;
 use POSIX "setsid";
 
 use strict;
@@ -356,7 +357,8 @@ sub get_member_addresses($) {
     foreach my $member (@$memberinfo) {
         my $address = $member->{'email'};
         if ($verbose) {
-            print "Member: $address\n";
+            print "Member details: . " . Dumper($member) . "\n";
+            print "Member address: $address\n";
         }
         push @addresses, $address;
     }
