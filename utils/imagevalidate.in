@@ -83,7 +83,8 @@ my $IMAGEINFO	= "$TB/sbin/imageinfo";
 
 # Protos
 sub doimage($);
-sub makehashfile($$);
+sub makehashfile($$$);
+sub removehashfile($);
 sub fatal($);
 
 #
@@ -275,11 +276,16 @@ sub doimage($)
     }
     if (! -r "$path") {
 	print STDERR "$pidimage: path: image path '$path' cannot be read\n";
+	# if root and cannot read it, it doesn't exist so get rid of .sha1 file too
+	if ($UID == 0) {
+	    removehashfile($path);
+	}
 	return 1;
     }
     my $mtime = stat($path)->mtime;
     my $fsize = stat($path)->size;
-    if (!defined($mtime) || !defined($fsize)) {
+    my $fuid = stat($path)->uid;
+    if (!defined($mtime) || !defined($fsize) || !defined($fuid)) {
 	print STDERR "$pidimage: path: cannot stat '$path'\n";
 	return 1;
     }
@@ -304,7 +310,7 @@ sub doimage($)
 		return 1;
 	    }
 	}
-	makehashfile($path, $hash);
+	makehashfile($path, $hash, $fuid);
 	return 0;
     }
 
@@ -380,7 +386,7 @@ sub doimage($)
 		    print("$pidimage: hash: ")
 			if (!$quiet);
 		    if ($image->SetHash($filehash) == 0) {
-			makehashfile($path, $filehash);
+			makehashfile($path, $filehash, $fuid);
 			$changed = 1;
 			print "[FIXED]\n"
 			    if (!$quiet);
@@ -395,7 +401,7 @@ sub doimage($)
 	    } elsif ($filehash) {
 		# even if the DB is correct, make sure .sha1 file is correct
 		if ($update) {
-		    makehashfile($path, $filehash);
+		    makehashfile($path, $filehash, $fuid);
 		}
 	    }
 	}
@@ -502,9 +508,9 @@ sub partoffset($$)
     my ($part,$mbroff) = @_;
 }
 
-sub makehashfile($$)
+sub makehashfile($$$)
 {
-    my ($imagepath,$hash) = @_;
+    my ($imagepath,$hash,$fuid) = @_;
 
     my $hashfile;
     if ($imagepath =~ /(.*)\.ndz$/) {
@@ -518,7 +524,27 @@ sub makehashfile($$)
 	# XXX recreate the sha1 output format for compatibility
 	print HASH "SHA1 ($imagepath) = $hash\n";
 	close($hashfile);
+	if (defined($fuid)) {
+	    system("chown $fuid $hashfile");
+	}
 	system("touch -r $imagepath $hashfile");
+    }
+}
+
+sub removehashfile($)
+{
+    my ($imagepath) = @_;
+
+    my $hashfile;
+    if ($imagepath =~ /(.*)\.ndz$/) {
+	$hashfile = "$1.sha1";
+	if (-r "$hashfile") {
+	    unlink($hashfile);
+	}
+    }
+    $hashfile = "$imagepath.sha1";
+    if (-r "$hashfile") {
+	unlink($hashfile);
     }
 }
 
