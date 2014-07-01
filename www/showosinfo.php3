@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -66,13 +66,13 @@ else {
     WRITESUBMENUBUTTON("Delete this OS Descriptor",
 		       CreateURL("deleteosid", $osinfo));
 }
-WRITESUBMENUBUTTON("Create a new Image Descriptor",
-		   "newimageid_ez.php3");
 WRITESUBMENUBUTTON("Image Descriptor list",
 		   "showimageid_list.php3");
 if ($isadmin) {
     WRITESUBMENUBUTTON("OS Descriptor list",
 		       "showosid_list.php3");
+    WRITESUBMENUBUTTON("Create a new Image Descriptor",
+		       "newimageid_ez.php3");
     WRITESUBMENUBUTTON("Create a new OS Descriptor",
 		       "newosid.php3");
 }

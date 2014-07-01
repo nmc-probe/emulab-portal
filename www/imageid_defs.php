@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,12 +33,24 @@ class Image
     #
     # Constructor by lookup on unique ID
     #
-    function Image($id) {
+    function Image($id, $version = NULL) {
 	$safe_id = addslashes($id);
 
-	$query_result =
-	    DBQueryWarn("select * from images ".
-			"where imageid='$safe_id'");
+	if (is_null($version)) {
+	    $query_result =
+		DBQueryWarn("select i.*,v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid and v.version=i.version ".
+			    "where i.imageid='$safe_id'");
+	}
+	else {
+	    # This will get deleted images, but that is okay.
+	    $safe_version = addslashes($version);
+	    $query_result =
+	        DBQueryWarn("select v.* from image_versions as v ".
+			    "where v.imageid='$safe_id' and ".
+			    "      v.version='$safe_version'");
+	}
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->image = NULL;
@@ -71,8 +83,8 @@ class Image
     }
 
     # Lookup by imageid
-    function Lookup($id) {
-	$foo = new Image($id);
+    function Lookup($id,$version = NULL) {
+	$foo = new Image($id,$version);
 
 	if (! $foo->IsValid())
 	    return null;
@@ -118,9 +130,11 @@ class Image
 	    return -1;
 
 	$imageid = $this->imageid();
-
+	$version = $this->version();
+	
 	$query_result =
-	    DBQueryWarn("select * from images where imageid='$imageid'");
+	    DBQueryWarn("select * from image_versions ".
+			"where imageid='$imageid' and version='$version'");
     
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->imageid = NULL;
@@ -238,16 +252,17 @@ class Image
     # Also, if an EZ image, flip the bit on the os_info entry too.
     #
     function SetGlobal($mode) {
-	$id       = $this->imageid();
+	$imageid  = $this->imageid();
+	$version  = $this->version();
 	$mode     = ($mode ? 1 : 0);
 	$extra    = ($mode ? ",shared=0" : "");
 
-	DBQueryFatal("update images set global='$mode' $extra ".
-		     "where imageid='$id'");
+	DBQueryFatal("update image_versions set global='$mode' $extra ".
+		     "where imageid='$imageid' and version='$version'");
 
 	if ($this->ezid()) {
-	    DBQueryFatal("update os_info set shared='$mode' ".
-			 "where osid='$id'");
+	    DBQueryFatal("update os_info_versions set shared='$mode' ".
+			 "where osid='$imageid' and vers='$version'");
 	}
 	return 0;
     }
@@ -333,16 +348,20 @@ class Image
 	return (is_null($this->image) ? -1 : $this->image[$name]);
     }
     function imagename()	{ return $this->field("imagename"); }
+    function version()		{ return $this->field("version"); }
     function pid()		{ return $this->field("pid"); }
     function gid()		{ return $this->field("gid"); }
     function pid_idx()		{ return $this->field("pid_idx"); }
     function gid_idx()		{ return $this->field("gid_idx"); }
     function imageid()		{ return $this->field("imageid"); }
+    function parent_imageid()	{ return $this->field("parent_imageid"); }
+    function parent_version()	{ return $this->field("parent_version"); }
     function uuid()		{ return $this->field("uuid"); }
     function creator()		{ return $this->field("creator"); }
     function creator_idx()	{ return $this->field("creator_idx"); }
     function creator_urn()	{ return $this->field("creator_urn"); }
     function created()		{ return $this->field("created"); }
+    function deleted()		{ return $this->field("deleted"); }
     function description()	{ return $this->field("description"); }
     function loadpart()		{ return $this->field("loadpart"); }
     function loadlength()	{ return $this->field("loadlength"); }
@@ -514,6 +533,7 @@ class Image
 	
 	$imageid	= $this->imageid();
 	$imagename	= $this->imagename();
+	$version	= $this->version();
 	$pid		= $this->pid();
 	$gid		= $this->gid();
 	$description	= $this->description();
@@ -615,6 +635,14 @@ class Image
                         <td class=left>$updater_urn</td>
          	          </tr>\n";
 	    }
+	}
+	$deleted = $this->deleted();
+	if (isset($deleted)) {
+	    
+	    echo "<tr>
+                    <td><font color=red>Deleted: </font></td>
+                    <td class=left><font color=red>$deleted</font></td>
+     	          </tr>\n";
 	}
 
 	#
@@ -730,9 +758,33 @@ class Image
               </tr>\n";
 
 	echo "<tr>
-                <td>Internal ID: </td>
-                <td class=left>$imageid</td>
+                <td>Internal ID (Vers): </td>
+                <td class=left>$imageid ($version)</td>
               </tr>\n";
+
+	if ($this->parent_imageid()) {
+	    $p_imageid   = $this->parent_imageid();
+	    $p_version   = $this->parent_version();
+	    $p_image     = Image::Lookup($p_imageid, $p_version);
+	    $p_imagename = $p_image->imagename();
+	    $p_url       = CreateURL("showimageid", $p_image,
+				      "version", $p_version);
+	    
+	    echo "<tr>
+                    <td>Derived from: </td>
+                    <td class=left><a href='$p_url'>$p_imagename</a></td>
+                  </tr>\n";
+
+	    if ($this->parent_imageid() != $this->imageid() &&
+		$this->version() > 0) {
+		$p_url       = CreateURL("showimageid", $this,
+					 "version", $this->version() - 1);
+		echo "<tr>
+                        <td>Previous Vers: </td>
+                        <td class=left><a href='$p_url'>$imagename</a></td>
+                      </tr>\n";
+	    }
+	} 
 
 	echo "<tr>
                 <td>MBR Version: </td>
@@ -801,7 +853,7 @@ class Image
 	#
 	if ($showperms) {
 	    $query_result =
-		DBQueryFatal("select * from image_permissions ".
+		DBQueryFatal("select distinct * from image_permissions ".
 			     "where imageid='$imageid' ".
 			     "order by permission_type,permission_id");
 	    if (mysql_num_rows($query_result)) {
@@ -886,6 +938,7 @@ class Image
 
     function DoesXen($does) {
 	$imageid = $this->imageid();
+	$version = $this->version();
 	
 	if ($does) {
 	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
@@ -897,8 +950,9 @@ class Image
 	    }
 	    $parentosid = $parentosinfo->osid();
 
-	    DBQueryFatal("update os_info set def_parentosid='$parentosid' ".
-			 "where osid='$imageid'");
+	    DBQueryFatal("update os_info_versions set ".
+			 "    def_parentosid='$parentosid' ".
+			 "where osid='$imageid and vers='$version'");
 	    DBQueryFatal("replace into os_submap set ".
 			 "  osid='$imageid', parent_osid='$parentosid'");
 	    DBQueryFatal("replace into osidtoimageid set ".
@@ -909,8 +963,8 @@ class Image
 			 "where osid='$imageid' and type='pcvm'");
 	    DBQueryFatal("delete from os_submap ".
 			 "where osid='$imageid'");
-	    DBQueryFatal("update os_info set def_parentosid=NULL ".
-			 "where osid='$imageid'");
+	    DBQueryFatal("update os_info_versions set def_parentosid=NULL ".
+			 "where osid='$imageid' and vers='$version'");
 	}
 	return 0;
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -632,15 +632,13 @@ if ($exit_code == 0) {
 	foreach my $node_id (keys %{$object->{NODES}}) {
 	    my $node = $object->{NODES}{$node_id};
 	    my $osinfo = $node->_bootosinfo();
-	    my $osid = $osinfo->osid();
 	    my $op = $node->_setupoperation();
-	    my $imageid = 0;
+	    my $image;
 	    # Only set the imageid if the disk needed a reload
 	    if ($op == $RELOAD) {
-		my $image = $node->_loadimage();
-		$imageid = $image->imageid();
+		$image = $node->_loadimage();
 	    }
-	    $todo{$node_id} = [$osid, $imageid];
+	    $todo{$node_id} = [$osinfo, $image];
 	}
     }
     Image->RecordImageHistory($experiment, 'os_setup',

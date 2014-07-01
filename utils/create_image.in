@@ -417,13 +417,19 @@ if (! TBValidUserDir($filename, 0)) {
 }
 
 #
-# Before we do anything destructive, we lock the descriptor.
+# Before we do anything destructive, we lock the image.
 #
 if ($image->Lock()) {
     die("*** $0:\n".
-	"    Image is locked, try again later!\n");
+	"    Image is locked, please try again later!\n");
 }
 $needunlock = 1;
+
+if (!$usepath && $image->ready()) {
+    $image->Unlock();
+    die("*** $0:\n".
+	"    $image ready flag is set, this is inconsistent!\n");
+}
 
 # See if a web task is tracking this image creation.
 $webtask = WebTask->LookupByObject($image->uuid());
@@ -433,11 +439,13 @@ if (defined($webtask)) {
 
 #
 # Be sure to kill off running frisbee. If a node is trying to load that
-# image, well tough. 
+# image, well tough.
 #
-system("$friskiller -k $imageid");
-if ($?) {
-    fatal("Could not kill running frisbee for $imageid!");
+if (0) {
+    system("$friskiller -k $imageid");
+    if ($?) {
+	fatal("Could not kill running frisbee for $imageid!");
+    }
 }
 
 if (-e $filename) {
@@ -894,6 +902,7 @@ if (defined($webtask)) {
     $webtask->status("ready");
     $webtask->Exited(0);
 }
+$image->MarkReady();
 $image->Unlock();
 exit 0;
 

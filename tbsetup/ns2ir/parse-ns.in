@@ -112,6 +112,7 @@ use User;
 use BlockstoreType;
 use Blockstore;
 use Lease;
+use OSinfo;
 
 use constant false => 0;
 use constant true  => 1;
@@ -512,15 +513,10 @@ sub GenDefsFile($)
 	print TCL "set issubnode($class) $issub\n";
 
 	if (defined($osid) && $osid ne "") {
-	    $query_result =
-		DBQueryFatal("select osname from os_info ".
-			     "where osid='$osid'");
-	    if ($query_result->numrows) {
-		my ($osname) = $query_result->fetchrow_array();
-
-		if ($osname) {
-		    print TCL "set default_osids($type) \"$osname\"\n"
-		}
+	    my $osinfo = OSinfo->Lookup($osid);
+	    if (defined($osinfo)) {
+		my $osname = $osinfo->osname();
+		print TCL "set default_osids($type) \"$osname\"\n"
 	    }
 	}
     }
@@ -541,15 +537,10 @@ sub GenDefsFile($)
 	print TCL "set issubnode($type) $issub\n";
 
 	if (defined($osid) && $osid ne "") {
-	    $query_result =
-		DBQueryFatal("select osname from os_info ".
-			     "where osid='$osid'");
-	    if ($query_result->numrows) {
-		my ($osname) = $query_result->fetchrow_array();
-
-		if ($osname) {
-		    print TCL "set default_osids($type) \"$osname\"\n"
-		}
+	    my $osinfo = OSinfo->Lookup($osid);
+	    if (defined($osinfo)) {
+		my $osname = $osinfo->osname();
+		print TCL "set default_osids($type) \"$osname\"\n"
 	    }
 	}
     }
@@ -664,9 +655,10 @@ sub GenDefsFile($)
     if (defined($pid)) {
 	print TCL "# OSIDs\n";
 	$query_result =
-	    DBQueryFatal("select pid,osname from os_info ".
-			 "where shared=1 or pid='$pid'");
-		     
+	    DBQueryFatal("select distinct o.pid,o.osname from os_info as o ".
+			 "left join os_info_versions as v on ".
+			 "     v.osid=o.osid and v.vers=o.version ".
+			 "where (v.shared=1 or o.pid='$pid')");
 	while (my ($pid,$osname) = $query_result->fetchrow_array()) {
 	    print TCL "set osids($osname) 1\n";
 	    print TCL "set osids($pid/$osname) 1\n";
@@ -677,24 +669,29 @@ sub GenDefsFile($)
 	if (defined($this_user)) {
 	    my $uid_idx = $this_user->uid_idx();
 	    $query_result =
-		DBQueryFatal("SELECT o.pid,o.osname FROM ".
-			     "  os_info AS o, ".
-			     "  image_permissions AS p ".
-			     "WHERE o.ezid!=0 ".
-			     "  AND p.imageid=o.osid ".
-			     "  AND p.permission_type='user' ".
+		DBQueryFatal("SELECT distinct o.pid,o.osname from ".
+			     "  os_info AS o ".
+			     "left join os_info_versions as v on ".
+			     "     v.osid=o.osid and v.vers=o.version ".
+			     "left join image_permissions AS p on ".
+			     "      p.imageid=o.osid and ".
+			     "      p.permission_type='user' ".
+			     "WHERE v.ezid!=0 ".
+			     "  AND p.imageid is not null ".
 			     "  AND p.permission_idx='$uid_idx' ".
 			     "UNION DISTINCT ".
-			     "SELECT o.pid,o.osname FROM ".
-			     "  os_info AS o, ".
-			     "  image_permissions AS p, ".
-			     "  group_membership as g ".
-			     "WHERE o.ezid!=0 ".
-			     "  AND p.imageid=o.osid ".
-			     "  AND p.permission_type='group' ".
-			     "  AND p.permission_idx=g.gid_idx ".
-			     "  AND g.uid_idx='$uid_idx'");
-
+			     "SELECT distinct o.pid,o.osname from ".
+			     "  os_info AS o ".
+			     "left join os_info_versions as v on ".
+			     "     v.osid=o.osid and v.vers=o.version ".
+			     "left join image_permissions AS p on ".
+			     "      p.imageid=o.osid and ".
+			     "      p.permission_type='group' ".
+			     "left join group_membership as g ".
+			     "     on g.gid_idx=p.permission_idx ".
+			     "WHERE v.ezid!=0 ".
+			     "  AND p.imageid is not null ".
+			     "  AND g.uid_idx='$uid_idx' ");
 	    while (my ($pid,$osname) = $query_result->fetchrow_array()) {
 		print TCL "set osids($pid/$osname) 1\n";
 	    }
@@ -705,10 +702,16 @@ sub GenDefsFile($)
 	    DBQueryFatal("select oi.osname,oi3.osname," . 
 			 "group_concat(oi2.osname separator '\" \"')" . 
 			 " from os_submap as osm" . 
-			 " left join os_info as oi on osm.osid=oi.osid" . 
+			 " left join os_info as oi on osm.osid=oi.osid" .
+			 " left join os_info_versions as ov on ".
+			 "      ov.osid=oi.osid and ov.vers=oi.version ".
 			 " left join os_info as oi2 on osm.parent_osid=oi2.osid" . 
-			 " left join os_info as oi3 on oi.def_parentosid=oi3.osid" . 
-			 " where oi.def_parentosid is not NULL" . 
+			 " left join os_info_versions as ov2 on ".
+			 "      ov2.osid=oi2.osid and ov2.vers=oi2.version ".
+			 " left join os_info as oi3 on ov.def_parentosid=oi3.osid" . 
+			 " left join os_info_versions as ov3 on ".
+			 "      ov3.osid=oi3.osid and ov3.vers=oi3.version ".
+			 " where ov.def_parentosid is not NULL" . 
 			 " group by oi.osname");
 		     
 	while (my ($osname,$def_parentosid,$parent_osids) = 

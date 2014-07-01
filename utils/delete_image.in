@@ -112,6 +112,12 @@ if (!defined($image)) {
 if (!$image->AccessCheck($this_user, TB_IMAGEID_DESTROY())) {
     fatal("You do not have permission to delete this image!");
 }
+#
+# Before we do anything destructive, we lock the descriptor.
+#
+if ($image->Lock()) {
+    fatal("Image is locked, please try again later!\n");
+}
 
 $imageid      = $image->imageid();
 my $imagename = $image->imagename();

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,8 +33,10 @@ class OSinfo
 	$safe_id = addslashes($id);
 
 	$query_result =
-	    DBQueryWarn("select * from os_info ".
-			"where osid='$safe_id'");
+	    DBQueryWarn("select o.*,v.* from os_info as o ".
+			"left join os_info_versions as v on ".
+			"     v.osid=o.osid and v.vers=o.version ".
+			"where o.osid='$safe_id'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->osinfo = NULL;
@@ -58,7 +60,7 @@ class OSinfo
 	return $foo;
     }
 
-    # Lookup by osname in a project
+    # Lookup by osname in a project. This returns the newest version.
     function LookupByName($project, $name) {
 	if (is_a($project, "Project")) {
 	    $pid = $project->pid();
@@ -87,9 +89,11 @@ class OSinfo
 	    return -1;
 
 	$osid = $this->osid();
+	$vers = $this->vers();
 
 	$query_result =
-	    DBQueryWarn("select * from os_info where imageid='$osid'");
+	    DBQueryWarn("select * from os_info_versions ".
+			"where osid='$osid' and vers='$vers'");
     
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->osinfo = NULL;
@@ -200,6 +204,9 @@ class OSinfo
     function osname()		{ return $this->field("osname"); }
     function pid()		{ return $this->field("pid"); }
     function osid()		{ return $this->field("osid"); }
+    function vers()		{ return $this->field("vers"); }
+    function parent_osid()	{ return $this->field("parent_osid"); }
+    function parent_vers()	{ return $this->field("parent_vers"); }
     function uuid()		{ return $this->field("uuid"); }
     function creator()		{ return $this->field("creator"); }
     function creator_idx()	{ return $this->field("creator_idx"); }
@@ -223,10 +230,11 @@ class OSinfo
 
     function SetParent($parent_osid) {
 	$osid = $this->osid();
+	$vers = $this->vers();
 	$safe_osid = addslashes($parent_osid);
 
-	DBQueryFatal("update os_info set def_parentosid='$safe_osid' ".
-		     "where osid='$osid'");
+	DBQueryFatal("update os_info_versions set def_parentosid='$safe_osid' ".
+		     "where osid='$osid' and vers='$vers'");
 
 	DBQueryFatal("replace into os_submap set ".
 		     " parent_osid='$safe_osid', osid='$osid'");
@@ -366,6 +374,7 @@ class OSinfo
     #
     function Show() {
 	$osid           = $this->osid();
+	$vers           = $this->vers();
 	$os_description = $this->description();
 	$os_OS          = $this->OS();
 	$os_version     = $this->version();
@@ -537,8 +546,8 @@ class OSinfo
 	}
 
 	echo "<tr>
-                <td>Internal ID: </td>
-                <td class=\"left\">$osid</td>
+                <td>Internal ID (Vers): </td>
+                <td class=\"left\">$osid ($vers)</td>
               </tr>\n";
 
 	echo "<tr>
@@ -589,8 +598,9 @@ class OSinfo
         #
 	if ($pid == $TBOPSPID) {
 	    $query_result =
-		DBQueryFatal("select distinct v.pid, v.eid, e.state, e.expt_swapped " .
-			     "     from virt_nodes as v ".
+		DBQueryFatal("select distinct v.pid,v.eid,e.state,".
+			     "      e.expt_swapped " .
+			     "   from virt_nodes as v ".
 			     "left join os_info as o on " .
 			     "     v.osname=o.osname and v.pid=o.pid ".
 			     "left join experiments as e on v.pid=e.pid and ".
@@ -600,7 +610,8 @@ class OSinfo
 	}
 	else {
 	    $query_result =
-		DBQueryFatal("select distinct v.pid, v.eid, e.state, e.expt_swapped " .
+		DBQueryFatal("select distinct v.pid,v.eid,e.state,".
+			     "    e.expt_swapped " .
 			     "  from virt_nodes as v ".
 			     "left join experiments as e " .
 			     "     on v.pid=e.pid and v.eid=e.eid " .

@@ -558,12 +558,17 @@ function VerifyPageArguments($argspec, $required)
 	    break;
 
 	case PAGEARG_IMAGE:
+	    $version = NULL;
+	    if (isset($_REQUEST[URL_VERS])) {
+		$version = $_REQUEST[URL_VERS];
+		ValidateArgument($name, PAGEARG_VERS, $version);
+	    }
 	    if (isset($_REQUEST[URL_IMAGEID])) {
 		$imageid = $_REQUEST[URL_IMAGEID];
 		$yep    = 1;
 
 		if (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
-		    $object = Image::Lookup($imageid);
+		    $object = Image::Lookup($imageid, $version);
 		}
 	    }
 	    elseif (isset($_REQUEST[$name]) && $_REQUEST[$name] != "") {
@@ -571,7 +576,7 @@ function VerifyPageArguments($argspec, $required)
 		$yep = 1;
 
 		if (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
-		    $object = Image::Lookup($imageid);
+		    $object = Image::Lookup($imageid, $version);
 		}
 	    }
 	    break;

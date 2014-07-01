@@ -462,6 +462,7 @@ CREATE TABLE `current_reloads` (
   `node_id` varchar(32) NOT NULL default '',
   `idx` smallint(5) unsigned NOT NULL default '0',
   `image_id` int(8) unsigned NOT NULL default '0',
+  `imageid_version` int(8) unsigned NOT NULL default '0',
   `mustwipe` tinyint(4) NOT NULL default '0',
   `prepare` tinyint(4) NOT NULL default '0',
   PRIMARY KEY  (`node_id`,`idx`)
@@ -1608,6 +1609,7 @@ CREATE TABLE `frisbee_blobs` (
   `idx` int(11) unsigned NOT NULL auto_increment,
   `path` varchar(255) NOT NULL default '',
   `imageid` int(8) unsigned default NULL,
+  `imageid_version` int(8) unsigned default NULL,
   `load_address` text,
   `frisbee_pid` int(11) default '0',
   `load_busy` tinyint(4) NOT NULL default '0',
@@ -1862,7 +1864,9 @@ CREATE TABLE `image_history` (
   `phys_type` varchar(30) NOT NULL,
   `req_os` int(1) default NULL,
   `osid` int(8) default NULL,
+  `osid_vers` int(8) default NULL,
   `imageid` int(8) default NULL,
+  `imageid_version` int(8) default NULL,
   PRIMARY KEY  (`history_id`),
   KEY `node_id` (`node_id`,`history_id`),
   KEY `stamp` (`stamp`),
@@ -1887,17 +1891,20 @@ CREATE TABLE `image_permissions` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
--- Table structure for table `images`
+-- Table structure for table `image_versions`
 --
 
-DROP TABLE IF EXISTS `images`;
-CREATE TABLE `images` (
+DROP TABLE IF EXISTS `image_versions`;
+CREATE TABLE `image_versions` (
   `imagename` varchar(30) NOT NULL default '',
+  `version` int(8) unsigned NOT NULL default '0',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
   `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `pid` varchar(48) NOT NULL default '',
   `gid` varchar(32) NOT NULL default '',
   `imageid` int(8) unsigned NOT NULL default '0',
+  `parent_imageid` int(8) unsigned default NULL,
+  `parent_version` int(8) unsigned default NULL,
   `uuid` varchar(40) NOT NULL default '',
   `old_imageid` varchar(45) NOT NULL default '',
   `creator` varchar(8) default NULL,
@@ -1911,10 +1918,15 @@ CREATE TABLE `images` (
   `loadpart` tinyint(4) NOT NULL default '0',
   `loadlength` tinyint(4) NOT NULL default '0',
   `part1_osid` int(8) unsigned default NULL,
+  `part1_vers` int(8) unsigned NOT NULL default '0',
   `part2_osid` int(8) unsigned default NULL,
+  `part2_vers` int(8) unsigned NOT NULL default '0',
   `part3_osid` int(8) unsigned default NULL,
+  `part3_vers` int(8) unsigned NOT NULL default '0',
   `part4_osid` int(8) unsigned default NULL,
+  `part4_vers` int(8) unsigned NOT NULL default '0',
   `default_osid` int(8) unsigned NOT NULL default '0',
+  `default_vers` int(8) unsigned NOT NULL default '0',
   `path` tinytext,
   `magic` tinytext,
   `ezid` tinyint(4) NOT NULL default '0',
@@ -1922,6 +1934,7 @@ CREATE TABLE `images` (
   `global` tinyint(4) NOT NULL default '0',
   `mbr_version` varchar(50) NOT NULL default '1',
   `updated` datetime default NULL,
+  `deleted` datetime default NULL,
   `format` varchar(8) NOT NULL default 'ndz',
   `access_key` varchar(64) default NULL,
   `auth_uuid` varchar(64) default NULL,
@@ -1939,12 +1952,35 @@ CREATE TABLE `images` (
   `imagefile_url` tinytext,
   `logfileid` varchar(40) default NULL,
   `noexport` tinyint(1) NOT NULL default '0',
-  PRIMARY KEY  (`imageid`),
-  UNIQUE KEY `pid` (`pid`,`imagename`),
+  `ready` tinyint(1) NOT NULL default '0',
+  `isdelta` tinyint(1) NOT NULL default '0',
+  PRIMARY KEY  (`imageid`,`version`),
+  KEY `pid` (`pid`,`imagename`,`version`),
   KEY `gid` (`gid`),
   KEY `old_imageid` (`old_imageid`),
   KEY `uuid` (`uuid`),
   FULLTEXT KEY `imagesearch` (`imagename`,`description`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `images`
+--
+
+DROP TABLE IF EXISTS `images`;
+CREATE TABLE `images` (
+  `imagename` varchar(30) NOT NULL default '',
+  `version` int(8) unsigned NOT NULL default '0',
+  `imageid` int(8) unsigned NOT NULL default '0',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `gid` varchar(32) NOT NULL default '',
+  `gid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `uuid` varchar(40) NOT NULL default '',
+  `locked` datetime default NULL,
+  `locker_pid` int(11) default '0',
+  PRIMARY KEY  (`imageid`),
+  UNIQUE KEY `pid` (`pid`,`imagename`),
+  KEY `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -2872,10 +2908,13 @@ CREATE TABLE `nodes` (
   `role` enum('testnode','virtnode','ctrlnode','testswitch','ctrlswitch','powerctrl','widearea_switch','unused') NOT NULL default 'unused',
   `inception` datetime default NULL,
   `def_boot_osid` int(8) unsigned default NULL,
+  `def_boot_osid_vers` int(8) unsigned default NULL,
   `def_boot_path` text,
   `def_boot_cmd_line` text,
   `temp_boot_osid` int(8) unsigned default NULL,
+  `temp_boot_osid_vers` int(8) unsigned default NULL,
   `next_boot_osid` int(8) unsigned default NULL,
+  `next_boot_osid_vers` int(8) unsigned default NULL,
   `next_boot_path` text,
   `next_boot_cmd_line` text,
   `pxe_boot_path` text,
@@ -3130,20 +3169,24 @@ CREATE TABLE `os_boot_cmd` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
--- Table structure for table `os_info`
+-- Table structure for table `os_info_versions`
 --
 
-DROP TABLE IF EXISTS `os_info`;
-CREATE TABLE `os_info` (
+DROP TABLE IF EXISTS `os_info_versions`;
+CREATE TABLE `os_info_versions` (
   `osname` varchar(30) NOT NULL default '',
+  `vers` int(8) unsigned NOT NULL default '0',
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
   `osid` int(8) unsigned NOT NULL default '0',
+  `parent_osid` int(8) unsigned default NULL,
+  `parent_vers` int(8) unsigned default NULL,
   `uuid` varchar(40) NOT NULL default '',
   `old_osid` varchar(35) NOT NULL default '',
   `creator` varchar(8) default NULL,
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `created` datetime default NULL,
+  `deleted` datetime default NULL,
   `description` tinytext NOT NULL,
   `OS` enum('Unknown','Linux','Fedora','FreeBSD','NetBSD','OSKit','Windows','TinyOS','Other') default 'Unknown',
   `version` varchar(12) default '',
@@ -3163,11 +3206,28 @@ CREATE TABLE `os_info` (
   `reboot_waittime` int(10) unsigned default NULL,
   `protogeni_export` tinyint(1) NOT NULL default '0',
   `taint_states` set('useronly','blackbox','dangerous') default NULL,
-  PRIMARY KEY  (`osid`),
-  UNIQUE KEY `pid` (`pid`,`osname`),
+  PRIMARY KEY  (`osid`,`vers`),
+  KEY `pid` (`pid`,`osname`,`vers`),
   KEY `OS` (`OS`),
   KEY `path` (`path`(255)),
   KEY `old_osid` (`old_osid`),
+  KEY `uuid` (`uuid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `os_info`
+--
+
+DROP TABLE IF EXISTS `os_info`;
+CREATE TABLE `os_info` (
+  `osname` varchar(30) NOT NULL default '',
+  `version` int(8) unsigned NOT NULL default '0',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `osid` int(8) unsigned NOT NULL default '0',
+  `uuid` varchar(40) NOT NULL default '',
+  PRIMARY KEY  (`osid`),
+  UNIQUE KEY `pid` (`pid`,`osname`),
   KEY `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -3271,7 +3331,9 @@ CREATE TABLE `partitions` (
   `node_id` varchar(32) NOT NULL default '',
   `partition` tinyint(4) NOT NULL default '0',
   `osid` int(8) unsigned default NULL,
+  `osid_vers` int(8) unsigned default NULL,
   `imageid` int(8) unsigned default NULL,
+  `imageid_version` int(8) unsigned default NULL,
   `imagepid` varchar(48) NOT NULL default '',
   PRIMARY KEY  (`node_id`,`partition`),
   KEY `osid` (`osid`)

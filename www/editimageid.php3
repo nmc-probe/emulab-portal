@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -81,9 +81,11 @@ while ($row = mysql_fetch_array($types_result)) {
 $types_array[] = "pcvm";
 
 $osid_result =
-    DBQueryFatal("select osid,osname,pid from os_info ".
-		 "where (path='' or path is NULL) ".
-		 "order by pid,osname");
+    DBQueryFatal("select o.osid,o.osname,o.pid from os_info as o ".
+		 "left join os_info_versions as v on ".
+		 "     v.osid=o.osid and v.vers=o.version ".
+		 "where (v.path='' or v.path is NULL) ".
+		 "order by o.pid,o.osname");
 
 #
 # Spit the form out using the array of data.

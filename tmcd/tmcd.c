@@ -5194,20 +5194,25 @@ COMMAND_PROTOTYPE(doloadinfo)
 	/*
 	 * Get the address the node should contact to load its image
 	 */
-	res = mydb_query("select loadpart,OS,mustwipe,mbr_version,access_key,"
-			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path,"
-			 "   o.version,pa.partition,i.size,"
-			 "   lba_low,i.lba_high,i.lba_size,i.relocatable,"
-			 "   UNIX_TIMESTAMP(updated) "
+	res = mydb_query("select iv.loadpart,ov.OS,mustwipe,iv.mbr_version,"
+			 "   iv.access_key,"
+			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,iv.path,"
+			 "   ov.version,pa.partition,iv.size,"
+			 "   iv.lba_low,iv.lba_high,iv.lba_size,iv.relocatable,"
+			 "   UNIX_TIMESTAMP(iv.updated) "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
+			 "left join image_versions as iv on "
+			 "     iv.imageid=i.imageid and iv.version=i.version "
 			 "left join frisbee_blobs as f on f.imageid=i.imageid "
-			 "left join os_info as o on i.default_osid=o.osid "
+			 "left join os_info_versions as ov on "
+			 "     ov.osid=iv.default_osid and "
+			 "     ov.vers=iv.default_vers "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
 			 "left join partitions as pa on "
 			 "     pa.node_id=r.node_id and "
-			 "     pa.osid=i.default_osid and loadpart=0 "
+			 "     pa.osid=iv.default_osid and loadpart=0 "
 			 "where r.node_id='%s' order by r.idx",
 			 19, reqp->nodeid);
 
@@ -6429,10 +6434,12 @@ COMMAND_PROTOTYPE(doimagekey)
         /*
          * Grab and return the key itself
          */
-	res = mydb_query("select i.auth_uuid,i.auth_key,i.decryption_key,"
+	res = mydb_query("select iv.auth_uuid,iv.auth_key,iv.decryption_key,"
 			 " i.imagename,p.pid,g.gid "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
+			 "left join image_versions as iv on "
+			 "     iv.imageid=i.imageid and iv.version=i.version "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
 			 "where node_id='%s' order by r.idx",
@@ -10739,12 +10746,14 @@ COMMAND_PROTOTYPE(doarpinfo)
 
 		res = mydb_query(
 			"select i.node_id,i.IP,i.mac,n.role,"
-			"   FIND_IN_SET('xen-host',o.osfeatures) as isxen, "
+			"   FIND_IN_SET('xen-host',ov.osfeatures) as isxen, "
 			"   vn.attrvalue as vif,ip.mac "
 			"from interfaces as i,nodes as n "
 			"left join reserved as r on r.node_id=n.node_id "
 			"left join nodes as np on np.node_id=n.phys_nodeid "
 			"left join os_info as o on o.osid=np.def_boot_osid "
+			 "left join os_info_versions as ov on "
+			 "     ov.osid=i.default_osid and ov.vers=o.version "
 			"left join reserved as rp on rp.node_id=n.phys_nodeid "
 			"left join interfaces as ip on "
 			"     ip.node_id=rp.node_id and ip.role='ctrl' "

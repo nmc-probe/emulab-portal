@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -110,21 +110,25 @@ function SPITFORM($formfields, $errors)
     #
     if ($isadmin) {
 	$osid_result =
-	    DBQueryFatal("select * from os_info ".
-			 "where (path='' or path is NULL) and ".
-			 "      version!='' and version is not NULL ".
-			 "order by pid,osname");
+	    DBQueryFatal("select v.* from os_info as o ".
+			 "left join os_info_versions as v on "
+			 "     v.osid=o.osid and v.vers=o.version ".
+			 "where (v.path='' or path is v.NULL) and ".
+			 "      v.version!='' and v.version is not NULL ".
+			 "order by o.pid,o.osname");
     }
     else {
 	$uid_idx = $this_user->uid_idx();
 	
 	$osid_result =
 	    DBQueryFatal("select distinct o.* from os_info as o ".
+			 "left join os_info_versions as v on "
+			 "     v.osid=o.osid and v.vers=o.version ".
 			 "left join group_membership as m ".
-			 " on m.pid=o.pid ".
+			 "     on m.pid=o.pid ".
 			 "where m.uid_idx='$uid_idx' and ".
-			 "      (path='' or path is NULL) and ".
-			 "      version!='' and version is not NULL ".
+			 "      (v.path='' or v.path is NULL) and ".
+			 "      v.version!='' and v.version is not NULL ".
 			 "order by o.pid,o.osname");
     }
     if (! mysql_num_rows($osid_result)) {

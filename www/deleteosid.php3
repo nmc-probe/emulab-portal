@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2002, 2006, 2007, 2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -44,6 +44,15 @@ $pid    = $osinfo->pid();
 $osname = $osinfo->osname();
 
 #
+# If this is an EZ image, redirect to that page since we never
+# delete the os_info without deleting the image.
+#
+if ($osinfo->ezid()) {
+    header("Location: deleteimageid.php3?image=$osid");
+    exit(0);
+}
+
+#
 # Verify permission.
 #
 if (!$osinfo->AccessCheck($this_user, $TB_OSID_DESTROY)) {
@@ -62,10 +71,11 @@ $conflicts = 0;
 # it to be deleted or changed. This subsumes EZ created images/osids.
 #
 $query_result =
-    DBQueryFatal("select * from images ".
-		 "where part1_osid='$osid' or part2_osid='$osid' or ".
-		 "      part3_osid='$osid' or part4_osid='$osid' or ".
-		 "      default_osid='$osid'");
+    DBQueryFatal("select v.* from images as i ".
+		 "left join image_versions as v on v.imageid=i.imageid ".
+		 "where v.part1_osid='$osid' or v.part2_osid='$osid' or ".
+		 "      v.part3_osid='$osid' or v.part4_osid='$osid' or ".
+		 "      v.default_osid='$osid'");
 
 if (mysql_num_rows($query_result)) {
     echo "<center>The following images are using this OS Descriptor.<br>
@@ -197,9 +207,29 @@ if (!isset($confirmed)) {
 }
 
 #
-# Delete the record,
+# If this descriptor is not referenced by a deleted image descriptor
+# we can just delete it. Otherwise we have to mark it deleted and save
+# it.
 #
-DBQueryFatal("DELETE FROM os_info WHERE osid='$osid'");
+$query_result =
+    DBQueryFatal("select v.* from image_versions as v ".
+		 "where v.deleted is not null and ".
+		 "      (v.part1_osid='$osid' or v.part2_osid='$osid' or ".
+		 "       v.part3_osid='$osid' or v.part4_osid='$osid' or ".
+		 "       v.default_osid='$osid')");
+
+if (mysql_num_rows($query_result)) {
+    DBQueryFatal("delete os_info,os_info_versions from os_info ".
+		 "inner join os_info_versions on ".
+		 "      os_info.osid=os_info_versions.osid ".
+		 "where os_info.osid='$osid'");
+}
+else {
+    DBQueryFatal("update os_info_versions set deleted=now() ".
+		 "WHERE osid='$osid'");
+    # This is always deleted.
+    DBQueryFatal("delete from os_info where osid='$osid'");
+}
 
 echo "<p>
       <center><h2>

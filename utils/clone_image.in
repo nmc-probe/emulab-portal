@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -69,6 +69,7 @@ my $PROJROOT     = "@PROJROOT_DIR@";
 my $GROUPROOT    = "@GROUPSROOT_DIR@";
 my $CREATEIMAGE  = "$TB/bin/create_image";
 my $NEWIMAGEEZ   = "$TB/bin/newimageid_ez";
+my $DOPROVENANCE = @IMAGEPROVENANCE@;
 
 #
 # Untaint the path
@@ -160,6 +161,18 @@ if (! (defined($project) && defined($group))) {
 my $image = Image->Lookup($project->pid(), $imagename);
 
 #
+# Need to look up the base image; the image that is currently running
+# on the node and being cloned.
+#
+my ($base_osinfo, $base_image) = $node->RunningOsImage();
+# No support for cloning MFSs, so there will always be a base image.
+if (! (defined($base_osinfo) && defined($base_image))) {
+    fatal("Could not determine osid/imageid for $node_id");
+}
+print "$node_id is running $base_osinfo,$base_image\n"
+    if ($debug);
+
+#
 # The simple case is that the descriptor already exists. So it is just
 # a simple snapshot to the image file. 
 #
@@ -170,6 +183,15 @@ if (defined($image)) {
     if (!$image->ezid()) {
 	fatal("Cannot clone a non-ez image");
     }
+
+    #
+    # But we do not allow emulab-ops images to be overwritten.
+    # Might remove this later. Just being careful since this is going
+    # to be used from the ProtoGENI RPC interface.
+    #
+    if ($image->pid eq TBOPSPID() && !$this_user->IsAdmin()) {
+	fatal("Not allowed to snapshot a system image");
+    }
     
     #
     # The access check above determines if the caller has permission
@@ -177,17 +199,35 @@ if (defined($image)) {
     # Not that this matters, cause create_image is going to make the
     # same checks.
     #
-    # But we do not allow emulab-ops images to ever be overwritten.
-    # Might remove this later. Just being careful since this is going
-    # to be used from the ProtoGENI RPC interface.
-    #
-    if ($image->pid eq TBOPSPID()) {
-	fatal("Not allowed to snapshot a system image");
-    }
     if ($impotent) {
 	print "Not doing anything in impotent mode\n";
 	exit(0);
     }
+
+    #
+    # We create a new version of the image descriptor for the new
+    # snapshot. We mark it as not ready so that others know it is
+    # in transition. When we later call createimage, it will make
+    # sure the ready bit is clear before trying to lock it. 
+    #
+    # Before we do anything destructive, we lock the image.
+    #
+    if ($image->Lock()) {
+	fatal("Image is locked, please try again later!\n");
+    }
+    if ($DOPROVENANCE) {
+	my $clone_error;
+	my $clone = $image->NewVersion($this_user,
+				       $base_image, undef, \$clone_error);
+	if (!defined($clone)) {
+	    $image->Unlock();
+	    fatal("Could not clone image descriptor" .
+		  (defined($clone_error) ? ": $clone_error" : "") . "\n");
+	}
+	$image = $clone;
+    }
+    $image->Unlock();
+    
     if ($nosnapshot) {
 	print "Not taking a snapshot, as directed\n"
 	    if ($debug);
@@ -196,6 +236,10 @@ if (defined($image)) {
 
     my $output = emutil::ExecQuiet("$CREATEIMAGE -p $pid $imagename $node_id");
     if ($?) {
+	if ($DOPROVENANCE) {
+	    # Delete with Purge.
+	    $image->Delete(1);
+	}
 	print STDERR $output;
 	fatal("Failed to create image");
     }
@@ -204,16 +248,19 @@ if (defined($image)) {
 }
 
 #
-# Need to look up the base image; the image that is currently running
-# on the node and being cloned.
+# Only EZ images via this interface.
 #
-my ($base_osinfo, $base_image) = $node->RunningOsImage();
-if (! (defined($base_osinfo))) {
-    fatal("Could not determine osid/imageid for $node_id");
+if (!$base_image->ezid()) {
+    fatal("Cannot clone a non-ez image");
 }
-print "$node_id is running $base_osinfo" .
-    (defined($base_image) ? ",$base_image" : "") . "\n"
-    if ($debug);
+
+#
+# To avoid confusion, we do not allow users to shadow system images
+# in their own project. 
+#
+if (Image->LookupByName($imagename) && !$this_user->IsAdmin()) {
+    fatal("Not allowed to shadow snapshot a system image");
+}
 
 # Subgroups change the path
 my $path = ($experiment->pid() eq $experiment->gid() ?
@@ -273,7 +320,7 @@ else {
     fatal("No base image for $node_id");
 }
 # This needs more thought.
-if ($isvirtnode) {
+if (($isvirtnode || $base_osinfo) && $base_osinfo->def_parentosid()) {
     my $parentosinfo = OSinfo->Lookup($base_osinfo->def_parentosid());
     if (!defined($parentosinfo)) {
 	fatal("Could not lookup object for parent osid of $base_osinfo");
@@ -349,6 +396,10 @@ if (!defined($image)) {
 my $osinfo = OSinfo->Lookup($image->imageid());
 if (!defined($osinfo)) {
     fatal("Cannot lookup newly created osinfo for $image");
+}
+if ($DOPROVENANCE) {
+    $image->SetProvenance($base_image);
+    $osinfo->SetProvenance($base_osinfo);
 }
 if ($debug) {
     print "Created $osinfo\n";

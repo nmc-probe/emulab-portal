@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -49,10 +49,7 @@ $extraclause = "";
 if (isset($creator)) {
     $creator_idx = $creator->uid_idx();
 
-    if ($isadmin) 
-	$extraclause = "where o.creator_idx='$creator_idx' ";
-    else
-	$extraclause = "and o.creator_idx='$creator_idx' ";
+    $extraclause = "and v.creator_idx='$creator_idx' ";
 }
 
 #
@@ -60,15 +57,19 @@ if (isset($creator)) {
 #
 if ($isadmin) {
     $query_result =
-	DBQueryFatal("SELECT * FROM os_info as o ".
-		     "$extraclause ".
+	DBQueryFatal("SELECT distinct v.* FROM os_info as o ".
+		     "left join os_info_versions as v on ".
+		     "     v.osid=o.osid and v.vers=o.version ".
+		     "where 1 $extraclause ".
 		     "order by o.osname");
 }
 else {
     $uid_idx = $this_user->uid_idx();
 
     $query_result =
-	DBQueryFatal("select distinct o.* from os_info as o ".
+	DBQueryFatal("select distinct v.* from os_info as o ".
+		     "left join os_info_versions as v on ".
+		     "     v.osid=o.osid and v.vers=o.version ".
 		     "left join image_permissions as p1 on ".
 		     "     p1.imageid=o.osid and p1.permission_type='group' ".
 		     "left join image_permissions as p2 on ".
@@ -76,7 +77,7 @@ else {
 		     "left join group_membership as g on ".
 		     "     g.pid_idx=o.pid_idx or ".
 		     "     g.gid_idx=p1.permission_idx ".
-		     "where (g.uid_idx='$uid_idx' or o.shared=1 or".
+		     "where (g.uid_idx='$uid_idx' or v.shared=1 or".
 		     "       p2.permission_idx='$uid_idx') ".
 		     "$extraclause ".
 		     "order by o.osname");
@@ -84,9 +85,9 @@ else {
 
 SUBPAGESTART();
 SUBMENUSTART("More Options");
-WRITESUBMENUBUTTON("Create an Image Descriptor",
-		   "newimageid_ez.php3");
 if ($isadmin) {
+    WRITESUBMENUBUTTON("Create an Image Descriptor",
+		       "newimageid_ez.php3");
     WRITESUBMENUBUTTON("Create an OS Descriptor",
 		       "newosid.php3");
 }

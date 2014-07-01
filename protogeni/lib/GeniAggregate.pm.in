@@ -1048,7 +1048,9 @@ sub Action($$$)
 		#
 		# We now allow the user to specify the OS for vnodes.
 		#
-		my $osinfo = OSinfo->Lookup($vnode->def_boot_osid());
+		my $osinfo = OSinfo->Lookup($vnode->def_boot_osid(),
+					    $vnode->def_boot_osid_vers());
+					    
 		if (!defined($osinfo)) {
 		    $msg .= "Could not get osinfo for $vnode";
 		    goto bad;
@@ -1073,8 +1075,7 @@ sub Action($$$)
 			    $reloads{$image->imageid()} = [ ];
 			} 
 			push(@{ $reloads{$image->imageid()} }, $vnode);
-			$imageinfo{$vnode->node_id()} = [$osinfo->osid(),
-							 $image->imageid()];
+			$imageinfo{$vnode->node_id()} = [$osinfo, $image];
 			$vnode->_reloaded(1);
 
 			#
@@ -1149,7 +1150,8 @@ sub Action($$$)
 	    #
 	    # See if the node is running the requested OS.
 	    #
-	    my $osinfo = OSinfo->Lookup($node->def_boot_osid());
+	    my $osinfo = OSinfo->Lookup($node->def_boot_osid(),
+					$node->def_boot_osid_vers());
 	    if (!defined($osinfo)) {
 		$msg .= "Could not get osinfo for $node";
 		goto bad;
@@ -1191,8 +1193,7 @@ sub Action($$$)
 
 		# As with os_setup, we do not count images unless
 		# they are actually reloaded. I have no idea why.
-		$imageinfo{$node->node_id()} = [$osinfo->osid(),
-						$image->imageid()];
+		$imageinfo{$node->node_id()} = [$osinfo, $image];
 		
 		
 		# Reload means reboot or power on.

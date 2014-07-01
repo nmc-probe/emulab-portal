@@ -193,10 +193,13 @@ $EXPT_RESOURCESHOSED    = 0;
 
 # These are slots in the node table that need to be restored. 
 @nodetable_fields = ("def_boot_osid",
+		        "def_boot_osid_vers",
 			"def_boot_path",
 			"def_boot_cmd_line",
 			"temp_boot_osid",
+			"temp_boot_osid_vers",
 			"next_boot_osid",
+			"next_boot_osid_vers",
 			"next_boot_path",
 			"next_boot_cmd_line",
 			"pxe_boot_path",
@@ -4506,12 +4509,14 @@ sub LinkTestCapable($$)
     my $idx = $self->idx();
 
     my $query_result =
-	DBQueryWarn("select v.vname, FIND_IN_SET('linktest',osfeatures) ".
+	DBQueryWarn("select v.vname, FIND_IN_SET('linktest',ov.osfeatures) ".
 		    "  from virt_nodes as v ".
 		    "left join reserved as r on r.pid=v.pid and ".
 		    "     r.eid=v.eid and r.vname=v.vname ".
 		    "left join nodes as n on n.node_id=r.node_id ".
-		    "left join os_info as o on o.osid=n.def_boot_osid ".
+		    "left join os_info_versions as ov on ".
+		    "     ov.osid=n.def_boot_osid and ".
+		    "     ov.vers=n.def_boot_osid_vers ".
 		    "where v.exptidx='$idx' and v.role!='bridge'");
     return -1
 	if (!defined($query_result));

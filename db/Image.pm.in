@@ -63,77 +63,133 @@ sub mysystem($)
     return system($command);
 }
 
-#
-# Lookup by idx or pid,osname, depending on the args.
-#
-sub Lookup($$;$)
+sub BlessRow($$)
 {
-    my ($class, $arg1, $arg2) = @_;
-    my $imageid;
+    my ($class, $row) = @_;
+    
+    my $self           = {};
+    my $imageid        = $row->{"imageid"};
+    $self->{'IMAGE'}   = $row;
+
+    bless($self, $class);
+    return $self;
+}
+
+#
+# Lookup by idx or pid,imagename[:version] depending on the args. We always 
+# return highest numbered version on this path, if no version specified.
+#
+sub Lookup($$;$$)
+{
+    my ($class, $arg1, $arg2, $arg3) = @_;
 
     #
-    # A single arg is either an index or a "pid,osname" or "pid/osname" string.
+    # A single arg is either an index or "pid,imagename[:version]" or
+    # "pid/imagename[:version]" string.
     #
     if (!defined($arg2)) {
 	if ($arg1 =~ /^(\d*)$/) {
-	    $imageid = $1;
+	    my $result =
+		DBQueryWarn("select i.*,v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid and v.version=i.version ".
+			    "where i.imageid='$arg1'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
 	}
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
-	       $arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
-	    $arg1 = $1;
-	    $arg2 = $2;
+		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
+	    my $result =
+		DBQueryWarn("select i.*,v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid and v.version=i.version ".
+			    "where i.pid='$1' and i.imagename='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*):(\d*)$/ ||
+		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*):(\d*)$/) {
+	    my $result =
+		DBQueryWarn("select i.*,v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid ".
+			    "where i.pid='$arg1' and i.imagename='$arg2' and ".
+			    "      v.version='$arg3' and v.deleted is null");
+	    return undef
+		if (!$result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref())
 	}
 	elsif ($arg1 =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
 	    my $result =
-		DBQueryWarn("select imageid from images ".
-			    "where uuid='$arg1'");
+		DBQueryWarn("select * from image_versions ".
+			    "where uuid='$arg1' and deleted is null");
 
 	    return undef
 		if (! $result || !$result->numrows);
 
-	    ($imageid) = $result->fetchrow_array();
+	    return BlessRow($class, $result->fetchrow_hashref());
 	}
-	else {
-	    return undef;
-	}
-    }
-    elsif (! (($arg1 =~ /^[-\w\.\+]*$/) && ($arg2 =~ /^[-\w\.\+]*$/))) {
 	return undef;
     }
+    elsif (!defined($arg3)) {
+	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
+	    my $result =
+		DBQueryWarn("select v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid ".
+			    "where i.imageid='$arg1' and v.version='$arg2' ".
+			    " and  v.deleted is null");
+	    return undef
+		if (! $result || !$result->numrows);
 
-    #
-    # Two args means pid/imagename lookup instead of gid_idx.
-    #
-    if (defined($arg2)) {
-	my $images_result =
-	    DBQueryWarn("select imageid from images ".
-			"where pid='$arg1' and imagename='$arg2'");
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^([-\w\.\+]*):(\d+)$/) {
+	    my $result =
+		DBQueryWarn("select v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid ".
+			    "where i.pid='$arg1' and i.imagename='$1' and ".
+			    "      v.version='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
 
-	return undef
-	    if (! $images_result || !$images_result->numrows);
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^[-\w\.\+]*$/) {
+	    my $result =
+		DBQueryWarn("select i.*,v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid and v.version=i.version ".
+			    "where i.pid='$arg1' and i.imagename='$arg2'");
+	    return undef
+		if (! $result || !$result->numrows);
 
-	($imageid) = $images_result->fetchrow_array();
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	return undef;
     }
+    else {
+	if ($arg1 =~ /^[-\w]*$/ &&
+	    $arg2 =~ /^[-\w\.\+]*$/ && $arg3 =~ /^\d+$/) {
+	    my $result =
+		DBQueryWarn("select i.*,v.* from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid ".
+			    "where i.pid='$arg1' and i.imagename='$arg2' and ".
+			    "      v.version='$arg3' and v.deleted is null");
+	    return undef
+		if (!$result || !$result->numrows);
 
-    # Look in cache first
-    return $images{"$imageid"}
-        if (exists($images{"$imageid"}));
-    
-    my $query_result =
-	DBQueryWarn("select * from images where imageid='$imageid'");
-
-    return undef
-	if (!$query_result || !$query_result->numrows);
-
-    my $self           = {};
-    $self->{'IMAGE'}   = $query_result->fetchrow_hashref();
-
-    bless($self, $class);
-    
-    # Add to cache. 
-    $images{"$imageid"} = $self;
-    
-    return $self;
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+    }
+    return undef;
 }
 
 AUTOLOAD {
@@ -170,13 +226,15 @@ sub LookupByURL($$)
     my $safe_url = DBQuoteSpecial($url);
     
     my $query_result =
-	DBQueryWarn("select imageid from images where metadata_url=$safe_url");
+	DBQueryWarn("select pid,imagename from image_versions ".
+		    "where metadata_url=$safe_url and deleted is null");
     return undef
 	if (!$query_result || !$query_result->numrows);
 
-    my ($imageid) = $query_result->fetchrow_array();
+    my ($pid,$imagename) = $query_result->fetchrow_array();
 
-    return Image->Lookup($imageid);
+    # Want latest version.
+    return Image->Lookup($pid, $imagename);
 }
 
 #
@@ -200,12 +258,13 @@ sub ActiveImages($)
     my @result  = ();
 
     my $query_result =
-	DBQueryWarn("select imageid from frisbee_blobs where frisbee_pid!=0");
+	DBQueryWarn("select imageid,imageid_version from frisbee_blobs ".
+		    "where frisbee_pid!=0");
     return undef
 	if (!defined($query_result));
 
-    while (my ($imageid) = $query_result->fetchrow_array()) {
-	my $image = Image->Lookup($imageid);
+    while (my ($imageid,$version) = $query_result->fetchrow_array()) {
+	my $image = Image->Lookup($imageid, $version);
 	if (!defined($image)) {
 	    print STDERR "*** Could not find DB object for image $imageid\n";
 	    return undef;
@@ -232,18 +291,19 @@ sub ListAll($$$)
     }
     if (defined($pid) && $pid =~ /^([-\w]+)$/) {
 	$clause .= ($clause ? " and" : "where");
-	$clause .= " pid='$1'";
+	$clause .= " i.pid='$1'";
     }
 
     my $query_result =
-	DBQueryWarn("select pid,imagename from images $clause ".
-		    "order by pid,imagename");
+	DBQueryWarn("select distinct i.pid,i.imagename from images as i ".
+		    "left join image_versions as v on ".
+		    "     v.imageid=i.imageid and v.version=i.version ".
+		    "$clause order by i.pid,i.imagename");
     if ($query_result) {
 	while (my ($pid,$name) = $query_result->fetchrow_array()) {
 	    push(@result, "$pid/$name");
 	}
     }
-
     return @result;
 }
 
@@ -258,9 +318,11 @@ sub Refresh($)
 	if (! ref($self));
 
     my $imageid = $self->imageid();
+    my $version = $self->version();
     
     my $query_result =
-	DBQueryWarn("select * from images where imageid=$imageid");
+	DBQueryWarn("select * from image_versions ".
+		    "where imageid=$imageid and version='$version'");
 
     return -1
 	if (!$query_result || !$query_result->numrows);
@@ -314,8 +376,11 @@ sub Create($$$$$$$$)
 
     #
     # The pid/imageid has to be unique, so lock the table for the check/insert.
+    # We lock the os_info tables too, for the call into Lookup.
     #
-    DBQueryWarn("lock tables images write, emulab_indicies write")
+    DBQueryWarn("lock tables images write, image_versions write, ".
+		"            os_info as o read, os_info_versions as v read, ".
+		"            emulab_indicies write")
 	or return undef;
 
     my $query_result =
@@ -333,8 +398,8 @@ sub Create($$$$$$$$)
 	my $safe_url = DBQuoteSpecial($metadata_url);
 	
 	my $query_result =
-	    DBQueryWarn("select imagename from images ".
-			"where metadata_url=$safe_url");
+	    DBQueryWarn("select imagename from image_versions ".
+			"where metadata_url=$safe_url and deleted is null");
 
 	if ($query_result->numrows) {
 	    DBQueryWarn("unlock tables");
@@ -367,15 +432,15 @@ sub Create($$$$$$$$)
 	$desc = DBQuoteSpecial($argref->{'description'});
     }
     
-    my $query = "insert into images set ".
-	join(",", map("$_='" . $argref->{$_} . "'", @arg_slots));
+    my $bquery = "imagename='$imagename'";
+    $bquery .= ",imageid='$imageid'";
+    $bquery .= ",uuid='$uuid'";
+    $bquery .= ",pid='$pid',pid_idx='$pid_idx'";
+    $bquery .= ",gid='$gid',gid_idx='$gid_idx'";
 
-    # Append the rest
-    $query .= ",imagename='$imagename'";
-    $query .= ",imageid='$imageid'";
-    $query .= ",uuid='$uuid'";
-    $query .= ",pid='$pid',pid_idx='$pid_idx'";
-    $query .= ",gid='$gid',gid_idx='$gid_idx'";
+    my $query = "insert into image_versions set $bquery, ".
+	join(",", map("$_='" . $argref->{$_} . "'", @arg_slots));
+    
     $query .= ",creator='$uid',creator_idx='$uid_idx'";
     $query .= ",created=now()";
     $query .= ",description=$desc";
@@ -390,23 +455,26 @@ sub Create($$$$$$$$)
     if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
 	$query .= ",creator_urn=". DBQuoteSpecial($ENV{'GENIURN'});
     }
-    
+
+    # Create the main entry:
+    if (! DBQueryWarn("insert into images set $bquery")) {
+	DBQueryWarn("unlock tables");
+	tberror("Error inserting new images record for $pid/$imagename!");
+	return undef;
+    }
+    # And the other entry.
     if (! DBQueryWarn($query)) {
 	DBQueryWarn("unlock tables");
 	tberror("Error inserting new images record for $pid/$imagename!");
 	return undef;
     }
+    DBQueryWarn("unlock tables");
 
     my $image = Image->Lookup($imageid);
     # Create the osidtoimageid mapping.  Admins have an option to do it or not.
     my $makedefault = exists($argref->{"makedefault"}) && 
 	$argref->{"makedefault"} eq "1";
     if (!$isadmin || $makedefault) {
-
-	# Lock tables unlocks previous locks as a side-effect.
-	DBQueryWarn("lock tables osidtoimageid write, images write, ".
-		    "nodes as n write, node_type_attributes as a write");
-
 	#
 	# Dig out the mtypes we want to turn on. The caller has already
 	# sanity checked them to make sure the types actually exist, and
@@ -446,10 +514,165 @@ sub Create($$$$$$$$)
 	    }
 	}
     }
-
-    DBQueryWarn("unlock tables");
-
     return $image;
+}
+
+#
+# Clone an image descriptor from the DB, bumping the version number
+#
+sub NewVersion($$$$$)
+{
+    my ($self, $creator, $baseimage, $argref, $usrerr_ref) = @_;
+    my $osid        = $self->imageid();
+    my $version     = $self->version();
+    my $tableid     = int(rand(10000000));
+    my $ostablename = "os_info_versions" . $tableid;
+    my $imtablename = "image_versions"  . $tableid;
+
+    #
+    # The pid/imageid has to be unique, so lock the table for the check/insert.
+    #
+    DBQueryWarn("lock tables images write, image_versions write, ".
+		"            os_info write, os_info_versions write, ".
+		"            emulab_indicies write")
+	or return undef;
+
+    my $query_result =
+	DBQueryWarn("create temporary table $ostablename ".
+		    "select * from os_info_versions ".
+		    "  where osid='$osid' and vers='$version'");
+    goto bad
+	if (!$query_result);
+
+    $query_result =
+	DBQueryWarn("create temporary table $imtablename ".
+		    "select * from image_versions ".
+		    "where imageid='$osid' and version='$version'");
+    goto bad
+	if (!$query_result);
+
+    #
+    # Now reset a few things in each table.
+    #
+    my $clone_vers  = $self->version() + 1;
+    my $creator_urn = "";
+    #
+    # If this is set in the environment, we use it. This allows
+    # us to track actual geni users, since all of that happens
+    # as geniuser. We do not bother to set this for local users.
+    #
+    if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
+	$creator_urn = ",creator_urn=". DBQuoteSpecial($ENV{'GENIURN'});
+    }
+    #
+    # Figure out which partition needs to be changed. EZ images only
+    # at this time.
+    #
+    my $part_vers = "";
+    for (my $i = 1; $i <= 4; $i++) {
+	my $func = "part${i}_osid";
+	if (defined($self->$func())) {
+	    $part_vers = "part${i}_vers='${clone_vers}'";
+	    last;
+	}
+    }
+
+    my $uid     = $creator->uid();
+    my $uid_idx = $creator->uid_idx();
+
+    #
+    # The parent of this image might be this image, if taking a snapshot
+    # of a node running the image. But we also need to support making a
+    # version of the image, from a node running some other image. We still
+    # bump the version number, but the parent pointers are different. 
+    #
+    my ($parent_imageid, $parent_version);
+    
+    if ($self->imageid() == $baseimage->imageid()) {
+	$parent_imageid = $self->imageid();
+	$parent_version = $self->version();
+    }
+    else {
+	$parent_imageid = $baseimage->imageid();
+	$parent_version = $baseimage->version();
+    }
+
+    #
+    # Fix up the path by appending the version number.
+    #
+    my $path = $self->path();
+    if ($path =~ /^(.*):\d+$/) {
+	$path = $1 . ":${clone_vers}";
+    }
+    else {
+	$path .= ":${clone_vers}";
+    }
+
+    DBQueryWarn("update $ostablename set ".
+		"  uuid=uuid(), ".
+		"  vers='$clone_vers',".
+		"  parent_osid='$parent_imageid',".
+		"  parent_vers='$parent_version', ".
+		"  creator='$uid',creator_idx='$uid_idx' ".
+		"where osid='$osid'")
+	or goto bad;
+
+    DBQueryWarn("update $imtablename set ".
+		"  uuid=uuid(),ready=0,path='$path', ".
+		"  $part_vers, default_vers='$clone_vers', ".
+		"  version='$clone_vers',".
+		"  parent_imageid='$parent_imageid',".
+		"  parent_version='$parent_version', ".
+		"  creator='$uid',creator_idx='$uid_idx' $creator_urn ".
+		"where imageid='$osid'")
+	or goto bad;
+
+    #
+    # And insert into the real table. At this point we will be
+    # inconsistent if we crash before the commit is done. We should use
+    # a transaction, but myisam tables do not do real transactions.
+    #
+    if (! (DBQueryWarn("insert into os_info_versions ".
+		       "select * from $ostablename") &&
+	   DBQueryWarn("insert into image_versions ".
+		       "select * from $imtablename") &&
+	   DBQueryWarn("update os_info set version='$clone_vers' ".
+		       "where osid='$osid'") &&
+	   DBQueryWarn("update images set version='$clone_vers' ".
+		       "where imageid='$osid'"))) {
+	DBQueryWarn("delete from os_info_versions ".
+		    "where osid='$osid' and vers='$clone_vers'");
+	DBQueryWarn("delete from image_versions ".
+		    "where imageid='$osid' and version='$clone_vers'");
+	DBQueryWarn("update os_info set version='$version' ".
+		    "where osid='$osid'");
+	DBQueryWarn("update images set version='$version' ".
+		    "where imageid='$osid'");
+	goto bad;
+    }
+    
+    DBQueryWarn("unlock tables");
+    return Image->Lookup($osid);
+  bad:
+    DBQueryWarn("unlock tables");
+    return undef;
+}
+
+#
+# For a newly created image, set the provenance pointers back to
+# the image from which it was derived.
+#
+sub SetProvenance($$)
+{
+    my ($self, $base) = @_;
+    my $parent_imageid = $base->imageid();
+    my $parent_version = $base->version();
+
+    $self->Update({"parent_imageid" => $parent_imageid,
+		   "parent_version" => $parent_version})
+	== 0 or return -1;
+
+    return 0;
 }
 
 #
@@ -524,8 +747,9 @@ sub EditImageid($$$$)
     }
 
     if (keys %updates || $redo_map) {
-	DBQueryWarn("lock tables images write, os_info write, ".
-		     "osidtoimageid write");
+	DBQueryWarn("lock tables images write, image_versions write, ".
+		    "     os_info write, os_info_versions write, ".
+		    "     osidtoimageid write");
     }
     if (keys %updates) {
 	if ($image->Update(\%updates)) {
@@ -608,33 +832,39 @@ sub Update($$)
 	if (! ref($self));
 
     my $imageid = $self->imageid();
+    my $version = $self->version();
 
-    my $query = "update images set ".
-	join(",", map("$_='" . $argref->{$_} . "'", keys(%{$argref})));
+    my $query = 
+	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
 
-    $query .= " where imageid='$imageid'";
+    $query .= " where imageid='$imageid' and version='$version'";
 
     return -1
-	if (! DBQueryWarn($query));
-
+	if (! DBQueryWarn("update image_versions set $query"));
+	    
     return Refresh($self);
 }
 
 #
 # Delete a descriptor. 
 #
-sub Delete($)
+sub Delete($;$)
 {
-    my ($self) = @_;
+    my ($self, $purge) = @_;
 
     # Must be a real reference. 
     return -1
 	if (! ref($self));
 
-    my $imageid = $self->imageid();
+    $purge = 0
+	if (!defined($purge));
+    
+    my $imageid   = $self->imageid();
 
-    DBQueryWarn("lock tables images write, os_info write, ".
-		"osidtoimageid write, os_submap write")
+    DBQueryWarn("lock tables images write, image_versions write, ".
+		"            os_info write, os_info_versions write, ".
+		"            osidtoimageid write, os_submap write, ".
+		"            image_permissions write")
 	or return -1;
 
     #
@@ -644,16 +874,41 @@ sub Delete($)
 	or goto bad;
     DBQueryWarn("delete from images where imageid='$imageid'")
 	or goto bad;
+    
+    if ($purge) {
+	goto bad
+	    if (! QueryWarn("delete from image_versions ".
+			    "where imageid='$imageid'"));
+    }
+    else {
+	# Set deleted on all of the versions.
+	DBQueryWarn("update image_versions set ".
+		    "    deleted=now(),locked=null,locker_pid=0 ".
+		    "where imageid='$imageid'")
+	    or goto bad;
+    }
     if ($self->ezid()) {
 	DBQueryWarn("delete from os_submap where osid='$imageid'")
 	    or goto bad;
 	DBQueryWarn("delete from os_info where osid='$imageid'")
 	    or goto bad;
+	if ($purge) {
+	    DBQueryWarn("delete from os_info_versions where osid='$imageid'")
+		or goto bad;
+	}
+	else {
+	    # Set deleted on all of the versions.
+	    DBQueryWarn("update os_info_versions set deleted=now() ".
+			"where osid='$imageid'")
+		or goto bad;
+	}
+	# Kill off the imageid permissions.
+	DBQueryWarn("delete from image_permissions where imageid='$imageid'")
+	    or goto bad;
     }
     DBQueryWarn("unlock tables")
 	or return -1;
 
-    delete($images{"$imageid"});
     return 0;
 
   bad:
@@ -885,15 +1140,14 @@ sub GetUpdate($$)
 
     my $imageid     = $self->imageid();
 
-    my $result = DBQueryWarn("select UNIX_TIMESTAMP(updated) from images ".
+    my $result = DBQueryWarn("select UNIX_TIMESTAMP(updated) ".
+			     "  from image_versions ".
 			     "where imageid='$imageid'");
     if ($result && $result->numrows) {
 	my ($stamp) = $result->fetchrow_array();
 	$$stampp = $stamp;
 	return 0;
     }
-
-    return -1;
 }
 
 #
@@ -939,6 +1193,7 @@ sub MarkUpdate($$;$)
 	if (! ref($self));
 
     my $imageid     = $self->imageid();
+    my $version     = $self->version();
     my $updater     = "";
     my $updater_idx = "";
     my $updater_urn = "";
@@ -963,9 +1218,9 @@ sub MarkUpdate($$;$)
     }
 
     return -1
-	if (! DBQueryWarn("update images set updated=$stamp " .
+	if (! DBQueryWarn("update image_versions set updated=$stamp " .
 			  "  $updater $updater_idx $updater_urn ".
-			  "where imageid='$imageid'"));
+			  "where imageid='$imageid' and version='$version'"));
 
     return 0;
 }
@@ -977,18 +1232,7 @@ sub SetHash($$)
 {
     my ($self, $hash) = @_;
 
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
-    my $imageid   = $self->imageid();
-    my $safe_hash = DBQuoteSpecial($hash);
-
-    return -1
-	if (! DBQueryWarn("update images set hash=$safe_hash " .
-			  "where imageid='$imageid'"));
-
-    return 0;
+    return $self->Update({"hash" => $hash});
 }
 
 #
@@ -998,17 +1242,7 @@ sub SetSize($$)
 {
     my ($self, $size) = @_;
 
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
-    my $imageid   = $self->imageid();
-
-    return -1
-	if (! DBQueryWarn("update images set size=$size " .
-			  "where imageid='$imageid'"));
-
-    return 0;
+    return $self->Update({"size" => $size});
 }
 
 #
@@ -1019,36 +1253,25 @@ sub SetRange($$$;$$)
 {
     my ($self,$start,$end,$ssize,$isreloc) = @_;
 
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
+    my $argref = {"lba_low" => $start, "lba_high" => $end};
 
-    my $imageid = $self->imageid();
-
-    my $clause = "";
     if (defined($ssize)) {
-	$clause .= ",lba_size=$ssize";
+	$argref->{'lba_size'} = $ssize;
     }
     if (defined($isreloc)) {
-	$clause .= ",relocatable=$isreloc";
+	$argref->{'relocatable'} = $isreloc;
     }
-
-    return -1
-	if (! DBQueryWarn("update images set ".
-			  "  lba_low=$start,lba_high=$end$clause ".
-			  "where imageid='$imageid'"));
-
-    return 0;
+    return $self->Update($argref);
 }
 
 #
-# Lock and Unlock
+# Lock and Unlock. We lock the entire chain (all versions) of the
+# image. 
 #
 sub Lock($)
 {
     my ($self) = @_;
 
-    # Must be a real reference. 
     return -1
 	if (! ref($self));
     return -1
@@ -1079,12 +1302,12 @@ sub Unlock($)
     return -1
 	if (! ref($self));
 
-    my $imageid   = $self->imageid();
+    my $imageid = $self->imageid();
 
     return -1
 	if (! DBQueryWarn("update images set locked=null,locker_pid=0 " .
 			  "where imageid='$imageid'"));
-    
+	    
     $self->{'IMAGE'}->{'locked'} = 0;
     $self->{'IMAGE'}->{'locker_pid'} = 0;
     return 0;
@@ -1261,7 +1484,7 @@ sub RecordImageHistory($$$$$$)
 	$node->FlushReserved();
 	
 	my $ref  = $noderef->{$node_id};
-	my ($osid, $imageid) = @{$ref};
+	my ($osinfo, $image) = @{$ref};
 	my $newly_alloc      = (exists($prev_alloc{$node_id}) ? 0 : 1);
 	$newly_alloc = 'NULL'
 	    if ($cant_find_prev_alloc);
@@ -1305,6 +1528,10 @@ sub RecordImageHistory($$$$$$)
 	my $req_os = defined $osname ? ($osname ? 1 : 0) : 'NULL';
 	$erole = 'delay' if $erole eq 'delaynode';
 	$req_type = $erole unless defined $req_type;
+	my $osid      = $osinfo->osid();
+	my $osid_vers = $osinfo->vers();
+	my $imageid   = $image->imageid();
+	my $version   = $image->version();
 
 	next
 	    if ($impotent);
@@ -1312,12 +1539,13 @@ sub RecordImageHistory($$$$$$)
 	DBQueryWarn("insert into image_history ".
 		    "(stamp, node_history_id, node_id, ".
 		    " action, newly_alloc, rsrcidx, log_session, ".
-		    " req_type, phys_type, req_os, osid, imageid) ".
+		    " req_type, phys_type, req_os, ".
+		    " osid, osid_vers, imageid, imageid_version) ".
 		    "values(UNIX_TIMESTAMP(now()), ".
 		    "       $node_history_id, '$node_id', '$action', ".
 		    "       $newly_alloc, $rsrcidx, ".
 		    "       $log_session, '$req_type', '$phys_type', ".
-		    "       $req_os, $osid, $imageid)")
+		    "       $req_os, $osid, $osid_vers, $imageid, $version)")
 	    or return -1;
     }
     return 0;
@@ -1339,11 +1567,12 @@ sub ListForURN($$)
 	if (! GeniHRN::IsValid($urn));
 
     my $query_result =
-	DBQueryWarn("select imageid from images ".
-		    "where creator_urn='$urn'");
+	DBQueryWarn("select distinct pid,imagename from image_versions ".
+		    "where creator_urn='$urn' and deleted is null");
 
-    while (my ($imageid) = $query_result->fetchrow_array()) {
-	my $image = Image->Lookup($imageid);
+    while (my ($pid,$imagename) = $query_result->fetchrow_array()) {
+	# Want latest version.
+	my $image = Image->Lookup($pid, $imagename);
 	next
 	    if (!defined($image));
 
@@ -1360,12 +1589,19 @@ sub SetLogFile($$)
 {
     my ($self, $logfile) = @_;
 
-    # Must be a real reference. 
-    return -1
-	if (! ref($self) || !ref($logfile));
-
     return -1
 	if (! $self->Update({'logfileid' => $logfile->logid()}));
+
+    return 0;
+}
+
+# Ready bit.
+sub MarkReady($)
+{
+    my ($self) = @_;
+
+    return -1
+	if (! $self->Update({'ready' => 1}));
 
     return 0;
 }
@@ -1410,8 +1646,9 @@ sub ClearLogFile($)
 	or return -1;
 
     my $imageid = $self->imageid();
-    DBQueryWarn("update images set logfileid=NULL ".
-		"where imageid='$imageid'")
+    my $version = $self->version();
+    DBQueryWarn("update image_versions set logfileid=NULL ".
+		"where imageid='$imageid' and version='$version'")
 	or return -1;
 
     return $self->Refresh();
@@ -1431,6 +1668,27 @@ sub SetRunsOnNodeType($$)
 	or return -1;
 
     return 0;
+}
+
+#
+# Is the image the newest version of the image.
+#
+sub IsNewest($)
+{
+    my ($self) = @_;
+
+    my $imageid   = $self->pid();
+    
+    my $query_result =
+	DBQueryWarn("select max(version) from image_versions ".
+		    "where imageid='$imageid'");
+
+    return -1
+	if (!$query_result || !$query_result->numrows);
+
+    my ($max) = $query_result->fetchrow_array();
+
+    return ($max == $self->version() ? 1 : 0);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

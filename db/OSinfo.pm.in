@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2013 University of Utah and the Flux Group.
+# Copyright (c) 2007-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -104,74 +104,146 @@ sub mysystem($)
     return system($command);
 }
 
-#
-# Lookup by idx or pid,osname, depending on the args.
-#
-sub Lookup($$;$)
-{
-    my ($class, $arg1, $arg2) = @_;
-    my $osid;
-
-    #
-    # A single arg is either an index or a "pid,osname" or "pid/osname" string.
-    #
-    if (!defined($arg2)) {
-	if ($arg1 =~ /^(\d*)$/) {
-	    $osid = $1;
-	}
-	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
-	       $arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
-	    $arg1 = $1;
-	    $arg2 = $2;
-	}
-	else {
-	    return undef;
-	}
-    }
-    elsif (! (($arg1 =~ /^[-\w\.\+]*$/) && ($arg2 =~ /^[-\w\.\+]*$/))) {
-	return undef;
-    }
-
-    #
-    # Two args means pid/osname lookup instead of gid_idx.
-    #
-    if (defined($arg2)) {
-	my $osid_result =
-	    DBQueryWarn("select osid from os_info ".
-			"where pid='$arg1' and osname='$arg2'");
-
-	return undef
-	    if (! $osid_result || !$osid_result->numrows);
-
-	($osid) = $osid_result->fetchrow_array();
-    }
-
-    # Look in cache first
-    return $osids{"$osid"}
-        if (exists($osids{"$osid"}));
-    
-    my $query_result =
-	DBQueryWarn("select * from os_info where osid='$osid'");
-
-    return undef
-	if (!$query_result || !$query_result->numrows);
-
-    return LookupRow($class, $query_result->fetchrow_hashref());
-}
-
-sub LookupRow($$)
+sub BlessRow($$)
 {
     my ($class, $row) = @_;
-
+    
     my $self           = {};
+    my $osid           = $row->{"osid"};
     $self->{'OSINFO'}  = $row;
 
     bless($self, $class);
     
-    # Add to cache. 
-    $osids{$self->osid()} = $self;
-    
     return $self;
+}
+
+#
+# Lookup by idx or pid,osname[:version] depending on the args. We always 
+# return highest numbered version on this path, if no version specified.
+#
+sub Lookup($$;$$)
+{
+    my ($class, $arg1, $arg2, $arg3) = @_;
+
+    #
+    # A single arg is either an index or "pid,osname[:version]" or
+    # "pid/osname[:version]" string.
+    #
+    if (!defined($arg2)) {
+	if ($arg1 =~ /^(\d*)$/) {
+	    my $result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid and v.vers=o.version ".
+			    "where o.osid='$arg1'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
+		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
+	    my $result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid and v.vers=o.version ".
+			    "where o.pid='$1' and o.osname='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*):(\d*)$/ ||
+		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*):(\d*)$/) {
+	    my $result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid ".
+			    "where o.pid='$arg1' and o.osname='$arg2' and ".
+			    "      v.vers='$arg3' and v.deleted is null");
+
+	    return undef
+		if (!$result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
+	    my $result =
+		DBQueryWarn("select * from os_info ".
+			    "where uuid='$arg1' and deleted is null");
+
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	return undef;
+    }
+    elsif (!defined($arg3)) {
+	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
+	    my $result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid ".
+			    "where o.osid='$arg1' and v.vers='$arg2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^([-\w\.\+]*):(\d+)$/) {
+	    my $result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid  ".
+			    "where o.pid='$arg1' and o.osname='$1' and ".
+			    "      v.vers='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^[-\w\.\+]*$/) {
+	    my $result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid and v.vers=o.version ".
+			    "where o.pid='$arg1' and o.osname='$arg2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	return undef;
+    }
+    else {
+	if ($arg1 =~ /^[-\w]*$/ &&
+	    $arg2 =~ /^[-\w\.\+]*$/ && $arg3 =~ /^\d+$/) {
+	    my $result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid ".
+			    "where o.pid='$arg1' and o.osname='$arg2' and ".
+			    "      v.vers='$arg3' and v.deleted is null");
+
+	    return undef
+		if (!$result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	return undef;
+    }
+    return undef;
+}
+
+#
+# Lookup newest version of osinfo.
+#
+sub LookupNewest($)
+{
+    my ($self) = @_;
+
+    return OSinfo->Lookup($self->pid(), $self->osname());
 }
 
 AUTOLOAD {
@@ -216,7 +288,8 @@ sub Create($$$$$$)
     #
     # The pid/osid has to be unique, so lock the table for the check/insert.
     #
-    DBQueryWarn("lock tables os_info write, emulab_indicies write")
+    DBQueryWarn("lock tables os_info write, os_info_versions write, ".
+		"            emulab_indicies write")
 	or return undef;
 
     my $query_result =
@@ -235,9 +308,9 @@ sub Create($$$$$$)
     my $osid  = TBGetUniqueIndex("next_osid", undef, 1);
     my $uuid  = NewUUID();
     my $desc  = "''";
-    my $magic = "''"; 
+    my $magic = "''";
 
-
+    #
     # Some fields special cause of quoting.
     #
     if (exists($argref->{'description'})) {
@@ -258,21 +331,23 @@ sub Create($$$$$$)
 	    push(@arg_slots, $key);
 	}
     }
+    my $bquery = "osname='$osname'";
+    $bquery .= ",osid='$osid'";
+    $bquery .= ",uuid='$uuid'";
+    $bquery .= ",pid='$pid',pid_idx='$pid_idx'";
 
-    my $query = "insert into os_info set ".
+    my $query = "insert into os_info_versions set $bquery, ".
 	join(",", map("$_='" . $argref->{$_} . "'", @arg_slots));
 
     # Append the rest
-    $query .= ",osname='$osname'";
-    $query .= ",osid='$osid'";
-    $query .= ",uuid='$uuid'";
-    $query .= ",pid='$pid',pid_idx='$pid_idx'";
     $query .= ",creator='$uid',creator_idx='$uid_idx'";
     $query .= ",created=now()";
     $query .= ",description=$desc";    
-    $query .= ",magic=$magic";    
-    
-    if (! DBQueryWarn($query)) {
+    $query .= ",magic=$magic";
+
+    if (! (DBQueryWarn("insert into os_info set $bquery") &&
+	   DBQueryWarn($query))) {
+	DBQueryWarn("delete from os_info where osid='$osid'");
 	DBQueryWarn("unlock tables");
 	tberror("Error inserting new os_info record for $pid/$osname!");
 	return undef;
@@ -293,6 +368,23 @@ sub LookupByName($$)
 }
 
 #
+# For a newly created os_info, set the provenance pointers back to
+# the os_info from which it was derived.
+#
+sub SetProvenance($$)
+{
+    my ($self, $base) = @_;
+    my $parent_osid = $base->osid();
+    my $parent_vers = $base->vers();
+
+    $self->Update({"parent_osid" => $parent_osid,
+		   "parent_vers" => $parent_vers})
+	== 0 or return -1;
+
+    return 0;
+}
+
+#
 # Refresh a class instance by reloading from the DB.
 #
 sub Refresh($)
@@ -303,9 +395,11 @@ sub Refresh($)
 	if (! ref($self));
 
     my $osid = $self->osid();
+    my $vers = $self->vers();
     
     my $query_result =
-	DBQueryWarn("select * from os_info where osid=$osid");
+	DBQueryWarn("select * from os_info_versions ".
+		    "where osid=$osid and vers=$vers");
 
     return -1
 	if (!$query_result || !$query_result->numrows);
@@ -341,11 +435,12 @@ sub Update($$)
 	if (! ref($self));
 
     my $osid = $self->osid();
-
-    my $query = "update os_info set ".
+    my $vers = $self->vers();
+    
+    my $query = "update os_info_versions set ".
 	join(",", map("$_='" . $argref->{$_} . "'", keys(%{$argref})));
 
-    $query .= " where osid='$osid'";
+    $query .= " where osid='$osid' and vers='$vers'";
 
     return -1
 	if (! DBQueryWarn($query));
@@ -477,12 +572,16 @@ sub OSBootCmd($$$)
 	if (! (ref($self) && ref($pref)));
 
     my $osid = $self->osid();
+    my $vers = $self->vers();
 
     my $query_result =
 	DBQueryWarn("select ob.boot_cmd_line from os_info as oi ".
-		    "left join os_boot_cmd as ob on ob.OS=oi.OS and ".
+		    "left join os_info_versions as v on ".
+		    "     v.osid=oi.osid and v.vers=oi.version ".
+		    "left join os_boot_cmd as ob on ob.OS=ov.OS and ".
 		    "  ob.version=oi.version ".
-		    "where oi.osid='$osid' and ob.role='$role'");
+		    "where oi.osid='$osid' and oi.version='$vers' and ".
+		    "       ob.role='$role'");
 
     return -1
 	if (!$query_result || $query_result->numrows > 1);
@@ -520,18 +619,17 @@ sub ResolveNextOSID($;$)
 	# Just a guard to make sure we don't end up in a loop
 	#
 	if ($count++ > 10) {
-	    warn "Resolving $input_osid: Circular reference\n";
+	    warn "ResolveNextOSID $input_osid: Circular reference\n";
 	}
 
 	$osid = $next_osid;
-	my $result =
-	    DBQueryWarn("select nextosid from os_info where osid='$osid'");
-
-	if ($result->num_rows() != 1) {
+	my $osinfo = OSinfo->Lookup($osid);
+	if (!defined($osinfo)) {
 	    warn "Resolving $input_osid: Unable to fetch os_info for $osid!\n";
 	    return undef;
 	}
-	($next_osid) = $result->fetchrow();
+	$osinfo = $osinfo->LookupNewest();
+	($next_osid) = $osinfo->nextosid();
 
 	#
 	# See if we need to resolve using a map.
@@ -575,9 +673,9 @@ sub ResolveNextOSID($;$)
 		$timestr = "now()";
 	    }
 
-	    $result = DBQueryWarn("select nextosid from $map ".
-				  "where osid='$osid' and ".
-				  "$timestr between btime and etime");
+	    my $result = DBQueryWarn("select nextosid from $map ".
+				     "where osid='$osid' and ".
+				     "$timestr between btime and etime");
 	    if (!$result) {
 		warn "No such osid map $map!\n";
 		return undef;
