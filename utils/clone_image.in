@@ -27,6 +27,7 @@ use Getopt::Std;
 use Data::Dumper;
 use File::Temp qw(tempfile);
 use CGI;
+use File::Basename;
 
 #
 # Clone an image (descriptor) from a node and then snapshot
@@ -177,6 +178,8 @@ print "$node_id is running $base_osinfo,$base_image\n"
 # a simple snapshot to the image file. 
 #
 if (defined($image)) {
+    my $needdelete = 0;
+    
     #
     # Only EZ images via this interface.
     #
@@ -216,15 +219,48 @@ if (defined($image)) {
 	fatal("Image is locked, please try again later!\n");
     }
     if ($DOPROVENANCE) {
-	my $clone_error;
-	my $clone = $image->NewVersion($this_user,
-				       $base_image, undef, \$clone_error);
-	if (!defined($clone)) {
-	    $image->Unlock();
-	    fatal("Could not clone image descriptor" .
-		  (defined($clone_error) ? ": $clone_error" : "") . "\n");
+	#
+	# Is the ready bit set? If not, it means something went wrong with
+	# a previous image creation. Lets reset the provenance.
+	#
+	if (!$image->ready()) {
+	    my $osinfo = OSinfo->Lookup($image->imageid());
+	    if (!defined($osinfo)) {
+		$image->Unlock();
+		fatal("Cannot lookup osinfo for $image");
+	    }
+	    $image->SetProvenance($base_image);
+	    $osinfo->SetProvenance($base_osinfo);
 	}
-	$image = $clone;
+	else {
+	    my $clone_error;
+	    my $clone = $image->NewVersion($this_user,
+					   $base_image, undef, \$clone_error);
+	    if (!defined($clone)) {
+		$image->Unlock();
+		fatal("Could not clone image descriptor" .
+		      (defined($clone_error) ? ": $clone_error" : "") . "\n");
+	    }
+	    $image = $clone;
+	    $needdelete = 1;
+
+	    #
+	    # Watch for a system image that is saved elsewhere; see equiv code
+	    # in create_image. We change the path to point over to the /proj
+	    # directory so that we do not burn up space on boss until it is
+	    # officially "released". We can also use this version of the image
+	    # by explicitly using its version number, before it is released. 
+	    #
+	    if ($image->path() =~ /^\/usr\/testbed/) {
+		my $path = $PROJROOT . "/" . $image->pid() . "/images/" .
+		    basename($image->path()) . ":" . $image->version();
+
+		if ($image->Update({"path" => $path, "released" => 0})) {
+		    $image->DeleteVersion();
+		    fatal("Could not update path and ready bit");
+		}
+	    }
+	}
     }
     $image->Unlock();
     
@@ -237,8 +273,8 @@ if (defined($image)) {
     my $output = emutil::ExecQuiet("$CREATEIMAGE -p $pid $imagename $node_id");
     if ($?) {
 	if ($DOPROVENANCE) {
-	    # Delete with Purge.
-	    $image->Delete(1);
+	    $image->DeleteVersion()
+		if ($needdelete);
 	}
 	print STDERR $output;
 	fatal("Failed to create image");
@@ -246,6 +282,7 @@ if (defined($image)) {
     print "Image is being created. This can take 15-30 minutes.\n";
     exit(0);
 }
+DoNew:
 
 #
 # Only EZ images via this interface.

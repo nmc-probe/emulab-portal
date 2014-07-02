@@ -57,8 +57,10 @@ SUBMENUSTART("More Options");
 $fooid = rawurlencode($imageid);
 WRITESUBMENUBUTTON("Edit this Image Descriptor",
 		   "editimageid.php3?imageid=$fooid");
-WRITESUBMENUBUTTON("Snapshot Node Disk into Image",
-		   "loadimage.php3?imageid=$fooid");
+if ($image->AccessCheck($this_user, $TB_IMAGEID_MODIFYINFO )) {
+    WRITESUBMENUBUTTON("Snapshot Node Disk into Image",
+		       "loadimage.php3?imageid=$fooid");
+}
 WRITESUBMENUBUTTON("Clone this Image Descriptor",
 		   "newimageid_ez.php3?baseimage=$fooid");
 WRITESUBMENUBUTTON("Delete this Image Descriptor",

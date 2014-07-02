@@ -618,7 +618,7 @@ sub NewVersion($$$$$)
 	or goto bad;
 
     DBQueryWarn("update $imtablename set ".
-		"  uuid=uuid(),ready=0,path='$path', ".
+		"  uuid=uuid(),ready=0,released=1,path='$path', ".
 		"  $part_vers, default_vers='$clone_vers', ".
 		"  version='$clone_vers',".
 		"  parent_imageid='$parent_imageid',".
@@ -846,7 +846,7 @@ sub Update($$)
 }
 
 #
-# Delete a descriptor. 
+# Delete an image,
 #
 sub Delete($;$)
 {
@@ -909,6 +909,54 @@ sub Delete($;$)
     DBQueryWarn("unlock tables")
 	or return -1;
 
+    return 0;
+
+  bad:
+    DBQueryWarn("unlock tables");
+    return -1;
+}
+
+#
+# Delete a version of an image. This is not to be used, except when there
+# is an error during clone, and we want to undo the creation of a new version.
+#
+sub DeleteVersion($)
+{
+    my ($self) = @_;
+
+    my $imageid   = $self->imageid();
+    my $version   = $self->version();
+
+    DBQueryWarn("lock tables images write, image_versions write, ".
+		"            os_info write, os_info_versions write")
+	or return -1;
+
+    #
+    # We do not allow the deletion if it is not the "head" version of the
+    # image. Maybe later.
+    #
+    my $query_result =
+	DBQueryWarn("select version from images ".
+		    "where imageid='$imageid' and version='$version'");
+    goto bad
+	if (!$query_result);
+    if (!$query_result->numrows) {
+	print STDERR "Image::DeleteVersion: not the head version of $self\n";
+	goto bad;
+    }
+
+    goto bad
+	if (! (DBQueryWarn("delete from image_versions ".
+			   "where imageid='$imageid' and version='$version'") &&
+	       DBQueryWarn("update images set version=version-1 ".
+			   "where imageid='$imageid'") &&
+	       DBQueryWarn("delete from os_info_versions ".
+			   "where osid='$imageid' and vers='$version'") &&
+	       DBQueryWarn("update os_info set version=version-1 ".
+			   "where osid='$imageid'")));
+
+    DBQueryWarn("unlock tables")
+	or return -1;
     return 0;
 
   bad:
@@ -1602,6 +1650,17 @@ sub MarkReady($)
 
     return -1
 	if (! $self->Update({'ready' => 1}));
+
+    return 0;
+}
+
+# Released bit.
+sub MarkReleased($)
+{
+    my ($self) = @_;
+
+    return -1
+	if (! $self->Update({'released' => 1}));
 
     return 0;
 }

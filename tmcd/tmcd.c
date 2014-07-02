@@ -5199,11 +5199,12 @@ COMMAND_PROTOTYPE(doloadinfo)
 			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,iv.path,"
 			 "   ov.version,pa.partition,iv.size,"
 			 "   iv.lba_low,iv.lba_high,iv.lba_size,iv.relocatable,"
-			 "   UNIX_TIMESTAMP(iv.updated) "
+			 "   UNIX_TIMESTAMP(iv.updated),r.imageid_version "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
 			 "left join image_versions as iv on "
-			 "     iv.imageid=i.imageid and iv.version=i.version "
+			 "     iv.imageid=i.imageid and "
+			 "     iv.version=r.imageid_version "
 			 "left join frisbee_blobs as f on f.imageid=i.imageid "
 			 "left join os_info_versions as ov on "
 			 "     ov.osid=iv.default_osid and "
@@ -5214,7 +5215,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 			 "     pa.node_id=r.node_id and "
 			 "     pa.osid=iv.default_osid and loadpart=0 "
 			 "where r.node_id='%s' order by r.idx",
-			 19, reqp->nodeid);
+			 20, reqp->nodeid);
 
 	if (!res) {
 		error("doloadinfo: %s: DB Error getting loading address!\n",
@@ -5547,8 +5548,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 				return 1;
 			}
 
-			bufp += OUTPUT(bufp, ebufp - bufp, " IMAGEID=%s,%s,%s",
-				       row[8], row[9], row[7]);
+			bufp += OUTPUT(bufp, ebufp - bufp, " IMAGEID=%s,%s,%s:%s",
+				       row[8], row[9], row[7], row[19]);
 
 			/*
 			 * All images version 38 and above, or just vnodes

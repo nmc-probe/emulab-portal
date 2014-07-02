@@ -501,7 +501,7 @@ sub osload ($$) {
 			'node_id' => $node,
 			'partition' => $i,
 			'osid' => $osid,
-			'osid_version' => $osinfo->vers(),
+			'osid_vers' => $osinfo->vers(),
 			'imageid' => $image->imageid(),
 			'imageid_version' => $image->version(),
 			'imagepid' => $imagepid,
@@ -525,7 +525,7 @@ sub osload ($$) {
 	    if (exists($partitions{$i})) {
 		my $href = $partitions{$i};
 		my $osid = $href->{'osid'};
-		my $osvers = $href->{'osid_version'};
+		my $osvers = $href->{'osid_vers'};
 		my $imid = $href->{'imageid'};
 		my $imvers = $href->{'imageid_version'};
 		my $impid = $href->{'imagepid'};

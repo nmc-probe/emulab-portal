@@ -209,7 +209,7 @@ $EUID = $UID;
 #
 # Untaint the arguments.
 #
-if ($imagename =~ /^([-\w\.\+]+)$/) {
+if ($imagename =~ /^([-\w\.\+:]+)$/) {
     $imagename = $1;
 }
 else {
@@ -367,10 +367,11 @@ else {
 #
 my $filename = $image->path();
 my $isglobal = $image->global();
-my $usepath = 0;
+# Temporary until frisbee path can handle versions?
+my $usepath  = $image->released() ? 0 : 1;
 
 #
-# Redirect pathname for global images.
+# Redirect pathname for global images. See equiv code in clone_image.
 #
 if ($isglobal && ($filename =~ /^\/usr\/testbed/)) {
     $filename = PROJROOT() . "/$pid/images/" . basename($filename);
@@ -425,7 +426,7 @@ if ($image->Lock()) {
 }
 $needunlock = 1;
 
-if (!$usepath && $image->ready()) {
+if ($image->ready()) {
     $image->Unlock();
     die("*** $0:\n".
 	"    $image ready flag is set, this is inconsistent!\n");
