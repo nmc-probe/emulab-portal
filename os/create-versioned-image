@@ -357,7 +357,7 @@ if ($dofrisbee) {
 	die "No can do Linux right now!\n";
     } else {
 	if (mysystem("$sudo mdconfig -a -t swap -s 64m -u 4") ||
-	    mysystem("$sudo newfs -b 65536 -i 25000 -o space /dev/md4") ||
+	    mysystem("$sudo newfs -b 8192 -i 25000 -o space /dev/md4") ||
 	    mysystem("$sudo mount /dev/md4 $localdir")) {
 	    print STDERR "Could not create $MEMFS_SIZE byte local MFS\n";
 
@@ -402,68 +402,84 @@ sub fetch($$)
     my $lfile = "$localdir/$file";
     my $ifile = $iinfo{$iid}{$file};
 
-    if ($iinfo{$iid}{'method'} eq "frisbee") {
+    if ($iinfo{$iid}{'method'} eq "file") {
+	if (! -r "$ifile" || mysystem("ln -sf $ifile $lfile")) {
+	    return -1;
+	}
+    }
+
+    elsif ($iinfo{$iid}{'method'} eq "frisbee") {
 	my $srv = $iinfo{$iid}{'server'};
 	if (mysystem("$frisbee -N -S $srv -F $ifile $lfile")) {
-	    $lfile = undef;
-	}
-    }
-    elsif ($iinfo{$iid}{'method'} eq "file") {
-	if (mysystem("ln -sf $ifile $lfile")) {
-	    $lfile = undef;
+	    return -1;
 	}
     }
 
-    if (defined($lfile) && -r "$lfile") {
-	return 0;
-    }
-
-    return -1;
+    return 0;
 }
 
-sub trunc($$)
+sub writetest($$)
 {
     my ($iid,$file) = @_;
 
     my $lfile = "$localdir/$file";
     my $ifile = $iinfo{$iid}{$file};
 
+    #
+    # For file (NFS) we make sure we can write the actual file.
+    # If it doesn't currently exist, we try creating it (if we do create
+    # it, we remove it again to make sure we don't leave turds behind).
+    # If all is well, we create a local symlink to use.
+    #
     if ($iinfo{$iid}{'method'} eq "file") {
-	if (mysystem("ln -sf $ifile $lfile")) {
-	    $lfile = undef;
-	}
-    }
-    if (defined($lfile) && ($impotent || open(FD, ">$lfile"))) {
-	close(FD)
-	    if (!$impotent);
-	#
-	# For frisbee, we also attempt to validate the path we will
-	# be uploading to.
-	#
-	if ($iinfo{$iid}{'method'} eq "frisbee") {
-	    my $srv = $iinfo{$iid}{'server'};
-	    my $cmd = "$uploader -S $srv -Q $ifile $lfile";
-
-	    if ($impotent) {
-		print STDERR "Would: '$cmd' ...\n";
-	    } else {
-		print STDERR "Doing: '$cmd' ...\n"
-		    if ($verbose);
-		my $out = `$cmd`;
-		if ($? != 0 || $out !~ /error=0/) {
-		    return -1;
-		}
+	if (! -e "$ifile") {
+	    if (!$impotent && !open(FD, ">$ifile")) {
+		return -1;
+	    }
+	    if (!$impotent) {
+		close(FD);
+		unlink("$ifile");
 	    }
 	}
-	return 0;
+	elsif (! -w "$ifile") {
+	    return -1;
+	}
+
+	if (mysystem("ln -sf $ifile $lfile")) {
+	    return -1;
+	}
     }
 
-    return -1;
+    #
+    # For frisbee, we just check with the server to ensure we can
+    # upload to the file. Note: the local file has to exist for this to
+    # work, so we create that.
+    #
+    elsif ($iinfo{$iid}{'method'} eq "frisbee") {
+	my $srv = $iinfo{$iid}{'server'};
+	my $cmd = "$uploader -S $srv -Q $ifile $lfile";
+
+	if ($impotent) {
+	    print STDERR "Would: '$cmd' ...\n";
+	} else {
+	    if (open(FD, ">$lfile")) {
+		close(FD);
+	    }
+	    print STDERR "Doing: '$cmd' ...\n"
+		if ($verbose);
+	    my $out = `$cmd`;
+	    if ($? != 0 || $out !~ /error=0/) {
+		return -1;
+	    }
+	}
+    }
+
+    return 0;
 }
 
 sub process_image($)
 {
-    my $iid = @_;
+    my ($iid) = @_;
 
     if ($verbose) {
 	print "Image #$iid:\n";
@@ -473,18 +489,31 @@ sub process_image($)
     }
 
     #
-    # See if we need to download the signature file
+    # Make sure the image file is writeable.
     #
-    if (exists($iinfo{$iid}{'sigfile'}) && fetch($iid, "sigfile")) {
-	print STDERR "Could not fetch/read signature file\n";
+    if (writetest($iid, "iname")) {
+	print STDERR
+	    "Cannot write new image '", $iinfo{$iid}{'iname'}, "'\n";
 	exit(3);
     }
 
     #
-    # Make sure we can create the new sig file
+    # Make sure we can write the new sig file if needed.
     #
-    if (exists($iinfo{$iid}{'nsigfile'}) && trunc($iid, "nsigfile")) {
-	print STDERR "Could not create new signature file\n";
+    if (exists($iinfo{$iid}{'nsigfile'}) && writetest($iid, "nsigfile")) {
+	print STDERR
+	    "Cannot write new signature file '",
+	    $iinfo{$iid}{'nsigfile'}, "'\n";
+	exit(3);
+    }
+
+    #
+    # Download the current signature file if needed.
+    #
+    if (exists($iinfo{$iid}{'sigfile'}) && fetch($iid, "sigfile")) {
+	print STDERR
+	    "Cannot fetch/read signature file '",
+	    $iinfo{$iid}{'sigfile'}, "'\n";
 	exit(3);
     }
 
@@ -500,6 +529,9 @@ sub process_image($)
     #   [ cat $localdir/$nsigfile | frisupload -S $server -F $nsigfile ]
     #
     my $cmd = "$zipper $zipperopts";
+    if ($verbose) {
+	$cmd .= " -o";
+    }
     if ($iinfo{$iid}{'part'} != 0) {
 	$cmd .= " -s " . $iinfo{$iid}{'part'};
     }
@@ -520,8 +552,10 @@ sub process_image($)
     }
 
     if (mysystem("$sudo $cmd")) {
+	my $stat = sprintf("0x%04x", $?);
 	print STDERR "*** Failed to create image!\n";
 	print STDERR "    command: '$sudo $cmd'\n";
+	print STDERR "    status:  $stat\n";
 	exit(3);
     }
 
