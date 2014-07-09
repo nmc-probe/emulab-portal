@@ -383,17 +383,17 @@ compareunits() {
     # Find the number of units in each list use biggest number for compare test
     if [ -n "${hwinv["${unitinfoidx_str}"]+${hwinv["${unitinfoidx_str}"]}}" ] ; then
 	    x=${hwinv["${unitinfoidx_str}"]}
-	    a=${x/${unitinfo_strip}}
+	    localcnt=${x/${unitinfo_strip}}
     else
-	a=0
+	localcnt=0
     fi
     if [ -n "${hwinvcopy["${unitinfoidx_str}"]+${hwinvcopy["${unitinfoidx_str}"]}}" ] ; then
 	x=${hwinvcopy["${unitinfoidx_str}"]}
-	b=${x/${unitinfo_strip}}
+	tbdbcnt=${x/${unitinfo_strip}}
     else
-	b=0
+	tbdbcnt=0
     fi
-    [[ $a > $b ]] && maxunits=$a || maxunits=$b 
+    [[ $localcnt > $tbdbcnt ]] && maxunits=$localcnt || maxunits=$tbdbcnt 
 
     # here we are pulling out just the address/serialnumber from each array and saving it in a list
     for ((i=0; i<$maxunits; i++)) ; do
@@ -451,6 +451,13 @@ compareunits() {
 		tbdbunits=${tbdbunits/$i}
 	    fi
 	done
+#    elif [ $localcnt -eq $tbdbcnt ] ; then
+#	# care about order, just remove in order matching entries
+#	for i in $localcnt ; do  # does not matter which cnt used the are the same
+#	    
+#	done
+    # else 
+	# not the same number of devices. Don't match, do nothing.
     fi
     
     #remove extra spaces
@@ -463,7 +470,8 @@ compareunits() {
     # if the two strings are the same then zero strings
 
     if (( $disregard_order )) ; then
-        # any strings would be mismatches in ether localunits or tbdbunits
+	# early code removed all matching strings from the two lists
+        # any leftover strings would be mismatches in ether localunits or tbdbunits
 	if [ -n "${localunits}" ]; then
 	    printf "%s%s %s\n" "${unit_human_output}" "s:" "$localunits"  >> $localonly
 	fi
@@ -471,13 +479,14 @@ compareunits() {
 	    printf "%s%s %s\n" "${unit_human_output}" "s:" "$tbdbunits" >> $tbdbonly
 	fi
     else
+	# care about order, first see if the two lists are the same.
 	if [ "$tbdbunits" != "$localunits" ] ; then
 	    # and we care about order report it
-	    # NOTE: if !local or !tb then not out of order, just a missmatch
+	    # NOTE: if !local or !tb then not out of order, extra local or in tb
 	    [[ -z "${offline-}" ]] && declare -i offline=0 # if set from gen_sql
 	    if [ "${localunits}" -a "${tbdbunits}" ] ; then
-		(( ! $offline )) && printf "ERROR %s%s OUT OF ORDER found %s from tbdb %s\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" 
-		(( ! $offline )) && ( printf "ERROR %s OUT OF ORDER found %s from tbdb %s\n" "${unit_human_output}" "$localunits" "$tbdbunits" >> $fileout ) || ( printf "WARNING %s%s ORDER '%s' compared to '%s'\n" "${unit_human_output}" "s:" "$localunits" "$tbdbunits" >> $fileout )
+		(( ! $offline )) && printf "ERROR %s: OUT OF ORDER found %s from tbdb %s\n" "${unit_human_output}" "$localunits" "$tbdbunits" 
+		(( ! $offline )) && ( printf "ERROR %s: OUT OF ORDER found local[%s] info from tbdb[%s]\n" "${unit_human_output}" "$localunits" "$tbdbunits" >> $fileout ) || ( printf "WARNING %s: ORDER ['%s'] compared to ['%s']\n" "${unit_human_output}" "$localunits" "$tbdbunits" >> $fileout )
 	    else
 		if [ -n "${localunits}" ]; then
 		    printf "%s%s %s\n" "${unit_human_output}" "s:" "$localunits"  >> $localonly
