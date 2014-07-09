@@ -410,7 +410,13 @@ sub fetch($$)
 
     elsif ($iinfo{$iid}{'method'} eq "frisbee") {
 	my $srv = $iinfo{$iid}{'server'};
-	if (mysystem("$frisbee -N -S $srv -F $ifile $lfile")) {
+	#
+	# Since we are fetching small files into an MFS, there is
+	# not much need for lots of buffer memory. We also don't
+	# randomize requests.
+	#
+	my $opts = "-O -W 1 -C 32";
+	if (mysystem("$frisbee $opts -N -S $srv -F $ifile $lfile")) {
 	    return -1;
 	}
     }
