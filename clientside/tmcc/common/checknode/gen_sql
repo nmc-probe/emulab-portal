@@ -161,7 +161,7 @@ gentbsql_main() {
 	allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null )
     fi
 
-    # unique BlockStore number based on first mac address
+    # get current unique BlockStore number from tbdb
     bsidx_base=$(mysql -B -N -e "select idx from emulab_indicies where name='next_bsidx';" tbdb)
     keep_bsidx_base=$bsidx_base
     
@@ -170,8 +170,10 @@ gentbsql_main() {
 	    cd $projdir/$host
 	    sn="UNK" hdtype="UNK" secsize="UNK" sectors="UNK" wspeed="UNK" rspeed="UNK"
 #	    [[ -f "diff" ]] || { echo "# $host: No changes needed"; continue; }
+	    # need the diff and node files to continue. No diff then nothing to update
 	    [[ -f "diff" ]] || continue;
 	    [[ -f "node" ]] || { echo "# $host: Missing node file"; continue; }
+	    # check for old version of file
 	    if [ -z "$(grep "Diff Report" diff)" ] ; then
 		echo "# $host Inventory Report to old to use"
 		continue
