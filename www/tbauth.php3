@@ -542,19 +542,7 @@ function LOGGEDINORDIE($uid, $modifier = 0, $login_url = NULL) {
 		  "browser or another machine? $link", 1, HTTP_403_FORBIDDEN);
         break;
     case CHECKLOGIN_LOGGEDIN:
-        #
-	# Update the time in the database.
-        # Basically, each time the user does something, we bump the
-	# logout further into the future. This avoids timing them
-	# out just when they are doing useful work.
-        #
-	if (! is_null($CHECKLOGIN_HASHKEY)) {
-	    $timeout = time() + $TBAUTHTIMEOUT;
-
-	    DBQueryFatal("UPDATE login set timeout='$timeout' ".
-			 "where uid_idx='$CHECKLOGIN_IDX' and ".
-			 "      hashkey='$CHECKLOGIN_HASHKEY'");
-	}
+	BumpLogoutTime();
 	break;
     default:
 	TBERROR("LOGGEDINORDIE failed mysteriously", 1);
@@ -623,9 +611,12 @@ function CheckLogin(&$status)
     $status = LoginStatus();
 
     # If login looks valid, return the user. 
-    if ($status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID))
-	    return $CHECKLOGIN_USER;
-
+    if ($status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID)) {	
+	if ($status & CHECKLOGIN_LOGGEDIN) {
+	    BumpLogoutTime();
+	}
+	return $CHECKLOGIN_USER;
+    }
     return null;
 }
 
@@ -1258,6 +1249,26 @@ function HASREALACCOUNT($uid) {
 	return 0;
     }
     return 1;
+}
+
+#
+# Update the time in the database.
+# Basically, each time the user does something, we bump the
+# logout further into the future. This avoids timing them
+# out just when they are doing useful work.
+#
+function BumpLogoutTime()
+{
+    global $TBAUTHTIMEOUT, $CHECKLOGIN_HASHKEY, $CHECKLOGIN_IDX;
+
+    if (! is_null($CHECKLOGIN_HASHKEY)) {
+	$timeout = time() + $TBAUTHTIMEOUT;
+
+	DBQueryFatal("UPDATE login set timeout='$timeout' ".
+		     "where uid_idx='$CHECKLOGIN_IDX' and ".
+		     "      hashkey='$CHECKLOGIN_HASHKEY'");
+    }
+    return 0;
 }
 
 #
