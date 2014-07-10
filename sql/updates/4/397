@@ -4,6 +4,7 @@
 use strict;
 use libdb;
 use Image;
+use EmulabFeatures;
 
 sub DoUpdate($$$)
 {
@@ -184,6 +185,19 @@ sub DoUpdate($$$)
 		 "  '^((([-\\\\w]+\\\\/{0,1})[-\\\\w\\\\.+]+(:\\\\d+){0,1})|".
 		 "((http|https|ftp)\\\\:\\\\/\\\\/[-\\\\w\\\\.\\\\/\\\\@\\\\:".
 		 "\\\\~\\\\?\\\\=\\\\&]*))\$',2,128,NULL)");
+
+    #
+    # Create this feature to avoid warnings until generally released.
+    #
+    if (!defined(EmulabFeatures->Lookup("ImageProvenance"))) {
+	my $feature =
+	    EmulabFeatures->Create("ImageProvenance",
+				   "Image Provenance and versioning");
+	if (!defined($feature)) {
+	    print STDERR "Could not create ImageProvenance feature!\n";
+	    return -1;
+	}
+    }
     return 0;
 }
 
