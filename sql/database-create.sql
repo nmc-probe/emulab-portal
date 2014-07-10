@@ -1955,6 +1955,7 @@ CREATE TABLE `image_versions` (
   `ready` tinyint(1) NOT NULL default '0',
   `isdelta` tinyint(1) NOT NULL default '0',
   `released` tinyint(1) NOT NULL default '0',
+  `nodetypes` text default NULL,
   PRIMARY KEY  (`imageid`,`version`),
   KEY `pid` (`pid`,`imagename`,`version`),
   KEY `gid` (`gid`),

@@ -70,6 +70,11 @@ sub DoUpdate($$$)
 		     "   AFTER isdelta");
 	DBQueryFatal("update image_versions set released=1");
     }
+    if (!DBSlotExists("image_versions", "nodetypes")) {
+	DBQueryFatal("ALTER TABLE image_versions ADD ".
+		     " `nodetypes` text default NULL ".
+		     "   AFTER released");
+    }
     if (!DBTableExists("os_info_versions")) {
 	DBQueryFatal("rename table os_info to os_info_versions");
     }
