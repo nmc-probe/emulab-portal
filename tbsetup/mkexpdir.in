@@ -113,7 +113,7 @@ if (! chdir($expdir)) {
     exit(-1);
 }
 
-if (! mkdir($eid, 0770)) {
+if (! -e $eid && ! mkdir($eid, 0770)) {
     $exitval = $ERRNO;
     print "Could not mkdir $eid in $expdir: $!\n";
     exit($exitval);
@@ -144,7 +144,7 @@ if (! chdir($eid)) {
 # Create the experiment directory list in the new directory.
 #
 foreach my $dir (@dirlist) {
-    if (! mkdir($dir, 0770)) {
+    if (! -e $dir && ! mkdir($dir, 0770)) {
 	fatal("Could not mkdir $dir in $eiddir: $!");
     }
 
