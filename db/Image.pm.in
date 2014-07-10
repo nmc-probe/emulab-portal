@@ -880,9 +880,10 @@ sub Stringify($)
     
     my $pid       = $self->pid();
     my $imageid   = $self->imageid();
+    my $version   = $self->version();
     my $imagename = $self->imagename();
 
-    return "[Image $imageid: $pid,$imagename]";
+    return "[Image $imageid:$version $pid,$imagename]";
 }
 
 #

@@ -233,7 +233,8 @@ if (defined($options{"i"})) {
     $imagenames = $options{"i"};
 
     foreach my $imagename (split /,/, $imagenames) {
-        my $version = 0;
+        # Default to current default if no version specified.
+        my $version = undef;
 
 	if ($imagename =~ /^([-\w\.\+]+)$/) {
 	    $imagename = $1;

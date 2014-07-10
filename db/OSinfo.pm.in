@@ -418,9 +418,10 @@ sub Stringify($)
     
     my $pid    = $self->pid();
     my $osid   = $self->osid();
+    my $vers   = $self->vers();
     my $osname = $self->osname();
 
-    return "[OS $osid: $pid,$osname]";
+    return "[OS $osid:$vers $pid,$osname]";
 }
 
 #
