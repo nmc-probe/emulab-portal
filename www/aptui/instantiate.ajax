@@ -50,22 +50,11 @@ function Do_GetProfile()
     }
     
     #
-    # We need permission checks on this path.
+    # On this path, we do not do any permissions checks since
+    # knowing the uuid of the profile means you are allowed to
+    # access it, regardless of the privacy settings. Not sure
+    # I like this ...
     #
-    if (! $profile->ispublic()) {
-	if (! isset($this_user)) {
-	    SPITAJAX_ERROR(1, "You must be logged in to access profile");
-	    return;
-	}
-	if (!(ISADMIN() ||
-	      $this_user->uid_idx() == $profile->creator_idx() ||
-	      ($profile->IsPrivate() &&
-	       $profile->GetProject()->IsMember($this_user, $approved) &&
-	       $approved))) {
-	    SPITAJAX_ERROR(1, "Not enough permission to access profile");
-	    return;
-	}
-    }
     SPITAJAX_RESPONSE(array('rspec'       => $profile->rspec(),
 			    'name'        => $profile->name(),
 			    'idx'         => $profile->idx(),
