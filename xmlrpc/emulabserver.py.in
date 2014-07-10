@@ -3936,16 +3936,12 @@ class node:
                     argstr += " -w "
                     pass
                 pass
-            elif opt == "imageproj":
-                argstr += " -p "
-                argstr += escapeshellarg(val)
-                pass
             pass
 
         argstr += " " + escapeshellarg(argdict["imagename"])
         argstr += " " + escapeshellarg(argdict["node"])
 
-        (exitval, output) = runcommand(TBDIR + "/bin/create_image " + argstr)
+        (exitval, output) = runcommand(TBDIR + "/sbin/clone_image " + argstr)
         if exitval:
             return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
         
