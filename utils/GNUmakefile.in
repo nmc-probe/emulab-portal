@@ -53,13 +53,13 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  prereserve_check tcppd addexternalnetwork \
 		  update_sitevars delete_image sitecheckin sitecheckin_client \
 		  mktestbedtest fixrootcert addservers poolmonitor \
-		  node_exclude managetaint shutdown-shared
+		  node_exclude managetaint shutdown-shared imagerelease
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
                   webwanodecheckin webspewimage webdumpdescriptor \
-		  webdelete_image websitecheckin
+		  webdelete_image websitecheckin webclone_image
 WEB_BIN_SCRIPTS = webcreate_image websetdest weblinkmon_ctl webspewevents \
-		  webdelay_config webclone_image
+		  webdelay_config 
 LIBEXEC_SCRIPTS	= spewleds webcopy spewsource webcvsweb xlogin webviewvc \
                   $(WEB_BIN_SCRIPTS) $(WEB_SBIN_SCRIPTS)
 
