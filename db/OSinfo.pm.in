@@ -132,7 +132,7 @@ sub Lookup($$;$$)
     if (!defined($arg2)) {
 	if ($arg1 =~ /^(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select o.*,v.* from os_info as o ".
+		DBQueryWarn("select v.* from os_info as o ".
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid and v.vers=o.version ".
 			    "where o.osid='$arg1'");
@@ -144,7 +144,7 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
 	    my $result =
-		DBQueryWarn("select o.*,v.* from os_info as o ".
+		DBQueryWarn("select v.* from os_info as o ".
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid and v.vers=o.version ".
 			    "where o.pid='$1' and o.osname='$2'");
@@ -156,11 +156,11 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*):(\d*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*):(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select o.*,v.* from os_info as o ".
+		DBQueryWarn("select v.* from os_info as o ".
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid ".
-			    "where o.pid='$arg1' and o.osname='$arg2' and ".
-			    "      v.vers='$arg3' and v.deleted is null");
+			    "where o.pid='$1' and o.osname='$2' and ".
+			    "      v.vers='$3' and v.deleted is null");
 
 	    return undef
 		if (!$result || !$result->numrows);
@@ -169,7 +169,7 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
 	    my $result =
-		DBQueryWarn("select * from os_info ".
+		DBQueryWarn("select * from os_info_versions ".
 			    "where uuid='$arg1' and deleted is null");
 
 	    return undef
@@ -182,7 +182,7 @@ sub Lookup($$;$$)
     elsif (!defined($arg3)) {
 	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
 	    my $result =
-		DBQueryWarn("select o.*,v.* from os_info as o ".
+		DBQueryWarn("select v.* from os_info as o ".
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid ".
 			    "where o.osid='$arg1' and v.vers='$arg2'");
@@ -193,7 +193,7 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^([-\w\.\+]*):(\d+)$/) {
 	    my $result =
-		DBQueryWarn("select o.*,v.* from os_info as o ".
+		DBQueryWarn("select v.* from os_info as o ".
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid  ".
 			    "where o.pid='$arg1' and o.osname='$1' and ".
@@ -205,7 +205,7 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^[-\w\.\+]*$/) {
 	    my $result =
-		DBQueryWarn("select o.*,v.* from os_info as o ".
+		DBQueryWarn("select v.* from os_info as o ".
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid and v.vers=o.version ".
 			    "where o.pid='$arg1' and o.osname='$arg2'");
@@ -220,7 +220,7 @@ sub Lookup($$;$$)
 	if ($arg1 =~ /^[-\w]*$/ &&
 	    $arg2 =~ /^[-\w\.\+]*$/ && $arg3 =~ /^\d+$/) {
 	    my $result =
-		DBQueryWarn("select o.*,v.* from os_info as o ".
+		DBQueryWarn("select v.* from os_info as o ".
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid ".
 			    "where o.pid='$arg1' and o.osname='$arg2' and ".

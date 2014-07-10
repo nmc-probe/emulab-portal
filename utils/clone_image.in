@@ -188,15 +188,6 @@ if (defined($image)) {
     }
 
     #
-    # But we do not allow emulab-ops images to be overwritten.
-    # Might remove this later. Just being careful since this is going
-    # to be used from the ProtoGENI RPC interface.
-    #
-    if ($image->pid eq TBOPSPID() && !$this_user->IsAdmin()) {
-	fatal("Not allowed to snapshot a system image");
-    }
-    
-    #
     # The access check above determines if the caller has permission
     # to overwrite the image file. 
     # Not that this matters, cause create_image is going to make the
@@ -208,34 +199,69 @@ if (defined($image)) {
     }
 
     #
-    # We create a new version of the image descriptor for the new
-    # snapshot. We mark it as not ready so that others know it is
-    # in transition. When we later call createimage, it will make
-    # sure the ready bit is clear before trying to lock it. 
-    #
     # Before we do anything destructive, we lock the image.
     #
     if ($image->Lock()) {
 	fatal("Image is locked, please try again later!\n");
     }
     if ($DOPROVENANCE) {
+        #
+	# This will include unreleased images (in image_versions, but
+	# not the one pointed to by the images table). 
 	#
-	# Is the ready bit set? If not, it means something went wrong with
-	# a previous image creation. Lets reset the provenance.
+	$image = $image->LookupMostRecent();
+	if (!defined($image)) {
+	    $image->Unlock();
+	    fatal("Cannot lookup osinfo for $image");
+	}
+	
+	#
+	# We create a new version of the image descriptor for the new
+	# snapshot. We mark it as not ready so that others know it is
+	# in transition. When we later call createimage, it will make
+	# sure the ready bit is clear before trying to use it.
+	#
+	my $needclone = 1;
+	
+	#
+	# Does the most version in the table has its ready bit not set? If so
+	# it means something went wrong with a previous image creation. We can
+	# reuse it, but reset the provenance just in case the node got reloaded.
 	#
 	if (!$image->ready()) {
-	    my $osinfo = OSinfo->Lookup($image->imageid());
+	    my $osinfo = OSinfo->Lookup($image->imageid(), $image->version());
 	    if (!defined($osinfo)) {
 		$image->Unlock();
 		fatal("Cannot lookup osinfo for $image");
 	    }
 	    $image->SetProvenance($base_image);
 	    $osinfo->SetProvenance($base_osinfo);
+	    $needclone = 0;
+	    print "Reusing image version " . $image->version() . ", ".
+		"since it was never marked ready.\n";
+	    
 	}
-	else {
+	#
+	# If the new image is going to based on the exact same base,
+	# lets not create another new version, but overwrite the current
+	# one. Save lots of space this way. We miss saving intermediate
+	# versions, but this is a typical approach to getting an image
+	# ready for use; change, snapshot, test, change, snapshot ... 
+	#
+	if ($needclone && !$image->released() && 
+	    ($image->parent_imageid() == $base_image->imageid() &&
+	     $image->parent_version() == $base_image->version())) {
+	    # For create_image to be happy. 
+	    $image->ClearReady(0);
+	    $needclone = 0;
+	    print "Reusing image version " . $image->version() . ", ".
+		"since the base is the same and it was not released.\n";
+	}
+
+	if ($needclone) {
 	    my $clone_error;
 	    my $clone = $image->NewVersion($this_user,
-					   $base_image, undef, \$clone_error);
+					   $base_image, \$clone_error);
 	    if (!defined($clone)) {
 		$image->Unlock();
 		fatal("Could not clone image descriptor" .
@@ -248,14 +274,14 @@ if (defined($image)) {
 	    # Watch for a system image that is saved elsewhere; see equiv code
 	    # in create_image. We change the path to point over to the /proj
 	    # directory so that we do not burn up space on boss until it is
-	    # officially "released". We can also use this version of the image
+	    # officially "released". We *can* use this version of the image
 	    # by explicitly using its version number, before it is released. 
 	    #
 	    if ($image->path() =~ /^\/usr\/testbed/) {
 		my $path = $PROJROOT . "/" . $image->pid() . "/images/" .
 		    basename($image->path()) . ":" . $image->version();
 
-		if ($image->Update({"path" => $path, "released" => 0})) {
+		if ($image->Update({"path" => $path})) {
 		    $image->DeleteVersion();
 		    fatal("Could not update path and ready bit");
 		}
@@ -269,8 +295,9 @@ if (defined($image)) {
 	    if ($debug);
 	exit(0);
     }
-
-    my $output = emutil::ExecQuiet("$CREATEIMAGE -p $pid $imagename $node_id");
+    my $output =
+	emutil::ExecQuiet("$CREATEIMAGE -p $pid ".
+			  "  $imagename:" . $image->version() . " $node_id");
     if ($?) {
 	if ($DOPROVENANCE) {
 	    $image->DeleteVersion()
@@ -289,6 +316,16 @@ DoNew:
 #
 if (!$base_image->ezid()) {
     fatal("Cannot clone a non-ez image");
+}
+
+#
+# Not allowed to derive an image from one that has not been released.
+# Maybe relax this in the future, but this is a good simplification for
+# now.
+#
+if ($DOPROVENANCE && !$base_image->released()) {
+    fatal("Not allowed to derive a new image from unreleased ".
+	  "base $base_image");
 }
 
 #
@@ -321,8 +358,6 @@ my %xmlfields =
      "version"		=> $base_osinfo->version(),
      "path"		=> $path,
      "op_mode",		=> $base_osinfo->op_mode(),
-     "global"           => (defined($global) ?
-			    ($global ? 1 : 0) : $base_osinfo->shared()),
      "wholedisk",	=> $wholedisk,
 );
 $xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
@@ -330,13 +365,13 @@ $xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
 $xmlfields{"osfeatures"} = $base_osinfo->osfeatures()
     if (defined($base_osinfo->osfeatures()) &&
 	$base_osinfo->osfeatures() ne "");
+$xmlfields{"global"} = 1
+    if (defined($global) && $global);
     
 if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
     $xmlfields{"loadpart"}        = $base_image->loadpart();
     $xmlfields{"noexport"}        = $base_image->noexport();
-    $xmlfields{"global"}          = (defined($global) ?
-				     ($global ? 1 : 0) : $base_image->global());
 
     # Short form uses wholedisk instead. Should fix this. 
     if ($base_image->loadpart() == 0 && $base_image->loadlength() == 4) {

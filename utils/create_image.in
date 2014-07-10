@@ -86,12 +86,14 @@ my $TBLOGS      = "@TBLOGSEMAIL@";
 my $BOSSIP	= "@BOSSNODE_IP@";
 my $CONTROL     = "@USERNODE@";
 my $NONFS	= @NOSHAREDFS@;
+my $DOPROVENANCE= @IMAGEPROVENANCE@;
 
 #
 # Testbed Support libraries
 #
 use lib "@prefix@/lib";
 use libdb;
+use EmulabConstants;
 use libtestbed;
 use libadminmfs;
 use Experiment;
@@ -284,6 +286,7 @@ if (!defined($image)) {
 	"    No such image descriptor $imagename in project $imagepid!\n");
 }
 my $imageid = $image->imageid();
+my $version = $image->version();
 
 if ($mereuser &&
     ! $image->AccessCheck($this_user, TB_IMAGEID_ACCESS)) {
@@ -367,8 +370,7 @@ else {
 #
 my $filename = $image->path();
 my $isglobal = $image->global();
-# Temporary until frisbee path can handle versions?
-my $usepath  = $image->released() ? 0 : 1;
+my $usepath  = 0;
 
 #
 # Redirect pathname for global images. See equiv code in clone_image.
@@ -394,7 +396,7 @@ if ($isglobal && ($filename =~ /^\/usr\/testbed/)) {
 # Use realpath to resolve any symlinks.
 #
 my $translated = realpath($filename);
-if ($translated =~ /^([-\w\.\/\+]+)$/) {
+if ($translated =~ /^([-\w\.\/\+:]+)$/) {
     $filename = $1;
 }
 else {
@@ -426,7 +428,7 @@ if ($image->Lock()) {
 }
 $needunlock = 1;
 
-if ($image->ready()) {
+if ($DOPROVENANCE && $image->ready()) {
     $image->Unlock();
     die("*** $0:\n".
 	"    $image ready flag is set, this is inconsistent!\n");
@@ -513,7 +515,8 @@ my $loadlength;
 my $command    = "$createimage ";
 
 if ($usefup) {
-    my $id = $usepath ? $filename : ($image->pid() . "/$imagename");
+    my $id = $usepath ? $filename :
+	$image->pid() . "/$imagename" . ($version > 0 ? ":${version}" : "");
     $command .= " -S $BOSSIP -F $id";
 }
 
@@ -903,9 +906,20 @@ if (defined($webtask)) {
     $webtask->status("ready");
     $webtask->Exited(0);
 }
+#
+# Normal images are immediately marked as "released" (and ready),
+# but global system images are just marked ready, and must be explicitly
+# released.
+#
 $image->MarkReady();
+if (! ($isglobal && $pid eq TBOPSPID())) {
+    if ($image->Release()) {
+	$image->Unlock();
+	exit(1);
+    }
+}
 $image->Unlock();
-exit 0;
+exit(0);
 
 sub cleanup ()
 {

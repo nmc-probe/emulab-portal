@@ -47,6 +47,7 @@ my $TBOPS         = "@TBOPSEMAIL@";
 my $TBAUDIT       = "@TBAUDITEMAIL@";
 my $TBBASE        = "@TBBASE@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
+my $DOPROVENANCE  = @IMAGEPROVENANCE@;
 my $TBWWW         = "@TBWWW@";
 
 # Cache of instances to avoid regenerating them.
@@ -90,7 +91,7 @@ sub Lookup($$;$$)
     if (!defined($arg2)) {
 	if ($arg1 =~ /^(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.* from images as i ".
+		DBQueryWarn("select v.* from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
 			    "where i.imageid='$arg1'");
@@ -102,7 +103,7 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.* from images as i ".
+		DBQueryWarn("select v.* from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
 			    "where i.pid='$1' and i.imagename='$2'");
@@ -114,11 +115,11 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*):(\d*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*):(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.* from images as i ".
+		DBQueryWarn("select v.* from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
-			    "where i.pid='$arg1' and i.imagename='$arg2' and ".
-			    "      v.version='$arg3' and v.deleted is null");
+			    "where i.pid='$1' and i.imagename='$2' and ".
+			    "      v.version='$3' and v.deleted is null");
 	    return undef
 		if (!$result || !$result->numrows);
 
@@ -163,7 +164,7 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^[-\w\.\+]*$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.* from images as i ".
+		DBQueryWarn("select v.* from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
 			    "where i.pid='$arg1' and i.imagename='$arg2'");
@@ -178,7 +179,7 @@ sub Lookup($$;$$)
 	if ($arg1 =~ /^[-\w]*$/ &&
 	    $arg2 =~ /^[-\w\.\+]*$/ && $arg3 =~ /^\d+$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.* from images as i ".
+		DBQueryWarn("select v.* from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
 			    "where i.pid='$arg1' and i.imagename='$arg2' and ".
@@ -361,7 +362,7 @@ sub Create($$$$$$$$)
     }
     # Pass-through optional slots, otherwise the DB default is used.
     foreach my $key ("path", "shared", "global", "ezid", "mbr_version",
-		     "metadata_url", "imagefile_url") {
+		     "metadata_url", "imagefile_url", "released") {
 	if (exists($argref->{$key})) {
 	    push(@arg_slots, $key);
 	}
@@ -520,9 +521,9 @@ sub Create($$$$$$$$)
 #
 # Clone an image descriptor from the DB, bumping the version number
 #
-sub NewVersion($$$$$)
+sub NewVersion($$$$)
 {
-    my ($self, $creator, $baseimage, $argref, $usrerr_ref) = @_;
+    my ($self, $creator, $baseimage, $usrerr_ref) = @_;
     my $osid        = $self->imageid();
     my $version     = $self->version();
     my $tableid     = int(rand(10000000));
@@ -618,9 +619,10 @@ sub NewVersion($$$$$)
 	or goto bad;
 
     DBQueryWarn("update $imtablename set ".
-		"  uuid=uuid(),ready=0,released=1,path='$path', ".
+		"  uuid=uuid(),ready=0,path='$path', ".
 		"  $part_vers, default_vers='$clone_vers', ".
 		"  version='$clone_vers',".
+		"  created=now(), ".
 		"  parent_imageid='$parent_imageid',".
 		"  parent_version='$parent_version', ".
 		"  creator='$uid',creator_idx='$uid_idx' $creator_urn ".
@@ -629,30 +631,21 @@ sub NewVersion($$$$$)
 
     #
     # And insert into the real table. At this point we will be
-    # inconsistent if we crash before the commit is done. We should use
-    # a transaction, but myisam tables do not do real transactions.
+    # inconsistent if we crash before the commit is done.
     #
     if (! (DBQueryWarn("insert into os_info_versions ".
 		       "select * from $ostablename") &&
 	   DBQueryWarn("insert into image_versions ".
-		       "select * from $imtablename") &&
-	   DBQueryWarn("update os_info set version='$clone_vers' ".
-		       "where osid='$osid'") &&
-	   DBQueryWarn("update images set version='$clone_vers' ".
-		       "where imageid='$osid'"))) {
+		       "select * from $imtablename"))) {
 	DBQueryWarn("delete from os_info_versions ".
 		    "where osid='$osid' and vers='$clone_vers'");
 	DBQueryWarn("delete from image_versions ".
 		    "where imageid='$osid' and version='$clone_vers'");
-	DBQueryWarn("update os_info set version='$version' ".
-		    "where osid='$osid'");
-	DBQueryWarn("update images set version='$version' ".
-		    "where imageid='$osid'");
 	goto bad;
     }
     
     DBQueryWarn("unlock tables");
-    return Image->Lookup($osid);
+    return Image->Lookup($osid, $clone_vers);
   bad:
     DBQueryWarn("unlock tables");
     return undef;
@@ -673,6 +666,76 @@ sub SetProvenance($$)
 	== 0 or return -1;
 
     return 0;
+}
+
+#
+# Highest number version, rather then what is deemed most recent by the
+# images table.
+#
+sub LookupMostRecent($)
+{
+    my ($self) = @_;
+
+    my $imageid = $self->imageid();
+
+    my $query_result =
+	DBQueryWarn("select version from image_versions ".
+		    "where imageid='$imageid' order by version desc limit 1");
+    return undef
+	if (!$query_result);
+
+    my ($version) = $query_result->fetchrow_array();
+    return Image->Lookup($imageid, $version);
+}
+
+#
+# Release an image; all this does is make the highest numbered version
+# in the image_versions table, the default version. It does this by
+# updating the version number in the images table. An unreleased version
+# can be used by explicitly giving the version number, but unqualified
+# use always get the version that is set in the images table. 
+#
+sub Release($)
+{
+    my ($self) = @_;
+
+    DBQueryWarn("lock tables images write, image_versions write, ".
+		"            os_info write, os_info_versions write")
+	or return -1;
+
+    if (!$self->ready()) {
+	print STDERR "Image::Release: $self is not marked ready!\n";
+	goto bad;
+    }
+    my $imageid = $self->imageid();
+    my $version = $self->version();
+
+    #
+    # Only the "head" version can be released.
+    #
+    my $query_result =
+	DBQueryWarn("select max(version) from image_versions ".
+		    "where imageid='$imageid'");
+    goto bad
+	if (!$query_result || !$query_result->numrows);
+
+    my ($head) = $query_result->fetchrow_array();
+    if ($head != $self->version()) {
+	print STDERR "Image::Release: not the head version of $self\n";
+	goto bad;
+    }
+    return -1
+	if (! (DBQueryWarn("update os_info set version='$version' ".
+			   "where osid='$imageid'") &&
+	       DBQueryWarn("update images set version='$version' ".
+			   "where imageid='$imageid'") &&
+	       DBQueryWarn("update image_versions set released=1 ".
+			   "where imageid='$imageid' and version='$version'")));
+    DBQueryWarn("unlock tables");
+    return 0;
+  bad:
+    DBQueryWarn("unlock tables");
+    return -1;
 }
 
 #
@@ -875,7 +938,7 @@ sub Delete($;$)
     DBQueryWarn("delete from images where imageid='$imageid'")
 	or goto bad;
     
-    if ($purge) {
+    if ($purge || !$DOPROVENANCE) {
 	goto bad
 	    if (! QueryWarn("delete from image_versions ".
 			    "where imageid='$imageid'"));
@@ -892,7 +955,7 @@ sub Delete($;$)
 	    or goto bad;
 	DBQueryWarn("delete from os_info where osid='$imageid'")
 	    or goto bad;
-	if ($purge) {
+	if ($purge || !$DOPROVENANCE) {
 	    DBQueryWarn("delete from os_info_versions where osid='$imageid'")
 		or goto bad;
 	}
@@ -925,7 +988,6 @@ sub DeleteVersion($)
     my ($self) = @_;
 
     my $imageid   = $self->imageid();
-    my $version   = $self->version();
 
     DBQueryWarn("lock tables images write, image_versions write, ".
 		"            os_info write, os_info_versions write")
@@ -933,14 +995,16 @@ sub DeleteVersion($)
 
     #
     # We do not allow the deletion if it is not the "head" version of the
-    # image. Maybe later.
+    # image_versions. Maybe later.
     #
     my $query_result =
-	DBQueryWarn("select version from images ".
-		    "where imageid='$imageid' and version='$version'");
+	DBQueryWarn("select max(version) from image_versions ".
+		    "where imageid='$imageid'");
     goto bad
-	if (!$query_result);
-    if (!$query_result->numrows) {
+	if (!$query_result || !$query_result->numrows);
+
+    my ($version) = $query_result->fetchrow_array();
+    if ($version != $self->version()) {
 	print STDERR "Image::DeleteVersion: not the head version of $self\n";
 	goto bad;
     }
@@ -948,12 +1012,8 @@ sub DeleteVersion($)
     goto bad
 	if (! (DBQueryWarn("delete from image_versions ".
 			   "where imageid='$imageid' and version='$version'") &&
-	       DBQueryWarn("update images set version=version-1 ".
-			   "where imageid='$imageid'") &&
 	       DBQueryWarn("delete from os_info_versions ".
-			   "where osid='$imageid' and vers='$version'") &&
-	       DBQueryWarn("update os_info set version=version-1 ".
-			   "where osid='$imageid'")));
+			   "where osid='$imageid' and vers='$version'")));
 
     DBQueryWarn("unlock tables")
 	or return -1;
@@ -1644,25 +1704,25 @@ sub SetLogFile($$)
 }
 
 # Ready bit.
-sub MarkReady($)
+sub SetReady($$)
 {
-    my ($self) = @_;
+    my ($self, $ready) = @_;
 
     return -1
-	if (! $self->Update({'ready' => 1}));
+	if (! $self->Update({'ready' => $ready}));
 
     return 0;
 }
+sub MarkReady($)   { return SetReady($_[0], 1); }
+sub ClearReady($) { return SetReady($_[0], 0); }
 
-# Released bit.
-sub MarkReleased($)
+# Are two images the same.
+sub SameImage($$)
 {
-    my ($self) = @_;
+    my ($this, $that) = @_;
 
-    return -1
-	if (! $self->Update({'released' => 1}));
-
-    return 0;
+    return (($this->imageid() == $that->imageid() &&
+	     $this->version() == $that->version()) ? 1 : 0);
 }
 
 #
