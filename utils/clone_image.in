@@ -45,21 +45,23 @@ use File::Basename;
 #
 sub usage()
 {
-    print("Usage: clone_image [-d] [-e] [-n | -s] <imagename> <node_id>\n".
+    print("Usage: clone_image [-dwe] [-n | -s] <imagename> <node_id>\n".
 	  "Options:\n".
 	  "       -d     Turn on debug mode\n".
 	  "       -e     Create a whole disk image\n".
 	  "       -g 0,1 Override base image global setting\n".
 	  "       -s     Create descriptor but do not snapshot\n".
-	  "       -n     Impotent mode\n");
+	  "       -n     Impotent mode\n".
+	  "       -w     Wait for image to be created\n");
     exit(-1);
 }
-my $optlist     = "densg:";
+my $optlist     = "densg:w";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
 my $nosnapshot  = 0;
 my $isvirtnode  = 0;
+my $waitmode    = 0;
 my $global;
 
 #
@@ -117,6 +119,9 @@ if (defined($options{"n"})) {
 }
 if (defined($options{"s"})) {
     $nosnapshot = 1;
+}
+if (defined($options{"w"})) {
+    $waitmode = 1;
 }
 if (defined($options{"g"})) {
     $global = $options{"g"};
@@ -283,7 +288,7 @@ if (defined($image)) {
 
 		if ($image->Update({"path" => $path})) {
 		    $image->DeleteVersion();
-		    fatal("Could not update path and ready bit");
+		    fatal("Could not update path!");
 		}
 	    }
 	}
@@ -295,8 +300,11 @@ if (defined($image)) {
 	    if ($debug);
 	exit(0);
     }
+    my $opts = "-p $pid ";
+    $opts   .= "-w " if ($waitmode);
+    
     my $output =
-	emutil::ExecQuiet("$CREATEIMAGE -p $pid ".
+	emutil::ExecQuiet("$CREATEIMAGE $opts ".
 			  "  $imagename:" . $image->version() . " $node_id");
     if ($?) {
 	if ($DOPROVENANCE) {
@@ -482,7 +490,9 @@ if ($nosnapshot) {
 	if ($debug);
     exit(0);
 }
-$output = emutil::ExecQuiet("$CREATEIMAGE -p $pid $imagename $node_id");
+my $opts = "-p $pid ";
+$opts   .= "-w " if ($waitmode);
+$output  = emutil::ExecQuiet("$CREATEIMAGE $opts $imagename $node_id");
 if ($?) {
     print STDERR $output;
     fatal("Failed to create image");
