@@ -788,21 +788,21 @@ if (mysql_num_rows($query_result)) {
     }
 }
 
+$pid = $image->pid();
+$gid_idx = $image->gid_idx();
+$group = Group::Lookup($gid_idx);
+$project = $image->Project();
+    
 # Send to the backend for more checking, and eventually, to update the DB.
 $imagename = $args["imagename"];
-if (! ($image = Image::NewImageId(0, $imagename, $args, $errors))) {
+if (! ($image = Image::NewImageId(0, $imagename, $args, $this_user, $group,
+				  $node_id, $errors))) {
     # Always respit the form so that the form fields are not lost.
     # I just hate it when that happens so lets not be guilty of it ourselves.
     SPITFORM($formfields, $errors);
     PAGEFOOTER();
     return;
 }
-
-$pid = $image->pid();
-$gid_idx = $image->gid_idx();
-$group = Group::Lookup($gid_idx);
-$project = $image->Project();
-    
 
 SUBPAGESTART();
 SUBMENUSTART("More Options");

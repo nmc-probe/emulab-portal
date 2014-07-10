@@ -32,10 +32,14 @@ $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
 $showperms = 1;
 
+# This will not return if its a sajax request.
+include("showlogfile_sup.php3");
+
 #
 # Verify page arguments.
 #
-$reqargs = RequiredPageArguments("image", PAGEARG_IMAGE);
+$reqargs = RequiredPageArguments("image",   PAGEARG_IMAGE);
+$optargs = OptionalPageArguments("showlog", PAGEARG_BOOLEAN);
 
 #
 # Standard Testbed Header
@@ -44,6 +48,7 @@ PAGEHEADER("Image Descriptor");
 
 # Need these below.
 $imageid = $image->imageid();
+$version = $image->version();
 
 #
 # Verify permission.
@@ -52,19 +57,33 @@ if (!$image->AccessCheck($this_user, $TB_IMAGEID_READINFO)) {
     USERERROR("You do not have permission to access ImageID $imageid.", 1);
 }
 
+if (isset($showlog)) {
+    $logfile = $image->GetLogfile();
+    if ($logfile) {
+	echo $image->PageHeader();
+	STARTLOG($logfile);
+	PAGEFOOTER();
+	return;
+    }
+}
+
 SUBPAGESTART();
 SUBMENUSTART("More Options");
-$fooid = rawurlencode($imageid);
+
 WRITESUBMENUBUTTON("Edit this Image Descriptor",
-		   "editimageid.php3?imageid=$fooid");
+		   "editimageid.php3?imageid=$imageid");
+if ($image->GetLogfile()) {
+    WRITESUBMENUBUTTON("View Log File",
+	       "showimageid.php3?imageid=$imageid&version=$version&showlog=1");
+}
 if ($image->AccessCheck($this_user, $TB_IMAGEID_MODIFYINFO )) {
     WRITESUBMENUBUTTON("Snapshot Node Disk into Image",
-		       "loadimage.php3?imageid=$fooid");
+		       "loadimage.php3?imageid=$imageid");
 }
 WRITESUBMENUBUTTON("Clone this Image Descriptor",
-		   "newimageid_ez.php3?baseimage=$fooid");
+		   "newimageid_ez.php3?baseimage=$imageid");
 WRITESUBMENUBUTTON("Delete this Image Descriptor",
-		   "deleteimageid.php3?imageid=$fooid");
+		   "deleteimageid.php3?imageid=$imageid");
 WRITESUBMENUBUTTON("Image Descriptor list",
 		   "showimageid_list.php3");
 if ($isadmin) {

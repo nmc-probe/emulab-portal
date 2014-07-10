@@ -161,6 +161,14 @@ echo "This will take as little as 10 minutes or as much as an hour;
       the node at all!<br>\n";
 
 flush();
+
+#
+# When doing image provenance the most recent unreleased version is
+# is what we are really working on. 
+#
+if ($DOPROVENANCE) {
+    $image = $image->LookupUnreleased();
+}
 $logfile = $image->GetLogfile();
 if ($logfile) {
     STARTLOG($logfile);

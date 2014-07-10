@@ -42,9 +42,6 @@ $uid       = $this_user->uid();
 $dbid      = $this_user->dbid();
 $isadmin   = ISADMIN();
 
-# This will not return if its a sajax request.
-include("showlogfile_sup.php3");
-
 #
 # Verify page arguments.
 #
@@ -1400,8 +1397,19 @@ if (!isset($confirmed) && 0 != strcmp($confirmationWarning,"")) {
     return;
 }
 
+# The target (a node or an ec2) to take a snapshot from.
+if ($ec2) {
+    $target = $formfields["ec2_info"];
+}
+elseif (isset($node)) {
+    $target = $node_id;
+}
+else {
+    $target = null;
+}
 $imagename = $args["imagename"];
-if (! ($image = Image::NewImageId(1, $imagename, $args, $errors))) {
+if (! ($image = Image::NewImageId(1, $imagename, $args, $this_user, $group,
+				  $target, $errors))) {
     # Always respit the form so that the form fields are not lost.
     # I just hate it when that happens so lets not be guilty of it ourselves.
     SPITFORM($formfields, $errors);
@@ -1413,11 +1421,14 @@ $imageid = $image->imageid();
 SUBPAGESTART();
 SUBMENUSTART("More Options");
 if (! isset($node)) {
-    $fooid = rawurlencode($imageid);
     WRITESUBMENUBUTTON("Edit this Image Descriptor",
-		       "editimageid.php3?imageid=$fooid");
+		       "editimageid.php3?imageid=$imageid");
     WRITESUBMENUBUTTON("Delete this Image Descriptor",
-		       "deleteimageid.php3?imageid=$fooid");
+		       "deleteimageid.php3?imageid=$imageid");
+}
+if ($image->GetLogfile()) {
+    WRITESUBMENUBUTTON("View Log File",
+		       "showimageid.php3?imageid=$imageid&showlog=1");
 }
 if ($isadmin) {
     WRITESUBMENUBUTTON("Create a new Image Descriptor",
@@ -1439,19 +1450,8 @@ SUBPAGEEND();
 
 if (isset($node) || $ec2) {
     #
-    # Create the image.
+    # The backend is creating the image. Patience please.
     #
-    # XXX There is no locking of the descriptor or the node. Not really a
-    # problem for the descriptor; the script is done with it by the time
-    # it returns. However, if the node is freed up, things are going to go
-    # awry. 
-    #
-    # Grab the unix GID for running script.
-    #
-    $unix_gid  = $group->unix_gid();
-    $unix_pid  = $project->unix_gid();
-    $safe_name = escapeshellarg($imagename);
-
     echo "<br>";
 
     if ($ec2) {
@@ -1461,24 +1461,16 @@ if (isset($node) || $ec2) {
 	$target = $node_id;
     }
     echo "Taking a snapshot of $target for image ...";
-    echo "<br><br>\n";
-    $safe_target = escapeshellarg($target);
-
-    flush();
-
-    SUEXEC($uid, "$unix_pid,$unix_gid",
-	   "webcreate_image -p $pid $safe_name $safe_target",
-	   SUEXEC_ACTION_DUPDIE);
-
+    echo "<br>\n";
     echo "This will take as little as 10 minutes or as much as an hour;
           you will receive email
           notification when the image is complete. In the meantime,
           <b>PLEASE DO NOT</b> delete the imageid or mess with
-          the node at all!<br>\n";
-
-    $logfile = $image->GetLogfile();
-    if ($logfile) {
-	STARTLOG($logfile);
+          the node at all! ";
+    if ($image->GetLogfile()) {
+	echo "You can watch the
+               <a href='showimageid.php3?imageid=$imageid&showlog=1'>
+               log file in realtime.</a>";
     }
 }
 

@@ -108,6 +108,27 @@ class Image
 	return Image::Lookup($row["imageid"]);
     }
 
+    # Look for most recent unreleased version.
+    function LookupUnreleased() {
+	global $DOPROVENANCE;
+	if (!$DOPROVENANCE) {
+	    return $this;
+	}
+	$imageid   = $this->imageid();
+	
+	$query_result =
+	    DBQueryFatal("select version from image_versions ".
+			 "where imageid='$imageid' and released=0 and ".
+			 "      deleted is null ".
+			 "order by version desc limit 1");
+
+	if (mysql_num_rows($query_result) == 0) {
+	    return null;
+	}
+	$row = mysql_fetch_array($query_result);
+	return Image::Lookup($imageid, $row["version"]);
+    }
+
     function LookupByUUID($uuid) {
 	$safe_uuid = addslashes($uuid);
 
@@ -162,7 +183,8 @@ class Image
     #
     # Class function to create a new image descriptor.
     #
-    function NewImageId($ez, $imagename, $args, &$errors) {
+    function NewImageId($ez, $imagename, $args, $creator, $group,
+			$target, &$errors) {
 	global $suexec_output, $suexec_output_array;
 
         #
@@ -192,9 +214,12 @@ class Image
 	fwrite($fp, "</image>\n");
 	fclose($fp);
 	chmod($xmlname, 0666);
+	$opt = ($target ? "-t " . escapeshellarg($target) : "");
 
 	$script = "webnewimageid" . ($ez ? "_ez" : "");
-	$retval = SUEXEC("nobody", "nobody", "$script $xmlname",
+	$retval = SUEXEC($creator->uid(),
+			 $group->pid() . "," . $group->gid(),
+			 "$script $opt $xmlname",
 			 SUEXEC_ACTION_IGNORE);
 
 	if ($retval) {
@@ -384,6 +409,9 @@ class Image
     function imagefile_url()	{ return $this->field("imagefile_url"); }
     function logfileid()	{ return $this->field("logfileid"); }
     function noexport()		{ return $this->field("noexport"); }
+    function ready()		{ return $this->field("ready"); }
+    function isdelta()		{ return $this->field("isdelta"); }
+    function released()		{ return $this->field("released"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -529,7 +557,7 @@ class Image
     }
 
     function Show($showperms = 0) {
-	global $TBBASE;
+	global $TBBASE, $DOPROVENANCE;
 	
 	$imageid	= $this->imageid();
 	$imagename	= $this->imagename();
@@ -777,14 +805,38 @@ class Image
 
 	    if ($this->parent_imageid() != $this->imageid() &&
 		$this->version() > 0) {
+		$p_version   = $this->version() - 1;
 		$p_url       = CreateURL("showimageid", $this,
-					 "version", $this->version() - 1);
+					 "version", $p_version);
 		echo "<tr>
                         <td>Previous Vers: </td>
-                        <td class=left><a href='$p_url'>$imagename</a></td>
+                        <td class=left>
+                            <a href='$p_url'>$imagename ($p_version)</a></td>
                       </tr>\n";
 	    }
-	} 
+	}
+	# Look for an unreleased version of this image.
+	$unreleased = $this->LookupUnreleased();
+	if ($unreleased && $unreleased->version() != $this->version()) {
+	    $u_version = $unreleased->version();
+	    $u_url     = CreateURL("showimageid", $this, "version", $u_version);
+
+	    echo "<tr>
+                    <td>Unreleased Vers: </td>
+                    <td class=left>
+                         <a href='$u_url'>$imagename ($u_version)</a></td>
+                  </tr>\n";
+	}
+	if ($DOPROVENANCE) {
+	    $released = $this->released();
+	    $ready    = $this->ready();
+	    $isdelta   = $this->isdelta();
+	    
+	    echo "<tr>
+                    <td>Rdy/Rel/Delta: </td>
+                    <td class=left>$ready/$released/$isdelta</td>
+                  </tr>\n";
+	}
 
 	echo "<tr>
                 <td>MBR Version: </td>
@@ -967,5 +1019,23 @@ class Image
 			 "where osid='$imageid' and vers='$version'");
 	}
 	return 0;
+    }
+
+    #
+    # Page header; spit back some html for the typical page header.
+    #
+    function PageHeader() {
+	$pid = $this->pid();
+	$imagename = $this->imagename();
+	$imageid = $this->imageid();
+	$version = $this->version();
+	
+	$html = "<font size=+1>Image <b>".
+	    "<a href='showproject.php3?pid=$pid'>$pid</a>/".
+	    "<a href='showimageid.php3?imageid=$imageid&version=$version'>
+                $imagename</a>".
+	    "</b></font>\n";
+
+	return $html;
     }
 }

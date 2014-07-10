@@ -34,15 +34,16 @@ use Cwd qw(realpath);
 #
 sub usage()
 {
-    print("Usage: newimageid [-v] [-a] [-s] <xmlfile>\n");
+    print("Usage: newimageid [-v] [-a] [-s] [-t target] <xmlfile>\n");
     exit(-1);
 }
-my $optlist = "dvfas";
+my $optlist = "dvfast:";
 my $debug   = 0;
 my $force   = 0;
 my $verify  = 0;	# Check data and return status only.
 my $allpc   = 0;        # insert mappings for all pc types.
 my $skipadmin = 0;      # Skip SLOT_ADMINONLY checks.
+my $target;
 
 #
 # Configure variables
@@ -52,6 +53,8 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $TBGROUP_DIR	= "@GROUPSROOT_DIR@";
 my $TBPROJ_DIR	= "@PROJROOT_DIR@";
+my $CREATEIMAGE = "$TB/bin/create_image";
+my $CLONEIMAGE  = "$TB/sbin/clone_image";
 
 #
 # Untaint the path
@@ -106,6 +109,20 @@ if (defined($options{"s"})) {
 }
 if (defined($options{"a"})) {
     $allpc = 1;
+}
+if (defined($options{"t"})) {
+    $target = $options{"t"};
+    # Might be an EC2 target. Also need to untaint for below.
+    if ($target =~ /^([-\w\@\.\+]+@[-\w\@\.\+]+)$/) {
+	$target = $1;
+    }
+    else {
+	my $node = Node->Lookup($target);
+	if (!defined($node)) {
+	    fatal("No such node!");
+	}
+	$target = $node->node_id();
+    }
 }
 if (@ARGV != 1) {
     usage();
@@ -727,7 +744,8 @@ UserError($usrerr)
 fatal("Could not create new Image!")
     if (!defined($new_image));
 
-my $imageid = $new_image->imageid();
+my $imageid  = $new_image->imageid();
+my $imagepid = $new_image->pid();
 
 #
 # Insert a submap entry.
@@ -748,6 +766,27 @@ if (defined($parentos)) {
     }
 }
 
+#
+# If a target was specified, fire off image creation. It will return
+# quickly enough (going into the background) that we can wait here for
+# it.
+#
+if (defined($target)) {
+    #
+    # Use clone_image for a node, create_image for an EC2 target. We use
+    # clone cause it will do the provenance, so we do not have to duplicate
+    # that stuff here. Then it just calls create_image.
+    #
+    if ($target =~ /^.*@.*$/) {
+	system("$CREATEIMAGE -p $imagepid $imageid '$target'");    }
+    else {
+	# Must be an imagename, not and imageid.
+	system("$CLONEIMAGE $imagename '$target'");
+    }
+    if ($?) {
+	fatal("Could not image capture from $target");
+    }
+}
 # The web interface requires this line to be printed.
 print "IMAGE $imagename/$imageid has been created\n";
 
