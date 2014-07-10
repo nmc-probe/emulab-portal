@@ -199,7 +199,7 @@ Setting up an InstaGeni Rack. First, we need the following info:
   5400(vlan-10)> ip address 10.3.1.253/24
   5400(vlan-10)> exit 
   5400(config)> management-vlan 10
-  5400(config)> ip default-gateway 10.3.1.254
+  5400(config)> ip default-gateway 10.3.1.7
   5400(config)> no web-management
   5400(config)> no snmp-server community public
   5400(config)> snmp-server community XXXXX manager unrestricted
