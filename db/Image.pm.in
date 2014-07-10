@@ -619,7 +619,7 @@ sub NewVersion($$$$)
 	or goto bad;
 
     DBQueryWarn("update $imtablename set ".
-		"  uuid=uuid(),ready=0,path='$path', ".
+		"  uuid=uuid(),ready=0,path='$path',released=0 ".
 		"  $part_vers, default_vers='$clone_vers', ".
 		"  version='$clone_vers',".
 		"  created=now(), ".

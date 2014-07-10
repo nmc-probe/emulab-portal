@@ -64,6 +64,12 @@ sub DoUpdate($$$)
 		     " `isdelta` tinyint(1) NOT NULL default '0' ".
 		     "   AFTER ready");
     }
+    if (!DBSlotExists("image_versions", "released")) {
+	DBQueryFatal("ALTER TABLE image_versions ADD ".
+		     " `released` tinyint(1) NOT NULL default '0' ".
+		     "   AFTER isdelta");
+	DBQueryFatal("update image_versions set released=1");
+    }
     if (!DBTableExists("os_info_versions")) {
 	DBQueryFatal("rename table os_info to os_info_versions");
     }

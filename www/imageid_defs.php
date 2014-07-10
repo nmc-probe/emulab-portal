@@ -122,8 +122,10 @@ class Image
 			 "      deleted is null ".
 			 "order by version desc limit 1");
 
+	# If no unreleased version, just return $this. Might mean that
+	# provenance is not turned on for the project cause of a feature.
 	if (mysql_num_rows($query_result) == 0) {
-	    return null;
+	    return $this;
 	}
 	$row = mysql_fetch_array($query_result);
 	return Image::Lookup($imageid, $row["version"]);

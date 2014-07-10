@@ -224,7 +224,7 @@ if (defined($image)) {
 	my $needclone = 1;
 	
 	#
-	# Does the most version in the table has its ready bit not set? If so
+	# Does the most version in the table not have its ready bit set? If so
 	# it means something went wrong with a previous image creation. We can
 	# reuse it, but reset the provenance just in case the node got reloaded.
 	#
@@ -279,7 +279,7 @@ if (defined($image)) {
 	    #
 	    if ($image->path() =~ /^\/usr\/testbed/) {
 		my $path = $PROJROOT . "/" . $image->pid() . "/images/" .
-		    basename($image->path()) . ":" . $image->version();
+		    basename($image->path());
 
 		if ($image->Update({"path" => $path})) {
 		    $image->DeleteVersion();
