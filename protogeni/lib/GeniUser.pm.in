@@ -727,7 +727,19 @@ use GeniDB;
 use GeniUser;
 use GeniHRN;
 use GeniCertificate;
+use User;
 use overload ('""' => 'Stringify');
+
+sub Lookup($$)
+{
+    my ($class, $uid) = @_;
+
+    my $user = User->Lookup($uid);
+    return undef
+	if (!defined($user));
+    
+    return GeniUser::LocalUser->Create($user);
+}
 
 #
 # Create a wrapper, with the same access names.

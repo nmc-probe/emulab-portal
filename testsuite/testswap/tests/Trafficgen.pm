@@ -22,7 +22,7 @@
 #
 package Event;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 has 'start' => (is => 'rw');
 has 'end'   => (is => 'rw');
@@ -36,7 +36,7 @@ sub update {
 
 package TrafficGenLister;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use IO::Socket::INET;
 use IO::Handle;
 use Test::More;

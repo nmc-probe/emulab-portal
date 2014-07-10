@@ -24,7 +24,7 @@ my $FFDEBUG = 0;
 
 package TestBed::ForkFramework::Process;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use POSIX ":sys_wait_h";
 has 'pid' => (is => 'rw');
 
@@ -33,7 +33,7 @@ sub wait    { waitpid(shift->pid, 0); }
 
 package TestBed::ForkFramework::Channel;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use Data::Dumper;
 use Carp;
 use IO::Pipe;
@@ -59,7 +59,7 @@ sub close           { my $s = shift; $s->closeRd; $s->closeWr; }
 
 package TestBed::ForkFramework::Redir;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use Carp;
 use IO::Pipe;
 
@@ -80,7 +80,7 @@ sub close           { my $hs = shift->pipes; map { close $_; } @$hs; }
 
 package TestBed::ForkFramework::Results;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 has 'successes' => ( isa => 'ArrayRef', is => 'rw', default => sub { [ ] } );
 has 'errors' => ( isa => 'ArrayRef', is => 'rw', default => sub { [ ] } );
@@ -100,7 +100,7 @@ sub handleResult {
 
 package TestBed::ForkFramework::ItemResult;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 has 'result' => ( is => 'rw');
 has 'error'  => ( is => 'rw');
@@ -157,7 +157,7 @@ sub fork_child_redir {
 
 package TestBed::ForkFramework::Scheduler;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use IO::Select;
 use Carp;
 use Data::Dumper;
@@ -321,7 +321,7 @@ sub schedule { 0; }
 
 package TestBed::ForkFramework::ForEach;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 has 'maxworkers'  => ( is => 'rw', isa => 'Int'     , default => 4);
 has 'currworkers' => ( is => 'rw', isa => 'Int'     , default => 0);
@@ -379,7 +379,7 @@ sub doItem { my ($s, $itemid) = @_; $s->proc->($s->items->[$itemid]); }
 
 package TestBed::ForkFramework::WeightedScheduler::Task;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 
 has 'id'      => (is => 'rw');
 has 'item'    => (is => 'rw');
@@ -401,7 +401,7 @@ package TestBed::ForkFramework::WeightedScheduler;
 use SemiModern::Perl;
 use Data::Dumper;
 use Tools;
-use Mouse;
+use Moose;
 
 extends 'TestBed::ForkFramework::Scheduler';
 

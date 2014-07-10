@@ -82,6 +82,7 @@ use APT_Instance;
 use GeniXML;
 use GeniHRN;
 use WebTask;
+use libaudit;
 
 # Protos
 sub fatal($);
@@ -378,7 +379,11 @@ if (defined($instance)) {
 	}
 	# Let parent exit;
 	sleep(2);
-        POSIX::setsid();
+	if (0) {
+	    AuditStart(0, undef, LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY());
+	    AddAuditInfo("cc", "aptnet-logs\@flux.utah.edu");
+	}
+	POSIX::setsid();
     }
     my $seconds  = 1200;
     my $interval = 5;

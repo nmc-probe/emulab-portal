@@ -23,8 +23,11 @@
 #
 package TestBed::XMLRPC::Client;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use RPC::XML::Client;
+use Net::SSL;
+use LWP::Protocol::https;
+use IO::Socket::SSL qw( SSL_VERIFY_NONE );
 use TBConfig;
 use Data::Dumper;
 use Carp;
@@ -40,12 +43,22 @@ BEGIN {
   use TBConfig;
   $ENV{HTTPS_CERT_FILE} = glob($TBConfig::SSL_CLIENT_CERT);
   $ENV{HTTPS_KEY_FILE}  = glob($TBConfig::SSL_CLIENT_KEY);
+  $ENV{HTTPS_DEBUG} = 0;
 }
 
 #constructs RPC::XML::Client with 10 minute socket timeout
 has 'client' => ( isa => 'RPC::XML::Client', is => 'rw', default => sub { 
   my $HTTP_TIMEOUT = $TBConfig::XMLRPC_SERVER_TIMEOUT;
-  my $c = RPC::XML::Client->new($TBConfig::XMLRPC_SERVER, 'timeout' => ($HTTP_TIMEOUT));
+  my $c = RPC::XML::Client->new($TBConfig::XMLRPC_SERVER, 
+				useragent => [
+				    ssl_opts => {
+					verify_hostname => 0,
+					SSL_verify_mode => SSL_VERIFY_NONE,
+				    },
+				],
+				error_handler => sub { die "Transport error: $_[0]" },
+				'timeout' => ($HTTP_TIMEOUT),
+      );
   $c->{'__useragent'}->timeout($HTTP_TIMEOUT);
   $c; } );
 

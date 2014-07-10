@@ -213,8 +213,10 @@ sub Refresh($)
     # Turn the data into a perl array so we can mess with it.
     #
     $self->{'DATA'}    = {};
-    if (isset($self->task_data()) && $self->task_data()) {
-	$self->{'DATA'} = eval { decode_json($self->task_data()); };	
+    if (defined($self->{'DBROW'}->{'task_data'}) &&
+	$self->{'DBROW'}->{'task_data'} ne "") {
+	$self->{'DATA'} =
+	    eval { decode_json($self->{'DBROW'}->{'task_data'}); };
 	if ($@) {
 	    print STDERR "Could not json decode task data\n";
 	    return -1;
@@ -231,9 +233,8 @@ sub Stringify($)
     my ($self) = @_;
     
     my $id      = $self->task_id();
-    my $uuid    = $self->uuid();
 
-    return "[WebTask: $id: $uuid]";
+    return "[WebTask: $id]";
 }
 
 # Debugging.

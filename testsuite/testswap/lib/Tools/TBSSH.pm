@@ -24,7 +24,7 @@
 package Tools::TBSSH;
 use SemiModern::Perl;
 use Data::Dumper;
-use Mouse;
+use Moose;
 
 eval{
   #force use of 'Tools::WrappedSSH'

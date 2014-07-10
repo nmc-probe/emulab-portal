@@ -52,7 +52,7 @@ my $verbose = 1;
 my $killit  = 0;
 my $utahddc = 1;
 my $DDCURN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
-my $localuser = 0;;
+my $localuser = 0;
 my $xmlfile;
 my $extend;
 my $webtask;
@@ -360,16 +360,26 @@ chomp($sshkey)
 # have to create an ssl certificate (which the user will never see)
 # so that we can operate on behalf of the user (via speaksfor).
 #
-my $geniuser = GeniUser->Lookup($user_urn, $localuser);
-if (!defined($geniuser)) {
+# Note that we want to check for the user local account ahead of
+# SA account, to bypass their guest account that might still be
+# in the table.
+#
+my $geniuser;
+
+if ($localuser) {
+    $geniuser = GeniUser::LocalUser->Lookup($user_uid);
+}
+else {
+    $geniuser = GeniUser->Lookup($user_urn);
+
     #
     # In Utah, check for alternate SA
     #
-    if ($MAINSITE) {
+    if (!defined($geniuser) && $MAINSITE) {
 	$user_urn = GeniHRN::Generate("aptlab.net", "user", $user_uid);
 	$user_hrn = "aptlab.${user_uid}";
+	$geniuser = GeniUser->Lookup($user_urn, 0);
     }
-    $geniuser = GeniUser->Lookup($user_urn, 0);
 }
 if (!defined($geniuser)) {
     if ($localuser) {
@@ -420,8 +430,6 @@ if (!defined($geniuser)) {
 my $user_uuid = $geniuser->uuid();
 # So we know this user has dome something lately.
 $geniuser->BumpActivity();
-# We get the -l flag on initial create only.
-$localuser = ($geniuser->IsLocal() ? 1 : 0);
 
 #
 # Guest users use the apt CA, and so we must sign the speaksfor

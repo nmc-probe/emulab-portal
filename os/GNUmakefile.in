@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,6 +50,7 @@ client-install: client
 	$(INSTALL_PROGRAM) $(SRCDIR)/template_record $(LBINDIR)/template_record
 ifeq ($(SYSTEM),FreeBSD)
 	$(INSTALL_PROGRAM) $(SRCDIR)/create-image $(LBINDIR)/
+	$(INSTALL_PROGRAM) $(SRCDIR)/create-versioned-image $(LBINDIR)/
 	$(INSTALL_PROGRAM) $(SRCDIR)/create-swapimage $(LBINDIR)/
 endif
 
@@ -61,6 +62,7 @@ mfs:
 
 mfs-install: mfs
 	$(INSTALL_PROGRAM) $(SRCDIR)/create-image $(LBINDIR)/
+	$(INSTALL_PROGRAM) $(SRCDIR)/create-versioned-image $(LBINDIR)/
 	$(INSTALL_PROGRAM) $(SRCDIR)/create-swapimage $(LBINDIR)/
 
 frisbee-mfs:

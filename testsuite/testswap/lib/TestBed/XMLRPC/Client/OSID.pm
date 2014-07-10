@@ -23,7 +23,7 @@
 #
 package TestBed::XMLRPC::Client::OSID;
 use SemiModern::Perl;
-use Mouse;
+use Moose;
 use Data::Dumper;
 
 extends 'TestBed::XMLRPC::Client';

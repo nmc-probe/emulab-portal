@@ -38,6 +38,7 @@ BEGIN {
 
 use lib qw(lib tests);
 use SemiModern::Perl;
+use Moose;
 
 use Data::Dumper;
 use TBConfig;
