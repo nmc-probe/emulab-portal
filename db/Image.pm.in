@@ -527,6 +527,7 @@ sub NewVersion($$$$)
     my $osid        = $self->imageid();
     my $version     = $self->version();
     my $tableid     = int(rand(10000000));
+    my $typelist    = "";
     my $ostablename = "os_info_versions" . $tableid;
     my $imtablename = "image_versions"  . $tableid;
 
@@ -535,7 +536,7 @@ sub NewVersion($$$$)
     #
     DBQueryWarn("lock tables images write, image_versions write, ".
 		"            os_info write, os_info_versions write, ".
-		"            emulab_indicies write")
+		"            emulab_indicies write, osidtoimageid read")
 	or return undef;
 
     my $query_result =
@@ -551,6 +552,20 @@ sub NewVersion($$$$)
 		    "where imageid='$osid' and version='$version'");
     goto bad
 	if (!$query_result);
+
+    #
+    # Grab the current type list.
+    #
+    $query_result =
+	DBQueryWarn("select distinct type from osidtoimageid ".
+		    "where imageid='$osid'");
+    
+    goto bad
+	if (!$query_result);
+
+    if ($query_result->numrows) {
+	$typelist = join(",", $query_result->fetchrow_array());
+    }
 
     #
     # Now reset a few things in each table.
@@ -622,7 +637,7 @@ sub NewVersion($$$$)
 		"  uuid=uuid(),ready=0,path='$path',released=0 ".
 		"  $part_vers, default_vers='$clone_vers', ".
 		"  version='$clone_vers',".
-		"  created=now(), ".
+		"  created=now(),nodetypes='$typelist', ".
 		"  parent_imageid='$parent_imageid',".
 		"  parent_version='$parent_version', ".
 		"  creator='$uid',creator_idx='$uid_idx' $creator_urn ".
@@ -1808,6 +1823,21 @@ sub IsNewest($)
     my ($max) = $query_result->fetchrow_array();
 
     return ($max == $self->version() ? 1 : 0);
+}
+
+#
+# Grab parent of an image, or undef if there is no parent. The
+# parent might be an earlier revision or it might be another
+# image.
+#
+sub Parent($)
+{
+    my ($self) = @_;
+
+    return undef
+	if (!defined($self->parent_imageid()));
+
+    return Image->Lookup($self->parent_imageid(), $self->parent_version());
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
