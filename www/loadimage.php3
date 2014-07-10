@@ -166,9 +166,7 @@ flush();
 # When doing image provenance the most recent unreleased version is
 # is what we are really working on. 
 #
-if ($DOPROVENANCE) {
-    $image = $image->LookupUnreleased();
-}
+$image = $image->LookupUnreleased();
 $logfile = $image->GetLogfile();
 if ($logfile) {
     STARTLOG($logfile);
