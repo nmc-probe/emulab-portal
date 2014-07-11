@@ -144,10 +144,13 @@ class Node
     function phys_nodeid() {return $this->field("phys_nodeid"); }
     function role() {return $this->field("role"); }
     function def_boot_osid() {return $this->field("def_boot_osid"); }
+    function def_boot_osid_vers() {return $this->field("def_boot_osid_vers"); }
     function def_boot_path() {return $this->field("def_boot_path"); }
     function def_boot_cmd_line() {return $this->field("def_boot_cmd_line"); }
     function temp_boot_osid() {return $this->field("temp_boot_osid"); }
+    function temp_boot_osid_vers() {return $this->field("temp_boot_osid_vers");}
     function next_boot_osid() {return $this->field("next_boot_osid"); }
+    function next_boot_osid_vers() {return $this->field("next_boot_osid_vers");}
     function next_boot_path() {return $this->field("next_boot_path"); }
     function next_boot_cmd_line() {return $this->field("next_boot_cmd_line"); }
     function pxe_boot_path() {return $this->field("pxe_boot_path"); }
@@ -185,6 +188,15 @@ class Node
     function cd_version() {return $this->field("cd_version"); }
     function boot_errno() {return $this->field("boot_errno"); }
     function reserved_pid() {return $this->field("reserved_pid"); }
+
+    function def_boot_image() {
+	return Image::Lookup($this->def_boot_osid(),
+			     $this->def_boot_osid_vers());
+    }
+    function def_boot_osinfo() {
+	return OSinfo::Lookup($this->def_boot_osid(),
+			      $this->def_boot_osid_vers());
+    }
 
     #
     # Access Check, determines if $user can access $this record.
@@ -515,9 +527,12 @@ class Node
 	$pid 		    = $row["pid"];
 	$eid		    = $row["eid"];
 	$def_boot_osid      = $row["def_boot_osid"];
+	$def_boot_osid_vers = $row["def_boot_osid_vers"];
 	$def_boot_cmd_line  = $row["def_boot_cmd_line"];
 	$next_boot_osid     = $row["next_boot_osid"];
+	$next_boot_osid_vers= $row["next_boot_osid_vers"];
 	$temp_boot_osid     = $row["temp_boot_osid"];
+	$temp_boot_osid_vers= $row["temp_boot_osid_vers"];
 	$next_boot_cmd_line = $row["next_boot_cmd_line"];
 	$rpms               = $row["rpms"];
 	$tarballs           = $row["tarballs"];
@@ -687,7 +702,7 @@ class Node
 	    echo "<tr>
                   <td>Def Boot OS:</td>
                   <td class=left>";
-	    SpitOSIDLink($def_boot_osid);
+	    SpitOSIDLink($def_boot_osid, $def_boot_osid_vers);
 	    echo "    </td>
               </tr>\n";
 
@@ -828,7 +843,7 @@ class Node
                       <td class=left>";
     
 		if ($next_boot_osid)
-		    SpitOSIDLink($next_boot_osid);
+		    SpitOSIDLink($next_boot_osid, $next_boot_osid_vers);
 		else
 		    echo "&nbsp;";
 
@@ -845,7 +860,7 @@ class Node
                       <td class=left>";
     
 		if ($temp_boot_osid)
-		    SpitOSIDLink($temp_boot_osid);
+		    SpitOSIDLink($temp_boot_osid, $temp_boot_osid_vers);
 		else
 		    echo "&nbsp;";
 

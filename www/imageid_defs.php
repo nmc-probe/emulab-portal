@@ -34,6 +34,9 @@ class Image
     # Constructor by lookup on unique ID
     #
     function Image($id, $version = NULL) {
+	if (is_null($version)) {
+	    list($id,$version) = preg_split('/:/', $id);
+	}
 	$safe_id = addslashes($id);
 
 	if (is_null($version)) {
@@ -83,7 +86,7 @@ class Image
     }
 
     # Lookup by imageid
-    function Lookup($id,$version = NULL) {
+    function Lookup($id, $version = NULL) {
 	$foo = new Image($id,$version);
 
 	if (! $foo->IsValid())
@@ -396,7 +399,12 @@ class Image
     function part2_osid()	{ return $this->field("part2_osid"); }
     function part3_osid()	{ return $this->field("part3_osid"); }
     function part4_osid()	{ return $this->field("part4_osid"); }
+    function part1_vers()	{ return $this->field("part1_vers"); }
+    function part2_vers()	{ return $this->field("part2_vers"); }
+    function part3_vers()	{ return $this->field("part3_vers"); }
+    function part4_vers()	{ return $this->field("part4_vers"); }
     function default_osid()	{ return $this->field("default_osid"); }
+    function default_vers()	{ return $this->field("default_vers"); }
     function path()		{ return $this->field("path"); }
     function magic()		{ return $this->field("magic"); }
     function ezid()		{ return $this->field("ezid"); }
@@ -573,7 +581,12 @@ class Image
 	$part2_osid	= $this->part2_osid();
 	$part3_osid	= $this->part3_osid();
 	$part4_osid	= $this->part4_osid();
+	$part1_vers	= $this->part1_vers();
+	$part2_vers	= $this->part2_vers();
+	$part3_vers	= $this->part3_vers();
+	$part4_vers	= $this->part4_vers();
 	$default_osid	= $this->default_osid();
+	$default_vers	= $this->default_vers();
 	$path		= $this->path();
 	$shared		= $this->shared();
 	$globalid	= $this->isglobal();
@@ -707,7 +720,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 1 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part1_osid);
+	    SpitOSIDLink($part1_osid, $part1_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -716,7 +729,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 2 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part2_osid);
+	    SpitOSIDLink($part2_osid, $part2_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -725,7 +738,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 3 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part3_osid);
+	    SpitOSIDLink($part3_osid, $part3_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -734,7 +747,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 4 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part4_osid);
+	    SpitOSIDLink($part4_osid, $part4_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -743,7 +756,7 @@ class Image
 	    echo "<tr>
                      <td>Boot OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($default_osid);
+	    SpitOSIDLink($default_osid, $default_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -854,7 +867,7 @@ class Image
 	}
 	if ($this->ezid()) {
 	    $doesxen = 0;
-	    $osinfo = OSinfo::Lookup($imageid);
+	    $osinfo = $this->OSinfo();
 	    if ($osinfo && $osinfo->def_parentosid()) {
 		$parentosinfo = OSinfo::Lookup($osinfo->def_parentosid());
 		if ($parentosinfo &&
@@ -1039,5 +1052,8 @@ class Image
 	    "</b></font>\n";
 
 	return $html;
+    }
+    function OSinfo() {
+	return OSinfo::Lookup($this->imageid(), $this->version());
     }
 }

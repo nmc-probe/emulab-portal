@@ -257,6 +257,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
             $wasite  = $row["site"];
             $wahost  = $row["hostname"];
 	    $def_boot_osid = $row["def_boot_osid"];
+	    $def_boot_osid_vers = $row["def_boot_osid_vers"];
 	    $startstatus   = $row["startstatus"];
 	    $status        = $row["nodestatus"];
 	    $bootstate     = $row["eventstate"];
@@ -310,7 +311,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
             echo "  <td>$type</td>\n";
 	    if ($def_boot_osid) {
 		echo "<td>";
-		SPITOSINFOLINK($def_boot_osid);
+		SPITOSINFOLINK($def_boot_osid, $def_boot_osid_vers);
 		echo "</td>\n";
 	    }
 	    else
@@ -406,14 +407,14 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 #
 # Spit out an OSID link in user format.
 #
-function SPITOSINFOLINK($osid)
+function SPITOSINFOLINK($osid, $version)
 {
-    if (! ($osinfo = OSinfo::Lookup($osid)))
+    if (! ($osinfo = OSinfo::Lookup($osid, $version)))
 	return;
 
     $osname = $osinfo->osname();
     
-    echo "<a href='showosinfo.php3?osid=$osid'>$osname</a>\n";
+    echo "<a href='showosinfo.php3?osid=$osid&version=$version'>$osname</a>\n";
 }
 
 #

@@ -29,14 +29,27 @@ class OSinfo
     #
     # Constructor by lookup on unique ID
     #
-    function OSinfo($id) {
+    function OSinfo($id, $version = NULL) {
+	if (is_null($version)) {
+	    list($id,$version) = preg_split('/:/', $id);
+	}
 	$safe_id = addslashes($id);
 
-	$query_result =
-	    DBQueryWarn("select o.*,v.* from os_info as o ".
-			"left join os_info_versions as v on ".
-			"     v.osid=o.osid and v.vers=o.version ".
-			"where o.osid='$safe_id'");
+	if (is_null($version)) {
+	    $query_result =
+		DBQueryWarn("select o.*,v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid and v.vers=o.version ".
+			    "where o.osid='$safe_id'");
+	}
+	else {
+	    # This will get deleted images, but that is okay.
+	    $safe_version = addslashes($version);
+	    $query_result =
+	        DBQueryWarn("select v.* from os_info_versions as v ".
+			    "where v.osid='$safe_id' and ".
+			    "      v.vers='$safe_version'");
+	}
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->osinfo = NULL;
@@ -51,8 +64,8 @@ class OSinfo
     }
 
     # Lookup by osid
-    function Lookup($id) {
-	$foo = new OSinfo($id);
+    function Lookup($id, $version = NULL) {
+	$foo = new OSinfo($id, $version);
 
 	if (! $foo->IsValid())
 	    return null;
@@ -675,9 +688,9 @@ class OSinfo
 #
 # Spit out an OSID link in user format.
 #
-function SpitOSIDLink($osid)
+function SpitOSIDLink($osid, $vers)
 {
-    $osinfo = OSInfo::Lookup($osid);
+    $osinfo = OSInfo::Lookup($osid, $vers);
 
     if ($osinfo) {
 	$osname = $osinfo->osname();

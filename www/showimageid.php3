@@ -109,10 +109,10 @@ echo "<br>\n";
 # get the pid and osname for the image, and use that to look into the 
 # virt_nodes table.
 #
-function SHOWIT($osid) {
+function SHOWIT($osid, $vers) {
     global $this_user;
     
-    if (! ($osinfo = OSinfo::Lookup($osid))) {
+    if (! ($osinfo = OSinfo::Lookup($osid, $vers))) {
 	TBERROR("Could not map osid to its object: $osid", 1);
     }
     echo "<h3 align='center'>Experiments using OS ";
@@ -123,16 +123,16 @@ function SHOWIT($osid) {
 }
 
 if ($image->part1_osid()) {
-    SHOWIT($image->part1_osid());
+    SHOWIT($image->part1_osid(), $image->part1_vers());
 }
 if ($image->part2_osid()) {
-    SHOWIT($image->part2_osid());
+    SHOWIT($image->part2_osid(), $image->part2_vers());
 }
 if ($image->part3_osid()) {
-    SHOWIT($image->part3_osid());
+    SHOWIT($image->part3_osid(), $image->part3_vers());
 }
 if ($image->part4_osid()) {
-    SHOWIT($image->part4_osid());
+    SHOWIT($image->part4_osid(), $image->part4_vers());
 }
 SUBPAGEEND();
 

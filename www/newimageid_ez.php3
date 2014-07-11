@@ -70,19 +70,19 @@ if (isset($node)) {
     # of having the user figure it out. Note that only makes sense for
     # EZ images.
     #
-    $baseimage = Image::Lookup($node->def_boot_osid());
+    $baseimage = $node->def_boot_image();
     #
     # Try for at least an osinfo if no image.
     #
     if (! $baseimage) {
-	$baseosinfo = OSinfo::Lookup($node->def_boot_osid());
+	$baseosinfo = $node->def_boot_osinfo();
     }
     else {
-	$baseosinfo = OSinfo::Lookup($baseimage->imageid());
+	$baseosinfo = $baseimage->OSinfo();
     }
 }
 elseif (isset($baseimage)) {
-    $baseosinfo = OSinfo::Lookup($baseimage->imageid());
+    $baseosinfo = $baseimage->OSinfo();
 }
 elseif ($ec2) {
     $imagetype = "xen";
@@ -922,7 +922,7 @@ if (!isset($submit)) {
     # Use the base image to seed the form.
     #
     if (isset($baseimage)) {
-	$baseosinfo = OSinfo::Lookup($baseimage->imageid());
+	$baseosinfo = $baseimage->OSinfo();
 	if (! $baseosinfo) {
 	    TBERROR("Could not lookup osinfo object for image " .
 		    $baseimage->imageid(), 1);

@@ -87,7 +87,9 @@ if (($resrow = $node->ReservedTableEntry())) {
 if ($isadmin) {
     $osid_result =
 	DBQueryFatal("select o.osname, o.pid, o.osid as oosid, " .
-		     "p.osid as posid from os_info as o ".
+		     "   o.vers as overs, " .
+		     "   p.osid as posid, p.osid_vers as pvers ".
+		     " from os_info_versions as o ".
 		     "left join partitions as p on o.osid=p.osid ".
 		     "where p.node_id='$node_id' or ".
 		     "(o.path!='' and o.path is not NULL) ".
@@ -98,7 +100,9 @@ else {
     
     $osid_result =
 	DBQueryFatal("select distinct o.osname, o.pid, o.osid as oosid," .
-		     "p.osid as posid from os_info as o ".
+		     "   o.vers as overs, " .
+		     "   p.osid as posid, p.osid_vers as pvers ".
+		     "from os_info_versions as o ".
 		     "left join group_membership as m on m.pid=o.pid ".
 		     "left join partitions as p on o.osid=p.osid ".
 		     "where p.node_id='$node_id' or ".
@@ -140,29 +144,34 @@ echo "<tr>
           <td>*Def Boot OS:</td>";
 echo "    <td><select name=def_boot_osid>\n";
 if ($def_boot_osid &&
-    ($osinfo = OSinfo::Lookup($def_boot_osid))) {
+    ($osinfo = $node->def_boot_osinfo())) {
     $osname = $osinfo->osname();
+    $vers = $osinfo->vers();
     $pid = $osinfo->pid();
-    echo "<option selected value='$def_boot_osid'>$pid - $osname </option>\n";
+    echo "<option selected value='$def_boot_osid:$vers'>$pid - $osname </option>\n";
 }
                while ($row = mysql_fetch_array($osid_result)) {
                   $osname = $row["osname"];
                   $oosid  = $row["oosid"];
+                  $overs  = $row["overs"];
 		  $posid  = $row["posid"];
+		  $pvers  = $row["pvers"];
 		  $pid    = $row["pid"];
 
 		  # Use the osid that came from the partitions table, if there
 		  # was one - otherwise, go with the os_info table
 		  if ($posid) {
 		  	$osid = $posid;
+			$vers = $pvers;
 		  } else {
 		  	$osid = $oosid;
+			$vers = $overs;
 		  }
 
 		  if ($def_boot_osid == $osid) {
 		      continue;
 		  }
-                  echo "<option value=$osid>$pid - $osname</option>\n";
+                  echo "<option value='$osid:$vers'>$pid - $osname</option>\n";
                }
 if ($isadmin) {
     echo "<option value=\"\">No OS</option>\n";
@@ -189,23 +198,27 @@ if ($isadmin) {
     while ($row = mysql_fetch_array($osid_result)) {
 	$osname = $row["osname"];
 	$oosid = $row["oosid"];
+	$overs = $row["overs"];
 	$posid = $row["posid"];
+	$pvers = $row["pvers"];
 	$pid   = $row["pid"];
 
         # Use the osid that came from the partitions table, if there
 	# was one - otherwise, go with the os_info table
 	if ($posid) {
 	    $osid = $posid;
+	    $vers = $pvers;
 	}
 	else {
 	    $osid = $oosid;
+	    $vers = $overs;
 	}
 
 	echo "<option ";
 	if ($next_boot_osid == $osid) {
 	    echo "selected ";
 	}
-	echo "value=\"$osid\">$pid - $osname</option>\n";
+	echo "value='$osid:$vers'>$pid - $osname</option>\n";
     }
     echo "       </select>";
     echo "    </td>
@@ -228,23 +241,27 @@ if ($isadmin) {
     while ($row = mysql_fetch_array($osid_result)) {
 	$osname = $row["osname"];
 	$oosid = $row["oosid"];
+	$overs = $row["overs"];
 	$posid = $row["posid"];
+	$pvers = $row["pvers"];
 	$pid   = $row["pid"];
 
         # Use the osid that came from the partitions table, if there
 	# was one - otherwise, go with the os_info table
 	if ($posid) {
 	    $osid = $posid;
+	    $vers = $pvers;
 	}
 	else {
 	    $osid = $oosid;
+	    $vers = $pvers;
 	}
 
 	echo "<option ";
 	if ($temp_boot_osid == $osid) {
 	    echo "selected ";
 	}
-	echo "value=\"$osid\">$pid - $osname</option>\n";
+	echo "value='$osid:$vers'>$pid - $osname</option>\n";
     }
     echo "       </select>";
     echo "    </td>
