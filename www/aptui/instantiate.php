@@ -363,7 +363,8 @@ if (!isset($create)) {
 	    #
 	    $instance = Instance::LookupByCreator($geniuser->uuid());
 	    if ($instance && $instance->status() != "terminating") {
-		header("Location: status.php?uuid=" . $instance->uuid());
+		header("Location: status.php?oneonly=1&uuid=" .
+		       $instance->uuid());
 		return;
 	    }
 	    $defaults["username"] = $geniuser->name();
@@ -516,7 +517,8 @@ if (!$this_user &&
 		setcookie("quickvm_user",
 			  $geniuser->uuid(), time() + (24 * 3600 * 30),
 			  "/", $TBAUTHDOMAIN, 0);
-		header("Location: status.php?uuid=" . $instance->uuid());
+		header("Location: status.php?oneonly=1&uuid=" .
+		       $instance->uuid());
 		return;
 	    }
 	}

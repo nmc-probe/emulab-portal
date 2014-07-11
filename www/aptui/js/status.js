@@ -8,16 +8,18 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/extend-modal.html',
 	 'js/lib/text!template/clone-help.html',
 	 'js/lib/text!template/snapshot-help.html',
+	 'js/lib/text!template/oneonly-modal.html',
 	 'tablesorter', 'tablesorterwidgets'],
 function (_, sup, moment, ShowImagingModal,
 	  statusString, waitwaitString, oopsString,
 	  registerString, terminateString, extendString,
-	  cloneHelpString, snapshotHelpString)
+	  cloneHelpString, snapshotHelpString, oneonlyString)
 {
     'use strict';
     var nodecount   = 0;
     var ajaxurl     = null;
     var uuid        = null;
+    var oneonly     = 0;
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
@@ -26,12 +28,14 @@ function (_, sup, moment, ShowImagingModal,
     var registerTemplate  = _.template(registerString);
     var terminateTemplate = _.template(terminateString);
     var extendTemplate    = _.template(extendString);
+    var oneonlyTemplate   = _.template(oneonlyString);
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
 	ajaxurl = window.APT_OPTIONS.AJAXURL;
 	uuid    = window.APT_OPTIONS.uuid;
+	oneonly = window.APT_OPTIONS.oneonly;
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 
 	// Generate the templates.
@@ -59,6 +63,8 @@ function (_, sup, moment, ShowImagingModal,
 	$('#extend_div').html(extend_html);
     	var terminate_html = terminateTemplate(template_args);
 	$('#terminate_div').html(terminate_html);
+    	var oneonly_html = oneonlyTemplate(template_args);
+	$('#oneonly_div').html(oneonly_html);
 
 	//
 	// Look at initial status to determine if we show the progress bar.
@@ -238,7 +244,10 @@ function (_, sup, moment, ShowImagingModal,
 
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
 	GetStatus(uuid);
-	if (window.APT_OPTIONS.snapping) {
+	if (window.APT_OPTIONS.oneonly) {
+	    sup.ShowModal('#oneonly-modal');
+	}
+	else if (window.APT_OPTIONS.snapping) {
 	    ShowProgressModal();
 	}
     }
@@ -761,7 +770,7 @@ function (_, sup, moment, ShowImagingModal,
 	    /*
 	     * If a single node, show the clone button and maybe the
 	     * the snapshot; the user must own the profile it was
-	     * created from in order to do a snapshot. 
+	     * created from in order to do a snapshot.
 	     */
 	    if (nodecount == 1) {
 		$("#clone_button").removeClass("hidden");
@@ -773,7 +782,7 @@ function (_, sup, moment, ShowImagingModal,
 	    }
 
 	    // And start up ssh for single node topologies.
-	    if (nodecount == 1 && nodehostport) {
+	    if (nodecount == 1 && nodehostport && !oneonly) {
 		NewSSHTab(nodehostport, nodename);
 	    }
 	}
