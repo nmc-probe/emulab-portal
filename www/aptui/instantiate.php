@@ -511,6 +511,11 @@ if (!$this_user &&
 	if ($geniuser) {
 	    $instance = Instance::LookupByCreator($geniuser->uuid());
 	    if ($instance && $instance->status() != "terminating") {
+		# Reset this cookie so status page is happy and so we
+                # will stop asking.
+		setcookie("quickvm_user",
+			  $geniuser->uuid(), time() + (24 * 3600 * 30),
+			  "/", $TBAUTHDOMAIN, 0);
 		header("Location: status.php?uuid=" . $instance->uuid());
 		return;
 	    }
