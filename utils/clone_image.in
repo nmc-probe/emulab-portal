@@ -73,6 +73,7 @@ my $GROUPROOT    = "@GROUPSROOT_DIR@";
 my $CREATEIMAGE  = "$TB/bin/create_image";
 my $NEWIMAGEEZ   = "$TB/bin/newimageid_ez";
 my $DOPROVENANCE = @IMAGEPROVENANCE@;
+my $doprovenance = 0;
 
 #
 # Untaint the path
@@ -96,6 +97,7 @@ use Project;
 use Image;
 use OSinfo;
 use Node;
+use EmulabFeatures;
 
 # Protos
 sub fatal($);
@@ -178,6 +180,10 @@ if (! (defined($base_osinfo) && defined($base_image))) {
 print "$node_id is running $base_osinfo,$base_image\n"
     if ($debug);
 
+# Feature override. 
+$doprovenance = 
+    EmulabFeatures->FeatureEnabled("ImageProvenance", $this_user, $project);
+
 #
 # The simple case is that the descriptor already exists. So it is just
 # a simple snapshot to the image file. 
@@ -209,7 +215,7 @@ if (defined($image)) {
     if ($image->Lock()) {
 	fatal("Image is locked, please try again later!\n");
     }
-    if ($DOPROVENANCE) {
+    if ($DOPROVENANCE && $doprovenance) {
         #
 	# This will include unreleased images (in image_versions, but
 	# not the one pointed to by the images table). 
@@ -307,10 +313,8 @@ if (defined($image)) {
 	emutil::ExecQuiet("$CREATEIMAGE $opts ".
 			  "  $imagename:" . $image->version() . " $node_id");
     if ($?) {
-	if ($DOPROVENANCE) {
-	    $image->DeleteVersion()
-		if ($needdelete);
-	}
+	$image->DeleteVersion()
+	    if ($needdelete);
 	print STDERR $output;
 	fatal("Failed to create image");
     }
@@ -331,7 +335,7 @@ if (!$base_image->ezid()) {
 # Maybe relax this in the future, but this is a good simplification for
 # now.
 #
-if ($DOPROVENANCE && !$base_image->released()) {
+if ($DOPROVENANCE && $doprovenance && !$base_image->released()) {
     fatal("Not allowed to derive a new image from unreleased ".
 	  "base $base_image");
 }
@@ -477,7 +481,7 @@ my $osinfo = OSinfo->Lookup($image->imageid());
 if (!defined($osinfo)) {
     fatal("Cannot lookup newly created osinfo for $image");
 }
-if ($DOPROVENANCE) {
+if ($DOPROVENANCE && $doprovenance) {
     $image->SetProvenance($base_image);
     $osinfo->SetProvenance($base_osinfo);
 }

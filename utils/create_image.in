@@ -87,6 +87,7 @@ my $BOSSIP	= "@BOSSNODE_IP@";
 my $CONTROL     = "@USERNODE@";
 my $NONFS	= @NOSHAREDFS@;
 my $DOPROVENANCE= @IMAGEPROVENANCE@;
+my $doprovenance= 0;
 
 #
 # Testbed Support libraries
@@ -103,6 +104,8 @@ use Image;
 use OSinfo;
 use Logfile;
 use WebTask;
+use Project;
+use EmulabFeatures;
 
 #
 # Turn off line buffering on output
@@ -363,6 +366,15 @@ else {
 	}
     }
 }
+# Need this for feature test below.
+my $project = Project->Lookup($image->pid());
+if (!defined($project)) {
+    die("*** $0:\n".
+	"    Could not lookup project for $image\n");
+}
+# Feature override. 
+$doprovenance = 
+    EmulabFeatures->FeatureEnabled("ImageProvenance", $this_user, $project);
 
 #
 # Make sure that the directory exists and is writeable for the user.
@@ -428,7 +440,7 @@ if ($image->Lock()) {
 }
 $needunlock = 1;
 
-if ($DOPROVENANCE && $image->ready()) {
+if ($DOPROVENANCE && $doprovenance && $image->ready()) {
     $image->Unlock();
     die("*** $0:\n".
 	"    $image ready flag is set, this is inconsistent!\n");
@@ -912,7 +924,7 @@ if (defined($webtask)) {
 # released.
 #
 $image->MarkReady();
-if (! ($isglobal && $pid eq TBOPSPID())) {
+if (! ($isglobal && $pid eq TBOPSPID()) || !$doprovenance) {
     if ($image->Release()) {
 	$image->Unlock();
 	exit(1);
