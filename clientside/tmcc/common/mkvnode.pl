@@ -536,8 +536,15 @@ if (-e "$VNDIR/vnode.info") {
 	}
     }
     if ($teardown) {
-	TearDownStaleVM() == 0
-	    or fatal("Could not tear down stale container");
+	if (TearDownStaleVM()) {
+	    #
+	    # This really sucks. We have to be careful that the caller
+	    # (vnodesetup) does not remove the data directory, or else
+	    # we will not be able to come back here next time for cleanup.
+	    #
+	    print STDERR "Could not tear down stale container\n";
+	    exit(1);
+	}
 	# See MOUNTED case above; we set leaveme to keep the container
 	# file systems, but must reset leaveme. 
 	$leaveme = 0;
