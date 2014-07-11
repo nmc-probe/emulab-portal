@@ -90,7 +90,7 @@ my $wiringdoc = XML::LibXML->load_xml( location => $wiringfile );
 foreach my $node ($wiringdoc->documentElement()->find("./wire")->get_nodelist()) {
     my $node_id = GetText('node_id1', $node);
     my $id;
-    if ($node_id =~ /pc([0-9])/) {
+    if ($node_id =~ /pc([0-9]+)/) {
 	$id = $1;
     }
     my $location = GetText('UXX', $node);
