@@ -815,7 +815,8 @@ class Image
 	    
 	    echo "<tr>
                     <td>Derived from: </td>
-                    <td class=left><a href='$p_url'>$p_imagename</a></td>
+                    <td class=left><a href='$p_url'>
+                      ${p_imagename}:${p_version}</a></td>
                   </tr>\n";
 
 	    if ($this->parent_imageid() != $this->imageid() &&
@@ -826,7 +827,7 @@ class Image
 		echo "<tr>
                         <td>Previous Vers: </td>
                         <td class=left>
-                            <a href='$p_url'>$imagename ($p_version)</a></td>
+                            <a href='$p_url'>${imagename}:${p_version}</a></td>
                       </tr>\n";
 	    }
 	}
@@ -839,13 +840,13 @@ class Image
 	    echo "<tr>
                     <td>Unreleased Vers: </td>
                     <td class=left>
-                         <a href='$u_url'>$imagename ($u_version)</a></td>
+                         <a href='$u_url'>${imagename}:${u_version}</a></td>
                   </tr>\n";
 	}
 	if ($DOPROVENANCE) {
 	    $released = $this->released();
 	    $ready    = $this->ready();
-	    $isdelta   = $this->isdelta();
+	    $isdelta  = $this->isdelta();
 	    
 	    echo "<tr>
                     <td>Rdy/Rel/Delta: </td>
