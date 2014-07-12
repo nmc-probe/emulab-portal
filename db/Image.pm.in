@@ -563,9 +563,11 @@ sub NewVersion($$$$)
     goto bad
 	if (!$query_result);
 
-    if ($query_result->numrows) {
-	$typelist = join(",", $query_result->fetchrow_array());
+    my @types = ();
+    while (my ($type) = $query_result->fetchrow_array()) {
+	push(@types, $type);
     }
+    $typelist = join(",", @types);
 
     #
     # Now reset a few things in each table.
