@@ -357,7 +357,8 @@ sslverify(SSL *ssl, char *requiredunit)
 int
 main(int argc, char **argv)
 {
-	char strbuf[MAXPATHLEN], *newstr(), *logpath = LOGPATH;
+	char strbuf[MAXPATHLEN], *newstr();
+	char *logpath = LOGPATH, *aclpath = ACLPATH;
 	int op, i;
 	struct sigaction sa;
 	extern int optind;
@@ -424,6 +425,7 @@ main(int argc, char **argv)
 			break;
 		case 'l':
 			logpath = optarg;
+			aclpath = optarg;
 			break;
 		case 'L':
 			stamplast = 1;
@@ -556,7 +558,7 @@ main(int argc, char **argv)
 		Bossaddr.sin_port   = htons(serverport);
 	}
 
-	(void) snprintf(strbuf, sizeof(strbuf), ACLNAME, ACLPATH, Machine);
+	(void) snprintf(strbuf, sizeof(strbuf), ACLNAME, aclpath, Machine);
 	Aclname = newstr(strbuf);
 	
 	/*
