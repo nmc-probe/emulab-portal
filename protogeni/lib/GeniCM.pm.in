@@ -1511,7 +1511,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			# ignore silly user.
 			next;
 		    }
-		    if ($isshared && $attrvalue > 1024) {
+		    if ($isshared && 0 && $attrvalue > 1024) {
 			$response =
 			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "Bad XEN setting; ".

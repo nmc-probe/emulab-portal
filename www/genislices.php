@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,7 +32,7 @@ include("table_defs.php");
 $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
-$defaultsearchstring = 'Search CM for URN or IP or MAC';
+$defaultsearchstring = 'Search CM for URN or IP or MAC or VLAN';
 
 #
 # Verify Page Arguments.
