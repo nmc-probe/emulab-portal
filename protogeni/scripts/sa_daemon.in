@@ -299,7 +299,7 @@ sub WarnSlices()
 		     "Slice $urn\n".
 		     "is going to expire in approximately $diff $unit.\n".
 		     "Please renew it or let it expire if you not using it.\n",
-		     undef);
+		     "Geni Operations <$TBOPS>");
 	}
 	$warned{$idx}  = time();
 	$expires{$idx} = $stamp;
@@ -380,7 +380,7 @@ sub ExpireSlices()
 	    SENDMAIL($emailaddr, "Slice $urn has expired",
 		     "Slice $urn\n".
 		     "has been expired. Sorry :-(\n",
-		     undef);
+		     "Geni Operations <$TBOPS>");
 	}
 	delete($warned{"$idx"});
 	delete($expires{"$idx"});

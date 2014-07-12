@@ -358,7 +358,7 @@ sub WarnSlices()
 	# If this was created in the last hour, skip the actual
 	# email. Wait until the second warning. 
 	#
-	if ($stamp - $created < $minwarn) {
+	if (time() - $created < $minwarn) {
 	    print STDERR "Skipping email for just created sliver $aggregate\n";
 	    $expires{$idx} = $stamp;
 	    $slice->UnLock();
@@ -398,7 +398,7 @@ sub WarnSlices()
 		     "is going to expire in approximately $diff $unit.\n\n".
 		     "Please renew it".
 		     " or let it expire if you are not using it anymore.\n",
-		     undef);
+		     "Geni Operations <$TBOPS>");
 	}
 	$slice->UnLock();
       skip:
@@ -1198,7 +1198,7 @@ sub CheckIdle()
 			     "and is using $nodes physical nodes.\n\n".
 			     "$stats\n".
 			     "You will not be allowed to renew this sliver!\n",
-			     $TBAUTOMAIL, "CC: $TBAUTOMAIL");
+			     "Geni Operations <$TBOPS>", "CC: $TBAUTOMAIL");
 		
 			$slice->SetRenewLimit(0);
 		    }
@@ -1230,7 +1230,7 @@ sub CheckIdle()
 			  "You will not be allowed to renew this sliver ") :
 			 "This sliver might be terminated ") .
 			"if it stays idle.\n",
-			$TBAUTOMAIL, "CC: $TBAUTOMAIL");
+			"Geni Operations <$TBOPS>", "CC: $TBAUTOMAIL");
 
 		    emdb::DBQueryWarn("update experiments set ".
 				      "   swap_requests=swap_requests+1, ".
