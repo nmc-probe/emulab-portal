@@ -1,6 +1,6 @@
 # -*- python -*-
 #
-# Copyright (c) 2000-2003 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -106,7 +106,7 @@ def SENDMAIL(To, Subj, Msg, From = None, Headers = None, Files = ()):
     """
     Tag = MAILTAG.upper()
     # damn, no good way to tell if this fails
-    sm = os.popen("/usr/sbin/sendmail -t", "w")
+    sm = os.popen("/usr/sbin/sendmail -i -t", "w")
     
     #
     # Sendmail will figure this out if not given.

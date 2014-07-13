@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -68,7 +68,7 @@ sub SENDMAILWith($$$$;$$@);
 sub SENDMAIL($$$;$$@)
 {
     my($To, $Subject, $Message, $From, $Headers, @Files) = @_;
-    SENDMAILWith("/usr/sbin/sendmail -t", $To, $Subject, $Message, $From, $Headers, @Files);
+    SENDMAILWith("/usr/sbin/sendmail -i -t", $To, $Subject, $Message, $From, $Headers, @Files);
 }
 
 sub SENDMAILWith($$$$;$$@)

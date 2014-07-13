@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -735,7 +735,7 @@ sub DBError($$;$)
     my($f, $message, $nomail) = @_;
     
     if (! defined($nomail)) {
-	if (open(MAIL, "| /usr/sbin/sendmail -t")) {
+	if (open(MAIL, "| /usr/sbin/sendmail -i -t")) {
 	    print MAIL "To: $TBOPS\n";
 	    print MAIL "Subject: DBError\n";
 	    print MAIL "\n";

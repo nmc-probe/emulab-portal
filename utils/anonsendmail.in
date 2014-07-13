@@ -50,9 +50,7 @@ if ($EUID != 0) {
 # of the Received lines.
 $UID = $EUID;
 
-# Even with the UID and EUID set to 0, sendmail will still manager to
+# Even with the UID and EUID set to 0, sendmail will still manage to
 # find the real user and use it for the envelope sender unless we
 # explicitly set it to root.
-exec("/usr/sbin/sendmail -t -froot");
-
-
+exec("/usr/sbin/sendmail -i -t -froot");

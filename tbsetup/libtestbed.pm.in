@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -150,7 +150,7 @@ sub SENDMAILWith($$$$;$$@);
 sub SENDMAIL($$$;$$@) 
 {
     my($To, $Subject, $Message, $From, $Headers, @Files) = @_;
-    SENDMAILWith("/usr/sbin/sendmail -t", $To, $Subject, $Message, $From, $Headers, @Files);
+    SENDMAILWith("/usr/sbin/sendmail -i -t", $To, $Subject, $Message, $From, $Headers, @Files);
 }
 
 sub AnonSENDMAIL($$$;$$@)
@@ -238,7 +238,7 @@ sub OPENMAIL($$;$$)
     my($To, $Subject, $From, $Headers) = @_;
     local *MAIL;
 
-    if (! open(MAIL, "|/usr/sbin/sendmail -t")) {
+    if (! open(MAIL, "|/usr/sbin/sendmail -i -t")) {
 	print STDERR "OPENMAIL: Could not start sendmail: $!\n";
 	return 0;
     }
