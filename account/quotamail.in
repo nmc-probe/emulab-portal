@@ -94,6 +94,6 @@ Thanks,
 @TBOPSEMAIL_NOSLASH@
 
 MESSAGE
-) | /usr/sbin/sendmail -t
+) | /usr/sbin/sendmail -i -t
 done
 

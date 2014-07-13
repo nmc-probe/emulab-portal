@@ -3471,7 +3471,7 @@ sub SetupSendMail($$)
 {
     my ($isfatal, $msg) = @_;
 
-    if (! open(MAIL, "|/usr/sbin/sendmail -t")) {
+    if (! open(MAIL, "|/usr/sbin/sendmail -i -t")) {
 	die("*** $0:\n".
 	    "    SENDMAIL: Could not start sendmail: $!\n".
 	    "    $msg\n");
