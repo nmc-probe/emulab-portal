@@ -38,12 +38,14 @@ $routing = array("myprofiles" =>
 			array("file"    => "instantiate.ajax",
 			      "guest"   => true,
 			      "methods" => array("GetProfile" =>
-						      "Do_GetProfile")),
+						     "Do_GetProfile")),
 		 "manage_profile" =>
 			array("file"    => "manage_profile.ajax",
 			      "guest"   => false,
 			      "methods" => array("CloneStatus" =>
-						      "Do_CloneStatus")),
+						     "Do_CloneStatus",
+						 "InstantiateAsGuest" =>
+						       "Do_GuestInstantiate")),
 		 "status" =>
 			array("file"    => "status.ajax",
 			      "guest"   => true,
