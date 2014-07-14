@@ -689,7 +689,7 @@ elsif ($isvirtnode) {
 	if ($usepath) {
 	    $id = $filename;
 	} else {
-	    $id = $image->pid() . "/$imagename";
+	    $id = $image->pid() . "/" . $image->imagename();
 	}
 	$command .= " -S $BOSSIP -F $id";
     }
@@ -734,7 +734,7 @@ else {
 	if ($usepath) {
 	    $id = $filename;
 	} else {
-	    $id = $image->pid() . "/$imagename";
+	    $id = $image->pid() . "/" . $image->imagename();
 	}
     } else {
 	$id = $filename;
@@ -744,7 +744,7 @@ else {
 	if (!$usefup) {
 	    $command .= " OLDSIGFILE=$srcsigfile";
 	} else {
-	    my $sid = $srcimage->pid() . "/" . $srcimage->imagename;
+	    my $sid = $srcimage->pid() . "/" . $srcimage->imagename();
 	    $command .= " OLDSIGFILE=$sid,sig";
 	}
     }
