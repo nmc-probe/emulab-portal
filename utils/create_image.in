@@ -688,8 +688,6 @@ elsif ($isvirtnode) {
 	my $id;
 	if ($usepath) {
 	    $id = $filename;
-	} elsif ($version > 0) {
-	    $id = $image->pid() . "/$imagename:$version";
 	} else {
 	    $id = $image->pid() . "/$imagename";
 	}
@@ -735,8 +733,6 @@ else {
 	$command .= " METHOD=frisbee SERVER=$BOSSIP";
 	if ($usepath) {
 	    $id = $filename;
-	} elsif ($version > 0) {
-	    $id = $image->pid() . "/$imagename:$version";
 	} else {
 	    $id = $image->pid() . "/$imagename";
 	}
@@ -749,9 +745,6 @@ else {
 	    $command .= " OLDSIGFILE=$srcsigfile";
 	} else {
 	    my $sid = $srcimage->pid() . "/" . $srcimage->imagename;
-	    if ($version > 0) {
-		$sid .= ":$version";
-	    }
 	    $command .= " OLDSIGFILE=$sid,sig";
 	}
     }
