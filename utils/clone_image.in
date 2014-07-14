@@ -235,9 +235,10 @@ if (defined($image)) {
 	my $needclone = 1;
 	
 	#
-	# Does the most version in the table not have its ready bit set? If so
-	# it means something went wrong with a previous image creation. We can
-	# reuse it, but reset the provenance just in case the node got reloaded.
+	# Does the most recent version in the table not have its ready bit set?
+	# If so it means something went wrong with a previous image creation.
+	# We can reuse it, but reset the provenance just in case the node got
+	# reloaded.
 	#
 	if (!$image->ready()) {
 	    my $osinfo = OSinfo->Lookup($image->imageid(), $image->version());
@@ -288,7 +289,7 @@ if (defined($image)) {
 	    # officially "released". We *can* use this version of the image
 	    # by explicitly using its version number, before it is released. 
 	    #
-	    if ($image->path() =~ /^\/usr\/testbed/) {
+	    if ($image->path() =~ /^$TB/) {
 		my $path = $PROJROOT . "/" . $image->pid() . "/images/" .
 		    basename($image->path());
 

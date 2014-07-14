@@ -1843,5 +1843,15 @@ sub Parent($)
     return Image->Lookup($self->parent_imageid(), $self->parent_version());
 }
 
+sub SetDelta($$)
+{
+    my ($self, $delta) = @_;
+
+    return -1
+	if (! $self->Update({'isdelta' => $delta}));
+
+    return 0;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
