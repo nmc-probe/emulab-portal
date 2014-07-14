@@ -331,6 +331,11 @@ else {
 	    "    You do not have permission to create an image from $node\n");
     }
 
+    if ($node->IsTainted()) {
+	die("*** $0:\n".
+	    "    $node is tainted - image creation denied.\n");
+    }
+
     #
     # We need the project id for test below. The target directory for the
     # output file has to be the node project directory, since that is the
