@@ -853,6 +853,9 @@ sub getDeviceNames(@) {
     my @ports = @_;
     my %devices = ();
     foreach my $port (@ports) {
+	if (!defined($port)) {
+	    die("getDeviceNames: undefined port");
+	}
 	my $device = $port->switch_node_id();
 
 	$devices{$device} = 1;
