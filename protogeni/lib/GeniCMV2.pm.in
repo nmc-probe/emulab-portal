@@ -1156,6 +1156,7 @@ sub SliverStatus($)
 	my $resource_id   = $sliver->resource_id();
 	my $state         = $sliver->state();
 	my $status        = $sliver->status();
+	my $nickname      = $sliver->nickname() || "";
 	my $error         = "";
 
 	# New is the same as stopped. Separate state is handy.
@@ -1167,6 +1168,7 @@ sub SliverStatus($)
 	}
 	$blob->{'details'}->{$sliver_urn} = {
 	    "component_urn" => $resource_id,
+	    "client_id" => $nickname,
 	    "state"  => $state,
 	    "status" => $status,
 	    "error"  => $error,
@@ -2257,7 +2259,8 @@ sub Credential2SliceAggregate($)
 	    }
 	}
     }
-    
+    my (undef, $certtype, undef) = GeniHRN::Parse($target_cert->urn());
+
     #
     # Make sure the certificate has not changed. If it has, we have to
     # check the UUID, since we need to support regen of the
@@ -2265,7 +2268,8 @@ sub Credential2SliceAggregate($)
     # a straight comparison will fail. So look to see if the UUID is
     # the same. If so, we store the new certificate.
     #
-    if (defined($slice) && !$target_cert->SameCert($slice)) {
+    if (defined($slice) && $certtype eq "slice" &&
+	!$target_cert->SameCert($slice)) {
 	if ($target_cert->uuid() eq $slice->uuid()) {
 	    print STDERR "Updating certificate for $slice to $target_cert\n";
 	    $slice->GetCertificate()->Delete();

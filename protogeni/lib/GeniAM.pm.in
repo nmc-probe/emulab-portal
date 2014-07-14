@@ -513,6 +513,7 @@ sub SliverStatus()
     while ( my ($pgurn, $pgrstat) = each(%$details) ) {
         my $child = {
             'geni_urn' => $pgurn,
+	    'geni_client_id' => $pgrstat->{'client_id'},
             # XXX Need to massage status to one of the AM status values
             'geni_status' => $pgrstat->{'status'},
             'geni_error' => $pgrstat->{'error'},
@@ -735,6 +736,7 @@ sub Describe
 	foreach my $sliver (@slivers) {
 	    $sliver_blob = {
 		'geni_sliver_urn' => $sliver->sliver_urn(),
+		'geni_client_id' => $sliver->nickname(),
 		'geni_expires' => $slice->ExpirationUTC(),
 		'geni_allocation_status' => "geni_provisioned",
 		'geni_operational_status' => GetOpState($sliver),
