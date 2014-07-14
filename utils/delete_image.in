@@ -142,15 +142,18 @@ if ($?) {
 # setuid root. Flip for deleting the image file.
 #
 if ($purge) {
+    my @files = ();
     my $filename = $image->path();
-    my $hashfile;
+    push @files, $filename, "$filename.bak";
     if ($filename =~ /^(.*)\.ndz$/) {
-	$hashfile = "$1.sha1";
+	push @files, "$1.sha1";
     } else {
-	$hashfile = "$filename.sha1";
+	push @files, "$filename.sha1";
     }
+    push @files, "$filename.sig", "$filename.sig.bak";
+
     $EUID = 0;
-    foreach my $file ($filename, $hashfile, "${filename}.bak") {
+    foreach my $file (@files) {
 	if (-e $file) {
 	    if (! unlink($file)) {
 		SENDMAIL($TBOPS,
