@@ -164,11 +164,18 @@ else {
 	if (!$node->IsReserved()) {
 	    die("*** $0:\n".
 		"    Node $n is not reserved; reserve it first!\n");
-	}    
-	if ($UID && !$this_user->IsAdmin() &&
-	    ! $node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE)) {
-	    die("*** $0:\n".
-		"    You are not allowed to put $node into admin mode!\n");
+	}
+	if ($UID && !$this_user->IsAdmin()) {
+	    if (! $node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE)) {
+		die("*** $0:\n".
+		    "    You are not allowed to put $node into admin mode!\n");
+	    }
+	    if ($node->IsTainted("useronly") || 
+		$node->IsTainted("blackbox")) {
+		die("*** $0:\n".
+		    "    $node is running a restricted image. Admin mode ".
+		    "not allowed!\n");
+	    }
 	}
 	push(@nodes, $node);
     }
