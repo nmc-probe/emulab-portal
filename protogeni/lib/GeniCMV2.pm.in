@@ -1748,6 +1748,25 @@ sub BindToSlice($)
 	    $slice->UnLock();
 	    return GeniResponse->Create(GENIRESPONSE_ERROR());
 	}
+	#
+	# Update the manifest. 
+	#
+	my $manifest = $aggregate->GetManifest(0);
+	foreach my $ref (GeniXML::FindNodes("n:node",
+					    $manifest)->get_nodelist()) {
+
+	    my $sliver_id = GeniXML::GetSliverId($ref);
+	    my $sliver    = GeniSliver->Lookup($sliver_id);
+	    next
+		if (!defined($sliver));
+
+	    my $node_manifest = $sliver->AnnotateManifest();
+	    if (defined($node_manifest)) {
+		# And store into the new manifest.
+		GeniXML::ReplaceNode($ref, $node_manifest);
+	    }
+	}
+	$aggregate->UpdateManifest($manifest);
     }
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);

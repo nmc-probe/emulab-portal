@@ -855,6 +855,41 @@ sub GetManifest($$)
 }
 
 #
+# Store a manifest back.
+#
+sub UpdateManifest($$)
+{
+    my ($self, $manifest) = @_;
+    my $slice_uuid = $self->slice_uuid();
+    my $manifest_string = DBQuoteSpecial(GeniXML::Serialize($manifest));
+
+    #
+    # We need the current idx. 
+    #
+    my $query_result =
+	DBQueryWarn("select idx from geni_manifests ".
+		    "where slice_uuid='$slice_uuid'");
+    return -1
+	if (!$query_result);
+
+    if ($query_result->numrows) {
+	my ($idx) = $query_result->fetchrow_array();
+    
+	DBQueryWarn("update geni_manifests set ".
+		    "  manifest=$manifest_string " .
+		    "where idx=$idx")
+	    or return -1;
+    }
+    else {
+	DBQueryWarn("replace into geni_manifests set ".
+		    "  manifest=$manifest_string, " .
+		    "  idx=NULL, slice_uuid='$slice_uuid', created=now()")
+	    or return -1;
+    }
+    return 0;
+}
+
+#
 # Process the manifest. Just hand off to the slivers.
 #
 sub ProcessManifest($$)
