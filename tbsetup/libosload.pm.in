@@ -55,6 +55,7 @@ my $TESTMODE    = @TESTMODE@;
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
+my $WITHDELTAS	= @IMAGEDELTAS@;
 
 # Max number of retries (per node) before its deemed fatal. This allows
 # for the occasional pxeboot failure.
@@ -580,6 +581,34 @@ sub osload ($$) {
 	if ($swapinfo) {
 	    print "osload ($node): Updating image signature.\n";
 	    osload_setupswapinfo(undef, undef, $node);
+	}
+
+	#
+	# For each image to be loaded, we check and see if it is a delta
+	# image. If so, we must follow its parent link backward til we
+	# find the latest full version of the image, then load those in
+	# reverse order.
+	#
+	if ($WITHDELTAS) {
+	    my @nimages = ();
+	    foreach my $image (@images) {
+		if ($image->isdelta()) {
+		    my $pimage = $image;
+		    my @ilist = ();
+		    do {
+			# if it is a delta image, there had better be a parent!
+			$pimage = $pimage->Parent();
+			if (!$pimage) {
+			    tberror "$node: delta image $image has no parent!";
+			    goto failednode;
+			}
+			push(@ilist, $pimage);
+		    } while ($pimage->isdelta());
+		    push @nimages, reverse(@ilist);
+		}
+		push(@nimages, $image);
+	    }
+	    @images = @nimages;
 	}
 
 	#
