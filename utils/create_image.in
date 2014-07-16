@@ -327,6 +327,7 @@ if (!defined($image)) {
 }
 my $imageid = $image->imageid();
 my $version = $image->version();
+$imagename  = $image->imagename(); # strip any version
 
 if ($mereuser &&
     ! $image->AccessCheck($this_user, TB_IMAGEID_ACCESS)) {
@@ -681,6 +682,7 @@ if ($isec2node) {
 }
 #
 # Virtnode images use a version of the old create-image script on the vhost
+# XXX needs to be fixed.
 #
 elsif ($isvirtnode) {
     $command = "$ocreateimage";
@@ -734,7 +736,7 @@ else {
 	if ($usepath) {
 	    $id = $filename;
 	} else {
-	    $id = $image->pid() . "/" . $image->imagename();
+	    $id = $image->pid() . "/" . $image->imagename() . ":$version";
 	}
     } else {
 	$id = $filename;
@@ -744,7 +746,8 @@ else {
 	if (!$usefup) {
 	    $command .= " OLDSIGFILE=$srcsigfile";
 	} else {
-	    my $sid = $srcimage->pid() . "/" . $srcimage->imagename();
+	    my $sid = $srcimage->pid() . "/" . $srcimage->imagename() .
+		":" . $srcimage->version();
 	    $command .= " OLDSIGFILE=$sid,sig";
 	}
     }
@@ -1032,28 +1035,31 @@ if (defined($webtask)) {
 # the image into place here, but that makes us nervous. We prefer an admin do
 # that by hand after testing the new image!
 #
+my $cname = "$imagepid/$imagename:$version";
 my $tbopsmsg = "";
 if ($isglobal && $usepath) {
     $tbopsmsg =
-	"Did not update DB state for global image $pid/$imagename since\n".
-	"image was written to '$filename'\n".
-	"instead of $TB/images. Move image into place and run:\n".
-	"    $imagevalidate -uq $pid/$imagename\n";
+	"Did not update DB state for global image $cname\n".
+	"since image was written to '$filename' instead of $TB/images.\n".
+	"Move image into place and run:\n".
+	"    $imagevalidate -uq $cname\n";
 }
-elsif (system("$imagevalidate -uq $pid/$imagename") != 0) {
+elsif (system("$imagevalidate -uq $cname") != 0) {
     $tbopsmsg =
-	"DB state update for image $pid/$imagename failed, try again with:\n".
-	"    $imagevalidate -u $pid/$imagename\n";
+	"DB state update for image $cname failed, try again with:\n".
+	"    $imagevalidate -u $cname\n";
 }
 if ($tbopsmsg) {
     SENDMAIL($TBOPS,
-	     "Image DB state update failure for $pid/$imagename",
+	     "Image DB state update failure for $cname",
 	     $tbopsmsg,
 	     $TBOPS,
 	     undef,
 	     ());
 }
 
+print "Delta "
+    if ($delta);
 print "Image creation succeeded.\n";
 print "Image written to $filename.\n";
 #      "Final size: " . (stat($filename))[7] . " bytes.\n";
@@ -1066,7 +1072,7 @@ if (defined($bootlog)) {
 }
 
 SENDMAIL("$user_name <$user_email>",
-	 "Image Creation on $target Completed: $pid/$imagename",
+	 "Image Creation on $target Completed: $imagepid/$imagename",
 	 "Image creation on $target has completed. As you requested, the\n".
 	 "image has been written to $filename.\n".
 	 "You may now os_load this image on other nodes in your experiment.\n",
@@ -1159,7 +1165,7 @@ sub fatal($)
     # Send a message to the testbed list. 
     #
     SENDMAIL("$user_name <$user_email>",
-	     "Image Creation Failure on $target: $pid/$imagename",
+	     "Image Creation Failure on $target: $imagepid/$imagename:$version",
 	     $mesg,
 	     "$user_name <$user_email>",
 	     "Cc: $TBOPS",
