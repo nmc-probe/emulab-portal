@@ -185,6 +185,7 @@ class Node
     function cd_version() {return $this->field("cd_version"); }
     function boot_errno() {return $this->field("boot_errno"); }
     function reserved_pid() {return $this->field("reserved_pid"); }
+    function taint_states() {return $this->field("taint_states"); }
 
     #
     # Access Check, determines if $user can access $this record.
@@ -466,6 +467,27 @@ class Node
     }
 
     #
+    # Check to see if node is tainted.
+    #
+    function IsTainted($instate = "") {
+        $tstates = $this->taint_states();
+        # No taint states set on this node?
+	if (!isset($tstates) || !$tstates) {
+	    return 0;
+	}
+        # Any taint will do if nothing was passed in to check.
+	if (!$instate) {
+	    return 1;
+	}
+	foreach (explode(",", $tstates) as $taint) {
+	    if (strcmp($instate, $taint) == 0) {
+	        return 1;
+	    }
+	}
+	return 0;
+    }
+
+    #
     # Show node record.
     #
     function Show($flags = 0) {
@@ -556,6 +578,7 @@ class Node
 	$downtime           = $row["down"];
 	$uuid               = $row["node_uuid"];
 	$mac		    	= $row["mac"];
+	$taint_states       = $row["taint_states"];
 
 	if (!$def_boot_cmd_line)
 	    $def_boot_cmd_line = "&nbsp;";
@@ -960,6 +983,12 @@ class Node
                       <td class=left>$uuid</td>
                   </tr>\n";
 	    }
+	    if ($taint_states) {
+		echo "<tr>
+                      <td>Taint States:</td>
+                      <td class=left>$taint_states</td>
+                  </tr>\n";
+	    }
 	
             #
             # Show battery stuff
@@ -1134,10 +1163,15 @@ class Node
         #
         # Spit out node attributes
         #
+
+	# Don't emit root password if node is tainted with "useronly" or
+	# "blackbox".
+	$noroot = $noperm || $this->IsTainted("useronly") || 
+	    $this->IsTainted("blackbox");
 	$query_result =
 	    DBQueryFatal("select attrkey,attrvalue from node_attributes ".
 			 "where node_id='$node_id' ".
-			 ($noperm ? "and attrkey!='root_password'" : ""));
+			 ($noroot ? "and attrkey!='root_password'" : ""));
 			 
 	if (!$short && mysql_num_rows($query_result)) {
 	    echo "<tr>
