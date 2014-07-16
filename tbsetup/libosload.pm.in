@@ -55,6 +55,7 @@ my $TESTMODE    = @TESTMODE@;
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
+my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $WITHDELTAS	= @IMAGEDELTAS@;
 
 # Max number of retries (per node) before its deemed fatal. This allows
@@ -589,7 +590,7 @@ sub osload ($$) {
 	# find the latest full version of the image, then load those in
 	# reverse order.
 	#
-	if ($WITHDELTAS) {
+	if ($WITHPROVENANCE && $WITHDELTAS) {
 	    my @nimages = ();
 	    foreach my $image (@images) {
 		if ($image->isdelta()) {
