@@ -309,10 +309,15 @@ if (defined($image)) {
     }
     my $opts = "-p $pid ";
     $opts   .= "-w " if ($waitmode);
+
+    #
+    # Mike says do not pass versioned imagenames to create_image when
+    # provenance is turned off. 
+    #
+    $imagename  = $image->imagename();
+    $imagename .= ":" . $image->version() if ($DOPROVENANCE && $doprovenance);
     
-    my $output =
-	emutil::ExecQuiet("$CREATEIMAGE $opts ".
-			  "  $imagename:" . $image->version() . " $node_id");
+    my $output = emutil::ExecQuiet("$CREATEIMAGE $opts $imagename $node_id");
     if ($?) {
 	$image->DeleteVersion()
 	    if ($needdelete);
