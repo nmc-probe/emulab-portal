@@ -68,11 +68,17 @@ else {
 # Admin users can look at any node, but normal users can only control
 # nodes in their own experiments.
 #
+# Do not allow console access for certain node taint states.
+#
 # XXX is MODIFYINFO the correct one to check? (probably)
 #
-if (!$isadmin && !isset($key) &&
-    !$node->AccessCheck($this_user, $TB_NODEACCESS_READINFO)) {
-    USERERROR("You do not have permission to tip to node $node_id!", 1);
+if (!$isadmin && !isset($key)) {
+    if (!$node->AccessCheck($this_user, $TB_NODEACCESS_READINFO)) {
+        USERERROR("You do not have permission to tip to node $node_id!", 1);
+    }
+    if ($node->IsTainted("useronly") || $node->IsTainted("blackbox")) {
+        USERERROR("Node $node_id is in a restricted state - console access denied.", 1);
+    }
 }
 
 # Array of arguments
