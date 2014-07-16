@@ -181,6 +181,7 @@ my $node_id;
 my $node;
 my ($experiment,$pid);
 my $doprovenance = 0;
+my $hacksigfile;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -556,6 +557,8 @@ if ($srcsigfile && ($srcsigfile =~ /^$TB/)) {
 	    "    Could not copy source signature file ".
 	    "$osrcsigfile to $srcsigfile\n");
     }
+    # XXX remember so we can cleanup later
+    $hacksigfile = $srcsigfile;
 }
 
 #
@@ -1142,6 +1145,10 @@ exit(0);
 sub cleanup ()
 {
     $needcleanup = 0;
+
+    if (defined($hacksigfile)) {
+	unlink($hacksigfile);
+    }
 
     if ($isvirtnode || $isec2node) {
 	#
