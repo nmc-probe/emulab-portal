@@ -725,7 +725,35 @@ elsif ($isvirtnode) {
     }
 }
 #
-# Regular nodes use the new script with different argument syntax.
+# Regular nodes with provenance tracking is turned off, use the old script.
+#
+elsif (!$doprovenance) {
+    $command = "$ocreateimage";
+    if ($usefup) {
+	my $id;
+	if ($usepath) {
+	    $id = $filename;
+	} else {
+	    $id = $image->pid() . "/" . $image->imagename();
+	}
+	$command .= " -S $BOSSIP -F $id";
+    }
+
+    $startslice = $image->loadpart();
+    $loadlength = $image->loadlength();
+    if ($startslice || $loadlength == 1) {
+	$command .= " -s $startslice";
+    }
+    $command .= " $device";
+
+    if ($usefup || $usessh) {
+	$command .= " -";
+    } else {
+	$command .= " $filename";
+    }
+}
+#
+# Otherwise, regular nodes use the new script with different argument syntax.
 #
 else {
     $command = "$createimage";
