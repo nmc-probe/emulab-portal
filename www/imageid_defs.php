@@ -223,7 +223,7 @@ class Image
 
 	$script = "webnewimageid" . ($ez ? "_ez" : "");
 	$retval = SUEXEC($creator->uid(),
-			 $group->pid() . "," . $group->gid(),
+			 $group->pid() . "," . $group->unix_gid(),
 			 "$script $opt $xmlname",
 			 SUEXEC_ACTION_IGNORE);
 
