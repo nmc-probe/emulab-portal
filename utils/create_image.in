@@ -490,7 +490,8 @@ else {
 	#
 	if ($doprovenance) {
 	    $srcimage = $image->Parent();
-	} else {
+	}
+	if (!defined($srcimage)) {
 	    (undef, $srcimage) = $node->RunningOsImage();
 	}
 	if (defined($srcimage)) {
@@ -1057,7 +1058,10 @@ if ($usessh) {
     # Note: we do not pass the filename, that is part of the key/value
     # string we built up.
     #
+    my $SAVEUID	= $UID;
+    $EUID = $UID = 0;
     $result = run_with_ssh($command, undef);
+    $EUID = $UID = $SAVEUID;
     if ($result eq "setupfailed") {
 	goto done;
     }
