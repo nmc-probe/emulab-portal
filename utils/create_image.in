@@ -62,6 +62,31 @@ my $checkwait    = 15;
 my $maximagesize = (6 * 1024**3);
 
 #
+# Options for imagezipper on the client-side. These apply only to imagezip,
+# i.e., the local node imaging process. They also only apply to the latest
+# version of the client script (create-versioned-image). For the older path,
+# options are hardwired into the create-image script.
+#
+# Note that since we cannot have spaces in the string passed to the client,
+# options are encoded; e.g.:
+#   -N -z 9 -d -a SHA1
+# would be encoded as:
+#   N,z=9,d,a=SHA1
+#
+# Specific options:
+#
+# By default we do not create relocations (-N) in the resulting image for a
+# couple of reasons. One is that we never did relocation support for GRUB
+# partition boot code, so modern Linux images would not have relocations
+# anyway. For FreeBSD this does mean that we cannot relocate them (we use
+# a relocation for correct disklabel construction), but we never really
+# took advantage of this anyway. The second reason is that ranges with
+# relocations are always considered different for hash comparisons, so an
+# otherwise empty FreeBSD delta image would have 64K of data in it.
+#
+my $zipperopts = "N";
+
+#
 # Create a disk image.
 #
 # XXX: Device file should come from DB.
@@ -77,13 +102,16 @@ sub usage()
 	  "-N          - use NFS (if available) instead of frisbee uploader\n".
 	  "-D          - create a 'delta' image rather than a full image\n".
 	  "-S          - create a signature file for the new image\n".
+	  "-A <pct>    - when -D is specified, automatically create a full\n".
+	  "              image instead when a delta would be more than\n".
+	  "              <pct> percent the size of a full image.\n".
 	  "-M          - do not boot info MFS, run with ssh from current OS\n".
 	  "-p <pid>    - project ID of the image; defaults to system project\n".
 	  "<imagename> - imagename to use\n".
 	  "<node>      - nodeid to create the image from\n");
     exit(-1);
 }
-my $optlist  = "p:wsNdfeDSM";
+my $optlist  = "p:wsNdfeDSMA:";
 my $waitmode = 0;
 my $usessh   = 0;
 my $usenfs   = 0;
@@ -92,6 +120,7 @@ my $noemail  = 0;
 my $delta    = 0;
 my $nomfs    = 0;
 my $signature= 0;
+my $deltapct = 0;
 my $webtask;
 
 #
@@ -235,6 +264,18 @@ if (defined($options{"M"})) {
     $nomfs = 1;
     $usessh = 1;
 }
+if (defined($options{"A"})) {
+    if (!$WITHDELTAS) {
+	print STDERR "Delta image support not enabled\n";
+	exit(1);
+    }
+    if ($options{"A"} =~ /^(\d+)$/) {
+	$deltapct = int($1);
+    } else {
+	print STDERR "Invalid percentage for -A\n";
+	exit(1);
+    }
+}
 if (@ARGV != 2) {
     usage();
 }
@@ -355,11 +396,19 @@ if ($WITHPROVENANCE) {
 # a different non-zero value so we can distinguish this case and not print
 # various warnings below.
 #
+# XXX We really shouldn't be doing this implicitly--our caller should just
+# be specifying the options when provenance is enabled--but this script is
+# called from a surprisingly large number of places, so we do!
+#
 if ($doprovenance && $WITHDELTAS) {
     $delta = 2
 	if ($delta == 0);
     $signature = 2
 	if ($signature == 0);
+
+    # XXX let's try this for now
+    $deltapct = 50
+	if ($deltapct == 0);
 }
 
 my ($srcsigfile, $srcimage, $dstsigfile);
@@ -789,6 +838,11 @@ else {
 	    $command .= " NEWSIGFILE=$id,sig";
 	}
     }
+    if ($deltapct > 0) {
+	$zipperopts .= ","
+	    if ($zipperopts);
+	$zipperopts .= "P=$deltapct";
+    }
 
     $startslice = $image->loadpart();
     $loadlength = $image->loadlength();
@@ -797,6 +851,10 @@ else {
 	$command .= " PART=$startslice";
     }
     $command .= " DISK=$device";
+
+    if ($zipperopts) {
+	$command .= " IZOPTS=$zipperopts";
+    }
 
     #
     # XXX always use ssh for now to get better log info; i.e., all
@@ -1023,6 +1081,46 @@ if ($usessh) {
     }
 }
 
+#
+# XXX woeful backward compat hack.
+# The old client-side script will not recognize the -S and -F options
+# we pass in and will exit(-1).  We detect that here and retry with ssh/nfs.
+#
+# Note that we only do this in the old, non-provenance world since you
+# must have an up-to-date MFS to handle provenance.
+#
+if (!$doprovenance && $usefup && $result eq "255") {
+    print STDERR "MFS does not support frisbee upload, falling back on ",
+                 $NONFS ? "ssh" : "nfs", "...\n";
+
+    $command = "$ocreateimage ";
+
+    $startslice = $image->loadpart();
+    $loadlength = $image->loadlength();
+    if ($startslice || $loadlength == 1) {
+	$command .= " -s $startslice";
+    }
+    $command .= " $device";
+    if ($usessh) {
+	$command .= " -";
+    } else {
+	$command .= " $filename";
+    }
+
+    # reset state for check_progress
+    $usefup = 0;
+    $runticks = 0;
+    $idleticks = 0;
+    $lastsize = 0;
+    $result = undef;
+
+    if ($NONFS) {
+	$result = run_with_ssh($command, $filename);
+    } else {
+	$result = run_with_ssh($command, undef);
+    }
+}
+
 done:
 
 # Grab boot log now. Node will reboot and possibly erase it. We should
@@ -1059,6 +1157,35 @@ if (defined($webtask)) {
 }
 
 #
+# XXX ugh! If we were doing the autodelta thing, we have to check our logfile
+# to see if imagezip reported creating a full image instead of a delta.
+# Here we are relying on the fact that we are using SSH, that we are in the
+# background and thus keeping a log (so the message will wind up in our log),
+# and we depend on the format of the message itself.
+#
+# Ugly? Yes, but worst case one of our assumptions fails and we record an
+# image as a delta when it isn't, which is just inefficient when it comes to
+# loading the image.
+#
+if ($delta && $deltapct > 0 && defined($logfile)) {
+    if (open(FD, "<" . $logfile->filename())) {
+	# XXX should occur early in the log
+	my $maxlines = 100;
+	while ($maxlines--) {
+	    my $line = <FD>;
+	    if ($line =~ /^Auto image selection creating (\S+) image/) {
+		if ($1 eq "full") {
+		    print "Chose to create full image rather than delta.\n";
+		    $delta = 0;
+		}
+		last;
+	    }
+	}
+	close(FD);
+    }
+}
+
+#
 # Update fields in the DB related to the image.
 #
 # Note that we do not do this for "standard" images since they get uploaded
@@ -1066,7 +1193,9 @@ if (defined($webtask)) {
 # the image into place here, but that makes us nervous. We prefer an admin do
 # that by hand after testing the new image!
 #
-my $cname = "$imagepid/$imagename:$version";
+my $cname = "$imagepid/$imagename";
+$cname .= ":$version"
+    if ($doprovenance);
 my $tbopsmsg = "";
 if ($isglobal && $usepath) {
     $tbopsmsg =
@@ -1089,10 +1218,10 @@ if ($tbopsmsg) {
 	     ());
 }
 
-print "Delta "
+print "$cname: ";
+print "delta "
     if ($delta);
-print "Image creation succeeded.\n";
-print "Image written to $filename.\n";
+print "image creation succeeded, written to $filename.\n";
 #      "Final size: " . (stat($filename))[7] . " bytes.\n";
 
 # Append bootlog (which has prepare output)

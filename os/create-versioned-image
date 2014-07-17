@@ -88,6 +88,9 @@ use Getopt::Std;
 #    Partition on DISK from which to load image. Used for imagezip -s option.
 #    If not set or set to zero, then it is a whole-disk image.
 #
+# IZOPTS=<string>
+#    Additional options for imagezip.
+#
 
 sub usage()
 {
@@ -121,18 +124,6 @@ my $frisbee = "/usr/local/bin/frisbee";
 my $localdir = "/local";
 my $impotent = 0;
 my $verbose = 0;
-
-#
-# We do not create relocations (-N) in the resulting image right now for a
-# couple of reasons. One is that we never did relocation support for GRUB
-# partition boot code, so modern Linux images would not have relocations
-# anyway. For FreeBSD this does mean that we cannot relocate them (we use
-# a relocation for correct disklabel construction), but we never really
-# took advantage of this anyway. The second reason is that ranges with
-# relocations are always considered different for hash comparisons, so an
-# otherwise empty FreeBSD delta image would have 64K of data in it.
-#
-my $zipperopts = "-N";
 
 sub process_image($);
 sub mysystem($);
@@ -182,13 +173,7 @@ sub map_diskname($)
 	}
     }
 
-    $dev = "/dev/$dtype$dunit";
-    if (-r "$dev") {
-	print STDERR "Could not read $dev\n";
-	return undef;
-    }
-
-    return $dev;
+    return "/dev/$dtype$dunit";
 }
 
 sub parse_params(@)
@@ -244,6 +229,21 @@ sub parse_params(@)
 		}
 		if ($key eq "newsigfile") {
 		    $iinfo{$iid}{'nsigfile'} = $val;
+		    next;
+		}
+		if ($key eq "izopts") {
+		    #
+		    # No spaces in string, so options are encoded; e.g.:
+		    #   -N -z 9 -d -a SHA1
+		    # would be encoded as:
+		    #   N,z=9,d,a=SHA1
+		    # We unencode them here.
+		    #
+		    my $optstr = "";
+		    foreach my $opt (split(',', $val)) {
+			$optstr .= " -" . join(' ', split('=', $opt));
+		    }
+		    $iinfo{$iid}{'izopts'} = $optstr;
 		    next;
 		}
 	    } else {
@@ -527,16 +527,19 @@ sub process_image($)
     # Fire off the command:
     #
     # file:
-    #   imagezip [-s $part] [-H $sigfile] [-U $nsigfile] $disk $ifile
+    #   imagezip $izopts [-s $part] [-H $sigfile] [-U $nsigfile] $disk $ifile
     #
     # frisbee:
-    #   imagezip [-s $part] [-H $sigfile] [-U $localdir/$nsigfile] $disk - | \
+    #   imagezip $izopts [-s $part] [-H $sigfile] [-U $localdir/$nsigfile] $disk - | \
     #	    frisupload -S $server -F $ifile -
     #   [ cat $localdir/$nsigfile | frisupload -S $server -F $nsigfile ]
     #
-    my $cmd = "$zipper $zipperopts";
+    my $cmd = "$zipper";
     if ($verbose) {
 	$cmd .= " -o";
+    }
+    if (exists($iinfo{$iid}{'izopts'})) {
+	$cmd .= $iinfo{$iid}{'izopts'};
     }
     if ($iinfo{$iid}{'part'} != 0) {
 	$cmd .= " -s " . $iinfo{$iid}{'part'};
