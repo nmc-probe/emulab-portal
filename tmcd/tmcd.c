@@ -5367,8 +5367,19 @@ COMMAND_PROTOTYPE(doloadinfo)
 		 * For virtual node reloading, it is convenient to tell it what
 		 * partition to boot, for the case that it is a whole disk image
 		 * and the client can not derive which partition to boot from.
+		 *
+		 * XXX 7/17/2014: retroactively add a version number check.
+		 * "BOOTPART=" confuses the old rc.frisbee argument parsing
+		 * which looks for "PART=" with the RE ".*PART=" which will
+		 * match BOOTPART= instead. Thus an old script loading a
+		 * whole disk image (PART=0) winds up trying to load it in
+		 * partition 2 (BOOTPART=2). So we can pick one of two
+		 * versions, the one in effect when rc.frisbee changed its
+		 * argument parsing (v30, circa 6/28/2010) or the version
+		 * in effect when BOOTPART was added (v36, circa 6/13/2013).
+		 * We choose the latter.
 		 */
-		if (row[12] && row[12][0]) {
+		if (row[12] && row[12][0] && vers >= 36) {
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       " BOOTPART=%s", row[12]);
 		}
