@@ -212,6 +212,7 @@ use Node;
 use NodeType;
 use Lan;
 use BlockstoreType;
+use User;
 
 tblog_stop_capture('stdout');
 
@@ -345,6 +346,12 @@ if (defined($pid) && ! defined($options{"Z"})) {
 	}
     }
 }
+
+# Figure out who is running this script, to be used in finding OSes
+# with per-user permissions.  We assume that the user we want
+# to look up is the one running this script (and hence the mapper
+# wrapper that calls it).
+my $this_user = User->ThisUser()->uid() || "";
 
 $fake_inet_switch = "internet";
 $fake_inet_iface = "(null)";
@@ -674,22 +681,24 @@ if (defined($pid)) {
 
 #
 # Read the table of which image types are supported on which hardware - we
-# limit this to global images and ones that match the PID (if given) We do this
-# limiting for two reasons:
+# limit this to global images and ones that match the PID (if given) or user. 
+# We do this limiting for two reasons:
 # 1) To avoid an explosion in the number of features for nodes
 # 2) To avoid information leaks, allowing projects to see each other's images
 # 
 my $osidquery = "select distinct o.osid, oi.type, o.osname, o.pid, o.OS, o.version, o.description,o.protogeni_export, o.osfeatures from os_info as o " .
-	"left join osidtoimageid as oi on o.osid = oi.osid " .
-        "left join images as i on oi.imageid = i.imageid ";
-if ($pid) {
-    $osidquery .= "left join image_permissions as p1 on p1.imageid=i.imageid and p1.permission_type='group' ".
-	"left join groups as g on p1.permission_idx=g.gid_idx ";
-}
-$osidquery .= "where i.global = 1 ";
+        "left join osidtoimageid as oi on o.osid = oi.osid " .
+        "left join images as i on oi.imageid = i.imageid " .
+        "left join image_permissions as p1 on p1.imageid=i.imageid ".
+	"left join groups as g on p1.permission_type='group' and p1.permission_idx=g.gid_idx " .
+	"left join users as u on p1.permission_type='user' and p1.permission_idx=u.uid_idx " .
+        "where i.global = 1 ";
 if ($pid) {
     $osidquery .= " or i.pid='$pid' ".
 	" or (g.pid is not null and g.pid='$pid')";
+}
+if ($this_user) {
+    $osidquery .= " or (u.uid is not null and u.uid='$this_user')";
 }
 
 my $defaultosidquery = 'select distinct o.osid, t.type, o.osname, o.pid, o.OS, o.version, o.description, o.protogeni_export, o.osfeatures '.
@@ -705,13 +714,25 @@ my $subosidquery = "select distinct o.osid,o.parent_osid from os_submap as o " .
 	"left join osidtoimageid as oi2 on o.parent_osid = oi2.osid " .
 	"left join images as i1 on oi1.imageid = i1.imageid ".
 	"left join images as i2 on oi2.imageid = i2.imageid ".
+        "left join image_permissions as ip1 on ip1.imageid=i1.imageid ".
+        "left join image_permissions as ip2 on ip2.imageid=i2.imageid ".
+	"left join groups as g1 on ip1.permission_type='group' and ip1.permission_idx=g1.gid_idx " .
+	"left join groups as g2 on ip2.permission_type='group' and ip2.permission_idx=g2.gid_idx " .
+	"left join users as u1 on ip1.permission_type='user' and ip1.permission_idx=u1.uid_idx " .
+	"left join users as u2 on ip2.permission_type='user' and ip2.permission_idx=u2.uid_idx " .
 	"where (i1.imageid is null or i1.global = 1";
 if ($pid) {
-    $subosidquery .= " or i1.pid='$pid'";
+    $subosidquery .= " or i1.pid='$pid' or g1.pid='$pid'";
+}
+if ($this_user) {
+    $subosidquery .= " or u1.uid='$this_user'"
 }
 $subosidquery .= ") and (i2.global = 1";
 if ($pid) {
-    $subosidquery .= " or i2.pid='$pid'";
+    $subosidquery .= " or i2.pid='$pid' or g2.pid='$pid'";
+}
+if ($this_user) {
+    $subosidquery .= " or u2.uid='$this_user'"
 }
 $subosidquery .= ")";
 
