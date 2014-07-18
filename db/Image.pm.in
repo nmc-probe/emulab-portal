@@ -1656,8 +1656,12 @@ sub RecordImageHistory($$$$$$)
 	$req_type = $erole unless defined $req_type;
 	my $osid      = $osinfo->osid();
 	my $osid_vers = $osinfo->vers();
-	my $imageid   = $image->imageid();
-	my $version   = $image->version();
+	my $imageid   = 0;
+	my $version   = 0;
+	if (defined($image)) {
+	    $imageid  = $image->imageid();
+	    $version  = $image->version();
+	}
 
 	next
 	    if ($impotent);
