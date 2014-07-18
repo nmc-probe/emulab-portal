@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -55,6 +55,8 @@ my $TESTMODE    = @TESTMODE@;
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
+my $WITHPROVENANCE= @IMAGEPROVENANCE@;
+my $WITHDELTAS	= @IMAGEDELTAS@;
 
 # Paths to binaries
 my $TBUISP	    = "$TB/bin/tbuisp";
@@ -1374,12 +1376,18 @@ sub osload_setupswapinfo($$$;@)
     # set to an MFS at other times.
     #
     my $query_result = DBQueryWarn(
-	"select r.node_id,r.vname,r.pid,r.eid,r.erole,n.osid,p.partition,p.imageid,p.imagepid,i.imagename,i.loadpart,e.savedisk ".
+	"select r.node_id,r.vname,r.pid,r.eid,r.erole,n.osid,p.partition,".
+	"       p.imageid,p.imageid_version,p.imagepid,i.imagename,".
+	"       iv.loadpart,e.savedisk ".
 	"from reserved as r ".
 	"left join nodes as n on n.node_id=r.node_id ".
 	"left join node_types as nt on nt.type=n.type ".
-	"left join partitions as p on p.node_id=n.node_id and p.osid=n.def_boot_osid ".
-        "left join images as i on i.imageid=p.imageid ".
+	"left join partitions as p on p.node_id=n.node_id and ".
+	"          p.osid=n.def_boot_osid ".
+        "left join images as i on i.imageid=p.imageid and ".
+	"          i.version=p.imageid_version ".
+        "left join image_versions as iv on iv.imageid=i.imageid and ".
+	"          iv.version=i.version ".
         "left join experiments as e on e.pid=r.pid and e.eid=r.eid ".
 	"where $clause");
     if (!$query_result) {
@@ -1387,7 +1395,7 @@ sub osload_setupswapinfo($$$;@)
     }
 
     while (my ($node, $vname, $rpid, $reid, $erole, $osid, $part, $imageid,
-	       $imagepid, $imagename, $lpart, $savedisk) =
+	       $imageid_version, $imagepid, $imagename, $lpart, $savedisk) =
 	   $query_result->fetchrow_array()) {
 
 	my $nodeobject = Node->Lookup($node);
@@ -1404,6 +1412,13 @@ sub osload_setupswapinfo($$$;@)
 	#
 	if (!defined($imageid)) {
 	    print "*** swapinfo: OS $osid is not disk-based!?\n";
+	    next
+		if (!$allnodes);
+	    return 1;
+	}
+	my $image = Image->Lookup($imageid, $imageid_version);
+	if (!defined($image)) {
+	    print "*** swapinfo: Image $imageid,$imageid_version not found!\n";
 	    next
 		if (!$allnodes);
 	    return 1;
@@ -1700,7 +1715,8 @@ sub _LoadCurrentImages($$)
     $self->dprint(3,"loading current images for $node_id");
 
     my $def_boot_osid  = $nodeobject->def_boot_osid();
-    my $osinfo = OSinfo->Lookup($def_boot_osid);
+    my $def_boot_vers  = $nodeobject->def_boot_osid_vers();
+    my $osinfo = OSinfo->Lookup($def_boot_osid, $def_boot_vers);
     if (! defined($osinfo)) {
 	tberror("Could not find OS $def_boot_osid in the DB!");
 	return undef;
@@ -2005,9 +2021,11 @@ sub UpdatePartitions($$)
     #
     if (!$prepare) {
 	my $dbresult =
-	    DBQueryWarn("select p.*,i.mbr_version ".
-			" from partitions as p,images as i ".
-			" where p.imageid=i.imageid ".
+	    DBQueryWarn("select p.*,v.mbr_version ".
+			" from partitions as p,image_versions as v ".
+			" where p.imageid=v.imageid and ".
+			"       p.imageid_version=v.version and ".
+			"       v.deleted is null ".
 			"  and p.node_id='$node_id'");
 	if (!$dbresult) {
 	    tberror "$node_id: Could not read partition table!";
@@ -2105,7 +2123,9 @@ sub UpdatePartitions($$)
 		    'node_id' => $node_id,
 		    'partition' => $i,
 		    'osid' => $osid,
+		    'osid_vers' => $osinfo->vers(),
 		    'imageid' => $imageid,
+		    'imageid_version' => $image->version(),
 		    'imagepid' => $imagepid,
 		    'mbr_version' => $curmbrvers
 		    );
@@ -2127,13 +2147,17 @@ sub UpdatePartitions($$)
 	if (exists($partitions{$i})) {
 	    my $href = $partitions{$i};
 	    my $osid = $href->{'osid'};
+	    my $osvers = $href->{'osid_vers'};
 	    my $imid = $href->{'imageid'};
+	    my $imvers = $href->{'imageid_version'};
 	    my $impid = $href->{'imagepid'};
 	    $dbresult =
 		DBQueryWarn("replace into partitions ".
-			    "(node_id,partition,osid,imageid,imagepid) ".
+			    "(node_id,partition,osid,imageid,imagepid,".
+			    " osid_vers,imageid_version) ".
 			    "values ".
-			    "('$node_id','$i','$osid','$imid','$impid')");
+			    "('$node_id','$i','$osid','$imid','$impid',".
+			    " '$osvers','$imvers')");
 	} else {
 	    $dbresult =
 		DBQueryWarn("delete from partitions ".
@@ -2320,8 +2344,34 @@ sub SetupReload($$)
     $self->dprint(0,"SetupReload($node_id): setting up reload");
 
     my @images = @{$self->GetImages($nodeobject)};
-    my @imageids = map { $_->imageid() } @images;
-    my @imageidxs = (0 .. $#imageids);
+
+    #
+    # For each image to be loaded, we check and see if it is a delta
+    # image. If so, we must follow its parent link backward til we
+    # find the latest full version of the image, then load those in
+    # reverse order.
+    #
+    if ($WITHPROVENANCE && $WITHDELTAS) {
+	my @nimages = ();
+	foreach my $image (@images) {
+	    if ($image->isdelta()) {
+		my $pimage = $image;
+		my @ilist = ();
+		do {
+		    # if it is a delta image, there had better be a parent!
+		    $pimage = $pimage->Parent();
+		    if (!$pimage) {
+			tberror "$node: delta image $image has no parent!";
+			goto failednode;
+		    }
+		    push(@ilist, $pimage);
+		} while ($pimage->isdelta());
+		push @nimages, reverse(@ilist);
+	    }
+	    push(@nimages, $image);
+	}
+	@images = @nimages;
+    }
 
     my $prepare = $self->nodeflag($nodeobject,'prepare');
     my $zerofree = $self->nodeflag($nodeobject,'zerofree');
@@ -2340,8 +2390,14 @@ sub SetupReload($$)
     my $needswinpe = 0;
 
     my $idx = 1;
-    foreach my $imageid (@imageids) {
+    foreach my $image (@images) {
+	my $imageid = $image->imageid();
+	my $version = $image->version();
+
+	# only prepare the first image
 	my $prepare0 = $idx == 1 && $prepare ? 1 : 0;
+	# only zero when loading full images
+	my $zerofree0 = $image->isdelta() ? 0: $zerofree;
 
 	# XXX windows load
 	my $rowref = $self->imageinfo($imageid);
@@ -2356,8 +2412,10 @@ sub SetupReload($$)
 
 	my $query_result = 
 	    DBQueryWarn("insert into current_reloads ".
-			"(node_id, idx, image_id, mustwipe, prepare) values ".
-			"('$node_id', $idx, '$imageid', $zerofree, $prepare0)");
+			"(node_id, idx, image_id, imageid_version,".
+			" mustwipe, prepare) values ".
+			"('$node_id', $idx, '$imageid', '$version',".
+			" $zerofree0, $prepare0)");
 	return -1
 	    if (!$query_result);
 	++$idx;
@@ -2365,7 +2423,7 @@ sub SetupReload($$)
 
     # XXX windows load
     if ($needswinpe) {
-	if (@imageids > 1) {
+	if (@images > 1) {
 	    tberror("$self: Cannot load more than one image with WinPE/ImageX");
 	    return -1;
 	}
