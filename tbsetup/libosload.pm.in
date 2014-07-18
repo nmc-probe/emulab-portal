@@ -534,7 +534,7 @@ sub osload ($$) {
 		$dbresult =
 		    DBQueryWarn("replace into partitions ".
 				"(node_id,partition,osid,imageid,imagepid,".
-				" osid_vers, imageid_version) ".
+				" osid_vers,imageid_version) ".
 				"values ".
 				"('$node','$i','$osid','$imid','$impid',".
 				" '$osvers','$imvers')");
@@ -1220,13 +1220,18 @@ sub SetupReloadFrisbee($)
     foreach my $image (@$images) {
 	my $imageid = $image->imageid();
 	my $version = $image->version();
+
+	# only prepare on first image
 	my $prepare0 = $idx == 1 && $prepare ? 1 : 0;
+	# only zero on full images
+	my $zerofree0 = $image->isdelta() ? 0 : $zerofree;
+
 	my $query_result = 
 	    DBQueryWarn("insert into current_reloads ".
-			"(node_id, idx, image_id, imageid_version, ".
+			"(node_id, idx, image_id, imageid_version,".
 			" mustwipe, prepare) values ".
-			"('$node', $idx, '$imageid', '$version', ".
-			" $zerofree, $prepare0)");
+			"('$node', $idx, '$imageid', '$version',".
+			" $zerofree0, $prepare0)");
 	return -1
 	    if (!$query_result);
 	++$idx;
