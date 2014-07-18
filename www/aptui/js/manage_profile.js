@@ -6,11 +6,13 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/showtopo-modal.html',
 	 'js/lib/text!template/oops-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
+	 'js/lib/text!template/guest-instantiate.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
 function (_, sup, filesize, ShowImagingModal,
 	  manageString, waitwaitString, 
-	  rendererString, showtopoString, oopsString, rspectextviewString)
+	  rendererString, showtopoString, oopsString, rspectextviewString,
+	  guestInstantiateString)
 {
     'use strict';
     var editing = 0;
@@ -24,6 +26,7 @@ function (_, sup, filesize, ShowImagingModal,
     var showtopoTemplate  = _.template(showtopoString);
     var rspectextTemplate = _.template(rspectextviewString);
     var oopsTemplate      = _.template(oopsString);
+    var guestInstTemplate = _.template(guestInstantiateString);
 
     function initialize()
     {
@@ -69,7 +72,9 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#rspectext_div').html(rspectext_html);
     	var oops_html = oopsTemplate({});
 	$('#oops_div').html(oops_html);
-
+    	var guest_html = guestInstTemplate({});
+	$('#guest_div').html(guest_html);
+	
 	//
 	// Fix for filestyle problem; not a real class I guess, it
 	// runs at page load, and so the filestyle'd button in the
@@ -200,6 +205,12 @@ function (_, sup, filesize, ShowImagingModal,
 	    var marked = require("marked");
 	    $('#renderer_modal_div').html(marked(text));
 	    sup.ShowModal("#renderer_modal");
+	});
+	// Handler for guest instantiate submit button, which is in
+	// the modal.
+	$('#guest_instantiate_submit_button').click(function (event) {
+	    event.preventDefault();
+	    InstantiateAsGuest();
 	});
 
 	/*
@@ -502,6 +513,44 @@ function (_, sup, filesize, ShowImagingModal,
     }
 
     //
+    // Instantiate a profile as a guest User.
+    //
+    function InstantiateAsGuest()
+    {
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    
+	    console.info(json.value);
+	    var message;
+	
+	    if (json.code) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    //
+	    // Need to set the cookies we get back so that we can
+	    // redirect to the status page.
+	    //
+	    document.cookie =
+		'quickvm_user=' + json.value.quickvm_user +
+		'; max-age=86400; path=/; secure';
+	    document.cookie =
+		'quickvm_authkey=' + json.value.quickvm_authkey +
+		'; max-age=86400; path=/; secure';
+
+	    var url = "status.php?uuid=" + json.value.quickvm_uuid;
+	    window.location.replace(url);
+	}
+	sup.HideModal("#guest_instantiate_modal");
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "manage_profile",
+					    "InstantiateAsGuest",
+					    {"uuid"   : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
     // Progress Modal
     //
     function ShowProgressModal()
@@ -540,12 +589,14 @@ function (_, sup, filesize, ShowImagingModal,
 	EnableButton("profile_delete_button");
 	EnableButton("profile_instantiate_button");
 	EnableButton("profile_submit_button");
+	EnableButton("guest_instantiate_button");
     }
     function DisableButtons()
     {
 	DisableButton("profile_delete_button");
 	DisableButton("profile_instantiate_button");
 	DisableButton("profile_submit_button");
+	DisableButton("guest_instantiate_button");
     }
     function EnableButton(button)
     {

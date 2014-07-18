@@ -247,6 +247,12 @@
                  href='instantiate.php?profile=<%= uuid %>'
                  type='submit' name='create'>Instantiate
 	      </a>
+	      <button class='btn btn-success btn-sm pull-right' disabled
+                 id='guest_instantiate_button'
+                 style='margin-right: 10px;'
+     		 data-toggle='modal' data-target='#guest_instantiate_modal'
+                 type='button' name='delete'>Instantiate as Guest
+	      </button>
 	      <button class='btn btn-danger btn-sm pull-left' disabled
                  id='profile_delete_button'
                  style='margin-right: 10px;'
@@ -283,4 +289,5 @@
   <div id='imaging_div'></div>
   <div id='renderer_div'></div>
   <div id='oops_div'></div>
+  <div id='guest_div'></div>
 </div>

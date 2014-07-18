@@ -137,7 +137,7 @@ function SPITFORM($formfields, $newuser, $errors)
     if ($errors) {
 	while (list ($key, $val) = each ($errors)) {
 	    # Skip internal error, we want the html in those errors
-	    # ands we know it is safe.
+	    # and we know it is safe.
 	    if ($key == "error") {
 		continue;
 	    }
@@ -536,99 +536,21 @@ if (!$this_user &&
     }
 }
 
-#
-# This is so we can look up the slice after the backend creates it.
-# We tell the backend what uuid to use.
-#
-$quickvm_uuid = NewUUID();
+# Admins can change aggregate.
+$options      = ($aggregate_urn != "" ? " -a '$aggregate_urn'" : "");
 
 #
-# Generate a temporary file and write in the XML goo. 
+# Invoke the backend.
 #
-$xmlname = tempnam("/tmp", "quickvm");
-if (! $xmlname) {
-    TBERROR("Could not create temporary filename", 0);
-    $errors["internal"] = "Transient error(1); please try again later.";
-}
-elseif (! ($fp = fopen($xmlname, "w"))) {
-    TBERROR("Could not open temp file $xmlname", 0);
-    $errors["internal"] = "Transient error(2); please try again later.";
-}
-else {
-    fwrite($fp, "<quickvm>\n");
-    foreach ($args as $name => $value) {
-	fwrite($fp, "<attribute name=\"$name\">");
-	fwrite($fp, "  <value>" . htmlspecialchars($value) . "</value>");
-	fwrite($fp, "</attribute>\n");
-    }
-    fwrite($fp, "</quickvm>\n");
-    fclose($fp);
-    chmod($xmlname, 0666);
-}
-if (count($errors)) {
-    SPITFORM($formfields, false, $errors);
-    SPITFOOTER();
-    return;
-}
+list ($instance, $creator) =
+    Instance::Instantiate($this_user, $options, $args, $errors);
 
-#
-# Invoke the backend. This will create the user and the slice record
-# in the SA database, and then fork off in the background. If the
-# first part works, we can return to the user and use some nifty ajax
-# and javascript to watch for progress. We use a cookie that holds
-# the slice uuid so that the JS code can ask about it.
-#
-# This option is used to tell the backend that it is okay to look
-# in the emulab users table.
-#
-if (isset($_SERVER['REMOTE_ADDR'])) { 
-    putenv("REMOTE_ADDR=" . $_SERVER['REMOTE_ADDR']);
-}
-$opt  = ($this_user ? "-l" : "");
-$opt .= ($aggregate_urn != "" ? " -a '$aggregate_urn'" : "");
-
-$retval = SUEXEC("nobody", "nobody",
-		 "webquickvm $opt -u $quickvm_uuid $xmlname",
-		 SUEXEC_ACTION_CONTINUE);
-
-if ($retval != 0) {
-    if ($retval < 0) {
-	$errors["error"] = "Transient error(3); please try again later.";
-    }
-    else {
-	if (count($suexec_output_array)) {
-	    $line = $suexec_output_array[0];
-	    $errors["error"] = $line;
-	}
-	else {
-	    $errors["error"] = "Transient error(4); please try again later.";
-	}
-    }
-    SPITFORM($formfields, false, $errors);
-    SPITFOOTER();
-    return;
-}
-unlink($xmlname);
-
-$instance = Instance::Lookup($quickvm_uuid);
 if (!$instance) {
-    $errors["error"] = "Transient error(5); please try again later.";
     SPITFORM($formfields, false, $errors);
     SPITFOOTER();
     return;
 }
-if ($this_user) {
-    $creator = $this_user;
-}
-else {
-    $creator = GeniUser::Lookup("sa", $instance->creator_uuid());
-}
-if (! $creator) {
-    $errors["error"] = "Transient error(6); please try again later.";
-    SPITFORM($formfields, false, $errors);
-    SPITFOOTER();
-    return;
-}
+    
 #
 # Remember the user and auth key so that we can verify.
 #

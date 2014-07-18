@@ -106,5 +106,86 @@ class Instance
 	$this->instance = mysql_fetch_array($query_result);
 	return 0;
     }
+    #
+    # Class function to create a new Instance
+    #
+    function Instantiate($creator, $options, $args, &$errors) {
+	global $suexec_output, $suexec_output_array;
+
+	# So we can look up the slice after the backend creates it.
+	$uuid = NewUUID();
+
+	#
+        # Generate a temporary file and write in the XML goo. 
+	#
+	$xmlname = tempnam("/tmp", "quickvm");
+	if (! $xmlname) {
+	    TBERROR("Could not create temporary filename", 0);
+	    $errors["error"] = "Transient error(1); please try again later.";
+	    return null;
+	}
+	elseif (! ($fp = fopen($xmlname, "w"))) {
+	    TBERROR("Could not open temp file $xmlname", 0);
+	    $errors["error"] = "Transient error(2); please try again later.";
+	    return null;
+	}
+	else {
+	    fwrite($fp, "<quickvm>\n");
+	    foreach ($args as $name => $value) {
+		fwrite($fp, "<attribute name=\"$name\">");
+		fwrite($fp, "  <value>" . htmlspecialchars($value) .
+		       "</value>");
+		fwrite($fp, "</attribute>\n");
+	    }
+	    fwrite($fp, "</quickvm>\n");
+	    fclose($fp);
+	    chmod($xmlname, 0666);
+	}
+	#
+	# This option is used to tell the backend that it is okay to look
+	# in the emulab users table.
+	#
+	$options .= ($creator ? " -l" : "");
+
+	if (isset($_SERVER['REMOTE_ADDR'])) { 
+	    putenv("REMOTE_ADDR=" . $_SERVER['REMOTE_ADDR']);
+	}
+	$retval = SUEXEC("nobody", "nobody",
+			 "webquickvm $options -u $uuid $xmlname",
+			 SUEXEC_ACTION_CONTINUE);
+
+	if ($retval != 0) {
+	    if ($retval < 0) {
+		$errors["error"] =
+		    "Transient error(3); please try again later.";
+	    }
+	    else {
+		if (count($suexec_output_array)) {
+		    $line = $suexec_output_array[0];
+		    $errors["error"] = $line;
+		}
+		else {
+		    $errors["error"] =
+			"Transient error(4); please try again later.";
+		}
+	    }
+	    return null;
+	}
+	unlink($xmlname);
+
+	$instance = Instance::Lookup($uuid);
+	if (!$instance) {
+	    $errors["error"] = "Transient error(5); please try again later.";
+	    return null;
+	}
+	if (!$creator) {
+	    $creator = GeniUser::Lookup("sa", $instance->creator_uuid());
+	}
+	if (!$creator) {
+	    $errors["error"] = "Transient error(6); please try again later.";
+	    return null;
+	}
+	return array($instance, $creator);
+    }
 }
 ?>

@@ -3627,6 +3627,20 @@ class node:
                     RESPONSE_FORBIDDEN,
                     output=("You do not have permission to access: "
                             + argdict["node"]))
+
+            tstates = DBQueryFatal("SELECT taint_states FROM nodes "
+                                   "WHERE node_id=%s AND taint_states "
+                                   "IS NOT NULL",
+                                   (argdict["node"],))
+
+            if len(tstates):
+                for taint in tstates[0][0].split(","):
+                    if (taint in ("useronly","blackbox")):
+                        return EmulabResponse(
+                            RESPONSE_FORBIDDEN,
+                            output=("Node is restricted - console access "
+                                    "forbidden: " + argdict["node"]))
+
             pass
 
         res = DBQueryFatal("SELECT server,portnum,keylen,keydata "
