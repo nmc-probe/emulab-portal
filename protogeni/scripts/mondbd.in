@@ -98,8 +98,10 @@ use emdbi;
 use emutil;
 use Experiment;
 use Interface;
+use Lan;
 use Node;
 use OSinfo;
+use GeniHRN;
 
 # Connect to the monitoring DB.
 my $db = emdbi::NewTBDBHandle( "monitoring" );
@@ -174,6 +176,50 @@ sub AddInterfaces($$$) {
     }
 }
 
+sub AddLink($$) {
+
+    my ($name, $ts) = @_;
+
+    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_link SET " .
+			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/link#', " .
+			 "id='${DOMAIN}_link_$name', " .
+			 "selfRef='$URL/info/link/${DOMAIN}_link_$name'," .
+			 "urn='urn:publicid:IDN+$DOMAIN+link+$name'," .
+			 "ts='$ts'" );
+
+    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
+			 "id='${DOMAIN}_link_$name'," .
+			 "aggregate_id='$NICKNAME'," .
+			 "urn='urn:publicid:IDN+$DOMAIN+link+$name'," .
+			 "selfRef='$URL/info/link/${DOMAIN}_link_$name'" );
+}
+
+sub AddInterfaceVlan($$$$$) {
+
+    my ($linkid,$idomain,$iface,$tag,$ts) = @_;
+    my $url;
+
+    if( $idomain eq $DOMAIN ) {
+	$url = "$URL/info/interfacevlan/${idomain}_interface_${iface}:${tag}";
+    } else {
+	$url = "none";
+    }
+
+    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interfacevlan SET " .
+			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/port-vlan#', " .
+			 "id='${idomain}_interface_${iface}:${tag}', " .
+			 "selfRef='$url', " .
+			 "urn='url:publicid:IDN+$idomain+interface+$iface', " .
+			 "ts='$ts', " .
+			 "tag=$tag" );
+
+    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_link_interfacevlan SET " .
+			 "id='${idomain}_interface_${iface}:${tag}', " .
+			 "link_id='${DOMAIN}_link_$linkid', " .
+			 "urn='url:publicid:IDN+$idomain+interface+$iface', " .
+			 "selfRef='$url'" );
+}
+
 my %portcounters;
 
 while (1) {
@@ -193,6 +239,8 @@ while (1) {
     # Add local XEN nodes and interfaces from the shared pool.
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node WHERE ts < $expire" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interface WHERE ts < $expire" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_link WHERE ts < $expire" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interfacevlan WHERE ts < $expire" );
     emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_node WRITE, " .
 			 "ops_interface WRITE, " .
 			 "ops_aggregate_resource WRITE, " .
@@ -234,8 +282,7 @@ while (1) {
     }
 
     my @fakenodenames = ();
-    my $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT node_id FROM nodes " .
-					    "WHERE type='interconnect'" );
+    my $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT DISTINCT node_id FROM external_networks" );
     if( $query_result && $query_result->numrows) {
 	my @fakenodes;
 
@@ -258,6 +305,103 @@ while (1) {
 				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
 	    
 	    AddInterfaces( $n, $node, $ts );
+	}
+    }
+
+    emdbi::DBQueryWarnN( $db, "UNLOCK TABLES" );
+
+    emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_link WRITE, " .
+			 "ops_interfacevlan WRITE, " .
+			 "ops_link_interfacevlan WRITE, " .
+			 "ops_aggregate_resource WRITE" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_link_interfacevlan" );
+
+    $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT DISTINCT lanid " .
+					    "FROM lan_members AS l, " .
+					    "external_networks AS e WHERE " .
+					    "l.node_id=e.node_id" );
+    if( $query_result && $query_result->numrows ) {
+	my @lanids;
+
+	while( @lanids = $query_result->fetchrow_array() ) {
+	    my ($lanid) = @lanids;
+	    
+	    my $lan = VLan->Lookup( $lanid );
+
+	    next if( !defined( $lan ) );
+
+	    my $tag = $lan->GetTag();
+
+	    my @members;
+
+	    next if( $lan->MemberList( \@members ) != 0 );
+
+	    next if( ( scalar @members ) < 2 );
+
+	    my $edomain;
+	    my $enode;
+	    my $inode;
+	    my $snode;
+
+	    foreach my $member ( @members ) {
+		my $noderef;
+		my $nodeid;
+		my $iface;
+
+		next if( $member->GetNodeIface( \$noderef, \$iface ) != 0 );
+		$nodeid = $noderef->node_id();		
+
+		if( !defined( $enode ) &&
+		    grep { $_ eq $nodeid } @fakenodenames ) {
+
+		    my $peer;
+		    # Figuring out the other end of an external interface of
+		    # a fake node seems to be inconsistent.  Sometimes it's
+		    # in the external_interface column of the wires table.
+		    # Sometimes it's in the external_interface of the
+		    # external_networks table.  So we try both...
+		    my $pquery_result = emdbi::DBQueryWarnN(
+			$tbdb, "SELECT external_interface FROM " .
+			"external_networks WHERE node_id='$nodeid' AND " .
+			"external_interface IS NOT NULL" );
+		    if( $pquery_result && $pquery_result->numrows ) {
+			($peer) = $pquery_result->fetchrow_array();
+		    } else {
+			$pquery_result = emdbi::DBQueryWarnN(
+			    $tbdb, "SELECT external_interface FROM " .
+			    "wires AS w, interfaces AS i WHERE " .
+			    "( ( w.node_id1='$nodeid' AND w.card1=i.card " .
+			    "AND w.port1=i.port ) OR " .
+			    "( w.node_id2='$nodeid' AND w.card2=i.card " .
+			    "AND w.port2=i.port ) ) AND " .
+			    "i.node_id='$nodeid' AND i.iface='$iface'" );
+
+			if( $pquery_result && $pquery_result->numrows ) {
+			    ($peer) = $pquery_result->fetchrow_array();
+			} else {
+			    next;
+			}
+		    }
+
+		    my $type;
+		    ( $edomain, $type, $enode ) = GeniHRN::Parse( $peer );
+		    $enode = GeniHRN::Transcribe( $enode );
+		    $snode = "$nodeid:$iface";
+		} else {
+		    $inode = "$nodeid:$iface";
+		}
+	    }
+
+	    next if( !defined( $enode ) || !defined( $inode ) );
+
+	    AddLink( "${lanid}e", $ts );
+	    AddLink( "${lanid}i", $ts );
+
+	    AddInterfaceVlan( "${lanid}e", $DOMAIN, $snode, $tag, $ts );
+	    AddInterfaceVlan( "${lanid}e", $edomain, $enode, $tag, $ts );
+
+	    AddInterfaceVlan( "${lanid}i", $DOMAIN, $snode, $tag, $ts );
+	    AddInterfaceVlan( "${lanid}i", $DOMAIN, $inode, $tag, $ts );
 	}
     }
 
@@ -320,7 +464,7 @@ while (1) {
 
     sleep( $INTERVAL );
 
-    # FIXME add slice, sliver, user, vlan information
+    # FIXME add slice, sliver, user information
 }
 
 sub fatal($)
