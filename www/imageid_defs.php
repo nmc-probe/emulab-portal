@@ -41,7 +41,8 @@ class Image
 
 	if (is_null($version)) {
 	    $query_result =
-		DBQueryWarn("select i.*,v.* from images as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
 			    "where i.imageid='$safe_id'");
@@ -50,7 +51,10 @@ class Image
 	    # This will get deleted images, but that is okay.
 	    $safe_version = addslashes($version);
 	    $query_result =
-	        DBQueryWarn("select v.* from image_versions as v ".
+	        DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+			    "  from image_versions as v ".
+			    "left join images as i on ".
+			    "     i.imageid=v.imageid ".
 			    "where v.imageid='$safe_id' and ".
 			    "      v.version='$safe_version'");
 	}
@@ -137,15 +141,25 @@ class Image
     function LookupByUUID($uuid) {
 	$safe_uuid = addslashes($uuid);
 
+	#
+	# First look to see if the uuid is for the image itself,
+	# which means current version. Otherwise look for a
+	# version with the uuid.
+	#
 	$query_result =
-	    DBQueryFatal("select imageid from images ".
-			 "where uuid='$safe_uuid'");
-
+	    DBQueryFatal("select i.imageid,i.version from images as i ".
+			 "where i.uuid='$safe_uuid'");
+	if (mysql_num_rows($query_result) == 0) {
+	    $query_result =
+		DBQueryWarn("select imageid,version from image_versions ".
+			    "where uuid='$safe_uuid' and ".
+			    "      v.deleted is null");
+	}
 	if (mysql_num_rows($query_result) == 0) {
 	    return null;
 	}
 	$row = mysql_fetch_array($query_result);
-	return Image::Lookup($row["imageid"]);
+	return Image::Lookup($row["imageid"], $row["version"]);
     }
     
     #
@@ -386,6 +400,7 @@ class Image
     function imageid()		{ return $this->field("imageid"); }
     function parent_imageid()	{ return $this->field("parent_imageid"); }
     function parent_version()	{ return $this->field("parent_version"); }
+    function image_uuid()	{ return $this->field("image_uuid"); }
     function uuid()		{ return $this->field("uuid"); }
     function creator()		{ return $this->field("creator"); }
     function creator_idx()	{ return $this->field("creator_idx"); }
@@ -421,6 +436,7 @@ class Image
     function noexport()		{ return $this->field("noexport"); }
     function ready()		{ return $this->field("ready"); }
     function isdelta()		{ return $this->field("isdelta"); }
+    function nodelta()		{ return $this->field("nodelta"); }
     function released()		{ return $this->field("released"); }
 
     # Return the DB data.
@@ -847,10 +863,11 @@ class Image
 	    $released = $this->released();
 	    $ready    = $this->ready();
 	    $isdelta  = $this->isdelta();
+	    $nodelta  = $this->nodelta();
 	    
 	    echo "<tr>
-                    <td>Rdy/Rel/Delta: </td>
-                    <td class=left>$ready/$released/$isdelta</td>
+                    <td>Rdy/Rel/Delta/NoD: </td>
+                    <td class=left>$ready/$released/$isdelta/$nodelta</td>
                   </tr>\n";
 	}
 
@@ -1048,8 +1065,8 @@ class Image
 	
 	$html = "<font size=+1>Image <b>".
 	    "<a href='showproject.php3?pid=$pid'>$pid</a>/".
-	    "<a href='showimageid.php3?imageid=$imageid&version=$version'>
-                $imagename</a>".
+	    "<a href='showimageid.php3?imageid=$imageid&version=$version'>".
+	    "$imagename</a>".
 	    "</b></font>\n";
 
 	return $html;
