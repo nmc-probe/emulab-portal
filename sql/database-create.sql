@@ -1978,6 +1978,7 @@ CREATE TABLE `images` (
   `gid` varchar(32) NOT NULL default '',
   `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `uuid` varchar(40) NOT NULL default '',
+  `nodelta` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL,
   `locker_pid` int(11) default '0',
   PRIMARY KEY  (`imageid`),

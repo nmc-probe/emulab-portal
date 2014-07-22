@@ -140,6 +140,7 @@ sub DoUpdate($$$)
 		     " `gid` varchar(32) NOT NULL default '', ".
 		     " `gid_idx` mediumint(8) unsigned NOT NULL default '0', ".
 		     " `uuid` varchar(40) NOT NULL default '', ".
+		     " `nodelta` tinyint(1) NOT NULL default '0', ".
 		     " `locked` datetime default NULL, ".
 		     " `locker_pid` int(11) default '0', ".
 		     " PRIMARY KEY  (`imageid`), ".
@@ -149,6 +150,7 @@ sub DoUpdate($$$)
 	DBQueryFatal("insert into images select imagename,version,imageid, ".
 		     "    pid,pid_idx,gid,gid_idx,uuid,locked,locker_pid ".
 		     "  from image_versions");
+	DBQueryFatal("update image_versions set uuid=uuid()");
     }
     if (!DBTableExists("os_info")) {
 	DBQueryFatal("CREATE TABLE `os_info` ( ".
