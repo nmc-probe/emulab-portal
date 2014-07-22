@@ -106,6 +106,7 @@ my $PRERENDER      = "$TB/libexec/vis/prerender";
 my $EMULAB_PEMFILE = "@prefix@/etc/genicm.pem";
 # Just one of these, at Utah.
 my $GENICH_PEMFILE = "@prefix@/etc/genich.pem";
+my $WITHPROVENANCE = @IMAGEPROVENANCE@;
 my $API_VERSION    = 2;
 
 #
@@ -2517,12 +2518,19 @@ sub CreateImage($)
 	print STDERR "Cannot lookup descriptor for $imagename\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
+    if ($WITHPROVENANCE) {
+	$image = $image->LookupMostRecent();
+    }
     #
     # Form an image URN so the user knows how to request the new image.
     #
     my $image_urn = GeniHRN::Generate($OURDOMAIN, "image",
 				      $pid . "//" . $imagename);
-    my $image_url = "$TBBASE/image_metadata.php?uuid=" . $image->uuid();
+    my $version_urn .= ":" . $image->version();
+    my $image_url = "$TBBASE/image_metadata.php?uuid=" .
+	$image->image_uuid();
+    my $version_url = "$TBBASE/image_metadata.php?uuid=" .
+	$image->uuid();
 
     # Mark the sliver for sliver status calls. We can also unlock
     # since the state will prevent anything from being done.
@@ -2549,8 +2557,11 @@ sub CreateImage($)
     #
     my $mypid = main::WrapperFork();
     if ($mypid) {
-	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
-				    [$image_urn, $image_url]);
+	my @blob = ($image_urn, $image_url);
+	if ($WITHPROVENANCE) {
+	    @blob = (@blob, $version_url, $version_url);
+	}
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@blob);
     }
     $slice->UnLock();
     
