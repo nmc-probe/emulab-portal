@@ -410,6 +410,9 @@ if ($doprovenance && $WITHDELTAS) {
     $deltapct = 50
 	if ($deltapct == 0);
 }
+# Image override.
+$delta = $signature = 0
+    if ($image->nodelta());
 
 my ($srcsigfile, $srcimage, $dstsigfile);
 
