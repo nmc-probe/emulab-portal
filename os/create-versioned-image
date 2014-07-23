@@ -356,12 +356,17 @@ if (mysystem("$sudo mkdir -p $localdir")) {
 # memory filesystem is too much for our older machines--let's go
 # with 64MB for now.
 #
-my $MEMFS_SIZE = (64 * 1024 * 1024);
+my $MEMFS_SIZE = "64m";
 if ($dofrisbee) {
     if ($^O eq 'linux') {
-	die "No can do Linux right now!\n";
+	if (mysystem("$sudo mount -t tmpfs -o size=$MEMFS_SIZE tmpfs $localdir")) {
+	    print STDERR "Could not create $MEMFS_SIZE byte local MFS\n";
+
+	    # XXX try NFS instead
+	    exit(1);
+	}
     } else {
-	if (mysystem("$sudo mdconfig -a -t swap -s 64m -u 4") ||
+	if (mysystem("$sudo mdconfig -a -t swap -s $MEMFS_SIZE -u 4") ||
 	    mysystem("$sudo newfs -b 8192 -i 25000 -o space /dev/md4") ||
 	    mysystem("$sudo mount /dev/md4 $localdir")) {
 	    print STDERR "Could not create $MEMFS_SIZE byte local MFS\n";
@@ -389,7 +394,9 @@ foreach my $iid (sort keys %iinfo) {
 #
 if ($dofrisbee) {
     if ($^O eq 'linux') {
-	print STDERR "No can do Linux right now!\n";
+	if (mysystem("$sudo umount $localdir")) {
+	    print STDERR "WARNING: could not destroy local MFS\n";
+	}
     } else {
 	if (mysystem("$sudo umount $localdir") ||
 	    mysystem("$sudo mdconfig -d -u 4")) {
