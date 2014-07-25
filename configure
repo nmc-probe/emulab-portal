@@ -5464,6 +5464,18 @@ if test $PROTOGENI_GENIRACK -eq 1; then
 _ACEOF
 
 fi
+if test $IMAGEPROVENANCE -eq 1; then
+    cat >>confdefs.h <<_ACEOF
+#define IMAGEPROVENANCE 1
+_ACEOF
+
+fi
+if test $IMAGEDELTAS -eq 1; then
+    cat >>confdefs.h <<_ACEOF
+#define IMAGEDELTAS 1
+_ACEOF
+
+fi
 cat >>confdefs.h <<_ACEOF
 #define IMPORT_TMPDIR "$IMPORT_TMPDIR"
 _ACEOF
