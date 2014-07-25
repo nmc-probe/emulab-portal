@@ -345,7 +345,7 @@ $checkwait = $reportwait
 #
 my $this_user = User->ThisUser();
 if (! defined($this_user)) {
-    tbdie("You ($UID) do not exist!");
+    die("You ($UID) do not exist!\n");
 }
 my $user_uid   = $this_user->uid();
 my $user_name  = $this_user->name();
