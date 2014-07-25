@@ -499,7 +499,7 @@ fixone() {
     export SLICEFIX_NOCLFLUSH=`getvar NOCLFLUSH "$iline" unknown`
     export SLICEFIX_VGAONLY=`getvar VGAONLY "$iline" unknown`
     export SLICEFIX_CONSOLE=`getvar CONSOLE "$iline" unknown`
-    export SLICEFIX_BIOSDISK=`getvar BIOSDISK "$iline" unknown`
+    export SLICEFIX_BIOSDISK=`getvar BIOSDISK "$iline"`
     export SLICEFIX_DOM0MEM=`getvar DOM0MEM "$iline" unknown`
     $BINDIR/slicefix $PART $DISK
     return $?
