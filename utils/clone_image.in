@@ -55,13 +55,14 @@ sub usage()
 	  "       -w     Wait for image to be created\n");
     exit(-1);
 }
-my $optlist     = "densg:w";
+my $optlist     = "densg:wF";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
 my $nosnapshot  = 0;
 my $isvirtnode  = 0;
 my $waitmode    = 0;
+my $nodelta     = 0; # To pass to create_image.
 my $global;
 
 #
@@ -124,6 +125,9 @@ if (defined($options{"s"})) {
 }
 if (defined($options{"w"})) {
     $waitmode = 1;
+}
+if (defined($options{"F"})) {
+    $nodelta = 1;
 }
 if (defined($options{"g"})) {
     $global = $options{"g"};
@@ -309,6 +313,7 @@ if (defined($image)) {
     }
     my $opts = "-p $pid ";
     $opts   .= "-w " if ($waitmode);
+    $opts   .= "-F " if ($nodelta);
 
     #
     # Mike says do not pass versioned imagenames to create_image when
@@ -502,6 +507,7 @@ if ($nosnapshot) {
 }
 my $opts = "-p $pid ";
 $opts   .= "-w " if ($waitmode);
+$opts   .= "-F " if ($nodelta);
 $output  = emutil::ExecQuiet("$CREATEIMAGE $opts $imagename $node_id");
 if ($?) {
     print STDERR $output;
