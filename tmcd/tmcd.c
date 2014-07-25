@@ -139,6 +139,12 @@ CHECKMASK(char *arg)
 #define TARRPM_SERVER	BOSSNODE
 #endif
 
+#ifdef IMAGEPROVENANCE
+#define WITHPROVENANCE	1
+#else
+#define WITHPROVENANCE	0
+#endif
+
 /* Defined in configure and passed in via the makefile */
 #define DBNAME_SIZE	64
 #define HOSTID_SIZE	(32+64)
@@ -5559,8 +5565,25 @@ COMMAND_PROTOTYPE(doloadinfo)
 				return 1;
 			}
 
-			bufp += OUTPUT(bufp, ebufp - bufp, " IMAGEID=%s,%s,%s:%s",
-				       row[8], row[9], row[7], row[19]);
+			bufp += OUTPUT(bufp, ebufp - bufp, " IMAGEID=%s,%s,%s",
+				       row[8], row[9], row[7]);
+
+			if (vers >= 39 || !reqp->isvnode) {
+				/*
+				 * older mkvnode cannot handle :version,
+				 * nor can they handle deltas. So if the
+				 * server side is not doing versions, do
+				 * not return any version info even if the
+				 * client is updated, since there is still
+				 * an incompatibility with how images are
+				 * named on existing XEN hosts. 
+				 */
+				if (WITHPROVENANCE) {
+					bufp += OUTPUT(bufp,
+						       ebufp - bufp, ":%s",
+						       row[19]);
+				}
+			}
 
 			/*
 			 * All images version 38 and above, or just vnodes
@@ -7806,15 +7829,18 @@ COMMAND_PROTOTYPE(dojailconfig)
 	/*
 	 * Get the image to be booted. 
 	 */
-	res = mydb_query("select p.pid,g.gid,i.imagename from nodes as n "
+	res = mydb_query("select p.pid,g.gid,iv.imagename,iv.version "
+			 "  from nodes as n "
 			 "left join partitions as pa on "
 			 "     pa.node_id=n.node_id and "
 			 "     pa.osid=n.def_boot_osid "
-			 "left join images as i on i.imageid=pa.imageid "
-			 "left join projects as p on i.pid_idx=p.pid_idx "
-			 "left join groups as g on i.gid_idx=g.gid_idx "
+			 "left join image_versions as iv on "
+			 "     iv.imageid=pa.imageid and "
+			 "     iv.version=pa.imageid_version "
+			 "left join projects as p on iv.pid_idx=p.pid_idx "
+			 "left join groups as g on iv.gid_idx=g.gid_idx "
 			 "where n.node_id='%s'",
-			 3, reqp->nodeid);
+			 4, reqp->nodeid);
 
 	if (!res) {
 		error("dojailconfig: %s: DB Error getting image info!\n",
@@ -7822,11 +7848,22 @@ COMMAND_PROTOTYPE(dojailconfig)
 		return 1;
 	}
 	if (mysql_num_rows(res)) {
+		int version;
 		row = mysql_fetch_row(res);
 
 		bufp += OUTPUT(bufp, ebufp - bufp,
-			       "IMAGENAME=\"%s,%s,%s\"\n",
+			       "IMAGENAME=\"%s,%s,%s",
 			       row[0], row[1], row[2]);
+		/*
+		 * older mkvnode could not handle :version, and to be
+		 * backwards compatable with existing nodes, we do not
+		 * return a :0 version.
+		 */
+		version = atoi(row[3]);
+		if (vers >= 39 && WITHPROVENANCE) {
+			bufp += OUTPUT(bufp, ebufp - bufp, ":%s", row[3]);
+		}
+		bufp += OUTPUT(bufp, ebufp - bufp, "\"\n");
 	}
 	mysql_free_result(res);
 
