@@ -277,6 +277,7 @@ sub InitializeRouteTable();
 sub AllocateRouteTable($);
 sub LookupRouteTable($);
 sub FreeRouteTable($);
+sub downloadOneImage($$);
 
 sub getXenInfo()
 {
@@ -2332,6 +2333,23 @@ sub createRootDisk($)
 sub CreatePrimaryDisk($$$$)
 {
     my ($lvname, $imagemetadata, $target, $extrafs) = @_;
+
+    #
+    # If this image is a delta, we have to go back to the base and start
+    # with it. Then lay down each delta on top if it. 
+    #
+    my @deltas = ();
+    if (exists($imagemetadata->{'PARENTIMAGE'})) {
+	while (exists($imagemetadata->{'PARENTIMAGE'})) {
+	    my $parent = $imagemetadata->{'PARENTIMAGE'};
+	    my $parent_metadata;
+	    LoadImageMetadata($parent, \$parent_metadata);
+
+	    push(@deltas, $imagemetadata);
+	    $imagemetadata = $parent_metadata;
+	}
+	$lvname = "image+" . $imagemetadata->{'IMAGENAME'};
+    }
     my $basedisk   = lvmVolumePath($lvname);
     my $rootvndisk = lvmVolumePath($target);
     my $loadslice  = $imagemetadata->{'PART'};
@@ -2500,6 +2518,25 @@ sub CreatePrimaryDisk($$$$)
 	    mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
 		      "nice $IMAGEUNZIP -s $loadslice -f -o ".
 		      "                 -W 164 - $rootvndisk");
+	    return -1
+		if ($?);
+
+	    #
+	    # Lay down the deltas.
+	    #
+	    while (@deltas) {
+		my $delta_metadata = pop(@deltas);
+		$lvname   = "image+" . $delta_metadata->{'IMAGENAME'};
+		$basedisk = lvmVolumePath($lvname);
+		$chunks   = $delta_metadata->{'IMAGECHUNKS'};
+	    
+		mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
+			  "nice $IMAGEUNZIP -s $loadslice -f -o ".
+			  "                 -W 164 - $rootvndisk");
+
+		return -1
+		    if ($?);
+	    }
 	}
     }
     else {
@@ -2530,31 +2567,93 @@ sub createAuxDisk($$)
 #
 # Create a logical volume for the image if it doesn't already exist.
 #
+# The reload info is now a list, so as to support deltas. The first
+# image is the base, provides the full chunksize of the image; the
+# chunksize of the deltas is really small. The last image is what is
+# the boot image, and its timestamp is the one we care about. Note
+# that we never do deltas for "packaged" images.
+#
 sub createImageDisk($$$)
 {
     my ($image,$vnode_id,$raref) = @_;
+    my $imagelockname = ImageLockName($image);
+
+    #
+    # Drop the shared lock the caller has. We are going to take an exclusive
+    # lock in the function below. We will take the shared lock again
+    # before returning.
+    #
+    TBScriptUnlock();
+
+    #
+    # Process each image in the list.
+    #
+    foreach my $ref (@{$raref}) {
+	goto bad
+	    if (downloadOneImage($vnode_id, $ref));
+    }
+
+    #
+    # To recreate the image later, we have to add parent pointers
+    # to the metadata so we can load each delta on top of the base.
+    #
+    my @images = @{$raref};
+    my $child  = pop(@images);
+    my $child_metadata;
+    LoadImageMetadata($child->{'IMAGENAME'}, \$child_metadata);
+    while (@images) {
+	my $parent = pop(@images);
+	my $parent_metadata;
+	LoadImageMetadata($parent->{'IMAGENAME'}, \$parent_metadata);
+
+	$child_metadata->{'PARENTIMAGE'} = $parent->{'IMAGENAME'};
+	StoreImageMetadata($child->{'IMAGENAME'}, $child_metadata);
+
+	$child = $parent;
+	$child_metadata = $parent_metadata;
+    }
+    
+    # And back to a shared lock.
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
+	!= TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname lock back ".
+	    "after a long time!\n";
+	return -1;
+    }
+    #
+    # XXX note that we don ot declare RELOADDONE here since we have not
+    # actually created the vnode disk yet. That is the caller's
+    # responsibility.
+    #    
+    return 0;
+  bad:
+    return -1;
+}
+
+#
+# Download and create an LVM for a single compressed image.
+#
+sub downloadOneImage($$)
+{
+    my ($vnode_id, $raref) = @_;
+    my $image = $raref->{'IMAGENAME'};
+    my $imagelockname = ImageLockName($image);
     my $tstamp = $raref->{'IMAGEMTIME'};
     my $lvname = "image+" . $image;
     my $lvmpath = lvmVolumePath($lvname);
     my $imagedatepath = "$METAFS/${image}.date";
     my $imagemetapath = "$METAFS/${image}.metadata";
-    my $imagelockname = ImageLockName($image);
     my $imagepath = $lvmpath;
     my $unpack = 0;
     my $nochunks = 0;
     my $lv_size;
 
-    #
-    # We are locked by the caller with a shared lock.
-    #
-    # Need to promote to an exclusive lock.
-    #
-    TBScriptUnlock();
     if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get $imagelockname write lock".
 	    "after a long time!\n";
 	return -1;
     }
+    
     # Ick.
     if (exists($raref->{'MBRVERS'}) && $raref->{'MBRVERS'} == 99) {
 	$unpack = 1;
@@ -2562,9 +2661,7 @@ sub createImageDisk($$$)
     
     #
     # Do we have the right image file already? No need to download it
-    # again if the timestamp matches. Note that we are using the mod
-    # time on the lvm volume path for this, which we set below when
-    # the image is downloaded.
+    # again if the timestamp matches. 
     #
     if (findLVMLogicalVolume($lvname)) {
 	if (-e $imagedatepath) {
@@ -2614,7 +2711,7 @@ sub createImageDisk($$$)
     #
     # XXX Using MBRVERS for now, need something else.
     #
-    if (exists($raref->{'MBRVERS'}) && $raref->{'MBRVERS'} == 99) {
+    if ($unpack) {
 	$lv_size = 6 * 1024;
     }
     elsif (!exists($raref->{'IMAGECHUNKS'})) {
@@ -2633,7 +2730,8 @@ sub createImageDisk($$$)
 	# tmcd may also tell us the sector range of the uncompressed data.
 	# Extract useful tidbits from that.
 	#
-	if (exists($raref->{'IMAGELOW'}) && exists($raref->{'IMAGEHIGH'})) {
+	if (exists($raref->{'IMAGELOW'}) &&
+	    exists($raref->{'IMAGEHIGH'})) {
 	    $raref->{'LVSIZE'} =
 		$raref->{'IMAGEHIGH'} - $raref->{'IMAGELOW'} + 1;
 	}
@@ -2665,7 +2763,16 @@ sub createImageDisk($$$)
 	$imagepath = "$EXTRAFS/${image}.ndz";
     }
 
+    #
     # Now we just download the file, then let create do its normal thing
+    #
+    # Note that raref can be an array now, but downloadImage deals
+    # with that. When it returns, all parts have been loaded into
+    # LVM. We might improve things by putting each part into its
+    # own LVM, so we have them for other images, but if the deltas are
+    # small and the branching limited, it is not worth the effort.
+    # Lets see how it goes ...
+    #
     if (libvnode::downloadImage($imagepath, $unpack, $vnode_id, $raref)) {
 	print STDERR "libvnode_xen: could not download image $image\n";
 	goto bad;
@@ -2733,20 +2840,7 @@ sub createImageDisk($$$)
     StoreImageMetadata($image, $raref);
 
   okay:
-    # And back to a shared lock.
     TBScriptUnlock();
-    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
-	!= TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get $imagelockname lock back ".
-	    "after a long time!\n";
-	return -1;
-    }
-
-    #
-    # XXX note that we don't declare RELOADDONE here since we haven't
-    # actually created the vnode shadow disk yet.  That is the caller's
-    # responsibility.
-    #
     return 0;
   bad:
     TBScriptUnlock();
