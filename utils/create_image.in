@@ -100,6 +100,7 @@ sub usage()
 	  "-w          - wait for image to be fully created\n".
 	  "-s          - use ssh instead of frisbee uploader\n".
 	  "-N          - use NFS (if available) instead of frisbee uploader\n".
+	  "-F          - create a full image even if deltas are on\n".
 	  "-D          - create a 'delta' image rather than a full image\n".
 	  "-S          - create a signature file for the new image\n".
 	  "-A <pct>    - when -D is specified, automatically create a full\n".
@@ -111,13 +112,14 @@ sub usage()
 	  "<node>      - nodeid to create the image from\n");
     exit(-1);
 }
-my $optlist  = "p:wsNdfeDSMA:";
+my $optlist  = "p:wsNdfeDSMA:F";
 my $waitmode = 0;
 my $usessh   = 0;
 my $usenfs   = 0;
 my $usefup   = 1;
 my $noemail  = 0;
 my $delta    = 0;
+my $nodelta  = 0;
 my $nomfs    = 0;
 my $signature= 0;
 my $deltapct = 0;
@@ -179,6 +181,7 @@ sub run_with_ssh($$);
 
 my $nodereboot	= "$TB/bin/node_reboot";
 my $createimage = "/usr/local/bin/create-versioned-image";
+my $createxenimage = "/usr/local/bin/create-xen-image";
 my $ocreateimage= "/usr/local/bin/create-image";
 my $reboot_prep = "@CLIENT_BINDIR@/reboot_prepare";
 my $EC2SNAP     = "$TB/sbin/ec2import.proxy";
@@ -203,6 +206,7 @@ my $oldlogfile;
 my $needcleanup = 0;
 my $needunlock  = 0;
 my $isvirtnode  = 0;
+my $isxenhost   = 0;
 my $isec2node   = 0;
 my $onsharednode= 0;
 my $didbackup   = 0;
@@ -275,6 +279,9 @@ if (defined($options{"A"})) {
 	print STDERR "Invalid percentage for -A\n";
 	exit(1);
     }
+}
+if (defined($options{"F"})) {
+    $nodelta = 1;
 }
 if (@ARGV != 2) {
     usage();
@@ -409,10 +416,11 @@ if ($doprovenance && $WITHDELTAS) {
     # XXX let's try this for now
     $deltapct = 50
 	if ($deltapct == 0);
+
+    # Override delta but still collect signatures. 
+    $delta = 0
+	if ($image->nodelta() || $nodelta);
 }
-# Image override.
-$delta = $signature = 0
-    if ($image->nodelta());
 
 my ($srcsigfile, $srcimage, $dstsigfile);
 
@@ -482,6 +490,24 @@ else {
 	    "    Could not map $node to its experiment object!\n");
     }
     $pid = $experiment->pid();
+
+    if ($isvirtnode) {
+	#
+	# Need to know this is a xen-host to tailor method below.
+	#
+	my $pnode  = Node->Lookup($node->phys_nodeid());
+	my $osinfo = OSinfo->Lookup($pnode->def_boot_osid());
+	if (!defined($osinfo)) {
+	    fatal("Could not get osinfo for $pnode");
+	}
+	if ($osinfo->FeatureSupported("xen-host")) {
+	    $isxenhost = 1;
+
+	    if ($image->mbr_version() == 99) {
+		$doprovenance = $delta = $signature = 0;
+	    }
+	}
+    }
 
     #
     # If we are creating a delta image, figure out what image we are
@@ -745,7 +771,7 @@ if ($isec2node) {
 # Virtnode images use a version of the old create-image script on the vhost
 # XXX needs to be fixed.
 #
-elsif ($isvirtnode) {
+elsif ($isvirtnode && (!$doprovenance || !$isxenhost)) {
     $command = "$ocreateimage";
     if ($usefup) {
 	my $id;
@@ -758,18 +784,9 @@ elsif ($isvirtnode) {
     }
 
     #
-    # Need to know this is a xen-host to tailor options.
-    #
-    my $pnode  = Node->Lookup($node->phys_nodeid());
-    my $osinfo = OSinfo->Lookup($pnode->def_boot_osid());
-    if (!defined($osinfo)) {
-	fatal("Could not get osinfo for $pnode");
-    }
-    
-    #
     # XXX Need to add XEN package flag to descriptor.
     #
-    if ($osinfo->FeatureSupported("xen-host")) {
+    if ($isxenhost) {
 	if ($image->mbr_version() == 99) {
 	    $command .= " -p";
 	}
@@ -814,10 +831,23 @@ elsif (!$doprovenance) {
     }
 }
 #
-# Otherwise, regular nodes use the new script with different argument syntax.
+# Otherwise, use the new script with different argument syntax.
 #
 else {
-    $command = "$createimage";
+    $command = ($isxenhost ? "$createxenimage" : "$createimage");
+
+    #
+    # XEN Hosts cannot do provenance/delta without client side update.
+    # We need to provide these arguments for backwards compat though.
+    #
+    if ($isxenhost) {
+	$command .= " $node_id";
+	if ($usefup || $usessh) {
+	    $command .= " -";
+	} else {
+	    $command .= " $filename";
+	}
+    }
 
     my $id;
     if ($usefup) {
@@ -859,7 +889,10 @@ else {
     if ($startslice || $loadlength == 1) {
 	$command .= " PART=$startslice";
     }
-    $command .= " DISK=$device";
+    if (!$isxenhost) {
+ 	# The XEN host will figure out what device on its own.
+	$command .= " DISK=$device";
+    }
 
     if ($zipperopts) {
 	$command .= " IZOPTS=$zipperopts";
