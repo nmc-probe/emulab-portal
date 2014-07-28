@@ -82,6 +82,122 @@ function Do_CloneStatus()
 }
 
 #
+# Delete a profile. The backend tells us if its allowed, and we
+# report back to user. If successful. tell the client where to
+# redirect to (previous profile).
+#
+function Do_DeleteProfile()
+{
+    global $this_user;
+    global $ajax_args;
+    global $suexec_output, $suexec_output_array;
+    
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission");
+	return;
+    }
+    if (!$profile->IsHead()) {
+	SPITAJAX_ERROR(1, "Not allowed to delete non-head version");
+	return;
+    }
+    if ($profile->published()) {
+	SPITAJAX_ERROR(1, "Not allowed to delete a published version");
+	return;
+    }
+    #
+    # Invoke backend.
+    #
+    $retval = SUEXEC($this_uid, $profile->pid(),
+		     "webmanage_profile -r " . $profile->uuid(),
+		     SUEXEC_ACTION_CONTINUE);
+    if ($retval != 0) {
+	$error = "Transient error; please try again later";
+	
+	if ($retval && count($suexec_output_array)) {
+	    $error = $suexec_output_array[0];
+	}
+	SPITAJAX_ERROR(1, $error);
+	return;
+    }
+    # Lookup next most recent version
+    $profile = Profile::Lookup($profile->profileid());
+    if (!$profile) {
+	#
+	# Go back to myprofiles page instead. Happens when last version
+	# is deleted. 
+	#
+	SPITAJAX_RESPONSE("myprofiles.php");
+    }
+    $uuid = $profile->uuid();
+    SPITAJAX_RESPONSE("manage_profile.php?uuid=$uuid&action=edit");
+}
+
+#
+# Publish a profile. The backend tells us if its allowed, and we
+# report back to user. If successful. tell the client where to
+# redirect to (previous profile).
+#
+function Do_PublishProfile()
+{
+    global $this_user;
+    global $ajax_args;
+    global $suexec_output, $suexec_output_array;
+    
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission");
+	return;
+    }
+    if ($profile->published()) {
+	SPITAJAX_ERROR(1, "Not allowed to publish a published version");
+	return;
+    }
+    if (!$profile->IsHead()) {
+	SPITAJAX_ERROR(1, "Not allowed to publish non-head version");
+	return;
+    }
+    #
+    # Invoke backend.
+    #
+    $retval = SUEXEC($this_uid, $profile->pid(),
+		     "webmanage_profile -p " . $profile->uuid(),
+		     SUEXEC_ACTION_CONTINUE);
+    if ($retval != 0) {
+	$error = "Transient error; please try again later";
+	
+	if ($retval && count($suexec_output_array)) {
+	    $error = $suexec_output_array[0];
+	}
+	SPITAJAX_ERROR(1, $error);
+	return;
+    }
+    SPITAJAX_RESPONSE("Success");
+}
+
+#
 # Instantiate as Guest user. Simply a convenience, users could do
 # this themselves.
 #
@@ -160,6 +276,63 @@ function Do_GuestInstantiate()
 			    "quickvm_id"      => $guestid,
 			    "quickvm_uuid"    => $instance->uuid(),
 			    'quickvm_authkey' => $creator->auth_token()));
+}
+
+#
+# Instantiate profile (as the user)
+#
+function Do_Instantiate()
+{
+    global $this_user, $am_array;
+    global $ajax_args;
+    
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission");
+	return;
+    }
+
+    $args = array();
+    $args["username"]   = $this_user->uid();
+    $args["email"]      = $this_user->email();
+    $args["profile"]    = $profile->uuid();
+    $args["auth_token"] = $token;
+
+    $opts = "";
+    if (ISADMIN() && isset($ajax_args["where"])) {
+	if (array_key_exists($ajax_args["where"], $am_array)) {
+	    $opts = "-a " . $am_array[$ajax_args["where"]];
+	}
+	else {
+	    SPITAJAX_ERROR(1, "Invalid Aggregate");
+	    return;
+	}
+    }
+
+    #
+    # Invoke the backend.
+    #
+    $errors = array();
+    list ($instance, $creator) =
+	Instance::Instantiate($this_user, $opts, $args, $errors);
+
+    if (!$instance) {
+	SPITAJAX_ERROR(1, $errors["error"]);
+    }
+    #
+    # Return the instance uuid so we can redirect user to the status page.
+    #
+    SPITAJAX_RESPONSE(array("quickvm_uuid"    => $instance->uuid()));
 }
 
 # Local Variables:

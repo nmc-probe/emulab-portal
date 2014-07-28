@@ -1,12 +1,66 @@
 <div class='row'>
+ <% if (viewing) { %>
+  <div class='col-lg-3
+              col-md-3
+              col-sm-3'>
+    <div class='panel panel-default'>
+      <div class='panel-heading'>
+        <h4 class='panel-title'><%= title %></h4>
+      </div>
+      <div class='panel-body'>
+	<table class='table-condensed nospaceafter'
+	       style='font-size:12px;'>
+	  <tr>
+	    <td>Name:</td>
+	    <td><%- formfields.profile_name %></td>
+	  </tr>
+	  <tr>
+	    <td>Version:</td>
+	    <td><%- formfields.profile_version %></td>
+	  </tr>
+	  <tr>
+	    <td>Project:</td>
+	    <td><%- formfields.profile_pid %></td>
+	  </tr>
+	  <tr>
+	    <td>Creator:</td>
+	    <td><%- formfields.profile_creator %></td>
+	  </tr>
+	  <tr>
+	    <td>Created:</td>
+	    <td><%- formfields.profile_created %></td>
+	  </tr>
+	  <tr>
+	    <td>Published:</td>
+	    <td><%- formfields.profile_published %></td>
+	  </tr>
+	</table>
+	<% if (history) { %>
+	<a class='btn btn-info btn-xs pull-left'
+           id='profile_history_button'
+           style='margin-right: 10px; font-size: 12px'
+           href='profile-history.php?uuid=<%= uuid %>'
+           type='button'>History
+	</a>
+	<% } %>
+      </div>
+    </div>
+  </div>
+  <div class='col-lg-9
+              col-md-9
+              col-sm-9
+              col-xs-12'>
+    <div class='panel panel-default'>
+ <% } else { %>
   <div class='col-lg-8 col-lg-offset-2
-              col-md-10 col-md-offset-1
+              col-md-8 col-md-offset-2
               col-sm-10 col-sm-offset-1
               col-xs-12'>
     <div class='panel panel-default'>
       <div class='panel-heading'>
         <h3 class='panel-title'><%= title %></h3>
       </div>
+ <% } %>
       <div class='panel-body'>
 	<form id='quickvm_create_profile_form'
               class='form-horizontal' role='form'
@@ -27,6 +81,14 @@
 	      <% } %>
 	    </div>
 	  </div>
+	  <% if (viewing) { %>
+	    <input type='hidden' name='uuid' value='<%= uuid %>'>
+	    <input type='hidden' name='formfields[profile_name]'
+		   value='<%- formfields.profile_name %>'>
+	    <input type='hidden' name='formfields[profile_pid]'
+		   value='<%- formfields.profile_pid %>'>
+	  <% } %>
+	  <% if (!viewing) { %>
 	  <fieldset>
 	    <!-- First row has both name and project,
 		 which makes the layout odd. -->
@@ -42,7 +104,7 @@
 	      <div class='col-sm-4'>
 		<!-- In editing mode, pass through static values. -->
 	        <input name="formfields[profile_name]"
-		       <% if (editing) { %>readonly<% } %>
+		       <% if (viewing) { %>readonly<% } %>
 		       value="<%- formfields.profile_name %>"
 		       class="form-control format-me"
 		       data-key="profile_name">
@@ -79,27 +141,28 @@
 	      </div>
             </div>
 	  </fieldset>
+	  <% } %>
 	  <fieldset>
 	    <div class='format-me'
 		 data-key='profile_rspec' data-label='Your rspec'>
 	      <div class='row'>
-		<div class='col-xs-3'>
+                <div class='col-xs-12'>
                   <input class='filestyle' type='file'
 			 name='rspecfile' id='rspecfile' 
 			 data-classButton='btn btn-primary btn-xs'
 			 data-input='false'
+			 style='margin-right: 10px;'
 			 data-buttonText='Choose file'>
-		</div>
-		<div class='col-xs-2'>
 		  <button class='btn btn-primary btn-xs
 			  <% if (! gotrspec) { %>invisible<% } %>'
+			  type='button'
+			  style='margin-right: 10px; margin-left: 10px;'
 			  id='showtopo_modal_button'>
                     Show</button>
-		</div>
-		<div class='col-xs-2'>
 		  <button class='btn btn-primary btn-xs
 		          <% if (! gotrspec) { %>invisible<% } %>'
 			  type='button'
+			  style='margin-right: 10px;'
 			  id='show_rspec_textarea_button'
 			  data-toggle='collapse' data-target='#rspec_textarea'>
                     Edit</button>
@@ -188,6 +251,7 @@
 		  <div class='radio'>
                     <label>
                       <input type='radio' name='formfields[profile_who]'
+			     id='profile_who_public'
 		             <% if (formfields.profile_who == "public") {
 				%>checked<% } %>
 			     value='public'>
@@ -197,6 +261,7 @@
                   <div class='radio'>
                     <label>
                       <input type='radio' name='formfields[profile_who]'
+			     id='profile_who_registered'
 		             <% if (formfields.profile_who == "shared") {
 				%>checked<% } %>
 			     value='shared'>
@@ -206,6 +271,7 @@
                   <div class='radio'>
                     <label>
                       <input type='radio' name='formfields[profile_who]'
+			     id='profile_who_private'
 		             <% if (formfields.profile_who == "private") {
 				%>checked<% } %>
 			     value='private'>
@@ -217,7 +283,7 @@
             </div>
 
 	    <!-- The private URL -->
-	    <% if (editing) { %>
+	    <% if (viewing) { %>
 	    <input name="formfields[profile_url]"
 		   value="<%- formfields.profile_url %>"
 		   id='profile_url' readonly
@@ -233,32 +299,43 @@
 	  <!-- Buttons -->
 	  <div class='form-group'>
             <div class='col-sm-offset-2 col-sm-10'>
+	      <% if (!viewing || canmodify) { %>
               <button class='btn btn-primary btn-sm pull-right' disabled
                       id='profile_submit_button'
                       style='margin-right: 10px;'
                       type='submit' name='create'>
 		<%- button_label %>	
 	      </button>
-
-	      <% if (editing) { %>
+	      <% } %>
+	      <% if (viewing) { %>
 	      <a class='btn btn-primary btn-sm pull-right' disabled
                  id='profile_instantiate_button'
                  style='margin-right: 10px;'
-                 href='instantiate.php?profile=<%= uuid %>'
+     		 data-toggle='modal' data-target='#instantiate_modal'
                  type='submit' name='create'>Instantiate
 	      </a>
 	      <button class='btn btn-success btn-sm pull-right' disabled
                  id='guest_instantiate_button'
                  style='margin-right: 10px;'
      		 data-toggle='modal' data-target='#guest_instantiate_modal'
-                 type='button' name='delete'>Instantiate as Guest
+                 type='button'>Instantiate as Guest
 	      </button>
+ 	      <% if (candelete) { %>
 	      <button class='btn btn-danger btn-sm pull-left' disabled
                  id='profile_delete_button'
                  style='margin-right: 10px;'
      		 data-toggle='modal' data-target='#delete_modal'
                  type='button' name='delete'>Delete
 	      </button>
+	      <% } %>
+ 	      <% if (canpublish) { %>
+	      <button class='btn btn-success btn-sm pull-right' disabled
+                 id='profile_publish_button'
+                 style='margin-right: 10px;'
+     		 data-toggle='modal' data-target='#publish_modal'
+                 type='button'>Publish
+	      </button>
+	      <% } %>
 	      <% } %>
 	    </div>
 	  </div>
@@ -277,8 +354,7 @@
          <center><h3>Confirm to Delete</h3>
          <a class='btn btn-danger btn-sm'
 	    id='delete-confirm'
-           href='manage_profile.php?action=delete&uuid=<%= uuid %>'
-           type='button' name='delete'>Confirm</a></center>
+            type='button' name='delete'>Confirm</a></center>
 	</div>
       </div>
     </div>
@@ -290,4 +366,6 @@
   <div id='renderer_div'></div>
   <div id='oops_div'></div>
   <div id='guest_div'></div>
+  <div id='publish_div'></div>
+  <div id='instantiate_div'></div>
 </div>

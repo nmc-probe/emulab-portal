@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -366,6 +366,12 @@ sub AuditFork()
 	$libaudit::SAVE_STDOUT = 0;
 	$libaudit::SAVE_STDERR = 0;
     }
+
+    #
+    # We have to disconnect STDIN from the caller too.
+    #
+    open(STDIN, "< /dev/null") or
+	die("opening /dev/null for STDIN: $!");
 
     #
     # Create a new session to ensure we are clear of any process group.

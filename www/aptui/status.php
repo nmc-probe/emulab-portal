@@ -106,18 +106,29 @@ $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 $instance_status = $instance->status();
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
-$profile         = Profile::Lookup($instance->profile_idx());
+$profile         = Profile::Lookup($instance->profile_id(),
+				   $instance->profile_version());
 $profile_name    = $profile->name();
-$profile_idx     = $profile->idx();
-$slice_urn       = $slice->urn();
-$slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
-$slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
+if ($slice) {
+    $slice_urn       = $slice->urn();
+    $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
+    $slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
+}
+else {
+    $slice_urn = "";
+    $slice_expires = "";
+    $slice_expires_text = ""; 
+}
 $registered      = (isset($this_user) ? "true" : "false");
 $profile_public  = ($profile->ispublic() ? "true" : "false");
 $cansnap         = ((isset($this_user) &&
 		     $this_user->idx() == $creator->idx() &&
 		     $this_user->idx() == $profile->creator_idx()) ||
 		    ISADMIN() ? 1 : 0);
+$canclone        = (($profile->published() && isset($this_user) &&
+		     (($this_user->idx() == $creator->idx() &&
+		       $this_user->idx() == $profile->creator_idx()) ||
+		      ISADMIN())) ? 1 : 0);
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
 
@@ -155,6 +166,7 @@ echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "  window.APT_OPTIONS.registered = $registered;\n";
 echo "  window.APT_OPTIONS.cansnap = $cansnap;\n";
+echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";

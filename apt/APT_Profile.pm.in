@@ -44,6 +44,7 @@ use vars qw(@ISA @EXPORT $AUTOLOAD);
 
 # Must come after package declaration!
 use EmulabConstants;
+use emutil;
 use emdb;
 use GeniXML;
 use libtestbed;
@@ -55,81 +56,136 @@ use overload ('""' => 'Stringify');
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 
-# Cache of instances to avoid regenerating them.
-my %profiles   = ();
-my $debug      = 0;
+my $debug = 0;
+
+sub BlessRow($$)
+{
+    my ($class, $row) = @_;
+    
+    my $self           = {};
+    $self->{'DBROW'}   = $row;
+
+    bless($self, $class);
+    return $self;
+}
 
 #
-# Lookup by idx or pid,name or uuid, depending on the args.
+# Lookup. 
 #
-sub Lookup($$;$)
+sub Lookup($$;$$)
 {
-    my ($class, $arg1, $arg2) = @_;
-    my $idx;
+    my ($class, $arg1, $arg2, $arg3) = @_;
 
     #
-    # A single arg is either an index or a "pid,name" or "pid/name" string.
+    # A single arg is either an index or "pid,profile[:version]" or
+    # "pid/profile[:version]" string.
     #
     if (!defined($arg2)) {
 	if ($arg1 =~ /^(\d*)$/) {
-	    $idx = $1;
+	    my $result =
+		DBQueryWarn("select v.* from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid and ".
+			    "     v.version=i.version ".
+			    "where i.profileid='$arg1'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
 	}
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
-	       $arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
-	    $arg1 = $1;
-	    $arg2 = $2;
+		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
+	    my $result =
+		DBQueryWarn("select v.* from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid and ".
+			    "     v.version=i.version ".
+			    "where i.pid='$1' and i.name='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*):(\d*)$/ ||
+		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*):(\d*)$/) {
+	    my $result =
+		DBQueryWarn("select v.* from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid ".
+			    "where i.pid='$1' and i.name='$2' and ".
+			    "      v.version='$3' and v.deleted is null");
+	    return undef
+		if (!$result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref())
 	}
 	elsif ($arg1 =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
 	    my $result =
-		DBQueryWarn("select idx from apt_profiles ".
-			    "where uuid='$arg1'");
+		DBQueryWarn("select * from apt_profile_versions ".
+			    "where uuid='$arg1' and deleted is null");
 
 	    return undef
 		if (! $result || !$result->numrows);
 
-	    ($idx) = $result->fetchrow_array();
+	    return BlessRow($class, $result->fetchrow_hashref());
 	}
-	else {
-	    return undef;
-	}
-    }
-    elsif (! (($arg1 =~ /^[-\w\.\+]*$/) && ($arg2 =~ /^[-\w\.\+]*$/))) {
 	return undef;
     }
+    elsif (!defined($arg3)) {
+	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
+	    my $result =
+		DBQueryWarn("select v.* from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid ".
+			    "where i.profileid='$arg1' and v.version='$arg2' ".
+			    " and  v.deleted is null");
+	    return undef
+		if (! $result || !$result->numrows);
 
-    #
-    # Two args means pid/name lookup instead of idx.
-    #
-    if (defined($arg2)) {
-	my $result =
-	    DBQueryWarn("select idx from apt_profiles ".
-			"where pid='$arg1' and name='$arg2'");
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^([-\w\.\+]*):(\d+)$/) {
+	    my $result =
+		DBQueryWarn("select v.* from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid ".
+			    "where i.pid='$arg1' and i.name='$1' and ".
+			    "      v.version='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
 
-	return undef
-	    if (! $result || !$result->numrows);
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^[-\w\.\+]*$/) {
+	    my $result =
+		DBQueryWarn("select v.* from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid and ".
+			    "     v.version=i.version ".
+			    "where i.pid='$arg1' and i.name='$arg2'");
+	    return undef
+		if (! $result || !$result->numrows);
 
-	($idx) = $result->fetchrow_array();
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	return undef;
     }
+    else {
+	if ($arg1 =~ /^[-\w]*$/ &&
+	    $arg2 =~ /^[-\w\.\+]*$/ && $arg3 =~ /^\d+$/) {
+	    my $result =
+		DBQueryWarn("select v.* from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid ".
+			    "where i.pid='$arg1' and i.name='$arg2' and ".
+			    "      v.version='$arg3' and v.deleted is null");
+	    return undef
+		if (!$result || !$result->numrows);
 
-    # Look in cache first
-    return $profiles{"$idx"}
-        if (exists($profiles{"$idx"}));
-    
-    my $query_result =
-	DBQueryWarn("select * from apt_profiles where idx='$idx'");
-
-    return undef
-	if (!$query_result || !$query_result->numrows);
-
-    my $self           = {};
-    $self->{'PROFILE'} = $query_result->fetchrow_hashref();
-
-    bless($self, $class);
-    
-    # Add to cache. 
-    $profiles{"$idx"} = $self;
-    
-    return $self;
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+    }
+    return undef;
 }
 
 AUTOLOAD {
@@ -139,8 +195,8 @@ AUTOLOAD {
     $name =~ s/.*://;   # strip fully-qualified portion
 
     # A DB row proxy method call.
-    if (exists($self->{'PROFILE'}->{$name})) {
-	return $self->{'PROFILE'}->{$name};
+    if (exists($self->{'DBROW'}->{$name})) {
+	return $self->{'DBROW'}->{$name};
     }
     carp("No such slot '$name' field in class $type");
     return undef;
@@ -150,7 +206,7 @@ AUTOLOAD {
 sub DESTROY {
     my $self = shift;
 
-    $self->{'PROFILE'} = undef;
+    $self->{'DBROW'} = undef;
 }
 
 #
@@ -163,15 +219,17 @@ sub Refresh($)
     return -1
 	if (! ref($self));
 
-    my $idx = $self->idx();
+    my $profileid = $self->profileid();
+    my $version   = $self->version();
     
     my $query_result =
-	DBQueryWarn("select * from apt_profiles where idx=$idx");
+	DBQueryWarn("select * from apt_profile_versions ".
+		    "where profileid='$profileid' and version='$version'");
 
     return -1
 	if (!$query_result || !$query_result->numrows);
 
-    $self->{'PROFILE'} = $query_result->fetchrow_hashref();
+    $self->{'DBROW'} = $query_result->fetchrow_hashref();
 
     return 0;
 }
@@ -179,9 +237,9 @@ sub Refresh($)
 #
 # Create a profile
 #
-sub Create($$$$$)
+sub Create($$$$$$)
 {
-    my ($class, $project, $creator, $argref, $usrerr_ref) = @_;
+    my ($class, $parent, $project, $creator, $argref, $usrerr_ref) = @_;
 
     my $name    = DBQuoteSpecial($argref->{'name'});
     my $pid     = $project->pid();
@@ -192,7 +250,8 @@ sub Create($$$$$)
     #
     # The pid/imageid has to be unique, so lock the table for the check/insert.
     #
-    DBQueryWarn("lock tables apt_profiles write")
+    DBQueryWarn("lock tables apt_profiles write, apt_profile_versions write, ".
+		"            emulab_indicies write")
 	or return undef;
 
     my $query_result =
@@ -205,34 +264,108 @@ sub Create($$$$$)
 	return undef;
     }
     
-    my $uuid  = NewUUID();
-    my $rspec = DBQuoteSpecial($argref->{'rspec'});
+    my $profileid = TBGetUniqueIndex("next_profile", undef, 1);
+    my $uuid      = NewUUID();
+    my $rspec     = DBQuoteSpecial($argref->{'rspec'});
+    my $cquery    = "";
+    my $vquery    = "";
 
+    #
+    # This part is common between the two tables.
+    #
+    $cquery .= "name=$name,profileid='$profileid'";
+    $cquery .= ",pid='$pid',pid_idx='$pid_idx'";
 
-    my $query = "insert into apt_profiles set created=now()";
+    # And the versions table.
+    $vquery  = $cquery;
+    $vquery .= ",uuid='$uuid',created=now()";
+    $vquery .= ",creator='$uid',creator_idx='$uid_idx'";
+    $vquery .= ",rspec=$rspec";
 
-    # Append the rest
-    $query .= ",name=$name";
-    $query .= ",uuid='$uuid'";
-    $query .= ",pid='$pid',pid_idx='$pid_idx'";
-    $query .= ",creator='$uid',creator_idx='$uid_idx'";
-    # This is temporary until all rspecs using tour format.
-    $query .= ",description=''";
-    $query .= ",rspec=$rspec";
-    $query .= ",public=1"
+    # Set derived from pointer.
+    if (defined($parent)) {
+	$vquery .= ",parent_profileid=" . $parent->profileid();
+	$vquery .= ",parent_version=" . $parent->version();
+    }
+
+    # Back to the main table.
+    $cquery .= ",public=1"
 	if (exists($argref->{'public'}) && $argref->{'public'});
-    $query .= ",listed=1"
+    $cquery .= ",listed=1"
 	if (exists($argref->{'listed'}) && $argref->{'listed'});
-    $query .= ",shared=1"
+    $cquery .= ",shared=1"
 	if (exists($argref->{'shared'}) && $argref->{'shared'});
 
-    if (! DBQueryWarn($query)) {
+    # Create the main entry:
+    if (! DBQueryWarn("insert into apt_profiles set $cquery")) {
 	DBQueryWarn("unlock tables");
-	tberror("Error inserting new apt_profile record for $pid/$name!");
+	tberror("Error inserting new apt_profiles record!");
+	return undef;
+    }
+    # And the versions entry.
+    if (! DBQueryWarn("insert into apt_profile_versions set $vquery")) {
+	DBQueryWarn("delete from apt_profiles where profileid='$profileid'");
+	DBQueryWarn("unlock tables");
+	tberror("Error inserting new apt_profile_versions record!");
 	return undef;
     }
     DBQueryWarn("unlock tables");
     return Lookup($class, $pid, $argref->{'name'});
+}
+
+#
+# Create a new version of a profile.
+#
+sub NewVersion($$)
+{
+    my ($self, $creator) = @_;
+    my $profileid   = $self->profileid();
+    my $version     = $self->version();
+    my $uid         = $creator->uid();
+    my $uid_idx     = $creator->uid_idx();
+
+    DBQueryWarn("lock tables apt_profiles write, ".
+		"            apt_profile_versions write, ".
+		"            apt_profile_versions as v write")
+	or return undef;
+
+    #
+    # This might not be the head version, so have to find the
+    # current max.
+    #
+    my $query_result =
+	DBQueryWarn("select max(version) from apt_profile_versions ".
+		    "where profileid='$profileid'");
+    goto bad
+	if (!$query_result || !$query_result->numrows);
+
+    my ($newvers) = $query_result->fetchrow_array() + 1;
+
+    #
+    # Insert new version. The "current" version becomes this one.
+    #
+    goto bad
+	if (! DBQueryWarn("insert into apt_profile_versions ".
+			  "  (name,profileid,version,pid,pid_idx, ".
+			  "   creator,creator_idx,created,uuid, ".
+			  "   parent_profileid,parent_version,rspec) ".
+			  "select name,profileid,'$newvers',pid,pid_idx, ".
+			  "  '$uid','$uid_idx',now(),uuid(),parent_profileid, ".
+			  "  '$version',rspec ".
+			  "from apt_profile_versions as v ".
+			  "where v.profileid='$profileid' and ".
+			  "      v.version='$version'"));
+    if (! DBQueryWarn("update apt_profiles set version=$newvers ".
+		      "where profileid='$profileid'")) {
+	DBQueryWarn("delete from apt_profile_versions ".
+		    "where profileid='$profileid' and version='$version'");
+	goto bad;
+    }
+    DBQueryWarn("unlock tables");
+    return APT_Profile->Lookup($profileid, $newvers);
+  bad:
+    DBQueryWarn("unlock tables");
+    return undef;
 }
 
 #
@@ -244,14 +377,15 @@ sub Stringify($)
     
     my $pid       = $self->pid();
     my $name      = $self->name();
+    my $version   = $self->version();
 
-    return "[Profile: $pid,$name]";
+    return "[Profile: $pid,$name:$version]";
 }
 
 #
 # Perform some updates ...
 #
-sub Update($$)
+sub UpdateVersion($$)
 {
     my ($self, $argref) = @_;
 
@@ -259,12 +393,13 @@ sub Update($$)
     return -1
 	if (! ref($self));
 
-    my $idx = $self->idx();
+    my $profileid = $self->profileid();
+    my $version   = $self->version();
 
-    my $query = "update apt_profiles set ".
+    my $query = "update apt_profile_versions set ".
 	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
 
-    $query .= " where idx='$idx'";
+    $query .= " where profileid='$profileid' and version='$version'";
 
     return -1
 	if (! DBQueryWarn($query));
@@ -272,40 +407,114 @@ sub Update($$)
     return Refresh($self);
 }
 
-sub Delete($)
+#
+# Perform some updates ...
+#
+sub UpdateMetaData($$)
 {
-    my ($self) = @_;
+    my ($self, $argref) = @_;
 
     # Must be a real reference. 
     return -1
 	if (! ref($self));
 
-    my $idx = $self->idx();
+    my $profileid = $self->profileid();
 
-    DBQueryWarn("delete from apt_profiles where idx='$idx'") or
-	return -1;
+    #
+    # This is the only metadata we can update.
+    #
+    my %mods = ();
+    foreach my $key ("listed", "shared", "public") {
+	if (exists($argref->{$key})) {
+	    $mods{$key} = $argref->{$key};
+	}
+    }
+    my $query = "update apt_profiles set ".
+	join(",", map("$_=" . DBQuoteSpecial($mods{$_}), keys(%mods)));
 
+    $query .= " where profileid='$profileid'";
+
+    return -1
+	if (! DBQueryWarn($query));
+
+    return Refresh($self);
+}
+
+sub Delete($$)
+{
+    my ($self, $purge) = @_;
+    my $profileid = $self->profileid();
+
+    $purge = 0
+	if (!defined($purge));
+    
+    DBQueryWarn("lock tables apt_profiles write, apt_profile_versions write")
+	or return -1;
+
+    DBQueryWarn("delete from apt_profiles where profileid='$profileid'")
+	or goto bad;
+    
+    if ($purge) {
+	goto bad
+	    if (! QueryWarn("delete from apt_profile_versions ".
+			    "where profileid='$profileid'"));
+    }
+    else {
+	# Set deleted on all of the versions.
+	DBQueryWarn("update apt_profile_versions set ".
+		    "    deleted=now(),locked=null,locker_pid=0 ".
+		    "where profileid='$profileid'")
+	    or goto bad;
+    }
+    DBQueryWarn("unlock tables");
     return 0;
+
+  bad:
+    DBQueryWarn("unlock tables");
+    return -1;
 }
 
 #
-# Mark the update time.
+# Delete a profile version, only allow it if it is the highest
+# numbered version.
 #
-sub MarkModified($)
+sub DeleteVersion($)
 {
     my ($self) = @_;
 
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
-    my $idx = $self->idx();
-
-    DBQueryWarn("update apt_profiles set modified=now() ".
-		"where idx='$idx'")
+    DBQueryWarn("lock tables apt_profile_versions write, apt_profiles write")
 	or return -1;
 
+    my $profileid = $self->profileid();
+    my $version   = $self->version();
+
+    #
+    # Only the "head" version can be deleted
+    #
+    my $query_result =
+	DBQueryWarn("select max(version) from apt_profile_versions ".
+		    "where profileid='$profileid'");
+    goto bad
+	if (!$query_result || !$query_result->numrows);
+
+    my ($head) = $query_result->fetchrow_array();
+    if ($head != $version) {
+	print STDERR "Profile::DeleteVersion: not the head version of $self\n";
+	goto bad;
+    }
+    goto bad
+	if (!DBQueryWarn("delete from apt_profile_versions ".
+			 "where profileid='$profileid' and ".
+			 "      version='$version'"));
+    goto bad
+	if (!DBQueryWarn("update apt_profiles set version=version-1 ".
+			 "where profileid='$profileid' and ".
+			 "      version='$version'"));
+    DBQueryWarn("unlock tables");
     return 0;
+  bad:
+    DBQueryWarn("unlock tables");
+    return -1;
 }
 
 #
@@ -384,18 +593,14 @@ sub CheckFirewall($$)
 sub Lock($)
 {
     my ($self) = @_;
+    my $profileid = $self->profileid();
 
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
     return -1
 	if (!DBQueryWarn("lock tables apt_profiles write"));
 
-    my $idx = $self->idx();
-
     my $query_result =
-	DBQueryWarn("update apt_profiles set locked=now() " .
-		    "where idx='$idx' and locked is null");
+	DBQueryWarn("update apt_profiles set locked=now(),locker_pid='$PID' " .
+		    "where profileid='$profileid' and locked is null");
 
     if (! $query_result ||
 	$query_result->numrows == 0) {
@@ -403,27 +608,78 @@ sub Lock($)
 	return -1;
     }
     DBQueryWarn("unlock tables");
-    $self->{'PROFILE'}->{'locked'} = time();
+    $self->{'DBROW'}->{'locked'} = time();
     return 0;
 }
 
 sub Unlock($)
 {
     my ($self) = @_;
-
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
-    my $idx = $self->idx();
+    my $profileid = $self->profileid();
 
     return -1
 	if (! DBQueryWarn("update apt_profiles set ".
-			  "locked=null where idx='$idx'"));
+			  "   locked=null,locker_pid=0 ".
+			  "where profileid='$profileid'"));
     
-    $self->{'PROFILE'}->{'locked'} = 0;
+    $self->{'DBROW'}->{'locked'} = 0;
     return 0;
 }
+
+#
+# Update the disk image inside a single node profile. 
+#
+sub UpdateDiskImage($$)
+{
+    my ($self, $image_urn) = @_;
+    my $rspec = GeniXML::Parse($self->rspec());
+    if (! defined($rspec)) {
+	print STDERR "UpdateDiskImage: Could not parse rspec\n";
+	return -1;
+    }
+    my ($node) = GeniXML::FindNodes("n:node", $rspec)->get_nodelist();
+    GeniXML::SetDiskImage($node, $image_urn);
+    if ($self->UpdateVersion({"rspec" => GeniXML::Serialize($rspec)})) {
+	print STDERR "UpdateDiskImage: Could not update rspec\n";
+	return -1;
+    }
+    return 0;
+}
+
+sub IsHead($)
+{
+    my ($self) = @_;
+
+    my $profileid = $self->profileid();
+
+    my $query_result =
+	DBQueryWarn("select max(version) from apt_profile_versions ".
+		    "where profileid='$profileid'");
+    return -1
+	if (!$query_result || !$query_result->numrows);
+
+    my ($head) = $query_result->fetchrow_array();
+    return ($head == $self->version() ? 1 : 0);
+}
+
+#
+# Publish a profile. Not sure what this really means yet.
+#
+sub Publish($)
+{
+    my ($self) = @_;
+    my $profileid = $self->profileid();
+    my $version   = $self->version();
+
+    return -1
+	if (! DBQueryWarn("update apt_profile_versions set published=now() ".
+			  "where profileid='$profileid' and ".
+			  "      version='$version'"));
+    
+    $self->{'DBROW'}->{'published'} = time();
+    return 0;
+
+} 
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

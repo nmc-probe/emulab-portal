@@ -35,17 +35,20 @@ use POSIX qw(setsid);
 #
 sub usage()
 {
-    print("Usage: manage_profile [-u | -s uuid] <xmlfile>\n");
-    print("Usage: manage_profile -r profile\n");
+    print("Usage: manage_profile [-u uuid | -s uuid] <xmlfile>\n");
+    print("Usage: manage_profile [-r | -p] profile\n");
     exit(-1);
 }
-my $optlist     = "durs:t:";
+my $optlist     = "du:rs:t:fp";
 my $debug       = 0;
 my $verify      = 0;	# Check data and return status only.
 my $update      = 0;
+my $snap        = 0;
 my $delete      = 0;
 my $skipadmin   = 0;
-my $snapuuid;
+my $force       = 0; # With delete.
+my $uuid;
+my $profile;
 my $instance;
 my $webtask;
 my $webtask_id;
@@ -86,8 +89,9 @@ use libaudit;
 
 # Protos
 sub fatal($);
-sub UserError();
+sub UserError(;$);
 sub DeleteProfile($);
+sub PublishProfile($);
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -100,14 +104,19 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"d"})) {
     $debug = 1;
 }
+if (defined($options{"f"})) {
+    $force = 1;
+}
 if (defined($options{"v"})) {
     $verify = 1;
 }
 if (defined($options{"u"})) {
     $update = 1;
+    $uuid = $options{"u"};
 }
 if (defined($options{"s"})) {
-    $snapuuid = $options{"s"};
+    $snap = 1;
+    $uuid = $options{"s"};
 }
 if (defined($options{"t"})) {
     $webtask_id = $options{"t"};
@@ -128,6 +137,10 @@ if (! defined($this_user)) {
 if (defined($options{"r"})) {
     exit(DeleteProfile($ARGV[0]));
 }
+elsif (defined($options{"p"})) {
+    exit(PublishProfile($ARGV[0]));
+}
+
 my $xmlfile  = shift(@ARGV);
 
 #
@@ -255,10 +268,10 @@ elsif (!$project->AccessCheck($this_user, TB_PROJECT_MAKEIMAGEID())) {
 # Are we going to snapshot a node in an experiment? If so we
 # sanity check to make sure there is just one node. 
 #
-if (defined($snapuuid)) {
-    $instance = APT_Instance->Lookup($snapuuid);
+if ($snap) {
+    $instance = APT_Instance->Lookup($uuid);
     if (!defined($instance)) {
-	fatal("Could not look up instance $snapuuid");
+	fatal("Could not look up instance $uuid");
     }
     my $manifest = GeniXML::Parse($instance->manifest());
     if (! defined($manifest)) {
@@ -270,30 +283,45 @@ if (defined($snapuuid)) {
 	UserError();
     }
 }
-
-my $profile = APT_Profile->Lookup($new_args{"pid"}, $new_args{"name"});
-
 if ($update) {
+    $profile = APT_Profile->Lookup($uuid);
     if (!defined($profile)) {
-	$errors{"profile_name"} = "No such profile exists";
-	UserError();
+	fatal("Could not lookup profile for update $uuid");
     }
     # Kill the description.. No longer used.
-    $update_args{"description"} = "";
-    
-    $profile->Update(\%update_args) == 0 or
+    delete($update_args{"description"});
+
+    #
+    # If the rspec changed, then make a new version of the profile.
+    # Everything else is metadata.
+    #
+    if (exists($update_args{"rspec"})) {
+	if ($update_args{"rspec"} ne $profile->rspec()) {
+	    $profile = $profile->NewVersion($this_user);
+	    if (!defined($profile)) {
+		fatal("Could not create new version of the profile");
+	    }
+	    $profile->UpdateVersion({"rspec" => $update_args{"rspec"}});
+	}
+	delete($update_args{"rspec"});
+    }
+    $profile->UpdateMetaData(\%update_args) == 0 or
 	fatal("Could not update profile record");
+
     # Bump the modtime.
     $profile->MarkModified();
 }
 else {
     my $usererror;
+
+    $profile = APT_Profile->Lookup($new_args{"pid"}, $new_args{"name"});
     if (defined($profile)) {
 	$errors{"profile_name"} = "Already in use";
 	UserError();
     }
     $profile =
-	APT_Profile->Create($project, $this_user, \%new_args, \$usererror);
+	APT_Profile->Create($instance, $project,
+			    $this_user, \%new_args, \$usererror);
     if (!defined($profile)) {
 	if (defined($usererror)) {
 	    $errors{"profile_name"} = $usererror;
@@ -322,12 +350,12 @@ if (defined($instance)) {
     #
     $webtask = WebTask->Create($profile->uuid(), $webtask_id);
     if (!defined($webtask)) {
-	$profile->Delete();
+	$profile->Delete(1);
     }
     $webtask->AutoStore(1);
 
     if ($profile->Lock()) {
-	$profile->Delete();
+	$profile->Delete(1);
 	fatal("Could not lock new profile");
     }
 
@@ -341,7 +369,7 @@ if (defined($instance)) {
     #
     my $output = emutil::ExecQuiet($command);
     if ($?) {
-	$profile->Delete();
+	$profile->Delete(1);
 	$webtask->Delete();
 	fatal("Failed to create disk image!");
     }
@@ -354,19 +382,13 @@ if (defined($instance)) {
 	$image_urn = $1;
     }
     else {
-	$profile->Delete();
+	$profile->Delete(1);
 	fatal("Could not find image urn in:\n$output");
     }
-    my $rspec = GeniXML::Parse($profile->rspec());
-    if (! defined($rspec)) {
-	$profile->Delete();
-	fatal("Could not parse rspec");
-    }
-    ($node) = GeniXML::FindNodes("n:node", $rspec)->get_nodelist();
-    GeniXML::SetDiskImage($node, $image_urn);
-    if ($profile->Update({"rspec" => GeniXML::Serialize($rspec)})) {
-	$profile->Delete();
-	fatal("Could not update rspec");
+    # Again, this only makes sense for single node profiles.
+    if ($profile->UpdateDiskImage($image_urn)) {
+	$profile->Delete(1);
+	fatal("Could not update image URN in rspec");
     }
 
     #
@@ -397,7 +419,7 @@ if (defined($instance)) {
 	    if (defined($webtask->exited()));
     }
     if ($webtask->exitcode()) {
-	$profile->Delete();
+	$profile->Delete(1);
 	exit(1);
     }
     $profile->Unlock();
@@ -420,8 +442,13 @@ sub fatal($)
 # relies on using the same name attributes for the errors, as for
 # the incoming values.
 #
-sub UserError()
+sub UserError(;$)
 {
+    my ($msg) = @_;
+    
+    if (defined($msg)) {
+	$errors{"error"} = $msg;
+    }
     if (keys(%errors)) {
 	print "<errors>\n";
 	foreach my $key (keys(%errors)) {
@@ -452,7 +479,44 @@ sub DeleteProfile($)
     if (!defined($profile)) {
 	fatal("No such profile exists");
     }
-    $profile->Delete() == 0 or
-	fatal("Could not delete profile");
+    #
+    # Not allowed to delete a published profile, yet. Needs thought.
+    #
+    if (defined($profile->published())) {
+	UserError("Not allowed to delete a published profile");
+    }
+    if (!$profile->IsHead()) {
+	UserError("Only allowed to delete the most recent profile");
+    }
+    #
+    # Version zero is special of course.
+    #
+    if ($profile->version()) {
+	$profile->DeleteVersion(0) == 0 or
+	    fatal("Could not delete profile version");
+    }
+    else {
+	# Purge it. At some point we want to save them.
+	$profile->Delete(1) == 0 or
+	    fatal("Could not delete profile");
+    }
+    return 0;
+}
+
+#
+# Publish a profile.
+#
+sub PublishProfile($)
+{
+    my ($name)  = @_;
+    my $profile = APT_Profile->Lookup($name);
+    if (!defined($profile)) {
+	fatal("No such profile exists");
+    }
+    if (!$profile->IsHead()) {
+	UserError("Only allowed to publish the most recent profile");
+    }
+    $profile->Publish() == 0 or
+	fatal("Could not publish profile");
     return 0;
 }

@@ -22,6 +22,12 @@
 # }}}
 #
 #
+
+$am_array = array('Utah DDC' =>
+		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
+		  'Utah PG'  =>
+		     "urn:publicid:IDN+emulab.net+authority+cm");
+
 class Instance
 {
     var	$instance;
@@ -52,7 +58,8 @@ class Instance
     function creator_idx()  { return $this->field('creator_idx'); }
     function creator_uuid() { return $this->field('creator_uuid'); }
     function created()	    { return $this->field('created'); }
-    function profile_idx()  { return $this->field('profile_idx'); }
+    function profile_id()   { return $this->field('profile_id'); }
+    function profile_version() { return $this->field('profile_version'); }
     function status()	    { return $this->field('status'); }
     function manifest()	    { return $this->field('manifest'); }
     

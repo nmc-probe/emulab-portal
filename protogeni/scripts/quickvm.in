@@ -297,7 +297,8 @@ foreach my $key ("username", "email", "profile") {
 #
 # Gather up args and sanity check.
 #
-my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $sshkey, $profile);
+my ($value, $user_urn, $user_uid, $user_hrn, $user_email,
+    $sshkey, $profile, $version);
 
 #
 # Username and email has to be acceptable to Emulab user system.
@@ -328,7 +329,8 @@ if (!defined($profile_object)) {
     fatal("No such profile: $value");
 }
 my $rspecstr = $profile_object->CheckFirewall(!$localuser);
-$profile = $profile_object->idx();
+$profile = $profile_object->profileid();
+$version = $profile_object->version();
 
 #
 # Use ssh-keygen to see if the key is valid and convertable. We first
@@ -540,7 +542,8 @@ if (!defined($quickvm_uuid)) {
     fatal("Could not generate a new uuid");
 }
 my $instance = APT_Instance->Create({'uuid'         => $quickvm_uuid,
-				     'profile_idx'  => $profile,
+				     'profile_id'   => $profile,
+				     'profile_version' => $version,
 				     'slice_uuid'   => $slice_uuid,
 				     'creator'      => $geniuser->uid(),
 				     'creator_idx'  => $geniuser->idx(),
@@ -888,6 +891,10 @@ sub SnapShot($$$)
 {
     my ($uuid, $sliver_urn, $imagename) = @_;
 
+    my $this_user = User->ThisUser();
+    if (! defined($this_user)) {
+	fatal("You ($UID) do not exist!");
+    }
     my $instance = APT_Instance->Lookup($uuid);
     if (! defined($instance)) {
 	fatal("No such quick VM: $uuid");
@@ -895,6 +902,10 @@ sub SnapShot($$$)
     my $old_status = $instance->status();
     if ($old_status ne "ready") {
 	fatal("Instance must be in the ready state to take a snapshot");
+    }
+    my $profile = $instance->Profile();
+    if (! defined($profile)) {
+	fatal("No profile for $instance");
     }
     if (defined($instance->aggregate_urn()) &&
 	$instance->aggregate_urn() ne $CMURN) {
@@ -976,19 +987,20 @@ sub SnapShot($$$)
 	fatal("CreateImage failed: ".
 	      (defined($response) ? $response->output() : "") . "\n");
     }
-    #
-    # Lets print the URN and URL to stdout for the caller to grab.
-    # Could be better.
-    #
-    my ($image_urn, $image_url) = @{ $response->value() };
+    my ($image_urn, $image_url,
+	$version_urn, $version_url) = @{ $response->value() };
+    if (!defined($version_urn)) {
+	$version_urn = $image_urn;
+	$version_url = $image_url
+    }
 
     #
     # We got a webtask ID, which means we want to create a web task
     # structure to track its progress.
     #
     if (defined($webtask)) {
-	$webtask->image_urn($image_urn);
-	$webtask->image_url($image_url);
+	$webtask->image_urn($version_urn);
+	$webtask->image_url($version_url);
 	$webtask->Store();
     }
     
@@ -1123,7 +1135,21 @@ sub SnapShot($$$)
     }
     else {
 	# Leave the slice locked if it failed; need to think about
-	# what we should do. 
+	# what we should do.
+	#
+	# If successful, we create a new version of the profile and
+	# update the rspec to reflect the new image version. Note
+	# that we expect the CM is doing image versioning, so do not
+	# bother to check if the image version is actually new.
+	#
+	$profile = $profile->NewVersion($this_user);
+	if (!defined($profile)) {
+	    print STDERR "Could not create new profile version\n";
+	    $webtask->Exited(70)
+		if (defined($webtask));
+	    exit(1);
+	}
+	$profile->UpdateDiskImage($image_urn);
 	$slice->UnLock();
 	$instance->SetStatus("ready");
 	# We garbage collect these later, so anyone waiting has a chance

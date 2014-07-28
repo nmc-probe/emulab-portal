@@ -86,6 +86,8 @@ sub InitOpenflowAttributes($$$$)
 	if ($query_result->numrows);
     $ofcontroller = ""
 	if (!$ofenabled || !defined($ofcontroller));
+    return 1
+	if (!$ofenabled);
 	
     #
     # Firstly check if the attribuets are there, if no values, 

@@ -45,7 +45,6 @@ $this_user = CheckLogin($check_status);
 #
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "action",      PAGEARG_STRING,
-				 "idx",         PAGEARG_INTEGER,
 				 "uuid",        PAGEARG_STRING,
 				 "snapuuid",    PAGEARG_STRING,
 				 "finished",    PAGEARG_BOOLEAN,
@@ -65,15 +64,27 @@ $this_idx = $this_user->uid_idx();
 #
 function SPITFORM($formfields, $errors)
 {
-    global $this_user, $projlist, $action;
-    global $notifyupdate, $notifyclone, $snapuuid;
-    $editing = 0;
+    global $this_user, $projlist, $action, $profile;
+    global $notifyupdate, $notifyclone, $snapuuid, $am_array;
+    $viewing    = 0;
+    $candelete  = 0;
+    $canmodify  = 0;
+    $canpublish = 0;
 
     if ($action == "edit") {
 	$button_label = "Modify";
-	$title        = "Modify Profile";
-	$editing      = 1;
-	$uuid         = $formfields["profile_uuid"];
+	$viewing      = 1;
+	$uuid         = $profile->uuid();
+	$candelete    = ($profile->IsHead() && !$profile->published() ? 1 : 0);
+	$history      = ($profile->HasHistory() ? 1 : 0);
+	$canmodify    = ($profile->CanModify() ? 1 : 0);
+	$canpublish   = ($profile->CanPublish() ? 1 : 0);
+	if ($canmodify) {
+	    $title    = "Modify Profile";
+	}
+	else {
+	    $title    = "View Profile";
+	}
     }
     else  {
 	$button_label = "Create";
@@ -91,6 +102,16 @@ function SPITFORM($formfields, $errors)
     echo "</script>\n";
     echo "<script type='text/plain' id='error-json'>\n";
     echo htmlentities(json_encode($errors));
+    echo "</script>\n";
+
+    $amlist = array();
+    if ($editing && ISADMIN()) {
+	while (list($am) = each($am_array)) {
+	    $amlist[] = $am;
+	}
+    }
+    echo "<script type='text/plain' id='amlist-json'>\n";
+    echo htmlentities(json_encode($amlist));
     echo "</script>\n";
 
     # Pass project list through. Need to convert to list without groups.
@@ -117,12 +138,16 @@ function SPITFORM($formfields, $errors)
     echo "<link rel='stylesheet' href='css/progress.css'>\n";
 
     echo "<script type='text/javascript'>\n";
-    echo "    window.EDITING  = " . ($editing ? 1 : 0) . ";\n";
+    echo "    window.VIEWING  = $viewing;\n";
     echo "    window.UUID     = " . (isset($uuid) ? "'$uuid'" : "null") . ";\n";
     echo "    window.UPDATED  = $notifyupdate;\n";
     echo "    window.SNAPPING = $notifyclone;\n";
     echo "    window.AJAXURL  = 'server-ajax.php';\n";
     echo "    window.ACTION   = '$action';\n";
+    echo "    window.CANDELETE= $candelete;\n";
+    echo "    window.CANMODIFY= $canmodify;\n";
+    echo "    window.CANPUBLISH= $canpublish;\n";
+    echo "    window.HISTORY  = $history;\n";
     echo "    window.TITLE    = '$title';\n";
     echo "    window.BUTTONLABEL = '$button_label';\n";
     if (isset($snapuuid)) {
@@ -142,6 +167,24 @@ function SPITFORM($formfields, $errors)
 #
 $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
 
+if (isset($action) && $action == "edit") {
+    if (!isset($uuid)) {
+	SPITUSERERROR("Must provide uuid for edit!");
+    }
+    else {
+	$profile = Profile::Lookup($uuid);
+	if (!$profile) {
+	    SPITUSERERROR("No such profile!");
+	}
+	else if ($profile->locked()) {
+	    SPITUSERERROR("Profile is currently locked!");
+	}
+	else if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+	    SPITUSERERROR("Not enough permission!");
+	}
+    }
+}
+
 # We use a session.
 session_start();
 
@@ -159,7 +202,7 @@ if (! isset($create)) {
 	    "You do not appear to be a member of any projects in which ".
 	    "you have permission to create new profiles";
     }
-    if ($action == "edit" || $action == "delete" || $action == "clone") {
+    if ($action == "edit" || $action == "clone") {
 	if ($action == "clone") {
 	    if (! (isset($snapuuid) && IsValidUUID($snapuuid))) {
 		$errors["error"] = "No experiment specified for clone!";
@@ -171,9 +214,13 @@ if (! isset($create)) {
 	    else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 		SPITUSERERROR("Not enough permission!");
 	    }
-	    $profile = Profile::Lookup($instance->profile_idx());
+	    $profile = Profile::Lookup($instance->profile_id(),
+				       $instance->profile_version());
 	    if (!$profile) {
 		SPITUSERERROR("Cannot load profile for instance!");
+	    }
+	    if (!$profile->published()) {
+		SPITUSERERROR("Not allowed to clone an unpublished profile!");
 	    }
 	    $defaults["profile_rspec"] = $profile->rspec();
 	    $defaults["profile_who"]   = "shared";
@@ -185,64 +232,37 @@ if (! isset($create)) {
 	    }
 	}
 	else {
-	    if (! (isset($idx) || isset($uuid))) {
-		$errors["error"] = "No profile specified for edit/delete!";
+	    $defaults["profile_uuid"]        = $profile->uuid();
+	    $defaults["profile_pid"]         = $profile->pid();
+	    $defaults["profile_name"]        = $profile->name();
+	    $defaults["profile_version"]     = $profile->version();
+	    $defaults["profile_rspec"]       = $profile->rspec();
+	    $defaults["profile_creator"]     = $profile->creator();
+	    $defaults["profile_created"]     = $profile->created();
+	    $defaults["profile_published"]   =
+		($profile->published() ? $profile->published() : "");
+	    $defaults["profile_url"]         = $profile->url();
+	    $defaults["profile_listed"]      =
+		($profile->listed() ? "checked" : "");
+	    $defaults["profile_who"] =
+		($profile->shared() ? "shared" : 
+		 ($profile->ispublic() ? "public" : "private"));
+
+	    # Warm fuzzy message.
+	    if (isset($_SESSION["notifyupdate"])) {
+		$notifyupdate = 1;
+		unset($_SESSION["notifyupdate"]);
 	    }
-	    else {
-		# This can also be a uuid.
-		if (isset($idx)) {
-		    $profile = Profile::Lookup($idx);
-		}
-		elseif (isset($uuid)) {
-		    $profile = Profile::Lookup($uuid);
-		}
-		if (!$profile) {
-		    SPITUSERERROR("No such profile!");
-		}
-		else if ($profile->locked()) {
-		    SPITUSERERROR("Profile is currently locked!");
-		}
-		else if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
-		    SPITUSERERROR("Not enough permission!");
-		}
-		else if ($action == "delete") {
-		    $profile->Delete();
-		    session_unset();
-		    session_destroy();
-		    header("Location: $APTBASE/myprofiles.php");
-		    return;
-		}
-		else {
-		    $defaults["profile_uuid"]        = $profile->uuid();
-		    $defaults["profile_pid"]         = $profile->pid();
-		    $defaults["profile_description"] = $profile->description();
-		    $defaults["profile_name"]        = $profile->name();
-		    $defaults["profile_rspec"]       = $profile->rspec();
-		    $defaults["profile_created"]     = $profile->created();
-		    $defaults["profile_url"]         = $profile->url();
-		    $defaults["profile_listed"]      =
-			($profile->listed() ? "checked" : "");
-		    $defaults["profile_who"] =
-			($profile->shared() ? "shared" : 
-			 ($profile->ispublic() ? "public" : "private"));
 
-		    # Warm fuzzy message.
-		    if (isset($_SESSION["notifyupdate"])) {
-			$notifyupdate = 1;
-			unset($_SESSION["notifyupdate"]);
-		    }
-
-		    #
-		    # See if we have a task running in the background
-		    # for this profile. At the moment it can only be a
-		    # clone task. If there is one, we have to tell
-		    # the js code to show the status of the clone.
-		    #
-		    $webtask = WebTask::LookupByObject($profile->uuid());
-		    if ($webtask && ! $webtask->exited()) {
-			$notifyclone = 1;
-		    }
-		}
+	    #
+	    # See if we have a task running in the background
+	    # for this profile. At the moment it can only be a
+	    # clone task. If there is one, we have to tell
+	    # the js code to show the status of the clone.
+	    #
+	    $webtask = WebTask::LookupByObject($profile->uuid());
+	    if ($webtask && ! $webtask->exited()) {
+		$notifyclone = 1;
 	    }
 	}
     }
@@ -355,12 +375,9 @@ if (isset($action) && $action == "clone") {
     else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	$errors["error"] = "Not enough permission!";
     }
-    else {
-	$profile = Profile::Lookup($instance->profile_idx());
-	if (!$profile) {
-	    $errors["error"] = "Cannot load profile for instance!";
-	}
-    }
+    else if (! Profile::Lookup($instance->profile_id(),
+			       $instance->profile_version())) {
+	$errors["error"] = "Cannot load profile for instance!";    }
 }
 
 # Present these errors before we call out to do anything else.
@@ -423,7 +440,7 @@ else {
 #
 # Call out to the backend.
 #
-$optarg = ($action == "edit" ? "-u" : "");
+$optarg = ($action == "edit" ? "-u " . $profile->uuid() : "");
 if (isset($snapuuid)) {
     $optarg .= "-s " . escapeshellarg($snapuuid);
 

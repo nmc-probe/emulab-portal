@@ -61,7 +61,8 @@ CREATE TABLE `active_checkups` (
 DROP TABLE IF EXISTS `apt_instances`;
 CREATE TABLE `apt_instances` (
   `uuid` varchar(40) NOT NULL default '',
-  `profile_idx` int(10) unsigned NOT NULL default '0',
+  `profile_id` int(10) unsigned NOT NULL default '0',
+  `profile_version` int(10) unsigned NOT NULL default '0',
   `slice_uuid` varchar(40) NOT NULL default '',
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
@@ -75,31 +76,48 @@ CREATE TABLE `apt_instances` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `apt_profile_versions`
+--
+
+CREATE TABLE `apt_profile_versions` (
+  `name` varchar(64) NOT NULL default '',
+  `profileid` int(10) unsigned NOT NULL default '0',  
+  `version` int(8) unsigned NOT NULL default '0',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `creator` varchar(8) NOT NULL default '',
+  `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `created` datetime default NULL,
+  `published` datetime default NULL,
+  `deleted` datetime default NULL,
+  `uuid` varchar(40) NOT NULL,
+  `parent_profileid` int(8) unsigned default NULL,
+  `parent_version` int(8) unsigned default NULL,
+  `status` varchar(32) default NULL,
+  `rspec` mediumtext,
+  PRIMARY KEY (`profileid`,`version`),
+  UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`),
+  UNIQUE KEY `uuid` (`uuid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `apt_profiles`
 --
 
 DROP TABLE IF EXISTS `apt_profiles`;
 CREATE TABLE `apt_profiles` (
   `name` varchar(64) NOT NULL default '',
-  `idx` int(10) unsigned NOT NULL auto_increment,  
-  `creator` varchar(8) NOT NULL default '',
-  `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `profileid` int(10) unsigned NOT NULL default '0',  
+  `version` int(8) unsigned NOT NULL default '0',
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
-  `created` datetime default NULL,
-  `modified` datetime default NULL,
-  `uuid` varchar(40) NOT NULL,
   `public` tinyint(1) NOT NULL default '0',
   `shared` tinyint(1) NOT NULL default '0',
   `listed` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL,
-  `status` varchar(32) default NULL,
-  `weburi` tinytext,
-  `description` mediumtext,
-  `rspec` mediumtext,
-  PRIMARY KEY (`idx`),
-  UNIQUE KEY `pidname` (`pid_idx`,`name`),
-  UNIQUE KEY `uuid` (`uuid`)
+  `locker_pid` int(11) default '0',
+  PRIMARY KEY (`profileid`),
+  UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

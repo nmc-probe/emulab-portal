@@ -103,15 +103,16 @@ echo "     <th>Status</th>
          <tbody>\n";
 
 while ($row = mysql_fetch_array($query_result)) {
-    $profile_idx  = $row["profile_idx"];
+    $profile_id   = $row["profile_id"];
+    $version      = $row["profile_version"];
     $uuid         = $row["uuid"];
     $status       = $row["status"];
     $created      = $row["created"];
     $creator_idx  = $row["creator_idx"];
-    $profile_name = $profile_idx;
+    $profile_name = $profile_id;
     $creator_uid  = $row["creator"];
 
-    $profile = Profile::Lookup($profile_idx);
+    $profile = Profile::Lookup($profile_id, $version);
     if ($profile) {
 	$profile_name = $profile->name();
     }

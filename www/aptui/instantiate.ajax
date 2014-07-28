@@ -56,9 +56,7 @@ function Do_GetProfile()
     # I like this ...
     #
     SPITAJAX_RESPONSE(array('rspec'       => $profile->rspec(),
-			    'name'        => $profile->name(),
-			    'idx'         => $profile->idx(),
-			    'description' => $profile->description()));
+			    'name'        => $profile->name()));
 }
 # Local Variables:
 # mode:php

@@ -7,19 +7,21 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/oops-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
 	 'js/lib/text!template/guest-instantiate.html',
+	 'js/lib/text!template/publish-modal.html',
+	 'js/lib/text!template/instantiate-modal.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
 function (_, sup, filesize, ShowImagingModal,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,
-	  guestInstantiateString)
+	  guestInstantiateString, publishString, instantiateString)
 {
     'use strict';
-    var editing = 0;
     var uuid    = null;
     var snapping= 0;
     var gotrspec = 0;
     var ajaxurl = "";
+    var amlist  = null;
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var rendererTemplate  = _.template(rendererString);
@@ -27,11 +29,11 @@ function (_, sup, filesize, ShowImagingModal,
     var rspectextTemplate = _.template(rspectextviewString);
     var oopsTemplate      = _.template(oopsString);
     var guestInstTemplate = _.template(guestInstantiateString);
+    var InstTemplate      = _.template(instantiateString);
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
-	editing  = window.EDITING;
 	snapping = window.SNAPPING;
 	uuid     = window.UUID;
 	ajaxurl  = window.AJAXURL;
@@ -39,6 +41,7 @@ function (_, sup, filesize, ShowImagingModal,
 	var fields   = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors   = JSON.parse(_.unescape($('#error-json')[0].textContent));
 	var projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+	amlist = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
 
 	// Notice if we have an rspec in the formfields, to start from.
 	if (_.has(fields, "profile_rspec")) {
@@ -51,11 +54,15 @@ function (_, sup, filesize, ShowImagingModal,
 	    projects:		projlist,
 	    title:		window.TITLE,
 	    notifyupdate:	window.UPDATED,
-	    editing:		editing,
+	    viewing:		window.VIEWING,
 	    gotrspec:		gotrspec,
 	    action:		window.ACTION,
 	    button_label:       window.BUTTONLABEL,
 	    uuid:		window.UUID,
+	    candelete:		window.CANDELETE,
+	    canmodify:		window.CANMODIFY,
+	    canpublish:		window.CANPUBLISH,
+	    history:		window.HISTORY,
 	    snapuuid:		(window.SNAPUUID || null),
 	    general_error:      (errors.error || ''),
 	});
@@ -74,6 +81,9 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#oops_div').html(oops_html);
     	var guest_html = guestInstTemplate({});
 	$('#guest_div').html(guest_html);
+	$('#publish_div').html(publishString);
+    	var instantiate_html = InstTemplate({ amlist: amlist });
+	$('#instantiate_div').html(instantiate_html);
 	
 	//
 	// Fix for filestyle problem; not a real class I guess, it
@@ -107,6 +117,9 @@ function (_, sup, filesize, ShowImagingModal,
 		    // Show the hidden buttons (in new profile mode)
 		    $('#showtopo_modal_button').removeClass("invisible");
 		    $('#show_rspec_textarea_button').removeClass("invisible");
+
+		    // Enable submit
+		    ProfileModified();
 
 		    // Stick html into the textarea
 		    $('#profile_rspec_textarea').val(content);
@@ -158,6 +171,14 @@ function (_, sup, filesize, ShowImagingModal,
 	});
 
 	//
+	// Delete confirmed.
+	//
+	$('#delete-confirm').click(function (event) {
+	    event.preventDefault();
+	    DeleteProfile();
+	});
+
+	//
 	// Perform actions on the rspec before submit.
 	//
 	$('#profile_submit_button').click(function (event) {
@@ -184,11 +205,21 @@ function (_, sup, filesize, ShowImagingModal,
 	 */
 	$('#profile_instructions').change(function() {
 	    ChangeHandlerAux("instructions");
+	    ProfileModified();
 	});
 	$('#profile_description').change(function() {
 	    ChangeHandlerAux("description");
+	    ProfileModified();
 	});
 
+	// Change handlers for the checkboxes to enable the submit button.
+	$('#profile_listed').change(function() { ProfileModified(); });
+	$('#profile_who_public').change(function() { ProfileModified(); });
+	$('#profile_who_registered').change(function() { ProfileModified(); });
+	$('#profile_who_private').change(function() { ProfileModified(); });
+	$('#profile_rspec_textarea').change(function() { ProfileModified(); });
+	$('#modal_profile_rspec_textarea').change(function(){ProfileModified();});
+	
 	/*
 	 * A double click handler that will render the instructions
 	 * in a modal.
@@ -211,6 +242,17 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#guest_instantiate_submit_button').click(function (event) {
 	    event.preventDefault();
 	    InstantiateAsGuest();
+	});
+	// Handler for normal instantiate submit button, which is in
+	// the modal.
+	$('#instantiate_submit_button').click(function (event) {
+	    event.preventDefault();
+	    Instantiate();
+	});
+	// Handler for publish submit button, which is in the modal.
+	$('#publish_submit_button').click(function (event) {
+	    event.preventDefault();
+	    PublishProfile();
 	});
 
 	/*
@@ -245,6 +287,7 @@ function (_, sup, filesize, ShowImagingModal,
 	}
 	else {
 	    EnableButtons();
+	    DisableButton("profile_submit_button");
 	}
     }
 
@@ -343,16 +386,23 @@ function (_, sup, filesize, ShowImagingModal,
 		      ctrlAttr: { maxlength: 100 },
 		      ctrlCss: { width: '80px'},
 		      ctrlOptions: ["node", "link"],
+		      onChange: function (evt, rowIndex) { ProfileModified(); },
 		    },
                     { name: 'ID', display: 'ID', type: 'text',
 		      ctrlAttr: { maxlength: 100,
 				},
 		      ctrlCss: { width: '100px' },
+		      onChange: function (evt, rowIndex) { ProfileModified(); },
 		    },
                     { name: 'Description', display: 'Description', type: 'text',
 		      ctrlAttr: { maxlength: 100 },
+		      onChange: function (evt, rowIndex) { ProfileModified(); },
 		    },
 		],
+		afterRowAppended: function (evt, rowIndex) { ProfileModified(); },
+		afterRowInserted: function (evt, rowIndex) { ProfileModified(); },
+		afterRowRemoved:  function (evt, rowIndex) { ProfileModified(); },
+		afterRowSwapped:  function (evt, rowIndex) { ProfileModified(); },
 		initData: steps
 	    });
 	});
@@ -521,9 +571,6 @@ function (_, sup, filesize, ShowImagingModal,
     {
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
-	    
-	    console.info(json.value);
-	    var message;
 	
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
@@ -549,6 +596,34 @@ function (_, sup, filesize, ShowImagingModal,
 					    "manage_profile",
 					    "InstantiateAsGuest",
 					    {"uuid"   : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Instantiate a profile.
+    //
+    function Instantiate()
+    {
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    
+	    if (json.code) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    var url = "status.php?uuid=" + json.value.quickvm_uuid;
+	    window.location.replace(url);
+	}
+	sup.HideModal("#instantiate_modal");
+
+	var blob = {"uuid" : uuid};
+	if (amlist.length) {
+	    blob.where = $('#instantiate_where').val();
+	}
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "manage_profile",
+					    "Instantiate", blob);
 	xmlthing.done(callback);
     }
 
@@ -592,6 +667,7 @@ function (_, sup, filesize, ShowImagingModal,
 	EnableButton("profile_instantiate_button");
 	EnableButton("profile_submit_button");
 	EnableButton("guest_instantiate_button");
+	EnableButton("profile_publish_button");
     }
     function DisableButtons()
     {
@@ -599,6 +675,7 @@ function (_, sup, filesize, ShowImagingModal,
 	DisableButton("profile_instantiate_button");
 	DisableButton("profile_submit_button");
 	DisableButton("guest_instantiate_button");
+	DisableButton("profile_publish_button");
     }
     function EnableButton(button)
     {
@@ -616,6 +693,65 @@ function (_, sup, filesize, ShowImagingModal,
 	else {
 	    $('#' + button).attr("disabled", "disabled");
 	}
+    }
+    function HideButton(button)
+    {
+	$(button).addClass("hidden");
+    }
+    function ProfileModified()
+    {
+	EnableButton("profile_submit_button");
+    }
+
+    //
+    // Delete profile.
+    //
+    function DeleteProfile()
+    {
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    console.info(json.value);
+
+	    if (json.code) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    window.location.replace(json.value);
+	}
+	sup.HideModal('#delete_modal');
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "manage_profile",
+					    "DeleteProfile",
+					    {"uuid"   : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Publish profile.
+    //
+    function PublishProfile()
+    {
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    console.info(json.value);
+
+	    if (json.code) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    // No longer allowed to delete/publish. But maybe we need
+	    // an unpublish button?
+	    HideButton('#profile_delete_button');
+	    HideButton('#profile_publish_button');
+	}
+	sup.HideModal('#publish_modal');
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "manage_profile",
+					    "PublishProfile",
+					    {"uuid"   : uuid});
+	xmlthing.done(callback);
     }
 
     $(document).ready(initialize);

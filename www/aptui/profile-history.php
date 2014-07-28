@@ -25,13 +25,13 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+include("profile_defs.php");
 $page_title = "My Profiles";
 
 #
 # Verify page arguments.
 #
-$optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
-				 "all",           PAGEARG_BOOLEAN);
+$reqargs = RequiredPageArguments("uuid",  PAGEARG_STRING);
 
 #
 # Get current user.
@@ -42,65 +42,38 @@ if (!$this_user) {
     RedirectLoginPage();
     exit();
 }
-if (!isset($target_user)) {
-    $target_user = $this_user;
-}
-if (!$this_user->SameUser($target_user)) {
-    if (!ISADMIN()) {
-	SPITUSERERROR("You do not have permission to view ".
-		      "target user's profiles");
-	exit();
-    }
-}
-$target_idx = $target_user->uid_idx();
-
 SPITHEADER(1);
 
-echo "<link rel='stylesheet'
-            href='css/tablesorter.css'>\n";
+$profile = Profile::Lookup($uuid);
+if (!$profile) {
+    SPITUSERERROR("No such profile!");
+}
+else if ($this_user->uid_idx() != $profile->creator_idx() && !ISADMIN()) {
+    SPITUSERERROR("Not enough permission!");
+}
+$profileid = $profile->profileid();
 
 $query_result =
-    DBQueryFatal("select i.*,v.*,DATE(v.created) as created ".
-		 "  from apt_profiles as i ".
-		 "left join apt_profile_versions as v on ".
-		 "     v.profileid=i.profileid and ".
-		 "     v.version=i.version ".
-		 (isset($all) && ISADMIN() ?
-		  "order by v.creator" : "where v.creator_idx='$target_idx'"));
+    DBQueryFatal("select v.*,DATE(v.created) as created ".
+		 "  from apt_profile_versions as v ".
+		 "where v.profileid='$profileid' ".
+		 "order by v.created desc");
 
-if (mysql_num_rows($query_result) == 0) {
-    $message = "<b>No profiles to show you. Maybe you want to ".
-	"<a href='manage_profile.php'>create one?</a></b><br><br>";
-
-    if (ISADMIN()) {
-	$message .= "<img src='images/redball.gif'>".
-	    "<a href='myprofiles.php?all=1'>Show all user Profile</a>";
-    }
-    SPITUSERERROR($message);
-    exit();
-}
 echo "<div class='row'>
        <div class='col-lg-12 col-lg-offset-0
                    col-md-12 col-md-offset-0
                    col-sm-12 col-sm-offset-0
                    col-xs-12 col-xs-offset-0'>\n";
 
-echo "<input class='form-control search' type='search'
-             id='profile_search' placeholder='Search'>\n";
-
-echo "  <table class='tablesorter'>
+echo "  <table class='table table-striped table-condensed'>
          <thead>
           <tr>
-           <th>Name</th>\n";
-if (isset($all) && ISADMIN()) {
-    echo " <th>Creator</th>";
-}
-echo "     <th>Project</th>
+           <th>Vers</th>
+           <th>Creator</th>
            <th>Description</th>
-           <th>Show</th>
            <th>Created</th>
-           <th>Listed</th>
-           <th>Privacy</th>
+           <th>Published</th>
+           <th>From</th>
           </tr>
          </thead>
          <tbody>\n";
@@ -109,15 +82,24 @@ while ($row = mysql_fetch_array($query_result)) {
     $idx     = $row["profileid"];
     $uuid    = $row["uuid"];
     $version = $row["version"];
+    $pversion= $row["parent_version"];
     $name    = $row["name"];
     $pid     = $row["pid"];
-    $desc    = $row["description"];
     $created = $row["created"];
+    $published = $row["published"];
     $public  = $row["public"];
     $listed  = ($row["listed"] ? "Yes" : "No");
     $shared  = $row["shared"];
     $creator = $row["creator"];
     $rspec   = $row["rspec"];
+    $desc    = '';
+
+    if ($version == 0) {
+	$pversion = " ";
+    }
+    if (!$published) {
+	$published = " ";
+    }
 
     if ($public)
 	$privacy = "Public";
@@ -131,34 +113,23 @@ while ($row = mysql_fetch_array($query_result)) {
 	$parsed_xml->rspec_tour && $parsed_xml->rspec_tour->description) {
 	$desc = $parsed_xml->rspec_tour->description;
     }
-    
+
     echo " <tr>
-            <td>
-             <a href='manage_profile.php?action=edit&uuid=$uuid'>$name</a>
-            </td>";
-    if (isset($all) && ISADMIN()) {
-	echo "<td>$creator</td>";
-    }
-    echo "  <td style='white-space:nowrap'>$pid</td>
-            <td>$desc</td>
-            <td style='text-align:center'>
-             <button class='btn btn-primary btn-xs showtopo_modal_button'
-                     data-profile=$uuid>
-               Show</button>
+             <td>
+             <a href='manage_profile.php?action=edit&uuid=$uuid'>$version</a>
             </td>
+            <td>$creator</td>
+            <td>$desc</td>
             <td>$created</td>
-            <td>$listed</td>
-            <td>$privacy</td>
+            <td>$published</td>
+            <td style='text-align:center'>
+             <a href='manage_profile.php?action=edit&uuid=$uuid'>$pversion</a>
+            </td>
            </tr>\n";
 }
 echo "   </tbody>
-        </table>\n";
-
-if (ISADMIN() && !isset($all)) {
-    echo "<img src='images/redball.gif'>
-          <a href='myprofiles.php?all=1'>Show all user Profiles</a>\n";
-}
-echo"   </div>
+        </table>
+       </div>
       </div>\n";
 
 echo "<!-- This is the topology view modal -->
@@ -184,13 +155,12 @@ echo "<!-- This is the topology view modal -->
         </div>
       </div>\n";
 
-
 echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL  = 'server-ajax.php';\n";
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
-echo "<script src='js/lib/require.js' data-main='js/myprofiles'></script>\n";
+echo "<script src='js/lib/require.js' data-main='js/profile-history'></script>\n";
 
 SPITFOOTER();
 ?>

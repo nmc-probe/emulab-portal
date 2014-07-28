@@ -1786,6 +1786,10 @@ sub LoadVirtLans($)
 	$virtlan->_vpath(undef);
 	$virtlan->_bridged(0);
 	$virtlan->_wiretype("ethernet");
+	if ($vlanmember->ofenabled()) {
+	    $virtlan->_ofenabled(1);
+	    $virtlan->_ofcontroller($vlanmember->ofcontroller());
+	}
 	
 	if (defined($encap) &&
 	    ($encap eq "vtun" || $encap eq "gre" || $encap eq "egre")) {
@@ -8450,6 +8454,21 @@ sub UploadVlans($)
 		    return -1;
 		}
 		$linkedlanid = $linkedlan->lanid();
+
+		#
+		# XXX This is a fix for emulated vlans; We need to insert the
+		# openflow attributes that exist for the emulated vlan,
+		# into the linked vlan. At some point we need to fix the
+		# interp code above, to not create an encapsulation vlan
+		# when the encap style is vlan (which is how links are done
+		# already).
+		#
+		if ($linkedlan->type() eq "vlan" && $virtlan->ofenabled()) {
+		    $linkedlan->SetAttribute("ofenabled", "1");
+		    $linkedlan->SetAttribute("ofcontroller",
+					     $virtlan->ofcontroller());
+		    $linkedlan->SetAttribute("oflistener", "");
+		}
 	    }
 	    DBQueryWarn("update vinterfaces set vlanid='$linkedlanid' ".
 			"where virtlanidx='$virtlanidx' and ".

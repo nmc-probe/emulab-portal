@@ -184,7 +184,7 @@ function SPITHEADER($thinheader = 0)
 
     SpitLoginModal("quickvm_login_modal");
     echo " <!-- Page content -->
-           <div class='container'>\n";
+           <div class='container-fluid'>\n";
 }
 
 function SPITFOOTER()

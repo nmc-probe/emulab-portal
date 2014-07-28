@@ -21,8 +21,6 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 	    var callback = function(json) {
 		var value = json.value;
 
-		//console.log(json);
-		
 		if (json.code) {
 		    if (imaging_modal_active) {
 			sup.HideModal("#imaging-modal");

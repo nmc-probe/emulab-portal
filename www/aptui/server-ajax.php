@@ -44,6 +44,12 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("CloneStatus" =>
 						     "Do_CloneStatus",
+						 "DeleteProfile" =>
+						     "Do_DeleteProfile",
+						 "PublishProfile" =>
+						     "Do_PublishProfile",
+						 "Instantiate" =>
+						     "Do_Instantiate",
 						 "InstantiateAsGuest" =>
 						       "Do_GuestInstantiate")),
 		 "status" =>

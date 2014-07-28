@@ -773,8 +773,10 @@ function (_, sup, moment, ShowImagingModal,
 	     * created from in order to do a snapshot.
 	     */
 	    if (nodecount == 1) {
-		$("#clone_button").removeClass("hidden");
-		EnableButton("clone");
+		if (window.APT_OPTIONS.canclone) {
+		    $("#clone_button").removeClass("hidden");
+		    EnableButton("clone");
+		}
 		if (window.APT_OPTIONS.cansnap) {
 		    $("#snapshot_button").removeClass("hidden");
 		    EnableButton("snapshot");
@@ -822,6 +824,7 @@ function (_, sup, moment, ShowImagingModal,
 
 	var callback = function(json) {
 	    sup.HideModal('#waitwait-modal');
+	    //console.log(json);
 	    
 	    if (json.code) {
 		sup.SpitOops("oops", "Could not start snapshot: " + json.value);

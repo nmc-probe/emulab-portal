@@ -28,7 +28,7 @@ use XML::Simple;
 use Data::Dumper;
 use CGI;
 use POSIX ":sys_wait_h";
-use POSIX qw(setsid);
+use POSIX qw(setsid close);
 
 #
 # Back-end script to manage APT profiles.
@@ -139,7 +139,7 @@ sub DoSnapshot()
     my $update_profile = 0;
     my $rspec;
     
-    my $profile = APT_Profile->Lookup($instance->profile_idx());
+    my $profile = APT_Profile->Lookup($instance->profile_id());
     if (!defined($profile)) {
 	fatal("Could not lookup profile for instance");
     }
@@ -243,6 +243,10 @@ sub DoSnapshot()
 	}
 	# Let parent exit;
 	sleep(2);
+	# Close our descriptors so web server thinks we are disconnected.
+	for (my $i = 0; $i < 1024; $i++) {
+	  POSIX:close($i);
+	}
         POSIX::setsid();
     }
     my $seconds  = 1200;

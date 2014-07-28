@@ -43,6 +43,7 @@ $this_user = CheckLogin($check_status);
 #
 $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "profile",       PAGEARG_STRING,
+				 "version",       PAGEARG_INTEGER,
 				 "stuffing",      PAGEARG_STRING,
 				 "verify",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
@@ -50,10 +51,6 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 
 $profile_default  = "OneVM";
 $profile_array    = array();
-$am_array = array('Utah DDC' =>
-		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-		  'Utah PG'  =>
-		     "urn:publicid:IDN+emulab.net+authority+cm");
 
 #
 # if using the super secret URL, make sure the profile exists, and
@@ -67,7 +64,7 @@ if (isset($profile)) {
     # deal with the version at some point.
     #
     if (isset($project) && isset($profile)) {
-	$obj = Profile::LookupByName($project, $profile);
+	$obj = Profile::LookupByName($project, $profile, $version);
     }
     elseif ($this_user || IsValidUUID($profile)) {
 	$obj = Profile::Lookup($profile);
@@ -105,7 +102,10 @@ if (isset($profile)) {
 # users.
 #
 $query_result =
-    DBQueryFatal("select * from apt_profiles ".
+    DBQueryFatal("select * from apt_profiles as p ".
+		 "left join apt_profile_versions as v on ".
+		 "     v.profileid=p.profileid and ".
+		 "     v.version=p.version ".
 		 "where locked is null and (public=1 " .
 		 ($this_user ? "or creator_idx=" . $this_user->uid_idx() : "").
 		 ")");
@@ -186,7 +186,10 @@ function SPITFORM($formfields, $newuser, $errors)
     # If linked to a specific profile, description goes here
     #
     if ($profile) {
-        echo "  <p>Fill out the form below to run an experiment using this profile:</p>\n";
+	if (!$this_user) {
+	    echo "  <p>Fill out the form below to run an experiment ".
+		"using this profile:</p>\n";
+	}
         # Note: Following line is also duplicated below
         echo "  <blockquote><p><span id='selected_profile_description'></span></p></blockquote>\n";
         echo "  <p>When you click the &quot;Create&quot; button, the virtual or

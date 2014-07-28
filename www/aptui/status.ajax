@@ -238,7 +238,8 @@ function Do_Snapshot()
     # The profile also has to belong to the user, since it is
     # going to be modified to use the new image.
     #
-    $profile = Profile::Lookup($instance->profile_idx());
+    $profile = Profile::Lookup($instance->profile_id(),
+			       $instance->profile_version());
     if (!$profile) {
 	SPITAJAX_ERROR(1, "Cannot lookup profile for instance");
 	return;
