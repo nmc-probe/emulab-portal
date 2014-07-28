@@ -74,6 +74,7 @@ $| = 1;
 # library and initialize itself. 
 # 
 use libsetup;
+use liblocsetup;
 
 #
 # XXX Elabinelab hack: option to not unmount NFS filesystems.
@@ -116,15 +117,37 @@ foreach my $dbfile (@DBFILES) {
 # This allows us to clean up /users and /proj.  We only do the cleanup if
 # if unmount succeeds and even then, we do it in a safe way.
 #
-if (!($noumount || $isvm) && -e "/share/freebsd") {
+if (!$noumount) {
     print "Unmounting NFS filesystems ...\n";
     if (!system("umount -at nfs")) {
-	#
-	# Note that this command will not remove anything if the NFS unmounts
-	# failed (and we didn't catch it) because the directories in question
-	# will not be empty.
-	#
-	system("rmdir /users/* /proj/* /groups/* /scratch/*");
+	foreach my $dir ("/users", "/proj", "/groups", "/scratch") {
+	    # Yes, this can happen.
+	    next
+		if (! -e $dir);
+	    
+	    if (!os_islocaldir("$dir")) {
+		die("$dir did not unmount; aborting cleanup");
+	    }
+	    opendir(DIR, $dir) or
+		die("Could not open directory $dir: $!");
+
+	    while ($dirent = readdir(DIR)) {
+		next
+		    if ($dirent eq "." || $dirent eq "..");
+		
+		my $file = $dir . "/" . $dirent;
+		if (-d $file) {
+		    if (!os_islocaldir("$file")) {
+			die("$dir did not unmount; aborting cleanup");
+		    }
+		    print "Removing local dir: $file\n";
+		    system("/bin/rm -rf $file\n");
+		    if ($?) {
+			die("Could not rm -rf $dir/*");
+		    }
+		}
+	    }
+	}
     } else {
 	print "Could not determine if NFS filesystems are unmounted, ".
 	      "NOT cleaning up /proj and /users\n";
