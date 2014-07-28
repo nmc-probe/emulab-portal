@@ -65,6 +65,10 @@ use libvnode;
 my $TMCD_PORT	= 7777;
 my $SLOTHD_PORT = 8509;
 my $EVPROXY_PORT= 16505;
+# where all our config files go
+my $VMS         = "/var/emulab/vms";
+my $VMDIR       = "$VMS/vminfo";
+my $LOGPATH     = "$VMDIR/$vnode_id";
 my $IPTABLES	= "/sbin/iptables";
 my $ARPING      = "/usr/bin/arping";
 # For testing.
@@ -281,10 +285,14 @@ sub Online()
 	    $tty =~ s,\/dev\/,,;
 
 	    # unlink so that we know when capture is ready.
-	    my $acl = "/var/log/tiplogs/$vnode_id.acl";
+	    my $acl = "$LOGPATH/$vnode_id.acl";
 	    unlink($acl)
 		if (-e $acl);
-	    mysystem2("$BINDIR/capture -C -n -i $vnode_id $tty");
+	    # Remove old log file before start.
+	    my $logfile = "$LOGPATH/$vnode_id.log";
+	    unlink($logfile)
+		if (-e $logfile);
+	    mysystem2("$BINDIR/capture -C -i -l $LOGPATH $vnode_id $tty");
 	    #
 	    # We need to tell tmcd about it. But do not hang, use timeout.
 	    # Also need to wait for the acl file, since capture is running
@@ -446,8 +454,8 @@ sub Offline()
 	mysystem2("/bin/kill $pid");
     }
 
-    if (-e "/var/log/tiplogs/$vnode_id.pid") {
-	my $pid = `cat /var/log/tiplogs/$vnode_id.pid`;
+    if (-e "$LOGPATH/$vnode_id.pid") {
+	my $pid = `cat $LOGPATH/$vnode_id.pid`;
 	chomp($pid);
 	mysystem2("/bin/kill $pid");
     }
