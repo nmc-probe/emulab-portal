@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -932,7 +932,8 @@ if (!isset($submit)) {
 	}
 	$defaults["loadpart"]    = $baseimage->loadpart();
 	if ($baseimage->loadpart() == 0 && $baseimage->loadlength() == 4) {
-	    $defaults["loadpart"]    = "1";
+	    $loadpart = ($baseimage->part1_osid() ? 1 : 2);
+	    $defaults["loadpart"]    = $loadpart;
 	    $defaults["wholedisk"]   = "Yep";
 	}
 	$defaults["mbr_version"]     = $baseimage->mbr_version();
