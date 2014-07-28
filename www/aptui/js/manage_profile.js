@@ -509,7 +509,9 @@ function (_, sup, filesize, ShowImagingModal,
     function ShowRspecTopo(xml)
     {
 	sup.ShowModal("#quickvm_topomodal");
-	sup.maketopmap("#showtopo_nopicker", xml, null);
+        $('#quickvm_topomodal').one('shown.bs.modal', function() {
+	    sup.maketopmap("#showtopo_nopicker", xml, null);
+        });
     }
 
     //
