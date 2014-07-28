@@ -413,7 +413,7 @@ my %imagemap  = ();
 $query_result =
     DBQueryFatal("select o.osid,o.osname,o.pid from os_info as o ".
 		 "left join os_info_versions as v on ".
-		 "     v.osid=i.osid and v.vers=i.version ".
+		 "     v.osid=o.osid and v.vers=o.version ".
 		 "where (v.path='' or v.path is NULL) ".
 		 "order by o.pid,o.osname");
 while (my ($osid,$osname,$pid) = $query_result->fetchrow_array()) {
@@ -424,7 +424,7 @@ while (my ($osid,$osname,$pid) = $query_result->fetchrow_array()) {
 $query_result =
     DBQueryFatal("select o.osid,o.osname,o.pid from os_info as o ".
 		 "left join os_info_versions as v on ".
-		 "     v.osid=i.osid and v.vers=i.version ".
+		 "     v.osid=o.osid and v.vers=o.version ".
 		 "where (v.path is not NULL and v.path!='') ".
 		 "order by o.pid,o.osname");
 while (my ($osid,$osname,$pid) = $query_result->fetchrow_array()) {
