@@ -979,7 +979,7 @@ sub DumpDBGoo()
     DBQueryWarn("select o.* from os_info as o ".
 		"left join os_info_versions as v on ".
 		"     v.osid=o.osid and v.vers=o.version ".
-		"where o.pid='$pid' or (o.pid='$TBOPSPID' and v.shared=1 ".
+		"where o.pid='$pid' or (o.pid='$TBOPSPID' and v.shared=1) ".
 		"into outfile '$statedir/os_info'")
 	or die("*** $0:\n".
 	       "    Could not dump table os_info\n");
