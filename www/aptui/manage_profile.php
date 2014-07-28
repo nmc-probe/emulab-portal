@@ -105,7 +105,7 @@ function SPITFORM($formfields, $errors)
     echo "</script>\n";
 
     $amlist = array();
-    if ($editing && ISADMIN()) {
+    if ($viewing && ISADMIN()) {
 	while (list($am) = each($am_array)) {
 	    $amlist[] = $am;
 	}
@@ -118,7 +118,7 @@ function SPITFORM($formfields, $errors)
     # When editing, pass through a single value. The template treats a
     # a single value as a read-only field.
     $plist = array();
-    if ($editing) {
+    if ($viewing) {
 	$plist[] = $formfields["profile_pid"];
     }
     else {
