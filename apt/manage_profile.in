@@ -297,9 +297,11 @@ if ($update) {
     #
     if (exists($update_args{"rspec"})) {
 	if ($update_args{"rspec"} ne $profile->rspec()) {
-	    $profile = $profile->NewVersion($this_user);
-	    if (!defined($profile)) {
-		fatal("Could not create new version of the profile");
+	    if ($this_user->IsAdmin()) {
+		$profile = $profile->NewVersion($this_user);
+		if (!defined($profile)) {
+		    fatal("Could not create new version of the profile");
+		}
 	    }
 	    $profile->UpdateVersion({"rspec" => $update_args{"rspec"}});
 	}
@@ -328,6 +330,9 @@ else {
 	    UserError();
 	}
 	fatal("Could not create new profile");
+    }
+    if (!$this_user->IsAdmin()) {
+	$profile->Publish();
     }
 }
 
