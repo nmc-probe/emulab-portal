@@ -947,7 +947,7 @@ class osid:
         # Get the listing that is accessible to this user and
         res = DBQueryFatal("SELECT distinct v.* FROM os_info as o "
                            "left join os_info_versions as v on "
-                           "     v.osid=o.osid and v.vers=i.version "
+                           "     v.osid=o.osid and v.vers=o.version "
                            "left join group_membership as g on g.pid=o.pid "
                            "where (g.uid_idx=%s or v.shared=1) "
                            "group by o.pid,o.osname",
@@ -989,7 +989,7 @@ class osid:
         # Get the listing that is accessible to this user and
         res = DBQueryFatal("SELECT distinct o.* FROM os_info as o "
                            "left join os_info_versions as v on "
-                           "     v.osid=o.osid and v.vers=i.version "
+                           "     v.osid=o.osid and v.vers=o.version "
                            "left join group_membership as g on g.pid=o.pid "
                            "where (g.uid_idx=%s or v.shared=1) and "
                            "      (o.osname=%s or o.osid=%s) "
