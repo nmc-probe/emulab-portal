@@ -413,6 +413,7 @@ foreach my $node (@freed_nodes) {
     my $isgeni        = $node->isfednode();
     my $isdynamic     = $node->isdynamic();
     my $def_boot_osid = $node->def_boot_osid();
+    my $def_boot_vers = $node->def_boot_osid_vers();
     my $imageable     = $node->imageable();
 
     # Clean out all delays
@@ -431,7 +432,7 @@ foreach my $node (@freed_nodes) {
 	# OSinfo lookup could fail if the OSID was removed at a bad time,
 	# so treat a failure as non-fatal and force a clean.
 	#
-	my $osinfo = OSinfo->Lookup($def_boot_osid);
+	my $osinfo = OSinfo->Lookup($def_boot_osid, $def_boot_vers);
 	if (defined($osinfo)) {
 	    $clean = $osinfo->mustclean();
 	} else {

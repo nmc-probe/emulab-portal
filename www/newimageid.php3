@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -110,21 +110,25 @@ function SPITFORM($formfields, $errors)
     #
     if ($isadmin) {
 	$osid_result =
-	    DBQueryFatal("select * from os_info ".
-			 "where (path='' or path is NULL) and ".
-			 "      version!='' and version is not NULL ".
-			 "order by pid,osname");
+	    DBQueryFatal("select v.* from os_info as o ".
+			 "left join os_info_versions as v on "
+			 "     v.osid=o.osid and v.vers=o.version ".
+			 "where (v.path='' or path is v.NULL) and ".
+			 "      v.version!='' and v.version is not NULL ".
+			 "order by o.pid,o.osname");
     }
     else {
 	$uid_idx = $this_user->uid_idx();
 	
 	$osid_result =
 	    DBQueryFatal("select distinct o.* from os_info as o ".
+			 "left join os_info_versions as v on "
+			 "     v.osid=o.osid and v.vers=o.version ".
 			 "left join group_membership as m ".
-			 " on m.pid=o.pid ".
+			 "     on m.pid=o.pid ".
 			 "where m.uid_idx='$uid_idx' and ".
-			 "      (path='' or path is NULL) and ".
-			 "      version!='' and version is not NULL ".
+			 "      (v.path='' or v.path is NULL) and ".
+			 "      v.version!='' and v.version is not NULL ".
 			 "order by o.pid,o.osname");
     }
     if (! mysql_num_rows($osid_result)) {
@@ -784,21 +788,21 @@ if (mysql_num_rows($query_result)) {
     }
 }
 
+$pid = $image->pid();
+$gid_idx = $image->gid_idx();
+$group = Group::Lookup($gid_idx);
+$project = $image->Project();
+    
 # Send to the backend for more checking, and eventually, to update the DB.
 $imagename = $args["imagename"];
-if (! ($image = Image::NewImageId(0, $imagename, $args, $errors))) {
+if (! ($image = Image::NewImageId(0, $imagename, $args, $this_user, $group,
+				  $node_id, $errors))) {
     # Always respit the form so that the form fields are not lost.
     # I just hate it when that happens so lets not be guilty of it ourselves.
     SPITFORM($formfields, $errors);
     PAGEFOOTER();
     return;
 }
-
-$pid = $image->pid();
-$gid_idx = $image->gid_idx();
-$group = Group::Lookup($gid_idx);
-$project = $image->Project();
-    
 
 SUBPAGESTART();
 SUBMENUSTART("More Options");

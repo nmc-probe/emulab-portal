@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -212,14 +212,15 @@ if ($isadmin) {
 	      '#checkslot'   => 'os_info:reboot_waittime',
 	      '#size'	     => 6);
 
-    #
     # NextOsid
     #
     $osid_result =
-	DBQueryFatal("select * from os_info ".
-		     "where (path='' or path is NULL) and ".
-		     "      version!='' and version is not NULL ".
-		     "order by pid,osname");
+	DBQueryFatal("select v.* from os_info as o ".
+		     "left join os_info_versions as v on ".
+		     "     v.osid=o.osid and v.vers=o.version ".
+		     "where (v.path='' or v.path is NULL) and ".
+		     "      v.version!='' and v.version is not NULL ".
+		     "order by o.pid,o.osname");
 
     $NextOsidSelection = array();
     while ($row = mysql_fetch_array($osid_result)) {

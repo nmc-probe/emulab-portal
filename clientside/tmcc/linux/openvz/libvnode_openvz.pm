@@ -1021,6 +1021,9 @@ sub vz_vnodeCreate {
 	}
     }
     elsif (defined($raref)) {
+	#
+	# reloadinfo can be a list now, but we do no support that here.
+	#
 	$inreload = 1;
 	
 	# Tell stated via tmcd
@@ -2572,7 +2575,7 @@ sub GClvm($)
 sub createImageDisk($$$$$)
 {
     my ($image,$vnode_id,$raref,$tarfile,$lvsize) = @_;
-    my $tstamp = $raref->{'IMAGEMTIME'};
+    my $tstamp = $raref->[0]->{'IMAGEMTIME'};
     my $lvname = "image+" . $image;
     my $imagepath;
     my $lvmpath = lvmVolumePath($lvname);

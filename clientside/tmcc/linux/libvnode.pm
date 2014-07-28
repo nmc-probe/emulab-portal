@@ -467,8 +467,8 @@ sub findBridgeIfaces($) {
 
 #
 # Since (some) vnodes are imageable now, we provide an image fetch
-# mechanism.  Caller provides an imagepath for frisbee, and a hash of args that
-# comes directly from loadinfo.
+# mechanism.  Caller provides an imagepath for frisbee, and a hash of
+# args that comes directly from loadinfo.
 #
 sub downloadImage($$$$) {
     my ($imagepath,$todisk,$nodeid,$reload_args_ref) = @_;
@@ -477,9 +477,13 @@ sub downloadImage($$$$) {
 	if (!defined($imagepath) || !defined($reload_args_ref));
 
     my $addr = $reload_args_ref->{"ADDR"};
-    my $FRISBEE = "/usr/local/etc/emulab/frisbee";
+    my $FRISBEE = "/usr/local/bin/frisbee";
     my $IMAGEUNZIP = "/usr/local/bin/imageunzip";
     my $command = "";
+    # Backwards compat.
+    if (! -e $FRISBEE) {
+	$FRISBEE = "/usr/local/etc/emulab/frisbee";
+    }
 
     if (!defined($addr) || $addr eq "") {
 	# frisbee master server world
@@ -491,7 +495,7 @@ sub downloadImage($$$$) {
 	    $server = $1;
 	}
 	if ($reload_args_ref->{"IMAGEID"} =~
-	    /^([-\d\w]+),([-\d\w]+),([-\d\w\.]+)$/) {
+	    /^([-\d\w]+),([-\d\w]+),([-\d\w\.:]+)$/) {
 	    $imageid = "$1/$3";
 	}
 	if (SHAREDHOST()) {

@@ -686,13 +686,21 @@ if (defined($pid)) {
 # 1) To avoid an explosion in the number of features for nodes
 # 2) To avoid information leaks, allowing projects to see each other's images
 # 
-my $osidquery = "select distinct o.osid, oi.type, o.osname, o.pid, o.OS, o.version, o.description,o.protogeni_export, o.osfeatures from os_info as o " .
-        "left join osidtoimageid as oi on o.osid = oi.osid " .
-        "left join images as i on oi.imageid = i.imageid " .
-        "left join image_permissions as p1 on p1.imageid=i.imageid ".
-	"left join groups as g on p1.permission_type='group' and p1.permission_idx=g.gid_idx " .
-	"left join users as u on p1.permission_type='user' and p1.permission_idx=u.uid_idx " .
-        "where i.global = 1 ";
+my $osidquery = "select distinct o.osid,oi.type,o.osname,o.pid,ov.OS,".
+    "ov.version,ov.description,ov.protogeni_export,ov.osfeatures ".
+    "  from os_info as o ".
+    "left join os_info_versions as ov on ".
+    "     ov.osid=o.osid and ov.vers=o.version ".
+    "left join osidtoimageid as oi on o.osid = oi.osid ".
+    "left join images as i on oi.imageid = i.imageid ".
+    "left join image_versions as iv on ".
+    "     iv.imageid=i.imageid and iv.version=i.version ".
+    "left join image_permissions as p1 on p1.imageid=i.imageid ".
+    "left join groups as g on ".
+    "     p1.permission_type='group' and p1.permission_idx=g.gid_idx ".
+    "left join users as u on ".
+    "     p1.permission_type='user' and p1.permission_idx=u.uid_idx ".
+    "where iv.global = 1 ";
 if ($pid) {
     $osidquery .= " or i.pid='$pid' ".
 	" or (g.pid is not null and g.pid='$pid')";
@@ -701,33 +709,47 @@ if ($this_user) {
     $osidquery .= " or (u.uid is not null and u.uid='$this_user')";
 }
 
-my $defaultosidquery = 'select distinct o.osid, t.type, o.osname, o.pid, o.OS, o.version, o.description, o.protogeni_export, o.osfeatures '.
-    'from os_info as o left join node_type_attributes as t '.
-    'on (o.osid=t.attrvalue) where t.attrkey="default_osid"';
+my $defaultosidquery =
+    "select distinct o.osid,t.type,o.osname,o.pid,ov.OS,".
+    "ov.version,ov.description,ov.protogeni_export,ov.osfeatures ".
+    "   from os_info as o ".
+    "left join os_info_versions as ov on ".
+    "     ov.osid=o.osid and ov.vers=o.version ".
+    "left join node_type_attributes as t ".
+    "on (o.osid=t.attrvalue) where t.attrkey='default_osid'";
 
 #
 # For subOS support (i.e., vnode OSes running atop vhost OSes), we have to
 # check both the subosid and all the parent_osid it can run on.
 #
-my $subosidquery = "select distinct o.osid,o.parent_osid from os_submap as o " .
-	"left join osidtoimageid as oi1 on o.osid = oi1.osid " .
-	"left join osidtoimageid as oi2 on o.parent_osid = oi2.osid " .
-	"left join images as i1 on oi1.imageid = i1.imageid ".
-	"left join images as i2 on oi2.imageid = i2.imageid ".
-        "left join image_permissions as ip1 on ip1.imageid=i1.imageid ".
-        "left join image_permissions as ip2 on ip2.imageid=i2.imageid ".
-	"left join groups as g1 on ip1.permission_type='group' and ip1.permission_idx=g1.gid_idx " .
-	"left join groups as g2 on ip2.permission_type='group' and ip2.permission_idx=g2.gid_idx " .
-	"left join users as u1 on ip1.permission_type='user' and ip1.permission_idx=u1.uid_idx " .
-	"left join users as u2 on ip2.permission_type='user' and ip2.permission_idx=u2.uid_idx " .
-	"where (i1.imageid is null or i1.global = 1";
+my $subosidquery =
+    "select distinct o.osid,o.parent_osid from os_submap as o " .
+    "left join osidtoimageid as oi1 on o.osid = oi1.osid " .
+    "left join osidtoimageid as oi2 on o.parent_osid = oi2.osid " .
+    "left join images as i1 on oi1.imageid = i1.imageid ".
+    "left join image_versions as iv1 on ".
+    "     iv1.imageid=i1.imageid and iv1.version=i1.version ".
+    "left join images as i2 on oi2.imageid = i2.imageid ".
+    "left join image_versions as iv2 on ".
+    "     iv2.imageid=i2.imageid and iv2.version=i2.version ".
+    "left join image_permissions as ip1 on ip1.imageid=i1.imageid ".
+    "left join image_permissions as ip2 on ip2.imageid=i2.imageid ".
+    "left join groups as g1 on ".
+    "     ip1.permission_type='group' and ip1.permission_idx=g1.gid_idx ".
+    "left join groups as g2 on ".
+    "     ip2.permission_type='group' and ip2.permission_idx=g2.gid_idx ".
+    "left join users as u1 on ".
+    "     ip1.permission_type='user' and ip1.permission_idx=u1.uid_idx ".
+    "left join users as u2 on ".
+    "     ip2.permission_type='user' and ip2.permission_idx=u2.uid_idx ".
+    "where (i1.imageid is null or iv1.global = 1";
 if ($pid) {
     $subosidquery .= " or i1.pid='$pid' or g1.pid='$pid'";
 }
 if ($this_user) {
     $subosidquery .= " or u1.uid='$this_user'"
 }
-$subosidquery .= ") and (i2.global = 1";
+$subosidquery .= ") and (iv2.global = 1";
 if ($pid) {
     $subosidquery .= " or i2.pid='$pid' or g2.pid='$pid'";
 }
@@ -812,8 +834,10 @@ while (my ($subosid,$osid) = $result->fetchrow()) {
 # We also have to resolve the 'generic' OSIDs, which use the nextosid field to
 # redirect to another OSID
 #
-$result = DBQueryFatal("select osid,nextosid from os_info where " .
-    "nextosid is not null");
+$result = DBQueryFatal("select o.osid,v.nextosid from os_info as o ".
+		       "left join os_info_versions as v on ".
+		       "     v.osid=o.osid and v.vers=o.version ".
+		       "where v.nextosid is not null");
 while (my ($osid,$nextosid) = $result->fetchrow()) {
     if (defined($openvzid) && $osid == $openvzid) {
 	$openvzid = $nextosid;
@@ -1024,7 +1048,9 @@ $result =
 		 "   group by type) as dedicated_wa_types ".
 		 "  on t.type=dedicated_wa_types.type ".
                  "left join widearea_nodeinfo as wn on a.node_id=wn.node_id ".
-		 "left join os_info as so on a.def_boot_osid=so.osid ".
+		 "left join os_info_versions as so on ".
+		 "     a.def_boot_osid=so.osid and ".
+		 "     a.def_boot_osid_vers=so.vers ".
 		 "where $free_condition and ".
 		 "   (a.role='testnode' and (t.isremotenode=0 or ".
 		 "                           dedicated_wa_types.attrvalue=1))");

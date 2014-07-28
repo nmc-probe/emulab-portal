@@ -295,14 +295,22 @@ function CreateURL($page_id)
 	case URLARG_IMAGEID:
 	    $key = "imageid";
 	    if (is_a($val, 'Image')) {
-		$val = $val->imageid();
+		$str = $val->imageid();
+		if (1 || $val->version()) {
+		    $str .= ":" . $val->version();
+		}
+		$val = $str;
 	    }
 	    $val = rawurlencode($val);
 	    break;
 	case URLARG_OSID:
 	    $key = "osid";
 	    if (is_a($val, 'OSinfo')) {
-		$val = $val->osid();
+		$str = $val->osid();
+		if (1 || $val->vers()) {
+		    $str .= ":" . $val->vers();
+		}
+		$val = $str;
 	    }
 	    $val = rawurlencode($val);
 	    break;
@@ -558,12 +566,17 @@ function VerifyPageArguments($argspec, $required)
 	    break;
 
 	case PAGEARG_IMAGE:
+	    $version = NULL;
+	    if (isset($_REQUEST[URL_VERS])) {
+		$version = $_REQUEST[URL_VERS];
+		ValidateArgument($name, PAGEARG_VERS, $version);
+	    }
 	    if (isset($_REQUEST[URL_IMAGEID])) {
 		$imageid = $_REQUEST[URL_IMAGEID];
 		$yep    = 1;
 
 		if (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
-		    $object = Image::Lookup($imageid);
+		    $object = Image::Lookup($imageid, $version);
 		}
 	    }
 	    elseif (isset($_REQUEST[$name]) && $_REQUEST[$name] != "") {
@@ -571,18 +584,23 @@ function VerifyPageArguments($argspec, $required)
 		$yep = 1;
 
 		if (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
-		    $object = Image::Lookup($imageid);
+		    $object = Image::Lookup($imageid, $version);
 		}
 	    }
 	    break;
 
 	case PAGEARG_OSINFO:
+	    $version = NULL;
+	    if (isset($_REQUEST[URL_VERS])) {
+		$version = $_REQUEST[URL_VERS];
+		ValidateArgument($name, PAGEARG_VERS, $version);
+	    }
 	    if (isset($_REQUEST[URL_OSID])) {
 		$osid = $_REQUEST[URL_OSID];
 		$yep  = 1;
 
 		if (ValidateArgument($name, PAGEARG_OSINFO, $osid)) {
-		    $object = OSinfo::Lookup($osid);
+		    $object = OSinfo::Lookup($osid, $version);
 		}
 	    }
 	    break;
@@ -728,7 +746,7 @@ function ValidateArgument($name, $type, $arg)
     case PAGEARG_IMAGE:
     case PAGEARG_OSID:
     case PAGEARG_OSINFO:
-	if (preg_match("/^[-\w\.\+]+$/", "$arg")) {
+	if (preg_match("/^[-\w\.\+:]+$/", "$arg")) {
 	    return 1;
 	}
 	break;

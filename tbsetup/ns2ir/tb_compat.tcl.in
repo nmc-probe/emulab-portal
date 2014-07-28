@@ -652,7 +652,13 @@ proc tb-set-node-os {node os {parentos 0}} {
     if {! ${GLOBALS::anonymous} && ! ${GLOBALS::passmode} &&
         ([regexp {^(ftp|http|https):} $os] == 0) } {
 	var_import ::TBCOMPAT::osids
-	if {! [info exists osids($os)]} {
+
+	# Look for :version in the name.
+	set osid $os
+        if { [regexp {:} $os] } {
+	    set osid [lindex [split $os {:}] 0]
+	}
+	if {! [info exists osids($osid)]} {
 	    perror "\[tb-set-node-os] Invalid osid $os."
 	    return
 	}

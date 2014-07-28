@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -58,6 +58,7 @@ $| = 1;
 use event;
 use libdb;
 use Node;
+use OSinfo;
 use libtestbed;
 use TimeoutQueue;
 use Getopt::Std;
@@ -1016,7 +1017,9 @@ sub stateTransition($$) {
             };
 	    /^RELOADOLDMFS$/ && do {
 		my $frisbee_osid = TBNodeDiskloadOSID($node);
-		my $frisbee_name = DBQuerySingleFatal("select osname from os_info where osid=$frisbee_osid");
+		my $osinfo = OSinfo->Lookup($frisbee_osid);
+		my $frisbee_name = (defined($osinfo) ?
+				    $osinfo->osame() : $frisbee_osid);
 		my $msg = 
 		    ("Attempted to load multiple images on $node using an old Frisbee MFS.\n".
 		     "To make this work please update the $frisbee_name MFS image.\n");
@@ -1417,10 +1420,12 @@ sub handleCommand($$;$$) {
 sub checkGenISUP($) {
     my ($node) = @_;
     debug("$node: Checking ISUP Generation\n");
-    my $r = DBQueryWarn("select FIND_IN_SET('isup',osfeatures) as isup,".
-			"  FIND_IN_SET('ping',osfeatures) as ping ".
+    my $r = DBQueryWarn("select FIND_IN_SET('isup',v.osfeatures) as isup,".
+			"  FIND_IN_SET('ping',v.osfeatures) as ping ".
 			"from nodes as n ".
 			"left join os_info as o on o.osid=n.osid ".
+			"left join os_info_versions as v on ".
+			"     v.osid=o.osid and v.vers=o.version ".
 			"where node_id='$node' and osfeatures is not null");
     if ($r->num_rows() > 0) {
 	my ($isup,$ping) = $r->fetchrow();
@@ -1709,25 +1714,6 @@ sub ClearNodeTrigger( $$$ ; @ ) {
     }
 
     return 0;
-}
-
-sub os_opmode() {
-    my $osid = shift || "";
-    if ($osid eq $TB_OSID_MBKERNEL) {
-	return "MINIMAL";
-    }
-    my $cmd = "select op_mode from os_info where osid='$osid';";
-    my $q = DBQueryFatal($cmd);
-    if ($q->numrows() < 1) {
-	return "";
-    }
-    my @r = $q->fetchrow_array();
-    my $opmode=$r[0];
-    debug("OpMode for '$osid' is '$opmode'\n");
-    if (defined($opmode) && $opmode ne "") {
-	return $opmode;
-    }
-    return "";
 }
 
 #

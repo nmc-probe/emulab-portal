@@ -374,11 +374,6 @@ $vnconfig{"fwconfig"} = {"fwinfo"  => $fwinfo,
 			 "fwrules" => \@fwrules,
 			 "fwhosts" => \@fwhosts};
 
-if ($debug) {
-    print "VN Config:\n";
-    print Dumper(\%vnconfig);
-}
-
 #
 # see if we 1) are supposed to be "booting" into the reload mfs, and 2) if
 # we have loadinfo.  Need both to reload!
@@ -397,15 +392,39 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 	if (!scalar(@tmp)) {
 	    fatal("vnode $vnodeid in reloading, but got no loadinfo!");
 	}
+	#
+	# Loadinfo can now be a list, when loading deltas. Actually, I suppose
+	# we could support loading multiple partitions, but other stuff would
+	# have to change for that to work, so not going there right now.
+	#
+	$vnconfig{"reloadinfo"} = \@tmp;
+	#
+	# But the image we eventually boot is in jailconfig.
+	# Sheesh, LVM names cannot include comma or colon. 
+	#
+	if (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([-\w]+)$/) {
+	    $vnconfig{"image"}      = "$1-$2-$3";
+	}
+	elsif (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([^:]+):(\d+)$/) {
+	    $vnconfig{"image"}      = "$1-$2-$3-$4";
+	}
 	else {
-	    if ($tmp[0]->{"IMAGEID"} =~
-		/^([-\d\w]+),([-\d\w]+),([-\d\w\.]+)$/) {
-		$vnconfig{"reloadinfo"} = $tmp[0];
-		$vnconfig{"image"}      = "$1-$2-$3";
+	    fatal("vnode $vnodeid in reloading, but got bogus IMAGENAME " . 
+		   VNCONFIG('IMAGENAME') . " from jailconf!");
+	}
+	#
+	# Apply the same transform to each loadinfo so that we do not have
+	# duplicate it in the library,
+	#
+	foreach my $ref (@tmp) {
+	    if ($ref->{'IMAGEID'} =~ /^([-\w]+),([-\w]+),([-\w]+)$/) {
+		$ref->{'IMAGENAME'} = "$1-$2-$3";
+	    }
+	    elsif ($ref->{'IMAGEID'} =~ /^([-\w]+),([-\w]+),([^:]+):(\d+)$/) {
+		$ref->{'IMAGENAME'} = "$1-$2-$3-$4";
 	    }
 	    else {
-		fatal("vnode $vnodeid in reloading, but got bogus IMAGEID " . 
-		      $tmp[0]->{"IMAGEID"} . " from loadinfo!");
+		fatal("Bad IMAGEID in loadinfo");
 	    }
 	}
     }
@@ -416,13 +435,23 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 	# the jailconfig to see what image should boot. That image better
 	# be resident already. 
 	#
+	# Sheesh, LVM names cannot include comma or colon.
+	#
 	if (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([-\w]+)$/) {
 	    $vnconfig{"image"}      = "$1-$2-$3";
+	}
+	elsif (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([^:]+):(\d+)$/) {
+	    $vnconfig{"image"}      = "$1-$2-$3-$4";
 	}
     }
     else {
 	# The library will boot the default, whatever that is.
     }
+}
+
+if ($debug) {
+    print "VN Config:\n";
+    print Dumper(\%vnconfig);
 }
 
 #

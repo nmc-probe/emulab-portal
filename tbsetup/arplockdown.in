@@ -278,7 +278,9 @@ $query_result =
 		 "left join nodes as n on n.node_id=r.node_id ".
 		 "left join interfaces as i on ".
 		 "     i.node_id=r.node_id and i.role='$CTRL' ".
-		 "left join os_info as o on o.osid=n.def_boot_osid ".
+		 "left join os_info_versions as o on ".
+		 "     o.osid=n.def_boot_osid and ".
+		 "     o.vers=n.def_boot_osid_vers ".
 		 "where FIND_IN_SET('xen-host',o.osfeatures)");
 
 while (my ($node_id, $vname, $mac) = $query_result->fetchrow_array()) {

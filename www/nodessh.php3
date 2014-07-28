@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011, 2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011, 2013, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -52,7 +52,6 @@ $query_result =
 		 " from nodes as n ".
 		 "left join reserved as r on n.node_id=r.node_id ".
 		 "left join node_types as t on t.type=n.type ".
-		 "left join os_info as oi on n.def_boot_osid=oi.osid ".
 		 "where n.node_id='$node_id'");
 
 if (mysql_num_rows($query_result) == 0) {

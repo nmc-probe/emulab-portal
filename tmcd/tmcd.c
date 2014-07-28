@@ -139,6 +139,12 @@ CHECKMASK(char *arg)
 #define TARRPM_SERVER	BOSSNODE
 #endif
 
+#ifdef IMAGEPROVENANCE
+#define WITHPROVENANCE	1
+#else
+#define WITHPROVENANCE	0
+#endif
+
 /* Defined in configure and passed in via the makefile */
 #define DBNAME_SIZE	64
 #define HOSTID_SIZE	(32+64)
@@ -5194,22 +5200,28 @@ COMMAND_PROTOTYPE(doloadinfo)
 	/*
 	 * Get the address the node should contact to load its image
 	 */
-	res = mydb_query("select loadpart,OS,mustwipe,mbr_version,access_key,"
-			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,i.path,"
-			 "   o.version,pa.partition,i.size,"
-			 "   lba_low,i.lba_high,i.lba_size,i.relocatable,"
-			 "   UNIX_TIMESTAMP(updated) "
+	res = mydb_query("select iv.loadpart,ov.OS,mustwipe,iv.mbr_version,"
+			 "   iv.access_key,"
+			 "   i.imageid,prepare,i.imagename,p.pid,g.gid,iv.path,"
+			 "   ov.version,pa.partition,iv.size,"
+			 "   iv.lba_low,iv.lba_high,iv.lba_size,iv.relocatable,"
+			 "   UNIX_TIMESTAMP(iv.updated),r.imageid_version "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
+			 "left join image_versions as iv on "
+			 "     iv.imageid=i.imageid and "
+			 "     iv.version=r.imageid_version "
 			 "left join frisbee_blobs as f on f.imageid=i.imageid "
-			 "left join os_info as o on i.default_osid=o.osid "
+			 "left join os_info_versions as ov on "
+			 "     ov.osid=iv.default_osid and "
+			 "     ov.vers=iv.default_vers "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
 			 "left join partitions as pa on "
 			 "     pa.node_id=r.node_id and "
-			 "     pa.osid=i.default_osid and loadpart=0 "
+			 "     pa.osid=iv.default_osid and loadpart=0 "
 			 "where r.node_id='%s' order by r.idx",
-			 19, reqp->nodeid);
+			 20, reqp->nodeid);
 
 	if (!res) {
 		error("doloadinfo: %s: DB Error getting loading address!\n",
@@ -5555,6 +5567,23 @@ COMMAND_PROTOTYPE(doloadinfo)
 
 			bufp += OUTPUT(bufp, ebufp - bufp, " IMAGEID=%s,%s,%s",
 				       row[8], row[9], row[7]);
+
+			if (vers >= 39 || !reqp->isvnode) {
+				/*
+				 * older mkvnode cannot handle :version,
+				 * nor can they handle deltas. So if the
+				 * server side is not doing versions, do
+				 * not return any version info even if the
+				 * client is updated, since there is still
+				 * an incompatibility with how images are
+				 * named on existing XEN hosts. 
+				 */
+				if (WITHPROVENANCE) {
+					bufp += OUTPUT(bufp,
+						       ebufp - bufp, ":%s",
+						       row[19]);
+				}
+			}
 
 			/*
 			 * All images version 38 and above, or just vnodes
@@ -6440,10 +6469,12 @@ COMMAND_PROTOTYPE(doimagekey)
         /*
          * Grab and return the key itself
          */
-	res = mydb_query("select i.auth_uuid,i.auth_key,i.decryption_key,"
+	res = mydb_query("select iv.auth_uuid,iv.auth_key,iv.decryption_key,"
 			 " i.imagename,p.pid,g.gid "
 			 "from current_reloads as r "
 			 "left join images as i on i.imageid=r.image_id "
+			 "left join image_versions as iv on "
+			 "     iv.imageid=i.imageid and iv.version=i.version "
 			 "left join projects as p on i.pid_idx=p.pid_idx "
 			 "left join groups as g on i.gid_idx=g.gid_idx "
 			 "where node_id='%s' order by r.idx",
@@ -7798,15 +7829,18 @@ COMMAND_PROTOTYPE(dojailconfig)
 	/*
 	 * Get the image to be booted. 
 	 */
-	res = mydb_query("select p.pid,g.gid,i.imagename from nodes as n "
+	res = mydb_query("select p.pid,g.gid,iv.imagename,iv.version "
+			 "  from nodes as n "
 			 "left join partitions as pa on "
 			 "     pa.node_id=n.node_id and "
 			 "     pa.osid=n.def_boot_osid "
-			 "left join images as i on i.imageid=pa.imageid "
-			 "left join projects as p on i.pid_idx=p.pid_idx "
-			 "left join groups as g on i.gid_idx=g.gid_idx "
+			 "left join image_versions as iv on "
+			 "     iv.imageid=pa.imageid and "
+			 "     iv.version=pa.imageid_version "
+			 "left join projects as p on iv.pid_idx=p.pid_idx "
+			 "left join groups as g on iv.gid_idx=g.gid_idx "
 			 "where n.node_id='%s'",
-			 3, reqp->nodeid);
+			 4, reqp->nodeid);
 
 	if (!res) {
 		error("dojailconfig: %s: DB Error getting image info!\n",
@@ -7814,11 +7848,22 @@ COMMAND_PROTOTYPE(dojailconfig)
 		return 1;
 	}
 	if (mysql_num_rows(res)) {
+		int version;
 		row = mysql_fetch_row(res);
 
 		bufp += OUTPUT(bufp, ebufp - bufp,
-			       "IMAGENAME=\"%s,%s,%s\"\n",
+			       "IMAGENAME=\"%s,%s,%s",
 			       row[0], row[1], row[2]);
+		/*
+		 * older mkvnode could not handle :version, and to be
+		 * backwards compatable with existing nodes, we do not
+		 * return a :0 version.
+		 */
+		version = atoi(row[3]);
+		if (vers >= 39 && WITHPROVENANCE) {
+			bufp += OUTPUT(bufp, ebufp - bufp, ":%s", row[3]);
+		}
+		bufp += OUTPUT(bufp, ebufp - bufp, "\"\n");
 	}
 	mysql_free_result(res);
 
@@ -10750,12 +10795,14 @@ COMMAND_PROTOTYPE(doarpinfo)
 
 		res = mydb_query(
 			"select i.node_id,i.IP,i.mac,n.role,"
-			"   FIND_IN_SET('xen-host',o.osfeatures) as isxen, "
+			"   FIND_IN_SET('xen-host',ov.osfeatures) as isxen, "
 			"   vn.attrvalue as vif,ip.mac "
 			"from interfaces as i,nodes as n "
 			"left join reserved as r on r.node_id=n.node_id "
 			"left join nodes as np on np.node_id=n.phys_nodeid "
 			"left join os_info as o on o.osid=np.def_boot_osid "
+			 "left join os_info_versions as ov on "
+			 "     ov.osid=i.default_osid and ov.vers=o.version "
 			"left join reserved as rp on rp.node_id=n.phys_nodeid "
 			"left join interfaces as ip on "
 			"     ip.node_id=rp.node_id and ip.role='ctrl' "

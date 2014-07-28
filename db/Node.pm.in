@@ -360,7 +360,7 @@ sub Create($$$$)
 {
     my ($class, $node_id, $experiment, $argref) = @_;
     my ($control_iface,$virtnode_capacity,$adminmfs,$adminmfs_osid);
-    my ($priority, $osid, $opmode, $state);
+    my ($priority, $osid, $osid_vers, $opmode, $state);
     require OSinfo;
     require NodeType;
 
@@ -392,6 +392,7 @@ sub Create($$$$)
 	if (!defined($typeinfo));
 
     my $isremote = $typeinfo->isremotenode();
+    $osid_vers   = 0;
 
     if ($role eq "testnode") {
 	if ($typeinfo->virtnode_capacity(\$virtnode_capacity)) {
@@ -415,8 +416,9 @@ sub Create($$$$)
 			"*** Could not find OSinfo object for $osid!\n";
 		    return undef;
 		}
-		$osid   = $osinfo->osid();
-		$opmode = $osinfo->op_mode();
+		$osid      = $osinfo->osid();
+		$osid_vers = $adminmfs->vers();
+		$opmode    = $osinfo->op_mode();
 	    }
 	}
 	else {
@@ -436,8 +438,9 @@ sub Create($$$$)
 		    "*** Could not find OSinfo object for adminmfs!\n";
 		return undef;
 	    }
-	    $osid   = $adminmfs->osid();
-	    $opmode = $adminmfs->op_mode();
+	    $osid      = $adminmfs->osid();
+	    $osid_vers = $adminmfs->vers();
+	    $opmode    = $adminmfs->op_mode();
 	}
     }
     else {
@@ -486,7 +489,7 @@ sub Create($$$$)
 		     "  phys_nodeid='$node_id', role='$role', ".
 		     "  priority=$priority, " .
 		     "  eventstate='$state', op_mode='$opmode', " .
-		     "  def_boot_osid=$osid, " .
+		     "  def_boot_osid=$osid, def_boot_osid_vers='$osid_vers'" .
 		     "  inception=now(), uuid=$uuid, ".
 		     "  state_timestamp=unix_timestamp(NOW()), " .
 		     "  op_mode_timestamp=unix_timestamp(NOW())")) {
@@ -1687,6 +1690,7 @@ sub ClearBootAttributes($)
 		"tarballs='',failureaction='fatal', routertype='none', ".
 		"def_boot_cmd_line='',next_boot_cmd_line='', ".
 		"temp_boot_osid=NULL,next_boot_osid=NULL, ".
+		"temp_boot_osid_vers=0,next_boot_osid_vers=0, ".
 		"update_accounts=0,ipport_next=ipport_low,rtabid=0, ".
 		"sfshostid=NULL,allocstate='$allocFreeState',boot_errno=0, ".
 		"destination_x=NULL,destination_y=NULL, ".
@@ -2171,17 +2175,13 @@ sub CreateVnodes($$$)
     # table. 
     #
     my $osid = $nodetype->default_osid();
-    
-    my $query_result =
-	DBQueryWarn("select op_mode from os_info where osid='$osid'");
-    return -1
-	if (! $query_result);
-    
-    if (! $query_result->numrows) {
+    my $osinfo = OSinfo->Lookup($osid);
+    if (!defined($osinfo)) {
 	print STDERR "*** CreateVnodes: No such OSID '$osid'\n";
 	return -1;
     }
-    my ($opmode) = $query_result->fetchrow_array();
+    my ($opmode)  = $osinfo->op_mode();
+    my $osid_vers = $osinfo->vers();
 
     #
     # Need IP for jailed nodes.
@@ -2426,6 +2426,7 @@ sub CreateVnodes($$$)
 			"eventstate" => $eventstate,
 			"allocstate" => $allocstate,
 			"def_boot_osid" => $osid,
+			"def_boot_osid_vers" => $osid_vers,
 			"update_accounts" => 1,
 			"jailflag" => $isjailed);
 
@@ -2761,6 +2762,8 @@ sub SetNodeHistory($$$$)
 #
 # Set the scheduled_reloads for a node. Type is optional and defaults to
 # testbed default load type. See above.
+#
+# No image version info; we always reload the most current image. 
 #
 sub SetSchedReload($$;$)
 {
@@ -3139,13 +3142,18 @@ sub OSSelect($$$$)
     if (!defined($field)) {
 	# Clear all osids.
 	DBQueryWarn("update nodes set ".
-		    "def_boot_osid=NULL,next_boot_osid=NULL,temp_boot_osid=NULL ".
+		    "def_boot_osid=NULL,next_boot_osid=NULL,".
+		    "temp_boot_osid=NULL, ".
+		    "def_boot_osid_vers=0,next_boot_osid_vers=0,".
+		    "temp_boot_osid_vers=0 ".
 		    "where node_id='$nodeid'")
 	    or return -1;
     } else {
 	# Set/Clear the osid.
-	DBQueryWarn("update nodes set ${field}=".
-		    (defined($osinfo) ? "'" . $osinfo->osid() . "' " : "NULL ") .
+	my $osid = (defined($osinfo) ? "'" . $osinfo->osid() . "'" : "NULL");
+	my $vers = (defined($osinfo) ? "'" . $osinfo->vers() . "'" : "'0'");
+	
+	DBQueryWarn("update nodes set ${field}=$osid,${field}_vers=$vers ".
 		    "where node_id='$nodeid'")
 	    or return -1;
 
@@ -3356,13 +3364,19 @@ sub ClearOsids($) {
     DBQueryWarn("update nodes set ".
 		"  def_boot_osid=NULL,".
 		"  next_boot_osid=NULL,".
-		"  temp_boot_osid=NULL ".
+		"  temp_boot_osid=NULL, ".
+		"  def_boot_osid_vers=0,".
+		"  next_boot_osid_vers=0,".
+		"  temp_boot_osid_vers=0 ".
 		"where node_id='$node_id'")
 	or return -1;
 
     $self->{"DBROW"}{"def_boot_osid"}  = undef;
     $self->{"DBROW"}{"temp_boot_osid"} = undef;
     $self->{"DBROW"}{"next_boot_osid"} = undef;
+    $self->{"DBROW"}{"def_boot_osid_vers"}  = 0;
+    $self->{"DBROW"}{"temp_boot_osid_vers"} = 0;
+    $self->{"DBROW"}{"next_boot_osid_vers"} = 0;
     
     return 0;
 }
@@ -3404,11 +3418,13 @@ sub IsOSLoaded($$)
 	$osinfo = $tmp;
     }
     my $osid   = $osinfo->osid();
+    my $vers   = $osinfo->vers();
     my $nodeid = $self->node_id();
 
     my $query_result =
 	DBQueryWarn("select osid from partitions as p ".
-		    "where p.node_id='$nodeid' and p.osid='$osid'");
+		    "where p.node_id='$nodeid' and p.osid='$osid' and ".
+		    "      p.osid_vers='$vers'");
     return -1
 	if (!$query_result);
 
@@ -3686,9 +3702,10 @@ sub RunningOsImage($)
     my ($self)  = @_;
     my $nodeid  = $self->node_id();
     my $osid    = $self->def_boot_osid();
-    my $imageid;
+    my $vers    = $self->def_boot_osid_vers();
+    my $image;
     
-    my $osinfo = OSinfo->Lookup($osid);
+    my $osinfo = OSinfo->Lookup($osid, $vers);
     return ()
 	if (!defined($osinfo));
 
@@ -3696,19 +3713,19 @@ sub RunningOsImage($)
     # No partition entries for virtnodes, they are plain EZ images.
     #
     if ($self->isvirtnode()) {
-	$imageid = $osid;
+	# XXX No version info, need that.
+	$image = Image->Lookup($osid, $vers);
     }
     else {
 	my $query_result =
-	    DBQueryWarn("select imageid from partitions as p ".
+	    DBQueryWarn("select imageid,imageid_version from partitions as p ".
 			"where p.node_id='$nodeid' and p.osid='$osid'");
 	return ()
 	    if (!$query_result || !$query_result->numrows);
 
-	($imageid) = $query_result->fetchrow_array();
+	my ($imageid,$version) = $query_result->fetchrow_array();
+	$image = Image->Lookup($imageid, $version);	
     }
-    # This might not exist for a virtnode; caller has to deal with it.
-    my $image = Image->Lookup($imageid);
     return ($osinfo, $image);
 }
 
@@ -3839,14 +3856,14 @@ sub SyncTaintStates($)
     my $node_id = $self->node_id();
 
     my $query_result =
-	DBQueryWarn("select osid from partitions ".
+	DBQueryWarn("select osid,osid_vers from partitions ".
 		    "where node_id='$node_id' and osid is not null");
     return -1
 	if (!$query_result);
 
     my @taint_states = ();
-    while (my ($osid) = $query_result->fetchrow_array()) {
-	my $osinfo = OSinfo->Lookup($osid);
+    while (my ($osid, $vers) = $query_result->fetchrow_array()) {
+	my $osinfo = OSinfo->Lookup($osid, $vers);
 	if (defined($osinfo) && $osinfo->IsTainted()) {
 	    push @taint_states, $osinfo->GetTaintStates();
 	}

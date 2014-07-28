@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -151,7 +151,7 @@ flush();
 
 SUEXEC($uid,
        $unix_groups,
-       "webcreate_image -p $image_pid $image_name " . escapeshellarg($target),
+       "webclone_image $image_name " . escapeshellarg($target),
        SUEXEC_ACTION_DUPDIE);
 
 echo "This will take as little as 10 minutes or as much as an hour;
@@ -161,6 +161,12 @@ echo "This will take as little as 10 minutes or as much as an hour;
       the node at all!<br>\n";
 
 flush();
+
+#
+# When doing image provenance the most recent unreleased version is
+# is what we are really working on. 
+#
+$image = $image->LookupUnreleased();
 $logfile = $image->GetLogfile();
 if ($logfile) {
     STARTLOG($logfile);

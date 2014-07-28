@@ -347,7 +347,9 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-enet.pl $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/vif-route-emulab $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-tun.pl $(SYSETCDIR)/xen/scripts/
-	$(INSTALL) -m 755 $(SRCDIR)/xen/create-image $(LBINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/create-xen-image $(LBINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/../../os/create-versioned-image $(LBINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/../../os/create-image $(LBINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/mkimagecache $(BINDIR)/
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(BINDIR)/grub
 	$(INSTALL) -m 755 $(SRCDIR)/xen/pygrub $(BINDIR)/

@@ -98,6 +98,26 @@ static int INELABINELAB  = ELABINELAB;
 static int INELABINELAB  = 0;
 #endif
 
+/*
+ * An Emulab image ID string looks like:
+ *    [<pid>]<imagename>[<vers>][<meta>]
+ * where:
+ *    <pid> is the project
+ *    <imagename> is the image identifier string
+ *    <vers> is an image version number (not yet implemented)
+ *    <meta> is a string indicating that this is not the actual image,
+ *           rather it is metadata file associated with the image.
+ *           By convention, the string is the filename extension used
+ *           for the metadata file in question. Currently, the only
+ *           metadata string is 'sig' indicating that this is an image
+ *           signature file.
+ * Each of these fields has a separator character distinguishing the
+ * start of the field. These are defined here.
+ */
+#define IID_SEP_NAME '/'
+#define IID_SEP_VERS ':'
+#define IID_SEP_META ','
+
 static uint64_t	put_maxsize = 10000000000ULL;	/* zero means no limit */
 static uint32_t put_maxwait = 2000;		/* zero means no limit */
 static uint32_t put_maxiwait = 120;		/* zero means no limit */
@@ -987,6 +1007,86 @@ can_access(int imageidx, struct emulab_ha_extra_info *ei, int upload)
 }
 
 /*
+ * Parse an Emulab image ID string:
+ *
+ *    [<pid>]<imagename>[<vers>][<meta>]
+ *
+ * into its component parts. Returned components are malloced strings and
+ * need to be freed by the caller.
+ *
+ * Note that right now there are no errors. Even with a malformed string,
+ * we will return 'emulab-ops' as 'pid' and the given string as 'imagename'.
+ */
+static void
+parse_imageid(char *str, char **pidp, char **namep, char **versp, char **metap)
+{
+	char *ipid, *iname, *ivers, *imeta;
+
+	ipid = mystrdup(str);
+	iname = index(ipid, IID_SEP_NAME);
+	if (iname == NULL) {
+		iname = ipid;
+		ipid = mystrdup("emulab-ops");
+	} else {
+		*iname = '\0';
+		iname = mystrdup(iname+1);
+	}
+	ivers = index(iname, IID_SEP_VERS);
+	if (ivers) {
+		char *eptr;
+
+		/* If we can't convert to a number, consider it part of name */
+		if (strtol(ivers+1, &eptr, 10) == 0 && eptr == ivers+1) {
+			ivers = NULL;
+		} else {
+			*ivers = '\0';
+			ivers = mystrdup(ivers+1);
+		}
+	}
+	imeta = index(ivers ? ivers : iname, IID_SEP_META);
+	if (imeta != NULL) {
+		*imeta = '\0';
+		imeta = mystrdup(imeta+1);
+	}
+
+	*pidp = ipid;
+	*namep = iname;
+	*versp = ivers;
+	*metap = imeta;
+}
+
+static char *
+build_imageid(char *ipid, char *iname, char *ivers, char *imeta)
+{
+	char *iid;
+	int len;
+
+	len = strlen(ipid) + strlen(iname) + 2;
+	if (ivers)
+		len += strlen(ivers) + 1;
+	if (imeta)
+		len += strlen(imeta) + 1;
+	iid = mymalloc(len);
+	strcpy(iid, ipid);
+	len = strlen(ipid);
+	iid[len++] = IID_SEP_NAME;
+	strcpy(&iid[len], iname);
+	len += strlen(iname);
+	if (ivers) {
+		iid[len++] = IID_SEP_VERS;
+		strcpy(&iid[len], ivers);
+		len += strlen(ivers);
+	}
+	if (imeta) {
+		iid[len++] = IID_SEP_META;
+		strcpy(&iid[len], imeta);
+		len += strlen(imeta);
+	}
+
+	return iid;
+}
+
+/*
  * Find all images (imageid==NULL) or a specific image (imageid!=NULL)
  * that a particular node can access for GET/PUT.  At any time, a node is
  * associated with a specific project and group.  These determine the
@@ -1036,7 +1136,8 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 	MYSQL_ROW	row;
 	char		*node, *proxy, *role = NULL;
 	int		i, j, nrows;
-	char		*wantpid = NULL, *wantname = NULL;
+	char		*wantpid = NULL, *wantname = NULL, *wantvers = NULL;
+	char		*wantmeta = NULL;
 	struct config_host_authinfo *get = NULL, *put = NULL;
 	struct emulab_ha_extra_info *ei = NULL;
 	int		imageidx = 0, ngids, igids[2];
@@ -1307,15 +1408,8 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 	 * pid and imagename from the ID.
 	 */
 	if (imageid != NULL) {
-		wantpid = mystrdup(imageid);
-		wantname = index(wantpid, '/');
-		if (wantname == NULL) {
-			wantname = wantpid;
-			wantpid = mystrdup("emulab-ops");
-		} else {
-			*wantname = '\0';
-			wantname = mystrdup(wantname+1);
-		}
+		parse_imageid(imageid,
+			      &wantpid, &wantname, &wantvers, &wantmeta);
 		imageidx = emulab_imageid(wantpid, wantname);
 		if (imageidx == 0)
 			goto done;
@@ -1327,37 +1421,87 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 		if (imageid != NULL) {
 			/* Interested in a specific image */
 			if (can_access(imageidx, ei, 1)) {
-				res = mydb_query("SELECT pid,gid,imagename,"
-						 " path,imageid"
-						 " FROM images WHERE"
-						 " pid='%s'"
-						 " AND imagename='%s'",
-						 5, wantpid, wantname);
+				if (wantvers) {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i "
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version='%s' "
+						"WHERE i.pid='%s'"
+						" AND i.imagename='%s'",
+						6, wantvers, wantpid, wantname);
+				}
+				else {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i "
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version=i.version "
+						"WHERE i.pid='%s'"
+						" AND i.imagename='%s'",
+						6, wantpid, wantname);
+				}
 			} else {
 				/*
 				 * Pid of expt must be same as pid of image
 				 * and gid the same or image "shared".
 				 */
-				res = mydb_query("SELECT pid,gid,imagename,"
-						 "path,imageid"
-						 " FROM images WHERE"
-						 " pid='%s' AND imagename='%s'"
-						 " AND pid='%s'"
-						 " AND (gid='%s' OR"
-						 "    (gid=pid AND shared=1))",
-						 5, wantpid, wantname,
-						 ei->pid, ei->gid);
+				if (wantvers) {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i"
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version='%s' "
+						" WHERE i.pid='%s' "
+						" AND i.imagename='%s' "
+						" AND i.pid='%s'"
+						" AND (i.gid='%s' OR"
+						"    (i.gid=i.pid AND "
+						"     v.shared=1))",
+						6, wantvers, wantpid, wantname,
+						ei->pid, ei->gid);
+				}
+				else {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i"
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version=i.version "
+						" WHERE i.pid='%s' "
+						" AND i.imagename='%s'"
+						" AND i.pid='%s'"
+						" AND (i.gid='%s' OR"
+						"    (i.gid=i.pid AND "
+						"     v.shared=1))",
+						6, wantpid, wantname,
+						ei->pid, ei->gid);
+				}
 			}
 		} else {
 			/* Find all images that this pid/gid can PUT */
-			res = mydb_query("SELECT pid,gid,imagename,"
-					 "path,imageid"
-					 " FROM images"
-					 " WHERE pid='%s'"
-					 " AND (gid='%s' OR"
-					 "     (gid=pid AND shared=1))"
-					 " ORDER BY pid,gid,imagename",
-					 5, ei->pid, ei->gid);
+			res = mydb_query("SELECT i.pid,i.gid,i.imagename,"
+					 "v.path,i.imageid,v.version"
+					 " FROM images as i"
+					 " LEFT JOIN image_versions as v on "
+					 "    v.imageid=i.imageid and "
+					 "    v.version=i.version "
+					 " WHERE i.pid='%s'"
+					 " AND (i.gid='%s' OR"
+					 "     (i.gid=i.pid AND v.shared=1))"
+					 " ORDER BY i.pid,i.gid,i.imagename",
+					 6, ei->pid, ei->gid);
 		}
 		assert(res != NULL);
 
@@ -1381,7 +1525,8 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 			    !row[1] || !row[1][0] ||
 			    !row[2] || !row[2][0] ||
 			    !row[3] || !row[3][0] ||
-			    !row[4] || !row[4][0])
+			    !row[4] || !row[4][0] ||
+			    !row[5] || !row[5][0])
 				continue;
 
 			/*
@@ -1402,15 +1547,19 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 				continue;
 			}
 
-			iid = mymalloc(strlen(row[0]) + strlen(row[2]) + 2);
-			strcpy(iid, row[0]);
-			strcat(iid, "/");
-			strcat(iid, row[2]);
+			iid = build_imageid(row[0], row[2], row[5], wantmeta);
 			ci = &put->imageinfo[put->numimages];
 			ci->imageid = iid;
 			ci->dir = NULL;
-			ci->path = mystrdup(row[3]);
-			ci->flags = CONFIG_PATH_ISFILE;
+			if (wantmeta && strcmp(wantmeta, "sig") == 0) {
+				ci->path = mymalloc(strlen(row[3]) + 4);
+				strcpy(ci->path, row[3]);
+				strcat(ci->path, ".sig");
+				ci->flags = CONFIG_PATH_ISSIGFILE;
+			} else {
+				ci->path = mystrdup(row[3]);
+				ci->flags = CONFIG_PATH_ISFILE;
+			}
 			if (stat(ci->path, &sb) == 0) {
 				ci->flags |= CONFIG_PATH_EXISTS;
 				ci->sig = mymalloc(sizeof(time_t));
@@ -1455,35 +1604,88 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 		if (imageid != NULL) {
 			/* Interested in a specific image */
 			if (can_access(imageidx, ei, 0)) {
-				res = mydb_query("SELECT pid,gid,imagename,"
-						 "path,imageid"
-						 " FROM images WHERE"
-						 " pid='%s'"
-						 " AND imagename='%s'",
-						 5, wantpid, wantname);
+				if (wantvers) {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i "
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version='%s' "
+						"WHERE i.pid='%s'"
+						" AND i.imagename='%s' and "
+						" AND v.ready=1",
+						6, wantvers, wantpid, wantname);
+				}
+				else {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i "
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version=i.version "
+						"WHERE i.pid='%s'"
+						" AND i.imagename='%s'",
+						6, wantpid, wantname);
+				}
 			} else {
-				res = mydb_query("SELECT pid,gid,imagename,"
-						 "path,imageid"
-						 " FROM images WHERE"
-						 " pid='%s' AND imagename='%s'"
-						 " AND (global=1"
-						 "     OR (pid='%s'"
-						 "        AND (gid='%s'"
-						 "            OR shared=1)))"
-						 " ORDER BY pid,gid,imagename",
-						 5, wantpid, wantname,
-						 ei->pid, ei->gid);
+				if (wantvers) {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i"
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version='%s' "
+						" WHERE i.pid='%s' "
+						" AND i.imagename='%s' "
+						" AND v.ready=1 " 
+						" AND (v.global=1"
+						"     OR (i.pid='%s'"
+						"        AND (i.gid='%s'"
+						"            OR v.shared=1)))"
+						" ORDER BY pid,gid,imagename",
+						6, wantvers, wantpid, wantname,
+						ei->pid, ei->gid);
+				}
+				else {
+					res = mydb_query("SELECT i.pid,i.gid,"
+						"i.imagename,v.path,"
+						"i.imageid,v.version"
+						" FROM images as i"
+						" LEFT JOIN image_versions "
+						"  as v on "
+						"    v.imageid=i.imageid and "
+						"    v.version=i.version "
+						" WHERE i.pid='%s' "
+						" AND i.imagename='%s'"
+						" AND (v.global=1"
+						"     OR (i.pid='%s'"
+						"        AND (i.gid='%s'"
+						"            OR v.shared=1)))"
+						" ORDER BY pid,gid,imagename",
+						6, wantpid, wantname,
+						ei->pid, ei->gid);
+				}
 			}
 		} else {
 			/* Find all images that this pid/gid can GET */
-			res = mydb_query("SELECT pid,gid,imagename,"
-					 "path,imageid"
-					 " FROM images WHERE"
-					 "  (global=1"
-					 "  OR (pid='%s'"
-					 "     AND (gid='%s' OR shared=1)))"
-					 " ORDER BY pid,gid,imagename",
-					 5, ei->pid, ei->gid);
+			res = mydb_query("SELECT i.pid,i.gid,i.imagename,"
+					 "v.path,i.imageid,v.version"
+					 " FROM images as i"
+					 " LEFT JOIN image_versions as v on "
+					 "    v.imageid=i.imageid and "
+					 "    v.version=i.version "
+					 " WHERE"
+					 "  (v.global=1"
+					 "  OR (i.pid='%s'"
+					 "     AND (i.gid='%s' OR v.shared=1)))"
+					 " ORDER BY i.pid,i.gid,i.imagename",
+					 6, ei->pid, ei->gid);
 		}
 		assert(res != NULL);
 
@@ -1507,17 +1709,23 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 			    !row[1] || !row[1][0] ||
 			    !row[2] || !row[2][0] ||
 			    !row[3] || !row[3][0] ||
-			    !row[4] || !row[4][0])
+			    !row[4] || !row[4][0] ||
+			    !row[5] || !row[5][0])
 				continue;
-			iid = mymalloc(strlen(row[0]) + strlen(row[2]) + 2);
-			strcpy(iid, row[0]);
-			strcat(iid, "/");
-			strcat(iid, row[2]);
+
+			iid = build_imageid(row[0], row[2], row[5], wantmeta);
 			ci = &get->imageinfo[get->numimages];
 			ci->imageid = iid;
 			ci->dir = NULL;
-			ci->path = mystrdup(row[3]);
-			ci->flags = CONFIG_PATH_ISFILE;
+			if (wantmeta && strcmp(wantmeta, "sig") == 0) {
+				ci->path = mymalloc(strlen(row[3]) + 4);
+				strcpy(ci->path, row[3]);
+				strcat(ci->path, ".sig");
+				ci->flags = CONFIG_PATH_ISSIGFILE;
+			} else {
+				ci->path = mystrdup(row[3]);
+				ci->flags = CONFIG_PATH_ISFILE;
+			}
 			if (stat(ci->path, &sb) == 0) {
 				ci->flags |= CONFIG_PATH_EXISTS;
 				ci->sig = mymalloc(sizeof(time_t));
@@ -1568,6 +1776,10 @@ emulab_get_host_authinfo(struct in_addr *req, struct in_addr *host,
 		free(wantpid);
 	if (wantname)
 		free(wantname);
+	if (wantvers)
+		free(wantvers);
+	if (wantmeta)
+		free(wantmeta);
 	if (getp) *getp = get;
 	if (putp) *putp = put;
 	return 0;
@@ -1629,10 +1841,14 @@ dump_image_aliases(FILE *fd)
 	char		*lastpid;
 
 	/* First the global image alias */
-	res = mydb_query("SELECT pid,imagename"
-			 " FROM images"
-			 " WHERE global=1"
-			 " ORDER BY pid,imagename", 2);
+	res = mydb_query("SELECT i.pid,i.imagename"
+			 " FROM images as i"
+			 " LEFT JOIN image_versions "
+			 "  as v on "
+			 "    v.imageid=i.imageid and "
+			 "    v.version=i.version "
+			 " WHERE v.global=1"
+			 " ORDER BY i.pid,i.imagename", 2);
 	assert(res != NULL);
 
 	nrows = mysql_num_rows(res);
@@ -1681,10 +1897,14 @@ dump_image_aliases(FILE *fd)
 			free(lastpid);
 			lastpid = mystrdup(row[0]);
 
-			res2 = mydb_query("SELECT imagename"
-					  " FROM images"
-					  " WHERE pid='%s' AND shared=1"
-					  " ORDER BY imagename",
+			res2 = mydb_query("SELECT i.imagename"
+					  " FROM images as i"
+					  " LEFT JOIN image_versions "
+					  "  as v on "
+					  "    v.imageid=i.imageid and "
+					  "    v.version=i.version "
+					  " WHERE i.pid='%s' AND v.shared=1"
+					  " ORDER BY i.imagename",
 					  1, lastpid);
 			assert(res2 != NULL);
 
@@ -1734,17 +1954,110 @@ emulab_canonicalize_imageid(char *path)
 {
 	MYSQL_RES *res;
 	MYSQL_ROW row;
-	char *iid = NULL;
+	char *iid = NULL, *ipath = NULL;
+	int len;
 
-	res = mydb_query("SELECT CONCAT(pid,'/',imagename) FROM images"
-			 " WHERE path='%s'", 1, path);
-	if (res != NULL) {
-		if (mysql_num_rows(res) > 0) {
-			row = mysql_fetch_row(res);
-			if (row[0])
-				iid = strdup(row[0]);
+	/*
+	 * The only non-path (imageid) conversion we do right now is
+	 * to make sure we have a version number. If no version was specified
+	 * it means "the most recent" version and we look that up here.
+	 */
+	if (path[0] != '/') {
+		char *ipid, *iname, *ivers, *imeta;
+
+		parse_imageid(path, &ipid, &iname, &ivers, &imeta);
+		assert(ipid != NULL);
+		assert(iname != NULL);
+
+		if (ivers == NULL) {
+			res = mydb_query("SELECT i.version FROM "
+					 "  images AS i, image_versions AS v "
+					 "WHERE i.imageid=v.imageid "
+					 "  AND i.version=v.version "
+					 "  AND i.pid='%s' "
+					 "  AND i.imagename='%s' "
+					 "  AND v.deleted IS NULL",
+					 1, ipid, iname);
+			if (res) {
+				if (mysql_num_rows(res)) {
+					row = mysql_fetch_row(res);
+					if (row[0])
+						ivers = mystrdup(row[0]);
+				}
+				mysql_free_result(res);
+			}
 		}
+
+		iid = build_imageid(ipid, iname, ivers, imeta);
+		free(ipid);
+		free(iname);
+		if (ivers)
+			free(ivers);
+		if (imeta)
+			free(imeta);
+
+		return iid;
+	}
+
+	/*
+	 * We have a path.
+	 * First see if it might be a sigfile and strip off the ".sig"
+	 * so we can lookup the image name.
+	 */
+	len = strlen(path);
+	if (len > 4 && strcmp(path+len-4, ".sig") == 0) {
+		ipath = mystrdup(path);
+		ipath[len-4] = '\0';
+	}
+
+	/*
+	 * Try to do everything is one swell foop.
+	 * Look up the path in image_versions, returning the version number
+	 * and a string composed of <pid>/<imagename>:<version>.
+	 */
+	res = mydb_query("SELECT CONCAT(pid,'%c',imagename,'%c',version) "
+			 "FROM image_versions"
+			 "  WHERE deleted IS NULL AND path='%s'",
+			 1, IID_SEP_NAME, IID_SEP_VERS, ipath ? ipath : path);
+	if (res == NULL) {
+		if (ipath)
+			free(ipath);
+		return NULL;
+	}
+	if (mysql_num_rows(res) == 0) {
 		mysql_free_result(res);
+		if (ipath)
+			free(ipath);
+		return NULL;
+	}
+
+	/* XXX if rows > 1, we just return info from the first */
+	row = mysql_fetch_row(res);
+	if (row[0] == NULL) {
+		mysql_free_result(res);
+		if (ipath)
+			free(ipath);
+		return NULL;
+	}
+	iid = mystrdup(row[0]);
+	mysql_free_result(res);
+ 
+	/*
+	 * Tack on ",sig" to indicate that we want the signature for the
+	 * indicated image.
+	 */
+	if (ipath != NULL) {
+		if (iid != NULL) {
+			char *niid;
+			len = strlen(iid);
+			niid = mymalloc(len + 4);
+			strcpy(niid, iid);
+			niid[len++] = IID_SEP_META;
+			strcpy(&niid[len], "sig");
+			free(iid);
+			iid = niid;
+		}
+		free(ipath);
 	}
 
 	return iid;

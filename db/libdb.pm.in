@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -464,13 +464,19 @@ sub TBBootWhat($;$)
     # ALWAYS find exactly the same resulting OSID given the same inputs.
     #
     my $query_result =
-	DBQueryWarn("select def_boot_osid, odef.op_mode, ".
-		    "       temp_boot_osid, otemp.op_mode, ".
-		    "       next_boot_osid, onext.op_mode ".
+	DBQueryWarn("select def_boot_osid, vdef.op_mode, ".
+		    "       temp_boot_osid, vtemp.op_mode, ".
+		    "       next_boot_osid, vnext.op_mode ".
 		    "from nodes as n ".
 		    "left join os_info as odef  on odef.osid=def_boot_osid ".
+		    "left join os_info_versions as vdef on ".
+		    "     vdef.osid=odef.osid and vdef.vers=odef.version ".
 		    "left join os_info as otemp on otemp.osid=temp_boot_osid ".
+		    "left join os_info_versions as vtemp on ".
+		    "     vtemp.osid=otemp.osid and vtemp.vers=otemp.version ".
 		    "left join os_info as onext on onext.osid=next_boot_osid ".
+		    "left join os_info_versions as vnext on ".
+		    "     vnext.osid=onext.osid and vnext.vers=onext.version ".
 		    "where node_id='$node'");
 
     if (!$query_result || !$query_result->numrows) {
@@ -581,28 +587,6 @@ sub DefaultImageID ($$) {
 	return 0;
     }
     return 1;
-}
-
-#
-# Convert user pid/name to internal imageid.
-#
-# usage: TBImageID(char *pid, char *imagename)
-#        returns imageid if its valid.
-#        returns 0 if not valid.
-#
-sub TBImageID ($$) {
-    my($pid, $imagename) = @_;
-
-    my $query_result =
-	DBQueryFatal("select imageid from images ".
-		     "where pid='$pid' and imagename='$imagename'");
-
-    if (! $query_result->num_rows) {
-	return 0;
-    }
-
-    my @row = $query_result->fetchrow_array();
-    return $row[0];
 }
 
 #
@@ -770,8 +754,12 @@ sub TBImageLoadMaxOkay($$;@)
     my($imageid,$node_count,@nodes) = @_;
 
 
-    my $query_result = DBQueryFatal("select part1_osid, part2_osid, " .
-	"part3_osid, part4_osid from images where imageid='$imageid'");
+    my $query_result =
+	DBQueryFatal("select v.part1_osid, v.part2_osid, " .
+		     "  v.part3_osid, v.part4_osid from images as i ".
+		     "left join image_versions as v on ".
+		     "     v.imageid=i.imageid and v.version=i.version ".
+		     "where i.imageid='$imageid'");
 
     if ($query_result->num_rows() != 1) {
 	#
@@ -2408,17 +2396,17 @@ sub MapNumericUID($)
 sub MapNodeOSID($$)
 {
     my ($node, $osid) = @_;
+    require OSinfo;
 
     #
     # See if this OSID is actually loaded on the machine.
     #
     my $p_result =
-	DBQueryWarn("select * from partitions ".
+	DBQueryWarn("select osid_vers from partitions ".
 		    "where node_id='$node' and osid='$osid'");
     if (!$p_result) {
 	return 0;
     }
-
     if ($p_result->numrows) {
 	return $osid;
     }
@@ -2426,39 +2414,35 @@ sub MapNodeOSID($$)
     #
     # Get OSID info.
     #
-    my $osid_result =
-	DBQueryWarn("select * from os_info where osid='$osid'");
-
-    if (!$osid_result || $osid_result->numrows == 0) {
-	return 0;
-    }
-    my %osid_row   = $osid_result->fetchhash();
+    my ($vers) = $p_result->fetchrow_array();
+    my $osinfo = OSinfo->Lookup($osid, $vers);
+    return 0
+	if (!defined($osinfo));
 
     #
     # If its a specific Version, and its not loaded on the machine,
     # nothing to do.
     #
-    if (defined($osid_row{'version'}) && $osid_row{'version'} ne "") {
-	return 0;
-    }
+    return 0
+	if (defined($osinfo->version()) && $osinfo->version() ne "");
 
     #
     # Try to map from a generic name to the specific name of the OS
     # that *is* loaded.
     #
     my $o_result =
-	DBQueryWarn("select o1.* from partitions as p ".
-		    "left join os_info as o1 on o1.osid=p.osid ".
-		    "left join os_info as o2 on o2.OS=o1.OS ".
-		    "where p.node_id='$node' and o2.osid='$osid'");
+	DBQueryWarn("select ov1.osid from partitions as p ".
+		    "left join os_info_versions as ov1 on ".
+		    "   ov1.osid=p.osid and ov1.vers=p.osid_vers and ".
+		    "   ov1.deleted is null ".
+		    "left join os_info_versions as ov2 on ".
+		    "   ov2.OS=ov1.OS and ov2.deleted is null ".
+		    "where p.node_id='$node' and ov2.osid='$osid'");
 
     if (!$o_result || $o_result->numrows == 0) {
 	return 0;
     }
-
-    my %o_row  = $o_result->fetchhash();
-    my $n_osid = $o_row{'osid'};
-
+    my ($n_osid) = $o_result->fetchrow_array();
     return $n_osid;
 }
 

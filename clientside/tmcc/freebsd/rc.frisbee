@@ -57,6 +57,26 @@ if [ -e $ETCDIR/isrem ]; then
 fi
 
 #
+# Extract a variable of interest from the VAR=VALUE string and return value.
+# If variable does not exist, return the given default (if provided).
+#
+getvar() {
+    _VAR=$1
+    _STR=$2
+    _DFL=$3
+
+    for _kv in $_STR; do
+	_k=${_kv%%=*}
+	if [ -n "$_k" -a "$_k" = "$_VAR" ]; then
+	    echo "${_kv##*=}"
+	    return 0
+	fi
+    done
+    echo "$_DFL"
+    return 0
+}
+
+#
 # Update the MBR of the given disk to the indicated "version."
 #
 # XXX this is somewhat of a hack right now.  We recognize two
@@ -168,74 +188,22 @@ zapsuperblocks() {
 # Function to load a single image on a disk
 #
 loadone() {
-    _LOADINFO=$1
-    _NUM=$2
+    _DISK=$1
+    _PART=$2
+    _LOADINFO=$3
+    _NUM=$4
 
     echo "Loading image #$_NUM"
 
-    # Parse dem args
-    ADDR=""
-    SERVER=""
-    PART=""
-    PARTOS=""
-    DISK=""
-    BIOSDISK=""
-    ZFILL=""
-    ACPI=""
-    ASF=""
-    NOCLFLUSH=""
-    MBRVERS=""
-    PREPARE=""
-    VGAONLY=""
-    IMAGEID=""
-    KEEPALIVE=""
-    CONSOLE=""
-    DOM0MEM=""
-
-    for parm in $_LOADINFO; do
-        case $parm in
-	ADDR=*|\
-	PART=*|\
-	PARTOS=*|\
-	SERVER=*|\
-	DISK=*|\
-	BIOSDISK=*|\
-	ZFILL=*|\
-	ACPI=*|\
-	NOCLFLUSH=*|\
-	MBRVERS=*|\
-	ASF=*|\
-	PREPARE=*|\
-	VGAONLY=*|\
-        IMAGEID=*|\
-        KEEPALIVE=*|\
-        DOM0MEM=*|\
-        OSVERSION=*|\
-	CONSOLE=*)
-	    # XXX need to parse better, eval is dangerous!
-	    eval $parm
-	    ;;
-        *)
-	    echo "WARNING: bad loadinfo parameter \"$parm\" ignored"
-	    ;;
-	esac
-    done
-
-    #
-    # Assign defaults where needed.
-    #
-    SERVER=${SERVER:-$BOSSIP}
-    PART=${PART:-'0'}
-    PARTOS=${PARTOS:-'unknown'}
-    DISK=${DISK:-'ad0'}
-    ZFILL=${ZFILL:-'0'}
-    ACPI=${ACPI:-'unknown'}
-    ASF=${ASF:-'unknown'}
-    NOCLFLUSH=${NOCLFLUSH:-'unknown'}
-    VGAONLY=${VGAONLY:-'unknown'}
-    MBRVERS=${MBRVERS:-'1'}
-    PREPARE=${PREPARE:-'0'}
-    CONSOLE=${CONSOLE:-'unknown'}
+    ADDR=`getvar ADDR "$_LOADINFO"`;
+    SERVER=`getvar SERVER "$_LOADINFO" $BOSSIP`;
+    PARTOS=`getvar PARTOS "$_LOADINFO" unknown`;
+    ZFILL=`getvar ZFILL "$_LOADINFO" 0`;
+    MBRVERS=`getvar MBRVERS "$_LOADINFO" 1`;
+    PREPARE=`getvar PREPARE "$_LOADINFO" 0`;
+    IMAGEID=`getvar IMAGEID "$_LOADINFO"`;
+    KEEPALIVE=`getvar KEEPALIVE "$_LOADINFO"`;
+    OSVERSION=`getvar OSVERSION "$_LOADINFO" 0`;
 
     #
     # XXX If KEEPALIVE is not explicitly set, attempt to intuit a value.
@@ -249,7 +217,7 @@ loadone() {
     #
     if [ -z "$KEEPALIVE" ]; then
 	igmpversion=`sysctl -n net.inet.igmp.default_version 2>/dev/null`
-	if [ "$igmpversion"x != "x" ]; then
+	if [ -n "$igmpversion" ]; then
 	    echo "WARNING: possible IGMP issues; using frisbee keep alive timer"
 	    KEEPALIVE=30
 	else
@@ -260,13 +228,13 @@ loadone() {
     #
     # One of ADDR or IMAGEID must be set.
     #
-    if [ x"$IMAGEID" != x ]; then
+    if [ -n "$IMAGEID" ]; then
         ADDR=""
     	# IMAGEID=pid,gid,imagename
 	pid=`echo $IMAGEID | awk -F, '{ printf $1 }'`
 	name=`echo $IMAGEID | awk -F, '{ printf $3 }'`
 	IMAGEID="$pid/$name"
-    elif [ x"$ADDR" = x ]; then
+    elif [ -z "$ADDR" ]; then
 	echo "Unable to get imageid or address for loading image"
 	return 1
     fi
@@ -508,23 +476,33 @@ loadone() {
 
     case $fstat in
     0)
-	echo "`date`: Adjusting slice-related files"
-	export SLICEFIX_ACPI=$ACPI
-	export SLICEFIX_ASF=$ASF
-	export SLICEFIX_NOCLFLUSH=$NOCLFLUSH
-	export SLICEFIX_VGAONLY=$VGAONLY
-	export SLICEFIX_CONSOLE=$CONSOLE
-	export SLICEFIX_BIOSDISK=$BIOSDISK
-	export SLICEFIX_DOM0MEM=$DOM0MEM
-	$BINDIR/slicefix $PART $DISK
-	echo "`date`: Image #$_NUM load complete"
-	return 0
 	;;
     *)
 	echo "Frisbee run failed, status $fstat"
 	;;
     esac
-    return 1
+    return $fstat
+}
+
+#
+# Run slicefix on the indicated partition
+#
+fixone() {
+    DISK=$1
+    PART=$2
+    iline=$3
+
+    echo "`date`: Adjusting slice-related files on $DISK slice $PART"
+
+    export SLICEFIX_ACPI=`getvar ACPI "$iline" unknown`
+    export SLICEFIX_ASF=`getvar ASF "$iline" unknown`
+    export SLICEFIX_NOCLFLUSH=`getvar NOCLFLUSH "$iline" unknown`
+    export SLICEFIX_VGAONLY=`getvar VGAONLY "$iline" unknown`
+    export SLICEFIX_CONSOLE=`getvar CONSOLE "$iline" unknown`
+    export SLICEFIX_BIOSDISK=`getvar BIOSDISK "$iline"`
+    export SLICEFIX_DOM0MEM=`getvar DOM0MEM "$iline" unknown`
+    $BINDIR/slicefix $PART $DISK
+    return $?
 }
 
 $BINDIR/tmcc state RELOADSETUP
@@ -557,7 +535,7 @@ IFS='
 '
 set -- `$BINDIR/tmcc loadinfo`
 IFS="$OIFS"
-if [ "$1"x = x ]; then
+if [ -z "$1" ]; then
     echo "No load information for node"
     exit 1
 fi
@@ -602,15 +580,51 @@ esac
 # the rc script as desired by the caller.
 #
 NUM=0
-while [ "$1"x != x ]; do
-    loadone "$1" $NUM || {
+devs=""
+while [ -n "$1" ]; do
+    iline=$1
+
+    #
+    # Remember the info for this partition line so we can run slicefix later.
+    # Yes, we can load the same partition multiple times due to our delta
+    # image mechanism.
+    #
+    # Note that we always overwrite the saved info so we wind up with the
+    # info for the last image loaded on the slice. Thus we assume that the
+    # last image loaded has the right info. Probably this will never matter
+    # as delta images should always have the same attributes as the full
+    # image loaded.
+    #
+    DISK=`getvar DISK "$iline" ad0`
+    PART=`getvar PART "$iline" 0`
+    dev="${DISK}_${PART}"
+    devs="$devs $dev"
+    eval ${dev}_info=\"$iline\"
+
+    loadone $DISK $PART "$iline" $NUM || {
 	echo "`date`: Failed to load disk, dropping to login prompt"
         exit 1
     }
-    shift
+    echo "`date`: Image #$_NUM load complete"
     NUM=`expr $NUM + 1`
+    shift
 done
 echo "`date`: Frisbee run(s) finished"
+
+echo "`date`: Running slicefix"
+for dev in $devs; do
+    DISK=${dev%%_*}
+    PART=${dev##*_}
+    eval iline=\$${dev}_info
+    if [ -n "$iline" ]; then
+	fixone $DISK $PART "$iline" || {
+	    echo "`date`: WARNING: slicefix on $DISK slice $PART failed"
+	}
+	# whack the info so we don't slicefix again
+	eval ${dev}_info=\"\"
+    fi
+done
+echo "`date`: slicefix run(s) done"
 
 echo "`date`: Resizing final disk partition"
 $BINDIR/growdisk -vW /dev/$DISK

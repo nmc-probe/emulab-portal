@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -61,14 +61,14 @@ if (isset($searchfor) && isset($searchby)) {
 	$tokens = array();
 	
 	foreach (preg_split("/,/", $searchfor) as $feature) {
-	    $tokens[] = "find_in_set('$feature',osfeatures)";
+	    $tokens[] = "find_in_set('$feature',ov.osfeatures)";
 	}
 	$extraclause = join(" or ", $tokens);
 	$extraclause = "and ($extraclause)";
     }
     elseif ($searchby == "namedesc") {
 	$safe_searchfor = addslashes($searchfor);
-	$extraclause = "and (match (i.imagename,i.description) ".
+	$extraclause = "and (match (i.imagename,iv.description) ".
 	    "against('$safe_searchfor'))";
     }
 }
@@ -78,8 +78,11 @@ else {
 }
 
 $query =
-    "select distinct i.* from images as i ".
-    "left join os_info as o on i.imageid=o.osid ".
+    "select distinct iv.* from images as i ".
+    "left join image_versions as iv on ".
+    "          iv.imageid=i.imageid and iv.version=i.version ".
+    "left join os_info_versions as ov on ".
+    "          i.imageid=ov.osid and ov.vers=i.version ".
     "left join osidtoimageid as map on map.osid=i.imageid ";
 
 #
@@ -106,27 +109,27 @@ if (!$isadmin) {
 	"     g.uid_idx='$uid_idx' and  ".
 	"     (g.pid_idx=i.pid_idx or ".
 	"      g.gid_idx=p1.permission_idx) ".
-	"where (i.global or p2.imageid is not null or g.uid_idx is not null) ";
+	"where (iv.global or p2.imageid is not null or g.uid_idx is not null) ";
 }
 else {
     $query .= "where 1 ";
 }
 
 $query .=
-    "and i.ezid = 1 $extraclause ".
+    "and iv.ezid = 1 $extraclause ".
     "order by i.imagename";
 
 $query_result = DBQueryFatal($query);
 
 SUBPAGESTART();
 SUBMENUSTART("More Options");
-WRITESUBMENUBUTTON("Create an Image Descriptor",
-		   "newimageid_ez.php3");
 WRITESUBMENUBUTTON("Import an Amazon EC2 Instance Image",
 		   "newimageid_ez.php3?ec2=1");
 WRITESUBMENUBUTTON("More info on Images",
 		   "$WIKIDOCURL/Tutorial#CustomOS");
 if ($isadmin) {
+    WRITESUBMENUBUTTON("Create an Image Descriptor",
+		       "newimageid_ez.php3");
     WRITESUBMENUBUTTON("Create an OS Descriptor",
 		       "newosid.php3");
     WRITESUBMENUBUTTON("OS Descriptor list",

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,12 +33,31 @@ class Image
     #
     # Constructor by lookup on unique ID
     #
-    function Image($id) {
+    function Image($id, $version = NULL) {
+	if (is_null($version)) {
+	    list($id,$version) = preg_split('/:/', $id);
+	}
 	$safe_id = addslashes($id);
 
-	$query_result =
-	    DBQueryWarn("select * from images ".
-			"where imageid='$safe_id'");
+	if (is_null($version)) {
+	    $query_result =
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+			    "  from images as i ".
+			    "left join image_versions as v on ".
+			    "     v.imageid=i.imageid and v.version=i.version ".
+			    "where i.imageid='$safe_id'");
+	}
+	else {
+	    # This will get deleted images, but that is okay.
+	    $safe_version = addslashes($version);
+	    $query_result =
+	        DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+			    "  from image_versions as v ".
+			    "left join images as i on ".
+			    "     i.imageid=v.imageid ".
+			    "where v.imageid='$safe_id' and ".
+			    "      v.version='$safe_version'");
+	}
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->image = NULL;
@@ -71,8 +90,8 @@ class Image
     }
 
     # Lookup by imageid
-    function Lookup($id) {
-	$foo = new Image($id);
+    function Lookup($id, $version = NULL) {
+	$foo = new Image($id,$version);
 
 	if (! $foo->IsValid())
 	    return null;
@@ -96,18 +115,51 @@ class Image
 	return Image::Lookup($row["imageid"]);
     }
 
+    # Look for most recent unreleased version.
+    function LookupUnreleased() {
+	global $DOPROVENANCE;
+	if (!$DOPROVENANCE) {
+	    return $this;
+	}
+	$imageid   = $this->imageid();
+	
+	$query_result =
+	    DBQueryFatal("select version from image_versions ".
+			 "where imageid='$imageid' and released=0 and ".
+			 "      deleted is null ".
+			 "order by version desc limit 1");
+
+	# If no unreleased version, just return $this. Might mean that
+	# provenance is not turned on for the project cause of a feature.
+	if (mysql_num_rows($query_result) == 0) {
+	    return $this;
+	}
+	$row = mysql_fetch_array($query_result);
+	return Image::Lookup($imageid, $row["version"]);
+    }
+
     function LookupByUUID($uuid) {
 	$safe_uuid = addslashes($uuid);
 
+	#
+	# First look to see if the uuid is for the image itself,
+	# which means current version. Otherwise look for a
+	# version with the uuid.
+	#
 	$query_result =
-	    DBQueryFatal("select imageid from images ".
-			 "where uuid='$safe_uuid'");
-
+	    DBQueryFatal("select i.imageid,i.version from images as i ".
+			 "where i.uuid='$safe_uuid'");
+	if (mysql_num_rows($query_result) == 0) {
+	    $query_result =
+		DBQueryWarn("select imageid,version from image_versions ".
+			    "where uuid='$safe_uuid' and ".
+			    "      v.deleted is null");
+	}
 	if (mysql_num_rows($query_result) == 0) {
 	    return null;
 	}
 	$row = mysql_fetch_array($query_result);
-	return Image::Lookup($row["imageid"]);
+	return Image::Lookup($row["imageid"], $row["version"]);
     }
     
     #
@@ -118,9 +170,11 @@ class Image
 	    return -1;
 
 	$imageid = $this->imageid();
-
+	$version = $this->version();
+	
 	$query_result =
-	    DBQueryWarn("select * from images where imageid='$imageid'");
+	    DBQueryWarn("select * from image_versions ".
+			"where imageid='$imageid' and version='$version'");
     
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    $this->imageid = NULL;
@@ -148,7 +202,8 @@ class Image
     #
     # Class function to create a new image descriptor.
     #
-    function NewImageId($ez, $imagename, $args, &$errors) {
+    function NewImageId($ez, $imagename, $args, $creator, $group,
+			$target, &$errors) {
 	global $suexec_output, $suexec_output_array;
 
         #
@@ -178,9 +233,12 @@ class Image
 	fwrite($fp, "</image>\n");
 	fclose($fp);
 	chmod($xmlname, 0666);
+	$opt = ($target ? "-t " . escapeshellarg($target) : "");
 
 	$script = "webnewimageid" . ($ez ? "_ez" : "");
-	$retval = SUEXEC("nobody", "nobody", "$script $xmlname",
+	$retval = SUEXEC($creator->uid(),
+			 $group->pid() . "," . $group->unix_gid(),
+			 "$script $opt $xmlname",
 			 SUEXEC_ACTION_IGNORE);
 
 	if ($retval) {
@@ -238,16 +296,17 @@ class Image
     # Also, if an EZ image, flip the bit on the os_info entry too.
     #
     function SetGlobal($mode) {
-	$id       = $this->imageid();
+	$imageid  = $this->imageid();
+	$version  = $this->version();
 	$mode     = ($mode ? 1 : 0);
 	$extra    = ($mode ? ",shared=0" : "");
 
-	DBQueryFatal("update images set global='$mode' $extra ".
-		     "where imageid='$id'");
+	DBQueryFatal("update image_versions set global='$mode' $extra ".
+		     "where imageid='$imageid' and version='$version'");
 
 	if ($this->ezid()) {
-	    DBQueryFatal("update os_info set shared='$mode' ".
-			 "where osid='$id'");
+	    DBQueryFatal("update os_info_versions set shared='$mode' ".
+			 "where osid='$imageid' and vers='$version'");
 	}
 	return 0;
     }
@@ -333,16 +392,21 @@ class Image
 	return (is_null($this->image) ? -1 : $this->image[$name]);
     }
     function imagename()	{ return $this->field("imagename"); }
+    function version()		{ return $this->field("version"); }
     function pid()		{ return $this->field("pid"); }
     function gid()		{ return $this->field("gid"); }
     function pid_idx()		{ return $this->field("pid_idx"); }
     function gid_idx()		{ return $this->field("gid_idx"); }
     function imageid()		{ return $this->field("imageid"); }
+    function parent_imageid()	{ return $this->field("parent_imageid"); }
+    function parent_version()	{ return $this->field("parent_version"); }
+    function image_uuid()	{ return $this->field("image_uuid"); }
     function uuid()		{ return $this->field("uuid"); }
     function creator()		{ return $this->field("creator"); }
     function creator_idx()	{ return $this->field("creator_idx"); }
     function creator_urn()	{ return $this->field("creator_urn"); }
     function created()		{ return $this->field("created"); }
+    function deleted()		{ return $this->field("deleted"); }
     function description()	{ return $this->field("description"); }
     function loadpart()		{ return $this->field("loadpart"); }
     function loadlength()	{ return $this->field("loadlength"); }
@@ -350,7 +414,12 @@ class Image
     function part2_osid()	{ return $this->field("part2_osid"); }
     function part3_osid()	{ return $this->field("part3_osid"); }
     function part4_osid()	{ return $this->field("part4_osid"); }
+    function part1_vers()	{ return $this->field("part1_vers"); }
+    function part2_vers()	{ return $this->field("part2_vers"); }
+    function part3_vers()	{ return $this->field("part3_vers"); }
+    function part4_vers()	{ return $this->field("part4_vers"); }
     function default_osid()	{ return $this->field("default_osid"); }
+    function default_vers()	{ return $this->field("default_vers"); }
     function path()		{ return $this->field("path"); }
     function magic()		{ return $this->field("magic"); }
     function ezid()		{ return $this->field("ezid"); }
@@ -365,6 +434,10 @@ class Image
     function imagefile_url()	{ return $this->field("imagefile_url"); }
     function logfileid()	{ return $this->field("logfileid"); }
     function noexport()		{ return $this->field("noexport"); }
+    function ready()		{ return $this->field("ready"); }
+    function isdelta()		{ return $this->field("isdelta"); }
+    function nodelta()		{ return $this->field("nodelta"); }
+    function released()		{ return $this->field("released"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -510,10 +583,11 @@ class Image
     }
 
     function Show($showperms = 0) {
-	global $TBBASE;
+	global $TBBASE, $DOPROVENANCE;
 	
 	$imageid	= $this->imageid();
 	$imagename	= $this->imagename();
+	$version	= $this->version();
 	$pid		= $this->pid();
 	$gid		= $this->gid();
 	$description	= $this->description();
@@ -523,7 +597,12 @@ class Image
 	$part2_osid	= $this->part2_osid();
 	$part3_osid	= $this->part3_osid();
 	$part4_osid	= $this->part4_osid();
+	$part1_vers	= $this->part1_vers();
+	$part2_vers	= $this->part2_vers();
+	$part3_vers	= $this->part3_vers();
+	$part4_vers	= $this->part4_vers();
 	$default_osid	= $this->default_osid();
+	$default_vers	= $this->default_vers();
 	$path		= $this->path();
 	$shared		= $this->shared();
 	$globalid	= $this->isglobal();
@@ -616,6 +695,14 @@ class Image
          	          </tr>\n";
 	    }
 	}
+	$deleted = $this->deleted();
+	if (isset($deleted)) {
+	    
+	    echo "<tr>
+                    <td><font color=red>Deleted: </font></td>
+                    <td class=left><font color=red>$deleted</font></td>
+     	          </tr>\n";
+	}
 
 	#
 	# Find the last time this image was used. 
@@ -649,7 +736,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 1 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part1_osid);
+	    SpitOSIDLink($part1_osid, $part1_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -658,7 +745,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 2 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part2_osid);
+	    SpitOSIDLink($part2_osid, $part2_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -667,7 +754,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 3 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part3_osid);
+	    SpitOSIDLink($part3_osid, $part3_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -676,7 +763,7 @@ class Image
 	    echo "<tr>
                      <td>Partition 4 OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($part4_osid);
+	    SpitOSIDLink($part4_osid, $part4_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -685,7 +772,7 @@ class Image
 	    echo "<tr>
                      <td>Boot OS: </td>
                      <td class=\"left\">";
-	    SpitOSIDLink($default_osid);
+	    SpitOSIDLink($default_osid, $default_vers);
 	    echo "   </td>
                   </tr>\n";
 	}
@@ -730,9 +817,59 @@ class Image
               </tr>\n";
 
 	echo "<tr>
-                <td>Internal ID: </td>
-                <td class=left>$imageid</td>
+                <td>Internal ID (Vers): </td>
+                <td class=left>$imageid ($version)</td>
               </tr>\n";
+
+	if ($this->parent_imageid()) {
+	    $p_imageid   = $this->parent_imageid();
+	    $p_version   = $this->parent_version();
+	    $p_image     = Image::Lookup($p_imageid, $p_version);
+	    $p_imagename = $p_image->imagename();
+	    $p_url       = CreateURL("showimageid", $p_image,
+				      "version", $p_version);
+	    
+	    echo "<tr>
+                    <td>Derived from: </td>
+                    <td class=left><a href='$p_url'>
+                      ${p_imagename}:${p_version}</a></td>
+                  </tr>\n";
+
+	    if ($this->parent_imageid() != $this->imageid() &&
+		$this->version() > 0) {
+		$p_version   = $this->version() - 1;
+		$p_url       = CreateURL("showimageid", $this,
+					 "version", $p_version);
+		echo "<tr>
+                        <td>Previous Vers: </td>
+                        <td class=left>
+                            <a href='$p_url'>${imagename}:${p_version}</a></td>
+                      </tr>\n";
+	    }
+	}
+	# Look for an unreleased version of this image.
+	$unreleased = $this->LookupUnreleased();
+	if ($unreleased && $unreleased->version() != $this->version()) {
+	    $u_version = $unreleased->version();
+	    $u_url     = CreateURL("showimageid", $this, "version", $u_version);
+
+	    echo "<tr>
+                    <td>Unreleased Vers: </td>
+                    <td class=left>
+                         <a href='$u_url'>${imagename}:${u_version}</a></td>
+                  </tr>\n";
+	}
+	if ($DOPROVENANCE) {
+	    $released = $this->released();
+	    $ready    = $this->ready();
+	    $isdelta  = $this->isdelta();
+	    $nodelta  = $this->nodelta();
+	    
+	    echo "<tr>
+                    <td>Rdy/Rel/Delta/NoD: </td>
+                    <td class=left>$ready/$released/$isdelta/$nodelta</td>
+                  </tr>\n";
+	}
 
 	echo "<tr>
                 <td>MBR Version: </td>
@@ -748,7 +885,7 @@ class Image
 	}
 	if ($this->ezid()) {
 	    $doesxen = 0;
-	    $osinfo = OSinfo::Lookup($imageid);
+	    $osinfo = $this->OSinfo();
 	    if ($osinfo && $osinfo->def_parentosid()) {
 		$parentosinfo = OSinfo::Lookup($osinfo->def_parentosid());
 		if ($parentosinfo &&
@@ -801,7 +938,7 @@ class Image
 	#
 	if ($showperms) {
 	    $query_result =
-		DBQueryFatal("select * from image_permissions ".
+		DBQueryFatal("select distinct * from image_permissions ".
 			     "where imageid='$imageid' ".
 			     "order by permission_type,permission_id");
 	    if (mysql_num_rows($query_result)) {
@@ -886,6 +1023,7 @@ class Image
 
     function DoesXen($does) {
 	$imageid = $this->imageid();
+	$version = $this->version();
 	
 	if ($does) {
 	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
@@ -897,8 +1035,9 @@ class Image
 	    }
 	    $parentosid = $parentosinfo->osid();
 
-	    DBQueryFatal("update os_info set def_parentosid='$parentosid' ".
-			 "where osid='$imageid'");
+	    DBQueryFatal("update os_info_versions set ".
+			 "    def_parentosid='$parentosid' ".
+			 "where osid='$imageid and vers='$version'");
 	    DBQueryFatal("replace into os_submap set ".
 			 "  osid='$imageid', parent_osid='$parentosid'");
 	    DBQueryFatal("replace into osidtoimageid set ".
@@ -909,9 +1048,30 @@ class Image
 			 "where osid='$imageid' and type='pcvm'");
 	    DBQueryFatal("delete from os_submap ".
 			 "where osid='$imageid'");
-	    DBQueryFatal("update os_info set def_parentosid=NULL ".
-			 "where osid='$imageid'");
+	    DBQueryFatal("update os_info_versions set def_parentosid=NULL ".
+			 "where osid='$imageid' and vers='$version'");
 	}
 	return 0;
+    }
+
+    #
+    # Page header; spit back some html for the typical page header.
+    #
+    function PageHeader() {
+	$pid = $this->pid();
+	$imagename = $this->imagename();
+	$imageid = $this->imageid();
+	$version = $this->version();
+	
+	$html = "<font size=+1>Image <b>".
+	    "<a href='showproject.php3?pid=$pid'>$pid</a>/".
+	    "<a href='showimageid.php3?imageid=$imageid&version=$version'>".
+	    "$imagename</a>".
+	    "</b></font>\n";
+
+	return $html;
+    }
+    function OSinfo() {
+	return OSinfo::Lookup($this->imageid(), $this->version());
     }
 }

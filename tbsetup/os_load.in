@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -72,7 +72,7 @@ my @nodes     = ();
 my $imagepid;
 my $pid;
 my $eid;
-my @imageids = ();
+my @images = ();
 my $imagenames;
 
 # Configure variables
@@ -233,9 +233,15 @@ if (defined($options{"i"})) {
     $imagenames = $options{"i"};
 
     foreach my $imagename (split /,/, $imagenames) {
-	
+        # Default to current default if no version specified.
+        my $version = undef;
+
 	if ($imagename =~ /^([-\w\.\+]+)$/) {
 	    $imagename = $1;
+	}
+	elsif ($imagename =~ /^([-\w\.\+]+):(\d+)$/) {
+	    $imagename = $1;
+	    $version   = $2;
 	}
 	else {
 	    die("*** Bad data in imagename: $imagename.\n");
@@ -247,21 +253,21 @@ if (defined($options{"i"})) {
 	# a -p option was given.
 	# Otherwise look in the system project.
 	#
-	my $imageid;
+	my $image;
 	if (defined($imagepid)) {
-	    $imageid = TBImageID($imagepid, $imagename);
+	    $image = Image->Lookup($imagepid, $imagename, $version);
 	}
-	if (! $imageid && defined($pid)) {
-	    $imageid = TBImageID($pid, $imagename);
+	if (!defined($image) && defined($pid)) {
+	    $image = Image->Lookup($pid, $imagename, $version);
 	}
-	if (! $imageid) {
-	    $imageid = TBImageID(TB_OPSPID(), $imagename);
+	if (!defined($image)) {
+	    $image = Image->Lookup(TB_OPSPID(), $imagename, $version);
 	}
-	if (! $imageid) {
+	if (!defined($image)) {
 	    die("*** $0:\n".
 		"	 No such image $imagename!\n");
 	}
-	push @imageids, $imageid;
+	push @images, $image;
     }
 }
 
@@ -273,15 +279,24 @@ if (defined($options{"m"})) {
 	if (defined($options{"i"}));
 
     foreach my $imageid (split /,/, $options{"m"}) {
+        my $version = 0;
 
 	if ($imageid =~ /^([-\w\.\+]+)$/) {
 	    $imageid = $1;
 	}
+	elsif ($imageid =~ /^([-\w\.\+]+):(\d+)$/) {
+	    $imageid = $1;
+	    $version = $2;
+	}
 	else {
 	    die("*** Bad data in imageid: $imageid\n");
 	}
-
-	push @imageids, $imageid;
+	my $image = Image->Lookup($imageid, $version);
+	if (!defined($image)) {
+	    die("*** $0:\n".
+		"	 No such image $imageid!\n");
+	}
+	push @images, $image;
     }
 }
 
@@ -301,12 +316,12 @@ foreach my $node ( @nodes ) {
 	my $parent = $node->GetPhysHost();
 	my $failed = 0;
 	if (defined($parent)) {
-	    my ($def_boot_osid,undef,undef) = $parent->GetOsids();
-            my $posinfo = OSinfo->Lookup($def_boot_osid);
+            my $posinfo = OSinfo->Lookup($parent->def_boot_osid(),
+					 $parent->def_boot_osid_vers());
             if (defined($posinfo) && $posinfo->FeatureSupported("suboses")) {
-                foreach my $imageid (@imageids) {
-		    my $image = Image->Lookup($imageid);
-		    my $osinfo = OSinfo->Lookup($image->default_osid());
+                foreach my $image (@images) {
+		    my $osinfo = OSinfo->Lookup($image->default_osid(),
+						$image->default_vers());
 		    if (!$osinfo->IsSubOS()) {
 			print "*** reload($nodeid): $osinfo is not a subOS and thus cannot run on a virtnode, skipping!\n";
 			$failed = 1;
@@ -373,8 +388,8 @@ $osloadargs{'zerofree'} = $zerofree;
 $osloadargs{'prepare'}  = $prepare;
 $osloadargs{'nodelist'} = [ map { $_->node_id() } @nodes ];
 # No imageid means to load the default image.
-$osloadargs{'imageids'} = [ @imageids ]
-    if (@imageids);
+$osloadargs{'images'}   = [ @images ]
+    if (@images);
 $osloadargs{'swapinfo'} = 0;
 $osloadargs{'usecurrent'} = $usecurrent;
 
@@ -419,25 +434,32 @@ sub dolisting() {
     if ($UID && !TBAdmin($UID)) {
 	my ($me) = getpwuid($UID);
 	$query_result =
-	    DBQueryFatal("select distinct i.* from images as i ".
-			 "left join group_membership as g on g.pid=i.pid ".
-			 "where g.uid='$me' or i.global ".
+	    DBQueryFatal("select distinct i.pid,i.imagename from images as i ".
+			 "left join image_versions as v on ".
+			 "     v.imageid=i.imageid and v.version=i.version ".
+			 "left join group_membership as g on ".
+			 "     g.pid_idx=i.pid_idx ".
+			 "where (g.uid='$me' or v.global) ".
 			 "order by i.pid,i.imageid");
     } else {
 	$query_result =
-	    DBQueryFatal("SELECT * FROM images order by imageid");
+	    DBQueryFatal("SELECT distinct pid,imagename FROM images ".
+			 "order by imageid");
     }
 
     if ($query_result->numrows) {
 	printf "%-12s %-20s %s\n", "Pid", "Imagename", "Description";
 	printf "------------ -------------------- -------------------------\n";
 
-	for ($i = 0; $i < $query_result->numrows; $i++) {
-	    my %row  = $query_result->fetchhash();
-	    my $id   = $row{'imageid'};
-	    my $pid  = $row{'pid'};
-	    my $name = $row{'imagename'};
-	    my $desc = $row{'description'};
+	while (my ($pid,$imagename) = $query_result->fetchrow_array()) {
+	    my $image = Image->Lookup($pid,$imagename);
+	    next
+		if (!defined($image));
+
+	    my $id   = $image->imageid();
+	    my $pid  = $image->pid();
+	    my $name = $image->imagename();
+	    my $desc = $image->description();
 
 	    printf "%-12s %-20s %s\n", $pid, $name, $desc;
 	}

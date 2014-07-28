@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -133,13 +133,14 @@ if ($isadmin ||
 }
 
 if ($node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
-    $baseimage = Image::Lookup($node->def_boot_osid());
+    $baseimage = $node->def_boot_image();
 
     if ($baseimage &&
 	$baseimage->AccessCheck($this_user, $TB_IMAGEID_DESTROY)) {
 	WRITESUBMENUBUTTON("Create a Disk Image",
 			   "loadimage.php3?target=$node_id" .
-			   "&imageid=" . $baseimage->imageid());
+			   "&imageid=" . $baseimage->imageid() .
+			   "&version=" . $baseimage->version());
     }
     else {
 	#

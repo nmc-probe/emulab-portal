@@ -55,6 +55,8 @@ my $TESTMODE    = @TESTMODE@;
 my $TBOPS       = "@TBOPSEMAIL@";
 my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
+my $WITHPROVENANCE= @IMAGEPROVENANCE@;
+my $WITHDELTAS	= @IMAGEDELTAS@;
 
 # Max number of retries (per node) before its deemed fatal. This allows
 # for the occasional pxeboot failure.
@@ -79,6 +81,7 @@ sub osload ($$) {
 
     # These come in from the caller.
     my @imageids;
+    my @images;
     my $waitmode    = 1;
     my $usecurrent  = 0;
     my @nodes       = ();
@@ -95,7 +98,6 @@ sub osload ($$) {
     my $usedefault  = 1;
     my $mereuser    = 0;
     my $rowref;
-    my @images;
     my $this_user;
 
     if (!defined($args->{'nodelist'})) {
@@ -113,12 +115,20 @@ sub osload ($$) {
     if (defined($args->{'debug'})) {
 	$debug = $args->{'debug'};
     }
-    if (defined($args->{'imageid'})) {
-	@imageids = split(/,/, $args->{'imageid'});
+    if (defined($args->{'image'})) {
+	@images = split(/,/, $args->{'image'});
 	$usedefault = 0;
     }
-    if (defined($args->{'imageids'})) {
+    elsif (defined($args->{'images'})) {
+	@images = @{$args->{'images'}};
+	$usedefault = 0;
+    }
+    elsif (defined($args->{'imageids'})) {
 	@imageids = @{$args->{'imageids'}};
+	$usedefault = 0;
+    }
+    elsif (defined($args->{'imageid'})) {
+	@imageids = split(/,/, $args->{'imageid'});
 	$usedefault = 0;
     }
     if (defined($args->{'usecurrent'}) && $args->{'usecurrent'}) {
@@ -170,19 +180,23 @@ sub osload ($$) {
 	}
     }
 
-    foreach my $i (0 .. $#imageids) {
-	my $imageid = $imageids[$i];
-	$images[$i] = Image->Lookup($imageid);
-	my $image = $images[$i];
-	if (!defined($image)) {
-	    tberror("Could not map $imageid to its object!");
-	    return -1;
+    if (@imageids) {
+	foreach my $imageid (@imageids) {
+	    my $image = Image->Lookup($imageid);
+	    if (!defined($image)) {
+		tberror("No such imageid $imageid");
+		return -1;
+	    }
+	    push(@images, $image);
 	}
+    }
+
+    foreach my $i (0 .. $#images) {
+	my $image = $images[$i];
 
 	#
 	# Check permission to use the imageid.
 	# 
-    
 	if ($mereuser &&
 	    ! $image->AccessCheck($this_user, TB_IMAGEID_READINFO)) {
 	    tberror "You do not have permission to load $image";
@@ -290,13 +304,13 @@ sub osload ($$) {
 		    push @default_images, $default_image;
 		}
 		$prepare = 1;
-		@imageids = @default_imageids;
 		@images   = @default_images;
 	    }
 	}
 	elsif ($usecurrent) {
 	    my $def_boot_osid  = $nodeobject->def_boot_osid();
-	    my $osinfo = OSinfo->Lookup($def_boot_osid);
+	    my $def_boot_vers  = $nodeobject->def_boot_osid_vers();
+	    my $osinfo = OSinfo->Lookup($def_boot_osid, $def_boot_vers);
 
 	    if (! defined($osinfo)) {
 		tberror("Could not find OS $def_boot_osid in the DB!");
@@ -307,12 +321,12 @@ sub osload ($$) {
 		tberror("Could not map $osinfo to an image for $node!");
 		goto failednode;
 	    }
-	    @imageids = $best_image->imageid();
 	    @images   = ($best_image);
 	}
 	
-	my @imageidxs = (0 .. $#imageids);
+	my @imageidxs = (0 .. $#images);
 	my $defosid;
+	my $defvers;
 	my $maxwait = 0;
 	my @access_keys;
 
@@ -340,9 +354,11 @@ sub osload ($$) {
 	#
 	if (!$prepare) {
 	    my $dbresult =
-		DBQueryWarn("select p.*,i.mbr_version ".
-			    " from partitions as p,images as i ".
-			    " where p.imageid=i.imageid ".
+		DBQueryWarn("select p.*,v.mbr_version ".
+			    " from partitions as p,image_versions as v ".
+			    " where p.imageid=v.imageid and ".
+			    "       p.imageid_version=v.version and ".
+			    "       v.deleted is null ".
 			    "  and p.node_id='$node'");
 	    if (!$dbresult) {
 		tberror("$node: Could not read partition table!");
@@ -366,7 +382,6 @@ sub osload ($$) {
 	# For each image, update the necessary node state.
 	#
 	foreach my $i (@imageidxs) {
-	    my $imageid = $imageids[$i];
 	    my $image = $images[$i];
 	
 	    print STDERR "osload: Using $image for $node\n"
@@ -378,10 +393,11 @@ sub osload ($$) {
 	    # use.  GetImageInfo() will perform various one-time
 	    # checks as well.
 	    # 
-	    if (!exists($imageinfo{$imageid}) && !GetImageInfo($image,$node)) {
+	    if (!exists($imageinfo{$image->imageid()}) &&
+		!GetImageInfo($image,$node)) {
 		goto failednode;
 	    }
-	    $rowref = $imageinfo{$imageid};
+	    $rowref = $imageinfo{$image->imageid()};
 	    if ($rowref eq 'BADIMAGE') {
 		goto failednode;
 	    }
@@ -400,8 +416,9 @@ sub osload ($$) {
 	    #
 	    if ($i == $imageidxs[-1]) {
 		$defosid = $rowref->{'default_osid'};
+		$defvers = $rowref->{'default_vers'};
 
-		my $osinfo = OSinfo->Lookup($defosid);
+		my $osinfo = OSinfo->Lookup($defosid, $defvers);
 		if (!defined($osinfo)) {
 		    tberror("Could map map OSID $defosid to its object!");
 		    goto failednode;
@@ -461,8 +478,10 @@ sub osload ($$) {
 	    #
 	    for (my $i = $startpart; $i < $endpart; $i++) {
 		my $partname = "part${i}_osid";
+		my $partvers = "part${i}_vers";
 
 		my $osid = $rowref->{$partname};
+		my $vers = $rowref->{$partvers};
 		if (defined($osid)) {
 		    # Have the node inherit taint states from each OS
 		    # to be loaded on it (or that is already loaded on
@@ -473,7 +492,7 @@ sub osload ($$) {
 		    # important not to clear these existing states
 		    # until OS loading and disk zeroing have been
 		    # performed.
-		    my $osinfo = OSinfo->Lookup($osid);
+		    my $osinfo = OSinfo->Lookup($osid, $vers);
 		    if (defined($osinfo) && $osinfo->IsTainted()) {
 			$nodeobject->InheritTaintStates($osinfo) == 0 or
 			    warn "Node $node could not inherit taint ".
@@ -484,7 +503,9 @@ sub osload ($$) {
 			'node_id' => $node,
 			'partition' => $i,
 			'osid' => $osid,
-			'imageid' => $imageid,
+			'osid_vers' => $osinfo->vers(),
+			'imageid' => $image->imageid(),
+			'imageid_version' => $image->version(),
 			'imagepid' => $imagepid,
 			'mbr_version' => $curmbrvers
 		    );
@@ -506,13 +527,17 @@ sub osload ($$) {
 	    if (exists($partitions{$i})) {
 		my $href = $partitions{$i};
 		my $osid = $href->{'osid'};
+		my $osvers = $href->{'osid_vers'};
 		my $imid = $href->{'imageid'};
+		my $imvers = $href->{'imageid_version'};
 		my $impid = $href->{'imagepid'};
 		$dbresult =
 		    DBQueryWarn("replace into partitions ".
-				"(node_id,partition,osid,imageid,imagepid) ".
+				"(node_id,partition,osid,imageid,imagepid,".
+				" osid_vers,imageid_version) ".
 				"values ".
-				"('$node','$i','$osid','$imid','$impid')");
+				"('$node','$i','$osid','$imid','$impid',".
+				" '$osvers','$imvers')");
 	    } else {
 		$dbresult =
 		    DBQueryWarn("delete from partitions ".
@@ -529,7 +554,7 @@ sub osload ($$) {
 	# XXX we only do this for delay nodes.
 	#
 	if ($defosid && $nodeobject->erole() eq "delaynode") {
-	    my $osinfo = OSinfo->Lookup($defosid);
+	    my $osinfo = OSinfo->Lookup($defosid, $defvers);
 	    if ($osinfo) {
 		my ($ocmdline,$ncmdline);
 		$ocmdline = $nodeobject->def_boot_cmd_line();
@@ -557,6 +582,34 @@ sub osload ($$) {
 	if ($swapinfo) {
 	    print "osload ($node): Updating image signature.\n";
 	    osload_setupswapinfo(undef, undef, $node);
+	}
+
+	#
+	# For each image to be loaded, we check and see if it is a delta
+	# image. If so, we must follow its parent link backward til we
+	# find the latest full version of the image, then load those in
+	# reverse order.
+	#
+	if ($WITHPROVENANCE && $WITHDELTAS) {
+	    my @nimages = ();
+	    foreach my $image (@images) {
+		if ($image->isdelta()) {
+		    my $pimage = $image;
+		    my @ilist = ();
+		    do {
+			# if it is a delta image, there had better be a parent!
+			$pimage = $pimage->Parent();
+			if (!$pimage) {
+			    tberror "$node: delta image $image has no parent!";
+			    goto failednode;
+			}
+			push(@ilist, $pimage);
+		    } while ($pimage->isdelta());
+		    push @nimages, reverse(@ilist);
+		}
+		push(@nimages, $image);
+	    }
+	    @images = @nimages;
 	}
 
 	#
@@ -617,8 +670,9 @@ sub osload ($$) {
 	    'node'     => $node,
 	    'mode'     => $reload_mode,
 	    'func'     => $reload_func,
-	    'imageids' => \@imageids,
+	    'images'   => \@images,
 	    'osid'     => $defosid,
+	    'osid_vers'=> $defvers,
 	    'reboot'   => $reboot_required,
 	    'wait'     => $wait_required,
 	    'zerofree' => $zeronode,
@@ -1150,7 +1204,7 @@ sub SetupReloadFrisbee($)
     my $reload_info   = $_[0];
     my $nodeobject    = $reload_info->{'nodeobj'};
     my $node          = $reload_info->{'node'};
-    my $imageids      = $reload_info->{'imageids'};
+    my $images        = $reload_info->{'images'};
     my $zerofree      = $reload_info->{'zerofree'};
     my $prepare       = $reload_info->{'prepare'};
     my $isvirtnode    = $reload_info->{'isvirtnode'};
@@ -1163,12 +1217,21 @@ sub SetupReloadFrisbee($)
     $nodeobject->ClearCurrentReload();
 
     my $idx = 1;
-    foreach my $imageid (@$imageids) {
+    foreach my $image (@$images) {
+	my $imageid = $image->imageid();
+	my $version = $image->version();
+
+	# only prepare on first image
 	my $prepare0 = $idx == 1 && $prepare ? 1 : 0;
+	# only zero on full images
+	my $zerofree0 = $image->isdelta() ? 0 : $zerofree;
+
 	my $query_result = 
 	    DBQueryWarn("insert into current_reloads ".
-			"(node_id, idx, image_id, mustwipe, prepare) values ".
-			"('$node', $idx, '$imageid', $zerofree, $prepare0)");
+			"(node_id, idx, image_id, imageid_version,".
+			" mustwipe, prepare) values ".
+			"('$node', $idx, '$imageid', '$version',".
+			" $zerofree0, $prepare0)");
 	return -1
 	    if (!$query_result);
 	++$idx;
@@ -1348,12 +1411,18 @@ sub osload_setupswapinfo($$;@)
     # set to an MFS at other times.
     #
     my $query_result = DBQueryWarn(
-	"select r.node_id,r.vname,r.pid,r.eid,r.erole,n.osid,p.partition,p.imageid,p.imagepid,i.imagename,i.loadpart,e.savedisk ".
+	"select r.node_id,r.vname,r.pid,r.eid,r.erole,n.osid,p.partition,".
+	"       p.imageid,p.imageid_version,p.imagepid,i.imagename,".
+	"       iv.loadpart,e.savedisk ".
 	"from reserved as r ".
 	"left join nodes as n on n.node_id=r.node_id ".
 	"left join node_types as nt on nt.type=n.type ".
-	"left join partitions as p on p.node_id=n.node_id and p.osid=n.def_boot_osid ".
-        "left join images as i on i.imageid=p.imageid ".
+	"left join partitions as p on p.node_id=n.node_id and ".
+	"          p.osid=n.def_boot_osid ".
+        "left join images as i on i.imageid=p.imageid and ".
+	"          i.version=p.imageid_version ".
+        "left join image_versions as iv on iv.imageid=i.imageid and ".
+	"          iv.version=i.version ".
         "left join experiments as e on e.pid=r.pid and e.eid=r.eid ".
 	"where $clause");
     if (!$query_result) {
@@ -1361,7 +1430,7 @@ sub osload_setupswapinfo($$;@)
     }
 
     while (my ($node, $vname, $rpid, $reid, $erole, $osid, $part, $imageid,
-	       $imagepid, $imagename, $lpart, $savedisk) =
+	       $imageid_version, $imagepid, $imagename, $lpart, $savedisk) =
 	   $query_result->fetchrow_array()) {
 
 	my $nodeobject = Node->Lookup($node);
@@ -1378,6 +1447,13 @@ sub osload_setupswapinfo($$;@)
 	#
 	if (!defined($imageid)) {
 	    print "*** swapinfo: OS $osid is not disk-based!?\n";
+	    next
+		if (!$allnodes);
+	    return 1;
+	}
+	my $image = Image->Lookup($imageid, $imageid_version);
+	if (!defined($image)) {
+	    print "*** swapinfo: Image $imageid,$imageid_version not found!\n";
 	    next
 		if (!$allnodes);
 	    return 1;

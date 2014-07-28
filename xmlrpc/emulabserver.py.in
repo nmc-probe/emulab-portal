@@ -892,9 +892,11 @@ class imageid:
 
         # Get the listing that is accessible to this user and
         res = DBQueryFatal(
-            "SELECT distinct i.imagename,i.description FROM images as i "
+            "SELECT distinct i.imagename,iv.description FROM images as i "
+            "left join image_versions as v on "
+            "     v.imageid=o.imageid and v.version=i.version "
             "left join group_membership as g on g.pid=i.pid "
-            "WHERE g.uid_idx=%s or i.global",
+            "WHERE g.uid_idx=%s or v.global",
             (self.uid_idx,))
 
         if len(res) == 0:
@@ -943,11 +945,12 @@ class osid:
             return EmulabResponse(RESPONSE_REFUSED, output=str(e))
 
         # Get the listing that is accessible to this user and
-        res = DBQueryFatal("SELECT distinct "
-                           "o.* FROM "
-                           "os_info as o "
+        res = DBQueryFatal("SELECT distinct v.* FROM os_info as o "
+                           "left join os_info_versions as v on "
+                           "     v.osid=o.osid and v.vers=i.version "
                            "left join group_membership as g on g.pid=o.pid "
-                           "where g.uid_idx=%s or o.shared=1",
+                           "where (g.uid_idx=%s or v.shared=1) "
+                           "group by o.pid,o.osname",
                            (self.uid_idx,),
                            True)
 
@@ -984,12 +987,13 @@ class osid:
                                   output="Improperly formed osid!")
 
         # Get the listing that is accessible to this user and
-        res = DBQueryFatal("SELECT distinct "
-                           "o.* FROM "
-                           "os_info as o "
+        res = DBQueryFatal("SELECT distinct o.* FROM os_info as o "
+                           "left join os_info_versions as v on "
+                           "     v.osid=o.osid and v.vers=i.version "
                            "left join group_membership as g on g.pid=o.pid "
-                           "where (g.uid_idx=%s or o.shared=1) and "
-                           "(o.osname=%s or o.osid=%s)",
+                           "where (g.uid_idx=%s or v.shared=1) and "
+                           "      (o.osname=%s or o.osid=%s) "
+                           "group by o.pid,o.osname",
                            (self.uid_idx, argdict["osid"], argdict["osid"]),
                            True)
 
@@ -3946,16 +3950,12 @@ class node:
                     argstr += " -w "
                     pass
                 pass
-            elif opt == "imageproj":
-                argstr += " -p "
-                argstr += escapeshellarg(val)
-                pass
             pass
 
         argstr += " " + escapeshellarg(argdict["imagename"])
         argstr += " " + escapeshellarg(argdict["node"])
 
-        (exitval, output) = runcommand(TBDIR + "/bin/create_image " + argstr)
+        (exitval, output) = runcommand(TBDIR + "/sbin/clone_image " + argstr)
         if exitval:
             return EmulabResponse(RESPONSE_ERROR, exitval >> 8, output=output)
         

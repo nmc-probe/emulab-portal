@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -81,9 +81,11 @@ while ($row = mysql_fetch_array($types_result)) {
 $types_array[] = "pcvm";
 
 $osid_result =
-    DBQueryFatal("select osid,osname,pid from os_info ".
-		 "where (path='' or path is NULL) ".
-		 "order by pid,osname");
+    DBQueryFatal("select o.osid,v.vers,o.osname,o.pid from os_info as o ".
+		 "left join os_info_versions as v on ".
+		 "     v.osid=o.osid and v.vers=o.version ".
+		 "where (v.path='' or v.path is NULL) ".
+		 "order by o.pid,o.osname");
 
 #
 # Spit the form out using the array of data.
@@ -194,7 +196,7 @@ function SPITFORM($image, $formfields, $errors)
              <td>Partition 1 OS: </td>
              <td class=\"left\">";
     if (isset($defaults["part1_osid"]))
-	SpitOSIDLink($defaults["part1_osid"]);
+	SpitOSIDLink($defaults["part1_osid"], $defaults["part1_vers"]);
     else
 	echo "No OS";
     echo "   </td>
@@ -204,7 +206,7 @@ function SPITFORM($image, $formfields, $errors)
              <td>Partition 2 OS: </td>
              <td class=\"left\">";
     if (isset($defaults["part2_osid"]))
-	SpitOSIDLink($defaults["part2_osid"]);
+	SpitOSIDLink($defaults["part2_osid"], $defaults["part2_vers"]);
     else
 	echo "No OS";
     echo "   </td>
@@ -214,7 +216,7 @@ function SPITFORM($image, $formfields, $errors)
              <td>Partition 3 OS: </td>
              <td class=\"left\">";
     if (isset($defaults["part3_osid"]))
-	SpitOSIDLink($defaults["part3_osid"]);
+	SpitOSIDLink($defaults["part3_osid"], $defaults["part3_vers"]);
     else
 	echo "No OS";
     echo "   </td>
@@ -224,7 +226,7 @@ function SPITFORM($image, $formfields, $errors)
              <td>Partition 4 OS: </td>
              <td class=\"left\">";
     if (isset($defaults["part4_osid"]))
-	SpitOSIDLink($defaults["part4_osid"]);
+	SpitOSIDLink($defaults["part4_osid"], $defaults["part4_vers"]);
     else
 	echo "No OS";
     echo "   </td>
@@ -234,7 +236,7 @@ function SPITFORM($image, $formfields, $errors)
              <td>Boot OS: </td>
              <td class=\"left\">";
     if (isset($defaults["default_osid"]))
-	SpitOSIDLink($defaults["default_osid"]);
+	SpitOSIDLink($defaults["default_osid"], $defaults["default_vers"]);
     else
 	echo "No OS";
     echo "   </td>

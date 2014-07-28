@@ -48,11 +48,6 @@ client:
 
 client-install: client
 	$(INSTALL_PROGRAM) $(SRCDIR)/template_record $(LBINDIR)/template_record
-ifeq ($(SYSTEM),FreeBSD)
-	$(INSTALL_PROGRAM) $(SRCDIR)/create-image $(LBINDIR)/
-	$(INSTALL_PROGRAM) $(SRCDIR)/create-versioned-image $(LBINDIR)/
-	$(INSTALL_PROGRAM) $(SRCDIR)/create-swapimage $(LBINDIR)/
-endif
 
 subboss: client
 
@@ -61,9 +56,6 @@ subboss-install: subboss client-install
 mfs:
 
 mfs-install: mfs
-	$(INSTALL_PROGRAM) $(SRCDIR)/create-image $(LBINDIR)/
-	$(INSTALL_PROGRAM) $(SRCDIR)/create-versioned-image $(LBINDIR)/
-	$(INSTALL_PROGRAM) $(SRCDIR)/create-swapimage $(LBINDIR)/
 
 frisbee-mfs:
 

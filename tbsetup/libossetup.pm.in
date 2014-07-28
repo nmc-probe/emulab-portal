@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -393,7 +393,8 @@ sub SetOS($$)
     my $node_id       = $node->node_id();
     my $imageable     = $node->imageable();
     my $osid          = $node->def_boot_osid();
-    my $osinfo        = OSinfo->Lookup($osid);
+    my $osid_vers     = $node->def_boot_osid_vers();
+    my $osinfo        = OSinfo->Lookup($osid, $osid_vers);
     my $loadlist      = $node->loadlist();
     my $experiment    = $self->experiment();
     my $pid           = $experiment->pid();

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,10 +32,14 @@ $uid       = $this_user->uid();
 $isadmin   = ISADMIN();
 $showperms = 1;
 
+# This will not return if its a sajax request.
+include("showlogfile_sup.php3");
+
 #
 # Verify page arguments.
 #
-$reqargs = RequiredPageArguments("image", PAGEARG_IMAGE);
+$reqargs = RequiredPageArguments("image",   PAGEARG_IMAGE);
+$optargs = OptionalPageArguments("showlog", PAGEARG_BOOLEAN);
 
 #
 # Standard Testbed Header
@@ -44,6 +48,7 @@ PAGEHEADER("Image Descriptor");
 
 # Need these below.
 $imageid = $image->imageid();
+$version = $image->version();
 
 #
 # Verify permission.
@@ -52,22 +57,38 @@ if (!$image->AccessCheck($this_user, $TB_IMAGEID_READINFO)) {
     USERERROR("You do not have permission to access ImageID $imageid.", 1);
 }
 
+if (isset($showlog)) {
+    $logfile = $image->GetLogfile();
+    if ($logfile) {
+	echo $image->PageHeader();
+	STARTLOG($logfile);
+	PAGEFOOTER();
+	return;
+    }
+}
+
 SUBPAGESTART();
 SUBMENUSTART("More Options");
-$fooid = rawurlencode($imageid);
+
 WRITESUBMENUBUTTON("Edit this Image Descriptor",
-		   "editimageid.php3?imageid=$fooid");
-WRITESUBMENUBUTTON("Snapshot Node Disk into Image",
-		   "loadimage.php3?imageid=$fooid");
+		   "editimageid.php3?imageid=$imageid");
+if ($image->GetLogfile()) {
+    WRITESUBMENUBUTTON("View Log File",
+	       "showimageid.php3?imageid=$imageid&version=$version&showlog=1");
+}
+if ($image->AccessCheck($this_user, $TB_IMAGEID_MODIFYINFO )) {
+    WRITESUBMENUBUTTON("Snapshot Node Disk into Image",
+		       "loadimage.php3?imageid=$imageid");
+}
 WRITESUBMENUBUTTON("Clone this Image Descriptor",
-		   "newimageid_ez.php3?baseimage=$fooid");
+		   "newimageid_ez.php3?baseimage=$imageid");
 WRITESUBMENUBUTTON("Delete this Image Descriptor",
-		   "deleteimageid.php3?imageid=$fooid");
-WRITESUBMENUBUTTON("Create a New Image Descriptor",
-		   "newimageid_ez.php3");
+		   "deleteimageid.php3?imageid=$imageid");
 WRITESUBMENUBUTTON("Image Descriptor list",
 		   "showimageid_list.php3");
 if ($isadmin) {
+    WRITESUBMENUBUTTON("Create a New Image Descriptor",
+		       "newimageid_ez.php3");
     WRITESUBMENUBUTTON("Create a new OS Descriptor",
 		       "newosid.php3");
     WRITESUBMENUBUTTON("OS Descriptor list",
@@ -88,10 +109,10 @@ echo "<br>\n";
 # get the pid and osname for the image, and use that to look into the 
 # virt_nodes table.
 #
-function SHOWIT($osid) {
+function SHOWIT($osid, $vers) {
     global $this_user;
     
-    if (! ($osinfo = OSinfo::Lookup($osid))) {
+    if (! ($osinfo = OSinfo::Lookup($osid, $vers))) {
 	TBERROR("Could not map osid to its object: $osid", 1);
     }
     echo "<h3 align='center'>Experiments using OS ";
@@ -102,16 +123,16 @@ function SHOWIT($osid) {
 }
 
 if ($image->part1_osid()) {
-    SHOWIT($image->part1_osid());
+    SHOWIT($image->part1_osid(), $image->part1_vers());
 }
 if ($image->part2_osid()) {
-    SHOWIT($image->part2_osid());
+    SHOWIT($image->part2_osid(), $image->part2_vers());
 }
 if ($image->part3_osid()) {
-    SHOWIT($image->part3_osid());
+    SHOWIT($image->part3_osid(), $image->part3_vers());
 }
 if ($image->part4_osid()) {
-    SHOWIT($image->part4_osid());
+    SHOWIT($image->part4_osid(), $image->part4_vers());
 }
 SUBPAGEEND();
 

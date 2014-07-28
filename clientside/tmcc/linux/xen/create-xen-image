@@ -28,6 +28,9 @@ use strict;
 # Drag in path stuff so we can find emulab stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
+my $VIMAGE	= "/usr/local/bin/create-versioned-image";
+my $zipper      = "/usr/local/bin/imagezip";
+my $uploader    = "/usr/local/bin/frisupload";
 my $VNODESETUP	= "$BINDIR/vnodesetup";
 my $CAPTURE	= "$BINDIR/capturevm.pl";
 my $EXTRAFS	= "/capture";
@@ -39,14 +42,19 @@ my $TAR         = "/bin/tar";
 #
 sub usage()
 {
-    print STDOUT "Usage: create-image [-p] [-r] [-S image-server] [-F imageid] ".
-	"<vnodeid> <filename>\n";
+    print STDOUT "Usage: create-image [-p] [-r] [-s slice] ".
+	"<vnodeid> filename KEY=VALUE ...\n";
     exit(-1);
 }
 my $optlist   = "F:S:prs:";
 my $aspack    = 0;
 my $norestart = 0;
 my $slice     = 0;
+my $filename;
+
+# Frisbee master server params
+my $iserver = "boss";	# XXX
+my $imageid;
 
 #
 # Turn off line buffering on output
@@ -62,10 +70,7 @@ use libutil;
 # No configure vars.
 #
 my $sudo;
-my $zipper   = "/usr/local/bin/imagezip";
-my $uploader = "/usr/local/etc/emulab/frisupload";
 my $vnodeid;
-my $filename;
 my $cmd;
 my $error    = 0;
 
@@ -76,10 +81,6 @@ for my $path (qw#/usr/local/bin /usr/bin#) {
 	}
 }
 
-# Frisbee master server params
-my $iserver = "boss";	# XXX
-my $imageid;
-
 #
 # Parse command arguments. Once we return from getopts, all that should be
 # left are the required arguments.
@@ -88,10 +89,6 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
-if (@ARGV != 2) {
-    usage();
-}
-
 if (defined($options{"p"})) {
     $aspack = 1;
 }
@@ -117,23 +114,11 @@ if (defined($options{"F"})) {
 	die("Bad -F imageid: '$imageid'");
     }
 }
-
-$vnodeid = $ARGV[0];
+$vnodeid = shift(@ARGV);
+$filename= shift(@ARGV);
+# Backwards compat, I think. 
 if (defined($imageid)) {
     $filename = "-";
-} else {
-    $filename = $ARGV[1];
-}
-
-#
-# Untaint the arguments.
-#
-# Note different taint check (allow /).
-if ($filename =~ /^([-\w.\/\+]+)$/) {
-    $filename = $1;
-}
-else {
-    die("Tainted output filename: $filename");
 }
 
 # So we can use domainStatus().
@@ -187,24 +172,45 @@ if ($aspack) {
 	$error = 1;
 	goto cleanup;
     }
-    $cmd = "$TAR zcf - -C $EXTRAFS/$vnodeid . | $zipper -f - $filename";    
+    $cmd = "$TAR zcf - -C $EXTRAFS/$vnodeid . | $zipper -f - $filename ";
+    #
+    # If imageid is defined, we use the frisbee uploader.
+    #
+    if (defined($imageid)) {
+	$cmd .= " | $uploader -S $iserver -F $imageid";
+	if (SHAREDHOST()) {
+	    $cmd .= " -P $vnodeid";
+	}
+	$cmd .= " -";
+    }
 }
 else {
     my $device = libvnode_xen::lvmVolumePath($vnodeid);
-    my $opt    = ($slice ? "-s $slice" : "");
 
-    $cmd = "$zipper $opt $device $filename";    
-}
+    #
+    # We want to use create-versioned-image when there are delta arguments.
+    # Otherwise do it the old way.
+    #
+    if (grep /SIGFILE/, @ARGV) {
+	unshift(@ARGV, "DISK=$device");
+	unshift(@ARGV, "PROXY=$vnodeid");
 
-#
-# If imageid is defined, we use the frisbee uploader.
-#
-if (defined($imageid)) {
-    $cmd .= " | $uploader -S $iserver -F $imageid";
-    if (SHAREDHOST()) {
-	$cmd .= " -P $vnodeid";
+	$cmd = "$VIMAGE -x @ARGV";
     }
-    $cmd .= " -";
+    else {
+	$cmd = "$zipper " . ($slice ? "-s $slice " : "") . "$device $filename ";
+
+	#
+	# If imageid is defined, we use the frisbee uploader.
+	#
+	if (defined($imageid)) {
+	    $cmd .= " | $uploader -S $iserver -F $imageid";
+	    if (SHAREDHOST()) {
+		$cmd .= " -P $vnodeid";
+	    }
+	    $cmd .= " -";
+	}
+    }
 }
 
 #

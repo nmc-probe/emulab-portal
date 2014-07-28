@@ -43,6 +43,12 @@ fi
 #
 RESIDMEM=32
 
+#
+# Maximum socket buffer size in KB.
+# Big enough to buffer a whole chunk.
+#
+MAXSOCKBUF=1024
+
 if [ -r /etc/emulab/paths.sh ]; then
 	. /etc/emulab/paths.sh
 else
@@ -51,12 +57,33 @@ else
 	ETCDIR=/etc/testbed
 fi
 
+#
+# Extract a variable of interest from the VAR=VALUE string and return value.
+# If variable does not exist, return the given default (if provided).
+#
+getvar() {
+    local _VAR=$1
+    local _STR=$2
+    local _DFL=$3
+
+    for _kv in $_STR; do
+	_k=${_kv%%=*}
+	if [ -n "$_k" -a "$_k" = "$_VAR" ]; then
+	    echo "${_kv##*=}"
+	    return 0
+	fi
+    done
+    echo "$_DFL"
+    return 0
+}
+
 get_value()
 {
-	local data="$1"
-	local key="$2"
+    local data=$1
+    local key=$2
 
-	echo $data | tr ' ' '\n' | sed -n "s/^$key=//p"
+    echo `getvar $key "$data"`
+    return 0
 }
 
 #
@@ -179,6 +206,7 @@ write_image()
 	local zfill=$4
 	local ptype=$5
 	local server=$6
+	local keepalive=$7
 	local imageid=""
 	local imagefile=""
 	local frisbee_opts="$FRISBEE_OPTS"
@@ -189,6 +217,10 @@ write_image()
 	if [ "$zfill" -ne 0 ]; then
 		frisbee_opts="$frisbee_opts -z"
 		imageunzip_opts="$imageunzip_opts -z"
+	fi
+
+	if [ "$keepalive" -ne 0 ]; then
+		frisbee_opts="$frisbee_opts -K $keepalive"
 	fi
 
 	if [ $slice -ne 0 ]; then
@@ -296,20 +328,19 @@ write_image()
 
 handle_loadinfo()
 {
-	local LOADINFO="$@"
+	local DISK=$1
+	local PARTITION=$2
+	local LOADINFO="$3"
+
 	local ADDRESS=`get_value "$LOADINFO" ADDR`
 	local SERVER=`get_value "$LOADINFO" SERVER`
 	local PARTOS=`get_value "$LOADINFO" PARTOS`
-	local PARTITION=`get_value "$LOADINFO" PART`
-	PARTITION=${PARTITION:-'0'}
 	local IMAGEID=`get_value "$LOADINFO" IMAGEID`
-
-	local FREEBSD_DISK=''
-	local DISK=`get_value "$LOADINFO" DISK`
-	DISK=${DISK:-'ad0'}
 
 	local ZFILL=`get_value "$LOADINFO" ZFILL`
 	ZFILL=${ZFILL:-'0'}
+	local KEEPALIVE=`get_value "$LOADINFO" KEEPALIVE`
+	KEEPALIVE=${KEEPALIVE:-'0'}
 
 	local ACPI=`get_value "$LOADINFO" ACPI`
 	local ASF=`get_value "$LOADINFO" ASF`
@@ -349,18 +380,6 @@ handle_loadinfo()
 		ADDRESS=$IMAGEID
 	fi
 
-	FREEBSD_DISK=$DISK
-	# Convert from the FreeBSD device names to Linux device names
-	# if necessary.
-	case $DISK in
-		[hs]d[a-z])
-			;;
-		*)
-			DISK=`$BINDIR/freebsd_to_linux_disk $DISK 0`
-			DISK=${DISK%% *}
-			;;
-	esac
-
 	if [ $PARTITION -ne 0 ]; then
 		case $PARTOS in
 			FreeBSD) PTYPE=165 ;;
@@ -399,7 +418,7 @@ handle_loadinfo()
 		zapsuperblocks /dev/$DISK
 	fi
 
-	write_image "$ADDRESS" "/dev/$DISK" "$PARTITION" "$ZFILL" "$PTYPE" "$SERVER"
+	write_image "$ADDRESS" "/dev/$DISK" "$PARTITION" "$ZFILL" "$PTYPE" "$SERVER" "$KEEPALIVE"
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "Failed to write image to disk, status $rc"
@@ -411,22 +430,29 @@ handle_loadinfo()
 	    rm -f /tmp/enc.key /tmp/sig.key
 	fi
 
-	# we resize the 4th partition after writing the image
-	# if we used a full disk image.  Otherwise, the resize
-	# happens before the image write in case we need the
-	# extra partition for an image fetched via HTTP.
-	if [ $PARTITION -eq 0 ]; then
-	    echo "Resizing final disk partition"
-	    growdisk -vW /dev/$DISK
-	fi
-
-	echo "Adjusting slice-related files"
-	export SLICEFIX_ACPI=$ACPI
-	export SLICEFIX_ASF=$ASF
-	export SLICEFIX_NOCLFLUSH=$NOCLFLUSH
-	export SLICEFIX_DOM0MEM=$DOM0MEM
-	$BINDIR/slicefix $PARTITION $FREEBSD_DISK
 	echo "Image load complete at `date`"
+}
+
+#
+# Run slicefix on the indicated partition
+# N.B. DISK here is the FreeBSD disk name
+#
+fixone() {
+    DISK=$1
+    PART=$2
+    iline=$3
+
+    echo "`date`: Adjusting slice-related files on $DISK slice $PART"
+
+    export SLICEFIX_ACPI=`getvar ACPI "$iline" unknown`
+    export SLICEFIX_ASF=`getvar ASF "$iline" unknown`
+    export SLICEFIX_NOCLFLUSH=`getvar NOCLFLUSH "$iline" unknown`
+    export SLICEFIX_VGAONLY=`getvar VGAONLY "$iline" unknown`
+    export SLICEFIX_CONSOLE=`getvar CONSOLE "$iline" unknown`
+    export SLICEFIX_BIOSDISK=`getvar BIOSDISK "$iline"`
+    export SLICEFIX_DOM0MEM=`getvar DOM0MEM "$iline" unknown`
+    $BINDIR/slicefix $PART $DISK
+    return $?
 }
 
 get_loadinfo()
@@ -438,8 +464,7 @@ get_loadinfo()
 	while [ $time -gt 0 ]; do
 		# Just write it out to a tempfile to avoid extra nasty
 		# shell script hacks.
-	        # XXX -v 33 is temporary til we update the tmcc binary
-		$BINDIR/tmcc -v 33 loadinfo > /tmp/loadinfo.out
+		$BINDIR/tmcc loadinfo > /tmp/loadinfo.out
 		[ -s /tmp/loadinfo.out ] && break
 		sleep 1
 		time=$(( $time - 1 ))
@@ -534,6 +559,19 @@ if [ $FREEMEM -gt $RESIDMEM ]; then
 	FRISBEE_OPTS="$FRISBEE_OPTS -M $BUFFERMEM"
 fi
 
+#
+# Allow for large-ish socketbuf for frisbee
+# NOTE: if the sysctl fails, it doesn't matter as frisbee will downsize
+#
+osbs=`sysctl -n net.core.rmem_max`
+sbs=`expr $MAXSOCKBUF \* 1024`
+if [ $sbs -gt $osbs ]; then
+    sysctl -w net.core.rmem_max=$sbs
+    sysctl -w net.core.wmem_max=$sbs
+fi
+
+# NOTE: make sure you install the latest frisbee client for -k!
+FRISBEE_OPTS="$FRISBEE_OPTS -k $MAXSOCKBUF"
 
 # Wipe the MBR and partition boot blocks on all disks if reloading
 case $STATUS in
@@ -551,21 +589,85 @@ case $STATUS in
 		if [ -x $BINDIR/rc.nodecheck ]; then
 		    $BINDIR/rc.nodecheck boot
 		fi
-
-		## if we have nodecheck, perform disk speed tests here
-		#if [ -x $BINDIR/rc.nodecheck ]; then
-		#    true
-		#fi
 		;;
 esac
 
+#
+# Load each image in turn.
+# If a load fails, we exit non-zero so that the rc script will drop into
+# single-user mode.  If all loads succeed we either reboot or continue with
+# the rc script as desired by the caller.
+#
 FIRSTMBR=''
+devs=""
 while read line; do
-	if ! handle_loadinfo $line; then
-		echo "Failed to load disk, dropping to login prompt at `date`" 1>&2
-		exit 1
-	fi
+    #
+    # Remember the info for this partition line so we can run slicefix later.
+    # Yes, we can load the same partition multiple times due to our delta
+    # image mechanism.
+    #
+    # Note that we always overwrite the saved info so we wind up with the
+    # info for the last image loaded on the slice. Thus we assume that the
+    # last image loaded has the right info. Probably this will never matter
+    # as delta images should always have the same attributes as the full
+    # image loaded.
+    #
+    DISK=`getvar DISK "$line" ad0`
+
+    # Convert from the FreeBSD device name to a Linux device name
+    # and add that on to the info line.
+    case $DISK in
+	[hs]d[a-z])
+	    LDISK=$DISK
+	    ;;
+	*)
+	    LDISK=`$BINDIR/freebsd_to_linux_disk $DISK 0`
+	    LDISK=${LDISK%% *}
+	    ;;
+    esac
+    line="$line LDISK=$LDISK"
+
+    PART=`getvar PART "$line" 0`
+    dev="${DISK}_${PART}"
+    devs="$devs $dev"
+    eval ${dev}_info=\"$line\"
+
+    # N.B. we pass the linux disk name here
+    if ! handle_loadinfo $LDISK $PART "$line"; then
+	echo "Failed to load disk, dropping to login prompt at `date`" 1>&2
+	exit 1
+    fi
 done < /tmp/loadinfo.out
+echo "`date`: Frisbee run(s) finished"
+
+echo "`date`: Running slicefix"
+for dev in $devs; do
+    DISK=${dev%%_*}
+    PART=${dev##*_}
+    eval line=\$${dev}_info
+    if [ -n "$line" ]; then
+	fixone $DISK $PART "$line" || {
+	    echo "`date`: WARNING: slicefix on $DISK slice $PART failed"
+	}
+
+	#
+	# For a whole disk image, we resize the "extra" (4th) partition
+	# after writing the image. Otherwise, the resize already happened
+	# before the image was written (in case we needed the extra partition
+	# for an image fetched via HTTP).
+	#
+	if [ $PART -eq 0 ]; then
+	    echo "Resizing final disk partition"
+	    LDISK=`getvar LDISK "$line" hda`
+	    growdisk -vW /dev/$LDISK
+	fi
+
+	# whack the info so we don't slicefix again
+	eval ${dev}_info=\"\"
+    fi
+done
+echo "`date`: slicefix run(s) done"
+
 rm -f /tmp/loadinfo.out /tmp/secureloadinfo.out
 
 #

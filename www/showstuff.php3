@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -105,11 +105,13 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
     # Discover whether to show or hide certain columns
     #
     $colcheck_query_result = 
-      DBQueryFatal("SELECT sum(oi.OS = 'Windows') as winoscount, ".
+      DBQueryFatal("SELECT sum(ov.OS = 'Windows') as winoscount, ".
                    "       sum(nt.isplabdslice) as plabcount ".
                    "from reserved as r ".
                    "left join nodes as n on n.node_id=r.node_id ".
                    "left join os_info as oi on n.def_boot_osid=oi.osid ".
+		   "left join os_info_versions as ov on ".
+		   "     ov.osid=oi.osid and ov.vers=oi.version ".
                    "left join node_types as nt on n.type = nt.type ".
                    "WHERE r.eid='$eid' and r.pid='$pid'");
     $colcheckrow = mysql_fetch_array($colcheck_query_result);
@@ -150,7 +152,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 	#
 	$query_result =
 	    DBQueryFatal("SELECT r.*,n.*,nt.isvirtnode,nt.isplabdslice, ".
-                         " oi.OS,tip.tipname,wa.site,wa.hostname, ".
+                         " ov.OS,tip.tipname,wa.site,wa.hostname, ".
 		         " ns.status as nodestatus, ".
 		         " date_format(rsrv_time,\"%Y-%m-%d&nbsp;%T\") as rsrvtime, ".
 		         "nl.reported,nl.entry,nt.isjailed,nt.isremotenode ".
@@ -160,6 +162,8 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 		         "left join node_types as nt on nt.type=n.type ".
 		         "left join node_status as ns on ns.node_id=r.node_id ".
 		         "left join os_info as oi on n.def_boot_osid=oi.osid ".
+			 "left join os_info_versions as ov on ".
+			 "     ov.osid=oi.osid and ov.vers=oi.version ".
 			 "left join tiplines as tip on tip.node_id=r.node_id and ".
 			 "     tip.disabled=0 ".
 		         "inner join nodelogtemp as t on t.node_id=r.node_id ".
@@ -173,7 +177,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
     else {
 	$query_result =
 	    DBQueryFatal("SELECT r.*,n.*,nt.isvirtnode,nt.isplabdslice, ".
-                         " oi.OS,tip.tipname,wa.site,wa.hostname, ".
+                         " ov.OS,tip.tipname,wa.site,wa.hostname, ".
 		         " ns.status as nodestatus, ".
 		         " date_format(rsrv_time,\"%Y-%m-%d&nbsp;%T\") ".
 			 "   as rsrvtime,nt.isjailed,nt.isremotenode ".
@@ -183,6 +187,8 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 		         "left join node_types as nt on nt.type=n.type ".
 		         "left join node_status as ns on ns.node_id=r.node_id ".
 		         "left join os_info as oi on n.def_boot_osid=oi.osid ".
+			 "left join os_info_versions as ov on ".
+			 "     ov.osid=oi.osid and ov.vers=oi.version ".
 			 "left join tiplines as tip on tip.node_id=r.node_id and ".
 			 "     tip.disabled=0 ".
 		         "WHERE r.eid='$eid' and r.pid='$pid' ".
@@ -251,6 +257,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
             $wasite  = $row["site"];
             $wahost  = $row["hostname"];
 	    $def_boot_osid = $row["def_boot_osid"];
+	    $def_boot_osid_vers = $row["def_boot_osid_vers"];
 	    $startstatus   = $row["startstatus"];
 	    $status        = $row["nodestatus"];
 	    $bootstate     = $row["eventstate"];
@@ -304,7 +311,7 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
             echo "  <td>$type</td>\n";
 	    if ($def_boot_osid) {
 		echo "<td>";
-		SPITOSINFOLINK($def_boot_osid);
+		SPITOSINFOLINK($def_boot_osid, $def_boot_osid_vers);
 		echo "</td>\n";
 	    }
 	    else
@@ -400,14 +407,14 @@ function SHOWNODES($pid, $eid, $sortby, $showclass) {
 #
 # Spit out an OSID link in user format.
 #
-function SPITOSINFOLINK($osid)
+function SPITOSINFOLINK($osid, $version)
 {
-    if (! ($osinfo = OSinfo::Lookup($osid)))
+    if (! ($osinfo = OSinfo::Lookup($osid, $version)))
 	return;
 
     $osname = $osinfo->osname();
     
-    echo "<a href='showosinfo.php3?osid=$osid'>$osname</a>\n";
+    echo "<a href='showosinfo.php3?osid=$osid&version=$version'>$osname</a>\n";
 }
 
 #
