@@ -82,6 +82,7 @@ my $SACERT	  = "$TB/etc/genisa.pem";
 my $CMCERT	  = "$TB/etc/genicm.pem";
 my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
 my $SSHSETUP      = "$TB/sbin/aptssh-setup";
+my $VERSIONING    = @PROFILEVERSIONS@;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -1142,12 +1143,14 @@ sub SnapShot($$$)
 	# that we expect the CM is doing image versioning, so do not
 	# bother to check if the image version is actually new.
 	#
-	$profile = $profile->NewVersion($this_user);
-	if (!defined($profile)) {
-	    print STDERR "Could not create new profile version\n";
-	    $webtask->Exited(70)
-		if (defined($webtask));
-	    exit(1);
+	if ($VERSIONING) {
+	    $profile = $profile->NewVersion($this_user);
+	    if (!defined($profile)) {
+		print STDERR "Could not create new profile version\n";
+		$webtask->Exited(70)
+		    if (defined($webtask));
+		exit(1);
+	    }
 	}
 	$profile->UpdateDiskImage($image_urn);
 	$slice->UnLock();
