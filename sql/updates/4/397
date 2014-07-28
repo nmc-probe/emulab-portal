@@ -148,7 +148,7 @@ sub DoUpdate($$$)
 		     " KEY `uuid` (`uuid`) ".
 		     ") ENGINE=MyISAM DEFAULT CHARSET=latin1");
 	DBQueryFatal("insert into images select imagename,version,imageid, ".
-		     "    pid,pid_idx,gid,gid_idx,uuid,locked,locker_pid ".
+		     "    pid,pid_idx,gid,gid_idx,uuid,0,locked,locker_pid ".
 		     "  from image_versions");
 	DBQueryFatal("update image_versions set uuid=uuid()");
     }
