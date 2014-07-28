@@ -70,6 +70,7 @@ function SPITFORM($formfields, $errors)
     $candelete  = 0;
     $canmodify  = 0;
     $canpublish = 0;
+    $history    = 0;
 
     if ($action == "edit") {
 	$button_label = "Modify";
