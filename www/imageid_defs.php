@@ -153,7 +153,7 @@ class Image
 	    $query_result =
 		DBQueryWarn("select imageid,version from image_versions ".
 			    "where uuid='$safe_uuid' and ".
-			    "      v.deleted is null");
+			    "      deleted is null");
 	}
 	if (mysql_num_rows($query_result) == 0) {
 	    return null;

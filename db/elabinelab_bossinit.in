@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -246,23 +246,26 @@ if (TBSiteVarExists("images/frisbee/maxrate_usr")) {
 #
 if (1) {
     # first find the OSIDs for the "standard" MFSes
-    my $qr = DBQueryFatal("select osname,osid from os_info where osname in ".
+    my $qr = DBQueryFatal("select osname,osid,version from os_info ".
+			  " where osname in ".
 			  "  ('FREEBSD-MFS','FRISBEE-MFS','NEWNODE-MFS') ".
 			  " and pid='$TBOPSPID'");
-    my ($amfs,$dmfs,$nmfs,$nmfspath);
-    while (my ($name, $osid) = $qr->fetchrow_array()) {
+    my ($amfs,$dmfs,$nmfs,$nmfspath,$nmfsvers);
+    while (my ($name, $osid, $version) = $qr->fetchrow_array()) {
 	if ($name eq "FREEBSD-MFS") {
 	    $amfs = $osid;
 	} elsif ($name eq "FRISBEE-MFS") {
 	    $dmfs = $osid;
 	} else {
 	    $nmfs = $osid;
+	    $nmfsvers = $version;
 	    $nmfspath = "/tftpboot/freebsd.newnode"; # XXX hardwired
 	}
     }
 
     # make sure newnode MFS points to the correct place
-    DBQueryFatal("update os_info set path='$nmfspath' where osid=$nmfs");
+    DBQueryFatal("update os_info_versions set path='$nmfspath' ".
+		 "where osid=$nmfs and vers=$nmfsvers");
 
     # collect up non-standard PXE boot paths, first from node_type_attributes..
     my @bogoboots = ();
