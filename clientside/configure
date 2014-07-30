@@ -4957,6 +4957,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/centos6/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \
 	  os/dijkstra/GNUmakefile os/genhostsfile/GNUmakefile \
+	  os/capture/GNUmakefile \
 	  os/frisbee.redux/GNUmakefile \
 	  os/growdisk/GNUmakefile \
 	  os/zapdisk/GNUmakefile \

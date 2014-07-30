@@ -44,14 +44,14 @@ include Makeconf
 #   @optional_subdirs@ (has event)
 #   ipod os security sensors 
 # Then things that only depend on stuff we've done:
-#   pxe tbsetup tmcd utils backend www tip capture vis
+#   pxe tbsetup tmcd utils backend www tip vis
 # Then things that depend on stuff we just did:
 #
 ifeq ($(STANDALONE_CLEARINGHOUSE),0)
 SUBDIRS = \
 	clientside/lib \
 	db assign www @optional_subdirs@ clientside ipod security sensors \
-	pxe tbsetup account tmcd utils backend tip capture ipod vis \
+	pxe tbsetup account tmcd utils backend tip ipod vis \
 	sensors os xmlrpc install/newnode_sshkeys mote tools/whol \
 	tools/svn wiki bugdb collab node_usage install
 ifeq ($(ISMAINSITE),1)
@@ -209,7 +209,7 @@ tipserv-install:
 	-mkdir -p $(INSTALL_TOPDIR)/log/tiplogs
 	-mkdir -p $(INSTALL_TOPDIR)/etc
 	@$(MAKE) -C tip tipserv-install
-	@$(MAKE) -C capture tipserv-install
+	@$(MAKE) -C clientside/os/capture tipserv-install
 	@$(MAKE) -C tbsetup tipserv-install
 
 client-mkdirs:
@@ -220,7 +220,6 @@ client:
 	@$(MAKE) -C clientside client
 	@$(MAKE) -C os client
 ifneq ($(SYSTEM),CYGWIN_NT-5.1)
-	@$(MAKE) -C capture client
 	@$(MAKE) -C tip client
 endif
 
@@ -228,7 +227,6 @@ client-install: client client-mkdirs
 	@$(MAKE) -C clientside client-install
 	@$(MAKE) -C os client-install
 ifneq ($(SYSTEM),CYGWIN_NT-5.1)
-	@$(MAKE) -C capture client-install
 	@$(MAKE) -C tip client-install
 endif
 
@@ -236,7 +234,6 @@ subboss:
 	@$(MAKE) -C clientside subboss
 	@$(MAKE) -C os subboss
 ifneq ($(SYSTEM),CYGWIN_NT-5.1)
-	@$(MAKE) -C capture client
 	@$(MAKE) -C tip client
 endif
 	@$(MAKE) -C utils subboss
@@ -245,7 +242,6 @@ subboss-install: subboss
 	@$(MAKE) -C clientside subboss-install
 	@$(MAKE) -C os subboss-install
 ifneq ($(SYSTEM),CYGWIN_NT-5.1)
-	@$(MAKE) -C capture client-install
 	@$(MAKE) -C tip client-install
 endif
 	@$(MAKE) -C utils subboss-install
