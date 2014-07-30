@@ -8454,7 +8454,6 @@ sub UploadVlans($)
 		    return -1;
 		}
 		$linkedlanid = $linkedlan->lanid();
-
 		#
 		# XXX This is a fix for emulated vlans; We need to insert the
 		# openflow attributes that exist for the emulated vlan,
@@ -8463,10 +8462,10 @@ sub UploadVlans($)
 		# when the encap style is vlan (which is how links are done
 		# already).
 		#
-		if ($linkedlan->type() eq "vlan" && $virtlan->ofenabled()) {
+		if ($linkedlan->type() eq "vlan" && $virtlan->_ofenabled()) {
 		    $linkedlan->SetAttribute("ofenabled", "1");
 		    $linkedlan->SetAttribute("ofcontroller",
-					     $virtlan->ofcontroller());
+					     $virtlan->_ofcontroller());
 		    $linkedlan->SetAttribute("oflistener", "");
 		}
 	    }
