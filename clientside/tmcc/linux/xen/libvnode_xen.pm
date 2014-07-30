@@ -306,6 +306,16 @@ sub init($)
     }
     getXenInfo();
 
+    #
+    # The 4.4 image has to use the openvswitch package instead of building
+    # from source since the current release does not support the kernel.
+    # And the package is installed in a different place.
+    #
+    if ($xeninfo{xen_minor} >= 4) {
+	$OVSCTL   = "/usr/bin/ovs-vsctl";
+	$OVSSTART = "/usr/share/openvswitch/scripts/ovs-ctl";
+    }
+
     return 0;
 }
 
@@ -1276,8 +1286,7 @@ sub vnodePreConfig($$$$$){
 	#
 	# Ick, we lost this info during reboot cause we start with a
 	# fresh private info. Need to ponder this. But anyway, this is
-	# a temp hack to get a new ntp.conf into all containers on next
-	# reboot. Will remove later.
+	# a temp hack so we can apply some fixups to all containers.
 	#
 	# Make sure its a Linux partition. If not, ignore it.
 	#
