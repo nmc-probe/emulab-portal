@@ -107,7 +107,7 @@ foreach my $dbfile (@DBFILES) {
 #
 if (!$noumount) {
     print "Unmounting NFS filesystems ...\n";
-    if (!system("umount -at nfs")) {
+    if (!system("umount -At nfs")) {
 	foreach my $dir ("/users", "/proj", "/groups", "/scratch") {
 	    # Yes, this can happen.
 	    next
