@@ -44,7 +44,8 @@ ifneq ($(wildcard /usr/kerberos/bin/krb5-config),)
 endif
 endif
 
-CFLAGS = -g -O2 -DUSESOCKETS -I$(TESTBED_SRCDIR)/capture -I$(OBJDIR)
+CFLAGS = -g -O2 -DUSESOCKETS -I$(TESTBED_SRCDIR)/clientside/os/capture \
+           -I$(OBJDIR)
 
 OBJS = cmds.o cmdtab.o hunt.o partab.o \
        remote.o tip.o value.o vars.o getcap.o
@@ -62,7 +63,7 @@ tip.old:	$(OBJS)
 tip:	$(TESTBED_SRCDIR)/tip/tip.deprecation
 	cp $(TESTBED_SRCDIR)/tip/tip.deprecation tip
 
-tiptunnel.o: tiptunnel.c $(TESTBED_SRCDIR)/capture/capdecls.h
+tiptunnel.o: tiptunnel.c $(TESTBED_SRCDIR)/clientside/os/capture/capdecls.h
 	$(CC) $(CFLAGS) $(SSLFLAGS) -o tiptunnel.o -c $<
 
 tiptunnel: tiptunnel.o
@@ -70,13 +71,13 @@ tiptunnel: tiptunnel.o
 
 # 'console' is tiptunnel, without SSL, and with localmode on by default.
 
-console.bin.o: tiptunnel.c $(TESTBED_SRCDIR)/capture/capdecls.h
+console.bin.o: tiptunnel.c $(TESTBED_SRCDIR)/clientside/os/capture/capdecls.h
 	$(CC) $(CFLAGS) -DLOCALBYDEFAULT -o console.bin.o -c $<
 
 console.bin: console.bin.o
 	$(CC) $(CFLAGS) -o console.bin console.bin.o
 
-tippty.o: tiptunnel.c $(TESTBED_SRCDIR)/capture/capdecls.h
+tippty.o: tiptunnel.c $(TESTBED_SRCDIR)/clientside/os/capture/capdecls.h
 	$(CC) $(CFLAGS) -DTIPPTY -o $@ -c $<
 
 tippty: tippty.o
