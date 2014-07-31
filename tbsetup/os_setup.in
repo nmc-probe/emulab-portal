@@ -77,6 +77,7 @@ use Image;
 use OSinfo;
 use User;
 use Node;
+use EmulabFeatures;
 
 # Is this needed any longer?
 my $dolastload  = 0;
@@ -183,8 +184,8 @@ else {
 # to make sure they are really rebooted and not just told to check
 # in with bootinfo again.
 #
-if (FeatureEnabled("ExternalNodeManagement", $experiment->GetSwapper(),
-		   $experiment->GetProject(), $experiment)) {
+if (EmulabFeatures->FeatureEnabled("ExternalNodeManagement", 
+				   undef, undef, $experiment)) {
     $MyStruct->realreboot(1);
 }
 
