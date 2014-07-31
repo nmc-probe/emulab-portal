@@ -194,6 +194,7 @@ function SPITFOOTER()
 {
     echo "</div>
       </div>\n";
+    SpitNSFModal();
     echo "
       <!--- Footer -->
       <div>
@@ -206,7 +207,11 @@ function SPITFOOTER()
 	<span>Question or comment? Join the
            <a href='https://groups.google.com/forum/#!forum/apt-users'
               target='_blank'>Help Forum</a></span>
-        <div class='pull-right'>&copy; 2014
+        <div class='pull-right'>
+           <a data-toggle='modal' style='margin-right: 10px;'
+              href='#nsf_supported_modal'
+	      data-target='#nsf_supported_modal'>Supported by NSF</a>
+          &copy; 2014
           <a href='http://www.utah.edu' target='_blank'>
              The University of Utah</a>
         </div>
@@ -447,6 +452,33 @@ function SpitOopsModal($id)
                  <div id='${id}_text'></div>
                </div>
             </div>
+            </div>
+         </div>\n";
+}
+
+function SpitNSFModal()
+{
+    echo "<!-- This is the NSF Supported modal -->
+          <div id='nsf_supported_modal' class='modal fade'>
+            <div class='modal-dialog'>
+             <div class='modal-content'>
+              <div class='modal-body'>
+                This material is based upon work supported by the
+                National Science Foundation under Grant
+                No. CNS-1338155. Any opinions, findings, and
+                conclusions or recommendations expressed in this
+                material are those of the author(s) and do not
+                necessarily reflect the views of the National Science
+                Foundation.
+                <br><br>
+                <center>
+                <button type='button'
+                     class='btn btn-default btn-sm' 
+                     data-dismiss='modal' aria-hidden='true'>
+                  Close</button>
+                </center>
+              </div>
+             </div>
             </div>
          </div>\n";
 }
