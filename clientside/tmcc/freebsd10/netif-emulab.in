@@ -1,4 +1,25 @@
 #
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
 # Emulab version of netif to DHCP on all interfaces simultaneously.
 # Runs before the standard netif, and effectively neuters that script.
 # Note the dependencies below.  Every script that declares that it must run
@@ -44,11 +65,15 @@ fi
 #
 cnet_nfe_hack()
 {
-	for i in 5 10 15 20 20 20 30 30 30 60 60; do
+	# XXX try for 10 minutes at fixed 30s intervals
+	# XXX tried slowly increasing intervals, but didn't work
+	for i in 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30; do
 		echo "`date`: nfe_hack: taking interfaces down and up ..."
 		for _if in $*; do
 			ifconfig $_if down
-			sleep 2
+		done
+		sleep 2
+		for _if in $*; do
 			ifconfig $_if up
 		done
 		sleep $i
@@ -57,6 +82,24 @@ cnet_nfe_hack()
 			break;
 		fi
 	done
+}
+
+cnet_ibprobe()
+{
+    #
+    # Handle Mellanox VPI cards: put them in auto mode.
+    #
+    if sysctl -q sys.class.infiniband_verbs.abi_version >/dev/null; then
+	sleep 2
+	if sysctl -q sys.device.mlx4_core0.mlx4_port1; then
+	    echo "Putting Mellanox cards in auto mode..."
+	    sysctl sys.device.mlx4_core0.mlx4_port1=auto
+	    if sysctl -q sys.device.mlx4_core0.mlx4_port2; then
+		sysctl sys.device.mlx4_core0.mlx4_port2=auto
+	    fi
+	    sleep 2
+	fi
+    fi
 }
 
 # this is a separate function so we can redirect all the output below
@@ -93,6 +136,8 @@ cnet_dhcp()
 cnet_start()
 {
 	_nfe=""
+
+	cnet_ibprobe >>$ELAB_LOGDIR/netif-emulab.log 2>&1
 
 	rm -f $ELAB_BOOTDIR/controlif
 

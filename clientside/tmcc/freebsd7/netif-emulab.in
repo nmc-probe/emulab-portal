@@ -84,6 +84,24 @@ cnet_nfe_hack()
 	done
 }
 
+cnet_ibprobe()
+{
+    #
+    # Handle Mellanox VPI cards: put them in auto mode.
+    #
+    if sysctl -q sys.class.infiniband_verbs.abi_version >/dev/null; then
+	sleep 2
+	if sysctl -q sys.device.mlx4_core0.mlx4_port1; then
+	    echo "Putting Mellanox cards in auto mode..."
+	    sysctl sys.device.mlx4_core0.mlx4_port1=auto
+	    if sysctl -q sys.device.mlx4_core0.mlx4_port2; then
+		sysctl sys.device.mlx4_core0.mlx4_port2=auto
+	    fi
+	    sleep 2
+	fi
+    fi
+}
+
 # this is a separate function so we can redirect all the output below
 cnet_dhcp()
 {
@@ -118,6 +136,8 @@ cnet_dhcp()
 cnet_start()
 {
 	_nfe=""
+
+	cnet_ibprobe >>$ELAB_LOGDIR/netif-emulab.log 2>&1
 
 	rm -f $ELAB_BOOTDIR/controlif
 
