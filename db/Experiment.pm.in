@@ -4936,6 +4936,27 @@ sub HasVirtNodes($)
     return $query_result->num_rows;
 }
 
+sub HasPhysNodes($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    my $idx = $self->idx();
+
+    my $query_result =
+	DBQueryFatal("select n.node_id from reserved as r ".
+		     "left join nodes as n on n.node_id=r.node_id ".
+		     "left join node_types as t on t.type=n.type ".
+		     "where r.exptidx=$idx and t.isvirtnode=0");
+
+    return -1
+	if (!$query_result);
+    return $query_result->num_rows;
+}
+
 sub HasVirtInterfaces($)
 {
     my ($self) = @_;
