@@ -49,6 +49,7 @@ $osid_featurelist["vlans"]	= 1;
 $osid_featurelist["suboses"]	= 1;
 $osid_featurelist["loc-bstore"] = 1;
 $osid_featurelist["rem-bstore"] = 1;
+$osid_featurelist["xen-host"]   = 1;
 
 # Default op modes. The value is a user-okay flag.
 $osid_opmodes			= array();
