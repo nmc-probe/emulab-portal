@@ -67,6 +67,7 @@ use Experiment;
 use Node;
 use OSinfo;
 use Lan;
+use EmulabFeatures;
 
 # Local stuff
 my $consetup	    = "$TB/libexec/console_setup";
@@ -204,6 +205,16 @@ else {
 	}
 	push(@nodes, @oldnodes);
     }
+}
+
+#
+# Trigger a remake of the dhcpd.conf file for any experiment marked
+# with the ExternalNodeManagement feature.
+#
+if (EmulabFeatures->FeatureEnabled("ExternalNodeManagement",
+				   undef, undef,
+				   $experiment)) {
+    $mustmakeconf = 1;
 }
 
 #

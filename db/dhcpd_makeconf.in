@@ -69,6 +69,9 @@ use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
 use Node;
+use Experiment;
+use EmulabFeatures;
+use EmulabConstants;
 
 #
 # PXE boot constants
@@ -285,7 +288,7 @@ while (<IF>) {
 		    else {
 			$node_id = $row{"node_id"};
 		    }
-		    
+
 		    # Management ports, nothing special to do.
 		    if ($role eq TBDB_IFACEROLE_MANAGEMENT()) {
 			my $network = inet_ntoa(inet_aton($ip) &
@@ -308,6 +311,25 @@ while (<IF>) {
 		    my $tag;
 		    if (defined($row{"pid"})) {
 			$tag = $row{"pid"} . ":" . $row{"eid"};
+
+			#
+			# Escape hatch for nodes reserved to experiments
+			# which are marked for external node management.
+			# Some other entity will be responsible for
+			# bootstrapping them in this case, so leave them
+			# out of the DHCP config file.  This feature can
+			# be set on any or all of: swapper, project, 
+			# experiment. Only do this when the experiment is
+			# swapping in.
+			#
+			my $experiment = Experiment->Lookup($row{"pid"},
+							    $row{"eid"});
+			next 
+			    if (defined($experiment) 
+				&& $experiment->state() eq EXPTSTATE_ACTIVATING()
+				&& EmulabFeatures->FeatureEnabled(
+				    "ExternalNodeManagement", undef, undef,
+				    $experiment));
 		    }
 
 		    if (defined($tag) && defined($servernodes{$tag}) &&
