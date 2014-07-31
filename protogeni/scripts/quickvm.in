@@ -806,6 +806,7 @@ sub Terminate($)
     }
     $slice->Delete();
   done:
+    $instance->RecordHistory();
     $instance->Delete();
     exit(0);
 }
