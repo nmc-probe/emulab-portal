@@ -23,6 +23,7 @@
 #
 chdir("..");
 include_once("webtask.php");
+include_once("geni_defs.php");
 chdir("apt");
 include_once("profile_defs.php");
 include_once("instance_defs.php");
@@ -229,7 +230,7 @@ function Do_GuestInstantiate()
     # Need to form a guest id. Ideally, lets look for a guest user
     # with the same email and use that. 
     #
-    $geniuser = GeniUser::LookupByEmail($this_user->email());
+    $geniuser = GeniUser::LookupByEmail("sa", $this_user->email());
     if ($geniuser) {
 	$guestid = $geniuser->uid();
 	$token   = $geniuser->auth_token();

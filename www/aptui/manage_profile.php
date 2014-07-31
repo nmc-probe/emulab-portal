@@ -71,6 +71,7 @@ function SPITFORM($formfields, $errors)
     $canmodify  = 0;
     $canpublish = 0;
     $history    = 0;
+    $activity   = 0;
 
     if ($action == "edit") {
 	$button_label = "Modify";
@@ -80,6 +81,7 @@ function SPITFORM($formfields, $errors)
 	$history      = ($profile->HasHistory() ? 1 : 0);
 	$canmodify    = ($profile->CanModify() ? 1 : 0);
 	$canpublish   = ($profile->CanPublish() ? 1 : 0);
+	$activity     = ($profile->HasActivity() ? 1 : 0);
 	if ($canmodify) {
 	    $title    = "Modify Profile";
 	}
@@ -149,6 +151,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.CANMODIFY= $canmodify;\n";
     echo "    window.CANPUBLISH= $canpublish;\n";
     echo "    window.HISTORY  = $history;\n";
+    echo "    window.ACTIVITY = $activity;\n";
     echo "    window.TITLE    = '$title';\n";
     echo "    window.BUTTONLABEL = '$button_label';\n";
     if (isset($snapuuid)) {

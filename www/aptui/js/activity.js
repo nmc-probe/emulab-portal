@@ -1,6 +1,6 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup',
-	 'js/lib/text!template/profile-history.html'],
+	 'js/lib/text!template/activity.html'],
 function (_, sup, profileString)
 {
     'use strict';
@@ -12,11 +12,10 @@ function (_, sup, profileString)
 	window.APT_OPTIONS.initialize(sup);
 	ajaxurl  = window.AJAXURL;
 
-	var profiles = JSON.parse(_.unescape($('#profiles-json')[0].textContent));
-	var profile_html = profileTemplate({profiles: profiles});
-	$('#history-body').html(profile_html);
-
-	console.info(profiles);
+	var instances =
+	    JSON.parse(_.unescape($('#instances-json')[0].textContent));
+	var activity_html = profileTemplate({instances: instances});
+	$('#activity-body').html(activity_html);
     }
     $(document).ready(initialize);
 });

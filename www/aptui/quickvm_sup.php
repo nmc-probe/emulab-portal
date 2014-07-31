@@ -164,9 +164,8 @@ function SPITHEADER($thinheader = 0)
                        href='instantiate.php'>Home</a></form></li>
                 <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='http://docs.aptlab.net' target='_blank'>Manual</a></form></li>\n";
-    if (!$disable_accounts) {
-	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left ".
-	    (!$login_user ? "hidden" : "") . "'>" .
+    if ($login_user) {
+	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
 	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
                     Actions <b class='caret'></b></a>
                   <ul class='dropdown-menu'>
@@ -174,8 +173,12 @@ function SPITHEADER($thinheader = 0)
                    <li><a href='myexperiments.php'>My Experiments</a></li>
                    <li><a href='manage_profile.php'>Create Profile</a></li>
                    <li class='divider'></li>
-	           <li><a href='logout.php'>Logout</a></li>
-                  </ul>
+	           <li><a href='logout.php'>Logout</a></li>";
+	if (ISADMIN()) {
+	    echo " <li class='divider'></li>
+	           <li><a href='activity.php'>Activity</a></li>";
+	}
+	echo "    </ul>
                 </li>\n";
     }
     echo "   </ul>

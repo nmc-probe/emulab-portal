@@ -155,7 +155,7 @@ class Image
 			    "where uuid='$safe_uuid' and ".
 			    "      deleted is null");
 	}
-	if (mysql_num_rows($query_result) == 0) {
+	if (!$query_result || mysql_num_rows($query_result) == 0) {
 	    return null;
 	}
 	$row = mysql_fetch_array($query_result);

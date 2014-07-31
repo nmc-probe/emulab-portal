@@ -43,6 +43,14 @@
            type='button'>History
 	</a>
 	<% } %>
+	<% if (activity) { %>
+	<a class='btn btn-info btn-xs pull-left'
+           id='profile_activity_button'
+           style='margin-right: 10px; font-size: 12px'
+           href='profile-activity.php?uuid=<%= uuid %>'
+           type='button'>Activity
+	</a>
+	<% } %>
       </div>
     </div>
   </div>

@@ -264,5 +264,39 @@ class Profile
 	
 	return ($this->version() >= $row[0] ? 1 : 0);
     }
+    #
+    # Has a profile been instantiated?
+    #
+    function HasActivity() {
+	$profileid = $this->profileid();
+
+	$query_result =
+	    DBQueryWarn("select count(h.uuid) from apt_instance_history as h ".
+			"where h.profile_id='$profileid'");
+
+	if (!$query_result) {
+	    return 0;
+	}
+	if (mysql_num_rows($query_result)) {
+	    $row = mysql_fetch_row($query_result);
+	    if ($row[0] > 0) {
+		return 1;
+	    }
+	}
+	$query_result =
+	    DBQueryWarn("select count(uuid) from apt_instances ".
+			"where profile_id='$profileid'");
+
+	if (!$query_result) {
+	    return 0;
+	}
+	if (mysql_num_rows($query_result)) {
+	    $row = mysql_fetch_row($query_result);
+	    if ($row[0] > 0) {
+		return 1;
+	    }
+	}
+	return 0;
+    }
 }
 ?>

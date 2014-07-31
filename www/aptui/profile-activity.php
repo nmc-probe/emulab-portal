@@ -52,63 +52,65 @@ else if ($this_user->uid_idx() != $profile->creator_idx() && !ISADMIN()) {
     SPITUSERERROR("Not enough permission!");
 }
 $profileid = $profile->profileid();
-$profiles  = array();
+$instances = array();
 
+#
+# First existing instances and then the history table.
+#
 $query_result =
-    DBQueryFatal("select v.*,DATE(v.created) as created ".
-		 "  from apt_profile_versions as v ".
-		 "where v.profileid='$profileid' ".
-		 "order by v.created desc");
+    DBQueryFatal("(select i.uuid,i.profile_version,i.created,'' as destroyed, ".
+		 "   i.creator,p.uuid as profile_uuid ".
+		 "  from apt_instances as i ".
+		 "left join apt_profile_versions as p on ".
+		 "     p.profileid=i.profile_id and ".
+		 "     p.version=i.profile_version ".
+		 "where i.profile_id='$profileid') ".
+		 "union ".
+		 "(select h.uuid,h.profile_version,h.created,h.destroyed, ".
+		 "    h.creator,p.uuid as profile_uuid ".
+		 "  from apt_instance_history as h ".
+		 "left join apt_profile_versions as p on ".
+		 "     p.profileid=h.profile_id and ".
+		 "     p.version=h.profile_version ".
+		 "where h.profile_id='$profileid') ".
+		 "order by created desc");
+
+if (mysql_num_rows($query_result) == 0) {
+    $message = "<b>Oops, there is no activity to show you.</b><br>";
+    SPITUSERERROR($message);
+    exit();
+}
 
 while ($row = mysql_fetch_array($query_result)) {
-    $idx     = $row["profileid"];
-    $uuid    = $row["uuid"];
-    $version = $row["version"];
-    $pversion= $row["parent_version"];
-    $name    = $row["name"];
-    $pid     = $row["pid"];
-    $created = $row["created"];
-    $published = $row["published"];
-    $creator = $row["creator"];
-    $rspec   = $row["rspec"];
-    $desc    = '';
+    $uuid      = $row["uuid"];
+    $puuid     = $row["profile_uuid"];
+    $pversion  = $row["profile_version"];
+    $created   = $row["created"];
+    $destroyed = $row["destroyed"];
+    $creator   = $row["creator"];
 
-    if ($version == 0) {
-	$pversion = " ";
-    }
-    if (!$published) {
-	$published = " ";
-    }
-    $parsed_xml = simplexml_load_string($rspec);
-    if ($parsed_xml &&
-	$parsed_xml->rspec_tour && $parsed_xml->rspec_tour->description) {
-	$desc = (string) $parsed_xml->rspec_tour->description;
-    }
-
-    $profile = array();
-    $profile["uuid"]    = $uuid;
-    $profile["version"] = $version;
-    $profile["creator"] = $creator;
-    $profile["description"] = $desc;
-    $profile["created"]     = $created;
-    $profile["published"]   = $published;
-    $profile["parent_version"] = $pversion;
-
-    $profiles[] = $profile;
+    $instance = array();
+    $instance["uuid"]        = $uuid;
+    $instance["p_uuid"]      = $puuid;
+    $instance["p_version"]   = $pversion;
+    $instance["creator"]     = $creator;
+    $instance["created"]     = $created;
+    $instance["destroyed"]   = $destroyed;
+    $instances[] = $instance;
 }
 
 # Place to hang the toplevel template.
-echo "<div id='history-body'></div>\n";
+echo "<div id='activity-body'></div>\n";
 
 echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL  = 'server-ajax.php';\n";
 echo "</script>\n";
-echo "<script type='text/plain' id='profiles-json'>\n";
-echo json_encode($profiles);
+echo "<script type='text/plain' id='instances-json'>\n";
+echo json_encode($instances);
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
-echo "<script src='js/lib/require.js' data-main='js/profile-history'></script>\n";
+echo "<script src='js/lib/require.js' data-main='js/profile-activity'></script>\n";
 
 SPITFOOTER();
 ?>

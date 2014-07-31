@@ -63,6 +63,7 @@ function (_, sup, filesize, ShowImagingModal,
 	    canmodify:		window.CANMODIFY,
 	    canpublish:		window.CANPUBLISH,
 	    history:		window.HISTORY,
+	    activity:		window.ACTIVITY,
 	    snapuuid:		(window.SNAPUUID || null),
 	    general_error:      (errors.error || ''),
 	});
