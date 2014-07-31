@@ -124,6 +124,7 @@ sub New($$$@)
     $self->noretry(0);
     $self->canceled(0);
     $self->aborted(0);
+    $self->realreboot(0);
 
     if (EmulabFeatures->FeatureEnabled("NewOsload",$user,
 				       $self->{'GROUP'},$experiment)) {
@@ -709,6 +710,7 @@ sub LightUpNodes($@)
 	$reboot_args{'debug'}     = $self->debug();
 	$reboot_args{'waitmode'}  = 0;
 	$reboot_args{'asyncmode'} = 1;
+	$reboot_args{'rebootmode'} = $self->realreboot();
 	$reboot_args{'nodelist'}  = [ @list ];
 
 	my $pid = nodereboot(\%reboot_args, $reboot_failures);
@@ -728,6 +730,7 @@ sub LightUpNodes($@)
 	$reboot_args{'debug'}     = $self->debug();
 	$reboot_args{'waitmode'}  = 0;
 	$reboot_args{'asyncmode'} = 1;
+	$reboot_args{'rebootmode'} = $self->realreboot();
 	$reboot_args{'reconfig'}  = 1;
 	$reboot_args{'nodelist'}  = [ @list ];
 

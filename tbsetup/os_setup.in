@@ -178,6 +178,17 @@ else {
 }
 
 #
+# External node management means that someone else is going to be
+# answering DHCP after nodes reboot. For nodes in PXEWAIT, we need
+# to make sure they are really rebooted and not just told to check
+# in with bootinfo again.
+#
+if (FeatureEnabled("ExternalNodeManagement", $experiment->GetSwapper(),
+		   $experiment->GetProject(), $experiment)) {
+    $MyStruct->realreboot(1);
+}
+
+#
 # First pass to check that all local files exist. This should probably
 # happen earlier in the swap path.
 #
