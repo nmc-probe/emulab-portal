@@ -1305,7 +1305,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 				 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)){
 		$response =
 		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					 "Invalid tarfiles");
+			 "Invalid tarfiles: " . TBFieldErrorString());
 		goto bad;
 	    }
 	    $nodeblob->{'tarfiles'} = $tarfiles;
@@ -1317,7 +1317,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					     "Invalid startup command");
+			   "Invalid startup command: " . TBFieldErrorString());
 		    goto bad;
 		}
 		$nodeblob->{'startupcmd'} = $startupcmd;
@@ -1336,11 +1336,11 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    }
 
 	    if ($startupCount == 1 && defined($startupCommand)) {
-		if (! TBcheck_dbslot($startupCommand, "virt_nodes", "startupcmd",
+		if (! TBcheck_dbslot($startupCommand, "virt_nodes","startupcmd",
 				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					     "Invalid startup command");
+			   "Invalid startup command: " . TBFieldErrorString());
 		    goto bad;
 		}
 		$nodeblob->{'startupcmd'} = $startupCommand;
@@ -6753,6 +6753,14 @@ sub SetSliceExpiration($$$$@)
 	$max_sliver_lifetime = 90;
     }
 
+    #
+    # Check for what resources in use; If only VMs, allow longer
+    #
+    my $slice_experiment = $slice->GetExperiment();
+    if ($slice_experiment && !$slice_experiment->HasPhysNodes()) {
+	$max_sliver_lifetime = 90;
+    }
+    
     #
     # Check if the user has a credential that lets him obtain slivers
     # with extended sliver lifetime. If so allow request, but note
