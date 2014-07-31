@@ -562,7 +562,7 @@ getwcache() {
 #set -x
 	if [ "${cmc/camcontrol}" != "${cmc}" ] ; then
 	    sd=${1#/dev/}		
-	    x=$(camcontrol modepage $sd -m8 | grep WCE 2>/dev/null)
+	    x=$(camcontrol modepage $sd -m8 2>/dev/null | grep WCE)
 	    if [ "${x/1}" != "$x" ] ; then
 		res="enabled"
 	    elif [ "${x/0}" != "$x" ] ; then
@@ -655,7 +655,18 @@ getsectors() {
 	    hdname=${hdname##*/}
 	    res=$(grep sectors /var/run/dmesg.boot | grep $hdname)
 	    if [ -z "$res" ] ; then
-		hdnamex=${hdname/ad/ada}
+		# XXX fixme right
+		case $hdname in
+		    ad4 ) hdnamex="ada0" ;;
+		    ad6 ) hdnamex="ada1" ;;
+		    ad8 ) hdnamex="ada2" ;;
+		    ad10 ) hdnamex="ada3" ;;
+		    ad12 ) hdnamex="ada4" ;;
+		    ad14 ) hdnamex="ada5" ;;
+		    ad16 ) hdnamex="ada6" ;;
+		    ad18 ) hdnamex="ada7" ;;
+		    * )   hdnamex=$hdname ;;
+		esac
 		res=$(grep sectors /var/run/dmesg.boot | grep $hdnamex)
 		if [ -z "$res" ] ; then
 		    res=$(grep ${hdname} /var/run/dmesg.boot)
