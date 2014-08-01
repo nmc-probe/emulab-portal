@@ -281,12 +281,20 @@ while (<IF>) {
 		    my $dns = "";
 		    my $booting = "";
 		    my $filename = "";
+		    my $tag;
+		    my $experiment;
 
 		    if ($vnames && defined($row{"vname"})) {
 			$node_id = $row{"vname"};
 		    }
 		    else {
 			$node_id = $row{"node_id"};
+		    }
+
+		    if (defined($row{"pid"})) {
+			$tag = $row{"pid"} . ":" . $row{"eid"};
+			$experiment = Experiment->Lookup($row{"pid"},
+							 $row{"eid"});
 		    }
 
 		    # Management ports, nothing special to do.
@@ -308,30 +316,30 @@ while (<IF>) {
 			goto spit;
 		    }
 
-		    my $tag;
-		    if (defined($row{"pid"})) {
-			$tag = $row{"pid"} . ":" . $row{"eid"};
-
-			#
-			# Escape hatch for nodes reserved to experiments
-			# which are marked for external node management.
-			# Some other entity will be responsible for
-			# bootstrapping them in this case, so leave them
-			# out of the DHCP config file.  This feature can
-			# be set on any or all of: swapper, project, 
-			# experiment. Only do this when the experiment is
-			# swapping in.
-			#
-			my $experiment = Experiment->Lookup($row{"pid"},
-							    $row{"eid"});
-			next 
-			    if (defined($experiment) 
-				&& $experiment->state() eq EXPTSTATE_ACTIVATING()
-				&& EmulabFeatures->FeatureEnabled(
-				    "ExternalNodeManagement", undef, undef,
-				    $experiment));
+		    #
+		    # Neuter dhcp nodes reserved to experiments
+		    # which are marked for external node management.
+		    # Some other entity will be responsible for
+		    # bootstrapping them in this case, so leave them
+		    # out of the DHCP config file.  This feature can
+		    # be set on any or all of: swapper, project, 
+		    # experiment. Only do this when the experiment is
+		    # swapping in.
+		    #
+		    if (defined($experiment) &&
+			$experiment->state() eq EXPTSTATE_ACTIVATING() &&
+			EmulabFeatures->FeatureEnabled(
+			    "ExternalNodeManagement", undef, undef,
+			    $experiment)) {
+			$hostname = "${spaces}\toption host-name ".
+			    "\"$node_id\";\n";
+			$booting  = "${spaces}\tignore booting;\n";
+			goto spit;
 		    }
 
+		    #
+		    # Do different stuff for elabinelab / plab nodes.
+		    #
 		    if (defined($tag) && defined($servernodes{$tag}) &&
 			(($row{"inner_elab_boot"} == 1 &&
 			  defined($row{"inner_elab_role"}) &&
@@ -363,6 +371,9 @@ while (<IF>) {
 			    }
 			}
 		    }
+		    #
+		    # Defer to subbosses for dhcp and/or tftp if delegated.
+		    #
 		    elsif (defined $dhcp_subbosses{$node_id}) {
 			$hostname =
 			    "${spaces}\toption host-name \"$node_id\";\n";
@@ -372,6 +383,9 @@ while (<IF>) {
 			        $tftp_subbosses{$node_id} . ";\n";
 		        }
 		    }
+		    #
+		    # The default case: just a plain old TB node.
+		    #
 		    else {
 			$hostname =
 			    "${spaces}\toption host-name \"$node_id\";\n";
