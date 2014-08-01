@@ -296,6 +296,7 @@ if ($need_consetup && !$error && @nodes) {
     TBDebugTimeStamp("nalloc finished console setup");
 }
 
+$EmulabFeatures::verbose = 0;
 if (EmulabFeatures->FeatureEnabled("ExternalNodeManagement",
 				   undef, undef,
 				   $experiment)) {

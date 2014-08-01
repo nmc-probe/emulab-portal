@@ -211,6 +211,7 @@ else {
 # Trigger a remake of the dhcpd.conf file for any experiment marked
 # with the ExternalNodeManagement feature.
 #
+$EmulabFeatures::verbose = 0;
 if (EmulabFeatures->FeatureEnabled("ExternalNodeManagement",
 				   undef, undef,
 				   $experiment)) {

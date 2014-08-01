@@ -73,6 +73,9 @@ use Experiment;
 use EmulabFeatures;
 use EmulabConstants;
 
+# Tell EmulabFeatures to shut its yap
+$EmulabFeatures::verbose = 0;
+
 #
 # PXE boot constants
 #
