@@ -86,6 +86,8 @@ function SPITHEADER($thinheader = 0)
     echo "<html>
       <head>
         <title>$title</title>
+        <link rel='shortcut icon' href='favicon.ico'
+              type='image/vnd.microsoft.icon'>
         <link rel='stylesheet' href='css/bootstrap.css'>
         <link rel='stylesheet' href='css/quickvm.css'>
 	<script src='js/common.js'></script>
