@@ -310,7 +310,7 @@ while (<IF>) {
 		    if (defined($row{"pid"})) {
 			$tag = $row{"pid"} . ":" . $row{"eid"};
 
-			if (!exists($extmanaged{$tag})) {
+			if (!exists($extman_cache{$tag})) {
 			    my $experiment = Experiment->Lookup($row{"pid"},
 								$row{"eid"});
 			    $extman = $extman_cache{$tag} = 
