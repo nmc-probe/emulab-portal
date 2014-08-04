@@ -79,6 +79,9 @@ use User;
 use Node;
 use EmulabFeatures;
 
+# Simmer down EmulabFeatures!
+$EmulabFeatures::verbose = 0;
+
 # Is this needed any longer?
 my $dolastload  = 0;
 
@@ -396,6 +399,15 @@ while (1) {
 	    }
 	}
 	$count++;
+    }
+
+    # XXX: Poke at stated to move along nodes that are going to be
+    # externally managed.  This feels kind of kludgy.
+    if (EmulabFeatures->FeatureEnabled("ExternalNodeManagement", 
+				       undef, undef, $experiment)) {
+	foreach my $node (@nodes) {
+	    $node->SetEventState(TBDB_NODESTATE_BOOTING());
+	}
     }
 
     # And wait. 

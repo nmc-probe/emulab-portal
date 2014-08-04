@@ -49,6 +49,7 @@ my $partial = 0;
 my $TB          = "@prefix@";
 my $consetup    = "$TB/libexec/console_setup";
 my $exportsetup = "$TB/sbin/exports_setup";
+my $makeconf    = "$TB/sbin/dhcpd_makeconf";
 
 #
 # Testbed Support libraries
@@ -60,6 +61,7 @@ use Experiment;
 use Project;
 use User;
 use Node;
+use EmulabFeatures;
 
 #
 # Turn off line buffering on output
@@ -292,6 +294,18 @@ if ($need_consetup && !$error && @nodes) {
     system("$consetup @nodeids") == 0 or
 	print STDERR "WARNING: $consetup @nodes failed!\n";
     TBDebugTimeStamp("nalloc finished console setup");
+}
+
+$EmulabFeatures::verbose = 0;
+if (EmulabFeatures->FeatureEnabled("ExternalNodeManagement",
+				   undef, undef,
+				   $experiment)) {
+    print "ExternalNodeManagement feature is set: Disabling Emulab ".
+	  "management of nodes in $experiment ...\n";
+    # Shut off dhcp response for nodes in this experiment.
+    if (system("$makeconf -i -r")) {
+	print STDERR "WARNING: Failed to reconfigure dhcp!\n";
+    }
 }
 
 #

@@ -69,6 +69,12 @@ use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
 use Node;
+use Experiment;
+use EmulabFeatures;
+use EmulabConstants;
+
+# Tell EmulabFeatures to take it down a notch.
+$EmulabFeatures::verbose = 0;
 
 #
 # PXE boot constants
@@ -92,6 +98,7 @@ my %dhcp_subbosses  = ();
 my %tftp_subbosses  = ();
 my %bootinfo_subbosses  = ();
 my %singlectlnet    = ();
+my %extman_cache    = ();
 my $template        = $DHCPD_TEMPLATE;
 my $outfile	    = "/tmp/dhcpd_makeconf.$$";
 my $OUT		    = *STDOUT;
@@ -278,6 +285,8 @@ while (<IF>) {
 		    my $dns = "";
 		    my $booting = "";
 		    my $filename = "";
+		    my $tag;
+		    my $extman = 0;
 
 		    if ($vnames && defined($row{"vname"})) {
 			$node_id = $row{"vname"};
@@ -285,7 +294,37 @@ while (<IF>) {
 		    else {
 			$node_id = $row{"node_id"};
 		    }
-		    
+
+		    #
+		    # Grab some information for nodes that are
+		    # currently reserved to an experiment.  In
+		    # addition to setting a simple tag for further
+		    # lookups below, check to see if a node's current
+		    # experiment is swapping in AND is marked for
+		    # external management. This state is used below in
+		    # determining whether or not to disable a node in
+		    # the dhcp config file.  Keep a cache of this
+		    # experiment-level info so that we don't have to
+		    # hit the DB for each and every node.
+		    #
+		    if (defined($row{"pid"})) {
+			$tag = $row{"pid"} . ":" . $row{"eid"};
+
+			if (!exists($extmanaged{$tag})) {
+			    my $experiment = Experiment->Lookup($row{"pid"},
+								$row{"eid"});
+			    $extman = $extman_cache{$tag} = 
+				defined($experiment) &&
+				EmulabFeatures->FeatureEnabled(
+				    "ExternalNodeManagement", undef, undef,
+				    $experiment) && 
+				$experiment->state() eq EXPTSTATE_ACTIVATING();
+			}
+			else {
+			    $extman = $extman_cache{$tag};
+			}
+		    }
+
 		    # Management ports, nothing special to do.
 		    if ($role eq TBDB_IFACEROLE_MANAGEMENT()) {
 			my $network = inet_ntoa(inet_aton($ip) &
@@ -305,11 +344,22 @@ while (<IF>) {
 			goto spit;
 		    }
 
-		    my $tag;
-		    if (defined($row{"pid"})) {
-			$tag = $row{"pid"} . ":" . $row{"eid"};
+		    #
+		    # Neuter dhcp nodes reserved to experiments which
+		    # are marked for external node management.  Some
+		    # other entity will be responsible for
+		    # bootstrapping them in this case.
+		    #
+		    if ($extman) {
+			$hostname = "${spaces}\toption host-name ".
+			    "\"$node_id\";\n";
+			$booting  = "${spaces}\tignore booting;\n";
+			goto spit;
 		    }
 
+		    #
+		    # Do different stuff for elabinelab / plab nodes.
+		    #
 		    if (defined($tag) && defined($servernodes{$tag}) &&
 			(($row{"inner_elab_boot"} == 1 &&
 			  defined($row{"inner_elab_role"}) &&
@@ -341,6 +391,9 @@ while (<IF>) {
 			    }
 			}
 		    }
+		    #
+		    # Defer to subbosses for dhcp and/or tftp if delegated.
+		    #
 		    elsif (defined $dhcp_subbosses{$node_id}) {
 			$hostname =
 			    "${spaces}\toption host-name \"$node_id\";\n";
@@ -350,6 +403,9 @@ while (<IF>) {
 			        $tftp_subbosses{$node_id} . ";\n";
 		        }
 		    }
+		    #
+		    # The default case: just a plain old TB node.
+		    #
 		    else {
 			$hostname =
 			    "${spaces}\toption host-name \"$node_id\";\n";
