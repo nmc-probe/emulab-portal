@@ -73,7 +73,7 @@ use Experiment;
 use EmulabFeatures;
 use EmulabConstants;
 
-# Tell EmulabFeatures to shut its yap
+# Tell EmulabFeatures to take it down a notch.
 $EmulabFeatures::verbose = 0;
 
 #
@@ -98,6 +98,7 @@ my %dhcp_subbosses  = ();
 my %tftp_subbosses  = ();
 my %bootinfo_subbosses  = ();
 my %singlectlnet    = ();
+my %extman_cache    = ();
 my $template        = $DHCPD_TEMPLATE;
 my $outfile	    = "/tmp/dhcpd_makeconf.$$";
 my $OUT		    = *STDOUT;
@@ -285,7 +286,7 @@ while (<IF>) {
 		    my $booting = "";
 		    my $filename = "";
 		    my $tag;
-		    my $experiment;
+		    my $extman = 0;
 
 		    if ($vnames && defined($row{"vname"})) {
 			$node_id = $row{"vname"};
@@ -294,10 +295,34 @@ while (<IF>) {
 			$node_id = $row{"node_id"};
 		    }
 
+		    #
+		    # Grab some information for nodes that are
+		    # currently reserved to an experiment.  In
+		    # addition to setting a simple tag for further
+		    # lookups below, check to see if a node's current
+		    # experiment is swapping in AND is marked for
+		    # external management. This state is used below in
+		    # determining whether or not to disable a node in
+		    # the dhcp config file.  Keep a cache of this
+		    # experiment-level info so that we don't have to
+		    # hit the DB for each and every node.
+		    #
 		    if (defined($row{"pid"})) {
 			$tag = $row{"pid"} . ":" . $row{"eid"};
-			$experiment = Experiment->Lookup($row{"pid"},
-							 $row{"eid"});
+
+			if (!exists($extmanaged{$tag})) {
+			    my $experiment = Experiment->Lookup($row{"pid"},
+								$row{"eid"});
+			    $extman = $extman_cache{$tag} = 
+				defined($experiment) &&
+				EmulabFeatures->FeatureEnabled(
+				    "ExternalNodeManagement", undef, undef,
+				    $experiment) && 
+				$experiment->state() eq EXPTSTATE_ACTIVATING();
+			}
+			else {
+			    $extman = $extman_cache{$tag};
+			}
 		    }
 
 		    # Management ports, nothing special to do.
@@ -320,20 +345,12 @@ while (<IF>) {
 		    }
 
 		    #
-		    # Neuter dhcp nodes reserved to experiments
-		    # which are marked for external node management.
-		    # Some other entity will be responsible for
-		    # bootstrapping them in this case, so leave them
-		    # out of the DHCP config file.  This feature can
-		    # be set on any or all of: swapper, project, 
-		    # experiment. Only do this when the experiment is
-		    # swapping in.
+		    # Neuter dhcp nodes reserved to experiments which
+		    # are marked for external node management.  Some
+		    # other entity will be responsible for
+		    # bootstrapping them in this case.
 		    #
-		    if (defined($experiment) &&
-			$experiment->state() eq EXPTSTATE_ACTIVATING() &&
-			EmulabFeatures->FeatureEnabled(
-			    "ExternalNodeManagement", undef, undef,
-			    $experiment)) {
+		    if ($extman) {
 			$hostname = "${spaces}\toption host-name ".
 			    "\"$node_id\";\n";
 			$booting  = "${spaces}\tignore booting;\n";
