@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -80,6 +80,7 @@ install client-install:	common-install etc-install init-install \
 mfs-install:	destdircheck common-install etc-install \
 			script-install bin-install
 	$(INSTALL) -m 755 $(SRCDIR)/slicefix $(BINDIR)/slicefix
+	$(INSTALL) -m 755 $(CSRCDIR)/localize_image $(BINDIR)/localize_image
 	$(INSTALL) -m 755 $(SRCDIR)/camwce $(BINDIR)/camwce
 	cp $(SRCDIR)/mfs-rc.conf $(SYSETCDIR)/rc.conf
 	rm -f $(BINDIR)/rc/rc.mkelab
@@ -151,6 +152,7 @@ cdboot-install:	destdircheck common-install etc-install \
 	$(INSTALL) -m 755 $(SRCDIR)/cdboot/rc.cdroot $(SYSETCDIR)/rc.cdroot
 	$(INSTALL) -m 755 $(SRCDIR)/rc.frisbee $(BINDIR)/rc/rc.frisbee
 	$(INSTALL) -m 755 $(SRCDIR)/slicefix $(BINDIR)/slicefix
+	$(INSTALL) -m 755 $(CSRCDIR)/localize_image $(BINDIR)/localize_image
 	$(INSTALL) -m 755 $(SRCDIR)/camwce $(BINDIR)/camwce
 	cp $(SRCDIR)/cdboot/fstab $(SYSETCDIR)/fstab
 	cp $(SRCDIR)/cdboot/fstab.lbs $(SYSETCDIR)/fstab.lbs
