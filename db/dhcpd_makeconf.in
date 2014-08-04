@@ -300,7 +300,7 @@ while (<IF>) {
 		    # currently reserved to an experiment.  In
 		    # addition to setting a simple tag for further
 		    # lookups below, check to see if a node's current
-		    # experiment is swapping in AND is marked for
+		    # experiment is marked for
 		    # external management. This state is used below in
 		    # determining whether or not to disable a node in
 		    # the dhcp config file.  Keep a cache of this
@@ -317,8 +317,7 @@ while (<IF>) {
 				defined($experiment) &&
 				EmulabFeatures->FeatureEnabled(
 				    "ExternalNodeManagement", undef, undef,
-				    $experiment) && 
-				$experiment->state() eq EXPTSTATE_ACTIVATING();
+				    $experiment);
 			}
 			else {
 			    $extman = $extman_cache{$tag};
