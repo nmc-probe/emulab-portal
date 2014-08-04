@@ -57,46 +57,58 @@ $instances = array();
 #
 # First existing instances and then the history table.
 #
-$query_result =
-    DBQueryFatal("(select i.uuid,i.profile_version,i.created,'' as destroyed, ".
-		 "   i.creator,p.uuid as profile_uuid ".
+$query1_result =
+    DBQueryFatal("select i.uuid,i.profile_version,i.created,'' as destroyed, ".
+		 "   i.creator,p.uuid as profile_uuid,u.email ".
 		 "  from apt_instances as i ".
 		 "left join apt_profile_versions as p on ".
 		 "     p.profileid=i.profile_id and ".
 		 "     p.version=i.profile_version ".
-		 "where i.profile_id='$profileid') ".
-		 "union ".
-		 "(select h.uuid,h.profile_version,h.created,h.destroyed, ".
-		 "    h.creator,p.uuid as profile_uuid ".
+		 "left join geni.geni_users as u on u.uuid=i.creator_uuid ".
+		 "where i.profile_id='$profileid' ".
+		 "order by i.created desc");
+
+$query2_result =
+    DBQueryFatal("select h.uuid,h.profile_version,h.created,h.destroyed, ".
+		 "    h.creator,p.uuid as profile_uuid,u.email ".
 		 "  from apt_instance_history as h ".
 		 "left join apt_profile_versions as p on ".
 		 "     p.profileid=h.profile_id and ".
 		 "     p.version=h.profile_version ".
-		 "where h.profile_id='$profileid') ".
-		 "order by created desc");
+		 "left join geni.geni_users as u on u.uuid=h.creator_uuid ".
+		 "where h.profile_id='$profileid' ".
+		 "order by h.created desc");
 
-if (mysql_num_rows($query_result) == 0) {
+if (mysql_num_rows($query1_result) == 0 &&
+    mysql_num_rows($query2_result) == 0) {
     $message = "<b>Oops, there is no activity to show you.</b><br>";
     SPITUSERERROR($message);
     exit();
 }
 
-while ($row = mysql_fetch_array($query_result)) {
-    $uuid      = $row["uuid"];
-    $puuid     = $row["profile_uuid"];
-    $pversion  = $row["profile_version"];
-    $created   = $row["created"];
-    $destroyed = $row["destroyed"];
-    $creator   = $row["creator"];
+foreach (array($query1_result, $query2_result) as $query_result) {
+    while ($row = mysql_fetch_array($query_result)) {
+	$uuid      = $row["uuid"];
+	$puuid     = $row["profile_uuid"];
+	$pversion  = $row["profile_version"];
+	$created   = $row["created"];
+	$destroyed = $row["destroyed"];
+	$creator   = $row["creator"];
+	$email     = $row["email"];
+	# If a guest user, use email instead.
+	if (isset($email)) {
+	    $creator = $email;
+	}
 
-    $instance = array();
-    $instance["uuid"]        = $uuid;
-    $instance["p_uuid"]      = $puuid;
-    $instance["p_version"]   = $pversion;
-    $instance["creator"]     = $creator;
-    $instance["created"]     = $created;
-    $instance["destroyed"]   = $destroyed;
-    $instances[] = $instance;
+	$instance = array();
+	$instance["uuid"]        = $uuid;
+	$instance["p_uuid"]      = $puuid;
+	$instance["p_version"]   = $pversion;
+	$instance["creator"]     = $creator;
+	$instance["created"]     = $created;
+	$instance["destroyed"]   = $destroyed;
+	$instances[] = $instance;
+    }
 }
 
 # Place to hang the toplevel template.

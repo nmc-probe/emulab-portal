@@ -49,23 +49,25 @@ $instances = array();
 #
 $query1_result =
     DBQueryFatal("select i.uuid,i.profile_version,i.created,'' as destroyed, ".
-		 "   i.creator,p.uuid as profile_uuid,p.name,p.pid ".
+		 "   i.creator,p.uuid as profile_uuid,p.name,p.pid,u.email ".
 		 "  from apt_instances as i ".
 		 "left join apt_profile_versions as p on ".
 		 "     p.profileid=i.profile_id and ".
 		 "     p.version=i.profile_version ".
+		 "left join geni.geni_users as u on u.uuid=i.creator_uuid ".
 		 "order by i.created desc");
 $query2_result =
     DBQueryFatal("select h.uuid,h.profile_version,h.created,h.destroyed, ".
-		 "    h.creator,p.uuid as profile_uuid,p.name,p.pid ".
+		 "    h.creator,p.uuid as profile_uuid,p.name,p.pid,u.email ".
 		 "  from apt_instance_history as h ".
 		 "left join apt_profile_versions as p on ".
 		 "     p.profileid=h.profile_id and ".
 		 "     p.version=h.profile_version ".
+		 "left join geni.geni_users as u on u.uuid=h.creator_uuid ".
 		 "order by h.created desc");
 
 if (mysql_num_rows($query1_result) == 0 &&
-    mysql_num_rows($query1_result) == 0) {
+    mysql_num_rows($query2_result) == 0) {
     $message = "<b>Oops, there is no activity to show you.</b><br>";
     SPITUSERERROR($message);
     exit();
@@ -81,6 +83,11 @@ foreach (array($query1_result, $query2_result) as $query_result) {
 	$created   = $row["created"];
 	$destroyed = $row["destroyed"];
 	$creator   = $row["creator"];
+	$email     = $row["email"];
+	# If a guest user, use email instead.
+	if (isset($email)) {
+	    $creator = $email;
+	}
 
 	$instance = array();
 	$instance["uuid"]        = $uuid;
