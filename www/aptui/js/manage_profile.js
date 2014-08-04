@@ -280,6 +280,24 @@ function (_, sup, filesize, ShowImagingModal,
 	    DisableButton('profile_description');
 	}
 	//
+	// Show/Hide the Update Successful animation.
+	//
+	function hideNotifyUpdate() {
+	    $('#notifyupdate').fadeOut();
+	}
+	function showNotifyUpdate() {
+	    $("#notifyupdate").addClass("in");
+	    setTimeout(function () {
+		hideNotifyUpdate();
+	    }, 2000);
+	}
+	// Schedule to flash on one second after page loaded.
+	function initNotifyUpdate() {
+	    setTimeout(function () {
+		showNotifyUpdate();
+	    }, 1000);
+	}
+	//
 	// If taking a disk image, throw up the modal that tracks progress.
 	//
 	if (snapping) {
@@ -289,6 +307,9 @@ function (_, sup, filesize, ShowImagingModal,
 	else {
 	    EnableButtons();
 	    DisableButton("profile_submit_button");
+	    if (window.UPDATED) {
+		initNotifyUpdate();
+	    }
 	}
     }
 
