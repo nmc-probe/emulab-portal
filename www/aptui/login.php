@@ -77,6 +77,9 @@ if (NOLOGINS()) {
 function SPITFORM($uid, $referrer, $error)
 {
     global $TBDB_UIDLEN, $TBBASE, $refer;
+    global $ISAPT;
+    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
+	" or Emulab.net Username";
     
     header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
     header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
@@ -131,7 +134,7 @@ function SPITFORM($uid, $referrer, $error)
             <div class='form-group'>
                 <input name='password' id='password' type='password'
                        class='form-control'
-                       placeholder='Password' type='text' />
+                       placeholder='$pwlab' type='text' />
             </div>
             <button class='btn btn-primary btm-sm'
               type='submit' name='login'>Login

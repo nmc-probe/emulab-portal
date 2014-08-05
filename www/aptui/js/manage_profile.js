@@ -763,9 +763,10 @@ function (_, sup, filesize, ShowImagingModal,
 		return;
 	    }
 	    // No longer allowed to delete/publish. But maybe we need
-	    // an unpublish button?
+	    // an unpublish button? Also update the published field.
 	    HideButton('#profile_delete_button');
 	    HideButton('#profile_publish_button');
+	    $('#profile_published').html(json.value.published);
 	}
 	sup.HideModal('#publish_modal');
 	sup.ShowModal("#waitwait-modal");

@@ -24,6 +24,11 @@
 $APTHOST	= "$WWWHOST";
 $APTBASE	= "$TBBASE/apt";
 $APTMAIL        = $TBMAIL_OPS;
+$APTTITLE       = "APT";
+$FAVICON        = "aptlab.ico";
+$APTLOGO        = "aptlogo.png";
+$APTSTYLE       = "apt.css";
+$ISAPT		= 1;
 
 #
 # Global flag to disable accounts. We do this on some pages which
@@ -45,17 +50,32 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTBASE      = "https://www.aptlab.net";
     $APTMAIL      = "APT Operations <testbed-ops@aptlab.net>";
 }
+elseif ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
+    $TBAUTHDOMAIN = ".cloudlab.us";
+    $APTHOST      = "www.cloudlab.us";
+    $WWWHOST      = "www.cloudlab.us";
+    $APTBASE      = "https://www.cloudlab.us";
+    $APTMAIL      = "Cloud Lab Operations <testbed-ops@aptlab.net>";
+    $APTTITLE     = "CloudLab";
+    $FAVICON      = "cloudlab.ico";
+    $APTLOGO      = "cloudlogo.png";
+    $APTSTYLE     = "cloudlab.css";
+    $ISAPT	  = 0;
+}
 
 #
 # Redefine this so APT errors are styled properly. Called by PAGEERROR();.
 #
 $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
-    global $drewheader;
+    global $drewheader, $ISAPT;
 
     if (! $drewheader) {
 	SPITHEADER();
     }
     echo $msg;
+    echo "<script type='text/javascript'>\n";
+    echo "    window.ISCLOUD = " . ($ISAPT ? "0" : "1") . ";\n";
+    echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
     echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/null.js'></script>\n";
@@ -65,10 +85,10 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
 
 function SPITHEADER($thinheader = 0)
 {
-    global $TBMAINSITE;
+    global $TBMAINSITE, $APTTITLE, $FAVICON, $APTLOGO, $APTSTYLE, $ISAPT;
     global $login_user, $login_status;
     global $disable_accounts, $page_title, $drewheader;
-    $title = "AptLab";
+    $title = $APTTITLE;
     if (isset($page_title)) {
 	$title .= " - $page_title";
     }
@@ -86,14 +106,19 @@ function SPITHEADER($thinheader = 0)
     echo "<html>
       <head>
         <title>$title</title>
-        <link rel='shortcut icon' href='favicon.ico'
+        <link rel='shortcut icon' href='$FAVICON'
               type='image/vnd.microsoft.icon'>
         <link rel='stylesheet' href='css/bootstrap.css'>
         <link rel='stylesheet' href='css/quickvm.css'>
+        <link rel='stylesheet' href='css/$APTSTYLE'>
 	<script src='js/common.js'></script>
         <script src='https://www.emulab.net/emulab_sup.js'></script>
       </head>
     <body style='display: none'>\n";
+    
+    echo "<script type='text/javascript'>\n";
+    echo "    window.ISCLOUD = " . ($ISAPT ? "0" : "1") . ";\n";
+    echo "</script>\n";
     
     if ($TBMAINSITE && file_exists("../google-analytics.php")) {
 	readfile("../google-analytics.php");
@@ -105,7 +130,7 @@ function SPITHEADER($thinheader = 0)
          <div class='navbar navbar-static-top' role='navigation'>
            <div class='navbar-inner'>
              <div class='brand'>
-                 <img src='images/aptlogo.png'/>
+                 <img src='images/$APTLOGO'/>
              </div>
              <ul class='nav navbar-nav navbar-right apt-right'>";
     if (!$disable_accounts) {
@@ -194,6 +219,9 @@ function SPITHEADER($thinheader = 0)
 
 function SPITFOOTER()
 {
+    global $ISAPT;
+    $groupname = ($ISAPT ? "apt-users" : "cloudlab-users");
+    
     echo "</div>
       </div>\n";
     SpitNSFModal();
@@ -207,13 +235,13 @@ function SPITFOOTER()
              <img src='images/emulab-whiteout.png' id='elabpower'></a>
         </div>
 	<span>Question or comment? Join the
-           <a href='https://groups.google.com/forum/#!forum/apt-users'
+           <a href='https://groups.google.com/forum/#!forum/${groupname}'
               target='_blank'>Help Forum</a></span>
-        <div class='pull-right'>
-           <a data-toggle='modal' style='margin-right: 10px;'
+           <div class='pull-right'>\n";
+    echo " <a data-toggle='modal' style='margin-right: 10px;'
               href='#nsf_supported_modal'
-	      data-target='#nsf_supported_modal'>Supported by NSF</a>
-          &copy; 2014
+	      data-target='#nsf_supported_modal'>Supported by NSF</a>\n";
+    echo "&copy; 2014
           <a href='http://www.utah.edu' target='_blank'>
              The University of Utah</a>
         </div>
@@ -308,6 +336,11 @@ function SpitVerifyModal($id, $label)
 #
 function SpitLoginModal($id)
 {
+    global $APTTITLE, $ISAPT;
+    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
+	" or Emulab.net Username";
+    $pwlab = "'$pwlab'";
+
 ?>
     <!-- This is the login modal -->
     <div id='<?php echo $id ?>' class='modal fade' role='dialog'>
@@ -322,14 +355,14 @@ function SpitLoginModal($id)
            <div class='modal-header'>
             <button type='button' class='close' data-dismiss='modal'
                aria-hidden='true'>&times;</button>
-               <h4 class='modal-title'>Log in to Apt</h4>
+               <h4 class='modal-title'>Log in to <?php echo $APTTITLE ?></h4>
            </div>
            <div class='modal-body form-horizontal'>
              <div class='form-group'>
                        <label for='uid' class='col-sm-2 control-label'>Username</label>
                        <div class='col-sm-10'>
                            <input name='uid' class='form-control'
-                                  placeholder='Aptlab.net or Emulab.net Username'
+                                  placeholder=<?php echo $pwlab ?>
                                   autofocus type='text'>
                        </div>
                    </div>
@@ -460,6 +493,9 @@ function SpitOopsModal($id)
 
 function SpitNSFModal()
 {
+    global $ISAPT;
+    $nsfnumber = ($ISAPT ? "CNS-1338155" : "CNS-1302688");
+    
     echo "<!-- This is the NSF Supported modal -->
           <div id='nsf_supported_modal' class='modal fade'>
             <div class='modal-dialog'>
@@ -467,7 +503,7 @@ function SpitNSFModal()
               <div class='modal-body'>
                 This material is based upon work supported by the
                 National Science Foundation under Grant
-                No. CNS-1338155. Any opinions, findings, and
+                No. ${nsfnumber}. Any opinions, findings, and
                 conclusions or recommendations expressed in this
                 material are those of the author(s) and do not
                 necessarily reflect the views of the National Science
@@ -579,70 +615,6 @@ function RedirectLoginPage()
     header("Location: login.php?referrer=".
 	   urlencode($_SERVER['REQUEST_URI']));
     
-}
-
-function SpitAboutApt()
-{
-    SpitCollapsiblePanel("aboutapt","What is Apt?",<<<'ENDBODY'
-<p>
-Apt is a testbed facility built around <em>profiles</em>.
-A profile describes an <em>experiment</em>; when you instantiate a profile,
-    that specification is realized on the Apt cluster using virtual or
-    physical machines.
-The creator of a profile may put code, data, and other resources into it,
-    and the profile may consist of a single machine or may describe an
-    entire network.
-</p>
-
-<p>
-Apt is a <em>platform for sharing research</em>; it is open to all researchers, 
-    educators, and students.
-Basic access to public profiles on Apt is provided without the need to register 
-    for an account - this keeps the barriers to accessing research results low.
-If you find the limited resources that are provided to unregistered users 
-    valuable, we recommend <a href="signup.php">signing up</a> for a <em>(free)</em>
-    account to get access to more resources and to create profiles of your
-    own.
-</p>
-
-<p>
-Apt is built on <a href="http:/www.emulab.net">Emulab</a> and
-    <a href="http://www.geni.net">GENI</a> technologies.
-It is built and operated by the <a href="http://www.flux.utah.edu">Flux 
-    Research Group</a>, part of the <a href="http://www.utah.edu">University of 
-    Utah</a>'s <a href="http://www.cs.utah.edu">School of Computing</a>.
-Apt is funded by the National Science Foundation under award CNS-1338155 and
-    by the University of Utah.
-</p>
-
-<p>
-For help, bug reports, or other questions, come join the <a href="https://groups.google.com/forum/#!forum/apt-users">Discussion Forum</a>
-</p>
-ENDBODY
-    );
-
-}
-
-function SpitCollapsiblePanel($id, $title, $body) {
-
-?>
-
-<div class="panel panel-info">
-
-<div class="panel-heading">
-<h5><a data-toggle="collapse" href="#<?php echo $id; ?>"><?php echo $title; ?><span class="glyphicon glyphicon-chevron-right pull-right"></span></a></h5>
-</div>
-
-<div id="<?php echo $id; ?>" class="panel-collapse collapse">
-
-<div class="panel-body">
-
-<?php echo $body; ?>
-
-</div> <!-- Panel body -->
-</div> <!-- Collapser -->
-</div> <!-- Panel -->
-<?php
 }
 
 ?>

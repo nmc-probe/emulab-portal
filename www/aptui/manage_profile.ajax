@@ -195,7 +195,8 @@ function Do_PublishProfile()
 	SPITAJAX_ERROR(1, $error);
 	return;
     }
-    SPITAJAX_RESPONSE("Success");
+    $profile->Refresh();
+    SPITAJAX_RESPONSE(array("published" => $profile->published()));
 }
 
 #

@@ -31,12 +31,7 @@ body {
   height: 75px;
 }
 
-.navbar-static-top {
-  background-color: #ff6600;
-}
-
 .navbar-inner {
-  background-color: #ff6600;
   height: 75px;
   width: 95%;
   margin: 0 auto;
@@ -78,7 +73,6 @@ body {
   height: 2.5em;
   padding: 0.5em;
   color: #ddd;
-  background-color: #ff6600;
   text-align: center;
 }
 

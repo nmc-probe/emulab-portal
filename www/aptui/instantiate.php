@@ -37,6 +37,11 @@ $dblink = GetDBLink("sa");
 #
 RedirectSecure();
 $this_user = CheckLogin($check_status);
+if (!$ISAPT) {
+    if (! ($CHECKLOGIN_STATUS & CHECKLOGIN_LOGGEDIN)) {
+	header("Location: login.php");
+    }
+}
 
 #
 # Verify page arguments.

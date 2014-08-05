@@ -32,7 +32,7 @@
 	  </tr>
 	  <tr>
 	    <td>Published:</td>
-	    <td><%- formfields.profile_published %></td>
+	    <td id='profile_published'><%- formfields.profile_published %></td>
 	  </tr>
 	</table>
 	<% if (history) { %>
@@ -79,9 +79,9 @@
 	      <% if (general_error) { %>
 	        <center><font color=red><%- general_error %></font></center>
 	      <% } %>
-	      <% if (notifyupdate) { %>
-	        <font color=green><center>Update Successful!</center></font>
-	      <% } %>
+              <div id="notifyupdate"
+		   class="alert alert-success fade apt-success"
+		   role="alert"><center>Update Successful!</center></div>
 	      <!-- Hidden variables -->
 	      <input type='hidden' name='action' value='<%= action %>'>
 	      <% if (snapuuid) { %>
