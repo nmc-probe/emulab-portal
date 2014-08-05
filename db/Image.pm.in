@@ -991,8 +991,8 @@ sub Delete($;$)
     
     if ($purge || !$DOPROVENANCE) {
 	goto bad
-	    if (! QueryWarn("delete from image_versions ".
-			    "where imageid='$imageid'"));
+	    if (! DBQueryWarn("delete from image_versions ".
+			      "where imageid='$imageid'"));
     }
     else {
 	# Set deleted on all of the versions.
