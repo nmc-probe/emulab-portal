@@ -361,6 +361,7 @@ sub ExpireSlices()
 	if ($MAINSITE) {
 	    my $instance = APT_Instance->LookupBySlice($slice_uuid);
 	    if (defined($instance)) {
+		$instance->RecordHistory();
 		$instance->Delete();
 	    }
 	}
