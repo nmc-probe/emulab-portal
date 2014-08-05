@@ -1,9 +1,9 @@
-//window.APT_OPTIONS.config();
-
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', // jQuery modules
-        'formhelpers', 'filestyle', 'marked'],
-function (_, sup)
+	 'js/lib/text!template/aboutapt.html',
+	 'js/lib/text!template/aboutcloudlab.html',
+         'formhelpers', 'filestyle', 'marked'],
+function (_, sup, aboutaptString, aboutcloudString)
 {
     'use strict';
 
@@ -13,6 +13,9 @@ function (_, sup)
     {
 	window.APT_OPTIONS.initialize();
 	ajaxurl = window.AJAXURL;
+
+	// The about panel.
+	$('#about_div').html(window.ISCLOUD ? aboutcloudString : aboutaptString);
 
 	if (window.APT_OPTIONS.isNewUser) {
 	    $('#verify_modal_submit').click(function (event) {

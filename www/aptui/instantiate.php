@@ -167,7 +167,8 @@ function SPITFORM($formfields, $newuser, $errors)
                       col-sm-8  col-sm-offset-2
                       col-xs-12 col-xs-offset-0'>\n";
 
-    SpitAboutApt();
+    # Placeholder for the "about" panel, which is now a template file.
+    echo "<div id='about_div'></div>\n";
 
     echo "<form id='quickvm_form' role='form'
             enctype='multipart/form-data'
