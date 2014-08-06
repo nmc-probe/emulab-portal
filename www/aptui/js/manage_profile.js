@@ -286,7 +286,7 @@ function (_, sup, filesize, ShowImagingModal,
 	    $('#notifyupdate').fadeOut();
 	}
 	function showNotifyUpdate() {
-	    $("#notifyupdate").addClass("in");
+	    $("#notifyupdate").addClass("fade in").show();
 	    setTimeout(function () {
 		hideNotifyUpdate();
 	    }, 2000);
