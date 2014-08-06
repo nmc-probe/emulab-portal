@@ -736,6 +736,14 @@ open(FILE, "> $tmp") or
     fatal("Could not create $tmp: $!");
 close(FILE) or
     fatal("Could not truncate $tmp: $!");
+#
+# XXX this script runs as the user creating the image.
+# However, in the uploader case, the uploader runs as the creator of
+# the image. In the case those two are not the same, we need to make
+# sure that the file we create here is group writable.
+#
+chmod(0664, $tmp) or
+    fatal("Could not make $tmp group writable: $!");
 
 if (! ($isvirtnode || $isec2node)) {
     #
