@@ -130,6 +130,7 @@ CREATE TABLE `apt_profiles` (
   `version` int(8) unsigned NOT NULL default '0',
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `uuid` varchar(40) NOT NULL,
   `public` tinyint(1) NOT NULL default '0',
   `shared` tinyint(1) NOT NULL default '0',
   `listed` tinyint(1) NOT NULL default '0',
