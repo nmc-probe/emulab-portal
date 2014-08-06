@@ -68,9 +68,9 @@ my $EVPROXY_PORT= 16505;
 # where all our config files go
 my $VMS         = "/var/emulab/vms";
 my $VMDIR       = "$VMS/vminfo";
-my $LOGPATH     = "$VMDIR/$vnode_id";
 my $IPTABLES	= "/sbin/iptables";
 my $ARPING      = "/usr/bin/arping";
+my $CAPTURE     = "/usr/local/sbin/capture-nossl";
 # For testing.
 my $VIFROUTING  = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
@@ -87,6 +87,9 @@ my $vnode_mac = shift(@ARGV);
 my $vif         = $ENV{'vif'};
 my $XENBUS_PATH = $ENV{'XENBUS_PATH'};
 my $bridge      = `xenstore-read "$XENBUS_PATH/bridge"`;
+# Need this for capture.
+my $LOGPATH     = "$VMDIR/$vnode_id";
+
 #
 # Well, this is interesting; we are called with the XEN store
 # gone and so not able to find the bridge. vif-bridge does the same
@@ -278,7 +281,7 @@ sub Online()
     }
 
     # Start a capture for the serial console.
-    if (-e "$BINDIR/capture") {
+    if (-e "$CAPTURE") {
 	my $tty = `xenstore-read /local/domain/$domid/console/tty`;
 	if (! $?) {
 	    chomp($tty);
@@ -292,7 +295,7 @@ sub Online()
 	    my $logfile = "$LOGPATH/$vnode_id.log";
 	    unlink($logfile)
 		if (-e $logfile);
-	    mysystem2("$BINDIR/capture -C -i -l $LOGPATH $vnode_id $tty");
+	    mysystem2("$CAPTURE -C -i -l $LOGPATH $vnode_id $tty");
 	    #
 	    # We need to tell tmcd about it. But do not hang, use timeout.
 	    # Also need to wait for the acl file, since capture is running
