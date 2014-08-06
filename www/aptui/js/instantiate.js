@@ -15,7 +15,8 @@ function (_, sup, aboutaptString, aboutcloudString)
 	ajaxurl = window.AJAXURL;
 
 	// The about panel.
-	$('#about_div').html(window.ISCLOUD ? aboutcloudString : aboutaptString);
+	$('#about_div').html(window.ISCLOUD ?
+			     aboutcloudString : aboutaptString);
 
 	if (window.APT_OPTIONS.isNewUser) {
 	    $('#verify_modal_submit').click(function (event) {
