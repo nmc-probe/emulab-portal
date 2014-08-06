@@ -45,7 +45,7 @@ $extraclause = "";
 PAGEHEADER("Image Search");
 
 if (isset($searchfor) && isset($searchby)) {
-    if (! preg_match('/^[-\w\:,\.\+]+$/', $searchfor)) {    
+    if (! preg_match('/^[\w\:,\.\+]+$/', $searchfor)) {    
 	USERERROR("Illegal characters in search clause", 1);
     }
     if ($searchby == "nodetype") {
@@ -68,8 +68,8 @@ if (isset($searchfor) && isset($searchby)) {
     }
     elseif ($searchby == "namedesc") {
 	$safe_searchfor = addslashes($searchfor);
-	$extraclause = "and (match (i.imagename,iv.description) ".
-	    "against('$safe_searchfor'))";
+	$extraclause = "and (match (iv.imagename,iv.description) ".
+	    "against('*${safe_searchfor}*'))";
     }
 }
 else {
