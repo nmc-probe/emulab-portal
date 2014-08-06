@@ -1,5 +1,5 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment', 'js/image',
+	['underscore', 'js/quickvm_sup', 'moment', 'marked', 'js/lib/uritemplate', 'js/image',
 	 'js/lib/text!template/status.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',
@@ -10,7 +10,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/snapshot-help.html',
 	 'js/lib/text!template/oneonly-modal.html',
 	 'tablesorter', 'tablesorterwidgets'],
-function (_, sup, moment, ShowImagingModal,
+function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	  statusString, waitwaitString, oopsString,
 	  registerString, terminateString, extendString,
 	  cloneHelpString, snapshotHelpString, oneonlyString)
@@ -695,12 +695,20 @@ function (_, sup, moment, ShowImagingModal,
 	    var xmlDoc = $.parseXML(json.value);
 	    var xml = $(xmlDoc);
 
+	    var instructionRenderer = new marked.Renderer();
+	    instructionRenderer.defaultLink = instructionRenderer.link;
+	    instructionRenderer.link = function (href, title, text) {
+		var template = UriTemplate.parse(href);
+		var data = MakeUriData(xml);
+		return this.defaultLink(template.expand(data), title, text);
+	    };
+
 	    // Suck the instructions out of the tour and put them into
 	    // the Usage area.
 	    $(xml).find("rspec_tour").each(function() {
 		$(this).find("instructions").each(function() {
-		    var marked = require('marked');
-		    marked.setOptions({"sanitize" : true});
+		    marked.setOptions({ "sanitize" : true,
+					"renderer": instructionRenderer });
 		
 		    var text = $(this).text();
 		    // Stick the text in
@@ -793,6 +801,21 @@ function (_, sup, moment, ShowImagingModal,
 					    "GetInstanceManifest",
 					    {"uuid" : uuid});
 	xmlthing.done(callback);
+    }
+
+    function MakeUriData(xml)
+    {
+	var result = {};
+	xml.find('node').each(function () {
+	    var node = $(this);
+	    var host = node.find('host').attr('name');
+	    if (host) {
+		var key = 'host-' + node.attr('client_id');
+		result[key] = host;
+	    }
+	});
+	console.log(result);
+	return result;
     }
 
     function ShowProgressModal()

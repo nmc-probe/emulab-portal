@@ -267,7 +267,7 @@ var rfcCharHelper = (function () {
      * @return (Boolean)
      */
     function isVarchar (chr) {
-        return charHelper.isAlpha(chr) || charHelper.isDigit(chr) || chr === '_' || pctEncoder.isPctEncoded(chr);
+        return charHelper.isAlpha(chr) || charHelper.isDigit(chr) || chr === '_' || chr === '-' || pctEncoder.isPctEncoded(chr);
     }
 
     /**
