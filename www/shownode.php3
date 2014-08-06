@@ -93,11 +93,31 @@ if ($node->HasSerialConsole()) {
 	"<a href=\"faq.php3#tiptunnel\">(howto)",
 	"nodetipacl.php3?node_id=$node_id");
 
-    WRITESUBMENUBUTTON("Report a Problem&nbsp;<img src=\"/new.gif\">" ,
+    WRITESUBMENUBUTTON("Report a Problem" ,
 		       "reportnode.php3?node_id=$node_id");
 
     WRITESUBMENUBUTTON("Show Console Log",
 		       "showconlog.php3?node_id=$node_id&linecount=500");
+}
+
+if ($node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
+    $baseimage = $node->def_boot_image();
+
+    if ($baseimage &&
+	$baseimage->AccessCheck($this_user, $TB_IMAGEID_DESTROY)) {
+	WRITESUBMENUBUTTON("Create a Disk Image",
+			   "loadimage.php3?target=$node_id" .
+			   "&imageid=" . $baseimage->imageid() .
+			   "&version=" . $baseimage->version());
+    }
+    else {
+	#
+	# This can happen for virtual nodes which are running the
+	# defaut osid. User must create a new descriptor.
+	#
+	WRITESUBMENUBUTTON("Create a Disk Image",
+			   "newimageid_ez.php3?node_id=$node_id");
+    }
 }
 
 #
@@ -130,26 +150,6 @@ if ($isadmin ||
 
     WRITESUBMENUBUTTON("Show Boot Log",
 		       "bootlog.php3?node_id=$node_id");
-}
-
-if ($node->AccessCheck($this_user, $TB_NODEACCESS_LOADIMAGE)) {
-    $baseimage = $node->def_boot_image();
-
-    if ($baseimage &&
-	$baseimage->AccessCheck($this_user, $TB_IMAGEID_DESTROY)) {
-	WRITESUBMENUBUTTON("Create a Disk Image",
-			   "loadimage.php3?target=$node_id" .
-			   "&imageid=" . $baseimage->imageid() .
-			   "&version=" . $baseimage->version());
-    }
-    else {
-	#
-	# This can happen for virtual nodes which are running the
-	# defaut osid. User must create a new descriptor.
-	#
-	WRITESUBMENUBUTTON("Create a Disk Image",
-			   "newimageid_ez.php3?node_id=$node_id");
-    }
 }
 
 if (($isadmin ||

@@ -46,7 +46,7 @@ $optargs = OptionalPageArguments("target",    PAGEARG_STRING,
 #
 # Standard Testbed Header
 #
-PAGEHEADER("Snapshot Node Disk into Existing Image Descriptor");
+PAGEHEADER("Snapshot Node Disk into New or Existing Image");
 
 # Need these below.
 $imageid    = $image->imageid();
@@ -125,8 +125,7 @@ if (! isset($confirmed)) {
     $url = CreateURL("loadimage", $image);
     $newurl = CreateURL("newimageid_ez", "node_id", $target);
     
-    echo "<center><form action='$url' method='post'>\n".
-         "<h2><b>Warning!</b></h2>".
+    echo "<br><center><form action='$url' method='post'>\n".
 	 "<b>Doing a snapshot of '$target' into image '$image_name' ".
 	 "will overwrite any previous snapshot for that image.<br><br> ".
 	 "Are you sure you want to continue?</b><br>".
@@ -137,7 +136,8 @@ if (! isset($confirmed)) {
          "</form>".
          "<br>".
 	 "If you do not want to overwrite this image, then ".
-	 "<a href='$newurl'>Create a new image</a>".
+	 "<a href='$newurl'>create a new image</a> based on the image ".
+	 "that is currently loaded on $target. ".
 	 "</center>";
 
     PAGEFOOTER();
