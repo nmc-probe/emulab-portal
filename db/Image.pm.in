@@ -606,14 +606,14 @@ sub NewVersion($$$$)
     # Now reset a few things in each table.
     #
     my $clone_vers  = $self->version() + 1;
-    my $creator_urn = "";
+    my $updater_urn = "";
     #
     # If this is set in the environment, we use it. This allows
     # us to track actual geni users, since all of that happens
     # as geniuser. We do not bother to set this for local users.
     #
     if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
-	$creator_urn = ",creator_urn=". DBQuoteSpecial($ENV{'GENIURN'});
+	$updater_urn = ",updater_urn=". DBQuoteSpecial($ENV{'GENIURN'});
     }
     #
     # Figure out which partition needs to be changed. EZ images only
@@ -663,8 +663,7 @@ sub NewVersion($$$$)
 		"  uuid=uuid(), ".
 		"  vers='$clone_vers',".
 		"  parent_osid='$parent_imageid',".
-		"  parent_vers='$parent_version', ".
-		"  creator='$uid',creator_idx='$uid_idx' ".
+		"  parent_vers='$parent_version' ".
 		"where osid='$osid'")
 	or goto bad;
 
@@ -675,7 +674,7 @@ sub NewVersion($$$$)
 		"  created=now(),nodetypes='$typelist', ".
 		"  parent_imageid='$parent_imageid',".
 		"  parent_version='$parent_version', ".
-		"  creator='$uid',creator_idx='$uid_idx' $creator_urn ".
+		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
 	or goto bad;
 
