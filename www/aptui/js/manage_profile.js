@@ -17,7 +17,8 @@ function (_, sup, filesize, ShowImagingModal,
 	  guestInstantiateString, publishString, instantiateString)
 {
     'use strict';
-    var uuid    = null;
+    var profile_uuid = null;
+    var version_uuid = null;
     var snapping= 0;
     var gotrspec = 0;
     var ajaxurl = "";
@@ -34,9 +35,10 @@ function (_, sup, filesize, ShowImagingModal,
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
-	snapping = window.SNAPPING;
-	uuid     = window.UUID;
-	ajaxurl  = window.AJAXURL;
+	snapping      = window.SNAPPING;
+	version_uuid  = window.VERSION_UUID;
+	profile_uuid  = window.PROFILE_UUID;
+	ajaxurl       = window.AJAXURL;
 
 	var fields   = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors   = JSON.parse(_.unescape($('#error-json')[0].textContent));
@@ -58,7 +60,8 @@ function (_, sup, filesize, ShowImagingModal,
 	    gotrspec:		gotrspec,
 	    action:		window.ACTION,
 	    button_label:       window.BUTTONLABEL,
-	    uuid:		window.UUID,
+	    version_uuid:	window.VERSION_UUID,
+	    profile_uuid:	window.PROFILE_UUID,
 	    candelete:		window.CANDELETE,
 	    canmodify:		window.CANMODIFY,
 	    canpublish:		window.CANPUBLISH,
@@ -617,7 +620,7 @@ function (_, sup, filesize, ShowImagingModal,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "manage_profile",
 					    "InstantiateAsGuest",
-					    {"uuid"   : uuid});
+					    {"uuid"   : version_uuid});
 	xmlthing.done(callback);
     }
 
@@ -638,7 +641,7 @@ function (_, sup, filesize, ShowImagingModal,
 	}
 	sup.HideModal("#instantiate_modal");
 
-	var blob = {"uuid" : uuid};
+	var blob = {"uuid" : version_uuid};
 	if (amlist.length) {
 	    blob.where = $('#instantiate_where').val();
 	}
@@ -659,7 +662,7 @@ function (_, sup, filesize, ShowImagingModal,
 			     return sup.CallServerMethod(ajaxurl,
 							 "manage_profile",
 							 "CloneStatus",
-							 {"uuid" : uuid});
+							 {"uuid" : version_uuid});
 			 },
 			 function(failed)
 			 {
@@ -745,7 +748,7 @@ function (_, sup, filesize, ShowImagingModal,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "manage_profile",
 					    "DeleteProfile",
-					    {"uuid"   : uuid});
+					    {"uuid"   : version_uuid});
 	xmlthing.done(callback);
     }
 
@@ -773,7 +776,7 @@ function (_, sup, filesize, ShowImagingModal,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "manage_profile",
 					    "PublishProfile",
-					    {"uuid"   : uuid});
+					    {"uuid"   : version_uuid});
 	xmlthing.done(callback);
     }
 

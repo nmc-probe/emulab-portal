@@ -83,7 +83,8 @@ sub Lookup($$;$$)
     if (!defined($arg2)) {
 	if ($arg1 =~ /^(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    " from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid and ".
 			    "     v.version=i.version ".
@@ -96,7 +97,8 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
 	    my $result =
-		DBQueryWarn("select v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    " from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid and ".
 			    "     v.version=i.version ".
@@ -109,7 +111,8 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*):(\d*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*):(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    " from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid ".
 			    "where i.pid='$1' and i.name='$2' and ".
@@ -120,13 +123,32 @@ sub Lookup($$;$$)
 	    return BlessRow($class, $result->fetchrow_hashref())
 	}
 	elsif ($arg1 =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
+	    #
+	    # First look to see if the uuid is for the profile itself,
+	    # which means current version. Otherwise look for a
+	    # version with the uuid.
+	    #
 	    my $result =
-		DBQueryWarn("select * from apt_profile_versions ".
-			    "where uuid='$arg1' and deleted is null");
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid and ".
+			    "     v.version=i.version ".
+			    "where i.uuid='$arg1'");
+	    return undef
+		if (! $result);
+	    return BlessRow($class, $result->fetchrow_hashref())
+		if ($result->numrows);
 
+	    $result =
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profile_versions as v ".
+			    "left join apt_profiles as i on ".
+			    "     v.profileid=i.profileid ".
+			    "where v.uuid='$arg1' and ".
+			    "      v.deleted is null");
 	    return undef
 		if (! $result || !$result->numrows);
-
 	    return BlessRow($class, $result->fetchrow_hashref());
 	}
 	return undef;
@@ -134,7 +156,8 @@ sub Lookup($$;$$)
     elsif (!defined($arg3)) {
 	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
 	    my $result =
-		DBQueryWarn("select v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid ".
 			    "where i.profileid='$arg1' and v.version='$arg2' ".
@@ -146,7 +169,8 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^([-\w\.\+]*):(\d+)$/) {
 	    my $result =
-		DBQueryWarn("select v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    " from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid ".
 			    "where i.pid='$arg1' and i.name='$1' and ".
@@ -158,7 +182,8 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^[-\w\.\+]*$/) {
 	    my $result =
-		DBQueryWarn("select v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid and ".
 			    "     v.version=i.version ".
@@ -174,7 +199,8 @@ sub Lookup($$;$$)
 	if ($arg1 =~ /^[-\w]*$/ &&
 	    $arg2 =~ /^[-\w\.\+]*$/ && $arg3 =~ /^\d+$/) {
 	    my $result =
-		DBQueryWarn("select v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid ".
 			    "where i.pid='$arg1' and i.name='$arg2' and ".
@@ -265,7 +291,8 @@ sub Create($$$$$$)
     }
     
     my $profileid = TBGetUniqueIndex("next_profile", undef, 1);
-    my $uuid      = NewUUID();
+    my $puuid     = NewUUID();
+    my $vuuid     = NewUUID();
     my $rspec     = DBQuoteSpecial($argref->{'rspec'});
     my $cquery    = "";
     my $vquery    = "";
@@ -278,7 +305,7 @@ sub Create($$$$$$)
 
     # And the versions table.
     $vquery  = $cquery;
-    $vquery .= ",uuid='$uuid',created=now()";
+    $vquery .= ",uuid='$vuuid',created=now()";
     $vquery .= ",creator='$uid',creator_idx='$uid_idx'";
     $vquery .= ",rspec=$rspec";
 
@@ -289,6 +316,7 @@ sub Create($$$$$$)
     }
 
     # Back to the main table.
+    $cquery .= ",uuid='$puuid'";
     $cquery .= ",public=1"
 	if (exists($argref->{'public'}) && $argref->{'public'});
     $cquery .= ",listed=1"

@@ -72,11 +72,14 @@ function SPITFORM($formfields, $errors)
     $canpublish = 0;
     $history    = 0;
     $activity   = 0;
+    $version_uuid = "null";
+    $profile_uuid = "null";
 
     if ($action == "edit") {
 	$button_label = "Modify";
 	$viewing      = 1;
-	$uuid         = $profile->uuid();
+	$version_uuid = "'" . $profile->uuid() . "'";
+	$profile_uuid = "'" . $profile->profile_uuid() . "'";
 	$candelete    = ($profile->IsHead() && !$profile->published() ? 1 : 0);
 	$history      = ($profile->HasHistory() ? 1 : 0);
 	$canmodify    = ($profile->CanModify() ? 1 : 0);
@@ -142,7 +145,8 @@ function SPITFORM($formfields, $errors)
 
     echo "<script type='text/javascript'>\n";
     echo "    window.VIEWING  = $viewing;\n";
-    echo "    window.UUID     = " . (isset($uuid) ? "'$uuid'" : "null") . ";\n";
+    echo "    window.VERSION_UUID = $version_uuid;\n";
+    echo "    window.PROFILE_UUID = $profile_uuid;\n";
     echo "    window.UPDATED  = $notifyupdate;\n";
     echo "    window.SNAPPING = $notifyclone;\n";
     echo "    window.AJAXURL  = 'server-ajax.php';\n";
@@ -236,7 +240,6 @@ if (! isset($create)) {
 	    }
 	}
 	else {
-	    $defaults["profile_uuid"]        = $profile->uuid();
 	    $defaults["profile_pid"]         = $profile->pid();
 	    $defaults["profile_name"]        = $profile->name();
 	    $defaults["profile_version"]     = $profile->version();
@@ -245,7 +248,8 @@ if (! isset($create)) {
 	    $defaults["profile_created"]     = $profile->created();
 	    $defaults["profile_published"]   =
 		($profile->published() ? $profile->published() : "");
-	    $defaults["profile_url"]         = $profile->url();
+	    $defaults["profile_version_url"] = $profile->URL();
+	    $defaults["profile_profile_url"] = $profile->ProfileURL();
 	    $defaults["profile_listed"]      =
 		($profile->listed() ? "checked" : "");
 	    $defaults["profile_who"] =

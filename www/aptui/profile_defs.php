@@ -34,15 +34,33 @@ class Profile
 	$safe_profileid = addslashes($token);
 	
 	if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $token)) {
+	    #
+	    # First look to see if the uuid is for the profile itself,
+	    # which means current version. Otherwise look for a
+	    # version with the uuid.
+	    #
 	    $query_result =
-		DBQueryWarn("select i.*,v.* from apt_profile_versions as v ".
-			    "left join apt_profiles as i on ".
-			    "     i.profileid=v.profileid ".
-			    "where v.uuid='$token' and v.deleted is null");
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profiles as i ".
+			    "left join apt_profile_versions as v on ".
+			    "     v.profileid=i.profileid and ".
+			    "     v.version=i.version ".
+			    "where i.uuid='$token' and v.deleted is null");
+
+	    if (!$query_result || !mysql_num_rows($query_result)) {
+		$query_result =
+		    DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+				"  from apt_profile_versions as v ".
+				"left join apt_profiles as i on ".
+				"     v.profileid=i.profileid ".
+				"where v.uuid='$token' and ".
+				"      v.deleted is null");
+	    }
 	}
 	elseif (is_null($version)) {
 	    $query_result =
-		DBQueryWarn("select i.*,v.* from apt_profiles as i ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid and ".
 			    "     v.version=i.version ".
@@ -51,7 +69,8 @@ class Profile
 	else {
 	    $safe_version = addslashes($version);
 	    $query_result =
-	        DBQueryWarn("select i.*,v.* from apt_profile_versions as v ".
+	        DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+			    "  from apt_profile_versions as v ".
 			    "left join apt_profiles as i on ".
 			    "     i.profileid=v.profileid ".
 			    "where v.profileid='$safe_profileid' and ".
@@ -82,6 +101,7 @@ class Profile
     function published()    { return $this->field('published'); }
     function deleted()	    { return $this->field('deleted'); }
     function uuid()	    { return $this->field('uuid'); }
+    function profile_uuid() { return $this->field('profile_uuid'); }
     function ispublic()	    { return $this->field('public'); }
     function shared()	    { return $this->field('shared'); }
     function listed()	    { return $this->field('listed'); }
@@ -148,6 +168,26 @@ class Profile
     }
 
     #
+    # Lookup the most recently published version of a profile.
+    #
+    function LookupMostRecentPublished() {
+	$profileid = $this->profileid();
+
+	$query_result = 
+	    DBQueryWarn("select version from apt_profile_versions as v ".
+			"where v.profileid='$profileid' and ".
+			"      published is not null and ".
+			"      deleted is null ".
+			"order by published desc limit 1");
+
+	if (!$query_result || !mysql_num_rows($query_result)) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	return Profile::Lookup($profileid, $row[0]);
+    }
+
+    #
     # Refresh an instance by reloading from the DB.
     #
     function Refresh() {
@@ -172,10 +212,10 @@ class Profile
     }
 
     #
-    # URL.
+    # URL. To the specific version of the profile.
     #
     function URL() {
-	global $APTBASE;
+	global $APTBASE, $ISVSERVER;
 	
 	$uuid = $this->uuid();
 
@@ -183,10 +223,34 @@ class Profile
 	    $pid  = $this->pid();
 	    $name = $this->name();
 	    $vers = $this->version();
-	    return "$APTBASE/p/$pid/$name/$vers";
+	    if ($ISVSERVER)
+		return "$APTBASE/p/$pid/$name/$vers";
+	    return "$APTBASE/instantiate.php?profile=$name".
+		"&project=$pid&version=$vers";
 	}
 	else {
-	    return "$APTBASE/p/$uuid";	    
+	    if ($ISVSERVER)
+		return "$APTBASE/p/$uuid";	    
+	    return "$APTBASE/instantiate.php?profile=$uuid";
+	}
+    }
+    # And the URL of the profile itself.
+    function ProfileURL() {
+	global $APTBASE;
+	
+	$uuid = $this->profile_uuid();
+
+	if ($this->ispublic()) {
+	    $pid  = $this->pid();
+	    $name = $this->name();
+	    if ($ISVSERVER)
+		return "$APTBASE/p/$pid/$name";
+	    return "$APTBASE/instantiate.php?profile=$name&project=$pid";
+	}
+	else {
+	    if ($ISVSERVER)
+		return "$APTBASE/p/$uuid";	    
+	    return "$APTBASE/instantiate.php?profile=$uuid";
 	}
     }
 

@@ -65,8 +65,7 @@ if (isset($profile)) {
     #
     # Guest users must use the uuid, but logged in users may use the
     # internal index. But, we have to support simple the URL too, which
-    # is /p/project/profilename, but only for public profiles. Need to
-    # deal with the version at some point.
+    # is /p/project/profilename, but only for public profiles.
     #
     if (isset($project) && isset($profile)) {
 	$obj = Profile::LookupByName($project, $profile, $version);
@@ -83,10 +82,36 @@ if (isset($profile)) {
 	exit();
     }
     if (IsValidUUID($profile)) {
+	#
+	# If uuid was to profile, then find the most recently published
+	# version and instantiate that, since what we have is the most
+	# recent version, but might not be published.
+	#
+	if ($profile == $obj->profile_uuid() && !$obj->published()) {
+	    $obj = $obj->LookupMostRecentPublished();
+	    if (! $obj) {
+		SPITUSERERROR("No published version for profile");
+		exit();
+	    }
+	    $profile = $obj->uuid();
+	}
 	$profile_array[$profile] = $obj->name();
 	$profilename = $obj->name();
     }
     else {
+	#
+	# If no version provided, then find the most recently published
+	# version and instantiate that, since what we have is the most
+	# recent version, but might not be published.
+	#
+	if (!isset($version) && !$obj->published()) {
+	    $obj = $obj->LookupMostRecentPublished();
+	    if (! $obj) {
+		SPITUSERERROR("No published version for profile");
+		exit();
+	    }
+	}
+	 
 	#
 	# Must be public or belong to user. 
 	#

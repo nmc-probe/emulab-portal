@@ -29,6 +29,7 @@ $FAVICON        = "aptlab.ico";
 $APTLOGO        = "aptlogo.png";
 $APTSTYLE       = "apt.css";
 $ISAPT		= 1;
+$ISVSERVER      = 0;
 
 #
 # Global flag to disable accounts. We do this on some pages which
@@ -44,6 +45,7 @@ $disable_accounts = 0;
 # and forth.
 #
 if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
+    $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".aptlab.net";
     $APTHOST      = "www.aptlab.net";
     $WWWHOST      = "www.aptlab.net";
@@ -51,6 +53,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTMAIL      = "APT Operations <testbed-ops@aptlab.net>";
 }
 elseif ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
+    $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".cloudlab.us";
     $APTHOST      = "www.cloudlab.us";
     $WWWHOST      = "www.cloudlab.us";

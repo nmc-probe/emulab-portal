@@ -34,12 +34,30 @@
 	    <td>Published:</td>
 	    <td id='profile_published'><%- formfields.profile_published %></td>
 	  </tr>
+	  <tr>
+	    <td>Version&nbspURL:</td>
+	    <td><a href='<%- formfields.profile_version_url %>'
+		   data-toggle="popover" data-html='true'
+		   data-content="Anyone with this URL can instantiate this
+		   <b>version</b> of your profile."
+		   data-triger='hover'>https://...</a>
+	    </td>
+	  </tr>
+	  <tr>
+	    <td>Profile&nbspURL:</td>
+	    <td><a href='<%- formfields.profile_profile_url %>'
+		   data-toggle="popover" data-html='true'
+		   data-content="This URL instantiates the
+		   most recently <b>published</b> version of your profile."
+		   data-triger='hover'>https://...</a>
+	    </td>
+	  </tr>
 	</table>
 	<% if (history) { %>
 	<a class='btn btn-info btn-xs pull-left'
            id='profile_history_button'
            style='margin-right: 10px; font-size: 12px'
-           href='profile-history.php?uuid=<%= uuid %>'
+           href='profile-history.php?uuid=<%= profile_uuid %>'
            type='button'>History
 	</a>
 	<% } %>
@@ -47,7 +65,7 @@
 	<a class='btn btn-info btn-xs pull-left'
            id='profile_activity_button'
            style='margin-right: 10px; font-size: 12px'
-           href='profile-activity.php?uuid=<%= uuid %>'
+           href='profile-activity.php?uuid=<%= profile_uuid %>'
            type='button'>Activity
 	</a>
 	<% } %>
@@ -90,7 +108,7 @@
 	    </div>
 	  </div>
 	  <% if (viewing) { %>
-	    <input type='hidden' name='uuid' value='<%= uuid %>'>
+	    <input type='hidden' name='uuid' value='<%= version_uuid %>'>
 	    <input type='hidden' name='formfields[profile_name]'
 		   value='<%- formfields.profile_name %>'>
 	    <input type='hidden' name='formfields[profile_pid]'
@@ -291,15 +309,15 @@
             </div>
 
 	    <!-- The private URL -->
-	    <% if (viewing) { %>
-	    <input name="formfields[profile_url]"
-		   value="<%- formfields.profile_url %>"
+	    <% if (0) { %>
+	    <input name="formfields[profile_version_url]"
+		   value="<%- formfields.profile_version_url %>"
 		   id='profile_url' readonly
                    class='form-control format-me'
 		   data-key='profile_url'
 		   data-label='Shared URL'
 		   data-help='Anyone with this URL can instantiate
-		                 this profile'
+		                 this <b>version</b> of your profile'
                    type='text'>
 	    <% } %>
 	  </fieldset>
