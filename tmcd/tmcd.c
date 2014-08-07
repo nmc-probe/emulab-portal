@@ -4413,9 +4413,11 @@ COMMAND_PROTOTYPE(dostorageconfig)
 	res = mydb_query("select rb.bsidx, r.vname, rb.vname, rb.size "
 			 "from reserved_blockstores as rb "
 			 " left join reserved as r "
-			 "  on r.node_id = rb.vnode_id "
+			 "  on r.node_id = rb.vnode_id and "
+			 "     r.exptidx = rb.exptidx "
 			 " left join virt_lans as vl "
-			 "  on r.vname = vl.vnode "
+			 "  on r.vname = vl.vnode and "
+			 "     r.exptidx = vl.exptidx "
 			 "where vl.vname in (%s) "
 			 " and vl.pid='%s' and vl.eid='%s'",
 			 4, buf, reqp->pid, reqp->eid);
