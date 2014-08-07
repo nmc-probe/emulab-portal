@@ -52,6 +52,7 @@ sub usage()
 	  "       -g 0,1 Override base image global setting\n".
 	  "       -s     Create descriptor but do not snapshot\n".
 	  "       -n     Impotent mode\n".
+	  "       -F     Create a full image even if deltas are on\n".
 	  "       -w     Wait for image to be created\n");
     exit(-1);
 }
@@ -184,7 +185,11 @@ if (! (defined($base_osinfo) && defined($base_image))) {
 print "$node_id is running $base_osinfo,$base_image\n"
     if ($debug);
 
-# Feature override. 
+# Temporary override for all geni projects until we can export deltas.
+$doprovenance = 0
+    if ($project->IsNonLocal());
+
+# But allow feature override.
 $doprovenance = 
     EmulabFeatures->FeatureEnabled("ImageProvenance", $this_user, $project);
 
