@@ -191,9 +191,11 @@ function SPITHEADER($thinheader = 0)
     echo "   </ul>
              <ul class='nav navbar-nav navbar-left apt-left'>
                 <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
-                       href='instantiate.php'>Home</a></form></li>
-                <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
+                       href='instantiate.php'>Home</a></form></li>\n";
+    if ($ISAPT) {
+	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='http://docs.aptlab.net' target='_blank'>Manual</a></form></li>\n";
+    }
     if ($login_user) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
 	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
