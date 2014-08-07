@@ -4664,6 +4664,11 @@ COMMAND_PROTOTYPE(domounts)
 		OUTPUT(buf, sizeof(buf), "FSTYPE=%s\n", fstype);
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
+#ifdef NOVIRTNFSMOUNTS
+	if (reqp->sharing_mode[0] && reqp->isvnode) {
+		return 0;
+	}
+#endif
 
 	/*
 	 * A local phys node acting as a shared host gets toplevel mounts only.

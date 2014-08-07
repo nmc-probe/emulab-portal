@@ -161,3 +161,7 @@ WINDOWS_KEY_7PRO_X86=""
 # Fancy new browser in the console support
 #
 BROWSER_CONSOLE_ENABLE=1
+
+# Image versioning and deltas.
+IMAGEPROVENANCE=1
+IMAGEDELTAS=1

@@ -129,3 +129,4 @@ EC2META_ENABLE=1
 # Fancy new browser in the console support
 #
 BROWSER_CONSOLE_ENABLE=1
+NOVIRTNFSMOUNTS=1
