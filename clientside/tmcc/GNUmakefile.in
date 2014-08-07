@@ -97,7 +97,7 @@ ifeq ($(MDSUBDIR),redhat9)
 MDSUBDIR  = linux9
 endif
 ifeq ($(MDSUBDIR),ubuntu14)
-MDSUBDIR  = ubuntu11
+MDSUBDIR  = ubuntu14
 endif
 ifeq ($(MDSUBDIR),ubuntu12)
 MDSUBDIR  = ubuntu11
