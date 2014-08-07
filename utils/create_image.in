@@ -393,6 +393,11 @@ if ($WITHPROVENANCE) {
 	die("*** $0:\n".
 	    "    Could not lookup project for $image\n");
     }
+    # Temporary override for all geni projects until we can export deltas.
+    $doprovenance = 0
+	if ($project->IsNonLocal());
+
+    # But allow feature override. 
     $doprovenance = EmulabFeatures->FeatureEnabled("ImageProvenance",
 						   $this_user, $project);
 }
@@ -508,6 +513,10 @@ else {
 	    }
 	}
     }
+
+    # Do not create a delta for system images but still collect signatures.
+    $delta = 0
+	if ($pid eq TBOPSPID());
 
     #
     # If we are creating a delta image, figure out what image we are
