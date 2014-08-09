@@ -5853,7 +5853,7 @@ sub InterpLinks($)
 
 		next
 		    if ($interface->role() ne TBDB_IFACEROLE_EXPERIMENT() ||
-			!$wiredup);
+			!$wiredup || $interface->wire_unused());
 
 		#
 		# Gack. We need to make sure that we are connected to an

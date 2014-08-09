@@ -167,6 +167,7 @@ sub wire_type($)   { return $_[0]->{'WIRES'}->{'type'}; }
 sub switch_id($)   { return $_[0]->{'WIRES'}->{'node_id2'}; }
 sub switch_card($) { return $_[0]->{'WIRES'}->{'card2'}; }
 sub switch_port($) { return $_[0]->{'WIRES'}->{'port2'}; }
+sub wire_unused($) { return $_[0]->wire_type() eq "Unused" ? 1 : 0; }
 # Interface State table
 sub enabled($)     { return $_[0]->{'STATE'}->{'enabled'}; }
 sub tagged($)      { return $_[0]->{'STATE'}->{'tagged'}; }
