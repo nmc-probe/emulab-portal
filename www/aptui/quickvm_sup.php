@@ -52,7 +52,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTBASE      = "https://www.aptlab.net";
     $APTMAIL      = "APT Operations <testbed-ops@aptlab.net>";
 }
-elseif ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
+elseif (($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".cloudlab.us";
     $APTHOST      = "www.cloudlab.us";
@@ -170,14 +170,16 @@ function SPITHEADER($thinheader = 0)
                                 href='signup.php'>
                               Sign Up</a></form></li>
                      \n";
-		echo "<li id='loginitem' class='apt-left'>" .
-		         "<form><a class='btn btn-primary navbar-btn'
+		if ($page_title != "Login") {
+		    echo "<li id='loginitem' class='apt-left'>" .
+			   "<form><a class='btn btn-primary navbar-btn'
                               id='loginbutton'
 	                      data-toggle='modal'
                               href='#quickvm_login_modal'
                               data-target='#quickvm_login_modal'>
                             Login</a></form></li>
-                      \n";
+                          \n";
+		}
 	    }
 	    else {
 		echo "<li class='apt-left'>" .

@@ -194,5 +194,15 @@ class Instance
 	}
 	return array($instance, $creator);
     }
+
+    function UserHasInstances($user) {
+	$uuid = $user->uuid();
+
+	$query_result =
+	    DBQueryFatal("select uuid from apt_instances ".
+			 "where creator_uuid='$uuid'");
+
+	return mysql_num_rows($query_result);
+    }
 }
 ?>

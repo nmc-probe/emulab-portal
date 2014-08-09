@@ -786,7 +786,7 @@ function DOLOGIN($token, $password, $adminmode = 0, $nopassword = 0) {
     global $TBNAMECOOKIE, $TBLOGINCOOKIE, $TBSECURECOOKIES;
     global $TBMAIL_OPS, $TBMAIL_AUDIT, $TBMAIL_WWW;
     global $WIKISUPPORT, $WIKICOOKIENAME;
-    global $BUGDBSUPPORT, $BUGDBCOOKIENAME;
+    global $BUGDBSUPPORT, $BUGDBCOOKIENAME, $CHECKLOGIN_USER;
     
     # Caller makes these checks too.
     if ((!TBvalid_uid($token) && !TBvalid_email($token)) ||
@@ -896,6 +896,7 @@ function DOLOGIN($token, $password, $adminmode = 0, $nopassword = 0) {
 	if (DOLOGIN_MAGIC($uid, $uid_idx, $usr_email, $adminon) < 0) {
 	    return DOLOGIN_STATUS_ERROR;
 	}
+	$CHECKLOGIN_USER = $user;
 
 	#
 	# Usage stats. 

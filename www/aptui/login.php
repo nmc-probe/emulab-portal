@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+include("instance_defs.php");
 $page_title = "Login";
 
 #
@@ -160,8 +161,16 @@ function SPITFORM($uid, $referrer, $error)
 # If not clicked, then put up a form.
 #
 if (!$ajax_request && !isset($login)) {
-    SPITFORM(REMEMBERED_ID(), $referrer,
-	     ($this_user ? "alreadyloggedin" : null));
+    if ($this_user) {
+	if (Instance::UserHasInstances($this_user)) {
+	    header("Location: $APTBASE/myexperments.php");
+	}
+	else {
+	    header("Location: $APTBASE/instantiate.php");
+	}
+	return;
+    }
+    SPITFORM(REMEMBERED_ID(), $referrer, null);
     return;
 }
 
@@ -232,9 +241,11 @@ elseif (isset($referrer)) {
     header("Location: $referrer");
 }
 else {
-    #
-    # Zap back to front page in secure mode.
-    # 
-    header("Location: $APTBASE/instantiate.php");
+    if (Instance::UserHasInstances($CHECKLOGIN_USER)) {
+	header("Location: $APTBASE/myexperments.php");
+    }
+    else {
+	header("Location: $APTBASE/instantiate.php");
+    }
 }
 ?>
