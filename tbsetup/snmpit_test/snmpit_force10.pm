@@ -783,6 +783,13 @@ sub removePortsFromAllVlans($$@) {
 
     $self->debug("$id: entering\n");
 
+    # Bail now if the list of ports is empty.
+    if (!@ports) {
+	$self->debug("$id: called with empty port list... ".
+		     "Returning success!\n");
+	return 0;
+    }
+
     my @ifindexes = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
     my $portmask = $self->convertIfindexesToBitmask(\@ifindexes);
     my %vlifindexes = $self->getVlanIfindex("ALL");
@@ -1177,6 +1184,8 @@ sub setPortVlan($$@) {
     my ($self, $vlan_number, @ports) = @_;
     my $id = "$self->{NAME}::setPortVlan";
 
+    $self->debug("id: entering\n");
+
     # Get the vlan's ifindex now.  No point in doing anything more if it
     # doesn't exist!
     my $vlanIfindex = $self->getVlanIfindex($vlan_number);
@@ -1190,8 +1199,8 @@ sub setPortVlan($$@) {
     # we are in for DB queries.
     my @portlist = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
     my @portobjs = $self->convertPortFormat($PORT_FORMAT_PORT, @ports);
-    $self->debug("ports: " . join(",",@ports) . "\n");
-    $self->debug("as ifIndexes: " . join(",",@portlist) . "\n");
+    $self->debug("id: input ports: " . join(",",@ports) . "\n");
+    $self->debug("id: as ifIndexes: " . join(",",@portlist) . "\n");
 
     if (scalar(@portlist) != scalar(@portobjs)) {
 	warn "$id: ERROR: Port object list length is different than ifindex list length for the same set of input ports!\n";
@@ -1210,7 +1219,7 @@ sub setPortVlan($$@) {
     foreach my $pobj (@portobjs) {
 	if ($pobj->tagged() == 0 && 
 	    !exists($self->{TRUNKS}->{$portlist[$i]})) {
-	    $self->debug("Adding port $pobj as untagged to $vlan_number\n",2);
+	    $self->debug("id: Adding port $pobj as untagged to $vlan_number\n",2);
 	    push @uportlist, $portlist[$i];
 	    push @upobjs, $pobj;
 	}
