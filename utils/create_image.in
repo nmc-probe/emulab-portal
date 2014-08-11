@@ -393,13 +393,21 @@ if ($WITHPROVENANCE) {
 	die("*** $0:\n".
 	    "    Could not lookup project for $image\n");
     }
-    # Temporary override for all geni projects until we can export deltas.
-    $doprovenance = 0
-	if ($project->IsNonLocal());
 
     # But allow feature override. 
     $doprovenance = EmulabFeatures->FeatureEnabled("ImageProvenance",
 						   $this_user, $project);
+    
+    # Temporary override for all geni projects until we can export deltas.
+    if ($project->IsNonLocal()) {
+	my $feature = EmulabFeatures->Lookup("ImageProvenance");
+	if ($feature && $feature->enabled()) {
+	    # If globally enabled, disable. If not globally enabled but
+	    # doprovenance is on, then it was a per-project enable which
+	    # we wanr to respect.
+	    $doprovenance = 0;
+	}
+    }
 }
 
 #

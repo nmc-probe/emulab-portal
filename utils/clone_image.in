@@ -185,13 +185,20 @@ if (! (defined($base_osinfo) && defined($base_image))) {
 print "$node_id is running $base_osinfo,$base_image\n"
     if ($debug);
 
-# Temporary override for all geni projects until we can export deltas.
-$doprovenance = 0
-    if ($project->IsNonLocal());
-
-# But allow feature override.
+# See if enabled.
 $doprovenance = 
     EmulabFeatures->FeatureEnabled("ImageProvenance", $this_user, $project);
+
+# Temporary override for all geni projects until we can export deltas.
+if ($project->IsNonLocal()) {
+    my $feature = EmulabFeatures->Lookup("ImageProvenance");
+    if ($feature && $feature->enabled()) {
+	# If globally enabled, disable. If not globally enabled but
+	# doprovenance is on, then it was a per-project enable which
+	# we want to respect.
+	$doprovenance = 0;
+    }
+}
 
 #
 # The simple case is that the descriptor already exists. So it is just
