@@ -1,8 +1,8 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
-# Copyright (c) 2006-2013 Universiteit Gent.
+# Copyright (c) 2013,2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 Universiteit Gent/iMinds, Belgium.
 # Copyright (c) 2004-2006 Regents, University of California.
 # 
 # {{{EMULAB-LGPL
@@ -477,6 +477,9 @@ sub convertIfindexesToBitmask($@) {
         my $mod  = $1;
         my $port = $2;
 
+
+	$self->debug("$id: modport $modport\n");
+
         if ( $port >= $maxPortsPerModule )
         {
             warn "$id: WARNING: Cannot set port larger than maxport.\n";
@@ -565,6 +568,8 @@ sub checkBits($$$$) {
 	if ($reqStatus eq "on") {
 	    for my $i (0 .. $#bm1unp) {
 		if ($bm1unp[$i]) { # if bit is set
+   		    $self->debug("checkBits(\"on\"): bit with index $i is set!\n");
+
 		    if ($bm1unp[$i] != $bm2unp[$i]) {
 			$self->debug("checkBits(\"on\"): bit with index $i isn't set in the other bitmask, while it should be!\n");
 			$differingBits++;
@@ -776,10 +781,14 @@ sub removePortsFromAllVlans($$@) {
     my $id = "$self->{NAME}::removePortsFromAllVlans";
     my $errors = 0;
 
+    $self->debug("$id: entering\n");
+
     my @ifindexes = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
     my $portmask = $self->convertIfindexesToBitmask(\@ifindexes);
     my %vlifindexes = $self->getVlanIfindex("ALL");
     while (my ($vlifidx, $vlnum) = each %vlifindexes) {
+        $self->debug("$id: Attempting to remove @ports from ".
+			 "vlan number $vlnum\n");
 	# vlan 1 is the default vlan; we don't touch it in removal
 	# operations.  Membership in the default vlan is handled
 	# automagically on the Force10 platform.
@@ -1654,28 +1663,106 @@ sub disablePortTrunking($$) {
     return 1;
 }
 
-### Unimplemented functions related to port channels.
 
-#$device->getChannelIfIndex($self, @ports)
-#        this is used in the function immediately below; an interswitch
-#        trunk maybe connected by several physical wires constituting
-#        a logical trunk.  It is necessary on cisco's (and possibly
-#        others) to return a special cookie for trunk operations.
-#        this function only deals with one trunk at a time.
 #
-#$device->setVlansOnTrunk($self, $trunkIndex, $value, @vlan_number)
-##        $trunkIndex: cookie returned above for the trunk on which to operate.
-##        $value: 0 to disallow the VLAN on the trunk, 1 to allow it
-##        #vlan_numbers: An array of 802.1Q VLAN numbers to operate on
-##        Returns 1 on success, 0 otherwise
-##
+# Get the ifindex for an EtherChannel (trunk given as a list of ports)
 #
-#$device->resetVlanIfOnTrunk($self, $modport, $vlan_number)
-##        modport: module.port of the trunk to operate on
-##        vlan_number: A 802.1Q VLAN tag number to check
-##        return value currently ignored.  Takes vlan out of the trunk and puts
-##        it back in to flush the FDB.
+# usage: getChannelIfIndex(self, ports)
+#        Returns: undef if more than one port is given, and no channel is found
+#           an ifindex if a channel is found and/or only one port is given
 #
+# XXX: incomplete: will not find an ifindex for a portchannel.  This is
+# good since we can't yet configure portchannels (no snmp support in
+# FTOS).  So, only works on single-wire inter-switch trunks.
+#
+sub getChannelIfIndex($@) {
+    my $self = shift;
+    my @ports = @_;
+    my @ifIndexes = $self->convertPortFormat($PORT_FORMAT_IFINDEX,@ports);
+    my $ifindex = undef;
+    my $id = "$self->{NAME}::getChannelIfIndex()";
+
+    $self->debug("$id: entering ".join(",",@ports)."\n");
+
+
+    return undef
+        if (! @ifIndexes);
+
+    $self->debug("$id: ".join(",",@ifIndexes)."\n");
+
+    #
+    # Try to get a channel number for each one of the ports in turn - we'll
+    # take the first one we get
+    #
+    foreach my $port (@ifIndexes) {
+        if ($port) { $ifindex = $port; last; }
+    }
+    $self->debug("$id: $ifindex\n");
+    return $ifindex;
+}
+
+
+#
+# Enable, or disable,  port on a trunk
+#
+# usage: setVlansOnTrunk(self, modport, value, vlan_numbers)
+#        modport: module.port of the trunk to operate on
+#        value: 0 to disallow the VLAN on the trunk, 1 to allow it
+#        vlan_numbers: An array of 802.1Q VLAN numbers to operate on
+#        Returns 1 on success, 0 otherwise
+#
+# XXX: incomplete: does not operate on portchannels, only single-wire trunks.
+#
+sub setVlansOnTrunk($$$$) {
+    my ($self, $modport, $value, @vlan_numbers) = @_;
+    my ($RetVal);
+    my $errors = 0;
+    my $id = $self->{NAME} . "::setVlansOnTrunk";
+
+    $self->debug("$id: entering, modport: $modport, value: $value, vlans: ".join(",",@vlan_numbers)."\n");
+
+    #
+    # Some error checking (from HP)
+    #
+    if (($value != 1) && ($value != 0)) {
+	warn "$id: WARNING: Invalid value $value passed to function.\n";
+	return 0;
+    }
+    if (grep(/^1$/,@vlan_numbers)) {
+	warn "$id: WARNING: VLAN 1 passed to function.\n";
+	return 0;
+    }
+
+    foreach my $vlan (@vlan_numbers) {
+	if ($value == 1) {
+	    $errors += $self->setPortVlan($vlan, $modport);
+	} else {
+	    $errors += $self->removeSomePortsFromVlan($vlan, $modport);
+	}
+    }
+
+    return $errors ? 0 : 1;
+}
+
+
+#
+# Used to flush FDB entries easily
+#
+# usage: resetVlanIfOnTrunk(self, modport, vlan)
+#
+sub resetVlanIfOnTrunk($$$) {
+    my ($self, $modport, $vlan) = @_;
+    my ($ifIndex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX,$modport);
+    my $id = $self->{NAME} . "::resetVlansOnTrunk";
+
+    $self->debug("$id: entering, modport: $modport, vlan: $vlan\n");
+
+    $self->setVlansOnTrunk($modport, 0, $vlan);
+    $self->setVlansOnTrunk($modport, 1, $vlan);
+
+    return 0;
+}
+
 
 ##############################################################################
 ## OpenFlow functionality - not implemented yet.
