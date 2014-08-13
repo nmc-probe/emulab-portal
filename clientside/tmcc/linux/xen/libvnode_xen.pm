@@ -1392,6 +1392,9 @@ sub vnodePreConfig($$$$$){
 	goto bad
 	    if ($?);
 
+	# remove swap partitions from fstab
+	mysystem2("sed -i -e '/swap/d' $vnoderoot/etc/fstab");
+
 	# enable the correct device for console
 	if (-f "$vnoderoot/etc/inittab") {
 	    mysystem2("sed -i.bak -e 's/xvc0/console/' ".
@@ -1415,6 +1418,7 @@ sub vnodePreConfig($$$$$){
 			  "  $vnoderoot/etc/shadow");
 	    }
 	}
+	
 	# Testing a theory; remove all this iscsi stuff to see if that
 	# is causing problems with the control network interface going
 	# offline after boot.
@@ -2742,7 +2746,8 @@ sub downloadOneImage($$)
 	if (exists($raref->{'IMAGELOW'}) &&
 	    exists($raref->{'IMAGEHIGH'})) {
 	    $raref->{'LVSIZE'} =
-		$raref->{'IMAGEHIGH'} - $raref->{'IMAGELOW'} + 1;
+		(($raref->{'IMAGEHIGH'} - $raref->{'IMAGELOW'} + 1) /
+		 (1024 / $raref->{'IMAGESSIZE'}));
 	}
     }
     if (mysystem2("lvcreate -n $lvname -L ${lv_size}m $VGNAME")) {
