@@ -860,6 +860,7 @@ sub EditImageid($$$$)
 
     if (keys %updates || $redo_map) {
 	DBQueryWarn("lock tables images write, image_versions write, ".
+		    "     images as i write, image_versions as v write, ".
 		    "     os_info write, os_info_versions write, ".
 		    "     osidtoimageid write");
     }
