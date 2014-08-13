@@ -13,7 +13,9 @@
 	<% if (general_error) { %>
 	  <font color=red><%- general_error %></font>
 	<% } %>
-	<%= about_account %>
+	<% if (about_account) { %>
+	  <%= about_account %>
+	<% } %>
 	<form id='quickvm_signup_form'
               class='form-horizontal' role='form'
               enctype='multipart/form-data'

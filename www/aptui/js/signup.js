@@ -18,10 +18,12 @@ function (_, sup,
     var personalTemplate = _.template(personalString);
     var projectTemplate = _.template(projectString);
     var signupTemplate = _.template(signupString);
+    var ISCLOUD = 0;
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+	ISCLOUD = window.ISCLOUD;
 
 	var fields = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors = JSON.parse(_.unescape($('#error-json')[0].textContent));
@@ -66,7 +68,7 @@ function (_, sup,
 	var signup = signupTemplate({
 	    button_label: buttonLabel,
 	    general_error: (errors.error || ''),
-	    about_account: about,
+	    about_account: (ISCLOUD ? null : about),
 	    this_user: thisUser,
 	    joinproject: joinproject,
 	    verify_modal: verify,
