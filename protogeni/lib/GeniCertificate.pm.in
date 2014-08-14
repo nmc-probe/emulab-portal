@@ -635,9 +635,9 @@ sub LoadFromArray($$@)
 # Pipe a certificate (and maybe key) to a command and read back results
 # for the caller. 
 #
-sub PipeTo($$$)
+sub PipeTo($$$$)
 {
-    my ($self, $withkey, $string) = @_;
+    my ($self, $withkey, $string, $errorok) = @_;
 
 #    print STDERR "PipeTo: $self, '$string'\n";
 
@@ -688,7 +688,7 @@ sub PipeTo($$$)
     }
     close(CHILD);
     waitpid($childpid, 0);
-    if ($? || !@certlines) {
+    if (($? && !$errorok) || !@certlines) {
 	print STDERR "*** Failed to parse certificate: '$string'\n";
 	print STDERR $self->cert() . "\n\n";
 	foreach my $line (@certlines) {
@@ -782,7 +782,7 @@ sub URL($)
     return $url
 	if (defined($url));
 
-    my @certlines = $self->PipeTo(0, "$OPENSSL x509 -text -noout");
+    my @certlines = $self->PipeTo(0, "$OPENSSL x509 -text -noout", 0);
     if (! @certlines) {
 	print STDERR "Could not get text from $self\n";
 	return undef;
@@ -846,7 +846,7 @@ sub URN($)
     return $urn
 	if (defined($urn));
 
-    my @certlines = $self->PipeTo(0, "$OPENSSL x509 -text -noout");
+    my @certlines = $self->PipeTo(0, "$OPENSSL x509 -text -noout", 0);
     if (! @certlines) {
 	print STDERR "Could not get text from $self\n";
 	return undef;
@@ -874,7 +874,7 @@ sub asText($)
 {
     my ($self) = @_;
 
-    my @certlines = $self->PipeTo(0, "$OPENSSL x509 -text");
+    my @certlines = $self->PipeTo(0, "$OPENSSL x509 -text", 0);
     if (! @certlines) {
 	print STDERR "Could not convert $self to text\n";
 	return undef;
@@ -886,7 +886,7 @@ sub SubjectHash($)
 {
     my ($self) = @_;
 
-    my @result = $self->PipeTo(0, "$OPENSSL x509 -subject_hash -noout");
+    my @result = $self->PipeTo(0, "$OPENSSL x509 -subject_hash -noout", 0);
     if (! @result) {
 	print STDERR "Could not convert $self to subject hash\n";
  	return undef;
@@ -917,7 +917,7 @@ sub sha1($)
 {
     my ($self) = @_;
 
-    my @result = $self->PipeTo(0, "$SHA1");
+    my @result = $self->PipeTo(0, "$SHA1", 0);
     if (! @result) {
 	print STDERR "Could not convert $self to sha1 hash\n";
 	return undef;
@@ -1124,9 +1124,11 @@ sub VerifySSLChain($@)
             $pem = $1;
         }
 	my @result = $self->PipeTo(0, "$OPENSSL verify -CAfile $pem ".
-				   "-purpose sslclient $optarg");
+				   "-purpose sslclient $optarg", 1);
 
 	# We should always get something back.
+	# Okay, this changed in FreeBSD 10, which returns exit(2)
+	# when the certificate cannot be verified. See next comment.
 	return -1
 	    if (!@result);
 
@@ -1282,7 +1284,7 @@ sub DN($)
         if (exists($self->{'CERT'}->{'DN'}));
 
     my @certlines =
-	GeniCertificate::PipeTo($self, 0, "$OPENSSL x509 -noout -subject");
+	GeniCertificate::PipeTo($self, 0, "$OPENSSL x509 -noout -subject", 0);
     if (!@certlines) {
 	print STDERR "Failed to get DN from $self!\n";
 	return undef;
