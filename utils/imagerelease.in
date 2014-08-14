@@ -40,9 +40,10 @@ sub usage()
 	  "       -q      Turn on quiet mode\n");
     exit(-1);
 }
-my $optlist    = "dq";
+my $optlist    = "dqf";
 my $debug      = 0;
 my $quiet      = 0;
+my $force      = 0;
 
 #
 # Configure variables
@@ -88,6 +89,9 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"q"})) {
     $quiet = 1;
 }
+if (defined($options{"f"})) {
+    $force = 1;
+}
 usage()
     if (@ARGV != 1);
 my $imageid = $ARGV[0];
@@ -112,7 +116,7 @@ if (!defined($image)) {
 if (!defined($image)) {
     fatal("No such image!");
 }
-if ($image->released()) {
+if ($image->released() && !$force) {
     fatal("Image is already released! ".
 	  "Maybe you need to provide imageid:version");
 }
@@ -151,7 +155,7 @@ else {
     $version0 = $image;
 }
 if ($version0->path() =~ /^\/usr\/testbed/) {
-    $copytofile = "/usr/testbed/images/" . basename($version0->path());
+    $copytofile = "/usr/testbed/images/" . basename($image->path());
     $copyfromfile = $image->path();
     if ($image->version()) {
 	$updatepath = 1;
@@ -182,6 +186,16 @@ if (defined($copytofile)) {
 	    $image->Unlock();
 	    fatal("Failed to update path");
 	}
+    }
+    if (!$quiet) {
+	print "Running imagevalidate ...\n";
+    }
+    system("$IMAGEVALIDATE -u " . ($quiet ? "-q " : "") .
+	   $image->pid() . "," . $image->imagename() . ":" .
+	   $image->version());
+    if ($?) {
+	$image->Unlock();
+	fatal("Failed to validate the image!");
     }
 }
 # Now mark as released.

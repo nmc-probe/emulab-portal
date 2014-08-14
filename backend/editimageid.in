@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -152,6 +152,7 @@ my $SLOT_ADMINONLY	= 0x4;  # Only admins can set this field.
 my %xmlfields =
     # XML Field Name        DB slot name         Flags             Default
     ("imageid"		=> ["imageid",		$SLOT_REQUIRED],
+     "version"		=> ["version",		$SLOT_REQUIRED],
 
      # The rest are optional, so we can skip passing ones that are not changing.
      "description"	=> ["description",	$SLOT_OPTIONAL],
@@ -317,7 +318,8 @@ UserError()
 # Now do special checks.
 #
 
-my $image = Image->Lookup($editimageid_args{"imageid"});
+my $image = Image->Lookup($editimageid_args{"imageid"},
+			  $editimageid_args{"version"});
 if (!defined($image)) {
     UserError("Image: No such image");
 }

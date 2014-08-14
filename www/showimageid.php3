@@ -71,7 +71,7 @@ SUBPAGESTART();
 SUBMENUSTART("More Options");
 
 WRITESUBMENUBUTTON("Edit this Image Descriptor",
-		   "editimageid.php3?imageid=$imageid");
+		   "editimageid.php3?imageid=$imageid&version=$version");
 if ($image->GetLogfile()) {
     WRITESUBMENUBUTTON("View Log File",
 	       "showimageid.php3?imageid=$imageid&version=$version&showlog=1");

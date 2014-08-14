@@ -334,6 +334,7 @@ class Image
 
 	# Add these. Maybe caller should do this?
 	$args["imageid"] = $image->imageid();
+	$args["version"] = $image->version();
 
 	fwrite($fp, "<image>\n");
 	foreach ($args as $name => $value) {
