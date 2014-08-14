@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2004, 2006 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -122,6 +122,7 @@ else {
 #
 if (! ($tempfile =~ /^\/tmp\/[-\w]+-\d+\.nsfile/) &&
     ! ($tempfile =~ /^\/var\/tmp\/php\w+/) &&
+    ! ($tempfile =~ /^\/tmp\/php\w+/) &&
     ! TBValidUserDir($tempfile, 0)) {
     fatal("$tempfile does not resolve to an appropriate directory!\n");
 }
