@@ -10809,7 +10809,7 @@ COMMAND_PROTOTYPE(doarpinfo)
 			"left join nodes as np on np.node_id=n.phys_nodeid "
 			"left join os_info as o on o.osid=np.def_boot_osid "
 			 "left join os_info_versions as ov on "
-			 "     ov.osid=i.default_osid and ov.vers=o.version "
+			 "     ov.osid=o.osid and ov.vers=o.version "
 			"left join reserved as rp on rp.node_id=n.phys_nodeid "
 			"left join interfaces as ip on "
 			"     ip.node_id=rp.node_id and ip.role='ctrl' "
