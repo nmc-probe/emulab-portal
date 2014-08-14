@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -55,7 +55,7 @@ sub GetVersion()
 {
     my $blob = {
 	"VERSION" => $coder->string("0.1"),
-	"SERVICES" => ["SLICE", "SLIVER_INFO", "SLICE_MEMBER"],
+	"SERVICES" => ["SLICE", "SLICE_MEMBER"],
 	"CREDENTIAL_TYPES" => ["SFA"], # => [$coder->string("3")]],
 	"ROLES" => ["AUTHORITY", "ADMIN", "MEMBER"]
     };
@@ -245,8 +245,8 @@ sub ModifySliceMembership()
 
     my $i = 0;
     foreach my $current (@{ $adding }) {
-	if (exists($adding->{'SLICE_MEMBER'})) {
-	    $params->{"urn"} = $adding->{'SLICE_MEMBER'};
+	if (exists($current->{'SLICE_MEMBER'})) {
+	    $params->{"urn"} = $current->{'SLICE_MEMBER'};
 	    my $result = GeniSA::BindToSlice($params);
 	    if (GeniResponse::IsError($result)) {
 		return $result;
