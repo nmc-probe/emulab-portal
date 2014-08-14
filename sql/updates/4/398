@@ -67,6 +67,7 @@ sub DoUpdate($$$)
 	DBQueryFatal("replace into emulab_indicies ".
 		     "select 'next_profile',max(profileid)+1 ".
 		     " from apt_profiles");
+	DBQueryFatal("drop table apt_profiles_old");
     }
     return 0;
 }
