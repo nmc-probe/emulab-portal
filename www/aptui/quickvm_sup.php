@@ -30,6 +30,7 @@ $APTLOGO        = "aptlogo.png";
 $APTSTYLE       = "apt.css";
 $ISAPT		= 1;
 $ISVSERVER      = 0;
+$GOOGLEUA       = 'UA-45161989-1';
 
 #
 # Global flag to disable accounts. We do this on some pages which
@@ -51,6 +52,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $WWWHOST      = "www.aptlab.net";
     $APTBASE      = "https://www.aptlab.net";
     $APTMAIL      = "APT Operations <testbed-ops@aptlab.net>";
+    $GOOGLEUA     = 'UA-42844769-3';
 }
 elseif (($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISVSERVER    = 1;
@@ -64,6 +66,7 @@ elseif (($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $APTLOGO      = "cloudlogo.png";
     $APTSTYLE     = "cloudlab.css";
     $ISAPT	  = 0;
+    $GOOGLEUA     = 'UA-42844769-2';
 }
 
 #
@@ -89,6 +92,7 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
 function SPITHEADER($thinheader = 0)
 {
     global $TBMAINSITE, $APTTITLE, $FAVICON, $APTLOGO, $APTSTYLE, $ISAPT;
+    global $GOOGLEUA;
     global $login_user, $login_status;
     global $disable_accounts, $page_title, $drewheader;
     $title = $APTTITLE;
@@ -125,6 +129,10 @@ function SPITHEADER($thinheader = 0)
     
     if ($TBMAINSITE && file_exists("../google-analytics.php")) {
 	readfile("../google-analytics.php");
+	echo "<script type='text/javascript'>
+                ga('create', '$GOOGLEUA', 'auto');
+                ga('send', 'pageview');
+              </script>";
     }
 
     echo "
