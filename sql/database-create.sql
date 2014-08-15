@@ -4372,6 +4372,21 @@ CREATE TABLE `unixgroup_membership` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `user_credentials`
+--
+
+DROP TABLE IF EXISTS `user_credentials`;
+CREATE TABLE `user_credentials` (
+  `uid` varchar(8) NOT NULL default '',
+  `uid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `created` datetime default NULL,
+  `expires` datetime default NULL,
+  `credential_string` text,
+  `certificate_string` text,
+  PRIMARY KEY  (`uid_idx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `user_exports`
 --
 
