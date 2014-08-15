@@ -40,8 +40,9 @@ use English;
 use Expect;
 
 # Constants
-$CONN_TIMEOUT = 60;
-$CLI_TIMEOUT  = 15;
+my $CONN_TIMEOUT = 60;
+my $CLI_TIMEOUT  = 15;
+my $DEBUG_LOG    = "/tmp/force10_expect_debug.log";
 
 sub new($$$$) {
 
@@ -97,7 +98,7 @@ sub createExpectObject($)
 {
     my $self = shift;
     my $id = "$self->{NAME}::createExpectObject()";
-    
+    my $error = 0;
     my $spawn_cmd = "ssh -l admin $self->{NAME}";
     # Create Expect object and initialize it:
     my $exp = new Expect();
@@ -107,6 +108,12 @@ sub createExpectObject($)
     }
     $exp->raw_pty(0);
     $exp->log_stdout(0);
+
+    if ($self->{DEBUG} > 1) {
+	$exp->log_file($DEBUG_LOG,"w");
+	$exp->debug(1);
+    }
+
     if (!$exp->spawn($spawn_cmd)) {
 	warn "$id: Cannot spawn $spawn_cmd: $!\n";
 	return undef;
@@ -135,8 +142,8 @@ sub createExpectObject($)
 # Utility function - return the configuration prompt string for a given
 # interface name.
 #
-sub conf_iface_prompt($) {
-    my $iface = shift;
+sub conf_iface_prompt($$) {
+    my ($self, $iface) = @_;
     my $suffix = "";
     IFNAME: for ($iface) {
 	/vlan(\d+)/i && do {$suffix = "vl-$1"; last IFNAME;};
@@ -166,6 +173,9 @@ sub doCLICmd($$;$$)
     my @active_sets;
 
     my $exp = $self->{SESS};
+    my $id = "$self->{NAME}::doCLICmd()";
+
+    $self->debug("$id: called with: '$cmd', '$confmode', '$iface'\n",1);
 
     if (!$exp) {
 	#
@@ -181,22 +191,16 @@ sub doCLICmd($$;$$)
 	$exp = $self->{SESS};
     }
 
-    # Config prompt match strings.
-    my $conf_prompt_str = $self->{NAME} . '(conf)#';
-    my $conf_any_prompt_re = quotemeta($self->{NAME}) . '\(conf.*\)#';
-
     # Common patterns
-    my $catch_error_pat  = [qr/\% Error: (.+?)\n/,
-			    sub {my $e = shift; $error = ($e->matchlist)[0]}];
+    my $catch_error_pat  = [qr/% Error: (.+?)\n/,
+			    sub {my $e = shift; $error = ($e->matchlist)[0];
+				 exp_continue;}];
     my $timeout_pat      = [timeout => sub { $error = "timed out.";}];
-    my $enter_config_pat = [$self->{CLI_PROMPT},
-			    sub {my $e = shift; $e->send("conf t\n")}];
-    my $end_config_pat   = [qr/$conf_any_prompt_re/,
-			    sub {my $e = shift; $e->send("end\n")}];
+    my $get_output_pat   = [$self->{CLI_PROMPT}, sub {my $e = shift; 
+						      $output = $e->before();}];
 
     # Common pattern sets
-    my $enter_config_set = [$enter_config_pat];
-    my $end_config_set   = [$end_config_pat];
+    my $get_output_set = [$get_output_pat];
 
     #
     # Sets of pattern sets for execution follow.
@@ -208,42 +212,27 @@ sub doCLICmd($$;$$)
 	  [
 	     [$self->{CLI_PROMPT}, sub {my $e = shift; $e->send("$cmd\n")}]
 	  ],
-	  [
-	     [$self->{CLI_PROMPT}, sub {my $e = shift; 
-					$output = $e->before();}]
-	  ]
+	  $get_output_pat
 	);
 
     # Perform a single config operation (go into config mode).
     my @single_config_sets = ();
     push (@single_config_sets,
-	  $enter_config_set,
 	  [
-	     [$conf_prompt_str, sub {my $e = shift; $e->send("$cmd\n");}]
+	     [$self->{CLI_PROMPT}, sub {my $e = shift; 
+					$e->send("conf t\n$cmd\nend\n");}]
 	  ],
-	  [
-	     [$conf_prompt_str, sub {my $e = shift; $output = $e->before();}]
-	  ],
-	  $end_config_set
+	  $get_output_pat
 	);
 
     # Do an interface config operation (go into iface-specific config mode).
     my @iface_config_sets = ();
     push (@iface_config_sets,
-	  $enter_config_set,
 	  [
-	     [$conf_prompt_str, sub {my $e = shift; 
-				     $e->send("interface $iface\n");}]
+	     [$self->{CLI_PROMPT}, sub {my $e = shift; 
+					$e->send("conf t\ninterface $iface\n$cmd\nend\n");}]
 	  ],
-	  [
-	     [conf_iface_prompt($iface), sub {my $e = shift; 
-					      $e->send("$cmd\n");}]
-	  ],
-	  [
-	     [conf_iface_prompt($iface), sub {my $e = shift; 
-					      $output = $e->before();}]
-	  ],
-	  $end_config_set
+	  $get_output_pat
 	);
 
     # Pick "set of sets" to use with Expect based on how this method
@@ -258,16 +247,25 @@ sub doCLICmd($$;$$)
 	@active_sets = @single_command_sets;
     }
 
-    $exp->send("\cC"); # Send Ctrl-C to bail out of anything on the cmd line.
-    $exp->send("end\n"); # Attempt to exit config mode as a precaution.
-    $exp->clear_accum(); # Clean any accumulated output.
+    $exp->clear_accum();
     $exp->send("\cC"); # Get a command prompt into the Expect accumulator.
     # Match across the selected set of patterns.
+    my $i = 1;
     foreach my $patset (@active_sets) {
+	$self->debug("Match set: $i.\n",2);
+	$i++;
 	$exp->expect($CLI_TIMEOUT,
 		     $catch_error_pat,
 		     @$patset,
 		     $timeout_pat);
+	if ($error || $exp->error()) {
+	    $self->debug("error string: $error\n",2);
+	    $self->debug("exp error: " . ($exp->error()) . "\n",2);
+	} else {
+	    $self->debug("exp match:  " . ($exp->match()) . "\n",2);
+	}
+	$self->debug("exp before: " . ($exp->before()) . "\n",2);
+	$self->debug("exp after:  " . ($exp->after()) . "\n",2);
     }
 
     if (!$error && $exp->error()) {
@@ -275,9 +273,28 @@ sub doCLICmd($$;$$)
     }
 
     if ($error) {
-	$self->debug("force10_expect: Error in doCLICmd: $error\n");
+	$self->debug("$id: Error in doCLICmd: $error\n",1);
         return (1, $error);
     } else {
         return (0, $output);
+    }
+}
+
+#
+# Prints out a debugging message, but only if debugging is on. If a level is
+# given, the debuglevel must be >= that level for the message to print. If
+# the level is omitted, 1 is assumed
+#
+# Usage: debug($self, $message, $level)
+#
+sub debug($$;$) {
+    my $self = shift;
+    my $string = shift;
+    my $debuglevel = shift;
+    if (!(defined $debuglevel)) {
+        $debuglevel = 1;
+    }
+    if ($self->{DEBUG} >= $debuglevel) {
+        print STDERR $string;
     }
 }

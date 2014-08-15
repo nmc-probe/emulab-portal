@@ -11,11 +11,29 @@ use force10_expect;
 my @get_test1 = (
     ["name", "Basic command execution test #1"],
     ["cmd", "show version | no-more"],
-    ["cmd", "show vlan | no-more"]
+    ["cmd", "show vlan | no-more"],
+    ["cmd", "badcmd"],
+    ["cmd", "badagain"],
+    ["cmd", "show hosts"],
+);
+
+my @timeout_test1 = (
+    ["cmd", "show system"]
+);
+
+my @config_test1 = (
+    ["config", "snmp-server contact Kirk Webb"],
+    ["config", "snmp-server location DDC"],
+    ["config", "derp-derp"]
+);
+
+my @iface_config_test1 = (
+    ["ifconfig", "name testing_lan", "vlan666"],
+    ["ifconfig", "derp", "vlan666"]
 );
 
 # List the tests to run here.
-my @testsets = (\@get_test1,);
+my @testsets = (\@get_test1,\@config_test1,\@iface_config_test1);
 
 my %opts = ();
 
@@ -24,14 +42,14 @@ if (!getopts("n:p:d:",\%opts)) {
     exit 1;
 }
 
-my $name  = "";
-my $pass  = "";
-my $debug = 0;
-$auth  = $opts{'n'} or die "Must specify switch name!";
-$pass  = $opts{'p'} or die "Must specify password!";
-$debug = $opts{'d'} || 0;
+my $switch = "";
+my $pass   = "";
+my $debug  = 0;
+$switch = $opts{'n'} or die "Must specify switch name!";
+$pass   = $opts{'p'} or die "Must specify password!";
+$debug  = $opts{'d'} || 0;
 
-my $wrapper = force10_expect->new($name, $debug, $pass);
+my $wrapper = force10_expect->new($switch, $debug, $pass);
 
 foreach my $tlist (@testsets) {
     my @results = ();
