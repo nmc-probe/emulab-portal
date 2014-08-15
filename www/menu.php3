@@ -34,6 +34,7 @@ $sortedtables     = array();
 $bodyclosestring  = "";
 $navmenu          = null;
 $navmenuopen      = FALSE;
+$noAnalytics      = 0;
 
 #
 # This has to be set so we can spit out http or https paths properly!
@@ -924,6 +925,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
     global $MAINPAGE;
     global $TBDOCBASE, $GENIRACK;
     global $autorefresh, $currentusage, $javascript_debug, $login_user;
+    global $noAnalytics;
 
     $MAINPAGE = !strcmp($TBDIR, "/usr/testbed/");
 
@@ -977,8 +979,13 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
     }
     echo "</head><body>\n";
 
-    if ($TBMAINSITE && file_exists("google-analytics.php")) {
+    if ($TBMAINSITE && !$noAnalytics && file_exists("google-analytics.php")) {
 	readfile("google-analytics.php");
+
+	echo "<script type='text/javascript'>\n
+                ga('create', 'UA-45161989-1', 'emulab.net');\n
+                ga('send', 'pageview');\n
+              </script>\n";
     }
     
     if ($autorefresh) {

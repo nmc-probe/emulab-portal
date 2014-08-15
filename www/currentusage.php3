@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,6 +22,9 @@
 # }}}
 #
 require("defs.php3");
+# Analytics on this page messes up the stats
+$noAnalytics = 1;
+
 #
 # This script uses Sajax ... BEWARE!
 #
