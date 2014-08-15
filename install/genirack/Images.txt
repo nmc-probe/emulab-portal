@@ -29,7 +29,8 @@ is not spammed.
 
 For each site, we need to create a directory with three files in it:
 
-    ips.txt       - The ip addresses for the control/ilo interfaces
+    ips.txt       - The ip addresses for the control/ilo interfaces.
+                    iLO interface addresses should be 10.249.249.[12345].
     ilo.xml       - The XML file of ilo info from HP
     variables.txt - Some extra config variables.
 
