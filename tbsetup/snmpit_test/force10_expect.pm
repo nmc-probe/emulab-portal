@@ -52,7 +52,7 @@ sub new($$$$) {
 
     my $name = shift;
     my $debugLevel = shift;
-    my $password = shift;  # the password for ssh
+    my $userpass = shift;  # username and password
 
     #
     # Create the actual object
@@ -69,7 +69,11 @@ sub new($$$$) {
     }
 
     $self->{NAME} = $name;
-    $self->{PASSWORD} = $password;
+    ($self->{USERNAME}, $self->{PASSWORD}) = split(/:/, $userpass);
+    if (!$self->{USERNAME} || !$self->{PASSWORD}) {
+	warn "force10_expect: ERROR: must pass in username AND password!\n";
+	return undef;
+    }
 
     if ($self->{DEBUG}) {
         print "force10_expect initializing for $self->{NAME}, " .
@@ -99,7 +103,7 @@ sub createExpectObject($)
     my $self = shift;
     my $id = "$self->{NAME}::createExpectObject()";
     my $error = 0;
-    my $spawn_cmd = "ssh -l admin $self->{NAME}";
+    my $spawn_cmd = "ssh -l $self->{USERNAME} $self->{NAME}";
     # Create Expect object and initialize it:
     my $exp = new Expect();
     if (!$exp) {
@@ -119,9 +123,10 @@ sub createExpectObject($)
 	return undef;
     }
     $exp->expect($CONN_TIMEOUT,
-         ["admin\@$self->{NAME}'s password:" => sub { my $e = shift;
-                               $e->send($self->{PASSWORD}."\n");
-                               exp_continue;}],
+         ["$self->{USERNAME}\@$self->{NAME}'s password:" => 
+	  sub { my $e = shift;
+		$e->send($self->{PASSWORD}."\n");
+		exp_continue;}],
          ["Permission denied" => sub { $error = "Password incorrect!";} ],
          [ timeout => sub { $error = "Timeout connecting to switch!";} ],
          $self->{CLI_PROMPT} );

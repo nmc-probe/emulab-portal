@@ -39,6 +39,7 @@ use English;
 use SNMP;
 use snmpit_lib;
 use Port;
+use force10_expect;
 
 #
 # These are the commands that can be passed to the portControl function
@@ -89,6 +90,10 @@ my $ChassisInfo = {
 # So we prepend some alphabetical characters when setting, end strip them when getting
 #
 my $vlanStaticNamePrefix = "emuID";
+
+# Enterprise OIDs for port aggregations
+my $OID_AGGINDEX = ".1.3.6.1.4.1.6027.3.2.1.1.1.1.3";
+my $OID_AGGPLIST = ".1.3.6.1.4.1.6027.3.2.1.1.1.1.6";
 
 #
 # Ports can be passed around in three formats:
@@ -171,6 +176,7 @@ sub new($$$;$) {
     #
     $self->{IFINDEX} = {};     # Used for converting modport to ifIndex (somtimes called iid; e.g. 345555002) and vice versa
     $self->{PORTINDEX} = {};   # Will contain elements for experimental "interfaces" only (no VLANs, no Mgmgnt ifaces); format: ifIndex => ifDescr
+    $self->{POIFINDEX} = {};   # Port channel ifindex map.
 
     if ($self->{DEBUG}) {
 		print "snmpit_force10 module initializing... debug level $self->{DEBUG}\n";
@@ -210,12 +216,26 @@ sub new($$$;$) {
 		return undef;
     }
 
+    # Grab our expect object (Ugh... Why Force10, why?)
+    # This does not immediately connect to the switch.
+    if (exists($options{"username"}) && exists($options{"password"})) {
+	my $swcreds = $options{"username"} . ":" . $options{"password"};
+	$self->{EXP_OBJ} = force10_expect->new($self->{NAME},$debugLevel,
+					       $swcreds);
+	if (!$self->{EXP_OBJ}) {
+	    warn "Could not create Expect object for $self->{NAME}\n";
+	    return undef;
+	}
+    } else {
+	warn "WARNING: No credentials found for force10 switch $self->{NAME}\n";
+	warn "\tPortchannel manipulation will not be possible!\n";
+    }
+
     #
     # Connecting an SNMP session doesn't necessarily mean you can actually get
     # packets to and from the switch. Test that by grabbing an OID that should
     # be on every switch. Let it retry a bunch, to hide transient failures
     #
-
     my $OS_details = snmpitGetFatal($self->{SESS},["sysDescr",0],30);
     print "Switch $self->{NAME} is running $OS_details\n" if $self->{DEBUG};
 
@@ -301,6 +321,13 @@ sub readifIndex($) {
 		$self->{PORTINDEX}{$ifIndex} = $descr;
 		$self->debug("mod $module, port $port, modport $modport, descr $descr\n",2);
 	    }
+	}
+	elsif ($descr =~ /port-channel (\d+)/i) {
+	    my $ifIndex = $iid;
+	    my $poNum = $1;
+	    $self->{POIFINDEX}{$ifIndex} = "Po$poNum";
+	    $self->{POIFINDEX}{"Po$poNum"} = $ifIndex;
+	    $self->debug("Port-channel $poNum, ifindex $ifIndex\n",2);
 	}
     }
 
@@ -1678,38 +1705,85 @@ sub disablePortTrunking($$) {
 #
 # usage: getChannelIfIndex(self, ports)
 #        Returns: undef if more than one port is given, and no channel is found
-#           an ifindex if a channel is found and/or only one port is given
-#
-# XXX: incomplete: will not find an ifindex for a portchannel.  This is
-# good since we can't yet configure portchannels (no snmp support in
-# FTOS).  So, only works on single-wire inter-switch trunks.
+#           an ifindex if a channel is found and/or only one port is given.
 #
 sub getChannelIfIndex($@) {
     my $self = shift;
     my @ports = @_;
-    my @ifIndexes = $self->convertPortFormat($PORT_FORMAT_IFINDEX,@ports);
+    my @modports = $self->convertPortFormat($PORT_FORMAT_MODPORT,@ports);
     my $ifindex = undef;
     my $id = "$self->{NAME}::getChannelIfIndex()";
 
     $self->debug("$id: entering ".join(",",@ports)."\n");
 
-
     return undef
         if (! @ifIndexes);
 
-    $self->debug("$id: ".join(",",@ifIndexes)."\n");
+    $self->debug("$id: ".join(",",@modports)."\n");
 
-    #
-    # Try to get a channel number for each one of the ports in turn - we'll
-    # take the first one we get
-    #
-    foreach my $port (@ifIndexes) {
-        if ($port) { $ifindex = $port; last; }
+    my ($rows) = snmpitBulkwalkFatal($self->{SESS},[$OID_AGGPLIST]);
+
+    # Try to find the input ports in the membership lists of the port
+    # channels on this switch. Stop and return the first match found.
+    if ($rows) {
+        RESULTS: foreach my $result (@{$rows}) {
+	    my ($name,$channelid,$members) = @{$result};
+	    $self->debug("$id: got $name, $channelid, members $members\n",2);
+	    # Chop up membership list into individual members.  The stupid
+	    # thing is returned as a string that looks like this:
+	    # "Fo 0/52 Fo 0/56 ...". So, we must hop over the port type
+	    # identifiers, and grab the port numbers.
+	    my @elements = split(/\s+/, $members);
+	    for (my $i = 0; $i < @elements; $i += 2) {
+		my $membmodport = join(".", split(/\//, $elements[$i+1]));
+		foreach my $modport (@modports) {
+		    if ($modport eq $membmodport && 
+			exists{$self->{POIFINDEX}{"Po$channelid"}}) {
+			$ifindex = $self->{POIFINDEX}{"Po$channelid"};
+			last RESULTS;
+		    }
+		}
+	    }
+        }
     }
+
+    # If we don't yet have a portchannel index, and a single port was
+    # passed in, just return the ifindex for that port (single wire trunks).
+    if (!$ifindex && scalar(@ports) == 1) {
+	if (exists($self->{IFINDEX}{$ports[0]})) {
+	    $ifindex = $self->{IFINDEX}{$port[0]};
+	}
+    }
+
     $self->debug("$id: $ifindex\n");
     return $ifindex;
 }
 
+#
+# Helper function that calls the Expect CLI wrapper for this switch to
+# add/remove a portchannel to/from a vlan.  That this task cannot be
+# carried out via a programmatic API (snmp or other) is terrible.
+#
+sub setChannelVlan($$$;$) {
+    my ($self, $vlanid, $poifindex, $remove) = @_;
+    $remove ||= 0;
+    my $id = "$self->{NAME}::setChannelVlan";
+
+    if (!exists($self->{POIFINDEX}{$poifindex})) {
+	warn "$id: $poifindex does not exist in portchannel ifindex map!\n";
+	return 1;
+    }
+
+    my $poname = $self->{POIFINDEX}{$poifindex};
+    my $cmd = $remove ? "no tagged $poname" : "tagged $poname";
+    my $isconfig = 1;
+    my $vlifname = "vlan$vlanid";
+    my ($res, $out) = $self->{EXP_OBJ}->doCLICmd($cmd, $isconfig, $vlifname);
+    if (!$res) {
+	warn "$id: Error adding vlan to channel: $out\n";
+    }
+    return $res;
+}
 
 #
 # Enable, or disable,  port on a trunk
@@ -1720,15 +1794,18 @@ sub getChannelIfIndex($@) {
 #        vlan_numbers: An array of 802.1Q VLAN numbers to operate on
 #        Returns 1 on success, 0 otherwise
 #
-# XXX: incomplete: does not operate on portchannels, only single-wire trunks.
-#
 sub setVlansOnTrunk($$$$) {
     my ($self, $modport, $value, @vlan_numbers) = @_;
-    my ($RetVal);
     my $errors = 0;
     my $id = $self->{NAME} . "::setVlansOnTrunk";
 
     $self->debug("$id: entering, modport: $modport, value: $value, vlans: ".join(",",@vlan_numbers)."\n");
+
+    my ($ifindex) = $self->convertPortFormat(PORT_FORMAT_IFINDEX, $modport);
+    if (!$ifindex) {
+	warn "$id: WARNING: Could not get ifindex for port $modport\n";
+	return 0;
+    }
 
     #
     # Some error checking (from HP)
@@ -1742,17 +1819,28 @@ sub setVlansOnTrunk($$$$) {
 	return 0;
     }
 
+    # Add or remove the vlan from the trunk on the port or portchannel.
+    # Different code is called to manipulate the trunk depending on whether
+    # the interface is a regular port or a port channel.
     foreach my $vlan (@vlan_numbers) {
 	if ($value == 1) {
-	    $errors += $self->setPortVlan($vlan, $modport);
+	    if (exists($self->{POIFINDEX}{$ifindex})) {
+		$errors += $self->setChannelVlan($vlan, $ifindex);
+	    } else {
+		$errors += $self->setPortVlan($vlan, $ifindex);
+	    }
 	} else {
-	    $errors += $self->removeSomePortsFromVlan($vlan, $modport);
+	    if (exists($self->{POIFINDEX}{$ifindex})) {
+		my $remove = 1;
+		$errors += $self->setChannelVlan($vlan, $ifindex, $remove);
+	    } else {
+		$errors += $self->removeSomePortsFromVlan($vlan, $ifindex);
+	    }
 	}
     }
 
     return $errors ? 0 : 1;
 }
-
 
 #
 # Used to flush FDB entries easily
@@ -1761,7 +1849,6 @@ sub setVlansOnTrunk($$$$) {
 #
 sub resetVlanIfOnTrunk($$$) {
     my ($self, $modport, $vlan) = @_;
-    my ($ifIndex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX,$modport);
     my $id = $self->{NAME} . "::resetVlansOnTrunk";
 
     $self->debug("$id: entering, modport: $modport, vlan: $vlan\n");
