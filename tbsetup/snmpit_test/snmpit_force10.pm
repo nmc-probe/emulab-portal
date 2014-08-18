@@ -212,14 +212,14 @@ sub new($$$;$) {
 	#
 	# Bomb out if the session could not be established
 	#
-		warn "ERROR: Unable to connect via SNMP to $self->{NAME}\n";
-		return undef;
+	warn "ERROR: Unable to connect via SNMP to $self->{NAME}\n";
+	return undef;
     }
 
     # Grab our expect object (Ugh... Why Force10, why?)
     # This does not immediately connect to the switch.
-    if (exists($options{"username"}) && exists($options{"password"})) {
-	my $swcreds = $options{"username"} . ":" . $options{"password"};
+    if (exists($options->{"username"}) && exists($options->{"password"})) {
+	my $swcreds = $options->{"username"} . ":" . $options->{"password"};
 	$self->{EXP_OBJ} = force10_expect->new($self->{NAME},$debugLevel,
 					       $swcreds);
 	if (!$self->{EXP_OBJ}) {
@@ -1717,18 +1717,24 @@ sub getChannelIfIndex($@) {
     $self->debug("$id: entering ".join(",",@ports)."\n");
 
     return undef
-        if (! @ifIndexes);
+        if (! @modports);
 
     $self->debug("$id: ".join(",",@modports)."\n");
 
-    my ($rows) = snmpitBulkwalkFatal($self->{SESS},[$OID_AGGPLIST]);
+    my ($rows) = snmpitBulkwalkWarn($self->{SESS},[$OID_AGGPLIST]);
 
     # Try to find the input ports in the membership lists of the port
     # channels on this switch. Stop and return the first match found.
     if ($rows) {
         RESULTS: foreach my $result (@{$rows}) {
-	    my ($name,$channelid,$members) = @{$result};
-	    $self->debug("$id: got $name, $channelid, members $members\n",2);
+	    my ($oid,$channelid,$members) = @{$result};
+	    $self->debug("$id: got $oid, $channelid, members $members\n",2);
+	    # Apparently the iid (channelid) is not filled in when
+	    # walking this OID tree.  Check for a null iid, and substitute
+	    # the last component of the returned OID if necessary.
+	    if (!$channelid) {
+		$channelid = substr($oid, rindex($oid,'.') + 1);
+	    }
 	    # Chop up membership list into individual members.  The stupid
 	    # thing is returned as a string that looks like this:
 	    # "Fo 0/52 Fo 0/56 ...". So, we must hop over the port type
@@ -1738,7 +1744,7 @@ sub getChannelIfIndex($@) {
 		my $membmodport = join(".", split(/\//, $elements[$i+1]));
 		foreach my $modport (@modports) {
 		    if ($modport eq $membmodport && 
-			exists{$self->{POIFINDEX}{"Po$channelid"}}) {
+			exists($self->{POIFINDEX}{"Po$channelid"})) {
 			$ifindex = $self->{POIFINDEX}{"Po$channelid"};
 			last RESULTS;
 		    }
@@ -1751,7 +1757,7 @@ sub getChannelIfIndex($@) {
     # passed in, just return the ifindex for that port (single wire trunks).
     if (!$ifindex && scalar(@ports) == 1) {
 	if (exists($self->{IFINDEX}{$ports[0]})) {
-	    $ifindex = $self->{IFINDEX}{$port[0]};
+	    $ifindex = $self->{IFINDEX}{$ports[0]};
 	}
     }
 
@@ -1779,7 +1785,7 @@ sub setChannelVlan($$$;$) {
     my $isconfig = 1;
     my $vlifname = "vlan$vlanid";
     my ($res, $out) = $self->{EXP_OBJ}->doCLICmd($cmd, $isconfig, $vlifname);
-    if (!$res) {
+    if ($res) {
 	warn "$id: Error adding vlan to channel: $out\n";
     }
     return $res;
@@ -1801,7 +1807,7 @@ sub setVlansOnTrunk($$$$) {
 
     $self->debug("$id: entering, modport: $modport, value: $value, vlans: ".join(",",@vlan_numbers)."\n");
 
-    my ($ifindex) = $self->convertPortFormat(PORT_FORMAT_IFINDEX, $modport);
+    my ($ifindex) = $self->convertPortFormat($PORT_FORMAT_IFINDEX, $modport);
     if (!$ifindex) {
 	warn "$id: WARNING: Could not get ifindex for port $modport\n";
 	return 0;
