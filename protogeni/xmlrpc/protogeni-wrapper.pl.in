@@ -70,6 +70,7 @@ use POSIX;
 use Crypt::X509;
 use Crypt::OpenSSL::X509;
 use Time::HiRes qw( gettimeofday tv_interval );
+use Carp qw(cluck confess);
 
 # Yack. apache does not close fds before the exec, and if this dies
 # we are left with a giant mess.
@@ -485,6 +486,27 @@ sub AddLogfileMetaDataFromSpeaksFor($)
 }
 
 #
+# Okay, we want to catch warning, specifically uninitialized
+# variables so we can print a backtrace. 
+#
+my $warned = 0;
+$SIG{__WARN__} = sub {
+    my $message = shift;
+    exit(-1)
+	if ($warned);
+    $warned = 1;
+    cluck($message);
+    if ($message =~ /uninitialized value/) {
+	die("Exiting cause of uninitialized value\n");
+    }
+    $warned = 0;
+};
+$SIG{__DIE__} = sub {
+    my $message = shift;
+    confess($message);
+};
+
+#
 # Use libaudit to capture any output from libraries and programs.  We
 # do not let it send the email though, we do that below, unless it
 # exits abnormally via the END block.
@@ -639,7 +661,7 @@ if ($@) {
     # These errors should get mailed to tbops.
     #
     $rpcerror = $iserror = 1;
-    print STDERR "Error executing RPC method $method:\n" . $@ . "\n";
+    print STDERR "Error executing RPC method $method:\n" . $@ . "\n\n";
     $response = $decoder->encode_fault(XMLRPC_SERVER_ERROR(),
 				       "Internal Error executing $method");
 
@@ -648,6 +670,9 @@ if ($@) {
 	my ($key,$val) = @{$foo};
 	$message .= sprintf("%-15s: %s\n", $key, $val);
     }
+    print STDERR "-------------- Request -----------------\n";
+    print STDERR Dumper($request) . "\n";
+    print STDERR "----------------------------------------\n";
 }
 else {
     # In case the callee flipped.
