@@ -2569,7 +2569,7 @@ sub CreateImage($)
     # Do the snapshot.
     #
     $output =
-	GeniUtil::ExecQuiet("$CREATEIMAGE -e -f -p $pid $imagename $node_id");
+	GeniUtil::ExecQuiet("$CREATEIMAGE -F -e -f -p $pid $imagename $node_id");
     # Not a typical op, so always print debugging info;
     print STDERR $output;
     # Return to normal state even if it failed.
