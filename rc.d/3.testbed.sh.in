@@ -127,6 +127,11 @@ case "$1" in
 			@prefix@/sbin/tcppd &
 		fi
 
+		if [ -x @prefix@/sbin/event_watchdog ]; then
+		        echo -n " event_watchdog"
+			@prefix@/sbin/event_watchdog
+		fi
+
 		#
 		# Could trigger experiment creation, so make sure everything
 		# else is setup first; i.e., run this last!
@@ -208,6 +213,9 @@ case "$1" in
 		fi
 		if [ -r /var/run/tcppd.pid ]; then
 			kill `cat /var/run/tcppd.pid`
+		fi
+		if [ -r /var/run/event_watchdog.pid ]; then
+			kill `cat /var/run/event_watchdog.pid`
 		fi
 
 		;;
