@@ -453,6 +453,10 @@ ops-updateip-clean:	clean
 	@$(MAKE) -C rc.d clean
 	@$(MAKE) -C apache clean
 
+update-rcd:
+	@$(MAKE) -C rc.d all
+	@$(MAKE) -C rc.d install
+
 #
 # Here's a different approch to recover from just configure problems.  It cleans
 # all files from an obj tree that have a corresponding .in file in the src tree.
