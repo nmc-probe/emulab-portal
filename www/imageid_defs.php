@@ -1038,7 +1038,7 @@ class Image
 
 	    DBQueryFatal("update os_info_versions set ".
 			 "    def_parentosid='$parentosid' ".
-			 "where osid='$imageid and vers='$version'");
+			 "where osid='$imageid' and vers='$version'");
 	    DBQueryFatal("replace into os_submap set ".
 			 "  osid='$imageid', parent_osid='$parentosid'");
 	    DBQueryFatal("replace into osidtoimageid set ".
