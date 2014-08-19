@@ -116,7 +116,8 @@ if (isset($profile)) {
 	# Must be public or belong to user. 
 	#
 	if (! ($obj->ispublic() ||
-	       $obj->creator_idx() == $this_user->uid_idx())) {
+	       (isset($this_user) &&
+		$obj->creator_idx() == $this_user->uid_idx()))) {
 	    SPITUSERERROR("No permission to use profile: $profile");
 	    exit();
 	}
@@ -125,31 +126,40 @@ if (isset($profile)) {
 	$profilename = $obj->name();
     }
 }
-
-#
-# Find all the public and user profiles. We use the UUID instead of
-# indicies cause we do not want to leak internal DB state to guest
-# users.
-#
-$query_result =
-    DBQueryFatal("select * from apt_profiles as p ".
-		 "left join apt_profile_versions as v on ".
-		 "     v.profileid=p.profileid and ".
-		 "     v.version=p.version ".
-		 "where locked is null and (public=1 " .
-		 ($this_user ? "or creator_idx=" . $this_user->uid_idx() : "").
-		 ")");
-while ($row = mysql_fetch_array($query_result)) {
-    $profile_array[$row["uuid"]] = $row["name"];
-    if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
-	$profile_default = $row["uuid"];
+else {
+    #
+    # Find all the public and user profiles. We use the UUID instead of
+    # indicies cause we do not want to leak internal DB state to guest
+    # users. Need to decide on what clause to use, depending on whether
+    # a guest user or not.
+    #
+    $joinclause   = "";
+    $whereclause  = "";
+    if (!isset($this_user)) {
+	$whereclause = "p.public=1";
     }
-    if (isset($profile)) {
-        # Look for the profile by project/name and switch to uuid.
-	if (isset($project) &&
-	    $row["pid"] == $project->pid() &&
-	    $row["name"] == $profile) {
-	    $profile = $row["uuid"];
+    else {
+	$this_idx = $this_user->uid_idx();
+	$joinclause =
+	    "left join group_membership as g on ".
+	    "     g.uid_idx='$this_idx' and ".
+	    "     g.pid_idx=v.pid_idx and g.pid_idx=g.gid_idx";
+	$whereclause =
+	    "p.public=1 or p.shared=1 or v.creator_idx='$this_idx' or ".
+	    "g.uid_idx is not null ";
+    }
+
+    $query_result =
+	DBQueryFatal("select p.*,v.* from apt_profiles as p ".
+		     "left join apt_profile_versions as v on ".
+		     "     v.profileid=p.profileid and ".
+		     "     v.version=p.version ".
+		     "$joinclause ".
+		     "where locked is null and ($whereclause)");
+    while ($row = mysql_fetch_array($query_result)) {
+	$profile_array[$row["uuid"]] = $row["name"];
+	if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
+	    $profile_default = $row["uuid"];
 	}
     }
 }

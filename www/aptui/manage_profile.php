@@ -260,6 +260,8 @@ if (! isset($create)) {
 	    if (isset($_SESSION["notifyupdate"])) {
 		$notifyupdate = 1;
 		unset($_SESSION["notifyupdate"]);
+		session_destroy();
+		session_commit();
 	    }
 
 	    #

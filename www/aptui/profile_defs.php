@@ -362,5 +362,31 @@ class Profile
 	}
 	return 0;
     }
+
+    #
+    # Permission check; does user have permission to instantiate the
+    # profile. At the moment, view/instantiate are the same.
+    #
+    function CanInstantiate($user) {
+	$profileid = $this->profileid();
+
+	if ($profile->shared() || $profile->ispublic() ||
+	    $profile->creator_idx() == $user->uid_idx()) {
+	    return 1;
+	}
+	# Otherwise a project membership test.
+	$project = Project::Lookup($profile->pid_idx());
+	if (!$project) {
+	    return 0;
+	}
+	$isapproved = 0;
+	if ($project->IsMember($user, $isapproved) && $isapproved) {
+	    return 1;
+	}
+	return 0;
+    }
+    function CanView($user) {
+	return $this->CanInstantiate($user);
+    }
 }
 ?>
