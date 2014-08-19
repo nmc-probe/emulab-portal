@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -38,7 +38,7 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print STDERR "Usage: $0 [-a] <user-urn> <speaker-urn>";
+    print STDERR "Usage: $0 [-a] <user-urn> [<speaker-urn>]\n";
     exit(1);
 }
 my $optlist = "a";
@@ -46,6 +46,7 @@ my $doabac  = 0;
 
 # Configure ...
 my $TB		  = "@prefix@";
+my $SACERT	  = "$TB/etc/genisa.pem";
 
 # Do this early so that we talk to the right DB. 
 use vars qw($GENI_DBNAME);
@@ -80,9 +81,28 @@ if (defined($options{"a"})) {
     $doabac = 1;
 }
 usage()
-    if (@ARGV < 2);
+    if (@ARGV < 1);
 my $user_urn = shift();
-my $speaker_urn = shift();
+my $speaker;
+
+if (@ARGV) {
+    my $speaker_urn = shift();
+
+    if (! (GeniHRN::IsValid($speaker_urn))) {
+	fatal("Malformed speaker urn");
+    }
+    $speaker = GeniUser->Lookup($speaker_urn, 1);
+    if (!defined($speaker)) {
+	fatal("No such speaker in the DB");
+    }
+}
+else {
+    $speaker = GeniCertificate->LoadFromFile($SACERT);
+    if (!defined($speaker)) {
+	fatal("Could not load certificate from $SACERT\n");
+    }
+    $speaker->LoadKeyFromFile($SACERT);
+}
 
 #
 # Must be an emulab user.
@@ -93,13 +113,6 @@ if (! (GeniHRN::IsValid($user_urn))) {
 my $geniuser = GeniUser->Lookup($user_urn, 1);
 if (!defined($geniuser)) {
     fatal("No such user in the DB");
-}
-if (! (GeniHRN::IsValid($speaker_urn))) {
-    fatal("Malformed speaker urn");
-}
-my $speaker = GeniUser->Lookup($speaker_urn, 1);
-if (!defined($speaker)) {
-    fatal("No such speaker in the DB");
 }
 
 if ($doabac) {
@@ -141,7 +154,7 @@ if ($doabac) {
 	print $xml;
     }
 }
-else {
+Else {
     my $credential = GeniCredential->Create($geniuser, $speaker);
     fatal("Could not create credential")
 	if (!defined($credential));
