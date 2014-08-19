@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -47,6 +47,7 @@ use GeniRegistry;
 use emutil;
 use URI;
 use Data::Dumper;
+use Carp qw(cluck carp);
 
 # Filter out any credentials of an uknown type leaving only geni_sfa
 # version 2 and version 3 credentials in a list. Also invokes
@@ -58,8 +59,11 @@ sub FilterCredentials
     if (defined($credentials)) {
 	foreach my $cred (@{ $credentials }) {
 	    if (ref($cred) eq "HASH" &&
-		$cred->{'geni_type'} eq "geni_sfa" &&
-		($cred->{'geni_version'} eq 2 || $cred->{'geni_version'} eq 3)) {
+		(($cred->{'geni_type'} eq "geni_sfa" &&
+		  ($cred->{'geni_version'} eq 2 ||
+		   $cred->{'geni_version'} eq 3)) ||
+		 ($cred->{'geni_type'} eq "geni_abac" &&
+		  ($cred->{'geni_version'} eq 1)))) {
 		push(@{ $result }, $cred->{'geni_value'});
 		auto_add_sa($cred->{'geni_value'});
 	    }
@@ -76,7 +80,7 @@ sub auto_add_sa($)
     my $signers = $cred->signer_certs();
 
     return
-	if ($cred->type() eq "speaksfor");
+	if ($cred->type() eq "speaksfor" || $cred->type() eq "abac");
 
     # The credential has been verified, so the signer derives from a
     # trusted root.
@@ -193,11 +197,18 @@ sub auto_add_sa($)
 #
 # Initial credential check.
 #
-sub CheckCredentials($)
+sub CheckCredentials($;$)
 {
+    my ($arg, $target_authority) = @_;
     my ($speakee, $speaksfor);
     my @rest = ();
     my $error;
+
+    if (!defined($arg)) {
+	cluck("CheckCredentials: No credentials!");
+	$error = GeniResponse->Create(GENIRESPONSE_ERROR);
+	goto bad;
+    }
     
     if (ref($_[0]) ne "ARRAY") {
 	$error = GeniResponse->MalformedArgsResponse("Credentials should be a ".
@@ -206,14 +217,6 @@ sub CheckCredentials($)
     }
     else {
 	my @credential_strings = @{ $_[0] };
-
-	if (scalar(@credential_strings) == 1) {
-	    #
-	    # Must be a speaks-as credential.
-	    #
-	    $speakee = GeniCredential::CheckCredential($credential_strings[0]);
-	}
-	else {
 	    #
 	    # The only other case is that we get multiple credentials. One
 	    # is the speaks-for credential and another one is the real
@@ -242,7 +245,8 @@ sub CheckCredentials($)
 		# just the way I want it. 
 		#
 		$speakee = shift(@credentials);
-		$speakee = GeniCredential::CheckCredential($speakee);
+		$speakee = GeniCredential::CheckCredential($speakee,
+							   $target_authority);
 		if (GeniResponse::IsError($speakee)) {
 		    $error = $speakee;
 		    goto bad;
@@ -253,7 +257,9 @@ sub CheckCredentials($)
 		# The rest of the credentials have to be valid too.
 		#
 		foreach my $credential (@rest) {
-		    $credential = GeniCredential::CheckCredential($credential);
+		    $credential =
+			GeniCredential::CheckCredential($credential,
+							$target_authority);
 		    if (GeniResponse::IsError($credential)) {
 			$error = $credential;
 			goto bad;
@@ -319,8 +325,9 @@ sub CheckCredentials($)
 		# by the user, so the owners must match.
 		#
 		foreach my $credential (@credentials) {
-		    my $cred = GeniCredential::CheckCredential($credential,
-							       undef, 1);
+		    my $cred =
+			GeniCredential::CheckCredential($credential,
+							$target_authority, 1);
 		    if (GeniResponse::IsError($cred)) {
 			$error = $cred;
 			goto bad;
@@ -340,7 +347,7 @@ sub CheckCredentials($)
 		$speakee = shift(@credentials);
 		@rest = @credentials;
 	    }
-	}
+
     }
     if (wantarray()) {
 	return ($speakee, $speaksfor, @rest);

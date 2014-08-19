@@ -84,18 +84,25 @@ sub LookupPublic($)
 sub LookupPrivate($$)
 {
     my ($credential_args, $options) = @_;
-    my ($credential) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    my ($credential,$speaksfor) =
+	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     return $credential
 	if (GeniResponse::IsResponse($credential));
+    return GeniResponse->MalformedArgsResponse("Missing self credential")
+	if (!defined($credential));
+   
     #
     # We need to enforce Emulab permissions here, since the credential
     # allows anyone with a credential for this registry to lookup anyone
     # else. Good feature of the Geni API.
     #
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				    "Permission denied. Only local users are allowed to make private lookups.");
+			    "Permission denied. Only local users are allowed ".
+				    "to make private lookups.");
     }
 
     $credential->HasPrivilege( "authority" ) or
@@ -119,19 +126,25 @@ sub LookupIdentifying($$)
 {
     my ($credential_args, $options) = @_;
 
-    my ($credential) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    my ($credential,$speaksfor) =
+	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     return $credential
 	if (GeniResponse::IsResponse($credential));
+    return GeniResponse->MalformedArgsResponse("Missing self credential")
+	if (!defined($credential));
    
     #
     # We need to enforce Emulab permissions here, since the credential
     # allows anyone with a credential for this registry to lookup anyone
     # else. Good feature of the Geni API.
     #
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				    "Permission denied. Only local users are allowed to make identifying lookups.");
+			    "Permission denied. Only local users are allowed ".
+				    "to make identifying lookups.");
     }
 
     $credential->HasPrivilege( "authority" ) or
@@ -171,7 +184,19 @@ sub GetCredentials($$$)
 {
     my ($member_urn, $credential_args, $options) = @_;
 
-    my $credential = GeniSA::GetCredential({ "urn" => $member_urn });
+    #
+    # Need to know if only a speaksfor is provided. 
+    #
+    my ($credential,$speaksfor) =
+	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $args = { "urn" => $member_urn };
+    if (defined($speaksfor)) {
+	$args->{"credential"} = $speaksfor->asString();
+    }
+    $credential = GeniSA::GetCredential($args);
     return $credential
 	if (GeniResponse::IsError($credential));
 
@@ -207,7 +232,44 @@ sub UpdateKey($$$$)
 
 sub LookupKeys($$)
 {
-    my ($credentials, $options) = @_;
+    my ($credential_args, $options) = @_;
 
-    return GeniResponse->Create(GENIRESPONSE_NOT_IMPLEMENTED);
+    my ($credential,$speaksfor) =
+	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+    return GeniResponse->MalformedArgsResponse("Missing self credential")
+	if (0 && !defined($credential));
+   
+    #
+    # We need to enforce Emulab permissions here, since the credential
+    # allows anyone with a credential for this registry to lookup anyone
+    # else. Good feature of the Geni API.
+    #
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
+    if (!defined($this_user)) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "Permission denied.");
+    }
+
+    defined($credential) && 
+	($credential->HasPrivilege( "authority" ) or
+	 $credential->HasPrivilege( "resolve" ) or
+	 return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				      "Insufficient privilege" ));
+
+    my @keys;
+    if ($this_user->GetKeyBundle(\@keys) != 0) {
+	print STDERR "Could not get keys for $this_user\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);	
+    }
+    my @list = ();
+    foreach my $key (@keys) {
+	push(@list, {"KEY_PUBLIC" => $key->{'key'} });
+    }
+    my $blob = { $this_user->urn() => \@list };
+    
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }

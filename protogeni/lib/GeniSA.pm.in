@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -52,6 +52,7 @@ use GeniCredential;
 use GeniCertificate;
 use GeniAuthority;
 use GeniHRN;
+use GeniStd;
 use English;
 use XML::Simple;
 use Data::Dumper;
@@ -91,32 +92,53 @@ sub GetCredential($)
     my ($argref) = @_;
     my $urn  = $argref->{'urn'};
     my $cred = $argref->{'credential'};
+    my $creds = $argref->{'credentials'};
+    my $geniuser;
 
     if (0 && $MAINSITE) {
 	print STDERR "Debugging getslicecred()\n";
     }
 
     #
-    # No credential, then return a generic credential giving user permission
-    # to do other things.
+    # This credential is for access to this SA.
     #
-    if (!defined($cred)) {
-	my $geniuser = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR
+	    "Could not find local authority object for $ENV{'MYURN'}\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+
+    #
+    # If we got *only* a speaks-for credential, then a tool is asking for
+    # a self-cred on behalf of a user.
+    #
+    if (defined($cred)) {
+	my ($credential,$speaksfor) =
+	    GeniStd::CheckCredentials([$cred], $authority);
+	return $credential
+	    if (GeniResponse::IsResponse($credential));
+
+	if (defined($speaksfor)) {
+	    $geniuser = GeniUser->Lookup($speaksfor->target_urn(), 1);
+	    if (!defined($geniuser)) {
+		return GeniResponse->Create(GENIRESPONSE_FORBIDDEN,
+					    undef, "Who are you speaking for?");
+	    }
+	    # Asking for a self cred for the target user.
+	    goto selfcred;
+	}
+    }
+    elsif (!(defined($cred) || defined($creds))) {
+	#
+	# No cred, caller wants a self credential.
+	#
+	$geniuser = GeniUser->Lookup($ENV{'GENIURN'}, 1);
 	if (!defined($geniuser)) {
-	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN,
-					undef, "Who are you?");
+	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+					"Who are you?");
 	}
-
-	#
-	# This credential is for access to this SA.
-	#
-	my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
-	if (!defined($authority)) {
-	    print STDERR
-		"Could not find local authority object for $ENV{'MYURN'}\n";
-	    return GeniResponse->Create(GENIRESPONSE_ERROR);
-	}
-
+      selfcred:
 	if( !CheckMembership( $geniuser ) ) {
 	    return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
 					 undef, "No privilege at this " .
@@ -160,7 +182,13 @@ sub GetCredential($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = GeniCredential::CheckCredential($cred, $authority);
+    my ($credential,$speaksfor);
+    if (defined($cred)) {
+	$credential = GeniCredential::CheckCredential($cred, $authority);
+    }
+    else {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+    }
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -169,14 +197,16 @@ sub GetCredential($)
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
-    if (!defined($this_user)) {
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN,
-				    undef, "Who are you?");
-    }
     my ($undef, $type, $id) = GeniHRN::Parse($urn);
-	
-    if( !CheckMembership( $this_user ) ) {
+
+    $geniuser =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
+    if (!defined($geniuser)) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "Who are you? No local record");
+    }
+    if( !CheckMembership( $geniuser ) ) {
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
 				     undef, "No privilege at this " .
 				     "authority" );
@@ -191,8 +221,8 @@ sub GetCredential($)
 	# Bump the activity counter for the user. Lets us know in the
 	# main DB that a user is doing something useful.
 	#
-	$this_user->BumpActivity()
-	    if ($this_user->IsLocal());
+	$geniuser->BumpActivity()
+	    if ($geniuser->IsLocal());
 	
 	my $slice = GeniSlice->Lookup($urn);
 
@@ -202,8 +232,8 @@ sub GetCredential($)
 	if ($slice->Lock() != 0) {
 	    return GeniResponse->BusyResponse("slice");
 	}
-	if ($slice->creator_urn() ne $this_user->urn() &&
-	    !$slice->IsBound($this_user)) {
+	if ($slice->creator_urn() ne $geniuser->urn() &&
+	    !$slice->IsBound($geniuser)) {
 	    $slice->UnLock();
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 					"Not your slice!");
@@ -211,13 +241,13 @@ sub GetCredential($)
 	#
 	# Return a credential for the slice.
 	#
-	my $slice_credential = GeniCredential->Lookup($slice, $this_user);
+	my $slice_credential = GeniCredential->Lookup($slice, $geniuser);
 	if (defined($slice_credential)) {
 	    #
 	    # Check for expiration and for changed certificate.
 	    #
 	    if ($slice_credential->IsExpired() ||
-		!$slice_credential->SameCerts($slice, $this_user)) {
+		!$slice_credential->SameCerts($slice, $geniuser)) {
 		$slice_credential->Delete();
 		$slice_credential = undef;
 	    }
@@ -225,7 +255,7 @@ sub GetCredential($)
 	if (!defined($slice_credential)) {
 	    $slice_credential =
 		GeniCredential->CreateSigned($slice,
-					     $this_user,
+					     $geniuser,
 					     $main::PROJECT ?
 					     $authority->GetCertificate() :
 					     $GeniCredential::LOCALSA_FLAG );
@@ -256,6 +286,7 @@ sub Resolve($)
     my $urn  = $argref->{'urn'};
     my $cred = $argref->{'credential'};
     my $type = $argref->{'type'};
+    my $creds = $argref->{'credentials'};
 
     if (! (defined($hrn) || defined($urn))) {
 	return GeniResponse->MalformedArgsResponse();
@@ -285,7 +316,7 @@ sub Resolve($)
 	(undef,$type,undef) = GeniHRN::Parse($urn);
     }
     $type = lc($type);
-    if (! defined($cred)) {
+    if (! (defined($cred) || defined($creds))) {
 	return GeniResponse->MalformedArgsResponse();
     }
     
@@ -294,7 +325,13 @@ sub Resolve($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = GeniCredential::CheckCredential($cred, $authority);
+    my ($credential, $speaksfor);
+    if (defined($cred)) {
+	$credential = GeniCredential::CheckCredential($cred, $authority);
+    }
+    else {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+    }
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -308,7 +345,9 @@ sub Resolve($)
     # allows anyone with a credential for this registry to lookup anyone
     # else. Good feature of the Geni API.
     #
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Who are you? No local record");
@@ -410,11 +449,13 @@ sub Register($)
     # (it's deduced automatically from the URN).
     my ($argref) = @_;
     my $cred  = $argref->{'credential'};
+    my $creds = $argref->{'credentials'};
     my $type  = $argref->{'type'};
     my $hrn   = $argref->{'hrn'};
     my $urn   = $argref->{'urn'};
 
-    if (! ((defined($hrn) || defined($urn)) && defined($cred))) {
+    if (! ((defined($hrn) || defined($urn)) &&
+	   (defined($cred) || defined($creds)))) {
 	return GeniResponse->MalformedArgsResponse();
     }
     if (defined($urn)) {
@@ -457,7 +498,13 @@ sub Register($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = GeniCredential::CheckCredential($cred, $authority);
+    my ($credential, $speaksfor);
+    if (defined($cred)) {
+	$credential = GeniCredential::CheckCredential($cred, $authority);
+    }
+    else {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+    }
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -471,7 +518,9 @@ sub Register($)
     # allows anyone with a credential for this registry to lookup anyone
     # else. Good feature of the Geni API.
     #
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Who are you? No local record");
@@ -655,8 +704,10 @@ sub Remove($)
     my $urn  = $argref->{'urn'};
     my $cred = $argref->{'credential'};
     my $type = $argref->{'type'};
+    my $creds= $argref->{'credentials'};
 
-    if (! ((defined($hrn) || defined($urn)) && defined($cred))) {
+    if (! ((defined($hrn) || defined($urn)) &&
+	   (defined($cred) || defined($creds)))) {
 	return GeniResponse->MalformedArgsResponse();
     }
     if (defined($urn)) {
@@ -688,7 +739,13 @@ sub Remove($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = GeniCredential::CheckCredential($cred, $authority);
+    my ($credential, $speaksfor);
+    if (defined($cred)) {
+	$credential = GeniCredential::CheckCredential($cred, $authority);
+    }
+    else {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+    }
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -697,7 +754,9 @@ sub Remove($)
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Who are you? No local record");
@@ -770,10 +829,11 @@ sub GetKeys($)
 {
     my ($argref) = @_;
     my $cred     = $argref->{'credential'};
+    my $creds    = $argref->{'credentials'};
     # Hidden option. Remove later.
     my $version  = $argref->{'version'} || 1;
 
-    if (! defined($cred)) {
+    if (! (defined($cred) || defined($creds))) {
 	return GeniResponse->MalformedArgsResponse();
     }
 
@@ -782,7 +842,13 @@ sub GetKeys($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = GeniCredential::CheckCredential($cred, $authority);
+    my ($credential, $speaksfor);
+    if (defined($cred)) {
+	$credential = GeniCredential::CheckCredential($cred, $authority);
+    }
+    else {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+    }
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -791,7 +857,9 @@ sub GetKeys($)
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Who are you? No local record");
@@ -832,9 +900,10 @@ sub BindToSlice($)
 {
     my ($argref) = @_;
     my $cred  = $argref->{'credential'};
+    my $creds = $argref->{'credentials'};
     my $urn   = $argref->{'urn'};
 
-    if (! (defined($urn) && defined($cred))) {
+    if (! (defined($urn) && (defined($cred) || defined($creds)))) {
 	return GeniResponse->MalformedArgsResponse();
     }
     return GeniResponse->MalformedArgsResponse()
@@ -845,7 +914,13 @@ sub BindToSlice($)
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    my $credential = GeniCredential::CheckCredential($cred);
+    my ($credential, $speaksfor);
+    if (defined($cred)) {
+	$credential = GeniCredential::CheckCredential($cred, $authority);
+    }
+    else {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+    }
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -854,7 +929,9 @@ sub BindToSlice($)
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
     
-    my $this_user = GeniUser->Lookup($ENV{'GENIURN'}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Who are you? No local record");
@@ -928,15 +1005,29 @@ sub Shutdown($)
 sub RenewSlice($)
 {
     my ($argref) = @_;
-    my $credstr = $argref->{'credential'};
+    my $cred    = $argref->{'credential'};
+    my $creds   = $argref->{'credentials'};
     my $expires = $argref->{'expiration'};
     my $message = "Error renewing slice";
 
-    if (! (defined($credstr) && defined($expires))) {
+    if (! (defined($cred) || defined($creds)) && defined($expires)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS);
     }
 
-    my $credential = GeniCredential::CheckCredential($credstr);
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR
+	    "Could not find local authority object for $ENV{'MYURN'}\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+
+    my ($credential, $speaksfor);
+    if (defined($cred)) {
+	$credential = GeniCredential::CheckCredential($cred, $authority);
+    }
+    else {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds);
+    }
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -951,13 +1042,6 @@ sub RenewSlice($)
 				    "Unknown slice for this credential");
     }
 
-    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
-    if (!defined($authority)) {
-	print STDERR
-	    "Could not find local authority object for $ENV{'MYURN'}\n";
-	return GeniResponse->Create(GENIRESPONSE_ERROR);
-    }
-
     #
     # Not allowed to renew a cooked mode slice via this interface.
     #
@@ -966,7 +1050,9 @@ sub RenewSlice($)
 				    "Cooked mode Slice");
     }
 
-    my $this_user = GeniUser->Lookup($ENV{"GENIURN"}, 1);
+    my $this_user =
+	GeniUser->Lookup((defined($speaksfor) ?
+			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Who are you? No local record");
