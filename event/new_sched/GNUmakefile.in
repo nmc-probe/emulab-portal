@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -48,9 +48,10 @@ LDFLAGS  += $(LDSTATIC)
 DBLIBS    = -L/usr/local/lib/mysql -lmysqlclient -lz
 LIBS     += -lpthread -levent_r -ltb -lz
 
-XMLRPCINC = `xmlrpc-c-config c++2 client --cflags`
-CXXFLAGS += -pthread -O $(XMLRPCINC) -I$(OBJDIR)
+CXXFLAGS += -pthread -O -I$(OBJDIR)
 CXXFLAGS +=  -I$(TESTBED_LIBSRCDIR)/event -I$(TESTBED_LIBSRCDIR)/libtb
+XMLRPCINC = `xmlrpc-c-config c++2 client --cflags`
+CXXFLAGS += $(XMLRPCINC)
 XMLRPCLIBS = `xmlrpc-c-config c++2 client --libs`
 
 #

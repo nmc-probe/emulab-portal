@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,7 +43,12 @@ DBFLAG	= -DUSE_MYSQL_DB
 BI_DBSRC   = bootinfo_null.c bootinfo_cfile.c bootinfo_mysql.c
 BI_DBOBJ   = bootinfo_null.o bootinfo_cfile.o bootinfo_mysql.o
 
-INCS    = -I${OBJDIR} -I/usr/local/include -I$(TESTBED_LIBSRCDIR)/libtb
+INCS    = -I${OBJDIR}
+ifeq ($(EVENTSYS),1)
+# XXX eventdir must be included before /usr/local/include for event.h
+INCS	+= -I$(TESTBED_LIBSRCDIR)/event
+endif
+INCS    += -I$(TESTBED_LIBSRCDIR)/libtb -I/usr/local/include
 
 CFLAGS	+= -Wall \
 	$(INCS) $(DBFLAG) -DSOLARIS -DHAVE_SOCKADDR_SA_LEN -DUSE_RECVMSG \
@@ -58,7 +63,7 @@ ifeq ($(EVENTSYS),1)
 BI_DBSRC += event-support.c
 BI_DBOBJ += event-support.o
 
-CFLAGS  += -DEVENTSYS -I$(TESTBED_LIBSRCDIR)/event -I/usr/local/include
+CFLAGS  += -DEVENTSYS
 LFLAGS  += $(TESTBED_LIBOBJDIR)/event/libevent.a
 LFLAGS  += -L/usr/local/lib -lpubsub -lcrypto
 endif

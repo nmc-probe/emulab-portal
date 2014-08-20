@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,7 +32,7 @@ CDPROGS		= canaryd alertlistener
 include $(OBJDIR)/Makeconf
 
 CC?=gcc
-CFLAGS+= -Wall -g -I${OBJDIR} -I/usr/local/include \
+CFLAGS+= -Wall -g -I${OBJDIR} \
 		-I$(TESTBED_LIBSRCDIR)/libtb \
 		-I$(TESTBED_LIBSRCDIR)/event \
 		-DCLIENT_BINDIR='"$(CLIENT_BINDIR)"' \

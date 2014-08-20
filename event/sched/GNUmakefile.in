@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,9 +46,11 @@ LDFLAGS  += $(LDSTATIC)
 DBLIBS    = -L/usr/local/lib/mysql -lmysqlclient -lz
 LIBS     += -levent_r -ltb -lz
 
-ULXRINC   = -I/usr/local/include -I/usr/local/include/ulxmlrpcpp
-CXXFLAGS += -pthread -O $(ULXRINC) -I$(OBJDIR) -I$(TESTBED_LIBSRCDIR)/libtb
+
+CXXFLAGS += -pthread -O -I$(OBJDIR) -I$(TESTBED_LIBSRCDIR)/libtb
 CXXFLAGS += -I$(TESTBED_LIBSRCDIR)/event
+ULXRINC   = -I/usr/local/include -I/usr/local/include/ulxmlrpcpp
+CXXFLAGS += $(ULXRINC)
 ULXRLIBS  = -L/usr/local/lib  -lulsshxmlrpcpp -lulxmlrpcpp -lexpat
 
 #
