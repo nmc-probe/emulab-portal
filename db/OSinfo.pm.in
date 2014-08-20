@@ -580,7 +580,7 @@ sub OSBootCmd($$$)
 		    "left join os_info_versions as v on ".
 		    "     v.osid=oi.osid and v.vers=oi.version ".
 		    "left join os_boot_cmd as ob on ob.OS=v.OS and ".
-		    "  ob.version=oi.version ".
+		    "  ob.version=v.version ".
 		    "where oi.osid='$osid' and oi.version='$vers' and ".
 		    "       ob.role='$role'");
 
