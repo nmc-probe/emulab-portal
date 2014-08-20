@@ -258,11 +258,7 @@ if ($reusekey) {
 	UserFatal("Cannot decrypt private key. Correct pass phrase?");
     }
     $reqargs  = "-key usercert_key.pem -passin 'pass:${sh_password}' ";
-}
-else {
   newkey:
-    $reqargs  = "-keyout usercert_key.pem";
-    $reqargs .= ($encrypted ? " -passout 'pass:${sh_password}' " : " -nodes ")
 }
 
 #
@@ -373,9 +369,18 @@ sub CreateNewCert() {
     #
     # Create a client side private key and certificate request.
     #
-    system("$OPENSSL req -new -config usercert.cnf ".
-	   "$reqargs -out usercert_req.pem") == 0
-	   or fatal("Could not create certificate request");
+    if (!$reusekey) {
+	my $genopts =
+	    ($encrypted ? " -passout 'pass:${sh_password}' -des3 " : "");
+
+	system("$OPENSSL genrsa $genopts -out usercert_key.pem 1024")
+	    == 0 or fatal("Could generate new key");
+    }
+    my $reqopts = ($encrypted ? "-passin 'pass:${sh_password}' " : "");
+    
+    system("$OPENSSL req $reqopts -new -config usercert.cnf ".
+	   "-key usercert_key.pem -out usercert_req.pem")
+	== 0 or fatal("Could not create certificate request");
     
     #
     # Sign the client cert request, creating a client certificate.
