@@ -892,7 +892,7 @@ class imageid:
 
         # Get the listing that is accessible to this user and
         res = DBQueryFatal(
-            "SELECT distinct i.imagename,iv.description FROM images as i "
+            "SELECT distinct i.imagename,v.description FROM images as i "
             "left join image_versions as v on "
             "     v.imageid=o.imageid and v.version=i.version "
             "left join group_membership as g on g.pid=i.pid "
@@ -3474,8 +3474,8 @@ class node:
             if permerror:
                 return permerror
 
-            pid_clause_list = str(argdict["proj"])
-            pid_clause = " or p.pid='%s'" % (pid_clause_list,)
+            pid_clause_list = "'" + str(argdict["proj"]) + "'"
+            pid_clause = " or p.pid='%s'" % (str(argdict["proj"]),)
             pass
         else:
             pid_clause_list = ",".join([("'" + x + "'")
