@@ -547,7 +547,7 @@ class OSinfo
 		echo "<tr>
                         <td>Image Link: </td>
                         <td class=left>
-                            <a href='showimageid.php3?imageid=$osid'>
+                            <a href='showimageid.php3?imageid=$osid&version=$vers'>
                                             $os_osname</a></td>
                       </tr>\n";
 	}
