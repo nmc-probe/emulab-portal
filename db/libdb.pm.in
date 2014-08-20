@@ -85,7 +85,6 @@ use vars qw(@ISA @EXPORT);
 	 TBExptMinMaxNodes TBExptSecurityLevel TBExptIDX
 	 TBExptSetPanicBit TBExptGetPanicBit TBExptClearPanicBit
 	 TBSetNodeHistory
-	 TBGetOSBootCmd
 	 TBRobotLabExpt
 	 TBExptContainsNodeCT
 	 );
