@@ -83,6 +83,7 @@ USER = pw.pw_name
 HOME = pw.pw_dir
 
 CERTIFICATE = os.path.join(HOME, ".ssl", "emulab.pem")
+certificate = CERTIFICATE
 
 API = {
     "node_admin"        : { "func" : "adminmode",
@@ -195,6 +196,7 @@ def wrapperoptions():
     print "    --help      Display this help message"
     print "    --server    Set the server hostname"
     print "    --login     Set the login id (defaults to $USER)"
+    print "    --cert      Specify the path to your testbed SSL certificate"
     print "    --debug     Turn on semi-useful debugging"
     return
 
@@ -208,19 +210,19 @@ def do_method(module, method, params):
     if impotent:
         return 0;
 
-    if not os.path.exists(CERTIFICATE):
-        sys.stderr.write("error: missing emulab certificate: %s\n" %
-                         CERTIFICATE)
+    if not os.path.exists(certificate):
+        sys.stderr.write("error: certificate not found: %s\n" %
+                         certificate)
         sys.exit(2)
         pass
     
     from M2Crypto.m2xmlrpclib import SSL_Transport
     from M2Crypto import SSL
     
-    URI = "https://" + XMLRPC_SERVER + ":" + str(XMLRPC_PORT) + SERVER_PATH
+    URI = "https://" + xmlrpc_server + ":" + str(XMLRPC_PORT) + SERVER_PATH
     
     ctx = SSL.Context("sslv23")
-    ctx.load_cert(CERTIFICATE, CERTIFICATE)
+    ctx.load_cert(certificate, certificate)
     ctx.set_verify(SSL.verify_none, 16)
     ctx.set_allow_unknown_ca(0)
     
@@ -3032,7 +3034,7 @@ for arg in sys.argv[1:]:
 try:
     # Parse the options,
     opts, req_args =  getopt.getopt(wrapper_argv[0:], "",
-                      [ "help", "server=", "login=", "admin", "devel",
+                      [ "help", "server=", "login=", "cert=", "admin", "devel",
                         "develuser=", "impotent", "debug"])
     # ... act on them appropriately, and
     for opt, val in opts:
@@ -3045,6 +3047,9 @@ try:
             pass
         elif opt == "--login":
 	    login_id = val
+            pass
+        elif opt == "--cert":
+	    certificate = val
             pass
         elif opt == "--debug":
 	    debug = 1
