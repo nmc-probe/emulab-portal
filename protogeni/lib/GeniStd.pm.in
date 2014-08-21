@@ -57,6 +57,10 @@ sub FilterCredentials
     my ($credentials) = @_;
     my $result = [];
     if (defined($credentials)) {
+	if (ref($credentials) ne "ARRAY") {
+	    warn("Credentials is not an array!");
+	    return $result;
+	}
 	foreach my $cred (@{ $credentials }) {
 	    if (ref($cred) eq "HASH" &&
 		(($cred->{'geni_type'} eq "geni_sfa" &&
