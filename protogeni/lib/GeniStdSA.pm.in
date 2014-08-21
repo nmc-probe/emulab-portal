@@ -162,10 +162,10 @@ sub UpdateSlice()
     if (exists($options->{'fields'}->{'SLICE_DESCRIPTION'})) {
 	$slice->SetDescription($options->{'fields'}->{'SLICE_DESCRIPTION'});
     }
-    if (exists($options->{'fields'}->{'SLICE_EXPIRES'})) {
+    if (exists($options->{'fields'}->{'SLICE_EXPIRATION'})) {
 	my $args = {
 	    "credentials" => GeniStd::FilterCredentials($credential_args),
-	    "expiration"  => $options->{'fields'}->{'SLICE_EXPIRES'}
+	    "expiration"  => $options->{'fields'}->{'SLICE_EXPIRATION'}
 	};
 	$response = GeniSA::RenewSlice($args);
     }
