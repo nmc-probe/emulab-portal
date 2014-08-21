@@ -25,6 +25,8 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+# Must be after quickvm_sup.php since it changes the auth domain.
+include_once("../session.php");
 
 #
 # Poor man routing description.
@@ -34,6 +36,13 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("GetProfile" =>
 						      "Do_GetProfile")),
+		 "geni-login" =>
+			array("file"    => "geni-login.ajax",
+			      "guest"   => true,
+			      "methods" => array("CreateSecret" =>
+						      "Do_CreateSecret",
+						 "VerifySpeaksfor" =>
+						      "Do_VerifySpeaksfor")),
 		 "instantiate" =>
 			array("file"    => "instantiate.ajax",
 			      "guest"   => true,

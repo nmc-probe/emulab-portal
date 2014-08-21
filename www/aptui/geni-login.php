@@ -25,6 +25,8 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+# Must be after quickvm_sup.php since it changes the auth domain.
+include_once("../session.php");
 $page_title = "Login";
 
 #
@@ -37,17 +39,22 @@ if (0 && $CHECKLOGIN_STATUS & CHECKLOGIN_LOGGEDIN) {
 }
 $hash = GENHASH();
 
+# We use a session to hold stuff across the ajax calls
+session_start();
+session_regenerate_id(TRUE);
+
 SPITHEADER(1);
 
 # Place to hang the toplevel template.
 echo "<div id='page-body'></div>\n";
 
 echo "<script type='text/javascript'>\n";
-echo "    window.HOST  = 'https://www.emulab.net';\n";
-echo "    window.PATH  = '/protogeni/speaks-for/index.html';\n";
-echo "    window.HASH  = '$hash';\n";
-echo "    window.ID    = 'urn:publicid:IDN+emulab.net+authority+s';\n";
-echo "    window.CERT  = ";
+echo "    window.HOST    = 'https://www.emulab.net';\n";
+echo "    window.PATH    = '/protogeni/speaks-for/index.html';\n";
+echo "    window.HASH    = '$hash';\n";
+echo "    window.AJAXURL = 'server-ajax.php';\n";
+echo "    window.ID      = 'urn:publicid:IDN+emulab.net+authority+s';\n";
+echo "    window.CERT    = ";
 ?>
 '-----BEGIN CERTIFICATE-----\n' +
 'MIIDoTCCAwqgAwIBAgIDAS/uMA0GCSqGSIb3DQEBBAUAMIG4MQswCQYDVQQGEwJV\n' +
