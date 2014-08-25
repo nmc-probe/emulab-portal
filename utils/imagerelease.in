@@ -35,15 +35,18 @@ use File::Basename;
 #
 sub usage()
 {
-    print("Usage: imagerelease [-q] <imageid>\n" .
+    print("Usage: imagerelease [-q] [-f] [-m] <imageid>\n" .
 	  "Options:\n".
-	  "       -q      Turn on quiet mode\n");
+	  "       -q      Turn on quiet mode\n".
+	  "       -f      Force even if it make no sense.\n".
+	  "       -m      With force, just mark as ready/released.\n");
     exit(-1);
 }
-my $optlist    = "dqf";
+my $optlist    = "dqfm";
 my $debug      = 0;
 my $quiet      = 0;
 my $force      = 0;
+my $markready  = 0;
 
 #
 # Configure variables
@@ -91,6 +94,9 @@ if (defined($options{"q"})) {
 }
 if (defined($options{"f"})) {
     $force = 1;
+    if (defined($options{"m"})) {
+	$markready = 1;
+    }
 }
 usage()
     if (@ARGV != 1);
@@ -105,10 +111,6 @@ if ($UID) {
     $user_uid = $user->uid();
 }
 
-if ($UID && !$user->IsAdmin()) {
-    fatal("Only admins can release an image.");
-}
-
 my $image = Image->Lookup($imageid);
 if (!defined($image)) {
     $image = Image->LookupByName($imageid);
@@ -120,8 +122,17 @@ if ($image->released() && !$force) {
     fatal("Image is already released! ".
 	  "Maybe you need to provide imageid:version");
 }
+if ($force && $markready) {
+    print "Marking image ready/released, but not doing anything else\n";
+    $image->MarkReady();
+    $image->MarkReleased();
+    exit(0);
+}
 if (!$image->ready()) {
     fatal("Image is not ready yet!");
+}
+if ($UID && !$user->IsAdmin()) {
+    fatal("Only admins can release an image.");
 }
 
 #
