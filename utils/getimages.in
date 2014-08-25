@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -252,10 +252,13 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 	# Do this as admin cause of admin only options in the descriptor.
 	system("$SUDO -u $PROTOUSER $WAP $NEWIMAGE_EZ -a $metafilename") == 0
 	    or fatal("Could not create descriptor for $imageid");
-    }
-    $image = Image->Lookup(TBOPSPID(), $imageid);
-    if (!defined($image)) {
-	fatal("Could not lookup newly created descriptor for $imageid");
+
+	$image = Image->Lookup(TBOPSPID(), $imageid);
+	if (!defined($image)) {
+	    fatal("Could not lookup newly created descriptor for $imageid");
+	}
+	$image->MarkReady();
+	$image->MarkReleased();
     }
 
     my $imagefilename = "$TB/images/${imageid}.ndz";

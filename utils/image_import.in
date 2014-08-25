@@ -389,6 +389,8 @@ sub CreateImage($$$$)
     if (!defined($image)) {
 	fatal("Could not lookup new image for $url");
     }
+    $image->MarkReady();
+    $image->MarkReleased();
     return $image;
 }
 
