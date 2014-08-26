@@ -1757,6 +1757,8 @@ sub BindToSlice($)
 					    $manifest)->get_nodelist()) {
 
 	    my $sliver_id = GeniXML::GetSliverId($ref);
+	    next
+		if (!defined($sliver_id));
 	    my $sliver    = GeniSliver->Lookup($sliver_id);
 	    next
 		if (!defined($sliver));
