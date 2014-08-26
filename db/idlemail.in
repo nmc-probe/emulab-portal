@@ -42,9 +42,13 @@ use lib '@prefix@/lib';
 use libdb;
 use libtestbed;
 use Experiment;
+use EmulabFeatures;
 use English;
 use Getopt::Std;
 use Sys::Syslog;
+
+# Shh..
+$EmulabFeatures::verbose = 0;
 
 # Grab our site variables...
 my $mailinterval = TBGetSiteVar("idle/mailinterval");
@@ -482,12 +486,6 @@ sub SendMessage {
     $idlehrs = int($time);
     $idlemin = int(($time-$idlehrs)*60);
 
-    if ($warn) {
-	Notify("Sending warning message to $pid/$eid before swap\n");
-    } else {
-	Notify("Sending message to $pid/$eid, ".
-	       "idle $idlehrs hrs $idlemin min, total $time hrs\n");
-    }
     my $experiment = Experiment->Lookup($pid, $eid);
     if (!defined($experiment)) {
 	Fatal("Could not lookup object for experiment $pid/$eid");
@@ -506,6 +504,21 @@ sub SendMessage {
     my $expswapper_name  = $swapper->name();
     my $expswapper_email = $swapper->email();
     my $leaders =          $experiment->GetGroup()->LeaderMailList();
+
+    if ($warn) {
+	Notify("Sending warning message to $pid/$eid before swap\n");
+    } else {
+	# Don't send idle notification messages to experiments
+	# that are externally managed.
+	if (EmulabFeatures->FeatureEnabled("ExternalNodeManagement",
+					   undef, undef, $experiment)) {
+	    Notify("NOT sending idle notification to externally managed ".
+		   "experiment $pid/$eid.\n");
+	    return;
+	}
+	Notify("Sending message to $pid/$eid, ".
+	       "idle $idlehrs hrs $idlemin min, total $time hrs\n");
+    }
     
     if ($v > 1) {
 	Debug("expt=$pid/$eid (gid=$gid)\n".
