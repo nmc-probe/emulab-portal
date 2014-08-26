@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -128,7 +128,7 @@ $headuid_email = $leader->email();
 $headname      = $leader->name();
 
 SendProjAdminMail(
-       $pid,
+       $project,
        "ADMIN",
        "$headname '$headuid' <$headuid_email>",
        "Project '$pid' Approval",

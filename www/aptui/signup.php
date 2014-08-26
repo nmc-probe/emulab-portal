@@ -341,7 +341,7 @@ if (!$this_user) {
     $args["affiliation"]   = $formfields["affiliation"];
     $args["password"]      = $formfields["password1"];
     # Flag to the backend.
-    $args["viaAPT"]	   = 1;
+    $args["genesis"]	   = ($ISAPT ? "aptlab" : "cloudlab");
 
     #
     # Backend verifies pubkey and returns error. We first look for a 
@@ -427,14 +427,14 @@ $args["linkedtous"]        = 1;
 $args["plab"]              = 0;
 $args["ron"]               = 0;
 $args["funders"]           = "None";
-$args["whynotpublic"]      = "APT";
+$args["whynotpublic"]      = ($ISAPT ? "aptlab" : "cloudlab");
 # Flag to the backend.
-$args["viaAPT"]		   = 1;
+$args["genesis"]	   = ($ISAPT ? "aptlab" : "cloudlab");
 
 if (! ($project = Project::NewNewProject($args, $error))) {
     $errors["error"] = $error;
     if ($suexec_retval < 0) {
-	TBERROR("Error Creating APT Project\n${error}\n\n" .
+	TBERROR("Error Creating APT/CloudLab Project\n${error}\n\n" .
 		print_r($args, TRUE), 0);
     }
     SPITFORM($formfields, 0, $errors);

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -124,6 +124,15 @@ if (! $this_project->IsMember($leader, $ignore)) {
     USERERROR("User $headuid is not the leader of project $pid.", 1);
 }
 
+# For email below
+$APPROVAL_MAIL = $TBMAIL_APPROVAL;
+if ($this_project->isAPT()) {
+    $APPROVAL_MAIL = "aptlab-approval@aptlab.net";
+}
+elseif ($this_project->isCloud()) {
+    $APPROVAL_MAIL = "cloudlab-approval@cloudlab.us";
+}
+
 #
 # Well, looks like everything is okay. Change the project approval
 # value appropriately.
@@ -164,7 +173,7 @@ if ($approval == "postpone") {
 }
 elseif (strcmp($approval, "moreinfo") == 0) {
     SendProjAdminMail
-        ($pid, "ADMIN", "$headname '$headuid' <$headuid_email>",
+        ($this_project, "ADMIN", "$headname '$headuid' <$headuid_email>",
          "Project '$pid' Approval Postponed",
          "\n".
          "This message is to notify you that your project application\n".
@@ -173,8 +182,7 @@ elseif (strcmp($approval, "moreinfo") == 0) {
          "to provide that information or report your actions.\n".
          "\n$message".
          "\n\n".
-         "Thanks,\n".
-         "Testbed Operations\n");
+         "Thanks!\n");
 
     echo "<p><h3>
              Project approval for project $pid (User: $headuid) was
@@ -235,9 +243,8 @@ elseif ((strcmp($approval, "deny") == 0) ||
 			   "This message is to notify you that your account has \n".
 			   "been terminated because your project $pid was denied.\n".
 			   "\n\n".
-			   "Thanks,\n".
-			   "Testbed Operations\n",
-			   "From: $TBMAIL_APPROVAL\n".
+			   "Thanks\n",
+			   "From: $APPROVAL_MAIL\n".
 			   "Bcc: $TBMAIL_APPROVAL\n".
 			   "Errors-To: $TBMAIL_WWW");
 		}
@@ -265,9 +272,8 @@ elseif ((strcmp($approval, "deny") == 0) ||
 	       "for $pid has been denied.\n".
 	       "\n$message".
 	       "\n\n".
-	       "Thanks,\n".
-	       "Testbed Operations\n",
-	       "From: $TBMAIL_APPROVAL\n".
+	       "Thanks\n",
+	       "From: $APPROVAL_MAIL\n".
 	       "Bcc: $TBMAIL_APPROVAL\n".
 	       "Errors-To: $TBMAIL_WWW");
     }
