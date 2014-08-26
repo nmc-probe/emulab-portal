@@ -42,7 +42,7 @@ my $debug   = 0;
 my $nonlocal= 0;
 my $impotent= 0;
 my $silent  = 0;
-my $viaAPT  = 0;
+my $genesis;
 my $resend;
 
 #
@@ -224,9 +224,12 @@ fatal($@)
     if ($@);
 
 # APT flag. Notice and delete.
-if (exists($xmlparse->{'attribute'}->{"viaAPT"})) {
-    $viaAPT = 1;
-    delete($xmlparse->{'attribute'}->{"viaAPT"});
+if (exists($xmlparse->{'attribute'}->{"genesis"})) {
+    $genesis = $xmlparse->{'attribute'}->{"genesis"}->{'value'};
+    delete($xmlparse->{'attribute'}->{"genesis"});
+    if (! ($genesis eq "aptlab.net" || $genesis eq "cloudlab")) {
+	fatal("Bad genesis: $genesis");
+    }
 }
 
 #
@@ -371,9 +374,9 @@ exit(0)
 my $new_pid = $newproj_args{'pid'};
 delete($newproj_args{'pid'});
 delete($newproj_args{'head_uid'});
-# APT flag.
-$newproj_args{'viaAPT'} = 1
-    if ($viaAPT);
+# Genesis (APT or Cloud)
+$newproj_args{'genesis'} = $genesis
+    if (defined($genesis));
 
 my $newproj = Project->Create($new_pid, $leader, \%newproj_args);
 if (!defined($newproj)) {

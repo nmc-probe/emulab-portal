@@ -42,7 +42,7 @@ my $impotent= 0;
 my $type    = "";
 my $silent  = 0;
 my $portal  = 0;
-my $viaAPT  = 0;
+my $genesis;
 my @keyfiles = ();
 
 #
@@ -86,6 +86,7 @@ use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
 use User;
+use EmulabConstants();
 
 # Protos
 sub fatal($);
@@ -188,7 +189,8 @@ my %usually_required = ("address"	=> "usr_addr",
 		        "affiliation_abbreviation" => "usr_affil_abbrev");
 if ($type eq "wikionly") {
     %optional = (%optional, %usually_required);
-} else {
+}
+elsif ($type ne "nonlocal") {
     %required = (%required, %usually_required);
 }
 
@@ -209,10 +211,12 @@ print STDERR Dumper($xmlparse)
     if ($debug);
 
 # APT flag. Notice and delete.
-if (exists($xmlparse->{'attribute'}->{"viaAPT"})) {
-    $viaAPT = 1;
-    delete($xmlparse->{'attribute'}->{"viaAPT"});
-
+if (exists($xmlparse->{'attribute'}->{"genesis"})) {
+    $genesis = $xmlparse->{'attribute'}->{"genesis"}->{'value'};
+    delete($xmlparse->{'attribute'}->{"genesis"});
+    if (! ($genesis eq "aptlab.net" || $genesis eq "cloudlab")) {
+	fatal("Bad genesis: $genesis");
+    }
     # Remove these, we do not require them on the APT path.
     delete($required{"affiliation_abbreviation"});
     delete($required{"phone"});
@@ -314,7 +318,8 @@ UserError("User name must be more then a single token!")
 #
 if ($WIKISUPPORT) {
     UserError("Wikiname already in use; please pick another!")
-	if (User->LookupByWikiName($newuser_args{'wikiname'}));
+	if (exists($newuser_args{'wikiname'}) &&
+	    User->LookupByWikiName($newuser_args{'wikiname'}));
 }
 
 #
@@ -332,7 +337,7 @@ my $pswd = (exists($xmlparse->{'attribute'}->{'password'}) ?
 
 # Admins can "star" the password entry.
 if ($pswd eq "*") {
-    if (defined($this_user) && $this_user->IsAdmin()) {
+    if ($type ne "nonlocal" && defined($this_user) && $this_user->IsAdmin()) {
 	$newuser_args{'usr_pswd'} = "*";
     }
     else {
@@ -428,6 +433,9 @@ if (exists($newuser_args{'uid'})) {
     $new_uid = $newuser_args{'uid'};
     delete($newuser_args{'uid'});
 }
+# Genesis (APT or Cloud)
+$newuser_args{'genesis'} = $genesis
+    if (defined($genesis));
 
 #
 # The type modifier comes in on the command line since this is available
@@ -444,12 +452,15 @@ elsif ($type eq "wikionly") {
 elsif ($type eq "leader") {
     $flags = $User::NEWUSER_FLAGS_PROJLEADER;
 }
-if ($viaAPT) {
-    $flags |= $User::NEWUSER_FLAGS_VIAAPT;
+elsif ($type eq "nonlocal") {
+    $flags = $User::NEWUSER_FLAGS_NONLOCAL;
 }
 my $newuser = User->Create($new_uid, $flags, \%newuser_args);
 if (!defined($newuser)) {
     fatal("Could not create new user!");
+}
+if (defined($genesis)) {
+    $newuser->SetStatus(USERSTATUS_UNAPPROVED());
 }
 my $key       = $newuser->verify_key();
 my $usr_uid   = $newuser->uid();
@@ -519,7 +530,7 @@ SENDMAIL("$usr_name '$usr_uid' <$usr_email>",
 	 "Testbed Operations\n",
 	 "$TBAPPROVAL",
 	 "Bcc: $TBAUDIT")
-    if (!($silent || $viaAPT));
+    if (!($silent || defined($genesis)));
 
 #
 # Do we have a keyfile? If so, rerun addpubkey for real now that the
