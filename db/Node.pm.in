@@ -417,7 +417,7 @@ sub Create($$$$)
 		    return undef;
 		}
 		$osid      = $osinfo->osid();
-		$osid_vers = $adminmfs->vers();
+		$osid_vers = $osinfo->vers();
 		$opmode    = $osinfo->op_mode();
 	    }
 	}
@@ -489,7 +489,7 @@ sub Create($$$$)
 		     "  phys_nodeid='$node_id', role='$role', ".
 		     "  priority=$priority, " .
 		     "  eventstate='$state', op_mode='$opmode', " .
-		     "  def_boot_osid=$osid, def_boot_osid_vers='$osid_vers'" .
+		     "  def_boot_osid=$osid, def_boot_osid_vers='$osid_vers',".
 		     "  inception=now(), uuid=$uuid, ".
 		     "  state_timestamp=unix_timestamp(NOW()), " .
 		     "  op_mode_timestamp=unix_timestamp(NOW())")) {
