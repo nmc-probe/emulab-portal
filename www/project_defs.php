@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -162,7 +162,9 @@ class Project
     function linked_to_us()  { return $this->field("linked_to_us"); }
     function cvsrepo_public(){ return $this->field("cvsrepo_public"); }
     function allow_workbench(){ return $this->field("allow_workbench"); }
-    function viaAPT()	     { return $this->field("viaAPT"); }
+    function genesis()	     { return $this->field("genesis"); }
+    function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
+    function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
 
     function unix_gid() {
 	$group = $this->DefaultGroup();
@@ -650,6 +652,7 @@ class Project
 	$wikiname		= $group->wikiname();
 	$cvsrepo_public		= $this->cvsrepo_public();
 	$allow_workbench	= $this->allow_workbench();
+	$genesis                = $this->genesis();
 
 	# Before project approval, display ron/plab request status.
 	if ($this->approved()) {
@@ -704,6 +707,13 @@ class Project
                   <td class=\"left\">
                       <a href='$proj_URL'>$proj_URL</a></td>
               </tr>\n";
+
+	if ($genesis != "emulab") {
+	    echo "<tr>
+                  <td>Genesis: </td>
+                  <td class=\"left\">$genesis</td>
+              </tr>\n";
+	}
 
 	if ($WIKISUPPORT && isset($wikiname)) {
 	    $wikiurl = "gotowiki.php3?redurl=$wikiname/WebHome";
