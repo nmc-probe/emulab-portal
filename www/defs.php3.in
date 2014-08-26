@@ -85,7 +85,7 @@ $SPEWFROMOPS    = @SPEWFROMOPS@;
 $BROWSER_CONSOLE_ENABLE = @BROWSER_CONSOLE_ENABLE@;
 $IPV6_ENABLED       = @IPV6_ENABLED@;
 $IPV6_SUBNET_PREFIX = "@IPV6_SUBNET_PREFIX@";
-
+$TBMAILTAG      = $THISHOMEBASE;
 
 $TBMAILADDR_OPS		= "@TBOPSEMAIL_NOSLASH@";
 $TBMAILADDR_WWW		= "@TBWWWEMAIL_NOSLASH@";
@@ -224,9 +224,9 @@ $session_errorhandler = 0;
 # 
 function TBMAIL($to, $subject, $message, $headers = 0)
 {
-    global $THISHOMEBASE;
+    global $TBMAILTAG;
 
-    $subject = strtoupper($THISHOMEBASE) . ": $subject";
+    $subject = strtoupper($TBMAILTAG) . ": $subject";
 
     $tag = "X-NetBed: " . basename($_SERVER["SCRIPT_NAME"]);
     
@@ -248,13 +248,16 @@ function SendProjAdminMail($project, $from, $to,
 			   $subject, $message, $headers = "")
 {
     global $MAILMANSUPPORT, $TBMAIL_APPROVAL, $TBMAIL_AUDIT;
-    global $OURDOMAIN, $TBMAIL_WWW;
+    global $OURDOMAIN, $TBMAIL_WWW, $TBMAILTAG;
     $pid = $project->pid();
     
     $projadminmail =
 	($project->isAPT() ? "aptlab-approval@aptlab.net" :
 	 $project->isCloud() ? "cloudlab-approval@cloudlab.us" :
 	 $TBMAIL_APPROVAL);
+    $TBMAILTAG =
+	($project->isAPT() ? "aptlab.net" :
+	 $project->isCloud() ? "cloudlab.us" : $TBMAILTAG);
     if ($headers) {
         $headers .= "\n";
     }
