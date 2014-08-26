@@ -112,7 +112,8 @@ my $USEREXISTS  = 65;
 # Nasty. Should do this with /etc/pw.conf shellpath.
 my %shellpaths  = ("csh"  => "/bin/csh", "sh" => "/bin/sh",
 		   "tcsh" => "/bin/tcsh", "bash" => "/usr/local/bin/bash",
-		   "zsh" => "/usr/local/bin/zsh");
+		   "zsh" => "/usr/local/bin/zsh",
+		   "nologin" => "/usr/sbin/nologin");
 
 my $errors      = 0;
 my $sfsupdate   = 0;
@@ -281,6 +282,8 @@ my $wpswd       = $target_user->w_pswd();
 my $wikionly    = $target_user->wikionly();
 my $isnonlocal  = $target_user->IsNonLocal();
 my $nocollabtools = $target_user->nocollabtools();
+$usr_shell = "nologin"
+    if (!defined($usr_shell));
 
 #
 # Get the users earliest project membership to use as the default group
@@ -432,7 +435,7 @@ sub AddUser()
     $fullname =~ s/\"/\'/g;
     $fullname =~ s/([^\\])([\'\"\(\)])/$1\\$2/g;
 
-    if (!$isnonlocal) {
+    if (1) {
 	print "Adding user $user ($user_number) to $CONTROL.\n";
 
 	if (system("$SSH -host $CONTROL ".
@@ -470,9 +473,6 @@ sub AddUser()
     }
     $UID = $SAVEUID;
 
-    goto skipstuff
-	if ($isnonlocal);
-    
     #
     # Do the ssh thing. Invoke as real user for auditing.
     #
@@ -480,6 +480,11 @@ sub AddUser()
     if ($user ne $PROTOUSER && system("$ADDKEY -i $user")) {
 	fatal("Could not generate initial ssh key for $user");
     }
+    if ($isnonlocal) {
+	$EUID = 0;
+	goto skipstuff;
+    }
+    
     # Generate the SSL cert for the user.
     system("$MKUSERCERT $user");
 
@@ -582,7 +587,7 @@ sub DelUser()
 	}
     }
 
-    if (! $isnonlocal) {
+    if (1) {
 	print "Removing user $user from $CONTROL\n";
 
 	if (system("$SSH -host $CONTROL '$USERDEL $user'")) {
