@@ -703,13 +703,13 @@ class Group
 	   "Country:         $usr_country\n".
 	   "Phone:           $usr_phone\n".
 	   "\n".
-	    ($project->viaAPT() ?
-	     "You can approve or reject this user at:\n\n".
-	     "$APTBASE/approveuser.php?uid=$joining_uid\n\n"
-	     :
-	     "Please return to $TBWWW,\n".
-	     "log in, and select the 'New User Approval' page to enter your\n".
-	     "decision regarding $usr_name's membership in your project.\n\n") .
+	   ($project->isAPT() || $project->isCloud() ?
+	    "You can approve or reject this user at:\n\n".
+	    "$APTBASE/approveuser.php?uid=$joining_uid\n\n"
+	    :
+	    "Please return to $TBWWW,\n".
+	    "log in, and select the 'New User Approval' page to enter your\n".
+	    "decision regarding $usr_name's membership in your project.\n\n") .
 	   "Thanks!\n",
 	   "From: $usr_name '$joining_uid' <$usr_email>\n".
 	   "Cc: $allleaders\n".
