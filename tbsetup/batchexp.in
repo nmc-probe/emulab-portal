@@ -173,8 +173,9 @@ my $noswap_reason;
 my $idleswap     = 1;
 my $idleswaptime = 60 * TBGetSiteVar("idle/threshold");
 my $noidleswap_reason;
-my $autoswap     = 0;
-my $autoswaptime = 60 * TBGetSiteVar("general/autoswap_max");
+my $autoswap     = TBGetSiteVar("general/autoswap_mode") ? 1 : 0;
+my $autoswaptime = 60 * TBGetSiteVar("general/autoswap_threshold");
+my $AUTOSWAPMAX  = 60 * TBGetSiteVar("general/autoswap_max");
 my $idleignore   = 0;
 my $priority     = TB_EXPTPRIORITY_LOW;
 my $exptstate    = EXPTSTATE_NEW();
@@ -249,6 +250,9 @@ if (!defined($gid)) {
 }
 if (!defined($description)) {
     $description = "Created by $user_uid";
+}
+if (!$swappable && !TBAdmin()) {
+    tbdie("Only testbed admins can disable swapping!");
 }
 if (! $swappable && (!defined($noswap_reason) || $noswap_reason eq "")) {
     tbdie("Must provide a reason with -S option (not swappable reason)!");
@@ -1148,6 +1152,7 @@ sub ParseArgs()
 	    tbdie("Improper noswap reason!");
 	}
 	$swappable     = 0;
+	$autoswap      = 0;
 	$noswap_reason = $options{"S"};
     }
     if (defined($options{"L"})) {
@@ -1163,6 +1168,12 @@ sub ParseArgs()
 			   TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
 	    tbdie("Improper idleswap timeout!");
 	}
+	# Don't allow caller to increase idleswap time beyond the
+	# sitevar-enforced limit.  $idleswaptime was previously set to
+	# the maximum (via the sitevar).
+	if ($options{"l"} > $idleswaptime && !TBAdmin()) {
+	    tbdie("Idle-swap time provided is larger than site-imposed maximum!");
+	}
         $idleswap     = 1;
 	$idleswaptime = $options{"l"};
     }
@@ -1170,6 +1181,11 @@ sub ParseArgs()
 	if (! TBcheck_dbslot($options{"a"}, "experiments", "autoswap_timeout",
 			   TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
 	    tbdie("Improper autoswap timeout!");
+	}
+	# Don't allow caller to increase autoswap time beyond the
+	# sitevar-enforced limit.
+	if ($options{"a"} > $AUTOSWAPMAX && !TBAdmin()) {
+	    tbdie("Auto-swap time provided is larger than site-imposed maximum!");
 	}
         $autoswap     = 1;
 	$autoswaptime = $options{"a"};
@@ -1242,24 +1258,6 @@ sub ParseArgs()
     }
     if (defined($options{"R"})) {
 	$fromrpc = 1;
-	#
-	# Do not allow certain options to be turned off.
-	#
-	if (!$autoswap) {
-	    tbdie("Not allowed to disable autoswap from XMLRPC server");
-	}
-	if ($autoswaptime > (24 * 60)) {
-	    tbdie("Maximum autoswap timeout is 24 hours from XMLRPC server");
-	}
-	if (!$idleswap) {
-	    tbdie("Not allowed to disable idleswap from XMLRPC server");
-	}
-	if ($idleswaptime > (4 * 60)) {
-	    tbdie("Maximum autoswap timeout is 4 hours from XMLRPC server");
-	}
-	if (!$swappable) {
-	    tbdie("Not allowed to disable swappable from XMLRPC server");
-	}
     }
 }
 
