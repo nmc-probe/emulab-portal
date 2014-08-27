@@ -49,7 +49,8 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  updatecert fixcerts initcerts cacontrol webcacontrol \
 		  genextendcred rspeclint chstats listactive \
 		  maptoslice webmaptoslice setexpiration quickvm webquickvm \
-		  mondbd
+		  mondbd parsecert creategeniuser webcreategeniuser \
+		  updategeniuser webupdategeniuser
 
 ifeq ($(ISCLEARINGHOUSE),1)
 PSBIN_STUFF     += ch_daemon
@@ -76,6 +77,8 @@ install: apt-install \
 	$(addprefix $(INSTALL_SBINDIR)/protogeni/, $(PSBIN_STUFF)) \
 	$(INSTALL_LIBEXECDIR)/webquickvm \
 	$(INSTALL_LIBEXECDIR)/webcacontrol \
+	$(INSTALL_LIBEXECDIR)/webcreategeniuser \
+	$(INSTALL_LIBEXECDIR)/webupdategeniuser \
 	$(INSTALL_LIBEXECDIR)/webmaptoslice
 	-rm -f $(INSTALL_SBINDIR)/protogeni/cleanupticket
 

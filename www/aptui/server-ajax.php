@@ -39,7 +39,9 @@ $routing = array("myprofiles" =>
 		 "geni-login" =>
 			array("file"    => "geni-login.ajax",
 			      "guest"   => true,
-			      "methods" => array("CreateSecret" =>
+			      "methods" => array("GetSignerInfo" =>
+						      "Do_GetSignerInfo",
+						 "CreateSecret" =>
 						      "Do_CreateSecret",
 						 "VerifySpeaksfor" =>
 						      "Do_VerifySpeaksfor")),

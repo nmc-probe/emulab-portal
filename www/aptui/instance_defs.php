@@ -25,6 +25,8 @@
 
 $am_array = array('Utah DDC' =>
 		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
+		  'Utah APT' =>
+		     "urn:publicid:IDN+apt.emulab.net+authority+cm",
 		  'Utah PG'  =>
 		     "urn:publicid:IDN+emulab.net+authority+cm");
 
@@ -148,16 +150,16 @@ class Instance
 	    fclose($fp);
 	    chmod($xmlname, 0666);
 	}
+	# 
+	# With a real user, run as that user. 
 	#
-	# This option is used to tell the backend that it is okay to look
-	# in the emulab users table.
-	#
-	$options .= ($creator ? " -l" : "");
+	$uid = ($creator ? $creator->uid() : "nobody");
+	$pid = ($creator ? $creator->FirstApprovedProject()->pid() : "nobody");
 
 	if (isset($_SERVER['REMOTE_ADDR'])) { 
 	    putenv("REMOTE_ADDR=" . $_SERVER['REMOTE_ADDR']);
 	}
-	$retval = SUEXEC("nobody", "nobody",
+	$retval = SUEXEC($uid, $pid,
 			 "webquickvm $options -u $uuid $xmlname",
 			 SUEXEC_ACTION_CONTINUE);
 

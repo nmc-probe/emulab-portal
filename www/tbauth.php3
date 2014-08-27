@@ -958,7 +958,8 @@ function DOLOGIN($token, $password, $adminmode = 0, $nopassword = 0) {
     return DOLOGIN_STATUS_ERROR;
 }
 
-function DOLOGIN_MAGIC($uid, $uid_idx, $email = null, $adminon = 0)
+function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
+		       $adminon = 0, $nosetcookies = 0)
 {
     global $TBAUTHCOOKIE, $TBAUTHDOMAIN, $TBAUTHTIMEOUT, $WWWHOST;
     global $TBNAMECOOKIE, $TBLOGINCOOKIE, $TBSECURECOOKIES, $TBEMAILCOOKIE;
@@ -991,6 +992,11 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null, $adminon = 0)
     DBQueryFatal("replace into login ".
 		 "  (uid,uid_idx,hashkey,hashhash,timeout,adminon,opskey) values ".
 		 "  ('$uid', $uid_idx, '$hashkey', '$crc', '$timeout', $adminon, '$opskey')");
+
+    # Does the caller just want the cookies for itself.
+    if ($nosetcookies) {
+	return array($hashkey, $crc);
+    }
 
     #
     # Issue the cookie requests so that subsequent pages come back

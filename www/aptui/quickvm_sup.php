@@ -22,6 +22,9 @@
 # }}}
 #
 $APTHOST	= "$WWWHOST";
+# No sure why tbauth uses WWWHOST for the login cookies, but it
+# causes confusion in geni-login.ajax. 
+$COOKDIEDOMAIN  = "$WWWHOST";
 $APTBASE	= "$TBBASE/apt";
 $APTMAIL        = $TBMAIL_OPS;
 $APTTITLE       = "APT";
@@ -48,15 +51,18 @@ $disable_accounts = 0;
 if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".aptlab.net";
+    $COOKDIEDOMAIN= $TBAUTHDOMAIN;
     $APTHOST      = "www.aptlab.net";
     $WWWHOST      = "www.aptlab.net";
     $APTBASE      = "https://www.aptlab.net";
     $APTMAIL      = "APT Operations <testbed-ops@aptlab.net>";
     $GOOGLEUA     = 'UA-42844769-3';
+    $TBMAILTAG    = "aptlab.net";
 }
 elseif (($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".cloudlab.us";
+    $COOKDIEDOMAIN= $TBAUTHDOMAIN;
     $APTHOST      = "www.cloudlab.us";
     $WWWHOST      = "www.cloudlab.us";
     $APTBASE      = "https://www.cloudlab.us";
@@ -67,6 +73,7 @@ elseif (($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $APTSTYLE     = "cloudlab.css";
     $ISAPT	  = 0;
     $GOOGLEUA     = 'UA-42844769-2';
+    $TBMAILTAG    = "cloudlab.us";
 }
 
 #
@@ -181,10 +188,7 @@ function SPITHEADER($thinheader = 0)
 		if ($page_title != "Login") {
 		    echo "<li id='loginitem' class='apt-left'>" .
 			   "<form><a class='btn btn-primary navbar-btn'
-                              id='loginbutton'
-	                      data-toggle='modal'
-                              href='#quickvm_login_modal'
-                              data-target='#quickvm_login_modal'>
+                              id='loginbutton'>
                             Login</a></form></li>
                           \n";
 		}
@@ -227,7 +231,10 @@ function SPITHEADER($thinheader = 0)
            </div>
          </div>\n";
 
-    SpitLoginModal("quickvm_login_modal");
+    if (!NOLOGINS() && !$login_user && $page_title != "Login") {
+	SpitLoginModal("quickvm_login_modal");
+	SpitWaitModal("quickvm_login_waitwait");
+    }
     echo " <!-- Page content -->
            <div class='container-fluid'>\n";
 }
@@ -354,16 +361,12 @@ function SpitLoginModal($id)
     global $APTTITLE, $ISAPT;
     $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
 	" or Emulab.net Username";
-    $pwlab = "'$pwlab'";
-
+    $pwlab = "$pwlab";
+    $referrer = CleanString($_SERVER['REQUEST_URI']);
 ?>
     <!-- This is the login modal -->
     <div id='<?php echo $id ?>' class='modal fade' role='dialog'>
         <div class='modal-dialog'>
-        <form id='quickvm_login_form'
-              role='form'
-              method='post' action='login.php'>
-        <input type=hidden name=refer value=1>
         <div id='quickvm_login_form_error'
              class='align-center'></div>
         <div class='modal-content'>
@@ -372,35 +375,43 @@ function SpitLoginModal($id)
                aria-hidden='true'>&times;</button>
                <h4 class='modal-title'>Log in to <?php echo $APTTITLE ?></h4>
            </div>
+           <form id='quickvm_login_form'
+                 role='form'
+                 method='post' action='login.php'>
+           <input type=hidden name=referrer value='<?php echo $referrer ?>'>
            <div class='modal-body form-horizontal'>
              <div class='form-group'>
-                       <label for='uid' class='col-sm-2 control-label'>Username</label>
-                       <div class='col-sm-10'>
-                           <input name='uid' class='form-control'
-                                  placeholder=<?php echo $pwlab ?>
-                                  autofocus type='text'>
-                       </div>
-                   </div>
-                   <div class='form-group'>
-                       <label for='password' class='col-sm-2 control-label'>Password </label>
-                       <div class='col-sm-10'>
-                           <input name='password' class='form-control'
-                                  placeholder='Password'
-                                  type='password'>
-                       </div>
-                   </div>
+                <label for='uid' class='col-sm-2 control-label'>Username</label>
+                <div class='col-sm-10'>
+                    <input name='uid' class='form-control'
+                           placeholder='<?php echo $pwlab ?>'
+                           autofocus type='text'>
+                </div>
              </div>
-             <div class='modal-footer'>
-                   <div class='form-group'>
-                        <button class='btn btn-success btn-sm'
-                            id='quickvm_login_modal_button'
-                            class='form-control'
-                            type='submit' name='login'>
-                            Login</button>
-                   </div>
+             <div class='form-group'>
+                <label for='password' class='col-sm-2 control-label'>Password
+					  </label>
+                <div class='col-sm-10'>
+                   <input name='password' class='form-control'
+                          placeholder='Password'
+                          type='password'>
+                </div>
              </div>
+             <div class='form-group'>
+               <div class='col-sm-offset-2 col-sm-10'>
+                 <button class='btn btn-info btn-sm pull-left' disabled
+		    type='button'
+                    data-toggle="tooltip" data-placement="left"
+		    title="You can use your geni credentials to login"
+                    id='quickvm_geni_login_button'>Geni User?</button>
+                 <button class='btn btn-primary btn-sm pull-right'
+                         id='quickvm_login_modal_button'
+                         type='submit' name='login'>Login</button>
+               </div>
+             </div>
+           </div>
+           </form>
         </div>
-        </form>
         </div>
      </div>
 <?php

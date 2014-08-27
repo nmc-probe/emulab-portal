@@ -38,7 +38,7 @@ use File::Basename;
 use overload ('""' => 'Stringify');
 use vars qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
 	    $NEWUSER_FLAGS_WEBONLY $NEWUSER_FLAGS_ARCHIVED
-	    $NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_NONLOCAL $NEWUSER_FLAGS_VIAAPT
+	    $NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_NONLOCAL
 	    $USERSTATUS_ACTIVE $USERSTATUS_FROZEN
 	    $USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
 	    $USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL
@@ -66,7 +66,6 @@ $NEWUSER_FLAGS_WEBONLY		= 0x04;
 $NEWUSER_FLAGS_ARCHIVED		= 0x08;
 $NEWUSER_FLAGS_NOUUID		= 0x80;
 $NEWUSER_FLAGS_NONLOCAL		= 0x40;
-$NEWUSER_FLAGS_VIAAPT		= 0x20;
 
 # Status values.
 $USERSTATUS_ACTIVE		= "active";
@@ -80,7 +79,7 @@ $USERSTATUS_NONLOCAL	        = "nonlocal";
 # Why, why, why?
 @EXPORT_OK = qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
 		$NEWUSER_FLAGS_WEBONLY $NEWUSER_FLAGS_ARCHIVED
-		$NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_VIAAPT
+		$NEWUSER_FLAGS_NOUUID
 		$USERSTATUS_ACTIVE $USERSTATUS_FROZEN
 		$USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
 		$USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL);
@@ -110,7 +109,6 @@ sub Lookup($$)
 {
     my ($class, $token) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
-    my $status_nonlocal = $USERSTATUS_NONLOCAL;
     my $query_result;
 
     # Look in cache first
@@ -133,8 +131,7 @@ sub Lookup($$)
 	$query_result =
 	    DBQueryWarn("select * from users ".
 			"where uid='$token' and ".
-			"      status!='$status_archived' and ".
-			"      status!='$status_nonlocal'");
+			"      status!='$status_archived'");
     }
     else {
 	return undef;
@@ -294,13 +291,11 @@ sub LookupByWikiName($$)
 {
     my ($class, $wikiname) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
-    my $status_nonlocal = $USERSTATUS_NONLOCAL;
     
     my $query_result =
 	DBQueryFatal("select uid_idx from users ".
 		     "where wikiname='$wikiname' and ".
-		     "      status!='$status_archived' and ".
-		     "      status!='$status_nonlocal'");
+		     "      status!='$status_archived'");
 
     return undef
 	if (! $query_result || !$query_result->numrows);
@@ -318,13 +313,11 @@ sub LookupByEmail($$)
 {
     my ($class, $email) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
-    my $status_nonlocal = $USERSTATUS_NONLOCAL;
 
     my $query_result =
 	DBQueryFatal("select uid_idx from users ".
 		     "where LCASE(usr_email)=LCASE('$email') and ".
-		     "      status!='$status_archived' and ".
-		     "      status!='$status_nonlocal'");
+		     "      status!='$status_archived'");
 		     
 
     return undef
@@ -342,14 +335,12 @@ sub LookupByUUID($$)
 {
     my ($class, $uuid) = @_;
     my $status_archived = $USERSTATUS_ARCHIVED;
-    my $status_nonlocal = $USERSTATUS_NONLOCAL;
     my $safe_uuid = DBQuoteSpecial($uuid);
 
     my $query_result =
 	DBQueryFatal("select uid_idx from users ".
 		     "where uid_uuid=$safe_uuid and ".
-		     "      status!='$status_archived' and ".
-		     "      status!='$status_nonlocal'");
+		     "      status!='$status_archived'");
 
     return undef
 	if (! $query_result || !$query_result->numrows);
@@ -365,13 +356,13 @@ sub LookupByUUID($$)
 sub LookupNonLocal($$)
 {
     my ($class, $urn) = @_;
-    my $status_nonlocal = $USERSTATUS_NONLOCAL;
+    my $status_archived = $USERSTATUS_ARCHIVED;
     my $safe_urn = DBQuoteSpecial($urn);
 
     my $query_result =
 	DBQueryFatal("select uid_idx from users ".
 		     "where nonlocal_id=$safe_urn and ".
-		     "      status='$status_nonlocal'");
+		     "      status!='$status_archived'");
 
     return undef
 	if (! $query_result || !$query_result->numrows);
@@ -395,7 +386,6 @@ sub Create($$$$)
     my $archived = ($flags & $NEWUSER_FLAGS_ARCHIVED   ? 1 : 0);
     my $nonlocal = ($flags & $NEWUSER_FLAGS_NONLOCAL   ? 1 : 0);
     my $nouuid   = ($flags & $NEWUSER_FLAGS_NOUUID     ? 1 : 0);
-    my $viaapt   = ($flags & $NEWUSER_FLAGS_VIAAPT     ? 1 : 0);
 
     #
     # If no uid, we need to generate a unique one for the user.
@@ -576,14 +566,9 @@ sub Create($$$$)
 		"Must provide nonlocal_id and nonlocal_type!\n";
 	    return undef;
 	}
-	push(@insert_data, "status='$USERSTATUS_NONLOCAL'");
+	push(@insert_data, "status='$USERSTATUS_ACTIVE'");
 	push(@insert_data, "pswd_expires=now()");
 	push(@insert_data, "usr_pswd='*'");
-    }
-    elsif ($viaapt) {
-	push(@insert_data, "status='$USERSTATUS_UNAPPROVED'");
-	push(@insert_data, "pswd_expires=date_add(now(), interval 5 year)");
-	push(@insert_data, "viaAPT='1'");
     }
     else {
 	push(@insert_data, "status='$USERSTATUS_NEWUSER'");
@@ -620,6 +605,8 @@ sub Delete($)
 
     my $uid_idx = $self->uid_idx();
 
+    DBQueryWarn("delete from user_credentials where uid_idx='$uid_idx'")
+	or return -1;
     DBQueryWarn("delete from user_pubkeys where uid_idx='$uid_idx'")
 	or return -1;
     DBQueryWarn("delete from user_sslcerts where uid_idx='$uid_idx'")
@@ -1861,6 +1848,15 @@ sub ValidUID($$)
 			  TBDB_CHECKDBSLOT_ERROR());
 }
 
+sub ValidEmail($$)
+{
+    my ($class, $email) = @_;
+
+    return TBcheck_dbslot($email, "users", "usr_email",
+			  TBDB_CHECKDBSLOT_WARN()|
+			  TBDB_CHECKDBSLOT_ERROR());
+}
+
 #
 # Default project. If not set in the users table, then look at the
 # project membership, and if only one project then use that. 
@@ -1975,6 +1971,48 @@ sub HomeDirOkay($;$)
 	return -1;
     }
     return 0;
+}
+
+#
+# Set/Get credential for a user. These are used by APT to store a speaksfor
+# credential for a nonlocal user, but might also use it later to 
+#
+sub StoreCredential($$$$)
+{
+    my ($self, $cred, $expires, $cert) = @_;
+
+    my $uid = $self->uid();
+    my $uid_idx = $self->uid_idx();
+    my $safe_credential = DBQuoteSpecial($cred);
+    my $safe_certificate = DBQuoteSpecial($cert);
+
+    return -1
+	if (!DBQueryWarn("replace into user_credentials set ".
+			 "  uid='$uid', uid_idx='$uid_idx',created=now(), ".
+			 "  expires='$expires', ".
+			 "  credential_string=$safe_credential, ".
+			 "  certificate_string=$safe_certificate"));
+
+    return 0;
+}
+
+sub GetStoredCredential($)
+{
+    my ($self) = @_;
+
+    my $uid = $self->uid();
+    my $uid_idx = $self->uid_idx();
+
+    my $query_result =
+	DBQueryWarn("select credential_string,certificate_string ".
+		    "  from user_credentials ".
+		    "where uid_idx='$uid_idx'");
+
+    return undef
+	if (!$query_result || !$query_result->numrows);
+    
+    my ($cred, $cert) = $query_result->fetchrow_array();
+    return ($cred, $cert);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

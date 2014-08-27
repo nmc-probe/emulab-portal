@@ -40,27 +40,28 @@ use Cwd qw(realpath);
 # 
 sub usage()
 {
-    print "Usage: quickvm [-l] [-u uuid] [-a aggregate] <xmlfile>\n";
+    print "Usage: quickvm [-u uuid] [-a aggregate] <xmlfile>\n";
     print "Usage: quickvm -k <uuid>\n";
     print "Usage: quickvm -e <seconds> <uuid>\n";
     print "Usage: quickvm -s <uuid> <sliver_urn> <imagename>\n";
     exit(1);
 }
-my $optlist = "dkve:lu:a:st:f";
+my $optlist = "dkve:u:a:st:f";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
 my $utahddc = 1;
 my $DDCURN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
-my $localuser = 0;
 my $xmlfile;
 my $extend;
 my $webtask;
 my $webtask_id;
 my $snapshot;
 my $foreground = 0;
+my $localuser  = 0;
 my $quickuuid;
 my $aggregate;
+my $this_user;
 
 # Protos
 sub fatal($);
@@ -68,6 +69,7 @@ sub UserError($);
 sub Terminate($);
 sub Extend($$);
 sub SnapShot($$$);
+sub GenCredentials($$$$);
 
 #
 # Configure variables
@@ -82,6 +84,7 @@ my $SACERT	  = "$TB/etc/genisa.pem";
 my $CMCERT	  = "$TB/etc/genicm.pem";
 my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
 my $SSHSETUP      = "$TB/sbin/aptssh-setup";
+my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $VERSIONING    = @PROFILEVERSIONS@;
 
 # un-taint path
@@ -131,9 +134,6 @@ if (defined($options{"d"})) {
 if (defined($options{"v"})) {
     $verbose = 1;
 }
-if (defined($options{"l"})) {
-    $localuser = 1;
-}
 if (defined($options{"f"})) {
     $foreground = 1;
 }
@@ -178,15 +178,14 @@ else {
     # file in /tmp.
     #
     if (getpwuid($UID) ne "nobody") {
-	my $this_user = User->ThisUser();
+	$this_user = User->ThisUser();
 
 	if (! defined($this_user)) {
 	    fatal("You ($UID) do not exist!");
 	}
-	fatal("Only admins can run this script.")
-	    if (!$this_user->IsAdmin());
+	$localuser = 1;
     }
-    else {
+    if (!defined($this_user) || !$this_user->IsAdmin()) {
 	if ($xmlfile =~ /^([-\w\.\/]+)$/) {
 	    $xmlfile = $1;
 	}
@@ -443,10 +442,21 @@ if (!$localuser && $MAINSITE) {
     $speaker_signer = "/usr/testbed/etc/utah-apt.sa";
 }
 
-# Remember key. For now we accept only one key. We store it simply
-# so we can display it again for the user in the web interface.
-# We allow key reuse for existing users, see above.
-if (!$localuser && defined($sshkey)) {
+if ($localuser) {
+    my $emulab_user = $geniuser->emulab_user();
+    if ($emulab_user->IsNonLocal()) {
+	system("$UPDATEGENIUSER -s " . $emulab_user->uid());
+	if ($?) {
+	    fatal("Could not update ssh keys for nonlocal user");
+	}
+    }
+}
+elsif (!$localuser && defined($sshkey)) {
+    #
+    # Remember key. For now we accept only one key. We store it simply
+    # so we can display it again for the user in the web interface.
+    # We allow key reuse for existing users, see above.
+    #
     $geniuser->DeleteKeys();
     $geniuser->AddKey($sshkey);
 }
@@ -501,39 +511,16 @@ if ($slice->SetExpiration(time() + (($localuser ? 16 : 3) * 3600)) != 0) {
 }
 my $slice_uuid = $slice->uuid();
 
-# Create a slice credential
-my $slice_credential =
-    GeniCredential->Create($slice,
-			   $geniuser);
-if (!defined($slice_credential)) {
+#
+# Generate credentials we need.
+#
+my ($slice_credential, $speaksfor_credential) =
+    GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
+if (! (defined($speaksfor_credential) &&
+       defined($slice_credential))) {
     $slice->Delete();
-    fatal("Could not create credential for $slice_urn");
+    fatal("Could not generate credentials");
 }
-
-#
-# Need to set the credential expiration to match the slice expiration,
-# before we sign it.
-#
-$slice_credential->SetExpiration(time() + (($localuser ? 16 : 3) * 3600));
-
-# And sign it.
-if ($slice_credential->Sign($GeniCredential::LOCALSA_FLAG) != 0) {
-    $slice_credential->Delete();
-    $slice->Delete();
-    fatal("Could not sign credential");
-}
-
-#
-# In order to connect as the SA instead of the user we just created,
-# lets generate a speaksfor credential that allows the SA to speakfor
-# for the new user. Fancy, eh?
-#
-my $speaksfor_credential = GeniCredential->Create($geniuser, $sa_authority);
-fatal("Could not create speaksfor credential")
-    if (!defined($speaksfor_credential));
-$speaksfor_credential->SetType("speaksfor");
-fatal("Could not sign speaksfor credential")
-    if ($speaksfor_credential->Sign($speaker_signer));
 
 #
 # Got this far, lets create a quickvm record.
@@ -689,6 +676,68 @@ sub UserError($) {
 }
 
 #
+# Generate or yank the speaks for credential out of the DB.
+#
+sub GenCredentials($$$$)
+{
+    my ($target, $geniuser, $authority, $signer) = @_;
+    my ($speaksfor, $credential);
+
+    #
+    # If a local user account, but a nonlocal id, then we should
+    # have a speaksfor credential stored, as well as a certificate
+    # for the user.
+    #
+    if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal()) {
+	my ($speaksfor_string, $certificate_string) =
+	    $geniuser->emulab_user()->GetStoredCredential();
+	if (! (defined($speaksfor_string) &&
+	       defined($certificate_string))) {
+	    print STDERR "No stored speaksfor/certificate for $geniuser\n";
+	    goto bad;
+	}
+	$speaksfor = GeniCredential->CreateFromSigned($speaksfor_string);
+	if (!defined($speaksfor)) {
+	    print STDERR "Could not create speaksfor credential\n";
+	    goto bad;
+	}
+	my $certificate =
+	    GeniCertificate->LoadFromString($certificate_string);
+	if (!defined($certificate)) {
+	    print STDERR "Could not load certificate from string\n";
+	    goto bad;
+	}
+	$credential = GeniCredential->Create($target, $certificate);
+    }
+    else {
+	$speaksfor = GeniCredential->Create($geniuser, $authority);
+	if (!defined($speaksfor)) {
+	    print STDERR "Could not create speaksfor credential\n";
+	    goto bad;
+	}
+	$speaksfor->SetType("speaksfor");
+	if ($speaksfor->Sign($signer)) {
+	    print STDERR "Could not sign speaksfor credential\n";
+	    goto bad;
+	}
+	$credential = GeniCredential->Create($target, $geniuser);
+    }
+    if (!defined($credential)) {
+	print STDERR "Could not create credential for $target\n";
+	goto bad;
+    }
+    # And sign it.
+    if ($credential->Sign($GeniCredential::LOCALSA_FLAG) != 0) {
+	$credential->Delete();
+	print STDERR "Could not sign $target credential\n";
+	goto bad;
+    }
+    return ($credential, $speaksfor);
+  bad:
+    return ();
+}
+
+#
 # Terminate a quick VM.
 #
 sub Terminate($)
@@ -722,21 +771,15 @@ sub Terminate($)
 	}
 	fatal("No slice for quick VM: $uuid");
     }
-    # Create a slice credential
-    my $slice_credential =
-	GeniCredential->CreateSigned($slice,
-				     $geniuser,
-				     $GeniCredential::LOCALSA_FLAG);
-    if (!defined($slice_credential)) {
-	fatal("Could not create credential for $slice");
+    #
+    # Generate credentials we need.
+    #
+    my ($slice_credential, $speaksfor_credential) =
+	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
+    if (! (defined($speaksfor_credential) &&
+	   defined($slice_credential))) {
+	fatal("Could not generate credentials");
     }
-    my $speaksfor_credential = GeniCredential->Create($geniuser,
-						      $sa_authority);
-    fatal("Could not create speaksfor credential")
-	if (!defined($speaksfor_credential));
-    $speaksfor_credential->SetType("speaksfor");
-    fatal("Could not sign speaksfor credential")
-	if ($speaksfor_credential->Sign($speaker_signer));
 
     #
     # Lock the slice in case it is doing something else, like taking
@@ -849,23 +892,16 @@ sub Extend($$)
     # Need to update slice before creating new credential. 
     $slice->AddToExpiration($extend);
     my $new_expires = $slice->ExpirationGMT();
-    
-    # Create a slice credential
-    my $slice_credential =
-	GeniCredential->CreateSigned($slice,
-				     $geniuser,
-				     $GeniCredential::LOCALSA_FLAG);
-    if (!defined($slice_credential)) {
-	fatal("Could not create credential for $slice");
-    }
-    my $speaksfor_credential = GeniCredential->Create($geniuser,
-						      $sa_authority);
-    fatal("Could not create speaksfor credential")
-	if (!defined($speaksfor_credential));
-    $speaksfor_credential->SetType("speaksfor");
-    fatal("Could not sign speaksfor credential")
-	if ($speaksfor_credential->Sign($speaker_signer));
 
+    #
+    # Generate credentials we need.
+    #
+    my ($slice_credential, $speaksfor_credential) =
+	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
+    if (! (defined($speaksfor_credential) &&
+	   defined($slice_credential))) {
+	fatal("Could not generate credentials");
+    }
     my $response =
 	Genixmlrpc::CallMethod($cm_authority->url(), undef,
 			       "RenewSlice",
@@ -893,7 +929,7 @@ sub SnapShot($$$)
 {
     my ($uuid, $sliver_urn, $imagename) = @_;
 
-    my $this_user = User->ThisUser();
+    $this_user = User->ThisUser();
     if (! defined($this_user)) {
 	fatal("You ($UID) do not exist!");
     }
@@ -933,21 +969,15 @@ sub SnapShot($$$)
 	fatal("No slice for quick VM: $uuid");
     }
 
-    # Create a slice credential
-    my $slice_credential =
-	GeniCredential->CreateSigned($slice,
-				     $geniuser,
-				     $GeniCredential::LOCALSA_FLAG);
-    if (!defined($slice_credential)) {
-	fatal("Could not create credential for $slice");
+    #
+    # Generate credentials we need.
+    #
+    my ($slice_credential, $speaksfor_credential) =
+	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
+    if (! (defined($speaksfor_credential) &&
+	   defined($slice_credential))) {
+	fatal("Could not generate credentials");
     }
-    my $speaksfor_credential = GeniCredential->Create($geniuser,
-						      $sa_authority);
-    fatal("Could not create speaksfor credential")
-	if (!defined($speaksfor_credential));
-    $speaksfor_credential->SetType("speaksfor");
-    fatal("Could not sign speaksfor credential")
-	if ($speaksfor_credential->Sign($speaker_signer));
 
     #
     # We do this with slice locked.

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -619,6 +619,9 @@ if ($encrypted) {
     chmod(0600, $target)
 	or fatal("Could not chmod $target: $!");
 
+    goto skipssh
+	if ($target_user->IsNonLocal());
+
     #
     # Create an SSH key from the private key. Mostly for geni users,
     # who tend not to know how to do such things.
@@ -662,6 +665,7 @@ if ($encrypted) {
 	       "      -f $sshdir/encrypted.pub")
 	    == 0 or fatal("Could not add pubkey $sshdir/encrypted.pub");
     }
+  skipssh:
 }
 
 TBScriptUnlock();

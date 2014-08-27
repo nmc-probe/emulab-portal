@@ -11,7 +11,7 @@ function (_, sup, aboutaptString, aboutcloudString)
 
     function initialize()
     {
-	window.APT_OPTIONS.initialize();
+	window.APT_OPTIONS.initialize(sup);
 	ajaxurl = window.AJAXURL;
 
 	// The about panel.

@@ -100,7 +100,7 @@ function SPITFORM($uid, $referrer, $error)
            <div class='panel-heading'>
               <h3 class='panel-title'>
                  Login</h3></div>
-           <div class='panel-body'>\n";
+           <div class='panel-body form-horizontal'>\n";
 
     if ($error) {
         echo "<span class='help-block'><font color=red>";
@@ -125,24 +125,38 @@ function SPITFORM($uid, $referrer, $error)
     elseif ($refer) {
         echo "<span class='help-block'>Please login before continuing</span>";
     }
-
-    echo "  <div class='form-group'>
-                <input name='uid' id='uid'
-		       value='$uid'
-                       class='form-control'
-                       placeholder='Email or Username' autofocus type='text'>
-            </div>
-            <div class='form-group'>
-                <input name='password' id='password' type='password'
-                       class='form-control'
-                       placeholder='$pwlab' type='text' />
-            </div>
-            <button class='btn btn-primary btm-sm'
-              type='submit' name='login'>Login
-            </button>\n";
     if ($referrer) {
 	echo "<input type=hidden name=referrer value=$referrer>\n";
     }
+?>
+             <div class='form-group'>
+                <label for='uid' class='col-sm-2 control-label'>Username</label>
+                <div class='col-sm-10'>
+                    <input name='uid' class='form-control'
+                           placeholder='<?php echo $pwlab ?>'
+                           autofocus type='text'>
+                </div>
+             </div>
+             <div class='form-group'>
+                <label for='password' class='col-sm-2 control-label'>Password
+					  </label>
+                <div class='col-sm-10'>
+                   <input name='password' class='form-control'
+                          placeholder='Password'
+                          type='password'>
+                </div>
+             </div>
+             <div class='form-group'>
+               <div class='col-sm-offset-2 col-sm-10'>
+                 <button class='btn btn-info btn-sm pull-left'
+		         type='button' 
+                         id='quickvm_geni_login_button'>Geni User?</button>
+                 <button class='btn btn-primary btn-sm pull-right'
+                         id='quickvm_login_modal_button'
+                         type='submit' name='login'>Login</button>
+               </div>
+             </div>
+<?php
     echo "
             <br> 
            </div>
@@ -242,7 +256,7 @@ elseif (isset($referrer)) {
 }
 else {
     if (Instance::UserHasInstances($CHECKLOGIN_USER)) {
-	header("Location: $APTBASE/myexperments.php");
+	header("Location: $APTBASE/myexperiments.php");
     }
     else {
 	header("Location: $APTBASE/instantiate.php");

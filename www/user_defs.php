@@ -92,13 +92,11 @@ class User
     function LookupByUid($uid) {
 	$safe_uid = addslashes($uid);
 	$status_archived = TBDB_USERSTATUS_ARCHIVED;
-	$status_nonlocal = TBDB_USERSTATUS_NONLOCAL;
 
 	$query_result =
 	    DBQueryWarn("select uid_idx from users ".
 			"where uid='$safe_uid' and ".
-			"      status!='$status_archived' and ".
-			"      status!='$status_nonlocal'");
+			"      status!='$status_archived'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    return null;
@@ -114,13 +112,11 @@ class User
     function LookupByEmail($email) {
 	$safe_email = addslashes($email);
 	$status_archived = TBDB_USERSTATUS_ARCHIVED;
-	$status_nonlocal = TBDB_USERSTATUS_NONLOCAL;
 
 	$query_result =
 	    DBQueryWarn("select uid_idx from users ".
 			"where LCASE(usr_email)=LCASE('$safe_email') and ".
-			"      status!='$status_archived' and ".
-			"      status!='$status_nonlocal'");
+			"      status!='$status_archived'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    return null;
@@ -136,13 +132,11 @@ class User
     function LookupByWikiName($wikiname) {
 	$safe_wikiname = addslashes($wikiname);
 	$status_archived = TBDB_USERSTATUS_ARCHIVED;
-	$status_nonlocal = TBDB_USERSTATUS_NONLOCAL;
 
 	$query_result =
 	    DBQueryWarn("select uid_idx from users ".
 			"where wikiname='$safe_wikiname' and ".
-			"      status!='$status_archived' and".
-			"      status!='$status_nonlocal'");
+			"      status!='$status_archived'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    return null;
@@ -156,13 +150,29 @@ class User
     function LookupByUUID($uuid) {
 	$safe_uuid = addslashes($uuid);
 	$status_archived = TBDB_USERSTATUS_ARCHIVED;
-	$status_nonlocal = TBDB_USERSTATUS_NONLOCAL;
 
 	$query_result =
 	    DBQueryWarn("select uid_idx from users ".
 			"where uid_uuid='$safe_uuid' and ".
-			"      status!='$status_archived' and ".
-			"      status!='$status_nonlocal'");
+			"      status!='$status_archived'");
+
+	if (!$query_result || !mysql_num_rows($query_result)) {
+	    return null;
+	}
+	$row = mysql_fetch_array($query_result);
+	$idx = $row['uid_idx'];
+
+	return User::Lookup($idx);
+    }
+    
+    function LookupNonLocal($urn) {
+	$safe_urn = addslashes($urn);
+	$status_archived = TBDB_USERSTATUS_ARCHIVED;
+
+	$query_result =
+	    DBQueryWarn("select uid_idx from users ".
+			"where nonlocal_id='$safe_urn' and ".
+			"      status!='$status_archived'");
 
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    return null;
@@ -584,6 +594,8 @@ class User
 	    $typearg = "-t wikionly";
 	elseif ($flags & TBDB_NEWACCOUNT_WEBONLY)
 	    $typearg = "-t webonly";
+	elseif ($flags & TBDB_NEWACCOUNT_NONLOCAL)
+	    $typearg = "-t nonlocal";
 
 	if (! ($xmlname = User::NewNewUserXML($args, $error))) {
 	    return null;

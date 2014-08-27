@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -85,6 +85,7 @@ define("TBDB_NEWACCOUNT_REGULAR",	0x0);
 define("TBDB_NEWACCOUNT_PROJLEADER",	0x1);
 define("TBDB_NEWACCOUNT_WIKIONLY",	0x2);
 define("TBDB_NEWACCOUNT_WEBONLY",	0x4);
+define("TBDB_NEWACCOUNT_NONLOCAL",	0x8);
 
 #
 # Trust. Define the trust level as an increasing value. Then define a
