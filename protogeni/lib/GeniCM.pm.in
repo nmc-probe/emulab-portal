@@ -3155,14 +3155,6 @@ sub SliverWorkAux($$$$$$$$)
 	my $manager_id    = GeniXML::GetManagerId($ref);
 	my $virt_subtype  = GeniXML::GetVirtualizationSubtype($ref);
 
-	#
-	# Keep track of mapping between component_id and client_id to
-	# reject requests that change the client_id bound to a
-	# component_id.
-	if ($virt_subtype eq "raw" || $virt_subtype eq "raw-pc") {
-	    $phys2nickname{$resource_id} = $node_nickname;
-	}
-	
 	# Always populate iface2node mapping, even if we let the node
 	# pass through.
 	foreach my $iface (GeniXML::FindNodes("n:interface",
@@ -3179,6 +3171,14 @@ sub SliverWorkAux($$$$$$$$)
 	    next;
 	}
 
+	#
+	# Keep track of mapping between component_id and client_id to
+	# reject requests that change the client_id bound to a
+	# component_id.
+	if ($virt_subtype eq "raw" || $virt_subtype eq "raw-pc") {
+	    $phys2nickname{$resource_id} = $node_nickname;
+	}
+	
 	#
 	# Lan nodes are fake and do not go into the virt topo. Need
 	# to remember them though, for when we do the links below.
