@@ -14,9 +14,13 @@ DBNAME="@TBDBNAME@"
 LOGFILE="/var/log/mysqlcheck.log"
 
 command=/usr/local/bin/mysqlcheck
+socket=/tmp/mysql.sock
 
 case "$1" in
 	start|faststart|quietstart|onestart|forcestart)
+		if [ ! -e "$socket" ]; then
+		    sleep 10
+		fi
 		rm -f $LOGFILE
 		if [ $MAINSITE == "0" ]; then
 		    echo "*** Checking $DBNAME ..." >> $LOGFILE
@@ -30,6 +34,7 @@ case "$1" in
 		    echo "*** Checking geni-cm ..." >> $LOGFILE
 		    $command --auto-repair geni-cm >> $LOGFILE
 		fi
+		echo -n ' tbdbcheck'
 		;;
 	stop|faststop|quietstop|onestop|forcestop)
 		;;
