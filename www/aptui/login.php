@@ -149,7 +149,7 @@ function SPITFORM($uid, $referrer, $error)
              <div class='form-group'>
                <div class='col-sm-offset-2 col-sm-10'>
 <?php
-    if ($ISCLOUD) {
+    if (0 && $ISCLOUD) {
 	?>
                  <button class='btn btn-info btn-sm pull-left'
 		    type='button'

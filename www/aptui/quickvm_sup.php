@@ -52,7 +52,7 @@ $disable_accounts = 0;
 if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".aptlab.net";
-    $COOKDIEDOMAIN= $TBAUTHDOMAIN;
+    $COOKDIEDOMAIN= ".aptlab.net";
     $APTHOST      = "www.aptlab.net";
     $WWWHOST      = "www.aptlab.net";
     $APTBASE      = "https://www.aptlab.net";
@@ -63,7 +63,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
 elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".cloudlab.us";
-    $COOKDIEDOMAIN= $TBAUTHDOMAIN;
+    $COOKDIEDOMAIN= "www.cloudlab.us";
     $APTHOST      = "www.cloudlab.us";
     $WWWHOST      = "www.cloudlab.us";
     $APTBASE      = "https://www.cloudlab.us";
@@ -402,7 +402,7 @@ function SpitLoginModal($id)
              <div class='form-group'>
                <div class='col-sm-offset-2 col-sm-10'>
 <?php
-    if ($ISCLOUD) {
+    if (0 && $ISCLOUD) {
 	?>
                  <button class='btn btn-info btn-sm pull-left' disabled
 		    type='button'
