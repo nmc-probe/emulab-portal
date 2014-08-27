@@ -137,6 +137,11 @@ if ($?) {
     fatal("Could not kill running frisbee for $imageid!");
 }
 
+if ($purge && $image->pid() eq TBOPSPID()) {
+    $purge = 0;
+    print STDERR "Ignoring purge option for system image. \n";
+}
+
 #
 # Since admins will often delete image descriptors for users, we are
 # setuid root. Flip for deleting the image file.
