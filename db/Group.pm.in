@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2013 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -972,6 +972,7 @@ sub SendApprovalEmail($$$)
     my $gid         = $self->gid();
     my $allleaders  = $self->LeaderMailList();
     my $membership  = $self->LookupUser($target_user);
+    my $project     = $self->GetProject();
 
     return -1
 	if (!defined($membership));
@@ -987,7 +988,7 @@ sub SendApprovalEmail($$$)
              "\n\n".
              "Thanks,\n".
              "Testbed Operations\n",
-             undef,
+             $project->ApprovalEmailAddress(),
 	     "CC: $allleaders\n".
 	     "Bcc: $TBAUDIT");
 

@@ -175,7 +175,6 @@ elseif (strcmp($approval, "moreinfo") == 0) {
     SendProjAdminMail
         ($this_project, "ADMIN", "$headname '$headuid' <$headuid_email>",
          "Project '$pid' Approval Postponed",
-         "\n".
          "This message is to notify you that your project application\n".
          "for $pid has been postponed until we have more information\n".
          "or you take certain actions.  You can just reply to this message\n".

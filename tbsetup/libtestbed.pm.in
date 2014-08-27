@@ -39,9 +39,6 @@ use Exporter;
 	 TBValidUserDir TBValidUserDirList TBMakeTempFile NewUUID System
 	 SendProjAdminMail ReOpenLog
 	 CheckDaemonRunning MarkDaemonRunning MarkDaemonStopped);
-@EXPORT_OK =
-    qw ( TBMAIL_PROJADMIN);
-
 
 # After package decl.
 use English;
@@ -51,11 +48,8 @@ use Fcntl;
 use Fcntl ':flock';
 use File::Basename;
 use Time::HiRes qw(gettimeofday);
-use vars qw(@EXPORT_OK);
 
 my $TB           = "@prefix@";
-#my $MAILTAG	 = "@OURDOMAIN@";
-my $MAILTAG	 = "@THISHOMEBASE@";
 my $BOSSNODE	 = "@BOSSNODE@";
 my $TIMESTAMPS	 = "@TIMESTAMPS@";
 my $TBOPSEMAIL	 = "@TBOPSEMAIL@";
@@ -64,6 +58,10 @@ my $TBAUDITEMAIL = "@TBAUDITEMAIL@";
 my $UUIDGEN	 = "@UUIDGEN@";
 my $NOREPLY      = "no-reply\@@OURDOMAIN@";
 my $SCRIPTNAME	 = "Unknown";
+
+# So we can localize this variable.
+use vars qw($MAILTAG);
+$MAILTAG	 = "@THISHOMEBASE@";
 
 # Exported.
 $SYSTEM_DEBUG = 0;
@@ -104,12 +102,6 @@ sub TB_AUDITEMAIL() { $TBAUDITEMAIL; }
 sub TBMAIL_OPS()    { "Testbed Ops <$TBOPSEMAIL>"; }
 sub TBMAIL_WWW()    { "Testbed WWW <$TBWWWEMAIL>"; }
 sub TBMAIL_AUDIT()  { "Testbed Audit <$TBAUDITEMAIL>" }
-
-# TBMAIL_PROJADMIN should, in general, not be used directly, use
-# SendProjAdminMail
-sub TBMAIL_PROJADMIN($) {
-    0 && @MAILMANSUPPORT@ ? "$_[0]-admin\@@OURDOMAIN@" : "@TBAPPROVALEMAIL@";
-}
 sub TBMAIL_APPROVAL() {
     "@TBAPPROVALEMAIL@";
 }
@@ -237,6 +229,7 @@ sub OPENMAIL($$;$$)
 {
     my($To, $Subject, $From, $Headers) = @_;
     local *MAIL;
+    my $tag = uc($MAILTAG);
 
     if (! open(MAIL, "|/usr/sbin/sendmail -i -t")) {
 	print STDERR "OPENMAIL: Could not start sendmail: $!\n";
@@ -271,8 +264,9 @@ sub OPENMAIL($$;$$)
 
 sub SendProjAdminMail($$$$$;$)
 {
-    my ($proj, $from, $to, $subject, $message, $headers) = @_;
-    my $projadminmail = TBMAIL_PROJADMIN($proj);
+    my ($project, $from, $to, $subject, $message, $headers) = @_;
+    my $projadminmail = $project->ApprovalEmailAddress();
+    local $MAILTAG = $project->EmailTag();
     $headers .= "\n" if defined $headers;
     if ($from eq 'ADMIN') {
 	$from = $projadminmail;

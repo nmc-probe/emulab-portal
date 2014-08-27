@@ -144,10 +144,47 @@ sub IsNonLocal($)	{ return (defined($_[0]->nonlocal_id()) ? 1 : 0); };
 sub nonlocal_id($)	{ return field($_[0], "nonlocal_id"); }
 sub nonlocal_type($)	{ return field($_[0], "nonlocal_type"); }
 sub manager_urn($)	{ return field($_[0], "manager_urn"); }
+sub genesis($)		{ return field($_[0], "genesis"); }
+sub isAPT($)	        { return $_[0]->genesis() eq "aptlab" ? 1 : 0; }
+sub isCloud($)	        { return $_[0]->genesis() eq "cloudlab" ? 1 : 0; }
 
 # These come from the group not the project.
 sub unix_gid($)         { return $_[0]->{'GROUP'}->unix_gid(); }
 sub unix_name($)        { return $_[0]->{'GROUP'}->unix_name(); }
+
+# In general, not be used directly, use SendProjAdminMail
+sub ApprovalEmailAddress($)
+{
+    my ($self) = @_;
+
+    return ($self->isAPT() ? "aptlab-approval\@aptlab.net" :
+	    $self->isCloud() ? "cloudlab-approval\@cloudlab.us" :
+	    "@TBAPPROVALEMAIL@");
+}
+sub EmailTag($)
+{
+    my ($self) = @_;
+
+    return ($self->isAPT() ? "aptlab.net" :
+	    $self->isCloud() ? "cloudlab.us" : "@THISHOMEBASE@");
+}
+sub wwwBase($)
+{
+    my ($self) = @_;
+
+    return ($self->isAPT() ? "https://www.aptlab.net" :
+	    $self->isCloud() ? "https://www.cloudlab.us" : $TBBASE);
+}
+sub SignupURL($)
+{
+    my ($self)  = @_;
+    my $wwwbase = $self->wwwBase();
+    my $pid     = $self->pid();
+
+    return ($self->isAPT() || $self->isCloud() ?
+	    "${wwwbase}/signup.php?pid=$pid" :
+	    "${wwwbase}/joinproject.php3?target_pid=$pid");
+}
 
 #
 # Lookup given pid For backwards compat.
@@ -478,7 +515,7 @@ sub SendNewProjectEmail($;$)
 
     if ($returning || $firstproject) {
 	SendProjAdminMail
-	    ($pid, "$usr_name '$usr_uid' <$usr_email>", "ADMIN",
+	    ($self, "$usr_name '$usr_uid' <$usr_email>", "ADMIN",
 	     "New Project '$pid' ($usr_uid)",
 	     "'$usr_name' wants to start project '$pid'.\n".
 	     "\n".
@@ -515,7 +552,7 @@ sub SendNewProjectEmail($;$)
     }
     else {
 	SendProjAdminMail
-	    ($pid, "$usr_name '$usr_uid' <$usr_email>", "ADMIN",
+	    ($self, "$usr_name '$usr_uid' <$usr_email>", "ADMIN",
 	     "New Project '$pid' ($usr_uid)",
 	     "'$usr_name' wants to start project '$pid'.\n".
 	     "\n".
