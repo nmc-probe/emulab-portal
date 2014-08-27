@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -731,6 +731,16 @@ sub SSHwithTimeout($$$$)
 	return system($cmd);
     }
 }
+
+sub GenHash()
+{
+    my $hash =`/bin/dd if=/dev/urandom count=128 bs=1 2> /dev/null | /sbin/md5`;
+    return undef
+	if ($?);
+    chomp($hash);
+    return $hash;
+}
+
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;
