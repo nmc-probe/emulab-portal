@@ -251,7 +251,7 @@ if (!defined($gid)) {
 if (!defined($description)) {
     $description = "Created by $user_uid";
 }
-if (!$swappable && !TBAdmin()) {
+if (!$swappable && !(TBAdmin() || $genimode)) {
     tbdie("Only testbed admins can disable swapping!");
 }
 if (! $swappable && (!defined($noswap_reason) || $noswap_reason eq "")) {
