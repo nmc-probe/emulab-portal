@@ -32,6 +32,7 @@ $FAVICON        = "aptlab.ico";
 $APTLOGO        = "aptlogo.png";
 $APTSTYLE       = "apt.css";
 $ISAPT		= 1;
+$ISCLOUD        = 0;
 $ISVSERVER      = 0;
 $GOOGLEUA       = 'UA-45161989-1';
 
@@ -59,7 +60,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $GOOGLEUA     = 'UA-42844769-3';
     $TBMAILTAG    = "aptlab.net";
 }
-elseif (($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
+elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".cloudlab.us";
     $COOKDIEDOMAIN= $TBAUTHDOMAIN;
@@ -72,6 +73,7 @@ elseif (($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $APTLOGO      = "cloudlogo.png";
     $APTSTYLE     = "cloudlab.css";
     $ISAPT	  = 0;
+    $ISCLOUD      = 1;
     $GOOGLEUA     = 'UA-42844769-2';
     $TBMAILTAG    = "cloudlab.us";
 }
@@ -358,7 +360,7 @@ function SpitVerifyModal($id, $label)
 #
 function SpitLoginModal($id)
 {
-    global $APTTITLE, $ISAPT;
+    global $APTTITLE, $ISAPT, $ISCLOUD;
     $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
 	" or Emulab.net Username";
     $pwlab = "$pwlab";
@@ -399,11 +401,17 @@ function SpitLoginModal($id)
              </div>
              <div class='form-group'>
                <div class='col-sm-offset-2 col-sm-10'>
+<?php
+    if ($ISCLOUD) {
+	?>
                  <button class='btn btn-info btn-sm pull-left' disabled
 		    type='button'
                     data-toggle="tooltip" data-placement="left"
 		    title="You can use your geni credentials to login"
                     id='quickvm_geni_login_button'>Geni User?</button>
+        <?php
+    }
+?>
                  <button class='btn btn-primary btn-sm pull-right'
                          id='quickvm_login_modal_button'
                          type='submit' name='login'>Login</button>

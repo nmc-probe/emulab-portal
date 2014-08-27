@@ -78,7 +78,7 @@ if (NOLOGINS()) {
 function SPITFORM($uid, $referrer, $error)
 {
     global $TBDB_UIDLEN, $TBBASE, $refer;
-    global $ISAPT;
+    global $ISAPT, $ISCLOUD;
     $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
 	" or Emulab.net Username";
     
@@ -148,9 +148,17 @@ function SPITFORM($uid, $referrer, $error)
              </div>
              <div class='form-group'>
                <div class='col-sm-offset-2 col-sm-10'>
+<?php
+    if ($ISCLOUD) {
+	?>
                  <button class='btn btn-info btn-sm pull-left'
-		         type='button' 
-                         id='quickvm_geni_login_button'>Geni User?</button>
+		    type='button'
+                    data-toggle="tooltip" data-placement="left"
+		    title="You can use your geni credentials to login"
+                    id='quickvm_geni_login_button'>Geni User?</button>
+        <?php
+    }
+?>
                  <button class='btn btn-primary btn-sm pull-right'
                          id='quickvm_login_modal_button'
                          type='submit' name='login'>Login</button>
@@ -164,10 +172,15 @@ function SPITFORM($uid, $referrer, $error)
           </form>
         </div>
         </div>\n";
-    
+
+    if ($ISCLOUD) {
+	echo "<script
+                src='https://www.emulab.net/protogeni/speaks-for/geni-auth.js'>
+              </script>\n";
+    }
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
     echo "<script src='js/lib/bootstrap.js'></script>\n";
-    echo "<script src='js/lib/require.js' data-main='js/main'></script>";
+    echo "<script src='js/lib/require.js' data-main='js/login'></script>";
     SPITFOOTER();
     return;
 }

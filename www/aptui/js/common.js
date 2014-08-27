@@ -41,7 +41,9 @@ window.APT_OPTIONS.initialize = function (sup)
     if ($('#quickvm_geni_login_button').length) {
 	$('#quickvm_geni_login_button').click(function (event) {
 	    event.preventDefault();
-	    sup.HideModal("#quickvm_login_modal");
+	    if ($('#quickvm_login_modal').length) {
+		sup.HideModal("#quickvm_login_modal");
+	    }
 	    sup.StartGeniLogin();
 	    return false;
 	});
@@ -54,12 +56,14 @@ window.APT_OPTIONS.initialize = function (sup)
 	$('#loginbutton').click(function (event) {
 	    event.preventDefault();
 	    sup.ShowModal('#quickvm_login_modal');
-	    console.info("Loading geni auth code");
-	    sup.InitGeniLogin();
-	    require([geniauth], function() {
-		console.info("Geni auth code has been loaded");
-		$('#quickvm_geni_login_button').removeAttr("disabled");
-	    });
+	    if (window.ISCLOUD) {
+		console.info("Loading geni auth code");
+		sup.InitGeniLogin();
+		require([geniauth], function() {
+		    console.info("Geni auth code has been loaded");
+		    $('#quickvm_geni_login_button').removeAttr("disabled");
+		});
+	    }
 	    return false;
 	});
     }
