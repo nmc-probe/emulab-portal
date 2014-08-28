@@ -42,8 +42,7 @@ sync
 # XEN vms will just restart, so halt to really stop it. 
 #
 if [ $dohalt -eq 1 ]; then
-    /sbin/halt
+    exec /sbin/halt
 else
-    /sbin/reboot
+    exec /sbin/reboot
 fi
-
