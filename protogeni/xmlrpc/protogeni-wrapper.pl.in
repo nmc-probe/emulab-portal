@@ -571,6 +571,7 @@ if ($method eq "CreateSliver"    ||
     $method eq "ReleaseTicket"   ||
     $method eq "UpdateTicket"    ||
     $method eq "RedeemTicket"    ||
+    $method eq "CreateImage"     ||
     $method eq "PerformOperationalAction"    ||
     $method eq "DeleteSlice") {
     $debug = 2;
