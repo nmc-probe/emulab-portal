@@ -1125,9 +1125,8 @@ ServerAdmin @TBOPSEMAIL_NOSLASH@
 #TransferLog logs/ssl_access_log
 LogLevel warn
 ErrorLog @prefix@/log/apache_ssl_error_log
+LogFormat "%h %v %l %u %t %T \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" 
 TransferLog @prefix@/log/apache_ssl_access_log
-
-LogFormat "%h %l %u %t %T \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" 
 
 #
 # Turn off TRACE and TRACK in the SSL virt host too
@@ -1322,10 +1321,12 @@ Listen @PROTOGENI_RPCPORT@
 # General setup for the virtual host, inherited from global configuration
 DocumentRoot "@prefix@/www"
 ServerName @PROTOGENI_RPCNAME@
+ServerAlias @BOSSNODE@
 ServerAdmin @TBOPSEMAIL_NOSLASH@
 
 LogLevel warn
 ErrorLog @prefix@/log/apache_ssl_error_log
+LogFormat "%h %v %l %u %t %T \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" 
 TransferLog @prefix@/log/apache_ssl_access_log
 
 #   SSL Engine Switch:
@@ -1499,10 +1500,12 @@ Listen @GENI_PUBRPCPORT@
 # General setup for the virtual host, inherited from global configuration
 DocumentRoot "@prefix@/www"
 ServerName @PROTOGENI_RPCNAME@
+ServerAlias @BOSSNODE@
 ServerAdmin @TBOPSEMAIL_NOSLASH@
 
 LogLevel warn
 ErrorLog @prefix@/log/apache_ssl_error_log
+LogFormat "%h %v %l %u %t %T \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" 
 TransferLog @prefix@/log/apache_ssl_access_log
 
 #   SSL Engine Switch:
@@ -1667,10 +1670,12 @@ Listen 5001
 # General setup for the virtual host, inherited from global configuration
 DocumentRoot "@prefix@/www"
 ServerName @PROTOGENI_RPCNAME@
+ServerAlias @BOSSNODE@
 ServerAdmin @TBOPSEMAIL_NOSLASH@
 
 LogLevel warn
 ErrorLog @prefix@/log/apache_ssl_error_log
+LogFormat "%h %v %l %u %t %T \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" 
 TransferLog @prefix@/log/apache_ssl_access_log
 
 #   SSL Engine Switch:
