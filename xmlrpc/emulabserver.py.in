@@ -3186,14 +3186,16 @@ class experiment:
                                "EVPROXY",
                                "UPDATE",
                                "",
-                               "__plab_setup"))
+                               "__plab_setup",
+                               ""))
                 result.append((str(count),
                                "0.0",
                                "__%s_proxy" % plab[0],
                                "EVPROXY",
                                "CLEAR",
                                "",
-                               "__plab_teardown"))
+                               "__plab_teardown",
+                               ""))
                 count += 1
                 pass
 
@@ -3203,14 +3205,16 @@ class experiment:
                            "SIMULATOR",
                            "LOG",
                            "Plab setup delay",
-                           "__plab_setup"))
+                           "__plab_setup",
+                           ""))
             result.append((str(count),
                            "0.0",
                            "__plab_setup",
                            "TIMELINE",
                            "RUN",
                            "",
-                           "__ns_sequence"))
+                           "__ns_sequence",
+                           ""))
             
             result.append((str(count),
                            "2.0",
@@ -3218,14 +3222,16 @@ class experiment:
                            "SIMULATOR",
                            "LOG",
                            "Plab teardown delay",
-                           "__plab_teardown"))
+                           "__plab_teardown",
+                           ""))
             result.append((str(count),
                            "0.0",
                            "__plab_teardown",
                            "TIMELINE",
                            "RUN",
                            "",
-                           "__ns_teardown"))
+                           "__ns_teardown",
+                           ""))
             pass
 
         return EmulabResponse(RESPONSE_SUCCESS, value=result)
