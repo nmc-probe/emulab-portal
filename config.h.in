@@ -66,3 +66,4 @@
 #undef IMAGEDELTAS
 
 #undef NOVIRTNFSMOUNTS
+#undef WITHZFS

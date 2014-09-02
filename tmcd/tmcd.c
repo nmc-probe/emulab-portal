@@ -145,6 +145,13 @@ CHECKMASK(char *arg)
 #define WITHPROVENANCE	0
 #endif
 
+#ifdef WITHZFS
+#undef WITHZFS
+#define WITHZFS	1
+#else
+#define WITHZFS	0
+#endif
+
 /* Defined in configure and passed in via the makefile */
 #define DBNAME_SIZE	64
 #define HOSTID_SIZE	(32+64)
@@ -4673,7 +4680,7 @@ COMMAND_PROTOTYPE(domounts)
 	/*
 	 * A local phys node acting as a shared host gets toplevel mounts only.
 	 */
-	if (reqp->sharing_mode[0] && !reqp->isvnode) {
+	if (reqp->sharing_mode[0] && !reqp->isvnode && !WITHZFS) {
 		bufp = buf;
 		if (!nomounts)
 			bufp += OUTPUT(bufp, ebufp-bufp,
