@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,7 +34,7 @@ SBIN_STUFF	= tbacct addsfskey addpubkey mkusercert quotamail genpubkeys \
 		  manageremote
 LIBEXEC_STUFF	= webtbacct webaddsfskey webaddpubkey webmkusercert \
 		  webnewuser webnewproj webspewcert webmanageremote
-CTRLSBIN_STUFF  = adduserhook
+CTRLSBIN_STUFF  = adduserhook accountsetup
 
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = 
@@ -74,7 +74,8 @@ boss-install: all script-install
 	@echo "Don't forget to do a post-install as root"
 
 script-install:	$(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
-	 $(addprefix $(INSTALL_LIBEXECDIR)/, $(LIBEXEC_STUFF))
+	 $(addprefix $(INSTALL_LIBEXECDIR)/, $(LIBEXEC_STUFF)) \
+	$(addprefix $(INSTALL_DIR)/opsdir/sbin/, $(CTRLSBIN_STUFF))
 
 post-install: 
 	chmod 775 $(INSTALL_BINDIR)

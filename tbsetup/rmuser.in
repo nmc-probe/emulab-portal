@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -51,6 +51,7 @@ my $TBOPS   = "@TBOPSEMAIL@";
 my $TBLOGS  = "@TBLOGSEMAIL@";
 my $CONTROL = "@USERNODE@";
 my $BOSSNODE= "@BOSSNODE@";
+my $WITHZFS = @WITHZFS@;
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $PGENISUPPORT   = @PROTOGENI_SUPPORT@;
 my $PORTAL_ENABLE  = @PORTAL_ENABLE@;
@@ -376,7 +377,7 @@ EmulabFeatures->DeleteAll($target_user) == 0 or
 #
 # Rename the users home dir if its there.
 #
-if (-d "$HOMEDIR/$target_uid") {
+if (!$WITHZFS && -d "$HOMEDIR/$target_uid") {
     my $newname = "$HOMEDIR/$target_uid-" . TBDateTimeFSSafe();
 
     if (rename("$HOMEDIR/$target_uid", $newname)) {

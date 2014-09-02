@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -57,10 +57,12 @@ my $BUGDBSUPPORT= @BUGDBSUPPORT@;
 my $OPSDBSUPPORT= @OPSDBSUPPORT@;
 my $TBBASE      = "@TBBASE@";
 my $TBWWW       = "@TBWWW@";
+my $WITHZFS     = @WITHZFS@;
 my $SSH         = "$TB/bin/sshtb";
 my $ADDMMLIST   = "$TB/sbin/addmmlist";
 my $OPSDBCONTROL= "$TB/sbin/opsdb_control";
 my $GROUPADD    = "/usr/sbin/pw groupadd";
+my $ACCOUNTPROXY= "$TB/sbin/accountsetup";
 my @DIRLIST     = ("exp", "images", "logs", "tarfiles", "rpms", "tiplogs");
 my $SAVEUID     = $UID;
 
@@ -178,6 +180,7 @@ my $isnonlocal = $project->IsNonLocal();
 #
 # The group directory lives here.
 # 
+my $projdir   = "$PROJROOT/$pid";
 my $groupdir  = "$GRPROOT/$pid/$gid";
 my $grouplink = "$PROJROOT/$pid/groups/$gid";
 
@@ -201,13 +204,23 @@ $UID = $EUID;
 #
 # Create group on the control node if it does not exist.
 #
+my $proxy_command = ($pid eq $gid ? "addproject" : "addgroup");
+print "Adding group $unix_name to $control_node.\n";
 if (system("$SSH -host $control_node ".
-	   "egrep -q -s '^${unix_name}:' /etc/group")) {
-    print "Adding group $unix_name to $control_node.\n";
-
-    if (system("$SSH -host $control_node ".
-	       "$GROUPADD $unix_name -g $unix_gid")) {
-	fatal("Could not add $unix_name ($unix_gid) to $control_node!\n");
+	   "   $ACCOUNTPROXY $proxy_command $gid $unix_name $unix_gid")) {
+    fatal("Could not add $unix_name ($unix_gid) to $control_node!\n");
+}
+if ($WITHZFS && $pid ne $gid) {
+    #
+    # There is some lag before the automounter can mount the new
+    # volume. Lets delay until we can access the project directory.
+    #
+    for (my $i = 0; $i < 10; $i++) {
+	sleep(1)
+	    if (! -r $projdir);
+    }
+    if (! -r $projdir) {
+	fatal("Could not access new project directory: $projdir");
     }
 }
 

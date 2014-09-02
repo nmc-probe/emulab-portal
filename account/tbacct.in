@@ -61,6 +61,7 @@ my $TBLOGS	= "@TBLOGSEMAIL@";
 my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $CONTROL	= "@USERNODE@";
 my $BOSSNODE	= "@BOSSNODE@";
+my $WITHZFS     = @WITHZFS@;
 my $WITHSFS	= @SFSSUPPORT@;
 my $WIKISUPPORT = @WIKISUPPORT@;
 my $TRACSUPPORT = @TRACSUPPORT@;
@@ -83,6 +84,7 @@ my $USERADD	= "/usr/sbin/pw useradd";
 my $USERDEL	= "/usr/sbin/pw userdel";
 my $USERMOD	= "/usr/sbin/pw usermod";
 my $CHPASS	= "/usr/bin/chpass";
+my $ACCOUNTPROXY= "$TB/sbin/accountsetup";
 my $SFSKEYGEN	= "/usr/local/bin/sfskey gen";
 my $GENELISTS	= "$TB/sbin/genelists";
 my $MKUSERCERT	= "$TB/sbin/mkusercert";
@@ -423,7 +425,7 @@ sub AddUser()
 	print "Adding user $user ($user_number) to local node.\n";
 
 	if (system("$USERADD $user -u $user_number -c \"$fullname\" ".
-		   "-k /usr/share/skel -h - -m -d $HOMEDIR/$user ".
+		   "-h - -d $HOMEDIR/$user ".
 		   "-g $default_groupname -s $PBAG")) {
 	    fatal("Could not add user $user to local node.");
 	}
@@ -439,10 +441,10 @@ sub AddUser()
 	print "Adding user $user ($user_number) to $CONTROL.\n";
 
 	if (system("$SSH -host $CONTROL ".
-		   "'$USERADD $user -u $user_number -c \"$fullname\" ".
-		   "-k /usr/share/skel -h - -m -d $HOMEDIR/$user ".
-		   "-g $default_groupname -s $shellpaths{$usr_shell}'")) {
-	    if (($? >> 8) != $USEREXISTS) {
+		   "'$ACCOUNTPROXY adduser $user $user_number \"$fullname\" ".
+		   "$HOMEDIR/$user $default_groupname ".
+		   "$shellpaths{$usr_shell}'")) {
+	    if ($?) {
 		fatal("Could not add user $user ($user_number) to $CONTROL.");
 	    }
 	}
@@ -469,6 +471,19 @@ sub AddUser()
 
 	    # Do not worry about failure. 
 	    system("$SSH -host $CONTROL $ADDHOOK $user");
+	}
+    }
+    if ($WITHZFS) {
+	#
+	# There is some lag before the automounter can mount the new
+	# volume. Lets delay until we can access the directory.
+	#
+	for (my $i = 0; $i < 10; $i++) {
+	    sleep(1)
+		if (! -r "$HOMEDIR/$user/.cshrc");
+	}
+	if (! -r "$HOMEDIR/$user/.cshrc") {
+	    fatal("Could not access new user directory");
 	}
     }
     $UID = $SAVEUID;
@@ -590,8 +605,9 @@ sub DelUser()
     if (1) {
 	print "Removing user $user from $CONTROL\n";
 
-	if (system("$SSH -host $CONTROL '$USERDEL $user'")) {
-	    if (($? >> 8) != $NOSUCHUSER) {
+	if (system("$SSH -host $CONTROL ".
+		   "   '$ACCOUNTPROXY deluser $user $HOMEDIR/$user'")) {
+	    if ($?) {
 		fatal("Could not remove user $user from $CONTROL.");
 	    }
 	}
