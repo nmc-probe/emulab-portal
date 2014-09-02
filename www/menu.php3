@@ -510,7 +510,7 @@ function WRITELOGINBOX($loginbox_content) {
 }
 
 function WRITEEXPERIMENTMENU($firstinitstate) {
-    global $TBBASE, $TBDOCBASE;
+    global $TBBASE, $TBDOCBASE, $TBMAINSITE;
     global $WIKISUPPORT, $CHECKLOGIN_WIKINAME, $EXPOSETEMPLATES, $FLAVOR;
     global $login_status, $login_user;
 
@@ -810,7 +810,7 @@ function WRITESIDEBAR() {
 
     # And now the Collaboration menu.
     if (($login_status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID)) &&
-	($WIKISUPPORT || $MAILMANSUPPORT || $BUGDBSUPPORT ||
+	($WIKISUPPORT || $BUGDBSUPPORT ||
 	 $CVSSUPPORT  || $CHATSUPPORT)) {
 
 	NavMenuSection("collaboration", "Collaboration");
@@ -827,10 +827,6 @@ function WRITESIDEBAR() {
 		    $firstpid = $project->pid();
 		}
 	    }
-	}
-	if ($MAILMANSUPPORT) {
-	     NavMenuButton("My Mailing Lists",
-			   "$TBBASE/" . CreateURL("showmmlists", $login_user));
 	}
 	if ($BUGDBSUPPORT) {
 	    $bugdburl = "gotobugdb.php3";

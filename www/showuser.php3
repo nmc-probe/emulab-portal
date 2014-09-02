@@ -151,6 +151,12 @@ if (!$archived && !$target_user->wikionly() &&
 			       CreateURL("showmmlists", $target_user));
 	}
     }
+    if ($TBMAINSITE && ISADMIN()) {
+	$wikiname = $CHECKLOGIN_WIKINAME;
+		
+	WRITESUBMENUBUTTON("My Wikis",
+			   "gotowiki.php3?redurl=Main/$wikiname");
+    }
     if ($PORTAL_ENABLE && $PORTAL_ISPRIMARY) {
 	$peer_result =
 	    DBQueryFatal("select peer from user_exports ".

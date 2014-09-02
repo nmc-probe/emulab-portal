@@ -966,7 +966,7 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     global $TBMAIL_OPS, $TBMAIL_AUDIT, $TBMAIL_WWW;
     global $WIKISUPPORT, $WIKICOOKIENAME;
     global $BUGDBSUPPORT, $BUGDBCOOKIENAME, $TRACSUPPORT, $TRACCOOKIENAME;
-    global $TBLIBEXEC_DIR, $EXP_VIS;
+    global $TBLIBEXEC_DIR, $EXP_VIS, $TBMAINSITE;
     $flushtime = time() - 1000000;
     
     # Caller makes these checks too.
@@ -1051,7 +1051,7 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     # Clear the existing Wiki cookie so that there is not an old one
     # for a different user, sitting in the brower. 
     # 
-    if ($WIKISUPPORT) {
+    if ($WIKISUPPORT || $TBMAINSITE) {
 	setcookie($WIKICOOKIENAME, "", $flushtime, "/",
 		  $TBAUTHDOMAIN, $TBSECURECOOKIES);
     }
@@ -1126,7 +1126,7 @@ function VERIFYPASSWD($uid, $password) {
 function DOLOGOUT($user) {
     global $CHECKLOGIN_STATUS, $CHECKLOGIN_USER;
     global $TBAUTHCOOKIE, $TBLOGINCOOKIE, $TBAUTHDOMAIN, $WWWHOST;
-    global $WIKISUPPORT, $WIKICOOKIENAME;
+    global $WIKISUPPORT, $WIKICOOKIENAME, $TBMAINSITE;
     global $BUGDBSUPPORT, $BUGDBCOOKIENAME, $TRACSUPPORT, $TRACCOOKIENAME;
     global $TBLIBEXEC_DIR, $EXP_VIS;
 
@@ -1198,7 +1198,7 @@ function DOLOGOUT($user) {
 	setcookie("trac_auth_protogeni_priv", "", $timeout, "/",
 		  $TBAUTHDOMAIN, 0);
     }
-    if ($WIKISUPPORT) {
+    if ($WIKISUPPORT || $TBMAINSITE) {
 	setcookie($WIKICOOKIENAME, "", $timeout, "/", $TBAUTHDOMAIN, 0);
     }
     if ($BUGDBSUPPORT) {

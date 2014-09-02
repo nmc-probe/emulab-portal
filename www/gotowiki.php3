@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -23,15 +23,18 @@
 #
 include("defs.php3");
 
-if (!$WIKISUPPORT) {
-    header("Location: index.php3");
-    return;
-}
-
 # No Pageheader since we spit out a redirection below.
 $this_user = CheckLoginOrDie(CHECKLOGIN_USERSTATUS|
 			     CHECKLOGIN_WEBONLY|CHECKLOGIN_WIKIONLY);
 $uid       = $this_user->uid();
+
+# No more WIKISUPPORT, but allow Utah admins to access old pages.
+if (! ($TBMAINSITE && ISADMIN())) {
+    if (!$WIKISUPPORT) {
+	header("Location: index.php3");
+	return;
+    }
+}
 
 #
 # Verify page arguments. project_title is the project to zap to.
