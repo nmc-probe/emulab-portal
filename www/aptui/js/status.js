@@ -123,6 +123,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    $('#why_extend').on('focus keyup', function (e) {
 		var len   = $('#why_extend').val().length;
 		var left  = 120 - len;
+		if (left < 0) {
+		    left = 0;
+		}
 		var msg   = "You need at least " + left + " more characters";
 		$('#extend_counter_msg').html(msg);
 	    });
