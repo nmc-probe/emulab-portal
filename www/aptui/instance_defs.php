@@ -159,6 +159,9 @@ class Instance
 	if (isset($_SERVER['REMOTE_ADDR'])) { 
 	    putenv("REMOTE_ADDR=" . $_SERVER['REMOTE_ADDR']);
 	}
+	if (isset($_SERVER['SERVER_NAME'])) { 
+	    putenv("SERVER_NAME=" . $_SERVER['SERVER_NAME']);
+	}
 	$retval = SUEXEC($uid, $pid,
 			 "webquickvm $options -u $uuid $xmlname",
 			 SUEXEC_ACTION_CONTINUE);

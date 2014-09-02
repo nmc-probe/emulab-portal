@@ -475,7 +475,9 @@ my $slice_hrn  = "${PGENIDOMAIN}.${slice_id}";
 
 print STDERR "\n";
 print STDERR "$user_urn\n";
-print STDERR "$slice_urn\n\n\n";
+print STDERR "$slice_urn\n";
+print STDERR $ENV{"SERVER_NAME"} . "\n" if (exists($ENV{"SERVER_NAME"}));
+print STDERR "\n";
 print STDERR "$rspecstr\n";
 
 #
