@@ -126,9 +126,9 @@ iptables -A INPUT -s EMULAB_GWIP,EMULAB_VGWIP -j ACCEPT # BASIC,CLOSED,ELABINELA
 #
 # In BASIC, we allow ssh from anywhere on port 22, but we rate limit it.
 #
-iptables -A INPUT -p tcp --syn --dport 22 -m conntrack --ctstate NEW -m recent --set --name SSH # BASIC
-iptables -A INPUT -p tcp --syn --dport 22 -m conntrack --ctstate NEW -m recent --update --seconds 100 --hitcount 10 --rttl --name SSH -j DROP # BASIC
-iptables -A INPUT -p tcp --dport 22 --syn -m conntrack --ctstate NEW -j ACCEPT # BASIC
+iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --set --name SSH # BASIC
+iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -m recent --update --seconds 60 --hitcount 3 --rttl --name SSH -j DROP # BASIC
+iptables -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -j ACCEPT # BASIC
 
 #
 # Allow outgoing http so we can update packages.
