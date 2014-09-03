@@ -60,7 +60,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $GOOGLEUA     = 'UA-42844769-3';
     $TBMAILTAG    = "aptlab.net";
 }
-elseif (1 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
+elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".cloudlab.us";
     $COOKDIEDOMAIN= "www.cloudlab.us";
