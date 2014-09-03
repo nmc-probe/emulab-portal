@@ -1271,8 +1271,11 @@ if ($isglobal && $usepath) {
     $tbopsmsg =
 	"Did not update DB state for global image $cname\n".
 	"since image was written to '$filename' instead of $TB/images.\n".
-	"Please run imagerelease when ready for release:\n".
-	"    imagerelease -q $cname\n";
+	($doprovenance ?
+	 "Please run imagerelease when ready for release:\n".
+	 "    imagerelease -q $cname\n" :
+	 "Move image into place and run:\n".
+	 "    $imagevalidate -uq $cname\n");
 }
 elsif (system("$imagevalidate -uq $cname") != 0) {
     $tbopsmsg =
