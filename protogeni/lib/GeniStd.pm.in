@@ -48,6 +48,7 @@ use emutil;
 use URI;
 use Data::Dumper;
 use Carp qw(cluck carp);
+use POSIX qw(strftime);
 
 # Filter out any credentials of an uknown type leaving only geni_sfa
 # version 2 and version 3 credentials in a list. Also invokes
@@ -221,6 +222,11 @@ sub CheckCredentials($;$)
     }
     else {
 	my @credential_strings = @{ $_[0] };
+	if (! @credential_strings) {
+	    $error = GeniResponse->MalformedArgsResponse("You did not supply ".
+							 "any credentials!");
+	    goto bad;
+	}
 	    #
 	    # The only other case is that we get multiple credentials. One
 	    # is the speaks-for credential and another one is the real
@@ -430,3 +436,16 @@ sub GenerateEmptyManifest()
 	'xsi:schemaLocation="http://www.geni.net/resources/rspec/3 '.
 	'http://www.geni.net/resources/rspec/3/manifest.xsd ">';
 }
+
+#
+# Return date in GMT time format.
+#
+sub DateTimeGMT($)
+{
+    my ($datetime) = @_;
+
+    return POSIX::strftime("20%y-%m-%dT%H:%M:%S GMT",
+			   gmtime(str2time($datetime)));
+}
+
+1;

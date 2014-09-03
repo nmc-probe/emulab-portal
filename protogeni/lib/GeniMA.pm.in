@@ -187,11 +187,13 @@ sub GetCredentials($$$)
     #
     # Need to know if only a speaksfor is provided. 
     #
-    my ($credential,$speaksfor) =
-	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
-    return $credential
-	if (GeniResponse::IsResponse($credential));
-
+    my ($credential,$speaksfor);
+    my $credential_args = GeniStd::FilterCredentials($credential_args);
+    if (@{ $credential_args }) {
+	($credential,$speaksfor) = GeniStd::CheckCredentials($credential_args);
+	return $credential
+	    if (GeniResponse::IsResponse($credential));
+    }
     my $args = { "urn" => $member_urn };
     if (defined($speaksfor)) {
 	$args->{"credential"} = $speaksfor->asString();

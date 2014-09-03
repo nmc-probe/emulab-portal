@@ -68,7 +68,7 @@ sub CreateSlice($$)
 {
     my ($credential_args, $options) = @_;
     if (! defined($credential_args) ||
-	! defined($options) || ref($options) ne "ARRAY" ||
+	! defined($options) || ref($options) ne "HASH" ||
 	! exists($options->{'fields'}) ||
 	! exists($options->{'fields'}->{'SLICE_NAME'}))
     {
@@ -137,8 +137,10 @@ sub LookupSlices()
 		my $completeblob = {
 		    "SLICE_URN"         => $slice->urn(),
 		    "SLICE_UID"         => $slice->uuid(),
-		    "SLICE_CREATION"    => $slice->created(),
-		    "SLICE_EXPIRATION"  => $slice->expires(),
+		    "SLICE_CREATION"    =>
+			GeniStd::DateTimeGMT($slice->created()),
+		    "SLICE_EXPIRATION"  => 
+		        GeniStd::DateTimeGMT($slice->expires()),
 		    "SLICE_EXPIRED"     => $isExpired,
 		    "SLICE_NAME"        => $slice->hrn(),
 		    "SLICE_DESCRIPTION" => $description,
@@ -206,7 +208,7 @@ sub ModifySliceMembership()
     my ($slice_urn, $credential_args, $options) = @_;
     if (! defined($slice_urn) ||
 	! defined($credential_args) ||
-	! defined($options) || ref($options) ne "ARRAY")
+	! defined($options) || ref($options) ne "HASH")
     {
 	return GeniResponse->MalformedArgsResponse('Requires a slice urn, a list of credentials, and an options field');
     }
@@ -362,7 +364,7 @@ sub CreateSliverInfo($$$$)
 {
     my ($credential_args, $options) = @_;
     if (! defined($credential_args) ||
-	! defined($options) || ref($options) ne "ARRAY")
+	! defined($options) || ref($options) ne "HASH")
     {
 	return GeniResponse->MalformedArgsResponse('Requires a list of credentials, and an options field');
     }
@@ -416,7 +418,7 @@ sub LookupSliverInfo($$)
     my ($credential_args, $options) = @_;
 
     if (! (defined($credential_args) && defined($options) &&
-	   ref($options) eq "ARRAY")) {
+	   ref($options) eq "HASH")) {
 	return
 	    GeniResponse->MalformedArgsResponse('Requires a list of '.
 					'credentials, and an options field');
@@ -456,8 +458,10 @@ sub LookupSliverInfo($$)
 	    'SLIVER_INFO_AGGREGATE_URN' => $sliver->manager_urn(),
 	    'SLIVER_INFO_URN'	        => $sliver->urn(),
 	    'SLIVER_INFO_SLICE_URN'     => $slice->urn(),
-	    'SLIVER_INFO_CREATION'      => $sliver->created(),
-	    'SLIVER_INFO_EXPIRATION'    => $sliver->expires()
+	    'SLIVER_INFO_CREATION'      =>
+		GeniStd::DateTimeGMT($sliver->created()),
+	    'SLIVER_INFO_EXPIRATION'    =>
+	        GeniStd::DateTimeGMT($sliver->expires())
 	};
 	my $user = User->Lookup($sliver->creator_idx());
 	if (defined($user)) {
