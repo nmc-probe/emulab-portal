@@ -153,7 +153,7 @@ function Do_RequestExtension()
 {
     global $instance, $creator;
     global $ajax_args;
-    global $TBMAIL_OPS;
+    global $TBMAIL_OPS, $APTMAIL;
 
     if (!isset($ajax_args["reason"])) {
 	SPITAJAX_ERROR(1, "Missing reason");
@@ -188,14 +188,15 @@ function Do_RequestExtension()
 
 	SPITAJAX_RESPONSE($new_expires);
 
-	TBMAIL($creator->email(),
-	       "APT Extension: $uuid",
-	       "A request to extend your APT experiment was made and ".
+	$instance->SendEmail($creator->email(),
+	       "Experiment Extension: $uuid",
+	       "A request to extend your experiment was made and ".
 	       "granted.\n".
 	       "Your reason was:\n\n". $reason . "\n\n".
 	       "Your experiment will now expire at $new_expires.\n\n".
 	       "You can request another extension tomorrow.\n",
-	       "CC: $TBMAIL_OPS");
+	       "From: $APTMAIL\n" .
+	       "BCC: $TBMAIL_OPS");
     }
     elseif ($retval > 0) {
 	SPITAJAX_ERROR(1, $suexec_output);

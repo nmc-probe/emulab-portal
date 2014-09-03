@@ -93,6 +93,8 @@ AUTOLOAD {
     carp("No such slot '$name' field in class $type");
     return undef;
 }
+sub isAPT($)	{ return $_[0]->servername() =~ /aptlab/ ? 1 : 0; }
+sub isCloud($)	{ return $_[0]->servername() =~ /cloudlab/ ? 1 : 0; }
 
 # Break circular reference someplace to avoid exit errors.
 sub DESTROY {
@@ -299,7 +301,7 @@ sub RecordHistory($)
     DBQueryWarn("replace into apt_instance_history ".
 		"select uuid,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,aggregate_urn, ".
-		"       created,now() ".
+		"       created,now(),servername ".
 		" from apt_instances where uuid='$uuid'")
 	or return -1;
 
