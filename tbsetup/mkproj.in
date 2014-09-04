@@ -339,30 +339,28 @@ if (! -e "$PROJROOT/$pid") {
     if (! mkdir("$PROJROOT/$pid", 0770)) {
 	fatal("Could not make directory $PROJROOT/$pid: $!");
     }
-
-    if (! chmod(0770, "$PROJROOT/$pid")) {
-	fatal("Could not chmod directory $PROJROOT/$pid: $!");
-    }
-
-    if (! chown($uid, $gid, "$PROJROOT/$pid")) {
-	fatal("Could not chown $PROJROOT/$pid to $uid/$gid: $!");
-    }
 }
-if ($SCRATCHROOT && ! -e "$SCRATCHROOT/$pid") {
+if (! chmod(0770, "$PROJROOT/$pid")) {
+    fatal("Could not chmod directory $PROJROOT/$pid: $!");
+}
+if (! chown($uid, $gid, "$PROJROOT/$pid")) {
+    fatal("Could not chown $PROJROOT/$pid to $uid/$gid: $!");
+}
+
+if ($SCRATCHROOT) {
     if (! -e "$SCRATCHROOT") {
         if (! mkdir("$SCRATCHROOT", 0770)) {
             fatal("Could not make a directory $SCRATCHROOT: $!");
         }
     }
-
-    if (! mkdir("$SCRATCHROOT/$pid", 0770)) {
-	fatal("Could not make directory $SCRATCHROOT/$pid: $!");
+    if (! -e "$SCRATCHROOT/$pid") {
+	if (! mkdir("$SCRATCHROOT/$pid", 0770)) {
+	    fatal("Could not make directory $SCRATCHROOT/$pid: $!");
+	}
     }
-
     if (! chmod(0770, "$SCRATCHROOT/$pid")) {
 	fatal("Could not chmod directory $SCRATCHROOT/$pid: $!");
     }
-
     if (! chown($uid, $gid, "$SCRATCHROOT/$pid")) {
 	fatal("Could not chown $SCRATCHROOT/$pid to $uid/$gid: $!");
     }
@@ -376,12 +374,12 @@ foreach my $dir (@DIRLIST) {
 	if (! mkdir("$PROJROOT/$pid/$dir", 0770)) {
 	    fatal("Could not make directory $PROJROOT/$pid/$dir: $!");
 	}
-	if (! chmod(0770, "$PROJROOT/$pid/$dir")) {
-	    fatal("Could not chmod directory $PROJROOT/$pid/$dir: $!");
-	}
-	if (! chown($uid, $gid, "$PROJROOT/$pid/$dir")) {
-	    fatal("Could not chown $PROJROOT/$pid/$dir to $uid/$gid: $!");
-	}
+    }
+    if (! chmod(0770, "$PROJROOT/$pid/$dir")) {
+	fatal("Could not chmod directory $PROJROOT/$pid/$dir: $!");
+    }
+    if (! chown($uid, $gid, "$PROJROOT/$pid/$dir")) {
+	fatal("Could not chown $PROJROOT/$pid/$dir to $uid/$gid: $!");
     }
 }
 
@@ -437,18 +435,17 @@ if (! -e "$GRPROOT/$pid") {
     if (! mkdir("$GRPROOT/$pid", 0770)) {
 	fatal("Could not make directory $GRPROOT/$pid: $!");
     }
-    if (! chmod(0770, "$GRPROOT/$pid")) {
-	fatal("Could not chmod directory $GRPROOT/$pid: $!");
-    }
-    if (! chown($uid, $gid, "$GRPROOT/$pid")) {
-	fatal("Could not chown $GRPROOT/$pid to $uid/$gid: $!");
-    }
-
-    # Create a group link for the default group.
-    if (! -e "$GRPROOT/$pid/$pid") {    
-	if (system("ln -s $PROJROOT/$pid $GRPROOT/$pid/$pid")) {
-	    fatal("Could not symlink $PROJROOT/$pid to $GRPROOT/$pid/$pid");
-	}
+}
+if (! chmod(0770, "$GRPROOT/$pid")) {
+    fatal("Could not chmod directory $GRPROOT/$pid: $!");
+}
+if (! chown($uid, $gid, "$GRPROOT/$pid")) {
+    fatal("Could not chown $GRPROOT/$pid to $uid/$gid: $!");
+}
+# Create a group link for the default group.
+if (! -e "$GRPROOT/$pid/$pid") {    
+    if (system("ln -s $PROJROOT/$pid $GRPROOT/$pid/$pid")) {
+	fatal("Could not symlink $PROJROOT/$pid to $GRPROOT/$pid/$pid");
     }
 }
 
