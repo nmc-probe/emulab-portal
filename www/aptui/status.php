@@ -126,9 +126,8 @@ $cansnap         = ((isset($this_user) &&
 		     $this_user->idx() == $profile->creator_idx()) ||
 		    ISADMIN() ? 1 : 0);
 $canclone        = (($profile->published() && isset($this_user) &&
-		     (($this_user->idx() == $creator->idx() &&
-		       $this_user->idx() == $profile->creator_idx()) ||
-		      ISADMIN())) ? 1 : 0);
+		     $this_user->idx() == $creator->idx()) ||
+		    ISADMIN() ? 1 : 0);
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
 
