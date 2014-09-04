@@ -112,13 +112,8 @@ function (_, sup, aboutaptString, aboutcloudString)
 		    description = marked($(this).text());
 		});
 	    });
-	    if (!description) {
-		if (json.value.description != "") {
-		    description = json.value.description;
-		}
-		else {
-		    description = "Hmm, no description for this profile";
-		}
+	    if (!description || description == "") {
+		description = "Hmm, no description for this profile";
 	    }
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
