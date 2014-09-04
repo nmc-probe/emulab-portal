@@ -364,26 +364,35 @@ sub CreateSliverInfo($$$$)
 {
     my ($credential_args, $options) = @_;
     if (! defined($credential_args) ||
-	! defined($options) || ref($options) ne "HASH")
+	! defined($options) || ref($options) ne "HASH" ||
+	! exists($options->{'fields'}))
     {
 	return GeniResponse->MalformedArgsResponse('Requires a list of credentials, and an options field');
     }
 
-    if (! defined($options->{'SLIVER_INFO_SLICE_URN'}) ||
-	! defined($options->{'SLIVER_INFO_URN'}) ||
-	! defined($options->{'SLIVER_INFO_AGGREGATE_URN'}) ||
-	! defined($options->{'SLIVER_INFO_CREATOR_URN'}) ||
-	! defined($options->{'SLIVER_INFO_CREATION'}) ||
-	! defined($options->{'SLIVER_INFO_EXPIRATION'})) {
-	return GeniResponse->MalformedArgsResponse('Required option is missing. Make sure to include SLIVER_INFO_SLICE_URN, SLIVER_INFO_URN, SLIVER_INFO_AGGREGATE_URN, SLIVER_INFO_CREATOR_URN, CREATION, and EXPIRATION');
+    if (! defined($options->{'fields'}->{'SLIVER_INFO_SLICE_URN'}) ||
+	! defined($options->{'fields'}->{'SLIVER_INFO_URN'}) ||
+	! defined($options->{'fields'}->{'SLIVER_INFO_AGGREGATE_URN'}) ||
+	! defined($options->{'fields'}->{'SLIVER_INFO_CREATOR_URN'}) ||
+	! defined($options->{'fields'}->{'SLIVER_INFO_CREATION'}) ||
+	! defined($options->{'fields'}->{'SLIVER_INFO_EXPIRATION'})) {
+	return GeniResponse->MalformedArgsResponse('Required option is missing. Make sure to include SLIVER_INFO_SLICE_URN, SLIVER_INFO_URN, SLIVER_INFO_AGGREGATE_URN, SLIVER_INFO_CREATOR_URN, SLIVER_INFO_CREATION, and SLIVER_INFO_EXPIRATION');
     }
+    my ($credential, $speaksfor) =
+	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $info = {
+	'creator_urn' => $options->{'fields'}->{'SLIVER_INFO_CREATOR_URN'},
+	'urn' => $options->{'fields'}->{'SLIVER_INFO_URN'},
+	'created' => $options->{'fields'}->{'SLIVER_INFO_CREATION'},
+	'expires' => $options->{'fields'}->{'SLIVER_INFO_EXPIRATION'}
+    };
     my $params = {
-	'credentials' => GeniStd::FilterCredentials($credential_args),
-	'slice_urn' => $options->{'SLIVER_INFO_SLICE_URN'},
-	'creator_urn' => $options->{'SLIVER_INFO_CREATOR_URN'},
-	'urn' => $options->{'SLIVER_INFO_URN'},
-	'created' => $options->{'SLIVER_INFO_CREATION'},
-	'expires' => $options->{'SLIVER_INFO_EXPIRATION'}
+	'credential' => $credential,
+	'slice_urn' => $options->{'fields'}->{'SLIVER_INFO_SLICE_URN'},
+	'info' => $info,
     };
     return GeniSA::RegisterSliver($params);
 }
@@ -406,8 +415,12 @@ sub DeleteSliverInfo()
 	return GeniResponse->MalformedArgsResponse('Requires a slice urn, an aggregate url, a list of credentials, and an options field');
     }
 
+    my ($credential, $speaksfor) =
+	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    return $credential
+	if (GeniResponse::IsResponse($credential));
     my $params = {
-	'credentials' => GeniStd::FilterCredentials($credential_args),
+	'credential' => $credential,
 	'slice_urn' => $slice_urn
     };
     return GeniSA::UnRegisterSliver($params);
