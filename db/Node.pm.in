@@ -2052,6 +2052,7 @@ sub CreateVnodes($$$)
     my @interfaces= ();
     my @tocreate  = ();
     my @vlist     = ();
+    my $query_result;
     require Interface;
     require NodeType;
     
