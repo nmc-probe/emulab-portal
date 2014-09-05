@@ -68,6 +68,15 @@ $SYSTEM_DEBUG = 0;
 @EXPORT_OK    = qw($SYSTEM_DEBUG);
 
 #
+# If AMD is used on boss (currently, only if ZFS is used to
+# provide per-user and per-project filesystems), then we have to
+# account for the AMD mount point (e.g., "/.amd_mnt") when determining
+# if a path is valid or not.
+#
+my $WITHAMD	 = "@WITHAMD@";
+my $AMDROOT	 = "@AMD_ROOT@";
+
+#
 # Real mount points (on the fileserver) for exported directories.
 # At the moment, we have no reason to export these via functions.
 #
@@ -522,6 +531,13 @@ sub TBValidUserDir($$;$$$)
 	$groot = $FSDIR_GROUPS;
 	if ($FSDIR_SCRATCH) {
 	    $sroot = $FSDIR_SCRATCH;
+	}
+    } elsif ($WITHAMD) {
+	$uroot = $AMDROOT/$USERROOT;
+	$proot = $AMDROOT/$PROJROOT;
+	$groot = $AMDROOT/$GROUPROOT;
+	if ($FSDIR_SCRATCH) {
+	    $sroot = $AMDROOT/$SCRATCHROOT;
 	}
     } else {
 	$uroot = $USERROOT;

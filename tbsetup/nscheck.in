@@ -56,6 +56,7 @@ my $TB       = "@prefix@";
 my $parser   = "$TB/libexec/parse-ns";
 my $status   = 0;
 my $dirname;
+my $ISFS     = ("@BOSSNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
 
 #
 # Testbed Support libraries
@@ -123,7 +124,7 @@ else {
 if (! ($tempfile =~ /^\/tmp\/[-\w]+-\d+\.nsfile/) &&
     ! ($tempfile =~ /^\/var\/tmp\/php\w+/) &&
     ! ($tempfile =~ /^\/tmp\/php\w+/) &&
-    ! TBValidUserDir($tempfile, 0)) {
+    ! TBValidUserDir($tempfile, $ISFS)) {
     fatal("$tempfile does not resolve to an appropriate directory!\n");
 }
 

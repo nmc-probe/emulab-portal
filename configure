@@ -665,6 +665,8 @@ ZFS_ROOT
 ZFS_QUOTA_USER
 ZFS_QUOTA_PROJECT
 ZFS_QUOTA_GROUP
+WITHAMD
+AMD_ROOT
 NOVIRTNFSMOUNTS
 IMAGEDELTAS
 PROFILEVERSIONS
@@ -5109,6 +5111,8 @@ ZFS_ROOT=z
 ZFS_QUOTA_USER="1G"
 ZFS_QUOTA_PROJECT="100G"
 ZFS_QUOTA_GROUP="10G"
+WITHAMD=0
+AMD_ROOT=/.amd_mnt
 
 #
 # XXX You really don't want to change these!
@@ -5499,6 +5503,12 @@ fi
 if test $WITHZFS -eq 1; then
     cat >>confdefs.h <<_ACEOF
 #define WITHZFS 1
+_ACEOF
+
+fi
+if test $WITHAMD -eq 1; then
+    cat >>confdefs.h <<_ACEOF
+#define WITHAMD 1
 _ACEOF
 
 fi

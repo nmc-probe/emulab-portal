@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2005 University of Utah and the Flux Group.
+# Copyright (c) 2005, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,9 +29,12 @@ use Cwd qw(realpath);
 #
 # Configure variables
 #
-my $TB			= "@prefix@";
-my $FSDIR_PROJ		= "@FSDIR_PROJ@";
-my $FSDIR_GROUPS	= "@FSDIR_GROUPS@";
+my $TB		 = "@prefix@";
+my $FSDIR_PROJ	 = "@FSDIR_PROJ@";
+my $FSDIR_GROUPS = "@FSDIR_GROUPS@";
+my $ISFS	 = ("@BOSSNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
+my $WITHAMD	 = "@WITHAMD@";
+my $AMDROOT	 = "@AMD_ROOT@";
 
 use lib "@prefix@/lib";
 use libdb;
@@ -80,9 +83,19 @@ if ($src =~ /^($tmpdir\/php[\w]+)$/) {
     die("*** Source isn't a php temp file.\n");
 }
 
-my $pr = PROJROOT();
-my $gr = GROUPROOT();
-if ($dst =~ /^(($pr|$FSDIR_PROJ|$gr|$FSDIR_GROUPS)\/[-\w\/.]+)$/) {
+my ($pr,$gr);
+if ($ISFS) {
+    $pr = FSDIR_PROJ;
+    $gr = FSDIR_GROUPS;
+} else {
+    $pr = PROJROOT();
+    $gr = GROUPROOT();
+    if ($AMDROOT) {
+	$pr = "$AMDROOT/$pr";
+	$gr = "$AMDROOT/$gr";
+    }
+}
+if ($dst =~ /^(($pr|$gr)\/[-\w\/.]+)$/) {
     $dst = $1;
 } else {
     die("*** Destination must be in " 

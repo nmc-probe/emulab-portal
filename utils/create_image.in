@@ -136,6 +136,7 @@ my $CONTROL     = "@USERNODE@";
 my $NONFS	= @NOSHAREDFS@;
 my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $WITHDELTAS  = @IMAGEDELTAS@;
+my $ISFS        = ("@BOSSNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
 
 #
 # Testbed Support libraries
@@ -688,7 +689,7 @@ if (-d $filename) {
 # runs as the caller, regular file permission checks ensure its a file
 # the user is allowed to use. 
 #
-if (! TBValidUserDir($filename, 0)) {
+if (! TBValidUserDir($filename, $ISFS)) {
     die("*** $0:\n".
 	"    $filename does not resolve to an allowed directory!\n");
 }

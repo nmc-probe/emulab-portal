@@ -67,3 +67,4 @@
 
 #undef NOVIRTNFSMOUNTS
 #undef WITHZFS
+#undef WITHAMD
