@@ -164,8 +164,11 @@ sub TryEvents()
     }
     else {
 	my $handle = event_register($URL,0);
-	fatal("Unable to register with event system!")
-	    if (!$handle);
+	if (!$handle) {
+	    print STDERR "Unable to register with event system!\n"
+		if ($debug);
+	    exit(1);
+	}
 	exit(0);
     }
 }
