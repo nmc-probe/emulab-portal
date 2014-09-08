@@ -2550,6 +2550,7 @@ sub CreateImage($)
     }
     $webtask->status("preparing");
     $webtask->imagesize(0);
+    $webtask->Store();
     
     #
     # We used the -s (nosnapshot) option above, to get the descriptor
