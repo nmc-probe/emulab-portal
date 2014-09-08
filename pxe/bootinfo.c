@@ -246,7 +246,15 @@ bicache_needevent(struct in_addr ipaddr)
 			info("Timestamps: old:%ld new:%ld\n", oldtt, tt);
 		}
 
-		if (tt - oldtt <= MINEVENTTIME) {
+		/*
+		 * XXX sanity check, in case time goes backward while we
+		 * are running.
+		 */
+		if (tt < oldtt) {
+			info("%s: Whoa! time went backwards (%ld -> %ld),"
+			     "fixing...\n",
+			     inet_ntoa(ipaddr), oldtt, tt);
+		} else if (tt - oldtt <= MINEVENTTIME) {
 			rval = 0;
 			info("%s: no event will be sent: last:%ld cur:%ld\n",
 			     inet_ntoa(ipaddr), oldtt, tt);
