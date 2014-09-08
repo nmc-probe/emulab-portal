@@ -2182,7 +2182,7 @@ sub isOpenflowSupported($) {
     my $ret;
     
     $ret = $self->get1($ofSupportOID, 0);
-    if (defined($ret)) {
+    if (defined($ret) && $ret ne 'NOSUCHOBJECT') {
 	return 1;
     } else {
 	return 0;
