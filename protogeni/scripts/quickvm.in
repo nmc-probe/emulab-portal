@@ -642,7 +642,6 @@ while ($seconds > 0) {
     }
     elsif ($blob->{'status'} eq "failed") {
 	$failed = 1;
-	$instance->SetStatus("failed");
 	last;
     }
 }
@@ -652,15 +651,19 @@ print STDERR "$public_url\n"
 print STDERR "\n";
 print STDERR "$manifest\n\n";
 
-if ($failed) {
-    fatal("$slice_urn failed."); 
-}
-elsif (!$ready) {
+if ($failed || !$ready) {
     $instance->SetStatus("failed");
-    fatal("$slice_urn timed out."); 
+    if (!$ready) {
+	print STDERR "$slice_urn timed out.\n";
+    }
+    else {
+	print STDERR "$slice_urn failed.\n"; 
+    }
+}
+else {
+    $instance->SetStatus("ready");
 }
 $slice->UnLock();
-$instance->SetStatus("ready");
 exit(0);
 
 sub fatal($) {
