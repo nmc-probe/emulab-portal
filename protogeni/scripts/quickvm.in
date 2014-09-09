@@ -1164,17 +1164,17 @@ sub SnapShot($$$)
 	print STDERR "Imaging failed\n";
 	$webtask->Exited(1)
 	    if (defined($webtask));
+	$slice->UnLock();
 	exit(1);
     }
     elsif (!$ready) {
 	print STDERR "Imaging timed out\n"; 
 	$webtask->Exited(60)
 	    if (defined($webtask));
+	$slice->UnLock();
 	exit(1);
     }
     else {
-	# Leave the slice locked if it failed; need to think about
-	# what we should do.
 	#
 	# If successful, we create a new version of the profile and
 	# update the rspec to reflect the new image version. Note
