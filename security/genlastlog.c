@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -94,7 +94,7 @@
 
 static char		*progname;
 static int		debug = 0;
-static int		doit(gzFile *infp);
+static int		doit(gzFile infp);
 static char		opshostname[MAXHOSTNAMELEN];
 static jmp_buf		deadline;
 static int		deadfl;
@@ -116,7 +116,7 @@ dead()
 int
 main(int argc, char **argv)
 {
-	gzFile	       *infp;
+	gzFile	        infp;
 	char		buf[BUFSIZ], *bp, **aliases;
 	struct hostent  *he;
 	int		ch, errors = 0;
@@ -160,7 +160,7 @@ main(int argc, char **argv)
 	}
 	strncpy(opshostname, he->h_name, sizeof(opshostname));
 
-	if (bp = strchr(opshostname, '.')) 
+	if ((bp = strchr(opshostname, '.')) != 0)
 		*bp = 0;
 
 	while (backcount) {
@@ -207,7 +207,7 @@ main(int argc, char **argv)
 }
 
 static int
-doit(gzFile *infp)
+doit(gzFile infp)
 {
 	int		i, skip = 0;
 	time_t		curtime, ll_time;

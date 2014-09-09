@@ -55,7 +55,7 @@
  *
  */
 /*
- * Copyright (c) 2006 University of Utah and the Flux Group.
+ * Copyright (c) 2006, 2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -116,6 +116,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <time.h>
 #include "suexec.h"
 
@@ -521,7 +522,7 @@ int main(int argc, char *argv[])
         char argbuf[2*BUFSIZ], *bp = argbuf;
 	int i, size = sizeof(argbuf) - 1;
 
-	*bp = (char) NULL;
+	*bp = '\0';
 
 	for (i = 4; i < argc; i++) {
 	    int count = snprintf(bp, size, "%s ", argv[i]);
@@ -550,7 +551,8 @@ int main(int argc, char *argv[])
 
 #ifdef TESTBED
     {
-	int groups[NGROUPS], i, idx = 0;
+	gid_t groups[NGROUPS];
+	int i, idx = 0;
 
 	groups[idx++] = primary_gid;
 	/* duplicate has something to do with effective gid */
