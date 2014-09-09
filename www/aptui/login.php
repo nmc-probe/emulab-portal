@@ -190,7 +190,7 @@ function SPITFORM($uid, $referrer, $error)
 if (!$ajax_request && !isset($login)) {
     if ($this_user) {
 	if (Instance::UserHasInstances($this_user)) {
-	    header("Location: $APTBASE/myexperments.php");
+	    header("Location: $APTBASE/myexperiments.php");
 	}
 	else {
 	    header("Location: $APTBASE/instantiate.php");
