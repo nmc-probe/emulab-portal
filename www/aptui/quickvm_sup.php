@@ -212,6 +212,10 @@ function SPITHEADER($thinheader = 0)
 	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='http://docs.aptlab.net' target='_blank'>Manual</a></form></li>\n";
     }
+    if ($ISCLOUD) {
+	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
+                       href='http://docs.cloudlab.us' target='_blank'>Manual</a></form></li>\n";
+    }
     if ($login_user) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
 	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
