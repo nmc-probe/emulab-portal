@@ -322,7 +322,7 @@ else {
 	UserError();
     }
     $profile =
-	APT_Profile->Create($instance, $project,
+	APT_Profile->Create($profile, $project,
 			    $this_user, \%new_args, \$usererror);
     if (!defined($profile)) {
 	if (defined($usererror)) {
