@@ -53,8 +53,14 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "verify",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
 				 "formfields",    PAGEARG_ARRAY);
-
-$profile_default  = "OneVM";
+if ($ISCLOUD) {
+    $profile_default     = "OpenStack";
+    $profile_default_pid = "tbres";
+}
+else {
+    $profile_default     = "OneVM";
+    $profile_default_pid = $TBOPSPID;
+}
 $profile_array    = array();
 
 #
@@ -158,7 +164,8 @@ else {
 		     "where locked is null and ($whereclause)");
     while ($row = mysql_fetch_array($query_result)) {
 	$profile_array[$row["uuid"]] = $row["name"];
-	if ($row["pid"] == $TBOPSPID && $row["name"] == $profile_default) {
+	if ($row["pid"] == $profile_default_pid &&
+	    $row["name"] == $profile_default) {
 	    $profile_default = $row["uuid"];
 	}
     }
