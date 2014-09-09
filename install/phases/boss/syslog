@@ -11,8 +11,7 @@ my @LOGFILES = ("$LOGDIR/bootinfo.log", "$LOGDIR/tmcd.log",
     "$LOGDIR/proxydhcpd.log", "$LOGDIR/stated.log", "$LOGDIR/stated-mail.log",
     "$LOGDIR/osselect.log", "$LOGDIR/power.log", "$LOGDIR/tmcd-meta.log",
     "$LOGDIR/tftpd.log", "$LOGDIR/sdcollectd.log", "$LOGDIR/genlastlog.log",
-    "$LOGDIR/sshxmlrpc.log", "$LOGDIR/plabgetfree.log", "$LOGDIR/xmlrpcbag.log",
-    "$LOGDIR/plabrenew.log", "$LOGDIR/sslxmlrpc.log", "$LOGDIR/pubsubd.log",
+    "$LOGDIR/xmlrpcbag.log", "$LOGDIR/sslxmlrpc.log", "$LOGDIR/pubsubd.log",
     "$LOGDIR/idlemail.log");
 
 sub Install($$$)
@@ -99,10 +98,8 @@ sub Install($$$)
 			"!power",     "*.*\t\t\t\t\t\t$LOGDIR/power.log",
 			"!genlastlog","*.*\t\t\t\t\t\t$LOGDIR/genlastlog.log",
 			"!sdcollectd","*.*\t\t\t\t\t\t$LOGDIR/sdcollectd.log",
-			"!plabgetfree","*.*\t\t\t\t\t\t$LOGDIR/plabgetfree.log",
-			"!plabrenew", "*.*\t\t\t\t\t\t$LOGDIR/plabrenew.log",
 			"!xmlrpcbag", "*.*\t\t\t\t\t\t$LOGDIR/xmlrpcbag.log",
-			"!sshxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sshxmlrpc.log",
+			"!sslxmlrpc", "*.*\t\t\t\t\t\t$LOGDIR/sslxmlrpc.log",
 			"!idlemail", "*.*\t\t\t\t\t\t$LOGDIR/idlemail.log");
 
 	    if ($PROTOGENI_GENIRACK) {
@@ -164,10 +161,8 @@ sub Install($$$)
 		      "$LOGDIR/genlastlog.log         640  3     200  *     Z",
 		      "$LOGDIR/genlastlog             640  3     200  *     Z " .
 		      "/var/run/lastlog_daemon.pid",
-		      "$LOGDIR/plabmetrics.log        640  7     1000 *     Z",
-		      "$LOGDIR/plablinkdata.log       640  7     1000 *     Z",
 		      "$LOGDIR/xmlrpcbag.log          640  7     300  *     Z",
-		      "$LOGDIR/sshxmlrpc.log          640  7     300  *     Z",
+		      "$LOGDIR/sslxmlrpc.log          640  7     300  *     Z",
 		      "$LOGDIR/idlemail.log           640  14    1000 *     Z",
 		      "$LOGDIR/reloadlog              640  9     1000 *     Z ".
 		      "/var/run/reload_daemon.pid",
