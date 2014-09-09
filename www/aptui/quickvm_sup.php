@@ -101,7 +101,7 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
 function SPITHEADER($thinheader = 0)
 {
     global $TBMAINSITE, $APTTITLE, $FAVICON, $APTLOGO, $APTSTYLE, $ISAPT;
-    global $GOOGLEUA;
+    global $GOOGLEUA, $ISCLOUD;
     global $login_user, $login_status;
     global $disable_accounts, $page_title, $drewheader;
     $title = $APTTITLE;
