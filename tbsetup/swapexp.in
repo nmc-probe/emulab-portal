@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -425,7 +425,7 @@ if ($waitmode) {
 #
 # Check for overquota; we deal with it below, cause of the batch system.
 #
-my $overquota = system("$checkquota $user_uid");
+my $overquota = system("$checkquota -p $pid $user_uid");
 
 if ($overquota) {
     tberror({cause => 'user', severity => SEV_WARNING,

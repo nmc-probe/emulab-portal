@@ -200,18 +200,6 @@ my $user_name  = $this_user->name();
 my $user_email = $this_user->email();
 
 #
-# Before doing anything else, check for overquota ... lets not waste
-# our time. Make sure user sees the error by exiting with 1.
-#
-if (system("$checkquota $user_uid") != 0) {
-    tberror({cause => 'user', type => 'primary', severity => SEV_ERROR,
-	     error => ['over_disk_quota', $CONTROL]},
-	    "You are over your disk quota on $CONTROL; ".
-	    "please login there and cleanup!");
-    exit(1);
-}
-
-#
 # Lets check to make sure user did not delete their home dir.
 # Maybe in the future, when exports_setup does not cause all
 # mounts to hiccup.
@@ -238,6 +226,18 @@ usage()
     if (!defined($pid) || !defined($eid));
 usage()
     if (defined($tempnsfile) && defined($copyarg));
+
+#
+# Before doing anything else, check for overquota ... lets not waste
+# our time. Make sure user sees the error by exiting with 1.
+#
+if (system("$checkquota -p $pid $user_uid") != 0) {
+    tberror({cause => 'user', type => 'primary', severity => SEV_ERROR,
+	     error => ['over_disk_quota', $CONTROL]},
+	    "You are over your disk quota on $CONTROL; ".
+	    "please login there and cleanup!");
+    exit(1);
+}
 
 if (! -e "$TB/expinfo/$pid") {
     die("*** $0:\n".

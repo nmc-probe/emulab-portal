@@ -352,15 +352,6 @@ my $user_uid   = $this_user->uid();
 my $user_name  = $this_user->name();
 my $user_email = $this_user->email();
 
-#
-# Before doing anything else, check for overquota ... lets not waste
-# our time. Make sure user sees the error by exiting with 1.
-#
-if (system("$checkquota $user_uid") != 0) {
-    die("*** $0:\n".
-	"    You are over your disk quota on $CONTROL; ".
-	"please login there and cleanup!\n");
-}
 if ($UID && ! $this_user->IsAdmin()) {
     $mereuser = 1;
 }
@@ -383,6 +374,16 @@ if ($mereuser &&
     ! $image->AccessCheck($this_user, TB_IMAGEID_ACCESS)) {
     die("*** $0:\n".
 	"    You do not have permission to use imageid $imageid!\n");
+}
+
+#
+# Before doing anything else, check for overquota ... lets not waste
+# our time. Make sure user sees the error by exiting with 1.
+#
+if (system("$checkquota -p $imagepid $user_uid") != 0) {
+    die("*** $0:\n".
+	"    You are over your disk quota on $CONTROL; ".
+	"please login there and cleanup!\n");
 }
 
 #
