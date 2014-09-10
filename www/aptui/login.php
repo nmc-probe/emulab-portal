@@ -158,6 +158,13 @@ function SPITFORM($uid, $referrer, $error)
                     id='quickvm_geni_login_button'>Geni User?</button>
         <?php
     }
+    if ($ISAPT) {
+	?>
+                 <a class='btn btn-info btn-sm pull-left'
+	            href='instantiate.php?asguest=1'
+		    type='button'>Continue as Guest</a>
+        <?php
+    }
 ?>
                  <button class='btn btn-primary btn-sm pull-right'
                          id='quickvm_login_modal_button'

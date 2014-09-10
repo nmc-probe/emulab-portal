@@ -37,7 +37,7 @@ $dblink = GetDBLink("sa");
 #
 RedirectSecure();
 $this_user = CheckLogin($check_status);
-if (!$ISAPT) {
+if ($ISCLOUD) {
     if (! ($CHECKLOGIN_STATUS & CHECKLOGIN_LOGGEDIN)) {
 	header("Location: login.php");
     }
@@ -52,7 +52,28 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "stuffing",      PAGEARG_STRING,
 				 "verify",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
+				 "asguest",       PAGEARG_BOOLEAN,
 				 "formfields",    PAGEARG_ARRAY);
+
+if ($ISAPT) {
+    #
+    # If user appears to have an account, go to login page.
+    # Continue as guest on that page.
+    #
+    if (REMEMBERED_ID()) {
+	if (isset($asguest) && $asguest) {
+	    # User clicked on continue as guest. If we do not delete the
+	    # cookie, then user will go through the same loop next time
+            # they click the Home button, since that points here. So delete
+	    # the UID cookie. Not sure I like this.
+	    ClearRememberedID();
+	}
+	else {
+	    header("Location: login.php");
+	}
+    }
+}
+
 if ($ISCLOUD) {
     $profile_default     = "OpenStack";
     $profile_default_pid = "tbres";

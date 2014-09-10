@@ -111,6 +111,12 @@ function REMEMBERED_ID() {
     }
     return null;
 }
+function ClearRememberedID()
+{
+    global $TBEMAILCOOKIE, $WWWHOST;
+    
+    setcookie($TBEMAILCOOKIE, '', 1, "/", $WWWHOST, 0);
+}
 
 #
 # Return the value of the currently logged in uid, or null if not
@@ -396,8 +402,8 @@ function LoginStatus() {
 	    # No hash of the hash, so assume no real cookie either. 
 	    # 
 	    $CHECKLOGIN_STATUS = CHECKLOGIN_NOTLOGGEDIN;
-	    return $CHECKLOGIN_STATUS;
 	}
+	return $CHECKLOGIN_STATUS;
     }
 
     # Cache this now; someone will eventually want it.
