@@ -516,8 +516,7 @@ function CHECKURL($url, &$error) {
 	
 	if (strcmp($HTTPTAG, substr($url, 0, strlen($HTTPTAG))) &&
 	    strcmp($HTTPSTAG, substr($url, 0, strlen($HTTPSTAG)))) {
-	    $error = "URL is malformed; must begin with $HTTPTAG or $HTTPSTAG!";
-	    return 0;
+	    $url = "${HTTPTAG}" . $url;
 	}
 
 	$fp = @fopen($url, "r");

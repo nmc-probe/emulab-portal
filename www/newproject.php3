@@ -816,9 +816,16 @@ if (! $returning) {
     if (isset($formfields["usr_URL"]) &&
 	strcmp($formfields["usr_URL"], "") &&
 	strcmp($formfields["usr_URL"], $HTTPTAG) &&
-	! $FirstInitState &&
-	! CHECKURL($formfields["usr_URL"], $urlerror)) {
-	$errors["Home Page URL"] = $urlerror;
+	! $FirstInitState) {
+	if (strcmp($HTTPTAG,
+		   substr($formfields["usr_URL"], 0, strlen($HTTPTAG))) &&
+	    strcmp($HTTPSTAG,
+		   substr($formfields["usr_URL"], 0, strlen($HTTPSTAG)))) {
+	    $formfields["usr_URL"] = "${HTTPTAG}" . $formfields["usr_URL"];
+	}
+	if (! CHECKURL($formfields["usr_URL"], $urlerror)) {
+	    $errors["Home Page URL"] = $urlerror;
+	}
     }
     if (!isset($formfields["usr_addr"]) ||
 	strcmp($formfields["usr_addr"], "") == 0) {
@@ -939,9 +946,16 @@ if (!isset($formfields["proj_URL"]) ||
     strcmp($formfields["proj_URL"], $HTTPTAG) == 0) {    
     $errors["Project URL"] = "Missing Field";
 }
-elseif (! $FirstInitState &&
-	! CHECKURL($formfields["proj_URL"], $urlerror)) {
-    $errors["Project URL"] = $urlerror;
+elseif (! $FirstInitState) {
+    if (strcmp($HTTPTAG,
+	       substr($formfields["proj_URL"], 0, strlen($HTTPTAG))) &&
+	strcmp($HTTPSTAG,
+	       substr($formfields["proj_URL"], 0, strlen($HTTPSTAG)))) {
+	$formfields["proj_URL"] = "${HTTPTAG}" . $formfields["proj_URL"];
+    }
+    if (!CHECKURL($formfields["proj_URL"], $urlerror)) {
+	$errors["Project URL"] = $urlerror;
+    }
 }
 if (!isset($formfields["proj_funders"]) ||
     strcmp($formfields["proj_funders"], "") == 0) {
@@ -1024,7 +1038,6 @@ if (!$returning) {
     if ($WIKISUPPORT) {
         $args["wikiname"] = $formfields["wikiname"];
     }
-
 
     if (isset($formfields["usr_URL"]) &&
 	$formfields["usr_URL"] != $HTTPTAG && $formfields["usr_URL"] != "") {

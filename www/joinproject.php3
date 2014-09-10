@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -687,9 +687,16 @@ if (! $returning) {
     if (! $forwikionly) {
 	if (isset($formfields["usr_URL"]) &&
 	    strcmp($formfields["usr_URL"], "") &&
-	    strcmp($formfields["usr_URL"], $HTTPTAG) &&
-	    ! CHECKURL($formfields["usr_URL"], $urlerror)) {
-	    $errors["Home Page URL"] = $urlerror;
+	    strcmp($formfields["usr_URL"], $HTTPTAG)) {
+	    if (strcmp($HTTPTAG,
+		       substr($formfields["usr_URL"], 0, strlen($HTTPTAG))) &&
+		strcmp($HTTPSTAG,
+		       substr($formfields["usr_URL"], 0, strlen($HTTPSTAG)))) {
+		$formfields["usr_URL"] = "${HTTPTAG}" . $formfields["usr_URL"];
+	    }
+	    if (! CHECKURL($formfields["usr_URL"], $urlerror)) {
+		$errors["Home Page URL"] = $urlerror;
+	    }
 	}
 	if (!isset($formfields["usr_addr"]) ||
 	    strcmp($formfields["usr_addr"], "") == 0) {
