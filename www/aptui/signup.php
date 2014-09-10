@@ -340,6 +340,8 @@ if (!$this_user) {
     $args["shell"]         = 'tcsh';
     $args["affiliation"]   = $formfields["affiliation"];
     $args["password"]      = $formfields["password1"];
+    # Force initial SSL cert generation.
+    $args["passphrase"]    = $formfields["password1"];
     # Flag to the backend.
     $args["genesis"]	   = ($ISAPT ? "aptlab" : "cloudlab");
 

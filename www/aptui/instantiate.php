@@ -466,10 +466,8 @@ elseif (! array_key_exists($formfields["profile"], $profile_array)) {
 #
 if ($this_user) {
     if (! $this_user->HasEncryptedCert(1)) {
-	$url = CreateURL("gensslcert", $this_user);
-    
-	$errors["error"] = "Oops, registered Emulab users must create a ".
-	    "<a href='$TBBASE/$url'>ssl certificate</a> first";
+	$errors["error"] =
+	    "Oops, registered users are supposed to have an SSL certificate";
     }
 }
 else {
