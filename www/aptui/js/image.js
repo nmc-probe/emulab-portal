@@ -15,6 +15,8 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 
 	function ShowImagingModal()
 	{
+	    var laststatus = "preparing";
+	    
 	    //
 	    // Ask the server for information to populate the imaging modal. 
 	    //
@@ -86,18 +88,24 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 			return;
 		    }
 		    else if (status == "failed") {
-			$('#tracker-imaging').removeClass('progtrckr-todo');
-			$('#tracker-imaging').addClass('progtrckr-done');
-			$('#tracker-finishing').removeClass('progtrckr-todo');
-			$('#tracker-finishing').addClass('progtrckr-done');
+			if (laststatus == "preparing") {
+			    $('#tracker-imaging').removeClass('progtrckr-todo');
+			    $('#tracker-imaging').addClass('progtrckr-failed');
+			}
+			if (laststatus == "imaging" || laststatus == "preparing") {
+			    $('#tracker-finishing').removeClass('progtrckr-todo');
+			    $('#tracker-finishing').addClass('progtrckr-failed');
+			}
 			$('#tracker-ready').removeClass('progtrckr-todo');
-			$('#tracker-ready').addClass('progtrckr-done');
+			$('#tracker-ready').addClass('progtrckr-failed');
+			
 			$('#tracker-ready').html("Failed");
 			$('#imaging-spinner').addClass("invisible");
 			$('#imaging-close').removeClass("hidden");
 			completion_callback(1);
 			return;
 		    }
+		    laststatus = status;
 		}
 		//
 		// Done, we need to do something here if we exited before

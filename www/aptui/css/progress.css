@@ -32,6 +32,11 @@ ol.progtrckr li.progtrckr-todo {
     border-bottom: 4px solid silver;
 }
 
+ol.progtrckr li.progtrckr-failed {
+    color: red; 
+    border-bottom: 4px solid red;
+}
+
 ol.progtrckr li:after {
     content: "\00a0\00a0";
 }
@@ -58,4 +63,14 @@ ol.progtrckr li.progtrckr-todo:before {
     background-color: white;
     font-size: 1.5em;
     bottom: -1.6em;
+}
+ol.progtrckr li.progtrckr-failed:before {
+    content: "\0058";
+    color: white;
+    background-color: red;
+    height: 1.2em;
+    width: 1.2em;
+    line-height: 1.2em;
+    border: none;
+    border-radius: 1.2em;
 }
