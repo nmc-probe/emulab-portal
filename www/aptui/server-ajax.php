@@ -74,12 +74,22 @@ $routing = array("myprofiles" =>
 						    "Do_GetInstanceManifest",
 						 "GetSSHAuthObject" =>
 						    "Do_GetSSHAuthObject",
+						 "ConsoleURL" =>
+						     "Do_ConsoleURL",
 						 "RequestExtension" =>
 						     "Do_RequestExtension",
 						 "SnapShot" =>
 						     "Do_Snapshot",
 						 "SnapshotStatus" =>
-						     "Do_SnapshotStatus")));
+						 "Do_SnapshotStatus")),
+		 "approveuser" =>
+			array("file"    => "approveuser.ajax",
+			      "guest"   => false,
+			      "methods" => array("approve" =>
+						     "Do_Approve",
+						 "deny" =>
+						      "Do_Deny")),
+    );
 
 #
 # Redefine this so we return XML instead of html for all errors.
