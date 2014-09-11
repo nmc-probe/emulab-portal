@@ -115,7 +115,7 @@ sub vlan_list($)
     foreach my $point (@{ $self->points() }) {
 	if ($first) {
 	    my $available = GeniXML::GetAvailableVlanFromHop($point->{'internal_hop'});
-	    @candidates = keys($point->{'network'}->GetRestrictedVlans(available));
+	    @candidates = keys(%{ $point->{'network'}->GetRestrictedVlans($available) });
 	    $first = 0;
 	} else {
 	    my @newlist = ();
