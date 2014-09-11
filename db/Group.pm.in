@@ -879,7 +879,6 @@ sub DeleteMemberShip($$)
 sub SendJoinEmail($$)
 {
     my ($self, $user) = @_;
-
     # Must be a real reference. 
     return -1
 	if (! (ref($self) && ref($user)));
@@ -918,36 +917,54 @@ sub SendJoinEmail($$)
     $usr_URL = ""
 	if (!defined($usr_URL));
 
-    SENDMAIL
-	("$leader_name '$leader_uid' <$leader_email>",
-	 "$uid $pid Project Join Request",
-	 "$usr_name is trying to join your group $gid in project $pid.".
-	 "\n".
-	 "\n".
-	 "Contact Info:\n".
-	 "Name:            $usr_name\n".
-	 "Emulab ID:       $uid\n".
-	 "Email:           $usr_email\n".
-	 "User URL:        $usr_URL\n".
-	 "Job Title:       $usr_title\n".
-	 "Affiliation:     $usr_affil\n".
-	 "Address 1:       $usr_addr\n".
-	 "Address 2:       $usr_addr2\n".
-	 "City:            $usr_city\n".
-	 "State:           $usr_state\n".
-	 "ZIP/Postal Code: $usr_zip\n".
-	 "Country:         $usr_country\n".
-	 "Phone:           $usr_phone\n".
-	 "SSL Cert:        $wanted_sslcert\n".
-	 "\n".
-	 "Please return to $TBWWW,\n".
-	 "log in, select the 'New User Approval' page, and enter your\n".
-	     "decision regarding ${usr_name}'s membership in your project.\n".
-	 "\n".
-	 "Thanks,\n".
-	 "Testbed Operations\n",
-	 "$usr_name '$uid' <$usr_email>",
-	 "CC: $allleaders");
+    my $project = $self->GetProject();
+    my $from    = "$usr_name '$uid' <$usr_email>";
+    my $message =
+	"$usr_name is trying to join your group $gid in project $pid.".
+	"\n".
+	"\n".
+	"Contact Info:\n".
+	"Name:            $usr_name\n".
+	"Login ID:        $uid\n".
+	"Email:           $usr_email\n".
+	"Affiliation:     $usr_affil\n".
+	"Address 1:       $usr_addr\n".
+	"Address 2:       $usr_addr2\n".
+	"City:            $usr_city\n".
+	"State:           $usr_state\n".
+	"ZIP/Postal Code: $usr_zip\n".
+	"Country:         $usr_country\n";
+
+    if ($project->isAPT() || $project->isCloud()) {
+	my $url = $project->wwwBase() . "/approveuser.php?uid=$uid&pid=$pid";
+	    
+	$message .=
+	    "\n".
+	    "You can approve or reject this user:\n\n".
+	    "Approve:  ${url}&action=approve\n".
+	    "or\n".
+	    "Deny:     ${url}&action=deny\n".
+	    "\n".
+	    "Thanks\n";
+	$from = $project->ApprovalEmailAddress();
+    }
+    else {
+	$message .= 
+	    "Phone:           $usr_phone\n".
+	    "User URL:        $usr_URL\n".
+	    "Job Title:       $usr_title\n".
+	    "SSL Cert:        $wanted_sslcert\n".
+	    "\n".
+	    "Please return to $TBWWW,\n".
+	    "log in, select the 'New User Approval' page, and enter your\n".
+	    "decision regarding ${usr_name}'s membership in your project.\n".
+	    "\n".
+	    "Thanks,\n".
+	    "Testbed Operations\n";
+    }
+    $project->SendEmail("$leader_name '$leader_uid' <$leader_email>",
+			"$uid $pid Project Join Request",
+			$message, $from, "CC: $allleaders");
 
     return 0;
 }
@@ -978,19 +995,25 @@ sub SendApprovalEmail($$$)
 	if (!defined($membership));
 
     my $trust = $membership->trust();
+    my $message = "This message is to notify you that you have been approved\n".
+	"as a member of ";
+    my $subject = "Membership Approved in '$pid/$gid'";
 
-    AnonSENDMAIL(
-	     "$usr_name '$usr_uid' <$usr_email>",
-             "Membership Approved in '$pid/$gid' ",
-	     "\n".
-	     "This message is to notify you that you have been approved as\n".
-	     "a member of $pid/$gid with '$trust' permission.\n".
-             "\n\n".
-             "Thanks,\n".
-             "Testbed Operations\n",
-             $project->ApprovalEmailAddress(),
-	     "CC: $allleaders\n".
-	     "Bcc: $TBAUDIT");
+    if ($project->isAPT() || $project->isCloud()) {
+	$message .= "project $pid.";
+	$subject  = "Membership Approved in Project $pid";
+    }
+    else {
+	$message .= "$pid/$gid with '$trust' permission.";
+    }
+    $project->AnonSendEmail("$usr_name '$usr_uid' <$usr_email>",
+			    $subject,
+			    "$message\n".
+			    "\n".
+			    "Thanks\n",
+			    $project->ApprovalEmailAddress(),
+			    "CC: $allleaders\n".
+			    "Bcc: $TBAUDIT");
 
     return 0;
 }

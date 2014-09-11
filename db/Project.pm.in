@@ -185,6 +185,28 @@ sub SignupURL($)
 	    "${wwwbase}/signup.php?pid=$pid" :
 	    "${wwwbase}/joinproject.php3?target_pid=$pid");
 }
+# So we can localize MAILTAG variable.
+sub SendEmail($$$)
+{
+    my ($self, $to, $subject, $body, $headers) = @_;
+
+    # All this function does is this. 
+    local $libtestbed::MAILTAG = $self->EmailTag();
+    
+    SENDMAIL($to, $subject, $body, $headers);
+    return 0;
+}
+# So we can localize MAILTAG variable.
+sub AnonSendEmail($$$)
+{
+    my ($self, $to, $subject, $body, $headers) = @_;
+
+    # All this function does is this. 
+    local $libtestbed::MAILTAG = $self->EmailTag();
+    
+    SENDMAIL($to, $subject, $body, $headers);
+    return 0;
+}
 
 #
 # Lookup given pid For backwards compat.
