@@ -511,7 +511,7 @@ function SpitWaitModal($id)
 function SpitOopsModal($id)
 {
     echo "<!-- This is the Oops modal -->
-          <div id='$id' class='modal fade'>
+          <div id='${id}_modal' class='modal fade'>
             <div class='modal-dialog'>
             <div class='modal-content'>
                <div class='modal-header'>
