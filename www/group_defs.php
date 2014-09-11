@@ -682,9 +682,25 @@ class Group
 	$usr_country	= $user->country();
 	$usr_phone	= $user->phone();
 	$usr_URL	= $user->URL();
-
-	TBMAIL	
-          ("$leader_name '$leader_uid' <$leader_email>",
+	$url            = $project->wwwBase();
+	
+	if ($project->isAPT() || $project->isCloud()) {
+	    $url .= "/approveuser.php?uid=$joining_uid&pid=$pid";
+	    $message =
+		"You can approve or reject this user:\n\n".
+		"Approve:  ${url}&action=approve\n".
+		"or\n".
+		"Deny:     ${url}&action=deny\n";
+	    $from = $project->ApprovalEmailAddress();
+	}
+	else {
+	    $message =
+		"Please return to $url,\n".
+		"log in, and select the 'New User Approval' page to enter your\n".
+		"decision regarding $usr_name's membership in your project.\n\n";
+	    $from = "$usr_name '$joining_uid' <$usr_email>";
+	}
+	TBMAIL("$leader_name '$leader_uid' <$leader_email>",
 	   "$joining_uid $pid Project Join Request",
 	   "$usr_name is trying to join your group $gid in project $pid.\n".
 	   "\n".
@@ -703,15 +719,10 @@ class Group
 	   "Country:         $usr_country\n".
 	   "Phone:           $usr_phone\n".
 	   "\n".
-	   ($project->isAPT() || $project->isCloud() ?
-	    "You can approve or reject this user at:\n\n".
-	    "$APTBASE/approveuser.php?uid=$joining_uid\n\n"
-	    :
-	    "Please return to $TBWWW,\n".
-	    "log in, and select the 'New User Approval' page to enter your\n".
-	    "decision regarding $usr_name's membership in your project.\n\n") .
+	   $message .
+	   "\n".
 	   "Thanks!\n",
-	   "From: $usr_name '$joining_uid' <$usr_email>\n".
+           "From: $from\n".
 	   "Cc: $allleaders\n".
 	   "Bcc: $TBMAIL_AUDIT\n".
 	   "Errors-To: $TBMAIL_WWW");

@@ -166,6 +166,26 @@ class Project
     function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
     function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
 
+    function wwwBase() {
+	global $TBWWW;
+	
+	return ($this->isAPT() ? "https://www.aptlab.net" :
+		$this->isCloud() ? "https://www.cloudlab.us" : $TBWWW);
+    }
+    function ApprovalEmailAddress() {
+	global $TBMAIL_APPROVAL;
+
+	return ($this->isAPT() ? "aptlab-approval@aptlab.net" :
+		$this->isCloud() ? "cloudlab-approval@cloudlab.us" :
+		$TBMAIL_APPROVAL);
+    }
+    function EmailTag() {
+	global $THISHOMEBASE;
+	
+	return ($this->isAPT() ? "aptlab.net" :
+		$this->isCloud() ? "cloudlab.us" : $THISHOMEBASE);
+    }
+
     function unix_gid() {
 	$group = $this->DefaultGroup();
 	
@@ -443,6 +463,15 @@ class Project
 	$group = $this->DefaultGroup();
 
 	return $group->AddNewMember($user);
+    }
+
+    #
+    # Delete.
+    #  
+    function DeleteMember($user) {
+	$group = $this->DefaultGroup();
+
+	return $group->DeleteMember($user);
     }
 
     #
