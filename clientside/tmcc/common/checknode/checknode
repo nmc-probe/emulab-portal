@@ -130,6 +130,14 @@ postprocessing()
 	cp /tmp/nodecheck.log.tb.new ${projdir}/$host/.tbdb/$timestamp
 	cp /tmp/nodecheck.log.inv ${projdir}/$host/.full/$timestamp
 
+    # offline checking can be done if the tmcc is saved
+	owd=$PWD
+	cd ${projdir}/$host
+	# save what tmcc says right now
+	$($BINDIR/tmcc hwinfo > ${projdir}/$host/.tmcc/$timestamp)
+	ln -s .tmcc/$timestamp ${projdir}/$host/tmcc
+	cd $owd
+
     # remove old symlinks and make new ones
 	owd=$PWD
 	cd ${projdir}/$host
@@ -146,7 +154,7 @@ postprocessing()
     # make sure no sudo is needed for read
 	chmod go+r ${projdir}/$host/.*/${timestamp}
     fi
-    
+
     if (( $check_flag )) ; then
 	cd ${projdir}/$host
 	# save what tmcc says right now
