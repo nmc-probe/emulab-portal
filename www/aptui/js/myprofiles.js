@@ -33,7 +33,9 @@ function (sup)
 			filter_ignoreCase : true,
 			// Only one search box.
 			filter_columnFilters : false,
-		    }
+		    },
+
+		    headers: { 1: { sorter: false}, 2: {sorter: false} }
 		});
 
 	// Target the $('.search') input using built in functioning

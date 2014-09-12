@@ -175,9 +175,9 @@ function SPITFORM($formfields, $errors)
 #
 $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
 
-if (isset($action) && $action == "edit") {
+if (isset($action) && ($action == "edit" || $action == "copy")) {
     if (!isset($uuid)) {
-	SPITUSERERROR("Must provide uuid for edit!");
+	SPITUSERERROR("Must provide uuid!");
     }
     else {
 	$profile = Profile::Lookup($uuid);
@@ -187,7 +187,12 @@ if (isset($action) && $action == "edit") {
 	else if ($profile->locked()) {
 	    SPITUSERERROR("Profile is currently locked!");
 	}
-	else if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+	if ($action == "edit") {
+	    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+		SPITUSERERROR("Not enough permission!");
+	    }
+	}
+	elseif (!$profile->CanView($this_user) && !ISADMIN()) {
 	    SPITUSERERROR("Not enough permission!");
 	}
     }
@@ -210,25 +215,27 @@ if (! isset($create)) {
 	    "You do not appear to be a member of any projects in which ".
 	    "you have permission to create new profiles";
     }
-    if ($action == "edit" || $action == "clone") {
-	if ($action == "clone") {
-	    if (! (isset($snapuuid) && IsValidUUID($snapuuid))) {
-		$errors["error"] = "No experiment specified for clone!";
-	    }
-	    $instance = Instance::Lookup($snapuuid);
-	    if (!$instance) {
-		SPITUSERERROR("No such instance to clone!");
-	    }
-	    else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
-		SPITUSERERROR("Not enough permission!");
-	    }
-	    $profile = Profile::Lookup($instance->profile_id(),
-				       $instance->profile_version());
-	    if (!$profile) {
-		SPITUSERERROR("Cannot load profile for instance!");
-	    }
-	    if (!$profile->published()) {
-		SPITUSERERROR("Not allowed to clone an unpublished profile!");
+    if ($action == "edit" || $action == "clone" || $action == "copy") {
+	if ($action == "clone" || $action == "copy") {
+	    if ($action == "clone") {
+		if (! (isset($snapuuid) && IsValidUUID($snapuuid))) {
+		    $errors["error"] = "No experiment specified for clone!";
+		}
+		$instance = Instance::Lookup($snapuuid);
+		if (!$instance) {
+		    SPITUSERERROR("No such instance to clone!");
+		}
+		else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
+		    SPITUSERERROR("Not enough permission!");
+		}
+		$profile = Profile::Lookup($instance->profile_id(),
+					   $instance->profile_version());
+		if (!$profile) {
+		    SPITUSERERROR("Cannot load profile!");
+		}
+		if (!$profile->CanView($this_user)) {
+		    SPITUSERERROR("Not allowed to access this profile!");
+		}
 	    }
 	    $defaults["profile_rspec"] = $profile->rspec();
 	    $defaults["profile_who"]   = "shared";

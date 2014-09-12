@@ -59,14 +59,33 @@ SPITHEADER(1);
 echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
+$whereclause = "where v.creator_idx='$target_idx'";
+$joinclause  = "";
+$orderclause = "";
+
+if (isset($all)) {
+    if (ISADMIN()) {
+	$whereclause = "";
+    }
+    else {
+	$joinclause =
+	    "left join group_membership as g on ".
+	    "     g.uid_idx='$target_idx' and ".
+	    "     g.pid_idx=v.pid_idx and g.pid_idx=g.gid_idx";
+	$whereclause =
+	    "where p.public=1 or p.shared=1 or v.creator_idx='$target_idx' or ".
+	    "      g.uid_idx is not null ";
+    }
+}
+
 $query_result =
-    DBQueryFatal("select i.*,v.*,DATE(v.created) as created ".
-		 "  from apt_profiles as i ".
+    DBQueryFatal("select p.*,v.*,DATE(v.created) as created ".
+		 "   from apt_profiles as p ".
 		 "left join apt_profile_versions as v on ".
-		 "     v.profileid=i.profileid and ".
-		 "     v.version=i.version ".
-		 (isset($all) && ISADMIN() ?
-		  "order by v.creator" : "where v.creator_idx='$target_idx'"));
+		 "     v.profileid=p.profileid and ".
+		 "     v.version=p.version ".
+		 "$joinclause ".
+		 "$whereclause order by v.creator");
 
 if (mysql_num_rows($query_result) == 0) {
     $message = "<b>No profiles to show you. Maybe you want to ".
@@ -91,13 +110,14 @@ echo "<input class='form-control search' type='search'
 echo "  <table class='tablesorter'>
          <thead>
           <tr>
-           <th>Name</th>\n";
+           <th>Name</th>
+           <th>&nbsp</th>
+           <th>&nbsp</th>\n";
 if (isset($all) && ISADMIN()) {
     echo " <th>Creator</th>";
 }
 echo "     <th>Project</th>
            <th>Description</th>
-           <th>Show</th>
            <th>Created</th>
            <th>Listed</th>
            <th>Privacy</th>
@@ -133,19 +153,30 @@ while ($row = mysql_fetch_array($query_result)) {
     }
     
     echo " <tr>
-            <td>
-             <a href='manage_profile.php?action=edit&uuid=$uuid'>$name</a>
-            </td>";
+            <td>$name</td>\n";
+
+    if ($creator == $this_user->uid() || ISADMIN()) {
+	echo " <td style='text-align:center'>
+             <a class='btn btn-primary btn-xs' type='button'
+                href='manage_profile.php?action=edit&uuid=$uuid'>Edit</a>
+            </td>\n";
+    }
+    else {
+	echo " <td style='text-align:center'>
+             <a class='btn btn-primary btn-xs' type='button'
+                href='manage_profile.php?action=copy&uuid=$uuid'>Copy</a>
+            </td>\n";
+    }
+    echo "<td style='text-align:center'>
+             <button class='btn btn-primary btn-xs showtopo_modal_button'
+                     data-profile=$uuid>Topo</button>
+            </td>\n";
+    
     if (isset($all) && ISADMIN()) {
 	echo "<td>$creator</td>";
     }
     echo "  <td style='white-space:nowrap'>$pid</td>
             <td>$desc</td>
-            <td style='text-align:center'>
-             <button class='btn btn-primary btn-xs showtopo_modal_button'
-                     data-profile=$uuid>
-               Show</button>
-            </td>
             <td>$created</td>
             <td>$listed</td>
             <td>$privacy</td>
@@ -154,9 +185,15 @@ while ($row = mysql_fetch_array($query_result)) {
 echo "   </tbody>
         </table>\n";
 
-if (ISADMIN() && !isset($all)) {
-    echo "<img src='images/redball.gif'>
-          <a href='myprofiles.php?all=1'>Show all user Profiles</a>\n";
+if (!isset($all)) {
+    if (ISADMIN()) {
+	echo "<img src='images/redball.gif'>
+          <a href='myprofiles.php?all=1'>Show all user profiles</a>\n";
+    }
+    else {
+	echo "<img src='images/blueball.gif'>
+          <a href='myprofiles.php?all=1'>Show all profiles you can instantiate</a>\n";
+    }
 }
 echo"   </div>
       </div>\n";

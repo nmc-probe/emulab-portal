@@ -346,6 +346,12 @@
      		 data-toggle='modal' data-target='#guest_instantiate_modal'
                  type='button'>Instantiate as Guest
 	      </button>
+	      <a class='btn btn-primary btn-sm pull-left'
+                 style='margin-right: 10px;'
+                 type='button'
+		 href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'>
+                  Copy
+	      </a>
  	      <% if (candelete) { %>
 	      <button class='btn btn-danger btn-sm pull-left' disabled
                  id='profile_delete_button'
