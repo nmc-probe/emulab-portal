@@ -31,8 +31,10 @@ include("xmlrpc.php3");
 #
 # Verify form arguments first, since we might be using optional key.
 #
-$reqargs = RequiredPageArguments("node", PAGEARG_NODE);
-$optargs = OptionalPageArguments("key",  PAGEARG_STRING);
+$reqargs = RequiredPageArguments("node",       PAGEARG_NODE);
+$optargs = OptionalPageArguments("key",        PAGEARG_STRING,
+				 "closekills", PAGEARG_BOOLEAN,
+				 "noclose",    PAGEARG_BOOLEAN);
 
 # Need these below
 $node_id = $node->node_id();
@@ -219,12 +221,20 @@ if (!isset($key)) {
     PAGEHEADER("$node_id Console");
 }
 $referrer = $_SERVER['HTTP_REFERER'];
+if (!isset($closekills)) {
+    $closekills = 0;
+}
+if (!isset($noclose)) {
+    $noclose = 0;
+}
 
 echo "\n";
 echo "<script src='$TBBASE/emulab_sup.js'></script>\n";
 echo "<script src='https://code.jquery.com/jquery.js'></script>\n";
 echo "<script>\n";
-echo "var tbbaseurl = '$referrer';\n";
+echo "var tbbaseurl  = '$referrer';\n";
+echo "var closekills = $closekills;\n";
+echo "var noclose    = $noclose;\n";
 ?>
 function StartConsole(id, authobject)
 {
@@ -239,7 +249,18 @@ function StartConsole(id, authobject)
             encodeURIComponent(document.location.href) + ',' + session;
         console.log(url);
         var iwidth  = $('#' + id).width();
-        var iheight = GetMaxHeight(id) - 50;
+	var iheight = $(window).height();
+	var Iframe  = getObjbyName(id);
+	// Now get the Y offset of the outputframe.
+	var yoff    = Iframe.offsetTop;
+
+	if (iheight != 0 && yoff != 0) {
+	    iheight = iheight - yoff;
+	}
+	else {
+	    iheight = 200;
+	}
+        iheight = iheight - 25;
 
 	/*
 	 * Oh, this is a pain.
@@ -279,15 +300,30 @@ function StartConsole(id, authobject)
 				type: 'GET',
 		    });
 		});
-	    
-	    // Install a click handler for the X button.
-	    $("#" + id + "_kill").click(function(e) {
-		    e.preventDefault();
-		    // Trigger the custom event.
-		    $("#" + id).trigger("killconsole");
 
-		    PageReplace(tbbaseurl);
-		});
+	    addEventListener("message",
+			     function(event) {
+				 console.info(event);
+				 // Trigger the custom event.
+				 $("#" + id).trigger("killconsole");
+			     },
+			     false);
+
+	    if (!noclose) {
+		// Install a click handler for the X button.
+		$("#" + id + "_kill").click(function(e) {
+			e.preventDefault();
+			// Trigger the custom event.
+			$("#" + id).trigger("killconsole");
+                    
+			if (closekills) {
+			    window.close();
+			}
+			else {
+			    PageReplace(tbbaseurl);
+			}
+		    });
+	    }
 	}
     }
     var callback_failed = function(jqXHR, textStatus) {
@@ -323,8 +359,11 @@ function StartConsole(id, authobject)
 
 <?php
 echo "<div id='${node_id}_console' style='width: 100%;'></div>";
-echo "<center><button type=button id='${node_id}_console_kill'>Close</button>" .
-     "</center>\n";
+if (!$noclose) {
+    echo "<center><button type=button
+                          id='${node_id}_console_kill'>Close</button>" .
+	 "</center>\n";
+}
 echo "<script language=JavaScript>
         window.onload = function() {
             StartConsole('${node_id}_console', '$console_auth');
