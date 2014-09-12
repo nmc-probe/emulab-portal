@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -52,6 +52,8 @@ if (! isset($key)) {
 if (! isset($error)) {
     $error = null;
 }
+# For redirect from the geni tool login.
+$isgenitool = 0;
 
 # See if referrer page requested that it be passed along so that it can be
 # redisplayed after login. Save the referrer for form below.
@@ -65,6 +67,11 @@ if (isset($refer) &&
     $referrer = preg_replace("/^http:/i","https:",$referrer);
 } else if (! isset($referrer)) {
     $referrer = null;
+}
+
+# If redirecting from the geni tool, show a different message.
+if (isset($referrer) && preg_match("/getsslcertjs/", $referrer)) {
+    $isgenitool = 1;
 }
 
 #
@@ -123,10 +130,16 @@ if (($this_user = CheckLogin($status))) {
 function SPITFORM($uid, $key, $referrer, $error, $adminmode, $simple, $view)
 {
     global $TBDB_UIDLEN, $TBBASE;
+    global $isgenitool;
     
     PAGEHEADER("Login",$view);
- 
-    $premessage = "Please login to our secure server.";
+
+    if ($isgenitool) {
+	$premessage = "A request from a <b>Geni Tool</b> requres you to login<br>";
+    }
+    else {
+	$premessage = "Please login to our secure server.";
+    }
 
     if ($error) {
 	echo "<center>";
@@ -136,12 +149,16 @@ function SPITFORM($uid, $key, $referrer, $error, $adminmode, $simple, $view)
             echo "Login attempt failed! Please try again.";
             break;
         case "notloggedin":
-	    echo "You do not appear to be logged in!";
-	    $premessage = "Please log in again.";
+	    if (! $isgenitool) {
+		echo "You do not appear to be logged in!";
+		$premessage = "Please log in again.";
+	    }
             break;
         case "timedout":
 	    echo "Your login has timed out!";
-	    $premessage = "Please log in again.";
+	    if (! $isgenitool) {
+		$premessage = "Please log in again.";
+	    }
 	    break;
 	default:
 	    echo "Unknown Error ($error)!";
