@@ -370,12 +370,12 @@ class Profile
     function CanInstantiate($user) {
 	$profileid = $this->profileid();
 
-	if ($profile->shared() || $profile->ispublic() ||
-	    $profile->creator_idx() == $user->uid_idx()) {
+	if ($this->shared() || $this->ispublic() ||
+	    $this->creator_idx() == $user->uid_idx()) {
 	    return 1;
 	}
 	# Otherwise a project membership test.
-	$project = Project::Lookup($profile->pid_idx());
+	$project = Project::Lookup($this->pid_idx());
 	if (!$project) {
 	    return 0;
 	}
