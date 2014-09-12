@@ -245,6 +245,10 @@ exit(0)
 # get a new copy.
 #
 my $newhash = $xmlparse->{'attribute'}->{"hash"}->{'value'};
+# Silly taint check.
+if ($newhash =~/^(.*)$/) {
+    $newhash = $1;
+}
 
 if ($getimage) {
     #
