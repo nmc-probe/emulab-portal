@@ -1416,5 +1416,22 @@ class User
 
 	return 0;
     }
+
+    # Get user uploaded ssh keys.
+    function GetSSHKeys() {
+	$result  = array();
+    	$uid_idx = $this->uid_idx();
+
+	$query_result =
+	    DBQueryWarn("select pubkey from user_pubkeys ".
+			"where uid_idx='$uid_idx' and internal=0");
+	if (!$query_result)
+	    return -1;
+
+	while ($row = mysql_fetch_array($query_result)) {
+	    $result[] = $row["pubkey"];
+	}
+	return $result;
+    }
 }
 ?>
