@@ -147,6 +147,7 @@ sub manager_urn($)	{ return field($_[0], "manager_urn"); }
 sub genesis($)		{ return field($_[0], "genesis"); }
 sub isAPT($)	        { return $_[0]->genesis() eq "aptlab" ? 1 : 0; }
 sub isCloud($)	        { return $_[0]->genesis() eq "cloudlab" ? 1 : 0; }
+sub isEmulab($)         { return $_[0]->genesis() eq "emulab" ? 1 : 0; }
 
 # These come from the group not the project.
 sub unix_gid($)         { return $_[0]->{'GROUP'}->unix_gid(); }
