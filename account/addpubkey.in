@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -48,7 +48,7 @@ sub usage()
     print " -r      Force a regenerate of initial key for user\n";
     exit(-1);
 }
-my $optlist   = "dkniwfu:rX:sRNC:S:";
+my $optlist   = "dkniwfu:rX:sRNC:S:I";
 my $iskey     = 0;
 my $verify    = 0;
 my $initmode  = 0;
@@ -58,6 +58,7 @@ my $nobody    = 0;
 my $noemail   = 0;
 my $remove    = 0;
 my $nodelete  = 0;
+my $internal  = 0;
 my $Comment;
 my $xmlfile;
 
@@ -169,6 +170,9 @@ if (defined($options{"i"})) {
 }
 if (defined($options{"N"})) {
     $nodelete = 1;
+}
+if (defined($options{"I"})) {
+    $internal = 1;
 }
 if (defined($options{"r"})) {
     $force = 1;
@@ -426,7 +430,7 @@ sub ParseKey($) {
     }
     DBQueryFatal("replace into user_pubkeys set ".
 		 " uid='$user_uid', uid_idx='$user_dbid', ".
-		 " internal='0', nodelete='$nodelete', ".
+		 " internal='$internal', nodelete='$nodelete', ".
 		 " idx=NULL, stamp=now(), ".
 		 " pubkey=$safe_key, comment=$safe_comment");
 
