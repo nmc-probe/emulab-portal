@@ -213,6 +213,10 @@ sub nonlocal_id($)	{ return field($_[0], "nonlocal_id"); }
 sub nonlocal_type($)	{ return field($_[0], "nonlocal_type"); }
 sub IsLocal($)		{ return (defined($_[0]->nonlocal_id()) ? 0 : 1); };
 sub IsNonLocal($)	{ return (defined($_[0]->nonlocal_id()) ? 1 : 0); };
+sub genesis($)		{ return field($_[0], "genesis"); }
+sub isAPT($)	        { return $_[0]->genesis() eq "aptlab" ? 1 : 0; }
+sub isCloud($)	        { return $_[0]->genesis() eq "cloudlab" ? 1 : 0; }
+sub isEmulab($)         { return $_[0]->genesis() eq "emulab" ? 1 : 0; }
 
 # Temporary data storage ... useful.
 sub GetTempData($$) { return field($_[0], "tempdata"); } 
@@ -1197,6 +1201,45 @@ sub GetSSHKeys($$)
     }    
     @$pref = @result;
     return 0;
+}
+
+#
+# Look to see if ssh key is a current key for user. 
+#
+sub LookupSSHKey($$)
+{
+    my ($self, $sshkey) = @_;
+    my $uid_idx = $self->uid_idx();
+
+    #
+    # Strip off the comment.
+    #
+    if ($sshkey =~ /(.+)\s+(.*)\s*$/) {
+	$sshkey = $1;
+    }
+    my $safe_key = DBQuoteSpecial($sshkey . '%');
+
+    my $query_result =
+	DBQueryWarn("select idx from user_pubkeys ".
+		    "where uid_idx='$uid_idx' and pubkey like $safe_key");
+    return 0
+	if (!defined($query_result));
+
+    return $query_result->numrows;
+}
+sub DeleteSSLCertSSHKey($)
+{
+    my ($self) = @_;
+    my $uid_idx = $self->uid_idx();
+
+    my $query_result =
+	DBQueryWarn("delete from user_pubkeys ".
+		    "where uid_idx='$uid_idx' and internal=1 and ".
+		    "      comment like 'sslcert:'");
+    return 0
+	if (!defined($query_result));
+
+    return $query_result->numrows;
 }
 
 #

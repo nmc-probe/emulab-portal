@@ -657,11 +657,19 @@ if ($encrypted) {
 	    or fatal("Could not extract ssh pubkey from $pemfile");
 
 	#
-	# And add the pubkey to the DB. Mark it as nodelete and that it should
-	# remove existing key with same comment. 
+	# Need to remove the current ssh pubkey from the database, but we just
+	# updated the new serial number so the comment is no longer valid for
+	# lookup. 
+	#
+	$target_user->DeleteSSLCertSSHKey();
+
+	#
+	# And add the pubkey to the DB. Mark it as nodelete and 
+	# as internal since we do not want to delete these except when
+	# creating a new certificate.
 	#
 	$EUID = $UID;
-	system("$ADDKEY -s -N -R -C $comment -u $user_uid ".
+	system("$ADDKEY -s -N -I -C $comment -u $user_uid ".
 	       "      -f $sshdir/encrypted.pub")
 	    == 0 or fatal("Could not add pubkey $sshdir/encrypted.pub");
     }
