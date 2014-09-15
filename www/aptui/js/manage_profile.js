@@ -19,10 +19,11 @@ function (_, sup, filesize, ShowImagingModal,
     'use strict';
     var profile_uuid = null;
     var version_uuid = null;
-    var snapping= 0;
-    var gotrspec = 0;
-    var ajaxurl = "";
-    var amlist  = null;
+    var snapping     = 0;
+    var gotrspec     = 0;
+    var ajaxurl      = "";
+    var amlist       = null;
+    var modified     = false;
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var rendererTemplate  = _.template(rendererString);
@@ -48,6 +49,13 @@ function (_, sup, filesize, ShowImagingModal,
 	// Notice if we have an rspec in the formfields, to start from.
 	if (_.has(fields, "profile_rspec")) {
 	    gotrspec = 1;
+	}
+
+	// Warn user if they have not saved changes.
+	window.onbeforeunload = function() {
+	    if (! modified)
+		return null;
+	    return "You have unsaved changes!";
 	}
 
 	// Generate the templates.
@@ -107,6 +115,9 @@ function (_, sup, filesize, ShowImagingModal,
 	});
 	$('body').show();
 
+	//
+	// File upload handler.
+	// 
 	$('#rspecfile').change(function() {
 		var reader = new FileReader();
 		reader.onload = function(event) {
@@ -133,19 +144,12 @@ function (_, sup, filesize, ShowImagingModal,
 		reader.readAsText(this.files[0]);
 	});
 
-	$.fn.animateBackgroundHighlight = function(highlightColor, duration) {
-	    var highlightBg = highlightColor || "#FFFF9C";
-	    var animateMs = duration || 1500;
-	    var originalBg = this.css("backgroundColor");
-	    console.log(originalBg);
-	};
-
 	$('#showtopo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    // The rspec is taken from the text area.
 	    ShowRspecTopo($('#profile_rspec_textarea').val());
 	});
-	$('#expand_rspec_modal_button').click(function (event) {
+	$('#show_rspec_modal_button').click(function (event) {
 	    $('#modal_profile_rspec_textarea').val(
 		$('#profile_rspec_textarea').val());
 	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
@@ -157,9 +161,13 @@ function (_, sup, filesize, ShowImagingModal,
 	    $('#profile_rspec_textarea').val(
 		$('#modal_profile_rspec_textarea').val());
 	    $('#rspec_modal').modal('hide');
-	    $('#modal_profile_rspec_textarea').val("");	    
-	    $('#profile_rspec_textarea').css({"opacity":"0.2"});
-	    $('#profile_rspec_textarea').animate({"opacity":"1.0"}, 1500);
+	    $('#modal_profile_rspec_textarea').val("");
+
+	    // Update the form.
+	    var xmlDoc  = $.parseXML($('#profile_rspec_textarea').val());
+	    var xml     = $(xmlDoc);
+	    ExtractFromRspec(xml);
+	    ProfileModified();
 	});
 	// Auto select the URL if the user clicks in the box.
 	$('#profile_url').click(function() {
@@ -221,8 +229,6 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#profile_who_public').change(function() { ProfileModified(); });
 	$('#profile_who_registered').change(function() { ProfileModified(); });
 	$('#profile_who_private').change(function() { ProfileModified(); });
-	$('#profile_rspec_textarea').change(function() { ProfileModified(); });
-	$('#modal_profile_rspec_textarea').change(function(){ProfileModified();});
 	
 	/*
 	 * A double click handler that will render the instructions
@@ -725,6 +731,7 @@ function (_, sup, filesize, ShowImagingModal,
     }
     function ProfileModified()
     {
+	modified = true;
 	EnableButton("profile_submit_button");
     }
 

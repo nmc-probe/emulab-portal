@@ -189,31 +189,16 @@
 		          <% if (! gotrspec) { %>invisible<% } %>'
 			  type='button'
 			  style='margin-right: 10px;'
-			  id='show_rspec_textarea_button'
-			  data-toggle='collapse' data-target='#rspec_textarea'>
+			  id='show_rspec_modal_button'>
                     Edit</button>
 		</div>
               </div>
-              <div class='collapse' id='rspec_textarea'
-                   style='margin-top: 4px;'>
-		<div class='row'>
-                  <div class='col-xs-12'>
- 	            <textarea name="formfields[profile_rspec]"
-		              id='profile_rspec_textarea'
-		              rows=5
-                              class='form-control format-me'
-                              type='textarea' data-key='profile_rspec'
-			      ><%- formfields.profile_rspec %></textarea>
-                  </div>
-		</div>
-		<div class='row' style='margin-top: 4px;'>
-                  <div class='col-xs-12'>
-                    <button class='btn btn-primary btn-xs' type='button'
-                            id='expand_rspec_modal_button'>
-                      Expand</button>
-                  </div>
-		</div>
-              </div>
+ 	      <textarea name="formfields[profile_rspec]"
+		        id='profile_rspec_textarea'
+		        rows=5
+                        class='form-control hidden'
+                        type='textarea' data-key='profile_rspec'>
+		      <%- formfields.profile_rspec %></textarea>
 	    </div>
 	    <textarea name=formfields[profile_description]
 		      id='profile_description'
