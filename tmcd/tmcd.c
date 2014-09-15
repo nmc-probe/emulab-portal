@@ -3825,7 +3825,15 @@ COMMAND_PROTOTYPE(dorpms)
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE], *bp, *sp;
 	char		*srv = TARRPM_SERVER;
-
+	int		useweb = 0;
+#ifdef NOVIRTNFSMOUNTS
+	useweb = 1;
+#endif
+	if (reqp->nonfsmounts ||
+	    (reqp->sharing_mode[0] && reqp->isvnode)) {
+		useweb = 1;
+	}
+	
 	/*
 	 * Get RPM list for the node.
 	 */
@@ -3862,9 +3870,9 @@ COMMAND_PROTOTYPE(dorpms)
 		}
 		else {
 			bufp += OUTPUT(bufp, ebufp - bufp, "SERVER=%s ", srv);
-			if (vers >= 37 &&
-			    reqp->sharing_mode[0] && reqp->isvnode) {
-				bufp += OUTPUT(bufp, ebufp - bufp, "USEWEB=1 ");
+			if (vers >= 37) {
+				bufp += OUTPUT(bufp, ebufp - bufp, "USEWEB=%d ",
+					useweb);
 			}
 			OUTPUT(bufp, ebufp - bufp, "RPM=%s\n", bp);
 		}
@@ -3887,7 +3895,15 @@ COMMAND_PROTOTYPE(dotarballs)
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE], *bp, *sp, *tp;
 	char		*srv = TARRPM_SERVER;
-
+	int		useweb = 0;
+#ifdef NOVIRTNFSMOUNTS
+	useweb = 1;
+#endif
+	if (reqp->nonfsmounts ||
+	    (reqp->sharing_mode[0] && reqp->isvnode)) {
+		useweb = 1;
+	}
+	
 	/*
 	 * Get Tarball list for the node.
 	 */
@@ -3929,10 +3945,10 @@ COMMAND_PROTOTYPE(dotarballs)
 			       "DIR=%s TARBALL=%s\n", bp, tp);
 		} else {
 			bufp += OUTPUT(bufp, ebufp - bufp, "SERVER=%s ", srv);
-			if (vers >= 37 &&
-			    reqp->sharing_mode[0] && reqp->isvnode) {
+			if (vers >= 37) {
 				bufp += OUTPUT(bufp,
-					       ebufp - bufp, "USEWEB=1 ");
+					       ebufp - bufp, "USEWEB=%d ",
+					       useweb);
 			}
 			OUTPUT(bufp, ebufp - bufp,
 			       "DIR=%s TARBALL=%s\n", bp, tp);
