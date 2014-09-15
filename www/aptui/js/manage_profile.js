@@ -121,9 +121,7 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#rspecfile').change(function() {
 		var reader = new FileReader();
 		reader.onload = function(event) {
-		    var content = event.target.result;
-		    var xmlDoc  = $.parseXML(content);
-		    var xml     = $(xmlDoc);
+		    var newrspec = event.target.result;
 
 		    // Allow editing the boxes now that we have an rspec.
 		    $('#profile_instructions').prop("disabled", false);
@@ -133,13 +131,13 @@ function (_, sup, filesize, ShowImagingModal,
 		    $('#showtopo_modal_button').removeClass("invisible");
 		    $('#show_rspec_textarea_button').removeClass("invisible");
 
-		    // Enable submit
-		    ProfileModified();
-
-		    // Stick html into the textarea
-		    $('#profile_rspec_textarea').val(content);
-
-		    ExtractFromRspec(xml);
+		    //
+		    // We do not throw away the old rspec until we parse
+		    // and confirm that the tour section has not been
+		    // lost. We have to do that as a continuation.
+		    //
+		    NewRspecHandler(newrspec,
+				    $('#profile_rspec_textarea').val());
 		};
 		reader.readAsText(this.files[0]);
 	});
@@ -156,18 +154,16 @@ function (_, sup, filesize, ShowImagingModal,
 	    $('#rspec_modal').modal('show');
 	});
 	$('#collapse_rspec_modal_button').click(function (event) {
-	    // Copy back to the plain textarea and kill the modal contents.
-	    // The topo is drawn from the plain textarea. 
-	    $('#profile_rspec_textarea').val(
-		$('#modal_profile_rspec_textarea').val());
 	    $('#rspec_modal').modal('hide');
-	    $('#modal_profile_rspec_textarea').val("");
 
-	    // Update the form.
-	    var xmlDoc  = $.parseXML($('#profile_rspec_textarea').val());
-	    var xml     = $(xmlDoc);
-	    ExtractFromRspec(xml);
-	    ProfileModified();
+	    //
+	    // We do not throw away the old rspec until we parse and
+	    // confirm that the tour section has not been lost. We have
+	    // to do that as a continuation.
+	    //
+	    NewRspecHandler($('#modal_profile_rspec_textarea').val(),
+			    $('#profile_rspec_textarea').val());
+	    $('#modal_profile_rspec_textarea').val("");
 	});
 	// Auto select the URL if the user clicks in the box.
 	$('#profile_url').click(function() {
@@ -276,9 +272,7 @@ function (_, sup, filesize, ShowImagingModal,
 	    if (old_text != "") {
 		ChangeHandlerAux("description");
 	    }
-	    var xmlDoc  = $.parseXML($('#profile_rspec_textarea').val());
-	    var xml     = $(xmlDoc);
-	    ExtractFromRspec(xml);
+	    ExtractFromRspec($('#profile_rspec_textarea').val());
 	}
 	else {
 	    /*
@@ -566,17 +560,64 @@ function (_, sup, filesize, ShowImagingModal,
     }
 
     /*
+     * Before updating the rspec with a new one, make sure that the new
+     * has a tour section, and if not ask the user if it is okay to
+     * use the original tour section. Once we get confirmation, we can
+     * continue with the update.
+     */
+    function NewRspecHandler(newrspec, oldrspec)
+    {
+	var newxmlDoc = $.parseXML(newrspec);
+	var newxml    = $(newxmlDoc);
+	var newtour   = $(newxml).find("rspec_tour");
+	var oldxmlDoc = $.parseXML(oldrspec);
+	var oldxml    = $(oldxmlDoc);
+	var oldtour   = $(oldxml).find("rspec_tour");
+
+	
+	var continuation = function (reuse) {
+	    sup.HideModal('#reuse_tour_modal');
+	    if (reuse) {
+	       $(newxml).find("rspec").prepend($(oldxmlDoc).find("rspec_tour"));
+	       var s = new XMLSerializer();
+	       newrspec = s.serializeToString(newxml[0]);
+	    }
+	    $('#profile_rspec_textarea').val(newrspec);
+	    ExtractFromRspec(newrspec);
+	    ProfileModified();
+	};
+
+	if (!newtour.length && oldtour.length) {
+	    $('#remove_tour_button').click(function (event) {
+		continuation(false);
+	    });
+	    $('#reuse_tour_button').click(function (event) {
+		continuation(true);
+	    });
+	    sup.ShowModal('#reuse_tour_modal');
+	    return;
+	}
+	// Continue with new rspec. 
+	continuation(false);
+    }
+
+    /*
      * We want to look for and pull out the introduction and overview text,
      * and put them into the text boxes. The user can edit them in the
      * boxes. More likely, they will not be in the rspec, and we have to
      * add them to the rspec_tour section.
      */
-    function ExtractFromRspec(xml)
+    function ExtractFromRspec(rspec)
     {
+	var xmlDoc = $.parseXML(rspec);
+	var xml    = $(xmlDoc);
+	
+	$('#profile_description').val("");
 	$(xml).find("rspec_tour > description").each(function() {
 	    var text = $(this).text();
 	    $('#profile_description').val(text);
 	});
+	$('#profile_instructions').val("");
 	$(xml).find("rspec_tour > instructions").each(function() {
 	    var text = $(this).text();
 	    $('#profile_instructions').val(text);

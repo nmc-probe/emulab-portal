@@ -376,6 +376,31 @@
       </div>
     </div>
   </div>
+  <!-- Confirm Tour Reuse -->
+  <div id='reuse_tour_modal' class='modal fade'
+       data-keyboard='false' data-backdrop='static'>
+    <div class='modal-dialog'>
+      <div class='modal-content'>
+	<div class='modal-body'>
+	  <p>
+	    Your new rspec did not include a Tour section. Is it okay to reuse
+	    the tour section from the original rspec, or continue with no
+	    Tour section?
+	  </p>
+	  <br>
+          <center>
+            <button class='btn btn-warning btn-sm'
+		    id='remove_tour_button'
+                    style='margin-right: 10px;'
+		    type='button'>Continue with no Tour</button>
+            <button class='btn btn-primary btn-sm'
+		    id='reuse_tour_button'
+		    type='button'>Reuse Tour</button>
+	  </center>
+	</div>
+      </div>
+    </div>
+  </div>
   <!-- place to hang the modals for now -->
   <div id='showtopomodal_div'></div>
   <div id='waitwait_div'></div>
