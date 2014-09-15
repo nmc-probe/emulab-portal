@@ -55,7 +55,7 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "asguest",       PAGEARG_BOOLEAN,
 				 "formfields",    PAGEARG_ARRAY);
 
-if ($ISAPT) {
+if ($ISAPT && !$this_user) {
     #
     # If user appears to have an account, go to login page.
     # Continue as guest on that page.
@@ -69,7 +69,7 @@ if ($ISAPT) {
 	    ClearRememberedID();
 	}
 	else {
-	    header("Location: login.php");
+	    header("Location: login.php?from=instantiate");
 	}
     }
 }
@@ -194,8 +194,9 @@ else {
 
 function SPITFORM($formfields, $newuser, $errors)
 {
-    global $TBBASE, $APTMAIL;
+    global $TBBASE, $APTMAIL, $ISCLOUD;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
+    $showabout = ($ISCLOUD || !$this_user ? 1 : 0);
 
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
@@ -241,15 +242,23 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "<form id='quickvm_form' role='form'
             enctype='multipart/form-data'
             method='post' action='instantiate.php'>\n";
-    echo "<div class='panel panel-default'>
-           <div class='panel-heading'>
-              <h3 class='panel-title'>
-              Run an Experiment";
+    if (!$this_user) {
+	echo "<div class='panel panel-default'>
+                <div class='panel-heading'>
+                   <h3 class='panel-title'>\n";
+    }
+    else {
+	echo "<h3 style='margin-top: 0px;'>";
+    }
+    echo "<center>Run an Experiment";
     if (isset($profilename)) {
         echo " using profile &quot;$profilename&quot";
     }
-    echo "</h3></div>
-           <div class='panel-body'>\n";
+    echo "</center></h3>\n";
+    if (!$this_user) {
+	echo "   </div>
+	      <div class='panel-body'>\n";
+    }
     
     #
     # If linked to a specific profile, description goes here
@@ -293,10 +302,36 @@ function SPITFORM($formfields, $newuser, $errors)
                           value='" . $formfields["email"] . "'
                           class='form-control'
                           placeholder='Your email address' type='text'>");
-
+    }
+    # We put the ssh stuff in two different places, so make it a function.
+    $spitsshkeystuff = function() use ($formfields, $formatter) {
+	if ($formfields["sshkey"] == "") {
+	    $title_text = "<span class='text-warning'>
+                    No SSH key, browser shell only!<span>";
+	    $expand_text = "Add Key";
+	}
+	else {
+	    $title_text = "<span class='text-info'>
+                    Your SSH key</span>";
+	    $expand_text = "Update";
+	}
+        echo "<div class='form-group row' style='margin-bottom: 0px;'>";
+        echo "  <div class='col-md-12'>
+                  <div class='panel panel-default'>\n";
+        echo "      <div class='panel-heading'>$title_text
+                     <a class='pull-right'
+                        data-toggle='collapse' href='#mysshkey'>
+                      $expand_text</a>\n";
+        echo "      </div>\n";
+	echo "      <div id='mysshkey' class='panel-collapse collapse'>\n";
+        echo "       <div class='panel-body'>";
+	
 	$formatter("keyfile",
 		   "<span class='help-block'>
-                     Optional: Your SSH public key (upload a file or paste it in the text box)</span>".
+                     Upload a file or paste it in the text box. This will ".
+		   "allow you to login using your favorite ssh client. Without ".
+		   "a SSH key, you will be limited to using a shell window in ".
+		   "your browser.</span>".
 		   "<input type=file name='keyfile'>");
 
 	$formatter("sshkey", 
@@ -305,6 +340,15 @@ function SPITFORM($formfields, $newuser, $errors)
                              class='form-control'
                              rows=4 cols=45>" . $formfields["sshkey"] .
                   "</textarea>");
+
+        echo "       </div>";
+        echo "       <div class='clearfix'></div>";
+        echo "      </div>";
+        echo "    </div>";
+        echo "</div></div>"; # End of panel/row.
+    };
+    if (!isset($this_user)) {
+	$spitsshkeystuff();
     }
 
     #
@@ -312,7 +356,7 @@ function SPITFORM($formfields, $newuser, $errors)
     # profile
     #
     if (!isset($profile)) {
-        echo "<div class='form-group row'>";
+        echo "<div class='form-group row' style='margin-bottom: 0px;'>";
         echo "<input id='selected_profile' type='hidden' 
                        name='formfields[profile]'/>";
         echo "<div class='col-md-12'><div class='panel panel-default'>\n";
@@ -337,8 +381,7 @@ function SPITFORM($formfields, $newuser, $errors)
                   </button>";
         echo "<div class='clearfix'></div>";
         echo "</div>";
-        echo "</div></div>"; # End of panel
-
+        echo "</div></div></div>"; # End of panel/row.
     }
     else {
 	echo "<input id='selected_profile' type='hidden'
@@ -349,8 +392,11 @@ function SPITFORM($formfields, $newuser, $errors)
         # Needs more work.
 	echo "<input type='hidden' name='profile' value='$profile'>\n";
     }
+    if (isset($this_user)) {
+	$spitsshkeystuff();	
+    }
 
-    if (isset($this_user) && ISADMIN()) {
+    if (isset($this_user) && (ISADMIN() || STUDLY())) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $selected = "";
@@ -361,21 +407,22 @@ function SPITFORM($formfields, $newuser, $errors)
 		"<option $selected value='$am'>$am</option>\n";
 	}
 	$formatter("where",
-		   "<br><select name=\"formfields[where]\"
+		   "<select name=\"formfields[where]\"
 		              id='profile_where' class='form-control'>".
 		   "$am_options</select>");
     }
     echo "</fieldset>
+           <div class='form-group row'>
            <div class='col-md-6 col-md-offset-3'>
            <button class='btn btn-success btn-block' id='instantiate_submit'
               type='submit' name='create'>Create!
            </button>
            </div>
-        </div>
-        </div>
-        </div>
+           </div>
         </div>\n";
     if (!isset($this_user)) {
+        echo "</div>
+              </div>\n";
 	SpitVerifyModal("verify_modal", "Create");
     
 	if ($newuser) {
@@ -394,14 +441,16 @@ function SPITFORM($formfields, $newuser, $errors)
 	    echo "<input type='hidden' name='stuffing' value='$stuffing' />";
 	}
     }
+    echo "</div>\n";
     echo "</form>\n";
 
     SpitTopologyViewModal("quickvm_topomodal", $profile_array);
     SpitWaitModal("waitwait");
 
     echo "<script type='text/javascript'>\n";
-    echo "    window.PROFILE = '" . $formfields["profile"] . "';\n";
-    echo "    window.AJAXURL = 'server-ajax.php';\n";
+    echo "    window.PROFILE   = '" . $formfields["profile"] . "';\n";
+    echo "    window.AJAXURL   = 'server-ajax.php';\n";
+    echo "    window.SHOWABOUT = $showabout;\n";
     if ($newuser) {
 	echo "window.APT_OPTIONS.isNewUser = true;\n";
     }
@@ -425,6 +474,12 @@ if (!isset($create)) {
     if ($this_user) {
 	$defaults["username"] = $this_user->uid();
 	$defaults["email"]    = $this_user->email();
+	if (1 || $this_user->IsAPT() || $this_user->IsCloud()) {
+	    $sshkeys = $this_user->GetSSHKeys();
+	    if (count($sshkeys)) {
+		$defaults["sshkey"] = $sshkeys[0];
+	    }
+	}
     }
     elseif (isset($_COOKIE['quickvm_user'])) {
 	$geniuser = GeniUser::Lookup("sa", $_COOKIE['quickvm_user']);

@@ -44,9 +44,10 @@ sub usage()
     print "Usage: quickvm -k <uuid>\n";
     print "Usage: quickvm -e <seconds> <uuid>\n";
     print "Usage: quickvm -s <uuid> <sliver_urn> <imagename>\n";
+    print "Usage: quickvm -c <uuid> <sliver_urn>\n";
     exit(1);
 }
-my $optlist = "dkve:u:a:st:f";
+my $optlist = "dkve:u:a:st:fc";
 my $debug   = 0;
 my $verbose = 1;
 my $killit  = 0;
@@ -57,6 +58,7 @@ my $extend;
 my $webtask;
 my $webtask_id;
 my $snapshot;
+my $consoleurl;
 my $foreground = 0;
 my $localuser  = 0;
 my $quickuuid;
@@ -70,6 +72,7 @@ sub Terminate($);
 sub Extend($$);
 sub SnapShot($$$);
 sub GenCredentials($$$$);
+sub ConsoleURL($$);
 
 #
 # Configure variables
@@ -84,6 +87,7 @@ my $SACERT	  = "$TB/etc/genisa.pem";
 my $CMCERT	  = "$TB/etc/genicm.pem";
 my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
 my $SSHSETUP      = "$TB/sbin/aptssh-setup";
+my $ADDPUBKEY     = "$TB/sbin/addpubkey";
 my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $VERSIONING    = @PROFILEVERSIONS@;
 
@@ -131,6 +135,9 @@ if (defined($options{"a"})) {
 if (defined($options{"d"})) {
     $debug = 1;
 }
+if (defined($options{"c"})) {
+    $consoleurl = 1;
+}
 if (defined($options{"v"})) {
     $verbose = 1;
 }
@@ -167,6 +174,12 @@ elsif ($extend) {
 elsif ($snapshot) {
     usage()
 	if (@ARGV != 3);
+    
+    $quickuuid = shift(@ARGV);
+}
+elsif ($consoleurl) {
+    usage()
+	if (@ARGV != 2);
     
     $quickuuid = shift(@ARGV);
 }
@@ -271,6 +284,9 @@ elsif ($extend) {
 elsif ($snapshot) {
     exit(SnapShot($quickuuid, $ARGV[0], $ARGV[1]));
 }
+elsif ($consoleurl) {
+    exit(ConsoleURL($quickuuid, $ARGV[0]));
+}
 
 #
 # Must wrap the parser in eval since it exits on error.
@@ -353,6 +369,8 @@ if (exists($xmlparse->{'attribute'}->{"sshkey"}) &&
 	    UserError("Could not parse ssh key!");
 	}
     }
+    close($fh);
+    unlink($keyfile);
 }
 chomp($sshkey)
     if (defined($sshkey));
@@ -449,6 +467,18 @@ if ($localuser) {
 	if ($?) {
 	    fatal("Could not update ssh keys for nonlocal user");
 	}
+    }
+    elsif (!$emulab_user->isEmulab() && defined($sshkey) &&
+	   !$emulab_user->LookupSSHKey($sshkey)) {
+	$emulab_user->DeleteSSHKeys();
+	my ($fh, $keyfile) = tempfile(UNLINK => 0);
+	print $fh $sshkey;
+
+	if (system("$ADDPUBKEY -u $user_uid -f $keyfile")) {
+	    fatal("Could not add new ssh pubkey");
+	}
+	close($fh);
+	unlink($keyfile);
     }
 }
 elsif (!$localuser && defined($sshkey)) {
@@ -1202,3 +1232,71 @@ sub SnapShot($$$)
   done:
     exit(0);
 }
+
+#
+# Ask for a console URL for a node
+#
+sub ConsoleURL($$)
+{
+    my ($uuid, $sliver_urn) = @_;
+
+    my $instance = APT_Instance->Lookup($uuid);
+    if (! defined($instance)) {
+	fatal("No such quick VM: $uuid");
+    }
+    if (defined($instance->aggregate_urn()) &&
+	$instance->aggregate_urn() ne $CMURN) {
+	$CMURN = $instance->aggregate_urn();
+	
+	$cm_authority = GeniAuthority->Lookup($CMURN);
+	if (!defined($cm_authority)) {
+	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
+	    if (!defined($cm_authority)) {    
+		fatal("Could not load CM authority object");
+	    }
+	}
+    }
+    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
+    if (!defined($geniuser)) {
+	fatal("No creator for quick VM: $uuid");
+    }
+    my $slice = GeniSlice->Lookup($instance->slice_uuid());
+    if (!defined($slice)) {
+	if ($instance->status() eq "failed") {
+	    goto done;
+	}
+	fatal("No slice for quick VM: $uuid");
+    }
+
+    #
+    # Generate credentials we need.
+    #
+    my ($slice_credential, $speaksfor_credential) =
+	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
+    if (! (defined($speaksfor_credential) &&
+	   defined($slice_credential))) {
+	fatal("Could not generate credentials");
+    }
+    my $response =
+	Genixmlrpc::CallMethod($cm_authority->url(), undef,
+			       "ConsoleURL",
+			       { "slice_urn"   => $slice->urn(),
+				 "sliver_urn"  => $sliver_urn,
+				 "credentials" =>
+				     [$slice_credential->asString(),
+				      $speaksfor_credential->asString()]});
+
+    if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	if ($response->code() == GENIRESPONSE_REFUSED) {
+	    UserError($response->output());
+	}
+	fatal("ConsoleURL failed: ".
+	      (defined($response) ? $response->output() : "") . "\n");
+    }
+    my $url = $response->value();
+    AuditAbort();
+    print "$url\n";
+    exit(0);
+}
+
+
