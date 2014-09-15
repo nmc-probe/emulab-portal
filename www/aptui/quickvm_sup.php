@@ -207,7 +207,7 @@ function SPITHEADER($thinheader = 0)
     echo "   </ul>
              <ul class='nav navbar-nav navbar-left apt-left'>
                 <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
-                       href='instantiate.php'>Home</a></form></li>\n";
+                       href='landing.php'>Home</a></form></li>\n";
     if ($ISAPT) {
 	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='http://docs.aptlab.net' target='_blank'>Manual</a></form></li>\n";
@@ -224,6 +224,7 @@ function SPITHEADER($thinheader = 0)
                    <li><a href='myprofiles.php'>My Profiles</a></li>
                    <li><a href='myexperiments.php'>My Experiments</a></li>
                    <li><a href='manage_profile.php'>Create Profile</a></li>
+                   <li><a href='instantiate.php'>Start Experiment</a></li>
                    <li class='divider'></li>
 	           <li><a href='logout.php'>Logout</a></li>";
 	if (ISADMIN()) {

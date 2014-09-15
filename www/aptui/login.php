@@ -25,7 +25,6 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
-include("instance_defs.php");
 $page_title = "Login";
 
 #
@@ -41,6 +40,7 @@ $optargs = OptionalPageArguments("login",       PAGEARG_STRING,
 				 "password",    PAGEARG_PASSWORD,
 				 "refer",       PAGEARG_BOOLEAN,
 				 "referrer",    PAGEARG_STRING,
+				 "from",        PAGEARG_STRING,
 				 "ajax_request",PAGEARG_BOOLEAN);
 				 
 # See if referrer page requested that it be passed along so that it can be
@@ -55,6 +55,16 @@ if (isset($refer) &&
     $referrer = preg_replace("/^http:/i","https:",$referrer);
 } else if (! isset($referrer)) {
     $referrer = null;
+}
+
+#
+# We want to show guest login, when redirected from the landing page
+# or from the instantiate page. APT only.
+#
+$showguestlogin = 0;
+if ($ISAPT && isset($from) &&
+    ($from == "landing" || $from == "instantiate")) {
+    $showguestlogin = 1;
 }
 
 if (NOLOGINS()) {
@@ -78,7 +88,7 @@ if (NOLOGINS()) {
 function SPITFORM($uid, $referrer, $error)
 {
     global $TBDB_UIDLEN, $TBBASE, $refer;
-    global $ISAPT, $ISCLOUD;
+    global $ISAPT, $ISCLOUD, $showguestlogin;
     $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
 	" or Emulab.net Username";
     
@@ -158,7 +168,7 @@ function SPITFORM($uid, $referrer, $error)
                     id='quickvm_geni_login_button'>Geni User?</button>
         <?php
     }
-    if ($ISAPT) {
+    if ($ISAPT && REMEMBERED_ID() && $showguestlogin) {
 	?>
                  <a class='btn btn-info btn-sm pull-left'
 	            href='instantiate.php?asguest=1'
@@ -196,12 +206,7 @@ function SPITFORM($uid, $referrer, $error)
 #
 if (!$ajax_request && !isset($login)) {
     if ($this_user) {
-	if (Instance::UserHasInstances($this_user)) {
-	    header("Location: $APTBASE/myexperiments.php");
-	}
-	else {
-	    header("Location: $APTBASE/instantiate.php");
-	}
+	header("Location: $APTBASE/landing.php");
 	return;
     }
     SPITFORM(REMEMBERED_ID(), $referrer, null);
@@ -275,11 +280,6 @@ elseif (isset($referrer)) {
     header("Location: $referrer");
 }
 else {
-    if (Instance::UserHasInstances($CHECKLOGIN_USER)) {
-	header("Location: $APTBASE/myexperiments.php");
-    }
-    else {
-	header("Location: $APTBASE/instantiate.php");
-    }
+    header("Location: $APTBASE/landing.php");
 }
 ?>
