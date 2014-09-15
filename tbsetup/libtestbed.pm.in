@@ -533,11 +533,11 @@ sub TBValidUserDir($$;$$$)
 	    $sroot = $FSDIR_SCRATCH;
 	}
     } elsif ($WITHAMD) {
-	$uroot = $AMDROOT/$USERROOT;
-	$proot = $AMDROOT/$PROJROOT;
-	$groot = $AMDROOT/$GROUPROOT;
+	$uroot = "$AMDROOT/$USERROOT";
+	$proot = "$AMDROOT/$PROJROOT";
+	$groot = "$AMDROOT/$GROUPROOT";
 	if ($FSDIR_SCRATCH) {
-	    $sroot = $AMDROOT/$SCRATCHROOT;
+	    $sroot = "$AMDROOT/$SCRATCHROOT";
 	}
     } else {
 	$uroot = $USERROOT;
