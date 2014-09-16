@@ -68,7 +68,7 @@ function (_, sup,
 	var signup = signupTemplate({
 	    button_label: buttonLabel,
 	    general_error: (errors.error || ''),
-	    about_account: (ISCLOUD ? null : about),
+	    about_account: (ISCLOUD || thisUser ? null : about),
 	    this_user: thisUser,
 	    joinproject: joinproject,
 	    verify_modal: verify,

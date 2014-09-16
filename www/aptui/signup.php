@@ -76,7 +76,10 @@ function SPITFORM($formfields, $showverify, $errors)
         echo "window.APT_OPTIONS.ShowVerifyModal = true;\n";
     }
     if ($this_user) {
-      echo "window.APT_OPTIONS.this_user = true;\n";
+	echo "window.APT_OPTIONS.this_user = true;\n";
+    }
+    else {
+	echo "window.APT_OPTIONS.this_user = false;\n";
     }
 
     echo "</script>\n";
@@ -89,8 +92,10 @@ function SPITFORM($formfields, $showverify, $errors)
 
 if (isset($finished) && $finished) {
     SPITHEADER(1);
-    echo "Thank you! Stay tuned for email about your request, be sure ".
-	"to set your spam filter to allow email from '@${OURDOMAIN}'.";
+    echo "Thank you! Stay tuned for email notifying you that your account has ".
+	"been activated. Please be sure ".
+	"to set your spam filter to allow all email from '@${OURDOMAIN}' and ".
+	"'@flux.utah.edu'.".
     SPITNULLREQUIRE();
     SPITFOOTER();
     exit(0);
@@ -397,10 +402,20 @@ if (!$this_user) {
     }
 }
 elseif ($joinproject) {
-    $group = $project->LoadDefaultGroup();
+    $isapproved = 0;
+    if ($project->IsMember($this_user, $isapproved)) {
+	$errors["pid"] = "You are already a member of the project! ";
+	if (!$isapproved) {
+	    $errors["pid"] .=
+		"Please wait for your membership to be activated.";
+	}
+	SPITFORM($formfields, 0, $errors);
+	return;
+    }
     if ($project->AddNewMember($this_user) < 0) {
 	TBERROR("Could not add new user to project group $pid", 1);
     }
+    $group = $project->LoadDefaultGroup();
     $group->NewMemberNotify($this_user);
     header("Location: signup.php?finished=1");
     return;
