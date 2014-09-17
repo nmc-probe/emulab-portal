@@ -207,6 +207,49 @@ function Do_RequestExtension()
 }
 
 #
+# Request a console URL and pass back to the status page.
+#
+function Do_ConsoleURL()
+{
+    global $instance, $creator;
+    global $suexec_output_array;
+    global $ajax_args;
+
+    if (!isset($ajax_args["node"])) {
+	SPITAJAX_ERROR(1, "Missing node");
+	return 1;
+    }
+    $node = $ajax_args["node"];
+
+    if (StatusSetupAjax()) {
+	return;
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	return 1;
+    }
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -c $uuid " . escapeshellarg($node),
+		     SUEXEC_ACTION_CONTINUE);
+
+    if ($retval == 0) {
+	$url = $suexec_output_array[0];
+	if (preg_match("/^(https:.*)$/", $url, $matches)) {
+	    $url = $matches[1]; 
+	}
+	SPITAJAX_RESPONSE($url);
+    }
+    elseif ($retval > 0) {
+	SPITAJAX_ERROR(1, $suexec_output);
+    }
+    else {
+	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+    }
+}
+
+#
 # Fire off a snapshot.
 #
 function Do_Snapshot()
