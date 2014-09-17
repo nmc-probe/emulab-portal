@@ -38,7 +38,8 @@ $notifyclone = 0;
 # Get current user.
 #
 RedirectSecure();
-$this_user = CheckLogin($check_status);
+$this_user = CheckLoginOrRedirect();
+$this_idx  = $this_user->uid_idx();
 
 #
 # Verify page arguments.
@@ -49,15 +50,6 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "snapuuid",    PAGEARG_STRING,
 				 "finished",    PAGEARG_BOOLEAN,
 				 "formfields",  PAGEARG_ARRAY);
-
-#
-# The user must be logged in.
-#
-if (!$this_user) {
-    RedirectLoginPage();
-    exit();
-}
-$this_idx = $this_user->uid_idx();
 
 #
 # Spit the form

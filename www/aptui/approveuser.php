@@ -31,7 +31,7 @@ $page_title = "Approve User";
 # Get current user in case we need an error message.
 #
 RedirectSecure();
-$this_user = CheckLogin($check_status);
+$this_user = CheckLoginOrRedirect();
 
 #
 # Verify page arguments.

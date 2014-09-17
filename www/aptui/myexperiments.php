@@ -41,11 +41,8 @@ $optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
 # Get current user.
 #
 RedirectSecure();
-$this_user = CheckLogin($check_status);
-if (!$this_user) {
-    RedirectLoginPage();
-    exit();
-}
+$this_user = CheckLoginOrRedirect();
+
 if (!isset($target_user)) {
     $target_user = $this_user;
 }

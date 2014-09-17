@@ -32,11 +32,7 @@ $page_title = "My Profiles";
 # Get current user.
 #
 RedirectSecure();
-$this_user = CheckLogin($check_status);
-if (!$this_user) {
-    RedirectLoginPage();
-    exit();
-}
+$this_user = CheckLoginOrRedirect();
 SPITHEADER(1);
 
 if (!ISADMIN()) {
