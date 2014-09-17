@@ -177,7 +177,7 @@ sub GetCredential($)
     return GeniResponse->MalformedArgsResponse()
 	if (! (defined($urn) && GeniHRN::IsValid($urn)));
 
-    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    $authority = GeniAuthority->Lookup($ENV{'MYURN'});
     if (!defined($authority)) {
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
