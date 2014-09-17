@@ -1,6 +1,6 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,6 +24,7 @@
 use English;
 use Getopt::Std;
 use BSD::Resource;
+use File::Basename;
 use POSIX qw(:signal_h);
 use strict;
     
@@ -124,17 +125,17 @@ if (!($localfile =~ /^([\w\.\_\-+\/]+)$/)) {
     die("*** $0:\n".
 	"    Illegal local filename given: $localfile\n");
 } else {
-    $localfile = $1;
-    my $realpath = `$REALPATH $localfile`;
+    $localfile   = $1;
+    my $dirname  = dirname($localfile);
+    my $basename = basename($localfile);
+    my $realpath = `$REALPATH $dirname`;
     chomp $realpath;
     if (!TBValidUserDir($realpath, $ISFS)) {
 	die("*** $0:\n".
 	    "    Local file must be in one of " .
 	    join(' or ', TBValidUserDirList()) . ".\n");
     }
-    if ($realpath =~ /^([\w\.\_\-+\/]+)$/) {
-	$localfile = $1;
-    }
+    $localfile = "${realpath}/${basename}";
 }
 
 #

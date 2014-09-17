@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2013 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -121,7 +121,7 @@ static unsigned int ipod_hook_fn(unsigned int hooknum,struct sk_buff *skb,
 static struct nf_hook_ops ipod_hook_ops = {
     .hook = ipod_hook_fn,
     .owner = THIS_MODULE,
-    .hooknum = NF_INET_PRE_ROUTING,
+    .hooknum = NF_INET_LOCAL_IN,
     .pf = PF_INET,
     .priority = NF_IP_PRI_FIRST,
 };
