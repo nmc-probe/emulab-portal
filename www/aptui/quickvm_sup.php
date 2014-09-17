@@ -227,6 +227,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li><a href='manage_profile.php'>Create Profile</a></li>
                    <li><a href='instantiate.php'>Start Experiment</a></li>
                    <li class='divider'></li>
+	           <li><a href='changepswd.php'>Change Password</a></li>
 	           <li><a href='logout.php'>Logout</a></li>";
 	if (ISADMIN()) {
 	    echo " <li class='divider'></li>

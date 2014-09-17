@@ -158,6 +158,10 @@ function SPITFORM($uid, $referrer, $error)
              </div>
              <div class='form-group'>
                <div class='col-sm-offset-2 col-sm-10'>
+                 <a class='btn btn-info btn-sm pull-left'
+		    type='button' href='forgotpswd.php'
+                    style='margin-right: 10px;'>
+                    Forgot Password?</a>
 <?php
     if ($ISCLOUD) {
 	?>
