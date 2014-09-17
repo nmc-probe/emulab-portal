@@ -37,12 +37,14 @@ sub usage()
 {
     print("Usage: manage_instance -s instance [imagename]\n");
     print("Usage: manage_instance -r instance\n");
+    print("Usage: manage_instance -c instance node\n");
     exit(-1);
 }
-my $optlist     = "dsrt:";
+my $optlist     = "dsrt:c";
 my $debug       = 0;
 my $delete      = 0;
 my $snapshot    = 0;
+my $doconsole   = 0;
 my $webtask;
 my $webtask_id;
 my $webtask_delete;
@@ -83,6 +85,7 @@ use WebTask;
 # Protos
 sub fatal($);
 sub DoSnapshot();
+sub DoConsole();
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -94,6 +97,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"s"})) {
     $snapshot = 1;
+}
+if (defined($options{"c"})) {
+    $doconsole = 1;
 }
 if (defined($options{"r"})) {
     $delete = 1;
@@ -121,6 +127,9 @@ if (!defined($instance)) {
 
 if ($snapshot) {
     DoSnapshot();
+}
+elsif ($doconsole) {
+    DoConsole()
 }
 exit(0);
 
@@ -276,7 +285,44 @@ sub DoSnapshot()
 	if ($webtask_delete);
     exit(0);
 }
-exit(0);
+
+#
+# Ask the console URL for a node in an instance.
+#
+sub DoConsole()
+{
+    usage
+	if (!@ARGV);
+    my $node_id = shift(@ARGV);
+    
+    #
+    # Sanity check to make sure the node is really in the rspec, since
+    # we need its sliver urn to ask for the console url.
+    #
+    my $sliver_urn;
+    my $manifest = GeniXML::Parse($instance->manifest());
+    if (! defined($manifest)) {
+	fatal("Could not parse manifest");
+    }
+    my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
+    foreach my $node (@nodes) {
+	my $client_id = GeniXML::GetVirtualId($node);
+	if ($node_id eq $client_id) {
+	    $sliver_urn = GeniXML::GetSliverId($node);
+	}
+    }
+    if (!defined($sliver_urn)) {
+	fatal("Could not find node '$node_id' in manifest");
+    }
+    my $command = "$QUICKVM -c $uuid $sliver_urn";
+    my $output  = emutil::ExecQuiet($command);
+    if ($?) {
+	print STDERR $output;
+	fatal("Failed to get console URL");
+    }
+    print $output;
+    exit(0);
+}
 
 sub fatal($)
 {
