@@ -733,11 +733,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    $(xml).find("node").each(function() {
 		var node   = $(this).attr("client_id");
 		var login  = $(this).find("login");
-		var console= $(this).find("rs:console");
+		var coninfo= $(this).find("console");
 		var href   = "n/a";
 		var ssh    = "n/a";
 		var cons   = "n/a";
-	    
+
 		if (login.length) {
 		    var user   = login.attr("username");
 		    var host   = login.attr("hostname");
@@ -769,8 +769,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		//
 		// Now a button to the console.
 		//
-		if (console.length) {
-		    var cons = "<button class='btn btn-primary btn-sm' " +
+		if (coninfo.length) {
+		    cons = "<button class='btn btn-primary btn-sm' " +
 			"    id='" + "consbutton_" + node + "' " +
 			"    type='button'>" +
 			"   <span class='glyphicon glyphicon-cog'><span>" +
