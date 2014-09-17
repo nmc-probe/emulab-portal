@@ -839,9 +839,9 @@ sub AnnotateManifest($)
 	}
 	GeniXML::SetText("name", $host, $vhostname);
     }
-
+    my $services = GeniXML::FindFirst("n:services", $rspec);
+    
     if ($experiment->HasNonLocalUsers()) {
-	my $services = GeniXML::FindFirst("n:services", $rspec);
 	if (! defined($services)) {
 	    $services = GeniXML::AddElement("services", $rspec);
 	}
@@ -860,6 +860,19 @@ sub AnnotateManifest($)
 	    GeniXML::SetText("port", $login, $sshdport);
 	    GeniXML::SetText("username", $login, $localuser->{"login"});
 	}
+    }
+    my $tipserver = undef;
+    if ($node->TipServer(\$tipserver) == 0 && defined($tipserver)) {
+	if (! defined($services)) {
+	    $services = GeniXML::AddElement("services", $rspec);
+	}
+	my $console = GeniXML::FindNodesNS("n:console", $services,
+					   $GeniXML::EMULAB_NS)->pop();
+	if (defined($console)) {
+	    $services->removeChild($console);
+	}
+	$console = GeniXML::AddElement("console",$services,$GeniXML::EMULAB_NS);
+	GeniXML::SetText("server", $console, $tipserver);
     }
 
     if ($self->UpdateRspec($rspec)) {
