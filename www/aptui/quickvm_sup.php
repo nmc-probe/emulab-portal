@@ -98,7 +98,8 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
     die("");
 };
 
-function SPITHEADER($thinheader = 0)
+$PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
+				 $ignore2 = NULL, $ignore3 = NULL)
 {
     global $TBMAINSITE, $APTTITLE, $FAVICON, $APTLOGO, $APTSTYLE, $ISAPT;
     global $GOOGLEUA, $ISCLOUD;
@@ -226,6 +227,7 @@ function SPITHEADER($thinheader = 0)
                    <li><a href='manage_profile.php'>Create Profile</a></li>
                    <li><a href='instantiate.php'>Start Experiment</a></li>
                    <li class='divider'></li>
+	           <li><a href='changepswd.php'>Change Password</a></li>
 	           <li><a href='logout.php'>Logout</a></li>";
 	if (ISADMIN()) {
 	    echo " <li class='divider'></li>
@@ -244,10 +246,17 @@ function SPITHEADER($thinheader = 0)
     }
     echo " <!-- Page content -->
            <div class='container-fluid'>\n";
+};
+
+function SPITHEADER($thinheader = 0,
+		    $ignore1 = NULL, $ignore2 = NULL, $ignore3 = NULL)
+{
+    global $PAGEHEADER_FUNCTION;
+
+    $PAGEHEADER_FUNCTION($thinheader, $ignore1, $ignore2, $ignore3);
 }
 
-function SPITFOOTER()
-{
+$PAGEFOOTER_FUNCTION = function($ignored = NULL) {
     global $ISAPT;
     $groupname = ($ISAPT ? "apt-users" : "cloudlab-users");
     
@@ -278,6 +287,13 @@ function SPITFOOTER()
       </div>
       <!-- Placed at the end of the document so the pages load faster -->
      </body></html>\n";
+};
+
+function SPITFOOTER($ignored = null)
+{
+    global $PAGEFOOTER_FUNCTION;
+
+    $PAGEFOOTER_FUNCTION($ignored);
 }
 
 function SPITUSERERROR($msg)
@@ -306,11 +322,16 @@ function SPITAJAX_ERROR($code, $msg)
     echo json_encode($results);
 }
 
-function SPITNULLREQUIRE()
+function SPITREQUIRE($main)
 {
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
     echo "<script src='js/lib/bootstrap.js'></script>\n";
-    echo "<script src='js/lib/require.js' data-main='js/null'></script>\n";
+    echo "<script src='js/lib/require.js' data-main='js/$main'></script>\n";
+}
+
+function SPITNULLREQUIRE()
+{
+    SPITREQUIRE("main");
 }
 
 #
@@ -504,6 +525,12 @@ function SpitWaitModal($id)
             </div>
             </div>
          </div>\n";
+    ?>
+	<script>
+	function ShowWaitModal(name) { $('#' + name).modal('show'); }
+	function HideWaitModal(name) { $('#' + name).modal('hide'); }
+	</script>
+    <?php
 }
 
 #
@@ -654,6 +681,21 @@ function RedirectLoginPage()
     header("Location: login.php?referrer=".
 	   urlencode($_SERVER['REQUEST_URI']));
     
+}
+
+#
+# Check the login and redirect to login page.
+#
+function CheckLoginOrRedirect()
+{
+    RedirectSecure();
+    
+    $check_status = 0;
+    $this_user    = CheckLogin($check_status);
+    if (! ($check_status & CHECKLOGIN_LOGGEDIN)) {
+	RedirectLoginPage();
+    }
+    return $this_user;
 }
 
 ?>

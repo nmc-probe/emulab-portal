@@ -31,7 +31,7 @@ $dblink = GetDBLink("sa");
 #
 # Get current user.
 #
-$this_user = CheckLogin($check_status);
+$this_user = CheckLoginOrRedirect();
 
 #
 # Verify page arguments.

@@ -1149,8 +1149,8 @@ function FINISHSIDEBAR($nocontent = 0)
 #
 # Spit out a vanilla page header.
 #
-function PAGEHEADER($title, $view = NULL, $extra_headers = NULL,
-		    $notice = NULL) {
+$PAGEHEADER_FUNCTION = function($title, $view = NULL, $extra_headers = NULL,
+				$notice = NULL) {
     global $login_status, $login_user;
     global $TBBASE, $TBDOCBASE, $THISHOMEBASE;
     global $BASEPATH, $drewheader, $autorefresh;
@@ -1318,12 +1318,19 @@ function PAGEHEADER($title, $view = NULL, $extra_headers = NULL,
     if (VIEWSET($view, 'show_topbar', "plab")) {
 	WRITEPLABTOPBAR();
     }
+};
+
+function PAGEHEADER($title, $view = NULL, $extra_headers = NULL,
+			$notice = NULL) {
+    global $PAGEHEADER_FUNCTION;
+    
+    $PAGEHEADER_FUNCTION($title, $view, $extra_headers, $notice);
 }
 
 #
 # Spit out a vanilla page footer.
 #
-function PAGEFOOTER($view = NULL) {
+$PAGEFOOTER_FUNCTION = function($view = NULL) {
     global $TBDOCBASE, $TBMAILADDR, $THISHOMEBASE, $BASEPATH, $TBBASE;
     global $TBMAINSITE, $bodyclosestring, $currently_busy;
     global $login_user, $javascript_debug, $sortedtables;
@@ -1457,6 +1464,12 @@ function PAGEFOOTER($view = NULL) {
 	echo "</div>\n";
     }
     echo "</body></html>\n";
+};
+
+function PAGEFOOTER($view = NULL) {
+    global $PAGEFOOTER_FUNCTION;
+    
+    $PAGEFOOTER_FUNCTION($view);
 }
 
 define("HTTP_400_BAD_REQUEST", 400);

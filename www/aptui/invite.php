@@ -30,22 +30,14 @@ include("quickvm_sup.php");
 # Get current user.
 #
 RedirectSecure();
-$this_user = CheckLogin($check_status);
+$this_user = CheckLoginOrRedirect();
+$this_idx  = $this_user->uid_idx();
 
 #
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("invite",       PAGEARG_STRING,
 				 "formfields",   PAGEARG_ARRAY);
-
-#
-# The user must be logged in.
-#
-if (!$this_user) {
-    RedirectLoginPage();
-    exit();
-}
-$this_idx = $this_user->uid_idx();
 
 #
 # Spit the form
