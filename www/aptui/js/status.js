@@ -640,7 +640,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// Trigger the custom event.
 		$("#" + tabname).trigger("killssh");
 		// remove the li from the ul.
-		$(this).parent().remove();
+		$(this).parent().parent().remove();
 		// Remove the content div.
 		$("#" + tabname).remove();
 		// Activate the "profile" tab.
@@ -733,8 +733,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    $(xml).find("node").each(function() {
 		var node   = $(this).attr("client_id");
 		var login  = $(this).find("login");
+		var console= $(this).find("rs:console");
 		var href   = "n/a";
 		var ssh    = "n/a";
+		var cons   = "n/a";
 	    
 		if (login.length) {
 		    var user   = login.attr("username");
@@ -764,9 +766,28 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 						NewSSHTab(hostport, node);
 					    });
 		}
+		//
+		// Now a button to the console.
+		//
+		if (console.length) {
+		    var cons = "<button class='btn btn-primary btn-sm' " +
+			"    id='" + "consbutton_" + node + "' " +
+			"    type='button'>" +
+			"   <span class='glyphicon glyphicon-cog'><span>" +
+			"  </button>";
+
+		    // Use this to attach handlers to things that do not
+		    // exist in the dom yet.
+		    $('#listview_table').off('click', '#consbutton_' + node);
+		    $('#listview_table').on('click',
+					    '#consbutton_' + node, function () {
+						NewConsoleTab(node);
+					    });
+		}
+		// and the table row.
 		$('#listview_table > tbody:last').append(
 		    '<tr><td>' + node + '</td><td>' + ssh + '</td><td>' +
-			href + '</td></tr>'
+			href + '</td><td>' + cons + '</td></tr>'
 		);
 		nodecount++;
 	    });
@@ -862,6 +883,105 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					    "status",
 					    "SnapShot",
 					    {"uuid" : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
+    // User clicked on a node, so we want to create a tab to hold
+    // the ssh tab with a panel in it, and then call StartSSH above
+    // to get things going.
+    //
+    function NewConsoleTab(client_id)
+    {
+	sup.ShowModal('#waitwait-modal');
+
+	var callback = function(json) {
+	    sup.HideModal('#waitwait-modal');
+	    
+	    if (json.code) {
+		sup.SpitOops("oops", "Could not start console: " + json.value);
+		return;
+	    }
+	    var url = json.value + '&noclose=1';
+
+	    //
+	    // Need to create the tab before we can create the topo, since
+	    // we need to know the dimensions of the tab.
+	    //
+	    var tabname = client_id + "console_tab";
+	    if (! $("#" + tabname).length) {
+		// The tab.
+		var html = "<li><a href='#" + tabname + "' data-toggle='tab'>" +
+		    client_id + "-Cons" +
+		    "<button class='close' type='button' " +
+		    "        id='" + tabname + "_kill'>x</button>" +
+		    "</a>" +
+		    "</li>";	
+
+		// Append to end of tabs
+		$("#quicktabs_div ul").append(html);
+
+		// Install a kill click handler for the X button.
+		$("#" + tabname + "_kill").click(function(e) {
+		    e.preventDefault();
+		    // remove the li from the ul. this=ul.li.a.button
+		    $(this).parent().parent().remove();
+		    // Activate the "profile" tab.
+		    $('#quicktabs li a:first').tab('show');
+		    // Trigger the custom event.
+		    $("#" + tabname).trigger("killconsole");
+		    // Remove the content div. Have to delay this though.
+		    // See below.
+		    setTimeout(function(){ $("#" + tabname).remove() }, 3000);
+		});
+
+		// The content div.
+		html = "<div class='tab-pane' id='" + tabname + "'></div>";
+
+		$("#quicktabs_content").append(html);
+
+		// And make it active
+		$('#quicktabs a:last').tab('show') // Select last tab
+
+		// Now create the console iframe inside the new tab
+		var iwidth = "100%";
+		var iheight = 400;
+
+		$('#' + tabname).html('<iframe id="' + tabname + '_iframe" ' +
+				      'width=' + iwidth + ' ' +
+				      'height=' + iheight + ' ' +
+				      'src=\'' + url + '\'>');
+	    
+		//
+		// Setup a custom event handler so we can kill the connection.
+		// Called from the kill click handler above.
+		//
+		// Post a kill message to the iframe. See nodetipacl.php3.
+		// Since postmessage is async, we have to wait before we
+		// can actually kill the content div with the iframe, cause
+		// its gone before the message is delivered. Just delay a
+		// couple of seconds. Maybe add a reply message later. The
+		// delay is above. 
+		//
+		var sendkillmessage = function (event) {
+		    var iframe = $('#' + tabname + '_iframe')[0];
+		    iframe.contentWindow.postMessage("kill!", "*");
+		};
+		// This is the handler for the button, which invokes
+		// the function above.
+		$('#' + tabname).on("killconsole", sendkillmessage);
+	    }
+	    else {
+		// Switch back to it.
+		$('#quicktabs a[href="#' + tabname + '"]').tab('show');
+		return;
+	    }
+	}
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "ConsoleURL",
+					    {"uuid" : uuid,
+					     "node" : client_id});
 	xmlthing.done(callback);
     }
 
