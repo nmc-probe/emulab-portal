@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2009 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -214,7 +214,8 @@ sub UpdateField {
 	if ($Status ne $val) {
 	    print "Setting $port to $val..." if $self->{DEBUG};
 	    $retval = $self->{SESS}->set([[$OID,$port,$val,"INTEGER"]]);
-	    print "Set returned '$retval'" if $self->{DEBUG};
+	    $retval = "" if (!defined($retval));
+	    print "Set returned '$retval'\n" if $self->{DEBUG};
 	    if ($retval) { return 0; } else { return 1; }
 	}
 	return 0;
