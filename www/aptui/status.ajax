@@ -151,15 +151,11 @@ function Do_GetSSHAuthObject()
 #
 function Do_RequestExtension()
 {
-    global $instance, $creator;
+    global $instance, $creator, $this_user;
     global $ajax_args;
     global $TBMAIL_OPS, $APTMAIL;
-
-    if (!isset($ajax_args["reason"])) {
-	SPITAJAX_ERROR(1, "Missing reason");
-	return 1;
-    }
-    $reason = $ajax_args["reason"];
+    $howlong = 3600 * 24;
+    $reason  = "";
 
     if (StatusSetupAjax()) {
 	return;
@@ -170,15 +166,42 @@ function Do_RequestExtension()
 	SPITAJAX_ERROR(1, "no slice for instance");
 	return 1;
     }
-    # Only extend for 24 hours. More later.
     $expires_time = strtotime($slice->expires());
-    if ($expires_time > time() + (3600 * 24)) {
-	sleep(2);
-	SPITAJAX_ERROR(1, "You still have lots of time left!");
-	return;
+
+    if (ISADMIN()) {
+	if (!isset($ajax_args["howlong"]) || $ajax_args["howlong"] == "") {
+	    SPITAJAX_ERROR(1, "Missing number of days");
+	    return 1;
+	}
+	$howlong = $ajax_args["howlong"];
+	if (! preg_match("/^\d+$/", $howlong)) {
+	    SPITAJAX_ERROR(1, "Invalid characters in days");
+	    return 1;
+	}
+	if ($howlong < 1 || $howlong > 365) {
+	    SPITAJAX_ERROR(1, "Must be an integer 1 <= days <= 365");
+	    return 1;
+	}
+	$howlong = $howlong * (3600 * 24);
+	$reason  = "Extended by site administrator";
+    }
+    else {
+	if (!isset($ajax_args["reason"]) || $ajax_args["reason"] == "") {
+	    SPITAJAX_ERROR(1, "Missing reason");
+	    return 1;
+	}
+	$reason  = $ajax_args["reason"];
+	$howlong = 3600 * 24;
+
+        # Only extend for 24 hours. More later.
+	if ($expires_time > time() + $howlong) {
+	    sleep(2);
+	    SPITAJAX_ERROR(1, "You still have lots of time left!");
+	    return;
+	}
     }
     $retval = SUEXEC("nobody", "nobody",
-		     "webquickvm -e " . 3600 * 24 . " $uuid",
+		     "webquickvm -e $howlong $uuid",
 		     SUEXEC_ACTION_CONTINUE);
 
     if ($retval == 0) {

@@ -16,11 +16,20 @@
 	       style='padding-right:20px; border-right: 1px solid #ccc;'
 	  <% } %>
 	  >
-            <h4>Extend for 24 hours</h4>
-            If you need to keep these resources for longer, tell
-            us why and we'll extend it for another 24 hours.
-	    Watch for a confirmation message via email.
             <form id='extend_request_form' role='form'>
+	  <% if (isadmin) { %>
+	      <center><h4>How many Days? Default is 24 hours</h4></center>
+              <div class='row'>
+                <div class='col-sm-2 col-sm-offset-5'>
+		  <input id='howlong_extend' type='text'
+                         class='form-control'>
+		</div>
+	      </div>
+	  <% } else { %>
+              <h4>Extend for 24 hours</h4>
+              If you need to keep these resources for longer, tell
+              us why and we'll extend it for another 24 hours.
+	      Watch for a confirmation message via email.
               <div class='row'>
                 <div class='col-lg-12 col-md-12'>
                   <textarea id='why_extend' name='why_extend'
@@ -34,10 +43,11 @@
 	      <span style="font:normal 11px sans-serif;color:#B00400;">
 		<span id='extend_counter_msg'>&nbsp</span>
 	      </span>
-	      <br>
-              <button class='btn btn-primary btn-sm align-center'
-	              id='request-extension'
-                      type='submit' name='request'>Request Extension</button>
+	  <% } %>
+	    <br>
+            <button class='btn btn-primary btn-sm align-center'
+	            id='request-extension'
+                    type='submit' name='request'>Request Extension</button>
             </form>
           </div>
 	  <% if (! registered) { %>

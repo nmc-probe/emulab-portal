@@ -20,6 +20,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var ajaxurl     = null;
     var uuid        = null;
     var oneonly     = 0;
+    var isadmin     = 0;
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
@@ -36,6 +37,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	ajaxurl = window.APT_OPTIONS.AJAXURL;
 	uuid    = window.APT_OPTIONS.uuid;
 	oneonly = window.APT_OPTIONS.oneonly;
+	isadmin = window.APT_OPTIONS.isadmin;
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 
 	// Generate the templates.
@@ -48,6 +50,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    creatorUid:		window.APT_OPTIONS.creatorUid,
 	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
 	    registered:		window.APT_OPTIONS.registered,
+	    isadmin:            window.APT_OPTIONS.isadmin,
 	    // The status panel starts out collapsed.
 	    status_panel_show:  (instanceStatus == "ready" ? false : true),
 	};
@@ -513,11 +516,18 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     function RequestExtension(uuid)
     {
-	var reason = $("#why_extend").val();
-//	console.info(reason);
-	if (reason.length < 30) {
-	    alert("Your reason is too short! Say more please.");
-	    return;
+	var reason  = "";
+	var howlong = "";
+
+	if (isadmin) {
+	    howlong = $("#howlong_extend").val();
+	}
+	else {
+	    reason = $("#why_extend").val();
+	    if (reason.length < 100) {
+		alert("Your reason is too short! Say more please.");
+		return;
+	    }
 	}
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
@@ -547,7 +557,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					    "status",
 					    "RequestExtension",
 					    {"uuid"   : uuid,
-					      "reason" : reason});
+					     "howlong": howlong,
+					     "reason" : reason});
 	xmlthing.done(callback);
     }
 	
