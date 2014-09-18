@@ -1138,11 +1138,14 @@ dolinux() {
 		getty="/mnt/etc/init/ttyS0"
 		if [ -e "$getty.conf" ]; then
 		    cp -p $getty.conf $getty.conf.preemulab
-		    sed -E -i '' -e "s/ttyS. [0-9]+/ttyS$u $s/" $getty.conf
+		    # XXX wtf, apparently port/baud can be in either order
+		    #     helluva way to run a command line...
+		    sed -E -i '' -e "s/ttyS. [0-9]+ /ttyS$u $s /" -e "s/[0-9]+ ttyS. /$s ttyS$u /" $getty.conf
 		elif [ -e "$getty.conf.preemulab" ]; then
 		    # we previously moved it out of the way
 		    cp -p $getty.conf.preemulab $getty.conf
-		    sed -E -i '' -e "s/ttyS. [0-9]+/ttyS$u $s/" $getty.conf
+		    # XXX see previous wtf
+		    sed -E -i '' -e "s/ttyS. [0-9]+ /ttyS$u $s /" -e "s/[0-9]+ ttyS. /$s ttyS$u /" $getty.conf
 		fi
 
 		# or inittab
