@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2003-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -244,7 +244,8 @@ main(int argc, char **argv)
 	 * event system calls.
 	 */
 	if (!debug) {
-		daemon(0, 0);
+		if (daemon(0, 0))
+			fatal("could not daemonize");
 		loginit(0, "/var/emulab/logs/evproxy.log");
 	}
 	

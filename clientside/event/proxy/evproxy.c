@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2003-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -80,7 +80,6 @@ main(int argc, char **argv)
 	char			*port = NULL;
 	char			*myeid = NULL;
 	char			*pidfile = NULL;
-	char			*vnodeid = NULL;
 	char			buf[BUFSIZ], ipaddr[32];
 	char			hostname[MAXHOSTNAMELEN];
 	struct hostent		*he;
@@ -108,7 +107,7 @@ main(int argc, char **argv)
 			myeid = optarg;
 			break;
 		case 'v':
-			vnodeid = optarg;
+			fprintf(stderr, "WARNING: -v option ignored\n");
 			break;
 		default:
 			usage(progname);
@@ -154,8 +153,8 @@ main(int argc, char **argv)
 	/*
 	 * XXX Need to daemonize earlier or the threads go away.
 	 */
-	if (!debug)
-		daemon(0, 0);
+	if (!debug && daemon(0, 0))
+		fatal("could not daemonize");
 	
 	/*
 	 * Convert server/port to elvin thing.
