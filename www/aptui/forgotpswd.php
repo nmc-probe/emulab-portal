@@ -120,7 +120,7 @@ function SPITFORM($username, $email, $errors)
 # If not clicked, then put up a form.
 #
 if (!isset($reset)) {
-    SPITFORM(array(), null);
+    SPITFORM("", "", null);
     return;
 }
 
