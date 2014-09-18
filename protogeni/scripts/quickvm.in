@@ -31,7 +31,7 @@ use strict;
 use English;
 use Getopt::Std;
 use XML::Simple;
-use File::Temp qw(tempfile);
+use File::Temp qw(tempfile :POSIX );
 use Data::Dumper;
 use Cwd qw(realpath);
 
@@ -89,6 +89,7 @@ my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
 my $SSHSETUP      = "$TB/sbin/aptssh-setup";
 my $ADDPUBKEY     = "$TB/sbin/addpubkey";
 my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
+my $GENEXTENDCRED = "$TB/sbin/protogeni/genextendcred";
 my $VERSIONING    = @PROFILEVERSIONS@;
 
 # un-taint path
@@ -803,10 +804,7 @@ sub Terminate($)
     }
     my $slice = GeniSlice->Lookup($instance->slice_uuid());
     if (!defined($slice)) {
-	if ($instance->status() eq "failed") {
-	    goto done;
-	}
-	fatal("No slice for quick VM: $uuid");
+	goto killit;
     }
     #
     # Generate credentials we need.
@@ -887,6 +885,7 @@ sub Terminate($)
     $slice->Delete();
   done:
     $instance->RecordHistory();
+  killit:
     $instance->Delete();
     exit(0);
 }
@@ -921,10 +920,31 @@ sub Extend($$)
     my $slice = GeniSlice->Lookup($instance->slice_uuid());
     if (!defined($slice)) {
 	if ($instance->status() eq "failed") {
-	    goto done;
+	    fatal("Cannot extend failed instance!");
 	}
 	fatal("No slice for quick VM: $uuid");
     }
+    my $slice_urn  = $slice->urn();
+    my $user_urn   = $geniuser->urn();
+    my $oldexpires = $slice->expires();
+
+    #
+    # We need a special credentential in case the aggregate is enforcing
+    # limits (as do Utah aggregates).
+    #
+    my $extcred  = "";
+    my $credname = tmpnam();
+    system("$GENEXTENDCRED -a -o $credname -s $slice_urn -u $user_urn -t 90");
+    if ($?) {
+	fatal("Could not create extended credential");
+    }
+    open(EXT, $credname) or fatal("Could not open ext credfile $credname");
+    while (<EXT>) {
+	$extcred .= $_;
+    }
+    close(EXT);
+    unlink($credname);
+    chomp($extcred);
 
     # Need to update slice before creating new credential. 
     $slice->AddToExpiration($extend);
@@ -937,6 +957,7 @@ sub Extend($$)
 	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
     if (! (defined($speaksfor_credential) &&
 	   defined($slice_credential))) {
+	$slice->SetExpiration($oldexpires);
 	fatal("Could not generate credentials");
     }
     my $response =
@@ -946,16 +967,17 @@ sub Extend($$)
 				 "expiration" => $new_expires,
 				 "credentials" =>
 				     [$slice_credential->asString(),
-				      $speaksfor_credential->asString()]});
+				      $speaksfor_credential->asString(),
+				      $extcred]});
 
     if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	$slice->SetExpiration($oldexpires);
 	if ($response->code() == GENIRESPONSE_REFUSED) {
 	    UserError($response->output());
 	}
 	fatal("RenewSlice failed: ".
 	      (defined($response) ? $response->output() : "") . "\n");
     }
-    $slice->SetExpiration($new_expires);
     exit(0);
 }
 
