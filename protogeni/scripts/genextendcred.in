@@ -37,7 +37,7 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print "Usage: $0 -t <days> [-e <days>] -s <slice> ".
+    print "Usage: $0 [-o filename] -t <days> [-e <days>] -s <slice> ".
 	"[-u <user> | -c <cert>]";
     print "\n";
     print "       $0 -t <days> [-e <days>] -u <user> | -c <cert>\n";
@@ -49,10 +49,13 @@ sub usage()
     print "  -c    - Issue to user via his public certificate\n";
     print "  -t    - How many days to allow extension for\n";
     print "  -e    - How many days before credential expires; default 5 days\n";
+    print "  -o    - Output to file instead of STDOUT\n";
+    print "  -a    - Use SA database instead of CM\n";
     exit(1);
 }
-my $optlist = "t:s:u:c:e:";
+my $optlist = "t:s:u:c:e:o:a";
 my $expires = 5;
+my $filename;
 my $slice_urn;
 my $user_urn;
 my $user_cert;
@@ -71,9 +74,6 @@ use GeniHRN;
 use GeniResponse;
 use GeniUser;
 use GeniSlice;
-
-# Connect to the proper DB.
-DBConnect(GENICM_DBNAME());
 
 sub fatal($)
 {
@@ -99,7 +99,9 @@ my $numdays = $options{"t"};
 if (defined($options{"e"})) {
     $expires = $options{"e"};
 }
-
+if (defined($options{"o"})) {
+    $filename = $options{"o"};
+}
 if (defined($options{"s"})) {
     $slice_urn = $options{"s"};
 }
@@ -109,6 +111,9 @@ if (defined($options{"u"})) {
 elsif (defined($options{"c"})) {
     $user_cert = $options{"c"};
 }
+
+# Connect to the proper DB.
+DBConnect((defined($options{"a"}) ? GENISA_DBNAME() : GENICM_DBNAME()));
 
 #
 # Load the CM cert to act as the signer.
@@ -197,7 +202,14 @@ $credential->AddExtension($policy_excep);
 
 fatal("Could not sign credential")
     if ($credential->Sign($GeniCredential::LOCALCM_FLAG));
-print $credential->{'string'};
+if (defined($filename)) {
+    open(OUT, ">$filename") or fatal("Could not open $filename: $!");
+    print OUT $credential->{'string'} . "\n";
+    close(OUT);
+}
+else {
+    print $credential->{'string'};
+}
 
 exit(0);
 
