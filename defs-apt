@@ -114,8 +114,9 @@ OPSVM_ENABLE=0
 MIN_UNIX_UID=2000
 MIN_UNIX_GID=2000
 
-# Which console to use in the MFS. We need to set this for GeniRacks.
-NODECONSOLE="vga"
+# Which console to use in pxeboot and the MFSes.
+NODECONSOLE="sio2"
+
 # Which version of the MFS.
 MFSVERSION="82"
 PROTOGENI_SUPPORT=1
