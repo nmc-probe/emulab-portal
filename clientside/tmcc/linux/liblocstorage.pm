@@ -61,6 +61,7 @@ my $MKFS	= "/sbin/mke2fs";
 my $FSCK	= "/sbin/e2fsck";
 my $DOSTYPE	= "$BINDIR/dostype";
 my $ISCSI	= "/sbin/iscsiadm";
+my $ISCSI_ALT	= "/usr/bin/iscsiadm";
 my $SMARTCTL	= "/usr/sbin/smartctl";
 my $BLKID	= "/sbin/blkid";
 
@@ -537,8 +538,11 @@ sub os_init_storage($)
 
     if ($gotiscsi) {
 	if (! -x "$ISCSI") {
-	    warn("*** storage: $ISCSI does not exist, cannot continue\n");
-	    return undef;
+	    if (! -x "$ISCSI_ALT") {
+		warn("*** storage: $ISCSI does not exist, cannot continue\n");
+		return undef;
+	    }
+	    $ISCSI = $ISCSI_ALT;
 	}
 	#
 	# XXX don't grok the Ubuntu startup, so...
