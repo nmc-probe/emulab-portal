@@ -135,7 +135,7 @@ postprocessing()
 	cd ${projdir}/$host
 	# save what tmcc says right now
 	$($BINDIR/tmcc hwinfo > ${projdir}/$host/.tmcc/$timestamp)
-	ln -s .tmcc/$timestamp ${projdir}/$host/tmcc
+	ln -sf .tmcc/$timestamp ${projdir}/$host/tmcc
 	cd $owd
 
     # remove old symlinks and make new ones
@@ -144,7 +144,6 @@ postprocessing()
 	[[ -L $host ]] && rm -f $host #this should be a symlink
 	[[ -L node ]] && rm -f node #this should be a symlink
 	[[ -L full ]] && rm -f full #another symlink
-	[[ -L tmcc ]] && rm -f tmcc #another symlink
 	[[ -L diff ]] && rm -f diff #another symlink
 	ln -s .tbdb/${timestamp} ${projdir}/$host/$host
 	ln -s .tbdb/${timestamp} ${projdir}/$host/node
@@ -159,7 +158,7 @@ postprocessing()
 	cd ${projdir}/$host
 	# save what tmcc says right now
 	$($BINDIR/tmcc hwinfo > ${projdir}/$host/.tmcc/$timestamp)
-	ln -s .tmcc/$timestamp ${projdir}/$host/tmcc
+	ln -sf .tmcc/$timestamp ${projdir}/$host/tmcc
 	cd $owd
 
         # Test what was found locally against what is in the database
