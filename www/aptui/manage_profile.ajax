@@ -140,6 +140,7 @@ function Do_DeleteProfile()
 	# is deleted. 
 	#
 	SPITAJAX_RESPONSE("myprofiles.php");
+	return;
     }
     $uuid = $profile->uuid();
     SPITAJAX_RESPONSE("manage_profile.php?uuid=$uuid&action=edit");

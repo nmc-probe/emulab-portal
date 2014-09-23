@@ -129,7 +129,7 @@ function (_, sup, filesize, ShowImagingModal,
 
 		    // Show the hidden buttons (in new profile mode)
 		    $('#showtopo_modal_button').removeClass("invisible");
-		    $('#show_rspec_textarea_button').removeClass("invisible");
+		    $('#show_rspec_modal_button').removeClass("invisible");
 
 		    //
 		    // We do not throw away the old rspec until we parse
@@ -150,6 +150,8 @@ function (_, sup, filesize, ShowImagingModal,
 	    ShowRspecTopo($('#profile_rspec_textarea').val());
 	});
 	$('#show_rspec_modal_button').click(function (event) {
+	    // Sync up the steps when toggling the edit button.
+	    SyncSteps();
 	    $('#modal_profile_rspec_textarea').val(
 		$('#profile_rspec_textarea').val());
 	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
@@ -174,13 +176,6 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#profile_url').click(function() {
 	    $(this).focus();
 	    $(this).select();
-	});
-
-	//
-	// Sync up the steps when toggling the edit button.
-	//
-	$('#show_rspec_textarea_button').click(function (event) {
-	    SyncSteps();
 	});
 
 	//
@@ -316,11 +311,29 @@ function (_, sup, filesize, ShowImagingModal,
 	}
 	else {
 	    EnableButtons();
+	    modified = false;
 	    DisableButton("profile_submit_button");
 	    if (window.UPDATED) {
 		initNotifyUpdate();
 	    }
 	}
+    }
+
+    //
+    // Gack, initializing the steps table causes the ProfileModified
+    // callbacks to get triggered, which is fine except that when the
+    // page is first loaded, it happens AFTER the above initialize()
+    // function has finished. How the hell is that? Anyway, this kludge
+    // makes sure we start with the profile not appearin modified.
+    //
+    var initialized = false;
+    function StepsTableLoaded()
+    {
+	if (!initialized) {
+	    modified = false;
+	    DisableButton("profile_submit_button");
+	}
+	initialized = true;
     }
 
     // Formatter for the form. This did not work out nicely at all!
@@ -413,6 +426,7 @@ function (_, sup, filesize, ShowImagingModal,
 		hideButtons: {
 		    removeLast: true
 		},
+		dataLoaded: function (caller) { StepsTableLoaded(); },
 		columns: [
                     { name: 'Type', display: 'Type', type: 'select',
 		      ctrlAttr: { maxlength: 100 },
