@@ -624,7 +624,15 @@ function (_, sup, filesize, ShowImagingModal,
      */
     function ExtractFromRspec(rspec)
     {
-	var xmlDoc = $.parseXML(rspec);
+	var xmlDoc;
+
+	try {
+	    xmlDoc = $.parseXML(rspec);
+	}
+	catch(err) {
+	    alert("Could not parse XML!");
+	    return -1;
+	}
 	var xml    = $(xmlDoc);
 	
 	$('#profile_description').val("");
