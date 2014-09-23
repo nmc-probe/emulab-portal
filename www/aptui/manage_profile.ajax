@@ -113,7 +113,7 @@ function Do_DeleteProfile()
 	SPITAJAX_ERROR(1, "Not allowed to delete non-head version");
 	return;
     }
-    if ($profile->published()) {
+    if ($profile->published() && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Not allowed to delete a published version");
 	return;
     }

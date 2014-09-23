@@ -487,7 +487,7 @@ sub DeleteProfile($)
     #
     # Not allowed to delete a published profile, yet. Needs thought.
     #
-    if (defined($profile->published())) {
+    if (defined($profile->published()) && !$this_user->IsAdmin()) {
 	UserError("Not allowed to delete a published profile");
     }
     if (!$profile->IsHead()) {

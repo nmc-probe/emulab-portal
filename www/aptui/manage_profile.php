@@ -72,7 +72,8 @@ function SPITFORM($formfields, $errors)
 	$viewing      = 1;
 	$version_uuid = "'" . $profile->uuid() . "'";
 	$profile_uuid = "'" . $profile->profile_uuid() . "'";
-	$candelete    = ($profile->IsHead() && !$profile->published() ? 1 : 0);
+	$candelete    = ($profile->IsHead() &&
+			 (!$profile->published() || ISADMIN()) ? 1 : 0);
 	$history      = ($profile->HasHistory() ? 1 : 0);
 	$canmodify    = ($profile->CanModify() ? 1 : 0);
 	$canpublish   = ($profile->CanPublish() ? 1 : 0);

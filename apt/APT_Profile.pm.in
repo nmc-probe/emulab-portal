@@ -484,8 +484,8 @@ sub Delete($$)
     
     if ($purge) {
 	goto bad
-	    if (! QueryWarn("delete from apt_profile_versions ".
-			    "where profileid='$profileid'"));
+	    if (! DBQueryWarn("delete from apt_profile_versions ".
+			      "where profileid='$profileid'"));
     }
     else {
 	# Set deleted on all of the versions.
