@@ -508,7 +508,8 @@ function (_, sup, filesize, ShowImagingModal,
 	// Write it back to the text area.
 	var s = new XMLSerializer();
 	var str = s.serializeToString(xml[0]);
-	console.log(str);
+	console.info("SyncSteps");
+	console.info(str);
 	$('#profile_rspec_textarea').val(str);
 	return 0;
     }
@@ -531,8 +532,7 @@ function (_, sup, filesize, ShowImagingModal,
 	// Add the tour section (if needed).
 	xml = AddTourSection(xml);
 
-	var tour = $(xml).find("rspec_tour");
-	var sub  = $(tour).find(which);
+	var sub = $(xml).find("rspec_tour > " + which);
 	if (!sub.length) {
 	    var text;
 	    
@@ -561,6 +561,7 @@ function (_, sup, filesize, ShowImagingModal,
 	if (rspec === "") {
 	    return;
 	}
+	console.log("ChangeHandlerAux " + which);
 	console.log(text);
 	var xmlDoc = $.parseXML(rspec);
 	var xml    = $(xmlDoc);
@@ -569,14 +570,13 @@ function (_, sup, filesize, ShowImagingModal,
 	xml = AddTourSection(xml);
 	xml = AddTourSubSection(xml, which);
 
-	var tour = $(xml).find("rspec_tour");
-	var sub  = $(tour).find(which);
+	var sub = $(xml).find("rspec_tour > " + which);
 	$(sub).text(text);
 
-	console.log(xml);
+	//console.log(xml);
 	var s = new XMLSerializer();
 	var str = s.serializeToString(xml[0]);
-	console.log(str);
+	//console.log(str);
 	$('#profile_rspec_textarea').val(str);
     }
 
@@ -820,7 +820,7 @@ function (_, sup, filesize, ShowImagingModal,
     {
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
-	    console.info(json.value);
+	    //console.info(json.value);
 
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
@@ -844,7 +844,7 @@ function (_, sup, filesize, ShowImagingModal,
     {
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
-	    console.info(json.value);
+	    //console.info(json.value);
 
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
