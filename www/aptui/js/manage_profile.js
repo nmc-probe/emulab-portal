@@ -136,8 +136,10 @@ function (_, sup, filesize, ShowImagingModal,
 		    // and confirm that the tour section has not been
 		    // lost. We have to do that as a continuation.
 		    //
-		    NewRspecHandler(newrspec,
-				    $('#profile_rspec_textarea').val());
+		    if (newrspec != $('#profile_rspec_textarea').val()) {
+			NewRspecHandler(newrspec,
+					$('#profile_rspec_textarea').val());
+		    }
 		};
 		reader.readAsText(this.files[0]);
 	});
@@ -161,8 +163,11 @@ function (_, sup, filesize, ShowImagingModal,
 	    // confirm that the tour section has not been lost. We have
 	    // to do that as a continuation.
 	    //
-	    NewRspecHandler($('#modal_profile_rspec_textarea').val(),
-			    $('#profile_rspec_textarea').val());
+	    if ($('#modal_profile_rspec_textarea').val() !=
+		$('#profile_rspec_textarea').val()) {
+		NewRspecHandler($('#modal_profile_rspec_textarea').val(),
+				$('#profile_rspec_textarea').val());
+	    }
 	    $('#modal_profile_rspec_textarea').val("");
 	});
 	// Auto select the URL if the user clicks in the box.
@@ -202,6 +207,8 @@ function (_, sup, filesize, ShowImagingModal,
 		event.preventDefault();
 		return false;
 	    }
+	    // Disable the Stay on Page alert above.
+	    window.onbeforeunload = null;
 	    WaitWait();
 	    return true;
 	});
@@ -567,13 +574,10 @@ function (_, sup, filesize, ShowImagingModal,
      */
     function NewRspecHandler(newrspec, oldrspec)
     {
+	newrspec = $.trim(newrspec);
 	var newxmlDoc = $.parseXML(newrspec);
 	var newxml    = $(newxmlDoc);
 	var newtour   = $(newxml).find("rspec_tour");
-	var oldxmlDoc = $.parseXML(oldrspec);
-	var oldxml    = $(oldxmlDoc);
-	var oldtour   = $(oldxml).find("rspec_tour");
-
 	
 	var continuation = function (reuse) {
 	    sup.HideModal('#reuse_tour_modal');
@@ -587,6 +591,17 @@ function (_, sup, filesize, ShowImagingModal,
 	    ProfileModified();
 	};
 
+	// No old rspec, use new one.
+	oldrspec = $.trim(oldrspec);
+	if (oldrspec == "") {
+	    continuation(false);
+	    return;
+	}
+	
+	var oldxmlDoc = $.parseXML(oldrspec);
+	var oldxml    = $(oldxmlDoc);
+	var oldtour   = $(oldxml).find("rspec_tour");
+	
 	if (!newtour.length && oldtour.length) {
 	    $('#remove_tour_button').click(function (event) {
 		continuation(false);
