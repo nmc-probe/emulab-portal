@@ -1,5 +1,5 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'filesize', 'js/image',
+	['underscore', 'js/quickvm_sup', 'filesize', 'js/JacksEditor', 'js/image',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
@@ -11,7 +11,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/instantiate-modal.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
-function (_, sup, filesize, ShowImagingModal,
+function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,
 	  guestInstantiateString, publishString, instantiateString)
@@ -24,6 +24,8 @@ function (_, sup, filesize, ShowImagingModal,
     var ajaxurl      = "";
     var amlist       = null;
     var modified     = false;
+    var editor = null;
+    var stepsInitialized = false;
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var rendererTemplate  = _.template(rendererString);
@@ -89,6 +91,7 @@ function (_, sup, filesize, ShowImagingModal,
 	$('#waitwait_div').html(waitwait_html);
     	var showtopo_html = showtopoTemplate({});
 	$('#showtopomodal_div').html(showtopo_html);
+	editor = new JacksEditor($('#editmodal_div'));
     	var renderer_html = rendererTemplate({});
 	$('#renderer_div').html(renderer_html);
     	var rspectext_html = rspectextTemplate({});
@@ -148,10 +151,31 @@ function (_, sup, filesize, ShowImagingModal,
 	});
 
 	// The Show topology button.
-	$('#showtopo_modal_button').click(function (event) {
+//	$('#showtopo_modal_button').click(function (event) {
+//	$.fn.animateBackgroundHighlight = function(highlightColor, duration) {
+//	    var highlightBg = highlightColor || "#FFFF9C";
+//	    var animateMs = duration || 1500;
+//	    var originalBg = this.css("backgroundColor");
+//	    console.log(originalBg);
+//	};
+
+	function changeRspec(newRspec)
+	{
+	    $('#profile_rspec_textarea').val(newRspec);
+	    EnableButton('profile_instructions');
+	    EnableButton('profile_description');
+	    if (! stepsInitialized)
+	    {
+		InitStepsTable(newRspec);
+	    }
+	    ChangeHandlerAux("instructions");
+	    ChangeHandlerAux("description");
+	    SyncSteps();
+	    ProfileModified();
+	}
+	$('#edit_rspec_button').click(function (event) {
 	    event.preventDefault();
-	    // The rspec is taken from the text area.
-	    ShowRspecTopo($('#profile_rspec_textarea').val());
+	    editor.show($('#profile_rspec_textarea').val(), changeRspec);
 	});
 	// The Show rspec button.
 	$('#show_rspec_modal_button').click(function (event) {
@@ -412,6 +436,7 @@ function (_, sup, filesize, ShowImagingModal,
      */
     function InitStepsTable(xml)
     {
+	stepsInitialized = true;
 	var steps = [];
 	var count = 0;
 	
