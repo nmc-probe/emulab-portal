@@ -3865,6 +3865,7 @@ sub SliverWorkAux($$$$$$$$)
 				 $sliver->component_urn());
 	    }
 	    elsif (exists($ifacexml{$iface_id})) {
+		# Update interface in the node section.
 		$outref = $ifacexml{$iface_id};
 		$sliverName = "sliver_id";
 		$macName = "mac_address";
@@ -3891,6 +3892,18 @@ sub SliverWorkAux($$$$$$$$)
 				 $sliver->sliver_urn());
 		GeniXML::SetText($macName, $outref, $macAddress)
 		    if (defined($macAddress));
+
+		#
+		# All this stuff above should move into GeniSliver, since
+		# now that we changed the node manifest, we have to store
+		# it back into the DB so that we do not lose it later.
+		#
+		if (!GeniXML::IsVersion0($ifaceref) && defined($nodesliver) &&
+		    $nodesliver->UpdateRspec($outref)) {
+		    $message = "Could not store annotated manifest for ".
+			"node $nodesliver\n";
+		    goto bad;
+		}
 	    }
 	    
 	    if (!$inaggregate &&
