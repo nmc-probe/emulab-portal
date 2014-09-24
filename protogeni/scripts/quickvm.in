@@ -632,7 +632,7 @@ $instance->SetManifest($manifest);
 #
 # but have to wait for the sliver to be ready, which means polling.
 #
-my $seconds  = 600;
+my $seconds  = 1500;
 my $interval = 15;
 my $ready    = 0;
 my $failed   = 0;
