@@ -1540,11 +1540,11 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			# ignore silly user.
 			next;
 		    }
-		    if ($isshared && $attrvalue > 8) {
+		    if ($isshared && $attrvalue > 30) {
 			$response =
 			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "Bad XEN setting; ".
-						 "limited to 8GB extra disk");
+						 "limited to 30GB extra disk");
 			goto bad;
 		    }
 		}
