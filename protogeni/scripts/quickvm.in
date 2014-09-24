@@ -500,7 +500,8 @@ if ($geniuser->GetKeyBundle(\@sshkeys, 1) < 0 || !@sshkeys) {
 #
 # Now generate a slice registration and credential
 #
-my $slice_id    = $user_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
+my $safe_uid    = $user_uid; $safe_uid =~ s/_/-/;
+my $slice_id    = $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
 my $slice_urn   = GeniHRN::Generate($OURDOMAIN, "slice", $slice_id);
 my $slice_hrn   = "${PGENIDOMAIN}.${slice_id}";
 my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
