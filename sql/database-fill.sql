@@ -1285,7 +1285,7 @@ REPLACE INTO table_regex VALUES ('apt_profiles','public','int','redirect','defau
 REPLACE INTO table_regex VALUES ('apt_profiles','listed','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','shared','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','description','text','redirect','default:html_fulltext',0,512,NULL);
-REPLACE INTO table_regex VALUES ('apt_profiles','rspec','text','redirect','default:html_fulltext',0,8192,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','rspec','text','redirect','default:html_fulltext',0,65535,NULL);
 
 --
 -- Dumping data for table `testsuite_preentables`
