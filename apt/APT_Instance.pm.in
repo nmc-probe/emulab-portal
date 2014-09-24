@@ -35,6 +35,7 @@ use vars qw(@ISA @EXPORT $AUTOLOAD);
 use EmulabConstants;
 use emdb;
 use libtestbed;
+use Brand;
 use APT_Profile;
 use English;
 use Data::Dumper;
@@ -71,6 +72,7 @@ sub Lookup($$;$)
 
     my $self            = {};
     $self->{'INSTANCE'} = $query_result->fetchrow_hashref();
+    $self->{'BRAND'}    = Brand->Create($self->{'INSTANCE'}->{'servername'});
 
     bless($self, $class);
     
@@ -93,8 +95,9 @@ AUTOLOAD {
     carp("No such slot '$name' field in class $type");
     return undef;
 }
-sub isAPT($)	{ return $_[0]->servername() =~ /aptlab/ ? 1 : 0; }
-sub isCloud($)	{ return $_[0]->servername() =~ /cloudlab/ ? 1 : 0; }
+sub Brand($)	{ return $_[0]->{'BRAND'}; }
+sub isAPT($)	{ return $_[0]->Brand()->isAPT() ? 1 : 0; }
+sub isCloud($)	{ return $_[0]->Brand()->isCloud() ? 1 : 0; }
 
 # Break circular reference someplace to avoid exit errors.
 sub DESTROY {
@@ -305,6 +308,48 @@ sub RecordHistory($)
 		" from apt_instances where uuid='$uuid'")
 	or return -1;
 
+    return 0;
+}
+
+#
+# Warn creator that the experiment is going to expire. This is hooked
+# in from the sa_daemon, so we can send a message that is less geni like
+# and more APT/Cloud.
+#
+sub WarnExpiring($$)
+{
+    my ($self, $when) = @_;
+    require GeniDB;
+    require GeniSlice;
+
+    my $slice     = GeniSlice->Lookup($self->slice_uuid());;
+    if (!defined($slice)) {
+	print STDERR "WarnExpiring: No slice for $self\n";
+	return -1;
+    }
+    my $slicename = $slice->slicename();
+    my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
+    if (!defined($geniuser)) {
+	print STDERR "WarnExpiring: No creator for $self\n";
+	return -1;
+    }
+    if (!defined($geniuser->email())) {
+	print STDERR "WarnExpiring: no email address for $geniuser\n";
+	return 0;
+    }
+    my $link = $self->Brand()->wwwBase();
+    $link    = $link . "/status.php?uuid=" . $self->uuid();
+    
+    $self->Brand()->SendEmail($geniuser->email(),
+		     "Your experiment is expiring soon!",
+		     "Your experiment $slicename is going to expire in ${when}.\n".
+		     "If you want to extend this experiment, please go to:\n\n".
+		     "    $link\n\n".
+		     "and click on the Extend button.\n".
+		     "\n".
+		     "Thanks!",
+		     $self->Brand()->OpsEmailAddress());
+    
     return 0;
 }
 
