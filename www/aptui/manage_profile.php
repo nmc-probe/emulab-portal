@@ -461,7 +461,7 @@ if (isset($snapuuid)) {
 
 $retval = SUEXEC($this_user->uid(), $project->unix_gid(),
 		 "webmanage_profile $optarg $xmlname",
-		 SUEXEC_ACTION_IGNORE);
+		 SUEXEC_ACTION_CONTINUE);
 if ($retval) {
     if ($retval < 0) {
 	$errors["error"] = "Internal Error; please try again later.";
