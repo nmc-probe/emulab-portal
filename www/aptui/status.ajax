@@ -153,34 +153,35 @@ function Do_RequestExtension()
 {
     global $instance, $creator, $this_user;
     global $ajax_args;
-    global $TBMAIL_OPS, $APTMAIL;
+    global $TBMAIL_OPS, $APTMAIL, $APTBASE;
     $howlong = 3600 * 24;
     $reason  = "";
 
     if (StatusSetupAjax()) {
-	return;
+	goto bad;
     }
     $uuid = $instance->uuid();
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
     if (!slice) {
 	SPITAJAX_ERROR(1, "no slice for instance");
-	return 1;
+	goto bad;
     }
     $expires_time = strtotime($slice->expires());
 
+    if (!isset($ajax_args["howlong"]) || $ajax_args["howlong"] == "") {
+	SPITAJAX_ERROR(1, "Missing number of days");
+	goto bad;
+    }
+    $howlong = $ajax_args["howlong"];
+    if (! preg_match("/^\d+$/", $howlong)) {
+	SPITAJAX_ERROR(1, "Invalid characters in days");
+	goto bad;
+    }
+
     if (ISADMIN()) {
-	if (!isset($ajax_args["howlong"]) || $ajax_args["howlong"] == "") {
-	    SPITAJAX_ERROR(1, "Missing number of days");
-	    return 1;
-	}
-	$howlong = $ajax_args["howlong"];
-	if (! preg_match("/^\d+$/", $howlong)) {
-	    SPITAJAX_ERROR(1, "Invalid characters in days");
-	    return 1;
-	}
 	if ($howlong < 1 || $howlong > 365) {
 	    SPITAJAX_ERROR(1, "Must be an integer 1 <= days <= 365");
-	    return 1;
+	    goto bad;
 	}
 	$howlong = $howlong * (3600 * 24);
 	$reason  = "Extended by site administrator";
@@ -188,16 +189,56 @@ function Do_RequestExtension()
     else {
 	if (!isset($ajax_args["reason"]) || $ajax_args["reason"] == "") {
 	    SPITAJAX_ERROR(1, "Missing reason");
-	    return 1;
+	    goto bad;
 	}
 	$reason  = $ajax_args["reason"];
-	$howlong = 3600 * 24;
 
-        # Only extend for 24 hours. More later.
-	if ($expires_time > time() + $howlong) {
-	    sleep(2);
-	    SPITAJAX_ERROR(1, "You still have lots of time left!");
-	    return;
+	#
+	# Guest users are treated differently.
+	#
+	if (!isset($this_user)) {
+            # Only extend for 24 hours. More later.
+	    $howlong = 3600 * 24;
+
+	    if ($expires_time > time() + $howlong) {
+		sleep(2);
+		SPITAJAX_ERROR(1, "You still have a day left. ".
+			       "Try again tomorrow!");
+		goto bad;
+	    }
+	}
+	else {
+	    #
+	    # Registered users are granted up to 1 week automatically.
+	    # Beyond that, requires intervention.
+	    #
+	    if ($howlong > 7) {
+		$url = "$APTBASE/status.php?uuid=$uuid&extend=$howlong";
+		    
+		$instance->SendEmail($APTMAIL,
+		     "Experiment Extension Request: $uuid",
+		     "A request to extend this experiment was made but ".
+		     "requires\n".
+		     "administrator approval\n".
+		     "The request is for $howlong days, the reason given is:".
+		     "\n\n" . $reason . "\n\n".
+		     "Click on the following link (red-dot) to grant ".
+		     "the request\n\n". $url . "\n\n",
+		     "From: " . $creator->email());
+
+		# XXX 
+		SPITAJAX_ERROR(2, "Your request requires admininstrator ".
+			       "approval. You will receive email when your ".
+			       "request is granted. Thanks!");
+		sleep(2);
+		return;
+	    }
+	    $diff = $expires_time - time();
+	    if ($diff > (3600 * 24 * 7)) {
+		SPITAJAX_ERROR(1, "You still have a week left!");
+		goto bad;
+	    }
+	    $howlong = $howlong * 3600 * 24;
 	}
     }
     $retval = SUEXEC("nobody", "nobody",
@@ -205,7 +246,7 @@ function Do_RequestExtension()
 		     SUEXEC_ACTION_CONTINUE);
 
     if ($retval == 0) {
-    # Refresh. 
+	# Refresh. 
 	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 	$new_expires = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
 
@@ -216,17 +257,21 @@ function Do_RequestExtension()
 	       "A request to extend your experiment was made and ".
 	       "granted.\n".
 	       "Your reason was:\n\n". $reason . "\n\n".
-	       "Your experiment will now expire at $new_expires.\n\n".
-	       "You can request another extension tomorrow.\n",
+ 	       "Your experiment will now expire at $new_expires.\n",
 	       "From: $APTMAIL\n" .
 	       "BCC: $TBMAIL_OPS");
     }
     elseif ($retval > 0) {
 	SPITAJAX_ERROR(1, $suexec_output);
+	goto bad;
     }
     else {
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	goto bad;
     }
+    return;
+bad:
+    sleep(2);
 }
 
 #

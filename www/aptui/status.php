@@ -41,7 +41,8 @@ $this_user = CheckLogin($check_status);
 #
 # Verify page arguments.
 #
-$reqargs = OptionalPageArguments("uuid", PAGEARG_STRING,
+$reqargs = OptionalPageArguments("uuid",    PAGEARG_STRING,
+				 "extend",  PAGEARG_INTEGER,
 				 "oneonly", PAGEARG_BOOLEAN);
 
 if (!isset($uuid)) {
@@ -171,10 +172,15 @@ echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
+if (isset($extend) && $extend != "") {
+    echo "  window.APT_OPTIONS.extend = $extend;\n";
+}
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/status'></script>";
+echo "<link rel='stylesheet'
+            href='css/jquery-ui-1.10.4.custom.min.css'>\n";
 # For progress bubbles in the imaging modal.
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
 
