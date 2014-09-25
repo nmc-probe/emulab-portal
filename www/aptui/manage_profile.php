@@ -465,7 +465,6 @@ $retval = SUEXEC($this_user->uid(), $project->unix_gid(),
 if ($retval) {
     if ($retval < 0) {
 	$errors["error"] = "Internal Error; please try again later.";
-	SUEXECERROR(SUEXEC_ACTION_CONTINUE);
     }
     else {
 	#

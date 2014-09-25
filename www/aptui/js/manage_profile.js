@@ -50,6 +50,10 @@ function (_, sup, filesize, ShowImagingModal,
 	if (_.has(fields, "profile_rspec")) {
 	    gotrspec = 1;
 	}
+	// no place to show rspec errors, so convert to general error.
+	if (_.has(errors, "rspec")) {
+	    errors.error = "rspec: " + errors.rspec;
+	}
 
 	// Warn user if they have not saved changes.
 	window.onbeforeunload = function() {
@@ -133,8 +137,7 @@ function (_, sup, filesize, ShowImagingModal,
 
 		    //
 		    // We do not throw away the old rspec until we parse
-		    // and confirm that the tour section has not been
-		    // lost. We have to do that as a continuation.
+		    // and confirm that the tour section has not been lost. 
 		    //
 		    if (newrspec != $('#profile_rspec_textarea').val()) {
 			NewRspecHandler(newrspec,
@@ -144,11 +147,13 @@ function (_, sup, filesize, ShowImagingModal,
 		reader.readAsText(this.files[0]);
 	});
 
+	// The Show topology button.
 	$('#showtopo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    // The rspec is taken from the text area.
 	    ShowRspecTopo($('#profile_rspec_textarea').val());
 	});
+	// The Show rspec button.
 	$('#show_rspec_modal_button').click(function (event) {
 	    // Sync up the steps when toggling the edit button.
 	    SyncSteps();
@@ -157,9 +162,9 @@ function (_, sup, filesize, ShowImagingModal,
 	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
 	    $('#rspec_modal').modal('show');
 	});
+	// Collapse; done editing the rspec in the modal.
 	$('#collapse_rspec_modal_button').click(function (event) {
 	    $('#rspec_modal').modal('hide');
-
 	    //
 	    // We do not throw away the old rspec until we parse and
 	    // confirm that the tour section has not been lost. We have
@@ -178,9 +183,7 @@ function (_, sup, filesize, ShowImagingModal,
 	    $(this).select();
 	});
 
-	//
-	// Delete confirmed.
-	//
+	// Confirm Delete profile.
 	$('#delete-confirm').click(function (event) {
 	    event.preventDefault();
 	    DeleteProfile();
@@ -223,6 +226,8 @@ function (_, sup, filesize, ShowImagingModal,
 	});
 
 	// Change handlers for the checkboxes to enable the submit button.
+	$('#profile_name').change(function() { ProfileModified(); });
+	$('#profile_pid').change(function() { ProfileModified(); });
 	$('#profile_listed').change(function() { ProfileModified(); });
 	$('#profile_who_public').change(function() { ProfileModified(); });
 	$('#profile_who_registered').change(function() { ProfileModified(); });
@@ -324,7 +329,9 @@ function (_, sup, filesize, ShowImagingModal,
     // callbacks to get triggered, which is fine except that when the
     // page is first loaded, it happens AFTER the above initialize()
     // function has finished. How the hell is that? Anyway, this kludge
-    // makes sure we start with the profile not appearin modified.
+    // makes sure we start with the profile not appearing modified.
+    // We could probably do this as a continuation instead, which would
+    // be cleaner. 
     //
     var initialized = false;
     function StepsTableLoaded()
@@ -334,6 +341,13 @@ function (_, sup, filesize, ShowImagingModal,
 	    DisableButton("profile_submit_button");
 	}
 	initialized = true;
+    }
+    function ProfileModified()
+    {
+	if (initialized) {
+	    modified = true;
+	    EnableButton("profile_submit_button");
+	}
     }
 
     // Formatter for the form. This did not work out nicely at all!
@@ -394,7 +408,7 @@ function (_, sup, filesize, ShowImagingModal,
     /*
      * Yank the steps out of the xml and create the editable table.
      * Before the form is submitted, we have to convert (update the
-     * table data into steps section of the rspec.
+     * table data into steps section of the rspec).
      */
     function InitStepsTable(xml)
     {
@@ -553,6 +567,7 @@ function (_, sup, filesize, ShowImagingModal,
     }
     //
     // Helper function for instructions/description change handler above.
+    // Take the text box contents and store back into the rspec.
     //
     function ChangeHandlerAux(which)
     {
@@ -582,14 +597,16 @@ function (_, sup, filesize, ShowImagingModal,
 
     /*
      * Before updating the rspec with a new one, make sure that the new
-     * has a tour section, and if not ask the user if it is okay to
+     * one has a tour section, and if not ask the user if it is okay to
      * use the original tour section. Once we get confirmation, we can
      * continue with the update.
      */
     function NewRspecHandler(newrspec, oldrspec)
     {
 	newrspec = $.trim(newrspec);
-	var newxmlDoc = $.parseXML(newrspec);
+	var newxmlDoc = parseXML(newrspec);
+	if (newxmlDoc == null)
+	    return;
 	var newxml    = $(newxmlDoc);
 	var newtour   = $(newxml).find("rspec_tour");
 	
@@ -612,7 +629,9 @@ function (_, sup, filesize, ShowImagingModal,
 	    return;
 	}
 	
-	var oldxmlDoc = $.parseXML(oldrspec);
+	var oldxmlDoc = parseXML(oldrspec);
+	if (oldxmlDoc == null)
+	    return;
 	var oldxml    = $(oldxmlDoc);
 	var oldtour   = $(oldxml).find("rspec_tour");
 	
@@ -638,15 +657,9 @@ function (_, sup, filesize, ShowImagingModal,
      */
     function ExtractFromRspec(rspec)
     {
-	var xmlDoc;
-
-	try {
-	    xmlDoc = $.parseXML(rspec);
-	}
-	catch(err) {
-	    alert("Could not parse XML!");
-	    return -1;
-	}
+	var xmlDoc = parseXML(rspec);
+	if (xmlDoc == null)
+	    return;
 	var xml    = $(xmlDoc);
 	
 	$('#profile_description').val("");
@@ -807,11 +820,6 @@ function (_, sup, filesize, ShowImagingModal,
     {
 	$(button).addClass("hidden");
     }
-    function ProfileModified()
-    {
-	modified = true;
-	EnableButton("profile_submit_button");
-    }
 
     //
     // Delete profile.
@@ -865,5 +873,17 @@ function (_, sup, filesize, ShowImagingModal,
 	xmlthing.done(callback);
     }
 
+    function parseXML(rspec)
+    {
+	try {
+	    var xmlDoc = $.parseXML(rspec);
+	    return xmlDoc;
+	}
+	catch(err) {
+	    alert("Could not parse XML!");
+	    return -1;
+	}
+    }
+	
     $(document).ready(initialize);
 });

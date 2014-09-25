@@ -130,6 +130,7 @@
 	      <div class='col-sm-4'>
 		<!-- In editing mode, pass through static values. -->
 	        <input name="formfields[profile_name]"
+		       id='profile_name'
 		       <% if (viewing) { %>readonly<% } %>
 		       value="<%- formfields.profile_name %>"
 		       class="form-control format-me"
@@ -145,6 +146,7 @@
 	          <input name="formfields[profile_pid]" readonly
 		       value="<%- formfields.profile_pid %>"
 		       class="form-control format-me"
+		       id='profile_pid'
 		       data-key="profile_pid">
 		<% } else { %>
 		   <select name="formfields[profile_pid]"
