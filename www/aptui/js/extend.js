@@ -20,6 +20,8 @@ define(['underscore', 'js/quickvm_sup',
 
 	function Initialize()
 	{
+	    howlong  = 1;
+	    
 	    // Click handler.
 	    $('button#request-extension').click(function (event) {
 		event.preventDefault();
@@ -124,10 +126,10 @@ define(['underscore', 'js/quickvm_sup',
 	/*
 	 * User has changed the slider. Show new instructions.
 	 */
-	var minchars  = 0; // For the character countdown.
-	var lastvalue = 0; // Last callback value.
-	var lastlabel = 0; // So we know which div to hide.
-	var setvalue  = 0; // where to jump the slider to after stop.
+	var minchars  = 120; // For the character countdown.
+	var lastvalue = 0;   // Last callback value.
+	var lastlabel = 0;   // So we know which div to hide.
+	var setvalue  = 0;   // where to jump the slider to after stop.
 	function SliderChanged(which) {
 	    var slider   = $(slidername);
 	    var label    = 0;
@@ -146,7 +148,7 @@ define(['underscore', 'js/quickvm_sup',
 		extend_value = day + " days";
 		setvalue     = Math.round((day - 1) * divider);
 		label        = 0;
-		howlong      = 1;
+		howlong      = day;
 	    }
 	    else if (which <= 66) {
 		var divider  = 33 / 20.0;
@@ -192,11 +194,22 @@ define(['underscore', 'js/quickvm_sup',
 
 	function UpdateCountdown() {
 	    var len   = $('#why_extend').val().length;
-	    var left  = minchars - len;
-	    if (left < 0) {
-		left = 0;
+	    var msg   = "";
+
+	    if (len) {
+		var left  = minchars - len;
+		if (left <= 0) {
+		    left = 0;
+		    EnableSubmitButton();
+		}
+		else if (left) {
+		    msg = "You need at least " + left + " more characters";
+		    DisableSubmitButton();
+		}
 	    }
-	    var msg   = "You need at least " + left + " more characters";
+	    else {
+		DisableSubmitButton();
+	    }
 	    $('#extend_counter_msg').html(msg);
 	}
 
@@ -256,7 +269,24 @@ define(['underscore', 'js/quickvm_sup',
 		return;
 	    });
 	}
-	
+
+	function EnableSubmitButton()
+	{
+	    ButtonState('button#request-extension', 1);
+	}
+	function DisableSubmitButton()
+	{
+	    ButtonState('button#request-extension', 0);
+	}
+	function ButtonState(button, enable)
+	{
+	    if (enable) {
+		$(button).removeAttr("disabled");
+	    }
+	    else {
+		$(button).attr("disabled", "disabled");
+	    }
+	}
 	return function(thisuuid, func, admin, guest, extendfor)
 	{
 	    isadmin  = admin;

@@ -154,7 +154,6 @@ function Do_RequestExtension()
     global $instance, $creator, $this_user;
     global $ajax_args;
     global $TBMAIL_OPS, $APTMAIL, $APTBASE;
-    $howlong = 3600 * 24;
     $reason  = "";
 
     if (StatusSetupAjax()) {
