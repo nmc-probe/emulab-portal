@@ -395,3 +395,7 @@ blockquote #selected_profile_description {
     left: 0;
     right: 0;
 }
+
+.jacks #canvasContainer, .jacks #topoButtons {
+    background-color: #fff;
+}

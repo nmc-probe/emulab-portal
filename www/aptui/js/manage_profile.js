@@ -135,7 +135,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 		    $('#profile_description').prop("disabled", false);
 
 		    // Show the hidden buttons (in new profile mode)
-		    $('#showtopo_modal_button').removeClass("invisible");
+		    $('#edit_topo_modal_button').removeClass("invisible");
 		    $('#show_rspec_modal_button').removeClass("invisible");
 
 		    //
@@ -149,15 +149,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 		};
 		reader.readAsText(this.files[0]);
 	});
-
-	// The Show topology button.
-//	$('#showtopo_modal_button').click(function (event) {
-//	$.fn.animateBackgroundHighlight = function(highlightColor, duration) {
-//	    var highlightBg = highlightColor || "#FFFF9C";
-//	    var animateMs = duration || 1500;
-//	    var originalBg = this.css("backgroundColor");
-//	    console.log(originalBg);
-//	};
 
 	function changeRspec(newRspec)
 	{
@@ -173,7 +164,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	    SyncSteps();
 	    ProfileModified();
 	}
-	$('#edit_rspec_button').click(function (event) {
+	$('#edit_topo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    editor.show($('#profile_rspec_textarea').val(), changeRspec);
 	});
@@ -502,9 +493,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
     function SyncSteps()
     {
 	var rspec   = $('#profile_rspec_textarea').val();
-	if (rspec === "") {
+	var expression = /^\s*$/;
+	if (expression.exec(rspec)) {
 	    return;
 	}
+	console.log('"' + rspec + '"');
 	var xmlDoc = $.parseXML(rspec);
 	var xml    = $(xmlDoc);
 
