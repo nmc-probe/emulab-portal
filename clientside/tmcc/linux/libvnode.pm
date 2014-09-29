@@ -161,6 +161,7 @@ sub findSpareDisks($) {
     my %retval = ();
     my %mounts = ();
     my %ftents = ();
+    my %pvs = ();
 
     # /proc/partitions prints sizes in 1K phys blocks
     my $BLKSIZE = 1024;
@@ -188,18 +189,59 @@ sub findSpareDisks($) {
     }
     close(FFD);
 
+    if (-x "/sbin/pvs" && open (PFD,"/sbin/pvs|")) {
+	while (my $line = <PFD>) {
+	    chomp($line);
+	    if ($line =~ /^\s*\/dev\/(\S+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+/) {
+		$pvs{$1} = 1;
+	    }
+	}
+	close(PFD);
+    }
+
     open (PFD,"/proc/partitions") 
 	or die "open(/proc/partitions): $!";
     while (my $line = <PFD>) {
 	chomp($line);
-	if ($line =~ /^\s*\d+\s+\d+\s+(\d+)\s+([a-zA-Z]+)$/) {
-	    if (!defined($mounts{"/dev/$2"}) && !defined($ftents{"/dev/$2"}) &&
-		$1 >= $minsize) {
-		$retval{$2}{"size"} = $BLKSIZE * $1;
-	    }
+
+	# ignore malformed lines
+	my ($size,$devpart);
+	if ($line =~ /^\s*\d+\s+\d+\s+(\d+)\s+(\S+)$/) {
+	    $size = $1;
+	    $devpart = $2;
+	} else {
+	    next;
 	}
-	elsif ($line =~ /^\s*\d+\s+\d+\s+(\d+)\s+([a-zA-Z]+)(\d+)$/) {
-	    my ($dev,$part) = ($2,$3);
+
+	#
+	# XXX weed out special cases:
+	#    SCSI CDROM (srN),
+	#    device mapper files (dm-N),
+	#    LVM PVs
+	#
+	if ($devpart =~ /^sr\d+$/ ||
+	    $devpart =~ /^dm-\d+$/ ||
+	    exists($pvs{$devpart})) {
+	    next;
+	}
+
+	#
+	# The old heuristic was: if it ends in a digit, it is a partition
+	# device otherwise it is a disk device. But that got screwed up by,
+	# e.g., the cciss device where "c0d0" is a disk while "c0d0p1" is a
+	# partition. The new fallible heuristic is: if it ends in a digit
+	# but is of the form cNdN then it is a disk!
+	#
+	if ($devpart =~ /^(\S+)(\d+)$/) {
+	    my ($dev,$part) = ($1,$2);
+
+	    # cNdN(pN) format
+	    if ($devpart =~ /(.*c\d+d\d+)(p\d+)?$/) {
+		if (!defined($2)) {
+		    goto isdisk;
+		}
+		$dev = $1;
+	    }
 
 	    # XXX don't include extended partitions (the reason is to filter
 	    # out pseudo partitions that linux creates for bsd disklabel 
@@ -210,17 +252,19 @@ sub findSpareDisks($) {
 	    next 
 		if ($part > 4);
 
+	    # This is a partition on an earlier discovered disk device,
+	    # ignore the disk device.
 	    if (exists($retval{$dev}{"size"})) {
 		delete $retval{$dev}{"size"};
 		if (scalar(keys(%{$retval{$dev}})) == 0) {
 		    delete $retval{$dev};
 		}
 	    }
-	    if (!defined($mounts{"/dev/$dev$part"}) 
-		&& !defined($ftents{"/dev/$dev$part"})) {
+	    if (!defined($mounts{"/dev/$devpart"}) 
+		&& !defined($ftents{"/dev/$devpart"})) {
 
 		# try checking its ext2 label
-		my @outlines = `dumpe2fs -h /dev/$dev$part 2>&1`;
+		my @outlines = `dumpe2fs -h /dev/$devpart 2>&1`;
 		if (!$?) {
 		    my ($uuid,$label);
 		    foreach my $line (@outlines) {
@@ -239,14 +283,22 @@ sub findSpareDisks($) {
 		}
 
 		# one final check: partition id
-		my $output = `sfdisk --print-id /dev/$dev $part`;
+		my $output = `sfdisk --print-id /dev/$dev $part 2>/dev/null`;
 		chomp($output);
 		if ($?) {
-		    print STDERR "WARNING: findSpareDisks: error running 'sfdisk --print-id /dev/$dev $part': $! ... ignoring /dev/$dev$part\n";
+		    print STDERR "WARNING: findSpareDisks: error running 'sfdisk --print-id /dev/$dev $part': $! ... ignoring /dev/$devpart\n";
 		}
-		elsif ($output eq "0" && $1 >= $minsize) {
-		    $retval{$dev}{"$part"}{"size"} = $BLKSIZE * $1;
+		elsif ($output eq "0" && $size >= $minsize) {
+		    $retval{$dev}{$part}{"size"} = $BLKSIZE * $size;
 		}
+	    }
+	}
+	else {
+isdisk:
+	    if (!defined($mounts{"/dev/$devpart"}) &&
+		!defined($ftents{"/dev/$devpart"}) &&
+		$size >= $minsize) {
+		$retval{$devpart}{"size"} = $BLKSIZE * $size;
 	    }
 	}
     }
