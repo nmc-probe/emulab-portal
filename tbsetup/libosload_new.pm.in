@@ -2361,7 +2361,7 @@ sub SetupReload($$)
 		    # if it is a delta image, there had better be a parent!
 		    $pimage = $pimage->Parent();
 		    if (!$pimage) {
-			tberror "$node: delta image $image has no parent!";
+			tberror "$node_id: delta image $image has no parent!";
 			goto failednode;
 		    }
 		    push(@ilist, $pimage);
