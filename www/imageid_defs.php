@@ -169,8 +169,9 @@ class Image
 	if (! $this->IsValid())
 	    return -1;
 
-	$imageid = $this->imageid();
-	$version = $this->version();
+	$imageid    = $this->imageid();
+	$version    = $this->version();
+	$image_uuid = $this->image_uuid();
 	
 	$query_result =
 	    DBQueryWarn("select * from image_versions ".
@@ -181,6 +182,7 @@ class Image
 	    return -1;
 	}
 	$this->image = mysql_fetch_array($query_result);
+	$this->image["image_uuid"] = $image_uuid;
 
 	#
 	# Reload the type info.
@@ -614,6 +616,7 @@ class Image
 	$updater	= $this->updater();
 	$updater_urn	= $this->updater_urn();
 	$uuid           = $this->uuid();
+	$image_uuid     = $this->image_uuid();
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
 	
@@ -624,7 +627,7 @@ class Image
 	$imagefile_url  = $this->imagefile_url();
 	$metadata_url   = $this->metadata_url();
 	if (! $metadata_url) {
-	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$uuid";
+	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$image_uuid";
 	}
 
 	if (!$description)
