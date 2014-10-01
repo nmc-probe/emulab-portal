@@ -91,6 +91,7 @@ CREATE TABLE `apt_instances` (
   `created` datetime default NULL,
   `status` varchar(32) default NULL,
   `extension_code` varchar(32) default NULL,
+  `extension_reason` mediumtext,
   `servername` tinytext,
   `manifest` mediumtext,
   PRIMARY KEY (`uuid`)
@@ -1996,6 +1997,7 @@ CREATE TABLE `image_versions` (
   `isdelta` tinyint(1) NOT NULL default '0',
   `released` tinyint(1) NOT NULL default '0',
   `nodetypes` text default NULL,
+  `notes` mediumtext,
   PRIMARY KEY  (`imageid`,`version`),
   KEY `pid` (`pid`,`imagename`,`version`),
   KEY `gid` (`gid`),
