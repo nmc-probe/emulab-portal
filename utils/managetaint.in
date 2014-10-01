@@ -321,7 +321,7 @@ sub PrintAllObjects($) {
 
       /^os$/ && do {
 	  my $query_result =
-	      DBQueryWarn("select pid, osname, taint_states from os_info ".
+	      DBQueryWarn("select pid, osname, taint_states from os_info_versions ".
 			  "where taint_states is not null ".
 			  "and taint_states != ''");
 
