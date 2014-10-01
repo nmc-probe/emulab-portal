@@ -680,7 +680,7 @@ function RedirectLoginPage()
     # pass in the URI for this page as an argument
     header("Location: login.php?referrer=".
 	   urlencode($_SERVER['REQUEST_URI']));
-    
+    exit(0);
 }
 
 #
