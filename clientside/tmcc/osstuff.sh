@@ -37,6 +37,48 @@ else
     arg=$1
 fi
 
+# XXX cheezy hack for cross-building: if OSSTUFF env is set, use that info
+if [ -n "$OSSTUFF" ]; then
+    for _kv in $OSSTUFF; do
+	_k=${_kv%%=*}
+	_v=${_kv##*=}
+	case $_k in
+	TAG|OS|DIST|REL)
+	    eval $_k=\"$_v\"
+	    ;;
+	esac
+    done
+    if [ -z "$OS" -o -z "$DIST" -o -z "$REL" ]; then
+	echo "osstuff: malformed OSSTUFF environment var"
+	exit 1
+    fi
+    if [ -z "$TAG" ]; then
+	p1=`echo $DIST | tr '[A-Z]' '[a-z]'`
+	p2=`echo $REL | sed -e 's/^\([0-9]*\).*/\1/'`
+	TAG="${p1}${p2}"
+    fi
+
+    case $arg in
+    -a)
+	echo "TAG=$TAG OS=$OS DIST=$DIST REL=$REL"
+	;;
+    -t)
+	echo "$TAG"
+	;;
+    -o)
+	echo "$OS"
+	;;
+    -d)
+	echo "$DIST"
+	;;
+    -r)
+	echo "$REL"
+	;;
+    esac
+
+    exit 0
+fi
+
 os=`uname -s`
 tag=
 dist=

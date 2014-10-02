@@ -30,10 +30,12 @@ REL	       := $(shell $(SRCDIR)/tmcc/osstuff.sh -r)
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS         = lib tools os sensors tmcc protogeni
+SUBDIRS         = lib tools os sensors protogeni
 ifneq ($(EVENTSYS),0)
 SUBDIRS += event
 endif
+# tmcc should be last as the freenas* install targets mess with the hierarchy
+SUBDIRS += tmcc
 
 ifeq ($(WITH_EMULAB),1)
 all:	all-subdirs
@@ -98,27 +100,8 @@ freenas-os-check:
 #
 freenas-tarball: freenas-os-check tarball-check
 	echo "Building and installing client-side in $(TARBALLDESTDIR)..."
-	DESTDIR=$(TARBALLDESTDIR) $(MAKE) client-install
-	echo "Tweaking for FreeNAS..."
-	(cd $(TARBALLDESTDIR); \
-	    mkdir -p cfg cfg/rc.d cfg/local data local; \
-	    mv etc/emulab cfg/emulab; \
-	    mv usr/local/etc/emulab local/emulab; \
-	    mv var/emulab data/emulab; \
-	    ln -sf /data/emulab conf/base/var/emulab; \
-	    rm -rf var data/emulab/sup; \
-	    mkdir -p data/emulab/shadow data/emulab/vms; \
-	    chflags noschg sbin/init; \
-	    rm -rf boot etc root sbin usr/*; \
-	    mv local usr/local; \
-	    ln -sf /usr/local/emulab cfg/local/emulab)
-	(cd $(SRCDIR)/tmcc/freenas8; \
-	    cp genvmtype $(TARBALLDESTDIR)/cfg/emulab/; \
-	    cp testbed $(TARBALLDESTDIR)/cfg/rc.d/; \
-	    cp bscontrol.proxy.pl $(TARBALLDESTDIR)/usr/local/emulab/bscontrol.proxy; \
-	    cp freenas-config libfreenas.pm libvnode_blockstore.pm $(TARBALLDESTDIR)/usr/local/emulab/; \
-	    rm -f $(TARBALLDESTDIR)/usr/local/emulab/rc/rc.kname; \
-	    chmod -R g-w $(TARBALLDESTDIR)/usr/local/emulab)
+	OSSTUFF="OS=FreeBSD DIST=FreeNAS REL=$(REL)" \
+	    DESTDIR=$(TARBALLDESTDIR) $(MAKE) client-install
 	echo "Creating tarball freenas-client.tar.gz..."
 	tar czf freenas-client.tar.gz -C $(TARBALLDESTDIR) .
 
