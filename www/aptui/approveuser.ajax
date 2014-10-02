@@ -118,7 +118,7 @@ function Do_Approve()
 
     # Create the user if it is not yet approved.
     if ($target_user->status() != TBDB_USERSTATUS_ACTIVE) {
-	$user->SetStatus(TBDB_USERSTATUS_ACTIVE);
+	$target_user->SetStatus(TBDB_USERSTATUS_ACTIVE);
 
 	$retval = SUEXEC($this_uid, $TBADMINGROUP,
 			 "webtbacct add $user_uid",
