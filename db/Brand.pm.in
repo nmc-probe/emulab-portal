@@ -103,11 +103,11 @@ sub EmailTag($)
 	    $self->isCloud() ? "cloudlab.us" : "@THISHOMEBASE@");
 }
 
-sub SignupURL($)
+sub SignupURL($$)
 {
-    my ($self)  = @_;
+    my ($self, $project)  = @_;
     my $wwwbase = $self->wwwBase();
-    my $pid     = $self->pid();
+    my $pid     = $project->pid();
 
     return ($self->isAPT() || $self->isCloud() ?
 	    "${wwwbase}/signup.php?pid=$pid" :
