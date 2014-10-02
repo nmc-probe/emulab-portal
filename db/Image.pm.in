@@ -1901,5 +1901,21 @@ sub SetDelta($$)
     return 0;
 }
 
+sub LocalURL($)
+{
+    my ($self) = @_;
+    my $image_uuid = $self->image_uuid();
+
+    return "$TBBASE/image_metadata.php?uuid=$image_uuid";
+}
+
+sub LocalVersionURL($)
+{
+    my ($self) = @_;
+    my $uuid = $self->uuid();
+
+    return "$TBBASE/image_metadata.php?uuid=$uuid";
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
