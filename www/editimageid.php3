@@ -421,11 +421,14 @@ if (isset($formfields["mbr_version"]) && $formfields["mbr_version"] != "" &&
     $formfields["mbr_version"] != $image->mbr_version()) {
     $args["mbr_version"] = $formfields["mbr_version"];
 }
-if ($formfields["notes"] != "" && !TBvalid_description($formfields["notes"])) {
-    $errors["Notes"] = TBFieldErrorString();
-}
-else {
-    $args["notes"] = $formfields["notes"];
+
+if (isset($formfields["notes"])) {
+    if (!TBvalid_fulltext($formfields["notes"])) {
+	$errors["Notes"] = TBFieldErrorString();
+    }
+    else {
+	$args["notes"] = $formfields["notes"];
+    }
 }
 
 # The mtype_* checkboxes are dynamically generated.
@@ -446,7 +449,7 @@ foreach ($mtypes_array as $type) {
 # long form.
 
 # Can't check this unless we have at least one mtype!
-if (!count($mtypes_array)) {
+if (!count($mtypes_array) || count($errors)) {
     SPITFORM($image, $formfields, $errors);
     PAGEFOOTER();
     return;

@@ -936,7 +936,10 @@ class Image
 
         echo "<tr>
                  <td>Notes: </td>
-                 <td>$notes</td>
+                 <td class=left>
+                     <textarea rows=4 cols=60 readonly>" .
+			    str_replace("\r", "", $notes) .
+	              "</textarea></td>
               </tr>\n";
 
 	if ($imagefile_url) {
