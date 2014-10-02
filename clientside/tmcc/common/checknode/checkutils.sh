@@ -32,7 +32,7 @@ fi
 [[ -z "${host-}" ]] && declare host       #emulab hostname
 [[ -z "${failed-}" ]] && declare failed=""  #major falure to be commicated to user
 [[ -z "${os-}" ]] && declare os=""      #[Linux|FreeBSD] for now
-[[ -z "${todo_exit-}" ]] && declare -a todo_exit
+[[ -z "${todo_exit-}" ]] && declare -a todo_exit=('echo "Exit trap"')
 [[ -z "${hwinv[hwinvidx]-}" ]] && declare -A hwinv["hwinvidx"]=""  # hwinv from tmcc
 [[ -z "${hwinvcopy[hwinvidx]-}" ]] && declare -A hwinvcopy["hwinvidx"]=""  # a copy of hwinv from tmcc
 [[ -z "${tmccinfo[hwinvidx]-}" ]] && declare -A tmccinfo["hwinvidx"]="" # info from tmcc hwinfo
