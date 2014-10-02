@@ -1045,7 +1045,7 @@ REPLACE INTO table_regex VALUES ('images','load_address','text','redirect','defa
 REPLACE INTO table_regex VALUES ('images','frisbee_pid','text','redirect','default:int',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','metadata_url','text','redirect','default:tinytext',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','imagefile_url','text','redirect','default:tinytext',0,0,NULL);
-
+REPLACE INTO table_regex VALUES ('images','notes','text','redirect','default:fulltext',0,1024,NULL);
 REPLACE INTO table_regex VALUES ('images','nodetype','text','redirect','node_types:node_type',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','OS','text','redirect','os_info:OS',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','version','text','redirect','os_info:version',0,0,NULL);

@@ -441,6 +441,7 @@ class Image
     function isdelta()		{ return $this->field("isdelta"); }
     function nodelta()		{ return $this->field("nodelta"); }
     function released()		{ return $this->field("released"); }
+    function notes()		{ return $this->field("notes"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -619,6 +620,7 @@ class Image
 	$image_uuid     = $this->image_uuid();
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
+	$notes          = $this->notes();
 	
 	#
 	# An imported image has a metadata_url, and at the moment I
@@ -636,6 +638,8 @@ class Image
 	    $path = "&nbsp;";
 	if (!$created)
 	    $created = "N/A";
+	if (!strcmp($notes, ""))
+	    $notes = "&nbsp;";
     
         #
         # Generate the table.
@@ -928,6 +932,11 @@ class Image
 	echo "<tr>
                 <td>Metadata URL: </td>
                 <td class=left><a href='$metadata_url'>https:// ...</a></td>
+              </tr>\n";
+
+        echo "<tr>
+                 <td>Notes: </td>
+                 <td>$notes</td>
               </tr>\n";
 
 	if ($imagefile_url) {

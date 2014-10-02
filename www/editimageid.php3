@@ -316,6 +316,19 @@ function SPITFORM($image, $formfields, $errors)
 			  "formfields[def_parentosid]",
 			  $osid_result, $formfields["def_parentosid"]);
 	}
+        #
+	# Notes
+	#
+	echo "<tr>
+                  <td>Admin Notes:</td>
+                  <td class=left>
+                      <textarea name=\"formfields[notes]\"
+                                rows=4 cols=60>" .
+		                   str_replace("\r", "",
+						$formfields["notes"]) .
+	              "</textarea>
+                  </td>
+              </tr>\n";
     }
 
     echo "<tr>
@@ -407,6 +420,12 @@ if (isset($formfields["path"]) && $formfields["path"] != "" &&
 if (isset($formfields["mbr_version"]) && $formfields["mbr_version"] != "" &&
     $formfields["mbr_version"] != $image->mbr_version()) {
     $args["mbr_version"] = $formfields["mbr_version"];
+}
+if ($formfields["notes"] != "" && !TBvalid_description($formfields["notes"])) {
+    $errors["Notes"] = TBFieldErrorString();
+}
+else {
+    $args["notes"] = $formfields["notes"];
 }
 
 # The mtype_* checkboxes are dynamically generated.
