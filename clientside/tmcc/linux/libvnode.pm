@@ -151,9 +151,12 @@ sub removePortForward($) {
 # Yes, this means it's possible that we might steal partitions that are
 # in /etc/fstab by UUID -- oh well.
 #
-# This function returns a hash of device name => part number => size (bytes);
-# note that a device name => size entry is filled IF the device has no
-# partitions.
+# This function returns a hash of:
+#   device name => part number => {size,path}
+# where size is in bytes and path is the full device name path to use
+# (which may NOT just be a simple concatonation of device name and partition).
+# Note that a device name => {size,fullpath} entry is filled IF the device
+# has no partitions.
 #
 sub findSpareDisks($) {
     my ($minsize) = @_;
@@ -256,6 +259,7 @@ sub findSpareDisks($) {
 	    # ignore the disk device.
 	    if (exists($retval{$dev}{"size"})) {
 		delete $retval{$dev}{"size"};
+		delete $retval{$dev}{"path"};
 		if (scalar(keys(%{$retval{$dev}})) == 0) {
 		    delete $retval{$dev};
 		}
@@ -290,6 +294,7 @@ sub findSpareDisks($) {
 		}
 		elsif ($output eq "0" && $size >= $minsize) {
 		    $retval{$dev}{$part}{"size"} = $BLKSIZE * $size;
+		    $retval{$dev}{$part}{"path"} = "/dev/$devpart";
 		}
 	    }
 	}
@@ -299,6 +304,7 @@ isdisk:
 		!defined($ftents{"/dev/$devpart"}) &&
 		$size >= $minsize) {
 		$retval{$devpart}{"size"} = $BLKSIZE * $size;
+		$retval{$devpart}{"path"} = "/dev/$devpart";
 	    }
 	}
     }

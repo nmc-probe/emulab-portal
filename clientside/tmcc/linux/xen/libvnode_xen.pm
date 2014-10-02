@@ -472,9 +472,14 @@ sub rootPreConfig($)
 
     #
     # Turn on write caching. Hacky. 
+    # XXX note we do not use the returned "path" here as we need to
+    # change the setting on all devices, not just the whole disk devices.
     #
     foreach my $dev (keys(%devs)) {
-	mysystem2("hdparm -W1 /dev/$dev");
+	# only mess with the disks we are going to use
+	if (exists($devs{$dev}{"size"}) || $LVM_FULLDISKONLY == 0) {
+	    mysystem2("hdparm -W1 /dev/$dev");
+	}
     }
 
     #
@@ -493,12 +498,12 @@ sub rootPreConfig($)
 	my $totalSize = 0;
 	foreach my $dev (keys(%devs)) {
 	    if (defined($devs{$dev}{"size"})) {
-		$blockdevs .= " /dev/$dev";
+		$blockdevs .= " " . $devs{$dev}{"path"};
 		$totalSize += $devs{$dev}{"size"};
 	    }
 	    elsif ($LVM_FULLDISKONLY == 0) {
 		foreach my $part (keys(%{$devs{$dev}})) {
-		    $blockdevs .= " /dev/${dev}${part}";
+		    $blockdevs .= " " . $devs{$dev}{$part}{"path"};
 		    $totalSize += $devs{$dev}{$part}{"size"};
 		}
 	    }
