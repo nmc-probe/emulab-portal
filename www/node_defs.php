@@ -1696,8 +1696,8 @@ function ShowNodeHistory($node_id = null, $record = null,
 	echo $table_html;
 
 	echo "</table>\n";
-	echo "<center><a href='shownodehistory.php3?record=$max_history_id".
-	    "&count=$count&$node_opt'>Next $count records</a></center>\n";
+	echo "<center><a href='shownodehistory.php3?record=$hid".
+	    "&reverse=$reverse&count=$count&$node_opt'>Next $count records</a></center>\n";
 
 	$ttime = $atime + $ftime + $rtime + $dtime;
 	if ($ttime) {
