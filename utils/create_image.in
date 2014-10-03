@@ -879,6 +879,14 @@ else {
     my $id;
     if ($usefup) {
 	$command .= " METHOD=frisbee SERVER=$BOSSIP";
+
+	# if the node has a subboss, use that for downloads
+	my $subboss;
+	$node->GetSubboss("frisbee", \$subboss);
+	if (defined($subboss)) {
+	    $command .= " DOWNSERVER=$subboss";
+	}
+
 	if ($usepath) {
 	    $id = $filename;
 	} else {
