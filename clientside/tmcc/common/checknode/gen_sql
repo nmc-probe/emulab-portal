@@ -4,15 +4,7 @@ source checkutils.sh
 
 
 checkdrift_main() {
-    set -u
     declare -i countsame=1 filecount=0 hostcount=0 
-    projdir=/proj/emulab-ops/nodecheck
-    cd $projdir
-    if (( $# )) ; then
-	allnodes="$@"
-    else
-	allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null)
-    fi
 
     for host in $allnodes ; do
 	((hostcount++))
@@ -86,14 +78,6 @@ checkdrift_main() {
 # :    echo "$filecount files in $hostcount nodes checked"
 }
 checkwce_main() {
-    set -u
-    projdir=/proj/emulab-ops/nodecheck
-    cd $projdir
-    if (( $# )) ; then
-	allnodes="$@"
-    else
-	allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null)
-    fi
 
     for host in $allnodes ; do
 	if [ -f $projdir/$host/full ] ; then
@@ -151,16 +135,7 @@ get_bsidx_from_hostAnddrive() {
 }
 
 gentbsql_main() {
-    set -u
     local sn="UNK" hdtype="UNK" secsize="UNK" sectors="UNK" wspeed="UNK" rspeed="UNK"
-    projdir=/proj/emulab-ops/nodecheck
-    cd $projdir
-    if (( $# )) ; then
-	allnodes="$@"
-    else
-	allnodes=$(ls -d pc* pg* dbox* gpu* 2> /dev/null )
-    fi
-
     # get current unique BlockStore number from tbdb
     bsidx_base=$(mysql -B -N -e "select idx from emulab_indicies where name='next_bsidx';" tbdb)
     keep_bsidx_base=$bsidx_base
@@ -367,6 +342,19 @@ setdirstructure() {
 	done
     done
 }
+
+# start here
+set -u
+projdir=/proj/emulab-ops/nodecheck
+cd $projdir
+
+if (( $# )) ; then
+    allnodes="$@"
+else
+    nodes=$(ls */tmcc)
+    allnodes=${nodes//\/tmcc/}
+    exit
+fi
 
 
 if [ "$0" != "${0/setdir}" ] ; then
