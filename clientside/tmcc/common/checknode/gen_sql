@@ -192,37 +192,38 @@ gentbsql_main() {
 			[[ "$bsidx" ]] && continue
 		    fi
 
-#  just do it don't check for TYPE from file
-#		    if [ "${toadd/TYPE=}" != "$toadd" ]; then
-# /* by Mike's orders
-#  type		"class"	"protocol"	"rot-speed"	nodes with this type
-# 
-#  pata-generic	local	PATA		7200		pc600,pc850,pc2000
-#  scsi-generic	local	SCSI		10000		pc3000,pc6000
-#  sata-generic	local	SATA		7200		pc2400w,d710,d820,pcivy
-#  sas-generic	local	SAS		10000		d820
-#  ssd-generic	local	SATA		0		gpuhost,d820(pc601)
-#  c2100-sas	local	SAS		15000		c2100
-# */
-			nodetype=$(mysql -B -N -e "select type from nodes where node_id='$host';" tbdb)
-			case $nodetype in
-			    pc600 | pc850 | pc2000 ) hdtype="pata-generic" ;;
-			    pc3000 | pc6000 ) hdtype="scsi-generic" ;;
-			    pc2400w | d710 | d820 | pcivy ) hdtype="sata-generic" ;;
-			    d820 ) hdtype="sas-generic" ;;
-			    gpuhost ) hdtype="ssd-generic" ;;
-			    c2100 ) hdtype="c2100-sas" ;;
-			    * ) 
-				hdtype=${toadd##*TYPE=}
-				hdtype=${hdtype%% *}
-				;;
-			esac
-			# XXX XXX XXX special case
-			if [ "$host" == "pc601" ] ; then
-			    hdtype="ssd-generic"
-			fi
-# just do it don't check for TYPE from file
-#		    fi
+		    # /* by Mike's orders
+		    #  type		"class"	"protocol"	"rot-speed"	nodes with this type
+		    # 
+		    #  pata-generic	local	PATA		7200		pc600,pc850,pc2000
+		    #  scsi-generic	local	SCSI		10000		pc3000,pc6000
+		    #  sata-generic	local	SATA		7200		pc2400w,d710,d820,pcivy
+		    #  sas-generic	local	SAS		10000		d820
+		    #  ssd-generic	local	SATA		0		gpuhost,d820(pc601)
+		    #  c2100-sas	local	SAS		15000		c2100
+		    # */
+		    nodetype=$(mysql -B -N -e "select type from nodes where node_id='$host';" tbdb)
+		    case $nodetype in
+			pc600 | pc850 | pc2000 ) hdtype="pata-generic" ;;
+			pc3000 | pc6000 ) hdtype="scsi-generic" ;;
+			pc2400w | d710 | d820 | pcivy ) hdtype="sata-generic" ;;
+			d820 ) hdtype="sas-generic" ;;
+			gpuhost ) hdtype="ssd-generic" ;;
+			c2100 ) hdtype="c2100-sas" ;;
+			* ) 
+			    hdtype=${toadd##*TYPE=}
+			    hdtype=${hdtype%% *}
+			    ;;
+		    esac
+		    # translate type
+		    [[ "$hdtype" == "SATA" ]] && hdtype="sata-generic"
+		    [[ "$hdtype" == "PATA" ]] && hdtype="pata-generic"
+		    [[ "$hdtype" == "SAS" ]] && hdtype="sas-generic"
+		    # XXX XXX XXX special case
+		    if [ "$host" == "pc601" ] ; then
+			hdtype="ssd-generic"
+		    fi
+		    # XXX XXX XXX special case
 		    if [ "${toadd/SECSIZE=}" != "$toadd" ]; then
 			secsize=${toadd##*SECSIZE=}
 			secsize=${secsize%% *}
@@ -246,11 +247,13 @@ gentbsql_main() {
 			((++bsidx_base))
 		    done
                     # check and see if drive already used
+		    found_blockstores_idx=''
+		    found_blockstoreattr_idx=''
 		    while [ "$(mysql -B -N -e "select bs_id from blockstores where node_id=\"$host\" and bs_id=\"disk${hdnum}\";" tbdb)" ] ; do
 			# found a driveX on this host - see what we can find in the db
 			found_blockstores_idx=''
-			found_blockstores_idx=$(get_bsidx_from_hostAnddrive $host ${hdnum})
 			found_blockstoreattr_idx=''
+			found_blockstores_idx=$(get_bsidx_from_hostAnddrive $host ${hdnum})
 			found_blockstoreattr_idx=$(get_sn_from_bsidx $found_blockstores_idx)
 
 			if [ "$found_blockstores_idx" ] ; then
@@ -273,6 +276,15 @@ gentbsql_main() {
 			    echo ""
 			fi
 		    else
+			# just make sure we don't have an entry
+			justcheck=$(mysql -B -N -e "select * from blockstore_attributes where attrvalue='$sn';" tbdb );
+			if [ "$justcheck" ] ; then
+			    echo "ERROR: tbdb Inconsistance  EXIT"
+			    echo "bsidx=$bsidx_base but found $sn in blockstore_attributes"
+			    mysql -e "select * from blockstore_attributes where attrvalue='$sn';" tbdb
+			    exit
+			fi
+
 			printf "mysql -e \"insert into blockstores values (%d, '%s', 'disk%d', 0, '%s', 'element', %d, 1, now());\" tbdb\n" "$bsidx_base" "$host" "$hdnum" "$hdtype" "$size" 
 			# now the second table
 			printf "mysql -e \"insert into blockstore_attributes values (%d, '%s', '%s', '%s');\" tbdb\n" "$bsidx_base" "serialnum" "$sn" "string" 
@@ -314,6 +326,7 @@ gentbsql_main() {
 		    fi
 		fi
 	    done
+
 	    listofnics=$(grep 'NICs:' diff)
 	    listofnics=${listofnics//NICs:/}
 	    for i in $listofnics ; do
