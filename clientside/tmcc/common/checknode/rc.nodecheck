@@ -92,6 +92,7 @@ mountpoint="/$a/$b"
 if [ ! -d "$mountpoint" ] ; then
     mkdir -p $mountpoint
 fi
+exit
 
 mounted=0
 isitmounted=$(mount | grep -c $mountpoint)
