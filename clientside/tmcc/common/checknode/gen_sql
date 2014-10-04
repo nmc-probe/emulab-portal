@@ -5,7 +5,7 @@ source checkutils.sh
 
 checkdrift_main() {
     declare -i countsame=1 filecount=0 hostcount=0 
-
+# XXX XXX XXX need sanity check that all bsidx match the two db tables
     for host in $allnodes ; do
 	((hostcount++))
 	if [ -d $projdir/$host/.tbdb ] ; then
@@ -18,7 +18,7 @@ checkdrift_main() {
 	    allchecks=${allchecks#* } # pop the list
 	    [[ ! $allchecks ]] && continue # ran out of files for this node
 
-	    #only compare inventory computed in mfsmode
+	    #only compare inventory computed in mfsmode=1
             # from the top of list skip file that have mfsmode=0
 	    while (grep -c 'ismfs=0' $newest &> /dev/null ) ; do
 		newest=${allchecks%%\ *} # take off the top
@@ -154,12 +154,33 @@ gentbsql_main() {
 		continue
 	    fi
 
-	    listofdisks=$(grep 'DISKs:' diff)
-	    listofdisks=${listofdisks//DISKs:}
+	    # we need a diff file that has SN in it, check the .diff directory
+	    # for the info
+	    # so try and find the SN in any .full/* file with serial numbers
+	    echo "# $(pwd)"
+	    dotDiffFiles=$(ls -t .diff)
+	    for dDF in $dotDiffFiles ; do
+		SNinfo=$(grep 'DISKs:' .diff/$dDF | grep -v UNKNOWN)
+		[[ $SNinfo ]] && break # found, stop
+	    done
+	    # if we failed to find a file then default to the sym link
+	    # else we found it 
+	    if [ "$SNinfo" ] ; then
+		indexF=$dDF
+		diffFile=.diff/$dDF
+		nodeFile=.tbdb/$dDF
+	    else
+		indexF=$(pwd)
+		diffFile=diff
+		nodeFile=node
+	    fi
+	    
+	    listofdisks=$(grep 'DISKs:' $diffFile)
+	    listofdisks=${listofdisks//DISKs:}  # take string out
 	    hdnum=0
 
 	    for i in $listofdisks ; do
-		toadd=$(grep $i node)
+		toadd=$(grep $i $nodeFile)
 		if [ -n "$toadd" ] ; then
 		    toadd=${toadd/DISKUNIT}
 		    if [ "${toadd/SN=}" != "$toadd" ]; then
@@ -226,19 +247,53 @@ gentbsql_main() {
 		    done
                     # check and see if drive already used
 		    while [ "$(mysql -B -N -e "select bs_id from blockstores where node_id=\"$host\" and bs_id=\"disk${hdnum}\";" tbdb)" ] ; do
-			echo "# drive${hdnum} already used, bumping hdnum again"
-			((++hdnum))
+			# found a driveX on this host - see what we can find in the db
+			found_blockstores_idx=''
+			found_blockstores_idx=$(get_bsidx_from_hostAnddrive $host ${hdnum})
+			found_blockstoreattr_idx=''
+			found_blockstoreattr_idx=$(get_sn_from_bsidx $found_blockstores_idx)
+
+			if [ "$found_blockstores_idx" ] ; then
+			    echo -n "# drive${hdnum} already used @ $found_blockstores_idx"
+			    break
+			else
+			    echo "# drive${hdnum} already used, bumping hdnum again"
+			    ((++hdnum))
+			fi
 		    done
-		    printf "mysql -e \"insert into blockstores values (%d, '%s', 'disk%d', 0, '%s', 'element', %d, 1, now());\" tbdb\n" "$bsidx_base" "$host" "$hdnum" "$hdtype" "$size" 
-		    # now the second table
-		    printf "mysql -e \"insert into blockstore_attributes values (%d, '%s', '%s', '%s');\" tbdb\n" "$bsidx_base" "serialnum" "$sn" "string" 
-		    ((++bsidx_base))
+		    if [ "$found_blockstores_idx" ] ; then
+			# have a blockstores idx, check if we are missing blockstore_attrs
+			if [ ! "$found_blockstoreattr_idx" ] ; then
+			    # create one
+			    echo " BUT blockstore_attributes missing"
+			    printf "mysql -e \"insert into blockstore_attributes values (%d, '%s', '%s', '%s');\" tbdb\n" "$found_blockstores_idx" "serialnum" "$sn" "string" 
+			    # assume we don't have to update blockstores, but display entry
+			    echo "# MATCHING BLOCKSTORES @ $(mysql -B -N -e "select bsidx,node_id,bs_id,total_size  from blockstores where bsidx=$found_blockstores_idx;" tbdb);"
+			else
+			    echo ""
+			fi
+		    else
+			printf "mysql -e \"insert into blockstores values (%d, '%s', 'disk%d', 0, '%s', 'element', %d, 1, now());\" tbdb\n" "$bsidx_base" "$host" "$hdnum" "$hdtype" "$size" 
+			# now the second table
+			printf "mysql -e \"insert into blockstore_attributes values (%d, '%s', '%s', '%s');\" tbdb\n" "$bsidx_base" "serialnum" "$sn" "string" 
+			# used up a bsidx, incr bsidx
+			((++bsidx_base))
+		    fi
+		    # FINALLY onto the next drive
 		    ((++hdnum))
 		else
 		    if [ "$i" == "UNKNOWN" ] ; then
 			x=$(get_bsidx_from_hostAnddrive $host ${hdnum})
 			if [ -n "$x" ] ; then
 			    echo -n "# Missing Serial Number for disk${hdnum} on $host"
+			    # so try and find the SN in any .full/* file with serial numbers
+			    pwd
+			    dotFullFiles=$(ls .full)
+			    for dFF in $dotFullFiles ; do
+				SNinfo=$(grep -v 'SN="UNKNOWN"' .full/$dFF | grep DISKUNIT)
+				[[ $SNinfo ]] && break # found some stop
+			    done
+			    exit
 			    echo " but found $(get_drive_from_bsidx $x) $(get_host_from_bsidx $x) @ bsidx=$x SN=$(get_sn_from_bsidx $x)" 
 			fi
 			((++hdnum))
@@ -278,7 +333,10 @@ gentbsql_main() {
 	fi
     done
     if [ $keep_bsidx_base -ne $bsidx_base ] ; then
+	echo "# orginal bsidx=$keep_bsidx_base : new bsidx=$bsidx_base"
 	printf "mysql -e \"update emulab_indicies set idx=%d where name='next_bsidx';\" tbdb\n" "$bsidx_base"
+    else
+	echo "# orginal bsidx=$keep_bsidx_base : new bsidx=$bsidx_base == no update"
     fi
 }
 
@@ -346,6 +404,7 @@ setdirstructure() {
 # start here
 set -u
 projdir=/proj/emulab-ops/nodecheck
+# if projdir is automounted this should mount it
 cd $projdir
 
 if (( $# )) ; then
@@ -353,7 +412,6 @@ if (( $# )) ; then
 else
     nodes=$(ls */tmcc)
     allnodes=${nodes//\/tmcc/}
-    exit
 fi
 
 
