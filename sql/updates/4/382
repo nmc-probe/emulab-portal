@@ -20,8 +20,8 @@ sub DoUpdate($$$)
 
     my $osinfo = OSinfo->LookupByName("XEN-STD");
     if (!defined($osinfo)) {
-	print STDERR "Could not lookup XEN-STD\n";
-	return -1;
+	# XEN stuff not installed.
+	return 0;
     }
     my $nextosinfo = OSinfo->LookupByName($XENIMAGE_STD);
     if (!defined($nextosinfo)) {
