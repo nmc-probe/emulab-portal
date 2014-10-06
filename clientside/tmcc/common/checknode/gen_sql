@@ -157,7 +157,7 @@ gentbsql_main() {
 	    # we need a diff file that has SN in it, check the .diff directory
 	    # for the info
 	    # so try and find the SN in any .full/* file with serial numbers
-	    echo "# $(pwd)"
+# debugging	    echo "# $(pwd)"
 	    dotDiffFiles=$(ls -t .diff)
 	    for dDF in $dotDiffFiles ; do
 		SNinfo=$(grep 'DISKs:' .diff/$dDF | grep -v UNKNOWN)
@@ -257,7 +257,7 @@ gentbsql_main() {
 			found_blockstoreattr_idx=$(get_sn_from_bsidx $found_blockstores_idx)
 
 			if [ "$found_blockstores_idx" ] ; then
-			    echo -n "# drive${hdnum} already used @ $found_blockstores_idx"
+			    echo -n "# $host drive${hdnum} already used @ bsidx=$found_blockstores_idx"
 			    break
 			else
 			    echo "# drive${hdnum} already used, bumping hdnum again"
@@ -297,16 +297,16 @@ gentbsql_main() {
 		    if [ "$i" == "UNKNOWN" ] ; then
 			x=$(get_bsidx_from_hostAnddrive $host ${hdnum})
 			if [ -n "$x" ] ; then
-			    echo -n "# Missing Serial Number for disk${hdnum} on $host"
+			    echo -n "# Can not locate Serial Number for disk${hdnum} on $host"
 			    # so try and find the SN in any .full/* file with serial numbers
-			    pwd
 			    dotFullFiles=$(ls .full)
 			    for dFF in $dotFullFiles ; do
 				SNinfo=$(grep -v 'SN="UNKNOWN"' .full/$dFF | grep DISKUNIT)
 				[[ $SNinfo ]] && break # found some stop
 			    done
-			    exit
 			    echo " but found $(get_drive_from_bsidx $x) $(get_host_from_bsidx $x) @ bsidx=$x SN=$(get_sn_from_bsidx $x)" 
+			else
+			    echo ""
 			fi
 			((++hdnum))
 		    else
@@ -338,7 +338,7 @@ gentbsql_main() {
 		    printf "#BYHAND mysql -e \"insert into interfaces set node_id='%s',mac='%s',card=X,port=X,interface_type='?',iface='ethX',role='?',uuid='$uuid';\" tbdb\n" "$host" "$toadd"
 		else
 		    toadd="ID=\"$i\""
-		    printf "#BYHAND mysql -e \"delete from interfaces where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+#		    printf "#BYHAND mysql -e \"delete from interfaces where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
 		fi
 	    done
 	else
