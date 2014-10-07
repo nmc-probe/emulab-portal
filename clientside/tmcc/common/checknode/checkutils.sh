@@ -459,7 +459,7 @@ compareunits() {
     # else 
 	# not the same number of devices. Don't match, do nothing.
     fi
-    
+
     #remove extra spaces
     save_e
     set +e
