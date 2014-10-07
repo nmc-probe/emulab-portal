@@ -48,7 +48,6 @@ if ($EUID != 0) {
 }
 
 # Script specific goo
-my $IQN_PREFIX = "iqn.2000-10.net.emulab";
 my $OLDCONFIG = "$VARDIR/db/storage.conf";
 my $STORAGEMAP = "$BOOTDIR/storagemap";
 
@@ -408,8 +407,7 @@ sub process($$$$)
 		warn("*** No iSCSI target portal specified\n");
 		return 0;
 	    }
-	    if ($href->{'UUID_TYPE'} ne "iqn" ||
-		$href->{'UUID'} !~ /^$IQN_PREFIX/) {
+	    if ($href->{'UUID_TYPE'} ne "iqn") {
 		warn("*** Invalid iSCSI target name '".$href->{'UUID'}."'\n");
 		return 0;
 	    }
