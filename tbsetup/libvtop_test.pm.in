@@ -8003,8 +8003,10 @@ sub CheckIPAddressReservations($) {
 	# Now preload the reservations in the DB, including those associated
 	# with this experiment.  The buddy allocator will allocate around
 	# these.
-	$buddy->loadReservedRanges($self->experiment()) == 0
-	    or return -1;
+	if ($buddy->loadReservedRanges($self->experiment())) {
+	    $buddy->unlock();
+	    return -1;
+	}
 
 	foreach my $virtlan (@sharedlans) {
 	    my $vlanname    = $virtlan->vname();
@@ -8018,9 +8020,11 @@ sub CheckIPAddressReservations($) {
 	    }
 	    if ($hbits > 24) {
 		tberror("Lan $vlanname has too many members!\n");
+		$buddy->unlock();
 		return -1;
 	    }
 	    my $prefix = 32 - $hbits;
+$self->printdb("Got prefix $prefix\n");
 	    my $newmask = Socket::inet_ntoa(pack("B32", "1" x $prefix));
 	    $virtlan->_mask($newmask);
 	    
