@@ -209,6 +209,8 @@ sub renewals($)	       {return $_[0]->{'DBROW'}->{'renewals'}; }
 sub locktime($)        {return str2time($_[0]->{'DBROW'}->{'locked'}); }
 sub locked($)          {return $_[0]->{'DBROW'}->{'locked'}; }
 sub lockpid($)         {return $_[0]->{'DBROW'}->{'locker_pid'}; }
+sub allow_modify($;$)  {if (defined($_[1])) {$_[0]->{'allow_modify'} = $_[1];}
+			return $_[0]->{'allow_modify'}; }
 
 #
 # Lookup a lease in the DB and return an object representing it.
@@ -750,15 +752,45 @@ sub SiteVars($$) {
 }
 
 #
-# Return a list of all leases.
+# Check to see if a lease type is a valid one
 #
-sub AllLeases($)
+sub _validLeaseType($) {
+    my ($type) = @_;
+
+    # Make sure something was actually passed in.
+    if (!defined($type) || !$type) {
+	return 0;
+    }
+
+    if (grep {/^$type$/} @LEASE_TYPES) {
+	return 1;
+    }
+
+    # Not valid (not found in @LEASE_TYPES).
+    return 0;
+}
+
+#
+# Return a list of all leases (optionally of a particular type).
+#
+sub AllLeases($;$)
 {
-    my ($class)  = @_;
+    my ($class, $type)  = @_;
     my @pleases = ();
+
+    my $tclause = "";
+    if (defined($type)) {
+	if (_validLeaseType($type)) {
+	    $tclause = "where type='$type'";
+	} else {
+	    print STDERR "Lease::AllLeases(): Invalid lease type: $type\n";
+	    return undef;
+	}
+    }
     
     my $query_result =
-	DBQueryWarn("select lease_idx from project_leases");
+	DBQueryWarn("select lease_idx from project_leases $tclause"
+		    " order by lease_idx");
     
     return ()
 	if (!$query_result || !$query_result->numrows);
@@ -794,11 +826,12 @@ sub AllProjectLeases($$;$)
     
     my $tclause = "";
     if (defined($type)) {
-	if (!grep {/^$type$/} @LEASE_TYPES) {
-	    print STDERR "Lease->AllProjectLeases: unknown type: $type\n";
+	if (_validLeaseType($type)) {
+	    $tclause = "and type='$type'";
+	} else {
+	    print STDERR "Lease::AllProjectLeases(): Invalid lease type: $type\n";
 	    return undef;
 	}
-	$tclause = "and type='$type'";
     }
 
     my $query_result =
@@ -823,9 +856,9 @@ sub AllProjectLeases($$;$)
 #
 # Grab all leases belonging to a particular user
 #
-sub AllUserLeases($$)
+sub AllUserLeases($$;$)
 {
-    my ($class, $uid)  = @_;
+    my ($class, $uid, $type)  = @_;
     my @pleases = ();
     
     return undef
@@ -834,9 +867,20 @@ sub AllUserLeases($$)
     if (ref($uid) eq "User") {
 	$uid = $uid->uid();
     }
+
+    my $tclause = "";
+    if (defined($type)) {
+	if (_validLeaseType($type)) {
+	    $tclause = "and type='$type'";
+	} else {
+	    print STDERR "Lease::AllUserLeases(): Invalid lease type: $type\n";
+	    return undef;
+	}
+    }
     
     my $query_result =
-	DBQueryWarn("select lease_idx from project_leases where owner_uid='$uid'");
+	DBQueryWarn("select lease_idx from project_leases".
+		    " where owner_uid='$uid' $tclause");
     
     return ()
 	if (!$query_result || !$query_result->numrows);
@@ -851,6 +895,150 @@ sub AllUserLeases($$)
 	push(@pleases, $lease);
     }
     return @pleases;
+}
+
+#
+# Return a list of leases for which a user OR entire project has access.  
+#
+# Permissions are determined as follows:
+# * The owner of a lease always has full (RW) access
+# * Users in a project with group_root or above trust always have full (RW) 
+#   access to leases associated with that project.
+# * Explicitly granted per-user and per-project permissions are extracted 
+#   from the lease_permissions tables.
+#
+# Arguments:
+# * upid - User OR Project object to lookup lease access for.
+# * type - Optional lease type selector.  Restrict results to this type 
+#          of lease.
+#
+# Returns: Array of lease objects the given principal (user or project) has 
+#          access to.  To each of these lease objects, an "allow_modify"
+#          boolean is set, accessible via $leaseobj->allow_modify().
+#
+sub GetAllowedLeases($$;$) {
+    my ($class, $upid, $type)  = @_;
+    my $uid = "";
+    my %admin_pids = ();
+    my %leases = ();
+
+    # Determine appropriate "where" clause for DB lookup based on the
+    # type of object passed in (User or Project).  Also stash away some
+    # info to process the query results with in the case of a User access
+    # query.
+    my $wclause = "";
+    if (ref($upid) == "User") {
+	$uid = $upid->uid();
+	my $uid_idx = $upid->uid_idx();
+	my @ugroups = ();
+	my $gid_idx_list = "";
+	my $admin_pid_list = "";
+
+	# Get group information for input User.
+	if ($upid->GroupMembershipList(\@ugroups) == 0 && int(@ugroups) > 0) {
+	    # Determine set of projects for which the input User has
+	    # group_root or above trust.
+	    foreach my $group (@ugroups) {
+		if ($group->IsProjectGroup() &&
+		    TBMinTrust($group->Trust($upid),
+			       PROJMEMBERTRUST_GROUPROOT())) {
+		   $admin_pids{$group->pid()} = 1;
+		}
+	    }
+	    # Create admin and overall membership list strings for groups the
+	    # user is in.  Used in the SQL query below.
+	    $gid_idx_list = join ",", map {$_->gid_idx()} @ugroups;
+	    $admin_pid_list = join ",", keys %admin_pids;
+	} else {
+	    print STDERR "Lease::GetAllowedLeases(): Failed to lookup ".
+                         "group membership for user: $upid\n";
+	    return undef;
+	}
+
+	# Construct the "where" clause for this user based on the information
+	# collected above.
+	$wclause = "where (pl.owner_uid='$uid'";
+	if ($admin_pid_list) {
+	    $wclause .= " or (pl.pid in ($admin_pid_list))";
+	}
+	$wclause .= " or (lp.permission_type='user'".
+	            "     and lp.permission_idx='$uid_idx')";
+	if ($gid_idx_list) {
+	    $wclause .= " or (lp.permission_type='group'".
+		        "     and lp.permission_idx in ($gid_idx_list))";
+	}
+	$wclause .= ")";
+    }
+    # Construct "where" clause for a Project principal.
+    elsif (ref($upid) == "Project") {
+	my $pid_idx = $upid->pid_idx();
+	$wclause = "where lp.permissions_type='group'".
+	           " and lp.permission_idx='$pid_idx'";
+    }
+    # Input principal argument must be either a User or Project argument.
+    else {
+	print STDERR "Lease::GetAllowedLeases(): Unknown access object: ".
+	             "$upid\n";
+	return undef;
+    }
+
+    # Build up type selector clause to add to where clause, if requested.
+    my $tclause = "";
+    if (defined($type)) {
+	if (_validLeaseType($type)) {
+	    $tclause = "and pl.type='$type'";
+	} else {
+	    print STDERR "Lease::GetAllowedLeases(): Invalid lease type: $type\n";
+	    return undef;
+	}
+    }
+
+    # Now perform the constructed query.
+    my $query_result =
+	DBQueryWarn("select distinct pl.lease_idx,lp.allow_modify".
+		    " from project_leases as pl".
+		    "  left join lease_permissions as lp".
+		    "  on pl.lease_idx = lp.lease_idx".
+		    " $wclause $tclause order by pl.lease_idx");
+    
+    return ()
+	if (!$query_result || !$query_result->numrows);
+
+    # Loop through result set and process.  Augment permissions for
+    # lease owners and users with group_root in lease's owning project.
+    # There will be duplicate lease_idx values in the results if there
+    # are multiple entries for the lease in the lease_permissions table.
+    # Handle this by storing the result set in a hash table.
+    while (my ($lease_idx, $modify) = $query_result->fetchrow_array()) {
+	my $lease;
+	if (!exists($leases{$lease_idx})) {
+	    $lease = $leases{$lease_idx} = Lookup($class, $lease_idx);
+	    # Failing to get a Lease object for a lease we just found
+	    # with the above DB query is both odd and fatal.
+	    return ()
+		if !$lease;
+	    # Initialize modify setting - defaults to read-only (0).
+	    $lease->allow_modify(0);
+	} else {
+	    $lease = $leases{$lease_idx};
+	}
+
+	# The lease's owner, and admins in the project that the lease
+	# belongs to _always_ have full rights.
+	if ($uid && ($uid eq $lease->owner_uid() ||
+		     exists($admin_pids{$lease->pid()})))
+	{
+	    $modify = 1;
+	}
+
+	# If _any_ permissions found for a lease allow for
+	# modification, then it is allowed (greatest privilege for
+	# the same lease wins out).
+	$modify = ($modify || $lease->allow_modify()) ? 1 : 0;
+	$lease->allow_modify($modify);
+    }
+
+    return values %leases;
 }
 
 #
