@@ -59,6 +59,8 @@ sub Install($$$)
 	    Phase "${imagename}_validate", "Validating DB info for image.", sub {
 		my $iname = TBOPSPID() . "/" . $imagename;
 		ExecQuietFatal("$SUDO -u $PROTOUSER ".
+			       "$PREFIX/sbin/imagerelease -f -m $iname");
+		ExecQuietFatal("$SUDO -u $PROTOUSER ".
 			       "$PREFIX/sbin/imagevalidate -uq $iname");
 	    };
 	}
