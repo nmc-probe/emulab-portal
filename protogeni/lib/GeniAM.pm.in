@@ -279,15 +279,21 @@ sub ListResources()
         }
         # Get the hash out of the response
         my $slice_hash = GeniResponse::value($response);
-        my $sliver = $slice_hash->{'sliver_urn'};
         # Resolve the sliver to get the manifest RSpec
-        $resolve_args->{'urn'} = $sliver;
-        $response = GeniCMV2::Resolve($resolve_args);
-        if (GeniResponse::IsError($response)) {
-            return $response;
-        }
-        $xml = GeniResponse::value($response)->{'manifest'};
-
+	if (! exists($slice_hash->{'sliver_urn'}) ||
+	    ! defined($slice_hash->{'sliver_urn'})) {
+	    #
+	    # Hmm, see if its busy. In the middle of creating.
+	    #
+	    return GeniResponse->BusyResponse();
+	}
+	my $sliver = $slice_hash->{'sliver_urn'};
+	$resolve_args->{'urn'} = $sliver;
+	$response = GeniCMV2::Resolve($resolve_args);
+	if (GeniResponse::IsError($response)) {
+	    return $response;
+	}
+	$xml = GeniResponse::value($response)->{'manifest'};
     } else {
 	my $pgversion = undef;
 	if (! defined($version)) {
