@@ -9,6 +9,10 @@ sub InstallUpdate($$)
 {
     my ($version, $phase) = @_;
 
+    if (! ($PGENISUPPORT && $PROTOGENI_GENIRACK)) {
+	return 0
+    }
+
     if ($phase eq "pre") {
 	Phase "mod_wsgi3", "Checking for port mod_wsgi3", sub {
 	    DoneIfPackageInstalled("mod_wsgi3");
@@ -25,3 +29,7 @@ sub InstallUpdate($$)
 }
 
 1;
+
+# Local Variables:
+# mode:perl
+# End:
