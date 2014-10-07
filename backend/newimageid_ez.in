@@ -531,6 +531,9 @@ elsif (! $isadmin) {
 	UserError("Path: Invalid Path");
     }
 }
+if (-d $newimageid_args{"path"}) {
+    UserError("Path: invalid path, its a directory");
+}
 
 # We allow loadpart=0 for whole-disk images in the Long Form, and it uses the
 # same table_regex checking patterns.  Here "wholedisk" is a separate checkbox.
