@@ -68,3 +68,5 @@
 #undef NOVIRTNFSMOUNTS
 #undef WITHZFS
 #undef WITHAMD
+
+#undef BS_IQN_PREFIX

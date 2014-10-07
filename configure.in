@@ -302,6 +302,7 @@ AC_SUBST(ZFS_QUOTA_PROJECT)
 AC_SUBST(ZFS_QUOTA_GROUP)
 AC_SUBST(WITHAMD)
 AC_SUBST(AMD_ROOT)
+AC_SUBST(BS_IQN_PREFIX)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -455,6 +456,7 @@ ZFS_QUOTA_PROJECT="100G"
 ZFS_QUOTA_GROUP="10G"
 WITHAMD=0
 AMD_ROOT=/.amd_mnt
+BS_IQN_PREFIX=iqn.2000-10.net.emulab
 
 #
 # XXX You really don't want to change these!
@@ -789,6 +791,7 @@ if test -z "$EVENTSERVER"; then
     EVENTSERVER="event-server"
 fi
 AC_DEFINE_UNQUOTED(EVENTSERVER, "$EVENTSERVER")
+AC_DEFINE_UNQUOTED(BS_IQN_PREFIX, "$BS_IQN_PREFIX")
 
 #
 # Perl SelfLoader

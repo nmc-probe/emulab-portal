@@ -144,3 +144,6 @@ ZFS_QUOTA_PROJECT="100G"
 ZFS_QUOTA_GROUP="10G"
 WITHAMD=1
 AMD_ROOT=/.amd_mnt/ops
+
+# Blockstores
+BS_IQN_PREFIX=iqn.2014-05.net.emulab.apt

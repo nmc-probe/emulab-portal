@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 University of Utah and the Flux Group.
+ * Copyright (c) 2013-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -40,9 +40,12 @@
 #define BS_PROTO_SAS    "SAS"
 
 /* Definitions related to iSCSI */
-#define BS_IQN_PREFIX   "iqn.2000-10.net.emulab" /* XXX: don't hardcode. */
+#ifndef BS_IQN_PREFIX
+#define BS_IQN_PREFIX   "iqn.2000-10.net.emulab"
+#endif
 #define BS_IQN_MAXSIZE  sizeof(BS_IQN_PREFIX) + TBDB_FLEN_PID + \
 	                TBDB_FLEN_EID + TBDB_FLEN_BSVOL
+
 #define BS_PERMS_ISCSI_RO  "RO" /* read/write */
 #define BS_PERMS_ISCSI_RW  "RW" /* read/write */
 #define BS_PERMS_ISCSI_DEF BS_PERMS_ISCSI_RW
