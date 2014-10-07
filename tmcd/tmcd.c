@@ -11696,11 +11696,19 @@ COMMAND_PROTOTYPE(dohwinfo)
 	mysql_free_result(res);
 
 	/*
-	 * Network info comes from interfaces table.
+	 * Network info comes from interfaces table. Ignore:
+	 *
+	 *  - Obviously hacky and fake addresses: '000000xxxxxx'
+	 *  - Management (role == 'mngmnt') interfaces. Currently there
+	 *    is no OS visible HW for these, the corresponding MACs are
+	 *    just used by the management HW.
+	 *  - Infiniband (guid != NULL) interfaces. We need support on
+	 *    the client side before we start sending those over.
 	 */
-	res = mydb_query("select mac from interfaces "
-			 "where mac not like '000000%%' and node_id='%s'"
-			 "order by card",
+	res = mydb_query("select mac from interfaces where "
+			 " mac not like '000000%%' and "
+			 " role!='mngmnt' and guid is NULL and "
+			 " node_id='%s' order by card",
 			 1, reqp->nodeid);
 	if (!res) {
 		error("dohwinfo: %s: DB Error getting NET attributes!\n",
