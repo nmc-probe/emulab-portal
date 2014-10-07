@@ -906,6 +906,13 @@ sub AllUserLeases($$;$)
 #   access to leases associated with that project.
 # * Explicitly granted per-user and per-project permissions are extracted 
 #   from the lease_permissions tables.
+# * Global permissions (only RO).
+#
+# Note: Greatest privilege is returned when a principle matches more than
+#       one lease permissions condition.
+#
+# Note: Non-local users will only be allowed access to leases that have
+#       global "anonymous read-only" permissions enabled on them.
 #
 # Arguments:
 # * upid - User OR Project object to lookup lease access for.
@@ -918,20 +925,18 @@ sub AllUserLeases($$;$)
 #
 sub GetAllowedLeases($$;$) {
     my ($class, $upid, $type)  = @_;
-    my $uid = "";
-    my %admin_pids = ();
-    my %leases = ();
-
-    # Determine appropriate "where" clause for DB lookup based on the
-    # type of object passed in (User or Project).  Also stash away some
-    # info to process the query results with in the case of a User access
-    # query.
     my $wclause = "";
+    my %lease_indexes = ();
+    my @leases = ();
+
+    # Gather up lease permissions for Users and Projects.  The logic for users
+    # is much more complicated...
     if (ref($upid) == "User") {
 	$uid = $upid->uid();
 	my $uid_idx = $upid->uid_idx();
 	my @ugroups = ();
 	my $gid_idx_list = "";
+	my %admin_pids = ();
 	my $admin_pid_list = "";
 
 	# Get group information for input User.
@@ -945,8 +950,6 @@ sub GetAllowedLeases($$;$) {
 		   $admin_pids{$group->pid()} = 1;
 		}
 	    }
-	    # Create admin and overall membership list strings for groups the
-	    # user is in.  Used in the SQL query below.
 	    $gid_idx_list = join ",", map {$_->gid_idx()} @ugroups;
 	    $admin_pid_list = join ",", keys %admin_pids;
 	} else {
@@ -955,25 +958,53 @@ sub GetAllowedLeases($$;$) {
 	    return undef;
 	}
 
-	# Construct the "where" clause for this user based on the information
-	# collected above.
-	$wclause = "where (pl.owner_uid='$uid'";
-	if ($admin_pid_list) {
-	    $wclause .= " or (pl.pid in ($admin_pid_list))";
+	# Users have full access to leases they own, and for leases in
+	# projects that they have group_root (or above) trust in.
+	# Note: Skip if user is not local to site.
+	if ($upid->IsLocal()) {
+	    $wclause = "where owner_uid='$uid'";
+	    if ($admin_pid_list) {
+		$wclause .= " or pid in ($admin_pid_list)";
+	    }
+	    my $query_result =
+		DBQueryWarn("select lease_idx from project_leases".
+			    " $wclause order by lease_idx"); 
+	    if ($query_result) {
+		while (my ($lease_idx) = $query_result->fetchrow_array()) {
+		    $lease_indexes{$lease_idx} = 1; # "modify rights" == 1
+		}
+	    }
 	}
-	$wclause .= " or (lp.permission_type='user'".
-	            "     and lp.permission_idx='$uid_idx')";
-	if ($gid_idx_list) {
-	    $wclause .= " or (lp.permission_type='group'".
-		        "     and lp.permission_idx in ($gid_idx_list))";
+
+	# Conjure "where" clause for lease_permissions table query below.
+	if ($upid->IsLocal()) {
+	    # User is local to site - look for several conditions:
+	    # * Any global permissions.
+	    # * Leases with user permissions matching input user.
+	    # * Leases with group permissions matching any group user is in.
+	    $wclause = "where (permission_type='global'".
+		       " or (permission_type='user' and".
+		       "     permission_idx='$uid_idx')";
+	    if ($gid_idx_list) {
+		$wclause .=
+		       " or (permission_type='group' and".
+		       "     permission_idx in ($gid_idx_list))";
+	    }
+	    $wclause .= ")";
+	} else {
+	    # User is non-local - only look for anonymous RO permissions.
+	    $idxstr = GLOBAL_PERM_ANON_RO_IDX();
+	    $wclause = "where (permission_type='global' and".
+		       " permission_idx='$idxstr')";
 	}
-	$wclause .= ")";
     }
-    # Construct "where" clause for a Project principal.
+    # The case for Project principals is easy: just construct a "where"
+    # clause for the lease_permissions table query below.
     elsif (ref($upid) == "Project") {
 	my $pid_idx = $upid->pid_idx();
-	$wclause = "where lp.permissions_type='group'".
-	           " and lp.permission_idx='$pid_idx'";
+	$wclause = "where (permission_type='global'".
+	           " or (permission_type='group' and".
+		   "     permission_idx='$pid_idx'))";
     }
     # Input principal argument must be either a User or Project argument.
     else {
@@ -982,7 +1013,7 @@ sub GetAllowedLeases($$;$) {
 	return undef;
     }
 
-    # Build up type selector clause to add to where clause, if requested.
+    # Build up type selector clause, if requested.
     my $tclause = "";
     if (defined($type)) {
 	if (_validLeaseType($type)) {
@@ -993,52 +1024,42 @@ sub GetAllowedLeases($$;$) {
 	}
     }
 
-    # Now perform the constructed query.
+    # Grab all lease permissions entries that pertain to the user or project
     my $query_result =
-	DBQueryWarn("select distinct pl.lease_idx,lp.allow_modify".
-		    " from project_leases as pl".
-		    "  left join lease_permissions as lp".
-		    "  on pl.lease_idx = lp.lease_idx".
-		    " $wclause $tclause order by pl.lease_idx");
+	DBQueryWarn("select lease_idx, modify".
+		    " from lease_permissions".
+		    " $wclause $tclause order by lease_idx");
     
-    return ()
-	if (!$query_result || !$query_result->numrows);
-
     # Loop through result set and process.  Augment permissions for
     # lease owners and users with group_root in lease's owning project.
     # There will be duplicate lease_idx values in the results if there
     # are multiple entries for the lease in the lease_permissions table.
     # Handle this by storing the result set in a hash table.
-    while (my ($lease_idx, $modify) = $query_result->fetchrow_array()) {
-	my $lease;
-	if (!exists($leases{$lease_idx})) {
-	    $lease = $leases{$lease_idx} = Lookup($class, $lease_idx);
-	    # Failing to get a Lease object for a lease we just found
-	    # with the above DB query is both odd and fatal.
-	    return ()
-		if !$lease;
-	    # Initialize modify setting - defaults to read-only (0).
-	    $lease->allow_modify(0);
-	} else {
-	    $lease = $leases{$lease_idx};
+    if ($query_result) {
+	while (my ($lease_idx, $modify) = $query_result->fetchrow_array()) {
+	    if (!exists($lease_indexes{$lease_idx})) {
+		$lease_indexes{$lease_idx} = 0;
+	    }
+	    # If _any_ permissions found for a lease allow for
+	    # modification, then it is allowed (greatest privilege for
+	    # the same lease wins out).
+	    $modify = ($modify || $lease_indexes{$lease_idx}) ? 1 : 0;
+	    $lease_indexes{$lease_idx} = $modify;
 	}
-
-	# The lease's owner, and admins in the project that the lease
-	# belongs to _always_ have full rights.
-	if ($uid && ($uid eq $lease->owner_uid() ||
-		     exists($admin_pids{$lease->pid()})))
-	{
-	    $modify = 1;
-	}
-
-	# If _any_ permissions found for a lease allow for
-	# modification, then it is allowed (greatest privilege for
-	# the same lease wins out).
-	$modify = ($modify || $lease->allow_modify()) ? 1 : 0;
-	$lease->allow_modify($modify);
     }
 
-    return values %leases;
+    # Fetch all of the leases and send them back to caller.
+    while (my ($lease_idx, $modify) = each %lease_indexes) {
+	my $lease = Lookup($class, $lease_idx);
+	if (!$lease) {
+	    print STDERR "Lease::GetAllowedLeases(): unable to lookup lease with index $lease_idx!\n";
+	    next;
+	}
+	$lease->allow_modify($modify);
+	push (@leases, $lease);
+    }
+
+    return @leases;
 }
 
 #
@@ -1333,7 +1354,24 @@ sub AccessCheck($$$) {
 	if !defined($qres);
 
     while (my ($perm_type, $perm_idx, $modify) = $qres->fetchrow_array()) {
-	if ($perm_type eq "group") {
+	if ($perm_type eq "global") {
+	    # A lease with anonymous global read-only access is available
+	    # to everyone.  Force entry to be read-only.
+	    if ($perm_idx == GLOBAL_PERM_ANON_RO_IDX()) {
+		$modify = 0; # Force!
+	    }
+	    # A lease with global read-only access for registered users
+	    # requires that the incoming user be a "real" user.  I.e.,
+	    # not the geni user.  Force entry to be read-only.
+	    elsif ($perm_idx == GLOBAL_PERM_USER_RO_IDX()) {
+		next unless $user->IsLocal();
+		$modify = 0; # Force!
+	    }
+	    else {
+		# Unknown global permissions entry - skip!
+		next;
+	    }
+	} elsif ($perm_type eq "group") {
 	    # If the user is a member of this group and has a minimum of
 	    # trust, then give them the access listed in the db.
 	    my $dbgroup = Group->Lookup($perm_idx);
@@ -1382,6 +1420,18 @@ sub GrantAccess($$$)
 	$perm_id   = $target->pid() . "/" . $target->gid();
 	$perm_type = "group";
     } 
+    elsif ($target eq GLOBAL_PERM_ANON_RO()) {
+	$perm_idx  = GLOBAL_PERM_ANON_RO_IDX();
+	$perm_id   = GLOBAL_PERM_ANON_RO();
+	$perm_type = "global";
+	$modify = 0; # Force
+    }
+    elsif ($target eq GLOBAL_PERM_USER_RO()) {
+	$perm_idx  = GLOBAL_PERM_USER_RO_IDX();
+	$perm_id   = GLOBAL_PERM_USER_RO();
+	$perm_type = "global";
+	$modify = 0; # Force
+    }
     else {
 	print STDERR "Lease->GrantAccess: Bad target: $target\n";
 	return LEASE_ERROR_FAILED();
@@ -1415,6 +1465,14 @@ sub RevokeAccess($$)
     elsif (ref($target) eq "Group") {
 	$perm_idx  = $target->gid_idx();
 	$perm_type = "group";
+    }
+    elsif ($target eq GLOBAL_PERM_ANON_RO()) {
+	$perm_idx  = GLOBAL_PERM_ANON_RO_IDX();
+	$perm_type = "global";
+    }
+    elsif ($target eq GLOBAL_PERM_USER_RO()) {
+	$perm_idx  = GLOBAL_PERM_USER_RO_IDX();
+	$perm_type = "global";
     }
     else {
 	print STDERR "Lease->RevokeAccess: Bad target: $target\n";
