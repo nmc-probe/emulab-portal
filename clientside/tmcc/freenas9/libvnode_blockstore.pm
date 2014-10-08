@@ -849,20 +849,48 @@ sub getIfConfig($) {
 # presence of the vlan name passed in.  Return what is found.
 sub getVlan($) {
     my ($vtag,) = @_;
+    my $retval = {};
+    my $notexist = 0;
 
     return undef
 	if (!defined($vtag) || $vtag !~ /^(\d+)$/);
 
-    my @vlans = freenasParseListing($FREENAS_CLI_VERB_VLAN);
+    my $vlanif = $VLAN_IFACE_PREFIX . $vtag;    
+    if (!open(IFPIPE,"$IFCONFIG $vlanif 2>&1 |")) {
+	warn("*** ERROR: blockstore_getVlan: ".
+	     "Could not run ifconfig: $!");
+	return undef;
+    }
 
-    my $retval = undef;
-    foreach my $vlan (@vlans) {
-	if ($vtag == $vlan->{'tag'}) {
-	    $retval = $vlan;
-	    last;
+    while (my $ln = <IFPIPE>) {
+	chomp $ln;
+        IFLINE: for ($ln) {
+	    /description: (.+)/ && do {
+		$retval->{'description'} = $1;
+		last IFLINE;
+	    };
+	    /vlan: (\d+) parent interface: (\w+)/ && do {
+		$retval->{'tag'}  = $1;
+		$retval->{'pint'} = $2;
+		last IFLINE;
+	    };
+	    /does not exist/ && do {
+		$notexist = 1;
+		last IFLINE;
+	    };
 	}
     }
-    
+
+    close(IFPIPE);
+
+    if ($? != 0) {
+	if (!$notexist) {
+	    warn("*** ERROR: blockstore_getVlan: ".
+		 "ifconfig returned an error: $?");
+	}
+	return undef;
+    }
+
     return $retval;
 }
 
@@ -940,21 +968,14 @@ sub createVlanInterface($$) {
     }
     # vlan does not exist.
     else {
-	# Create the vlan entry in FreeNAS.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_VLAN,
-			     "add $piface $viface $vtag $lname") };
-	if ($@) {
+	# Create the vlan entry directly.  FreeNAS 9 nukes network
+	# interface addresses/aliases it doesn't know about, so we can't
+	# use its API directly. :-(  See also the comment
+	# in setupIPAliases().
+	if (system("$IFCONFIG $viface create vlan $vtag".
+		   " vlandev $piface description $lname") != 0) {
 	    warn("*** ERROR: blockstore_createVlanInterface: ". 
-		 "failure while creating vlan interface: $@");
-	    return -1;
-	}
-
-	# Create the vlan interface.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IFACE,
-			     "add $viface $lname") };
-	if ($@) {
-	    warn("*** ERROR: blockstore_createVlanInterface: ".
-		 "failure while setting vlan interface parameters: $@");
+		 "failure while creating vlan interface: $!");
 	    return -1;
 	}
     }
@@ -1003,8 +1024,12 @@ sub setupIPAlias($;$) {
 		 "ifconfig failed while setting IP alias parameters: $?");
 	}
     } else {
-	# Add an alias for this psuedo-VM.  Have to do this underneath FreeNAS
+	# Add an alias for this pseudo-VM.  Have to do this underneath FreeNAS
 	# because it makes adding and removing them ridiculously impractical.
+	# To be more specific, it does various bad things, like remove ALL
+	# configuration across ALL interfaces when an address/alias is
+	# removed from an interface.  It then re-configs everything from
+	# it's DB. This is very disruptive to say the least!
 	if (system("$IFCONFIG $viface alias $ip netmask $qmask") != 0) {
 	    warn("*** ERROR: blockstore_createVlanInterface: ".
 		 "ifconfig failed while clearing IP alias parameters: $?");
@@ -1034,8 +1059,7 @@ sub removeVlanInterface($$) {
     my $vtag   = $ifc->{'VTAG'};
     my $viface = $VLAN_IFACE_PREFIX . $vtag;
 
-    # Does FreeNAS have record of this vlan?  If not, it's probably safe
-    # to assume the interface isn't there, so there is nothing to do here.
+    # Does the vlan interface exist?  Nothing to do if it doesn't!
     if (!getVlan($vtag)) {
 	warn("*** WARNING: blockstore_removeVlanInterface: ".
 	     "Vlan entry does not exist...");
@@ -1043,12 +1067,9 @@ sub removeVlanInterface($$) {
     }
 
     if (!addressExists($viface)) {
-	# No more addresses: Delete the vlan interface.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_VLAN,
-			     "del $viface") };
-	if ($@) {
+	if (system("$IFCONFIG $viface destroy") != 0) {
 	    warn("*** ERROR: blockstore_removeVlanInterface: ".
-		 "failure while removing vlan interface: $@");
+		 "failure while removing vlan interface: $?");
 	}
     }
 
