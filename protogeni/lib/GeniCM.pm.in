@@ -69,7 +69,7 @@ use Data::Dumper;
 use XML::Simple;
 use XML::LibXML;
 use Date::Parse;
-use POSIX qw(strftime tmpnam);
+use POSIX qw(strftime tmpnam ceil);
 use Time::Local;
 use Compress::Zlib;
 use File::Temp qw(tempfile);
@@ -92,7 +92,6 @@ my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
 my $PROTOUSER 	   = "elabman";
 my $CREATEEXPT     = "$TB/bin/batchexp";
 my $ENDEXP         = "$TB/bin/endexp";
-my $NALLOC	   = "$TB/bin/nalloc";
 my $NFREE	   = "$TB/bin/nfree";
 my $AVAIL	   = "$TB/sbin/avail";
 my $PTOPGEN	   = "$TB/libexec/ptopgen";
@@ -1081,6 +1080,10 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			$virtexperiment->multiplex_factor(5);
 			$virtexperiment->encap_style("vlan");
 		    }
+		    elsif ($virtualization_subtype eq "emulab-blockstore") {
+			$osname = "BLOCKSTORE-VM";
+			$pctype = "blockstore";
+		    }
 		    elsif ($virtualization_subtype eq "emulab-connect") {
 			$osname = "GENERICDEV-VM";
 			$pctype = "interconnect-vm";
@@ -1678,6 +1681,17 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		};
 	    }
 	}
+	#
+	# Local blockstores
+	#
+	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
+						   $ref,
+				   $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    $response = HandleBlockstore($slice_experiment, $virtexperiment,
+					 $user, $ref, $blockref);
+	    goto bad
+		if (GeniResponse::IsError($response));
+	}
     }
 
     goto skiplinks
@@ -1819,6 +1833,15 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    if (IsTaggedLan($linkref)) {
 		$trivial_ok = 0;
 	    }
+	}
+
+	#
+	# Allow user to specify best effort.
+	#
+	my $besteffort = 0;
+	
+	if (GeniXML::HasBestEffortSetting($linkref)) {
+	    $besteffort = 1;
 	}
 
 	#
@@ -2104,6 +2127,12 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		$latency   = 0.0;
 		$lossrate  = 0.0;
 	    }
+	    if ($besteffort) {
+		# Best effort traffic.
+		$bandwidth = 10;
+		$latency   = 0.0;
+		$lossrate  = 0.0;
+	    }
 	    
 	    my $virtlan =
 		$virtexperiment->NewTableRow("virt_lans",
@@ -2112,6 +2141,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					  "vport"       => $iface_vport,
 					  "vindex"	=> $vindex,
 					  "trivial_ok"  => $trivial_ok,
+					  "nobwshaping" => $besteffort,
 					  "ip"          => $ip,
 					  "delay"       => $latency,
 					  "bandwidth"   => $bandwidth, # kbps
@@ -2273,6 +2303,16 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		}
 		else {
 		    $precheck .= $line;
+		    #
+		    # Watch for standard Insufficient message:
+		    #
+		    # *** 2 nodes of type pc requested, but only 1 available \
+		    #          nodes of type pc found
+		    #
+		    if ($line =~
+			/^\*\*\* (\d*) nodes of type ([-\w]*) requested, but/) {
+			$errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
+		    }
 		}
 	    }
 	    elsif ($inviolations) {
@@ -2399,6 +2439,13 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	my $virtual_id     = GeniXML::GetVirtualId($ref);
 	my $component_id   = GeniXML::GetNodeId($ref);
 	my $vnode_id       = GeniXML::GetVnodeId($ref);
+	my $sliver_type    = GeniXML::GetText("sliver_type", $ref);
+
+	#
+	# Watch for storage hosts and skip.
+	#
+	next
+	    if (defined($sliver_type) && $sliver_type eq "pcsanhost");
 
 	if (!(exists($nodemap{$virtual_id}) ||
 	      exists($external_nodemap{$virtual_id}))) {
@@ -6869,6 +6916,166 @@ sub SetSliceExpiration($$$$@)
     
   bad:
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef, $message);
+}
+
+#
+# Handle BlockStores. 
+#
+sub HandleBlockstore($$$$)
+{
+    my ($experiment, $virtexperiment, $geniuser, $noderef, $blockref) = @_;
+    my $message  = "Unknown Error";
+    my $nodename = GeniXML::GetVirtualId($noderef);
+    require Lease;
+    require Blockstore;
+
+    my $bsname    = GeniXML::GetText("name", $blockref);
+    my $class     = GeniXML::GetText("class", $blockref);
+    my $mount     = GeniXML::GetText("mountpoint", $blockref);
+    my $readonly  = GeniXML::GetText("readonly", $blockref);
+    my $leasename = GeniXML::GetText("persistent", $blockref);
+    my $type      = "";
+    my $fixed     = $nodename;
+    my $size      = 0;
+
+    if (!defined($class) || !($class eq "local" || $class eq "remote")) {
+	$message = "Illegal blockstore class";
+	goto bad;
+    }
+    if ($class eq "local" &&
+	(!defined($bsname) ||
+	 !TBcheck_dbslot($bsname, "blockstores", "bs_id",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR))) {
+	$message = "Illegal blockstore name: $bsname";
+	goto bad;
+    }
+    if (!defined($mount)) {
+	$message = "Missing blockstore mount point";
+	goto bad;
+    }
+    if (defined($leasename) &&
+	!TBcheck_dbslot($leasename, "project_leases", "lease_id",
+			TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	$message = "Illegal blockstore lease name for $bsname";
+	goto bad;;
+    }
+    if (!defined($readonly)) {
+	$readonly = 0;
+    }
+    else {
+	$readonly = ($readonly eq "true" ? 1 : 0);
+    }
+    #
+    # If ephemeral, size must be given, else we get it below from the lease.
+    #
+    if (!defined($leasename)) {
+	$size = GeniXML::GetText("size", $blockref);
+	
+	if (!defined($size)) {
+	    $message = "Missing blockstore size for $bsname";
+	    goto bad;
+	}
+	$size = Blockstore::ConvertToMebi($size);
+	if ($size < 0) {
+	    $message = "Illegal blockstore size for $bsname";
+	    goto bad;
+	}
+    }
+    # Build up list of attributes.
+    my @attributes = ();
+    push(@attributes, ["mountpoint", $mount, 0]);
+    push(@attributes, ["placement", "ANY", 0]);
+    push(@attributes, ["readonly", $readonly, 0]);
+    push(@attributes, ["class", ($class eq "local" ? "local" : "SAN"), 1]);
+	
+    if ($class eq "remote") {
+	$fixed = $bsname = $nodename;
+	push(@attributes, ["protocol", "iSCSI", 1]);
+
+	#
+	# Look for a lease name (persistent).
+	#
+	if (defined($leasename)) {
+	    my $lease = Lease->Lookup($experiment->pid(), $leasename);
+	    if (!defined($lease)) {
+		#
+		# Need to create the dataset. Eventually this needs to
+		# be its own API, but for now it needs to already exist.
+		#
+		$message = "Unknown lease for $bsname: $leasename";
+		goto bad;
+	    }
+	    my $blockstore = Blockstore->LookupByLease($lease->lease_idx());
+	    if (!defined($blockstore)) {
+		$message = "Could not get blockstore for lease $leasename";
+		goto bad;
+	    }
+		
+	    $type = $lease->type();
+	    $size = $blockstore->total_size();
+	    #
+	    # TODO!!!! Lease permission checks. Complicated by the
+	    # fact that geniusers are not real users, and the datasets
+	    # are created by geniuser. 
+	    #
+	    push(@attributes, ["lease", $lease->lease_idx(), 1]);
+	}
+    }
+    else {
+	#
+	# Might be a XEN VM. The easiest thing to do is add a XEN_EXTRAFS
+	# argument, which will be ignored if not a XEN VM. There might be
+	# a xen settings section in the node, but we will ignore it and
+	# just delete/insert a properly sized attribute.
+	#
+	my $attrkey;
+	my $attrvalue;
+	my $row;
+
+	if (0) {
+	    $attrkey   = "XEN_EXTRAFS";
+	    $attrvalue = ceil($size / 1024);
+
+	    $row = $virtexperiment->Find("virt_node_attributes",
+					 $nodename, $attrkey);
+	}
+	else {
+	    $attrkey   = "XEN_EXTRADISKS";
+	    $attrvalue = "$bsname:" . ceil($size / 1024) . "GB";
+
+	    $row = $virtexperiment->Find("virt_node_attributes",
+					 $nodename, $attrkey);
+	    if (defined($row)) {
+		$attrvalue  = $row->attrvalue() . "," . $attrvalue;
+	    }
+	}
+	if (defined($row)) {
+	    $row->Delete($VirtExperiment::STORE_FLAGS_DEBUG);
+	}
+	$virtexperiment->NewTableRow("virt_node_attributes",
+				     {"vname"     => $nodename,
+				      "attrkey"   => $attrkey,
+				      "attrvalue" => $attrvalue});
+    }
+    $virtexperiment->NewTableRow("virt_blockstores",
+				 {"vname"     => $bsname,
+				  "type"      => $type,
+				  "size"      => $size,
+				  "fixed"     => $fixed,
+				 });
+    foreach my $aref (@attributes) {
+	my ($aname, $value, $isdesire) = @{$aref};
+	$virtexperiment->NewTableRow("virt_blockstore_attributes",
+				     {"vname"     => $bsname,
+				      "attrkey"   => $aname,
+				      "attrvalue" => $value,
+				      "isdesire"  => $isdesire,
+				     });
+    }
+    return 0;
+
+  bad:
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $message);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

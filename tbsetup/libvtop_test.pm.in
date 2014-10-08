@@ -1425,7 +1425,7 @@ sub LoadVirtNodes($)
 		&& $vnode->_parent_osinfo()->osname() =~ /xen/i) {
 		$defmem = 512;
 		$minmem = 256;
-		$maxmem = 1024;
+		$maxmem = 1024 * 4;
 	    }	    
 	    if (!exists($vnode->_desires()->{"?+ram"})) {
 		$self->printdb("Setting VM memsize to $defmem for $vname\n");
@@ -2221,9 +2221,13 @@ sub GenVirtNodes($)
 	    #
 	    # Create a parent node for the sanhost. 
 	    #
+	    my $sandesires = {"pcstorage" => ['', 1.0]};
+	    # Are we loving subnodes?
+	    if ($self->sharednodecount()) {
+		$sandesires->{"pcshared"} = ['' , "1.0"];
+	    }
 	    $self->createNode($sanhost, $mycmurn,
-			      "pcsanhost", '1', {"pcstorage" => ['', 1.0]}, 
-			      undef);
+			      "pcsanhost", '1', $sandesires, undef);
 	    $self->sanhosts()->{$sanhost} = $sanhost;
 
 	    #
@@ -2435,7 +2439,12 @@ sub GenFixNodes($)
 
 	if ($self->isatoponode($vname) || $self->isadelaynode($vname) ||
 	    $self->isasanhost($vname)) {
-	    $self->createFixedNode($vname, $fixed);
+	    if (defined($vnode->_sanhostname())) {
+		$self->createFixedNode($vnode->_sanhostname(), $fixed);
+	    }
+	    else {
+		$self->createFixedNode($vname, $fixed);
+	    }
 	}
     }
     if ($self->fixlanodes()) {
@@ -9156,10 +9165,11 @@ sub UploadBlockstores($)
 	    tberror("Could not lookup blockstore $pnode:$bstore\n");
 	    return -1;
 	}
-	if (!$self->impotent() &&
-	    $blockstore->Reserve($experiment, $vvnode, $bs_name, $size)) {
-	    tberror("Could not lookup reserve $pnode:$bstore $size\n");
-	    return -1;
+	if (! ($self->impotent() || $self->alloconly())) {
+	    if ($blockstore->Reserve($experiment, $vvnode, $bs_name, $size)) {
+		tberror("Could not lookup reserve $pnode:$bstore $size\n");
+		return -1;
+	    }
 	}
     }
     return 0;
@@ -9671,6 +9681,7 @@ sub PrintSolution($$)
 	foreach my $vnodename (@vnodenames) {
 	    my $vnode   = $self->vnodes()->{$vnodename};
 	    my $newNode = addNode($doc, $root, "node");
+	    my $type;
 
 	    if (defined($vnode) && $vnode->_isvirtnode()) {
 		$pnode = $vnode->_pnode();
@@ -9678,6 +9689,21 @@ sub PrintSolution($$)
 	    
 	    $newNode->setAttribute("virtual_id", $vnodename);
 	    $newNode->setAttribute("component_uuid", $pnode->uuid());
+
+	    if (defined($vnode)) {
+		$type = $vnode->type();
+	    }
+	    elsif (exists($self->sanhosts()->{$vnodename})) {
+		$type = "pcsanhost";
+	    }
+	    else {
+		$type = $pnode->type();
+	    }
+	    $newNode->setAttribute("sliver_type", $type);
+
+	    if (defined($vnode) && defined($vnode->_sanhostname())) {
+		$newNode->setAttribute("subnode_of", $vnode->_sanhostname());
+	    }
 	}
     }
     foreach my $virtlan (values(%{ $self->vlans() })) {
