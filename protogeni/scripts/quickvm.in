@@ -578,6 +578,13 @@ if (!defined($instance)) {
     $slice->Delete();
     fatal("Could not create instance record for $quickvm_uuid");
 }
+#
+# Create a webtask so that we can store additional information about
+# the sliver while we wait. No worries if this fails.
+#
+$webtask = WebTask->Create($instance->uuid());
+$webtask->AutoStore(1)
+    if (defined($webtask));
 
 #
 # Exit and let caller poll for status.
@@ -593,6 +600,9 @@ if (!$debug) {
     # All of the logging magic happens in here.
     libaudit::AuditFork();
 }
+# Bind the process id.
+$webtask->SetProcessID($PID)
+    if (defined($webtask));
 
 #
 # This creates the sliver and starts it.
@@ -613,6 +623,15 @@ my $response =
 if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
     $slice->Delete();
     $instance->SetStatus("failed");
+    if (defined($webtask)) {
+	if (defined($response)) {
+	    $webtask->output($response->output());
+	    $webtask->Exited($response->code());
+	}
+	else {
+	    $webtask->Exited(1);
+	}
+    }
     fatal("CreateSliver failed: ".
 	  (defined($response) ? $response->output() : "") . "\n");
 }
@@ -623,6 +642,7 @@ if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
 my $manifest = $response->value()->[1];
 if (!defined($manifest)) {
     $slice->UnLock();
+    $webtask->Exited(1) if (defined($webtask));
     $instance->SetStatus("failed");
     fatal("Could not find the manifest in the response!");
 }
@@ -656,6 +676,9 @@ while ($seconds > 0) {
 	print STDERR "SliverStatus failed";
 	if (defined($response)) {
 	    print STDERR ": " . $response->output();
+	    if (defined($webtask)) {
+		$webtask->output($response->output());
+	    }
 	}
 	print STDERR "\n";
 	$failed = 1;
@@ -691,9 +714,11 @@ if ($failed || !$ready) {
     else {
 	print STDERR "$slice_urn failed.\n"; 
     }
+    $webtask->Exited(1) if (defined($webtask));
 }
 else {
     $instance->SetStatus("ready");
+    $webtask->Exited(0) if (defined($webtask));
 }
 $slice->UnLock();
 exit(0);
@@ -887,6 +912,7 @@ sub Terminate($)
   done:
     $instance->RecordHistory();
   killit:
+    WebTask->DeleteByObject($instance);
     $instance->Delete();
     exit(0);
 }

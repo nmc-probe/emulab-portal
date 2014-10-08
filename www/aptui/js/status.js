@@ -267,7 +267,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
             // It has not... perform the initilization
             StatusWatchCallBack.laststatus = "";
 	}
-	var status = json.value;
+	var status = json.value.status;
 	if (json.code) {
 	    alert("The server has returned an error: " + json.value);
 	    status = "unknown";
@@ -302,8 +302,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 	    else if (status == 'failed') {
 		bgtype = "panel-danger";
-		status_message = "Something went wrong, sorry! " +
-		    "We've been notified.";
+
+		if (_.has(json.value, "reason")) {
+		    status_message = json.value.reason;
+		}
+		else {
+		    status_message = "Something went wrong, sorry! " +
+			"We've been notified.";
+		}
 		status_html = "<font color=red>failed</font>";
 		if ($("#status_progress_div").length) {
 		    $("#status_progress_div").removeClass("progress-striped");
