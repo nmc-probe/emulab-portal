@@ -842,19 +842,21 @@ class Image
                     <td class=left><a href='$p_url'>
                       ${p_imagename}:${p_version}</a></td>
                   </tr>\n";
-
-	    if ($this->parent_imageid() != $this->imageid() &&
-		$this->version() > 0) {
-		$p_version   = $this->version() - 1;
-		$p_url       = CreateURL("showimageid", $this,
-					 "version", $p_version);
-		echo "<tr>
-                        <td>Previous Vers: </td>
-                        <td class=left>
-                            <a href='$p_url'>${imagename}:${p_version}</a></td>
-                      </tr>\n";
-	    }
 	}
+	if ($this->version() > 0 &&
+	    (is_null($this->parent_imageid()) ||
+	     ($this->parent_imageid() &&
+	      $this->parent_imageid() != $this->imageid()))) {
+	    $p_version   = $this->version() - 1;
+	    $p_url       = CreateURL("showimageid", $this,
+				     "version", $p_version);
+	    echo "<tr>
+                    <td>Previous Vers: </td>
+                    <td class=left>
+                        <a href='$p_url'>${imagename}:${p_version}</a></td>
+                  </tr>\n";
+	}
+
 	# Look for an unreleased version of this image.
 	$unreleased = $this->LookupUnreleased();
 	if ($unreleased && $unreleased->version() != $this->version()) {
