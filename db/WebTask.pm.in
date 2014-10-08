@@ -287,5 +287,21 @@ sub HasExited($)
     return (defined($self->exited()) ? 1 : 0);
 }
 
+#
+# Delete webtask associated with an object. Class method.
+#
+sub DeleteByObject($$)
+{
+    my ($class, $object) = @_;
+    my $uuid = (ref($object) ? $object->uuid() : $object);
+
+    my $webtask = WebTask->LookupByObject($uuid);
+    return 0
+	if (!defined($webtask));
+
+    $webtask->Delete();
+    return 0;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
