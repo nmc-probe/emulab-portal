@@ -635,17 +635,29 @@ sub NewVersion($$$$)
     # The parent of this image might be this image, if taking a snapshot
     # of a node running the image. But we also need to support making a
     # version of the image, from a node running some other image. We still
-    # bump the version number, but the parent pointers are different. 
+    # bump the version number, but the parent pointers are different.
+    #
+    # In one case, the base image is undef, which indicates a new version
+    # not based on anything; we use this from the image_import with
+    # update path. Not sure it is the correct approach yet.
     #
     my ($parent_imageid, $parent_version);
-    
-    if ($self->imageid() == $baseimage->imageid()) {
-	$parent_imageid = $self->imageid();
-	$parent_version = $self->version();
+
+    if (!defined($baseimage)) {
+	$parent_imageid = "NULL";
+	$parent_version = "NULL";
     }
     else {
-	$parent_imageid = $baseimage->imageid();
-	$parent_version = $baseimage->version();
+	if ($self->imageid() == $baseimage->imageid()) {
+	    $parent_imageid = $self->imageid();
+	    $parent_version = $self->version();
+	}
+	else {
+	    $parent_imageid = $baseimage->imageid();
+	    $parent_version = $baseimage->version();
+	}
+	$parent_imageid = "'$parent_imageid'";
+	$parent_version = "'$parent_version'";
     }
 
     #
@@ -662,8 +674,8 @@ sub NewVersion($$$$)
     DBQueryWarn("update $ostablename set ".
 		"  uuid=uuid(), ".
 		"  vers='$clone_vers',".
-		"  parent_osid='$parent_imageid',".
-		"  parent_vers='$parent_version' ".
+		"  parent_osid=$parent_imageid,".
+		"  parent_vers=$parent_version ".
 		"where osid='$osid'")
 	or goto bad;
 
@@ -672,8 +684,8 @@ sub NewVersion($$$$)
 		"  $part_vers, default_vers='$clone_vers', ".
 		"  version='$clone_vers',".
 		"  created=now(),nodetypes='$typelist', ".
-		"  parent_imageid='$parent_imageid',".
-		"  parent_version='$parent_version', ".
+		"  parent_imageid=$parent_imageid,".
+		"  parent_version=$parent_version, ".
 		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
 	or goto bad;
@@ -735,6 +747,33 @@ sub LookupMostRecent($)
 
     my ($version) = $query_result->fetchrow_array();
     return Image->Lookup($imageid, $version);
+}
+
+#
+# Return a list of all image versions.
+#
+sub AllVersions($$)
+{
+    my ($self, $pref)  = @_;
+    my @result  = ();
+    my $imageid = $self->imageid();
+
+    my $query_result =
+	DBQueryWarn("select version from image_versions ".
+		    "where imageid='$imageid' order by version desc");
+    return -1
+	if (!$query_result);
+    
+    while (my ($version) = $query_result->fetchrow_array()) {
+	my $image = Image->Lookup($imageid, $version);
+	if (!defined($image)) {
+	    print STDERR "Could not lookup image $imageid,$version\n";
+	    return -1;
+	}
+	push(@result, $image);
+    }
+    @$pref = @result;
+    return 0;
 }
 
 #
