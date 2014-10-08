@@ -121,7 +121,7 @@ my (undef,undef,$unix_uid) = getpwnam($user) or
     die("*** $0:\n".
 	"    No such user $user\n");
 
-if (!($localfile =~ /^([\w\.\_\-+\/]+)$/)) {
+if (!($localfile =~ /^([\w\.\_\-+\/:]+)$/)) {
     die("*** $0:\n".
 	"    Illegal local filename given: $localfile\n");
 } else {
