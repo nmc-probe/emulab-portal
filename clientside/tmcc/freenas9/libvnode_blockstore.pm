@@ -296,13 +296,6 @@ sub vnodeCreate($$$$)
 	      "Could not get the blkalloc lock after a long time!");
     }
 
-    # Create the experimental net (tagged vlan) interface
-    if (createVlanInterface($vnode_id, $vnconfig) != 0) {
-	$cleanup = 1;
-	warn("*** ERROR: blockstore_vnodeCreate: ".
-	     "Failed to create experimental network interface!");
-    }
-
     # Create blockstore slice
     if (runBlockstoreCmds($vnode_id, $vnconfig, $private) != 0) {
 	$cleanup = 1;
@@ -346,8 +339,14 @@ sub vnodePreConfigExpNetwork($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
+    # Create the experimental net (tagged vlan) interface, if not present.
     return -1
-	unless setupIPAlias($vnconfig) == 0;
+	if (createVlanInterface($vnode_id, $vnconfig) != 0);
+
+
+    # Push this vnode's IP address onto the vlan interface.
+    return -1
+	if (setupIPAlias($vnconfig) != 0);
 
     return 0;
 }
@@ -894,15 +893,18 @@ sub getVlan($) {
     return $retval;
 }
 
+#
+# Does _any_ IPv4 address exist on a given network interface?
+#
 sub addressExists($) {
     my ($iface,) = @_;
     my $retval = 0;
     
-    my $ifc_out = `$IFCONFIG $iface`;
+    my $ifc_out = `$IFCONFIG $iface 2>&1`;
     if ($? != 0) {
 	warn("*** ERROR: blockstore_addressExists: ".
-	     "Problem running ifconfig: $?");
-	$retval = undef;
+	     "Problem running ifconfig: $ifc_out");
+	$retval = 0;
     } elsif ($ifc_out =~ /inet \d+\.\d+\.\d+\.\d+/) {
 	$retval = 1;
     } 
