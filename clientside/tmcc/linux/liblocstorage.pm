@@ -31,6 +31,7 @@ use Exporter;
 @EXPORT =
     qw (
 	os_init_storage os_check_storage os_create_storage os_remove_storage
+	os_show_storage os_get_diskinfo
        );
 
 sub VERSION()	{ return 1.0; }
@@ -194,13 +195,6 @@ sub init_serial_map()
 	    if ($sn) {
 		$snmap{$sn} = $dev;
 	    }
-	}
-    }
-
-    if (0) {
-	print STDERR "SN map:\n";
-	foreach my $sn (keys %snmap) {
-	    print STDERR "$sn -> $snmap{$sn}\n";
 	}
     }
 
@@ -523,17 +517,6 @@ sub os_init_storage($)
 	}
 	$so{'BOOTDISK'} = $bdisk;
 	$so{'DISKINFO'} = $ginfo;
-	if (0) {
-	    print STDERR "BOOTDISK='$bdisk'\nDISKINFO=\n";
-	    foreach my $dev (keys %$ginfo) {
-		my $type = $ginfo->{$dev}->{'type'};
-		my $lev = $ginfo->{$dev}->{'level'};
-		my $size = $ginfo->{$dev}->{'size'};
-		my $inuse = $ginfo->{$dev}->{'inuse'};
-		print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
-	    }
-	    return undef;
-	}
     }
 
     if ($gotiscsi) {
@@ -559,6 +542,48 @@ sub os_init_storage($)
     return \%so;
 }
 
+sub os_get_diskinfo($)
+{
+    my ($so) = @_;
+
+    return get_diskinfo();
+}
+
+#
+# XXX debug
+#
+sub os_show_storage($)
+{
+    my ($so) = @_;
+
+    my $bdisk = $so->{'BOOTDISK'};
+    print STDERR "OS Dep info:\n";
+    print STDERR "  BOOTDISK=$bdisk\n" if ($bdisk);
+
+    my $dinfo = get_diskinfo();
+    if ($dinfo) {
+	print STDERR "  DISKINFO:\n";
+	foreach my $dev (keys %$dinfo) {
+	    my $type = $dinfo->{$dev}->{'type'};
+	    my $lev = $dinfo->{$dev}->{'level'};
+	    my $size = $dinfo->{$dev}->{'size'};
+	    my $inuse = $dinfo->{$dev}->{'inuse'};
+	    print STDERR "    name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
+	}
+    }
+
+    # LOCAL_SNMAP
+    my $snmap = $so->{'LOCAL_SNMAP'};
+    if ($so->{'LOCAL_SNMAP'}) {
+	my $snmap = $so->{'LOCAL_SNMAP'};
+
+	print STDERR "  LOCAL_SNMAP:\n";
+	foreach my $sn (keys %$snmap) {
+	    print STDERR "    $sn -> ", $snmap->{$sn}, "\n";
+	}
+    }
+}
+
 #
 # os_check_storage(sobject,confighash)
 #
@@ -572,18 +597,6 @@ sub os_init_storage($)
 sub os_check_storage($$)
 {
     my ($so,$href) = @_;
-
-    if (0) {
-	my $ginfo = get_diskinfo();
-	print STDERR "DISKINFO=\n";
-	foreach my $dev (keys %$ginfo) {
-	    my $type = $ginfo->{$dev}->{'type'};
-	    my $lev = $ginfo->{$dev}->{'level'};
-	    my $size = $ginfo->{$dev}->{'size'};
-	    my $inuse = $ginfo->{$dev}->{'inuse'};
-	    print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
-	}
-    }
 
     if ($href->{'CMD'} eq "ELEMENT") {
 	return os_check_storage_element($so,$href);
@@ -844,11 +857,11 @@ sub os_check_storage_slice($$)
 	my $mpoint = $href->{'MOUNTPOINT'};
 	if ($mpoint) {
 	    my $line = `$MOUNT | grep '^/dev/$mdev on '`;
-	    if (!$line) {
+	    if (!$line && mysystem("$MOUNT $mpoint")) {
 		warn("*** $lv: is not mounted, should be on $mpoint\n");
 		return -1;
 	    }
-	    if ($line !~ /^\/dev\/$mdev on (\S+) / || $1 ne $mpoint) {
+	    if ($line && ($line !~ /^\/dev\/$mdev on (\S+) / || $1 ne $mpoint)) {
 		warn("*** $lv: mounted on $1, should be on $mpoint\n");
 		return -1;
 	    }

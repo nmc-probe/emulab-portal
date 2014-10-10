@@ -1149,24 +1149,68 @@ sub os_nfsmount($$)
 # already been done.  Returns the resulting mount point (which may be
 # different than what was specified as an argument if it already existed).
 #
+# Note that in FreeBSD, the extra partition is either:
+#    XXd0s4a (FreeBSD 10+)
+#    XXd0s4e (FreeBSD 9-)
+#
 sub os_mountextrafs($)
 {
     my $dir = shift;
     my $mntpt = "";
     my $log = "$VARDIR/logs/mkextrafs.log";
+    my $disk = "";
+    my $part = "";
+
+    #
+    # If the extrafs file was written, use the info from there.
+    #
+    my $extrafs = libsetup::TMEXTRAFS();
+    if (-f "$extrafs" && open(FD, "<$extrafs")) {
+	my $line = <FD>;
+	close(FD);
+	chomp($line);
+	if ($line =~ /^PART=(.*)/) {
+	    $part = $1;
+	    goto makeit;
+	}
+	if ($line =~ /^DISK=(.*)/) {
+	    $disk = $1;
+	    goto makeit;
+	}
+	if ($line =~ /^FS=(.*)/) {
+	    $mntpt = $1;
+	}
+
+        return $mntpt;
+    }
 
     #
     # XXX this is a most bogus hack right now, we look for partition 4
     # in /etc/fstab.
     #
-    my $fstabline = `grep 0s4e /etc/fstab`;
-    if ($fstabline =~ /^\/dev\/\S*0s4e\s+(\S+)\s+/) {
+    my $fstabline = `grep '0s4[ae]' /etc/fstab`;
+    if ($fstabline =~ /^\/dev\/\S*0s4[ae]\s+(\S+)\s+/) {
 	$mntpt = $1;
-    } elsif (!system("$BINDIR/mkextrafs.pl -f $dir >$log 2>&1")) {
+	return $mntpt;
+    }
+
+makeit:
+    my $args = "-f";
+
+    if ($part) {
+	if ($part =~ /^(\D+\d+)[sp](\d+)$/) {
+	    $args .= " -r $1 -s $2";
+	}
+    } elsif ($disk) {
+	$args .= " -r $disk -s 0";
+    }
+
+    if (!system("$BINDIR/mkextrafs.pl $args $dir >$log 2>&1")) {
 	$mntpt = $dir;
     } else {
 	print STDERR "mkextrafs failed, see $log\n";
     }
+
     return $mntpt;
 }
 

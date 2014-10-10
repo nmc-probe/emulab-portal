@@ -2363,6 +2363,31 @@ sub os_mountextrafs($)
     my $dir = shift;
     my $mntpt = "";
     my $log = "$VARDIR/logs/mkextrafs.log";
+    my $disk = "";
+    my $part = "";
+
+    #
+    # If the extrafs file was written, use the info from there.
+    #
+    my $extrafs = libsetup::TMEXTRAFS();
+    if (-f "$extrafs" && open(FD, "<$extrafs")) {
+	my $line = <FD>;
+	close(FD);
+	chomp($line);
+	if ($line =~ /^PART=(.*)/) {
+	    $part = $1;
+	    goto makeit;
+	}
+	if ($line =~ /^DISK=(.*)/) {
+	    $disk = $1;
+	    goto makeit;
+	}
+	if ($line =~ /^FS=(.*)/) {
+	    $mntpt = $1;
+	}
+
+        return $mntpt;
+    }
 
     #
     # XXX this is a most bogus hack right now, we look for partition 4
@@ -2371,11 +2396,26 @@ sub os_mountextrafs($)
     my $fstabline = `grep -E '(hda|sda)4' /etc/fstab`;
     if ($fstabline =~ /^\/dev\/\S*4\s+(\S+)\s+/) {
 	$mntpt = $1;
-    } elsif (!system("$BINDIR/mkextrafs.pl -f $dir >$log 2>&1")) {
+	return $mntpt;
+    }
+
+makeit:
+    my $args = "-f";
+
+    if ($part) {
+	if ($part =~ /^((?:hd|sd)[a-z])(\d+)$/) {
+	    $args .= " -r $1 -s $2";
+	}
+    } elsif ($disk) {
+	$args .= " -r $disk -s 0";
+    }
+
+    if (!system("$BINDIR/mkextrafs.pl $args $dir >$log 2>&1")) {
 	$mntpt = $dir;
     } else {
 	print STDERR "mkextrafs failed, see $log\n";
     }
+
     return $mntpt;
 }
 

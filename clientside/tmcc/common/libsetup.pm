@@ -40,7 +40,8 @@ use Exporter;
 	 gettraceconfig genhostsfile getmotelogconfig calcroutes fakejailsetup
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
-	 copyfilefromnfs getnodeuuid getarpinfo getstorageconfig
+	 copyfilefromnfs getnodeuuid getarpinfo
+	 getstorageconfig getstoragediskinfo
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs getenvvars
 
@@ -59,6 +60,7 @@ use Exporter;
 	 TMROUTECONFIG TMLINKDELAY TMDELMAP TMTOPOMAP TMLTMAP TMLTPMAP
 	 TMGATEDCONFIG TMSYNCSERVER TMKEYHASH TMNODEID TMNODEUUID TMEVENTKEY
 	 TMCREATOR TMSWAPPER TMFWCONFIG TMGENVNODECONFIG
+	 TMSTORAGEMAP TMDISKINFO TMEXTRAFS
 	 INXENVM INVZVM
        );
 
@@ -285,6 +287,9 @@ sub ISDELAYNODEPATH()	{ "$BOOTDIR/isdelaynode"; }
 sub TMTOPOMAP()		{ "$BOOTDIR/topomap";}
 sub TMLTMAP()		{ "$BOOTDIR/ltmap";}
 sub TMLTPMAP()		{ "$BOOTDIR/ltpmap";}
+sub TMSTORAGEMAP()	{ "$BOOTDIR/storagemap";}
+sub TMDISKINFO()	{ "$BOOTDIR/diskinfo";}
+sub TMEXTRAFS()		{ "$BOOTDIR/extrafs";}
 
 #
 # This path is valid only *outside* the jail when its setup.
@@ -565,6 +570,7 @@ sub cleanup_node ($) {
 
     print STDOUT "Cleaning node; removing configuration files\n";
     unlink TMUSESFS, TMROLE, ISSIMTRAFGENPATH, ISDELAYNODEPATH;
+    unlink TMSTORAGEMAP, TMDISKINFO, TMEXTRAFS;
 
     #
     # If scrubbing, also remove the password/group files and DBs so
@@ -3569,6 +3575,43 @@ sub getstorageconfig($;$) {
 
     @$rptr = @sortedops;
     return 0;
+}
+
+#
+# If the storage subsystem is in use, read the contents of the diskinfo
+# file it creates and create a hash of info keyed by device name.
+#
+sub getstoragediskinfo()
+{
+    my $infofile = TMDISKINFO();
+    my %dinfo = ();
+
+    if (-f "$infofile" && open(FD, "<$infofile")) {
+	while ($line = <FD>) {
+	    chomp($line);
+	    my @kvs = split(/\s+/, $line);
+	    my %thisone = ();
+	    foreach my $kv (@kvs) {
+		my ($key,$val) = split(/=/, $kv);
+		if (!defined($val)) {
+		    warn("*** WARNING: malformed key-val pair in diskinfo: '$kv'\n");
+		    close(FD);
+		    return undef;
+		}
+		$thisone{$key} = $val;
+	    }
+	    if (exists($thisone{"NAME"})) {
+		$dinfo{$thisone{"NAME"}} = \%thisone;
+	    } else {
+		warn("*** WARNING: malformed diskinfo line: '$line'\n");
+		close(FD);
+		return undef;
+	    }
+	}
+	close(FD);
+	return \%dinfo;
+    }
+    return undef;
 }
 
 #
