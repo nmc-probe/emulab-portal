@@ -1023,7 +1023,7 @@ sub RenewSlice($)
 
     my ($credential, $speaksfor);
     if (defined($cred)) {
-	$credential = GeniCredential::CheckCredential($cred, $authority);
+	$credential = GeniCredential::CheckCredential($cred);
     }
     else {
 	($credential,$speaksfor) = GeniStd::CheckCredentials($creds);
