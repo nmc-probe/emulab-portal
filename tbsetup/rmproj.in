@@ -257,6 +257,7 @@ DBQueryFatal("delete FROM images where pid_idx='$pid_idx'");
 DBQueryFatal("delete FROM os_info where pid_idx='$pid_idx'");
 DBQueryFatal("delete FROM nodetypeXpid_permissions where pid_idx='$pid_idx'");
 DBQueryFatal("delete FROM project_stats where pid_idx='$pid_idx'");
+DBQueryFatal("delete FROM group_stats where pid_idx='$pid_idx'");
 DBQueryFatal("delete FROM projects where pid_idx='$pid_idx'");
 DBQueryFatal("delete FROM group_policies where pid_idx='$pid_idx'");
 DBQueryFatal("delete FROM group_features where pid_idx='$pid_idx'");
