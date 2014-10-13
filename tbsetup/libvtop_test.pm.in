@@ -2439,7 +2439,8 @@ sub GenFixNodes($)
 
 	if ($self->isatoponode($vname) || $self->isadelaynode($vname) ||
 	    $self->isasanhost($vname)) {
-	    if (defined($vnode->_sanhostname())) {
+	    if (defined($vnode) &&
+		defined($vnode->_sanhostname())) {
 		$self->createFixedNode($vnode->_sanhostname(), $fixed);
 	    }
 	    else {
