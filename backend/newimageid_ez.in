@@ -781,9 +781,9 @@ if (defined($target)) {
     # that stuff here. Then it just calls create_image.
     #
     if ($target =~ /^.*@.*$/) {
-	system("$CREATEIMAGE -p $imagepid $imageid '$target'");    }
+	system("$CREATEIMAGE -p $imagepid $imagename '$target'");    }
     else {
-	# Must be an imagename, not and imageid.
+	# Must be an imagename, not an imageid.
 	system("$CLONEIMAGE $imagename '$target'");
     }
     if ($?) {
