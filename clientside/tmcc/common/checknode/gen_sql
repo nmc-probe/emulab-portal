@@ -178,8 +178,24 @@ gentbsql_main() {
 	    listofdisks=$(grep 'DISKs:' $diffFile)
 	    listofdisks=${listofdisks//DISKs:}  # take string out
 	    hdnum=0
+	    # if 'DISKs:' is empty then try OUT OF ORDER message
+	    if [ -z "$listofdisks" ]; then
+		local_listofdisks=$(grep 'OUT OF ORDER' $diffFile)
+		# remove up to first 'local['
+		local_listofdisks=${local_listofdisks#*local\[}
+		local_listofdisks=${local_listofdisks%%]*}
+                for i in $local_listofdisks ; do
+		    [[ $i == "UNKNOWN" ]] && continue
+		    echo "# Local $host disks out of order - rewrite order this run. Run $0 again"
+		    echo "mysql -e \"delete from blockstore_attributes where attrvalue='$i';\" tbdb"
+		    echo "cd $projdir/$host"
+		    echo "rm -f diff"
+		    listofdisks="$listofdisks $i"
+                    done
+	    fi
 
 	    for i in $listofdisks ; do
+
 		toadd=$(grep $i $nodeFile)
 		if [ -n "$toadd" ] ; then
 		    toadd=${toadd/DISKUNIT}
