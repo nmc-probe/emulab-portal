@@ -395,6 +395,7 @@ sub Create($$;$) {
 		"type='$type',".
 		($lease_end ? "lease_end=FROM_UNIXTIME($lease_end)," : "").
 		"state='$state',".
+		"uuid=uuid(), ".
 		"statestamp=NOW(),".
 		"inception=NOW()")
 	or return undef;

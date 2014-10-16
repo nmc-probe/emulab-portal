@@ -3710,6 +3710,7 @@ DROP TABLE IF EXISTS `project_leases`;
 CREATE TABLE `project_leases` (
   `lease_idx` int(10) unsigned NOT NULL default '0',
   `lease_id` varchar(32) NOT NULL default '',
+  `uuid` varchar(40) NOT NULL default '',
   `owner_uid` varchar(8) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
   `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
@@ -3723,7 +3724,8 @@ CREATE TABLE `project_leases` (
   `locked` datetime default NULL, 
   `locker_pid` int(11) default '0',
   PRIMARY KEY (`lease_idx`),
-  UNIQUE KEY `plid` (`pid`,`lease_id`)
+  UNIQUE KEY `plid` (`pid`,`lease_id`),
+  UNIQUE KEY `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
