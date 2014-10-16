@@ -120,11 +120,11 @@ postprocessing()
     # end XXX
 
     # have needed dirs ?
-	[[ ! -d ${projdir}/$host ]] && ( mkdir -p ${projdir}/$host ; chmod go+rx ${projdir}/$host )
-	[[ ! -d ${projdir}/$host/.tbdb ]] && ( mkdir -p ${projdir}/$host/.tbdb ; chmod go+rx ${projdir}/$host/.tbdb )
-	[[ ! -d ${projdir}/$host/.full ]] && ( mkdir -p ${projdir}/$host/.full ; chmod go+rx ${projdir}/$host/.full )
-	[[ ! -d ${projdir}/$host/.diff ]] && ( mkdir -p ${projdir}/$host/.diff ; chmod go+rx ${projdir}/$host/.diff )
-	[[ ! -d ${projdir}/$host/.tmcc ]] && ( mkdir -p ${projdir}/$host/.tmcc ; chmod go+rx ${projdir}/$host/.tmcc )
+	[[ ! -d ${projdir}/$host ]] && ( mkdir -p ${projdir}/$host ; chmod g+rwx ${projdir}/$host )
+	[[ ! -d ${projdir}/$host/.tbdb ]] && ( mkdir -p ${projdir}/$host/.tbdb ; chmod g+rwx ${projdir}/$host/.tbdb )
+	[[ ! -d ${projdir}/$host/.full ]] && ( mkdir -p ${projdir}/$host/.full ; chmod g+rwx ${projdir}/$host/.full )
+	[[ ! -d ${projdir}/$host/.diff ]] && ( mkdir -p ${projdir}/$host/.diff ; chmod g+rwx ${projdir}/$host/.diff )
+	[[ ! -d ${projdir}/$host/.tmcc ]] && ( mkdir -p ${projdir}/$host/.tmcc ; chmod g+rwx ${projdir}/$host/.tmcc )
 
     # copy over the files including timestamps
 	cp /tmp/nodecheck.log.tb.new ${projdir}/$host/.tbdb/$timestamp
