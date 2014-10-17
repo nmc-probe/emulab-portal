@@ -330,6 +330,12 @@ foreach my $node ( @nodes ) {
 			print "*** reload($nodeid): subOS $osinfo cannot run on parent node $parent running $posinfo, skipping!\n";
 			$failed = 1;
 		    }
+		    elsif (($osinfo->IsTainted(TB_TAINTSTATE_USERONLY) ||
+			    $osinfo->IsTainted(TB_TAINTSTATE_BLACKBOX))
+			   && !$parent->IsTainted(TB_TAINTSTATE_BLACKBOX)) {
+			print "*** reload($nodeid): subOS $osinfo is tainted, but parent node $parent is not, skipping!\n";
+			$failed = 1;
+		    }
                 }
             }
             else {

@@ -2103,6 +2103,11 @@ sub UpdatePartitions($$)
 
 	    my $osid = $rowref->{$partname};
 	    if (defined($osid)) {
+		my $osinfo = OSinfo->Lookup($osid, $vers);
+		if (!defined($osinfo)) {
+		    tberror "No OSinfo found for osid $osid!\n";
+		    return -1;
+		}
 		my %part = (
 		    'node_id' => $node_id,
 		    'partition' => $i,

@@ -3123,6 +3123,14 @@ sub OSSelect($$$$)
 	}
 	$osinfo = $nextosinfo;
     }
+
+    # Make sure the node is tainted if the OS selected is tainted.
+    if (defined($osinfo) && $osinfo->IsTainted()) {
+	if ($self->InheritTaintStates($osinfo) != 0) {
+	    print STDERR "Could not inherit taint states from $osinfo\n";
+	    return -1;
+	}
+    }
     
     if (defined($osinfo) && !defined($field)) {
 	print STDERR "No field specified for OSSelect on $nodeid\n";

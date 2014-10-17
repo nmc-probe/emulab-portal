@@ -483,6 +483,11 @@ sub osload ($$) {
 		my $osid = $rowref->{$partname};
 		my $vers = $rowref->{$partvers};
 		if (defined($osid)) {
+		    my $osinfo = OSinfo->Lookup($osid, $vers);
+		    if (!defined($osinfo)) {
+			tberror "No OSinfo found for osid $osid!\n";
+			goto failednode;
+		    }
 		    my %part = (
 			'node_id' => $node,
 			'partition' => $i,
