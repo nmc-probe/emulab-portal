@@ -2103,22 +2103,6 @@ sub UpdatePartitions($$)
 
 	    my $osid = $rowref->{$partname};
 	    if (defined($osid)) {
-		# Have the node inherit taint states from each OS
-		# to be loaded on it (or that is already loaded on
-		# it).  This action is additive, i.e. the node
-		# will end up with the union of all taint states
-		# across the OSes set for each disk partition.  We
-		# also retain any taint states the node had
-		# previously; it's important not to clear these
-		# existing states until OS loading and disk
-		# zeroing have been performed.
-		my $osinfo = OSinfo->Lookup($osid);
-		if (defined($osinfo) && $osinfo->IsTainted()) {
-		    $nodeobject->InheritTaintStates($osinfo) == 0 or
-			warn "Node $node_id could not inherit taint ".
-			"states from osid $osid\n";
-		}
-
 		my %part = (
 		    'node_id' => $node_id,
 		    'partition' => $i,
