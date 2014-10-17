@@ -157,7 +157,7 @@ sub AddInterfaces($$$) {
 	$packets = $speed / 80;
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface SET " .
-			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/port#', " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interface#', " .
 			     "id='${DOMAIN}_interface_$n:$i'," .
 			     "selfRef='$URL/info/interface/${DOMAIN}_interface_$n:$i'," .
 			     "urn='urn:publicid:IDN+$DOMAIN+interface+$n:$i'," .
@@ -211,7 +211,7 @@ sub AddInterfaceVlan($$$$$) {
 
     # FIXME would be nice to give interface_href, but in general we don't know
     emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interfacevlan SET " .
-			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/port-vlan#', " .
+			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interfacevlan#', " .
 			 "id='${idomain}_interface_${iface}:${tag}', " .
 			 "selfRef='$url', " .
 			 "urn='urn:publicid:IDN+$idomain+interfacevlan+$iface:$tag', " .
