@@ -298,19 +298,23 @@ sub WarnSlices()
 	    print STDERR
 		"Sending mail to $geniuser about expiring slice $idx,$hrn\n";
 
-	    # Do not expose slices to APT/Cloud users.
-	    my $instance = APT_Instance->LookupBySlice($slice_uuid);
-	    if (defined($instance)) {
-		$instance->WarnExpiring("$diff $unit");
+	    # Experimental
+	    if ($MAINSITE) {
+		# Do not expose slices to APT/Cloud users.
+		my $instance = APT_Instance->LookupBySlice($slice_uuid);
+		if (defined($instance)) {
+		    $instance->WarnExpiring("$diff $unit");
+		    goto noemail;
+		}
 	    }
-	    else {
-		SENDMAIL($emailaddr, "Slice $urn expiring",
+	    SENDMAIL($emailaddr, "Slice $urn expiring",
 		     "Slice $urn\n".
 		     "is going to expire in approximately $diff $unit.\n".
 		     "Please renew it or let it expire if you not using it.\n",
 		     "Geni Operations <$TBOPS>");
 	    }
 	}
+  noemail:
 	$warned{$idx}  = time();
 	$expires{$idx} = $stamp;
 	$slice->UnLock();
