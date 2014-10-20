@@ -1565,7 +1565,7 @@ sub AddNode($$)
     # the latter.
     if (($node->IsTainted(TB_TAINTSTATE_USERONLY) ||
 	 $node->IsTainted(TB_TAINTSTATE_BLACKBOX))
-	&& !$node->_onsharednode()) {
+	&& $pnode->erole() ne "sharedhost") {
 	$pnode->AddTaintState(TB_TAINTSTATE_BLACKBOX) == 0 
 	    or die_noretry("Could not add blackbox taint state to vnode host!\n");
     }
