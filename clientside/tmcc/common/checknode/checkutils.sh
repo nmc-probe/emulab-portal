@@ -326,12 +326,12 @@ comparetmcinfo() {
     done
 
     if [ -f ${fileout}_local -o -f ${fileout}_local_pre ] ; then
-	printf "\nOnly found in local search and not in testbed database\n" >> $fileout
+	printf "Only found in local search and not in testbed database\n" >> $fileout
 	[[ -f ${fileout}_local_pre ]] && cat ${fileout}_local_pre >> ${fileout}
 	[[ -f ${fileout}_local ]] && cat ${fileout}_local >> ${fileout}	
     fi
     if [ -f ${fileout}_tbdb -o -f ${fileout}_tbdb_pre ] ; then
-	printf "\nIn testbed database but not found in local search\n" >> $fileout
+	printf "In testbed database but not found in local search\n" >> $fileout
 	[[ -f ${fileout}_tbdb_pre ]] && cat ${fileout}_tbdb_pre >> ${fileout}
 	[[ -f ${fileout}_tbdb ]] && cat ${fileout}_tbdb >> ${fileout}
     fi
