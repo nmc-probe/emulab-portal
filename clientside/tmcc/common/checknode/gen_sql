@@ -86,8 +86,8 @@ checkdrift_main() {
     echo ""
     echo "$filecount files in $hostcount nodes checked"
 }
-checkwce_main() {
 
+checkwce_main() {
     for host in $allnodes ; do
 	if [ -f $projdir/$host/full ] ; then
 
@@ -113,6 +113,45 @@ checkwce_main() {
 	else
 	    echo "No record of node id \"$host\"."
 	fi
+    done
+}
+
+cleanup_main() {
+    declare -i f=0
+    savepwd=$(pwd)
+    sorton=".diff"
+    toclean=".tbdb .tmcc .full .diff"
+    echo "Must be root to run correctly"
+    for host in $allnodes ; do
+	f=0
+	# for each node sort the ${sorton} directory by date
+	# save the two newest file and delete all the rest
+	# in ${sorton} ${toclean} directories
+	[[ ! -d $savepwd/$host/${sorton} ]] && continue
+	cd $savepwd/$host/${sorton}
+	sortedls=$(ls -t | paste -s -d \\\  -)
+	# pop the top 2 newest off
+	sortedls=${sortedls#*\ }
+	[[ -z "$sortedls" ]] && continue
+	sortedls+=' '
+	[[ -z "$sortedls" ]] && continue
+	sortedls=${sortedls#*\ }
+	[[ -z "$sortedls" ]] && continue
+	sortedls+=' '
+	# print something
+	for i in $sortedls ; do
+	    ((f++))
+	done
+	((f--))
+	echo "node:$host removing $f files from each ${toclean} directories"
+
+	# take the next file for timestamp
+	sortedls=${sortedls%%\ *}
+	[[ -z "$sortedls" ]] && continue
+	dated=$savepwd/$host/${sorton}/${sortedls}
+	# using find delete older file
+	cd $savepwd/$host
+	find ${toclean} ! -newer ${dated} ! -name ${dated} -type f -exec rm '{}' ';'
     done
 }
 
@@ -200,12 +239,14 @@ gentbsql_main() {
                 # remove up to 'from tbdb'
 		local_listofdisks=${local_listofdisks#*from\ tbdb\ }
                 for i in $local_listofdisks ; do
+		    # or we just didn't find anything
+		    [[ -z "$local_listofdisks" ]] && continue
 		    [[ $i == "UNKNOWN" ]] && continue
-		    echo "# Local $host disks out of order - rewrite order this run. Run $0 again"
+		    echo "# Local $host disks out of order - rewrite order this run. Run $0 again after more inventory captured"
 		    echo "mysql -e \"delete from blockstore_attributes where attrvalue='$i';\" tbdb"
 		    listofdisks="$listofdisks $i"
+# echo "### not enabled - sudo rm $projdir/$host/diff"
                     done
-echo "### not enabled - sudo rm $projdir/$host/diff"
 	    fi
 	    for i in $listofdisks ; do
 
@@ -461,10 +502,10 @@ elif [ "$0" != "${0/sql}" ] ; then
     gentbsql_main $@
 elif [ "$0" != "${0/drift}" ] ; then
     checkdrift_main $@
+elif [ "$0" != "${0/cleanup}" ] ; then
+    cleanup_main $@
 elif [ "$0" != "wce" ] ; then
     checkwce_main $@
 else
     "Print useage help"
 fi
-
-
