@@ -189,7 +189,7 @@ gentbsql_main() {
     keep_bsidx_base=$bsidx_base
     # XXX
     # try to fill gaps above 1000, good idea?
-    bsidx_base=1000
+    [[ $bsidx_base -gt 500 ]] && bsidx_base=500
     
     for host in $allnodes ; do
 	if [ -d $projdir/$host ] ; then
