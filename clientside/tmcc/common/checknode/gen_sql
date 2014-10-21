@@ -1,12 +1,17 @@
 #! /usr/local/bin/bash
 
+# let the checkutils.sh script know we are running offline
+declare -i offline=1
+
 source checkutils.sh
 
 
 checkdrift_main() {
     declare -i countsame=1 filecount=0 hostcount=0 
-# XXX XXX XXX need sanity check that all bsidx match the two db tables
+    declare -i tellNoSN=0 tellNonMFS=0; 
+    declare print_blank=no
     for host in $allnodes ; do
+	print_blank=yes
 	((hostcount++))
 	if [ -d $projdir/$host/.tbdb ] ; then
 	    cd $projdir/$host/.tbdb
@@ -26,31 +31,34 @@ checkdrift_main() {
 		[[ ! $allchecks ]] && break # ran out of files, break from loop
 	    done
 	    [[ ! $allchecks ]] && continue # make sure we didn't consume all the file for node
-
+	    if (( $tellNoSN )); then
 	    # X X X Hackitly Hackit Hack
 	    # drop those files that have empty SN, but report it
-	    if [ "$(grep 'DISKUNIT TYPE' $newest)" ] ; then
-		echo "Missing SN in $host $(pwd)/$newest"
-		newest=${allchecks%%\ *} # take off the top
-		allchecks=${allchecks#* } # pop the list
+	    if [ "$(grep 'DISKUNIT TYPE' $newest)" -o "$(grep 'DISKUNIT SECSIZE' $newest)" ] ; then
+		echo "===> Missing SN in $host $(pwd)/$newest"
+# pop or not to pop - that is the question (ignore !SN file or process)
+#::		newest=${allchecks%%\ *} # take off the top
+#::		allchecks=${allchecks#* } # pop the list
 		[[ ! $allchecks ]] && continue # ran out of files
 	    fi
+	    fi
 
+	    # read $newset into the hwinvcopy array, hwinvcopy array has
+	    # been declared in the checkutils.sh script
 	    readtmcinfo $newest hwinvcopy
 	    for tocheck in $allchecks ; do
-		[[ $(grep 'ismfs=0' $tocheck) ]] && continue # if not in ismfs mode then don't check
-		if [ "$(grep 'DISKUNIT TYPE' $tocheck)" ] ; then
-		    echo "Missing SN in $host $(pwd)/$tocheck"
-		    continue
+		if (( ! $tellNonMFS )) ; then
+		# if not in ismfs mode then don't check
+ 		[[ $(grep 'ismfs=0' $tocheck) ]] && continue 
 		fi
 		readtmcinfo $tocheck hwinv
 		# note: will check against self for sanity
 		comparetmcinfo /tmp/.$$checkdiff
 		((filecount++))
 		if [ -s /tmp/.$$checkdiff ] ; then
-		    echo ""
-		    echo "$host $newest $tocheck are not the same"
-		    echo "====================================================="
+		    [[ "$print_blank" == "yes" ]] && { echo ""; print_blank=no; }
+		    echo "$host generated tbdb $newest $tocheck are not the same"
+		    echo "==============================================================="
 		    cat /tmp/.$$checkdiff
 #		    echo "diff $tocheck $newest"
 #		    diff $tocheck $newest
@@ -75,7 +83,8 @@ checkdrift_main() {
 	    echo "No record of node id \"$host\"."
 	fi
     done
-# :    echo "$filecount files in $hostcount nodes checked"
+    echo ""
+    echo "$filecount files in $hostcount nodes checked"
 }
 checkwce_main() {
 
@@ -139,6 +148,9 @@ gentbsql_main() {
     # get current unique BlockStore number from tbdb
     bsidx_base=$(mysql -B -N -e "select idx from emulab_indicies where name='next_bsidx';" tbdb)
     keep_bsidx_base=$bsidx_base
+    # XXX
+    # try to fill gaps above 1000, good idea?
+    bsidx_base=1000
     
     for host in $allnodes ; do
 	if [ -d $projdir/$host ] ; then
@@ -174,7 +186,6 @@ gentbsql_main() {
 		diffFile=diff
 		nodeFile=node
 	    fi
-	    
 	    listofdisks=$(grep 'DISKs:' $diffFile)
 	    listofdisks=${listofdisks//DISKs:}  # take string out
 	    hdnum=0
@@ -183,17 +194,19 @@ gentbsql_main() {
 		local_listofdisks=$(grep 'OUT OF ORDER' $diffFile)
 		# remove up to first 'local['
 		local_listofdisks=${local_listofdisks#*local\[}
+		# remove from ']' to end
 		local_listofdisks=${local_listofdisks%%]*}
+                # have a second case where "ERROR DISK OUT OF ORDER"
+                # remove up to 'from tbdb'
+		local_listofdisks=${local_listofdisks#*from\ tbdb\ }
                 for i in $local_listofdisks ; do
 		    [[ $i == "UNKNOWN" ]] && continue
 		    echo "# Local $host disks out of order - rewrite order this run. Run $0 again"
 		    echo "mysql -e \"delete from blockstore_attributes where attrvalue='$i';\" tbdb"
-		    echo "cd $projdir/$host"
-		    echo "rm -f diff"
 		    listofdisks="$listofdisks $i"
                     done
+echo "### not enabled - sudo rm $projdir/$host/diff"
 	    fi
-
 	    for i in $listofdisks ; do
 
 		toadd=$(grep $i $nodeFile)
@@ -334,7 +347,7 @@ gentbsql_main() {
 				printf "mysql -e \"delete from blockstores where node_id='%s' and bsidx='%s';\" tbdb\n" "$host" "$x_bsidx"
 				printf "mysql -e \"delete from blockstore_attributes where attrkey='%s';\" tbdb\n" "$i"
 			    else
-				echo "#Discovery error node_id $host"
+				echo "#Discovery error node_id $host, full:has SN BUT node:does not"
 				      # Have only seen this when the "full" file for host lists a hard drive, including SN
 				      # but the "node" file does not have serial number for for the HD
 			    fi
@@ -342,7 +355,6 @@ gentbsql_main() {
 		    fi
 		fi
 	    done
-
 	    listofnics=$(grep 'NICs:' diff)
 	    listofnics=${listofnics//NICs:/}
 	    for i in $listofnics ; do
@@ -354,14 +366,14 @@ gentbsql_main() {
 		    printf "#BYHAND mysql -e \"insert into interfaces set node_id='%s',mac='%s',card=X,port=X,interface_type='?',iface='ethX',role='?',uuid='$uuid';\" tbdb\n" "$host" "$toadd"
 		else
 		    toadd="ID=\"$i\""
-#		    printf "#BYHAND mysql -e \"delete from interfaces where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
+		    printf "#BYHAND mysql -e \"delete from interfaces where node_id='%s' and %s;\" tbdb\n" "$host" "$toadd"
 		fi
 	    done
 	else
 	    echo "# No record of node id \"$host\"."
 	fi
     done
-    if [ $keep_bsidx_base -ne $bsidx_base ] ; then
+    if [ $keep_bsidx_base -lt $bsidx_base ] ; then
 	echo "# orginal bsidx=$keep_bsidx_base : new bsidx=$bsidx_base"
 	printf "mysql -e \"update emulab_indicies set idx=%d where name='next_bsidx';\" tbdb\n" "$bsidx_base"
     else
@@ -443,13 +455,11 @@ else
     allnodes=${nodes//\/tmcc/}
 fi
 
-
 if [ "$0" != "${0/setdir}" ] ; then
     setdirstructure
 elif [ "$0" != "${0/sql}" ] ; then
     gentbsql_main $@
 elif [ "$0" != "${0/drift}" ] ; then
-    declare -i offline=1
     checkdrift_main $@
 elif [ "$0" != "wce" ] ; then
     checkwce_main $@
