@@ -2310,7 +2310,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    #          nodes of type pc found
 		    #
 		    if ($line =~
-			/^\*\*\* (\d*) nodes of type ([-\w]*) requested, but/) {
+			/^\s*\*\*\* (\d*) nodes of type ([-\w]*) requested, but/) {
 			$errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
 		    }
 		}
