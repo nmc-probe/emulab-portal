@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -361,7 +361,8 @@ foreach my $token (@remlist) {
 # Call genelists, but just when adding or modifying. For deletion, it
 # is handled above.
 #
-if ((@addlist || @modlist) && ! $target_user->nocollabtools()) {
+if ((@addlist || @modlist) &&
+    !($target_user->IsNonLocal() || $target_user->nocollabtools())) {
     print "Updating email lists for user $user\n";
     
     system("$GENELISTS $optarg -u $user") == 0 or
