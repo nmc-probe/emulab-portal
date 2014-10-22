@@ -2,7 +2,7 @@
 
 # let the checkutils.sh script know we are running offline
 declare -i offline=1
-
+declare -i reporting=0
 source checkutils.sh
 
 
@@ -83,8 +83,8 @@ checkdrift_main() {
 	    echo "No record of node id \"$host\"."
 	fi
     done
-    echo ""
-    echo "$filecount files in $hostcount nodes checked"
+
+    [[ $hostcount -gt 1 ]] && { [[ $reporting -eq 0 ]] && echo "$filecount files in $hostcount nodes checked"; }
 }
 
 checkwce_main() {
@@ -186,10 +186,11 @@ gentbsql_main() {
     local sn="UNK" hdtype="UNK" secsize="UNK" sectors="UNK" wspeed="UNK" rspeed="UNK"
     # get current unique BlockStore number from tbdb
     bsidx_base=$(mysql -B -N -e "select idx from emulab_indicies where name='next_bsidx';" tbdb)
+
     keep_bsidx_base=$bsidx_base
     # XXX
     # try to fill gaps above 1000, good idea?
-    [[ $bsidx_base -gt 500 ]] && bsidx_base=500
+    [[ $bsidx_base -gt 200 ]] && bsidx_base=200
     
     for host in $allnodes ; do
 	if [ -d $projdir/$host ] ; then
@@ -313,7 +314,7 @@ gentbsql_main() {
 		    size=$(($sectors / 2048))
 		    # check and see if bsidx already used
 		    while [ "$(mysql -B -N -e "select bsidx from blockstores where bsidx=$bsidx_base;" tbdb)" ] ; do
-			echo "# bsidx=$bsidx_base already used, bumping bsidx_base again"
+#			echo "# bsidx=$bsidx_base already used, bumping bsidx_base again"
 			((++bsidx_base))
 		    done
                     # check and see if drive already used
@@ -418,7 +419,7 @@ gentbsql_main() {
 	echo "# orginal bsidx=$keep_bsidx_base : new bsidx=$bsidx_base"
 	printf "mysql -e \"update emulab_indicies set idx=%d where name='next_bsidx';\" tbdb\n" "$bsidx_base"
     else
-	echo "# orginal bsidx=$keep_bsidx_base : new bsidx=$bsidx_base == no update"
+	[[ $reporting -eq 0 ]] && echo "# orginal bsidx=$keep_bsidx_base : new bsidx=$bsidx_base == no update"
     fi
 }
 
@@ -483,8 +484,54 @@ setdirstructure() {
     done
 }
 
+genreport_main() {
+    reporting=1
+
+    [[ -z "${RUNNING_FROM_CRON-}" ]] && declare RUNNING_FROM_CRON="NO"
+
+    if [ "${RUNNING_FROM_CRON}" != "NO" ] ; then
+	echo "Subject: CheckNode report for $(hostname)" > /tmp/Report_CheckNode
+	echo "From: CheckNode" >> /tmp/Report_CheckNode
+	echo "To: dreading@flux.utah.edu" >> /tmp/Report_CheckNode
+    else
+	echo "" > /tmp/Report_CheckNode
+    fi
+
+    rm -f /tmp/genreport /tmp/driftreport
+    nodes2do=$allnodes
+    for node in $nodes2do ; do
+	allnodes=$node
+	echo "================================= $node =================================" >> /tmp/Report_CheckNode
+	if [ -s /proj/emulab-ops/nodecheck/$node/diff ] ; then
+	    echo "----------------------- inconsistency with db ---------------------------" >> /tmp/Report_CheckNode
+	    tail -n +5 /proj/emulab-ops/nodecheck/$node/diff >> /tmp/Report_CheckNode
+	fi
+
+	gentbsql_main $node > /tmp/genreport
+	if [ -s /tmp/genreport ] ; then
+	    echo "--------------------------- suggested db updates  -----------------------" >> /tmp/Report_CheckNode
+	    cat /tmp/genreport >> /tmp/Report_CheckNode
+	fi
+
+	checkdrift_main $node > /tmp/driftreport
+	if [ -s /tmp/driftreport ] ; then
+	    echo "--------------------------- changes over time ---------------------------" >> /tmp/Report_CheckNode
+	    cat /tmp/driftreport >> /tmp/Report_CheckNode
+	fi
+
+	rm -f /tmp/genreport /tmp/driftreport
+    done
+
+    if [ "${RUNNING_FROM_CRON}" != "NO" ] ; then
+	cat /tmp/Report_CheckNode | sendmail -t
+    else
+	cat /tmp/Report_CheckNode
+    fi
+}
+
 # start here
 set -u
+kdir=$(pwd)
 projdir=/proj/emulab-ops/nodecheck
 # if projdir is automounted this should mount it
 cd $projdir
@@ -495,6 +542,7 @@ else
     nodes=$(ls */tmcc)
     allnodes=${nodes//\/tmcc/}
 fi
+cd $kdir
 
 if [ "$0" != "${0/setdir}" ] ; then
     setdirstructure
@@ -504,6 +552,8 @@ elif [ "$0" != "${0/drift}" ] ; then
     checkdrift_main $@
 elif [ "$0" != "${0/cleanup}" ] ; then
     cleanup_main $@
+elif [ "$0" != "${0/report}" ] ; then
+    genreport_main $@
 elif [ "$0" != "wce" ] ; then
     checkwce_main $@
 else
