@@ -486,13 +486,16 @@ setdirstructure() {
 
 genreport_main() {
     reporting=1
-
-    [[ -z "${RUNNING_FROM_CRON-}" ]] && declare RUNNING_FROM_CRON="NO"
-
-    if [ "${RUNNING_FROM_CRON}" != "NO" ] ; then
+    [[ -z "${CHECKNODE_CRONJOB-}" ]] && declare CHECKNODE_CRONJOB="NO"
+    [[ -z "${CHECKNODE_MTA-}" ]] && declare CHECKNODE_MTA="sendmail -t"
+    [[ -z "${CHECKNODE_MAILTO-}" ]] && declare CHECKNODE_MAILTO=""
+    if [ "${CHECKNODE_CRONJOB}" != "NO" ] ; then
+	# if MAILTO is empty then switch to cat-ing the info, cron can do with it what is wants
+	# i.e. use the standard cron MAILTO var
+	[[ -z "${CHECKNODE_MAILTO}" ]] && CHECKNODE_MTA="cat"
 	echo "Subject: CheckNode report for $(hostname)" > /tmp/Report_CheckNode
 	echo "From: CheckNode" >> /tmp/Report_CheckNode
-	echo "To: dreading@flux.utah.edu" >> /tmp/Report_CheckNode
+	echo "To: ${CHECKNODE_MAILTO}" >> /tmp/Report_CheckNode
     else
 	echo "" > /tmp/Report_CheckNode
     fi
@@ -522,11 +525,12 @@ genreport_main() {
 	rm -f /tmp/genreport /tmp/driftreport
     done
 
-    if [ "${RUNNING_FROM_CRON}" != "NO" ] ; then
-	cat /tmp/Report_CheckNode | sendmail -t
+    if [ "${CHECKNODE_CRONJOB}" != "NO" ] ; then
+	cat /tmp/Report_CheckNode | ${CHECKNODE_MTA}
     else
 	cat /tmp/Report_CheckNode
     fi
+    rm -f /tmp/Report_CheckNode
 }
 
 # start here
