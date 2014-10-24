@@ -1455,7 +1455,7 @@ sub LoadVirtNodes($)
 
 	    # We will deal with later, but set a default=1 for now.
 	    $self->experiment()->SetVirtNodeAttribute($vname, "VM_VCPUS", 1)
-		if ($vnode->_sharedokay() && !$self->user()->IsAdmin());
+		if (0 && $vnode->_sharedokay() && !$self->user()->IsAdmin());
 	}
 
 	#
