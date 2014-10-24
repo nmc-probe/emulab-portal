@@ -187,6 +187,18 @@ sub EnableFirewall($)
     return 0;
 }
 
+sub DisableFirewall($)
+{
+    my ($node) = @_;
+
+    system("sudo ssh $opts $node ".
+	   " '/var/emulab/boot/rc.fw disable'");
+    return -1
+	if ($?);
+
+    return 0;
+}
+
 sub FixFirewall($)
 {
     my ($node) = @_;
