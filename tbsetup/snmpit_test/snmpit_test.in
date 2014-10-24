@@ -2841,17 +2841,21 @@ sub doReserveVlanTags($$@) {
 	    next
 		if (!$opt{'blockmode'});
 	}
-	elsif (!$opt{'blockmode'}) {
-	    #
-	    # In block mode (multiple tags) do not signal an error on failure.
-	    # Caller will figure it out.
-	    #
-	    print STDERR "Could not pre-reserve tag for $vlan\n";
+	goto again
+	    if (@tags);
+
+	#
+	# No more tags to try. In blockmode that is fine, the caller will
+	# figure it out by looking to see which tags are reserved. But
+	# when not in blockmode it is an error if we cannot get one of the
+	# tags in the list we were given. We get here only when we have run
+	# out of tags to try.
+	#
+	if (!$opt{'blockmode'}) {
+	    print STDERR "Could not pre-reserve a tag for $vlan\n";
 	    $errors++;
 	    last;
 	}
-	goto again
-	    if (@tags);
     }
     if ($errors) {
 	foreach my $ref (@assigned) {
