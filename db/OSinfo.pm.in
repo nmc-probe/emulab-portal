@@ -125,6 +125,9 @@ sub Lookup($$;$$)
 {
     my ($class, $arg1, $arg2, $arg3) = @_;
 
+    return undef
+	if (!defined($arg1));
+
     #
     # A single arg is either an index or "pid,osname[:version]" or
     # "pid/osname[:version]" string.
