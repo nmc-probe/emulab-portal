@@ -36,6 +36,10 @@ $| = 1; # Turn off line buffering on output
 use SNMP;
 use strict;
 
+# XXX for configurations in which APC unit always returns error
+# even when it works.
+my $ignore_errors = 0;
+
 sub new($$;$) {
 
     # The next two lines are some voodoo taken from perltoot(1)
@@ -216,7 +220,15 @@ sub UpdateField {
 	    $retval = $self->{SESS}->set([[$OID,$port,$val,"INTEGER"]]);
 	    $retval = "" if (!defined($retval));
 	    print "Set returned '$retval'\n" if $self->{DEBUG};
-	    if ($retval) { return 0; } else { return 1; }
+	    if ($retval) {
+		return 0;
+	    }
+	    # XXX warn, but otherwise ignore errors
+	    if ($ignore_errors) {
+		print STDERR "WARNING: $port '$val' failed, ignoring\n";
+		return 0;
+	    }
+	    return 1;
 	}
 	return 0;
     }
