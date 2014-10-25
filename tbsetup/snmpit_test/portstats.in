@@ -316,6 +316,7 @@ elsif ($opt{p}) {
 #
 my %portMap = mapPortsToDevices(@ports);
 my %stats   = ();
+my @nports = ();
 
 DEVICE: foreach my $name (keys %portMap) {
     my @ports = @{$portMap{$name}};
@@ -484,8 +485,10 @@ DEVICE: foreach my $name (keys %portMap) {
 	# Save for printing.
 	#
 	$stats{(Port->isPort($port)?$port->toString():$port)} = $result;
+	push @nports, $port;
     }
 }
+@ports = @nports;
 
 #
 # Exit now if they wanted quiet operation
