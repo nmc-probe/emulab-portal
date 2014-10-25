@@ -573,6 +573,9 @@ if ($method eq "CreateSliver"    ||
     $method eq "RedeemTicket"    ||
     $method eq "CreateImage"     ||
     $method eq "PerformOperationalAction"    ||
+    $method eq "Provision"       ||
+    $method eq "Allocate"        ||
+    $method eq "Update"          ||
     $method eq "DeleteSlice") {
     $debug = 2;
     $nostorelogs = 0;
