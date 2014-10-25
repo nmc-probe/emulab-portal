@@ -465,7 +465,7 @@ if ($localuser) {
     my $emulab_user = $geniuser->emulab_user();
     if ($emulab_user->IsNonLocal()) {
 	system("$UPDATEGENIUSER -s " . $emulab_user->uid());
-	if ($?) {
+	if (0) {
 	    fatal("Could not update ssh keys for nonlocal user");
 	}
     }
