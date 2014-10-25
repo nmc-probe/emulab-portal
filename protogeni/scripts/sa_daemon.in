@@ -312,7 +312,6 @@ sub WarnSlices()
 		     "is going to expire in approximately $diff $unit.\n".
 		     "Please renew it or let it expire if you not using it.\n",
 		     "Geni Operations <$TBOPS>");
-	    }
 	}
   noemail:
 	$warned{$idx}  = time();
