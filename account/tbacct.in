@@ -495,6 +495,14 @@ sub AddUser()
     if ($user ne $PROTOUSER && system("$ADDKEY -i $user")) {
 	fatal("Could not generate initial ssh key for $user");
     }
+
+    #
+    # And the mailman lists if enabled. All users must get this cause
+    # mailman is used for project mail lists. when MAILMANSUPPORT=1
+    #
+    system("$ADDMMUSER $user")
+	if ($MAILMANSUPPORT);
+    
     if ($isnonlocal) {
 	$EUID = 0;
 	goto skipstuff;
@@ -543,10 +551,6 @@ sub AddUser()
     system("$ADDCHATUSER $user")
 	if ($CHATSUPPORT && $user ne $PROTOUSER);
 
-    # And the mailman lists if enabled.
-    system("$ADDMMUSER $user")
-	if ($MAILMANSUPPORT);
-    
     # And to the trac system if enabled.
     system("$ADDTRACUSER $user")
 	if ($TRACSUPPORT && $user ne $PROTOUSER);
