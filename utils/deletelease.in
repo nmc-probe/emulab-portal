@@ -40,9 +40,11 @@ sub usage()
     print STDERR "   lname    Name of lease in <pid>/<id> form\n";
     exit(-1);
 }
-my $optlist  = "dhfFw:";
+my $optlist  = "dhfFw:b";
 my $debug = 0;
 my $force = 0;
+my $background = 0;
+my $logname;
 my $pid;
 my $lname;
 my $lease;
@@ -55,11 +57,13 @@ sub fatal($);
 # Configure variables
 #
 my $TB		 = "@prefix@";
+my $TBOPS        = "@TBOPSEMAIL@";
 
 #
 # Testbed Support libraries
 #
 use lib "@prefix@/lib";
+use libtestbed;
 use libdb;
 use Lease;
 use Project;
@@ -88,6 +92,9 @@ if (defined($options{h})) {
 }
 if (defined($options{d})) {
     $debug = 1;
+}
+if (defined($options{b})) {
+    $background = 1;
 }
 if (defined($options{f})) {
     $force = 1;
@@ -192,9 +199,29 @@ if (!$lease->ValidTransition("DEAD")) {
     }
 }
 
+if ($background) {
+    print "Resource deallocation proceeding the background ...\n";
+	
+    $logname = TBMakeLogname("deletelease");
+    if (my $childpid = TBBackGround($logname)) {
+	exit(0);
+    }
+    # Let parent exit;
+    sleep(2);
+}
 # Dealloc will put the lease back into the unapproved state
 if ($lease->DeallocResources()) {
     $lease->UpdateState(LEASE_STATE_LOCKED());
+
+    #
+    # Need to notify on error, if ran in the background.
+    #
+    if ($background) {
+	SENDMAIL($TBOPS, "Lease deallocation failed!",
+		 "Background resource deallocation for Lease '$pid/$lname' ".
+		 "failed!\n\n",
+		 $TBOPS, undef, $logname);
+    }
     fatal("$pid/$lname: could not deallocate resources, left in 'locked' state.");
 }
 
