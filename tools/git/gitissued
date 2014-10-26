@@ -1,0 +1,263 @@
+#!/usr/bin/perl -w
+
+#
+# gitmaild - simple script to send mail when gitlab issues are posted or
+# updated
+# TODO: Better error handling; try really hard not to die
+#
+
+use HTTP::Daemon;
+use HTTP::Request;
+use HTTP::Status;
+use HTTP::Response;
+use URI;
+use LWP::UserAgent;
+use IPC::Open3;
+use Getopt::Long;
+use JSON;
+use Cwd 'abs_path';
+use File::Basename;
+use Data::Dumper;
+use POSIX "setsid";
+
+use strict;
+
+#
+# Options that can be passed in the URL
+# (eg.  # http://localhost:4578/?foo=1&bar=1)
+#
+# none so far...
+#
+
+#
+# Settable options - these can be set here, or by passing a config file on the
+# command line. This config file is simple a perl file that will be eval'ed, so
+# just set variables there as you would here, they will override the defaults
+#
+
+# The only mandatory option: Token to use when calling gitmail API - should
+# belong to an administrator
+my $TOKEN = "";
+
+# Port to run on - made up crap
+my $PORT = 4578;
+
+# URL used to make gitlab API calls
+my $BASEURL = "https://gitlab.flux.utah.edu/";
+
+# Path where logging info will be sent
+my $LOGFILE = "/home/git/gitissuedd.log";
+
+#
+# End settable options
+#
+
+#
+# Command line options
+#
+my $verbose = 0;
+my $debug   = 0;
+my $configfile = undef;
+
+my $result = GetOptions("v" => \$verbose, "d" => \$debug, "c:s" => \$configfile);
+
+sub send_message($$);
+sub call_gitlab_api($);
+sub get_member_addresses($);
+
+#
+# Parse config file if given
+#
+if ($configfile) {
+    open CF, "<$configfile" || die "Unable to open $configfile: $!\n";
+    my $configdata = "";
+    while (my $data = <CF>) {
+        $configdata .= $data;
+    }
+    close CF;
+    if (!defined(eval $configdata)) {
+        die "Error in $configfile: $!\n";
+    }
+}
+
+#
+# Make sure they gave a key, ain't gonna work without one
+#
+if ($TOKEN eq "") {
+    die "Must set a \$TOKEN!\n";
+}
+
+#
+# Open up a new socket - runs only on localhost, this thing is not nearly
+# secure enough to be open to the world
+#
+my $listen_socket = HTTP::Daemon->new(LocalAddr => 'localhost',
+                                      LocalPort => $PORT) || die;
+print "gitmaild running at: ", $listen_socket->url, "\n";
+
+# This causes children to be auto-reaped
+$SIG{CHLD}="IGNORE";
+
+# Daemonize
+if (!$debug) {
+    chdir("/")                      || die "can't chdir to /: $!";
+    open(STDIN,  "< /dev/null")     || die "can't read /dev/null: $!";
+    open(STDOUT, ">> $LOGFILE")      || die "can't write to $LOGFILE: $!";
+    defined(my $pid = fork())       || die "can't fork: $!";
+    exit if $pid;                   # non-zero now means I am the parent
+    (setsid() != -1)                || die "Can't start a new session: $!";
+    open(STDERR, ">&STDOUT")        || die "can't dup stdout: $!";
+}
+
+#
+# Main loop - pretty simple!
+#
+while (my $connection = $listen_socket->accept()) {
+
+    while (my $request = $connection->get_request()) {
+        if ($verbose) {
+            print "\n" . "="x80 . "\n";
+            print $request->as_string();
+            print "\n" . "="x80 . "\n";
+        }
+        # Fork off child
+        if (fork()) {
+            # Parent
+        } else {
+            #
+            # Pull out variables passed in the GET request
+            #
+            my %get_vars = $request->uri->query_form;
+            if ($verbose) {
+                print "Request URL is " . $request->uri. "\n";
+                print "Query part is " . $request->uri->query . "\n";
+                print "GET vars are: " . join(",",keys %get_vars) . "\n";
+            }
+
+            # Child
+            my $rv = send_message(decode_json($request->content()),\%get_vars);
+
+            if ($rv == 0) {
+                $connection->send_error(RC_INTERNAL_SERVER_ERROR);
+                $connection->close();
+                exit 1;
+            } else {
+                # This means it worked, but we are not going to return any
+                # content to the caller
+                $connection->send_status_line(RC_NO_CONTENT);
+                $connection->close();
+                exit 0;
+            }
+        }
+    }
+
+    # Both are necessary to make sure the connection is really closed
+    $connection->close();
+    undef($connection);
+
+}
+
+#
+# Actually run gitmail, using the data that we pulled out of the JSON that
+# was passed to us
+#
+sub send_message($$) {
+    my ($data,$get_vars) = @_;
+
+    if ($verbose) {
+        print "Running gitmail\n";
+    }
+
+    # TODO: Error handling (or at least reporting)
+
+    #
+    # Get information about the user so that we can set, eg., 'from'
+    # appropriately
+    #
+    my $userinfo = call_gitlab_api("/users/" . $data->{"object_attributes"}{"author_id"});
+
+    #
+    # Get information about the project, so that we know where the repo lives,
+    # etc.
+    # NB: This depends on the Utah patch to gitlab that adds the project ID
+    # to the data in the hook
+    #
+    my $repoinfo = call_gitlab_api("/projects/" . $data->{"object_attributes"}{"project_id"});
+
+    #
+    # Build up options that we'll pass to gitmail
+    #
+    my %options;
+
+    # Who the mail comes from - user doing the push
+    $options{'mailfrom'} = $userinfo->{name} . " <" . $userinfo->{email} . ">";
+
+    # Name of the repo
+    $options{'reponame'} = $repoinfo->{path_with_namespace};
+
+    $options{'alwaysmail'} =
+            get_member_addresses($data->{"object_attributes"}{"project_id"});
+
+    #
+    # Actually send the mail
+    #
+
+    #
+    # Done!
+    #
+    return 1;
+
+}
+
+#
+# Call the function given in the argument, and put the JSON result into a
+# perl hash
+#
+# TODO: Error checking
+sub call_gitlab_api($) {
+    my ($call) = @_;
+
+    # Hardcode API v3 for now
+    my $url = $BASEURL . "api/v3" . $call . "?private_token=" . $TOKEN;
+
+    print "Calling '$url'\n";
+
+    # Super simple, make the call
+    my $request = HTTP::Request->new(GET => $url);
+    my $ua = LWP::UserAgent->new;
+    # Hack to make this work even if one has a self-signed cert, a cert signed
+    # by a less well known authority, etc.
+    $ua->ssl_opts( verify_hostnames => 0 );
+    my $response = $ua->request($request);
+    if ($verbose) {
+        print "\n" . "="x80 . "\n";
+        print $response->as_string . "\n";
+        print "\n" . "="x80 . "\n";
+    }
+
+    # TODO: Error checking
+    return decode_json($response->content);
+}
+
+#
+# Get email addresses for all memebers of the given project
+#
+sub get_member_addresses($) {
+    my ($repo_id) = @_;
+    my $memberinfo = call_gitlab_api("/projects/" . $repo_id . "/members");
+
+    my @addresses;
+    foreach my $member (@$memberinfo) {
+        # We have to grab the user information explicitly, most of this is no
+        # longer included in the member API call
+        my $userinfo = call_gitlab_api("/users/" . $member->{id});
+        my $address = $userinfo->{'email'};
+        if ($verbose) {
+            print "User details: . " . Dumper($userinfo) . "\n";
+            print "User address: $address\n";
+        }
+        push @addresses, $address;
+    }
+
+    return \@addresses;
+}
