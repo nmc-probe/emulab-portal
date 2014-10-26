@@ -236,7 +236,7 @@ sub send_message($$) {
     #
 
     print MAIL "From: " . $mailfrom . "\n";
-    print MAIL "To: " . join(", ",$mailto) . "\n";
+    print MAIL "To: " . join(", ",@$mailto) . "\n";
     print MAIL "Subject: gitlab issue: [$reponame] issue #" . $attr->{"iid"} . " " .
                     $attr->{"action"} . " (" . $attr->{"state"} . ")" . "\n";
     print MAIL "Message-Id: $messageid\n";
