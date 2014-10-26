@@ -95,7 +95,7 @@ if ($TOKEN eq "") {
 #
 my $listen_socket = HTTP::Daemon->new(LocalAddr => 'localhost',
                                       LocalPort => $PORT) || die;
-print "gitissuedd running at: ", $listen_socket->url, "\n";
+print "gitissued running at: ", $listen_socket->url, "\n";
 
 # This causes children to be auto-reaped
 $SIG{CHLD}="IGNORE";
