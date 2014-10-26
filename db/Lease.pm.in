@@ -193,6 +193,7 @@ sub mysystem($)
 # Accessors
 #
 sub lease_id($)        {return $_[0]->{'DBROW'}->{'lease_id'}; }
+sub uuid($)            {return $_[0]->{'DBROW'}->{'uuid'}; }
 sub pid($)             {return $_[0]->{'DBROW'}->{'pid'}; }
 sub idx($)             {return $_[0]->{'DBROW'}->{'lease_idx'}; }
 sub lease_idx($)       {return $_[0]->idx(); }
@@ -207,6 +208,7 @@ sub state($)           {return $_[0]->{'DBROW'}->{'state'}; }
 sub statestamp($)      {return str2time($_[0]->{'DBROW'}->{'statestamp'}); }
 sub renewals($)	       {return $_[0]->{'DBROW'}->{'renewals'}; }
 sub locktime($)        {return str2time($_[0]->{'DBROW'}->{'locked'}); }
+sub locked($)          {return $_[0]->{'DBROW'}->{'locked'}; }
 sub lockpid($)         {return $_[0]->{'DBROW'}->{'locker_pid'}; }
 
 #
