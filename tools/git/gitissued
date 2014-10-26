@@ -197,24 +197,24 @@ sub send_message($$) {
     #
     # Get information about the project, so that we know where the repo lives,
     # etc.
-    # NB: This depends on the Utah patch to gitlab that adds the project ID
-    # to the data in the hook
     #
     my $repoinfo = call_gitlab_api("/projects/" . $attr->{"project_id"});
 
-    #
-    # Build up options that we'll pass to gitmail
-    #
-    my %options;
 
+    #
     # Who the mail comes from 
-    $options{'mailfrom'} = $authorinfo->{name} . " <" . $authorinfo->{email} . ">";
+    #
+    my $mailfrom = $authorinfo->{name} . " <" . $authorinfo->{email} . ">";
 
+    #
     # Name of the repo
+    #
     my $reponame = $repoinfo->{path_with_namespace};
 
-    $options{'alwaysmail'} =
-            get_member_addresses($attr->{"project_id"});
+    #
+    # Mail to all project members
+    #
+    my $mailto = get_member_addresses($attr->{"project_id"});
 
     #
     # Actually send the mail
@@ -222,10 +222,21 @@ sub send_message($$) {
     if ($debug) {
         open(MAIL,">&STDERR");
         print MAIL "\n\n";
+    } else {
+        # sendmail args:
+        # -oem causes errors in mail to be "mailed back"
+        # -odb deliver mail in background
+        # -t causes sendmail to look in the message for 'To:' 'Cc:' and
+        #    'Bcc:' lines
+        open(MAIL, "| /usr/sbin/sendmail -odb -oem -f'$mailfrom' -t");
     }
 
-    print MAIL "From: " . $options{"mailfrom"} . "\n";
-    print MAIL "To: " . join(", ",@{$options{'alwaysmail'}}) . "\n";
+    #
+    # Basic headers
+    #
+
+    print MAIL "From: " . $mailfrom . "\n";
+    print MAIL "To: " . join(", ",$mailto) . "\n";
     print MAIL "Subject: gitlab issue: [$reponame] issue #" . $attr->{"iid"} . " " .
                     $attr->{"action"} . " (" . $attr->{"state"} . ")" . "\n";
     print MAIL "Message-Id: $messageid\n";
@@ -242,6 +253,9 @@ sub send_message($$) {
     #
     print MAIL "\n";
 
+    #
+    # Put the basics in the mail
+    #
     print MAIL "Issue #" . $attr->{"iid"} . " - " . $attr->{"title"} . "\n";
     print MAIL "Action: " . $attr->{"action"} . "\n";
     print MAIL "State: " . $attr->{"state"} . "\n";
@@ -253,6 +267,10 @@ sub send_message($$) {
     print MAIL "Description:\n";
     print MAIL $attr->{"description"};
     print "\n";
+
+    if (!$debug) {
+        close MAIL;
+    }
 
     #
     # Done!
