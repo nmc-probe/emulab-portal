@@ -46,7 +46,7 @@ my $PORT = 4578;
 my $BASEURL = "https://gitlab.flux.utah.edu/";
 
 # Path where logging info will be sent
-my $LOGFILE = "/home/git/gitissuedd.log";
+my $LOGFILE = "/home/git/gitissued.log";
 
 #
 # End settable options
