@@ -23,6 +23,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var oneonly     = 0;
     var isadmin     = 0;
     var isguest     = 0;
+    var dossh       = 1;
     var extend      = null;
     var status_collapsed  = false;
     var status_message    = "";
@@ -36,6 +37,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	oneonly = window.APT_OPTIONS.oneonly;
 	isadmin = window.APT_OPTIONS.isadmin;
 	isguest = !window.APT_OPTIONS.registered;
+	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 
@@ -714,7 +716,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		var ssh    = "n/a";
 		var cons   = "n/a";
 
-		if (login.length) {
+		if (login.length && dossh) {
 		    var user   = login.attr("username");
 		    var host   = login.attr("hostname");
 		    var port   = login.attr("port");
@@ -792,7 +794,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 
 	    // And start up ssh for single node topologies.
-	    if (nodecount == 1 && nodehostport && !oneonly) {
+	    if (nodecount == 1 && nodehostport && !oneonly && dossh) {
 		NewSSHTab(nodehostport, nodename);
 	    }
 	}
@@ -847,6 +849,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 	var callback = function(json) {
 	    sup.HideModal('#waitwait-modal');
+	    //console.log("StartSnapshot");
 	    //console.log(json);
 	    
 	    if (json.code) {
