@@ -45,7 +45,8 @@ function Do_GetProfile()
 	SPITAJAX_ERROR(1, "Unknown profile uuid");
 	return;
     }
-    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+    if (!ISADMIN() &&
+	!$profile->CanView($this_user)) {
 	SPITAJAX_ERROR(1, "Not enough permission");
 	return;
     }
