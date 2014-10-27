@@ -541,13 +541,7 @@ elseif (! array_key_exists($formfields["profile"], $profile_array)) {
 #
 # More sanity checks. 
 #
-if ($this_user) {
-    if (! $this_user->HasEncryptedCert(1)) {
-	$errors["error"] =
-	    "Oops, registered users are supposed to have an SSL certificate";
-    }
-}
-else {
+if (!$this_user) {
     $geniuser = GeniUser::LookupByEmail("sa", $formfields["email"]);
     if ($geniuser) {
 	if ($geniuser->name() != $formfields["username"]) {    

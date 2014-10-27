@@ -388,7 +388,26 @@ chomp($sshkey)
 my $geniuser;
 
 if ($localuser) {
-    $geniuser = GeniUser::LocalUser->Lookup($user_uid);
+    my $emulab_user = User->Lookup($user_uid);
+    
+    #
+    # Hmm, users with real accounts who never used Geni, but now want
+    # to use APT/Cloud, have no encrypted SSL certificate. Rather then
+    # force them through the web ui (and have to explain it), create one
+    # for them using a random passphrase. The user will not know the
+    # passphrase, but for most users it will not matter.
+    #
+    # This is also going to catch expired certificates, we will regenerate
+    # them using the existing passphrase.
+    #
+    if ($emulab_user->HasValidEncryptedCert() == 0 &&
+	$emulab_user->GenEncryptedCert()) {
+	fatal("Could not (re)generate encrypted certificate");
+    }
+    # Now this will work; without a certificate, this would fail.
+    if (defined($emulab_user)) {
+	$geniuser = GeniUser::LocalUser->Create($emulab_user);
+    }
 }
 else {
     $geniuser = GeniUser->Lookup($user_urn);
