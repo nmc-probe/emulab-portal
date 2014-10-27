@@ -59,6 +59,7 @@ my $OURDOMAIN      = "@OURDOMAIN@";
 my $MIN_UNIX_UID   = @MIN_UNIX_UID@;
 my $MIN_UNIX_GID   = @MIN_UNIX_GID@;
 my $tbacct	   = "$TB/sbin/tbacct";
+my $MKUSERCERT     = "$TB/sbin/mkusercert";
 
 # Create() flags.
 $NEWUSER_FLAGS_PROJLEADER	= 0x01;
@@ -1130,7 +1131,8 @@ sub SetStatus($$)
 }
 
 #
-# Get user ssl certificate (pubkey). 
+# Get user ssl certificate (pubkey). The certificate might be expired, but
+# that is okay for the caller.
 #
 sub SSLCert($$$;$)
 {
@@ -1155,6 +1157,56 @@ sub SSLCert($$$;$)
     $$pref = $cert;
     $$pkey = $privkey
 	if (defined($pkey));
+    return 0;
+}
+
+#
+# Does user have an encrypted certificate (not revoked, not expired)
+#
+sub HasValidEncryptedCert($)
+{
+    my ($self) = @_;
+    my $uid_idx = $self->uid_idx();
+
+    my $query_result =
+	DBQueryWarn("select idx from user_sslcerts ".
+		    "where uid_idx='$uid_idx' and encrypted=1 and ".
+		    "      revoked is null and expires > now()");
+
+    return -1
+	if (!defined($query_result));
+    return 0
+	if (!$query_result->numrows);
+    return 1;
+}
+
+#
+# Try to regenerate encrypted SSL cert using existing passphrase, or make
+# up a new passphrase if we do not have one in the DB.
+#
+sub GenEncryptedCert($)
+{
+    my ($self) = @_;
+    my $uid_idx = $self->uid_idx();
+    my $uid     = $self->uid();
+    my $certpass;
+
+    my $query_result =
+	DBQueryWarn("select password from user_sslcerts ".
+		    "where uid_idx='$uid_idx' and encrypted=1 and ".
+		    "      revoked is null");
+    return -1
+	if (!defined($query_result));
+
+    if ($query_result->numrows) {
+	($certpass) = $query_result->fetchrow_array();
+    }
+    else {
+	$certpass = substr(lc(emutil::GenHash()), 0, 12);
+    }
+    system("$MKUSERCERT -r -p $certpass $uid");
+    return -1
+	if ($?);
     return 0;
 }
 
