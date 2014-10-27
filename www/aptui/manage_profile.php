@@ -230,6 +230,8 @@ if (! isset($create)) {
 		    SPITUSERERROR("Not allowed to access this profile!");
 		}
 	    }
+	    # New page action is now create, not copy or clone.
+	    $action = "create";
 	    $defaults["profile_rspec"] = $profile->rspec();
 	    $defaults["profile_who"]   = "shared";
             # Default the project if in only one project.
