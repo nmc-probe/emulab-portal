@@ -55,6 +55,36 @@ CREATE TABLE `active_checkups` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `apt_datasets`
+--
+
+DROP TABLE IF EXISTS `apt_datasets`;
+CREATE TABLE `apt_datasets` (
+  `idx` int(10) unsigned NOT NULL default '0',
+  `dataset_id` varchar(32) NOT NULL default '',
+  `uuid` varchar(40) NOT NULL default '',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `creator_uid` varchar(8) NOT NULL default '',
+  `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `aggregate_urn` varchar(128) default NULL,
+  `remote_uuid` varchar(40) NOT NULL default '',
+  `created` datetime default NULL,
+  `expires` datetime default NULL,
+  `last_used` datetime default NULL,
+  `state` enum('new','valid','unapproved','grace','locked','expired','busy') NOT NULL default 'new',  
+  `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
+  `fstype` varchar(40) NOT NULL default 'none',
+  `size` int(10) unsigned NOT NULL default '0',
+  `locked` datetime default NULL, 
+  `locker_pid` int(11) default '0',
+  PRIMARY KEY (`idx`),
+  UNIQUE KEY `plid` (`pid_idx`,`dataset_id`),
+  UNIQUE KEY `uuid` (`uuid`),
+  UNIQUE KEY `remote_uuid` (`remote_uuid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `apt_instance_history`
 --
 
