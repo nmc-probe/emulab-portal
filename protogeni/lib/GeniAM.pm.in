@@ -1011,7 +1011,7 @@ sub Provision
 
     my ($slice, undef) = GeniCMV2::Credential2SliceAggregate($cred);
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Slice credential not provided")
+			"No slice here that matches the provided credentials")
 	if (! defined($slice));
 
     return $slice
@@ -1081,7 +1081,7 @@ sub PerformOperationalAction
 
     my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Slice credential not provided")
+			"No slice here that matches the provided credentials")
 	if (! defined($slice));
 
     if ($urns[0] eq $slice->urn()) {
