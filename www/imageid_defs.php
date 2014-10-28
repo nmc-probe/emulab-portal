@@ -833,15 +833,19 @@ class Image
 	    $p_imageid   = $this->parent_imageid();
 	    $p_version   = $this->parent_version();
 	    $p_image     = Image::Lookup($p_imageid, $p_version);
-	    $p_imagename = $p_image->imagename();
-	    $p_url       = CreateURL("showimageid", $p_image,
-				      "version", $p_version);
+	    # On an elabinelab we will not have the previous version.
+	    # if it came in at creation time.
+	    if ($p_image) {
+		$p_imagename = $p_image->imagename();
+		$p_url       = CreateURL("showimageid", $p_image,
+					 "version", $p_version);
 	    
-	    echo "<tr>
-                    <td>Derived from: </td>
-                    <td class=left><a href='$p_url'>
-                      ${p_imagename}:${p_version}</a></td>
-                  </tr>\n";
+		echo "<tr>
+                        <td>Derived from: </td>
+                        <td class=left><a href='$p_url'>
+                          ${p_imagename}:${p_version}</a></td>
+                     </tr>\n";
+	    }
 	}
 	if ($this->version() > 0 &&
 	    (is_null($this->parent_imageid()) ||
