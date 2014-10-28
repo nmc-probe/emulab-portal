@@ -747,7 +747,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		//
 		// Now a button to the console.
 		//
-		if (coninfo.length) {
+		if (coninfo.length && !isguest) {
 		    cons = "<button class='btn btn-primary btn-sm' " +
 			"    id='" + "consbutton_" + node + "' " +
 			"    type='button'>" +
