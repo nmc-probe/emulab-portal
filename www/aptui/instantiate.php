@@ -331,7 +331,9 @@ function SPITFORM($formfields, $newuser, $errors)
                      Upload a file or paste it in the text box. This will ".
 		   "allow you to login using your favorite ssh client. Without ".
 		   "a SSH key, you will be limited to using a shell window in ".
-		   "your browser. Don't know how to generate your SSH key? ".
+		   "your browser. If you already see a key here, you can ".
+		   "change it and we will remember your new key for next time. ".
+                   "Don't know how to generate your SSH key? ".
 		   "See <a href='https://help.github.com/articles/generating-ssh-keys'>this tutorial.</a></span>".
 		   "<input type=file name='keyfile'>");
 
