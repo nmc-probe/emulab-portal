@@ -122,7 +122,6 @@ my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
-my $USELOCALPROJ   = 0;
 
 #
 # Tell the client what API revision we support.  The correspondence
@@ -6040,8 +6039,7 @@ sub GeniExperiment($;$)
 
     my $uuid = $slice->uuid();
     my $urn  = $slice->urn();
-    my ($pid, $gid, $eid);
-    my ($project, $group);
+    my $eid;
 
     my $experiment = Experiment->Lookup($uuid);
     return $experiment
@@ -6050,194 +6048,15 @@ sub GeniExperiment($;$)
     # The eid is derived from the slice urn.
     (undef, undef, $eid) = GeniHRN::Parse($urn);
 
-    require Project;
-    require Group;
+    # Get the project and group.
+    my $group = GeniUtil::GetHoldingProject($urn, $creator);
+    return $group
+	if (GeniResponse::IsResponse($group));
 
-    #
-    # BUG: We need to check the sub auth chain to make sure that
-    # there the common prefix. Otherwise, a subsa could sign a
-    # slice credential for someone else.
-    #
-    
-    #
-    # If the slice is from this Emulab (SA), then we are going to create the
-    # experiment in the local project.
-    #
-    if (GeniHRN::Authoritative($urn, $OURDOMAIN) && $USELOCALPROJ) {
-	#
-	# If no creator, this is a placeholder slice. Since its local
-	# we can come up with a creator, but later.
-	#
-	if (!defined($creator)) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				"Cannot do local placeholder slices yet");
-	}
-	
-	#
-	# For now, the creator has to be a local user and have their
-	# default project set. Until we have project signed credentials.
-	#
-	if (! $creator->IsLocal()) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-			"$creator is not a local user for local project");
-	}
-	if (!defined($creator->DefaultProject())) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					"No default project for $creator");
-	}
-	$project = $creator->DefaultProject();
-	if (!defined($project)) {
-	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				"Could not get local project for $slice");
-	}
-	# No sub groups for local projects. Maybe later?
-	$pid = $gid = $project->pid();
-    }
-    else {
-	#
-	# The top level domain of the SA becomes the project name, but the
-	# dots are illegal of course, and there might be sub authorities
-	# (colon separated). We use the primary for the project and the
-	# first sub-authority for the group.
-	#
-	my ($domain, undef, undef) = GeniHRN::Parse($urn);
-	my @tokens = split(":", $domain);
-	my $project_id = shift(@tokens);
-	my $group_id = shift(@tokens) if (@tokens);
-	my $project_urn = GeniHRN::Generate($project_id, "authority", "sa");
-	
-	#
-	# See if the project exists. 
-	#
-	$project = Project->LookupNonLocal($project_urn);
-	if (!defined($project)) {
-	    #
-	    # For now, lets assume that the domain has legal chars, except
-	    # of course for the dots, which we transform to dashes cause
-	    # underscores are not allowed in project ids.
-	    #
-	    $project_id =~ s/\./-/g;	    
-	    if (!Project->ValidPID($project_id)) {
-		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-		    "Cannot form a valid local project name from $project_urn");
-	    }
+    my $project = $group->GetProject();
+    my $pid = $project->pid;
+    my $gid = $group->gid();
 
-	    #
-	    # Write out a little XML file describing the project, and
-	    # let the existing backend script deal with it all.
-	    #
-	    my ($fh, $filename) = tempfile(UNLINK => 0);
-	    if (!defined($fh)) {
-		print STDERR "Could not create temp file for $project_id\n";
-		return GeniResponse->Create(GENIRESPONSE_ERROR);
-	    }
-	    print $fh "<project>\n";
-	    print $fh " <attribute name=\"name\">\n";
-	    print $fh "  <value>$project_id</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"short description\">\n";
-	    print $fh "  <value>$project_urn</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"nonlocal_id\">\n";
-	    print $fh "  <value>$project_urn</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"nonlocal_type\">\n";
-	    print $fh "  <value>protogeni</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"leader\">\n";
-	    print $fh "  <value>geniuser</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh "</project>\n";
-	    close($fh);
-	    if (! chmod(0755, $filename)) {
-		print STDERR "Could not chmod $filename\n";
-		return GeniResponse->Create(GENIRESPONSE_ERROR);
-	    }
-	    #
-	    # This operation has to be done as an admin person. 
-	    #
-	    GeniUtil::FlipToElabMan();
-	    my $output = GeniUtil::ExecQuiet("$WAP $NEWPROJECT -l $filename");
-	    if ($?) {
-		GeniUtil::FlipToGeniUser();
-		print STDERR $output;
-		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-			    "Internal error creating project description");
-	    }
-	    unlink($filename);
-
-	    $output = GeniUtil::ExecQuiet("$WAP $MAKEPROJECT $project_id");
-	    my $ecode  = $?;
-	    GeniUtil::FlipToGeniUser();
-	    if ($ecode) {
-		print STDERR $output;
-		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					    "Internal error creating project");
-	    }
-	    $project = Project->LookupNonLocal($project_urn);
-	    if (!defined($project)) {
-		print STDERR "Cannot lookup new project for $project_id\n";
-		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-			    "Internal error locating project after creation");
-	    }
-	}
-	$pid = $gid = $project->pid();
-	
-	#
-	# If there is a sub authority, create a subgroup for it.
-	#
-	if (defined($group_id)) {
-	    if (!Group->ValidGID($group_id)) {
-		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				    "Invalid  local group name $group_id");
-	    }
-	    $group = $project->LookupGroup($group_id);
-
-	    if (!defined($group)) {
-		my $pid_idx = $project->pid_idx();
-		
-		#
-		# Write out a little XML file describing the group, and
-		# let the existing backend script deal with it all.
-		#
-		my ($fh, $filename) = tempfile(UNLINK => 0);
-		if (!defined($fh)) {
-		    print STDERR "Could not create temp file for group $group_id\n";
-		    return GeniResponse->Create(GENIRESPONSE_ERROR);
-		}
-		print $fh "<group>\n";
-		print $fh " <attribute name=\"project\">\n";
-		print $fh "  <value>$pid_idx</value>\n";
-		print $fh " </attribute>\n";
-		print $fh " <attribute name=\"group_id\">\n";
-		print $fh "  <value>$group_id</value>\n";
-		print $fh " </attribute>\n";
-		print $fh " <attribute name=\"group_leader\">\n";
-		print $fh "  <value>geniuser</value>\n";
-		print $fh " </attribute>\n";
-		print $fh " <attribute name=\"group_description\">\n";
-		print $fh "  <value></value>\n";
-		print $fh " </attribute>\n";
-		print $fh "</group>\n";
-		close($fh);
-		my $output = GeniUtil::ExecQuiet("$NEWGROUP $filename");
-		if ($?) {
-		    print STDERR $output;
-		    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					    "Internal error creating group");
-		}
-		unlink($filename);
-
-		$group = $project->LookupGroup($group_id);
-		if (!defined($group)) {
-		    print STDERR "Cannot lookup new group for $group_id\n";
-		    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-			"Internal error locating group after creation");
-		}
-	    }
-	    $gid = $group->gid();
-	}
-    }
     #
     # Form an eid for the experiment. 
     #
