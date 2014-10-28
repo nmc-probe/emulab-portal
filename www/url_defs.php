@@ -68,6 +68,7 @@ define("PAGEARG_NUMERIC",	"numeric");
 define("PAGEARG_ARRAY",		"array");
 define("PAGEARG_ANYTHING",	"anything");
 define("PAGEARG_ALPHALIST",     "alphalist");
+define("PAGEARG_UUID",		"uuid");
 
 define("URL_USER",		"user");
 define("URL_PROJECT",		"project");
@@ -578,6 +579,9 @@ function VerifyPageArguments($argspec, $required)
 		if (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
 		    $object = Image::Lookup($imageid, $version);
 		}
+		elseif (ValidateArgument($name, PAGEARG_UUID, $imageid)) {
+		    $object = Image::LookupByUUID($imageid);
+		}
 	    }
 	    elseif (isset($_REQUEST[$name]) && $_REQUEST[$name] != "") {
 		$imageid = $_REQUEST[$name];
@@ -628,6 +632,7 @@ function VerifyPageArguments($argspec, $required)
 	case PAGEARG_INTEGER:
 	case PAGEARG_NUMERIC:
 	case PAGEARG_ARRAY:
+	case PAGEARG_UUID:
 	    if (isset($_REQUEST[$name]) && $_REQUEST[$name] != "") {
 		$object = $_REQUEST[$name];
 		$yep = 1;
@@ -768,6 +773,12 @@ function ValidateArgument($name, $type, $arg)
     case PAGEARG_INTEGER:
     case PAGEARG_NUMERIC:
 	if (is_numeric($arg)) {
+	    return 1;
+	}
+	break;
+
+    case PAGEARG_UUID:
+	if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", "$arg")) {
 	    return 1;
 	}
 	break;
