@@ -112,9 +112,24 @@ function Do_TerminateInstance()
     $uuid = $instance->uuid();
 
     # This needs work.
-    SUEXEC("nobody", "nobody", "webquickvm -k $uuid",
-	   SUEXEC_ACTION_IGNORE);
-    SPITAJAX_RESPONSE("");
+    $webtask_id = WebTask::GenerateID();
+    SUEXEC("nobody", "nobody",
+	   "webmanage_instance -t $webtask_id -- terminate $uuid",
+	   SUEXEC_ACTION_CONTINUE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval == 0) {
+	SPITAJAX_RESPONSE("");
+	$webtask->Delete();
+	return;
+    }
+    if ($webtask && $webtask->exited()) {
+	SPITAJAX_ERROR(1, $webtask->TaskData("output"));
+	$webtask->Delete();
+    }
+    else {
+	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+    }
 }
 
 #
@@ -136,7 +151,7 @@ function Do_GetInstanceManifest()
 #
 function Do_GetSSHAuthObject()
 {
-    global $instance, $creator;
+    global $instance, $creator, $this_user;
     global $ajax_args;
 
     if (!isset($ajax_args["hostport"])) {
@@ -148,6 +163,14 @@ function Do_GetSSHAuthObject()
     if (StatusSetupAjax()) {
 	return;
     }
+    #
+    # XXX Need to deal with multiple members of an experiment.
+    #
+    if (!$this_user->SameUser($creator)) {
+	SPITAJAX_ERROR(1, "Not allowed to ssh; only the creator");
+	return;
+    }
+    
     $nodeid = $ajax_args["nodeid"];
     $auth   = SSHAuthObject($creator->uid(), $hostport);
     if (!$auth) {
@@ -162,7 +185,7 @@ function Do_GetSSHAuthObject()
 #
 function Do_RequestExtension()
 {
-    global $instance, $creator, $this_user;
+    global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
     global $TBMAIL_OPS, $APTMAIL, $APTBASE;
     $reason  = "";
@@ -260,7 +283,7 @@ function Do_RequestExtension()
 	}
     }
     $retval = SUEXEC("nobody", "nobody",
-		     "webquickvm -e $howlong $uuid",
+		     "webmanage_instance extend $uuid $howlong",
 		     SUEXEC_ACTION_CONTINUE);
 
     if ($retval == 0) {
@@ -298,11 +321,10 @@ bad:
 function Do_ConsoleURL()
 {
     global $instance, $creator;
-    global $suexec_output_array;
     global $ajax_args;
 
     if (!isset($ajax_args["node"])) {
-	SPITAJAX_ERROR(1, "Missing node");
+	SPITAJAX_ERROR(1, "Missing node argument");
 	return 1;
     }
     $node = $ajax_args["node"];
@@ -316,19 +338,21 @@ function Do_ConsoleURL()
 	SPITAJAX_ERROR(1, "no slice for instance");
 	return 1;
     }
+    $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC("nobody", "nobody",
-		     "webmanage_instance -c $uuid " . escapeshellarg($node),
+		     "webmanage_instance -t $webtask_id -- consoleurl $uuid " .
+		     escapeshellarg($node),
 		     SUEXEC_ACTION_CONTINUE);
+    $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval == 0) {
-	$url = $suexec_output_array[0];
-	if (preg_match("/^(https:.*)$/", $url, $matches)) {
-	    $url = $matches[1]; 
-	}
-	SPITAJAX_RESPONSE($url);
+	SPITAJAX_RESPONSE($webtask->TaskValue("value"));
+	$webtask->Delete();
+	return;
     }
-    elseif ($retval > 0) {
-	SPITAJAX_ERROR(1, $suexec_output);
+    if ($webtask) {
+	SPITAJAX_ERROR(1, $webtask->TaskData("output"));
+	$webtask->Delete();
     }
     else {
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
@@ -342,7 +366,6 @@ function Do_Snapshot()
 {
     global $this_user;
     global $ajax_args;
-    global $suexec_output_array;
 
     $this_idx = $this_user->uid_idx();
 
@@ -382,26 +405,27 @@ function Do_Snapshot()
     #
     # Call out to the backend.
     #
-    $webtask_id = md5(uniqid(rand(),1));
+    $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC($this_user->uid(), "nobody",
-		     "webmanage_instance -t $webtask_id -s $uuid",
+		     "webmanage_instance -t $webtask_id -- snapshot $uuid",
 		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval != 0) {
 	if ($retval < 0) {
-	    SPITAJAX_ERROR(1, "Internal error, cannot proceed.");
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
 	    # Notify tbops.
 	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	    return;
 	}
-	else {
-	    $line = "please try again later.";
-	    if (count($suexec_output_array)) {
-		$line = $suexec_output_array[0];
-	    }
-	    SPITAJAX_ERROR(1, "Transient error; $line");
-	    return;
+	if ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskData("output"));
+	    $webtask->Delete();
 	}
+	else {
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	return;
     }
     SPITAJAX_RESPONSE("Success");
 }
@@ -437,11 +461,6 @@ function Do_SnapshotStatus()
     $taskdata = $webtask->TaskData();
     $blob = array();
 
-    if ($webtask->exited()) {
-	# Success, but not sure what to report. Come back to this later.
-	$blob["exited"]   = $webtask->exited();
-	$blob["exitcode"] = $webtask->exitcode();
-    }
     #
     # Size is in KB to avoid bigint problems. But kill the KB.
     # 
@@ -456,7 +475,12 @@ function Do_SnapshotStatus()
     }
     $blob["node_status"]  = $taskdata["rawstate"];
     $blob["image_status"] = $taskdata["image_status"];
-    
+    if ($webtask->exited()) {
+	# Success, but not sure what to report. Come back to this later.
+	$blob["exited"]   = $webtask->exited();
+	$blob["exitcode"] = $webtask->exitcode();
+	$webtask->Delete();
+    }
     SPITAJAX_RESPONSE($blob);
 }
 

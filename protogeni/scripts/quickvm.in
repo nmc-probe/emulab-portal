@@ -41,24 +41,16 @@ use Cwd qw(realpath);
 sub usage()
 {
     print "Usage: quickvm [-u uuid] [-a aggregate] <xmlfile>\n";
-    print "Usage: quickvm -k <uuid>\n";
-    print "Usage: quickvm -e <seconds> <uuid>\n";
-    print "Usage: quickvm -s <uuid> <sliver_urn> <imagename>\n";
-    print "Usage: quickvm -c <uuid> <sliver_urn>\n";
     exit(1);
 }
-my $optlist = "dkve:u:a:st:fc";
+my $optlist = "dvu:a:t:f";
 my $debug   = 0;
 my $verbose = 1;
-my $killit  = 0;
 my $utahddc = 1;
 my $DDCURN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
 my $xmlfile;
-my $extend;
 my $webtask;
 my $webtask_id;
-my $snapshot;
-my $consoleurl;
 my $foreground = 0;
 my $localuser  = 0;
 my $quickuuid;
@@ -68,11 +60,8 @@ my $this_user;
 # Protos
 sub fatal($);
 sub UserError($);
-sub Terminate($);
-sub Extend($$);
 sub SnapShot($$$);
 sub GenCredentials($$$$);
-sub ConsoleURL($$);
 
 #
 # Configure variables
@@ -89,8 +78,6 @@ my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
 my $SSHSETUP      = "$TB/sbin/aptssh-setup";
 my $ADDPUBKEY     = "$TB/sbin/addpubkey";
 my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
-my $GENEXTENDCRED = "$TB/sbin/protogeni/genextendcred";
-my $VERSIONING    = @PROFILEVERSIONS@;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -107,6 +94,7 @@ use libtestbed;
 use libaudit;
 use APT_Profile;
 use APT_Instance;
+use APT_Geni;
 use User;
 use OSinfo;
 use emutil;
@@ -136,23 +124,11 @@ if (defined($options{"a"})) {
 if (defined($options{"d"})) {
     $debug = 1;
 }
-if (defined($options{"c"})) {
-    $consoleurl = 1;
-}
 if (defined($options{"v"})) {
     $verbose = 1;
 }
 if (defined($options{"f"})) {
     $foreground = 1;
-}
-if (defined($options{"k"})) {
-    $killit = 1;
-}
-if (defined($options{"s"})) {
-    $snapshot = 1;
-}
-if (defined($options{"e"})) {
-    $extend = $options{"e"};
 }
 if (defined($options{"t"})) {
     $webtask_id = $options{"t"};
@@ -163,58 +139,35 @@ if (defined($options{"u"})) {
 if (@ARGV < 1) {
     usage();
 }
-if ($killit) {
-    $quickuuid = shift(@ARGV);
-}
-elsif ($extend) {
-    if ($extend !~ /^\d*$/) {
-	usage();
+$xmlfile = shift(@ARGV);
+
+#
+# Check the filename when invoked from the web interface; must be a
+# file in /tmp.
+#
+if (getpwuid($UID) ne "nobody") {
+    $this_user = User->ThisUser();
+
+    if (! defined($this_user)) {
+	fatal("You ($UID) do not exist!");
     }
-    $quickuuid = shift(@ARGV);
+    $localuser = 1;
 }
-elsif ($snapshot) {
-    usage()
-	if (@ARGV != 3);
-    
-    $quickuuid = shift(@ARGV);
-}
-elsif ($consoleurl) {
-    usage()
-	if (@ARGV != 2);
-    
-    $quickuuid = shift(@ARGV);
-}
-else {
-    $xmlfile = shift(@ARGV);
-
-    #
-    # Check the filename when invoked from the web interface; must be a
-    # file in /tmp.
-    #
-    if (getpwuid($UID) ne "nobody") {
-	$this_user = User->ThisUser();
-
-	if (! defined($this_user)) {
-	    fatal("You ($UID) do not exist!");
-	}
-	$localuser = 1;
+if (!defined($this_user) || !$this_user->IsAdmin()) {
+    if ($xmlfile =~ /^([-\w\.\/]+)$/) {
+	$xmlfile = $1;
     }
-    if (!defined($this_user) || !$this_user->IsAdmin()) {
-	if ($xmlfile =~ /^([-\w\.\/]+)$/) {
-	    $xmlfile = $1;
-	}
-	else {
-	    fatal("Bad data in pathname: $xmlfile");
-	}
+    else {
+	fatal("Bad data in pathname: $xmlfile");
+    }
 
-	# Use realpath to resolve any symlinks.
-	my $translated = realpath($xmlfile);
-	if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
-	    $xmlfile = $1;
-	}
-	else {
-	    fatal("Bad data in translated pathname: $xmlfile");
-	}
+    # Use realpath to resolve any symlinks.
+    my $translated = realpath($xmlfile);
+    if ($translated =~ /^(\/tmp\/[-\w\.\/]+)$/) {
+	$xmlfile = $1;
+    }
+    else {
+	fatal("Bad data in translated pathname: $xmlfile");
     }
 }
 
@@ -238,7 +191,6 @@ my $sa_authority = GeniAuthority->Lookup($sa_certificate->urn());
 if (!defined($sa_authority)) {
     fatal("Could not load SA authority object");
 }
-my $speaker_signer = $GeniCredential::LOCALSA_FLAG;
 
 #
 # We want to contact our local CM to create the sliver.
@@ -274,19 +226,6 @@ if (!defined($cm_authority)) {
     if (!defined($cm_authority)) {    
 	fatal("Could not load CM authority object");
     }
-}
-
-if ($killit) {
-    exit(Terminate($quickuuid));
-}
-elsif ($extend) {
-    exit(Extend($quickuuid, $extend));
-}
-elsif ($snapshot) {
-    exit(SnapShot($quickuuid, $ARGV[0], $ARGV[1]));
-}
-elsif ($consoleurl) {
-    exit(ConsoleURL($quickuuid, $ARGV[0]));
 }
 
 #
@@ -471,18 +410,14 @@ my $user_uuid = $geniuser->uuid();
 # So we know this user has dome something lately.
 $geniuser->BumpActivity();
 
-#
-# Guest users use the apt CA, and so we must sign the speaksfor
-# credential with the APT SA as well so that the target of the
-# speaksfor credential is in the same namespace as the signer.
-#
-if (!$localuser && $MAINSITE) {
-    $speaker_signer = "/usr/testbed/etc/utah-apt.sa";
-}
-
 if ($localuser) {
     my $emulab_user = $geniuser->emulab_user();
     if ($emulab_user->IsNonLocal()) {
+	#
+	# A user created from a Geni certificate via geni-login. We
+	# ask for the current ssh keys from the MA. They are stored
+	# into the DB by the update script.
+	#
 	system("$UPDATEGENIUSER -s " . $emulab_user->uid());
 	if (0) {
 	    fatal("Could not update ssh keys for nonlocal user");
@@ -490,6 +425,12 @@ if ($localuser) {
     }
     elsif (!$emulab_user->isEmulab() && defined($sshkey) &&
 	   !$emulab_user->LookupSSHKey($sshkey)) {
+	#
+	# A local user created via the APT/Cloud interface. Rather then
+	# edit keys via the old web UI, they can change their one key
+	# by putting a new one in the web form. If the gave us a new one,
+	# insert it after deleting the old one. 
+	#
 	$emulab_user->DeleteSSHKeys();
 	my ($fh, $keyfile) = tempfile(UNLINK => 0);
 	print $fh $sshkey;
@@ -500,11 +441,25 @@ if ($localuser) {
 	close($fh);
 	unlink($keyfile);
     }
+    #
+    # Hmm, users with real accounts who never used Geni, but now want
+    # to use APT/Cloud, have no encrypted SSL certificate. Rather then
+    # force them through the web ui (and have to explain it), create one
+    # for them using a random passphrase. The user will not know the
+    # passphrase, but for most users it will not matter.
+    #
+    # This is also going to catch expired certificates, we will regenerate
+    # them using the existing passphrase.
+    #
+    if ($emulab_user->HasValidEncryptedCert() == 0 &&
+	$emulab_user->GenEncryptedCert()) {
+	fatal("Could not (re)generate encrypted certificate");
+    }
 }
 elsif (!$localuser && defined($sshkey)) {
     #
-    # Remember key. For now we accept only one key. We store it simply
-    # so we can display it again for the user in the web interface.
+    # Guest user; remember key. For now we accept only one key. We store
+    # it simply so we can display it again for the user in the web interface.
     # We allow key reuse for existing users, see above.
     #
     $geniuser->DeleteKeys();
@@ -569,7 +524,7 @@ my $slice_uuid = $slice->uuid();
 # Generate credentials we need.
 #
 my ($slice_credential, $speaksfor_credential) =
-    GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
+    APT_Geni::GenCredentials($slice, $geniuser);
 if (! (defined($speaksfor_credential) &&
        defined($slice_credential))) {
     $slice->Delete();
@@ -756,615 +711,6 @@ sub UserError($) {
 	if (!$debug);
     print $mesg;
     exit(1);
-}
-
-#
-# Generate or yank the speaks for credential out of the DB.
-#
-sub GenCredentials($$$$)
-{
-    my ($target, $geniuser, $authority, $signer) = @_;
-    my ($speaksfor, $credential);
-
-    #
-    # If a local user account, but a nonlocal id, then we should
-    # have a speaksfor credential stored, as well as a certificate
-    # for the user.
-    #
-    if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal()) {
-	my ($speaksfor_string, $certificate_string) =
-	    $geniuser->emulab_user()->GetStoredCredential();
-	if (! (defined($speaksfor_string) &&
-	       defined($certificate_string))) {
-	    print STDERR "No stored speaksfor/certificate for $geniuser\n";
-	    goto bad;
-	}
-	$speaksfor = GeniCredential->CreateFromSigned($speaksfor_string);
-	if (!defined($speaksfor)) {
-	    print STDERR "Could not create speaksfor credential\n";
-	    goto bad;
-	}
-	my $certificate =
-	    GeniCertificate->LoadFromString($certificate_string);
-	if (!defined($certificate)) {
-	    print STDERR "Could not load certificate from string\n";
-	    goto bad;
-	}
-	$credential = GeniCredential->Create($target, $certificate);
-    }
-    else {
-	$speaksfor = GeniCredential->Create($geniuser, $authority);
-	if (!defined($speaksfor)) {
-	    print STDERR "Could not create speaksfor credential\n";
-	    goto bad;
-	}
-	$speaksfor->SetType("speaksfor");
-	if ($speaksfor->Sign($signer)) {
-	    print STDERR "Could not sign speaksfor credential\n";
-	    goto bad;
-	}
-	$credential = GeniCredential->Create($target, $geniuser);
-    }
-    if (!defined($credential)) {
-	print STDERR "Could not create credential for $target\n";
-	goto bad;
-    }
-    # And sign it.
-    if ($credential->Sign($GeniCredential::LOCALSA_FLAG) != 0) {
-	$credential->Delete();
-	print STDERR "Could not sign $target credential\n";
-	goto bad;
-    }
-    return ($credential, $speaksfor);
-  bad:
-    return ();
-}
-
-#
-# Terminate a quick VM.
-#
-sub Terminate($)
-{
-    my ($uuid) = @_;
-
-    my $instance = APT_Instance->Lookup($uuid);
-    if (! defined($instance)) {
-	fatal("No such quick VM: $uuid");
-    }
-    if (defined($instance->aggregate_urn()) &&
-	$instance->aggregate_urn() ne $CMURN) {
-	$CMURN = $instance->aggregate_urn();
-	
-	$cm_authority = GeniAuthority->Lookup($CMURN);
-	if (!defined($cm_authority)) {
-	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
-	    if (!defined($cm_authority)) {    
-		fatal("Could not load CM authority object");
-	    }
-	}
-    }
-    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
-    if (!defined($geniuser)) {
-	fatal("No creator for quick VM: $uuid");
-    }
-    my $slice = GeniSlice->Lookup($instance->slice_uuid());
-    if (!defined($slice)) {
-	goto killit;
-    }
-    #
-    # Generate credentials we need.
-    #
-    my ($slice_credential, $speaksfor_credential) =
-	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
-    if (! (defined($speaksfor_credential) &&
-	   defined($slice_credential))) {
-	fatal("Could not generate credentials");
-    }
-
-    #
-    # Lock the slice in case it is doing something else, like taking
-    # a disk image.
-    #
-    if ($slice->Lock()) {
-	fatal("Slice is busy, cannot lock it");
-    }
-    my $old_status = $instance->status();
-    $instance->SetStatus("terminating");
-
-    #
-    # Exit and let caller poll for status.
-    #
-    if (!$debug) {
-	my $child = fork();
-	if ($child) {
-	    # Parent exits but avoid libaudit email.
-	    exit(0);
-	}
-	# Let parent exit;
-	sleep(2);
-	# All of the logging magic happens in here.
-	libaudit::AuditFork();
-    }
-    #
-    # We have to watch for resource busy errors, and retry. For a while
-    # at least. Eventually give up cause it might be a permanently locked
-    # slice cause of earlier error. 
-    #
-    my $tries = 10;
-    while ($tries) {
-	my $response =
-	    Genixmlrpc::CallMethod($cm_authority->url(), undef,
-				   "DeleteSlice",
-				   { "slice_urn"   => $slice->urn(),
-				     "credentials" =>
-					 [$slice_credential->asString(),
-					  $speaksfor_credential->asString()]});
-
-	if (!defined($response) ||
-	    ($response->code() != GENIRESPONSE_SUCCESS &&
-	     $response->code() != GENIRESPONSE_SEARCHFAILED &&
-	     $response->code() != GENIRESPONSE_BUSY)) {
-	    $instance->SetStatus($old_status);
-	    $slice->UnLock();
-	    fatal("DeleteSlice failed: ".
-		  (defined($response) ? $response->output() : "") . "\n");
-	}
-	last
-	    if ($response->code() == GENIRESPONSE_SUCCESS ||
-		$response->code() == GENIRESPONSE_SEARCHFAILED);
-
-	#
-	# Wait for a while and try again. 
-	#
-	$tries--;
-	if ($tries) {
-	    print STDERR "Slice is busy, will retry again in a bit ...\n";
-	    sleep(30);
-	}
-    }
-    if (!$tries) {
-	$slice->UnLock();
-	$instance->SetStatus($old_status);
-	fatal("DeleteSlice failed: Slice was busy for way too long");
-    }
-    $slice->Delete();
-  done:
-    $instance->RecordHistory();
-  killit:
-    WebTask->DeleteByObject($instance);
-    $instance->Delete();
-    exit(0);
-}
-
-#
-# Extend a quick VM.
-#
-sub Extend($$)
-{
-    my ($uuid, $seconds) = @_;
-
-    my $instance = APT_Instance->Lookup($uuid);
-    if (! defined($instance)) {
-	fatal("No such quick VM: $uuid");
-    }
-    if (defined($instance->aggregate_urn()) &&
-	$instance->aggregate_urn() ne $CMURN) {
-	$CMURN = $instance->aggregate_urn();
-	
-	$cm_authority = GeniAuthority->Lookup($CMURN);
-	if (!defined($cm_authority)) {
-	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
-	    if (!defined($cm_authority)) {    
-		fatal("Could not load CM authority object");
-	    }
-	}
-    }
-    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
-    if (!defined($geniuser)) {
-	fatal("No creator for quick VM: $uuid");
-    }
-    my $slice = GeniSlice->Lookup($instance->slice_uuid());
-    if (!defined($slice)) {
-	if ($instance->status() eq "failed") {
-	    fatal("Cannot extend failed instance!");
-	}
-	fatal("No slice for quick VM: $uuid");
-    }
-    my $slice_urn  = $slice->urn();
-    my $user_urn   = $geniuser->urn();
-    my $oldexpires = $slice->expires();
-
-    #
-    # We need a special credentential in case the aggregate is enforcing
-    # limits (as do Utah aggregates).
-    #
-    my $extcred  = "";
-    my $credname = tmpnam();
-    system("$GENEXTENDCRED -a -o $credname -s $slice_urn -u $user_urn -t 90");
-    if ($?) {
-	fatal("Could not create extended credential");
-    }
-    open(EXT, $credname) or fatal("Could not open ext credfile $credname");
-    while (<EXT>) {
-	$extcred .= $_;
-    }
-    close(EXT);
-    unlink($credname);
-    chomp($extcred);
-
-    # Need to update slice before creating new credential. 
-    $slice->AddToExpiration($extend);
-    my $new_expires = $slice->ExpirationGMT();
-
-    #
-    # Generate credentials we need.
-    #
-    my ($slice_credential, $speaksfor_credential) =
-	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
-    if (! (defined($speaksfor_credential) &&
-	   defined($slice_credential))) {
-	$slice->SetExpiration($oldexpires);
-	fatal("Could not generate credentials");
-    }
-    my $response =
-	Genixmlrpc::CallMethod($cm_authority->url(), undef,
-			       "RenewSlice",
-			       { "slice_urn"  => $slice->urn(),
-				 "expiration" => $new_expires,
-				 "credentials" =>
-				     [$slice_credential->asString(),
-				      $speaksfor_credential->asString(),
-				      $extcred]});
-
-    if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
-	$slice->SetExpiration($oldexpires);
-	if ($response->code() == GENIRESPONSE_REFUSED) {
-	    UserError($response->output());
-	}
-	fatal("RenewSlice failed: ".
-	      (defined($response) ? $response->output() : "") . "\n");
-    }
-    exit(0);
-}
-
-#
-# SnapShot.
-#
-sub SnapShot($$$)
-{
-    my ($uuid, $sliver_urn, $imagename) = @_;
-
-    $this_user = User->ThisUser();
-    if (! defined($this_user)) {
-	fatal("You ($UID) do not exist!");
-    }
-    my $instance = APT_Instance->Lookup($uuid);
-    if (! defined($instance)) {
-	fatal("No such quick VM: $uuid");
-    }
-    my $old_status = $instance->status();
-    if ($old_status ne "ready") {
-	fatal("Instance must be in the ready state to take a snapshot");
-    }
-    my $profile = $instance->Profile();
-    if (! defined($profile)) {
-	fatal("No profile for $instance");
-    }
-    if (defined($instance->aggregate_urn()) &&
-	$instance->aggregate_urn() ne $CMURN) {
-	$CMURN = $instance->aggregate_urn();
-	
-	$cm_authority = GeniAuthority->Lookup($CMURN);
-	if (!defined($cm_authority)) {
-	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
-	    if (!defined($cm_authority)) {    
-		fatal("Could not load CM authority object");
-	    }
-	}
-    }
-    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
-    if (!defined($geniuser)) {
-	fatal("No creator for quick VM: $uuid");
-    }
-    my $slice = GeniSlice->Lookup($instance->slice_uuid());
-    if (!defined($slice)) {
-	if ($instance->status() eq "failed") {
-	    goto done;
-	}
-	fatal("No slice for quick VM: $uuid");
-    }
-
-    #
-    # Generate credentials we need.
-    #
-    my ($slice_credential, $speaksfor_credential) =
-	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
-    if (! (defined($speaksfor_credential) &&
-	   defined($slice_credential))) {
-	fatal("Could not generate credentials");
-    }
-
-    #
-    # We do this with slice locked.
-    #
-    if ($slice->Lock()) {
-	fatal("Slice is busy, cannot lock it");
-    }
-
-    #
-    # We got a webtask ID, which means we want to store the status
-    # in the webtask structure. Look it up, create if it does not
-    # exist.
-    #
-    if (defined($webtask_id)) {
-	$webtask = WebTask->Lookup($webtask_id);
-	if (!defined($webtask)) {
-	    fatal("Could not locate webtask for $webtask_id")
-	}
-    }
-    $instance->SetStatus("imaging");
-
-    # For debugging.
-    my $cmurl = $cm_authority->url();
-    #$cmurl =~ s/protogeni/protogeni\/stoller/;
-
-    my $response =
-	Genixmlrpc::CallMethod($cmurl, undef,
-			       "CreateImage",
-			       { "slice_urn"  => $slice->urn(),
-				 "sliver_urn" => $sliver_urn,
-				 "imagename"  => $imagename,
-				 "credentials" =>
-				     [$slice_credential->asString(),
-				      $speaksfor_credential->asString()]});
-
-    if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
-	$instance->SetStatus($old_status);
-	$slice->UnLock();
-	fatal("CreateImage failed: ".
-	      (defined($response) ? $response->output() : "") . "\n");
-    }
-    my ($image_urn, $image_url,
-	$version_urn, $version_url) = @{ $response->value() };
-    if (!defined($version_urn)) {
-	$version_urn = $image_urn;
-	$version_url = $image_url
-    }
-
-    #
-    # We got a webtask ID, which means we want to create a web task
-    # structure to track its progress.
-    #
-    if (defined($webtask)) {
-	$webtask->image_urn($version_urn);
-	$webtask->image_url($version_url);
-	$webtask->Store();
-    }
-    
-    #
-    # Exit and leave child to poll. We are looking for the sliver
-    # to unlock, which means the createimage is done. What we do
-    # not know is if it failed to actually create the image. Need
-    # to think about this.
-    #
-    if (! ($debug || $foreground)) {
-	my $child = fork();
-	if ($child) {
-	    # Parent exits but avoid libaudit email.
-	    AuditAbort();
-	    print "$image_urn,$image_url\n";
-	    exit(0);
-	}
-	# Let parent exit;
-	sleep(2);
-	# All of the logging magic happens in here.
-	libaudit::AuditFork();
-    }
-    # Bind the process id.
-    $webtask->SetProcessID($PID)
-	if (defined($webtask));
-    
-    my $seconds  = 1200;
-    my $interval = 5;
-    my $ready    = 0;
-    my $failed   = 0;
-
-    while ($seconds > 0) {
-	sleep($interval);
-	$seconds -= $interval;
-    
-	my $response =
-	    Genixmlrpc::CallMethod($cmurl, undef,
-				   "SliverStatus",
-				   { "slice_urn"   => $slice->urn(),
-				     "credentials" =>
-					 [$slice_credential->asString(),
-					  $speaksfor_credential->asString()]});
-
-	if (!defined($response) || !defined($response->value()) ||
-	    ($response->code() != GENIRESPONSE_SUCCESS &&
-	     $response->code() != GENIRESPONSE_BUSY)) {
-	    print STDERR "SliverStatus failed";
-	    if (defined($response)) {
-		print STDERR ": " . $response->output();
-	    }
-	    print STDERR "\n";
-	    $failed = 1;
-	    last;
-	}
-	next
-	    if ($response->code() == GENIRESPONSE_BUSY);
-
-	my $blob = $response->value();
-	if (exists($blob->{'public_url'})) {
-	    $public_url = $blob->{'public_url'};
-	}
-	if (defined($webtask)) {
-	    #
-	    # Need to find the sliver inside the blob.
-	    #
-	    my $sliverblob = $blob->{'details'}->{$sliver_urn};
-	    if (defined($sliverblob)) {
-		$webtask->state($sliverblob->{'state'});
-		$webtask->rawstate($sliverblob->{'rawstate'});
-		$webtask->Store();
-	    }
-	}
-	if ($blob->{'status'} eq "failed") {
-	    $failed = 1;
-	    last;
-	}
-	#
-	# We are watching for the image status to report ready or failed.
-	#
-	$response =
-	    Genixmlrpc::CallMethod($cmurl, undef,
-				   "ImageInfo",
-				   { "image_urn"   => $image_urn,
-				     "credentials" =>
-					 [$slice_credential->asString(),
-					  $speaksfor_credential->asString()]});
-
-	if (!defined($response) || !defined($response->value()) ||
-	    ($response->code() != GENIRESPONSE_SUCCESS &&
-	     $response->code() != GENIRESPONSE_BUSY)) {
-	    print STDERR "ImageInfo failed";
-	    if (defined($response)) {
-		print STDERR ": " . $response->output();
-	    }
-	    print STDERR "\n";
-	    next;
-	}
-	next
-	    if ($response->code() == GENIRESPONSE_BUSY);
-
-	$blob = $response->value();
-
-	if (defined($webtask)) {
-	    if (exists($blob->{'size'})) {
-		$webtask->image_size($blob->{'size'});
-	    }
-	    if (exists($blob->{'status'})) {
-		$webtask->image_status($blob->{'status'});
-	    }
-	    $webtask->Store();
-	}
-	if ($blob->{'status'} eq "ready") {
-	    $ready = 1;
-	    last;
-	}
-	elsif ($blob->{'status'} eq "failed") {
-	    $failed = 1;
-	    last;
-	}
-    }
-    if ($failed) {
-	print STDERR "Imaging failed\n";
-	$webtask->Exited(1)
-	    if (defined($webtask));
-	$slice->UnLock();
-	exit(1);
-    }
-    elsif (!$ready) {
-	print STDERR "Imaging timed out\n"; 
-	$webtask->Exited(60)
-	    if (defined($webtask));
-	$slice->UnLock();
-	exit(1);
-    }
-    else {
-	#
-	# If successful, we create a new version of the profile and
-	# update the rspec to reflect the new image version. Note
-	# that we expect the CM is doing image versioning, so do not
-	# bother to check if the image version is actually new.
-	#
-	if ($VERSIONING) {
-	    $profile = $profile->NewVersion($this_user);
-	    if (!defined($profile)) {
-		print STDERR "Could not create new profile version\n";
-		$webtask->Exited(70)
-		    if (defined($webtask));
-		exit(1);
-	    }
-	}
-	$profile->UpdateDiskImage($image_urn);
-	$slice->UnLock();
-	$instance->SetStatus("ready");
-	# We garbage collect these later, so anyone waiting has a chance
-	# to see the exit status
-	$webtask->Exited(0)
-	    if (defined($webtask));
-	print "$image_urn,$image_url\n";
-    }
-  done:
-    exit(0);
-}
-
-#
-# Ask for a console URL for a node
-#
-sub ConsoleURL($$)
-{
-    my ($uuid, $sliver_urn) = @_;
-
-    my $instance = APT_Instance->Lookup($uuid);
-    if (! defined($instance)) {
-	fatal("No such quick VM: $uuid");
-    }
-    if (defined($instance->aggregate_urn()) &&
-	$instance->aggregate_urn() ne $CMURN) {
-	$CMURN = $instance->aggregate_urn();
-	
-	$cm_authority = GeniAuthority->Lookup($CMURN);
-	if (!defined($cm_authority)) {
-	    $cm_authority = GeniAuthority->CreateFromRegistry("cm", $CMURN);
-	    if (!defined($cm_authority)) {    
-		fatal("Could not load CM authority object");
-	    }
-	}
-    }
-    my $geniuser = GeniUser->Lookup($instance->creator_uuid(), 1);
-    if (!defined($geniuser)) {
-	fatal("No creator for quick VM: $uuid");
-    }
-    my $slice = GeniSlice->Lookup($instance->slice_uuid());
-    if (!defined($slice)) {
-	if ($instance->status() eq "failed") {
-	    goto done;
-	}
-	fatal("No slice for quick VM: $uuid");
-    }
-
-    #
-    # Generate credentials we need.
-    #
-    my ($slice_credential, $speaksfor_credential) =
-	GenCredentials($slice, $geniuser, $sa_authority, $speaker_signer);
-    if (! (defined($speaksfor_credential) &&
-	   defined($slice_credential))) {
-	fatal("Could not generate credentials");
-    }
-    my $response =
-	Genixmlrpc::CallMethod($cm_authority->url(), undef,
-			       "ConsoleURL",
-			       { "slice_urn"   => $slice->urn(),
-				 "sliver_urn"  => $sliver_urn,
-				 "credentials" =>
-				     [$slice_credential->asString(),
-				      $speaksfor_credential->asString()]});
-
-    if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
-	if ($response->code() == GENIRESPONSE_REFUSED) {
-	    UserError($response->output());
-	}
-	fatal("ConsoleURL failed: ".
-	      (defined($response) ? $response->output() : "") . "\n");
-    }
-    my $url = $response->value();
-    AuditAbort();
-    print "$url\n";
-    exit(0);
 }
 
 

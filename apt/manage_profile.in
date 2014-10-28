@@ -56,9 +56,9 @@ my $webtask_id;
 #
 # Configure variables
 #
-my $TB		= "@prefix@";
-my $TBOPS       = "@TBOPSEMAIL@";
-my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
+my $TB		    = "@prefix@";
+my $TBOPS           = "@TBOPSEMAIL@";
+my $MANAGEINSTANCE  = "$TB/bin/manage_instance";
 
 #
 # Untaint the path
@@ -85,7 +85,6 @@ use APT_Instance;
 use GeniXML;
 use GeniHRN;
 use WebTask;
-use libaudit;
 
 # Protos
 sub fatal($);
@@ -346,12 +345,16 @@ if (defined($instance)) {
     }
     my ($node) = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
     my $sliver_urn = GeniXML::GetSliverId($node);
+    my $node_id    = GeniXML::GetVirtualId($node);
     my $apt_uuid   = $instance->uuid();
     my $imagename  = $profile->name();
 
     #
     # Grab the webtask object so we can watch it. We are looking
-    # for it to finish, so we can unlock the profile for use. 
+    # for it to finish, so we can unlock the profile for use. Note
+    # this always creates a webtask, even if not directed to on the
+    # commmand line, so that we can communicate with the script we
+    # call that does the work. 
     #
     $webtask = WebTask->Create($profile->uuid(), $webtask_id);
     if (!defined($webtask)) {
@@ -364,34 +367,32 @@ if (defined($instance)) {
 	fatal("Could not lock new profile");
     }
 
-    my $command = "$QUICKVM " . ($webtask_id ? "-t $webtask_id " : " ") .
-	"-s $apt_uuid $sliver_urn $imagename";
+    my $command = "$MANAGEINSTANCE -t " . $webtask->task_id() . " ".
+	"snapshot $apt_uuid $imagename $node_id";
+    
     #
     # This returns pretty fast, and then the imaging takes place in
-    # the background at the aggregate. quickvm keeps a process running
-    # in the background waiting for the sliver to unlock and the
-    # sliverstatus to indicate the node is running again. 
+    # the background at the aggregate. The script keeps a process
+    # running in the background waiting for the sliver to unlock and
+    # the sliverstatus to indicate the node is running again.
     #
     my $output = emutil::ExecQuiet($command);
     if ($?) {
 	$profile->Delete(1);
-	$webtask->Delete();
+	$webtask->Delete()
+	    if (!defined($webtask_id));
+	print STDERR $output . "\n";
 	fatal("Failed to create disk image!");
     }
     #
-    # Parse the output to get the new image urn, then stick that
-    # into the rspec, and update the database.
+    # The script helpfully put the new image urn in the webtask.
     #
-    my $image_urn;
-    if ($output =~ /^(urn:.*),/) {
-	$image_urn = $1;
-    }
-    else {
-	$profile->Delete(1);
-	fatal("Could not find image urn in:\n$output");
-    }
-    # Again, this only makes sense for single node profiles.
-    if ($profile->UpdateDiskImage($image_urn)) {
+    $webtask->Refresh();
+    my $image_urn = $webtask->image_urn();
+    if (!defined($image_urn) ||
+	$profile->UpdateDiskImage($image_urn)) {
+	$webtask->Delete()
+	    if (!defined($webtask_id));
 	$profile->Delete(1);
 	fatal("Could not update image URN in rspec");
     }
@@ -404,30 +405,51 @@ if (defined($instance)) {
 	if ($child) {
 	    exit(0);
 	}
+	# Close our descriptors so web server thinks we are disconnected.
+	if ($webtask_id) {
+	    for (my $i = 0; $i < 1024; $i++) {
+	        POSIX::close($i);
+	    }
+	}
 	# Let parent exit;
 	sleep(2);
-	if (0) {
-	    AuditStart(0, undef, LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY());
-	    AddAuditInfo("cc", "aptnet-logs\@flux.utah.edu");
-	}
-	POSIX::setsid();
+        POSIX::setsid();
     }
-    my $seconds  = 1200;
-    my $interval = 5;
-
-    while ($seconds >= 0) {
-	sleep($interval);
-	$seconds -= $interval;
-
+    #
+    # We are waiting for the backend process to exit. The web interface is
+    # reading the webtask structure, but if it fails we want to know that
+    # so we can delete the profile. 
+    #
+    while (1) {
+	sleep(10);
+	
 	$webtask->Refresh();
 	last
 	    if (defined($webtask->exited()));
+
+	#
+	# See if the process is still running. If not then it died badly.
+	# Mark the webtask as exited.
+	#
+	my $pid = $webtask->process_id();
+	if (! kill(0, $pid)) {
+	    # Check again in case it just exited.
+	    $webtask->Refresh();
+	    if (! defined($webtask->exited())) {
+		$webtask->Exited(-1);
+	    }
+	    last;
+	}
     }
     if ($webtask->exitcode()) {
 	$profile->Delete(1);
+	$webtask->Delete()
+	    if (!defined($webtask_id));
 	exit(1);
     }
     $profile->Unlock();
+    $webtask->Delete()
+	if (!defined($webtask_id));
     exit(0);
 }
 exit(0);
