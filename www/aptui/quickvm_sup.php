@@ -261,7 +261,9 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	           <li><a href='logout.php'>Logout</a></li>";
 	if (ISADMIN()) {
 	    echo " <li class='divider'></li>
-	           <li><a href='activity.php'>Activity</a></li>";
+	           <li><a href='activity.php'>Activity</a></li>
+	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
+	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
 	}
 	echo "    </ul>
                 </li>\n";
