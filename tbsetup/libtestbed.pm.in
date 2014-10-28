@@ -37,13 +37,15 @@ use Exporter;
 	 TBSCRIPTLOCK_IGNORE TBSCRIPTLOCK_FAILED
 	 PROJROOT GROUPROOT USERROOT SCRATCHROOT SHAREROOT
 	 TBValidUserDir TBValidUserDirList TBMakeTempFile NewUUID System
-	 SendProjAdminMail ReOpenLog
+	 SendProjAdminMail ReOpenLog TBDateStringGMT TBDateStringLocal
 	 CheckDaemonRunning MarkDaemonRunning MarkDaemonStopped);
 
 # After package decl.
 use English;
 use POSIX qw(strftime);
 use POSIX qw(setsid);
+use Date::Parse;
+use Time::Local;
 use Fcntl;
 use Fcntl ':flock';
 use File::Basename;
@@ -329,6 +331,33 @@ sub TBTimeStampWithDate()
 sub TBDateTimeFSSafe()
 {
     return POSIX::strftime("20%y%m%d-%H.%M.%S", localtime());
+}
+
+# Convert date to GMT
+sub TBDateStringGMT($)
+{
+    my ($date) = @_;
+
+    return ""
+	if (!defined($date) || "$date" eq "");
+
+    if ($date !~ /^\d$/) {
+	$date = str2time($date);
+    }
+    return POSIX::strftime("20%y-%m-%dT%H:%M:%SZ", gmtime($date));
+}
+# Convert date to Local
+sub TBDateStringLocal($)
+{
+    my ($date) = @_;
+
+    return ""
+	if (!defined($date) || "$date" eq "");
+
+    if ($date !~ /^\d*$/) {
+	$date = timelocal(strptime($date));
+    }
+    return POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime($date));
 }
 
 #
