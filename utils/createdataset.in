@@ -387,6 +387,15 @@ if (defined($quota)) {
 #
 if ($approveme) {
     my $logname;
+
+    # We want to have the lock before going into the background, so that
+    # the caller knows right away.
+    if ($lease->Lock()) {
+	print STDERR
+	    "WARNING: could not lock new lease, contact testbed-ops.\n";
+	$approveme = 0;
+	goto noapprove;
+    }
     
     if ($background) {
 	print "Resource allocation proceeding the background ...\n";
@@ -395,11 +404,13 @@ if ($approveme) {
 	if (my $childpid = TBBackGround($logname)) {
 	    exit(0);
 	}
+	# We want the lock in the child.
+	$lease->TakeLock();
 	# Let parent exit;
 	sleep(2);
     }
-    if ($lease->Lock() || $lease->AllocResources("valid")) {
-	print STDERR "WARNING: could not approve new lease, contact testbed-ops.\n";
+    if ($lease->AllocResources("valid")) {
+	print STDERR "WARNING: could not allocate resources, contact testbed-ops.\n";
 	$approveme = 0;
 
 	#
@@ -412,13 +423,18 @@ if ($approveme) {
 		     $TBOPS, undef, $logname);
 	}
     }
-    $lease->Unlock()
-	if ($lease->GotLock());
+    $lease->Unlock();
 
-    exit(0)
-	if ($background);
+    if ($background) {
+	$project->SendEmail($user->email(),
+			"Your dataset is now ready to use",
+			"Dataset '$lname' is now allocated and ready to use.\n",
+			$project->OpsEmailAddress());
+	exit(0);
+    }
+  noapprove:
 }
-
+    
 print "Created lease '$pid/$lname' for " . $descrip{$dstype};
 if ($expire == 0) {
     print ", never expires.\n";
