@@ -33,12 +33,13 @@ use vars qw(@ISA @EXPORT);
 	     TBDB_CHECKDBSLOT_ERROR TBcheck_dbslot TBFieldErrorString
 	     TBGetUniqueIndex ParRun VersionInfo UpdateVersionInfo
 	     SpanningTree GenFakeMac BackTraceOnWarning PassWordHash
-             SSHwithTimeout
+             SSHwithTimeout TBDateStringGMT TBDateStringLocal
 );
 
 use emdb;
 use English;
 use Carp;
+use Date::Parse;
 
 # Configure variables.
 my $TB          = "@prefix@";
@@ -741,6 +742,32 @@ sub GenHash()
     return $hash;
 }
 
+# Convert date to GMT
+sub TBDateStringGMT($)
+{
+    my ($date) = @_;
+
+    return ""
+	if (!defined($date) || "$date" eq "");
+
+    if ($date !~ /^\d$/) {
+	$date = str2time($date);
+    }
+    return POSIX::strftime("20%y-%m-%dT%H:%M:%SZ", gmtime($date));
+}
+# Convert date to Local
+sub TBDateStringLocal($)
+{
+    my ($date) = @_;
+
+    return ""
+	if (!defined($date) || "$date" eq "");
+
+    if ($date !~ /^\d*$/) {
+	$date = timelocal(strptime($date));
+    }
+    return POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime($date));
+}
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;
