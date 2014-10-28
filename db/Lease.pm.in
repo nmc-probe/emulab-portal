@@ -1510,6 +1510,22 @@ sub WaitLock($$;$)
     return $self->Lock();
 }
 
+sub TakeLock($)
+{
+    my ($self) = @_;
+    my $idx    = $self->idx();
+
+    my $query_result =
+	DBQueryWarn("update project_leases set locked=now(),locker_pid=$PID " .
+		    "where lease_idx=$idx");
+    return -1
+	if (!$query_result);
+
+    $self->{'LOCKED'} = time();
+    $self->{'LOCKER_PID'} = $PID;
+    return 0;
+}
+
 package Lease::Blockstore;
 use base qw(Lease);
 
