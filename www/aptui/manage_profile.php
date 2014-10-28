@@ -457,7 +457,7 @@ if (isset($snapuuid)) {
     $optarg .= "-s " . escapeshellarg($snapuuid);
 
     # We want to pass a webtask id along. 
-    $webtask_id = md5(uniqid(rand(),1));
+    $webtask_id = $webtask_id = WebTask::GenerateID();
     $optarg .= " -t " . $webtask_id;
 }
 
