@@ -622,6 +622,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
     function NewRspecHandler(newrspec, oldrspec)
     {
 	newrspec = $.trim(newrspec);
+	var findEncoding = RegExp('^\\s*<\\?[^?]*\\?>');
+	var match = findEncoding.exec(newrspec);
+	if (match) {
+	    newrspec = newrspec.slice(match[0].length);
+	}
 	var newxmlDoc = parseXML(newrspec);
 	if (newxmlDoc == null)
 	    return;
