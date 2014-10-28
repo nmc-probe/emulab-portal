@@ -89,6 +89,15 @@ $routing = array("myprofiles" =>
 						     "Do_Approve",
 						 "deny" =>
 						      "Do_Deny")),
+		 "dataset" =>
+			array("file"    => "dataset.ajax",
+			      "guest"   => false,
+			      "methods" => array("create" =>
+						      "Do_CreateDataset",
+						 "delete" =>
+						      "Do_DeleteDataset",
+						 "approve" =>
+						      "Do_ApproveDataset")),
     );
 
 #

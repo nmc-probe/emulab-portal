@@ -43,6 +43,19 @@ $GOOGLEUA       = 'UA-45161989-1';
 $disable_accounts = 0;
 
 #
+# Global flag for page embedded. We look directly into page arguments
+# for this, rather then using standard argument processing in each page.
+# Page embedding is used to contain an apt pages withing Emulab. 
+#
+$embedded = 0;
+if (isset($_REQUEST["embedded"]) && $_REQUEST["embedded"]) {
+    $embedded = 1;
+}
+
+# Flag to signal that a requires was spit. For errors.
+$spatrequired = 0;
+
+#
 # So, we could be coming in on the alternate APT address (virtual server)
 # which causes cookie problems. I need to look into avoiding this problem
 # but for now, just change the global value of the TBAUTHDOMAIN when we do.
@@ -59,6 +72,10 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTMAIL      = "APT Operations <aptlab-ops@aptlab.net>";
     $GOOGLEUA     = 'UA-42844769-3';
     $TBMAILTAG    = "aptlab.net";
+    # For devel trees
+    if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
+	$APTBASE .= "/" . $matches[1];
+    }
 }
 elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISVSERVER    = 1;
@@ -76,13 +93,17 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISCLOUD      = 1;
     $GOOGLEUA     = 'UA-42844769-2';
     $TBMAILTAG    = "cloudlab.us";
+    # For devel trees
+    if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
+	$APTBASE .= "/" . $matches[1];
+    }
 }
 
 #
 # Redefine this so APT errors are styled properly. Called by PAGEERROR();.
 #
 $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
-    global $drewheader, $ISAPT;
+    global $drewheader, $ISAPT, $spatrequired;
 
     if (! $drewheader) {
 	SPITHEADER();
@@ -91,9 +112,12 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
     echo "<script type='text/javascript'>\n";
     echo "    window.ISCLOUD = " . ($ISAPT ? "0" : "1") . ";\n";
     echo "</script>\n";
-    echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
-    echo "<script src='js/lib/bootstrap.js'></script>\n";
-    echo "<script src='js/lib/require.js' data-main='js/null.js'></script>\n";
+    if (!$spatrequired) {
+	echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+	echo "<script src='js/lib/bootstrap.js'></script>\n";
+	echo "<script src='js/lib/require.js' data-main='js/null.js'>
+                 </script>\n";
+    }
     SPITFOOTER();
     die("");
 };
@@ -104,7 +128,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     global $TBMAINSITE, $APTTITLE, $FAVICON, $APTLOGO, $APTSTYLE, $ISAPT;
     global $GOOGLEUA, $ISCLOUD;
     global $login_user, $login_status;
-    global $disable_accounts, $page_title, $drewheader;
+    global $disable_accounts, $page_title, $drewheader, $embedded;
     $title = $APTTITLE;
     if (isset($page_title)) {
 	$title .= " - $page_title";
@@ -131,13 +155,14 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	<script src='js/common.js'></script>
         <script src='https://www.emulab.net/emulab_sup.js'></script>
       </head>
-    <body style='display: none'>\n";
+    <body style='display: none;'>\n";
     
     echo "<script type='text/javascript'>\n";
-    echo "    window.ISCLOUD = " . ($ISAPT ? "0" : "1") . ";\n";
+    echo "    window.ISCLOUD  = " . ($ISAPT ? "0" : "1") . ";\n";
+    echo "    window.EMBEDDED = $embedded;\n";
     echo "</script>\n";
     
-    if ($TBMAINSITE && file_exists("../google-analytics.php")) {
+    if ($TBMAINSITE && !$embedded && file_exists("../google-analytics.php")) {
 	readfile("../google-analytics.php");
 	echo "<script type='text/javascript'>
                 ga('create', '$GOOGLEUA', 'auto');
@@ -147,7 +172,12 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 
     echo "
     <!-- Container for body, needed for sticky footer -->
-    <div id='wrap'>
+    <div id='wrap'>\n";
+
+    if ($embedded) {
+	goto embed;
+    }
+    echo "
          <div class='navbar navbar-static-top' role='navigation'>
            <div class='navbar-inner'>
              <div class='brand'>
@@ -244,6 +274,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	SpitLoginModal("quickvm_login_modal");
 	SpitWaitModal("quickvm_login_waitwait");
     }
+embed:
     echo " <!-- Page content -->
            <div class='container-fluid'>\n";
 };
@@ -257,11 +288,14 @@ function SPITHEADER($thinheader = 0,
 }
 
 $PAGEFOOTER_FUNCTION = function($ignored = NULL) {
-    global $ISAPT;
+    global $ISAPT, $embedded;
     $groupname = ($ISAPT ? "apt-users" : "cloudlab-users");
     
     echo "</div>
       </div>\n";
+    if ($embedded) {
+	return;
+    }
     SpitNSFModal();
     echo "
       <!--- Footer -->
@@ -324,9 +358,12 @@ function SPITAJAX_ERROR($code, $msg)
 
 function SPITREQUIRE($main)
 {
+    global $spatrequired;
+    
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
     echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/$main'></script>\n";
+    $spatrequired = 1;
 }
 
 function SPITNULLREQUIRE()

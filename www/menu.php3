@@ -610,7 +610,7 @@ function WRITEEXPERIMENTMENU($firstinitstate) {
 }
 
 function WRITEADMINMENU() {
-    global $TBBASE, $TBDOCBASE;
+    global $TBBASE, $TBDOCBASE, $TBMAINSITE;
     global $PROTOGENI;
     global $login_status;
 
@@ -642,6 +642,13 @@ function WRITEADMINMENU() {
 
 	NavMenuButton("Show Shared Node Pool",
 		      "$TBBASE/showpool.php");
+
+	if ($TBMAINSITE) {
+	    NavMenuButton("Local Datasets",
+			  "$TBBASE/list-datasets.php?all=1");
+	    NavMenuButton("Remote Datasets",
+			  "$TBBASE/apt/list-datasets.php?all=1");
+	}
 
 	$query_result = DBQUeryFatal("select new_node_id from new_nodes");
 	if (mysql_num_rows($query_result) > 0) {

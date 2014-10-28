@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2006-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -133,7 +133,7 @@ function GetMaxHeight(id) {
 	// Now calculate how much room is left and make the iframe
 	// big enough to use most of the rest of the window.
 	if (yoff != 0)
-	    winheight = winheight - (yoff + 175);
+	    winheight = winheight - (yoff + 100);
 	else
 	    winheight = winheight * 0.7;
     }
@@ -185,6 +185,14 @@ function ShowDownLoader(id) {
     Iframe.width        = "98%";
     Iframe.scrolling    = "auto";
     Iframe.frameBorder  = "1";
+}
+
+function ShowEmbedded(id) {
+    var Iframe    = getObjbyName(id);
+    var winheight = GetMaxHeight(id);
+
+    Iframe.style.height = winheight + "px";
+    Iframe.height       = winheight + "px";
 }
 
 /* @return The innerHeight of the window. */
