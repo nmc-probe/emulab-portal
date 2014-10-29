@@ -170,7 +170,7 @@ class Instance
 	    putenv("SERVER_NAME=" . $_SERVER['SERVER_NAME']);
 	}
 	$retval = SUEXEC($uid, $pid,
-			 "webquickvm $options -u $uuid $xmlname",
+			 "webcreate_instance $options -u $uuid $xmlname",
 			 SUEXEC_ACTION_CONTINUE);
 
 	if ($retval != 0) {
