@@ -98,6 +98,15 @@ hbis() {
 		[[ $x -ge $bytes ]] && break
 	    done
 #echo ${FUNCNAME[0]}:${LINENO} base:$base number:$number bytes=$bytes c=$c
+	    # gt 32G then make sure num is a multi of 4
+	    if [[ $c -gt 30 ]] ; then
+		c4=0
+		while [ $c -ne $c4 ] ; do
+		    ((++c))
+		    cd4=$(( c / 4 ))
+		    c4=$(( cd4 * 4 ))
+		done
+	    fi
 	    echo ${c}GiB
 	    ;;
 	m )
