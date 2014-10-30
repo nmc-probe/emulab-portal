@@ -1,7 +1,7 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -288,16 +288,21 @@ if ($all || defined($user) || defined($pid)) {
     if ($all) {
 	$query = "select g.pid,g.gid from groups as g ".
 		 "left join projects as p on p.pid=g.pid ".
-		 "where p.approved=1 ";
-	$query .= "order by g.pid,g.gid";
+		 "where p.approved=1 and p.nonlocal_id is null ".
+		 "order by g.pid,g.gid";
     }
     elsif ($user) {
-	$query  = "select pid,gid from group_membership where uid='$user' ";
-	$query .= "order by pid,gid";
+	$query  = "select g.pid,g.gid from group_membership as g ".
+	          "left join projects as p on p.pid=g.pid ".
+		  "where g.uid='$user' and p.approved=1 and ".
+		  "    p.nonlocal_id is null " .
+		  "order by g.pid,g.gid";
     }
     else {
-	$query  = "select pid,gid from groups where pid='$pid' ";
-	$query .= "order by pid,gid";
+	$query  = "select g.pid,g.gid from groups as g ".
+	          "left join projects as p on p.pid=g.pid ".
+		  "where p.approved=1 and p.nonlocal_id is null " .
+		  "order by g.pid,g.gid";
     }
 
     if (! ($query_result = DBQuery($query))) {
