@@ -413,27 +413,22 @@ sub LoadFromString($$)
     close PARENT;
 
     #
-    # Write the certificate to the child.
-    #
     # The certificate might already have the header and footer
-    # so only add them if needed.
+    # so only add them if needed. This is for backwards compatibility
+    # with early code that stripped the header and footer strings. Dumb.
     #
-    if ($string =~ /^-----BEGIN CERTIFICATE-----/) {
-        print CHILD $string;
+    if ($string !~ /^-----BEGIN CERTIFICATE-----/) {
+	$string = "-----BEGIN CERTIFICATE-----\n" . $string;
     }
-    elsif ($string =~ /-----BEGIN CERTIFICATE/m) {
-        print CHILD $string;
-	if ($string !~ /END CERTIFICATE-----$/) {
-	    print CHILD "-----END CERTIFICATE-----\n";
-	}
+    if ($string !~ /\n$/) {
+	$string = $string . "\n";
     }
-    else {
-        print CHILD "-----BEGIN CERTIFICATE-----\n";
-        print CHILD $string;
-        print CHILD "\n" if $string !~ /\n$/;
-        print CHILD "-----END CERTIFICATE-----\n";
+    if ($string !~ /END CERTIFICATE-----$/) {
+	$string = $string . "-----END CERTIFICATE-----\n";
     }
-    # Tell the process we are done writing. ie: Send it an EOF.
+
+    # Write the certificate to the child, then send it EOF.
+    print CHILD $string;
     shutdown(CHILD,1);
     
     my @certlines = ();
@@ -463,12 +458,29 @@ sub LoadFromFile($$)
     my ($class, $filename) = @_;
     my $contents = "";
 
+    #
+    # We need the original contents of the file, since openssl prints
+    # only the first certificate it finds, but we need all of them for
+    # later to store into the object. So we we scan the file contents
+    # to ensure we do not get any text or any keys in the file.
+    #
     if (! open(CERT, $filename)) {
 	print STDERR "Could not open $filename: $!\n";
 	return undef;
     }
+    my $incert = 0;
     while (<CERT>) {
-	$contents .= $_;
+	my $line = $_;
+	
+	if ($line =~ /^-----BEGIN CERT/) {
+	    $incert = 1;
+	}
+	if ($incert) {
+	    $contents .= $line;
+	}
+	if ($line =~ /^-----END CERT/) {
+	    $incert = 0;
+	}
     }
     close(CERT);
 
@@ -494,8 +506,7 @@ sub LoadFromFile($$)
 
 sub LoadFromArray($$@)
 {
-    my $class = shift();
-    my ($contents, @certlines) = @_;
+    my ($class, $contents, @certlines) = @_;
     my $url;
     my $urn;
     
@@ -549,11 +560,9 @@ sub LoadFromArray($$@)
 	print STDERR "Could not parse certificate!\n";
 	return undef;
     }
-
     if( defined( $alturi ) && $alturi =~ /^urn:/ ) {
 	$urn = $alturi;
     }
-
     if( defined( $accessuri ) ) {
 	$url = $accessuri;
     } elsif( defined( $alturi ) && $alturi !~ /^urn:/ ) {
@@ -586,32 +595,6 @@ sub LoadFromArray($$@)
     if ($uuid !~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
         $uuid = GeniUtil::NewUUID();
     }
-
-    #
-    # For silly historical reasons, we strip the begin/end cert lines.
-    # We should fix this. 
-    #
-    if ($contents =~ /^-----BEGIN CERT/m) {
-	my @lines = split(/\n/, $contents);
-	
-	# Also strip the extra text since we do not need that, just the cert(s).
-	while (@lines && $lines[0] !~ /^-----BEGIN CERT/) {
-	    shift(@lines);
-	}
-	if (!@lines) {
-	    print STDERR "Something wrong in:\n$contents\n";
-	    return undef;
-	}
-	if ($lines[0] =~ /^-----BEGIN CERT/) {
-	    shift(@lines);
-	}
-	if ($lines[@lines - 1] =~ /^-----END CERT/) {
-	    pop(@lines);
-	}
-	$contents = join("\n", @lines);
-    }
-    chomp($contents);
-    $contents .= "\n";
 
     my $self          = {};
     $self->{'CERT'}   = {};
@@ -762,12 +745,22 @@ sub WriteToFile($;$)
 sub toString($)
 {
     my ($self) = @_;
-    my $string = "";
+    my $string = $self->cert();
 
-    $string .= "-----BEGIN CERTIFICATE-----\n";
-    $string .= $self->cert();
-    $string .= "-----END CERTIFICATE-----\n";
-    
+    #
+    # The certificate might already have the header and footer
+    # so only add them if needed. This is for backwards compatibility
+    # with early code that stripped the header and footer strings. Dumb.
+    #
+    if ($string !~ /^-----BEGIN CERTIFICATE-----/) {
+	$string = "-----BEGIN CERTIFICATE-----\n" . $string;
+    }
+    if ($string !~ /\n$/) {
+	$string = $string . "\n";
+    }
+    if ($string !~ /END CERTIFICATE-----$/) {
+	$string = $string . "-----END CERTIFICATE-----\n";
+    }
     return $string;
 }
 
@@ -1080,9 +1073,24 @@ sub VerifySSLChain($@)
 	($tempfile, $filename) = tempfile(UNLINK => 1);
 
 	foreach my $cert (@chaincerts) {
-	    print $tempfile "-----BEGIN CERTIFICATE-----\n";
-	    print $tempfile (ref($cert) ? $cert->cert() : $cert);
-	    print $tempfile "-----END CERTIFICATE-----\n";
+	    my $string = (ref($cert) ? $cert->cert() : $cert);
+
+	    #
+	    # The certificate might already have the header and footer
+	    # so only add them if needed. This is for backwards
+	    # compatibility with early code that stripped the header
+	    # and footer strings. Dumb.
+	    #
+	    if ($string !~ /^-----BEGIN CERTIFICATE-----/) {
+		$string = "-----BEGIN CERTIFICATE-----\n" . $string;
+	    }
+	    if ($string !~ /\n$/) {
+		$string = $string . "\n";
+	    }
+	    if ($string !~ /END CERTIFICATE-----$/) {
+		$string = $string . "-----END CERTIFICATE-----\n";
+	    }
+	    print $tempfile $string;
 	}
 	$optarg = "-untrusted $filename";
     }
