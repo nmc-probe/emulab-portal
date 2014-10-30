@@ -46,7 +46,9 @@ my $optlist    = "vc:";
 my $verbose    = 0;
 my $configfile = undef;
 
-my $EMAIL   = "trac_reply\@something";
+# Use this user if we cannot find a mapping for the email address
+# of the user making the comment.
+my $STUBUSER = "comments";
 
 # URL used to make gitlab API calls
 my $BASEURL = "https://gitlab.flux.utah.edu/";
@@ -185,8 +187,17 @@ fatal(-1, "No such issue: $issueiid")
     if ($issueid < 0);
 
 my $userid = GetUserID($user_name, $user_host);
-fatal(-1, "Cannot find user for: $user_email")
-    if ($userid < 0);
+if ($userid < 0) {
+    $userid = GetUserID($STUBUSER, "localhost");
+    fatal(-1, "Cannot find user for: $user_email")
+	if ($userid < 0);
+    #
+    # If we have to use the STUB user, then prepend the actual email
+    # to the comment.
+    #
+    $comment =
+	"*** Comment made by " . $headers->{"From"}[0] . "\n\n" . $comment;
+}
 
 fatal($EX_SOFTWARE, "Could not add comment to issue $issueid")
     if (AddComment($projectid, $issueid, $userid, $comment) != 0);
