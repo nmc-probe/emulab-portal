@@ -49,6 +49,14 @@ my $BASEURL = "https://gitlab.flux.utah.edu/";
 # Path where logging info will be sent
 my $LOGFILE = "/home/git/gitissued.log";
 
+# Map used to look up addresses based on labels on issues
+my %LABELADDRESSES = ( "GPL"      => 'ricci@cs.utah.edu',
+                       "apt"      => 'geni-dev-utah@flux.utah.edu',
+                       "cloudlab" => 'geni-dev-utah@flux.utah.edu');
+
+# From: address for mail
+my $MAILFROM = 'gitlab@flux.utah.edu';
+
 #
 # End settable options
 #
@@ -132,7 +140,9 @@ while (my $connection = $listen_socket->accept()) {
             my %get_vars = $request->uri->query_form;
             if ($verbose) {
                 print "Request URL is " . $request->uri. "\n";
-                print "Query part is " . $request->uri->query . "\n";
+                if ($request->uri->query) {
+                    print "Query part is " . $request->uri->query . "\n";
+                }
                 print "GET vars are: " . join(",",keys %get_vars) . "\n";
             }
 
@@ -204,7 +214,8 @@ sub send_message($$) {
     #
     # Who the mail comes from 
     #
-    my $mailfrom = $authorinfo->{name} . " <" . $authorinfo->{email} . ">";
+    #my $mailfrom = $authorinfo->{name} . " <" . $authorinfo->{email} . ">";
+    my $mailfrom = $authorinfo->{name} . " <" . $MAILFROM . ">";
 
     #
     # Name of the repo
@@ -213,8 +224,42 @@ sub send_message($$) {
 
     #
     # Mail to all project members
+    # SEE BELOW
     #
-    my $mailto = get_member_addresses($attr->{"project_id"});
+    #my $mailto = get_member_addresses($attr->{"project_id"});
+
+    #
+    # Find out what labels are attached to this issue
+    #
+    my $issueinfo = call_gitlab_api("/projects/" . $attr->{"project_id"} .
+        "/issues/" . $attr->{id});
+    my @labels = @{$issueinfo->{labels}};
+    if ($verbose) {
+        print "Labels are: " . join(",",@labels) . "\n";
+    }
+
+    #
+    # Look up the email addresses associated with the labels
+    #
+    my @labeladdresses = ();
+    foreach my $label (@labels) {
+        print "Looking at $label\n";
+        if (exists $LABELADDRESSES{$label}) {
+            push @labeladdresses, $LABELADDRESSES{$label};
+        }
+    }
+    
+    #
+    # Uniqify the addresses
+    #
+    my %tmpaddrs;
+    foreach my $address (@labeladdresses) {
+        $tmpaddrs{$address} = 1;
+    }
+    my @mailto = keys %tmpaddrs;
+    if ($verbose) {
+        print "Will send mail to: " . join(",",@labeladdresses) . "\n";
+    }
 
     #
     # Actually send the mail
@@ -236,7 +281,7 @@ sub send_message($$) {
     #
 
     print MAIL "From: " . $mailfrom . "\n";
-    print MAIL "To: " . join(", ",@$mailto) . "\n";
+    print MAIL "To: " . join(", ",@mailto) . "\n";
     print MAIL "Subject: gitlab issue: [$reponame] issue #" . $attr->{"iid"} . " " .
                     $attr->{"action"} . " (" . $attr->{"state"} . ")" . "\n";
     print MAIL "Message-Id: $messageid\n";
@@ -264,7 +309,7 @@ sub send_message($$) {
     if ($assigneeinfo) {
         print MAIL "Assigned to: " . $assigneeinfo->{"name"} . " <" . $assigneeinfo->{"email"} . ">\n";
     }
-    print MAIL "Description:\n";
+    print MAIL "\nDescription:\n\n";
     print MAIL $attr->{"description"};
     print "\n";
 
