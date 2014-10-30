@@ -1249,7 +1249,7 @@ foreach $node (@nodenames) {
 	#
 	# Add a first-free feature which spreads VMs amongs shared nodes.
 	#
-	push(@features, "*&spreadshared:0.6");
+	push(@features, "*&spreadshared-$node:0.9");
 
 	#
 	# The pool daemon may override the share weight.
