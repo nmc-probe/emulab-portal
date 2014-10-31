@@ -861,7 +861,7 @@ sub Update
 				   $ticket->asString());
     } elsif (defined($aggregate)) {
 	if ($isCreate) {
-	    $combined = CombineDisjoint( $aggregate->GetManifest(), $rspec);
+	    $combined = CombineDisjoint( $aggregate->GetManifest(1), $rspec);
 	    $response = CheckRspec("COMBINED W/ AGGREGATE", $combined);
 	    return $response
 		if (defined($response));
