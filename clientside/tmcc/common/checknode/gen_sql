@@ -503,7 +503,7 @@ genreport_main() {
 	echo "From: CheckNode" >> /tmp/Report_CheckNode
 	echo "To: ${CHECKNODE_MAILTO}" >> /tmp/Report_CheckNode
     else
-	echo "" > /tmp/Report_CheckNode
+	cat /dev/null > /tmp/Report_CheckNode
     fi
 
     rm -f /tmp/genreport /tmp/driftreport
