@@ -2318,16 +2318,16 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		$violations .= $line;
 
 		# Attempt to parse the violations into something human readable.
-		if ($line =~ /no_connect:\s*\d*/ ||
-		    $line =~ /bandwidth:\s*\d*/) {
+		if ($line =~ /no_connect:\s*[1-9]/ ||
+		    $line =~ /bandwidth:\s*[1-9]/) {
 		    $errorstr  = "Not enough bandwidth to connect some nodes"; 
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_BANDWIDTH();
 		}
-		elsif ($line =~ /pnode_load:\s*1/) {
+		elsif ($line =~ /pnode_load:\s*[1-9]/) {
 		    $errorstr  = "Too many VMs requested on physical host"; 
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
 		}
-		elsif ($line =~ /unassigned:\s*1/) {
+		elsif ($line =~ /unassigned:\s*[1-9]/) {
 		    $errorstr  = "Not enough nodes with fast enough interfaces";
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
 		}
