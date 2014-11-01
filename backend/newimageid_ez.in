@@ -574,9 +574,11 @@ if (!exists($newimageid_args{"mbr_version"}) && defined($node_id)) {
     # to version 1.
     #
     my $query_result =
-	DBQueryFatal("select mbr_version from partitions as p, images as i ".
-		     " where p.imageid=i.imageid and p.node_id='$node_id' ".
-		     " group by mbr_version");
+	DBQueryFatal("select mbr_version from ".
+		     " partitions as p,image_versions as i ".
+		     " where p.imageid=i.imageid ".
+		     " and p.imageid_version=i.version ".
+		     " and p.node_id='$node_id' group by mbr_version");
     if ($query_result && $query_result->numrows == 1) {
 	($mbrvers) = $query_result->fetchrow_array();	
     }
