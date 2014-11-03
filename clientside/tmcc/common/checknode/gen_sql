@@ -121,14 +121,15 @@ cleanup_main() {
     savepwd=$(pwd)
     sorton=".diff"
     toclean=".tbdb .tmcc .full .diff"
-    echo "Must be root to run correctly"
+    cd $projdir
+#    echo "Must be root to run correctly"
     for host in $allnodes ; do
 	f=0
 	# for each node sort the ${sorton} directory by date
 	# save the two newest file and delete all the rest
 	# in ${sorton} ${toclean} directories
-	[[ ! -d $savepwd/$host/${sorton} ]] && continue
-	cd $savepwd/$host/${sorton}
+	[[ ! -d $projdir/$host/${sorton} ]] && continue
+	cd $projdir/$host/${sorton}
 	sortedls=$(ls -t | paste -s -d \\\  -)
 	# pop the top 2 newest off
 	sortedls=${sortedls#*\ }
@@ -148,11 +149,12 @@ cleanup_main() {
 	# take the next file for timestamp
 	sortedls=${sortedls%%\ *}
 	[[ -z "$sortedls" ]] && continue
-	dated=$savepwd/$host/${sorton}/${sortedls}
+	dated=$projdir/$host/${sorton}/${sortedls}
 	# using find delete older file
-	cd $savepwd/$host
+	cd $projdir/$host
 	find ${toclean} ! -newer ${dated} ! -name ${dated} -type f -exec rm '{}' ';'
     done
+    cd $savepwd
 }
 
 #   README
