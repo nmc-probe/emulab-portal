@@ -147,6 +147,7 @@ CREATE TABLE `apt_profile_versions` (
   `parent_version` int(8) unsigned default NULL,
   `status` varchar(32) default NULL,
   `rspec` mediumtext,
+  `script` mediumtext,
   PRIMARY KEY (`profileid`,`version`),
   UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`),
   UNIQUE KEY `uuid` (`uuid`)
