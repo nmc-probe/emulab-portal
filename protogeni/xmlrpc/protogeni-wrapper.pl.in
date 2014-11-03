@@ -411,6 +411,8 @@ $logfile->Open();
 # Put the logfile into the environment for callee.
 $ENV{'LOGFILEID'}  = $logfile->logid();
 $ENV{'LOGFILEIDX'} = $logfile->logidx();
+my $logurn = GeniHRN::Generate("@OURDOMAIN@", "log", $logfile->logid());
+my $logurl = "$TBBASE/spewlogfile.php3?logfile=" . $logfile->logid(); 
 # Metadata
 my $message  = "";
 my @metadata = ();
@@ -424,7 +426,7 @@ sub WrapperFork()
     my $parent_lockname = "lock_$PID";
 
     # Before the fork, lock the lock in the parent. It will be
-    # unlocked just before the parent exits, this informing the
+    # unlocked just before the parent exits, thus informing the
     # child.
     emdb::DBQueryWarn("select GET_LOCK('$parent_lockname', 5)");
     
@@ -503,7 +505,12 @@ $SIG{__WARN__} = sub {
 };
 $SIG{__DIE__} = sub {
     my $message = shift;
-    confess($message);
+    if ($warned) {
+	die($message);
+    }
+    else {
+ 	confess($message);
+    }
 };
 
 #
@@ -572,6 +579,8 @@ if ($method eq "CreateSliver"    ||
     $method eq "UpdateTicket"    ||
     $method eq "RedeemTicket"    ||
     $method eq "CreateImage"     ||
+    $method eq "CreateDataset"   ||
+    $method eq "DeleteDataset"   ||
     $method eq "PerformOperationalAction"    ||
     $method eq "Provision"       ||
     $method eq "Allocate"        ||
@@ -624,8 +633,11 @@ if (!defined($user_certificate)) {
 # chain to find the CA.
 #
 if ($user_certificate->VerifySSLChain(@chaincerts)) {
-    print STDERR "Could not verify user certificate chain:\n";
+    print STDERR "Could not verify user certificate chain\n";
+    print STDERR "LogURL: $logurl\n";
     print STDERR Dumper([$user_certificate, @chaincerts]);
+    print STDERR "-------------- Request -----------------\n";
+    print STDERR Dumper($request) . "\n";
     AddLogfileMetaData("cert_error",
 		       "Could not verify user certificate chain");
     if (1) {
@@ -638,7 +650,10 @@ else {
     my $errorstr;
     if ($user_certificate->VerifyGeniChain(\$errorstr, @chaincerts)) {
 	print STDERR "Failed to verify Geni chain (user cert): $errorstr\n";
+	print STDERR "LogURL: $logurl\n";
 	print STDERR Dumper([$user_certificate, @chaincerts]);
+	print STDERR "-------------- Request -----------------\n";
+	print STDERR Dumper($request) . "\n";
 	AddLogfileMetaData("cert_error",
 		   "Failed to verify Geni chain (user cert): $errorstr");
 	if (0) {
@@ -685,10 +700,6 @@ else {
     my $elapsed = tv_interval($starttime);
     push(@metadata, ["EndTime", TBTimeStamp()]);
     push(@metadata, ["Elapsed", sprintf("%.2f", $elapsed)]);
-
-    my $logurn = GeniHRN::Generate("@OURDOMAIN@", "log",
-				   $logfile->logid());
-    my $logurl = "$TBBASE/spewlogfile.php3?logfile=" . $logfile->logid(); 
     push(@metadata, ["LogURN", $logurn]);
     push(@metadata, ["LogURL", $logurl]);
 
