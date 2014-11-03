@@ -740,13 +740,22 @@ sub DeleteSlice($)
 	$slice->UnLock();
 	return GeniResponse->BusyResponse();
     }
-    
-    if (GeniCM::CleanupDeadSlice($slice, 1) != 0) {
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not cleanup slice");
+
+    #
+    # Proceed in the background. No reason to make the caller wait,
+    # it takes too long.
+    #
+    my $mypid = main::WrapperFork();
+    if ($mypid) {
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
     }
-  done:
-    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+    if (GeniCM::CleanupDeadSlice($slice, 1) != 0) {
+	#
+	# We may need to send email here. 
+	#
+	return -1;
+    }
+    return 0;
 }
 
 #

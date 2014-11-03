@@ -417,6 +417,11 @@ sub DeleteSliver()
         'credentials' => $credentials
     };
     my $response = GeniCMV2::DeleteSlice($delete_args);
+    if (!ref($response)) {
+	# This is cause GeniCMV2::DeleteSlice does a fork, and the child
+	# returns plain status code, which should go to our caller. 
+	return $response;
+    }
     if (GeniResponse::IsError($response)) {
         return $response;
     } else {
@@ -1210,6 +1215,11 @@ sub Delete
 	'credentials' => $credentials
     };
     my $response = GeniCMV2::DeleteSlice($args);
+    if (!ref($response)) {
+	# This is cause GeniCMV2::DeleteSlice does a fork, and the child
+	# returns plain status code, which should go to our caller. 
+	return $response;
+    }
     if (! GeniResponse::IsError($response)) {
 	$response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $slivers);
     }
