@@ -374,6 +374,10 @@ if (@addlist || @modlist) {
 system("$SETGROUPS $user") == 0 or
     fatal("$SETGROUPS $user failed!");
 
+# XXX Mark the user as modified so the portal daemon withh push
+# out the new groups. This is wrong, but a real fix will need to wait.
+$target_user->BumpModified();
+
 exit(0);
 
 sub fatal($) {
