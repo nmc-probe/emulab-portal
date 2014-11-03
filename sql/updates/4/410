@@ -1,0 +1,20 @@
+#
+# Add geni-lib script support
+#
+use strict;
+use libdb;
+
+sub DoUpdate($$$)
+{
+    my ($dbhandle, $dbname, $version) = @_;
+
+    if (!DBSlotExists("apt_profile_versions", "script")) {
+	DBQueryFatal("alter table apt_profile_versions add ".
+		     " `script` mediumtext after rspec");
+    }
+    return 0;
+}
+
+# Local Variables:
+# mode:perl
+# End:
