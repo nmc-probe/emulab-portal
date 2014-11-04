@@ -122,7 +122,7 @@ sub Lookup($$;$$)
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
 			    "where i.pid='$1' and i.imagename='$2' and ".
-			    "      v.version='$3' and v.deleted is null");
+			    "      v.version='$3'");
 	    return undef
 		if (!$result || !$result->numrows);
 
@@ -161,13 +161,15 @@ sub Lookup($$;$$)
     }
     elsif (!defined($arg3)) {
 	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
+	    #
+	    # This will get deleted images, but that is okay.
+	    #
 	    my $result =
 		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
-			    "  from images as i ".
-			    "left join image_versions as v on ".
+			    "  from image_versions as v ".
+			    "left join images as i on ".
 			    "     v.imageid=i.imageid ".
-			    "where i.imageid='$arg1' and v.version='$arg2' ".
-			    " and  v.deleted is null");
+			    "where v.imageid='$arg1' and v.version='$arg2'");
 	    return undef
 		if (! $result || !$result->numrows);
 
@@ -209,7 +211,7 @@ sub Lookup($$;$$)
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
 			    "where i.pid='$arg1' and i.imagename='$arg2' and ".
-			    "      v.version='$arg3' and v.deleted is null");
+			    "      v.version='$arg3'");
 	    return undef
 		if (!$result || !$result->numrows);
 
