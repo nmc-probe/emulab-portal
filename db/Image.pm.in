@@ -605,6 +605,14 @@ sub NewVersion($$$$)
     $typelist = join(",", @types);
 
     #
+    # Update the type list in the image being cloned. Better to do this
+    # when the types are changed, but this works too since no one uses
+    # this until the image is deleted.
+    #
+    DBQueryWarn("update image_versions set nodetypes='$typelist' ".
+		"where imageid='$osid' and version='$version'");
+
+    #
     # Now reset a few things in each table.
     #
     my $clone_vers  = $self->version() + 1;
@@ -1553,9 +1561,19 @@ sub WaitLock($$)
 sub TypeList($;$)
 {
     my ($self, $osinfo) = @_;
+    my @result  = ();
+
+    #
+    # Deleted images stash a list in the descriptor.
+    #
+    if ($self->deleted()) {
+	if ($self->nodetypes()) {
+	    @result = split(",", $self->nodetypes());
+	}
+	return @result;
+    }
     require NodeType;
 
-    my @result  = ();
     my $imageid = $self->imageid();
     my $clause  = (defined($osinfo) ?
 		   "and osid='" . $osinfo->osid() . "'" : "");
