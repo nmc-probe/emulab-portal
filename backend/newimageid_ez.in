@@ -55,6 +55,7 @@ my $TBGROUP_DIR	= "@GROUPSROOT_DIR@";
 my $TBPROJ_DIR	= "@PROJROOT_DIR@";
 my $CREATEIMAGE = "$TB/bin/create_image";
 my $CLONEIMAGE  = "$TB/sbin/clone_image";
+my $RUNSONXEN   = "$TB/sbin/runsonxen";
 
 #
 # Untaint the path
@@ -761,13 +762,7 @@ if (defined($parentos)) {
     # Temp hack until we put all mappings into XML file.
     #
     if ($parentos->osname() =~ /^XEN4/) {
-	my $other = ($parentos->osname() =~ /^XEN41/ ?
-		     "XEN43-64-STD" : "XEN41-64-STD");
-
-	my $otheros = OSinfo->LookupByName($other);
-	if (defined($otheros)) {
-	    $new_osinfo->SetRunsOnParent($otheros);
-	}
+        system("$RUNSONXEN $imagepid,$imagename");
     }
 }
 
