@@ -311,12 +311,19 @@ if ($getimage) {
 	}
 	# Update DB info. Use the hash we were given, no need to recalculate.
 	my $imageid = $image->imageid();
+	# Run as root to access /proj
+	$EUID = $UID = 0;
 	if (system("$IMAGEVALIDATE -uq -H '$newhash' $imageid")) {
 	    # XXX should this be fatal?
 	    print STDERR "Could not update DB info for $image\n";
 	}
+	$EUID = $UID = $SAVEUID;
 	$image->MarkReady();
 	$image->Release();
+	# Its more important to know when we brought the new version in.
+	if ($WITHPROVENANCE && $doprovenance $isupdate) {
+	    $image->MarkUpdate($user);
+	}
     }
     $image->Unlock();
 }
