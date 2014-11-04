@@ -453,6 +453,12 @@ if (($isvirtnode || $base_osinfo) && $base_osinfo->def_parentosid()) {
 #
 if (defined($base_image)) {
     my @typelist = $base_image->TypeList($base_osinfo);
+    if (! @typelist && defined($base_image->deleted())) {
+	my $sysimage = Image->LookupByName($base_image->imagename());
+	if (defined($sysimage)) {
+	    @typelist = $sysimage->TypeList();
+	}
+    }
     if (! @typelist) {
 	fatal("$base_image does not run on any types");
     }
