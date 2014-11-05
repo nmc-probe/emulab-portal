@@ -576,7 +576,7 @@ sub LightUpNodes($@)
 	if ($op == $RELOAD) {
 	    my $image    = $node->_loadimage();
 	    my @images   = ($image);
-	    my $imageids = $image->imageid();
+	    my $imageids = $image->versid();
 	    my $auxloads = $node->_loadimages();
 
 	    #
@@ -585,7 +585,7 @@ sub LightUpNodes($@)
 	    #
 	    if (defined($auxloads)) {
 		foreach my $aux (@{ $auxloads }) {
-		    my $auxid = $aux->imageid();
+		    my $auxid = $aux->versid();
 		    unshift(@images, $aux);
 		    $imageids = "${auxid},${imageids}";
 		}
