@@ -663,7 +663,12 @@ proc tb-set-node-os {node os {parentos 0}} {
 	    return
 	}
 	if {$parentos != {} && $parentos != 0} {
-	    if {! [info exists osids($parentos)]} {
+	    # Look for :version in the name.
+	    set posid $parentos
+	    if { [regexp {:} $parentos] } {
+		set posid [lindex [split $os {:}] 0]
+	    }
+	    if {! [info exists osids($posid)]} {
 		perror "\[tb-set-node-os] Invalid parent osid $parentos."
 		return
 	    }

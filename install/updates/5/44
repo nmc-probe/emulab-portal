@@ -13,7 +13,8 @@ sub InstallUpdate($$)
 	Phase "JSON", "Checking for port p5-JSON", sub {
 	    DoneIfPackageInstalled("p5-JSON");
 	    ExecQuietFatal("cd $PORTSDIR/converters/p5-JSON; ".
-			   "make MASTER_SITE_FREEBSD=1 -DBATCH install");
+			   "make MASTER_SITE_FREEBSD=1 ".
+			   "  DISABLE_VULNERABILITIES=1 -DBATCH install");
 	};
     }
     return 0;
