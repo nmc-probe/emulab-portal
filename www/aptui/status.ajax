@@ -120,7 +120,9 @@ function Do_TerminateInstance()
 
     if ($retval == 0) {
 	SPITAJAX_RESPONSE("");
-	$webtask->Delete();
+	if ($webtask) {
+	    $webtask->Delete();
+	}
 	return;
     }
     if ($webtask && $webtask->exited()) {
