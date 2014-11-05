@@ -102,10 +102,10 @@ function (_, editModalString)
 		    rspec:
 		    '<rspec '+
 			'xmlns="http://www.geni.net/resources/rspec/3" '+
-			'xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1"'+
-			'xmlns:tour="http://www.protogeni.net/resources/rspec/ext/apt-tour/1"'+
-			'xmlns:jacks="http://www.protogeni.net/resources/rspec/ext/jacks/1"'+
-			'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'+
+			'xmlns:emulab="http://www.protogeni.net/resources/rspec/ext/emulab/1" '+
+			'xmlns:tour="http://www.protogeni.net/resources/rspec/ext/apt-tour/1" '+
+			'xmlns:jacks="http://www.protogeni.net/resources/rspec/ext/jacks/1" '+
+			'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '+
 			'xsi:schemaLocation="http://www.geni.net/resources/rspec/3 http://www.geni.net/resources/rspec/3/request.xsd">'+
 			'</rspec>'
 		}]);
