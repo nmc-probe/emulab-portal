@@ -6996,7 +6996,7 @@ sub InitializePhysNode($$$)
     my $cmdline_role = "default";
     my $cmdline      = "";
     my $vname;
-    my $osid;
+    my ($osinfo, $osid);
     my $routertype;
 
     if ($role eq TBDB_RSRVROLE_DELAYNODE() ||
@@ -7026,7 +7026,9 @@ sub InitializePhysNode($$$)
 	    # An internal node hosting VMs.
 	    #
 	    if (defined($virtnode->_parent_osinfo())) {
-		$osid = $virtnode->_parent_osinfo()->osid();
+		# Do not want to lose version info, so use osinfo when we
+		# have it.
+		$osinfo = $virtnode->_parent_osinfo();
 	    }
 	    else {
 		$osid  = ($self->option("jail_osid") ||
@@ -7038,6 +7040,8 @@ sub InitializePhysNode($$$)
 
 	    $self->exptstats()->{"jailnodes"} += 1;
 	}
+	$osid = $osinfo->osid()
+	    if (defined($osinfo));
 	if (!defined($osid)) {
 	    tberror("No OSID is defined for internal node $vname!\n");
 	    return -1;
@@ -7070,9 +7074,15 @@ sub InitializePhysNode($$$)
 	#
 	my ($cmdline,$rpms,$startupcmd,$tarfiles,$loadlist,
 	    $failureaction,$routertype) = @{ $virtnode->_settings() };
-
-	$osid = (defined($virtnode->_osinfo()) ?
-		 $virtnode->_osinfo()->osid() : $pnode->default_osid());
+	
+	# Do not want to lose version info, so use osinfo when we have it.
+	if (defined($virtnode->_osinfo())) {
+	    $osinfo = $virtnode->_osinfo();
+	    $osid   = $osinfo->osid();
+	}
+	else {
+	    $osid = $pnode->default_osid();
+	}
 	my $vname           = $vnodename;
 	my $inner_elab_role = $virtnode->inner_elab_role();
 	my $plab_role       = $virtnode->plab_role();
@@ -7165,11 +7175,14 @@ sub InitializePhysNode($$$)
     #
     if (defined($osid) && (!$pnode->isremotenode()
 			   || $pnode->isdedicatedremote())) {
-	# osselect wants an osinfo object.
-	my $osinfo = OSinfo->Lookup($osid);
+	# osselect wants an osinfo object, but we do not always have
+	# that. See above.
 	if (!defined($osinfo)) {
-	    tberror("Could not map $osid to osinfo object\n");
-	    return -1;
+	    $osinfo = OSinfo->Lookup($osid);
+	    if (!defined($osinfo)) {
+		tberror("Could not map $osid to osinfo object\n");
+		return -1;
+	    }
 	}
 	#
 	# Map generic OSID to the specific one.
