@@ -321,7 +321,7 @@ if ($getimage) {
 	$image->MarkReady();
 	$image->Release();
 	# Its more important to know when we brought the new version in.
-	if ($WITHPROVENANCE && $doprovenance $isupdate) {
+	if ($WITHPROVENANCE && $doprovenance && $update) {
 	    $image->MarkUpdate($user);
 	}
     }
