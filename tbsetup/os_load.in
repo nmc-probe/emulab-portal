@@ -279,7 +279,7 @@ if (defined($options{"m"})) {
 	if (defined($options{"i"}));
 
     foreach my $imageid (split /,/, $options{"m"}) {
-        my $version = 0;
+        my $version;
 
 	if ($imageid =~ /^([-\w\.\+]+)$/) {
 	    $imageid = $1;
