@@ -829,8 +829,12 @@ sub MapToImage($$)
 	if (!defined($query_result) || !$query_result->numrows);
 
     my ($imageid) = $query_result->fetchrow_array();
-
-    return Image->Lookup($imageid);
+    # Look for corresponding image version. 
+    my $image = Image->Lookup($imageid, $self->vers());
+    if (!defined($image)) {
+	$image = Image->Lookup($imageid);
+    }
+    return $image;
 }
 
 # Stubs for calling "libTaintStates" common taint handling code
