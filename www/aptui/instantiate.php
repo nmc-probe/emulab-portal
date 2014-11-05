@@ -558,7 +558,7 @@ if (!$this_user) {
 #
 $aggregate_urn = "";
 
-if ($this_user && ISADMIN()) {
+if ($this_user && (ISADMIN() || STUDLY())) {
     if (isset($formfields["where"]) && $formfields["where"] != "") {
 	if (array_key_exists($formfields["where"], $am_array)) {
 	    $aggregate_urn = $am_array[$formfields["where"]];
