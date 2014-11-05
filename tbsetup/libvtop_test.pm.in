@@ -1341,21 +1341,21 @@ sub LoadVirtNodes($)
 	# Map the parent_osname to an OSID now.
 	#
 	if (defined($parent_osname) && $parent_osname ne "") {
-	    my $ospid = $pid;
+	    my $osinfo;
 	    
 	    if ($parent_osname =~ /^(.*)\/(.*)$/) {
-		$ospid  = $1;
-		$parent_osname = $2;
+		$osinfo = OSinfo->Lookup($osname);
 	    }
-	    my $osinfo = OSinfo->Lookup("$ospid,$parent_osname");
-	    if (!defined($osinfo)) {
-		$osinfo = OSinfo->LookupByName($parent_osname);
-
+	    else {
+		$osinfo = OSinfo->LookupByName($pid, $parent_osname);
+		if (!defined($osinfo)) {
+		    $osinfo = OSinfo->LookupByName($parent_osname);
+		}
 		if (!defined($osinfo)) {
 		    tberror({cause => 'user', type => 'primary',
 			     severity => SEV_ERROR,
 			     error => ['invalid_os', undef, $parent_osname, $pid]},
-			    "Invalid parent OS $parent_osname in project $ospid!");
+			    "Invalid parent OS $parent_osname in project $pid!");
 		    return -1;
 		}
 	    }
@@ -1544,17 +1544,15 @@ sub LoadVirtNodes($)
 	    $vnode->_fixedvm(undef);
 	    next;
 	}
+	my $osinfo;
 
 	if (defined($vnode->_parent_osinfo())) {
-	    $osid = $vnode->_parent_osinfo()->osid();
+	    $osinfo = $vnode->_parent_osinfo();
 	}
 	else {
-	    $osid  = ($self->option("jail_osid") ||
-		      $self->nodejailosid($vnode));
+	    $osinfo = OSinfo->Lookup($self->option("jail_osid") ||
+				     $self->nodejailosid($vnode));
 	}
-	return -1
-	    if (!defined($osid));
-	my $osinfo = OSinfo->Lookup($osid);
 	return -1
 	    if (!defined($osinfo));
 	
