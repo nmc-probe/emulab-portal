@@ -633,6 +633,9 @@ sub freefromreloading($) {
 	 $experiment->eid() eq $PENDINGEID)) {
 	$node->ClearSchedReload();
 
+	# Clear any taint states set for the node
+	$node->RemoveTaintState();
+
 	# Check if the robot is back in its pen, otherwise we have to throw it
 	# back to repositionpending.
 	my $loc_result =
