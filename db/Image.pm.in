@@ -110,9 +110,19 @@ sub Lookup($$;$$)
 	    return BlessRow($class, $result->fetchrow_hashref());
 	}
 	elsif ($arg1 =~ /^(\d*):(\d*)$/) {
-	    $arg1 = $1;
-	    $arg2 = $2;
-	    goto versid;
+	    #
+	    # This will get deleted images, but that is okay.
+	    #
+	    my $result =
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+			    "  from image_versions as v ".
+			    "left join images as i on ".
+			    "     v.imageid=i.imageid ".
+			    "where v.imageid='$1' and v.version='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
 	}
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
@@ -174,7 +184,6 @@ sub Lookup($$;$$)
     }
     elsif (!defined($arg3)) {
 	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
-	  versid:
 	    #
 	    # This will get deleted images, but that is okay.
 	    #
