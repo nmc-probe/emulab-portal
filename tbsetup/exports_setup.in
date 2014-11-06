@@ -67,6 +67,7 @@ my $ISOLATEADMIN= @ISOLATEADMINS@;
 my $NOSHAREDFS	= @NOSHAREDFS@;
 my $LINUX_FSNODE= @LINUX_FSNODE@;
 my $NFSMAPTOUSER= "@NFSMAPTOUSER@";
+my $WITHZFS     = @WITHZFS@;
 
 # XXX for TESTMODE: output to stdout
 my $TOSTDOUT	= 0;
@@ -278,9 +279,11 @@ while ($row = $nodes_result->fetchrow_hashref) {
 	$lastadmin=$admin;
 	$lasterole=$erole;
 
-	if ($erole eq "sharedhost" && !$isvirt) {
+	if ($erole eq "sharedhost" && !$isvirt && !$WITHZFS) {
 	    #
-	    # Shared local *physical* nodes get toplevel mounts. 
+	    # Shared local *physical* nodes get toplevel mounts.
+	    #
+	    # ZFS does not support toplevel mounts. 
 	    #
 	    push(@dirlist, "$projdir");
 	    push(@dirlist, "$groupdir");
