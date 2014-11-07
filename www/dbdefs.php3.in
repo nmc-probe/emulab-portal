@@ -743,6 +743,21 @@ class Logfile
 }
 
 #
+# Do we have a storage pool?
+#
+function HaveStoragePool()
+{
+    global $TBOPSPID;
+    
+    $experiment = Experiment::LookupByPidEid($TBOPSPID, "storage-pool");
+    if ($experiment) {
+	return $experiment->PCCount();
+    }
+    return 0;
+}
+
+#
+#
 # DB Interface.
 #
 $maxtries = 3;

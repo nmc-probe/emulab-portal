@@ -614,6 +614,9 @@ function WRITEADMINMENU() {
     global $PROTOGENI;
     global $login_status;
 
+    # Do we have a storage pool? The we support datasets.
+    $havestoragepool = HaveStoragePool();
+
     # Optional ADMIN menu.
     if ($login_status & CHECKLOGIN_LOGGEDIN && ISADMIN()) {
 	NavMenuSection("administration", "Administration");
@@ -643,7 +646,7 @@ function WRITEADMINMENU() {
 	NavMenuButton("Show Shared Node Pool",
 		      "$TBBASE/showpool.php");
 
-	if ($TBMAINSITE) {
+	if ($havestoragepool) {
 	    NavMenuButton("Local Datasets",
 			  "$TBBASE/list-datasets.php?all=1");
 	    NavMenuButton("Remote Datasets",
