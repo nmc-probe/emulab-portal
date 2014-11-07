@@ -164,6 +164,14 @@ CHECKMASK(char *arg)
 /* Our answer to "geni-get --version" */
 #define GENI_VERSION "1"
 
+/* Taint support */
+#define TB_TAINTSTATE_BLACKBOX  1
+#define TB_TAINTSTATE_USERONLY  2
+#define TB_TAINTSTATE_DANGEROUS 4
+#define HAS_ANY_TAINTS(tset, tcheck) (tset & tcheck)
+#define HAS_ALL_TAINTS(tset, tcheck) ((tset & tcheck) == tcheck)
+#define HAS_TAINT(tset, tcheck) HAS_ALL_TAINTS(tset, tcheck)
+
 int		debug = 0;
 static int	verbose = 0;
 static int	insecure = 0;
@@ -241,6 +249,7 @@ typedef struct {
         int		genisliver_idx;
         int		geniflags;
         int		nonfsmounts;
+	unsigned int    taintstates;
 	char		nodeid[TBDB_FLEN_NODEID];
 	char		vnodeid[TBDB_FLEN_NODEID];
 	char		pnodeid[TBDB_FLEN_NODEID]; /* XXX */
@@ -2747,47 +2756,14 @@ COMMAND_PROTOTYPE(doaccounts)
 				 "order by u.uid",
 				 18, reqp->nodeid);
 	}
-	else if (reqp->isvnode ||
-		 (reqp->islocal && !reqp->sharing_mode[0])) {
-		/*
-		 * This crazy join is going to give us multiple lines for
-		 * each user that is allowed on the node, where each line
-		 * (for each user) differs by the project PID and it unix
-		 * GID. The intent is to build up a list of GIDs for each
-		 * user to return. Well, a primary group and a list of aux
-		 * groups for that user.
-		 */
-	  	char adminclause[MYBUFSIZE];
-		strcpy(adminclause, "");
-#ifdef ISOLATEADMINS
-		sprintf(adminclause, "and u.admin=%d", reqp->swapper_isadmin);
-#endif
-		res = mydb_query("select distinct "
-				 "  u.uid,u.usr_pswd,u.unix_uid,u.usr_name, "
-				 "  p.trust,g.pid,g.gid,g.unix_gid,u.admin, "
-				 "  u.emulab_pubkey,u.home_pubkey, "
-				 "  UNIX_TIMESTAMP(u.usr_modified), "
-				 "  u.usr_email,u.usr_shell, "
-				 "  u.widearearoot,u.wideareajailroot, "
-				 "  u.usr_w_pswd,u.uid_idx "
-				 "from group_membership as p "
-				 "join users as u on p.uid_idx=u.uid_idx "
-				 "join groups as g on "
-				 "     p.pid=g.pid and p.gid=g.gid "
-				 "where ((p.pid='%s')) and p.trust!='none' "
-				 "      and u.status='active' "
-				 "      and u.webonly=0 "
-				 "      %s "
-                                 "      and g.unix_gid is not NULL "
-				 "order by u.uid",
-				 18, reqp->pid, adminclause);
-	}
 	else if ((reqp->jailflag && !reqp->islocal) ||
-		 (reqp->islocal && reqp->sharing_mode[0])) {
+		 (reqp->islocal && reqp->sharing_mode[0]) ||
+		 HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 		/*
-		 * A remote node, doing jails or a local node being
-		 * shared.  We still want to return accounts for the
-		 * admin people outside the jails. Note that remote jail
+		 * A remote node doing jails, a local node being
+		 * shared, or a node with 'blackbox' taintstate:
+		 * We still want to return accounts for the
+		 * admin people. Note that remote jail
 		 * case is effectively deprecated at this point.
 		 */
 		res = mydb_query("select distinct "
@@ -2808,14 +2784,8 @@ COMMAND_PROTOTYPE(doaccounts)
 			     "      order by u.uid",
 			     18, RELOADPID, PROTOUSER);
 	}
-	else if (!reqp->islocal && reqp->isdedicatedwa) {
-		/*
-		 * Wonder why this code is a copy of the islocal || vnode
-		 * case above?  It's because I don't want to prevent us from
-		 * from the above case where !islocal && jailflag
-		 * for dedicated widearea nodes.
-		 */
-
+	else if (reqp->isvnode || reqp->islocal || 
+		 (!reqp->islocal && reqp->isdedicatedwa)) {
 		/*
 		 * This crazy join is going to give us multiple lines for
 		 * each user that is allowed on the node, where each line
@@ -2825,12 +2795,14 @@ COMMAND_PROTOTYPE(doaccounts)
 		 * groups for that user.
 		 */
 	  	char adminclause[MYBUFSIZE];
+		char *passwdfield = (!reqp->islocal && reqp->isdedicatedwa) ? 
+			"'*'" : "u.usr_pswd";
 		strcpy(adminclause, "");
 #ifdef ISOLATEADMINS
 		sprintf(adminclause, "and u.admin=%d", reqp->swapper_isadmin);
 #endif
 		res = mydb_query("select distinct "
-				 "  u.uid,'*',u.unix_uid,u.usr_name, "
+				 "  u.uid,%s,u.unix_uid,u.usr_name, "
 				 "  p.trust,g.pid,g.gid,g.unix_gid,u.admin, "
 				 "  u.emulab_pubkey,u.home_pubkey, "
 				 "  UNIX_TIMESTAMP(u.usr_modified), "
@@ -2847,7 +2819,7 @@ COMMAND_PROTOTYPE(doaccounts)
 				 "      %s "
                                  "      and g.unix_gid is not NULL "
 				 "order by u.uid",
-				 18, reqp->pid, adminclause);
+				 18, passwdfield, reqp->pid, adminclause);
 	}
 	else if (! reqp->islocal) {
 		/*
@@ -3013,6 +2985,16 @@ COMMAND_PROTOTYPE(doaccounts)
 			if (tbadmin)
 				root = 1;
 		}
+
+		/* 
+		 * Nuke the root flag if the node is tainted with
+		 * 'usermode', except for admins.  The 'blackbox' taintstate
+		 * has already restricted the set of users to admins,
+		 * so no need to check for that.
+		 */
+		if (HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_USERONLY) && 
+		    !tbadmin)
+		        root = 0;
 
 		/* There is an optional Windows password column. */
 		pswd = row[1];
@@ -3238,7 +3220,9 @@ COMMAND_PROTOTYPE(doaccounts)
 	}
 	mysql_free_result(res);
 
-	if (!(reqp->islocal || reqp->isvnode) && !didwidearea) {
+	/* No more accounts will be added if the node has 'blackbox' taint. */
+	if (!(reqp->islocal || reqp->isvnode) && !didwidearea &&
+	    !HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 		didwidearea = 1;
 
 		/*
@@ -3273,10 +3257,12 @@ COMMAND_PROTOTYPE(doaccounts)
 	 * When sharing mode is on, do not return these accounts to pnodes.
 	 * Note that sharing_mode and genisliver_idx should not both be set
 	 * on a pnode, but lets be careful.
-	 * but
+	 * 
+	 * No more accounts will be added if the node has 'blackbox' taint.
 	 */
 	if (reqp->genisliver_idx && !didnonlocal &&
-	    (reqp->isvnode || !reqp->sharing_mode[0])) {
+	    (reqp->isvnode || !reqp->sharing_mode[0]) &&
+	    !HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 	        didnonlocal = 1;
 		
 		/*
@@ -6929,7 +6915,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
 				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
-				 " r.erole "
+				 " r.erole, n.taint_states "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON "
 				 "  r.node_id=n.node_id "
@@ -6958,7 +6944,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "     (SELECT node_id FROM widearea_nodeinfo "
 				 "      WHERE privkey='%s') "
 				 "  AND notmcdinfo_types.attrvalue IS NULL",
-				 38, nodekey);
+				 39, nodekey);
 	}
 	else if (reqp->isvnode) {
 		char	clause[BUFSIZ];
@@ -6995,7 +6981,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,nv.uuid, "
 				 " nv.nonfsmounts,e.nonfsmounts AS enonfs, "
-				 " r.erole "
+				 " r.erole, n.taint_states "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
@@ -7016,7 +7002,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "left join users as u on "
 				 " u.uid_idx=e.swapper_idx "
 				 "where nv.node_id='%s' and (%s)",
-				 38, reqp->vnodeid, clause);
+				 39, reqp->vnodeid, clause);
 	}
 	else {
 		char	clause[BUFSIZ];
@@ -7046,7 +7032,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
 				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
-				 " r.erole "
+				 " r.erole, n.taint_states "
 				 "from interfaces as i "
 				 "left join nodes as n on n.node_id=i.node_id "
 				 "left join reserved as r on "
@@ -7074,7 +7060,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "  on n.type=dedicated_wa_types.type "
 				 "where (%s) "
 				 "  and notmcdinfo_types.attrvalue is NULL",
-				 38, clause);
+				 39, clause);
 	}
 
 	if (!res) {
@@ -7206,6 +7192,26 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 		reqp->nonfsmounts = atoi(row[35]);
 	else
 		reqp->nonfsmounts = 0;
+
+        /* taintstates - find the strings and set the bits.  */
+        reqp->taintstates = 0;
+        if (row[38]) {
+		char tbuf[BUFSIZ];
+		char *tptr, *tok;
+		strcpy(tbuf, row[38]);
+		tptr = tbuf;
+		while ((tok = strsep(&tptr, ",")) != NULL) {
+			if (strcmp(tok,"blackbox") == 0) {
+				reqp->taintstates |= TB_TAINTSTATE_BLACKBOX;
+			} else if (strcmp(tok,"useronly") == 0) {
+				reqp->taintstates |= TB_TAINTSTATE_USERONLY;
+			} else if (strcmp(tok,"dangerous") == 0) {
+				reqp->taintstates |= TB_TAINTSTATE_DANGEROUS;
+			} else {
+				error("iptonodeid: %s: Unknown taintstate: '%s'\n", reqp->nodeid, tok);
+			}
+		}
+	}
 	
 	/* If a vnode, copy into the nodeid. Eventually split this properly */
 	strcpy(reqp->pnodeid, reqp->nodeid);
