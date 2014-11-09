@@ -5526,6 +5526,10 @@ if test $WITHAMD -eq 1; then
 #define WITHAMD 1
 _ACEOF
 
+    cat >>confdefs.h <<_ACEOF
+#define AMD_ROOT "$AMD_ROOT"
+_ACEOF
+
 fi
 cat >>confdefs.h <<_ACEOF
 #define IMPORT_TMPDIR "$IMPORT_TMPDIR"

@@ -68,5 +68,6 @@
 #undef NOVIRTNFSMOUNTS
 #undef WITHZFS
 #undef WITHAMD
+#undef AMD_ROOT
 
 #undef BS_IQN_PREFIX
