@@ -669,8 +669,11 @@ if ($srcsigfile && ($srcsigfile =~ /^$TB/)) {
 # image is created on the nodes, and it NFS mounts directories on ops.
 # Writing the image to anyplace else is just going to break things.
 #
-# Use realpath to resolve any symlinks.
+# Use realpath to validate the path. The still use the original path
+# for passing to the client-side since boss and the client may not have
+# the same real path for a file.
 #
+my $ofilename = $filename;
 my $translated = realpath($filename);
 if ($translated =~ /^([-\w\.\/\+:]+)$/) {
     $filename = $1;
@@ -750,7 +753,15 @@ if (-e $filename) {
 # mode, make sure the user can create the tmp file that the uploader
 # uses.
 #
-$tmp = $filename . ($usefup ? ".tmp" : "");
+if ($usefup) {
+    $tmp = "$filename.tmp";
+    if (-e "$tmp") {
+	unlink("$tmp") ||
+	    fatal("Could not remove $tmp: $!");
+    }
+} else {
+    $tmp = $filename;
+}
 open(FILE, "> $tmp") or
     fatal("Could not create $tmp: $!");
 close(FILE) or
@@ -803,7 +814,7 @@ elsif ($isvirtnode && (!$doprovenance || !$isxenhost)) {
     if ($usefup) {
 	my $id;
 	if ($usepath) {
-	    $id = $filename;
+	    $id = $ofilename;
 	} else {
 	    $id = $image->pid() . "/" . $image->imagename();
 	}
@@ -826,7 +837,7 @@ elsif ($isvirtnode && (!$doprovenance || !$isxenhost)) {
     if ($usefup || $usessh) {
 	$command .= " -";
     } else {
-	$command .= " $filename";
+	$command .= " $ofilename";
     }
 }
 #
@@ -837,7 +848,7 @@ elsif (!$doprovenance) {
     if ($usefup) {
 	my $id;
 	if ($usepath) {
-	    $id = $filename;
+	    $id = $ofilename;
 	} else {
 	    $id = $image->pid() . "/" . $image->imagename();
 	}
@@ -854,7 +865,7 @@ elsif (!$doprovenance) {
     if ($usefup || $usessh) {
 	$command .= " -";
     } else {
-	$command .= " $filename";
+	$command .= " $ofilename";
     }
 }
 #
@@ -872,7 +883,7 @@ else {
 	if ($usefup || $usessh) {
 	    $command .= " -";
 	} else {
-	    $command .= " $filename";
+	    $command .= " $ofilename";
 	}
     }
 
@@ -888,12 +899,12 @@ else {
 	}
 
 	if ($usepath) {
-	    $id = $filename;
+	    $id = $ofilename;
 	} else {
 	    $id = $image->pid() . "/" . $image->imagename() . ":$version";
 	}
     } else {
-	$id = $filename;
+	$id = $ofilename;
     }
     $command .= " IMAGENAME=$id";
     if ($srcsigfile) {
@@ -1036,7 +1047,7 @@ if ($isec2node) {
     my $safe_target = User::escapeshellarg($target);
     
     my $cmd = "$TB/bin/sshtb -host $CONTROL $EC2SNAP -u $user_uid ".
-	"$safe_target $pid $user_uid $imageid $filename";
+	"$safe_target $pid $user_uid $imageid $ofilename";
     print STDERR "About to: '$cmd'\n" if (1 || $debug);
 
     my $SAVEUID	= $UID;
@@ -1081,7 +1092,7 @@ if ($isvirtnode) {
     # Now execute command and wait.
     #
     if ($NONFS) {
-	$result = run_with_ssh($command, $filename);
+	$result = run_with_ssh($command, $ofilename);
     } else {
 	$result = run_with_ssh($command, undef);
     }
@@ -1184,7 +1195,7 @@ if (!$doprovenance && $usefup && $result eq "255") {
     if ($usessh) {
 	$command .= " -";
     } else {
-	$command .= " $filename";
+	$command .= " $ofilename";
     }
 
     # reset state for check_progress
@@ -1195,7 +1206,7 @@ if (!$doprovenance && $usefup && $result eq "255") {
     $result = undef;
 
     if ($NONFS) {
-	$result = run_with_ssh($command, $filename);
+	$result = run_with_ssh($command, $ofilename);
     } else {
 	$result = run_with_ssh($command, undef);
     }
