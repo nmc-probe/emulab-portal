@@ -301,7 +301,7 @@ if ($all || defined($user) || defined($pid)) {
     else {
 	$query  = "select g.pid,g.gid from groups as g ".
 	          "left join projects as p on p.pid=g.pid ".
-		  "where p.approved=1 and p.nonlocal_id is null " .
+		  "where g.pid='$pid' and p.nonlocal_id is null " .
 		  "order by g.pid,g.gid";
     }
 
