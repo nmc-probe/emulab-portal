@@ -87,10 +87,14 @@ if [ $c_part_offset -eq 0 ]; then
 fi
 
 a_part_linuxdev=''
+maybe_a_part_linuxdev=''
 for partdev in /sys/block/$disk/$disk[1-9]*; do
-	[ $partdev = /sys/block/$disk/$disk$part ] && continue
 	start=`cat $partdev/start`
 	[ $start -eq $a_part_offset ] || continue
+
+	# remember BSD slice in case we don't come up with partition dev
+	maybe_a_part_linuxdev=$disk$part
+	[ $partdev = /sys/block/$disk/$disk$part ] && continue
 
 	a_part_linuxdev=${partdev##*/}
 	break
@@ -98,7 +102,15 @@ done
 
 # Valid disklabel, but no 'a' partition.
 if [ -z "$a_part_linuxdev" ]; then
-	exit 1
+	#
+	# linux does not create a separate device if the BSD partition
+	# uses the entire DOS partition. So if we found a DOS partition
+	# with the correct offset, just use that.
+	#
+	if [ -z "$maybe_a_part_linuxdev" ]; then
+		exit 1
+	fi
+	a_part_linuxdev=$maybe_a_part_linuxdev
 fi
 
 # We have a valid disklabel with an 'a' partition.

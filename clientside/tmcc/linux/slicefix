@@ -135,8 +135,6 @@ if [ -n "$BIOSDISK" ]; then
 	;;
     esac
 fi
-# DOM0MEM is optional.
-DOM0MEM=$SLICEFIX_DOM0MEM
 
 #
 # Find out what our console should be:
@@ -179,6 +177,8 @@ if [ $CONSOLE = "unknown" ]; then
     echo "WARNING: console type not set, assuming \"sio1\""
     CONSOLE=sio1
 fi
+# DOM0MEM is optional
+DOM0MEM=$SLICEFIX_DOM0MEM
 
 #
 # Handle pseudo-arguments in the filesystem

@@ -21,8 +21,13 @@ case $disk in
 		dtype="sd"
 		dunit=`expr $dunit - 4`
 		;;
+	ad2[4-7])
+		old_dtype="sd"
+		dtype="sd"
+		dunit=`expr $dunit - 24`
+		;;
 	# SCSI
-	da[0-7])
+	da[0-7]|ada[0-7])
 		dtype="sd"
 		old_dtype="sd"
 		;;
