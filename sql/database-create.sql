@@ -3744,6 +3744,7 @@ CREATE TABLE `project_leases` (
   `uuid` varchar(40) NOT NULL default '',
   `owner_uid` varchar(8) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
+  `gid` varchar(48) NOT NULL default '',
   `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
   `inception` timestamp NOT NULL default CURRENT_TIMESTAMP,
   `lease_end` timestamp NOT NULL default '2037-01-19 03:14:07',
