@@ -40,6 +40,7 @@ use emdb;
 use English;
 use Carp;
 use Date::Parse;
+use Time::Local;
 
 # Configure variables.
 my $TB          = "@prefix@";
@@ -750,7 +751,7 @@ sub TBDateStringGMT($)
     return ""
 	if (!defined($date) || "$date" eq "");
 
-    if ($date !~ /^\d$/) {
+    if ($date !~ /^\d+$/) {
 	$date = str2time($date);
     }
     return POSIX::strftime("20%y-%m-%dT%H:%M:%SZ", gmtime($date));
@@ -763,7 +764,7 @@ sub TBDateStringLocal($)
     return ""
 	if (!defined($date) || "$date" eq "");
 
-    if ($date !~ /^\d*$/) {
+    if ($date !~ /^\d+$/) {
 	$date = timelocal(strptime($date));
     }
     return POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime($date));
