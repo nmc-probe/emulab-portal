@@ -2340,8 +2340,9 @@ sub SetupReload($$)
     # find the latest full version of the image, then load those in
     # reverse order.
     #
+    my @allimages = ();
     if ($WITHPROVENANCE && $WITHDELTAS) {
-	my @nimages = ();
+	my $founddelta = 0;
 	foreach my $image (@images) {
 	    if ($image->isdelta()) {
 		my $pimage = $image;
@@ -2355,11 +2356,19 @@ sub SetupReload($$)
 		    }
 		    push(@ilist, $pimage);
 		} while ($pimage->isdelta());
-		push @nimages, reverse(@ilist);
+		push @allimages, reverse(@ilist);
+		$founddelta = 1;
 	    }
-	    push(@nimages, $image);
+	    push(@allimages, $image);
 	}
-	@images = @nimages;
+	#
+	# XXX we need to recompute access keys here.
+	#
+	if ($founddelta) {
+	    ;
+	}
+    } else {
+	@allimages = @images;
     }
 
     my $prepare = $self->nodeflag($nodeobject,'prepare');
@@ -2379,7 +2388,7 @@ sub SetupReload($$)
     my $needswinpe = 0;
 
     my $idx = 1;
-    foreach my $image (@images) {
+    foreach my $image (@allimages) {
 	my $imageid = $image->imageid();
 	my $version = $image->version();
 
@@ -2412,7 +2421,7 @@ sub SetupReload($$)
 
     # XXX windows load
     if ($needswinpe) {
-	if (@images > 1) {
+	if (@allimages > 1) {
 	    tberror("$self: Cannot load more than one image with WinPE/ImageX");
 	    return -1;
 	}
