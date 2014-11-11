@@ -44,6 +44,7 @@ sub usage()
 my $optlist  = "dhs:w:D:";
 my $debug = 0;
 my $pid;
+my $gid;
 my $state = "valid";
 my $lname;
 my $lease;
@@ -68,6 +69,7 @@ use libdb;
 use libtestbed;
 use Lease;
 use Project;
+use Group;
 use User;
 
 #
@@ -114,9 +116,15 @@ if (@ARGV != 1) {
 # lease name must include a project
 $lname = $ARGV[0];
 if ($lname =~ /^([-\w]+)\/([-\w]+)$/) {
-    $pid = $1;
+    $pid   = $gid = $1;
     $lname = $2;
-} else {
+}
+elsif ($lname =~ /^([-\w]+)\/([-\w]+)\/([-\w]+)$/) {
+    $pid   = $1;
+    $gid   = $2;
+    $lname = $3;
+}
+else {
     fatal("Lease name $lname not in the form <pid>/<lname>.");
 }
 
@@ -133,15 +141,10 @@ if (! defined($this_user)) {
     fatal("You ($UID) do not exist!");
 }
 
-my $project = Project->Lookup($pid);
-if (!defined($project)) {
-    fatal("No such project $pid\n");
-}
-
 #
 # Check name: must exist, be modifiable and in the unapproved state.
 #
-$lease = Lease->Lookup($pid, $lname);
+$lease = Lease->Lookup($pid, $gid, $lname);
 if (!$lease) {
     fatal("$pid/$lname: lease does not exist.");
 }

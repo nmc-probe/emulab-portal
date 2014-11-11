@@ -49,6 +49,7 @@ my $optlist  = "dhUo:s:t:e:a:f:b";
 my $debug = 0;
 my $background = 0;
 my $pid;
+my $gid;
 my $uid;
 my $expire;
 my $dstype = "stdataset";
@@ -87,6 +88,7 @@ use libdb;
 use Quota;
 use Lease;
 use Project;
+use Group;
 use User;
 
 #
@@ -170,9 +172,15 @@ if (!$size || @ARGV != 1) {
 # name must include a project
 $lname = $ARGV[0];
 if ($lname =~ /^([-\w]+)\/([-\w]+)$/) {
-    $pid = $1;
+    $pid   = $gid = $1;
     $lname = $2;
-} else {
+}
+elsif ($lname =~ /^([-\w]+)\/([-\w]+)\/([-\w]+)$/) {
+    $pid   = $1;
+    $gid   = $2;
+    $lname = $3;
+}
+else {
     fatal("Dataset name $lname not in the form <pid>/<lname>.");
 }
 
@@ -204,13 +212,14 @@ if ($uid) {
 #
 # Check project: caller must be admin or have local_root access in the project.
 #
-my $project = Project->Lookup($pid);
-if (!defined($project)) {
-    fatal("No such project $pid");
+my $group = Group->Lookup($pid, $gid);
+if (!defined($group)) {
+    fatal("No such group $pid/$gid");
 }
+my $project = $group->GetProject();
 if (!TBAdmin() &&
     !$project->AccessCheck($this_user, TB_PROJECT_CREATELEASE())) {
-    fatal("Must have local_root privileges in pid $pid");
+    fatal("Must have local_root privileges in $pid");
 }
 
 #
@@ -315,8 +324,8 @@ if ($fstype) {
 #
 # Check name: lease with this name must not already exist.
 #
-if (Lease->Lookup($pid, $lname)) {
-    fatal("Lease $pid/$lname already exists.");
+if (Lease->Lookup($pid, $gid, $lname)) {
+    fatal("Lease $pid/$gid/$lname already exists.");
 }
 
 #
@@ -363,7 +372,8 @@ if ($vars->{"usequotas"}) {
 
 my $args = {
     "lease_id" => $lname,
-    "pid" => $project,
+    "pid" => $pid,
+    "gid" => $gid,
     "uid" => $user,
     "type" => $dstype,
     "lease_end" => $expire,
@@ -371,9 +381,10 @@ my $args = {
 };
 my $lease = Lease->Create($args, \%attrs);
 if (!$lease) {
-    fatal("Could not create dataset lease $lname in $pid.");
+    fatal("Could not create dataset lease $lname in $pid/$gid.");
 }
-my $lease_idx = $lease->lease_idx();
+my $lease_idx  = $lease->lease_idx();
+my $lease_uuid = $lease->uuid();
 
 # No longer need to hold the quota lock
 if (defined($quota)) {
@@ -418,9 +429,9 @@ if ($approveme) {
 	#
 	if ($background) {
 	    SENDMAIL($TBOPS, "Lease allocation failed!",
-		     "Background resource allocation for Lease '$pid/$lname' ".
-		     "failed!\n\n",
-		     $TBOPS, undef, $logname);
+	     "Background resource allocation for Lease '$pid/$gid/$lname' ".
+	     "failed!\n\n",
+	     $TBOPS, undef, $logname);
 	}
     }
     $lease->Unlock();
@@ -435,7 +446,7 @@ if ($approveme) {
   noapprove:
 }
     
-print "Created lease '$pid/$lname' for " . $descrip{$dstype};
+print "Created lease '$pid/$gid/$lname' for " . $descrip{$dstype};
 if ($expire == 0) {
     print ", never expires.\n";
 } else {
@@ -445,8 +456,8 @@ if (!$approveme) {
     # Note that the lease daemon sends out periodic email about
     # unapproved leases.
     SENDMAIL($TBOPS, "Lease approval required",
-	     "Lease '$pid/$lname' requires approval. You can view it at\n".
-	     "$TBBASE/show-dataset.php?idx=$lease_idx\n\n");
+	     "Lease '$pid/$gid/$lname' requires approval. You can view it at\n".
+	     "$TBBASE/show-dataset.php?uuid=$lease_uuid\n\n");
     print "NOTE: lease must still be approved before it can be used\n";
 }
 
