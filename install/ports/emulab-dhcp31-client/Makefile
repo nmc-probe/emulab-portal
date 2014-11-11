@@ -62,12 +62,11 @@ PATCH_SUBDIRS=	common minires dst omapip
 PATCH_SUBDIRS+=	client
 
 .if !defined(NOPORTDOCS)
-PORTDOCS=	LICENSE README RELNOTES
+PORTDOCS=
 .endif
 BIN_FILES=	dhclient
 LOCAL_CONF_FILES=	dhclient.conf
 SAMP_FILES=	client/dhclient.conf
-DATA_FILES=	dhclient.leases
 
 SAMP_SUFX=	.sample
 
@@ -185,11 +184,8 @@ create-conf-files:
 .endfor
 
 create-data-files:
-.for f in ${DATA_FILES}
-.if !exists(${DATADIR}/${f})
-	@${TOUCH} ${DATADIR}/${f}
-.endif
-.endfor
+
+install-rc-script:
 
 configure-package:
 
