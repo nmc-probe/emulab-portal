@@ -756,6 +756,12 @@ function HaveStoragePool()
     return 0;
 }
 
+# Convert local time to GMT date string.
+function DateStringGMT($date)
+{
+    return gmdate("Y-m-d\TH:i:s\Z", strtotime($date));
+}
+
 #
 #
 # DB Interface.
