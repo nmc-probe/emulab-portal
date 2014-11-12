@@ -1,7 +1,7 @@
 require(window.APT_OPTIONS.configObject,
-	['js/quickvm_sup',
+	['js/quickvm_sup', 'moment',
 	 'tablesorter', 'tablesorterwidgets'],
-function (sup)
+function (sup, moment)
 {
     'use strict';
     var ajaxurl = null;
@@ -49,6 +49,13 @@ function (sup)
 	    ShowTopology($(this).data("profile"));
 	});
 	
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("ll"));
+	    }
+	});
     }
 
     function ShowTopology(profile)

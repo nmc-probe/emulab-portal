@@ -104,7 +104,7 @@ while ($row = mysql_fetch_array($query_result)) {
     $version      = $row["profile_version"];
     $uuid         = $row["uuid"];
     $status       = $row["status"];
-    $created      = $row["created"];
+    $created      = DateStringGMT($row["created"]);
     $creator_idx  = $row["creator_idx"];
     $profile_name = $profile_id;
     $creator_uid  = $row["creator"];
@@ -122,7 +122,7 @@ while ($row = mysql_fetch_array($query_result)) {
 	echo "<td>$creator_uid</td>";
     }
     echo "  <td>$status</td>
-            <td>$created</td>
+            <td class='format-date'>$created</td>
            </tr>\n";
 }
 echo "   </tbody>

@@ -129,7 +129,7 @@ while ($row = mysql_fetch_array($query_result)) {
     $name    = $row["name"];
     $pid     = $row["pid"];
     $desc    = $row["description"];
-    $created = $row["created"];
+    $created = DateStringGMT($row["created"]);
     $public  = $row["public"];
     $listed  = ($row["listed"] ? "Yes" : "No");
     $shared  = $row["shared"];
@@ -174,7 +174,7 @@ while ($row = mysql_fetch_array($query_result)) {
     }
     echo "  <td style='white-space:nowrap'>$pid</td>
             <td>$desc</td>
-            <td>$created</td>
+            <td class='format-date'>$created</td>
             <td>$listed</td>
             <td>$privacy</td>
            </tr>\n";
