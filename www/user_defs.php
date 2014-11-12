@@ -349,6 +349,10 @@ class User
     function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
     function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
 
+    function IsNonLocal() {
+	return ($this->field("nonlocal_id") ? 1 : 0);
+    }
+
     # Temporary data storage ... useful.
     function SetTempData($value) {
 	$this->tempdata = $value;
