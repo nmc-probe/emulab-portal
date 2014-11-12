@@ -1064,6 +1064,14 @@ class Image
 			 "  osid='$imageid', parent_osid='$parentosid'");
 	    DBQueryFatal("replace into osidtoimageid set ".
 			 " osid='$imageid', type='pcvm', imageid='$imageid'");
+	    
+	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
+						 "XEN44-64-BIGFS");
+	    if ($parentosinfo) {
+		$parentosid = $parentosinfo->osid();
+		DBQueryFatal("replace into os_submap set ".
+			     "  osid='$imageid', parent_osid='$parentosid'");
+	    }
 	}
 	else {
 	    DBQueryFatal("delete from osidtoimageid ".
