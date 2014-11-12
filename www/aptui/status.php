@@ -112,7 +112,7 @@ $profile         = Profile::Lookup($instance->profile_id(),
 $profile_name    = $profile->name();
 if ($slice) {
     $slice_urn       = $slice->urn();
-    $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
+    $slice_expires   = DateStringGMT($slice->expires());
     $slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
 }
 else {
