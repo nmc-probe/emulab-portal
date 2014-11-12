@@ -186,7 +186,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
              <ul class='nav navbar-nav navbar-right apt-right'>";
     if (!$disable_accounts) {
 	if ($login_user && ISADMINISTRATOR()) {
-	    echo "<li class='apt-left'>\n";
+	    # Extra top margin to align with the rest of the buttons.
+	    echo "<li class='apt-left' style='margin-top:7px'>\n";
 	    if (ISADMIN()) {
 		$url = CreateURL("toggle", $login_user,
 				 "type", "adminon", "value", 0);
@@ -207,8 +208,10 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	    }
 	    echo "</li>\n";
 	}
-	echo "<li id='loginstatus' class='apt-left'>".
-	    ($login_user ? "<p class='navbar-text'>$login_uid logged in</p>" : "") . "</li>\n";
+        # Extra top margin to align with the rest of the buttons.
+	echo "<li id='loginstatus' class='apt-left' style='margin-top:7px'>".
+	    ($login_user ? "<p class='navbar-text'>".
+	     "$login_uid logged in</p>" : "") . "</li>\n";
 
 	if (!NOLOGINS()) {
 	    if (!$login_user) {
