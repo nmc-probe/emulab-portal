@@ -6981,7 +6981,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,nv.uuid, "
 				 " nv.nonfsmounts,e.nonfsmounts AS enonfs, "
-				 " r.erole, n.taint_states "
+				 " r.erole, nv.taint_states "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
