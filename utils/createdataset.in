@@ -35,6 +35,7 @@ sub usage()
     print STDERR "   -h        This message\n";
     print STDERR "   -d        Print additional debug info\n";
     print STDERR "   -U        Create but do not approve; admin will need to approve later\n";
+    print STDERR "   -C        Always create, approve when there is no reason not to\n";
     print STDERR "   -s size   Size in MiB\n";
     print STDERR "   -t type   Type ('stdataset' or 'ltdataset')\n";
     print STDERR "   -f fstype Type of filesystem to create on dataset (default is none)\n";
@@ -45,7 +46,7 @@ sub usage()
     print STDERR "   name      Name (in the form <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhUo:s:t:e:a:f:b";
+my $optlist  = "dhUo:s:t:e:a:f:bC";
 my $debug = 0;
 my $background = 0;
 my $pid;
@@ -57,6 +58,7 @@ my $lname;
 my $size;
 my $fstype = "";
 my $approveme = 1;
+my $alwayscreate = 0;
 my $attrstr = "";
 my %attrs = ();
 
@@ -117,6 +119,9 @@ if (defined($options{d})) {
 }
 if (defined($options{b})) {
     $background++;
+}
+if (defined($options{C})) {
+    $alwayscreate = 1;
 }
 if (defined($options{U})) {
     $approveme = 0;
@@ -256,7 +261,8 @@ if ($approveme && $vars->{"maxsize"} > 0 && $size > $vars->{"maxsize"}) {
 	"Requested size ($size) is larger than allowed by default (" .
 	$vars->{"maxsize"} . ").\n";
     print STDERR
-	"Try again with '-U' option and request special approval by testbed-ops.\n";
+	"Try again with '-U' option and request special approval by testbed-ops.\n"
+	if (!$alwayscreate);
     exit(1);
 }
 
@@ -295,7 +301,7 @@ if (!defined($expire)) {
 	$needapproval = 1;
     }
 }
-if ($needapproval) {
+if ($needapproval && !$alwayscreate) {
     print STDERR
 	"Try again with '-U' to request special approval by testbed-ops.\n";
     exit(1);
