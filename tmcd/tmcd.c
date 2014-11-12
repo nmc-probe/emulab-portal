@@ -172,6 +172,13 @@ CHECKMASK(char *arg)
 #define HAS_ALL_TAINTS(tset, tcheck) ((tset & tcheck) == tcheck)
 #define HAS_TAINT(tset, tcheck) HAS_ALL_TAINTS(tset, tcheck)
 
+typedef struct {
+	char pid[TBDB_FLEN_PID];
+	char gid[TBDB_FLEN_GID];
+	char name[TBDB_FLEN_IMAGENAME];
+	char version[11]; /* Max size of a 32-bit int in string form. */
+} imstrings_t;
+
 int		debug = 0;
 static int	verbose = 0;
 static int	insecure = 0;
@@ -279,6 +286,7 @@ static int	iptonodeid(struct in_addr, tmcdreq_t *, char*);
 static int	checkdbredirect(tmcdreq_t *);
 static int      sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, 
 			      char *vname, int dopersist);
+static int      get_imagestrings(tmcdreq_t *reqp, imstrings_t *imstrings);
 
 #ifdef EVENTSYS
 int			myevent_send(address_tuple_t address);
@@ -378,6 +386,7 @@ COMMAND_PROTOTYPE(dodisks);
 COMMAND_PROTOTYPE(doarpinfo);
 COMMAND_PROTOTYPE(dohwinfo);
 COMMAND_PROTOTYPE(dotiplineinfo);
+COMMAND_PROTOTYPE(doimageid);
 #if PROTOGENI_SUPPORT
 COMMAND_PROTOTYPE(dogeniclientid);
 COMMAND_PROTOTYPE(dogenisliceurn);
@@ -509,6 +518,7 @@ struct command {
 	{ "arpinfo",	  FULLCONFIG_NONE, 0, doarpinfo},
 	{ "hwinfo",	  FULLCONFIG_NONE, 0, dohwinfo},
 	{ "tiplineinfo",  FULLCONFIG_NONE,  F_ALLOCATED, dotiplineinfo},
+	{ "imageinfo",      FULLCONFIG_NONE,  F_ALLOCATED, doimageid},
 #if PROTOGENI_SUPPORT
 	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
 	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
@@ -1587,6 +1597,17 @@ COMMAND_PROTOTYPE(domanifest)
 	int		nrows = 0;
 	int		disable_type = 0, disable_osid = 0, disable_node = 0;
 
+	/* 
+	 * Short-circuit manifests for nodes tainted with 'blackbox'
+	 * or 'useronly'.  A user could use these to invoke arbitrary
+	 * code as root.  Need to rework this function and possibly
+	 * the manifest handling code on the clientside before even
+	 * allowing admin-defined manifests to take effect.
+	 */
+	if (HAS_ANY_TAINTS(reqp->taintstates, 
+			   (TB_TAINTSTATE_BLACKBOX | TB_TAINTSTATE_USERONLY)))
+		return 0;
+
 	res = mydb_query("select opt_name,opt_value"
 			 " from virt_client_service_opts"
 			 " where exptidx=%d or vnode='%s'",
@@ -2590,27 +2611,21 @@ COMMAND_PROTOTYPE(doaccounts)
 				 "   p.pid='%s')",
 				 2, reqp->nodeid, RELOADPID);
 	}
-	else if (reqp->isvnode || reqp->islocal) {
-		res = mydb_query("select unix_name,unix_gid from groups "
-				 "where pid='%s'",
-				 2, reqp->pid);
-	}
-	else if (reqp->jailflag && !reqp->islocal) {
+	else if ((reqp->jailflag && !reqp->islocal) ||
+		 (reqp->islocal && reqp->sharing_mode[0]) ||
+		 HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 		/*
-		 * A remote node, doing jails. We still want to return
+		 * This is for a remote node doing jails, a shared host, or
+		 * a node with 'blackbox' taintstate. We still want to return
 		 * a group for the admin people who get accounts outside
-		 * the jails. Lets use the same query as above for now,
-		 * but switch over to emulab-ops.
+		 * the jails.  Send back the "emulab-ops" group info.
 		 */
 		res = mydb_query("select unix_name,unix_gid from groups "
 				 "where pid='%s'",
 				 2, RELOADPID);
 	}
-	else if (!reqp->islocal && reqp->isdedicatedwa) {
-	        /*
-		 * Catch widearea nodes that are dedicated to a single pid/eid.
-		 * Same as local case.
-		 */
+	else if (reqp->isvnode || reqp->islocal ||
+		 (!reqp->islocal && reqp->isdedicatedwa)) {
 		res = mydb_query("select unix_name,unix_gid from groups "
 				 "where pid='%s'",
 				 2, reqp->pid);
@@ -3819,6 +3834,15 @@ COMMAND_PROTOTYPE(dorpms)
 	    (reqp->sharing_mode[0] && reqp->isvnode)) {
 		useweb = 1;
 	}
+
+	/* 
+	 * Short-circuit rpm installation for nodes tainted with 'blackbox'
+	 * or 'useronly'.  Users could use these to overwrite anything on
+	 * the local node or invoke arbitrary code as root.
+	 */
+	if (HAS_ANY_TAINTS(reqp->taintstates, 
+			   (TB_TAINTSTATE_BLACKBOX | TB_TAINTSTATE_USERONLY)))
+		return 0;
 	
 	/*
 	 * Get RPM list for the node.
@@ -3889,6 +3913,15 @@ COMMAND_PROTOTYPE(dotarballs)
 	    (reqp->sharing_mode[0] && reqp->isvnode)) {
 		useweb = 1;
 	}
+
+	/* 
+	 * Short-circuit tarballs for nodes tainted with 'blackbox' or
+	 * 'useronly'.  XXX: rc.tarfiles has to be reworked on the clientside
+	 * before this blanket ban can be lifted for 'useronly'.
+	 */
+	if (HAS_ANY_TAINTS(reqp->taintstates, 
+			   (TB_TAINTSTATE_BLACKBOX | TB_TAINTSTATE_USERONLY)))
+		return 0;
 	
 	/*
 	 * Get Tarball list for the node.
@@ -3959,6 +3992,15 @@ COMMAND_PROTOTYPE(doblobs)
 	int             nrows;
 	char            buf[MYBUFSIZE];
 	char            *bufp = buf, *ebufp = &buf[sizeof(buf)];
+
+	/* 
+	 * Short-circuit blobs for nodes tainted with 'blackbox' or
+	 * 'useronly'. XXX: rc.blobs on the clientside needs an overhaul
+	 * before this blanket ban can be lifted for 'useronly'.
+	 */
+	if (HAS_ANY_TAINTS(reqp->taintstates, 
+			   (TB_TAINTSTATE_BLACKBOX | TB_TAINTSTATE_USERONLY)))
+		return 0;
 	
 	res = mydb_query("select path,action from experiment_blobs "
 			 " where exptidx=%d order by idx",
@@ -4032,6 +4074,10 @@ COMMAND_PROTOTYPE(dostartcmd)
 	MYSQL_RES	*res;
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
+
+	/* Short-circuit start commands for nodes tainted with 'blackbox'.*/
+	if (HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX))
+		return 0;
 
 	/*
 	 * Get run command for the node.
@@ -4921,8 +4967,10 @@ COMMAND_PROTOTYPE(domounts)
 	/*
 	 * Remote nodes do not get per-user mounts.
 	 * ProtoGeni nodes do not get them either.
+	 * Nodes tainted with 'blackbox' do not get them either.
 	 */
-	if (!reqp->islocal || reqp->genisliver_idx)
+	if (!reqp->islocal || reqp->genisliver_idx ||
+	    HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX))
 	        return 0;
 
 	/*
@@ -7650,6 +7698,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 	char		buf[MYBUFSIZE];
 	char		jailip[TBDB_FLEN_IP], jailipmask[TBDB_FLEN_IPMASK];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
+	imstrings_t     imstrings;
 	int		low, high, nrows;
 
 	/*
@@ -7865,6 +7914,53 @@ COMMAND_PROTOTYPE(dojailconfig)
 	/*
 	 * Get the image to be booted. 
 	 */
+	if (get_imagestrings(reqp, &imstrings) == 0) {
+		bufp += OUTPUT(bufp, ebufp - bufp, "IMAGENAME=\"%s,%s,%s", 
+			       imstrings.pid, imstrings.gid, imstrings.name);
+		/*
+		 * older mkvnode could not handle :version, and to be
+		 * backwards compatable with existing nodes, we do not
+		 * return a :0 version.
+		 */
+		if (vers >= 39 && WITHPROVENANCE) {
+			bufp += OUTPUT(bufp, ebufp - bufp, ":%s", 
+				       imstrings.version);
+		}
+		bufp += OUTPUT(bufp, ebufp - bufp, "\"\n");
+	}
+	client_writeback(sock, buf, strlen(buf), tcp);
+	return 0;
+}
+
+COMMAND_PROTOTYPE(doimageid)
+{
+	imstrings_t imstrings;
+	char        buf[BUFSIZ];
+
+	if (get_imagestrings(reqp, &imstrings) == 0) {
+		OUTPUT(buf, sizeof(buf), 
+		       "PID='%s' GID='%s' NAME='%s' VERSION='%s'\n", 
+		       imstrings.pid, imstrings.gid, 
+		       imstrings.name, imstrings.version);
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+
+	return 0;
+}
+
+int get_imagestrings(tmcdreq_t *reqp, imstrings_t *imstrings)
+{
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	int             retval = 1;
+
+	/* Sanity. */
+	if (imstrings == NULL) {
+		error("get_imagestrings: NULL pointer argument!\n");
+		return 1;
+	}
+
+	/* We want data on the default OS set for this node. */
 	res = mydb_query("select p.pid,g.gid,iv.imagename,iv.version "
 			 "  from nodes as n "
 			 "left join partitions as pa on "
@@ -7879,32 +7975,38 @@ COMMAND_PROTOTYPE(dojailconfig)
 			 4, reqp->nodeid);
 
 	if (!res) {
-		error("dojailconfig: %s: DB Error getting image info!\n",
+		error("get_imagestrings: %s: DB Error getting image info!\n",
 		       reqp->nodeid);
 		return 1;
 	}
+
+	/* Fill out the imstrings struct passed in with info from the DB. */
 	if (mysql_num_rows(res)) {
-		int version;
 		row = mysql_fetch_row(res);
-
-		bufp += OUTPUT(bufp, ebufp - bufp,
-			       "IMAGENAME=\"%s,%s,%s",
-			       row[0], row[1], row[2]);
-		/*
-		 * older mkvnode could not handle :version, and to be
-		 * backwards compatable with existing nodes, we do not
-		 * return a :0 version.
-		 */
-		version = atoi(row[3]);
-		if (vers >= 39 && WITHPROVENANCE) {
-			bufp += OUTPUT(bufp, ebufp - bufp, ":%s", row[3]);
+		if (!row[0] || !row[1] || !row[3] || !row[4]) {
+			error("get_imagestrings: %s: invalid data returned "
+			      "from DB query!\n", reqp->nodeid);
+			return 1;
 		}
-		bufp += OUTPUT(bufp, ebufp - bufp, "\"\n");
-	}
-	mysql_free_result(res);
+		strncpy(imstrings->pid, row[0], sizeof(imstrings->pid));
+		strncpy(imstrings->gid, row[1], sizeof(imstrings->gid));
+		strncpy(imstrings->name, row[2], sizeof(imstrings->name));
+		strncpy(imstrings->version, row[3], sizeof(imstrings->version));
 
-	client_writeback(sock, buf, strlen(buf), tcp);
-	return 0;
+		if (debug)
+			info("get_imagestrings: %s: PID=%s GID=%s NAME=%s "
+			     "VERSION=%s",
+			     reqp->nodeid, imstrings->pid, imstrings->gid, 
+			     imstrings->name, imstrings->version);
+		retval = 0;
+	} else {
+		error("get_imagestrings: %s: No info returned for image "
+		     "running on this node!", reqp->nodeid);
+		retval = 1;
+	}
+
+	mysql_free_result(res);
+	return retval;
 }
 
 /*
@@ -8099,6 +8201,10 @@ COMMAND_PROTOTYPE(doprogagents)
 	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
 	int		nrows;
+
+	/* Short-circuit program agents for nodes tainted with 'blackbox'.*/
+	if (HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX))
+		return 0;
 
 	res = mydb_query("select vname,command,dir,timeout,expected_exit_code "
 			 "from virt_programs "
