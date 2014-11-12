@@ -46,7 +46,9 @@ use vars qw(@ISA @EXPORT $AUTOLOAD);
 use EmulabConstants;
 use emutil;
 use emdb;
+use APT_Dataset;
 use GeniXML;
+use GeniHRN;
 use libtestbed;
 use English;
 use Data::Dumper;
@@ -57,6 +59,14 @@ my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 
 my $debug = 0;
+
+# Concat id/vers.
+sub versid($)
+{
+    my ($self) = @_;
+
+    return $self->profileid() . ":" . $self->version();
+}
 
 sub BlessRow($$)
 {
@@ -313,6 +323,9 @@ sub Create($$$$$$)
     if (defined($parent)) {
 	$vquery .= ",parent_profileid=" . $parent->profileid();
 	$vquery .= ",parent_version=" . $parent->version();
+    }
+    if (exists($argref->{'script'}) && $argref->{'script'} ne "") {
+	$vquery .= ",script=" . DBQuoteSpecial($argref->{'script'});
     }
 
     # Back to the main table.
@@ -670,6 +683,53 @@ sub UpdateDiskImage($$)
     if ($self->UpdateVersion({"rspec" => GeniXML::Serialize($rspec)})) {
 	print STDERR "UpdateDiskImage: Could not update rspec\n";
 	return -1;
+    }
+    return 0;
+}
+
+#
+# Check blockstores. 
+#
+sub CheckDatasets($$$)
+{
+    my ($xml, $project, $pmsg) = @_;
+    my $rspec = GeniXML::Parse($xml);
+    if (! defined($rspec)) {
+	print STDERR "CheckDatasets: Could not parse rspec\n";
+	return -1;
+    }
+    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
+						   $ref,
+				   $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    my $leaseurn = GeniXML::GetText("persistent", $blockref);
+	    if (defined($leaseurn) && !GeniHRN::IsValid($leaseurn)) {
+		$$pmsg = "Persistent dataset name is not a valid URN";
+		return 1;
+	    }
+	    my ($authority, $type, $id) = GeniXML::Parse($leaseurn);
+	    #
+	    # Not all backends have blockstore support.
+	    #
+	    if (!APT_Dataset::ValidBlockstoreBackend($authority)) {
+		$$pmsg = "Persistent dataset is not on a valid aggregate";
+		return 1;
+	    }
+	    #
+	    # Dataset must already exists on the aggregate.
+	    #
+	    my $pid     = $project->pid();
+	    my $dataset = APT_Dataset->Lookup("$pid/$id");
+	    if (!defined($dataset)) {
+		$$pmsg = "Persistent dataset '$pid/$id' does not exist";
+		return 1;
+	    }
+	    my ($d_authority) = GeniXML::Parse($dataset->aggregate_urn());
+	    if ($d_authority ne $authority) {
+		$$pmsg = "Persistent dataset '$pid/$id' in not on $authority";
+		return 1;
+	    }
+	}
     }
     return 0;
 }

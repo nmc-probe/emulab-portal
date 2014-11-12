@@ -1,5 +1,6 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'filesize', 'js/JacksEditor', 'js/image',
+	['underscore', 'js/quickvm_sup', 'filesize', 'js/JacksEditor',
+	 'js/image', 'moment',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
@@ -11,7 +12,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/instantiate-modal.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
-function (_, sup, filesize, JacksEditor, ShowImagingModal,
+function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,
 	  guestInstantiateString, publishString, instantiateString)
@@ -21,6 +22,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
     var version_uuid = null;
     var snapping     = 0;
     var gotrspec     = 0;
+    var gotscript    = 0;
     var ajaxurl      = "";
     var amlist       = null;
     var modified     = false;
@@ -52,6 +54,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	if (_.has(fields, "profile_rspec")) {
 	    gotrspec = 1;
 	}
+	// Ditto a script.
+	if (_.has(fields, "profile_script") && fields["profile_script"] != "") {
+	    gotscript = 1;
+	}
+	
 	// no place to show rspec errors, so convert to general error.
 	if (_.has(errors, "rspec")) {
 	    errors.error = "rspec: " + errors.rspec;
@@ -94,8 +101,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	editor = new JacksEditor($('#editmodal_div'));
     	var renderer_html = rendererTemplate({});
 	$('#renderer_div').html(renderer_html);
-    	var rspectext_html = rspectextTemplate({});
-	$('#rspectext_div').html(rspectext_html);
     	var oops_html = oopsTemplate({});
 	$('#oops_div').html(oops_html);
     	var guest_html = guestInstTemplate({});
@@ -103,13 +108,15 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	$('#publish_div').html(publishString);
     	var instantiate_html = InstTemplate({ amlist: amlist });
 	$('#instantiate_div').html(instantiate_html);
+    	var rspectext_html = rspectextTemplate({});
+	$('#rspectext_div').html(rspectext_html);
 	
 	//
 	// Fix for filestyle problem; not a real class I guess, it
 	// runs at page load, and so the filestyle'd button in the
 	// form is not as it should be.
 	//
-	$('#rspecfile').each(function() {
+	$('#sourcefile').each(function() {
 	    $(this).filestyle({input      : false,
 			       buttonText : $(this).attr('data-buttonText'),
 			       classButton: $(this).attr('data-classButton')});
@@ -120,76 +127,84 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	    trigger: 'hover',
 	    container: 'body'
 	});
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("lll"));
+	    }
+	});
 	$('body').show();
 
 	//
 	// File upload handler.
 	// 
-	$('#rspecfile').change(function() {
+	$('#sourcefile').change(function() {
 		var reader = new FileReader();
 		reader.onload = function(event) {
 		    var newrspec = event.target.result;
 
-		    // Allow editing the boxes now that we have an rspec.
-		    $('#profile_instructions').prop("disabled", false);
-		    $('#profile_description').prop("disabled", false);
-
-		    // Show the hidden buttons (in new profile mode)
-		    $('#edit_topo_modal_button').removeClass("invisible");
-		    $('#show_rspec_modal_button').removeClass("invisible");
-
-		    //
-		    // We do not throw away the old rspec until we parse
-		    // and confirm that the tour section has not been lost. 
-		    //
-		    if (newrspec != $('#profile_rspec_textarea').val()) {
-			NewRspecHandler(newrspec,
-					$('#profile_rspec_textarea').val());
-		    }
+		    changeRspec(newrspec);
 		};
 		reader.readAsText(this.files[0]);
 	});
 
+	// Handler for all paths to rspec change (file upload, jacks, edit).
 	function changeRspec(newRspec)
 	{
-	    $('#profile_rspec_textarea').val(newRspec);
-	    EnableButton('profile_instructions');
-	    EnableButton('profile_description');
-	    if (! stepsInitialized)
-	    {
-		InitStepsTable(newRspec);
+	    var myRe = /^import/m;
+	    if (myRe.test(newRspec)) {
+		//
+		// A geni-lib script. We are going to pass the script to
+		// the server to be "run", which returns XML.
+		//
+		if (newRspec != $('#profile_script_textarea').val()) {
+		    checkScript(newRspec);
+		}
+		return;
 	    }
-	    ChangeHandlerAux("instructions");
-	    ChangeHandlerAux("description");
-	    SyncSteps();
-	    ProfileModified();
+	    NewRspecHandler(newRspec);
 	}
 	$('#edit_topo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    editor.show($('#profile_rspec_textarea').val(), changeRspec);
 	});
-	// The Show rspec button.
-	$('#show_rspec_modal_button').click(function (event) {
-	    // Sync up the steps when toggling the edit button.
-	    SyncSteps();
-	    $('#modal_profile_rspec_textarea').val(
-		$('#profile_rspec_textarea').val());
+	// The Show Source button.
+	$('#show_source_modal_button').click(function (event) {
+	    //
+	    // The "source" is either the script or the XML if there
+	    // is no script.
+	    //
+	    var source = $.trim($('#profile_script_textarea').val());
+	    if (!source.length) {
+		source = $.trim($('#profile_rspec_textarea').val());
+	    }
+	    $('#rspec_modal_editbuttons').removeClass("hidden");
+	    $('#rspec_modal_viewbuttons').addClass("hidden");
+	    $('#modal_profile_rspec_textarea').prop("readonly", false);	    
+	    $('#modal_profile_rspec_textarea').val(source);
+	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
+	    $('#rspec_modal').modal('show');
+	});
+	// The Show XML button.
+	$('#show_xml_modal_button').click(function (event) {
+	    //
+	    // Show the XML source in the modal. This is used when we
+	    // have a script, and the XML was generated. We show the
+	    // XML, but it is not intended to be edited.
+	    //
+	    var source = $.trim($('#profile_rspec_textarea').val());
+	    $('#rspec_modal_editbuttons').addClass("hidden");
+	    $('#rspec_modal_viewbuttons').removeClass("hidden");
+	    $('#modal_profile_rspec_textarea').prop("readonly", true);	    
+	    $('#modal_profile_rspec_textarea').val(source);
 	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
 	    $('#rspec_modal').modal('show');
 	});
 	// Collapse; done editing the rspec in the modal.
 	$('#collapse_rspec_modal_button').click(function (event) {
 	    $('#rspec_modal').modal('hide');
-	    //
-	    // We do not throw away the old rspec until we parse and
-	    // confirm that the tour section has not been lost. We have
-	    // to do that as a continuation.
-	    //
-	    if ($('#modal_profile_rspec_textarea').val() !=
-		$('#profile_rspec_textarea').val()) {
-		NewRspecHandler($('#modal_profile_rspec_textarea').val(),
-				$('#profile_rspec_textarea').val());
-	    }
+	    changeRspec($('#modal_profile_rspec_textarea').val());
 	    $('#modal_profile_rspec_textarea').val("");
 	});
 	// Auto select the URL if the user clicks in the box.
@@ -197,7 +212,14 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	    $(this).focus();
 	    $(this).select();
 	});
-
+	// Handle Tour collapse/expand link..
+	$('#profile_steps_collapse').on('hide.bs.collapse', function () {
+	    $('#profile_steps_link').text("Show/Edit Tour");
+	})	
+	$('#profile_steps_collapse').on('show.bs.collapse', function () {
+	    $('#profile_steps_link').text("Hide Tour");
+	})
+	
 	// Confirm Delete profile.
 	$('#delete-confirm').click(function (event) {
 	    event.preventDefault();
@@ -290,19 +312,19 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	 * one and we want to use it if no description in the rspec.
 	 */
 	if (gotrspec) {
-	    var old_text = $('#profile_description').val();
-	    if (old_text != "") {
-		ChangeHandlerAux("description");
+	    ExtractFromRspec();
+	    // We also got a geni-lib script, so show the XML button.
+	    if (gotscript) {
+		$('#show_xml_modal_button').removeClass("hidden");
 	    }
-	    ExtractFromRspec($('#profile_rspec_textarea').val());
 	}
 	else {
 	    /*
 	     * Not editing, so disable the text boxes until we get
 	     * an rspec via the file chooser. 
 	     */
-	    DisableButton('profile_instructions');
-	    DisableButton('profile_description');
+	    $('#profile_instructions').prop("disabled", true);
+	    $('#profile_description').prop("disabled", true);
 	}
 	//
 	// Show/Hide the Update Successful animation.
@@ -488,7 +510,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
     }
 
     //
-    // Sync the steps table to the rspec textarea.
+    // Sync the steps table to the rspec XML.
     //
     function SyncSteps()
     {
@@ -501,16 +523,18 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	var xmlDoc = $.parseXML(rspec);
 	var xml    = $(xmlDoc);
 
-	// Add the tour section and the subsection (if needed).
-	xml = AddTourSection(xml);
-
-	// Kill existing steps, we create new ones.
+	// Kill existing steps section, we create new ones if needed.
 	var tour  = $(xml).find("rspec_tour");
-	var sub   = $(tour).find("steps");
-	$(sub).remove();
-	xml = AddTourSubSection(xml, "steps");
-
+	if (tour.length) {
+	    var sub   = $(tour).find("steps");
+	    $(sub).remove();
+	}
+	
 	if ($('#profile_steps').appendGrid('getRowCount')) {
+	    xml  = AddTourSection(xml);
+	    xml  = AddTourSubSection(xml, "steps");
+	    tour = $(xml).find("rspec_tour");
+	    
 	    // Get all data rows from the steps table
 	    var data = $('#profile_steps').appendGrid('getAllValue');
 
@@ -619,9 +643,13 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
      * use the original tour section. Once we get confirmation, we can
      * continue with the update.
      */
-    function NewRspecHandler(newrspec, oldrspec)
+    function NewRspecHandler(newrspec)
     {
-	newrspec = $.trim(newrspec);
+	newrspec     = $.trim(newrspec);
+	var oldrspec = $.trim($('#profile_rspec_textarea').val());
+	if (newrspec == oldrspec) {
+	    return;
+	}
 	var findEncoding = RegExp('^\\s*<\\?[^?]*\\?>');
 	var match = findEncoding.exec(newrspec);
 	if (match) {
@@ -641,20 +669,30 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	       newrspec = s.serializeToString(newxml[0]);
 	    }
 	    $('#profile_rspec_textarea').val(newrspec);
-	    ExtractFromRspec(newrspec);
+	    ExtractFromRspec();
+	    SyncSteps();
 	    ProfileModified();
+	    // Allow editing the boxes now that we have an rspec.
+	    // This only matters on a brand new create age.
+	    $('#profile_instructions').prop("disabled", false);
+	    $('#profile_description').prop("disabled", false);
 	};
 
 	// No old rspec, use new one.
-	oldrspec = $.trim(oldrspec);
 	if (oldrspec == "") {
 	    continuation(false);
 	    return;
 	}
-	
 	var oldxmlDoc = parseXML(oldrspec);
 	if (oldxmlDoc == null)
 	    return;
+	
+	// A script generated rspec, reuse the old tour section.
+	if (gotscript) {
+	    continuation(true);
+	    return;
+	}
+	// Otherwise ask.
 	var oldxml    = $(oldxmlDoc);
 	var oldtour   = $(oldxml).find("rspec_tour");
 	
@@ -678,8 +716,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
      * boxes. More likely, they will not be in the rspec, and we have to
      * add them to the rspec_tour section.
      */
-    function ExtractFromRspec(rspec)
+    function ExtractFromRspec()
     {
+	var rspec  = $('#profile_rspec_textarea').val();
 	var xmlDoc = parseXML(rspec);
 	if (xmlDoc == null)
 	    return;
@@ -695,7 +734,14 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	    var text = $(this).text();
 	    $('#profile_instructions').val(text);
 	});
-	InitStepsTable(xml);
+	//
+	// First time we see the XML, grab step data out of it. But after
+	// that the steps table is authoritative, and so we sync the table
+	// back to the XML. 
+	//
+	if (! stepsInitialized) {
+	    InitStepsTable(xml);
+	}
     }
 
     //
@@ -906,6 +952,40 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal,
 	    alert("Could not parse XML!");
 	    return -1;
 	}
+    }
+
+    //
+    // Pass a geni-lib script to the server to run (convert to XML).
+    //
+    function checkScript(script)
+    {
+	// Save for later.
+	$('#profile_script_textarea').val(script);
+	
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    console.info(json.value);
+
+	    if (json.code) {
+		sup.SpitOops("oops",
+			     "<pre><code>" +
+			     $('<div/>').text(json.value).html() +
+			     "</code></pre>");
+		return;
+	    }
+	    if (json.value.rspec != "") {
+		gotscript = 1;
+		NewRspecHandler(json.value.rspec);
+		// Show the XML source button.
+		$('#show_xml_modal_button').removeClass("hidden");
+	    }
+	}
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "manage_profile",
+					    "CheckScript",
+					    {"script"   : script});
+	xmlthing.done(callback);
     }
 	
     $(document).ready(initialize);

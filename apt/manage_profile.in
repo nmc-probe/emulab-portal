@@ -35,19 +35,18 @@ use POSIX qw(setsid);
 #
 sub usage()
 {
-    print("Usage: manage_profile [-u uuid | -s uuid] <xmlfile>\n");
-    print("Usage: manage_profile [-r | -p] profile\n");
+    print("Usage: manage_profile create [-s uuid] <xmlfile>\n");
+    print("Usage: manage_profile update <profile> <xmlfile>\n");
+    print("Usage: manage_profile publish <profile>\n");
+    print("Usage: manage_profile delete <profile>\n");
     exit(-1);
 }
-my $optlist     = "du:rs:t:fp";
+my $optlist     = "ds:t:";
 my $debug       = 0;
-my $verify      = 0;	# Check data and return status only.
 my $update      = 0;
 my $snap        = 0;
-my $delete      = 0;
-my $skipadmin   = 0;
-my $force       = 0; # With delete.
 my $uuid;
+my $rspec;
 my $profile;
 my $instance;
 my $webtask;
@@ -92,6 +91,31 @@ sub UserError(;$);
 sub DeleteProfile($);
 sub PublishProfile($);
 
+# Parse args below.
+if (@ARGV < 2) {
+    usage();
+}
+my $action = shift(@ARGV);
+
+# The web interface (and in the future the xmlrpc interface) sets this.
+my $this_user = User->ImpliedUser();
+if (! defined($this_user)) {
+    $this_user = User->ThisUser();
+    if (!defined($this_user)) {
+	fatal("You ($UID) do not exist!");
+    }
+}
+
+if ($action eq "delete") {
+    exit(DeleteProfile($ARGV[0]));
+}
+elsif ($action eq "publish") {
+    exit(PublishProfile($ARGV[0]));
+}
+elsif (! ($action eq "create" || $action eq "update")) {
+    usage();
+}
+
 #
 # Parse command arguments. Once we return from getopts, all that should be
 # left are the required arguments.
@@ -103,16 +127,6 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"d"})) {
     $debug = 1;
 }
-if (defined($options{"f"})) {
-    $force = 1;
-}
-if (defined($options{"v"})) {
-    $verify = 1;
-}
-if (defined($options{"u"})) {
-    $update = 1;
-    $uuid = $options{"u"};
-}
 if (defined($options{"s"})) {
     $snap = 1;
     $uuid = $options{"s"};
@@ -120,27 +134,11 @@ if (defined($options{"s"})) {
 if (defined($options{"t"})) {
     $webtask_id = $options{"t"};
 }
-if (@ARGV != 1) {
-    usage();
+if ($action eq "update") {
+    $update = 1;
+    $uuid = shift(@ARGV);
 }
-# The web interface (and in the future the xmlrpc interface) sets this.
-my $this_user = User->ImpliedUser();
-if (! defined($this_user)) {
-    $this_user = User->ThisUser();
-    if (!defined($this_user)) {
-	fatal("You ($UID) do not exist!");
-    }
-}
-
-# Remove profile.
-if (defined($options{"r"})) {
-    exit(DeleteProfile($ARGV[0]));
-}
-elsif (defined($options{"p"})) {
-    exit(PublishProfile($ARGV[0]));
-}
-
-my $xmlfile  = shift(@ARGV);
+my $xmlfile = shift(@ARGV);
 
 #
 # These are the fields that we allow to come in from the XMLfile.
@@ -162,6 +160,7 @@ my %xmlfields =
      "profile_public"      => ["public",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "profile_shared"      => ["shared",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "rspec"		   => ["rspec",		$SLOT_REQUIRED|$SLOT_UPDATE],
+     "script"		   => ["script",	$SLOT_OPTIONAL|$SLOT_UPDATE],
 );
 
 #
@@ -232,7 +231,7 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
 	    $value = $default;
 	}
     }
-    if ($required & $SLOT_ADMINONLY && !$skipadmin) {
+    if ($required & $SLOT_ADMINONLY) {
 	# Admin implies optional, but thats probably not correct approach.
 	$errors{$key} = "Administrators only"
 	    if (! $this_user->IsAdmin());
@@ -247,6 +246,10 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
     $new_args{$dbslot} = $value;
     $update_args{$dbslot} = $value
 	if ($update && ($required & $SLOT_UPDATE));
+
+    if ($key eq "rspec") {
+	$rspec = $value;
+    }
 }
 UserError()
     if (keys(%errors));
@@ -291,20 +294,29 @@ if ($update) {
     delete($update_args{"description"});
 
     #
-    # If the rspec changed, then make a new version of the profile.
+    # If the rspec/script changed, then make a new version of the profile.
     # Everything else is metadata.
     #
-    if (exists($update_args{"rspec"})) {
-	if ($update_args{"rspec"} ne $profile->rspec()) {
+    if (exists($update_args{"rspec"}) || exists($update_args{"script"})) {
+	if ((exists($update_args{"rspec"}) &&
+	     $update_args{"rspec"} ne $profile->rspec()) ||
+	    (exists($update_args{"script"}) &&
+	     $update_args{"script"} ne $profile->script())) {
 	    if ($this_user->IsAdmin()) {
 		$profile = $profile->NewVersion($this_user);
 		if (!defined($profile)) {
 		    fatal("Could not create new version of the profile");
 		}
 	    }
-	    $profile->UpdateVersion({"rspec" => $update_args{"rspec"}});
+	    $profile->UpdateVersion({"rspec" => $update_args{"rspec"}})
+		if (exists($update_args{"rspec"}));
+	    $profile->UpdateVersion({"script" => $update_args{"script"}})
+		if (exists($update_args{"script"}));
 	}
-	delete($update_args{"rspec"});
+	delete($update_args{"rspec"})
+	    if (exists($update_args{"rspec"}));
+	delete($update_args{"script"})
+	    if (exists($update_args{"script"}));
     }
     $profile->UpdateMetaData(\%update_args) == 0 or
 	fatal("Could not update profile record");

@@ -121,7 +121,7 @@ function Do_DeleteProfile()
     # Invoke backend.
     #
     $retval = SUEXEC($this_uid, $profile->pid(),
-		     "webmanage_profile -r " . $profile->uuid(),
+		     "webmanage_profile delete " . $profile->uuid(),
 		     SUEXEC_ACTION_CONTINUE);
     if ($retval != 0) {
 	$error = "Transient error; please try again later";
@@ -185,7 +185,7 @@ function Do_PublishProfile()
     # Invoke backend.
     #
     $retval = SUEXEC($this_uid, $profile->pid(),
-		     "webmanage_profile -p " . $profile->uuid(),
+		     "webmanage_profile publish " . $profile->uuid(),
 		     SUEXEC_ACTION_CONTINUE);
     if ($retval != 0) {
 	$error = "Transient error; please try again later";
@@ -336,6 +336,65 @@ function Do_Instantiate()
     # Return the instance uuid so we can redirect user to the status page.
     #
     SPITAJAX_RESPONSE(array("quickvm_uuid"    => $instance->uuid()));
+}
+
+#
+# Run a geni-lib script, returning the XML.
+#
+function Do_CheckScript()
+{
+    global $this_user;
+    global $ajax_args;
+    
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+
+    #
+    # Only local users for now, not users whose accounts were created
+    # by geni-login. Not until we have proper sandboxing while running
+    # the geni-lib code.
+    #
+    if ($this_user->IsNonLocal()) {
+	SPITAJAX_ERROR(1, "You are not allowed to use geni-lib scripts.");
+	return;
+    }
+
+    if (!isset($ajax_args["script"])) {
+	SPITAJAX_ERROR(1, "Missing script");
+	return;
+    }
+    $infname  = tempnam("/tmp", "genilibin");
+    $outfname = tempnam("/tmp", "genilibout");
+
+    $fp = fopen($infname, "w");
+    fwrite($fp, $ajax_args["script"]);
+    fclose($fp);
+    chmod($infname, 0666);
+    chmod($outfname, 0666);
+
+    #
+    # Invoke the backend.
+    #
+    $retval = SUEXEC($this_uid, "nobody",
+		     "webrungenilib -o $outfname $infname",
+		     SUEXEC_ACTION_IGNORE);
+    
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal error, we have been notified");
+	}
+	else {
+	    $errors = file_get_contents($outfname);
+	    SPITAJAX_ERROR(1, $errors);
+	}
+    }
+    else {
+	$rspec = file_get_contents($outfname);
+	SPITAJAX_RESPONSE(array("rspec"  => $rspec));
+    }
+    unlink($infname);
+    unlink($outfname);
 }
 
 # Local Variables:

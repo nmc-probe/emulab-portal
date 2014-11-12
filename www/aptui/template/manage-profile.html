@@ -7,7 +7,7 @@
       <div class='panel-heading'>
         <h4 class='panel-title'><%= title %></h4>
       </div>
-      <div class='panel-body'>
+      <div class='panel-body' style='overflow: hidden'>
 	<table class='table-condensed nospaceafter'
 	       style='font-size:12px;'>
 	  <tr>
@@ -28,28 +28,36 @@
 	  </tr>
 	  <tr>
 	    <td>Created:</td>
-	    <td><%- formfields.profile_created %></td>
+	    <td class='format-date' style='word-wrap:break-word;'>
+	      <%- formfields.profile_created %></td>
 	  </tr>
 	  <tr>
 	    <td>Published:</td>
-	    <td id='profile_published'><%- formfields.profile_published %></td>
+	    <td id='profile_published format-date'>
+	      <%- formfields.profile_published %></td>
 	  </tr>
 	  <tr>
 	    <td>Version&nbspURL:</td>
-	    <td><a href='<%- formfields.profile_version_url %>'
+	    <td><input href='<%- formfields.profile_version_url %>'
+		   onClick="this.select();"
+		   readonly 
 		   data-toggle="popover" data-html='true'
 		   data-content="Anyone with this URL can instantiate this
 		   <b>version</b> of your profile."
-		   data-triger='hover'>https://...</a>
+		   data-triger='hover'
+		   value='<%- formfields.profile_version_url %>'>
 	    </td>
 	  </tr>
 	  <tr>
 	    <td>Profile&nbspURL:</td>
-	    <td><a href='<%- formfields.profile_profile_url %>'
+	    <td><input href='<%- formfields.profile_profile_url %>'
+		   onClick="this.select();"
+		   readonly
 		   data-toggle="popover" data-html='true'
 		   data-content="This URL instantiates the
 		   most recently <b>published</b> version of your profile."
-		   data-triger='hover'>https://...</a>
+		   data-triger='hover'
+		   value='<%- formfields.profile_profile_url %>'>
 	    </td>
 	  </tr>
 	</table>
@@ -95,7 +103,9 @@
 	  <div class='row'>
 	    <div class='col-sm-12'>
 	      <% if (general_error) { %>
-	        <center><font color=red><%- general_error %></font></center>
+	        <center>
+		  <p class='lead text-danger'><%- general_error %></p>
+		</center>
 	      <% } %>
               <div id="notifyupdate"
 		   class="alert alert-success apt-success" style="display: none"
@@ -176,7 +186,7 @@
 	      <div class='row'>
                 <div class='col-xs-12'>
                   <input class='filestyle' type='file'
-			 name='rspecfile' id='rspecfile' 
+			 name='sourcefile' id='sourcefile' 
 			 data-classButton='btn btn-primary btn-xs'
 			 data-input='false'
 			 style='margin-right: 10px;'
@@ -189,16 +199,27 @@
 		  <button class='btn btn-primary btn-xs'
 			  type='button'
 			  style='margin-right: 10px;'
-			  id='show_rspec_modal_button'>
-                    XML Source</button>
+			  id='show_source_modal_button'>
+                    Source</button>
+		  <button class='btn btn-primary btn-xs hidden'
+			  type='button'
+			  style='margin-right: 10px;'
+			  id='show_xml_modal_button'>
+                    XML</button>
 		</div>
               </div>
  	      <textarea name="formfields[profile_rspec]"
 		        id='profile_rspec_textarea'
-		        rows=5
                         class='form-control hidden'
-                        type='textarea' data-key='profile_rspec'>
-		      <%- formfields.profile_rspec %></textarea>
+                        type='textarea'
+			data-key='profile_rspec'
+		        rows=5><%- formfields.profile_rspec %></textarea>
+ 	      <textarea name="formfields[profile_script]"
+		        id='profile_script_textarea'
+                        class='form-control hidden'
+                        type='textarea'
+			data-key='profile_script'
+			rows=5><%- formfields.profile_script %></textarea>
 	    </div>
 	    <textarea name=formfields[profile_description]
 		      id='profile_description'
@@ -223,13 +244,26 @@
  		                 to see a rendering.'
                       type='textarea'></textarea>
 	    
-	    <!-- Steps Table; hidden until the table is initialized
+	    <!-- Tour Table; hidden until the table is initialized
 	         from the rspec. -->
 	    <div class='row hidden' id='profile_steps_div'>
-	      <label for='profile_steps'
-		     class='col-sm-2 control-label'>Steps</label>
-	      <div class='col-sm-10'>
-		<table id='profile_steps' class='col-sm-12'></table>
+	      <div class='col-sm-10 col-sm-offset-2'>
+		<div class="panel" style='margin-bottom: 10px; border: 0px;'>
+		  <div class="panel-heading"
+		       style='border: 0px; padding: 5px; margin: 0px;'>
+		      <a data-toggle="collapse"
+			 id='profile_steps_link'
+			 href="#profile_steps_collapse">
+			Show/Edit Tour
+		      </a>
+		  </div>
+		  <div id="profile_steps_collapse"
+		       class="panel-collapse collapse">
+		    <div class="panel-body" style='padding: 0px; border: 0px;'>
+		      <table id='profile_steps' class='col-sm-12'></table>
+		    </div>
+		  </div>
+		</div>
 	      </div>
 	    </div>
 
