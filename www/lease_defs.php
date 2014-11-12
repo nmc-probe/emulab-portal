@@ -113,6 +113,7 @@ class Lease
     function owner_uid()     { return $this->field("owner_uid"); }
     function uuid()          { return $this->field("uuid"); }
     function pid()           { return $this->field("pid"); }
+    function gid()           { return $this->field("gid"); }
     function lease_type()    { return $this->field("type"); }
     function type()          { return $this->field("type"); }
     function inception()     { return $this->field("inception"); }
@@ -132,6 +133,7 @@ class Lease
     }
     function size()	{ return $this->attribute("size"); }
     function fstype()	{ return $this->attribute("fstype"); }
+    function islocal()  { return 1; }
 
     #
     # This is incomplete.
@@ -148,5 +150,14 @@ class Lease
 	}
 	return 0;
     }
+    #
+    # Form a URN for the dataset.
+    #
+    function URN() {
+	global $OURDOMAIN;
+	
+	return "urn:publicid:IDN+${OURDOMAIN}+dataset+" . $this->id();
+    }
+    
 }
 ?>
