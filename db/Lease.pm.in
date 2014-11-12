@@ -255,7 +255,7 @@ sub Lookup($$;$$)
 	    if ($arg3 !~ /^[-\w]+$/);
 	# arg1 is pid and arg2 is gid
 	return undef
-	    if ($arg2 !~ /^[-\w]+$/ || $arg3 !~ /^[-\w]+$/);
+	    if ($arg1 !~ /^[-\w]+$/ || $arg2 !~ /^[-\w]+$/);
 
 	$wclause = "pid='$arg1' and gid='$arg2' and lease_id='$arg3'";	
     }
