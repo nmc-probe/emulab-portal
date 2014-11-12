@@ -56,6 +56,7 @@ my $localuser  = 0;
 my $quickuuid;
 my $aggregate;
 my $this_user;
+my $xmlparse;
 
 # Protos
 sub fatal($);
@@ -231,14 +232,12 @@ if (!defined($cm_authority)) {
 #
 # Must wrap the parser in eval since it exits on error.
 #
-my $xmlparse = eval { XMLin($xmlfile,
-			    VarAttr => 'name',
-			    ContentKey => '-content',
-			    SuppressEmpty => undef); };
+$xmlparse = eval { XMLin($xmlfile,
+			 VarAttr => 'name',
+			 ContentKey => '-content',
+			 SuppressEmpty => undef); };
 fatal($@)
     if ($@);
-print STDERR Dumper($xmlparse)
-    if ($debug || $verbose);
 
 #
 # Make sure all the required arguments were provided.
@@ -481,9 +480,11 @@ my $slice_hrn   = "${PGENIDOMAIN}.${slice_id}";
 my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
 
 print STDERR "\n";
-print STDERR "$user_urn\n";
-print STDERR "$slice_urn\n";
-print STDERR "$SERVER_NAME\n";
+print STDERR "User:    $user_urn\n";
+print STDERR "Email:   $user_email" . (!$localuser ? " (guest)" : "") . "\n";
+print STDERR "Profile: " . $profile_object->name() . ":${version}\n";
+print STDERR "Slice:   $slice_urn\n";
+print STDERR "Server:  $SERVER_NAME\n";
 print STDERR "\n";
 print STDERR "$rspecstr\n";
 
@@ -699,6 +700,9 @@ exit(0);
 
 sub fatal($) {
     my ($mesg) = $_[0];
+
+    print STDERR Dumper($xmlparse)
+	if (defined($xmlparse));
 
     print STDERR "*** $0:\n".
 	         "    $mesg\n";
