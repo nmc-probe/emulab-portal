@@ -234,13 +234,14 @@ function Do_ApproveDataset()
     #
     $retval = SUEXEC($this_uid, $lease->pid(),
 		     "webapprovelease " .
-		     $lease->pid() . "/" . $lease->lease_id(),
+		     $lease->pid() . "/" .
+		        $lease->gid() . "/" . $lease->lease_id(),
 		     SUEXEC_ACTION_CONTINUE);
     if ($retval != 0) {
 	$error = "Transient error; please try again later";
 	
 	if ($retval && count($suexec_output_array)) {
-	    $error = $suexec_output_array[0];
+	    $error = $suexec_output;
 	}
 	SPITAJAX_ERROR(1, $error);
 	return;
