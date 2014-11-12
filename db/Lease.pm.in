@@ -344,7 +344,7 @@ sub Create($$;$) {
 	if (!defined($gid)) {
 	    $gid = $pid;
 	}
-	$group = Group->Lookup("$pid/$pid");
+	$group = Group->Lookup("$pid/$gid");
 	if (!defined($group)) {
 	    print STDERR "Lease->Create: Bad/Unknown project: $pid/$gid\n";
 	    return undef;
