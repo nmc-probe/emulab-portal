@@ -70,7 +70,9 @@
 			     value='ltdataset'> Long term
     	          </label>
 	      </div>
-	      <div id='dataset_expires_div'>
+	      <div id='dataset_expires_div'
+		   <% if (formfields.dataset_type == "ltdataset") {
+		      %> class='hidden' <% } %> >
 		<input name="dataset_expires"
 		       style='position: relative; z-index:1000;'
 		       id='dataset_expires'

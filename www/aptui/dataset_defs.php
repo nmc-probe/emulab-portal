@@ -84,7 +84,7 @@ class Dataset
     function field($name) {
 	return (is_null($this->dataset) ? -1 : $this->dataset[$name]);
     } 
-    function idx()           { return $this->field("_idx"); }
+    function idx()           { return $this->field("idx"); }
     function dataset_id()    { return $this->field("dataset_id"); }
     function id()            { return $this->field("dataset_id"); }
     function creator_uid()   { return $this->field("creator_uid"); }
@@ -92,6 +92,8 @@ class Dataset
     function uuid()          { return $this->field("uuid"); }
     function pid()           { return $this->field("pid"); }
     function pid_idx()       { return $this->field("pid_idx"); }
+    function gid()           { return $this->pid(); }
+    function aggregate_urn() { return $this->field("aggregate_urn"); }
     function type()          { return $this->field("type"); }
     function fstype()        { return $this->field("fstype"); }
     function created()       { return $this->field("created"); }
@@ -101,6 +103,7 @@ class Dataset
     function size()	     { return $this->field("size"); }
     function locked()	     { return $this->field("locked"); }
     function locker_pid()    { return $this->field("locker_pid"); }
+    function islocal()       { return 0; }
 
     #
     # This is incomplete.
@@ -116,6 +119,17 @@ class Dataset
 	    return 1;
 	}
 	return 0;
+    }
+
+    #
+    # Form a URN for the dataset.
+    #
+    function URN() {
+	if (!preg_match("/^([^\+]+)\+([^\+]+)/",
+			$this->aggregate_urn(), $matches)) {
+	    return "";
+	}
+	return $matches[1] . "+" . $matches[2] . "+dataset+" . $this->id();
     }
 }
 ?>

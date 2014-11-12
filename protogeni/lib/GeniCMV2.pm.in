@@ -2512,6 +2512,10 @@ sub CreateImage($)
     if (exists($argref->{'global'})) {
 	$opt .= " -g " . ($argref->{'global'} ? "1" : "0");
     }
+    else {
+	# Force shared (within project). 
+	$opt .= " -r 1";
+    }
     my $output =
 	GeniUtil::ExecQuiet("$CLONEIMAGE $opt -s $imagename $node_id");
     # Not a typical op, so always print debugging info;
@@ -3230,7 +3234,7 @@ sub CreateDataset($)
 	       $credential->HasPrivilege("blockstores")));
 
     # Get the project and group. This needs more thought. 
-    my $group = GeniUtil::GetHoldingProject($user->urn(), $user);
+    my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
     return $group
 	if (GeniResponse::IsResponse($group));
 
@@ -3239,7 +3243,7 @@ sub CreateDataset($)
 	GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS);
     }
 
-    my $cmd = "$CREATEDATASET -b -s $size ";
+    my $cmd = "$CREATEDATASET -C -b -s $size ";
     if (exists($argref->{'type'})) {
 	my $type = $argref->{'type'};
 	return GeniResponse->MalformedArgsResponse("Bad type")
@@ -3262,9 +3266,9 @@ sub CreateDataset($)
 	if (!str2time($expiration)) {
 	    return GeniResponse->MalformedArgsResponse("Bad expiration");
 	}
-	$cmd .= " -e '" . libtestbed::TBDateStringLocal($expiration) . "' ";
+	$cmd .= " -e '" . emutil::TBDateStringLocal($expiration) . "' ";
     }
-    $cmd .= " " . $group->pid() . "/" . $dataset;
+    $cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset;
     my $output = GeniUtil::ExecQuiet($cmd);
     # Not a typical op, so always print debugging info;
     print STDERR $output;
@@ -3275,7 +3279,7 @@ sub CreateDataset($)
     # Grab the lease to see if its been approved, we want to tell
     # the user something.
     #
-    my $lease = Lease->Lookup($group->pid(), $dataset);
+    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
     if (!defined($lease)) {
 	print STDERR "Could not lookup lease after createdataset\n";
 	GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -3323,11 +3327,11 @@ sub DeleteDataset($)
 	       $credential->HasPrivilege("blockstores")));
 
     # Get the project and group. This needs more thought. 
-    my $group = GeniUtil::GetHoldingProject($user->urn(), $user);
+    my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
     return $group
 	if (GeniResponse::IsResponse($group));
 
-    my $lease = Lease->Lookup($group->pid(), $dataset);
+    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
     if (!defined($lease)) {
 	GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
     }
@@ -3337,7 +3341,8 @@ sub DeleteDataset($)
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	if (0 && $user->uid() ne $lease->owner());
     
-    my $cmd = "$DELETEDATASET -b -f " . $group->pid() . "/" . $dataset;
+    my $cmd = "$DELETEDATASET -b -f " .
+	$group->pid() . "/" . $group->gid() . "/" . $dataset;
     my $output = GeniUtil::ExecQuiet($cmd);
     # Not a typical op, so always print debugging info;
     print STDERR $output;
@@ -3360,7 +3365,6 @@ sub DescribeDataset($)
     my $dataset      = $argref->{'name'};
     require Lease;
     require Blockstore;
-    require libtestbed;
 
     if (! (defined($credentials) && defined($dataset))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
@@ -3382,11 +3386,11 @@ sub DescribeDataset($)
 	       $credential->HasPrivilege("blockstores")));
 
     # Get the project and group. This needs more thought. 
-    my $group = GeniUtil::GetHoldingProject($user->urn(), $user);
+    my $group =  GeniUtil::GetHoldingProject($credential->target_urn(), $user);
     return $group
 	if (GeniResponse::IsResponse($group));
 
-    my $lease = Lease->Lookup($group->pid(), $dataset);
+    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
     if (!defined($lease)) {
 	GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
     }
@@ -3394,9 +3398,9 @@ sub DescribeDataset($)
     $blob->{'state'}    = $lease->state();
     $blob->{'type'}     = $lease->type();
     $blob->{"busy"}     = $lease->locked() ? 1 : 0;
-    $blob->{'created'}  = libtestbed::TBDateStringGMT($lease->inception());
-    $blob->{'expires'}  = libtestbed::TBDateStringGMT($lease->lease_end());
-    $blob->{'lastused'} = libtestbed::TBDateStringGMT($lease->last_used());
+    $blob->{'created'}  = emutil::TBDateStringGMT($lease->inception());
+    $blob->{'expires'}  = emutil::TBDateStringGMT($lease->lease_end());
+    $blob->{'lastused'} = emutil::TBDateStringGMT($lease->last_used());
     
 
     my $bstore = Blockstore->LookupByLease($lease->idx());

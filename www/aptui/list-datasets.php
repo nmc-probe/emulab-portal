@@ -165,7 +165,7 @@ while ($row = mysql_fetch_array($query_result)) {
 	$name    = $row["dataset_id"];
 	$pid     = $row["pid"];
 	$creator = $row["creator_uid"];
-	$created = $row["created"];
+	$created = DateStringGMT($row["created"]);
 	$state   = $row["state"];
     }
 
@@ -182,7 +182,7 @@ while ($row = mysql_fetch_array($query_result)) {
 	echo "<td>$creator</td>";
     }
     echo "  <td style='white-space:nowrap'>$pid</td>
-            <td>$created</td>
+            <td class='format-date'>$created</td>
             <td>$state</td>
            </tr>\n";
 }

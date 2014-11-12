@@ -45,6 +45,13 @@ function (sup)
 	    // pressing escape to cancel the search
 	    $.tablesorter.filter.bindSearch( table, $('#dataset_search') );
 	}
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("lll"));
+	    }
+	});
 
 	//
 	// When embedded, we want the Show link to go through the outer

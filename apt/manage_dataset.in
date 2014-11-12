@@ -234,7 +234,7 @@ sub DoCreate()
     };
     $blob->{"fstype"} = $fstype
 	if (defined($fstype));
-    $blob->{"expires"} = $expires
+    $blob->{"expires"} = TBDateStringLocal($expires)
 	if (defined($expires));
 
     my $dataset = APT_Dataset->Create($blob);
@@ -337,7 +337,8 @@ sub DoDelete()
 	fatal("dataset is busy, cannot lock it");
     }
     my $response = $dataset->DeleteDataset();
-    if ($response->code() != GENIRESPONSE_SUCCESS) {
+    if ($response->code() != GENIRESPONSE_SUCCESS &&
+	$response->code() != GENIRESPONSE_SEARCHFAILED) {
 	$errmsg = "DeleteDataset failed: ". $response->output() . "\n";
 	goto failed;
     }

@@ -63,6 +63,9 @@ $candelete  = (ISADMIN() || $dataset->owner_uid() == $this_uid ? 1 : 0);
 $canapprove = ($embedded && ISADMIN() &&
 	       $dataset->state() == "unapproved" ? 1 : 0);
 
+# Remote datasets can be refreshed.
+$canrefresh = ($dataset->islocal() ? 0 : 1);
+
 $fields = array();
 if ($dataset->type() == "stdataset") {
     $fields["dataset_type"] = "short term";
@@ -75,16 +78,19 @@ else {
 }
 $fields["dataset_creator"]  = $dataset->owner_uid();
 $fields["dataset_pid"]      = $dataset->pid();
+$fields["dataset_gid"]      = $dataset->gid();
 $fields["dataset_name"]     = $dataset->id();
 $fields["dataset_size"]     = $dataset->size();
-$fields["dataset_fstype"]   = ($dataset->fstype() ? $dataset->fstype() : "none");
-$fields["dataset_created"]  = $dataset->created();
+$fields["dataset_fstype"]   = ($dataset->fstype() ?
+			       $dataset->fstype() : "none");
+$fields["dataset_created"]  = DateStringGMT($dataset->created());
 $fields["dataset_expires"]  = ($dataset->expires() ?
-			       $dataset->expires() : "");
+			       DateStringGMT($dataset->expires()) : "");
 $fields["dataset_lastused"] = ($dataset->last_used() ?
-			       $dataset->last_used() : "");
+			       DateStringGMT($dataset->last_used()) : "");
 $fields["dataset_uuid"]     = $uuid;
 $fields["dataset_idx"]      = $dataset->idx();
+$fields["dataset_urn"]      = $dataset->URN();
 
 #
 # The state is a bit of a problem, since local leases do not have
@@ -116,6 +122,7 @@ echo "    window.TITLE      = '$page_title';\n";
 echo "    window.UUID       = '$uuid';\n";
 echo "    window.CANDELETE  = $candelete;\n";
 echo "    window.CANAPPROVE = $canapprove;\n";
+echo "    window.CANREFRESH = $canrefresh;\n";
 echo "</script>\n";
 SPITREQUIRE("show-dataset");
 SPITFOOTER();

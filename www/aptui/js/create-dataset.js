@@ -149,6 +149,7 @@ function (_, sup, mainString)
 		    return;
 		}
 		sup.SpitOops("oops", json.value);
+		return;
 	    }
 	    // Now do the actual create.
 	    if (checkonly) {

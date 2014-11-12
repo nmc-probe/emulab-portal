@@ -21,6 +21,12 @@
 		<td>Project</td>
 		<td><%- formfields.dataset_pid %></td>
 	      </tr>
+	      <% if (formfields.dataset_pid != formfields.dataset_gid) { %>
+	        <tr>
+		  <td>Group</td>
+		  <td><%- formfields.dataset_gid %></td>
+		</tr>
+	      <% } %>
 	      <tr>
 		<td>Creator</td>
 		<td><%- formfields.dataset_creator %></td>
@@ -35,15 +41,15 @@
 	      </tr>
 	      <tr>
 		<td>Created</td>
-		<td><%- formfields.dataset_created %></td>
+		<td class='format-date'><%- formfields.dataset_created %></td>
 	      </tr>
 	      <tr>
 		<td>Expires</td>
-		<td><%- formfields.dataset_expires %></td>
+		<td class='format-date'><%- formfields.dataset_expires %></td>
 	      </tr>
 	      <tr>
 		<td>Last Used</td>
-		<td><%- formfields.dataset_lastused %></td>
+		<td class='format-date'><%- formfields.dataset_lastused %></td>
 	      </tr>
 	      <tr>
 		<td>FS Type</td>
@@ -52,6 +58,10 @@
 	      <tr>
 		<td>State</td>
 		<td><%- formfields.dataset_state %></td>
+	      </tr>
+	      <tr>
+		<td>URN</td>
+		<td><%- formfields.dataset_urn %></td>
 	      </tr>
 	      <tr>
 		<td>Internal ID</td>
@@ -66,6 +76,13 @@
                   style='margin-right: 10px;'
      		  data-toggle='modal' data-target='#delete_modal'
                   type='button' name='delete'>Delete
+	  </button>
+	<% } %>
+ 	<% if (canrefresh) { %>
+	  <button class='btn btn-primary btn-sm pull-left'
+                  id='dataset_refresh_button'
+                  style='margin-right: 10px;'
+                  type='button'>Refresh
 	  </button>
 	<% } %>
  	<% if (canapprove) { %>

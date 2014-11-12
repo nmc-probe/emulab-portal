@@ -35,6 +35,7 @@ function Do_CreateDataSet()
     global $this_user;
     global $ajax_args;
     global $DBFieldErrstr, $TBDIR, $APTBASE, $embedded;
+    global $suexec_output, $suexec_output_array;
 
     $this_idx   = $this_user->uid_idx();
     $this_uid   = $this_user->uid();
@@ -245,6 +246,48 @@ function Do_ApproveDataset()
 	return;
     }
     SPITAJAX_RESPONSE("$APTBASE/show-dataset.php?uuid=$lease_uuid");
+}
+
+function Do_RefreshDataset()
+{
+    global $this_user;
+    global $ajax_args;
+    global $suexec_output, $suexec_output_array, $APTBASE;
+    
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing uuid");
+	return;
+    }
+    $uuid    = $ajax_args["uuid"];
+    $dataset = Dataset::Lookup($uuid);
+    if (!$dataset) {
+	SPITAJAX_ERROR(1, "Unknown dataset");
+	return;
+    }
+    if ($this_uid != $dataset->owner_uid() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission");
+	return;
+    }
+    #
+    # Invoke backend.
+    #
+    $retval = SUEXEC($this_uid, $dataset->pid(),
+		     "webmanage_dataset refresh " .
+		     $dataset->pid() . "/" . $dataset->id(),
+		     SUEXEC_ACTION_CONTINUE);
+    if ($retval != 0) {
+	$error = "Transient error; please try again later";
+	
+	if ($retval && count($suexec_output_array)) {
+	    $error = $suexec_output_array[0];
+	}
+	SPITAJAX_ERROR(1, $error);
+	return;
+    }
+    SPITAJAX_RESPONSE(0);
 }
 
 # Local Variables:

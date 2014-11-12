@@ -6772,11 +6772,20 @@ sub HandleBlockstore($$$$)
 	$message = "Missing blockstore mount point";
 	goto bad;
     }
-    if (defined($leasename) &&
-	!TBcheck_dbslot($leasename, "project_leases", "lease_id",
-			TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-	$message = "Illegal blockstore lease name for $bsname";
-	goto bad;;
+    if (defined($leasename)) {
+	if (GeniHRN::IsValid($leasename)) {
+	    my (undef,$type,$id) = GeniHRN::Parse($leasename);
+	    if ($type ne "dataset") {
+		$message = "Illegal persistent urn for $bsname";
+		goto bad;
+	    }
+	    $leasename = $id;
+	}
+	if (!TBcheck_dbslot($leasename, "project_leases", "lease_id",
+			    TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	    $message = "Illegal persistent name for $bsname";
+	    goto bad;
+	}
     }
     if (!defined($readonly)) {
 	$readonly = 0;
@@ -6818,10 +6827,9 @@ sub HandleBlockstore($$$$)
 	    my $lease = Lease->Lookup($experiment->pid(), $leasename);
 	    if (!defined($lease)) {
 		#
-		# Need to create the dataset. Eventually this needs to
-		# be its own API, but for now it needs to already exist.
+		# Dataset must already exist.
 		#
-		$message = "Unknown lease for $bsname: $leasename";
+		$message = "No such persistent dataset for $bsname: $leasename";
 		goto bad;
 	    }
 	    my $blockstore = Blockstore->LookupByLease($lease->lease_idx());
