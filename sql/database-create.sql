@@ -2301,7 +2301,7 @@ DROP TABLE IF EXISTS `lease_permissions`;
 CREATE TABLE `lease_permissions` (
   `lease_idx` int(10) unsigned NOT NULL default '0',
   `lease_id` varchar(32) NOT NULL default '',
-  `permission_type` enum('user','group') NOT NULL default 'user',
+  `permission_type` enum('user','group','global') NOT NULL default 'user',
   `permission_id` varchar(128) NOT NULL default '',
   `permission_idx` mediumint(8) unsigned NOT NULL default '0',
   `allow_modify` tinyint(1) NOT NULL default '0',
