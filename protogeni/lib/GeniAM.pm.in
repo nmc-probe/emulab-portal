@@ -539,24 +539,6 @@ sub SliverStatus()
 	next
 	    if (!defined($sliver));
 
-        # Put manifest info in...
-        my $manifest = $sliver->GetManifest(0);
-        if (0) {
-            # An example of how to include a single element from the
-            # manifest. Abondoned this approach and went to XmlToJson
-            # instead. Finds the "login", then the "hostname" inside
-            # the rspec
-            my $login = GeniXML::FindNodes(".//n:services//n:login", $manifest);
-            if (defined($login)) {
-                my $login = @$login[0];
-                my $host = GeniXML::GetText("hostname", $login);
-                if (defined($host)) {
-                    $child->{'pg_hostname'} = $host;
-                }
-            }
-        }
-        $child->{'pg_manifest'} = XmlToJson($manifest);
-        #$child->{'pg_xml_manifest'} = GeniXML::Serialize($manifest);
         push @children, $child;
     }
     $status->{'geni_resources'} = \@children;
