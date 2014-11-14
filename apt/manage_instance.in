@@ -111,15 +111,6 @@ if (defined($options{"d"})) {
 if (@ARGV < 2) {
     usage();
 }
-# The web interface (and in the future the xmlrpc interface) sets this.
-my $this_user = User->ImpliedUser();
-if (! defined($this_user)) {
-    $this_user = User->ThisUser();
-    if (!defined($this_user)) {
-	fatal("You ($UID) do not exist!");
-    }
-}
-
 my $action   = shift(@ARGV);
 my $uuid     = shift(@ARGV);
 my $instance = APT_Instance->Lookup($uuid);
@@ -167,6 +158,15 @@ sub DoSnapshot()
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
 	fatal("No slice for quick VM: $uuid");
+    }
+
+    # The web interface (and in the future the xmlrpc interface) sets this.
+    my $this_user = User->ImpliedUser();
+    if (! defined($this_user)) {
+	$this_user = User->ThisUser();
+	if (!defined($this_user)) {
+	    fatal("You ($UID) do not exist!");
+	}
     }
     
     #

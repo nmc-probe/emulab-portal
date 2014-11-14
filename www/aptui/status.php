@@ -132,8 +132,14 @@ $canclone        = (($profile->published() && isset($this_user) &&
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
 $isadmin         = (ISADMIN() ? 1 : 0);
-$dossh	         = (isset($this_user) &&
-		    $this_user->SameUser($creator) ? 1 : 0);
+
+#
+# We give ssh to the creator (real user or guest user).
+#
+$dossh =
+    (((isset($this_user) && $this_user->SameUser($creator)) ||
+      (isset($_COOKIE['quickvm_user']) &&
+       $_COOKIE['quickvm_user'] == $creator->uuid())) ? 1 : 0);
 
 #
 # See if we have a task running in the background for this instance.
