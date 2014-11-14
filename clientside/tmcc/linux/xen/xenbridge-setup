@@ -157,7 +157,7 @@ if (!$NOIP) {
 	if ($line =~ /^default via (\d+\.\d+\.\d+\.\d+)/) {
 	    $defroute = $1;
 	}
-	if ($line =~ /^default via [\w\.\/]*\s*dev\s*([\w]*)/) {
+	if ($line =~ /^default via [\w\.\/]+\s+dev\s+([\w\.]+)/) {
 	    $defiface = $1;
 	}
     }
