@@ -126,7 +126,7 @@ function Do_TerminateInstance()
 	return;
     }
     if ($webtask && $webtask->exited()) {
-	SPITAJAX_ERROR(1, $webtask->TaskData("output"));
+	SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	$webtask->Delete();
     }
     else {
@@ -353,7 +353,7 @@ function Do_ConsoleURL()
 	return;
     }
     if ($webtask) {
-	SPITAJAX_ERROR(1, $webtask->TaskData("output"));
+	SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	$webtask->Delete();
     }
     else {
@@ -414,6 +414,7 @@ function Do_Snapshot()
     $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval != 0) {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	if ($retval < 0) {
 	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
 	    # Notify tbops.
@@ -421,7 +422,7 @@ function Do_Snapshot()
 	    return;
 	}
 	if ($webtask) {
-	    SPITAJAX_ERROR(1, $webtask->TaskData("output"));
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	    $webtask->Delete();
 	}
 	else {

@@ -668,8 +668,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     function ShowTopo(uuid)
     {
 	var callback = function(json) {
+	    #console.info(json);
+	    
 	    if ($("#manifest_textarea").length) {
-		$("#manifest_textarea").html(json.value);
+		$("#manifest_textarea").val(json.value);
 		$("#manifest_textarea").css("height", "300");
 	    }
 

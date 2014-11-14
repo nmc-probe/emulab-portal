@@ -57,7 +57,7 @@ sub usage()
 	  "       -w     Wait for image to be created\n");
     exit(-1);
 }
-my $optlist     = "densg:wFr";
+my $optlist     = "densg:wFr:";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
