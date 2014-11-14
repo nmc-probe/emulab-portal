@@ -132,7 +132,8 @@ $canclone        = (($profile->published() && isset($this_user) &&
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
 $isadmin         = (ISADMIN() ? 1 : 0);
-$dossh	         = $this_user->SameUser($creator) ? 1 : 0;
+$dossh	         = (isset($this_user) &&
+		    $this_user->SameUser($creator) ? 1 : 0);
 
 #
 # See if we have a task running in the background for this instance.

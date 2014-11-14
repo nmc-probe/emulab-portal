@@ -279,7 +279,7 @@ class User
     # Equality test.
     #
     function SameUser($user) {
-	return $user->uid_idx() == $this->uid_idx();
+	return $user->idx() == $this->idx();
     }
 
     #
