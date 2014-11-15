@@ -168,7 +168,9 @@ function Do_GetSSHAuthObject()
     #
     # XXX Need to deal with multiple members of an experiment.
     #
-    if (!$this_user->SameUser($creator)) {
+    if (! ((isset($this_user) && $this_user->SameUser($creator)) ||
+	   (isset($_COOKIE['quickvm_user']) &&
+	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
 	SPITAJAX_ERROR(1, "Not allowed to ssh; only the creator");
 	return;
     }
