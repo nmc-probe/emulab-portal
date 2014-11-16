@@ -76,6 +76,8 @@ CREATE TABLE `apt_datasets` (
   `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
   `fstype` varchar(40) NOT NULL default 'none',
   `size` int(10) unsigned NOT NULL default '0',
+  `public` tinyint(1) NOT NULL default '0',
+  `shared` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL, 
   `locker_pid` int(11) default '0',
   PRIMARY KEY (`idx`),
