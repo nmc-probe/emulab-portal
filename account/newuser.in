@@ -214,7 +214,7 @@ print STDERR Dumper($xmlparse)
 if (exists($xmlparse->{'attribute'}->{"genesis"})) {
     $genesis = $xmlparse->{'attribute'}->{"genesis"}->{'value'};
     delete($xmlparse->{'attribute'}->{"genesis"});
-    if (! ($genesis eq "aptlab.net" || $genesis eq "cloudlab")) {
+    if (! ($genesis eq "aptlab" || $genesis eq "cloudlab")) {
 	fatal("Bad genesis: $genesis");
     }
     # Remove these, we do not require them on the APT path.

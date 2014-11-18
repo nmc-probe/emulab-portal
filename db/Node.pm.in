@@ -3123,6 +3123,14 @@ sub OSSelect($$$$)
 	}
 	$osinfo = $nextosinfo;
     }
+
+    # Make sure the node is tainted if the OS selected is tainted.
+    if (defined($osinfo) && $osinfo->IsTainted()) {
+	if ($self->InheritTaintStates($osinfo) != 0) {
+	    print STDERR "Could not inherit taint states from $osinfo\n";
+	    return -1;
+	}
+    }
     
     if (defined($osinfo) && !defined($field)) {
 	print STDERR "No field specified for OSSelect on $nodeid\n";
@@ -3846,12 +3854,13 @@ sub InheritTaintStates($$) {
 
 #
 # Synchornize the node's taint states based on the OSes listed
-# for its partitions.  Any existing taint states on the node are
-# lost (unless they appear on one or more partition OSes).
+# for its partitions.  Existing taint states on the node are
+# maintainted.
 #
-sub SyncTaintStates($)
+sub SyncDiskPartitionTaintStates($)
 {
     my ($self) = @_;
+    my $error = 0;
     require OSinfo;
 
     my $node_id = $self->node_id();
@@ -3862,15 +3871,14 @@ sub SyncTaintStates($)
     return -1
 	if (!$query_result);
 
-    my @taint_states = ();
     while (my ($osid, $vers) = $query_result->fetchrow_array()) {
 	my $osinfo = OSinfo->Lookup($osid, $vers);
 	if (defined($osinfo) && $osinfo->IsTainted()) {
-	    push @taint_states, $osinfo->GetTaintStates();
+	    $error += $self->InheritTaintStates($osinfo);
 	}
     }
 
-    return $self->SetTaintStates(@taint_states);
+    return $error ? -1 : 0;
 }
 
 #

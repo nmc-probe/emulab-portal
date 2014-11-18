@@ -69,7 +69,7 @@ use Data::Dumper;
 use XML::Simple;
 use XML::LibXML;
 use Date::Parse;
-use POSIX qw(strftime tmpnam);
+use POSIX qw(strftime tmpnam ceil);
 use Time::Local;
 use Compress::Zlib;
 use File::Temp qw(tempfile);
@@ -92,7 +92,6 @@ my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
 my $PROTOUSER 	   = "elabman";
 my $CREATEEXPT     = "$TB/bin/batchexp";
 my $ENDEXP         = "$TB/bin/endexp";
-my $NALLOC	   = "$TB/bin/nalloc";
 my $NFREE	   = "$TB/bin/nfree";
 my $AVAIL	   = "$TB/sbin/avail";
 my $PTOPGEN	   = "$TB/libexec/ptopgen";
@@ -123,7 +122,6 @@ my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
-my $USELOCALPROJ   = 0;
 
 #
 # Tell the client what API revision we support.  The correspondence
@@ -1081,6 +1079,10 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			$virtexperiment->multiplex_factor(5);
 			$virtexperiment->encap_style("vlan");
 		    }
+		    elsif ($virtualization_subtype eq "emulab-blockstore") {
+			$osname = "BLOCKSTORE-VM";
+			$pctype = "blockstore";
+		    }
 		    elsif ($virtualization_subtype eq "emulab-connect") {
 			$osname = "GENERICDEV-VM";
 			$pctype = "interconnect-vm";
@@ -1540,11 +1542,11 @@ sub GetTicketAuxAux($$$$$$$$$$)
 			# ignore silly user.
 			next;
 		    }
-		    if ($isshared && $attrvalue > 8) {
+		    if ($isshared && $attrvalue > 30) {
 			$response =
 			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "Bad XEN setting; ".
-						 "limited to 8GB extra disk");
+						 "limited to 30GB extra disk");
 			goto bad;
 		    }
 		}
@@ -1677,6 +1679,17 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    "vport"    => $vport,
 		};
 	    }
+	}
+	#
+	# Local blockstores
+	#
+	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
+						   $ref,
+				   $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    $response = HandleBlockstore($slice_experiment, $virtexperiment,
+					 $user, $ref, $blockref);
+	    goto bad
+		if (GeniResponse::IsError($response));
 	}
     }
 
@@ -1816,6 +1829,18 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	#
 	if (GeniXML::HasTagSetting($linkref)) {
 	    $encap = (IsTaggedLan($linkref) ? "vlan" : "default");
+	    if (IsTaggedLan($linkref)) {
+		$trivial_ok = 0;
+	    }
+	}
+
+	#
+	# Allow user to specify best effort.
+	#
+	my $besteffort = 0;
+	
+	if (GeniXML::HasBestEffortSetting($linkref)) {
+	    $besteffort = 1;
 	}
 
 	#
@@ -2101,6 +2126,12 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		$latency   = 0.0;
 		$lossrate  = 0.0;
 	    }
+	    if ($besteffort) {
+		# Best effort traffic.
+		$bandwidth = 10;
+		$latency   = 0.0;
+		$lossrate  = 0.0;
+	    }
 	    
 	    my $virtlan =
 		$virtexperiment->NewTableRow("virt_lans",
@@ -2109,6 +2140,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					  "vport"       => $iface_vport,
 					  "vindex"	=> $vindex,
 					  "trivial_ok"  => $trivial_ok,
+					  "nobwshaping" => $besteffort,
 					  "ip"          => $ip,
 					  "delay"       => $latency,
 					  "bandwidth"   => $bandwidth, # kbps
@@ -2270,22 +2302,32 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		}
 		else {
 		    $precheck .= $line;
+		    #
+		    # Watch for standard Insufficient message:
+		    #
+		    # *** 2 nodes of type pc requested, but only 1 available \
+		    #          nodes of type pc found
+		    #
+		    if ($line =~
+			/^\s*\*\*\* (\d*) nodes of type ([-\w]*) requested, but/) {
+			$errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
+		    }
 		}
 	    }
 	    elsif ($inviolations) {
 		$violations .= $line;
 
 		# Attempt to parse the violations into something human readable.
-		if ($line =~ /no_connect:\s*\d*/ ||
-		    $line =~ /bandwidth:\s*\d*/) {
+		if ($line =~ /no_connect:\s*[1-9]/ ||
+		    $line =~ /bandwidth:\s*[1-9]/) {
 		    $errorstr  = "Not enough bandwidth to connect some nodes"; 
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_BANDWIDTH();
 		}
-		elsif ($line =~ /pnode_load:\s*1/) {
+		elsif ($line =~ /pnode_load:\s*[1-9]/) {
 		    $errorstr  = "Too many VMs requested on physical host"; 
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
 		}
-		elsif ($line =~ /unassigned:\s*1/) {
+		elsif ($line =~ /unassigned:\s*[1-9]/) {
 		    $errorstr  = "Not enough nodes with fast enough interfaces";
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
 		}
@@ -2396,6 +2438,13 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	my $virtual_id     = GeniXML::GetVirtualId($ref);
 	my $component_id   = GeniXML::GetNodeId($ref);
 	my $vnode_id       = GeniXML::GetVnodeId($ref);
+	my $sliver_type    = GeniXML::GetText("sliver_type", $ref);
+
+	#
+	# Watch for storage hosts and skip.
+	#
+	next
+	    if (defined($sliver_type) && $sliver_type eq "pcsanhost");
 
 	if (!(exists($nodemap{$virtual_id}) ||
 	      exists($external_nodemap{$virtual_id}))) {
@@ -3865,6 +3914,7 @@ sub SliverWorkAux($$$$$$$$)
 				 $sliver->component_urn());
 	    }
 	    elsif (exists($ifacexml{$iface_id})) {
+		# Update interface in the node section.
 		$outref = $ifacexml{$iface_id};
 		$sliverName = "sliver_id";
 		$macName = "mac_address";
@@ -3904,6 +3954,23 @@ sub SliverWorkAux($$$$$$$$)
 	my $oldlink = GeniXML::GetLinkByVirtualId($linkname, $manifest);
 	GeniXML::ReplaceNode($oldlink, $linkref);
 	
+    }
+    #
+    # We have to go back through the nodes and store the manifest again,
+    # since we might have changed the interfaces down inside the node in
+    # the loop above. 
+    #
+    foreach my $ref (GeniXML::FindNodes("n:node",
+					$manifest)->get_nodelist()) {
+	my $node_id = GeniXML::GetVirtualId($ref);
+
+	if (exists($nodemap{$node_id})) {
+	    my $nodesliver = $nodemap{$node_id};
+
+	    if ($nodesliver->UpdateRspec($ref)) {
+		print STDERR "Could not store manifest for $nodesliver\n";
+	    }
+	}
     }
   skiplinks:
     #
@@ -5972,8 +6039,7 @@ sub GeniExperiment($;$)
 
     my $uuid = $slice->uuid();
     my $urn  = $slice->urn();
-    my ($pid, $gid, $eid);
-    my ($project, $group);
+    my $eid;
 
     my $experiment = Experiment->Lookup($uuid);
     return $experiment
@@ -5982,194 +6048,15 @@ sub GeniExperiment($;$)
     # The eid is derived from the slice urn.
     (undef, undef, $eid) = GeniHRN::Parse($urn);
 
-    require Project;
-    require Group;
+    # Get the project and group.
+    my $group = GeniUtil::GetHoldingProject($urn, $creator);
+    return $group
+	if (GeniResponse::IsResponse($group));
 
-    #
-    # BUG: We need to check the sub auth chain to make sure that
-    # there the common prefix. Otherwise, a subsa could sign a
-    # slice credential for someone else.
-    #
-    
-    #
-    # If the slice is from this Emulab (SA), then we are going to create the
-    # experiment in the local project.
-    #
-    if (GeniHRN::Authoritative($urn, $OURDOMAIN) && $USELOCALPROJ) {
-	#
-	# If no creator, this is a placeholder slice. Since its local
-	# we can come up with a creator, but later.
-	#
-	if (!defined($creator)) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				"Cannot do local placeholder slices yet");
-	}
-	
-	#
-	# For now, the creator has to be a local user and have their
-	# default project set. Until we have project signed credentials.
-	#
-	if (! $creator->IsLocal()) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-			"$creator is not a local user for local project");
-	}
-	if (!defined($creator->DefaultProject())) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					"No default project for $creator");
-	}
-	$project = $creator->DefaultProject();
-	if (!defined($project)) {
-	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				"Could not get local project for $slice");
-	}
-	# No sub groups for local projects. Maybe later?
-	$pid = $gid = $project->pid();
-    }
-    else {
-	#
-	# The top level domain of the SA becomes the project name, but the
-	# dots are illegal of course, and there might be sub authorities
-	# (colon separated). We use the primary for the project and the
-	# first sub-authority for the group.
-	#
-	my ($domain, undef, undef) = GeniHRN::Parse($urn);
-	my @tokens = split(":", $domain);
-	my $project_id = shift(@tokens);
-	my $group_id = shift(@tokens) if (@tokens);
-	my $project_urn = GeniHRN::Generate($project_id, "authority", "sa");
-	
-	#
-	# See if the project exists. 
-	#
-	$project = Project->LookupNonLocal($project_urn);
-	if (!defined($project)) {
-	    #
-	    # For now, lets assume that the domain has legal chars, except
-	    # of course for the dots, which we transform to dashes cause
-	    # underscores are not allowed in project ids.
-	    #
-	    $project_id =~ s/\./-/g;	    
-	    if (!Project->ValidPID($project_id)) {
-		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-		    "Cannot form a valid local project name from $project_urn");
-	    }
+    my $project = $group->GetProject();
+    my $pid = $project->pid;
+    my $gid = $group->gid();
 
-	    #
-	    # Write out a little XML file describing the project, and
-	    # let the existing backend script deal with it all.
-	    #
-	    my ($fh, $filename) = tempfile(UNLINK => 0);
-	    if (!defined($fh)) {
-		print STDERR "Could not create temp file for $project_id\n";
-		return GeniResponse->Create(GENIRESPONSE_ERROR);
-	    }
-	    print $fh "<project>\n";
-	    print $fh " <attribute name=\"name\">\n";
-	    print $fh "  <value>$project_id</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"short description\">\n";
-	    print $fh "  <value>$project_urn</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"nonlocal_id\">\n";
-	    print $fh "  <value>$project_urn</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"nonlocal_type\">\n";
-	    print $fh "  <value>protogeni</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh " <attribute name=\"leader\">\n";
-	    print $fh "  <value>geniuser</value>\n";
-	    print $fh " </attribute>\n";
-	    print $fh "</project>\n";
-	    close($fh);
-	    if (! chmod(0755, $filename)) {
-		print STDERR "Could not chmod $filename\n";
-		return GeniResponse->Create(GENIRESPONSE_ERROR);
-	    }
-	    #
-	    # This operation has to be done as an admin person. 
-	    #
-	    GeniUtil::FlipToElabMan();
-	    my $output = GeniUtil::ExecQuiet("$WAP $NEWPROJECT -l $filename");
-	    if ($?) {
-		GeniUtil::FlipToGeniUser();
-		print STDERR $output;
-		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-			    "Internal error creating project description");
-	    }
-	    unlink($filename);
-
-	    $output = GeniUtil::ExecQuiet("$WAP $MAKEPROJECT $project_id");
-	    my $ecode  = $?;
-	    GeniUtil::FlipToGeniUser();
-	    if ($ecode) {
-		print STDERR $output;
-		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					    "Internal error creating project");
-	    }
-	    $project = Project->LookupNonLocal($project_urn);
-	    if (!defined($project)) {
-		print STDERR "Cannot lookup new project for $project_id\n";
-		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-			    "Internal error locating project after creation");
-	    }
-	}
-	$pid = $gid = $project->pid();
-	
-	#
-	# If there is a sub authority, create a subgroup for it.
-	#
-	if (defined($group_id)) {
-	    if (!Group->ValidGID($group_id)) {
-		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				    "Invalid  local group name $group_id");
-	    }
-	    $group = $project->LookupGroup($group_id);
-
-	    if (!defined($group)) {
-		my $pid_idx = $project->pid_idx();
-		
-		#
-		# Write out a little XML file describing the group, and
-		# let the existing backend script deal with it all.
-		#
-		my ($fh, $filename) = tempfile(UNLINK => 0);
-		if (!defined($fh)) {
-		    print STDERR "Could not create temp file for group $group_id\n";
-		    return GeniResponse->Create(GENIRESPONSE_ERROR);
-		}
-		print $fh "<group>\n";
-		print $fh " <attribute name=\"project\">\n";
-		print $fh "  <value>$pid_idx</value>\n";
-		print $fh " </attribute>\n";
-		print $fh " <attribute name=\"group_id\">\n";
-		print $fh "  <value>$group_id</value>\n";
-		print $fh " </attribute>\n";
-		print $fh " <attribute name=\"group_leader\">\n";
-		print $fh "  <value>geniuser</value>\n";
-		print $fh " </attribute>\n";
-		print $fh " <attribute name=\"group_description\">\n";
-		print $fh "  <value></value>\n";
-		print $fh " </attribute>\n";
-		print $fh "</group>\n";
-		close($fh);
-		my $output = GeniUtil::ExecQuiet("$NEWGROUP $filename");
-		if ($?) {
-		    print STDERR $output;
-		    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					    "Internal error creating group");
-		}
-		unlink($filename);
-
-		$group = $project->LookupGroup($group_id);
-		if (!defined($group)) {
-		    print STDERR "Cannot lookup new group for $group_id\n";
-		    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-			"Internal error locating group after creation");
-		}
-	    }
-	    $gid = $group->gid();
-	}
-    }
     #
     # Form an eid for the experiment. 
     #
@@ -6848,6 +6735,174 @@ sub SetSliceExpiration($$$$@)
     
   bad:
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef, $message);
+}
+
+#
+# Handle BlockStores. 
+#
+sub HandleBlockstore($$$$)
+{
+    my ($experiment, $virtexperiment, $geniuser, $noderef, $blockref) = @_;
+    my $message  = "Unknown Error";
+    my $nodename = GeniXML::GetVirtualId($noderef);
+    require Lease;
+    require Blockstore;
+
+    my $bsname    = GeniXML::GetText("name", $blockref);
+    my $class     = GeniXML::GetText("class", $blockref);
+    my $mount     = GeniXML::GetText("mountpoint", $blockref);
+    my $readonly  = GeniXML::GetText("readonly", $blockref);
+    my $leasename = GeniXML::GetText("persistent", $blockref);
+    my $type      = "";
+    my $fixed     = $nodename;
+    my $size      = 0;
+
+    if (!defined($class) || !($class eq "local" || $class eq "remote")) {
+	$message = "Illegal blockstore class";
+	goto bad;
+    }
+    if ($class eq "local" &&
+	(!defined($bsname) ||
+	 !TBcheck_dbslot($bsname, "blockstores", "bs_id",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR))) {
+	$message = "Illegal blockstore name: $bsname";
+	goto bad;
+    }
+    if (!defined($mount)) {
+	$message = "Missing blockstore mount point";
+	goto bad;
+    }
+    if (defined($leasename)) {
+	if (GeniHRN::IsValid($leasename)) {
+	    my (undef,$type,$id) = GeniHRN::Parse($leasename);
+	    if ($type ne "dataset") {
+		$message = "Illegal persistent urn for $bsname";
+		goto bad;
+	    }
+	    $leasename = $id;
+	}
+	if (!TBcheck_dbslot($leasename, "project_leases", "lease_id",
+			    TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	    $message = "Illegal persistent name for $bsname";
+	    goto bad;
+	}
+    }
+    if (!defined($readonly)) {
+	$readonly = 0;
+    }
+    else {
+	$readonly = ($readonly eq "true" ? 1 : 0);
+    }
+    #
+    # If ephemeral, size must be given, else we get it below from the lease.
+    #
+    if (!defined($leasename)) {
+	$size = GeniXML::GetText("size", $blockref);
+	
+	if (!defined($size)) {
+	    $message = "Missing blockstore size for $bsname";
+	    goto bad;
+	}
+	$size = Blockstore::ConvertToMebi($size);
+	if ($size < 0) {
+	    $message = "Illegal blockstore size for $bsname";
+	    goto bad;
+	}
+    }
+    # Build up list of attributes.
+    my @attributes = ();
+    push(@attributes, ["mountpoint", $mount, 0]);
+    push(@attributes, ["placement", "ANY", 0]);
+    push(@attributes, ["readonly", $readonly, 0]);
+    push(@attributes, ["class", ($class eq "local" ? "local" : "SAN"), 1]);
+	
+    if ($class eq "remote") {
+	$fixed = $bsname = $nodename;
+	push(@attributes, ["protocol", "iSCSI", 1]);
+
+	#
+	# Look for a lease name (persistent).
+	#
+	if (defined($leasename)) {
+	    my $lease = Lease->Lookup($experiment->pid(), $leasename);
+	    if (!defined($lease)) {
+		#
+		# Dataset must already exist.
+		#
+		$message = "No such persistent dataset for $bsname: $leasename";
+		goto bad;
+	    }
+	    my $blockstore = Blockstore->LookupByLease($lease->lease_idx());
+	    if (!defined($blockstore)) {
+		$message = "Could not get blockstore for lease $leasename";
+		goto bad;
+	    }
+		
+	    $type = $lease->type();
+	    $size = $blockstore->total_size();
+	    #
+	    # TODO!!!! Lease permission checks. Complicated by the
+	    # fact that geniusers are not real users, and the datasets
+	    # are created by geniuser. 
+	    #
+	    push(@attributes, ["lease", $lease->lease_idx(), 1]);
+	}
+    }
+    else {
+	#
+	# Might be a XEN VM. The easiest thing to do is add a XEN_EXTRAFS
+	# argument, which will be ignored if not a XEN VM. There might be
+	# a xen settings section in the node, but we will ignore it and
+	# just delete/insert a properly sized attribute.
+	#
+	my $attrkey;
+	my $attrvalue;
+	my $row;
+
+	if (0) {
+	    $attrkey   = "XEN_EXTRAFS";
+	    $attrvalue = ceil($size / 1024);
+
+	    $row = $virtexperiment->Find("virt_node_attributes",
+					 $nodename, $attrkey);
+	}
+	else {
+	    $attrkey   = "XEN_EXTRADISKS";
+	    $attrvalue = "$bsname:" . ceil($size / 1024) . "GB";
+
+	    $row = $virtexperiment->Find("virt_node_attributes",
+					 $nodename, $attrkey);
+	    if (defined($row)) {
+		$attrvalue  = $row->attrvalue() . "," . $attrvalue;
+	    }
+	}
+	if (defined($row)) {
+	    $row->Delete($VirtExperiment::STORE_FLAGS_DEBUG);
+	}
+	$virtexperiment->NewTableRow("virt_node_attributes",
+				     {"vname"     => $nodename,
+				      "attrkey"   => $attrkey,
+				      "attrvalue" => $attrvalue});
+    }
+    $virtexperiment->NewTableRow("virt_blockstores",
+				 {"vname"     => $bsname,
+				  "type"      => $type,
+				  "size"      => $size,
+				  "fixed"     => $fixed,
+				 });
+    foreach my $aref (@attributes) {
+	my ($aname, $value, $isdesire) = @{$aref};
+	$virtexperiment->NewTableRow("virt_blockstore_attributes",
+				     {"vname"     => $bsname,
+				      "attrkey"   => $aname,
+				      "attrvalue" => $value,
+				      "isdesire"  => $isdesire,
+				     });
+    }
+    return 0;
+
+  bad:
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $message);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

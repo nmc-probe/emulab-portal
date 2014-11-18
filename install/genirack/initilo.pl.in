@@ -269,7 +269,8 @@ if (SendXML($iloIP, $xmlgoo)) {
 # The boot order cannot be changed via ribcl. What a pain.
 #
 if (ChangeBootOrder($iloIP)) {
-    Fatal("Failed to change the boot order on $iloIP")
+    # This fails all the time. Keep going, come back later.
+    print STDERR "*** Failed to change the boot order on $iloIP\n";
 }
 
 #

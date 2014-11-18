@@ -303,6 +303,7 @@ AC_SUBST(ZFS_QUOTA_PROJECT)
 AC_SUBST(ZFS_QUOTA_GROUP)
 AC_SUBST(WITHAMD)
 AC_SUBST(AMD_ROOT)
+AC_SUBST(BS_IQN_PREFIX)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -456,6 +457,7 @@ ZFS_QUOTA_PROJECT="100G"
 ZFS_QUOTA_GROUP="10G"
 WITHAMD=0
 AMD_ROOT=/.amd_mnt
+BS_IQN_PREFIX=iqn.2000-10.net.emulab
 
 #
 # XXX You really don't want to change these!
@@ -664,6 +666,7 @@ if test $WITHZFS -eq 1; then
 fi
 if test $WITHAMD -eq 1; then
     AC_DEFINE_UNQUOTED(WITHAMD, 1, [Run AMD on boss node to handle shared FS mounts])
+    AC_DEFINE_UNQUOTED(AMD_ROOT, "$AMD_ROOT", [Actual FS mount directory for AMD])
 fi
 AC_DEFINE_UNQUOTED(IMPORT_TMPDIR, "$IMPORT_TMPDIR", [Directory to use for imported images])
 
@@ -790,6 +793,7 @@ if test -z "$EVENTSERVER"; then
     EVENTSERVER="event-server"
 fi
 AC_DEFINE_UNQUOTED(EVENTSERVER, "$EVENTSERVER", [Emulab event server node])
+AC_DEFINE_UNQUOTED(BS_IQN_PREFIX, "$BS_IQN_PREFIX", [IQN prefix for blockstores])
 
 #
 # Perl SelfLoader

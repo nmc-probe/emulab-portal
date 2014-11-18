@@ -560,6 +560,68 @@ sub AvailableCapacity($)
     return (defined($avail) ? $avail : $size);
 }
 
+# convert_to_mebi
+# This takes a data size specifier in the form of <amt><unit> where
+# <unit> is any of [B, KB, KiB, MB, MiB, GB, GiB, TB, TiB].  If no
+# unit is given then bytes (B) is assumed.  It returns the size
+# in Mebibytes.  Data sizes in bits (lowercase b) are not handled (yet).
+#
+sub ConvertToMebi($)
+{
+    my ($size) = @_;
+    # Default to bytes
+    my $unit   = "B";
+    
+    if ($size =~ /^(\d+)(\w+)$/) {
+	$size = $1;
+	$unit = $2;
+    }
+    else {
+	return -1;
+    }
+    SWITCH: for ($unit) {
+	/^B$/ && do {
+	    $size = int($size / 2**20);
+	    last SWITCH;
+	};
+	/^KB$/ && do {
+	    $size = int($size * 10**3 / 2**20);
+	    last SWITCH;
+	};
+	/^KiB$/ && do {
+	    $size = int($size / 2**10);
+	    last SWITCH;
+	};
+	/^MB$/ && do {
+	    $size = int($size * 10**6 / 2**20);
+	    last SWITCH;
+	};
+	/^MiB$/ && do {
+	    $size = int($size);
+	    last SWITCH;
+	};
+	/^GB$/ && do {
+	    $size = int($size * 10**9 / 2**20);
+	    last SWITCH;
+	};
+	/^GiB$/ && do {
+	    $size = int($size * 2**10);
+	    last SWITCH;
+	};
+	/^TB$/ && do {
+	    $size = int($size * 10**12 / 2**20);
+	    last SWITCH;
+	};
+	/^TiB$/ && do {
+	    $size = int($size * 2**20);
+	    last SWITCH;
+	};
+	print STDERR "Illegal mebibytes unit: $unit\n";
+	return -1;
+    };
+    return $size;
+}
+
 ############################################################################
 #
 # Package to describe a specific reservation of a blockstore.

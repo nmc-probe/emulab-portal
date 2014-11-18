@@ -157,16 +157,19 @@ sub AddInterfaces($$$) {
 	$packets = $speed / 80;
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface SET " .
-			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/port#', " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interface#', " .
 			     "id='${DOMAIN}_interface_$n:$i'," .
 			     "selfRef='$URL/info/interface/${DOMAIN}_interface_$n:$i'," .
 			     "urn='urn:publicid:IDN+$DOMAIN+interface+$n:$i'," .
 			     "ts='$ts'," .
-			     "address_type='ipv4'," .
-			     "address_address='$addr'," .
 			     "properties\$role='$role'," .
 			     "properties\$max_bps='$speed'," .
 			     "properties\$max_pps='$packets'" );
+
+	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface_addresses SET " .
+			     "interface_id='${DOMAIN}_interface_$n:$i'," .
+			     "addrtype='ipv4'," .
+			     "address='$addr'" );
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node_interface SET " .
 			     "id='${DOMAIN}_interface_$n:$i'," .
@@ -180,14 +183,15 @@ sub AddLink($$) {
 
     my ($name, $ts) = @_;
 
-    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_link SET " .
-			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/link#', " .
+    # FIXME would be nice to set layer, too
+    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_link SET " .
+			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/link#', " .
 			 "id='${DOMAIN}_link_$name', " .
 			 "selfRef='$URL/info/link/${DOMAIN}_link_$name'," .
 			 "urn='urn:publicid:IDN+$DOMAIN+link+$name'," .
 			 "ts='$ts'" );
 
-    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
+    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_aggregate_resource SET " .
 			 "id='${DOMAIN}_link_$name'," .
 			 "aggregate_id='$NICKNAME'," .
 			 "urn='urn:publicid:IDN+$DOMAIN+link+$name'," .
@@ -205,19 +209,20 @@ sub AddInterfaceVlan($$$$$) {
 	$url = "none";
     }
 
-    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interfacevlan SET " .
-			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/port-vlan#', " .
+    # FIXME would be nice to give interface_href, but in general we don't know
+    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interfacevlan SET " .
+			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interfacevlan#', " .
 			 "id='${idomain}_interface_${iface}:${tag}', " .
 			 "selfRef='$url', " .
-			 "urn='url:publicid:IDN+$idomain+interface+$iface', " .
+			 "urn='urn:publicid:IDN+$idomain+interfacevlan+$iface:$tag', " .
 			 "ts='$ts', " .
-			 "tag=$tag" );
+			 "tag=$tag," .
+			 "interface_urn='urn:publicid:IDN+$idomain+interface+$iface'" )
+	unless( $url eq "none" );
 
     emdbi::DBQueryWarnN( $db, "INSERT INTO ops_link_interfacevlan SET " .
 			 "id='${idomain}_interface_${iface}:${tag}', " .
-			 "link_id='${DOMAIN}_link_$linkid', " .
-			 "urn='url:publicid:IDN+$idomain+interface+$iface', " .
-			 "selfRef='$url'" );
+			 "link_id='${DOMAIN}_link_$linkid'" );
 }
 
 my %portcounters;
@@ -227,24 +232,40 @@ while (1) {
     my $expire = ( time() - 24 * 60 * 60 ) . "000000";
 
     # Add the local CM.
-    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate WHERE ts < $expire" );
+    # FIXME would be nice to add routable_ip_poolsize
+    emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_aggregate WRITE" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate" );
     emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate SET " .
-			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/aggregate#', " .
+			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/aggregate#', " .
 			 "id='$NICKNAME'," .
 			 "selfRef='$URL/info/aggregate/$NICKNAME'," .
 			 "urn='urn:publicid:IDN+$DOMAIN+authority+cm'," .
 			 "ts='$ts'," .
-			 "measRef='$URL/data/'" );
+			 "measRef='$URL/data/'," .
+			 "operational_status='development'" );
+    emdbi::DBQueryWarnN( $db, "UNLOCK TABLES" );
 
     # Add local XEN nodes and interfaces from the shared pool.
-    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node WHERE ts < $expire" );
-    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interface WHERE ts < $expire" );
-    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_link WHERE ts < $expire" );
-    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interfacevlan WHERE ts < $expire" );
+    # NB: it would be nice to delete only very old entries from timestamped
+    # tables (to retain some historical data), but ts is not part of the
+    # primary key for them so we must discard the old state before we're
+    # permitted to update with the current.
+#    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node WHERE ts < $expire" );
+#    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interface WHERE ts < $expire" );
+#    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_link WHERE ts < $expire" );
+#    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interfacevlan WHERE ts < $expire" );
     emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_node WRITE, " .
 			 "ops_interface WRITE, " .
+			 "ops_interfacevlan WRITE, " .
+			 "ops_interface_addresses WRITE, " .
+			 "ops_link WRITE, " .
 			 "ops_aggregate_resource WRITE, " .
 			 "ops_node_interface WRITE" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interface" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_link" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interfacevlan" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interface_addresses" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate_resource" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node_interface" );
     # The shared pool experiment isn't named consistently across sites.
@@ -264,13 +285,14 @@ while (1) {
 	my $mem = $node->memory() * 1024;
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
-			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/node#', " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/node#', " .
 			     "id='${DOMAIN}_node_$n'," .
 			     "selfRef='$URL/info/node/${DOMAIN}_node_$n'," .
 			     "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
 			     "ts='$ts'," .
+			     "node_type='server'," .
 			     "properties\$mem_total_kb='$mem'," .
-			     "properties\$vm_server_type='xen'" );
+			     "virtualization_type='xen'" );
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
 			     "id='${DOMAIN}_node_$n'," .
@@ -292,11 +314,12 @@ while (1) {
 	    my $node = Node->Lookup( $n );
 
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
-				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140501/node#', " .
+				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/node#', " .
 				 "id='${DOMAIN}_node_$n'," .
 				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'," .
 				 "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
-				 "ts='$ts'" );
+				 "ts='$ts'," .
+				 "node_type='switch'" );
 
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
 				 "id='${DOMAIN}_node_$n'," .

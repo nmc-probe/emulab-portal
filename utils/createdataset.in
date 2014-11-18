@@ -35,18 +35,22 @@ sub usage()
     print STDERR "   -h        This message\n";
     print STDERR "   -d        Print additional debug info\n";
     print STDERR "   -U        Create but do not approve; admin will need to approve later\n";
+    print STDERR "   -C        Always create, approve when there is no reason not to\n";
     print STDERR "   -s size   Size in MiB\n";
     print STDERR "   -t type   Type ('stdataset' or 'ltdataset')\n";
     print STDERR "   -f fstype Type of filesystem to create on dataset (default is none)\n";
     print STDERR "   -o uid    Owner (defaults to caller)\n";
     print STDERR "   -e date   Expiration date (or 'never')\n";
     print STDERR "   -a attrs  comma-seperated string of key=value attributes\n";
+    print STDERR "   -b        Allocate resources in the background\n";
     print STDERR "   name      Name (in the form <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhUo:s:t:e:a:f:";
+my $optlist  = "dhUo:s:t:e:a:f:bC";
 my $debug = 0;
+my $background = 0;
 my $pid;
+my $gid;
 my $uid;
 my $expire;
 my $dstype = "stdataset";
@@ -54,6 +58,7 @@ my $lname;
 my $size;
 my $fstype = "";
 my $approveme = 1;
+my $alwayscreate = 0;
 my $attrstr = "";
 my %attrs = ();
 
@@ -73,15 +78,19 @@ sub fatal($);
 # Configure variables
 #
 my $TB		 = "@prefix@";
+my $TBOPS        = "@TBOPSEMAIL@";
+my $TBBASE  	 = "@TBBASE@";
 
 #
 # Testbed Support libraries
 #
 use lib "@prefix@/lib";
+use libtestbed;
 use libdb;
 use Quota;
 use Lease;
 use Project;
+use Group;
 use User;
 
 #
@@ -108,6 +117,12 @@ if (defined($options{h})) {
 if (defined($options{d})) {
     $debug++;
 }
+if (defined($options{b})) {
+    $background++;
+}
+if (defined($options{C})) {
+    $alwayscreate = 1;
+}
 if (defined($options{U})) {
     $approveme = 0;
 }
@@ -117,7 +132,14 @@ if (defined($options{o})) {
 if (defined($options{s})) {
     if ($options{s} =~ /^(\d+)$/) {
 	$size = $1;
-    } else {
+    }
+    elsif ($options{s} =~ /^(\d+)(\w+)$/) {
+	$size = Blockstore::ConvertToMebi($options{s});
+	if ($size < 0) {
+	    fatal("Could not parse size.");
+	}
+    }
+    else {
 	fatal("Could not parse size.");
     }
 }
@@ -155,9 +177,15 @@ if (!$size || @ARGV != 1) {
 # name must include a project
 $lname = $ARGV[0];
 if ($lname =~ /^([-\w]+)\/([-\w]+)$/) {
-    $pid = $1;
+    $pid   = $gid = $1;
     $lname = $2;
-} else {
+}
+elsif ($lname =~ /^([-\w]+)\/([-\w]+)\/([-\w]+)$/) {
+    $pid   = $1;
+    $gid   = $2;
+    $lname = $3;
+}
+else {
     fatal("Dataset name $lname not in the form <pid>/<lname>.");
 }
 
@@ -189,13 +217,14 @@ if ($uid) {
 #
 # Check project: caller must be admin or have local_root access in the project.
 #
-my $project = Project->Lookup($pid);
-if (!defined($project)) {
-    fatal("No such project $pid");
+my $group = Group->Lookup($pid, $gid);
+if (!defined($group)) {
+    fatal("No such group $pid/$gid");
 }
+my $project = $group->GetProject();
 if (!TBAdmin() &&
     !$project->AccessCheck($this_user, TB_PROJECT_CREATELEASE())) {
-    fatal("Must have local_root privileges in pid $pid");
+    fatal("Must have local_root privileges in $pid");
 }
 
 #
@@ -232,7 +261,8 @@ if ($approveme && $vars->{"maxsize"} > 0 && $size > $vars->{"maxsize"}) {
 	"Requested size ($size) is larger than allowed by default (" .
 	$vars->{"maxsize"} . ").\n";
     print STDERR
-	"Try again with '-U' option and request special approval by testbed-ops.\n";
+	"Try again with '-U' option and request special approval by testbed-ops.\n"
+	if (!$alwayscreate);
     exit(1);
 }
 
@@ -271,7 +301,7 @@ if (!defined($expire)) {
 	$needapproval = 1;
     }
 }
-if ($needapproval) {
+if ($needapproval && !$alwayscreate) {
     print STDERR
 	"Try again with '-U' to request special approval by testbed-ops.\n";
     exit(1);
@@ -300,8 +330,8 @@ if ($fstype) {
 #
 # Check name: lease with this name must not already exist.
 #
-if (Lease->Lookup($pid, $lname)) {
-    fatal("Lease $pid/$lname already exists.");
+if (Lease->Lookup($pid, $gid, $lname)) {
+    fatal("Lease $pid/$gid/$lname already exists.");
 }
 
 #
@@ -348,7 +378,8 @@ if ($vars->{"usequotas"}) {
 
 my $args = {
     "lease_id" => $lname,
-    "pid" => $project,
+    "pid" => $pid,
+    "gid" => $gid,
     "uid" => $user,
     "type" => $dstype,
     "lease_end" => $expire,
@@ -356,8 +387,10 @@ my $args = {
 };
 my $lease = Lease->Create($args, \%attrs);
 if (!$lease) {
-    fatal("Could not create dataset lease $lname in $pid.");
+    fatal("Could not create dataset lease $lname in $pid/$gid.");
 }
+my $lease_idx  = $lease->lease_idx();
+my $lease_uuid = $lease->uuid();
 
 # No longer need to hold the quota lock
 if (defined($quota)) {
@@ -370,22 +403,67 @@ if (defined($quota)) {
 # This can take a long time so we lock it to avoid races with others.
 #
 if ($approveme) {
-    if ($lease->Lock() || $lease->AllocResources("valid")) {
-	print STDERR "WARNING: could not approve new lease, contact testbed-ops.\n";
-	$approveme = 0;
-    }
-    $lease->Unlock()
-	if ($lease->GotLock());
-}
+    my $logname;
 
-print "Created lease '$pid/$lname' for " . $descrip{$dstype};
+    # We want to have the lock before going into the background, so that
+    # the caller knows right away.
+    if ($lease->Lock()) {
+	print STDERR
+	    "WARNING: could not lock new lease, contact testbed-ops.\n";
+	$approveme = 0;
+	goto noapprove;
+    }
+    
+    if ($background) {
+	print "Resource allocation proceeding the background ...\n";
+	
+	$logname = TBMakeLogname("createdataset");
+	if (my $childpid = TBBackGround($logname)) {
+	    exit(0);
+	}
+	# We want the lock in the child.
+	$lease->TakeLock();
+	# Let parent exit;
+	sleep(2);
+    }
+    if ($lease->AllocResources("valid")) {
+	print STDERR "WARNING: could not allocate resources, contact testbed-ops.\n";
+	$approveme = 0;
+
+	#
+	# Need to notify on error, if ran in the background.
+	#
+	if ($background) {
+	    SENDMAIL($TBOPS, "Lease allocation failed!",
+	     "Background resource allocation for Lease '$pid/$gid/$lname' ".
+	     "failed!\n\n",
+	     $TBOPS, undef, $logname);
+	}
+    }
+    $lease->Unlock();
+
+    if ($background) {
+	$project->SendEmail($user->email(),
+			"Your dataset is now ready to use",
+			"Dataset '$lname' is now allocated and ready to use.\n",
+			$project->OpsEmailAddress());
+	exit(0);
+    }
+  noapprove:
+}
+    
+print "Created lease '$pid/$gid/$lname' for " . $descrip{$dstype};
 if ($expire == 0) {
     print ", never expires.\n";
 } else {
     print ", expires on " . localtime($expire) . ".\n";
 }
 if (!$approveme) {
-    # send message to testbed-ops to approve?
+    # Note that the lease daemon sends out periodic email about
+    # unapproved leases.
+    SENDMAIL($TBOPS, "Lease approval required",
+	     "Lease '$pid/$gid/$lname' requires approval. You can view it at\n".
+	     "$TBBASE/show-dataset.php?uuid=$lease_uuid\n\n");
     print "NOTE: lease must still be approved before it can be used\n";
 }
 

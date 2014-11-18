@@ -938,6 +938,14 @@ sub HasTagSetting($)
     return scalar(@tagged);
 }
 
+sub HasBestEffortSetting($)
+{
+    my ($link) = @_;
+    my @tagged = FindNodesNS("n:best_effort", $link,
+			     $EMULAB_NS)->get_nodelist();
+    return scalar(@tagged);
+}
+
 sub IsUntaggedLan($)
 {
     my ($link) = @_;

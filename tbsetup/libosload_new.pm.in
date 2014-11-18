@@ -2103,22 +2103,11 @@ sub UpdatePartitions($$)
 
 	    my $osid = $rowref->{$partname};
 	    if (defined($osid)) {
-		# Have the node inherit taint states from each OS
-		# to be loaded on it (or that is already loaded on
-		# it).  This action is additive, i.e. the node
-		# will end up with the union of all taint states
-		# across the OSes set for each disk partition.  We
-		# also retain any taint states the node had
-		# previously; it's important not to clear these
-		# existing states until OS loading and disk
-		# zeroing have been performed.
-		my $osinfo = OSinfo->Lookup($osid);
-		if (defined($osinfo) && $osinfo->IsTainted()) {
-		    $nodeobject->InheritTaintStates($osinfo) == 0 or
-			warn "Node $node_id could not inherit taint ".
-			"states from osid $osid\n";
+		my $osinfo = OSinfo->Lookup($osid, $vers);
+		if (!defined($osinfo)) {
+		    tberror "No OSinfo found for osid $osid!\n";
+		    return -1;
 		}
-
 		my %part = (
 		    'node_id' => $node_id,
 		    'partition' => $i,
@@ -2351,8 +2340,9 @@ sub SetupReload($$)
     # find the latest full version of the image, then load those in
     # reverse order.
     #
+    my @allimages = ();
     if ($WITHPROVENANCE && $WITHDELTAS) {
-	my @nimages = ();
+	my $founddelta = 0;
 	foreach my $image (@images) {
 	    if ($image->isdelta()) {
 		my $pimage = $image;
@@ -2361,16 +2351,24 @@ sub SetupReload($$)
 		    # if it is a delta image, there had better be a parent!
 		    $pimage = $pimage->Parent();
 		    if (!$pimage) {
-			tberror "$node: delta image $image has no parent!";
+			tberror "$node_id: delta image $image has no parent!";
 			goto failednode;
 		    }
 		    push(@ilist, $pimage);
 		} while ($pimage->isdelta());
-		push @nimages, reverse(@ilist);
+		push @allimages, reverse(@ilist);
+		$founddelta = 1;
 	    }
-	    push(@nimages, $image);
+	    push(@allimages, $image);
 	}
-	@images = @nimages;
+	#
+	# XXX we need to recompute access keys here.
+	#
+	if ($founddelta) {
+	    ;
+	}
+    } else {
+	@allimages = @images;
     }
 
     my $prepare = $self->nodeflag($nodeobject,'prepare');
@@ -2390,7 +2388,7 @@ sub SetupReload($$)
     my $needswinpe = 0;
 
     my $idx = 1;
-    foreach my $image (@images) {
+    foreach my $image (@allimages) {
 	my $imageid = $image->imageid();
 	my $version = $image->version();
 
@@ -2423,7 +2421,7 @@ sub SetupReload($$)
 
     # XXX windows load
     if ($needswinpe) {
-	if (@images > 1) {
+	if (@allimages > 1) {
 	    tberror("$self: Cannot load more than one image with WinPE/ImageX");
 	    return -1;
 	}

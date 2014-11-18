@@ -32,6 +32,7 @@ use vars qw(@ISA @EXPORT);
 
 use libdb;
 use libtestbed;
+use Brand;
 use User;
 use Group;
 use English;
@@ -105,6 +106,7 @@ sub Lookup($$)
 	if (!defined($self->{'GROUP'}));
 
     bless($self, $class);
+    $self->{'BRAND'}   = Brand->Create($self->genesis());
     
     # Add to cache. 
     $projects{$self->{'PROJECT'}->{'pid_idx'}} = $self;
@@ -145,68 +147,29 @@ sub nonlocal_id($)	{ return field($_[0], "nonlocal_id"); }
 sub nonlocal_type($)	{ return field($_[0], "nonlocal_type"); }
 sub manager_urn($)	{ return field($_[0], "manager_urn"); }
 sub genesis($)		{ return field($_[0], "genesis"); }
-sub isAPT($)	        { return $_[0]->genesis() eq "aptlab" ? 1 : 0; }
-sub isCloud($)	        { return $_[0]->genesis() eq "cloudlab" ? 1 : 0; }
-sub isEmulab($)         { return $_[0]->genesis() eq "emulab" ? 1 : 0; }
+sub Brand($)		{ return $_[0]->{'BRAND'}; }
+sub isAPT($)	        { return $_[0]->Brand()->isAPT() ? 1 : 0; }
+sub isCloud($)	        { return $_[0]->Brand()->isCloud() ? 1 : 0; }
+sub isEmulab($)         { return $_[0]->Brand()->isEmulab() ? 1 : 0; }
 
 # These come from the group not the project.
 sub unix_gid($)         { return $_[0]->{'GROUP'}->unix_gid(); }
 sub unix_name($)        { return $_[0]->{'GROUP'}->unix_name(); }
 
-# In general, not be used directly, use SendProjAdminMail
-sub ApprovalEmailAddress($)
-{
-    my ($self) = @_;
-
-    return ($self->isAPT() ? "aptlab-approval\@aptlab.net" :
-	    $self->isCloud() ? "cloudlab-approval\@cloudlab.us" :
-	    "@TBAPPROVALEMAIL@");
-}
-sub EmailTag($)
-{
-    my ($self) = @_;
-
-    return ($self->isAPT() ? "aptlab.net" :
-	    $self->isCloud() ? "cloudlab.us" : "@THISHOMEBASE@");
-}
-sub wwwBase($)
-{
-    my ($self) = @_;
-
-    return ($self->isAPT() ? "https://www.aptlab.net" :
-	    $self->isCloud() ? "https://www.cloudlab.us" : $TBBASE);
-}
-sub SignupURL($)
-{
-    my ($self)  = @_;
-    my $wwwbase = $self->wwwBase();
-    my $pid     = $self->pid();
-
-    return ($self->isAPT() || $self->isCloud() ?
-	    "${wwwbase}/signup.php?pid=$pid" :
-	    "${wwwbase}/joinproject.php3?target_pid=$pid");
-}
+# Branding.
+sub ApprovalEmailAddress($)  { return $_[0]->Brand()->ApprovalEmailAddress(); }
+sub OpsEmailAddress($)       { return $_[0]->Brand()->OpsEmailAddress(); }
+sub EmailTag($)              { return $_[0]->Brand()->EmailTag(); }
+sub wwwBase($)               { return $_[0]->Brand()->wwwBase(); }
+sub SignupURL($)             { return $_[0]->Brand()->SignupURL($_[0]); }
 # So we can localize MAILTAG variable.
-sub SendEmail($$$)
+sub SendEmail($$$$;$$)
 {
-    my ($self, $to, $subject, $body, $headers) = @_;
-
-    # All this function does is this. 
-    local $libtestbed::MAILTAG = $self->EmailTag();
-    
-    SENDMAIL($to, $subject, $body, $headers);
-    return 0;
+    return $_[0]->Brand()->SendEmail($_[1],$_[2],$_[3],$_[4],$_[5]);
 }
-# So we can localize MAILTAG variable.
-sub AnonSendEmail($$$)
+sub AnonSendEmail($$$$;$$)
 {
-    my ($self, $to, $subject, $body, $headers) = @_;
-
-    # All this function does is this. 
-    local $libtestbed::MAILTAG = $self->EmailTag();
-    
-    SENDMAIL($to, $subject, $body, $headers);
-    return 0;
+    return $_[0]->Brand()->AnonSendEmail($_[1],$_[2],$_[3],$_[4],$_[5]);
 }
 
 #

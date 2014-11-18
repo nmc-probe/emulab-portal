@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Actual FS mount directory for AMD */
+#undef AMD_ROOT
+
 /* IPv4 address of pubsub server on boss */
 #undef BOSSEVENTPORT
 
@@ -8,6 +11,9 @@
 
 /* IPv4 address of boss node to be used by nodes */
 #undef BOSSNODE_IP
+
+/* IQN prefix for blockstores */
+#undef BS_IQN_PREFIX
 
 /* IPv4 node control network mask */
 #undef CONTROL_NETMASK

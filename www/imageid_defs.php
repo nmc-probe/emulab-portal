@@ -169,8 +169,9 @@ class Image
 	if (! $this->IsValid())
 	    return -1;
 
-	$imageid = $this->imageid();
-	$version = $this->version();
+	$imageid    = $this->imageid();
+	$version    = $this->version();
+	$image_uuid = $this->image_uuid();
 	
 	$query_result =
 	    DBQueryWarn("select * from image_versions ".
@@ -181,6 +182,7 @@ class Image
 	    return -1;
 	}
 	$this->image = mysql_fetch_array($query_result);
+	$this->image["image_uuid"] = $image_uuid;
 
 	#
 	# Reload the type info.
@@ -439,6 +441,7 @@ class Image
     function isdelta()		{ return $this->field("isdelta"); }
     function nodelta()		{ return $this->field("nodelta"); }
     function released()		{ return $this->field("released"); }
+    function notes()		{ return $this->field("notes"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -614,8 +617,10 @@ class Image
 	$updater	= $this->updater();
 	$updater_urn	= $this->updater_urn();
 	$uuid           = $this->uuid();
+	$image_uuid     = $this->image_uuid();
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
+	$notes          = $this->notes();
 	
 	#
 	# An imported image has a metadata_url, and at the moment I
@@ -624,7 +629,7 @@ class Image
 	$imagefile_url  = $this->imagefile_url();
 	$metadata_url   = $this->metadata_url();
 	if (! $metadata_url) {
-	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$uuid";
+	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$image_uuid";
 	}
 
 	if (!$description)
@@ -633,6 +638,8 @@ class Image
 	    $path = "&nbsp;";
 	if (!$created)
 	    $created = "N/A";
+	if (!strcmp($notes, ""))
+	    $notes = "&nbsp;";
     
         #
         # Generate the table.
@@ -826,28 +833,34 @@ class Image
 	    $p_imageid   = $this->parent_imageid();
 	    $p_version   = $this->parent_version();
 	    $p_image     = Image::Lookup($p_imageid, $p_version);
-	    $p_imagename = $p_image->imagename();
-	    $p_url       = CreateURL("showimageid", $p_image,
-				      "version", $p_version);
-	    
-	    echo "<tr>
-                    <td>Derived from: </td>
-                    <td class=left><a href='$p_url'>
-                      ${p_imagename}:${p_version}</a></td>
-                  </tr>\n";
-
-	    if ($this->parent_imageid() != $this->imageid() &&
-		$this->version() > 0) {
-		$p_version   = $this->version() - 1;
-		$p_url       = CreateURL("showimageid", $this,
+	    # On an elabinelab we will not have the previous version.
+	    # if it came in at creation time.
+	    if ($p_image) {
+		$p_imagename = $p_image->imagename();
+		$p_url       = CreateURL("showimageid", $p_image,
 					 "version", $p_version);
+	    
 		echo "<tr>
-                        <td>Previous Vers: </td>
-                        <td class=left>
-                            <a href='$p_url'>${imagename}:${p_version}</a></td>
-                      </tr>\n";
+                        <td>Derived from: </td>
+                        <td class=left><a href='$p_url'>
+                          ${p_imagename}:${p_version}</a></td>
+                     </tr>\n";
 	    }
 	}
+	if ($this->version() > 0 &&
+	    (is_null($this->parent_imageid()) ||
+	     ($this->parent_imageid() &&
+	      $this->parent_imageid() != $this->imageid()))) {
+	    $p_version   = $this->version() - 1;
+	    $p_url       = CreateURL("showimageid", $this,
+				     "version", $p_version);
+	    echo "<tr>
+                    <td>Previous Vers: </td>
+                    <td class=left>
+                        <a href='$p_url'>${imagename}:${p_version}</a></td>
+                  </tr>\n";
+	}
+
 	# Look for an unreleased version of this image.
 	$unreleased = $this->LookupUnreleased();
 	if ($unreleased && $unreleased->version() != $this->version()) {
@@ -925,6 +938,14 @@ class Image
 	echo "<tr>
                 <td>Metadata URL: </td>
                 <td class=left><a href='$metadata_url'>https:// ...</a></td>
+              </tr>\n";
+
+        echo "<tr>
+                 <td>Notes: </td>
+                 <td class=left>
+                     <textarea rows=4 cols=60 readonly>" .
+			    str_replace("\r", "", $notes) .
+	              "</textarea></td>
               </tr>\n";
 
 	if ($imagefile_url) {
@@ -1043,6 +1064,14 @@ class Image
 			 "  osid='$imageid', parent_osid='$parentosid'");
 	    DBQueryFatal("replace into osidtoimageid set ".
 			 " osid='$imageid', type='pcvm', imageid='$imageid'");
+	    
+	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
+						 "XEN44-64-BIGFS");
+	    if ($parentosinfo) {
+		$parentosid = $parentosinfo->osid();
+		DBQueryFatal("replace into os_submap set ".
+			     "  osid='$imageid', parent_osid='$parentosid'");
+	    }
 	}
 	else {
 	    DBQueryFatal("delete from osidtoimageid ".

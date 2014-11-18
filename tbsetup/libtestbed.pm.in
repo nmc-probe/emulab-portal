@@ -37,13 +37,14 @@ use Exporter;
 	 TBSCRIPTLOCK_IGNORE TBSCRIPTLOCK_FAILED
 	 PROJROOT GROUPROOT USERROOT SCRATCHROOT SHAREROOT
 	 TBValidUserDir TBValidUserDirList TBMakeTempFile NewUUID System
-	 SendProjAdminMail ReOpenLog
+	 SendProjAdminMail ReOpenLog 
 	 CheckDaemonRunning MarkDaemonRunning MarkDaemonStopped);
 
 # After package decl.
 use English;
 use POSIX qw(strftime);
 use POSIX qw(setsid);
+use Time::Local;
 use Fcntl;
 use Fcntl ':flock';
 use File::Basename;

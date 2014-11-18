@@ -32,7 +32,7 @@ fi
 [[ -z "${host-}" ]] && declare host       #emulab hostname
 [[ -z "${failed-}" ]] && declare failed=""  #major falure to be commicated to user
 [[ -z "${os-}" ]] && declare os=""      #[Linux|FreeBSD] for now
-[[ -z "${todo_exit-}" ]] && declare -a todo_exit
+[[ -z "${todo_exit-}" ]] && declare -a todo_exit=('echo "Exit trap"')
 [[ -z "${hwinv[hwinvidx]-}" ]] && declare -A hwinv["hwinvidx"]=""  # hwinv from tmcc
 [[ -z "${hwinvcopy[hwinvidx]-}" ]] && declare -A hwinvcopy["hwinvidx"]=""  # a copy of hwinv from tmcc
 [[ -z "${tmccinfo[hwinvidx]-}" ]] && declare -A tmccinfo["hwinvidx"]="" # info from tmcc hwinfo
@@ -326,12 +326,12 @@ comparetmcinfo() {
     done
 
     if [ -f ${fileout}_local -o -f ${fileout}_local_pre ] ; then
-	printf "\nOnly found in local search and not in testbed database\n" >> $fileout
+	printf "Only found in local search and not in testbed database\n" >> $fileout
 	[[ -f ${fileout}_local_pre ]] && cat ${fileout}_local_pre >> ${fileout}
 	[[ -f ${fileout}_local ]] && cat ${fileout}_local >> ${fileout}	
     fi
     if [ -f ${fileout}_tbdb -o -f ${fileout}_tbdb_pre ] ; then
-	printf "\nIn testbed database but not found in local search\n" >> $fileout
+	printf "In testbed database but not found in local search\n" >> $fileout
 	[[ -f ${fileout}_tbdb_pre ]] && cat ${fileout}_tbdb_pre >> ${fileout}
 	[[ -f ${fileout}_tbdb ]] && cat ${fileout}_tbdb >> ${fileout}
     fi
@@ -459,7 +459,7 @@ compareunits() {
     # else 
 	# not the same number of devices. Don't match, do nothing.
     fi
-    
+
     #remove extra spaces
     save_e
     set +e

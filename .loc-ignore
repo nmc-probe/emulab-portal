@@ -10,6 +10,7 @@ clientside/os/imagezip/fat
 clientside/os/imagezip/ntfs/liblocale
 clientside/lib/event/event_wrap*
 clientside/tmcc/cygwinxp/site-lisp 
+clientside/tmcc/freebsd/init
 clientside/tmcc/plab
 os/shd 
 www/cvsweb 
@@ -49,3 +50,8 @@ LGPL-COPYING
 AGPL-COPYING
 TODO.plab
 MOVED-TO-WIKI
+VERSION
+protogeni/flack/js/forge
+protogeni/flack/src/com/hurlant
+protogeni/flack/src/com/mattism
+protogeni/protogeniflash/src/com/mattism

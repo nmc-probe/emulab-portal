@@ -85,7 +85,18 @@ function Do_GetInstanceStatus()
     if (StatusSetupAjax()) {
 	return;
     }
-    SPITAJAX_RESPONSE($instance->status());
+    $blob = array();
+    $blob["status"] = $instance->status();
+    
+    $webtask = WebTask::LookupByObject($instance->uuid());
+    if ($webtask) {
+	# We do not want to tell the user anything unless it would mean
+	# something to them. Not enough nodes is important.
+	if ($webtask->exitcode() == 26) {
+	    $blob["reason"] = "Not enough free nodes, please try again later.";
+	}
+    }
+    SPITAJAX_RESPONSE($blob);
 }
 
 #
@@ -101,9 +112,26 @@ function Do_TerminateInstance()
     $uuid = $instance->uuid();
 
     # This needs work.
-    SUEXEC("nobody", "nobody", "webquickvm -k $uuid",
-	   SUEXEC_ACTION_IGNORE);
-    SPITAJAX_RESPONSE("");
+    $webtask_id = WebTask::GenerateID();
+    SUEXEC("nobody", "nobody",
+	   "webmanage_instance -t $webtask_id -- terminate $uuid",
+	   SUEXEC_ACTION_CONTINUE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval == 0) {
+	SPITAJAX_RESPONSE("");
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    if ($webtask && $webtask->exited()) {
+	SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	$webtask->Delete();
+    }
+    else {
+	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+    }
 }
 
 #
@@ -125,7 +153,7 @@ function Do_GetInstanceManifest()
 #
 function Do_GetSSHAuthObject()
 {
-    global $instance, $creator;
+    global $instance, $creator, $this_user;
     global $ajax_args;
 
     if (!isset($ajax_args["hostport"])) {
@@ -137,6 +165,16 @@ function Do_GetSSHAuthObject()
     if (StatusSetupAjax()) {
 	return;
     }
+    #
+    # XXX Need to deal with multiple members of an experiment.
+    #
+    if (! ((isset($this_user) && $this_user->SameUser($creator)) ||
+	   (isset($_COOKIE['quickvm_user']) &&
+	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
+	SPITAJAX_ERROR(1, "Not allowed to ssh; only the creator");
+	return;
+    }
+    
     $nodeid = $ajax_args["nodeid"];
     $auth   = SSHAuthObject($creator->uid(), $hostport);
     if (!$auth) {
@@ -151,38 +189,109 @@ function Do_GetSSHAuthObject()
 #
 function Do_RequestExtension()
 {
-    global $instance, $creator;
+    global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
-    global $TBMAIL_OPS, $APTMAIL;
-
-    if (!isset($ajax_args["reason"])) {
-	SPITAJAX_ERROR(1, "Missing reason");
-	return 1;
-    }
-    $reason = $ajax_args["reason"];
+    global $TBMAIL_OPS, $APTMAIL, $APTBASE;
+    $reason  = "";
 
     if (StatusSetupAjax()) {
-	return;
+	goto bad;
     }
     $uuid = $instance->uuid();
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
     if (!slice) {
 	SPITAJAX_ERROR(1, "no slice for instance");
-	return 1;
+	goto bad;
     }
-    # Only extend for 24 hours. More later.
     $expires_time = strtotime($slice->expires());
-    if ($expires_time > time() + (3600 * 24)) {
-	sleep(2);
-	SPITAJAX_ERROR(1, "You still have lots of time left!");
-	return;
+
+    if (!isset($ajax_args["howlong"]) || $ajax_args["howlong"] == "") {
+	SPITAJAX_ERROR(1, "Missing number of days");
+	goto bad;
+    }
+    $howlong = $ajax_args["howlong"];
+    if (! preg_match("/^\d+$/", $howlong)) {
+	SPITAJAX_ERROR(1, "Invalid characters in days");
+	goto bad;
+    }
+
+    if (ISADMIN()) {
+	if ($howlong < 1 || $howlong > 365) {
+	    SPITAJAX_ERROR(1, "Must be an integer 1 <= days <= 365");
+	    goto bad;
+	}
+	$howlong = $howlong * (3600 * 24);
+	$reason  = "Extended by site administrator";
+    }
+    else {
+	if (!isset($ajax_args["reason"]) || $ajax_args["reason"] == "") {
+	    SPITAJAX_ERROR(1, "Missing reason");
+	    goto bad;
+	}
+	$reason  = $ajax_args["reason"];
+
+	#
+	# Guest users are treated differently.
+	#
+	if (!isset($this_user)) {
+            # Only extend for 24 hours. More later.
+	    $howlong = 3600 * 24;
+
+	    if ($expires_time > time() + $howlong) {
+		sleep(2);
+		SPITAJAX_ERROR(1, "You still have a day left. ".
+			       "Try again tomorrow!");
+		goto bad;
+	    }
+	}
+	else {
+	    #
+	    # Registered users are granted up to 1 week automatically.
+	    # Beyond that, requires intervention.
+	    #
+	    if ($howlong > 7) {
+		$url = "$APTBASE/status.php?uuid=$uuid&extend=$howlong";
+		    
+		$instance->SendEmail($APTMAIL,
+		     "Experiment Extension Request: $uuid",
+		     "A request to extend this experiment was made but ".
+		     "requires\n".
+		     "administrator approval\n".
+		     "The request is for $howlong days, the reason given is:".
+		     "\n\n" . $reason . "\n\n".
+		     "Click on the following link (red-dot) to grant ".
+		     "the request\n\n". $url . "\n\n",
+		     "From: " . $creator->email());
+
+		# XXX 
+		SPITAJAX_ERROR(2, "Your request requires admininstrator ".
+			       "approval. You will receive email when your ".
+			       "request is granted. Thanks!");
+		sleep(2);
+		return;
+	    }
+	    $diff = $expires_time - time();
+	    if ($diff > (3600 * 24 * 7)) {
+		SPITAJAX_ERROR(1, "You still have a week left!");
+		goto bad;
+	    }
+	    #
+	    # The most we allow is a week out, no matter what they asked for.
+	    # So if there are five days left and they asked for seven, we
+	    # give them two. 
+	    #
+	    $howlong = $howlong * 3600 * 24;
+	    if ($expires_time + $howlong > time() + (3600 * 24 * 7)) {
+		$howlong = (3600 * 24 * 7) - diff;
+	    }
+	}
     }
     $retval = SUEXEC("nobody", "nobody",
-		     "webquickvm -e " . 3600 * 24 . " $uuid",
+		     "webmanage_instance extend $uuid $howlong",
 		     SUEXEC_ACTION_CONTINUE);
 
     if ($retval == 0) {
-    # Refresh. 
+	# Refresh. 
 	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 	$new_expires = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
 
@@ -193,17 +302,21 @@ function Do_RequestExtension()
 	       "A request to extend your experiment was made and ".
 	       "granted.\n".
 	       "Your reason was:\n\n". $reason . "\n\n".
-	       "Your experiment will now expire at $new_expires.\n\n".
-	       "You can request another extension tomorrow.\n",
+ 	       "Your experiment will now expire at $new_expires.\n",
 	       "From: $APTMAIL\n" .
 	       "BCC: $TBMAIL_OPS");
     }
     elseif ($retval > 0) {
 	SPITAJAX_ERROR(1, $suexec_output);
+	goto bad;
     }
     else {
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	goto bad;
     }
+    return;
+bad:
+    sleep(2);
 }
 
 #
@@ -212,11 +325,10 @@ function Do_RequestExtension()
 function Do_ConsoleURL()
 {
     global $instance, $creator;
-    global $suexec_output_array;
     global $ajax_args;
 
     if (!isset($ajax_args["node"])) {
-	SPITAJAX_ERROR(1, "Missing node");
+	SPITAJAX_ERROR(1, "Missing node argument");
 	return 1;
     }
     $node = $ajax_args["node"];
@@ -230,19 +342,21 @@ function Do_ConsoleURL()
 	SPITAJAX_ERROR(1, "no slice for instance");
 	return 1;
     }
+    $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC("nobody", "nobody",
-		     "webmanage_instance -c $uuid " . escapeshellarg($node),
+		     "webmanage_instance -t $webtask_id -- consoleurl $uuid " .
+		     escapeshellarg($node),
 		     SUEXEC_ACTION_CONTINUE);
+    $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval == 0) {
-	$url = $suexec_output_array[0];
-	if (preg_match("/^(https:.*)$/", $url, $matches)) {
-	    $url = $matches[1]; 
-	}
-	SPITAJAX_RESPONSE($url);
+	SPITAJAX_RESPONSE($webtask->TaskValue("value"));
+	$webtask->Delete();
+	return;
     }
-    elseif ($retval > 0) {
-	SPITAJAX_ERROR(1, $suexec_output);
+    if ($webtask) {
+	SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	$webtask->Delete();
     }
     else {
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
@@ -256,7 +370,6 @@ function Do_Snapshot()
 {
     global $this_user;
     global $ajax_args;
-    global $suexec_output_array;
 
     $this_idx = $this_user->uid_idx();
 
@@ -296,26 +409,28 @@ function Do_Snapshot()
     #
     # Call out to the backend.
     #
-    $webtask_id = md5(uniqid(rand(),1));
+    $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC($this_user->uid(), "nobody",
-		     "webmanage_instance -t $webtask_id -s $uuid",
+		     "webmanage_instance -t $webtask_id -- snapshot $uuid",
 		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval != 0) {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	if ($retval < 0) {
-	    SPITAJAX_ERROR(1, "Internal error, cannot proceed.");
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
 	    # Notify tbops.
 	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	    return;
 	}
-	else {
-	    $line = "please try again later.";
-	    if (count($suexec_output_array)) {
-		$line = $suexec_output_array[0];
-	    }
-	    SPITAJAX_ERROR(1, "Transient error; $line");
-	    return;
+	if ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	    $webtask->Delete();
 	}
+	else {
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	return;
     }
     SPITAJAX_RESPONSE("Success");
 }
@@ -351,11 +466,6 @@ function Do_SnapshotStatus()
     $taskdata = $webtask->TaskData();
     $blob = array();
 
-    if ($webtask->exited()) {
-	# Success, but not sure what to report. Come back to this later.
-	$blob["exited"]   = $webtask->exited();
-	$blob["exitcode"] = $webtask->exitcode();
-    }
     #
     # Size is in KB to avoid bigint problems. But kill the KB.
     # 
@@ -370,7 +480,12 @@ function Do_SnapshotStatus()
     }
     $blob["node_status"]  = $taskdata["rawstate"];
     $blob["image_status"] = $taskdata["image_status"];
-    
+    if ($webtask->exited()) {
+	# Success, but not sure what to report. Come back to this later.
+	$blob["exited"]   = $webtask->exited();
+	$blob["exitcode"] = $webtask->exitcode();
+	$webtask->Delete();
+    }
     SPITAJAX_RESPONSE($blob);
 }
 

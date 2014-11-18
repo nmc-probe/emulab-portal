@@ -50,13 +50,14 @@ sub usage()
 	  "       -d     Turn on debug mode\n".
 	  "       -e     Create a whole disk image\n".
 	  "       -g 0,1 Override base image global setting\n".
+	  "       -r 0,1 Override base image shared (within project) setting\n".
 	  "       -s     Create descriptor but do not snapshot\n".
 	  "       -n     Impotent mode\n".
 	  "       -F     Create a full image even if deltas are on\n".
 	  "       -w     Wait for image to be created\n");
     exit(-1);
 }
-my $optlist     = "densg:wF";
+my $optlist     = "densg:wFr:";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
@@ -65,6 +66,7 @@ my $isvirtnode  = 0;
 my $waitmode    = 0;
 my $nodelta     = 0; # To pass to create_image.
 my $global;
+my $shared;
 
 #
 # Configure variables
@@ -132,6 +134,9 @@ if (defined($options{"F"})) {
 }
 if (defined($options{"g"})) {
     $global = $options{"g"};
+}
+elsif (defined($options{"r"})) {
+    $shared = $options{"r"};
 }
 usage()
     if (@ARGV != 2);
@@ -400,8 +405,12 @@ $xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
 $xmlfields{"osfeatures"} = $base_osinfo->osfeatures()
     if (defined($base_osinfo->osfeatures()) &&
 	$base_osinfo->osfeatures() ne "");
-$xmlfields{"global"} = 1
-    if (defined($global) && $global);
+if (defined($global) && $global) {
+    $xmlfields{"global"} = 1;
+}
+elsif (defined($shared) && $shared) {
+    $xmlfields{"shared"} = 1;
+}
     
 if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
@@ -444,6 +453,12 @@ if (($isvirtnode || $base_osinfo) && $base_osinfo->def_parentosid()) {
 #
 if (defined($base_image)) {
     my @typelist = $base_image->TypeList($base_osinfo);
+    if (! @typelist && defined($base_image->deleted())) {
+	my $sysimage = Image->LookupByName($base_image->imagename());
+	if (defined($sysimage)) {
+	    @typelist = $sysimage->TypeList();
+	}
+    }
     if (! @typelist) {
 	fatal("$base_image does not run on any types");
     }

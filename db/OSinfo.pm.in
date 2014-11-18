@@ -125,6 +125,9 @@ sub Lookup($$;$$)
 {
     my ($class, $arg1, $arg2, $arg3) = @_;
 
+    return undef
+	if (!defined($arg1));
+
     #
     # A single arg is either an index or "pid,osname[:version]" or
     # "pid/osname[:version]" string.
@@ -181,11 +184,12 @@ sub Lookup($$;$$)
     }
     elsif (!defined($arg3)) {
 	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
+	    #
+	    # This will get deleted OSs, but that is okay.
+	    #
 	    my $result =
-		DBQueryWarn("select v.* from os_info as o ".
-			    "left join os_info_versions as v on ".
-			    "     v.osid=o.osid ".
-			    "where o.osid='$arg1' and v.vers='$arg2'");
+		DBQueryWarn("select v.* from os_info_versions as v ".
+			    "where v.osid='$arg1' and v.vers='$arg2'");
 	    return undef
 		if (! $result || !$result->numrows);
 
@@ -825,8 +829,12 @@ sub MapToImage($$)
 	if (!defined($query_result) || !$query_result->numrows);
 
     my ($imageid) = $query_result->fetchrow_array();
-
-    return Image->Lookup($imageid);
+    # Look for corresponding image version. 
+    my $image = Image->Lookup($imageid, $self->vers());
+    if (!defined($image)) {
+	$image = Image->Lookup($imageid);
+    }
+    return $image;
 }
 
 # Stubs for calling "libTaintStates" common taint handling code

@@ -473,6 +473,9 @@ while (1) {
 		$nodeobj->SetNodeHistory(TB_NODEHISTORY_OP_MOVE, undef,
 					 $reloading_experiment);
 	    }
+	    # Clear any taint states set for the node since it's going
+	    # to be reloaded.
+	    $nodeobj->RemoveTaintState();
 	}
 	# It is now safe to clear this.
 	@retry_list = ();

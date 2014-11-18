@@ -2,6 +2,7 @@
 use strict;
 use Getopt::Std;
 use POSIX qw(strftime);
+use File::Basename;
 use lib "/usr/testbed/lib";
 use emutil;
 
@@ -14,7 +15,7 @@ sub usage {
     print "Usage: $0 [options] [rack]\n";
     print "Options:\n";
     print "-r      - Rsync software to rack.\n";
-    print "-R      -   (just install/genirack directory)\n";
+    print "-R dir  -   (rsync specific directory (say, install/genirack)\n";
     print "-b      - Build the software (with reconfig).\n";
     print "-i      - Install on each rack.\n";
     print "-l      - List all racks.\n";
@@ -30,18 +31,20 @@ sub usage {
     print "-8      - Just G8 racks.\n";
     print "-f      - Run function instead. Add -F to shutdown testbed\n";
     print "          Add -o to ssh to ops instead\n";
+    print "          Add -c to ssh to control instead\n";
     print "-s      - No parallelization in -r, -f, or -b.\n";
     print "-t      - Tag source with instageni-YYYYMMDD\n";
     print "rack    - Specific rack, or all racks\n";
     exit(1);
 }
-my $optlist    = "binuUdDhfForlc78tsp:aAR";
+my $optlist    = "binuUdDhfForlc78tsp:aAR:C";
 my $rebuild    = 0;
 my $install    = 0;
 my $rsync      = 0;
-my $rsyncupd   = 0;
+my $rsyncdir;
 my $dofunc     = 0;
 my $dofuncops  = 0;
+my $doscp      = 0;
 my $dotag      = 0;
 my $nopar      = 0;
 my $dopool;
@@ -72,8 +75,9 @@ my %G7RACKS  = ("bbn"       => [ "boss.instageni.gpolab.bbn.com",
 				 "kansas.control-nodes.geniracks.net" ],
 		"nyu"       => [ "boss.genirack.nyu.edu",
 				 "nyu.control-nodes.geniracks.net" ],
-		"idaho"     => [ "boss.instageni.uidaho.edu",
-				 "idaho.control-nodes.geniracks.net" ],
+# Off the air.
+#		"idaho"     => [ "boss.instageni.uidaho.edu",
+#				 "idaho.control-nodes.geniracks.net" ],
 );
 my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
 				 "max.control-nodes.geniracks.net" ],
@@ -113,6 +117,14 @@ my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
 				 "ucla.control-nodes.geniracks.net" ],
 	       "uky2"       => [ "boss.pks2.sdn.uky.edu",
 				 "uky2.control-nodes.geniracks.net" ],
+	       "boulder"    => [ "boss.instageni.colorado.edu",
+				 "boulder.control-nodes.geniracks.net" ],
+	       "cenic"      => [ "boss.instageni.cenic.net",
+				 "cenic.control-nodes.geniracks.net" ],
+#	       "cisco"      => [ "boss.cisco.geniracks.net",
+#				 "cisco.control-nodes.geniracks.net" ],
+	       "uw"         => [ "boss.instageni.washington.edu",
+				 "uw.control-nodes.geniracks.net" ],
 );
 
 sub fatal($)
@@ -179,9 +191,13 @@ if (defined($options{"b"})) {
 if (defined($options{"r"})) {
     $rsync = 1;
 }
+if (defined($options{"C"})) {
+    $rsync = 1;
+    $doscp = 1;
+}
 if (defined($options{"R"})) {
     $rsync    = 1;
-    $rsyncupd = 1;
+    $rsyncdir = $options{"R"};
 }
 if (defined($options{"p"})) {
     $dopool = $options{"p"};
@@ -274,7 +290,17 @@ if ($dofunc && !$install) {
 		(defined($limit) ? "-l $limit" : "");
 	}
 	elsif (0) {
-	    $command = "cd emulab-devel/obj/event/monitoring && sudo gmake install && /usr/testbed/sbin/protogeni/shared-node-listener &";
+	    $command = "cd $devobj/firewall; gmake insertrules insertvars";
+	}
+	elsif (0) {
+	    $command = "cd $devel/stuff; sudo -E perl osupd.pl";
+	}
+	elsif (0) {
+	    $command = "cd $devel/stuff; sudo perl osupdctrl.pl";
+	}
+	elsif (0) {
+	    $command = "cd $devel/stuff; ".
+		"sudo pkg_delete bash-4.2.20; sudo pkg_add bash-4.3.27.tbz";
 	}
 	elsif (0) {
 	    $command = "cd /tmp; wget http://www.emulab.net/downloads/ops-monitoring.tar.gz && cd /usr/local && sudo tar xf /tmp/ops-monitoring.tar.gz; mysqladmin create monitoring; cd /usr/local/ops-monitoring/local/unit-tests && python ./local_table_reset.py; sudo /usr/testbed/sbin/protogeni/mondbd";
@@ -291,13 +317,13 @@ if ($dofunc && !$install) {
 	    $command = "cd /etc/openvpn; sudo ln -s /home/elabman/openvpn/openvpn.conf emulab.conf; sudo /etc/rc3.d/S16openvpn start";
 	}
 	elsif (0) {
-	    $command = "sudo -u geniuser /usr/testbed/sbin/wap ".
-		"/usr/testbed/sbin/image_import -g -p ch-geni-net ".
-		"https://www.utahddc.geniracks.net/image_metadata.php\\\?uuid=da660c93-2134-11e3-85ef-000000000000";
+	    $command = "sudo -u elabman /usr/testbed/sbin/wap ".
+		"/usr/testbed/sbin/image_import -g -p emulab-ops ".
+		"https://www.utahddc.geniracks.net/image_metadata.php\\\?uuid=783273c6-57bb-11e4-a443-000000000000";
 	}
 	elsif (0) {
-	    $command = "sudo scp $devel/xendomains ".
-		"  vhost3.shared-nodes.emulab-ops:/usr/local/etc/emulab";
+	    $command = "sudo scp /usr/testbed/images/ndngec21v4.ndz ".
+		"  ops:/proj/ch-geni-net/images/ndngec21v4.ndz";
 	}
 	elsif (0) {
 	    $command = "sudo ssh vhost1.shared-nodes.emulab-ops ".
@@ -317,12 +343,12 @@ if ($dofunc && !$install) {
 	}
 	elsif (0) {
 	    $command =
-		"cd emulab-devel/obj/db; sudo gmake /usr/testbed/lib/Node.pm";
+		"cd emulab-devel/obj/tbsetup/snmpit_test; sudo gmake install";
 	}
 	elsif (0) {
-	    $command = "cd emulab-devel/obj/ntpd; ".
-		"sudo gmake install; ".
-		"sudo /etc/rc.d/ntpd restart";
+	    $command = "cd emulab-devel/obj/db; ".
+		"sudo gmake /usr/testbed/lib/Image.pm; ".
+		"cd ../utils; sudo gmake install";
 	}
 	elsif (0) {
 	    $command =
@@ -338,14 +364,21 @@ if ($dofunc && !$install) {
 	    "    vhost3.shared-nodes.emulab-ops:/usr/local/etc/emulab/capture";
 	}
 	elsif (0) {
-	    #$command = "sudo /usr/testbed/sbin/getimages";
-	    #$command = "/usr/testbed/sbin/wap /usr/testbed/sbin/grantimage -a -x emulab-ops,Ubuntu12-64-OVS";
-	    $command = "emulab-devel/emulab-devel/runsonxen.pl -r ".
-		"emulab-ops,FEDORA15-STD";
+	    $command = "/usr/testbed/sbin/wap ".
+	      "/usr/testbed/sbin/grantimage -a -x emulab-ops,UBUNTU14-64-STD; ".
+	      "cat $devel/stuff/fee.sql | mysql tbdb; ".
+	      "$devel/stuff/runsonxen.pl emulab-ops,UBUNTU14-64-STD";
 	}
+	elsif (1) {
+	    $command = "cat $devel/stuff/fee.sql | mysql tbdb; ".
+		"sudo touch /usr/testbed/images/UBUNTU14-64-STD.ndz";
+	}
+	elsif (0) {
+		$command = "cd emulab-devel/obj/; sudo gmake update-rcd";
+	}	    
 	else {
 	    $command =
-		"cat emulab-devel/emulab-devel/install/genirack/foo.sql | ".
+		"cat emulab-devel/emulab-devel/stuff/closed.sql | ".
 		"   mysql tbdb";
 	}
 	#$command = "($command >& /tmp/function.log)";
@@ -369,7 +402,7 @@ if ($dofunc && !$install) {
     my @doracks = @TODO;
     # Return codes for each rack. 
     my @results = ();
-    if (ParRun({"maxwaittime" => 99999, "maxchildren" => ($nopar ? 1 : 6)},
+    if (ParRun({"maxwaittime" => 99999, "maxchildren" => ($nopar ? 1 : 8)},
 	       \@results, $coderef, @doracks)) {
 	fatal("ParRun failed!");
     }
@@ -415,20 +448,44 @@ if ($rsync) {
 
 	print "rsyncing $rack ...\n";
 
-	if ($rsyncupd) {
-	    print "-> rsyncing emulab-devel/install/genirack\n";
-	    system("rsync -a --timeout=30 --delete ".
+	if (defined($rsyncdir)) {
+	    $rsyncdir = "install/genirack"
+		if ($rsyncdir eq "");
+	    my $dir = dirname($rsyncdir);
+	    
+	    print "-> rsyncing emulab-devel/$rsyncdir\n";
+	    system("rsync -a --timeout=60 --delete ".
 		   "--exclude-from $HOME/.rsyncignore ".
-		   "     $HOME/testbed-noelvin/emulab-devel/install/genirack ".
-		   "  elabman\@${rack}:emulab-devel/emulab-devel/install");
+		   "     $HOME/testbed-noelvin/emulab-devel/$rsyncdir ".
+		   "  elabman\@${rack}:emulab-devel/emulab-devel/$dir");
 	    if ($?) {
-		print STDERR "** $rack: error rsyncing emulab-devel\n";
+		print STDERR "** $rack: ".
+		    "error rsyncing emulab-devel/$rsyncdir\n";
+		return 1;
+	    }
+	    return 0;
+	}
+	if ($doscp) {
+	    if (0) {
+		$rack =~ s/^boss/ops/;
+	    
+		system("scp /share/freebsd/9.3/src.tar.gz ".
+		       "    /share/freebsd/9.3/obj.tar.gz ".
+		       "    /share/freebsd/9.3/kernel-9.3.xen ".
+		       "    elabman\@${rack}:/share");
+	    }
+	    else {
+		system("scp /usr/testbed/images/ndngec21v4.ndz ".
+		       "    elabman\@${rack}:/usr/testbed/images");
+	    }
+	    if ($?) {
+		print STDERR "** $rack: error doing scp\n";
 		return 1;
 	    }
 	    return 0;
 	}
 	print "-> rsyncing emulab-devel\n";
-	system("rsync -a --timeout=30 --delete ".
+	system("rsync -a --timeout=60 --delete ".
 	       "--exclude-from $HOME/.rsyncignore ".
 	       "     $HOME/testbed-noelvin/emulab-devel ".
 	       "     $HOME/testbed-noelvin/reconfig.rack ".
@@ -438,7 +495,7 @@ if ($rsync) {
 	    return 1;
 	}
 	print "-> rsyncing pubsub\n";
-	system("rsync -a --timeout=30 --delete ".
+	system("rsync -a --timeout=60 --delete ".
 	       "--exclude-from $HOME/.rsyncignore ".
 	       "     $HOME/testbed-noelvin/pubsub elabman\@${rack}:");
 	if ($?) {
@@ -446,7 +503,7 @@ if ($rsync) {
 	    return 1;
 	}
 	print "-> rsyncing shellinabox\n";
-	system("rsync -a --timeout=30 --delete ".
+	system("rsync -a --timeout=60 --delete ".
 	       "--exclude-from $HOME/.rsyncignore ".
 	       "     $HOME/testbed-noelvin/shellinabox elabman\@${rack}:");
 	if ($?) {
@@ -460,7 +517,7 @@ if ($rsync) {
     my @doracks = @TODO;
     # Return codes for each rack. 
     my @results = ();
-    if (ParRun({"maxwaittime" => 99999, "maxchildren" => ($nopar ? 1 : 6)},
+    if (ParRun({"maxwaittime" => 99999, "maxchildren" => ($nopar ? 1 : 8)},
 	       \@results, $coderef, @doracks)) {
 	fatal("ParRun failed!");
     }
@@ -588,8 +645,7 @@ if ($install) {
 	    print "-> Running function ...\n";
  	    my $command = "/bin/ls /";
 	    if (1) {
-		$command = "cd emulab-devel/obj/install; ".
-		    " sudo perl emulab-install -b -u -i boss/mfs boss ";
+		$command = "cd emulab-devel/obj/; sudo gmake update-rcd";
 	    }
 	    if (defined($command) &&
 		SSH($rack, "($command >& /tmp/function.log)")) {

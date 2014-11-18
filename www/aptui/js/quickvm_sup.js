@@ -1,5 +1,5 @@
-define(['d3', 'dateformat', 'marked', 'jacks'],
-function (d3) {
+define(['dateformat', 'marked', 'jacks'],
+function () {
 
 function ShowModal(which) 
 {

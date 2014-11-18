@@ -51,6 +51,11 @@ NOSHAREDFS=0
 NFSRACY=1
 
 #
+# IQN prefix for iSCSI blockstores
+#
+BS_IQN_PREFIX=iqn.2000-10.net.emulab
+
+#
 # Define a port range for frisbee use. You may want to do this if you
 # have a firewall between boss and the nodes to limit the size of the
 # "hole" required.

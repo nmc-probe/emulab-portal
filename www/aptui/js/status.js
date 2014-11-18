@@ -1,34 +1,33 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment', 'marked', 'js/lib/uritemplate', 'js/image',
+	['underscore', 'js/quickvm_sup', 'moment',
+	 'marked', 'js/lib/uritemplate', 'js/image', 'js/extend',
 	 'js/lib/text!template/status.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',
 	 'js/lib/text!template/register-modal.html',
 	 'js/lib/text!template/terminate-modal.html',
-	 'js/lib/text!template/extend-modal.html',
 	 'js/lib/text!template/clone-help.html',
 	 'js/lib/text!template/snapshot-help.html',
 	 'js/lib/text!template/oneonly-modal.html',
-	 'tablesorter', 'tablesorterwidgets'],
+	 'js/lib/text!template/approval-modal.html',
+	 'tablesorter', 'tablesorterwidgets','jquery-ui'],
 function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
-	  statusString, waitwaitString, oopsString,
-	  registerString, terminateString, extendString,
-	  cloneHelpString, snapshotHelpString, oneonlyString)
+	  ShowExtendModal, statusString, waitwaitString, oopsString,
+	  registerString, terminateString,
+	  cloneHelpString, snapshotHelpString, oneonlyString, approvalString)
 {
     'use strict';
     var nodecount   = 0;
     var ajaxurl     = null;
     var uuid        = null;
     var oneonly     = 0;
+    var isadmin     = 0;
+    var isguest     = 0;
+    var dossh       = 1;
+    var extend      = null;
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
-    var waitwaitTemplate  = _.template(waitwaitString);
-    var oopsTemplate      = _.template(oopsString);
-    var registerTemplate  = _.template(registerString);
-    var terminateTemplate = _.template(terminateString);
-    var extendTemplate    = _.template(extendString);
-    var oneonlyTemplate   = _.template(oneonlyString);
 
     function initialize()
     {
@@ -36,6 +35,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	ajaxurl = window.APT_OPTIONS.AJAXURL;
 	uuid    = window.APT_OPTIONS.uuid;
 	oneonly = window.APT_OPTIONS.oneonly;
+	isadmin = window.APT_OPTIONS.isadmin;
+	isguest = !window.APT_OPTIONS.registered;
+	dossh   = window.APT_OPTIONS.dossh;
+	extend  = window.APT_OPTIONS.extend || null;
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 
 	// Generate the templates.
@@ -48,23 +51,18 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    creatorUid:		window.APT_OPTIONS.creatorUid,
 	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
 	    registered:		window.APT_OPTIONS.registered,
+	    isadmin:            window.APT_OPTIONS.isadmin,
 	    // The status panel starts out collapsed.
 	    status_panel_show:  (instanceStatus == "ready" ? false : true),
 	};
 	var status_html   = statusTemplate(template_args);
 	$('#status-body').html(status_html);
-    	var waitwait_html = waitwaitTemplate(template_args);
-	$('#waitwait_div').html(waitwait_html);
-    	var oops_html = oopsTemplate(template_args);
-	$('#oops_div').html(oops_html);
-    	var register_html = registerTemplate(template_args);
-	$('#register_div').html(register_html);
-    	var extend_html = extendTemplate(template_args);
-	$('#extend_div').html(extend_html);
-    	var terminate_html = terminateTemplate(template_args);
-	$('#terminate_div').html(terminate_html);
-    	var oneonly_html = oneonlyTemplate(template_args);
-	$('#oneonly_div').html(oneonly_html);
+	$('#waitwait_div').html(waitwaitString);
+	$('#oops_div').html(oopsString);
+	$('#register_div').html(registerString);
+	$('#terminate_div').html(terminateString);
+	$('#oneonly_div').html(oneonlyString);
+	$('#approval_div').html(approvalString);
 
 	//
 	// Look at initial status to determine if we show the progress bar.
@@ -118,18 +116,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Setup the extend modal.
 	$('button#extend_button').click(function (event) {
 	    event.preventDefault();
-	    $('#why_extend').val('');
-	    // Countdown characters needed for a good story.
-	    $('#why_extend').on('focus keyup', function (e) {
-		var len   = $('#why_extend').val().length;
-		var left  = 120 - len;
-		if (left < 0) {
-		    left = 0;
-		}
-		var msg   = "You need at least " + left + " more characters";
-		$('#extend_counter_msg').html(msg);
-	    });
-	    sup.ShowModal('#extend_modal');
+	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest, extend);
 	});
 	
 	// Handler for the Clone button.
@@ -198,11 +185,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    clearTimeout(popover_timer);
 	});
 	
-	$('button#request-extension').click(function (event) {
-	    event.preventDefault();
-	    RequestExtension(uuid);
-	});
-
 	// Terminate an experiment.
 	$('button#terminate').click(function (event) {
 	    event.preventDefault();
@@ -253,6 +235,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	else if (window.APT_OPTIONS.snapping) {
 	    ShowProgressModal();
 	}
+	else if (window.APT_OPTIONS.extend) {
+	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest,
+			    window.APT_OPTIONS.extend);
+	}
     }
 
     // Periodically ask the server for the status and update the display.
@@ -283,7 +269,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
             // It has not... perform the initilization
             StatusWatchCallBack.laststatus = "";
 	}
-	var status = json.value;
+	var status = json.value.status;
 	if (json.code) {
 	    alert("The server has returned an error: " + json.value);
 	    status = "unknown";
@@ -318,8 +304,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 	    else if (status == 'failed') {
 		bgtype = "panel-danger";
-		status_message = "Something went wrong, sorry! " +
-		    "We've been notified.";
+
+		if (_.has(json.value, "reason")) {
+		    status_message = json.value.reason;
+		}
+		else {
+		    status_message = "Something went wrong, sorry! " +
+			"We've been notified.";
+		}
 		status_html = "<font color=red>failed</font>";
 		if ($("#status_progress_div").length) {
 		    $("#status_progress_div").removeClass("progress-striped");
@@ -511,44 +503,30 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Request experiment extension. Not well named; we always grant the
     // extension. Might need more work later if people abuse it.
     //
-    function RequestExtension(uuid)
+    function RequestExtensionCallback(json)
     {
-	var reason = $("#why_extend").val();
-//	console.info(reason);
-	if (reason.length < 30) {
-	    alert("Your reason is too short! Say more please.");
-	    return;
-	}
-	var callback = function(json) {
-	    sup.HideModal("#waitwait-modal");
-	    
-//	    console.info(json.value);
-	    var message;
+	var message;
 	
-	    if (json.code) {
-		if (json.code < 0) {
-		    message = "Could not extend experiment. " +
-			"Please try again later";
-		}
-		else {
-		    message = "Could not extend experiment: " + json.value;
-		}
-		sup.SpitOops("oops", message);
+	if (json.code) {
+	    if (json.code < 0) {
+		message = "Could not extend experiment. " +
+		    "Please try again later";
+	    }
+	    else if (json.code == 2) {
+		$('#approval_text').html(json.value);
+		sup.ShowModal('#approval_modal');
 		return;
 	    }
-	    $("#quickvm_expires").html(moment(json.value).calendar());
-	
-	    // Reset the countdown clock.
-	    StartCountdownClock.reset = json.value;
+	    else {
+		message = "Could not extend experiment: " + json.value;
+	    }
+	    sup.SpitOops("oops", message);
+	    return;
 	}
-	sup.HideModal('#extend_modal');
-	sup.ShowModal("#waitwait-modal");
-	var xmlthing = sup.CallServerMethod(ajaxurl,
-					    "status",
-					    "RequestExtension",
-					    {"uuid"   : uuid,
-					      "reason" : reason});
-	xmlthing.done(callback);
+	$("#quickvm_expires").html(moment(json.value).calendar());
+	
+	// Reset the countdown clock.
+	StartCountdownClock.reset = json.value;
     }
 	
     //
@@ -690,8 +668,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     function ShowTopo(uuid)
     {
 	var callback = function(json) {
+	    //console.info(json);
+	    
 	    if ($("#manifest_textarea").length) {
-		$("#manifest_textarea").html(json.value);
+		$("#manifest_textarea").val(json.value);
 		$("#manifest_textarea").css("height", "300");
 	    }
 
@@ -738,7 +718,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		var ssh    = "n/a";
 		var cons   = "n/a";
 
-		if (login.length) {
+		if (login.length && dossh) {
 		    var user   = login.attr("username");
 		    var host   = login.attr("hostname");
 		    var port   = login.attr("port");
@@ -769,7 +749,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		//
 		// Now a button to the console.
 		//
-		if (coninfo.length) {
+		if (coninfo.length && !isguest) {
 		    cons = "<button class='btn btn-primary btn-sm' " +
 			"    id='" + "consbutton_" + node + "' " +
 			"    type='button'>" +
@@ -816,7 +796,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 
 	    // And start up ssh for single node topologies.
-	    if (nodecount == 1 && nodehostport && !oneonly) {
+	    if (nodecount == 1 && nodehostport && !oneonly && dossh) {
 		NewSSHTab(nodehostport, nodename);
 	    }
 	}
@@ -871,6 +851,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 	var callback = function(json) {
 	    sup.HideModal('#waitwait-modal');
+	    //console.log("StartSnapshot");
 	    //console.log(json);
 	    
 	    if (json.code) {

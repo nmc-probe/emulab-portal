@@ -48,7 +48,7 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  reservevlans delgeniuser delegatecredential \
 		  updatecert fixcerts initcerts cacontrol webcacontrol \
 		  genextendcred rspeclint chstats listactive \
-		  maptoslice webmaptoslice setexpiration quickvm webquickvm \
+		  maptoslice webmaptoslice setexpiration \
 		  mondbd parsecert creategeniuser webcreategeniuser \
 		  updategeniuser webupdategeniuser
 
@@ -75,7 +75,6 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 install: apt-install \
         $(addprefix $(INSTALL_SBINDIR)/, $(SBIN_STUFF)) \
 	$(addprefix $(INSTALL_SBINDIR)/protogeni/, $(PSBIN_STUFF)) \
-	$(INSTALL_LIBEXECDIR)/webquickvm \
 	$(INSTALL_LIBEXECDIR)/webcacontrol \
 	$(INSTALL_LIBEXECDIR)/webcreategeniuser \
 	$(INSTALL_LIBEXECDIR)/webupdategeniuser \

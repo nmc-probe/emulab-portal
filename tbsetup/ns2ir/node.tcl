@@ -296,10 +296,20 @@ Node instproc updatedb {DB} {
     #
     # If the osid won't run on the specified parent, die.
     #
-    if {$parent_osid != "" && $osid != "" 
-	&& [lsearch -exact $subosids($osid) $parent_osid] == -1} {
-	perror "subOSID $osid does not run on parent OSID $parent_osid!"
-	return
+    if {$parent_osid != "" && $osid != ""} {
+	# Look for :version in the names.
+	set os $osid
+        if { [regexp {:} $osid] } {
+	    set os [lindex [split $osid {:}] 0]
+	}
+	set pos $parent_osid
+        if { [regexp {:} $parent_osid] } {
+	    set pos [lindex [split $parent_osid {:}] 0]
+	}
+	if {[lsearch -exact $subosids($os) $pos] == -1} {
+	    perror "subOSID $osid does not run on parent OSID $parent_osid!"
+	    return
+	}
     }
 
     #

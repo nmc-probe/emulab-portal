@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -59,7 +59,7 @@ if (!isset($showall)) {
     $showall = 0;
 }
 if (!isset($reverse)) {
-    $reverse = 0;
+    $reverse = 1;
 }
 if (!isset($count)) {
     $count = 200;
@@ -158,7 +158,7 @@ $showopt="&showall=" . ($showall ? "1" : "0");
 
 echo "<b>Order records:</b> ";
 if ($reverse) {
-    echo "<a href='shownodehistory.php3?$opts$showopt'>oldest first</a>,
+    echo "<a href='shownodehistory.php3?$opts$showopt&reverse=0'>oldest first</a>,
           newest first";
 } else {
     echo "oldest first,

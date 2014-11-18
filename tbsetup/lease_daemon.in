@@ -536,7 +536,8 @@ sub graceify($$)
     if ($grace > 0) {
 	my $ghours = sprintf("%.1f", $grace / (60 * 60));
 	my $reason = ($expired ? "expired" : "been idle too long");
-	my $name = $lease->pid() . "/" . $lease->lease_id();
+	my $name = $lease->pid() . "/" .
+	    $lease->gid() . "/" . $lease->lease_id();
 	my $msg =
 	    "Your '$ltype' lease $name has $reason.\n".
 	    "It has entered a $ghours hour grace period.\n\n";
@@ -564,7 +565,8 @@ sub lockify($)
 	return 1;
     }
 
-    my $name = $lease->pid() . "/" . $lease->lease_id();
+    my $name = $lease->pid() . "/" .
+	$lease->gid() . "/" . $lease->lease_id();
     my $msg =
 	"Your '$ltype' lease $name has expired.\n".
 	"It has been administratively locked.\n";
@@ -625,7 +627,8 @@ sub destroy($)
 	return 4;
     }
 
-    my $name = $lease->pid() . "/" . $lease->lease_id();
+    my $name = $lease->pid() . "/" .
+	$lease->gid() . "/" . $lease->lease_id();
     my $ltype = $lease->type();
     my $uid = $lease->owner();
 
@@ -695,7 +698,8 @@ sub lease_list(@)
 	    }
 	}
 
-	my $lname = $lease->pid() . "/" . $lease->lease_id();
+	my $lname = $lease->pid() . "/" .
+	    $lease->gid() . "/" . $lease->lease_id();
 	my $stime = strftime("%D %R", localtime($lease->inception()));
 	my $etime = strftime("%D %R", localtime($lease->lease_end()));
 	my $ltime = "never";

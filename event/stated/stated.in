@@ -1164,7 +1164,7 @@ sub handleCtrlEvent($$) {
 	    info("$node: Clearing reload info\n");
 	    $nodeobj->ClearCurrentReload();
 	    $nodeobj->FlushReserved();
-	    $nodeobj->SyncTaintStates();
+	    $nodeobj->SyncDiskPartitionTaintStates();
 	    my $experiment = $nodeobj->Reservation();
 	    if (defined($experiment) &&
 		$experiment->pid() eq NODERELOADING_PID &&

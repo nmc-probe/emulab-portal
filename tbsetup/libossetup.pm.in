@@ -489,6 +489,12 @@ sub SetOSAux($$$$$)
 	    $osinfo = $nextosinfo;
 	}
 	#
+	# Have the node inherit any taint states set for the OS. This
+	# call retains any taint states the node had set previously.
+	#
+	$node->InheritTaintStates($osinfo) == 0
+	    or die_noretry("$node could not inherit taint states from $osinfo");
+	#
 	# Make sure this OSID is actually loaded on the machine.
 	#
 	my $isloaded = $node->IsOSLoaded($osinfo);
@@ -570,7 +576,7 @@ sub LightUpNodes($@)
 	if ($op == $RELOAD) {
 	    my $image    = $node->_loadimage();
 	    my @images   = ($image);
-	    my $imageids = $image->imageid();
+	    my $imageids = $image->versid();
 	    my $auxloads = $node->_loadimages();
 
 	    #
@@ -579,7 +585,7 @@ sub LightUpNodes($@)
 	    #
 	    if (defined($auxloads)) {
 		foreach my $aux (@{ $auxloads }) {
-		    my $auxid = $aux->imageid();
+		    my $auxid = $aux->versid();
 		    unshift(@images, $aux);
 		    $imageids = "${auxid},${imageids}";
 		}
@@ -1554,6 +1560,15 @@ sub AddNode($$)
     $pnode->_vnodecount($pnode->_vnodecount() + 1);
     # and stash the pnode in case we need it later.
     $node->_pnode($pnode);
+    # Taint the pnode if this vnode was tainted by its OS
+    # and is not on a shared host.  No user access already on
+    # the latter.
+    if (($node->IsTainted(TB_TAINTSTATE_USERONLY) ||
+	 $node->IsTainted(TB_TAINTSTATE_BLACKBOX))
+	&& $pnode->erole() ne "sharedhost") {
+	$pnode->AddTaintState(TB_TAINTSTATE_BLACKBOX) == 0 
+	    or die_noretry("Could not add blackbox taint state to vnode host!\n");
+    }
 
     #
     # See if a "reload" is required; some virtual nodes can get

@@ -24,7 +24,6 @@
 use English;
 use Socket;
 use strict;
-use Net::IP;
 
 #
 # Suck out virtual names and create CNAME map entries.
@@ -300,6 +299,8 @@ while (my $dirent = readdir(DIR)) {
 }
 
 if ($IPV6_ENABLED) {
+    require Net::IP;
+
     make_ipv6_reverse_zonefile($reverse_ipv6_tail,\%routable);
     assemble_zonefile($reverse_ipv6);
 }

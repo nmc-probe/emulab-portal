@@ -182,8 +182,9 @@ sub CallMethod($$$@)
     }
     else {
 	print STDERR
-	    "Could not determine what version of FreeBSD you are running!\n";
-	return undef;
+	    "Could not determine what version of FreeBSD you are running!\n";	
+	return GeniResponse->new(GENIRESPONSE_RPCERROR, -1,
+	    "Could not determine what version of FreeBSD you are running!");
     }
     
     if ($FBSD_MAJOR >= 8) {

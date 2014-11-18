@@ -225,6 +225,10 @@ my $MAXROUTETTABLE = 255;
 # Whether or not to use only unpartitioned (unused) disks to form the Xen VG.
 my $LVM_FULLDISKONLY = 0;
 
+# Whether or not to use partitions only when they are big.
+my $LVM_ONLYLARGEPARTS = 1;
+my $LVM_LARGEPARTPCT = 5;
+
 # LVM snapshots suck.
 my $DOSNAP = 0;
 
@@ -472,9 +476,14 @@ sub rootPreConfig($)
 
     #
     # Turn on write caching. Hacky. 
+    # XXX note we do not use the returned "path" here as we need to
+    # change the setting on all devices, not just the whole disk devices.
     #
     foreach my $dev (keys(%devs)) {
-	mysystem2("hdparm -W1 /dev/$dev");
+	# only mess with the disks we are going to use
+	if (exists($devs{$dev}{"size"}) || $LVM_FULLDISKONLY == 0) {
+	    mysystem2("hdparm -W1 /dev/$dev");
+	}
     }
 
     #
@@ -486,20 +495,73 @@ sub rootPreConfig($)
 	    if ($debug);
 
 	#
+	# Total up potential maximum size
+	#
+	my $maxtotalSize = 0;
+	my $sizeThreshold = 0;
+	foreach my $dev (keys(%devs)) {
+	    if (defined($devs{$dev}{"size"})) {
+		$maxtotalSize += $devs{$dev}{"size"};
+	    } else {
+		foreach my $part (keys(%{$devs{$dev}})) {
+		    $maxtotalSize += $devs{$dev}{$part}{"size"};
+		}
+	    }
+	}
+	if ($maxtotalSize > 0) {
+	    $sizeThreshold = int($maxtotalSize * $LVM_LARGEPARTPCT / 100.0);
+	}
+
+	#
 	# Find available devices of sufficient size, prepare them,
 	# and incorporate them into a volume group.
 	#
-	my $blockdevs = "";
 	my $totalSize = 0;
+	my $blockdevs = "";
 	foreach my $dev (keys(%devs)) {
+	    #
+	    # Whole disk is available
+	    #
 	    if (defined($devs{$dev}{"size"})) {
-		$blockdevs .= " /dev/$dev";
+		$blockdevs .= " " . $devs{$dev}{"path"};
 		$totalSize += $devs{$dev}{"size"};
 	    }
-	    elsif ($LVM_FULLDISKONLY == 0) {
+	    #
+	    # Disk contains partitions that are available
+	    #
+	    else {
 		foreach my $part (keys(%{$devs{$dev}})) {
-		    $blockdevs .= " /dev/${dev}${part}";
-		    $totalSize += $devs{$dev}{$part}{"size"};
+		    my $psize = $devs{$dev}{$part}{"size"};
+		    my $ppath = $devs{$dev}{$part}{"path"};
+
+		    #
+		    # XXX one way to avoid using the system disk, just ignore
+		    # all partition devices. However, in cases where the
+		    # remainder of the system disk represents the majority of
+		    # the available space (e.g., Utah d710s), this is a bad
+		    # idea.
+		    #
+		    if ($LVM_FULLDISKONLY) {
+			print STDERR "WARNING: not using $ppath for LVM (is a partition)\n";
+			next;
+		    }
+
+		    #
+		    # XXX another heurstic to try to weed out the system
+		    # disk whenever feasible: if a partition device represents
+		    # less than some percentage of the max possible space,
+		    # avoid it.
+		    #
+		    if ($LVM_ONLYLARGEPARTS && $psize < $sizeThreshold) {
+			print STDERR "WARNING: not using $ppath for LVM (too small)\n";
+			next;
+		    }
+
+		    #
+		    # It ran the gauntlet of feeble filters, use it!
+		    #
+		    $blockdevs .= " " . $ppath;
+		    $totalSize += $psize;
 		}
 	    }
 	}

@@ -1,6 +1,6 @@
 #!/usr/bin/perl 
 #
-# Copyright (c) 2009 University of Utah and the Flux Group.
+# Copyright (c) 2009, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -35,6 +35,7 @@ use strict;
 use warnings;
 
 our $NODE_USAGE_DB;
+our @NODE_OOS_EXPT;
 require "@prefix@/etc/node_usage.conf";
 
 my $prep    = 1;
@@ -67,11 +68,31 @@ while (my ($class,$type) = $qr->fetchrow()) {
 }
 $node_class{'?'} = '?';
 
+my %oos = ();
+my $rpidx;
+if (@NODE_OOS_EXPT > 0) {
+    my $eidclause = join(" or ", map("eid='$_'", @NODE_OOS_EXPT));
+    $qr = DBQueryFatal("select idx from experiments where pid='emulab-ops'".
+		       " and ($eidclause)");
+    while (my ($idx) = $qr->fetchrow()) {
+	$oos{$idx} = 1;
+    }
+    print "Will skip experiments: ", join(' ', keys %oos), "\n";
+}
+
+# XXX find the reloadpending exptid for a hack below
+my $rpidx;
+$qr = DBQueryFatal("select idx from experiments where pid='emulab-ops'".
+		   " and eid='reloadpending'");
+$rpidx = $qr->fetchrow();
+
 our %last_trans;
 our %node_state;
 our $prev;
 our $prev_line;
 our $last_history_id = -1;
+our %last_expidx;
+our %maybe_free;
 
 my $again = 0;
 
@@ -91,18 +112,20 @@ if ($prep) {
 		     "  history_id int unsigned not null primary key,".
 		     "  stamp int unsigned not null, ".
 		     "  node_id char(8) not null, ".
-		     "  op enum('alloc','free','invalid') not null".
+		     "  op enum('alloc','free','invalid','oos') not null".
 		     ")");
     }
     
     local %last_trans;
     local %node_state;
+    local %last_expidx;
+    local %maybe_free;
 
     if (!$fresh) {
 	do "gather.state.1";
     }
     
-    $qr = DBQueryFatal("select history_id,node_id,op,stamp from $NODE_USAGE_DB.node_history_copy where history_id > $last_history_id order by history_id limit $LIMIT");
+    $qr = DBQueryFatal("select history_id,node_id,op,stamp,exptidx from $NODE_USAGE_DB.node_history_copy where history_id > $last_history_id order by history_id limit $LIMIT");
 
     if ($qr->num_rows() == $LIMIT) {
 	$again = 1;
@@ -112,24 +135,87 @@ if ($prep) {
 
     local $last_history_id = $prev_history_id;
     
-    while (my ($history_id,$node_id,$op,$stamp) = $qr->fetchrow()) {
+    while (my ($history_id,$node_id,$op,$stamp,$exptidx) = $qr->fetchrow()) {
 	my $type = $node_type{$node_id};
 	$type = '?' unless defined $type;
 	next unless $node_class{$type} eq 'pc';
+
+	$exptidx = 0 unless defined $exptidx;
 	my $prev_state = $node_state{$node_id};
-	$node_state{$node_id} = $op eq 'free' ? 'free' : 'alloc';
+	my $prev_idx = $last_expidx{$node_id};
+	if ($op eq "free") {
+	    $node_state{$node_id} = "free";
+	} elsif ($oos{$exptidx}) {
+	    $node_state{$node_id} = "oos";
+	} else {
+	    $node_state{$node_id} = "alloc";
+	}
 	my $invalid;
 	if (defined $prev_state) {
-	    $invalid = "alloc non-free node" if ($op eq 'alloc' && $prev_state ne 'free');
-	    $invalid = "free already free node" if ($op eq 'free' && $prev_state eq 'free');
-	    $invalid = "move free node" if ($op eq 'move' && $prev_state eq 'free');
+	    #
+	    # XXX We had a rough patch in 7/07-8/07 where the history records
+	    # show nodes going from reloadpending directly into another
+	    # experiment and back to reloadpending (i.e., there were no
+	    # "free" records").
+	    #
+	    # We paper over those here since they are predictable. If
+	    # we get consecutive alloc events where the previous one was
+	    # to reloadpending (rather, the experiment ID indicates
+	    # reloadpending), we do back and mark the previous event
+	    # as a free.
+	    #
+	    if ($op eq 'alloc' && $prev_state ne 'free') {
+		if ($prev_state eq 'alloc' && $prev_idx == $rpidx &&
+		    $maybe_free{$node_id}) {
+		    my $fid = $maybe_free{$node_id}->[0];
+		    my $fts = $maybe_free{$node_id}->[1];
+		    $prev_state = 'free';
+		    $prev_idx = $fid;
+		    DBQueryFatal("replace into $NODE_USAGE_DB.node_trans values ($fid, $fts, '$node_id', 'free')");
+		} else {
+		    $invalid = "alloc non-free node";
+		}
+	    } elsif ($op eq 'move') {
+		#
+		# If moving into reloadpending, remember the entry as
+		# we might need to insert it as a free entry later
+		#
+		$maybe_free{$node_id} = [ $history_id, $stamp ]
+		    if ($exptidx == $rpidx);
+		# keep track of the current exptidx
+		$last_expidx{$node_id} = $exptidx
+		    if ($prev_state eq 'alloc');
+		#
+		# If we were out of service and are being moved out,
+		# record this as an allocated event.
+		#
+		if ($prev_state eq 'oos' and $node_state{$node_id} ne 'oos') {
+		    $node_state{$node_id} = 'alloc';
+		}
+		#
+		# If we are a free node and moved into another experiment
+		# consider it an allocation or 'oos' event.
+		#
+		elsif ($prev_state eq 'free') {
+		    if ($oos{$exptidx}) {
+			$node_state{$node_id} = 'oos';
+		    } else {
+			$node_state{$node_id} = 'alloc';
+		    }
+		}
+	    } elsif ($op eq 'free') {
+		delete $maybe_free{$node_id};
+		$invalid = "free already free node"
+		    if ($prev_state eq 'free');
+	    }
 	}
 	if ($invalid) {
-	    #print STDERR "WARNING: $history_id ($stamp) $last_trans{$node_id}: $invalid\n";
+	    #print STDERR "WARNING: $node_id: $history_id ($stamp) $last_trans{$node_id}: $invalid\n";
 	    DBQueryFatal("update $NODE_USAGE_DB.node_trans set op = 'invalid' where history_id=$last_trans{$node_id}");
 	} elsif (!defined $prev_state || $prev_state ne $node_state{$node_id}) {
 	    DBQueryFatal("insert into $NODE_USAGE_DB.node_trans values ($history_id, $stamp, '$node_id', '$node_state{$node_id}')");
 	    $last_trans{$node_id} = $history_id;
+	    $last_expidx{$node_id} = $exptidx;
 	}
 	$last_history_id = $history_id;
     }
@@ -168,12 +254,14 @@ if ($results) {
 	    $tally{$t}[0]++;
 	    $tally{$t}[1]++ if $s eq 'free';
 	    $tally{$t}[2]++ if $s eq 'invalid';
+	    $tally{$t}[3]++ if $s eq 'oos';
 	}
 	my $line = "$history_id $stamp ";
 	foreach my $t (sort keys %tally) {
 	    $tally{$t}[1] = 0 unless defined $tally{$t}[1];
 	    $tally{$t}[2] = 0 unless defined $tally{$t}[2];
-	    $line .= " $t: $tally{$t}[0] $tally{$t}[1] $tally{$t}[2] ";
+	    $tally{$t}[3] = 0 unless defined $tally{$t}[3];
+	    $line .= " $t: $tally{$t}[0] $tally{$t}[1] $tally{$t}[2] $tally{$t}[3] ";
 	}
 	$line .= "\n";
 	print F $prev_line if $stamp != $prev;

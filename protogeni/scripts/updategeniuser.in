@@ -227,7 +227,7 @@ sub UpdateSSHKeys()
     else {
 	$url = $certificate->url();
 	$url =~ s/sa$/geni-ma/;
-	$url = "https://www.emulab.net:12369/protogeni/stoller/xmlrpc/geni-ma";
+#	$url = "https://www.emulab.net:12369/protogeni/stoller/xmlrpc/geni-ma";
 	$method = "lookup_keys";
     }
     my $response =

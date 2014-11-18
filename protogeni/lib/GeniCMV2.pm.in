@@ -740,13 +740,22 @@ sub DeleteSlice($)
 	$slice->UnLock();
 	return GeniResponse->BusyResponse();
     }
-    
-    if (GeniCM::CleanupDeadSlice($slice, 1) != 0) {
-	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				    "Could not cleanup slice");
+
+    #
+    # Proceed in the background. No reason to make the caller wait,
+    # it takes too long.
+    #
+    my $mypid = main::WrapperFork();
+    if ($mypid) {
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
     }
-  done:
-    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+    if (GeniCM::CleanupDeadSlice($slice, 1) != 0) {
+	#
+	# We may need to send email here. 
+	#
+	return -1;
+    }
+    return 0;
 }
 
 #
@@ -1136,12 +1145,12 @@ sub SliverStatus($)
     my $blob = {
 	"state"   => $aggregate->state(),
 	"status"  => $aggregate->status(),
-	"error"   => $aggregate->ErrorLog(),
 	"details" => {},
     };
     $blob->{'public_url'} =
 	"$TBBASE/showslicepub.php?publicid=" .	$slice->publicid()
 	if (defined($slice->publicid()));
+    $blob->{"error"} = $aggregate->ErrorLog() || "";
     
     foreach my $sliver (@slivers) {
 	if ($sliver->isa("GeniAggregate")) {
@@ -1755,7 +1764,7 @@ sub BindToSlice($)
 	my $manifest = $aggregate->GetManifest(0);
 	foreach my $ref (GeniXML::FindNodes("n:node",
 					    $manifest)->get_nodelist()) {
-
+	    my $virt_id   = GeniXML::GetVirtualId($ref);
 	    my $sliver_id = GeniXML::GetSliverId($ref);
 	    next
 		if (!defined($sliver_id));
@@ -1766,7 +1775,8 @@ sub BindToSlice($)
 	    my $node_manifest = $sliver->AnnotateManifest();
 	    if (defined($node_manifest)) {
 		# And store into the new manifest.
-		GeniXML::ReplaceNode($ref, $node_manifest);
+		my $oldnode = GeniXML::GetNodeByVirtualId($virt_id, $manifest);
+		GeniXML::ReplaceNode($oldnode, $node_manifest);
 	    }
 	}
 	$aggregate->UpdateManifest($manifest);
@@ -2502,6 +2512,10 @@ sub CreateImage($)
     if (exists($argref->{'global'})) {
 	$opt .= " -g " . ($argref->{'global'} ? "1" : "0");
     }
+    else {
+	# Force shared (within project). 
+	$opt .= " -r 1";
+    }
     my $output =
 	GeniUtil::ExecQuiet("$CLONEIMAGE $opt -s $imagename $node_id");
     # Not a typical op, so always print debugging info;
@@ -3180,6 +3194,220 @@ sub ConsoleURL($)
 				    "Internal error generating URL");
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $url);
+}
+
+#
+# Blockstore support.
+#
+my $CREATEDATASET   = "$TB/bin/createdataset";
+my $DELETEDATASET   = "$TB/bin/deletelease";
+
+sub CreateDataset($)
+{
+    my ($argref) = @_;
+    my $credentials  = $argref->{'credentials'};
+    my $size         = $argref->{'size'};    # MiBs
+    my $dataset      = $argref->{'name'};
+    require Lease;
+
+    if (! (defined($credentials) &&
+	   defined($size) && defined($dataset))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if ($size !~ /^\d+$/) {
+	return GeniResponse->MalformedArgsResponse("Bad size, use MiBs");
+    }
+    if ($dataset !~ /^[-\w]+$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    #
+    # Only real local users can do blockstores, or the credential
+    # must include the correct priv.
+    #
+    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (! ((defined($user) && $user->IsLocal()) ||
+	       $credential->HasPrivilege("blockstores")));
+
+    # Get the project and group. This needs more thought. 
+    my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
+    return $group
+	if (GeniResponse::IsResponse($group));
+
+    my $lease = Lease->Lookup($group->pid(), $dataset);
+    if (defined($lease)) {
+	GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS);
+    }
+
+    my $cmd = "$CREATEDATASET -C -b -s $size ";
+    if (exists($argref->{'type'})) {
+	my $type = $argref->{'type'};
+	return GeniResponse->MalformedArgsResponse("Bad type")
+	    if ($type !~ /^[-\w]+$/);
+	$cmd .= " -t $type";
+    }
+    if (exists($argref->{'fstype'})) {
+	my $fstype = $argref->{'fstype'};
+	return GeniResponse->MalformedArgsResponse("Bad FS type")
+	    if ($fstype !~ /^[-\w]+$/);
+	$cmd .= " -f $fstype";
+    }
+    if (exists($argref->{'expires'})) {
+	my $expiration = $argref->{'expires'};
+	
+	# Gack, why does Frontier do this. It is stupid.
+	if (ref($expiration) eq 'Frontier::RPC2::DateTime::ISO8601') {
+	    $expiration = $expiration->value;
+	}
+	if (!str2time($expiration)) {
+	    return GeniResponse->MalformedArgsResponse("Bad expiration");
+	}
+	$cmd .= " -e '" . emutil::TBDateStringLocal($expiration) . "' ";
+    }
+    $cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset;
+    my $output = GeniUtil::ExecQuiet($cmd);
+    # Not a typical op, so always print debugging info;
+    print STDERR $output;
+    if ($?) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
+    }
+    #
+    # Grab the lease to see if its been approved, we want to tell
+    # the user something.
+    #
+    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+    if (!defined($lease)) {
+	print STDERR "Could not lookup lease after createdataset\n";
+	GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    my $msg   = undef;
+    if ($lease->state() eq "unapproved") {
+	if ($lease->locked()) {
+	    $msg = "Your dataset is being allocated.";
+	}
+	else {
+	    $msg = "Your dataset has not been approved yet. Watch for email";
+	}
+    }
+    my $blob = {
+	"state" => $lease->state(),
+	"uuid"  => $lease->uuid(),
+	"busy"  => $lease->locked() ? 1 : 0,
+    };
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob, $msg);
+}
+sub DeleteDataset($)
+{
+    my ($argref) = @_;
+    my $credentials  = $argref->{'credentials'};
+    my $dataset      = $argref->{'name'};
+    require Lease;
+
+    if (! (defined($credentials) && defined($dataset))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if ($dataset !~ /^[-\w]+$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    #
+    # Only real local users can do blockstores, or the credential
+    # must include the correct priv.
+    #
+    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (! ((defined($user) && $user->IsLocal()) ||
+	       $credential->HasPrivilege("blockstores")));
+
+    # Get the project and group. This needs more thought. 
+    my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
+    return $group
+	if (GeniResponse::IsResponse($group));
+
+    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+    if (!defined($lease)) {
+	GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    }
+    #
+    # Only the creator can delete the dataset.
+    #
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (0 && $user->uid() ne $lease->owner());
+    
+    my $cmd = "$DELETEDATASET -b -f " .
+	$group->pid() . "/" . $group->gid() . "/" . $dataset;
+    my $output = GeniUtil::ExecQuiet($cmd);
+    # Not a typical op, so always print debugging info;
+    print STDERR $output;
+    if ($?) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+}
+sub ExtendDataset($)
+{
+    my ($argref) = @_;
+    my $credentials  = $argref->{'credentials'};
+
+    return GeniResponse->Create(GENIRESPONSE_NOT_IMPLEMENTED);
+}
+sub DescribeDataset($)
+{
+    my ($argref) = @_;
+    my $credentials  = $argref->{'credentials'};
+    my $dataset      = $argref->{'name'};
+    require Lease;
+    require Blockstore;
+
+    if (! (defined($credentials) && defined($dataset))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if ($dataset !~ /^[-\w]+$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    #
+    # Only real local users can do blockstores, or the credential
+    # must include the correct priv.
+    #
+    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (! ((defined($user) && $user->IsLocal()) ||
+	       $credential->HasPrivilege("blockstores")));
+
+    # Get the project and group. This needs more thought. 
+    my $group =  GeniUtil::GetHoldingProject($credential->target_urn(), $user);
+    return $group
+	if (GeniResponse::IsResponse($group));
+
+    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+    if (!defined($lease)) {
+	GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    }
+    my $blob = {};
+    $blob->{'state'}    = $lease->state();
+    $blob->{'type'}     = $lease->type();
+    $blob->{"busy"}     = $lease->locked() ? 1 : 0;
+    $blob->{'created'}  = emutil::TBDateStringGMT($lease->inception());
+    $blob->{'expires'}  = emutil::TBDateStringGMT($lease->lease_end());
+    $blob->{'lastused'} = emutil::TBDateStringGMT($lease->last_used());
+    
+
+    my $bstore = Blockstore->LookupByLease($lease->idx());
+    if (defined($bstore)) {
+	$blob->{'size'}     = $bstore->total_size();
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

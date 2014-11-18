@@ -24,6 +24,7 @@
 #
 class WebTask {
     var	$webtask;
+    var $decoded = null;
 
     #
     # Constructor by lookup on unique ID
@@ -72,6 +73,13 @@ class WebTask {
 	return WebTask::Lookup($idx);
     }
 
+    # We delete from the web interface.
+    function Delete() {
+	$task_id = $this->task_id();
+	DBQueryWarn("delete from web_tasks where task_id='$task_id'");
+	return 0;
+    }
+
     # accessors
     function field($name) {
 	return (is_null($this->webtask) ? -1 : $this->webtask[$name]);
@@ -96,12 +104,28 @@ class WebTask {
 	    return array();
 	}
     }
+    # Return a specific value from the data.
+    function TaskValue($key) {
+	if ($this->task_data()) {
+	    if (! $this->decoded) {
+		$this->decoded = json_decode($this->task_data(), true);
+	    }
+	    if (array_key_exists($key, $this->decoded)) {
+		return $this->decoded[$key];
+	    }
+	}
+	return null;
+    }
 
     function ValidTaskID($id) {
 	if (preg_match("/^[-\w]+$/", $id)) {
 	    return TRUE;
 	}
 	return FALSE;
+    }
+
+    function GenerateID() {
+	return md5(uniqid(rand(),1));
     }
 }
 ?>

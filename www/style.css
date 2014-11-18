@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2011, 2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -141,6 +141,17 @@ iframe.downloader {
   frameborder: 0px;
   overflow: auto;
   scrolling: auto;
+}
+iframe.embedded {
+  frameborder: 0px;
+  border: 0px;
+  margin: 0px;
+  padding: 0px;
+  overflow: hidden;
+  width: 98%;
+  min-width: 98%;
+  height: 100%;
+  min-height: 100%;
 }
 
 div#usage table {
@@ -533,7 +544,7 @@ ul.navmenu li.newgroup {
   margin-right: 0px;
 }
 #fullcontentbody {
-  padding: 6px;
+  padding: 0px;
   margin: 0px;
 }
 

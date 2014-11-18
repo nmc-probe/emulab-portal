@@ -108,6 +108,9 @@ elsif ($GENI_VERSION eq "2.0") {
 	"UnShareLan"        => \&GeniCMV2::UnShareLan,
 	"ListActiveSlivers" => \&GeniCMV2::ListActiveSlivers,
 	"ConsoleURL"	    => \&GeniCMV2::ConsoleURL,
+	"CreateDataset"     => \&GeniCMV2::CreateDataset,
+	"DeleteDataset"     => \&GeniCMV2::DeleteDataset,
+	"DescribeDataset"   => \&GeniCMV2::DescribeDataset,
     };
 }
 

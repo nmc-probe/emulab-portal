@@ -62,7 +62,9 @@ $routing = array("myprofiles" =>
 						 "Instantiate" =>
 						     "Do_Instantiate",
 						 "InstantiateAsGuest" =>
-						       "Do_GuestInstantiate")),
+						     "Do_GuestInstantiate",
+						 "CheckScript" =>
+						       "Do_CheckScript")),
 		 "status" =>
 			array("file"    => "status.ajax",
 			      "guest"   => true,
@@ -89,6 +91,17 @@ $routing = array("myprofiles" =>
 						     "Do_Approve",
 						 "deny" =>
 						      "Do_Deny")),
+		 "dataset" =>
+			array("file"    => "dataset.ajax",
+			      "guest"   => false,
+			      "methods" => array("create" =>
+						      "Do_CreateDataset",
+						 "refresh" =>
+						      "Do_RefreshDataset",
+						 "delete" =>
+						      "Do_DeleteDataset",
+						 "approve" =>
+						      "Do_ApproveDataset")),
     );
 
 #

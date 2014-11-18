@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2013 University of Utah and the Flux Group.
+# Copyright (c) 2004-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -409,10 +409,14 @@ sub doboot()
 	# Kill off pubsubd and start clusterd. 
 	#
 	system("killall pubsubd");
-	print("Starting pubsub cluster daemon\n");
-	system("/usr/local/libexec/clusterd -s $eventserver");
-	if ($?) {
-	    fatal("Error running clusterd");
+	if (-x "/usr/local/libexec/clusterd") {
+	    print("Starting pubsub cluster daemon\n");
+	    system("/usr/local/libexec/clusterd -s $eventserver");
+	    if ($?) {
+		fatal("Error running clusterd");
+	    }
+	} else {
+	    print STDERR "WARNING: clusterd not installed, not started\n";
 	}
     }
     elsif (!(REMOTE() && !REMOTEDED()) && !GENVNODE()) {  

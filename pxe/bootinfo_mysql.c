@@ -554,7 +554,7 @@ boot_newnode_mfs(struct in_addr ipaddr, int version, boot_what_t *info)
 
 #define MFS_PATH	0
 
-	res = mydb_query("select o.path from os_info as o "
+	res = mydb_query("select v.path from os_info as o "
 			 "left join os_info_versions as v on "
 			 "     v.osid=o.osid and v.vers=o.version "
 			 "where o.pid='%s' and o.osname='%s' and v.mfs=1 ",

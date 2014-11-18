@@ -160,6 +160,7 @@ my %xmlfields =
      "mbr_version",	=> ["mbr_version",	$SLOT_OPTIONAL],
      "mtype_*"		=> ["mtype",		$SLOT_OPTIONAL],
      "hash",		=> ["hash",		$SLOT_ADMINONLY],
+     "notes",		=> ["notes",		$SLOT_ADMINONLY],
     );
 #
 # Need a list of node types. We join this over the nodes table so that

@@ -45,11 +45,12 @@ sub usage()
     print(" -i id   - Update existing imported image.\n");
     exit(-1);
 }
-my $optlist = "dvu:p:gi";
+my $optlist = "dvu:p:giI";
 my $debug   = 0;
 my $verify  = 0;
 my $getimage= 0;
 my $update  = 0;
+my $force   = 0;
 my $user;
 my $group;
 
@@ -69,6 +70,9 @@ my $IMAGEDUMP   = "$TB/bin/imagedump";
 my $SHA1	= "/sbin/sha1";
 my $SAVEUID	= $UID;
 my $IMAGEVALIDATE = "$TB/sbin/imagevalidate";
+my $DELETEIMAGE   = "$TB/sbin/delete_image";
+my $WITHPROVENANCE= @IMAGEPROVENANCE@;
+my $doprovenance  = 0;
 
 #
 # Untaint the path
@@ -95,6 +99,7 @@ if ($EUID != 0) {
 use lib "@prefix@/lib";
 use libdb;
 use EmulabConstants;
+use EmulabFeatures;
 use libtestbed;
 use User;
 use Project;
@@ -136,6 +141,10 @@ if (defined($options{"g"})) {
 }
 if (defined($options{"i"})) {
     $update = 1;
+}
+if (defined($options{"I"})) {
+    $update = 1;
+    $force  = 1;
 }
 if (defined($options{"u"})) {
     $user = User->Lookup($options{"u"});
@@ -217,6 +226,11 @@ if (! exists($xmlparse->{'attribute'}->{"hash"}) ||
 if (! exists($xmlparse->{'attribute'}->{"imagefile_url"})) {
     fatal("Invalid imagefile url in metadata");
 }
+my $newhash = $xmlparse->{'attribute'}->{"hash"}->{'value'};
+# Silly taint check.
+if ($newhash =~/^(.*)$/) {
+    $newhash = $1;
+}
 
 #
 # See if we already have an image in the DB for this URL.
@@ -244,12 +258,6 @@ exit(0)
 # If the image has not been downloaded or if the hash has changed,
 # get a new copy.
 #
-my $newhash = $xmlparse->{'attribute'}->{"hash"}->{'value'};
-# Silly taint check.
-if ($newhash =~/^(.*)$/) {
-    $newhash = $1;
-}
-
 if ($getimage) {
     #
     # We need to get the lock since someone else could already
@@ -268,16 +276,53 @@ if ($getimage) {
 	    fatal("Could not get the image lock after a long time");
 	}
     }
-    if (! -e $image->path() || $newhash ne $image->hash()) {
+    if (! -e $image->path() || $newhash ne $image->hash() || $force) {
+	#
+	# When updating an image ... 
+	#
+	if ($update && $WITHPROVENANCE) {
+	    $doprovenance =
+		EmulabFeatures->FeatureEnabled("ImageProvenance",
+					       undef, $image->GetProject());
+	    if ($doprovenance) {
+		#
+		# This will include unreleased images (in image_versions, but
+		# not the one pointed to by the images table). 
+		#
+		$image = $image->LookupMostRecent();
+		if (!defined($image)) {
+		    $image->Unlock();
+		    fatal("Cannot lookup most recent version of $image");
+		}
+		# Reuse is not ready/released.
+		if ($image->ready() && $image->released()) {
+		    my $clone = $image->NewVersion($user, undef, undef);
+		    if (!defined($clone)) {
+			$image->Unlock();
+			fatal("Could not clone image descriptor $image");
+		    }
+		    $image = $clone;
+		}
+	    }
+	}
 	if (DownLoadImage($image, $newhash, $user, $group)) {
 	    $image->Unlock();
 	    exit(1);
 	}
 	# Update DB info. Use the hash we were given, no need to recalculate.
 	my $imageid = $image->imageid();
+	# Run as root to access /proj
+	$EUID = $UID = 0;
 	if (system("$IMAGEVALIDATE -uq -H '$newhash' $imageid")) {
 	    # XXX should this be fatal?
 	    print STDERR "Could not update DB info for $image\n";
+	}
+	$EUID = $UID = $SAVEUID;
+	$image->MarkReady();
+	$image->Release();
+	# Its more important to know when we brought the new version in.
+	if ($WITHPROVENANCE && $doprovenance && $update) {
+	    $image->MarkUpdate($user);
 	}
     }
     $image->Unlock();
@@ -439,8 +484,10 @@ sub DownLoadImage($$$$)
 	$UID = $SAVEUID;
     }
     else {
+	print "Downloading $image_url ...\n";
+	
 	if (! open(GET, "| nice -15 $WGET --no-check-certificate ".
-		   "--timeout=30 -q -O $localfile -i -")) {
+		   "--timeout=30 --waitretry=30 -q -O $localfile -i -")) {
 	    print STDERR "Cannot start $WGET\n";
 	    return -1;
 	}

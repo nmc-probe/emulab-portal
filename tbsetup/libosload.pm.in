@@ -115,25 +115,25 @@ sub osload ($$) {
     if (defined($args->{'debug'})) {
 	$debug = $args->{'debug'};
     }
-    if (defined($args->{'image'})) {
-	@images = split(/,/, $args->{'image'});
-	$usedefault = 0;
-    }
-    elsif (defined($args->{'images'})) {
-	@images = @{$args->{'images'}};
-	$usedefault = 0;
-    }
-    elsif (defined($args->{'imageids'})) {
-	@imageids = @{$args->{'imageids'}};
-	$usedefault = 0;
-    }
-    elsif (defined($args->{'imageid'})) {
-	@imageids = split(/,/, $args->{'imageid'});
-	$usedefault = 0;
-    }
     if (defined($args->{'usecurrent'}) && $args->{'usecurrent'}) {
 	$usecurrent = 1;
 	$usedefault = 0;
+    }
+    if (defined($args->{'image'})) {
+	@images = split(/,/, $args->{'image'});
+	$usedefault = $usecurrent = 0;
+    }
+    elsif (defined($args->{'images'})) {
+	@images = @{$args->{'images'}};
+	$usedefault = $usecurrent = 0;
+    }
+    elsif (defined($args->{'imageids'})) {
+	@imageids = @{$args->{'imageids'}};
+	$usedefault = $usecurrent = 0;
+    }
+    elsif (defined($args->{'imageid'})) {
+	@imageids = split(/,/, $args->{'imageid'});
+	$usedefault = $usecurrent = 0;
     }
     if (defined($args->{'asyncmode'})) {
 	$asyncmode = $args->{'asyncmode'};
@@ -483,22 +483,11 @@ sub osload ($$) {
 		my $osid = $rowref->{$partname};
 		my $vers = $rowref->{$partvers};
 		if (defined($osid)) {
-		    # Have the node inherit taint states from each OS
-		    # to be loaded on it (or that is already loaded on
-		    # it).  This action is additive, i.e. the node
-		    # will end up with the union of taint states
-		    # across all partition OSes.  We also retain any
-		    # taint states the node had previously; it's
-		    # important not to clear these existing states
-		    # until OS loading and disk zeroing have been
-		    # performed.
 		    my $osinfo = OSinfo->Lookup($osid, $vers);
-		    if (defined($osinfo) && $osinfo->IsTainted()) {
-			$nodeobject->InheritTaintStates($osinfo) == 0 or
-			    warn "Node $node could not inherit taint ".
-			    "states from osid $osid\n";
+		    if (!defined($osinfo)) {
+			tberror "No OSinfo found for osid $osid!\n";
+			goto failednode;
 		    }
-
 		    my %part = (
 			'node_id' => $node,
 			'partition' => $i,
@@ -590,8 +579,9 @@ sub osload ($$) {
 	# find the latest full version of the image, then load those in
 	# reverse order.
 	#
+	my @allimages = ();
 	if ($WITHPROVENANCE && $WITHDELTAS) {
-	    my @nimages = ();
+	    my $founddelta = 0;
 	    foreach my $image (@images) {
 		if ($image->isdelta()) {
 		    my $pimage = $image;
@@ -605,12 +595,25 @@ sub osload ($$) {
 			}
 			push(@ilist, $pimage);
 		    } while ($pimage->isdelta());
-		    push @nimages, reverse(@ilist);
+		    push @allimages, reverse(@ilist);
+		    $founddelta = 1;
 		}
-		push(@nimages, $image);
+		push(@allimages, $image);
 	    }
-	    @images = @nimages;
+	    #
+	    # If we added any images to the list, we need to recompute
+	    # the access keys.
+	    #
+	    if ($founddelta) {
+		@access_keys = ();
+		foreach my $image (@allimages) {
+		    push(@access_keys, $image->access_key());
+		}
+	    }
+	} else {
+	    @allimages = @images;
 	}
+	my @allimageidxs = (0 .. $#allimages);
 
 	#
 	# Determine which mode to use for reloading this node (note: this may
@@ -645,7 +648,7 @@ sub osload ($$) {
 		$wait_required = !$nodeflags{$node}{'nowait'};
 	    }
 
-	    foreach my $i (@imageidxs) {
+	    foreach my $i (@allimageidxs) {
 		# This is passed along so that remote node can request the file.
 		# Make sure the image object has an access key defined.
 		if (($nodeobject->isremotenode() || $nodeobject->OnRemoteNode())
@@ -653,7 +656,7 @@ sub osload ($$) {
 		    $access_keys[$i] = TBGenSecretKey();
 		    
 		    $rowref->{'access_key'} = $access_keys[$i];
-		    if ($images[$i]->Update({'access_key' => $access_keys[$i]}) != 0) {
+		    if ($allimages[$i]->Update({'access_key' => $access_keys[$i]}) != 0) {
 			tberror "$node: Could not initialize image access key";
 			goto failednode;
 		    }
@@ -670,7 +673,7 @@ sub osload ($$) {
 	    'node'     => $node,
 	    'mode'     => $reload_mode,
 	    'func'     => $reload_func,
-	    'images'   => \@images,
+	    'images'   => \@allimages,
 	    'osid'     => $defosid,
 	    'osid_vers'=> $defvers,
 	    'reboot'   => $reboot_required,

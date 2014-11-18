@@ -72,7 +72,8 @@ function SPITFORM($formfields, $errors)
 	$viewing      = 1;
 	$version_uuid = "'" . $profile->uuid() . "'";
 	$profile_uuid = "'" . $profile->profile_uuid() . "'";
-	$candelete    = ($profile->IsHead() && !$profile->published() ? 1 : 0);
+	$candelete    = ($profile->IsHead() &&
+			 (!$profile->published() || ISADMIN()) ? 1 : 0);
 	$history      = ($profile->HasHistory() ? 1 : 0);
 	$canmodify    = ($profile->CanModify() ? 1 : 0);
 	$canpublish   = ($profile->CanPublish() ? 1 : 0);
@@ -229,8 +230,13 @@ if (! isset($create)) {
 		    SPITUSERERROR("Not allowed to access this profile!");
 		}
 	    }
-	    $defaults["profile_rspec"] = $profile->rspec();
+	    # New page action is now create, not copy or clone.
+	    $action = "create";
+	    $defaults["profile_rspec"]  = $profile->rspec();
 	    $defaults["profile_who"]   = "shared";
+	    if ($profile->script() && $profile->script() != "") {
+		$defaults["profile_script"] = $profile->script();
+	    }
             # Default the project if in only one project.
 	    if (count($projlist) == 1) {
 		list($project) = each($projlist);
@@ -243,10 +249,15 @@ if (! isset($create)) {
 	    $defaults["profile_name"]        = $profile->name();
 	    $defaults["profile_version"]     = $profile->version();
 	    $defaults["profile_rspec"]       = $profile->rspec();
+	    if ($profile->script() && $profile->script() != "") {
+		$defaults["profile_script"] = $profile->script();
+	    }
 	    $defaults["profile_creator"]     = $profile->creator();
-	    $defaults["profile_created"]     = $profile->created();
+	    $defaults["profile_created"]     =
+		DateStringGMT($profile->created());
 	    $defaults["profile_published"]   =
-		($profile->published() ? $profile->published() : "");
+		($profile->published() ?
+		 DateStringGMT($profile->published()) : "");
 	    $defaults["profile_version_url"] = $profile->URL();
 	    $defaults["profile_profile_url"] = $profile->ProfileURL();
 	    $defaults["profile_listed"]      =
@@ -309,22 +320,7 @@ foreach ($required as $key) {
     }
 }
 
-#
-# The rspec file has to be treated specially of course.
-#
-if (0 && isset($_FILES['rspecfile']) &&
-    $_FILES['rspecfile']['name'] != "" &&
-    $_FILES['rspecfile']['name'] != "none") {
-
-    $rspec = file_get_contents($_FILES['rspecfile']['tmp_name']);
-    if (!$rspec) {
-	$errors["profile_rspec"] = "Could not process file";
-    }
-    elseif (! TBvalid_html_fulltext($rspec)) {
-	$errors["profile_rspec"] = TBFieldErrorString();	
-    }
-}
-elseif (isset($formfields["profile_rspec"]) &&
+if (isset($formfields["profile_rspec"]) &&
 	$formfields["profile_rspec"] != "") {
     if (! TBvalid_html_fulltext($formfields["profile_rspec"])) {
 	$errors["profile_rspec"] = TBFieldErrorString();	
@@ -334,7 +330,8 @@ elseif (isset($formfields["profile_rspec"]) &&
     }
 }
 else {
-    $errors["rspecfile"] = "Missing Field";
+    # Best place to put the error. 
+    $errors["sourcefile"] = "Missing Field";
 }
 
 # Present these errors before we call out to do anything else.
@@ -368,6 +365,17 @@ else {
     if (! ($who == "private" || $who == "shared" || $who == "public")) {
 	$errors["profile_who"] = "Illegal value";
     }
+}
+
+#
+# Only local users for now, not users whose accounts were created
+# by geni-login. Not until we have proper sandboxing while running
+# the geni-lib code.
+#
+if ($this_user->IsNonLocal() && 
+    isset($formfields["profile_script"]) &&
+    $formfields["profile_script"] != "") {
+    $errors["error"] = "You are not allowed to use geni-lib scripts.";
 }
 
 #
@@ -428,6 +436,14 @@ else {
     fwrite($fp, "<attribute name='rspec'>");
     fwrite($fp, "  <value>" . htmlspecialchars($rspec) . "</value>");
     fwrite($fp, "</attribute>\n");
+    if (isset($formfields["profile_script"]) &&
+	$formfields["profile_script"] != "") {
+	fwrite($fp, "<attribute name='script'>");
+	fwrite($fp, "  <value>" .
+	       htmlspecialchars($formfields["profile_script"]) .
+	       "</value>");
+	fwrite($fp, "</attribute>\n");
+    }
     fwrite($fp, "<attribute name='profile_listed'><value>");
     if (isset($formfields["profile_listed"]) &&
 	$formfields["profile_listed"] == "checked") {
@@ -449,17 +465,23 @@ else {
 #
 # Call out to the backend.
 #
-$optarg = ($action == "edit" ? "-u " . $profile->uuid() : "");
-if (isset($snapuuid)) {
-    $optarg .= "-s " . escapeshellarg($snapuuid);
-
-    # We want to pass a webtask id along. 
-    $webtask_id = md5(uniqid(rand(),1));
-    $optarg .= " -t " . $webtask_id;
+$command = "webmanage_profile ";
+if ($action == "edit") {
+    $command .= " update " . $profile->uuid();
 }
+else {
+    $command .= " create";
+}
+if (isset($snapuuid)) {
+    $command .= " -s " . escapeshellarg($snapuuid);
+    
+    # We want to pass a webtask id along for tracking the image progress.
+    $webtask_id = WebTask::GenerateID();
+    $command .= " -t " . $webtask_id;
+}
+$command .= " $xmlname";
 
-$retval = SUEXEC($this_user->uid(), $project->unix_gid(),
-		 "webmanage_profile $optarg $xmlname",
+$retval = SUEXEC($this_user->uid(), $project->unix_gid(), $command,
 		 SUEXEC_ACTION_IGNORE);
 if ($retval) {
     if ($retval < 0) {

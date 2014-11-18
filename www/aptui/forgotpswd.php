@@ -120,7 +120,7 @@ function SPITFORM($username, $email, $errors)
 # If not clicked, then put up a form.
 #
 if (!isset($reset)) {
-    SPITFORM(array(), null);
+    SPITFORM("", "", null);
     return;
 }
 
@@ -182,7 +182,7 @@ TBMAIL("$uid_name <$uid_email>",
        "password. If the link expires, you can request a new one from the\n".
        "web interface.\n".
        "\n".
-       "    ${APTBASE}/changepswd.php3?user=$uid&key=$keyB\n".
+       "    ${APTBASE}/changepswd.php?user=$uid&key=$keyB\n".
        "\n".
        "The request originated from IP: " . $_SERVER['REMOTE_ADDR'] . "\n".
        "\n".

@@ -279,7 +279,7 @@ class User
     # Equality test.
     #
     function SameUser($user) {
-	return $user->uid_idx() == $this->uid_idx();
+	return $user->idx() == $this->idx();
     }
 
     #
@@ -345,6 +345,13 @@ class User
     function wikiname()		{ return $this->field("wikiname"); }
     function wikionly()		{ return $this->field("wikionly"); }
     function mailman_password() { return $this->field("mailman_password"); }
+    function genesis()	     { return $this->field("genesis"); }
+    function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
+    function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
+
+    function IsNonLocal() {
+	return ($this->field("nonlocal_id") ? 1 : 0);
+    }
 
     # Temporary data storage ... useful.
     function SetTempData($value) {
@@ -717,6 +724,7 @@ class User
 	$wikionly    = $user->wikionly();
 	$stud        = $user->stud();
 	$uuid        = $user->uuid();
+	$genesis     = $user->genesis();
 
 	if (!strcmp($usr_addr2, ""))
 	    $usr_addr2 = "&nbsp;";
@@ -890,6 +898,13 @@ class User
                     <td>UUID: </td>
                     <td class=left>$uuid</td>
                   </tr>\n";
+
+	    if ($genesis != "emulab") {
+		echo "<tr>
+                      <td>Genesis: </td>
+                      <td class=left>$genesis</td>
+                   </tr>\n";
+	    }
 	}
 	if (ISADMIN() && $status != TBDB_USERSTATUS_ARCHIVED) {
 	    $cvswebflip = ($cvsweb ? 0 : 1);

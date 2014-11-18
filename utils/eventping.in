@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2002 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -53,6 +53,7 @@ my $node = shift;
 my $maxtime=600;  # Set the timer for 10 minutes
 my $starttime = time();
 my $endtime = $starttime + $maxtime;
+my $noresolve = 0;
 
 while( time() <= $endtime ) {
     my $status=system("/sbin/ping -c 1 -t 1 $node ".
@@ -70,9 +71,15 @@ while( time() <= $endtime ) {
 	exit(0);
     } elsif ($rv==2) {
 	# no response
+	$noresolve = 0;
     } elsif ($rv==68) {
 	# ping: cannot resolve $node: Unknown host
-	fatal("eventping: cannot resolve $node: Unknown host\n");
+	# Lets view this as a transient error, since named_setup might
+	# be running for a swap.
+	$noresolve++;
+	if ($noresolve > 10) {
+	    fatal("eventping: cannot resolve $node: Unknown host\n");
+	}
     } else {
 	# Unknown error
 	fatal("eventping: ping returned unknown error $rv ($sig)\n");

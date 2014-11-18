@@ -1552,6 +1552,7 @@ function ShowNodeHistory($node_id = null, $record = null,
 
 	# Keep track of history record bounds, for paging through.
 	$max_history_id = 0;
+	$min_history_id = 1000000000;
 
 	# Build up table contents
 	ob_start();
@@ -1593,8 +1594,11 @@ function ShowNodeHistory($node_id = null, $record = null,
 		$uid = $results[4];
 		$pid = $results[5];
 		$thisid = intval($results[8]);
-		if ($thisid >= $max_history_id) {
+		if ($thisid > $max_history_id) {
 		    $max_history_id = $thisid;
+		}
+		if ($thisid < $min_history_id) {
+		    $min_history_id = $thisid;
 		}
 		$slice = "--";
 		$expurl = null;
@@ -1670,8 +1674,12 @@ function ShowNodeHistory($node_id = null, $record = null,
 	$table_html = ob_get_contents();
 	ob_end_clean();
 	
-	echo "<center><a href='shownodehistory.php3?record=$max_history_id".
-	    "&count=$count&$node_opt'>Next $count records</a></center>\n";
+	$hid = $max_history_id;
+	if ($reverse) {
+	    $hid = $min_history_id;
+	}
+	echo "<center><a href='shownodehistory.php3?record=$hid".
+	    "&reverse=$reverse&count=$count&$node_opt'>Next $count records</a></center>\n";
 	echo "<table border=1 cellpadding=2 cellspacing=2 align='center'>\n";
 	echo "<tr>
 	       $nodestr
@@ -1688,8 +1696,8 @@ function ShowNodeHistory($node_id = null, $record = null,
 	echo $table_html;
 
 	echo "</table>\n";
-	echo "<center><a href='shownodehistory.php3?record=$max_history_id".
-	    "&count=$count&$node_opt'>Next $count records</a></center>\n";
+	echo "<center><a href='shownodehistory.php3?record=$hid".
+	    "&reverse=$reverse&count=$count&$node_opt'>Next $count records</a></center>\n";
 
 	$ttime = $atime + $ftime + $rtime + $dtime;
 	if ($ttime) {

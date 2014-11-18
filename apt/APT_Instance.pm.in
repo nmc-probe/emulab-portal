@@ -25,6 +25,9 @@ package APT_Instance;
 
 use strict;
 use Carp;
+use English;
+use Data::Dumper;
+use POSIX qw(tmpnam);
 use Exporter;
 use vars qw(@ISA @EXPORT $AUTOLOAD);
 
@@ -35,14 +38,19 @@ use vars qw(@ISA @EXPORT $AUTOLOAD);
 use EmulabConstants;
 use emdb;
 use libtestbed;
+use Brand;
 use APT_Profile;
-use English;
-use Data::Dumper;
+use APT_Geni;
+use Genixmlrpc;
+use GeniResponse;
+use GeniCertificate;
+use GeniHRN;
 use overload ('""' => 'Stringify');
 
 # Configure variables
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
+my $GENEXTENDCRED = "$TB/sbin/protogeni/genextendcred";
 
 # Cache of instances to avoid regenerating them.
 my %instances  = ();
@@ -71,6 +79,7 @@ sub Lookup($$;$)
 
     my $self            = {};
     $self->{'INSTANCE'} = $query_result->fetchrow_hashref();
+    $self->{'BRAND'}    = Brand->Create($self->{'INSTANCE'}->{'servername'});
 
     bless($self, $class);
     
@@ -82,7 +91,7 @@ sub Lookup($$;$)
 
 AUTOLOAD {
     my $self  = $_[0];
-    my $type  = ref($self) or croak "$self is not an object";
+    my $type  = ref($self) or confess "$self is not an object";
     my $name  = $AUTOLOAD;
     $name =~ s/.*://;   # strip fully-qualified portion
 
@@ -93,8 +102,9 @@ AUTOLOAD {
     carp("No such slot '$name' field in class $type");
     return undef;
 }
-sub isAPT($)	{ return $_[0]->servername() =~ /aptlab/ ? 1 : 0; }
-sub isCloud($)	{ return $_[0]->servername() =~ /cloudlab/ ? 1 : 0; }
+sub Brand($)	{ return $_[0]->{'BRAND'}; }
+sub isAPT($)	{ return $_[0]->Brand()->isAPT() ? 1 : 0; }
+sub isCloud($)	{ return $_[0]->Brand()->isCloud() ? 1 : 0; }
 
 # Break circular reference someplace to avoid exit errors.
 sub DESTROY {
@@ -184,15 +194,30 @@ sub Stringify($)
 
 sub LookupBySlice($$)
 {
-    my ($class, $slice_uuid) = @_;
+    my ($class, $token) = @_;
+    my $slice_uuid;
 
-    if ($slice_uuid !~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
-	return undef
+    if ($token =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
+	$slice_uuid = $token;
     }
+    elsif (GeniHRN::IsValid($token)) {
+	#
+	# We should put the slice_urn into the apt_instances table.
+	#
+	require GeniSlice;
+	my $slice = GeniSlice->Lookup($token);
+	return undef
+	    if (!defined($slice));
+	$slice_uuid = $slice->uuid();
+    }
+    else {
+	return undef;
+    }
+
     my $query_result =
 	DBQueryWarn("select uuid from apt_instances ".
 		    "where slice_uuid='$slice_uuid'");
-
+	
     return undef
 	if (!$query_result || !$query_result->numrows);
 
@@ -307,6 +332,304 @@ sub RecordHistory($)
 
     return 0;
 }
+
+#
+# Locate Geni objects for creator and slice.
+#
+sub GetGeniSlice($)
+{
+    my ($self) = @_;
+    require GeniSlice;
+    
+    return GeniSlice->Lookup($self->slice_uuid());
+}
+
+sub GetGeniUser($)
+{
+    my ($self) = @_;
+    require GeniUser;
+    
+    return GeniUser->Lookup($self->creator_uuid(), 1);
+}
+
+sub GetGeniAuthority($)
+{
+    my ($self) = @_;
+    require GeniAuthority;
+
+    return APT_Geni::GetAuthority($self->aggregate_urn());
+}
+
+#
+# Warn creator that the experiment is going to expire. This is hooked
+# in from the sa_daemon, so we can send a message that is less geni like
+# and more APT/Cloud.
+#
+sub WarnExpiring($$)
+{
+    my ($self, $when) = @_;
+    require GeniDB;
+    require GeniSlice;
+
+    my $slice     = GeniSlice->Lookup($self->slice_uuid());;
+    if (!defined($slice)) {
+	print STDERR "WarnExpiring: No slice for $self\n";
+	return -1;
+    }
+    my $slicename = $slice->slicename();
+    my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
+    if (!defined($geniuser)) {
+	print STDERR "WarnExpiring: No creator for $self\n";
+	return -1;
+    }
+    if (!defined($geniuser->email())) {
+	print STDERR "WarnExpiring: no email address for $geniuser\n";
+	return 0;
+    }
+    my $link = $self->Brand()->wwwBase();
+    $link    = $link . "/status.php?uuid=" . $self->uuid();
+    
+    $self->Brand()->SendEmail($geniuser->email(),
+		     "Your experiment is expiring soon!",
+		     "Your experiment $slicename is going to expire in ${when}.\n".
+		     "If you want to extend this experiment, please go to:\n\n".
+		     "    $link\n\n".
+		     "and click on the Extend button.\n".
+		     "\n".
+		     "Thanks!",
+		     $self->Brand()->OpsEmailAddress());
+    
+    return 0;
+}
+
+#
+# Ask aggregate for the console URL for a node.
+#
+sub ConsoleURL($$)
+{
+    my ($self, $sliver_urn) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"sliver_urn"  => $sliver_urn,
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+
+    return Genixmlrpc::CallMethod($authority->url(),
+				  $context, "ConsoleURL", $args);
+}
+
+#
+# Ask aggregate to terminate.
+#
+sub Terminate($)
+{
+    my ($self) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+
+    #
+    # We have to watch for resource busy errors, and retry. For a while
+    # at least. Eventually give up cause it might be a permanently locked
+    # slice cause of earlier error. 
+    #
+    my $response;
+    my $tries = 10;
+    while ($tries) {
+	$response =
+	    Genixmlrpc::CallMethod($authority->url(),
+				   $context, "DeleteSlice", $args);
+
+	# SEARCHFAILED is success.
+	return $response
+	    if ($response->code() == GENIRESPONSE_SUCCESS ||
+		$response->code() == GENIRESPONSE_SEARCHFAILED);
+
+	return $response
+	    if ($response->code() != GENIRESPONSE_BUSY);
+
+	#
+	# Wait for a while and try again. 
+	#
+	$tries--;
+	if ($tries) {
+	    print STDERR "Slice is busy, will retry again in a bit ...\n";
+	    sleep(30);
+	}
+    }
+    return $response;
+}
+
+#
+# Ask to extend. 
+#
+sub Extend($$)
+{
+    my ($self, $new_expires) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    #
+    # We need a special credentential in case the aggregate is enforcing
+    # limits (as do Utah aggregates).
+    #
+    my $slice_urn = $slice->urn();
+    my $extcred   = "";
+    my $credname  = tmpnam();
+    my $userarg   = "-u " . $geniuser->urn();
+    my ($fh,$certfile);
+    #
+    # But if a nonlocal user from Geni, then the user we have in the database
+    # is not in the same domain as the speaksfor, so we use the geni certificate
+    # that the trusted signer gave us and is stored in the DB.
+    #
+    if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal()) {
+	my (undef, $certificate_string) =
+	    $geniuser->emulab_user()->GetStoredCredential();
+	if (! defined($certificate_string)) {
+	    print STDERR "Could not get stored certificate for $geniuser\n";
+	    return undef;
+	}
+	my $certificate = GeniCertificate->LoadFromString($certificate_string);
+	if (!defined($certificate)) {
+	    print STDERR "Could not load stored certificate for $geniuser\n";
+	    return undef;
+	}
+	$certfile = $certificate->WriteToFile();
+	$userarg = "-c $certfile";
+    }
+    system("$GENEXTENDCRED -a -o $credname -s $slice_urn -t 90 $userarg");
+    if ($?) {
+	print STDERR "Could not create extended credential\n";
+	return undef;
+    }
+    if (!open(EXT, $credname)) {
+	print STDERR "Could not open ext credfile $credname\n";
+	return undef;
+    }
+    while (<EXT>) {
+	$extcred .= $_;
+    }
+    close(EXT);
+    unlink($credname);
+    chomp($extcred);
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"expiration"  => $new_expires,
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString(),
+			  $extcred],
+    };
+
+    return Genixmlrpc::CallMethod($authority->url(),
+				  $context, "RenewSlice", $args);
+}
+
+#
+# Create an Image,
+#
+sub CreateImage($$$)
+{
+    my ($self, $sliver_urn, $imagename) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"imagename"   => $imagename,
+	"sliver_urn"  => $sliver_urn,
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+
+    return Genixmlrpc::CallMethod($authority->url(),
+				  $context, "CreateImage", $args);
+}
+
+#
+# Ask for status.
+#
+sub SliceStatus($)
+{
+    my ($self) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+
+    return Genixmlrpc::CallMethod($authority->url(),
+				  $context, "SliverStatus", $args);
+}
+
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

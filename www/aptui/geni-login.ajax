@@ -66,10 +66,10 @@ function Do_GetSignerInfo()
     session_regenerate_id(TRUE);
 
     $blob = array();
-    $blob["HOST"]  = "https://www.emulab.net";
-    $blob["PATH"]  = "/protogeni/speaks-for/index.html";
+    $blob["HOST"]  = "https://ch.geni.net:8444";
+    $blob["PATH"]  = "/xml-signer/index.html";
     $blob["ID"]    = "urn:publicid:IDN+emulab.net+authority+sa";
-    $blob["AUTH"]  = "https://www.emulab.net/protogeni/speaks-for/geni-auth.js";
+    $blob["AUTH"]  = "https://ch.geni.net:8444/xml-signer/geni-auth.js";
     $blob["CERT"]  = 
 	"-----BEGIN CERTIFICATE-----\n" .
 	"MIIDoTCCAwqgAwIBAgIDAS/uMA0GCSqGSIb3DQEBBAUAMIG4MQswCQYDVQQGEwJV\n" .

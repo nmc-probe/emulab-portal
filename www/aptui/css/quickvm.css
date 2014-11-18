@@ -123,8 +123,26 @@ body {
   height: 402px;
 }
 
+#edit_container .form-group {
+  margin: 0;
+  height: 600px;
+}
+
 #showtopo_nopicker {
   height: 300px;
+}
+
+#edit_nopicker {
+  height: 500px;
+}
+
+.edit_buttons {
+  float: right;
+  margin-top: 10px;
+}
+
+#edit_nopicker {
+  width: 100%;
 }
 
 #showtopo_div {
@@ -137,7 +155,7 @@ body {
 
 @media (min-width: 970px) {
 
-#showtopo_dialog {
+#showtopo_dialog, #edit_dialog {
   width: 950px;
 }
 
@@ -220,11 +238,11 @@ body {
 }
 
 @media (max-width: 689px) {
-  #showtopo_container > div {
+  #showtopo_container > div, #edit_container > div {
     width: 100%;
   }
 
-  #showtopo_container .form-group {
+  #showtopo_container .form-group, #edit_container .form-group {
     height: 180px;
     border-bottom: 1px solid #DDD;
   }
@@ -302,7 +320,7 @@ body {
 /* Smaller nav tabs. */
 .nav > li > a {
   padding: 5px 5px;
-} */
+}
 
 /* Styles for svg diagrams */
 .topomap {
@@ -376,4 +394,8 @@ blockquote #selected_profile_description {
     width: 300;
     left: 0;
     right: 0;
+}
+
+.jacks #canvasContainer, .jacks #topoButtons {
+    background-color: #fff;
 }

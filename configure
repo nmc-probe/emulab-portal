@@ -676,6 +676,7 @@ TBROBOCOPSEMAIL_NOSLASH
 TBROBOCOPSEMAIL
 TBOPSEMAIL_NOSLASH
 TBOPSEMAIL
+BS_IQN_PREFIX
 AMD_ROOT
 WITHAMD
 ZFS_QUOTA_GROUP
@@ -4991,6 +4992,7 @@ done
 
 
 
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -5143,6 +5145,7 @@ ZFS_QUOTA_PROJECT="100G"
 ZFS_QUOTA_GROUP="10G"
 WITHAMD=0
 AMD_ROOT=/.amd_mnt
+BS_IQN_PREFIX=iqn.2000-10.net.emulab
 
 #
 # XXX You really don't want to change these!
@@ -5603,6 +5606,11 @@ cat >>confdefs.h <<_ACEOF
 #define WITHAMD 1
 _ACEOF
 
+
+cat >>confdefs.h <<_ACEOF
+#define AMD_ROOT "$AMD_ROOT"
+_ACEOF
+
 fi
 
 cat >>confdefs.h <<_ACEOF
@@ -5745,6 +5753,11 @@ fi
 
 cat >>confdefs.h <<_ACEOF
 #define EVENTSERVER "$EVENTSERVER"
+_ACEOF
+
+
+cat >>confdefs.h <<_ACEOF
+#define BS_IQN_PREFIX "$BS_IQN_PREFIX"
 _ACEOF
 
 

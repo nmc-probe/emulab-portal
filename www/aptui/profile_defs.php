@@ -106,6 +106,7 @@ class Profile
     function shared()	    { return $this->field('shared'); }
     function listed()	    { return $this->field('listed'); }
     function rspec()	    { return $this->field('rspec'); }
+    function script()	    { return $this->field('script'); }
     function locked()	    { return $this->field('status'); }
     function status()	    { return $this->field('locked'); }
     function parent_profileid()    { return $this->field('parent_profileid'); }

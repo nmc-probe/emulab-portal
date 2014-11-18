@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2011 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -361,7 +361,7 @@ foreach my $token (@remlist) {
 # Call genelists, but just when adding or modifying. For deletion, it
 # is handled above.
 #
-if ((@addlist || @modlist) && ! $target_user->nocollabtools()) {
+if (@addlist || @modlist) {
     print "Updating email lists for user $user\n";
     
     system("$GENELISTS $optarg -u $user") == 0 or
@@ -373,6 +373,10 @@ if ((@addlist || @modlist) && ! $target_user->nocollabtools()) {
 #
 system("$SETGROUPS $user") == 0 or
     fatal("$SETGROUPS $user failed!");
+
+# XXX Mark the user as modified so the portal daemon withh push
+# out the new groups. This is wrong, but a real fix will need to wait.
+$target_user->BumpModified();
 
 exit(0);
 

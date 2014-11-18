@@ -181,16 +181,21 @@ elsif ($uid) {
 }
 elsif (@lnames > 0) {
     foreach my $name (@lnames) {
+	my $lid;
 	# lease names must have a project context
 	if ($name =~ /^([-\w]+)\/([-\w]+)$/) {
-	    my $lid = Lease->Lookup($1, $2);
-	    if (!defined($lid)) {
-		fatal("Could not access lease $name\n.");
-	    }
-	    push @lids, $lid;
-	} else {
-	    fatal("Lease name $name not in the form <pid>/<lname>.");
+	    $lid = Lease->Lookup($1, $2);
 	}
+	elsif ($name =~ /^([-\w]+)\/([-\w]+)\/([-\w]+)$/) {
+	    $lid = Lease->Lookup($1, $2, $3);
+	}
+	else {
+	    fatal("Lease name $name not in the form <pid>/<lname>");
+	}
+	if (!defined($lid)) {
+	    fatal("Could not access lease $name");
+	}
+	push @lids, $lid;
     }
 }
 # special case: no args, show all leases owned by the caller
@@ -229,7 +234,8 @@ if (@lids > 0) {
 
     foreach my $lease (@lids) {
 	if ($showlockers) {
-	    my $lname = $lease->pid() . "/" . $lease->lease_id();
+	    my $lname = $lease->pid() . "/" .
+		$lease->gid() . "/" . $lease->lease_id();
 	    my $lproc = $lease->lockpid();
 	    my $ltime;
 	    if ($lproc != 0) {
@@ -272,7 +278,8 @@ if (@lids > 0) {
 	    } elsif ($sitevars{$ltype}->{'maxidle'} != 0) {
 		$policy = "idle";
 	    }
-	    my $lname = $lease->pid() . "/" . $lease->lease_id();
+	    my $lname = $lease->pid() . "/" .
+		$lease->gid() . "/" . $lease->lease_id();
 	    my $stime = datestr($lease->statestamp());
 	    my $etime = datestr($grace);
 	    my $lchecked = datestr($lease->last_checked());
@@ -295,7 +302,8 @@ if (@lids > 0) {
 	    }
 	}
 
-	my $lname = $lease->pid() . "/" . $lease->lease_id();
+	my $lname = $lease->pid() . "/" .
+	    $lease->gid() . "/" . $lease->lease_id();
 	my $stime = datestr($lease->inception());
 	my $etime = datestr($lease->lease_end());
 	my $ltime = datestr($lease->last_used());

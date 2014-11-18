@@ -301,6 +301,12 @@ else {
     die("Could not determine what architecutre FreeBSD is running on!\n");
 }
 
+# Extra fetch options on FreeBSD 10.
+my $FETCHOPTIONS = "";
+if ($FBSD_VERSION >= 10.0) {
+    $FETCHOPTIONS = "--no-verify-peer --no-verify-hostname";
+}
+
 #
 # Find out our domain name, so that we can qualify the localhost entry
 #
@@ -656,7 +662,7 @@ sub doboot()
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
 
-	mysystem("fetch -q -o /usr/packages.tar.gz ".
+	mysystem("fetch $FETCHOPTIONS -q -o /usr/packages.tar.gz ".
 		 "'http://${bossname}/downloads/" .
 		 $emulabconfig{PACKAGE_TARBALL} . "'");
     }
@@ -3566,7 +3572,7 @@ sub GetEmulabSource($)
 	my $cvstag = (! defined($emulabconfig{"CVSSRCTAG"}) ? "" :
 		      "&cvstag=" . $emulabconfig{"CVSSRCTAG"});
 
-	mysystem("fetch -q -o /tmp/foo.tar.gz ".
+	mysystem("fetch $FETCHOPTIONS -q -o /tmp/foo.tar.gz ".
 		 "'https://${bossname}/spewrpmtar.php3?nodeid=${nodeid}&".
 		 "key=${keyhash}&elabinelab_source=1${cvstag}'");
 

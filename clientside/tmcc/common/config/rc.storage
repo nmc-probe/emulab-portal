@@ -29,11 +29,14 @@ use Storable;
 sub usage()
 {
     print "Usage: " .
-	scriptname() . " [-j vnodeid] boot|shutdown|reconfig|reset\n";
+	scriptname() . " [-LR] [-j vnodeid] boot|shutdown|reconfig|reset\n";
     exit(1);
 }
-my $optlist = "j:";
+my $optlist = "LRj:";
 my $action  = "boot";
+my $dolocal = 1;
+my $doremote = 1;
+my $typestr = "";
 
 # Turn off line buffering on output
 $| = 1;
@@ -47,11 +50,6 @@ if ($EUID != 0) {
 	"    Must be root to run this script!\n");
 }
 
-# Script specific goo
-my $IQN_PREFIX = "iqn.2000-10.net.emulab";
-my $OLDCONFIG = "$VARDIR/db/storage.conf";
-my $STORAGEMAP = "$BOOTDIR/storagemap";
-
 #
 # Load the OS independent support library. It will load the OS dependent
 # library and initialize itself. 
@@ -61,6 +59,12 @@ use liblocsetup;
 use liblocstorage;
 use libtmcc;
 use librc;
+
+# Script specific goo
+my $OLDCONFIG = "$VARDIR/db/storage.conf";
+my $STORAGEMAP = TMSTORAGEMAP();
+my $DISKINFO = TMDISKINFO();
+my $EXTRAFS = TMEXTRAFS();
 
 #
 # Not all clients support this.
@@ -73,6 +77,7 @@ sub doboot();
 sub doshutdown();
 sub doreconfig();
 sub docleanup($);
+sub doinfo();
 
 # Parse command line.
 if (! getopts($optlist, \%options)) {
@@ -81,6 +86,16 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{'j'})) {
     my $vnodeid = $options{'j'};
     libsetup_setvnodeid($vnodeid);
+}
+if (defined($options{'L'})) {
+    $dolocal = 1;
+    $doremote = 0;
+    $typestr = "local ";
+}
+if (defined($options{'R'})) {
+    $dolocal = 0;
+    $doremote = 1;
+    $typestr = "remote ";
 }
 # Allow default above.
 if (@ARGV) {
@@ -127,7 +142,12 @@ SWITCH: for ($action) {
     };
     # XXX non-standard, for debugging
     /^fullreset$/i && do {
+	$dolocal = $doremote = 1;
 	docleanup(2);
+	last SWITCH;
+    };
+    /^info$/i && do {
+	doinfo();
 	last SWITCH;
     };
     fatal("Invalid action: $action\n");
@@ -141,14 +161,25 @@ sub doboot()
 {
     my $bossip;
 
-    print STDOUT "Checking Testbed storage configuration ... \n";
+    print STDOUT "Checking Testbed ${typestr}storage configuration ... \n";
 
     # XXX uncomment this for tmp testing with alternate tmcd
     #configtmcc("portnum",7778);
 
-    my @cmds;
-    if (getstorageconfig(\@cmds) != 0) {
+    my @allcmds = ();
+    if (getstorageconfig(\@allcmds) != 0) {
 	fatal("Error grabbing storage config!");
+    }
+    my @cmds = ();
+    if (@allcmds > 0) {
+	foreach my $href (@allcmds) {
+	    if ($dolocal && $href->{'CLASS'} eq "local") {
+		push(@cmds, $href);
+	    }
+	    if ($doremote && $href->{'CLASS'} ne "local") {
+		push(@cmds, $href);
+	    }
+	}
     }
 
     #
@@ -156,21 +187,31 @@ sub doboot()
     # We read in any old config so we can see if we have added or removed
     # any blockstores.
     #
-    my $ocmdref = [];
+    my @ocmds = ();
     if (-r "$OLDCONFIG") {
-	$ocmdref = eval { Storable::retrieve($OLDCONFIG); };
+	my $ocmdref = eval { Storable::retrieve($OLDCONFIG); };
 	if ($@ || !$ocmdref) {
 	    warn "*** Could not read old config, ignoring...\n";
 	    unlink($OLDCONFIG);
 	    $ocmdref = [];
+	} else {
+	    foreach my $ohref (@$ocmdref) {
+		if ($dolocal && $ohref->{'CLASS'} eq "local") {
+		    push(@ocmds, $ohref);
+		}
+		if ($doremote && $ohref->{'CLASS'} ne "local") {
+		    push(@ocmds, $ohref);
+		}
+	    }
 	}
     }
 
     #
     # No blockstores old or new.
     #
-    if (!@cmds && !@$ocmdref) {
+    if (!@cmds && !@ocmds) {
 	#warn("*** No storageconfig output - nothing to do");
+	unlink($OLDCONFIG);
 	return;
     }
 
@@ -180,13 +221,13 @@ sub doboot()
     # blockstores and remove them up front, in case new blockstores are
     # counting on reusing their space.
     #
-    if (@$ocmdref > 0) {
+    if (@ocmds > 0) {
 	my @dcmds = ();
 
 	#
 	# For each element of the old list, see if it exists in the new.
 	#
-	OUTER: foreach my $ohref (@$ocmdref) {
+	OUTER: foreach my $ohref (@ocmds) {
 	    foreach my $href (@cmds) {
 		next if ($ohref->{'VOLNAME'} ne $href->{'VOLNAME'});
 
@@ -238,9 +279,10 @@ sub doboot()
     }
 
     #
-    # Save config
+    # Save config. Note that we always write the full set regardless
+    # of whether we were processing local, remote or both.
     #
-    my $ret = eval { Storable::store(\@cmds, $OLDCONFIG); };
+    my $ret = eval { Storable::store(\@allcmds, $OLDCONFIG); };
     if ($@) {
 	fatal("$@");
     }
@@ -249,23 +291,115 @@ sub doboot()
     }
 
     #
+    # Write out some info for the benefit of other scripts.
+    #
+    my $dinfo = os_get_diskinfo($so);
+
+    #
     # Stash mapping of block stores to local names for the convenience
-    # of the user.
+    # of the user. The storage map always gets all blockstores.
     #
     if (open(MAP, ">$STORAGEMAP")) {
-	foreach my $cmd (@cmds) {
+	foreach my $cmd (@allcmds) {
 	    print MAP $cmd->{'VOLNAME'};
 	    if (exists($cmd->{'LVDEV'})) {
 		print MAP " " . $cmd->{'LVDEV'};
 	    }
 	    if (exists($cmd->{'MOUNTPOINT'})) {
 		print MAP " " . $cmd->{'MOUNTPOINT'};
+		my $dev = $cmd->{'LVDEV'};
+		if ($dev) {
+		    $dev =~ s/^\/dev\///;
+		    if (exists($dinfo->{$dev})) {
+			$dinfo->{$dev}->{'mountpoint'} = $cmd->{'MOUNTPOINT'};
+		    }
+		}
 	    }
 	    print MAP "\n";
 	}
 	close(MAP);
     } else {
 	warn("*** Could not create storage map: $STORAGEMAP\n");
+    }
+
+    #
+    # Since we went to a lot of trouble to compute it, also dump
+    # the diskinfo table for use by others.
+    #
+    if (open(MAP, ">$DISKINFO")) {
+	my $bdisk = $so->{'BOOTDISK'};
+	foreach my $dev (keys %$dinfo) {
+	    my $type = $dinfo->{$dev}->{'type'};
+	    my $lev = $dinfo->{$dev}->{'level'};
+	    my $size = $dinfo->{$dev}->{'size'};
+	    my $inuse = $dinfo->{$dev}->{'inuse'};
+	    my $isbdisk = ($bdisk && $dev eq $bdisk) ? 1 : 0;
+	    my $mpoint = exists($dinfo->{$dev}->{'mountpoint'}) ?
+		$dinfo->{$dev}->{'mountpoint'} : "none";
+	    print MAP "NAME=$dev SIZE=$size TYPE=$type LEVEL=$lev INUSE=$inuse BOOTDISK=$isbdisk MOUNTPOINT=$mpoint\n";
+	}
+	close(MAP);
+    } else {
+	warn("*** Could not create diskinfo file: $DISKINFO\n");
+    }
+
+    #
+    # For the benefit of old scripts that use mkextrafs, identify
+    # an unused device or filesystem that can be used for extra space.
+    #
+    if ($dolocal && open(MAP, ">$EXTRAFS")) {
+	my $size;
+
+	#
+	# First see if there is an unused partition or disk.
+	# Remember the largest.
+	#
+	my $edev;
+	my $isdisk = 0;
+	$size = 0;
+	foreach my $dev (keys %$dinfo) {
+	    my $href = $dinfo->{$dev};
+	    if ($href->{'inuse'} == 0 && $href->{'size'} > $size) {
+		$edev = $dev;
+		if ($href->{'type'} eq "DISK") {
+		    $isdisk = 1;
+		}
+	    }
+	}
+	if ($edev) {
+	    if ($isdisk) {
+		print MAP "DISK=$edev\n";
+	    } else {
+		print MAP "PART=$edev\n";
+	    }
+	}
+	#
+	# Otherwise we need to find a mounted local blockstore with space.
+	# Pick the largest one, including the root FS.
+	#
+	else {
+	    $size = 0;
+	    my $bdisk = $so->{'BOOTDISK'};
+	    if ($bdisk) {
+		my $bpart = "${bdisk}s1a";
+		if (exists($dinfo->{$bpart})) {
+		    $mntpt = "/";
+		    $size = $dinfo->{$bpart}->{'size'};
+		}
+	    }
+	    foreach my $dev (keys %$dinfo) {
+		my $href = $dinfo->{$dev};
+		if (exists($href->{'mountpoint'}) &&
+		    $href->{'type'} ne "iSCSI" && $href->{'size'} > $size) {
+		    $mntpt = $href->{'mountpoint'};
+		    $size = $href->{'size'};
+		}
+	    }
+	    if ($mntpt && $size) {
+		print MAP "FS=$mntpt\n";
+	    }
+	}
+	close(MAP);
     }
 }
 
@@ -287,6 +421,41 @@ sub doreconfig()
 
     # Setup new config
     doboot();
+}
+
+sub doinfo()
+{
+    my @allcmds = ();
+    if (getstorageconfig(\@allcmds) != 0) {
+	fatal("Error grabbing storage config!");
+    }
+    my @cmds = ();
+    if (@allcmds > 0) {
+	foreach my $href (@allcmds) {
+	    if ($dolocal && $href->{'CLASS'} eq "local") {
+		push(@cmds, $href);
+	    }
+	    if ($doremote && $href->{'CLASS'} ne "local") {
+		push(@cmds, $href);
+	    }
+	}
+    }
+    if (@cmds > 0) {
+	my $so = os_init_storage(\@cmds);
+	if (!$so) {
+	    fatal("Could not initialize storage subsystem!");
+	}
+	print STDERR "Blockstores:\n";
+	foreach my $href (@cmds) {
+	    print STDERR "  #", $href->{'IDX'}, ": VOLNAME=", $href->{'VOLNAME'};
+	    foreach my $k (sort keys %$href) {
+		next if ($k eq "VOLNAME" || $k eq "IDX");
+		print STDERR " $k=", $href->{$k};
+	    }
+	    print STDERR "\n";
+	}
+	os_show_storage($so);
+    }
 }
 
 #
@@ -341,21 +510,34 @@ sub docleanup($)
 	print "Forcing teardown of storage, ignore errors...\n";
     }
 
+    my @cmds = ();
+    foreach my $href (@$cmdref) {
+	if ($dolocal && $href->{'CLASS'} eq "local") {
+	    push(@cmds, $href);
+	}
+	if ($doremote && $href->{'CLASS'} ne "local") {
+	    push(@cmds, $href);
+	}
+    }
+    if (!@cmds) {
+	return;
+    }
+
     #
     # Process each command in turn.  Already sorted.
     # XXX do we need to reverse the order for teardown?
     #
-    my $so = os_init_storage($cmdref);
+    my $so = os_init_storage(\@cmds);
     if (!$so) {
 	fatal("Could not initialize storage subsystem!");
     }
-    foreach my $cmd (@$cmdref) {
+    foreach my $cmd (@cmds) {
 	if (!process($so, $cmd, 0, $doteardown)) {
 	    fatal("Could not process storage commands!");
 	}
     }
 
-    unlink($STORAGEMAP);
+    unlink($STORAGEMAP, $DISKINFO);
 }
 
 #
@@ -408,8 +590,7 @@ sub process($$$$)
 		warn("*** No iSCSI target portal specified\n");
 		return 0;
 	    }
-	    if ($href->{'UUID_TYPE'} ne "iqn" ||
-		$href->{'UUID'} !~ /^$IQN_PREFIX/) {
+	    if ($href->{'UUID_TYPE'} ne "iqn") {
 		warn("*** Invalid iSCSI target name '".$href->{'UUID'}."'\n");
 		return 0;
 	    }
@@ -486,9 +667,9 @@ sub process($$$$)
 	    if ($href->{'MOUNTPOINT'}) {
 		print ", ";
 		if ($href->{'FSTYPE'}) {
-		    print $href->{'FSTYPE'} . " FS";
+		    print $href->{'FSTYPE'} . " FS ";
 		}
-		print " mounted on " . $href->{'MOUNTPOINT'};
+		print "mounted on " . $href->{'MOUNTPOINT'};
 	    } else {
 		print ", exists";
 	    }

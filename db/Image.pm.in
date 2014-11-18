@@ -54,6 +54,14 @@ my $TBWWW         = "@TBWWW@";
 my %images    = ();
 my $debug      = 0;
 
+# Concat id/vers.
+sub versid($)
+{
+    my ($self) = @_;
+
+    return $self->imageid() . ":" . $self->version();
+}
+
 # Little helper and debug function.
 sub mysystem($)
 {
@@ -101,6 +109,21 @@ sub Lookup($$;$$)
 
 	    return BlessRow($class, $result->fetchrow_hashref());
 	}
+	elsif ($arg1 =~ /^(\d*):(\d*)$/) {
+	    #
+	    # This will get deleted images, but that is okay.
+	    #
+	    my $result =
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+			    "  from image_versions as v ".
+			    "left join images as i on ".
+			    "     v.imageid=i.imageid ".
+			    "where v.imageid='$1' and v.version='$2'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
 	    my $result =
@@ -122,7 +145,7 @@ sub Lookup($$;$$)
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
 			    "where i.pid='$1' and i.imagename='$2' and ".
-			    "      v.version='$3' and v.deleted is null");
+			    "      v.version='$3'");
 	    return undef
 		if (!$result || !$result->numrows);
 
@@ -161,13 +184,15 @@ sub Lookup($$;$$)
     }
     elsif (!defined($arg3)) {
 	if ($arg1 =~ /^\d+$/ && $arg2 =~ /^\d+$/) {
+	    #
+	    # This will get deleted images, but that is okay.
+	    #
 	    my $result =
 		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
-			    "  from images as i ".
-			    "left join image_versions as v on ".
+			    "  from image_versions as v ".
+			    "left join images as i on ".
 			    "     v.imageid=i.imageid ".
-			    "where i.imageid='$arg1' and v.version='$arg2' ".
-			    " and  v.deleted is null");
+			    "where v.imageid='$arg1' and v.version='$arg2'");
 	    return undef
 		if (! $result || !$result->numrows);
 
@@ -209,7 +234,7 @@ sub Lookup($$;$$)
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
 			    "where i.pid='$arg1' and i.imagename='$arg2' and ".
-			    "      v.version='$arg3' and v.deleted is null");
+			    "      v.version='$arg3'");
 	    return undef
 		if (!$result || !$result->numrows);
 
@@ -603,6 +628,14 @@ sub NewVersion($$$$)
     $typelist = join(",", @types);
 
     #
+    # Update the type list in the image being cloned. Better to do this
+    # when the types are changed, but this works too since no one uses
+    # this until the image is deleted.
+    #
+    DBQueryWarn("update image_versions set nodetypes='$typelist' ".
+		"where imageid='$osid' and version='$version'");
+
+    #
     # Now reset a few things in each table.
     #
     my $clone_vers  = $self->version() + 1;
@@ -635,17 +668,29 @@ sub NewVersion($$$$)
     # The parent of this image might be this image, if taking a snapshot
     # of a node running the image. But we also need to support making a
     # version of the image, from a node running some other image. We still
-    # bump the version number, but the parent pointers are different. 
+    # bump the version number, but the parent pointers are different.
+    #
+    # In one case, the base image is undef, which indicates a new version
+    # not based on anything; we use this from the image_import with
+    # update path. Not sure it is the correct approach yet.
     #
     my ($parent_imageid, $parent_version);
-    
-    if ($self->imageid() == $baseimage->imageid()) {
-	$parent_imageid = $self->imageid();
-	$parent_version = $self->version();
+
+    if (!defined($baseimage)) {
+	$parent_imageid = "NULL";
+	$parent_version = "NULL";
     }
     else {
-	$parent_imageid = $baseimage->imageid();
-	$parent_version = $baseimage->version();
+	if ($self->imageid() == $baseimage->imageid()) {
+	    $parent_imageid = $self->imageid();
+	    $parent_version = $self->version();
+	}
+	else {
+	    $parent_imageid = $baseimage->imageid();
+	    $parent_version = $baseimage->version();
+	}
+	$parent_imageid = "'$parent_imageid'";
+	$parent_version = "'$parent_version'";
     }
 
     #
@@ -662,8 +707,8 @@ sub NewVersion($$$$)
     DBQueryWarn("update $ostablename set ".
 		"  uuid=uuid(), ".
 		"  vers='$clone_vers',".
-		"  parent_osid='$parent_imageid',".
-		"  parent_vers='$parent_version' ".
+		"  parent_osid=$parent_imageid,".
+		"  parent_vers=$parent_version ".
 		"where osid='$osid'")
 	or goto bad;
 
@@ -672,8 +717,8 @@ sub NewVersion($$$$)
 		"  $part_vers, default_vers='$clone_vers', ".
 		"  version='$clone_vers',".
 		"  created=now(),nodetypes='$typelist', ".
-		"  parent_imageid='$parent_imageid',".
-		"  parent_version='$parent_version', ".
+		"  parent_imageid=$parent_imageid,".
+		"  parent_version=$parent_version, ".
 		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
 	or goto bad;
@@ -735,6 +780,33 @@ sub LookupMostRecent($)
 
     my ($version) = $query_result->fetchrow_array();
     return Image->Lookup($imageid, $version);
+}
+
+#
+# Return a list of all image versions.
+#
+sub AllVersions($$)
+{
+    my ($self, $pref)  = @_;
+    my @result  = ();
+    my $imageid = $self->imageid();
+
+    my $query_result =
+	DBQueryWarn("select version from image_versions ".
+		    "where imageid='$imageid' order by version desc");
+    return -1
+	if (!$query_result);
+    
+    while (my ($version) = $query_result->fetchrow_array()) {
+	my $image = Image->Lookup($imageid, $version);
+	if (!defined($image)) {
+	    print STDERR "Could not lookup image $imageid,$version\n";
+	    return -1;
+	}
+	push(@result, $image);
+    }
+    @$pref = @result;
+    return 0;
 }
 
 #
@@ -805,7 +877,7 @@ sub EditImageid($$$$)
     # (Others above already did their own updates.)
     #
     my %updates;
-    foreach my $col ("description", "path", "mbr_version", "hash") {
+    foreach my $col ("description", "path", "mbr_version", "hash", "notes") {
 	# Copy args we want so that others can't get through.
 	if (exists($argref->{$col})) {
 	    $updates{$col} = $mods{$col} = $argref->{$col};
@@ -980,6 +1052,19 @@ sub Delete($;$)
 		"            osidtoimageid write, os_submap write, ".
 		"            image_permissions write")
 	or return -1;
+
+    #
+    # If provenance is on and not purging, then want to stash the
+    # current type list so we can recall it later. 
+    #
+    if (!$purge && $DOPROVENANCE && !defined($self->nodetypes())) {
+	my @typelist = $self->TypeList();
+	if (@typelist) {
+	    my $typelist = join(",", @typelist);
+	    DBQueryWarn("update image_versions set nodetypes='$typelist' ".
+			"where imageid='$imageid'")
+	}
+    }
 
     #
     # If this is an EZ imageid, then delete the corresponding OSID too.
@@ -1512,9 +1597,19 @@ sub WaitLock($$)
 sub TypeList($;$)
 {
     my ($self, $osinfo) = @_;
+    my @result  = ();
+
+    #
+    # Deleted images stash a list in the descriptor.
+    #
+    if ($self->deleted()) {
+	if ($self->nodetypes()) {
+	    @result = split(",", $self->nodetypes());
+	}
+	return @result;
+    }
     require NodeType;
 
-    my @result  = ();
     my $imageid = $self->imageid();
     my $clause  = (defined($osinfo) ?
 		   "and osid='" . $osinfo->osid() . "'" : "");
@@ -1899,6 +1994,22 @@ sub SetDelta($$)
 	if (! $self->Update({'isdelta' => $delta}));
 
     return 0;
+}
+
+sub LocalURL($)
+{
+    my ($self) = @_;
+    my $image_uuid = $self->image_uuid();
+
+    return "$TBBASE/image_metadata.php?uuid=$image_uuid";
+}
+
+sub LocalVersionURL($)
+{
+    my ($self) = @_;
+    my $uuid = $self->uuid();
+
+    return "$TBBASE/image_metadata.php?uuid=$uuid";
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

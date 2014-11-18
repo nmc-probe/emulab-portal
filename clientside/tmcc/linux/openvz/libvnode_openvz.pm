@@ -340,12 +340,12 @@ sub vz_rootPreConfig($)
 	    my $totalSize = 0;
 	    foreach my $dev (keys(%devs)) {
 		if (defined($devs{$dev}{"size"})) {
-		    $blockdevs .= " /dev/$dev";
+		    $blockdevs .= " " . $devs{$dev}{"path"};
 		    $totalSize += $devs{$dev}{"size"};
 		}
 		else {
 		    foreach my $part (keys(%{$devs{$dev}})) {
-			$blockdevs .= " /dev/${dev}${part}";
+			$blockdevs .= " " . $devs{$dev}{$part}{"path"};
 			$totalSize += $devs{$dev}{$part}{"size"};
 		    }
 		}

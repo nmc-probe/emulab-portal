@@ -279,15 +279,21 @@ sub ListResources()
         }
         # Get the hash out of the response
         my $slice_hash = GeniResponse::value($response);
-        my $sliver = $slice_hash->{'sliver_urn'};
         # Resolve the sliver to get the manifest RSpec
-        $resolve_args->{'urn'} = $sliver;
-        $response = GeniCMV2::Resolve($resolve_args);
-        if (GeniResponse::IsError($response)) {
-            return $response;
-        }
-        $xml = GeniResponse::value($response)->{'manifest'};
-
+	if (! exists($slice_hash->{'sliver_urn'}) ||
+	    ! defined($slice_hash->{'sliver_urn'})) {
+	    #
+	    # Hmm, see if its busy. In the middle of creating.
+	    #
+	    return GeniResponse->BusyResponse();
+	}
+	my $sliver = $slice_hash->{'sliver_urn'};
+	$resolve_args->{'urn'} = $sliver;
+	$response = GeniCMV2::Resolve($resolve_args);
+	if (GeniResponse::IsError($response)) {
+	    return $response;
+	}
+	$xml = GeniResponse::value($response)->{'manifest'};
     } else {
 	my $pgversion = undef;
 	if (! defined($version)) {
@@ -411,6 +417,11 @@ sub DeleteSliver()
         'credentials' => $credentials
     };
     my $response = GeniCMV2::DeleteSlice($delete_args);
+    if (!ref($response)) {
+	# This is cause GeniCMV2::DeleteSlice does a fork, and the child
+	# returns plain status code, which should go to our caller. 
+	return $response;
+    }
     if (GeniResponse::IsError($response)) {
         return $response;
     } else {
@@ -490,7 +501,7 @@ sub SliverStatus()
     # include the expiration, converting to UTC
     my $slice = GeniSlice->Lookup($slice_urn);
     my @expires = gmtime(str2time($slice->expires()));
-    my $expires_str = POSIX::strftime("%Y-%m-%dT%H:%M:%S", @expires);
+    my $expires_str = POSIX::strftime("%Y-%m-%dT%H:%M:%SZ", @expires);
     $status->{'pg_expires'} = $expires_str;
 
     # Grab the keys (logins) for inclusion.
@@ -528,24 +539,6 @@ sub SliverStatus()
 	next
 	    if (!defined($sliver));
 
-        # Put manifest info in...
-        my $manifest = $sliver->GetManifest(0);
-        if (0) {
-            # An example of how to include a single element from the
-            # manifest. Abondoned this approach and went to XmlToJson
-            # instead. Finds the "login", then the "hostname" inside
-            # the rspec
-            my $login = GeniXML::FindNodes(".//n:services//n:login", $manifest);
-            if (defined($login)) {
-                my $login = @$login[0];
-                my $host = GeniXML::GetText("hostname", $login);
-                if (defined($host)) {
-                    $child->{'pg_hostname'} = $host;
-                }
-            }
-        }
-        $child->{'pg_manifest'} = XmlToJson($manifest);
-        #$child->{'pg_xml_manifest'} = GeniXML::Serialize($manifest);
         push @children, $child;
     }
     $status->{'geni_resources'} = \@children;
@@ -855,7 +848,7 @@ sub Update
 				   $ticket->asString());
     } elsif (defined($aggregate)) {
 	if ($isCreate) {
-	    $combined = CombineDisjoint( $aggregate->GetManifest(), $rspec);
+	    $combined = CombineDisjoint( $aggregate->GetManifest(1), $rspec);
 	    $response = CheckRspec("COMBINED W/ AGGREGATE", $combined);
 	    return $response
 		if (defined($response));
@@ -1005,7 +998,7 @@ sub Provision
 
     my ($slice, undef) = GeniCMV2::Credential2SliceAggregate($cred);
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Slice credential not provided")
+			"No slice here that matches the provided credentials")
 	if (! defined($slice));
 
     return $slice
@@ -1075,7 +1068,7 @@ sub PerformOperationalAction
 
     my ($slice, $aggregate) = GeniCMV2::Credential2SliceAggregate($cred);
     return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Slice credential not provided")
+			"No slice here that matches the provided credentials")
 	if (! defined($slice));
 
     if ($urns[0] eq $slice->urn()) {
@@ -1204,6 +1197,11 @@ sub Delete
 	'credentials' => $credentials
     };
     my $response = GeniCMV2::DeleteSlice($args);
+    if (!ref($response)) {
+	# This is cause GeniCMV2::DeleteSlice does a fork, and the child
+	# returns plain status code, which should go to our caller. 
+	return $response;
+    }
     if (! GeniResponse::IsError($response)) {
 	$response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $slivers);
     }

@@ -55,6 +55,38 @@ CREATE TABLE `active_checkups` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `apt_datasets`
+--
+
+DROP TABLE IF EXISTS `apt_datasets`;
+CREATE TABLE `apt_datasets` (
+  `idx` int(10) unsigned NOT NULL default '0',
+  `dataset_id` varchar(32) NOT NULL default '',
+  `uuid` varchar(40) NOT NULL default '',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `creator_uid` varchar(8) NOT NULL default '',
+  `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `aggregate_urn` varchar(128) default NULL,
+  `remote_uuid` varchar(40) NOT NULL default '',
+  `created` datetime default NULL,
+  `expires` datetime default NULL,
+  `last_used` datetime default NULL,
+  `state` enum('new','valid','unapproved','grace','locked','expired','busy') NOT NULL default 'new',  
+  `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
+  `fstype` varchar(40) NOT NULL default 'none',
+  `size` int(10) unsigned NOT NULL default '0',
+  `public` tinyint(1) NOT NULL default '0',
+  `shared` tinyint(1) NOT NULL default '0',
+  `locked` datetime default NULL, 
+  `locker_pid` int(11) default '0',
+  PRIMARY KEY (`idx`),
+  UNIQUE KEY `plid` (`pid_idx`,`dataset_id`),
+  UNIQUE KEY `uuid` (`uuid`),
+  UNIQUE KEY `remote_uuid` (`remote_uuid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `apt_instance_history`
 --
 
@@ -91,6 +123,7 @@ CREATE TABLE `apt_instances` (
   `created` datetime default NULL,
   `status` varchar(32) default NULL,
   `extension_code` varchar(32) default NULL,
+  `extension_reason` mediumtext,
   `servername` tinytext,
   `manifest` mediumtext,
   PRIMARY KEY (`uuid`)
@@ -116,6 +149,7 @@ CREATE TABLE `apt_profile_versions` (
   `parent_version` int(8) unsigned default NULL,
   `status` varchar(32) default NULL,
   `rspec` mediumtext,
+  `script` mediumtext,
   PRIMARY KEY (`profileid`,`version`),
   UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`),
   UNIQUE KEY `uuid` (`uuid`)
@@ -1996,6 +2030,7 @@ CREATE TABLE `image_versions` (
   `isdelta` tinyint(1) NOT NULL default '0',
   `released` tinyint(1) NOT NULL default '0',
   `nodetypes` text default NULL,
+  `notes` mediumtext,
   PRIMARY KEY  (`imageid`,`version`),
   KEY `pid` (`pid`,`imagename`,`version`),
   KEY `gid` (`gid`),
@@ -2268,7 +2303,7 @@ DROP TABLE IF EXISTS `lease_permissions`;
 CREATE TABLE `lease_permissions` (
   `lease_idx` int(10) unsigned NOT NULL default '0',
   `lease_id` varchar(32) NOT NULL default '',
-  `permission_type` enum('user','group') NOT NULL default 'user',
+  `permission_type` enum('user','group','global') NOT NULL default 'user',
   `permission_id` varchar(128) NOT NULL default '',
   `permission_idx` mediumint(8) unsigned NOT NULL default '0',
   `allow_modify` tinyint(1) NOT NULL default '0',
@@ -3708,8 +3743,10 @@ DROP TABLE IF EXISTS `project_leases`;
 CREATE TABLE `project_leases` (
   `lease_idx` int(10) unsigned NOT NULL default '0',
   `lease_id` varchar(32) NOT NULL default '',
+  `uuid` varchar(40) NOT NULL default '',
   `owner_uid` varchar(8) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
+  `gid` varchar(48) NOT NULL default '',
   `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
   `inception` timestamp NOT NULL default CURRENT_TIMESTAMP,
   `lease_end` timestamp NOT NULL default '2037-01-19 03:14:07',
@@ -3721,7 +3758,8 @@ CREATE TABLE `project_leases` (
   `locked` datetime default NULL, 
   `locker_pid` int(11) default '0',
   PRIMARY KEY (`lease_idx`),
-  UNIQUE KEY `plid` (`pid`,`lease_id`)
+  UNIQUE KEY `plid` (`pid`,`lease_id`),
+  UNIQUE KEY `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

@@ -3,7 +3,7 @@ window.APT_OPTIONS = window.APT_OPTIONS || {};
 window.APT_OPTIONS.configObject = {
     baseUrl: '.',
     paths: {
-	'jquery-ui': 'js/lib/jquery-ui-1.10.4.custom',
+	'jquery-ui': 'js/lib/jquery-ui',
 	'jquery-grid':'js/lib/jquery.appendGrid-1.3.1.min',
 	'formhelpers': 'js/lib/bootstrap-formhelpers',
 	'dateformat': 'js/lib/date.format',

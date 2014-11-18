@@ -31,6 +31,7 @@ use Exporter;
 @EXPORT =
     qw (
 	os_init_storage os_check_storage os_create_storage os_remove_storage
+	os_show_storage os_get_diskinfo
        );
 
 sub VERSION()	{ return 1.0; }
@@ -240,13 +241,6 @@ sub init_serial_map()
 	}
     }
 
-    if (0) {
-	print STDERR "SN map:\n";
-	foreach my $sn (keys %snmap) {
-	    print STDERR "$sn -> $snmap{$sn}\n";
-	}
-    }
-
     return \%snmap;
 }
 
@@ -299,7 +293,7 @@ sub uuid_to_session($$$)
 again:
     if ($so->{'USE_ISCSID'}) {
 	my @lines = `$ISCSI -Lv 2>&1`;
-	my $sess;
+	my ($sess, $gotuuid);
 	foreach (@lines) {
 	    if (/^Session ID:\s+(\d+)/) {
 		$sess = $1;
@@ -307,7 +301,17 @@ again:
 	    }
 	    if (/^Target name:\s+(\S+)/) {
 		if ($1 eq $uuid && defined($sess)) {
-		    return $sess;
+		    $gotuuid = 1;
+		}
+		next;
+	    }
+	    if (/^Session state:\s+(\S+)/) {
+		# found the right session, but make sure it is connected
+		if ($gotuuid) {
+		    if ($1 eq "Connected") {
+			return $sess;
+		    }
+		    last;
 		}
 		next;
 	    }
@@ -910,17 +914,6 @@ sub os_init_storage($)
 	}
 	$so{'BOOTDISK'} = $bdisk;
 	$so{'DISKINFO'} = $dinfo;
-	if (0) {
-	    print STDERR "BOOTDISK='$bdisk'\nUSEZFS='$usezfs'\nDISKINFO=\n";
-	    foreach my $dev (keys %$dinfo) {
-		my $type = $dinfo->{$dev}->{'type'};
-		my $lev = $dinfo->{$dev}->{'level'};
-		my $size = $dinfo->{$dev}->{'size'};
-		my $inuse = $dinfo->{$dev}->{'inuse'};
-		print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
-	    }
-	    return undef;
-	}
     }
 
     if ($gotiscsi) {
@@ -974,6 +967,52 @@ sub os_init_storage($)
     return \%so;
 }
 
+sub os_get_diskinfo($)
+{
+    my ($so) = @_;
+
+    return get_diskinfo($so->{'USEZFS'});
+}
+
+#
+# XXX debug
+#
+sub os_show_storage($)
+{
+    my ($so) = @_;
+
+    my $bdisk = $so->{'BOOTDISK'};
+    my $usezfs = $so->{'USEZFS'};
+    print STDERR "OS Dep info:\n";
+    print STDERR "  BOOTDISK=$bdisk\n" if ($bdisk);
+    print STDERR "  USEZFS=$usezfs\n" if ($usezfs);
+
+    my $dinfo = get_diskinfo($usezfs);
+    if ($dinfo) {
+	print STDERR "  DISKINFO:\n";
+	foreach my $dev (keys %$dinfo) {
+	    my $type = $dinfo->{$dev}->{'type'};
+	    my $lev = $dinfo->{$dev}->{'level'};
+	    my $size = $dinfo->{$dev}->{'size'};
+	    my $inuse = $dinfo->{$dev}->{'inuse'};
+	    print STDERR "    name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
+	}
+    }
+
+    # SPACEMAP
+
+    # LOCAL_SNMAP
+    my $snmap = $so->{'LOCAL_SNMAP'};
+    if ($so->{'LOCAL_SNMAP'}) {
+	my $snmap = $so->{'LOCAL_SNMAP'};
+
+	print STDERR "  LOCAL_SNMAP:\n";
+	foreach my $sn (keys %$snmap) {
+	    print STDERR "    $sn -> ", $snmap->{$sn}, "\n";
+	}
+    }
+}
+
 #
 # os_check_storage(sobject,confighash)
 #
@@ -987,18 +1026,6 @@ sub os_init_storage($)
 sub os_check_storage($$)
 {
     my ($so,$href) = @_;
-
-    if (0) {
-	my $dinfo = get_diskinfo($so->{'USEZFS'});
-	print STDERR "DISKINFO=\n";
-	foreach my $dev (keys %$dinfo) {
-	    my $type = $dinfo->{$dev}->{'type'};
-	    my $lev = $dinfo->{$dev}->{'level'};
-	    my $size = $dinfo->{$dev}->{'size'};
-	    my $inuse = $dinfo->{$dev}->{'inuse'};
-	    print STDERR "name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
-	}
-    }
 
     if ($href->{'CMD'} eq "ELEMENT") {
 	return os_check_storage_element($so,$href);
@@ -1078,8 +1105,7 @@ sub os_check_storage_element($$)
 		warn("*** $bsid: could not create iSCSI session\n");
 		return -1;
 	    }
-	    sleep(2);
-	    $session = uuid_to_session($so, $uuid, 2);
+	    $session = uuid_to_session($so, $uuid, 5);
 	    if (!defined($session)) {
 		warn("*** $bsid: iSCSI session not created\n");
 		return -1;
@@ -1089,7 +1115,7 @@ sub os_check_storage_element($$)
 	#
 	# Figure out the device name from the session.
 	#
-	my $dev = iscsi_to_dev($so, $session, 2);
+	my $dev = iscsi_to_dev($so, $session, 5);
 	if (!defined($dev)) {
 	    warn("*** $bsid: found iSCSI session but could not find device\n");
 	    return -1;
@@ -1285,17 +1311,35 @@ sub os_check_storage_slice($$)
 	    return -1;
 	}
 
-	# if there is a mountpoint, make sure it is mounted
+	#
+	# If there is a mountpoint, make sure it is mounted.
+	# If it is not mounted, then try mounting it here.
+	# If it is mounted, but in the wrong place, bail.
+	#
 	my $mpoint = $href->{'MOUNTPOINT'};
-	if ($mpoint && $devtype ne "ZFS") {
-	    my $line = `$MOUNT | grep '^/dev/$mdev on '`;
-	    if (!$line) {
-		warn("*** $lv: is not mounted, should be on $mpoint\n");
-		return -1;
-	    }
-	    if ($line !~ /^\/dev\/$mdev on (\S+) / || $1 ne $mpoint) {
-		warn("*** $lv: mounted on $1, should be on $mpoint\n");
-		return -1;
+	if ($mpoint) {
+	    if ($devtype eq "ZFS") {
+		my $line = `$ZFS mount | grep '^$mdev '`;
+		if (!$line && mysystem("$ZFS mount $mdev")) {
+		    warn("*** $lv: is not mounted, should be on $mpoint\n");
+		    return -1;
+		}
+		if ($line && ($line !~ /^$mdev\s+(\S+)/ || $1 ne $mpoint)) {
+		    warn("*** $lv: mounted on $1, should be on $mpoint\n");
+		    return -1;
+		}
+		$href->{'FSTYPE'} = "zfs";
+	    } else {
+		my $line = `$MOUNT | grep '^/dev/$mdev on '`;
+		if (!$line && mysystem("$MOUNT $mpoint")) {
+		    warn("*** $lv: is not mounted, should be on $mpoint\n");
+		    return -1;
+		}
+		if ($line && ($line !~ /^\/dev\/$mdev on (\S+) / || $1 ne $mpoint)) {
+		    warn("*** $lv: mounted on $1, should be on $mpoint\n");
+		    return -1;
+		}
+		$href->{'FSTYPE'} = "ufs";
 	    }
 	}
 
@@ -1405,9 +1449,12 @@ sub os_create_storage($$)
 	#
 	# Otherwise, create the filesystem
 	#
-	elsif (mysystem("$MKFS -b $UFSBS $mdev $redir")) {
-	    warn("*** $lv: could not create FS$logmsg\n");
-	    return 0;
+	else {
+	    if (mysystem("$MKFS -b $UFSBS $mdev $redir")) {
+		warn("*** $lv: could not create FS$logmsg\n");
+		return 0;
+	    }
+	    $href->{'FSTYPE'} = "ufs";
 	}
 
 	#
@@ -1502,17 +1549,16 @@ EOF
 	    warn("*** $bsid: could not create iSCSI session\n");
 	    return 0;
 	}
-	sleep(2);
 
 	#
 	# Find the session ID and device name.
 	#
-	my $session = uuid_to_session($so, $uuid, 2);
+	my $session = uuid_to_session($so, $uuid, 5);
 	if (!defined($session)) {
 	    warn("*** $bsid: could not find iSCSI session\n");
 	    return 0;
 	}
-	my $dev = iscsi_to_dev($so, $session, 2);
+	my $dev = iscsi_to_dev($so, $session, 5);
 	if (!defined($dev)) {
 	    warn("*** $bsid: could not map iSCSI session to device\n");
 	    return 0;
@@ -1743,6 +1789,7 @@ sub os_create_storage_slice($$$)
 		    }
 		    $mdev = "emulab/$lv";
 		    $href->{'MOUNTED'} = 1;
+		    $href->{'FSTYPE'} = "zfs";
 		} else {
 		    #
 		    # No size specified, use the free size of the pool.
@@ -2059,18 +2106,24 @@ sub os_remove_storage_slice($$$)
 	# On errors, we warn but don't stop. We do everything in our
 	# power to take things down.
 	#
-	if (exists($href->{'MOUNTPOINT'}) && $devtype ne "ZFS") {
+	if (exists($href->{'MOUNTPOINT'})) {
 	    my $mpoint = $href->{'MOUNTPOINT'};
 
-	    if (mysystem("$UMOUNT $mpoint")) {
-		warn("*** $lv: could not unmount $mpoint\n");
-	    }
+	    if ($devtype eq "ZFS") {
+		if (mysystem("$ZFS unmount $dev")) {
+		    warn("*** $lv: could not zfs unmount $dev\n");
+		}
+	    } else {
+		if (mysystem("$UMOUNT $mpoint")) {
+		    warn("*** $lv: could not unmount $mpoint\n");
+		}
 
-	    if ($teardown) {
-		my $tdev = "/dev/$dev";
-		$tdev =~ s/\//\\\//g;
-		if (mysystem("sed -E -i -e '/^(# )?$tdev/d' /etc/fstab")) {
-		    warn("*** $lv: could not remove mount from /etc/fstab\n");
+		if ($teardown) {
+		    my $tdev = "/dev/$dev";
+		    $tdev =~ s/\//\\\//g;
+		    if (mysystem("sed -E -i -e '/^(# )?$tdev/d' /etc/fstab")) {
+			warn("*** $lv: could not remove mount from /etc/fstab\n");
+		    }
 		}
 	    }
 	}

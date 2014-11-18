@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# Copyright (c) 2009 University of Utah and the Flux Group.
+# Copyright (c) 2009, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -80,8 +80,8 @@ sub sum_usage_stats ($) {
 }
 
 sub filter_w_start ($@) {
-    my $time = shift @_;
-    return map {$time >= $start[$_] ? $_[$_] : 'NaN'} @idxs;
+    my ($time,@list) = @_;
+    return map {$time >= $start[$_] ? $list[$_] : 'NaN'} @idxs;
 }
 
 while (<F>) {
@@ -89,8 +89,15 @@ while (<F>) {
     s/^(\d+) (\d+) // or die;
     my $time = $2;
     undef %d;
-    while (s/^ ([\w\d\-\?]+): (\d+) (\d+) (\d+) //) {
-	$d{$1} = [$2, $3, $4];
+    while (s/^ ([\w\d\-\?]+): (\d+) (\d+) (\d+) (\d+) //) {
+	my ($node,$total,$free,$invalid,$oos) = ($1,$2,$3,$4,$5);
+
+	if (!defined($oos) || $free > $total - $oos) {
+	    print STDERR "WARNING: $node: free ($free) > total ($total) - oos ($oos)\n";
+	    $d{$node} = [$total, $free, $invalid];
+	} else {
+	    $d{$node} = [$total-$oos, $free, $invalid];
+	}
     }
     no warnings 'uninitialized';
     my @num = sum_usage_stats(0);
@@ -145,6 +152,8 @@ while (<F>) {
     $prev_time = $time;
     @prev_data = @data;
 }
+close(F);
+exit(0);
 
 
 

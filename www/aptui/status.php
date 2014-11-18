@@ -41,7 +41,8 @@ $this_user = CheckLogin($check_status);
 #
 # Verify page arguments.
 #
-$reqargs = OptionalPageArguments("uuid", PAGEARG_STRING,
+$reqargs = OptionalPageArguments("uuid",    PAGEARG_STRING,
+				 "extend",  PAGEARG_INTEGER,
 				 "oneonly", PAGEARG_BOOLEAN);
 
 if (!isset($uuid)) {
@@ -111,7 +112,7 @@ $profile         = Profile::Lookup($instance->profile_id(),
 $profile_name    = $profile->name();
 if ($slice) {
     $slice_urn       = $slice->urn();
-    $slice_expires   = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
+    $slice_expires   = DateStringGMT($slice->expires());
     $slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
 }
 else {
@@ -130,6 +131,15 @@ $canclone        = (($profile->published() && isset($this_user) &&
 		    ISADMIN() ? 1 : 0);
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
+$isadmin         = (ISADMIN() ? 1 : 0);
+
+#
+# We give ssh to the creator (real user or guest user).
+#
+$dossh =
+    (((isset($this_user) && $this_user->SameUser($creator)) ||
+      (isset($_COOKIE['quickvm_user']) &&
+       $_COOKIE['quickvm_user'] == $creator->uuid())) ? 1 : 0);
 
 #
 # See if we have a task running in the background for this instance.
@@ -164,15 +174,22 @@ echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "  window.APT_OPTIONS.registered = $registered;\n";
+echo "  window.APT_OPTIONS.isadmin = $isadmin;\n";
 echo "  window.APT_OPTIONS.cansnap = $cansnap;\n";
 echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
+echo "  window.APT_OPTIONS.dossh = $dossh;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
+if (isset($extend) && $extend != "") {
+    echo "  window.APT_OPTIONS.extend = $extend;\n";
+}
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/status'></script>";
+echo "<link rel='stylesheet'
+            href='css/jquery-ui-1.10.4.custom.min.css'>\n";
 # For progress bubbles in the imaging modal.
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
 

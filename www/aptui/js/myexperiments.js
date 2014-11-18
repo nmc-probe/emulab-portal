@@ -1,7 +1,7 @@
 require(window.APT_OPTIONS.configObject,
-	['js/quickvm_sup',
+	['js/quickvm_sup', 'moment',
 	 'tablesorter', 'tablesorterwidgets'],
-function (sup)
+function (sup, moment)
 {
     'use strict';
 
@@ -39,6 +39,14 @@ function (sup)
 	// Allows using filter_liveSearch or delayed search &
 	// pressing escape to cancel the search
 	$.tablesorter.filter.bindSearch( table, $('#experiment_search') );
+
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("ll"));
+	    }
+	});
     }
 
     $(document).ready(initialize);

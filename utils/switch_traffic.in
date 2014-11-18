@@ -358,7 +358,9 @@ sub Aggregate($$)
 		    $sum{$key} += $counts->{$key};
 		}
 	    }
-	    $aggref->{$sw1}->{$sw2} = \%sum;
+	    if (keys(%sum) > 0) {
+		$aggref->{$sw1}->{$sw2} = \%sum;
+	    }
 	}
     }
     #

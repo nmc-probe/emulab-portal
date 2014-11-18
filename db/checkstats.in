@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008 University of Utah and the Flux Group.
+# Copyright (c) 2008, 2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,14 +38,20 @@ my $debug    = 0;
 my $verbose  = 1;
 my $impotent = 0;
 my $backup   = 0;
-my $RESOURCES= "experiment_resources_backup";
-my $ESTATS   = "experiment_stats_backup";
+my $ESTATS   = "experiment_stats";
 my $TSTATS   = "testbed_stats";
+my $RESOURCES= "experiment_resources_backup";
 my $USTATS   = "user_stats_backup";
 my $GSTATS   = "group_stats_backup";
 my $PSTATS   = "project_stats_backup";
 my %group_stats = ();
 my %user_stats  = ();
+
+#
+# Simple sanity check. When we think we can fixup a swapin/swapout time,
+# make sure the resulting duration does not exceed this value.
+#
+my $maxduration = (7 * 24 * 60 * 60);
 
 sub fatal($);
 sub Regenerate();
@@ -112,12 +118,6 @@ if ($backup) {
     DBQueryFatal("insert into experiment_resources_backup ".
 		 "select * from experiment_resources");
 
-    DBQueryFatal("create table if not exists experiment_stats_backup ".
-		 "like experiment_stats");
-    DBQueryFatal("delete from experiment_stats_backup");
-    DBQueryFatal("insert into experiment_stats_backup ".
-		 "select * from experiment_stats");
-
     DBQueryFatal("create table if not exists user_stats_backup ".
 		 "like user_stats");
     DBQueryFatal("delete from user_stats_backup");
@@ -154,12 +154,21 @@ sub MyDBQ($)
     DBQueryFatal($query);
 }
 
+if ($impotent) {
+    $RESOURCES= "experiment_resources";
+    $USTATS   = "user_stats";
+    $GSTATS   = "group_stats";
+    $PSTATS   = "project_stats";
+}
+
 #
 # Look for resource records that are inconsistent.
 #
 my $query_result =
     DBQueryFatal("select r.*,s.rsrcidx,e.state, ".
+		 "    UNIX_TIMESTAMP(s.created) as created, ".
 		 "    UNIX_TIMESTAMP(s.destroyed) as destroyed, ".
+		 "    UNIX_TIMESTAMP(s.swapin_last) as swapin_last, ".
 		 "    UNIX_TIMESTAMP(s.swapout_last) as swapout_last ".
 		 "  from $RESOURCES as r ".
 		 "left join $ESTATS as s on s.exptidx=r.exptidx ".
@@ -177,7 +186,9 @@ while (my $row = $query_result->fetchrow_hashref()) {
     my $thisidx      = $row->{'idx'};
     my $rsrcidx      = $row->{'rsrcidx'};
     my $lastidx      = $row->{'lastidx'};
+    my $created      = $row->{'created'};
     my $destroyed    = $row->{'destroyed'};
+    my $swapin_last  = $row->{'swapin_last'};
     my $swapout_last = $row->{'swapout_last'};
     my $byswapmod    = $row->{'byswapmod'};
     my $stats_result;
@@ -230,6 +241,7 @@ while (my $row = $query_result->fetchrow_hashref()) {
 	#
 	# Look for a testbed stats record with a swapin/swapout
 	#
+	my $outtime;
 	if (!$byswapmod) {
 	    $stats_result =
 		DBQueryFatal("select action,UNIX_TIMESTAMP(end_time) ".
@@ -242,14 +254,60 @@ while (my $row = $query_result->fetchrow_hashref()) {
 		my ($action2,$time2) = $stats_result->fetchrow_array();
 
 		if ($action1 eq "swapin" and $time2 > $time1) {
+		    my $d = $time2 - $time1;
 		    print "$exptidx (rsrc:$thisidx); ".
-			"setting swapin/swapout to $time1/$time2\n"
+			"setting swapin/swapout to $time1/$time2 (duration $d)\n"
 			if ($verbose);
 		    
-		    MyDBQ("update $RESOURCES set ".
-			  "  swapin_time=$time1,swapout_time=$time2 ".
-			  "where idx=$thisidx");
-		    next;
+		    if ($d > $maxduration) {
+			print "*** fixup would exceed max duration, skipped\n";
+		    } else {
+			MyDBQ("update $RESOURCES set ".
+			      "  swapin_time=$time1,swapout_time=$time2 ".
+			      "where idx=$thisidx");
+			next;
+		    }
+		}
+	    }
+
+	    #
+	    # Choose a reasonable swapin from the experiments stats record,
+	    # but only if the current resource record is the actual last
+	    # record and we have a swapout time to sanity check with.
+	    #
+	    $outtime = $swapout_time;
+	    $outtime = $swapout_last if (!defined($outtime));
+	    $outtime = $destroyed if (!defined($outtime));
+	    if ($thisidx == $rsrcidx && $outtime && defined($created)) {
+		if (defined($swapin_last) && $swapin_last <= $outtime) {
+		    my $d = $outtime - $swapin_last;
+		    print "$exptidx (rsrc:$thisidx) created at $created; ".
+			"setting swapin to $swapin_last (duration $d)\n"
+			if ($verbose);
+
+		    if ($d > $maxduration) {
+			print "*** fixup would exceed max duration, skipped\n";
+		    } else {
+			MyDBQ("update $RESOURCES set ".
+			      "  swapin_time=$swapin_last ".
+			      "where idx=$thisidx");
+			next;
+		    }
+		}
+		if ($created <= $outtime) {
+		    my $d = $outtime - $created;
+		    print "$exptidx (rsrc:$thisidx) created at $created; ".
+			"setting swapin to $created (duration $d)\n"
+			if ($verbose);
+
+		    if ($d > $maxduration) {
+			print "*** fixup would exceed max duration, skipped\n";
+		    } else {
+			MyDBQ("update $RESOURCES set ".
+			      "  swapin_time=$created ".
+			      "where idx=$thisidx");
+			next;
+		    }
 		}
 	    }
 	}
@@ -257,7 +315,13 @@ while (my $row = $query_result->fetchrow_hashref()) {
 	#
 	# If we get here, we did not know how to fix it or ignore it.
 	#
-	print "*** HELP: $exptidx (rsrc:$thisidx); p:$pnodes, v:$vnodes\n";
+	my $v0 = $byswapmod;
+	my $v1 = (defined($outtime) ? $outtime : "NULL");
+	my $v2 = (defined($swapin_last) ? $swapin_last : "NULL");
+	my $v3 = (defined($created) ? $created : "NULL");
+
+	print "*** HELP: $exptidx (rsrc:$thisidx); p:$pnodes, v:$vnodes, ";
+	print "byswapmod:$v0, outtime:$v1, swapin_last:$v2, created:$v3\n";
     }
 }
 
@@ -286,6 +350,8 @@ while (my $row = $query_result->fetchrow_hashref()) {
     my $byswapmod    = $row->{'byswapmod'};
 
     if ($swapin_time && !($swapout_time || $swapmod_time)) {
+	my $tsswapout;
+
 	if (defined($state) && $state eq "active" && $thisidx == $rsrcidx) {
 	    print "$exptidx (rsrc:$rsrcidx) is active; p:$pnodes, v:$vnodes\n"
 		if ($verbose);
@@ -314,16 +380,21 @@ while (my $row = $query_result->fetchrow_hashref()) {
 			     "  from $TSTATS ".
 			     "where rsrcidx=$thisidx and action='swapout'");
 	    if ($stats_result->numrows) {
-		my ($newtime) = $stats_result->fetchrow_array();
-		if (defined($newtime)) {
+		($tsswapout) = $stats_result->fetchrow_array();
+		if (defined($tsswapout)) {
+		    my $d = $tsswapout - $swapin_time;
 		    print "$exptidx (rsrc:$thisidx); ".
-			"setting swapout to $newtime from testbed_stats\n"
+			"setting swapout to $tsswapout (duration $d) from testbed_stats\n"
 			if ($verbose);
 
-		    MyDBQ("update $RESOURCES set ".
-			  "  swapout_time=$newtime ".
-			  "where idx=$thisidx");
-		    next;
+		    if ($d > $maxduration) {
+			print "*** fixup would exceed max duration, skipped\n";
+		    } else {
+			MyDBQ("update $RESOURCES set ".
+			      "  swapout_time=$tsswapout ".
+			      "where idx=$thisidx");
+			next;
+		    }
 		}
 	    }
 	}
@@ -336,31 +407,47 @@ while (my $row = $query_result->fetchrow_hashref()) {
 	if (($pnodes || $vnodes) && $thisidx == $rsrcidx &&
 	    defined($destroyed)) {
 	    if (defined($swapout_last) && $swapout_last > $swapin_time) {
+		my $d = $swapout_last - $swapin_time;
 		print "$exptidx (rsrc:$thisidx) destroyed at $destroyed; ".
-		    "setting swapout to $swapout_last\n"
+		    "setting swapout to $swapout_last (duration $d)\n"
 		    if ($verbose);
 
-		MyDBQ("update $RESOURCES set ".
-		      "  swapout_time=$swapout_last ".
-		      "where idx=$thisidx");
-		next;
+		if ($d > $maxduration) {
+		    print "*** fixup would exceed max duration, skipped\n";
+		} else {
+		    MyDBQ("update $RESOURCES set ".
+			  "  swapout_time=$swapout_last ".
+			  "where idx=$thisidx");
+		    next;
+		}
 	    }
-	    elsif ($destroyed > $swapin_time) {
+	    if ($destroyed > $swapin_time) {
+		my $d = $destroyed - $swapin_time;
 		print "$exptidx (rsrc:$thisidx) destroyed at $destroyed; ".
-		    "setting swapout to $destroyed\n"
+		    "setting swapout to $destroyed (duration $d)\n"
 		    if ($verbose);
 
-		MyDBQ("update $RESOURCES set ".
-		      "  swapout_time=$destroyed ".
-		      "where idx=$thisidx");
-		next;
+		if ($d > $maxduration) {
+		    print "*** fixup would exceed max duration, skipped\n";
+		} else {
+		    MyDBQ("update $RESOURCES set ".
+			  "  swapout_time=$destroyed ".
+			  "where idx=$thisidx");
+		    next;
+		}
 	    }
 	}
 
 	#
 	# If we get here, we did not know how to fix it or ignore it.
 	#
-	print "*** HELP: $exptidx (rsrc:$thisidx); p:$pnodes, v:$vnodes\n";
+	my $v0 = $swapin_time;
+	my $v1 = (defined($tsswapout) ? $tsswapout : "NULL");
+	my $v2 = (defined($swapout_last) ? $swapout_last : "NULL");
+	my $v3 = (defined($destroyed) ? $destroyed : "NULL");
+
+	print "*** HELP: $exptidx (rsrc:$thisidx); p:$pnodes, v:$vnodes, ";
+	print "swapin:$v0, swapout:$v1, swapout_last:$v2, destroyed:$v3\n";
     }
 }
 
@@ -597,5 +684,3 @@ sub FixStat($$)
     MyDBQ($query);
     return 0;
 }
-
-			 

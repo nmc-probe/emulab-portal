@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -124,7 +124,7 @@ else {
 STARTBUSY("Deleting Image Descriptor ");
 
 $retval = SUEXEC($uid, $unix_pgid,
-		 "webdelete_image $purgeopt $imageid", SUEXEC_ACTION_DIE);
+		 "webdelete_image -F $purgeopt $imageid", SUEXEC_ACTION_DIE);
 
 STOPBUSY();
 

@@ -55,6 +55,7 @@ my $TBGROUP_DIR	= "@GROUPSROOT_DIR@";
 my $TBPROJ_DIR	= "@PROJROOT_DIR@";
 my $CREATEIMAGE = "$TB/bin/create_image";
 my $CLONEIMAGE  = "$TB/sbin/clone_image";
+my $RUNSONXEN   = "$TB/sbin/runsonxen";
 
 #
 # Untaint the path
@@ -531,6 +532,9 @@ elsif (! $isadmin) {
 	UserError("Path: Invalid Path");
     }
 }
+if (-d $newimageid_args{"path"}) {
+    UserError("Path: invalid path, its a directory");
+}
 
 # We allow loadpart=0 for whole-disk images in the Long Form, and it uses the
 # same table_regex checking patterns.  Here "wholedisk" is a separate checkbox.
@@ -571,9 +575,11 @@ if (!exists($newimageid_args{"mbr_version"}) && defined($node_id)) {
     # to version 1.
     #
     my $query_result =
-	DBQueryFatal("select mbr_version from partitions as p, images as i ".
-		     " where p.imageid=i.imageid and p.node_id='$node_id' ".
-		     " group by mbr_version");
+	DBQueryFatal("select mbr_version from ".
+		     " partitions as p,image_versions as i ".
+		     " where p.imageid=i.imageid ".
+		     " and p.imageid_version=i.version ".
+		     " and p.node_id='$node_id' group by mbr_version");
     if ($query_result && $query_result->numrows == 1) {
 	($mbrvers) = $query_result->fetchrow_array();	
     }
@@ -756,13 +762,7 @@ if (defined($parentos)) {
     # Temp hack until we put all mappings into XML file.
     #
     if ($parentos->osname() =~ /^XEN4/) {
-	my $other = ($parentos->osname() =~ /^XEN41/ ?
-		     "XEN43-64-STD" : "XEN41-64-STD");
-
-	my $otheros = OSinfo->LookupByName($other);
-	if (defined($otheros)) {
-	    $new_osinfo->SetRunsOnParent($otheros);
-	}
+        system("$RUNSONXEN $imagepid,$imagename");
     }
 }
 
@@ -778,9 +778,9 @@ if (defined($target)) {
     # that stuff here. Then it just calls create_image.
     #
     if ($target =~ /^.*@.*$/) {
-	system("$CREATEIMAGE -p $imagepid $imageid '$target'");    }
+	system("$CREATEIMAGE -p $imagepid $imagename '$target'");    }
     else {
-	# Must be an imagename, not and imageid.
+	# Must be an imagename, not an imageid.
 	system("$CLONEIMAGE $imagename '$target'");
     }
     if ($?) {

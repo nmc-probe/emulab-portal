@@ -168,6 +168,14 @@ $TB_IMAGEID_DESTROY		= 5;
 $TB_IMAGEID_MIN			= $TB_IMAGEID_READINFO;
 $TB_IMAGEID_MAX			= $TB_IMAGEID_DESTROY;
 
+# Leases
+$LEASE_ACCESS_READINFO		= 1;
+$LEASE_ACCESS_READ		= 2;
+$LEASE_ACCESS_MODIFY		= 3;
+$LEASE_ACCESS_DESTROY		= 4;
+$LEASE_ACCESS_MIN		= $LEASE_ACCESS_READINFO;
+$LEASE_ACCESS_MAX		= $LEASE_ACCESS_DESTROY;
+
 # Experiment states (that matter to us).
 $TB_EXPTSTATE_NEW		= "new"; 
 $TB_EXPTSTATE_PRERUN		= "prerunning"; 
@@ -734,6 +742,27 @@ class Logfile
     function gid_idx()       { return $this->field("gid_idx"); }
 }
 
+#
+# Do we have a storage pool?
+#
+function HaveStoragePool()
+{
+    global $TBOPSPID;
+    
+    $experiment = Experiment::LookupByPidEid($TBOPSPID, "storage-pool");
+    if ($experiment) {
+	return $experiment->PCCount();
+    }
+    return 0;
+}
+
+# Convert local time to GMT date string.
+function DateStringGMT($date)
+{
+    return gmdate("Y-m-d\TH:i:s\Z", strtotime($date));
+}
+
+#
 #
 # DB Interface.
 #

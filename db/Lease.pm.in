@@ -175,8 +175,6 @@ my %LEASE_TRANSITIONS = (
 );
     
 
-# Cache of instances to avoid regenerating them.
-my %leases	= ();
 my $debug	= 0;
 
 # Little helper and debug function.
@@ -193,7 +191,9 @@ sub mysystem($)
 # Accessors
 #
 sub lease_id($)        {return $_[0]->{'DBROW'}->{'lease_id'}; }
+sub uuid($)            {return $_[0]->{'DBROW'}->{'uuid'}; }
 sub pid($)             {return $_[0]->{'DBROW'}->{'pid'}; }
+sub gid($)             {return $_[0]->{'DBROW'}->{'gid'}; }
 sub idx($)             {return $_[0]->{'DBROW'}->{'lease_idx'}; }
 sub lease_idx($)       {return $_[0]->idx(); }
 sub owner($)           {return $_[0]->{'DBROW'}->{'owner_uid'}; }
@@ -207,38 +207,61 @@ sub state($)           {return $_[0]->{'DBROW'}->{'state'}; }
 sub statestamp($)      {return str2time($_[0]->{'DBROW'}->{'statestamp'}); }
 sub renewals($)	       {return $_[0]->{'DBROW'}->{'renewals'}; }
 sub locktime($)        {return str2time($_[0]->{'DBROW'}->{'locked'}); }
+sub locked($)          {return $_[0]->{'DBROW'}->{'locked'}; }
 sub lockpid($)         {return $_[0]->{'DBROW'}->{'locker_pid'}; }
+sub allow_modify($;$)  {if (defined($_[1])) {$_[0]->{'allow_modify'} = $_[1];}
+			return $_[0]->{'allow_modify'}; }
 
 #
 # Lookup a lease in the DB and return an object representing it.
 #
-sub Lookup($$;$)
+sub Lookup($$;$$)
 {
-    my ($class, $pid, $lease_id) = @_;
+    my ($class, $arg1, $arg2, $arg3) = @_;
     my ($wclause);
 
-    # Determine how we were called.  If only a single parameter was passed
-    # to the method, then it should be a lease index.  If both are passed in,
-    # then they are what their variable names imply.
-    if (!defined($lease_id)) {
-	my $idx = $pid;
-	if ($idx !~ /^\d+$/) {
-	    print STDERR "Lease->Lookup: single parameter to call must be a numeric index.\n";
+    if (!defined($arg2)) {
+	# idx, or pid/lease or pid/gid/lease
+	if ($arg1 =~ /^\d+$/) {
+	    $wclause = "lease_idx='$arg1'";
+	}
+	elsif ($arg1 =~ /^([-\w]+)\/([-\w]+)$/) {
+	    $wclause = "pid='$1' and gid='$1' and lease_id='$2'";	
+	}
+	elsif ($arg1 =~ /^([-\w]+)\/([-\w]+)\/([-\w]+)$/) {
+	    $wclause = "pid='$1' and gid='$2' and lease_id='$arg2'";	
+	}
+	else {
 	    return undef;
 	}
-	# Look in cache first
-	return $leases{$idx}
-	    if (exists($leases{$idx}));
-
-	$wclause = "lease_idx=$idx";
-    } else {
-	# Look in cache first
-	return $leases{"$pid:$lease_id"}
-	    if (exists($leases{"$pid:$lease_id"}));
-
-	$wclause = "pid='$pid' and lease_id='$lease_id'";
     }
+    elsif (!defined($arg3)) {
+	# arg2 is the lease id.
+	return undef
+	    if ($arg2 !~ /^[-\w]+$/);
 
+	# arg1 is pid or pid/gid
+	if ($arg1 =~ /^[-\w]+$/) {
+	    $wclause = "pid='$arg1' and gid='$arg1' and lease_id='$arg2'";	
+	}
+	elsif ($arg1 =~ /^([-\w]+)\/([-\w]+)$/) {
+	    $wclause = "pid='$1' and gid='$2' and lease_id='$arg2'";	
+	}
+	else {
+	    return undef;
+	}
+    }
+    else {
+	# arg3 is the lease id.
+	return undef
+	    if ($arg3 !~ /^[-\w]+$/);
+	# arg1 is pid and arg2 is gid
+	return undef
+	    if ($arg1 !~ /^[-\w]+$/ || $arg2 !~ /^[-\w]+$/);
+
+	$wclause = "pid='$arg1' and gid='$arg2' and lease_id='$arg3'";	
+    }
+    
     my $self              = {};
     $self->{"LOCKED"}     = 0;
     $self->{"LOCKER_PID"} = 0;
@@ -254,40 +277,16 @@ sub Lookup($$;$)
     $self->{'DBROW'} = $query_result->fetchrow_hashref();;
     bless($self, $class);
 
-    # Add to cache (dual lookup).
-    $leases{$self->pid() .":". $self->lease_id()} = $self;
-    $leases{$self->idx()} = $self;
     return $self;
 }
 
 #
 # Force a reload of the data.
 #
-sub LookupSync($$;$) {
-    my ($class, $pid, $lease_id) = @_;
-    my ($lease_idx, $plid);
+sub LookupSync($$;$$) {
+    my ($class, $arg1, $arg2, $arg3) = @_;
 
-    if (!defined($lease_id)) {
-	$lease_idx = $pid;
-	if (exists($leases{$lease_idx})) {
-	    $plid = 
-		$leases{$lease_idx}->pid() .":". 
-		$leases{$lease_idx}->lease_id();
-	}
-    } else {
-	$plid = "$pid:$lease_id";
-	if (exists($leases{$plid})) {
-	    $lease_idx = $leases{$plid}->idx();
-	}
-    }
-
-    # delete from cache
-    delete($leases{$lease_idx})
-        if (defined($lease_idx) && exists($leases{$lease_idx}));
-    delete($leases{$plid})
-        if (defined($plid) && exists($leases{$plid}));
-
-    return Lookup($class, $lease_idx);
+    return Lookup($class, $arg1, $arg2, $arg3);
 }
 
 #
@@ -308,19 +307,20 @@ sub DESTROY($) {
 sub Create($$;$) {
     my ($class, $argref, $attrs) = @_;
 
-    my ($lease_id, $pid, $uid, $type, $lease_end, $state);
+    my ($lease_id, $pid, $gid, $uid, $type, $lease_end, $state, $group);
 
     return undef
 	if (!ref($argref));
 
     $lease_id  = $argref->{'lease_id'};
     $pid       = $argref->{'pid'};
+    $gid       = $argref->{'gid'};
     $uid       = $argref->{'uid'};
     $type      = $argref->{'type'};
     $lease_end = $argref->{'lease_end'};
     $state     = $argref->{'state'};
     
-    if (!($lease_id && $pid && $uid && $type &&
+    if (!($lease_id && $pid && $type &&
 	  defined($lease_end) && $state)) {
 	print STDERR "Lease->Create: Missing required parameters in argref\n";
 	return undef;
@@ -333,13 +333,24 @@ sub Create($$;$) {
 	return undef;
     }
 
-    if (ref($pid) ne "Project") {
-	my $npid = Project->Lookup($pid);
-	if (!defined($npid)) {
-	    print STDERR "Lease->Create: Bad/Unknown project: $pid\n";
+    if (ref($pid) eq "Project") {
+	$group = $pid->GetProjectGroup();
+	$pid   = $gid = $group->pid();
+    }
+    elsif (ref($pid) eq "Group") {
+	$group = $pid;
+	$gid   = $group->gid();
+	$pid   = $group->pid();
+    }
+    else {
+	if (!defined($gid)) {
+	    $gid = $pid;
+	}
+	$group = Group->Lookup("$pid/$gid");
+	if (!defined($group)) {
+	    print STDERR "Lease->Create: Bad/Unknown project: $pid/$gid\n";
 	    return undef;
 	}
-	$pid = $npid;
     }
 
     if (ref($uid) ne "User") {
@@ -354,8 +365,9 @@ sub Create($$;$) {
     # User must belong to incoming project.  The code calling into Create()
     # should have already checked to be sure that the caller has permission
     # to create the lease in the first place.
-    if (!$pid->LookupUser($uid)) {
-	print STDERR "Lease->Create: Owner $uid is not a member of project $pid\n";
+    if (!$group->LookupUser($uid)) {
+	print STDERR
+	    "Lease->Create: Owner $uid is not a member of project $pid/$gid\n";
 	return undef;
     }
     
@@ -390,11 +402,12 @@ sub Create($$;$) {
     DBQueryWarn("insert into project_leases set ".
 		"lease_idx=$lease_idx,".
 		"lease_id='$lease_id',".
-		"pid='". $pid->pid() ."',".
+		"pid='$pid',gid='$gid', ".
 		"owner_uid='". $uid->uid() ."',".
 		"type='$type',".
 		($lease_end ? "lease_end=FROM_UNIXTIME($lease_end)," : "").
 		"state='$state',".
+		"uuid=uuid(), ".
 		"statestamp=NOW(),".
 		"inception=NOW()")
 	or return undef;
@@ -418,8 +431,7 @@ sub Create($$;$) {
 		or return undef;
 	}
     }
-
-    return Lookup($class, $pid->pid(), $lease_id);
+    return Lookup($class, $group->pid(), $group->gid(), $lease_id);
 }
 
 #
@@ -432,7 +444,6 @@ sub Delete($) {
 	if (!ref($self));
 
     my $idx  = $self->idx();
-    my $plid = $self->pid() .":". $self->lease_id();
 
     DBQueryWarn("delete from project_leases where lease_idx=$idx")
 	or return LEASE_ERROR_FAILED();
@@ -442,11 +453,6 @@ sub Delete($) {
 
     DBQueryWarn("delete from lease_permissions where lease_idx=$idx")
 	or return LEASE_ERROR_FAILED();
-
-    delete($leases{$idx})
-	if (exists($leases{$idx}));
-    delete($leases{$plid})
-	if (exists($leases{$plid}));
 
     return 0
 }
@@ -746,15 +752,45 @@ sub SiteVars($$) {
 }
 
 #
-# Return a list of all leases.
+# Check to see if a lease type is a valid one
 #
-sub AllLeases($)
+sub _validLeaseType($) {
+    my ($type) = @_;
+
+    # Make sure something was actually passed in.
+    if (!defined($type) || !$type) {
+	return 0;
+    }
+
+    if (grep {/^$type$/} @LEASE_TYPES) {
+	return 1;
+    }
+
+    # Not valid (not found in @LEASE_TYPES).
+    return 0;
+}
+
+#
+# Return a list of all leases (optionally of a particular type).
+#
+sub AllLeases($;$)
 {
-    my ($class)  = @_;
+    my ($class, $type)  = @_;
     my @pleases = ();
+
+    my $tclause = "";
+    if (defined($type)) {
+	if (_validLeaseType($type)) {
+	    $tclause = "where type='$type'";
+	} else {
+	    print STDERR "Lease->AllLeases(): Invalid lease type: $type\n";
+	    return undef;
+	}
+    }
     
     my $query_result =
-	DBQueryWarn("select lease_idx from project_leases");
+	DBQueryWarn("select lease_idx from project_leases $tclause".
+		    " order by lease_idx");
     
     return ()
 	if (!$query_result || !$query_result->numrows);
@@ -790,49 +826,17 @@ sub AllProjectLeases($$;$)
     
     my $tclause = "";
     if (defined($type)) {
-	if (!grep {/^$type$/} @LEASE_TYPES) {
-	    print STDERR "Lease->AllProjectLeases: unknown type: $type\n";
+	if (_validLeaseType($type)) {
+	    $tclause = "and type='$type'";
+	} else {
+	    print STDERR "Lease->AllProjectLeases(): Invalid lease type: $type\n";
 	    return undef;
 	}
-	$tclause = "and type='$type'";
     }
 
     my $query_result =
-	DBQueryWarn("select lease_id from project_leases where ".
+	DBQueryWarn("select lease_idx from project_leases where ".
 		    "pid='$pid' $tclause order by lease_idx");
-    
-    return ()
-	if (!$query_result || !$query_result->numrows);
-
-    while (my ($lease_id) = $query_result->fetchrow_array()) {
-	my $lease = Lookup($class, $pid, $lease_id);
-
-	# Something went wrong?
-	return ()
-	    if (!defined($lease));
-	
-	push(@pleases, $lease);
-    }
-    return @pleases;
-}
-
-#
-# Grab all leases belonging to a particular user
-#
-sub AllUserLeases($$)
-{
-    my ($class, $uid)  = @_;
-    my @pleases = ();
-    
-    return undef
-	if !defined($uid);
-
-    if (ref($uid) eq "User") {
-	$uid = $uid->uid();
-    }
-    
-    my $query_result =
-	DBQueryWarn("select lease_idx from project_leases where owner_uid='$uid'");
     
     return ()
 	if (!$query_result || !$query_result->numrows);
@@ -847,6 +851,273 @@ sub AllUserLeases($$)
 	push(@pleases, $lease);
     }
     return @pleases;
+}
+
+#
+# Return a list of all leases belonging to a particular group.
+# Optionally, only those of the given type.
+# The list will be ordered by increasing lease_idx.
+#
+sub AllGroupLeases($$;$)
+{
+    my ($class, $group, $type)  = @_;
+    my @gleases = ();
+    
+    return undef
+	if !defined($group);
+
+    if (ref($group) ne "Group") {
+	print STDERR "Input object must be of type \"Group\"";
+    }
+    
+    my $pid = $group->pid();
+    my $gid = $group->gid();
+
+    my $tclause = "";
+    if (defined($type)) {
+	if (_validLeaseType($type)) {
+	    $tclause = "and type='$type'";
+	} else {
+	    print STDERR "Lease->AllGroupLeases(): Invalid lease type: $type\n";
+	    return undef;
+	}
+    }
+
+    my $query_result =
+	DBQueryWarn("select lease_idx from project_leases where ".
+		    "pid='$pid' and gid='$gid' $tclause order by lease_idx");
+    
+    return ()
+	if (!$query_result || !$query_result->numrows);
+
+    while (my ($lease_idx) = $query_result->fetchrow_array()) {
+	my $lease = Lookup($class, $lease_idx);
+
+	# Something went wrong?
+	return ()
+	    if (!defined($lease));
+	
+	push(@gleases, $lease);
+    }
+    return @gleases;
+}
+
+
+#
+# Grab all leases belonging to a particular user
+#
+sub AllUserLeases($$;$)
+{
+    my ($class, $uid, $type)  = @_;
+    my @uleases = ();
+    
+    return undef
+	if !defined($uid);
+
+    if (ref($uid) eq "User") {
+	$uid = $uid->uid();
+    }
+
+    my $tclause = "";
+    if (defined($type)) {
+	if (_validLeaseType($type)) {
+	    $tclause = "and type='$type'";
+	} else {
+	    print STDERR "Lease->AllUserLeases(): Invalid lease type: $type\n";
+	    return undef;
+	}
+    }
+    
+    my $query_result =
+	DBQueryWarn("select lease_idx from project_leases".
+		    " where owner_uid='$uid' $tclause");
+    
+    return ()
+	if (!$query_result || !$query_result->numrows);
+
+    while (my ($lease_idx) = $query_result->fetchrow_array()) {
+	my $lease = Lookup($class, $lease_idx);
+
+	# Something went wrong?
+	return ()
+	    if (!defined($lease));
+	
+	push(@uleases, $lease);
+    }
+    return @uleases;
+}
+
+#
+# Return a list of leases for which a user OR group has access.  
+#
+# Permissions are determined as follows:
+# * The owner of a lease always has full (RW) access
+# * Users in a project with group_root or above trust always have full (RW) 
+#   access to leases associated with that project.
+# * Explicitly granted per-user and per-project permissions are extracted 
+#   from the lease_permissions tables.
+# * Global permissions (only RO).
+#
+# Note: Greatest privilege is returned when a principle matches more than
+#       one lease permissions condition.
+#
+# Note: Non-local users will only be allowed access to leases that have
+#       global "anonymous read-only" permissions enabled on them.
+#
+# Arguments:
+# * principal - User OR Group object to lookup lease access for.
+# * type - Optional lease type selector.  Restrict results to this type 
+#          of lease.
+#
+# Returns: Array of lease objects the given principal (user or group) has 
+#          access to.  To each of these lease objects, an "allow_modify"
+#          boolean is set, accessible via $leaseobj->allow_modify().
+#
+sub AllowedLeases($$;$) {
+    my ($class, $principal, $type)  = @_;
+    my $wclause = "";
+    my %lease_indexes = ();
+    my @leases = ();
+
+    # Gather up lease permissions for Users and Groups.  The logic for users
+    # is much more complicated...
+    if (ref($principal) eq "User") {
+	my $uid = $principal->uid();
+	my $uid_idx = $principal->uid_idx();
+	my @ugroups = ();
+	my $gid_idx_list = "";
+	my %admin_pids = ();
+	my $admin_pid_list = "";
+
+	# Get group information for input User.
+	if ($principal->GroupMembershipList(\@ugroups) == 0 && 
+	    int(@ugroups) > 0) {
+	    # Determine set of projects for which the input User has
+	    # group_root or above trust.
+	    foreach my $group (@ugroups) {
+		if ($group->IsProjectGroup() &&
+		    TBMinTrust($group->Trust($principal),
+			       PROJMEMBERTRUST_GROUPROOT())) {
+		    $admin_pids{$group->pid()} = 1;
+		}
+	    }
+	    if (@ugroups) {
+		$gid_idx_list = join "','", map {$_->gid_idx()} @ugroups;
+		$gid_idx_list = "'" . $gid_idx_list . "'";
+	    }
+	    if (keys %admin_pids) {
+		$admin_pid_list = join "','", keys %admin_pids;
+		$admin_pid_list = "'" . $admin_pid_list . "'";
+	    }
+	} else {
+	    print STDERR "Lease->AllowedLeases: Failed to lookup ".
+		"group membership for user: $principal\n";
+	    return undef;
+	}
+
+	# Local user stuff.
+	# XXX: This needs revision based on how we should handle non-local
+	#      Geni-type users.
+	if ($principal->IsLocal()) {
+	    # Users have full access to leases they own, and for leases in
+	    # projects that they have group_root (or above) trust in.
+	    my $uclause = "where owner_uid='$uid'";
+	    if ($admin_pid_list) {
+		$uclause .= " or pid in ($admin_pid_list)";
+	    }
+	    my $query_result =
+		DBQueryWarn("select lease_idx from project_leases".
+			    " $uclause order by lease_idx"); 
+	    if ($query_result) {
+		while (my ($lease_idx) = $query_result->fetchrow_array()) {
+		    $lease_indexes{$lease_idx} = 1; # "modify rights" == 1
+		}
+	    }
+
+	    # Conjure "where" clause for lease_permissions table query below.
+	    #
+	    # User is local to site - look for several conditions:
+	    # * Any global permissions.
+	    # * Leases with user permissions matching input user.
+	    # * Leases with group permissions matching any group user is in.
+	    $wclause = "where (permission_type='global'".
+		       " or (permission_type='user' and".
+		       "     permission_idx='$uid_idx')";
+	    if ($gid_idx_list) {
+		$wclause .=
+		       " or (permission_type='group' and".
+		       "     permission_idx in ($gid_idx_list))";
+	    }
+	    $wclause .= ")";
+	} else {
+	    # User is non-local - only look for anonymous RO permissions.
+	    my $idxstr = GLOBAL_PERM_ANON_RO_IDX();
+	    $wclause = "where (permission_type='global' and".
+		       " permission_idx='$idxstr')";
+	}
+    }
+    # The case for Group principals is easy: just construct a "where"
+    # clause for the lease_permissions table query below.
+    elsif (ref($principal) eq "Group") {
+	my $gid_idx = $principal->gid_idx();
+	$wclause = "where (permission_type='global'".
+	           " or (permission_type='group' and".
+		   "     permission_idx='$gid_idx'))";
+    }
+    # Input principal argument must be either a User or Group object.
+    else {
+	print STDERR "Lease->AllowedLeases: Unknown access object: ".
+	             "$principal\n";
+	return undef;
+    }
+
+    # Build up type selector clause, if requested.
+    my $tclause = "";
+    if (defined($type)) {
+	if (_validLeaseType($type)) {
+	    $tclause = "and pl.type='$type'";
+	} else {
+	    print STDERR "Lease->AllowedLeases: Invalid lease type: $type\n";
+	    return undef;
+	}
+    }
+
+    # Grab all lease permissions entries that pertain to the user or project
+    my $query_result =
+	DBQueryWarn("select lease_idx, allow_modify".
+		    " from lease_permissions".
+		    " $wclause $tclause order by lease_idx");
+    
+    # Loop through result set and process.  Augment permissions for
+    # lease owners and users with group_root in lease's owning project.
+    # There will be duplicate lease_idx values in the results if there
+    # are multiple entries for the lease in the lease_permissions table.
+    # Handle this by storing the result set in a hash table.
+    if ($query_result) {
+	while (my ($lease_idx, $modify) = $query_result->fetchrow_array()) {
+	    if (!exists($lease_indexes{$lease_idx})) {
+		$lease_indexes{$lease_idx} = 0;
+	    }
+	    # If _any_ permissions found for a lease allow for
+	    # modification, then it is allowed (greatest privilege for
+	    # the same lease wins out).
+	    $modify = ($modify || $lease_indexes{$lease_idx}) ? 1 : 0;
+	    $lease_indexes{$lease_idx} = $modify;
+	}
+    }
+
+    # Fetch all of the leases and send them back to caller.
+    while (my ($lease_idx, $modify) = each %lease_indexes) {
+	my $lease = Lookup($class, $lease_idx);
+	if (!$lease) {
+	    print STDERR "Lease->AllowedLeases: unable to lookup lease with index $lease_idx!\n";
+	    next;
+	}
+	$lease->allow_modify($modify);
+	push (@leases, $lease);
+    }
+
+    return @leases;
 }
 
 #
@@ -916,18 +1187,10 @@ sub Refresh($)
 #
 sub Flush($)
 {
-    my ($self) = @_;
-    if (ref($self)) {
-	delete($leases{$self->pid().":".$self->lease_id()});
-	delete($leases{$self->lease_idx()});
-    }
 }
 
 sub FlushAll($)
 {
-    my ($class) = @_;
-    
-    %leases = ();
 }
 
 #
@@ -1122,17 +1385,21 @@ sub AccessCheck($$$) {
     }
 
     # Need this for trust checks below.
-    my $proj = Project->Lookup($self->pid());
+    my $pid = $self->pid();
+    my $gid = $self->gid();
+    $gid = $pid
+	if ($gid eq "");
+    my $group = Group->Lookup($pid, $gid);
 
     # Project managers can do anything to a lease that is attributed
     # to their project.
-    if (TBMinTrust($proj->Trust($user), PROJMEMBERTRUST_GROUPROOT())) {
+    if (TBMinTrust($group->Trust($user), PROJMEMBERTRUST_GROUPROOT())) {
 	return 1;
     }
 
     # If the user is a member of the owning project, then they can at
     # least grab the lease's info.
-    if (TBMinTrust($proj->Trust($user), PROJMEMBERTRUST_USER())) {
+    if (TBMinTrust($group->Trust($user), PROJMEMBERTRUST_USER())) {
 	$user_access = LEASE_ACCESS_READINFO();
     }
 
@@ -1145,7 +1412,25 @@ sub AccessCheck($$$) {
 	if !defined($qres);
 
     while (my ($perm_type, $perm_idx, $modify) = $qres->fetchrow_array()) {
-	if ($perm_type eq "group") {
+	if ($perm_type eq "global") {
+	    # A lease with anonymous global read-only access is available
+	    # to everyone.  Force entry to be read-only.
+	    if ($perm_idx == GLOBAL_PERM_ANON_RO_IDX()) {
+		$modify = 0; # Force!
+	    }
+	    # A lease with global read-only access for registered users
+	    # requires that the incoming user be a "real" user.  I.e.,
+	    # not the geni user.  Force entry to be read-only.
+	    elsif ($perm_idx == GLOBAL_PERM_USER_RO_IDX()) {
+		next unless $user->IsLocal();
+		$modify = 0; # Force!
+	    }
+	    else {
+		# Unknown global permissions entry - skip!
+		print STDERR "Lease->AccessCheck: Unknown global permission type: $perm_idx\n";
+		next;
+	    }
+	} elsif ($perm_type eq "group") {
 	    # If the user is a member of this group and has a minimum of
 	    # trust, then give them the access listed in the db.
 	    my $dbgroup = Group->Lookup($perm_idx);
@@ -1156,7 +1441,7 @@ sub AccessCheck($$$) {
 	    # If this is a user permission, and the incoming user arg matches,
 	    # then give them the privileges listed in this entry.
 	    my $dbusr = User->Lookup($perm_idx);
-	    next unless (defined($dbusr) && $dbusr->uid() eq $user->uid());
+	    next unless (defined($dbusr) && $dbusr->SameUser($user));
 	} else {
 	    print STDERR "Lease->AccessCheck: Unknown permission type in DB for lease index $idx: $perm_type\n";
 	    return 0;
@@ -1194,6 +1479,18 @@ sub GrantAccess($$$)
 	$perm_id   = $target->pid() . "/" . $target->gid();
 	$perm_type = "group";
     } 
+    elsif ($target eq GLOBAL_PERM_ANON_RO()) {
+	$perm_idx  = GLOBAL_PERM_ANON_RO_IDX();
+	$perm_id   = GLOBAL_PERM_ANON_RO();
+	$perm_type = "global";
+	$modify = 0; # Force
+    }
+    elsif ($target eq GLOBAL_PERM_USER_RO()) {
+	$perm_idx  = GLOBAL_PERM_USER_RO_IDX();
+	$perm_id   = GLOBAL_PERM_USER_RO();
+	$perm_type = "global";
+	$modify = 0; # Force
+    }
     else {
 	print STDERR "Lease->GrantAccess: Bad target: $target\n";
 	return LEASE_ERROR_FAILED();
@@ -1227,6 +1524,14 @@ sub RevokeAccess($$)
     elsif (ref($target) eq "Group") {
 	$perm_idx  = $target->gid_idx();
 	$perm_type = "group";
+    }
+    elsif ($target eq GLOBAL_PERM_ANON_RO()) {
+	$perm_idx  = GLOBAL_PERM_ANON_RO_IDX();
+	$perm_type = "global";
+    }
+    elsif ($target eq GLOBAL_PERM_USER_RO()) {
+	$perm_idx  = GLOBAL_PERM_USER_RO_IDX();
+	$perm_type = "global";
     }
     else {
 	print STDERR "Lease->RevokeAccess: Bad target: $target\n";
@@ -1282,9 +1587,10 @@ sub Stringify($)
     
     my $lease_id  = $self->lease_id();
     my $pid = $self->pid();
+    my $gid = $self->gid();
     my $uid = $self->owner();
 
-    return "[Lease: $pid/$lease_id/$uid]";
+    return "[Lease: $pid/$gid/$lease_id/$uid]";
 }
 
 #
@@ -1505,6 +1811,22 @@ sub WaitLock($$;$)
     }
     # One last try.
     return $self->Lock();
+}
+
+sub TakeLock($)
+{
+    my ($self) = @_;
+    my $idx    = $self->idx();
+
+    my $query_result =
+	DBQueryWarn("update project_leases set locked=now(),locker_pid=$PID " .
+		    "where lease_idx=$idx");
+    return -1
+	if (!$query_result);
+
+    $self->{'LOCKED'} = time();
+    $self->{'LOCKER_PID'} = $PID;
+    return 0;
 }
 
 package Lease::Blockstore;
