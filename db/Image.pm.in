@@ -1050,7 +1050,7 @@ sub Delete($;$)
     DBQueryWarn("lock tables images write, image_versions write, ".
 		"            os_info write, os_info_versions write, ".
 		"            osidtoimageid write, os_submap write, ".
-		"            image_permissions write")
+		"            image_permissions write, node_types read")
 	or return -1;
 
     #

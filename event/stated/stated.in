@@ -1164,11 +1164,11 @@ sub handleCtrlEvent($$) {
 	    info("$node: Clearing reload info\n");
 	    $nodeobj->ClearCurrentReload();
 	    $nodeobj->FlushReserved();
-	    $nodeobj->SyncDiskPartitionTaintStates();
 	    my $experiment = $nodeobj->Reservation();
 	    if (defined($experiment) &&
 		$experiment->pid() eq NODERELOADING_PID &&
 		$experiment->eid() eq NODERELOADING_EID) {
+		$nodeobj->RemoveTaintState();
 		$nodeobj->ClearSchedReload();
 		my $reserved_pid = $nodeobj->CheckPreReserve(1);
 		if (defined($reserved_pid)) {
@@ -1178,6 +1178,8 @@ sub handleCtrlEvent($$) {
 		$nodeobj->SetNodeHistory(TB_NODEHISTORY_OP_FREE,
 					 undef, $experiment);
 		info("$node: Released from $experiment\n");
+	    } else {
+		$nodeobj->SyncDiskPartitionTaintStates();
 	    }
 	    if ($event eq $TBRELOADDONEV2) {
 		info("$node: Sending apod\n");

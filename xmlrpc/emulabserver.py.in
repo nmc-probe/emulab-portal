@@ -965,7 +965,7 @@ class osid:
             osid["fullosid"] = osid["osid"]
             osid["osid"] = osid["osname"]
 
-            if not osid["OS"] or len(osid["OS"]) == 0:
+            if not osid.has_key("OS") or len(osid["OS"]) == 0:
                 osid["OS"] = "(None)"
                 pass
 
@@ -987,7 +987,7 @@ class osid:
                                   output="Improperly formed osid!")
 
         # Get the listing that is accessible to this user and
-        res = DBQueryFatal("SELECT distinct o.* FROM os_info as o "
+        res = DBQueryFatal("SELECT distinct v.* FROM os_info as o "
                            "left join os_info_versions as v on "
                            "     v.osid=o.osid and v.vers=o.version "
                            "left join group_membership as g on g.pid=o.pid "
@@ -1005,7 +1005,7 @@ class osid:
         osid["fullosid"] = osid["osid"]
         osid["osid"] = osid["osname"]
         
-        if not osid["OS"] or len(osid["OS"]) == 0:
+        if not osid.has_key("OS") or len(osid["OS"]) == 0:
             osid["OS"] = "(None)"
             pass
 

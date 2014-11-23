@@ -51,6 +51,7 @@ my $fake    = 0;
 #
 #my $TB		= "@prefix@";
 my $TB = "/usr/testbed/";
+my $GENIRACK    = @PROTOGENI_GENIRACK@;
 
 #
 # Untaint the path
@@ -72,6 +73,7 @@ use libtestbed;
 use User;
 use Project;
 use OSinfo;
+use EmulabFeatures;
 
 # Protos
 sub fatal($);
@@ -85,6 +87,8 @@ sub CommitInterface($);
 sub CommitWire;
 sub CommitInterfaceType($);
 
+my $useScriptFeature = $GENIRACK ||
+    EmulabFeatures->FeatureEnabled("ScriptNewNodes", undef, undef, undef);
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -191,7 +195,10 @@ my %ifacefields =
      "mac"              => ["mac",              $SLOT_OPTIONAL,    undef],
      "type"             => ["interface_type",   $SLOT_OPTIONAL,    undef],
      "role"		=> ["role",		$SLOT_OPTIONAL,    undef],
-     "IP"		=> ["IP",		$SLOT_OPTIONAL,    undef]);
+     "IP"		=> ["IP",		$SLOT_OPTIONAL,    undef],
+     "switch_id"	=> ["switch_id",	$SLOT_OPTIONAL,    undef],
+     "switch_card"	=> ["switch_card",	$SLOT_OPTIONAL,    undef],
+     "switch_port"	=> ["switch_port",	$SLOT_OPTIONAL,    undef]);
 
 my %wirefields =
     # XML Field Name        DB slot name         Flags             Default
@@ -454,6 +461,22 @@ sub ModifyRow($$)
 {
     my ($id, $isupdate) = @_;
     my $query;
+
+    # XXX
+    if ($useScriptFeature && $tabledb eq "new_interfaces") {
+	foreach my $key (keys(%args)) {
+	    if ($key =~ /^switch/ && defined($args{$key})) {
+		$errors{$tableid} =
+		    "Should add to wires table to set switch info";
+		return;
+	    }
+	}
+    } elsif (!$useScriptFeature && $tabledb eq "new_wires") {
+	$errors{$tableid} =
+	    "Should add to interfaces table to set switch info";
+	return;
+    }
+
     my $none_changed = 1;
     if ($isupdate) {
 	$query = "UPDATE";
@@ -555,6 +578,11 @@ sub CommitInterface($)
 
 sub CommitWire
 {
+    if (!$useScriptFeature) {
+	$errors{"command"} = "Wires cannot be committed individually. ".
+	    "Commit the node that they belong to.";
+	return;
+    }
     my ($id) = @_;
     my $result = ResolveRow($id);
     while (my ($skip, $cable, $len, $type, $node_id1, $card1, $port1,
