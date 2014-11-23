@@ -1,0 +1,150 @@
+
+
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2014 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use Getopt::Std;
+use POSIX qw(strftime);
+use Sys::Syslog;
+
+#
+# This script is invoked on a dhcpd "commit" event.
+#
+# Intended to trigger Emulab node boot related activities.
+#
+
+sub usage()
+{
+    print "Usage: $0 [-bd] IP MAC boot-type\n";
+    print("Options:\n");
+    print(" -b      - Run in the background\n");
+    print(" -d      - Turn on debugging\n");
+ 
+    exit(1);
+}
+my $optlist    = "bd";
+my $background = 0;
+my $debug      = 0;
+
+#
+# Functions
+#
+sub logit($);
+
+#
+# Configure variables
+#
+my $TB       = "@prefix@";
+my $TBOPS    = "@TBOPSEMAIL@";
+
+# Locals
+my $logfile  = "$TB/log/reportboot.log";
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/sbin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use libtestbed;
+use libdb;
+use libtblog;
+
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"b"})) {
+    $background = 1;
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (@ARGV != 3) {
+    usage();
+}
+my ($IP,$MAC,$boottype);
+if ($ARGV[0] =~ /^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$/) {
+    $IP = $1;
+} else {
+    print STDERR "'$ARGV[0]' is not an IP address\n";
+    usage();
+}
+if ($ARGV[1] =~ /^([0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+)$/) {
+    $MAC = $1;
+} else {
+    print STDERR "'$ARGV[1]' is not a MAC address\n";
+    usage();
+}
+if ($ARGV[2] =~ /^(PXE|OS)$/) {
+    $boottype = $1;
+} else {
+    print STDERR "'$ARGV[2]' must be one of PXE or OS\n";
+    usage();
+}
+
+if ($background) {
+    my $cpid = fork();
+    if (!defined($cpid)) {
+	die "$0: could not fork!";
+    }
+    if ($cpid) {
+	exit(0);
+    }
+    open(STDIN, "< /dev/null") or
+	die("opening /dev/null for STDIN: $!");
+    POSIX::setsid() or
+	die("setsid failed: $!");
+}
+
+logit("Invoked by $boottype: IP=$IP MAC=$MAC");
+
+exit(0);
+
+sub logit($)
+{
+    my $message = shift;
+
+    # Time stamp log messages like:
+    # Sep 20 09:36:00 $message
+    my $tstamp = strftime("%b %e %H:%M:%S", localtime);
+
+    if (open(LOG, ">>$logfile")) {
+	print LOG "$tstamp: $message\n";
+	close(LOG);
+    } else {
+	print STDERR "Could not append to $logfile\n";
+    }
+
+    print STDERR "$message\n" if ($debug);
+}
