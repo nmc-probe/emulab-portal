@@ -1306,7 +1306,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/opsdb_control utils/opsdb_control.proxy \
 	utils/remove_old_www utils/epmodeset \
 	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
-	utils/mktestbedtest \
+	utils/mktestbedtest utils/pxelinux_makeconf \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \
@@ -1444,6 +1444,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/ubuntu10/GNUmakefile \
  clientside/tmcc/ubuntu11/GNUmakefile \
  clientside/tmcc/ubuntu14/GNUmakefile \
+ clientside/tmcc/linux-ms/GNUmakefile \
  clientside/tmcc/freebsd5/GNUmakefile clientside/tmcc/freebsd5/supfile \
  clientside/tmcc/freebsd6/GNUmakefile clientside/tmcc/freebsd6/supfile \
  clientside/tmcc/freebsd6/netif-emulab \

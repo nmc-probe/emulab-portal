@@ -21,6 +21,9 @@ mountroot()
 	wait_for_udev 10
 	configure_networking
 
+	# XXX ugh! give dhcpd a chance to report its BOOTING state
+	sleep 1
+
 	[ "$quiet" != "y" ] && log_begin_msg "Running /scripts/mfs-bottom"
 	run_scripts /scripts/mfs-bottom
 	[ "$quiet" != "y" ] && log_end_msg

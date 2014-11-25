@@ -150,6 +150,16 @@ tweakgpt() {
     fi
 }
 
+find_disks() {
+	local disks
+
+	for d in /sys/block/[sh]d*; do
+		disks="$disks ${d##*/}"
+	done
+
+	echo $disks
+}
+
 #
 # Wipe out the superblocks on any partitions by zeroing the first 16 sectors.
 # This implementation doesn't suffer the limitations of the FreeBSD one in
@@ -509,9 +519,10 @@ case $STATUS in
     disks=`find_disks`
     for d in $disks; do
 	#[ $d = $DISK ] && continue
-	mount | grep "^/dev/$d" > /dev/null && continue
+	mount | grep "^/dev/$d" >/dev/null && continue
 	zapsuperblocks $d
 	echo "Invalidating MBR on $d"
+	sgdisk -Z /dev/$d >/dev/null 2>&1
 	dd if=/dev/zero of=/dev/$d bs=512 count=16
     done
 
@@ -613,11 +624,7 @@ fi
 if [ $reboot -eq 1 ]; then
     $BINDIR/tmcc state RELOADDONEV2
     echo "`date`: Waiting for server to reboot us ..."
-    if [ $isrem -eq 1 ]; then
-	sleep 30
-    else
-	sleep 300
-    fi
+    sleep 30
     echo "`date`: No response from server, rebooting myself ..."
     reboot
     sleep 100
