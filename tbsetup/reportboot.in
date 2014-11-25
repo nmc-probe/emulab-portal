@@ -1,5 +1,3 @@
-
-
 #!/usr/bin/perl -w
 #
 # Copyright (c) 2014 University of Utah and the Flux Group.
@@ -50,13 +48,17 @@ my $debug      = 0;
 #
 # Functions
 #
+sub findnode($$);
 sub logit($);
+sub sendevent($$);
 
 #
 # Configure variables
 #
 my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
+my $EVPORT   = @BOSSEVENTPORT@;
+my $EVSERVER = "boss";
 
 # Locals
 my $logfile  = "$TB/log/reportboot.log";
@@ -79,6 +81,12 @@ use lib "@prefix@/lib";
 use libtestbed;
 use libdb;
 use libtblog;
+use event;
+use Interface;
+
+if ($UID != 0) {
+    die("Must be root to run this script\n");
+}
 
 my %options = ();
 if (! getopts($optlist, \%options)) {
@@ -100,8 +108,11 @@ if ($ARGV[0] =~ /^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$/) {
     print STDERR "'$ARGV[0]' is not an IP address\n";
     usage();
 }
-if ($ARGV[1] =~ /^([0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+)$/) {
-    $MAC = $1;
+$MAC = lc($ARGV[1]);
+if ($MAC =~ /^([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+)$/) {
+    # dhcpd will return an octet like "02" as "2", so we have to compensate
+    $MAC = sprintf("%02x%02x%02x%02x%02x%02x",
+		   hex($1), hex($2), hex($3), hex($4), hex($5), hex($6));
 } else {
     print STDERR "'$ARGV[1]' is not a MAC address\n";
     usage();
@@ -127,9 +138,38 @@ if ($background) {
 	die("setsid failed: $!");
 }
 
-logit("Invoked by $boottype: IP=$IP MAC=$MAC");
+my $nodeid = findnode($IP, $MAC);
+if (!$nodeid) {
+    logit("Ignoring unknown node $IP");
+    exit(0);
+}
+
+my $event = ($boottype eq "OS") ? "BOOTING" : "PXEBOOTING";
+if (sendevent($nodeid, $event)) {
+    logit("$nodeid: could not send $event event");
+    exit(1);
+}
+
+logit("$nodeid: sent $event event");
 
 exit(0);
+
+sub findnode($$)
+{
+    my ($IP,$mac) = @_;
+
+    my $iface = Interface->LookupByIP($IP);
+    return undef
+	if (!$iface);
+
+    # XXX this should never happen since dhcpd looked up the IP by mac.
+    if ($iface->mac() ne $mac) {
+	logit("$IP: came in on $mac but expected " . $iface->mac());
+	return undef;
+    }
+
+    return $iface->node_id();
+}
 
 sub logit($)
 {
@@ -148,3 +188,47 @@ sub logit($)
 
     print STDERR "$message\n" if ($debug);
 }
+
+sub sendevent($$)
+{
+    my ($node,$event) = @_;
+
+    my $URL = "elvin://$EVSERVER:$EVPORT";
+
+    # Connect to the event system, and subscribe the the events we want
+    my $handle = event_register($URL, 0);
+    if (!$handle) {
+	logit("$node: unable to register with event system");
+	return 1;
+    }
+    my $tuple = address_tuple_alloc();
+    if (!$tuple) {
+	logit("$node: could not allocate an address tuple");
+	return 1;
+    }
+
+    %$tuple = ( objtype => "TBNODESTATE",
+		objname => $node,
+		eventtype => $event,
+		host => "boss");
+
+    my $notification = event_notification_alloc($handle, $tuple);
+    if (!$notification) {
+	logit("$node: could not allocate notification");
+	return 1;
+    }
+
+    if (!event_notify($handle, $notification)) {
+	logit("$node: could not send $event notification");
+	return 1;
+    }
+
+    event_notification_free($handle, $notification);
+
+    if (event_unregister($handle) == 0) {
+	logit("$node: WARNING: could not unregister with event system");
+    }
+
+    return 0;
+}
+

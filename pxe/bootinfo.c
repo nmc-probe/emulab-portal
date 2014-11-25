@@ -82,11 +82,19 @@ int
 bootinfo(struct in_addr ipaddr, char *node_id, struct boot_info *boot_info, 
 	 void *opaque, int no_event_send, int *event_sent)
 {
+	boot_what_t	*boot_whatp = (boot_what_t *) &boot_info->data;
+	int		err;
 #ifdef	EVENTSYS
 	int		needevent = 0, eventfailed = 0;
+	int		doevents = 0;
+
+	/*
+	 * We are not going to send events for nodes we don't know about
+	 * or that are "pxelinux" nodes.
+	 */
+	if (!findnode_bootinfo_db(ipaddr, &doevents) || doevents == 0)
+		no_event_send = 1;
 #endif
-	int		err;
-	boot_what_t	*boot_whatp = (boot_what_t *) &boot_info->data;
 
 	switch (boot_info->opcode) {
 	case BIOPCODE_BOOTWHAT_KEYED_REQUEST:

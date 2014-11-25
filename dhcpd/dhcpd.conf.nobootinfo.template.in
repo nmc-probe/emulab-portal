@@ -62,6 +62,8 @@ on commit {
     set clhw = binary-to-ascii(16, 8, ":", substring(hardware, 1, 6));
     if (substring (option vendor-class-identifier, 0, 9) = "PXEClient") {
         set boot = "PXE";
+    } elsif (substring (option vendor-class-identifier, 0, 6) = "U-boot") {
+        set boot = "PXE";
     } else {
         set boot = "OS";
     }

@@ -1,0 +1,186 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2014 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use strict;
+use Getopt::Std;
+
+#
+# Import an image from an external source. 
+#
+sub usage()
+{
+    print STDERR "Usage: pxelinux_makeconf [-a action] node\n";
+    print STDERR "Options:\n";
+    print STDERR " -a action - Menu action to select, one of:\n";
+    print STDERR "    diskboot, mfsboot, pxewait, pxefail, nfsboot\n";
+    print STDERR "Without an action it will (someday) determine the correct\n";
+    print STDERR "  current boot action and configure it for that.\n";
+    exit(-1);
+}
+my $optlist = "a:d";
+my $action;
+my $debug = 0;
+
+#
+# Configure variables
+#
+my $TB		= "@prefix@";
+
+#
+# Untaint the path
+#
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/usr/bin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# We don't want to run this script unless its the real version.
+#
+if ($EUID != 0) {
+    die("*** $0:\n".
+	"    Must be setuid! Maybe its a development version?\n");
+}
+
+#
+# Load the Testbed support stuff.
+#
+use lib "@prefix@/lib";
+use libdb;
+use Node;
+use Interface;
+
+# Locals;
+my $cfile;
+my $configdir = "/tftpboot/pxelinux.cfg";
+my $template = "$configdir/boot.template";
+
+# Protos
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"a"})) {
+    if ($options{"a"} =~ /^(diskboot|mfsboot|nfsboot|pxewait|pxefail)$/) {
+	$action = $1;
+    } else {
+	usage();
+    }
+}
+
+# XXX
+if (!$action) {
+    print STDERR "Sorry, gotta specify an action right now...\n";
+    exit(1);
+}
+
+# Right now we only act on a single node. No reason we cannot do more.
+if (@ARGV < 1) {
+    usage();
+}
+
+my $nodeid;
+if ($ARGV[0] =~ /^([-\w]+)$/) {
+    $nodeid = $1;
+} else {
+    print STDERR "$ARGV[0]: bogus nodeid!\n";
+    usage();
+}
+
+print "$nodeid: called to set action $action\n"
+    if ($debug);
+
+# No permissions checks right now, we assume the caller is legit.
+my $node = Node->Lookup($nodeid);
+if (!$node) {
+    print STDERR "$nodeid: bogus node!\n";
+    usage();
+}
+
+if ($node->boot_method() ne "pxelinux") {
+    print STDERR "$nodeid: not a pxelinux booted node.\n";
+    exit(0);
+}
+
+my $cnet = Interface->LookupControl($node);
+if (!$cnet || !$cnet->mac() || $cnet->mac() !~ /^(..)(..)(..)(..)(..)(..)$/) {
+    print STDERR "$nodeid: bogus cnet MAC.\n";
+    exit(1);
+} else {
+    $cfile = "/tftpboot/pxelinux.cfg/01-$1-$2-$3-$4-$5-$6";
+}
+
+# already exists, see if it is set correctly
+if (-e "$cfile" && open(FD, "<$cfile")) {
+    while (<FD>) {
+	if (/^ONTIMEOUT\s+(\S+)/) {
+	    if ($1 eq $action) {
+		close(FD);
+		exit(0);
+	    }
+	    last;
+	}
+    }
+    close(FD);
+}
+
+#
+# Need to create a new version.
+# XXX racy. Maybe we should do "install -C"?
+#
+my $tmpfile = "$configdir/$nodeid.$PID";
+if (open(IFD, "<$template") && open(OFD, ">$tmpfile")) {
+    while (<IFD>) {
+	s/%default%/$action/;
+	s/%nodeid%/$nodeid/;
+	print OFD;
+    }
+    close(IFD);
+    close(OFD);
+    chmod(0644, $tmpfile);
+
+    if (!rename($tmpfile, $cfile)) {
+	unlink($tmpfile);
+	print STDERR "$nodeid: could not install new pxelinux config!\n";
+	exit(1);
+    }
+    print "$nodeid: updated $cfile with action $action\n"
+	if ($debug);
+    exit(0);
+}
+
+print STDERR "$nodeid: could not read template or write config!\n";
+exit(1);
+

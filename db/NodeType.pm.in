@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2012 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -331,6 +331,7 @@ sub memory($;$)        {return GetAttribute($_[0], "memory", $_[1]); }
 sub disksize($;$)      {return GetAttribute($_[0], "disksize", $_[1]); }
 sub disktype($;$)      {return GetAttribute($_[0], "disktype", $_[1]); }
 sub bootdisk_unit($;$) {return GetAttribute($_[0], "bootdisk_unit", $_[1]); }
+sub boot_method($;$)   {return GetAttribute($_[0], "boot_method", $_[1]); }
 sub pxe_boot_path($;$) {return GetAttribute($_[0], "pxe_boot_path", $_[1]); }
 sub processor($;$)     {return GetAttribute($_[0], "processor", $_[1]); }
 sub frequency($;$)     {return GetAttribute($_[0], "frequency", $_[1]); }

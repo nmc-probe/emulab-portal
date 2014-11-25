@@ -1321,7 +1321,8 @@ handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
 	 * Redirect is allowed from the local host only.
 	 */
 	if (redirect &&
-	    redirect_client.sin_addr.s_addr != myipaddr.s_addr) {
+	    redirect_client.sin_addr.s_addr != myipaddr.s_addr &&
+	    redirect_client.sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
 		char	buf1[32], buf2[32];
 
 		strcpy(buf1, inet_ntoa(redirect_client.sin_addr));
@@ -6078,7 +6079,7 @@ COMMAND_PROTOTYPE(dosecurestate)
 		return 1;
 	}
         quotelen = strlen(quote)/2;
-        printf("quotelen is %d\n",quotelen);
+        printf("quotelen is %ld\n", (long)quotelen);
         for (i = 0; i < quotelen; i++) {
 		if (!ishex(quote[i * 2]) || !ishex(quote[i * 2 + 1])) {
 			error("Error parsing quote\n");
@@ -7865,7 +7866,7 @@ COMMAND_PROTOTYPE(dojailconfig)
 
 			if (getrandomchars(saltbuf, 8) != 0) {
 				snprintf(saltbuf, sizeof(saltbuf),
-					 "%ud", time(NULL));
+					 "%lu", (unsigned long)time(NULL));
 			}
 			sprintf(buf, "$1$%s", saltbuf);
 			bp = crypt(row[0], buf);
@@ -12534,8 +12535,8 @@ COMMAND_PROTOTYPE(dogenicommands)
 	    p += snprintf( p, buf + sizeof buf - p,
 			   " \"%s\":%*s\"%s\"",
 			   genicommands[ i ].tag,
-			   maxlen + 1 - strlen( genicommands[ i ].tag ), "",
-			   genicommands[ i ].desc );
+			   (int)(maxlen + 1 - strlen( genicommands[ i ].tag )),
+			   "", genicommands[ i ].desc );
 	}
     }
     
@@ -12629,7 +12630,9 @@ getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
 			goto badimage1;
 		sb.st_mtime = 0;
 		if (_buf[0] != 0 && _buf[0] != '\n') {
-			sscanf(_buf, "%u", &sb.st_mtime);
+			long _tmp;
+			sscanf(_buf, "%ld", &_tmp);
+			sb.st_mtime = _tmp;
 		}
 		if (sb.st_mtime == 0)
 			goto badimage1;
@@ -12651,7 +12654,9 @@ getImageInfo(char *path, char *nodeid, char *pid, char *imagename,
 			goto badimage2;
 		sb.st_size = 0;
 		if (_buf[0] != 0 && _buf[0] != '\n') {
-			sscanf(_buf, "%lld", &sb.st_size);
+			long long _tmp;
+			sscanf(_buf, "%lld", &_tmp);
+			sb.st_size = _tmp;
 		}
 		if (sb.st_size == 0)
 			goto badimage2;

@@ -1110,10 +1110,15 @@ sub opModeTransition($$;$) {
     $nodes{$node}{notified}       = 0;
 
     info("$node: $mode/$oldstate => $newmode/$nextstate\n");
-    DBQueryFatal("UPDATE nodes SET eventstate='$nextstate', ".
-		 "next_op_mode='', op_mode='$newmode', ".
-		 "state_timestamp='$now', ".
-		 "op_mode_timestamp='$now' WHERE node_id='$node'");
+    my $nodeobj = Node->LookupSync($node);
+    my %updates = ("eventstate"        => $nextstate,
+		   "next_op_mode"      => '',
+		   "op_mode"           => $newmode,
+		   "state_timestamp"   => $now,
+		   "op_mode_timestamp" => $now);
+    if ($nodeobj->Update(\%updates)) {
+	notify("Could not make op_mode transition to $newmode for $node!\n");
+    }
 
     # Check if this state has a timeout, and if so, put it in the queue
     setTimeout($newmode,$nextstate,$node,$now);

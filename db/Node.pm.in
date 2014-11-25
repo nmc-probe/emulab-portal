@@ -1560,6 +1560,22 @@ sub default_pxeboot($) {
     return NodeTypeAttribute($self, "pxe_boot_path", undef);
 }
 
+sub boot_method($) {
+    my ($self) = @_;
+    my $val = undef;
+
+    if (NodeAttribute($self, "boot_method", \$val) == 0 && defined($val)) {
+	return $val;
+    }
+    $val = NodeTypeAttribute($self, "boot_method", undef);
+
+    # XXX need a mechanism for setting default values for attributes
+    $val = "pxeboot"
+	if (!$val);
+
+    return $val;
+}
+
 sub disksize($;$) {
     my ($self,$stuff) = @_;
     my $val = undef;
@@ -1698,6 +1714,10 @@ sub ClearBootAttributes($)
 		"nonfsmounts=0 ".
 		"where node_id='$node_id'")
 	or return -1;
+
+    if ($self->boot_method() eq "pxelinux") {
+	TBPxelinuxConfig($self);
+    }
 
     return 0;
 }
@@ -2861,6 +2881,9 @@ sub ClearReservation($)
     if (DBQueryWarn("delete from reserved where node_id='$node_id'")) {
 	$self->FlushReserved();
     }
+    if ($self->boot_method() eq "pxelinux") {
+	TBPxelinuxConfig($self);
+    }
     return 0;
 }
 
@@ -3170,6 +3193,10 @@ sub OSSelect($$$$)
 	    if ($self->ResetNextOpMode($debug) < 0);
     }
 
+    if ($self->boot_method() eq "pxelinux") {
+	TBPxelinuxConfig($self);
+    }
+
     return Refresh($self);
 }
 
@@ -3387,6 +3414,10 @@ sub ClearOsids($) {
     $self->{"DBROW"}{"temp_boot_osid_vers"} = 0;
     $self->{"DBROW"}{"next_boot_osid_vers"} = 0;
     
+    if ($self->boot_method() eq "pxelinux") {
+	TBPxelinuxConfig($self);
+    }
+
     return 0;
 }
 
