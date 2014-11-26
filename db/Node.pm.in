@@ -1715,8 +1715,9 @@ sub ClearBootAttributes($)
 		"where node_id='$node_id'")
 	or return -1;
 
-    if ($self->boot_method() eq "pxelinux") {
-	TBPxelinuxConfig($self);
+    my $node = (ref($self) ? $self : Node->Lookup($node_id));
+    if ($node->boot_method() eq "pxelinux") {
+	TBPxelinuxConfig($node);
     }
 
     return 0;
