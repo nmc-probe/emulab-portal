@@ -547,9 +547,9 @@ sub TBBootWhat($;$$)
 # powered off in that state, or maybe we go into one of the MFSes to
 # await further instructions.
 #
-sub TBPxelinuxConfig($)
+sub TBPxelinuxConfig($;$)
 {
-    my ($node) = @_;
+    my ($node,$actionp) = @_;
     my $nodeid = $node->node_id();
     my $action;
     my $verbose = 1;
@@ -593,6 +593,14 @@ sub TBPxelinuxConfig($)
 	$action = "pxewait";
     }
 
+    #
+    # XXX if $actionp is set, we just want to return the action to take
+    #
+    if ($actionp) {
+	$$actionp = $action;
+	return;
+    }
+
     my $cnet = LocalInterfaceLookupControl($node);
     if ($cnet && $cnet->mac() &&
 	$cnet->mac() =~ /^(..)(..)(..)(..)(..)(..)$/) {
@@ -613,7 +621,7 @@ sub TBPxelinuxConfig($)
 	}
 
 	# argh...gotta use a setuid script to install a new pxelinux config!
-	if (!system("$TB/sbin/pxelinux_makeconf -d -a $action $nodeid >>/tmp/p_m.log 2>&1")) {
+	if (!system("$TB/sbin/pxelinux_makeconf -d -a $action $nodeid >>/tmp/pxelinux_makeconf.log 2>&1")) {
 	    print("$nodeid: set pxelinux boot to '$action'\n");
 	    return;
 	}
