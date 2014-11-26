@@ -34,16 +34,18 @@ use Sys::Syslog;
 
 sub usage()
 {
-    print "Usage: $0 [-bd] IP MAC boot-type\n";
+    print "Usage: $0 [-bdC] IP MAC boot-type\n";
     print("Options:\n");
     print(" -b      - Run in the background\n");
     print(" -d      - Turn on debugging\n");
+    print(" -C      - Combine PXEBOOTING/BOOTING on the PXE event\n");
  
     exit(1);
 }
-my $optlist    = "bd";
+my $optlist    = "bdC";
 my $background = 0;
 my $debug      = 0;
+my $combined   = 0;
 
 #
 # Functions
@@ -144,13 +146,31 @@ if (!$nodeid) {
     exit(0);
 }
 
-my $event = ($boottype eq "OS") ? "BOOTING" : "PXEBOOTING";
-if (sendevent($nodeid, $event)) {
-    logit("$nodeid: could not send $event event");
-    exit(1);
+#
+# Combine reporting of PXEBOOTING and BOOTING on the PXE event, reporting
+# nothing on the OS event. Use this if you have problems with later
+# OS-generated events happening before the BOOTING gets reported.
+# Note that this is essentially the same as what bootinfo does.
+#
+if ($combined) {
+    if ($boottype eq "PXE") {
+	if (sendevent($nodeid, "PXEBOOTING") ||
+	    sendevent($nodeid, "BOOTING")) {
+	    logit("$nodeid: could not send PXEBOOTING/BOOTING events");
+	    exit(1);
+	}
+	logit("$nodeid: sent PXEBOOTING and BOOTING events");
+    } else {
+	logit("$nodeid: NOT sending BOOTING event");
+    }
+} else {
+    my $event = ($boottype eq "OS") ? "BOOTING" : "PXEBOOTING";
+    if (sendevent($nodeid, $event)) {
+	logit("$nodeid: could not send $event event");
+	exit(1);
+    }
+    logit("$nodeid: sent $event event");
 }
-
-logit("$nodeid: sent $event event");
 
 exit(0);
 
