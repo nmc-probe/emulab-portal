@@ -44,6 +44,12 @@ BOSSIP=`$BINDIR/tmcc bossinfo | awk '{ print $2 }'`
 
 # XXX setup ipod some day
 
+#
+# XXX hang out a little longer, in case the BOOTING event has not made
+# it to stated. Having BOOTING arrive after PXEWAIT can cause problems.
+#
+sleep 1
+
 echo "`date`: entering pxewait"
 bootwhat=`$BINDIR/bootinfoclient -s $BOSSIP`
 echo "`date`: pxewait returns: $bootwhat"
