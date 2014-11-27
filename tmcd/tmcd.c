@@ -2612,7 +2612,7 @@ COMMAND_PROTOTYPE(doaccounts)
 				 2, reqp->nodeid, RELOADPID);
 	}
 	else if ((reqp->jailflag && !reqp->islocal) ||
-		 (reqp->islocal && reqp->sharing_mode[0]) ||
+		 (reqp->islocal && reqp->sharing_mode[0] && !reqp->isvnode) ||
 		 HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 		/*
 		 * This is for a remote node doing jails, a shared host, or
@@ -2772,7 +2772,7 @@ COMMAND_PROTOTYPE(doaccounts)
 				 18, reqp->nodeid);
 	}
 	else if ((reqp->jailflag && !reqp->islocal) ||
-		 (reqp->islocal && reqp->sharing_mode[0]) ||
+		 (reqp->islocal && reqp->sharing_mode[0] && !reqp->isvnode) ||
 		 HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 		/*
 		 * A remote node doing jails, a local node being
