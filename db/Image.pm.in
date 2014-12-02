@@ -46,6 +46,7 @@ my $CONTROL	  = "@USERNODE@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $TBAUDIT       = "@TBAUDITEMAIL@";
 my $TBBASE        = "@TBBASE@";
+my $WWWHOST       = "@WWWHOST@";
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $DOPROVENANCE  = @IMAGEPROVENANCE@;
 my $TBWWW         = "@TBWWW@";
@@ -271,6 +272,7 @@ sub DESTROY {
 sub LookupByURL($$)
 {
     my ($class, $url) = @_;
+    my ($pid,$imagename);
 
     return undef
 	if (! ($url =~ /^(ftp|http|https):/));
@@ -281,12 +283,35 @@ sub LookupByURL($$)
 	DBQueryWarn("select pid,imagename from image_versions ".
 		    "where metadata_url=$safe_url and deleted is null");
     return undef
-	if (!$query_result || !$query_result->numrows);
+	if (!$query_result);
 
-    my ($pid,$imagename) = $query_result->fetchrow_array();
+    if ($query_result->numrows) {
+	my ($pid,$imagename) = $query_result->fetchrow_array();
+	
+	# Want latest version.
+	return Image->Lookup($pid, $imagename);
+    }
+    else {
+	#
+	# If the URL points back to ourself, find the image it refers
+	# to. Later phases will catch misuse of the URL (not allowed,
+	# does not exist).
+	#
+	require URI;
+	require URI::QueryParam;
+	
+	my $uri = URI->new($url);
+	return undef
+	    if (!defined($uri));
+	return undef
+	    if ($uri->host() ne $WWWHOST);
+	my $uuid = $uri->query_param("uuid");
+	return undef
+	    if (!defined($uuid) || $uuid eq "");
 
-    # Want latest version.
-    return Image->Lookup($pid, $imagename);
+	return Image->Lookup($uuid);
+    }
+    return undef;
 }
 
 #

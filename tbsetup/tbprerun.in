@@ -344,7 +344,8 @@ if ($OPSDBSUPPORT) {
     }
 }
 
-if (!$experiment->elabinelab()) {
+# Lets not do this anymore. 
+if (0 && !$experiment->elabinelab()) {
     TBDebugTimeStamp("verify-ns started");
     if ($NSVERIFY) {
 	print "Verifying parse ...\n";
