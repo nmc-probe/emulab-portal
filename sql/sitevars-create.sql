@@ -131,7 +131,7 @@ INSERT INTO sitevariables VALUES ('protogeni/plc_url',NULL,'https://www.planet-l
 INSERT INTO sitevariables VALUES ('nodecheck/collect',NULL,'0','When set, collect and record node hardware info in /proj/<pid>/nodecheck/.',0);
 INSERT INTO sitevariables VALUES ('nodecheck/check',NULL,'0','When set, perform nodecheck at swapin.',0);
 INSERT INTO sitevariables VALUES ('general/xenvifrouting',NULL,'0','Non-zero value says to use vif routing on XEN shared nodes.',0);
-
+INSERT INTO sitevariables VALUES ('general/default_xen_parentosid',NULL,'emulab-ops,XEN43-64-STD','The default parent OSID to use for XEN capable images.',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/usequotas',NULL,'0','If non-zero, enforce per-project dataset quotas',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/maxextend',NULL,'2','Number of times a user can extend the lease (0 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/extendperiod',NULL,'1','Length (days) of each user-requested extention (0 == do not allow extensions)',0);

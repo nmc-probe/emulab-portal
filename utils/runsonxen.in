@@ -28,8 +28,7 @@ use Getopt::Std;
 #
 # Mark an image as running on XEN. 
 #
-my $DEFAULT_PARENT = "XEN43-64-STD";
-my @OTHER_PARENTS  = ("XEN44-64-BIGFS", "XEN41-64-STD");
+my @OTHER_PARENTS  = ("XEN44-64-BIGFS", "XEN41-64-STD", "XEN43-64-STD");
 
 sub usage()
 {
@@ -40,14 +39,14 @@ sub usage()
     print STDERR " -n      - Impotent mode\n";
     print STDERR " -c      - Clear XEN parent settings completely\n";
     print STDERR " -a      - Operate on all current XEN capable images\n";
-    print STDERR " -p      - Set default parent; currently $DEFAULT_PARENT\n";
+    print STDERR " -p      - Set default parent\n";
     exit(1);
 }
 my $optlist    = "acp:n";
 my $doall      = 0;
 my $clear      = 0;
 my $impotent   = 0;
-my $parent     = $DEFAULT_PARENT;
+my $parent;
 
 # Protos
 sub fatal($);
@@ -62,8 +61,12 @@ $| = 1;
 #
 use lib "/usr/testbed/lib";
 use emdb;
+use libEmulab;
 use Image;
 use OSinfo;
+
+# Default parent for this site is a sitevar.
+my $DEFAULT_PARENT = GetSiteVar("general/default_xen_parentosid");
 
 my %options    = ();
 if (! getopts($optlist, \%options)) {
@@ -81,6 +84,9 @@ if (defined($options{"n"})) {
 if (defined($options{"p"})) {
     $parent = $options{"p"};
     @OTHER_PARENTS = ($DEFAULT_PARENT, @OTHER_PARENTS);
+}
+else {
+    $parent = $DEFAULT_PARENT;
 }
 usage()
     if (!$doall && !@ARGV);
@@ -139,9 +145,12 @@ if ($clear) {
 #
 # Find the "default" parent image and the list of others parents.
 #
-my $parent_image = Image->LookupByName($parent);
+my $parent_image = Image->Lookup($parent);
 if (!defined($parent_image)) {
-    fatal("No such parent $parent");
+    $parent_image = Image->LookupByName($parent);
+    if (!defined($parent_image)) {
+	fatal("No such parent $parent");
+    }
 }
 my $parent_osinfo = OSinfo->Lookup($parent_image->imageid());
 if (!defined($parent_osinfo)) {
