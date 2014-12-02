@@ -276,7 +276,10 @@ if ($getimage) {
 	    fatal("Could not get the image lock after a long time");
 	}
     }
+    # Run as root to access /proj
+    $EUID = $UID = 0;
     if (! -e $image->path() || $newhash ne $image->hash() || $force) {
+	$EUID = $UID = $SAVEUID;
 	#
 	# When updating an image ... 
 	#
@@ -325,6 +328,7 @@ if ($getimage) {
 	    $image->MarkUpdate($user);
 	}
     }
+    $EUID = $UID = $SAVEUID;
     $image->Unlock();
 }
 exit(0);
