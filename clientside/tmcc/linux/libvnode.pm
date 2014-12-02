@@ -31,6 +31,7 @@ use Exporter;
 	      existsBridge findBridge findBridgeIfaces
               downloadImage getKernelVersion createExtraFS
               forwardPort removePortForward lvSize DoIPtables restartDHCP
+              computeStripeSize
             );
 
 use Data::Dumper;
@@ -316,6 +317,30 @@ isdisk:
     close(PFD);
 
     return %retval;
+}
+
+#
+# Attempt to compute a stripe size, based on physical number of
+# devices in the volume group.
+#
+sub computeStripeSize($)
+{
+    my ($vgname) = @_;
+    my $command  = "vgdisplay -v $vgname 2>/dev/null | ".
+	"awk '/PV Name/ {print \$3}'";
+    my %devices = ();
+    my $count   = 1;
+    
+    if (open(PFD, "$command |")) {
+	while (my $line = <PFD>) {
+	    if ($line =~ /\/dev\/(\w{2,3})/) {
+		$devices{$1} = $1;
+	    }
+	}
+	close(PFD);
+	$count = scalar(keys(%devices));
+    }
+    return $count;
 }
 
 my %if2mac = ();
