@@ -69,6 +69,7 @@ my $GROUPDEL          = "/usr/sbin/pw groupdel";
 my $CHPASS	      = "/usr/bin/chpass";
 my $ZFS		      = "/sbin/zfs";
 my $SKEL	      = "/usr/share/skel";
+my $PIDFILE           = "/var/run/mountd.pid";
 
 # XXX
 my $NOSUCHUSER  = 67;
@@ -176,6 +177,7 @@ sub AddUser()
 	    if ($?) {
 		fatal("Could not create ZFS $path");
 	    }
+	    system("$ZFS share -a");
 	}
     }
 
@@ -261,13 +263,15 @@ sub AddProject()
 	    if ($?) {
 		fatal("Could not create ZFS $path");
 	    }
+	    system("$ZFS share -a");
 	}
 	$path = "${ZFS_ROOT}${GROUPROOT}/$name";
 	if (!ZFSexists($path)) {
 	    system("$ZFS create -o quota=${ZFS_QUOTA_GROUP} $path");
 	    if ($?) {
 		fatal("Could not create ZFS $path");
-	    }
+	    }	
+	    system("$ZFS share -a");
 	}
     }
 
@@ -371,3 +375,28 @@ sub ZFSexists($)
     system("$ZFS list $path >/dev/null 2>&1");
     return ($? ? 0 : 1);
 }
+
+#
+# HUP Mountd after changes to ZFS volumes. Not used, Mike says we
+# can do "zfs share -a" instead, but I will leave this code here
+# for now.
+#
+sub HUPMountd()
+{
+    if (! -e $PIDFILE) {
+	fatal("$PIDFILE does not exist. Is mountd running?");
+    }
+    my $daemonpid = `cat $PIDFILE`;
+    chomp($daemonpid);
+    # untaint
+    if ($daemonpid =~ /^([-\@\w.]+)$/) {
+	$daemonpid = $1;
+    }
+    if (kill('HUP', $daemonpid) == 0) {
+	fatal("Could not kill(HUP) process $daemonpid (mountd): $!");
+    }
+    # Give mountd time to react.
+    sleep(1);
+}
+
+
