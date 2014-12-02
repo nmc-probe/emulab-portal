@@ -61,7 +61,8 @@ fi
 #
 # XXX on Moonshots, only "sio1" is supported.
 #
-CONSOLE=${SLICEFIX_CONSOLE:-'sio1'}
+CONSOLE=sio1
+#CONSOLE=${SLICEFIX_CONSOLE:-'sio1'}
 case $CONSOLE in
 sio|sio1)
     ;;
@@ -79,6 +80,17 @@ if [ -r $ETCDIR/bossnode ]; then
 else
     setboss=0
 fi
+
+# TRIM is optional
+TRIM=${SLICEFIX_TRIM:-'0'}
+case $TRIM in
+0|1)
+    ;;
+*)
+    echo "WARNING: unexpected TRIM argument \"$TRIM\", ignored"
+    TRIM=0
+    ;;
+esac
 
 # Indicates the MFS has been properly localized and we can copy stuff
 # into the image.
@@ -216,6 +228,16 @@ dolinux() {
 	$BINDIR/localize_image /mnt || {
 	    umount $rootdev
 	    return 1
+	}
+    fi
+
+    #
+    # See if we need to trim the FS
+    #
+    if [ $TRIM -eq 1 -a -x "/sbin/fstrim" ]; then
+	echo "  TRIMing FS"
+	/sbin/fstrim /mnt || {
+	    echo "WARNING: could not fstrim /"
 	}
     fi
 

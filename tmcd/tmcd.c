@@ -89,7 +89,9 @@
 #define DOTSFS		".sfs"
 #define RUNASUSER	"nobody"
 #define RUNASGROUP	"nobody"
+#ifndef NTPSERVER
 #define NTPSERVER       "ntp1"
+#endif
 #define PROTOUSER	"elabman"
 #define PRIVKEY_LEN	128
 #define URN_LEN		128
@@ -5244,23 +5246,220 @@ COMMAND_PROTOTYPE(dorouting)
 	return 0;
 }
 
+static int
+get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
+		  int *disknump, int *biosdisknump, int *dotrimp,
+		  char **useacpip, char **useasfp, char **noclflushp,
+		  char **vgaonlyp, char **consoletypep, char **dom0memp)
+{
+	MYSQL_RES	*res2;
+	MYSQL_ROW	row2;
+	char		*disktype, *useacpi, *useasf, *noclflush, *dom0mem;
+	char		*vgaonly, *consoletype, *attrclause;
+	int		disknum, biosdisknum, dotrim;
+	unsigned int	trimtime;
+
+	res2 = mydb_query("select IP "
+			  " from interfaces as i, subbosses as s "
+			  " where i.node_id=s.subboss_id and "
+			  " i.role='ctrl' and "
+			  " s.node_id='%s' and s.service='frisbee'"
+			  " and s.disabled=0",
+			  1, reqp->isvnode ? reqp->pnodeid : reqp->nodeid);
+	if (!res2) {
+		error("doloadinfo: %s: DB Error getting subboss info!\n",
+		      reqp->nodeid);
+		return 1;
+	}
+
+	if (mysql_num_rows(res2)) {
+		row2 = mysql_fetch_row(res2);
+		*serverp = strdup(row2[0]);
+	} else {
+		*serverp = strdup(BOSSNODE_IP);
+	}
+	mysql_free_result(res2);
+
+	/*
+	 * Get per-disk or per-type attributes for the node
+	 */
+	disktype = NULL;
+	disknum = DISKNUM;
+	biosdisknum = -1;
+	dotrim = 0;
+	trimtime = 0;
+	useacpi = NULL;
+	useasf = NULL;
+	noclflush = NULL;
+	vgaonly = NULL;
+	consoletype = NULL;
+	dom0mem = NULL;
+
+	/*
+	 * This query is intended to select certain attributes from
+	 * node_type_attributes table, but allow them to be overridden
+	 * by entries in the node_attributes table for the node
+	 * making the request. Use a "union" of two selects, where
+	 * results from the second select on node_attributes will
+	 * overwrite anything returned for the same key in the first
+	 * select on node_type_attributes.
+	 *
+	 * N.B. the above paragraph is not correct. The union actually
+	 * returns key/value rows from BOTH tables unless the values
+	 * are also identical. It is the while loop below that always
+	 * chooses the second value (the node_attributes value) in
+	 * preference to the first.
+	 *
+	 * The original select required that the key be in the
+	 * node_type_attributes table, else it would fail to find
+	 * it in the node_attributes table. This was the easiest
+	 * way to fix it. 
+	 */
+	attrclause =
+		"(attrkey='bootdisk_unit' or "
+		" attrkey='bootdisk_bios_id' or "
+		" attrkey='bootdisk_trim' or "
+		" attrkey='bootdisk_lasttrim' or "
+		" attrkey='disktype' or "
+		" attrkey='use_acpi' or "
+		" attrkey='use_asf' or "
+		" attrkey='console_type' or "
+		" attrkey='vgaonly' or "
+		" attrkey='dom0mem' or "
+		" attrkey='no_clflush')";
+
+	res2 = mydb_query("(select attrkey,attrvalue from nodes as n "
+			  " left join node_type_attributes as a on "
+			  "      n.type=a.type "
+			  " where %s and n.node_id='%s') "
+			  "union "
+			  "(select attrkey,attrvalue "
+			  "   from node_attributes "
+			  " where %s and node_id='%s') ",
+			  2, attrclause, reqp->nodeid,
+			  attrclause, reqp->nodeid);
+
+	if (!res2) {
+		error("doloadinfo: %s: DB Error getting disktype!\n",
+		      reqp->nodeid);
+		free(serverp);
+		return 1;
+	}
+
+	if ((int)mysql_num_rows(res2) > 0) {
+		int nrows2 = (int)mysql_num_rows(res2);
+
+		while (nrows2) {
+			char *attrstr;
+
+			row2 = mysql_fetch_row(res2);
+
+			if (row2[1] && row2[1][0])
+				attrstr = strdup(row2[1]);
+			else
+				attrstr = NULL;
+
+			if (attrstr) {
+				if (strcmp(row2[0], "bootdisk_unit") == 0) {
+					disknum = atoi(attrstr);
+				}
+				else if (strcmp(row2[0], "bootdisk_bios_id") == 0) {
+					biosdisknum = strtol(attrstr, 0, 0);
+				}
+				else if (strcmp(row2[0], "bootdisk_trim") == 0) {
+					dotrim = atoi(attrstr);
+				}
+				else if (strcmp(row2[0], "bootdisk_lasttrim") == 0) {
+					trimtime = (unsigned int)atoi(attrstr);
+				}
+				else if (strcmp(row2[0], "disktype") == 0) {
+					disktype = attrstr;
+				}
+				else if (strcmp(row2[0], "use_acpi") == 0) {
+					useacpi = attrstr;
+				}
+				else if (strcmp(row2[0], "use_asf") == 0) {
+					useasf = attrstr;
+				}
+				else if (strcmp(row2[0], "no_clflush") == 0) {
+					noclflush = attrstr;
+				}
+				else if (strcmp(row2[0], "vgaonly") == 0) {
+					vgaonly = attrstr;
+				}
+				else if (strcmp(row2[0], "dom0mem") == 0) {
+					dom0mem = attrstr;
+				}
+				else if (strcmp(row2[0], "console_type") == 0) {
+					consoletype = attrstr;
+				}
+			}
+			nrows2--;
+		}
+	}
+
+	*disktypep = disktype ? disktype : strdup(DISKTYPE);
+	*disknump = disknum;
+	*biosdisknump = biosdisknum;
+	*useacpip = useacpi ? useacpi : strdup("unknown");
+	*useasfp = useasf ? useasf : strdup("unknown");
+	*noclflushp = noclflush ? noclflush : strdup("unknown");
+	*vgaonlyp = vgaonly;
+	*consoletypep = consoletype;
+	*dom0memp = dom0mem ? dom0mem : strdup("1024M");
+
+	if (res2)
+		mysql_free_result(res2);
+
+	if (dotrim > 0) {
+		struct timeval now;
+		unsigned int trimiv = 0;
+
+		gettimeofday(&now, NULL);
+
+		res2 = mydb_query("select value,defaultvalue from sitevariables "
+				  "where name='general/disk_trim_interval'", 2);
+		if (res2 && (int)mysql_num_rows(res2) > 0) {
+			row2 = mysql_fetch_row(res2);
+			if (row2[0] && row2[0][0])
+				trimiv = (unsigned int)atoi(row2[0]);
+			else if (row2[1] && row2[1][0])
+				trimiv = (unsigned int)atoi(row2[1]);
+		}
+		if (res2)
+			mysql_free_result(res2);
+
+		if (trimiv && now.tv_sec > (time_t)(trimtime + trimiv)) {
+			mydb_update("replace into node_attributes values "
+				    "('%s', 'bootdisk_lasttrim', '%u')",
+				    reqp->nodeid, (unsigned)now.tv_sec);
+			dotrim = 1;
+		} else
+			dotrim = 0;
+	}
+	*dotrimp = dotrim;
+
+	return 0;
+}
+
 /*
  * Return address from which to load an image, along with the partition that
  * it should be written to and the OS type in that partition.
  */
 COMMAND_PROTOTYPE(doloadinfo)
 {
-	MYSQL_RES	*res, *res2;
-	MYSQL_ROW	row, row2;
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
 	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
-	char		*disktype, *useacpi, *useasf, *noclflush;
-	char		*vgaonly, *consoletype;
 	char		address[MYBUFSIZE];
 	char            server_address[MYBUFSIZE];
 	char		mbrvers[51];
-	char            *loadpart, *OS, *prepare, *attrclause, *version, *dom0mem;
-	int		disknum, biosdisknum, nrows, zfill;
+	char            *loadpart, *OS, *prepare, *version;
+	int		nrows, zfill;
+	char		*server, *disktype, *useacpi, *useasf, *noclflush;
+	char		*vgaonly, *consoletype, *dom0mem;
+	int		disknum, biosdisknum, dotrim;
 
 	/*
 	 * Get the address the node should contact to load its image
@@ -5299,69 +5498,31 @@ COMMAND_PROTOTYPE(doloadinfo)
 		return 0;
 	}
 
-	if (nrows > 1 && vers <= 29) {
-	updatemfs:
-		bufp += OUTPUT(bufp, ebufp - bufp,
-			       "ADDR=/NEWER-MFS-NEEDED PART=0 PARTOS=Bogus\n");
+	/*
+	 * Cannot handle multiple images prior to version 29.
+	 * Tell them to update their MFS.
+	 */
+	if (nrows > 1 && vers <= 29)
+		goto updatemfs;
 
-		error("doloadinfo: %s: Old MFS Version found, need version 33\n",
-		      reqp->nodeid);
-
-#ifdef EVENTSYS
-		address_tuple_t tuple;
-		/*
-		 * Send the state out via an event
-		 */
-		/* XXX: Maybe we don't need to alloc a new tuple every time through */
-		tuple = address_tuple_alloc();
-		if (tuple == NULL) {
-			error("doreset: Unable to allocate address tuple!\n");
-			return 1;
-		}
-
-		tuple->host      = BOSSNODE;
-		tuple->objtype   = "TBNODESTATE";
-		tuple->objname	 = reqp->nodeid;
-		tuple->eventtype = "RELOADOLDMFS";
-
-		if (myevent_send(tuple)) {
-			error("doloadinfo: %s: "
-			      "Unable to set state to RELOADOLDMFS",
-			      reqp->nodeid);
-		}
-
-		address_tuple_free(tuple);
-#endif
+	/*
+	 * Get all the other node-specific info just once.
+	 * XXX this is a total hack!
+	 */
+	if (get_node_loadinfo(reqp, &server, &disktype, &disknum, &biosdisknum,
+			      &dotrim, &useacpi, &useasf, &noclflush,
+			      &vgaonly, &consoletype, &dom0mem)) {
+		mysql_free_result(res);
+		return 1;
 	}
-	else while (nrows) {
 
+	while (nrows) {
 		row = mysql_fetch_row(res);
 		loadpart = row[0];
 		OS = row[1];
 		prepare = row[6];
 		version = row[11];
-
-		res2 = mydb_query("select IP "
-				  " from interfaces as i, subbosses as s "
-				  " where i.node_id=s.subboss_id and "
-				  " i.role='ctrl' and "
-				  " s.node_id='%s' and s.service='frisbee'"
-				  " and s.disabled=0",
-				  1, reqp->isvnode ? reqp->pnodeid : reqp->nodeid);
-		if (!res2) {
-			error("doloadinfo: %s: DB Error getting subboss info!\n",
-			       reqp->nodeid);
-			mysql_free_result(res);
-			return 1;
-		}
-
-		if (mysql_num_rows(res2)) {
-			row2 = mysql_fetch_row(res2);
-			strcpy(server_address, row2[0]);
-		} else {
-			strcpy(server_address, BOSSNODE_IP);
-		}
-		mysql_free_result(res2);
+		strcpy(server_address, server);
 
 		/*
 		 * Remote nodes get a URL for the address.
@@ -5471,115 +5632,11 @@ COMMAND_PROTOTYPE(doloadinfo)
 		if (row[3] && row[3][0])
 			strcpy(mbrvers, row[3]);
 
-		/*
-		 * Get disk type and number
-		 */
-		disktype = DISKTYPE;
-		disknum = DISKNUM;
-		biosdisknum = -1;
-		useacpi = "unknown";
-		useasf = "unknown";
-		noclflush = "unknown";
-		vgaonly = consoletype = (char *) NULL;
-		dom0mem = "1024M";
-
-		/*
-		 * This query is intended to select certain attributes from
-		 * node_type_attributes table, but allow them to be overridden
-		 * by entries in the node_attributes table for the node
-		 * making the request. Use a "union" of two selects, where
-		 * results from the second select on node_attributes will
-		 * overwrite anything returned for the same key in the first
-		 * select on node_type_attributes.
-		 *
-		 * N.B. the above paragraph is not correct. The union actually
-		 * returns key/value rows from BOTH tables unless the values
-		 * are also identical. It is the while loop below that always
-		 * chooses the second value (the node_attributes value) in
-		 * preference to the first.
-		 *
-		 * The original select required that the key be in the
-		 * node_type_attributes table, else it would fail to find
-		 * it in the node_attributes table. This was the easiest
-		 * way to fix it. 
-		 */
-		attrclause =
-			"(attrkey='bootdisk_unit' or "
-			" attrkey='bootdisk_bios_id' or "
-			" attrkey='disktype' or "
-			" attrkey='use_acpi' or "
-			" attrkey='use_asf' or "
-			" attrkey='console_type' or "
-			" attrkey='vgaonly' or "
-			" attrkey='dom0mem' or "
-			" attrkey='no_clflush')";
-
-		res2 = mydb_query("(select attrkey,attrvalue from nodes as n "
-				  " left join node_type_attributes as a on "
-				  "      n.type=a.type "
-				  " where %s and n.node_id='%s') "
-				  "union "
-				  "(select attrkey,attrvalue "
-				  "   from node_attributes "
-				  " where %s and node_id='%s') ",
-				  2, attrclause, reqp->nodeid,
-				  attrclause, reqp->nodeid);
-
-		if (!res2) {
-			error("doloadinfo: %s: DB Error getting disktype!\n",
-			      reqp->nodeid);
-			return 1;
-		}
-
-		if ((int)mysql_num_rows(res2) > 0) {
-			int nrows2 = (int)mysql_num_rows(res2);
-
-			while (nrows2) {
-				char *attrstr;
-
-				row2 = mysql_fetch_row(res2);
-
-				if (row2[1] && row2[1][0])
-					attrstr = row2[1];
-				else
-					attrstr = NULL;
-
-				if (attrstr) {
-					if (strcmp(row2[0], "bootdisk_unit") == 0) {
-						disknum = atoi(attrstr);
-					}
-					if (strcmp(row2[0], "bootdisk_bios_id") == 0) {
-						biosdisknum = strtol(attrstr, 0, 0);
-					}
-					else if (strcmp(row2[0], "disktype") == 0) {
-						disktype = attrstr;
-					}
-					else if (strcmp(row2[0], "use_acpi") == 0) {
-						useacpi = attrstr;
-					}
-					else if (strcmp(row2[0], "use_asf") == 0) {
-						useasf = attrstr;
-					}
-					else if (strcmp(row2[0], "no_clflush") == 0) {
-						noclflush = attrstr;
-					}
-					else if (strcmp(row2[0], "vgaonly") == 0) {
-						vgaonly = attrstr;
-					}
-					else if (strcmp(row2[0], "dom0mem") == 0) {
-						dom0mem = attrstr;
-					}
-					else if (strcmp(row2[0], "console_type") == 0) {
-						consoletype = attrstr;
-					}
-				}
-				nrows2--;
-			}
-		}
-
 		bufp += OUTPUT(bufp, ebufp - bufp,
-			       " DISK=%s%d ZFILL=%d ACPI=%s MBRVERS=%s ASF=%s PREPARE=%s NOCLFLUSH=%s",
-			       disktype, disknum, zfill, useacpi, mbrvers, useasf, prepare, noclflush);
+			       " DISK=%s%d ZFILL=%d ACPI=%s MBRVERS=%s"
+			       " ASF=%s PREPARE=%s NOCLFLUSH=%s",
+			       disktype, disknum, zfill, useacpi, mbrvers,
+			       useasf, prepare, noclflush);
 		if (consoletype) {
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       " CONSOLE=%s", consoletype);
@@ -5593,13 +5650,9 @@ COMMAND_PROTOTYPE(doloadinfo)
 		}
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			       " DOM0MEM=%s", dom0mem);
-		
-		/*
-		 * Do this here, so that we are not using strings above,
-		 * that have been released to the malloc pool.
-		 */
-		if (res2) {
-			mysql_free_result(res2);
+		if (dotrim > 0) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " TRIM=%d", dotrim);
 		}
 
 		/*
@@ -5740,7 +5793,64 @@ COMMAND_PROTOTYPE(doloadinfo)
 
 		nrows--;
 	}
+	if (res)
+		mysql_free_result(res);
 
+	if (server)
+		free(server);
+	if (disktype)
+		free(disktype);
+	if (useacpi)
+		free(useacpi);
+	if (useasf)
+		free(useasf);
+	if (noclflush)
+		free(noclflush);
+	if (vgaonly)
+		free(vgaonly);
+	if (consoletype)
+		free(consoletype);
+	if (dom0mem)
+		free(dom0mem);
+
+	client_writeback(sock, buf, strlen(buf), tcp);
+	if (verbose)
+		info("doloadinfo: %s", buf);
+
+	return 0;
+
+ updatemfs:
+	bufp += OUTPUT(bufp, ebufp - bufp,
+		       "ADDR=/NEWER-MFS-NEEDED PART=0 PARTOS=Bogus\n");
+
+	error("doloadinfo: %s: Old MFS Version found, need version 33\n",
+	      reqp->nodeid);
+
+#ifdef EVENTSYS
+	address_tuple_t tuple;
+	/*
+	 * Send the state out via an event
+	 */
+	/* XXX: Maybe we don't need to alloc a new tuple every time through */
+	tuple = address_tuple_alloc();
+	if (tuple == NULL) {
+		error("doreset: Unable to allocate address tuple!\n");
+		return 1;
+	}
+
+	tuple->host      = BOSSNODE;
+	tuple->objtype   = "TBNODESTATE";
+	tuple->objname	 = reqp->nodeid;
+	tuple->eventtype = "RELOADOLDMFS";
+
+	if (myevent_send(tuple)) {
+		error("doloadinfo: %s: "
+		      "Unable to set state to RELOADOLDMFS",
+		      reqp->nodeid);
+	}
+
+	address_tuple_free(tuple);
+#endif
 	if (res)
 		mysql_free_result(res);
 
