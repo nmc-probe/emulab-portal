@@ -30,6 +30,11 @@ else
 	ETCDIR=/etc/emulab
 fi
 
+MFS_DEBUG=${MFS_DEBUG:-'n'}
+if [ "$MFS_DEBUG" = "y" ]; then
+    set -x
+fi
+
 disk="sda"
 
 case $# in
@@ -44,11 +49,6 @@ case $# in
 	echo "Usage: $0 partition [disk]"
 	exit 1
 esac
-
-MFS_DEBUG=${MFS_DEBUG:-'n'}
-if [ "$MFS_DEBUG" = "y" ]; then
-    set -x
-fi
 
 #
 # Handle pseudo arguments in the environment.
@@ -92,6 +92,9 @@ case $TRIM in
     ;;
 esac
 
+# XXX hack to determine the root FS partition
+RPART=$SLICEFIX_RPART
+
 # Indicates the MFS has been properly localized and we can copy stuff
 # into the image.
 LOCALIZED1="/.localized"
@@ -120,8 +123,7 @@ getloadervar() {
 dolinux() {
     isroot=0
 
-    # XXX assume part 2 is root right now
-    if [ $part -eq 2 ]; then
+    if [ $part -eq $RPART ]; then
 	isroot=1
     fi
 

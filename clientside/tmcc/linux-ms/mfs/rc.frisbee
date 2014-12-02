@@ -99,6 +99,20 @@ getvar() {
 #       2         1052672       234441614   111.3 GiB   8300  
 #      15            2048            4095   1024.0 KiB  EF02  
 #
+# MBR version 102 (aka GPT version 2):
+#
+#    Disk /dev/sda: 234441648 sectors, 111.8 GiB
+#    Logical sector size: 512 bytes
+#    Disk identifier (GUID): 8639755F-23E6-487A-8740-D464BA75AAD7
+#    Partition table holds up to 128 entries
+#    First usable sector is 34, last usable sector is 234441614
+#    Partitions will be aligned on 2048-sector boundaries
+#    Total free space is 2014 sectors (1007.0 KiB)
+#
+#    Number  Start (sector)    End (sector)  Size       Code  Name
+#       1            4096       234441614   111.8 GiB   8300  Linux filesystem
+#      15            2048            4095   1024.0 KiB  EF02  
+#
 tweakgpt() {
     _DSK=$1
     _NEW=$2
@@ -113,6 +127,9 @@ tweakgpt() {
 	    case ${_size}s in
 	    1048576s)
 		_CUR=101
+		;;
+	    234437519s)
+		_CUR=102
 		;;
 	    *)
 		if [ $_ALWAYS -eq 1 ]; then
@@ -463,6 +480,18 @@ fixone() {
     export SLICEFIX_BIOSDISK=`getvar BIOSDISK "$iline"`
     export SLICEFIX_DOM0MEM=`getvar DOM0MEM "$iline" unknown`
     export SLICEFIX_TRIM=`getvar TRIM "$iline" 0`
+
+    MBRVERS=`getvar MBRVERS "$iline" 101`
+    case $MBRVERS in
+    101)
+	RPART=2
+	;;
+    102)
+	RPART=1
+	;;
+    esac
+    export SLICEFIX_RPART=${RPART:-'0'}
+
     $BINDIR/slicefix $_PART $_DISK
     return $?
 }
@@ -623,6 +652,8 @@ fi
 # some reason.
 #
 if [ $reboot -eq 1 ]; then
+    # XXX let serial output drain
+    sleep 1
     $BINDIR/tmcc state RELOADDONEV2
     echo "`date`: Waiting for server to reboot us ..."
     sleep 30
