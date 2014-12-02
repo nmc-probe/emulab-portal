@@ -45,5 +45,6 @@ fuse:x:105:
 messagebus:x:106:
 mlocate:x:107:
 ssh:x:108:
+ntp:x:109:
 admin:x:110:
 utempter:x:111:
