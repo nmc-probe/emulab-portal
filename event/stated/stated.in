@@ -1154,7 +1154,7 @@ sub handleCtrlEvent($$) {
 		notify("$node/$event: Could not clear next_pxe_boot_path!\n");
 
 	    info("$node: Performed $TBPXERESET\n");
-	    next;
+	    last;
 	};
 	/^$TBRESET$/ && do {
 	    # Clear next_boot_path.
@@ -1163,7 +1163,7 @@ sub handleCtrlEvent($$) {
 	    }
 	    my ($bosid,$bopmode) = TBBootWhat($node, 0);
 	    info("$node: $TBRESET done, bootwhat returns $bopmode,$bosid\n");
-	    next;
+	    last;
 	};
 	(/^$TBRELOADDONEV1$/ || /^$TBRELOADDONEV2$/) && do {
 	    info("$node: Clearing reload info\n");
@@ -1192,7 +1192,7 @@ sub handleCtrlEvent($$) {
 		    notify("Could not apod $node after $TBRELOADDONEV2!\n");
 		}
 	    }
-	    next;
+	    last;
 	};
 	/^$TBTIMEOUT$/ && do {
 	    my ($mode,$state) = split(":",$timeout_tag{$node});
@@ -1222,7 +1222,7 @@ sub handleCtrlEvent($$) {
 		    notify("$node: Unknown timeout action for ".
 			   "$mode/$state: '$action'\n");
 		}
-		next;
+		last;
 	    }
 
 	    #
@@ -1255,7 +1255,7 @@ sub handleCtrlEvent($$) {
 		    notify("$PXEWAKEUP retry: ".
 			   "Command '$cmd' failed, error $?: $!\n");
 
-		next;
+		last;
 	    }
 
 	    info("Node $node has timed out in state $mode/$state".
@@ -1288,7 +1288,7 @@ sub handleCtrlEvent($$) {
                     last; };
 		notify("$node: Unknown Timeout Action: $action\n");
 	    }
-	    next;
+	    last;
 	};
 	notify("$node: Unknown CtrlEvent: $event\n");
     }
