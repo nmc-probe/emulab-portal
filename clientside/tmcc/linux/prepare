@@ -43,6 +43,7 @@ my $NTPDRIFT1   = "/etc/ntp/drift";
 my $NTPDRIFT2   = "/var/lib/ntp/drift";
 my $SFSUSERS    = "/etc/sfs/sfs_users";
 my $SFSHOSTKEY  = "/etc/sfs/sfs_host_key";
+my $SSHDCONFIG  = "/etc/ssh/sshd_config";
 my $VARACCTDIR  = "/var/account";
 my $VARACCTSDIR = "/var/log/sa";
 my $IFTAB       = "/etc/iftab";
@@ -414,6 +415,14 @@ foreach my $file (@SOCKETS) {
 	unlink("$file") or
 	    warn("*** could not remove $file\n");
     }
+}
+
+print "Removing extra Ports from $SSHDCONFIG\n";
+if (-e $SSHDCONFIG) {
+    # Remove high numbered ports.
+    system("sed -i.bak -e '/^Port [0-9]\{3,\}/d' $SSHDCONFIG");
+    warn("*** Could not remove Port lines\n")
+	if ($?);
 }
 
 # Leave this print statement here; create_image depends on it.
