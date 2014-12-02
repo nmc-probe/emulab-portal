@@ -148,6 +148,7 @@ INSERT INTO sitevariables VALUES ('storage/ltdataset/usequotas',NULL,'1','If non
 INSERT INTO sitevariables VALUES ('storage/ltdataset/maxsize',NULL,'0','Max size (MiB) of a dataset (0 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('storage/ltdataset/graceperiod',NULL,'180','Time (days) before an expired dataset will be destroyed (0 == no grace period)',0);
 INSERT INTO sitevariables VALUES ('storage/ltdataset/maxidle',NULL,'180','Max time (days) from last use before lease is marked expired (0 == unlimited)',0);
+INSERT INTO sitevariables VALUES ('general/disk_trim_interval',NULL,'0','If non-zero, minimum interval (seconds) between attempts to TRIM boot disk during disk reloading. Zero disables all TRIM activity. Node must also have non-zero bootdisk_trim attribute.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
