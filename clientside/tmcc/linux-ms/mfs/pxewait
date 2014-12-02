@@ -35,14 +35,17 @@ else
 	ETCDIR=/etc/testbed
 fi
 
+# Enable IPoD
+if [ -r $BINDIR/rc.ipod ]; then
+    . $BINDIR/rc.ipod
+fi
+
 if [ "$1" = "fail" ]; then
     echo "Emulab pxeboot process failed, dropping to shell. Exit to retry."
     PS1='(pxeboot) ' /bin/sh -i </dev/console >/dev/console 2>&1
 fi
 
 BOSSIP=`$BINDIR/tmcc bossinfo | awk '{ print $2 }'`
-
-# XXX setup ipod some day
 
 #
 # XXX hang out a little longer, in case the BOOTING event has not made
