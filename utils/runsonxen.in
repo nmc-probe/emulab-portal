@@ -145,9 +145,12 @@ if ($clear) {
 #
 # Find the "default" parent image and the list of others parents.
 #
-my $parent_image = Image->LookupByName($parent);
+my $parent_image = Image->Lookup($parent);
 if (!defined($parent_image)) {
-    fatal("No such parent $parent");
+    $parent_image = Image->LookupByName($parent);
+    if (!defined($parent_image)) {
+	fatal("No such parent $parent");
+    }
 }
 my $parent_osinfo = OSinfo->Lookup($parent_image->imageid());
 if (!defined($parent_osinfo)) {
