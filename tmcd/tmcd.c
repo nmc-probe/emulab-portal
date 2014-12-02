@@ -4783,7 +4783,21 @@ COMMAND_PROTOTYPE(domounts)
 		 * XXX Fix this ... crazy routing problems on the racks.
 		 */
 		if (reqp->isvnode && reqp->sharing_mode[0]) {
-			fsnode = FSJAILIP;
+			/*
+			 * See if the node has a public IP.
+			 */
+			res = mydb_query("select IP from virt_node_public_addr "
+					 "where node_id='%s'",
+					 1, reqp->vnodeid);
+			if (!res) {
+				error("MOUNTS: %s: DB Error public IP!\n",
+				      reqp->vnodeid);
+				return 1;
+			}
+			if (!mysql_num_rows(res)) {
+				fsnode = FSJAILIP;
+			}
+			mysql_free_result(res);
 		}
 #endif
 		/*
