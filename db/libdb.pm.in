@@ -608,8 +608,8 @@ sub TBPxelinuxConfig($;$)
 
 	# already exists, see if it is set correctly
 	if (-e "$nfile" && open(FD, "<$nfile")) {
-	    while (<FD>) {
-		if (/^ONTIMEOUT\s+(\S+)/) {
+	    while (my $line = <FD>) {
+		if ($line =~ /^ONTIMEOUT\s+(\S+)/) {
 		    if ($1 eq $action) {
 			close(FD);
 			return;
