@@ -720,10 +720,12 @@ if (defined($webtask)) {
 }
 
 #
-# Be sure to kill off running frisbee. If a node is trying to load that
-# image, well tough.
+# Slight problem here; killing off the running frisbeed will cause
+# any experiment trying to load that image, to blow up. So we
+# do not want to do this for system images, but for project images
+# this is generally okay to do. 
 #
-if (0) {
+if ($pid ne TBOPSPID()) {
     system("$friskiller -k $imageid");
     if ($?) {
 	fatal("Could not kill running frisbee for $imageid!");
