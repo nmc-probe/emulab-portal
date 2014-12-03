@@ -1,0 +1,254 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2014 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use English;
+use Getopt::Std;
+use POSIX qw(strftime);
+use Sys::Syslog;
+
+#
+# This script is invoked on a dhcpd "commit" event.
+#
+# Intended to trigger Emulab node boot related activities.
+#
+
+sub usage()
+{
+    print "Usage: $0 [-bdC] IP MAC boot-type\n";
+    print("Options:\n");
+    print(" -b      - Run in the background\n");
+    print(" -d      - Turn on debugging\n");
+    print(" -C      - Combine PXEBOOTING/BOOTING on the PXE event\n");
+ 
+    exit(1);
+}
+my $optlist    = "bdC";
+my $background = 0;
+my $debug      = 0;
+my $combined   = 0;
+
+#
+# Functions
+#
+sub findnode($$);
+sub logit($);
+sub sendevent($$);
+
+#
+# Configure variables
+#
+my $TB       = "@prefix@";
+my $TBOPS    = "@TBOPSEMAIL@";
+my $EVPORT   = @BOSSEVENTPORT@;
+my $EVSERVER = "boss";
+
+# Locals
+my $logfile  = "$TB/log/reportboot.log";
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/sbin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use libtestbed;
+use libdb;
+use libtblog;
+use event;
+use Interface;
+
+if ($UID != 0) {
+    die("Must be root to run this script\n");
+}
+
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"b"})) {
+    $background = 1;
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (@ARGV != 3) {
+    usage();
+}
+my ($IP,$MAC,$boottype);
+if ($ARGV[0] =~ /^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$/) {
+    $IP = $1;
+} else {
+    print STDERR "'$ARGV[0]' is not an IP address\n";
+    usage();
+}
+$MAC = lc($ARGV[1]);
+if ($MAC =~ /^([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+)$/) {
+    # dhcpd will return an octet like "02" as "2", so we have to compensate
+    $MAC = sprintf("%02x%02x%02x%02x%02x%02x",
+		   hex($1), hex($2), hex($3), hex($4), hex($5), hex($6));
+} else {
+    print STDERR "'$ARGV[1]' is not a MAC address\n";
+    usage();
+}
+if ($ARGV[2] =~ /^(PXE|OS)$/) {
+    $boottype = $1;
+} else {
+    print STDERR "'$ARGV[2]' must be one of PXE or OS\n";
+    usage();
+}
+
+if ($background) {
+    my $cpid = fork();
+    if (!defined($cpid)) {
+	die "$0: could not fork!";
+    }
+    if ($cpid) {
+	exit(0);
+    }
+    open(STDIN, "< /dev/null") or
+	die("opening /dev/null for STDIN: $!");
+    POSIX::setsid() or
+	die("setsid failed: $!");
+}
+
+my $nodeid = findnode($IP, $MAC);
+if (!$nodeid) {
+    logit("Ignoring unknown node $IP");
+    exit(0);
+}
+
+#
+# Combine reporting of PXEBOOTING and BOOTING on the PXE event, reporting
+# nothing on the OS event. Use this if you have problems with later
+# OS-generated events happening before the BOOTING gets reported.
+# Note that this is essentially the same as what bootinfo does.
+#
+if ($combined) {
+    if ($boottype eq "PXE") {
+	if (sendevent($nodeid, "PXEBOOTING") ||
+	    sendevent($nodeid, "BOOTING")) {
+	    logit("$nodeid: could not send PXEBOOTING/BOOTING events");
+	    exit(1);
+	}
+	logit("$nodeid: sent PXEBOOTING and BOOTING events");
+    } else {
+	logit("$nodeid: NOT sending BOOTING event");
+    }
+} else {
+    my $event = ($boottype eq "OS") ? "BOOTING" : "PXEBOOTING";
+    if (sendevent($nodeid, $event)) {
+	logit("$nodeid: could not send $event event");
+	exit(1);
+    }
+    logit("$nodeid: sent $event event");
+}
+
+exit(0);
+
+sub findnode($$)
+{
+    my ($IP,$mac) = @_;
+
+    my $iface = Interface->LookupByIP($IP);
+    return undef
+	if (!$iface);
+
+    # XXX this should never happen since dhcpd looked up the IP by mac.
+    if ($iface->mac() ne $mac) {
+	logit("$IP: came in on $mac but expected " . $iface->mac());
+	return undef;
+    }
+
+    return $iface->node_id();
+}
+
+sub logit($)
+{
+    my $message = shift;
+
+    # Time stamp log messages like:
+    # Sep 20 09:36:00 $message
+    my $tstamp = strftime("%b %e %H:%M:%S", localtime);
+
+    if (open(LOG, ">>$logfile")) {
+	print LOG "$tstamp: $message\n";
+	close(LOG);
+    } else {
+	print STDERR "Could not append to $logfile\n";
+    }
+
+    print STDERR "$message\n" if ($debug);
+}
+
+sub sendevent($$)
+{
+    my ($node,$event) = @_;
+
+    my $URL = "elvin://$EVSERVER:$EVPORT";
+
+    # Connect to the event system, and subscribe the the events we want
+    my $handle = event_register($URL, 0);
+    if (!$handle) {
+	logit("$node: unable to register with event system");
+	return 1;
+    }
+    my $tuple = address_tuple_alloc();
+    if (!$tuple) {
+	logit("$node: could not allocate an address tuple");
+	return 1;
+    }
+
+    %$tuple = ( objtype => "TBNODESTATE",
+		objname => $node,
+		eventtype => $event,
+		host => "boss");
+
+    my $notification = event_notification_alloc($handle, $tuple);
+    if (!$notification) {
+	logit("$node: could not allocate notification");
+	return 1;
+    }
+
+    if (!event_notify($handle, $notification)) {
+	logit("$node: could not send $event notification");
+	return 1;
+    }
+
+    event_notification_free($handle, $notification);
+
+    if (event_unregister($handle) == 0) {
+	logit("$node: WARNING: could not unregister with event system");
+    }
+
+    return 0;
+}
+

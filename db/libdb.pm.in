@@ -87,6 +87,7 @@ use vars qw(@ISA @EXPORT);
 	 TBSetNodeHistory
 	 TBRobotLabExpt
 	 TBExptContainsNodeCT
+	 TBPxelinuxConfig
 	 );
 
 use emdb;
@@ -163,6 +164,14 @@ sub LocalUserLookupByUnixId(@)
     require User;
 
     return User->LookupByUnixId(@_);
+}
+
+# Local lookup for the control net interface
+sub LocalInterfaceLookupControl($)
+{
+    require Interface;
+
+    return Interface->LookupControl($_[0]);
 }
 
 #
@@ -448,11 +457,13 @@ sub ExpNodeVnames($$;$$)
 # Find out what osid a node will boot next time it comes up,
 # Usually (but not always) the currently running OS as well.
 #
-sub TBBootWhat($;$)
+sub TBBootWhat($;$$)
 {
-    my ($node, $debug) = @_;
+    my ($nodeid, $debug, $wantfield) = @_;
     $debug = 0
 	if (!defined($debug));
+    $wantfield = 0
+	if (!defined($wantfield));
 
     #
     # WARNING!!!
@@ -476,32 +487,151 @@ sub TBBootWhat($;$)
 		    "left join os_info as onext on onext.osid=next_boot_osid ".
 		    "left join os_info_versions as vnext on ".
 		    "     vnext.osid=onext.osid and vnext.vers=onext.version ".
-		    "where node_id='$node'");
+		    "where node_id='$nodeid'");
 
     if (!$query_result || !$query_result->numrows) {
-	print("*** Warning: No bootwhat info for $node\n");
+	print("*** Warning: No bootwhat info for $nodeid\n");
 	return undef;
     }
     my ($def_boot_osid, $def_boot_opmode,
 	$temp_boot_osid, $temp_boot_opmode,
 	$next_boot_osid, $next_boot_opmode) = $query_result->fetchrow_array();
 
+    my $boot_osid = 0;
+    my $boot_opmode = 0;
+    my $field = "";
+
     #
     # The priority would seem pretty clear.
     #
-    return ($next_boot_osid, $next_boot_opmode)
-	if (defined($next_boot_osid) && $next_boot_osid ne 0);
-    return ($temp_boot_osid, $temp_boot_opmode)
-	if (defined($temp_boot_osid) && $temp_boot_osid ne 0);
-    return ($def_boot_osid, $def_boot_opmode)
-	if (defined($def_boot_osid) && $def_boot_osid ne 0);
-
+    if (defined($next_boot_osid) && $next_boot_osid ne 0) {
+	$boot_osid = $next_boot_osid;
+	$boot_opmode = $next_boot_opmode;
+	$field = "next_boot_osid";
+    }
+    elsif (defined($temp_boot_osid) && $temp_boot_osid ne 0) {
+	$boot_osid = $temp_boot_osid;
+	$boot_opmode = $temp_boot_opmode;
+	$field = "temp_boot_osid";
+    }
+    elsif (defined($def_boot_osid) && $def_boot_osid ne 0) {
+	$boot_osid = $def_boot_osid;
+	$boot_opmode = $def_boot_opmode;
+	$field = "def_boot_osid";
+    }
     #
     # If all info is clear, the node will boot into PXEWAIT.
     # This is not an error.
     #
-    print("*** Warning: node '$node': All boot info was null!\n");
-    return (0, 0);
+    else {
+	print("*** Warning: node '$nodeid': All boot info was null!\n");
+    }
+
+    # XXX hack for TBpxelinuxConfig below...
+    if ($wantfield) {
+	return $field;
+    }
+
+    return ($boot_osid, $boot_opmode);
+}
+
+#
+# Note that this is a simplified version of what goes on in bootinfo.
+# We are targetting just the Moonshot nodes where the choices are:
+#
+#   1. boot from THE disk
+#   2. boot the frisbee MFS
+#   3. boot a "general" MFS
+#
+# Its not yet clear how PXEWAIT will be handled. The nodes might be
+# powered off in that state, or maybe we go into one of the MFSes to
+# await further instructions.
+#
+sub TBPxelinuxConfig($;$)
+{
+    my ($node,$actionp) = @_;
+    my $nodeid = $node->node_id();
+    my $action;
+    my $verbose = 1;
+    my $field;
+
+    if ($node->IsReserved() && ($field = TBBootWhat($nodeid, 0, 1))) {
+	$action = "pxefail";
+
+	my $query_result =
+	    DBQueryWarn("SELECT v.path,v.mfs,p.partition FROM nodes AS n ".
+			"  LEFT JOIN partitions AS p ON ".
+			"    n.node_id=p.node_id AND ".
+			"    n.${field}=p.osid ".
+			"  LEFT JOIN os_info AS i ON ".
+			"    n.${field}=i.osid ".
+			"  LEFT JOIN os_info_versions AS v ON ".
+			"    i.osid=v.osid AND i.version=v.vers ".
+			"  WHERE n.node_id='$nodeid'");
+
+	if (!$query_result || !$query_result->numrows) {
+	    print("*** Warning: invalid bootinfo for $nodeid, ".
+		  "booting to MFS\n");
+	} else {
+	    my ($path, $mfs, $part) = $query_result->fetchrow_array();
+
+	    if (defined($path) && defined($mfs)) {
+		# XXX how we identify the frisbee MFS
+		if ($path =~ /frisbee/) {
+		    $action = "mfsboot";
+		} else {
+		    $action = "nfsboot";
+		}
+	    } elsif (defined($part)) {
+		$action = "diskboot";
+	    } else {
+		print("*** Warning: invalid $field info for $nodeid, ".
+		      "booting to MFS\n");
+	    }
+	}
+    } else {
+	$action = "pxewait";
+    }
+
+    #
+    # XXX if $actionp is set, we just want to return the action to take
+    #
+    if ($actionp) {
+	$$actionp = $action;
+	return;
+    }
+
+    my $cnet = LocalInterfaceLookupControl($node);
+    if ($cnet && $cnet->mac() &&
+	$cnet->mac() =~ /^(..)(..)(..)(..)(..)(..)$/) {
+	my $nfile = "/tftpboot/pxelinux.cfg/01-$1-$2-$3-$4-$5-$6";
+
+	# already exists, see if it is set correctly
+	if (-e "$nfile" && open(FD, "<$nfile")) {
+	    while (my $line = <FD>) {
+		if ($line =~ /^ONTIMEOUT\s+(\S+)/) {
+		    if ($1 eq $action) {
+			close(FD);
+			return;
+		    }
+		    last;
+		}
+	    }
+	    close(FD);
+	}
+
+	# argh...gotta use a setuid script to install a new pxelinux config!
+	if (!system("$TB/sbin/pxelinux_makeconf -d -a $action $nodeid >>/tmp/pxelinux_makeconf.log 2>&1")) {
+	    print("$nodeid: set pxelinux boot to '$action'\n");
+	    return;
+	}
+
+	print("*** Warning: $nodeid: could not update pxelinux config");
+    } else {
+	print("*** Warning: $nodeid: could not find MAC for cnet iface");
+    }
+    print (", who knows what it will boot!\n");
+    return;
 }
 
 #

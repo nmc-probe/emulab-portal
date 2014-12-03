@@ -20,10 +20,10 @@
 # 
 # }}}
 #
-AC_PREREQ(2.62)
+AC_PREREQ(2.69)
 
 AC_INIT(Makeconf.in)
-AC_CONFIG_AUX_DIR(${srcdir}/autoconf)
+AC_CONFIG_AUX_DIR(autoconf)
 AC_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
 
@@ -110,7 +110,7 @@ NOSHAREDFS=0
 
 TBLOGFACIL="local5"
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
-AC_DEFINE_UNQUOTED(LOG_TESTBED, $LOG_TESTBED)
+AC_DEFINE_UNQUOTED(LOG_TESTBED, $LOG_TESTBED, [Syslog log facility for Emulab daemons])
 AC_SUBST(LOG_TESTBED)
 AC_SUBST(TBLOGFACIL)
 
@@ -171,7 +171,7 @@ else
 		  os/imagezip/ntfs/liblocale/GNUmakefile \
 		  os/imagezip/ntfs/libntfs/GNUmakefile \
 		  os/imagezip/fat/GNUmakefile"
-        AC_DEFINE_UNQUOTED(WINSUPPORT, 1)
+        AC_DEFINE_UNQUOTED(WINSUPPORT, 1, [Support Windows images])
 fi
 
 #
@@ -184,7 +184,7 @@ if test "$enable_elvin_compat" = "yes"; then
     ELVIN_COMPAT=1
 fi
 if test $ELVIN_COMPAT -eq 1; then
-    AC_DEFINE_UNQUOTED(ELVIN_COMPAT, 1)
+    AC_DEFINE_UNQUOTED(ELVIN_COMPAT, 1, [Obsolete])
 fi
 
 AC_ARG_ENABLE(TPM,
@@ -194,7 +194,7 @@ if test "$enable_TPM" = "yes"; then
     TPM=1
 fi
 if test $TPM -eq 1; then
-    AC_DEFINE_UNQUOTED(TPM, 1)
+    AC_DEFINE_UNQUOTED(TPM, 1, [Something about TPM])
 fi
 
 # BEGIN Python detection. For the event library.
@@ -271,6 +271,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/ubuntu10/GNUmakefile \
 	  tmcc/ubuntu11/GNUmakefile \
 	  tmcc/ubuntu14/GNUmakefile \
+	  tmcc/linux-ms/GNUmakefile \
 	  tmcc/freebsd5/GNUmakefile tmcc/freebsd5/supfile \
 	  tmcc/freebsd6/GNUmakefile tmcc/freebsd6/supfile \
 	  tmcc/freebsd6/netif-emulab \
@@ -301,6 +302,5 @@ outfiles="Makeconf GNUmakefile setversion \
 DISTCLEAN_FILES="$outfiles"
 AC_SUBST(DISTCLEAN_FILES)
 
-AC_OUTPUT($outfiles)
-
-
+AC_CONFIG_FILES([$outfiles])
+AC_OUTPUT

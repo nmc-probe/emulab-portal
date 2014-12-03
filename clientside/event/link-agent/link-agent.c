@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2007 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -141,7 +141,8 @@ main(int argc, char **argv)
 		loginit(0, logfile);
 	else {
 		/* Become a daemon */
-		daemon(0, 0);
+		if (daemon(0, 0))
+			fatal("could not daemonize");
 
 		if (logfile)
 			loginit(0, logfile);
@@ -213,18 +214,18 @@ main(int argc, char **argv)
 
 		if ((bp = index(ap, ',')) == NULL)
 			usage();
-		*bp++ = (char) NULL;
+		*bp++ = '\0';
 		link  = ap;
 		vnode = bp;
 
 		if ((bp = index(bp, ',')) == NULL)
 			usage();
-		*bp++ = (char) NULL;
+		*bp++ = '\0';
 		iface = bp;
 
 		if ((bp = index(bp, ',')) == NULL)
 			usage();
-		*bp++ = (char) NULL;
+		*bp++ = '\0';
 		mac   = convertmac(bp);
 		if (! mac) {
 			fatal("Must have a proper MAC!");
@@ -271,7 +272,7 @@ main(int argc, char **argv)
 			strcat(bp, ",");
 		}
 		else
-			*bp = (char) NULL;
+			*bp = '\0';
 		strcat(bp, link);
 		strcat(bp, ",");
 		strcat(bp, buf);

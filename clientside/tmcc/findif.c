@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2001-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -311,8 +311,8 @@ find_iface(char *macaddr)
 		return -1;
 	}
 	/* Eat a couple of lines */
-	fgets(buf, sizeof(buf), fp);
-	fgets(buf, sizeof(buf), fp);
+	(void)fgets(buf, sizeof(buf), fp);
+	(void)fgets(buf, sizeof(buf), fp);
 
 	while (fgets(buf, sizeof(buf), fp)) {
 		sscanf(buf, "%s:", ifr->ifr_name);

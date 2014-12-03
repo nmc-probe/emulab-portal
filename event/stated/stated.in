@@ -1110,10 +1110,15 @@ sub opModeTransition($$;$) {
     $nodes{$node}{notified}       = 0;
 
     info("$node: $mode/$oldstate => $newmode/$nextstate\n");
-    DBQueryFatal("UPDATE nodes SET eventstate='$nextstate', ".
-		 "next_op_mode='', op_mode='$newmode', ".
-		 "state_timestamp='$now', ".
-		 "op_mode_timestamp='$now' WHERE node_id='$node'");
+    my $nodeobj = Node->LookupSync($node);
+    my %updates = ("eventstate"        => $nextstate,
+		   "next_op_mode"      => '',
+		   "op_mode"           => $newmode,
+		   "state_timestamp"   => $now,
+		   "op_mode_timestamp" => $now);
+    if ($nodeobj->Update(\%updates)) {
+	notify("Could not make op_mode transition to $newmode for $node!\n");
+    }
 
     # Check if this state has a timeout, and if so, put it in the queue
     setTimeout($newmode,$nextstate,$node,$now);
@@ -1149,7 +1154,7 @@ sub handleCtrlEvent($$) {
 		notify("$node/$event: Could not clear next_pxe_boot_path!\n");
 
 	    info("$node: Performed $TBPXERESET\n");
-	    next;
+	    last;
 	};
 	/^$TBRESET$/ && do {
 	    # Clear next_boot_path.
@@ -1158,7 +1163,7 @@ sub handleCtrlEvent($$) {
 	    }
 	    my ($bosid,$bopmode) = TBBootWhat($node, 0);
 	    info("$node: $TBRESET done, bootwhat returns $bopmode,$bosid\n");
-	    next;
+	    last;
 	};
 	(/^$TBRELOADDONEV1$/ || /^$TBRELOADDONEV2$/) && do {
 	    info("$node: Clearing reload info\n");
@@ -1187,7 +1192,7 @@ sub handleCtrlEvent($$) {
 		    notify("Could not apod $node after $TBRELOADDONEV2!\n");
 		}
 	    }
-	    next;
+	    last;
 	};
 	/^$TBTIMEOUT$/ && do {
 	    my ($mode,$state) = split(":",$timeout_tag{$node});
@@ -1217,7 +1222,7 @@ sub handleCtrlEvent($$) {
 		    notify("$node: Unknown timeout action for ".
 			   "$mode/$state: '$action'\n");
 		}
-		next;
+		last;
 	    }
 
 	    #
@@ -1250,7 +1255,7 @@ sub handleCtrlEvent($$) {
 		    notify("$PXEWAKEUP retry: ".
 			   "Command '$cmd' failed, error $?: $!\n");
 
-		next;
+		last;
 	    }
 
 	    info("Node $node has timed out in state $mode/$state".
@@ -1283,7 +1288,7 @@ sub handleCtrlEvent($$) {
                     last; };
 		notify("$node: Unknown Timeout Action: $action\n");
 	    }
-	    next;
+	    last;
 	};
 	notify("$node: Unknown CtrlEvent: $event\n");
     }

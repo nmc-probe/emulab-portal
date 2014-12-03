@@ -20,10 +20,11 @@
 # 
 # }}}
 #
-AC_PREREQ(2.62)
+AC_PREREQ([2.69])
 
-AC_INIT(Makeconf.in)
-AC_CONFIG_AUX_DIR(${srcdir}/autoconf)
+AC_INIT
+AC_CONFIG_SRCDIR([Makeconf.in])
+AC_CONFIG_AUX_DIR(autoconf)
 AC_PREFIX_DEFAULT(/usr/testbed)
 AC_CONFIG_HEADER(config.h)
 AC_CANONICAL_HOST
@@ -554,123 +555,123 @@ fi
 # Be sure to add to config.h.in!
 #
 if test x"$prefix" = x"NONE"; then
-    AC_DEFINE_UNQUOTED(TBROOT, "/usr/testbed")
+    AC_DEFINE_UNQUOTED(TBROOT, "/usr/testbed", [FS base for Emulab files])
 else
-    AC_DEFINE_UNQUOTED(TBROOT, "$prefix")
+    AC_DEFINE_UNQUOTED(TBROOT, "$prefix", [FS base for Emulab files])
 fi
-AC_DEFINE_UNQUOTED(TBDBNAME, "$TBDBNAME")
-AC_DEFINE_UNQUOTED(TBERRORLOGDBNAME, "$TBERRORLOGDBNAME")
-AC_DEFINE_UNQUOTED(TBADMINGROUP, "$TBADMINGROUP")
-AC_DEFINE_UNQUOTED(IPBASE, "$IPBASE")
-AC_DEFINE_UNQUOTED(JAILIPBASE, "$JAILIPBASE")
-AC_DEFINE_UNQUOTED(JAILIPMASK, "$JAILIPMASK")
-AC_DEFINE_UNQUOTED(BOSSNODE, "$BOSSNODE")
-AC_DEFINE_UNQUOTED(BOSSNODE_IP, "$BOSSNODE_IP")
-AC_DEFINE_UNQUOTED(EXTERNAL_BOSSNODE_IP, "$EXTERNAL_BOSSNODE_IP")
-AC_DEFINE_UNQUOTED(USERNODE, "$USERNODE")
-AC_DEFINE_UNQUOTED(USERNODE_IP, "$USERNODE_IP")
-AC_DEFINE_UNQUOTED(EXTERNAL_USERNODE_IP, "$EXTERNAL_USERNODE_IP")
-AC_DEFINE_UNQUOTED(FSNODE, "$FSNODE")
+AC_DEFINE_UNQUOTED(TBDBNAME, "$TBDBNAME", [Emulab DB name])
+AC_DEFINE_UNQUOTED(TBERRORLOGDBNAME, "$TBERRORLOGDBNAME", [Emulab errorlog DB])
+AC_DEFINE_UNQUOTED(TBADMINGROUP, "$TBADMINGROUP", [Unix group of admin user])
+AC_DEFINE_UNQUOTED(IPBASE, "$IPBASE", [Base of IPv4 space used for experiments])
+AC_DEFINE_UNQUOTED(JAILIPBASE, "$JAILIPBASE", [Base of IPv4 space used for VMs])
+AC_DEFINE_UNQUOTED(JAILIPMASK, "$JAILIPMASK", [Netmask for JAILIPBASE])
+AC_DEFINE_UNQUOTED(BOSSNODE, "$BOSSNODE", [DNS name of boss node])
+AC_DEFINE_UNQUOTED(BOSSNODE_IP, "$BOSSNODE_IP", [IPv4 address of boss node to be used by nodes])
+AC_DEFINE_UNQUOTED(EXTERNAL_BOSSNODE_IP, "$EXTERNAL_BOSSNODE_IP", [IPv4 address of boss used from outside])
+AC_DEFINE_UNQUOTED(USERNODE, "$USERNODE", [DNS name of ops node])
+AC_DEFINE_UNQUOTED(USERNODE_IP, "$USERNODE_IP", [IPv4 address of ops node to be used by nodes])
+AC_DEFINE_UNQUOTED(EXTERNAL_USERNODE_IP, "$EXTERNAL_USERNODE_IP", [IPv4 address of ops used from outside])
+AC_DEFINE_UNQUOTED(FSNODE, "$FSNODE", [DNS name of fs node])
 if test -n "$FSNODE_IP"; then
-	AC_DEFINE_UNQUOTED(FSNODE_IP, "$FSNODE_IP")
+	AC_DEFINE_UNQUOTED(FSNODE_IP, "$FSNODE_IP", [IPv4 address of fs node to be used by nodes])
 elif test "$USERNODE" = "$FSNODE"; then
-	AC_DEFINE_UNQUOTED(FSNODE_IP, "$USERNODE_IP")
+	AC_DEFINE_UNQUOTED(FSNODE_IP, "$USERNODE_IP", [IPv4 address of fs node to be used by nodes])
 elif test "$BOSSNODE" = "$FSNODE"; then
-	AC_DEFINE_UNQUOTED(FSNODE_IP, "$BOSSNODE_IP")
+	AC_DEFINE_UNQUOTED(FSNODE_IP, "$BOSSNODE_IP", [IPv4 address of fs node to be used by nodes])
 fi
-AC_DEFINE_UNQUOTED(CONTROL_ROUTER_IP, "$CONTROL_ROUTER_IP")
-AC_DEFINE_UNQUOTED(CONTROL_NETWORK, "$CONTROL_NETWORK")
-AC_DEFINE_UNQUOTED(CONTROL_NETMASK, "$CONTROL_NETMASK")
-AC_DEFINE_UNQUOTED(USERSROOT_DIR, "$USERSROOT_DIR")
-AC_DEFINE_UNQUOTED(PROJROOT_DIR, "$PROJROOT_DIR")
-AC_DEFINE_UNQUOTED(GROUPSROOT_DIR, "$GROUPSROOT_DIR")
-AC_DEFINE_UNQUOTED(SCRATCHROOT_DIR, "$SCRATCHROOT_DIR")
-AC_DEFINE_UNQUOTED(SHAREROOT_DIR, "$SHAREROOT_DIR")
-AC_DEFINE_UNQUOTED(FSDIR_PROJ, "$FSDIR_PROJ")
-AC_DEFINE_UNQUOTED(FSDIR_GROUPS, "$FSDIR_GROUPS")
-AC_DEFINE_UNQUOTED(FSDIR_USERS, "$FSDIR_USERS")
+AC_DEFINE_UNQUOTED(CONTROL_ROUTER_IP, "$CONTROL_ROUTER_IP", [IPv4 address of router to be used by nodes])
+AC_DEFINE_UNQUOTED(CONTROL_NETWORK, "$CONTROL_NETWORK", [IPv4 node control network])
+AC_DEFINE_UNQUOTED(CONTROL_NETMASK, "$CONTROL_NETMASK", [IPv4 node control network mask])
+AC_DEFINE_UNQUOTED(USERSROOT_DIR, "$USERSROOT_DIR", [Root of 'users' filesystem])
+AC_DEFINE_UNQUOTED(PROJROOT_DIR, "$PROJROOT_DIR", [Root of 'proj' filesystem])
+AC_DEFINE_UNQUOTED(GROUPSROOT_DIR, "$GROUPSROOT_DIR", [Root of 'groups' filesystem])
+AC_DEFINE_UNQUOTED(SCRATCHROOT_DIR, "$SCRATCHROOT_DIR", [Root of 'scratch' filesystem])
+AC_DEFINE_UNQUOTED(SHAREROOT_DIR, "$SHAREROOT_DIR", [Root of 'share' filesystem])
+AC_DEFINE_UNQUOTED(FSDIR_PROJ, "$FSDIR_PROJ", [Mount point of 'proj' filesystem on fs node])
+AC_DEFINE_UNQUOTED(FSDIR_GROUPS, "$FSDIR_GROUPS", [Mount point of 'groups' filesystem on fs node])
+AC_DEFINE_UNQUOTED(FSDIR_USERS, "$FSDIR_USERS", [Mount point of 'users' filesystem on fs node])
 if test -n "$FSDIR_SHARE"; then
-    AC_DEFINE_UNQUOTED(FSDIR_SHARE, "$FSDIR_SHARE")
+    AC_DEFINE_UNQUOTED(FSDIR_SHARE, "$FSDIR_SHARE", [Mount point of 'share' filesystem on fs node])
 fi
 if test -n "$FSDIR_SCRATCH"; then
-    AC_DEFINE_UNQUOTED(FSDIR_SCRATCH, "$FSDIR_SCRATCH")
+    AC_DEFINE_UNQUOTED(FSDIR_SCRATCH, "$FSDIR_SCRATCH", [Mount point of 'scratch' filesystem on fs node])
 fi
-AC_DEFINE_UNQUOTED(BOSSEVENTPORT, "$BOSSEVENTPORT")
-AC_DEFINE_UNQUOTED(FRISEBEEMCASTADDR, "$FRISEBEEMCASTADDR")
-AC_DEFINE_UNQUOTED(FRISEBEEMCASTPORT, "$FRISEBEEMCASTPORT")
-AC_DEFINE_UNQUOTED(FRISEBEENUMPORTS, "$FRISEBEENUMPORTS")
+AC_DEFINE_UNQUOTED(BOSSEVENTPORT, "$BOSSEVENTPORT", [IPv4 address of pubsub server on boss])
+AC_DEFINE_UNQUOTED(FRISEBEEMCASTADDR, "$FRISEBEEMCASTADDR", [Base IPv4 multicast address for disk imaging])
+AC_DEFINE_UNQUOTED(FRISEBEEMCASTPORT, "$FRISEBEEMCASTPORT", [Base IPv4 port for disk imaging])
+AC_DEFINE_UNQUOTED(FRISEBEENUMPORTS, "$FRISEBEENUMPORTS", [Number of IPv4 ports for disk imaging])
 
-AC_DEFINE_UNQUOTED(NTPSERVER, "$NTPSERVER")
-AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER1, "$EXTERNAL_NTPSERVER1")
-AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER2, "$EXTERNAL_NTPSERVER2")
-AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER3, "$EXTERNAL_NTPSERVER3")
-AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER4, "$EXTERNAL_NTPSERVER4")
-AC_DEFINE_UNQUOTED(NTPDRIFTFILE, "$NTPDRIFTFILE")
+AC_DEFINE_UNQUOTED(NTPSERVER, "$NTPSERVER", [NTP server for nodes])
+AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER1, "$EXTERNAL_NTPSERVER1", [External NTP server for NTP node])
+AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER2, "$EXTERNAL_NTPSERVER2", [External NTP server for NTP node])
+AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER3, "$EXTERNAL_NTPSERVER3", [External NTP server for NTP node])
+AC_DEFINE_UNQUOTED(EXTERNAL_NTPSERVER4, "$EXTERNAL_NTPSERVER4", [External NTP server for NTP node])
+AC_DEFINE_UNQUOTED(NTPDRIFTFILE, "$NTPDRIFTFILE", [Location of NTP driftfile])
 
-AC_DEFINE_UNQUOTED(MANAGEMENT_NETWORK, "$MANAGEMENT_NETWORK")
-AC_DEFINE_UNQUOTED(MANAGEMENT_NETMASK, "$MANAGEMENT_NETMASK")
-AC_DEFINE_UNQUOTED(MANAGEMENT_ROUTER, "$MANAGEMENT_ROUTER")
+AC_DEFINE_UNQUOTED(MANAGEMENT_NETWORK, "$MANAGEMENT_NETWORK", [IPv4 node mangagement network])
+AC_DEFINE_UNQUOTED(MANAGEMENT_NETMASK, "$MANAGEMENT_NETMASK", [IPv4 node management netmask])
+AC_DEFINE_UNQUOTED(MANAGEMENT_ROUTER, "$MANAGEMENT_ROUTER", [IPv4 node management default GW])
 
 if test $OPSDBSUPPORT -eq 1; then
-    AC_DEFINE_UNQUOTED(OPSDBSUPPORT, 1)
+    AC_DEFINE_UNQUOTED(OPSDBSUPPORT, 1, [Obsolete])
 fi
 
 if test $ELVIN_COMPAT -eq 1; then
-    AC_DEFINE_UNQUOTED(ELVIN_COMPAT, 1)
+    AC_DEFINE_UNQUOTED(ELVIN_COMPAT, 1, [Obsolete])
 fi
 
 if test $ELABINELAB -eq 1; then
-    AC_DEFINE_UNQUOTED(ELABINELAB, 1)
+    AC_DEFINE_UNQUOTED(ELABINELAB, 1, [For an Emulab-in-Emulab configuration])
 fi
 
 if test $ISOLATEADMINS -eq 1; then
-    AC_DEFINE_UNQUOTED(ISOLATEADMINS, 1)
+    AC_DEFINE_UNQUOTED(ISOLATEADMINS, 1, [Do not allow admins and non-admins in same project])
 fi
 if test $DYNAMICROOTPASSWORDS -eq 1; then
-    AC_DEFINE_UNQUOTED(DYNAMICROOTPASSWORDS, 1)
+    AC_DEFINE_UNQUOTED(DYNAMICROOTPASSWORDS, 1, [Per-node root passwords])
 fi
 if test $TPM -eq 1; then
-    AC_DEFINE_UNQUOTED(TPM, 1)
+    AC_DEFINE_UNQUOTED(TPM, 1, [Something about TPM])
 fi
 if test $NOSHAREDFS -eq 1; then
-    AC_DEFINE_UNQUOTED(NOSHAREDFS, 1)
+    AC_DEFINE_UNQUOTED(NOSHAREDFS, 1, [Do not allow NFS-shared filesystems])
 fi
 if test $NFSRACY -eq 1; then
-    AC_DEFINE_UNQUOTED(NFSRACY, 1)
+    AC_DEFINE_UNQUOTED(NFSRACY, 1, [NFS server has race])
 fi
 if test $OPSVM_ENABLE -eq 1; then
-    AC_DEFINE_UNQUOTED(OPSVM_ENABLE, 1)
-    AC_DEFINE_UNQUOTED(OPSVM_MOUNTPOINT, $OPSVM_MOUNTPOINT)
+    AC_DEFINE_UNQUOTED(OPSVM_ENABLE, 1, [ops node is a VM])
+    AC_DEFINE_UNQUOTED(OPSVM_MOUNTPOINT, $OPSVM_MOUNTPOINT, [mount point on boss for ops VM FSes])
 fi
 if test $SPEWFROMOPS -eq 1; then
-    AC_DEFINE_UNQUOTED(SPEWFROMOPS, 1)
+    AC_DEFINE_UNQUOTED(SPEWFROMOPS, 1, [Server rpm/tarballs from ops rather than boss])
 fi
 if test $PROTOGENI_SUPPORT -eq 1; then
-    AC_DEFINE_UNQUOTED(PROTOGENI_SUPPORT, 1)
+    AC_DEFINE_UNQUOTED(PROTOGENI_SUPPORT, 1, [Support Protogeni])
 fi
 if test $PROTOGENI_GENIRACK -eq 1; then
-    AC_DEFINE_UNQUOTED(PROTOGENI_GENIRACK, 1)
+    AC_DEFINE_UNQUOTED(PROTOGENI_GENIRACK, 1, [Support Protogeni rack])
 fi
 if test $IMAGEPROVENANCE -eq 1; then
-    AC_DEFINE_UNQUOTED(IMAGEPROVENANCE, 1)
+    AC_DEFINE_UNQUOTED(IMAGEPROVENANCE, 1, [Support image versioning])
 fi
 if test $IMAGEDELTAS -eq 1; then
-    AC_DEFINE_UNQUOTED(IMAGEDELTAS, 1)
+    AC_DEFINE_UNQUOTED(IMAGEDELTAS, 1, [Support imagezip delta images])
 fi
 if test $NOVIRTNFSMOUNTS -eq 1; then
-    AC_DEFINE_UNQUOTED(NOVIRTNFSMOUNTS, 1)
+    AC_DEFINE_UNQUOTED(NOVIRTNFSMOUNTS, 1, [Do not use NFS mounts on virtual nodes])
 fi
 if test $WITHZFS -eq 1; then
-    AC_DEFINE_UNQUOTED(WITHZFS, 1)
+    AC_DEFINE_UNQUOTED(WITHZFS, 1, [Use ZFS on FS node for shared filesystems])
 fi
 if test $WITHAMD -eq 1; then
-    AC_DEFINE_UNQUOTED(WITHAMD, 1)
-    AC_DEFINE_UNQUOTED(AMD_ROOT, "$AMD_ROOT")
+    AC_DEFINE_UNQUOTED(WITHAMD, 1, [Run AMD on boss node to handle shared FS mounts])
+    AC_DEFINE_UNQUOTED(AMD_ROOT, "$AMD_ROOT", [Actual FS mount directory for AMD])
 fi
-AC_DEFINE_UNQUOTED(IMPORT_TMPDIR, "$IMPORT_TMPDIR")
+AC_DEFINE_UNQUOTED(IMPORT_TMPDIR, "$IMPORT_TMPDIR", [Directory to use for imported images])
 
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
-AC_DEFINE_UNQUOTED(LOG_TESTBED, $LOG_TESTBED)
+AC_DEFINE_UNQUOTED(LOG_TESTBED, $LOG_TESTBED, [Syslog log facility for Emulab daemons])
 AC_SUBST(LOG_TESTBED)
 
 #
@@ -745,7 +746,7 @@ if test -z "$OURDOMAIN"; then
     OURDOMAIN="`echo $BOSSNODE | sed -E -e 's/^[a-zA-Z0-9\-]+\.//'`"
 fi
 changequote([, ])dnl
-AC_DEFINE_UNQUOTED(OURDOMAIN, "$OURDOMAIN")
+AC_DEFINE_UNQUOTED(OURDOMAIN, "$OURDOMAIN", [Domain name of Emulab site])
 
 if test -z "$EXTERNAL_TESTBED_NETWORK"; then
     EXTERNAL_TESTBED_NETWORK=$TESTBED_NETWORK
@@ -783,7 +784,7 @@ fi
 if test -z "$TBWWW"; then
     TBWWW="<$TBBASE/>"
 fi
-AC_DEFINE_UNQUOTED(TBBASE, "$TBBASE")
+AC_DEFINE_UNQUOTED(TBBASE, "$TBBASE", [Base URL for Emulab files])
 
 if test -z "$THISHOMEBASE"; then
     THISHOMEBASE="Emulab.Net"
@@ -791,15 +792,15 @@ fi
 if test -z "$EVENTSERVER"; then
     EVENTSERVER="event-server"
 fi
-AC_DEFINE_UNQUOTED(EVENTSERVER, "$EVENTSERVER")
-AC_DEFINE_UNQUOTED(BS_IQN_PREFIX, "$BS_IQN_PREFIX")
+AC_DEFINE_UNQUOTED(EVENTSERVER, "$EVENTSERVER", [Emulab event server node])
+AC_DEFINE_UNQUOTED(BS_IQN_PREFIX, "$BS_IQN_PREFIX", [IQN prefix for blockstores])
 
 #
 # Perl SelfLoader
 # XXX this is a hack which enables us to disable it on versions of perl
 # where there are problems with taint checking in the SelfLoader module.
 #
-AC_DEFINE_UNQUOTED(SELFLOADER_DATA, "$SELFLOADER_DATA")
+AC_DEFINE_UNQUOTED(SELFLOADER_DATA, "$SELFLOADER_DATA", [Need perl SelfLoader hack])
 
 #
 # LEDA library path
@@ -994,7 +995,7 @@ else
 		  clientside/os/imagezip/ntfs/libntfs/GNUmakefile \
 		  clientside/os/imagezip/fat/GNUmakefile"
 	optional_subdirs="$optional_subdirs";
-        AC_DEFINE_UNQUOTED(WINSUPPORT, 1)
+        AC_DEFINE_UNQUOTED(WINSUPPORT, 1, [Support Windows images])
 fi
 
 #
@@ -1002,7 +1003,7 @@ fi
 #
 
 AC_CHECK_HEADERS([ulxmlrpcpp/ulxr_config.h],
-		 [AC_DEFINE(HAVE_ULXMLRPCPP)
+		 [AC_DEFINE(HAVE_ULXMLRPCPP, [], [XXX])
 		  HAVE_ULXMLRPCPP="yes"])
 AC_SUBST(HAVE_ULXMLRPCPP)
 
@@ -1019,7 +1020,7 @@ AC_ARG_ENABLE(mezzanine,
 
 if test x"$HAVE_LINUX_VIDEODEV_H" != x"" && test x"$GTK_CONFIG" != x""; then
     HAVE_MEZZANINE="$enable_mezzanine"
-    AC_DEFINE([HAVE_MEZZANINE])
+    AC_DEFINE([HAVE_MEZZANINE], [], [Obsolete])
 else
     HAVE_MEZZANINE="no"
 fi
@@ -1028,8 +1029,7 @@ AC_SUBST(HAVE_MEZZANINE)
 #
 # Check for a few things used by assign
 #
-AC_LANG_SAVE
-AC_LANG_CPLUSPLUS
+AC_LANG_PUSH([C++])
 
 #
 # Check for Xerces (required for XML support in assign).
@@ -1041,7 +1041,7 @@ AC_CHECK_HEADER([xercesc/dom/DOM.hpp],[HAVE_XERCES=yes])
 #
 AC_CHECK_HEADER([boost/property_map/property_map.hpp],[NEWER_BOOST=yes])
 
-AC_LANG_RESTORE
+AC_LANG_POP([C++])
 AC_SUBST(HAVE_XERCES)
 AC_SUBST(NEWER_BOOST)
 
@@ -1306,7 +1306,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/opsdb_control utils/opsdb_control.proxy \
 	utils/remove_old_www utils/epmodeset \
 	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
-	utils/mktestbedtest \
+	utils/mktestbedtest utils/pxelinux_makeconf \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \
@@ -1444,6 +1444,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/ubuntu10/GNUmakefile \
  clientside/tmcc/ubuntu11/GNUmakefile \
  clientside/tmcc/ubuntu14/GNUmakefile \
+ clientside/tmcc/linux-ms/GNUmakefile \
  clientside/tmcc/freebsd5/GNUmakefile clientside/tmcc/freebsd5/supfile \
  clientside/tmcc/freebsd6/GNUmakefile clientside/tmcc/freebsd6/supfile \
  clientside/tmcc/freebsd6/netif-emulab \
@@ -1470,5 +1471,5 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
 DISTCLEAN_FILES="$outfiles"
 AC_SUBST(DISTCLEAN_FILES)
 
-AC_OUTPUT($outfiles)
-
+AC_CONFIG_FILES([$outfiles])
+AC_OUTPUT

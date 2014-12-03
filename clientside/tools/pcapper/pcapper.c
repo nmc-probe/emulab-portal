@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2009 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -393,7 +393,7 @@ void usage(char *progname) {
 		       "interfaces... A list of interfaces to monitor\n";
 
     fprintf(stderr,short_usage,progname,progname);
-    fprintf(stderr,long_usage);
+    fprintf(stderr,"%s",long_usage);
     exit(-1);
 }
 
@@ -1058,7 +1058,7 @@ int main (int argc, char **argv) {
 		int fd;
 		struct feedclient_args *args;
 		struct sockaddr client_addr;
-		size_t client_addrlen = sizeof(&client_addr);
+		socklen_t client_addrlen = sizeof(&client_addr);
 
 		fd = accept(sock,&client_addr,&client_addrlen);
 

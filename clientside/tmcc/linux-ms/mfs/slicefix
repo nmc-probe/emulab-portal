@@ -1,0 +1,298 @@
+#!/bin/sh
+#
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+
+if [ -r /etc/emulab/paths.sh ]; then
+	. /etc/emulab/paths.sh
+else
+	BINDIR=/etc/testbed
+	BOOTDIR=/var/emulab/boot
+	ETCDIR=/etc/emulab
+fi
+
+MFS_DEBUG=${MFS_DEBUG:-'n'}
+if [ "$MFS_DEBUG" = "y" ]; then
+    set -x
+fi
+
+disk="sda"
+
+case $# in
+1)
+	part=$1
+	;;
+2)
+	part=$1
+	disk=$2
+	;;
+*)
+	echo "Usage: $0 partition [disk]"
+	exit 1
+esac
+
+#
+# Handle pseudo arguments in the environment.
+#
+
+#
+# Find out what our console should be:
+#   if $CONSOLE is set and valid, use that
+#   ow console is "sio1"
+#
+# XXX on Moonshots, only "sio1" is supported.
+#
+CONSOLE=sio1
+#CONSOLE=${SLICEFIX_CONSOLE:-'sio1'}
+case $CONSOLE in
+sio|sio1)
+    ;;
+*)
+    echo "WARNING: unknown console type \"$CONSOLE\", assuming \"sio1\""
+    ;;
+esac
+
+# DOM0MEM is optional
+DOM0MEM=$SLICEFIX_DOM0MEM
+
+if [ -r $ETCDIR/bossnode ]; then
+    bossnode=`cat $ETCDIR/bossnode`;
+    setboss=1
+else
+    setboss=0
+fi
+
+# TRIM is optional
+TRIM=${SLICEFIX_TRIM:-'0'}
+case $TRIM in
+0|1)
+    ;;
+*)
+    echo "WARNING: unexpected TRIM argument \"$TRIM\", ignored"
+    TRIM=0
+    ;;
+esac
+
+# XXX hack to determine the root FS partition
+RPART=$SLICEFIX_RPART
+
+# Indicates the MFS has been properly localized and we can copy stuff
+# into the image.
+LOCALIZED1="/.localized"
+LOCALIZED2="/root/.localized"
+
+islocalized() {
+    if [ -e $LOCALIZED1 -o -e $LOCALIZED2 ]; then
+	return 0;
+    fi
+    return 1;
+}
+
+#
+# Get the last setting of a loader variable from the list of standard files
+#
+getloadervar() {
+    _var=$1
+    _mnt=$2
+    _flist="$_mnt/boot/defaults/loader.conf $_mnt/boot/device.hints $_mnt/boot/loader.conf $_mnt/boot/loader.conf.local"
+
+    _last=`grep "^${_var}=" $_flist 2>/dev/null | tail -1`
+    _val=`echo ${_last#*=} | sed -e 's/^"//' -e 's/"$//'`
+    echo $_val
+}
+
+dolinux() {
+    isroot=0
+
+    if [ $part -eq $RPART ]; then
+	isroot=1
+    fi
+
+    #
+    # Turn off time-dependent fsck.
+    #
+    check=`dumpe2fs /dev/${disk}${part} 2>/dev/null | \
+	grep 'Check interval:' | \
+	sed -e 's/.*Check interval:  *\([0-9]*\).*/\1/'`
+    if [ $check -ne 0 ]; then
+	echo "  disabling time-dependent fsck"
+	tune2fs -i 0 /dev/${disk}${part} >/dev/null 2>&1
+	if [ $? -ne 0 ]; then
+	    echo "  WARNING: could not disable time-dependent fsck"
+	fi
+    fi
+
+    # The rest is just for the root FS
+    if [ $isroot -eq 0 ]; then
+	return
+    fi
+
+    rootdev=/dev/${disk}${part}
+
+    #
+    # See if there is a valid filesystem UUID to use in fstab and grub.
+    #
+    RUUID=`dumpe2fs $rootdev 2>/dev/null | grep UUID: | \
+	sed -e 's/.*UUID:  *\([^ ]*\).*/\1/'`
+    #
+    # To be pedantic, we should do the following (generate a new
+    # UUID). Note that this will cause the root FS to be fsck'ed
+    # everytime (see needfsck below).
+    #
+    if [ -n "$RUUID" ]; then
+	# generate/install a new random UUID with tune2fs
+	echo "  setting new root FS UUID"
+	tune2fs -U random $rootdev 2>/dev/null
+	RUUID=`dumpe2fs $rootdev 2>/dev/null | grep UUID: | \
+	    sed -e 's/.*UUID:  *\([^ ]*\).*/\1/'`
+    fi
+
+    #
+    # Attempt to mount filesystem   
+    #
+    echo "  fixing Linux root partition ${disk}${part}"
+    for t in ext4 ext3; do
+	if mount -t $t $rootdev /mnt; then
+	    break;
+	fi
+    done
+    if [ $? -ne 0 ]; then
+	echo "Failed to mount ${disk}${part}"
+	return 1
+    fi
+
+    # hardwire the boss node
+    if [ $setboss -eq 1 -a -d /mnt/etc/emulab ]; then
+	echo "  hardwiring boss to $bossnode"
+	cp $ETCDIR/bossnode /mnt/etc/emulab/bossnode || {
+	    echo "Failed to create /etc/emulab/bossnode"
+	    umount $rootdev
+	    return 1
+	}
+    fi
+
+    # change the devices in fstab
+    echo "  updating /etc/fstab"
+    sed -i.preemulab -e "s;^/dev/[hs]d.\([0-7]\);/dev/${disk}\1;" /mnt/etc/fstab || {
+	echo "Failed to update /etc/fstab"
+	umount $rootdev
+	return 1
+    }
+
+    #
+    # If filesystem has a UUID, make sure that is used in fstab.
+    #
+    # Note that we will only use the UUID if it is already being used
+    # in the image we just downloaded. This is just because I don't want
+    # to chance breaking some really old image.
+    #
+    if [ -n "$RUUID" ]; then
+	sed -i -e "s;^UUID=[^ ][^ ]*  */ ;UUID=$RUUID / ;" /mnt/etc/fstab || {
+	    echo "Failed to update /etc/fstab"
+	    umount $rootdev
+	    return 1
+	}
+    fi
+	
+    #
+    # XXX let's not mess with /boot/grub/menu.lst unless we have to
+    #
+
+    #
+    # XXX there is only one choice of console as well
+    #
+
+    #
+    # Localize the image. We only do this if the MFS we are running in
+    # has the necessary files.
+    #
+    if islocalized; then
+	echo "  localizing ..."
+	$BINDIR/localize_image /mnt || {
+	    umount $rootdev
+	    return 1
+	}
+    fi
+
+    #
+    # See if we need to trim the FS
+    #
+    if [ $TRIM -eq 1 -a -x "/sbin/fstrim" ]; then
+	echo "  TRIMing FS"
+	/sbin/fstrim /mnt || {
+	    echo "WARNING: could not fstrim /"
+	}
+    fi
+
+    umount $rootdev
+
+    return 0
+}
+
+fixone() {
+    echo "*** ${disk}${part}:"
+    ptype=`sgdisk -p /dev/$disk | \
+	sed -n "s/^  *$part  *.* \([0-9a-fA-F][0-9a-fA-F]*\) *$/\1/p"`
+    ptype=${ptype:-0}
+
+    case $ptype in
+    8300)
+	dolinux
+	return $?
+	;;
+    8200)
+	echo "ignoring Linux swap partition"
+	;;
+    7|0x7)
+	echo "ignoring NTFS partition"
+	;;
+    0)
+	;;
+    *)
+	echo "ignoring GPT partition type $ptype"
+	;;
+    esac
+    return 0
+}
+
+case $part in
+0)
+    part=1; fixone
+    part=2; fixone
+    part=15; fixone
+
+    # when fixing all partitions, do not fail on an error
+    if [ $? -ne 0 ]; then
+    	echo "WARNING: failed to fix one or more partitions, BEWARE!"
+    fi
+    ;;
+# handle any numeric argument
+[1-9]|[1-9][0-9])
+    fixone
+    ;;
+*)
+    echo "bad GPT partition: $part"
+    false
+    ;;
+esac
+
+exit $?

@@ -56,6 +56,42 @@ open_bootinfo_db(void)
 	return 0;
 }
 
+int
+findnode_bootinfo_db(struct in_addr ipaddr, int *events)
+{
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+
+	res = mydb_query("select n.node_id,na.attrvalue,nt.attrvalue "
+			 "from nodes as n "
+			 "left join interfaces as i "
+			 "  on n.node_id=i.node_id "
+			 "left join node_attributes as na on "
+			 "  n.node_id=na.node_id and na.attrkey='boot_method' "
+			 "left join node_type_attributes as nt on "
+			 "  n.type=nt.type and nt.attrkey='boot_method' "
+			 "where i.IP='%s' and i.role='ctrl'",
+			 3, inet_ntoa(ipaddr));
+	if (!res) {
+		error("Query failed for host %s\n", inet_ntoa(ipaddr));
+		return 0;
+	}
+	if (!mysql_num_rows(res)) {
+		mysql_free_result(res);
+		return 0;
+	}
+
+	row = mysql_fetch_row(res);
+	if ((row[0] && strcmp(row[0], "pxelinux") == 0) ||
+	    (row[1] && strcmp(row[1], "pxelinux") == 0))
+		*events = 0;
+	else
+		*events = 1;
+
+	mysql_free_result(res);
+	return 1;
+}
+
 /*
   WARNING!!!
   

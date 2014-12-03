@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -32,6 +32,7 @@ int		bootinfo(struct in_addr ipaddr, char *node_id,
 int		query_bootinfo_db(struct in_addr ipaddr, char *node_id, 
 				  int version, struct boot_what *info, 
 				  char *key);
+int		findnode_bootinfo_db(struct in_addr ipaddr, int *events);
 int		elabinelab_hackcheck(struct sockaddr_in *target);
 
 extern int debug;

@@ -431,22 +431,30 @@ while (<IF>) {
 		    # 4. "pxe_boot_path" node_type_attribute for node type
 		    # 5. don't set (i.e., use the dhcpd.conf global default).
 		    #
-		    my $pxeboot = $row{"next_pxe_boot_path"};
-		    if (!$pxeboot) {
-			$pxeboot = $row{"pxe_boot_path"};
+		    # XXX Note that we cannot do this right now for
+		    # boot_method == "pxelinux" nodes as they use the same
+		    # file for their regular boot. We could do this in the
+		    # future by taking advantage of the fact that pxelinux
+		    # tries an order list of config files for each node.
+		    #
+		    my $nobj = Node->Lookup($node_id);
+		    if (!$nobj) {
+			fatal("Could not find Node info for $node_id");
 		    }
-		    $filename = SetupPXEBoot($node_id, $mac, 1, $pxeboot);
-		    if (!$filename) {
-			# Get the node or node type default
-			my $nobj = Node->Lookup($node_id);
-			if (!$nobj) {
-			    fatal("Could not find Node info for $node_id");
+		    if ($nobj->boot_method() ne "pxelinux") {
+			my $pxeboot = $row{"next_pxe_boot_path"};
+			if (!$pxeboot) {
+			    $pxeboot = $row{"pxe_boot_path"};
 			}
-			my $path = $nobj->default_pxeboot();
-			$filename = SetupPXEBoot($node_id, $mac, 0, $path);
-		    }
-		    if ($filename) {
-			$filename = "${spaces}\tfilename \"$filename\";\n";
+			$filename = SetupPXEBoot($node_id, $mac, 1, $pxeboot);
+			if (!$filename) {
+			    # Get the node or node type default
+			    my $path = $nobj->default_pxeboot();
+			    $filename = SetupPXEBoot($node_id, $mac, 0, $path);
+			}
+			if ($filename) {
+			    $filename = "${spaces}\tfilename \"$filename\";\n";
+			}
 		    }
 		  spit:
 		    # Need to make MAC look right..

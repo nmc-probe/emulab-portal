@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2007-2012 University of Utah and the Flux Group.
+# Copyright (c) 2007-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -114,6 +114,9 @@ Linux)
     if [ -z "$dist" -a `uname -m` = "armv5tel" ]; then
         dist="Stargate"
         rel=1.0  # XXX probably wrong
+    fi
+    if [ "$dist" = "Ubuntu" -a `uname -m` = "aarch64" ]; then
+	tag=Moonshot
     fi
     ;;
 CYGWIN_NT-*)	# aka Windows XP/7

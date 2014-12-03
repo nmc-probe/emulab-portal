@@ -344,7 +344,7 @@ sigchld(int sig)
 {
 	char dummy = 0;
 
-	write(childpipe[1], &dummy, sizeof(dummy));
+	(void) write(childpipe[1], &dummy, sizeof(dummy));
 }
 
 #if defined(SIGINFO)
@@ -620,7 +620,8 @@ main(int argc, char **argv)
 		loginit(0, logfile);
 	else {
 		/* Become a daemon */
-		if (!remote) daemon(0, 0);
+		if (!remote && daemon(0, 0))
+			fatal("Cannot daemonize");
 
 		if (logfile)
 			loginit(0, logfile);
@@ -671,7 +672,7 @@ main(int argc, char **argv)
 	}
 
 	if (st.st_uid != pw->pw_uid || st.st_gid != pw->pw_gid) {
-		chown(LOGDIR, pw->pw_uid, pw->pw_gid);
+		(void)chown(LOGDIR, pw->pw_uid, pw->pw_gid);
 	}
 
 	if (st.st_mode != 0775) {
@@ -738,7 +739,7 @@ main(int argc, char **argv)
 		else {
 			char ipbuf[BUFSIZ];
 
-			fgets(ipbuf, sizeof(ipbuf), fp);
+			(void) fgets(ipbuf, sizeof(ipbuf), fp);
 			(void) fclose(fp);
 			if ((idx = strchr(ipbuf, '\n')) != NULL)
 				*idx = '\0';
@@ -805,7 +806,7 @@ main(int argc, char **argv)
 	 * Change to the temp directory, this will be inherited by any children
 	 * that do not have their own directory setting.
 	 */
-	chdir(_PATH_TMP);
+	(void) chdir(_PATH_TMP);
 
 	/*
 	 * Install our SIGCHLD handler so that we can send the COMPLETE event
@@ -1234,7 +1235,7 @@ start_callback(event_handle_t handle,
 				  ((st.st_mode == S_IFREG) ||
 				    (st.st_mode == S_IFLNK));
 #endif /* __CYGWIN__ */
-				if ((file_or_link) &&
+				if (file_or_link && got_path &&
 				    (find_agent(path) != NULL) &&
 				    ((ext = fileext(de->d_name)) != NULL) &&
 				    ((strncmp(ext, "out", 3) == 0) ||
@@ -2117,14 +2118,14 @@ child_callback(pubsub_handle_t *pshandle,
 				 LOGDIR,
 				 pi->name);
 			unlink(path2);
-			symlink(path, path2);
+			(void) symlink(path, path2);
 			if (pi->tag != NULL) {
 				snprintf(path2,
 					 sizeof(path),
 					 "%s/%s.%s.status",
 					 LOGDIR, pi->name, pi->tag);
 				unlink(path2);
-				symlink(path, path2);
+				(void) symlink(path, path2);
 			}
 
 			/* ... notify the scheduler of the completion. */

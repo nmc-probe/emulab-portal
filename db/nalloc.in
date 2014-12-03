@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -103,6 +103,7 @@ my @nodes	  = ();
 my $need_consetup = 0;
 my @need_history  = ();
 my @need_clearbl  = ();
+my @need_pxeconfig= ();
 
 TBDebugTimeStamp("nalloc started");
 
@@ -202,6 +203,8 @@ foreach my $n (@node_names) {
 	push(@need_history, $node);
         # ... and need to have their bootlogs purged.
         push(@need_clearbl, $node);
+	# ... and may need to recreate its pxelinux conf
+	push(@need_pxeconfig, $node);
     }
 
     #
@@ -283,6 +286,13 @@ if (!$error && (!$noalloc || $partial) && @nodes) {
     # as in the node history loop above, but that could change at some point.
     foreach my $node (@need_clearbl) {
 	$node->ClearBootLog();
+    }
+
+    # And since the node is now allocated, we need to redo its pxelinux
+    # config file so it won't be stuck in pxewait
+    foreach my $node (@need_pxeconfig) {
+	TBPxelinuxConfig($node)
+	    if ($node->boot_method() eq "pxelinux");
     }
 }
 TBDebugTimeStamp("updated node_activity, history, and bootlogs");
