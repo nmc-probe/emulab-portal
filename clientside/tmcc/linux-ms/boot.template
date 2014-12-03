@@ -32,4 +32,4 @@ LABEL nfsboot
     MENU LABEL NFS-based MFS
     KERNEL nfs/uImage
     INITRD nfs/uInitrd
-    APPEND boot=nfs root=/dev/nfs nfsroot=128.110.156.34:/nfsroot/m400/%nodeid% rw ip=dhcp panic=1 console=ttyS0,9600
+    APPEND boot=nfs root=/dev/nfs nfsroot=128.110.156.34:/nfsroot/%nodeid% rw ip=dhcp panic=1 console=ttyS0,9600
