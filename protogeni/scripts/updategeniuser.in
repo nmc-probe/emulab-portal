@@ -163,6 +163,8 @@ sub UpdateCredential()
 #
 sub UpdateSSHKeys()
 {
+    my $isportal = 0;
+    
     #
     # Load the SA cert to act as caller context.
     #
@@ -223,6 +225,7 @@ sub UpdateSSHKeys()
 	$url = "https://ch.geni.net/MA";
 	$method = "lookup";
 	@params = ("KEY", @params);
+	$isportal = 1;
     }
     else {
 	$url = $certificate->url();
@@ -238,15 +241,29 @@ sub UpdateSSHKeys()
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	fatal("Could not get keys: " . $response->output());
     }
-    if (! (ref($response->value()) &&
-	   exists($response->value()->{$user_urn}) &&
-	   ref($response->value()->{$user_urn}))) {
-	fatal("Returned keys do not look right");
+    if (! ref($response->value())) {
+	fatal("No key array returned in response");
     }
-    my @keys = @{ $response->value()->{$user_urn} };
+    # Dig out the key list.
+    my @keys = ();
+    
+    if ($isportal) {
+	foreach my $id (keys(%{ $response->value() })) {
+	    my $ref = $response->value()->{$id};
+	    push(@keys, $ref);
+	}
+    }
+    else {
+	if (!exists($response->value()->{$user_urn}) &&
+	    ref($response->value()->{$user_urn})) {
+	    print STDERR Dumper($response);
+	    fatal("Returned keys do not look right");
+	}
+	@keys = @{ $response->value()->{$user_urn} };
+    }
     if (!@keys) {
 	fatal("No keys returned for user!");
-    }
+    }    
     my $filename = TBMakeTempFile("geniuserkey");
 
     #
