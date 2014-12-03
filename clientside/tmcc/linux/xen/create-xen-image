@@ -30,7 +30,8 @@ BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
 my $VIMAGE	= "/usr/local/bin/create-versioned-image";
 my $zipper      = "/usr/local/bin/imagezip";
-my $uploader    = "/usr/local/bin/frisupload";
+my $uploader    = "$BINDIR/frisupload";
+my $uploader_alt= "/usr/local/bin/frisupload";
 my $VNODESETUP	= "$BINDIR/vnodesetup";
 my $CAPTURE	= "$BINDIR/capturevm.pl";
 my $EXTRAFS	= "/capture";
@@ -65,6 +66,10 @@ $| = 1;
 use libsetup;
 use libvnode_xen;
 use libutil;
+
+# Location confusion.
+$uploader = $uploader_alt
+    if (! -x $uploader);
 
 #
 # No configure vars.

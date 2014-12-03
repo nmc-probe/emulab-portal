@@ -313,6 +313,13 @@ sub LookupByURL($$)
     }
     return undef;
 }
+# Image is local if the metadata_url is null.
+sub IsLocal($)
+{
+    my ($self) = @_;
+
+    return (defined($self->metadata_url()) ? 0 : 1);
+}
 
 #
 # Lookup a "system" osid, meaning one in the emulab-ops project.

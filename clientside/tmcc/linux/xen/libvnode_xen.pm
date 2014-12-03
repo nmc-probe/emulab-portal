@@ -222,6 +222,9 @@ my $RTTABLES       = "/etc/iproute2/rt_tables";
 # Temporary; later kernel version increases this.
 my $MAXROUTETTABLE = 255;
 
+# Striping
+my $STRIPE_COUNT   = 1;
+
 # Whether or not to use only unpartitioned (unused) disks to form the Xen VG.
 my $LVM_FULLDISKONLY = 0;
 
@@ -310,16 +313,10 @@ sub init($)
     }
     getXenInfo();
 
-    #
-    # The 4.4 image has to use the openvswitch package instead of building
-    # from source since the current release does not support the kernel.
-    # And the package is installed in a different place.
-    #
-    if ($xeninfo{xen_minor} >= 4) {
-	$OVSCTL   = "/usr/bin/ovs-vsctl";
-	$OVSSTART = "/usr/share/openvswitch/scripts/ovs-ctl";
+    # Compute the strip size for new lvms.
+    if (-e "/var/run/xen.ready") {
+	$STRIPE_COUNT = computeStripeSize($VGNAME);
     }
-
     return 0;
 }
 
@@ -470,9 +467,9 @@ sub rootPreConfig($)
     }
 
     #
-    # Make sure pieces are at least a GiB.
+    # Make sure pieces are at least a 5GiB.
     #
-    my %devs = libvnode::findSpareDisks(1 * 1024);
+    my %devs = libvnode::findSpareDisks(5 * 1024);
 
     #
     # Turn on write caching. Hacky. 
@@ -580,7 +577,8 @@ sub rootPreConfig($)
 		" $MAX_VNODES VMs ($size < $XEN_MIN_VGSIZE)\n";
 	}
     }
-
+    $STRIPE_COUNT = computeStripeSize($VGNAME);
+    
     #
     # Make sure our volumes are active -- they seem to become inactive
     # across reboots
@@ -1484,8 +1482,10 @@ sub vnodePreConfig($$$$$){
 	# Testing a theory; remove all this iscsi stuff to see if that
 	# is causing problems with the control network interface going
 	# offline after boot.
-	mysystem2("/bin/rm -vf $vnoderoot/etc/init/*iscsi*");
-	mysystem2("/bin/rm -vf $vnoderoot/etc/init.d/*iscsi*");
+	if ($xeninfo{xen_minor} < 4) {
+	    mysystem2("/bin/rm -vf $vnoderoot/etc/init/*iscsi*");
+	    mysystem2("/bin/rm -vf $vnoderoot/etc/init.d/*iscsi*");
+	}
     }
     else {
 	#
@@ -2467,7 +2467,8 @@ sub CreatePrimaryDisk($$$$)
 	    $lv_size += $extrafs * (1024 * 1024);
 	}
     }
-    if (mysystem2("lvcreate -L ${lv_size}k -n $target $VGNAME")) {
+    if (mysystem2("lvcreate -i${STRIPE_COUNT} ".
+		  "   -L ${lv_size}k -n $target $VGNAME")) {
 	print STDERR "libvnode_xen: could not create disk for $target\n";
 	return -1;
     }
