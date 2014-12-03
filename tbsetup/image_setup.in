@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -149,7 +149,15 @@ while (my ($vname, $osname) = $result->fetchrow()) {
     # fetch the image file, or refetch if it is stale.
     #
     my $image = Image->LookupByURL($url);
-    if (!defined($image)) {
+    if (defined($image)) {
+	#
+	# LookupByURL might return a local image, which of course
+	# we want to skip; later phases know its a local image.
+	#
+	next
+	    if ($image->IsLocal());
+    }
+    else {
 	my $opts = "";
 	$opts .= " -d"
 	    if ($debug);
@@ -162,9 +170,11 @@ while (my ($vname, $osname) = $result->fetchrow()) {
     next
 	if ($verify);
 
-    $image = Image->LookupByURL($url);
     if (!defined($image)) {
-	tbdie("Could not look up image object for $url\n");
+	$image = Image->LookupByURL($url);
+	if (!defined($image)) {
+	    tbdie("Could not look up image object for $url\n");
+	}
     }
     next
 	if (! $getimages);
