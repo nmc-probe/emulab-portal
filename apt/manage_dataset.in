@@ -157,7 +157,7 @@ sub DoCreate()
     my $type = "stdataset";
     my $fstype;
     
-    my $optlist = "ds:t:e:f:";
+    my $optlist = "ds:t:e:f:w:";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	&$usage();
@@ -387,7 +387,12 @@ sub DoRefreshInternal($$)
     
     my $response = $dataset->DescribeDataset();
     if ($response->code() != GENIRESPONSE_SUCCESS) {
-	$$pmesg = "DescribeDataset failed: ". $response->output() . "\n";
+	if ($response->code() != GENIRESPONSE_SEARCHFAILED) {
+	    $$pmesg = "Dataset no longer exists at the target\n";
+	}
+	else {
+	    $$pmesg = "DescribeDataset failed: ". $response->output() . "\n";
+	}
 	return -1;
     }
     my $blob = $response->value();

@@ -312,7 +312,7 @@ function Do_Instantiate()
     $args["auth_token"] = $token;
 
     $opts = "";
-    if (ISADMIN() && isset($ajax_args["where"])) {
+    if ((ISADMIN() || STUDLY()) && isset($ajax_args["where"])) {
 	if (array_key_exists($ajax_args["where"], $am_array)) {
 	    $opts = "-a " . $am_array[$ajax_args["where"]];
 	}

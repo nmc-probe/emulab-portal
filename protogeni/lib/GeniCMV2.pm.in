@@ -407,7 +407,8 @@ sub CreateSliver($)
     if (! GeniHRN::IsValid($slice_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
     }
-    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    my ($credential,$speaksfor,@morecreds) =
+	GeniStd::CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
@@ -463,7 +464,8 @@ sub CreateSliver($)
 	}
     }
     my $rspec = GeniCM::GetTicketAux($credential, $rspecstr,
-				     0, $impotent, 1, 0, undef, $speaksfor);
+				     0, $impotent, 1, 0,
+				     undef, $speaksfor, @morecreds);
     return $rspec
 	if (GeniResponse::IsResponse($rspec));
 
@@ -3231,7 +3233,11 @@ sub CreateDataset($)
     my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	if (! ((defined($user) && $user->IsLocal()) ||
-	       $credential->HasPrivilege("blockstores")));
+	       $credential->HasActualPrivilege("blockstores")));
+
+    my $authority = GeniCM::CreateAuthorityFromCertificate($credential);
+    return $authority
+	if (GeniResponse::IsResponse($authority));
 
     # Get the project and group. This needs more thought. 
     my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
@@ -3284,6 +3290,10 @@ sub CreateDataset($)
 	print STDERR "Could not lookup lease after createdataset\n";
 	GeniResponse->Create(GENIRESPONSE_ERROR);
     }
+    # Set the manager/owner URN for permission checks.
+    $lease->SetAttribute("manager_urn", $credential->target_urn());
+    $lease->SetAttribute("creator_urn", $user->urn());
+    
     my $msg   = undef;
     if ($lease->state() eq "unapproved") {
 	if ($lease->locked()) {
@@ -3324,7 +3334,7 @@ sub DeleteDataset($)
     my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	if (! ((defined($user) && $user->IsLocal()) ||
-	       $credential->HasPrivilege("blockstores")));
+	       $credential->HasActualPrivilege("blockstores")));
 
     # Get the project and group. This needs more thought. 
     my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
@@ -3333,7 +3343,7 @@ sub DeleteDataset($)
 
     my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
     if (!defined($lease)) {
-	GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
     }
     #
     # Only the creator can delete the dataset.
@@ -3383,7 +3393,7 @@ sub DescribeDataset($)
     my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	if (! ((defined($user) && $user->IsLocal()) ||
-	       $credential->HasPrivilege("blockstores")));
+	       $credential->HasActualPrivilege("blockstores")));
 
     # Get the project and group. This needs more thought. 
     my $group =  GeniUtil::GetHoldingProject($credential->target_urn(), $user);
@@ -3392,7 +3402,7 @@ sub DescribeDataset($)
 
     my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
     if (!defined($lease)) {
-	GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
     }
     my $blob = {};
     $blob->{'state'}    = $lease->state();

@@ -96,9 +96,9 @@ class Dataset
     function aggregate_urn() { return $this->field("aggregate_urn"); }
     function type()          { return $this->field("type"); }
     function fstype()        { return $this->field("fstype"); }
-    function created()       { return $this->field("created"); }
-    function expires()       { return $this->field("expires"); }
-    function last_used()     { return $this->field("last_used"); }
+    function created()       { return NullDate($this->field("created")); }
+    function expires()       { return NullDate($this->field("expires")); }
+    function last_used()     { return NullDate($this->field("last_used")); }
     function state()	     { return $this->field("state"); }
     function size()	     { return $this->field("size"); }
     function locked()	     { return $this->field("locked"); }

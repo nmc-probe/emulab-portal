@@ -46,8 +46,7 @@ sub usage()
 my $optlist = "dvu:a:t:f";
 my $debug   = 0;
 my $verbose = 1;
-my $utahddc = 1;
-my $DDCURN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
+my $DEFAULT_URN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
 my $xmlfile;
 my $webtask;
 my $webtask_id;
@@ -63,6 +62,7 @@ sub fatal($);
 sub UserError($);
 sub SnapShot($$$);
 sub GenCredentials($$$$);
+sub CreateDatasetCreds($$$$$);
 
 #
 # Configure variables
@@ -96,6 +96,7 @@ use libaudit;
 use APT_Profile;
 use APT_Instance;
 use APT_Geni;
+use APT_Dataset;
 use User;
 use OSinfo;
 use emutil;
@@ -211,15 +212,8 @@ my $CMURN;
 if (defined($aggregate)) {
     $CMURN = $aggregate;
 }
-elsif ($utahddc) {
-    $CMURN = $DDCURN;
-}
 else {
-    my $cm_certificate = GeniCertificate->LoadFromFile($CMCERT);
-    if (!defined($cm_certificate)) {
-	fatal("Could not load certificate from $CMCERT\n");
-    }
-    $CMURN = $cm_certificate->urn();
+    $CMURN = $DEFAULT_URN;
 }
 my $cm_authority = GeniAuthority->Lookup($CMURN);
 if (!defined($cm_authority)) {
@@ -228,6 +222,8 @@ if (!defined($cm_authority)) {
 	fatal("Could not load CM authority object");
     }
 }
+my $cmurl = $cm_authority->url();
+#$cmurl =~ s/protogeni/protogeni\/stoller/;
 
 #
 # Must wrap the parser in eval since it exits on error.
@@ -283,9 +279,42 @@ my $profile_object = APT_Profile->Lookup($value);
 if (!defined($profile_object)) {
     fatal("No such profile: $value");
 }
+#
+# Temp hack; replace URNs with URLs.
+#
+if (1 && $profile_object->ConvertDiskImages()) {
+    fatal("Not able to convert disk_image URNs to URLs.");
+}
 my $rspecstr = $profile_object->CheckFirewall(!$localuser);
 $profile = $profile_object->profileid();
 $version = $profile_object->version();
+
+#
+# Look for datasets; need to verify that the datasets being referenced
+# still exist and are still permissible to use, and we have to generate
+# credentials for those datasets (if not a global dataset). The tricky
+# aspect is that while a dataset and a profile have project permissions,
+# the experiment has no project association, so if the profile/dataset
+# perms are okay, then we send over a credential that tells the CM to
+# allow this experiment to use that dataset in that project. 
+#
+my $errmsg = "Bad dataset";
+if (APT_Profile::CheckDatasets($rspecstr, $profile_object->pid(), \$errmsg)) {
+    UserError($errmsg);
+}
+
+#
+# A temporary hack to make sure that the user does not try to run
+# an x386 image on the Cloudlab cluster (ARMs). This will eventually
+# get replaced with Jon's constraint checking code.
+#
+my $iscloudlab =
+    ($CMURN eq "urn:publicid:IDN+utah.cloudlab.us+authority+cm" ? 1 : 0);
+
+if ($profile_object->CheckImageConstraints($iscloudlab, \$errmsg)) {
+    UserError($errmsg);
+}
+fatal("fooey");
 
 #
 # Use ssh-keygen to see if the key is valid and convertable. We first
@@ -470,6 +499,15 @@ if ($geniuser->GetKeyBundle(\@sshkeys, 1) < 0 || !@sshkeys) {
     fatal("No ssh keys to use for $geniuser!");
 }
 
+# Generate the extra credentials that tells the backend this experiment
+# can access the datasets.
+my @dataset_credentials = ();
+if (CreateDatasetCreds($rspecstr,
+		       $profile_object->pid(), $geniuser, 
+		       \$errmsg, \@dataset_credentials)) {
+    fatal($errmsg);
+}
+
 #
 # Now generate a slice registration and credential
 #
@@ -583,7 +621,7 @@ $webtask->SetProcessID($PID)
 # This creates the sliver and starts it.
 #
 my $response =
-    Genixmlrpc::CallMethod($cm_authority->url(), undef,
+    Genixmlrpc::CallMethod($cmurl, undef,
 			   "CreateSliver",
 			   { "slice_urn"   => $slice_urn,
 			     "rspec"       => $rspecstr,
@@ -593,7 +631,9 @@ my $response =
 				   'keys'  => \@sshkeys }],
 			     "credentials" =>
 				 [$slice_credential->asString(),
-				  $speaksfor_credential->asString()]});
+				  $speaksfor_credential->asString(),
+				  @dataset_credentials
+				 ]});
 
 if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
     $slice->Delete();
@@ -638,7 +678,7 @@ while ($seconds > 0) {
     $seconds -= $interval;
     
     my $response =
-	Genixmlrpc::CallMethod($cm_authority->url(), undef,
+	Genixmlrpc::CallMethod($cmurl, undef,
 			       "SliverStatus",
 			       { "slice_urn"   => $slice_urn,
 				 "credentials" =>
@@ -697,6 +737,65 @@ else {
 }
 $slice->UnLock();
 exit(0);
+
+#
+# Create credentials to access datasets.
+#
+sub CreateDatasetCreds($$$$$)
+{
+    my ($xml, $pid, $user, $pmsg, $pref) = @_;
+    my @credentials = ();
+    
+    my $rspec = GeniXML::Parse($xml);
+    if (! defined($rspec)) {
+	print STDERR "CreateDatasetCreds: Could not parse rspec\n";
+	return -1;
+    }
+    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
+						   $ref,
+				   $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    my $leaseurn = GeniXML::GetText("persistent", $blockref);
+
+	    #
+	    # We only care about datasets here, we let the backend
+	    # do the error checking on ephemeral blockstores.
+	    #
+	    next
+		if (!defined($leaseurn));
+	    
+	    my ($authority, $type, $id) = GeniHRN::Parse($leaseurn);
+	    #
+	    # Separate project from name; this is how the rspec specifies
+	    # the dataset they want, since it might be in another project
+	    #
+	    if ($id =~ /^([-\w]+)\/\/(.+)$/) {
+		$pid = $1;
+		$id  = $2;
+	    }
+	    my $dataset = APT_Dataset->Lookup("$pid/$id");
+	    if (!defined($dataset)) {
+		$$pmsg = "Persistent dataset '$pid/$id' does not exist";
+		return 1;
+	    }
+	    my $certificate = $dataset->GetCertificate();
+	    if (!defined($certificate)) {
+		$$pmsg = "No certificate for dataset '$pid/$id'";
+		return -1;
+	    }
+	    my $credential =
+		APT_Geni::GenCredentials($certificate, $geniuser,
+					 ["blockstores"]);
+	    if (!defined($credential)) {
+		$$pmsg = "Could not create credential for dataset '$pid/$id'";
+		return -1;
+	    }
+	    push(@credentials, $credential->asString());
+	}
+    }
+    @$pref = @credentials;
+    return 0;
+}
 
 sub fatal($) {
     my ($mesg) = $_[0];

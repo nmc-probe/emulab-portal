@@ -440,7 +440,7 @@ sub CreateDataset($)
 	if (defined($self->expires()));
 
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "CreateDataset", $args);
 }
@@ -471,7 +471,7 @@ sub DeleteDataset($)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "DeleteDataset", $args);
 }
@@ -502,7 +502,7 @@ sub DescribeDataset($)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "DescribeDataset", $args);
 }

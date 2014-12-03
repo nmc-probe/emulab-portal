@@ -116,11 +116,11 @@ class Lease
     function gid()           { return $this->field("gid"); }
     function lease_type()    { return $this->field("type"); }
     function type()          { return $this->field("type"); }
-    function inception()     { return $this->field("inception"); }
-    function created()       { return $this->field("inception"); }
-    function lease_end()     { return $this->field("lease_end"); }
-    function expires()       { return $this->field("lease_end"); }
-    function last_used()     { return $this->field("last_used"); }
+    function inception()     { return NullDate($this->field("inception")); }
+    function created()       { return $this->inception(); }
+    function lease_end()     { return NullDate($this->field("lease_end")); }
+    function expires()       { return $this->lease_end(); }
+    function last_used()     { return NullDate($this->field("last_used")); }
     function state()	     { return $this->field("state"); }
     function locked()	     { return $this->field("locked"); }
     function locker_pid()    { return $this->field("locker_pid"); }

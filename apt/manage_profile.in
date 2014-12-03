@@ -266,6 +266,15 @@ elsif (!$project->AccessCheck($this_user, TB_PROJECT_MAKEIMAGEID())) {
     $errors{"profile_pid"} = "Not enough permission in this project";
 }
 
+# Check datasets.
+if (defined($rspec)) {
+    my $errmsg = "Bad dataset";
+    if (APT_Profile::CheckDatasets($rspec, $project->pid(), \$errmsg)) {
+	$errors{"error"} = $errmsg;
+	UserError();
+    }
+}
+
 #
 # Are we going to snapshot a node in an experiment? If so we
 # sanity check to make sure there is just one node. 
@@ -400,9 +409,9 @@ if (defined($instance)) {
     # The script helpfully put the new image urn in the webtask.
     #
     $webtask->Refresh();
-    my $image_urn = $webtask->image_urn();
-    if (!defined($image_urn) ||
-	$profile->UpdateDiskImage($image_urn)) {
+    my $image_url = $webtask->image_url();
+    if (!defined($image_url) ||
+	$profile->UpdateDiskImage($image_url)) {
 	$webtask->Delete()
 	    if (!defined($webtask_id));
 	$profile->Delete(1);

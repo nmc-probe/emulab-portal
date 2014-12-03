@@ -476,10 +476,10 @@ sub GetTicket($;$)
 			$rspecstr, $isupdate, $impotent, 0, 1, $ticket);
 }
 
-sub GetTicketAux($$$$$$$$)
+sub GetTicketAux($$$$$$$$@)
 {
     my ($credential, $rspecstr, $isupdate, $impotent, $v2, $level,
-	$ticket, $speaksfor) = @_;
+	$ticket, $speaksfor, @morecreds) = @_;
     
     defined($credential) &&
 	($credential->HasPrivilege( "pi" ) or
@@ -522,7 +522,7 @@ sub GetTicketAux($$$$$$$$)
     
     return GetTicketAuxAux($slice, $user, $rspecstr,
 			   $isupdate, $impotent, $v2, $level, $ticket,
-			   [$credential], $speaksfor);
+			   [$credential, @morecreds], $speaksfor);
 }
 sub GetTicketAuxAux($$$$$$$$$$)
 {
@@ -1687,7 +1687,8 @@ sub GetTicketAuxAux($$$$$$$$$$)
 						   $ref,
 				   $GeniXML::EMULAB_NS)->get_nodelist()) {
 	    $response = HandleBlockstore($slice_experiment, $virtexperiment,
-					 $user, $ref, $blockref);
+					 $user, $slice, $ref,
+					 $blockref, @$credentials);
 	    goto bad
 		if (GeniResponse::IsError($response));
 	}
@@ -6740,11 +6741,14 @@ sub SetSliceExpiration($$$$@)
 #
 # Handle BlockStores. 
 #
-sub HandleBlockstore($$$$)
+sub HandleBlockstore($$$$$$@)
 {
-    my ($experiment, $virtexperiment, $geniuser, $noderef, $blockref) = @_;
-    my $message  = "Unknown Error";
-    my $nodename = GeniXML::GetVirtualId($noderef);
+    my ($experiment, $virtexperiment,
+	$geniuser, $slice, $noderef, $blockref, @credentials) = @_;
+    my $errorcode = GENIRESPONSE_ERROR;
+    my $message   = "Unknown Error";
+    my $nodename  = GeniXML::GetVirtualId($noderef);
+    
     require Lease;
     require Blockstore;
 
@@ -6771,21 +6775,6 @@ sub HandleBlockstore($$$$)
     if (!defined($mount)) {
 	$message = "Missing blockstore mount point";
 	goto bad;
-    }
-    if (defined($leasename)) {
-	if (GeniHRN::IsValid($leasename)) {
-	    my (undef,$type,$id) = GeniHRN::Parse($leasename);
-	    if ($type ne "dataset") {
-		$message = "Illegal persistent urn for $bsname";
-		goto bad;
-	    }
-	    $leasename = $id;
-	}
-	if (!TBcheck_dbslot($leasename, "project_leases", "lease_id",
-			    TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-	    $message = "Illegal persistent name for $bsname";
-	    goto bad;
-	}
     }
     if (!defined($readonly)) {
 	$readonly = 0;
@@ -6820,31 +6809,112 @@ sub HandleBlockstore($$$$)
 	$fixed = $bsname = $nodename;
 	push(@attributes, ["protocol", "iSCSI", 1]);
 
-	#
-	# Look for a lease name (persistent).
-	#
 	if (defined($leasename)) {
-	    my $lease = Lease->Lookup($experiment->pid(), $leasename);
+	    # Default project to lookup lease.
+	    my $pid = $experiment->pid();
+	    my $gid = $pid;
+	
+	    #
+	    # Look for a urn and possibly project qualified lease name.
+	    #
+	    if (GeniHRN::IsValid($leasename)) {
+		my (undef,$type,$id) = GeniHRN::Parse($leasename);
+		if ($type ne "dataset") {
+		    $message = "Illegal dataset urn for $leasename";
+		    goto bad;
+		}
+		$leasename = $id;
+
+		if ($leasename =~ /^(.*)\/\/(.*)$/) {
+		    $gid = $1;
+		    $leasename = $2;
+		}
+		if (!TBcheck_dbslot($leasename, "project_leases", "lease_id",
+				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+		    $message = "Illegal dataset name: $leasename";
+		    goto bad;
+		}
+	    }
+	    my $lease = Lease->Lookup($pid, $gid, $leasename);
 	    if (!defined($lease)) {
 		#
 		# Dataset must already exist.
 		#
 		$message = "No such persistent dataset for $bsname: $leasename";
+		$errorcode = GENIRESPONSE_SEARCHFAILED;
 		goto bad;
 	    }
+	    # Local user can use their own local lease. 
+	    goto permokay
+		if ($geniuser->IsLocal() &&
+		    $lease->owner_uid() eq $geniuser->uid());
+	    
+	    #
+	    # Permission checks are a work in progress. Datasets created by
+	    # the same authority domain as the slice can be used. This is
+	    # explicit in the slice pid/gid and the lease pid/gid, which
+	    # reflect the domains.
+	    #
+	    if ($experiment->pid() ne $lease->pid()) {
+		$message = "Not allowed to use dataset from a ".
+		    "different SA: $leasename";
+		$errorcode = GENIRESPONSE_FORBIDDEN;
+		goto bad;
+	    }
+	    # Same SA, same project (subauth). Always allowed.
+	    goto permokay
+		if ($experiment->pid() eq $lease->pid() &&
+		    $experiment->gid() eq $lease->gid());
+
+	    #
+	    # Okay, same pid (SA) but different group (sub authority).
+	    # Must have a credential from the SA that says its okay.
+	    #
+	    my $manager_urn = $lease->GetAttribute("manager_urn");
+	    next
+		if (!defined($manager_urn));
+	    my ($manager_domain) = GeniHRN::Parse($manager_urn);
+	    
+	    foreach my $credential (@credentials) {
+		next
+		    if (!$credential->HasActualPrivilege("blockstores"));
+
+		my ($domain, $type, $id) =
+		    GeniHRN::Parse($credential->target_urn());
+
+		goto permokay
+		    if ($domain eq $manager_domain &&
+			$id eq $lease->lease_id());
+
+	    }
+	    # If we get here, its not allowed.
+	    $message = "No permission to use dataset $leasename";
+	    $errorcode = GENIRESPONSE_FORBIDDEN;
+	    goto bad;
+
+	  permokay:
+	    #
+	    # We do not have shared readonly leases yet, so if the lease
+	    # is in use by another experiment, we have to fail.
+	    #
+	    if ($lease->InUse()) {
+		# This will always be one for now.
+		my ($exptidx) = @{ $lease->UsingResources() };
+		if (defined($exptidx) && $exptidx != $experiment->idx()) {
+		    $message = "Dataset $leasename is already in use";
+		    goto bad;
+		}
+	    }
+	    # We need some stuff from the blockstore to fill out the
+	    # virt tables below.
 	    my $blockstore = Blockstore->LookupByLease($lease->lease_idx());
 	    if (!defined($blockstore)) {
 		$message = "Could not get blockstore for lease $leasename";
 		goto bad;
 	    }
-		
 	    $type = $lease->type();
 	    $size = $blockstore->total_size();
-	    #
-	    # TODO!!!! Lease permission checks. Complicated by the
-	    # fact that geniusers are not real users, and the datasets
-	    # are created by geniuser. 
-	    #
+
 	    push(@attributes, ["lease", $lease->lease_idx(), 1]);
 	}
     }
@@ -6902,7 +6972,7 @@ sub HandleBlockstore($$$$)
     return 0;
 
   bad:
-    return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $message);
+    return GeniResponse->Create($errorcode, undef, $message);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

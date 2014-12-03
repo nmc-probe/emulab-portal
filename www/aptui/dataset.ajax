@@ -55,7 +55,7 @@ function Do_CreateDataSet()
 	$command = "webmanage_dataset create ";
     }
     $required = array("dataset_pid", "dataset_name", "dataset_type",
-		      "dataset_size", "dataset_fstype");
+		      "dataset_size", "dataset_fstype", "dataset_who");
 
     foreach ($required as $field) {
 	if (!isset($formfields[$field]) || $formfields[$field] == "") {
@@ -116,6 +116,15 @@ function Do_CreateDataSet()
     }
     else {
 	$command .= " -s " . $formfields["dataset_size"];
+    }
+    # Permission bits.
+    if ($formfields["dataset_who"] != "public" ||
+	$formfields["dataset_who"] != "shared" ||
+	$formfields["dataset_who"] != "private") {
+	$errors["dataset_who"] = "Illegal value";
+    }
+    else {
+	$command .= " -f " . $formfields["dataset_fstype"];
     }
     if (count($errors)) {
 	SPITAJAX_ERROR(2, $errors);
@@ -283,7 +292,7 @@ function Do_RefreshDataset()
 	$error = "Transient error; please try again later";
 	
 	if ($retval && count($suexec_output_array)) {
-	    $error = $suexec_output_array[0];
+	    $error = $suexec_output;
 	}
 	SPITAJAX_ERROR(1, $error);
 	return;

@@ -23,10 +23,12 @@
 #
 #
 
-$am_array = array('Utah DDC' =>
-		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-		  'Utah APT' =>
+$am_array = array('Utah APT' =>
 		     "urn:publicid:IDN+apt.emulab.net+authority+cm",
+		  'Utah Cloudlab' =>
+		     "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
+		  'Utah DDC' =>
+		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
 		  'Utah PG'  =>
 		     "urn:publicid:IDN+emulab.net+authority+cm");
 

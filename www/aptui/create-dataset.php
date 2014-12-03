@@ -115,6 +115,7 @@ if (! isset($create)) {
 
     $defaults["dataset_type"]   = 'stdataset';
     $defaults["dataset_fstype"] = 'ext3';
+    $defaults["dataset_who"]    = 'shared';
 
     SPITFORM($defaults, $errors);
     return;

@@ -104,8 +104,8 @@ function SPITFORM($formfields, $errors)
     echo "</script>\n";
 
     $amlist = array();
-    if ($viewing && ISADMIN()) {
-	while (list($am) = each($am_array)) {
+    if ($viewing && (ISADMIN() || STUDLY())) {
+ 	while (list($am) = each($am_array)) {
 	    $amlist[] = $am;
 	}
     }

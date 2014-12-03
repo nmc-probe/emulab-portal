@@ -53,6 +53,8 @@ sub GenCredentials($$;$)
 {
     my ($target, $geniuser, $privs) = @_;
     my ($speaksfor, $credential);
+    # If the caller does not want a speaksfor, do not generate.
+    my $wantspeaksfor = wantarray;
 
     my $speaker_signer = $GeniCredential::LOCALSA_FLAG;
     #
@@ -62,21 +64,6 @@ sub GenCredentials($$;$)
     #
     if (!$geniuser->IsLocal() && $MAINSITE) {
 	$speaker_signer = "/usr/testbed/etc/utah-apt.sa";
-    }
-
-    #
-    # The Utah SA is always the speaker, even if the user is a guest
-    # with the alternate CA.
-    #
-    my $sa_certificate = GeniCertificate->LoadFromFile($SACERT);
-    if (!defined($sa_certificate)) {
-	print STDERR "Could not load certificate from $SACERT\n";
-	goto bad;
-    }
-    my $sa_authority = GeniAuthority->Lookup($sa_certificate->urn());
-    if (!defined($sa_authority)) {
-	prnt STDERR "Could not load SA authority object\n";
-	goto bad;
     }
 
     #
@@ -92,10 +79,12 @@ sub GenCredentials($$;$)
 	    print STDERR "No stored speaksfor/certificate for $geniuser\n";
 	    goto bad;
 	}
-	$speaksfor = GeniCredential->CreateFromSigned($speaksfor_string);
-	if (!defined($speaksfor)) {
-	    print STDERR "Could not create speaksfor credential\n";
-	    goto bad;
+	if ($wantspeaksfor) {
+	    $speaksfor = GeniCredential->CreateFromSigned($speaksfor_string);
+	    if (!defined($speaksfor)) {
+		print STDERR "Could not create speaksfor credential\n";
+		goto bad;
+	    }
 	}
 	my $certificate =
 	    GeniCertificate->LoadFromString($certificate_string);
@@ -106,15 +95,31 @@ sub GenCredentials($$;$)
 	$credential = GeniCredential->Create($target, $certificate);
     }
     else {
-	$speaksfor = GeniCredential->Create($geniuser, $sa_authority);
-	if (!defined($speaksfor)) {
-	    print STDERR "Could not create speaksfor credential\n";
-	    goto bad;
-	}
-	$speaksfor->SetType("speaksfor");
-	if ($speaksfor->Sign($speaker_signer)) {
-	    print STDERR "Could not sign speaksfor credential\n";
-	    goto bad;
+	if ($wantspeaksfor) {
+	    #
+	    # The Utah SA is always the speaker, even if the user is a guest
+	    # with the alternate CA.
+	    #
+	    my $sa_certificate = GeniCertificate->LoadFromFile($SACERT);
+	    if (!defined($sa_certificate)) {
+		print STDERR "Could not load certificate from $SACERT\n";
+		goto bad;
+	    }
+	    my $sa_authority = GeniAuthority->Lookup($sa_certificate->urn());
+	    if (!defined($sa_authority)) {
+		prnt STDERR "Could not load SA authority object\n";
+		goto bad;
+	    }
+	    $speaksfor = GeniCredential->Create($geniuser, $sa_authority);
+	    if (!defined($speaksfor)) {
+		print STDERR "Could not create speaksfor credential\n";
+		goto bad;
+	    }
+	    $speaksfor->SetType("speaksfor");
+	    if ($speaksfor->Sign($speaker_signer)) {
+		print STDERR "Could not sign speaksfor credential\n";
+		goto bad;
+	    }
 	}
 	$credential = GeniCredential->Create($target, $geniuser);
     }
@@ -134,7 +139,10 @@ sub GenCredentials($$;$)
 	print STDERR "Could not sign $target credential\n";
 	goto bad;
     }
-    return ($credential, $speaksfor);
+    if (wantarray) {
+	return ($credential, $speaksfor);
+    }
+    return $credential;
   bad:
     return ();
 }

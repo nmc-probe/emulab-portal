@@ -159,7 +159,8 @@ sub DoSnapshot()
     if (!defined($slice)) {
 	fatal("No slice for quick VM: $uuid");
     }
-
+    my $authority = $instance->GetGeniAuthority();
+    
     # The web interface (and in the future the xmlrpc interface) sets this.
     my $this_user = User->ImpliedUser();
     if (! defined($this_user)) {
@@ -171,9 +172,9 @@ sub DoSnapshot()
     
     #
     # If we get an imagename on the command line, the caller is
-    # saying it is responsible. If we do not get one, we create
-    # the name and update the underlying profile with the new image
-    # urn.
+    # saying it is responsible (clone). If we do not get one, we
+    # create the name and update the underlying profile with the new
+    # image urn.
     #
     my $imagename;
     my $node_id;
@@ -202,16 +203,17 @@ sub DoSnapshot()
     if (! defined($manifest)) {
 	fatal("Could not parse manifest");
     }
+    my $node;
     my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
     if (!defined($node_id)) {
 	if (@nodes != 1) {
 	    fatal("Too many nodes (> 1) to snapshot");
 	}
-	my ($node)     = @nodes;
+	($node)     = @nodes;
 	$sliver_urn = GeniXML::GetSliverId($node);
     }
     else {
-	foreach my $node (@nodes) {
+	foreach $node (@nodes) {
 	    my $client_id = GeniXML::GetVirtualId($node);
 	    if ($node_id eq $client_id) {
 		$sliver_urn = GeniXML::GetSliverId($node);
@@ -222,11 +224,6 @@ sub DoSnapshot()
 	    fatal("Could not find node '$node_id' in manifest");
 	}
     }
-    if ($slice->Lock()) {
-	fatal("Slice is busy, cannot lock it");
-    }
-    $needunlock = 1;
-    
     #
     # Create the webtask object.
     #
@@ -236,7 +233,50 @@ sub DoSnapshot()
 	$webtask->AutoStore(1);
     }
 
-    my $authority = $instance->GetGeniAuthority();
+    #
+    # Really, a snapshot and not a clone. We are not going to allow this
+    # if the instance in on a different cluster then where the image was
+    # originally created, since otherwise the image provenance will look
+    # like spaghetti.
+    #
+    if ($update_profile) {
+	my $diskref = GeniXML::GetDiskImage($node);
+	if (defined($diskref)) {
+	    my $image_url = GeniXML::GetText("url", $diskref);
+	    if (defined($image_url)) {
+		require URI;
+
+		# Get the hostname for the image URL.
+		my $uri = URI->new($image_url);
+		if (!defined($uri)) {
+		    fatal("Could not parse $image_url");
+		}
+		my $image_host = $uri->host();
+
+		# Get the hostname for the authority.
+		$uri = URI->new($authority->url());
+		if (!defined($uri)) {
+		    fatal("Could not parse authority URL");
+		}
+		my $authority_host = $uri->host();
+
+		# Compare domains.
+		$image_host =~ s/^([^.]+\.)//;
+		$authority_host =~ s/^([^.]+\.)//;
+	
+		if ($image_host ne $authority_host) {
+		    $errmsg  = "Not allowed to take a snapshot on this cluster";
+		    $errcode = 1;
+		    goto bad;
+		}
+	    }
+	}
+    }
+    if ($slice->Lock()) {
+	fatal("Slice is busy, cannot lock it");
+    }
+    $needunlock = 1;
+    
     my $geniuser  = $instance->GetGeniUser();
     my $context   = APT_Geni::GeniContext();
     if (! (defined($geniuser) && defined($authority) &&
@@ -411,7 +451,7 @@ sub DoSnapshot()
 		exit(1);
 	    }
 	}
-	$profile->UpdateDiskImage($image_urn);
+	$profile->UpdateDiskImage($version_url);
     }
     $instance->SetStatus("ready");
     # We garbage collect these later, so anyone waiting has a chance
@@ -428,7 +468,8 @@ sub DoSnapshot()
 	$webtask->Exited($errcode);
 	$webtask->output($errmsg);
     }
-    $slice->UnLock();
+    $slice->UnLock()
+	if ($needunlock);
     if (defined($logfile)) {
 	$instance->Brand()->SendEmail($instance->Brand()->OpsEmailAddress(),
 				      "Snapshot failed",

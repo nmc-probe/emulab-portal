@@ -97,6 +97,51 @@
 		  </option>
 		<% }); %>
 	      </select>
+
+	      <!-- Permission checkboxes. -->
+	      <div class='row'>
+		<div class='col-sm-9 col-sm-offset-3'>
+		  Who can use your dataset?
+		</div>
+	      </div>
+
+	      <div class='row'>
+		<div class='col-sm-8 col-sm-offset-4'>
+		  <div class='format-me' data-key='dataset_who'>
+		    <div class='radio'>
+                      <label>
+			<input type='radio' name='formfields[dataset_who]'
+			       id='dataset_who_public'
+		               <% if (formfields.dataset_who == "public") {
+				  %>checked<% } %>
+			       value='public'>
+			<em>Anyone</em> on the internet (guest users)
+    	              </label>
+                    </div>
+                    <div class='radio'>
+                      <label>
+			<input type='radio' name='formfields[dataset_who]'
+			       id='dataset_who_registered'
+		               <% if (formfields.dataset_who == "shared") {
+				  %>checked<% } %>
+			       value='shared'>
+			Only registered users
+    	              </label>
+                    </div>
+                    <div class='radio'>
+                      <label>
+			<input type='radio' name='formfields[dataset_who]'
+			       id='dataset_who_private'
+		               <% if (formfields.dataset_who == "private") {
+				  %>checked<% } %>
+			       value='private'>
+			Only members of your project
+    	              </label>
+                    </div>
+                  </div>
+		</div>
+              </div>
+	      
               <button class='btn btn-primary btn-sm pull-right'
                       id='dataset_submit_button'
                       type='submit' name='create'>Create</button>

@@ -762,6 +762,16 @@ function DateStringGMT($date)
     return gmdate("Y-m-d\TH:i:s\Z", strtotime($date));
 }
 
+# Check to see if a date is actually no date. Really, please do not
+# use default dates in the sql file.
+function NullDate($date)
+{
+    if (is_null($date) || $date == "" || $date == "0000-00-00 00:00:00") {
+	return null;
+    }
+    return $date;
+}
+
 #
 #
 # DB Interface.

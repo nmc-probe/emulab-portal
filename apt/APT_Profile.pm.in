@@ -672,17 +672,138 @@ sub Unlock($)
 #
 sub UpdateDiskImage($$)
 {
-    my ($self, $image_urn) = @_;
+    my ($self, $image_url) = @_;
     my $rspec = GeniXML::Parse($self->rspec());
     if (! defined($rspec)) {
 	print STDERR "UpdateDiskImage: Could not parse rspec\n";
 	return -1;
     }
     my ($node) = GeniXML::FindNodes("n:node", $rspec)->get_nodelist();
-    GeniXML::SetDiskImage($node, $image_urn);
+    GeniXML::SetDiskImage($node, $image_url);
     if ($self->UpdateVersion({"rspec" => GeniXML::Serialize($rspec)})) {
 	print STDERR "UpdateDiskImage: Could not update rspec\n";
 	return -1;
+    }
+    return 0;
+}
+
+#
+# We need to convert from using URNs to using URLs for disk images,
+# since we want to support choosing the backend. This list is the
+# list as of the conversion, at the APT. Before we instantiate, look
+# at the rspec and update the URNs to URLs based on this list.
+#
+my %APTImages = (
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:demo-profile' => 'https://www.apt.emulab.net/image_metadata.php?uuid=3937a58c-7b2f-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:docker' => 'https://www.apt.emulab.net/image_metadata.php?uuid=5ae4aeef-7b2f-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:docker-running-env' => 'https://www.apt.emulab.net/image_metadata.php?uuid=a130e3e1-7b2f-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:docker-running-env-02' => 'https://www.apt.emulab.net/image_metadata.php?uuid=f30dfd4d-7b2f-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:Docker1' => 'https://www.apt.emulab.net/image_metadata.php?uuid=31d95a10-7b30-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:ESA' => 'https://www.apt.emulab.net/image_metadata.php?uuid=72d8b175-7b35-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:firstclone' => 'https://www.apt.emulab.net/image_metadata.php?uuid=d49dc243-7b31-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:FPTaylorVM' => 'https://www.apt.emulab.net/image_metadata.php?uuid=f2e9010e-7b31-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:FrequentDirection' => 'https://www.apt.emulab.net/image_metadata.php?uuid=1c6b0966-7b32-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:geni-lib' => 'https://www.apt.emulab.net/image_metadata.php?uuid=441f3d1c-7b32-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:gimiovsomf6' => 'https://www.apt.emulab.net/image_metadata.php?uuid=6260f126-7b32-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:hadoop' => 'https://www.apt.emulab.net/image_metadata.php?uuid=ffa8648d-3524-11e4-8944-81966d62745f',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:hg' => 'https://www.apt.emulab.net/image_metadata.php?uuid=91dc43cb-7b32-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:imageusage' => 'https://www.apt.emulab.net/image_metadata.php?uuid=adc56dfa-7b32-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:Iperf' => 'https://www.apt.emulab.net/image_metadata.php?uuid=d0c81a2d-7b32-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:labwikiXORP' => 'https://www.apt.emulab.net/image_metadata.php?uuid=eee561e4-7b32-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:myapt' => 'https://www.apt.emulab.net/image_metadata.php?uuid=13ba0c1d-7b33-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:myclone' => 'https://www.apt.emulab.net/image_metadata.php?uuid=301cb7f7-7b33-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:myimage' => 'https://www.apt.emulab.net/image_metadata.php?uuid=03a2a844-7b2c-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:myvm' => 'https://www.apt.emulab.net/image_metadata.php?uuid=6334311f-7a59-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:myvm2' => 'https://www.apt.emulab.net/image_metadata.php?uuid=aa8a9f6a-7a79-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:ricci-cav-2014' => 'https://www.apt.emulab.net/image_metadata.php?uuid=b3d662b2-7b35-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:rob-profile' => 'https://www.apt.emulab.net/image_metadata.php?uuid=3126f6f2-7b34-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:robtestimage' => 'https://www.apt.emulab.net/image_metadata.php?uuid=4d4357cf-7b34-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:singlenodelime' => 'https://www.apt.emulab.net/image_metadata.php?uuid=608fcd94-7b34-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:singlenodelime-2' => 'https://www.apt.emulab.net/image_metadata.php?uuid=8db1ab6c-7b34-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:singlevmlime' => 'https://www.apt.emulab.net/image_metadata.php?uuid=b192160c-7b34-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:smack-cav2014-test' => 'https://www.apt.emulab.net/image_metadata.php?uuid=a458b87c-7b36-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:ubuntu1204maas' => 'https://www.apt.emulab.net/image_metadata.php?uuid=e5326c2e-7b36-11e4-9439-db9edc46fe2c',
+    'urn:publicid:IDN+utahddc.geniracks.net+image+emulab-net:Ubuntu1404' => 'https://www.apt.emulab.net/image_metadata.php?uuid=083830cf-7b37-11e4-9439-db9edc46fe2c',  
+);
+
+sub ConvertDiskImages($)
+{
+    my ($self) = @_;
+    my $modified = 0;
+
+    my $rspec = GeniXML::Parse($self->rspec());
+    if (! defined($rspec)) {
+	print STDERR "Could not parse rspec\n";
+	return -1;
+    }
+    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	my $diskref = GeniXML::GetDiskImage($ref);
+	next
+	    if (!defined($diskref));
+	my $imageurn = GeniXML::GetText("name", $diskref);
+	next
+	    if (!defined($imageurn));
+	if (exists($APTImages{$imageurn})) {
+	    GeniXML::SetDiskImage($ref, $APTImages{$imageurn});
+	    $modified = 1;
+	}
+    }
+    if ($modified) {
+	$self->{'DBROW'}->{'rspec'} = GeniXML::Serialize($rspec);
+
+	my $profileid  = $self->profileid();
+	my $version    = $self->version();
+	my $safe_rspec = DBQuoteSpecial($self->rspec());
+	DBQueryWarn("update apt_profile_versions set rspec=$safe_rspec ".
+		    "where profileid='$profileid' and version='$version'")
+	    if (1);
+    }
+    return 0;
+}
+
+# Total nonsense, to be thrown away.
+sub CheckImageConstraints($$$)
+{
+    my ($self, $iscloudlab, $pmsg) = @_;
+    my $cloudwww = "www.utah.cloudlab.us";
+    require URI;
+
+    my $rspec = GeniXML::Parse($self->rspec());
+    if (! defined($rspec)) {
+	print STDERR "Could not parse rspec\n";
+	return -1;
+    }
+    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	my $client_id = GetVirtualId($ref);
+	my $diskref   = GeniXML::GetDiskImage($ref);
+	next
+	    if (!defined($diskref));
+	my $image_url = GeniXML::GetText("url", $diskref);
+	next
+	    if (!defined($image_url));
+
+	# Get the hostname for the image URL.
+	my $uri = URI->new($image_url);
+	if (!defined($uri)) {
+	    print STDERR "Could not parse $image_url\n";
+	    return -1;
+	}
+	my $image_host = $uri->host();
+
+	if ($iscloudlab) {
+	    if ($image_host ne $cloudwww) {
+		$$pmsg = "The disk image specified for node '$client_id' ".
+		    "will not run on the Cloudlab cluster";
+		return -1;
+	    }
+	}
+	else {
+	    if ($image_host eq $cloudwww) {
+		$$pmsg = "The disk image specified for node '$client_id' ".
+		    "will not run on cluster you selected";
+		return -1;
+	    }
+	}
     }
     return 0;
 }
@@ -692,7 +813,9 @@ sub UpdateDiskImage($$)
 #
 sub CheckDatasets($$$)
 {
-    my ($xml, $project, $pmsg) = @_;
+    my ($xml, $ppid, $pmsg) = @_;
+    my $pid = $ppid;
+    
     my $rspec = GeniXML::Parse($xml);
     if (! defined($rspec)) {
 	print STDERR "CheckDatasets: Could not parse rspec\n";
@@ -703,11 +826,28 @@ sub CheckDatasets($$$)
 						   $ref,
 				   $GeniXML::EMULAB_NS)->get_nodelist()) {
 	    my $leaseurn = GeniXML::GetText("persistent", $blockref);
-	    if (defined($leaseurn) && !GeniHRN::IsValid($leaseurn)) {
+
+	    #
+	    # We only care about datasets here, we let the backend
+	    # do the error checking on ephemeral blockstores.
+	    #
+	    next
+		if (!defined($leaseurn));
+	    
+	    if (!GeniHRN::IsValid($leaseurn)) {
 		$$pmsg = "Persistent dataset name is not a valid URN";
 		return 1;
 	    }
-	    my ($authority, $type, $id) = GeniXML::Parse($leaseurn);
+	    my ($authority, $type, $id) = GeniHRN::Parse($leaseurn);
+	    #
+	    # Separate project from name; this is how the rspec specifies
+	    # the dataset they want, since it might be in another project
+	    #
+	    if ($id =~ /^([-\w]+)\/\/(.+)$/) {
+		$pid = $1;
+		$id  = $2;
+	    }
+	    
 	    #
 	    # Not all backends have blockstore support.
 	    #
@@ -715,18 +855,31 @@ sub CheckDatasets($$$)
 		$$pmsg = "Persistent dataset is not on a valid aggregate";
 		return 1;
 	    }
-	    #
-	    # Dataset must already exists on the aggregate.
-	    #
-	    my $pid     = $project->pid();
 	    my $dataset = APT_Dataset->Lookup("$pid/$id");
 	    if (!defined($dataset)) {
 		$$pmsg = "Persistent dataset '$pid/$id' does not exist";
 		return 1;
 	    }
-	    my ($d_authority) = GeniXML::Parse($dataset->aggregate_urn());
+
+	    #
+	    # Dataset must already exists on the aggregate. But we have to
+	    # make these checks again at instantiation, since the dataset
+	    # might be gone, or it might have different permissions
+	    # settings.
+	    #
+	    my ($d_authority) = GeniHRN::Parse($dataset->aggregate_urn());
 	    if ($d_authority ne $authority) {
 		$$pmsg = "Persistent dataset '$pid/$id' in not on $authority";
+		return 1;
+	    }
+
+	    #
+	    # Basic permission checks, very little support at the moment.
+	    # Just make sure that the profile and the dataset are in the
+	    # same pid.
+	    #
+	    if ($ppid ne $dataset->pid()) {
+		$$pmsg = "Not allowed to use dataset '$pid/$id' in profile";
 		return 1;
 	    }
 	}

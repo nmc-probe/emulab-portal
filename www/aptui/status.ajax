@@ -416,21 +416,24 @@ function Do_Snapshot()
     $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval != 0) {
-	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	if ($retval < 0) {
 	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
 	    # Notify tbops.
 	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
-	    return;
 	}
-	if ($webtask) {
+	elseif ($webtask) {
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
-	    $webtask->Delete();
 	}
 	else {
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
 	return;
+    }
+    if ($webtask) {
+	$webtask->Delete();
     }
     SPITAJAX_RESPONSE("Success");
 }
