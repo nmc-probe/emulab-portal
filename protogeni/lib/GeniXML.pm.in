@@ -720,7 +720,14 @@ sub SetDiskImage($$)
 	    $diskref = AddElement("disk_image", $type);
 	}
     }
-    GeniXML::SetText("name", $diskref, $urn);
+    if (GeniHRN::IsValid($urn)) {
+	$diskref->removeAttribute("url");
+	GeniXML::SetText("name", $diskref, $urn);
+    }
+    else {
+	$diskref->removeAttribute("name");
+	GeniXML::SetText("url", $diskref, $urn);
+    }
     return $diskref;
 }
 
