@@ -20,7 +20,7 @@
 # 
 # }}}
 #
-AC_PREREQ([2.69])
+AC_PREREQ([2.68])
 
 AC_INIT
 AC_CONFIG_SRCDIR([Makeconf.in])
