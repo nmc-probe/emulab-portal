@@ -175,10 +175,11 @@ class Instance
 	}
 	$retval = SUEXEC($uid, $pid,
 			 "webcreate_instance $options -u $uuid $xmlname",
-			 SUEXEC_ACTION_CONTINUE);
+			 SUEXEC_ACTION_IGNORE);
 
 	if ($retval != 0) {
 	    if ($retval < 0) {
+		SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 		$errors["error"] =
 		    "Transient error(3); please try again later.";
 	    }
@@ -188,6 +189,7 @@ class Instance
 		    $errors["error"] = $line;
 		}
 		else {
+		    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 		    $errors["error"] =
 			"Transient error(4); please try again later.";
 		}
