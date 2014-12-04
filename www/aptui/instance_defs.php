@@ -163,8 +163,10 @@ class Instance
 	# With a real user, run as that user. 
 	#
 	$uid = ($creator ? $creator->uid() : "nobody");
-	$pid = ($creator ? $creator->FirstApprovedProject()->pid() : "nobody");
-
+	$pid = "nobody";
+	if ($creator && $creator->FirstApprovedProject()) {
+	    $pid = $creator->FirstApprovedProject()->pid();
+	}
 	if (isset($_SERVER['REMOTE_ADDR'])) { 
 	    putenv("REMOTE_ADDR=" . $_SERVER['REMOTE_ADDR']);
 	}
