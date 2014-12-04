@@ -470,7 +470,7 @@ if (!isset($create)) {
     $defaults["sshkey"]   = "";
     $defaults["profile"]  = (isset($profile) ? $profile : $profile_default);
     if ($ISCLOUD) {
-	$defaults["where"]    = 'Utah Cloudlab';
+	$defaults["where"]    = 'Utah APT';
     }
     else {
 	$defaults["where"]    = 'Utah APT';
