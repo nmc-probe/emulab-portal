@@ -46,7 +46,7 @@ sub usage()
 my $optlist = "dvu:a:t:f";
 my $debug   = 0;
 my $verbose = 1;
-my $DEFAULT_URN  = "urn:publicid:IDN+utahddc.geniracks.net+authority+cm";
+my $DEFAULT_URN  = "urn:publicid:IDN+apt.emulab.net+authority+cm";
 my $xmlfile;
 my $webtask;
 my $webtask_id;
