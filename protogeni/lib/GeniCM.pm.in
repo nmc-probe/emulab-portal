@@ -1449,6 +1449,21 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    }
 	}
 
+	# Failure action.
+	my ($failure_ref) =
+	    GeniXML::FindNodesNS("n:failure_action",
+				 $ref,
+				 $GeniXML::EMULAB_NS)->get_nodelist();
+	if (defined($failure_ref)) {
+	    my $action = GeniXML::GetText("action", $failure_ref);
+	    if ($action ne "nonfatal") {
+		$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+						 "Bad failure action");
+		goto bad;
+	    }
+	    $nodeblob->{'failureaction'} = $action;
+	}
+
 	my $virtnode = $virtexperiment->NewTableRow("virt_nodes", $nodeblob);
 	if (!defined($virtnode)) {
 	    $response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
