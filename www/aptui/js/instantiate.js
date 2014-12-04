@@ -8,6 +8,7 @@ function (_, sup, aboutaptString, aboutcloudString)
     'use strict';
 
     var ajaxurl;
+    var amdefault;
 
     function initialize()
     {
@@ -29,7 +30,7 @@ function (_, sup, aboutaptString, aboutcloudString)
 	    $('#verify_modal').modal('show');
 	}
         $('#quickvm_topomodal').on('shown.bs.modal', function() {
-            ShowProfileList($('.current'))
+            ShowProfileSelection($('.current'))
         });
 
 	$('button#reset-form').click(function (event) {
@@ -42,12 +43,11 @@ function (_, sup, aboutaptString, aboutcloudString)
 	});
 	$('li.profile-item').click(function (event) {
 	    event.preventDefault();
-	    ShowProfileList(event.target);
+	    ShowProfileSelection(event.target);
 	});
 	$('button#showtopo_select').click(function (event) {
 	    event.preventDefault();
-	    UpdateProfileSelection($('.selected'));
-	    ShowProfileList($('.selected'));
+	    ChangeProfileSelection($('.selected'));
 	    $('#quickvm_topomodal').modal('hide');
 	});
 	$('#instantiate_submit').click(function (event) {
@@ -55,52 +55,72 @@ function (_, sup, aboutaptString, aboutcloudString)
 	    return true;
 	});
 	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
-        UpdateProfileSelection(startProfile);
-	ShowProfileList(startProfile, true);
+        ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
     }
 
     function resetForm($form) {
 	$form.find('input:text, input:password, select, textarea').val('');
     }
-    
-    function UpdateProfileSelection(selectedElement)
-    {
-	var profile_name = $(selectedElement).text();
-	var profile_value = $(selectedElement).attr('value');
-	$('#selected_profile').attr('value', profile_value);
-	$('#selected_profile_text').html("" + profile_name);
 
-	if (!$(selectedElement).hasClass('current')) {
-	    $('#profile_name li').each(function() {
-		$(this).removeClass('current');
-	    });
-	    $(selectedElement).addClass('current');
-	}
-    }
-
-    function ShowProfileList(selectedElement, justTitle)
-    {
-	var profile = $(selectedElement).attr('value');
-
+    function ShowProfileSelection(selectedElement) {
 	if (!$(selectedElement).hasClass('selected')) {
 	    $('#profile_name li').each(function() {
 		$(this).removeClass('selected');
 	    });
 	    $(selectedElement).addClass('selected');
 	}
+	
+	var continuation = function(rspec, description, name, amdefault) {
+	    $('#showtopo_title').html("<h3>" + name + "</h3>");
+	    $('#showtopo_description').html(description);
+	    sup.maketopmap('#showtopo_div', rspec, null);
+	};
+	GetProfile($(selectedElement).attr('value'), continuation);
+    }
+    
+    function ChangeProfileSelection(selectedElement) {
+	if (!$(selectedElement).hasClass('current')) {
+	    $('#profile_name li').each(function() {
+		$(this).removeClass('current');
+	    });
+	    $(selectedElement).addClass('current');
+	}
 
+	var profile_name = $(selectedElement).text();
+	var profile_value = $(selectedElement).attr('value');
+	$('#selected_profile').attr('value', profile_value);
+	$('#selected_profile_text').html("" + profile_name);
+	
+	var continuation = function(rspec, description, name, amdefault) {
+	    $('#showtopo_title').html("<h3>" + name + "</h3>");
+	    $('#showtopo_description').html(description);
+	    $('#selected_profile_description').html(description);
+
+	    // Set the default aggregate.
+	    if ($('#profile_where').length) {
+		// Deselect current option.
+		$('#profile_where option').prop("selected", false);
+		// Find and select new option.
+		$('#profile_where option')
+		    .filter('[value="'+ amdefault + '"]')
+                    .prop('selected', true);		
+	    }
+	};
+	GetProfile($(selectedElement).attr('value'), continuation);
+    }
+    
+    function GetProfile(profile, continuation) {
 	var callback = function(json) {
 	    if (json.code) {
 		alert("Could not get profile: " + json.value);
 		return;
 	    }
+	    console.info(json);
 	    
 	    var xmlDoc = $.parseXML(json.value.rspec);
 	    var xml    = $(xmlDoc);
     
-	    $('#showtopo_title').html("<h3>" + json.value.name + "</h3>");
-
 	    /*
 	     * We now use the desciption from inside the rspec, unless there
 	     * is none, in which case look to see if the we got one in the
@@ -117,18 +137,13 @@ function (_, sup, aboutaptString, aboutcloudString)
 	    if (!description || description == "") {
 		description = "Hmm, no description for this profile";
 	    }
-	    $('#showtopo_description').html(description);
-	    $('#selected_profile_description').html(description);
-
-	    if (! justTitle) {
-		sup.maketopmap('#showtopo_div', json.value.rspec, null);
-	    }
+	    continuation(json.value.rspec, description,
+			 json.value.name, json.value.amdefault);
 	}
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "instantiate", "GetProfile",
 					     {"uuid" : profile});
 	$xmlthing.done(callback);
     }
-
     $(document).ready(initialize);
 });

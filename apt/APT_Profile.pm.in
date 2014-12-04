@@ -762,7 +762,7 @@ sub ConvertDiskImages($)
 }
 
 # Total nonsense, to be thrown away.
-sub CheckImageConstraints($$$)
+sub CheckNodeConstraints($$$)
 {
     my ($self, $iscloudlab, $pmsg) = @_;
     my $cloudwww = "www.utah.cloudlab.us";
@@ -775,12 +775,36 @@ sub CheckImageConstraints($$$)
     }
     foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	my $client_id = GetVirtualId($ref);
+	my $virtualization_type = GeniXML::GetVirtualizationSubtype($ref);
+
+	if (defined($virtualization_type) && $iscloudlab &&
+	    $virtualization_type eq "emulab-xen") {
+	    $$pmsg = "Node '$client_id' is a XEN VM, which is ".
+		"not supported on the Cloudlab cluster";
+	    return -1;
+	}
 	my $diskref   = GeniXML::GetDiskImage($ref);
 	next
 	    if (!defined($diskref));
 	my $image_url = GeniXML::GetText("url", $diskref);
+	my $image_urn = GeniXML::GetText("name", $diskref);
 	next
-	    if (!defined($image_url));
+	    if (!(defined($image_url) || defined($image_urn)));
+
+	if (defined($image_urn)) {
+	    if ($iscloudlab && $image_urn !~ /ARM/) {
+		$$pmsg = "Node '$client_id' disk_image will not run ".
+		    "on the Cloudlab cluster";
+		return -1;
+	    }
+	    elsif (!$iscloudlab && $image_urn =~ /ARM/) {
+		$$pmsg = "Node '$client_id' disk_image will only run ".
+		    "on the Cloudlab cluster";
+		return -1;
+	    }
+	}
+	next if
+	    (!defined($image_url));
 
 	# Get the hostname for the image URL.
 	my $uri = URI->new($image_url);

@@ -469,12 +469,8 @@ if (!isset($create)) {
     $defaults["email"]    = "";
     $defaults["sshkey"]   = "";
     $defaults["profile"]  = (isset($profile) ? $profile : $profile_default);
-    if ($ISCLOUD) {
-	$defaults["where"]    = 'Utah APT';
-    }
-    else {
-	$defaults["where"]    = 'Utah APT';
-    }
+    $defaults["where"]    = $DEFAULT_AGGREGATE;
+
     # 
     # Look for current user or cookie that tells us who the user is. 
     #

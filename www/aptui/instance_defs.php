@@ -24,13 +24,20 @@
 #
 
 $am_array = array('Utah APT' =>
-		     "urn:publicid:IDN+apt.emulab.net+authority+cm",
+		  "urn:publicid:IDN+apt.emulab.net+authority+cm",
 		  'Utah Cloudlab' =>
 		     "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
 		  'Utah DDC' =>
 		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
 		  'Utah PG'  =>
 		     "urn:publicid:IDN+emulab.net+authority+cm");
+
+if ($ISCLOUD) {
+    $DEFAULT_AGGREGATE = "Utah Cloudlab";
+}
+else {
+    $DEFAULT_AGGREGATE = "Utah APT";
+}
 
 class Instance
 {

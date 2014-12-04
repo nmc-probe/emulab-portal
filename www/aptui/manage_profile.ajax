@@ -286,7 +286,7 @@ function Do_GuestInstantiate()
 #
 function Do_Instantiate()
 {
-    global $this_user, $am_array;
+    global $this_user, $am_array, $DEFAULT_AGGREGATE;
     global $ajax_args;
     
     $this_idx = $this_user->uid_idx();
@@ -320,6 +320,14 @@ function Do_Instantiate()
 	    SPITAJAX_ERROR(1, "Invalid Aggregate");
 	    return;
 	}
+    }
+    else {
+	# Temporary until constraint system in place.
+	$best = $profile->BestAggregate();
+	if (!$best) {
+	    $best = $DEFAULT_AGGREGATE;
+	}
+	$opts = "-a " . $am_array[$best];
     }
 
     #

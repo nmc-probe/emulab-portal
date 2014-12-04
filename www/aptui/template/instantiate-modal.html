@@ -9,7 +9,12 @@
 	  Please select an AM<br>
 	  <select id='instantiate_where'>
 	    <% _.each(amlist, function(name) { %>
-	    <option value='<%= name %>'><%= name %></option>
+	    <option
+	       <% if (name == amdefault) { %>
+	           selected
+	       <% } %>
+	       value='<%= name %>'><%= name %>
+	    </option>
 	    <% }); %>
 	  </select>
 	  <br><br>

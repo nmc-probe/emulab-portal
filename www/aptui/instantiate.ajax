@@ -25,6 +25,7 @@ chdir("..");
 include_once("webtask.php");
 chdir("apt");
 include_once("profile_defs.php");
+include_once("instance_defs.php");
 
 #
 # Return info about specific profile.
@@ -33,6 +34,7 @@ function Do_GetProfile()
 {
     global $this_user;
     global $ajax_args;
+    global $DEFAULT_AGGREGATE;
     
     if (!isset($ajax_args["uuid"])) {
 	SPITAJAX_ERROR(1, "Missing profile uuid");
@@ -48,12 +50,19 @@ function Do_GetProfile()
 	SPITAJAX_ERROR(1, "No such profile $uuid");
 	return;
     }
+    $amdefault = $DEFAULT_AGGREGATE;
+    # Temporary override until constraint system in place.
+    if ($profile->BestAggregate()) {
+	$amdefault = $profile->BestAggregate();
+    }
+    
     #
     # Knowing the UUID means the user can instantiate it,
     # so no permission checks on the profile. 
     #
     SPITAJAX_RESPONSE(array('rspec'       => $profile->rspec(),
-			    'name'        => $profile->name()));
+			    'name'        => $profile->name(),
+			    'amdefault'   => $amdefault));
 }
 # Local Variables:
 # mode:php

@@ -106,7 +106,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
     	var guest_html = guestInstTemplate({});
 	$('#guest_div').html(guest_html);
 	$('#publish_div').html(publishString);
-    	var instantiate_html = InstTemplate({ amlist: amlist });
+    	var instantiate_html = InstTemplate({ amlist: amlist,
+					      amdefault: window.AMDEFAULT});
 	$('#instantiate_div').html(instantiate_html);
     	var rspectext_html = rspectextTemplate({});
 	$('#rspectext_div').html(rspectext_html);

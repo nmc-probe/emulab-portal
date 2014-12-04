@@ -311,7 +311,7 @@ if (APT_Profile::CheckDatasets($rspecstr, $profile_object->pid(), \$errmsg)) {
 my $iscloudlab =
     ($CMURN eq "urn:publicid:IDN+utah.cloudlab.us+authority+cm" ? 1 : 0);
 
-if ($profile_object->CheckImageConstraints($iscloudlab, \$errmsg)) {
+if ($profile_object->CheckNodeConstraints($iscloudlab, \$errmsg)) {
     UserError($errmsg);
 }
 
@@ -522,6 +522,7 @@ print STDERR "Email:   $user_email" . (!$localuser ? " (guest)" : "") . "\n";
 print STDERR "Profile: " . $profile_object->name() . ":${version}\n";
 print STDERR "Slice:   $slice_urn\n";
 print STDERR "Server:  $SERVER_NAME\n";
+print STDERR "Cluster: $CMURN\n";
 print STDERR "\n";
 print STDERR "$rspecstr\n";
 

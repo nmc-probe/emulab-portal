@@ -56,7 +56,7 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 #
 function SPITFORM($formfields, $errors)
 {
-    global $this_user, $projlist, $action, $profile;
+    global $this_user, $projlist, $action, $profile, $DEFAULT_AGGREGATE;
     global $notifyupdate, $notifyclone, $snapuuid, $am_array;
     $viewing    = 0;
     $candelete  = 0;
@@ -104,9 +104,15 @@ function SPITFORM($formfields, $errors)
     echo "</script>\n";
 
     $amlist = array();
+    $amdefault = "";
     if ($viewing && (ISADMIN() || STUDLY())) {
  	while (list($am) = each($am_array)) {
 	    $amlist[] = $am;
+	}
+	$amdefault = $DEFAULT_AGGREGATE;
+	# Temporary override until constraint system in place.
+	if ($profile->BestAggregate()) {
+	    $amdefault = $profile->BestAggregate();
 	}
     }
     echo "<script type='text/plain' id='amlist-json'>\n";
@@ -150,6 +156,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.HISTORY  = $history;\n";
     echo "    window.ACTIVITY = $activity;\n";
     echo "    window.TITLE    = '$title';\n";
+    echo "    window.AMDEFAULT= '$amdefault';\n";
     echo "    window.BUTTONLABEL = '$button_label';\n";
     if (isset($snapuuid)) {
 	echo "    window.SNAPUUID = '$snapuuid';\n";

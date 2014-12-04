@@ -389,5 +389,47 @@ class Profile
     function CanView($user) {
 	return $this->CanInstantiate($user);
     }
+
+    function BestAggregate() {
+	$parsed_xml = simplexml_load_string($this->rspec());
+
+	foreach ($parsed_xml->node as $node) {
+	    # No XEN VMs on Cloudlab yet.
+	    if ($node->sliver_type &&
+		$node->sliver_type["name"] &&
+		$node->sliver_type["name"] == "emulab-xen") {
+		return "Utah APT";
+	    }
+	    # Check URL
+	    if (! ($node->sliver_type &&
+		   $node->sliver_type->disk_image &&
+		   ($node->sliver_type->disk_image["url"] ||
+		    $node->sliver_type->disk_image["name"]))) {
+		continue;
+	    }
+	    if ($node->sliver_type->disk_image["name"]) {
+		$name = $node->sliver_type->disk_image["name"];
+		#
+		# The only image that runs on Cloudlab is UBUNTU14-64-ARM
+		#
+		if (preg_match("/ARM/", $name)) {
+		    return "Utah Cloudlab";
+		}
+		return "Utah APT";
+	    }
+	    else {
+		$url = $node->sliver_type->disk_image["url"];
+		if (preg_match("/utah\.cloudlab\.us/", $url)) {
+		    return "Utah Cloudlab";
+		}
+		if (preg_match("/emulab\.net/", $url) ||
+		    preg_match("/geniracks\.net/", $url) ||
+		    preg_match("/instageni/", $url)) {
+		    return "Utah APT";
+		}
+	    }
+	}
+	return null;
+    }
 }
 ?>
