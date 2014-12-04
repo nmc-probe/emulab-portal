@@ -314,7 +314,6 @@ my $iscloudlab =
 if ($profile_object->CheckImageConstraints($iscloudlab, \$errmsg)) {
     UserError($errmsg);
 }
-fatal("fooey");
 
 #
 # Use ssh-keygen to see if the key is valid and convertable. We first
