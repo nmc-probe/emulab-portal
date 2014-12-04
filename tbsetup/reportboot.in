@@ -94,6 +94,9 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"C"})) {
+    $combined = 1;
+}
 if (defined($options{"b"})) {
     $background = 1;
 }
