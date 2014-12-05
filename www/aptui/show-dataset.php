@@ -91,6 +91,7 @@ $fields["dataset_lastused"] = ($dataset->last_used() ?
 $fields["dataset_uuid"]     = $uuid;
 $fields["dataset_idx"]      = $dataset->idx();
 $fields["dataset_urn"]      = $dataset->URN();
+$fields["dataset_who"]      = $dataset->PrivacyString();
 
 #
 # The state is a bit of a problem, since local leases do not have

@@ -118,13 +118,13 @@ function Do_CreateDataSet()
 	$command .= " -s " . $formfields["dataset_size"];
     }
     # Permission bits.
-    if ($formfields["dataset_who"] != "public" ||
-	$formfields["dataset_who"] != "shared" ||
+    if ($formfields["dataset_who"] != "public" &&
+	$formfields["dataset_who"] != "shared" &&
 	$formfields["dataset_who"] != "private") {
 	$errors["dataset_who"] = "Illegal value";
     }
     else {
-	$command .= " -f " . $formfields["dataset_fstype"];
+	$command .= " -p " . $formfields["dataset_who"];
     }
     if (count($errors)) {
 	SPITAJAX_ERROR(2, $errors);

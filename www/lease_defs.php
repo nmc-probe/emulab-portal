@@ -150,6 +150,14 @@ class Lease
 	}
 	return 0;
     }
+
+    #
+    # Return a privacy string (public,shared,private).
+    #
+    function PrivacyString() {
+	return "private";
+    }
+
     #
     # Form a URN for the dataset.
     #

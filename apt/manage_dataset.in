@@ -145,7 +145,8 @@ sub DoCreate()
 {
     my $usage = sub {
 	print STDERR "Usage: manage_dataset create ".
-	    "[-t type] [-f fstype] [-e expiration] -s size pid/name\n";
+	    "[-t type] [-f fstype] [-e expiration] [-p privacy] ".
+	    "-s size pid/name\n";
 	exit(-1);
     };
     my $aggregate_urn = "urn:publicid:IDN+apt.emulab.net+authority+cm";
@@ -153,11 +154,12 @@ sub DoCreate()
     my $errmsg;
     my $pid;
     my $expires;
+    my $privacy = "private";
     my $size;
     my $type = "stdataset";
     my $fstype;
     
-    my $optlist = "ds:t:e:f:w:";
+    my $optlist = "ds:t:e:f:w:p:";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	&$usage();
@@ -174,6 +176,11 @@ sub DoCreate()
 	$fstype = $options{"f"};
 	&$usage()
 	    if ($fstype !~ /^(ext2|ext3|ext4|ufs|ufs2)$/);
+    }
+    if (defined($options{"p"})) {
+	$privacy = $options{"p"};
+	&$usage()
+	    if ($privacy !~ /^(private|shared|public)$/);
     }
     if (defined($options{"s"})) {
 	if ($options{"s"} =~ /^(\d+)$/) {
@@ -236,6 +243,12 @@ sub DoCreate()
 	if (defined($fstype));
     $blob->{"expires"} = TBDateStringLocal($expires)
 	if (defined($expires));
+    if ($privacy eq "shared") {
+	$blob->{'shared'} = 1;
+    }
+    elsif ($privacy eq "public") {
+	$blob->{'public'} = 1;
+    }
 
     my $dataset = APT_Dataset->Create($blob);
     if (!defined($dataset)) {

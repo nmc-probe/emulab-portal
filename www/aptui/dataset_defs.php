@@ -103,6 +103,8 @@ class Dataset
     function size()	     { return $this->field("size"); }
     function locked()	     { return $this->field("locked"); }
     function locker_pid()    { return $this->field("locker_pid"); }
+    function ispublic()      { return $this->field("public"); }
+    function shared()        { return $this->field("shared"); }
     function islocal()       { return 0; }
 
     #
@@ -119,6 +121,18 @@ class Dataset
 	    return 1;
 	}
 	return 0;
+    }
+
+    #
+    # Return a privacy string (public,shared,private).
+    #
+    function PrivacyString() {
+	if ($this->shared())
+	    return "shared";
+	elseif ($this->ispublic())
+	    return "public";
+	else
+	    return "private";
     }
 
     #
