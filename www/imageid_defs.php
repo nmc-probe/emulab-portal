@@ -138,7 +138,7 @@ class Image
 	return Image::Lookup($imageid, $row["version"]);
     }
 
-    function LookupByUUID($uuid) {
+    function LookupByUUID($uuid, $version = NULL) {
 	$safe_uuid = addslashes($uuid);
 
 	#
@@ -149,7 +149,18 @@ class Image
 	$query_result =
 	    DBQueryFatal("select i.imageid,i.version from images as i ".
 			 "where i.uuid='$safe_uuid'");
-	if (mysql_num_rows($query_result) == 0) {
+	if (mysql_num_rows($query_result)) {
+	    if (!is_null($version)) {
+		#
+		# Specific version, but using the image UUID.
+		# Note that you cannot lookup a deleted image this way.
+		# Must have the version specific UUID.
+		#
+		$row = mysql_fetch_array($query_result);
+		return Image::Lookup($row["imageid"], $version);
+	    }
+	}
+	else {
 	    $query_result =
 		DBQueryWarn("select imageid,version from image_versions ".
 			    "where uuid='$safe_uuid' and ".
@@ -448,6 +459,9 @@ class Image
     # and the types array
     function Types()		{ reset($this->types); return $this->types; }
 
+    # Concat id/vers.
+    function versid() { return $this->imageid() . ":" . $this->version(); }
+
     #
     # Access Check, determines if $user can access $this record.
     # 
@@ -629,7 +643,7 @@ class Image
 	$imagefile_url  = $this->imagefile_url();
 	$metadata_url   = $this->metadata_url();
 	if (! $metadata_url) {
-	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$image_uuid";
+	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$uuid";
 	}
 
 	if (!$description)

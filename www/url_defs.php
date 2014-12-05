@@ -576,11 +576,11 @@ function VerifyPageArguments($argspec, $required)
 		$imageid = $_REQUEST[URL_IMAGEID];
 		$yep    = 1;
 
-		if (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
-		    $object = Image::Lookup($imageid, $version);
-		}
-		elseif (ValidateArgument($name, PAGEARG_UUID, $imageid)) {
+		if (ValidateArgument($name, PAGEARG_UUID, $imageid)) {
 		    $object = Image::LookupByUUID($imageid);
+		}
+		elseif (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
+		    $object = Image::Lookup($imageid, $version);
 		}
 	    }
 	    elseif (isset($_REQUEST[$name]) && $_REQUEST[$name] != "") {

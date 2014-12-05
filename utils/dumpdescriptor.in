@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2012 University of Utah and the Flux Group.
+# Copyright (c) 2010-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -143,6 +143,7 @@ sub DumpImage($)
 
     if ($export) {
 	my $imageid    = $image->imageid();
+	my $uuid       = $image->uuid();
 	my $access_key = $image->access_key();
 	if (!defined($access_key) || $access_key eq "") {
 	    $access_key = TBGenSecretKey();
@@ -154,7 +155,7 @@ sub DumpImage($)
 	# Generate a url that allows the image to be downloaded.
 	#
 	my $url = "$TBBASE/spewimage.php".
-	    "?imageid=$imageid&access_key=$access_key";
+	    "?imageid=$uuid&access_key=$access_key";
 	
 	$xmlfields{"imagefile_url"} = $url;
     }

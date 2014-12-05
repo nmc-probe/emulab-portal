@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -78,6 +78,7 @@ register_shutdown_function("SPEWCLEANUP");
 # Invoke backend script to do it all.
 #
 $imageid    = $image->imageid();
+$versid     = $image->versid();
 $access_key = escapeshellarg($access_key);
 $arg        = (isset($stamp) ? "-t " . escapeshellarg($stamp) : "");
 $group      = $image->Group();
@@ -97,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] == "HEAD") {
 }
 
 if ($fp = popen("$TBSUEXEC_PATH nobody $unix_pid,$unix_gid ".
-		"webspewimage $arg $headarg -k $access_key $imageid", "r")) {
+		"webspewimage $arg $headarg -k $access_key $versid", "r")) {
     header("Content-Type: application/octet-stream");
     header("Cache-Control: no-cache, must-revalidate");
     header("Pragma: no-cache");
