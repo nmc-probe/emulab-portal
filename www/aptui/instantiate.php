@@ -399,7 +399,7 @@ function SPITFORM($formfields, $newuser, $errors)
 	$spitsshkeystuff();	
     }
 
-    if (isset($this_user) && (ISADMIN() || STUDLY())) {
+    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY())) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $selected = "";
@@ -558,7 +558,7 @@ if (!$this_user) {
 #
 $aggregate_urn = "";
 
-if ($this_user && (ISADMIN() || STUDLY())) {
+if ($this_user && ($ISCLOUD || ISADMIN() || STUDLY())) {
     if (isset($formfields["where"]) && $formfields["where"] != "") {
 	if (array_key_exists($formfields["where"], $am_array)) {
 	    $aggregate_urn = $am_array[$formfields["where"]];

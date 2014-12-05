@@ -286,7 +286,7 @@ function Do_GuestInstantiate()
 #
 function Do_Instantiate()
 {
-    global $this_user, $am_array, $DEFAULT_AGGREGATE;
+    global $this_user, $am_array, $DEFAULT_AGGREGATE, $ISCLOUD;
     global $ajax_args;
     
     $this_idx = $this_user->uid_idx();
@@ -312,7 +312,7 @@ function Do_Instantiate()
     $args["auth_token"] = $token;
 
     $opts = "";
-    if ((ISADMIN() || STUDLY()) && isset($ajax_args["where"])) {
+    if (($ISCLOUD || ISADMIN() || STUDLY()) && isset($ajax_args["where"])) {
 	if (array_key_exists($ajax_args["where"], $am_array)) {
 	    $opts = "-a " . $am_array[$ajax_args["where"]];
 	}
