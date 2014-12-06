@@ -1284,6 +1284,7 @@ REPLACE INTO table_regex VALUES ('apt_profiles','name','text','redirect','images
 REPLACE INTO table_regex VALUES ('apt_profiles','public','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','listed','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','shared','int','redirect','default:boolean',0,0,NULL);
+REPLACE INTO table_regex VALUES ('apt_profiles','topdog','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','description','text','redirect','default:html_fulltext',0,512,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','rspec','text','redirect','default:html_fulltext',0,65535,NULL);
 REPLACE INTO table_regex VALUES ('apt_profiles','script','text','redirect','default:html_fulltext',0,65535,NULL);

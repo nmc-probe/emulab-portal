@@ -86,6 +86,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	    candelete:		window.CANDELETE,
 	    canmodify:		window.CANMODIFY,
 	    canpublish:		window.CANPUBLISH,
+	    isadmin:		window.ISADMIN,
 	    history:		window.HISTORY,
 	    activity:		window.ACTIVITY,
 	    snapuuid:		(window.SNAPUUID || null),
@@ -270,6 +271,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	$('#profile_who_public').change(function() { ProfileModified(); });
 	$('#profile_who_registered').change(function() { ProfileModified(); });
 	$('#profile_who_private').change(function() { ProfileModified(); });
+	$('#profile_topdog').change(function() { ProfileModified(); });
 	
 	/*
 	 * A double click handler that will render the instructions

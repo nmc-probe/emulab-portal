@@ -64,6 +64,7 @@ function SPITFORM($formfields, $errors)
     $canpublish = 0;
     $history    = 0;
     $activity   = 0;
+    $isadmin    = (ISADMIN() ? 1 : 0);
     $version_uuid = "null";
     $profile_uuid = "null";
 
@@ -153,6 +154,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.CANDELETE= $candelete;\n";
     echo "    window.CANMODIFY= $canmodify;\n";
     echo "    window.CANPUBLISH= $canpublish;\n";
+    echo "    window.ISADMIN  = $isadmin;\n";
     echo "    window.HISTORY  = $history;\n";
     echo "    window.ACTIVITY = $activity;\n";
     echo "    window.TITLE    = '$title';\n";
@@ -272,6 +274,8 @@ if (! isset($create)) {
 	    $defaults["profile_who"] =
 		($profile->shared() ? "shared" : 
 		 ($profile->ispublic() ? "public" : "private"));
+	    $defaults["profile_topdog"]      =
+		($profile->topdog() ? "checked" : "");
 
 	    # Warm fuzzy message.
 	    if (isset($_SESSION["notifyupdate"])) {
@@ -464,6 +468,17 @@ else {
 	   ($who == "shared" ? 1 : 0) . "</value></attribute>\n");
     fwrite($fp, "<attribute name='profile_public'><value>" .
 	   ($who == "public" ? 1 : 0) . "</value></attribute>\n");
+    if (ISADMIN()) {
+	fwrite($fp, "<attribute name='profile_topdog'><value>");
+	if (isset($formfields["profile_topdog"]) &&
+	    $formfields["profile_topdog"] == "checked") {
+	    fwrite($fp, "1");
+	}
+	else {
+	    fwrite($fp, "0");
+	}
+	fwrite($fp, "</value></attribute>\n");
+    }
     fwrite($fp, "</profile>\n");
     fclose($fp);
     chmod($xmlname, 0666);
@@ -511,7 +526,7 @@ if ($retval) {
 	}
     }
 }
-unlink($xmlname);
+#unlink($xmlname);
 if (count($errors)) {
     SPITFORM($formfields, $errors);
     return;

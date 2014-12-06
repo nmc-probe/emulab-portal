@@ -170,6 +170,7 @@ CREATE TABLE `apt_profiles` (
   `public` tinyint(1) NOT NULL default '0',
   `shared` tinyint(1) NOT NULL default '0',
   `listed` tinyint(1) NOT NULL default '0',
+  `topdog` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL,
   `locker_pid` int(11) default '0',
   PRIMARY KEY (`profileid`),

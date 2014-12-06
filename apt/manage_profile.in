@@ -159,6 +159,8 @@ my %xmlfields =
      "profile_listed"      => ["listed",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "profile_public"      => ["public",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "profile_shared"      => ["shared",	$SLOT_OPTIONAL|$SLOT_UPDATE],
+     "profile_topdog"      => ["topdog",	$SLOT_OPTIONAL|
+			                          $SLOT_UPDATE|$SLOT_ADMINONLY],
      "rspec"		   => ["rspec",		$SLOT_REQUIRED|$SLOT_UPDATE],
      "script"		   => ["script",	$SLOT_OPTIONAL|$SLOT_UPDATE],
 );

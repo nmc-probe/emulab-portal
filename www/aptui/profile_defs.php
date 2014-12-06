@@ -109,6 +109,7 @@ class Profile
     function script()	    { return $this->field('script'); }
     function locked()	    { return $this->field('status'); }
     function status()	    { return $this->field('locked'); }
+    function topdog()	    { return $this->field('topdog'); }
     function parent_profileid()    { return $this->field('parent_profileid'); }
     function parent_version()      { return $this->field('parent_version'); }
 

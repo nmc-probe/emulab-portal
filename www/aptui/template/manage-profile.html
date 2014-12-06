@@ -327,6 +327,24 @@
               </div>
             </div>
 
+	    <% if (isadmin) { %>
+	    <div class='row'>
+	      <div class='col-sm-10 col-sm-offset-2'>
+		<div class='checkbox format-me' data-key='profile_topdog'
+		     data-compact='yep'>
+                  <label>
+		    <input name=formfields[profile_topdog]
+			   <%- formfields.profile_topdog %>
+			   data-key='profile_topdog'
+			   id='profile_topdog' value='checked'
+			   type='checkbox'>Put this profile at the top of
+			   the list.
+		  </label>
+		</div>
+	      </div>
+	    </div>
+	    <% } %>
+
 	    <!-- The private URL -->
 	    <% if (0) { %>
 	    <input name="formfields[profile_version_url]"
