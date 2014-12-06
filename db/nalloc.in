@@ -291,8 +291,9 @@ if (!$error && (!$noalloc || $partial) && @nodes) {
     # And since the node is now allocated, we need to redo its pxelinux
     # config file so it won't be stuck in pxewait
     foreach my $node (@need_pxeconfig) {
-	TBPxelinuxConfig($node)
-	    if ($node->boot_method() eq "pxelinux");
+	if ($node->boot_method() eq "pxelinux") {
+	    TBPxelinuxConfig($node);
+	}
     }
 }
 TBDebugTimeStamp("updated node_activity, history, and bootlogs");

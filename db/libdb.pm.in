@@ -584,6 +584,13 @@ sub TBPxelinuxConfig($;$)
 		}
 	    } elsif (defined($part)) {
 		$action = "diskboot";
+	    } elsif (!$actionp && $field eq "def_boot_osid") {
+		#
+		# We are probably calling from OSSelect after changing
+		# def_boot_osid but before loading the disk with that image.
+		# Just leave it alone.
+		#
+		return;
 	    } else {
 		print("*** Warning: invalid $field info for $nodeid, ".
 		      "booting to MFS\n");
