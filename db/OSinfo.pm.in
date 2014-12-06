@@ -566,6 +566,15 @@ sub IsGeneric($)
     return ((defined($version) && $version ne "") ? 0 : 1);
 }
 
+sub IsNfsMfs($)
+{
+    my ($self)  = @_;
+
+    return 0
+	if (!ref($self));
+    return ($self->mfs() && $self->path() eq TB_OSID_PATH_NFS());
+}
+
 #
 # Boot command like. The caller supplies the default in $pref.
 #

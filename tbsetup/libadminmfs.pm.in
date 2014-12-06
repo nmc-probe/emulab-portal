@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2010 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,7 +38,8 @@ use Exporter;
 use vars qw(@ISA @EXPORT);
 
 @ISA    = "Exporter";
-@EXPORT = qw ( TBAdminMfsBoot TBAdminMfsSelect TBAdminMfsRunCmd );
+@EXPORT = qw ( TBAdminMfsBoot TBAdminMfsSelect TBAdminMfsRunCmd
+    	       TBAdminMfsCreate TBAdminMfsDestroy);
 
 # Must come after package declaration!
 use libdb;
@@ -51,6 +52,8 @@ use StateWait;
 sub TBAdminMfsBoot($$@);
 sub TBAdminMfsSelect($$@);
 sub TBAdminMfsRunCmd($$@);
+sub TBAdminMfsCreate($$@);
+sub TBAdminMfsDestroy($$@);
 
 # Configure variables
 my $TB		= "@prefix@";
@@ -61,6 +64,7 @@ my $ELABINELAB  = @ELABINELAB@;
 my $nodereboot	= "$TB/bin/node_reboot";
 my $power	= "$TB/bin/power";
 my $osselect    = "$TB/bin/os_select";
+my $nfsmfssetup = "$TB/sbin/nfsmfs_setup";
 
 #
 # The number of nodes we will power on at a time and the time to wait
@@ -339,6 +343,15 @@ sub TBAdminMfsSelect($$@)
 	    }
 	}
 
+	my %cargs;
+	$cargs{'name'} = $me;
+	my @cfailed = ();
+	if (TBAdminMfsCreate(\%cargs, \@cfailed, @good)) {
+	    print STDERR "*** $me:\n".
+		"    Failed to create NFS FS for @cfailed; ".
+		"continuing, but those nodes won't boot!\n";
+	}
+
 	# clear partition boots for successful nodes
 	if ($only && system("$osselect -c @good")) {
 	    print STDERR "*** $me:\n".
@@ -356,6 +369,20 @@ sub TBAdminMfsSelect($$@)
 	    return 1;
 	}
 	@good = @nodes;
+
+	#
+	# XXX note that this is a "soft" destroy.
+	# We will only rename the existing MFS so that if the node
+	# is currently running on it, it will continue to function.
+	#
+	my %cargs;
+	$cargs{'name'} = $me;
+	my @cfailed = ();
+	if (TBAdminMfsDestroy(\%cargs, \@cfailed, @good)) {
+	    print STDERR "*** $me:\n".
+		"    Failed to destroy NFS FS for @cfailed; ".
+		"continuing, but these FSes will need to be cleaned up!\n";
+	}
     }
 
     #
@@ -569,5 +596,121 @@ sub TBAdminMfsRunCmd($$@)
     }
 
     print STDOUT "All nodes have completed their command.\n";
+    return 0;
+}
+
+#
+# TBAdminMfsCreate(\%args, \@failed, @nodes)
+#
+# For the given list of nodes, find those that need their MFS created
+# dynamically and do so.
+#
+# Arguments passed via the $args hashref:
+#
+#	'name'	   string identifying the caller for error messages
+#	'force'    1 to force re-creation of the MFS if it already exists,
+#		   0 will just reuse any existing MFS.
+#
+# Returns zero if we successfully created all MFSes and non-zero otherwise.
+# If the $failed ref is defined, it is an arrayref in which we return the
+# list of nodes that failed.
+#
+# Note: NO PERMISSION CHECKING IS DONE.  It is assumed that the caller
+# has performed all the necessary checks.
+#
+sub TBAdminMfsCreate($$@)
+{
+    my ($args, $failedref, @nodes) = @_;
+
+    return 0
+	if (@nodes == 0);
+
+    my $me = $args->{'name'};
+    my $force = exists($args->{'force'}) ? $args->{'force'} : 0;
+
+    #
+    # Find all the nodes that require a dynamic MFS
+    #
+    my @nfsnodes = ();
+    for my $node (@nodes) {
+	require OSinfo;
+
+	my $osobj = OSinfo->Lookup(TBNodeAdminOSID($node));
+	if ($osobj && $osobj->IsNfsMfs()) {
+	    push @nfsnodes, $node;
+	}
+    }
+
+    #
+    # If any nodes are using an NFS-based MFS, set them up.
+    #
+    if (@nfsnodes > 0) {
+	my $args = $force ? "-f" : "";
+	if (system("$nfsmfssetup $args @nfsnodes")) {
+	    @$failedref = @nfsnodes
+		if (defined($failedref));
+	    return 1;
+	}
+    }
+
+    return 0;
+}
+
+#
+# TBAdminMfsDestroy(\%args, \@failed, @nodes)
+#
+# For the given list of nodes, find those that use a dynamic MFS
+# and destroy it.
+#
+# Arguments passed via the $args hashref:
+#
+#	'name'	   string identifying the caller for error messages
+#	'force'    1 to force actual destruction of the MFS, screwing
+#		   the node if it is currently running on it.
+#		   0 will just rename the existing MFS instead,
+#		   with the old copy destroyed on next creation.
+#
+# Returns zero if we successfully destroyed all MFSes and non-zero otherwise.
+# If the $failed ref is defined, it is an arrayref in which we return the
+# list of nodes that failed.
+#
+# Note: NO PERMISSION CHECKING IS DONE.  It is assumed that the caller
+# has performed all the necessary checks.
+#
+sub TBAdminMfsDestroy($$@)
+{
+    my ($args, $failedref, @nodes) = @_;
+
+    return 0
+	if (@nodes == 0);
+
+    my $me = $args->{'name'};
+    my $force = exists($args->{'force'}) ? $args->{'force'} : 0;
+
+    #
+    # Find all the nodes that require a dynamic MFS
+    #
+    my @nfsnodes = ();
+    for my $node (@nodes) {
+	require OSinfo;
+
+	my $osobj = OSinfo->Lookup(TBNodeAdminOSID($node));
+	if ($osobj && $osobj->IsNfsMfs()) {
+	    push @nfsnodes, $node;
+	}
+    }
+
+    #
+    # If any nodes are using an NFS-based MFS, set them up.
+    #
+    if (@nfsnodes > 0) {
+	my $args = $force ? "-f" : "";
+	if (system("$nfsmfssetup -D $args @nfsnodes")) {
+	    @$failedref = @nfsnodes
+		if (defined($failedref));
+	    return 1;
+	}
+    }
+
     return 0;
 }

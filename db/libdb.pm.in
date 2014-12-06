@@ -1523,21 +1523,10 @@ sub TBNodeAdminOSID($)
     my ($nodeid) = @_;
 
     my $node = LocalNodeLookup($nodeid);
-
-    return 0
-	if (!defined($node));
-
-    my $mfs;
-    
-    if ($node->NodeAttribute("adminmfs_osid", \$mfs) || !defined($mfs)) {
-	return 0
-	    if ($node->NodeTypeAttribute("adminmfs_osid", \$mfs) != 0);
+    if ($node) {
+	return $node->adminmfs_osid();
     }
-
-    $mfs = TB_OSID_FREEBSD_MFS()
-	if (!defined($mfs));
-
-    return $mfs;
+    return 0;
 }
 
 sub TBNodeDiskloadOSID($)
@@ -1545,21 +1534,10 @@ sub TBNodeDiskloadOSID($)
     my ($nodeid) = @_;
 
     my $node = LocalNodeLookup($nodeid);
-
-    return 0
-	if (!defined($node));
-
-    my $mfs;
-    
-    if ($node->NodeAttribute("diskloadmfs_osid", \$mfs) || !defined($mfs)) {
-	return 0
-	    if ($node->NodeTypeAttribute("diskloadmfs_osid", \$mfs) != 0);
+    if ($node) {
+	return $node->diskloadmfs_osid();
     }
-
-    $mfs = TB_OSID_FREEBSD_MFS()
-	if (!defined($mfs));
-
-    return $mfs;
+    return 0;
 }
 
 #

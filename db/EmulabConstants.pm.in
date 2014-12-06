@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -171,7 +171,7 @@ use vars qw(@ISA @EXPORT);
 	 TBDB_RSRVROLE_SIMHOST TBDB_RSRVROLE_STORAGEHOST
 
 	 TBDB_EXPT_WORKDIR
-	 TB_OSID_MBKERNEL 
+	 TB_OSID_MBKERNEL TB_OSID_PATH_NFS
 	 TB_OSID_FREEBSD_MFS TB_OSID_FRISBEE_MFS
 	 TBDB_TBCONTROL_PXERESET TBDB_TBCONTROL_RESET
 	 TBDB_TBCONTROL_RELOADDONE TBDB_TBCONTROL_RELOADDONE_V2
@@ -376,6 +376,9 @@ sub TB_OSID_VERSLEN()		{ 12; }
 
 # Magic OSID constants
 sub TB_OSID_MBKERNEL()          { "_KERNEL_"; } # multiboot kernel OSID
+
+# Magic OSID path
+sub TB_OSID_PATH_NFS()		{ "fs:/nfsroot" };
 
 # Magic MFS constants
 sub TB_OSID_FREEBSD_MFS()	{ "FREEBSD-MFS" };

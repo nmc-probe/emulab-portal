@@ -75,6 +75,7 @@ my $osselect        = "$TB/bin/os_select";
 my $nodereboot      = "$TB/bin/node_reboot";
 my $makeconf        = "$TB/sbin/dhcpd_makeconf";
 my $snmpit          = "$TB/bin/snmpit";
+my $dynmfssetup     = "$TB/sbin/nfsmfs_setup";
 my $reloadpid	    = "emulab-ops";
 my $pendingeid      = "reloadpending";
 my $rppendingeid    = "repositionpending";
@@ -85,6 +86,7 @@ my $lockedeid       = NFREELOCKED_EID();
 my @nodes;
 my @freed_nodes     = ();
 my @dynanodes       = ();
+my @dynmfsnodes     = ();
 my $error           = 0;
 my %mustzero        = ();
 my $mustmakeconf    = 0;
@@ -463,6 +465,13 @@ foreach my $node (@freed_nodes) {
     }
 
     #
+    # Remember if node has a dynamic (aka, NFS) MFS
+    #
+    if (OSinfo->Lookup($node->adminmfs_osid())->IsNfsMfs()) {
+	push(@dynmfsnodes, $node_id);
+    }
+
+    #
     # If the node is virtual, release the shared resources it had
     # reserved on the physical node.
     #
@@ -687,6 +696,15 @@ if (@dynanodes) {
     my @nodeids = map($_->node_id(), @dynanodes);
 
     Node::DeleteVnodes(@nodeids);
+}
+
+#
+# XXX make sure that the nodes have destroyed their dynamic
+# (aka NFS-based) MFSes.
+#
+if (@dynmfsnodes) {
+    system("$dynmfssetup -Df @dynmfsnodes") == 0 ||
+	print STDERR "*** WARNING: could not remove MFSes for @dynmfsnodes!\n";
 }
 
 ######################################################################
