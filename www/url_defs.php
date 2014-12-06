@@ -576,7 +576,7 @@ function VerifyPageArguments($argspec, $required)
 		$imageid = $_REQUEST[URL_IMAGEID];
 		$yep    = 1;
 
-		if (ValidateArgument($name, PAGEARG_UUID, $imageid)) {
+		if (ValidateArgument($name, PAGEARG_UUID, $imageid, 0)) {
 		    $object = Image::LookupByUUID($imageid);
 		}
 		elseif (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
@@ -728,7 +728,7 @@ function VerifyPageArguments($argspec, $required)
 #
 # Validate a single argument is safe to pass along to a DB query.
 #
-function ValidateArgument($name, $type, $arg)
+function ValidateArgument($name, $type, $arg, $isfatal = 1)
 {
     switch ($type) {
     case PAGEARG_UID:
@@ -793,7 +793,9 @@ function ValidateArgument($name, $type, $arg)
 	TBERROR("ValidateArgument: ".
 		"Unknown argument type - $name", 1);
     }
-    PAGEARGERROR("Argument '$name' should be of type '$type'");
+    if ($isfatal) {
+        PAGEARGERROR("Argument '$name' should be of type '$type'");
+    }
     return 0;
 }
 ?>
