@@ -34,18 +34,20 @@ use Sys::Syslog;
 
 sub usage()
 {
-    print "Usage: $0 [-bdC] IP MAC boot-type\n";
+    print "Usage: $0 [-bdCD] IP MAC boot-type\n";
     print("Options:\n");
     print(" -b      - Run in the background\n");
     print(" -d      - Turn on debugging\n");
     print(" -C      - Combine PXEBOOTING/BOOTING on the PXE event\n");
+    print(" -D      - Record event times in a DB to moderate send rate\n");
  
     exit(1);
 }
-my $optlist    = "bdC";
+my $optlist    = "bdCD";
 my $background = 0;
 my $debug      = 0;
 my $combined   = 0;
+my $usedb      = 0;
 
 #
 # Functions
@@ -61,6 +63,13 @@ my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
 my $EVPORT   = @BOSSEVENTPORT@;
 my $EVSERVER = "boss";
+my $EVDB     = "$TB/db/reportboot";
+
+#
+# Minimum time between events.
+# In bootinfo, this is 10 seconds!
+#
+my $EVMININT = 5;
 
 # Locals
 my $logfile  = "$TB/log/reportboot.log";
@@ -96,6 +105,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"C"})) {
     $combined = 1;
+}
+if (defined($options{"D"})) {
+    $usedb = 1;
 }
 if (defined($options{"b"})) {
     $background = 1;
@@ -150,6 +162,41 @@ if (!$nodeid) {
 }
 
 #
+# See if we need to send events.
+# We won't send more than one event per second.
+#
+if ($usedb) {
+    my %DB;
+    my $lasttime = 0;
+    my $now = time();
+    my $key = "$IP/$boottype";
+
+    if (!dbmopen(%DB, $EVDB, 0660)) {
+	logit("$nodeid: could not open $EVDB");
+	exit(1);
+    }
+
+    my $needone = 1;
+    if (defined($DB{$key})) {
+	$lasttime = $DB{$key};
+	# XXX watch for time going backward
+	if ($now >= $lasttime &&
+	    $now < ($lasttime + $EVMININT)) {
+	    $needone = 0;
+	}
+    }
+    if ($needone) {
+	$DB{$key} = $now;
+    }
+    dbmclose(%DB);
+
+    if (!$needone) {
+	logit("$nodeid: NOT sending BOOTING event (too soon)");
+	exit(0);
+    }
+}
+
+#
 # Combine reporting of PXEBOOTING and BOOTING on the PXE event, reporting
 # nothing on the OS event. Use this if you have problems with later
 # OS-generated events happening before the BOOTING gets reported.
@@ -164,7 +211,7 @@ if ($combined) {
 	}
 	logit("$nodeid: sent PXEBOOTING and BOOTING events");
     } else {
-	logit("$nodeid: NOT sending BOOTING event");
+	logit("$nodeid: NOT sending BOOTING event (combo mode)");
     }
 } else {
     my $event = ($boottype eq "OS") ? "BOOTING" : "PXEBOOTING";
@@ -254,4 +301,3 @@ sub sendevent($$)
 
     return 0;
 }
-

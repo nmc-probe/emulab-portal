@@ -73,7 +73,7 @@ on commit {
 
     # If you want to send both events on the PXE contact, use this
     if (boot = "PXE") {
-	execute("@prefix@/sbin/reportboot", "-C", clip, clhw, boot);
+	execute("@prefix@/sbin/reportboot", "-bCD", clip, clhw, boot);
     }
 }
 
