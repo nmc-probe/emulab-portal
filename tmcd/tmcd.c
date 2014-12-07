@@ -193,7 +193,7 @@ static char	fshostid[HOSTID_SIZE];
 static int	nodeidtoexp(char *nodeid, char *pid, char *eid, char *gid);
 static void	tcpserver(int sock, int portnum);
 static void	udpserver(int sock, int portnum);
-static int      handle_request(int, struct sockaddr_in *, char *, int);
+static int      handle_request(int, struct sockaddr_in *, char *, int, int);
 static int      checkcerts(char*);
 static int	makesockets(int portnum, int *udpsockp, int *tcpsockp);
 int		client_writeback(int sock, void *buf, int len, int tcp);
@@ -1006,7 +1006,7 @@ udpserver(int sock, int portnum)
 			continue;
 		}
 		buf[cc] = '\0';
-		handle_request(sock, &client, buf, 0);
+		handle_request(sock, &client, buf, cc, 0);
 		nreq++;
 	}
 	exit(1);
@@ -1096,7 +1096,7 @@ tcpserver(int sock, int portnum)
 			continue;
 		}
 		buf[cc] = '\0';
-		handle_request(newsock, &client, buf, 1);
+		handle_request(newsock, &client, buf, cc, 1);
 		CLOSE(newsock);
 		nreq++;
 	}
@@ -1107,11 +1107,11 @@ tcpserver(int sock, int portnum)
 //#define info(x...)	fprintf(stderr, ##x)
 
 static int
-handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
+handle_request(int sock, struct sockaddr_in *client, char *rdata, int rdatalen, int istcp)
 {
 	struct sockaddr_in redirect_client;
 	int		   redirect = 0;
-	char		   buf[BUFSIZ], *bp, *cp;
+	char		   buf[BUFSIZ], *bp, *cp, *ordata;
 	char		   privkeybuf[PRIVKEY_LEN];
 	char		   *privkey = (char *) NULL;
 	int		   i, overbose = 0, err = 0;
@@ -1134,7 +1134,7 @@ handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
 	/*
 	 * Look for special tags.
 	 */
-	bp = rdata;
+	bp = ordata = rdata;
 	while ((bp = strsep(&rdata, " ")) != NULL) {
 		/*
 		 * Look for PRIVKEY.
@@ -1462,6 +1462,32 @@ handle_request(int sock, struct sockaddr_in *client, char *rdata, int istcp)
 			error("%s: %s: TPM certificate mismatch\n",
 			      reqp->nodeid, command_array[i].cmdname);
 			goto skipit;
+		}
+	}
+
+	/*
+	 * XXX For non-SSL TCP requests, make sure we have read the
+	 * entire request. Fragmentation can cause the initial read to
+	 * not get the entire request. Note that we can only do this
+	 * for version 22 and later clients which explicitly shutdown
+	 * their output side ensuring that we get an EOF at the end of
+	 * the request.
+	 */
+	if (version >= 22 && istcp && !isssl) {
+		bp = ordata + rdatalen;
+
+		while (rdatalen < MAXTMCDPACKET) {
+			int cc = READ(sock, bp, MAXTMCDPACKET - rdatalen);
+
+			if (cc <= 0)
+				break;
+
+			if (verbose)
+				info("%s: %s: got %d additional bytes of data\n",
+				     reqp->nodeid, command_array[i].cmdname, cc);
+			rdatalen += cc;
+			bp += cc;
+			*bp = 0;
 		}
 	}
 
@@ -8858,7 +8884,8 @@ COMMAND_PROTOTYPE(dohostkeys)
 	char	buf[MAXKEY];
 
 #if 0
-	printf("%s\n", rdata);
+	if (verbose)
+		info("%d bytes: %s\n", strlen(rdata), rdata);
 #endif
 
 	/*
@@ -8934,10 +8961,10 @@ COMMAND_PROTOTYPE(dohostkeys)
 		return 1;
 	}
 	if (verbose) {
-		info("sshrsa_v1=%s,sshrsa_v2=%s,sshdsa_v2=%s\n",
-		     (rsav1[0] ? rsav1 : "NULL"),
-		     (rsav2[0] ? rsav2 : "NULL"),
-		     (dsav2[0] ? dsav2 : "NULL"));
+		/* XXX print them separately since "info" buffer is 1K */
+		info("sshrsa_v1=%s\n", (rsav1[0] ? rsav1 : "NULL"));
+		info("sshrsa_v2=%s\n", (rsav2[0] ? rsav2 : "NULL"));
+		info("sshdsa_v2=%s\n", (dsav2[0] ? dsav2 : "NULL"));
 	}
 	return 0;
 }
@@ -9952,41 +9979,11 @@ COMMAND_PROTOTYPE(dobootlog)
 	 * Stash optional text. Must escape it of course.
 	 */
 	if ((len = strlen(rdata))) {
-		char	buf[MAXTMCDPACKET];
-
-		memcpy(buf, rdata, len);
-
-		/*
-		 * Ick, Ick, Ick. For non-ssl mode I should have required
-		 * that the client side close its output side so that we
-		 * could read till EOF. Or, included a record len. As it
-		 * stands, fragmentation will cause a large message (like
-		 * console output) to not appear all at once. Getting this in
-		 * a backwards compatable manner is a pain in the ass. So, I
-		 * just bumped the version number. Newer tmcc will close the
-		 * output side.
-		 *
-		 * Note that tmcc version 22 now closes its write side.
-		 */
-		if (vers >= 22 && tcp && !isssl) {
-			char *bp = &buf[len];
-
-			while (len < sizeof(buf)) {
-				int cc = READ(sock, bp, sizeof(buf) - len);
-
-				if (cc <= 0)
-					break;
-
-				len += cc;
-				bp  += cc;
-			}
-		}
-
 		if ((cp = (char *) malloc((2*len)+1)) == NULL) {
 			error("DOBOOTLOG: %s: Out of Memory\n", reqp->nodeid);
 			return 1;
 		}
-		mysql_escape_string(cp, buf, len);
+		mysql_escape_string(cp, rdata, len);
 
 		if (mydb_update("replace into node_bootlogs "
 				" (node_id, bootlog, bootlog_timestamp) values "
