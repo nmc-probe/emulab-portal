@@ -129,9 +129,7 @@ usage()
 # We need to serialize this script.
 #
 if (!$TESTMODE) {
-    if ((my $locked = TBScriptLock("nfsmfs", 1)) != TBSCRIPTLOCK_OKAY()) {
-	exit(0)
-	    if ($locked == TBSCRIPTLOCK_IGNORE);
+    if ((my $locked = TBScriptLock("nfsmfs")) != TBSCRIPTLOCK_OKAY()) {
 	fatal("Could not get the lock after a long time!\n");
     }
 }
