@@ -1309,8 +1309,6 @@ foreach $node (@nodenames) {
 	}
     } else {
 	push(@sliver_types, "raw-pc");
-	push(@sliver_types, "emulab-openvz");
-	push(@sliver_types, "emulab-xen");	
     }
 
     #
@@ -1361,6 +1359,11 @@ foreach $node (@nodenames) {
 	    my $legacy_type = $type;
 	    if (($legacy_type =~ s/pc/pcvm/)) {
 		push(@types, "${legacy_type}:$count");
+	    }
+	    if (! $sharing_mode{$node})
+	    {
+		push(@sliver_types, "emulab-openvz");
+		push(@sliver_types, "emulab-xen");
 	    }
 	}
 	push(@types, $auxinfo);
