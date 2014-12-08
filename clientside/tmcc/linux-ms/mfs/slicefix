@@ -234,6 +234,23 @@ dolinux() {
     fi
 
     #
+    # XXX Ugh...need to fix up our ntp.conf.
+    # It wants to create a temp file for ntp.drift in the same directory
+    # and ntp cannot write /etc, so move the drift file to /var/lib/ntp.
+    #
+    if [ -e "/mnt/etc/ntp.conf" -a -d "/mnt/var/lib/ntp" ]; then
+	echo "  moving ntp.drift to /var/lib/ntp..."
+	if [ -e "/mnt/etc/ntp.drift" ]; then
+	    mv /mnt/etc/ntp.drift /mnt/var/lib/ntp/
+	fi
+	sed -i -e "s;/etc/ntp.drift;/var/lib/ntp/ntp.drift;" /mnt/etc/ntp.conf || {
+	    echo "Failed to update /etc/ntp.conf"
+	    umount $rootdev
+	    return 1
+	}
+    fi
+
+    #
     # See if we need to trim the FS
     #
     if [ $TRIM -eq 1 -a -x "/sbin/fstrim" ]; then
