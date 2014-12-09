@@ -2268,9 +2268,9 @@ my %h3c_cmdOIDs =
     "1000mbit"=> ["hh3cifEthernetSpeed","S10000M"],
     "100mbit"=> ["hh3cifEthernetSpeed","S100M"],
     "10mbit" => ["hh3cifEthernetSpeed","S10M"],
-    "auto"   => ["hh3cifEthernetDuplex","auto"],
-    "full"   => ["hh3cifEthernetDuplex","full"],
-    "half"   => ["hh3cifEthernetDuplex","half"],
+    #"auto"   => ["hh3cifEthernetDuplex","auto"],
+    #"full"   => ["hh3cifEthernetDuplex","full"],
+    #"half"   => ["hh3cifEthernetDuplex","half"],
 );
 
 sub readifIndex($) {
