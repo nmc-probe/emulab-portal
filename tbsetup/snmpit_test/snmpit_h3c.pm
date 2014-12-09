@@ -31,7 +31,7 @@
 #
 
 # XXX: krw: Rename base HP module here so that we don't actually use
-#      this for the procurve models until I have more time to test.
+#      this for the procurve models until I have more time to integrate.
 package snmpit_hpupd;
 use strict;
 
@@ -196,7 +196,9 @@ sub new($$$;$) {
 	               "$mibpath/SNMPv2-MIB.txt", "$mibpath/IANAifType-MIB.txt",
 		       "$mibpath/IF-MIB.txt", "$mibpath/BRIDGE-MIB.txt", 
 		       "$mibpath/IEEE8023-LAG-MIB.txt",
-		       "$mibpath/HP-ICF-OID.txt", "$mibpath/HH3C-OID-MIB.txt");
+		       "$mibpath/HP-ICF-OID.txt", "$mibpath/HH3C-OID-MIB.txt",
+		       "$mibpath/HH3C-SPLAT-INF.txt", 
+		       "$mibpath/HH3C-PRODUCT-ID.txt");
     $SNMP::save_descriptions = 1; # must be set prior to mib initialization
     SNMP::initMib();		  # parses default list of Mib modules 
     $SNMP::use_enums = 1;	  # use enum values instead of only ints
@@ -228,6 +230,8 @@ sub new($$$;$) {
 	return undef;
     }
     $self->{HPTYPE} = SNMP::translateObj($test_case);
+
+    warn ("Queried switch type: $self->{HPTYPE}\n") if ($self->{DEBUG});
 
     $class = $self->{H3C} = 'snmpit_h3c'
 	if ($test_case =~ '^.1.3.6.1.4.1.25506');
@@ -1389,7 +1393,7 @@ sub listVlans($) {
 		$mbrport = $node->getOtherEndPort();
 	    }
 	    push @{$Members{$vlan_number}}, $mbrport;
-	    $self->debug("$devicename:$vlan_number $node:$mbrport\n", 3);
+	    $self->debug("$self->{NAME}:$vlan_number $node:$mbrport\n", 3);
 
 	    if (!$Names{$vlan_number}) {
 		$self->debug("listVlans: WARNING: port $node in non-existant " .
@@ -1775,11 +1779,13 @@ my %blade_sizes = (
    hpSwitchJ8697A => 24, # hp5406zl
    hpSwitchJ8698A => 24, # hp5412zl
    hpSwitchJ8770A => 24, # hp4204
-   hpSwitchJ8773A => 24 # hp4208
+   hpSwitchJ8773A => 24, # hp4208
+   hpMoonshot45XGc => 64, # Moonshot chassis switch
 );
 
 sub calcModPort($$) {
-    my ($self, $ifindex, $j, $port, $mod) = @_;
+    my ($self, $ifindex) = @_;
+    my ($j, $port, $mod);
     my $bladesize = $blade_sizes{$self->{HPTYPE}};
     if (defined($bladesize)) {
 	$j = $ifindex - 1;
@@ -1835,7 +1841,7 @@ sub readifIndex($) {
 	$self->{IFINDEX}{$ifindex} = $port;
 	$self->{IFINDEX}{$port} = $ifindex;
 	$self->{TRUNKINDEX}{$ifindex} = 0; # simplifies convertPortIndex
-	$self->debug("$ifindex, $modport\n", 2);
+	$self->debug("$ifindex, $port\n", 2);
     }
     $self->{MAXPORT} = $maxport;
     $self->{MAXTRUNK} = $maxtrunk;
@@ -2120,7 +2126,7 @@ sub setVlanMembers($$$) {
     my ($self, $vlan, $mems, $rv) = @_;
     my $id = $self->{NAME} . '::setvLanMembers';
     $rv = $self->set([$egressOID,$vlan,$self->mapListToOid(keys %$mems)], $id);
-    return (!defined($rv));
+    return (defined($rv) ? 0 : 1);
 }
 
 sub leBitsToList($$) {
