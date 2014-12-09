@@ -40,11 +40,13 @@ function (_, editModalString)
     var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
     if (window.ISCLOUD)
     {
+	$('#edit_topo_modal_button').prop('disabled', true);
 	$.get(contextUrl).then(contextReady, contextFail);
     }
 
     function contextReady(data)
     {
+	$('#edit_topo_modal_button').prop('disabled', false);
 	context = data;
     }
 
