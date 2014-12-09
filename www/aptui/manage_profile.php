@@ -160,6 +160,11 @@ function SPITFORM($formfields, $errors)
     echo "    window.TITLE    = '$title';\n";
     echo "    window.AMDEFAULT= '$amdefault';\n";
     echo "    window.BUTTONLABEL = '$button_label';\n";
+    if ($ISCLOUD) {
+      echo "    window.ISCLOUD = true;";
+    } else {
+      echo "    window.ISCLOUD = false;";
+    }
     if (isset($snapuuid)) {
 	echo "    window.SNAPUUID = '$snapuuid';\n";
     }

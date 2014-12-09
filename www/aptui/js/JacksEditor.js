@@ -3,6 +3,57 @@ function (_, editModalString)
 {
     'use strict';
 
+    var context = {
+	canvasOptions: {
+	    "defaults": [
+		{
+		    "name": "Add VM",
+		    "image": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:UBUNTU12-64-STD",
+		    "type": "emulab-xen"
+		}
+	    ],
+	    "images": [
+/*
+			{
+			    "id": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:FBSD100-64-STD",
+			    "name": "FreeBSD 10.0 64-bit version"
+			},
+*/
+		{
+		    "id": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:UBUNTU12-64-STD",
+		    "name": "Ubuntu 12.04 LTS 64-bit"
+		}/*,
+			{
+			    "id": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:UBUNTU14-64-STD",
+			    "name": "Ubuntu 14.04 LTS 64-bit"
+			}*/
+	    ],
+	    "types": [
+		{
+		    "id": "emulab-xen",
+		    "name": "Emulab Xen VM"
+		}
+	    ]
+	}
+    };
+
+    var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
+    if (window.ISCLOUD)
+    {
+	$.get(contextUrl).then(contextReady, contextFail);
+    }
+
+    function contextReady(data)
+    {
+	context = data;
+    }
+
+    function contextFail(fail1, fail2)
+    {
+	console.log('Failed to fetch Jacks context', fail1, fail2);
+	alert('Failed to fetch Jacks context from ' + contextUrl);
+    }
+
     function JacksEditor (root)
     {
 	this.root = root;
@@ -33,37 +84,8 @@ function (_, editModalString)
 		    menu: true,
 		    selectInfo: true
 		},
-		canvasOptions: {
-		    "defaults": [
-			{
-			    "name": "Add VM",
-			    "image": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:UBUNTU12-64-STD",
-			    "type": "emulab-xen"
-			}
-		    ],
-		    "images": [
-/*
-			{
-			    "id": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:FBSD100-64-STD",
-			    "name": "FreeBSD 10.0 64-bit version"
-			},
-*/
-			{
-			    "id": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:UBUNTU12-64-STD",
-			    "name": "Ubuntu 12.04 LTS 64-bit"
-			}/*,
-			{
-			    "id": "urn:publicid:IDN+utahddc.geniracks.net+image+emulab-ops:UBUNTU14-64-STD",
-			    "name": "Ubuntu 14.04 LTS 64-bit"
-			}*/
-		    ],
-		    "types": [
-			{
-			    "id": "emulab-xen",
-			    "name": "Emulab Xen VM"
-			}
-		    ]
-		}
+		canvasOptions: context.canvasOptions,
+		constraints: context.constraints
 	    });
 	},
 
