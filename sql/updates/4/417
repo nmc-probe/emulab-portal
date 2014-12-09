@@ -16,6 +16,8 @@ sub DoUpdate($$$)
     DBQueryFatal("REPLACE INTO table_regex VALUES ".
 		 "('apt_profiles','topdog','int','redirect',".
 		 "'default:boolean',0,0,NULL)");
+
+    return 0;
 }
 1;
 
