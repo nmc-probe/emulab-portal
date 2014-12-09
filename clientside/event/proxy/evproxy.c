@@ -83,7 +83,7 @@ main(int argc, char **argv)
 	char			buf[BUFSIZ], ipaddr[32];
 	char			hostname[MAXHOSTNAMELEN];
 	struct hostent		*he;
-	int			c;
+	int			c, retries;
 	struct in_addr		myip;
 	FILE			*fp;
 
@@ -136,9 +136,21 @@ main(int argc, char **argv)
 	if (gethostname(hostname, MAXHOSTNAMELEN) == -1) {
 		fatal("could not get hostname: %s\n", strerror(errno));
 	}
-	if (! (he = gethostbyname(hostname))) {
-		fatal("could not get IP address from hostname: %s", hostname);
+	retries = 2;
+	while (retries-- > 0) {
+		if (! (he = gethostbyname(hostname))) {
+			if (h_errno == TRY_AGAIN) {
+				warning("could not resolve '%s', trying again...\n",
+					hostname);
+				sleep(1);
+				continue;
+			}
+		}
+		break;
 	}
+	if (!he)
+		fatal("could not get IP address for hostname %s, errno=%d",
+		      hostname, h_errno);
 	memcpy((char *)&myip, he->h_addr, he->h_length);
 	strcpy(ipaddr, inet_ntoa(myip));
 
