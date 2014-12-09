@@ -1646,7 +1646,13 @@ sub snap($) {
  		require snmpit_force10;
 		$device = new snmpit_force10($devicename,$self->{DEBUG});
 		last;
-	        }; # /mellanox.*/
+	        }; # /force10.*/
+	    (/comware/)
+		    && do {
+ 		require snmpit_h3c;
+		$device = new snmpit_h3c($devicename,$self->{DEBUG});
+		last;
+	        }; # /comware.*/
 	    print "Device $devicename is not of a known type\n";
 	}
 	if (!$device) {
