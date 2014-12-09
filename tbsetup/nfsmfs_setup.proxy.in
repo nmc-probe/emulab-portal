@@ -195,6 +195,9 @@ foreach my $nodeid (@ARGV) {
     }
 }
 
+# Odd...sometimes the (un)export doesn't happen
+mysystem("$ZFS share -a");
+
 if (@failed > 0) {
     my $action = $destroy ? "destroy" : "create";
     fatal("$action failed on: " . join(' ', @failed));
