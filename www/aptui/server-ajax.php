@@ -96,10 +96,12 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("create" =>
 						      "Do_CreateDataset",
-						 "refresh" =>
-						      "Do_RefreshDataset",
+						 "modify" =>
+						      "Do_ModifyDataset",
 						 "delete" =>
 						      "Do_DeleteDataset",
+						 "refresh" =>
+						      "Do_RefreshDataset",
 						 "approve" =>
 						      "Do_ApproveDataset")),
     );
