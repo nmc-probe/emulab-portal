@@ -156,9 +156,11 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         <script src='https://www.emulab.net/emulab_sup.js'></script>
       </head>
     <body style='display: none;'>\n";
-    
+
+    $manual = ($ISAPT ? "http://docs.aptlab.net" : "http://docs.cloudlab.us");
     echo "<script type='text/javascript'>\n";
     echo "    window.ISCLOUD  = " . ($ISAPT ? "0" : "1") . ";\n";
+    echo "    window.MANUAL   = '$manual';\n";
     echo "    window.EMBEDDED = $embedded;\n";
     echo "</script>\n";
     

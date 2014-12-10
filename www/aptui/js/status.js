@@ -669,11 +669,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     {
 	var callback = function(json) {
 	    //console.info(json);
-	    
-	    if ($("#manifest_textarea").length) {
-		$("#manifest_textarea").val(json.value);
-		$("#manifest_textarea").css("height", "300");
-	    }
+
+	    ShowManifest(json.value);
 
 	    var xmlDoc = $.parseXML(json.value);
 	    var xml = $(xmlDoc);
@@ -805,6 +802,30 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					    "GetInstanceManifest",
 					    {"uuid" : uuid});
 	xmlthing.done(callback);
+    }
+
+    //
+    // Show the manifest in the tab, using codemirror.
+    //
+    function ShowManifest(manifest)
+    {
+	var mode   = "text/xml";
+
+	$("#manifest_textarea").css("height", "300");
+
+	var myCodeMirror = CodeMirror(function(elt) {
+	    $('#manifest_textarea').prepend(elt);
+	}, {
+	    value: manifest,
+            lineNumbers: false,
+	    smartIndent: true,
+            mode: mode,
+	    readOnly: true,
+	});
+
+	$('#show_manifest_tab').on('shown.bs.tab', function (e) {
+	    myCodeMirror.refresh();
+	});
     }
 
     function MakeUriData(xml)

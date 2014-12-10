@@ -5,7 +5,7 @@
       <div class='modal-header'>
 	<div id='rspec_modal_editbuttons'>
           <button type='button' class='btn btn-danger btn-xs pull-right'
-		  data-dismiss='modal'
+                  id='cancel_rspec_modal_button'
                   style='margin-right: 10px;'>
             Cancel</button>
           <button type='button' class='btn btn-primary btn-xs pull-right'
@@ -15,22 +15,21 @@
 	</div>
 	<div id='rspec_modal_viewbuttons' class='hidden'>
           <button type='button' class='btn btn-danger btn-xs pull-right'
-		  data-dismiss='modal'
+                  id='close_rspec_modal_button'
                   style='margin-right: 10px;'>
             Close</button>
 	</div>
         <h3>Source</h3>
       </div>
-      <div class='modal-body'>
+      <div class='modal-body' id='modal_profile_rspec_body'>
         <div class='panel panel-default'>
-          <div class='panel-body'>
-	    <textarea name=\"formfields[profile_rspec_modal]\"
-		      id='modal_profile_rspec_textarea'
-		      rows=20
-                      class='form-control'
-                      type='textarea'></textarea>
-          </div>
-        </div>
+	  <div id='modal_profile_rspec_div' style='height:300px'></div>
+	</div>
+	<textarea name=\"formfields[profile_rspec_modal]\"
+		  id='modal_profile_rspec_textarea'
+		  rows=20
+		  class='form-control hidden'
+                  type='textarea'></textarea>
       </div>
     </div>
   </div>

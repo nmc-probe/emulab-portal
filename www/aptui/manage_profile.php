@@ -142,6 +142,7 @@ function SPITFORM($formfields, $errors)
             href='css/jquery.appendGrid-1.3.1.min.css'>\n";
     # For progress bubbles in the imaging modal.
     echo "<link rel='stylesheet' href='css/progress.css'>\n";
+    echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
 
     echo "<script type='text/javascript'>\n";
     echo "    window.VIEWING  = $viewing;\n";
@@ -170,6 +171,7 @@ function SPITFORM($formfields, $errors)
     }
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+    echo "<script src='js/lib/codemirror-min.js'></script>\n";
     echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/manage_profile'>
           </script>";

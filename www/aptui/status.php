@@ -186,12 +186,14 @@ if (isset($extend) && $extend != "") {
 }
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+echo "<script src='js/lib/codemirror-min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/status'></script>";
 echo "<link rel='stylesheet'
             href='css/jquery-ui-1.10.4.custom.min.css'>\n";
 # For progress bubbles in the imaging modal.
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
+echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
 
 SPITFOOTER();
 ?>

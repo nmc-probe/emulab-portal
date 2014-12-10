@@ -26,8 +26,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
     var ajaxurl      = "";
     var amlist       = null;
     var modified     = false;
-    var editor = null;
-    var stepsInitialized = false;
+    var editor       = null;
+    var myCodeMirror = null;
+    var genilibwarned= false;
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var rendererTemplate  = _.template(rendererString);
@@ -36,6 +37,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
     var oopsTemplate      = _.template(oopsString);
     var guestInstTemplate = _.template(guestInstantiateString);
     var InstTemplate      = _.template(instantiateString);
+    var stepsInitialized  = false;
 
     function initialize()
     {
@@ -89,6 +91,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	    isadmin:		window.ISADMIN,
 	    history:		window.HISTORY,
 	    activity:		window.ACTIVITY,
+	    manual:             window.MANUAL,
 	    snapuuid:		(window.SNAPUUID || null),
 	    general_error:      (errors.error || ''),
 	});
@@ -198,15 +201,61 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	    var source = $.trim($('#profile_rspec_textarea').val());
 	    $('#rspec_modal_editbuttons').addClass("hidden");
 	    $('#rspec_modal_viewbuttons').removeClass("hidden");
-	    $('#modal_profile_rspec_textarea').prop("readonly", true);	    
+	    $('#modal_profile_rspec_textarea').prop("readonly", true);
 	    $('#modal_profile_rspec_textarea').val(source);
 	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
 	    $('#rspec_modal').modal('show');
 	});
+	
+        $('#rspec_modal').on('shown.bs.modal', function() {
+	    var source = $('#modal_profile_rspec_textarea').val();
+	    var mode   = "text/xml";
+
+	    // Need to determine the mode.
+	    var myRe = /^import/m;
+	    if (myRe.test(source)) {
+		mode = "text/x-python";
+	    }
+	    myCodeMirror = CodeMirror(function(elt) {
+		$('#modal_profile_rspec_div').prepend(elt);
+	    }, {
+		value: source,
+                lineNumbers: false,
+		smartIndent: true,
+		autofocus: true,
+                mode: mode,
+	    });
+
+	    //
+	    // Attempt to catch an insertion of python code, either to
+	    // the empty source box, or as a replacement. 
+	    //
+	    var watchdog_timer;
+	    myCodeMirror.on("change", function() {
+		clearTimeout(watchdog_timer);
+		watchdog_timer =
+		    setTimeout(function() {
+			var source = myCodeMirror.getValue();
+			
+			var myRe = /^import/m;
+			if (myRe.test(source)) {
+			    myCodeMirror.setOption("mode", "text/x-python");
+			}
+		    }, 500);
+	    });
+        });
 	// Collapse; done editing the rspec in the modal.
 	$('#collapse_rspec_modal_button').click(function (event) {
 	    $('#rspec_modal').modal('hide');
-	    changeRspec($('#modal_profile_rspec_textarea').val());
+	    changeRspec(myCodeMirror.getValue());
+	    $('.CodeMirror').remove();
+	    $('#modal_profile_rspec_textarea').val("");
+	});
+	// Cancel; done editing the rspec in the modal, throw away and cleanup.
+	$('#cancel_rspec_modal_button, #close_rspec_modal_button')
+	    .click(function (event) {
+	    $('#rspec_modal').modal('hide');
+	    $('.CodeMirror').remove();
 	    $('#modal_profile_rspec_textarea').val("");
 	});
 	// Auto select the URL if the user clicks in the box.
@@ -962,9 +1011,18 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
     //
     function checkScript(script)
     {
+	// Beta feature; warn user, prompt for confirmation.
+	if (!genilibwarned) {
+	    genilibwarned = 1;
+	    var ok = confirm("geni-lib scripts are an experimental feature. "+
+			     "Do you wish to continue?");
+	    if (ok == false) {
+		return;
+	    }
+	}
 	// Save for later.
 	$('#profile_script_textarea').val(script);
-	
+
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
 	    console.info(json.value);
