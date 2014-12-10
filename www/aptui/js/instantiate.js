@@ -54,6 +54,32 @@ function (_, sup, aboutaptString, aboutcloudString)
 	    $("#waitwait").modal('show');
 	    return true;
 	});
+
+	// Profile picker search box.
+	var profile_picker_timeout = null;
+	
+	$("#profile_picker_search").on("keyup", function () {
+	    var options   = $('#profile_name');
+	    var userInput = $("#profile_picker_search").val();
+	    userInput = userInput.toLowerCase();
+	    window.clearTimeout(profile_picker_timeout);
+
+	    profile_picker_timeout =
+		window.setTimeout(function() {
+		    var matches = 
+			options.children("li").filter(function() {
+			    var text = $(this).text();
+			    text = text.toLowerCase();
+
+			    if (text.indexOf(userInput) > -1)
+				return true;
+			    return false;
+			});
+		    options.children("li").hide();
+		    matches.show();
+		}, 500);
+	});
+	    
 	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
         ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);

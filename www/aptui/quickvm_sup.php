@@ -515,6 +515,9 @@ function SpitTopologyViewModal($modal_name, $profile_array)
                  <div class='panel panel-default'
                             id='showtopo_container'>
                   <div class='form-group pull-left'>
+                    <input type='text' class='form-control'
+			   placeholder='Search'
+                           id='profile_picker_search'>
                     <ul class='list-group' id='profile_name'
                             name='profile'
                             >\n";
