@@ -1780,7 +1780,8 @@ my %blade_sizes = (
    hpSwitchJ8698A => 24, # hp5412zl
    hpSwitchJ8770A => 24, # hp4204
    hpSwitchJ8773A => 24, # hp4208
-   hpMoonshot45XGc => 64, # Moonshot chassis switch
+   hpMoonshot45XGc => 64, # Moonshot chassis switch (Comware)
+   hp12910AC      => 97, # HP FlexFabric 12910 switch (Comware)
 );
 
 sub calcModPort($$) {
@@ -2132,7 +2133,7 @@ sub setVlanMembers($$$) {
 sub leBitsToList($$) {
     my ($self,$bits) = @_;
     my ($lim, $i, @result) = ((8 * length($bits)), -1);
-    while (++$i < $lim) { if (vec($bits,$i++,1)) { push @result, $i; } }
+    while (++$i < $lim) { if (vec($bits,$i,1)) { push @result, $i+1; } }
     return @result;
 }
 
@@ -2219,9 +2220,10 @@ sub setPortVlan($$@) {
     my ($portIndex, $pvid, $rv, @protoTrunks, @newTaggedPorts);
     my %vlansToPorts; # i.e. bumpedVlansToListOfPorts
     my $id = $self->{NAME} . "::setPortVlan($vlan_number)";
-    my @portlist = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
-
     return 0 unless(@ports);
+    my @portlist = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
+    return -1 unless (@portlist);
+
     $self->debug($id);
     $self->debug("ports: " . join(",",@ports) . "\n");
     $self->debug("as ifIndexes: " . join(",",@portlist) . "\n");
@@ -2268,6 +2270,7 @@ my %h3c_cmdOIDs =
     "1000mbit"=> ["hh3cifEthernetSpeed","S10000M"],
     "100mbit"=> ["hh3cifEthernetSpeed","S100M"],
     "10mbit" => ["hh3cifEthernetSpeed","S10M"],
+    # Most modern switches (with 1Gb+ links) don't support changing the duplex.
     #"auto"   => ["hh3cifEthernetDuplex","auto"],
     #"full"   => ["hh3cifEthernetDuplex","full"],
     #"half"   => ["hh3cifEthernetDuplex","half"],
@@ -2278,6 +2281,12 @@ sub readifIndex($) {
     my ($t_off, $maxport, $name, $ifindex, $iidoid, $port, $mod) = (0,0);
     $self->debug($self->{NAME} . "::readifIndex:\n", 2);
 
+    # First grab the list of ports on the switch via the "ifType"
+    # table.  Keep track of the highest ifindex we've seen as
+    # "maxport".  Load up the IFINDEX map with what we get.  
+    # KRW: Shouldn't this filter based on the actual port type?  
+    # Otherwise we will end up with a large "maxport" due to LAGs 
+    # and other virtual ports with large ifindices.
     my ($rows) = snmpitBulkwalkFatal($self->{SESS}, ["ifType"]);
     foreach my $rowref (@$rows) {
 	($name,$ifindex,$iidoid) = @$rowref;
@@ -2288,7 +2297,18 @@ sub readifIndex($) {
 	$self->{IFINDEX}{$modport} = $portindex;
 	$self->{IFINDEX}{$ifindex} = $modport;
     }
+
+    # Next we grab information about the LAGs defined on the switch.
+    # Associated ports are discovered and indexed.  The "TRUNK" object
+    # keys are misleading.  They should use LAG (or similar) instead.
+    # Note that the inner loop actually rewrites the IFINDEX entries
+    # for ports that are members of a LAG.  Of particular interest is
+    # that all of these port entres (and the entry for the LAG itself)
+    # are setup to resolve to the _same_ (base) modport and the
+    # ifindex of the LAG.
     ($rows) = snmpitBulkwalk($self->{SESS}, ["dot3adAggPortListTable"]);
+    # We record the lowest numbered ifindex in the AggPortListTable as
+    # the "trunk offset" ($t_off).
     map {if (($t_off == 0) || ($t_off > @$_[1])) {$t_off = @$_[1];};} @$rows;
     if ($t_off > 0) { $t_off--; }
     foreach my $rowref (@$rows) {
@@ -2304,16 +2324,34 @@ sub readifIndex($) {
 	    $self->{IFINDEX}{$name} = $ifindex;
 	}
     }
+
+    # Next we scrape the dot2dBasePortIfIndex table, which maps port/LAG
+    # ifindices to their offsets inside of the PortSets used in various
+    # SNMP tables (e.g. dot1qVlanStaticEgressPorts).
     ($rows) = snmpitBulkwalk($self->{SESS}, ["dot1dBasePortIfIndex"]);
     $self->{d1dx2ifx} = { map { (@$_[1], @$_[2])} @$rows };
     $self->{ifx2d1dx} = { map { (@$_[2], @$_[1])} @$rows };
+
+    # Record some final metadata for this switch. Make sure $maxport is
+    # a multiple of 32 (KRW: Required by Comware?)
     if ($maxport > 0) { $maxport = (($maxport - 1) | 31) + 1 };
     $self->{MAXPORT} = $maxport;
-    $self->{USELIM} = $maxport / 8;
+    $self->{USELIM} = $maxport / 8; # maximum byte offset.
     $self->{TRUNKOFFSET} = $t_off;
     $self->{cmdOIDs} = \%h3c_cmdOIDs;
 }
 
+
+#
+# Utility function to extract port trunk information.
+#
+# With a list of ports, return the set of ports that are not simply in
+# "access" mode. When called with no list, return the complete set of
+# trunked ports.
+#
+# Return structure is a reference to a hash whose keys are port
+# ifindices, and values are the PVIDs of the corresponding ports.
+#
 sub trunkedPorts($@) {
     my ($self, @ports) = @_;
     my ($trunks, $modes, $pids, $j) = ({});
@@ -2332,6 +2370,10 @@ sub trunkedPorts($@) {
     return ($trunks);
 }
 
+#
+# Utility function to return the list of vlans allowed on a particular
+# trunk, EXCLUDING the vlan tag passed in as the "$pvid" argument.
+#
 sub otherTrunkedVlans($$$)
 {
     my ($self, $portIndex, $pvid) = @_;
