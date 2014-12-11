@@ -134,6 +134,11 @@ function CheckLoginForAjax($guestokay = false)
 	SPITAJAX_ERROR(2, "Your login has timed out");
 	exit(2);
     }
+    # Known user, but not approved.
+    if ($check_status & CHECKLOGIN_UNAPPROVED) {
+	SPITAJAX_ERROR(2, "Your account has not been approved yet");
+	exit(2);
+    }
     # Logged in user always okay.
     if (isset($this_user)) {
 	if ($check_status & CHECKLOGIN_MAYBEVALID) {

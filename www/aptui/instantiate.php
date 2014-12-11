@@ -33,14 +33,16 @@ $page_title = "Instantiate a Profile";
 $dblink = GetDBLink("sa");
 
 #
-# Get current user but make sure coming in on SSL.
+# Get current user but make sure coming in on SSL. Guest users allowed
+# via APT Portal.
 #
 RedirectSecure();
 $this_user = CheckLogin($check_status);
-if ($ISCLOUD) {
-    if (! ($CHECKLOGIN_STATUS & CHECKLOGIN_LOGGEDIN)) {
-	header("Location: login.php");
-    }
+if (isset($this_user)) {
+    CheckLoginOrDie();
+}
+elseif ($ISCLOUD) {
+    header("Location: login.php");
 }
 
 #

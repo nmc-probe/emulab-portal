@@ -742,6 +742,8 @@ function CheckLoginOrRedirect()
     if (! ($check_status & CHECKLOGIN_LOGGEDIN)) {
 	RedirectLoginPage();
     }
+    # Catch other illegal login issues.
+    CheckLoginOrDie();
     return $this_user;
 }
 
