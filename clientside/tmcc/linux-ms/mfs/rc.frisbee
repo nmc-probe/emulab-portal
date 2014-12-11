@@ -610,8 +610,9 @@ while [ -n "$1" ]; do
     eval ${dev}_info=\"$iline\"
 
     loadone $LDISK $PART "$iline" $NUM || {
+	stat=$?
 	echo "`date`: Failed to load disk, dropping to login prompt"
-        exit 1
+        exit $stat
     }
     echo "`date`: Image #$_NUM load complete"
     NUM=`expr $NUM + 1`

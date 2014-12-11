@@ -342,8 +342,18 @@ if [ -n "${preinit}" ]; then
     ${preinit} "$@" </dev/console >/dev/console 2>&1
 fi
 
-${init} "$@" </dev/console >/dev/console 2>&1
-if [ $? -ne 0 ]; then
-    panic "${init} failed, dropping to shell."
+# this would be a lot simpler if we didn't want to tee output to the console
+rm -f /tmp/stat
+(${init} "$@" || echo $? >/tmp/stat) </dev/console 2>&1 | tee /tmp/frisbee.out >/dev/console
+stat=$?
+if [ -e /tmp/stat ]; then
+    stat=`cat /tmp/stat`
 fi
+if [ $stat -ne 0 ]; then
+    export FRISBEE_EXIT_STATUS=$stat
+    panic "${init} failed; dropping to shell, see /tmp/frisbee.out."
+fi
+
+maybe_break postfrisbee
+
 exit 0
