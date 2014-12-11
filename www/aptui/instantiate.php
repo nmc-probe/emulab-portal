@@ -42,7 +42,7 @@ if (isset($this_user)) {
     CheckLoginOrDie();
 }
 elseif ($ISCLOUD) {
-    header("Location: login.php");
+    RedirectLoginPage();
 }
 
 #
