@@ -77,8 +77,8 @@ if ($ISAPT && !$this_user) {
 }
 
 if ($ISCLOUD) {
-    $profile_default     = "OpenStack";
-    $profile_default_pid = "tbres";
+    $profile_default     = "ARM64OpenStack";
+    $profile_default_pid = "emulab-ops";
 }
 else {
     $profile_default     = "OneVM";
