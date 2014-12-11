@@ -301,7 +301,7 @@ sub set($$;$$) {
 
 sub mirvPortSet($) {
     my ($bitfield) = @_;
-    $bitfield = substr($bitfield,0,127);
+    #$bitfield = substr($bitfield,0,127); XXX: yuck.
     my $unpacked = unpack("B*",$bitfield);
     return [split //, $unpacked];
 }
@@ -1088,7 +1088,7 @@ sub updateOneVlan($$$$$@)
 
     my $vlist = $self->getVlanLists($vlan_number);
     foreach my $port (@portlist) {
-	next if ($self->{ifx2didx} && !($port = $self->{ifx2d1dx}));
+	next if ($self->{ifx2d1dx} && !($port = $self->{ifx2d1dx}{$port}));
 	@{@$vlist[0]}[$port - 1] = $forbid if ($vlan_number eq "1");
 	@{@$vlist[1]}[$port - 1] = $untag;
 	@{@$vlist[2]}[$port - 1] = $mem;
@@ -1560,7 +1560,7 @@ sub resetVlanIfOnTrunk($$$) {
 	if (!$ifIndex);
     $self->debug($self->{NAME} . "::resetVlanIfOnTrunk m $modport "
 		    . "vlan $vlan ifIndex $ifIndex\n",1);
-    if ($self->{d1dx2ifx}) { $ifIndex = $self->{d1x2ifx}{$ifIndex}; }
+    if ($self->{d1dx2ifx}) { $ifIndex = $self->{d1dx2ifx}{$ifIndex}; }
     my $vlan_ports = $self->get1($egressOID, $vlan);
     if (testPortSet($vlan_ports, $ifIndex - 1)) {
 	$self->setVlansOnTrunk($modport,0,$vlan);
