@@ -145,8 +145,7 @@ if (isset($profile)) {
 	# Must be public or belong to user. 
 	#
 	if (! ($obj->ispublic() ||
-	       (isset($this_user) &&
-		$obj->creator_idx() == $this_user->uid_idx()))) {
+	       (isset($this_user) && $obj->CanInstantiate($this_user)))) {
 	    SPITUSERERROR("No permission to use profile: $profile");
 	    exit();
 	}
@@ -267,6 +266,8 @@ function SPITFORM($formfields, $newuser, $errors)
     # If linked to a specific profile, description goes here
     #
     if ($profile) {
+	$cluster = ($ISCLOUD ? "Cloudlab" : "APT");
+	
 	if (!$this_user) {
 	    echo "  <p>Fill out the form below to run an experiment ".
 		"using this profile:</p>\n";
@@ -275,7 +276,7 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "  <blockquote><p><span id='selected_profile_description'></span></p></blockquote>\n";
         echo "  <p>When you click the &quot;Create&quot; button, the virtual or
                    physical machines described in the profile will be booted
-                   on Apt's hardware<p>\n";
+                   on ${cluster}'s hardware<p>\n";
     }
 
     echo "   <fieldset>\n";
