@@ -180,7 +180,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	goto embed;
     }
     echo "
-         <div class='navbar navbar-static-top' role='navigation'>
+         <div class='navbar navbar-static-top' style='margin-bottom: 10px'
+              role='navigation'>
            <div class='navbar-inner'>
              <div class='brand'>
                  <img src='images/$APTLOGO'/>
@@ -276,6 +277,13 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     echo "   </ul>
            </div>
          </div>\n";
+
+    $groupname = ($ISAPT ? "apt-users" : "cloudlab-users");
+    echo "<center style='margin-bottom: 5px; margin-top: -8px'>
+         <font color=red>Portal will be down Jan 5-7.</font> See the
+           <a href='https://groups.google.com/forum/#!forum/${groupname}'
+              target='_blank'>Help Forum</a> for more info.
+          </center>\n";
 
     if (!NOLOGINS() && !$login_user && $page_title != "Login") {
 	SpitLoginModal("quickvm_login_modal");
