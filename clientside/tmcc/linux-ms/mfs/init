@@ -56,6 +56,7 @@ export blacklist=
 export resume=
 export resume_offset=
 export recovery=
+export failstop=n
 
 # mdadm needs hostname to be set. This has to be done before the udev rules are called!
 if [ -f "/etc/hostname" ]; then
@@ -80,6 +81,9 @@ for x in $(cat /proc/cmdline); do
 		;;
 	pxefail)
 		preinit="/usr/local/etc/emulab/pxewait fail"
+		;;
+	failstop)
+		failstop=y
 		;;
 	root=*)
 		ROOT=${x#root=}
@@ -350,8 +354,14 @@ if [ -e /tmp/stat ]; then
     stat=`cat /tmp/stat`
 fi
 if [ $stat -ne 0 ]; then
-    export FRISBEE_EXIT_STATUS=$stat
-    panic "${init} failed; dropping to shell, see /tmp/frisbee.out."
+    if [ "$failstop" = "y" ]; then
+	export FRISBEE_EXIT_STATUS=$stat
+	panic "${init} failed; dropping to shell, see /tmp/frisbee.out."
+    else
+	/usr/local/etc/emulab/tmcc -f /tmp/frisbee.out bootlog
+	sleep 2
+	reboot
+    fi
 fi
 
 maybe_break postfrisbee
