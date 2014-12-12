@@ -7100,6 +7100,7 @@ sub InitializePhysNode($$$)
 	    }
 	    elsif ($virtnode->_isbridge()) {
 		$osid = ($self->option("delay_osid") || $pnode->delay_osid());
+		undef($osinfo);
 		$cmdline = $self->osidbootcmd($osid, "delay", "");
 		$role = TBDB_RSRVROLE_DELAYNODE();
 		$routertype = TBDB_ROUTERTYPE_NONE;
