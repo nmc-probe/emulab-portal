@@ -326,7 +326,7 @@ sub RecordHistory($)
     DBQueryWarn("replace into apt_instance_history ".
 		"select uuid,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,aggregate_urn, ".
-		"       created,now(),servername ".
+		"       public_url,created,now(),servername ".
 		" from apt_instances where uuid='$uuid'")
 	or return -1;
 
