@@ -581,7 +581,8 @@ sub Create($$$$)
 	    return undef;
 	}
 	push(@insert_data, "status='$USERSTATUS_ACTIVE'");
-	push(@insert_data, "pswd_expires=now()");
+	# No expiration, cause no passwords. 
+	push(@insert_data, "pswd_expires=null");
 	push(@insert_data, "usr_pswd='*'");
     }
     else {
