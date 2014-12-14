@@ -406,7 +406,7 @@ if ($WITHPROVENANCE) {
 	if ($feature && $feature->enabled()) {
 	    # If globally enabled, disable. If not globally enabled but
 	    # doprovenance is on, then it was a per-project enable which
-	    # we wanr to respect.
+	    # we want to respect.
 	    $doprovenance = 0;
 	}
     }
