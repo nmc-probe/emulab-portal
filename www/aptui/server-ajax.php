@@ -141,6 +141,11 @@ function CheckLoginForAjax($guestokay = false)
 	SPITAJAX_ERROR(2, "Your account has not been approved yet");
 	exit(2);
     }
+    # Known user, but not active.
+    if (! ($check_status & CHECKLOGIN_ACTIVE)) {
+	SPITAJAX_ERROR(2, "Your account is no longer active");
+	exit(2);
+    }
     # Logged in user always okay.
     if (isset($this_user)) {
 	if ($check_status & CHECKLOGIN_MAYBEVALID) {
