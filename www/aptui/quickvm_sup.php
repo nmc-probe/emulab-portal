@@ -35,6 +35,8 @@ $ISAPT		= 1;
 $ISCLOUD        = 0;
 $ISVSERVER      = 0;
 $GOOGLEUA       = 'UA-45161989-1';
+# See tbauth.php3
+$CHANGEPSWD_PAGE= "changepswd.php";
 
 #
 # Global flag to disable accounts. We do this on some pages which
@@ -741,7 +743,7 @@ function RedirectLoginPage()
 #
 # Check the login and redirect to login page.
 #
-function CheckLoginOrRedirect()
+function CheckLoginOrRedirect($modifier = 0)
 {
     RedirectSecure();
     
@@ -750,8 +752,7 @@ function CheckLoginOrRedirect()
     if (! ($check_status & CHECKLOGIN_LOGGEDIN)) {
 	RedirectLoginPage();
     }
-    # Catch other illegal login issues.
-    CheckLoginOrDie();
+    CheckLoginConditions($check_status & ~$modifier);
     return $this_user;
 }
 

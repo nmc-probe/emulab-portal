@@ -67,8 +67,8 @@ define("CHECKLOGIN_WEBONLY",		0x040000);
 define("CHECKLOGIN_PLABUSER",		0x080000);
 define("CHECKLOGIN_STUDLY",		0x100000);
 define("CHECKLOGIN_WIKIONLY",		0x200000);
-define("CHECKLOGIN_OPSGUY",		0x400000);	# Member of emulab-ops.
-define("CHECKLOGIN_ISFOREIGN_ADMIN",	0x800000);	# Admin of another Emulab. 
+define("CHECKLOGIN_OPSGUY",		0x400000);  # Member of emulab-ops.
+define("CHECKLOGIN_ISFOREIGN_ADMIN",	0x800000);  # Admin of another Emulab.
 
 #
 # Constants for tracking possible login attacks.
@@ -82,6 +82,9 @@ define("DOLOGIN_STATUS_OKAY",		0);
 define("DOLOGIN_STATUS_ERROR",		-1);
 define("DOLOGIN_STATUS_IPFREEZE",	-2);
 define("DOLOGIN_STATUS_WEBFREEZE",	-3);
+
+# So we can redefine this in the APT pages.
+$CHANGEPSWD_PAGE = "moduserinfo.php3";
 
 #
 # Generate a hash value suitable for authorization. We use the results of
@@ -417,7 +420,7 @@ function LoginStatus() {
     # Now add in the modifiers.
     #
     # Do not expire passwords for admin users.
-    if ($expired && !$admin)
+    if (!is_null($expired) && $expired && !$admin)
 	$CHECKLOGIN_STATUS |= CHECKLOGIN_PSWDEXPIRED;
     if ($admin)
 	$CHECKLOGIN_STATUS |= CHECKLOGIN_ISADMIN;
@@ -554,14 +557,22 @@ function LOGGEDINORDIE($uid, $modifier = 0, $login_url = NULL) {
 	TBERROR("LOGGEDINORDIE failed mysteriously", 1);
     }
 
-    $status = $status & ~$modifier;
+    CheckLoginConditions($status & ~$modifier);
 
-    #
-    # Check other conditions.
-    #
+    # No one should ever look at the return value of this function.
+    return null;
+}
+
+#
+# Check other conditions.
+#
+function CheckLoginConditions($status)
+{
+    global $CHANGEPSWD_PAGE;
+    
     if ($status & CHECKLOGIN_PSWDEXPIRED)
         USERERROR("Your password has expired. ".
-		  "<a href=moduserinfo.php3>Please change it now!</a>",
+		  "<a href='$CHANGEPSWD_PAGE'>Please change it now.</a>",
 		  1, HTTP_403_FORBIDDEN);
     if ($status & CHECKLOGIN_FROZEN)
         USERERROR("Your account has been frozen!",
@@ -585,10 +596,7 @@ function LOGGEDINORDIE($uid, $modifier = 0, $login_url = NULL) {
     #
     if (NOLOGINS() && !ISADMIN())
         USERERROR("Sorry. The Web Interface is ".
-		  "<a href=nologins.php3>Temporarily Unavailable!</a>", 1);
-
-    # No one should ever look at the return value of this function.
-    return null;
+		  "temporarily unavailable. Please check back later.", 1);
 }
 
 #
@@ -612,12 +620,22 @@ function CheckLoginOrDie($modifier = 0, $login_url = NULL)
 #
 function CheckLogin(&$status)
 {
-    global $CHECKLOGIN_USER;
+    global $CHECKLOGIN_USER, $CHECKLOGIN_STATUS;
 
     $status = LoginStatus();
 
     # If login looks valid, return the user. 
-    if ($status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID)) {	
+    if ($status & (CHECKLOGIN_LOGGEDIN|CHECKLOGIN_MAYBEVALID)) {
+	#
+        # Check for NOLOGINS. 
+        # We want to allow admin types to continue using the web interface,
+        # and logout anyone else that is currently logged in!
+	#
+	if (NOLOGINS() && !ISADMIN()) {
+	    DOLOGOUT($CHECKLOGIN_USER);
+	    $status = $CHECKLOGIN_STATUS;
+	    return null;
+	}
 	if ($status & CHECKLOGIN_LOGGEDIN) {
 	    BumpLogoutTime();
 	}
