@@ -88,7 +88,8 @@ else {
     #
     # The user must be logged in.
     #
-    $this_user = CheckLoginOrRedirect();
+    $this_user = CheckLoginOrRedirect(CHECKLOGIN_USERSTATUS|
+				      CHECKLOGIN_PSWDEXPIRED);
 
     # Check for admin setting another users password.
     if (!isset($user)) {
