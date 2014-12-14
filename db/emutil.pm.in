@@ -765,7 +765,7 @@ sub TBDateStringLocal($)
 	if (!defined($date) || "$date" eq "");
 
     if ($date !~ /^\d+$/) {
-	$date = timelocal(strptime($date));
+	$date = str2time($date);
     }
     return POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime($date));
 }
