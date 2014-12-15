@@ -45,11 +45,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var template_args = {
 	    uuid:		uuid,
 	    profileName:	window.APT_OPTIONS.profileName,
+	    profileUUID:	window.APT_OPTIONS.profileUUID,
 	    sliceURN:		window.APT_OPTIONS.sliceURN,
 	    sliceExpires:	window.APT_OPTIONS.sliceExpires,
 	    sliceExpiresText:	window.APT_OPTIONS.sliceExpiresText,
 	    creatorUid:		window.APT_OPTIONS.creatorUid,
 	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
+	    publicURL:          window.APT_OPTIONS.publicURL,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
 	    // The status panel starts out collapsed.

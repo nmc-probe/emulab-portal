@@ -45,7 +45,9 @@
 	  </tr>
 	  <tr>
 	    <td class='border-none'>Profile:</td>
-	    <td class='border-none'><%- profileName %></td>
+	    <td class='border-none'>
+	      <a target=_blank href='show-profile.php?uuid=<%- profileUUID %>'>
+		 <%- profileName %></a></td>
 	  </tr>
 	  <tr>
 	    <td class='border-none'>Expires:</td>
@@ -55,12 +57,15 @@
 	    </td>
 	  </tr>
 	  </table>
-	  <!--
+	  <% if (isadmin && publicURL) { %>
 	  <div class='pull-left'>
-	    <span class='glyphicon glyphicon-question-sign'
-		  style='font-size:24px'></span>
+	    <a class='btn btn-info btn-xs pull-left'
+               style='margin-right: 10px;'
+               href='<%= publicURL %>'
+               type='button'>Sliver
+	    </a>
 	  </div>
-	  -->
+	  <% } %>
 	  <div class='pull-right'>
 	    <% if (registered) { %>
 	    <button class='btn btn-xs btn-primary hidden' disabled

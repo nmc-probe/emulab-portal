@@ -37,6 +37,9 @@ $ajax_request = 0;
 # Get current user.
 #
 $this_user = CheckLogin($check_status);
+if (isset($this_user)) {
+    CheckLoginOrDie();
+}
 
 #
 # Verify page arguments.
@@ -110,6 +113,7 @@ $creator_email   = $creator->email();
 $profile         = Profile::Lookup($instance->profile_id(),
 				   $instance->profile_version());
 $profile_name    = $profile->name();
+$profile_uuid    = $profile->uuid();
 if ($slice) {
     $slice_urn       = $slice->urn();
     $slice_expires   = DateStringGMT($slice->expires());
@@ -132,6 +136,8 @@ $canclone        = (($profile->published() && isset($this_user) &&
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
 $isadmin         = (ISADMIN() ? 1 : 0);
+$public_url      = ($instance->public_url() ?
+		    "'" . $instance->public_url() . "'" : "null");
 
 #
 # We give ssh to the creator (real user or guest user).
@@ -167,6 +173,7 @@ echo "<script type='text/javascript'>\n";
 echo "  window.APT_OPTIONS.uuid = '" . $uuid . "';\n";
 echo "  window.APT_OPTIONS.instanceStatus = '" . $instance_status . "';\n";
 echo "  window.APT_OPTIONS.profileName = '" . $profile_name . "';\n";
+echo "  window.APT_OPTIONS.profileUUID = '" . $profile_uuid . "';\n";
 echo "  window.APT_OPTIONS.profilePublic = " . $profile_public . ";\n";
 echo "  window.APT_OPTIONS.sliceURN = '" . $slice_urn . "';\n";
 echo "  window.APT_OPTIONS.sliceExpires = '" . $slice_expires . "';\n";
@@ -180,6 +187,7 @@ echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.dossh = $dossh;\n";
+echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 if (isset($extend) && $extend != "") {
     echo "  window.APT_OPTIONS.extend = $extend;\n";
