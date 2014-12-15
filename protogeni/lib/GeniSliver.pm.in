@@ -1425,6 +1425,9 @@ sub Create()
     my $hrn            = "${PGENIDOMAIN}.$nodeid.$iface";
     my $resource_id    = "$nodeid//$iface";
 
+    # Do not allow rspec to specify this;
+    GeniXML::DeleteSliverId($rspec);
+
     my $sliver = GeniSliver->Create($slice, $user, $interface_uuid,
 				    "Interface", $resource_id,
 				    $hrn, $nickname, $rspec);

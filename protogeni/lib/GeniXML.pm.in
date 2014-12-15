@@ -509,6 +509,13 @@ sub GetSliverId($)
     return GetFirstText($node, "sliver_urn", "sliver_id");
 }
 
+sub DeleteSliverId($)
+{
+    my ($node) = @_;
+    $node->removeAttribute("sliver_id");
+    $node->removeAttribute("sliver_urn");
+}
+
 sub GetManagerId($)
 {
     my ($node) = @_;
