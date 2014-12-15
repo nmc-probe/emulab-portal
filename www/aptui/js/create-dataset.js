@@ -1,8 +1,8 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup',
+	['underscore', 'js/quickvm_sup', 'moment',
 	 'js/lib/text!template/create-dataset.html',
 	 'jquery-ui'],
-function (_, sup, mainString)
+function (_, sup, moment, mainString)
 {
     'use strict';
 
@@ -10,18 +10,23 @@ function (_, sup, mainString)
     var fields       = null;
     var fstypes      = null;
     var projlist     = null;
+    var editing      = false;
+    var isadmin      = false;
+    var embedded     = 0;
     
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
 
+	embedded = window.EMBEDDED;
+	isadmin  = window.ISADMIN;
+	editing  = window.EDITING;
 	fields   = JSON.parse(_.unescape($('#form-json')[0].textContent));
-	fstypes  = JSON.parse(_.unescape($('#fstypes-json')[0].textContent));
-	// Project list is optional on this page.
-	if ($('#projects-json').length) {
-	    projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+	if (! editing) {
+	    fstypes = JSON.parse(_.unescape($('#fstypes-json')[0].textContent));
+	    projlist =
+		JSON.parse(_.unescape($('#projects-json')[0].textContent));
 	}
-	
 	GeneratePageBody(fields, null);
     }
 
@@ -38,29 +43,50 @@ function (_, sup, mainString)
 	    projects:           projlist,
 	    title:		window.TITLE,
 	    embedded:		window.EMBEDDED,
+	    editing:		editing,
+	    isadmin:		isadmin,
 	});
 	html = formatter(html, errors).html();
 	$('#main-body').html(html);
 
-	// Insert datepicker after html inserted.
-	$(function() {
-	    $("#dataset_expires").datepicker({
-		showButtonPanel: true,
-		dateFormat: "yy-mm-dd"
-	    });
-	});
-
 	// stdatasets need the datepicker.
-	$('#create_dataset_form input[type=radio]').change(function() {
-	    var val = $(this).val();
-	    if (val == "ltdataset") {
-		$('#dataset_expires_div').addClass("hidden");
-	    }
-	    else {
-		$('#dataset_expires_div').removeClass("hidden");
-	    }
-	});
+	var needpicker = false;
+	if (formfields["dataset_type"] == "stdataset") {
+	    if (!editing || isadmin) {
+		needpicker = true;
 
+		// Insert datepicker after html inserted.
+		$(function() {
+		    $("#dataset_expires").datepicker({
+			showButtonPanel: true,
+			dateFormat: "M d yy 11:59 'PM'"
+		    });
+		});
+	    }
+	    if (editing) {
+		// Format dates with moment before display.
+		var date = $('#dataset_expires').val();
+		$('#dataset_expires').val(moment(date).format("lll"));
+	    }
+	}
+	if (!editing) {
+	    $('#create_dataset_form input[type=radio]').change(function() {
+		var val = $(this).val();
+		if (val == "stdataset") {
+		    $('#dataset_expires_div').removeClass("hidden");
+		}
+		else {
+		    $('#dataset_expires_div').addClass("hidden");
+		}
+	    });
+	}
+	if (needpicker) {
+	    $('#dataset_expires_div').removeClass("hidden");
+	}
+	else {
+	    $('#dataset_expires_div').addClass("hidden");
+	}
+	
 	//
 	// Handle submit button.
 	//
@@ -157,8 +183,12 @@ function (_, sup, mainString)
 		SubmitForm(0);
 	    }
 	    else {
-		// Create succeeded.
-		window.location.replace(json.value);
+		if (embedded) {
+		    window.parent.location.replace("../" + json.value);
+		}
+		else {
+		    window.location.replace(json.value);
+		}
 	    }
 	}
 	// Convert form data into formfields array, like all our
@@ -170,9 +200,11 @@ function (_, sup, mainString)
 	// This clears any errors before new submit. Needs more thought.
 	GeneratePageBody(formfields, null);
 
-	var xmlthing = sup.CallServerMethod(null, "dataset", "create",
+	var xmlthing = sup.CallServerMethod(null, "dataset",
+					    (editing ? "modify" : "create"),
 					    {"formfields" : formfields,
-					     "checkonly"  : checkonly});
+					     "checkonly"  : checkonly,
+					     "embedded"   : window.EMBEDDED});
 	xmlthing.done(callback);
     }
 

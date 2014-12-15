@@ -29,6 +29,13 @@ function (_, sup, moment, mainString)
 	    title:		window.TITLE,
 	});
 	$('#main-body').html(html);
+
+	// Initialize the popover system.
+	$('[data-toggle="popover"]').popover({
+	    trigger: 'hover',
+	    container: 'body'
+	});
+	
 	// Format dates with moment before display.
 	$('.format-date').each(function() {
 	    var date = $.trim($(this).html());
@@ -56,15 +63,20 @@ function (_, sup, moment, mainString)
 	    RefreshDataset();
 	});
 	
-	// Confirm Delete profile.
+	// Confirm Delete
 	$('#delete-confirm').click(function (event) {
 	    event.preventDefault();
 	    DeleteDataset();
 	});
-	// Confirm Approve profile.
+	// Confirm Approve
 	$('#approve-confirm').click(function (event) {
 	    event.preventDefault();
 	    ApproveDataset();
+	});
+	// Confirm Extend
+	$('#extend-confirm').click(function (event) {
+	    event.preventDefault();
+	    ExtendDataset();
 	});
     }
     //
@@ -78,7 +90,12 @@ function (_, sup, moment, mainString)
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    window.location.replace(json.value);
+	    if (embedded) {
+		window.parent.location.replace("../" + json.value);
+	    }
+	    else {
+		window.location.replace(json.value);
+	    }
 	}
 	sup.HideModal('#delete_modal');
 	sup.ShowModal("#waitwait");
@@ -120,13 +137,44 @@ function (_, sup, moment, mainString)
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    window.location.replace(json.value);
+	    if (embedded) {
+		window.parent.location.replace("../" + json.value);
+	    }
+	    else {
+		window.location.replace(json.value);
+	    }
 	}
 	sup.HideModal('#approve_modal');
 	sup.ShowModal("#waitwait");
 	var xmlthing = sup.CallServerMethod(null,
 					    "dataset",
 					    "approve",
+					    {"uuid" : dataset_uuid});
+	xmlthing.done(callback);
+    }
+    //
+    // Extend dataset.
+    //
+    function ExtendDataset()
+    {
+	var callback = function(json) {
+	    sup.HideModal('#waitwait');
+	    if (json.code) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    if (embedded) {
+		window.parent.location.replace("../" + json.value);
+	    }
+	    else {
+		window.location.replace(json.value);
+	    }
+	}
+	sup.HideModal('#extend_modal');
+	sup.ShowModal("#waitwait");
+	var xmlthing = sup.CallServerMethod(null,
+					    "dataset",
+					    "extend",
 					    {"uuid" : dataset_uuid});
 	xmlthing.done(callback);
     }

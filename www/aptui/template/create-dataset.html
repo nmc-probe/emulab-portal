@@ -15,10 +15,11 @@
               method='post' action=create_dataset.php'>
 	  <div class='row'>
 	    <div class='col-sm-12'>
-	      <% if (projects) { %>
-	        <% if (projects.length == 1) { %>
+	      <% if (1 || projects) { %>
+	        <% if (editing || projects.length == 1) { %>
 	          <input name="dataset_pid" readonly
 			 value="<%- formfields.dataset_pid %>"
+			 <% if (editing) { %> readonly <% } %>
 			 class="form-control format-me"
 			 data-label="Project"
 			 data-key="dataset_pid">
@@ -45,6 +46,7 @@
 		     class="form-control format-me"
 		     data-key="dataset_name"
 		     data-label="Name"
+		     <% if (editing) { %> readonly <% } %>
 		     placeholder="alphanumeric, no spaces" type="text">
 	      <input name="dataset_size"
 		     value="<%- formfields.dataset_size %>"
@@ -52,7 +54,20 @@
 		     data-key="dataset_size"
 		     data-label="Size"
 		     placeholder="eg: NNN(MB|GB|TB)"
+		     <% if (editing) { %> readonly <% } %>
 		     type="text">
+	      <% if (editing) { %>
+	      <input name="dataset_type" type='hidden'
+		     value="<%- formfields.dataset_type %>">
+	      <input name='ignored'
+		     value=<% if (formfields.dataset_type == "stdataset") {
+		         %>'Short Term'<% } else { %>'Long Term'<% } %>
+		     class="form-control format-me"
+		     data-key="dataset_type"
+		     data-label="Type"
+		     readonly
+		     type="text">
+	      <% } else { %>
 	      <div class='format-me' data-key='dataset_type'
 		   data-label="Type">
                   <label class='radio-inline'>
@@ -70,12 +85,14 @@
 			     value='ltdataset'> Long term
     	          </label>
 	      </div>
+	      <% } %>
 	      <div id='dataset_expires_div'
 		   <% if (formfields.dataset_type == "ltdataset") {
 		      %> class='hidden' <% } %> >
 		<input name="dataset_expires"
 		       style='position: relative; z-index:1000;'
 		       id='dataset_expires'
+		       <% if (editing && !isadmin) { %> readonly <% } %>
 		       value="<%- formfields.dataset_expires %>"
 		       class="form-control format-me"
 		       data-key="dataset_expires"
@@ -83,6 +100,15 @@
 		       placeholder="MM/DD/YYYY"
 		       type="text">
 	      </div>
+	      <% if (editing) { %>
+	      <input name="dataset_fstype"
+		     value="<%- formfields.dataset_fstype %>"
+		     class="form-control format-me"
+		     data-key="dataset_fstype"
+		     data-label="FS Type"
+		     readonly
+		     type="text">
+	      <% } else { %>
 	      <select name="dataset_fstype"
 		      class="form-control format-me"
 		      data-key="dataset_fstype"
@@ -97,7 +123,9 @@
 		  </option>
 		<% }); %>
 	      </select>
+	      <% } %>
 
+	      <% if (!embedded) { %>
 	      <!-- Permission checkboxes. -->
 	      <div class='row'>
 		<div class='col-sm-9 col-sm-offset-3'>
@@ -141,10 +169,18 @@
                   </div>
 		</div>
               </div>
+	      <% } %>
+	      
+	      <% if (editing) { %>
+	      <input type='hidden' name='dataset_uuid'
+		     value='<%= formfields.dataset_uuid %>'>
+	      <% } %>
 	      
               <button class='btn btn-primary btn-sm pull-right'
                       id='dataset_submit_button'
-                      type='submit' name='create'>Create</button>
+                      type='submit' name='create'>
+		<% if (editing) { %>Save Changes<% } else { %>Create<% } %>
+	      </button>
 	    </div>
 	  </div>
 	</form>

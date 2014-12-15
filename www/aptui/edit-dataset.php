@@ -23,10 +23,12 @@
 #
 chdir("..");
 include("defs.php3");
+include("lease_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
+include("dataset_defs.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
-$page_title = "Create Dataset";
+$page_title = "Modify Dataset";
 
 #
 # Get current user.
@@ -38,8 +40,23 @@ $this_idx  = $this_user->uid_idx();
 #
 # Verify page arguments.
 #
+$optargs = RequiredPageArguments("uuid",        PAGEARG_UUID);
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "formfields",  PAGEARG_ARRAY);
+
+#
+# Either a local lease or a remote dataset. 
+#
+$dataset = Lease::Lookup($uuid);
+if (!$dataset) {
+    $dataset = Dataset::Lookup($uuid);
+}
+if (!$dataset) {
+    SPITUSERERROR("No such dataset!");
+}
+if (!$dataset->AccessCheck($this_user, $LEASE_ACCESS_MODIFY)) {
+    SPITUSERERROR("Not enough permission!");
+}
 
 #
 # Spit the form
@@ -47,8 +64,9 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 function SPITFORM($formfields, $errors)
 {
     global $this_user, $projlist, $embedded;
-    $button_label = "Create";
-    $title        = "Create Dataset";
+    $button_label = "Save";
+    $title        = "Modify Dataset";
+    $isadmin      = (ISADMIN() ? "true" : "false");
 
     SPITHEADER(1);
 
@@ -62,39 +80,15 @@ function SPITFORM($formfields, $errors)
     echo "<script type='text/plain' id='error-json'>\n";
     echo htmlentities(json_encode($errors));
     echo "</script>\n";
-
-    #
-    # Pass project list through. Need to convert to list without groups.
-    # When editing, pass through a single value. The template treats a
-    # a single value as a read-only field.
-    #
-    $plist = array();
-    while (list($project) = each($projlist)) {
-	$plist[] = $project;
-    }
-    echo "<script type='text/plain' id='projects-json'>\n";
-    echo htmlentities(json_encode($plist));
-    echo "</script>\n";
     
-    # FS types.
-    $fstypelist = array();
-    $fstypelist["none"] = "none";
-    $fstypelist["ext2"] = "ext2";
-    $fstypelist["ext3"] = "ext3";
-    $fstypelist["ext4"] = "ext4";
-    $fstypelist["ufs"]  = "ufs";
-    $fstypelist["ufs2"] = "ufs2";
-    echo "<script type='text/plain' id='fstypes-json'>\n";
-    echo htmlentities(json_encode($fstypelist));
-    echo "</script>\n";
-
     echo "<link rel='stylesheet'
             href='css/jquery-ui.min.css'>\n";
     
     echo "<script type='text/javascript'>\n";
     echo "    window.AJAXURL  = 'server-ajax.php';\n";
     echo "    window.TITLE    = '$title';\n";
-    echo "    window.EDITING  = false;\n";
+    echo "    window.EDITING  = true;\n";
+    echo "    window.ISADMIN  = $isadmin;\n";
     echo "    window.BUTTONLABEL = '$button_label';\n";
     echo "</script>\n";
 
@@ -105,24 +99,24 @@ function SPITFORM($formfields, $errors)
     SPITFOOTER();
 }
 
-#
-# See what projects the user can do this in.
-#
-$projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
-
 if (! isset($create)) {
     $errors   = array();
-    $defaults = array();
+    $fields   = array();
 
-    $defaults["dataset_type"]   = 'stdataset';
-    $defaults["dataset_fstype"] = 'ext3';
-    $defaults["dataset_who"]    = 'shared';
-    # Default project.
-    if (count($projlist) == 1) {
-	$defaults["dataset_pid"] = $projlist[0];
-    }
+    $fields["dataset_type"]     = $dataset->type();
+    $fields["dataset_pid"]      = $dataset->pid();
+    $fields["dataset_gid"]      = $dataset->gid();
+    $fields["dataset_name"]     = $dataset->id();
+    $fields["dataset_size"]     = $dataset->size() . "MiB";
+    $fields["dataset_fstype"]   = ($dataset->fstype() ?
+				   $dataset->fstype() : "none");
+    $fields["dataset_expires"]  = ($dataset->expires() ?
+				   DateStringGMT($dataset->expires()) : "");
+    $fields["dataset_uuid"]     = $uuid;
+    $fields["dataset_who"]      = $dataset->PrivacyString();
 
-    SPITFORM($defaults, $errors);
+
+    SPITFORM($fields, $errors);
     return;
 }
 SPITFORM($formfields, array());

@@ -37,6 +37,8 @@ sub usage()
     print STDERR "Usage: manage_dataset [options --] create ...\n";
     print STDERR "Usage: manage_dataset [options --] delete ...\n";
     print STDERR "Usage: manage_dataset [options --] refresh ...\n";
+    print STDERR "Usage: manage_dataset [options --] modify ...\n";
+    print STDERR "Usage: manage_dataset [options --] extend ...\n";
     exit(-1);
 }
 my $optlist     = "dt:";
@@ -82,6 +84,8 @@ sub DoCreate();
 sub DoDelete();
 sub DoRefresh();
 sub DoRefreshInternal($$);
+sub DoModify();
+sub DoExtend();
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -132,6 +136,12 @@ elsif ($action eq "delete") {
 }
 elsif ($action eq "refresh") {
     exit(DoRefresh());
+}
+elsif ($action eq "modify") {
+    exit(DoModify());
+}
+elsif ($action eq "extend") {
+    exit(DoExtend());
 }
 else {
     usage();
@@ -400,7 +410,7 @@ sub DoRefreshInternal($$)
     
     my $response = $dataset->DescribeDataset();
     if ($response->code() != GENIRESPONSE_SUCCESS) {
-	if ($response->code() != GENIRESPONSE_SEARCHFAILED) {
+	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
 	    $$pmesg = "Dataset no longer exists at the target\n";
 	}
 	else {
@@ -419,6 +429,131 @@ sub DoRefreshInternal($$)
 	$dataset->Update({"state" => $blob->{"state"}});
     }
     return 0;
+}
+
+#
+# Modify
+#
+sub DoModify()
+{
+    my $errmsg;
+    
+    my $usage = sub {
+	print STDERR "Usage: manage_dataset modify ".
+	    "[-e expiration] [-p privacy] pid/name\n";
+	exit(-1);
+    };
+    my $optlist = "e:p:";
+    my %options = ();
+    if (! getopts($optlist, \%options)) {
+	&$usage();
+    }
+    if (@ARGV != 1) {
+	&$usage();
+    }
+    my $token   = shift(@ARGV);
+    my $dataset = APT_Dataset->Lookup($token);
+    if (!defined($dataset)) {
+	fatal("No such dataset");
+    }
+    if (defined($options{"p"})) {
+	&$usage()
+	    if ($options{"p"} !~ /^(private|shared|public)$/);
+    }
+    if (defined($options{"e"})) {
+	my $expires = str2time($options{"e"});
+	if (!defined($expires)) {
+	    fatal("Could not parse expiration date.");
+	}
+    }
+    if ($dataset->Lock()) {
+	fatal("dataset is busy, cannot lock it");
+    }
+    if (defined($options{"p"})) {
+	my $privacy = $options{"p"};
+	my $blob    = {"shared" => 0, "public" => 0};
+
+	if ($privacy eq "shared") {
+	    $blob->{'shared'} = 1;
+	}
+	elsif ($privacy eq "public") {
+	    $blob->{'public'} = 1;
+	}
+	if ($dataset->Update($privacy)) {
+	    $errmsg = "Could not update privacy settings!";
+	    goto failed;
+	}
+    }
+    if (defined($options{"e"})) {
+	my $expires = $options{"e"};
+	print "$expires\n";
+	if ($dataset->Update({"expires" => TBDateStringLocal($expires)})) {
+	    $errmsg = "Could not update expiration!";
+	    goto failed;
+	}
+    }
+    my $response = $dataset->ModifyDataset();
+    if ($response->code() != GENIRESPONSE_SUCCESS) {
+	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+	    $errmsg = "Dataset no longer exists at the target\n";
+	}
+	else {
+	    $errmsg = "ModifyDataset failed: ". $response->output() . "\n";
+	}
+	goto failed;
+    }
+    my $blob = $response->value();
+    $dataset->Update({"expires" => TBDateStringLocal($blob->{"expires"})});
+    $dataset->Unlock();
+    return 0;
+
+  failed:
+    $dataset->Unlock();
+    # This will set the webtask, see below.
+    fatal($errmsg);
+}
+
+#
+# Extend
+#
+sub DoExtend()
+{
+    my $errmsg;
+    
+    my $usage = sub {
+	print STDERR "Usage: manage_dataset extend pid/name\n";
+	exit(-1);
+    };
+    if (@ARGV != 1) {
+	&$usage();
+    }
+    my $token   = shift(@ARGV);
+    my $dataset = APT_Dataset->Lookup($token);
+    if (!defined($dataset)) {
+	fatal("No such dataset");
+    }
+    if ($dataset->Lock()) {
+	fatal("dataset is busy, cannot lock it");
+    }
+    my $response = $dataset->ExtendDataset();
+    if ($response->code() != GENIRESPONSE_SUCCESS) {
+	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+	    $errmsg = "Dataset no longer exists at the target\n";
+	}
+	else {
+	    $errmsg = "ExtendDataset failed: ". $response->output() . "\n";
+	}
+	goto failed;
+    }
+    my $blob = $response->value();
+    $dataset->Update({"expires" => TBDateStringLocal($blob->{"expires"})});
+    $dataset->Unlock();
+    return 0;
+
+  failed:
+    $dataset->Unlock();
+    # This will set the webtask, see below.
+    fatal($errmsg);
 }
 
 sub fatal($)

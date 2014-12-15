@@ -1,7 +1,7 @@
 require(window.APT_OPTIONS.configObject,
-	['js/quickvm_sup',
+	['js/quickvm_sup', 'moment',
 	 'tablesorter', 'tablesorterwidgets'],
-function (sup)
+function (sup, moment)
 {
     'use strict';
     var ajaxurl = null;

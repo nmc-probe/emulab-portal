@@ -3203,6 +3203,8 @@ sub ConsoleURL($)
 #
 my $CREATEDATASET   = "$TB/bin/createdataset";
 my $DELETEDATASET   = "$TB/bin/deletelease";
+my $MODIFYDATASET   = "$TB/bin/modlease";
+my $EXTENDDATASET   = "$TB/bin/extendlease";
 
 sub CreateDataset($)
 {
@@ -3361,12 +3363,85 @@ sub DeleteDataset($)
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
-sub ExtendDataset($)
+sub ModifyDataset($)
 {
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
+    my $dataset      = $argref->{'name'};
+    require Lease;
 
-    return GeniResponse->Create(GENIRESPONSE_NOT_IMPLEMENTED);
+    if (! (defined($credentials) && defined($dataset))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if ($dataset !~ /^[-\w]+$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    #
+    # Only real local users can do blockstores, or the credential
+    # must include the correct priv.
+    #
+    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (! ((defined($user) && $user->IsLocal()) ||
+	       $credential->HasActualPrivilege("blockstores")));
+
+    # Get the project and group. This needs more thought. 
+    my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
+    return $group
+	if (GeniResponse::IsResponse($group));
+
+    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+    if (!defined($lease)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    }
+    #
+    # Only the creator can modify the dataset.
+    #
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (0 && $user->uid() ne $lease->owner());
+    
+    my $cmd;
+
+    #
+    # All we can handle is the expiration date. 
+    #
+    if (exists($argref->{'expires'})) {
+	my $expiration = $argref->{'expires'};
+	
+	# Gack, why does Frontier do this. It is stupid.
+	if (ref($expiration) eq 'Frontier::RPC2::DateTime::ISO8601') {
+	    $expiration = $expiration->value;
+	}
+	if (!str2time($expiration)) {
+	    return GeniResponse->MalformedArgsResponse("Bad expiration");
+	}
+	GeniUtil::FlipToElabMan();
+	$cmd = "$WAP $MODIFYDATASET ";	
+	$cmd .= " -e '" . emutil::TBDateStringLocal($expiration) . "' ";
+    }
+    elsif (exists($argref->{'extend'})) {
+	$cmd = "$EXTENDDATASET ";	
+    }
+    else {
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+    }
+    $cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset;
+    my $output = GeniUtil::ExecQuiet($cmd);
+    # Not a typical op, so always print debugging info;
+    print STDERR $output;
+    if ($?) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
+    }
+    $lease->Refresh();
+    
+    my $blob = {};
+    $blob->{'expires'}  = emutil::TBDateStringGMT($lease->lease_end());
+    
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 sub DescribeDataset($)
 {

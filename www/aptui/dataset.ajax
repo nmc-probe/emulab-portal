@@ -41,6 +41,7 @@ function Do_CreateDataSet()
     $this_uid   = $this_user->uid();
     # Allow for form precheck only. So JS code knows it will be fast. 
     $checkonly  = isset($ajax_args["checkonly"]) && $ajax_args["checkonly"];
+    $embedded   = isset($ajax_args["embedded"]) && $ajax_args["embedded"];
 
     if (!isset($ajax_args["formfields"])) {
 	SPITAJAX_ERROR(1, "Missing formfields");
@@ -55,7 +56,10 @@ function Do_CreateDataSet()
 	$command = "webmanage_dataset create ";
     }
     $required = array("dataset_pid", "dataset_name", "dataset_type",
-		      "dataset_size", "dataset_fstype", "dataset_who");
+		      "dataset_size", "dataset_fstype");
+    if (!$embedded) {
+	$required[] = "dataset_who";
+    }
 
     foreach ($required as $field) {
 	if (!isset($formfields[$field]) || $formfields[$field] == "") {
@@ -118,13 +122,15 @@ function Do_CreateDataSet()
 	$command .= " -s " . $formfields["dataset_size"];
     }
     # Permission bits.
-    if ($formfields["dataset_who"] != "public" &&
-	$formfields["dataset_who"] != "shared" &&
-	$formfields["dataset_who"] != "private") {
-	$errors["dataset_who"] = "Illegal value";
-    }
-    else {
-	$command .= " -p " . $formfields["dataset_who"];
+    if (!$embedded) {
+	if ($formfields["dataset_who"] != "public" &&
+	    $formfields["dataset_who"] != "shared" &&
+	    $formfields["dataset_who"] != "private") {
+	    $errors["dataset_who"] = "Illegal value";
+	}
+	else {
+	    $command .= " -p " . $formfields["dataset_who"];
+	}
     }
     if (count($errors)) {
 	SPITAJAX_ERROR(2, $errors);
@@ -153,7 +159,103 @@ function Do_CreateDataSet()
 	return 1;
     }
     $dataset_uuid = $dataset->uuid();
-    SPITAJAX_RESPONSE("$APTBASE/show-dataset.php?uuid=$dataset_uuid");
+    SPITAJAX_RESPONSE("show-dataset.php?uuid=$dataset_uuid");
+}
+
+#
+# Server side of modifying a dataset.
+#
+function Do_ModifyDataSet()
+{
+    global $this_user;
+    global $ajax_args;
+    global $DBFieldErrstr, $TBDIR, $APTBASE, $embedded;
+    global $suexec_output, $suexec_output_array;
+    $islease = 1;
+
+    $this_idx   = $this_user->uid_idx();
+    $this_uid   = $this_user->uid();
+    # Allow for form precheck only. So JS code knows it will be fast. 
+    $checkonly  = isset($ajax_args["checkonly"]) && $ajax_args["checkonly"];
+    $embedded   = isset($ajax_args["embedded"]) && $ajax_args["embedded"];
+
+    if (!isset($ajax_args["formfields"])) {
+	SPITAJAX_ERROR(1, "Missing formfields");
+	return;
+    }
+    $formfields = $ajax_args["formfields"];
+    $errors     = array();
+
+    if (!isset($formfields["dataset_uuid"])) {
+	SPITAJAX_ERROR(1, "Missing dataset uuid");
+	return 1;
+    }
+    $dataset_uuid = $formfields["dataset_uuid"];
+
+    #
+    # Either a local lease or a remote dataset. 
+    #
+    $dataset = Lease::Lookup($dataset_uuid);
+    if (!$dataset) {
+	$dataset = Dataset::Lookup($dataset_uuid);
+	$islease = 0;
+    }
+    if (!$dataset) {
+	SPITAJAX_ERROR(1, "Unknown dataset");
+	return;
+    }
+    if ($this_uid != $dataset->owner_uid() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission");
+	return;
+    }
+    if ($islease) {
+	$command = "webmodlease ";
+    }
+    else {
+	$command = "webmanage_dataset modify ";
+    }
+
+    if ($dataset->type() == "stdataset") {
+	if (!isset($formfields["dataset_expires"]) ||
+	    $formfields["dataset_expires"] == "") {
+	    $errors["dataset_expires"] = "Missing field";
+	}
+	elseif (!strtotime($formfields["dataset_expires"])) {
+	    $errors["dataset_expires"] = "Illegal value";
+	}
+	else {
+	    $command .= " -e " .
+		escapeshellarg($formfields["dataset_expires"]);
+	}
+    }
+    # Permission bits.
+    if (isset($formfields["dataset_who"])) {
+	if ($formfields["dataset_who"] != "public" &&
+	    $formfields["dataset_who"] != "shared" &&
+	    $formfields["dataset_who"] != "private") {
+	    $errors["dataset_who"] = "Illegal value";
+	}
+	elseif ($dataset->PrivacyString() != $formfields["dataset_who"]) {
+	    $command .= " -p " . $formfields["dataset_who"];
+	}
+    }
+    if (count($errors)) {
+	SPITAJAX_ERROR(2, $errors);
+	return;
+    }
+    if ($checkonly) {
+	SPITAJAX_RESPONSE(0);
+	return;
+    }
+    $command .= " " . $dataset->pid() . "/" . $dataset->id();
+
+    $retval = SUEXEC($this_uid, $dataset->pid(),
+		     $command, SUEXEC_ACTION_CONTINUE);
+    if ($retval) {
+	SPITAJAX_ERROR(1, $suexec_output);
+	return;
+    }
+    SPITAJAX_RESPONSE("show-dataset.php?uuid=$dataset_uuid");
 }
 
 function Do_DeleteDataset()
@@ -208,7 +310,7 @@ function Do_DeleteDataset()
 	SPITAJAX_ERROR(1, $error);
 	return;
     }
-    SPITAJAX_RESPONSE("$APTBASE");
+    SPITAJAX_RESPONSE("list-datasets.php");
 }
 
 function Do_ApproveDataset()
@@ -255,7 +357,7 @@ function Do_ApproveDataset()
 	SPITAJAX_ERROR(1, $error);
 	return;
     }
-    SPITAJAX_RESPONSE("$APTBASE/show-dataset.php?uuid=$lease_uuid");
+    SPITAJAX_RESPONSE("show-dataset.php?uuid=$dataset_uuid");
 }
 
 function Do_RefreshDataset()
@@ -298,6 +400,62 @@ function Do_RefreshDataset()
 	return;
     }
     SPITAJAX_RESPONSE(0);
+}
+
+function Do_ExtendDataset()
+{
+    global $this_user;
+    global $ajax_args;
+    global $suexec_output, $suexec_output_array, $APTBASE;
+    
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+    $islease  = 1;
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing uuid");
+	return;
+    }
+    #
+    # Either a local lease or a remote dataset. 
+    #
+    $dataset = Lease::Lookup($ajax_args["uuid"]);
+    if (!$dataset) {
+	$dataset = Dataset::Lookup($ajax_args["uuid"]);
+	$islease = 0;
+    }
+    if (!$dataset) {
+	SPITAJAX_ERROR(1, "Unknown dataset");
+	return;
+    }
+    if ($this_uid != $dataset->owner_uid() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission");
+	return;
+    }
+    if ($islease) {
+	$command = "webextendlease ";
+    }
+    else {
+	$command = "webmanage_dataset extend ";
+    }
+    $command .= $dataset->pid() . "/" . $dataset->id();
+    
+    #
+    # Invoke backend.
+    #
+    $retval = SUEXEC($this_uid, $dataset->pid(), $command,
+		     SUEXEC_ACTION_CONTINUE);
+    if ($retval != 0) {
+	$error = "Transient error; please try again later";
+	
+	if ($retval && count($suexec_output_array)) {
+	    $error = $suexec_output_array;
+	}
+	SPITAJAX_ERROR(1, $error);
+	return;
+    }
+    $dataset_uuid = $dataset->uuid();
+    SPITAJAX_RESPONSE("show-dataset.php?uuid=$dataset_uuid");
 }
 
 # Local Variables:

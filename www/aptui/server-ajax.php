@@ -103,7 +103,9 @@ $routing = array("myprofiles" =>
 						 "refresh" =>
 						      "Do_RefreshDataset",
 						 "approve" =>
-						      "Do_ApproveDataset")),
+						     "Do_ApproveDataset",
+						 "extend" =>
+						      "Do_ExtendDataset")),
     );
 
 #

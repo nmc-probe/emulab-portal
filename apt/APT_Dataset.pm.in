@@ -477,6 +477,73 @@ sub DeleteDataset($)
 }
 
 #
+# Apply some updates to the dataset on server.
+#
+sub ModifyDataset($)
+{
+    my ($self) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $context   = APT_Geni::GeniContext();
+    my $cert      = $self->GetCertificate();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($context) && defined($cert)));
+    
+    my ($credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"]);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($credential)));
+
+    my $args = {
+	"name"        => $self->dataset_id(),
+	"credentials" => [$credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+    # This is all we can change right now.
+    $args->{"expires"} = emutil::TBDateStringGMT($self->expires())
+	if (defined($self->expires()));
+    
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/;
+
+    return Genixmlrpc::CallMethod($cmurl, $context, "ModifyDataset", $args);
+}
+
+#
+# Request single extension.
+#
+sub ExtendDataset($)
+{
+    my ($self) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $context   = APT_Geni::GeniContext();
+    my $cert      = $self->GetCertificate();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($context) && defined($cert)));
+    
+    my ($credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"]);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($credential)));
+
+    my $args = {
+	"name"        => $self->dataset_id(),
+	"credentials" => [$credential->asString(),
+			  $speaksfor_credential->asString()],
+	"extend"      => 1,
+    };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/;
+
+    return Genixmlrpc::CallMethod($cmurl, $context, "ModifyDataset", $args);
+}
+
+#
 # Refresh our metadata.
 #
 sub DescribeDataset($)
