@@ -1,0 +1,183 @@
+require(window.APT_OPTIONS.configObject,
+	['underscore', 'js/quickvm_sup', 'moment',
+	 'js/lib/text!template/show-profile.html',
+	 'js/lib/text!template/waitwait-modal.html',
+	 'js/lib/text!template/renderer-modal.html',
+	 'js/lib/text!template/showtopo-modal.html',
+	 'js/lib/text!template/rspectextview-modal.html',
+	 'js/lib/text!template/guest-instantiate.html',
+	 'js/lib/text!template/instantiate-modal.html',
+	 'js/lib/text!template/oops-modal.html',
+	 // jQuery modules
+	 'marked','jquery-ui','jquery-grid'],
+function (_, sup, moment,
+	  showString, waitwaitString, 
+	  rendererString, showtopoString, rspectextviewString,
+	  guestInstantiateString, instantiateString, oopsString)
+{
+    'use strict';
+    var profile_uuid = null;
+    var version_uuid = null;
+    var gotscript    = 0;
+    var ajaxurl      = "";
+    var amlist       = null;
+    var editor       = null;
+    var myCodeMirror = null;
+    var showTemplate      = _.template(showString);
+    var InstTemplate      = _.template(instantiateString);
+
+    function initialize()
+    {
+	window.APT_OPTIONS.initialize(sup);
+	version_uuid  = window.VERSION_UUID;
+	profile_uuid  = window.PROFILE_UUID;
+	ajaxurl       = window.AJAXURL;
+
+	var fields = JSON.parse(_.unescape($('#form-json')[0].textContent));
+	amlist     = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+
+	if (_.has(fields, "profile_script") && fields["profile_script"] != "") {
+	    gotscript = 1;
+	}
+	
+	// Generate the templates.
+	var show_html   = showTemplate({
+	    fields:		fields,
+	    profile_uuid:	profile_uuid,
+	    version_uuid:	version_uuid,
+	    isadmin:		window.ISADMIN,
+	});
+	$('#page-body').html(show_html);
+
+	$('#waitwait_div').html(waitwaitString);
+	$('#showtopomodal_div').html(showtopoString);
+	$('#guest_div').html(guestInstantiateString);
+    	var instantiate_html = InstTemplate({ amlist: amlist,
+					      amdefault: window.AMDEFAULT});
+	$('#instantiate_div').html(instantiate_html);
+	$('#rspectext_div').html(rspectextviewString);
+	$('#oops_div').html(oopsString);
+
+	// This activates the popover subsystem.
+	$('[data-toggle="popover"]').popover({
+	    trigger: 'hover',
+	    container: 'body'
+	});
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("lll"));
+	    }
+	});
+	$('body').show();
+
+	//
+	// Show the visualizer.
+	//
+	$('#edit_topo_modal_button').click(function (event) {
+	    event.preventDefault();
+	    sup.ShowModal('#quickvm_topomodal');
+	});
+        $('#quickvm_topomodal').on('shown.bs.modal', function() {
+	    sup.maketopmap("#showtopo_nopicker",
+			   $('#profile_rspec_textarea').val(), null, true);
+        });
+	
+	// The Show Source button.
+	$('#show_source_modal_button, #show_xml_modal_button')
+	    .click(function (event) {
+		var source;
+
+		if ($(this).attr("id") == "show_source_modal_button") {
+		    source = $.trim($('#profile_script_textarea').val());
+		}
+		if (!source.length) {
+		    source = $.trim($('#profile_rspec_textarea').val());
+		}
+		$('#rspec_modal_editbuttons').addClass("hidden");
+		$('#rspec_modal_viewbuttons').removeClass("hidden");
+		$('#modal_profile_rspec_textarea').prop("readonly", true);
+		$('#modal_profile_rspec_textarea').val(source);
+		$('#rspec_modal').modal({'backdrop':'static','keyboard':false});
+		$('#rspec_modal').modal('show');
+	    });
+        $('#rspec_modal').on('shown.bs.modal', function() {
+	    var source = $('#modal_profile_rspec_textarea').val();
+	    var mode   = "text/xml";
+
+	    // Need to determine the mode.
+	    var myRe = /^import/m;
+	    if (myRe.test(source)) {
+		mode = "text/x-python";
+	    }
+	    myCodeMirror = CodeMirror(function(elt) {
+		$('#modal_profile_rspec_div').prepend(elt);
+	    }, {
+		value: source,
+                lineNumbers: false,
+		smartIndent: true,
+		autofocus: false,
+		readOnly: true,
+                mode: mode,
+	    });
+        });
+	// Close the source/xml modal.
+	$('#close_rspec_modal_button')
+	    .click(function (event) {
+	    $('#rspec_modal').modal('hide');
+	    $('.CodeMirror').remove();
+	    $('#modal_profile_rspec_textarea').val("");
+	});
+	
+	/*
+	 * Suck the description and instructions
+	 * out of the rspec and put them into the text boxes.
+	 */
+	ExtractFromRspec();
+	// We also got a geni-lib script, so show the XML button.
+	if (gotscript) {
+	    $('#show_xml_modal_button').removeClass("hidden");
+	}
+    }
+
+    /*
+     * We want to look for and pull out the introduction and overview text,
+     * and put them into the text boxes. The user can edit them in the
+     * boxes. More likely, they will not be in the rspec, and we have to
+     * add them to the rspec_tour section.
+     */
+    function ExtractFromRspec()
+    {
+	var rspec  = $('#profile_rspec_textarea').val();
+	var xmlDoc = parseXML(rspec);
+	if (xmlDoc == null)
+	    return;
+	var xml    = $(xmlDoc);
+	
+	$(xml).find("rspec_tour > description").each(function() {
+	    var text = $(this).text();
+	    var marked = require("marked");
+	    $('#profile_description').html(marked(text));
+	});
+	$(xml).find("rspec_tour > instructions").each(function() {
+	    var text = $(this).text();
+	    var marked = require("marked");
+	    $('#profile_instructions').html(marked(text));
+	});
+    }
+
+    function parseXML(rspec)
+    {
+	try {
+	    var xmlDoc = $.parseXML(rspec);
+	    return xmlDoc;
+	}
+	catch(err) {
+	    alert("Could not parse XML!");
+	    return -1;
+	}
+    }
+
+    $(document).ready(initialize);
+});

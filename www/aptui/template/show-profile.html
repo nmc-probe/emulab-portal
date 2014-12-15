@@ -1,0 +1,91 @@
+<div class='row'>
+  <div class='col-lg-8 col-lg-offset-2
+              col-md-8 col-md-offset-2
+              col-sm-10 col-sm-offset-1
+              col-xs-12'>
+    <div class='panel panel-default'>
+      <div class='panel-body'>
+	<div class='panel-body'>
+	  <table class='table table-condensed nospaceafter border-none'>
+	  <tr>
+	    <td>Name:</td>
+	    <td><%- fields.profile_name %></td>
+	  </tr>
+	  <tr>
+	    <td>Version:</td>
+	    <td><%- fields.profile_version %></td>
+	  </tr>
+	  <tr>
+	    <td>Created:</td>
+	    <td class='format-date' style='word-wrap:break-word;'>
+	      <%- fields.profile_created %></td>
+	  </tr>
+	  <tr>
+	    <td>Description:</td>
+	    <td>
+	      <div id='profile_description' style='border: solid #000 1px;'>
+	      </div>
+	    </td>
+	  </tr>
+	  <tr>
+	    <td>Instructions:</td>
+	    <td>
+	      <div id='profile_instructions' style='border: solid #000 1px;'>
+	      </div>
+	    </td>
+	  </tr>
+	  <tr>
+	    <td>Topology:</td>
+	    <td>
+		  <button class='btn btn-primary btn-xs
+			  type='button'
+			  style='margin-right: 10px;'
+			  id='edit_topo_modal_button'>
+                    Visualize</button>
+		  <button class='btn btn-primary btn-xs'
+			  type='button'
+			  style='margin-right: 10px;'
+			  id='show_source_modal_button'>
+                    Source</button>
+		  <button class='btn btn-primary btn-xs hidden'
+			  type='button'
+			  style='margin-right: 10px;'
+			  id='show_xml_modal_button'>
+                    XML</button>
+	    </td>
+	  </tr>
+	  </table>
+	  <a class='btn btn-primary btn-sm pull-right'
+             id='profile_instantiate_button'
+             style='margin-right: 10px;'
+	     href='instantiate.php?profile=<%= version_uuid %>'
+             name='create'>Instantiate
+	  </a>
+	</div>
+      </div>
+    </div>
+    <textarea name="formfields[profile_rspec]"
+	      id='profile_rspec_textarea'
+              class='form-control hidden'
+              type='textarea'
+	      data-key='profile_rspec'
+	      rows=5><%- fields.profile_rspec %></textarea>
+    <textarea name="formfields[profile_script]"
+	      id='profile_script_textarea'
+              class='form-control hidden'
+              type='textarea'
+	      data-key='profile_script'
+	      rows=5><%- fields.profile_script %></textarea>
+  </div>
+  <!-- place to hang the modals  -->
+  <div id='showtopomodal_div'></div>
+  <div id='editmodal_div'></div>
+  <div id='waitwait_div'></div>
+  <div id='imaging_div'></div>
+  <div id='renderer_div'></div>
+  <div id='oops_div'></div>
+  <div id='guest_div'></div>
+  <div id='publish_div'></div>
+  <div id='instantiate_div'></div>
+  <div id='rspectext_div'></div>
+</div>
