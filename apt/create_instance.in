@@ -715,19 +715,15 @@ while ($seconds > 0) {
 	last;
     }
 }
-print STDERR "$slice_urn\n";
-print STDERR "$public_url\n"
-    if (defined($public_url));
-print STDERR "\n";
-print STDERR "$manifest\n\n";
 
+# Print this message first so its obvious.
 if ($failed || !$ready) {
     $instance->SetStatus("failed");
     if (!$ready) {
-	print STDERR "$slice_urn timed out.\n";
+	print STDERR "*** $slice_urn timed out.\n\n";
     }
     else {
-	print STDERR "$slice_urn failed.\n"; 
+	print STDERR "*** $slice_urn failed.\n\n"; 
     }
     $webtask->Exited(1) if (defined($webtask));
 }
@@ -735,6 +731,14 @@ else {
     $instance->SetStatus("ready");
     $webtask->Exited(0) if (defined($webtask));
 }
+print STDERR "$slice_urn\n";
+if (defined($public_url)) {
+    print STDERR "$public_url\n";
+    $instance->SetPublicURL($public_url);
+}
+print STDERR "\n";
+print STDERR "$manifest\n\n";
+
 $slice->UnLock();
 exit(0);
 
