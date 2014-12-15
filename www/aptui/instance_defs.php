@@ -72,6 +72,7 @@ class Instance
     function profile_id()   { return $this->field('profile_id'); }
     function profile_version() { return $this->field('profile_version'); }
     function status()	    { return $this->field('status'); }
+    function public_url()   { return $this->field('public_url'); }
     function manifest()	    { return $this->field('manifest'); }
     function servername()   { return $this->field('servername'); }
     function IsAPT() {
