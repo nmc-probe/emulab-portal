@@ -283,6 +283,25 @@ sub SetStatus($$)
     return 0;
     
 }
+sub SetPublicURL($$)
+{
+    my ($self,$url) = @_;
+    my $safe_url = DBQuoteSpecial($url);
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uuid = $self->uuid();
+
+    DBQueryWarn("update apt_instances set public_url=$safe_url ".
+		"where uuid='$uuid'") or
+	return -1;
+
+    $self->{'INSTANCE'}->{'public_url'} = $url;
+    return 0;
+    
+}
 sub SetManifest($$)
 {
     my ($self,$manifest) = @_;
