@@ -45,15 +45,18 @@ var jacksInstance;
 var jacksInput;
 var jacksOutput;
 
-function maketopmap(divname, xml, sshcallback)
+function maketopmap(divname, xml, sshcallback, writeable)
 {
+    if (writeable === undefined) {
+	writeable = false;
+    }
     if (! jacksInstance)
     {
 	jacksInstance = new window.Jacks({
 	    mode: 'viewer',
 	    source: 'rspec',
 	    root: divname,
-	    nodeSelect: false,
+	    nodeSelect: writeable,
 	    readyCallback: function (input, output) {
 		jacksInput = input;
 		jacksOutput = output;
@@ -73,6 +76,7 @@ function maketopmap(divname, xml, sshcallback)
 		rspec: false,
 		tour: false,
 		version: false,
+		selectInfo: writeable,
 		menu: false
 	    }
 	});
