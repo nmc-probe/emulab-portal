@@ -32,16 +32,16 @@ $uid_idx   = $this_user->uid_idx();
 $isadmin   = ISADMIN();
 
 #
-# Verify page arguments.
-#
-$optargs = RequiredPageArguments("uuid",      PAGEARG_UUID);
-
-#
 # Standard Testbed Header
 #
 PAGEHEADER("Show Dataset");
 
-echo "<iframe src='apt/show-dataset.php?uuid=$uuid&embedded=1'
+#
+# Verify page arguments.
+#
+$optargs = RequiredPageArguments("uuid",        PAGEARG_UUID);
+
+echo "<iframe src='apt/show-dataset.php?embedded=1&uuid=$uuid'
               id='embedded' class='embedded'></iframe>";
 
 $bodyclosestring =
