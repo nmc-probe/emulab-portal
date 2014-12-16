@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -21,6 +21,17 @@
 # 
 # }}}
 #
+### BEGIN INIT INFO
+# Provides: pubsubd
+# Default-Start: 3 4 5
+# Default-Stop: 0 1 6
+# Should-Start: 
+# Required-Start: pubsubd
+# Required-Stop: 
+# Short-Description: Start and stop Emulab daemons
+# Description: Start and stop Emulab daemons
+### END INIT INFO
+
 . /etc/emulab/paths.sh
 
 #
