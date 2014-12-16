@@ -89,7 +89,7 @@ function SPITFORM($uid, $referrer, $error)
 {
     global $TBDB_UIDLEN, $TBBASE, $refer;
     global $ISAPT, $ISCLOUD, $showguestlogin;
-    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
+    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.us") .
 	" or Emulab.net Username";
     
     header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");

@@ -441,7 +441,7 @@ function SpitVerifyModal($id, $label)
 function SpitLoginModal($id)
 {
     global $APTTITLE, $ISAPT, $ISCLOUD;
-    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.net") .
+    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.us") .
 	" or Emulab.net Username";
     $pwlab = "$pwlab";
     $referrer = CleanString($_SERVER['REQUEST_URI']);
