@@ -71,6 +71,8 @@ function SPITFORM($formfields, $showverify, $errors)
     if (isset($joinproject)) {
 	$joinproject = ($joinproject ? "true" : "false");
 	echo "window.APT_OPTIONS.joinproject = $joinproject;\n";
+    } else {
+	echo "window.APT_OPTIONS.joinproject = false;\n";
     }
     if ($showverify) {
         echo "window.APT_OPTIONS.ShowVerifyModal = true;\n";
@@ -117,9 +119,9 @@ if (! isset($create)) {
     if (isset($email)) {
 	$defaults["email"] = CleanString($email);
     }
-    # Default to join
-    $defaults["startorjoin"] = "join";
-    $joinproject = 1;
+    # Default to start
+    $defaults["startorjoin"] = "start";
+    $joinproject = 0;
     
     SPITFORM($defaults, 0, $errors);
     return;
