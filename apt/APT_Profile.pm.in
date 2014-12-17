@@ -946,7 +946,28 @@ sub Publish($)
     $self->{'DBROW'}->{'published'} = time();
     return 0;
 
-} 
+}
+
+#
+# Manage URL
+#
+sub AdminURL($)
+{
+    my ($self) = @_;
+    my $uuid   = $self->uuid();
+    
+    require Project;
+    
+    my $project = Project->Lookup($self->pid_idx());
+    return undef
+	if (!defined($project));
+    
+    my $wwwbase = $project->wwwBase();
+    $wwwbase .= "/apt"
+	if ($project->Brand()->isEmulab());
+
+    return $wwwbase . "/manage_profile.php?uuid=$uuid";
+}
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

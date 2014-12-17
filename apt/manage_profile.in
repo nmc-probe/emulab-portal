@@ -57,6 +57,7 @@ my $webtask_id;
 #
 my $TB		    = "@prefix@";
 my $TBOPS           = "@TBOPSEMAIL@";
+my $TBLOGS	    = "@TBLOGSEMAIL@";
 my $MANAGEINSTANCE  = "$TB/bin/manage_instance";
 
 #
@@ -475,6 +476,20 @@ if (defined($instance)) {
 	if (!defined($webtask_id));
     exit(0);
 }
+
+my $portalLogs =
+    ($project->isAPT() ? "aptnet-logs\@flux.utah.edu" :
+     $project->isCloud() ? "cloudlab-logs\@flux.utah.edu" : $TBLOGS);
+
+$project->SendEmail($portalLogs, "New Profile Created",
+	 "Name:     ". $profile->name() . "\n".
+	 "User:     ". $profile->creator() . "\n".
+	 "Project:  ". $profile->pid() .
+	                 " (" . $project->Brand()->brand() . ")\n".
+	 "UUID:     ". $profile->uuid() . "\n".
+	 "URL:      ". $profile->AdminURL() . "\n",
+	 $TBOPS);
+
 exit(0);
 
 sub fatal($)
