@@ -1459,6 +1459,8 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/os/zapdisk/GNUmakefile \
  clientside/os/frisbee.redux/GNUmakefile \
  clientside/os/imagezip/GNUmakefile \
+ clientside/os/imagezip/mbr/GNUmakefile \
+ clientside/os/imagezip/gpt/GNUmakefile \
  clientside/os/imagezip/ffs/GNUmakefile \
  clientside/os/imagezip/extfs/GNUmakefile \
  clientside/os/imagezip/hashmap/GNUmakefile \
