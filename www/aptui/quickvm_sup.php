@@ -100,6 +100,10 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
 	$APTBASE .= "/" . $matches[1];
     }
 }
+# For backend scripts to know how they were invoked.
+if (isset($_SERVER['SERVER_NAME'])) { 
+    putenv("SERVER_NAME=" . $_SERVER['SERVER_NAME']);
+}
 
 #
 # Redefine this so APT errors are styled properly. Called by PAGEERROR();.

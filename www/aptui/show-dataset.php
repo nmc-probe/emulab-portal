@@ -37,6 +37,7 @@ RedirectSecure();
 $this_user = CheckLoginOrRedirect();
 $this_idx  = $this_user->uid_idx();
 $this_uid  = $this_user->uid();
+$isadmin   = (ISADMIN() ? 1 : 0);
 
 #
 # Verify page arguments.
@@ -89,9 +90,11 @@ $fields["dataset_expires"]  = ($dataset->expires() ?
 $fields["dataset_lastused"] = ($dataset->last_used() ?
 			       DateStringGMT($dataset->last_used()) : "");
 $fields["dataset_uuid"]     = $uuid;
-$fields["dataset_idx"]      = $dataset->idx();
 $fields["dataset_urn"]      = $dataset->URN();
 $fields["dataset_who"]      = $dataset->PrivacyString();
+if (ISADMIN()) {
+    $fields["dataset_idx"]  = $dataset->idx();
+}
 
 #
 # The state is a bit of a problem, since local leases do not have

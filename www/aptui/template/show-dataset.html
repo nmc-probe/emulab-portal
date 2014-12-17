@@ -78,10 +78,12 @@
 		<td>URN</td>
 		<td><%- formfields.dataset_urn %></td>
 	      </tr>
+	      <% if (_.has(formfields, 'dataset_idx')) { %>
 	      <tr>
 		<td>Internal ID</td>
 		<td><%- formfields.dataset_idx %></td>
 	      </tr>
+	      <% } %>
 	    </table>
 	  </div>
 	</div>
