@@ -34,7 +34,7 @@ use Data::Dumper;
 
 #
 # Setup accounts/projects/group stuff on ops/fs. This is installed on
-# op/fs and invoked from boss by tbaccy and the proj/group scripts/
+# op/fs and invoked from boss by tbacct and the proj/group scripts.
 #
 sub usage()
 {
@@ -47,10 +47,11 @@ sub usage()
     print "       accountsetup delgroup ...\n";
     exit(1);
 }
-my $optlist    = "dnf";
+my $optlist    = "dnfR";
 my $debug      = 0;
 my $force      = 0;
 my $impotent   = 0;
+my $renamedirs = 0;
 
 #
 # Configure variables
@@ -81,9 +82,17 @@ my $USEREXISTS  = 65;
 use lib "@prefix@/lib";
 use libtestbed;
 
-# Defined in libtestbed;
+# Generic names for filesystems
+my $USERROOT    = USERROOT();
 my $PROJROOT    = PROJROOT();
 my $GROUPROOT   = GROUPROOT();
+my $SCRATCHROOT = SCRATCHROOT();
+
+# XXX we need the fs mountpoints too
+my $FSUSERROOT    = "@FSDIR_USERS@";
+my $FSPROJROOT    = "@FSDIR_PROJ@";
+my $FSGROUPROOT   = "@FSDIR_GROUPS@";
+my $FSSCRATCHROOT = "@FSDIR_SCRATCH@";
 
 #
 # Function prototypes
@@ -97,6 +106,7 @@ sub DelProject();
 sub DelGroup();
 sub fatal($);
 sub ZFSexists($);
+sub WhackDir($$);
 
 #
 # Check args.
@@ -113,6 +123,9 @@ if (defined($options{"f"})) {
 }
 if (defined($options{"n"})) {
     $impotent = 1;
+}
+if (defined($options{"R"})) {
+    $renamedirs = 1;
 }
 usage()
     if (@ARGV < 1);
@@ -224,21 +237,21 @@ sub DeleteUser()
     my $user  = shift(@ARGV);
     my $hdir  = shift(@ARGV);
 
+    #
+    # Note that this does NOT remove the user's homedir.
+    # We remove/rename it below...
+    #
     if (system("$USERDEL $user")) {
 	if (($? >> 8) != $NOSUCHUSER) {
 	    fatal("Could not remove user $user");
 	}
     }
-    if ($WITHZFS) {
-	my $path = "${ZFS_ROOT}${hdir}";
-	if (ZFSexists($path)) {
-	    system("$ZFS unmount -f $path");
-	    system("$ZFS destroy $path");
-	    if ($?) {
-		fatal("Could not destroy ZFS $path");
-	    }
-	}
+
+    # XXX we only handle homedirs of the form /users/$user here...
+    if ($hdir ne "$USERROOT/$user" || WhackDir($USERROOT, $user)) {
+	fatal("Could not destroy $user homedir $hdir");
     }
+
     return 0;
 }
 
@@ -312,24 +325,12 @@ sub DelProject()
     my $name       = shift(@ARGV);
     my $unix_name  = shift(@ARGV);
 
-    if ($WITHZFS) {
-	my $path = "${ZFS_ROOT}${PROJROOT}/$name";
-	if (ZFSexists($path)) {
-	    system("$ZFS unmount -f $path");
-	    system("$ZFS destroy $path");
-	    if ($?) {
-		fatal("Could not destroy ZFS $path");
-	    }
-	}
-	$path = "${ZFS_ROOT}${GROUPROOT}/$name";
-	if (ZFSexists($path)) {
-	    system("$ZFS unmount -f $path");
-	    system("$ZFS destroy $path");
-	    if ($?) {
-		fatal("Could not destroy ZFS $path");
-	    }
-	}
+    if (WhackDir($PROJROOT, $name) ||
+	WhackDir($GROUPROOT, $name) ||
+	($SCRATCHROOT && WhackDir($SCRATCHROOT, $name))) {
+	fatal("Could not destroy project '$name' related directories");
     }
+
     if (system("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting project $unix_name ...\n";
 
@@ -347,6 +348,14 @@ sub DelGroup()
     }
     my $name      = shift(@ARGV);
     my $unix_name = shift(@ARGV);
+
+    #
+    # XXX groups are different because they are a subdirectory under
+    # /groups/<pid>/.
+    #
+    if (WhackDir("$PROJROOT/$name", $name)) {
+	fatal("Could not destroy project group '$name' related directories");
+    }
 
     if (system("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting group $unix_name ...\n";
@@ -376,6 +385,57 @@ sub ZFSexists($)
     return ($? ? 0 : 1);
 }
 
+sub WhackDir($$)
+{
+    my ($fs,$name) = @_;
+
+    if ($renamedirs) {
+    } else {
+    }
+
+
+    # users
+    if ($WITHZFS) {
+	my $path = "${ZFS_ROOT}${dir}";
+	if (ZFSexists($path)) {
+	    if ($renamedirs) {
+		my $npath = "$ZFS_ROOT/_ARCHIVED
+		if (system("$ZFS rename $path $npath")) {
+		    return $?;
+		}
+	    } else {
+		if (system("$ZFS unmount -f $path") ||
+		    system("$ZFS destroy $path")) {
+		    return $?;
+		}
+	    }
+	}
+	return 0;
+    }
+
+    # proj
+    if ($WITHZFS) {
+	my $path = "${ZFS_ROOT}${PROJROOT}/$name";
+	if (ZFSexists($path)) {
+	    system("$ZFS unmount -f $path");
+	    system("$ZFS destroy $path");
+	    if ($?) {
+		fatal("Could not destroy ZFS $path");
+	    }
+	}
+	$path = "${ZFS_ROOT}${GROUPROOT}/$name";
+	if (ZFSexists($path)) {
+	    system("$ZFS unmount -f $path");
+	    system("$ZFS destroy $path");
+	    if ($?) {
+		fatal("Could not destroy ZFS $path");
+	    }
+	}
+    }
+
+    return 0;
+}
+
 #
 # HUP Mountd after changes to ZFS volumes. Not used, Mike says we
 # can do "zfs share -a" instead, but I will leave this code here
@@ -398,5 +458,3 @@ sub HUPMountd()
     # Give mountd time to react.
     sleep(1);
 }
-
-

@@ -163,12 +163,40 @@ if (AuditStart(0)) {
 if (! $group->IsProjectGroup()) {
     my $groupdir  = "$GRPROOT/$pid";
     my $oldname   = "$groupdir/$gid";
-    my $newname   = "$groupdir/$gid_idx";
+    my $newname   = "$groupdir/_ARCHIVED-${gid}-${gid_idx}";
     my $grouplink = "$PROJROOT/$pid/groups/$gid";
 
     if (-e $grouplink && !unlink($grouplink)) {
 	fatal("Could not unlink $grouplink: $!");
     }
+
+    if (-e $oldname) {
+	print "Renaming $oldname to $newname.\n";
+    
+	if (rename($oldname, $newname)) {
+	    #
+	    # Chown the owner/group to root and set the permissions so no
+	    # one is allowed to look inside.
+	    #
+	    if (! chmod(0700, $newname)) {
+		fatal("Could not chmod directory $newname to 0700: $!");
+	    }
+	    if (! chown(0, 0, $newname)) {
+		fatal("Could not chown directory $newname to 0/0: $!");
+	    }
+	}
+	else {
+	    fatal("Could not rename $oldname to $newname: $!");
+	}
+    }
+}
+#
+# If this is the project group directory, then rename the /groups directory.
+# We should only call this when removing the project!
+#
+else {
+    my $oldname   = "$GRPROOT/$gid";
+    my $newname   = "$GRPROOT/_ARCHIVED-${gid}-${gid_idx}";
 
     if (-e $oldname) {
 	print "Renaming $oldname to $newname.\n";
