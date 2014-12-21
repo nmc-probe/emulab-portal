@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -65,7 +65,7 @@ genlastlog:	genlastlog.c
                 -DUSERNODE='"$(USERNODE)"' \
 		-DLOG_TESTBED=$(LOG_TESTBED) \
 		-o genlastlog $< ${TESTBED_LIBOBJDIR}/libtb/libtb.a \
-		-L/usr/local/lib/mysql -lmysqlclient
+		-L/usr/local/lib/mysql -lmysqlclient -lz
 
 install: $(addprefix $(INSTALL_LIBEXECDIR)/, $(BINS)) \
 	$(addprefix $(INSTALL_SBINDIR)/, $(SBINS)) \

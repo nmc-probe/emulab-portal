@@ -63,12 +63,13 @@ sub Install($$$)
 		if ($FBSD_MAJOR >= 6) {
 		    my $pf1 = "$VARRUN/named.pid";
 		    my $pf2 = "$VARRUN/named/named.pid";
-		    unlink($pf1, $pf2);
+		    my $pf3 = "$VARRUN/named/pid";
+		    unlink($pf1, $pf2, $pf3);
 		    if (ExecQuiet("$named_control start")) {
 			PhaseFail("Unable to start named");
 		    }
 		    sleep 1;
-		    if (! -e $pf1 && ! -e $pf2) {
+		    if (! -e $pf1 && ! -e $pf2 && ! -e $pf3) {
 			PhaseFail("Unable to start named");
 		    }
 		} else {
