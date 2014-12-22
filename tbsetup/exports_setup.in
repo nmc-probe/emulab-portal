@@ -56,6 +56,7 @@ sub fsof($);
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $TESTMODE    = @TESTMODE@;
+my $BOSSNODE    = "@BOSSNODE@";
 my $FSNODE      = "@FSNODE@";
 my $projdir     = "@FSDIR_PROJ@";
 my $usersdir    = "@FSDIR_USERS@";
@@ -68,6 +69,7 @@ my $NOSHAREDFS	= @NOSHAREDFS@;
 my $LINUX_FSNODE= @LINUX_FSNODE@;
 my $NFSMAPTOUSER= "@NFSMAPTOUSER@";
 my $WITHZFS     = @WITHZFS@;
+my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
 
 # XXX for TESTMODE: output to stdout
 my $TOSTDOUT	= 0;
@@ -214,6 +216,34 @@ $nodes_result =
 		 "       and nt.isremotenode=0 ".
 		 "order by r.pid,e.gid,r.eid,u.admin,n.priority");
 
+#
+# ZFS, without automatic exports of all /users; need to explicitly export
+# user directories to boss. First get all web active and admins, and below
+# we will add all other user exports to the list.
+#
+my $bossexports = ();
+
+if ($WITHZFS && $ZFS_NOEXPORT) {
+    #
+    # Find all web active users within last seven days, plus all admins.
+    #
+    my $limit = (60 * 60 * 24) * 7;
+
+    my $active_result =
+	DBQueryFatal("select distinct u.uid,m.pid from user_stats as s ".
+		     "left join users as u on u.uid_idx=s.uid_idx ".
+		     "left join group_membership as m on ".
+		     "     m.uid_idx=u.uid_idx and m.pid=m.gid ".
+		     "where ((UNIX_TIMESTAMP(now()) - ".
+		     "       UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
+		     "      admin=1");
+    while (my ($uid,$pid) = $active_result->fetchrow_array()) {
+	$bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
+	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
+	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
+    }
+}
+
 my %ipgroups    = ();
 my %globalsmbshares   = ();
 my %lastfslist  = ();
@@ -314,6 +344,10 @@ while ($row = $nodes_result->fetchrow_hashref) {
 			"$GROUPROOT/$pid/$gid does not exist!\n";
 		}
 	    }
+	    if ($ZFS_NOEXPORT && $gid eq $pid) {
+		$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
+		$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
+	    }
 
 	    if ($scratchdir && -d "$SCRATCHROOT/$pid") {
 		push(@dirlist, "$scratchdir/$pid");
@@ -351,6 +385,10 @@ while ($row = $nodes_result->fetchrow_hashref) {
 		else {
 		    print STDERR "*** exports_setup: ".
 			"$USERROOT/$uid does not exist!\n";
+		}
+
+		if ($ZFS_NOEXPORT) {
+		    $bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
 		}
 	    }
 	}
@@ -433,6 +471,20 @@ foreach my $str ( keys(%ipgroups) ) {
     else {
 	print MAP "$str -maproot=$NFSMAPTOUSER @iplist\n";
 	print "$str -maproot=$NFSMAPTOUSER @iplist\n"
+	    if ($debug);
+    }
+}
+if ($ZFS_NOEXPORT) {
+    my $str  = join(" ", keys(%bossexports));
+
+    if ($LINUX_FSNODE) {
+	print MAP "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n";
+	print "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n"
+	    if ($debug);
+    }
+    else {
+	print MAP "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n";
+	print "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n"
 	    if ($debug);
     }
 }
