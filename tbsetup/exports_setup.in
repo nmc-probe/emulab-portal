@@ -475,17 +475,33 @@ foreach my $str ( keys(%ipgroups) ) {
     }
 }
 if ($ZFS_NOEXPORT) {
-    my $str  = join(" ", keys(%bossexports));
+    # Build up filesystem sub-lists.
+    # Iterate through directory list dividing it according to filesystem.
+    my %bosslists = ();
+    
+    foreach my $dir (keys(%bossexports)) {
+	my $fs = fsof($dir);
 
-    if ($LINUX_FSNODE) {
-	print MAP "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n";
-	print "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n"
-	    if ($debug);
+	if (! defined($bosslists{$fs})) {
+	    $bosslists{$fs} = [ $dir ];
+	}
+	else {
+	    push(@{ $bosslists{$fs} }, $dir);
+	}
     }
-    else {
-	print MAP "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n";
-	print "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n"
+    foreach my $fs (keys(%bosslists)) {
+	my $str  = join(" ", @{ $bosslists{$fs} });
+
+	if ($LINUX_FSNODE) {
+	    print MAP "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n";
+	    print "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n"
+		if ($debug);
+	}
+	else {
+	    print MAP "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n";
+	    print "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n"
 	    if ($debug);
+	}
     }
 }
 
