@@ -31,7 +31,11 @@ $debug = 0;
 #
 # Get current user.
 #
+RedirectSecure();
 $this_user = CheckLogin($check_status);
+if (isset($this_user)) {
+    CheckLoginOrDie();
+}
 
 #
 # Verify page arguments.
