@@ -104,6 +104,9 @@ CREATE TABLE `apt_instance_history` (
   `created` datetime default NULL,
   `destroyed` datetime default NULL,
   `servername` tinytext,
+  `rspec` mediumtext,
+  `params` mediumtext,
+  `manifest` mediumtext,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -127,6 +130,8 @@ CREATE TABLE `apt_instances` (
   `extension_code` varchar(32) default NULL,
   `extension_reason` mediumtext,
   `servername` tinytext,
+  `rspec` mediumtext,
+  `params` mediumtext,
   `manifest` mediumtext,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -152,6 +157,7 @@ CREATE TABLE `apt_profile_versions` (
   `status` varchar(32) default NULL,
   `rspec` mediumtext,
   `script` mediumtext,
+  `paramdefs` mediumtext,
   PRIMARY KEY (`profileid`,`version`),
   UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`),
   UNIQUE KEY `uuid` (`uuid`)
@@ -4482,6 +4488,7 @@ CREATE TABLE `user_pubkeys` (
   `idx` int(10) unsigned NOT NULL auto_increment,
   `internal` tinyint(1) NOT NULL default '0',
   `nodelete` tinyint(1) NOT NULL default '0',
+  `isaptkey` tinyint(1) NOT NULL default '0',
   `pubkey` text,
   `stamp` datetime default NULL,
   `comment` varchar(128) NOT NULL default '',
