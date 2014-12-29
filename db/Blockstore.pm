@@ -704,6 +704,41 @@ AUTOLOAD {
     return undef;
 }
 
+#
+# Is this reservation RO?
+#
+sub IsReadOnly($) {
+    my ($self) = @_;
+
+    return $self->HowUsed()->{'readonly'};
+}
+
+#
+# How is the associated blockstore used in this reservation?
+# Currently the only thing returned in the hash is the "readonly" flag.
+#
+sub HowUsed($) {
+    my ($self) = @_;
+
+    my $rethash = {
+	'readonly' => 0,
+    };
+
+    my $virtexpt = VirtExperiment->Lookup(Experiment->Lookup($self->exptidx()));
+    if (!$virtexpt) {
+	print STDERR "Virtual experiment object could not be loaded for ${self}!";
+	return undef;
+    }
+
+    my @attrs = ($self->vname(), "readonly");
+    my $rorow = $virtexpt->Find("virt_blockstore_attributes", @attrs);
+    if ($rorow) {
+	$rethash->{'readonly'} = int($rorow->attrvalue());
+    }
+
+    return $rethash;
+}
+
 # Break circular reference someplace to avoid exit errors.
 sub DESTROY {
     my $self = shift;

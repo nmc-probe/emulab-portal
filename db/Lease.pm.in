@@ -457,6 +457,41 @@ sub Delete($) {
     return 0
 }
 
+#
+# Is the underlying blockstore resource mapped in RW currently?
+# XXX: blockstore-specific lease function.  Should be in a subclass.
+#
+sub InUseReadWrite() {
+    my ($self) = @_;
+
+    my $rw = 0;
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    my $expts = $self->UsingResources();
+    if (@$expts) {
+	my $bs = Blockstore->LookupByLease($self->lease_idx());
+	if (!$bs) {
+	    print STDERR "Lease->InUseReadWrite(): $self is not a ".
+		"blockstore lease?\n";
+	    return LEASE_ERROR_FAILED();
+	}
+	# We only need to check the first experiment in the list.  No
+	# concurrent use/mix of RO and RW is allowed.
+	my $firstexpt = Experiment->Lookup($expts->[0]);
+	my $resv = Blockstore::Reservation->Lookup($bs, $firstexpt);
+	if (!$resv) {
+	    print STDERR "Lease->InUseReadWrite(): $self is not actually ".
+		"reserved to $experiment!\n";
+	    return LEASE_ERROR_FAILED();
+	}
+	$rw = $resv->IsReadOnly() == 0 ? 1 : 0;
+    }
+
+    return $rw;
+}
+
 sub InUse($) {
     my ($self) = @_;
 
@@ -493,7 +528,7 @@ sub UsingResources($) {
 	my $query_result =
 	    DBQueryWarn("select r.exptidx from blockstores as b,".
 			"   reserved_blockstores as r,project_leases as l ".
-			"where b.node_id=r.node_id and b.bs_id=r.bs_id ".
+			"where b.bsidx=r.bsidx ".
 			"   and b.lease_idx=l.lease_idx ".
 			"   and l.lease_idx='$lidx'");
 	while (my ($eidx) = $query_result->fetchrow_array()) {
