@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -184,7 +184,7 @@ system("touch $outfile") == 0 or
 # result back to a file if not in anonmode. Remember to tack on the
 # user ID to flip to, when not in testmode.
 #
-my $cmdargs = "$TB/libexec/rungenilibN.proxy ";
+my $cmdargs = "$TB/libexec/rungenilib.proxy ";
 $cmdargs .= " -u " . $this_user->uid();
 $cmdargs .= ($getparams ? " -p " : "");
 
@@ -215,7 +215,7 @@ if ($debug) {
 # Run parser, redirecting stdout to a file to capture the parser results.
 # Stderr is redirected to the ERR filehandle
 # Must flip to real root to run ssh.
-#
+
 $EUID = $UID = 0;
 open ERR, "$cmdargs 2>&1 >> $outfile |";
 $EUID = $UID = $SAVEUID;
