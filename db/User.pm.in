@@ -1264,6 +1264,21 @@ sub GetSSHKeys($$)
     @$pref = @result;
     return 0;
 }
+sub GetAPTSSHKey($)
+{
+    my ($self) = @_;
+    my $uid_idx = $self->uid_idx();
+
+    my $query_result =
+	DBQueryWarn("select pubkey from user_pubkeys ".
+		    "where uid_idx='$uid_idx' and isaptkey=1");
+
+    return undef
+	if (!(defined($query_result) && $query_result->numrows));
+
+    my ($key) = $query_result->fetchrow_array();
+    return $key;
+}
 
 #
 # Look to see if ssh key is a current key for user. 
