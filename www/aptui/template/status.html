@@ -43,12 +43,14 @@
               </span>
 	    </td>
 	  </tr>
+	  <% if (profileUUID && profileUUID != "") { %>
 	  <tr>
 	    <td class='border-none'>Profile:</td>
 	    <td class='border-none'>
 	      <a target=_blank href='show-profile.php?uuid=<%- profileUUID %>'>
 		 <%- profileName %></a></td>
 	  </tr>
+	  <% } %>
 	  <tr>
 	    <td class='border-none'>Expires:</td>
 	    <td class='border-none' id='instance_expiration'>
