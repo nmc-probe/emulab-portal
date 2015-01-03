@@ -49,7 +49,11 @@ $routing = array("myprofiles" =>
 			array("file"    => "instantiate.ajax",
 			      "guest"   => true,
 			      "methods" => array("GetProfile" =>
-						     "Do_GetProfile")),
+						     "Do_GetProfile",
+						 "Instantiate" =>
+						     "Do_Instantiate",
+						 "GetParameters" =>
+						     "Do_GetParameters")),
 		 "manage_profile" =>
 			array("file"    => "manage_profile.ajax",
 			      "guest"   => false,
@@ -59,12 +63,12 @@ $routing = array("myprofiles" =>
 						     "Do_DeleteProfile",
 						 "PublishProfile" =>
 						     "Do_PublishProfile",
-						 "Instantiate" =>
-						     "Do_Instantiate",
 						 "InstantiateAsGuest" =>
 						     "Do_GuestInstantiate",
 						 "CheckScript" =>
-						       "Do_CheckScript")),
+						     "Do_CheckScript",
+						 "BindParameters" =>
+						     "Do_BindParameters")),
 		 "status" =>
 			array("file"    => "status.ajax",
 			      "guest"   => true,
@@ -83,7 +87,7 @@ $routing = array("myprofiles" =>
 						 "SnapShot" =>
 						     "Do_Snapshot",
 						 "SnapshotStatus" =>
-						 "Do_SnapshotStatus")),
+						     "Do_SnapshotStatus")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,
@@ -157,7 +161,7 @@ function CheckLoginForAjax($guestokay = false)
 	return;
     }
     if (!$guestokay) {
-	SPITAJAX_ERROR(2, "Your are not logged in");	
+	SPITAJAX_ERROR(2, "You are not logged in");	
 	exit(2);
     }
 }

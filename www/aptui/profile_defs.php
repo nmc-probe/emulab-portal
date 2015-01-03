@@ -107,6 +107,7 @@ class Profile
     function listed()	    { return $this->field('listed'); }
     function rspec()	    { return $this->field('rspec'); }
     function script()	    { return $this->field('script'); }
+    function paramdefs()    { return $this->field('paramdefs'); }
     function locked()	    { return $this->field('status'); }
     function status()	    { return $this->field('locked'); }
     function topdog()	    { return $this->field('topdog'); }
@@ -116,6 +117,10 @@ class Profile
     # Private means only in the same project.
     function IsPrivate() {
 	return !($this->ispublic() || $this->shared());
+    }
+    # PP profiles have parameter defs.
+    function isParameterized() {
+	return ($this->paramdefs() != "" ? 1 : 0);
     }
     
     # Hmm, how does one cause an error in a php constructor?
@@ -391,8 +396,11 @@ class Profile
 	return $this->CanInstantiate($user);
     }
 
-    function BestAggregate() {
-	$parsed_xml = simplexml_load_string($this->rspec());
+    function BestAggregate($rspec = null) {
+	if (!$rspec) {
+	    $rspec = $this->rspec();
+	}
+	$parsed_xml = simplexml_load_string($rspec);
 
 	foreach ($parsed_xml->node as $node) {
 	    # No XEN VMs on Cloudlab yet.
@@ -400,6 +408,12 @@ class Profile
 		$node->sliver_type["name"] &&
 		$node->sliver_type["name"] == "emulab-xen") {
 		return "Utah APT";
+	    }
+	    # m400 is Cloudlab node type
+	    if ($node->hardware_type &&
+		$node->hardware_type["name"] &&
+		$node->hardware_type["name"] == "m400") {
+		return "Utah Cloudlab";
 	    }
 	    # Check URL
 	    if (! ($node->sliver_type &&
@@ -431,6 +445,86 @@ class Profile
 	    }
 	}
 	return null;
+    }
+
+    function GenerateFormFragment() {
+	$json_data = $this->paramdefs();
+	
+	if (!$json_data || $json_data == "") {
+	    return "";
+	}
+	$fields    = json_decode($json_data);
+	$defaults  = array();
+	$form      = "";
+
+	while (list ($name, $val) = each ($fields)) {
+	    $type    = $val->type;
+	    $prompt  = $val->description;
+	    $defval  = $val->defaultValue;
+	    $options = $val->legalValues;
+
+	    $defaults[$name] = $defval;
+	    if (!isset($prompt) || !$prompt) {
+		$prompt = $name;
+	    }
+
+	    if ($type == "boolean") {
+		$form .=
+		    "<div class='form-group'> ".
+		    "<label for='$name' class='col-sm-4 control-label'> ".
+		    " $prompt".
+		    "</label>".
+		    "<div class='checkbox col-sm-6'> ".
+		    "<input name='$name' ".
+		    "      <%- formfields.${name} %> ".
+		    "      style='margin-left: 0px;' ".
+		    "      data-key='$name' ".
+		    "      data-label='$prompt' ".
+		    "      value='checked' ".
+		    "      type='checkbox'>Yes</div></div>";
+		if ($defval) {
+		    $defaults[$name] = "checked";
+		}
+		else {
+		    $defaults[$name] = "";
+		}
+	    }
+	    elseif ($options) {
+		$form .=
+		    "<select name='$name' ".
+		    "       class='form-control format-me' ".
+		    "       data-key='$name' ".
+		    "       data-label='$prompt' ".
+		    "       placeholder='Please Select'> ";
+		foreach ($options as $option) {
+		    if (gettype($option) == "array") {
+			$oval = $option[0];
+			$okey = $option[1];
+		    }
+		    else {
+			$okey = $oval = $option;
+		    }
+		    $form .= "<option";
+		    $form .= 
+			"<% if (_.has(formfields, '$name') && ".
+			"       formfields.${name} == '$oval') { %> ".
+			"   selected ".
+			"<% } %> ".
+			"value='$oval'>$okey</option>";
+		}
+		$form .= "</select>";
+	    }
+	    else {
+		$form .=
+		    "<input name='$name' ".
+		    "value='<%- formfields.${name} %>' ".
+		    "class='form-control format-me' ".
+		    "data-key='$name' ".
+		    "data-label='$prompt' ".
+		    "type='text'>";
+	    }
+	}
+	return array($form, $defaults);
     }
 }
 ?>

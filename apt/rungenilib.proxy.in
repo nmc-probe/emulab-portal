@@ -22,16 +22,14 @@
 # 
 # }}}
 #
-
+use strict;
 use English;
-use Getopt::Long;
+use Getopt::Std;
 use BSD::Resource;
 use POSIX qw(:signal_h);
     
 #
 # Simply a wrapper for the geni-lib python environment
-#
-# When run in "impotent" mode, there is no output, just an exit code. 
 #
 sub usage()
 {
@@ -41,6 +39,10 @@ sub usage()
  
     exit(-1);
 }
+my $optlist = "u:vpb:";
+my $user;
+my $getparams= 0;
+my $paramsize;
 
 #
 # Configure variables
@@ -54,9 +56,11 @@ my $debug    = 0;
 # Locals
 my $tempdir = "/tmp/genilib-$$";
 my $ifile   = "$$.py";
-my $ofile   = "$$.rspec";
+my $ofile   = "$$.out";
+my $pfile   = "$$.json";
 
-my $optlist = "u:v";
+# Protos
+sub fatal($);
 
 #
 # Turn off line buffering on output
@@ -76,14 +80,25 @@ $ENV{"PYTHONPATH"} = $GENILIB;
 use lib "@prefix@/lib";
 use libtestbed;
 
-my $user;
-
 #
-# Parse command arguments. Once we return from getopts, all that should be
+# Parse command arguments. Once we return from getopts, all that should
 # left are the required arguments.
 #
-if (! GetOptions("u:s" => \$user)) {
+my %options = ();
+if (! getopts($optlist, \%options)) {
     usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"p"})) {
+    $getparams = 1;
+}
+if (defined($options{"b"})) {
+    $paramsize = $options{"b"};
+}
+if (defined($options{"u"})) {
+    $user = $options{"u"};
 }
 
 #
@@ -97,7 +112,7 @@ if (! $TESTMODE) {
 	    "    Must be root to run this script!");
     }
 
-    (undef,undef,$unix_uid) = getpwnam($user) or
+    my (undef,undef,$unix_uid) = getpwnam($user) or
 	die("*** $0:\n".
 	    "    No such user $user\n");
 
@@ -142,25 +157,42 @@ if (! $TESTMODE) {
 }
 
 #
-# Take our input and write it to the temp file. 
+# Take our input and write it to the temp file. If we are also getting
+# a parameter file in the stream, write that to another file.
 #
+if (defined($paramsize) && $paramsize) {
+    my $paramstr;
+    
+    open(PTMP, ">$pfile") ||
+	fatal("Couldn't open $pfile\n");
+
+    my $cc = read(STDIN, $paramstr, $paramsize);
+    if (!defined($cc) || $cc != $paramsize) {
+	fatal("Could not read paramter block from stdin");
+    }
+    print PTMP $paramstr;
+    close(PTMP);
+    chmod(0644, $pfile);
+}
 open(TMP, ">$ifile") ||
     fatal("Couldn't open $ifile\n");
-#
-# Prepend our little helper function that spits the rspec to a file.
-#
-print TMP "\n\n";
-print TMP "def printRspec(rspec):\n";
-print TMP "  f = open('$ofile', 'w+')\n";
-print TMP "  f.write(str(rspec))\n";
-print TMP "  f.close()\n";
-print TMP "  pass\n\n";
-
 while (<STDIN>) {
     print TMP $_;
 }
 close(TMP);
 chmod(0644, $ifile);
+
+#
+# Need to add things to the environment for the portal module.
+#
+$ENV{'GENILIB_PORTAL_MODE'} = "Yep";
+$ENV{'GENILIB_PORTAL_REQUEST_PATH'} = $ofile;
+if ($getparams) {
+    $ENV{'GENILIB_PORTAL_DUMPPARAMS_PATH'} = $ofile;
+}
+elsif (defined($paramsize) && $paramsize) {
+    $ENV{'GENILIB_PORTAL_PARAMS_PATH'} = $pfile;
+}
 
 #
 # Fork a child process to run the parser in.
@@ -239,4 +271,10 @@ unless($debug) {
 }
 exit($exit_status);
 
+sub fatal($) {
+    my ($mesg) = $_[0];
 
+    print STDERR "*** $0:\n".
+	         "    $mesg\n";
+    exit(-1);
+}

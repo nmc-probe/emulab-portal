@@ -5,7 +5,7 @@
       <div class='modal-body'>
         <center>
 	  <h3>Instantiate this profile?</h3>
-	  <% if (amlist.length) { %>
+	  <% if (amlist && amlist.length) { %>
 	  Please select an AM<br>
 	  <select id='instantiate_where'>
 	    <% _.each(amlist, function(name) { %>

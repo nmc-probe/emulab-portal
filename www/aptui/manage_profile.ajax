@@ -282,15 +282,13 @@ function Do_GuestInstantiate()
 }
 
 #
-# Instantiate profile (as the user)
+# Instantiate profile.
 #
 function Do_Instantiate()
 {
     global $this_user, $am_array, $DEFAULT_AGGREGATE, $ISCLOUD;
     global $ajax_args;
     
-    $this_idx = $this_user->uid_idx();
-
     if (!isset($ajax_args["uuid"])) {
 	SPITAJAX_ERROR(1, "Missing profile uuid");
 	return;
@@ -300,19 +298,28 @@ function Do_Instantiate()
 	SPITAJAX_ERROR(1, "Unknown profile uuid");
 	return;
     }
-    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
-	SPITAJAX_ERROR(1, "Not enough permission");
+    if (!isset($this_user)) {
+	if (!$profile->ispublic()) {
+	    SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	    return;
+	}	    
+    }
+    elseif (!$profile->CanInstantiate($this_user)) {
+	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
 	return;
     }
-
     $args = array();
     $args["username"]   = $this_user->uid();
     $args["email"]      = $this_user->email();
     $args["profile"]    = $profile->uuid();
-    $args["auth_token"] = $token;
-
+    # Guest users not allowed to provide rspec
+    if (isset($this_user) && array_key_exists("rspec", $ajax_args)) {
+	$args["rspec"]      = $ajax_args["rspec"];
+    }
     $opts = "";
-    if (($ISCLOUD || ISADMIN() || STUDLY()) && isset($ajax_args["where"])) {
+    # Guest users not allowed to choose aggregate.
+    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY()) &&
+	isset($ajax_args["where"])) {
 	if (array_key_exists($ajax_args["where"], $am_array)) {
 	    $opts = "-a " . $am_array[$ajax_args["where"]];
 	}
@@ -337,13 +344,14 @@ function Do_Instantiate()
     list ($instance, $creator) =
 	Instance::Instantiate($this_user, $opts, $args, $errors);
 
-    if (!$instance) {
+    if (!isset($instance) || is_null($instance)) {
 	SPITAJAX_ERROR(1, $errors["error"]);
     }
     #
-    # Return the instance uuid so we can redirect user to the status page.
+    # Redirect user to status page.
     #
-    SPITAJAX_RESPONSE(array("quickvm_uuid"    => $instance->uuid()));
+    $uuid = $instance->uuid();
+    SPITAJAX_RESPONSE("status.php?uuid=$uuid");
 }
 
 #
@@ -405,6 +413,170 @@ function Do_CheckScript()
     unlink($outfname);
 }
 
+#
+# Run geni-lib script, with given parameters, to generate an rspec.
+#
+function Do_BindParameters()
+{
+    global $this_user;
+    global $ajax_args;
+    global $DEFAULT_AGGREGATE;
+    global $suexec_output, $suexec_output_array;
+
+    # Allow for form precheck only. So JS code knows it will be fast. 
+    $checkonly  = isset($ajax_args["checkonly"]) && $ajax_args["checkonly"];
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    # Guest users do not run geni-lib; return the rspec or error.
+    if (!isset($this_user)) {
+	if ($profile->rspec() && $profile->rspec() != "") {
+	    SPITAJAX_RESPONSE($profile->rspec());
+	}
+	else {
+	    SPITAJAX_ERROR(1, "No rspec for guest user");
+	}
+    }
+    if (!isset($ajax_args["formfields"])) {
+	SPITAJAX_ERROR(1, "Missing formfields");
+	return;
+    }
+    $formfields = $ajax_args["formfields"];
+
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+    
+    if (!$profile->CanInstantiate($this_user)) {
+	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	return;
+    }
+    if (Do_CheckForm($formfields, $profile, $rval)) {
+	SPITAJAX_ERROR(1, $rval);
+	return;
+    }
+    if ($checkonly) {
+	SPITAJAX_RESPONSE(0);
+	return;
+    }
+    $infname   = tempnam("/tmp", "genilibin");
+    $parmfname = tempnam("/tmp", "genilibparm");
+    $outfname  = tempnam("/tmp", "genilibout");
+
+    $fp = fopen($infname, "w");
+    fwrite($fp, $profile->script());
+    fclose($fp);
+    $fp = fopen($parmfname, "w");
+    fwrite($fp, json_encode($rval));
+    fwrite($fp, "\n");
+    fclose($fp);
+    chmod($infname, 0666);
+    chmod($parmfname, 0666);
+    chmod($outfname, 0666);
+
+    #
+    # Invoke the backend.
+    #
+    $retval = SUEXEC($this_uid, "nobody",
+		     "webrungenilib -b $parmfname -o $outfname $infname",
+		     SUEXEC_ACTION_CONTINUE);
+    
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal error, we have been notified");
+	}
+	else {
+	    $errors = file_get_contents($outfname);
+	    SPITAJAX_ERROR(1, $errors);
+	}
+	unlink($infname);
+	unlink($parmfname);
+	unlink($outfname);
+	return;
+    }
+    $rspec = file_get_contents($outfname);
+    $blob = array();
+    $blob["rspec"] = $rspec;
+
+    # Guest users not allowed to choose aggregate.
+    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY())) {
+        # Temporary until constraint system in place.
+	$best = $profile->BestAggregate($rspec);
+	if (!$best) {
+	    $best = $DEFAULT_AGGREGATE;
+	}
+	$blob["amdefault"] = $best;
+    }
+    unlink($infname);
+    unlink($parmfname);
+    unlink($outfname);
+    SPITAJAX_RESPONSE($blob);
+}
+
+#
+# Check the form arguments.
+#
+function Do_CheckForm($formfields, $profile, &$rval)
+{
+    global $this_user;
+    global $ajax_args;
+
+    $errors = array();
+    $result = array();
+    $fields = json_decode($profile->paramdefs());
+
+    while (list ($name, $def) = each ($fields)) {
+	if (array_key_exists($name, $formfields)) {
+	    $val     = $formfields[$name];
+	    $type    = $def->type;
+	    $defval  = $def->defaultValue;
+	    $options = $def->legalValues;
+
+	    if ($type == "integer") {
+		if (!preg_match("/^\d*$/", $val)) {
+		    $errors[$name] = "Invalid value; must be an integer";
+		}
+		else {
+		    $result[$name] = $val;
+		}
+	    }
+	    elseif ($type == "boolean") {
+		if ($val == "checked") {
+		    $result[$name] = True;
+		}
+		elseif ($val == "") {
+		    $result[$name] = False;
+		}
+		else {
+		    $errors[$name] = "Invalid value; must be a boolean";
+		}
+	    }
+	    else {
+		if (!TBcheck_dbslot($val, "default", "tinytext",
+			TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+		    $errors[$name] = TBFieldErrorString();
+		}
+		else {
+		    $result[$name] = $val;
+		}
+	    }
+	}
+    }
+    if (count($errors)) {
+	$rval = $errors;
+	return -1;
+    }
+    $rval = $result;
+    return 0;
+}
+ 
 # Local Variables:
 # mode:php
 # End:

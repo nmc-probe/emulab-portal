@@ -326,6 +326,9 @@ sub Create($$$$$$)
     }
     if (exists($argref->{'script'}) && $argref->{'script'} ne "") {
 	$vquery .= ",script=" . DBQuoteSpecial($argref->{'script'});
+	if (exists($argref->{'paramdefs'}) && $argref->{'paramdefs'} ne "") {
+	    $vquery .= ",paramdefs=" . DBQuoteSpecial($argref->{'paramdefs'});
+	}
     }
 
     # Back to the main table.
@@ -391,10 +394,11 @@ sub NewVersion($$)
 	if (! DBQueryWarn("insert into apt_profile_versions ".
 			  "  (name,profileid,version,pid,pid_idx, ".
 			  "   creator,creator_idx,created,uuid, ".
-			  "   parent_profileid,parent_version,rspec) ".
+			  "   parent_profileid,parent_version,rspec, ".
+			  "   script,paramdefs) ".
 			  "select name,profileid,'$newvers',pid,pid_idx, ".
 			  "  '$uid','$uid_idx',now(),uuid(),parent_profileid, ".
-			  "  '$version',rspec ".
+			  "  '$version',rspec,script,paramdefs ".
 			  "from apt_profile_versions as v ".
 			  "where v.profileid='$profileid' and ".
 			  "      v.version='$version'"));

@@ -25,6 +25,7 @@ use English;
 use strict;
 use Getopt::Std;
 use XML::Simple;
+use File::Temp qw(tempfile :POSIX );
 use Data::Dumper;
 use CGI;
 use POSIX ":sys_wait_h";
@@ -47,6 +48,7 @@ my $update      = 0;
 my $snap        = 0;
 my $uuid;
 my $rspec;
+my $script;
 my $profile;
 my $instance;
 my $webtask;
@@ -59,6 +61,7 @@ my $TB		    = "@prefix@";
 my $TBOPS           = "@TBOPSEMAIL@";
 my $TBLOGS	    = "@TBLOGSEMAIL@";
 my $MANAGEINSTANCE  = "$TB/bin/manage_instance";
+my $RUNGENILIB      = "$TB/bin/rungenilib";
 
 #
 # Untaint the path
@@ -253,6 +256,9 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
     if ($key eq "rspec") {
 	$rspec = $value;
     }
+    elsif ($key eq "script") {
+	$script = $value;
+    }
 }
 UserError()
     if (keys(%errors));
@@ -275,6 +281,29 @@ if (defined($rspec)) {
     if (APT_Profile::CheckDatasets($rspec, $project->pid(), \$errmsg)) {
 	$errors{"error"} = $errmsg;
 	UserError();
+    }
+}
+
+#
+# See if this is a Parameterized Profile. Generate and store the form
+# data if it is.
+#
+if (defined($script) && $script ne "") {
+    my ($fh, $filename) = tempfile();
+    fatal("Could not open temporary file for script")
+	if (!defined($fh));
+    print $fh $script;
+    my $paramdefs = `$RUNGENILIB -p $filename`;
+    fatal("$RUNGENILIB failed")
+	if ($?);
+    chomp($paramdefs);
+    if ($paramdefs ne "") {
+	if ($update) {
+	    $update_args{"paramdefs"} = $paramdefs;
+	}
+	else {
+	    $new_args{"paramdefs"} = $paramdefs;
+	}
     }
 }
 
@@ -324,11 +353,15 @@ if ($update) {
 		if (exists($update_args{"rspec"}));
 	    $profile->UpdateVersion({"script" => $update_args{"script"}})
 		if (exists($update_args{"script"}));
+	    $profile->UpdateVersion({"paramdefs" => $update_args{"paramdefs"}})
+		if (exists($update_args{"paramdefs"}));
 	}
 	delete($update_args{"rspec"})
 	    if (exists($update_args{"rspec"}));
 	delete($update_args{"script"})
 	    if (exists($update_args{"script"}));
+	delete($update_args{"paramdefs"})
+	    if (exists($update_args{"paramdefs"}));
     }
     $profile->UpdateMetaData(\%update_args) == 0 or
 	fatal("Could not update profile record");
