@@ -895,16 +895,12 @@ sub GenDefsFile($)
 	foreach my $lease (@leases) {
 	    my $ro;
 
-	    # If lease is currently in use RW, don't list!
-	    next if ($lease->InUseReadWrite());
-
 	    #
 	    # Lease must be valid (RW) or grace (RO).
 	    #
 	    if ($lease->state() eq LEASE_STATE_VALID()) {
-		# Set RO unless user is allowed to modify this lease AND the
-		# lease is not currently in use.
-		$ro = !($lease->allow_modify() && !$lease->InUse());
+		# Force RO if user does not have RW privs.
+		$ro = !$lease->allow_modify();
 	    } elsif ($lease->state() eq LEASE_STATE_GRACE()) {
 		$ro = 1;
 	    } else {

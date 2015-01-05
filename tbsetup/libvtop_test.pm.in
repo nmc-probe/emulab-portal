@@ -1631,10 +1631,10 @@ sub LoadVirtNodes($)
 	my $isdesire = $virt_bs_attr->isdesire();
 
 	#
-	# If this is a persistent blockstore (identified by a lease index
-	# attribute) then make sure the user/pid have access to the lease
-	# and that the associated blockstore is not already mapped.
-	# If it is currently in use, the remaining capacity will be zero.
+	# If this is a persistent blockstore (identified by a lease
+	# index attribute) then make sure the user has appropriate
+	# access to the lease and that the associated blockstore is
+	# not already mapped in a conflicting way.
 	#
 	# We also check and make sure that leases in the grace state are
 	# only mounted RO. We make this check in the parser as well, but
@@ -1644,23 +1644,39 @@ sub LoadVirtNodes($)
 	#
 	if ($attrkey eq "lease" && !$self->preassign()) {
 	    my $lease = Lease->Lookup($attrval);
-	    # XXX need to use the lease_permissions table here
-	    # XXX right now only the project of a lease can access it
-	    if (!$lease || $pid ne $lease->pid()) {
-		warn("Lease $attrval for blockstore $vname does not exist!\n")
-		    if (!$lease);
-		tberror("Persistent blockstore $vname cannot be used by $pid\n");
+	    # Valid lease?
+	    if (!$lease) {
+		warn("Lease $attrval for blockstore $vname does not exist!\n");
 		return -1;
 	    }
-	    my $bs = Blockstore->LookupByLease($attrval);
-	    if ($bs && $bs->AvailableCapacity() == 0) {
-		tberror("Persistent blockstore $vname is already in use.\n");
-		return -1;
-	    }
-	    if ($lease->state() eq LEASE_STATE_GRACE() &&
-		(!exists($roleases{$vname}) || $roleases{$vname} == 0)) {
-		tberror("Persistent blockstore $vname in grace period, must specify '\$$vname set-readonly 1' in NS file.\n");
-		return -1;
+	    # Do sanity/permission checks based on requested mode (RW/RO)
+	    if (exists($roleases{$vname}) && $roleases{$vname} == 1) {
+		# Does user have RO rights to this lease?
+		if (!$lease->AccessCheck($self->user(), LEASE_ACCESS_READ())) {
+		    tberror($self->user() . " does not have permission to use dataset $vname\n");
+		    return -1
+		}
+		# Leases already in use RW cannot be accessed.
+		if ($lease->InUseReadWrite()) {
+		    tberror("Dataset $vname is currently in use read-write, so cannot be accessed at this time.\n");
+		    return -1;
+		}
+	    } else {
+		# Does user have RW rights?
+		if (!$lease->AccessCheck($self->user(), LEASE_ACCESS_MODIFY())) {
+		    tberror($self->user() . " is not allowed to use dataset $vname in read-write mode\n");
+		    return -1;
+		}
+		# RW mode is exclusive (single-experiment).
+		if ($lease->InUse()) {
+		    tberror("Dataset $vname is currently in use and cannot be requested read-write at this time.\n");
+		    return -1;
+		}
+		# Deny RW access if lease is in grace period.
+		if ($lease->state() eq LEASE_STATE_GRACE()) {
+		    tberror("Persistent blockstore $vname in grace period, must specify '\$$vname set-readonly 1' in NS file.\n");
+		    return -1;
+		}
 	    }
 	}
 
