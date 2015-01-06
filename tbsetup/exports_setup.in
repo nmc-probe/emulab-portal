@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -87,7 +87,16 @@ my @row;
 # For determining file server mountpoints (XXX BSD specific)
 my $MOUNTPROG	= ($LINUX_FSNODE ? "/bin/mount" : "/sbin/mount");
 # Need the linux equiv for this.
-my $EXPORT_PAT	= q(on ([\S]+)\s\(.*NFS exported.*\));
+my $EXPORT_PAT	= q(on ([\S]+)\s\\\(.*NFS exported.*\\\));
+
+#
+# XXX If there are no static exports (to boss) for filesystems, then
+# "NFS exported" will not be set. Instead we just look for all mounted
+# ufs or zfs filesystems.
+#
+if ($ZFS_NOEXPORT) {
+    $EXPORT_PAT = q(on ([\S]+)\s\\\([uz]fs,.*\\\));
+}
 
 #
 # Testbed doesn't support changing exports file
