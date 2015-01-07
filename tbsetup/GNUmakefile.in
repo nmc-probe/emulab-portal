@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -81,7 +81,7 @@ CTRLBIN_STUFF	= fetchtar.proxy
 
 FSBIN_STUFF	= exports_setup.proxy smbpasswd_setup.proxy nfsmfs_setup.proxy
 
-WEB_SBIN_SCRIPTS= webrmproj webpanic webrmgroup \
+WEB_SBIN_SCRIPTS= webrmproj webpanic webrmgroup webexports_setup \
                   webmkgroup websetgroups webmkproj \
                   webrmuser webmodgroups webidleswap webnode_attributes
 
