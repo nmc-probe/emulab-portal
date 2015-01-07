@@ -1113,16 +1113,20 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     # every time the user logs in of course, and since exports_setup is 
     # using one week as its threshold, we can just do it on a daily basis.
     #
-    $query_result =
-        DBQueryFatal("select UNIX_TIMESTAMP(weblogin_last) from users as u ".
-		     "left join user_stats as s on s.uid_idx=u.uid_idx ".
-		     "where u.uid_idx='$uid_idx'");
-    if (mysql_num_rows($query_result)) {
-	$lastrow      = mysql_fetch_row($query_result);
-	$lastlogin    = $lastrow[0];
+    if ($WITHZFS && $ZFS_NOEXPORT) {
+        $query_result =
+	    DBQueryFatal("select UNIX_TIMESTAMP(weblogin_last) ".
+			 "  from users as u ".
+			 "left join user_stats as s on s.uid_idx=u.uid_idx ".
+			 "where u.uid_idx='$uid_idx'");
+	if (mysql_num_rows($query_result)) {
+		$lastrow      = mysql_fetch_row($query_result);
+		$lastlogin    = $lastrow[0];
 	
-	if (time() - $lastlogin > (24 * 3600)) {
-	    SUEXEC("nobody", "nobody", "webexports_setup", SUEXEC_ACTION_DIE);
+		if (time() - $lastlogin > (24 * 3600)) {
+			SUEXEC("nobody", "nobody", "webexports_setup",
+			       SUEXEC_ACTION_DIE);
+		}
 	}
     }
     #
