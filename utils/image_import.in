@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2014 University of Utah and the Flux Group.
+# Copyright (c) 2010-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -354,9 +354,24 @@ sub CreateImage($$$$)
     # for subnodes, but I am not going to worry about that case.
     #
     if (exists($xmlparse->{'attribute'}->{"def_parentosid"})) {
-	$xmlparse->{'attribute'}->{"mtype_pcvm"} = {};
-	$xmlparse->{'attribute'}->{"mtype_pcvm"}->{'value'} = 1;
-	$alltypes = "";
+	#
+	# If parent does not exist, then ignore with warning.
+	# This can be set later via the web interface. 
+	#
+	my $posid  = $xmlparse->{'attribute'}->{"def_parentosid"}->{'value'};
+	my $parent = Image->Lookup($posid);
+	if (defined($parent)) {
+	    $xmlparse->{'attribute'}->{"mtype_pcvm"} = {};
+	    $xmlparse->{'attribute'}->{"mtype_pcvm"}->{'value'} = 1;
+	    $alltypes = "";
+	}
+	else {
+	    delete($xmlparse->{'attribute'}->{"def_parentosid"});
+	    print STDERR
+		"*** Parent $posid does not exist, skipping parent.\n";
+	    print STDERR
+		"    You can set the parent later via the web interface.\n";
+	}
     }
 
     # For setting the path below.
