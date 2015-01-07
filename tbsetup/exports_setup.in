@@ -245,6 +245,8 @@ if ($WITHZFS && $ZFS_NOEXPORT) {
 		     "     m.uid_idx=u.uid_idx and m.pid=m.gid ".
 		     "where ((UNIX_TIMESTAMP(now()) - ".
 		     "       UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
+		     "      ((UNIX_TIMESTAMP(now()) - ".
+		     "       UNIX_TIMESTAMP(s.weblogin_last)) <= $limit) or ".
 		     "      admin=1");
     while (my ($uid,$pid) = $active_result->fetchrow_array()) {
 	$bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
