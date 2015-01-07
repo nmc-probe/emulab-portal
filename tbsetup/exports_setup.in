@@ -98,6 +98,9 @@ if ($ZFS_NOEXPORT) {
     $EXPORT_PAT = q(on ([\S]+)\s\\\([uz]fs,.*\\\));
 }
 
+# Cache of dir to FS mappings already found
+my %fsofcache;
+
 #
 # Testbed doesn't support changing exports file
 # or we just do not export filesystems.
@@ -556,6 +559,9 @@ if (!$TESTMODE) {
   }
   if ($impotent) {
       system("/bin/cat $exportstail");
+      if ($WINSUPPORT) {
+	  system("/bin/cat $smbconftail");
+      }
   }
   else {
       # First do the NFS exports
@@ -619,8 +625,12 @@ sub fsinit() {
 sub fsof($) {
     my($path) = @_;
 
+    if (exists($fsofcache{$path})) {
+	return $fsofcache{$path};
+    }
     foreach my $mount (@mountpoints) {
-	if ($path =~ /^$mount/) {
+	if (index($path, $mount) == 0) {
+	    $fsofcache{$path} = $mount;
 	    return $mount;
 	}
     }
