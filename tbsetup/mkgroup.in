@@ -96,6 +96,7 @@ use libdb;
 use libtestbed;
 use User;
 use Group;
+use emutil;
 
 # Defined in libtestbed.
 my $PROJROOT    = PROJROOT();
@@ -227,11 +228,7 @@ if ($WITHZFS) {
     # There is some lag before the automounter can mount the new
     # volume. Lets delay until we can access the project directory.
     #
-    for (my $i = 0; $i < 10; $i++) {
-	sleep(1)
-	    if (! -r $projdir);
-    }
-    if (! -r $projdir) {
+    if (emutil::waitForMount($projdir) < 0) {
 	fatal("Could not access new project directory: $projdir");
     }
 }

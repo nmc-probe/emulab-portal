@@ -74,6 +74,8 @@ my $BUGDBSUPPORT  = @BUGDBSUPPORT@;
 my $OPSDBSUPPORT  = @OPSDBSUPPORT@;
 my $CVSSUPPORT    = @CVSSUPPORT@;
 my $MAILMANSUPPORT= @MAILMANSUPPORT@;
+my $WITHZFS       = @WITHZFS@;
+my $ZFS_NOEXPORT  = @ZFS_NOEXPORT@;
 my $ADDWIKIPROJ   = "$TB/sbin/addwikiproj";
 my $ADDBUGDBPROJ  = "$TB/sbin/addbugdbproj";
 my $ADDMMLIST     = "$TB/sbin/addmmlist";
@@ -103,6 +105,7 @@ use libdb;
 use libtestbed;
 use User;
 use Project;
+use emutil;
 
 my $PROJROOT     = PROJROOT();
 my $GRPROOT      = GROUPROOT();
@@ -335,7 +338,13 @@ my (undef,undef,$gid) = getgrnam($unix_name)
 #
 # Okay, do it.
 #
-if (! -e "$PROJROOT/$pid") {
+if ($WITHZFS) {
+    # Automounter lag after exports_setup
+    if (emutil::waitForMount("$PROJROOT/$pid") < 0) {
+	fatal("Could not access project directory");
+    }
+}
+elsif (! -e "$PROJROOT/$pid") {
     if (! mkdir("$PROJROOT/$pid", 0770)) {
 	fatal("Could not make directory $PROJROOT/$pid: $!");
     }
@@ -431,7 +440,13 @@ if ($CVSSUPPORT && !$isnonlocal) {
 #
 # Create groups directory.
 #
-if (! -e "$GRPROOT/$pid") {
+if ($WITHZFS) {
+    # Automounter lag after exports_setup
+    if (emutil::waitForMount("$GRPROOT/$pid") < 0) {
+	fatal("Could not access group directory");
+    }
+}
+elsif (! -e "$GRPROOT/$pid") {
     if (! mkdir("$GRPROOT/$pid", 0770)) {
 	fatal("Could not make directory $GRPROOT/$pid: $!");
     }

@@ -160,6 +160,7 @@ use libdb;
 use libtestbed;
 use User;
 use Project;
+use emutil;
 
 #
 # Function prototypes
@@ -474,6 +475,9 @@ sub AddUser()
 	    system("$SSH -host $CONTROL $ADDHOOK $user");
 	}
     }
+    $UID  = $SAVEUID;
+    $EUID = $UID;
+
     if ($WITHZFS) {
 	if ($ZFS_NOEXPORT) {
 	    #
@@ -486,23 +490,16 @@ sub AddUser()
 	}
 	
 	#
-	# There is some lag before the automounter can mount the new
-	# volume. Lets delay until we can access the directory.
+	# There is some lag before the automounter can mount the new volume.
 	#
-	for (my $i = 0; $i < 10; $i++) {
-	    sleep(1)
-		if (! -r "$HOMEDIR/$user/.cshrc");
-	}
-	if (! -r "$HOMEDIR/$user/.cshrc") {
+	if (emutil::waitForMount("$HOMEDIR/$user") < 0) {
 	    fatal("Could not access new user directory");
 	}
     }
-    $UID = $SAVEUID;
 
     #
-    # Do the ssh thing. Invoke as real user for auditing.
+    # Do the ssh thing.
     #
-    $EUID = $UID;
     if ($user ne $PROTOUSER && system("$ADDKEY -i $user")) {
 	fatal("Could not generate initial ssh key for $user");
     }
