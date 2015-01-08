@@ -643,10 +643,13 @@ sub allocSlice($$$$) {
     # sure it exists, but do nothing else.
     #
     if ($bsid =~ /^lease-\d+$/) {
-	my $volumes = freenasVolumeList(0);
+	my $volumes = freenasVolumeList(1);
 	if (exists($volumes->{$bsid})) {
 	    $priv->{'pool'} = $volumes->{$bsid}->{'pool'};
 	    $priv->{'volume'} = $volumes->{$bsid}->{'volume'};
+	    if (exists($volumes->{$bsid}->{'iname'})) {
+		$priv->{'iname'} = $volumes->{$bsid}->{'iname'};
+	    }
 	    return 0;
 	}
 	warn("*** ERROR: blockstore_allocSlice: $volname: ".
@@ -673,7 +676,8 @@ sub exportSlice($$$$) {
 	     "Error calculating ip network information.");
 	return -1;
     }
-    
+
+    my $bsid = $sconf->{'BSID'};
     my $volname = $sconf->{'VOLNAME'};
     $volname = "UNKNOWN" if (!$volname);
 
@@ -717,54 +721,132 @@ sub exportSlice($$$$) {
     # XXX we lowercase the IQN since the ist_assoc will blow up with caps!
     my $iqn = lc($1);
 
-    # Create iSCSI extent
-    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
-			 "add $iqn $pool/$volume") };
-    if ($@) {
-	warn("*** ERROR: blockstore_exportSlice: $volname: ".
-	     "Failed to create iSCSI extent: $@");
-	return -1;
-    }
-
-    # Create iSCSI auth group
-    my $tag = getNextAuthITag();
-    if ($tag !~ /^(\d+)$/) {
-	warn("*** ERROR: blockstore_exportSlice: $volname: ".
-	     "bad tag returned from getNextAuthITag: $tag");
-	return -1;
-    }
-    $tag = $1; # untaint.
-    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
-			 "add $tag ALL $network/$cmask $vnode_id") };
-    if ($@) {
-	warn("*** ERROR: blockstore_exportSlice: $volname: ".
-	     "Failed to create iSCSI auth group: $@");
-	return -1;
-    }
-
     my $perm = "rw";
     if (exists($sconf->{'PERMS'}) && $sconf->{'PERMS'} eq "RO") {
 	$perm = "ro";
     }
 
-    # Create iSCSI target
-    my $serial = genSerial();
-    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
-		      "add $iqn $serial $ISCSI_GLOBAL_PORTAL ".
-			 "$tag Auto -1 flags=$perm") };
-    if ($@) {
-	warn("*** ERROR: blockstore_exportSlice: $volname: ".
-	     "Failed to create iSCSI target: $@");
-	return -1;
+    # If operating on a lease, we use the lease id as the iSCSI
+    # initiator group identifier instead of the vnode_id because this
+    # entry may end up being shared (simultaneous RO use).
+    my $tag_ident = $vnode_id;
+    if ($bsid =~ /^lease-\d+$/) {
+	$tag_ident = $bsid;
     }
 
-    # Bind iSCSI target to slice (extent)
-    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_ASSOC,
-			 "add $iqn $iqn") };
-    if ($@) {
-	warn("*** ERROR: blockstore_exportSlice: $volname: ".
-	     "Failed to associate iSCSI target with extent: $@");
-	return -1;
+    # Go through the whole iSCSI extent/target setup if it hasn't been
+    # done yet for this volume.  (If this is a persistent lease, it
+    # may already be exported and in use.)
+    if (!exists($priv->{'iname'})) {
+	# Create iSCSI extent.
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
+			     "add $iqn $pool/$volume") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Failed to create iSCSI extent: $@");
+	    return -1;
+	}
+
+	# Create iSCSI auth group
+	my $tag = getNextAuthITag();
+	if ($tag !~ /^(\d+)$/) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "bad tag returned from getNextAuthITag: $tag");
+	    return -1;
+	}
+	$tag = $1; # untaint.
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
+			     "add $tag ALL $network/$cmask $tag_ident") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Failed to create iSCSI auth group: $@");
+	    return -1;
+	}
+
+	# Create iSCSI target
+	my $serial = genSerial();
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
+			     "add $iqn $serial $ISCSI_GLOBAL_PORTAL ".
+			     "$tag Auto -1 flags=$perm") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Failed to create iSCSI target: $@");
+	    return -1;
+	}
+
+	# Bind iSCSI target to slice (extent)
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_ASSOC,
+			     "add $iqn $iqn") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Failed to associate iSCSI target with extent: $@");
+	    return -1;
+	}
+    }
+    # The iSCSI target/extent setup is already in place, so just
+    # modify the authorized networks.  Check that the incoming
+    # requested perms are RO, and validate that the dataset isn't
+    # currently in use RW.
+    else {
+	# Check requested perms.
+	if ($perm ne "ro") {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Cannot re-export in-use dataset as RW!");
+	    return -1;
+	}
+
+	# Check current use mode - must not be RW.  Searching for the
+	# target entry serves as a sanity check as well.
+	my $found = 0;
+	my @ist_list = freenasParseListing($FREENAS_CLI_VERB_IST_TARGET);
+	foreach my $ist (@ist_list) {
+	    if ($ist->{'name'} eq $iqn) {
+		if ($ist->{'flags'} ne "ro") {
+		    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+			 "Cannot re-export in-use RW dataset!");
+		    return -1;
+		} else {
+		    $found = 1;
+		    last;
+		}
+	    }
+	}
+	if (!$found) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Couldn't find the iSCSI target while attempting re-export!");
+	    return -1;
+	}
+
+	# Grab the current iSCSI initiator group so we can modify it.
+	my $authent = findAuthITag($tag_ident);
+	if (!$authent) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Couldn't find the iSCSI auth group entry while attempting re-export!");
+	    return -1;
+	}
+	if ($authent->{'tag'} !~ /^(\d+)$/) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Malformed tag returned for current authentication group entry while attempting re-export!");
+	    return -1;
+	}
+	my $curtag = $1; # untaint;
+	my @auth_networks = split(/\s+/, $authent->{'auth_network'});
+	# The incoming network shouldn't already be there, but let's check.
+	if (grep(/^$network\/$cmask$/, @auth_networks)) {
+	    warn("*** WARNING: blockstore_exportSlice: $volname: ".
+		 "Our network is already present in iSCSI auth group: $network/$cmask");
+	} else {
+	    push @auth_networks, "$network/$cmask";
+	    my $auth_network_str = join(' ', @auth_networks);
+	    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI, 
+				 "edit $curtag ALL ".
+				 "'$auth_network_str' $tag_ident") };
+	    if ($@) {
+		warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		     "Failed to modify iSCSI auth group (re-export): $@");
+		return -1;
+	    }
+	}
     }
 
     # All setup and exported!
@@ -772,12 +854,12 @@ sub exportSlice($$$$) {
 }
 
 # Helper function.
-# Locate and return tag for given network, if it exists.
+# Locate and return tag for given identifier, if it exists.
 sub findAuthITag($) {
-    my ($vnode_id,) = @_;
+    my ($ident,) = @_;
 
     return undef
-	if !defined($vnode_id);
+	if !defined($ident);
 
     my @authentries = freenasParseListing($FREENAS_CLI_VERB_IST_AUTHI);
 
@@ -785,8 +867,8 @@ sub findAuthITag($) {
 	if !@authentries;
 
     foreach my $authent (@authentries) {
-	if ($authent->{'comment'} eq $vnode_id) {
-	    return $authent->{'tag'};
+	if ($authent->{'comment'} eq $ident) {
+	    return $authent;
 	}
     }
 
@@ -1078,9 +1160,13 @@ sub removeVlanInterface($$) {
     return 0;
 }
 
+#
+# Reverse counterpart to exportSlice().
+#
 sub unexportSlice($$$$) {
     my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
+    my $bsid = $sconf->{'BSID'};
     my $volname = $sconf->{'VOLNAME'};
     $volname = "UNKNOWN" if (!$volname);
 
@@ -1089,40 +1175,88 @@ sub unexportSlice($$$$) {
     $sconf->{'UUID'} =~ /^([-\.:\w]+)$/;
     my $iqn = lc($1); # untaint and lowercase.
 
-    # Remove iSCSI target to extent mapping.
-    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_ASSOC,
-			 "del $iqn $iqn") };
-    if ($@) {
-	warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-	     "Failed to disassociate iSCSI target with extent: $@");
+    # There should only be one ifconfig entry - checked earlier.
+    my $ifcfg   = (@{$vnconfig->{'ifconfig'}})[0];
+    my $nmask   = $ifcfg->{'IPMASK'};
+    my $cmask   = libutil::CIDRmask($nmask);
+    my $network = libutil::ipToNetwork($ifcfg->{'IPADDR'}, $nmask);
+    if (!$cmask || !$network) {
+	warn("*** ERROR: blockstore_unexportSlice: ".
+	     "Error calculating ip network information.");
+	return -1;
     }
 
-    # Remove iSCSI target.
-    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
-			 "del $iqn") };
-    if ($@) {
-	warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-	     "Failed to remove iSCSI target: $@");
+    # If operating on a lease, we use the lease name as the
+    # iSCSI auth group identifier instead of the vnode_id because
+    # this entry may be shared (simultaneous RO use).
+    my $tag_ident = $vnode_id;
+    if ($bsid =~ /^(lease-\d+)$/) {
+	$tag_ident = $1; # untaint
     }
 
-    # Remove iSCSI auth group
-    my $tag = findAuthITag($vnode_id);
-    if ($tag && $tag =~ /^(\d+)$/) {
-	$tag = $1; # untaint.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
-			     "del $tag") };
+    # Fetch the authorized initators entry associated with this slice,
+    # and yank its network entry out of the list.  It this is the last
+    # remaining entry, we tear down the export. If any network entries
+    # remain, this tells us that other experiments are still using
+    # this iSCSI target (simultaneous RO). In that case we only
+    # modify the set of authorized initiators.
+    my $authtag = 0;
+    my @pruned_networks = ();
+    my $curtag = findAuthITag($tag_ident);
+    if ($curtag && $curtag->{'tag'} =~ /^(\d+)$/) {
+	$authtag = $1; # untaint;
+	@pruned_networks = grep {!/^$network\/$cmask$/} split(/\s+/, $curtag->{'auth_network'});
+    }
+
+    # If there are no networks left in the authorized initiators list, then
+    # we are completely done with this export - tear it down!
+    if (!@pruned_networks) {
+	# Remove iSCSI target to extent mapping.
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_ASSOC,
+			     "del $iqn $iqn") };
 	if ($@) {
 	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-		 "Failed to remove iSCSI auth group: $@");
+		 "Failed to disassociate iSCSI target with extent: $@");
+	}
+
+	# Remove iSCSI target.
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
+			     "del $iqn") };
+	if ($@) {
+	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
+		 "Failed to remove iSCSI target: $@");
+	}
+
+	# Remove iSCSI auth group
+	if ($authtag) {
+	    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
+				 "del $authtag") };
+	    if ($@) {
+		warn("*** WARNING: blockstore_unexportSlice: $volname: ".
+		     "Failed to remove iSCSI auth group: $@");
+	    }
+	}
+
+	# Remove iSCSI extent.
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
+			     "del $iqn") };
+	if ($@) {
+	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
+		 "Failed to remove iSCSI extent: $@");
 	}
     }
-
-    # Remove iSCSI extent.
-    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
-			 "del $iqn") };
-    if ($@) {
-	warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-	     "Failed to remove iSCSI extent: $@");
+    # This export is still referenced, so leave export but update the
+    # authorized initiators list.
+    else {
+	my $auth_network_str = join(' ', @pruned_networks);
+	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
+			     "edit $authtag ALL '$auth_network_str' ".
+			     "$tag_ident") };
+	if ($@) {
+	    warn("*** ERROR: blockstore_unexportSlice: $volname: ".
+		 "Failed to modify iSCSI auth group (re-export): $@");
+	    return -1;
+	}
     }
 
     # All torn down and unexported!

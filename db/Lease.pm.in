@@ -1426,15 +1426,17 @@ sub AccessCheck($$$) {
 	if ($gid eq "");
     my $group = Group->Lookup($pid, $gid);
 
-    # Project managers can do anything to a lease that is attributed
-    # to their project.
-    if (TBMinTrust($group->Trust($user), PROJMEMBERTRUST_GROUPROOT())) {
+    # Members of the owning project have some implicit permissions, depending
+    # on their project trust.
+    my $gtrust = $group->Trust($user);
+    if (TBMinTrust($gtrust, PROJMEMBERTRUST_GROUPROOT())) {
 	return 1;
     }
-
-    # If the user is a member of the owning project, then they can at
-    # least grab the lease's info.
-    if (TBMinTrust($group->Trust($user), PROJMEMBERTRUST_USER())) {
+    # XXX: Need to decide what the right thing to do is here.
+    #elsif (TBMinTrust($gtrust, PROJMEMBERTRUST_LOCALROOT())) {
+    #	$user_access = LEASE_ACCESS_READ();
+    #}
+    elsif (TBMinTrust($gtrust, PROJMEMBERTRUST_USER())) {
 	$user_access = LEASE_ACCESS_READINFO();
     }
 
