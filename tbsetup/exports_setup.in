@@ -34,14 +34,16 @@ use Getopt::Std;
 sub usage()
 {
     print(STDERR
-	  "Usage: exports_setup [-n] [-d]\n".
+	  "Usage: exports_setup [-n] [-d] [-w]\n".
 	  "switches and arguments:\n".
+	  "-w         - wait mode; wait for mountd to finish before exiting\n".
 	  "-n         - impotent; dump exports to stdout\n");
     exit(-1);
 }
-my $optlist    = "nd";
+my $optlist    = "ndw";
 my $impotent   = 0;
 my $debug      = 0;
+my $waittildone= 0;
 
 #
 # Function phototypes
@@ -160,6 +162,9 @@ if (defined($options{"n"})) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"w"})) {
+    $waittildone = 1;
 }
 usage()
     if (@ARGV);
@@ -588,6 +593,24 @@ if (!$TESTMODE) {
 	  system("$SSH $PROG -S < $smbconftail") == 0 or
 	      fatal("Failed: $SSH $PROG < $smbconftail: $?");
 	  unlink("$smbconftail");
+      }
+
+      #
+      # Attempt to see if mountd is done. The theory:
+      #   with older mountd's ls will fail,
+      #   with newer mountd's ls will hang til mountd is done.
+      #
+      if ($waittildone) {
+	  print "WARNING: waiting for mountd to finish...\n";
+	  my $testdir = "/proj/" . TBOPSPID();
+	  my $tries = 10;
+	  while ($tries-- > 0) {
+	      if (system("/bin/ls $testdir >/dev/null 2>&1")) {
+		  sleep(1);
+		  next;
+	      }
+	      last;
+	  }
       }
   }
 
