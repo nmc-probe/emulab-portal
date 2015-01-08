@@ -127,6 +127,8 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	// Instantiate the new rspec on the chosen aggregate.
 	function Instantiate(newRspec, where)
 	{
+	    console.log(where);
+	    
 	    if (callback_done) {
 		callback_done(newRspec, where);
 		return;
@@ -168,7 +170,8 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    $('#amchooser_submit_button').click(function (event) {
 		event.preventDefault();
 		sup.HideModal("#amchooser_modal");
-		Instantiate(newRspec, $('#amchooser_where').val());
+		Instantiate(newRspec,
+			    $('#amchooser_where option:selected').val());
 	    });
 	    sup.ShowModal("#amchooser_modal");
 	}

@@ -246,7 +246,7 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 	    $('#profile_where option').prop("selected", false);
 	    // Find and select new option.
 	    $('#profile_where option')
-		.filter('[value="'+ amdefault + '"]')
+		.filter('[value="'+ where + '"]')
                 .prop('selected', true);		
 	}
 	// Enable the create and copy buttons.
