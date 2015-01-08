@@ -184,7 +184,7 @@ if (!defined($waittime)) {
 
 # if the lease is in use, disallow unless forced
 if ($lease->InUse()) {
-    my $expts = int(@{$lease->UsingResources()});
+    my $expts = int(@{$lease->GetReservations()});
     if ($force < 2) {
 	fatal("$pid/$lname is in use by $expts experiment(s) right now");
     }

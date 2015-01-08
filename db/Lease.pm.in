@@ -469,24 +469,11 @@ sub InUseReadWrite() {
     return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
-    my $expts = $self->UsingResources();
-    if (@$expts) {
-	my $bs = Blockstore->LookupByLease($self->lease_idx());
-	if (!$bs) {
-	    print STDERR "Lease->InUseReadWrite(): $self is not a ".
-		"blockstore lease?\n";
-	    return LEASE_ERROR_FAILED();
-	}
-	# We only need to check the first experiment in the list.  No
-	# concurrent use/mix of RO and RW is allowed.
-	my $firstexpt = Experiment->Lookup($expts->[0]);
-	my $resv = Blockstore::Reservation->Lookup($bs, $firstexpt);
-	if (!$resv) {
-	    print STDERR "Lease->InUseReadWrite(): $self is not actually ".
-		"reserved to $experiment!\n";
-	    return LEASE_ERROR_FAILED();
-	}
-	$rw = $resv->IsReadOnly() == 0 ? 1 : 0;
+    my $resvref = $self->GetReservations();
+    if ($resvref && @$resvref) {
+	# We only need to check the first reservation in the list since no
+	# concurrent mix of RO and RW is allowed.
+	$rw = $resvref->[0]->IsReadOnly() ? 0 : 1;
     }
 
     return $rw;
@@ -498,7 +485,7 @@ sub InUse($) {
     return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
-    my $lref = $self->UsingResources();
+    my $lref = $self->GetReservations();
     if (!$lref) {
 	return 0;
     }
@@ -507,16 +494,17 @@ sub InUse($) {
 }
 
 #
-# Returns a list of experiment indicies that are currently using the
-# resources associated with this lease.
+# Returns a list of blockstore reservations that are currently using the
+# resources associated with this lease. XXX: this is a blockstore-specific
+# function.
 #
-sub UsingResources($) {
+sub GetReservations($) {
     my ($self) = @_;
 
     return undef
 	if (!ref($self));
 
-    my @eidxlist = ();
+    my @resvlist = ();
 
     #
     # Before doing a big honkin query, see if the lease has resources
@@ -526,17 +514,22 @@ sub UsingResources($) {
 	my $lidx = $self->lease_idx();
 
 	my $query_result =
-	    DBQueryWarn("select r.exptidx from blockstores as b,".
+	    DBQueryWarn("select r.vnode_id from blockstores as b,".
 			"   reserved_blockstores as r,project_leases as l ".
 			"where b.bsidx=r.bsidx ".
 			"   and b.lease_idx=l.lease_idx ".
 			"   and l.lease_idx='$lidx'");
-	while (my ($eidx) = $query_result->fetchrow_array()) {
-	    push(@eidxlist, $eidx);
+	return undef 
+	    if (!$query_result);
+
+	while (my ($vnode_id,) = $query_result->fetchrow_array()) {
+	    next if (!$vnode_id);
+	    push(@resvlist, 
+		 Blockstore::Reservation->LookupByNodeid($vnode_id));
 	}
     }
 
-    return \@eidxlist;
+    return \@resvlist;
 }
 
 #

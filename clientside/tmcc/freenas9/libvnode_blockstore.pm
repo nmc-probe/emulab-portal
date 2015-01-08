@@ -677,7 +677,6 @@ sub exportSlice($$$$) {
 	return -1;
     }
 
-    my $bsid = $sconf->{'BSID'};
     my $volname = $sconf->{'VOLNAME'};
     $volname = "UNKNOWN" if (!$volname);
 
@@ -730,8 +729,8 @@ sub exportSlice($$$$) {
     # initiator group identifier instead of the vnode_id because this
     # entry may end up being shared (simultaneous RO use).
     my $tag_ident = $vnode_id;
-    if ($bsid =~ /^lease-\d+$/) {
-	$tag_ident = $bsid;
+    if ($priv->{'volume'} =~ /^lease-\d+$/) {
+	$tag_ident = $priv->{'volume'};
     }
 
     # Go through the whole iSCSI extent/target setup if it hasn't been
@@ -1166,7 +1165,6 @@ sub removeVlanInterface($$) {
 sub unexportSlice($$$$) {
     my ($vnode_id, $sconf, $vnconfig, $priv) = @_;
 
-    my $bsid = $sconf->{'BSID'};
     my $volname = $sconf->{'VOLNAME'};
     $volname = "UNKNOWN" if (!$volname);
 
@@ -1190,7 +1188,7 @@ sub unexportSlice($$$$) {
     # iSCSI auth group identifier instead of the vnode_id because
     # this entry may be shared (simultaneous RO use).
     my $tag_ident = $vnode_id;
-    if ($bsid =~ /^(lease-\d+)$/) {
+    if ($sconf->{'UUID'} =~ /:(lease-\d+)$/) {
 	$tag_ident = $1; # untaint
     }
 

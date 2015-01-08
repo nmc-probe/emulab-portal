@@ -706,7 +706,7 @@ sub lease_list(@)
 	if ($lease->last_used()) {
 	    $ltime = strftime("%D %R", localtime($lease->last_used()));
 	}
-	my $lusers = $lease->UsingResources();
+	my $lusers = $lease->GetReservations();
 	if (!$lusers) {
 	    $lusers = ();
 	}

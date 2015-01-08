@@ -900,7 +900,7 @@ sub GenDefsFile($)
 	    #
 	    if ($lease->state() eq LEASE_STATE_VALID()) {
 		# Force RO if user does not have RW privs.
-		$ro = !$lease->allow_modify();
+		$ro = $lease->allow_modify() ? 0 : 1;
 	    } elsif ($lease->state() eq LEASE_STATE_GRACE()) {
 		$ro = 1;
 	    } else {
@@ -912,7 +912,7 @@ sub GenDefsFile($)
 	    my $bstore = Blockstore->LookupByLease($idx);
 	    next if (!$bstore);
 
-	    my $name = "$pid/" . $lease->lease_id();
+	    my $name = $lease->pid() ."/". $lease->lease_id();
 	    my $type = $lease->type();
 	    my $node = $bstore->node_id();
 	    my $bsid = $bstore->bs_id();

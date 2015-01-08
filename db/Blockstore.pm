@@ -465,6 +465,12 @@ sub Reserve($$$$$)
     # size, to indicate nothing has actually been reserved in the
     # blockstore_state table.
     #
+    # However, if this is a lease (dataset), then we are just going to
+    # stuff the full size of it into the reserved_blockstores table
+    # and forgo any other capacity accounting.  Also, its
+    # 'remaining_capacity' is always its full size. This allows for
+    # simultaneous read-only use (modes enforced elsewhere).
+    #
     $query_result =
 	DBQueryWarn("select size from reserved_blockstores ".
 		    "where exptidx='$exptidx' and bsidx='$bsidx' and ".
@@ -472,11 +478,16 @@ sub Reserve($$$$$)
     goto bad
 	if (!$query_result);
 
+    my $newsize = 0;
+    if ($self->lease_idx() > 0) {
+	$newsize = $self->total_size();
+    } 
+
     if (! $query_result->numrows) {
 	if (! DBQueryWarn("insert into reserved_blockstores set ".
 	        "  bsidx='$bsidx', node_id='$bs_node_id', bs_id='$bs_id', ".
 	        "  vname='$bs_name', pid='$pid', eid='$eid', ".
-		"  size='0', vnode_id='$vnode_id', ".
+		"  size='$newsize', vnode_id='$vnode_id', ".
 	        "  exptidx='$exptidx', rsrv_time=now()")) {
 	    goto bad;
 	}
@@ -501,6 +512,10 @@ sub Reserve($$$$$)
 	goto done
 	    if ($current_size);
     }
+
+    # Leases do not require any further size accounting updates.
+    goto done
+	if ($self->lease_idx() > 0);
 
     #
     # Now do an atomic update that changes both tables.

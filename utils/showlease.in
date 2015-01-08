@@ -307,7 +307,7 @@ if (@lids > 0) {
 	my $stime = datestr($lease->inception());
 	my $etime = datestr($lease->lease_end());
 	my $ltime = datestr($lease->last_used());
-	my $lusers = $lease->UsingResources();
+	my $lusers = $lease->GetReservations();
 	if (!$lusers) {
 	    $lusers = ();
 	}
