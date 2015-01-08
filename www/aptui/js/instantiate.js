@@ -1,20 +1,30 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', // jQuery modules
+	['underscore', 'js/quickvm_sup', 'js/ppstart',
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
+	 'js/lib/text!template/waitwait-modal.html',
          'formhelpers', 'filestyle', 'marked'],
-function (_, sup, aboutaptString, aboutcloudString)
+function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 {
     'use strict';
 
     var ajaxurl;
-    var amdefault;
+    var amlist        = null;
+    var amdefault     = null;
+    var selected_uuid = null;
+    var ispprofile    = 0;
+    var registered    = false;
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+	registered = window.REGISTERED;
 	ajaxurl = window.AJAXURL;
+	if ($('#amlist-json').length) {
+	    amlist  = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+	}
 
+	$('#waitwait_div').html(waitwaitString);
 	// The about panel.
 	if (window.SHOWABOUT) {
 	    $('#about_div').html(window.ISCLOUD ?
@@ -24,7 +34,7 @@ function (_, sup, aboutaptString, aboutcloudString)
 	if (window.APT_OPTIONS.isNewUser) {
 	    $('#verify_modal_submit').click(function (event) {
 		$('#verify_modal').modal('hide');
-		$("#waitwait").modal('show');
+		$("#waitwait-modal").modal('show');
 		return true;
 	    });
 	    $('#verify_modal').modal('show');
@@ -51,8 +61,33 @@ function (_, sup, aboutaptString, aboutcloudString)
 	    $('#quickvm_topomodal').modal('hide');
 	});
 	$('#instantiate_submit').click(function (event) {
-	    $("#waitwait").modal('show');
+	    $("#waitwait-modal").modal('show');
 	    return true;
+	});
+	$('#configurator_button').click(function (event) {
+	    if (ispprofile) {
+		event.preventDefault();
+		ppstart({uuid         : selected_uuid,
+			 registered   : registered,
+			 amlist       : amlist,
+			 amdefault    : amdefault,
+			 callback     : ConfigureDone,
+			 button_label : "Accept"});
+	    }
+	    return false;
+	});
+	$('#profile_copy_button').click(function (event) {
+	    event.preventDefault();
+	    if (!registered) {
+		sup.SpitOops("oops", "You must be a registered user to copy " +
+			     "a profile.");
+	    }
+	    else {
+		var url = "manage_profile.php?action=copy&uuid=" +
+		    selected_uuid;
+		window.location.replace(url);
+	    }
+	    return false;
 	});
 
 	// Profile picker search box.
@@ -97,7 +132,7 @@ function (_, sup, aboutaptString, aboutcloudString)
 	    $(selectedElement).addClass('selected');
 	}
 	
-	var continuation = function(rspec, description, name, amdefault) {
+	var continuation = function(rspec, description, name, amdefault, ispp) {
 	    $('#showtopo_title').html("<h3>" + name + "</h3>");
 	    $('#showtopo_description').html(description);
 	    sup.maketopmap('#showtopo_div', rspec, null);
@@ -118,10 +153,33 @@ function (_, sup, aboutaptString, aboutcloudString)
 	$('#selected_profile').attr('value', profile_value);
 	$('#selected_profile_text').html("" + profile_name);
 	
-	var continuation = function(rspec, description, name, amdefault) {
+	var continuation = function(rspec, description, name, amdef, ispp) {
 	    $('#showtopo_title').html("<h3>" + name + "</h3>");
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
+
+	    ispprofile    = ispp;
+	    selected_uuid = profile_value;
+	    amdefault     = amdefault;
+
+	    // Show the configuration button, disable the create button.
+	    if (ispprofile) {
+		$("#configurator_button").removeClass("hidden");
+		$('#instantiate_submit').attr('disabled', true);
+	    }
+	    else {
+		$("#configurator_button").addClass("hidden");
+		$('#instantiate_submit').attr('disabled', false);
+	    }
+
+	    // Hide the aggregate picker for a parameterized profile.
+	    // Shown later.
+	    if (ispprofile) {
+		$("#profile_where").addClass("hidden");
+	    }
+	    else {
+		$("#profile_where").removeClass("hidden");
+	    }
 
 	    // Set the default aggregate.
 	    if ($('#profile_where').length) {
@@ -142,7 +200,7 @@ function (_, sup, aboutaptString, aboutcloudString)
 		alert("Could not get profile: " + json.value);
 		return;
 	    }
-	    console.info(json);
+	    //console.info(json);
 	    
 	    var xmlDoc = $.parseXML(json.value.rspec);
 	    var xml    = $(xmlDoc);
@@ -164,12 +222,36 @@ function (_, sup, aboutaptString, aboutcloudString)
 		description = "Hmm, no description for this profile";
 	    }
 	    continuation(json.value.rspec, description,
-			 json.value.name, json.value.amdefault);
+			 json.value.name, json.value.amdefault,
+			 json.value.ispprofile);
 	}
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "instantiate", "GetProfile",
 					     {"uuid" : profile});
 	$xmlthing.done(callback);
     }
+
+    /*
+     * Callback from the PP configurator. Stash rspec into the form.
+     */
+    function ConfigureDone(newRspec, where) {
+	// If not a registered user, we do not get an rspec back, since
+	// the user is not allowed to change the configuration.
+	if (newRspec) {
+	    $('#pp_rspec_textarea').val(newRspec);
+	}
+	// Need to change the form before submit.
+	if (where && $('#profile_where').length) {
+	    // Deselect current option.
+	    $('#profile_where option').prop("selected", false);
+	    // Find and select new option.
+	    $('#profile_where option')
+		.filter('[value="'+ amdefault + '"]')
+                .prop('selected', true);		
+	}
+	// Enable the create and copy buttons.
+	$('#instantiate_submit').attr('disabled', false);
+    }
+
     $(document).ready(initialize);
 });

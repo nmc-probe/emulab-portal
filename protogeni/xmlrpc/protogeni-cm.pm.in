@@ -111,6 +111,7 @@ elsif ($GENI_VERSION eq "2.0") {
 	"CreateDataset"     => \&GeniCMV2::CreateDataset,
 	"DeleteDataset"     => \&GeniCMV2::DeleteDataset,
 	"DescribeDataset"   => \&GeniCMV2::DescribeDataset,
+	"ModifyDataset"     => \&GeniCMV2::ModifyDataset,
     };
 }
 

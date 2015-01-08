@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013, 2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -65,9 +65,12 @@ my $ELABINELAB    = @ELABINELAB@;
 my $WIKISUPPORT   = @WIKISUPPORT@;
 my $BUGDBSUPPORT  = @BUGDBSUPPORT@;
 my $OPSDBSUPPORT  = @OPSDBSUPPORT@;
+my $WITHZFS       = @WITHZFS@;
+my $ZFS_NOEXPORT  = @ZFS_NOEXPORT@;
 my $SETWIKIGROUPS = "$TB/sbin/setwikigroups";
 my $SETBUGDBGROUPS= "$TB/sbin/setbugdbgroups";
 my $OPSDBCONTROL  = "$TB/sbin/opsdb_control";
+my $EXPORTSSETUP  = "$TB/sbin/exports_setup";
 
 my $SSH     = "$TB/bin/sshtb";
 my $USERMOD = "/usr/sbin/pw usermod";
@@ -106,6 +109,7 @@ use libaudit;
 use libdb;
 use libtestbed;
 use User;
+use emutil;
 
 #
 # We do not want to run this script unless its the real version.
@@ -195,11 +199,6 @@ if (AuditStart(0)) {
 }
 
 #
-# All this stuff must be done as root (ssh).
-#
-$UID = $EUID;
-
-#
 # If no user list provided, we have to do this for the entire project
 # member list since we have no idea who got changed.
 #
@@ -215,6 +214,35 @@ if (! scalar(@userlist)) {
 	push(@userlist, $db_row[0]);
     }
 }
+
+if ($WITHZFS && $ZFS_NOEXPORT) {
+    #
+    # Have to force the directories to be exported.
+    # See ZFS code in exports_setup
+    #
+    foreach my $token (@userlist) {
+	my $user = User->Lookup($token);
+	$user->BumpActivity()
+	    if (defined($user));
+    }
+    $EUID = $UID;
+    system($EXPORTSSETUP) == 0 or
+	fatal("$EXPORTSSETUP failed");
+    $EUID = 0;
+
+    # There is some lag before the automounter can mount the directories
+    foreach my $uid (@userlist) {
+	my $homedir = USERROOT() . "/$uid";
+	if (emutil::waitForMount($homedir) < 0) {
+	    fatal("Could not access user directory: $homedir");
+	}
+    }
+}
+
+#
+# All this stuff must be done as root (ssh).
+#
+$UID = $EUID;
 
 #
 # Loop through user set, building up the group set and issuing commands.

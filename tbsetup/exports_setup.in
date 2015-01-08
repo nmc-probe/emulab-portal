@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,14 +34,16 @@ use Getopt::Std;
 sub usage()
 {
     print(STDERR
-	  "Usage: exports_setup [-n] [-d]\n".
+	  "Usage: exports_setup [-n] [-d] [-w]\n".
 	  "switches and arguments:\n".
+	  "-w         - wait mode; wait for mountd to finish before exiting\n".
 	  "-n         - impotent; dump exports to stdout\n");
     exit(-1);
 }
-my $optlist    = "nd";
+my $optlist    = "ndw";
 my $impotent   = 0;
 my $debug      = 0;
+my $waittildone= 0;
 
 #
 # Function phototypes
@@ -87,7 +89,19 @@ my @row;
 # For determining file server mountpoints (XXX BSD specific)
 my $MOUNTPROG	= ($LINUX_FSNODE ? "/bin/mount" : "/sbin/mount");
 # Need the linux equiv for this.
-my $EXPORT_PAT	= q(on ([\S]+)\s\(.*NFS exported.*\));
+my $EXPORT_PAT	= q(on ([\S]+)\s\\\(.*NFS exported.*\\\));
+
+#
+# XXX If there are no static exports (to boss) for filesystems, then
+# "NFS exported" will not be set. Instead we just look for all mounted
+# ufs or zfs filesystems.
+#
+if ($ZFS_NOEXPORT) {
+    $EXPORT_PAT = q(on ([\S]+)\s\\\([uz]fs,.*\\\));
+}
+
+# Cache of dir to FS mappings already found
+my %fsofcache;
 
 #
 # Testbed doesn't support changing exports file
@@ -148,6 +162,9 @@ if (defined($options{"n"})) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"w"})) {
+    $waittildone = 1;
 }
 usage()
     if (@ARGV);
@@ -236,9 +253,24 @@ if ($WITHZFS && $ZFS_NOEXPORT) {
 		     "     m.uid_idx=u.uid_idx and m.pid=m.gid ".
 		     "where ((UNIX_TIMESTAMP(now()) - ".
 		     "       UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
+		     "      ((UNIX_TIMESTAMP(now()) - ".
+		     "       UNIX_TIMESTAMP(s.weblogin_last)) <= $limit) or ".
 		     "      admin=1");
     while (my ($uid,$pid) = $active_result->fetchrow_array()) {
 	$bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
+	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
+	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
+    }
+    #
+    # Similar to above, but look for active projects instead of users.
+    # We often have to access project directories when there is
+    # no active experiment or user. 
+    #
+    $active_result =
+	DBQueryFatal("select pid from project_stats ".
+		     "where ((UNIX_TIMESTAMP(now()) - ".
+		     "       UNIX_TIMESTAMP(last_activity)) <= $limit)");
+    while (my ($pid) = $active_result->fetchrow_array()) {
 	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
 	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
     }
@@ -545,6 +577,9 @@ if (!$TESTMODE) {
   }
   if ($impotent) {
       system("/bin/cat $exportstail");
+      if ($WINSUPPORT) {
+	  system("/bin/cat $smbconftail");
+      }
   }
   else {
       # First do the NFS exports
@@ -557,6 +592,24 @@ if (!$TESTMODE) {
 	  system("$SSH $PROG -S < $smbconftail") == 0 or
 	      fatal("Failed: $SSH $PROG < $smbconftail: $?");
 	  unlink("$smbconftail");
+      }
+
+      #
+      # Attempt to see if mountd is done. The theory:
+      #   with older mountd's ls will fail,
+      #   with newer mountd's ls will hang til mountd is done.
+      #
+      if ($waittildone) {
+	  print "WARNING: waiting for mountd to finish...\n";
+	  my $testdir = "/proj/" . TBOPSPID();
+	  my $tries = 10;
+	  while ($tries-- > 0) {
+	      if (system("/bin/ls $testdir >/dev/null 2>&1")) {
+		  sleep(1);
+		  next;
+	      }
+	      last;
+	  }
       }
   }
 
@@ -608,8 +661,12 @@ sub fsinit() {
 sub fsof($) {
     my($path) = @_;
 
+    if (exists($fsofcache{$path})) {
+	return $fsofcache{$path};
+    }
     foreach my $mount (@mountpoints) {
-	if ($path =~ /^$mount/) {
+	if (index($path, $mount) == 0) {
+	    $fsofcache{$path} = $mount;
 	    return $mount;
 	}
     }

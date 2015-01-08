@@ -61,6 +61,28 @@ an example.
 		# IP of rack boss
 		masters { XXX.XXX.XXX.XXX; };
 		# Change this too; domain name
+		file "slave/foo.net.INTERNAL.db";
+	};
+	# Replace 242.1.192 with reverse dotted subnet
+	# Replace 129/25 with as needed for subnet.
+	#  Upper half of /25 is 129/25
+	#  Lower half of /25 is 0/25
+	zone "129/25.242.1.192.in-addr.arpa" in {
+		type slave;
+		# IP of rack boss
+		masters { XXX.XXX.XXX.XXX; };
+		# Change this too; domain name
+		file "slave/reverse-foo.net.db";
+	};
+
+And then again for the external view (note the different file!):
+
+	# Secondary for foo.net
+	zone "foo.net" {
+		type slave;
+		# IP of rack boss
+		masters { XXX.XXX.XXX.XXX; };
+		# Change this too; domain name
 		file "slave/foo.net.db";
 	};
 	# Replace 242.1.192 with reverse dotted subnet

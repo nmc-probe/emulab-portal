@@ -48,7 +48,7 @@ sub usage()
     print " -r      Force a regenerate of initial key for user\n";
     exit(-1);
 }
-my $optlist   = "dkniwfu:rX:sRNC:S:I";
+my $optlist   = "dkniwfu:rX:sRNC:S:Ia";
 my $iskey     = 0;
 my $verify    = 0;
 my $initmode  = 0;
@@ -59,6 +59,7 @@ my $noemail   = 0;
 my $remove    = 0;
 my $nodelete  = 0;
 my $internal  = 0;
+my $isaptkey  = 0;
 my $Comment;
 my $xmlfile;
 
@@ -155,6 +156,9 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"a"})) {
+    $isaptkey = 1;
 }
 if (defined($options{"k"})) {
     $iskey = 1;
@@ -428,10 +432,15 @@ sub ParseKey($) {
 	DBQueryFatal("delete from user_pubkeys ".
 		     "where uid_idx='$user_dbid' and comment=$safe_comment");
     }
+    # Only one APT key allowed
+    if ($isaptkey) {
+	DBQueryFatal("delete from user_pubkeys ".
+		     "where uid_idx='$user_dbid' and isaptkey=1");
+    }
     DBQueryFatal("replace into user_pubkeys set ".
 		 " uid='$user_uid', uid_idx='$user_dbid', ".
 		 " internal='$internal', nodelete='$nodelete', ".
-		 " idx=NULL, stamp=now(), ".
+		 " isaptkey='$isaptkey',idx=NULL, stamp=now(), ".
 		 " pubkey=$safe_key, comment=$safe_comment");
 
     #

@@ -1,6 +1,6 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'filesize', 'js/JacksEditor',
-	 'js/image', 'moment',
+	 'js/image', 'moment', 'js/ppstart',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
@@ -12,7 +12,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/instantiate-modal.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
-function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
+function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,
 	  guestInstantiateString, publishString, instantiateString)
@@ -29,6 +29,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
     var editor       = null;
     var myCodeMirror = null;
     var genilibwarned= false;
+    var isppprofile  = false;
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var rendererTemplate  = _.template(rendererString);
@@ -46,6 +47,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	version_uuid  = window.VERSION_UUID;
 	profile_uuid  = window.PROFILE_UUID;
 	ajaxurl       = window.AJAXURL;
+	isppprofile   = window.ISPPPROFILE;
 
 	var fields   = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors   = JSON.parse(_.unescape($('#error-json')[0].textContent));
@@ -357,6 +359,23 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	    PublishProfile();
 	});
 
+	/*
+	 * The instantiate button. If a plain profile, throw up the
+	 * confirm modal. If a parameterized profile, hand off to the
+	 * ppstart js code.
+	 */
+	$('#profile_instantiate_button').click(function (event) {
+	    if (isppprofile) {
+		ppstart({uuid       : version_uuid,
+			 registered : true,
+			 amlist     : amlist,
+			 amdefault  : window.AMDEFAULT,
+			 editor     : editor});
+		return;
+	    }
+	    sup.ShowModal('#instantiate_modal');
+	});
+	
 	/*
 	 * If we were given an rspec, suck the description and instructions
 	 * out of the rspec and put them into the text boxes. But
@@ -854,8 +873,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    var url = "status.php?uuid=" + json.value.quickvm_uuid;
-	    window.location.replace(url);
+	    window.location.replace(json.value);
 	}
 	sup.HideModal("#instantiate_modal");
 
@@ -865,7 +883,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment,
 	}
 	sup.ShowModal("#waitwait-modal");
 	var xmlthing = sup.CallServerMethod(ajaxurl,
-					    "manage_profile",
+					    "instantiate",
 					    "Instantiate", blob);
 	xmlthing.done(callback);
     }

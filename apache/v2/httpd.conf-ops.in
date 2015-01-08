@@ -199,7 +199,7 @@ LoadModule rewrite_module libexec/apache22/mod_rewrite.so
 #LoadModule proxy_http_module libexec/apache22/mod_proxy_http.so
 #LoadModule proxy_connect_module libexec/apache22/mod_proxy_connect.so
 LoadModule cache_module libexec/apache22/mod_cache.so
-LoadModule suexec_module libexec/apache22/mod_suexec.so
+#LoadModule suexec_module libexec/apache22/mod_suexec.so
 #LoadModule disk_cache_module libexec/apache22/mod_disk_cache.so
 #LoadModule file_cache_module libexec/apache22/mod_file_cache.so
 #LoadModule mem_cache_module libexec/apache22/mod_mem_cache.so

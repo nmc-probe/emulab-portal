@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2006-2011 University of Utah and the Flux Group.
+# Copyright (c) 2006-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,7 +31,7 @@ include $(OBJDIR)/Makeconf
 SYSTEM	       := $(shell $(TESTBED_SRCDIR)/utils/osstuff.sh -t)
 
 CFLAGS = -Wall  
-LDFLAGS = -lssl
+LDFLAGS = -lssl -lcrypto
 
 # XXX lame, doesn't compile on freebsd4
 ifneq ($(SYSTEM),freebsd4)

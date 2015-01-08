@@ -1,5 +1,5 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment',
+	['underscore', 'js/quickvm_sup', 'moment', 'js/ppstart',
 	 'js/lib/text!template/show-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
@@ -10,18 +10,17 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/oops-modal.html',
 	 // jQuery modules
 	 'marked','jquery-ui','jquery-grid'],
-function (_, sup, moment,
+function (_, sup, moment, ppstart,
 	  showString, waitwaitString, 
 	  rendererString, showtopoString, rspectextviewString,
 	  guestInstantiateString, instantiateString, oopsString)
 {
     'use strict';
-    var profile_uuid = null;
     var version_uuid = null;
     var gotscript    = 0;
     var ajaxurl      = "";
     var amlist       = null;
-    var editor       = null;
+    var isppprofile  = false;
     var myCodeMirror = null;
     var showTemplate      = _.template(showString);
     var InstTemplate      = _.template(instantiateString);
@@ -30,8 +29,8 @@ function (_, sup, moment,
     {
 	window.APT_OPTIONS.initialize(sup);
 	version_uuid  = window.VERSION_UUID;
-	profile_uuid  = window.PROFILE_UUID;
 	ajaxurl       = window.AJAXURL;
+	isppprofile   = window.ISPPPROFILE;
 
 	var fields = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	amlist     = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
@@ -43,7 +42,6 @@ function (_, sup, moment,
 	// Generate the templates.
 	var show_html   = showTemplate({
 	    fields:		fields,
-	    profile_uuid:	profile_uuid,
 	    version_uuid:	version_uuid,
 	    isadmin:		window.ISADMIN,
 	});
@@ -87,12 +85,12 @@ function (_, sup, moment,
 	// The Show Source button.
 	$('#show_source_modal_button, #show_xml_modal_button')
 	    .click(function (event) {
-		var source;
+		var source = null;
 
 		if ($(this).attr("id") == "show_source_modal_button") {
 		    source = $.trim($('#profile_script_textarea').val());
 		}
-		if (!source.length) {
+		if (!source || !source.length) {
 		    source = $.trim($('#profile_rspec_textarea').val());
 		}
 		$('#rspec_modal_editbuttons').addClass("hidden");
@@ -123,11 +121,32 @@ function (_, sup, moment,
 	    });
         });
 	// Close the source/xml modal.
-	$('#close_rspec_modal_button')
-	    .click(function (event) {
+	$('#close_rspec_modal_button').click(function (event) {
 	    $('#rspec_modal').modal('hide');
 	    $('.CodeMirror').remove();
 	    $('#modal_profile_rspec_textarea').val("");
+	});
+
+	/*
+	 * The instantiate button. If a plain profile, throw up the
+	 * confirm modal. If a parameterized profile, hand off to the
+	 * ppstart js code.
+	 */
+	$('#profile_instantiate_button').click(function (event) {
+	    if (isppprofile) {
+		ppstart({uuid       : version_uuid,
+			 registered : true,
+			 amlist     : amlist,
+			 amdefault  : window.AMDEFAULT});
+		return;
+	    }
+	    sup.ShowModal('#instantiate_modal');
+	});
+	// Handler for normal instantiate submit button, which is in
+	// the modal.
+	$('#instantiate_submit_button').click(function (event) {
+	    event.preventDefault();
+	    Instantiate();
 	});
 	
 	/*
@@ -139,6 +158,33 @@ function (_, sup, moment,
 	if (gotscript) {
 	    $('#show_xml_modal_button').removeClass("hidden");
 	}
+    }
+
+    //
+    // Instantiate a profile.
+    //
+    function Instantiate()
+    {
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    
+	    if (json.code) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    window.location.replace(json.value);
+	}
+	sup.HideModal("#instantiate_modal");
+
+	var blob = {"uuid" : version_uuid};
+	if (amlist.length) {
+	    blob.where = $('#instantiate_where').val();
+	}
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "instantiate",
+					    "Instantiate", blob);
+	xmlthing.done(callback);
     }
 
     /*
@@ -154,6 +200,9 @@ function (_, sup, moment,
 	if (xmlDoc == null)
 	    return;
 	var xml    = $(xmlDoc);
+
+	$('#profile_description').html("&nbsp");
+	$('#profile_instructions').html("&nbsp");
 	
 	$(xml).find("rspec_tour > description").each(function() {
 	    var text = $(this).text();

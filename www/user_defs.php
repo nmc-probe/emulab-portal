@@ -1438,15 +1438,25 @@ class User
     	$uid_idx = $this->uid_idx();
 
 	$query_result =
-	    DBQueryWarn("select pubkey from user_pubkeys ".
-			"where uid_idx='$uid_idx' and internal=0");
-	if (!$query_result)
-	    return -1;
+	    DBQueryFatal("select pubkey from user_pubkeys ".
+			 "where uid_idx='$uid_idx' and internal=0");
 
 	while ($row = mysql_fetch_array($query_result)) {
 	    $result[] = $row["pubkey"];
 	}
 	return $result;
+    }
+    function GetAPTSSHKey() {
+    	$uid_idx = $this->uid_idx();
+
+	$query_result =
+	    DBQueryFatal("select pubkey from user_pubkeys ".
+			 "where uid_idx='$uid_idx' and isaptkey=1");
+	if (!mysql_num_rows($query_result))
+	    return null;
+	
+	$row = mysql_fetch_array($query_result);
+	return $row["pubkey"];
     }
 }
 ?>

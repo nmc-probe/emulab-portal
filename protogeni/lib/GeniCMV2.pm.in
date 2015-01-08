@@ -2421,7 +2421,7 @@ sub CreateImage($)
 	   defined($slice_urn) && defined($sliver_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    if (! ($imagename =~ /^[-\w]*$/)) {
+    if (! ($imagename =~ /^[-\w\.\+]*$/)) {
 	return GeniResponse->MalformedArgsResponse("Improper name argument");
     }
     $wholedisk = 1
