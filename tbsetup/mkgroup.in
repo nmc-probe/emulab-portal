@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -58,11 +58,13 @@ my $OPSDBSUPPORT= @OPSDBSUPPORT@;
 my $TBBASE      = "@TBBASE@";
 my $TBWWW       = "@TBWWW@";
 my $WITHZFS     = @WITHZFS@;
+my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
 my $SSH         = "$TB/bin/sshtb";
 my $ADDMMLIST   = "$TB/sbin/addmmlist";
 my $OPSDBCONTROL= "$TB/sbin/opsdb_control";
 my $GROUPADD    = "/usr/sbin/pw groupadd";
 my $ACCOUNTPROXY= "$TB/sbin/accountsetup";
+my $EXPORTSSETUP= "$TB/sbin/exports_setup";
 my @DIRLIST     = ("exp", "images", "logs", "tarfiles", "rpms", "tiplogs");
 my $SAVEUID     = $UID;
 
@@ -210,7 +212,17 @@ if (system("$SSH -host $control_node ".
 	   "   $ACCOUNTPROXY $proxy_command $gid $unix_name $unix_gid")) {
     fatal("Could not add $unix_name ($unix_gid) to $control_node!\n");
 }
-if ($WITHZFS && $pid ne $gid) {
+if ($WITHZFS) {
+    if ($ZFS_NOEXPORT) {
+	#
+	# Have to force the new directories to be exported.
+	# See ZFS code in exports_setup
+	#
+	$project->BumpActivity();
+	system($EXPORTSSETUP) == 0 or
+	    fatal("$EXPORTSSETUP failed");
+    }
+    
     #
     # There is some lag before the automounter can mount the new
     # volume. Lets delay until we can access the project directory.

@@ -256,6 +256,20 @@ if ($WITHZFS && $ZFS_NOEXPORT) {
 	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
 	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
     }
+    #
+    # Similar to above, but look for active projects instead of users.
+    # We often have to access project directories when there is
+    # no active experiment or user. 
+    #
+    $active_result =
+	DBQueryFatal("select pid from project_stats ".
+		     "where ((UNIX_TIMESTAMP(now()) - ".
+		     "       UNIX_TIMESTAMP(last_activity)) <= $limit) and ".
+		     "      approved=1");
+    while (my ($pid) = $active_result->fetchrow_array()) {
+	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
+	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
+    }
 }
 
 my %ipgroups    = ();
