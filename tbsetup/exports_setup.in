@@ -169,6 +169,11 @@ if (defined($options{"w"})) {
 usage()
     if (@ARGV);
 
+if ($ZFS_NOEXPORT && !$waittildone) {
+    print "WARNING: forcing wait mode\n";
+    $waittildone = 1;
+}
+
 #
 # We need to serialize this script to avoid a trashed map file.
 #
@@ -492,6 +497,7 @@ sub sortbyip {
 #
 # Now spit out each group!
 #
+my $lastmount;
 foreach my $str ( keys(%ipgroups) ) {
     my @iplist = sort sortbyip @{ $ipgroups{$str} };
 
@@ -505,6 +511,7 @@ foreach my $str ( keys(%ipgroups) ) {
 	print "$str -maproot=$NFSMAPTOUSER @iplist\n"
 	    if ($debug);
     }
+    $lastmount = $str;
 }
 if ($ZFS_NOEXPORT) {
     # Build up filesystem sub-lists.
@@ -534,6 +541,7 @@ if ($ZFS_NOEXPORT) {
 	    print "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n"
 	    if ($debug);
 	}
+	$lastmount = $str;
     }
 }
 
@@ -599,9 +607,20 @@ if (!$TESTMODE) {
       #   with older mountd's ls will fail,
       #   with newer mountd's ls will hang til mountd is done.
       #
+      # However, mountd add exports to the kernel as it parses
+      # the file. So, we really have to look at the last line in
+      # exports and wait for that FS!
+      #
       if ($waittildone) {
-	  print "WARNING: waiting for mountd to finish...\n";
-	  my $testdir = "/proj/" . TBOPSPID();
+	  # parse a FS out of the last line or /proj/emulab-ops if none
+	  my $testdir;
+	  if ($lastmount && $lastmount =~ /^(\S+)/) {
+	      $testdir = $1;
+	  } else {
+	      $testdir = "/proj/" . TBOPSPID();
+	  }
+
+	  print "WARNING: waiting for mountd to finish ($testdir)...\n";
 	  my $tries = 10;
 	  while ($tries-- > 0) {
 	      if (system("/bin/ls $testdir >/dev/null 2>&1")) {
