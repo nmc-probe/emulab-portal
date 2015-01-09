@@ -112,6 +112,7 @@ my $SLICE_BUSY_WAIT      = 10;
 my $SLICE_GONE_WAIT      = 5;
 my $IFCONFIG             = "/sbin/ifconfig";
 my $ALIASMASK            = "255.255.255.255";
+my $ISTGT_PID_FILE       = "/var/run/istgt.pid";
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -133,6 +134,7 @@ sub getSliceList();
 sub parseSliceName($);
 sub parseSlicePath($);
 sub calcSliceSizes($);
+sub reconfigIstgt();
 sub getIfConfig($);
 sub getVlan($);
 sub getNextAuthITag();
@@ -627,6 +629,37 @@ sub calcSliceSizes($) {
     return;
 }
 
+# Helper function - HUP the ISTGT process to reconfigure iSCSI stuff.
+sub reconfigIstgt() {
+    if (! -e $ISTGT_PID_FILE) {
+	warn("*** WARNING: blockstore_reconfigIstgt: ".
+	     "ISTGT PID file missing! Is it not running?");
+	return -1;
+    }
+    if (!open(ISTPID, "<$ISTGT_PID_FILE")) {
+	warn("*** WARNING: blockstore_reconfigIstgt: ".
+	     "Could not open ISTGT PID file for reading!");
+	return -1;
+    }
+    my $pid = <ISTPID>;
+    close(ISTPID);
+    chomp $pid;
+    if (!$pid || $pid !~ /^(\d+)$/) {
+	warn("*** WARNING: blockstore_reconfigIstgt: ".
+	     "ISTGT PID does not look like a number!");
+	return -1;
+    }
+    $pid = $1; # untaint
+
+    if (kill("HUP", $pid) != 1) {
+	warn("*** WARNING: blockstore_reconfigIstgt: ".
+	     "Could not HUP ISTGT: $!");
+	return -1;
+    }
+
+    return 0;
+}
+
 # Allocate a slice based on information from Emulab Central
 # XXX: Do 'sliceconfig' parameter checking.
 sub allocSlice($$$$) {
@@ -845,6 +878,14 @@ sub exportSlice($$$$) {
 		     "Failed to modify iSCSI auth group (re-export): $@");
 		return -1;
 	    }
+	}
+
+	# Signal ISTGT to re-read its configuration.  We have to do this
+	# because the IST_AUTHI command above doesn't do it for us...
+	if (reconfigIstgt() != 0) {
+		warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		     "reconfigIstgt failed!");
+		return -1;
 	}
     }
 
@@ -1254,6 +1295,13 @@ sub unexportSlice($$$$) {
 	    warn("*** ERROR: blockstore_unexportSlice: $volname: ".
 		 "Failed to modify iSCSI auth group (re-export): $@");
 	    return -1;
+	}
+
+	# Signal ISTGT to re-read its configuration.  We have to do this
+	# because the IST_AUTHI command above doesn't do it for us...
+	if (reconfigIstgt() != 0) {
+		warn("*** WARNING: blockstore_unexportSlice: $volname: ".
+		     "reconfigIstgt failed - some incorrect permissions may still exist.");
 	}
     }
 
