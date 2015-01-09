@@ -1,4 +1,4 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
 # Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
@@ -249,18 +249,19 @@ if ($WITHZFS && $ZFS_NOEXPORT) {
     #
     # Find all web active users within last seven days, plus all admins.
     #
-    my $limit = (60 * 60 * 24) * 7;
+    my $limit = 3600 * 24 * 7;
 
     my $active_result =
 	DBQueryFatal("select distinct u.uid,m.pid from user_stats as s ".
 		     "left join users as u on u.uid_idx=s.uid_idx ".
 		     "left join group_membership as m on ".
 		     "     m.uid_idx=u.uid_idx and m.pid=m.gid ".
-		     "where ((UNIX_TIMESTAMP(now()) - ".
-		     "       UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
-		     "      ((UNIX_TIMESTAMP(now()) - ".
-		     "       UNIX_TIMESTAMP(s.weblogin_last)) <= $limit) or ".
-		     "      admin=1");
+		     "where u.status='" . USERSTATUS_ACTIVE() . "' and ".
+		     "      (((UNIX_TIMESTAMP(now()) - ".
+		     "        UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
+		     "       ((UNIX_TIMESTAMP(now()) - ".
+		     "        UNIX_TIMESTAMP(s.weblogin_last)) <= $limit) or ".
+		     "       admin=1)");
     while (my ($uid,$pid) = $active_result->fetchrow_array()) {
 	$bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
 	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
@@ -272,9 +273,11 @@ if ($WITHZFS && $ZFS_NOEXPORT) {
     # no active experiment or user. 
     #
     $active_result =
-	DBQueryFatal("select pid from project_stats ".
+	DBQueryFatal("select p.pid from projects as p ".
+		     "left join project_stats as s on s.pid=p.pid ".
 		     "where ((UNIX_TIMESTAMP(now()) - ".
-		     "       UNIX_TIMESTAMP(last_activity)) <= $limit)");
+		     "       UNIX_TIMESTAMP(s.last_activity)) <= $limit) and ".
+		     "      p.approved=1");
     while (my ($pid) = $active_result->fetchrow_array()) {
 	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
 	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
