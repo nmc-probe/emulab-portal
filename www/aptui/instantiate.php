@@ -123,10 +123,10 @@ if (isset($profile)) {
 		SPITUSERERROR("No published version for profile");
 		exit();
 	    }
-	    $profile = $obj->uuid();
 	}
-	$profile_array[$profile] = $obj->name();
-	$profilename = $obj->name();
+        $profile = $obj;
+	$profile_array[$profile->uuid()] = $profile->name();
+	$profilename = $profile->name();
     }
     else {
 	#
@@ -150,9 +150,9 @@ if (isset($profile)) {
 	    SPITUSERERROR("No permission to use profile: $profile");
 	    exit();
 	}
-	$profile = $obj->uuid();
-	$profile_array[$profile] = $obj->name();
-	$profilename = $obj->name();
+	$profile = $obj;
+	$profile_array[$profile->uuid()] = $profile->name();
+	$profilename = $profile->name();
     }
 }
 else {
@@ -400,7 +400,8 @@ function SPITFORM($formfields, $newuser, $errors)
 
 	# Send the original argument for the initial array stuff above.
         # Needs more work.
-	echo "<input type='hidden' name='profile' value='$profile'>\n";
+        $thisuuid = $profile->uuid();
+	echo "<input type='hidden' name='profile' value='$thisuuid'>\n";
     }
     if (isset($this_user)) {
 	$spitsshkeystuff();	
@@ -495,7 +496,8 @@ if (!isset($create)) {
     $defaults["username"] = "";
     $defaults["email"]    = "";
     $defaults["sshkey"]   = "";
-    $defaults["profile"]  = (isset($profile) ? $profile : $profile_default);
+    $defaults["profile"]  = (isset($profile) ?
+                             $profile->uuid() : $profile_default);
     $defaults["where"]    = $DEFAULT_AGGREGATE;
 
     # 
