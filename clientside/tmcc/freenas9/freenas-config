@@ -217,6 +217,11 @@ class CommandSet(object):
                 tk = cdict['translateKeys']
             else:
                 tk = {}
+            if cdict.has_key('translateValues'):
+                tv = cdict['translateValues']
+            else:
+                tv = {}
+
             pretty = False
             if command == 'plist':
                 pretty = True
@@ -259,6 +264,9 @@ class CommandSet(object):
                 nv = {}
                 for (k,v2) in v.iteritems():
                     nvi = "%s" % (str(v2),)
+                    if tv.has_key(k):
+                        nvi = tv[k](k,v2)
+                        pass
                     nl = len(nvi)
                     if not fieldwidths.has_key(k):
                         fieldwidths[k] = nl
@@ -1102,8 +1110,14 @@ class IscsiTargetAuthorizedInitiator(CommandSet):
                    'kwDefaults' : {},
                    'instanceFilterArgs' : [ 'tag' ],
                    'type' : 'del' })
-        self.commands['list'] = self.commands['plist'] = {}
+        self.commands['list'] = \
+            dict({ 'translateValues' : { 'iscsi_target_initiator_auth_network' : self.nlToSpace } })
+        self.commands['plist'] = self.commands['list']
         pass
+
+    def nlToSpace(self,k,v):
+        return v.replace("\n"," ")
+
     pass
 
 class IscsiTargetToExtent(CommandSet):
