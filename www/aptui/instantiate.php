@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 include_once("osinfo_defs.php");
 include_once("geni_defs.php");
+include_once("webtask.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("instance_defs.php");
