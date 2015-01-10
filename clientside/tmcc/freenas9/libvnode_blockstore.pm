@@ -112,7 +112,10 @@ my $SLICE_BUSY_WAIT      = 10;
 my $SLICE_GONE_WAIT      = 5;
 my $IFCONFIG             = "/sbin/ifconfig";
 my $ALIASMASK            = "255.255.255.255";
+my $ISTGT                = "/usr/local/bin/istgt";
+my $ISTGT_CONFIG_FILE    = "/usr/local/etc/istgt/istgt.conf";
 my $ISTGT_PID_FILE       = "/var/run/istgt.pid";
+my $ISTGT_MAXWAIT        = 30; # 30 seconds
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -134,7 +137,7 @@ sub getSliceList();
 sub parseSliceName($);
 sub parseSlicePath($);
 sub calcSliceSizes($);
-sub reconfigIstgt();
+sub restartIstgt();
 sub getIfConfig($);
 sub getVlan($);
 sub getNextAuthITag();
@@ -629,15 +632,15 @@ sub calcSliceSizes($) {
     return;
 }
 
-# Helper function - HUP the ISTGT process to reconfigure iSCSI stuff.
-sub reconfigIstgt() {
+# Helper function - restart the ISTGT process to reconfigure iSCSI stuff.
+sub restartIstgt() {
     if (! -e $ISTGT_PID_FILE) {
-	warn("*** WARNING: blockstore_reconfigIstgt: ".
+	warn("*** WARNING: blockstore_restartIstgt: ".
 	     "ISTGT PID file missing! Is it not running?");
 	return -1;
     }
     if (!open(ISTPID, "<$ISTGT_PID_FILE")) {
-	warn("*** WARNING: blockstore_reconfigIstgt: ".
+	warn("*** WARNING: blockstore_restartIstgt: ".
 	     "Could not open ISTGT PID file for reading!");
 	return -1;
     }
@@ -645,15 +648,39 @@ sub reconfigIstgt() {
     close(ISTPID);
     chomp $pid;
     if (!$pid || $pid !~ /^(\d+)$/) {
-	warn("*** WARNING: blockstore_reconfigIstgt: ".
+	warn("*** WARNING: blockstore_restartIstgt: ".
 	     "ISTGT PID does not look like a number!");
 	return -1;
     }
     $pid = $1; # untaint
 
-    if (kill("HUP", $pid) != 1) {
-	warn("*** WARNING: blockstore_reconfigIstgt: ".
-	     "Could not HUP ISTGT: $!");
+    # Kill the istgt process.
+    if (kill("TERM", $pid) != 1) {
+	warn("*** WARNING: blockstore_restartIstgt: ".
+	     "Could not send KILL signal to ISTGT: $!");
+	return -1;
+    }
+
+    # Wait for the istgt process to die.
+    my $dead = 0;
+    for (my $i = 0; $i < $ISTGT_MAXWAIT; $i++) {
+	sleep(1);
+	if (!kill(0, $pid)) {
+	    $dead = 1;
+	    last;
+	}
+    }
+
+    if (!$dead) {
+	warn("*** WARNING: blockstore_restartIstgt: ".
+	     "ISTGT still alive after $ISTGT_MAXWAIT seconds!");
+	return -1;
+    }
+
+    # Restart istgt.
+    if (system("$ISTGT -c $ISTGT_CONFIG_PATH") != 0) {
+	warn("*** WARNING: blockstore_restartIstgt: ".
+	     "Could not start ISTGT!");
 	return -1;
     }
 
@@ -880,11 +907,11 @@ sub exportSlice($$$$) {
 	    }
 	}
 
-	# Signal ISTGT to re-read its configuration.  We have to do this
-	# because the IST_AUTHI command above doesn't do it for us...
-	if (reconfigIstgt() != 0) {
+	# Restart ISTGT to pull in change.  We have to do this because
+	# the IST_AUTHI command above doesn't do it for us...
+	if (restartIstgt() != 0) {
 		warn("*** ERROR: blockstore_exportSlice: $volname: ".
-		     "reconfigIstgt failed!");
+		     "restartIstgt failed!  ISTGT may not be running!");
 		return -1;
 	}
     }
@@ -1297,11 +1324,12 @@ sub unexportSlice($$$$) {
 	    return -1;
 	}
 
-	# Signal ISTGT to re-read its configuration.  We have to do this
-	# because the IST_AUTHI command above doesn't do it for us...
-	if (reconfigIstgt() != 0) {
-		warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-		     "reconfigIstgt failed - some incorrect permissions may still exist.");
+	# Restart ISTGT to pull in change.  We have to do this because
+	# the IST_AUTHI command above doesn't do it for us...
+	if (restartIstgt() != 0) {
+		warn("*** ERROR: blockstore_unexportSlice: $volname: ".
+		     "restartIstgt failed!  ISTGT may not be running!");
+		return -1;
 	}
     }
 
