@@ -358,9 +358,6 @@ SWITCH: for ($cmd) {
     };
 }
 
-# Always do this!
-CheckDotFiles();
-
 #
 # Invoke as real user for auditing (and cause of perl).
 #
@@ -578,6 +575,8 @@ sub AddUser()
     }
     $EUID = 0;
 
+    CheckDotFiles();
+
     # SFS key.
     if ($CONTROL ne $BOSSNODE) {
 	GenerateSFSKey();
@@ -785,7 +784,7 @@ sub UpdatePassword()
 	if ($TRACSUPPORT && $user ne $PROTOUSER && !$webonly);
 
     $EUID = 0;
-    
+    CheckDotFiles();
     return 0;
 }
 
@@ -930,7 +929,7 @@ sub UpdateUser(;$)
     # Update elists in case email changed.
     system("$GENELISTS -m -u $user");
     $EUID = 0;
-
+    CheckDotFiles();
     return 0;
 }
 

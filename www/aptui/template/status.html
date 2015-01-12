@@ -91,6 +91,22 @@
     </div>
   </div>
 </div>
+<!-- Add a hidden div for errors returned by the instantiation. -->
+<div class='row hidden' id='error_panel'>
+  <div class='col-lg-6  col-lg-offset-3
+       col-md-8  col-md-offset-2
+       col-sm-8  col-sm-offset-2
+       col-xs-12 col-xs-offset-0'>
+    <div class="panel panel-danger">
+      <div class="panel-heading">
+        <center><h4>Error Message</h4></center>
+      </div>
+      <div class="panel-body">
+	<code style="white-space: pre-wrap" id="error_panel_text"></code>
+      </div>
+    </div>
+  </div>
+</div>
 <!-- Add a div for the instructions if there are instructions. The cliet
      will actually fill in the div though, since it is markdown and that
      is more easily done on the client side for now. -->

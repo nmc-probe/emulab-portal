@@ -308,7 +308,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		bgtype = "panel-danger";
 
 		if (_.has(json.value, "reason")) {
-		    status_message = json.value.reason;
+		    status_message = "Something went wrong!";
+		    $('#error_panel_text').text(json.value.reason);
+		    $('#error_panel').removeClass("hidden");
 		}
 		else {
 		    status_message = "Something went wrong, sorry! " +
