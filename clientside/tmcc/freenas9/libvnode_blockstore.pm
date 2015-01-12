@@ -678,7 +678,7 @@ sub restartIstgt() {
     }
 
     # Restart istgt.
-    if (system("$ISTGT -c $ISTGT_CONFIG_PATH") != 0) {
+    if (system("$ISTGT -c $ISTGT_CONFIG_FILE") != 0) {
 	warn("*** WARNING: blockstore_restartIstgt: ".
 	     "Could not start ISTGT!");
 	return -1;
