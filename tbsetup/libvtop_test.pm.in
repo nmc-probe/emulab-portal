@@ -1649,32 +1649,41 @@ sub LoadVirtNodes($)
 		warn("Lease $attrval for blockstore $vname does not exist!\n");
 		return -1;
 	    }
+
+	    # If sitevar disables simultaneous use, catch it now.
+	    if ((!SiteVarExists("storage/simultaneous_ro_datasets") ||
+		int(GetSiteVar("storage/simultaneous_ro_datasets")) != 1) &&
+		$lease->InUse()) {
+		tberror("Dataset $lease is currently in use, so cannot be accessed at this time.\n");
+		return -1;
+	    }
+
 	    # Do sanity/permission checks based on requested mode (RW/RO)
 	    if (exists($roleases{$vname}) && $roleases{$vname} == 1) {
 		# Does user have RO rights to this lease?
 		if (!$lease->AccessCheck($self->user(), LEASE_ACCESS_READ())) {
-		    tberror($self->user() . " does not have permission to use dataset $vname\n");
+		    tberror($self->user() . " does not have permission to use dataset $lease\n");
 		    return -1
 		}
 		# Leases already in use RW cannot be accessed.
 		if ($lease->InUseReadWrite()) {
-		    tberror("Dataset $vname is currently in use read-write, so cannot be accessed at this time.\n");
+		    tberror("Dataset $lease is currently in use read-write, so cannot be accessed at this time.\n");
 		    return -1;
 		}
 	    } else {
 		# Does user have RW rights?
 		if (!$lease->AccessCheck($self->user(), LEASE_ACCESS_MODIFY())) {
-		    tberror($self->user() . " is not allowed to use dataset $vname in read-write mode\n");
+		    tberror($self->user() . " is not allowed to use dataset $lease in read-write mode\n");
 		    return -1;
 		}
 		# RW mode is exclusive (single-experiment).
 		if ($lease->InUse()) {
-		    tberror("Dataset $vname is currently in use and cannot be requested read-write at this time.\n");
+		    tberror("Dataset $lease is currently in use and cannot be requested read-write at this time.\n");
 		    return -1;
 		}
 		# Deny RW access if lease is in grace period.
 		if ($lease->state() eq LEASE_STATE_GRACE()) {
-		    tberror("Persistent blockstore $vname in grace period, must specify '\$$vname set-readonly 1' in NS file.\n");
+		    tberror("Dataset $lease in grace period, must specify '\$$vname set-readonly 1' in NS file.\n");
 		    return -1;
 		}
 	    }
