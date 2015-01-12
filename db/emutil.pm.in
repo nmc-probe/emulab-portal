@@ -44,8 +44,6 @@ use Time::Local;
 
 # Configure variables.
 my $TB          = "@prefix@";
-my $WITHAMD     = @WITHAMD@;
-my $AMDROOT     = "@AMD_ROOT@";
 
 #
 # Support for checking field values against what is specified.
@@ -776,7 +774,10 @@ sub isMounted($)
 {
     my ($dir) = @_;
     my $rval  = 0;
-    my $MOUNT = "/sbin/mount";
+    my $MOUNT   = "/sbin/mount";
+    my $WITHAMD = @WITHAMD@;
+    my $AMDROOT = "@AMD_ROOT@";
+    
     if ($WITHAMD) {
 	$dir = "${AMDROOT}${dir}";
     }
