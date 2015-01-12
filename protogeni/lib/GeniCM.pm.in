@@ -6922,8 +6922,9 @@ sub HandleBlockstore($$$$$$@)
 	    #
 	    if ($lease->InUse()) {
 		# This will always be one for now.
-		my ($exptidx) = @{ $lease->UsingResources() };
-		if (defined($exptidx) && $exptidx != $experiment->idx()) {
+		my ($reservation) = @{ $lease->GetReservations() };
+		if (defined($reservation) && 
+		    $reservation->exptidx() != $experiment->idx()) {
 		    $message = "Dataset $leasename is already in use";
 		    goto bad;
 		}
