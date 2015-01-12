@@ -1651,8 +1651,8 @@ sub LoadVirtNodes($)
 	    }
 
 	    # If sitevar disables simultaneous use, catch it now.
-	    if ((!SiteVarExists("storage/simultaneous_ro_datasets") ||
-		int(GetSiteVar("storage/simultaneous_ro_datasets")) != 1) &&
+	    if ((!TBSiteVarExists("storage/simultaneous_ro_datasets") ||
+		int(TBGetSiteVar("storage/simultaneous_ro_datasets")) != 1) &&
 		$lease->InUse()) {
 		tberror("Dataset $lease is currently in use, so cannot be accessed at this time.\n");
 		return -1;
