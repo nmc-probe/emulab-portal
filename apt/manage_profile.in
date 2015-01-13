@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -88,6 +88,7 @@ use APT_Instance;
 use GeniXML;
 use GeniHRN;
 use WebTask;
+use EmulabFeatures;
 
 # Protos
 sub fatal($);
@@ -335,6 +336,13 @@ if ($update) {
     delete($update_args{"description"});
 
     #
+    # Check for version feature.
+    #
+    my $doversions =
+	EmulabFeatures->FeatureEnabled("APT_ProfileVersions",
+				       $this_user, $project);
+
+    #
     # If the rspec/script changed, then make a new version of the profile.
     # Everything else is metadata.
     #
@@ -343,7 +351,7 @@ if ($update) {
 	     $update_args{"rspec"} ne $profile->rspec()) ||
 	    (exists($update_args{"script"}) &&
 	     $update_args{"script"} ne $profile->script())) {
-	    if ($this_user->IsAdmin()) {
+	    if ($doversions) {
 		$profile = $profile->NewVersion($this_user);
 		if (!defined($profile)) {
 		    fatal("Could not create new version of the profile");
