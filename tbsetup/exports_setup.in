@@ -177,15 +177,15 @@ usage()
 if ($ZFS_NOEXPORT && !$waittildone) {
     print "WARNING: forcing wait mode\n";
     $waittildone = 1;
-    #print "WARNING: forcing incremental updates\n";
-    #$incremental = 1;
+    print "WARNING: forcing incremental updates\n";
+    $incremental = 1;
 }
 
 #
 # We need to serialize this script to avoid a trashed map file.
 #
 if (!$TESTMODE) {
-    if ((my $locked = TBScriptLock("exports", 1)) != TBSCRIPTLOCK_OKAY()) {
+    if ((my $locked = TBScriptLock("exports", 0)) != TBSCRIPTLOCK_OKAY()) {
 	exit(0)
 	    if ($locked == TBSCRIPTLOCK_IGNORE);
 	fatal("Could not get the lock after a long time!\n");
