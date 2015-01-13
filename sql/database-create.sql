@@ -99,6 +99,8 @@ CREATE TABLE `apt_instance_history` (
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `creator_uuid` varchar(40) NOT NULL default '',
+  `pid` varchar(48) default NULL,
+  `pid_idx` mediumint(8) unsigned default NULL,
   `aggregate_urn` varchar(128) default NULL,
   `public_url` tinytext,
   `created` datetime default NULL,
@@ -123,6 +125,8 @@ CREATE TABLE `apt_instances` (
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `creator_uuid` varchar(40) NOT NULL default '',
+  `pid` varchar(48) default NULL,
+  `pid_idx` mediumint(8) unsigned default NULL,
   `aggregate_urn` varchar(128) default NULL,
   `public_url` tinytext,
   `created` datetime default NULL,
@@ -1186,6 +1190,8 @@ CREATE TABLE `experiment_stats` (
   KEY `rsrcidx` (`rsrcidx`),
   KEY `pideid` (`pid`,`eid`),
   KEY `eid_uuid` (`eid_uuid`)
+  KEY `pid_idx` (`pid_idx`),
+  KEY `creator_idx` (`creator_idx`),
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
