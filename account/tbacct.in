@@ -855,6 +855,7 @@ sub UpdateUser(;$)
     my ($freezeopt) = @_;
     my $locshellarg = "";
     my $remshellarg = "";
+    $freezeopt = 0 if (!defined($freezeopt));
 
     #
     # Sanity check.
@@ -862,7 +863,7 @@ sub UpdateUser(;$)
     if ($webonly || $isnonlocal) {
 	return 0;
     }
-    if (!defined($freezeopt) && ($status ne USERSTATUS_ACTIVE)) {
+    if (!$freezeopt && ($status ne USERSTATUS_ACTIVE)) {
 	#
 	# If doing a modification to a frozen user, then just ignore
 	# it; the modification will happen later when the user is thawed.
@@ -875,7 +876,7 @@ sub UpdateUser(;$)
     }
 
     # Shell is different on local vs control node.
-    if (defined($freezeopt) && $freezeopt) {
+    if ($freezeopt) {
 	$locshellarg = "-s $NOLOGIN";
 	$remshellarg = "-s $NOLOGIN";
     }
@@ -929,7 +930,9 @@ sub UpdateUser(;$)
     # Update elists in case email changed.
     system("$GENELISTS -m -u $user");
     $EUID = 0;
-    CheckDotFiles();
+    CheckDotFiles()
+	if (! $freezeopt);
+	
     return 0;
 }
 
