@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -279,79 +279,6 @@ function Do_GuestInstantiate()
 			    "quickvm_id"      => $guestid,
 			    "quickvm_uuid"    => $instance->uuid(),
 			    'quickvm_authkey' => $creator->auth_token()));
-}
-
-#
-# Instantiate profile.
-#
-function Do_Instantiate()
-{
-    global $this_user, $am_array, $DEFAULT_AGGREGATE, $ISCLOUD;
-    global $ajax_args;
-    
-    if (!isset($ajax_args["uuid"])) {
-	SPITAJAX_ERROR(1, "Missing profile uuid");
-	return;
-    }
-    $profile = Profile::Lookup($ajax_args["uuid"]);
-    if (!$profile) {
-	SPITAJAX_ERROR(1, "Unknown profile uuid");
-	return;
-    }
-    if (!isset($this_user)) {
-	if (!$profile->ispublic()) {
-	    SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
-	    return;
-	}	    
-    }
-    elseif (!$profile->CanInstantiate($this_user)) {
-	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
-	return;
-    }
-    $args = array();
-    $args["username"]   = $this_user->uid();
-    $args["email"]      = $this_user->email();
-    $args["profile"]    = $profile->uuid();
-    # Guest users not allowed to provide rspec
-    if (isset($this_user) && array_key_exists("rspec", $ajax_args)) {
-	$args["rspec"]      = $ajax_args["rspec"];
-    }
-    $opts = "";
-    # Guest users not allowed to choose aggregate.
-    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY()) &&
-	isset($ajax_args["where"])) {
-	if (array_key_exists($ajax_args["where"], $am_array)) {
-	    $opts = "-a " . $am_array[$ajax_args["where"]];
-	}
-	else {
-	    SPITAJAX_ERROR(1, "Invalid Aggregate");
-	    return;
-	}
-    }
-    else {
-	# Temporary until constraint system in place.
-	$best = $profile->BestAggregate();
-	if (!$best) {
-	    $best = $DEFAULT_AGGREGATE;
-	}
-	$opts = "-a " . $am_array[$best];
-    }
-
-    #
-    # Invoke the backend.
-    #
-    $errors = array();
-    list ($instance, $creator) =
-	Instance::Instantiate($this_user, $opts, $args, $errors);
-
-    if (!isset($instance) || is_null($instance)) {
-	SPITAJAX_ERROR(1, $errors["error"]);
-    }
-    #
-    # Redirect user to status page.
-    #
-    $uuid = $instance->uuid();
-    SPITAJAX_RESPONSE("status.php?uuid=$uuid");
 }
 
 #
