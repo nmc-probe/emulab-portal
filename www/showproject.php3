@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -66,7 +66,7 @@ WRITESUBMENUBUTTON("Create Subgroup",
 WRITESUBMENUBUTTON("Edit User Privs",
 		   "editgroup.php3?pid=$pid&gid=$pid");
 WRITESUBMENUBUTTON("Remove Users",
-		   "editgroup.php3?pid=$pid&gid=$pid");
+		   "showgroup.php3?pid=$pid&gid=$pid");
 WRITESUBMENUBUTTON("Show Project History",
 		   "showstats.php3?showby=project&pid=$pid");
 WRITESUBMENUBUTTON("Free Node Summary",
