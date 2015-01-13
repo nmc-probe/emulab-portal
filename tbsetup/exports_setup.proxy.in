@@ -149,9 +149,21 @@ system("cat $exportstail >> $exportsnew") == 0 or
 #
 # Do nothing if no change.
 #
-system("/usr/bin/diff -q $exports $exportsnew >/dev/null");
+# Note that for now, we are actually saving the diffs so we can
+# compare to the new differential behavior of mountd in case of
+# an inconsisency. But only for mountd, not smbd.
+#
+my $outfile;
+if (defined($opts{'S'})) {
+    system("/usr/bin/diff -q $exports $exportsnew >/dev/null");
+} else {
+    $outfile = "/tmp/exports_diff." . time();
+    system("/usr/bin/diff $exports $exportsnew >$outfile 2>&1");
+}
 if (! $?) {
 #    print "No changes to $exports; skipping ...\n";
+    unlink($outfile)
+	if ($outfile);
     exit(0);
 }
 
