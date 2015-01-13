@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,7 +36,7 @@ use Getopt::Std;
 #
 
 my %opts = ();
-getopts('S', \%opts);
+getopts('Si', \%opts);
 
 #
 # Configure variables
@@ -52,6 +52,7 @@ my $exportshead;
 my $exportstail;
 my $pidfile;
 my $daemon;
+my $incremental;
 
 # Are we modifying the Samba config file or the NFS exports?
 if (defined($opts{'S'})) {
@@ -80,6 +81,10 @@ else {
     $pidfile     = "/var/run/mountd.pid";
     $daemon      = "mountd";
     $exportfs    = ($LINUX_FSNODE ? "/usr/sbin/exportfs -ra" : undef);
+}
+
+if (defined($opts{'i'})) {
+    $incremental = 1;
 }
 
 my $dbg		= 0;
@@ -163,17 +168,20 @@ system("mv $exportsnew $exports") == 0 or
 chmod(0444, $exports);
 
 if (!$LINUX_FSNODE) {
-    #
-    # I have little faith in HUPing mountd, but do it anyway.
-    #
     my $daemonpid = `cat $pidfile`;
     $daemonpid =~ s/\n//;
     # untaint
     if ($daemonpid =~ /^([-\@\w.]+)$/) {
 	$daemonpid = $1;
     }
-    if (kill('HUP', $daemonpid) == 0) {
-	fatal("Could not kill(HUP) process $daemonpid ($daemon): $!");
+    if ($incremental) {
+	if (kill('USR1', $daemonpid) == 0) {
+	    fatal("Could not kill(USR1) process $daemonpid ($daemon): $!");
+	}
+    } else {
+	if (kill('HUP', $daemonpid) == 0) {
+	    fatal("Could not kill(HUP) process $daemonpid ($daemon): $!");
+	}
     }
 }
 else {
@@ -193,7 +201,9 @@ else {
 # mounts to briefly become invalid, and this causes problems for our
 # scripts (and for users). Not a problem in Linux.
 #
-sleep(1);
+# XXX we do this on the boss-side now.
+#
+#sleep(1);
 
 exit(0);
 
