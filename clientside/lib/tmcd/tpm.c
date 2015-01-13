@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2009-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -159,12 +159,6 @@ tmcd_tpm_free(void)
 int
 tmcd_tpm_generate_nonce(unsigned char *nonce)
 {
-    struct timeval time;
-    pid_t pid;
-
-    int byte_count = 0;
-    memset(nonce, 0, TPM_NONCE_BYTES);
-    
     /*
      * Nonce must be 160 bits (20 bytes) long, and we must be quite sure that
      * we will never use the same one twice.  We put three things into the
@@ -174,33 +168,39 @@ tmcd_tpm_generate_nonce(unsigned char *nonce)
      *    different tmcds for nonces at the same time (2 bytes)
      * 3) A local counter, in case someone can ask for nonces faster than our
      *    clock resolution (4 bytes)
+     *
+     * We use this union since "struct timeval" has a different size between
+     * 32- and 64-bit FreeBSD (8 bytes vs. 16).
      */
+    union _nonce {
+	    struct {
+		    uint32_t timesec;
+		    uint32_t timeusec;
+		    uint16_t pid;
+		    uint32_t counter;
+	    } members;
+	    uint8_t bytes[TPM_NONCE_BYTES];
+    } *noncep;
+    struct timeval time;
 
+    if (sizeof(*noncep) > TPM_NONCE_BYTES)
+	    error("Oops!  Nonce too big!\n");
+
+    noncep = (union _nonce *)nonce;
+    memset(noncep, 0, TPM_NONCE_BYTES);
+    
     // timestamp
     if (gettimeofday(&time,NULL)) {
         return -1;
     }
-
-    if (sizeof(time) + byte_count > TPM_NONCE_BYTES) {
-        return -1;
-    }
-    memcpy(nonce, &time, sizeof(time));
-    byte_count += sizeof(time);
+    noncep->members.timesec = time.tv_sec;
+    noncep->members.timeusec = time.tv_usec;
 
     // pid
-    pid = getpid();
-    if (sizeof(pid) + byte_count > TPM_NONCE_BYTES) {
-        return -1;
-    }
-    memcpy(nonce + byte_count, &pid, sizeof(pid));
-    byte_count += sizeof(pid);
+    noncep->members.pid = getpid();
 
     // counter
-    if (sizeof(nonce_counter) + byte_count > TPM_NONCE_BYTES) {
-        return -1;
-    }
-    memcpy(nonce + byte_count, &nonce_counter, sizeof(nonce_counter));
-    byte_count += sizeof(nonce_counter);
+    noncep->members.counter = nonce_counter;
     nonce_counter++;
 
     // TODO: Maybe hash to avoid giving away info on state on boss?
