@@ -70,6 +70,7 @@ my $USERMOD	      = "/usr/sbin/pw usermod";
 my $GROUPADD          = "/usr/sbin/pw groupadd";
 my $GROUPDEL          = "/usr/sbin/pw groupdel";
 my $CHPASS	      = "/usr/bin/chpass";
+my $CHOWN	      = "/usr/sbin/chown";
 my $ZFS		      = "/sbin/zfs";
 my $SKEL	      = "/usr/share/skel";
 my $PIDFILE           = "/var/run/mountd.pid";
@@ -116,6 +117,7 @@ sub fatal($);
 sub ZFSexists($);
 sub MakeDir($$);
 sub WhackDir($$);
+sub mysystem($);
 
 #
 # Check args.
@@ -199,8 +201,8 @@ sub AddUser()
 	}
     }
 
-    if (system("egrep -q -s '^${user}:' /etc/passwd") &&
-	system("$USERADD $user -u $uid -c \"$name\" ".
+    if (mysystem("egrep -q -s '^${user}:' /etc/passwd") &&
+	mysystem("$USERADD $user -u $uid -c \"$name\" ".
 	       "-k $SKEL -h - -d $hdir -g $gid -s $shell")) {
 	if (($? >> 8) != $USEREXISTS) {
 	    fatal("$USERADD: could not add account");
@@ -216,7 +218,7 @@ sub AddUser()
 	    fatal("Unable to open skeleton directory");
 	while (my $file = readdir(DIR)) {
 	    if ($file =~ /^dot(.*)$/) {
-		system("/bin/cp -fp $SKEL/$file $hdir/$1") == 0
+		mysystem("/bin/cp -fp $SKEL/$file $hdir/$1") == 0
 		    or fatal("Could not copy $SKEL/$file to $hdir/$1");
 	    }
 	}
@@ -225,14 +227,14 @@ sub AddUser()
     #
     # And set the owner and group right on everything
     #
-    system("/usr/sbin/chown -R $user:$gid $hdir") == 0
+    mysystem("/usr/sbin/chown -R $user:$gid $hdir") == 0
 	or fatal("Could not chown $hdir");
 
     #
     # Finally, set any initial password hash
     #
     if (defined($hash) &&
-	system("$CHPASS -p '$hash' $user")) {
+	mysystem("$CHPASS -p '$hash' $user")) {
 	fatal("Could not initialize password");
     }
     return 0;
@@ -253,7 +255,7 @@ sub DeleteUser()
     # Note that this does NOT remove the user's homedir.
     # We remove/rename it below...
     #
-    if (system("$USERDEL $user")) {
+    if (mysystem("$USERDEL $user")) {
 	if (($? >> 8) != $NOSUCHUSER) {
 	    fatal("Could not remove user $user");
 	}
@@ -268,11 +270,45 @@ sub DeleteUser()
 }
 
 #
-# Usage: moduser ...
+# Usage: username group1 [ group2 ... groupN ]
+# XXX this is specific to what is required by setgroups.
 #
 sub ModifyUser()
 {
-    fatal("moduser: Not implemented yet");
+    if (@ARGV < 2) {
+	fatal("moduser: Wrong number of arguments");
+    }
+    my $user  = shift(@ARGV);
+    my $pgroup  = shift(@ARGV);
+    my $grouplist = "";
+    if (@ARGV > 0) {
+	$grouplist = "-G " . join(' ', @ARGV);
+    }
+
+    if (mysystem("$USERMOD $user -g $pgroup $grouplist")) {
+	fatal("Could not modify user $unix_name to add groups!\n");
+    }
+
+    #
+    # Make sure the users dot files and other critical files/dirs
+    # are in the correct group. I looked at the source code to
+    # chown, and it does not do anything to files that are already
+    # set correctly. Thank you chown.
+    #
+    my @dots = (".login", ".profile", ".cshrc", ".ssl", ".ssh");
+    my $homedir = USERROOT() . "/$user";
+
+    mysystem("$CHOWN $user:$pgroup $homedir") == 0
+	or fatal("Could not chown home dir to $user:$pgroup");
+
+    foreach my $dot (@dots) {
+	if (-e "$homedir/$dot") {
+	    mysystem("$CHOWN -R $user:$pgroup $homedir/$dot") == 0
+		or fatal("Could not chown $homedir/$dot to $user:$pgroup");
+	}
+    }
+
+    return 0;
 }
 
 #
@@ -289,10 +325,10 @@ sub AddProject()
     my $unix_uid  = shift(@ARGV);
 
     # Create the project unix group
-    if (system("egrep -q -s '^${unix_name}:' /etc/group")) {
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group")) {
 	print "Adding group $unix_name ...\n";
 
-	if (system("$GROUPADD $unix_name -g $unix_gid")) {
+	if (mysystem("$GROUPADD $unix_name -g $unix_gid")) {
 	    fatal("Could not add group $unix_name ($unix_gid)!\n");
 	}
     }
@@ -338,7 +374,7 @@ sub AddProject()
     # Create a symlink for the default group
     $path = "$GROUPROOT/$name/$name";
     if (! -e "$path") {    
-	if (system("ln -s $PROJROOT/$name $path")) {
+	if (mysystem("ln -s $PROJROOT/$name $path")) {
 	    fatal("Could not symlink $PROJROOT/$name to $path");
 	}
     }
@@ -375,10 +411,10 @@ sub AddGroup()
     my $projname  = shift(@ARGV);
 
     # Create the group unix group
-    if (system("egrep -q -s '^${unix_name}:' /etc/group")) {
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group")) {
 	print "Adding group $unix_name ...\n";
 
-	if (system("$GROUPADD $unix_name -g $unix_gid")) {
+	if (mysystem("$GROUPADD $unix_name -g $unix_gid")) {
 	    fatal("Could not add group $unix_name ($unix_gid)!\n");
 	}
     }
@@ -431,10 +467,10 @@ sub DelProject()
 	fatal("Could not destroy project '$name' related directories");
     }
 
-    if (system("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting project $unix_name ...\n";
 
-	if (system("$GROUPDEL $unix_name")) {
+	if (mysystem("$GROUPDEL $unix_name")) {
 	    fatal("Could not delete group $unix_name!\n");
 	}
     }
@@ -462,10 +498,10 @@ sub DelGroup()
 	fatal("Could not destroy project group '$name' related directories");
     }
 
-    if (system("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting group $unix_name ...\n";
 
-	if (system("$GROUPDEL $unix_name")) {
+	if (mysystem("$GROUPDEL $unix_name")) {
 	    fatal("Could not delete group $unix_name!\n");
 	}
     }
@@ -486,7 +522,7 @@ sub ZFSexists($)
 {
     my ($path) = @_;
 
-    system("$ZFS list $path >/dev/null 2>&1");
+    mysystem("$ZFS list $path >/dev/null 2>&1");
     return ($? ? 0 : 1);
 }
 
@@ -515,7 +551,7 @@ sub MakeDir($$)
 	$cmdarg = "";
 	$path = "$fs/$dir";
     }
-    if (system("$cmd $cmdarg $path")) {
+    if (mysystem("$cmd $cmdarg $path")) {
 	return $?;
     }
 
@@ -547,7 +583,7 @@ sub WhackDir($$)
 	    $path = "$fs/$dir";
 	    $npath = "$fs/$dir$suffix";
 	}
-	if (system("$cmd $path $npath")) {
+	if (mysystem("$cmd $path $npath")) {
 	    return $?;
 	}
     } else {
@@ -560,7 +596,7 @@ sub WhackDir($$)
 	    $cmd = "rm -rf";
 	    $path = "$fs/$dir";
 	}
-	if (system("$cmd $path")) {
+	if (mysystem("$cmd $path")) {
 	    return $?;
 	}
     }
@@ -588,4 +624,13 @@ sub HUPMountd()
     }
     # Give mountd time to react.
     sleep(1);
+}
+
+# XXX temporary while debugging
+sub mysystem($)
+{
+    my $cmd = shift;
+
+    print STDERR "accountsetup: '$cmd'\n";
+    return system($cmd);
 }

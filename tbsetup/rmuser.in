@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -51,7 +51,6 @@ my $TBOPS   = "@TBOPSEMAIL@";
 my $TBLOGS  = "@TBLOGSEMAIL@";
 my $CONTROL = "@USERNODE@";
 my $BOSSNODE= "@BOSSNODE@";
-my $WITHZFS = @WITHZFS@;
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $PGENISUPPORT   = @PROTOGENI_SUPPORT@;
 my $PORTAL_ENABLE  = @PORTAL_ENABLE@;
@@ -104,8 +103,6 @@ use User;
 use Project;
 use Experiment;
 use EmulabFeatures;
-
-my $HOMEDIR	= USERROOT();
 
 #
 # Check args.
@@ -376,28 +373,8 @@ EmulabFeatures->DeleteAll($target_user) == 0 or
 
 #
 # Rename the users home dir if its there.
+# XXX this is now handled by $DELACCT call.
 #
-if (!$WITHZFS && -d "$HOMEDIR/$target_uid") {
-    my $newname = "$HOMEDIR/$target_uid-" . TBDateTimeFSSafe();
-
-    if (rename("$HOMEDIR/$target_uid", $newname)) {
-	print "Renamed homedir to $newname. Remember to delete it!\n";
-	
-	#
-	# Chown the owner/group to root and set the permissions so no
-	# one is allowed to look inside.
-	#
-	if (! chmod(0700, $newname)) {
-	    fatal("Could not chmod directory $newname to 0700: $!");
-	}
-	if (! chown(0, 0, $newname)) {
-	    fatal("Could not chown directory $newname to 0/0: $!");
-	}
-    }
-    else {
-	fatal("Could not rename user directory to $newname: $!");
-    }
-}
 
 #
 # In nuke mode, we really do kill the account, since its from a denied

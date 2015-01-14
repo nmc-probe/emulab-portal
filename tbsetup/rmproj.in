@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,8 +38,6 @@ use strict;
 my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
 my $CONTROL  = "@USERNODE@";
-my $WITHZFS  = @WITHZFS@;
-my $ZFSROOT  = @ZFS_ROOT@;
 my $MAILMANSUPPORT= @MAILMANSUPPORT@;
 
 my $RMGROUP  = "$TB/sbin/rmgroup";
@@ -141,71 +139,11 @@ if (AuditStart(0)) {
 }
 
 #
-# Remove or rename the project directory.
+# Project related directories will be removed by rmgroup call.
 #
-if (!removeprojdir($PROJROOT, $pid)) {
-    my $str = ($renamedirs ? "rename" : "remove");
-    fatal("Could not $str project directory!");
-}
-
-my $savename = "_ARCHIVED-${pid}-${pid_idx}";
-if (-e "$PROJROOT/$pid") {
-    my $rv;
-
-    if ($WITHZFS) {
-	my $oldname = "$ZFSROOT/$pid";
-	my $newname = "$ZFSROOT/$savename";
-
-	$rv = system("zfs rename $oldname $newname");
-    } else {
-	my $oldname = "$PROJROOT/$pid";
-	my $newname = "$PROJROOT/$savename";
-
-	$rv = (rename($oldname, $newname) != 0);
-    }
-    if ($rv == 0) {	
-	    #
-	    # Chown the owner/group to root and set the permissions so no
-	    # one is allowed to look inside.
-	    #
-	    if (! chmod(0700, $newname)) {
-		fatal("Could not chmod directory $newname to 0700: $!");
-	    }
-	    if (! chown(0, 0, $newname)) {
-		fatal("Could not chown directory $newname to 0/0: $!");
-	    }
-    }
-    else {
-	fatal("Could not rename proj directory to $newname: $!");
-    }
-}
-    
-#
-# and the scratch directory if it exists
-#
-if ($SCRATCHROOT && -e "$SCRATCHROOT/$pid") {
-    my $oldname = "$SCRATCHROOT/$pid";
-    my $newname = "$SCRATCHROOT/$savename";
-
-    if (rename($oldname, $newname)) {
-	#
-	# Chown the owner/group to root and set the permissions so no
-	# one is allowed to look inside.
-	#
-	if (! chmod(0700, $newname)) {
-	    fatal("Could not chmod directory $newname to 0700: $!");
-	}
-	if (! chown(0, 0, $newname)) {
-	    fatal("Could not chown directory $newname to 0/0: $!");
-	}
-    }
-    else {
-	fatal("Could not rename proj directory to $newname: $!");
-    }
-}
 
 #
-# Ditto for the experiment working directory.
+# Remove/rename the experiment working directory.
 #
 my $workdir = TBDB_EXPT_WORKDIR() . "/$pid";
 
@@ -286,50 +224,6 @@ DBQueryFatal("delete FROM group_features where pid_idx='$pid_idx'");
 
 print "Project $pid has been removed!\n";
 exit(0);
-
-#
-# Remove or rename a project-related directory.
-#
-sub removeprojdir($$)
-{
-    my ($fs,$pid) = @_;
-
-    my $oldname = "$fs/$pid";
-    my $newname = "$fs/_ARCHIVED-${pid}-${pid_idx}";
-
-if (-e "$PROJROOT/$pid") {
-    my $rv;
-
-    if ($WITHZFS) {
-	# XXX need to ssh over to fs to do this
-	my $oldname = "$ZFSROOT/$pid";
-	my $newname = "$ZFSROOT/$savename";
-
-	$rv = system("zfs rename $oldname $newname");
-    } else {
-	my $oldname = "$PROJROOT/$pid";
-	my $newname = "$PROJROOT/$savename";
-
-	$rv = (rename($oldname, $newname) != 0);
-    }
-    if ($rv == 0) {	
-	    #
-	    # Chown the owner/group to root and set the permissions so no
-	    # one is allowed to look inside.
-	    #
-	    if (! chmod(0700, $newname)) {
-		fatal("Could not chmod directory $newname to 0700: $!");
-	    }
-	    if (! chown(0, 0, $newname)) {
-		fatal("Could not chown directory $newname to 0/0: $!");
-	    }
-    }
-    else {
-	fatal("Could not rename proj directory to $newname: $!");
-    }
-}
-
-}
 
 sub fatal($) {
     my($mesg) = $_[0];

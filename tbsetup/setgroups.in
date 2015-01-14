@@ -28,7 +28,7 @@ use Getopt::Std;
 
 #
 # Set groups for users. With just a pid all the users in the group
-# are modified. Of course, since we might be removing groups, we actuall
+# are modified. Of course, since we might be removing groups, we actually
 # have to go through the entire set of users in the project. Hence, you
 # can provide an optional list of users to operate on; the web interface
 # uses this option since it know what users have been changed via the web
@@ -71,6 +71,7 @@ my $SETWIKIGROUPS = "$TB/sbin/setwikigroups";
 my $SETBUGDBGROUPS= "$TB/sbin/setbugdbgroups";
 my $OPSDBCONTROL  = "$TB/sbin/opsdb_control";
 my $EXPORTSSETUP  = "$TB/sbin/exports_setup";
+my $ACCOUNTPROXY  = "$TB/sbin/accountsetup";
 
 my $SSH     = "$TB/bin/sshtb";
 my $USERMOD = "/usr/sbin/pw usermod";
@@ -391,6 +392,8 @@ foreach my $token (@userlist) {
     }
 
     if (@extragrouplist) {
+	push @groupnames, @extragrouplist;
+
 	print "Adding extra groups to list: @extragrouplist\n";
 
 	if ($grouplist) {
@@ -420,31 +423,13 @@ foreach my $token (@userlist) {
     print "Updating user $uid record on $control_node.\n";
 
     if ($control_node ne $BOSSNODE) {
+	$groupargument = join(' ', @groupnames);
         if (system("$SSH -host $control_node ".
-	           "'$USERMOD $uid -g $project $groupargument'")) {
+		   "$ACCOUNTPROXY $uid $project $groupargument")) {
 	    fatal("Could not modify user $uid record on $control_node.");
 	}
     }
 
-    #
-    # Make sure the users dot files and other critical files/dirs
-    # are in the correct group. I looked at the source code to
-    # chown, and it does not do anything to files that are already
-    # set correctly. Thank you chown.
-    #
-    my @dots = (".login", ".profile", ".cshrc", ".ssl", ".ssh");
-    my $homedir = USERROOT() . "/$uid";
-
-    system("$CHOWN $uid:$project $homedir") == 0
-	or fatal("Could not chown home dir to $uid:$project");
-
-    foreach my $dot (@dots) {
-	if (-e "$homedir/$dot") {
-	    system("$CHOWN -R $uid:$project $homedir/$dot") == 0
-		or fatal("Could not chown $homedir/$dot to $uid:$project");
-	}
-    }
-    
     #
     # Now schedule account updates on all the nodes that this person has
     # an account on.

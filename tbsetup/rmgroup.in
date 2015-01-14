@@ -229,9 +229,7 @@ if (system("grep -q '^${unix_gid}:' /etc/group")) {
 
 	print "Removing group $unix_name ($unix_gid) on $CONTROL.\n";
 	if (system("$SSH -host $CONTROL $ACCOUNTPROXY $cmdstr")) {
-	    if ($?) {
-		fatal("Could not remove group $unix_name from $CONTROL!");
-	    }
+	    fatal("Could not remove group $unix_name from $CONTROL!");
 	}
     }
 
