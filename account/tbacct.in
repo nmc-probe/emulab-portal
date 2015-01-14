@@ -560,6 +560,8 @@ sub AddUser()
     }
     $EUID = 0;
 
+    CheckDotFiles();
+
   skipstuff:
     return 0;
 }
@@ -763,6 +765,7 @@ sub UpdatePassword()
 
     $EUID = 0;
     CheckDotFiles();
+
     return 0;
 }
 
@@ -910,7 +913,7 @@ sub UpdateUser(;$)
     $EUID = 0;
     CheckDotFiles()
 	if (! $freezeopt);
-	
+
     return 0;
 }
 
