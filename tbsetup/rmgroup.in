@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -158,66 +158,8 @@ if (AuditStart(0)) {
 }
 
 #
-# Rename the group directory as long as its not the proj directory.
+# Removing group-related directories is handled by accountsetup on ops.
 #
-if (! $group->IsProjectGroup()) {
-    my $groupdir  = "$GRPROOT/$pid";
-    my $oldname   = "$groupdir/$gid";
-    my $newname   = "$groupdir/_ARCHIVED-${gid}-${gid_idx}";
-    my $grouplink = "$PROJROOT/$pid/groups/$gid";
-
-    if (-e $grouplink && !unlink($grouplink)) {
-	fatal("Could not unlink $grouplink: $!");
-    }
-
-    if (-e $oldname) {
-	print "Renaming $oldname to $newname.\n";
-    
-	if (rename($oldname, $newname)) {
-	    #
-	    # Chown the owner/group to root and set the permissions so no
-	    # one is allowed to look inside.
-	    #
-	    if (! chmod(0700, $newname)) {
-		fatal("Could not chmod directory $newname to 0700: $!");
-	    }
-	    if (! chown(0, 0, $newname)) {
-		fatal("Could not chown directory $newname to 0/0: $!");
-	    }
-	}
-	else {
-	    fatal("Could not rename $oldname to $newname: $!");
-	}
-    }
-}
-#
-# If this is the project group directory, then rename the /groups directory.
-# We should only call this when removing the project!
-#
-else {
-    my $oldname   = "$GRPROOT/$gid";
-    my $newname   = "$GRPROOT/_ARCHIVED-${gid}-${gid_idx}";
-
-    if (-e $oldname) {
-	print "Renaming $oldname to $newname.\n";
-    
-	if (rename($oldname, $newname)) {
-	    #
-	    # Chown the owner/group to root and set the permissions so no
-	    # one is allowed to look inside.
-	    #
-	    if (! chmod(0700, $newname)) {
-		fatal("Could not chmod directory $newname to 0700: $!");
-	    }
-	    if (! chown(0, 0, $newname)) {
-		fatal("Could not chown directory $newname to 0/0: $!");
-	    }
-	}
-	else {
-	    fatal("Could not rename $oldname to $newname: $!");
-	}
-    }
-}
 
 #
 # Remove all members from the group.
@@ -278,12 +220,15 @@ if (system("grep -q '^${unix_gid}:' /etc/group")) {
     $UID = 0;
 
     if ($CONTROL ne $BOSSNODE) {
-	my $proxy_command = ($pid eq $gid ? "delproject" : "delgroup");
-	
-	print "Removing group $unix_name ($unix_gid) on $CONTROL.\n";
+	my $cmdstr;
+	if ($pid eq $gid) {
+	    $cmdstr = "delproject $gid $unix_name";
+	} else {
+	    $cmdstr = "delgroup $gid $unix_name $pid";
+	}
 
-	if (system("$SSH -host $CONTROL ".
-		   "   $ACCOUNTPROXY $proxy_command $gid $unix_name")) {
+	print "Removing group $unix_name ($unix_gid) on $CONTROL.\n";
+	if (system("$SSH -host $CONTROL $ACCOUNTPROXY $cmdstr")) {
 	    if ($?) {
 		fatal("Could not remove group $unix_name from $CONTROL!");
 	    }
