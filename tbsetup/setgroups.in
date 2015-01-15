@@ -216,30 +216,6 @@ if (! scalar(@userlist)) {
     }
 }
 
-if ($WITHZFS && $ZFS_NOEXPORT) {
-    #
-    # Have to force the directories to be exported.
-    # See ZFS code in exports_setup
-    #
-    foreach my $token (@userlist) {
-	my $user = User->Lookup($token);
-	$user->BumpActivity()
-	    if (defined($user));
-    }
-    $EUID = $UID;
-    system($EXPORTSSETUP) == 0 or
-	fatal("$EXPORTSSETUP failed");
-    $EUID = 0;
-
-    # There is some lag before the automounter can mount the directories
-    foreach my $uid (@userlist) {
-	my $homedir = USERROOT() . "/$uid";
-	if (emutil::waitForMount($homedir) < 0) {
-	    fatal("Could not access user directory: $homedir");
-	}
-    }
-}
-
 #
 # All this stuff must be done as root (ssh).
 #
