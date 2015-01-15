@@ -222,13 +222,13 @@ sub AddUser()
 		    or fatal("Could not copy $SKEL/$file to $hdir/$1");
 	    }
 	}
-    }
 
-    #
-    # And set the owner and group right on everything
-    #
-    mysystem("/usr/sbin/chown -R $user:$gid $hdir") == 0
-	or fatal("Could not chown $hdir");
+	#
+	# And set the owner and group right on everything
+	#
+	mysystem("/usr/sbin/chown -R $user:$gid $hdir") == 0
+	    or fatal("Could not chown $hdir");
+    }
 
     #
     # Finally, set any initial password hash
@@ -581,8 +581,9 @@ sub WhackDir($$)
 	}
 
 	# Since we reuse uid/gids let's make the dir root/0700
-	if (!chown(0, -1, $npath) || !chmod(0700, $npath)) {
-	    print STDERR "WARNING: could not chown/chmod '$npath'!\n";
+	$path = "$fs/$dir$suffix";
+	if (!chown(0, 0, $path) || !chmod(0700, $path)) {
+	    print STDERR "WARNING: could not chown/chmod '$path'!\n";
 	}
     }
     #
