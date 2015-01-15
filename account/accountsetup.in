@@ -286,7 +286,7 @@ sub ModifyUser()
     }
 
     if (mysystem("$USERMOD $user -g $pgroup $grouplist")) {
-	fatal("Could not modify user $unix_name to add groups!\n");
+	fatal("Could not modify user $user to add groups!\n");
     }
 
     #
@@ -420,7 +420,7 @@ sub AddGroup()
     }
 
     # Create the /groups/gid directory
-    $path = "$GROUPROOT/$projname/$name";
+    my $path = "$GROUPROOT/$projname/$name";
     # XXX note that this is always a regular directory, not a filesystem
     if (! -d "$path" && !mkdir("$path", 0770)) {
 	fatal("Could not make directory '$path': $!");
@@ -508,13 +508,6 @@ sub DelGroup()
     return 0;
 }
 
-sub fatal($) {
-    my ($msg) = @_;
-
-    print STDERR "$msg\n";
-    exit(-1);
-}
-
 #
 # Check for ZFS existence.
 #
@@ -586,7 +579,17 @@ sub WhackDir($$)
 	if (mysystem("$cmd $path $npath")) {
 	    return $?;
 	}
-    } else {
+
+	# Since we reuse uid/gids let's make the dir root/0700
+	if (!chown(0, -1, $npath) || !chmod(0700, $npath)) {
+	    print STDERR "WARNING: could not chown/chmod '$npath'!\n";
+	}
+    }
+    #
+    # XXX maybe we should do this in the background since it could
+    # take a really long time!
+    #
+    else {
 	my ($cmd, $path);
 
 	if ($zfsfs) {
@@ -632,5 +635,18 @@ sub mysystem($)
     my $cmd = shift;
 
     print STDERR "accountsetup: '$cmd'\n";
+
+    if (open(FD, ">>/usr/testbed/log/accountsetup.log")) {
+	my $tstamp = POSIX::strftime("%b %e %H:%M:%S", localtime());
+	print FD "$tstamp: $cmd\n";
+	close(FD);
+    }
     return system($cmd);
+}
+
+sub fatal($) {
+    my ($msg) = @_;
+
+    print STDERR "$msg\n";
+    exit(-1);
 }

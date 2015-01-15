@@ -146,6 +146,7 @@ if (AuditStart(0)) {
 # Remove/rename the experiment working directory.
 #
 my $workdir = TBDB_EXPT_WORKDIR() . "/$pid";
+my $savename = "_ARCHIVED-${pid}-${pid_idx}";
 
 if (-d $workdir) {
     my $newname = TBDB_EXPT_WORKDIR() . "/$savename";

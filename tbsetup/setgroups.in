@@ -425,7 +425,7 @@ foreach my $token (@userlist) {
     if ($control_node ne $BOSSNODE) {
 	$groupargument = join(' ', @groupnames);
         if (system("$SSH -host $control_node ".
-		   "$ACCOUNTPROXY $uid $project $groupargument")) {
+		   "$ACCOUNTPROXY moduser $uid $project $groupargument")) {
 	    fatal("Could not modify user $uid record on $control_node.");
 	}
     }
