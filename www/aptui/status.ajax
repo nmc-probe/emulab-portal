@@ -434,7 +434,7 @@ function Do_Snapshot()
 	}
 	return;
     }
-    if ($webtask) {
+    if ($webtask && $webtask->exited()) {
 	$webtask->Delete();
     }
     SPITAJAX_RESPONSE("Success");
