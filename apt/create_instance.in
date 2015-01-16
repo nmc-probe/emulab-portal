@@ -728,6 +728,8 @@ while ($seconds > 0) {
     }
     elsif ($blob->{'status'} eq "failed") {
 	$failed = 1;
+	$webtask->output("Experiment setup on $aggregate failed")
+	    if (defined($webtask));
 	last;
     }
 }
@@ -737,6 +739,8 @@ if ($failed || !$ready) {
     $instance->SetStatus("failed");
     if (!$ready) {
 	print STDERR "*** $slice_urn timed out.\n\n";
+	$webtask->output("Experiment setup on $aggregate timed out")
+	    if (defined($webtask));
     }
     else {
 	print STDERR "*** $slice_urn failed.\n\n"; 
