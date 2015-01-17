@@ -280,9 +280,9 @@ sub ModifyUser()
     }
     my $user  = shift(@ARGV);
     my $pgroup  = shift(@ARGV);
-    my $grouplist = "";
+    my $grouplist = "''";
     if (@ARGV > 0) {
-	$grouplist = "-G " . join(' ', @ARGV);
+	$grouplist = "-G '" . join(',', @ARGV) . "'";
     }
 
     if (mysystem("$USERMOD $user -g $pgroup $grouplist")) {
