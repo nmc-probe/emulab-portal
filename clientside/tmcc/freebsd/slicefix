@@ -848,8 +848,14 @@ dolinux() {
 		dunit=`expr $dunit - 24`
 		lrootdev="8${dunit}${part}"
 		;;
+	# SATA, new names
+	ada[0-9])
+		dtype="sd"
+		dunit=`echo $disk | sed -e 's/ada\([0-9][0-9]*\)$/\1/'`
+		lrootdev="8${dunit}${part}"
+		;;
 	# SCSI
-	da[0-7]|ada[0-7])
+	da[0-7])
 		dtype="sd"
 		lrootdev="8${dunit}${part}"
 		;;
