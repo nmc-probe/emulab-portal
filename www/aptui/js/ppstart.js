@@ -20,6 +20,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	var registered    = true;
 	var callback_done = null;
 	var button_label  = "Instantiate";
+	var RSPEC	  = null;
 
 	//
 	// Moved into a separate function since we want to regen the form
@@ -125,12 +126,12 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	}
 
 	// Instantiate the new rspec on the chosen aggregate.
-	function Instantiate(newRspec, where)
+	function Instantiate(where)
 	{
 	    console.log(where);
 	    
 	    if (callback_done) {
-		callback_done(newRspec, where);
+		callback_done(RSPEC, where);
 		return;
 	    }
 	    var callback = function(json) {
@@ -145,7 +146,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    sup.ShowModal("#waitwait-modal");
 	    var xmlthing = sup.CallServerMethod(null, "instantiate",
 						"Instantiate",
-						{"rspec"  : newRspec,
+						{"rspec"  : RSPEC,
 						 "where"  : where,
 						 "uuid"   : uuid});
 	    xmlthing.done(callback);
@@ -157,7 +158,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	function EditorDone(newRspec)
 	{
 	    if (!amlist || amlist.length == 1) {
-		Instantiate(newRspec, amdefault);
+		Instantiate(amdefault);
 	    }
 	    var html = chooseTemplate({
 		amlist    : amlist,
@@ -170,8 +171,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    $('#amchooser_submit_button').click(function (event) {
 		event.preventDefault();
 		sup.HideModal("#amchooser_modal");
-		Instantiate(newRspec,
-			    $('#amchooser_where option:selected').val());
+		Instantiate($('#amchooser_where option:selected').val());
 	    });
 	    sup.ShowModal("#amchooser_modal");
 	}
@@ -219,6 +219,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 			amdefault = json.value.amdefault;
 		    }
 		    // Got the rspec, show the editor.
+		    RSPEC = json.value.rspec;
 		    editor.show(json.value.rspec,
 				EditorDone, EditorCancel, button_label);
 		}
