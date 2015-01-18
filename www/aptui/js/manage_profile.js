@@ -454,6 +454,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     {
 	if (initialized) {
 	    modified = true;
+	    DisableButtons();
 	    EnableButton("profile_submit_button");
 	}
     }
@@ -927,6 +928,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	EnableButton("profile_delete_button");
 	EnableButton("profile_instantiate_button");
 	EnableButton("profile_submit_button");
+	EnableButton("profile_copy_button");
 	EnableButton("guest_instantiate_button");
 	EnableButton("profile_publish_button");
     }
@@ -935,6 +937,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	DisableButton("profile_delete_button");
 	DisableButton("profile_instantiate_button");
 	DisableButton("profile_submit_button");
+	DisableButton("profile_copy_button");
 	DisableButton("guest_instantiate_button");
 	DisableButton("profile_publish_button");
     }
