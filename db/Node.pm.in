@@ -3847,17 +3847,27 @@ sub SendApod($$)
 # The hash can only be used once and is valid for a short time
 # (say, 30 seconds). 
 #
-sub GenTipAclUrl($)
+sub GenTipAclUrl($;$)
 {
-    my ($self) = @_;
+    my ($self,$expstamp) = @_;
     my $node_id = $self->node_id();
     my $hash = TBGenSecretKey();
     if (!defined($hash)) {
 	print STDERR "Error creating new hash code\n";
 	return undef;
     }
+
+    my $now = time();
+    if (!defined($expstamp)) {
+	# note: nodetipacl.php3 used 300, not 30
+	$expstamp = $now + 300;
+    } elsif ($expstamp && $expstamp < $now) {
+	print STDERR "Invalid expiration for tip URL\n";
+	return undef;
+    }
+
     DBQueryWarn("update tiplines set urlhash='$hash', ".
-		"  urlstamp=UNIX_TIMESTAMP(now()) ".
+		"  urlstamp=$expstamp ".
 		"where node_id='$node_id'")
 	or return undef;
 
