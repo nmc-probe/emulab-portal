@@ -72,7 +72,8 @@ if ($ISAPT && !$this_user) {
 	    ClearRememberedID();
 	}
 	else {
-	    header("Location: login.php?from=instantiate");
+            header("Location: login.php?from=instantiate&referrer=".
+                   urlencode($_SERVER['REQUEST_URI']));
 	}
     }
 }
