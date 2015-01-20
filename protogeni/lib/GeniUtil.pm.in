@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -59,11 +59,14 @@ my $GENIGROUP          = "GeniSlices";
 my $PROTOUSER          = "elabman";
 my $PROTOPROJ          = "emulab-ops";
 my $USELOCALPROJ       = 0;
+my $WITHZFS            = @WITHZFS@;
+my $ZFS_NOEXPORT       = @ZFS_NOEXPORT@;
 my $SUDO               = "/usr/local/bin/sudo";
 my $WAP                = "$TB/sbin/withadminprivs";
 my $NEWGROUP           = "$TB/bin/newgroup";
 my $NEWPROJECT         = "$TB/sbin/newproj";
 my $MAKEPROJECT        = "$TB/sbin/mkproj";
+my $EXPORTSSETUP       = "$TB/sbin/exports_setup";
 
 use vars qw($EXTENSIONS_NS $XSI_NS $EXTENSIONS_PREFIX $EXTENSIONS_SCHEMA_LOCATION $CREDENTIAL_SCHEMA_LOCATION);
 #Extensions namespace URI.
@@ -420,6 +423,15 @@ sub GetHoldingProject($$)
 		}
 	    }
 	}
+    }
+    if ($WITHZFS && $ZFS_NOEXPORT) {
+	#
+	# Have to force the new directories to be exported.
+	# See ZFS code in exports_setup
+	#
+	$project->BumpActivity();
+	system($EXPORTSSETUP) == 0 or
+	    fatal("$EXPORTSSETUP failed");
     }
     return $group;
 }

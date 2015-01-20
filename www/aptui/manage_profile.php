@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -64,12 +64,13 @@ function SPITFORM($formfields, $errors)
     $canpublish = 0;
     $history    = 0;
     $activity   = 0;
+    $ispp       = 0;
     $isadmin    = (ISADMIN() ? 1 : 0);
     $version_uuid = "null";
     $profile_uuid = "null";
 
     if ($action == "edit") {
-	$button_label = "Modify";
+	$button_label = "Save";
 	$viewing      = 1;
 	$version_uuid = "'" . $profile->uuid() . "'";
 	$profile_uuid = "'" . $profile->profile_uuid() . "'";
@@ -79,6 +80,7 @@ function SPITFORM($formfields, $errors)
 	$canmodify    = ($profile->CanModify() ? 1 : 0);
 	$canpublish   = ($profile->CanPublish() ? 1 : 0);
 	$activity     = ($profile->HasActivity() ? 1 : 0);
+	$ispp         = ($profile->isParameterized() ? 1 : 0);
 	if ($canmodify) {
 	    $title    = "Modify Profile";
 	}
@@ -161,6 +163,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.TITLE    = '$title';\n";
     echo "    window.AMDEFAULT= '$amdefault';\n";
     echo "    window.BUTTONLABEL = '$button_label';\n";
+    echo "    window.ISPPPROFILE = $ispp;\n";
     if ($ISCLOUD) {
       echo "    window.ISCLOUD = true;";
     } else {

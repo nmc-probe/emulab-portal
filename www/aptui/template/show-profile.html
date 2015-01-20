@@ -1,7 +1,7 @@
 <div class='row'>
-  <div class='col-lg-8 col-lg-offset-2
+  <div class='col-lg-6 col-lg-offset-3
               col-md-8 col-md-offset-2
-              col-sm-10 col-sm-offset-1
+              col-sm-8 col-sm-offset-2
               col-xs-12'>
     <div class='panel panel-default'>
       <div class='panel-body'>
@@ -55,11 +55,16 @@
 	    </td>
 	  </tr>
 	  </table>
-	  <a class='btn btn-primary btn-sm pull-right'
+	  <button class='btn btn-primary btn-sm pull-right'
              id='profile_instantiate_button'
              style='margin-right: 10px;'
-	     href='instantiate.php?profile=<%= version_uuid %>'
              name='create'>Instantiate
+	  </button>
+	  <a class='btn btn-primary btn-sm pull-right'
+             style='margin-right: 10px;'
+             type='button'
+	     href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'>
+            Copy
 	  </a>
 	</div>
       </div>
@@ -78,6 +83,7 @@
 	      rows=5><%- fields.profile_script %></textarea>
   </div>
   <!-- place to hang the modals  -->
+  <div id='ppmodal_div'></div>
   <div id='showtopomodal_div'></div>
   <div id='editmodal_div'></div>
   <div id='waitwait_div'></div>

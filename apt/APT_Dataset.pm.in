@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2014 University of Utah and the Flux Group.
+# Copyright (c) 2007-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -440,7 +440,7 @@ sub CreateDataset($)
 	if (defined($self->expires()));
 
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/;
+#    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "CreateDataset", $args);
 }
@@ -471,7 +471,7 @@ sub DeleteDataset($)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/;
+#    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "DeleteDataset", $args);
 }
@@ -506,7 +506,7 @@ sub ModifyDataset($)
 	if (defined($self->expires()));
     
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/;
+#    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ModifyDataset", $args);
 }
@@ -538,7 +538,7 @@ sub ExtendDataset($)
 	"extend"      => 1,
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/;
+#    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ModifyDataset", $args);
 }
@@ -569,7 +569,7 @@ sub DescribeDataset($)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/;
+#    $cmurl =~ s/protogeni/protogeni\/stoller/;
 
     return Genixmlrpc::CallMethod($cmurl, $context, "DescribeDataset", $args);
 }

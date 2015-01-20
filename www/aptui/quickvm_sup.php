@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -99,6 +99,10 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
 	$APTBASE .= "/" . $matches[1];
     }
+}
+# For backend scripts to know how they were invoked.
+if (isset($_SERVER['SERVER_NAME'])) { 
+    putenv("SERVER_NAME=" . $_SERVER['SERVER_NAME']);
 }
 
 #
@@ -280,12 +284,14 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
            </div>
          </div>\n";
 
+    if (0) {
     $groupname = ($ISAPT ? "apt-users" : "cloudlab-users");
     echo "<center style='margin-bottom: 5px; margin-top: -8px'>
          <font color=red>Portal will be down Jan 5-7.</font> See the
            <a href='https://groups.google.com/forum/#!forum/${groupname}'
               target='_blank'>Help Forum</a> for more info.
           </center>\n";
+    }
 
     if (!NOLOGINS() && !$login_user && $page_title != "Login") {
 	SpitLoginModal("quickvm_login_modal");

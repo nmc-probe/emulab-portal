@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -58,11 +58,13 @@ my $OPSDBSUPPORT= @OPSDBSUPPORT@;
 my $TBBASE      = "@TBBASE@";
 my $TBWWW       = "@TBWWW@";
 my $WITHZFS     = @WITHZFS@;
+my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
 my $SSH         = "$TB/bin/sshtb";
 my $ADDMMLIST   = "$TB/sbin/addmmlist";
 my $OPSDBCONTROL= "$TB/sbin/opsdb_control";
 my $GROUPADD    = "/usr/sbin/pw groupadd";
 my $ACCOUNTPROXY= "$TB/sbin/accountsetup";
+my $EXPORTSSETUP= "$TB/sbin/exports_setup";
 my @DIRLIST     = ("exp", "images", "logs", "tarfiles", "rpms", "tiplogs");
 my $SAVEUID     = $UID;
 
@@ -94,6 +96,7 @@ use libdb;
 use libtestbed;
 use User;
 use Group;
+use emutil;
 
 # Defined in libtestbed.
 my $PROJROOT    = PROJROOT();
@@ -182,7 +185,6 @@ my $isnonlocal = $project->IsNonLocal();
 # 
 my $projdir   = "$PROJROOT/$pid";
 my $groupdir  = "$GRPROOT/$pid/$gid";
-my $grouplink = "$PROJROOT/$pid/groups/$gid";
 
 # 
 # Create group locally if it does not exist. egrep returns 1 when
@@ -204,22 +206,32 @@ $UID = $EUID;
 #
 # Create group on the control node if it does not exist.
 #
-my $proxy_command = ($pid eq $gid ? "addproject" : "addgroup");
+my $cmdstr;
 print "Adding group $unix_name to $control_node.\n";
-if (system("$SSH -host $control_node ".
-	   "   $ACCOUNTPROXY $proxy_command $gid $unix_name $unix_gid")) {
+if ($pid eq $gid) {
+    $cmdstr = "addproject $gid $unix_name $unix_gid $unix_uid";
+} else {
+    $cmdstr = "addgroup $gid $unix_name $unix_gid $unix_uid $pid";
+}
+if (system("$SSH -host $control_node $ACCOUNTPROXY $cmdstr")) {
     fatal("Could not add $unix_name ($unix_gid) to $control_node!\n");
 }
-if ($WITHZFS && $pid ne $gid) {
+if ($WITHZFS) {
+    if ($ZFS_NOEXPORT) {
+	#
+	# Have to force the new directories to be exported.
+	# See ZFS code in exports_setup
+	#
+	$project->BumpActivity();
+	system($EXPORTSSETUP) == 0 or
+	    fatal("$EXPORTSSETUP failed");
+    }
+    
     #
     # There is some lag before the automounter can mount the new
     # volume. Lets delay until we can access the project directory.
     #
-    for (my $i = 0; $i < 10; $i++) {
-	sleep(1)
-	    if (! -r $projdir);
-    }
-    if (! -r $projdir) {
+    if (emutil::waitForMount($projdir) < 0) {
 	fatal("Could not access new project directory: $projdir");
     }
 }
@@ -241,49 +253,18 @@ if (!$isnonlocal) {
     }
 }
 
-#
-# Create the group directory if it does not already exist, but not for
-# the default group of the project.
-#
 if ($pid ne $gid) {
+    # Sanity check that directories got made (but only for subgroups)
     if (! -e $groupdir) {
-	print "Creating group directory: $groupdir.\n";
-    
-	if (! mkdir("$groupdir", 0770)) {
-	    fatal("Could not make directory $groupdir: $!");
-	}
+	fatal("Could not access directory $groupdir");
     }
-
-    if (! chmod(0770, "$groupdir")) {
-	fatal("Could not chmod directory $groupdir: $!");
-    }
-
-    if (! chown($unix_uid, $unix_gid, "$groupdir")) {
-	fatal("Could not chown $groupdir to $unix_uid/$unix_gid: $!");
-    }
-
-    if (! -e $grouplink) {
-	symlink($groupdir, $grouplink) or
-	    fatal("Could not symlink($groupdir, $grouplink): $!");
-    }
-
-    #
-    # Make group subdirs.
-    #
     foreach my $dir (@DIRLIST) {
 	if (! -e "$groupdir/$dir") {
-	    if (! mkdir("$groupdir/$dir", 0770)) {
-		fatal("Could not make directory $groupdir/$dir: $!");
-	    }
-	    if (! chmod(0770, "$groupdir/$dir")) {
-		fatal("Could not chmod directory $groupdir/$dir: $!");
-	    }
-	    if (! chown($unix_uid, $unix_gid, "$groupdir/$dir")) {
-		fatal("Could not chown $groupdir/$dir: $!");
-	    }
+	    fatal("Could not access directory $groupdir/$dir");
 	}
     }
 
+    # Exotic features
     if (($MAILMANSUPPORT || $OPSDBSUPPORT) && !($ELABINELAB || $isnonlocal)) {
 	$UID  = $SAVEUID;
 	$EUID = $UID;

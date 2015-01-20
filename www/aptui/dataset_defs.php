@@ -143,7 +143,8 @@ class Dataset
 			$this->aggregate_urn(), $matches)) {
 	    return "";
 	}
-	return $matches[1] . "+" . $matches[2] . "+dataset+" . $this->id();
+	return $matches[1] . "+" . $matches[2] . "+dataset+" .
+	    $this->pid() . "//" . $this->id();
     }
 }
 ?>

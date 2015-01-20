@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 include_once("osinfo_defs.php");
 include_once("geni_defs.php");
+include_once("webtask.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("instance_defs.php");
@@ -122,10 +123,10 @@ if (isset($profile)) {
 		SPITUSERERROR("No published version for profile");
 		exit();
 	    }
-	    $profile = $obj->uuid();
 	}
-	$profile_array[$profile] = $obj->name();
-	$profilename = $obj->name();
+        $profile = $obj;
+	$profile_array[$profile->uuid()] = $profile->name();
+	$profilename = $profile->name();
     }
     else {
 	#
@@ -149,9 +150,9 @@ if (isset($profile)) {
 	    SPITUSERERROR("No permission to use profile: $profile");
 	    exit();
 	}
-	$profile = $obj->uuid();
-	$profile_array[$profile] = $obj->name();
-	$profilename = $obj->name();
+	$profile = $obj;
+	$profile_array[$profile->uuid()] = $profile->name();
+	$profilename = $profile->name();
     }
 }
 else {
@@ -198,7 +199,9 @@ function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $APTMAIL, $ISCLOUD;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
-    $showabout = ($ISCLOUD || !$this_user ? 1 : 0);
+    $amlist     = array();
+    $showabout  = ($ISCLOUD || !$this_user ? 1 : 0);
+    $registered = (isset($this_user) ? "true" : "false");
 
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
@@ -397,7 +400,8 @@ function SPITFORM($formfields, $newuser, $errors)
 
 	# Send the original argument for the initial array stuff above.
         # Needs more work.
-	echo "<input type='hidden' name='profile' value='$profile'>\n";
+        $thisuuid = $profile->uuid();
+	echo "<input type='hidden' name='profile' value='$thisuuid'>\n";
     }
     if (isset($this_user)) {
 	$spitsshkeystuff();	
@@ -406,6 +410,7 @@ function SPITFORM($formfields, $newuser, $errors)
     if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY())) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
+	    $amlist[] = $am;
 	    $selected = "";
 	    if ($formfields["where"] == $am) {
 		$selected = "selected";
@@ -420,7 +425,11 @@ function SPITFORM($formfields, $newuser, $errors)
     }
     echo "</fieldset>
            <div class='form-group row'>
-           <div class='col-md-6 col-md-offset-3'>
+           <div class='col-sm-6 col-sm-offset-3'>
+           <button class='btn btn-primary btn-block hidden'
+              id='configurator_button'
+              type='button'>Configure
+           </button>
            <button class='btn btn-success btn-block' id='instantiate_submit'
               type='submit' name='create'>Create!
            </button>
@@ -449,15 +458,30 @@ function SPITFORM($formfields, $newuser, $errors)
 	}
     }
     echo "</div>\n";
+    # This is for a PP rspec.
+    echo "<textarea name='formfields[pp_rspec]'
+		    id='pp_rspec_textarea'
+                    class='form-control hidden'
+                    type='textarea'></textarea>\n";
     echo "</form>\n";
 
     SpitTopologyViewModal("quickvm_topomodal", $profile_array);
-    SpitWaitModal("waitwait");
+    echo "<div id='waitwait_div'></div>\n";
+    echo "<div id='ppmodal_div'></div>\n";
+    echo "<div id='instantiate_div'></div>\n";
+    echo "<div id='editmodal_div'></div>\n";
+    SpitOopsModal("oops");
 
+    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY())) {
+	echo "<script type='text/plain' id='amlist-json'>\n";
+	echo htmlentities(json_encode($amlist));
+	echo "</script>\n";
+    }
     echo "<script type='text/javascript'>\n";
-    echo "    window.PROFILE   = '" . $formfields["profile"] . "';\n";
-    echo "    window.AJAXURL   = 'server-ajax.php';\n";
-    echo "    window.SHOWABOUT = $showabout;\n";
+    echo "    window.PROFILE    = '" . $formfields["profile"] . "';\n";
+    echo "    window.AJAXURL    = 'server-ajax.php';\n";
+    echo "    window.SHOWABOUT  = $showabout;\n";
+    echo "    window.REGISTERED = $registered;\n";
     if ($newuser) {
 	echo "window.APT_OPTIONS.isNewUser = true;\n";
     }
@@ -472,7 +496,8 @@ if (!isset($create)) {
     $defaults["username"] = "";
     $defaults["email"]    = "";
     $defaults["sshkey"]   = "";
-    $defaults["profile"]  = (isset($profile) ? $profile : $profile_default);
+    $defaults["profile"]  = (isset($profile) ?
+                             $profile->uuid() : $profile_default);
     $defaults["where"]    = $DEFAULT_AGGREGATE;
 
     # 
@@ -481,11 +506,20 @@ if (!isset($create)) {
     if ($this_user) {
 	$defaults["username"] = $this_user->uid();
 	$defaults["email"]    = $this_user->email();
-	if (1 || $this_user->IsAPT() || $this_user->IsCloud()) {
+	#
+	# Look for an key marked as an APT uploaded key and use that.
+	# If no APT key, use any uploaded key; if the user leaves this
+	# key in the form, it will become the official APT key.
+	#
+	$sshkey = $this_user->GetAPTSSHKey();
+	if (!$sshkey) {
 	    $sshkeys = $this_user->GetSSHKeys();
 	    if (count($sshkeys)) {
-		$defaults["sshkey"] = $sshkeys[0];
+		$sshkey = $sshkeys[0];
 	    }
+	}
+	if ($sshkey) {
+	    $defaults["sshkey"] = $sshkey;
 	}
     }
     elseif (isset($_COOKIE['quickvm_user'])) {
@@ -543,6 +577,12 @@ if (!isset($formfields["profile"]) || $formfields["profile"] == "") {
 elseif (! array_key_exists($formfields["profile"], $profile_array)) {
     $errors["profile"] = "Invalid Profile: " . $formfields["profile"];
 }
+else {
+    $profile = Profile::Lookup($formfields["profile"]);
+    if (!$profile) {
+	$errors["profile"] = "No such profile in the database";
+    }
+}
 
 #
 # More sanity checks. 
@@ -555,6 +595,16 @@ if (!$this_user) {
 	    unset($geniuser);
 	}
     }
+}
+
+#
+# Real users are allowed to use Paramterized Profiles, which means
+# we could get an rspec.
+#
+if ($profile && $profile->isParameterized() && 
+    $this_user && !$this_user->IsNonLocal() &&
+    isset($formfields["pp_rspec"]) && $formfields["pp_rspec"] != "") {
+    $args["rspec"] = $formfields["pp_rspec"];
 }
 
 #

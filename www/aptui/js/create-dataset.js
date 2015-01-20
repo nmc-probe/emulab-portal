@@ -49,6 +49,11 @@ function (_, sup, moment, mainString)
 	html = formatter(html, errors).html();
 	$('#main-body').html(html);
 
+	// This activates the popover subsystem.
+	$('[data-toggle="popover"]').popover({
+	    trigger: 'hover',
+	    container: 'body'
+	});
 	// stdatasets need the datepicker.
 	var needpicker = false;
 	if (formfields["dataset_type"] == "stdataset") {

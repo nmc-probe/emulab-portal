@@ -3014,16 +3014,24 @@ sub SliverWorkAux($$$$$$$$)
     my $slice;
     
     if ($isupdate) {
+	# Lookup by sliver (if provided with sliver credential)
 	$aggregate = GeniAggregate->Lookup($credential->target_urn());
-
-	if (!defined($aggregate)) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					"Sliver cannot be found");
+	if (defined($aggregate)) {
+	    $slice = $aggregate->GetSlice();
+	} else {
+	    # Otherwise, this might be a slice credential
+	    $slice = GeniSlice->Lookup($credential->target_urn());
+	    if (defined($slice)) {
+		$aggregate = GeniAggregate->SliceAggregate($slice);
+	    }
 	}
-	$slice = $aggregate->GetSlice();
 	if (!defined($slice)) {
 	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 					"No local slice found");
+	}
+	if (!defined($aggregate)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"No local sliver/aggregate found");
 	}
     }
     else {
@@ -6914,8 +6922,9 @@ sub HandleBlockstore($$$$$$@)
 	    #
 	    if ($lease->InUse()) {
 		# This will always be one for now.
-		my ($exptidx) = @{ $lease->UsingResources() };
-		if (defined($exptidx) && $exptidx != $experiment->idx()) {
+		my ($reservation) = @{ $lease->GetReservations() };
+		if (defined($reservation) && 
+		    $reservation->exptidx() != $experiment->idx()) {
 		    $message = "Dataset $leasename is already in use";
 		    goto bad;
 		}

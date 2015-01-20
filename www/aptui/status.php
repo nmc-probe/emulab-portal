@@ -110,10 +110,31 @@ $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 $instance_status = $instance->status();
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
-$profile         = Profile::Lookup($instance->profile_id(),
-				   $instance->profile_version());
-$profile_name    = $profile->name();
-$profile_uuid    = $profile->uuid();
+if ($instance->profile_id()) {
+    $profile = Profile::Lookup($instance->profile_id(),
+			       $instance->profile_version());
+    $profile_name   = $profile->name();
+    $profile_uuid   = $profile->uuid();
+    $profile_public = ($profile->ispublic() ? "true" : "false");
+    $cansnap        = ((isset($this_user) &&
+			$this_user->idx() == $creator->idx() &&
+			$this_user->idx() == $profile->creator_idx()) ||
+		       ISADMIN() ? 1 : 0);
+    $canclone       = (($profile->published() && isset($this_user) &&
+			$this_user->idx() == $creator->idx()) ||
+		       ISADMIN() ? 1 : 0);
+    $public_url     = ($instance->public_url() ?
+		       "'" . $instance->public_url() . "'" : "null");
+}
+else {
+    $profile_name   = "";
+    $profile_uuid   = "";
+    $profile_public = "false";
+    $cansnap        = 0;
+    $canclone       = 0;
+    $public_url     = "null";
+
+}
 if ($slice) {
     $slice_urn       = $slice->urn();
     $slice_expires   = DateStringGMT($slice->expires());
@@ -125,19 +146,9 @@ else {
     $slice_expires_text = ""; 
 }
 $registered      = (isset($this_user) ? "true" : "false");
-$profile_public  = ($profile->ispublic() ? "true" : "false");
-$cansnap         = ((isset($this_user) &&
-		     $this_user->idx() == $creator->idx() &&
-		     $this_user->idx() == $profile->creator_idx()) ||
-		    ISADMIN() ? 1 : 0);
-$canclone        = (($profile->published() && isset($this_user) &&
-		     $this_user->idx() == $creator->idx()) ||
-		    ISADMIN() ? 1 : 0);
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
 $isadmin         = (ISADMIN() ? 1 : 0);
-$public_url      = ($instance->public_url() ?
-		    "'" . $instance->public_url() . "'" : "null");
 
 #
 # We give ssh to the creator (real user or guest user).

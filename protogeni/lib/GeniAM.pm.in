@@ -1393,12 +1393,12 @@ sub CheckRspec
 	print $fh $rspec;
 	close($fh);
 	my $rspecerrors = `$RSPECLINT $filename 2>&1`;
-	if ($?) {
-	    unlink($filename);
-	    $result = GeniResponse->Create(GENIRESPONSE_ERROR,
-					   $rspecerrors,
-					   $type . " rspec does not validate");
-	}
+	#if ($?) {
+	#    unlink($filename);
+	#    $result = GeniResponse->Create(GENIRESPONSE_ERROR,
+	#				   $rspecerrors,
+	#				   $type . " rspec does not validate");
+	#}
 	if ($rspecerrors ne "") {
 	    print STDERR "--- BEGIN RSPECLINT ERRORS $type ---\n";
 	    print STDERR $rspecerrors;

@@ -9,7 +9,7 @@ $TTL	30
 				3600      ; Refresh
 				900       ; Retry
 				3600000   ; Expire
-				3600 )    ; Minimum
+				1 )       ; No caching for negative answers
 	IN	NS	ns.@OURDOMAIN@.
 %secondaries%
 

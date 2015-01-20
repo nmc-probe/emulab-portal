@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -922,14 +922,6 @@ function DOLOGIN($token, $password, $adminmode = 0, $nopassword = 0) {
 	}
 	$CHECKLOGIN_USER = $user;
 
-	#
-	# Usage stats. 
-	#
-	DBQueryFatal("update user_stats set ".
-		     " weblogin_count=weblogin_count+1, ".
-		     " weblogin_last=now() ".
-		     "where uid_idx='$uid_idx'");
-
 	# Clear IP record since we have a sucessful login from the IP.
 	if (isset($IP)) {
 	    DBQueryFatal("delete from login_failures where IP='$IP'");
@@ -991,6 +983,8 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     global $WIKISUPPORT, $WIKICOOKIENAME;
     global $BUGDBSUPPORT, $BUGDBCOOKIENAME, $TRACSUPPORT, $TRACCOOKIENAME;
     global $TBLIBEXEC_DIR, $EXP_VIS, $TBMAINSITE;
+    global $WITHZFS, $ZFS_NOEXPORT;
+
     $flushtime = time() - 1000000;
     
     # Caller makes these checks too.
@@ -1111,6 +1105,52 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
 	
     DBQueryFatal("update users set ".
 		 "       weblogin_failcount=0,weblogin_failstamp=0 ".
+		 "where uid_idx='$uid_idx'");
+
+    #
+    # Ug. When using ZFS in NOEXPORT mode, we have to call exports_setup
+    # to get the mounts exported to back to boss. We do not want to do this
+    # every time the user logs in of course, and since exports_setup is 
+    # using one week as its threshold, we can just do it on a daily basis.
+    #
+    if ($WITHZFS && $ZFS_NOEXPORT) {
+        $query_result =
+	    DBQueryFatal("select UNIX_TIMESTAMP(weblogin_last),weblogin_last ".
+			 "  from users as u ".
+			 "left join user_stats as s on s.uid_idx=u.uid_idx ".
+			 "where u.uid_idx='$uid_idx'");
+	if (mysql_num_rows($query_result)) {
+		$lastrow      = mysql_fetch_row($query_result);
+		$lastlogin    = $lastrow[0];
+		$lastloginstr = $lastrow[1];
+	
+		if (time() - $lastlogin > (24 * 3600)) {
+			# Update weblogin_last first so exports_setup
+			# will do something.
+			DBQueryFatal("update user_stats set ".
+				     " weblogin_last=now() ".
+				     "where uid_idx='$uid_idx'");
+
+			$rv = SUEXEC("nobody", "nobody", "webexports_setup",
+				     SUEXEC_ACTION_IGNORE);
+
+			# failed, reset the timestamp
+			if ($rv) {
+				DBQueryFatal("update user_stats set ".
+					     " weblogin_last='$lastloginstr' ".
+					     "where uid_idx='$uid_idx'");
+				SUEXECERROR(SUEXEC_ACTION_DIE);
+				return;
+			}
+		}
+	}
+    }
+    #
+    # Usage stats. 
+    #
+    DBQueryFatal("update user_stats set ".
+		 " weblogin_count=weblogin_count+1, ".
+		 " weblogin_last=now() ".
 		 "where uid_idx='$uid_idx'");
 
     # Proj-vis cookies
@@ -1252,8 +1292,6 @@ function NOLOGINS() {
 }
 
 function LASTWEBLOGIN($uid_idx) {
-    global $TBDBNAME;
-
     $query_result =
         DBQueryFatal("select weblogin_last from users as u ".
 		     "left join user_stats as s on s.uid_idx=u.uid_idx ".

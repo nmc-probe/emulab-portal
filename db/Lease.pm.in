@@ -457,13 +457,35 @@ sub Delete($) {
     return 0
 }
 
+#
+# Is the underlying blockstore resource mapped in RW currently?
+# XXX: blockstore-specific lease function.  Should be in a subclass.
+#
+sub InUseReadWrite() {
+    my ($self) = @_;
+
+    my $rw = 0;
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    my $resvref = $self->GetReservations();
+    if ($resvref && @$resvref) {
+	# We only need to check the first reservation in the list since no
+	# concurrent mix of RO and RW is allowed.
+	$rw = $resvref->[0]->IsReadOnly() ? 0 : 1;
+    }
+
+    return $rw;
+}
+
 sub InUse($) {
     my ($self) = @_;
 
     return LEASE_ERROR_FAILED()
 	if (!ref($self));
 
-    my $lref = $self->UsingResources();
+    my $lref = $self->GetReservations();
     if (!$lref) {
 	return 0;
     }
@@ -472,16 +494,17 @@ sub InUse($) {
 }
 
 #
-# Returns a list of experiment indicies that are currently using the
-# resources associated with this lease.
+# Returns a list of blockstore reservations that are currently using the
+# resources associated with this lease. XXX: this is a blockstore-specific
+# function.
 #
-sub UsingResources($) {
+sub GetReservations($) {
     my ($self) = @_;
 
     return undef
 	if (!ref($self));
 
-    my @eidxlist = ();
+    my @resvlist = ();
 
     #
     # Before doing a big honkin query, see if the lease has resources
@@ -491,17 +514,22 @@ sub UsingResources($) {
 	my $lidx = $self->lease_idx();
 
 	my $query_result =
-	    DBQueryWarn("select r.exptidx from blockstores as b,".
+	    DBQueryWarn("select r.vnode_id from blockstores as b,".
 			"   reserved_blockstores as r,project_leases as l ".
-			"where b.node_id=r.node_id and b.bs_id=r.bs_id ".
+			"where b.bsidx=r.bsidx ".
 			"   and b.lease_idx=l.lease_idx ".
 			"   and l.lease_idx='$lidx'");
-	while (my ($eidx) = $query_result->fetchrow_array()) {
-	    push(@eidxlist, $eidx);
+	return undef 
+	    if (!$query_result);
+
+	while (my ($vnode_id,) = $query_result->fetchrow_array()) {
+	    next if (!$vnode_id);
+	    push(@resvlist, 
+		 Blockstore::Reservation->LookupByNodeid($vnode_id));
 	}
     }
 
-    return \@eidxlist;
+    return \@resvlist;
 }
 
 #
@@ -1391,15 +1419,17 @@ sub AccessCheck($$$) {
 	if ($gid eq "");
     my $group = Group->Lookup($pid, $gid);
 
-    # Project managers can do anything to a lease that is attributed
-    # to their project.
-    if (TBMinTrust($group->Trust($user), PROJMEMBERTRUST_GROUPROOT())) {
+    # Members of the owning project have some implicit permissions, depending
+    # on their project trust.
+    my $gtrust = $group->Trust($user);
+    if (TBMinTrust($gtrust, PROJMEMBERTRUST_GROUPROOT())) {
 	return 1;
     }
-
-    # If the user is a member of the owning project, then they can at
-    # least grab the lease's info.
-    if (TBMinTrust($group->Trust($user), PROJMEMBERTRUST_USER())) {
+    # XXX: Need to decide what the right thing to do is here.
+    #elsif (TBMinTrust($gtrust, PROJMEMBERTRUST_LOCALROOT())) {
+    #	$user_access = LEASE_ACCESS_READ();
+    #}
+    elsif (TBMinTrust($gtrust, PROJMEMBERTRUST_USER())) {
 	$user_access = LEASE_ACCESS_READINFO();
     }
 

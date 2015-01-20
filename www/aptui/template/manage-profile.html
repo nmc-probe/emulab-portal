@@ -383,7 +383,6 @@
 	      <a class='btn btn-primary btn-sm pull-right' disabled
                  id='profile_instantiate_button'
                  style='margin-right: 10px;'
-     		 data-toggle='modal' data-target='#instantiate_modal'
                  type='submit' name='create'>Instantiate
 	      </a>
 	      <button class='btn btn-success btn-sm pull-right' disabled
@@ -393,6 +392,7 @@
                  type='button'>Instantiate as Guest
 	      </button>
 	      <a class='btn btn-primary btn-sm pull-left'
+                 id='profile_copy_button'
                  style='margin-right: 10px;'
                  type='button'
 		 href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'>
@@ -472,4 +472,5 @@
   <div id='guest_div'></div>
   <div id='publish_div'></div>
   <div id='instantiate_div'></div>
+  <div id='ppmodal_div'></div>
 </div>

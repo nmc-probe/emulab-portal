@@ -52,7 +52,7 @@ LDFLAGS += $(LDSTATIC)
 #
 CFLAGS	+= -DETCDIR='"$(INSTALL_ETCDIR)"'
 SSLFLAGS = -DWITHSSL 
-TMLIBS	+= -lssl -lcrypto
+TMLIBS	+= -lssl -lcrypto -lcrypt
 NOTPMLIB = ${TESTBED_LIBOBJDIR}/tmcd/libtmcd.a
 
 ifeq ($(SYSTEM),Linux)

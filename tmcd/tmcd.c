@@ -4545,7 +4545,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 	char            iqn[BS_IQN_MAXSIZE];
 	char            *mynodeid;
 	char            *class, *protocol, *placement, *mountpoint, *lease;
-	int		nrows, nattrs, ro;
+	int		nrows, nattrs, ro, slen;
 
 	/* Remember the nodeid we care about up front. */
 	mynodeid = reqp->isvnode ? reqp->vnodeid : reqp->nodeid;
@@ -4590,10 +4590,20 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 	/* iSCSI blockstore */
 	if ((strcmp(class, BS_CLASS_SAN) == 0) &&
 	    (strcmp(protocol, BS_PROTO_ISCSI) == 0)) {
-		/* Construct IQN string. */
-		if (snprintf(iqn, sizeof(iqn), "%s:%s:%s:%s",
-			     BS_IQN_PREFIX, reqp->pid, 
-			     reqp->eid, vname) >= sizeof(iqn)) {
+		/*
+		 * Construct IQN string. Leases have a static IQN,
+		 * whereas ephemeral blockstores have IQNs based on
+		 * experiment-specific data.
+		 */
+		if (strlen(lease) && atoi(lease) != 0) {
+			slen = snprintf(iqn, sizeof(iqn), "%s:lease-%s",
+					BS_IQN_PREFIX, lease);
+		} else {
+			slen = snprintf(iqn, sizeof(iqn), "%s:%s:%s:%s",
+					BS_IQN_PREFIX, reqp->pid,
+					reqp->eid, vname);
+		}
+		if (slen >= sizeof(iqn)) {
 			error("STORAGECONFIG: %s: Not enough room in "
 			      "IQN string buffer", mynodeid);
 			mysql_free_result(res);

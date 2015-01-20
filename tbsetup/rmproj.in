@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,13 +38,18 @@ use strict;
 my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
 my $CONTROL  = "@USERNODE@";
-my $WITHZFS  = @WITHZFS@;
 my $MAILMANSUPPORT= @MAILMANSUPPORT@;
 
 my $RMGROUP  = "$TB/sbin/rmgroup";
 my $MODGROUPS= "$TB/sbin/modgroups";
 my $DELMMLIST= "$TB/sbin/delmmlist";
 my @grouplist= ();
+
+#
+# Change this if you really want to remove the directories associated
+# with a project. Note: we have never tested the remove path!
+# 
+my $renamedirs = 1;
 
 #
 # Untaint the path
@@ -73,6 +78,7 @@ my $SCRATCHROOT  = SCRATCHROOT();
 
 # Protos
 sub fatal($);
+sub removedir($);
 
 #
 # We don't want to run this script unless its the real version.
@@ -132,60 +138,15 @@ if (AuditStart(0)) {
     exit(0);
 }
 
-my $savename = "${pid}-${pid_idx}";
+#
+# Project related directories will be removed by rmgroup call.
+#
 
 #
-# Rename the project directory.
-#
-if (!$WITHZFS && -e "$PROJROOT/$pid") {
-    my $oldname = "$PROJROOT/$pid";
-    my $newname = "$PROJROOT/$savename";
-
-    if (rename($oldname, $newname)) {
-	#
-	# Chown the owner/group to root and set the permissions so no
-	# one is allowed to look inside.
-	#
-	if (! chmod(0700, $newname)) {
-	    fatal("Could not chmod directory $newname to 0700: $!");
-	}
-	if (! chown(0, 0, $newname)) {
-	    fatal("Could not chown directory $newname to 0/0: $!");
-	}
-    }
-    else {
-	fatal("Could not rename proj directory to $newname: $!");
-    }
-}
-    
-#
-# and the scratch directory if it exists
-#
-if ($SCRATCHROOT && -e "$SCRATCHROOT/$pid") {
-    my $oldname = "$SCRATCHROOT/$pid";
-    my $newname = "$SCRATCHROOT/$savename";
-
-    if (rename($oldname, $newname)) {
-	#
-	# Chown the owner/group to root and set the permissions so no
-	# one is allowed to look inside.
-	#
-	if (! chmod(0700, $newname)) {
-	    fatal("Could not chmod directory $newname to 0700: $!");
-	}
-	if (! chown(0, 0, $newname)) {
-	    fatal("Could not chown directory $newname to 0/0: $!");
-	}
-    }
-    else {
-	fatal("Could not rename proj directory to $newname: $!");
-    }
-}
-
-#
-# Ditto for the experiment working directory.
+# Remove/rename the experiment working directory.
 #
 my $workdir = TBDB_EXPT_WORKDIR() . "/$pid";
+my $savename = "_ARCHIVED-${pid}-${pid_idx}";
 
 if (-d $workdir) {
     my $newname = TBDB_EXPT_WORKDIR() . "/$savename";

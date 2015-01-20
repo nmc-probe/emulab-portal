@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2014 University of Utah and the Flux Group.
+# Copyright (c) 2010-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -34,7 +34,7 @@ use Data::Dumper;
 
 #
 # Setup accounts/projects/group stuff on ops/fs. This is installed on
-# op/fs and invoked from boss by tbaccy and the proj/group scripts/
+# op/fs and invoked from boss by tbacct and the proj/group scripts.
 #
 sub usage()
 {
@@ -52,6 +52,9 @@ my $debug      = 0;
 my $force      = 0;
 my $impotent   = 0;
 
+# XXX make this a sitevar
+my $RENAMEDIRS = 1;
+
 #
 # Configure variables
 #
@@ -67,6 +70,7 @@ my $USERMOD	      = "/usr/sbin/pw usermod";
 my $GROUPADD          = "/usr/sbin/pw groupadd";
 my $GROUPDEL          = "/usr/sbin/pw groupdel";
 my $CHPASS	      = "/usr/bin/chpass";
+my $CHOWN	      = "/usr/sbin/chown";
 my $ZFS		      = "/sbin/zfs";
 my $SKEL	      = "/usr/share/skel";
 my $PIDFILE           = "/var/run/mountd.pid";
@@ -81,9 +85,23 @@ my $USEREXISTS  = 65;
 use lib "@prefix@/lib";
 use libtestbed;
 
-# Defined in libtestbed;
+# Generic (mounted) names for filesystems
+my $USERROOT    = USERROOT();
 my $PROJROOT    = PROJROOT();
 my $GROUPROOT   = GROUPROOT();
+my $SCRATCHROOT = SCRATCHROOT();
+
+# XXX we need the real fs mountpoints too
+my $FSUSERROOT    = "@FSDIR_USERS@";
+my $FSPROJROOT    = "@FSDIR_PROJ@";
+my $FSGROUPROOT   = "@FSDIR_GROUPS@";
+my $FSSCRATCHROOT = "@FSDIR_SCRATCH@";
+
+# Project subdir list
+my @DIRLIST  = ("exp", "images", "logs", "deltas", "tarfiles", "rpms",
+		"groups", "tiplogs", "images/sigs", "templates");
+# Groups subdir list
+my @GDIRLIST = ("exp", "images", "logs", "tarfiles", "rpms", "tiplogs");
 
 #
 # Function prototypes
@@ -97,6 +115,9 @@ sub DelProject();
 sub DelGroup();
 sub fatal($);
 sub ZFSexists($);
+sub MakeDir($$);
+sub WhackDir($$);
+sub mysystem($);
 
 #
 # Check args.
@@ -156,6 +177,9 @@ SWITCH: for ($cmd) {
 }
 exit(0);
 
+#
+# Usage: adduser username unix_uid full_name homedir unix_gid shell [ phash ]
+#
 sub AddUser()
 {
     if (@ARGV < 6) {
@@ -170,52 +194,55 @@ sub AddUser()
     my $shell = shift(@ARGV);
     my $hash  = (@ARGV ? shift(@ARGV) : undef);
 
-    if ($WITHZFS) {
-	my $path = "${ZFS_ROOT}${hdir}";
-	if (!ZFSexists($path)) {
-	    system("$ZFS create -o quota=${ZFS_QUOTA_USER} $path");
-	    if ($?) {
-		fatal("Could not create ZFS $path");
-	    }
-	    system("$ZFS share -a");
+    if (! -d "$hdir") {
+	# XXX we only handle homedirs of the form /users/$user here...
+	if ($hdir ne "$USERROOT/$user" || MakeDir($USERROOT, $user)) {
+	    fatal("Could not create $user homedir $hdir");
 	}
     }
 
-    if (system("egrep -q -s '^${user}:' /etc/passwd") &&
-	system("$USERADD $user -u $uid -c \"$name\" ".
-	       "-k $SKEL -h - -m -d $hdir -g $gid -s $shell")) {
+    if (mysystem("egrep -q -s '^${user}:' /etc/passwd") &&
+	mysystem("$USERADD $user -u $uid -c \"$name\" ".
+	       "-k $SKEL -h - -d $hdir -g $gid -s $shell")) {
 	if (($? >> 8) != $USEREXISTS) {
 	    fatal("$USERADD: could not add account");
 	}
     }
-    if ($WITHZFS) {
-	#
-	# Since the directory exists before the useradd call, the skeleton
-	# files are not copied in. Do that now.
-	#
-	if (! -e "$hdir/.cshrc") {
-	    opendir(DIR, "$SKEL") or
-		fatal("Unable to open skeleton directory");
-	    while (my $file = readdir(DIR)) {
-		if ($file =~ /^dot(.*)$/) {
-		    system("/bin/cp -fp $SKEL/$file $hdir/$1") == 0
-			or fatal("Could not copy $SKEL/$file to $hdir/$1");
-		}
+
+    #
+    # Since we do not populate the new homedir with the useradd call,
+    # we need to copy the skeleton files over.
+    #
+    if (! -e "$hdir/.cshrc") {
+	opendir(DIR, "$SKEL") or
+	    fatal("Unable to open skeleton directory");
+	while (my $file = readdir(DIR)) {
+	    if ($file =~ /^dot(.*)$/) {
+		mysystem("/bin/cp -fp $SKEL/$file $hdir/$1") == 0
+		    or fatal("Could not copy $SKEL/$file to $hdir/$1");
 	    }
 	}
+
 	#
-	# And for the same reason, need to chown/chgrp everything. 
+	# And set the owner and group right on everything
 	#
-	system("/usr/sbin/chown -R $user:$gid $hdir") == 0
+	mysystem("/usr/sbin/chown -R $user:$gid $hdir") == 0
 	    or fatal("Could not chown $hdir");
     }
+
+    #
+    # Finally, set any initial password hash
+    #
     if (defined($hash) &&
-	system("$CHPASS -p '$hash' $user")) {
+	mysystem("$CHPASS -p '$hash' $user")) {
 	fatal("Could not initialize password");
     }
     return 0;
 }
 
+#
+# Usage: deluser username homedir
+#
 sub DeleteUser()
 {
     if (@ARGV != 2) {
@@ -224,86 +251,207 @@ sub DeleteUser()
     my $user  = shift(@ARGV);
     my $hdir  = shift(@ARGV);
 
-    if (system("$USERDEL $user")) {
+    #
+    # Note that this does NOT remove the user's homedir.
+    # We remove/rename it below...
+    #
+    if (mysystem("$USERDEL $user")) {
 	if (($? >> 8) != $NOSUCHUSER) {
 	    fatal("Could not remove user $user");
 	}
     }
-    if ($WITHZFS) {
-	my $path = "${ZFS_ROOT}${hdir}";
-	if (ZFSexists($path)) {
-	    system("$ZFS unmount -f $path");
-	    system("$ZFS destroy $path");
-	    if ($?) {
-		fatal("Could not destroy ZFS $path");
-	    }
-	}
+
+    # XXX we only handle homedirs of the form /users/$user here...
+    if ($hdir ne "$USERROOT/$user" || WhackDir($USERROOT, $user)) {
+	fatal("Could not destroy $user homedir $hdir");
     }
+
     return 0;
 }
 
+#
+# Usage: username group1 [ group2 ... groupN ]
+# XXX this is specific to what is required by setgroups.
+#
 sub ModifyUser()
 {
-    fatal("moduser: Not implemented yet");
+    if (@ARGV < 2) {
+	fatal("moduser: Wrong number of arguments");
+    }
+    my $user  = shift(@ARGV);
+    my $pgroup  = shift(@ARGV);
+    my $grouplist = "''";
+    if (@ARGV > 0) {
+	$grouplist = "-G '" . join(',', @ARGV) . "'";
+    }
+
+    if (mysystem("$USERMOD $user -g $pgroup $grouplist")) {
+	fatal("Could not modify user $user to add groups!\n");
+    }
+
+    #
+    # Make sure the users dot files and other critical files/dirs
+    # are in the correct group. I looked at the source code to
+    # chown, and it does not do anything to files that are already
+    # set correctly. Thank you chown.
+    #
+    my @dots = (".login", ".profile", ".cshrc", ".ssl", ".ssh");
+    my $homedir = USERROOT() . "/$user";
+
+    mysystem("$CHOWN $user:$pgroup $homedir") == 0
+	or fatal("Could not chown home dir to $user:$pgroup");
+
+    foreach my $dot (@dots) {
+	if (-e "$homedir/$dot") {
+	    mysystem("$CHOWN -R $user:$pgroup $homedir/$dot") == 0
+		or fatal("Could not chown $homedir/$dot to $user:$pgroup");
+	}
+    }
+
+    return 0;
 }
 
+#
+# Usage: addproject projname unix_gname unix_gid unix_uid
+#
 sub AddProject()
 {
-    if (@ARGV != 3) {
+    if (@ARGV != 4) {
 	fatal("addproject: Wrong number of arguments");
     }
     my $name      = shift(@ARGV);
     my $unix_name = shift(@ARGV);
-    my $gid       = shift(@ARGV);
+    my $unix_gid  = shift(@ARGV);
+    my $unix_uid  = shift(@ARGV);
 
-    if ($WITHZFS) {
-	my $path = "${ZFS_ROOT}${PROJROOT}/$name";
-	if (!ZFSexists($path)) {
-	    system("$ZFS create -o quota=${ZFS_QUOTA_PROJECT} $path");
-	    if ($?) {
-		fatal("Could not create ZFS $path");
-	    }
-	    system("$ZFS share -a");
-	}
-	$path = "${ZFS_ROOT}${GROUPROOT}/$name";
-	if (!ZFSexists($path)) {
-	    system("$ZFS create -o quota=${ZFS_QUOTA_GROUP} $path");
-	    if ($?) {
-		fatal("Could not create ZFS $path");
-	    }	
-	    system("$ZFS share -a");
-	}
-    }
-
-    if (system("egrep -q -s '^${unix_name}:' /etc/group")) {
+    # Create the project unix group
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group")) {
 	print "Adding group $unix_name ...\n";
 
-	if (system("$GROUPADD $unix_name -g $gid")) {
-	    fatal("Could not add group $unix_name ($gid)!\n");
+	if (mysystem("$GROUPADD $unix_name -g $unix_gid")) {
+	    fatal("Could not add group $unix_name ($unix_gid)!\n");
 	}
     }
+
+    # Create the /proj directory
+    my $path = "$PROJROOT/$name";
+    if (! -d "$path" && MakeDir($PROJROOT, $name)) {
+	fatal("Could not make directory '$path'");
+    }
+    if (! chmod(0770, "$path")) {
+	fatal("Could not chmod '$path' to 0770: $!");
+    }
+    if (! chown($unix_uid, $unix_gid, "$path")) {
+	fatal("Could not chown '$path' to $unix_uid/$unix_gid: $!");
+    }
+
+    # Create required /proj subdirs
+    foreach my $dir (@DIRLIST) {
+	$path = "$PROJROOT/$name/$dir";
+	if (! -d "$path" && !mkdir("$path", 0770)) {
+	    fatal("Could not make directory '$path': $!");
+	}
+	if (! chmod(0770, "$path")) {
+	    fatal("Could not chmod '$path' to 0770: $!");
+	}
+	if (! chown($unix_uid, $unix_gid, "$path")) {
+	    fatal("Could not chown '$path' to $unix_uid/$unix_gid: $!");
+	}
+    }
+
+    # Create the /groups directory
+    $path = "$GROUPROOT/$name";
+    if (! -d "$path" && MakeDir($GROUPROOT, $name)) {
+	fatal("Could not make directory '$path'");
+    }
+    if (! chmod(0770, "$path")) {
+	fatal("Could not chmod '$path' to 0770: $!");
+    }
+    if (! chown($unix_uid, $unix_gid, "$path")) {
+	fatal("Could not chown '$path'  to $unix_uid/$unix_gid: $!");
+    }
+
+    # Create a symlink for the default group
+    $path = "$GROUPROOT/$name/$name";
+    if (! -e "$path") {    
+	if (mysystem("ln -s $PROJROOT/$name $path")) {
+	    fatal("Could not symlink $PROJROOT/$name to $path");
+	}
+    }
+
+    # Finally, create /scratch dir if supported
+    if ($SCRATCHROOT) {
+	$path = "$SCRATCHROOT/$name";
+	if (! -d "$path" && MakeDir($SCRATCHROOT, $name)) {
+	    fatal("Could not make directory '$path'");
+	}
+	if (! chmod(0770, "$path")) {
+	    fatal("Could not chmod '$path' to 0770: $!");
+	}
+	if (! chown($unix_uid, $unix_gid, "$path")) {
+	    fatal("Could not chown '$path'  to $unix_uid/$unix_gid: $!");
+	}
+    }
+
     return 0;
 }
 
+#
+# Usage: addgroup groupname unix_gname unix_gid unix_uid projname
+#
 sub AddGroup()
 {
-    if (@ARGV != 3) {
+    if (@ARGV != 5) {
 	fatal("addgroup: Wrong number of arguments");
     }
     my $name      = shift(@ARGV);
     my $unix_name = shift(@ARGV);
-    my $gid       = shift(@ARGV);
+    my $unix_gid  = shift(@ARGV);
+    my $unix_uid  = shift(@ARGV);
+    my $projname  = shift(@ARGV);
 
-    if (system("egrep -q -s '^${unix_name}:' /etc/group")) {
+    # Create the group unix group
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group")) {
 	print "Adding group $unix_name ...\n";
 
-	if (system("$GROUPADD $unix_name -g $gid")) {
-	    fatal("Could not add group $unix_name ($gid)!\n");
+	if (mysystem("$GROUPADD $unix_name -g $unix_gid")) {
+	    fatal("Could not add group $unix_name ($unix_gid)!\n");
 	}
     }
+
+    # Create the /groups/gid directory
+    my $path = "$GROUPROOT/$projname/$name";
+    # XXX note that this is always a regular directory, not a filesystem
+    if (! -d "$path" && !mkdir("$path", 0770)) {
+	fatal("Could not make directory '$path': $!");
+    }
+    if (! chmod(0770, "$path")) {
+	fatal("Could not chmod '$path' to 0770: $!");
+    }
+    if (! chown($unix_uid, $unix_gid, "$path")) {
+	fatal("Could not chown '$path' to $unix_uid/$unix_gid: $!");
+    }
+
+    # Create required /groups/gid subdirs
+    foreach my $dir (@GDIRLIST) {
+	$path = "$GROUPROOT/$projname/$name/$dir";
+	if (! -d "$path" && !mkdir("$path", 0770)) {
+	    fatal("Could not make directory '$path': $!");
+	}
+	if (! chmod(0770, "$path")) {
+	    fatal("Could not chmod '$path' to 0770: $!");
+	}
+	if (! chown($unix_uid, $unix_gid, "$path")) {
+	    fatal("Could not chown '$path' to $unix_uid/$unix_gid: $!");
+	}
+    }
+
     return 0;
 }
 
+#
+# Usage: delproject projname unix_gname
+#
 sub DelProject()
 {
     if (@ARGV != 2) {
@@ -312,57 +460,52 @@ sub DelProject()
     my $name       = shift(@ARGV);
     my $unix_name  = shift(@ARGV);
 
-    if ($WITHZFS) {
-	my $path = "${ZFS_ROOT}${PROJROOT}/$name";
-	if (ZFSexists($path)) {
-	    system("$ZFS unmount -f $path");
-	    system("$ZFS destroy $path");
-	    if ($?) {
-		fatal("Could not destroy ZFS $path");
-	    }
-	}
-	$path = "${ZFS_ROOT}${GROUPROOT}/$name";
-	if (ZFSexists($path)) {
-	    system("$ZFS unmount -f $path");
-	    system("$ZFS destroy $path");
-	    if ($?) {
-		fatal("Could not destroy ZFS $path");
-	    }
-	}
+    if ((-d "$PROJROOT/$name" && WhackDir($PROJROOT, $name)) ||
+	(-d "$GROUPROOT/$name" && WhackDir($GROUPROOT, $name)) ||
+	($SCRATCHROOT && -d "$SCRATCHROOT/$name" &&
+	 WhackDir($SCRATCHROOT, $name))) {
+	fatal("Could not destroy project '$name' related directories");
     }
-    if (system("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
+
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting project $unix_name ...\n";
 
-	if (system("$GROUPDEL $unix_name")) {
+	if (mysystem("$GROUPDEL $unix_name")) {
 	    fatal("Could not delete group $unix_name!\n");
 	}
     }
     return 0;
 }
 
+#
+# Usage: delgroup groupname unix_gname projname
+#
 sub DelGroup()
 {
-    if (@ARGV != 2) {
+    if (@ARGV != 3) {
 	fatal("delgroup: Wrong number of arguments");
     }
     my $name      = shift(@ARGV);
     my $unix_name = shift(@ARGV);
+    my $projname   = shift(@ARGV);
 
-    if (system("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
+    #
+    # XXX groups are different because they are a subdirectory under
+    # /groups/<pid>/.
+    #
+    if (-d "$GROUPROOT/$projname/$name" &&
+	WhackDir($GROUPROOT, "$projname/$name")) {
+	fatal("Could not destroy project group '$name' related directories");
+    }
+
+    if (mysystem("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting group $unix_name ...\n";
 
-	if (system("$GROUPDEL $unix_name")) {
+	if (mysystem("$GROUPDEL $unix_name")) {
 	    fatal("Could not delete group $unix_name!\n");
 	}
     }
     return 0;
-}
-
-sub fatal($) {
-    my ($msg) = @_;
-
-    print STDERR "$msg\n";
-    exit(-1);
 }
 
 #
@@ -372,8 +515,96 @@ sub ZFSexists($)
 {
     my ($path) = @_;
 
-    system("$ZFS list $path >/dev/null 2>&1");
+    mysystem("$ZFS list $path >/dev/null 2>&1");
     return ($? ? 0 : 1);
+}
+
+sub MakeDir($$)
+{
+    my ($fs,$dir) = @_;
+    my ($cmd,$cmdarg,$path);
+
+    # XXX right now we assume that WITHZFS means per-user/proj FSes
+    if ($WITHZFS) {
+	$cmd = "$ZFS create";
+	$path = "${ZFS_ROOT}${fs}/$dir";
+
+	# XXX quotas
+	if ($fs eq $USERROOT) {
+	    $cmdarg = "-o quota=$ZFS_QUOTA_USER";
+	} elsif ($fs eq $PROJROOT) {
+	    $cmdarg = "-o quota=$ZFS_QUOTA_PROJECT";
+	} elsif ($fs eq $GROUPROOT) {
+	    $cmdarg = "-o quota=$ZFS_QUOTA_GROUP";
+	} else {
+	    $cmdarg = "";
+	}
+    } else {
+	$cmd = "mkdir";
+	$cmdarg = "";
+	$path = "$fs/$dir";
+    }
+    if (mysystem("$cmd $cmdarg $path")) {
+	return $?;
+    }
+
+    # should we be setting permissions or ownership here?
+
+    return 0;
+}
+
+sub WhackDir($$)
+{
+    my ($fs,$dir) = @_;
+    my $zfsfs = "";
+
+    if ($WITHZFS) {
+	my $path = "${ZFS_ROOT}${fs}/$dir";
+	$zfsfs = $path
+	    if (ZFSexists($path));
+    }
+    if ($RENAMEDIRS) {
+	my ($cmd, $path, $npath);
+	my $suffix = "-D" . time();
+
+	if ($zfsfs) {
+	    $cmd = "$ZFS rename";
+	    $path = $zfsfs;
+	    $npath = "${ZFS_ROOT}${fs}/$dir$suffix";
+	} else {
+	    $cmd = "mv";
+	    $path = "$fs/$dir";
+	    $npath = "$fs/$dir$suffix";
+	}
+	if (mysystem("$cmd $path $npath")) {
+	    return $?;
+	}
+
+	# Since we reuse uid/gids let's make the dir root/0700
+	$path = "$fs/$dir$suffix";
+	if (!chown(0, 0, $path) || !chmod(0700, $path)) {
+	    print STDERR "WARNING: could not chown/chmod '$path'!\n";
+	}
+    }
+    #
+    # XXX maybe we should do this in the background since it could
+    # take a really long time!
+    #
+    else {
+	my ($cmd, $path);
+
+	if ($zfsfs) {
+	    $cmd = "$ZFS destroy -f";
+	    $path = $zfsfs;
+	} else {
+	    $cmd = "rm -rf";
+	    $path = "$fs/$dir";
+	}
+	if (mysystem("$cmd $path")) {
+	    return $?;
+	}
+    }
+    return 0;
 }
 
 #
@@ -399,4 +630,24 @@ sub HUPMountd()
     sleep(1);
 }
 
+# XXX temporary while debugging
+sub mysystem($)
+{
+    my $cmd = shift;
 
+    print STDERR "accountsetup: '$cmd'\n";
+
+    if (open(FD, ">>/usr/testbed/log/accountsetup.log")) {
+	my $tstamp = POSIX::strftime("%b %e %H:%M:%S", localtime());
+	print FD "$tstamp: $cmd\n";
+	close(FD);
+    }
+    return system($cmd);
+}
+
+sub fatal($) {
+    my ($msg) = @_;
+
+    print STDERR "$msg\n";
+    exit(-1);
+}

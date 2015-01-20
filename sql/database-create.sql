@@ -76,6 +76,8 @@ CREATE TABLE `apt_datasets` (
   `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
   `fstype` varchar(40) NOT NULL default 'none',
   `size` int(10) unsigned NOT NULL default '0',
+  `read_access` enum('project','global') NOT NULL default 'project',
+  `write_access` enum('creator','project') NOT NULL default 'creator',
   `public` tinyint(1) NOT NULL default '0',
   `shared` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL, 
@@ -99,11 +101,16 @@ CREATE TABLE `apt_instance_history` (
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `creator_uuid` varchar(40) NOT NULL default '',
+  `pid` varchar(48) default NULL,
+  `pid_idx` mediumint(8) unsigned default NULL,
   `aggregate_urn` varchar(128) default NULL,
   `public_url` tinytext,
   `created` datetime default NULL,
   `destroyed` datetime default NULL,
   `servername` tinytext,
+  `rspec` mediumtext,
+  `params` mediumtext,
+  `manifest` mediumtext,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -120,6 +127,8 @@ CREATE TABLE `apt_instances` (
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `creator_uuid` varchar(40) NOT NULL default '',
+  `pid` varchar(48) default NULL,
+  `pid_idx` mediumint(8) unsigned default NULL,
   `aggregate_urn` varchar(128) default NULL,
   `public_url` tinytext,
   `created` datetime default NULL,
@@ -127,6 +136,8 @@ CREATE TABLE `apt_instances` (
   `extension_code` varchar(32) default NULL,
   `extension_reason` mediumtext,
   `servername` tinytext,
+  `rspec` mediumtext,
+  `params` mediumtext,
   `manifest` mediumtext,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -152,6 +163,7 @@ CREATE TABLE `apt_profile_versions` (
   `status` varchar(32) default NULL,
   `rspec` mediumtext,
   `script` mediumtext,
+  `paramdefs` mediumtext,
   PRIMARY KEY (`profileid`,`version`),
   UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`),
   UNIQUE KEY `uuid` (`uuid`)
@@ -1180,6 +1192,8 @@ CREATE TABLE `experiment_stats` (
   KEY `rsrcidx` (`rsrcidx`),
   KEY `pideid` (`pid`,`eid`),
   KEY `eid_uuid` (`eid_uuid`)
+  KEY `pid_idx` (`pid_idx`),
+  KEY `creator_idx` (`creator_idx`),
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -3748,6 +3762,7 @@ CREATE TABLE `project_leases` (
   `lease_id` varchar(32) NOT NULL default '',
   `uuid` varchar(40) NOT NULL default '',
   `owner_uid` varchar(8) NOT NULL default '',
+  `owner_urn` varchar(128) default NULL,
   `pid` varchar(48) NOT NULL default '',
   `gid` varchar(48) NOT NULL default '',
   `type` enum('stdataset','ltdataset','unknown') NOT NULL default 'unknown',
@@ -4482,6 +4497,7 @@ CREATE TABLE `user_pubkeys` (
   `idx` int(10) unsigned NOT NULL auto_increment,
   `internal` tinyint(1) NOT NULL default '0',
   `nodelete` tinyint(1) NOT NULL default '0',
+  `isaptkey` tinyint(1) NOT NULL default '0',
   `pubkey` text,
   `stamp` datetime default NULL,
   `comment` varchar(128) NOT NULL default '',

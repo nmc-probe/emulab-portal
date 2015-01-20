@@ -57,6 +57,7 @@ if (!$profile->CanView($this_user) && !ISADMIN()) {
 }
 $profile_uuid = $profile->profile_uuid();
 $version_uuid = $profile->uuid();
+$ispp         = ($profile->isParameterized() ? 1 : 0);
 
 $defaults = array();
 $defaults["profile_name"]        = $profile->name();
@@ -101,8 +102,9 @@ echo "</script>\n";
 echo "<script type='text/javascript'>\n";
 echo "    window.PROFILE_UUID = '$profile_uuid';\n";
 echo "    window.VERSION_UUID = '$version_uuid';\n";
-echo "    window.AJAXURL  = 'server-ajax.php';\n";
-echo "    window.ISADMIN  = $isadmin;\n";
+echo "    window.AJAXURL      = 'server-ajax.php';\n";
+echo "    window.ISADMIN      = $isadmin;\n";
+echo "    window.ISPPPROFILE  = $ispp;\n";
 echo "</script>\n";
 
 echo "<script src='js/lib/codemirror-min.js'></script>\n";

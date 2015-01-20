@@ -2421,7 +2421,7 @@ sub CreateImage($)
 	   defined($slice_urn) && defined($sliver_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    if (! ($imagename =~ /^[-\w]*$/)) {
+    if (! ($imagename =~ /^[-\w\.\+]*$/)) {
 	return GeniResponse->MalformedArgsResponse("Improper name argument");
     }
     $wholedisk = 1
@@ -3287,7 +3287,7 @@ sub CreateDataset($)
     # Grab the lease to see if its been approved, we want to tell
     # the user something.
     #
-    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+    $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
     if (!defined($lease)) {
 	print STDERR "Could not lookup lease after createdataset\n";
 	GeniResponse->Create(GENIRESPONSE_ERROR);

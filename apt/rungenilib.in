@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,7 +22,7 @@
 # 
 # }}}
 #
-
+use strict;
 use English;
 use Getopt::Std;
 use Socket;
@@ -30,6 +30,7 @@ use File::Basename;
 use File::Temp qw(tempfile :POSIX );
 use POSIX qw(:signal_h);
 use POSIX ":sys_wait_h";
+use File::stat;
 
 #
 # Parse an ns file. Since the parser runs arbitrary NS file for the user,
@@ -45,8 +46,10 @@ sub usage()
  
     exit(-1);
 }
-my $optlist  = "do:";
-my $debug    = 0;
+my $optlist    = "do:pb:";
+my $debug      = 0;
+my $getparams  = 0;
+my $paramfile;
 my $ofile;
 
 #
@@ -98,12 +101,25 @@ use User;
 # Parse command arguments. Once we return from getopts, all that should
 # left are the required arguments.
 #
-%options = ();
+my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"p"})) {
+    $getparams = 1;
+}
+if (defined($options{"b"})) {
+    $paramfile = $options{"b"};
+    # Must taint check!
+    if ($paramfile =~ /^([-\w\/\.]+)$/) {
+	$paramfile = $1;
+    }
+    else {
+	die("Bad data in argument: $paramfile.");
+    }
 }
 if (defined($options{"o"})) {
     $ofile = $options{"o"};
@@ -131,9 +147,6 @@ if (defined($ofile)) {
     }
 }
 
-my $infile   = tmpnam();
-my $outfile  = tmpnam();
-
 #
 # Get DB uid for sending over to ops.
 #
@@ -144,9 +157,21 @@ if (! defined($this_user)) {
 # Run as the user for most of this script.
 $EUID = $UID;
 
-# Now append the import file to. This part is hokey. Fix later.
-system("cat $file >> $infile") == 0
-    or fatal("Could not combine defs file and the script file!");
+#
+# If looking for the parameter definition block, then see if there
+# are any define_parameter calls. If so, run the script to get the
+# JSON block.
+#
+if ($getparams && system("egrep -q -s 'defineParameter' $file")) {
+    # No parameters, return empty block.
+    if (defined($ofile)) {
+	system("echo '' > $ofile");
+    }
+    exit(0);
+}
+
+my $infile   = tmpnam();
+my $outfile  = tmpnam();
 
 #
 # Touch the output file, to avoid a root owned, 644 file. 
@@ -159,15 +184,40 @@ system("touch $outfile") == 0 or
 # result back to a file if not in anonmode. Remember to tack on the
 # user ID to flip to, when not in testmode.
 #
-my $cmdargs = "$TB/libexec/rungenilib.proxy -u " . $this_user->uid();
+my $cmdargs = "$TB/libexec/rungenilib.proxy ";
+$cmdargs .= " -u " . $this_user->uid();
+$cmdargs .= ($getparams ? " -p " : "");
+
+#
+# We want to send over both files via STDIN, so combine them, and pass
+# the first file size with the -b option
+#
+if ($paramfile) {
+    system("cat $paramfile > $infile") == 0
+	or fatal("Could not copy $paramfile to $infile");
+
+    $cmdargs .= " -b " . stat($infile)->size;
+    
+    system("cat $file >> $infile") == 0
+	or fatal("Could not concat $file to $infile");
+}
+else {
+    system("cat $file > $infile") == 0
+	or fatal("Could not copy $file to $infile");
+}
+$cmdargs = "sshtb -host $CONTROL $cmdargs < $infile";
+
+if ($debug) {
+    print $cmdargs . "\n";
+}
 
 #
 # Run parser, redirecting stdout to a file to capture the parser results.
 # Stderr is redirected to the ERR filehandle
 # Must flip to real root to run ssh.
-#
+
 $EUID = $UID = 0;
-open ERR, "sshtb -host $CONTROL $cmdargs < $infile 2>&1 >> $outfile |";
+open ERR, "$cmdargs 2>&1 >> $outfile |";
 $EUID = $UID = $SAVEUID;
 
 #

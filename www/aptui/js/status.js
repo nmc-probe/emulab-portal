@@ -40,6 +40,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
+	var errorURL = (window.ISCLOUD ?
+			"cloudlab-ops@cloudlab.us" : "aptlab-ops@aptlab.net") +
+	    "?subject=" +
+	    encodeURIComponent("Help needed for instance: " + uuid) +
+	    "&body=" + encodeURIComponent("\n\nInstance URL: " +
+					  document.location.href);
 
 	// Generate the templates.
 	var template_args = {
@@ -54,6 +60,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    publicURL:          window.APT_OPTIONS.publicURL,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
+	    errorURL:           errorURL,
 	    // The status panel starts out collapsed.
 	    status_panel_show:  (instanceStatus == "ready" ? false : true),
 	};
@@ -308,7 +315,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		bgtype = "panel-danger";
 
 		if (_.has(json.value, "reason")) {
-		    status_message = json.value.reason;
+		    status_message = "Something went wrong!";
+		    $('#error_panel_text').text(json.value.reason);
+		    $('#error_panel').removeClass("hidden");
 		}
 		else {
 		    status_message = "Something went wrong, sorry! " +

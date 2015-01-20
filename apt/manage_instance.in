@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -53,7 +53,6 @@ my $webtask;
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
-my $VERSIONING  = @PROFILEVERSIONS@;
 
 #
 # Untaint the path
@@ -85,6 +84,7 @@ use Genixmlrpc;
 use GeniResponse;
 use GeniSlice;
 use WebTask;
+use EmulabFeatures;
 
 # Protos
 sub fatal($);
@@ -176,6 +176,7 @@ sub DoSnapshot()
     # create the name and update the underlying profile with the new
     # image urn.
     #
+    my $project;
     my $imagename;
     my $node_id;
     my $sliver_urn;
@@ -194,6 +195,10 @@ sub DoSnapshot()
     else {
 	$imagename = $profile->name();
 	$update_profile = 1;
+	$project = Project->Lookup($profile->pid_idx());
+	if (!defined($project)) {
+	    fatal("Could not lookup project for profile");
+	}
     }
     
     #
@@ -442,7 +447,11 @@ sub DoSnapshot()
 	# that we expect the CM is doing image versioning, so do not
 	# bother to check if the image version is actually new.
 	#
-	if ($VERSIONING) {
+	my $doversions =
+	    EmulabFeatures->FeatureEnabled("APT_ProfileVersions",
+					   $this_user, $project);
+
+	if ($doversions) {
 	    $profile = $profile->NewVersion($this_user);
 	    if (!defined($profile)) {
 		print STDERR "Could not create new profile version\n";

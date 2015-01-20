@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -89,12 +89,14 @@ function Do_GetInstanceStatus()
     $blob["status"] = $instance->status();
     
     $webtask = WebTask::LookupByObject($instance->uuid());
-    if ($webtask) {
-	# We do not want to tell the user anything unless it would mean
-	# something to them. Not enough nodes is important.
+    if ($webtask && $webtask->exited()) {
+	# Reflect errors back to the user.
 	if ($webtask->exitcode() == 26) {
 	    $blob["reason"] = "Not enough free nodes, please try again later.";
 	}
+        else {
+            $blob["reason"] = htmlentities($webtask->TaskValue("output"));
+        }
     }
     SPITAJAX_RESPONSE($blob);
 }
@@ -432,7 +434,7 @@ function Do_Snapshot()
 	}
 	return;
     }
-    if ($webtask) {
+    if ($webtask && $webtask->exited()) {
 	$webtask->Delete();
     }
     SPITAJAX_RESPONSE("Success");

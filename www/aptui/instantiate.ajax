@@ -55,6 +55,7 @@ function Do_GetProfile()
     if ($profile->BestAggregate()) {
 	$amdefault = $profile->BestAggregate();
     }
+    $ispp = ($profile->isParameterized() ? 1 : 0);
     
     #
     # Knowing the UUID means the user can instantiate it,
@@ -62,8 +63,120 @@ function Do_GetProfile()
     #
     SPITAJAX_RESPONSE(array('rspec'       => $profile->rspec(),
 			    'name'        => $profile->name(),
+			    'ispprofile'  => $ispp,
 			    'amdefault'   => $amdefault));
 }
+
+#
+# Return parameter form fragment and default values.
+#
+function Do_GetParameters()
+{
+    global $this_user;
+    global $ajax_args;
+    global $suexec_output, $suexec_output_array;
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if (!isset($this_user)) {
+	if (!$profile->ispublic()) {
+	    SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	    return;
+	}	    
+    }
+    elseif (!$profile->CanInstantiate($this_user)) {
+	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	return;
+    }
+    if (!$profile->isParameterized()) {
+	SPITAJAX_ERROR(1, "Not a parameterized profile");
+	return;
+    }
+    list ($formfrag, $defaults) = $profile->GenerateFormFragment();
+    SPITAJAX_RESPONSE(array("formfrag" => htmlentities($formfrag),
+			    "defaults" => $defaults));
+}
+
+#
+# Instantiate profile (as the user)
+#
+function Do_Instantiate()
+{
+    global $this_user, $am_array, $DEFAULT_AGGREGATE, $ISCLOUD;
+    global $ajax_args;
+    
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if (!isset($this_user)) {
+	if (!$profile->ispublic()) {
+	    SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	    return;
+	}	    
+    }
+    elseif (!$profile->CanInstantiate($this_user)) {
+	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	return;
+    }
+    $args = array();
+    $args["username"]   = $this_user->uid();
+    $args["email"]      = $this_user->email();
+    $args["profile"]    = $profile->uuid();
+    # Guest users not allowed to provide rspec
+    if (isset($this_user) && array_key_exists("rspec", $ajax_args)) {
+	$args["rspec"]  = $ajax_args["rspec"];
+    }
+    $opts = "";
+    # Guest users not allowed to choose aggregate.
+    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY()) &&
+	isset($ajax_args["where"])) {
+	if (array_key_exists($ajax_args["where"], $am_array)) {
+	    $opts = "-a " . $am_array[$ajax_args["where"]];
+	}
+	else {
+	    SPITAJAX_ERROR(1, "Invalid Aggregate");
+	    return;
+	}
+    }
+    else {
+	# Temporary until constraint system in place.
+	$best = $profile->BestAggregate();
+	if (!$best) {
+	    $best = $DEFAULT_AGGREGATE;
+	}
+	$opts = "-a " . $am_array[$best];
+    }
+
+    #
+    # Invoke the backend.
+    #
+    $errors = array();
+    list ($instance, $creator) =
+	Instance::Instantiate($this_user, $opts, $args, $errors);
+
+    if (!isset($instance) || is_null($instance)) {
+	SPITAJAX_ERROR(1, $errors["error"]);
+    }
+    #
+    # Redirect user to status page.
+    #
+    $uuid = $instance->uuid();
+    SPITAJAX_RESPONSE("status.php?uuid=$uuid");
+}
+
 # Local Variables:
 # mode:php
 # End:

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -62,7 +62,7 @@ my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $CONTROL	= "@USERNODE@";
 my $BOSSNODE	= "@BOSSNODE@";
 my $WITHZFS     = @WITHZFS@;
-my $WITHSFS	= @SFSSUPPORT@;
+my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
 my $WIKISUPPORT = @WIKISUPPORT@;
 my $TRACSUPPORT = @TRACSUPPORT@;
 my $BUGDBSUPPORT= @BUGDBSUPPORT@;
@@ -85,10 +85,8 @@ my $USERDEL	= "/usr/sbin/pw userdel";
 my $USERMOD	= "/usr/sbin/pw usermod";
 my $CHPASS	= "/usr/bin/chpass";
 my $ACCOUNTPROXY= "$TB/sbin/accountsetup";
-my $SFSKEYGEN	= "/usr/local/bin/sfskey gen";
 my $GENELISTS	= "$TB/sbin/genelists";
 my $MKUSERCERT	= "$TB/sbin/mkusercert";
-my $SFSUPDATE	= "$TB/sbin/sfskey_update";
 my $PBAG	= "$TB/sbin/paperbag";
 my $EXPORTSSETUP= "$TB/sbin/exports_setup";
 my $ADDWIKIUSER = "$TB/sbin/addwikiuser";
@@ -118,7 +116,6 @@ my %shellpaths  = ("csh"  => "/bin/csh", "sh" => "/bin/sh",
 		   "nologin" => "/usr/sbin/nologin");
 
 my $errors      = 0;
-my $sfsupdate   = 0;
 my @row;
 my $query_result;
 
@@ -159,6 +156,7 @@ use libdb;
 use libtestbed;
 use User;
 use Project;
+use emutil;
 
 #
 # Function prototypes
@@ -173,7 +171,6 @@ sub ThawUser();
 sub VerifyUser();
 sub UpdateEmail();
 sub CheckDotFiles();
-sub GenerateSFSKey();
 sub RevokeUser();
 sub fatal($);
 
@@ -356,19 +353,6 @@ SWITCH: for ($cmd) {
     };
 }
 
-# Always do this!
-CheckDotFiles();
-
-#
-# Invoke as real user for auditing (and cause of perl).
-#
-if ($WITHSFS && $sfsupdate) {
-    $EUID = $UID;
-    system($SFSUPDATE) == 0
-	or fatal("$SFSUPDATE failed!");
-    $EUID = 0;
-}
-
 #
 # Now schedule account updates on all the nodes that this person has
 # an account on.
@@ -473,25 +457,31 @@ sub AddUser()
 	    system("$SSH -host $CONTROL $ADDHOOK $user");
 	}
     }
+    $UID  = $SAVEUID;
+    $EUID = $UID;
+
     if ($WITHZFS) {
-	#
-	# There is some lag before the automounter can mount the new
-	# volume. Lets delay until we can access the directory.
-	#
-	for (my $i = 0; $i < 10; $i++) {
-	    sleep(1)
-		if (! -r "$HOMEDIR/$user/.cshrc");
+	if ($ZFS_NOEXPORT) {
+	    #
+	    # Have to force the new directories to be exported.
+	    # See ZFS code in exports_setup
+	    #
+	    $target_user->BumpActivity();
+	    system($EXPORTSSETUP) == 0 or
+		fatal("$EXPORTSSETUP failed");
 	}
-	if (! -r "$HOMEDIR/$user/.cshrc") {
+	
+	#
+	# There is some lag before the automounter can mount the new volume.
+	#
+	if (emutil::waitForMount("$HOMEDIR/$user") < 0) {
 	    fatal("Could not access new user directory");
 	}
     }
-    $UID = $SAVEUID;
 
     #
-    # Do the ssh thing. Invoke as real user for auditing.
+    # Do the ssh thing.
     #
-    $EUID = $UID;
     if ($user ne $PROTOUSER && system("$ADDKEY -i $user")) {
 	fatal("Could not generate initial ssh key for $user");
     }
@@ -570,10 +560,8 @@ sub AddUser()
     }
     $EUID = 0;
 
-    # SFS key.
-    if ($CONTROL ne $BOSSNODE) {
-	GenerateSFSKey();
-    }
+    CheckDotFiles();
+
   skipstuff:
     return 0;
 }
@@ -650,7 +638,6 @@ sub DelUser()
 
     $EUID = 0;
 
-    $sfsupdate = 1;
   skipstuff:
     return 0;
 }
@@ -777,7 +764,8 @@ sub UpdatePassword()
 	if ($TRACSUPPORT && $user ne $PROTOUSER && !$webonly);
 
     $EUID = 0;
-    
+    CheckDotFiles();
+
     return 0;
 }
 
@@ -848,6 +836,7 @@ sub UpdateUser(;$)
     my ($freezeopt) = @_;
     my $locshellarg = "";
     my $remshellarg = "";
+    $freezeopt = 0 if (!defined($freezeopt));
 
     #
     # Sanity check.
@@ -855,7 +844,7 @@ sub UpdateUser(;$)
     if ($webonly || $isnonlocal) {
 	return 0;
     }
-    if (!defined($freezeopt) && ($status ne USERSTATUS_ACTIVE)) {
+    if (!$freezeopt && ($status ne USERSTATUS_ACTIVE)) {
 	#
 	# If doing a modification to a frozen user, then just ignore
 	# it; the modification will happen later when the user is thawed.
@@ -868,7 +857,7 @@ sub UpdateUser(;$)
     }
 
     # Shell is different on local vs control node.
-    if (defined($freezeopt) && $freezeopt) {
+    if ($freezeopt) {
 	$locshellarg = "-s $NOLOGIN";
 	$remshellarg = "-s $NOLOGIN";
     }
@@ -922,6 +911,8 @@ sub UpdateUser(;$)
     # Update elists in case email changed.
     system("$GENELISTS -m -u $user");
     $EUID = 0;
+    CheckDotFiles()
+	if (! $freezeopt);
 
     return 0;
 }
@@ -1028,7 +1019,6 @@ sub FreezeUser()
 	$target_user->SetStatus(USERSTATUS_FROZEN());
 	$status = USERSTATUS_FROZEN();
     }
-    $sfsupdate = 1;
 
     return UpdateUser(1);
 }
@@ -1053,7 +1043,6 @@ sub ThawUser()
 	$target_user->SetStatus(USERSTATUS_ACTIVE());
 	$status = USERSTATUS_ACTIVE();
     }
-    $sfsupdate = 1;
 
     #
     # This lets users start off as frozen in an ELABINELAB, and then
@@ -1203,74 +1192,6 @@ sub CheckDotFiles()
 	  warn("Could not chown $forward: $!");
     }
 
-    return 0;
-}
-
-#
-# Do SFS stuff. Might move this out to its own script at some point.
-#
-sub GenerateSFSKey()
-{
-    my $sfsdir  = "$HOMEDIR/$user/.sfs";
-
-    #
-    # Set up the sfs key, but only if not done so already.
-    # This has to be done from root because the sfs_users file needs
-    # to be updated (and "sfskey register" won't work because it
-    # prompts for the user's UNIX password if not run from root.)
-    #
-    if ($WITHSFS && ! -e "$sfsdir/identity") {
-	if (! -e "$sfsdir" ) {
-	    print "Setting up sfs configuration for $user.\n";
-
-	    mkdir("$sfsdir", 0700) or
-		fatal("Could not mkdir $sfsdir: $!");
-	    chown($user_number, $default_groupgid, "$sfsdir") or
-		fatal("Could not chown $sfsdir: $!");
-	}
-
-	print "Generating sfs key\n";
-	$UID = 0;
- 	if (system("$SSH -host $CONTROL '$SFSKEYGEN -KPn ".
- 		   "$user\@ops.emulab.net $sfsdir/identity'")) {
-	    fatal("Failure in sfskey gen!");
-	}
-	# Version 7 stuff for later.
-	#if (system("$SSH -host $CONTROL '$SFSKEYGEN -KP ".
-	#	    "-l $user\@ops.emulab.net $sfsdir/identity'")) {
-	#    fatal("Failure in sfskey gen!");
-	#}
-	$UID = $SAVEUID;
-
-	chown($user_number, $default_groupgid, "$sfsdir/identity") or
-	    fatal("Could not chown $sfsdir/identity: $!");
-	chmod(0600, "$sfsdir/identity") or
-	    fatal("Could not chmod $sfsdir/identity: $!");
-
-	#
-	# Grab a copy for the DB. Causes an SFS update key to run so
-	# that key is inserted into the files.
-	#
-	my $ident = `cat $sfsdir/identity`;
-
-	if ($ident =~ /.*,.*,.*,(.*),(.*)/) {
-	    # Version 6
-	    DBQueryFatal("replace into user_sfskeys ".
-			 "values ('$user', '$2', '${user}:${1}:${user}::', ".
-			 "now())");
-	}
-	elsif ($ident =~ /.*:.*:.*:(.*):(.*)/) {
-	    # Version 7
-	    DBQueryFatal("replace into user_sfskeys ".
-			 "values ('$user', '$2', '${user}:${1}:${user}::', ".
-			 "now())");
-	}
-	else {
-	    warn("*** $0:\n".
-		 "    Bad emulab SFS public key\n");
-	}
-	$sfsupdate = 1;
-    }
     return 0;
 }
 

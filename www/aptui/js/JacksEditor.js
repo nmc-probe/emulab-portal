@@ -73,6 +73,8 @@ function (_, editModalString)
 	    this.root.html(editModalString);
 	    this.root.find('#quickvm_editmodal').on('shown.bs.modal', _.bind(this.handleShown, this));
 	    this.root.find('#edit-save').click(_.bind(this.fetchXml, this));
+	    this.root.find('#edit-cancel, #edit-dismiss')
+		.click(_.bind(this.cancelEdit, this));
 	    this.instance = new window.Jacks({
 		mode: 'editor',
 		source: 'rspec',
@@ -93,10 +95,20 @@ function (_, editModalString)
 
 	// Show a modal that lets the user edit their rspec. Callback
 	// is called with a new rspec if they click ok.
-	show: function (newXml, callback)
+	show: function (newXml, callback, cancel_callback, button_label)
 	{
 	    this.xml = newXml;
 	    this.callback = callback;
+	    if (cancel_callback === undefined) {
+		cancel_callback = null;
+	    }
+	    this.cancel_callback = cancel_callback;
+	    if (button_label === undefined || button_label == null) {
+		this.root.find('#edit-save').html("Accept");
+	    }
+	    else {
+		this.root.find('#edit-save').html(button_label);
+	    }
 	    if (this.input)
 	    {
 		this.root.find('#quickvm_editmodal').modal('show');
@@ -157,6 +169,15 @@ function (_, editModalString)
 
 	    this.output.on('fetch-topology', fetchDone);
 	    this.input.trigger('fetch-topology');
+	},
+
+	cancelEdit: function ()
+	{
+	    this.root.find('#quickvm_editmodal').modal('hide');
+	    
+	    if (this.cancel_callback() != null) {
+		this.cancel_callback();
+	    }
 	}
     };
 

@@ -112,6 +112,7 @@ INSERT INTO sitevariables VALUES ('general/testbed_shutdown',NULL,'0','Non-zero 
 INSERT INTO sitevariables VALUES ('images/frisbee/maxrate_std',NULL,'72000000','Max bandwidth (Bytes/sec) at which to distribute standard images from the /usr/testbed/images directory.',0);
 INSERT INTO sitevariables VALUES ('images/frisbee/maxrate_usr',NULL,'54000000','Max bandwidth (Bytes/sec) at which to distribute user-defined images from the /proj/.../images directory.',0);
 INSERT INTO sitevariables VALUES ('images/frisbee/maxrate_dyn',NULL,'0','If non-zero, use bandwidth throttling on all frisbee servers; maxrate_{std,usr} serve as initial BW values.',0);
+INSERT INTO sitevariables VALUES ('images/frisbee/maxlinger',NULL,'180','Seconds to wait after last request before exiting; 0 means never exit, -1 means exit after last client leaves.',0);
 INSERT INTO sitevariables VALUES ('general/idlepower_enable',NULL,'0','Enable idle power down to conserve electricity',0);
 INSERT INTO sitevariables VALUES ('general/idlepower_idletime',NULL,'3600','Maximum number of seconds idle before a node is powered down to conserve electricity',0);
 INSERT INTO sitevariables VALUES ('general/autoswap_max',NULL,'120','Maximum number of hours for the experiment autoswap limit.',0);
@@ -149,6 +150,7 @@ INSERT INTO sitevariables VALUES ('storage/ltdataset/maxsize',NULL,'0','Max size
 INSERT INTO sitevariables VALUES ('storage/ltdataset/graceperiod',NULL,'180','Time (days) before an expired dataset will be destroyed (0 == no grace period)',0);
 INSERT INTO sitevariables VALUES ('storage/ltdataset/maxidle',NULL,'180','Max time (days) from last use before lease is marked expired (0 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('general/disk_trim_interval',NULL,'0','If non-zero, minimum interval (seconds) between attempts to TRIM boot disk during disk reloading. Zero disables all TRIM activity. Node must also have non-zero bootdisk_trim attribute.',0);
+INSERT INTO sitevariables VALUES ('storage/simultaneous_ro_datasets',NULL,'0','If set, allow simultaneous read-only mounts of datasets',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

@@ -1,6 +1,6 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,14 +34,18 @@ use Getopt::Std;
 sub usage()
 {
     print(STDERR
-	  "Usage: exports_setup [-n] [-d]\n".
+	  "Usage: exports_setup [-i] [-n] [-d] [-w]\n".
 	  "switches and arguments:\n".
+	  "-i         - incremental (differential) update (if mounted supports it)\n".
+	  "-w         - wait mode; wait for mountd to finish before exiting\n".
 	  "-n         - impotent; dump exports to stdout\n");
     exit(-1);
 }
-my $optlist    = "nd";
+my $optlist    = "indw";
 my $impotent   = 0;
 my $debug      = 0;
+my $waittildone= 0;
+my $incremental= 0;
 
 #
 # Function phototypes
@@ -56,6 +60,7 @@ sub fsof($);
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $TESTMODE    = @TESTMODE@;
+my $BOSSNODE    = "@BOSSNODE@";
 my $FSNODE      = "@FSNODE@";
 my $projdir     = "@FSDIR_PROJ@";
 my $usersdir    = "@FSDIR_USERS@";
@@ -68,6 +73,7 @@ my $NOSHAREDFS	= @NOSHAREDFS@;
 my $LINUX_FSNODE= @LINUX_FSNODE@;
 my $NFSMAPTOUSER= "@NFSMAPTOUSER@";
 my $WITHZFS     = @WITHZFS@;
+my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
 
 # XXX for TESTMODE: output to stdout
 my $TOSTDOUT	= 0;
@@ -85,7 +91,19 @@ my @row;
 # For determining file server mountpoints (XXX BSD specific)
 my $MOUNTPROG	= ($LINUX_FSNODE ? "/bin/mount" : "/sbin/mount");
 # Need the linux equiv for this.
-my $EXPORT_PAT	= q(on ([\S]+)\s\(.*NFS exported.*\));
+my $EXPORT_PAT	= q(on ([\S]+)\s\\\(.*NFS exported.*\\\));
+
+#
+# XXX If there are no static exports (to boss) for filesystems, then
+# "NFS exported" will not be set. Instead we just look for all mounted
+# ufs or zfs filesystems.
+#
+if ($ZFS_NOEXPORT) {
+    $EXPORT_PAT = q(on ([\S]+)\s\\\([uz]fs,.*\\\));
+}
+
+# Cache of dir to FS mappings already found
+my %fsofcache;
 
 #
 # Testbed doesn't support changing exports file
@@ -147,14 +165,27 @@ if (defined($options{"n"})) {
 if (defined($options{"d"})) {
     $debug = 1;
 }
+if (defined($options{"w"})) {
+    $waittildone = 1;
+}
+if (defined($options{"i"})) {
+    $incremental = 1;
+}
 usage()
     if (@ARGV);
+
+if ($ZFS_NOEXPORT && !$waittildone) {
+    print "WARNING: forcing wait mode\n";
+    $waittildone = 1;
+    print "WARNING: forcing incremental updates\n";
+    $incremental = 1;
+}
 
 #
 # We need to serialize this script to avoid a trashed map file.
 #
 if (!$TESTMODE) {
-    if ((my $locked = TBScriptLock("exports", 1)) != TBSCRIPTLOCK_OKAY()) {
+    if ((my $locked = TBScriptLock("exports", 0)) != TBSCRIPTLOCK_OKAY()) {
 	exit(0)
 	    if ($locked == TBSCRIPTLOCK_IGNORE);
 	fatal("Could not get the lock after a long time!\n");
@@ -213,6 +244,52 @@ $nodes_result =
 		 "       and (n.role='testnode' or n.role='virtnode')".
 		 "       and nt.isremotenode=0 ".
 		 "order by r.pid,e.gid,r.eid,u.admin,n.priority");
+
+#
+# ZFS, without automatic exports of all /users; need to explicitly export
+# user directories to boss. First get all web active and admins, and below
+# we will add all other user exports to the list.
+#
+my $bossexports = ();
+
+if ($WITHZFS && $ZFS_NOEXPORT) {
+    #
+    # Find all web active users within last seven days, plus all admins.
+    #
+    my $limit = 3600 * 24 * 7;
+
+    my $active_result =
+	DBQueryFatal("select distinct u.uid,m.pid from user_stats as s ".
+		     "left join users as u on u.uid_idx=s.uid_idx ".
+		     "left join group_membership as m on ".
+		     "     m.uid_idx=u.uid_idx and m.pid=m.gid ".
+		     "where u.status='" . USERSTATUS_ACTIVE() . "' and ".
+		     "      (((UNIX_TIMESTAMP(now()) - ".
+		     "        UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
+		     "       ((UNIX_TIMESTAMP(now()) - ".
+		     "        UNIX_TIMESTAMP(s.weblogin_last)) <= $limit) or ".
+		     "       admin=1)");
+    while (my ($uid,$pid) = $active_result->fetchrow_array()) {
+	$bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
+	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
+	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
+    }
+    #
+    # Similar to above, but look for active projects instead of users.
+    # We often have to access project directories when there is
+    # no active experiment or user. 
+    #
+    $active_result =
+	DBQueryFatal("select p.pid from projects as p ".
+		     "left join project_stats as s on s.pid=p.pid ".
+		     "where ((UNIX_TIMESTAMP(now()) - ".
+		     "       UNIX_TIMESTAMP(s.last_activity)) <= $limit) and ".
+		     "      p.approved=1");
+    while (my ($pid) = $active_result->fetchrow_array()) {
+	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
+	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
+    }
+}
 
 my %ipgroups    = ();
 my %globalsmbshares   = ();
@@ -314,6 +391,10 @@ while ($row = $nodes_result->fetchrow_hashref) {
 			"$GROUPROOT/$pid/$gid does not exist!\n";
 		}
 	    }
+	    if ($ZFS_NOEXPORT && $gid eq $pid) {
+		$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
+		$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
+	    }
 
 	    if ($scratchdir && -d "$SCRATCHROOT/$pid") {
 		push(@dirlist, "$scratchdir/$pid");
@@ -352,6 +433,10 @@ while ($row = $nodes_result->fetchrow_hashref) {
 		    print STDERR "*** exports_setup: ".
 			"$USERROOT/$uid does not exist!\n";
 		}
+
+		if ($ZFS_NOEXPORT) {
+		    $bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
+		}
 	    }
 	}
       skip:
@@ -360,6 +445,10 @@ while ($row = $nodes_result->fetchrow_hashref) {
 	# Iterate through directory list dividing it according to filesystem.
 	foreach my $dir ( @dirlist ) {
 	    my $fs = fsof($dir);
+	    if (!$fs) {
+		print "WARNING: no filesystem for '$dir', ignored\n";
+		next;
+	    }
 
 	    if (! defined($fslist{$fs})) {
 		$fslist{$fs} = [ $dir ];
@@ -436,8 +525,41 @@ foreach my $str ( keys(%ipgroups) ) {
 	    if ($debug);
     }
 }
+if ($ZFS_NOEXPORT) {
+    # Build up filesystem sub-lists.
+    # Iterate through directory list dividing it according to filesystem.
+    my %bosslists = ();
+    
+    foreach my $dir (keys(%bossexports)) {
+	my $fs = fsof($dir);
+	if (!$fs) {
+	    print "WARNING: no filesystem for '$dir', ignored\n";
+	    next;
+	}
 
-print MAP "\n";
+	if (! defined($bosslists{$fs})) {
+	    $bosslists{$fs} = [ $dir ];
+	}
+	else {
+	    push(@{ $bosslists{$fs} }, $dir);
+	}
+    }
+    foreach my $fs (keys(%bosslists)) {
+	my $str  = join(" ", @{ $bosslists{$fs} });
+
+	if ($LINUX_FSNODE) {
+	    print MAP "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n";
+	    print "$str -rw,no_root_squash,no_subtree_check $BOSSNODE\n"
+		if ($debug);
+	}
+	else {
+	    print MAP "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n";
+	    print "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n"
+	    if ($debug);
+	}
+    }
+}
+
 close(MAP);
 
 #
@@ -477,10 +599,15 @@ if (!$TESTMODE) {
   }
   if ($impotent) {
       system("/bin/cat $exportstail");
+      if ($WINSUPPORT) {
+	  system("/bin/cat $smbconftail");
+      }
   }
   else {
+      my $arg = ($incremental ? "-i" : "");
+
       # First do the NFS exports
-      system("$SSH $PROG < $exportstail") == 0 or
+      system("$SSH $PROG $arg < $exportstail") == 0 or
 	  fatal("Failed: $SSH $PROG < $exportstail: $?");
       unlink("$exportstail");
 
@@ -489,6 +616,30 @@ if (!$TESTMODE) {
 	  system("$SSH $PROG -S < $smbconftail") == 0 or
 	      fatal("Failed: $SSH $PROG < $smbconftail: $?");
 	  unlink("$smbconftail");
+      }
+
+      #
+      # Attempt to see if mountd is done. The theory:
+      #   with older mountd's ls will fail,
+      #   with newer mountd's ls will hang til mountd is done.
+      #
+      # However, mountd add exports to the kernel as it parses
+      # the file. So, we really have to look at the last line in
+      # exports and wait for that FS!
+      #
+      if ($waittildone) {
+	  my $testdir = "/proj/" . TBOPSPID();
+	  TBDebugTimeStampsOn();
+	  TBDebugTimeStamp("Waiting for mountd to finish...");
+	  my $tries = 10;
+	  while ($tries-- > 0) {
+	      if (system("/bin/ls $testdir >/dev/null 2>&1")) {
+		  sleep(1);
+		  next;
+	      }
+	      last;
+	  }
+	  TBDebugTimeStamp("Wait done");
       }
   }
 
@@ -540,8 +691,12 @@ sub fsinit() {
 sub fsof($) {
     my($path) = @_;
 
+    if (exists($fsofcache{$path})) {
+	return $fsofcache{$path};
+    }
     foreach my $mount (@mountpoints) {
-	if ($path =~ /^$mount/) {
+	if (index($path, $mount) == 0) {
+	    $fsofcache{$path} = $mount;
 	    return $mount;
 	}
     }

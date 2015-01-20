@@ -84,6 +84,21 @@
 				%>checked<% } %>
 			     value='ltdataset'> Long term
     	          </label>
+		  <a href='#' class='radio-inline'
+		     data-toggle='popover'
+		     data-delay='{"hide":1500}'
+		     data-content="Long term datasets are what
+		     you would think of as 'persistent': they stick around
+		     for as long as they are useful; i.e., they expire only
+		     after having been unused for a long time rather than
+		     at a fixed date, and then are locked down rather than
+		     automatically destroyed. Short-term datasets are for
+		     situations where you want to run a series of
+		     experiments over a short time period (days to weeks)
+		     using the same large data set but where ephemeral
+		     storage may not be practical.">
+		    <span class='glyphicon glyphicon-question-sign'></span>
+		  </a>
 	      </div>
 	      <% } %>
 	      <div id='dataset_expires_div'

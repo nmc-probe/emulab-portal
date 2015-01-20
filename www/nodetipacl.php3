@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,13 +43,20 @@ if (isset($key)) {
     $safe_key = addslashes($key);
     
     $query_result =
-	DBQueryFatal("select node_id,urlstamp from tiplines ".
+	DBQueryFatal("select urlstamp from tiplines ".
 		     "where node_id='$node_id' and urlhash='$safe_key' and ".
-		     "      urlstamp!=0 and ".
-		     "      (UNIX_TIMESTAMP(now()) - urlstamp) < 300");
+		     "      urlstamp!=0");
     
     if (mysql_num_rows($query_result) == 0) {
-	USERERROR("Invalid node, invalid key or key has expired", 1);
+	USERERROR("Invalid node or invalid key", 1);
+    } else {
+	$row = mysql_fetch_array($query_result);
+	$stamp = $row['urlstamp'];
+	if ($stamp <= time()) {
+	    DBQueryFatal("update tiplines set urlhash=NULL,urlstamp=0 ".
+	    		 "where node_id='$node_id'");
+	    USERERROR("Key is no longer valid", 1);
+	}
     }
     # Use once URL. Clear it.
     DBQueryFatal("update tiplines set urlhash=NULL,urlstamp=0 ".

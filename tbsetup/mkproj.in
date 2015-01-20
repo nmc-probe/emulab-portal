@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -74,6 +74,8 @@ my $BUGDBSUPPORT  = @BUGDBSUPPORT@;
 my $OPSDBSUPPORT  = @OPSDBSUPPORT@;
 my $CVSSUPPORT    = @CVSSUPPORT@;
 my $MAILMANSUPPORT= @MAILMANSUPPORT@;
+my $WITHZFS       = @WITHZFS@;
+my $ZFS_NOEXPORT  = @ZFS_NOEXPORT@;
 my $ADDWIKIPROJ   = "$TB/sbin/addwikiproj";
 my $ADDBUGDBPROJ  = "$TB/sbin/addbugdbproj";
 my $ADDMMLIST     = "$TB/sbin/addmmlist";
@@ -103,6 +105,7 @@ use libdb;
 use libtestbed;
 use User;
 use Project;
+use emutil;
 
 my $PROJROOT     = PROJROOT();
 my $GRPROOT      = GROUPROOT();
@@ -333,119 +336,78 @@ my (undef,undef,$gid) = getgrnam($unix_name)
     or fatal("$pid not in group file");
 
 #
-# Okay, do it.
+# Sanity check that directories got made
 #
 if (! -e "$PROJROOT/$pid") {
-    if (! mkdir("$PROJROOT/$pid", 0770)) {
-	fatal("Could not make directory $PROJROOT/$pid: $!");
-    }
-}
-if (! chmod(0770, "$PROJROOT/$pid")) {
-    fatal("Could not chmod directory $PROJROOT/$pid: $!");
-}
-if (! chown($uid, $gid, "$PROJROOT/$pid")) {
-    fatal("Could not chown $PROJROOT/$pid to $uid/$gid: $!");
-}
-
-if ($SCRATCHROOT) {
-    if (! -e "$SCRATCHROOT") {
-        if (! mkdir("$SCRATCHROOT", 0770)) {
-            fatal("Could not make a directory $SCRATCHROOT: $!");
-        }
-    }
-    if (! -e "$SCRATCHROOT/$pid") {
-	if (! mkdir("$SCRATCHROOT/$pid", 0770)) {
-	    fatal("Could not make directory $SCRATCHROOT/$pid: $!");
+    if ($WITHZFS) {
+	# Wait for mountd to finish
+	if (emutil::waitForMount("$PROJROOT/$pid") < 0) {
+	    fatal("Could not access directory $PROJROOT/$pid");
 	}
     }
-    if (! chmod(0770, "$SCRATCHROOT/$pid")) {
-	fatal("Could not chmod directory $SCRATCHROOT/$pid: $!");
-    }
-    if (! chown($uid, $gid, "$SCRATCHROOT/$pid")) {
-	fatal("Could not chown $SCRATCHROOT/$pid to $uid/$gid: $!");
-    }
 }
-
-#
-# Make project subdirs.
-#
 foreach my $dir (@DIRLIST) {
     if (! -e "$PROJROOT/$pid/$dir") {
-	if (! mkdir("$PROJROOT/$pid/$dir", 0770)) {
-	    fatal("Could not make directory $PROJROOT/$pid/$dir: $!");
-	}
-    }
-    if (! chmod(0770, "$PROJROOT/$pid/$dir")) {
-	fatal("Could not chmod directory $PROJROOT/$pid/$dir: $!");
-    }
-    if (! chown($uid, $gid, "$PROJROOT/$pid/$dir")) {
-	fatal("Could not chown $PROJROOT/$pid/$dir to $uid/$gid: $!");
+	fatal("Could not access directory $PROJROOT/$pid/$dir");
     }
 }
 
-#
-# Create a tftp directory for oskit kernels.
-#
-if (-e "$TFTPDIR" && ! -e "$TFTPDIR/$pid" && !$isnonlocal) {
-    if (! mkdir("$TFTPDIR/$pid", 0770)) {
-	fatal("Could not make directory $TFTPDIR/$pid: $!");
-    }
-    if (! chmod(0777, "$TFTPDIR/$pid")) {
-	fatal("Could not chmod directory $TFTPDIR/$pid: $!");
-    }
-    if (! chown($uid, $gid, "$TFTPDIR/$pid")) {
-	fatal("Could not chown $TFTPDIR/$pid to $uid/$gid: $!");
-    }
-}
-
-#
-# Do the CVS stuff if its turned on.
-#
-if ($CVSSUPPORT && !$isnonlocal) {
-    my $CVSDIR = "$CVSREPOS/$pid";
-
-    if (! -e "$CVSDIR") {
-	if (! mkdir("$CVSDIR", 0770)) {
-	    fatal("Could not make directory $CVSDIR: $!");
-	}
-    }
-    if (! chmod(0770, "$CVSDIR")) {
-	fatal("Could not chmod directory $CVSDIR: $!");
-    }
-    if (! chown($uid, $gid, "$CVSDIR")) {
-	fatal("Could not chown $CVSDIR to $uid/$gid: $!");
-    }
-    if (! -e "$CVSDIR/CVSROOT") {
-	system("$CVSBIN -d $CVSDIR init");
-	if ($?) {
-	    fatal("Could not cvs init $CVSDIR!");
-	}
-    }
-    # Chown the tree.
-    system("$CHOWN -R ${uid}:${gid} $CVSDIR");
-    if ($?) {
-	fatal("Could not chown ${uid}:${gid} $CVSDIR!");
-    }
-}
-
-#
-# Create groups directory.
-#
 if (! -e "$GRPROOT/$pid") {
-    if (! mkdir("$GRPROOT/$pid", 0770)) {
-	fatal("Could not make directory $GRPROOT/$pid: $!");
+    fatal("Could not access directory $GRPROOT/$pid");
+}
+
+if ($SCRATCHROOT && ! -e "$SCRATCHROOT/$pid") {
+    fatal("Could not access directory $SCRATCHROOT/$pid");
+}
+
+#
+# XXX LEGACY STUFF NO LONGER SUPPORTED
+# Needs to go away or be converted to not use NFS.
+#
+if (1) {
+    #
+    # Create a tftp directory for oskit kernels.
+    #
+    if (-e "$TFTPDIR" && ! -e "$TFTPDIR/$pid" && !$isnonlocal) {
+	if (! mkdir("$TFTPDIR/$pid", 0770)) {
+	    fatal("Could not make directory $TFTPDIR/$pid: $!");
+	}
+	if (! chmod(0777, "$TFTPDIR/$pid")) {
+	    fatal("Could not chmod directory $TFTPDIR/$pid: $!");
+	}
+	if (! chown($uid, $gid, "$TFTPDIR/$pid")) {
+	    fatal("Could not chown $TFTPDIR/$pid to $uid/$gid: $!");
+	}
     }
-}
-if (! chmod(0770, "$GRPROOT/$pid")) {
-    fatal("Could not chmod directory $GRPROOT/$pid: $!");
-}
-if (! chown($uid, $gid, "$GRPROOT/$pid")) {
-    fatal("Could not chown $GRPROOT/$pid to $uid/$gid: $!");
-}
-# Create a group link for the default group.
-if (! -e "$GRPROOT/$pid/$pid") {    
-    if (system("ln -s $PROJROOT/$pid $GRPROOT/$pid/$pid")) {
-	fatal("Could not symlink $PROJROOT/$pid to $GRPROOT/$pid/$pid");
+
+    #
+    # Do the CVS stuff if its turned on.
+    #
+    if ($CVSSUPPORT && !$isnonlocal) {
+	my $CVSDIR = "$CVSREPOS/$pid";
+
+	if (! -e "$CVSDIR") {
+	    if (! mkdir("$CVSDIR", 0770)) {
+		fatal("Could not make directory $CVSDIR: $!");
+	    }
+	}
+	if (! chmod(0770, "$CVSDIR")) {
+	    fatal("Could not chmod directory $CVSDIR: $!");
+	}
+	if (! chown($uid, $gid, "$CVSDIR")) {
+	    fatal("Could not chown $CVSDIR to $uid/$gid: $!");
+	}
+	if (! -e "$CVSDIR/CVSROOT") {
+	    system("$CVSBIN -d $CVSDIR init");
+	    if ($?) {
+		fatal("Could not cvs init $CVSDIR!");
+	    }
+	}
+	# Chown the tree.
+	system("$CHOWN -R ${uid}:${gid} $CVSDIR");
+	if ($?) {
+	    fatal("Could not chown ${uid}:${gid} $CVSDIR!");
+	}
     }
 }
 

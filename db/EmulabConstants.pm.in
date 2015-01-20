@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -363,6 +363,7 @@ sub TB_PROJECT_CREATEEXPT()	{ 14; }
 sub TB_PROJECT_CREATELEASE()	{ 15; }
 sub TB_PROJECT_MIN()		{ TB_PROJECT_READINFO(); }
 sub TB_PROJECT_MAX()		{ TB_PROJECT_CREATELEASE(); }
+sub TB_PID_LEN()		{ 48; }
 
 # OSIDs
 sub TB_OSID_READINFO()		{ 1; }

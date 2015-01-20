@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2014 University of Utah and the Flux Group.
+# Copyright (c) 2007-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -344,8 +344,9 @@ sub RecordHistory($)
 
     DBQueryWarn("replace into apt_instance_history ".
 		"select uuid,profile_id,profile_version,slice_uuid, ".
-		"       creator,creator_idx,creator_uuid,aggregate_urn, ".
-		"       public_url,created,now(),servername ".
+		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
+		"       aggregate_urn,public_url,created,now(),servername, ".
+		"       rspec,params,manifest ".
 		" from apt_instances where uuid='$uuid'")
 	or return -1;
 

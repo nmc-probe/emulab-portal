@@ -49,7 +49,11 @@ $routing = array("myprofiles" =>
 			array("file"    => "instantiate.ajax",
 			      "guest"   => true,
 			      "methods" => array("GetProfile" =>
-						     "Do_GetProfile")),
+						     "Do_GetProfile",
+						 "Instantiate" =>
+						     "Do_Instantiate",
+						 "GetParameters" =>
+						     "Do_GetParameters")),
 		 "manage_profile" =>
 			array("file"    => "manage_profile.ajax",
 			      "guest"   => false,
@@ -59,12 +63,12 @@ $routing = array("myprofiles" =>
 						     "Do_DeleteProfile",
 						 "PublishProfile" =>
 						     "Do_PublishProfile",
-						 "Instantiate" =>
-						     "Do_Instantiate",
 						 "InstantiateAsGuest" =>
 						     "Do_GuestInstantiate",
 						 "CheckScript" =>
-						       "Do_CheckScript")),
+						     "Do_CheckScript",
+						 "BindParameters" =>
+						     "Do_BindParameters")),
 		 "status" =>
 			array("file"    => "status.ajax",
 			      "guest"   => true,
@@ -83,7 +87,7 @@ $routing = array("myprofiles" =>
 						 "SnapShot" =>
 						     "Do_Snapshot",
 						 "SnapshotStatus" =>
-						 "Do_SnapshotStatus")),
+						     "Do_SnapshotStatus")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,
@@ -138,26 +142,26 @@ function CheckLoginForAjax($guestokay = false)
 	SPITAJAX_ERROR(2, "Your login has timed out");
 	exit(2);
     }
-    # Known user, but not approved.
-    if ($check_status & CHECKLOGIN_UNAPPROVED) {
-	SPITAJAX_ERROR(2, "Your account has not been approved yet");
-	exit(2);
-    }
-    # Known user, but not active.
-    if (! ($check_status & CHECKLOGIN_ACTIVE)) {
-	SPITAJAX_ERROR(2, "Your account is no longer active");
-	exit(2);
-    }
     # Logged in user always okay.
     if (isset($this_user)) {
 	if ($check_status & CHECKLOGIN_MAYBEVALID) {
 	    SPITAJAX_ERROR(2, "Your login cannot be verified. Cookie problem?");
 	    exit(2);
 	}
+        # Known user, but not approved.
+	if ($check_status & CHECKLOGIN_UNAPPROVED) {
+	    SPITAJAX_ERROR(2, "Your account has not been approved yet");
+	    exit(2);
+	}
+	# Known user, but not active.
+	if (! ($check_status & CHECKLOGIN_ACTIVE)) {
+	    SPITAJAX_ERROR(2, "Your account is no longer active");
+	    exit(2);
+	}
 	return;
     }
     if (!$guestokay) {
-	SPITAJAX_ERROR(2, "Your are not logged in");	
+	SPITAJAX_ERROR(2, "You are not logged in");	
 	exit(2);
     }
 }

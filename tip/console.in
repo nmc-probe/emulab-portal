@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,7 +34,7 @@ sub usage()
     print(STDOUT "Usage: console [-d] pcXXX\n");
     exit(-1);
 }
-my $optlist  = "dp:";
+my $optlist  = "dp:A:";
 my @opts = ();
 
 #
@@ -45,6 +45,7 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $WRAPPER     = "$TB/bin/script_wrapper.py";
 my $CONSOLEBIN  = "$TB/bin/console.bin";
 my $aclfile;
+my $uaclfile;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -72,6 +73,11 @@ if (defined($options{"p"})) {
     push @opts, "-p";
     push @opts, $options{"p"};
 }
+if (defined($options{"A"})) {
+    if ($options{"A"} =~ /^(\S+)$/) {
+	$uaclfile = $1;
+    }
+}
 
 usage()
     if (@ARGV != 1);
@@ -95,14 +101,25 @@ else {
 	"    Bad data in tag: $tempfile\n");
 }
 
+if ($uaclfile) {
+    print STDERR "Using ACl from $uaclfile...\n";
+    if (system("cat $uaclfile >> $tempfile")) {
+	unlink($tempfile);
+	die("*** $0:\n".
+	    "    Could not access acl file '$uaclfile'\n");
+    }
+}
+
 #
 # Ask the XMLRPC server for the tipacl. The current user has to have proper
 # permission of course.
 #
-if (system("$WRAPPER tipacl $node >> $tempfile")) {
-    unlink($tempfile);
-    die("*** $0:\n".
-	"    $WRAPPER failed\n");
+else {
+    if (system("$WRAPPER tipacl $node >> $tempfile")) {
+	unlink($tempfile);
+	die("*** $0:\n".
+	    "    $WRAPPER failed\n");
+    }
 }
 
 #
