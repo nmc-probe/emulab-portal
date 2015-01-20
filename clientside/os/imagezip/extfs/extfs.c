@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2014 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -49,7 +49,7 @@ extern int fixup_lilo(int slice, int stype, u_int32_t start, u_int32_t size,
  * slice, so we have to add the starting sector to everything. 
  */
 int
-read_linuxslice(int slice, int stype, u_int32_t start, u_int32_t size,
+read_linuxslice(int slice, iz_type stype, iz_lba start, iz_size size,
 		char *sname, int infd)
 {
 #define LINUX_SUPERBLOCK_OFFSET	1024
@@ -73,8 +73,8 @@ read_linuxslice(int slice, int stype, u_int32_t start, u_int32_t size,
 	assert((sizeof(fs) & ~LINUX_SUPERBLOCK_SIZE) == 0);
 
 	if (debug)
-		fprintf(stderr, "  P%d %s Linux Slice)\n",
-			dosslice, rval ? "(Bootable" : "(");
+		fprintf(stderr, "  P%d %sLinux Slice)\n",
+			dosslice, rval ? "(Bootable " : "(");
 	
 	/*
 	 * Skip ahead to the superblock.
@@ -359,7 +359,7 @@ read_ext4group(struct ext4_super_block *super,
  * bit of it. The rest of it does not need to be written to disk.
  */
 int
-read_linuxswap(int slice, int stype, u_int32_t start, u_int32_t size,
+read_linuxswap(int slice, iz_type stype, iz_lba start, iz_size size,
 	       char *sname, int infd)
 {
 	if (debug) {

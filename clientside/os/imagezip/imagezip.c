@@ -137,7 +137,6 @@ static void output_uuid(char *, char *);
  *
  * These numbers are in sectors.
  */
-extern unsigned long getdisksize(int fd);
 unsigned long inputminsec	= 0;
 unsigned long inputmaxsec	= 0;	/* 0 means the entire input image */
 
@@ -158,53 +157,14 @@ void	addvalid(uint32_t start, uint32_t size);
 void	addreloc(off_t offset, off_t size, int reloctype);
 void	removereloc(off_t offset, off_t size, int reloctype);
 static int cmpfixups(struct range *r1, struct range *r2);
-static int read_doslabel(int infd, int lsect, int pstart,
-			 struct doslabel *label);
 
 /* Forward decls */
-int	read_image(u_int32_t start, int pstart, u_int32_t extstart);
-int	read_raw(void);
+int	read_image(int fd);
+int	read_raw(int fd);
 int	compress_image(void);
 void	usage(void);
 
 static SLICEMAP_PROCESS_PROTO(read_slice);
-
-struct slicemap fsmap[] = {
-	{ DOSPTYP_UNUSED,	"UNUSED",	0 },
-#ifdef WITH_FFS
-	{ DOSPTYP_386BSD,	"FreeBSD FFS",	read_bsdslice },
-	{ DOSPTYP_OPENBSD,	"OpenBSD FFS",	read_bsdslice },
-#endif
-#ifdef WITH_EXTFS
-	{ DOSPTYP_LINUX,	"Linux EXT",	read_linuxslice },
-	{ DOSPTYP_LINSWP,	"Linux SWP",	read_linuxswap },
-#endif
-#ifdef WITH_NTFS
-	{ DOSPTYP_NTFS,		"NTFS",		read_ntfsslice },
-#endif
-#ifdef WITH_FAT
-	{ DOSPTYP_FAT12,	"FAT12",	read_fatslice },
-	{ DOSPTYP_FAT16,	"FAT16",	read_fatslice },
-	{ DOSPTYP_FAT16L,	"FAT16L",	read_fatslice },
-	{ DOSPTYP_FAT16L_LBA,	"FAT16 LBA",	read_fatslice },
-	{ DOSPTYP_FAT32,	"FAT32",	read_fatslice },
-	{ DOSPTYP_FAT32_LBA,	"FAT32 LBA",	read_fatslice },
-#endif
-	{ DOSPTYP_EXT,		"DOSEXT",	0 },
-	{ DOSPTYP_EXT_LBA,	"DOSEXT LBA",	0 },
-	{ -1,			"",		0 },
-};
-
-static __inline struct slicemap *
-getslicemap(int stype)
-{
-	struct slicemap *smap;
-
-	for (smap = fsmap; smap->type != -1; smap++)
-		if (smap->type == stype)
-			return smap;
-	return 0;
-}
 
 #define READ_RETRIES	1
 #define WRITE_RETRIES	10
@@ -460,16 +420,16 @@ main(int argc, char *argv[])
 			debug++;
 			break;
 		case 'l':
-			slicetype = DOSPTYP_LINUX;
+			slicetype = IZTYPE_LINUX;
 			break;
 		case 'b':
-			slicetype = DOSPTYP_386BSD;
+			slicetype = IZTYPE_FBSDNOLABEL;
 			break;
 		case 'N':
 			dorelocs = 0;
 			break;
 		case 'n':
-			slicetype = DOSPTYP_NTFS;
+			slicetype = IZTYPE_NTFS;
 			break;
 		case 'o':
 			dots++;
@@ -479,6 +439,9 @@ main(int argc, char *argv[])
 			break;
 		case 'S':
 			slicetype = atoi(optarg);
+			/* XXX special case for freebsd */
+			if (slicetype == IZTYPE_386BSD)
+				slicetype = IZTYPE_FBSDNOLABEL;
 			break;
 		case 's':
 			slicemode = 1;
@@ -619,14 +582,32 @@ main(int argc, char *argv[])
 	if (version || debug) {
 		fprintf(stderr, "%s\n", build_info);
 		if (version) {
-			fprintf(stderr, "Supports");
-			for (ch = 1; fsmap[ch].type != -1; ch++)
-				if (fsmap[ch].process != 0)
-					fprintf(stderr, "%c %s",
-						ch > 1 ? ',' : ':',
-						fsmap[ch].desc);
+			char *str;
+
+			fprintf(stderr, "Supports:\n");
+			fprintf(stderr, "  Partitioning: ");
+#ifdef WITH_MBR
+			fprintf(stderr, "MBR");
+			str = ",";
+#endif
+#ifdef WITH_GPT
+			fprintf(stderr, "%sGPT", str);
+#endif
+			fprintf(stderr, "\n  Partition types: ");
+			printslicemap();
+			fprintf(stderr, "\n  Features: ");
+			fprintf(stderr, "image UUIDs");
+#ifdef WITH_CRYPTO
+#ifdef SIGN_CHECKSUM
+			fprintf(stderr, ",signed");
+#else
+			fprintf(stderr, ",unsigned");
+#endif
+			fprintf(stderr, " SHA1 checksums");
+			fprintf(stderr, ",blowfish encryption");
+#endif
 #ifdef WITH_HASH
-			fprintf(stderr, ", hash-signature comparison");
+			fprintf(stderr, ",delta image creation");
 #endif
 			fprintf(stderr, "\n");
 			exit(0);
@@ -782,9 +763,9 @@ main(int argc, char *argv[])
 		if (rval == -1)
 			fprintf(stderr, ", cannot process\n");
 	} else if (rawmode)
-		rval = read_raw();
+		rval = read_raw(infd);
 	else
-		rval = read_image(DOSBBSECTOR, 0, 0);
+		rval = read_image(infd);
 	if (rval) {
 		fprintf(stderr, "* * * Aborting * * *\n");
 		exit(1);
@@ -955,10 +936,10 @@ main(int argc, char *argv[])
 }
 
 static int
-read_slice(int snum, int stype, u_int32_t start, u_int32_t size,
+read_slice(int snum, iz_type stype, iz_lba start, iz_size size,
 	   char *sname, int sfd)
 {
-	struct slicemap *smap = getslicemap(stype);
+	struct sliceinfo *smap = getslicemap(stype);
 
 	if (smap && smap->process)
 		return (*smap->process)(snum, stype, start, size, sname, sfd);
@@ -969,83 +950,67 @@ read_slice(int snum, int stype, u_int32_t start, u_int32_t size,
 }
 
 /*
- * Read a DOS partition table at the indicated offset.
- * If successful return 0 with *label filled in.  Otherwise return an error.
+ * Parse the MBR/GPT and dispatch to the individual readers.
  */
-static int
-read_doslabel(int fd, int lsect, int pstart, struct doslabel *label)
+int
+read_image(int fd)
 {
-	int cc;
+	int		i, rval = 0;
+	struct iz_slice	parttab[MAXSLICES];
+	int		gotbb = 0;
+	iz_lba		dstart;
+	iz_size		dsize;
 
-	assert(fd != infd || incanseek);
+#ifdef WITH_GPT
+	if (!gotbb && parse_gpt(fd, parttab, &dstart, &dsize, debug) == 0)
+		gotbb = 1;
+#endif
+#ifdef WITH_MBR
+	if (!gotbb && parse_mbr(fd, parttab, &dstart, &dsize, debug) == 0)
+		gotbb = 2;
+#endif
 
-	if (devlseek(fd, sectobytes(lsect), SEEK_SET) < 0) {
-		warn("Could not seek to DOS label at sector %u", lsect);
-		return 1;
-	}
-	if ((cc = devread(fd, label->pad2, DOSPARTSIZE)) < 0) {
-		warn("Could not read DOS label at sector %u", lsect);
-		return 1;
-	}
-	if (cc != DOSPARTSIZE) {
-		warnx("Incomplete read of DOS label at sector %u", lsect);
-		return 1;
-	}
-	if (label->magic != BOOT_MAGIC) {
-		warnx("Wrong magic number in DOS partition table at sector %u",
-		      lsect);
+	if (!gotbb) {
+		/* try to parse as one of the FS types */
+		warnx("No GPT or MBR partition table found!");
 		return 1;
 	}
 
 	if (debug) {
 		int i;
 
-		if (lsect == DOSBBSECTOR)
-			fprintf(stderr, "DOS Partitions:\n");
-		else
-			fprintf(stderr,
-				"DOS Partitions in Extended table at %u\n",
-				lsect);
-		for (i = 0; i < NDOSPART; i++) {
-			struct slicemap *smap;
-			u_int32_t start;
-			int bsdix = pstart + i;
+		fprintf(stderr, "%s Partitions:\n",
+			gotbb == 1 ? "GPT" : "MBR");
+		for (i = 0; i < MAXSLICES; i++) {
+			struct sliceinfo *sinfo;
 
-			fprintf(stderr, "  P%d: ", bsdix + 1);
-			smap = getslicemap(label->parts[i].dp_typ);
-			if (smap == 0)
-				fprintf(stderr, "%-12s", "UNKNOWN");
-			else
-				fprintf(stderr, "%-12s", smap->desc);
+			if (parttab[i].type == IZTYPE_INVALID)
+				continue;
 
-			start = label->parts[i].dp_start;
-#if 0
-			/* Make start sector absolute */
-			if (ISEXT(label->parts[i].dp_typ))
-				start += extstart;
+			fprintf(stderr, "  P%d: ", i+1);
+			sinfo = getslicemap(parttab[i].type);
+			if (sinfo == 0)
+				fprintf(stderr, "0x%x", parttab[i].type);
 			else
-				start += bbstart;
-#endif
-			fprintf(stderr, "  start %9d, size %9d\n",
-				start, label->parts[i].dp_size);
+				fprintf(stderr, "%-12s", sinfo->desc);
+
+			fprintf(stderr, "  start %12d, size %12d",
+				parttab[i].offset, parttab[i].size);
+			if (parttab[i].flags) {
+				fprintf(stderr, " (");
+				if (parttab[i].flags & IZFLAG_NOTSUP)
+					fprintf(stderr, "Not supported,");
+				if (parttab[i].flags & IZFLAG_IGNORE)
+					fprintf(stderr, "IGNORED,");
+				if (parttab[i].flags & IZFLAG_RAW)
+					fprintf(stderr, "compress RAW");
+				fprintf(stderr, ")\n");
+			} else {
+				fprintf(stderr, "\n");
+			}
 		}
 		fprintf(stderr, "\n");
 	}
-
-	return 0;
-}
-
-/*
- * Parse the DOS partition table and dispatch to the individual readers.
- */
-int
-read_image(u_int32_t bbstart, int pstart, u_int32_t extstart)
-{
-	int		i, rval = 0;
-	struct doslabel doslabel;
-
-	if (read_doslabel(infd, bbstart, pstart, &doslabel) != 0)
-		return 1;
 
 	/*
 	 * Quick, brute-force check for overlap of partitions.
@@ -1054,21 +1019,27 @@ read_image(u_int32_t bbstart, int pstart, u_int32_t extstart)
 	 * with those areas; i.e., always save unless overlap is strictly
 	 * between unused/ignored partitions.
 	 */
-	for (i = 0; i < NDOSPART-1; i++) {
-		u_int32_t start1, size1, start2, size2;
-		int i2;
+	for (i = 0; i < MAXSLICES; i++) {
+		iz_lba start1, start2;
+		iz_size size1, size2;
+		int ii;
 
-		if ((size1 = doslabel.parts[i].dp_size) == 0)
+		if (parttab[i].type == IZTYPE_INVALID)
 			continue;
 
-		start1 = bbstart + doslabel.parts[i].dp_start;
-		for (i2 = i+1; i2 < NDOSPART; i2++) {
-			if ((size2 = doslabel.parts[i2].dp_size) == 0)
+		if ((size1 = parttab[i].size) == 0)
+			continue;
+
+		start1 = parttab[i].offset;
+		for (ii = i + 1; ii < MAXSLICES; ii++) {
+			if (parttab[ii].type == IZTYPE_INVALID)
 				continue;
-			start2 = bbstart + doslabel.parts[i2].dp_start;
+			if ((size2 = parttab[ii].size) == 0)
+				continue;
+			start2 = parttab[ii].offset;
 			if (start2+size2 > start1 &&
 			    start1+size1 > start2) {
-				warnx("P%d and P%d overlap!", i+1, i2+1);
+				warnx("P%d and P%d overlap!", i+1, ii+1);
 				rval++;
 			}
 		}
@@ -1077,104 +1048,141 @@ read_image(u_int32_t bbstart, int pstart, u_int32_t extstart)
 		return 1;
 
 	/*
-	 * Now operate on individual slices. 
+	 * Now operate on individual slices.
 	 */
-	for (i = 0; i < NDOSPART; i++) {
-		unsigned char	type  = doslabel.parts[i].dp_typ;
-		u_int32_t	start = bbstart + doslabel.parts[i].dp_start;
-		u_int32_t	size  = doslabel.parts[i].dp_size;
-		int		bsdix = pstart + i;
+	for (i = 0; i < MAXSLICES; i++) {
+		iz_type	type  = parttab[i].type;
+		iz_lba start  = parttab[i].offset;
+		iz_size size  = parttab[i].size;
+		iz_flags flags= parttab[i].flags;
 
-		if (slicemode && bsdix + 1 != slice && !ISEXT(type))
+		/*
+		 * No such slice
+		 */
+		if (type == IZTYPE_INVALID)
 			continue;
 
-		if (ignore[bsdix]) {
-			if (!ISBSD(type) || ignore[bsdix] == ~0)
-				type = DOSPTYP_UNUSED;
-		} else if (forceraw[bsdix]) {
-			if (!ISBSD(type) || forceraw[bsdix] == ~0) {
-				fprintf(stderr,
-					"  Slice %d, forcing raw compression\n",
-					bsdix + 1);
-				goto skipcheck;
-			}
-		}
+		/*
+		 * This is not the slice you are looking for...
+		 */
+		if (slicemode && i + 1 != slice)
+			continue;
 
-		switch (type) {
-		case DOSPTYP_EXT:
-		case DOSPTYP_EXT_LBA:
-			/*
-			 * XXX extended partition start sectors are
-			 * relative to the first extended partition found
-			 */
-			rval = read_image(extstart + doslabel.parts[i].dp_start,
-					  pstart + NDOSPART,
-					  extstart ? extstart : start);
-			/* XXX for inputmaxsec calculation below */
-			start = extstart + doslabel.parts[i].dp_start;
-			break;
-
-		case DOSPTYP_UNUSED:
+		/*
+		 * Explicit request by the user to ignore the partition
+		 */
+		if (ignore[i] && (!ISBSD(type) || ignore[i] == ~0)) {
 			fprintf(stderr,
-				"  Slice %d %s, NOT SAVING.\n", bsdix + 1,
-				ignore[bsdix] ? "ignored" : "is unused");
+				"P%d: forcing skip, NOT SAVING.\n", i+1);
+			flags |= IZFLAG_IGNORE;
+		}
+		/*
+		 * Explicit request by the user to compress raw
+		 */
+		else if (forceraw[i] && (!ISBSD(type) || forceraw[i] == ~0)) {
+			fprintf(stderr,
+				"P%d: forcing raw compression.\n", i+1);
+			flags |= IZFLAG_RAW;
+		}
+		/*
+		 * Partition type is unsupported. We could either compress
+		 * it raw or ignore it. Right now we always compress them
+		 * raw. We could add an option to ignore them.
+		 */
+		else if ((flags & IZFLAG_NOTSUP) != 0) {
+			fprintf(stderr,
+				"P%d: Type 0x%x not supported, ", i+1, type);
+
+			fprintf(stderr, "forcing raw compression.\n");
+			flags |= IZFLAG_RAW;
+		}
+		/*
+		 * Partition is being ignored either because it is unused
+		 * or otherwise contains no useful info (e.g., extended DOS
+		 * partitions).
+		 */
+		else if ((flags & IZFLAG_IGNORE) != 0) {
+			fprintf(stderr,
+				"P%d: %s, NOT SAVING.\n", i+1,
+				type == IZTYPE_UNUSED ? "unused" : "ignored");
 			if (size > 0)
 				addskip(start, size);
-			break;
-
-		default:
-			rval = read_slice(bsdix, type, start, size,
-					  infilename, infd);
+		}
+		/*
+		 * Finally! We have a partition that we can apply some
+		 * smarts to. If that fails, we try raw compression.
+		 */
+		else {
+			rval = read_slice(i, type, start, size,
+					  infilename, fd);
 			if (rval == -1) {
 				fprintf(stderr, ", forcing raw compression\n");
 				rval = 0;
 			}
-			break;
-		}
-		if (rval) {
-			if (!ISEXT(type))
-				fprintf(stderr,
-					"  Filesystem specific error "
-					"in Slice %d, "
-					"use -R%d to force raw compression.\n",
-					bsdix + 1, bsdix + 1);
-			break;
 		}
 
-	skipcheck:
 		/*
 		 * In slicemode, we need to set the bounds of compression.
-		 * Slice is a DOS partition number (1-4). If not in slicemode,
-		 * we cannot set the bounds according to the doslabel since its
-		 * possible that someone will create a disk with empty space
-		 * before the first partition (typical, to start partition 1
-		 * at the second cylinder) or after the last partition (Mike!).
-		 * However, do not set the inputminsec since we usually want the
+		 * If not in slicemode, we cannot set the bounds according
+		 * to the partition info since its possible that someone
+		 * will create a disk with empty space before the first
+		 * partition (typical, to start partition 1 at the second
+		 * cylinder) or after the last partition (Mike!). However,
+		 * do not set the inputminsec since we usually want the
 		 * stuff before the first partition, which is the boot stuff.
 		 */
-		if (slicemode && slice == bsdix + 1) {
+		if (slicemode) {
 			inputminsec = start;
 			inputmaxsec = start + size;
-		} else if (!slicemode && !maxmode) {
-			if (start + size > inputmaxsec)
-				inputmaxsec = start + size;
+		} else if (!maxmode && (start + size) > inputmaxsec) {
+			inputmaxsec = start + size;
 		}
 	}
 
+	/*
+	 * Ultimately, we are going to believe the partitioner about
+	 * min/max values, but lets see how they compare.
+	 */
+	if (!slicemode) {
+		if (dstart != inputminsec) {
+			fprintf(stderr,
+				"partitioner value (%lu) different than "
+				"computed value (%lu); using the former\n",
+				(unsigned long)dstart, inputminsec);
+			inputminsec = dstart;
+		}
+		if (!maxmode && dstart+dsize != inputmaxsec) {
+			fprintf(stderr,
+				"partitioner value (%lu) different than "
+				"computed value (%lu); using the former\n",
+				(unsigned long)(dstart+dsize), inputmaxsec);
+			inputmaxsec = dstart + dsize;
+		}
+	}
 	return rval;
 }
 
+int
+read_rawslice(int slice, iz_type bsdtype, iz_lba start, iz_size size,
+	      char *sname, int infd)
+{
+	if (debug)
+		fprintf(stderr, "  P%d (RAW Slice)\n", slice + 1);
+
+	/* nothing else to do! */
+	return 0;
+}
 
 /*
  * For a raw image (something we know nothing about), we report the size
  * and compress the entire thing (that is, there are no skip ranges).
  */
 int
-read_raw(void)
+read_raw(int fd)
 {
 	off_t	size = 0;
 
-	if (incanseek && (size = devlseek(infd, (off_t) 0, SEEK_END)) < 0) {
+	if (incanseek && (size = devlseek(fd, (off_t) 0, SEEK_END)) < 0) {
 		warn("lseeking to end of raw image");
 		return 1;
 	}
@@ -1317,8 +1325,8 @@ dumpskips(int verbose)
 	}
 
 	fprintf(stderr,
-		"Total Number of Free Sectors: %d (bytes %lld) in %d ranges\n",
-		total, (long long)sectobytes(total), nranges);
+		"Total Number of Free Sectors: %u (bytes %lld) in %d ranges\n",
+		(unsigned)total, (long long)sectobytes(total), nranges);
 }
 
 #undef DOHISTO
@@ -1653,8 +1661,8 @@ dumpranges(int verbose)
 		range = range->next;
 	}
 	fprintf(stderr,
-		"Total Number of Valid Sectors: %d (bytes %llu) in %d ranges\n",
-		total, (unsigned long long)sectobytes(total), nranges);
+		"Total Number of Valid Sectors: %u (bytes %llu) in %d ranges\n",
+		(unsigned)total, (unsigned long long)sectobytes(total), nranges);
 }
 
 /*
