@@ -56,13 +56,18 @@ function (_, editModalString)
 	alert('Failed to fetch Jacks context from ' + contextUrl);
     }
 
-    function JacksEditor (root)
+    function JacksEditor (root, isViewer)
     {
 	this.root = root;
 	this.instance = null;
 	this.input = null;
 	this.output = null;
 	this.xml = null;
+	this.mode = 'editor';
+	if (isViewer)
+	{
+	    this.mode = 'viewer';
+	}
 	this.render();
     }
 
@@ -71,12 +76,16 @@ function (_, editModalString)
 	render: function ()
 	{
 	    this.root.html(editModalString);
+	    if (this.mode !== 'editor')
+	    {
+		this.root.find('.modal-header h3').html('Topology Viewer');
+	    }
 	    this.root.find('#quickvm_editmodal').on('shown.bs.modal', _.bind(this.handleShown, this));
 	    this.root.find('#edit-save').click(_.bind(this.fetchXml, this));
 	    this.root.find('#edit-cancel, #edit-dismiss')
 		.click(_.bind(this.cancelEdit, this));
 	    this.instance = new window.Jacks({
-		mode: 'editor',
+		mode: this.mode,
 		source: 'rspec',
 		root: '#edit_nopicker',
 		nodeSelect: true,

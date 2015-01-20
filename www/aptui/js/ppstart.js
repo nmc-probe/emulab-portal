@@ -254,13 +254,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		return;
 	    }
 	    // Caller might already have an editor instance.
-	    if (_.has(args, "editor")) {
-		editor = args.editor;
-	    }
-	    else {
-		editor = new JacksEditor($('#editmodal_div'));
-	    }
-
+	    editor = new JacksEditor($('#ppviewmodal_div'), true);
 	    // Callback; instead of instantiate, send rspec to callback.
 	    if (_.has(args, "callback")) {
 		callback_done = args.callback;

@@ -45,6 +45,7 @@ $reqargs = RequiredPageArguments("uuid", PAGEARG_STRING);
 
 SPITHEADER(1);
 
+echo "<div id='ppviewmodal_div'></div>\n";
 if (!isset($uuid)) {
     SPITUSERERROR("Must provide uuid!");
 }

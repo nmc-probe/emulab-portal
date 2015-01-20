@@ -370,7 +370,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 			 registered : true,
 			 amlist     : amlist,
 			 amdefault  : window.AMDEFAULT,
-			 editor     : editor});
+			});
 		return;
 	    }
 	    sup.ShowModal('#instantiate_modal');

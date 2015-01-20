@@ -95,6 +95,7 @@ function SPITFORM($formfields, $errors)
 
     SPITHEADER(1);
 
+    echo "<div id='ppviewmodal_div'></div>\n";
     # Place to hang the toplevel template.
     echo "<div id='manage-body'></div>\n";
 

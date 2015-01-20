@@ -63,7 +63,7 @@ function SPITFORM($formfrag, $formfields, $errors)
     # Place to hang the toplevel template.
     echo "<div id='main-body'></div>\n";
     # For the editor.
-    echo "<div id='editmodal_div'></div>\n";
+    echo "<div id='ppviewmodal_div'></div>\n";
 
     # I think this will take care of XSS prevention?
     echo "<script type='text/plain' id='form-json'>\n";
