@@ -33,8 +33,9 @@ use URI::Escape;
 #
 sub usage()
 {
-    print("Usage: import_image [-d] [-v] [-u <user>] [-g] [-p pid] <url>\n");
-    print("       import_image [-d] [-u <user>] [-g] -i <imageid>\n");
+    print("Usage: import_image [-d] [-v] [-u <user>] [-g] [-p pid] ".
+	  "[-i name] <url>\n");
+    print("       import_image [-d] [-u <user>] -r <imageid>\n");
     print("Options:\n");
     print(" -d      - Turn on debugging\n");
     print(" -v      - Verify XML description only\n");
@@ -42,10 +43,12 @@ sub usage()
     print(" -u uid  - Create image as user instead of caller\n");
     print(" -p pid  - Create image in the specified project.\n".
 	  "           Defaults to emulab-ops.\n");
-    print(" -i id   - Update existing imported image.\n");
+    print(" -i name - Use name for imagename.\n".
+	  "           Defaults to name in the desciptor\n");
+    print(" -r      - Refresh (update ndz file) imported image.\n");
     exit(-1);
 }
-my $optlist = "dvu:p:giI";
+my $optlist = "dvu:p:gi:Ir";
 my $debug   = 0;
 my $verify  = 0;
 my $getimage= 0;
@@ -53,6 +56,7 @@ my $update  = 0;
 my $force   = 0;
 my $user;
 my $group;
+my $imagename;
 
 #
 # Configure variables
@@ -113,7 +117,7 @@ my $url;
 # Protos
 sub fatal($);
 sub FetchMetadata($);
-sub CreateImage($$$$);
+sub CreateImage($$$$$);
 sub DownLoadImage($$$$);
 
 #
@@ -140,9 +144,12 @@ if (defined($options{"g"})) {
     $getimage = 1;
 }
 if (defined($options{"i"})) {
-    $update = 1;
+    $imagename = $options{i};
 }
-if (defined($options{"I"})) {
+if (defined($options{"r"})) {
+    $update   = 1;
+}
+if (defined($options{"R"})) {
     $update = 1;
     $force  = 1;
 }
@@ -248,7 +255,7 @@ if (!$query_result ||
 }
 my $image = Image->LookupByURL($url);
 if (!defined($image)) {
-    $image = CreateImage($url, $xmlparse, $user, $group);
+    $image = CreateImage($url, $xmlparse, $user, $group, $imagename);
 }
 DBQueryWarn("select RELEASE_LOCK($safe_url)");
 exit(0)
@@ -337,9 +344,9 @@ exit(0);
 # Create a new image descriptor. We have to munge the XML file a bit
 # though and write it out.
 #
-sub CreateImage($$$$)
+sub CreateImage($$$$$)
 {
-    my ($url, $xmlparse, $user, $group) = @_;
+    my ($url, $xmlparse, $user, $group, $imagename) = @_;
     my $alltypes = "-a";
     my $global   = 0;
     
@@ -386,7 +393,10 @@ sub CreateImage($$$$)
     # not going to worry about concurrent attempts to create a descriptor
     # with the same name. 
     #
-    if (! exists($xmlparse->{'attribute'}->{"imagename"})) {
+    if (defined($imagename)) {
+	$xmlparse->{'attribute'}->{"imagename"}->{'value'} = $imagename;
+    }
+    elsif (! exists($xmlparse->{'attribute'}->{"imagename"})) {
 	$xmlparse->{'attribute'}->{"imagename"}->{'value'} = 
 	    substr(TBGenSecretKey(), 0, 12);
     }
@@ -403,7 +413,7 @@ sub CreateImage($$$$)
 	}
 	$xmlparse->{'attribute'}->{"imagename"}->{'value'} = $imagename;
     }
-    my $imagename = $xmlparse->{'attribute'}->{"imagename"}->{'value'};
+    $imagename = $xmlparse->{'attribute'}->{"imagename"}->{'value'};
     if ($debug) {
 	print STDERR "Using imagename: $imagename\n";
     }

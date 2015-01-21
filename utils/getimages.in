@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,12 +39,10 @@ sub usage()
 {
     print STDERR "Usage: getimages [-d] [-n]\n";
     print STDERR "  -h     This message\n";
-    print STDERR "  -n     Impotent mode; just check and report.\n";
     exit(-1);
 }
-my $optlist  = "hndt:";
+my $optlist  = "hdt:";
 my $debug    = 1;
-my $impotent = 0;
 my $testfile;
 
 # Protos
@@ -54,14 +52,23 @@ sub fatal($);
 # Configure variables
 #
 my $TB		 = "@prefix@";
-my $METAURL      = "http://www.emulab.net/genirack-imageinfo.xml";
-my $FETCH	 = "/usr/bin/fetch";
+my $METAURL      = "http://www.emulab.net/genirack-imageinfo-v2.xml";
 my $SUDO         = "/usr/local/bin/sudo";
+my $FETCH	 = "/usr/bin/fetch";
 my $PROTOUSER    = "elabman";
 my $WAP          = "$TB/sbin/withadminprivs";
 my $metadata	 = "/tmp/imageinfo-$$.xml";
-my $NEWIMAGE_EZ  = "$TB/bin/newimageid_ez";
-my $MAXATTEMPTS  = 5;
+my $IMAGEIMPORT  = "$TB/sbin/image_import";
+
+my $FBSD_VERSION = 4;
+if (`uname -r` =~ /^(\d+\.\d*)/) {
+    $FBSD_VERSION = $1;
+}
+# Extra fetch options on FreeBSD 10.
+my $FETCHOPTIONS = "";
+if ($FBSD_VERSION >= 10.0) {
+    $FETCHOPTIONS = "--no-verify-peer --no-verify-hostname";
+}
 
 #
 # Testbed Support libraries
@@ -104,9 +111,6 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{'h'})) {
     usage();
 }
-if (defined($options{'n'})) {
-    $impotent = 1;
-}
 if (defined($options{'d'})) {
     $debug = 1;
 }
@@ -117,7 +121,7 @@ usage()
     if (@ARGV);
 
 # Only root.
-if ($UID && !$impotent) {
+if ($UID) {
     die("*** $0:\n".
 	"    Must run this as root!\n");
 }
@@ -165,17 +169,13 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     }
 
     my $metaurl  = $attributes->{'metaurl'};
-    my $imageurl = $attributes->{'imageurl'};
-    my $hashurl  = $attributes->{'hashurl'};
     my $newtime  = timegm(strptime($attributes->{'modtime'}));
 
     #
     # If we have an entry in the DB, we use the modtime as a serial
-    # number to determine if we need to go the next step and compare
-    # hashes.
+    # number to determine if we need to go the next step.
     #
     # XXX What if the local site has its own more recent version?
-    #     Need to deal with this at some point.
     #
     # Lookup will sanity check the imageid string.
     #
@@ -193,47 +193,15 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
 		next;
 	    }
 	}
-	print "$imageid timestamp has changed. Checking hash.\n";
+	print "$imageid timestamp has changed.\n";
     }
     else {
 	print "$imageid does not exist.\n";
     }
 
     #
-    # Grab the hash file from the server.
-    #
-    my ($fh, $hashfilename) = tempfile(UNLINK => !$debug);
-    fatal("Could not create temporary file")
-	if (!defined($fh));
-    close($fh);
-
-    print "Fetching $hashurl\n";
-    system("$FETCH  -o $hashfilename $hashurl") == 0
-	or fatal("Could not fetch $hashurl");
-
-    my $hash = `cat $hashfilename`;
-    if ($hash =~ /^SHA1.*= (\w*)$/) {
-	$hash = $1;
-    }
-    else {
-	fatal("Could not parse the sha1 hash: '$hash'")
-    }
-
-    #
-    # If we have the image defined and the hash matches, then done.
-    #
-    if (defined($image)) {
-	if (defined($image->hash()) && $image->hash() eq $hash) {
-	    print "Image hash has not changed, skipping ...\n"
-		if ($debug);
-	    # Update the timestamp to avoid repeat.
-	    $image->MarkUpdate($elabman, $newtime);
-	    next;
-	}
-    }
-
-    #
-    # Grab the metadata file
+    # Grab the metadata so we can get the imageurl out of it, we need
+    # to fix up local images below.
     #
     my ($fh2, $metafilename) = tempfile(UNLINK => !$debug);
     fatal("Could not create temporary file")
@@ -241,103 +209,44 @@ foreach my $imageid (keys(%{ $xmlparse->{'image'} })) {
     close($fh2);
 
     print "Fetching $metaurl\n";
-    system("$FETCH  -o $metafilename $metaurl") == 0
+    system("$FETCH $FETCHOPTIONS -o $metafilename $metaurl") == 0
 	or fatal("Could not fetch $metaurl");
-    chmod(0666, $metafilename);
+    
+    my $metaparse = eval { XMLin($metafilename,
+				 VarAttr => 'name',
+				 ContentKey => '-content',
+				 SuppressEmpty => undef); };
+    fatal($@)
+	if ($@);
+    my $imageurl = $metaparse->{'attribute'}->{"imagefile_url"}->{'value'};
 
     #
-    # Load up the descriptor if we do not have it.
+    # We use image_import to bring in or update the image. 
     #
-    if (!defined($image)) {
-	# Do this as admin cause of admin only options in the descriptor.
-	system("$SUDO -u $PROTOUSER $WAP $NEWIMAGE_EZ -a $metafilename") == 0
-	    or fatal("Could not create descriptor for $imageid");
-
-	$image = Image->Lookup(TBOPSPID(), $imageid);
-	if (!defined($image)) {
-	    fatal("Could not lookup newly created descriptor for $imageid");
-	}
-	$image->MarkReady();
-	$image->MarkReleased();
+    # XXX Running this script means you want Utah to manage
+    # your images, so we ignore locally updated images at the
+    # moment and force the existing image metadata url to what
+    # Utah has said it should be.
+    #
+    my $cmd = "$SUDO -u $PROTOUSER $WAP $IMAGEIMPORT -d -g -u $PROTOUSER ";
+    if (defined($image)) {
+	$cmd .= " -r " . $image->imageid();
+	$image->Update({"metadata_url"  => $metaurl,
+			"imagefile_url" => $imageurl});
     }
+    else {
+	$cmd .= " -p " . TBOPSPID() . " '$metaurl'";
+    }
+    print "Running '$cmd'\n" if ($debug);
+    system($cmd);
+    fatal("Could not import image from $metaurl")
+	if ($?);
 
-    my $imagefilename = "$TB/images/${imageid}.ndz";
-    my $tmpfilename   = "${imagefilename}.new";
-    unlink($tmpfilename)
-	if (-e $tmpfilename);
-    # Try a few times, so we don't fail on temporary errors.  Restart
-    # from the beginning if what we have is hopeless; attempt to continue
-    # if we have part of a file and aren't convinced it's useless.
-    my $attempt = 1;
-    while( 1 ) {
-	print "Fetching $imageurl (attempt $attempt of $MAXATTEMPTS)...\n";
-
-	my $expectedsize = `$FETCH -s $imageurl`;
-	chomp( $expectedsize );
-	if( $expectedsize !~ /^[0-9]+$/ ) {
-	    print "Could not retrieve image size, retrying...\n";
-	    next;
-	}
-
-	# Ignore exit code from fetch.  Maybe we got lucky and got a
-	# good transfer before it died; maybe it gave up halfway through
-	# and we have half a good file and can continue where we left off.
-	system("$FETCH -a -F -R -r -o $tmpfilename $imageurl");
-
-	if( -s $tmpfilename < $expectedsize ) {
-	    print "Local file appears truncated, retrying...\n";
-	    next;
-	}
-
-	#
-	# Do an integrity check.
-	#
-	print "Doing an integrity check ...\n";
-	my $filehash = `/sbin/sha1 -q $tmpfilename`;
-	if ($?) {
-	    print "Could not generate sha1 of $tmpfilename\n";
-	    unlink( $tmpfilename );
-	    next;
-	}
-	chomp($filehash);
-	if ($filehash ne $hash) {
-	    print "Integrity check failure. $hash ne $filehash\n";
-	    # Looking bad.  But let's start again and give it another try
-	    # just in case.
-	    unlink( $tmpfilename );
-	    next;
-	}
-	# We got it!
-	last;
-    } continue {
-	$attempt++;
-	fatal( "Could not retrieve $imageurl after $MAXATTEMPTS tries." )
-	    if( $attempt > $MAXATTEMPTS );
+    $image = Image->Lookup(TBOPSPID(), $imageid);
+    if (!defined($image)) {
+	fatal("Could not lookup image even though import succeeded");
     }
     
-    if ($impotent) {
-	print "Impotent mode is on; not installing the new image.\n";
-	print "Hash:$hash, time:$newtime\n";
-	next;
-    }
-
-    #
-    # So move it into place.
-    #
-    print "Moving new image into place\n";
-    unlink("${imagefilename}.old")
-	if (-e "${imagefilename}.old");
-    rename("${imagefilename}", "${imagefilename}.old")
-	if (-e "${imagefilename}");
-    rename("$tmpfilename", "${imagefilename}") or
-	fatal("Could not rename $tmpfilename: $!");
-
-    #
-    # Now update the descriptor to reflect new hash.
-    #
-    $image->SetHash($hash) == 0
-	or fatal("Could not update hash for $image");
-
     #
     # Mark this too, so that we do not repeat the first test above.
     #
