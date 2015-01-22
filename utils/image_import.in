@@ -516,7 +516,8 @@ sub DownLoadImage($$$$)
 	print "Downloading $image_url ...\n";
 	
 	if (! open(GET, "| nice -15 $WGET --no-check-certificate ".
-		   "--timeout=30 --waitretry=30 -q -O $localfile -i -")) {
+		   "--timeout=30 --waitretry=30 --retry-connrefused ".
+		   "-q -O $localfile -i -")) {
 	    print STDERR "Cannot start $WGET\n";
 	    return -1;
 	}
