@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2014 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1559,7 +1559,7 @@ sub InfoDir($$)
     my $eid = $self->eid();
     my $idx = $self->idx();
 
-    return "$TB/expinfo/$pid/$eid/$idx";
+    return TBDB_EXPT_INFODIR() . "/$pid/$eid/$idx";
 }
 
 # Event/Web key filenames.
