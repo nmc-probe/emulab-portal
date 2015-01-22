@@ -31,6 +31,7 @@ use strict;
 use English;
 use Getopt::Std;
 use Data::Dumper;
+use Fcntl;
 
 #
 # Setup accounts/projects/group stuff on ops/fs. This is installed on
@@ -45,6 +46,7 @@ sub usage()
     print "       accountsetup addgroup ...\n";
     print "       accountsetup delproject ...\n";
     print "       accountsetup delgroup ...\n";
+    print "       accountsetup dropfile ...\n";
     exit(1);
 }
 my $optlist    = "dnf";
@@ -71,6 +73,9 @@ my $GROUPADD          = "/usr/sbin/pw groupadd";
 my $GROUPDEL          = "/usr/sbin/pw groupdel";
 my $CHPASS	      = "/usr/bin/chpass";
 my $CHOWN	      = "/usr/sbin/chown";
+my $CHMOD	      = "/bin/chmod";
+my $MKDIR	      = "/bin/mkdir";
+my $MV		      = "/bin/mv";
 my $ZFS		      = "/sbin/zfs";
 my $SKEL	      = "/usr/share/skel";
 my $PIDFILE           = "/var/run/mountd.pid";
@@ -113,6 +118,7 @@ sub AddProject();
 sub AddGroup();
 sub DelProject();
 sub DelGroup();
+sub DropFile();
 sub fatal($);
 sub ZFSexists($);
 sub MakeDir($$);
@@ -172,6 +178,10 @@ SWITCH: for ($cmd) {
 	DelGroup();
 	last SWITCH;
     };
+    /^dropfile$/ && do {
+	DropFile();
+	last SWITCH;
+    };
     # Default
     usage();
 }
@@ -229,7 +239,20 @@ sub AddUser()
 	mysystem("/usr/sbin/chown -R $user:$gid $hdir") == 0
 	    or fatal("Could not chown $hdir");
     }
+    #
+    # Some directories we need, with proper owner/group/mode
+    #
+    foreach my $dir (".ssl", ".ssh") {
+	if (! -e "$hdir/$dir" &&
+	    !mkdir("$hdir/$dir", 0700)) {
+	    fatal("Could not make directory '$hdir/$dir': $!");
+	}
+	mysystem("$CHOWN -R $user:$gid $hdir/$dir") == 0
+	    or fatal("Could not chown $hdir/$dir to $user:$gid");
 
+	chmod(0700, "$hdir/$dir")
+	    or fatal("Could not chmod '$hdir/$dir' to 0700: $!");
+    }
     #
     # Finally, set any initial password hash
     #
@@ -505,6 +528,45 @@ sub DelGroup()
 	    fatal("Could not delete group $unix_name!\n");
 	}
     }
+    return 0;
+}
+
+#
+# Drop a file into place. The file is piped into STDIN from boss.
+#
+sub DropFile()
+{
+    if (@ARGV != 5) {
+	fatal("dropfile: Wrong number of arguments");
+    }
+    my $user  = shift(@ARGV);
+    my $gid   = shift(@ARGV);
+    my $mode  = shift(@ARGV);
+    my $dir   = shift(@ARGV);
+    my $fname = shift(@ARGV);
+    my $file  = "$dir/$fname";
+
+    # Default the directory creation to 770. Might need to specify this too.
+    if (! -d "$dir" && mysystem("$MKDIR -m 770 -p $dir")) {
+	fatal("Could not make directory '$dir'");
+    }
+    #
+    # We want the file to have the proper mode before we try to write it,
+    # to avoid a race that allows someone to see the contents.
+    #
+    if (-e $file && mysystem("$MV $file ${file}.save")) {
+	fatal("Could not rename $file to ${file}.save");
+    }
+    sysopen(HANDLE, $file, O_WRONLY|O_CREAT|O_EXCL, 0600)
+	or fatal("sysopen $file: $!");
+    while (<STDIN>) {
+	print HANDLE $_;
+    }
+    close(HANDLE);
+    mysystem("$CHOWN $user:$gid $file") == 0
+	or fatal("Could not chown $file to $user:$gid");
+    mysystem("$CHMOD $mode $file") == 0
+	or fatal("Could not chmod '$file' to $mode");
     return 0;
 }
 
