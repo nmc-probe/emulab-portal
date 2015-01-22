@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013 University of Utah and the Flux Group.
+# Copyright (c) 2013-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -608,7 +608,7 @@ sub calcSliceSizes($) {
     my $sliceshash = shift;
 
     # Ugh... Have to look up size via the "volume" list for zvol slices.
-    my $zvollist = freenasVolumeList(0);
+    my $zvollist = freenasVolumeList(0, 0);
 
     foreach my $slice (values(%$sliceshash)) {
 	my $vnode_id = $slice->{'vnode_id'};
@@ -700,21 +700,32 @@ sub allocSlice($$$$) {
     #
     # If this is a use of a persistent store, the BSID is a unique
     # volume name based on the lease ID. Look up the volume to make
-    # sure it exists, but do nothing else.
+    # sure it exists, but do nothing else other than stash away some
+    # state for exportSlice.
     #
     if ($bsid =~ /^lease-\d+$/) {
-	my $volumes = freenasVolumeList(1);
-	if (exists($volumes->{$bsid})) {
-	    $priv->{'pool'} = $volumes->{$bsid}->{'pool'};
-	    $priv->{'volume'} = $volumes->{$bsid}->{'volume'};
-	    if (exists($volumes->{$bsid}->{'iname'})) {
-		$priv->{'iname'} = $volumes->{$bsid}->{'iname'};
-	    }
-	    return 0;
+	# XXX we no longer share mappings so don't need iname info
+	#my $volumes = freenasVolumeList(1, 1);
+	my $volumes = freenasVolumeList(0, 1);
+	my $vref = $volumes->{$bsid};
+	if (!defined($vref)) {
+	    warn("*** ERROR: blockstore_allocSlice: $volname: ".
+		 "Requested volume not found: $bsid!");
+	    return -1;
 	}
-	warn("*** ERROR: blockstore_allocSlice: $volname: ".
-	     "Requested volume not found: $bsid!");
-	return -1;
+
+	# For possible later cloning, remember if it has snapshots
+	if (exists($vref->{'snapshots'})) {
+	    $priv->{'hassnapshot'} = 1;
+	}
+
+	$priv->{'pool'} = $vref->{'pool'};
+	$priv->{'volume'} = $vref->{'volume'};
+	# XXX we no longer share mappings
+	#if (exists($vref->{'iname'})) {
+	#    $priv->{'iname'} = $vref->{'iname'};
+	#}
+	return 0;
     }
 
     $priv->{'pool'} = $bsid;
@@ -785,17 +796,68 @@ sub exportSlice($$$$) {
 	$perm = "ro";
     }
 
+    #
+    # XXX hack temporary support for RO sharing of persistent blockstores.
+    #
+    # If the mapping to a persistent store is RO, then we will create
+    # an ephemeral clone for each such mapping.
+    #
+    if ($volume =~ /^lease-\d+$/ && $perm eq "ro") {
+	#
+	# If no snapshot exists, create one. VolumeClone must have
+	# a snapshot to hang the clone on. If a snapshot already exists
+	# we assume another mapping has already gone through here and
+	# we just use the same snapshot.
+	#
+	# XXX could this race with another vnode setup? If so, we could
+	# wind up creating multiple snapshots for the same volume.
+	# That does not matter right now, but something to watch out for.
+	#
+	my $tstamp;
+	if (!exists($priv->{'hassnapshot'})) {
+	    $tstamp = time();
+	    if (freenasVolumeSnapshot($pool, $volume, $tstamp)) {
+		warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		     "Could not create snapshot for RO mapping");
+		return -1;
+	    }
+	}
+
+	#
+	# Create a clone with the same name as an ephemeral blockstore
+	# would have. Note that it is in a different pool however,
+	# since snapshot/clone must be in the same pool as the origin.
+	# Clone will use the most recent snapshot (though there should
+	# only be one anyway).
+	#
+	if (freenasVolumeClone($pool, $volume, $vnode_id)) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Could not create clone for RO mapping");
+	    if ($tstamp) {
+		freenasVolumeDesnapshot($pool, $volume, $tstamp);
+	    }
+	    return -1;
+	}
+	$volume = $vnode_id;
+    }
+
     # If operating on a lease, we use the lease id as the iSCSI
     # initiator group identifier instead of the vnode_id because this
     # entry may end up being shared (simultaneous RO use).
     my $tag_ident = $vnode_id;
-    if ($priv->{'volume'} =~ /^lease-\d+$/) {
-	$tag_ident = $priv->{'volume'};
-    }
+    # XXX we no longer share mappings
+    #if ($priv->{'volume'} =~ /^lease-\d+$/) {
+    #    $tag_ident = $priv->{'volume'};
+    #}
 
+    #
     # Go through the whole iSCSI extent/target setup if it hasn't been
     # done yet for this volume.  (If this is a persistent lease, it
     # may already be exported and in use.)
+    #
+    # XXX currently iname will never exist since we don't share mappings.
+    # The "else" code is left just in case we need it again in the future.
+    #
     if (!exists($priv->{'iname'})) {
 	# Create iSCSI extent.
 	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
@@ -847,6 +909,10 @@ sub exportSlice($$$$) {
     # requested perms are RO, and validate that the dataset isn't
     # currently in use RW.
     else {
+	# XXX for now
+	warn("*** ERROR: unexpected arrival in shared dataset code!");
+	return -1;
+
 	# Check requested perms.
 	if ($perm ne "ro") {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
@@ -1256,9 +1322,10 @@ sub unexportSlice($$$$) {
     # iSCSI auth group identifier instead of the vnode_id because
     # this entry may be shared (simultaneous RO use).
     my $tag_ident = $vnode_id;
-    if ($sconf->{'UUID'} =~ /:(lease-\d+)$/) {
-	$tag_ident = $1; # untaint
-    }
+    # XXX we no longer share mappings
+    #if ($sconf->{'UUID'} =~ /:(lease-\d+)$/) {
+    #    $tag_ident = $1; # untaint
+    #}
 
     # Fetch the authorized initators entry associated with this slice,
     # and yank its network entry out of the list.  It this is the last
@@ -1314,6 +1381,10 @@ sub unexportSlice($$$$) {
     # This export is still referenced, so leave export but update the
     # authorized initiators list.
     else {
+	# XXX for now
+	warn("*** ERROR: unexpected arrival in shared dataset code!");
+	return -1;
+
 	my $auth_network_str = join(' ', @pruned_networks);
 	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
 			     "edit $authtag ALL '$auth_network_str' ".
@@ -1350,7 +1421,23 @@ sub deallocSlice($$$$) {
     # sure it exists, but do nothing else.
     #
     if ($bsid =~ /^lease-\d+$/) {
-	my $volumes = freenasVolumeList(0);
+	my $volumes = freenasVolumeList(0, 1);
+
+	#
+	# Check for clone volumes. A clone will have our (vnode_id)
+	# name and be a "cloneof" a snapshot of this lease.
+	#
+	if (exists($volumes->{$vnode_id})) {
+	    my $vref = $volumes->{$vnode_id};
+	    my $pool = $vref->{'pool'};
+	    if (exists($vref->{'cloneof'}) &&
+		$vref->{'cloneof'} =~ /^$bsid\@\d+/) {
+		return freenasVolumeDeclone($pool, $vnode_id);
+	    }
+	    warn("*** WARNING: blockstore_deallocSlice: $volname: ".
+		 "Found stale ephemeral volume '$pool/$vnode_id'");
+	}
+
 	if (exists($volumes->{$bsid})) {
 	    return 0;
 	}
@@ -1359,6 +1446,10 @@ sub deallocSlice($$$$) {
 	return -1;
     }
 
+    #
+    # We use Declone here which will remove the origin snapshot
+    # as well (if we are the last user) when invoked on a cloned volume.
+    #
     return freenasVolumeDestroy($bsid, $vnode_id);
 }
 

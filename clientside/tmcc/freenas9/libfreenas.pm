@@ -32,7 +32,8 @@ use Exporter;
     qw( 
 	freenasPoolList freenasVolumeList
 	freenasVolumeCreate freenasVolumeDestroy freenasFSCreate
-	freenasVolumeSnapshot freenasVolumeClone freenasVolumeDeclone
+	freenasVolumeSnapshot freenasVolumeClone
+	freenasVolumeDesnapshot freenasVolumeDeclone
 	freenasRunCmd freenasParseListing
 	$FREENAS_CLI_VERB_IFACE $FREENAS_CLI_VERB_IST_EXTENT
 	$FREENAS_CLI_VERB_IST_AUTHI $FREENAS_CLI_VERB_IST_TARGET
@@ -124,12 +125,17 @@ sub freenasFSCreate($$$);
 sub freenasRunCmd($$);
 sub freenasParseListing($);
 
+sub freenasVolumeSnapshot($$;$);
+sub freenasVolumeDesnapshot($$;$);
+sub freenasVolumeClone($$$;$);
+sub freenasVolumeDeclone($$);
+
 #
 # Local Functions
 #
 sub listPools();
 sub convertZfsToMebi($);
-sub volumeDestroy($$$);
+sub volumeDestroy($$$$);
 
 #
 # Turn off line buffering on output
@@ -283,6 +289,122 @@ sub freenasVolumeCreate($$$)
     return 0;
 }
 
+sub freenasVolumeSnapshot($$;$)
+{
+    my ($pool, $volname, $tstamp) = @_;
+
+    # Untaint arguments that are passed to a command execution
+    $pool = untaintHostname($pool);
+    $volname = untaintHostname($volname);
+    if (defined($tstamp) && $tstamp != 0) {
+	$tstamp = untaintNumber($tstamp);
+    } else {
+	$tstamp = time();
+    }
+    if (!$pool || !$volname || !$tstamp) {
+	warn("*** ERROR: freenasVolumeSnapshot: ".
+	     "Invalid arguments");
+	return -1;
+    }
+
+    # Get volume and snapshot info
+    my $vollist = freenasVolumeList(0, 1);
+
+    # The base volume must exist
+    my $vref = $vollist->{$volname};
+    if (!$vref || $vref->{'pool'} ne $pool) {
+	warn("*** ERROR: freenasVolumeSnapshot: ".
+	     "Base volume '$volname' does not exist in pool '$pool'");
+	return -1;
+    }
+
+    # The snapshot must not exist
+    my $snapshot = "$volname\@$tstamp";
+    if (exists($vref->{'snapshots'})) {
+	my @snaps = split(',', $vref->{'snapshots'});
+
+	foreach my $sname (@snaps) {
+	    if ($snapshot eq $sname) {
+		warn("*** ERROR: freenasVolumeSnapshot: ".
+		     "Snapshot '$snapshot' already exists");
+		return -1;
+	    }
+	}
+    }
+
+    # Let's do it!
+    eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT,
+			 "add $pool/$snapshot") };
+    if ($@) {
+	my $msg = "  $@";
+	$msg =~ s/\\n/\n  /g;
+	warn("*** ERROR: freenasVolumeSnapshot: ".
+	     "'add $pool/$snapshot' failed:\n$msg");
+	return -1;
+    }
+
+    return 0;
+}
+
+sub freenasVolumeDesnapshot($$;$)
+{
+    my ($pool, $volname, $tstamp) = @_;
+
+    # Untaint arguments that are passed to a command execution
+    $pool = untaintHostname($pool);
+    $volname = untaintHostname($volname);
+    if (defined($tstamp)) {
+	$tstamp = untaintNumber($tstamp);
+    } else {
+	$tstamp = 0;
+    }
+    if (!$pool || !$volname || !defined($tstamp)) {
+	warn("*** ERROR: freenasVolumeSnapshot: ".
+	     "Invalid arguments");
+	return -1;
+    }
+
+    # Get volume and snapshot info
+    my $vollist = freenasVolumeList(0, 1);
+
+    # The base volume must exist
+    my $vref = $vollist->{$volname};
+    if (!$vref || $vref->{'pool'} ne $pool) {
+	warn("*** ERROR: freenasVolumeDesnapshot: ".
+	     "Base volume '$volname' does not exist in pool '$pool'");
+	return -1;
+    }
+
+    # Loop through removing snapshots as appropriate.
+    my $rv = 0;
+    if (exists($vref->{'snapshots'})) {
+	my @snaps = split(',', $vref->{'snapshots'});
+	my $snapshot = "$volname\@$tstamp"
+	    if ($tstamp);
+
+	foreach my $sname (@snaps) {
+	    if (!$tstamp || $snapshot eq $sname) {
+		eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT, 
+				     "del $pool/$sname") };
+		if ($@) {
+		    if ($@ =~ /has dependent clones/) {
+			warn("*** WARNING: freenasVolumeDesnapshot: ".
+			     "snapshot '$sname' in use");
+		    } else {
+			my $msg = "  $@";
+			$msg =~ s/\\n/\n  /g;
+			warn("*** ERROR: freenasVolumeDesnapshot: ".
+			     "'del $pool/$snapshot' failed:\n$msg");
+		    }
+		    $rv = -1;
+		}
+	    }
+	}
+    }
+
+    return $rv;
+}
+
 #
 # Create a clone volume named $nvolname from volume $ovolname.
 # The clone will be created from the snapshot $volname-$tag where
@@ -387,50 +509,7 @@ sub freenasVolumeDeclone($$)
 	return -1;
     }
 
-    # Get volume and snapshot info
-    my $vollist = freenasVolumeList(0, 1);
-
-    # Volume must exist and be a clone
-    my $ovref = $vollist->{$volname};
-    if (!$ovref || $ovref->{'pool'} ne $pool) {
-	warn("*** ERROR: freenasVolumeDeclone: ".
-	     "Volume '$volname' does not exist in pool '$pool'");
-	return -1;
-    }
-    if (!exists($ovref->{'cloneof'})) {
-	warn("*** ERROR: freenasVolumeDeclone: ".
-	     "Volume '$volname' is not a clone, use 'destroy' instead");
-	return -1;
-    }
-
-    # volume must not itself have snapshots
-    # XXX this is not strictly necessary as FreeNAS destroy will fail anyway
-    if (exists($ovref->{'snapshots'})) {
-	warn("*** ERROR: freenasVolumeDeclone: ".
-	     "Volume '$volname' has clones");
-	return -1;
-    }
- 
-    if (volumeDestroy($pool, $volname, "freenasVolumeDeclone")) {
-	return -1;
-    }
-
-    # see if we can whack the snapshot
-    my $snapshot = $ovref->{'cloneof'};
-    eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT, 
-			 "del $pool/$snapshot") };
-    if ($@) {
-	if ($@ =~ /has dependent clones/) {
-	    return 0;
-	}
-	my $msg = "  $@";
-	$msg =~ s/\\n/\n  /g;
-	warn("*** ERROR: freenasVolumeDeclone: ".
-	     "'del $pool/$snapshot' failed:\n$msg");
-	return -1;
-    }
-
-    return 0;
+    return volumeDestroy($pool, $volname, 1, "freenasVolumeDeclone");
 }
 
 sub freenasVolumeDestroy($$)
@@ -446,18 +525,33 @@ sub freenasVolumeDestroy($$)
 	return -1;
     }
 
-    #
-    # Note that we don't do any sanity checks of our own (ala Declone),
-    # instead relying on the FreeNAS destroy to fail when appropriate.
-    #
-
-    return volumeDestroy($pool, $volname, "freenasVolumeDestroy");
+    return volumeDestroy($pool, $volname, 0, "freenasVolumeDestroy");
 }
 
+#
 # The guts of destroy and declone
-sub volumeDestroy($$$) {
-    my ($pool, $volname, $tag) = @_;
+#
+sub volumeDestroy($$$$) {
+    my ($pool, $volname, $declone, $tag) = @_;
 
+    # Get volume and snapshot info
+    my $vollist = freenasVolumeList(0, 1);
+
+    # Volume must exist
+    my $vref = $vollist->{$volname};
+    if (!$vref || $vref->{'pool'} ne $pool) {
+	warn("*** ERROR: $tag: ".
+	     "Volume '$volname' does not exist in pool '$pool'");
+	return -1;
+    }
+
+    # Volume must not have snapshots
+    if (exists($vref->{'snapshots'})) {
+	warn("*** ERROR: $tag: ".
+	     "Volume '$volname' has clones, cannot destroy");
+	return -1;
+    }
+ 
     # Deallocate volume.  Wrap in loop to enable retries.
     my $count;
     for ($count = 1; $count <= $MAX_RETRY_COUNT; $count++) {
@@ -508,6 +602,30 @@ sub volumeDestroy($$$) {
 	warn("*** WARNING: $tag: ".
 	     "Could not free volume after several attempts!");
 	return -1;
+    }
+
+    #
+    # If decloning, see if we can whack the snapshot
+    #
+    if (exists($vref->{'cloneof'})) {
+	my $snapshot = $vref->{'cloneof'};
+	if ($declone) {
+	    eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT, 
+				 "del $pool/$snapshot") };
+	    if ($@) {
+		if ($@ =~ /has dependent clones/) {
+		    return 0;
+		}
+		my $msg = "  $@";
+		$msg =~ s/\\n/\n  /g;
+		warn("*** ERROR: freenasVolumeDeclone: ".
+		     "'del $pool/$snapshot' failed:\n$msg");
+		return -1;
+	    }
+	} else {
+	    warn("*** WARNING: $tag: ".
+		 "Destroying clone but not origin snapshot '$snapshot'");
+	}
     }
 
     return 0;

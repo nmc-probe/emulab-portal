@@ -15,7 +15,7 @@ cache.get_apps()
 import django.http
 
 import freenasUI.middleware.notifier
-import freenasUI.urls
+#import freenasUI.urls
 import freenasUI.network.models
 import freenasUI.storage.models
 import freenasUI.services.models

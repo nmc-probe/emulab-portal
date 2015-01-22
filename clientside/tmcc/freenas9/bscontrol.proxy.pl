@@ -45,6 +45,8 @@ sub usage()
     print STDERR "            Create a clone of <pool>/<vol> called <nvol> from the snapshot at <tstamp> (most recent if not specified)\n";
     print STDERR "   destroy <pool> <vol>\n";
     print STDERR "            Destroy <vol> in <pool>\n";
+    print STDERR "   desnapshot <pool> <vol> [ <tstamp> ]\n";
+    print STDERR "            Destroy snapshot <vol>/<pool>@<tstamp>; if <tstamp> is not given, destroy all snapshots\n";
     print STDERR "   declone <pool> <vol>\n";
     print STDERR "            Destroy clone <vol> in <pool>; also destroys associated snapshot if this is the last clone\n";
     exit(-1);
@@ -68,13 +70,14 @@ sub fatal($);
 
 # Commands
 my %cmds = (
-    "pools"    => \&pools,
-    "volumes"  => \&volumes,
-    "create"   => \&create,
-    "snapshot" => \&snapshot,
-    "clone"    => \&clone,
-    "destroy"  => \&destroy,
-    "declone"  => \&declone,
+    "pools"      => \&pools,
+    "volumes"    => \&volumes,
+    "create"     => \&create,
+    "snapshot"   => \&snapshot,
+    "clone"      => \&clone,
+    "destroy"    => \&destroy,
+    "desnapshot" => \&desnapshot,
+    "declone"    => \&declone,
 );
 
 #
@@ -214,6 +217,34 @@ sub snapshot($$$)
     return freenasVolumeSnapshot($pool, $vol, $tstamp);
 }
 
+sub desnapshot($$$)
+{
+    my ($pool,$vol,$tstamp) = @_;
+
+    if (defined($pool) && $pool =~ /^([-\w]+)$/) {
+	$pool = $1;
+    } else {
+	print STDERR "bscontrol_proxy: bogus pool arg\n";
+	return 1;
+    }
+    if (defined($vol) && $vol =~ /^([-\w]+)$/) {
+	$vol = $1;
+    } else {
+	print STDERR "bscontrol_proxy: bogus volume arg\n";
+	return 1;
+    }
+    if (defined($tstamp)) {
+	if ($tstamp =~ /^(\d+)$/) {
+	    $tstamp = $1;
+	} else {
+	    print STDERR "bscontrol_proxy: bogus tstamp arg\n";
+	    return 1;
+	}
+    }
+
+    return freenasVolumeDesnapshot($pool, $vol, $tstamp);
+}
+
 sub clone($$$;$)
 {
     my ($pool,$ovol,$nvol,$tstamp) = @_;
@@ -227,13 +258,13 @@ sub clone($$$;$)
     if (defined($ovol) && $ovol =~ /^([-\w]+)$/) {
 	$ovol = $1;
     } else {
-	print STDERR "bscontrol_proxy: bogus volume arg\n";
+	print STDERR "bscontrol_proxy: bogus origin volume arg\n";
 	return 1;
     }
     if (defined($nvol) && $nvol =~ /^([-\w]+)$/) {
 	$nvol = $1;
     } else {
-	print STDERR "bscontrol_proxy: bogus volume arg\n";
+	print STDERR "bscontrol_proxy: bogus clone volume arg\n";
 	return 1;
     }
     if (defined($tstamp)) {
