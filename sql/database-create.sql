@@ -68,6 +68,7 @@ CREATE TABLE `apt_datasets` (
   `creator_uid` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `aggregate_urn` varchar(128) default NULL,
+  `remote_urn` varchar(128) NOT NULL default '',
   `remote_uuid` varchar(40) NOT NULL default '',
   `created` datetime default NULL,
   `expires` datetime default NULL,
