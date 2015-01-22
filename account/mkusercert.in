@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -74,6 +74,8 @@ my $EMULAB_KEY  = "$TB/etc/emulab.key";
 my $OPENSSL     = "/usr/bin/openssl";
 my $KEYGEN	= "/usr/bin/ssh-keygen";
 my $ADDKEY	= "$TB/sbin/addpubkey";
+my $SSH		= "$TB/bin/sshtb";
+my $ACCOUNTPROXY= "$TB/sbin/accountsetup";
 my $WORKDIR     = "$TB/ssl";
 my $SAVEUID	= $UID;
 
@@ -583,20 +585,13 @@ if (! -d $ssldir) {
 	or fatal("Could not chown $ssldir: $!");
 }
 
-my $target;
-
-if ($encrypted) {
-    $target = "$ssldir/encrypted.pem";
-}
-else {
-    $target = "$ssldir/emulab.pem";
-}
-
-system("cp -f usercert.pem $target") == 0
-    or fatal("Could not copy usercert.pem to $target");
-
-chown($user_number, $default_groupgid, "$target")
-    or fatal("Could not chown $target: $!");
+# Drop the file into the user .ssl directory.
+$UID = $EUID;
+system("$SSH -host $CONTROL ".
+       "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $ssldir ".
+       ($encrypted ? "encrypted.pem" : "emulab.pem") . "' < usercert.pem") == 0
+    or fatal("Could not copy certificate file to $CONTROL");
+$UID = $SAVEUID;
 
 if ($encrypted) {
     #
@@ -608,16 +603,13 @@ if ($encrypted) {
 	   "-out usercert.p12 -rand ./.rnd")
 	== 0 or fatal("Could not create usercert.p12");
 
-    $target = "$ssldir/encrypted.p12";
-    
-    system("cp -f usercert.p12 $target") == 0
-	or fatal("Could not copy usercert.p12 to $target");
-
-    chown($user_number, $default_groupgid, "$target")
-	or fatal("Could not chown $target: $!");
-
-    chmod(0600, $target)
-	or fatal("Could not chmod $target: $!");
+    # Drop the file into the user .ssl directory.
+    $UID = $EUID;
+    system("$SSH -host $CONTROL ".
+	   "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $ssldir ".
+	   "encrypted.p12' < usercert.p12")
+	== 0 or fatal("Could not copy .p12 file to $CONTROL");
+    $UID = $SAVEUID;
 
     goto skipssh
 	if ($target_user->IsNonLocal());
@@ -626,7 +618,7 @@ if ($encrypted) {
     # Create an SSH key from the private key. Mostly for geni users,
     # who tend not to know how to do such things.
     #
-    my $pemfile = "$ssldir/encrypted.pem";
+    my $pemfile = "usercert.pem";
     my $sshdir  = "$USERDIR/$user_uid/.ssh";
     my $pphrase = User::escapeshellarg($password);
     # This comment is special. It functions as a cross table reference
@@ -640,10 +632,12 @@ if ($encrypted) {
     #
     # The key format is identical to openssh, so just copy it over.
     #
-    system("/bin/cp usercert_key.pem $sshdir/encrypted.key") == 0
-	or fatal("Could not copy private key to $sshdir/encrypted.key: $!");
-    chmod(0600, "$sshdir/encrypted.key")
-	or fatal("Could not chmod $sshdir/encrypted.key: $!");
+    $UID = $EUID;
+    system("$SSH -host $CONTROL ".
+	   "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $sshdir ".
+	   "encrypted.key' < usercert_key.pem")
+	== 0 or fatal("Could not copy ssh key file to $CONTROL");
+    $UID = $SAVEUID;
 
     #
     # No need to do this when just changing the passphrase. 
@@ -652,9 +646,16 @@ if ($encrypted) {
 	#
 	# Extract a public key.
 	#
-	system("$KEYGEN -P $pphrase -y -f $pemfile > $sshdir/encrypted.pub")
+	system("$KEYGEN -P $pphrase -y -f $pemfile > encrypted.pub")
 	    == 0
 	    or fatal("Could not extract ssh pubkey from $pemfile");
+
+	$UID = $EUID;
+	system("$SSH -host $CONTROL ".
+	       "'$ACCOUNTPROXY dropfile $user $default_groupgid 0644 $sshdir ".
+	       "encrypted.pub' < encrypted.pub")
+	    == 0 or fatal("Could not copy ssh pub key file to $CONTROL");
+	$UID = $SAVEUID;
 
 	#
 	# Need to remove the current ssh pubkey from the database, but we just
@@ -670,8 +671,8 @@ if ($encrypted) {
 	#
 	$EUID = $UID;
 	system("$ADDKEY -s -N -I -C $comment -u $user_uid ".
-	       "      -f $sshdir/encrypted.pub")
-	    == 0 or fatal("Could not add pubkey $sshdir/encrypted.pub");
+	       "      -f encrypted.pub")
+	    == 0 or fatal("Could not add ssh pubkey");
     }
   skipssh:
 }
