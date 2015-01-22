@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -192,7 +192,9 @@ if (! $pid) {
     # Give parent a chance to react.
     sleep(1);
     
-    open(GET, "| nice -15 $WGET --no-check-certificate -q -O $localfile -i -")
+    open(GET, "| nice -15 $WGET --no-check-certificate ".
+	 "--timeout=30 --waitretry=30 --retry-connrefused ".
+	 "-q -O $localfile -i -")
 	or die("Cannot start $WGET\n");
     print GET "$URL\n";
     if (!close(GET)) {
