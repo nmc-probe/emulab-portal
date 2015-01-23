@@ -7,7 +7,7 @@ set ns [new Simulator]
 set n1 [$ns node]
 tb-set-hardware $n1 pcvm
 tb-set-node-failure-action $n1 "nonfatal"
-tb-set-node-os $n1 OPENVZ-STD
+tb-set-node-os $n1 XEN-STD
 tb-set-node-usesharednode $n1 1.0
 
 set n2 [$ns node]
