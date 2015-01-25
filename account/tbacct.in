@@ -43,7 +43,7 @@ use Getopt::Std;
 sub usage()
 {
     print("Usage: tbacct [-f] [-b] [-u] ".
-	  "<add|del|mod|passwd|wpasswd|email|freeze|thaw|verify|revoke> ".
+	  "<add|del|mod|passwd|wpasswd|email|freeze|thaw|verify|revoke|dots> ".
 	  "<user> [args]\n");
     exit(-1);
 }
@@ -218,7 +218,8 @@ if ($user =~ /^([-\w]+)$/i) {
 else {
     die("Tainted argument: $user\n");
 }
-if ($cmd =~ /^(add|del|mod|freeze|passwd|wpasswd|thaw|email|verify|revoke)$/) {
+if ($cmd =~
+    /^(add|del|mod|freeze|passwd|wpasswd|thaw|email|verify|revoke|dots)$/) {
     $cmd = $1;
 }
 else {
@@ -349,6 +350,10 @@ SWITCH: for ($cmd) {
     };
     /^verify$/ && do {
 	VerifyUser();
+	last SWITCH;
+    };
+    /^dots$/ && do {
+	CheckDotFiles();
 	last SWITCH;
     };
 }
@@ -922,8 +927,6 @@ sub UpdateUser(;$)
 #
 sub UpdateEmail()
 {
-    my $forward = "$HOMEDIR/$user/.forward";
-    
     #
     # Only admin people can do this.
     #
@@ -990,11 +993,7 @@ sub UpdateEmail()
     system("$GENELISTS -m -u $user");
 
     $EUID = 0;
-
-    # Remove the users current .forward file to force regen.
-    unlink($forward)
-	if (-e $forward);
-    
+    CheckDotFiles();
     return 0;
 }
 
@@ -1129,69 +1128,14 @@ sub RevokeUser()
 #
 sub CheckDotFiles()
 {
-    my $forward = "$HOMEDIR/$user/.forward";
-    my $cshrc   = "$HOMEDIR/$user/.cshrc";
-    my $profile = "$HOMEDIR/$user/.profile";
-
-    # No home dirs for these.
-    return 0
-	if ($webonly || $isnonlocal);
-    
-    if (! -d "$HOMEDIR/$user") {
-	return 0;
-    }
-
-    # As the user.
-    $UID = $user_number;
-
-    #
-    # Set up a .forward file so that any email to them gets forwarded off.
-    #
-    if (! -e $forward) {
-	print "Setting up .forward file for $user.\n";
-
-	if (system("echo \"$user_email\" > $forward")) {
-		fatal("Could not create $forward!");
-	}
-	chmod(0644, "$HOMEDIR/$user/.forward") or
-		fatal("Could not chmod $forward: $!");
-	$fileowner= (stat($forward))[4];
-	$dochown=0;
-	if ($fileowner==0) {
-	    chown($user_number,$default_groupgid,"$HOMEDIR/$user/.forward") or
-	      do {
-		  warn("Could not chown $forward: $!");
-		  $dochown=1;
-	      };
-	}
-    }
-
-    #
-    # Add testbed path to .cshrc and .profile.
-    # Plus a conditional Cygwin section for the Windows system path.
-    #
-    my $cpathstr = "set path = ($USERPATH \$path)\n" .
-    'if ( `uname -s` =~ CYGWIN* ) then' . "\n" .
-    '    setenv PATH "${PATH}:/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS"' . "\n" .
-    'endif';
-    if (-e $cshrc && system("egrep -q -s '$USERPATH' $cshrc")) {
-	system("echo '$cpathstr' >> $cshrc");
-    }
-
-    my $spathstr = "PATH=$USERPATH:\$PATH\n" .
-    'if [[ `uname -s` == CYGWIN* ]]; then' . "\n" .
-    '    PATH="$PATH":/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS' . "\n" .
-    'fi';
-    if (-e $profile && system("egrep -q -s '$USERPATH' $profile")) {
-	system("echo '$spathstr' >> $profile");
+    $UID = 0;
+    system("$SSH -host $CONTROL ".
+	   "   '$ACCOUNTPROXY checkdotfiles $user $default_groupgid ".
+	   "     $user_email'");
+    if ($?) {
+	fatal("Could not check dotfiles for user $user on $CONTROL.");
     }
     $UID = $SAVEUID;
-
-    if (defined($dochown) && $dochown!=0) {
-	chown($user_number,$default_groupgid,"$HOMEDIR/$user/.forward") or
-	  warn("Could not chown $forward: $!");
-    }
-
     return 0;
 }
 

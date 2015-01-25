@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,6 +24,7 @@
 use English;
 use Getopt::Std;
 use XML::Simple;
+use File::Temp qw(tempfile :POSIX );
 
 #
 # Parse ssh public keys and enter into the DB. The default format is
@@ -70,7 +71,11 @@ my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $TBAUDIT     = "@TBAUDITEMAIL@";
 my $OURDOMAIN   = "@OURDOMAIN@";
+my $CONTROL	= "@USERNODE@";
 my $KEYGEN	= "/usr/bin/ssh-keygen";
+my $ACCOUNTPROXY= "$TB/sbin/accountsetup";
+my $SSH		= "$TB/bin/sshtb";
+my $SAVEUID	= $UID;
 my $USERUID;
 
 # Locals
@@ -281,18 +286,25 @@ else {
 }
 
 #
-# Initmode or genmode, do it and exit. Eventually get rid of the switch
-# to the target user.
+# Initmode or genmode, do it and exit.
 #
-if ($initmode) {
-    # Drop root privs, switch to target user.
-    $EUID = $UID = $USERUID;
-    exit InitUser();
-}
-if ($genmode) {
-    # Drop root privs, switch to target user.
-    $EUID = $UID = $USERUID;
-    exit GenerateKeyFile();
+if ($initmode || $genmode) {
+    my $firstproject;
+    my $default_groupgid;
+
+    if ($target_user->FirstApprovedProject(\$firstproject) < 0 ||
+	!defined($firstproject)) {
+	fatal("Could not determine first approved project");
+    }
+    $user_gid  = $firstproject->unix_gid();
+
+    if ($initmode) {
+	exit(InitUser());
+    }
+    if ($genmode) {
+	exit(GenerateKeyFile());
+    }
+    exit(1);
 }
 
 # Else, key parse mode ...
@@ -482,98 +494,74 @@ sub ParseKey($) {
 #
 sub InitUser()
 {
-    my $sshdir  = "$HOMEDIR/$user_uid/.ssh";
+    #
+    # Want to delete existing keys from DB, but not the sslcert key.
+    #
+    DBQueryFatal("delete from user_pubkeys ".
+		 "where uid_idx='$user_dbid' and ".
+		 "      (internal=1 or comment like '%\@${OURDOMAIN}' or ".
+		 "       comment like '%\@boss.${OURDOMAIN}') and ".
+		 "      isaptkey=0 and comment not like 'sslcert:%'");
 
-    #
-    # Set up the ssh key, but only if not done so already.
-    #
-    if (! -e "$sshdir") {
-	mkdir("$sshdir", 0700) or
-	    fatal("Could not mkdir $sshdir: $!");
+    # Redirect pub key to file, redirect STDERR to STDIN for display.
+    my $outfile = tmpnam();
+    my $command = "$ACCOUNTPROXY createsshkey $user_uid $user_gid ";
+    	
+    $UID = 0;
+    open ERR, "$SSH -host $CONTROL '$command rsa1' 2>&1 > $outfile |";
+    $UID = $SAVEUID;
+
+    my $errs = "";
+    while (<ERR>) {
+	$errs .= $_;
     }
-    if (! -e "$sshdir/identity" || $force) {
-	print "Creating ssh protocol 1 key for $user.\n";
-
-	#
-	# Want to delete existing key from DB.
-	#
-	if (-e "$sshdir/identity") {
-	    my $ident = `cat $sshdir/identity.pub`;
-
-	    if ($ident =~ /(\d*\s\d*\s[0-9a-zA-Z]*)\s([-\w\@\.]*)/) {
-		DBQueryFatal("delete from user_pubkeys ".
-			     "where uid_idx='$user_dbid' and pubkey='$1 $2'");
-	    }
-	    unlink("$sshdir/identity");
-	}
-
-	# Hmm, need to use -C option so comment field makes sense.
+    close(ERR);
+    print STDERR $errs;
+    if ($?) {
+	unlink($outfile);
+	fatal("Could not create rsa1 key");
+    }
+    my $pubkey      = `cat $outfile`;
+    chomp($pubkey);
+    my $safe_pubkey = DBQuoteSpecial($pubkey);
+    my $comment     = "rsa\@${OURDOMAIN}";
     
-	if (system("$KEYGEN -t rsa1 -P '' ".
-		   "-C '${user}" . "\@" . ${OURDOMAIN} . "' ".
-		   "-f $sshdir/identity")) {
-	    fatal("Failure in ssh-keygen!");
-	}
-
-	#
-	# Grab a copy for the DB.
-	# 
-	my $ident = `cat $sshdir/identity.pub`;
-
-	if ($ident =~ /(\d*\s\d*\s[0-9a-zA-Z]*)\s([-\w\@\.]*)/) {
-	    DBQueryFatal("replace into user_pubkeys set ".
-			 " uid='$user_uid', uid_idx='$user_dbid', ".
-			 " internal='1', nodelete='1', idx=NULL, stamp=now(), ".
-			 " pubkey='$1 $2', comment='$2'");
-	}
-	else {
-	    fatal("Bad protocol 1 public key: $ident\n");
-	}
+    if (! DBQueryWarn("replace into user_pubkeys set ".
+		      " uid='$user_uid', uid_idx='$user_dbid', ".
+		      " internal='1', nodelete='1', idx=NULL, stamp=now(), ".
+		      " pubkey=$safe_pubkey, comment='$comment'")) {
+	unlink($outfile);
+	fatal("Could not add rsa1 key to database");
     }
-    #
-    # Moving to V2 keys ...
-    #
-    if (! -e "$sshdir/id_rsa" || $force) {
-	print "Creating ssh protocol 2 key for $user.\n";
+	
+    $UID = 0;
+    open ERR, "$SSH -host $CONTROL '$command rsa' 2>&1 > $outfile |";
+    $UID = $SAVEUID;
 
-	#
-	# Want to delete existing key from DB.
-	#
-	if (-e "$sshdir/id_rsa") {
-	    my $ident = `cat $sshdir/id_rsa.pub`;
+    $errs = "";
+    while (<ERR>) {
+	$errs .= $_;
+    }
+    close(ERR);
+    print STDERR $errs;
+    if ($?) {
+	unlink($outfile);
+	fatal("Could not create rsa key");
+    }
 
-	    if ($ident =~
-		/^(ssh-rsa [-\w\.\@\+\/\=]*) ([-\w\@\.\ ]*)$/) {
-		DBQueryFatal("delete from user_pubkeys ".
-			     "where uid_idx='$user_dbid' and pubkey='$1 $2'");
-	    }
-	    unlink("$sshdir/id_rsa");
-	}
-
-	# Hmm, need to use -C option so comment field makes sense.
+    $pubkey      = `cat $outfile`;
+    chomp($pubkey);
+    $safe_pubkey = DBQuoteSpecial($pubkey);
+    $comment     = "rsa1\@${OURDOMAIN}";
     
-	if (system("$KEYGEN -t rsa -P '' ".
-		   "-C '${user}" . "\@" . ${OURDOMAIN} . "' ".
-		   "-f $sshdir/id_rsa")) {
-	    fatal("Failure in ssh-keygen!");
-	}
-
-	#
-	# Grab a copy for the DB.
-	# 
-	my $ident = `cat $sshdir/id_rsa.pub`;
-
-	if ($ident =~
-	    /^(ssh-rsa [-\w\.\@\+\/\=]*) ([-\w\@\.\ ]*)$/) {
-	    DBQueryFatal("replace into user_pubkeys set ".
-			 " uid='$user_uid', uid_idx='$user_dbid', ".
-			 " internal='1', nodelete='1', idx=NULL, stamp=now(), ".
-			 " pubkey='$1 $2', comment='$2'");
-	}
-	else {
-	    fatal("Bad protocol 2 public key: $ident\n");
-	}
+    if (! DBQueryWarn("replace into user_pubkeys set ".
+		      " uid='$user_uid', uid_idx='$user_dbid', ".
+		      " internal='1', nodelete='1', idx=NULL, stamp=now(), ".
+		      " pubkey=$safe_pubkey, comment='$comment'")) {
+	unlink($outfile);
+	fatal("Could not add rsa key to database");
     }
+    unlink($outfile);
     return GenerateKeyFile();
 }
 
@@ -584,15 +572,9 @@ sub InitUser()
 sub GenerateKeyFile()
 {
     my @pkeys   = ();
+    my $outfile = tmpnam();
     my $sshdir  = "$HOMEDIR/$user_uid/.ssh";
-    my $keyfile = "$sshdir/authorized_keys";
-	
-    if (! -e $sshdir) {
-	if (! mkdir($sshdir, 0700)) {
-	    warn("*** WARNING: Could not mkdir $sshdir: $!\n");
-	    return -1;
-	}
-    }
+
     my $query_result =
 	DBQueryFatal("select pubkey from user_pubkeys ".
 		     "where uid_idx='$user_dbid'");
@@ -601,15 +583,14 @@ sub GenerateKeyFile()
 	push(@pkeys, $key);
     }
     
-    print "Generating $keyfile ...\n";
-
-    if (!open(AUTHKEYS, "> ${keyfile}.new")) {
-	warn("*** WARNING: Could not open ${keyfile}.new: $!\n");
+    print "Generating authorized_keys ...\n";
+    if (!open(AUTHKEYS, "> $outfile")) {
+	warn("*** WARNING: Could not open $outfile: $!\n");
 	return -1;
     }
     print AUTHKEYS "#\n";
     print AUTHKEYS "# DO NOT EDIT! This file auto generated by ".
-	"Emulab.Net account software.\n";
+	"Emulab account software.\n";
     print AUTHKEYS "#\n";
     print AUTHKEYS "# Please use the web interface to edit your ".
 	"public key list.\n";
@@ -620,27 +601,15 @@ sub GenerateKeyFile()
     }
     close(AUTHKEYS);
 
-    if (!chmod(0600, "${keyfile}.new")) {
-	warn("*** WARNING: Could not chmod ${keyfile}.new: $!\n");
-	return -1;
-    }
-    if (-e "${keyfile}") {
-	if (system("cp -p -f ${keyfile} ${keyfile}.old")) {
-	    warn("*** Could not save off ${keyfile}: $!\n");
-	    return -1;
-	}
-	if (!chmod(0600, "${keyfile}.old")) {
-	    warn("*** Could not chmod ${keyfile}.old: $!\n");
-	}
-    }
-    if (system("mv -f ${keyfile}.new ${keyfile}")) {
-	warn("*** Could not mv ${keyfile} to ${keyfile}.new: $!\n");
-    }
-    elsif (-e "$sshdir/authorized_keys2") {
-	#
-	# Save to remove deprecated authorized_keys2 file at this point.
-	#
-	unlink("$sshdir/authorized_keys2");
+    $UID = 0;
+    system("$SSH -host $CONTROL ".
+	   "'$ACCOUNTPROXY dropfile $user_uid $user_gid 0600 $sshdir ".
+	   "authorized_keys' < $outfile");
+    $UID = $SAVEUID;
+
+    if ($?) {
+	unlink($outfile);
+	fatal("Could not copy authorized_keys file to $CONTROL");
     }
     return 0;
 }

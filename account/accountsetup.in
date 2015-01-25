@@ -46,6 +46,8 @@ sub usage()
     print "       accountsetup addgroup ...\n";
     print "       accountsetup delproject ...\n";
     print "       accountsetup delgroup ...\n";
+    print "       accountsetup checkdotfiles ...\n";
+    print "       accountsetup createsshkey ...\n";
     print "       accountsetup dropfile ...\n";
     exit(1);
 }
@@ -61,7 +63,9 @@ my $RENAMEDIRS = 1;
 # Configure variables
 #
 my $TB		      = "@prefix@";
+my $USERPATH          = "$TB/bin";
 my $WITHZFS	      = @WITHZFS@;
+my $OURDOMAIN         = "@OURDOMAIN@";
 my $ZFS_ROOT          = "@ZFS_ROOT@";
 my $ZFS_QUOTA_USER    = "@ZFS_QUOTA_USER@";
 my $ZFS_QUOTA_PROJECT = "@ZFS_QUOTA_PROJECT@";
@@ -77,6 +81,7 @@ my $CHMOD	      = "/bin/chmod";
 my $MKDIR	      = "/bin/mkdir";
 my $MV		      = "/bin/mv";
 my $ZFS		      = "/sbin/zfs";
+my $KEYGEN	      = "/usr/bin/ssh-keygen";
 my $SKEL	      = "/usr/share/skel";
 my $PIDFILE           = "/var/run/mountd.pid";
 
@@ -119,6 +124,8 @@ sub AddGroup();
 sub DelProject();
 sub DelGroup();
 sub DropFile();
+sub CheckDotFiles();
+sub CreateSSHKey();
 sub fatal($);
 sub ZFSexists($);
 sub MakeDir($$);
@@ -180,6 +187,14 @@ SWITCH: for ($cmd) {
     };
     /^dropfile$/ && do {
 	DropFile();
+	last SWITCH;
+    };
+    /^checkdotfiles$/ && do {
+	CheckDotFiles();
+	last SWITCH;
+    };
+    /^createsshkey$/ && do {
+	CreateSSHKey();
 	last SWITCH;
     };
     # Default
@@ -567,6 +582,105 @@ sub DropFile()
 	or fatal("Could not chown $file to $user:$gid");
     mysystem("$CHMOD $mode $file") == 0
 	or fatal("Could not chmod '$file' to $mode");
+    return 0;
+}
+
+#
+# Check the dot files.
+#
+sub CheckDotFiles()
+{
+    if (@ARGV != 3) {
+	fatal("checkdotfiles: Wrong number of arguments");
+    }
+    my $user  = shift(@ARGV);
+    my $gid   = shift(@ARGV);
+    my $email = shift(@ARGV);
+
+    my $forward = "$USERROOT/$user/.forward";
+    my $cshrc   = "$USERROOT/$user/.cshrc";
+    my $profile = "$USERROOT/$user/.profile";
+
+    # Just in case we got called before account created.
+    return 0
+	if (! -d "$USERROOT/$user");
+
+    #
+    # Set up a .forward file so that any email to them gets forwarded off.
+    #
+    print "Setting up .forward file for $user.\n";
+
+    sysopen(HANDLE, $forward, O_WRONLY|O_CREAT|O_TRUNC, 0600)
+	or fatal("sysopen $forward: $!");
+    print HANDLE "$email\n";
+    close(HANDLE);
+    mysystem("$CHOWN $user:$gid $forward") == 0
+	or fatal("Could not chown $forward to $user:$gid");
+    mysystem("$CHMOD 644 $forward") == 0
+	or fatal("Could not chmod '$forward' to 644");
+
+    #
+    # Add testbed path to .cshrc and .profile.
+    # Plus a conditional Cygwin section for the Windows system path.
+    #
+    my $cpathstr = "set path = ($USERPATH \$path)\n" .
+    'if ( `uname -s` =~ CYGWIN* ) then' . "\n" .
+    '    setenv PATH "${PATH}:/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS"' . "\n" .
+    'endif';
+    if (-e $cshrc && system("egrep -q -s '$USERPATH' $cshrc")) {
+	system("echo '$cpathstr' >> $cshrc");
+    }
+
+    my $spathstr = "PATH=$USERPATH:\$PATH\n" .
+    'if [[ `uname -s` == CYGWIN* ]]; then' . "\n" .
+    '    PATH="$PATH":/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS' . "\n" .
+    'fi';
+    if (-e $profile && system("egrep -q -s '$USERPATH' $profile")) {
+	system("echo '$spathstr' >> $profile");
+    }
+    return 0;
+}
+
+#
+# Create ssh keys for user, sending back the pub part. This is a little
+# incovenient since we generate two keys (V1 and V2) but can send back
+# just one at a time via STDOUT (do not want to parse anything).
+#
+sub CreateSSHKey()
+{
+    if (@ARGV != 3) {
+	fatal("createsshkey: Wrong number of arguments");
+    }
+    my $user   = shift(@ARGV);
+    my $gid    = shift(@ARGV);
+    my $type   = shift(@ARGV);
+    my $sshdir = "$USERROOT/$user/.ssh";
+    my $sshkey = "$sshdir/";
+
+    if ($type eq "rsa") {
+	$sshkey .= "identity";
+    }
+    elsif ($type eq "rsa1") {
+	$sshkey .= "id_rsa";
+    }
+    else {
+	fatal("Bad key type: $type");
+    }
+    unlink($sshkey)
+	if (-e $sshkey);
+    #
+    # Since we send the key back via STDOUT, make sure all output
+    # goes to STDERR.
+    #
+    mysystem("$KEYGEN -t $type -P '' -f $sshkey ".
+	     "-C '${type}" . "\@" . ${OURDOMAIN} . "' 1>&2") == 0
+	or fatal("Failure in ssh-keygen!");
+    mysystem("$CHOWN $user:$gid $sshkey ${sshkey}.pub") == 0
+	or fatal("Could not chown $sshkey to $user:$gid");
+    
+    # Return the key via STDOUT to boss.
+    my $ident = `cat ${sshkey}.pub`;
+    print STDOUT $ident;
     return 0;
 }
 
