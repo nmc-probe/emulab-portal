@@ -724,6 +724,20 @@ sub ImpliedUser($)
 }
 
 #
+# This will replace above once I figure out how I want to do all this.
+# The idea is that the real user is for permission checks to Emulab
+# resource.
+#
+sub RealUser($)
+{
+    return undef
+	if (! exists($ENV{'EMULAB_REAL_USER'}));
+    
+    # The lookup routine checks it argument, so no need to taint check.
+    return User->Lookup($ENV{'EMULAB_REAL_USER'});
+}
+
+#
 # See if user is member of emulab-ops project. Must be the current user.
 #
 sub IsOpsGuy($)
@@ -1313,7 +1327,7 @@ sub DeleteSSLCertSSHKey($)
     my $query_result =
 	DBQueryWarn("delete from user_pubkeys ".
 		    "where uid_idx='$uid_idx' and internal=1 and ".
-		    "      comment like 'sslcert:'");
+		    "      comment like 'sslcert:%'");
     return 0
 	if (!defined($query_result));
 
