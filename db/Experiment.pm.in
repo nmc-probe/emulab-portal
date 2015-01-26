@@ -2194,6 +2194,27 @@ sub PreSwap($$$$)
     $self->GetGroup()->BumpActivity();
     $self->Refresh() == 0
 	or goto failed;
+
+    #
+    # If swapping out, fire off an event to shutdown SAN-based blockstores.
+    #
+    # XXX We do this here because it is before the experimental vlans set
+    # removed and before vnodes get shutdown.
+    #
+    if ($which eq $EXPT_SWAPOUT && $self->UsingRemBlockstore() > 0) {
+	require event;
+	
+	print STDERR "Telling nodes to shutdown remote blockstores\n";
+	event::EventSendWarn(objtype   => "BSTORE",
+			     objname   => "rem-bstore",
+			     eventtype => "STOP",
+			     expt      => "$pid/$eid",
+			     host      => "event-server");
+
+	# XXX we take down the VLANs immediately after this, so wait a bit
+	sleep(2);
+    }
+    
     return 0;
 
   failed:
@@ -4974,6 +4995,32 @@ sub HasVirtInterfaces($)
     return -1
 	if (!$query_result);
     return $query_result->num_rows;
+}
+
+#
+# Return 1 if swapped in experiment is using a remote (SAN) blockstore.
+# Returns 0 if not, -1 on error.
+#
+sub UsingRemBlockstore($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference.
+    return -1
+	if (!ref($self));
+
+    # Must be swapped in
+    return -1
+	if ($self->state() ne EXPTSTATE_ACTIVE);
+
+    my $idx = $self->idx();
+    my $query_result =
+	DBQueryWarn("select bs_id from reserved_blockstores ".
+		     "where exptidx=$idx and bs_id like 'lease-%'");
+    return -1
+	if (!$query_result);
+
+    return ($query_result->num_rows > 0);
 }
 
 #
