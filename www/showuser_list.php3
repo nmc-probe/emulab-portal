@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -59,7 +59,7 @@ PAGEHEADER("User List");
 
 echo "<b>Show: <a href='showuser_list.php3?showtype=loggedin'>loggedin</a>,
                <a href='showuser_list.php3?showtype=recent'>recent</a>,
-               <a href='showuser_list.php3?showtype=widearea'>widearea</a>,
+               <a href='showuser_list.php3?showtype=nonlocal'>nonlocal</a>,
                <a href='showuser_list.php3?showtype=homeless'>homeless</a>,
                <a href='showuser_list.php3?showtype=active'>active</a>,
                <a href='showuser_list.php3?showtype=inactive'>inactive</a>,
@@ -105,10 +105,10 @@ elseif (! strcmp($showtype, "recent")) {
     $showtag = "recently logged in (yesterday)";
     $dorecent= 1;
 }
-elseif (! strcmp($showtype, "widearea")) {
-    $clause  = "left join widearea_accounts as w on u.uid_idx=w.uid_idx ";
-    $where   = "where w.node_id is not NULL";
-    $showtag = "widearea";
+elseif (! strcmp($showtype, "nonlocal")) {
+    $clause  = "";
+    $where   = "where u.nonlocal_id is not NULL ";
+    $showtag = "nonlocal";
 }
 elseif (! strcmp($showtype, "homeless")) {
     $clause  = "left join group_membership as m on u.uid_idx=m.uid_idx ";
