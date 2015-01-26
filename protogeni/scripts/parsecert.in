@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -88,6 +88,8 @@ print OUT "</attribute>\n";
 print OUT "<attribute name='email'>" . $certificate->email();
 print OUT "</attribute>\n";
 print OUT "<attribute name='uuid'>" . $certificate->uuid();
+print OUT "</attribute>\n";
+print OUT "<attribute name='certificate'>" . $certificate->cert();
 print OUT "</attribute>\n";
 print OUT "</attributes>\n";
 close(OUT);
