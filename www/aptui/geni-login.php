@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,6 +43,7 @@ SPITHEADER(1);
 
 # Place to hang the toplevel template.
 echo "<div id='page-body'></div>\n";
+echo "<div id='waitwait_div'></div>\n";
 echo "<script src='https://www.emulab.net/protogeni/speaks-for/geni-auth.js'>
       </script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
