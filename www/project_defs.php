@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -162,6 +162,7 @@ class Project
     function linked_to_us()  { return $this->field("linked_to_us"); }
     function cvsrepo_public(){ return $this->field("cvsrepo_public"); }
     function allow_workbench(){ return $this->field("allow_workbench"); }
+    function nonlocal_id()   { return $this->field("nonlocal_id"); }
     function genesis()	     { return $this->field("genesis"); }
     function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
     function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
@@ -682,6 +683,7 @@ class Project
 	$cvsrepo_public		= $this->cvsrepo_public();
 	$allow_workbench	= $this->allow_workbench();
 	$genesis                = $this->genesis();
+        $nonlocal_id            = $this->nonlocal_id();
 
 	# Before project approval, display ron/plab request status.
 	if ($this->approved()) {
@@ -719,6 +721,13 @@ class Project
                   <td class=\"left\">
                       <a href='$showproj_url'>$pid ($proj_idx)</a></td>
               </tr>\n";
+    
+        if ($nonlocal_id) {
+            echo "<tr>
+                      <td>Nonlocal ID:</td>
+                      <td>$nonlocal_id</td>
+                      </tr>\n";
+        }
     
 	echo "<tr>
                   <td>Description: </td>
