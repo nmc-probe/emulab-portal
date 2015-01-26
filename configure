@@ -7041,6 +7041,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/sensors/canaryd/feedbacklogs \
  clientside/os/GNUmakefile clientside/os/syncd/GNUmakefile \
  clientside/event/link-agent/GNUmakefile \
+ clientside/event/bs-agent/GNUmakefile \
  clientside/event/proxy/GNUmakefile \
  clientside/event/tevc/GNUmakefile \
  clientside/event/trafgen/GNUmakefile \

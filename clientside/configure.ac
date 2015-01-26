@@ -236,6 +236,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  event/program-agent/GNUmakefile \
 	  event/disk-agent/GNUmakefile \
 	  event/link-agent/GNUmakefile \
+	  event/bs-agent/GNUmakefile \
 	  event/proxy/GNUmakefile \
 	  event/tevc/GNUmakefile \
 	  event/trafgen/GNUmakefile \
