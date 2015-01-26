@@ -1007,9 +1007,62 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     $crc     = bin2hex(mhash(MHASH_CRC32, $hashkey));
     $opskey  = GENHASH();
 
+    #
+    # Ug. When using ZFS in NOEXPORT mode, we have to call exports_setup
+    # to get the mounts exported to back to boss. We do not want to do this
+    # every time the user logs in of course, and since exports_setup is 
+    # using one week as its threshold, we can just do it on a daily basis.
+    #
+    if ($WITHZFS && $ZFS_NOEXPORT) {
+        $query_result =
+	    DBQueryFatal("select UNIX_TIMESTAMP(weblogin_last),weblogin_last ".
+			 "  from users as u ".
+			 "left join user_stats as s on s.uid_idx=u.uid_idx ".
+			 "where u.uid_idx='$uid_idx'");
+	if (mysql_num_rows($query_result)) {
+		$lastrow      = mysql_fetch_row($query_result);
+		$lastlogin    = $lastrow[0];
+		$lastloginstr = $lastrow[1];
+	
+		if (time() - $lastlogin > (24 * 3600)) {
+			# Update weblogin_last first so exports_setup
+			# will do something.
+			DBQueryFatal("update user_stats set ".
+				     " weblogin_last=now() ".
+				     "where uid_idx='$uid_idx'");
+
+			$rv = SUEXEC("nobody", "nobody", "webexports_setup",
+				     SUEXEC_ACTION_IGNORE);
+
+			# failed, reset the timestamp
+			if ($rv) {
+				DBQueryFatal("update user_stats set ".
+					     " weblogin_last='$lastloginstr' ".
+					     "where uid_idx='$uid_idx'");
+				SUEXECERROR(SUEXEC_ACTION_DIE);
+				return;
+			}
+		}
+	}
+    }
+
     DBQueryFatal("replace into login ".
-		 "  (uid,uid_idx,hashkey,hashhash,timeout,adminon,opskey) values ".
-		 "  ('$uid', $uid_idx, '$hashkey', '$crc', '$timeout', $adminon, '$opskey')");
+		 "  (uid,uid_idx,hashkey,hashhash,timeout,adminon,opskey) ".
+                 " values ".
+		 "  ('$uid', $uid_idx, '$hashkey', '$crc', '$timeout', ".
+                 "    $adminon, '$opskey')");
+
+    DBQueryFatal("update users set ".
+		 "       weblogin_failcount=0,weblogin_failstamp=0 ".
+		 "where uid_idx='$uid_idx'");
+    
+    #
+    # Usage stats. 
+    #
+    DBQueryFatal("update user_stats set ".
+		 " weblogin_count=weblogin_count+1, ".
+		 " weblogin_last=now() ".
+		 "where uid_idx='$uid_idx'");
 
     # Does the caller just want the cookies for itself.
     if ($nosetcookies) {
@@ -1103,56 +1156,6 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     setcookie(session_name(), "", $flushtime, "/",
 	      $TBAUTHDOMAIN, $TBSECURECOOKIES);
 	
-    DBQueryFatal("update users set ".
-		 "       weblogin_failcount=0,weblogin_failstamp=0 ".
-		 "where uid_idx='$uid_idx'");
-
-    #
-    # Ug. When using ZFS in NOEXPORT mode, we have to call exports_setup
-    # to get the mounts exported to back to boss. We do not want to do this
-    # every time the user logs in of course, and since exports_setup is 
-    # using one week as its threshold, we can just do it on a daily basis.
-    #
-    if ($WITHZFS && $ZFS_NOEXPORT) {
-        $query_result =
-	    DBQueryFatal("select UNIX_TIMESTAMP(weblogin_last),weblogin_last ".
-			 "  from users as u ".
-			 "left join user_stats as s on s.uid_idx=u.uid_idx ".
-			 "where u.uid_idx='$uid_idx'");
-	if (mysql_num_rows($query_result)) {
-		$lastrow      = mysql_fetch_row($query_result);
-		$lastlogin    = $lastrow[0];
-		$lastloginstr = $lastrow[1];
-	
-		if (time() - $lastlogin > (24 * 3600)) {
-			# Update weblogin_last first so exports_setup
-			# will do something.
-			DBQueryFatal("update user_stats set ".
-				     " weblogin_last=now() ".
-				     "where uid_idx='$uid_idx'");
-
-			$rv = SUEXEC("nobody", "nobody", "webexports_setup",
-				     SUEXEC_ACTION_IGNORE);
-
-			# failed, reset the timestamp
-			if ($rv) {
-				DBQueryFatal("update user_stats set ".
-					     " weblogin_last='$lastloginstr' ".
-					     "where uid_idx='$uid_idx'");
-				SUEXECERROR(SUEXEC_ACTION_DIE);
-				return;
-			}
-		}
-	}
-    }
-    #
-    # Usage stats. 
-    #
-    DBQueryFatal("update user_stats set ".
-		 " weblogin_count=weblogin_count+1, ".
-		 " weblogin_last=now() ".
-		 "where uid_idx='$uid_idx'");
-
     # Proj-vis cookies
     if ($EXP_VIS) {
 	setcookie("exp_vis_session", $opskey, 0, "/", $TBAUTHDOMAIN, 0);
