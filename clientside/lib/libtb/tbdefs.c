@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2006, 2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -50,6 +50,7 @@ char *tbdb_objecttypes[] = {
         TBDB_OBJECTTYPE_EVPROXY,
         TBDB_OBJECTTYPE_BGMON,
         TBDB_OBJECTTYPE_DISK,
+	TBDB_OBJECTTYPE_BSTORE,
 	/*
 	 * NOTE: Add the object type and any events that send back COMPLETEs to
 	 * the objtype2complete array in event-sched.c:sends_complete().

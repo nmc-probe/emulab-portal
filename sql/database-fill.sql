@@ -170,6 +170,7 @@ REPLACE INTO event_objecttypes VALUES (16,'EVPROXY');
 REPLACE INTO event_objecttypes VALUES (17,'BGMON');
 REPLACE INTO event_objecttypes VALUES (18,'DISK');
 REPLACE INTO event_objecttypes VALUES (19,'CUSTOM');
+REPLACE INTO event_objecttypes VALUES (20,'BSTORE');
 
 --
 -- Dumping data for table `exported_tables`

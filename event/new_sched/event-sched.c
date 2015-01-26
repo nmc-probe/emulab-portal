@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -652,6 +652,9 @@ int sends_complete(struct agent *agent, const char *evtype)
 		{ TBDB_OBJECTTYPE_LINKTRACE, linktrace_completes },
 		{ TBDB_OBJECTTYPE_EVPROXY, NULL },
 		{ TBDB_OBJECTTYPE_BGMON, NULL },
+		{ TBDB_OBJECTTYPE_DISK, NULL },
+		{ TBDB_OBJECTTYPE_CUSTOM, NULL },
+		{ TBDB_OBJECTTYPE_BSTORE, NULL },
 		{ NULL, NULL }
 	};
 

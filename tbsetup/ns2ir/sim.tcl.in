@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -821,6 +821,9 @@ Simulator instproc run {} {
 
     $self spitxml_data "virt_agents" [list "vnode" "vname" "objecttype" ] [list "*" "slothd" $objtypes(SLOTHD) ]
     
+    # Per-experiment event to shutdown remote blockstores
+    $self spitxml_data "virt_agents" [list "vnode" "vname" "objecttype" ] [list "*" "rem-bstore" $objtypes(BSTORE) ]
+
     if {[array exists ::opt]} {
 	for {set i 0} {$i < $optarray_count} {incr i} {
 	    set oname  $optarray_order($i)
