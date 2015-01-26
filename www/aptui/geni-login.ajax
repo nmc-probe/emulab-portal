@@ -59,8 +59,13 @@ function myexec($cmd)
 #
 function Do_GetSignerInfo()
 {
+    global $TBMAINSITE, $PROTOGENI_GENIWEBLOGIN, $TBDIR;
     $hash = GENHASH();
 
+    if (! ($TBMAINSITE || $PROTOGENI_GENIWEBLOGIN)) {
+        SPITAJAX_ERROR(1, "Geni Users are not allowed to login to this site");
+	return;
+    }
     # We use a session to hold stuff across the ajax calls
     session_start();
     session_regenerate_id(TRUE);
@@ -68,31 +73,36 @@ function Do_GetSignerInfo()
     $blob = array();
     $blob["HOST"]  = "https://ch.geni.net:8444";
     $blob["PATH"]  = "/xml-signer/index.html";
-    $blob["ID"]    = "urn:publicid:IDN+emulab.net+authority+sa";
     $blob["AUTH"]  = "https://ch.geni.net:8444/xml-signer/geni-auth.js";
-    $blob["CERT"]  = 
-	"-----BEGIN CERTIFICATE-----\n" .
-	"MIIDoTCCAwqgAwIBAgIDAS/uMA0GCSqGSIb3DQEBBAUAMIG4MQswCQYDVQQGEwJV\n" .
-	"UzENMAsGA1UECBMEVXRhaDEXMBUGA1UEBxMOU2FsdCBMYWtlIENpdHkxHTAbBgNV\n" .
-	"BAoTFFV0YWggTmV0d29yayBUZXN0YmVkMR4wHAYDVQQLExVDZXJ0aWZpY2F0ZSBB\n" .
-	"dXRob3JpdHkxGDAWBgNVBAMTD2Jvc3MuZW11bGFiLm5ldDEoMCYGCSqGSIb3DQEJ\n" .
-	"ARYZdGVzdGJlZC1vcHNAZmx1eC51dGFoLmVkdTAeFw0xMTEwMDUxOTUxMDZaFw0x\n" .
-	"NzAzMjcyMDUxMDZaMIGsMQswCQYDVQQGEwJVUzENMAsGA1UECBMEVXRhaDEdMBsG\n" .
-	"A1UEChMUVXRhaCBOZXR3b3JrIFRlc3RiZWQxFjAUBgNVBAsTDXV0YWhlbXVsYWIu\n" .
-	"c2ExLTArBgNVBAMTJDJiNDM3ZmFhLWFhMDAtMTFkZC1hZDFmLTAwMTE0M2U0NTNm\n" .
-	"ZTEoMCYGCSqGSIb3DQEJARYZdGVzdGJlZC1vcHNAZmx1eC51dGFoLmVkdTCBnzAN\n" .
-	"BgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEA1ayN3cGHH9hsmTgVWVjb2ZOqF8zFJ1Ew\n" .
-	"TFRpXVtI//wk05+Z7uunpxn/QL1F3NjdcIEToEupo1q2tRUfCc2hquLBgC5zNfut\n" .
-	"YD/b5ukEsF5COKHb+pYl2RZly9BVckt+ySFLnC23erKW7ILyO2fGBD/QzHZNPhdY\n" .
-	"/fs18iCh58cCAwEAAaOBwjCBvzAdBgNVHQ4EFgQUU2CjacFUMyUNL++CplFi++MF\n" .
-	"Sl0wMwYDVR0RBCwwKoYodXJuOnB1YmxpY2lkOklETitlbXVsYWIubmV0K2F1dGhv\n" .
-	"cml0eStzYTAPBgNVHRMBAf8EBTADAQH/MFgGCCsGAQUFBwEBBEwwSjBIBhRpg8yT\n" .
-	"gKiYzKjHvbGngICqrteKG4YwaHR0cHM6Ly93d3cuZW11bGFiLm5ldDoxMjM2OS9w\n" .
-	"cm90b2dlbmkveG1scnBjL3NhMA0GCSqGSIb3DQEBBAUAA4GBAIDXwcvEu3HJApFQ\n" .
-	"bQduTiHGXQ8Og/2ZIFLXHkqu4SW81RaYVbHwRFxnKHOktKm7js9wjEPo/F0tqIRT\n" .
-	"21x7yE7uOce/8tWNW241fVuIRyO/o/DNd/FVFyFU5WNqP6f/rzEu92iuO6zIJPBg\n" .
-	"fmkqRvZqMOm5R//SSNBFl83lZzlu\n" .
-	"-----END CERTIFICATE-----";
+
+    $infname  = "$TBDIR/etc/genisa.pem";
+    $outfname = tempnam("/tmp", "certout");
+    $retval   = myexec("$TBDIR/sbin/protogeni/parsecert $infname $outfname");
+    if ($retval) {
+	SPITAJAX_ERROR(-1, "Internal certificate parse error");
+        unlink($outfname);
+	session_destroy();
+	return;
+    }
+    $parse_output = file_get_contents($outfname);
+    unlink($outfname);
+
+    #
+    # Decode simple XML that is returned. 
+    #
+    $parsed = simplexml_load_string($parse_output);
+    if (!$parsed) {
+	TBERROR("Could not parse XML output:\n$parse_output\n", 0);
+	SPITAJAX_ERROR(-1, "Internal parsing Error");
+	session_destroy();
+	return;
+    }
+    $info = array();
+    foreach ($parsed->attribute as $attribute) {
+	$info[(string)$attribute['name']] = (string)$attribute;
+    }
+    $blob["ID"]    = $info["urn"];
+    $blob["CERT"]  = $info["certificate"];
 
     SPITAJAX_RESPONSE($blob);
 }
@@ -104,7 +114,12 @@ function Do_CreateSecret()
 {
     global $ajax_args;
     global $TBDIR;
+    global $TBMAINSITE, $PROTOGENI_GENIWEBLOGIN;
 
+    if (! ($TBMAINSITE || $PROTOGENI_GENIWEBLOGIN)) {
+        SPITAJAX_ERROR(1, "Geni Users are not allowed to login to this site");
+	return;
+    }
     #
     # Destroy any existing session data to prevent replay.
     #
@@ -197,9 +212,14 @@ function Do_CreateSecret()
 function Do_VerifySpeaksfor()
 {
     global $ajax_args;
-    global $TBDIR, $COOKDIEDOMAIN;
+    global $TBDIR, $COOKDIEDOMAIN, $TBMAINSITE, $PROTOGENI_GENIWEBLOGIN;
     global $TBAUTHCOOKIE, $TBLOGINCOOKIE, $TBAUTHTIMEOUT, $TBNAMECOOKIE;
+    $embedded = 0;
 
+    if (! ($TBMAINSITE || $PROTOGENI_GENIWEBLOGIN)) {
+        SPITAJAX_ERROR(1, "Geni Users are not allowed to login to this site");
+	return;
+    }
     # Restore the session.
     if (!session_start()) {
 	SPITAJAX_ERROR(-1, "Internal session error 3");
@@ -224,6 +244,9 @@ function Do_VerifySpeaksfor()
 	SPITAJAX_ERROR(1, "What is your secret?");
 	session_destroy();
 	return;
+    }
+    if (isset($ajax_args["embedded"])) {
+        $embedded = 1;
     }
 
     #
@@ -281,6 +304,11 @@ function Do_VerifySpeaksfor()
     #
     $this_user = User::LookupNonLocal($info["urn"]);
     if (!$this_user) {
+        if (!$TBMAINSITE) {
+	    SPITAJAX_ERROR(1, "You do not have an account at this site");
+	    session_destroy();
+	    return;
+        }
 	if (CreateNonLocalUser($info["urn"], $info["email"])) {
 	    SPITAJAX_ERROR(-1, "Internal error creating new user");
 	    session_destroy();
@@ -293,16 +321,15 @@ function Do_VerifySpeaksfor()
 	    return;
 	}
     }
-    if (UpdateCredentials($this_user, $_SESSION["certificate"], $speaksfor)) {
-	SPITAJAX_ERROR(-1, "Internal error updating user credentials");
-	session_destroy();
-	return;
-    }
-    
     list ($loginhash, $logincrc) =
 	DOLOGIN_MAGIC($this_user->uid(), $this_user->uid_idx(), null, 0, 1);
     if (! ($loginhash && $logincrc)) {
 	SPITAJAX_ERROR(1, "Could not log you in. Sorry!");
+	session_destroy();
+	return;
+    }
+    if (UpdateCredentials($this_user, $_SESSION["certificate"], $speaksfor)) {
+	SPITAJAX_ERROR(-1, "Internal error updating user credentials");
 	session_destroy();
 	return;
     }
@@ -315,8 +342,13 @@ function Do_VerifySpeaksfor()
     $blob["username"]  = $TBNAMECOOKIE;
     $blob["user"]      = $this_user->uid_idx();
     $blob["timeout"]   = time() + $TBAUTHTIMEOUT;
-    $blob["url"]       = (Instance::UserHasInstances($this_user)
-			  ? "myexperiments.php" : "instantiate.php");
+    if ($embedded) {
+        $blob["url"]   = "showuser.php3";
+    }
+    else {
+        $blob["url"]   = (Instance::UserHasInstances($this_user)
+                          ? "myexperiments.php" : "instantiate.php");
+    }
     session_destroy();
     SPITAJAX_RESPONSE($blob);
 }
@@ -331,7 +363,7 @@ function CreateNonLocalUser($urn, $email)
     $safe_email = escapeshellarg($email);
     
     $retval = SUEXEC("elabman", $TBOPSPID,
-		     "webcreategeniuser $safe_urn $safe_email",
+		     "webcreategeniuser -p CloudLab $safe_urn $safe_email",
 		     SUEXEC_ACTION_CONTINUE);
     if ($retval)
 	return -1;
@@ -344,7 +376,13 @@ function CreateNonLocalUser($urn, $email)
 # 
 function UpdateCredentials($user, $cert, $cred)
 {
+    global $TBMAINSITE;
+
     $uid = $user->uid();
+    $project = $user->FirstApprovedProject();
+    $pid = (isset($project) ? $project->pid() : "nobody");
+    # Update keys on main site, no need to do this on backend clusters.
+    $arg = ($TBMAINSITE ? "-s" : "");
     
     $credfile = tempnam("/tmp", "cert");
     $certfile = tempnam("/tmp", "cred");
@@ -358,8 +396,8 @@ function UpdateCredentials($user, $cert, $cred)
     chmod($certfile, 0666);
     chmod($credfile, 0666);
     
-    $retval = SUEXEC($uid, "CloudLab",
-		     "webupdategeniuser -c $credfile -e $certfile -s $uid",
+    $retval = SUEXEC($uid, $pid,
+		     "webupdategeniuser -c $credfile -e $certfile $arg $uid",
 		     SUEXEC_ACTION_CONTINUE);
 
     unlink($credfile);
