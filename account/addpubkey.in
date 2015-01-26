@@ -90,6 +90,7 @@ my $user_name;
 my $user_email;
 my $user_dbid;
 my $user_uid;
+my $user_gid;
 my $debug = 0;
 
 #
@@ -261,6 +262,18 @@ if (defined($user)) {
     $user_dbid  = $target_user->dbid();
     $user_uid   = $target_user->uid();
     $USERUID    = $target_user->unix_uid();
+
+    my $firstproject;
+
+    if ($target_user->FirstApprovedProject(\$firstproject) < 0) {
+	fatal("Could not determine first approved project");
+    }
+    if (defined($firstproject)) {
+	$user_gid = $firstproject->unix_gid();
+    }
+    else {
+	$user_gid = "guest";
+    }
 }
 
 #
@@ -289,15 +302,6 @@ else {
 # Initmode or genmode, do it and exit.
 #
 if ($initmode || $genmode) {
-    my $firstproject;
-    my $default_groupgid;
-
-    if ($target_user->FirstApprovedProject(\$firstproject) < 0 ||
-	!defined($firstproject)) {
-	fatal("Could not determine first approved project");
-    }
-    $user_gid  = $firstproject->unix_gid();
-
     if ($initmode) {
 	exit(InitUser());
     }
