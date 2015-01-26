@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -37,7 +37,7 @@ use POSIX ":sys_wait_h";
 sub usage()
 {
     print STDOUT
-	"Usage: eventsys_control [-f] <start|stop|replay> <eid>\n";
+	"Usage: eventsys_control [-f] <start|stop|replay> <pid>,<eid>\n";
     exit(-1);
 }
 my  $optlist = "dfa";
