@@ -5,11 +5,12 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/signup-personal.html',
 	 'js/lib/text!template/signup-project.html',
 	 'js/lib/text!template/signup.html',
+	 'js/lib/text!template/toomany-modal.html',
 	 // jQuery modules
 	 'formhelpers'],
 function (_, sup,
 	  aboutString, verifyString, personalString,
-	  projectString, signupString)
+	  projectString, signupString, toomanyString)
 {
     'use strict';
 
@@ -24,6 +25,7 @@ function (_, sup,
     {
 	window.APT_OPTIONS.initialize(sup);
 	ISCLOUD = window.ISCLOUD;
+	$('#toomany_div').html(toomanyString);
 
 	var fields = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors = JSON.parse(_.unescape($('#error-json')[0].textContent));
@@ -48,6 +50,9 @@ function (_, sup,
 		$('#signup_panel_title').text("Start Project");
 	    }
 	});
+	if (window.APT_OPTIONS.toomany) {
+	    sup.ShowModal('#toomany_modal');
+	}
     }
 
     function renderForm(formfields, errors, joinproject, showVerify, thisUser)

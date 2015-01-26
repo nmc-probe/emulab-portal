@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -47,6 +47,7 @@ $optargs = OptionalPageArguments("create",       PAGEARG_STRING,
 				 "verify",       PAGEARG_STRING,
 				 "finished",     PAGEARG_BOOLEAN,
 				 "joinproject",  PAGEARG_BOOLEAN,
+                                 "toomany",      PAGEARG_BOOLEAN,
 				 "formfields",   PAGEARG_ARRAY);
 
 #
@@ -55,7 +56,7 @@ $optargs = OptionalPageArguments("create",       PAGEARG_STRING,
 function SPITFORM($formfields, $showverify, $errors)
 {
     global $TBDB_UIDLEN, $TBDB_PIDLEN, $TBDOCBASE, $WWWHOST;
-    global $ACCOUNTWARNING, $EMAILWARNING, $this_user, $joinproject;
+    global $ACCOUNTWARNING, $EMAILWARNING, $this_user, $joinproject, $toomany;
     $button_label = "Create Account";
 
     echo "<link rel='stylesheet'
@@ -64,6 +65,7 @@ function SPITFORM($formfields, $showverify, $errors)
     SPITHEADER(1);
 
     echo "<div id='signup-body'></div>\n";
+    echo "<div id='toomany_div'></div>\n";
     echo "<script type='text/plain' id='form-json'>\n";
     echo htmlentities(json_encode($formfields)) . "\n";
     echo "</script>\n";
@@ -86,6 +88,12 @@ function SPITFORM($formfields, $showverify, $errors)
     }
     else {
 	echo "window.APT_OPTIONS.this_user = false;\n";
+    }
+    if ($toomany) {
+	echo "window.APT_OPTIONS.toomany = true;\n";
+    }
+    else {
+	echo "window.APT_OPTIONS.toomany = false;\n";
     }
 
     echo "</script>\n";
