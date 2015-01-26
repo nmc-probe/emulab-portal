@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2014 University of Utah and the Flux Group.
+# Copyright (c) 2004-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -37,6 +37,7 @@ my $action  = "boot";
 my $dolocal = 1;
 my $doremote = 1;
 my $typestr = "";
+my $bsapidfile = "/var/run/bsagent.pid";
 
 # Turn off line buffering on output
 $| = 1;
@@ -160,6 +161,7 @@ exit(0);
 sub doboot()
 {
     my $bossip;
+    my $gotremote = 0;
 
     print STDOUT "Checking Testbed ${typestr}storage configuration ... \n";
 
@@ -173,11 +175,15 @@ sub doboot()
     my @cmds = ();
     if (@allcmds > 0) {
 	foreach my $href (@allcmds) {
-	    if ($dolocal && $href->{'CLASS'} eq "local") {
-		push(@cmds, $href);
-	    }
-	    if ($doremote && $href->{'CLASS'} ne "local") {
-		push(@cmds, $href);
+	    if ($href->{'CLASS'} eq "local") {
+		if ($dolocal) {
+		    push(@cmds, $href);
+		}
+	    } else {
+		if ($doremote) {
+		    push(@cmds, $href);
+		    $gotremote++;
+		}
 	    }
 	}
     }
@@ -210,7 +216,7 @@ sub doboot()
     # No blockstores old or new.
     #
     if (!@cmds && !@ocmds) {
-	#warn("*** No storageconfig output - nothing to do");
+	#warn("*** No storageconfig output - nothing to do\n");
 	unlink($OLDCONFIG);
 	return;
     }
@@ -275,6 +281,30 @@ sub doboot()
     foreach my $cmd (@cmds) {
 	if (!process($so, $cmd, 1, 0)) {
 	    fatal("Could not process storage commands!");
+	}
+    }
+
+    #
+    # If we have remote blockstores, fire up an event agent to listen
+    # for shutdown events.
+    #
+    if ($gotremote && -x "$BINDIR/bsagent") {
+	my ($pid, $eid, undef) = check_nickname();
+	my $key = TMEVENTKEY();
+	my $server = getlocalevserver();
+	my $logfile = "$LOGDIR/bsagent.debug";
+
+	# XXX make sure it is not already running
+	if (! -r "$bsapidfile" ||
+	    system("/bin/kill -0 `cat $bsapidfile` >/dev/null 2>&1")) {
+
+	    if (system("$BINDIR/bsagent -s $server -l $logfile -e $pid/$eid")) {
+		warn("*** WARNING: could not start blockstore agent\n");
+	    } else {
+		print STDOUT "  Started remote blockstore agent\n";
+	    }
+	} else {
+	    print STDOUT "  Remote blockstore agent already running\n";
 	}
     }
 
@@ -480,6 +510,7 @@ sub docleanup($)
 {
     my ($doteardown) = @_;
     my $cmdref = [];
+    my $gotremote = 0;
 
     if (-r "$OLDCONFIG") {
 	$cmdref = eval { Storable::retrieve($OLDCONFIG); };
@@ -517,6 +548,7 @@ sub docleanup($)
 	}
 	if ($doremote && $href->{'CLASS'} ne "local") {
 	    push(@cmds, $href);
+	    $gotremote++;
 	}
     }
     if (!@cmds) {
@@ -535,6 +567,12 @@ sub docleanup($)
 	if (!process($so, $cmd, 0, $doteardown)) {
 	    fatal("Could not process storage commands!");
 	}
+    }
+
+    # kill any remote blockstore agent
+    if ($gotremote && $doteardown && -r "$bsapidfile") {
+	print STDOUT "Stopping remote blockstore agent\n";
+	system("/bin/kill `cat $bsapidfile`");
     }
 
     unlink($STORAGEMAP, $DISKINFO);
