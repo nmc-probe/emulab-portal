@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -351,7 +351,7 @@ SUBPAGESTART();
 
 SUBMENUSTART("$tag Options");
 
-if ($expstate) {
+if ($expstate && !$geniflags) {
     if ($experiment->logfile() && $experiment->logfile() != "") {
 	WRITESUBMENUBUTTON("View Activity Logfile",
 			   CreateURL("showlogfile", $experiment));
@@ -459,28 +459,28 @@ if ($expstate) {
     }
 }
 
-WRITESUBMENUBUTTON("Modify Settings",
-		   CreateURL("editexp", $experiment));
+if (!$geniflags) {
+    WRITESUBMENUBUTTON("Modify Settings",
+                       CreateURL("editexp", $experiment));
+    WRITESUBMENUDIVIDER();
+}
 
-WRITESUBMENUDIVIDER();
-
-if ($expstate == $TB_EXPTSTATE_ACTIVE) {
+if (!$geniflags && $expstate == $TB_EXPTSTATE_ACTIVE) {
     if (!$geniflags) {
 	WRITESUBMENUBUTTON("Link Tracing/Monitoring",
 			   CreateURL("linkmon_list", $experiment));
     
 	WRITESUBMENUBUTTON("Event Viewer",
 			   CreateURL("showevents", $experiment));
-    }
     
-    #
-    # Admin and project/experiment leaders get this option.
-    #
-    if ($experiment->AccessCheck($this_user, $TB_EXPT_UPDATE)) {
-	WRITESUBMENUBUTTON("Update All Nodes",
-			   CreateURL("updateaccounts", $experiment));
+        #
+        # Admin and project/experiment leaders get this option.
+        #
+        if ($experiment->AccessCheck($this_user, $TB_EXPT_UPDATE)) {
+                WRITESUBMENUBUTTON("Update All Nodes",
+                                   CreateURL("updateaccounts", $experiment));
+        }
     }
-
     # Reboot option
     if ($experiment->AccessCheck($this_user, $TB_EXPT_MODIFY)) {
 	WRITESUBMENUBUTTON("Reboot All Nodes",
