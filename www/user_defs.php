@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -345,6 +345,7 @@ class User
     function wikiname()		{ return $this->field("wikiname"); }
     function wikionly()		{ return $this->field("wikionly"); }
     function mailman_password() { return $this->field("mailman_password"); }
+    function nonlocal_id()	{ return $this->field("nonlocal_id"); }
     function genesis()	     { return $this->field("genesis"); }
     function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
     function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
@@ -725,6 +726,7 @@ class User
 	$stud        = $user->stud();
 	$uuid        = $user->uuid();
 	$genesis     = $user->genesis();
+        $nonlocal_id = $user->nonlocal_id();
 
 	if (!strcmp($usr_addr2, ""))
 	    $usr_addr2 = "&nbsp;";
@@ -767,6 +769,13 @@ class User
                   <td>Username:</td>
                   <td>$uid ($uid_idx)</td>
               </tr>\n";
+
+        if ($nonlocal_id) {
+            echo "<tr>
+                      <td>Nonlocal ID:</td>
+                      <td>$nonlocal_id</td>
+                      </tr>\n";
+        }
     
         echo "<tr>
                   <td>Full Name:</td>
@@ -1165,7 +1174,7 @@ class User
     # now, later return actual objects. 
     #
     function ProjectAccessList($access_type) {
-	global $TB_PROJECT_CREATEEXPT;
+    	global $TB_PROJECT_CREATEEXPT;
 	global $TB_PROJECT_MAKEOSID;
 	global $TB_PROJECT_MAKEIMAGEID;
 	global $TB_PROJECT_MAKEGROUP;
@@ -1224,6 +1233,40 @@ class User
 	
 	    $result[$pid][] = $gid;
 	}
+
+        # We want to order by time of last usage.
+        $query_result =
+            DBQueryFatal("(select pid,max(UNIX_TIMESTAMP(s.last_activity)) ".
+                         "   as last from experiment_stats as s ".
+                         " where s.creator_idx='$uid_idx' and pid_idx!=0 ".
+                         " group by s.pid_idx order by last desc) ".
+                         "union ".
+                         "(select pid,max(UNIX_TIMESTAMP(created)) as last ".
+                         " from apt_instances ".
+                         " where creator_idx='$uid_idx' and pid is not null ".
+                         " group by pid_idx order by last desc)");
+        
+	$ordered = array();
+	while ($row = mysql_fetch_array($query_result)) {
+	    $pid   = $row['pid'];
+	    $stamp = $row['last'];
+
+	    if (array_key_exists($pid, $ordered)) {
+                if ($ordered[$pid] > $stamp) {
+                    continue;
+                }
+            }
+	    $ordered[$pid] = $stamp;
+	}
+        $sorter = function ($a, $b) use ($ordered) {
+            $s1 = $ordered[$a];
+            $s2 = $ordered[$b];
+            if ($s1 == $s2) {
+                return 0;
+            }
+            return ($s1 > $s2) ? -1 : 1;
+        };
+        uksort($result, $sorter);
 	return $result;
     }
 
