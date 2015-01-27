@@ -554,7 +554,7 @@ sub Extend($$)
 	$certfile = $certificate->WriteToFile();
 	$userarg = "-c $certfile";
     }
-    system("$GENEXTENDCRED -a -o $credname -s $slice_urn -t 90 $userarg");
+    system("$GENEXTENDCRED -a -o $credname -s $slice_urn -t 180 $userarg");
     if ($?) {
 	print STDERR "Could not create extended credential\n";
 	return undef;
