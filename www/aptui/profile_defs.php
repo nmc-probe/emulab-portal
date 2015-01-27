@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -470,18 +470,14 @@ class Profile
 
 	    if ($type == "boolean") {
 		$form .=
-		    "<div class='form-group'> ".
-		    "<label for='$name' class='col-sm-4 control-label'> ".
-		    " $prompt".
-		    "</label>".
-		    "<div class='checkbox col-sm-6'> ".
 		    "<input name='$name' ".
 		    "      <%- formfields.${name} %> ".
-		    "      style='margin-left: 0px;' ".
+		    "      style='margin: 0px; height: 34px;' ".
+		    "      class='format-me' ".
 		    "      data-key='$name' ".
 		    "      data-label='$prompt' ".
 		    "      value='checked' ".
-		    "      type='checkbox'>Yes</div></div>";
+		    "      type='checkbox'>";
 		if ($defval) {
 		    $defaults[$name] = "checked";
 		}
