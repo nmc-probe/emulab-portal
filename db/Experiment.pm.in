@@ -2203,8 +2203,10 @@ sub PreSwap($$$$)
     #
     if ($which eq $EXPT_SWAPOUT && $self->UsingRemBlockstore() > 0) {
 	require event;
+	my $pid = $self->pid();
+	my $eid = $self->eid();
 	
-	print STDERR "Telling nodes to shutdown remote blockstores\n";
+	print "Telling nodes to shutdown remote blockstores\n";
 	event::EventSendWarn(objtype   => "BSTORE",
 			     objname   => "rem-bstore",
 			     eventtype => "STOP",
@@ -5009,9 +5011,10 @@ sub UsingRemBlockstore($)
     return -1
 	if (!ref($self));
 
-    # Must be swapped in
+    # Must be swapped in or in the process of swapping out (PreSwap above)
     return -1
-	if ($self->state() ne EXPTSTATE_ACTIVE);
+	if ($self->state() ne EXPTSTATE_ACTIVE &&
+	    $self->state() ne EXPTSTATE_SWAPPING);
 
     my $idx = $self->idx();
     my $query_result =
