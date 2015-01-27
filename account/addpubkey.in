@@ -423,8 +423,7 @@ sub ParseKey($) {
     }
 
     if (!defined($key)) {
-	print "Key cannot be parsed!\n";
-	print "Key: $keyline\n";
+	print STDERR "Key cannot be parsed!\n";
 	return 0;
     }
 
