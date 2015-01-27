@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012-2014 University of Utah and the Flux Group.
+# Copyright (c) 2012-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -197,6 +197,7 @@ sub gid($)             {return $_[0]->{'DBROW'}->{'gid'}; }
 sub idx($)             {return $_[0]->{'DBROW'}->{'lease_idx'}; }
 sub lease_idx($)       {return $_[0]->idx(); }
 sub owner($)           {return $_[0]->{'DBROW'}->{'owner_uid'}; }
+sub owner_urn($)       {return $_[0]->{'DBROW'}->{'owner_urn'}; }
 sub type($)            {return $_[0]->{'DBROW'}->{'type'}; }
 sub inception($)       {return str2time($_[0]->{'DBROW'}->{'inception'}); }
 sub lease_end($)       {return str2time($_[0]->{'DBROW'}->{'lease_end'}); }
@@ -229,7 +230,7 @@ sub Lookup($$;$$)
 	    $wclause = "pid='$1' and gid='$1' and lease_id='$2'";	
 	}
 	elsif ($arg1 =~ /^([-\w]+)\/([-\w]+)\/([-\w]+)$/) {
-	    $wclause = "pid='$1' and gid='$2' and lease_id='$arg2'";	
+	    $wclause = "pid='$1' and gid='$2' and lease_id='$3'";	
 	}
 	else {
 	    return undef;
@@ -1509,6 +1510,11 @@ sub GrantAccess($$$)
 	$perm_id   = $target->pid() . "/" . $target->gid();
 	$perm_type = "group";
     } 
+    elsif (ref($target) eq "Project") {
+	$perm_idx  = $target->gid_idx();
+	$perm_id   = $target->pid() . "/" . $target->gid();
+	$perm_type = "group";
+    } 
     elsif ($target eq GLOBAL_PERM_ANON_RO()) {
 	$perm_idx  = GLOBAL_PERM_ANON_RO_IDX();
 	$perm_id   = GLOBAL_PERM_ANON_RO();
@@ -1552,6 +1558,10 @@ sub RevokeAccess($$)
 	$perm_type = "user";
     }
     elsif (ref($target) eq "Group") {
+	$perm_idx  = $target->gid_idx();
+	$perm_type = "group";
+    }
+    elsif (ref($target) eq "Project") {
 	$perm_idx  = $target->gid_idx();
 	$perm_type = "group";
     }
@@ -1857,6 +1867,26 @@ sub TakeLock($)
     $self->{'LOCKED'} = time();
     $self->{'LOCKER_PID'} = $PID;
     return 0;
+}
+
+#
+# Load the project.
+#
+sub GetProject($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return undef
+	if (! ref($self));
+
+    my $project = Project->Lookup($self->pid());
+    
+    if (! defined($project)) {
+	print("*** WARNING: Could not lookup project object for $self!", 1);
+	return undef;
+    }
+    return $project;
 }
 
 package Lease::Blockstore;
