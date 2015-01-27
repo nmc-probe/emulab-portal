@@ -395,6 +395,28 @@ class Profile
     function CanView($user) {
 	return $this->CanInstantiate($user);
     }
+    function CanDelete($user) {
+	# Want to know if the project is APT or Cloud/Emulab. APT projects
+        # may not delete profiles (yet).
+	$project = Project::Lookup($this->pid_idx());
+	if (!$project) {
+	    return 0;
+	}
+        if (!$this->IsHead()) {
+            return 0;
+        }
+        if (ISADMIN() || STUDLY()) {
+            return 1;
+        }
+        if (!$project->isAPT()) {
+            return 1;
+        }
+        # APT profiles may not be deleted if published.
+        if (!$this->published()) {
+            return 1;
+        }
+        return 0;
+    }
 
     function BestAggregate($rspec = null) {
 	if (!$rspec) {

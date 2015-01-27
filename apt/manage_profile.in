@@ -94,6 +94,7 @@ use EmulabFeatures;
 sub fatal($);
 sub UserError(;$);
 sub DeleteProfile($);
+sub CanDelete($);
 sub PublishProfile($);
 
 # Parse args below.
@@ -585,14 +586,11 @@ sub DeleteProfile($)
     if (!defined($profile)) {
 	fatal("No such profile exists");
     }
-    #
-    # Not allowed to delete a published profile, yet. Needs thought.
-    #
-    if (defined($profile->published()) && !$this_user->IsAdmin()) {
-	UserError("Not allowed to delete a published profile");
-    }
     if (!$profile->IsHead()) {
 	UserError("Only allowed to delete the most recent profile");
+    }
+    if (!CanDelete($profile)) {
+	UserError("Not allowed to delete this profile (version)");
     }
     #
     # Version zero is special of course.
@@ -624,5 +622,29 @@ sub PublishProfile($)
     }
     $profile->Publish() == 0 or
 	fatal("Could not publish profile");
+    return 0;
+}
+
+#
+#
+#
+sub CanDelete($)
+{
+    my ($profile) = @_;
+    
+    # Want to know if the project is APT or Cloud/Emulab. APT projects
+    # may not delete profiles (yet).
+    my $project = Project->Lookup($profile->pid_idx());
+    return 0
+	if (!defined($project));
+    return 0
+        if (!$profile->IsHead());
+    return 1
+	if ($this_user->IsAdmin() || $this_user->stud());
+    return 1
+        if (!$project->isAPT());
+    # APT profiles may not be deleted if published.
+    return 1
+        if (!$profile->published());
     return 0;
 }

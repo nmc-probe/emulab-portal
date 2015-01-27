@@ -105,18 +105,11 @@ function Do_DeleteProfile()
 	SPITAJAX_ERROR(1, "Unknown profile uuid");
 	return;
     }
-    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
+    if (!$profile->CanDelete($this_user)) {
 	SPITAJAX_ERROR(1, "Not enough permission");
 	return;
     }
-    if (!$profile->IsHead()) {
-	SPITAJAX_ERROR(1, "Not allowed to delete non-head version");
-	return;
-    }
-    if ($profile->published() && !ISADMIN()) {
-	SPITAJAX_ERROR(1, "Not allowed to delete a published version");
-	return;
-    }
+
     #
     # Invoke backend.
     #

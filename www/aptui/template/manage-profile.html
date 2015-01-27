@@ -426,13 +426,26 @@
   <div id='delete_modal' class='modal fade'>
     <div class='modal-dialog'>
       <div class='modal-content'>
+	<div class='modal-header'>
+	  <center><h4>Confirm to Delete</h4></center>
+	</div>
 	<div class='modal-body'>
-         <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>&times;</button>
-         <center><h3>Confirm to Delete</h3>
-         <a class='btn btn-danger btn-sm'
-	    id='delete-confirm'
-            type='button' name='delete'>Confirm</a></center>
+	 <p><em>Warning; deleting a profile cannot be undone!</em> In
+	 addition, if you have published links to this profile, or sent
+	 links to collaborators, those links <b>will no longer be valid</b>.
+	 </p>
+	 <br>
+	 <center>
+           <button class='btn btn-danger btn-sm'
+		   id='delete-confirm'
+		   style='margin-right: 10px;'
+		   type='button' name='delete'>Confirm
+	   </button>
+           <button class='btn btn-default btn-sm'
+		    data-dismiss='modal'
+                    type='button'>Cancel
+	   </button>
+	 </center>
 	</div>
       </div>
     </div>
