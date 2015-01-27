@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -463,15 +463,12 @@ if ($localuser) {
 	# with the isaptkey flag (-a to addpubkey) so that we know
 	# which key in the DB it is. The reason for this is that the
 	# user might be a classic emulab user, but is now using the
-	# APT/Cloud UI. Class Emulab allows multiple keys, but the
-	# APT/Cloud UI only allows one (which is replaced in the DB
-	# if it changes). We do not want to expose the Emulab ssh key
-	# edit page, too messy. So always operate on the one apt key
-	# for all users.
+	# APT/Cloud UI. The key provided in the web interface will
+	# replace this key.
 	#
-	if (!$emulab_user->isEmulab()) {
-	    $emulab_user->DeleteSSHKeys();
-	}
+	# XXX This is in flux, we now allow APT users to manage all
+	# their keys via the web interface.
+	#
 	my ($fh, $keyfile) = tempfile(UNLINK => 0);
 	print $fh $sshkey;
 
