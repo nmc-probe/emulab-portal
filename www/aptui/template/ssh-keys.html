@@ -1,0 +1,91 @@
+<div class='row'>
+  <div class='col-lg-12 col-lg-offset-0
+              col-md-12 col-md-offset-0
+              col-sm-12 col-sm-offset-0
+              col-xs-12 col-xs-offset-0'>
+    <div class='row'>
+      <div class='col-lg-10  col-lg-offset-1
+	          col-md-10  col-md-offset-1
+	          col-sm-12  col-sm-offset-0
+	          col-xs-12  col-xs-offset-0'>
+	<!-- Collapsable panel -->
+	<% _.each(pubkeys, function(pubkey) {
+	   var key_href  = 'key_' + pubkey.index;
+	   var key_title = pubkey.comment;
+	   var delete_id = "delete_key_" + pubkey.index;
+	   var panel_id  = "panel_" + pubkey.index;
+	 %>
+	<div class="panel panel-info" id='<%- panel_id %>'>
+	  <div class="panel-heading clearfix">
+	    <div class='button-group pull-right'>
+	      <a class='btn btn-danger btn-sm delete_pubkey_button'
+		 type='button'
+		 data-key='<%- pubkey.index %>'>Delete</a>
+	    </div>
+	    <div style='padding-top: 7.5px;'>
+	      <a data-toggle="collapse"
+		 href='#<%- key_href %>'>
+		<span class="glyphicon glyphicon-chevron-right pull-left"
+		      style='padding-right: 10px;'></span></a>
+	      <h4 class='panel-title'><%- key_title %></h4>
+	    </div>
+	  </div>
+	  <div id='<%- key_href %>' class="panel-collapse collapse">
+	    <div class="panel-body">
+	      <span style='word-wrap:break-word;'><%- pubkey.pubkey %></span>
+	    </div>
+	  </div>
+	</div>
+	<% }); %>
+      </div>
+    </div>
+    <div class='row'>
+      <div class='col-lg-10  col-lg-offset-1
+	          col-md-10  col-md-offset-1
+	          col-sm-12  col-sm-offset-0
+	          col-xs-12  col-xs-offset-0'>
+	<div class="panel panel-info">
+	  <div class="panel-heading">
+	    <h4 class='panel-title'>Add Key</h4>
+	  </div>
+	  <div>
+	    <div class="panel-body">
+	      <form id='add_sshkey_form'
+		    class='form-horizontal' role='form'>
+		<div class="form-group">
+		  <label for="sshkey_data"
+			 class="col-sm-2 control-label">Key</label>
+		  <div class="col-sm-10">
+		    <textarea name="sshkey_data" id='sshkey_data'
+			      value=""
+			      rows=5
+			      class="form-control"
+			      placeholder='public key'
+			      type="textarea"></textarea>
+		  </div>
+		</div>
+		<div class="form-group">
+		  <div class='col-sm-offset-2 col-sm-10'>
+                    <input class='filestyle' type='file'
+			   name='sshkey_file' id='sshkey_file' 
+			   data-classButton='btn btn-primary btn-sm'
+			   data-input='false'
+			   data-buttonText='Load from file'>
+		  </div>
+		</div>
+		<div class="form-group">
+		  <div class="col-sm-offset-2 col-sm-10">
+		    <button type="submit" id='ssh_addkey_button'
+			    class="btn btn-primary btn-sm">Add Key</button>
+		  </div>
+		</div>
+	      </form>
+	    </div>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id='waitwait_div'></div>
+<div id='oops_div'></div>

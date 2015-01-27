@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -110,6 +110,13 @@ $routing = array("myprofiles" =>
 						     "Do_ApproveDataset",
 						 "extend" =>
 						      "Do_ExtendDataset")),
+		 "ssh-keys" =>
+			array("file"    => "ssh-keys.ajax",
+			      "guest"   => false,
+			      "methods" => array("addkey" =>
+						      "Do_AddKey",
+						 "deletekey" =>
+                                                      "Do_DeleteKey")),
     );
 
 #
