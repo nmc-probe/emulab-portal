@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -78,7 +78,7 @@ sub CheckCopyArgs();
 sub CopyInArchive();
 sub fatal($;$);
 
-my $optlist = "iE:g:e:p:S:L:a:l:sfwqt:nzc:bx:y:h:jkNXR"; # Enough options?
+my $optlist = "iE:g:e:p:S:L:a:l:sfwqt:nzc:bx:y:h:jkNXRC:"; # Enough options?
 my $batchmode= 1;
 my $frontend = 0;
 my $waitmode = 0;
@@ -94,6 +94,7 @@ my $nonsfile = 0;	# Admin only option to activate experiment anyway.
 my $template;		# New stuff; experiment templates.
 my $branch_template;    # New stuff; experiment templates.
 my $instance;		# New stuff; experiment templates.
+my $creator;		# Create experiment record as this user.
 # All of these are for experiment dup and branch. Really mucks things up.
 # These globals are set when we parse the -c argument, but used later
 my $copyfrom;		# Copy from where, archive or current experiment.
@@ -244,7 +245,9 @@ if (! -e "$TB/expinfo/$pid") {
 	"    $TB/expinfo/$pid has not been created yet!\n".
 	"    Did you run 'fixexpinfo' like you were supposed to?\n");
 }
-
+if (!defined($creator)) {
+    $creator = $this_user;
+}
 if (!defined($gid)) {
     $gid = $pid;
 }
@@ -337,10 +340,10 @@ if ($waitmode) {
 #
 my %args = ();
 
-$args{'expt_head_uid'}	   = $user_uid;
-$args{'expt_swap_uid'}	   = $user_uid;
-$args{'creator_idx'}	   = $user_dbid;
-$args{'swapper_idx'}	   = $user_dbid;
+$args{'expt_head_uid'}	   = $creator->uid();
+$args{'expt_swap_uid'}	   = $creator->uid();
+$args{'creator_idx'}	   = $creator->dbid();
+$args{'swapper_idx'}	   = $creator->dbid();
 $args{'state'}		   = $exptstate;
 $args{'priority'}	   = $priority;
 $args{'swappable'}	   = $swappable;
@@ -1070,6 +1073,15 @@ sub ParseArgs()
 	    tbdie({type => 'primary', severity => SEV_ERROR,
 		   error => ['bad_data', 'argument', $genimode]},
 		  "Bad data in argument: $genimode.");
+	}
+    }
+    if (defined($options{"C"})) {
+	my $uid = $options{"C"};
+	$creator = User->Lookup($uid);
+	if (!defined($creator)) {
+	    tbdie({type => 'primary', severity => SEV_ERROR,
+		   error => ['bad_data', 'argument', $uid]},
+		  "Bad data in argument: $uid");
 	}
     }
     if (defined($options{"j"})) {
