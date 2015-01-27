@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -862,7 +862,15 @@ sub AnnotateManifest($)
 	}
     }
     my $tipserver = undef;
-    if ($node->TipServer(\$tipserver) == 0 && defined($tipserver)) {
+    #
+    # The tipline for a virtual node will not exist till its booted,
+    # since the capture runs on the physical host. But thats too late,
+    # it needs to be in the manifest now. So lets just say we have
+    # one, expecting it to be available by the time the user might
+    # want to use it.
+    #
+    if (($node->TipServer(\$tipserver) == 0 && defined($tipserver)) ||
+	$node->isvirtnode()) {
 	if (! defined($services)) {
 	    $services = GeniXML::AddElement("services", $rspec);
 	}
@@ -872,7 +880,8 @@ sub AnnotateManifest($)
 	    $services->removeChild($console);
 	}
 	$console = GeniXML::AddElement("console",$services,$GeniXML::EMULAB_NS);
-	GeniXML::SetText("server", $console, $tipserver);
+	GeniXML::SetText("server", $console,
+			 (defined($tipserver) ? $tipserver : $sshdhost));
     }
 
     if ($self->UpdateRspec($rspec)) {
