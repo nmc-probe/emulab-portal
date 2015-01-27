@@ -2207,14 +2207,13 @@ sub PreSwap($$$$)
 	my $eid = $self->eid();
 	
 	print "Telling nodes to shutdown remote blockstores\n";
-	event::EventSendWarn(objtype   => "BSTORE",
-			     objname   => "rem-bstore",
-			     eventtype => "STOP",
-			     expt      => "$pid/$eid",
-			     host      => "event-server");
-
+	if (system("$TEVC -e $pid/$eid now rem-bstore stop")) {
+	    print "*** WARNING: Could not send blockstore shutdown event!\n";
+	}
 	# XXX we take down the VLANs immediately after this, so wait a bit
-	sleep(2);
+	else {
+	    sleep(2);
+	}
     }
     
     return 0;
