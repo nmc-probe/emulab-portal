@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2004-2014 University of Utah and the Flux Group.
+# Copyright (c) 2004-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -3286,7 +3286,7 @@ class experiment:
 
             if value > 0:
                 DBQueryFatal("INSERT INTO eventlist SET "
-                             "exptidx=%d,pid=%s,eid=%s,objecttype=3,"
+                             "exptidx=%s,pid=%s,eid=%s,objecttype=3,"
                              "eventtype=1,arguments=%s" + tl_insert,
                              (exptidx, argdict["proj"], argdict["exp"], value))
                 pass
