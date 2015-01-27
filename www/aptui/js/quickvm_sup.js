@@ -125,9 +125,12 @@ function GeniComplete(credential, signature)
 }
 
 var BLOB = null;
+var EMBEDDED = false;
     
-function InitGeniLogin()
+function InitGeniLogin(embedded)
 {
+    EMBEDDED = embedded;
+    
     // Ask the server for the stuff we need to start and go.
     var callback = function(json) {
 	console.info(json);
@@ -152,13 +155,13 @@ function StartGeniLogin()
 function VerifySpeaksfor(speaksfor, signature)
 {
     var callback = function(json) {
-	HideModal("#quickvm_login_waitwait");
+	HideModal("#waitwait-modal");
 	    
 	if (json.code) {
 	    alert("Could not verify speaksfor: " + json.value);
 	    return;
 	}
-	//console.info(json.value);
+	console.info(json.value);
 
 	//
 	// Need to set the cookies we get back so that we can
@@ -186,13 +189,19 @@ function VerifySpeaksfor(speaksfor, signature)
 	document.cookie = cookie1;
 	document.cookie = cookie2;
 	document.cookie = cookie3;
-	window.location.replace(json.value.url);
+	if (EMBEDDED) {
+	    window.parent.location.replace("../" + json.value.url);
+	}
+	else {
+	    window.location.replace(json.value.url);
+	}
     }
-    ShowModal("#quickvm_login_waitwait");
+    ShowModal("#waitwait-modal");
     var $xmlthing = CallServerMethod(null,
 				     "geni-login", "VerifySpeaksfor",
 				     {"speaksfor" : speaksfor,
-				      "signature" : signature});
+				      "signature" : signature,
+				      "embedded"  : EMBEDDED});
     $xmlthing.done(callback);
 }
 

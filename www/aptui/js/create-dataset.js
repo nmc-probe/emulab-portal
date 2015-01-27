@@ -45,6 +45,7 @@ function (_, sup, moment, mainString)
 	    embedded:		window.EMBEDDED,
 	    editing:		editing,
 	    isadmin:		isadmin,
+	    sitename:           (window.ISCLOUD ? "CloudLab" : "APT"),
 	});
 	html = formatter(html, errors).html();
 	$('#main-body').html(html);
@@ -54,12 +55,11 @@ function (_, sup, moment, mainString)
 	    trigger: 'hover',
 	    container: 'body'
 	});
-	// stdatasets need the datepicker.
-	var needpicker = false;
+	// stdatasets need ro show the expiration date.
+	var needexpire = false;
 	if (formfields["dataset_type"] == "stdataset") {
-	    if (!editing || isadmin) {
-		needpicker = true;
-
+	    needexpire = true;
+	    if (!editing) {
 		// Insert datepicker after html inserted.
 		$(function() {
 		    $("#dataset_expires").datepicker({
@@ -68,7 +68,7 @@ function (_, sup, moment, mainString)
 		    });
 		});
 	    }
-	    if (editing) {
+	    else {
 		// Format dates with moment before display.
 		var date = $('#dataset_expires').val();
 		$('#dataset_expires').val(moment(date).format("lll"));
@@ -85,12 +85,26 @@ function (_, sup, moment, mainString)
 		}
 	    });
 	}
-	if (needpicker) {
+	if (needexpire) {
 	    $('#dataset_expires_div').removeClass("hidden");
 	}
-	else {
-	    $('#dataset_expires_div').addClass("hidden");
-	}
+
+	// Handler for project change.
+	if (!editing) {
+	    $('#dataset_pid').change(function (event) {
+		$("span[name='project_name']")
+		    .html("project " + $('#dataset_pid option:selected').val());
+	    });
+	    // Initialize the span with default project.
+	    if (projlist.length == 1) {
+		$("span[name='project_name']")
+		    .html("project " + $('#dataset_pid').html());
+	    }
+	    else {
+		$("span[name='project_name']")
+		    .html("project " + $('#dataset_pid option:selected').val());
+	    }
+  	}
 	
 	//
 	// Handle submit button.

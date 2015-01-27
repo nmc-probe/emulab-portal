@@ -37,6 +37,7 @@ $ISVSERVER      = 0;
 $GOOGLEUA       = 'UA-45161989-1';
 # See tbauth.php3
 $CHANGEPSWD_PAGE= "changepswd.php";
+$MAXGUESTINSTANCES = 10;
 
 #
 # Global flag to disable accounts. We do this on some pages which
@@ -296,7 +297,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 
     if (!NOLOGINS() && !$login_user && $page_title != "Login") {
 	SpitLoginModal("quickvm_login_modal");
-	SpitWaitModal("quickvm_login_waitwait");
+	SpitWaitModal("waitwait-modal");
     }
 embed:
     echo " <!-- Page content -->

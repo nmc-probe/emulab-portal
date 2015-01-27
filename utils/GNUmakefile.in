@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,7 +36,7 @@ BIN_SCRIPTS	= delay_config sshtb create_image node_admin link_config \
 		  template_record spewevents \
 		  wbts_dump mkblob rmblob \
 		  showlease createlease deletelease modlease approvelease \
-		  extendlease createdataset
+		  extendlease createdataset grantlease
 SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
                   eventping grantnodetype import_commitlog daemon_wrapper \
 		  opsreboot deletenode node_statewait grabwebcams \
@@ -61,7 +61,7 @@ WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
 		  webdelete_image websitecheckin webclone_image
 WEB_BIN_SCRIPTS = webcreate_image websetdest weblinkmon_ctl webspewevents \
 		  webdelay_config webcreatedataset webdeletelease \
-		  webapprovelease webextendlease webmodlease
+		  webapprovelease webextendlease webmodlease webgrantlease
 LIBEXEC_SCRIPTS	= spewleds webcopy spewsource webcvsweb xlogin webviewvc \
                   $(WEB_BIN_SCRIPTS) $(WEB_SBIN_SCRIPTS)
 

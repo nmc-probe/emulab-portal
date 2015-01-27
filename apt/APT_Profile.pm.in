@@ -887,8 +887,11 @@ sub CheckDatasets($$$)
 	    }
 	    my $dataset = APT_Dataset->Lookup("$pid/$id");
 	    if (!defined($dataset)) {
-		$$pmsg = "Persistent dataset '$pid/$id' does not exist";
-		return 1;
+		$dataset = APT_Dataset->LookupByRemoteURN($leaseurn);
+		if (!defined($dataset)) {
+		    $$pmsg = "Persistent dataset '$pid/$id' does not exist";
+		    return 1;
+		}
 	    }
 
 	    #
@@ -898,20 +901,15 @@ sub CheckDatasets($$$)
 	    # settings.
 	    #
 	    my ($d_authority) = GeniHRN::Parse($dataset->aggregate_urn());
-	    if ($d_authority ne $authority) {
+	    my ($domain,$subauth) = split(":", $authority);
+	    if ($domain ne $d_authority) {
 		$$pmsg = "Persistent dataset '$pid/$id' in not on $authority";
 		return 1;
 	    }
 
 	    #
-	    # Basic permission checks, very little support at the moment.
-	    # Just make sure that the profile and the dataset are in the
-	    # same pid.
+	    # XXX Need basic frontend permission checks?
 	    #
-	    if ($ppid ne $dataset->pid()) {
-		$$pmsg = "Not allowed to use dataset '$pid/$id' in profile";
-		return 1;
-	    }
 	}
     }
     return 0;

@@ -365,6 +365,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	 * ppstart js code.
 	 */
 	$('#profile_instantiate_button').click(function (event) {
+	    if (true) {
+		window.location.replace("instantiate.php?profile=" +
+					version_uuid);
+		return;
+	    }
 	    if (isppprofile) {
 		ppstart({uuid       : version_uuid,
 			 registered : true,

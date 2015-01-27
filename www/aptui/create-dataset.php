@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -116,7 +116,8 @@ if (! isset($create)) {
 
     $defaults["dataset_type"]   = 'stdataset';
     $defaults["dataset_fstype"] = 'ext3';
-    $defaults["dataset_who"]    = 'shared';
+    $defaults["dataset_read"]   = 'project';
+    $defaults["dataset_modify"] = 'creator';
     # Default project.
     if (count($projlist) == 1) {
 	$defaults["dataset_pid"] = $projlist[0];

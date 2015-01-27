@@ -56,6 +56,7 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "verify",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
 				 "asguest",       PAGEARG_BOOLEAN,
+				 "default",       PAGEARG_STRING,
 				 "formfields",    PAGEARG_ARRAY);
 
 if ($ISAPT && !$this_user) {
@@ -77,7 +78,9 @@ if ($ISAPT && !$this_user) {
 	}
     }
 }
-
+if ($this_user) {
+    $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
+}
 if ($ISCLOUD) {
     $profile_default     = "ARM64OpenStack";
     $profile_default_pid = "emulab-ops";
@@ -189,8 +192,13 @@ else {
 		     "order by p.topdog desc");
     while ($row = mysql_fetch_array($query_result)) {
 	$profile_array[$row["uuid"]] = $row["name"];
-	if ($row["pid"] == $profile_default_pid &&
-	    $row["name"] == $profile_default) {
+        if (isset($default)) {
+            if ($default == $row["uuid"]) {
+                $profile_default = $row["uuid"];
+            }
+        }
+        elseif ($row["pid"] == $profile_default_pid &&
+                $row["name"] == $profile_default) {
 	    $profile_default = $row["uuid"];
 	}
     }
@@ -200,6 +208,7 @@ function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $APTMAIL, $ISCLOUD;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
+    global $projlist;
     $amlist     = array();
     $showabout  = ($ISCLOUD || !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
@@ -228,7 +237,7 @@ function SPITFORM($formfields, $newuser, $errors)
 	echo "<div class='$class'>\n";
 	echo "     $html\n";
 	if ($errors && array_key_exists($field, $errors)) {
-	    echo "<label class='control-label' for='inputError'>" .
+	    echo "<label class='control-label' for='$field'>" .
 		$errors[$field] . "</label>\n";
 	}
 	echo "</div>\n";
@@ -409,6 +418,37 @@ function SPITFORM($formfields, $newuser, $errors)
 	$spitsshkeystuff();	
     }
 
+    #
+    # Spit out a project selection list if more then one project membership
+    #
+    if ($this_user) {
+        if (count($projlist) == 1) {
+            echo "<input id='profile_pid' type='hidden'
+                     name='formfields[pid]'
+                     value='" . $formfields["pid"] . "'>\n";
+        }
+        else {
+            $project_options = "";
+            while (list($pid) = each($projlist)) {
+                $selected = "";
+                if ($formfields["pid"] == $pid) {
+                    $selected = "selected";
+                }
+                $project_options .= 
+                    "<option $selected value='$pid'>$pid</option>\n";
+            }
+            $html =
+                "<div class='form-horizontal'><div class='form-group'>
+                   <label class='col-sm-4 control-label'
+                      style='text-align: right;'>Project:</label>
+                   <div class='col-sm-6'>
+                       <select name=\"formfields[pid]\"
+		              id='profile_pid' class='form-control'>
+                       $project_options</select></div></div></div>\n";
+            echo $html;
+        }
+    }
+
     if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY())) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
@@ -420,10 +460,15 @@ function SPITFORM($formfields, $newuser, $errors)
 	    $am_options .= 
 		"<option $selected value='$am'>$am</option>\n";
 	}
-	$formatter("where",
-		   "<select name=\"formfields[where]\"
-		              id='profile_where' class='form-control'>".
-		   "$am_options</select>");
+        $html =
+                "<div class='form-horizontal'><div class='form-group'>
+                   <label class='col-sm-4 control-label'
+                      style='text-align: right;'>Cluster:</label>
+                   <div class='col-sm-6'>
+                       <select name=\"formfields[where]\"
+		              id='profile_where' class='form-control'>
+                       $am_options</select></div></div><div>\n";
+            echo $html;
     }
     echo "</fieldset>
            <div class='form-group row'>
@@ -501,6 +546,14 @@ if (!isset($create)) {
     $defaults["profile"]  = (isset($profile) ?
                              $profile->uuid() : $profile_default);
     $defaults["where"]    = $DEFAULT_AGGREGATE;
+    if ($this_user && count($projlist)) {
+	list($project, $grouplist) = each($projlist);
+        $defaults["pid"] = $project;
+        reset($projlist);
+    }
+    else {
+        $defaults["pid"] = "";
+    }
 
     # 
     # Look for current user or cookie that tells us who the user is. 
@@ -537,6 +590,14 @@ if (!isset($create)) {
 		       $instance->uuid());
 		return;
 	    }
+            #
+            # Watch for too many instances by guest user and redirect
+            # to the signup page.
+            #
+            if (Instance::GuestInstanceCount($geniuser) > $MAXGUESTINSTANCES) {
+		header("Location: signup.php?toomany=1");
+		return;
+            }
 	    $defaults["username"] = $geniuser->name();
 	    $defaults["email"]    = $geniuser->email();
 	    $defaults["sshkey"]   = $geniuser->SSHKey();
@@ -583,6 +644,24 @@ else {
     $profile = Profile::Lookup($formfields["profile"]);
     if (!$profile) {
 	$errors["profile"] = "No such profile in the database";
+    }
+}
+
+if ($this_user) {
+    #
+    # Project has to exist.  
+    #
+    $project = Project::LookupByPid($formfields["pid"]);
+    if (!$project) {
+        $errors["pid"] = "No such project";
+    }
+    # User better be a member.
+    elseif (!ISADMIN() &&
+        (!$project->IsMember($this_user, $isapproved) || !$isapproved)) {
+        $errors["pid"] = "Illegal project";
+    }
+    else {
+        $args["pid"] = $project->pid_idx();
     }
 }
 
@@ -699,6 +778,14 @@ if (!$this_user &&
 		       $instance->uuid());
 		return;
 	    }
+            #
+            # Watch for too many instances by guest user and redirect
+            # to the signup page.
+            #
+            if (Instance::GuestInstanceCount($geniuser) > $MAXGUESTINSTANCES) {
+		header("Location: signup.php?toomany=1");
+		return;
+            }
 	}
 	# Pass to backend to save in user object.
 	$args["auth_token"] = $stuffing;

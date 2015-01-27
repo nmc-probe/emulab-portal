@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -269,6 +269,7 @@ if (!TBAdmin() &&
     ! $experiment->AccessCheck($this_user, TB_EXPT_DESTROY)) {
     fatal("You do not have permission to map this experiment!");
 }
+my $real_user = User->RealUser();
 
 # multiplex_factor default.
 $mfactor = $experiment->multiplex_factor()
@@ -353,7 +354,7 @@ sub MapperWrapper()
 	if ($regression);
 
     TBDebugTimeStamp("Create libvtop started");
-    $vtop = libvtop->Create($experiment, $this_user, $vtopflags);
+    $vtop = libvtop->Create($experiment, $this_user, $vtopflags, $real_user);
     if (!defined($vtop)) {
 	fatal("Could not create vtop structure for $experiment");
     }

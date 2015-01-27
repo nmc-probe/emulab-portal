@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -155,7 +155,8 @@ sub DoCreate()
 {
     my $usage = sub {
 	print STDERR "Usage: manage_dataset create ".
-	    "[-t type] [-f fstype] [-e expiration] [-p privacy] ".
+	    "[-t type] [-f fstype] [-e expiration] ".
+	    "[-R global|project] [-W creator|project] ".
 	    "-s size pid/name\n";
 	exit(-1);
     };
@@ -164,12 +165,13 @@ sub DoCreate()
     my $errmsg;
     my $pid;
     my $expires;
-    my $privacy = "private";
     my $size;
     my $type = "stdataset";
     my $fstype;
+    my $read_access;
+    my $write_access;
     
-    my $optlist = "ds:t:e:f:w:p:";
+    my $optlist = "ds:t:e:f:w:p:R:W:";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	&$usage();
@@ -187,10 +189,20 @@ sub DoCreate()
 	&$usage()
 	    if ($fstype !~ /^(ext2|ext3|ext4|ufs|ufs2)$/);
     }
-    if (defined($options{"p"})) {
-	$privacy = $options{"p"};
+    if (defined($options{"f"})) {
+	$fstype = $options{"f"};
 	&$usage()
-	    if ($privacy !~ /^(private|shared|public)$/);
+	    if ($fstype !~ /^(ext2|ext3|ext4|ufs|ufs2)$/);
+    }
+    if (defined($options{"R"})) {
+	$read_access = $options{"R"};
+	&$usage()
+	    if ($read_access !~ /^(global|project)$/);
+    }
+    if (defined($options{"W"})) {
+	$write_access = $options{"W"};
+	&$usage()
+	    if ($write_access !~ /^(creator|project)$/);
     }
     if (defined($options{"s"})) {
 	if ($options{"s"} =~ /^(\d+)$/) {
@@ -253,12 +265,10 @@ sub DoCreate()
 	if (defined($fstype));
     $blob->{"expires"} = TBDateStringLocal($expires)
 	if (defined($expires));
-    if ($privacy eq "shared") {
-	$blob->{'shared'} = 1;
-    }
-    elsif ($privacy eq "public") {
-	$blob->{'public'} = 1;
-    }
+    $blob->{"read_access"} = $read_access
+	if (defined($read_access));
+    $blob->{"write_access"} = $write_access
+	if (defined($write_access));
 
     my $dataset = APT_Dataset->Create($blob);
     if (!defined($dataset)) {
@@ -275,7 +285,8 @@ sub DoCreate()
 	goto failed;
     }
     $blob = $response->value();
-    $dataset->Update({"remote_uuid" => $blob->{"uuid"}});
+    $dataset->Update({"remote_uuid" => $blob->{"uuid"},
+		      "remote_urn"  => $blob->{"urn"}});
     #
     # Okay, this is silly; there is no distinct state for resource allocation.
     # It is unapproved and locked. The other side tells us its locked in the
@@ -440,10 +451,10 @@ sub DoModify()
     
     my $usage = sub {
 	print STDERR "Usage: manage_dataset modify ".
-	    "[-e expiration] [-p privacy] pid/name\n";
+	    "[-R global|project] [-W creator|project] pid/name\n";
 	exit(-1);
     };
-    my $optlist = "e:p:";
+    my $optlist = "R:W:";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	&$usage();
@@ -456,39 +467,25 @@ sub DoModify()
     if (!defined($dataset)) {
 	fatal("No such dataset");
     }
-    if (defined($options{"p"})) {
+    my $blob = {};
+    if (defined($options{"R"})) {
+	my $read_access = $options{"R"};
 	&$usage()
-	    if ($options{"p"} !~ /^(private|shared|public)$/);
+	    if ($read_access !~ /^(global|project)$/);
+	$blob->{'read_access'} = $read_access;
     }
-    if (defined($options{"e"})) {
-	my $expires = str2time($options{"e"});
-	if (!defined($expires)) {
-	    fatal("Could not parse expiration date.");
-	}
+    if (defined($options{"W"})) {
+	my $write_access = $options{"W"};
+	&$usage()
+	    if ($write_access !~ /^(creator|project)$/);
+	$blob->{'write_access'} = $write_access;
     }
     if ($dataset->Lock()) {
 	fatal("dataset is busy, cannot lock it");
     }
-    if (defined($options{"p"})) {
-	my $privacy = $options{"p"};
-	my $blob    = {"shared" => 0, "public" => 0};
-
-	if ($privacy eq "shared") {
-	    $blob->{'shared'} = 1;
-	}
-	elsif ($privacy eq "public") {
-	    $blob->{'public'} = 1;
-	}
-	if ($dataset->Update($privacy)) {
+    if (keys(%$blob)) {
+	if ($dataset->Update($blob)) {
 	    $errmsg = "Could not update privacy settings!";
-	    goto failed;
-	}
-    }
-    if (defined($options{"e"})) {
-	my $expires = $options{"e"};
-	print "$expires\n";
-	if ($dataset->Update({"expires" => TBDateStringLocal($expires)})) {
-	    $errmsg = "Could not update expiration!";
 	    goto failed;
 	}
     }
@@ -502,7 +499,7 @@ sub DoModify()
 	}
 	goto failed;
     }
-    my $blob = $response->value();
+    $blob = $response->value();
     $dataset->Update({"expires" => TBDateStringLocal($blob->{"expires"})});
     $dataset->Unlock();
     return 0;

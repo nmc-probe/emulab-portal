@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -62,6 +62,7 @@ use emutil;
 use EmulabConstants;
 use libEmulab;
 use Lan;
+use User;
 use Experiment;
 use NodeType;
 use English;
@@ -122,6 +123,7 @@ my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
+my $PROTOGENI_LOCALUSER= @PROTOGENI_LOCALUSER@;
 
 #
 # Tell the client what API revision we support.  The correspondence
@@ -5494,11 +5496,17 @@ sub CreateUserFromCertificate($)
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				    "Malformed URN");
     }
-    my $urn = $certificate->urn();
+    my $urn   = $certificate->urn();
+    my $email = $certificate->email();
 
     # Local users always exist, so pass flag.
     my $user = GeniUser->Lookup($certificate->urn(), 1);
     if (defined($user)) {
+	if ($PROTOGENI_LOCALUSER && !$user->IsLocal()) {
+	    # Already exists as a geni user, need to make a real user.
+	    return GeniUtil::CreateLocalUser($urn, $email);
+	}
+
 	#
 	# See if the certificate changed. If it did, we have to update the
 	# user record, but we want to use the old uuid since that is our
@@ -5553,7 +5561,6 @@ sub CreateUserFromCertificate($)
     # the PLC to get it (and a proper name).
     #
     my $modify = 0;
-    my $email  = $certificate->email();
     my $username;
     if (!defined($email) || $email eq "" || $email eq "unknown") {
 	if (! defined($authority->url()) || !$authority->IsSFA()) {
@@ -5591,6 +5598,9 @@ sub CreateUserFromCertificate($)
 	$username = ($username ? "$username " : "") . $blob->{'last_name'}
 	    if (exists($blob->{'last_name'}));
 	$modify = 1;
+    }
+    if ($PROTOGENI_LOCALUSER) {
+	return GeniUtil::CreateLocalUser($urn, $email);
     }
     $user = GeniUser->Create($certificate, $authority);
     return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
@@ -5830,7 +5840,12 @@ sub CleanupDeadSlice($;$)
     $purge = 1
 	if (!defined($purge));
 
-    if (!defined(FlipToUser($slice))) {
+    my $creator = GeniUser->Lookup($slice->creator_uuid(), 1);
+    if (!defined($creator)) {
+	print STDERR "CleanupDeadSlice: Could not find creator\n";
+	return -1;
+    }
+    if (!defined(FlipToUser($slice, $creator))) {
 	print STDERR "CleanupDeadSlice: Could not flip to user\n";
 	return -1;
     }
@@ -6132,12 +6147,13 @@ sub GeniExperiment($;$)
     else {
 	GeniUtil::FlipToGeniUser($project->unix_gid());
     }
+    my $creator_arg = ($PROTOGENI_LOCALUSER ? "-C " . $creator->uid() : "");
 
     # Note the -h option; allows experiment with no NS file.
     system("$CREATEEXPT -N -q -i -k -w ".
 	   "-S 'Geni Slice Experiment -- DO NOT SWAP OR TERMINATE' ".
 	   "-E '$urn' ".
-	   "-h '$uuid' -p $pid -g $gid -e $eid");
+	   "-h '$uuid' $creator_arg -p $pid -g $gid -e $eid");
     my $saved_exitcode = $?;
 
     # Flip back to geni user. Will reset later.
@@ -6176,26 +6192,26 @@ sub FlipToUser($$)
     my $project = $experiment->GetProject();
     return undef
 	if (!defined($project));
+    my $group   = $project;
+    my $creator = $experiment->GetCreator();
+    return undef
+	if (!defined($creator));
+    $creator = GeniUser::LocalUser->Create($creator);
 
     #
-    # Nonlocal projects, operate as geniuser with added gid.
+    # Nonlocal projects, operate as creator (with added gid).
     # XXX watch for Legacy GeniSlices project.
     #
     if ($project->IsNonLocal() || $project->pid() eq "GeniSlices") {
-	require User;
-	
-	my $group = $experiment->GetGroup();
+	$group = $experiment->GetGroup();
 	return undef
 	    if (!defined($group));
 
-	my $geniuser = User->Lookup("geniuser");
+	$creator = User->Lookup("geniuser");
 	return undef
-	    if (!defined($geniuser));
-	$geniuser = GeniUser::LocalUser->Create($geniuser);
-
-	return undef
-	    if ($geniuser->FlipTo($group->unix_gid()));
-	return $geniuser;
+	    if (!defined($creator));
+	$user = GeniUser::LocalUser->Create($creator);
+	goto flip;
     }
 
     #
@@ -6204,29 +6220,22 @@ sub FlipToUser($$)
     # geniuser has no permissions in (not a member of) the project.
     #
     if (!defined($user) || !$user->IsLocal()) {
-      usecreator:
-	$user = $experiment->GetCreator();
-	return undef
-	    if (!defined($user));
-
-	# No subgroups yet.
-	return undef
-	    if ($user->FlipTo($project->unix_gid()));
-
-	return $user;
+	$user = $creator;
+	goto flip;
     }
     
     #
     # Local user, local project. Is the user a member of the project?
     # If not, then like above we have to operate as the experiment
     # creator since the user has no privs in the project. Generally,
-    # this will happen if a credential is delegated (rare) or if the
+    # this will happen if a credential is delegated or if the
     # creator binds a user to a slice. 
     #
-    goto usecreator
-	if (!$experiment->AccessCheck($user->emulab_user(),
-				      $Experiment::EXPT_ACCESS_MODIFY));
-
+    if (!$experiment->AccessCheck($user->emulab_user(),
+				  $Experiment::EXPT_ACCESS_MODIFY)) {
+	$user = $creator;
+    }
+  flip:
     return undef
 	if ($user->FlipTo($project->unix_gid()));
     return $user;
@@ -6838,13 +6847,21 @@ sub HandleBlockstore($$$$$$@)
 	    my $gid = $pid;
 	
 	    #
-	    # Look for a urn and possibly project qualified lease name.
+	    # Look for a urn and possibly project/group qualified lease name.
 	    #
 	    if (GeniHRN::IsValid($leasename)) {
-		my (undef,$type,$id) = GeniHRN::Parse($leasename);
+		my ($domainsubauth,$type,$id) = GeniHRN::Parse($leasename);
 		if ($type ne "dataset") {
 		    $message = "Illegal dataset urn for $leasename";
 		    goto bad;
+		}
+		my ($domain,$subauth) = split(":", $domainsubauth);
+		if ($domain ne $OURDOMAIN) {
+		    $message = "This is not the correct site for this dataset";
+		    goto bad;
+		}
+		if (defined($subauth)) {
+		    $pid = $subauth;
 		}
 		$leasename = $id;
 
@@ -6865,6 +6882,17 @@ sub HandleBlockstore($$$$$$@)
 		#
 		$message = "No such persistent dataset for $bsname: $leasename";
 		$errorcode = GENIRESPONSE_SEARCHFAILED;
+		goto bad;
+	    }
+	    if ($PROTOGENI_LOCALUSER) {
+		#
+		# We use the Emulab permission system.
+		#
+		goto permokay
+		    if ($lease->AccessCheck($geniuser->emulab_user(),
+					    LEASE_ACCESS_READ()));
+		$message = "Not enough permission to use dataset: $leasename";
+		$errorcode = GENIRESPONSE_FORBIDDEN;
 		goto bad;
 	    }
 	    # Local user can use their own local lease. 
@@ -6917,17 +6945,11 @@ sub HandleBlockstore($$$$$$@)
 
 	  permokay:
 	    #
-	    # We do not have shared readonly leases yet, so if the lease
-	    # is in use by another experiment, we have to fail.
+	    # Only one read-write user at a time.
 	    #
-	    if ($lease->InUse()) {
-		# This will always be one for now.
-		my ($reservation) = @{ $lease->GetReservations() };
-		if (defined($reservation) && 
-		    $reservation->exptidx() != $experiment->idx()) {
-		    $message = "Dataset $leasename is already in use";
-		    goto bad;
-		}
+	    if ($readonly && $lease->InUseReadWrite()) {
+		$message = "Dataset $leasename is already in use RW";
+		goto bad;
 	    }
 	    # We need some stuff from the blockstore to fill out the
 	    # virt tables below.

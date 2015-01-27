@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -233,6 +233,22 @@ class Instance
 
     function SendEmail($to, $subject, $msg, $headers) {
 	TBMAIL($to, $subject, $msg, $headers);
+    }
+
+    #
+    # How many experiments has a guest user created
+    #
+    function GuestInstanceCount($geniuser) {
+        $uid = $geniuser->uid();
+        
+        $query_result =
+            DBQueryFatal("select count(h.uuid) from apt_instance_history as h ".
+                         "left join geni.geni_users as u on ".
+                         "     u.uuid=h.creator_uuid ".
+                         "where h.creator='$uid' and u.email is not null");
+        
+	$row = mysql_fetch_row($query_result);
+	return $row[0];
     }
 }
 ?>

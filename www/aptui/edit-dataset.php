@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -113,8 +113,8 @@ if (! isset($create)) {
     $fields["dataset_expires"]  = ($dataset->expires() ?
 				   DateStringGMT($dataset->expires()) : "");
     $fields["dataset_uuid"]     = $uuid;
-    $fields["dataset_who"]      = $dataset->PrivacyString();
-
+    $fields["dataset_read"]     = $dataset->read_access();
+    $fields["dataset_modify"]   = $dataset->write_access();
 
     SPITFORM($fields, $errors);
     return;

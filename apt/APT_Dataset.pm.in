@@ -52,6 +52,9 @@ my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $OURDOMAIN     = "@OURDOMAIN@";
 
+# Debugging
+my $usemydevtree  = 0;
+
 #
 # Lookup by uuid.
 #
@@ -83,6 +86,27 @@ sub Lookup($$;$)
     return $self;
 }
 
+#
+# Lookup by remote URN.
+#
+sub LookupByRemoteURN($$)
+{
+    my ($class, $urn) = @_;
+
+    return undef
+	if (!GeniHRN::IsValid($urn));
+
+    my $safe_urn = DBQuoteSpecial($urn);
+    my $query_result =
+	DBQueryWarn("select uuid from apt_datasets ".
+		    "where remote_urn=$safe_urn");
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my ($uuid) = $query_result->fetchrow_array();
+    return Lookup($class, $uuid);
+}
+
 AUTOLOAD {
     my $self  = $_[0];
     my $type  = ref($self) or croak "$self is not an object";
@@ -108,9 +132,10 @@ sub DESTROY {
 sub ValidBlockstoreBackend($)
 {
     my ($authority) = @_;
+    my ($domain,$subauth) = split(":", $authority);
     
     return 1
-	if ($authority eq "emulab.net" || $authority eq "apt.emulab.net");
+	if ($domain eq "emulab.net" || $domain eq "apt.emulab.net");
 
     return 0;
 }
@@ -431,6 +456,8 @@ sub CreateDataset($)
 	"size"        => $self->size(),
 	"name"        => $self->dataset_id(),
 	"type"        => $self->type(),
+	"read_access" => $self->read_access(),
+	"write_access"=> $self->write_access(),
 	"credentials" => [$credential->asString(),
 			  $speaksfor_credential->asString()],
     };
@@ -440,7 +467,7 @@ sub CreateDataset($)
 	if (defined($self->expires()));
 
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "CreateDataset", $args);
 }
@@ -471,7 +498,7 @@ sub DeleteDataset($)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "DeleteDataset", $args);
 }
@@ -498,15 +525,13 @@ sub ModifyDataset($)
 
     my $args = {
 	"name"        => $self->dataset_id(),
+	"read_access" => $self->read_access(),
+	"write_access"=> $self->write_access(),
 	"credentials" => [$credential->asString(),
 			  $speaksfor_credential->asString()],
     };
-    # This is all we can change right now.
-    $args->{"expires"} = emutil::TBDateStringGMT($self->expires())
-	if (defined($self->expires()));
-    
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ModifyDataset", $args);
 }
@@ -538,7 +563,7 @@ sub ExtendDataset($)
 	"extend"      => 1,
     };
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ModifyDataset", $args);
 }
@@ -569,7 +594,7 @@ sub DescribeDataset($)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-#    $cmurl =~ s/protogeni/protogeni\/stoller/;
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "DescribeDataset", $args);
 }

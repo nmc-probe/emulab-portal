@@ -24,6 +24,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var isadmin     = 0;
     var isguest     = 0;
     var dossh       = 1;
+    var profile_uuid= null;
     var extend      = null;
     var status_collapsed  = false;
     var status_message    = "";
@@ -39,6 +40,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	isguest = !window.APT_OPTIONS.registered;
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
+	profile_uuid = window.APT_OPTIONS.profileUUID;
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 	var errorURL = (window.ISCLOUD ?
 			"cloudlab-ops@cloudlab.us" : "aptlab-ops@aptlab.net") +
@@ -203,7 +205,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 	    var callback = function(json) {
 		// This is considered the home page, for now.
-		window.location.replace('instantiate.php');
+		window.location.replace('instantiate.php?default=' +
+					profile_uuid);
 	    }
 	    sup.ShowModal("#waitwait-modal");
 

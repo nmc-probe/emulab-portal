@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2014 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -95,19 +95,23 @@ $VTOP_FLAGS_PREASSIGN	= 0x100;
 #
 # Create an object representing the stuff we need to create the vtop file.
 #
-sub Create($$$$)
+sub Create($$$$;$)
 {
-    my ($class, $experiment, $user, $flags) = @_;
+    my ($class, $experiment, $user, $flags, $realuser) = @_;
 
     my $virtexperiment = VirtExperiment->Lookup($experiment);
     if (!defined($virtexperiment)) {
 	tberror("Could not load virtual experiment object for $experiment\n");
 	return undef;
     }
+    # Permission checks made for real user, not effective user.
+    $realuser = $user
+	if (!defined($realuser));
 
     my $self              = {};
     $self->{'EXPERIMENT'} = $experiment;
     $self->{'USER'}       = $user;
+    $self->{'REALUSER'}   = $realuser;
     $self->{'VIRTEXPT'}   = $virtexperiment;
     $self->{'FLAGS'}      = $flags;
     $self->{'VNODES'}     = {};
@@ -162,6 +166,7 @@ sub Create($$$$)
 # accessors
 sub experiment($)       { return $_[0]->{'EXPERIMENT'}; }
 sub user($)             { return $_[0]->{'USER'}; }
+sub realuser($)         { return $_[0]->{'REALUSER'}; }
 sub virtexperiment($)   { return $_[0]->{'VIRTEXPT'}; }
 sub flags($)            { return $_[0]->{'FLAGS'}; }
 sub vnodes($)           { return $_[0]->{'VNODES'}; }
@@ -1654,36 +1659,42 @@ sub LoadVirtNodes($)
 	    if ((!TBSiteVarExists("storage/simultaneous_ro_datasets") ||
 		int(TBGetSiteVar("storage/simultaneous_ro_datasets")) != 1) &&
 		$lease->InUse()) {
-		tberror("Dataset $lease is currently in use, so cannot be accessed at this time.\n");
+		tberror("Dataset $lease is currently in use, ".
+			"so cannot be accessed at this time.\n");
 		return -1;
 	    }
 
 	    # Do sanity/permission checks based on requested mode (RW/RO)
 	    if (exists($roleases{$vname}) && $roleases{$vname} == 1) {
 		# Does user have RO rights to this lease?
-		if (!$lease->AccessCheck($self->user(), LEASE_ACCESS_READ())) {
-		    tberror($self->user() . " does not have permission to use dataset $lease\n");
+		if (!$lease->AccessCheck($self->realuser(),
+					 LEASE_ACCESS_READ())) {
+		    tberror("Not allowed to use dataset $lease in RO mode\n");
 		    return -1
 		}
 		# Leases already in use RW cannot be accessed.
 		if ($lease->InUseReadWrite()) {
-		    tberror("Dataset $lease is currently in use read-write, so cannot be accessed at this time.\n");
+		    tberror("Dataset $lease is currently in use read-write, ".
+			    "so cannot be accessed at this time.\n");
 		    return -1;
 		}
 	    } else {
 		# Does user have RW rights?
-		if (!$lease->AccessCheck($self->user(), LEASE_ACCESS_MODIFY())) {
-		    tberror($self->user() . " is not allowed to use dataset $lease in read-write mode\n");
+		if (!$lease->AccessCheck($self->realuser(),
+					 LEASE_ACCESS_MODIFY())) {
+		    tberror("Not allowed to use dataset $lease in RW mode\n");
 		    return -1;
 		}
 		# RW mode is exclusive (single-experiment).
 		if ($lease->InUse()) {
-		    tberror("Dataset $lease is currently in use and cannot be requested read-write at this time.\n");
+		    tberror("Dataset $lease is currently in use and cannot ".
+			    "be requested read-write at this time.\n");
 		    return -1;
 		}
 		# Deny RW access if lease is in grace period.
 		if ($lease->state() eq LEASE_STATE_GRACE()) {
-		    tberror("Dataset $lease in grace period, must specify '\$$vname set-readonly 1' in NS file.\n");
+		    tberror("Dataset $lease in grace period, must ".
+			    "specify '\$$vname set-readonly 1' in NS file.\n");
 		    return -1;
 		}
 	    }

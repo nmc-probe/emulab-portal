@@ -18,6 +18,7 @@
 	      <% if (1 || projects) { %>
 	        <% if (editing || projects.length == 1) { %>
 	          <input name="dataset_pid" readonly
+			 id="dataset_pid"
 			 value="<%- formfields.dataset_pid %>"
 			 <% if (editing) { %> readonly <% } %>
 			 class="form-control format-me"
@@ -25,6 +26,7 @@
 			 data-key="dataset_pid">
 		<% } else { %>
 		  <select name="dataset_pid"
+			  id="dataset_pid"
 			  class='form-control format-me'
 			  data-key="dataset_pid"
 			  data-label="Project"
@@ -107,7 +109,7 @@
 		<input name="dataset_expires"
 		       style='position: relative; z-index:1000;'
 		       id='dataset_expires'
-		       <% if (editing && !isadmin) { %> readonly <% } %>
+		       <% if (editing) { %> readonly <% } %>
 		       value="<%- formfields.dataset_expires %>"
 		       class="form-control format-me"
 		       data-key="dataset_expires"
@@ -139,52 +141,71 @@
 		<% }); %>
 	      </select>
 	      <% } %>
-
-	      <% if (!embedded) { %>
 	      <!-- Permission checkboxes. -->
 	      <div class='row'>
 		<div class='col-sm-9 col-sm-offset-3'>
-		  Who can use your dataset?
+		  Who can read your dataset?
 		</div>
 	      </div>
-
 	      <div class='row'>
 		<div class='col-sm-8 col-sm-offset-4'>
-		  <div class='format-me' data-key='dataset_who'>
+		  <div class='format-me' data-key='dataset_read'>
 		    <div class='radio'>
                       <label>
-			<input type='radio' name='dataset_who'
-			       id='dataset_who_public'
-		               <% if (formfields.dataset_who == "public") {
+			<input type='radio' name='dataset_read'
+			       id='dataset_read_public'
+		               <% if (formfields.dataset_read == "global") {
 				  %>checked<% } %>
-			       value='public'>
-			<em>Anyone</em> on the internet (guest users)
+			       value='global'>
+			<em>Anyone</em>
     	              </label>
                     </div>
                     <div class='radio'>
                       <label>
-			<input type='radio' name='dataset_who'
-			       id='dataset_who_registered'
-		               <% if (formfields.dataset_who == "shared") {
+			<input type='radio' name='dataset_read'
+			       id='dataset_read_private'
+		               <% if (formfields.dataset_read == "project") {
 				  %>checked<% } %>
-			       value='shared'>
-			Only registered users
-    	              </label>
-                    </div>
-                    <div class='radio'>
-                      <label>
-			<input type='radio' name='dataset_who'
-			       id='dataset_who_private'
-		               <% if (formfields.dataset_who == "private") {
-				  %>checked<% } %>
-			       value='private'>
-			Only members of your project
+			       value='project'>
+			Only members of 
+			<span name="project_name">your project</span>
     	              </label>
                     </div>
                   </div>
 		</div>
               </div>
-	      <% } %>
+	      <div class='row'>
+		<div class='col-sm-9 col-sm-offset-3'>
+		  Who can write to your dataset?
+		</div>
+	      </div>
+	      <div class='row'>
+		<div class='col-sm-8 col-sm-offset-4'>
+		  <div class='format-me' data-key='dataset_modify'>
+                    <div class='radio'>
+                      <label>
+			<input type='radio' name='dataset_modify'
+			       id='dataset_modify_registered'
+		               <% if (formfields.dataset_modify == "creator") {
+				  %>checked<% } %>
+			       value='creator'>
+			Only you
+    	              </label>
+                    </div>
+                    <div class='radio'>
+                      <label>
+			<input type='radio' name='dataset_modify'
+			       id='dataset_modify_private'
+		               <% if (formfields.dataset_modify == "project") {
+				  %>checked<% } %>
+			       value='project'>
+			You and members of
+			<span name="project_name">your project</span>
+    	              </label>
+                    </div>
+                  </div>
+		</div>
+              </div>
 	      
 	      <% if (editing) { %>
 	      <input type='hidden' name='dataset_uuid'

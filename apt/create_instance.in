@@ -91,6 +91,7 @@ $| = 1;
 
 # Load the Testbed support stuff.
 use lib "@prefix@/lib";
+use EmulabConstants;
 use libtestbed;
 use libaudit;
 use APT_Profile;
@@ -98,6 +99,7 @@ use APT_Instance;
 use APT_Geni;
 use APT_Dataset;
 use User;
+use Project;
 use OSinfo;
 use emutil;
 use GeniDB;
@@ -251,7 +253,7 @@ foreach my $key ("username", "email", "profile") {
 #
 # Gather up args and sanity check.
 #
-my ($value, $user_urn, $user_uid, $user_hrn, $user_email,
+my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $project, $pid,
     $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg);
 
 #
@@ -456,6 +458,9 @@ if ($localuser) {
 	if (0) {
 	    fatal("Could not update ssh keys for nonlocal user");
 	}
+
+	# Nonlocal users get the holding project.
+	$pid = "CloudLab";
     }
     elsif (defined($sshkey) && !$emulab_user->LookupSSHKey($sshkey)) {
 	#
@@ -492,15 +497,32 @@ if ($localuser) {
 	$emulab_user->GenEncryptedCert()) {
 	fatal("Could not (re)generate encrypted certificate");
     }
+
+    # Local users are required to select a project.
+    if (! exists($xmlparse->{'attribute'}->{"pid"})) {
+	fatal("No project provided for new instance");
+    }
+    $project = Project->Lookup($xmlparse->{'attribute'}->{"pid"}->{"value"});
+    if (!defined($project)) {
+	fatal("Project provided does not exist");
+    }
+    if (!$project->AccessCheck($emulab_user, TB_PROJECT_CREATEEXPT)) {
+	fatal("No permission to create experiments in project $pid");
+    }
+    $pid = $project->pid();
 }
-elsif (!$localuser && defined($sshkey)) {
-    #
-    # Guest user; remember key. For now we accept only one key. We store
-    # it simply so we can display it again for the user in the web interface.
-    # We allow key reuse for existing users, see above.
-    #
-    $geniuser->DeleteKeys();
-    $geniuser->AddKey($sshkey);
+elsif (!$localuser) {
+    if (defined($sshkey)) {    #
+	# Guest user; remember key. For now we accept only one key. We store
+	# it simply so we can display it again for the user in the web
+	# interface.  We allow key reuse for existing users, see
+	# above.
+	#
+	$geniuser->DeleteKeys();
+	$geniuser->AddKey($sshkey);
+    }
+    # Guest users get a holding project.
+    $pid = "aptguests";
 }
 # There will be "internal" keys cause we pass the flag asking for them.
 my @sshkeys;
@@ -511,19 +533,22 @@ if ($geniuser->GetKeyBundle(\@sshkeys, 1) < 0 || !@sshkeys) {
 # Generate the extra credentials that tells the backend this experiment
 # can access the datasets.
 my @dataset_credentials = ();
-if (defined($profile) &&
-    CreateDatasetCreds($rspecstr,
-		       $profile->pid(), $geniuser, 
-		       \$errmsg, \@dataset_credentials)) {
-    fatal($errmsg);
+if (defined($profile)) {
+    my $retval = CreateDatasetCreds($rspecstr,
+				    $profile->pid(), $geniuser, 
+				    \$errmsg, \@dataset_credentials);
+    if ($retval) {
+	($retval < 0 ? fatal($errmsg) : UserError($errmsg));
+    }
 }
 
+#
 #
 # Now generate a slice registration and credential
 #
 my $safe_uid    = $user_uid; $safe_uid =~ s/_/-/;
 my $slice_id    = $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
-my $slice_urn   = GeniHRN::Generate($OURDOMAIN, "slice", $slice_id);
+my $slice_urn   = GeniHRN::Generate("${OURDOMAIN}:${pid}", "slice", $slice_id);
 my $slice_hrn   = "${PGENIDOMAIN}.${slice_id}";
 my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
 
@@ -590,16 +615,22 @@ my $quickvm_uuid = (defined($quickuuid) ? $quickuuid : NewUUID());
 if (!defined($quickvm_uuid)) {
     fatal("Could not generate a new uuid");
 }
-my $instance = APT_Instance->Create({'uuid'         => $quickvm_uuid,
-				     'profile_id'   => $profileid,
-				     'profile_version' => $version,
-				     'slice_uuid'   => $slice_uuid,
-				     'creator'      => $geniuser->uid(),
-				     'creator_idx'  => $geniuser->idx(),
-				     'creator_uuid' => $geniuser->uuid(),
-				     'aggregate_urn'=> $CMURN,
-				     'status'       => "created",
-				     'servername'   => $SERVER_NAME});
+my $blob = {'uuid'         => $quickvm_uuid,
+	    'profile_id'   => $profileid,
+	    'profile_version' => $version,
+	    'slice_uuid'   => $slice_uuid,
+	    'creator'      => $geniuser->uid(),
+	    'creator_idx'  => $geniuser->idx(),
+	    'creator_uuid' => $geniuser->uuid(),
+	    'aggregate_urn'=> $CMURN,
+	    'status'       => "created",
+	    'servername'   => $SERVER_NAME
+};
+if (defined($project)) {
+    $blob->{"pid"}     = $project->pid();
+    $blob->{"pid_idx"} = $project->pid_idx();
+}
+my $instance = APT_Instance->Create($blob);
 if (!defined($instance)) {
     $slice->Delete();
     fatal("Could not create instance record for $quickvm_uuid");
@@ -796,8 +827,11 @@ sub CreateDatasetCreds($$$$$)
 	    }
 	    my $dataset = APT_Dataset->Lookup("$pid/$id");
 	    if (!defined($dataset)) {
-		$$pmsg = "Persistent dataset '$pid/$id' does not exist";
-		return 1;
+		$dataset = APT_Dataset->LookupByRemoteURN($leaseurn);
+		if (!defined($dataset)) {
+		    $$pmsg = "Persistent dataset '$pid/$id' does not exist";
+		    return 1;
+		}
 	    }
 	    my $certificate = $dataset->GetCertificate();
 	    if (!defined($certificate)) {

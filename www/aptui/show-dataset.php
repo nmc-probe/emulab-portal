@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -91,7 +91,8 @@ $fields["dataset_lastused"] = ($dataset->last_used() ?
 			       DateStringGMT($dataset->last_used()) : "");
 $fields["dataset_uuid"]     = $uuid;
 $fields["dataset_urn"]      = $dataset->URN();
-$fields["dataset_who"]      = $dataset->PrivacyString();
+$fields["dataset_read"]     = $dataset->read_access();
+$fields["dataset_write"]    = $dataset->write_access();
 if (ISADMIN()) {
     $fields["dataset_idx"]  = $dataset->idx();
 }

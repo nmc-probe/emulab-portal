@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -21,6 +21,9 @@
 # 
 # }}}
 #
+
+define("GLOBAL_PERM_ANON_RO_IDX",  1);
+define("GLOBAL_PERM_USER_RO_IDX",  2);
 
 class Lease
 {
@@ -151,11 +154,37 @@ class Lease
 	return 0;
     }
 
-    #
-    # Return a privacy string (public,shared,private).
-    #
-    function PrivacyString() {
-	return "private";
+    function read_access() {
+        $lease_idx = $this->lease_idx();
+        $perm_idx  = GLOBAL_PERM_ANON_RO_IDX;
+
+        $query_result =
+            DBQueryFatal("select * from lease_permissions ".
+                         "where lease_idx='$lease_idx' and ".
+                         "      permission_idx='$perm_idx'");
+        
+	if (mysql_num_rows($query_result) == 0) {
+	    return "project";
+	}
+        else {
+            return "global";
+        }
+    }
+    function write_access() {
+        $lease_idx = $this->lease_idx();
+        $pid       = $this->pid();
+
+        $query_result =
+            DBQueryFatal("select * from lease_permissions ".
+                         "where lease_idx='$lease_idx' and ".
+                         "      permission_id='$pid' and allow_modify=1");
+        
+	if (mysql_num_rows($query_result)) {
+	    return "project";
+	}
+        else {
+            return "creator";
+        }
     }
 
     #
@@ -164,7 +193,7 @@ class Lease
     function URN() {
 	global $OURDOMAIN;
 	
-	return "urn:publicid:IDN+${OURDOMAIN}+dataset+" . $this->id();
+	return "urn:publicid:IDN+${OURDOMAIN}+dataset+" . $this->idx();
     }
     
 }

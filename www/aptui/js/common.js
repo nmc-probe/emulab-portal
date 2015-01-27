@@ -35,6 +35,7 @@ window.APT_OPTIONS.configObject = {
 window.APT_OPTIONS.initialize = function (sup)
 {
     var geniauth = "https://www.emulab.net/protogeni/speaks-for/geni-auth.js";
+    var embedded = window.EMBEDDED;
 
     // Every page calls this, and since the Login button is on every
     // page, do this initialization here. 
@@ -58,7 +59,7 @@ window.APT_OPTIONS.initialize = function (sup)
 	    sup.ShowModal('#quickvm_login_modal');
 	    if (window.ISCLOUD) {
 		console.info("Loading geni auth code");
-		sup.InitGeniLogin();
+		sup.InitGeniLogin(embedded);
 		require([geniauth], function() {
 		    console.info("Geni auth code has been loaded");
 		    $('#quickvm_geni_login_button').removeAttr("disabled");

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -94,6 +94,7 @@ class Dataset
     function pid_idx()       { return $this->field("pid_idx"); }
     function gid()           { return $this->pid(); }
     function aggregate_urn() { return $this->field("aggregate_urn"); }
+    function remote_urn()    { return $this->field("remote_urn"); }
     function type()          { return $this->field("type"); }
     function fstype()        { return $this->field("fstype"); }
     function created()       { return NullDate($this->field("created")); }
@@ -103,6 +104,8 @@ class Dataset
     function size()	     { return $this->field("size"); }
     function locked()	     { return $this->field("locked"); }
     function locker_pid()    { return $this->field("locker_pid"); }
+    function read_access()   { return $this->field("read_access"); }
+    function write_access()  { return $this->field("write_access"); }
     function ispublic()      { return $this->field("public"); }
     function shared()        { return $this->field("shared"); }
     function islocal()       { return 0; }
@@ -124,27 +127,10 @@ class Dataset
     }
 
     #
-    # Return a privacy string (public,shared,private).
-    #
-    function PrivacyString() {
-	if ($this->shared())
-	    return "shared";
-	elseif ($this->ispublic())
-	    return "public";
-	else
-	    return "private";
-    }
-
-    #
     # Form a URN for the dataset.
     #
     function URN() {
-	if (!preg_match("/^([^\+]+)\+([^\+]+)/",
-			$this->aggregate_urn(), $matches)) {
-	    return "";
-	}
-	return $matches[1] . "+" . $matches[2] . "+dataset+" .
-	    $this->pid() . "//" . $this->id();
+        return $this->remote_urn();
     }
 }
 ?>

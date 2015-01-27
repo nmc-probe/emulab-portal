@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -56,10 +56,8 @@ function Do_CreateDataSet()
 	$command = "webmanage_dataset create ";
     }
     $required = array("dataset_pid", "dataset_name", "dataset_type",
-		      "dataset_size", "dataset_fstype");
-    if (!$embedded) {
-	$required[] = "dataset_who";
-    }
+		      "dataset_size", "dataset_fstype", "dataset_read",
+                      "dataset_modify");
 
     foreach ($required as $field) {
 	if (!isset($formfields[$field]) || $formfields[$field] == "") {
@@ -122,15 +120,19 @@ function Do_CreateDataSet()
 	$command .= " -s " . $formfields["dataset_size"];
     }
     # Permission bits.
-    if (!$embedded) {
-	if ($formfields["dataset_who"] != "public" &&
-	    $formfields["dataset_who"] != "shared" &&
-	    $formfields["dataset_who"] != "private") {
-	    $errors["dataset_who"] = "Illegal value";
-	}
-	else {
-	    $command .= " -p " . $formfields["dataset_who"];
-	}
+    if ($formfields["dataset_read"] != "global" &&
+        $formfields["dataset_read"] != "project") {
+        $errors["dataset_read"] = "Illegal value";
+    }
+    else {
+        $command .= " -R " . $formfields["dataset_read"];
+    }
+    if ($formfields["dataset_modify"] != "creator" &&
+        $formfields["dataset_modify"] != "project") {
+        $errors["dataset_modify"] = "Illegal value";
+    }
+    else {
+        $command .= " -W " . $formfields["dataset_modify"];
     }
     if (count($errors)) {
 	SPITAJAX_ERROR(2, $errors);
@@ -208,35 +210,19 @@ function Do_ModifyDataSet()
 	SPITAJAX_ERROR(1, "Not enough permission");
 	return;
     }
-    if ($islease) {
-	$command = "webmodlease ";
-    }
-    else {
-	$command = "webmanage_dataset modify ";
-    }
-
-    if ($dataset->type() == "stdataset") {
-	if (!isset($formfields["dataset_expires"]) ||
-	    $formfields["dataset_expires"] == "") {
-	    $errors["dataset_expires"] = "Missing field";
-	}
-	elseif (!strtotime($formfields["dataset_expires"])) {
-	    $errors["dataset_expires"] = "Illegal value";
-	}
-	else {
-	    $command .= " -e " .
-		escapeshellarg($formfields["dataset_expires"]);
+    #
+    # All we can do on this path is change the permission bits,
+    #
+    if (isset($formfields["dataset_read"])) {
+	if ($formfields["dataset_read"] != "global" &&
+	    $formfields["dataset_read"] != "project") {
+	    $errors["dataset_read"] = "Illegal value";
 	}
     }
-    # Permission bits.
-    if (isset($formfields["dataset_who"])) {
-	if ($formfields["dataset_who"] != "public" &&
-	    $formfields["dataset_who"] != "shared" &&
-	    $formfields["dataset_who"] != "private") {
-	    $errors["dataset_who"] = "Illegal value";
-	}
-	elseif ($dataset->PrivacyString() != $formfields["dataset_who"]) {
-	    $command .= " -p " . $formfields["dataset_who"];
+    if (isset($formfields["dataset_write"])) {
+	if ($formfields["dataset_write"] != "creator" &&
+	    $formfields["dataset_write"] != "project") {
+	    $errors["dataset_write"] = "Illegal value";
 	}
     }
     if (count($errors)) {
@@ -247,13 +233,28 @@ function Do_ModifyDataSet()
 	SPITAJAX_RESPONSE(0);
 	return;
     }
-    $command .= " " . $dataset->pid() . "/" . $dataset->id();
-
-    $retval = SUEXEC($this_uid, $dataset->pid(),
-		     $command, SUEXEC_ACTION_CONTINUE);
-    if ($retval) {
-	SPITAJAX_ERROR(1, $suexec_output);
-	return;
+    $leaseid = $dataset->pid() . "/" . $dataset->id();
+    $command = ($islease ? "webgrantlease " : "webmanage_dataset modify ");
+    
+    if (isset($formfields["dataset_read"])) {
+        $perm   = $formfields["dataset_read"];
+        $retval = SUEXEC($this_uid, $dataset->pid(),
+                         "$command -R $perm $leaseid",
+                         SUEXEC_ACTION_CONTINUE);
+        if ($retval) {
+            SPITAJAX_ERROR(1, $suexec_output);
+            return;
+        }
+    }
+    if (isset($formfields["dataset_write"])) {
+        $perm   = $formfields["dataset_write"];
+        $retval = SUEXEC($this_uid, $dataset->pid(),
+                         "$command -W $perm $leaseid",
+                         SUEXEC_ACTION_CONTINUE);
+        if ($retval) {
+            SPITAJAX_ERROR(1, $suexec_output);
+            return;
+        }
     }
     SPITAJAX_RESPONSE("show-dataset.php?uuid=$dataset_uuid");
 }

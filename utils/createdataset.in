@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013-2014 University of Utah and the Flux Group.
+# Copyright (c) 2013-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,7 +46,7 @@ sub usage()
     print STDERR "   name      Name (in the form <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhUo:s:t:e:a:f:bC";
+my $optlist  = "dhUo:s:t:e:a:f:bCR:W:";
 my $debug = 0;
 my $background = 0;
 my $pid;
@@ -61,6 +61,8 @@ my $approveme = 1;
 my $alwayscreate = 0;
 my $attrstr = "";
 my %attrs = ();
+my $read_access;
+my $write_access;
 
 my $qname = "global_ltdataset";
 my $quota;
@@ -85,6 +87,7 @@ my $TBBASE  	 = "@TBBASE@";
 # Testbed Support libraries
 #
 use lib "@prefix@/lib";
+use EmulabConstants;
 use libtestbed;
 use libdb;
 use Quota;
@@ -167,6 +170,20 @@ if (defined($options{e})) {
 }
 if (defined($options{a})) {
     $attrstr = $options{a};
+}
+if (defined($options{"R"})) {
+    $read_access = $options{"R"};
+    if (! ($read_access eq "project" || $read_access eq "global")) {
+	print STDERR "Illegal read access setting\n";
+	usage();
+    }
+}
+if (defined($options{"W"})) {
+    $write_access = $options{"W"};
+    if (! ($write_access eq "creator" || $write_access eq "project")) {
+	print STDERR "Illegal write access setting\n";
+	usage();
+    }
 }
 
 if (!$size || @ARGV != 1) {
@@ -396,6 +413,18 @@ my $lease_uuid = $lease->uuid();
 if (defined($quota)) {
     $quota->Unlock();
     $quota = undef;
+}
+
+# Deal with permissions that come in from the Geni interface.
+if (defined($read_access)) {
+    if ($read_access eq "global") {
+	$lease->GrantAccess(GLOBAL_PERM_ANON_RO(), 0);
+    }
+}
+if (defined($write_access)) {
+    if ($write_access eq "project") {
+	$lease->GrantAccess($project, 1);
+    }
 }
 
 #

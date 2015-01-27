@@ -45,6 +45,7 @@ use Date::Parse;
 use Time::Local;
 use GeniHRN;
 use GeniResponse;
+use EmulabConstants;
 
 # Configure variables
 my $TB		       = "@prefix@";
@@ -59,6 +60,7 @@ my $GENIGROUP          = "GeniSlices";
 my $PROTOUSER          = "elabman";
 my $PROTOPROJ          = "emulab-ops";
 my $USELOCALPROJ       = 0;
+my $PROTOGENI_LOCALUSER= @PROTOGENI_LOCALUSER@;
 my $WITHZFS            = @WITHZFS@;
 my $ZFS_NOEXPORT       = @ZFS_NOEXPORT@;
 my $SUDO               = "/usr/local/bin/sudo";
@@ -67,6 +69,8 @@ my $NEWGROUP           = "$TB/bin/newgroup";
 my $NEWPROJECT         = "$TB/sbin/newproj";
 my $MAKEPROJECT        = "$TB/sbin/mkproj";
 my $EXPORTSSETUP       = "$TB/sbin/exports_setup";
+my $MODGROUPS          = "$TB/sbin/modgroups";
+my $CREATEGENIUSER     = "$TB/sbin/protogeni/creategeniuser";
 
 use vars qw($EXTENSIONS_NS $XSI_NS $EXTENSIONS_PREFIX $EXTENSIONS_SCHEMA_LOCATION $CREDENTIAL_SCHEMA_LOCATION);
 #Extensions namespace URI.
@@ -246,58 +250,57 @@ sub GetHoldingProject($$)
     require Project;
     require Group;
 
-    #
-    # If the slice is from this Emulab (SA), then we are going to create the
-    # experiment in the local project.
-    #
-    if (GeniHRN::Authoritative($urn, $OURDOMAIN) && $USELOCALPROJ) {
-	#
-	# If no creator, this is a placeholder slice. Since its local
-	# we can come up with a creator, but later.
-	#
-	if (!defined($creator)) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				"Cannot do local placeholder slices yet");
-	}
+    {
+	my ($domainsubauth, undef, undef) = GeniHRN::Parse($urn);
+	my ($domain,$subauth) = split(":", $domainsubauth);
+	my ($project_id,$group_id,$project_urn);
 	
-	#
-	# For now, the creator has to be a local user and have their
-	# default project set. Until we have project signed credentials.
-	#
-	if (! $creator->IsLocal()) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-			"$creator is not a local user for local project");
+	if ($PROTOGENI_LOCALUSER && defined($subauth)) {
+	    if (GeniHRN::Authoritative($urn, $OURDOMAIN)) {
+		#
+		# Local user. Confirm a member of the project, and if so
+		# operate in that project (as that user).
+		#
+		$project = Project->Lookup($subauth);
+		if (!defined($project)) {
+		    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						"local project does not exist");
+		}
+		if ($creator->IsLocal() &&
+		    $creator->emulab_user()->IsLocal() &&
+		    defined($project->LookupUser($creator->emulab_user()))) {
+		    $group = $project->GetProjectGroup();
+		    goto done;
+		}
+		# Fall through.
+	    }
+	    
+	    #
+	    # The subauth is the project name, but make sure no dots. Also,
+	    # it could easily conflict with a local project name, so have
+	    # to form a unique name. Also, in an attempt to avoid conflict
+	    # with future local project names, always append to the name.
+	    #
+	    $project_urn = GeniHRN::Generate($domainsubauth, "authority", "sa");
+	    $project_id  = $subauth;
+	    $project_id  =~ s/\./-/g;
+
+	    if (!Project->ValidPID($project_id)) {
+		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+			"Not a valid local project name for $project_urn");
+	    }
 	}
-	if (!defined($creator->DefaultProject())) {
-	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					"No default project for $creator");
-	}
-	$project = $creator->DefaultProject();
-	if (!defined($project)) {
-	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				"Could not get local project for slice");
-	}
-	# No sub groups for local projects. Maybe later?
-	$group = $project->GetProjectGroup();
-    }
-    else {
-	#
-	# The top level domain of the SA becomes the project name, but the
-	# dots are illegal of course, and there might be sub authorities
-	# (colon separated). We use the primary for the project and the
-	# first sub-authority for the group.
-	#
-	my ($domain, undef, undef) = GeniHRN::Parse($urn);
-	my @tokens = split(":", $domain);
-	my $project_id = shift(@tokens);
-	my $group_id = shift(@tokens) if (@tokens);
-	my $project_urn = GeniHRN::Generate($project_id, "authority", "sa");
-	
-	#
-	# See if the project exists. 
-	#
-	$project = Project->LookupNonLocal($project_urn);
-	if (!defined($project)) {
+	else {
+	  toplevel:
+	    #
+	    # The top level domain of the SA becomes the project name, but the
+	    # dots are illegal of course, and there might be sub authorities
+	    # (colon separated). We use the primary for the project and the
+	    # first sub-authority for the group.
+	    #
+	    $project_urn = GeniHRN::Generate($domain, "authority", "sa");
+	    $project_id  = $domain;
+	    $group_id    = $subauth;
 	    #
 	    # For now, lets assume that the domain has legal chars, except
 	    # of course for the dots, which we transform to dashes cause
@@ -308,7 +311,32 @@ sub GetHoldingProject($$)
 		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 		    "Cannot form a valid local project name from $project_urn");
 	    }
+	}
 
+	#
+	# See if the project exists. 
+	#
+	$project = Project->LookupNonLocal($project_urn);
+	if (!defined($project)) {
+	    if ($PROTOGENI_LOCALUSER && defined($subauth)) {
+		#
+		# Need to make project name unique.
+		#
+		my $proot   = substr($project_id, 0, TB_PID_LEN() - 5);
+		$project_id = undef;
+		for (my $i = 0; $i < 100; $i++) {
+		    my $pid = "${proot}-PG${i}";
+		
+		    if (!Project->Lookup($pid)) {
+			$project_id = $pid;
+			last;
+		    }
+		}
+		if (!defined($project_id)) {
+		    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+		     "Could not create a unique project name for $project_urn");
+		}
+	    }
 	    #
 	    # Write out a little XML file describing the project, and
 	    # let the existing backend script deal with it all.
@@ -424,6 +452,36 @@ sub GetHoldingProject($$)
 	    }
 	}
     }
+    if ($PROTOGENI_LOCALUSER) {
+	#
+	# The user is added to both the holding project, and the group
+	# if a sub authority is provided. We give only user permissions,
+	# since we just need the object for access checks, not for
+	# experiment permissions.
+	#
+	my $trust = $Group::MemberShip::TRUSTSTRING_LOCALROOT;
+	my $pid   = $project->pid();
+	my $gid   = $group->gid();
+	my $uid   = $creator->uid();
+
+	if (!defined($project->LookupUser($creator->emulab_user()))) {
+	    system("$MODGROUPS -a $pid:$pid:$trust $uid");
+	    if ($?) {
+		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+			"Internal error adding new user to local project");
+	    }
+	}
+	if ($pid ne $gid &&
+	    !defined($group->LookupUser($creator->emulab_user()))) {
+	    system("$MODGROUPS -a $pid:$gid:$trust $uid");
+	    if ($?) {
+		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+			"Internal error adding new user to local group");
+	    }
+	}
+	$ENV{'EMULAB_REAL_USER'} = $creator->emulab_user()->uid_idx();
+    }
+  done:
     if ($WITHZFS && $ZFS_NOEXPORT) {
 	#
 	# Have to force the new directories to be exported.
@@ -434,6 +492,52 @@ sub GetHoldingProject($$)
 	    fatal("$EXPORTSSETUP failed");
     }
     return $group;
+}
+
+#
+# Create a local user (when $PROTOGENI_LOCALUSER=1).
+#
+sub CreateLocalUser($$)
+{
+    my ($urn, $email) = @_;
+    require GeniUser;
+    
+    #
+    # We create a local user that is effectively a real user, so that
+    # we have a proper principal to associate with slivers and objects.
+    #
+    my $safe_email = GeniUtil::escapeshellarg($email);
+    my $safe_urn   = GeniUtil::escapeshellarg($urn);
+    
+    FlipToElabMan();
+    system("$CREATEGENIUSER $safe_urn $safe_email");
+    if ($?) {
+	FlipToGeniUser();
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Could not create local user")
+    }
+    FlipToGeniUser();
+    my $user = GeniUser->Lookup($urn, 1);
+    if (!defined($user)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Could not lookup local user after create")
+    }
+    return $user;
+}    
+
+sub escapeshellarg($)
+{
+    my ($str)  = @_;
+    my @chars  = split('', $str);
+    my $result = "";
+
+    foreach my $ch (@chars) {
+        if ($ch eq '\'') {
+            $result = $result . "\'\\\'";
+	}
+	$result = $result . "$ch";
+    }
+    return "'$result'";
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

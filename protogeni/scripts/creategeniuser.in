@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -40,12 +40,13 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print STDERR "Usage: $0 [-n] <urn> <email>\n";
+    print STDERR "Usage: $0 [-n] [-p project] <urn> <email>\n";
     exit(1);
 }
-my $optlist  = "nr";
+my $optlist  = "nrp:";
 my $impotent = 0;
 my $delete   = 0;
+my $project;
 
 # Configure ...
 my $TB		  = "@prefix@";
@@ -95,16 +96,18 @@ else {
 my $urn     = $ARGV[0];
 fatal("Invalid urn")
     if (! GeniHRN::IsValid($urn));
-
-# Make sure we can get this project.
-my $project = Project->Lookup("CloudLab");
-if (!defined($project)) {
-    fatal("Cannot find the project.");
-}
 if ($delete) {
     exit(DeleteGeniUser($urn));
 }
 
+# Make sure we can get this project.
+if (defined($options{"p"})) {
+    my $pid  = $options{"p"};
+    $project = Project->Lookup($pid);
+    if (!defined($project)) {
+	fatal("No such project!");
+    }
+}
 my $email   = $ARGV[1];
 my $usr_uid;
 fatal("Invalid email")
@@ -121,7 +124,7 @@ if (User->LookupNonLocal($urn)) {
 my (undef,undef,$uid) = GeniHRN::Parse($urn);
 fatal("Could not parse urn")
     if (!defined($uid));
-if (User->ValidUID($uid) && !User->Lookup($uid)) {
+if (User->ValidUID($uid)) {
     $usr_uid = $uid;
 }
 else {
@@ -138,23 +141,24 @@ else {
 # Neither worked, so need to generate something. Ick.
 #
 if (!defined($usr_uid)) {
-    if (!User->ValidUID($uid)) {
-	# Random
-	$usr_uid = "g" . substr(lc(emutil::GenHash()), 0, 6);
+    # Random
+    $usr_uid = "g" . substr(lc(emutil::GenHash()), 0, 6);
+}
+
+#
+# Now generate a unique uid. We append a two digit integer to
+# avoid using up local uid space.
+#
+my $i;
+$uid = substr($uid, 0, 6);
+for ($i = 0 ; $i <= 99; $i++) {
+    if (!User->Lookup("${uid}${i}")) {
+	$usr_uid = "${uid}${i}";
+	last;
     }
-    else {
-	my $i;
-	$uid = substr($uid, 0, 7);
-	for ($i = 0 ; $i <= 9; $i++) {
-	    if (!User->Lookup("${uid}${i}")) {
-		$usr_uid = "${uid}${i}";
-		last;
-	    }
-	}
-	if ($i > 9) {
-	    $usr_uid = "g" . substr(lc(emutil::GenHash()), 0, 6);
-	}
-    }
+}
+if ($i > 99) {
+    $usr_uid = "g" . substr(lc(emutil::GenHash()), 0, 6);
 }
 if ($impotent) {
     print "Would create nolocal user '$usr_uid' ...\n";
@@ -177,7 +181,8 @@ fatal("Could not create user!")
 #
 # Add them to the holding project. This will need more thought.
 #
-if ($project->AddMemberShip($user, $Group::MemberShip::TRUSTSTRING_LOCALROOT)) {
+if (defined($project) &&
+    $project->AddMemberShip($user, $Group::MemberShip::TRUSTSTRING_LOCALROOT)) {
     $user->Delete();
     fatal("Could not add new user to project");
 }
@@ -185,7 +190,8 @@ if ($project->AddMemberShip($user, $Group::MemberShip::TRUSTSTRING_LOCALROOT)) {
 # And then instantiate the user.
 system("$TBACCT add $usr_uid");
 if ($?) {
-    $project->DeleteMemberShip($user);
+    $project->DeleteMemberShip($user)
+	if (defined($project));
     $user->Delete();
     fatal("Could not instantiate user account!")
 }
@@ -195,7 +201,8 @@ if ($?) {
 my $certpass = substr(lc(emutil::GenHash()), 0, 10);
 system("$MKUSERCERT -p $certpass $usr_uid");
 if ($?) {
-    $project->DeleteMemberShip($user);
+    $project->DeleteMemberShip($user)
+	if (defined($project));
     $user->Delete();
     fatal("Could not create local SSL certificate");
 }
@@ -213,9 +220,11 @@ sub DeleteGeniUser($)
 	fatal("No such local user!");
     }
     my $uid = $user->uid();
-    my $pid = $project->pid();
-    system("$MODGROUPS -r $pid:$pid $uid");
-
+    my $project = $user->DefaultProject();
+    if (defined($project)) {
+	my $pid = $project->pid();
+	system("$MODGROUPS -r $pid:$pid $uid");
+    }
     system("$TBACCT -f del $uid") == 0 or
 	fatal("$TBACCT $uid failed!");
 
