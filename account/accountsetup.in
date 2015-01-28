@@ -657,10 +657,10 @@ sub CreateSSHKey()
     my $sshdir = "$USERROOT/$user/.ssh";
     my $sshkey = "$sshdir/";
 
-    if ($type eq "rsa") {
+    if ($type eq "rsa1") {
 	$sshkey .= "identity";
     }
-    elsif ($type eq "rsa1") {
+    elsif ($type eq "rsa") {
 	$sshkey .= "id_rsa";
     }
     else {
