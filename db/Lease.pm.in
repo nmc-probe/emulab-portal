@@ -494,6 +494,32 @@ sub InUse($) {
     return ((@$lref > 0) ? 1 : 0);
 }
 
+sub IsExclusiveUse($) {
+    my ($self) = @_;
+
+    # Every lease is exclusive use unless sitevar is set non-zero
+    if (!TBSiteVarExists("storage/simultaneous_ro_datasets") ||
+	TBGetSiteVar("storage/simultaneous_ro_datasets") == 0) {
+	return 1;
+    }
+
+    # Otherwise, no lease is exclusive use unless attribute is set non-zero
+    my $rv = $self->GetAttribute("exclusive_use");
+    return $rv ? 1 : 0;
+}
+
+sub SetExclusiveUse($) {
+    my ($self) = @_;
+
+    return $self->SetAttribute("exclusive_use", 1, "integer");
+}
+
+sub ClearExclusiveUse($) {
+    my ($self) = @_;
+
+    return $self->SetAttribute("exclusive_use", 0, "integer");
+}
+
 #
 # Returns a list of blockstore reservations that are currently using the
 # resources associated with this lease. XXX: this is a blockstore-specific
@@ -672,6 +698,131 @@ sub DeallocResources($) {
     return 0;
 }
 
+sub CreateResourceSnapshot($$) {
+    my ($self,$exclusive) = @_;
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    #
+    # If lease is in the unapproved state, assume there is nothing to do.
+    #
+    if ($self->state() eq "unapproved") {
+	return 0;
+    }
+
+    my $tstamp = time();
+
+    #
+    # For a dataset lease, we call over to the server to take a snapshot
+    # XXX this should be in Lease::Blockstore object!
+    #
+    if ($self->type() =~ /dataset$/) {
+	my $idx = $self->lease_idx();
+	my $sarg = "";
+
+	#
+	# For efficiency, lookup the server in the blockstores table.
+	# Saves gathering info from every storage server.
+	#
+	my $bstore = Blockstore->LookupByLease($idx);
+	if ($bstore) {
+	    $sarg = "-S " . $bstore->node_id();
+	}
+
+	#
+	# If we want an "exclusive" snapshot, we remove all others.
+	# We don't return any errors, this is just best effort.
+	#
+	if (system("$BSCONTROL $sarg desnapshot lease-$idx")) {
+	    print STDERR "$self: CreateResourceSnapshot: ".
+		"WARNING! Could not remove all old storage snapshots\n";
+	}
+
+	#
+	# Call the blockstore control program to handle all things blockstore
+	# related (e.g., the actual deallocation of storage on the servers).
+	#
+	if (system("$BSCONTROL $sarg snapshot lease-$idx $tstamp")) {
+	    print STDERR "$self: CreateResourceSnapshot: ".
+		"Could not snapshot storage.\n";
+	    return LEASE_ERROR_FAILED();
+	}
+    }
+
+    $self->SetAttribute("last_snapshot", $tstamp, "integer");
+    return 0;
+}
+
+sub DestroyResourceSnapshot($$) {
+    my ($self,$tstamp) = @_;
+
+    return LEASE_ERROR_FAILED()
+	if (!ref($self));
+
+    #
+    # If lease is in the unapproved state, assume there is nothing to do.
+    #
+    if ($self->state() eq "unapproved") {
+	return 0;
+    }
+
+    #
+    # For a dataset lease, we call over to the server to take a snapshot
+    # XXX this should be in Lease::Blockstore object!
+    #
+    if ($self->type() =~ /dataset$/) {
+	my $idx = $self->lease_idx();
+	my $sarg = "";
+
+	#
+	# For efficiency, lookup the server in the blockstores table.
+	# Saves gathering info from every storage server.
+	#
+	my $bstore = Blockstore->LookupByLease($idx);
+	if ($bstore) {
+	    $sarg = "-S " . $bstore->node_id();
+	}
+
+	# If tstamp is not set, then clear all snapshots
+	$tstamp = ""
+	    if (!defined($tstamp));
+
+	#
+	# Call the blockstore control program to handle all things blockstore
+	# related (e.g., the actual deallocation of storage on the servers).
+	#
+	# Note that we only fail if bscontrol fails to remove a specific
+	# snapshot. Otherwise it may have failed due to snapshots that
+	# were still in use.
+	#
+	if (system("$BSCONTROL $sarg desnapshot lease-$idx $tstamp") &&
+	    $tstamp ne "") {
+	    print STDERR
+		"$self: DestroySnapshot: could not remove storage snapshot(s).\n";
+	    return LEASE_ERROR_FAILED();
+	}
+    }
+
+    $self->DeleteAttribute("last_snapshot");
+    return 0;
+}
+
+sub LastResourceSnapshot($) {
+    my ($self) = @_;
+
+    # XXX we don't call over to the server to get a list--too expensive
+    my $tstamp = $self->GetAttribute("last_snapshot");
+
+    return (defined($tstamp) ? int($tstamp) : 0);
+}
+
+sub HasResourceSnapshot($) {
+    my ($self) = @_;
+
+    return ($self->LastResourceSnapshot() != 0);
+}
+
 #
 # Extend (renew) a lease by the indicated amount.
 # Also increments the renewal count and transitions the lease back into
@@ -812,7 +963,7 @@ sub AllLeases($;$)
 	if (_validLeaseType($type)) {
 	    $tclause = "where type='$type'";
 	} else {
-	    print STDERR "Lease->AllLeases(): Invalid lease type: $type\n";
+	    print STDERR "Lease->AllLeases: Invalid lease type: $type\n";
 	    return undef;
 	}
     }
@@ -858,7 +1009,7 @@ sub AllProjectLeases($$;$)
 	if (_validLeaseType($type)) {
 	    $tclause = "and type='$type'";
 	} else {
-	    print STDERR "Lease->AllProjectLeases(): Invalid lease type: $type\n";
+	    print STDERR "Lease->AllProjectLeases: Invalid lease type: $type\n";
 	    return undef;
 	}
     }
@@ -896,7 +1047,8 @@ sub AllGroupLeases($$;$)
 	if !defined($group);
 
     if (ref($group) ne "Group") {
-	print STDERR "Input object must be of type \"Group\"";
+	print STDERR "Lease->AllGroupLeases: Input object must be of type \"Group\"";
+	return undef;
     }
     
     my $pid = $group->pid();
@@ -907,7 +1059,7 @@ sub AllGroupLeases($$;$)
 	if (_validLeaseType($type)) {
 	    $tclause = "and type='$type'";
 	} else {
-	    print STDERR "Lease->AllGroupLeases(): Invalid lease type: $type\n";
+	    print STDERR "Lease->AllGroupLeases: Invalid lease type: $type\n";
 	    return undef;
 	}
     }
@@ -943,6 +1095,7 @@ sub AllUserLeases($$;$)
     return undef
 	if !defined($uid);
 
+    # If uid is a User object extract the user name
     if (ref($uid) eq "User") {
 	$uid = $uid->uid();
     }
@@ -952,7 +1105,7 @@ sub AllUserLeases($$;$)
 	if (_validLeaseType($type)) {
 	    $tclause = "and type='$type'";
 	} else {
-	    print STDERR "Lease->AllUserLeases(): Invalid lease type: $type\n";
+	    print STDERR "Lease->AllUserLeases: Invalid lease type: $type\n";
 	    return undef;
 	}
     }

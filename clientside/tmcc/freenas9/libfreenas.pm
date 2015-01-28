@@ -390,13 +390,26 @@ sub freenasVolumeDesnapshot($$;$)
 		    if ($@ =~ /has dependent clones/) {
 			warn("*** WARNING: freenasVolumeDesnapshot: ".
 			     "snapshot '$sname' in use");
+
+			#
+			# XXX only return an error for this case if we are
+			# removing a specific snapshot. Otherwise, it causes
+			# too much drama up the line for something that is
+			# "normal" (i.e., we are attempting to remove all
+			# snapshots and some of them are in use).
+			#
+			if ($tstamp) {
+			    $rv = -1;
+			}
 		    } else {
 			my $msg = "  $@";
 			$msg =~ s/\\n/\n  /g;
 			warn("*** ERROR: freenasVolumeDesnapshot: ".
 			     "'del $pool/$snapshot' failed:\n$msg");
+
+			# if it isn't an "in use" error, we really do fail
+			$rv = -1;
 		    }
-		    $rv = -1;
 		}
 	    }
 	}

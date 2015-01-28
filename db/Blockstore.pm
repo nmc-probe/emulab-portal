@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012-2014 University of Utah and the Flux Group.
+# Copyright (c) 2012-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -841,6 +841,9 @@ sub Release($)
     # last used time since this represents an unmapping (aka swapout)
     # of the lease.
     #
+    # XXX currently, we also create a new snapshot of the blockstore
+    # if the blockstore is marked as "multiuse".
+    #
     $query_result =
 	DBQueryWarn("select lease_idx from blockstores ".
 		    "where bsidx='$bsidx'");
@@ -849,8 +852,16 @@ sub Release($)
 
 	my ($lidx) = $query_result->fetchrow_array();
 	my $lease = Lease->Lookup($lidx);
-	$lease->BumpLastUsed()
-	    if ($lease);
+	if ($lease) {
+	    $lease->BumpLastUsed();
+	    if (!$lease->IsExclusiveUse() &&
+		$lease->CreateResourceSnapshot(1)) {
+		print STDERR "Blockstore->Release: ".
+		    "Could not create snapshot for $bsidx ($lease); ".
+		    "marking as exclusive-use\n";
+		$lease->SetExclusiveUse();
+	    }
+	}
     }
 
     return 0;

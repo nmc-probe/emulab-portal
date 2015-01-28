@@ -714,9 +714,17 @@ sub allocSlice($$$$) {
 	    return -1;
 	}
 
-	# For possible later cloning, remember if it has snapshots
+	# For possible later cloning, find the highest numbered snapshot
 	if (exists($vref->{'snapshots'})) {
-	    $priv->{'hassnapshot'} = 1;
+	    my $lastsnap = 0;
+	    foreach my $snap (split(',', $vref->{'snapshots'})) {
+		if ($snap =~ /@(\d+)$/ && $1 > $lastsnap) {
+		    $lastsnap = $1;
+		}
+	    }
+	    if ($lastsnap) {
+		$priv->{'lastsnapshot'} = $lastsnap;
+	    }
 	}
 
 	$priv->{'pool'} = $vref->{'pool'};
@@ -814,13 +822,18 @@ sub exportSlice($$$$) {
 	# That does not matter right now, but something to watch out for.
 	#
 	my $tstamp;
-	if (!exists($priv->{'hassnapshot'})) {
+	if (!exists($priv->{'lastsnapshot'})) {
+	    # XXX this will be an error
+	    warn("*** WARNING: blockstore_exportSlice: $volname: ".
+		 "no snapshot found; created one for now");
 	    $tstamp = time();
 	    if (freenasVolumeSnapshot($pool, $volume, $tstamp)) {
 		warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		     "Could not create snapshot for RO mapping");
 		return -1;
 	    }
+	} else {
+	    $tstamp = $priv->{'lastsnapshot'};
 	}
 
 	#
@@ -1427,12 +1440,15 @@ sub deallocSlice($$$$) {
 	# Check for clone volumes. A clone will have our (vnode_id)
 	# name and be a "cloneof" a snapshot of this lease.
 	#
+	# N.B. we now call Destroy rather than Declone, leaving our
+	# caller responsible for cleaning up snapshots.
+	#
 	if (exists($volumes->{$vnode_id})) {
 	    my $vref = $volumes->{$vnode_id};
 	    my $pool = $vref->{'pool'};
 	    if (exists($vref->{'cloneof'}) &&
 		$vref->{'cloneof'} =~ /^$bsid\@\d+/) {
-		return freenasVolumeDeclone($pool, $vnode_id);
+		return freenasVolumeDestroy($pool, $vnode_id);
 	    }
 	    warn("*** WARNING: blockstore_deallocSlice: $volname: ".
 		 "Found stale ephemeral volume '$pool/$vnode_id'");

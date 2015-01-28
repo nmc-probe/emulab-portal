@@ -1647,6 +1647,31 @@ sub LoadVirtNodes($)
 	#
 	# Note: we do not make these checks during a pre-assign pass.
 	#
+	# Exclusive use semantics:
+	#
+	# If the sitevar "simultaneous_ro_datasets" is zero (or unset)
+	# or the dataset has the "exclusive_use" attribute set, only one
+	# mapping at a time can be in effect for a dataset whether it
+	# is RO or RW. This condition is embodied in the IsExclusiveUse()
+	# Lease method.
+	#
+	# Shared use semantics:
+	#
+	# To be shared, the global "simultaneous_ro_datasets" sitevar
+	# must be non-zero and a dataset's "exclusive_use" attribute must
+	# either not exist or be set to zero (!IsExclusiveUse). Additionally,
+	# the dataset must have a snapshot. Currently a snapshot is created
+	# upon termination of any RW mapping (see Blockstore->Release).
+	# Snapshot creation may be explicit in the future.
+	#
+	# A RO mapping of a dataset always gets the most recent snapshot
+	# of the dataset. This is true whether the dataset is currently
+	# in use or not. If the dataset does not have a snapshot, it is
+	# an error.
+	#
+	# A RW mapping of a dataset always gets the dataset itself.
+	# If a RW mapping already exists, it is an error.
+	#
 	if ($attrkey eq "lease" && !$self->preassign()) {
 	    my $lease = Lease->Lookup($attrval);
 	    # Valid lease?
@@ -1655,12 +1680,13 @@ sub LoadVirtNodes($)
 		return -1;
 	    }
 
-	    # If sitevar disables simultaneous use, catch it now.
-	    if ((!TBSiteVarExists("storage/simultaneous_ro_datasets") ||
-		int(TBGetSiteVar("storage/simultaneous_ro_datasets")) != 1) &&
-		$lease->InUse()) {
-		tberror("Dataset $lease is currently in use, ".
-			"so cannot be accessed at this time.\n");
+	    my $exclusive = $lease->IsExclusiveUse();
+	    my $snapshot = $lease->HasResourceSnapshot();
+
+	    # If sitevar or dataset disables simultaneous use, catch it now.
+	    if ($exclusive && $lease->InUse()) {
+		tberror("Exclusive-use dataset $lease is currently in use ".
+			"and cannot be mapped at this time.\n");
 		return -1;
 	    }
 
@@ -1670,13 +1696,16 @@ sub LoadVirtNodes($)
 		if (!$lease->AccessCheck($self->realuser(),
 					 LEASE_ACCESS_READ())) {
 		    tberror("Not allowed to use dataset $lease in RO mode\n");
-		    return -1
-		}
-		# Leases already in use RW cannot be accessed.
-		if ($lease->InUseReadWrite()) {
-		    tberror("Dataset $lease is currently in use read-write, ".
-			    "so cannot be accessed at this time.\n");
 		    return -1;
+		}
+
+		# For shared use, a snapshot must exist
+		if (!$exclusive) {
+		    if (!$snapshot) {
+			tberror("Dataset $lease has no snapshot ".
+				"and cannot be mapped RO at this time.\n");
+			return -1;
+		    }
 		}
 	    } else {
 		# Does user have RW rights?
@@ -1685,17 +1714,31 @@ sub LoadVirtNodes($)
 		    tberror("Not allowed to use dataset $lease in RW mode\n");
 		    return -1;
 		}
-		# RW mode is exclusive (single-experiment).
-		if ($lease->InUse()) {
-		    tberror("Dataset $lease is currently in use and cannot ".
-			    "be requested read-write at this time.\n");
-		    return -1;
-		}
 		# Deny RW access if lease is in grace period.
 		if ($lease->state() eq LEASE_STATE_GRACE()) {
 		    tberror("Dataset $lease in grace period, must ".
 			    "specify '\$$vname set-readonly 1' in NS file.\n");
 		    return -1;
+		}
+		if (!$exclusive) {
+		    # only one RW mapping
+		    if ($lease->InUseReadWrite()) {
+			tberror("Dataset $lease is currently in use (RW) ".
+				"and cannot be mapped RW at this time.\n");
+			return -1;
+		    }
+
+		    # Make sure there is a snapshot in place
+		    if (!$snapshot) {
+			if ($lease->InUse()) {
+			    tberror("Dataset $lease is in use (RO) but ".
+				    "has no snapshot ".
+				    "and cannot be mapped RW at this time.\n");
+			    return -1;
+			}
+			tbwarn("Dataset $lease has no snapshot ".
+			       "and cannot be mapped RW at this time.\n");
+		    }
 		}
 	    }
 	}

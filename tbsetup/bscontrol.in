@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013-2014 University of Utah and the Flux Group.
+# Copyright (c) 2013-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,10 +50,22 @@ use Getopt::Std;
 #	If the server is not specified, we pick the "best" server,
 #	based on availability of space.
 #
-# bscontrol destroy [ -S server -P pool ] bsname
-#	Destroy the named blockstore freeing up the space.
-#	Here bsname needs to be unique across all servers
+# bscontrol snapshot [ -S server -P pool ] bsname [ tstamp ]
+#	Create a snapshot of the named blockstore with the indicated
+#	timestamp. If timestamp is not provided, it will use the
+#	current time. bsname needs to be unique across all servers
 #	or the server and pool need to be explicitly specified.
+#
+# bscontrol desnapshot [ -S server -P pool ] bsname [ tstamp ]
+#	Delete the snapshot of the named blockstore with the indicated
+#	timestamp. If timestamp is not provided, delete all snapshots
+#	associated with the blockstore. bsname needs to be unique across
+#	all servers or the server and pool need to be explicitly specified.
+#
+# bscontrol destroy [ -S server -P pool ] bsname
+#	Destroy the named blockstore freeing up the space. Also destroys
+#	any associated snapshots. bsname needs to be unique across all
+#	servers or the server and pool need to be explicitly specified.
 #
 # bscontrol [ -S server [ -P pool ] ] copy from-bsname to-bsname
 #	Do an efficient copy of one blockstore to another. Use the
@@ -86,6 +98,8 @@ sub bs_list($$$@);
 sub bs_avail($$$@);
 sub bs_info($$$@);
 sub bs_create($$$@);
+sub bs_snapshot($$$@);
+sub bs_desnapshot($$$@);
 sub bs_destory($$$@);
 
 #
@@ -129,11 +143,13 @@ if ($EUID != 0) {
 
 # Commands
 my %cmds = (
-   "list"   => \&bs_list,
-   "avail"  => \&bs_avail,
-   "info"   => \&bs_info,
-   "create" => \&bs_create,
-   "destroy" => \&bs_destroy,
+   "list"     => \&bs_list,
+   "avail"    => \&bs_avail,
+   "info"     => \&bs_info,
+   "create"   => \&bs_create,
+   "snapshot" => \&bs_snapshot,
+   "desnapshot" => \&bs_desnapshot,
+   "destroy"  => \&bs_destroy,
 );
 
 #
@@ -610,14 +626,37 @@ sub bs_info($$$@)
     my $bsref = getblockstores($dsrv, $dpool);
 
     if (keys(%{$bsref}) > 0) {
-	printf("%-32s %-24s %-10s %10s %-s\n",
-	       "Unique ID", "Server/Pool/Volume", "Type", "Size", "Exported as");
+	printf("%-32s %-24s %-10s %10s %4s %-s\n",
+	       "Unique ID", "Server/Pool/Volume", "Type", "Size", "Snap", "Exported as");
+
+	# create a snapshot to unique ID hash
+	my %snaps = ();
+	foreach my $bs (sort keys(%{$bsref})) {
+	    my $attrs = $bsref->{$bs};
+	    my $scount = 0;
+	    if (exists($attrs->{'snapshots'})) {
+		foreach my $sname (split(',', $attrs->{'snapshots'})) {
+		    $snaps{$sname} = $bs;
+		    $scount++;
+		}
+	    }
+	    $bsref->{$bs}->{'snapcount'} = $scount;
+	}
 
 	foreach my $bs (sort keys(%{$bsref})) {
 	    my $attrs = $bsref->{$bs};
-	    printf("%-32s %-24s %-10s %10s %s\n", $bs,
+	    my $tstr = $attrs->{'type'};
+	    if (exists($attrs->{'cloneof'})) {
+		$tstr = "clone (" . $snaps{$attrs->{'cloneof'}} . ")";
+	    }
+	    my $scount = 0;
+	    if (exists($attrs->{'snapcount'})) {
+		$scount = $attrs->{'snapcount'};
+	    }
+
+	    printf("%-32s %-24s %-10s %10s %4s %s\n", $bs,
 		   $attrs->{'server'} . "/" . $attrs->{'pool'} . "/" . $attrs->{'volume'},
-		   $attrs->{'type'}, $attrs->{'size'},
+		   $tstr, $attrs->{'size'}, $scount,
 		   ($attrs->{'active'} ? $attrs->{'iname'} : ""));
 	}
     }
@@ -759,14 +798,123 @@ sub bs_create($$$@)
     return 0;
 }
 
-sub bs_destroy($$$@)
+sub dosnapshot($$$$$)
 {
-    my ($srv,$pool,$size,$name) = @_;
+    my ($create,$srv,$pool,$name,$tstamp) = @_;
+    my $cmd = ($create ? "snapshot" : "desnapshot");
 
     if (defined($name) && $name =~ /^([-\w]+)$/) {
 	$name = $1;
     } else {
-	fatal("create: must specify a valid volume name");
+	fatal("$cmd: must specify a valid volume name");
+    }
+    if (defined($tstamp)) {
+	if ($tstamp =~ /^(\d+)$/) {
+	    $tstamp = $1;
+	} else {
+	    fatal("$cmd: must specify a numeric timestamp value");
+	}
+    } elsif ($create) {
+	$tstamp = time();
+    } else {
+	$tstamp = "";
+    }
+
+    #
+    # Find the blockstore based on info from the server(s).
+    #
+    my $volattrs;
+    my $volref = getvolumes($srv, $pool);
+    foreach my $vol (sort keys(%{$volref})) {
+	my $attrs = $volref->{$vol};
+	if ($name eq $attrs->{'volume'}) {
+	    if ($volattrs) {
+		fatal("$cmd: ".
+		      "multiple volumes match '$name', must specify a server and pool");
+	    }
+	    $volattrs = $attrs;
+	}
+    }
+    if (!$volattrs) {
+	fatal("$cmd: no such volume '$name'");
+    }
+    if ($srv) {
+	if ($srv ne $volattrs->{'server'}) {
+	    fatal("$cmd: found server is not the specified server!?");
+	}
+    } else {
+	$srv = $volattrs->{'server'};
+    }
+    if ($pool) {
+	if ($pool ne $volattrs->{'pool'}) {
+	    fatal("$cmd: found pool is not the specified pool!?");
+	}
+    } else {
+	$pool = $volattrs->{'pool'};
+    }
+
+    #
+    # See if the snapshot already exists
+    #
+    if ($tstamp && exists($volattrs->{'snapshots'})) {
+	my @snaps = split(',', $volattrs->{'snapshots'});
+	my $snapshot = "$name\@$tstamp";
+
+	my $found = 0;
+	foreach my $sname (@snaps) {
+	    if ($snapshot eq $sname) {
+		$found = 1;
+		last;
+	    }
+	}
+	if ($create && $found) {
+	    fatal("$cmd: snapshot '$snapshot' already exists");
+	} elsif (!$create && !$found) {
+	    fatal("$cmd: no such snapshot '$snapshot'");
+	}
+    }
+
+    #
+    # Call out to the server to create/destroy the snapshot.
+    #
+    my $outref;
+    if (bsserver_cmd($srv, "$PROXYCMD $cmd $pool $name $tstamp", \$outref)) {
+	my $action = ($create ? "create" : "destroy");
+	print STDERR "*** $cmd: ".
+	    "could not $action snapshot for '$name' on $srv/$pool:\n";
+	print STDERR "proxycmd: '$cmd $pool $name $tstamp'\n";
+	print STDERR "output:\n";
+	foreach my $str (@$outref) {
+	    print STDERR "  $str\n";
+	}
+	exit(-1);
+    }
+
+    return 0;
+}
+
+sub bs_snapshot($$$@)
+{
+    my ($srv,$pool,undef,$name,$tstamp) = @_;
+
+    return dosnapshot(1, $srv, $pool, $name, $tstamp);
+}
+
+sub bs_desnapshot($$$@)
+{
+    my ($srv,$pool,undef,$name,$tstamp) = @_;
+
+    return dosnapshot(0, $srv, $pool, $name, $tstamp);
+}
+
+sub bs_destroy($$$@)
+{
+    my ($srv,$pool,undef,$name) = @_;
+
+    if (defined($name) && $name =~ /^([-\w]+)$/) {
+	$name = $1;
+    } else {
+	fatal("destroy: must specify a valid volume name");
     }
 
     #
@@ -806,21 +954,42 @@ sub bs_destroy($$$@)
     #
     my $bstore = Blockstore->Lookup($srv, $name);
     if (!$bstore) {
-	fatal("destroy: no blockstore '$srv/$name'");
+	fatal("destroy: no blockstore '$srv/$name' in DB");
     }
     if ($bstore->role() ne "partition") {
 	fatal("destroy: wrong type of blockstore '$srv/$name'");
     }
     if ($bstore->Delete()) {
-	fatal("destroy: could not delete blockstore '$srv/$name'");
+	fatal("destroy: could not delete blockstore '$srv/$name' from DB");
     }
 
     #
     # Call out to the server to delete the storage.
     #
     my $outref;
+
+    #
+    # First destroy any snapshots
+    #
+    if (exists($volattrs->{'snapshots'}) &&
+	bsserver_cmd($srv, "$PROXYCMD desnapshot $pool $name", \$outref)) {
+	print STDERR "*** destroy: ".
+	    "could not destroy snapshots for '$name' on $srv/$pool:";
+	foreach my $str (@$outref) {
+	    print STDERR "  $str\n";
+	}
+	exit(-1);
+    }
+
+    #
+    # Destroy the actual volume.
+    #
+    # N.B. if the volume is a clone, this call will not get rid of
+    # the snapshot the volume was associated with.
+    #
     if (bsserver_cmd($srv, "$PROXYCMD destroy $pool $name", \$outref)) {
-	print STDERR "*** create: could not deallocate storage for '$name' on $srv/$pool:";
+	print STDERR "*** destroy: ".
+	    "could not deallocate storage for '$name' on $srv/$pool:";
 	foreach my $str (@$outref) {
 	    print STDERR "  $str\n";
 	}
