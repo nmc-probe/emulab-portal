@@ -19,9 +19,9 @@ sub Install($$$)
 	Phase "firstuser", "Calling 'firstuser' to create account", sub {
 	    PhaseSkip("$PROTOUSER already created")
 		if (-d "$USERROOT/$PROTOUSER");
-	    my $safe_password = EscapeShellArg($password);
 	    ExecQuietFatal("perl $TOP_OBJDIR/utils/firstuser -b ".
-			   (defined($password) ? " -p $safe_password" : ""));
+			   (defined($password) ?
+			    " -p " . EscapeShellArg($password) : ""));
 	};
 	Phase "Fixing", "Fixing up DB state for $PROTOUSER", sub {
 	    my ($exitval, @rows) =
