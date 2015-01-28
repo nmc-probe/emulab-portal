@@ -190,7 +190,7 @@ if (defined($project) &&
 # And then instantiate the user.
 system("$TBACCT add $usr_uid");
 if ($?) {
-    $project->DeleteMemberShip($user)
+    $project->GetProjectGroup()->DeleteMemberShip($user)
 	if (defined($project));
     $user->Delete();
     fatal("Could not instantiate user account!")
@@ -201,7 +201,7 @@ if ($?) {
 my $certpass = substr(lc(emutil::GenHash()), 0, 10);
 system("$MKUSERCERT -p $certpass $usr_uid");
 if ($?) {
-    $project->DeleteMemberShip($user)
+    $project->GetProjectGroup()->DeleteMemberShip($user)
 	if (defined($project));
     $user->Delete();
     fatal("Could not create local SSL certificate");
