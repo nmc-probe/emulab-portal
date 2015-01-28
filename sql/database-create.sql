@@ -147,6 +147,7 @@ CREATE TABLE `apt_instances` (
 -- Table structure for table `apt_profile_versions`
 --
 
+DROP TABLE IF EXISTS `apt_profile_versions`;
 CREATE TABLE `apt_profile_versions` (
   `name` varchar(64) NOT NULL default '',
   `profileid` int(10) unsigned NOT NULL default '0',  
@@ -1192,9 +1193,9 @@ CREATE TABLE `experiment_stats` (
   PRIMARY KEY  (`exptidx`),
   KEY `rsrcidx` (`rsrcidx`),
   KEY `pideid` (`pid`,`eid`),
-  KEY `eid_uuid` (`eid_uuid`)
+  KEY `eid_uuid` (`eid_uuid`),
   KEY `pid_idx` (`pid_idx`),
-  KEY `creator_idx` (`creator_idx`),
+  KEY `creator_idx` (`creator_idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
