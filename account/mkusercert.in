@@ -574,18 +574,8 @@ else {
 }
 
 #
-# Copy the certificate to the users .ssl directory.
-#
-my $ssldir = "$USERDIR/$user_uid/.ssl";
-if (! -d $ssldir) {
-    mkdir($ssldir, 0700) or
-	fatal("Could not mkdir $ssldir: $!");
-
-    chown($user_number, $default_groupgid, $ssldir)
-	or fatal("Could not chown $ssldir: $!");
-}
-
 # Drop the file into the user .ssl directory.
+#
 $UID = $EUID;
 system("$SSH -host $CONTROL ".
        "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $ssldir ".
