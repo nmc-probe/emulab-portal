@@ -573,9 +573,9 @@ else {
     CreateNewCert();
 }
 
-#
 # Drop the file into the user .ssl directory.
-#
+my $ssldir = "$USERDIR/$user_uid/.ssl";
+
 $UID = $EUID;
 system("$SSH -host $CONTROL ".
        "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $ssldir ".
