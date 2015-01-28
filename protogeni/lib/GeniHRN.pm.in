@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2009-2010 University of Utah and the Flux Group.
+# Copyright (c) 2009-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -251,6 +251,19 @@ sub Authoritative($$)
     $hrn[ 0 ] =~ tr/A-Z/a-z/;
 
     return $hrn[ 0 ] eq $authority;
+}
+
+sub SameDomain($$)
+{
+    my ($a, $b) = @_;
+    my ($auth_a) = Parse($a);
+    my ($auth_b) = Parse($b);
+    my ($dom_a)  = split(":", $auth_a);
+    my ($dom_b)  = split(":", $auth_b);
+    $dom_a =~ tr/A-Z/a-z/;
+    $dom_b =~ tr/A-Z/a-z/;
+
+    return $dom_a eq $dom_b;
 }
 
 # Helper functions to make special cases slightly less messy:
