@@ -246,7 +246,7 @@ function Do_VerifySpeaksfor()
 	return;
     }
     if (isset($ajax_args["embedded"])) {
-        $embedded = 1;
+        $embedded = $ajax_args["embedded"];
     }
 
     #
