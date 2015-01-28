@@ -612,6 +612,7 @@ sub CreateImage($$$)
 	"slice_urn"   => $slice->urn(),
 	"imagename"   => $imagename,
 	"sliver_urn"  => $sliver_urn,
+	"global"      => 1,
 	"credentials" => [$slice_credential->asString(),
 			  $speaksfor_credential->asString()],
     };
