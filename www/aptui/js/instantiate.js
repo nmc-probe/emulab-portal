@@ -173,10 +173,10 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 	    // Hide the aggregate picker for a parameterized profile.
 	    // Shown later.
 	    if (ispprofile) {
-		$("#profile_where").addClass("hidden");
+		$("#aggregate_selector").addClass("hidden");
 	    }
 	    else {
-		$("#profile_where").removeClass("hidden");
+		$("#aggregate_selector").removeClass("hidden");
 	    }
 
 	    // Set the default aggregate.
@@ -247,7 +247,7 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 		.filter('[value="'+ where + '"]')
                 .prop('selected', true);		
 	}
-	// Enable the create and copy buttons.
+	// Enable the create button.
 	$('#instantiate_submit').attr('disabled', false);
     }
 

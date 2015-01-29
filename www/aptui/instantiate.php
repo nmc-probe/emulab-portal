@@ -490,7 +490,8 @@ function SPITFORM($formfields, $newuser, $errors)
 		"<option $selected value='$am'>$am</option>\n";
 	}
         $html =
-                "<div class='form-horizontal'><div class='form-group'>
+                "<div class='form-horizontal' id='aggregate_selector'>
+                   <div class='form-group'>
                    <label class='col-sm-4 control-label'
                       style='text-align: right;'>Cluster:</label>
                    <div class='col-sm-6'>
