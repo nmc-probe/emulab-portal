@@ -263,7 +263,9 @@ if ($WITHZFS && $ZFS_NOEXPORT) {
 		     "left join users as u on u.uid_idx=s.uid_idx ".
 		     "left join group_membership as m on ".
 		     "     m.uid_idx=u.uid_idx and m.pid=m.gid ".
+		     "left join projects as p on p.pid=m.pid ".
 		     "where u.status='" . USERSTATUS_ACTIVE() . "' and ".
+		     "      p.approved=1 and ".
 		     "      (((UNIX_TIMESTAMP(now()) - ".
 		     "        UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
 		     "       ((UNIX_TIMESTAMP(now()) - ".
