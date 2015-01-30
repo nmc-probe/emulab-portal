@@ -323,7 +323,7 @@ if ($getimage) {
 	my $imageid = $image->imageid();
 	# Run as root to access /proj
 	$EUID = $UID = 0;
-	if (system("$IMAGEVALIDATE -uq -H '$newhash' $imageid")) {
+	if (system("$IMAGEVALIDATE -uq $imageid")) {
 	    # XXX should this be fatal?
 	    print STDERR "Could not update DB info for $image\n";
 	}
