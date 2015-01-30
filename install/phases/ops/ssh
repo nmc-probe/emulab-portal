@@ -22,7 +22,7 @@ sub Install($$$)
 			       "$SSHD_CONFIG");
 	    }
 	    my @strings = ("PermitRootLogin yes",
-			   "Protocol 2,1");
+			   "Protocol 2");
 
 	    # GPO wants this turned off.
 	    if ($PROTOGENI_GENIRACK) {

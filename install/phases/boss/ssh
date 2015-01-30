@@ -41,8 +41,8 @@ sub Install($$$)
 	    DoneIfEdited($SSH_CONFIG);
 	    AppendToFileFatal($SSH_CONFIG,
 			      "Host *",
-			      "   StrictHostKeyChecking no",
-			      "   Protocol 2,1");
+			      "   StrictHostKeyChecking no");
+			      "   Protocol 2");
 	};
 	# GPO wants password authentication turned off. 
 	if ($PROTOGENI_GENIRACK) {
