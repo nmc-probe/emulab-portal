@@ -77,9 +77,11 @@ sub Install($$$)
 	    };
 	}
 	Phase "keycopy", "Copy root ssh keys to ops", sub {
-	    if (! ExecQuiet("$SSH -o 'BatchMode=yes' root\@${USERNODE} pwd")) {
+	    if (! ExecQuiet("$SSH -o 'BatchMode=yes' -i $ROOT_PRIVKEY ".
+			    "  root\@${USERNODE} pwd")) {
 		PhaseSkip("Key already copied");
 	    } else {
+		# ssh will complain about mode if we do not do this.
 		ExecQuietFatal("chmod 400 $INIT_PRIVKEY");
 		if ($ELABINELAB) {
 		    ExecQuietFatal("$SCP_INIT -i $INIT_PRIVKEY ".
@@ -109,7 +111,8 @@ sub Install($$$)
 	    if ($BOSSNODE eq $FSNODE) {
 		PhaseSkip("FS node is boss node");
 	    }
-	    if (! ExecQuiet("$SSH -o 'BatchMode=yes' root\@${FSNODE} pwd")) {
+	    if (! ExecQuiet("$SSH -o 'BatchMode=yes' -i $ROOT_PRIVKEY ".
+			    "root\@${FSNODE} pwd")) {
 		PhaseSkip("Key already copied");
 	    } else {
 		if ($ELABINELAB) {

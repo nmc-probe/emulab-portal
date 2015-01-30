@@ -5,8 +5,6 @@ use strict;
 use libinstall;
 use installvars;
 
-my $IDENTPUB	= "$TOP_SRCDIR/install/identity.pub";
-
 sub Install($$$)
 {
     my ($server, $isupdate, $impotent) = @_;
@@ -55,8 +53,8 @@ sub Install($$$)
 	};
 	Phase "authkeys", "Adding stub identity to root authorized_keys", sub {
 	    DoneIfEdited($AUTHKEYS);
-	    my $ident = `cat $IDENTPUB`;
-	    PhaseFail("Could not read $IDENTPUB")
+	    my $ident = `cat $INIT_PUBKEY`;
+	    PhaseFail("Could not read $INIT_PUBKEY")
 		if ($?);
 	    chomp($ident);
 	    if (! -e $AUTHKEYS) {

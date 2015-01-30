@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -335,7 +335,8 @@ $ROOT_AUTHKEY		= "/root/.ssh/authorized_keys";
 $ROOT_DSA_PRIVKEY	= "/root/.ssh/id_dsa";
 $ROOT_DSA_PUBKEY	= "$ROOT_DSA_PRIVKEY.pub";
 
-$INIT_PRIVKEY		= "$main::TOP_SRCDIR/install/identity";
+$INIT_PRIVKEY		= "$main::TOP_SRCDIR/install/id_rsa";
+$INIT_PUBKEY		= "$main::TOP_SRCDIR/install/id_rsa.pub";
 $CACERT			= "$TBROOT/etc/emulab.pem";
 $EMULAB_PEM		= "emulab.pem";
 $CLIENT_PEM		= "client.pem";
