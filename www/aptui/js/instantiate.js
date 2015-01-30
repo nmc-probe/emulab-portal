@@ -158,7 +158,7 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 
 	    ispprofile    = ispp;
 	    selected_uuid = profile_value;
-	    amdefault     = amdefault;
+	    amdefault     = amdef;
 
 	    // Show the configuration button, disable the create button.
 	    if (ispprofile) {
