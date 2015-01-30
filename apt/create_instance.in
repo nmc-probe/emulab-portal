@@ -451,8 +451,8 @@ if ($localuser) {
     if ($emulab_user->IsNonLocal()) {
 	#
 	# A user created from a Geni certificate via geni-login. We
-	# ask for the current ssh keys from the MA. They are stored
-	# into the DB by the update script.
+	# asked for the current ssh keys from the MA when they logged
+	# in, but we ask again to make sure have the latest keys.
 	#
 	system("$UPDATEGENIUSER -s " . $emulab_user->uid());
 	if (0) {
@@ -463,6 +463,12 @@ if ($localuser) {
 	$pid = "CloudLab";
     }
     elsif (defined($sshkey) && !$emulab_user->LookupSSHKey($sshkey)) {
+	#
+	# XXX This is deprecated; we no longer show the ssh box to
+	#     real users. Remove when we are satisfied with new
+	#     ssh key management page.
+	#
+	
 	#
 	# A local user. We mark keys that come through this path
 	# with the isaptkey flag (-a to addpubkey) so that we know
@@ -515,8 +521,7 @@ elsif (!$localuser) {
     if (defined($sshkey)) {    #
 	# Guest user; remember key. For now we accept only one key. We store
 	# it simply so we can display it again for the user in the web
-	# interface.  We allow key reuse for existing users, see
-	# above.
+	# interface. We allow key reuse for existing users, see above.
 	#
 	$geniuser->DeleteKeys();
 	$geniuser->AddKey($sshkey);

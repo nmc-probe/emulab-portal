@@ -81,12 +81,10 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 	    if (!registered) {
 		sup.SpitOops("oops", "You must be a registered user to copy " +
 			     "a profile.");
+		return;
 	    }
-	    else {
-		var url = "manage_profile.php?action=copy&uuid=" +
-		    selected_uuid;
-		window.location.replace(url);
-	    }
+	    var url = "manage_profile.php?action=copy&uuid=" + selected_uuid;
+	    window.location.replace(url);
 	    return false;
 	});
 

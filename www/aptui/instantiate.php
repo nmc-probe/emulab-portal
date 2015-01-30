@@ -396,7 +396,13 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "  <div id='selected_profile_description'></div>\n";
         echo "</div>";
         echo "<div class='panel-footer'>";
-        echo "<button id='profile' class='btn btn-primary btn-md pull-right' 
+        if (isset($this_user)) {
+            echo "<button class='btn btn-default btn-sm pull-left' 
+                         type='button' id='profile_copy_button'>
+                    Copy Profile
+                  </button>";
+        }
+        echo "<button id='profile' class='btn btn-primary btn-sm pull-right' 
                          type='button' name='profile_button'>
                     Change Profile
                   </button>";
@@ -415,7 +421,30 @@ function SPITFORM($formfields, $newuser, $errors)
 	echo "<input type='hidden' name='profile' value='$thisuuid'>\n";
     }
     if (isset($this_user)) {
-	$spitsshkeystuff();	
+        #
+        # Local users, show a link to the ssh keys page.
+        # Nonlocal users, remind them ssh keys go into their portal.
+        #
+        if ($this_user->IsNonLocal()) {
+            echo "<div>";
+            echo "  <div class='col-md-12 bg-info'
+                         style='margin-top: -5px; margin-bottom: 10px;'>
+                    GENI Users; be sure to add ssh keys at <b>your</b> portal if
+                    you want to log in from your desktop, else you
+	            will be limited to using a shell window in your browser. 
+                    </div>
+                  </div>\n";
+        }
+        else {
+            echo "<div>";
+            echo "  <div class='col-md-12 bg-info'
+                         style='margin-top: -5px; margin-bottom: 10px;'>
+                     <a href='ssh-keys.php'>Manage your SSH keys</a> if
+                     you want to log in from your desktop, else you
+		     will be limited to using a shell window in your browser. 
+                    </div>
+                  </div>\n";
+        }
     }
 
     #
