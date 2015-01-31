@@ -95,6 +95,7 @@ my $clear      = 0;
 my $warnings   = 0;
 my $maxrun     = 3;  # Maximum number of times we run assign.
 my $gotlock    = 0;
+my $seriallock = 0;
 my $userspec   = 0;
 my $usecontrol = 0;
 my $use_old_ptopgen  = 0;
@@ -124,6 +125,7 @@ use libtestbed;
 use libtblog;
 use libvtop;
 use libadminctrl;
+use libEmulab;
 use User;
 use EmulabFeatures;
 
@@ -436,7 +438,18 @@ sub AssignLoop()
 		sleep(10);
 	    }
 	}
-
+	# Hack for Kirk.
+	if (!($impotent || $regression) && $MAINSITE && $pid eq "PNWorkshop") {
+	    while (1) {
+		if (libEmulab::EmulabLock("mapperlock") == 0) {
+		    $seriallock = 1;
+		    last;
+		}
+		chat("Waiting for mapper lock ...\n");
+		sleep(5);
+	    }
+	}
+	
 	#
 	# RunAssign returns  0 if successful.
 	#           returns -1 if failure, but assign says to stop trying.
@@ -450,6 +463,10 @@ sub AssignLoop()
 	    DBQueryFatal("update emulab_locks set value=value-1 ".
 			 "where name='pool_daemon'");
 	    $gotlock = 0;
+	}
+	if ($seriallock) {
+	    libEmulab::EmulabUnlock("mapperlock");
+	    $seriallock = 0;
 	}
 
 	# Success!
@@ -931,6 +948,10 @@ END {
 	DBQueryFatal("update emulab_locks set value=value-1 ".
 		     "where name='pool_daemon'");
 	$gotlock = 0;
+    }
+    if ($seriallock) {
+	libEmulab::EmulabUnlock("mapperlock");
+	$seriallock = 0;
     }
 
     if ($exitcode && $exitcode != $WRAPPER_FAILED) {

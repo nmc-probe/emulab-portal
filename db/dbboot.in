@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -95,6 +95,8 @@ DBQueryFatal("delete from login");
 # Clear the pool daemon lock.
 #
 DBQueryFatal("replace into emulab_locks set name='pool_daemon',value='0'");
+# And other locks.
+DBQueryFatal("update emulab_locks set value='0'");
 
 #
 # Check for experiments stuck in transition.
