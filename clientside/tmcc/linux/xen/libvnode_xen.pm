@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -126,6 +126,9 @@ my $IMAGEUNZIP  = "/usr/local/bin/imageunzip";
 my $IMAGEDUMP   = "/usr/local/bin/imagedump";
 my $XM          = "/usr/sbin/xm";
 my $debug  = 0;
+
+my $usethin = 0;
+my $THINPOOL_SIZE = (50 * 1024 * 1024);		# 50GiB in KiB
 
 ##
 ## Randomly chosen convention section
@@ -1003,8 +1006,22 @@ sub vnodeCreate($$$$)
     if (!findLVMLogicalVolume($vnode_id)) {
 	#
 	# Need to create a new disk for the container. But lets see
-	# if we have a disk cached. We still have the imagelock at
-	# this point.
+	# if we have a disk cached or a golden image. We still have
+	# the imagelock at this point.
+	#
+
+	#
+	# Golden image. Create a clone of the golden image.
+	#
+	if ($usethin && hasGoldenImage($imagename)) {
+	    if (cloneGoldenImage($imagename, $vnode_id)) {
+		TBScriptUnlock();
+		fatal("libvnode_xen: could not clone golden image");
+	    }
+	}
+
+	#
+	# Cached image. Grab one to use.
 	#
 	# Ick, this has to be done under an exclusive lock, but we
 	# are currently running under a shared lock. We cannot drop
@@ -1012,7 +1029,7 @@ sub vnodeCreate($$$$)
 	# and relock). So, need to take another lock if we find
 	# cached files.
 	#
-	if (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
+	elsif (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
 	    #
 	    # Grab the first file and rename it. It becomes ours.
 	    # Then drop the lock.
@@ -1023,13 +1040,16 @@ sub vnodeCreate($$$$)
 		fatal("libvnode_xen: could not rename cache file");
 	    }
 	}
+	#
+	# Just gotta create one from scratch.
+	#
 	else {
 	    my $extrafs = 
 		(exists($attributes->{'XEN_EXTRAFS'}) ?
 		 $attributes->{'XEN_EXTRAFS'} : undef);
 		 
-	    if (CreatePrimaryDisk($lvname,
-				  $imagemetadata, $vnode_id, $extrafs)) {
+	    if (CreatePrimaryDisk($lvname, $imagemetadata,
+				  $vnode_id, $extrafs, $usethin)) {
 		TBScriptUnlock();
 		fatal("libvnode_xen: could not clone $lvname");
 	    }
@@ -2057,10 +2077,32 @@ sub vnodeBoot($$$$)
 	    print STDERR "$XM create failed: $status\n";
 	    return -1;
 	}
-	my $countdown = 10;
-	while ($countdown >= 0) {
-	    print "Pinging $ip. Five pings only please ...\n";
-	    system("ping -q -c 5 -t 5 $ip > /dev/null 2>&1");
+
+	#
+	# XXX originally we had "-t 5", but -t is not a timeout
+	# in Linux ping. So there was no timeout which resulted
+	# in sending all 5 pings at 1 second intervals and then
+	# waiting for the last one to not respond, a total of
+	# 6 seconds. So this loop of 10 tries took about 60 seconds.
+	#
+	# If we fix the option ("-w 5"), we still don't timeout after
+	# 5 seconds since in linux, we get a network error after 3
+	# seconds if the node is down. So ironically, we were closer
+	# to out timeout value with the wrong option!
+	#
+	# The worst part is in the common case where the node is
+	# up and responding: we wind up waiting a little over 4
+	# seconds til we get a response from 5 pings.
+	#
+	# So lets try fewer pings (1) so the successful case returns
+	# immediately, and account for the 3 second node down timeout
+	# by increasing the countdown to match the original ~60 seconds
+	# before giving up.
+	#
+	my $countdown = 20;
+	while ($countdown > 0) {
+	    print "Pinging $ip for up to five seconds ...\n";
+	    system("ping -q -c 1 -w 5 $ip > /dev/null 2>&1");
 	    # Ping returns zero if any packets received.
 	    if (! $?) {
 		print "Created virtual machine $vnode_id\n";
@@ -2405,9 +2447,12 @@ sub createRootDisk($)
 #
 # Create primary disk.
 #
-sub CreatePrimaryDisk($$$$)
+sub CreatePrimaryDisk($$$$;$)
 {
-    my ($lvname, $imagemetadata, $target, $extrafs) = @_;
+    my ($lvname, $imagemetadata, $target, $extrafs, $dothinlv) = @_;
+
+    # XXX when called externally by mkimagecache
+    $dothinlv = 0 if (!defined($dothinlv));
 
     #
     # If this image is a delta, we have to go back to the base and start
@@ -2467,8 +2512,19 @@ sub CreatePrimaryDisk($$$$)
 	    $lv_size += $extrafs * (1024 * 1024);
 	}
     }
-    if (mysystem2("lvcreate -i${STRIPE_COUNT} ".
-		  "   -L ${lv_size}k -n $target $VGNAME")) {
+
+    #
+    # What we actually load up is the golden image
+    #
+    if ($dothinlv) {
+	my $imagename = $imagemetadata->{'IMAGENAME'};
+	if (createGoldenImage($imagename, $lv_size)) {
+	    return -1;
+	}
+	$rootvndisk = lvmVolumePath(nameGoldenImage($imagename));
+    }
+    elsif (mysystem2("lvcreate -i${STRIPE_COUNT} ".
+		     "   -L ${lv_size}k -n $target $VGNAME")) {
 	print STDERR "libvnode_xen: could not create disk for $target\n";
 	return -1;
     }
@@ -2620,7 +2676,18 @@ sub CreatePrimaryDisk($$$$)
 		  "nice $IMAGEUNZIP -f -o -W 164 - $rootvndisk");
     }
     if ($?) {
+	if ($dothinlv) {
+	    my $imagename = $imagemetadata->{'IMAGENAME'};
+	    destroyGoldenImage($imagename);
+	}
 	return -1;
+    }
+
+    if ($dothinlv) {
+	my $imagename = $imagemetadata->{'IMAGENAME'};
+	if (cloneGoldenImage($imagename, $target)) {
+	    return -1;
+	}
     }
     return 0;
 }
@@ -2637,6 +2704,108 @@ sub createAuxDisk($$)
     if ($?) {
 	return -1;
     }
+    return 0;
+}
+
+sub nameGoldenImage($)
+{
+    my ($imagename) = @_;
+    return "_G_$imagename";
+}
+
+#
+# We create a thin pool per image. The "golden disk" is a thin LV associated
+# with the pool. All vnodes using the image are given a snapshot of this
+# thin LV.
+#
+# How big should the pool be? It is a function of the image size and
+# the number of snapshots, and how many blocks each one modifies.
+# I am going to pull the number 50GB out of...the nether regions.
+# That should allow for 10-ish different images per physical node and
+# 10-50 instances of each image.
+#
+# XXX maybe it would be better to just have a single thin pool that
+# uses the bulk of the VG and then create all golden thin LVs in that.
+# No space fragmentation that way.
+#
+sub createGoldenImage($$)
+{
+    my ($imagename,$imagesize) = @_;
+    my $pool = "_P_$imagename";
+    my $gimage = nameGoldenImage($imagename);
+
+    # we assume the caller has checked for existence
+    if (hasGoldenImage($imagename)) {
+	print STDERR "$imagename: golden image already exists!?\n";
+	return -1;
+    }
+
+    # image better not be bigger than our pool size!
+    if ($imagesize >= $THINPOOL_SIZE) {
+	print STDERR "$imagename: too big for our pool size!?\n";
+	return -1;
+    }
+
+    # create the thin pool
+    if (mysystem2("lvcreate -L ${THINPOOL_SIZE}k --type thin-pool --thinpool $pool $VGNAME")) {
+	print STDERR "$imagename: could not create thin pool\n";
+	return -1;
+    }
+
+    # create the thin LV
+    if (mysystem2("lvcreate -V ${imagesize}k -n $gimage --thinpool $VGNAME/$pool")) {
+	print STDERR "$imagename: could not create golden snapshot\n";
+	mysystem2("lvremove $VGNAME/$pool");
+	return -1;
+    }
+
+    return 0;
+}
+
+sub hasGoldenImage($)
+{
+    my ($imagename) = @_;
+
+    my $gpath = lvmVolumePath(nameGoldenImage($imagename));
+    if (-e "$gpath") {
+	return 1;
+    }
+
+    return 0;
+}
+
+sub cloneGoldenImage($$$)
+{
+    my ($imagename,$lvname) = @_;
+
+    # we assume the caller has checked for existence
+    if (!hasGoldenImage($imagename)) {
+	print STDERR "$imagename: has no golden image!?\n";
+	return -1;
+    }
+
+    my $gimage = "_G_$imagename";
+    if (mysystem2("lvcreate -n $lvname -s $VGNAME/$gimage")) {
+	print STDERR "$imagename: could not clone golden image!?\n";
+	return -1;
+    }
+    if (mysystem2("lvchange -ay $VGNAME/$lvname")) {
+	print STDERR "$imagename: could not activate $VGNAME/$lvname\n";
+    }
+
+    return 0;
+}
+
+sub destroyGoldenImage($)
+{
+    my ($imagename) = @_;
+    my $gname = nameGoldenImage($imagename);
+
+    if (mysystem2("lvremove -f $VGNAME/$gname")) {
+	print STDERR "$imagename: could not remove golden image!\n";
+	return -1;
+    }
+
     return 0;
 }
 
