@@ -699,7 +699,7 @@ sub GenDefsFile($)
 	}
 	print TCL "# subOSIDs and parent OSIDs (default parent first element)\n";
 	$query_result =
-	    DBQueryFatal("select oi.osname,oi3.osname," . 
+	    DBQueryFatal("select oi.pid,oi.osname,oi3.osname," . 
 			 "group_concat(oi2.osname separator '\" \"')" . 
 			 " from os_submap as osm" . 
 			 " left join os_info as oi on osm.osid=oi.osid" .
@@ -714,13 +714,14 @@ sub GenDefsFile($)
 			 " where ov.def_parentosid is not NULL" . 
 			 " group by oi.osname");
 		     
-	while (my ($osname,$def_parentosid,$parent_osids) = 
+	while (my ($pid,$osname,$def_parentosid,$parent_osids) = 
 	       $query_result->fetchrow_array()) {
 	    my $parentlist = "\"$def_parentosid\"";
 	    if (defined($parent_osids) && $parent_osids ne '') {
 		$parentlist .= " \"$parent_osids\"";
 	    }
 	    print TCL "set subosids($osname) [list $parentlist]\n";
+	    print TCL "set subosids($pid/$osname) \$subosids($osname)\n";
 	}
 	print TCL "\n";
     }
