@@ -421,14 +421,15 @@ function SPITFORM($formfields, $newuser, $errors)
 	echo "<input type='hidden' name='profile' value='$thisuuid'>\n";
     }
     if (isset($this_user)) {
+        echo "<div class='panel panel-info'>\n";
+        echo "  <div class='panel-body bg-info' style='padding: 5px;'>\n";
         #
         # Local users, show a link to the ssh keys page.
         # Nonlocal users, remind them ssh keys go into their portal.
         #
         if ($this_user->IsNonLocal()) {
             echo "<div>";
-            echo "  <div class='col-md-12 bg-info'
-                         style='margin-top: -5px; margin-bottom: 10px;'>
+            echo "  <div>
                     GENI Users; be sure to add ssh keys at <b>your</b> portal if
                     you want to log in from your desktop, else you
 	            will be limited to using a shell window in your browser. 
@@ -437,14 +438,15 @@ function SPITFORM($formfields, $newuser, $errors)
         }
         else {
             echo "<div>";
-            echo "  <div class='col-md-12 bg-info'
-                         style='margin-top: -5px; margin-bottom: 10px;'>
+            echo "  <div>
                      <a href='ssh-keys.php'>Manage your SSH keys</a> if
                      you want to log in from your desktop, else you
 		     will be limited to using a shell window in your browser. 
                     </div>
                   </div>\n";
         }
+        echo "  </div>\n";
+        echo "</div>\n";
     }
 
     #
