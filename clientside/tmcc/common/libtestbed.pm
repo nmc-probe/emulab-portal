@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -205,16 +205,16 @@ sub TBTimeStamp()
 {
     my ($seconds, $microseconds) = gettimeofday();
 
-    return POSIX::strftime("%H:%M:%S", localtime($seconds)) . ":$microseconds";
+    return POSIX::strftime("%H:%M:%S", localtime($seconds)) . "." .
+	sprintf("%06d", $microseconds);
 }
 
 sub TBTimeStampWithDate()
 {
     my ($seconds, $microseconds) = gettimeofday();
 
-    return POSIX::strftime("%m/%d/20%y %H:%M:%S", localtime($seconds))
-	. ":$microseconds";
-
+    return POSIX::strftime("%m/%d/20%y %H:%M:%S", localtime($seconds)) . "." .
+	sprintf("%06d", $microseconds);
 }
 
 #

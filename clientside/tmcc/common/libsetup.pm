@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -3653,7 +3653,8 @@ sub TBTimeStamp()
 	import POSIX qw(strftime);
 	$imported_POSIX = 1;
     }
-    return POSIX::strftime("%H:%M:%S", localtime($seconds)) . ":$microseconds";
+    return POSIX::strftime("%H:%M:%S", localtime($seconds)) . "." .
+	sprintf("%06d", $microseconds);
 }
 
 sub TBTimeStampWithDate()
@@ -3672,8 +3673,8 @@ sub TBTimeStampWithDate()
 	$imported_POSIX = 1;
     }
 
-    return POSIX::strftime("%m/%d/20%y %H:%M:%S", localtime($seconds))
-	. ":$microseconds";
+    return POSIX::strftime("%m/%d/20%y %H:%M:%S", localtime($seconds)) . "." .
+	sprintf("%06d", $microseconds);
 }
 
 #
