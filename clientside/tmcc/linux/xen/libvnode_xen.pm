@@ -1055,7 +1055,6 @@ sub vnodeCreate($$$$)
 	    }
 	    if ($inreload) {
 		libutil::setState("RELOADDONE");
-		sleep(5);
 		
 		#
 		# We have to ask what partition to boot, since the
@@ -1065,8 +1064,20 @@ sub vnodeCreate($$$$)
 		if ($loadslice == 0 && !exists($imagemetadata->{'BOOTPART'})) {
 		    my @tmp;
 
-		    if (getbootwhat(\@tmp) || !scalar(@tmp) ||
-			!exists($tmp[0]->{"WHAT"}) ||
+		    #
+		    # XXX If may take a while for the state change above to
+		    # take effect and set the bootwhat info. Sleep a short
+		    # time and try. If that fails, sleep longer and try
+		    # one more time.
+		    #
+		    sleep(1);
+		    my $rv = getbootwhat(\@tmp);
+		    if ($rv || !scalar(@tmp) || !exists($tmp[0]->{"WHAT"})) {
+			sleep(4);
+			$rv = getbootwhat(\@tmp);
+		    }
+
+		    if ($rv || !scalar(@tmp) || !exists($tmp[0]->{"WHAT"}) ||
 			$tmp[0]->{"WHAT"} !~ /^\d*$/) {
 			print STDERR Dumper(\@tmp);
 			TBScriptUnlock();
@@ -2072,6 +2083,7 @@ sub vnodeBoot($$$$)
     # to catch (no reply to pings), and retry. 
     #
     for (my $i = 0; $i < 3; $i++) {
+	TBDebugTimeStamp("Starting vnode $vnode_id...");
 	my $status = RunWithLock("xmtool", "nice $XM create $config");
 	if ($status) {
 	    print STDERR "$XM create failed: $status\n";
@@ -2101,11 +2113,11 @@ sub vnodeBoot($$$$)
 	#
 	my $countdown = 20;
 	while ($countdown > 0) {
-	    print "Pinging $ip for up to five seconds ...\n";
+	    TBDebugTimeStamp("Pinging $ip for up to five seconds ...");
 	    system("ping -q -c 1 -w 5 $ip > /dev/null 2>&1");
 	    # Ping returns zero if any packets received.
 	    if (! $?) {
-		print "Created virtual machine $vnode_id\n";
+		TBDebugTimeStamp("Created virtual machine $vnode_id");
 		return 0;
 	    }
 	    $countdown--;
@@ -2114,18 +2126,18 @@ sub vnodeBoot($$$$)
 	# Tear it down and try again. Use vnodeHalt cause it protects
 	# itself with an alarm.
 	#
-	print "Container did not start, halting for retry ...\n";
+	TBDebugTimeStamp("Container did not start, halting for retry ...");
 	vnodeHalt($vnode_id, $vmid, $vnconfig, $private);
-	print "Container halted, waiting for it to disappear ...\n";
+	TBDebugTimeStamp("Container halted, waiting for it to disappear ...");
 	$countdown = 10;
 	while ($countdown >= 0) {
 	    sleep(5);
 	    last
 		if (! domainExists($vnode_id));
 	    $countdown--;
-	    print "Container not gone yet\n";
+	    TBDebugTimeStamp("Container not gone yet");
 	}
-	print "Container is gone ($i)!\n";
+	TBDebugTimeStamp("Container is gone ($i)!");
     }
     return -1;
 }
@@ -2700,7 +2712,7 @@ sub createAuxDisk($$)
     my ($lv,$size) = @_;
     my $full_path = lvmVolumePath($lv);
 
-    mysystem2("lvcreate -n $lv -L ${size} $VGNAME");
+    mysystem2("lvcreate -i${STRIPE_COUNT} -n $lv -L ${size} $VGNAME");
     if ($?) {
 	return -1;
     }
@@ -2747,12 +2759,14 @@ sub createGoldenImage($$)
     }
 
     # create the thin pool
-    if (mysystem2("lvcreate -L ${THINPOOL_SIZE}k --type thin-pool --thinpool $pool $VGNAME")) {
+    if (mysystem2("lvcreate -i${STRIPE_COUNT} -L ${THINPOOL_SIZE}k ".
+		  "--type thin-pool --thinpool $pool $VGNAME")) {
 	print STDERR "$imagename: could not create thin pool\n";
 	return -1;
     }
 
     # create the thin LV
+    # Note that we do not have to stripe the volumes since we did the pool
     if (mysystem2("lvcreate -V ${imagesize}k -n $gimage --thinpool $VGNAME/$pool")) {
 	print STDERR "$imagename: could not create golden snapshot\n";
 	mysystem2("lvremove $VGNAME/$pool");
@@ -2766,12 +2780,7 @@ sub hasGoldenImage($)
 {
     my ($imagename) = @_;
 
-    my $gpath = lvmVolumePath(nameGoldenImage($imagename));
-    if (-e "$gpath") {
-	return 1;
-    }
-
-    return 0;
+    return findLVMLogicalVolume(nameGoldenImage($imagename));
 }
 
 sub cloneGoldenImage($$$)
@@ -2982,7 +2991,7 @@ sub downloadOneImage($$)
 		 (1024 / $raref->{'IMAGESSIZE'}));
 	}
     }
-    if (mysystem2("lvcreate -n $lvname -L ${lv_size}m $VGNAME")) {
+    if (mysystem2("lvcreate -i${STRIPE_COUNT} -n $lvname -L ${lv_size}m $VGNAME")) {
 	print STDERR "libvnode_xen: could not create disk for $image\n";
 	goto bad;
     }
@@ -4175,7 +4184,7 @@ sub GClvm($)
 	if ($line =~ /^\s*([-\w\.\+]+)\s*$/) {
 	    $imname = $1;
 	}
-	elsif ($line =~ /^\s*([-\w\.\+]+)\s+([-\w\.]+)$/) {
+	elsif ($line =~ /^\s*([-\w\.\+]+)\s+([-\w\.]+)\s*$/) {
 	    $imname = $1;
 	    $origin = $2;
 	}
