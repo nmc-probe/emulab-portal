@@ -1015,13 +1015,13 @@ sub ParseArgs()
 	# Use realpath to resolve any symlinks.
 	#
 	my $translated = realpath($tempnsfile);
-	if ($translated =~ /^([-\w\.\/]+)$/) {
+	if (defined($translated) && $translated =~ /^([-\w\.\/]+)$/) {
 	    $tempnsfile = $1;
 	}
 	else {
 	    tbdie({type => 'primary', severity => SEV_ERROR,
-		   error => ['bad_data', 'realpath', $translated]},
-		  "Bad data returned by realpath: $translated");
+		   error => ['bad_data', 'realpath', $tempnsfile]},
+		  "Bad data returned by realpath for: $tempnsfile");
 	}
 
 	#
