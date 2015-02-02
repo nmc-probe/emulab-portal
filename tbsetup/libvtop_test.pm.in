@@ -9490,6 +9490,7 @@ sub SetPortRange($)
 
 	    if (defined($sshdport) && $port == $sshdport) {
 		$portarray1->[$i] = $sshdport;
+		$portarray2->[$i] = $sshdport;
 	    }
 	}
 	$pnode->_portarray($portarray1);
