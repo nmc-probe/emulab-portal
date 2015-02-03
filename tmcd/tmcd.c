@@ -5406,35 +5406,46 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 			if (attrstr) {
 				if (strcmp(row2[0], "bootdisk_unit") == 0) {
 					disknum = atoi(attrstr);
+					free(attrstr);
 				}
 				else if (strcmp(row2[0], "bootdisk_bios_id") == 0) {
 					biosdisknum = strtol(attrstr, 0, 0);
+					free(attrstr);
 				}
 				else if (strcmp(row2[0], "bootdisk_trim") == 0) {
 					dotrim = atoi(attrstr);
+					free(attrstr);
 				}
 				else if (strcmp(row2[0], "bootdisk_lasttrim") == 0) {
 					trimtime = (unsigned int)atoi(attrstr);
+					free(attrstr);
 				}
 				else if (strcmp(row2[0], "disktype") == 0) {
+					if (disktype) free(disktype);
 					disktype = attrstr;
 				}
 				else if (strcmp(row2[0], "use_acpi") == 0) {
+					if (useacpi) free(useacpi);
 					useacpi = attrstr;
 				}
 				else if (strcmp(row2[0], "use_asf") == 0) {
+					if (useasf) free(useasf);
 					useasf = attrstr;
 				}
 				else if (strcmp(row2[0], "no_clflush") == 0) {
+					if (noclflush) free(noclflush);
 					noclflush = attrstr;
 				}
 				else if (strcmp(row2[0], "vgaonly") == 0) {
+					if (vgaonly) free(vgaonly);
 					vgaonly = attrstr;
 				}
 				else if (strcmp(row2[0], "dom0mem") == 0) {
+					if (dom0mem) free(dom0mem);
 					dom0mem = attrstr;
 				}
 				else if (strcmp(row2[0], "console_type") == 0) {
+					if (consoletype) free(consoletype);
 					consoletype = attrstr;
 				}
 			}
