@@ -233,8 +233,8 @@ $SUDO			= "/usr/local/bin/sudo";
 $GMAKE			= "/usr/local/bin/gmake";
 $MYSQL			= "/usr/local/bin/mysql";
 $QUOTAON		= "/usr/sbin/quotaon";
-$SSH_INIT		= "/usr/bin/ssh -1";
-$SCP_INIT		= "/usr/bin/scp -1";
+$SSH_INIT		= "/usr/bin/ssh -2";
+$SCP_INIT		= "/usr/bin/scp -2";
 $SSH			= "/usr/bin/ssh -2";
 $SCP			= "/usr/bin/scp -2";
 #
