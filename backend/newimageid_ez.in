@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -517,7 +517,7 @@ if (!exists($newimageid_args{"path"}) ||
 elsif (! $isadmin) {
     my $pdef = "";
     
-    if (!$shared &&
+    if (!($shared || $global) &&
 	exists($newimageid_args{"gid"}) &&
 	$newimageid_args{"gid"} ne "" &&
 	$newimageid_args{"gid"} ne $newimageid_args{"pid"}) {
@@ -711,8 +711,8 @@ $newimageid_args{"ezid"} = 1;
 # OSInfo->Create args not quite the same as Image->Create ones so copy 
 # newimageid_args into a new hash and fix up values.
 my %newosid_args = %newimageid_args;
-$newosid_args{"shared"} = $newimageid_args{"global"} 
-    if exists $newimageid_args{"global"};
+$newosid_args{"shared"} = $newimageid_args{"global"} = 1
+    if ($global);
 my $usrerr;
 my $new_osinfo = OSinfo->Create($project, $this_user, $imagename,
 				\%newosid_args, \$usrerr);

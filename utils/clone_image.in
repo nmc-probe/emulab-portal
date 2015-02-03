@@ -65,8 +65,8 @@ my $nosnapshot  = 0;
 my $isvirtnode  = 0;
 my $waitmode    = 0;
 my $nodelta     = 0; # To pass to create_image.
-my $global;
-my $shared;
+my $global      = 0;
+my $shared      = 0;
 
 #
 # Configure variables
@@ -376,8 +376,9 @@ if (Image->LookupByName($imagename) && !$this_user->IsAdmin()) {
     fatal("Not allowed to shadow snapshot a system image");
 }
 
-# Subgroups change the path
-my $path = ($experiment->pid() eq $experiment->gid() ?
+# Subgroups change the path, but a global image should still
+# go into the project image directory. 
+my $path = ($experiment->pid() eq $experiment->gid() || $global ?
 	    "$PROJROOT/$pid/images/${imagename}.ndz" :
 	    "$GROUPROOT/$pid/$gid/images/${imagename}.ndz");
 
@@ -405,10 +406,10 @@ $xmlfields{"reboot_waittime"} = $base_osinfo->reboot_waittime()
 $xmlfields{"osfeatures"} = $base_osinfo->osfeatures()
     if (defined($base_osinfo->osfeatures()) &&
 	$base_osinfo->osfeatures() ne "");
-if (defined($global) && $global) {
+if ($global) {
     $xmlfields{"global"} = 1;
 }
-elsif (defined($shared) && $shared) {
+elsif ($shared) {
     $xmlfields{"shared"} = 1;
 }
     
