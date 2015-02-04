@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -62,9 +62,12 @@ echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
 $query_result =
-    DBQueryFatal("select * from apt_instances ".
+    DBQueryFatal("select a.*,s.expires from apt_instances as a ".
+                 "left join geni.geni_slices as s on ".
+                 "     s.uuid=a.slice_uuid ".
 		 (isset($all) && ISADMIN() ?
-		  "order by creator" : "where creator_uuid='$target_uuid'"));
+		  "order by a.creator" :
+                  "where a.creator_uuid='$target_uuid'"));
 
 if (mysql_num_rows($query_result) == 0) {
     $message = "<b>No experiments to show you. Maybe you want to ".
@@ -78,10 +81,10 @@ if (mysql_num_rows($query_result) == 0) {
     exit();
 }
 echo "<div class='row'>
-       <div class='col-lg-6 col-lg-offset-3
-                   col-md-6 col-md-offset-3
-                   col-sm-6 col-sm-offset-3
-                   col-xs-4 col-xs-offset-4'>\n";
+       <div class='col-lg-8 col-lg-offset-2
+                   col-md-8 col-md-offset-2
+                   col-sm-10 col-sm-offset-1
+                   col-xs-12 col-xs-offset-0'>\n";
 
 echo "<input class='form-control search' type='search'
              id='experiment_search' placeholder='Search'>\n";
@@ -92,9 +95,11 @@ echo "  <table class='tablesorter'>
            <th>Profile</th>\n";
 if (isset($all) && ISADMIN()) {
     echo " <th>Creator</th>";
+    echo " <th>Project</th>";
 }
 echo "     <th>Status</th>
            <th>Created</th>
+           <th>Expires</th>
           </tr>
          </thead>
          <tbody>\n";
@@ -105,9 +110,11 @@ while ($row = mysql_fetch_array($query_result)) {
     $uuid         = $row["uuid"];
     $status       = $row["status"];
     $created      = DateStringGMT($row["created"]);
+    $expires      = DateStringGMT($row["expires"]);
     $creator_idx  = $row["creator_idx"];
     $profile_name = $profile_id;
     $creator_uid  = $row["creator"];
+    $pid          = $row["pid"];
 
     $profile = Profile::Lookup($profile_id, $version);
     if ($profile) {
@@ -120,9 +127,11 @@ while ($row = mysql_fetch_array($query_result)) {
             </td>";
     if (isset($all) && ISADMIN()) {
 	echo "<td>$creator_uid</td>";
+	echo "<td>$pid</td>";
     }
     echo "  <td>$status</td>
             <td class='format-date'>$created</td>
+            <td class='format-date'>$expires</td>
            </tr>\n";
 }
 echo "   </tbody>
