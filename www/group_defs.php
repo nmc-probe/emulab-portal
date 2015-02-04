@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -358,6 +358,13 @@ class Group
 	}
 	elseif ($access_type == $TB_PROJECT_MAKEGROUP ||
 		$access_type == $TB_PROJECT_DELGROUP) {
+            if ($access_type == $TB_PROJECT_DELGROUP) {
+                $project = $this->Project();
+                $leader  = $this->GetLeader();
+		if ($user->SameUser($leader)) {
+                    return 1;
+                }
+            }
 	    $mintrust = $TBDB_TRUST_GROUPROOT;
 	}
 	elseif ($access_type == $TB_PROJECT_LEADGROUP) {

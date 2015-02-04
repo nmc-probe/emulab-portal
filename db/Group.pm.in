@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2014 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -740,6 +740,15 @@ sub AccessCheck($$$)
     }
     elsif ($access_type == TB_PROJECT_MAKEGROUP() ||
 	   $access_type == TB_PROJECT_DELGROUP()) {
+	#
+	# Project leader can always do this
+	#
+	if ($access_type == TB_PROJECT_DELGROUP()) {
+	    my $project = $self->GetProject();
+	    my $leader  = $self->GetLeader();
+	    return 1
+		if ($user->SameUser($leader));
+	}
 	$mintrust = PROJMEMBERTRUST_GROUPROOT();
     }
     elsif ($access_type == TB_PROJECT_LEADGROUP()) {
