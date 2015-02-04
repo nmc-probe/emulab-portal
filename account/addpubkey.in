@@ -331,7 +331,23 @@ else {
     if (! -e $keyfile) {
 	fatal("No such file: $keyfile\n");
     }
-    $keyline = `head -1 $keyfile`;
+    
+    open(KEY, "$keyfile")
+	or fatal("Could not open $keyfile to read");
+    #
+    # Ick, look at first line to see if it looks like an openssh key,
+    # and if so we want to remove the embedded newlines. 
+    #
+    $keyline = <KEY>;
+    my $chompit = 0;
+    if ($keyline =~ /^ssh/ || $keyline =~ /^\d+\s+\d+/) {
+	$chompit = 1;
+    }
+    while (<KEY>) {
+	chomp($_) if ($chompit);
+	$keyline .= $_;
+    }
+    close(KEY);
 }
 
 #
