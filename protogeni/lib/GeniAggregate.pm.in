@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -2394,24 +2394,25 @@ use Interface;
 use emutil;
 use Data::Dumper;
 
-sub Create($$$$$$)
+sub Create($$$$$$$)
 {
-    my ($class, $slice, $owner, $node1sliver, $node2sliver,
+    my ($class, $perror, $slice, $owner, $node1sliver, $node2sliver,
 	$linkrspec, $node1rspec, $node2rspec) = @_;
     my $clearinghouse;
+    my ($tunnel, $aggregate, $errmsg);
 
     my $linkname = GeniXML::GetVirtualId($linkrspec);
     if (!defined($linkname)) {
-	print STDERR "Could not create tunnel aggregate: Undefined linkname\n";
+	$errmsg = "Could not create tunnel aggregate: Undefined linkname";
 	print STDERR GeniXML::Serialize($linkrspec, 1);
-	return undef;
+	goto bad;
     }
     # We support gre and egre, only.
     my $tunnel_type = GeniXML::TunnelType($linkrspec);
     if (!defined($tunnel_type)) {
-	print STDERR "Could not create tunnel aggregate: Bad tunnel type\n";
+	$errmsg = "Could not create tunnel aggregate: Bad tunnel type";
 	print STDERR GeniXML::Serialize($linkrspec, 1);
-	return undef;
+	goto bad;
     }
     my $tunnel_style = ($tunnel_type eq "egre-tunnel" ? "egre" : "gre");
     
@@ -2420,8 +2421,8 @@ sub Create($$$$$$)
     
     my $experiment = Experiment->Lookup($slice->uuid());
     if (!defined($experiment)) {
-	print STDERR "Could not map $slice to its experiment\n";
-	return -1;
+	$errmsg = "Could not map $slice to its experiment";
+	goto bad;
     }
 
     #
@@ -2429,21 +2430,21 @@ sub Create($$$$$$)
     #
     my $hrn = "${PGENIDOMAIN}." . $slice->slicename() . "." . $linkname;
 
-    my $aggregate = GeniAggregate->Create($slice, $owner, "Tunnel",
-					  $hrn, $linkname);
+    $aggregate = GeniAggregate->Create($slice, $owner, "Tunnel",
+				       $hrn, $linkname);
     if (!defined($aggregate)) {
-	print STDERR "Could not create tunnel aggregate: Undefined aggregate";
-	return undef;
+	$errmsg = "Could not create tunnel aggregate object";
+	goto bad;
     }
 
     #
     # Create a tunnel entry in the lans table.
     #
-    my $tunnel = Tunnel->Create($experiment,
-				$aggregate->uuid(), "", $tunnel_style);
+    $tunnel = Tunnel->Create($experiment,
+			     $aggregate->uuid(), "", $tunnel_style);
     if (!defined($tunnel)) {
-	print STDERR "Could not create tunnel entry in lans table\n";
-	return undef;
+	$errmsg = "Could not create tunnel entry in lans table";
+	goto bad;
     }
     # Mark it as a tunnel for a protogeni sliver.
     $tunnel->SetAttribute("protogeni_tunnel", "Yep");
@@ -2471,19 +2472,19 @@ sub Create($$$$$$)
 	$cksum = $1;
     }
     else {
-	print STDERR "Could not form a gre key for $linkname\n";
+	$errmsg = "Could not form a gre key for $linkname";
 	goto bad;
     }
 
     # Make sure there are IPs.
     if (! (defined($ip1) && defined($ip2))) {
-	print STDERR "Must specify IPs on tunnel $linkname\n";
+	$errmsg = "Must specify IPs on tunnel $linkname";
 	goto bad;
     }
     
     # The tunnel number is how we generate the unit number.
     if ($tunnel->GetAttribute("tunnel_number", \$tunnel_number) != 0) {
-	print STDERR "Could not get tunnel_number for $tunnel\n";
+	$errmsg = "Could not get tunnel_number for $tunnel";
 	goto bad;
     }
 
@@ -2492,7 +2493,7 @@ sub Create($$$$$$)
     if (defined($node1sliver)) {
 	$node1 = Node->Lookup($node1sliver->resource_id());
 	if (!defined($node1)) {
-	    print STDERR "Tunnel: Could not lookup node for $node1sliver\n";
+	    $errmsg = "Tunnel: Could not lookup node for $node1sliver";
 	    goto bad;
  	}
 	if ($testing) {
@@ -2500,7 +2501,7 @@ sub Create($$$$$$)
 	    my $manager_id = GeniXML::GetManagerId($node1rspec);
 	    
 	    if (!defined($manager_id)) {
-		print STDERR "No manager id for $linkname\n";
+		$errmsg = "No manager id for $linkname";
 		goto bad;
 	    }
 	    $manager1 = $manager_id;
@@ -2508,14 +2509,14 @@ sub Create($$$$$$)
 	my $interface = Interface->LookupControl($node1->isvirtnode() ?
 						 $node1->phys_nodeid() : $node1);
 	if (!defined($interface)) {
-	    print STDERR "No control interface for $node1\n";
+	    $errmsg = "No control interface for $node1";
 	    goto bad;
 	}
 	$ctrlip1 = $interface->IP();
 	$iface1  = $interface->iface();
 	$member1 = $tunnel->AddMember($node1, $interface->iface());
 	if (!defined($member1)) {
-	    print STDERR "Could not add $node1 to $tunnel\n";
+	    $errmsg = "Could not add $node1 to $tunnel";
 	    goto bad;
 	}
     }
@@ -2525,7 +2526,7 @@ sub Create($$$$$$)
 	
 	if (!defined($component_id)) {
 	    if (!defined($manager_id)) {
-		print STDERR "No manager id for $linkname\n";
+		$errmsg = "No manager id for $linkname";
 		goto bad;
 	    }
 	    $manager1 = $manager_id;
@@ -2535,16 +2536,16 @@ sub Create($$$$$$)
 	    my $component    = GeniComponent->CreateFromRegistry($component_id);
 	
 	    if (!defined($component)) {
-		print STDERR "Could not create component for $component_id\n";
+		$errmsg = "Could not create component for $component_id";
 		goto bad;
 	    }
 	    my $blob = $component->Resolve();
 	    if (!defined($blob)) {
-		print STDERR "Could not Resolve $component\n";
+		$errmsg = "Could not Resolve $component";
 		goto bad;
 	    }
 	    if (!exists($blob->{'physctrl'}) || !defined($blob->{'physctrl'})) {
-		print STDERR "Could not get control IP for $component\n";
+		$errmsg = "Could not get control IP for $component";
 		goto bad;
 	    }
 	    $ctrlip1 = $blob->{'physctrl'};
@@ -2553,7 +2554,7 @@ sub Create($$$$$$)
     if (defined($node2sliver)) {
 	$node2 = Node->Lookup($node2sliver->resource_id());
 	if (!defined($node2)) {
-	    print STDERR "Tunnel: Could not lookup node for $node2sliver\n";
+	    $errmsg = "Tunnel: Could not lookup node for $node2sliver";
 	    goto bad;
  	}
 	if ($testing) {
@@ -2561,7 +2562,7 @@ sub Create($$$$$$)
 	    my $manager_id = GeniXML::GetManagerId($node2rspec);
 	    
 	    if (!defined($manager_id)) {
-		print STDERR "No manager id for $linkname\n";
+		$errmsg = "No manager id for $linkname";
 		goto bad;
 	    }
 	    $manager2 = $manager_id;
@@ -2569,14 +2570,14 @@ sub Create($$$$$$)
 	my $interface = Interface->LookupControl($node2->isvirtnode() ?
 						 $node2->phys_nodeid() : $node2);
 	if (!defined($interface)) {
-	    print STDERR "No control interface for $node2\n";
+	    $errmsg = "No control interface for $node2";
 	    goto bad;
 	}
 	$ctrlip2 = $interface->IP();
 	$iface2  = $interface->iface();
 	$member2 = $tunnel->AddMember($node2, $interface->iface());
 	if (!defined($member2)) {
-	    print STDERR "Could not add $node2 to $tunnel\n";
+	    $errmsg = "Could not add $node2 to $tunnel";
 	    goto bad;
 	}
     }
@@ -2586,7 +2587,7 @@ sub Create($$$$$$)
 	
 	if (!defined($component_id)) {
 	    if (!defined($manager_id)) {
-		print STDERR "No manager id for $linkname\n";
+		$errmsg = "No manager id for $linkname";
 		goto bad;
 	    }
 	    $manager2 = $manager_id;
@@ -2596,16 +2597,16 @@ sub Create($$$$$$)
 	    my $component = GeniComponent->CreateFromRegistry($component_id);
 	
 	    if (!defined($component)) {
-		print STDERR "Could not create component for $component_id\n";
+		$errmsg = "Could not create component for $component_id";
 		goto bad;
 	    }
 	    my $blob = $component->Resolve();
 	    if (!defined($blob)) {
-		print STDERR "Could not Resolve $component\n";
+		$errmsg = "Could not Resolve $component";
 		goto bad;
 	    }
 	    if (!exists($blob->{'physctrl'}) || !defined($blob->{'physctrl'})) {
-		print STDERR "Could not get control IP for $component\n";
+		$errmsg = "Could not get control IP for $component";
 		goto bad;
 	    }
 	    $ctrlip2 = $blob->{'physctrl'};
@@ -2642,12 +2643,11 @@ sub Create($$$$$$)
 						   $linkname,
 						   $iface1ref);
 	if (!defined($sliver)) {
-	    print STDERR
-		"Could not create sliver object for $member1 in $tunnel\n";
+	    $errmsg = "Could not create sliver object for $member1 in $tunnel";
 	    goto bad;
 	}
 	if ($sliver->SetAggregate($aggregate) != 0) {
-	    print STDERR "Could not add link sliver $sliver to $aggregate\n";
+	    $errmsg = "Could not add link sliver $sliver to $aggregate";
 	    goto bad;
 	}
     }
@@ -2674,18 +2674,21 @@ sub Create($$$$$$)
 						   $linkname,
 						   $iface2ref);
 	if (!defined($sliver)) {
-	    print STDERR
-		"Could not create sliver object for $member2 in $tunnel\n";
+	    $errmsg = "Could not create sliver object for $member2 in $tunnel";
 	    goto bad;
 	}
 	if ($sliver->SetAggregate($aggregate) != 0) {
-	    print STDERR "Could not add link sliver $sliver to $aggregate\n";
+	    $errmsg = "Could not add link sliver $sliver to $aggregate";
 	    goto bad;
 	}
     }
     return $aggregate;
 
   bad:
+    if (defined($errmsg)) {
+	print STDERR "*** $errmsg\n";
+	$$perror = $errmsg;
+    }
     $tunnel->Destroy()
 	if (defined($tunnel));
     $aggregate->Delete(GENI_PURGEFLAG)
