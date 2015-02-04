@@ -691,12 +691,16 @@ sub DeleteSlice($)
     my $slice_urn    = $argref->{'slice_urn'};
     my $credentials  = $argref->{'credentials'};
     my $impotent     = $argref->{'impotent'} || 0;
+    my $blocking     = 0;
 
     if (! (defined($credentials) && defined($slice_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
     if (! GeniHRN::IsValid($slice_urn)) {
 	return GeniResponse->MalformedArgsResponse("Bad characters in URN");
+    }
+    if (exists($argref->{'blocking'}) && $argref->{'blocking'}) {
+	$blocking = 1;
     }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
@@ -748,17 +752,21 @@ sub DeleteSlice($)
     # Proceed in the background. No reason to make the caller wait,
     # it takes too long.
     #
-    my $mypid = main::WrapperFork();
-    if ($mypid) {
-	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+    if (!$blocking) {
+	my $mypid = main::WrapperFork();
+	if ($mypid) {
+	    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+	}
     }
-    if (GeniCM::CleanupDeadSlice($slice, 1) != 0) {
-	#
-	# We may need to send email here. 
-	#
-	return -1;
+    my $retval = GeniCM::CleanupDeadSlice($slice, 1);
+    if ($retval) {
+	return -1
+	    if (!$blocking);
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    return 0;
+    return 0
+	if (!$blocking);
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
 
 #
@@ -2494,7 +2502,10 @@ sub CreateImage($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Not allowed to shadow system images; ".
 				    "use a different name for your image");
-    }  
+    }
+    # See if it already exists.
+    my $image = Image->Lookup($experiment->pid(), $imagename);
+
     if (!defined(GeniCM::FlipToUser($slice, $user))) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "FlipToUser failed");
@@ -2531,16 +2542,21 @@ sub CreateImage($)
     #
     # Make sure we can get the image descriptor.
     #
-    my $image = Image->Lookup($experiment->pid(), $imagename);
     if (!defined($image)) {
-	$slice->UnLock();
-	print STDERR "Cannot lookup descriptor for $imagename\n";
-	return GeniResponse->Create(GENIRESPONSE_ERROR);
+	$image = Image->Lookup($experiment->pid(), $imagename);
+	if (!defined($image)) {
+	    $slice->UnLock();
+	    print STDERR "Cannot lookup descriptor for $imagename\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+	$image->Update({"creator_urn" =>
+			    (defined($speaksfor) ?
+			     $speaksfor->target_urn() : $ENV{'GENIURN'})});
     }
-    if ($WITHPROVENANCE) {
+    else {
+	# Cause of image versioning.
 	$image = $image->LookupMostRecent();
     }
-    # Set the creator_urn, which might come from the speaksfor.
     
     #
     # Form an image URN so the user knows how to request the new image.
@@ -3319,7 +3335,7 @@ sub CreateDataset($)
 	print STDERR "Could not lookup lease after createdataset\n";
 	GeniResponse->Create(GENIRESPONSE_ERROR);
     }
-    # Set the manager/owner URN for permission checks.
+    # Set the manager URN for same-SA permission checks.
     $lease->SetAttribute("manager_urn", $credential->target_urn());
     $lease->SetAttribute("creator_urn", $user->urn());
     
