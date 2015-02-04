@@ -721,6 +721,8 @@ my $interval = 15;
 my $ready    = 0;
 my $failed   = 0;
 my $public_url;
+# Shorten default timeout now.
+Genixmlrpc->SetTimeout(60);
 
 while ($seconds > 0) {
     sleep($interval);
@@ -741,7 +743,14 @@ while ($seconds > 0) {
 	if (defined($response)) {
 	    print STDERR ": " . $response->output();
 	    if (defined($webtask)) {
-		$webtask->output($response->output());
+		if ($response->output() =~ /read timeout/) {
+		    $webtask->output("Lost contact with the aggregate. " .
+				     "Possibly a network failure, ".
+				     "please try again later.");
+		}
+		else {
+		    $webtask->output($response->output());
+		}
 	    }
 	}
 	print STDERR "\n";
