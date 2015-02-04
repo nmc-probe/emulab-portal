@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2014 University of Utah and the Flux Group.
+# Copyright (c) 2007-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1690,6 +1690,41 @@ sub GrantAccess($$$)
 			 "  permission_id='$perm_id', ".
 			 "  permission_idx='$perm_idx', ".
 			 "  allow_write='$writable'"));
+    return 0;
+}
+
+sub LookupAccess($$$$)
+{
+    my ($self, $target, $paccess, $pwriteable) = @_;
+
+    my $imageid   = $self->imageid();
+    my $imagename = $self->imagename();
+    my ($perm_idx, $perm_id, $perm_type);
+
+    if (ref($target) eq "User") {
+	$perm_idx  = $target->uid_idx();
+	$perm_id   = $target->uid();
+	$perm_type = "user";
+    }
+    elsif (ref($target) eq "Group") {
+	$perm_idx  = $target->gid_idx();
+	$perm_id   = $target->pid() . "/" . $target->gid();
+	$perm_type = "group";
+    }
+    my $query_result =
+	DBQueryWarn("select allow_write from image_permissions ".
+		    "where imageid='$imageid' and ".
+		    "      permission_type='$perm_type' and ".
+		    "      permission_idx='$perm_idx'");
+    return -1
+	if (!$query_result);
+    if (!$query_result->numrows) {
+	$$paccess    = 0;
+	$$pwriteable = 0 if (defined($pwriteable));
+    }
+    my ($writeable) = $query_result->fetchrow_array();
+    $$paccess    = 1;
+    $$pwriteable = $writeable if (defined($pwriteable));
     return 0;
 }
 
