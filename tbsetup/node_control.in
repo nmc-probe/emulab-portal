@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -235,7 +235,21 @@ foreach my $option (keys(%controls)) {
     my ($admin, $multi, $physdbkey, $virtdbkey,
 	$needs_osselect, $osselect_arg, $checkslot) = @{$controlset{$option}};
     my $value = $controls{$option};
+    my $version = "";
 
+    #
+    # OSIDs might include a version number now.
+    #
+    if ($needs_osselect) {
+	my ($osid,$vers) = split(":", $value);
+	if (defined($vers)) {
+	    if ($vers !~ /^\d+$/) {
+		fatal("Illegal value specified for $option: '$value'");
+	    }
+	    $value = $osid;
+	    $version = ":${vers}";
+	}
+    }
     #
     # Do a checkslot on it to make sure its valid for the DB slot.
     #
@@ -256,7 +270,7 @@ foreach my $option (keys(%controls)) {
 	}
 	else {
 	    # Setting the field
-	    $str .= "$osselect_arg $value";
+	    $str .= "$osselect_arg ${value}${version}";
 	}
 	if ($debug) {
 	    print "$option=$value ($physdbkey) made osselect str='$str'\n";
