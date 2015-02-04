@@ -33,11 +33,26 @@ $page_title = "My SSH Keys";
 RedirectSecure();
 $this_user = CheckLoginOrRedirect();
 $this_idx  = $this_user->idx();
+
+$optargs = OptionalPageArguments("target_user",   PAGEARG_USER);
+
 SPITHEADER(1);
+
+# Default to current user.
+if (!isset($target_user)) {
+    $target_user = $this_user;
+}
+$target_uid = $target_user->uid();
+$target_idx = $target_user->idx();
+
+if (! ($target_user->SameUser($this_user) ||
+       $target_user->AccessCheck($this_user, $TB_USERINFO_READINFO))) {
+    USERERROR("You do not have permission to view ${target_uid}' keys!", 1);
+}
 
 $query_result =
     DBQueryFatal("select idx,comment,pubkey from user_pubkeys ".
-                 "where uid_idx='$this_idx' and internal=0");
+                 "where uid_idx='$target_idx' and internal=0");
 
 $pubkeys = array();
 while ($row = mysql_fetch_array($query_result)) {
@@ -53,7 +68,8 @@ echo "</script>\n";
 echo "<div id='page-body'></div>\n";
 
 echo "<script type='text/javascript'>\n";
-echo "    window.AJAXURL  = 'server-ajax.php';\n";
+echo "    window.AJAXURL     = 'server-ajax.php';\n";
+echo "    window.TARGET_UID  = '$target_uid';\n";
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";

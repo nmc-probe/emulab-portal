@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -135,6 +135,7 @@ $url_mapping["showslice"]           = "showslice.php";
 $url_mapping["genihistory"]         = "genihistory.php";
 $url_mapping["showmanifest"]        = "showmanifest.php";
 $url_mapping["showslicelogs"]       = "showslicelogs.php";
+$url_mapping["ssh-keys"]            = "ssh-keys.php";
 	     
 #
 # The caller will pass in a page id, and a list of things. If the thing
@@ -553,7 +554,12 @@ function VerifyPageArguments($argspec, $required)
 		$yep = 1;
 
 		if (ValidateArgument($name, PAGEARG_USER, $idx)) {
-		    $object = User::Lookup($idx);
+                    if (preg_match("/^\d+$/", $idx)) {
+                        $object = User::Lookup($idx);
+                    }
+                    else {
+                        $object = User::LookupByUid($idx);
+                    }
 		}
 	    }
 	    elseif (isset($_REQUEST[URL_UID])) {

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -84,7 +84,7 @@ WRITESUBMENUBUTTON("Edit Profile",
 
 if (!$wikionly && ($isadmin || $target_user->SameUser($this_user))) {
     WRITESUBMENUBUTTON("Edit SSH Keys",
-		       CreateURL("showpubkeys", $target_user));
+		       CreateURL("ssh-keys", $target_user));
     
     WRITESUBMENUBUTTON("Generate SSL Cert",
 		       CreateURL("gensslcert", $target_user));

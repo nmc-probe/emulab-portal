@@ -26,8 +26,8 @@
 	      <a data-toggle="collapse"
 		 href='#<%- key_href %>'>
 		<span class="glyphicon glyphicon-chevron-right pull-left"
-		      style='padding-right: 10px;'></span></a>
-	      <h4 class='panel-title'><%- key_title %></h4>
+		      style='padding-right: 10px;'></span>
+		<h4 class='panel-title'><%- key_title %></h5></a>
 	    </div>
 	  </div>
 	  <div id='<%- key_href %>' class="panel-collapse collapse">
@@ -80,6 +80,9 @@
 			   data-classButton='btn btn-primary btn-sm'
 			   data-input='false'
 			   data-buttonText='Load from file'>
+		    <button type="button" id='ssh_clear_button'
+			    style='margin-left: 10px;'
+			    class="btn btn-default btn-sm">Clear Form</button>
 		  </div>
 		</div>
 		<div class="form-group">

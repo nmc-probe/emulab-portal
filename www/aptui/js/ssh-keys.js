@@ -9,12 +9,14 @@ function (_, sup, sshkeysString, oopsString, waitwaitString)
 {
     'use strict';
     var embedded        = 0;
+    var target_uid      = "";
     var sshkeysTemplate = _.template(sshkeysString);
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
 	embedded = window.EMBEDDED;
+	target_uid = window.TARGET_UID;
 	var pubkeys = JSON.parse(_.unescape($('#sshkey-list')[0].textContent));
 
 	var html = sshkeysTemplate({
@@ -53,6 +55,12 @@ function (_, sup, sshkeysString, oopsString, waitwaitString)
 	    HandleDeleteKey(index);
 	});
 
+	// Form reset button.
+	$('#ssh_clear_button').click(function (event) {
+	    console.log("foo");
+	    event.preventDefault();
+	    $('#sshkey_data').val("");
+	});
 	// Add key button.
 	$('#ssh_addkey_button').click(function (event) {
 	    event.preventDefault();
@@ -79,16 +87,18 @@ function (_, sup, sshkeysString, oopsString, waitwaitString)
 		return;
 	    }
 	    if (embedded) {
-		window.parent.location.replace("../ssh-keys.php");
+		window.parent.location.replace("../ssh-keys.php?user=" +
+					       target_uid);
 	    }
 	    else {
-		window.location.replace("ssh-keys.php");
+		window.location.replace("ssh-keys.php?user=" + target_uid);
 	    }
 	}
 	sup.ShowModal("#waitwait-modal");
 
 	var xmlthing = sup.CallServerMethod(null, "ssh-keys", "addkey",
-					    {"keydata" : keydata});
+					    {"keydata"    : keydata,
+					     "target_uid" : target_uid});
 	xmlthing.done(callback);
     }
     
@@ -107,7 +117,8 @@ function (_, sup, sshkeysString, oopsString, waitwaitString)
 	sup.ShowModal("#waitwait-modal");
 
 	var xmlthing = sup.CallServerMethod(null, "ssh-keys", "deletekey",
-					    {"index" : index});
+					    {"index"      : index,
+					     "target_uid" : target_uid});
 	xmlthing.done(callback);
     }
     

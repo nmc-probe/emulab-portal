@@ -127,7 +127,7 @@ if (!$archived) {
 if (!$archived && !$target_user->wikionly() &&
     ($isadmin || $target_user->SameUser($this_user))) {
     WRITESUBMENUBUTTON("Edit SSH Keys",
-		       CreateURL("showpubkeys", $target_user));
+		       CreateURL("ssh-keys", $target_user));
     
     WRITESUBMENUBUTTON("Generate SSL Cert",
 		       CreateURL("gensslcert", $target_user));

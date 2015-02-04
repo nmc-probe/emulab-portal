@@ -29,15 +29,22 @@ include("defs.php3");
 $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $uid_idx   = $this_user->uid_idx();
-$isadmin   = ISADMIN();
 
 #
 # Standard Testbed Header
 #
 PAGEHEADER("SSH Keys");
 
+$optargs = OptionalPageArguments("target_user",   PAGEARG_USER);
+
+# Default to current user.
+$target_opt = "";
+if (isset($target_user)) {
+    $target_opt = "&user=" . $target_user->uid();
+}
+
 echo "<br>\n";
-echo "<iframe src='apt/ssh-keys.php?embedded=1'
+echo "<iframe src='apt/ssh-keys.php?embedded=1${target_opt}'
               id='embedded' class='embedded'></iframe>";
 
 $bodyclosestring =

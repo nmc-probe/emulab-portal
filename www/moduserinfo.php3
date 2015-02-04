@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -375,7 +375,7 @@ function SPITFORM($formfields, $errors)
                  security policies</a> for information
                  regarding passwords and email addresses.\n";
     if (!$wikionly) {
-	$pubkey_url = CreateURL("showpubkeys", $target_user);
+	$pubkey_url = CreateURL("ssh-keys", $target_user);
 	
 	echo "<li> You can also
                  <a href='$pubkey_url'>edit your ssh public keys</a>.

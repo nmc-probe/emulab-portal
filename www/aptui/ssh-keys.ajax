@@ -27,8 +27,9 @@ chdir("apt");
 #
 # When there's a PubKeys class, this will be a Class function to edit them...
 #
-function AddKeyAux($uid, $keydata, &$error)
+function AddKeyAux($target_uid, $keydata, &$error)
 {
+    global $this_user;
     global $suexec_output, $suexec_output_array;
 
     #
@@ -50,8 +51,10 @@ function AddKeyAux($uid, $keydata, &$error)
     chmod($filename, 0666);
 
     # Invoke the back-end script as the user if an admin for permissions.
-    $retval = SUEXEC($uid, "nobody", "webaddpubkey -f -u $uid $filename",
-		     SUEXEC_ACTION_IGNORE);
+    $suexec_uid = (ISADMIN() ? $this_user->uid() : "nobody");
+    $retval = SUEXEC($suexec_uid, "nobody",
+                     "webaddpubkey -f -u $target_uid $filename",
+                     SUEXEC_ACTION_IGNORE);
     unlink($filename);
 
     if ($retval) {
@@ -76,15 +79,26 @@ function Do_AddKey()
     global $ajax_args;
     $error = "";
 
-    $this_idx   = $this_user->uid_idx();
-    $this_uid   = $this_user->uid();
-    $embedded   = isset($ajax_args["embedded"]) && $ajax_args["embedded"];
+    $target_user = $this_user;
+    $embedded    = isset($ajax_args["embedded"]) && $ajax_args["embedded"];
 
     if (!isset($ajax_args["keydata"])) {
 	SPITAJAX_ERROR(1, "Missing key data");
 	return;
     }
-    if (!AddKeyAux($this_uid, $ajax_args["keydata"], $error)) {
+    if (isset($ajax_args["target_uid"])) {
+        $target_uid  = $ajax_args["target_uid"];
+        $target_user = User::Lookup($target_uid);
+        if (!$target_user) {
+            SPITAJAX_ERROR(1, "No such user: $target_uid");
+            return;
+        }
+        if (! ($target_user->SameUser($this_user) || ISADMIN())) {
+            SPITAJAX_ERROR(1, "No permission to add key for $target_uid");
+            return;
+        }
+    }
+    if (!AddKeyAux($target_user->uid(), $ajax_args["keydata"], $error)) {
 	SPITAJAX_ERROR(1, $error);
 	return;
     }
@@ -97,9 +111,8 @@ function Do_DeleteKey()
     global $this_user;
     global $ajax_args;
 
-    $this_idx   = $this_user->uid_idx();
-    $this_uid   = $this_user->uid();
-    $embedded   = isset($ajax_args["embedded"]) && $ajax_args["embedded"];
+    $target_user = $this_user;
+    $embedded    = isset($ajax_args["embedded"]) && $ajax_args["embedded"];
 
     if (!isset($ajax_args["index"])) {
 	SPITAJAX_ERROR(1, "Missing key index");
@@ -110,13 +123,35 @@ function Do_DeleteKey()
 	SPITAJAX_ERROR(1, "Invalid key index");
 	return;
     }
+    if (isset($ajax_args["target_uid"])) {
+        $target_uid  = $ajax_args["target_uid"];
+        $target_user = User::Lookup($target_uid);
+        if (!$target_user) {
+            SPITAJAX_ERROR(1, "No such user: $target_uid");
+            return;
+        }
+        if (! ($target_user->SameUser($this_user) || ISADMIN())) {
+            SPITAJAX_ERROR(1, "No permission to delete key for $target_uid");
+            return;
+        }
+    }
+    $target_idx = $target_user->uid_idx();
+    $target_uid = $target_user->uid();
+    
     DBQueryFatal("delete from user_pubkeys ".
-                 "where uid_idx='$this_idx' and idx='$index' and internal=0");
+                 "where uid_idx='$target_idx' and idx='$index' and internal=0");
 
-    if (SUEXEC($this_uid, "nobody",
-               "webaddpubkey -w $this_uid", SUEXEC_ACTION_CONTINUE)) {
-	SPITAJAX_ERROR(-1, "Internal error regenerating keys file");
-	return;
+    #
+    # update authkeys files and nodes, but only if user has a real account.
+    # The -w option can only be used on real users, and deleting a key does
+    # not require anything by the outside script if not a real user; it
+    # will complain and die. 
+    #
+    if (HASREALACCOUNT($target_uid) &&
+        SUEXEC("nobody", "nobody",
+               "webaddpubkey -w $target_uid", SUEXEC_ACTION_CONTINUE)) {
+            SPITAJAX_ERROR(-1, "Internal error regenerating auth keys file");
+            return;
     }
     SPITAJAX_RESPONSE(0);
     return;
