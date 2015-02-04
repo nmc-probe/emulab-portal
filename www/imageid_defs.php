@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -642,9 +642,6 @@ class Image
 	#
 	$imagefile_url  = $this->imagefile_url();
 	$metadata_url   = $this->metadata_url();
-	if (! $metadata_url) {
-	    $metadata_url = "$TBBASE/image_metadata.php?uuid=$uuid";
-	}
 
 	if (!$description)
 	    $description = "&nbsp;";
@@ -945,14 +942,33 @@ class Image
 	}
 
 	echo "<tr>
-                <td>UUID: </td>
+                <td>Version UUID: </td>
                 <td class=left>$uuid</td>
               </tr>\n";
 
 	echo "<tr>
+                <td>Image UUID: </td>
+                <td class=left>$image_uuid</td>
+              </tr>\n";
+
+	if ($metadata_url) {
+            echo "<tr>
                 <td>Metadata URL: </td>
                 <td class=left><a href='$metadata_url'>https:// ...</a></td>
               </tr>\n";
+        }
+        else {
+	    $version_url = "$TBBASE/image_metadata.php?uuid=$uuid";
+	    $image_url   = "$TBBASE/image_metadata.php?uuid=$image_uuid";
+            echo "<tr>
+                     <td>Version URL: </td>
+                     <td class=left><a href='$version_url'>https:// ...</a></td>
+                  </tr>\n";
+            echo "<tr>
+                     <td>ImageURL: </td>
+                     <td class=left><a href='$image_url'>https:// ...</a></td>
+                  </tr>\n";
+	}
 
         echo "<tr>
                  <td>Notes: </td>
