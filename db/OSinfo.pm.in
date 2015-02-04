@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2014 University of Utah and the Flux Group.
+# Copyright (c) 2007-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -139,6 +139,17 @@ sub Lookup($$;$$)
 			    "left join os_info_versions as v on ".
 			    "     v.osid=o.osid and v.vers=o.version ".
 			    "where o.osid='$arg1'");
+	    return undef
+		if (! $result || !$result->numrows);
+
+	    return BlessRow($class, $result->fetchrow_hashref());
+	}
+	elsif ($arg1 =~ /^(\d+):(\d+)$/) {
+	    my $result =
+		DBQueryWarn("select v.* from os_info as o ".
+			    "left join os_info_versions as v on ".
+			    "     v.osid=o.osid ".
+			    "where o.osid='$1' and v.vers='$2'");
 	    return undef
 		if (! $result || !$result->numrows);
 
