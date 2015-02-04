@@ -544,6 +544,9 @@ sub DoExtend()
     }
     my $blob = $response->value();
     $dataset->Update({"expires" => TBDateStringLocal($blob->{"expires"})});
+    if (exists($blob->{'state'})) {
+	$dataset->Update({"state" => $blob->{'state'}});
+    }
     $dataset->Unlock();
     return 0;
 
