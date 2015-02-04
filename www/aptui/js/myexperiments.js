@@ -44,7 +44,8 @@ function (sup, moment)
 	$('.format-date').each(function() {
 	    var date = $.trim($(this).html());
 	    if (date != "") {
-		$(this).html(moment($(this).html()).format("ll"));
+		$(this).html(moment($(this).html())
+			     .format("MMM Do, h:mm a"));
 	    }
 	});
     }
