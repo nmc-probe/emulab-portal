@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -45,6 +45,7 @@ use GeniCMV2;
 use GeniResponse;
 use GeniCredential;
 use GeniRegistry;
+use GeniXML;
 use emutil;
 
 use Compress::Zlib;
@@ -152,14 +153,14 @@ sub GetVersion()
 	"version" => $coder->string("2"),
 	"schema" => "http://www.protogeni.net/resources/rspec/2/request.xsd",
 	"namespace" => "http://www.protogeni.net/resources/rspec/2",
-	"extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
+	"extensions" => [$GeniXML::EMULAB_NS],
     };
     my $request_3 = {
 	"type" => "GENI",
 	"version" => $coder->string("3"),
 	"schema" => "http://www.geni.net/resources/rspec/3/request.xsd",
         "namespace" => "http://www.geni.net/resources/rspec/3",
-        "extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
+	"extensions" => [$GeniXML::EMULAB_NS],
     };
     my $ad_0_1 = {
         "type" => "ProtoGENI",
@@ -180,14 +181,14 @@ sub GetVersion()
         "version" => $coder->string("2"),
         "schema" => "http://www.protogeni.net/resources/rspec/2/ad.xsd",
         "namespace" => "http://www.protogeni.net/resources/rspec/2",
-        "extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
+	"extensions" => [$GeniXML::EMULAB_NS, $GeniXML::SITEINFO_NS],
     };
     my $ad_3 = {
 	"type" => "GENI",
 	"version" => $coder->string("3"),
 	"schema" => "http://www.geni.net/resources/rspec/3/ad.xsd",
         "namespace" => "http://www.geni.net/resources/rspec/3",
-        "extensions" => ["http://www.protogeni.net/resources/rspec/ext/emulab/1"]
+	"extensions" => [$GeniXML::EMULAB_NS, $GeniXML::SITEINFO_NS],
     };
 
     my $request_name = "request_rspec_versions";
@@ -416,6 +417,12 @@ sub DeleteSliver()
         'slice_urn' => $slice_urn,
         'credentials' => $credentials
     };
+    # Optional blocking.
+    if (defined($options) &&
+	exists($options->{'blocking'}) && $options->{'blocking'}) {
+	$delete_args->{'blocking'} = 1;
+    }
+    
     my $response = GeniCMV2::DeleteSlice($delete_args);
     if (!ref($response)) {
 	# This is cause GeniCMV2::DeleteSlice does a fork, and the child

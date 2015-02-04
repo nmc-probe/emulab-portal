@@ -125,6 +125,11 @@ my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
 my $PROTOGENI_LOCALUSER= @PROTOGENI_LOCALUSER@;
 
+# For location info.
+my $default_longitude = undef;
+my $default_latitude  = undef;
+my $default_country   = undef;
+
 #
 # Tell the client what API revision we support.  The correspondence
 # between revision numbers and API features is to be specified elsewhere.
@@ -3717,7 +3722,8 @@ sub SliverWorkAux($$$$$$$$)
 		$tunnel = $linkmap{$linkname};
 	    }
 	    else {
-		$tunnel = GeniAggregate::Tunnel->Create($slice,
+		$tunnel = GeniAggregate::Tunnel->Create(\$message,
+							$slice,
 							$owner,
 							$node1sliver,
 							$node2sliver,
@@ -3725,7 +3731,8 @@ sub SliverWorkAux($$$$$$$$)
 							$node1rspec,
 							$node2rspec);
 		if (!defined($tunnel)) {
-		    $message = "Could not create aggregate for $linkname";
+		    $message = "Could not create aggregate for $linkname" .
+			(defined($message) ? ": $message" : "");
 		    goto bad;
 		}
 		$slivers{$tunnel->uuid()} = $tunnel;
@@ -4141,6 +4148,27 @@ sub SliverWorkAux($$$$$$$$)
 	goto bad;
     }
 
+    my $siteinfo = GeniXML::FindFirst("n:site_info", $manifest);
+    if (defined($siteinfo)) {
+	# Clean old location.
+	$manifest->removeChild($siteinfo);
+    }
+    $siteinfo = GeniXML::AddElement("site_info", $manifest,
+				    $GeniXML::SITEINFO_NS);
+    my $location = GeniXML::AddElement("location", $siteinfo);
+    GetSiteVar('general/default_longitude', \$default_longitude)
+	if (!defined($default_longitude));
+    GetSiteVar('general/default_latitude', \$default_latitude)
+	if (!defined($default_latitude));
+    GetSiteVar('general/default_country', \$default_country)
+	if (!defined($default_country));
+    if (defined($default_country) &&
+	defined($default_latitude) && defined($default_longitude)) {
+	GeniXML::SetText("country", $location, $default_country);
+	GeniXML::SetText("latitude", $location, $default_latitude);
+	GeniXML::SetText("longitude", $location, $default_longitude);
+    }
+    
     #
     # Record all manifests (including updates) in the history. 
     #

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2299,6 +2299,11 @@ sub print_header {
 		    "configured='$configured' available='$available' />\n";
 	    }
 	    print $opstate . "\n";
+	    print "<site_info xmlns='http://www.protogeni.net/resources".
+		"/rspec/ext/site-info/1'>\n";
+            print "<location country='$default_country' ".
+		"longitude='$default_long' latitude='$default_lat'/>\n";
+	    print "</site_info>\n";
 	}
     }
 }

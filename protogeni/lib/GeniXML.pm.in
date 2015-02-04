@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2014 University of Utah and the Flux Group.
+# Copyright (c) 2010-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -58,7 +58,7 @@ use Scalar::Util qw(looks_like_number);
 
 use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $RSPEC_3
             $RSPEC_0_1_NS $RSPEC_0_2_NS $RSPEC_2_NS
-            $EMULAB_NS $XSI_NS $STITCH_NS $SHAREDVLAN_NS
+            $EMULAB_NS $XSI_NS $STITCH_NS $SHAREDVLAN_NS $SITEINFO_NS
             $REQUEST_2_URL $MANIFEST_2_URL
             $REQUEST_3_URL $MANIFEST_3_URL);
 $RSPEC_0_1 = "0.1";
@@ -71,6 +71,7 @@ our $RSPEC_0_2_NS = "http://www.protogeni.net/resources/rspec/0.2";
 our $RSPEC_2_NS = "http://www.protogeni.net/resources/rspec/2";
 our $RSPEC_3_NS = "http://www.geni.net/resources/rspec/3";
 our $EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
+our $SITEINFO_NS = "http://www.protogeni.net/resources/rspec/ext/site-info/1";
 our $XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
 our $STITCH_NS = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
 our $SHAREDVLAN_NS = "http://www.geni.net/resources/rspec/ext/shared-vlan/1";
