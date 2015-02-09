@@ -62,9 +62,10 @@ echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
 $query_result =
-    DBQueryFatal("select a.*,s.expires,s.hrn from apt_instances as a ".
+    DBQueryFatal("select a.*,s.expires,s.hrn,u.email from apt_instances as a ".
                  "left join geni.geni_slices as s on ".
                  "     s.uuid=a.slice_uuid ".
+		 "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
 		 (isset($all) && ISADMIN() ?
 		  "order by a.creator" :
                   "where a.creator_uuid='$target_uuid'"));
@@ -117,6 +118,15 @@ while ($row = mysql_fetch_array($query_result)) {
     $creator_uid  = $row["creator"];
     $pid          = $row["pid"];
     list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
+    $email        = $row["email"];
+    # If a guest user, use email instead.
+    if (isset($email)) {
+        $creator = $email;
+    }
+    else {
+        $creator = "<a href='$TBBASE/showuser.php3?user=$creator_idx'>".
+            "$creator_uid</a>";
+    }
 
     $profile = Profile::Lookup($profile_id, $version);
     if ($profile) {
@@ -129,7 +139,7 @@ while ($row = mysql_fetch_array($query_result)) {
             </td>";
     if (isset($all) && ISADMIN()) {
 	echo "<td>$hrn</td>";
-	echo "<td>$creator_uid</td>";
+	echo "<td>$creator</td>";
 	echo "<td>$pid</td>";
     }
     echo "  <td>$status</td>
