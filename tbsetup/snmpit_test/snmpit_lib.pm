@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LGPL
 # 
@@ -55,7 +55,7 @@ use Exporter;
                 convertPortFromString convertPortsFromStrings
                 mapVlansToSwitches mapStaleVlansToSwitches
 		getTrunksForVlan getExperimentTrunksForVlan
-		setSwitchTrunkPath mapPortsToSwitches 
+		setSwitchTrunkPath mapPortsToSwitches findAndDumpLan
 );
 
 use English;
@@ -69,6 +69,7 @@ use strict;
 use SNMP;
 use Port;
 use Carp qw(cluck);
+use Data::Dumper;
 
 my $TBOPS = libtestbed::TB_OPSEMAIL;
 
@@ -2014,6 +2015,16 @@ sub uniq_ports(@) {
     return @pts;
 }
 
+sub findAndDumpLan($)
+{
+    my ($lan_id) = @_;
+    
+    my $lan = Lan->Lookup($lan_id);
+    return
+	if (!defined($lan));
+
+    print STDERR Dumper($lan->{'LAN'}) . "\n";
+}
 
 # End with true
 1;

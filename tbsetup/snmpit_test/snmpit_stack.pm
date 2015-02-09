@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # Copyright (c) 2004-2009 Regents, University of California.
 # 
 # {{{EMULAB-LGPL
@@ -487,6 +487,9 @@ sub newVlanNumber($$$) {
 		"*** desired vlan tag $number for vlan $vlan_id already in " .
 		"use" . ($vlan_using_tag ? " by vlan $vlan_using_tag" : "") .
 		"\n";
+	    if ($vlan_using_tag) {
+		snmpit_lib::findAndDumpLan($vlan_using_tag);
+	    }
 	    # Indicates no tag assigned. 
 	    return 0;
 	}
