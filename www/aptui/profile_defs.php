@@ -431,11 +431,18 @@ class Profile
 		$node->sliver_type["name"] == "emulab-xen") {
 		return "Utah APT";
 	    }
-	    # m400 is Cloudlab node type
 	    if ($node->hardware_type &&
-		$node->hardware_type["name"] &&
-		$node->hardware_type["name"] == "m400") {
-		return "Utah Cloudlab";
+		$node->hardware_type["name"]) {
+                if ($node->hardware_type["name"] == "m400") {
+                    return "Utah Cloudlab";
+                }
+                elseif ($node->hardware_type["name"] == "dl360") {
+                    return "Utah DDC";
+                }
+                elseif ($node->hardware_type["name"] == "r320" ||
+                        $node->hardware_type["name"] == "c6220") {
+                    return "Utah APT";
+                }
 	    }
 	    # Check URL
 	    if (! ($node->sliver_type &&
