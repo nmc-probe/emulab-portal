@@ -62,7 +62,7 @@ echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
 $query_result =
-    DBQueryFatal("select a.*,s.expires from apt_instances as a ".
+    DBQueryFatal("select a.*,s.expires,s.hrn from apt_instances as a ".
                  "left join geni.geni_slices as s on ".
                  "     s.uuid=a.slice_uuid ".
 		 (isset($all) && ISADMIN() ?
@@ -81,9 +81,9 @@ if (mysql_num_rows($query_result) == 0) {
     exit();
 }
 echo "<div class='row'>
-       <div class='col-lg-8 col-lg-offset-2
-                   col-md-8 col-md-offset-2
-                   col-sm-10 col-sm-offset-1
+       <div class='col-lg-10 col-lg-offset-1
+                   col-md-10 col-md-offset-1
+                   col-sm-12 col-sm-offset-0
                    col-xs-12 col-xs-offset-0'>\n";
 
 echo "<input class='form-control search' type='search'
@@ -94,6 +94,7 @@ echo "  <table class='tablesorter'>
           <tr>
            <th>Profile</th>\n";
 if (isset($all) && ISADMIN()) {
+    echo " <th>Slice</th>";
     echo " <th>Creator</th>";
     echo " <th>Project</th>";
 }
@@ -115,6 +116,7 @@ while ($row = mysql_fetch_array($query_result)) {
     $profile_name = $profile_id;
     $creator_uid  = $row["creator"];
     $pid          = $row["pid"];
+    list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
 
     $profile = Profile::Lookup($profile_id, $version);
     if ($profile) {
@@ -126,6 +128,7 @@ while ($row = mysql_fetch_array($query_result)) {
              <a href='status.php?uuid=$uuid'>$profile_name</a>
             </td>";
     if (isset($all) && ISADMIN()) {
+	echo "<td>$hrn</td>";
 	echo "<td>$creator_uid</td>";
 	echo "<td>$pid</td>";
     }
