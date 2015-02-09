@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -199,7 +199,7 @@ function SPITFORM($formfields, $errors)
     global $TBDB_OSID_OSNAMELEN, $TBDB_NODEIDLEN;
     global $TBDB_OSID_VERSLEN, $TBBASE, $TBPROJ_DIR, $TBGROUP_DIR;
     global $WIKIDOCURL;
-    global $view, $ec2;
+    global $view, $ec2, $baseimage;
     
     #
     # Explanation of the $view argument: used to turn on and off display of
@@ -319,7 +319,12 @@ function SPITFORM($formfields, $errors)
     if ($ec2) {
 	echo "<input type=hidden name=ec2 value=true>";
     }
-
+    if (isset($baseimage)) {
+        $id = $baseimage->imageid();
+	$version = $baseimage->version();
+	echo "<input type=hidden name=baseimage value='$id'>";
+	echo "<input type=hidden name=version value='$version'>";
+    }
     #
     # Select Project
     #
@@ -1391,6 +1396,12 @@ if (!isset($confirmed) && 0 != strcmp($confirmationWarning,"")) {
     echo "<input type=submit name=canceled  value=Back>\n";
     if ($ec2) {
 	echo "<input type=hidden name=ec2 value=true>";
+    }
+    if (isset($baseimage)) {
+        $id = $baseimage->imageid();
+	$version = $baseimage->version();
+	echo "<input type=hidden name=baseimage value='$id'>";
+	echo "<input type=hidden name=version value='$version'>";
     }
     echo "</form></center>";
 
