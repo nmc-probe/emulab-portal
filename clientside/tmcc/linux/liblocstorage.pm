@@ -38,6 +38,7 @@ sub VERSION()	{ return 1.0; }
 
 # Must come after package declaration!
 use English;
+use Cwd 'abs_path';
 
 # Load up the paths. Its conditionalized to be compatabile with older images.
 # Note this file has probably already been loaded by the caller.
@@ -222,9 +223,13 @@ sub get_bootdisk()
     my $disk = undef;
     my $line = `$MOUNT | grep ' on / '`;
 
-    if ($line && $line =~ /^\/dev\/(\S+)\d+ on \//) {
-	$disk = $1;
+    if ($line && $line =~ qr{^(/dev/\S+) on /}) {
+	my $device = abs_path($1);
+	if ($device && $device =~ qr{^/dev/(\S+)\d+}) {
+	    $disk = $1;
+	}
     }
+
     return $disk;
 }
 
