@@ -1627,6 +1627,19 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	}
 	
 	#
+	# Local blockstores
+	#
+	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
+						   $ref,
+				   $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    $response = HandleBlockstore($slice_experiment, $virtexperiment,
+					 $user, $slice, $ref,
+					 $blockref, @$credentials);
+	    goto bad
+		if (GeniResponse::IsError($response));
+	}
+
+	#
 	# Look for interface forward declarations that will be used later
 	# in the link specifications. 
 	#
@@ -1701,18 +1714,6 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    "vport"    => $vport,
 		};
 	    }
-	}
-	#
-	# Local blockstores
-	#
-	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
-						   $ref,
-				   $GeniXML::EMULAB_NS)->get_nodelist()) {
-	    $response = HandleBlockstore($slice_experiment, $virtexperiment,
-					 $user, $slice, $ref,
-					 $blockref, @$credentials);
-	    goto bad
-		if (GeniResponse::IsError($response));
 	}
     }
 
