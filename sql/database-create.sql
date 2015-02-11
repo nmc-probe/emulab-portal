@@ -137,6 +137,7 @@ CREATE TABLE `apt_instances` (
   `extension_code` varchar(32) default NULL,
   `extension_reason` mediumtext,
   `servername` tinytext,
+  `monitor_pid` int(11) default '0',
   `rspec` mediumtext,
   `params` mediumtext,
   `manifest` mediumtext,
