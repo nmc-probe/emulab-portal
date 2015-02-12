@@ -343,7 +343,7 @@ foreach ($required as $key) {
 
 if (isset($formfields["profile_rspec"]) &&
 	$formfields["profile_rspec"] != "") {
-    if (! TBvalid_html_fulltext($formfields["profile_rspec"])) {
+    if (! TBvalid_rspec($formfields["profile_rspec"])) {
 	$errors["profile_rspec"] = TBFieldErrorString();	
     }
     else {

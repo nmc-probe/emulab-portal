@@ -22,6 +22,12 @@
 # }}}
 #
 #
+
+function TBvalid_rspec($token) {
+    return TBcheck_dbslot($token, "apt_profiles", "rspec",
+			  TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR);
+}
+
 class Profile
 {
     var	$profile;
