@@ -37,6 +37,16 @@ window.APT_OPTIONS.initialize = function (sup)
     var geniauth = "https://www.emulab.net/protogeni/speaks-for/geni-auth.js";
     var embedded = window.EMBEDDED;
 
+    // Eventually make this download without having to follow a link.
+    // Just need to figure out how to do that!
+    if ($('#download_creds_link').length) {
+	$('#download_creds_link').click(function(e) {
+	    e.preventDefault();
+	    window.location.href = 'getcreds.php';
+	    return false;
+	});
+    }
+
     // Every page calls this, and since the Login button is on every
     // page, do this initialization here. 
     if ($('#quickvm_geni_login_button').length) {
