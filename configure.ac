@@ -551,6 +551,8 @@ if test x"$PROTOGENI_NICKNAME" = x"unknown"; then
     *osu.edu) PROTOGENI_NICKNAME="osu-ig";;
     *umkc.edu) PROTOGENI_NICKNAME="umkc-ig";;
     *idre.ucla.edu) PROTOGENI_NICKNAME="ucla-ig";;
+    *washington.edu) PROTOGENI_NICKNAME="uwashington-ig";;
+    *rnet.missouri.edu) PROTOGENI_NICKNAME="missouri-ig";;
     esac
 fi
 
