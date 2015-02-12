@@ -67,6 +67,7 @@ use Compress::Zlib;
 use File::Temp qw(tempfile);
 use MIME::Base64;
 use Errno;
+use List::Util qw(shuffle);
 
 # Configure variables
 my $TB		   = "@prefix@";
@@ -2173,7 +2174,7 @@ sub ReserveVlanTags($)
 	#
 	my $vlanid = $vlan->lanid();
 	my $tag = undef;
-	my @tmp = @tags;
+	my @tmp = shuffle(@tags);
 	while (@tmp) {
 	    $tag = pop(@tmp);
 	    if ($vlan->ReserveVlanTag($tag, 1)) {
