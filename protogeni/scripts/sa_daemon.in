@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -362,6 +362,20 @@ sub ExpireSlices()
 	    $slice->UnLock();
 	    goto skip;
 	}
+	# Experimental
+	if ($MAINSITE) {
+	    my $instance = APT_Instance->LookupBySlice($slice_uuid);
+	    if (defined($instance)) {
+		#
+		# If this is for an APT instance, skip it and let the
+		# apt_daemon deal with it.
+		#
+		print STDERR "Skipping slice for $instance\n";
+		$slice->UnLock();
+		goto skip;
+	    }
+	}
+	
 	my $geniuser  = GeniUser->Lookup($slice->creator_uuid(), 1);
 	my $emailaddr = (defined($geniuser) ? $geniuser->email() : undef);
 	my $urn       = $slice->urn();
@@ -369,15 +383,6 @@ sub ExpireSlices()
 	my $slice_uuid= $slice->uuid();
 	
 	print STDERR "Expiring $slice\n";
-
-	# Experimental
-	if ($MAINSITE) {
-	    my $instance = APT_Instance->LookupBySlice($slice_uuid);
-	    if (defined($instance)) {
-		$instance->RecordHistory();
-		$instance->Delete();
-	    }
-	}
 
 	# Needs to move.
 	GeniSlice::ClientSliver->SliceDelete($slice);

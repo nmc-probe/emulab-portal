@@ -1,0 +1,243 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+
+#
+# Look for APT things that need to be dealt with.
+#
+sub usage()
+{
+    print "Usage: apt_daemon [-d] [-s] [-n]\n";
+    exit(1);
+}
+my $optlist   = "dns";
+my $debug     = 0;
+my $impotent  = 0;
+my $oneshot   = 0;
+
+
+#
+# Configure variables
+#
+my $TB		     = "@prefix@";
+my $TBOPS            = "@TBOPSEMAIL@";
+my $TBLOGS           = "@TBLOGSEMAIL@";
+my $MAINSITE         = @TBMAINSITE@;
+my $LOGFILE          = "$TB/log/apt_daemon.log";
+my $MANAGEINSTANCE   = "$TB/bin/manage_instance";
+my $SLEEP_INTERVAL   = 60;
+my $UPDATE_INTERVAL  = (60 * 60 * 24);
+
+#
+# Update interval countdown. Set to zero so it runs right away.
+#
+my $update_countdown = 0;
+	  
+# un-taint path
+$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+# Protos
+sub fatal($);
+	  
+#
+# Turn off line buffering on output
+#
+$| = 1; 
+
+if ($UID != 0) {
+    fatal("Must be root to run this script\n");
+}
+if (! $MAINSITE) {
+    exit(0);
+}
+
+#
+# Check args early so we get the right DB.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"s"})) {
+    $oneshot = 1;
+}
+if (defined($options{"n"})) {
+    $impotent = 1;
+}
+
+# Load the Testbed support stuff.
+use lib "@prefix@/lib";
+use emdb;
+use Experiment;
+use Node;
+use libtestbed;
+use emutil;
+use libEmulab;
+use APT_Instance;
+use POSIX qw(strftime ceil);
+
+if (!$oneshot) {
+    if (CheckDaemonRunning("apt_daemon")) {
+	fatal("Not starting another apt daemon!");
+    }
+    # Go to ground.
+    if (! $debug) {
+	if (TBBackGround($LOGFILE)) {
+	    exit(0);
+	}
+    }
+    if (MarkDaemonRunning("apt_daemon")) {
+	fatal("Could not mark daemon as running!");
+    }
+}
+
+#
+# Setup a signal handler for newsyslog.
+#
+sub handler()
+{
+    my $SAVEEUID = $EUID;
+    
+    $EUID = 0;
+    ReOpenLog($LOGFILE);
+    $EUID = $SAVEEUID;
+}
+$SIG{HUP} = \&handler
+    if (! ($debug || $oneshot));
+
+sub ExpireFailedInstances()
+{
+    my $query_result =
+	DBQueryWarn("select uuid,status from apt_instances ".
+		    "where (status='failed' or status='imaging') and ".
+		    "      (UNIX_TIMESTAMP(now()) - ".
+		    "       UNIX_TIMESTAMP(created) > 7200)");
+    return
+	if (!$query_result);
+
+    while (my ($uuid,$status) = $query_result->fetchrow_array()) {
+	my $instance = APT_Instance->Lookup($uuid);
+	if (!defined($instance)) {
+	    print STDERR "No such instance $uuid\n";
+	    next;
+	}
+	print STDERR "$instance is in the $status state\n";
+
+	if ($status eq "imaging") {
+	    #
+	    # Move it back to the ready state. But must lock so as not to
+	    # collide with with sa_daemon or the user.
+	    #
+	    my $genislice = $instance->GetGeniSlice();
+	    goto skip
+		if (!defined($genislice));
+	    goto skip
+		if ($genislice->Lock() != 0);
+	    if ($impotent) {
+		print STDERR
+		    "Would change $instance status from imaging to ready\n";
+	    }
+	    else {
+		print STDERR
+		    "Changing $instance status from imaging to ready\n";
+		$instance->Update({"status" => "ready"});
+	    }
+	    $genislice->UnLock();
+	  skip:
+	    $genislice->Flush();
+	    next;
+	}
+	
+	#
+	# Try to terminate the instance. We cannot take the lock since
+	# we are going to call manage_instance to do the termination.
+	# So, manage_instance might collide with the sa_daemon which
+	# locks the underlying slice, but if that happens we will just
+	# try again after a short wait. If it still fails, then
+	# something is wrong and we will notify.
+	#
+	if ($impotent) {
+	    print STDERR "Would try to terminate $instance\n";
+	    next;
+	}
+	my $output = emutil::ExecQuiet("$MANAGEINSTANCE terminate $uuid");
+	my $status = $?;
+	print STDERR "$output\n";
+	if ($status) {
+	    #
+	    # Need to send email at some point. 
+	    #
+	}
+    }
+}
+
+while (1) {
+    if (NoLogins()) {
+	sleep(5);
+	next;
+    }
+
+    print "Running at ".
+	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
+
+    ExpireFailedInstances();
+
+    exit(0)
+	if ($oneshot);
+    
+    sleep($SLEEP_INTERVAL);
+}
+exit(0);
+
+sub fatal($)
+{
+    my ($msg) = @_;
+
+    if (! ($oneshot || $debug)) {
+	#
+	# Send a message to the testbed list. 
+	#
+	SENDMAIL($TBOPS,
+		 "APT daemon died",
+		 $msg,
+		 $TBOPS);
+    }
+    MarkDaemonStopped("apt_daemon")
+	if (!$oneshot);
+
+    die("*** $0:\n".
+	"    $msg\n");
+}
