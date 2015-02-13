@@ -629,7 +629,8 @@ my $blob = {'uuid'         => $quickvm_uuid,
 	    'creator_uuid' => $geniuser->uuid(),
 	    'aggregate_urn'=> $CMURN,
 	    'status'       => "created",
-	    'servername'   => $SERVER_NAME
+	    'servername'   => $SERVER_NAME,
+	    'rspec'        => $rspecstr,
 };
 if (defined($project)) {
     $blob->{"pid"}     = $project->pid();
@@ -761,6 +762,19 @@ while ($seconds > 0) {
 	if ($response->code() == GENIRESPONSE_BUSY);
 
     my $blob = $response->value();
+    #
+    # Convert to something smaller, with info the web interface
+    # cares about. 
+    #
+    if (defined($webtask)) {
+	my $statusblob = {};
+	foreach my $urn (keys(%{$blob->{'details'}})) {
+	    my $details = $blob->{'details'}->{$urn};
+	    my $node_id = $details->{'client_id'};
+	    $statusblob->{$node_id} = $details;
+	}
+	$webtask->sliverstatus($statusblob)
+    }
     if (exists($blob->{'public_url'})) {
 	$public_url = $blob->{'public_url'};
     }
