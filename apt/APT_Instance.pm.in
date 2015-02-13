@@ -651,6 +651,35 @@ sub SliceStatus($)
 				  $context, "SliverStatus", $args);
 }
 
+#
+# Reboot some nodes
+#
+sub RestartSliver($@)
+{
+    my ($self, @slivers) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"sliver_urns" => \@slivers,
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+
+    return Genixmlrpc::CallMethod($authority->url(),
+				  $context, "RestartSliver", $args);
+}
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;
