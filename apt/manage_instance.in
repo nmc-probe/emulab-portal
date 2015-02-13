@@ -40,6 +40,8 @@ sub usage()
     print("Usage: manage_instance extend instance seconds\n");
     print("Usage: manage_instance terminate instance\n");
     print("Usage: manage_instance refresh instance\n");
+    print("Usage: manage_instance reboot instance node_id [node_id ...]\n");
+    print("Usage: manage_instance monitor instance\n");
     exit(-1);
 }
 my $optlist     = "dt:";
@@ -53,6 +55,9 @@ my $webtask;
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
+
+# Debugging
+my $usemydevtree = 0;
 
 #
 # Untaint the path
@@ -93,6 +98,8 @@ sub DoConsole();
 sub DoTerminate();
 sub DoExtend();
 sub DoRefresh();
+sub DoReboot();
+sub StartMonitor();
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -136,6 +143,12 @@ elsif ($action eq "terminate") {
 elsif ($action eq "refresh") {
     DoRefresh()
 }
+elsif ($action eq "reboot") {
+    DoReboot()
+}
+elsif ($action eq "monitor") {
+    StartMonitor()
+}
 else {
     usage();
 }
@@ -160,6 +173,8 @@ sub DoSnapshot()
 	fatal("No slice for quick VM: $uuid");
     }
     my $authority = $instance->GetGeniAuthority();
+    my $cmurl     = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
     
     # The web interface (and in the future the xmlrpc interface) sets this.
     my $this_user = User->ImpliedUser();
@@ -229,14 +244,6 @@ sub DoSnapshot()
 	    fatal("Could not find node '$node_id' in manifest");
 	}
     }
-    #
-    # Create the webtask object.
-    #
-    if (defined($webtask_id)) {
-	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
-	# Convenient.
-	$webtask->AutoStore(1);
-    }
 
     #
     # Really, a snapshot and not a clone. We are not going to allow this
@@ -281,7 +288,17 @@ sub DoSnapshot()
 	fatal("Slice is busy, cannot lock it");
     }
     $needunlock = 1;
-    
+
+    #
+    # Create the webtask object, but AFTER locking the slice so we do
+    # not destroy one in use.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
     my $geniuser  = $instance->GetGeniUser();
     my $context   = APT_Geni::GeniContext();
     if (! (defined($geniuser) && defined($authority) &&
@@ -309,7 +326,7 @@ sub DoSnapshot()
     # This returns pretty fast, and then the imaging takes place in
     # the background at the aggregate. 
     #
-    my $response = Genixmlrpc::CallMethod($authority->url(),
+    my $response = Genixmlrpc::CallMethod($cmurl,
 					  $context, "CreateImage", $args);
     if (!defined($response)) {
 	$errmsg = "Internal error creating image";
@@ -371,8 +388,7 @@ sub DoSnapshot()
 	$seconds -= $interval;
     
 	my $response =
-	    Genixmlrpc::CallMethod($authority->url(),
-				   $context, "SliverStatus", $args);
+	    Genixmlrpc::CallMethod($cmurl, $context, "SliverStatus", $args);
 
 	if ($response->code() != GENIRESPONSE_SUCCESS &&
 	    $response->code() != GENIRESPONSE_BUSY) {
@@ -402,8 +418,7 @@ sub DoSnapshot()
 	# We are watching for the image status to report ready or failed.
 	#
 	$response =
-	    Genixmlrpc::CallMethod($authority->url(),
-				   $context, "ImageInfo", $args);
+	    Genixmlrpc::CallMethod($cmurl, $context, "ImageInfo", $args);
 
 	if ($response->code() != GENIRESPONSE_SUCCESS &&
 	    $response->code() != GENIRESPONSE_BUSY) {
@@ -557,6 +572,10 @@ sub DoTerminate()
     
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
+	#
+	# No slice (typically) means we never got far enough to the
+	# get the sliver created on the backend cluster.
+	#
 	goto killit;
     }
     #
@@ -714,12 +733,23 @@ sub DoRefresh()
 	print STDERR "No slice for instance\n";
 	goto killit;
     }
+    
     #
     # Lock the slice in case it is doing something else, like taking
     # a disk image.
     #
     if ($slice->Lock()) {
-	fatal("Slice is busy, cannot lock it");
+	$errmsg = "Experiment is busy, cannot lock it. Please try again later";
+	goto bad;
+    }
+    #
+    # Create the webtask object, but AFTER locking the slice so we do
+    # not destroy one in use.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	# Convenient.
+	$webtask->AutoStore(1);
     }
 
     my $response = $instance->SliceStatus();
@@ -730,11 +760,11 @@ sub DoRefresh()
 
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
-	    print STDERR "Slice is gone; killing instance";
-	    $slice->Delete();
+	    $errmsg = "Slice is gone";
+	    goto bad;
 	}
 	if ($response->code() == GENIRESPONSE_BUSY) {
-	    $errmsg = "Slice was busy; try again later";
+	    $errmsg = "Slice is busy; try again later";
 	    goto bad;
 	}
 	$errmsg = "Could not get status: ". $response->output();
@@ -747,6 +777,22 @@ sub DoRefresh()
     elsif ($blob->{'status'} eq "failed") {
 	$instance->SetStatus("failed");
     }
+    #
+    # Convert to something smaller, with info the web interface
+    # cares about. 
+    #
+    my $statusblob = {};
+    foreach my $urn (keys(%{$blob->{'details'}})) {
+	my $details = $blob->{'details'}->{$urn};
+	my $node_id = $details->{'client_id'};
+	$statusblob->{$node_id} = $details;
+    }
+    if (defined($webtask)) {
+	$webtask->sliverstatus($statusblob);
+    }
+    if ($debug) {
+	print STDERR Dumper($statusblob);
+    }
     $slice->UnLock();
     exit(0);
   killit:
@@ -756,7 +802,231 @@ sub DoRefresh()
   bad:
     $slice->UnLock();
     print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited(1);
+    }
     exit(1);
+}
+
+#
+# Reboot nodes.
+#
+sub DoReboot()
+{
+    my $errmsg;
+    my @slivers = ();
+    
+    usage()
+	if (!@ARGV);
+
+    my $slice = $instance->GetGeniSlice();
+    if (!defined($slice)) {
+	print STDERR "No slice for instance\n";
+	goto killit;
+    }
+
+    my $manifest = GeniXML::Parse($instance->manifest());
+    if (! defined($manifest)) {
+	fatal("Could not parse manifest");
+    }
+    my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
+    foreach my $node (@nodes) {
+	my $client_id = GeniXML::GetVirtualId($node);
+	if (grep {$_ eq $client_id} @ARGV) {
+	    my $sliver_urn = GeniXML::GetSliverId($node);
+	    if (!defined($sliver_urn)) {
+		fatal("No sliver id for $client_id");
+	    }
+	    push(@slivers, $sliver_urn);
+	}
+    }
+    
+    #
+    # Lock the slice in case it is doing something else, like taking
+    # a disk image.
+    #
+    if ($slice->Lock()) {
+	$errmsg = "Experiment is busy, cannot lock it. Please try again later";
+	goto bad;
+    }
+
+    #
+    # Create the webtask object, but AFTER locking the slice so we do
+    # not destroy one in use.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
+    my $response = $instance->RestartSliver(@slivers);
+    if (!defined($response)) {
+	$errmsg = "RPC Error calling RestartSliver";
+	goto bad;
+    }
+
+    if ($response->code() != GENIRESPONSE_SUCCESS) {
+	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+	    $errmsg = "Slice is gone";
+	    goto bad;
+	}
+	if ($response->code() == GENIRESPONSE_BUSY) {
+	    $errmsg = "Experiment is busy; try again later";
+	    goto bad;
+	}
+	$errmsg = $response->output();
+	goto bad;
+    }
+    $slice->UnLock();
+    if (defined($webtask)) {
+	$webtask->Exited(0);
+    }
+    #
+    # Start the monitor so the web interface will see when the node
+    # has actually come back up.
+    #
+    # XXX This will not return unless a monitor is already running.
+    StartMonitor();
+    exit(0);
+  killit:
+    $instance->RecordHistory();
+    $instance->Delete();
+    exit(0);
+  bad:
+    $slice->UnLock();
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited(1);
+    }
+    exit(1);
+}
+
+#
+# Start up the monitor for an instance. Only one though.
+#
+sub StartMonitor()
+{
+    my $logfile;
+    my $needunlock = 0;
+    
+    my $slice = $instance->GetGeniSlice();
+    if (!defined($slice)) {
+	fatal("No slice for instance");
+    }
+    if ($instance->monitor_pid()) {
+	my $pid = $instance->monitor_pid();
+	if (kill(0, $pid)) {
+	    print STDERR "Monitor already running ($pid). ".
+		"Kill it before starting a new one.\n";
+	    exit(0);
+	}
+	$instance->Update({"monitor_pid" => 0});
+    }
+    if (!$debug) {
+	$logfile = TBMakeLogname("aptmonitor");
+	if (TBBackGround($logfile)) {
+	    exit(0);
+	}
+    }
+    $instance->Update({"monitor_pid" => '$PID'});
+    
+    #
+    # Need a TERM handler to clean things up.
+    #
+    my $handler = sub {
+	unlink($logfile)
+	    if (defined($logfile));
+	$slice->UnLock()
+	    if ($needunlock);
+	exit(0);
+    };
+    local $SIG{TERM} = $handler;
+    if ($debug) {
+	local $SIG{INT} = $handler;
+    }
+    my $seconds  = 1500;
+    my $interval = 15;
+    # Shorten default timeout now.
+    Genixmlrpc->SetTimeout(60);
+
+    while ($seconds > 0) {
+	sleep($interval);
+	$seconds -= $interval;
+
+	#
+	# Lock the slice in case it is doing something else, like taking
+	# a disk image. Just skip this turn.
+	#
+	next
+	    if ($slice->Lock());
+	$needunlock = 1;
+
+	if (defined($webtask_id)) {
+	    $webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	    # Convenient.
+	    $webtask->AutoStore(1);
+	}
+	my $response = $instance->SliceStatus();
+	if (!defined($response)) {
+	    print STDERR "RPC Error calling SliceStatus\n";
+	    goto skip;
+	}
+	if (($response->code() != GENIRESPONSE_SUCCESS &&
+	     $response->code() != GENIRESPONSE_BUSY)) {
+	    print STDERR "SliverStatus failed";
+	    print STDERR ": " . $response->output() . "\n";
+	    if (defined($webtask)) {
+		if ($response->output() =~ /read timeout/) {
+		    $webtask->output("Lost contact with the aggregate. " .
+				     "Possibly a network failure, ".
+				     "please try again later.");
+		}
+		else {
+		    $webtask->output($response->output());
+		}
+	    }
+	    $slice->UnLock();
+	    $needunlock = 0;
+	    last;
+	}
+	goto skip
+	    if ($response->code() == GENIRESPONSE_BUSY);
+    
+	my $blob = $response->value();
+	#
+	# Convert to something smaller, with info the web interface
+	# cares about. 
+	#
+	my $statusblob = {};
+	foreach my $urn (keys(%{$blob->{'details'}})) {
+	    my $details = $blob->{'details'}->{$urn};
+	    my $node_id = $details->{'client_id'};
+	    $statusblob->{$node_id} = $details;
+	}
+	if ($debug) {
+	    print STDERR Dumper($statusblob);
+	}
+	$webtask->sliverstatus($statusblob)
+	    if (defined($webtask));
+	#
+	# We poll until the status goes ready, to avoid continuous polling
+	# for dozens of instances. Needs more thought.
+	#
+	if ($blob->{'status'} eq "ready") {
+	    $slice->UnLock();
+	    $needunlock = 0;
+	    last;
+	}
+      skip:
+	$slice->UnLock();
+	$needunlock = 0;
+    }
+    unlink($logfile)
+	if (defined($logfile));
+    exit(0);
 }
 
 sub fatal($)
