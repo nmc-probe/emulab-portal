@@ -87,7 +87,11 @@ $routing = array("myprofiles" =>
 						 "SnapShot" =>
 						     "Do_Snapshot",
 						 "SnapshotStatus" =>
-						     "Do_SnapshotStatus")),
+                                                     "Do_SnapshotStatus",
+						 "Reboot" =>
+                                                     "Do_Reboot",
+						 "Refresh" =>
+						     "Do_Refresh")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,

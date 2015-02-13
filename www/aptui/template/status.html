@@ -145,7 +145,7 @@
     <div class='panel panel-default invisible' id='showtopo_container'>
       <div class='panel-body'>
 	<div id='quicktabs_div'>
-	  <ul id='quicktabs' class='nav nav-tabs'>
+	  <ul id='quicktabs_ul' class='nav nav-tabs'>
 	    <li class='active'>
               <a href='#profile' data-toggle='tab'>Topology View</a>
             </li>
@@ -160,8 +160,13 @@
 	  <div id='quicktabs_content' class='tab-content'>
             <div class='tab-pane active' id='profile'>
 	      <div id='showtopo_statuspage' class='jacks'></div>
-              <small>Click on a node to open a shell on that node. 
+              <small>Click on a node for more options. 
                 Click and drag to move things around.</small>
+	      <button class='btn btn-xs btn-success pull-right' disabled
+		      id='refresh_button' type=button
+		      data-toggle='popover'
+		      data-content='Ask cluster for updated node status'>
+		Refresh Status</button>
 	    </div>
             <div class='tab-pane' id='listview'>
 	      <div id='showtopo_listview'>
@@ -170,11 +175,10 @@
                   <thead>
                     <tr>
                       <th>Node</th>
-                      <th>Shell (in-browser)</th>
                       <th>SSH command <small>
 			  (if you provided your own key)</small>
                       </th>
-                      <th>Console</th>
+                      <th style='text-align: center;'>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -205,11 +209,32 @@
 	  Performing a snapshot will create a new disk image and
 	  modify the profile. This is okay, but please confirm.
 	  <br>
+	  <div id='wholedisk_div' class='hidden'>
+	    <br>
+	    <center>
+	      Whole disk image?<br>
+	      <input type=checkbox id=wholedisk value=yes>
+	    </center>
+	    Check this box if you need to capture the entire disk; you only
+	    need to do this if you put data into one of the unused
+	    partitions on the local disk. <b><em>Do not check this box if you
+		do not know what this means!</em></b>
+	    <br>
+	  </div>
 	  <br>
           <button class='btn btn-danger btn-sm align-center' type='button'
 		  id='snapshot_confirm'>Confirm</button></center>
 	</div>
       </div>
+    </div>
+  </div>
+  <div id="context">
+    <div id="context-menu">
+      <ul class="dropdown-menu" role="menu">
+	<li><a tabindex="-1">Shell</a></li>
+	<li><a tabindex="-1">Console</a></li>
+	<li><a tabindex="-1">Reboot</a></li>
+      </ul>
     </div>
   </div>
   <div id='waitwait_div'></div>

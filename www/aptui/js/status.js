@@ -10,7 +10,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/snapshot-help.html',
 	 'js/lib/text!template/oneonly-modal.html',
 	 'js/lib/text!template/approval-modal.html',
-	 'tablesorter', 'tablesorterwidgets','jquery-ui'],
+	 'tablesorter', 'tablesorterwidgets','jquery-ui', 'contextmenu'],
 function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	  ShowExtendModal, statusString, waitwaitString, oopsString,
 	  registerString, terminateString,
@@ -26,6 +26,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var dossh       = 1;
     var profile_uuid= null;
     var extend      = null;
+    var jacksIDs    = {};
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
@@ -93,7 +94,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
-	    'placement': 'top'
+	    placement: 'top',
+	});
+	$('[data-toggle="tooltip"]').tooltip({
+	    placement: 'top',
 	});
 
 	// Use an unload event to terminate any shells.
@@ -128,6 +132,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('button#extend_button').click(function (event) {
 	    event.preventDefault();
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest, extend);
+	});
+	
+	// Handler for the refresh button
+	$('button#refresh_button').click(function (event) {
+	    event.preventDefault();
+	    DoRefresh();
 	});
 	
 	// Handler for the Clone button.
@@ -293,6 +303,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 	    var bgtype = "panel-info";
 	    status_message = "Please wait while we get your experiment ready";
+
+	    //
+	    // As soon as we have a manifest, show the topology.
+	    // 
+	    if (! StatusWatchCallBack.active && json.value.havemanifest) {
+		ShowTopo(uuid);
+		StatusWatchCallBack.active = 1;
+	    }
 	    
 	    if (status == 'provisioned') {
 		$("#status_progress_bar").width("66%");
@@ -308,11 +326,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $("#status_progress_div").addClass("progress-bar-success");
 		    $("#status_progress_bar").width("100%");
 		}
-		if (! StatusWatchCallBack.active) {
-		    ShowTopo(uuid);
-		    StatusWatchCallBack.active = 1;
-		}
 		EnableButtons();
+		AutoStartSSH();
 	    }
 	    else if (status == 'failed') {
 		bgtype = "panel-danger";
@@ -335,6 +350,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		DisableButtons();
 		EnableButton("terminate");
+		EnableButton("refresh");
 	    }
 	    else if (status == 'imaging') {
 		bgtype = "panel-warning";
@@ -358,7 +374,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			     'panel-warning panel-default panel-info')
 		.addClass(bgtype);
 	    $("#quickvm_status").html(status_html);
-	} 
+	}
+	//
+	// Look for a sliverstatus blob.
+	//
+	if (json.value.havemanifest && _.has(json.value, "sliverstatus")) {
+	    UpdateSliverStatus(json.value.sliverstatus);
+	}
 	StatusWatchCallBack.laststatus = status;
 	if (! (status == 'terminating' || status == 'terminated' ||
 	       status == 'unknown')) {
@@ -372,6 +394,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     function EnableButtons()
     {
 	EnableButton("terminate");
+	EnableButton("refresh");
 	EnableButton("extend");
 	EnableButton("clone");
 	EnableButton("snapshot");
@@ -379,6 +402,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     function DisableButtons()
     {
 	DisableButton("terminate");
+	DisableButton("refresh");
 	DisableButton("extend");
 	DisableButton("clone");
 	DisableButton("snapshot");
@@ -397,6 +421,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    button = "#terminate_button";
 	else if (button == "extend")
 	    button = "#extend_button";
+	else if (button == "refresh")
+	    button = "#refresh_button";
 	else if (button == "clone" && nodecount == 1)
 	    button = "#clone_button";
 	else if (button == "snapshot" && nodecount == 1)
@@ -469,7 +495,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 
 	    var newcolor   = "";
-	    var statusbg   = "";
+	    var statusbg   = "panel-success";
 	    var statustext = "Your experiment is ready";
 
 	    $("#quickvm_countdown").html(moment(when).fromNow());
@@ -541,6 +567,71 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	
 	// Reset the countdown clock.
 	StartCountdownClock.reset = json.value;
+    }
+
+    //
+    // Request a refresh from the backend cluster, to see if the sliverstatus
+    // has changed. 
+    //
+    function DoRefresh()
+    {
+	var callback = function(json) {
+	    sup.HideModal('#waitwait-modal');
+	    //console.info(json);
+	    
+	    if (json.code) {
+		sup.SpitOops("oops", "Failed to refresh status: " + json.value);
+		return;
+	    }
+	    UpdateSliverStatus(json.value);
+	}
+	sup.ShowModal('#waitwait-modal');
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "Refresh",
+					     {"uuid" : uuid});
+	xmlthing.done(callback);
+    }
+    // Helper for above and called from the status callback.
+    function UpdateSliverStatus(blob)
+    {
+	$.each(blob , function(node_id, details) {
+	    if (details.status == "ready") {
+		// Bootstrap bg-success color
+		$('#' + jacksIDs[node_id] + ' .node .nodebox')
+		    .css("fill", "#dff0d8");
+	    }
+	    else if (details.status == "failed") {
+		// Bootstrap bg-danger color
+		$('#' + jacksIDs[node_id] + ' .node .nodebox')
+		    .css("fill", "#f2dede");
+	    }
+	});
+    }	
+	
+    //
+    // Request a node reboot from the backend cluster.
+    //
+    function DoReboot(node_id)
+    {
+	var callback = function(json) {
+	    sup.HideModal('#waitwait-modal');
+	    
+	    if (json.code) {
+		sup.SpitOops("oops", "Failed to reboot: " + json.value);
+		return;
+	    }
+	    // bootstrap bg-warning color.
+	    $('#' + jacksIDs[node_id] + ' .node .nodebox').css("fill",
+							       "#fcf8e3");
+	}
+	sup.ShowModal('#waitwait-modal');
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "Reboot",
+					     {"uuid"    : uuid,
+					      "node_id" : node_id});
+	xmlthing.done(callback);
     }
 	
     //
@@ -624,7 +715,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		"</li>";	
 
 	    // Append to end of tabs
-	    $("#quicktabs_div ul").append(html);
+	    $("#quicktabs_ul").append(html);
 
 	    // Install a click handler for the X button.
 	    $("#" + tabname + "_kill").click(function(e) {
@@ -636,7 +727,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// Remove the content div.
 		$("#" + tabname).remove();
 		// Activate the "profile" tab.
-		$('#quicktabs a[href="#profile"]').tab('show');
+		$('#quicktabs_ul a[href="#profile"]').tab('show');
 	    });
 
 	    // The content div.
@@ -645,11 +736,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    $("#quicktabs_content").append(html);
 
 	    // And make it active
-	    $('#quicktabs a:last').tab('show') // Select last tab
+	    $('#quicktabs_ul a:last').tab('show') // Select last tab
 	}
 	else {
 	    // Switch back to it.
-	    $('#quicktabs a[href="#' + tabname + '"]').tab('show');
+	    $('#quicktabs_ul a[href="#' + tabname + '"]').tab('show');
 	    return;
 	}
 
@@ -674,6 +765,76 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     }
 
     var hostportList = {};
+
+    //
+    // Show a context menu over nodes in the topo viewer.
+    //
+    function ContextMenuShow(jacksevent)
+    {
+	var event = jacksevent.event;
+	var client_id = jacksevent.client_id;
+
+	//
+	// We generate a new menu object each time causes it easier and
+	// not enough overhead to worry about.
+	//
+	$('#context').contextmenu({
+	    target:'#context-menu', 
+	    onItem: function(context,e) {
+		$('#context').contextmenu('closemenu');
+
+		if ($(e.target).text() == "Shell") {
+		    NewSSHTab(hostportList[client_id], client_id);
+		}
+		else if ($(e.target).text() == "Console") {
+		    if (isguest) {
+			alert("Only registered users can access the console");
+			return;
+		    }
+		    NewConsoleTab(client_id);
+		}
+		else if ($(e.target).text() == "Reboot") {
+		    if (isguest) {
+			alert("Only registered users can reboot nodes");
+			return;
+		    }
+		    DoReboot(client_id);
+		}
+		$('#context').contextmenu('destroy');
+	    }
+	})
+	$('#context').contextmenu('show', event);
+    }
+
+    // For autostarting ssh on single node experiments.
+    var startOneSSH = null;
+
+    function AutoStartSSH()
+    {
+	if (startOneSSH) {
+	    startOneSSH();
+	}
+    }
+
+    var listview_row = 
+	"<tr id='listview-row'>" +
+	" <td name='node_id'>n/a</td>" +
+	" <td name='sshurl'>n/a</td>" +
+	" <td name='menu' align=center> " +
+	"  <div name='action-menu' class='dropdown'>" +
+	"  <button type='button' " +
+	"          class='btn btn-primary btn-sm dropdown-toggle' " +
+	"          data-toggle='dropdown'> " +
+	"      <span class='glyphicon glyphicon-cog'></span> " +
+	"  </button> " +
+	"  <ul class='dropdown-menu' role='menu'> " +
+	"    <li><a href='#' name='shell'>Shell</a></li> " +
+	"    <li><a href='#' name='console'>Console</a></li> " +
+	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
+	"  </ul>" +
+	"  </div>" +
+	" </td>" +
+	"</tr>";
 
     //
     // Show the topology inside the topo container. Called from the status
@@ -728,67 +889,81 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		var href   = "n/a";
 		var ssh    = "n/a";
 		var cons   = "n/a";
+		var clone  = $(listview_row);
 
+		// Change the ID of the clone so its unique.
+		clone.attr('id', 'listview-row-' + node);
+		console.info(clone);
+		// Insert into the table, we will attach the handlers below.
+		$('#listview_table > tbody:last').append(clone);
+		// Set the node_id in the first column.
+		$('#listview-row-' + node + " [name=node_id]").html(node);
+		
 		if (login.length && dossh) {
 		    var user   = login.attr("username");
 		    var host   = login.attr("hostname");
 		    var port   = login.attr("port");
 		    var url    = "ssh://" + user + "@" + host + ":" + port +"/";
 		    var sshcmd = "ssh -p " + port + " " + user + "@" + host;
-		    href       = "<a href='" + url + "'><kbd>" + sshcmd + "</kbd></a>";
-//		    console.info(url);
+		    href       = "<a href='" + url + "'><kbd>" + sshcmd +
+			"</kbd></a>";
 		
 		    var hostport  = host + ":" + port;
 		    hostportList[node] = hostport;
-		    ssh = "<button class='btn btn-primary btn-sm' " +
-			"    id='" + "sshbutton_" + node + "' " +
-			"    type='button'>" +
-			"   <span class='glyphicon glyphicon-log-in'><span>" +
-			"  </button>";
-//		    console.info(ssh);
+
+		    // Update the row.
+		    $('#listview-row-' + node + ' [name=sshurl]').html(href);
+
+		    // Attach handler to the menu button.
+		    $('#listview-row-' + node + ' [name=shell]')
+			.click(function (e) {
+			    e.preventDefault();
+			    NewSSHTab(hostport, node);
+			    return false;
+			});		    
+		    
+		    // For the autostart SSH, see below. 
 		    nodehostport = hostport;
 		    nodename = node;
-			
-		    // Use this to attach handlers to things that do not
-		    // exist in the dom yet.
-		    $('#listview_table').off('click', '#sshbutton_' + node);
-		    $('#listview_table').on('click',
-					    '#sshbutton_' + node, function () {
-						NewSSHTab(hostport, node);
-					    });
 		}
+		
 		//
-		// Now a button to the console.
+		// Now a handler for the console action.
 		//
 		if (coninfo.length && !isguest) {
-		    cons = "<button class='btn btn-primary btn-sm' " +
-			"    id='" + "consbutton_" + node + "' " +
-			"    type='button'>" +
-			"   <span class='glyphicon glyphicon-cog'><span>" +
-			"  </button>";
-
-		    // Use this to attach handlers to things that do not
-		    // exist in the dom yet.
-		    $('#listview_table').off('click', '#consbutton_' + node);
-		    $('#listview_table').on('click',
-					    '#consbutton_' + node, function () {
-						NewConsoleTab(node);
-					    });
+		    // Attach handler to the menu button.
+		    $('#listview-row-' + node + ' [name=console]')
+			.click(function (e) {
+			    e.preventDefault();
+			    if (isguest) {
+				alert("Only registered users can access " +
+				      "the console");
+				return false;
+			    }
+			    NewConsoleTab(node);
+			    return false;
+			});		    
 		}
-		// and the table row.
-		$('#listview_table > tbody:last').append(
-		    '<tr><td>' + node + '</td><td>' + ssh + '</td><td>' +
-			href + '</td><td>' + cons + '</td></tr>'
-		);
+		//
+		// And a handler for the reboot action.
+		//
+		$('#listview-row-' + node + ' [name=reboot]')
+		    .click(function (e) {
+			e.preventDefault();
+			if (isguest) {
+			    alert("Only registered users can reboot nodes");
+			    return false;
+			}
+			DoReboot(node);
+			return false;
+		    });
+		
 		nodecount++;
 	    });
 
 	    $("#showtopo_container").removeClass("invisible");
-	    $('#quicktabs a[href="#profile"]').tab('show');
-	    sup.maketopmap('#showtopo_statuspage', json.value,
-			   function(ssh, clientId) {
-			       NewSSHTab(hostportList[clientId], clientId);
-	    });
+	    $('#quicktabs_ul a[href="#profile"]').tab('show');
+	    ShowViewer('#showtopo_statuspage', json.value);
 
 	    /*
 	     * If a single node, show the clone button and maybe the
@@ -806,9 +981,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 	    }
 
-	    // And start up ssh for single node topologies.
+	    // Bind a function to start up ssh for one node topologies.
 	    if (nodecount == 1 && nodehostport && !oneonly && dossh) {
-		NewSSHTab(nodehostport, nodename);
+		startOneSSH = function () {
+		    NewSSHTab(nodehostport, nodename);
+		};
 	    }
 	}
 	var xmlthing = sup.CallServerMethod(ajaxurl,
@@ -935,7 +1112,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    "</li>";	
 
 		// Append to end of tabs
-		$("#quicktabs_div ul").append(html);
+		$("#quicktabs_ul").append(html);
 
 		// Install a kill click handler for the X button.
 		$("#" + tabname + "_kill").click(function(e) {
@@ -943,7 +1120,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    // remove the li from the ul. this=ul.li.a.button
 		    $(this).parent().parent().remove();
 		    // Activate the "profile" tab.
-		    $('#quicktabs li a:first').tab('show');
+		    $('#quicktabs_ul li a:first').tab('show');
 		    // Trigger the custom event.
 		    $("#" + tabname).trigger("killconsole");
 		    // Remove the content div. Have to delay this though.
@@ -957,7 +1134,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$("#quicktabs_content").append(html);
 
 		// And make it active
-		$('#quicktabs a:last').tab('show') // Select last tab
+		$('#quicktabs_ul a:last').tab('show') // Select last tab
 
 		// Now create the console iframe inside the new tab
 		var iwidth = "100%";
@@ -989,7 +1166,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 	    else {
 		// Switch back to it.
-		$('#quicktabs a[href="#' + tabname + '"]').tab('show');
+		$('#quicktabs_ul a[href="#' + tabname + '"]').tab('show');
 		return;
 	    }
 	}
@@ -999,6 +1176,58 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					    {"uuid" : uuid,
 					     "node" : client_id});
 	xmlthing.done(callback);
+    }
+
+    var jacksInstance;
+    var jacksInput;
+    var jacksOutput;
+    var jacksRspecs;
+
+    function ShowViewer(divname, xml)
+    {
+	if (! jacksInstance)
+	{
+	    jacksInstance = new window.Jacks({
+		mode: 'viewer',
+		source: 'rspec',
+		root: divname,
+		nodeSelect: false,
+		readyCallback: function (input, output) {
+		    jacksInput = input;
+		    jacksOutput = output;
+
+		    jacksOutput.on('modified-topology', function (object) {
+			//console.log(object);
+			_.each(object.nodes, function (node) {
+			    jacksIDs[node.client_id] = node.id;
+			});
+			//console.log(jacksIDs);
+		    });
+		
+		    jacksInput.trigger('change-topology',
+				       [{ rspec: xml }]);
+
+		    jacksOutput.on('click-event', function (jacksevent) {
+			if (jacksevent.type === 'node') 
+			{
+			    ContextMenuShow(jacksevent);
+			}
+		    });
+		},
+		show: {
+		    rspec: false,
+		    tour: false,
+		    version: false,
+		    selectInfo: false,
+		    menu: false
+		}
+            });
+	}
+	else if (jacksInput)
+	{
+	    jacksInput.trigger('change-topology',
+			       [{ rspec: xml }]);
+	}
     }
 
     $(document).ready(initialize);

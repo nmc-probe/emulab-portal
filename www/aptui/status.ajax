@@ -87,15 +87,24 @@ function Do_GetInstanceStatus()
     }
     $blob = array();
     $blob["status"] = $instance->status();
+    # Indicate that we have a manifest and so we can view it.
+    $blob["havemanifest"] = ($instance->manifest() ? 1 : 0);
     
     $webtask = WebTask::LookupByObject($instance->uuid());
-    if ($webtask && $webtask->exited()) {
-	# Reflect errors back to the user.
-	if ($webtask->exitcode() == 26) {
-	    $blob["reason"] = "Not enough free nodes, please try again later.";
-	}
-        else {
-            $blob["reason"] = htmlentities($webtask->TaskValue("output"));
+    if ($webtask) {
+        if ($webtask->exited()) {
+            # Reflect errors back to the user.
+            if ($webtask->exitcode() == 26) {
+                $blob["reason"] = "Not enough free nodes, ".
+                    "please try again later.";
+            }
+            else {
+                $blob["reason"] = htmlentities($webtask->TaskValue("output"));
+            }
+        }
+        $sliverstatus = $webtask->TaskValue("sliverstatus");
+        if ($sliverstatus) {
+            $blob["sliverstatus"] = $sliverstatus;
         }
     }
     SPITAJAX_RESPONSE($blob);
@@ -492,6 +501,139 @@ function Do_SnapshotStatus()
 	$webtask->Delete();
     }
     SPITAJAX_RESPONSE($blob);
+}
+
+#
+# Ask the backend to refresh sliverstatus
+#
+function Do_Refresh()
+{
+    global $this_user;
+    global $ajax_args;
+
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "Unknown instance uuid");
+	return;
+    }
+    if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
+	return;
+    }
+    if ($instance->status() != "ready" && $instance->status() != "failed") {
+	SPITAJAX_ERROR(1, "Experiment is currently busy");
+	return;
+    }
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC($this_user->uid(), "nobody",
+		     "webmanage_instance -t $webtask_id -- refresh $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	else {
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    $blob = array();
+    if ($webtask) {
+        $blob = $webtask->TaskValue("sliverstatus");
+	$webtask->Delete();
+    }
+    SPITAJAX_RESPONSE($blob);
+}
+
+#
+# Ask the backend to reboot a node.
+#
+function Do_Reboot()
+{
+    global $this_user;
+    global $ajax_args;
+
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["node_id"])) {
+	SPITAJAX_ERROR(1, "Missing node_id");
+	return;
+    }
+    $node_id = $ajax_args["node_id"];
+    if (!preg_match("/^[-\w]+$/", $node_id)) {
+        SPITAJAX_ERROR(1, "Illegal characters in node_id");
+    }
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "Unknown instance uuid");
+	return;
+    }
+    if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
+	return;
+    }
+    if ($instance->status() != "ready" && $instance->status() != "failed") {
+	SPITAJAX_ERROR(1, "Experiment is currently busy");
+	return;
+    }
+
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC($this_user->uid(), "nobody",
+		     "webmanage_instance -t $webtask_id -- ".
+                     "  reboot $uuid " . escapeshellarg($node_id), 
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	else {
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    if ($webtask) {
+	$webtask->Delete();
+    }
+    SPITAJAX_RESPONSE("Success");
 }
 
 # Local Variables:

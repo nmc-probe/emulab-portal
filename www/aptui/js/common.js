@@ -15,6 +15,7 @@ window.APT_OPTIONS.configObject = {
 	'moment': 'js/lib/moment',
 	'underscore': 'js/lib/underscore-min',
 	'filesize': 'js/lib/filesize.min',
+	'contextmenu': 'js/lib/bootstrap-contextmenu',
 	'jacks': 'https://www.emulab.net/protogeni/jacks-stable/js/jacks'
     },
     shim: {
@@ -28,7 +29,8 @@ window.APT_OPTIONS.configObject = {
 	'tablesorterwidgets': { deps: ['tablesorter'] },
 	'marked' : { exports: 'marked' },
 	'underscore': { exports: '_' },
-	'filesize' : { exports: 'filesize' }
+	'filesize' : { exports: 'filesize' },
+	'contextmenu': { },
     }
 };
 
