@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -243,6 +243,12 @@ else {
     $retval = SUEXEC($target_uid, "nobody",
 		     "webtbacct passwd $target_uid $safe_encoding",
 		     SUEXEC_ACTION_CONTINUE);
+    if (!$retval) {
+        # Change the passphrase on the SSL key. 
+        $retval = SUEXEC($target_uid, "nobody",
+                         "webmkusercert -C -p $safe_encoding $target_uid",
+                         SUEXEC_ACTION_CONTINUE);
+    }
 }
 echo "<script>HideWaitModal('waitwait');</script>\n";
 flush();
