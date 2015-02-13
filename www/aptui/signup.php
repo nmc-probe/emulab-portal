@@ -122,18 +122,21 @@ if (! isset($create)) {
     $defaults = array();
     $errors   = array();
 
+    # Default to start
+    $defaults["startorjoin"] = "start";
+    $joinproject = 0;
+
     if (isset($uid)) {
 	$defaults["uid"] = CleanString($uid);
     }
     if (isset($pid)) {
 	$defaults["pid"] = CleanString($pid);
+        $defaults["startorjoin"] = "join";
+        $joinproject = 1;
     }
     if (isset($email)) {
 	$defaults["email"] = CleanString($email);
     }
-    # Default to start
-    $defaults["startorjoin"] = "start";
-    $joinproject = 0;
     
     SPITFORM($defaults, 0, $errors);
     return;
