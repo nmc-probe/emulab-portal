@@ -43,7 +43,7 @@ sub usage()
     print("Usage: mkusercert [-d] [-o] [-r] [-g] [-p password] <user>\n");
     exit(-1);
 }
-my $optlist  = "dp:ogrc:";
+my $optlist  = "dp:ogrc:C";
 my $debug    = 0;
 my $output   = 0;
 my $password = "";
@@ -169,20 +169,6 @@ if (defined($options{"p"})) {
     $encrypted = 1;
     $days      = 365;
 }
-if (defined($options{"c"})) {
-    $old_password = $options{"c"};
-
-    #
-    # Make sure its all escaped since any printable char is allowed.
-    #
-    if ($old_password =~ /^([\040-\176]*)$/) {
-	$old_password = $1;
-    }
-    else {
-	die("Tainted argument: $old_password\n");
-    }
-    $old_password =~ s/\'/\'\\\'\'/g;
-}
 if (@ARGV != 1) {
     usage();
 }
@@ -215,6 +201,29 @@ my $this_user = User->LookupByUnixId($UID);
 if (! defined($this_user)) {
     fatal("You ($UID) do not exist!");
 }
+
+# Might need the target user (-C options).
+if (defined($options{"c"}) || defined($options{"C"})) {
+    if (defined($options{"c"})) {
+	$old_password = $options{"c"};
+    }
+    else {
+	$target_user->SSLPassPhrase(1, \$old_password) == 0
+	    or fatal("No password for encrypted SSL key");
+    }
+
+    #
+    # Make sure its all escaped since any printable char is allowed.
+    #
+    if ($old_password =~ /^([\040-\176]*)$/) {
+	$old_password = $1;
+    }
+    else {
+	die("Tainted argument: $old_password\n");
+    }
+    $old_password =~ s/\'/\'\\\'\'/g;
+}
+
 
 #
 # CD to the workdir, and then serialize on the lock file since there is
