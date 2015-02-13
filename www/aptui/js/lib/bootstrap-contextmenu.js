@@ -54,6 +54,7 @@
 			tp = this.getPosition(e, $menu);
 			items = 'li:not(.divider)';
 			$menu.attr('style', '')
+		                .data("opened", "nope")
 				.css(tp)
 				.addClass('open')
 				.on('click.context.data-api', items, $.proxy(this.onItem, this, $(e.currentTarget)))
@@ -76,6 +77,10 @@
 			$menu = this.getMenu();
 
 			if(!$menu.hasClass('open')) return;
+		        if ($menu.data("opened") != "yep") {
+			    $menu.data("opened", "yep");
+			    return;
+			}
 
 			relatedTarget = { relatedTarget: this };
 			$menu.trigger(evt = $.Event('hide.bs.context', relatedTarget));
@@ -87,9 +92,12 @@
 
 			$('html')
 				.off('click.context.data-api', $menu.selector);
+		    
+		        this.destroy();
+	    
 			// Don't propagate click event so other currently
 			// opened menus won't close.
-			return false;
+			return true;
 		}
 
 		,keydown: function(e) {
