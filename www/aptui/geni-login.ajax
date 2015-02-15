@@ -400,6 +400,13 @@ function UpdateCredentials($user, $cert, $cred)
 		     "webupdategeniuser -c $credfile -e $certfile $arg $uid",
 		     SUEXEC_ACTION_CONTINUE);
 
+    if ($retval) {
+        $cred = file_get_contents($credfile);
+        $cert = file_get_contents($certfile);
+        TBERROR("webupdategeniuser failed.\n ".
+                "Cert:\n${cert}\n\n".
+                "Cred:\n${$cred}\n", 0);
+    }
     unlink($credfile);
     unlink($certfile);
     
