@@ -54,6 +54,8 @@ my $TBLOGS           = "@TBLOGSEMAIL@";
 my $MAINSITE         = @TBMAINSITE@;
 my $LOGFILE          = "$TB/log/apt_daemon.log";
 my $MANAGEINSTANCE   = "$TB/bin/manage_instance";
+my $PROTOUSER	     = "elabman";
+my $SUDO	     = "/usr/local/bin/sudo";
 my $SLEEP_INTERVAL   = 60;
 my $UPDATE_INTERVAL  = (60 * 60 * 24);
 
@@ -138,7 +140,10 @@ sub handler()
 $SIG{HUP} = \&handler
     if (! ($debug || $oneshot));
 
-sub ExpireFailedInstances()
+#
+# Kill failed instances.
+#
+sub KillFailedInstances()
 {
     my $query_result =
 	DBQueryWarn("select uuid,status from apt_instances ".
@@ -193,9 +198,58 @@ sub ExpireFailedInstances()
 	    print STDERR "Would try to terminate $instance\n";
 	    next;
 	}
-	my $output = emutil::ExecQuiet("$MANAGEINSTANCE terminate $uuid");
+	my $output = emutil::ExecQuiet("$SUDO -u $PROTOUSER ".
+				       "$MANAGEINSTANCE terminate $uuid");
 	my $status = $?;
-	print STDERR "$output\n";
+	print STDERR "$output\n"
+	    if ($output ne "");
+	if ($status) {
+	    #
+	    # Need to send email at some point. 
+	    #
+	}
+    }
+}
+
+#
+# Expire instances.
+#
+sub ExpireInstances()
+{
+    my $query_result =
+	DBQueryWarn("select a.uuid from apt_instances as a ".
+		    "left join geni.geni_slices as s on s.uuid=a.slice_uuid ".
+		    "where (a.status='ready') and ".
+		    "      (UNIX_TIMESTAMP(s.expires) > ".
+		    "       UNIX_TIMESTAMP(now()))");
+    return
+	if (!$query_result);
+
+    while (my ($uuid,$status) = $query_result->fetchrow_array()) {
+	my $instance = APT_Instance->Lookup($uuid);
+	if (!defined($instance)) {
+	    print STDERR "No such instance $uuid\n";
+	    next;
+	}
+	print STDERR "$instance has expired\n";
+
+	#
+	# Try to terminate the instance. We cannot take the lock since
+	# we are going to call manage_instance to do the termination.
+	# So, manage_instance might collide with the sa_daemon which
+	# locks the underlying slice, but if that happens we will just
+	# try again after a short wait. If it still fails, then
+	# something is wrong and we will notify.
+	#
+	if ($impotent) {
+	    print STDERR "Would try to terminate $instance\n";
+	    next;
+	}
+	my $output = emutil::ExecQuiet("$SUDO -u $PROTOUSER ".
+				       "$MANAGEINSTANCE terminate $uuid");
+	my $status = $?;
+	print STDERR "$output\n"
+	    if ($output ne "");
 	if ($status) {
 	    #
 	    # Need to send email at some point. 
@@ -213,7 +267,8 @@ while (1) {
     print "Running at ".
 	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
 
-    ExpireFailedInstances();
+    KillFailedInstances();
+    ExpireInstances();
 
     exit(0)
 	if ($oneshot);

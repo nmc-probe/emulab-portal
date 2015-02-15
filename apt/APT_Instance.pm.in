@@ -44,6 +44,7 @@ use APT_Geni;
 use Genixmlrpc;
 use GeniResponse;
 use GeniCertificate;
+use GeniCredential;
 use GeniHRN;
 use overload ('""' => 'Stringify');
 
@@ -459,6 +460,7 @@ sub ConsoleURL($$)
 sub Terminate($)
 {
     my ($self) = @_;
+    my $credentials;
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->GetGeniUser();
     my $slice     = $self->GetGeniSlice();
@@ -467,16 +469,46 @@ sub Terminate($)
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
+    #
+    # If the slice is expired, it is most likely gone at the cluster,
+    # but we want to make sure, so change the expiration so that the
+    # credential we generate is not also expired. 
+    #
+    if ($slice->IsExpired()) {
+	$slice->SetExpiration(time() + 3600);
+    }
+
     my ($slice_credential, $speaksfor_credential) =
 	APT_Geni::GenCredentials($slice, $geniuser);
     return undef
 	if (! (defined($speaksfor_credential) &&
 	       defined($slice_credential)));
 
+    #
+    # Special case; if the speaksfor_credential has expired cause it
+    # was for a nonlocal user, we have no choice but to throw away
+    # these credentials and generate a new one issued to the local SA
+    # instead of the user. 
+    #
+    if ($speaksfor_credential->IsExpired()) {
+	print STDERR "speaksfor credential has expired, generating a new one\n";
+
+	$slice_credential =
+	    GeniCredential->CreateSigned($slice, $context,
+					 $GeniCredential::LOCALSA_FLAG);
+	if (!defined($slice_credential)) {
+	    print STDERR "Could not generate SA credential\n";
+	    return undef;
+	}
+	$credentials = [$slice_credential->asString()];
+    }
+    else {
+	$credentials = [$slice_credential->asString(),
+			$speaksfor_credential->asString()];
+    }
     my $args = {
 	"slice_urn"   => $slice->urn(),
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
 
     #
