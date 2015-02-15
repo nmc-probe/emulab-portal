@@ -220,8 +220,8 @@ sub ExpireInstances()
 	DBQueryWarn("select a.uuid from apt_instances as a ".
 		    "left join geni.geni_slices as s on s.uuid=a.slice_uuid ".
 		    "where (a.status='ready') and ".
-		    "      (UNIX_TIMESTAMP(s.expires) > ".
-		    "       UNIX_TIMESTAMP(now()))");
+		    "      (UNIX_TIMESTAMP(now()) > ".
+		    "       UNIX_TIMESTAMP(s.expires))");
     return
 	if (!$query_result);
 
