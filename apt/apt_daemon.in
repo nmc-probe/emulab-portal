@@ -217,7 +217,7 @@ sub KillFailedInstances()
 sub ExpireInstances()
 {
     my $query_result =
-	DBQueryWarn("select a.uuid from apt_instances as a ".
+	DBQueryWarn("select a.uuid,s.expires from apt_instances as a ".
 		    "left join geni.geni_slices as s on s.uuid=a.slice_uuid ".
 		    "where (a.status='ready') and ".
 		    "      (UNIX_TIMESTAMP(now()) > ".
@@ -225,13 +225,13 @@ sub ExpireInstances()
     return
 	if (!$query_result);
 
-    while (my ($uuid,$status) = $query_result->fetchrow_array()) {
+    while (my ($uuid,$expires) = $query_result->fetchrow_array()) {
 	my $instance = APT_Instance->Lookup($uuid);
 	if (!defined($instance)) {
 	    print STDERR "No such instance $uuid\n";
 	    next;
 	}
-	print STDERR "$instance has expired\n";
+	print STDERR "$uuid expired at $expires\n";
 
 	#
 	# Try to terminate the instance. We cannot take the lock since
