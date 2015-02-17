@@ -62,7 +62,10 @@ echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
 $query_result =
-    DBQueryFatal("select a.*,s.expires,s.hrn,u.email from apt_instances as a ".
+    DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
+                 " (UNIX_TIMESTAMP(now()) > ".
+                 "  UNIX_TIMESTAMP(s.expires)) as expired ".
+                 "  from apt_instances as a ".
                  "left join geni.geni_slices as s on ".
                  "     s.uuid=a.slice_uuid ".
 		 "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
@@ -126,6 +129,9 @@ while ($row = mysql_fetch_array($query_result)) {
     else {
         $creator = "<a href='$TBBASE/showuser.php3?user=$creator_idx'>".
             "$creator_uid</a>";
+    }
+    if ($row["expired"]) {
+        $status = "expired";
     }
 
     $profile = Profile::Lookup($profile_id, $version);
