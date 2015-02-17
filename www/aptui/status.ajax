@@ -313,7 +313,8 @@ function Do_RequestExtension()
 	       "A request to extend your experiment was made and ".
 	       "granted.\n".
 	       "Your reason was:\n\n". $reason . "\n\n".
- 	       "Your experiment will now expire at $new_expires.\n",
+ 	       "Your experiment will now expire at $new_expires.\n\n\n".
+               "$APTBASE/status.php?uuid=$uuid\n",
 	       "From: $APTMAIL\n" .
 	       "BCC: $TBMAIL_OPS");
     }
