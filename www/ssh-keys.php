@@ -30,12 +30,12 @@ $this_user = CheckLoginOrDie();
 $uid       = $this_user->uid();
 $uid_idx   = $this_user->uid_idx();
 
+$optargs = OptionalPageArguments("target_user",   PAGEARG_USER);
+
 #
 # Standard Testbed Header
 #
 PAGEHEADER("SSH Keys");
-
-$optargs = OptionalPageArguments("target_user",   PAGEARG_USER);
 
 # Default to current user.
 $target_opt = "";
