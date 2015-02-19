@@ -217,7 +217,10 @@ sub doboot()
     #
     if (!@cmds && !@ocmds) {
 	#warn("*** No storageconfig output - nothing to do\n");
-	unlink($OLDCONFIG);
+	# do not remove if there are blockstores of any type
+	if (!@allcmds) {
+	    unlink($OLDCONFIG);
+	}
 	return;
     }
 
