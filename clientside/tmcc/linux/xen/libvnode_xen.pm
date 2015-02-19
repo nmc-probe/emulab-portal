@@ -3586,21 +3586,26 @@ sub modDHCP($$$$$)
     $host = lc($host);
     my $insubnet = 0;
     my $inrange = 0;
+    my $found = 0;
     while (my $line = <OLD>) {
-	if ($line =~ /^subnet\s*([\d\.]+)\s*netmask\s*([\d\.]+)/) {
+	if ($found) {
+	    ;
+	} elsif ($line =~ /^subnet\s*([\d\.]+)\s*netmask\s*([\d\.]+)/) {
 	    my $subnet  = $1;
 	    my $submask = $2;
 
 	    #
 	    # Is the IP we need to add, within this subnet?
 	    #
-	    $insubnet = ((inet_ntoa(inet_aton($ip) &
-				    inet_aton($submask)) eq $subnet) ? 1 : 0);
-	} elsif ($line =~ /INSERT VNODES AFTER/) {
+	    $insubnet = 1
+		if (inet_ntoa(inet_aton($ip) &
+			      inet_aton($submask)) eq $subnet);
+	} elsif ($insubnet && $line =~ /INSERT VNODES AFTER/) {
 	    $inrange = 1;
-	} elsif ($line =~ /INSERT VNODES BEFORE/) {
+	} elsif ($insubnet && $line =~ /INSERT VNODES BEFORE/) {
 	    $inrange = 0;
-	    if ($insubnet && !$dorm) {
+	    $found = 1;
+	    if (!$dorm) {
 		print NEW formatDHCP($host, $ip, $mac), "\n";
 		$changed = 1;
 	    }
@@ -3609,19 +3614,18 @@ sub modDHCP($$$$$)
 	    my $ohost = lc($3);
 	    my $oip = $2;
 	    my $omac = lc($1);
-	    #
-	    # We skip (delete) any line with the same mac,ip,host, and
-	    # add it back at the end. This is safe since we should never
-	    # reuse any of these across different VMs. This prevents
-	    # problems where we get duplicate entries in the dhcpd.conf
-	    # file, say because of crashes or soft failures. This will
-	    # result in a little more churning of the file, but its not
-	    # bad enough to worry about.
-	    #
-	    if ($mac eq $omac || $host eq $ohost || $ip eq $oip) {
-		# skip this entry, mark as changed.
-		$changed = 1;
-		next;
+	    if ($mac eq $omac) {
+		if ($dorm) {
+		    # skip this entry; don't mark found so we find all
+		    $changed = 1;
+		    next;
+		}
+		$found = 1;
+		if ($host ne $ohost || $ip ne $oip) {
+		    print NEW formatDHCP($host, $ip, $omac), "\n";
+		    $changed = 1;
+		    next;
+		}
 	    }
 	}
 	print NEW $line;
