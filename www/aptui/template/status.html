@@ -174,11 +174,13 @@
 	      <div id='showtopo_statuspage' class='jacks'></div>
               <small>Click on a node for more options. 
                 Click and drag to move things around.</small>
+	      <% if (registered) { %>
 	      <button class='btn btn-xs btn-success pull-right' disabled
 		      id='refresh_button' type=button
 		      data-toggle='popover'
 		      data-content='Ask cluster for updated node status'>
 		Refresh Status</button>
+	    <% } %>
 	    </div>
             <div class='tab-pane' id='listview'>
 	      <div id='showtopo_listview'>
