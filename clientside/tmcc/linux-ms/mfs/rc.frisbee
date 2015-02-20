@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -113,6 +113,20 @@ getvar() {
 #       1            4096       234441614   111.8 GiB   8300  Linux filesystem
 #      15            2048            4095   1024.0 KiB  EF02  
 #
+# MBR version 103 (aka GPT version 3):
+#
+#    Disk /dev/sda: 234441648 sectors, 111.8 GiB
+#    Logical sector size: 512 bytes
+#    Disk identifier (GUID): 0C380AF3-14D2-4615-9452-233306CC82D5
+#    Partition table holds up to 128 entries
+#    First usable sector is 34, last usable sector is 234441614
+#    Partitions will be aligned on 2048-sector boundaries
+#    Total free space is 200885101 sectors (95.8 GiB)
+#
+#    Number  Start (sector)    End (sector)  Size       Code  Name
+#       1            4096        33558527   16.0 GiB    8300  Linux filesystem
+#      15            2048            4095   1024.0 KiB  EF02  
+#
 tweakgpt() {
     _DSK=$1
     _NEW=$2
@@ -130,6 +144,9 @@ tweakgpt() {
 		;;
 	    234437519s)
 		_CUR=102
+		;;
+	    33554432s)
+		_CUR=103
 		;;
 	    *)
 		if [ $_ALWAYS -eq 1 ]; then
