@@ -1403,7 +1403,7 @@ sub listVlans($) {
     #
     # Walk the tree to find the VLAN names
     #
-    my ($rows) = $self->{SESS}->bulkwalk(0,32,"dot1qVlanStaticName");
+    my ($rows) = $self->{SESS}->bulkwalk(0,32,["dot1qVlanStaticName"]);
     foreach $rowref (@$rows) {
 	($oid, $vlan_number, $vlan_name) = @$rowref;
 	$self->debug("Got $oid $vlan_number $vlan_name\n",3);
@@ -1424,7 +1424,7 @@ sub listVlans($) {
     #
     #  Walk the tree for the VLAN members
     #
-    ($rows) = $self->{SESS}->bulkwalk(0,32,"dot1qVlanStaticEgressPorts");
+    ($rows) = $self->{SESS}->bulkwalk(0,32,["dot1qVlanStaticEgressPorts"]);
     foreach $rowref (@$rows) {
 	($oid,$vlan_number,$value) = @$rowref;
 	if ($vlan_number == 1) { next;}
@@ -1707,7 +1707,7 @@ sub setVlansOnTrunk($$$$) {
 	# Walk the tree for the VLAN members. We do not really care
 	# what the vlans are, just the total number of vlans.
 	#
-	my ($rows) = $self->{SESS}->bulkwalk(0,32,"dot1qVlanStaticEgressPorts");
+	my ($rows) = $self->{SESS}->bulkwalk(0,32,["dot1qVlanStaticEgressPorts"]);
 	foreach my $rowref (@$rows) {
 	    my (undef,undef,$stuff) = @$rowref;
 	    my @portlist = $self->portSetToList($stuff);
