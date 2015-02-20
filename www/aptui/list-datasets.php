@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -108,12 +108,19 @@ if (mysql_num_rows($query_result) == 0) {
              href='create-dataset.php?embedded=$embedded'>
                create one?</a></b>
           <br><br>";
-
-    if (ISADMIN() && $all == 0) {
-	$message .= "<img src='images/redball.gif'>".
-	    "<a id='embedded-anchors'
+    if ($all == 0) {
+        if (ISADMIN()) {
+            $message .=
+                "<a id='embedded-anchors'
                 href='list-datasets.php?all=1&embedded=$embedded'>
                  Show all datasets</a>";
+        }
+        else {
+            $message .=
+                "<a id='embedded-anchors'".
+                "   href='list-datasets.php?all=1&embedded=$embedded'>".
+                "Show all datasets you can use</a>\n";
+        }
     }
     echo $message;
     SPITREQUIRE("list-datasets");
@@ -143,7 +150,7 @@ if (isset($all) && ISADMIN()) {
     echo " <th>Creator</th>";
 }
 echo "     <th>Project</th>
-           <th>Created</th>
+           <th>Expires</th>
            <th>State</th>
           </tr>
          </thead>
@@ -156,7 +163,7 @@ while ($row = mysql_fetch_array($query_result)) {
 	$name    = $row["lease_id"];
 	$pid     = $row["pid"];
 	$creator = $row["owner_uid"];
-	$created = $row["inception"];
+	$expires = $row["lease_end"];
 	$state   = $row["state"];
     }
     else {
@@ -165,7 +172,7 @@ while ($row = mysql_fetch_array($query_result)) {
 	$name    = $row["dataset_id"];
 	$pid     = $row["pid"];
 	$creator = $row["creator_uid"];
-	$created = DateStringGMT($row["created"]);
+	$expires = DateStringGMT($row["expires"]);
 	$state   = $row["state"];
     }
 
@@ -182,7 +189,7 @@ while ($row = mysql_fetch_array($query_result)) {
 	echo "<td>$creator</td>";
     }
     echo "  <td style='white-space:nowrap'>$pid</td>
-            <td class='format-date'>$created</td>
+            <td class='format-date'>$expires</td>
             <td>$state</td>
            </tr>\n";
 }
@@ -191,19 +198,22 @@ echo "   </tbody>
 
 if (!isset($all)) {
     if (ISADMIN()) {
-	echo "<img src='images/redball.gif'>
-          <a id='embedded-anchors'
+	echo "<a id='embedded-anchors'
              href='list-datasets.php?all=1&embedded=$embedded'>
              Show all user datasets</a>\n";
     }
     else {
-	echo "<img src='images/blueball.gif'>
-          <a id='embedded-anchors'
+	echo "<a id='embedded-anchors'
              href='list-datasets.php?all=1&embedded=$embedded'>
              Show all datasets you can use</a>\n";
     }
 }
-echo"   </div>
+else {
+    echo "<a id='embedded-anchors'
+             href='list-datasets.php?all=0&embedded=$embedded'>
+             Show only my datasets</a>\n";
+}
+echo "   </div>
       </div>\n";
 
 echo "<script type='text/javascript'>\n";

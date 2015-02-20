@@ -138,6 +138,13 @@ if (!$archived && !$target_user->wikionly() &&
 				     "finished", 1));
     }
 
+    # Do we have a storage pool? The we support datasets.
+    $havestoragepool = HaveStoragePool();
+    if ($havestoragepool) {
+        WRITESUBMENUBUTTON("My Datasets",
+                           CreateURL("list-datasets", $target_user));
+    }
+
     if ($MAILMANSUPPORT) {
         #
         # See if any mailman lists owned by the user. If so we add a menu item.
