@@ -244,10 +244,13 @@ else {
 		     "webtbacct passwd $target_uid $safe_encoding",
 		     SUEXEC_ACTION_CONTINUE);
     if (!$retval) {
-        # Change the passphrase on the SSL key. 
+        # Change the passphrase on the SSL key.
+        $safe_password = escapeshellarg($password1);
+
+        # Do not send email, mkusercert sends email and hides the password.
         $retval = SUEXEC($target_uid, "nobody",
-                         "webmkusercert -C -p $safe_encoding $target_uid",
-                         SUEXEC_ACTION_CONTINUE);
+                         "webmkusercert -C -p $safe_password $target_uid",
+                         SUEXEC_ACTION_IGNORE);
     }
 }
 echo "<script>HideWaitModal('waitwait');</script>\n";
