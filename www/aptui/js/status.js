@@ -30,6 +30,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
+    var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
     {
@@ -818,6 +819,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
     var listview_row = 
 	"<tr id='listview-row'>" +
+	" <td name='client_id'>n/a</td>" +
 	" <td name='node_id'>n/a</td>" +
 	" <td name='sshurl'>n/a</td>" +
 	" <td name='menu' align=center> " +
@@ -886,6 +888,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		var node   = $(this).attr("client_id");
 		var login  = $(this).find("login");
 		var coninfo= $(this).find("console");
+		var vnode  = this.getElementsByTagNameNS(EMULAB_NS, 'vnode');
+		console.info(vnode);
 		var href   = "n/a";
 		var ssh    = "n/a";
 		var cons   = "n/a";
@@ -896,8 +900,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		console.info(clone);
 		// Insert into the table, we will attach the handlers below.
 		$('#listview_table > tbody:last').append(clone);
-		// Set the node_id in the first column.
-		$('#listview-row-' + node + " [name=node_id]").html(node);
+		// Set the client_id in the first column.
+		$('#listview-row-' + node + " [name=client_id]").html(node);
+		// And the node_id.
+		if (vnode.length) {
+		    $('#listview-row-' + node + " [name=node_id]")
+			.html($(vnode).attr("name"));
+		}
 		
 		if (login.length && dossh) {
 		    var user   = login.attr("username");

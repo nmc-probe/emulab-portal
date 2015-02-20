@@ -77,6 +77,18 @@
 		    id='snapshot_button' type=button
 		    data-toggle='modal' data-target='#snapshot_modal'>
               Snapshot</button>
+	    <button class='btn btn-xs btn-primary'
+		    id='copy_button' type=button
+		    data-toggle='popover'
+		    data-delay='{"hide":1500, "show":500}'
+		    data-html='true'
+		    data-content="When you <em>copy</em> (instead of
+		    clone), you are creating a new profile that
+		    uses the same source code and metadata (description,
+		    instructions) as the original profile, but without
+		    creating a new disk image. Instead, you use
+		    whatever images the profile you are copying use."> 
+	      Copy</button>
 	    <% } %>
 	    <button class='btn btn-xs btn-success' disabled
 		    id='extend_button' type=button>
@@ -174,6 +186,7 @@
                        id='listview_table'>
                   <thead>
                     <tr>
+                      <th>ID</th>
                       <th>Node</th>
                       <th>SSH command <small>
 			  (if you provided your own key)</small>
