@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,14 +32,14 @@ $uid_idx   = $this_user->uid_idx();
 $isadmin   = ISADMIN();
 
 #
-# Standard Testbed Header
-#
-PAGEHEADER("Show Dataset");
-
-#
 # Verify page arguments.
 #
 $optargs = RequiredPageArguments("uuid",        PAGEARG_UUID);
+
+#
+# Standard Testbed Header
+#
+PAGEHEADER("Show Dataset");
 
 echo "<iframe src='apt/show-dataset.php?embedded=1&uuid=$uuid'
               id='embedded' class='embedded'></iframe>";
