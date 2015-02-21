@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013-2014 University of Utah and the Flux Group.
+# Copyright (c) 2013-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -66,6 +66,10 @@ my $ISCSI	= "/sbin/iscsiadm";
 my $ISCSI_ALT	= "/usr/bin/iscsiadm";
 my $SMARTCTL	= "/usr/sbin/smartctl";
 my $BLKID	= "/sbin/blkid";
+my $SFDISK	= "/sbin/sfdisk";
+my $SGDISK	= "/sbin/sgdisk";
+my $GDISK	= "/sbin/gdisk";
+my $PPROBE	= "/sbin/partprobe";
 
 #
 #
@@ -190,7 +194,9 @@ sub init_serial_map()
     my @lines = `ls -l /sys/block/sd? 2>&1`;
     foreach (@lines) {
 	# XXX if a pci device, assume a local disk
-	if (m#/sys/block/(sd.) -> ../devices/pci\d+#) {
+	# XXX for moonshots (arm64), it is different
+	if (m#/sys/block/(sd.) -> ../devices/pci\d+# ||
+	    m#/sys/block/(sd.) -> ../devices/soc.\d+#) {
 	    my $dev = $1;
 	    $sn = find_serial($dev);
 	    if ($sn) {
@@ -233,12 +239,91 @@ sub get_bootdisk()
     return $disk;
 }
 
-sub get_parttype($$)
+sub get_ptabtype($)
 {
-    my ($dev,$pnum) = @_;
+    my ($dev) = @_;
 
-    my $ptype = `sfdisk /dev/$dev -c $pnum`;
-    if ($ptype) {
+    # if device doesn't exist, assume unknown
+    if (! -e "/dev/$dev") {
+	return "unknown";
+    }
+
+    # if sfdisk fails, assume unknown
+    my $pinfo = `$SFDISK -l /dev/sda 2>&1`;
+    if ($?) {
+	return "unknown";
+    }
+
+    # if sfdisk doesn't recognize it, assume unknown
+    if ($pinfo =~ /unrecognized partition table type/) {
+	return "unknown";
+    }
+
+    # if sfdisk detects a GPT, go with it
+    if ($pinfo =~ /WARNING: GPT \(GUID Partition Table\) detected/) {
+	return "GPT";
+    }
+
+    # otherwise MBR
+    return "MBR";
+}
+
+sub get_partsize($)
+{
+    my ($dev) = @_;
+    my $size = 0;
+
+    if (!open(FD, "/proc/partitions")) {
+	warn("*** get_disksize: could not get disk info from /proc/partitions\n");
+	return $size;
+    }
+    while (<FD>) {
+	if (/^\s+\d+\s+\d+\s+(\d+)\s+(sd[a-z](?:\d+)?)/) {
+	    my ($_size,$_dev) = ($1,$2);
+
+	    if ($dev eq $_dev) {
+		$size = int($_size / 1024);
+		last;
+	    }
+	}
+    }
+    close(FD);
+
+    return $size;
+}
+
+sub get_parttype($$$)
+{
+    my ($dev,$pnum,$pttype) = @_;
+
+    if ($pttype eq "GPT") {
+	my $looking = 0;
+	my @lines = `$GDISK -l /dev/$dev 2>/dev/null`;
+	chomp @lines;
+	foreach my $line (@lines) {
+	    if (!$looking && $line =~ /^Number\s+Start \(sector\)/) {
+		$looking = 1;
+		next;
+	    }
+	    #
+	    # XXX I am afraid of ambiguity if I keep this RE too simple
+	    # since we are looking for 4 hex digits for the type (code),
+	    # but a simple RE could match the start or end sector or even
+	    # possibly the size.
+	    #
+	    if ($looking &&
+		$line =~ /^\s*(\d+)\s+\d+\s+\d+\s+[\d\.]+ \S+\s+([\dA-F]{4})\s/) {
+		if ($1 == $pnum) {
+		    return hex($2);
+		}
+	    }
+	}
+
+	return -1;
+    }
+
+    my $ptype = `$SFDISK /dev/$dev -c $pnum 2>/dev/null`;
+    if ($? == 0 && $ptype) {
 	chomp($ptype);
 	if ($ptype =~ /^([\da-fA-F]+)$/) {
 	    $ptype = hex($1);
@@ -292,14 +377,19 @@ sub get_diskinfo()
 	    my ($size,$dev,$part) = ($1,$2,$3);
 	    # DOS partition
 	    if (defined($part)) {
+		my $pttype = "MBR";
+		if (exists($geominfo{$dev}{'ptabtype'})) {
+		    $pttype = $geominfo{$dev}{'ptabtype'};
+		}
+
 		# XXX avoid garbage and extended partitions
-		next if ($part < 1 || $part > 4);
+		next if ($pttype eq "MBR" && ($part < 1 || $part > 4));
 
 		my $pdev = "$dev$part";
 		$geominfo{$pdev}{'level'} = 1;
 		$geominfo{$pdev}{'type'} = "PART";
 		$geominfo{$pdev}{'size'} = int($size / 1024);
-		$geominfo{$pdev}{'inuse'} = get_parttype($dev, $part);
+		$geominfo{$pdev}{'inuse'} = get_parttype($dev, $part, $pttype);
 	    }
 	    # XXX iSCSI disk
 	    elsif (is_iscsi_dev($dev)) {
@@ -314,6 +404,7 @@ sub get_diskinfo()
 		$geominfo{$dev}{'type'} = "DISK";
 		$geominfo{$dev}{'size'} = int($size / 1024);
 		$geominfo{$dev}{'inuse'} = 0;
+		$geominfo{$dev}{'ptabtype'} = get_ptabtype($dev);
 	    }
 	}
     }
@@ -491,37 +582,48 @@ sub os_init_storage($)
 	}
     }
 
-    # check for local storage incompatibility
-    if ($needall && $needavol) {
-	warn("*** storage: Incompatible local volumes.\n");
-	return undef;
-    }
-	
-    # initialize mapping of serial numbers to devices
-    if ($gotlocal && $gotelement) {
-	$so{'LOCAL_SNMAP'} = init_serial_map();
-    }
-
-    # initialize volume manage if needed for local slices
-    if ($gotlocal && $gotslice) {
-	#
-	# Allow for the volume group to exist.
-	#
-	if (is_lvm_initialized()) {
-	    $so{'LVM_VGCREATED'} = 1;
-	}
-
-	#
-	# Grab the bootdisk and current GEOM state
-	#
-	my $bdisk = get_bootdisk();
-	my $ginfo = get_diskinfo();
-	if (!exists($ginfo->{$bdisk}) || $ginfo->{$bdisk}->{'inuse'} == 0) {
-	    warn("*** storage: bootdisk '$bdisk' marked as not in use!?\n");
+    if ($gotlocal) {
+	# check for local storage incompatibility
+	if ($needall && $needavol) {
+	    warn("*** storage: Incompatible local volumes.\n");
 	    return undef;
 	}
-	$so{'BOOTDISK'} = $bdisk;
-	$so{'DISKINFO'} = $ginfo;
+	
+	# initialize mapping of serial numbers to devices
+	if ($gotelement) {
+	    $so{'LOCAL_SNMAP'} = init_serial_map();
+	}
+
+	# initialize volume manage if needed for local slices
+	if ($gotslice) {
+	    #
+	    # Allow for the volume group to exist.
+	    #
+	    if (is_lvm_initialized()) {
+		$so{'LVM_VGCREATED'} = 1;
+	    }
+
+	    #
+	    # Grab the bootdisk and current GEOM state
+	    #
+	    my $bdisk = get_bootdisk();
+	    my $ginfo = get_diskinfo();
+	    if (!exists($ginfo->{$bdisk}) || $ginfo->{$bdisk}->{'inuse'} == 0) {
+		warn("*** storage: bootdisk '$bdisk' marked as not in use!?\n");
+		return undef;
+	    }
+
+	    #
+	    # Boot disk should have a partition table type
+	    #
+	    if (!exists($ginfo->{$bdisk}->{'ptabtype'})) {
+		warn("*** storage: bootdisk '$bdisk' does not have partition table type!?\n");
+		return undef;
+	    }
+
+	    $so{'BOOTDISK'} = $bdisk;
+	    $so{'DISKINFO'} = $ginfo;
+	}
     }
 
     if ($gotiscsi) {
@@ -568,12 +670,16 @@ sub os_show_storage($)
     my $dinfo = get_diskinfo();
     if ($dinfo) {
 	print STDERR "  DISKINFO:\n";
-	foreach my $dev (keys %$dinfo) {
+	foreach my $dev (sort keys %$dinfo) {
 	    my $type = $dinfo->{$dev}->{'type'};
 	    my $lev = $dinfo->{$dev}->{'level'};
 	    my $size = $dinfo->{$dev}->{'size'};
-	    my $inuse = $dinfo->{$dev}->{'inuse'};
-	    print STDERR "    name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse\n";
+	    my $inuse = sprintf("%X", $dinfo->{$dev}->{'inuse'});
+	    print STDERR "    name=$dev, type=$type, level=$lev, size=$size, inuse=$inuse";
+	    if ($type eq "DISK") {
+		print STDERR ", pttype=", $dinfo->{$dev}->{'ptabtype'};
+	    }
+	    print STDERR "\n";
 	}
     }
 
@@ -806,11 +912,13 @@ sub os_check_storage_slice($$)
 
 	my $ginfo = $so->{'DISKINFO'};
 	my $bdisk = $so->{'BOOTDISK'};
+	my $pttype = "MBR";
 
 	# figure out the device of interest
 	if ($bsid eq "SYSVOL") {
 	    $dev = $mdev = "${bdisk}4";
 	    $devtype = "PART";
+	    $pttype = $ginfo->{$bdisk}->{'ptabtype'};
 	} else {
 	    $dev = "emulab/$lv";
 	    $mdev = "mapper/emulab-$lv";
@@ -844,15 +952,16 @@ sub os_check_storage_slice($$)
 
 	# for the system disk, ensure partition is not in use
 	if ($bsid eq "SYSVOL") {
-	    # XXX inuse for a partition is set to DOS type
+	    # XXX inuse for a partition is set to MBR/GPT type
 	    my $ptype = $ginfo->{$dev}->{'inuse'};
+	    my $linuxid = ($pttype eq "GPT") ? 0x8300 : 0x83;
 
 	    # if type is 0, it is not setup
 	    if ($ptype == 0) {
 		return 0;
 	    }
-	    # ow, if type is not 131, there is a problem
-	    if ($ptype != 131) {
+	    # ow, if not a Linux FS partition, there is a problem 
+	    if ($ptype != $linuxid) {
 		warn("*** $lv: $dev already in use (type $ptype)\n");
 		return -1;
 	    }
@@ -1136,16 +1245,48 @@ sub os_create_storage_slice($$$)
 	}
 
 	#
+	# In GPT, there is no such thing as an "unused" partition.
+	# If a partition exists, it has a non-zero type and we treat
+	# it as in use. Hence, we have to create the partitions we
+	# use. For SYSVOL, this is easy. We just tell sgdisk to create
+	# parititon 4 using the biggest chunk of space available on
+	# the boot disk. For NONSYSVOL or ANY, we may have to create
+	# GPTs and find the available space. Or we may have a mix of
+	# GPT and MBR disks.
+	#
+	# XXX For now we just implement the SYSVOL case since we only
+	# use this on Moonshot boxes that have a single disk.
+	#
+
+	#
 	# System volume:
 	#
 	# dostype -f /dev/sda 4 131
 	#
 	if ($bsid eq "SYSVOL") {
-	    if (mysystem("$DOSTYPE -f /dev/$bdisk 4 131")) {
-		warn("*** $lv: could not set /dev/$bdisk type$logmsg\n");
-		return 0;
-	    }
 	    $mdev = "$bdisk" . "4";
+
+	    if ($ginfo->{$bdisk}->{'ptabtype'} eq "GPT") {
+		if (exists($ginfo->{$mdev})) {
+		    warn("*** $lv: ugh! $mdev already exists\n");
+		    return 0;
+		}
+		if (mysystem("$SGDISK -n 4:0:0 -t 4:8300 /dev/$bdisk $redir") ||
+		    mysystem("$PPROBE /dev/$bdisk $redir")) {
+		    warn("*** $lv: could not create $mdev$logmsg\n");
+		    return 0;
+		}
+		# XXX create DISKINFO entry for partition
+		$ginfo->{$mdev}->{'type'} = "PART";
+		$ginfo->{$mdev}->{'level'} = 1;
+		$ginfo->{$mdev}->{'size'} = get_partsize($mdev);
+		$ginfo->{$mdev}->{'inuse'} = hex("8300");
+	    } else {
+		if (mysystem("$DOSTYPE -f /dev/$bdisk 4 131")) {
+		    warn("*** $lv: could not set /dev/$bdisk type$logmsg\n");
+		    return 0;
+		}
+	    }
 	}
 	#
 	# Non-system volume or all space.
@@ -1364,9 +1505,17 @@ sub os_remove_storage_slice($$$)
 	    # dostype -f /dev/sda 4 0
 	    #
 	    if ($bsid eq "SYSVOL") {
-		if (mysystem("$DOSTYPE -f /dev/$bdisk 4 0")) {
-		    warn("*** $lv: could not clear /dev/$bdisk type$logmsg\n");
-		    return 0;
+		if ($ginfo->{$bdisk}->{'ptabtype'} eq "GPT") {
+		    if (mysystem("$SGDISK -d 4 /dev/$bdisk $redir") ||
+			mysystem("$PPROBE /dev/$bdisk $redir")) {
+			warn("*** $lv: could not destroy $dev$logmsg\n");
+			return 0;
+		    }
+		} else {
+		    if (mysystem("$DOSTYPE -f /dev/$bdisk 4 0")) {
+			warn("*** $lv: could not clear /dev/$bdisk type$logmsg\n");
+			return 0;
+		    }
 		}
 		return 1;
 	    }
