@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,8 +30,8 @@ use Exporter;
 	      findControlNet existsIface findIface findMac
 	      existsBridge findBridge findBridgeIfaces
               downloadImage getKernelVersion createExtraFS
-              forwardPort removePortForward lvSize DoIPtables restartDHCP
-              computeStripeSize
+              forwardPort removePortForward lvSize DoIPtables DoIPtablesNoFail
+              restartDHCP computeStripeSize
             );
 
 use Data::Dumper;
@@ -51,6 +51,7 @@ my $PCNET_GW_FILE   = "/var/emulab/boot/routerip";
 my $IPTABLES   = "/sbin/iptables";
 
 my $debug = 0;
+my $lockdebug = 0;
 
 sub setDebug($) {
     $debug = shift;
@@ -111,34 +112,58 @@ sub forwardPort($;$) {
 # to get a perfect lock. So, we do our best and if it fails sleep for
 # a couple of seconds and try again. 
 #
-sub DoIPtables(@)
+sub _DoIPtables($@)
 {
-    my (@rules) = @_;
+    my ($nofail, @rules) = @_;
+    my $rv = 0;
 
+    TBDebugTimeStamp("DoIPtables: grabbing iptables lock")
+	if ($lockdebug);
     if (TBScriptLock("iptables", 0, 900) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the iptables lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got iptables lock")
+	if ($lockdebug);
     foreach my $rule (@rules) {
-	my $retries = 5;
+	my $retries = 10;
 	my $status  = 0;
 	while ($retries > 0) {
-	    mysystem2("$IPTABLES $rule");
+	    TBDebugTimeStamp("  doing 'iptables $rule'");
+	    mysystem2("$IPTABLES $rule", 0);
 	    $status = $?;
 	    last
 		if (!$status || $status >> 8 != 4);
-	    print STDERR "will retry in a couple of seconds ...\n";
-	    sleep(2);
+	    print STDERR "will retry in one second ...\n";
+	    sleep(1);
 	    $retries--;
 	}
-	# Operation failed - return error
+	# Operation failed - either return error or do the rest
 	if (!$retries || $status) {
-	    TBScriptUnlock();
-	    return -1;
+	    if (!$nofail) {
+		TBDebugTimeStamp("  releasing iptables lock on error")
+		    if ($lockdebug);
+		TBScriptUnlock();
+		return -1;
+	    }
+	    # we still return an error code
+	    $rv = -1;
 	}
     }
+    TBDebugTimeStamp("  releasing iptables lock")
+	if ($lockdebug);
     TBScriptUnlock();
-    return 0;
+    return $rv;
+}
+
+sub DoIPtables(@)
+{
+    return _DoIPtables(0, @_);
+}
+
+sub DoIPtablesNoFail(@)
+{
+    return _DoIPtables(1, @_);
 }
 
 sub removePortForward($) {

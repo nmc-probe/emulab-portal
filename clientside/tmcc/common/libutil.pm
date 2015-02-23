@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -252,11 +252,12 @@ sub fatal($)
 #
 # Run a command string, redirecting output to a logfile.
 #
-sub mysystem($)
+sub mysystem($;$)
 {
-    my ($command) = @_;
+    my ($command,$doecho) = @_;
+    $doecho = 1 if (!defined($doecho));
 
-    if (1) {
+    if ($doecho) {
 	print STDERR "mysystem: '$command'\n";
     }
 
@@ -265,11 +266,12 @@ sub mysystem($)
 	fatal("Command failed: $? - $command");
     }
 }
-sub mysystem2($)
+sub mysystem2($;$)
 {
-    my ($command) = @_;
+    my ($command,$doecho) = @_;
+    $doecho = 1 if (!defined($doecho));
 
-    if (1) {
+    if ($doecho) {
 	print STDERR "mysystem: '$command'\n";
     }
 
