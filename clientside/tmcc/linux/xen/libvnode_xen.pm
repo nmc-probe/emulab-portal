@@ -251,7 +251,10 @@ my $LVM_FULLDISKONLY = 0;
 
 # Whether or not to use partitions only when they are big.
 my $LVM_ONLYLARGEPARTS = 1;
-my $LVM_LARGEPARTPCT = 5;
+my $LVM_LARGEPARTPCT = 8;
+
+# In general, you only want to use one partition per disk since we stripe.
+my $LVM_ONEPARTPERDISK = 1;
 
 # Use openvswitch for gre tunnels.
 my $OVSCTL   = "/usr/local/bin/ovs-vsctl";
@@ -538,62 +541,86 @@ sub rootPreConfig($)
 	# and incorporate them into a volume group.
 	#
 	my $totalSize = 0;
-	my $blockdevs = "";
+	my @blockdevs = ();
 	foreach my $dev (keys(%devs)) {
 	    #
-	    # Whole disk is available
+	    # Whole disk is available, use it.
 	    #
 	    if (defined($devs{$dev}{"size"})) {
-		$blockdevs .= " " . $devs{$dev}{"path"};
+		push(@blockdevs, $devs{$dev}{"path"});
 		$totalSize += $devs{$dev}{"size"};
+		next;
 	    }
+
 	    #
-	    # Disk contains partitions that are available
+	    # Disk contains partitions that are available.
 	    #
-	    else {
-		foreach my $part (keys(%{$devs{$dev}})) {
-		    my $psize = $devs{$dev}{$part}{"size"};
-		    my $ppath = $devs{$dev}{$part}{"path"};
+	    my ($lpsize,$lppath);
+	    foreach my $part (keys(%{$devs{$dev}})) {
+		my $psize = $devs{$dev}{$part}{"size"};
+		my $ppath = $devs{$dev}{$part}{"path"};
 
-		    #
-		    # XXX one way to avoid using the system disk, just ignore
-		    # all partition devices. However, in cases where the
-		    # remainder of the system disk represents the majority of
-		    # the available space (e.g., Utah d710s), this is a bad
-		    # idea.
-		    #
-		    if ($LVM_FULLDISKONLY) {
-			print STDERR "WARNING: not using $ppath for LVM (is a partition)\n";
-			next;
-		    }
-
-		    #
-		    # XXX another heurstic to try to weed out the system
-		    # disk whenever feasible: if a partition device represents
-		    # less than some percentage of the max possible space,
-		    # avoid it.
-		    #
-		    if ($LVM_ONLYLARGEPARTS && $psize < $sizeThreshold) {
-			print STDERR "WARNING: not using $ppath for LVM (too small)\n";
-			next;
-		    }
-
-		    #
-		    # It ran the gauntlet of feeble filters, use it!
-		    #
-		    $blockdevs .= " " . $ppath;
-		    $totalSize += $psize;
+		#
+		# XXX one way to avoid using the system disk, just ignore
+		# all partition devices. However, in cases where the
+		# remainder of the system disk represents the majority of
+		# the available space (e.g., Utah d710s), this is a bad
+		# idea.
+		#
+		if ($LVM_FULLDISKONLY) {
+		    print STDERR
+			"WARNING: not using partition $ppath for LVM\n";
+		    next;
 		}
+
+		#
+		# XXX Another heurstic to try to weed out the system
+		# disk whenever feasible: if a partition device represents
+		# less than some percentage of the max possible space,
+		# avoid it. At Utah this one is tuned (8%) to avoid using
+		# left over space on the system disk of d820s (which have
+		# six other larger drives) while using it on the pc3000s
+		# and d710s.
+		#
+		if ($LVM_ONLYLARGEPARTS && $psize < $sizeThreshold) {
+		    print STDERR "WARNING: not using $ppath for LVM (too small)\n";
+		    next;
+		}
+
+		#
+		# XXX If we are only going to use one partition per disk,
+		# record the largest one we find here. This check will
+		# filter out the small "other OS" partition (3-6GB) in
+		# favor of the larger "rest of the disk" partition.
+		#
+		if ($LVM_ONEPARTPERDISK) {
+		    if (!defined($lppath) || $psize > $lpsize) {
+			$lppath = $ppath;
+			$lpsize = $psize;
+		    }
+		    next;
+		}
+
+		#
+		# It ran the gauntlet of feeble filters, use it!
+		#
+		push(@blockdevs, $ppath);
+		$totalSize += $psize;
+	    }
+	    if ($LVM_ONEPARTPERDISK && defined($lppath)) {
+		push(@blockdevs, $lppath);
+		$totalSize += $lpsize;
 	    }
 	}
-	if ($blockdevs eq '') {
+	if (@blockdevs == 0) {
 	    print STDERR "ERROR: findSpareDisks found no disks for LVM!\n";
 	    TBScriptUnlock();
 	    return -1;
 	}
 		    
-	mysystem("pvcreate $blockdevs");
-	mysystem("vgcreate $VGNAME $blockdevs");
+	my $blockdevstr = join(' ', sort @blockdevs);
+	mysystem("pvcreate $blockdevstr");
+	mysystem("vgcreate $VGNAME $blockdevstr");
 
 	my $size = lvmVGSize($VGNAME);
 	if ($size < $XEN_MIN_VGSIZE) {
@@ -605,7 +632,7 @@ sub rootPreConfig($)
 	# Create an image pool for golden images.
 	# If this fails, we just don't use thin volumes!
 	#
-	if ($usethin && createThinPool($blockdevs)) {
+	if ($usethin && createThinPool($blockdevstr)) {
 	    print STDERR "WARNING: could not create a thin pool, ".
 		"disabling golden image support\n";
 	    $usethin = 0;
@@ -658,6 +685,11 @@ sub rootPreConfig($)
 	TBScriptUnlock();
 	return -1;
     }
+
+    #
+    # Make sure IP forwarding is enabled on the host
+    #
+    mysystem2("$SYSCTL -w net.ipv4.conf.all.forwarding=1");
 
     #
     # Increase socket buffer size for frisbee download of images.
