@@ -251,27 +251,32 @@ loadone() {
     fi
 
     #
-    # XXX we don't grok GPT yet, so we must write directly to the
-    # partition device (no -s option). We also use a fixed GPT which
-    # has only partitions 1, 2, and 15. And we only do Linux right now.
+    # XXX we only recognize 4 partitions in Emulab right now, so
+    # there is no way to directly specify the boot partition (15).
+    # So if PART == 3 (the conventional swap partition) we treat
+    # that as 15.
     #
-    # XXX XXX we only recognize 4 partitions in Emulab right now, so
-    # map partition 4 from the DB to partition 15!
+    if [ "$_PART" == "3" ]; then
+	_PART=15
+    fi
+
+    #
+    # XXX we only do Linux right now.
     #
     if [ "$_PART" != "0" ]; then
 	case $_PART in
-	4)
-		_PART=15
-		;;
-	1|2|15)
+	1|2|4|15)
 		;;
 	*)
-		echo "Cannot load partition '$_PART', must be 1, 2, or 15"
+		echo "Cannot load partition '$_PART', must be 1, 2, 4, or 15"
 		return 1
 		;;
 	esac
+	SLICE="-s $_PART" 
 	case $PARTOS in
-	Linux|Unknown|Other)
+	Fedora|Linux|Unknown|Other)
+		SLICE="$SLICE -D 131"
+		PTYPE=131
 		;;
 	*)
 		echo "Cannot load OS type '$PARTOS' image"
@@ -444,17 +449,12 @@ loadone() {
 	zapsuperblocks $_DISK
     fi
 
-    # XXX for now, since we are actually writing to the partition device
-    if [ $_PART -eq 0 ]; then
-	$_PART=""
-    fi
-
     if [ x"$imagefile" != x ]; then
 	echo "`date`: Running $BINDIR/imageunzip -f -o -O -W 32 $ZFILL $imagefile /dev/${_DISK}${_PART}"
 	$BINDIR/imageunzip -o -O -W 32 $ZFILL $imagefile /dev/${_DISK}${_PART}
     else
-	echo "`date`: Running $BINDIR/frisbee -f -S $SERVER $MEMARGS $KA $ZFILL $IMAGEID /dev/$_DISK$_PART"
-	$BINDIR/frisbee -S $SERVER $MEMARGS $KA $ZFILL $IMAGEID /dev/$_DISK$_PART
+	echo "`date`: Running $BINDIR/frisbee -f -S $SERVER $MEMARGS $KA $ZFILL $SLICE $IMAGEID /dev/$_DISK"
+	$BINDIR/frisbee -S $SERVER $MEMARGS $KA $ZFILL $SLICE $IMAGEID /dev/$_DISK
     fi
     fstat=$?
 
@@ -503,7 +503,7 @@ fixone() {
     101)
 	RPART=2
 	;;
-    102)
+    *)
 	RPART=1
 	;;
     esac

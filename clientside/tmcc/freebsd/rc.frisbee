@@ -315,6 +315,7 @@ loadone() {
 	    echo "Need to download $ADDR"
 
 	    isurl=1
+	    ispath=0
 	    if [ ! -d /images ]; then
 		echo "Need to create or mount /images directory!"
 		return 1
@@ -326,6 +327,7 @@ loadone() {
 	    imagefile=`echo $ADDR | sed -e 's,^http[s]*://[^/]*/,,'`
 	    imagefile="/images/$imagefile"
 	elif [ x"$ispath" != x ]; then
+	    isurl=0
 	    ispath=1
 
 	    if [ ! -e $ADDR ]; then

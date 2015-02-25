@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -268,19 +268,13 @@ dolinux() {
 fixone() {
     echo "*** ${disk}${part}:"
     ptype=`sgdisk -p /dev/$disk | \
-	sed -n "s/^  *$part  *.* \([0-9a-fA-F][0-9a-fA-F]*\) *$/\1/p"`
+	sed -n "s/^  *$part  *.*iB  *\([0-9A-F][0-9A-F]*\) */\1/p"`
     ptype=${ptype:-0}
 
     case $ptype in
     8300)
 	dolinux
 	return $?
-	;;
-    8200)
-	echo "ignoring Linux swap partition"
-	;;
-    7|0x7)
-	echo "ignoring NTFS partition"
 	;;
     0)
 	;;
@@ -295,6 +289,7 @@ case $part in
 0)
     part=1; fixone
     part=2; fixone
+    part=4; fixone
     part=15; fixone
 
     # when fixing all partitions, do not fail on an error
