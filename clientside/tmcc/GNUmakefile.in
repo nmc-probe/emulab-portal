@@ -115,6 +115,9 @@ endif
 ifeq ($(MDSUBDIR),centos5)
 MDSUBDIR  = fedora
 endif
+ifeq ($(MDSUBDIR),centos7)
+MDSUBDIR  = centos7
+endif
 ifeq ($(MDSUBDIR),stargate1)
 MDSUBDIR  = linux-sg
 endif
