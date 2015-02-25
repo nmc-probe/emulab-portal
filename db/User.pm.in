@@ -401,6 +401,29 @@ sub Create($$$$)
     my $nonlocal = ($flags & $NEWUSER_FLAGS_NONLOCAL   ? 1 : 0);
     my $nouuid   = ($flags & $NEWUSER_FLAGS_NOUUID     ? 1 : 0);
 
+    DBQueryFatal("lock tables users write, user_stats write, ".
+		 "   emulab_indicies write, ".
+		 "   users as u read, users as r read")
+	or return undef;
+
+    #
+    # Check for existing user. Usually a double click.
+    #
+    if ($uid) {
+	my $query_result =
+	    DBQueryWarn("select uid_idx from users ".
+			"where uid='$uid' and status!='$USERSTATUS_ARCHIVED'");
+	goto bad
+	    if (!$query_result);
+
+	if ($query_result->numrows) {
+	    my ($other_idx) = $query_result->fetchrow_array();
+	    
+	    print STDERR "*** Duplicate user table entry: $other_idx\n";
+	    goto bad;
+	}
+    }
+
     #
     # If no uid, we need to generate a unique one for the user.
     #
@@ -417,7 +440,7 @@ sub Create($$$$)
 	    $token = $1;
 	}
 	else {
-	    return undef;
+	    goto bad;
 	}
 	# Squeeze out any dots or dashes.
 	$token =~ s/\.//g;
@@ -428,7 +451,7 @@ sub Create($$$$)
 	    $token = $1;
 	}
 	else {
-	    return undef;
+	    goto bad;
 	}
 
 	# First 5 chars, at most.
@@ -438,7 +461,7 @@ sub Create($$$$)
 	my $query_result =
 	    DBQueryWarn("select uid from users where uid like '${token}%'");
 
-	return undef
+	goto bad
 	    if (!$query_result);
 
 	# Easy; no matches at all!
@@ -461,7 +484,7 @@ sub Create($$$$)
 		    $number = $2;
 		}
 		else {
-		    return undef;
+		    goto bad;
 		}
 		# Must be exact root
 		next
@@ -484,9 +507,6 @@ sub Create($$$$)
     my @insert_data = (!defined($argref) ? () :
 		       map("$_=" . DBQuoteSpecial($argref->{$_}),
 			   keys(%{$argref})));
-
-    # Every user gets a new unique index.
-    my $uid_idx = User->NextIDX();
 
     #
     # Get me an unused unix id. 
@@ -512,12 +532,12 @@ sub Create($$$$)
 			"where u.unix_uid>=$min_uid and ".
 			"      u.unix_uid<60000 and ".
 			"      r.unix_uid is null limit 1");
-	return undef
+	goto bad
 	    if (! $query_result);
 
 	if (! $query_result->numrows) {
 	    print "*** WARNING: Could not find an unused unix_uid!\n";
-	    return undef;
+	    goto bad;
 	}
 
 	my ($unused) = $query_result->fetchrow_array();
@@ -532,6 +552,9 @@ sub Create($$$$)
 	}
     }
 
+    # Every user gets a new unique index. Use nolock option.
+    my $uid_idx = User->NextIDX(1);
+
     # Initial mailman_password.
     my $mailman_password = substr(TBGenSecretKey(), 0, 10);
 
@@ -543,7 +566,7 @@ sub Create($$$$)
 	$uuid = NewUUID();
 	if (!defined($uuid)) {
 	    print "*** WARNING: Could not generate a UUID!\n";
-	    return undef;
+	    goto bad;
 	}
 	push(@insert_data, "uid_uuid='$uuid'");
     }
@@ -578,7 +601,7 @@ sub Create($$$$)
 	       exists($argref->{'nonlocal_type'}))) {
 	    print STDERR "*** User->Create(): ".
 		"Must provide nonlocal_id and nonlocal_type!\n";
-	    return undef;
+	    goto bad;
 	}
 	push(@insert_data, "status='$USERSTATUS_ACTIVE'");
 	# No expiration, cause no passwords. 
@@ -592,7 +615,7 @@ sub Create($$$$)
 
     # Insert into DB.
     DBQueryWarn("insert into users set " . join(",", @insert_data))
-	or return undef;
+	or goto bad;
 
     # And the stats record.
     @insert_data = ();
@@ -603,9 +626,14 @@ sub Create($$$$)
 
     if (! DBQueryWarn("insert into user_stats set ".join(",", @insert_data))) {
 	DBQueryFatal("delete from users where uid_idx='$uid_idx'");
-	return undef;
+	goto bad;
     }
+    DBQueryFatal("unlock tables");
     return User->Lookup($uid_idx);
+
+  bad:
+    DBQueryFatal("unlock tables");
+    return undef;
 }
 
 #
@@ -637,11 +665,11 @@ sub Delete($)
 #
 # Utility (class) function to get a new uid for a user.
 #
-sub NextIDX($)
+sub NextIDX($;$)
 {
-    my ($class) = @_;
+    my ($class, $nolock) = @_;
 
-    my $idx = TBGetUniqueIndex('next_uid', 1);
+    my $idx = TBGetUniqueIndex('next_uid', 1, $nolock);
     return $idx;
 }
 
