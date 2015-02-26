@@ -301,7 +301,7 @@ sub WarnSlices()
 	    # Experimental
 	    if ($MAINSITE) {
 		# Do not expose slices to APT/Cloud users.
-		my $instance = APT_Instance->LookupBySlice($slice_uuid);
+		my $instance = APT_Instance->LookupBySlice($slice->uuid());
 		if (defined($instance)) {
 		    $instance->WarnExpiring("$diff $unit");
 		    goto noemail;
