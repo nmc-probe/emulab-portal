@@ -364,7 +364,7 @@ sub ExpireSlices()
 	}
 	# Experimental
 	if ($MAINSITE) {
-	    my $instance = APT_Instance->LookupBySlice($slice_uuid);
+	    my $instance = APT_Instance->LookupBySlice($slice->uuid());
 	    if (defined($instance)) {
 		#
 		# If this is for an APT instance, skip it and let the
