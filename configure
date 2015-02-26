@@ -659,11 +659,11 @@ TBOPSEMAIL
 BS_IQN_PREFIX
 AMD_ROOT
 WITHAMD
+ZFS_NOEXPORT
 ZFS_QUOTA_GROUP
 ZFS_QUOTA_PROJECT
 ZFS_QUOTA_USER
 ZFS_ROOT
-ZFS_NOEXPORT
 WITHZFS
 NOVIRTNFSMOUNTS
 PROFILEVERSIONS
@@ -705,6 +705,8 @@ PROTOGENI_NICKNAME
 PROTOGENI_GENIRACK
 PROTOGENI_URL
 GENI_PUBRPCPORT
+PROTOGENI_GENIWEBLOGIN
+PROTOGENI_LOCALUSER
 PROTOGENI_RPCNAME
 PROTOGENI_RPCPORT
 PROTOGENI_DOMAIN
@@ -712,8 +714,6 @@ PROTOGENI_EMAIL
 PROTOGENI_ISCLEARINGHOUSE
 PROTOGENI_WEBSITE
 PROTOGENI_SUPPORT
-PROTOGENI_LOCALUSER
-PROTOGENI_GENIWEBLOGIN
 REMOTEWIKIDOCS
 TPM
 DYNAMICROOTPASSWORDS
@@ -4979,6 +4979,9 @@ done
 
 
 
+
+
+
 #
 # Offer both versions of the email addresses that have the @ escaped
 # for perl (the default), and that don't
@@ -5226,6 +5229,8 @@ if test x"$PROTOGENI_NICKNAME" = x"unknown"; then
     *osu.edu) PROTOGENI_NICKNAME="osu-ig";;
     *umkc.edu) PROTOGENI_NICKNAME="umkc-ig";;
     *idre.ucla.edu) PROTOGENI_NICKNAME="ucla-ig";;
+    *washington.edu) PROTOGENI_NICKNAME="uwashington-ig";;
+    *rnet.missouri.edu) PROTOGENI_NICKNAME="missouri-ig";;
     esac
 fi
 
@@ -7075,6 +7080,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/fedora15/GNUmakefile \
  clientside/tmcc/linux-sg/GNUmakefile clientside/tmcc/ubuntu7/GNUmakefile \
  clientside/tmcc/centos6/GNUmakefile \
+ clientside/tmcc/centos7/GNUmakefile \
  clientside/tmcc/ubuntu10/GNUmakefile \
  clientside/tmcc/ubuntu11/GNUmakefile \
  clientside/tmcc/ubuntu14/GNUmakefile \
