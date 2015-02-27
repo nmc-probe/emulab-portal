@@ -1,6 +1,5 @@
 require(window.APT_OPTIONS.configObject,
-	['js/quickvm_sup', 'moment',
-	 'tablesorter', 'tablesorterwidgets'],
+	['js/quickvm_sup', 'moment'],
 function (sup, moment)
 {
     'use strict';
@@ -10,6 +9,14 @@ function (sup, moment)
     {
 	window.APT_OPTIONS.initialize(sup);
 	ajaxurl  = window.AJAXURL;
+
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("ll"));
+	    }
+	});
 
 	var table = $(".tablesorter")
 		.tablesorter({
@@ -47,14 +54,6 @@ function (sup, moment)
 	$('.showtopo_modal_button').click(function (event) {
 	    event.preventDefault();
 	    ShowTopology($(this).data("profile"));
-	});
-	
-	// Format dates with moment before display.
-	$('.format-date').each(function() {
-	    var date = $.trim($(this).html());
-	    if (date != "") {
-		$(this).html(moment($(this).html()).format("ll"));
-	    }
 	});
     }
 

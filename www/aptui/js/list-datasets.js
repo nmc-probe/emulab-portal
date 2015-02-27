@@ -1,6 +1,5 @@
 require(window.APT_OPTIONS.configObject,
-	['js/quickvm_sup', 'moment',
-	 'tablesorter', 'tablesorterwidgets'],
+	['js/quickvm_sup', 'moment'],
 function (sup, moment)
 {
     'use strict';
@@ -10,6 +9,14 @@ function (sup, moment)
     {
 	window.APT_OPTIONS.initialize(sup);
 	ajaxurl  = window.AJAXURL;
+
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("lll"));
+	    }
+	});
 
 	if ($(".tablesorter").length) {
 	    var table = $(".tablesorter")
@@ -45,14 +52,6 @@ function (sup, moment)
 	    // pressing escape to cancel the search
 	    $.tablesorter.filter.bindSearch( table, $('#dataset_search') );
 	}
-	// Format dates with moment before display.
-	$('.format-date').each(function() {
-	    var date = $.trim($(this).html());
-	    if (date != "") {
-		$(this).html(moment($(this).html()).format("lll"));
-	    }
-	});
-
 	//
 	// When embedded, we want the Show link to go through the outer
 	// frame not the inner iframe.
