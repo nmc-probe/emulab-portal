@@ -206,7 +206,10 @@ sub AddInterfaceVlan($$$$$) {
     if( $idomain eq $DOMAIN ) {
 	$url = "$URL/info/interfacevlan/${idomain}_interface_${iface}:${tag}";
     } else {
-	$url = "none";
+	# FIXME this is fake -- we don't and can't know the monitoring URL
+	# (if any) for the remote end.  But the monitoring database defines
+	# it as a unique key, so we have to put something here.
+	$url = "https://${idomain}/info/interfacevlan/${idomain}_interface_${iface}:${tag}";
     }
 
     # FIXME would be nice to give interface_href, but in general we don't know
@@ -217,8 +220,7 @@ sub AddInterfaceVlan($$$$$) {
 			 "urn='urn:publicid:IDN+$idomain+interfacevlan+$iface:$tag', " .
 			 "ts='$ts', " .
 			 "tag=$tag," .
-			 "interface_urn='urn:publicid:IDN+$idomain+interface+$iface'" )
-	unless( $url eq "none" );
+			 "interface_urn='urn:publicid:IDN+$idomain+interface+$iface'" );
 
     emdbi::DBQueryWarnN( $db, "INSERT INTO ops_link_interfacevlan SET " .
 			 "id='${idomain}_interface_${iface}:${tag}', " .
@@ -304,30 +306,55 @@ while (1) {
     }
 
     my @fakenodenames = ();
-    my $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT DISTINCT node_id FROM external_networks" );
+    my @switchnodenames = ();
+    my %fakenodemap = ();
+    my $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT e.node_id, w.node_id1, w.card1, w.port1, w.node_id2, w.card2, w.port2 " .
+					    "FROM external_networks as e, " .
+					    "wires as w WHERE " .
+					    "e.node_id=w.node_id1 OR " .
+					    "e.node_id=w.node_id2" );
     if( $query_result && $query_result->numrows) {
 	my @fakenodes;
 
 	while( @fakenodes = $query_result->fetchrow_array() ) {
-	    my ($n) = @fakenodes;
-	    push( @fakenodenames, @fakenodes );
-	    my $node = Node->Lookup( $n );
+	    my ($external, $node1, $card1, $port1, $node2, $card2, $port2) = @fakenodes;
+	    my $extnode = $external eq $node1 ? $node1 : $node2;
+	    my $extcard = $external eq $node1 ? $card1 : $card2;
+	    my $extport = $external eq $node1 ? $port1 : $port2;
+	    my $switchnode = $external eq $node1 ? $node2 : $node1;
+	    my $switchcard = $external eq $node1 ? $card2 : $card1;
+	    my $switchport = $external eq $node1 ? $port2 : $port1;
+
+	    my $iface = Interface->Lookup( $extnode, $extcard, $extport );
+	    my $ifacename = $iface->iface();
+	    
+	    $fakenodemap{ "$extnode:$ifacename" } =
+		"$switchnode:$switchcard:$switchport";
+	    
+	    next if grep { $_ eq $switchnode } @switchnodenames;
+	    
+	    push( @switchnodenames, ($switchnode) );
+
+	    push( @fakenodenames, ($external) )
+		unless grep { $_ eq $external } @fakenodenames;
+	    
+	    my $node = Node->Lookup( $switchnode );
 
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
 				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/node#', " .
-				 "id='${DOMAIN}_node_$n'," .
-				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'," .
-				 "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
+				 "id='${DOMAIN}_node_$switchnode'," .
+				 "selfRef='$URL/info/node/${DOMAIN}_node_$switchnode'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+node+$switchnode'," .
 				 "ts='$ts'," .
 				 "node_type='switch'" );
 
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
-				 "id='${DOMAIN}_node_$n'," .
+				 "id='${DOMAIN}_node_$switchnode'," .
 				 "aggregate_id='$NICKNAME'," .
-				 "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
-				 "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
+				 "urn='urn:publicid:IDN+$DOMAIN+node+$switchnode'," .
+				 "selfRef='$URL/info/node/${DOMAIN}_node_$switchnode'" );
 	    
-	    AddInterfaces( $n, $node, $ts );
+	    AddInterfaces( $switchnode, $node, $ts );
 	}
     }
 
@@ -364,8 +391,8 @@ while (1) {
 	    next if( ( scalar @members ) < 2 );
 
 	    my $edomain;
-	    my $enode;
-	    my $inode;
+	    my $enode = undef;
+	    my $inode = undef;
 	    my $snode;
 
 	    foreach my $member ( @members ) {
@@ -411,7 +438,7 @@ while (1) {
 		    my $type;
 		    ( $edomain, $type, $enode ) = GeniHRN::Parse( $peer );
 		    $enode = GeniHRN::Transcribe( $enode );
-		    $snode = "$nodeid:$iface";
+		    $snode = $fakenodemap{ "$nodeid:$iface" };
 		} else {
 		    $inode = "$nodeid:$iface";
 		}
