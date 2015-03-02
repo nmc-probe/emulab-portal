@@ -88,6 +88,18 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 	    return false;
 	});
 
+	$('#profile_show_button').click(function (event) {
+	    event.preventDefault();
+	    if (!registered) {
+		sup.SpitOops("oops", "You must be a registered user to view " +
+			     "profile details.");
+		return;
+	    }
+	    var url = "show-profile.php?uuid=" + selected_uuid;
+	    window.location.replace(url);
+	    return false;
+	});
+
 	// Profile picker search box.
 	var profile_picker_timeout = null;
 	
