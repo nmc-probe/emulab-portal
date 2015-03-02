@@ -384,11 +384,12 @@ function SPITAJAX_ERROR($code, $msg)
     echo json_encode($results);
 }
 
-function SPITREQUIRE($main)
+function SPITREQUIRE($main, $extras = "")
 {
     global $spatrequired;
     
     echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+    echo $extras;
     echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/$main'></script>\n";
     $spatrequired = 1;
