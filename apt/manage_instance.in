@@ -401,14 +401,19 @@ sub DoSnapshot()
 
 	my $blob = $response->value();
 	if (defined($webtask)) {
-	    #
-	    # Need to find the sliver inside the blob.
-	    #
-	    my $sliverblob = $blob->{'details'}->{$sliver_urn};
-	    if (defined($sliverblob)) {
-		$webtask->state($sliverblob->{'state'});
-		$webtask->rawstate($sliverblob->{'rawstate'});
+	    # Always stick in full status for web interface.
+	    my $statusblob = {};
+	    foreach my $urn (keys(%{$blob->{'details'}})) {
+		my $details = $blob->{'details'}->{$urn};
+		my $node_id = $details->{'client_id'};
+		$statusblob->{$node_id} = $details;
+		# Special for imaging status display
+		if ($urn eq $sliver_urn) {
+		    $webtask->state($details->{'state'});
+		    $webtask->rawstate($details->{'rawstate'});
+		}
 	    }
+	    $webtask->sliverstatus($statusblob)
 	}
 	if ($blob->{'status'} eq "failed") {
 	    $failed = 1;
