@@ -105,7 +105,7 @@ function SPITFORM($formfields, $returning, $errors)
     global $ACCOUNTWARNING, $EMAILWARNING;
     global $WIKISUPPORT, $forwikionly, $WIKIHOME, $USERSELECTUIDS;
     global $WIKIDOCURL;
-    global $PROTOGENI, $show_sslcertbox;
+    global $PROTOGENI, $show_sslcertbox, $nopidokay;
 
     if ($forwikionly)
 	PAGEHEADER("Wiki Registration");
@@ -159,6 +159,10 @@ function SPITFORM($formfields, $returning, $errors)
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
 	$formfields[$key] = CleanString($val);
+    }
+    if (isset($nopidokay)) {
+        $nopidokay = CleanString($nopidokay);
+        echo "<input type=hidden name=nopidokay value='$nopidokay'>\n";
     }
     
     echo "<SCRIPT LANGUAGE=JavaScript>
