@@ -16,7 +16,6 @@ sub DoUpdate($$$)
     DBQueryFatal("alter table apt_datasets change `type` `type` ".
 		 "  enum('stdataset','ltdataset','imdataset','unknown') ".
 		 "    NOT NULL default 'unknown'");
-    }
     DBQueryFatal("REPLACE INTO table_regex VALUES ".
 		 " ('images','isdataset','int','redirect', ".
 		 "  'default:boolean',0,0,NULL)");
