@@ -1,19 +1,35 @@
 <div class='row'>
-  <div class='col-lg-6 col-lg-offset-3
-              col-md-8 col-md-offset-2
-              col-sm-8 col-sm-offset-2
-              col-xs-12'>
+  <div class='col-lg-3
+              col-md-3
+              col-sm-3'>
     <div class='panel panel-default'>
-      <div class='panel-body'>
-	<div class='panel-body'>
-	  <table class='table table-condensed nospaceafter border-none'>
+      <div class='panel-heading'>
+        <h4 class='panel-title text-center'>Show Profile</h4>
+      </div>
+      <div class='panel-body'
+	   style='overflow: hidden; padding-left: 5px; padding-right: 5px'>
+	<table class='table-condensed nospaceafter'
+	       style='font-size:12px;'>
 	  <tr>
 	    <td>Name:</td>
 	    <td><%- fields.profile_name %></td>
 	  </tr>
 	  <tr>
-	    <td>Version:</td>
-	    <td><%- fields.profile_version %></td>
+	    <td>Version:</td><td>
+	  <% if (history) { %>
+	  <a href='profile-history.php?uuid=<%= profile_uuid %>'>
+	  	    <%- fields.profile_version %></a>
+	  <% } else { %>
+	    <%- fields.profile_version %>
+	  <% } %>
+	  </td></tr>
+	  <tr>
+	    <td>Project:</td>
+	    <td><%- fields.profile_pid %></td>
+	  </tr>
+	  <tr>
+	    <td>Creator:</td>
+	    <td><%- fields.profile_creator %></td>
 	  </tr>
 	  <tr>
 	    <td>Created:</td>
@@ -21,19 +37,30 @@
 	      <%- fields.profile_created %></td>
 	  </tr>
 	  <tr>
-	    <td>Description:</td>
-	    <td>
-	      <div id='profile_description' style='border: solid #000 1px;'>
-	      </div>
-	    </td>
+	    <td>Published:</td>
+	    <td id='profile_published' class='format-date'>
+	      <%- fields.profile_published %></td>
 	  </tr>
-	  <tr>
-	    <td>Instructions:</td>
-	    <td>
-	      <div id='profile_instructions' style='border: solid #000 1px;'>
-	      </div>
-	    </td>
-	  </tr>
+	</table>
+	<% if (history) { %>
+	<a class='btn btn-info btn-xs pull-left'
+           id='profile_history_button'
+           style='margin-right: 10px; font-size: 12px'
+           href='profile-history.php?uuid=<%= profile_uuid %>'
+           type='button'>Version History
+	</a>
+	<% } %>
+      </div>
+    </div>
+  </div>
+  <div class='col-lg-9
+              col-md-9
+              col-sm-9
+              col-xs-12'>
+    <div class='panel panel-default'>
+      <div class='panel-body'>
+	<div class='panel-body'>
+	  <table class='table nospaceafter border-none'>
 	  <tr>
 	    <td>Topology:</td>
 	    <td>
@@ -52,6 +79,26 @@
 			  style='margin-right: 10px;'
 			  id='show_xml_modal_button'>
                     XML</button>
+	    </td>
+	  </tr>
+	  <tr>
+	    <td>Description:</td>
+	    <td>
+	      <div style='border: solid #000 1px;'>
+		<div id='profile_description'
+		     style='padding-left: 2px; padding-right: 2px;'>
+		</div>
+	      </div>
+	    </td>
+	  </tr>
+	  <tr>
+	    <td>Instructions:</td>
+	    <td>
+	      <div style='border: solid #000 1px;'>
+		<div id='profile_instructions'
+		     style='padding-left: 2px; padding-right: 2px;'>
+		</div>
+	      </div>
 	    </td>
 	  </tr>
 	  </table>
@@ -83,7 +130,6 @@
 	      rows=5><%- fields.profile_script %></textarea>
   </div>
   <!-- place to hang the modals  -->
-  <div id='ppmodal_div'></div>
   <div id='showtopomodal_div'></div>
   <div id='editmodal_div'></div>
   <div id='waitwait_div'></div>

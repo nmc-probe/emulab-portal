@@ -37,20 +37,24 @@
 	      </tr>
 	      <tr>
 		<td>Type</td>
-		<td><%- formfields.dataset_type %></td>
+		<td><%- formfields.dataset_type_string %></td>
 	      </tr>
 	      <tr>
 		<td>Created</td>
 		<td class='format-date'><%- formfields.dataset_created %></td>
 	      </tr>
-	      <tr>
-		<td>Expires</td>
-		<td class='format-date'><%- formfields.dataset_expires %></td>
-	      </tr>
-	      <tr>
-		<td>Last Used</td>
-		<td class='format-date'><%- formfields.dataset_lastused %></td>
-	      </tr>
+	      <% if (formfields.dataset_type != "imdataset") { %>
+		 <tr>
+		   <td>Expires</td>
+		   <td class='format-date'><%- formfields.dataset_expires %>
+		   </td>
+		 </tr>
+	         <tr>
+		   <td>Last Used</td>
+		   <td class='format-date'><%- formfields.dataset_lastused %>
+		   </td>
+		 </tr>
+	      <% } %>
 	      <tr>
 		<td>FS Type</td>
 		<td><%- formfields.dataset_fstype %></td>

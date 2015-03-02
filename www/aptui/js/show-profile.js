@@ -16,6 +16,7 @@ function (_, sup, moment, ppstart,
 	  guestInstantiateString, instantiateString, oopsString)
 {
     'use strict';
+    var profile_uuid = null;
     var version_uuid = null;
     var gotscript    = 0;
     var ajaxurl      = "";
@@ -29,6 +30,7 @@ function (_, sup, moment, ppstart,
     {
 	window.APT_OPTIONS.initialize(sup);
 	version_uuid  = window.VERSION_UUID;
+	profile_uuid  = window.PROFILE_UUID;
 	ajaxurl       = window.AJAXURL;
 	isppprofile   = window.ISPPPROFILE;
 
@@ -43,6 +45,8 @@ function (_, sup, moment, ppstart,
 	var show_html   = showTemplate({
 	    fields:		fields,
 	    version_uuid:	version_uuid,
+	    profile_uuid:	profile_uuid,
+	    history:		window.HISTORY,
 	    isadmin:		window.ISADMIN,
 	});
 	$('#page-body').html(show_html);
@@ -133,6 +137,11 @@ function (_, sup, moment, ppstart,
 	 * ppstart js code.
 	 */
 	$('#profile_instantiate_button').click(function (event) {
+	    if (true) {
+		window.location.replace("instantiate.php?profile=" +
+					version_uuid);
+		return;
+	    }
 	    if (isppprofile) {
 		ppstart({uuid       : version_uuid,
 			 registered : true,

@@ -249,7 +249,7 @@ class Profile
     }
     # And the URL of the profile itself.
     function ProfileURL() {
-	global $APTBASE;
+	global $APTBASE, $ISVSERVER;
 	
 	$uuid = $this->profile_uuid();
 

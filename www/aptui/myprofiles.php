@@ -101,14 +101,13 @@ echo "<div class='row'>
                    col-sm-12 col-sm-offset-0
                    col-xs-12 col-xs-offset-0'>\n";
 
-echo "<input class='form-control search' type='search'
+echo "<input class='form-control search' type='search' data-column='all'
              id='profile_search' placeholder='Search'>\n";
 
 echo "  <table class='tablesorter'>
          <thead>
           <tr>
            <th>Name</th>
-           <th>&nbsp</th>
            <th>&nbsp</th>\n";
 if (isset($all) && ISADMIN()) {
     echo " <th>Creator</th>";
@@ -149,19 +148,15 @@ while ($row = mysql_fetch_array($query_result)) {
 	$desc = $parsed_xml->rspec_tour->description;
     }
     
-    echo " <tr>
-            <td>$name</td>\n";
-
+    echo " <tr>";
     if ($creator == $this_user->uid() || ISADMIN()) {
 	echo " <td style='text-align:center'>
-             <a class='btn btn-primary btn-xs' type='button'
-                href='manage_profile.php?action=edit&uuid=$uuid'>Edit</a>
+             <a href='manage_profile.php?action=edit&uuid=$uuid'>$name</a>
             </td>\n";
     }
     else {
 	echo " <td style='text-align:center'>
-             <a class='btn btn-primary btn-xs' type='button'
-                href='manage_profile.php?action=copy&uuid=$uuid'>Copy</a>
+             <a href='show-profile.php?uuid=$uuid'>$name</a>
             </td>\n";
     }
     echo "<td style='text-align:center'>
