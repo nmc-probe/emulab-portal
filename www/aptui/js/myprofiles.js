@@ -40,9 +40,10 @@ function (sup, moment)
 			filter_ignoreCase : true,
 			// Only one search box.
 			filter_columnFilters : false,
+			// Search as typing
+			filter_liveSearch : true,
 		    },
-
-		    headers: { 1: { sorter: false}, 2: {sorter: false} }
+		    headers: { 1: { sorter: false} }
 		});
 
 	// Target the $('.search') input using built in functioning
