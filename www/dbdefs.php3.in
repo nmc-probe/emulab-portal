@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -170,9 +170,10 @@ $TB_IMAGEID_MAX			= $TB_IMAGEID_DESTROY;
 
 # Leases
 $LEASE_ACCESS_READINFO		= 1;
-$LEASE_ACCESS_READ		= 2;
-$LEASE_ACCESS_MODIFY		= 3;
-$LEASE_ACCESS_DESTROY		= 4;
+$LEASE_ACCESS_MODIFYINFO	= 2;
+$LEASE_ACCESS_READ		= 3;
+$LEASE_ACCESS_MODIFY		= 4;
+$LEASE_ACCESS_DESTROY		= 5;
 $LEASE_ACCESS_MIN		= $LEASE_ACCESS_READINFO;
 $LEASE_ACCESS_MAX		= $LEASE_ACCESS_DESTROY;
 
@@ -759,6 +760,9 @@ function HaveStoragePool()
 # Convert local time to GMT date string.
 function DateStringGMT($date)
 {
+    if (is_null($date) || $date == "" || $date == "0000-00-00 00:00:00") {
+        return null;
+    }
     return gmdate("Y-m-d\TH:i:s\Z", strtotime($date));
 }
 
