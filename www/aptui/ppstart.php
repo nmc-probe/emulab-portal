@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -49,6 +49,7 @@ if (!$profile) {
 if (!$profile->CanInstantiate($this_user)) {
     PAGEERROR("Not enough permission to instantiate profile");
 }
+$am_array = Instance::DefaultAggregateList();
 
 #
 # Spit the form

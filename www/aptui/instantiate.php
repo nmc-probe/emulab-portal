@@ -89,7 +89,8 @@ else {
     $profile_default     = "OneVM";
     $profile_default_pid = $TBOPSPID;
 }
-$profile_array    = array();
+$profile_array  = array();
+$am_array       = Instance::DefaultAggregateList();
 
 #
 # if using the super secret URL, make sure the profile exists, and
@@ -398,8 +399,13 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "<div class='panel-footer'>";
         if (isset($this_user)) {
             echo "<button class='btn btn-default btn-sm pull-left' 
-                         type='button' id='profile_copy_button'>
+                         type='button' id='profile_copy_button'
+                         style='margin-right: 10px;'>
                     Copy Profile
+                  </button>";
+            echo "<button class='btn btn-default btn-sm pull-left'
+                          type='button' id='profile_show_button'>
+                    Show Profile
                   </button>";
         }
         echo "<button id='profile' class='btn btn-primary btn-sm pull-right' 

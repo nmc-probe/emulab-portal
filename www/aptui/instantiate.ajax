@@ -109,8 +109,9 @@ function Do_GetParameters()
 #
 function Do_Instantiate()
 {
-    global $this_user, $am_array, $DEFAULT_AGGREGATE, $ISCLOUD;
+    global $this_user, $DEFAULT_AGGREGATE, $ISCLOUD;
     global $ajax_args;
+    $am_array = Instance::DefaultAggregateList();
     
     if (!isset($ajax_args["uuid"])) {
 	SPITAJAX_ERROR(1, "Missing profile uuid");

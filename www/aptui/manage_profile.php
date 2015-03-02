@@ -182,6 +182,8 @@ function SPITFORM($formfields, $errors)
     SPITFOOTER();
 }
 
+$am_array = Instance::DefaultAggregateList();
+
 #
 # See what projects the user can do this in.
 #

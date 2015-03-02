@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -59,13 +59,16 @@ if (!$profile->CanView($this_user) && !ISADMIN()) {
 $profile_uuid = $profile->profile_uuid();
 $version_uuid = $profile->uuid();
 $ispp         = ($profile->isParameterized() ? 1 : 0);
+$history      = ($profile->HasHistory() ? 1 : 0);
 
 $defaults = array();
 $defaults["profile_name"]        = $profile->name();
 $defaults["profile_rspec"]       = $profile->rspec();
 $defaults["profile_version"]     = $profile->version();
 $defaults["profile_creator"]     = $profile->creator();
+$defaults["profile_pid"]         = $profile->pid();
 $defaults["profile_created"]     = DateStringGMT($profile->created());
+$defaults["profile_published"]   = DateStringGMT($profile->published());
 $defaults["profile_version_url"] = $profile->URL();
 $defaults["profile_profile_url"] = $profile->ProfileURL();
 if ($profile->script() && $profile->script() != "") {
@@ -87,7 +90,7 @@ echo "</script>\n";
 $amlist = array();
 $amdefault = "";
 if (($ISCLOUD || ISADMIN() || STUDLY())) {
-    while (list($am) = each($am_array)) {
+    while (list($am) = each(Instance::DefaultAggregateList())) {
 	$amlist[] = $am;
     }
     $amdefault = $DEFAULT_AGGREGATE;
@@ -105,6 +108,7 @@ echo "    window.PROFILE_UUID = '$profile_uuid';\n";
 echo "    window.VERSION_UUID = '$version_uuid';\n";
 echo "    window.AJAXURL      = 'server-ajax.php';\n";
 echo "    window.ISADMIN      = $isadmin;\n";
+echo "    window.HISTORY      = $history;\n";
 echo "    window.ISPPPROFILE  = $ispp;\n";
 echo "</script>\n";
 

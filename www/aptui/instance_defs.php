@@ -23,15 +23,6 @@
 #
 #
 
-$am_array = array('Utah APT' =>
-		  "urn:publicid:IDN+apt.emulab.net+authority+cm",
-		  'Utah Cloudlab' =>
-		     "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-		  'Utah DDC' =>
-		     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-		  'Utah PG'  =>
-		     "urn:publicid:IDN+emulab.net+authority+cm");
-
 if ($ISCLOUD) {
     $DEFAULT_AGGREGATE = "Utah Cloudlab";
 }
@@ -249,6 +240,26 @@ class Instance
         
 	$row = mysql_fetch_row($query_result);
 	return $row[0];
+    }
+
+    #
+    # Return aggregate based on the current user.
+    #
+    function DefaultAggregateList() {
+        $am_array = array('Utah APT' =>
+                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
+                          'Utah Cloudlab' =>
+                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
+                          'Utah DDC' =>
+                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
+                          'Utah PG'  =>
+                          "urn:publicid:IDN+emulab.net+authority+cm");
+
+        if (ISADMIN()) {
+            $am_array["Wisc Cloudlab"] =
+                "urn:publicid:IDN+wisc.cloudlab.us+authority+cm";
+        }
+        return $am_array;
     }
 }
 ?>
