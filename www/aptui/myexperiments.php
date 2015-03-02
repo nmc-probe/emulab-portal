@@ -90,7 +90,7 @@ echo "<div class='row'>
                    col-sm-12 col-sm-offset-0
                    col-xs-12 col-xs-offset-0'>\n";
 
-echo "<input class='form-control search' type='search'
+echo "<input class='form-control search' type='search' data-column='all'
              id='experiment_search' placeholder='Search'>\n";
 
 echo "  <table class='tablesorter'>
