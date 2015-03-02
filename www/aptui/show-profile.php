@@ -87,10 +87,11 @@ echo "<script type='text/plain' id='form-json'>\n";
 echo htmlentities(json_encode($defaults)) . "\n";
 echo "</script>\n";
 
-$amlist = array();
+$am_array = Instance::DefaultAggregateList();
+$amlist   = array();
 $amdefault = "";
 if (($ISCLOUD || ISADMIN() || STUDLY())) {
-    while (list($am) = each(Instance::DefaultAggregateList())) {
+    while (list($am) = each($am_array)) {
 	$amlist[] = $am;
     }
     $amdefault = $DEFAULT_AGGREGATE;
