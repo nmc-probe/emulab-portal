@@ -203,14 +203,7 @@ sub AddInterfaceVlan($$$$$) {
     my ($linkid,$idomain,$iface,$tag,$ts) = @_;
     my $url;
 
-    if( $idomain eq $DOMAIN ) {
-	$url = "$URL/info/interfacevlan/${idomain}_interface_${iface}:${tag}";
-    } else {
-	# FIXME this is fake -- we don't and can't know the monitoring URL
-	# (if any) for the remote end.  But the monitoring database defines
-	# it as a unique key, so we have to put something here.
-	$url = "https://${idomain}/info/interfacevlan/${idomain}_interface_${iface}:${tag}";
-    }
+    $url = "$URL/info/interfacevlan/${idomain}_interface_${iface}:${tag}";
 
     # FIXME would be nice to give interface_href, but in general we don't know
     emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interfacevlan SET " .
