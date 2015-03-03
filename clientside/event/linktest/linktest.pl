@@ -460,8 +460,10 @@ if(&is_special_node() || !$SHAREDDIR) {
 	# 
 	# The shared path does not exist, create it.
 	#
-	mkdir (&check_filename($linktest_path),0777) 
-	    || die("Could not create directory $linktest_path: $!");
+	my $ltpath = &check_filename($linktest_path);
+	if (system("mkdir -p -m 0777 $ltpath")) {
+	    die("Could not create directory $linktest_path: $!");
+	}
 	chown($swapperid, $swappergid, $linktest_path);
     }
 
