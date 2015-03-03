@@ -219,6 +219,8 @@ echo "   </div>
 echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL  = 'server-ajax.php';\n";
 echo "</script>\n";
-SPITREQUIRE("list-datasets");
+SPITREQUIRE("list-datasets",
+         "<script src='js/lib/jquery.tablesorter.min.js'></script>\n".
+         "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>\n");
 SPITFOOTER();
 ?>
