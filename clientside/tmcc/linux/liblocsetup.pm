@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2393,7 +2393,7 @@ sub os_mountextrafs($)
     # XXX this is a most bogus hack right now, we look for partition 4
     # in /etc/fstab.
     #
-    my $fstabline = `grep -E '(hda|sda)4' /etc/fstab`;
+    my $fstabline = `grep -E '(hda|sda|xvda)4' /etc/fstab`;
     if ($fstabline =~ /^\/dev\/\S*4\s+(\S+)\s+/) {
 	$mntpt = $1;
 	return $mntpt;
