@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -353,17 +353,34 @@ if (!$lvm && $stype != 131) {
     mysystem("$DOSTYPE -f /dev/$disk $slice 131");
 }
 
-# eh, quick try for ext3 -- no way we can consistently check the kernel for 
-# support, off the top of my head
-if ( -e "/sbin/mkfs.ext3") {
-    mysystem("mke2fs -j $fsdevice");
-    mysystem("echo \"$fsdevice $mountpoint ext3 defaults 0 0\" >> /etc/fstab");
-}
-else {
-    mysystem("mkfs $fsdevice");
-    mysystem("echo \"$fsdevice $mountpoint ext2 defaults 0 0\" >> /etc/fstab");
-}
+#
+# In order, try ext4, ext3, ext2
+#
+my $failed = 1;
+my $fsopts = "-F -q";
+my $MKFS = "/sbin/mkfs";
 
+my $fslog = "/tmp/mkfs.log";
+unlink($fslog);
+
+if ($failed) {
+    $fstype = "ext4";
+    $fsopts .= " -E lazy_itable_init=1 -j";
+    $failed = system("$MKFS -t $fstype $fsopts $fsdevice >>$fslog 2>&1");
+}
+if ($failed) {
+    $fstype = "ext3";
+    $fsopts .= " -j";
+    $failed = system("$MKFS -t $fstype $fsopts $fsdevice >>$fslog 2>&1");
+}
+if ($failed) {
+    $fstype = "ext2";
+    $failed = system("$MKFS -t $fstype $fsopts $fsdevice >>$fslog 2>&1");
+}
+if ($failed) {
+    die("*** $0: could not create FS, see $fslog\n");
+}
+mysystem("echo \"$fsdevice $mountpoint $fstype defaults 0 0\" >> /etc/fstab");
 mysystem("mount $mountpoint");
 mysystem("mkdir $mountpoint/local");
 
@@ -384,3 +401,5 @@ sub mysystem($)
     }
     return 0;
 }
+
+exit(0);
