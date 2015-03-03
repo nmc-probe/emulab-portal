@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,6 +26,7 @@ use Getopt::Std;
 use English;
 use Data::Dumper;
 use POSIX qw(setsid);
+use POSIX ":sys_wait_h";
 use Socket;
 
 #
@@ -58,6 +59,8 @@ use libutil;
 use libtestbed;
 use libgenvnode;
 use libvnode;
+
+my $lockdebug = 0;
 
 #
 # Configure.
@@ -165,6 +168,7 @@ chomp($outer_controlif);
 #
 sub Online()
 {
+    my @rules;
     mysystem2("ifconfig $vif txqueuelen 256");
 
     if ($VIFROUTING) {
@@ -186,12 +190,14 @@ sub Online()
 	mysystem("$ARPING -c 4 -A -I $bridge $vnode_ip");
     }
 
+    @rules = ();
+
     # Prevent dhcp requests from leaving the physical host.
-    DoIPtables("-A FORWARD -o $bridge -m pkttype ".
-	       "--pkt-type broadcast " .
-	       "-m physdev --physdev-in $vif --physdev-is-bridged ".
-	       "--physdev-out $outer_controlif -j DROP")
-	== 0 or return -1;
+    push(@rules,
+	 "-A FORWARD -o $bridge -m pkttype ".
+	 "--pkt-type broadcast ".
+	 "-m physdev --physdev-in $vif --physdev-is-bridged ".
+	 "--physdev-out $outer_controlif -j DROP");
 
     #
     # We turn on antispoofing. In bridge mode, vif-bridge adds a rule
@@ -205,11 +211,11 @@ sub Online()
     # these chains just accept everything. 
     #
     if ($VIFROUTING) {
-	DoIPtables("-A FORWARD -i $vif -s $vnode_ip ".
-		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}")
-	    == 0 or return -1;
-	DoIPtables("-A FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}")
-	    == 0 or return -1;
+	push(@rules,
+	     "-A FORWARD -i $vif -s $vnode_ip ".
+	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	push(@rules,
+	     "-A FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}");
 
 	#
 	# Another wrinkle. We have to think about packets coming from
@@ -218,9 +224,9 @@ sub Online()
 	# another chain. We make sure there are appropriate rules in
 	# the OUTGOING chain to protect the host.
 	# 
-	DoIPtables("-A INPUT -i $vif -s $vnode_ip ".
-		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}")
-	    == 0 or return -1;
+	push(@rules,
+	     "-A INPUT -i $vif -s $vnode_ip ".
+	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
 
 	#
 	# This rule effectively says that if the packet was not filtered 
@@ -228,8 +234,8 @@ sub Online()
 	# output to the container; we do not want it to go through the
 	# dom0 rules.
 	#
-	DoIPtables("-A OUTPUT -o $vif -j ACCEPT")
-	    == 0 or return -1;
+	push(@rules,
+	     "-A OUTPUT -o $vif -j ACCEPT");
     }
     else {
 	#
@@ -238,13 +244,13 @@ sub Online()
 	# packets we want to filter. But we still have to allow the
 	# DHCP request packets through.
 	#
-	DoIPtables("-I FORWARD -m physdev --physdev-is-bridged ".
-		   " --physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}")
-	    == 0 or return -1;
+	push(@rules,
+	     "-I FORWARD -m physdev --physdev-is-bridged ".
+	     "--physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}");
 	    
-	DoIPtables("-I FORWARD -m physdev --physdev-is-bridged ".
-		   " --physdev-out $vif -j INCOMING_${vnode_id}")
-	    == 0 or return -1;
+	push(@rules,
+	     "-I FORWARD -m physdev --physdev-is-bridged ".
+	     "--physdev-out $vif -j INCOMING_${vnode_id}");
 
 	#
 	# Another wrinkle. We have to think about packets coming from
@@ -257,19 +263,33 @@ sub Online()
 	# if the vnode_ip is unroutable, the packet appears to come from
 	# eth0, according to iptables logging. WTF!
 	# 
-	DoIPtables("-A INPUT -s $vnode_ip ".
-		   "  -j OUTGOING_${vnode_id}")
-	    == 0 or return -1;
+	push(@rules,
+	     "-A INPUT -s $vnode_ip -j OUTGOING_${vnode_id}");
 
-	DoIPtables("-A OUTPUT -d $vnode_ip -j ACCEPT")
-	    == 0 or return -1;
+	push(@rules,
+	     "-A OUTPUT -d $vnode_ip -j ACCEPT");
     }
+
+    # Apply the rules
+    DoIPtables(@rules) == 0 or
+	return -1;
+
     # Start a tmcc proxy (handles both TCP and UDP)
     my $tmccpid = fork();
     if ($tmccpid) {
 	# Give child a chance to react.
 	sleep(1);
-	mysystem2("echo $tmccpid > /var/run/tmccproxy-$vnode_id.pid");
+
+	# Make sure it is alive.
+	if (waitpid($tmccpid, &WNOHANG) == $tmccpid) {
+	    print STDERR "$vnode_id: tmcc proxy failed to start\n";
+	    return -1;
+	}
+
+	if (open(FD, ">/var/run/tmccproxy-$vnode_id.pid")) {
+	    print FD "$tmccpid\n";
+	    close(FD);
+	}
     }
     else {
 	POSIX::setsid();
@@ -318,22 +338,24 @@ sub Online()
 	}
     }
 
-    # Reroute tmcd calls to the proxy on the physical host
-    DoIPtables("-t nat -A PREROUTING -j DNAT -p tcp ".
-	       "  --dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
-	       "  --to-destination $host_ip:$local_tmcd_port")
-	== 0 or return -1;
+    @rules = ();
 
-    DoIPtables("-t nat -A PREROUTING -j DNAT -p udp ".
-	       "  --dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
-	       "  --to-destination $host_ip:$local_tmcd_port")
-	== 0 or return -1;
+    # Reroute tmcd calls to the proxy on the physical host
+    push(@rules,
+	 "-t nat -A PREROUTING -j DNAT -p tcp ".
+	 "--dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
+	 "--to-destination $host_ip:$local_tmcd_port");
+
+    push(@rules,
+	 "-t nat -A PREROUTING -j DNAT -p udp ".
+	 "--dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
+	 "--to-destination $host_ip:$local_tmcd_port");
 
     # Reroute evproxy to use the local daemon.
-    DoIPtables("-t nat -A PREROUTING -j DNAT -p tcp ".
-	       "  --dport $EVPROXY_PORT -d $ops_ip -s $vnode_ip ".
-	       "  --to-destination $host_ip:$EVPROXY_PORT")
-	== 0 or return -1;
+    push(@rules,
+	 "-t nat -A PREROUTING -j DNAT -p tcp ".
+	 "--dport $EVPROXY_PORT -d $ops_ip -s $vnode_ip ".
+	 "--to-destination $host_ip:$EVPROXY_PORT");
     
     #
     # GROSS! source-nat all traffic destined the fs node, to come from the
@@ -348,10 +370,10 @@ sub Online()
     # filesystems to the guest IPs if the guest is on a shared host.
     # 
     if (!SHAREDHOST()) {
-	DoIPtables("-t nat -A POSTROUTING -j SNAT ".
-		   "  --to-source $host_ip -s $vnode_ip -d $fs_ip,$fs_jailip ".
-		   "  -o $bridge")
-	    == 0 or return -1;
+	push(@rules,
+	     "-t nat -A POSTROUTING -j SNAT ".
+	     "--to-source $host_ip -s $vnode_ip -d $fs_ip,$fs_jailip ".
+	     "-o $bridge");
     }
 
     # 
@@ -363,31 +385,31 @@ sub Online()
     # rely on the SNAT rule below. 
     #
     if (!REMOTEDED()) {
-	DoIPtables("-t nat -A POSTROUTING -j ACCEPT " . 
-		   " -s $vnode_ip -d $network/$cnet_mask")
-	    == 0 or return -1;
+	push(@rules,
+	     "-t nat -A POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -d $network/$cnet_mask");
 
 	#
 	# Do not rewrite multicast (frisbee) traffic. Client throws up.
 	# 
-	DoIPtables("-t nat -A POSTROUTING -j ACCEPT " . 
-		   " -s $vnode_ip -d 224.0.0.0/4")
-	    == 0 or return -1;
+	push(@rules,
+	     "-t nat -A POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -d 224.0.0.0/4");
 
 	#
 	# Ditto the apod packet.
 	#
-	DoIPtables("-t nat -A POSTROUTING -j ACCEPT ".
-		   " -s $vnode_ip -m icmp --protocol icmp --icmp-type 6/6")
-	    == 0 or return -1;
+	push(@rules,
+	     "-t nat -A POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -m icmp --protocol icmp --icmp-type 6/6");
 
 	#
 	# Boss/ops/fs specific rules in case the control network is
 	# segmented like it is in Utah.
 	#
-	DoIPtables("-t nat -A POSTROUTING -j ACCEPT " . 
-		   " -s $vnode_ip -d $boss_ip,$ops_ip")
-	    == 0 or return -1;
+	push(@rules,
+	     "-t nat -A POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -d $boss_ip,$ops_ip");
     }
 
     # 
@@ -395,9 +417,9 @@ sub Online()
     # jail network in on our node, and all of them are bridged
     # togther anyway. 
     # 
-    DoIPtables("-t nat -A POSTROUTING -j ACCEPT " . 
-	       " -s $vnode_ip -d $jail_network/$jail_netmask")
-	== 0 or return -1;
+    push(@rules,
+	 "-t nat -A POSTROUTING -j ACCEPT ".
+	 "-s $vnode_ip -d $jail_network/$jail_netmask");
 
     # 
     # Otherwise, setup NAT so that traffic leaving the vnode on its 
@@ -405,51 +427,73 @@ sub Online()
     # control net iface, is NAT'd to the phys host's control
     # net IP, using SNAT.
     # 
-    DoIPtables("-t nat -A POSTROUTING ".
-	       "-s $vnode_ip -o $outer_controlif ".
-	       "-j SNAT --to-source $host_ip")
-	== 0 or return -1;
+    push(@rules,
+	 "-t nat -A POSTROUTING ".
+	 "-s $vnode_ip -o $outer_controlif ".
+	 "-j SNAT --to-source $host_ip");
     
+    # Apply the rules
+    DoIPtables(@rules) == 0 or
+	return -1;
+
     return 0;
 }
 
 sub Offline()
 {
+    my @rules;
+
+    @rules = ();
+
     # dhcp
-    DoIPtables("-D FORWARD -o $bridge -m pkttype ".
-	       "--pkt-type broadcast " .
-	       "-m physdev --physdev-in $vif --physdev-is-bridged ".
-	       "--physdev-out $outer_controlif -j DROP");
+    push(@rules,
+	 "-D FORWARD -o $bridge -m pkttype ".
+	 "--pkt-type broadcast ".
+	 "-m physdev --physdev-in $vif --physdev-is-bridged ".
+	 "--physdev-out $outer_controlif -j DROP");
 
     # See above. 
     if ($VIFROUTING) {
-	DoIPtables("-D FORWARD -i $vif -s $vnode_ip ".
-		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
-	DoIPtables("-D FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}");
-
-	DoIPtables("-D INPUT -i $vif -s $vnode_ip ".
-		   "  -m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
-	DoIPtables("-D OUTPUT -o $vif -j ACCEPT");
+	push(@rules,
+	     "-D FORWARD -i $vif -s $vnode_ip ".
+	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	push(@rules,
+	     "-D FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}");
+	push(@rules,
+	     "-D INPUT -i $vif -s $vnode_ip ".
+	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	push(@rules,
+	     "-D OUTPUT -o $vif -j ACCEPT");
 	
     }
     else {
-	DoIPtables("-D FORWARD -m physdev --physdev-is-bridged ".
-		   " --physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}");
-	DoIPtables("-D FORWARD -m physdev --physdev-is-bridged ".
-		   " --physdev-out $vif -j INCOMING_${vnode_id}");
-	DoIPtables("-D INPUT -s $vnode_ip ".
-		   "  -j OUTGOING_${vnode_id}");
-	DoIPtables("-D OUTPUT -d $vnode_ip -j ACCEPT");
+	push(@rules,
+	     "-D FORWARD -m physdev --physdev-is-bridged ".
+	     "--physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}");
+	push(@rules,
+	     "-D FORWARD -m physdev --physdev-is-bridged ".
+	     "--physdev-out $vif -j INCOMING_${vnode_id}");
+	push(@rules,
+	     "-D INPUT -s $vnode_ip -j OUTGOING_${vnode_id}");
+	push(@rules,
+	     "-D OUTPUT -d $vnode_ip -j ACCEPT");
     }
 
     # tmcc
     # Reroute tmcd calls to the proxy on the physical host
-    DoIPtables("-t nat -D PREROUTING -j DNAT -p tcp ".
-	       "  --dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
-	       "  --to-destination $host_ip:$local_tmcd_port");
-    DoIPtables("-t nat -D PREROUTING -j DNAT -p udp ".
-	       "  --dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
-	       "  --to-destination $host_ip:$local_tmcd_port");
+    push(@rules,
+	 "-t nat -D PREROUTING -j DNAT -p tcp ".
+	 "--dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
+	 "--to-destination $host_ip:$local_tmcd_port");
+    push(@rules,
+	 "-t nat -D PREROUTING -j DNAT -p udp ".
+	 "--dport $TMCD_PORT -d $boss_ip -s $vnode_ip ".
+	 "--to-destination $host_ip:$local_tmcd_port");
+
+    # Apply the rules
+    if (DoIPtables(@rules) != 0) {
+	print STDERR "WARNING: could not remove iptables rules\n";
+    }
 
     if (-e "/var/run/tmccproxy-$vnode_id.pid") {
 	my $pid = `cat /var/run/tmccproxy-$vnode_id.pid`;
@@ -463,55 +507,81 @@ sub Offline()
 	mysystem2("/bin/kill $pid");
     }
 
+    @rules = ();
+
     if (!SHAREDHOST()) {
-	DoIPtables("-t nat -D POSTROUTING -j SNAT ".
-		   "  --to-source $host_ip -s $vnode_ip -d $fs_ip,$fs_jailip ".
-		   "  -o $bridge");
+	push(@rules,
+	     "-t nat -D POSTROUTING -j SNAT ".
+	     "--to-source $host_ip -s $vnode_ip -d $fs_ip,$fs_jailip ".
+	     "-o $bridge");
     }
 
-    DoIPtables("-t nat -D POSTROUTING -j ACCEPT " . 
-	       " -s $vnode_ip -d $jail_network/$jail_netmask");
+    push(@rules,
+	 "-t nat -D POSTROUTING -j ACCEPT ".
+	 "-s $vnode_ip -d $jail_network/$jail_netmask");
 
     if (!REMOTEDED()) {
-	DoIPtables("-t nat -D POSTROUTING -j ACCEPT " . 
-		   " -s $vnode_ip -d $network/$cnet_mask");
+	push(@rules,
+	     "-t nat -D POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -d $network/$cnet_mask");
 
-	DoIPtables("-t nat -D POSTROUTING -j ACCEPT " . 
-		   " -s $vnode_ip -d $boss_ip,$ops_ip");
+	push(@rules,
+	     "-t nat -D POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -d $boss_ip,$ops_ip");
 	
-	DoIPtables("-t nat -D POSTROUTING -j ACCEPT " . 
-		  " -s $vnode_ip -d 224.0.0.0/4");
+	push(@rules,
+	     "-t nat -D POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -d 224.0.0.0/4");
 	
-	DoIPtables("-t nat -D POSTROUTING -j ACCEPT ".
-		   " -s $vnode_ip -m icmp --protocol icmp --icmp-type 6/6");
+	push(@rules,
+	     "-t nat -D POSTROUTING -j ACCEPT ".
+	     "-s $vnode_ip -m icmp --protocol icmp --icmp-type 6/6");
     }
 
-    DoIPtables("-t nat -D POSTROUTING ".
-	       "-s $vnode_ip -o $outer_controlif -j SNAT --to-source $host_ip");
+    push(@rules,
+	 "-t nat -D POSTROUTING ".
+	 "-s $vnode_ip -o $outer_controlif -j SNAT --to-source $host_ip");
 
     # evproxy
-    DoIPtables("-t nat -D PREROUTING -j DNAT -p tcp ".
-	       "  --dport $EVPROXY_PORT -d $ops_ip -s $vnode_ip ".
-	       "  --to-destination $host_ip:$EVPROXY_PORT");
+    push(@rules,
+	 "-t nat -D PREROUTING -j DNAT -p tcp ".
+	 "--dport $EVPROXY_PORT -d $ops_ip -s $vnode_ip ".
+	 "--to-destination $host_ip:$EVPROXY_PORT");
+
+    # Apply the rules
+    if (DoIPtablesNoFail(@rules) != 0) {
+	print STDERR "WARNING: could not remove iptables rules\n";
+    }
 
     return 0;
 }
 
-if (@ARGV) {
+#
+# Run the Xen vif-* script under our iptables lock.
+#
+sub Runscript($@)
+{
+    my ($vnode_ip, @args) = @_;
+    my $rv = 0;
+
     #
     # Oh jeez, iptables is about the dumbest POS I've ever seen;
     # it fails if you run two at the same time. So we have to
     # serialize the calls. Rather then worry about each call, just
     # take a big lock here. 
     #
+    TBDebugTimeStamp("$vnode_id emulab-cnet: grabbing iptables lock")
+	if ($lockdebug);
     if (TBScriptLock("iptables", 0, 300) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the iptables lock after a long time!\n";
-	exit(-1);
+	return -1;
     }
+    TBDebugTimeStamp("  got iptables lock")
+	if ($lockdebug);
 
     #
     # First run the xen script to do the bridge interface. We do this
-    # inside the lock since vif-bridge does some iptables stuff.
+    # inside the lock since vif-bridge/vif-route do some iptables stuff.
     #
     # vif-bridge/vif-route has bugs that cause it to leave iptables
     # rules behind. If we put this stuff into the environment, they
@@ -521,25 +591,41 @@ if (@ARGV) {
     if ($VIFROUTING) {
 	$ENV{"netdev"} = "xenbr0";
 	$ENV{"gatewaydev"} = "xenbr0";
-	mysystem2("/etc/xen/scripts/vif-route-emulab @ARGV");
+	mysystem2("/etc/xen/scripts/vif-route-emulab @args");
     }
     else {
-	mysystem2("/etc/xen/scripts/vif-bridge @ARGV");
+	mysystem2("/etc/xen/scripts/vif-bridge @args");
     }
-    if ($?) {
-	TBScriptUnlock();
-	exit(1);
-    }
+    $rv = $?;
+    TBDebugTimeStamp("  releasing iptables lock")
+	if ($lockdebug);
     TBScriptUnlock();
-    
-    my $rval = 0;
-    my $op   = shift(@ARGV);
-    if ($op eq "online") {
+
+    return $rv;
+}
+
+my $rval = 0;
+if (@ARGV) {
+    my $op = $ARGV[0];
+
+    TBDebugTimeStampsOn();
+    TBDebugTimeStampWithDate("$vnode_ip emulab-cnet $op: called");
+
+    # for online and add, run script at beginning
+    if ($op ne "offline" && Runscript($vnode_ip, @ARGV)) {
+	$rval = -1;
+    }
+    elsif ($op eq "online") {
 	$rval = Online();
     }
     elsif ($op eq "offline") {
 	$rval = Offline();
+	# for offline, run script at the end
+	if (!$rval) {
+	    $rval = Runscript($vnode_ip, @ARGV);
+	}
     }
-    exit($rval);
+
+    TBDebugTimeStampWithDate("$vnode_id: emulab-cnet $op: done, rval=$rval");
 }
-exit(0);
+exit($rval);

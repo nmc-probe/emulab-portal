@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -52,11 +52,44 @@ use libutil;
 use libtestbed;
 use libgenvnode;
 
+my $lockdebug = 0;
+
 print STDERR "@ARGV\n";
 print STDERR $ENV{"vif"} . "\n";
+
 my $script = shift(@ARGV);
+
+my $vif = $ENV{"vif"};
+my $op = $ARGV[0];
+my $vnode_id = "??";
+if ($script =~ m#vminfo/([^/]+)/enet#) {
+    $vnode_id = $1;
+}
+
+#
+# Oh jeez, iptables is about the dumbest POS I've ever seen;
+# it fails if you run two at the same time. So we have to
+# serialize the calls. Rather then worry about each call, just
+# take a big lock here. 
+#
+TBDebugTimeStampsOn();
+TBDebugTimeStampWithDate("$vnode_id ($vif) emulab-enet $op: called");
+
+TBDebugTimeStamp("$vnode_id: emulab-enet: grabbing iptables lock")
+    if ($lockdebug);
+if (TBScriptLock("iptables", 0, 300) != TBSCRIPTLOCK_OKAY()) {
+    print STDERR "Could not get the iptables lock after a long time!\n";
+    return -1;
+}
+TBDebugTimeStamp("  got iptables lock")
+    if ($lockdebug);
 
 system("/bin/sh $script @ARGV");
 my $ecode = $? >> 8;
+
+TBDebugTimeStamp("  releasing iptables lock")
+    if ($lockdebug);
+TBScriptUnlock();
+
 exit($ecode);
 

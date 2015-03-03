@@ -126,9 +126,30 @@ my $IMAGEUNZIP  = "/usr/local/bin/imageunzip";
 my $IMAGEDUMP   = "/usr/local/bin/imagedump";
 my $XM          = "/usr/sbin/xm";
 my $debug  = 0;
+my $lockdebug = 0;
 
-my $usethin = 0;
-my $THINPOOL_SIZE = (50 * 1024 * 1024);		# 50GiB in KiB
+#
+# Create a thin pool with the name $POOL_NAME using not more
+# than $POOL_FRAC of any disk.
+# 
+my $usethin = 1;
+my $POOL_NAME = "disk-pool";
+my $POOL_FRAC = 0.75;
+
+#
+# If set to one, we will destroy a golden disk when no vnode disks
+# are derived from it. Otherwise, we leave it around and it must be
+# explicitly GCed by some yet-to-be-written daemon. 
+#
+my $REAP_GDS = 0;
+
+#
+# Flags for allocating LVs
+#
+sub ALLOC_NOPOOL()	{ return 0; }
+sub ALLOC_INPOOL()	{ return 1; }
+sub ALLOC_PREFERNOPOOL	{ return 2; }
+sub ALLOC_PREFERINPOOL	{ return 3; }
 
 ##
 ## Randomly chosen convention section
@@ -174,20 +195,17 @@ sub VGNAME()  { return $VGNAME; }
 ## Indefensible, arbitrary constant section
 ##
 
-# Maximum vnodes per physical host, used to size memory and disks
-my $MAX_VNODES = 32;
-
-# Minimum GB of disk per vnode
-my $MIN_GB_DISK = 6;
-
-# Minimum MB of memory per vnode
-my $MIN_MB_VNMEM = 64;
-
 # Minimum memory for dom0
 my $MIN_MB_DOM0MEM = 256;
 
+#
 # Minimum acceptible size (in GB) of LVM VG for domUs.
-my $XEN_MIN_VGSIZE = ($MAX_VNODES * $MIN_GB_DISK);
+#
+# XXX we used to calculate this in terms of anticipated maximum number
+# of vnodes and minimum vnode images size, blah, blah. Now we just pick
+# a value that allows us to use a pc3000 node with a single 144GB disk!
+#
+my $XEN_MIN_VGSIZE = 120;
 
 #
 # When loading an Emulab partition image, we use a compressed version of our
@@ -206,13 +224,18 @@ my $XEN_MIN_VGSIZE = ($MAX_VNODES * $MIN_GB_DISK);
 #    P2: 1MB (XEN_EMPTYSIZE), as small as we can make it
 #    P3: 1GB (XEN_SWAPSIZE), standard MBR2 swap size
 #
-# P4 is sized based on what the user told us.
+# P4 is sized based on what the user told us. If they do not specify
+# XEN_EXTRA, then we default to 1G (XEN_EXTRASIZE). We need enough
+# space here to support uses of mkextrafs in the clientside (e.g., for
+# "no nfs" experiments where local homedirs are created.
+#
 # Sizes below are in 1K blocks.
 #
 my $XEN_LDSIZE    =  6152895;
 my $XEN_LDSIZE_3  = 16777216;
 my $XEN_SWAPSIZE  =  1048576;
 my $XEN_EMPTYSIZE =     1024;
+my $XEN_EXTRASIZE =  1048576;
 
 # IFBs
 my $IFBDB      = "/var/emulab/db/ifbdb";
@@ -233,10 +256,10 @@ my $LVM_FULLDISKONLY = 0;
 
 # Whether or not to use partitions only when they are big.
 my $LVM_ONLYLARGEPARTS = 1;
-my $LVM_LARGEPARTPCT = 5;
+my $LVM_LARGEPARTPCT = 8;
 
-# LVM snapshots suck.
-my $DOSNAP = 0;
+# In general, you only want to use one partition per disk since we stripe.
+my $LVM_ONEPARTPERDISK = 1;
 
 # Use openvswitch for gre tunnels.
 my $OVSCTL   = "/usr/local/bin/ovs-vsctl";
@@ -287,7 +310,7 @@ sub InitializeRouteTable();
 sub AllocateRouteTable($);
 sub LookupRouteTable($);
 sub FreeRouteTable($);
-sub downloadOneImage($$);
+sub downloadOneImage($$$);
 
 sub getXenInfo()
 {
@@ -351,6 +374,8 @@ sub rootPreConfig($)
     # didn't do it while we were waiting.
     #
     if (! -e "/var/run/xen.ready") {
+	TBDebugTimeStamp("rootPreConfig: grabbing global lock $GLOBAL_CONF_LOCK")
+	    if ($lockdebug);
 	my $locked = TBScriptLock($GLOBAL_CONF_LOCK,
 				  TBSCRIPTLOCK_GLOBALWAIT(), 900);
 	if ($locked != TBSCRIPTLOCK_OKAY()) {
@@ -360,7 +385,11 @@ sub rootPreConfig($)
 	    return -1;
 	}
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
     if (-e "/var/run/xen.ready") {
+	TBDebugTimeStamp("  releasing global lock")
+	    if ($lockdebug);
         TBScriptUnlock();
         return 0;
     }
@@ -517,67 +546,101 @@ sub rootPreConfig($)
 	# and incorporate them into a volume group.
 	#
 	my $totalSize = 0;
-	my $blockdevs = "";
+	my @blockdevs = ();
 	foreach my $dev (keys(%devs)) {
 	    #
-	    # Whole disk is available
+	    # Whole disk is available, use it.
 	    #
 	    if (defined($devs{$dev}{"size"})) {
-		$blockdevs .= " " . $devs{$dev}{"path"};
+		push(@blockdevs, $devs{$dev}{"path"});
 		$totalSize += $devs{$dev}{"size"};
+		next;
 	    }
+
 	    #
-	    # Disk contains partitions that are available
+	    # Disk contains partitions that are available.
 	    #
-	    else {
-		foreach my $part (keys(%{$devs{$dev}})) {
-		    my $psize = $devs{$dev}{$part}{"size"};
-		    my $ppath = $devs{$dev}{$part}{"path"};
+	    my ($lpsize,$lppath);
+	    foreach my $part (keys(%{$devs{$dev}})) {
+		my $psize = $devs{$dev}{$part}{"size"};
+		my $ppath = $devs{$dev}{$part}{"path"};
 
-		    #
-		    # XXX one way to avoid using the system disk, just ignore
-		    # all partition devices. However, in cases where the
-		    # remainder of the system disk represents the majority of
-		    # the available space (e.g., Utah d710s), this is a bad
-		    # idea.
-		    #
-		    if ($LVM_FULLDISKONLY) {
-			print STDERR "WARNING: not using $ppath for LVM (is a partition)\n";
-			next;
-		    }
-
-		    #
-		    # XXX another heurstic to try to weed out the system
-		    # disk whenever feasible: if a partition device represents
-		    # less than some percentage of the max possible space,
-		    # avoid it.
-		    #
-		    if ($LVM_ONLYLARGEPARTS && $psize < $sizeThreshold) {
-			print STDERR "WARNING: not using $ppath for LVM (too small)\n";
-			next;
-		    }
-
-		    #
-		    # It ran the gauntlet of feeble filters, use it!
-		    #
-		    $blockdevs .= " " . $ppath;
-		    $totalSize += $psize;
+		#
+		# XXX one way to avoid using the system disk, just ignore
+		# all partition devices. However, in cases where the
+		# remainder of the system disk represents the majority of
+		# the available space (e.g., Utah d710s), this is a bad
+		# idea.
+		#
+		if ($LVM_FULLDISKONLY) {
+		    print STDERR
+			"WARNING: not using partition $ppath for LVM\n";
+		    next;
 		}
+
+		#
+		# XXX Another heurstic to try to weed out the system
+		# disk whenever feasible: if a partition device represents
+		# less than some percentage of the max possible space,
+		# avoid it. At Utah this one is tuned (8%) to avoid using
+		# left over space on the system disk of d820s (which have
+		# six other larger drives) while using it on the pc3000s
+		# and d710s.
+		#
+		if ($LVM_ONLYLARGEPARTS && $psize < $sizeThreshold) {
+		    print STDERR "WARNING: not using $ppath for LVM (too small)\n";
+		    next;
+		}
+
+		#
+		# XXX If we are only going to use one partition per disk,
+		# record the largest one we find here. This check will
+		# filter out the small "other OS" partition (3-6GB) in
+		# favor of the larger "rest of the disk" partition.
+		#
+		if ($LVM_ONEPARTPERDISK) {
+		    if (!defined($lppath) || $psize > $lpsize) {
+			$lppath = $ppath;
+			$lpsize = $psize;
+		    }
+		    next;
+		}
+
+		#
+		# It ran the gauntlet of feeble filters, use it!
+		#
+		push(@blockdevs, $ppath);
+		$totalSize += $psize;
+	    }
+	    if ($LVM_ONEPARTPERDISK && defined($lppath)) {
+		push(@blockdevs, $lppath);
+		$totalSize += $lpsize;
 	    }
 	}
-	if ($blockdevs eq '') {
+	if (@blockdevs == 0) {
 	    print STDERR "ERROR: findSpareDisks found no disks for LVM!\n";
 	    TBScriptUnlock();
 	    return -1;
 	}
 		    
-	mysystem("pvcreate $blockdevs");
-	mysystem("vgcreate $VGNAME $blockdevs");
+	my $blockdevstr = join(' ', sort @blockdevs);
+	mysystem("pvcreate $blockdevstr");
+	mysystem("vgcreate $VGNAME $blockdevstr");
 
 	my $size = lvmVGSize($VGNAME);
 	if ($size < $XEN_MIN_VGSIZE) {
-	    print STDERR "WARNING: physical disks not big enough to support".
-		" $MAX_VNODES VMs ($size < $XEN_MIN_VGSIZE)\n";
+	    print STDERR "WARNING: physical disk space below the desired ".
+		" minimum value ($size < $XEN_MIN_VGSIZE), expect trouble.\n";
+	}
+
+	#
+	# Create an image pool for golden images.
+	# If this fails, we just don't use thin volumes!
+	#
+	if ($usethin && createThinPool($blockdevstr)) {
+	    print STDERR "WARNING: could not create a thin pool, ".
+		"disabling golden image support\n";
+	    $usethin = 0;
 	}
     }
     $STRIPE_COUNT = computeStripeSize($VGNAME);
@@ -629,6 +692,17 @@ sub rootPreConfig($)
     }
 
     #
+    # Make sure IP forwarding is enabled on the host
+    #
+    mysystem2("$SYSCTL -w net.ipv4.conf.all.forwarding=1");
+
+    #
+    # Increase socket buffer size for frisbee download of images.
+    #
+    mysystem2("$SYSCTL -w net.core.rmem_max=1048576");
+    mysystem2("$SYSCTL -w net.core.wmem_max=1048576");
+
+    #
     # Need these to avoid overflowing the NAT tables.
     #
     mysystem2("$MODPROBE nf_conntrack");
@@ -652,6 +726,8 @@ sub rootPreConfig($)
 	      " net.ipv4.netfilter.ip_conntrack_tcp_timeout_established=54000");
 
     mysystem("touch /var/run/xen.ready");
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
 }
@@ -662,10 +738,14 @@ sub rootPreConfigNetwork($$$$)
     my @node_ifs = @{ $vnconfig->{'ifconfig'} };
     my @node_lds = @{ $vnconfig->{'ldconfig'} };
 
+    TBDebugTimeStamp("rootPreConfigNetwork: grabbing global lock $GLOBAL_CONF_LOCK")
+	if ($lockdebug);
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
 
     createDHCP()
 	if (! -e $DHCPCONF_FILE && ! -e $NEW_DHCPCONF_FILE);
@@ -688,6 +768,8 @@ sub rootPreConfigNetwork($$$$)
     makeIfaceMaps();
     makeBridgeMaps();
 
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
 bad:
@@ -716,6 +798,7 @@ sub vnodeCreate($$$$)
     my $imagemetadata;
     my $lvname;
     my $inreload = 0;
+    my $dothinlv = doingThinLVM();
 
     my $vmid;
     if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
@@ -726,9 +809,6 @@ sub vnodeCreate($$$$)
     }
     $vninfo->{'vmid'} = $vmid;
 
-    #
-    # 
-    #
     if (CreateVnodeLock() != 0) {
 	fatal("CreateVnodeLock()");
     }
@@ -739,10 +819,14 @@ sub vnodeCreate($$$$)
     # to promote to an exclusive lock if the image has to be changed.
     #
     my $imagelockname = ImageLockName($imagename);
+    TBDebugTimeStamp("grabbing image lock $imagelockname shared")
+	if ($lockdebug);
     if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
 	!= TBSCRIPTLOCK_OKAY()) {
 	fatal("Could not get $imagelockname lock after a long time!");
     }
+    TBDebugTimeStamp("  got image lock")
+	if ($lockdebug);
 
     #
     # No image specified, use a default based on the dom0 OS.
@@ -763,26 +847,35 @@ sub vnodeCreate($$$$)
 	LoadImageMetadata($imagename, \$imagemetadata);
 
 	$lvname = "image+" . $imagename;
-	if (!findLVMLogicalVolume($lvname) &&
-	    !defined($imagemetadata)) {
+	if (!lvmFindVolume($lvname) && !defined($imagemetadata)) {
 	    
 	    #
 	    # Need an exclusive lock for this.
 	    #
+	    TBDebugTimeStamp("  releasing image lock")
+		if ($lockdebug);
 	    TBScriptUnlock();	    
+	    TBDebugTimeStamp("grabbing image lock $imagelockname exclusive")
+		if ($lockdebug);
 	    if (TBScriptLock($imagelockname, undef, 1800)
 		!= TBSCRIPTLOCK_OKAY()) {
 		fatal("Could not get $imagelockname write lock ".
 		      "after a long time!");
 	    }
+	    TBDebugTimeStamp("  got image lock")
+		if ($lockdebug);
 	    # And now check again in case someone else snuck in.
-	    if (!findLVMLogicalVolume($lvname) && createRootDisk($imagename)) {
+	    if (!lvmFindVolume($lvname) && createRootDisk($imagename)) {
 		TBScriptUnlock();
 		fatal("xen_vnodeCreate: ".
 		      "cannot find create root disk for default image");
 	    }
 	    # And back to a shared lock.
+	    TBDebugTimeStamp("  releasing image lock")
+		if ($lockdebug);
 	    TBScriptUnlock();
+	    TBDebugTimeStamp("grabbing image lock $imagelockname shared")
+		if ($lockdebug);
 	    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
 		!= TBSCRIPTLOCK_OKAY()) {
 		fatal("Could not get $imagelockname lock back ".
@@ -797,7 +890,7 @@ sub vnodeCreate($$$$)
 	# not have any reload info to get it.
 	#
 	$lvname = "image+" . $imagename;
-	if (!findLVMLogicalVolume($lvname)) {
+	if (!lvmFindVolume($lvname)) {
 	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot find logical volume for $lvname, and no reload info");
@@ -820,7 +913,7 @@ sub vnodeCreate($$$$)
 	#
 	libutil::setState("RELOADING");
 
-	if (createImageDisk($imagename, $vnode_id, $raref)) {
+	if (createImageDisk($imagename, $vnode_id, $raref, $dothinlv)) {
 	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot create logical volume for $imagename");
@@ -906,7 +999,7 @@ sub vnodeCreate($$$$)
 	    my $vdisk = $dpre .	chr($auxchar);
 	    my $auxlvname = "${vnode_id}.${vdisk}";
 	    
-	    if (!findLVMLogicalVolume($auxlvname)) {
+	    if (!lvmFindVolume($auxlvname)) {
 		if (createAuxDisk($auxlvname, $dsize . "G")) {
 		    fatal("libvnode_xen: could not create aux disk: $vdisk");
 		}
@@ -925,6 +1018,8 @@ sub vnodeCreate($$$$)
 	    $private->{'os'} = "other";
 	}
 	
+	TBDebugTimeStamp("  releasing image lock")
+	    if ($lockdebug);
 	TBScriptUnlock();
 	CreateVnodeUnlock();
 	goto done;
@@ -971,15 +1066,32 @@ sub vnodeCreate($$$$)
     # correct image.  Otherwise destroy the current vnode LVM so it
     # will get correctly associated below.
     #
-    if (findLVMLogicalVolume($vnode_id)) {
-	my $olvname = findLVMOrigin($vnode_id);
-	if (defined($raref) ||
-	    ($olvname ne "" && $olvname ne $lvname)) {
-	    RunWithLock("kpartx", "kpartx -dv $rootvndisk");
-	    if (mysystem2("lvremove -f $VGNAME/$vnode_id")) {
+    if (lvmFindVolume($vnode_id)) {
+	my $golden = ($dothinlv ? lvmFindOrigin($vnode_id) : "");
+	my $ngolden = nameGoldenImage($imagename);
+
+	if (defined($raref) || ($golden && $golden ne $ngolden)) {
+	    print STDERR "$vnode_id: destroying old disk, ".
+		"golden='$golden', ngolden='$ngolden'\n";
+	    if (lvmDestroyVolume($vnode_id, 1)) {
 		TBScriptUnlock();
 		fatal("xen_vnodeCreate: ".
 		      "could not destroy old disk for $vnode_id");
+	    }
+
+	    #
+	    # Attempt to GC the old golden image we were associated with,
+	    # unless it is the same as what we are moving to.
+	    #
+	    if ($REAP_GDS && $golden && $golden ne $ngolden) {
+		(my $oimage = $golden) =~ s/^_G_//;
+		my $glock = grabGoldenLock($oimage);
+		if ($glock && lvmGC($golden, 0)) {
+		    print STDERR "xen_vnodeCreate: could not GC ".
+			"unreferenced golden image '$golden'\n";
+		}
+		releaeseGoldenLock($glock)
+		    if ($glock);
 	    }
 	}
     }
@@ -1003,22 +1115,12 @@ sub vnodeCreate($$$$)
     #
     # Create the snapshot LVM.
     #
-    if (!findLVMLogicalVolume($vnode_id)) {
+    if (!lvmFindVolume($vnode_id)) {
 	#
 	# Need to create a new disk for the container. But lets see
 	# if we have a disk cached or a golden image. We still have
 	# the imagelock at this point.
 	#
-
-	#
-	# Golden image. Create a clone of the golden image.
-	#
-	if ($usethin && hasGoldenImage($imagename)) {
-	    if (cloneGoldenImage($imagename, $vnode_id)) {
-		TBScriptUnlock();
-		fatal("libvnode_xen: could not clone golden image");
-	    }
-	}
 
 	#
 	# Cached image. Grab one to use.
@@ -1029,7 +1131,7 @@ sub vnodeCreate($$$$)
 	# and relock). So, need to take another lock if we find
 	# cached files.
 	#
-	elsif (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
+	if (my (@files) = glob("/dev/$VGNAME/_C_${imagename}_*")) {
 	    #
 	    # Grab the first file and rename it. It becomes ours.
 	    # Then drop the lock.
@@ -1040,19 +1142,63 @@ sub vnodeCreate($$$$)
 		fatal("libvnode_xen: could not rename cache file");
 	    }
 	}
+
 	#
-	# Just gotta create one from scratch.
+	# Clone or create one from scratch.
 	#
 	else {
+	    #
+	    # Cannot use/create a golden image if there is a user-specified
+	    # extra filesystem.
+	    #
 	    my $extrafs = 
 		(exists($attributes->{'XEN_EXTRAFS'}) ?
 		 $attributes->{'XEN_EXTRAFS'} : undef);
-		 
+	    if ($extrafs) {
+		$dothinlv = 0;
+	    }
+
+	    #
+	    # Golden image. Create a clone of the golden image.
+	    #
+	    my $glock;
+	    if ($dothinlv) {
+		$glock = grabGoldenLock($imagename);
+		if (!$glock) {
+		    TBScriptUnlock();
+		    fatal("libvnode_xen: could not lock golden image");
+		}
+		if (hasGoldenImage($imagename)) {
+		    print "Cloning $imagename golden image for $vnode_id\n";
+		    #
+		    # XXX We probably don't have to hold the lock during
+		    # the clone, but lets be conservative
+		    #
+		    if (cloneGoldenImage($imagename, $vnode_id)) {
+			releaseGoldenLock($glock);
+			TBScriptUnlock();
+			fatal("libvnode_xen: could not clone golden image");
+		    }
+		    releaseGoldenLock($glock);
+		    goto okay;
+		}
+	    }
+
+	    #
+	    # Not doing golden images or golden image does not exist yet.
+	    # Either way, we need to unpack the images to create a disk.
+	    #
 	    if (CreatePrimaryDisk($lvname, $imagemetadata,
-				  $vnode_id, $extrafs, $usethin)) {
+				  $vnode_id, $extrafs, $dothinlv)) {
+		releaseGoldenLock($glock)
+		    if ($glock);
 		TBScriptUnlock();
 		fatal("libvnode_xen: could not clone $lvname");
 	    }
+	    releaseGoldenLock($glock)
+		if ($glock);
+
+okay:
 	    if ($inreload) {
 		libutil::setState("RELOADDONE");
 		
@@ -1120,6 +1266,8 @@ sub vnodeCreate($$$$)
     #
     # The rest of this can proceed in parallel with other VMs.
     #
+    TBDebugTimeStamp("  releasing image lock")
+	if ($lockdebug);
     TBScriptUnlock();
     CreateVnodeUnlock();
     
@@ -1209,7 +1357,7 @@ sub vnodeCreate($$$$)
 	my $auxlvname = "${vnode_id}.swap";
 	my $vndisk = lvmVolumePath($auxlvname);
 	
-	if (!findLVMLogicalVolume($auxlvname)) {
+	if (!lvmFindVolume($auxlvname)) {
 	    if (createAuxDisk($auxlvname, "2G")) {
 		fatal("libvnode_xen: could not create swap disk");
 	    }
@@ -1236,7 +1384,7 @@ sub vnodeCreate($$$$)
 	    my ($name,$size) = split(":", $disk);
 
 	    my $auxlvname = "${vnode_id}.${name}";
-	    if (!findLVMLogicalVolume($auxlvname)) {
+	    if (!lvmFindVolume($auxlvname)) {
 		if (createAuxDisk($auxlvname, $size)) {
 		    fatal("libvnode_xen: could not create aux disk: $name");
 		}
@@ -1633,26 +1781,30 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     # the rules. Or I could look to see if the chains already exist,
     # but why bother.
     #
-    DoIPtables("-N INCOMING_${vnode_id}");
-    DoIPtables("-F INCOMING_${vnode_id}");
-    DoIPtables("-N OUTGOING_${vnode_id}");
-    DoIPtables("-F OUTGOING_${vnode_id}");
+    my @rules = ();
+
+    push(@rules, "-N INCOMING_${vnode_id}");
+    push(@rules, "-F INCOMING_${vnode_id}");
+    push(@rules, "-N OUTGOING_${vnode_id}");
+    push(@rules, "-F OUTGOING_${vnode_id}");
 
     # Match existing dynamic rules as early as possible.
-    DoIPtables("-A INCOMING_${vnode_id} -m conntrack ".
-	       "  --ctstate RELATED,ESTABLISHED -j ACCEPT");
-    DoIPtables("-A OUTGOING_${vnode_id} -m conntrack ".
-	       "  --ctstate RELATED,ESTABLISHED -j ACCEPT");
+    push(@rules, "-A INCOMING_${vnode_id} -m conntrack ".
+	 "--ctstate RELATED,ESTABLISHED -j ACCEPT");
+    push(@rules, "-A OUTGOING_${vnode_id} -m conntrack ".
+	 "--ctstate RELATED,ESTABLISHED -j ACCEPT");
+
+    # Do all the rules regardless of whether they fail
+    DoIPtablesNoFail(@rules);
     
+    # For the next set of rules we want to fail on first error
+    @rules = ();
+
     if ($vnconfig->{'fwconfig'}->{'fwinfo'}->{'TYPE'} eq "none") {
-	DoIPtables("-A INCOMING_${vnode_id} -j ACCEPT") == 0
-	    or return -1;
-	DoIPtables("-A OUTGOING_${vnode_id} -j ACCEPT") == 0
-	    or return -1;
+	push(@rules, "-A INCOMING_${vnode_id} -j ACCEPT");
+	push(@rules, "-A OUTGOING_${vnode_id} -j ACCEPT");
     }
     else {
-	my @rules = ();
-
 	if (0) {
 	    push(@rules, "-A INCOMING_${vnode_id} -j LOG ".
 		 "  --log-prefix 'IIN ${vnode_id}: ' --log-level 5");
@@ -1696,10 +1848,15 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 	    push(@rules, "-A OUTGOING_${vnode_id} -j LOG ".
 	     "  --log-prefix 'OUT ${vnode_id}: ' --log-level 5");
 	}
-	
-	DoIPtables(@rules) == 0
-	    or return -1;
     }
+
+    # Install the iptable rules
+    TBDebugTimeStamp("vnodePreConfigControlNetwork: installing iptables rules");
+    if (DoIPtables(@rules)) {
+	TBDebugTimeStamp("  failed to install iptables rules");
+	return -1;
+    }
+    TBDebugTimeStamp("  installed iptables rules");
 
     # Create a DHCP entry
     $vninfo->{'dhcp'} = {};
@@ -1870,10 +2027,14 @@ sub vnodePreConfigExpNetwork($$$$)
 	#
 	# gres and route tables are a global resource.
 	#
+	TBDebugTimeStamp("vnodePreConfigExpNetwork: grabbing global lock $GLOBAL_CONF_LOCK")
+	    if ($lockdebug);
 	if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
 	    print STDERR "Could not get the global lock after a long time!\n";
 	    return -1;
 	}
+	TBDebugTimeStamp("  got global lock")
+	    if ($lockdebug);
 	my %key2gre = ();
 	my $maxgre  = 0;
 	
@@ -1968,6 +2129,8 @@ sub vnodePreConfigExpNetwork($$$$)
 	    # add interface to config file line
 	    $vifstr .= ", 'vifname=$veth, mac=$imac, script=$script'";
 	}
+	TBDebugTimeStamp("  releasing global lock")
+	    if ($lockdebug);
 	TBScriptUnlock();
     }
 
@@ -2040,7 +2203,7 @@ sub vnodeState($$$$)
 	else {
 	    $lvname = $private->{'disks'}->{$vnode_id};
 	}
-	if (findLVMLogicalVolume($lvname)) {
+	if (lvmFindVolume($lvname)) {
 	    $out = VNODE_STATUS_STOPPED();
 	}
     }
@@ -2163,10 +2326,14 @@ sub vnodeTearDown($$$$)
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
 
     # Lots of shared resources 
+    TBDebugTimeStamp("vnodeTearDown: grabbing global lock $GLOBAL_CONF_LOCK")
+	if ($lockdebug);
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the global vz lock after a long time!\n";
+	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
 
     #
     # Unwind anything we did.
@@ -2197,6 +2364,8 @@ sub vnodeTearDown($$$$)
 	if (exists($private->{'routetables'}));
 
   badbad:
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
 }
@@ -2205,6 +2374,7 @@ sub vnodeDestroy($$$$)
 {
     my ($vnode_id, $vmid, $vnconfig, $private) = @_;
     my $vninfo = $private;
+    my $dothinlv = doingThinLVM();
 
     #
     # vmid might not be set if vnodeCreate did not succeed. But
@@ -2262,16 +2432,55 @@ sub vnodeDestroy($$$$)
 	else {
 	    $lvname = $private->{'disks'}->{$key};
 	}
-	if (findLVMLogicalVolume($lvname)) {
+	if (lvmFindVolume($lvname)) {
+	    my $golden;
+
+	    my $force = 0;
 	    if ($lvname eq $vnode_id) {
-		my $rootvndisk = lvmVolumePath($lvname);
-		RunWithLock("kpartx", "kpartx -dv $rootvndisk");
+		if ($dothinlv && $lvname eq $vnode_id) {
+		    my $origin = lvmFindOrigin($lvname);
+		    if ($origin =~ /^_G_/) {
+			$golden = $origin;
+		    }
+
+		    #
+		    # XXX woeful hackage: if we are destroying this vnode
+		    # in the process of a reload, don't remove the golden
+		    # disk if they are just going to reload the same image.
+		    #
+		    if ($golden && exists($vnconfig->{'reloadinfo'})) {
+			my $raref = $vnconfig->{'reloadinfo'};
+			my $imagename = $vnconfig->{'image'};
+			if ($imagename &&
+			    $golden eq nameGoldenImage($imagename)) {
+			    print STDERR "xen_vnodeDestroy: ".
+				"NOT destroying golden image\n";
+			    $golden = undef;
+			}
+		    }
+		}
+		$force = 1;
 	    }
-	    if (mysystem2("lvremove -f $VGNAME/$lvname")) {
-		print STDERR "libvnode_xen: could not destroy disk $lvname!\n";
+	    if (lvmDestroyVolume($lvname, $force)) {
+		print STDERR
+		    "xen_vnodeDestroy: could not destroy disk $lvname!\n";
 	    }
 	    else {
 		delete($private->{'disks'}->{$key});
+
+		#
+		# Remove the golden image if no longer in use.
+		#
+		if ($REAP_GDS && $golden) {
+		    (my $oimage = $golden) =~ s/^_G_//;
+		    my $glock = grabGoldenLock($oimage);
+		    if ($glock && lvmGC($golden, 0)) {
+			print STDERR "xen_vnodeDestroy: could not GC ".
+			    "unreferenced golden image '$golden'\n";
+		    }
+		    releaseGoldenLock($glock)
+			if ($glock);
+		}
 	    }
 	}
     }
@@ -2404,7 +2613,10 @@ sub createRootDisk($)
     # there are so many ways this will die.
     #
     eval {
-	mysystem("lvcreate -n rootdisk -L ${XEN_LDSIZE}k $VGNAME");
+	if (lvmCreateVolume("rootdisk", "${XEN_LDSIZE}k",
+			    ALLOC_PREFERNOPOOL())) {
+	    exit(1);
+	}
 	my $vndisk = lvmVolumePath("rootdisk");
 	
 	#
@@ -2434,8 +2646,9 @@ sub createRootDisk($)
 	# Now kill off the lvm and create one for the compressed version.
 	# Need to know the number of CHUNKS for later.
 	#
-	RunWithLock("kpartx", "kpartx -dv $vndisk");
-	mysystem("lvremove -f $VGNAME/rootdisk");
+	if (lvmDestroyVolume("rootdisk", 1)) {
+	    fatal("Could not remove rootdisk");
+	}
 
 	my (undef,undef,undef,undef,undef,undef,undef,$lvsize) =
 	    stat("$EXTRAFS/rootdisk.ndz");
@@ -2471,6 +2684,7 @@ sub CreatePrimaryDisk($$$$;$)
     # with it. Then lay down each delta on top if it. 
     #
     my @deltas = ();
+    my $origmetadata = $imagemetadata;
     if (exists($imagemetadata->{'PARENTIMAGE'})) {
 	while (exists($imagemetadata->{'PARENTIMAGE'})) {
 	    my $parent = $imagemetadata->{'PARENTIMAGE'};
@@ -2522,21 +2736,32 @@ sub CreatePrimaryDisk($$$$;$)
 	if (defined($extrafs)) {
 	    # In GB, so convert to K
 	    $lv_size += $extrafs * (1024 * 1024);
+
+	    # XXX no golden image if not the default size
+	    $dothinlv = 0;
+	} else {
+	    $lv_size += $XEN_EXTRASIZE;
 	}
     }
 
     #
-    # What we actually load up is the golden image
+    # What we actually load up here is the golden image.
+    #
+    # Note that if this fails, we fall back on creating the vnode
+    # disk directly. This could happen if we fill up the pool.
     #
     if ($dothinlv) {
-	my $imagename = $imagemetadata->{'IMAGENAME'};
+	my $imagename = $origmetadata->{'IMAGENAME'};
 	if (createGoldenImage($imagename, $lv_size)) {
-	    return -1;
+	    print STDERR "libvnode_xen: failed to create golden disk, ".
+		"falling back on direct vnode creation.\n";
+	    $dothinlv = 0;
+	} else {
+	    $rootvndisk = lvmVolumePath(nameGoldenImage($imagename));
 	}
-	$rootvndisk = lvmVolumePath(nameGoldenImage($imagename));
     }
-    elsif (mysystem2("lvcreate -i${STRIPE_COUNT} ".
-		     "   -L ${lv_size}k -n $target $VGNAME")) {
+    if (!$dothinlv &&
+	lvmCreateVolume($target, "${lv_size}k", ALLOC_PREFERNOPOOL())) {
 	print STDERR "libvnode_xen: could not create disk for $target\n";
 	return -1;
     }
@@ -2563,12 +2788,12 @@ sub CreatePrimaryDisk($$$$;$)
 		if (! -e "$boot") {
 		    print STDERR
 			"libvnode_xen: no boot0 code for FreeBSD HVM boot\n";
-		    return -1;
+		    goto fail;
 		}
 	    }
 	    if (mysystem2("dd if=$boot of=$rootvndisk bs=512 count=1")) {
 		print STDERR "libvnode_xen: could not install FreeBSD boot0\n";
-		return -1;
+		goto fail;
 	    }
 	}
 
@@ -2582,7 +2807,7 @@ sub CreatePrimaryDisk($$$$;$)
 	my $partfile = tmpnam();
 	if (!open(FILE, ">$partfile")) {
 	    print STDERR "libvnode_xen: could not create $partfile\n";
-	    return -1;
+	    goto fail;
 	}
 	my $mbrvers = 2;
 	if (exists($imagemetadata->{'MBRVERS'})) {
@@ -2631,25 +2856,26 @@ sub CreatePrimaryDisk($$$$;$)
 	my $slice2_start = $slice1_start + $slice1_size;
 	my $slice3_size  = $XEN_SWAPSIZE * 2;
 	my $slice3_start = $slice2_start + $slice2_size;
+
+	my $slice4_start = $slice3_start + $slice3_size;
+	my $slice4_size = $XEN_EXTRASIZE * 2;
+	if (defined($extrafs)) {
+	    $slice4_size  = $extrafs;
+	    # In GB, so convert to sectors
+	    $slice4_size = $slice4_size * (1024 * 1024) * 2;
+	}
 	
 	print FILE "$slice1_start,$slice1_size,$slice1_type${slice1_active}\n";
 	print FILE "$slice2_start,$slice2_size,$slice2_type${slice2_active}\n";
 	print FILE "$slice3_start,$slice3_size,S\n";
+	print FILE "$slice4_start,$slice4_size,0\n";
 
-	if (defined($extrafs)) {
-	    my $slice4_size  = $extrafs;
-	    # In GB, so convert to sectors
-	    $slice4_size = $slice4_size * (1024 * 1024) * 2;
-	    my $slice4_start = $slice3_start + $slice3_size;
-
-	    print FILE "$slice4_start,$slice4_size,0\n";
-	}
 	close(FILE);
 		    
 	if (mysystem2("cat $partfile | ".
 		      "    sfdisk --force -x -D -u S $rootvndisk")) {
 	    print STDERR "libvnode_xen: could not partition root disk\n";
-	    return -1;
+	    goto fail;
 	}
 	unlink($partfile);
 	if (exists($imagemetadata->{'FROMFILE'})) {
@@ -2662,7 +2888,7 @@ sub CreatePrimaryDisk($$$$;$)
 	    mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
 		      "nice $IMAGEUNZIP -s $loadslice -f -o ".
 		      "                 -W 164 - $rootvndisk");
-	    return -1
+	    goto fail
 		if ($?);
 
 	    #
@@ -2678,7 +2904,7 @@ sub CreatePrimaryDisk($$$$;$)
 			  "nice $IMAGEUNZIP -s $loadslice -f -o ".
 			  "                 -W 164 - $rootvndisk");
 
-		return -1
+		goto fail
 		    if ($?);
 	    }
 	}
@@ -2686,22 +2912,42 @@ sub CreatePrimaryDisk($$$$;$)
     else {
 	mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
 		  "nice $IMAGEUNZIP -f -o -W 164 - $rootvndisk");
-    }
-    if ($?) {
-	if ($dothinlv) {
-	    my $imagename = $imagemetadata->{'IMAGENAME'};
-	    destroyGoldenImage($imagename);
-	}
-	return -1;
-    }
+	goto fail
+	    if ($?);
 
+	#
+	# Lay down the deltas.
+	#
+	while (@deltas) {
+	    my $delta_metadata = pop(@deltas);
+	    $lvname   = "image+" . $delta_metadata->{'IMAGENAME'};
+	    $basedisk = lvmVolumePath($lvname);
+	    $chunks   = $delta_metadata->{'IMAGECHUNKS'};
+	    
+	    mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
+		      "nice $IMAGEUNZIP -f -o -W 164 - $rootvndisk");
+
+	    goto fail
+		if ($?);
+	}
+    }
     if ($dothinlv) {
-	my $imagename = $imagemetadata->{'IMAGENAME'};
+	# get rid of any partition devices on golden disk...
+	RunWithLock("kpartx", "kpartx -dv $rootvndisk");
+
+	my $imagename = $origmetadata->{'IMAGENAME'};
 	if (cloneGoldenImage($imagename, $target)) {
 	    return -1;
 	}
     }
     return 0;
+
+fail:
+    if ($dothinlv) {
+	my $imagename = $origmetadata->{'IMAGENAME'};
+	destroyGoldenImage($imagename);
+    }
+    return -1;
 }
 
 #
@@ -2710,10 +2956,8 @@ sub CreatePrimaryDisk($$$$;$)
 sub createAuxDisk($$)
 {
     my ($lv,$size) = @_;
-    my $full_path = lvmVolumePath($lv);
 
-    mysystem2("lvcreate -i${STRIPE_COUNT} -n $lv -L ${size} $VGNAME");
-    if ($?) {
+    if (lvmCreateVolume($lv, $size, ALLOC_PREFERNOPOOL())) {
 	return -1;
     }
     return 0;
@@ -2725,51 +2969,48 @@ sub nameGoldenImage($)
     return "_G_$imagename";
 }
 
+sub grabGoldenLock($)
+{
+    my ($imagename) = @_;
+    my $token = nameGoldenImage($imagename);
+    my $lockref;
+
+    TBDebugTimeStamp("grabbing gimage lock $token")
+	if ($lockdebug);
+    if (TBScriptLock($token, undef, 900, \$lockref) == TBSCRIPTLOCK_OKAY()) {
+	TBDebugTimeStamp("  got gimage lock")
+	    if ($lockdebug);
+	return $lockref;
+    }
+
+    print STDERR "Could not grab lock $token after 900 seconds!\n";
+    return undef;
+}
+
+sub releaseGoldenLock($)
+{
+    my ($lockref) = @_;
+    TBDebugTimeStamp("  releasing gimage lock")
+	if ($lockdebug);
+    TBScriptUnlock($lockref);
+}
+
 #
 # We create a thin pool per image. The "golden disk" is a thin LV associated
 # with the pool. All vnodes using the image are given a snapshot of this
 # thin LV.
 #
-# How big should the pool be? It is a function of the image size and
-# the number of snapshots, and how many blocks each one modifies.
-# I am going to pull the number 50GB out of...the nether regions.
-# That should allow for 10-ish different images per physical node and
-# 10-50 instances of each image.
-#
-# XXX maybe it would be better to just have a single thin pool that
-# uses the bulk of the VG and then create all golden thin LVs in that.
-# No space fragmentation that way.
+# XXX would we be better off creating per-image pools?
 #
 sub createGoldenImage($$)
 {
     my ($imagename,$imagesize) = @_;
-    my $pool = "_P_$imagename";
     my $gimage = nameGoldenImage($imagename);
-
-    # we assume the caller has checked for existence
-    if (hasGoldenImage($imagename)) {
-	print STDERR "$imagename: golden image already exists!?\n";
-	return -1;
-    }
-
-    # image better not be bigger than our pool size!
-    if ($imagesize >= $THINPOOL_SIZE) {
-	print STDERR "$imagename: too big for our pool size!?\n";
-	return -1;
-    }
-
-    # create the thin pool
-    if (mysystem2("lvcreate -i${STRIPE_COUNT} -L ${THINPOOL_SIZE}k ".
-		  "--type thin-pool --thinpool $pool $VGNAME")) {
-	print STDERR "$imagename: could not create thin pool\n";
-	return -1;
-    }
 
     # create the thin LV
     # Note that we do not have to stripe the volumes since we did the pool
-    if (mysystem2("lvcreate -V ${imagesize}k -n $gimage --thinpool $VGNAME/$pool")) {
+    if (lvmCreateVolume($gimage, "${imagesize}k", ALLOC_INPOOL())) {
 	print STDERR "$imagename: could not create golden snapshot\n";
-	mysystem2("lvremove $VGNAME/$pool");
 	return -1;
     }
 
@@ -2780,27 +3021,24 @@ sub hasGoldenImage($)
 {
     my ($imagename) = @_;
 
-    return findLVMLogicalVolume(nameGoldenImage($imagename));
+    return lvmFindVolume(nameGoldenImage($imagename));
 }
 
-sub cloneGoldenImage($$$)
+sub cloneGoldenImage($$)
 {
     my ($imagename,$lvname) = @_;
+    my $gimage = nameGoldenImage($imagename);
 
-    # we assume the caller has checked for existence
-    if (!hasGoldenImage($imagename)) {
-	print STDERR "$imagename: has no golden image!?\n";
-	return -1;
-    }
-
-    my $gimage = "_G_$imagename";
+    TBDebugTimeStamp("$lvname: creating snapshot");
     if (mysystem2("lvcreate -n $lvname -s $VGNAME/$gimage")) {
 	print STDERR "$imagename: could not clone golden image!?\n";
 	return -1;
     }
     if (mysystem2("lvchange -ay $VGNAME/$lvname")) {
-	print STDERR "$imagename: could not activate $VGNAME/$lvname\n";
+	print STDERR "$imagename: WARNING: ".
+	    "could not activate $VGNAME/$lvname\n";
     }
+    TBDebugTimeStamp("$lvname: snapshot created and activated");
 
     return 0;
 }
@@ -2810,7 +3048,7 @@ sub destroyGoldenImage($)
     my ($imagename) = @_;
     my $gname = nameGoldenImage($imagename);
 
-    if (mysystem2("lvremove -f $VGNAME/$gname")) {
+    if (lvmDestroyVolume($gname, 1)) {
 	print STDERR "$imagename: could not remove golden image!\n";
 	return -1;
     }
@@ -2827,9 +3065,9 @@ sub destroyGoldenImage($)
 # the boot image, and its timestamp is the one we care about. Note
 # that we never do deltas for "packaged" images.
 #
-sub createImageDisk($$$)
+sub createImageDisk($$$$)
 {
-    my ($image,$vnode_id,$raref) = @_;
+    my ($image,$vnode_id,$raref,$dothinlv) = @_;
     my $imagelockname = ImageLockName($image);
 
     #
@@ -2837,6 +3075,8 @@ sub createImageDisk($$$)
     # lock in the function below. We will take the shared lock again
     # before returning.
     #
+    TBDebugTimeStamp("  releasing image lock")
+	if ($lockdebug);
     TBScriptUnlock();
 
     #
@@ -2844,7 +3084,7 @@ sub createImageDisk($$$)
     #
     foreach my $ref (@{$raref}) {
 	goto bad
-	    if (downloadOneImage($vnode_id, $ref));
+	    if (downloadOneImage($vnode_id, $ref, $dothinlv));
     }
 
     #
@@ -2868,14 +3108,18 @@ sub createImageDisk($$$)
     }
     
     # And back to a shared lock.
+    TBDebugTimeStamp("grabbing image lock $imagelockname shared")
+	if ($lockdebug);
     if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
 	!= TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get $imagelockname lock back ".
 	    "after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got image lock")
+	if ($lockdebug);
     #
-    # XXX note that we don ot declare RELOADDONE here since we have not
+    # XXX note that we don't declare RELOADDONE here since we have not
     # actually created the vnode disk yet. That is the caller's
     # responsibility.
     #    
@@ -2887,9 +3131,9 @@ sub createImageDisk($$$)
 #
 # Download and create an LVM for a single compressed image.
 #
-sub downloadOneImage($$)
+sub downloadOneImage($$$)
 {
-    my ($vnode_id, $raref) = @_;
+    my ($vnode_id, $raref, $dothinlv) = @_;
     my $image = $raref->{'IMAGENAME'};
     my $imagelockname = ImageLockName($image);
     my $tstamp = $raref->{'IMAGEMTIME'};
@@ -2902,11 +3146,15 @@ sub downloadOneImage($$)
     my $nochunks = 0;
     my $lv_size;
 
+    TBDebugTimeStamp("grabbing image lock $imagelockname exclusive")
+	if ($lockdebug);
     if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get $imagelockname write lock".
 	    "after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got image lock")
+	if ($lockdebug);
     
     # Ick.
     if (exists($raref->{'MBRVERS'}) && $raref->{'MBRVERS'} == 99) {
@@ -2917,7 +3165,7 @@ sub downloadOneImage($$)
     # Do we have the right image file already? No need to download it
     # again if the timestamp matches. 
     #
-    if (findLVMLogicalVolume($lvname)) {
+    if (lvmFindVolume($lvname)) {
 	if (-e $imagedatepath) {
 	    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
 		$mtime,undef,undef,undef) = stat($imagedatepath);
@@ -2941,13 +3189,13 @@ sub downloadOneImage($$)
 	}
     }
 
-    if (findLVMLogicalVolume($lvname)) {
+    if (lvmFindVolume($lvname)) {
 	# For the package case.
 	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image")) {
 	    print STDERR "Could not umount /mnt/$image\n";
 	    goto bad;
 	}
-	if (GClvm($lvname)) {
+	if (lvmGC($lvname, 1)) {
 	    print STDERR "Could not GC or rename $lvname\n";
 	    goto bad;
 	}
@@ -2955,6 +3203,28 @@ sub downloadOneImage($$)
 	    if (-e $imagedatepath);
 	unlink($imagemetapath)
 	    if (-e $imagemetapath);
+
+	#
+	# Get rid of any golden image too so that we create a new one.
+	#
+	# Note that it is quite alright to destroy the image even if
+	# there are snapshots. All the snapshots just become independent
+	# volumes at that point--one of the nice features of the thin
+	# provisioning support.
+	# 
+	if ($dothinlv) {
+	    my $goldenlock = grabGoldenLock($image);
+	    if (!$goldenlock) {
+		print STDERR "Could not grab golden image lock for $image\n";
+		goto bad;
+	    }
+	    if (hasGoldenImage($image) && destroyGoldenImage($image)) {
+		releaseGoldenLock($goldenlock);
+		# destroyGoldenImage will print out an error message
+		goto bad;
+	    }
+	    releaseGoldenLock($goldenlock);
+	}
     }
 
     #
@@ -2984,14 +3254,16 @@ sub downloadOneImage($$)
 	# tmcd may also tell us the sector range of the uncompressed data.
 	# Extract useful tidbits from that.
 	#
-	if (exists($raref->{'IMAGELOW'}) &&
-	    exists($raref->{'IMAGEHIGH'})) {
+	if (exists($raref->{'IMAGELOW'}) && exists($raref->{'IMAGEHIGH'})) {
+	    my $ssize = $raref->{'IMAGESSIZE'};
+	    $ssize = 512 if (!defined($ssize));
+
 	    $raref->{'LVSIZE'} =
 		(($raref->{'IMAGEHIGH'} - $raref->{'IMAGELOW'} + 1) /
-		 (1024 / $raref->{'IMAGESSIZE'}));
+		 (1024 / $ssize));
 	}
     }
-    if (mysystem2("lvcreate -i${STRIPE_COUNT} -n $lvname -L ${lv_size}m $VGNAME")) {
+    if (lvmCreateVolume($lvname, "${lv_size}m", ALLOC_PREFERNOPOOL())) {
 	print STDERR "libvnode_xen: could not create disk for $image\n";
 	goto bad;
     }
@@ -3095,6 +3367,8 @@ sub downloadOneImage($$)
     StoreImageMetadata($image, $raref);
 
   okay:
+    TBDebugTimeStamp("  releasing image lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
   bad:
@@ -3331,10 +3605,14 @@ sub modDHCP($$$$$)
     my $bak = "$dhcp_config_file.old";
     my $tmp = "$dhcp_config_file.new";
 
+    TBDebugTimeStamp("grabbing DHCP lock dhcpd")
+	if ($lockdebug);
     if (TBScriptLock("dhcpd", 0, 900) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the dhcpd lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got DHCP lock")
+	if ($lockdebug);
 
     if (!open(NEW, ">$tmp")) {
 	print STDERR "Could not create new DHCP file, ",
@@ -3418,6 +3696,8 @@ sub modDHCP($$$$$)
     #
     if (!$changed) {
 	unlink($tmp);
+	TBDebugTimeStamp("  releasing DHCP lock")
+	    if ($lockdebug);
 	TBScriptUnlock();
 	return 0;
     }
@@ -3454,6 +3734,8 @@ sub modDHCP($$$$$)
         restartDHCP();
     }
 
+    TBDebugTimeStamp("  releasing DHCP lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
 }
@@ -3701,10 +3983,14 @@ sub createExpBridges($$$)
     # Since bridges and physical interfaces can be shared between vnodes,
     # we need to serialize this.
     #
+    TBDebugTimeStamp("createExpBridges: grabbing global lock $GLOBAL_CONF_LOCK")
+	if ($lockdebug);
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
 
     # read the current state of affairs
     makeIfaceMaps();
@@ -3833,6 +4119,8 @@ sub createExpBridges($$$)
 	    }
 	}
     }
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
   bad:
@@ -3871,10 +4159,14 @@ sub destroyExpBridges($$)
     # Since bridges and physical interfaces can be shared between vnodes,
     # we need to serialize this.
     #
+    TBDebugTimeStamp("destroyExpBridges: grabbing global lock $GLOBAL_CONF_LOCK")
+	if ($lockdebug);
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
 
     if (exists($private->{'physbridges'})) {
 	makeBridgeMaps();
@@ -3888,6 +4180,8 @@ sub destroyExpBridges($$)
 	    }
 	}
     }
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
 }
@@ -4104,6 +4398,88 @@ sub parseXenDiskInfo($$)
 #
 
 #
+# Create a thin pool that uses most of the VG space.
+#
+# This is tricky if there are multiple PVs and they are different sizes.
+# We cannot create the pool larger than M * N where M is the number of
+# disks and N is the free space on the smallest disk.
+#
+sub createThinPool($)
+{
+    my ($devs) = @_;
+
+    #
+    # Find the PV with the least available space
+    #
+    my $smallest;
+    my $num = 0;
+    my $tsize = 0;
+    foreach my $dsize (`pvs --noheadings -o pv_free $devs`) {
+	if ($dsize =~ /(\d+\.\d+)([mgt])/i) {
+	    $dsize = $1;
+	    my $u = lc($2);
+	    if ($u eq "m") {
+		$dsize /= 1000;
+	    } elsif ($u eq "t") {
+		$dsize *= 1000;
+	    }
+	    $tsize += $dsize;
+	    if (!defined($smallest) || $dsize < $smallest) {
+		$smallest = $dsize;
+	    }
+	} else {
+	    print STDERR "createThinPool: could not parse PV size '$dsize'\n";
+	    return -1;
+	}
+	$num++;
+    }
+
+    #
+    # Arbitrary conventions:
+    #   - don't use more than 80% of the smallest device
+    #   - leave at least 50g total for others
+    #   - pool should be at least 100g
+    #
+    my $poolsize = int($num * ($smallest * $POOL_FRAC));
+    if ($poolsize > ($tsize - 50)) {
+	$poolsize = $tsize - 50;
+    }
+    if ($poolsize < 100) {
+	print STDERR "createThinPool: ${poolsize}g is not enough space ".
+	    "for a reasonably sized thin pool\n";
+	return -1;
+    }
+
+    # Try to make it
+    if (mysystem2("lvcreate -i$num -L ${poolsize}g ".
+		  "--type thin-pool --thinpool $POOL_NAME $VGNAME")) {
+	print STDERR "createThinPool: could not create ${poolsize}g ".
+	    "thin pool\n";
+	return -1;
+    }
+
+    return 0;
+}
+
+sub doingThinLVM()
+{
+    # globally disabled
+    if (!$usethin) {
+	return 0;
+    }
+
+    # see if pool exists
+    if (!lvmFindVolume($POOL_NAME)) {
+	print STDERR "WARNING: no thin pool found, ".
+	    "disabling golden image support\n";
+	$usethin = 0;
+	return 0;
+    }
+
+    return 1;
+}
+
+#
 # Return size of volume group in (decimal, aka disk-manufactuer) GB.
 #
 sub lvmVGSize($)
@@ -4124,13 +4500,101 @@ sub lvmVGSize($)
     die "libvnode_xen: cannot parse LVM volume group size";
 }
 
+sub lvmCreateVolume($$$)
+{
+    my ($name,$size,$flag) = @_;
+
+    #
+    # XXX not everything benefits from being created in our thinpool.
+    # In particular, volumes that won't be cloned will suffer a
+    # first-access penalty as blocks are allocated on demand rather
+    # than being pre-allocated as they are outside. There is also the
+    # issue that volumes in the pool may unexpectedly run out of space
+    # since the capacity can be over-subscribed.
+    #
+    # Unfortunately, our pool creates a division of space and we
+    # can run out of space either inside or outside, so we want to
+    # maintain some flexibility to create volumes either inside or
+    # out depending on availability of space.
+    #
+again:
+    if ($flag == ALLOC_INPOOL() || $flag == ALLOC_PREFERINPOOL) {
+	if (!mysystem2("lvcreate -V $size -n $name ".
+		       "--thinpool $VGNAME/$POOL_NAME")) {
+	    return 0;
+	}
+	if ($flag == ALLOC_INPOOL()) {
+	    goto fail;
+	}
+	# otherwise fall through to try non-pool creation
+	$flag = ALLOC_NOPOOL();
+    }
+    if ($flag == ALLOC_NOPOOL() || $flag == ALLOC_PREFERNOPOOL) {
+	if (!mysystem2("lvcreate -L $size -n $name -i${STRIPE_COUNT} ".
+		       "$VGNAME")) {
+	    return 0;
+	}
+	if ($flag == ALLOC_NOPOOL()) {
+	    goto fail;
+	}
+	# otherwise try again in the pool
+	$flag = ALLOC_INPOOL();
+	goto again;
+    }
+
+fail:
+    print STDERR "createLV: could not create $size LV $name\n";
+    return -1;
+}
+
+sub lvmDestroyVolume($$)
+{
+    my ($name,$force) = @_;
+    my $path = lvmVolumePath($name);
+
+    # get rid of partition devices
+    if ($force) {
+	RunWithLock("kpartx", "kpartx -dv $path");
+    }
+
+    # and the volume itself
+    if (!mysystem2("lvremove -f $VGNAME/$name")) {
+	return 0;
+    }
+
+    #
+    # XXX Could not delete volume. Sometimes this is because there is a
+    # left-over partition device. Not sure why kpartx doesn't catch it,
+    # but we try to clean it up manually.
+    #
+    if ($force) {
+	my $tryagain = 0;
+	my $dmname = "$VGNAME/$name";
+	$dmname =~ s#-#--#g;
+	$dmname =~ s#/#-#;
+	foreach my $part (1..4) {
+	    my $dev = "${dmname}p$part";
+	    if (-e "/dev/mapper/$dev" && !mysystem2("dmsetup remove $dev")) {
+		print STDERR "WARNING: removed leftover partdev '$dev'\n";
+		$tryagain = 1;
+	    }
+	}
+	if ($tryagain && !mysystem2("lvremove -f $VGNAME/$name")) {
+	    return 0;
+	}
+    }
+
+    # just could not pull it off
+    return -1;
+}
+
 sub lvmVolumePath($)
 {
     my ($name) = @_;
     return "/dev/$VGNAME/$name";
 }
 
-sub findLVMLogicalVolume($)
+sub lvmFindVolume($)
 {
     my ($lvm)  = @_;
     my $lvpath = lvmVolumePath($lvm);
@@ -4145,7 +4609,7 @@ sub findLVMLogicalVolume($)
 # Return the LVM that the indicated one is a snapshot of, or a null
 # string if none.
 #
-sub findLVMOrigin($)
+sub lvmFindOrigin($)
 {
     my ($lv) = @_;
 
@@ -4158,16 +4622,17 @@ sub findLVMOrigin($)
 }
 
 #
-# Rename or GC an image lvm. We can collect the lvm if there are no
-# other lvms based on it.
+# GC an image lvm (or optionally rename it if busy).
+# We can collect the lvm if there are no other lvms based on it.
 #
-sub GClvm($)
+sub lvmGC($$)
 {
-    my ($image)  = @_;
+    my ($image,$dorename)  = @_;
     my $oldest   = 0;
     my $inuse    = 0;
     my $found    = 0;
 
+    TBDebugTimeStamp("lvmGC($image) invoked");
     if (! open(LVS, "lvs --noheadings -o lv_name,origin $VGNAME |")) {
 	print STDERR "Could not start lvs\n";
 	return -1;
@@ -4177,6 +4642,7 @@ sub GClvm($)
 	my $imname;
 	my $origin;
 	
+	chomp($line);
 	if ($line =~ /^\s*([-\w\.\+]+)\s*$/) {
 	    $imname = $1;
 	}
@@ -4213,22 +4679,23 @@ sub GClvm($)
 	if ($?);
     print "found:$found, inuse:$inuse, oldest:$oldest\n";
     if (!$found) {
-	print STDERR "GClvm($image): no such lvm found\n";
+	print STDERR "lvmGC($image): no such lvm found\n";
 	return -1;
     }
     if (!$inuse) {
-	print "GClvm($image): not in use; deleting\n";
- 	mysystem2("lvremove -f /dev/$VGNAME/$image");
-	return -1
-	    if ($?);
+	print "lvmGC($image): not in use; deleting\n";
+	if (lvmDestroyVolume($image, 1)) {
+	    return -1;
+	}
 	return 0;
     }
-    $oldest++;
-    # rename nicely works even when snapshots exist
-    mysystem2("lvrename /dev/$VGNAME/$image /dev/$VGNAME/$image.$oldest");
-    return -1
-	if ($?);
-    
+    if ($dorename) {
+	$oldest++;
+	# rename nicely works even when snapshots exist
+	mysystem2("lvrename /dev/$VGNAME/$image /dev/$VGNAME/$image.$oldest");
+	return -1
+	    if ($?);
+    }
     return 0;
 }
 
@@ -4243,10 +4710,14 @@ sub AllocateIFBs($$$)
     my ($vmid, $node_lds, $private) = @_;
     my @ifbs = ();
 
+    TBDebugTimeStamp("AllocateIFBs: grabbing global lock $GLOBAL_CONF_LOCK")
+	if ($lockdebug);
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
 
     my %MDB;
     if (!dbmopen(%MDB, $IFBDB, 0660)) {
@@ -4295,6 +4766,8 @@ sub AllocateIFBs($$$)
 	$i++;
     }
     dbmclose(%MDB);
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return \@ifbs;
 }
@@ -4303,10 +4776,15 @@ sub ReleaseIFBs($$)
 {
     my ($vmid, $private) = @_;
     
+    TBDebugTimeStamp("ReleaseIFBs: grabbing global lock $GLOBAL_CONF_LOCK")
+	if ($lockdebug);
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
+
     my %MDB;
     if (!dbmopen(%MDB, $IFBDB, 0660)) {
 	print STDERR "*** Could not create $IFBDB\n";
@@ -4323,6 +4801,8 @@ sub ReleaseIFBs($$)
 	}
     }
     dbmclose(%MDB);
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     delete($private->{'ifbs'});
     return 0;
@@ -4443,10 +4923,14 @@ sub ReleaseRouteTables($$)
 {
     my ($vmid, $private) = @_;
     
+    TBDebugTimeStamp("ReleaseRouteTables: grabbing global lock $GLOBAL_CONF_LOCK")
+	if ($lockdebug);
     if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
+    TBDebugTimeStamp("  got global lock")
+	if ($lockdebug);
     if (exists($private->{'routetables'})) {
 	foreach my $token (keys(%{ $private->{'routetables'} })) {
 	    if (FreeRouteTable($token) < 0) {
@@ -4457,6 +4941,8 @@ sub ReleaseRouteTables($$)
 	}
     }
 
+    TBDebugTimeStamp("  releasing global lock")
+	if ($lockdebug);
     TBScriptUnlock();
     return 0;
 }
@@ -4686,11 +5172,16 @@ sub CreateVnodeLock()
     while ($tries) {
 	for (my $i = 0; $i < 3; $i++) {
 	    my $token  = "createvnode_${i}";
+	    TBDebugTimeStamp("grabbing vnode lock $token")
+		if ($lockdebug);
 	    my $locked = TBScriptLock($token, TBSCRIPTLOCK_NONBLOCKING(),
 				      0, \$createvnode_lockref);
 
-	    return 0
-		if ($locked == TBSCRIPTLOCK_OKAY());
+	    if ($locked == TBSCRIPTLOCK_OKAY()) {
+		TBDebugTimeStamp("  got vnode lock")
+		    if ($lockdebug);
+		return 0
+	    }
 	    return -1
 		if ($locked == TBSCRIPTLOCK_FAILED());
 	}
@@ -4699,12 +5190,14 @@ sub CreateVnodeLock()
 	sleep(4);
 	$tries--;
     }
-    print STDERR "Could not get the createvnode lock after a long time!\n";
+    TBDebugTimeStamp("Could not get the createvnode lock after a long time!");
     return -1;
 }
 
 sub CreateVnodeUnlock()
 {
+    TBDebugTimeStamp("  releasing vnode lock")
+	if ($lockdebug);
     TBScriptUnlock($createvnode_lockref);
 }
 
