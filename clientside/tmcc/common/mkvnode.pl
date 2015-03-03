@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2014 University of Utah and the Flux Group.
+# Copyright (c) 2009-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -402,7 +402,7 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 	# But the image we eventually boot is in jailconfig.
 	# Sheesh, LVM names cannot include comma or colon. 
 	#
-	if (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([-\w]+)$/) {
+	if (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([-\w\.]+)$/) {
 	    $vnconfig{"image"}      = "$1-$2-$3";
 	}
 	elsif (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([^:]+):(\d+)$/) {
@@ -417,7 +417,7 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 	# duplicate it in the library,
 	#
 	foreach my $ref (@tmp) {
-	    if ($ref->{'IMAGEID'} =~ /^([-\w]+),([-\w]+),([-\w]+)$/) {
+	    if ($ref->{'IMAGEID'} =~ /^([-\w]+),([-\w]+),([-\w\.]+)$/) {
 		$ref->{'IMAGENAME'} = "$1-$2-$3";
 	    }
 	    elsif ($ref->{'IMAGEID'} =~ /^([-\w]+),([-\w]+),([^:]+):(\d+)$/) {
@@ -437,7 +437,7 @@ if (scalar(@tmp) && exists($tmp[0]->{"WHAT"})) {
 	#
 	# Sheesh, LVM names cannot include comma or colon.
 	#
-	if (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([-\w]+)$/) {
+	if (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([-\w\.]+)$/) {
 	    $vnconfig{"image"}      = "$1-$2-$3";
 	}
 	elsif (VNCONFIG('IMAGENAME') =~ /^([-\w]+),([-\w]+),([^:]+):(\d+)$/) {
