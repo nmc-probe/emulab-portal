@@ -224,13 +224,18 @@ my $XEN_MIN_VGSIZE = 120;
 #    P2: 1MB (XEN_EMPTYSIZE), as small as we can make it
 #    P3: 1GB (XEN_SWAPSIZE), standard MBR2 swap size
 #
-# P4 is sized based on what the user told us.
+# P4 is sized based on what the user told us. If they do not specify
+# XEN_EXTRA, then we default to 1G (XEN_EXTRASIZE). We need enough
+# space here to support uses of mkextrafs in the clientside (e.g., for
+# "no nfs" experiments where local homedirs are created.
+#
 # Sizes below are in 1K blocks.
 #
 my $XEN_LDSIZE    =  6152895;
 my $XEN_LDSIZE_3  = 16777216;
 my $XEN_SWAPSIZE  =  1048576;
 my $XEN_EMPTYSIZE =     1024;
+my $XEN_EXTRASIZE =  1048576;
 
 # IFBs
 my $IFBDB      = "/var/emulab/db/ifbdb";
@@ -842,8 +847,7 @@ sub vnodeCreate($$$$)
 	LoadImageMetadata($imagename, \$imagemetadata);
 
 	$lvname = "image+" . $imagename;
-	if (!findLVMLogicalVolume($lvname) &&
-	    !defined($imagemetadata)) {
+	if (!lvmFindVolume($lvname) && !defined($imagemetadata)) {
 	    
 	    #
 	    # Need an exclusive lock for this.
@@ -861,7 +865,7 @@ sub vnodeCreate($$$$)
 	    TBDebugTimeStamp("  got image lock")
 		if ($lockdebug);
 	    # And now check again in case someone else snuck in.
-	    if (!findLVMLogicalVolume($lvname) && createRootDisk($imagename)) {
+	    if (!lvmFindVolume($lvname) && createRootDisk($imagename)) {
 		TBScriptUnlock();
 		fatal("xen_vnodeCreate: ".
 		      "cannot find create root disk for default image");
@@ -886,7 +890,7 @@ sub vnodeCreate($$$$)
 	# not have any reload info to get it.
 	#
 	$lvname = "image+" . $imagename;
-	if (!findLVMLogicalVolume($lvname)) {
+	if (!lvmFindVolume($lvname)) {
 	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
 		  "cannot find logical volume for $lvname, and no reload info");
@@ -995,7 +999,7 @@ sub vnodeCreate($$$$)
 	    my $vdisk = $dpre .	chr($auxchar);
 	    my $auxlvname = "${vnode_id}.${vdisk}";
 	    
-	    if (!findLVMLogicalVolume($auxlvname)) {
+	    if (!lvmFindVolume($auxlvname)) {
 		if (createAuxDisk($auxlvname, $dsize . "G")) {
 		    fatal("libvnode_xen: could not create aux disk: $vdisk");
 		}
@@ -1062,15 +1066,14 @@ sub vnodeCreate($$$$)
     # correct image.  Otherwise destroy the current vnode LVM so it
     # will get correctly associated below.
     #
-    if (findLVMLogicalVolume($vnode_id)) {
-	my $golden = ($dothinlv ? findLVMOrigin($vnode_id) : "");
+    if (lvmFindVolume($vnode_id)) {
+	my $golden = ($dothinlv ? lvmFindOrigin($vnode_id) : "");
 	my $ngolden = nameGoldenImage($imagename);
 
 	if (defined($raref) || ($golden && $golden ne $ngolden)) {
 	    print STDERR "$vnode_id: destroying old disk, ".
 		"golden='$golden', ngolden='$ngolden'\n";
-	    RunWithLock("kpartx", "kpartx -dv $rootvndisk");
-	    if (mysystem2("lvremove -f $VGNAME/$vnode_id")) {
+	    if (lvmDestroyVolume($vnode_id, 1)) {
 		TBScriptUnlock();
 		fatal("xen_vnodeCreate: ".
 		      "could not destroy old disk for $vnode_id");
@@ -1083,7 +1086,7 @@ sub vnodeCreate($$$$)
 	    if ($REAP_GDS && $golden && $golden ne $ngolden) {
 		(my $oimage = $golden) =~ s/^_G_//;
 		my $glock = grabGoldenLock($oimage);
-		if ($glock && GClvm($golden, 0)) {
+		if ($glock && lvmGC($golden, 0)) {
 		    print STDERR "xen_vnodeCreate: could not GC ".
 			"unreferenced golden image '$golden'\n";
 		}
@@ -1112,7 +1115,7 @@ sub vnodeCreate($$$$)
     #
     # Create the snapshot LVM.
     #
-    if (!findLVMLogicalVolume($vnode_id)) {
+    if (!lvmFindVolume($vnode_id)) {
 	#
 	# Need to create a new disk for the container. But lets see
 	# if we have a disk cached or a golden image. We still have
@@ -1145,6 +1148,17 @@ sub vnodeCreate($$$$)
 	#
 	else {
 	    #
+	    # Cannot use/create a golden image if there is a user-specified
+	    # extra filesystem.
+	    #
+	    my $extrafs = 
+		(exists($attributes->{'XEN_EXTRAFS'}) ?
+		 $attributes->{'XEN_EXTRAFS'} : undef);
+	    if ($extrafs) {
+		$dothinlv = 0;
+	    }
+
+	    #
 	    # Golden image. Create a clone of the golden image.
 	    #
 	    my $glock;
@@ -1174,10 +1188,6 @@ sub vnodeCreate($$$$)
 	    # Not doing golden images or golden image does not exist yet.
 	    # Either way, we need to unpack the images to create a disk.
 	    #
-	    my $extrafs = 
-		(exists($attributes->{'XEN_EXTRAFS'}) ?
-		 $attributes->{'XEN_EXTRAFS'} : undef);
-	    
 	    if (CreatePrimaryDisk($lvname, $imagemetadata,
 				  $vnode_id, $extrafs, $dothinlv)) {
 		releaseGoldenLock($glock)
@@ -1347,7 +1357,7 @@ okay:
 	my $auxlvname = "${vnode_id}.swap";
 	my $vndisk = lvmVolumePath($auxlvname);
 	
-	if (!findLVMLogicalVolume($auxlvname)) {
+	if (!lvmFindVolume($auxlvname)) {
 	    if (createAuxDisk($auxlvname, "2G")) {
 		fatal("libvnode_xen: could not create swap disk");
 	    }
@@ -1374,7 +1384,7 @@ okay:
 	    my ($name,$size) = split(":", $disk);
 
 	    my $auxlvname = "${vnode_id}.${name}";
-	    if (!findLVMLogicalVolume($auxlvname)) {
+	    if (!lvmFindVolume($auxlvname)) {
 		if (createAuxDisk($auxlvname, $size)) {
 		    fatal("libvnode_xen: could not create aux disk: $name");
 		}
@@ -2193,7 +2203,7 @@ sub vnodeState($$$$)
 	else {
 	    $lvname = $private->{'disks'}->{$vnode_id};
 	}
-	if (findLVMLogicalVolume($lvname)) {
+	if (lvmFindVolume($lvname)) {
 	    $out = VNODE_STATUS_STOPPED();
 	}
     }
@@ -2422,12 +2432,13 @@ sub vnodeDestroy($$$$)
 	else {
 	    $lvname = $private->{'disks'}->{$key};
 	}
-	if (findLVMLogicalVolume($lvname)) {
+	if (lvmFindVolume($lvname)) {
 	    my $golden;
 
+	    my $force = 0;
 	    if ($lvname eq $vnode_id) {
 		if ($dothinlv && $lvname eq $vnode_id) {
-		    my $origin = findLVMOrigin($lvname);
+		    my $origin = lvmFindOrigin($lvname);
 		    if ($origin =~ /^_G_/) {
 			$golden = $origin;
 		    }
@@ -2448,10 +2459,9 @@ sub vnodeDestroy($$$$)
 			}
 		    }
 		}
-		my $rootvndisk = lvmVolumePath($vnode_id);
-		RunWithLock("kpartx", "kpartx -dv $rootvndisk");
+		$force = 1;
 	    }
-	    if (mysystem2("lvremove -f $VGNAME/$lvname")) {
+	    if (lvmDestroyVolume($lvname, $force)) {
 		print STDERR
 		    "xen_vnodeDestroy: could not destroy disk $lvname!\n";
 	    }
@@ -2464,7 +2474,7 @@ sub vnodeDestroy($$$$)
 		if ($REAP_GDS && $golden) {
 		    (my $oimage = $golden) =~ s/^_G_//;
 		    my $glock = grabGoldenLock($oimage);
-		    if ($glock && GClvm($golden, 0)) {
+		    if ($glock && lvmGC($golden, 0)) {
 			print STDERR "xen_vnodeDestroy: could not GC ".
 			    "unreferenced golden image '$golden'\n";
 		    }
@@ -2603,8 +2613,8 @@ sub createRootDisk($)
     # there are so many ways this will die.
     #
     eval {
-	if (createLVMLogicalVolume("rootdisk", "${XEN_LDSIZE}k",
-				   ALLOC_PREFERNOPOOL())) {
+	if (lvmCreateVolume("rootdisk", "${XEN_LDSIZE}k",
+			    ALLOC_PREFERNOPOOL())) {
 	    exit(1);
 	}
 	my $vndisk = lvmVolumePath("rootdisk");
@@ -2636,8 +2646,9 @@ sub createRootDisk($)
 	# Now kill off the lvm and create one for the compressed version.
 	# Need to know the number of CHUNKS for later.
 	#
-	RunWithLock("kpartx", "kpartx -dv $vndisk");
-	mysystem("lvremove -f $VGNAME/rootdisk");
+	if (lvmDestroyVolume("rootdisk", 1)) {
+	    fatal("Could not remove rootdisk");
+	}
 
 	my (undef,undef,undef,undef,undef,undef,undef,$lvsize) =
 	    stat("$EXTRAFS/rootdisk.ndz");
@@ -2673,6 +2684,7 @@ sub CreatePrimaryDisk($$$$;$)
     # with it. Then lay down each delta on top if it. 
     #
     my @deltas = ();
+    my $origmetadata = $imagemetadata;
     if (exists($imagemetadata->{'PARENTIMAGE'})) {
 	while (exists($imagemetadata->{'PARENTIMAGE'})) {
 	    my $parent = $imagemetadata->{'PARENTIMAGE'};
@@ -2725,8 +2737,10 @@ sub CreatePrimaryDisk($$$$;$)
 	    # In GB, so convert to K
 	    $lv_size += $extrafs * (1024 * 1024);
 
-	    # XXX no golden image if there is an extra fs
+	    # XXX no golden image if not the default size
 	    $dothinlv = 0;
+	} else {
+	    $lv_size += $XEN_EXTRASIZE;
 	}
     }
 
@@ -2737,7 +2751,7 @@ sub CreatePrimaryDisk($$$$;$)
     # disk directly. This could happen if we fill up the pool.
     #
     if ($dothinlv) {
-	my $imagename = $imagemetadata->{'IMAGENAME'};
+	my $imagename = $origmetadata->{'IMAGENAME'};
 	if (createGoldenImage($imagename, $lv_size)) {
 	    print STDERR "libvnode_xen: failed to create golden disk, ".
 		"falling back on direct vnode creation.\n";
@@ -2747,7 +2761,7 @@ sub CreatePrimaryDisk($$$$;$)
 	}
     }
     if (!$dothinlv &&
-	createLVMLogicalVolume($target, "${lv_size}k", ALLOC_PREFERNOPOOL())) {
+	lvmCreateVolume($target, "${lv_size}k", ALLOC_PREFERNOPOOL())) {
 	print STDERR "libvnode_xen: could not create disk for $target\n";
 	return -1;
     }
@@ -2774,12 +2788,12 @@ sub CreatePrimaryDisk($$$$;$)
 		if (! -e "$boot") {
 		    print STDERR
 			"libvnode_xen: no boot0 code for FreeBSD HVM boot\n";
-		    return -1;
+		    goto fail;
 		}
 	    }
 	    if (mysystem2("dd if=$boot of=$rootvndisk bs=512 count=1")) {
 		print STDERR "libvnode_xen: could not install FreeBSD boot0\n";
-		return -1;
+		goto fail;
 	    }
 	}
 
@@ -2793,7 +2807,7 @@ sub CreatePrimaryDisk($$$$;$)
 	my $partfile = tmpnam();
 	if (!open(FILE, ">$partfile")) {
 	    print STDERR "libvnode_xen: could not create $partfile\n";
-	    return -1;
+	    goto fail;
 	}
 	my $mbrvers = 2;
 	if (exists($imagemetadata->{'MBRVERS'})) {
@@ -2842,25 +2856,26 @@ sub CreatePrimaryDisk($$$$;$)
 	my $slice2_start = $slice1_start + $slice1_size;
 	my $slice3_size  = $XEN_SWAPSIZE * 2;
 	my $slice3_start = $slice2_start + $slice2_size;
+
+	my $slice4_start = $slice3_start + $slice3_size;
+	my $slice4_size = $XEN_EXTRASIZE * 2;
+	if (defined($extrafs)) {
+	    $slice4_size  = $extrafs;
+	    # In GB, so convert to sectors
+	    $slice4_size = $slice4_size * (1024 * 1024) * 2;
+	}
 	
 	print FILE "$slice1_start,$slice1_size,$slice1_type${slice1_active}\n";
 	print FILE "$slice2_start,$slice2_size,$slice2_type${slice2_active}\n";
 	print FILE "$slice3_start,$slice3_size,S\n";
+	print FILE "$slice4_start,$slice4_size,0\n";
 
-	if (defined($extrafs)) {
-	    my $slice4_size  = $extrafs;
-	    # In GB, so convert to sectors
-	    $slice4_size = $slice4_size * (1024 * 1024) * 2;
-	    my $slice4_start = $slice3_start + $slice3_size;
-
-	    print FILE "$slice4_start,$slice4_size,0\n";
-	}
 	close(FILE);
 		    
 	if (mysystem2("cat $partfile | ".
 		      "    sfdisk --force -x -D -u S $rootvndisk")) {
 	    print STDERR "libvnode_xen: could not partition root disk\n";
-	    return -1;
+	    goto fail;
 	}
 	unlink($partfile);
 	if (exists($imagemetadata->{'FROMFILE'})) {
@@ -2873,7 +2888,7 @@ sub CreatePrimaryDisk($$$$;$)
 	    mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
 		      "nice $IMAGEUNZIP -s $loadslice -f -o ".
 		      "                 -W 164 - $rootvndisk");
-	    return -1
+	    goto fail
 		if ($?);
 
 	    #
@@ -2889,7 +2904,7 @@ sub CreatePrimaryDisk($$$$;$)
 			  "nice $IMAGEUNZIP -s $loadslice -f -o ".
 			  "                 -W 164 - $rootvndisk");
 
-		return -1
+		goto fail
 		    if ($?);
 	    }
 	}
@@ -2897,25 +2912,42 @@ sub CreatePrimaryDisk($$$$;$)
     else {
 	mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
 		  "nice $IMAGEUNZIP -f -o -W 164 - $rootvndisk");
-    }
-    if ($?) {
-	if ($dothinlv) {
-	    my $imagename = $imagemetadata->{'IMAGENAME'};
-	    destroyGoldenImage($imagename);
-	}
-	return -1;
-    }
+	goto fail
+	    if ($?);
 
+	#
+	# Lay down the deltas.
+	#
+	while (@deltas) {
+	    my $delta_metadata = pop(@deltas);
+	    $lvname   = "image+" . $delta_metadata->{'IMAGENAME'};
+	    $basedisk = lvmVolumePath($lvname);
+	    $chunks   = $delta_metadata->{'IMAGECHUNKS'};
+	    
+	    mysystem2("nice dd if=$basedisk bs=1M count=$chunks | ".
+		      "nice $IMAGEUNZIP -f -o -W 164 - $rootvndisk");
+
+	    goto fail
+		if ($?);
+	}
+    }
     if ($dothinlv) {
 	# get rid of any partition devices on golden disk...
 	RunWithLock("kpartx", "kpartx -dv $rootvndisk");
 
-	my $imagename = $imagemetadata->{'IMAGENAME'};
+	my $imagename = $origmetadata->{'IMAGENAME'};
 	if (cloneGoldenImage($imagename, $target)) {
 	    return -1;
 	}
     }
     return 0;
+
+fail:
+    if ($dothinlv) {
+	my $imagename = $origmetadata->{'IMAGENAME'};
+	destroyGoldenImage($imagename);
+    }
+    return -1;
 }
 
 #
@@ -2925,7 +2957,7 @@ sub createAuxDisk($$)
 {
     my ($lv,$size) = @_;
 
-    if (createLVMLogicalVolume($lv, $size, ALLOC_PREFERNOPOOL())) {
+    if (lvmCreateVolume($lv, $size, ALLOC_PREFERNOPOOL())) {
 	return -1;
     }
     return 0;
@@ -2977,7 +3009,7 @@ sub createGoldenImage($$)
 
     # create the thin LV
     # Note that we do not have to stripe the volumes since we did the pool
-    if (createLVMLogicalVolume($gimage, "${imagesize}k", ALLOC_INPOOL())) {
+    if (lvmCreateVolume($gimage, "${imagesize}k", ALLOC_INPOOL())) {
 	print STDERR "$imagename: could not create golden snapshot\n";
 	return -1;
     }
@@ -2989,7 +3021,7 @@ sub hasGoldenImage($)
 {
     my ($imagename) = @_;
 
-    return findLVMLogicalVolume(nameGoldenImage($imagename));
+    return lvmFindVolume(nameGoldenImage($imagename));
 }
 
 sub cloneGoldenImage($$)
@@ -3016,10 +3048,7 @@ sub destroyGoldenImage($)
     my ($imagename) = @_;
     my $gname = nameGoldenImage($imagename);
 
-    # make sure there are no partition devices associated with the GI
-    RunWithLock("kpartx", "kpartx -dv /dev/$VGNAME/$gname");
-
-    if (mysystem2("lvremove -f $VGNAME/$gname")) {
+    if (lvmDestroyVolume($gname, 1)) {
 	print STDERR "$imagename: could not remove golden image!\n";
 	return -1;
     }
@@ -3090,7 +3119,7 @@ sub createImageDisk($$$$)
     TBDebugTimeStamp("  got image lock")
 	if ($lockdebug);
     #
-    # XXX note that we don ot declare RELOADDONE here since we have not
+    # XXX note that we don't declare RELOADDONE here since we have not
     # actually created the vnode disk yet. That is the caller's
     # responsibility.
     #    
@@ -3136,7 +3165,7 @@ sub downloadOneImage($$$)
     # Do we have the right image file already? No need to download it
     # again if the timestamp matches. 
     #
-    if (findLVMLogicalVolume($lvname)) {
+    if (lvmFindVolume($lvname)) {
 	if (-e $imagedatepath) {
 	    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
 		$mtime,undef,undef,undef) = stat($imagedatepath);
@@ -3160,13 +3189,13 @@ sub downloadOneImage($$$)
 	}
     }
 
-    if (findLVMLogicalVolume($lvname)) {
+    if (lvmFindVolume($lvname)) {
 	# For the package case.
 	if (-e "/mnt/$image/.mounted" && mysystem2("umount /mnt/$image")) {
 	    print STDERR "Could not umount /mnt/$image\n";
 	    goto bad;
 	}
-	if (GClvm($lvname, 1)) {
+	if (lvmGC($lvname, 1)) {
 	    print STDERR "Could not GC or rename $lvname\n";
 	    goto bad;
 	}
@@ -3234,7 +3263,7 @@ sub downloadOneImage($$$)
 		 (1024 / $ssize));
 	}
     }
-    if (createLVMLogicalVolume($lvname, "${lv_size}m", ALLOC_PREFERNOPOOL())) {
+    if (lvmCreateVolume($lvname, "${lv_size}m", ALLOC_PREFERNOPOOL())) {
 	print STDERR "libvnode_xen: could not create disk for $image\n";
 	goto bad;
     }
@@ -4440,7 +4469,7 @@ sub doingThinLVM()
     }
 
     # see if pool exists
-    if (!findLVMLogicalVolume($POOL_NAME)) {
+    if (!lvmFindVolume($POOL_NAME)) {
 	print STDERR "WARNING: no thin pool found, ".
 	    "disabling golden image support\n";
 	$usethin = 0;
@@ -4471,7 +4500,7 @@ sub lvmVGSize($)
     die "libvnode_xen: cannot parse LVM volume group size";
 }
 
-sub createLVMLogicalVolume($$$)
+sub lvmCreateVolume($$$)
 {
     my ($name,$size,$flag) = @_;
 
@@ -4518,13 +4547,54 @@ fail:
     return -1;
 }
 
+sub lvmDestroyVolume($$)
+{
+    my ($name,$force) = @_;
+    my $path = lvmVolumePath($name);
+
+    # get rid of partition devices
+    if ($force) {
+	RunWithLock("kpartx", "kpartx -dv $path");
+    }
+
+    # and the volume itself
+    if (!mysystem2("lvremove -f $VGNAME/$name")) {
+	return 0;
+    }
+
+    #
+    # XXX Could not delete volume. Sometimes this is because there is a
+    # left-over partition device. Not sure why kpartx doesn't catch it,
+    # but we try to clean it up manually.
+    #
+    if ($force) {
+	my $tryagain = 0;
+	my $dmname = "$VGNAME/$name";
+	$dmname =~ s#-#--#g;
+	$dmname =~ s#/#-#;
+	foreach my $part (1..4) {
+	    my $dev = "${dmname}p$part";
+	    if (-e "/dev/mapper/$dev" && !mysystem2("dmsetup remove $dev")) {
+		print STDERR "WARNING: removed leftover partdev '$dev'\n";
+		$tryagain = 1;
+	    }
+	}
+	if ($tryagain && !mysystem2("lvremove -f $VGNAME/$name")) {
+	    return 0;
+	}
+    }
+
+    # just could not pull it off
+    return -1;
+}
+
 sub lvmVolumePath($)
 {
     my ($name) = @_;
     return "/dev/$VGNAME/$name";
 }
 
-sub findLVMLogicalVolume($)
+sub lvmFindVolume($)
 {
     my ($lvm)  = @_;
     my $lvpath = lvmVolumePath($lvm);
@@ -4539,7 +4609,7 @@ sub findLVMLogicalVolume($)
 # Return the LVM that the indicated one is a snapshot of, or a null
 # string if none.
 #
-sub findLVMOrigin($)
+sub lvmFindOrigin($)
 {
     my ($lv) = @_;
 
@@ -4555,14 +4625,14 @@ sub findLVMOrigin($)
 # GC an image lvm (or optionally rename it if busy).
 # We can collect the lvm if there are no other lvms based on it.
 #
-sub GClvm($$)
+sub lvmGC($$)
 {
     my ($image,$dorename)  = @_;
     my $oldest   = 0;
     my $inuse    = 0;
     my $found    = 0;
 
-    TBDebugTimeStamp("GClvm($image) invoked");
+    TBDebugTimeStamp("lvmGC($image) invoked");
     if (! open(LVS, "lvs --noheadings -o lv_name,origin $VGNAME |")) {
 	print STDERR "Could not start lvs\n";
 	return -1;
@@ -4609,15 +4679,14 @@ sub GClvm($$)
 	if ($?);
     print "found:$found, inuse:$inuse, oldest:$oldest\n";
     if (!$found) {
-	print STDERR "GClvm($image): no such lvm found\n";
+	print STDERR "lvmGC($image): no such lvm found\n";
 	return -1;
     }
     if (!$inuse) {
-	print "GClvm($image): not in use; deleting\n";
-	RunWithLock("kpartx", "kpartx -dv /dev/$VGNAME/$image");
- 	mysystem2("lvremove -f /dev/$VGNAME/$image");
-	return -1
-	    if ($?);
+	print "lvmGC($image): not in use; deleting\n";
+	if (lvmDestroyVolume($image, 1)) {
+	    return -1;
+	}
 	return 0;
     }
     if ($dorename) {
