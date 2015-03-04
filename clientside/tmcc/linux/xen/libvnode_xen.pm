@@ -3259,8 +3259,8 @@ sub downloadOneImage($$$)
 	    $ssize = 512 if (!defined($ssize));
 
 	    $raref->{'LVSIZE'} =
-		(($raref->{'IMAGEHIGH'} - $raref->{'IMAGELOW'} + 1) /
-		 (1024 / $ssize));
+		int(($raref->{'IMAGEHIGH'} - $raref->{'IMAGELOW'} + 1) /
+		    (1024 / $ssize) + 0.5);
 	}
     }
     if (lvmCreateVolume($lvname, "${lv_size}m", ALLOC_PREFERNOPOOL())) {
