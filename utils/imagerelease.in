@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2014 University of Utah and the Flux Group.
+# Copyright (c) 2014-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -55,6 +55,7 @@ my $TB		  = "@prefix@";
 my $FSNODE	  = "@FSNODE@";
 my $PROJROOT      = "@PROJROOT_DIR@";
 my $IMAGEVALIDATE = "$TB/sbin/imagevalidate";
+my $SSH		  = "/usr/bin/ssh";
 my $SCP		  = "/usr/bin/scp";
 my $SUDO	  = "/usr/local/bin/sudo";
 
@@ -227,6 +228,17 @@ if ($image->Release()) {
     $image->Unlock();    
     fatal("Could not mark image as released!");
 }
+
+# If everything worked, remove the copies on ops to avoid unsightly clutter
+if (defined($copytofile)) {
+    my $hfile = $copyfromfile . ".sha1";
+
+    if (!$quiet) {
+	print "Removing temporary copy on $FSNODE\n";
+    }
+    system("$SUDO $SSH ${FSNODE} rm -f $copyfromfile $copyfromsig $hfile");
+}
+
 $image->Unlock();    
 exit(0);
 
