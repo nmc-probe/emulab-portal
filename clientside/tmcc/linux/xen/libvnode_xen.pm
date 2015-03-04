@@ -1697,12 +1697,12 @@ sub vnodePreConfig($$$$$){
 	
 	my $ldisk = "da0s1";
 	if (-e "$vnoderoot/etc/dumpdates") {
-	    mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
+	    mysystem2("sed -i.bak -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
 		      "  $vnoderoot/etc/dumpdates");
 	    goto bad
 		if ($?);
 	}
-	mysystem2("sed -i -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
+	mysystem2("sed -i.bak -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
 		  "  $vnoderoot/etc/fstab");
 	goto bad
 	    if ($?);
