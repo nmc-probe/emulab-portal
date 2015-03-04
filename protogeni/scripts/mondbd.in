@@ -168,7 +168,7 @@ sub AddInterfaces($$$) {
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface_addresses SET " .
 			     "interface_id='${DOMAIN}_interface_$n:$i'," .
-			     "addrtype='ipv4'," .
+			     "addrtype='IPv4'," .
 			     "address='$addr'" );
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node_interface SET " .
@@ -202,10 +202,11 @@ sub AddInterfaceVlan($$$$$) {
 
     my ($linkid,$idomain,$iface,$tag,$ts) = @_;
     my $url;
-
+    my $interfaceurl;
+    
     $url = "$URL/info/interfacevlan/${idomain}_interface_${iface}:${tag}";
+    $interfaceurl = "$URL/info/interface/${idomain}_interface_${iface}";
 
-    # FIXME would be nice to give interface_href, but in general we don't know
     emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interfacevlan SET " .
 			 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interfacevlan#', " .
 			 "id='${idomain}_interface_${iface}:${tag}', " .
@@ -213,8 +214,20 @@ sub AddInterfaceVlan($$$$$) {
 			 "urn='urn:publicid:IDN+$idomain+interfacevlan+$iface:$tag', " .
 			 "ts='$ts', " .
 			 "tag=$tag," .
-			 "interface_urn='urn:publicid:IDN+$idomain+interface+$iface'" );
+			 "interface_urn='urn:publicid:IDN+$idomain+interface+$iface'," .
+			 "interface_href='$interfaceurl'" );
 
+    if( $idomain ne $DOMAIN ) {
+	# Need to add a fake interface entry for the foreign interface.
+	emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interface SET " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interface#', " .
+			     "id='${idomain}_interface_${iface}'," .
+			     "selfRef='${interfaceurl}'," .
+			     "urn='urn:publicid:IDN+$idomain+interface+$iface'," .
+			     "ts='$ts'," .
+			     "properties\$role='stub'" );
+    }
+    
     emdbi::DBQueryWarnN( $db, "INSERT INTO ops_link_interfacevlan SET " .
 			 "id='${idomain}_interface_${iface}:${tag}', " .
 			 "link_id='${DOMAIN}_link_$linkid'" );
@@ -354,6 +367,7 @@ while (1) {
     emdbi::DBQueryWarnN( $db, "UNLOCK TABLES" );
 
     emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_link WRITE, " .
+			 "ops_interface WRITE, " .
 			 "ops_interfacevlan WRITE, " .
 			 "ops_link_interfacevlan WRITE, " .
 			 "ops_aggregate_resource WRITE" );
