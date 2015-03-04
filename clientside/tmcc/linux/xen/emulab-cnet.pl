@@ -302,8 +302,21 @@ sub Online()
 
     # Start a capture for the serial console.
     if (-e "$CAPTURE") {
-	my $tty = `xenstore-read /local/domain/$domid/console/tty`;
-	if (! $?) {
+	my $tty;
+
+	#
+	# XXX HVMs can use an emulated UART as their console.
+	# Check for that.
+	#
+	if (!mysystem2("xenstore-read /local/domain/$domid/hvmloader >/dev/null 2>&1")) {
+	    $tty = `xenstore-read /local/domain/$domid/serial/0/tty 2>/dev/null`;
+	    $tty = undef if ($?);
+	}
+	if (!$tty) {
+	    $tty = `xenstore-read /local/domain/$domid/console/tty 2>/dev/null`;
+	    $tty = undef if ($?);
+	}
+	if ($tty) {
 	    chomp($tty);
 	    $tty =~ s,\/dev\/,,;
 
