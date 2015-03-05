@@ -399,3 +399,8 @@ blockquote #selected_profile_description {
 .jacks #canvasContainer, .jacks #topoButtons {
     background-color: #fff;
 }
+
+.form-control[readonly] {
+    cursor: default;
+}
+
