@@ -145,7 +145,7 @@ sub AddInterfaces($$$) {
     foreach my $interface( @interfaces ) {
 	my $i = $interface->iface();
 	my $addr = $interface->IP();
-	my $role = $interface->role();
+	my $role = $interface->role() eq "ctrl" ? "control" : "experimental";
 	my $speed;
 	my $packets;
 
@@ -169,7 +169,8 @@ sub AddInterfaces($$$) {
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface_addresses SET " .
 			     "interface_id='${DOMAIN}_interface_$n:$i'," .
 			     "addrtype='IPv4'," .
-			     "address='$addr'" );
+			     "address='$addr'" )
+	    if( $addr =~ /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ );
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node_interface SET " .
 			     "id='${DOMAIN}_interface_$n:$i'," .
