@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+include("instance_defs.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
 $page_title = "Create Dataset";
 
@@ -75,6 +76,17 @@ function SPITFORM($formfields, $errors)
     echo "<script type='text/plain' id='projects-json'>\n";
     echo htmlentities(json_encode($plist));
     echo "</script>\n";
+
+    if (!$embedded) {
+        $am_array = Instance::DefaultAggregateList();
+        $amlist   = array();
+        while (list($am) = each($am_array)) {
+            $amlist[] = $am;
+        }
+        echo "<script type='text/plain' id='amlist-json'>\n";
+        echo htmlentities(json_encode($amlist));
+        echo "</script>\n";
+    }
     
     # FS types.
     $fstypelist = array();
@@ -118,6 +130,7 @@ if (! isset($create)) {
     $defaults["dataset_fstype"] = 'ext3';
     $defaults["dataset_read"]   = 'project';
     $defaults["dataset_modify"] = 'creator';
+    $defaults["dataset_am"]     = '';
     # Default project.
     if (count($projlist) == 1) {
 	$defaults["dataset_pid"] = $projlist[0];

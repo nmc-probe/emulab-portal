@@ -62,6 +62,12 @@ sub versid($)
 
     return $self->imageid() . ":" . $self->version();
 }
+sub versname($)
+{
+    my ($self) = @_;
+
+    return $self->pid() . "/" . $self->imagename() . ":" . $self->version();
+}
 
 # Little helper and debug function.
 sub mysystem($)
@@ -432,22 +438,27 @@ sub Create($$$$$$$$)
 	if (ref($class) || !ref($project));
 
     my $isadmin = $creator->IsAdmin();
+    my $isdataset = (exists($argref->{"isdataset"}) ?
+		     $argref->{"isdataset"} : 0);
 
     # We may ignore particular partN_osid's by deleting them.
     my @arg_slots = grep(/^part[1-4]_osid$/, keys(%{$argref}));
 
     # Pass-through a bunch of required slots, ignoring any extras
     # and stuff we handle explicitly.
-    foreach my $key ("loadpart", "loadlength", "default_osid") {
-	if (!exists($argref->{$key})) {
-	    $$usrerr_ref = "Error: $key missing in Image->Create!";
-	    return undef;
+    if (!$isdataset) {
+	foreach my $key ("loadpart", "loadlength", "default_osid") {
+	    if (!exists($argref->{$key})) {
+		$$usrerr_ref = "Error: $key missing in Image->Create!";
+		return undef;
+	    }
+	    push(@arg_slots, $key);
 	}
-	push(@arg_slots, $key);
     }
     # Pass-through optional slots, otherwise the DB default is used.
     foreach my $key ("path", "shared", "global", "ezid", "mbr_version",
-		     "metadata_url", "imagefile_url", "released") {
+		     "metadata_url", "imagefile_url", "released",
+		     "isdataset") {
 	if (exists($argref->{$key})) {
 	    push(@arg_slots, $key);
 	}
@@ -496,7 +507,7 @@ sub Create($$$$$$$$)
 
     # We allow providing an image descriptor index, so newimageid_ez can use
     # the same name, description, and index for both the OS and Image it makes.
-    if ($imageid > 0 ) {
+    if (defined($imageid) && $imageid > 0 ) {
 	# Make sure the OS descriptor for it already exists.
 	if (!OSinfo->Lookup($imageid)) {
 	    DBQueryWarn("unlock tables");
@@ -555,6 +566,7 @@ sub Create($$$$$$$$)
     }
     # And the other entry.
     if (! DBQueryWarn($query)) {
+	DBQueryWarn("delete from images where uuid='$image_uuid'");
 	DBQueryWarn("unlock tables");
 	tberror("Error inserting new images record for $pid/$imagename!");
 	return undef;
@@ -565,7 +577,7 @@ sub Create($$$$$$$$)
     # Create the osidtoimageid mapping.  Admins have an option to do it or not.
     my $makedefault = exists($argref->{"makedefault"}) && 
 	$argref->{"makedefault"} eq "1";
-    if (!$isadmin || $makedefault) {
+    if (!$isdataset && (!$isadmin || $makedefault)) {
 	#
 	# Dig out the mtypes we want to turn on. The caller has already
 	# sanity checked them to make sure the types actually exist, and
@@ -1677,11 +1689,16 @@ sub GrantAccess($$$)
 	$perm_id   = $target->uid();
 	$perm_type = "user";
     }
-    if (ref($target) eq "Group") {
+    elsif (ref($target) eq "Group") {
 	$perm_idx  = $target->gid_idx();
 	$perm_id   = $target->pid() . "/" . $target->gid();
 	$perm_type = "group";
     }
+    elsif (ref($target) eq "Project") {
+	$perm_idx  = $target->gid_idx();
+	$perm_id   = $target->pid() . "/" . $target->gid();
+	$perm_type = "group";
+    } 
 
     return -1
 	if (!DBQueryWarn("replace into image_permissions set ".

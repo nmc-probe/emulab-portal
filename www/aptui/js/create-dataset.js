@@ -1,8 +1,9 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
 	 'js/lib/text!template/create-dataset.html',
+	 'js/lib/text!template/dataset-help.html',
 	 'jquery-ui'],
-function (_, sup, moment, mainString)
+function (_, sup, moment, mainString, helpString)
 {
     'use strict';
 
@@ -10,6 +11,7 @@ function (_, sup, moment, mainString)
     var fields       = null;
     var fstypes      = null;
     var projlist     = null;
+    var amlist       = null;
     var editing      = false;
     var isadmin      = false;
     var embedded     = 0;
@@ -27,6 +29,9 @@ function (_, sup, moment, mainString)
 	    projlist =
 		JSON.parse(_.unescape($('#projects-json')[0].textContent));
 	}
+	if (! (editing || embedded)) {
+	    amlist = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+	}
 	GeneratePageBody(fields, null);
     }
 
@@ -41,6 +46,7 @@ function (_, sup, moment, mainString)
 	    formfields:		formfields,
 	    fstypes:		fstypes,
 	    projects:           projlist,
+	    amlist:		amlist,
 	    title:		window.TITLE,
 	    embedded:		window.EMBEDDED,
 	    editing:		editing,
@@ -55,6 +61,21 @@ function (_, sup, moment, mainString)
 	    trigger: 'hover',
 	    container: 'body'
 	});
+	$('#dataset_help_link').popover({
+	    html:     true,
+	    content:  helpString,
+	    trigger:  'manual',
+	    placement:'auto',
+	    container:'body',
+	});
+	$("#dataset_help_link").click(function(event) {
+	    event.preventDefault();
+	    $('#dataset_help_link').popover('show');
+	    $('#dataset_popover_close').on('click', function(e) {
+		$('#dataset_help_link').popover('hide');
+	    });
+	});
+	
 	// stdatasets need ro show the expiration date.
 	var needexpire = false;
 	if (formfields["dataset_type"] == "stdataset") {
@@ -79,9 +100,21 @@ function (_, sup, moment, mainString)
 		var val = $(this).val();
 		if (val == "stdataset") {
 		    $('#dataset_expires_div').removeClass("hidden");
+		    $('#dataset_size_div').removeClass("hidden");
+		    $('#dataset_fstype_div').removeClass("hidden");
+		    $('#dataset_imageonly_div').addClass("hidden");
+		}
+		else if (val == "ltdataset") {
+		    $('#dataset_expires_div').addClass("hidden");
+		    $('#dataset_size_div').removeClass("hidden");
+		    $('#dataset_fstype_div').removeClass("hidden");
+		    $('#dataset_imageonly_div').addClass("hidden");
 		}
 		else {
 		    $('#dataset_expires_div').addClass("hidden");
+		    $('#dataset_size_div').addClass("hidden");
+		    $('#dataset_fstype_div').addClass("hidden");
+		    $('#dataset_imageonly_div').removeClass("hidden");
 		}
 	    });
 	}

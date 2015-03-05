@@ -24,6 +24,7 @@
 chdir("..");
 include("defs.php3");
 include("lease_defs.php");
+include("imageid_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("dataset_defs.php");
@@ -47,8 +48,13 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 #
 # Either a local lease or a remote dataset. 
 #
-$dataset = Lease::Lookup($uuid);
-if (!$dataset) {
+if ($embedded) {
+    $dataset = Lease::Lookup($uuid);
+    if (!$dataset) {
+        $dataset = ImageDataset::Lookup($uuid);
+    }
+}
+else {
     $dataset = Dataset::Lookup($uuid);
 }
 if (!$dataset) {

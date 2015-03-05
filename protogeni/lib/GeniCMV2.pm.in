@@ -2419,6 +2419,7 @@ sub CreateImage($)
     my $imagename    = $argref->{'imagename'};
     my $sliver_urn   = $argref->{'sliver_urn'};
     my $wholedisk    = 0;
+    my $bsname;
 
     require Image;
     require WebTask;
@@ -2432,7 +2433,12 @@ sub CreateImage($)
     }
     $wholedisk = 1
 	if (exists($argref->{'wholedisk'}) && $argref->{'wholedisk'});
-    
+    # Optional blockstore name.
+    if (exists($argref->{'bsname'})) {
+	$bsname = $argref->{'bsname'};
+	return GeniResponse->MalformedArgsResponse("Improper bsname argument")
+	    if ($bsname !~ /^[-\w\.\+]*$/);
+    }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
@@ -2504,9 +2510,23 @@ sub CreateImage($)
 				    "Not allowed to shadow system images; ".
 				    "use a different name for your image");
     }
-    # See if it already exists.
+    # See if it already exists and check ownership permission.
     my $image = Image->Lookup($experiment->pid(), $imagename);
-
+    if (defined($image)) {
+	if (!defined($image->creator_urn()) ||
+	    $image->creator_urn() ne $user->urn()) {
+	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+					"This is not your image to overwrite");
+	}
+	if (defined($bsname) && !$image->isdataset()) {
+	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+					"This image is not a dataset");
+	}
+    }
+    elsif (defined($bsname)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Dataset for $bsname does not exist");
+    }
     if (!defined(GeniCM::FlipToUser($slice, $user))) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "FlipToUser failed");
@@ -2517,6 +2537,12 @@ sub CreateImage($)
     #
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
+    }
+    #
+    # We do not version datasets yet,
+    #
+    if (defined($image) && $image->isdataset()) {
+	goto dataset;
     }
     my $opt  = "";
     $opt .= " -e" if ($wholedisk);
@@ -2558,7 +2584,7 @@ sub CreateImage($)
 	# Cause of image versioning.
 	$image = $image->LookupMostRecent();
     }
-    
+dataset:    
     #
     # Form an image URN so the user knows how to request the new image.
     #
@@ -2607,8 +2633,12 @@ sub CreateImage($)
     #
     # Do the snapshot.
     #
+    $opt  = "";
+    $opt .= " -b $bsname" if (defined($bsname));
+    
     $output =
-	GeniUtil::ExecQuiet("$CREATEIMAGE -F -e -f -p $pid $imagename $node_id");
+	GeniUtil::ExecQuiet("$CREATEIMAGE -F -e -f $opt ".
+			    "   -p $pid $imagename $node_id");
     # Not a typical op, so always print debugging info;
     print STDERR $output;
     # Return to normal state even if it failed.
@@ -3225,22 +3255,19 @@ my $CREATEDATASET   = "$TB/bin/createdataset";
 my $DELETEDATASET   = "$TB/bin/deletelease";
 my $EXTENDDATASET   = "$TB/bin/extendlease";
 my $GRANTDATASET    = "$TB/bin/grantlease";
+my $GRANTIMAGE      = "$TB/sbin/grantimage";
 
 sub CreateDataset($)
 {
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
-    my $size         = $argref->{'size'};    # MiBs
     my $dataset      = $argref->{'name'};
     require Lease;
+    require Image;
     require EmulabConstants;
 
-    if (! (defined($credentials) &&
-	   defined($size) && defined($dataset))) {
+    if (! (defined($credentials) && defined($dataset))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
-    }
-    if ($size !~ /^\d+$/) {
-	return GeniResponse->MalformedArgsResponse("Bad size, use MiBs");
     }
     if ($dataset !~ /^[-\w]+$/) {
 	return GeniResponse->MalformedArgsResponse("Bad dataset name");
@@ -3267,11 +3294,15 @@ sub CreateDataset($)
     return $group
 	if (GeniResponse::IsResponse($group));
 
+    my $image = Image->Lookup($group->pid(), $dataset);
+    if (defined($image)) {
+	GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS);
+    }
     my $lease = Lease->Lookup($group->pid(), $dataset);
     if (defined($lease)) {
 	GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS);
     }
-    my $cmd = "$CREATEDATASET -C -b -s $size ";
+    my $cmd = "$CREATEDATASET -C -b ";
     if ($PROTOGENI_LOCALUSER) {
 	$cmd = "$WAP $cmd -o ". $user->uid() . " ";
 	#
@@ -3279,6 +3310,12 @@ sub CreateDataset($)
 	# user and in the target project. 
 	#
 	GeniUtil::FlipToElabMan();
+    }
+    if (exists($argref->{'size'})) {
+	my $size = $argref->{'size'};
+	return GeniResponse->MalformedArgsResponse("Bad size, use MiBs")
+	    if ($size !~ /^\d+$/);
+	$cmd .= " -s $size";
     }
     if (exists($argref->{'type'})) {
 	my $type = $argref->{'type'};
@@ -3327,35 +3364,57 @@ sub CreateDataset($)
     }
     GeniUtil::FlipToGeniUser()
 	if ($PROTOGENI_LOCALUSER);
+
+    # Stuff to put in the return blob.
+    my ($state,$uuid,$busy,$msg,$urn);
+
     #
-    # Grab the lease to see if its been approved, we want to tell
-    # the user something.
+    # Grab the lease or image to see if its been created/approved, we want
+    # to tell the user something.
     #
-    $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
-    if (!defined($lease)) {
-	print STDERR "Could not lookup lease after createdataset\n";
-	GeniResponse->Create(GENIRESPONSE_ERROR);
+    if (exists($argref->{'type'}) && $argref->{'type'} eq "imdataset") {
+	my $image = Image->Lookup($group->pid(), $dataset);
+	if (!defined($image)) {
+	    print STDERR "Could not lookup image after createdataset\n";
+	    GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+	$image->Update({"creator_urn" => $user->urn()});
+	$uuid  = $image->image_uuid();
+	$state = "new";
+	$busy  = 0;
+	$urn   = GeniHRN::Generate($OURDOMAIN . ":" . $image->pid(), "dataset",
+				   $image->gid() . "//" . $image->imagename());
     }
-    # Set the manager URN for same-SA permission checks.
-    $lease->SetAttribute("manager_urn", $credential->target_urn());
-    $lease->SetAttribute("creator_urn", $user->urn());
+    else {
+	my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+	if (!defined($lease)) {
+	    print STDERR "Could not lookup lease after createdataset\n";
+	    GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+	# Set the manager URN for same-SA permission checks.
+	$lease->SetAttribute("manager_urn", $credential->target_urn());
+	$lease->SetAttribute("creator_urn", $user->urn());
     
-    my $msg   = undef;
-    if ($lease->state() eq "unapproved") {
-	if ($lease->locked()) {
-	    $msg = "Your dataset is being allocated.";
+	if ($lease->state() eq "unapproved") {
+	    if ($lease->locked()) {
+		$msg = "Your dataset is being allocated.";
+	    }
+	    else {
+		$msg = "Your dataset has not been approved yet. ".
+		    "Watch for email.";
+	    }
 	}
-	else {
-	    $msg = "Your dataset has not been approved yet. Watch for email";
-	}
+	$uuid  = $lease->uuid();
+	$state = $lease->state();
+	$busy  = $lease->locked() ? 1 : 0;
+	$urn   = GeniHRN::Generate($OURDOMAIN . ":" . $lease->pid(), "dataset",
+				   $lease->gid() . "//" . $lease->lease_id());
     }
-    my $urn  = GeniHRN::Generate($OURDOMAIN . ":" . $lease->pid(), "dataset",
-				 $lease->gid() . "//" . $lease->lease_id());
     my $blob = {
-	"state" => $lease->state(),
-	"uuid"  => $lease->uuid(),
+	"state" => $state,
+	"uuid"  => $uuid,
 	"urn"   => $urn,
-	"busy"  => $lease->locked() ? 1 : 0,
+	"busy"  => $busy,
     };
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob, $msg);
 }
@@ -3364,6 +3423,8 @@ sub DeleteDataset($)
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
     my $dataset      = $argref->{'name'};
+    my $cmd;
+    require Image;
     require Lease;
     require EmulabConstants;
 
@@ -3392,19 +3453,29 @@ sub DeleteDataset($)
 	if (GeniResponse::IsResponse($group));
 
     my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
-    if (!defined($lease)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    if (defined($lease)) {
+	#
+	# Only the creator until we are using credentials here.
+	#
+	my $lease_owner = $lease->GetAttribute("creator_urn");
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	    if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
+
+	$cmd = "$DELETEDATASET -b -f " .
+	    $group->pid() . "/" . $group->gid() . "/" . $dataset;
     }
-    #
-    # Only the creator until we are using credentials here.
-    #
-    my $lease_owner = $lease->GetAttribute("creator_urn");
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
-
-    my $cmd = "$DELETEDATASET -b -f " .
-	$group->pid() . "/" . $group->gid() . "/" . $dataset;
-
+    else {
+	my $image = Image->Lookup($group->pid(), $dataset);
+	if (!defined($image)) {
+	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+	}
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	    if (!$image->isdataset() ||
+		!defined($image->creator_urn()) ||
+		$image->creator_urn() ne $user->urn());
+	
+	$cmd = "$DELETEIMAGE -p ". $image->imageid();
+    }
     if ($PROTOGENI_LOCALUSER) {
 	$cmd = "$WAP $cmd";
 	#
@@ -3426,6 +3497,8 @@ sub ModifyDataset($)
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
     my $dataset      = $argref->{'name'};
+    my $islease      = 0;
+    require Image;
     require Lease;
     require EmulabConstants;
 
@@ -3454,26 +3527,40 @@ sub ModifyDataset($)
 	if (GeniResponse::IsResponse($group));
 
     my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
-    if (!defined($lease)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    if (defined($lease)) {
+	#
+	# Only the creator until we are using credentials here.
+	#
+	my $lease_owner = $lease->GetAttribute("creator_urn");
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	    if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
+
+	$islease = 1;
     }
-    #
-    # Only the creator until we are using credentials here.
-    #
-    my $lease_owner = $lease->GetAttribute("creator_urn");
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
+    else {
+	my $image = Image->Lookup($group->pid(), $dataset);
+	if (!defined($image)) {
+	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+	}
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	    if (!$image->isdataset() ||
+		!defined($image->creator_urn()) ||
+		$image->creator_urn() ne $user->urn());
+	$islease = 0;
+    }
 
     my $cmd;
     #
     # All we can handle is extend and modify permission bits.
     #
     if (exists($argref->{'extend'})) {
+	return GeniResponse->Create(GENIRESPONSE_UNSUPPORTED)
+	    if ($islease);
 	$cmd = "$EXTENDDATASET ";	
     }
     elsif (exists($argref->{'read_access'}) ||
 	   exists($argref->{'write_access'})) {
-	$cmd = "$GRANTDATASET ";
+	$cmd = ($islease ? "$GRANTDATASET " : "$GRANTIMAGE ");
 	
 	if (exists($argref->{'read_access'})) {
 	    my $read_access = $argref->{'read_access'};
@@ -3492,7 +3579,12 @@ sub ModifyDataset($)
     else {
 	return GeniResponse->MalformedArgsResponse("unknown operation");
     }
-    $cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset;
+    if ($islease) {
+	$cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset;
+    }
+    else {
+	$cmd .= " " . $group->pid() . "," . $dataset;
+    }
     if ($PROTOGENI_LOCALUSER) {
 	$cmd = "$WAP $cmd";
 	#
@@ -3521,6 +3613,8 @@ sub DescribeDataset($)
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
     my $dataset      = $argref->{'name'};
+    my $blob = {};
+    require Image;
     require Lease;
     require Blockstore;
     require EmulabConstants;
@@ -3550,28 +3644,51 @@ sub DescribeDataset($)
 	if (GeniResponse::IsResponse($group));
 
     my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
-    if (!defined($lease)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    if (defined($lease)) {
+	#
+	# Only the creator until we are using credentials here.
+	#
+	my $lease_owner = $lease->GetAttribute("creator_urn");
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	    if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
+
+	$blob->{'state'}    = $lease->state();
+	$blob->{'type'}     = $lease->type();
+	$blob->{"busy"}     = $lease->locked() ? 1 : 0;
+	$blob->{'created'}  = emutil::TBDateStringGMT($lease->inception());
+	$blob->{'expires'}  = emutil::TBDateStringGMT($lease->lease_end());
+	$blob->{'lastused'} = emutil::TBDateStringGMT($lease->last_used());
+
+	my $bstore = Blockstore->LookupByLease($lease->idx());
+	if (defined($bstore)) {
+	    $blob->{'size'}     = $bstore->total_size();
+	}
     }
+    else {
+	my $image = Image->Lookup($group->pid(), $dataset);
+	if (!defined($image)) {
+	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+	}
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	    if (!$image->isdataset() ||
+		!defined($image->creator_urn()) ||
+		$image->creator_urn() ne $user->urn());
 
-    #
-    # Only the creator until we are using credentials here.
-    #
-    my $lease_owner = $lease->GetAttribute("creator_urn");
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
-
-    my $blob = {};
-    $blob->{'state'}    = $lease->state();
-    $blob->{'type'}     = $lease->type();
-    $blob->{"busy"}     = $lease->locked() ? 1 : 0;
-    $blob->{'created'}  = emutil::TBDateStringGMT($lease->inception());
-    $blob->{'expires'}  = emutil::TBDateStringGMT($lease->lease_end());
-    $blob->{'lastused'} = emutil::TBDateStringGMT($lease->last_used());
-
-    my $bstore = Blockstore->LookupByLease($lease->idx());
-    if (defined($bstore)) {
-	$blob->{'size'}     = $bstore->total_size();
+	$blob->{'state'}    = ($image->size() ? "valid" : "new");
+	$blob->{'type'}     = "imdataset";
+	$blob->{"busy"}     = $image->locked() ? 1 : 0;
+	$blob->{'size'}     = 0;
+	$blob->{'created'}  = emutil::TBDateStringGMT($image->created());
+	$blob->{'updated'}  = emutil::TBDateStringGMT($image->updated());
+	$blob->{'expires'}  = "";
+	$blob->{'lastused'} = "";
+	if ($image->size()) {
+	    my $kbytes = int(($image->lba_high() -
+			      $image->lba_low() + 1) /
+			     (1024 / $image->lba_size()));
+	    $blob->{'size'} =
+		Blockstore::ConvertToMebi("$kbytes" . "KB");
+	}
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }

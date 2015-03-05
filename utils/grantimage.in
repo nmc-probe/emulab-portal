@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2012 University of Utah and the Flux Group.
+# Copyright (c) 2003-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,9 +41,12 @@ sub usage()
     print STDERR "	-g   Grant access to a specific group (project)\n";
     print STDERR "	-a   Grant global read-only access\n";
     print STDERR "	-x   Also grant access to protogeni users\n";
+    print STDERR "Alternate form:\n";
+    print STDERR "  -R acl   Grant project|global read-only access\n";
+    print STDERR "  -W acl   Grant creator|project write access\n";
     exit(-1);
 }
-my $optlist  = "hg:dnru:wlax";
+my $optlist  = "hg:dnru:wlaxR:W:";
 my $impotent = 0;
 my $debug    = 0;
 my $revoke   = 0;
@@ -54,6 +57,8 @@ my $protogeni= 0;
 my $gid;
 my $uid;
 my $target;
+my $read_access;
+my $write_access;
 
 # Protos
 sub fatal($);
@@ -133,10 +138,22 @@ if (defined($options{g})) {
 if (defined($options{u})) {
     $uid = $options{u};
 }
+if (defined($options{"R"})) {
+    $read_access = $options{"R"};
+    usage()
+	if ($read_access !~ /^(global|project)$/);
+}
+if (defined($options{"W"})) {
+    $write_access = $options{"W"};
+    usage()
+	if ($write_access !~ /^(creator|project)$/);
+}
+
 usage()
     if (@ARGV != 1);
 usage()
-    if (! ($listonly || $global || defined($gid) || defined($uid)));
+    if (! ($listonly || $global || defined($gid) || defined($uid) ||
+	   defined($read_access) || defined($write_access)));
 
 my $imageid = $ARGV[0];
 
@@ -188,7 +205,10 @@ if ($listonly) {
     }
     exit(0);
 }
-elsif ($global) {
+elsif ($global || defined($read_access)) {
+    if (defined($read_access) && $read_access eq "project") {
+	$revoke = 1;
+    }
     my $val = ($revoke ? 0 : 1);
     $image->Update({"global" => $val}) == 0
 	or fatal("Could not update global flag");
@@ -221,6 +241,20 @@ elsif ($revoke) {
 	}
 	else {
 	    fatal("Could not lookup OSinfo for $image");
+	}
+    }
+}
+elsif (defined($write_access)) {
+    my $project = $image->GetProject();
+    
+    if (defined($write_access)) {
+	if ($write_access eq "creator") {
+	    $image->RevokeAccess($project);
+	    $image->GrantAccess($project, 0);
+	}
+	else {
+	    $image->RevokeAccess($project);
+	    $image->GrantAccess($project, 1);
 	}
     }
 }

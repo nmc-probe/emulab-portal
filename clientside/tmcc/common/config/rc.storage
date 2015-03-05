@@ -655,6 +655,26 @@ sub process($$$$)
 	    warn("*** Unknown storage slice bsid '".$href->{'BSID'}."'\n");
 	    return 0;
 	}
+	if (exists($href->{'DATASET'}) && $dosetup) {
+	    #
+	    # We are going to load from a dataset image via frisbee.
+	    # but first we need to know the extent of the image to
+	    # create the storage slice. We get this info from tmcd.
+	    #
+	    my $iref;
+	    getimagesize($href->{'DATASET'}, \$iref);
+	    if (!defined($iref)) {
+		warn("*** No image size info for '".$href->{'DATASET'}."'\n");
+		return 0;
+	    }
+	    if (exists($iref->{'IMAGELOW'}) &&
+		exists($iref->{'IMAGEHIGH'})) {
+		# Bad, but don't want to use bignums to get MBs.
+		$href->{'VOLSIZE'} = 
+		    int(($iref->{'IMAGEHIGH'} - $iref->{'IMAGELOW'} + 1) *
+			($iref->{'IMAGESSIZE'} / (1024.0 * 1024.0))) + 1;
+	    }
+	}
     } else {
 	warn("*** Unrecognized storage command '".$href->{'CMD'}."'\n");
 	return 0;

@@ -973,14 +973,15 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		    goto bad;
 		}
 		my ($auth,$type,$id) = GeniHRN::Parse($dname);
-		my ($ospid,$os) = ($id =~ m{(.*)//(.*)});
+		my ($ospid,$os,undef,$vers) =
+		    ($id =~ m{([^/]+)//([^/]+)(//(\d+))?});		
 		if ($type ne "image" || !defined($ospid) || !defined($os)){
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 					 "Malformed image URN: $dname");
 		    goto bad;
 		}
-		$osinfo = OSinfo->Lookup($ospid, $os);
+		$osinfo = OSinfo->Lookup($ospid, $os, $vers);
 		if (!defined($osinfo)) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1002,7 +1003,8 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		#
 		# This is only going to be used in raw mode. 
 		#
-		$osname = "$ospid/$os";
+		$osname  = "$ospid/$os";
+		$osname .= ":${vers}" if (defined($vers));
 	    }
 	}
 
@@ -6809,7 +6811,9 @@ sub HandleBlockstore($$$$$$@)
     my $errorcode = GENIRESPONSE_ERROR;
     my $message   = "Unknown Error";
     my $nodename  = GeniXML::GetVirtualId($noderef);
-    
+    my @attributes = ();
+
+    require Image;
     require Lease;
     require Blockstore;
 
@@ -6818,6 +6822,7 @@ sub HandleBlockstore($$$$$$@)
     my $mount     = GeniXML::GetText("mountpoint", $blockref);
     my $readonly  = GeniXML::GetText("readonly", $blockref);
     my $leasename = GeniXML::GetText("persistent", $blockref);
+    my $dataset_id= GeniXML::GetText("dataset", $blockref);
     my $type      = "";
     my $fixed     = $nodename;
     my $size      = 0;
@@ -6844,14 +6849,85 @@ sub HandleBlockstore($$$$$$@)
 	$readonly = ($readonly eq "true" ? 1 : 0);
     }
     #
-    # If ephemeral, size must be given, else we get it below from the lease.
+    # If ephemeral, size must be given. Else we get it below from the lease,
+    # or we get it from the image if its an image backed blockstore.
     #
     if (!defined($leasename)) {
-	$size = GeniXML::GetText("size", $blockref);
+	if (defined($dataset_id)) {
+	    # Default project to lookup lease.
+	    my $pid = $experiment->pid();
+	    my $gid = $pid;
+	    my $vers;
 	
-	if (!defined($size)) {
-	    $message = "Missing blockstore size for $bsname";
-	    goto bad;
+	    my ($domainsubauth,$type,$id) = GeniHRN::Parse($dataset_id);
+	    if ($type ne "dataset") {
+		$message = "Illegal dataset urn for $dataset_id";
+		goto bad;
+	    }
+	    my ($domain,$subauth) = split(":", $domainsubauth);
+	    if ($domain ne $OURDOMAIN) {
+		$message = "This is not the correct site for this dataset";
+		goto bad;
+	    }
+	    if (defined($subauth)) {
+		$pid = $subauth;
+	    }
+	    if ($id =~ /^([^\/]+)\/\/([^\/]+)(\/\/(\d+))?$/) {
+		$id  = $2;
+		if (defined($4)) {
+		    $vers = $4;
+		}
+	    }
+	    my $image = Image->Lookup($pid, $id, $vers);
+	    if (!defined($image)) {
+		$message = "Unknown dataset: $dataset_id";
+		goto bad;
+	    }
+	    if (!$image->isdataset()) {
+		$message = "Not a dataset: $dataset_id";
+		goto bad;
+	    }
+	    if ($PROTOGENI_LOCALUSER) {
+		#
+		# We use the Emulab permission system.
+		#
+		if (!$image->AccessCheck($geniuser->emulab_user(),
+					 TB_IMAGEID_READINFO())) {
+		    $message = "Not enough permission to use $dataset_id";
+		    $errorcode = GENIRESPONSE_FORBIDDEN;
+		    goto bad;
+		}
+	    }
+	    else {
+		#
+		# The image must be in the current project, or it must
+		# be global (okay, shared).
+		#
+		if (! ($image->global() ||
+		       $image->pid() eq $experiment->pid())) {
+		    $message = "Not enough permission to use $dataset_id";
+		    $errorcode = GENIRESPONSE_FORBIDDEN;
+		    goto bad;
+		}
+	    }
+	    # This needs to be name, not id.
+	    push(@attributes, ["dataset", $image->versname(), 0]);
+	    
+	    if (!$image->size()) {
+		$message = "No local size info for $dataset_id";
+		goto bad;
+	    }
+	    $size = int(($image->lba_high() -
+			 $image->lba_low() + 1) /
+			(1024 / $image->lba_size())) . "KB";
+	}
+	else {
+	    $size = GeniXML::GetText("size", $blockref);
+	
+	    if (!defined($size)) {
+		$message = "Missing blockstore size for $bsname";
+		goto bad;
+	    }
 	}
 	$size = Blockstore::ConvertToMebi($size);
 	if ($size < 0) {
@@ -6859,8 +6935,6 @@ sub HandleBlockstore($$$$$$@)
 	    goto bad;
 	}
     }
-    # Build up list of attributes.
-    my @attributes = ();
     push(@attributes, ["mountpoint", $mount, 0]);
     push(@attributes, ["placement", "ANY", 0]);
     push(@attributes, ["readonly", $readonly, 0]);

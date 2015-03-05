@@ -41,7 +41,8 @@ class Image
 
 	if (is_null($version)) {
 	    $query_result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid,".
+                            "   i.locked as image_locked ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
@@ -51,7 +52,8 @@ class Image
 	    # This will get deleted images, but that is okay.
 	    $safe_version = addslashes($version);
 	    $query_result =
-	        DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+	        DBQueryWarn("select i.*,v.*,i.uuid as image_uuid,".
+                            "  i.locked as image_locked".
 			    "  from image_versions as v ".
 			    "left join images as i on ".
 			    "     i.imageid=v.imageid ".
@@ -450,9 +452,15 @@ class Image
     function noexport()		{ return $this->field("noexport"); }
     function ready()		{ return $this->field("ready"); }
     function isdelta()		{ return $this->field("isdelta"); }
+    function isdataset()	{ return $this->field("isdataset"); }
     function nodelta()		{ return $this->field("nodelta"); }
     function released()		{ return $this->field("released"); }
     function notes()		{ return $this->field("notes"); }
+    function locked()		{ return $this->field("image_locked"); }
+    function size()		{ return $this->field("size"); }
+    function lba_low()		{ return $this->field("lba_low"); }
+    function lba_high()		{ return $this->field("lba_high"); }
+    function lba_size()		{ return $this->field("lba_size"); }
 
     # Return the DB data.
     function DBData()		{ return $this->image; }
@@ -635,7 +643,8 @@ class Image
 	$mbr_version    = $this->mbr_version();
 	$hash           = $this->hash();
 	$notes          = $this->notes();
-	
+	$isdataset      = $this->isdataset();
+        
 	#
 	# An imported image has a metadata_url, and at the moment I
 	# do want to worry about exporting an imported image.
@@ -741,15 +750,23 @@ class Image
                   </tr>\n";
 	}
 
-	echo "<tr>
-                <td>Load Partition: </td>
-                <td class=\"left\">$loadpart</td>
-              </tr>\n";
-
-	echo "<tr>
-                <td>Load Length: </td>
-                <td class=\"left\">$loadlength</td>
-              </tr>\n";
+        if ($isdataset) {
+            echo "<tr>
+                    <td>Dataset?: </td>
+                    <td class=\"left\">Yes</td>
+                  </tr>\n";
+        }
+        else {
+            echo "<tr>
+                    <td>Load Partition: </td>
+                    <td class=\"left\">$loadpart</td>
+                  </tr>\n";
+            
+            echo "<tr>
+                    <td>Load Length: </td>
+                    <td class=\"left\">$loadlength</td>
+                  </tr>\n";
+        }
 
 	if ($part1_osid) {
 	    echo "<tr>
@@ -803,15 +820,17 @@ class Image
 	echo "  </td>
               </tr>\n";
 
-	echo "<tr>
-                  <td>Types: </td>
-                  <td class=left>\n";
-	echo "&nbsp;";
-	foreach ($this->Types() as $type) {
-	    echo "$type &nbsp; ";
-	}
-	echo "  </td>
-              </tr>\n";
+        if (!$isdataset) {
+            echo "<tr>
+                      <td>Types: </td>
+                      <td class=left>\n";
+            echo "&nbsp;";
+            foreach ($this->Types() as $type) {
+                echo "$type &nbsp; ";
+            }
+            echo "  </td>
+                  </tr>\n";
+        }
 
 	echo "<tr>
                 <td>Shared?: </td>

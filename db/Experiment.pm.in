@@ -6219,5 +6219,25 @@ sub ClearGlobalIPAllocation($)
     return 0;
 }
 
+#
+# Find the blockstore details from the virt table. 
+#
+sub LookupBlockstore($$)
+{
+    my ($self, $bsname) = @_;
+    my $blockstore = undef;
+    
+    # Now get this after we are sure we need it.
+    my $virtexp = $self->GetVirtExperiment();
+    
+    foreach my $bs ($virtexp->Table("virt_blockstores")->Rows()) {
+	if ($bs->vname() eq $bsname) {
+	    $blockstore = $bs;
+	    last;
+	}
+    }
+    return $blockstore;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;

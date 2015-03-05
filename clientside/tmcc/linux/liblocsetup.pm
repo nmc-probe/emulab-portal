@@ -41,7 +41,7 @@ use Exporter;
 	 os_get_disks os_get_disk_size os_get_partition_info os_nfsmount
 	 os_get_ctrlnet_ip
 	 os_getarpinfo os_createarpentry os_removearpentry
-	 os_getstaticarp os_setstaticarp
+	 os_getstaticarp os_setstaticarp os_ismounted os_unmount os_mount
        );
 
 sub VERSION()	{ return 1.0; }
@@ -88,6 +88,7 @@ $EGREP		= "/bin/egrep -q";
 $NFSMOUNT	= "/bin/mount -o nolock,udp";
 $LOOPBACKMOUNT	= "/bin/mount -n -o bind ";
 $UMOUNT		= "/bin/umount";
+$MOUNT		= "/bin/mount";
 $TMPASSWD	= "$ETCDIR/passwd";
 $TMGROUP	= "$ETCDIR/group";
 $TMSHADOW       = "$ETCDIR/shadow";
@@ -2546,6 +2547,31 @@ sub os_setstaticarp($$)
     }
 
     return 0;
+}
+
+# Is a device mounted.
+sub os_ismounted($)
+{
+    my ($device) = @_;
+
+    my $line = `$MOUNT | grep '^${device} on'`;
+
+    return ($line ? 1 : 0);
+}
+
+sub os_unmount($)
+{
+    my ($mpoint) = @_;
+
+    return system("$UMOUNT $mpoint");
+}
+
+sub os_mount($;$)
+{
+    my ($mpoint, $device) = @_;
+    $device = "" if (!defined($device));
+
+    return system("$MOUNT $mpoint $device");
 }
 
 1;

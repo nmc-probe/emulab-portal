@@ -1,4 +1,4 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
 # Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
@@ -180,6 +180,7 @@ else {
 my $SLOT_OPTIONAL	= 0x1;	# The field is not required.
 my $SLOT_REQUIRED	= 0x2;  # The field is required and must be non-null.
 my $SLOT_ADMINONLY	= 0x4;  # Only admins can set this field.
+my $SLOT_OSREQUIRED     = 0x8;  # Required on real OS's not datasets.
 #
 # XXX We should encode all of this in the DB so that we can generate the
 # forms on the fly, as well as this checking code.
@@ -192,13 +193,13 @@ my %xmlfields =
      "pid"		=> ["pid",		$SLOT_REQUIRED],
      "gid"		=> ["gid",		$SLOT_OPTIONAL],
      "description"	=> ["description",	$SLOT_REQUIRED],
-     "loadpart"		=> ["loadpart",		$SLOT_REQUIRED],
-     "OS"		=> ["OS",		$SLOT_REQUIRED],
+     "loadpart"		=> ["loadpart",		$SLOT_OSREQUIRED],
+     "OS"		=> ["OS",		$SLOT_OSREQUIRED],
      "version"		=> ["version",		$SLOT_OPTIONAL,	   ""],
      "path"		=> ["path",		$SLOT_OPTIONAL,    ""],
      "node_id"		=> ["node_id",		$SLOT_OPTIONAL,    ""],
      "osfeatures",	=> ["osfeatures",	$SLOT_OPTIONAL,	   ""],
-     "op_mode",		=> ["op_mode",		$SLOT_REQUIRED],
+     "op_mode",		=> ["op_mode",		$SLOT_OSREQUIRED],
      "mtype_*"		=> ["mtype",		$SLOT_OPTIONAL],
      "wholedisk",	=> ["wholedisk",	$SLOT_OPTIONAL,    0],
      "max_concurrent",	=> ["max_concurrent",	$SLOT_OPTIONAL,    0],
@@ -212,6 +213,7 @@ my %xmlfields =
      "hash",		=> ["hash",		$SLOT_ADMINONLY],
      "nextosid",	=> ["nextosid",		$SLOT_ADMINONLY],
      "def_parentosid",	=> ["def_parentosid",	$SLOT_OPTIONAL],
+     "isdataset",	=> ["isdataset",	$SLOT_OPTIONAL],
 );
 
 #
@@ -231,6 +233,13 @@ fatal($@)
 #
 my %errors = ();
 
+# Image backed datasets are special.
+my $isdataset = 0;
+if (exists($xmlparse->{'attribute'}->{"isdataset"}) &&
+    $xmlparse->{'attribute'}->{"isdataset"}->{'value'}) {
+    $isdataset = 1;
+}
+
 #
 # Make sure all the required arguments were provided.
 #
@@ -239,7 +248,8 @@ foreach $key (keys(%xmlfields)) {
     my (undef, $required, undef) = @{$xmlfields{$key}};
 
     $errors{$key} = "Required value not provided"
-	if ($required & $SLOT_REQUIRED  &&
+	if (($required & $SLOT_REQUIRED ||
+	     ($required & $SLOT_OSREQUIRED && !$isdataset)) &&
 	    ! exists($xmlparse->{'attribute'}->{"$key"}));
 }
 UserError()
@@ -299,7 +309,7 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
 	    }
 	}
 	if (!$wild) {
-	    $errors{$key} = "Unknown attribute";
+	    # We now ignore unknown keys, to maintain compatability.
 	    next; # foreach $key
 	}
     }
@@ -421,7 +431,6 @@ else {
 
 my $isadmin = $this_user->IsAdmin();
 my $imagename = $newimageid_args{"imagename"};
-my $OS = $newimageid_args{"OS"};
 
 # In this form, we make the images:imagename and the os_info:osname the
 # same.
@@ -536,12 +545,19 @@ if (-d $newimageid_args{"path"}) {
     UserError("Path: invalid path, its a directory");
 }
 
-# We allow loadpart=0 for whole-disk images in the Long Form, and it uses the
-# same table_regex checking patterns.  Here "wholedisk" is a separate checkbox.
-my $loadpart = $newimageid_args{"loadpart"};
-if ($loadpart < 1 || $loadpart > 4) {
-    UserError("DOS Partion: Out of range.");
-} 
+#
+# We allow loadpart=0 for wholedisk images in the Long Form, and it
+# uses the same table_regex checking patterns.  Here "wholedisk" is a
+# separate checkbox. Note that for datasets we do not care about
+# loadpart, it can be zero.
+#
+my $loadpart = 0;
+if (!$isdataset) {
+    $loadpart = $newimageid_args{"loadpart"};
+    if ($loadpart < 1 || $loadpart > 4) {
+	UserError("DOS Partion: Out of range.");
+    }
+}
 
 #
 # Check sanity of node name and that user can create an image from it.
@@ -566,7 +582,8 @@ if (exists($newimageid_args{"node_id"}) &&
 # try to deduce the default MBR version based on what is currently
 # on the node we are snapshotting.
 #
-if (!exists($newimageid_args{"mbr_version"}) && defined($node_id)) {
+if (!$isdataset &&
+    !exists($newimageid_args{"mbr_version"}) && defined($node_id)) {
     my $mbrvers = 1;
 
     #
@@ -590,7 +607,7 @@ if (!exists($newimageid_args{"mbr_version"}) && defined($node_id)) {
 # See what node types this image will work on. Must be at least one!
 #
 UserError("Node Types: Must have at least one node type")
-    if (!keys(%mtypes_array));
+    if (!$isdataset && !keys(%mtypes_array));
 my $node_types_selected = 0;
 
 # Check validity of mtype_* args, since the keys are dynamically generated.
@@ -629,7 +646,7 @@ if ($allpc) {
 }
 
 UserError("Node Types: Must select at least one node type")
-    if ($node_types_selected == 0 && !$force);
+    if ($node_types_selected == 0 && !($force || $isdataset));
 
 #
 # We perform a further check for non-admins.  When a node to snapshot
@@ -639,7 +656,7 @@ UserError("Node Types: Must select at least one node type")
 # old OSes from being checked as runnable on newer HW where they do not
 # stand a chance.
 #
-if (!$isadmin && defined($node) && !$node->isvirtnode()) {
+if (!($isadmin || $isdataset) && defined($node) && !$node->isvirtnode()) {
     my $query_result =
 	DBQueryFatal("select oi.type from osidtoimageid as oi ".
 		     "left join partitions as p on oi.osid=p.osid ".
@@ -678,13 +695,18 @@ my %osid_reboot_waitlist = ("Linux", 120, "Fedora", 120, "FreeBSD", 120,
 # if not set.  If no default, complain (unless they failed to specify an OS
 # in which case we will complain about that instead).
 #
-my $reboot_waittime;
-if (!exists($osid_reboot_waitlist{$OS})) {
-    UserError("OS: Invalid OS");
-} elsif (exists($newimageid_args{"reboot_waittime"})) {
-    $reboot_waittime = $newimageid_args{"reboot_waittime"}
-} else {
-    $reboot_waittime = $osid_reboot_waitlist{$OS};
+# XXX Do not think this code does anything useful.
+#
+if (!$isdataset) {
+    my $OS = $newimageid_args{"OS"};
+    my $reboot_waittime;
+    if (!exists($osid_reboot_waitlist{$OS})) {
+	UserError("OS: Invalid OS");
+    } elsif (exists($newimageid_args{"reboot_waittime"})) {
+	$reboot_waittime = $newimageid_args{"reboot_waittime"}
+    } else {
+	$reboot_waittime = $osid_reboot_waitlist{$OS};
+    }
 }
 
 exit(0)
@@ -699,50 +721,57 @@ exit(0)
 delete($newimageid_args{"imagename"});
 
 #
-# XXX note that osid "path" is not the same as imageid "path".  The former
-# is for multiboot (aka OSKit) kernels.  So we remove the path arg temporary.
+# No need for an osid when creating a dataset.
 #
-my $ipath = $newimageid_args{"path"};
-delete($newimageid_args{"path"});
-
-# Cross-connect: Make the os descriptor first with the imagename, then take
-# the osid index and use it as the imageid index as well.
-$newimageid_args{"ezid"} = 1;
-# OSInfo->Create args not quite the same as Image->Create ones so copy 
-# newimageid_args into a new hash and fix up values.
-my %newosid_args = %newimageid_args;
-$newosid_args{"shared"} = $newimageid_args{"global"} = 1
-    if ($global);
+my $osid = undef;
+my $new_osinfo = undef;
 my $usrerr;
-my $new_osinfo = OSinfo->Create($project, $this_user, $imagename,
-				\%newosid_args, \$usrerr);
-UserError($usrerr)
-    if (defined($usrerr));
-fatal("Could not create new OSID!")
-    if (!defined($new_osinfo));
 
-$newimageid_args{"path"} = $ipath;
+if (!$isdataset) {
+    #
+    # XXX note that osid "path" is not the same as imageid "path".  The former
+    # is for multiboot (aka OSKit) kernels.  So we remove the path arg
+    # temporary.
+    #
+    my $ipath = $newimageid_args{"path"};
+    delete($newimageid_args{"path"});
 
-my $osid = $new_osinfo->osid();
+    # Cross-connect: Make the os descriptor first with the imagename, then take
+    # the osid index and use it as the imageid index as well.
+    $newimageid_args{"ezid"} = 1;
+    # OSInfo->Create args not quite the same as Image->Create ones so copy 
+    # newimageid_args into a new hash and fix up values.
+    my %newosid_args = %newimageid_args;
+    $newosid_args{"shared"} = 1
+	if ($global);
+    my $new_osinfo = OSinfo->Create($project, $this_user, $imagename,
+				    \%newosid_args, \$usrerr);
+    UserError($usrerr)
+	if (defined($usrerr));
+    fatal("Could not create new OSID!")
+	if (!defined($new_osinfo));
 
-#
-# Special option. Whole disk image, but only one partition that actually
-# matters. 
-#
-my $loadlen  = 1;
-$newimageid_args{"part${loadpart}_osid"} = $osid;
-if ($newimageid_args{"wholedisk"}) {
-    $loadlen  = 4;
-    $loadpart = 0;
+    $newimageid_args{"path"} = $ipath;
+    $osid = $new_osinfo->osid();
+
+    #
+    # Special option. Whole disk image, but only one partition that actually
+    # matters. None of this matters for datasets.
+    #
+    my $loadlen  = 1;
+    $newimageid_args{"part${loadpart}_osid"} = $osid;
+    if ($newimageid_args{"wholedisk"}) {
+	$loadlen  = 4;
+	$loadpart = 0;
+    }
+    $newimageid_args{"loadpart"} = $loadpart;
+    $newimageid_args{"loadlength"} = $loadlen;
+    $newimageid_args{"default_osid"} = $osid;
+
+    # Create the osidtoimageid mapping too.
+    $newimageid_args{"makedefault"} = 1
+	if ($node_types_selected);
 }
-$newimageid_args{"loadpart"} = $loadpart;
-$newimageid_args{"loadlength"} = $loadlen;
-$newimageid_args{"default_osid"} = $osid;
-
-# Create the osidtoimageid mapping too.
-$newimageid_args{"makedefault"} = 1
-    if ($node_types_selected);
-
 my $new_image = Image->Create($project, $group, $this_user, $imagename, $osid,
 			      \%newimageid_args, \$usrerr);
 UserError($usrerr)

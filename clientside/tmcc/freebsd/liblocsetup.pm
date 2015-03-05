@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -40,7 +40,7 @@ use Exporter;
 	 os_fwconfig_line os_fwrouteconfig_line os_config_gre os_nfsmount
 	 os_find_freedisk os_get_ctrlnet_ip
 	 os_getarpinfo os_createarpentry os_removearpentry
-	 os_getstaticarp os_setstaticarp
+	 os_getstaticarp os_setstaticarp os_ismounted os_unmount os_mount
        );
 
 sub VERSION()	{ return 1.0; }
@@ -1500,6 +1500,31 @@ sub os_setstaticarp($$)
     }
 
     return 0;
+}
+
+# Is a device mounted.
+sub os_ismounted($)
+{
+    my ($device) = @_;
+
+    my $line = `$MOUNT | grep '^$device on '`;
+
+    return ($line ? 1 : 0);
+}
+
+sub os_unmount($)
+{
+    my ($mpoint) = @_;
+
+    return system("$UMOUNT $mpoint");
+}
+
+sub os_mount($;$)
+{
+    my ($mpoint, $device) = @_;
+    $device = "" if (!defined($device));
+
+    return system("$MOUNT $mpoint $device");
 }
 
 1;

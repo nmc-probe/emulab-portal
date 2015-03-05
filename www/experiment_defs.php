@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1272,6 +1272,25 @@ class Experiment
 	}
 	echo "</table>\n";
 	return 0;
+    }
+
+    #
+    # Find the blockstore details from the virt table. 
+    #
+    function LookupBlockstore($bsname)
+    {
+        $safe_bsname = addslashes($bsname);
+        $pid = $this->pid();
+        $eid = $this->eid();
+        
+        $query_result =
+            DBQueryFatal("select * from virt_blockstores ".
+                         "where pid='$pid' and eid='$eid' and ".
+                         "       vname='$safe_bsname'");
+        if (!$query_result || !mysql_num_rows($query_result)) {
+            return null;
+        }
+        return mysql_fetch_array($query_result);
     }
 }
 

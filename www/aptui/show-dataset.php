@@ -24,6 +24,7 @@
 chdir("..");
 include("defs.php3");
 include("lease_defs.php");
+include("imageid_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("dataset_defs.php");
@@ -47,8 +48,13 @@ $optargs = RequiredPageArguments("uuid", PAGEARG_UUID);
 #
 # Either a local lease or a remote dataset. 
 #
-$dataset = Lease::Lookup($uuid);
-if (!$dataset) {
+if ($embedded) {
+    $dataset = Lease::Lookup($uuid);
+    if (!$dataset) {
+        $dataset = ImageDataset::Lookup($uuid);
+    }
+}
+else {
     $dataset = Dataset::Lookup($uuid);
 }
 if (!$dataset) {
@@ -69,19 +75,20 @@ $canrefresh = ($dataset->islocal() ? 0 : 1);
 
 $fields = array();
 if ($dataset->type() == "stdataset") {
-    $fields["dataset_type"] = "short term";
+    $fields["dataset_type_string"] = "short term";
 }
 elseif ($dataset->type() == "ltdataset") {
-    $fields["dataset_type"] = "long term";
+    $fields["dataset_type_string"] = "long term";
 }
-else {
-    $fields["dataset_type"] = $dataset->type();
+elseif ($dataset->type() == "imdataset") {
+    $fields["dataset_type_string"] = "image backed";
 }
+$fields["dataset_type"]     = $dataset->type();
 $fields["dataset_creator"]  = $dataset->owner_uid();
 $fields["dataset_pid"]      = $dataset->pid();
 $fields["dataset_gid"]      = $dataset->gid();
 $fields["dataset_name"]     = $dataset->id();
-$fields["dataset_size"]     = $dataset->size();
+$fields["dataset_size"]     = $dataset->size() ? $dataset->size() : "0";
 $fields["dataset_fstype"]   = ($dataset->fstype() ?
 			       $dataset->fstype() : "none");
 $fields["dataset_created"]  = DateStringGMT($dataset->created());

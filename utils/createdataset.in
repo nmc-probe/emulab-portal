@@ -25,6 +25,8 @@ use strict;
 use English;
 use Getopt::Std;
 use Date::Parse;
+use File::Temp qw(tempfile);
+use CGI;
 
 #
 # Create a new dataset.
@@ -46,7 +48,7 @@ sub usage()
     print STDERR "   name      Name (in the form <pid>/<id>)\n";
     exit(-1);
 }
-my $optlist  = "dhUo:s:t:e:a:f:bCR:W:";
+my $optlist  = "dhUo:s:t:e:a:f:bCR:W:I:";
 my $debug = 0;
 my $background = 0;
 my $pid;
@@ -70,11 +72,13 @@ my $quota;
 # Valid dataset types
 my %descrip = (
     "stdataset" => "short-term dataset",
-    "ltdataset" => "long-term dataset"
+    "ltdataset" => "long-term dataset",
+    "imdataset" => "Image backed dataset",
 );
 
 # Protos
 sub fatal($);
+sub HandleIMDataset();
 
 #
 # Configure variables
@@ -82,6 +86,10 @@ sub fatal($);
 my $TB		 = "@prefix@";
 my $TBOPS        = "@TBOPSEMAIL@";
 my $TBBASE  	 = "@TBBASE@";
+my $TBGROUP_DIR  = "@GROUPSROOT_DIR@";
+my $TBPROJ_DIR	 = "@PROJROOT_DIR@";
+my $NEWIMAGEEZ   = "$TB/bin/newimageid_ez";
+my $CREATEIMAGE  = "$TB/bin/create_image";
 
 #
 # Testbed Support libraries
@@ -89,12 +97,15 @@ my $TBBASE  	 = "@TBBASE@";
 use lib "@prefix@/lib";
 use EmulabConstants;
 use libtestbed;
+use emutil;
 use libdb;
 use Quota;
 use Lease;
 use Project;
 use Group;
 use User;
+use Image;
+use Node;
 
 #
 # Turn off line buffering on output
@@ -186,8 +197,12 @@ if (defined($options{"W"})) {
     }
 }
 
-if (!$size || @ARGV != 1) {
-    print STDERR "Must specify size and name\n";
+if (@ARGV != 1) {
+    print STDERR "Must specify dataset name\n";
+    usage();
+}
+if ($dstype ne "imdataset" && !$size) {
+    print STDERR "Must specify dataset size\n";
     usage();
 }
 
@@ -253,6 +268,13 @@ if (!exists($descrip{$dstype})) {
 	print STDERR "'$l': ", $descrip{$l}, "\n";
     }
     exit(1);
+}
+
+#
+# IM dataset handled differently
+#
+if ($dstype eq "imdataset") {
+    exit(HandleIMDataset());
 }
 
 #
@@ -497,6 +519,112 @@ if (!$approveme) {
 }
 
 exit(0);
+
+#
+# Image backed datasets. Basically create an image and optionally take
+# a snapshot from the BSname.
+#
+sub HandleIMDataset()
+{
+    my $global = (defined($read_access) && $read_access eq "global" ? 1 : 0);
+    my $path   = ($pid eq $gid || $global ?
+		  "$TBPROJ_DIR/$pid/images/${lname}.ndz" :
+		  "$TBGROUP_DIR/$pid/$gid/images/${lname}.ndz");
+
+    #
+    # See if we are going to take a snapshot right away, and verify the
+    # node and bsname.
+    #
+    my ($nodeid,$bsname);
+    if (defined($options{"I"})) {
+	($nodeid,$bsname) = split(",", $options{"I"});
+	if (!defined($bsname)) {
+	    fatal("Improper -I option");
+	}
+	my $node = Node->Lookup($nodeid);
+	if (!defined($node)) {
+	    fatal("No such node: $nodeid");
+	}
+	my $experiment = $node->Reservation();
+	if (!defined($experiment) ||
+	    $experiment->pid() ne $pid) {
+	    fatal("Node not reserved to an experiment in the same ".
+		  "project as the dataset");
+	}
+	if (!$node->AccessCheck($user, TB_NODEACCESS_LOADIMAGE())) {
+	    fatal("Not enough permission to create dataset from $nodeid");
+	}
+	my $blockstore = $experiment->LookupBlockstore($bsname);
+	if (!defined($blockstore)) {
+	    fatal("No such blockstore: $bsname");
+	}
+	if ($node->vname() ne $blockstore->fixed()) {
+	    fatal("Blockstore $bsname is not on node $nodeid");
+	}
+    }
+	
+    my %xmlfields = (
+	"pid"          => $pid,
+	"gid"          => $gid,
+	"imagename"    => $lname,
+	"description"  => "This is a dataset, DO NOT DELETE!",
+	"isdataset"    => 1,
+	"path"         => $path,
+	"global"       => $global,
+	);
+    #
+    # Create the XML file to pass to newimageid_ez.
+    #
+    my ($fh, $filename) = tempfile(UNLINK => 1);
+    fatal("Could not create temporary file")
+	if (!defined($fh));
+
+    print $fh "<image>\n";
+    foreach my $key (keys(%xmlfields)) {
+	my $value = $xmlfields{$key};
+
+	print $fh "<attribute name=\"$key\">";
+	print $fh "<value>" . CGI::escapeHTML($value) . "</value>";
+	print $fh "</attribute>\n";
+    }
+    print $fh "</image>\n";
+    close($fh);
+
+    my $output = emutil::ExecQuiet("$NEWIMAGEEZ -s -v $filename");
+    if ($?) {
+	print STDERR $output;
+	my $foo = `cat $filename`;
+	print STDERR $foo;
+	fatal("Failed to verify image descriptor from $filename");
+    }
+    $output = emutil::ExecQuiet("$NEWIMAGEEZ -s $filename");
+    if ($?) {
+	print STDERR $output;
+	my $foo = `cat $filename`;
+	print STDERR $foo;
+	fatal("Failed to create image descriptor");
+    }
+    my $image = Image->Lookup($pid, $lname);
+    if (!defined($image)) {
+	fatal("Cannot lookup newly created image for $lname");
+    }
+    if (defined($write_access)) {
+	if ($write_access eq "creator") {
+	    $image->GrantAccess($project, 0);
+	}
+    }
+    if (defined($nodeid)) {
+	my $output = emutil::ExecQuiet("$CREATEIMAGE ".
+				       "-b $bsname -p $pid $lname $nodeid");
+	if ($?) {
+	    $image->Delete(1); # Delete with purge.
+	    print STDERR $output;
+	    fatal("Failed to create image");
+	}
+	print "Image is being created. This can take 15-30 minutes.\n";
+    }
+    return 0;
+}
 
 sub fatal($)
 {

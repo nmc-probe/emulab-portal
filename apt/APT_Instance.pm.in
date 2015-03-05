@@ -57,6 +57,9 @@ my $GENEXTENDCRED = "$TB/sbin/protogeni/genextendcred";
 my %instances  = ();
 my $debug      = 0;
 
+# Debugging
+my $usemydevtree  = 1;
+
 #
 # Lookup by uuid.
 #
@@ -266,6 +269,28 @@ sub Delete($)
     return 0;
 }
 
+#
+# Lock and unlock operate on the underlying slice.
+#
+sub Lock($)
+{
+    my ($self) = @_;
+    my $slice  = $self->GetGeniSlice();
+    if (!defined($slice)) {
+	return -1;
+    }
+    return $slice->Lock();
+}
+sub Unlock($)
+{
+    my ($self) = @_;
+    my $slice  = $self->GetGeniSlice();
+    if (!defined($slice)) {
+	return -1;
+    }
+    return $slice->UnLock();
+}
+
 sub SetStatus($$)
 {
     my ($self,$status) = @_;
@@ -449,9 +474,10 @@ sub ConsoleURL($$)
 	"credentials" => [$slice_credential->asString(),
 			  $speaksfor_credential->asString()],
     };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($authority->url(),
-				  $context, "ConsoleURL", $args);
+    return Genixmlrpc::CallMethod($cmurl, $context, "ConsoleURL", $args);
 }
 
 #
@@ -510,6 +536,8 @@ sub Terminate($)
 	"slice_urn"   => $slice->urn(),
 	"credentials" => $credentials,
     };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     #
     # We have to watch for resource busy errors, and retry. For a while
@@ -520,8 +548,7 @@ sub Terminate($)
     my $tries = 10;
     while ($tries) {
 	$response =
-	    Genixmlrpc::CallMethod($authority->url(),
-				   $context, "DeleteSlice", $args);
+	    Genixmlrpc::CallMethod($cmurl, $context, "DeleteSlice", $args);
 
 	# SEARCHFAILED is success.
 	return $response
@@ -615,17 +642,18 @@ sub Extend($$)
 			  $speaksfor_credential->asString(),
 			  $extcred],
     };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($authority->url(),
-				  $context, "RenewSlice", $args);
+    return Genixmlrpc::CallMethod($cmurl, $context, "RenewSlice", $args);
 }
 
 #
 # Create an Image,
 #
-sub CreateImage($$$)
+sub CreateImage($$$;$)
 {
-    my ($self, $sliver_urn, $imagename) = @_;
+    my ($self, $sliver_urn, $imagename, $bsname) = @_;
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->GetGeniUser();
     my $slice     = $self->GetGeniSlice();
@@ -648,9 +676,13 @@ sub CreateImage($$$)
 	"credentials" => [$slice_credential->asString(),
 			  $speaksfor_credential->asString()],
     };
+    $args->{'bsname'} = $bsname
+	if (defined($bsname));
 
-    return Genixmlrpc::CallMethod($authority->url(),
-				  $context, "CreateImage", $args);
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    
+    return Genixmlrpc::CallMethod($cmurl, $context, "CreateImage", $args);
 }
 
 #
@@ -678,9 +710,10 @@ sub SliceStatus($)
 	"credentials" => [$slice_credential->asString(),
 			  $speaksfor_credential->asString()],
     };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($authority->url(),
-				  $context, "SliverStatus", $args);
+    return Genixmlrpc::CallMethod($cmurl, $context, "SliverStatus", $args);
 }
 
 #
@@ -708,9 +741,10 @@ sub RestartSliver($@)
 	"credentials" => [$slice_credential->asString(),
 			  $speaksfor_credential->asString()],
     };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($authority->url(),
-				  $context, "RestartSliver", $args);
+    return Genixmlrpc::CallMethod($cmurl, $context, "RestartSliver", $args);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

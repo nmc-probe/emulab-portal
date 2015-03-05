@@ -41,7 +41,7 @@ use Exporter;
 	 getlocalevserver genvnodesetup getgenvnodeconfig stashgenvnodeconfig
          getlinkdelayconfig getloadinfo getbootwhat getnodeattributes
 	 copyfilefromnfs getnodeuuid getarpinfo
-	 getstorageconfig getstoragediskinfo
+	 getstorageconfig getstoragediskinfo getimagesize
          getmanifest fetchmanifestblobs runbootscript runhooks 
          build_fake_macs getenvvars
 
@@ -3531,6 +3531,7 @@ sub getstorageconfig($;$) {
 	'UUID_TYPE'=> '(iqn|serial)',
 	'VOLNAME' => '[-\w]+',
 	'VOLSIZE' => '\d+',
+	'DATASET' => '[-\w\/\.:]+',
     );
     my @ops = ();
 
@@ -3612,6 +3613,65 @@ sub getstoragediskinfo()
 	return \%dinfo;
     }
     return undef;
+}
+
+sub getimagesize($$;$) {
+    my ($iname,$rptr,$nocache) = @_;
+    my @tmccresults = ();
+    my %opthash = ();
+
+    if (defined($nocache) && $nocache) {
+	$opthash{'nocache'} = 1;
+    }
+
+    if (tmcc(TMCCCMD_IMAGESIZE, $iname, \@tmccresults, %opthash) < 0 ||
+	@tmccresults == 0) {
+	warn("*** WARNING: Could not get imagesize from server!\n");
+	return -1;
+    }
+
+    my %fields = (
+	'IMAGELOW'    => '\d+',
+	'IMAGEHIGH'   => '\d+',
+	'IMAGESSIZE'  => '\d+',
+	'IMAGERELOC'  => '(0|1)',
+    );
+
+    #
+    # Note that any error is fatal since these lines are interdependent.
+    #
+    my $line = shift(@tmccresults);
+    chomp($line);
+
+    #
+    # Break the line into a hash of key/values
+    #
+    my @kvs = split(/\s+/, $line);
+    my %res = ();
+    foreach my $kv (@kvs) {
+	my ($key,$val,$foo) = split(/=/, $kv);
+	if (defined($foo)) {
+	    warn("*** WARNING: ".
+		 "malformed key-val pair in imagesize: '$kv'\n");
+	    return -1;
+	}
+
+	#
+	# Validate the info and untaint.
+	#
+	if (!exists($fields{$key})) {
+	    warn("*** WARNING: invalid keyword in imagesize: '$key'\n");
+	    return -1;
+	}
+	if ($val !~ /^$fields{$key}$/) {
+	    warn("*** WARNING: invalid value for $key in imagesize: ".
+		 "'$val'\n");
+	    return -1;
+	}
+	$res{$key} = $val;
+    }
+    $$rptr = \%res;
+    return 0;
 }
 
 #

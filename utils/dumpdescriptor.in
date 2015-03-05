@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2014 University of Utah and the Flux Group.
+# Copyright (c) 2010-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -140,6 +140,10 @@ sub DumpImage($)
     $xmlfields{"hash"}         = $image->hash()
     	if ($export && defined($image->hash()) && $image->hash() ne "");
     $xmlfields{"mbr_version"}  = $image->mbr_version();
+    if (0) {
+	# Not yet, backwards compatability problem.
+	$xmlfields{"isdataset"}    = $image->isdataset();
+    }
 
     if ($export) {
 	my $imageid    = $image->imageid();

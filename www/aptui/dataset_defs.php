@@ -114,6 +114,20 @@ class Dataset
     # This is incomplete.
     #
     function AccessCheck($user, $access_type) {
+        global $LEASE_ACCESS_READINFO;
+        global $LEASE_ACCESS_MODIFYINFO;
+        global $LEASE_ACCESS_READ;
+        global $LEASE_ACCESS_MODIFY;
+        global $LEASE_ACCESS_DESTROY;
+        global $LEASE_ACCESS_MIN;
+        global $LEASE_ACCESS_MAX;
+	global $TBDB_TRUST_USER;
+	global $TBDB_TRUST_GROUPROOT;
+	global $TBDB_TRUST_LOCALROOT;
+
+	$mintrust = $LEASE_ACCESS_READINFO;
+        $read_access  = $this->read_access();
+        $write_access = $this->write_access();
         #
         # Admins do whatever they want.
         # 
@@ -121,6 +135,36 @@ class Dataset
 	    return 1;
 	}
 	if ($this->creator_uid() == $user->uid()) {
+	    return 1;
+	}
+        if ($read_access == "global") {
+            if ($access_type == $LEASE_ACCESS_READINFO) {
+                return 1;
+            }
+        }
+        if ($write_access == "creator") {
+            if ($access_type > $LEASE_ACCESS_READINFO) {
+                return 0;
+            }
+        }
+	$pid    = $this->pid();
+	$gid    = $this->gid();
+	$uid    = $user->uid();
+	$uid_idx= $user->uid_idx();
+	$pid_idx= $user->uid_idx();
+	$gid_idx= $user->uid_idx();
+        
+        #
+        # Otherwise must have proper trust in the project.
+        # 
+	if ($access_type == $LEASE_ACCESS_READINFO) {
+	    $mintrust = $TBDB_TRUST_USER;
+	}
+	else {
+	    $mintrust = $TBDB_TRUST_LOCALROOT;
+	}
+	if (TBMinTrust(TBGrpTrust($uid, $pid, $gid), $mintrust) ||
+	    TBMinTrust(TBGrpTrust($uid, $pid, $pid), $TBDB_TRUST_GROUPROOT)) {
 	    return 1;
 	}
 	return 0;
@@ -132,5 +176,13 @@ class Dataset
     function URN() {
         return $this->remote_urn();
     }
+
+    function deleteCommand() {
+	return  "webmanage_dataset delete " . $this->pid() . "/" . $this->id();
+    }
+    function grantCommand() {
+	return  "webmanage_dataset modify ";
+    }
 }
+
 ?>

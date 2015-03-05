@@ -1106,10 +1106,10 @@ sub Action($$$)
 		    if (defined($image)) {
 			print STDERR "Setting $vnode to load $image\n";
 		    
-			if (!exists($reloads{$image->imageid()})) {
-			    $reloads{$image->imageid()} = [ ];
+			if (!exists($reloads{$image->versid()})) {
+			    $reloads{$image->versid()} = [ ];
 			} 
-			push(@{ $reloads{$image->imageid()} }, $vnode);
+			push(@{ $reloads{$image->versid()} }, $vnode);
 			$imageinfo{$vnode->node_id()} = [$osinfo, $image];
 			$vnode->_reloaded(1);
 
@@ -1220,10 +1220,10 @@ sub Action($$$)
 		    $msg .= "  No image for $osinfo on $node";
 		    goto bad;
 		}
-		if (!exists($reloads{$image->imageid()})) {
-		    $reloads{$image->imageid()} = [ ];
+		if (!exists($reloads{$image->versid()})) {
+		    $reloads{$image->versid()} = [ ];
 		} 
-		push(@{ $reloads{$image->imageid()} }, $node);
+		push(@{ $reloads{$image->versid()} }, $node);
 		$node->_reloaded(1);
 
 		# As with os_setup, we do not count images unless

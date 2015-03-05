@@ -57,7 +57,7 @@ sub usage()
 	  "       -w     Wait for image to be created\n");
     exit(-1);
 }
-my $optlist     = "densg:wFr:";
+my $optlist     = "densg:wFr:b:";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
@@ -67,6 +67,7 @@ my $waitmode    = 0;
 my $nodelta     = 0; # To pass to create_image.
 my $global      = 0;
 my $shared      = 0;
+my $bsname;
 
 #
 # Configure variables
@@ -131,6 +132,16 @@ if (defined($options{"w"})) {
 }
 if (defined($options{"F"})) {
     $nodelta = 1;
+}
+if (defined($options{"b"})) {
+    $bsname = $options{"b"};
+
+    if ($bsname =~ /^([-\w]+)$/) {
+	$bsname = $1;
+    }
+    else {
+	fatal("Bad data in $bsname.");
+    }
 }
 if (defined($options{"g"})) {
     $global = $options{"g"};
@@ -213,10 +224,13 @@ if (defined($image)) {
     my $needdelete = 0;
     
     #
-    # Only EZ images via this interface.
+    # Only EZ images or Datasets via this interface.
     #
-    if (!$image->ezid()) {
-	fatal("Cannot clone a non-ez image");
+    if (!($image->ezid())) {
+	fatal("Only EZ images on this path. Dataset images not yet");
+    }
+    if ($image->isdataset() && !defined($bsname)) {
+	fatal("You must provide a blockstore name (-b) for this image!");
     }
 
     #
@@ -320,6 +334,19 @@ if (defined($image)) {
 		}
 	    }
 	}
+    }
+    #
+    # If a wholedisk image was requested, we need to change the
+    # descriptor, since it might not have started out as a whole disk
+    # image, but then the user brought in a new partition on the disk
+    # and wants it made part of the image. When provenance is on, we
+    # will change just the new version, so the old versions of the
+    # image will continue to work properly. But without versioning,
+    # a failure will leave the image descriptor as a whole disk image,
+    # but the image file will not be, and that will break. 
+    #
+    if ($wholedisk) {
+	;
     }
     $image->Unlock();
     

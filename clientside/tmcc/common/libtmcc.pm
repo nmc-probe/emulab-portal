@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -53,7 +53,7 @@ use Exporter;
 	     TMCCCMD_LTMAP TMCCCMD_LTPMAP TMCCCMD_TOPOMAP TMCCCMD_LOADINFO
 	     TMCCCMD_TPMBLOB TMCCCMD_TPMPUB TMCCCMD_DHCPDCONF TMCCCMD_MANIFEST
 	     TMCCCMD_NODEUUID TMCCCMD_NODEATTRIBUTES TMCCCMD_DISKS
-	     TMCCCMD_ARPINFO TMCCCMD_STORAGE
+	     TMCCCMD_ARPINFO TMCCCMD_STORAGE TMCCCMD_IMAGESIZE
 	     );
 
 # Must come after package declaration!
@@ -219,6 +219,7 @@ my %commandset =
       "disks"		=> {TAG => "disks"},
       "arpinfo"		=> {TAG => "arpinfo"},
       "storageconfig"	=> {TAG => "storageconfig"},
+      "imagesize"	=> {TAG => "imagesize"},
     );
 
 #
@@ -294,6 +295,7 @@ sub TMCCCMD_NODEATTRIBUTES() { $commandset{"nodeattributes"}->{TAG}; }
 sub TMCCCMD_DISKS()     { $commandset{"disks"}->{TAG}; }
 sub TMCCCMD_ARPINFO()   { $commandset{"arpinfo"}->{TAG}; }
 sub TMCCCMD_STORAGE()	{ $commandset{"storageconfig"}->{TAG}; }
+sub TMCCCMD_IMAGESIZE()	{ $commandset{"imagesize"}->{TAG}; }
 
 #
 # Caller uses this routine to set configuration of this library

@@ -1,6 +1,6 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -112,7 +112,7 @@ sub usage()
 	  "<node>      - nodeid to create the image from\n");
     exit(-1);
 }
-my $optlist  = "p:wsNdfeDSMA:F";
+my $optlist  = "p:wsNdfeDSMA:Fb:";
 my $waitmode = 0;
 my $usessh   = 0;
 my $usenfs   = 0;
@@ -123,6 +123,7 @@ my $nodelta  = 0;
 my $nomfs    = 0;
 my $signature= 0;
 my $deltapct = 0;
+my $bsname;
 my $webtask;
 
 #
@@ -251,6 +252,17 @@ if (defined($options{"f"})) {
     $foreground = 1;
     $waitmode = 0;
 }
+if (defined($options{"b"})) {
+    $bsname = $options{"b"};
+
+    if ($bsname =~ /^([-\w]+)$/) {
+	$bsname = $1;
+    }
+    else {
+	die("*** $0:\n".
+	    "    Bad data in $bsname.\n");
+    }
+}
 if (defined($options{"D"})) {
     if (!$WITHDELTAS) {
 	print STDERR "Delta image support not enabled\n";
@@ -374,6 +386,12 @@ if ($mereuser &&
     ! $image->AccessCheck($this_user, TB_IMAGEID_ACCESS)) {
     die("*** $0:\n".
 	"    You do not have permission to use imageid $imageid!\n");
+}
+
+# Must have a blockstore name if the image is marked as a dataset.
+if ($image->isdataset() && !defined($bsname)) {
+    die("*** $0:\n".
+	"    You must provide a blockstore name (-b) for this image!\n");
 }
 
 #
@@ -544,7 +562,7 @@ else {
 	if ($doprovenance) {
 	    $srcimage = $image->Parent();
 	}
-	if (!defined($srcimage)) {
+	if (!defined($srcimage) && !$image->isdataset()) {
 	    (undef, $srcimage) = $node->RunningOsImage();
 	}
 	if (defined($srcimage)) {
@@ -612,9 +630,10 @@ else {
 # Make sure that the directory exists and is writeable for the user.
 # We test this by creating the file. Its going to get wiped anyway.
 #
-my $filename = $image->path();
-my $isglobal = $image->global();
-my $usepath  = 0;
+my $filename  = $image->path();
+my $isglobal  = $image->global();
+my $usepath   = 0;
+my $isdataset = $image->isdataset();
 
 #
 # Redirect pathname for global images. See equiv code in clone_image.
@@ -707,7 +726,7 @@ if ($image->Lock()) {
 }
 $needunlock = 1;
 
-if ($doprovenance && $image->ready()) {
+if ($doprovenance && !$isdataset && $image->ready()) {
     $image->Unlock();
     die("*** $0:\n".
 	"    $image ready flag is set, this is inconsistent!\n");
@@ -777,7 +796,7 @@ close(FILE) or
 chmod(0664, $tmp) or
     fatal("Could not make $tmp group writable: $!");
 
-if (! ($isvirtnode || $isec2node)) {
+if (! ($isvirtnode || $isec2node || $isdataset)) {
     #
     # Get the disktype for this node
     #
@@ -811,7 +830,7 @@ if ($isec2node) {
 # Virtnode images use a version of the old create-image script on the vhost
 # XXX needs to be fixed.
 #
-elsif ($isvirtnode && (!$doprovenance || !$isxenhost)) {
+elsif ($isvirtnode && !$isdataset && (!$doprovenance || !$isxenhost)) {
     $command = "$ocreateimage";
     if ($usefup) {
 	my $id;
@@ -857,12 +876,18 @@ elsif (!$doprovenance) {
 	$command .= " -S $BOSSIP -F $id";
     }
 
-    $startslice = $image->loadpart();
-    $loadlength = $image->loadlength();
-    if ($startslice || $loadlength == 1) {
-	$command .= " -s $startslice";
+    if ($isdataset) {
+	# This is not backward compatable, but none of the BS code is.
+	$command .= " -b $bsname";
     }
-    $command .= " $device";
+    else {
+	$startslice = $image->loadpart();
+	$loadlength = $image->loadlength();
+	if ($startslice || $loadlength == 1) {
+	    $command .= " -s $startslice";
+	}
+	$command .= " $device";
+    }
 
     if ($usefup || $usessh) {
 	$command .= " -";
@@ -874,13 +899,13 @@ elsif (!$doprovenance) {
 # Otherwise, use the new script with different argument syntax.
 #
 else {
-    $command = ($isxenhost ? "$createxenimage" : "$createimage");
+    $command = ($isxenhost && !$isdataset ? "$createxenimage" : "$createimage");
 
     #
     # XEN Hosts cannot do provenance/delta without client side update.
     # We need to provide these arguments for backwards compat though.
     #
-    if ($isxenhost) {
+    if ($isxenhost && !$isdataset) {
 	$command .= " $node_id";
 	if ($usefup || $usessh) {
 	    $command .= " -";
@@ -931,15 +956,21 @@ else {
 	$zipperopts .= "P=$deltapct";
     }
 
-    $startslice = $image->loadpart();
-    $loadlength = $image->loadlength();
-
-    if ($startslice || $loadlength == 1) {
-	$command .= " PART=$startslice";
+    if ($isdataset) {
+	# This is not backward compatable, but none of the BS code is.
+	$command .= " BSNAME=$bsname";
     }
-    if (!$isxenhost) {
- 	# The XEN host will figure out what device on its own.
-	$command .= " DISK=$device";
+    else {
+	$startslice = $image->loadpart();
+	$loadlength = $image->loadlength();
+
+	if ($startslice || $loadlength == 1) {
+	    $command .= " PART=$startslice";
+	}
+	if (!$isxenhost) {
+	    # The XEN host will figure out what device on its own.
+	    $command .= " DISK=$device";
+	}
     }
 
     if ($zipperopts) {
@@ -1067,24 +1098,26 @@ if ($isec2node) {
 # Virtnodes.
 # Run on vnode host.
 #
-if ($isvirtnode) {
-    #
-    # XEN creates a problem; the physical host cannot actually
-    # execute a command inside the guest, but we need to run
-    # reboot_prepare and reboot it. FreeBSD creates an additional
-    # problem in that shutdown has to run to invoke prepare; reboot
-    # does not run it, and a shutdown from outside the VM has the
-    # sae effect; prepare does not run. What a pain. 
-    #
+if ($isvirtnode || $isdataset) {
     my $SAVEUID	= $UID;
     $EUID = $UID = 0;
 
-    my $cmd = "$TB/bin/sshtb -n -o ConnectTimeout=10 ".
-	"-host $node_id $reboot_prep";
-    print STDERR "About to: '$cmd'\n" if ($debug);
-    system($cmd);
-    fatal("'$cmd' failed")
-	if ($?);
+    if (!$isdataset) {
+	#
+	# XEN creates a problem; the physical host cannot actually
+	# execute a command inside the guest, but we need to run
+	# reboot_prepare and reboot it. FreeBSD creates an additional
+	# problem in that shutdown has to run to invoke prepare; reboot
+	# does not run it, and a shutdown from outside the VM has the
+	# sae effect; prepare does not run. What a pain. 
+	#
+	my $cmd = "$TB/bin/sshtb -n -o ConnectTimeout=10 ".
+	    "-host $node_id $reboot_prep";
+	print STDERR "About to: '$cmd'\n" if ($debug);
+	system($cmd);
+	fatal("'$cmd' failed")
+	    if ($?);
+    }
 
     # Mark webtask
     $webtask->status("imaging")
@@ -1219,10 +1252,11 @@ done:
 # Grab boot log now. Node will reboot and possibly erase it. We should
 # probably come up with a better way to handle this.
 my $bootlog;
-if ($node->GetBootLog(\$bootlog)) {
-    $bootlog = undef;
+if (!$isdataset) {
+    if ($node->GetBootLog(\$bootlog)) {
+	$bootlog = undef;
+    }
 }
-
 if (! cleanup()) {
     fatal("Problem encountered while cleaning up!\n");
 }
@@ -1375,7 +1409,7 @@ sub cleanup ()
 	unlink($hacksigfile);
     }
 
-    if ($isvirtnode || $isec2node) {
+    if ($isvirtnode || $isec2node || $isdataset) {
 	#
 	# Nothing to do; the clientside script rebooted the container.
 	#

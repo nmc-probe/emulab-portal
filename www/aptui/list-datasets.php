@@ -25,8 +25,10 @@ chdir("..");
 include("defs.php3");
 include("lease_defs.php");
 include("blockstore_defs.php");
+include("imageid_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
+include("dataset_defs.php");
 $page_title = "My Datasets";
 
 #
@@ -60,23 +62,32 @@ echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
 $whereclause1 = "where l.owner_uid='$target_uid'";
-$whereclause2 = "where d.creator_uid='$target_uid'";
+$whereclause2 = "where v.creator='$target_uid' and v.isdataset=1";
+$whereclause3 = "where d.creator_uid='$target_uid'";
 $orderclause1 = "order by l.owner_uid";
-$orderclause2 = "order by d.creator_uid";
+$orderclause2 = "order by v.creator";
+$orderclause3 = "order by d.creator_uid";
 $joinclause1  = "";
-$joinclause2  = "";
+$joinclause2  = "left join image_versions as v on ".
+    "              v.imageid=i.imageid and v.version=i.version ";
+$joinclause3  = "";
 
 if (isset($all)) {
     if (ISADMIN()) {
 	$whereclause1 = "";
-	$whereclause2 = "";
+	$whereclause2 = "where v.isdataset=1";
+	$whereclause3 = "";
     }
     else {
 	$joinclause1 =
 	    "left join group_membership as g on ".
 	    "     g.uid='$target_uid' and ".
 	    "     g.pid=l.pid and g.pid_idx=g.gid_idx";
-	$joinclause2 =
+	$joinclause2 .=
+	    "left join group_membership as g on ".
+	    "     g.uid='$target_uid' and ".
+	    "     g.pid=i.pid and g.pid_idx=g.gid_idx";
+	$joinclause3 =
 	    "left join group_membership as g on ".
 	    "     g.uid='$target_uid' and ".
 	    "     g.pid=d.pid and g.pid_idx=g.gid_idx";
@@ -84,6 +95,9 @@ if (isset($all)) {
 	    "where l.owner_uid='$target_uid' or ".
 	    "      g.uid_idx is not null ";
 	$whereclause2 =
+	    "where (v.creator='$target_uid' or ".
+	    "       g.uid_idx is not null) and v.isdataset=1 ";
+	$whereclause3 =
 	    "where d.creator_uid='$target_uid' or ".
 	    "      g.uid_idx is not null ";
     }
@@ -91,15 +105,19 @@ if (isset($all)) {
 
 if ($embedded) {
     $query_result =
-	DBQueryFatal("select l.* from project_leases as l ".
-		     "$joinclause1 ".
-		     "$whereclause1 $orderclause1");
+	DBQueryFatal("(select l.uuid,'lease' as type from project_leases as l ".
+		     " $joinclause1 ".
+		     " $whereclause1 $orderclause1) ".
+                     "union ".
+                     "(select i.uuid,'image' as type from images as i ".
+		     " $joinclause2 ".
+		     " $whereclause2 $orderclause2)");
 }
 else {
     $query_result =
-	DBQueryFatal("select d.* from apt_datasets as d ".
-		     "$joinclause2 ".
-		     "$whereclause2 $orderclause2");
+	DBQueryFatal("select d.uuid,'dataset' as type from apt_datasets as d ".
+		     "$joinclause3 ".
+		     "$whereclause3 $orderclause3");
 }
 
 if (mysql_num_rows($query_result) == 0) {
@@ -151,31 +169,29 @@ if (isset($all) && ISADMIN()) {
 }
 echo "     <th>Project</th>
            <th>Expires</th>
-           <th>State</th>
           </tr>
          </thead>
          <tbody>\n";
 
 while ($row = mysql_fetch_array($query_result)) {
-    if ($embedded) {
-	$uuid    = $row["uuid"];
-	$idx     = $row["lease_idx"];
-	$name    = $row["lease_id"];
-	$pid     = $row["pid"];
-	$creator = $row["owner_uid"];
-	$expires = $row["lease_end"];
-	$state   = $row["state"];
-    }
-    else {
-	$uuid    = $row["uuid"];
-	$idx     = $row["idx"];
-	$name    = $row["dataset_id"];
-	$pid     = $row["pid"];
-	$creator = $row["creator_uid"];
-	$expires = DateStringGMT($row["expires"]);
-	$state   = $row["state"];
-    }
+    $uuid    = $row["uuid"];
+    $type    = $row["type"];
 
+    if ($type == "image") {
+        $dataset = ImageDataset::Lookup($uuid);
+    }
+    elseif ($type == "lease") {
+        $dataset = Lease::Lookup($uuid);
+    }     
+    elseif ($type == "dataset") {
+        $dataset = Dataset::Lookup($uuid);
+    }
+    $idx     = $dataset->idx();
+    $name    = $dataset->id();
+    $pid     = $dataset->pid();
+    $creator = $dataset->owner_uid();
+    $expires = $dataset->expires();
+    
     echo " <tr>
             <td>$name</td>\n";
 
@@ -190,7 +206,6 @@ while ($row = mysql_fetch_array($query_result)) {
     }
     echo "  <td style='white-space:nowrap'>$pid</td>
             <td class='format-date'>$expires</td>
-            <td>$state</td>
            </tr>\n";
 }
 echo "   </tbody>

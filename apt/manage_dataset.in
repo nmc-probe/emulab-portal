@@ -39,6 +39,7 @@ sub usage()
     print STDERR "Usage: manage_dataset [options --] refresh ...\n";
     print STDERR "Usage: manage_dataset [options --] modify ...\n";
     print STDERR "Usage: manage_dataset [options --] extend ...\n";
+    print STDERR "Usage: manage_dataset [options --] snapshot ...\n";
     exit(-1);
 }
 my $optlist     = "dt:";
@@ -74,9 +75,11 @@ use emutil;
 use User;
 use Project;
 use APT_Dataset;
+use APT_Instance;
 use WebTask;
 use Blockstore;
 use GeniResponse;
+use GeniXML;
 
 # Protos
 sub fatal($);
@@ -86,6 +89,7 @@ sub DoRefresh();
 sub DoRefreshInternal($$);
 sub DoModify();
 sub DoExtend();
+sub DoSnapshot();
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -143,6 +147,9 @@ elsif ($action eq "modify") {
 elsif ($action eq "extend") {
     exit(DoExtend());
 }
+elsif ($action eq "snapshot") {
+    exit(DoSnapshot());
+}
 else {
     usage();
 }
@@ -155,7 +162,7 @@ sub DoCreate()
 {
     my $usage = sub {
 	print STDERR "Usage: manage_dataset create ".
-	    "[-t type] [-f fstype] [-e expiration] ".
+	    "[-t type] [-f fstype] [-e expiration] [-a am_urn] ".
 	    "[-R global|project] [-W creator|project] ".
 	    "-s size pid/name\n";
 	exit(-1);
@@ -165,13 +172,13 @@ sub DoCreate()
     my $errmsg;
     my $pid;
     my $expires;
-    my $size;
+    my $size = 0;
     my $type = "stdataset";
     my $fstype;
     my $read_access;
     my $write_access;
     
-    my $optlist = "ds:t:e:f:w:p:R:W:";
+    my $optlist = "ds:t:e:f:w:p:R:W:a:";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	&$usage();
@@ -182,12 +189,16 @@ sub DoCreate()
     if (defined($options{"t"})) {
 	$type = $options{"t"};
 	&$usage()
-	    if (! ($type eq "stdataset" || $type eq "ltdataset"));
+	    if (! ($type eq "stdataset" || $type eq "ltdataset" ||
+		   $type eq "imdataset"));
     }
-    if (defined($options{"f"})) {
-	$fstype = $options{"f"};
-	&$usage()
-	    if ($fstype !~ /^(ext2|ext3|ext4|ufs|ufs2)$/);
+    # We ignore the aggregate urn unless its an imdataset.
+    if ($type eq "imdataset") {
+	if (!exists($options{"a"})) {
+	    print STDERR "Must provide -a opton for imdatasets\n";
+	    &$usage();
+	}
+	$aggregate_urn = $options{"a"};
     }
     if (defined($options{"f"})) {
 	$fstype = $options{"f"};
@@ -225,8 +236,10 @@ sub DoCreate()
 	}
 	$expires = $options{"e"};
     }
+    
     &$usage()
-	if (@ARGV != 1 || !defined($size) ||
+	if (@ARGV != 1 ||
+	    ($type ne "imdataset" && !defined($size)) ||
 	    ($type eq "stdataset" && !defined($expires)));
     my $name = shift(@ARGV);
 
@@ -357,7 +370,7 @@ sub DoCreate()
 #
 sub DoDelete()
 {
-    my $errmsg;
+    my $errmsg = "Could not delete dataset";
     
     if (@ARGV != 1) {
 	fatal("usage: $0 delete pid/name");
@@ -438,6 +451,9 @@ sub DoRefreshInternal($$)
     }
     else {
 	$dataset->Update({"state" => $blob->{"state"}});
+    }
+    if ($dataset->type() eq "imdataset") {
+	$dataset->Update({"size" => $blob->{"size"}});
     }
     return 0;
 }
@@ -551,6 +567,104 @@ sub DoExtend()
     return 0;
 
   failed:
+    $dataset->Unlock();
+    # This will set the webtask, see below.
+    fatal($errmsg);
+}
+
+#
+# Snapshot an image backed dataset
+#
+sub DoSnapshot()
+{
+    my $errmsg;
+    
+    my $usage = sub {
+	print STDERR "Usage: manage_dataset snapshot ".
+	    "-i instance -b bsname pid/name nodeid\n";
+	exit(-1);
+    };
+    my $optlist = "b:i:";
+    my %options = ();
+    if (! getopts($optlist, \%options)) {
+	&$usage();
+    }
+    &$usage()
+	if (! (@ARGV == 2 && exists($options{"b"}) && exists($options{"i"})));
+    
+    my $bsname  = $options{"b"};
+    my $token   = shift(@ARGV);
+    my $nodeid  = shift(@ARGV);
+    my $dataset = APT_Dataset->Lookup($token);
+    if (!defined($dataset)) {
+	fatal("No such dataset");
+    }
+    if ($dataset->Lock()) {
+	fatal("dataset is busy, cannot lock it");
+    }
+    if ($dataset->type() ne "imdataset") {
+	$errmsg = "Only image backed datasets supported";
+	goto failed;
+    }
+    my $instance = APT_Instance->Lookup($options{"i"});
+    if (!defined($instance)) {
+	$errmsg = "No such instance";
+	goto failed;
+    }
+    if ($instance->Lock()) {
+	# undef so we do not try to unlock it below.
+	$instance = undef;
+	$errmsg = "instance is busy, cannot lock it";
+	goto failed
+    }
+    my $manifest = GeniXML::Parse($instance->manifest());
+    if (! defined($manifest)) {
+	$errmsg = "Could not parse manifest";
+	goto failed;
+    }
+    my $sliver_urn;
+    my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
+    foreach my $node (@nodes) {
+	my $client_id = GeniXML::GetVirtualId($node);
+	if ($nodeid eq $client_id) {
+	    $sliver_urn = GeniXML::GetSliverId($node);
+	    #
+	    # But check that the bsname is on this node.
+	    #
+	    my $found = 0;
+	    foreach my $blockref
+		(GeniXML::FindNodesNS("n:blockstore", $node,
+				      $GeniXML::EMULAB_NS)->get_nodelist()) {
+		    my $name = GeniXML::GetText("name", $blockref);
+		    if ($name eq $bsname) {
+			$found = 1;
+			last;
+		    }
+	    }
+	    if (!$found) {
+		$errmsg = "No such blockstore $bsname on node $nodeid";
+		goto failed;
+	    }
+	    last;
+	}
+    }
+    if (!defined($sliver_urn)) {
+	$errmsg = "Could not find node '$nodeid' in manifest";
+	goto failed;
+    }
+    my $response = $instance->CreateImage($sliver_urn,
+					  $dataset->dataset_id(), $bsname);
+    if ($response->code() != GENIRESPONSE_SUCCESS) {
+	$errmsg = "SnapshotDataset failed: ". $response->output() . "\n";
+	goto failed;
+    }
+    $dataset->Update({"state" => "busy"});
+    $instance->Unlock();
+    $dataset->Unlock();
+    return 0;
+    
+  failed:
+    $instance->Unlock() if (defined($instance));
     $dataset->Unlock();
     # This will set the webtask, see below.
     fatal($errmsg);

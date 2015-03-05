@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2012-2014 University of Utah and the Flux Group.
+# Copyright (c) 2012-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -168,6 +168,14 @@ Blockstore instproc set-mount-point {newmount} {
     }
 
     set attributes(mountpoint) $newmount
+    return
+}
+
+Blockstore instproc load-dataset {dataset} {
+    $self instvar attributes
+    $self instvar node
+
+    set attributes(dataset) $dataset
     return
 }
 

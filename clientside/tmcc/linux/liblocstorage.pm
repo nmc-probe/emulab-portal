@@ -39,6 +39,8 @@ sub VERSION()	{ return 1.0; }
 # Must come after package declaration!
 use English;
 use Cwd 'abs_path';
+use libsetup;
+use libtmcc;
 
 # Load up the paths. Its conditionalized to be compatabile with older images.
 # Note this file has probably already been loaded by the caller.
@@ -70,6 +72,7 @@ my $SFDISK	= "/sbin/sfdisk";
 my $SGDISK	= "/sbin/sgdisk";
 my $GDISK	= "/sbin/gdisk";
 my $PPROBE	= "/sbin/partprobe";
+my $FRISBEE     = "/usr/local/bin/frisbee";
 
 #
 #
@@ -366,15 +369,15 @@ sub get_diskinfo()
 
     #
     # Get the list of partitions.
-    # XXX only care about sd[a-z] devices and their partitions.
+    # XXX only care about xvd|sd[a-z] devices and their partitions.
     #
     if (!open(FD, "/proc/partitions")) {
 	warn("*** get_diskinfo: could not get disk info from /proc/partitions\n");
 	return undef;
     }
     while (<FD>) {
-	if (/^\s+\d+\s+\d+\s+(\d+)\s+(sd[a-z])(\d+)?/) {
-	    my ($size,$dev,$part) = ($1,$2,$3);
+	if (/^\s+\d+\s+\d+\s+(\d+)\s+((xvd|sd)[a-z])(\d+)?/) {
+	    my ($size,$dev,$part) = ($1,$2,$4);
 	    # DOS partition
 	    if (defined($part)) {
 		my $pttype = "MBR";
@@ -416,7 +419,7 @@ sub get_diskinfo()
 	return undef;
     }
     while (<FD>) {
-	if (/^\/dev\/(sd\S+)/) {
+	if (/^\/dev\/((xvd|sd)\S+)/) {
 	    my $dev = $1;
 	    if (exists($geominfo{$dev}) && $geominfo{$dev}{'inuse'} == 0) {
 		$geominfo{$dev}{'inuse'} = -1;
@@ -1076,6 +1079,35 @@ sub os_create_storage($$)
 	    }
 
 	}
+	elsif (exists($href->{'DATASET'})) {
+	    #
+	    # Load with the dataset.
+	    #
+	    my $proxyopt   = "";
+	    my $imageid    = $href->{'DATASET'};
+	    my $imagepath  = $mdev;
+	    my (undef,$ip) = tmccbossinfo();
+
+	    if (SHAREDHOST()) {
+		my $TMNODEID  = TMNODEID();
+		my $node_id   = `cat $TMNODEID`;
+		chomp($node_id);
+		$proxyopt = "-P $nodeid";
+	    }
+
+	    my $command = "$FRISBEE -f -M 128 $proxyopt ".
+		"         -S $ip -B 30 -F $imageid $imagepath";
+
+	    if (mysystem($command)) {
+		warn("*** $lv: frisbee of dataset to $mdev failed!\n");
+		return 0;
+	    }
+	    $fstype = get_fstype($href, $mdev);
+	    if (!$fstype) {
+		warn("*** $lv: unknown FS in dataset on $mdev\n");
+		return 0;
+	    }
+	}
 	#
 	# Otherwise, create the filesystem:
 	#
@@ -1301,7 +1333,8 @@ sub os_create_storage_slice($$$)
 
 		if ($bsid eq "ANY") {
 		    $dev = $bdisk . "4";
-		    if ($ginfo->{$dev}->{'inuse'} == 0) {
+		    if (exists($ginfo->{$dev}) &&
+			$ginfo->{$dev}->{'inuse'} == 0) {
 			push(@devs, "/dev/$dev");
 		    }
 		}

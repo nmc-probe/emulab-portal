@@ -142,6 +142,21 @@ class Lease
     # This is incomplete.
     #
     function AccessCheck($user, $access_type) {
+        global $LEASE_ACCESS_READINFO;
+        global $LEASE_ACCESS_MODIFYINFO;
+        global $LEASE_ACCESS_READ;
+        global $LEASE_ACCESS_MODIFY;
+        global $LEASE_ACCESS_DESTROY;
+        global $LEASE_ACCESS_MIN;
+        global $LEASE_ACCESS_MAX;
+	global $TBDB_TRUST_USER;
+	global $TBDB_TRUST_GROUPROOT;
+	global $TBDB_TRUST_LOCALROOT;
+
+	$mintrust = $LEASE_ACCESS_READINFO;
+        $read_access  = $this->read_access();
+        $write_access = $this->write_access();
+        
         #
         # Admins do whatever they want.
         # 
@@ -149,6 +164,36 @@ class Lease
 	    return 1;
 	}
 	if ($this->owner_uid() == $user->uid()) {
+	    return 1;
+	}
+        if ($read_access == "global") {
+            if ($access_type == $LEASE_ACCESS_READINFO) {
+                return 1;
+            }
+        }
+        if ($write_access == "creator") {
+            if ($access_type > $LEASE_ACCESS_READINFO) {
+                return 0;
+            }
+        }
+	$pid    = $this->pid();
+	$gid    = $this->gid();
+	$uid    = $user->uid();
+	$uid_idx= $user->uid_idx();
+	$pid_idx= $user->uid_idx();
+	$gid_idx= $user->uid_idx();
+        
+        #
+        # Otherwise must have proper trust in the project.
+        # 
+	if ($access_type == $LEASE_ACCESS_READINFO) {
+	    $mintrust = $TBDB_TRUST_USER;
+	}
+	else {
+	    $mintrust = $TBDB_TRUST_LOCALROOT;
+	}
+	if (TBMinTrust(TBGrpTrust($uid, $pid, $gid), $mintrust) ||
+	    TBMinTrust(TBGrpTrust($uid, $pid, $pid), $TBDB_TRUST_GROUPROOT)) {
 	    return 1;
 	}
 	return 0;
@@ -195,6 +240,190 @@ class Lease
 	
 	return "urn:publicid:IDN+${OURDOMAIN}+dataset+" . $this->idx();
     }
-    
+
+    function deleteCommand() {
+	return  "webdeletelease -f -b " . $this->pid() . "/" . $this->id();
+    }
+    function grantCommand() {
+	return  "webgrantlease ";
+    }
 }
+
+#
+# This is basically a wrapper around an image acting as a dataset.
+#
+class ImageDataset
+{
+    var	$image;
+
+    #
+    # Constructor by lookup on unique index.
+    #
+    function ImageDataset($token) {
+        $image = Image::LookupByUUID($token);
+        if (!$image || !$image->isdataset()) {
+	    $this->image = NULL;
+	    return;
+        }
+        $this->image = $image;
+    }
+
+    # Hmm, how does one cause an error in a php constructor?
+    function IsValid() {
+	return !is_null($this->image);
+    }
+
+    # Lookup by uuid.
+    function Lookup($token) {
+        $image = Image::LookupByUUID($token);
+        if (!$image || !$image->isdataset()) {
+            return null;
+        }
+	return new ImageDataset($token);
+    }
+    # Lookup by name in a project
+    function LookupByName($project, $name) {
+        $image = Image::LookupByName($project, $name);
+        if (!$image || !$image->isdataset()) {
+            return null;
+        }
+	return ImageDataset::Lookup($image->image_uuid());
+    }
+
+    # accessors
+    function idx()           { return $this->image->imageid(); }
+    function dataset_id()    { return $this->image->imagename(); }
+    function id()            { return $this->dataset_id(); }
+    function creator_uid()   { return $this->image->creator(); }
+    function owner_uid()     { return $this->image->creator(); }
+    function uuid()          { return $this->image->uuid(); }
+    function pid()           { return $this->image->pid(); }
+    function pid_idx()       { return $this->image->pid_idx(); }
+    function gid()           { return $this->image->pid(); }
+    function aggregate_urn() { return ""; }
+    function remote_urn()    { return ""; }
+    function type()          { return "imdataset"; }
+    function fstype()        { return "unknown"; }
+    function created()       { return NullDate($this->image->created()); }
+    function expires()       { return ""; }
+    function last_used()     { return ""; }
+    function locked()	     { return $this->image->locked(); }
+    function locker_pid()    { return $this->image->locker_pid(); }
+    function islocal()       { return 1; }
+
+    #
+    # Convert to mebi.
+    #
+    function size() {
+        return intval((($this->image->lba_high() -
+                        $this->image->lba_low() + 1) *
+                       $this->image->lba_size()) /
+                      pow(2, 20));
+    }
+
+    function state() {
+        return ($this->image->locked() ? "imaging" :
+                $this->image->size() ? "valid" : "allocated");
+    }
+
+    #
+    # This is incomplete.
+    #
+    function AccessCheck($user, $access_type) {
+        global $LEASE_ACCESS_READINFO;
+        global $LEASE_ACCESS_MODIFYINFO;
+        global $LEASE_ACCESS_READ;
+        global $LEASE_ACCESS_MODIFY;
+        global $LEASE_ACCESS_DESTROY;
+        global $LEASE_ACCESS_MIN;
+        global $LEASE_ACCESS_MAX;
+	global $TBDB_TRUST_USER;
+	global $TBDB_TRUST_GROUPROOT;
+	global $TBDB_TRUST_LOCALROOT;
+
+	$mintrust = $LEASE_ACCESS_READINFO;
+        $read_access  = $this->read_access();
+        $write_access = $this->write_access();
+        #
+        # Admins do whatever they want.
+        # 
+	if (ISADMIN()) {
+	    return 1;
+	}
+	if ($this->creator_uid() == $user->uid()) {
+	    return 1;
+	}
+        if ($read_access == "global") {
+            if ($access_type == $LEASE_ACCESS_READINFO) {
+                return 1;
+            }
+        }
+        if ($write_access == "creator") {
+            if ($access_type > $LEASE_ACCESS_READINFO) {
+                return 0;
+            }
+        }
+	$pid    = $this->pid();
+	$gid    = $this->gid();
+	$uid    = $user->uid();
+	$uid_idx= $user->uid_idx();
+	$pid_idx= $user->uid_idx();
+	$gid_idx= $user->uid_idx();
+        
+        #
+        # Otherwise must have proper trust in the project.
+        # 
+	if ($access_type == $LEASE_ACCESS_READINFO) {
+	    $mintrust = $TBDB_TRUST_USER;
+	}
+	else {
+	    $mintrust = $TBDB_TRUST_LOCALROOT;
+	}
+	if (TBMinTrust(TBGrpTrust($uid, $pid, $gid), $mintrust) ||
+	    TBMinTrust(TBGrpTrust($uid, $pid, $pid), $TBDB_TRUST_GROUPROOT)) {
+	    return 1;
+	}
+	return 0;
+    }
+
+    function read_access() {
+	if ($this->image->isglobal()) {
+	    return "global";
+	}
+        else {
+            return "project";
+        }
+    }
+    function write_access() {
+        $imageid = $this->image->imageid();
+        $pid     = $this->pid();
+
+        $query_result =
+            DBQueryFatal("select * from image_permissions ".
+                         "where imageid='$imageid' and ".
+                         "      permission_id='$pid' and allow_write=1");
+        
+	if (mysql_num_rows($query_result)) {
+	    return "project";
+	}
+        else {
+            return "creator";
+        }
+    }
+
+    #
+    # Form a URN for the dataset.
+    #
+    function URN() {
+        return $this->remote_urn();
+    }
+    
+    function deleteCommand() {
+	return  "webdelete_image -F -p " . $this->image->imageid();
+    }
+    function grantCommand() {
+	return  "webgrantimage ";
+    }
+}
+
 ?>
