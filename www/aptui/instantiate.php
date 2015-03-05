@@ -505,7 +505,9 @@ function SPITFORM($formfields, $newuser, $errors)
                    <div class='col-sm-6'>
                        <select name=\"formfields[where]\"
 		              id='profile_where' class='form-control'>
-                       $am_options</select></div></div><div>\n";
+                       $am_options</select><br>
+		       <div class='alert alert-warning' id='where-warning' style='display: none'>This profile only works on some clusters. Incompatible clusters are unselectable.</div>
+</div></div><div>\n";
             echo $html;
     }
     echo "</fieldset>
@@ -642,6 +644,7 @@ if (!isset($create)) {
 	}
     }
     SPITFORM($defaults, false, array());
+    echo "<div style='display: none'><div id='jacks-dummy'></div></div>\n";
     SPITFOOTER();
     return;
 }

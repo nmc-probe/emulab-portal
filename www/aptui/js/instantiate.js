@@ -1,10 +1,10 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'js/ppstart',
+	['underscore', 'constraints', 'js/quickvm_sup', 'js/ppstart',
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
 	 'js/lib/text!template/waitwait-modal.html',
-         'formhelpers', 'filestyle', 'marked'],
-function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
+         'formhelpers', 'filestyle', 'marked', 'jacks'],
+function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 {
     'use strict';
 
@@ -12,11 +12,23 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
     var amlist        = null;
     var amdefault     = null;
     var selected_uuid = null;
+    var selected_rspec = null;
     var ispprofile    = 0;
     var registered    = false;
+    var jacks = {
+      instance: null,
+      input: null,
+      output: null
+    };
 
     function initialize()
     {
+	// Get context for constraints
+	var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
+        $('#profile_where').prop('disabled', true);
+        $('#instantiate_submit').prop('disabled', true);
+        $.get(contextUrl).then(contextReady, contextFail);
+
 	window.APT_OPTIONS.initialize(sup);
 	registered = window.REGISTERED;
 	ajaxurl = window.AJAXURL;
@@ -170,6 +182,7 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 
 	    ispprofile    = ispp;
 	    selected_uuid = profile_value;
+	    selected_rspec = rspec;
 	    amdefault     = amdef;
 
 	    // Show the configuration button, disable the create button.
@@ -200,6 +213,7 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 		    .filter('[value="'+ amdefault + '"]')
                     .prop('selected', true);		
 	    }
+	    updateWhere();
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
     }
@@ -261,6 +275,105 @@ function (_, sup, ppstart, aboutaptString, aboutcloudString, waitwaitString)
 	}
 	// Enable the create button.
 	$('#instantiate_submit').attr('disabled', false);
+    }
+
+    var constraints;
+
+    function contextReady(data)
+    {
+      var context = data;
+      if (typeof(context) === 'string')
+      {
+	context = JSON.parse(context);
+      }
+      if (context.canvasOptions.defaults.length === 0)
+      {
+	delete context.canvasOptions.defaults;
+      }
+      constraints = new Constraints(context);
+      jacks.instance = new window.Jacks({
+	mode: 'viewer',
+	source: 'rspec',
+	root: '#jacks-dummy',
+	nodeSelect: true,
+	readyCallback: function (input, output) {
+	  jacks.input = input;
+	  jacks.output = output;
+          $('#profile_where').prop('disabled', false);
+          $('#instantiate_submit').prop('disabled', false);
+	  updateWhere();
+	},
+	canvasOptions: context.canvasOptions,
+	constraints: context.constraints
+      });
+    }
+
+    function contextFail(fail1, fail2)
+    {
+        console.log('Failed to fetch context', fail1, fail2);
+        alert('Failed to fetch context from ' + contextUrl + '\n\n' + 'Check your network connection and try again or contact testbed support with this message and the URL of this webpage.');
+    }
+
+    function updateWhere()
+    {
+	if (jacks.input && constraints && selected_rspec)
+	{
+	  jacks.input.trigger('change-topology',
+			      [{ rspec: selected_rspec }],
+			      { constrainedFields: finishUpdateWhere });
+	}
+    }
+
+  var amValueToKey = {'Utah APT':
+		      "urn:publicid:IDN+apt.emulab.net+authority+cm",
+		      'Utah Cloudlab':
+		      "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
+		      'Utah DDC':
+		      "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
+		      'Utah PG':
+		      "urn:publicid:IDN+emulab.net+authority+cm"
+  };
+
+    function finishUpdateWhere(data)
+    {
+      var allowed = [];
+      var rejected = [];
+      var bound = data;
+      var subclause = 'node';
+      var clause = 'aggregates';
+      allowed = constraints.getValidList(bound, subclause,
+					 clause, rejected);
+      if (rejected.length > 0)
+      {
+	$('#where-warning').show();
+      }
+      else
+      {
+	$('#where-warning').hide();
+      }
+      $('#profile_where').children().each(function () {
+	var value = $(this).attr('value');
+	var key = amValueToKey[value];
+	var i = 0;
+	var found = false;
+	for (; i < allowed.length; i += 1)
+	{
+	  if (allowed[i] === key)
+	  {
+	    found = true;
+	    break;
+	  }
+	}
+	if (found)
+	{
+	  $(this).prop('disabled', false);
+	}
+	else
+	{
+	  $(this).prop('disabled', true);
+	  $(this).prop('selected', false);
+	}
+      });
     }
 
     $(document).ready(initialize);

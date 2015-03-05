@@ -14,7 +14,8 @@ window.APT_OPTIONS.configObject = {
 	'underscore': 'js/lib/underscore-min',
 	'filesize': 'js/lib/filesize.min',
 	'contextmenu': 'js/lib/bootstrap-contextmenu',
-	'jacks': 'https://www.emulab.net/protogeni/jacks-stable/js/jacks'
+	'jacks': 'https://www.emulab.net/protogeni/jacks-stable/js/jacks',
+	'constraints': 'https://www.emulab.net/protogeni/jacks-devel/js/Constraints'
     },
     shim: {
 	'jquery-ui': { },
