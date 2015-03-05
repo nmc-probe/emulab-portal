@@ -256,7 +256,7 @@ class Instance
                           "urn:publicid:IDN+emulab.net+authority+cm");
 
         if (ISADMIN()) {
-            $am_array["Wisc Cloudlab"] =
+            $am_array["Wisc Cloudlab (Alpha)"] =
                 "urn:publicid:IDN+wisc.cloudlab.us+authority+cm";
         }
         return $am_array;
