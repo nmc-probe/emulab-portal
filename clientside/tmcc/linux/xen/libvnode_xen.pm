@@ -129,6 +129,25 @@ my $debug  = 0;
 my $lockdebug = 0;
 
 #
+# Serial console handling. We fire up a capture per active vnode.
+# We use a fine assortment of capture options:
+#
+#	-i: standalone mode, don't try to contact capserver directly
+#	-l: (added later) set directory where log, ACL, and pid files are kept.
+#	-C: use a circular buffer to capture activity while no user
+#	    is connected. This gets dumped to the user when they connect.
+#	-X: (added later) run in "Xen mode" on the given domain.
+#	    Monitors the pty exported by xenconsoled. Note that the
+#	    specific pty can change when a domain reboots; capture
+#	    deals with this.
+#	-R: Retry interval of 2 seconds. When capture is disconnected
+#	    from the pty (due to domain reboot/shutdowns), this is how
+#	    long we wait between attempts to reconnect.
+#
+my $CAPTURE     = "/usr/local/sbin/capture-nossl";
+my $CAPTUREOPTS	= "-i -C -R 2000";
+
+#
 # Create a thin pool with the name $POOL_NAME using not more
 # than $POOL_FRAC of any disk.
 # 
@@ -311,6 +330,7 @@ sub AllocateRouteTable($);
 sub LookupRouteTable($);
 sub FreeRouteTable($);
 sub downloadOneImage($$$);
+sub captureRunning($);
 
 sub getXenInfo()
 {
@@ -1479,6 +1499,25 @@ okay:
     }
     
     #
+    # Fire up a capture for the console.
+    # Yes, the domain is not running yet, but the lastest version of
+    # capture can cope with that. We want to make sure the capture is
+    # running and logging the console as early as possible.
+    #
+    if (-x "$CAPTURE") {
+	# XXX sanity check
+	my $rpid = captureRunning($vnode_id);
+	if ($rpid) {
+	    print STDERR "WARNING: capture already running ($rpid)!? ".
+		"Killing and restarting...\n";
+	    kill("TERM", $rpid);
+	    sleep(1);
+	}
+
+	captureStart($vnode_id);
+    }
+
+    #
     # Finish off the state transitions as necessary.
     #
     if ($inreload) {
@@ -2236,6 +2275,17 @@ sub vnodeBoot($$$$)
 	return -1;
     }
 
+    #
+    # XXX compatibility: make sure capture is running.
+    # If the old capture was in use, it will have died when the vnode
+    # was last shutdown. Re-start the new capture here.
+    #
+    my $rpid = captureRunning($vnode_id);
+    if ($rpid == 0) {
+	print STDERR "vnodeBoot: WARNING: capture was not running, starting\n";
+	captureStart($vnode_id);
+    }
+
     # notify stated that we are about to boot
     libutil::setState("BOOTING");
 
@@ -2387,6 +2437,52 @@ sub vnodeDestroy($$$$)
 	RunWithLock("xmtool", "$XM destroy $vnode_id");
 	# XXX hang out awhile waiting for domain to disappear
 	domainGone($vnode_id, 15);
+    }
+
+    #
+    # Shutdown the capture now that it is gone. We leave the log around
+    # til next time this vnode comes back.
+    #
+    if (-x "$CAPTURE") {
+	my $LOGPATH = "$VMDIR/$vnode_id";
+	my $pidfile = "$LOGPATH/$vnode_id.pid";
+	my $pid = 0;
+
+	if (-r "$pidfile" && open(PID, "<$pidfile")) {
+	    my $pid = <PID>;
+	    close(PID);
+	    chomp($pid);
+	    if ($pid =~ /^(\d+)$/ && $1 > 1) {
+		$pid = $1;
+	    } else {
+		print STDERR "WARNING: bogus pid in capture pidfile ($pid)\n";
+		$pid = 0;
+	    }
+	}
+
+	# XXX sanity: make sure pidfile matches reality
+	my $rpid = captureRunning($vnode_id);
+	if ($rpid == 0) {
+	    print STDERR "WARNING: capture not running";
+	    if ($pid > 0) {
+		print STDERR ", should have been pid $pid";
+		$pid = 0;
+	    }
+	    print STDERR "\n";
+	} elsif ($pid != $rpid) {
+	    if ($pid == 0) {
+		print STDERR "WARNING: no recorded capture pid, ".
+		    "but found process ($rpid)\n";
+	    } else {
+		print STDERR "WARNING: recorded capture pid ($pid) ".
+		    "does not match actual pid ($rpid)\n";
+	    }
+	    $pid = $rpid;
+	}
+
+	if ($pid > 0) {
+	    kill("TERM", $pid);
+	}
     }
 
     # Always do this.
@@ -3523,6 +3619,78 @@ sub domain0ControlNet()
 	}
     }
     die("domain0ControlNet: could not create control net virtual IP");
+}
+
+#
+# If there is a capture running for the indicated vnode, return the pid.
+# Otherwise return 0.
+#
+# Note: we do not use the pidfile here! This is all about sanity checking.
+#
+sub captureRunning($)
+{
+    my ($vnode_id) = @_;
+    my $LOGPATH = "$VMDIR/$vnode_id";
+
+    my $rpid = `pgrep -f '^$CAPTURE .*-l $LOGPATH $vnode_id'`;
+    if ($? == 0) {
+	chomp($rpid);
+	if ($rpid =~ /^(\d+)$/) {
+	    return $1;
+	}
+    }
+
+    return 0;
+}
+
+sub captureStart($)
+{
+    my ($vnode_id) = @_;
+    my $LOGPATH = "$VMDIR/$vnode_id";
+    my $acl = "$LOGPATH/$vnode_id.acl";
+    my $logfile = "$LOGPATH/$vnode_id.log";
+    my $pidfile = "$LOGPATH/$vnode_id.pid";
+
+    # unlink ACL file so that we know when capture has started
+    unlink($acl)
+	if (-e $acl);
+
+    # remove old log file before start
+    unlink($logfile)
+	if (-e $logfile);
+
+    # and old pid file
+    unlink($pidfile)
+	if (-e $pidfile);
+
+    # XXX see start of file for meaning of the options
+    mysystem2("$CAPTURE $CAPTUREOPTS -X $vnode_id -l $LOGPATH $vnode_id");
+
+    #
+    # We need to report the ACL info to capserver via tmcc. But do not
+    # hang, use timeout. Also need to wait for the acl file, since
+    # capture is running in the background. 
+    #
+    if (! $?) {
+	for (my $i = 0; $i < 10; $i++) {
+	    sleep(1);
+	    last
+		if (-e $acl && -s $acl);
+	}
+	if (! (-e $acl && -s $acl)) {
+	    print STDERR "WARNING: $acl does not exist after 10 seconds; ".
+		"capture may not have started correctly.\n";
+	}
+	else {
+	    if (mysystem2("$BINDIR/tmcc.bin -n $vnode_id -t 5 ".
+			  "   -f $acl tiplineinfo")) {
+		print STDERR "WARNING: could not report tiplineinfo; ".
+		    "remote console connections may not work.\n";
+	    }
+	}
+    } else {
+	print STDERR "WARNING: capture not started!\n";
+    }
 }
 
 #

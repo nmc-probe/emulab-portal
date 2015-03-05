@@ -73,7 +73,6 @@ my $VMS         = "/var/emulab/vms";
 my $VMDIR       = "$VMS/vminfo";
 my $IPTABLES	= "/sbin/iptables";
 my $ARPING      = "/usr/bin/arping";
-my $CAPTURE     = "/usr/local/sbin/capture-nossl";
 # For testing.
 my $VIFROUTING  = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
@@ -90,8 +89,6 @@ my $vnode_mac = shift(@ARGV);
 my $vif         = $ENV{'vif'};
 my $XENBUS_PATH = $ENV{'XENBUS_PATH'};
 my $bridge      = `xenstore-read "$XENBUS_PATH/bridge"`;
-# Need this for capture.
-my $LOGPATH     = "$VMDIR/$vnode_id";
 
 #
 # Well, this is interesting; we are called with the XEN store
@@ -300,57 +297,6 @@ sub Online()
 	die("Failed to exec tmcc proxy"); 
     }
 
-    # Start a capture for the serial console.
-    if (-e "$CAPTURE") {
-	my $tty;
-
-	#
-	# XXX HVMs can use an emulated UART as their console.
-	# Check for that.
-	#
-	if (!mysystem2("xenstore-read /local/domain/$domid/hvmloader >/dev/null 2>&1")) {
-	    $tty = `xenstore-read /local/domain/$domid/serial/0/tty 2>/dev/null`;
-	    $tty = undef if ($?);
-	}
-	if (!$tty) {
-	    $tty = `xenstore-read /local/domain/$domid/console/tty 2>/dev/null`;
-	    $tty = undef if ($?);
-	}
-	if ($tty) {
-	    chomp($tty);
-	    $tty =~ s,\/dev\/,,;
-
-	    # unlink so that we know when capture is ready.
-	    my $acl = "$LOGPATH/$vnode_id.acl";
-	    unlink($acl)
-		if (-e $acl);
-	    # Remove old log file before start.
-	    my $logfile = "$LOGPATH/$vnode_id.log";
-	    unlink($logfile)
-		if (-e $logfile);
-	    mysystem2("$CAPTURE -C -i -l $LOGPATH $vnode_id $tty");
-	    #
-	    # We need to tell tmcd about it. But do not hang, use timeout.
-	    # Also need to wait for the acl file, since capture is running
-	    # in the background. 
-	    #
-	    if (! $?) {
-		for (my $i = 0; $i < 10; $i++) {
-		    sleep(1);
-		    last
-			if (-e $acl && -s $acl);
-		}
-		if (! (-e $acl && -s $acl)) {
-		    print STDERR "$acl does not exist\n";
-		}
-		else {
-		    mysystem2("$BINDIR/tmcc.bin -n $vnode_id -t 5 ".
-			      "   -f $acl tiplineinfo");
-		}
-	    }
-	}
-    }
-
     @rules = ();
 
     # Reroute tmcd calls to the proxy on the physical host
@@ -510,12 +456,6 @@ sub Offline()
 
     if (-e "/var/run/tmccproxy-$vnode_id.pid") {
 	my $pid = `cat /var/run/tmccproxy-$vnode_id.pid`;
-	chomp($pid);
-	mysystem2("/bin/kill $pid");
-    }
-
-    if (-e "$LOGPATH/$vnode_id.pid") {
-	my $pid = `cat $LOGPATH/$vnode_id.pid`;
 	chomp($pid);
 	mysystem2("/bin/kill $pid");
     }
