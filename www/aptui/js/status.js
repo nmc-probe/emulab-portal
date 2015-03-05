@@ -982,11 +982,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    if (nodecount == 1) {
 		if (window.APT_OPTIONS.canclone) {
 		    $("#clone_button").removeClass("hidden");
-		    EnableButton("clone");
 		}
 		if (window.APT_OPTIONS.cansnap) {
 		    $("#snapshot_button").removeClass("hidden");
-		    EnableButton("snapshot");
 		}
 	    }
 
