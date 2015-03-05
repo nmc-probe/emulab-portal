@@ -5104,18 +5104,18 @@ CREATE TABLE `virt_node_public_addr` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
--- Table structure for table `virt_address_pool`
+-- Table structure for table `virt_address_allocation`
 --
 
 DROP TABLE IF EXISTS `virt_address_allocation`;
 CREATE TABLE `virt_address_allocation` (
-  `idx` int(10) unsigned NOT NULL default `0`,
-  `pool_id` varchar(32) NOT NULL default '0',
+  `idx` int(10) unsigned NOT NULL default '0',
+  `pool_id` varchar(32) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
   `eid` varchar(32) NOT NULL default '',
-  `count` int(10) NOT NULL default 0,
-  `restriction` enum('continguous', 'cidr', 'any') NOT NULL default 'any',
-  `version` enum('ipv4', 'ipv6') NOT NULL default 'ipv4',
+  `count` int(10) NOT NULL default '0',
+  `restriction` enum('contiguous','cidr','any') NOT NULL default 'any',
+  `version` enum('ipv4','ipv6') NOT NULL default 'ipv4',
   PRIMARY KEY (`idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
