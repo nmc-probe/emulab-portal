@@ -389,6 +389,7 @@ COMMAND_PROTOTYPE(doarpinfo);
 COMMAND_PROTOTYPE(dohwinfo);
 COMMAND_PROTOTYPE(dotiplineinfo);
 COMMAND_PROTOTYPE(doimageid);
+COMMAND_PROTOTYPE(doimagesize);
 #if PROTOGENI_SUPPORT
 COMMAND_PROTOTYPE(dogeniclientid);
 COMMAND_PROTOTYPE(dogenisliceurn);
@@ -521,6 +522,7 @@ struct command {
 	{ "hwinfo",	  FULLCONFIG_NONE, 0, dohwinfo},
 	{ "tiplineinfo",  FULLCONFIG_NONE,  F_ALLOCATED, dotiplineinfo},
 	{ "imageinfo",      FULLCONFIG_NONE,  F_ALLOCATED, doimageid},
+	{ "imagesize",   FULLCONFIG_NONE,  F_ALLOCATED, doimagesize},
 #if PROTOGENI_SUPPORT
 	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
 	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
@@ -4545,6 +4547,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 	char            iqn[BS_IQN_MAXSIZE];
 	char            *mynodeid;
 	char            *class, *protocol, *placement, *mountpoint, *lease;
+	char		*dataset;
 	int		nrows, nattrs, ro;
 
 	/* Remember the nodeid we care about up front. */
@@ -4565,7 +4568,7 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 	/* Find out what type of blockstore we are dealing with and
 	   grab some additional attributes. */
 	nrows = nattrs = (int) mysql_num_rows(res);
-	class = protocol = placement = mountpoint = lease = "\0";
+	class = protocol = placement = mountpoint = lease = dataset = "\0";
 	ro = 0;
 	while (nrows--) {
 		char *key, *val;
@@ -4584,6 +4587,8 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 			lease = val;
 		} else if (strcmp(key,"readonly") == 0) {
 			ro = (strcmp(val, "0") == 0) ? 0 : 1;
+		} else if (strcmp(key,"dataset") == 0) {
+			dataset = val;
 		}
 	}
 
@@ -4655,6 +4660,12 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 		if (strlen(mountpoint)) {
 			bufp += OUTPUT(bufp, ebufp-bufp, " MOUNTPOINT=%s",
 				       mountpoint);
+		}
+
+		/* Add the dataset to the buffer, if requested.*/
+		if (strlen(dataset)) {
+			bufp += OUTPUT(bufp, ebufp-bufp, " DATASET=%s",
+				       dataset);
 		}
 
 		bufp += OUTPUT(bufp, ebufp-bufp, "\n");
@@ -12934,3 +12945,160 @@ getrandomchars(char *buf, int len)
 	close(fd);
 	return 0;
 }
+
+/*
+ * An Emulab image ID string looks like:
+ *    [<pid>]<imagename>[<vers>][<meta>]
+ * where:
+ *    <pid> is the project
+ *    <imagename> is the image identifier string
+ *    <vers> is an image version number (not yet implemented)
+ *    <meta> is a string indicating that this is not the actual image,
+ *           rather it is metadata file associated with the image.
+ *           By convention, the string is the filename extension used
+ *           for the metadata file in question. Currently, the only
+ *           metadata string is 'sig' indicating that this is an image
+ *           signature file.
+ * Each of these fields has a separator character distinguishing the
+ * start of the field. These are defined here.
+ */
+#define IID_SEP_NAME '/'
+#define IID_SEP_VERS ':'
+#define IID_SEP_META ','
+
+/*
+ * Parse an Emulab image ID string:
+ *
+ *    [<pid>]<imagename>[<vers>][<meta>]
+ *
+ * into its component parts. Returned components are malloced strings and
+ * need to be freed by the caller.
+ *
+ * Note that right now there are no errors. Even with a malformed string,
+ * we will return 'emulab-ops' as 'pid' and the given string as 'imagename'.
+ */
+#define mystrdup strdup
+
+static void
+parse_imageid(char *str, char **pidp, char **namep, char **versp, char **metap)
+{
+	char *ipid, *iname, *ivers, *imeta;
+	
+	/* Watch for trailing whitespace */
+	char *cp;
+	while ((cp = rindex(str, ' ')) != NULL) {
+		*cp = '\0';
+	}
+	
+	ipid = mystrdup(str);
+	iname = index(ipid, IID_SEP_NAME);
+	if (iname == NULL) {
+		iname = ipid;
+		ipid = mystrdup("emulab-ops");
+	} else {
+		*iname = '\0';
+		iname = mystrdup(iname+1);
+	}
+	ivers = index(iname, IID_SEP_VERS);
+	if (ivers) {
+		char *eptr;
+
+		/* If we can't convert to a number, consider it part of name */
+		if (strtol(ivers+1, &eptr, 10) == 0 && eptr == ivers+1) {
+			ivers = NULL;
+		} else {
+			*ivers = '\0';
+			ivers = mystrdup(ivers+1);
+		}
+	}
+	imeta = index(ivers ? ivers : iname, IID_SEP_META);
+	if (imeta != NULL) {
+		*imeta = '\0';
+		imeta = mystrdup(imeta+1);
+	}
+
+	*pidp = ipid;
+	*namep = iname;
+	*versp = ivers;
+	*metap = imeta;
+}
+
+COMMAND_PROTOTYPE(doimagesize)
+{
+	char		*ipid, *iname, *ivers, *imeta;
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	char		buf[MYBUFSIZE];
+	char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
+
+	/* No special characters */
+	mysql_escape_string(buf, rdata, strlen(rdata));
+	if (strlen(buf) != strlen(rdata)) {
+		error("doimagesize: Illegal chars in imagename!\n");
+		return 1;
+	}
+	parse_imageid(buf, &ipid, &iname, &ivers, &imeta);
+	if (ipid == NULL || iname == NULL) {
+		return 1;
+	}
+
+	if (ivers == NULL) {
+		res = mydb_query("SELECT v.lba_low,v.lba_high, "
+				 "  v.lba_size,v.relocatable  "
+				 " FROM images AS i, image_versions AS v "
+				 "WHERE i.imageid=v.imageid "
+				 "  AND i.version=v.version "
+				 "  AND i.pid='%s' "
+				 "  AND i.imagename='%s' "
+				 "  AND v.deleted IS NULL",
+				 4, ipid, iname);
+	}
+	else {
+		res = mydb_query("SELECT v.lba_low,v.lba_high, "
+				 "  v.lba_size,v.relocatable  "
+				 " FROM images as i "
+				 " LEFT JOIN image_versions "
+				 "  as v on "
+				 "    v.imageid=i.imageid and "
+				 "    v.version='%s' "
+				 "WHERE i.pid='%s'"
+				 " AND i.imagename='%s'",
+				 4, ivers, ipid, iname);
+	}
+	if (!res) {
+		error("DB error getting image: %s/%s%s%s\n", ipid, iname,
+		      (ivers ? ":" : ""), (ivers ? ivers : ""));
+	}
+	else if (!mysql_num_rows(res)) {
+		error("No such image: %s/%s%s%s\n", ipid, iname,
+		      (ivers ? ":" : ""), (ivers ? ivers : ""));
+		mysql_free_result(res);
+	}
+	free(ipid);
+	free(iname);
+	if (ivers)
+		free(ivers);
+	if (imeta)
+		free(imeta);
+
+	if (!res || !mysql_num_rows(res)) {
+		return 1;
+	}
+	row = mysql_fetch_row(res);
+
+	/*
+	 * XXX if lba_high==0 then assume the DB
+	 * fields have not been initialized and
+	 * don't return this info.
+	 */
+	if (row[1] && strcmp(row[1], "0") != 0 && row[0] && row[2] && row[3]) {
+		bufp += OUTPUT(bufp, ebufp - bufp,
+			       "IMAGELOW=%s IMAGEHIGH=%s IMAGESSIZE=%s "
+			       "IMAGERELOC=%s\n",
+			       row[0], row[1], row[2], row[3]);
+	}
+	mysql_free_result(res);
+	client_writeback(sock, buf, strlen(buf), tcp);
+	return 0;
+}
+
