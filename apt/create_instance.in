@@ -225,7 +225,7 @@ if (!defined($cm_authority)) {
     }
 }
 my $cmurl = $cm_authority->url();
-$cmurl =~ s/protogeni/protogeni\/stoller/;
+#$cmurl =~ s/protogeni/protogeni\/stoller/;
 
 my $iscloudlab =
     ($CMURN eq "urn:publicid:IDN+utah.cloudlab.us+authority+cm" ? 1 : 0);
