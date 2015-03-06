@@ -3532,6 +3532,7 @@ sub getstorageconfig($;$) {
 	'VOLNAME' => '[-\w]+',
 	'VOLSIZE' => '\d+',
 	'DATASET' => '[-\w\/\.:]+',
+	'SERVER'  => '[-\w\.]+',
     );
     my @ops = ();
 

@@ -1086,7 +1086,7 @@ sub os_create_storage($$)
 	    my $proxyopt   = "";
 	    my $imageid    = $href->{'DATASET'};
 	    my $imagepath  = $mdev;
-	    my (undef,$ip) = tmccbossinfo();
+	    my $server     = $href->{'SERVER'};
 
 	    if (SHAREDHOST()) {
 		my $TMNODEID  = TMNODEID();
@@ -1096,7 +1096,9 @@ sub os_create_storage($$)
 	    }
 
 	    my $command = "$FRISBEE -f -M 128 $proxyopt ".
-		"         -S $ip -B 30 -F $imageid $imagepath";
+		"         -S $server -B 30 -F $imageid $imagepath";
+
+	    print STDERR "$command\n";
 
 	    if (mysystem($command)) {
 		warn("*** $lv: frisbee of dataset to $mdev failed!\n");
