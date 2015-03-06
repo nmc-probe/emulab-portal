@@ -11,7 +11,7 @@ function (_, sup, moment, mainString, helpString)
     var fields       = null;
     var fstypes      = null;
     var projlist     = null;
-    var amlist       = null;
+    var instances    = null;
     var editing      = false;
     var isadmin      = false;
     var embedded     = 0;
@@ -29,8 +29,9 @@ function (_, sup, moment, mainString, helpString)
 	    projlist =
 		JSON.parse(_.unescape($('#projects-json')[0].textContent));
 	}
-	if (! (editing || embedded)) {
-	    amlist = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+	if (!embedded) {
+	    instances =
+		JSON.parse(_.unescape($('#instances-json')[0].textContent));
 	}
 	GeneratePageBody(fields, null);
     }
@@ -46,7 +47,7 @@ function (_, sup, moment, mainString, helpString)
 	    formfields:		formfields,
 	    fstypes:		fstypes,
 	    projects:           projlist,
-	    amlist:		amlist,
+	    instancelist:	instances,
 	    title:		window.TITLE,
 	    embedded:		window.EMBEDDED,
 	    editing:		editing,
@@ -138,6 +139,15 @@ function (_, sup, moment, mainString, helpString)
 		    .html("project " + $('#dataset_pid option:selected').val());
 	    }
   	}
+	// Handler for instance change.
+	if (instances) {
+	    $('#dataset_instance').change(function (event) {
+		$("#dataset_instance option:selected" ).each(function() {
+		    HandleInstanceChange($(this).val());
+		    return;
+		});
+	    });
+	}
 	
 	//
 	// Handle submit button.
@@ -257,6 +267,40 @@ function (_, sup, moment, mainString, helpString)
 					    {"formfields" : formfields,
 					     "checkonly"  : checkonly,
 					     "embedded"   : window.EMBEDDED});
+	xmlthing.done(callback);
+    }
+
+    /*
+     * When instance changes, need to get the manifest and find the
+     * a node with a blockstore to offer the user.
+     */
+    function HandleInstanceChange(uuid)
+    {
+	var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
+	
+	var callback = function(json) {
+	    var xmlDoc = $.parseXML(json.value);
+	    var xml = $(xmlDoc);
+
+	    $(xml).find("node").each(function() {
+		var node  = $(this).attr("client_id");
+		var bsref = this.getElementsByTagNameNS(EMULAB_NS,'blockstore');
+
+		if (bsref.length) {
+		    var bsname   = $(bsref).attr("name");
+		    var bsclass  = $(bsref).attr("class");
+
+		    if (bsclass == "local") {
+			$('#dataset_node').val(node);
+			$('#dataset_bsname').val(bsname);
+			return;
+		    }
+		}
+	    });
+	};
+	var xmlthing = sup.CallServerMethod(null, "status",
+					    "GetInstanceManifest",
+					    {"uuid" : uuid});
 	xmlthing.done(callback);
     }
 

@@ -28,6 +28,8 @@ include("imageid_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("dataset_defs.php");
+include("instance_defs.php");
+include("profile_defs.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
 $page_title = "Modify Dataset";
 
@@ -69,7 +71,7 @@ if (!$dataset->AccessCheck($this_user, $LEASE_ACCESS_MODIFY)) {
 #
 function SPITFORM($formfields, $errors)
 {
-    global $this_user, $projlist, $embedded;
+    global $this_user, $projlist, $embedded, $this_idx;
     $button_label = "Save";
     $title        = "Modify Dataset";
     $isadmin      = (ISADMIN() ? "true" : "false");
@@ -86,6 +88,25 @@ function SPITFORM($formfields, $errors)
     echo "<script type='text/plain' id='error-json'>\n";
     echo htmlentities(json_encode($errors));
     echo "</script>\n";
+
+    if (!$embedded) {
+        $query_result =
+            DBQueryFatal("select uuid from apt_instances as a ".
+                         "where creator_idx='$this_idx'");
+        $instance_array = array();
+
+        while ($row = mysql_fetch_array($query_result)) {
+            $uuid         = $row["uuid"];
+            $instance     = Instance::Lookup($uuid);
+            $profile      = Profile::Lookup($instance->profile_id(),
+                                            $instance->profile_version());
+            $instance_array[] =
+                array("uuid" => $uuid, "name" => $profile->name());
+        }
+        echo "<script type='text/plain' id='instances-json'>\n";
+        echo htmlentities(json_encode($instance_array));
+        echo "</script>\n";
+    }
     
     echo "<link rel='stylesheet'
             href='css/jquery-ui.min.css'>\n";

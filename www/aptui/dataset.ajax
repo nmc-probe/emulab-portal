@@ -130,64 +130,72 @@ function Do_CreateDataSet()
     }
     else {
         #
-        # Node and BS name are optional, but the aggregate is not.
+        # Not going to allow descriptor only image datasets, must
+        # provide the node/bsname, and the instance if on the APT path.
         #
-        if (! (isset($formfields["dataset_am"]) &&
-               $formfields["dataset_am"] != "")) {
-            $errors["dataset_am"] = "Must select an aggregate";
+        if (! (isset($formfields["dataset_node"]) &&
+            $formfields["dataset_node"] != "")) {
+            $errors["dataset_node"] = "Must provide a node";
         }
-        $am_array = Instance::DefaultAggregateList();
-	if (array_key_exists($formfields["dataset_am"], $am_array)) {
-	    $command .= " -a " . $am_array[$formfields["dataset_am"]];
-	}
-	else {
-            $errors["dataset_am"] = "Invalid aggregate";
-	}
-        if ((isset($formfields["dataset_node"]) &&
-             $formfields["dataset_node"] != "") ||
-            (isset($formfields["dataset_bsname"]) &&
-             $formfields["dataset_bsname"] != "")) {
-            if (! (isset($formfields["dataset_node"]) &&
-                   $formfields["dataset_node"] != "")) {
-                $errors["dataset_node"] = "Must also provide a node";
-            }
-            elseif (! (isset($formfields["dataset_bsname"]) &&
-                   $formfields["dataset_bsname"] != "")) {
-                $errors["dataset_bsname"] = "Must also provide bsname";
-            }
-            else {
-                $nodeid = $formfields["dataset_node"];
-                $bsname = $formfields["dataset_bsname"];
+        elseif (! (isset($formfields["dataset_bsname"]) &&
+               $formfields["dataset_bsname"] != "")) {
+            $errors["dataset_bsname"] = "Must provide bsname";
+        }
+        else {
+            $nodeid = $formfields["dataset_node"];
+            $bsname = $formfields["dataset_bsname"];
 
-                if (!TBvalid_node_id($nodeid)) {
-                    $errors["dataset_node"] = TBFieldErrorString();
-                }
-                elseif (!TBvalid_vnode_id($bsname)) {
-                    $errors["dataset_bsname"] = TBFieldErrorString();
-                }
-                elseif ($node = Node::Lookup($nodeid)) {
-                    $reservation = $node->Reservation();
-                    if (!$reservation ||
-                        !$reservation->pid() == $pid) {
-                        $errors["dataset_node"] =
-                            "Node not reserved to an experiment in the same ".
-                            "project as your dataset";
+            if (!TBvalid_node_id($nodeid)) {
+                $errors["dataset_node"] = TBFieldErrorString();
+            }
+            elseif (!TBvalid_vnode_id($bsname)) {
+                $errors["dataset_bsname"] = TBFieldErrorString();
+            }
+            if (!count($errors)) {
+                if ($embedded) {
+                    if ($node = Node::Lookup($nodeid)) {
+                        $reservation = $node->Reservation();
+                        if (!$reservation ||
+                            !$reservation->pid() == $pid) {
+                            $errors["dataset_node"] =
+                                "Node not reserved to an experiment in the ".
+                            "same project as your dataset";
+                        }
+                        else {
+                            $blockstore =
+                                $reservation->LookupBlockstore($bsname);
+                            if (!$blockstore) {
+                                $errors["dataset_bsname"] =
+                                    "No such blockstore";
+                            }
+                            elseif ($blockstore['fixed'] != $node->VirtName()) {
+                                $errors["dataset_bsname"] =
+                                    "Blockstore does not exist on node $nodeid";
+                            }
+                        }
                     }
                     else {
-                        $blockstore = $reservation->LookupBlockstore($bsname);
-                        if (!$blockstore) {
-                            $errors["dataset_bsname"] = "No such blockstore";
-                        }
-                        elseif ($blockstore['fixed'] != $node->VirtName()) {
-                            $errors["dataset_bsname"] =
-                                "Blockstore does not exist on node $nodeid";
-                        }
+                        $errors["dataset_node"] = "No such node";
                     }
-                    $command .= " -I ${nodeid},${bsname}";
                 }
                 else {
-                    $errors["dataset_node"] = "No such node";
+                    if (! (isset($formfields["dataset_instance"]) &&
+                           $formfields["dataset_instance"] != "")) {
+                        $errors["dataset_instance"] = "Must provide instance";
+                    }
+                    elseif (!preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/",
+                                        $formfields["dataset_instance"])) {
+                        $errors["dataset_instance"] = "Invalid instance uuid";
+                    }
+                    elseif ($instance =
+                            Instance::Lookup($formfields["dataset_instance"])){
+                        $command .= " -i " . $instance->uuid();
+                    }
+                    else {
+                        $errors["dataset_instance"] = "No such instance";
+                    }
                 }
+                $command .= " -I ${nodeid},${bsname}";
             }
         }
     }
@@ -290,9 +298,6 @@ function Do_ModifyDataSet()
 	SPITAJAX_ERROR(1, "Not enough permission");
 	return;
     }
-    #
-    # All we can do on this path is change the permission bits,
-    #
     if (isset($formfields["dataset_read"])) {
 	if ($formfields["dataset_read"] != "global" &&
 	    $formfields["dataset_read"] != "project") {
@@ -332,25 +337,47 @@ function Do_ModifyDataSet()
                 elseif (!TBvalid_vnode_id($bsname)) {
                     $errors["dataset_bsname"] = TBFieldErrorString();
                 }
-                elseif ($node = Node::Lookup($nodeid)) {
-                    $reservation = $node->Reservation();
-                    if (!$reservation ||
-                        $reservation->pid() != $dataset->pid()) {
-                        $errors["dataset_node"] =
-                            "Node not reserved to an experiment in the same ".
-                            "project as your dataset";
+            }
+            if (!count($errors)) {
+                if ($embedded) {
+                    if ($node = Node::Lookup($nodeid)) {
+                        $reservation = $node->Reservation();
+                        if (!$reservation ||
+                            $reservation->pid() != $dataset->pid()) {
+                            $errors["dataset_node"] =
+                                "Node not reserved to an experiment in the ".
+                                "same project as your dataset";
+                        }
+                        else {
+                            $blockstore =
+                                $reservation->LookupBlockstore($bsname);
+                            if (!$blockstore ||
+                                $blockstore['fixed'] != $node->VirtName()) {
+                                $errors["dataset_bsname"] =
+                                    "Blockstore does not exist on node $nodeid";
+                            }
+                        }
                     }
                     else {
-                        $blockstore = $reservation->LookupBlockstore($bsname);
-                        if (!$blockstore ||
-                            $blockstore['fixed'] != $node->VirtName()) {
-                            $errors["dataset_bsname"] =
-                                "Blockstore does not exist on node $nodeid";
-                        }
+                        $errors["dataset_node"] = "No such node";
                     }
                 }
                 else {
-                    $errors["dataset_node"] = "No such node";
+                    if (! (isset($formfields["dataset_instance"]) &&
+                           $formfields["dataset_instance"] != "")) {
+                        $errors["dataset_instance"] = "Must provide instance";
+                    }
+                    elseif (!preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/",
+                                        $formfields["dataset_instance"])) {
+                        $errors["dataset_instance"] = "Invalid instance uuid";
+                    }
+                    elseif ($instance =
+                            Instance::Lookup($formfields["dataset_instance"])){
+                        $instance_uuid = $instance->uuid();
+                    }
+                    else {
+                        $errors["dataset_instance"] = "No such instance";
+                    }
                 }
             }
         }
@@ -391,11 +418,19 @@ function Do_ModifyDataSet()
         $safe_bsname = escapeshellarg($bsname);
         $dname       = $dataset->id();
         $pid         = $dataset->pid();
-        
-        $retval = SUEXEC($this_uid, $dataset->pid(),
-                         "webcreate_image -b $safe_bsname -p $pid ".
-                         "$dname $safe_nodeid",
-                         SUEXEC_ACTION_CONTINUE);
+
+        if ($embedded) {
+                    $retval = SUEXEC($this_uid, $dataset->pid(),
+                             "webcreate_image -b $safe_bsname -p $pid ".
+                             "$dname $safe_nodeid",
+                             SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            $retval = SUEXEC($this_uid, $dataset->pid(),
+                             "webmanage_dataset snapshot -i $instance_uuid ".
+                             "   -b $safe_bsname $pid/$dname $safe_nodeid",
+                             SUEXEC_ACTION_CONTINUE);
+        }
         if ($retval) {
             SPITAJAX_ERROR(1, $suexec_output);
             return;
@@ -597,6 +632,48 @@ function Do_ExtendDataset()
     }
     $dataset_uuid = $dataset->uuid();
     SPITAJAX_RESPONSE("show-dataset.php?uuid=$dataset_uuid");
+}
+
+function Do_GetInfo()
+{
+    global $this_user;
+    global $ajax_args;
+    
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+    $islease  = 1;
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing uuid");
+	return;
+    }
+    #
+    # Either a local lease or a remote dataset. 
+    #
+    $dataset = Lease::Lookup($ajax_args["uuid"]);
+    if (!$dataset) {
+	$dataset = Dataset::Lookup($ajax_args["uuid"]);
+	$islease = 0;
+    }
+    if (!$dataset) {
+	SPITAJAX_ERROR(1, "Unknown dataset");
+	return;
+    }
+    if ($this_uid != $dataset->owner_uid() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission");
+	return;
+    }
+    $blob = array();
+    if ($dataset->state() == "busy" ||
+        ($dataset->state() == "unapproved" && $dataset->locked())) {
+        $blob["state"] = "allocating";
+    }
+    else {
+        $blob["state"] = $dataset->state();
+    }
+    $blob["size"] = $dataset->size() ? $dataset->size() : "0";
+    
+    SPITAJAX_RESPONSE($blob);
 }
 
 # Local Variables:

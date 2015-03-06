@@ -3526,6 +3526,7 @@ sub ModifyDataset($)
     return $group
 	if (GeniResponse::IsResponse($group));
 
+    my $image;
     my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
     if (defined($lease)) {
 	#
@@ -3538,7 +3539,7 @@ sub ModifyDataset($)
 	$islease = 1;
     }
     else {
-	my $image = Image->Lookup($group->pid(), $dataset);
+	$image = Image->Lookup($group->pid(), $dataset);
 	if (!defined($image)) {
 	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
 	}
@@ -3600,12 +3601,13 @@ sub ModifyDataset($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
     }
   done:
-    $lease->Refresh();
-    
     my $blob = {};
-    $blob->{'expires'}  = emutil::TBDateStringGMT($lease->lease_end());
-    $blob->{'state'}    = $lease->state();
-    
+    if ($islease) {
+	$lease->Refresh();
+
+	$blob->{'expires'}  = emutil::TBDateStringGMT($lease->lease_end());
+	$blob->{'state'}    = $lease->state();
+    }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 sub DescribeDataset($)

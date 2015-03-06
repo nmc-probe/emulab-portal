@@ -113,7 +113,9 @@ $routing = array("myprofiles" =>
 						 "approve" =>
 						     "Do_ApproveDataset",
 						 "extend" =>
-						      "Do_ExtendDataset")),
+                                                      "Do_ExtendDataset",
+						 "getinfo" =>
+						      "Do_GetInfo")),
 		 "ssh-keys" =>
 			array("file"    => "ssh-keys.ajax",
 			      "guest"   => false,

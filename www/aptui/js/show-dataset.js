@@ -78,7 +78,42 @@ function (_, sup, moment, mainString)
 	    event.preventDefault();
 	    ExtendDataset();
 	});
+
+	/*
+	 * If the state is busy, then lets poll watching for it to
+	 * go valid.
+	 */
+	if (fields.dataset_state == "busy" ||
+	    fields.dataset_state == "allocating") {
+	    StateWatch();
+	}
     }
+
+    // Periodically ask the server for the status.
+    function StateWatch()
+    {
+	var callback = function(json) {
+	    console.info(json);
+	    if (json.code) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    if (! (json.value.state == "busy" ||
+		   json.value.state == "allocating")) {
+		window.location.reload(true);
+		return;
+	    }
+	    if (json.size) {
+		$('#dataset_size').html(json.size);
+	    }
+	    setTimeout(function f() { StateWatch() }, 5000);
+	}
+	var xmlthing = sup.CallServerMethod(null, "dataset",
+					    "getinfo",
+					    {"uuid" : dataset_uuid});
+	xmlthing.done(callback);
+    }
+    
     //
     // Delete dataset.
     //

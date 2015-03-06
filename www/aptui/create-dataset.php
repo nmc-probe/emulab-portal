@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+include("profile_defs.php");
 include("instance_defs.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
 $page_title = "Create Dataset";
@@ -47,7 +48,7 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 #
 function SPITFORM($formfields, $errors)
 {
-    global $this_user, $projlist, $embedded;
+    global $this_user, $projlist, $embedded, $this_idx;
     $button_label = "Create";
     $title        = "Create Dataset";
 
@@ -78,13 +79,21 @@ function SPITFORM($formfields, $errors)
     echo "</script>\n";
 
     if (!$embedded) {
-        $am_array = Instance::DefaultAggregateList();
-        $amlist   = array();
-        while (list($am) = each($am_array)) {
-            $amlist[] = $am;
+        $query_result =
+            DBQueryFatal("select uuid from apt_instances as a ".
+                         "where creator_idx='$this_idx'");
+        $instance_array = array();
+
+        while ($row = mysql_fetch_array($query_result)) {
+            $uuid         = $row["uuid"];
+            $instance     = Instance::Lookup($uuid);
+            $profile      = Profile::Lookup($instance->profile_id(),
+                                            $instance->profile_version());
+            $instance_array[] =
+                array("uuid" => $uuid, "name" => $profile->name());
         }
-        echo "<script type='text/plain' id='amlist-json'>\n";
-        echo htmlentities(json_encode($amlist));
+        echo "<script type='text/plain' id='instances-json'>\n";
+        echo htmlentities(json_encode($instance_array));
         echo "</script>\n";
     }
     

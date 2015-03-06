@@ -106,31 +106,32 @@
 	      <div id='dataset_imageonly_div'
 		   <% if (formfields.dataset_type != "imdataset") {
 		      %> class='hidden' <% } %> >
-		<% if (!editing && amlist) { %>
-		  <select name="dataset_am"
-			  id="dataset_am"
+		<% if (instancelist) { %>
+		  <select name="dataset_instance"
+			  id="dataset_instance"
 			  class='form-control format-me'
-			  data-key="dataset_am"
-			  data-label="Aggregate"
+			  data-key="dataset_instance"
+			  data-label="Instance"
 			  placeholder='Please Select'>
-		    <% _.each(amlist, function(name) { %>
+		    <option value=''>Please Select</option>
+		    <% _.each(instancelist, function(instance) { %>
 		    <option
-		       <% if (name == formfields.dataset_am) { %>
+		       <% if (instance.uuid == formfields.dataset_instance) { %>
 	               selected
 		       <% } %>
-		       value='<%= name %>'><%= name %>
+		       value='<%= instance.uuid %>'><%= instance.name %>
 		    </option>
 		    <% }); %>
 		  </select>
 		<% } %>
-		<input name="dataset_node"
+		<input name="dataset_node" id='dataset_node'
 		       value="<%- formfields.dataset_node %>"
 		       class="form-control format-me"
 		       data-key="dataset_node"
 		       data-label="Node"
 		       placeholder="Node to snapshot dataset from"
 		       type="text">
-		<input name="dataset_bsname"
+		<input name="dataset_bsname" id='dataset_bsname'
 		       value="<%- formfields.dataset_bsname %>"
 		       class="form-control format-me"
 		       data-key="dataset_bsname"

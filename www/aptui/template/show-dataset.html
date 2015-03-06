@@ -33,7 +33,8 @@
 	      </tr>
 	      <tr>
 		<td>Size</td>
-		<td><%- formfields.dataset_size %>MiB</td>
+		<td><span id='dataset_size'>
+		    <%- formfields.dataset_size %></span>MiB</td>
 	      </tr>
 	      <tr>
 		<td>Type</td>
@@ -130,12 +131,14 @@
 	          href='edit-dataset.php?uuid=<%- formfields.dataset_uuid %>'
                   type='button'>Modify
 	  </a>
+	  <% if (formfields.dataset_type != "imdataset") { %>
 	  <a class='btn btn-primary btn-sm'
                   id='dataset_extend_button'
                   style='margin-right: 10px;'
      		  data-toggle='modal' data-target='#extend_modal'
                   type='button'>Extend
 	  </a>
+	  <% } %>
 	<% } %>
 	  <a type=button class='btn btn-info btn-sm'
                   id='embedded-anchors'
