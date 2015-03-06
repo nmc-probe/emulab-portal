@@ -1357,6 +1357,12 @@ proc tb-set-multiplexed {lanlink onoff} {
 	perror "\[tb-set-multiplexed] $link is not a link or a lan."
 	return
     }
+
+    # looks like our GUI will spit out non-zero values other than 1 so...
+    if {$onoff != 0} {
+	set onoff 1
+    }
+
     $lanlink set emulated $onoff
 }
 
@@ -1368,6 +1374,11 @@ proc tb-set-noshaping {lanlink onoff} {
 	perror "\[tb-set-noshaping] $link is not a link or a lan."
 	return
     }
+    if {$onoff != 0 && $onoff != 1} {
+	perror "\[tb-set-noshaping] $onoff must be 0/1"
+	return
+    }
+
     $lanlink set nobwshaping $onoff
 }
 
@@ -1431,6 +1442,11 @@ proc tb-set-endnodeshaping {lanlink onoff} {
 	perror "\[tb-set-endnodeshaping] $lanlink is not a link or a lan."
 	return
     }
+    if {$onoff != 0 && $onoff != 1} {
+	perror "\[tb-set-endnodeshaping] $onoff must be 0/1"
+	return
+    }
+
     $lanlink set uselinkdelay $onoff
 }
 
@@ -1444,6 +1460,11 @@ proc tb-set-allowcolocate {lanlink onoff} {
 	perror "\[tb-set-allowcolocate] $lanlink is not a link or a lan."
 	return
     }
+    if {$onoff != 0 && $onoff != 1} {
+	perror "\[tb-set-allowcolocate] $onoff must be 0/1"
+	return
+    }
+
     $lanlink set trivial_ok $onoff
 }
 
@@ -1482,6 +1503,11 @@ proc tb-set-sync-server {node} {
 #
 proc tb-use-ipassign {onoff} {
     var_import ::GLOBALS::use_ipassign
+
+    if {$onoff != 0 && $onoff != 1} {
+	perror "\[tb-use-ipassign] $onoff must be 0/1"
+	return
+    }
 
     set use_ipassign $onoff
 }
@@ -1721,6 +1747,11 @@ proc tb-set-node-lan-setting {lanlink node capkey capval} {
 #
 proc tb-use-physnaming {onoff} {
     var_import ::GLOBALS::use_physnaming
+
+    if {$onoff != 0 && $onoff != 1} {
+	perror "\[tb-use-physnaming] $onoff must be 0/1"
+	return
+    }
 
     set use_physnaming $onoff
 }
