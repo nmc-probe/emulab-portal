@@ -4540,14 +4540,14 @@ static int
 sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 	      int dopersist)
 {
-        MYSQL_RES	*res;
-	MYSQL_ROW	row;
+        MYSQL_RES	*res, *res2;
+	MYSQL_ROW	row, row2;
 	char		buf[MYBUFSIZE];
 	char            *bufp, *ebufp = &buf[sizeof(buf)];
 	char            iqn[BS_IQN_MAXSIZE];
 	char            *mynodeid;
 	char            *class, *protocol, *placement, *mountpoint, *lease;
-	char		*dataset;
+	char		*dataset, *server;
 	int		nrows, nattrs, ro;
 
 	/* Remember the nodeid we care about up front. */
@@ -4590,6 +4590,34 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 		} else if (strcmp(key,"dataset") == 0) {
 			dataset = val;
 		}
+	}
+
+	/*
+	 * For datasets, we need to tell the client what server to use.
+	 */
+	if (dataset) {
+		res2 = mydb_query("select IP "
+				  " from interfaces as i, subbosses as s "
+				  " where i.node_id=s.subboss_id and "
+				  " i.role='ctrl' and "
+				  " s.node_id='%s' and s.service='frisbee'"
+				  " and s.disabled=0",
+				  1, reqp->isvnode ?
+				  reqp->pnodeid : reqp->nodeid);
+		if (!res2) {
+			error("sendstoreconf: "
+			      "%s: DB Error getting subboss info!\n",
+			      reqp->nodeid);
+			mysql_free_result(res);
+			return 1;
+		}
+		if (mysql_num_rows(res2)) {
+			row2 = mysql_fetch_row(res2);
+			server = strdup(row2[0]);
+		} else {
+			server = strdup(BOSSNODE_IP);
+		}
+		mysql_free_result(res2);
 	}
 
 	/* iSCSI blockstore */
@@ -4664,16 +4692,16 @@ sendstoreconf(int sock, int tcp, tmcdreq_t *reqp, char *bscmd, char *vname,
 
 		/* Add the dataset to the buffer, if requested.*/
 		if (strlen(dataset)) {
-			bufp += OUTPUT(bufp, ebufp-bufp, " DATASET=%s",
-				       dataset);
+			bufp += OUTPUT(bufp, ebufp-bufp,
+				       " DATASET=%s SERVER=%s",
+				       dataset, server);
+			free(server);
 		}
 
 		bufp += OUTPUT(bufp, ebufp-bufp, "\n");
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
-
 	mysql_free_result(res);
-
 	return 0;
 }
 
