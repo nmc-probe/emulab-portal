@@ -1305,15 +1305,25 @@ sub os_create_storage_slice($$$)
 		    warn("*** $lv: ugh! $mdev already exists\n");
 		    return 0;
 		}
-		if (mysystem("$SGDISK -n 4:0:0 -t 4:8300 /dev/$bdisk $redir") ||
+		if (mysystem("$SGDISK -n 4:0:0 -t 4:8300 ".
+			     "/dev/$bdisk $redir") ||
 		    mysystem("$PPROBE /dev/$bdisk $redir")) {
 		    warn("*** $lv: could not create $mdev$logmsg\n");
 		    return 0;
 		}
+
+		# XXX make sure there is enough space to be useful
+		my $p4size = get_partsize($mdev);
+		if ($p4size < 10) {
+		    warn("*** less than 10MiB available on system volume!\n");
+		    mysystem("$SGDISK -d 4 /dev/$bdisk $redir");
+		    return 0;
+		}
+
 		# XXX create DISKINFO entry for partition
 		$ginfo->{$mdev}->{'type'} = "PART";
 		$ginfo->{$mdev}->{'level'} = 1;
-		$ginfo->{$mdev}->{'size'} = get_partsize($mdev);
+		$ginfo->{$mdev}->{'size'} = $p4size;
 		$ginfo->{$mdev}->{'inuse'} = hex("8300");
 	    } else {
 		if (mysystem("$DOSTYPE -f /dev/$bdisk 4 131")) {
@@ -1335,11 +1345,42 @@ sub os_create_storage_slice($$$)
 
 		if ($bsid eq "ANY") {
 		    $dev = $bdisk . "4";
-		    if (exists($ginfo->{$dev}) &&
+
+		    if ($ginfo->{$bdisk}->{'ptabtype'} eq "GPT") {
+			if (exists($ginfo->{$dev})) {
+			    goto skipp4;
+			}
+
+			# Create the partition with type LINUX_LVM
+			if (mysystem("$SGDISK -n 4:0:0 -t 4:8E00 ".
+				     "/dev/$bdisk $redir") ||
+			    mysystem("$PPROBE /dev/$bdisk $redir")) {
+			    goto skipp4;
+			}
+
+			# XXX make sure there is enough space to be useful
+			my $p4size = get_partsize($dev);
+			if ($p4size < 10) {
+			    warn("*** less than 10MiB available on ".
+				 "system volume, skipping.\n");
+			    mysystem("$SGDISK -d 4 /dev/$bdisk $redir");
+			    goto skipp4;
+			}
+
+			# XXX create DISKINFO entry for partition
+			$ginfo->{$dev}->{'type'} = "PART";
+			$ginfo->{$dev}->{'level'} = 1;
+			$ginfo->{$dev}->{'size'} = get_partsize($mdev);
+			$ginfo->{$dev}->{'inuse'} = hex("8E00");
+
+			push(@devs, "/dev/$dev");
+		    }
+		    elsif (exists($ginfo->{$dev}) &&
 			$ginfo->{$dev}->{'inuse'} == 0) {
 			push(@devs, "/dev/$dev");
 		    }
 		}
+	      skipp4:
 		foreach $dev (keys %$ginfo) {
 		    if ($ginfo->{$dev}->{'type'} eq "DISK" &&
 			$ginfo->{$dev}->{'inuse'} == 0) {
@@ -1546,6 +1587,7 @@ sub os_remove_storage_slice($$$)
 			warn("*** $lv: could not destroy $dev$logmsg\n");
 			return 0;
 		    }
+		    delete $ginfo->{$dev};
 		} else {
 		    if (mysystem("$DOSTYPE -f /dev/$bdisk 4 0")) {
 			warn("*** $lv: could not clear /dev/$bdisk type$logmsg\n");
@@ -1584,11 +1626,24 @@ sub os_remove_storage_slice($$$)
 
 	    my @devs = `pvs -o pv_name --noheadings 2>/dev/null`;
 	    chomp(@devs);
-	    if (@devs > 0 && mysystem("pvremove -f @devs $redir")) {
-		warn("*** $lv: could not destroy PVs$logmsg\n");
+	    if (@devs > 0) {
+		if (mysystem("pvremove -f @devs $redir")) {
+		    warn("*** $lv: could not destroy PVs$logmsg\n");
+		} else {
+		    my $tdev = "/dev/${bdisk}4";
+		    if (grep(/\s*$tdev\s*/, @devs) != 0) {
+			if ($ginfo->{$bdisk}->{'ptabtype'} eq "GPT") {
+			    if (mysystem("$SGDISK -d 4 /dev/$bdisk $redir") ||
+				mysystem("$PPROBE /dev/$bdisk $redir")) {
+				warn("*** $lv: could not destroy $tdev$logmsg\n");
+			    } else {
+				delete $ginfo->{"${bdisk}4"};
+			    }
+			}
+		    }
+		}
 	    }
 	}
-
 	return 1;
     }
 
