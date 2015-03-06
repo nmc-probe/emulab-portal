@@ -1380,11 +1380,9 @@ if (defined($webtask)) {
     $webtask->Exited(0);
 }
 #
-# If we created a delta image, set it in the DB
+# Set the delta flag in the DB to reflect what we really did.
 #
-if ($delta) {
-    $image->SetDelta(1);
-}
+$image->SetDelta($delta ? 1 : 0);
 
 #
 # Normal images are immediately marked as "released" (and ready),
