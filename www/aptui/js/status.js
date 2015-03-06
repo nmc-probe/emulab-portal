@@ -889,7 +889,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		var login  = $(this).find("login");
 		var coninfo= $(this).find("console");
 		var vnode  = this.getElementsByTagNameNS(EMULAB_NS, 'vnode');
-		console.info(vnode);
 		var href   = "n/a";
 		var ssh    = "n/a";
 		var cons   = "n/a";
