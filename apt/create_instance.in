@@ -668,37 +668,52 @@ $webtask->SetProcessID($PID)
     if (defined($webtask));
 
 #
-# This creates the sliver and starts it.
+# This creates the sliver and starts it. We have to watch for the server
+# being to busy.
 #
-my $response =
-    Genixmlrpc::CallMethod($cmurl, undef,
-			   "CreateSliver",
-			   { "slice_urn"   => $slice_urn,
-			     "rspec"       => $rspecstr,
-			     "keys"        =>
-				 [{'urn'   => $user_urn,
-				   'login' => $user_uid,
-				   'keys'  => \@sshkeys }],
-			     "credentials" =>
-				 [$slice_credential->asString(),
-				  $speaksfor_credential->asString(),
-				  @dataset_credentials
-				 ]});
+my $tries = 15;
+my $response;
 
-if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
-    $slice->Delete();
-    $instance->SetStatus("failed");
-    if (defined($webtask)) {
-	if (defined($response)) {
-	    $webtask->output($response->output());
-	    $webtask->Exited($response->code());
+while (1) {
+    $response =
+	Genixmlrpc::CallMethod($cmurl, undef,
+			       "CreateSliver",
+			       { "slice_urn"   => $slice_urn,
+				 "rspec"       => $rspecstr,
+				 "keys"        =>
+				     [{'urn'   => $user_urn,
+				       'login' => $user_uid,
+				       'keys'  => \@sshkeys }],
+				     "credentials" =>
+				     [$slice_credential->asString(),
+				      $speaksfor_credential->asString(),
+				      @dataset_credentials
+				     ]});
+
+    if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	if (defined($response) &&
+	    $response->code() == GENIRESPONSE_SERVER_UNAVAILABLE &&
+	    $tries >= 0) {
+	    print STDERR "Server reports too busy, waiting a while ...\n";
+	    sleep(int(rand(20)) + 10);
+	    $tries--;
+	    next;
 	}
-	else {
-	    $webtask->Exited(1);
+	$slice->Delete();
+	$instance->SetStatus("failed");
+	if (defined($webtask)) {
+	    if (defined($response)) {
+		$webtask->output($response->output());
+		$webtask->Exited($response->code());
+	    }
+	    else {
+		$webtask->Exited(1);
+	    }
 	}
+	fatal("CreateSliver failed: ".
+	      (defined($response) ? $response->output() : "") . "\n");
     }
-    fatal("CreateSliver failed: ".
-	  (defined($response) ? $response->output() : "") . "\n");
+    last;
 }
 
 #
@@ -739,6 +754,7 @@ while ($seconds > 0) {
 
     if (!defined($response) || !defined($response->value()) ||
 	($response->code() != GENIRESPONSE_SUCCESS &&
+	 $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
 	 $response->code() != GENIRESPONSE_BUSY)) {
 	print STDERR "SliverStatus failed";
 	if (defined($response)) {
@@ -759,7 +775,8 @@ while ($seconds > 0) {
 	last;
     }
     next
-	if ($response->code() == GENIRESPONSE_BUSY);
+	if ($response->code() == GENIRESPONSE_BUSY ||
+	    $response->code() == GENIRESPONSE_SERVER_UNAVAILABLE);
 
     my $blob = $response->value();
     #
