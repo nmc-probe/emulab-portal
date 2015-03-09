@@ -793,13 +793,13 @@ while ($seconds > 0) {
 # Print this message first so its obvious.
 if ($failed || !$ready) {
     $instance->SetStatus("failed");
-    if (!$ready) {
+    if ($failed) {
+	print STDERR "*** $slice_urn failed.\n\n"; 	
+    }
+    elsif (!$ready) {
 	print STDERR "*** $slice_urn timed out.\n\n";
 	$webtask->output("Experiment setup on $aggregate timed out")
 	    if (defined($webtask));
-    }
-    else {
-	print STDERR "*** $slice_urn failed.\n\n"; 
     }
     $webtask->Exited(1) if (defined($webtask));
 }
