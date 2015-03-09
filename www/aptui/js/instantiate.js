@@ -328,7 +328,7 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
 		      "urn:publicid:IDN+apt.emulab.net+authority+cm",
 		      'Utah Cloudlab':
 		      "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-		      'Wisc Cloudlab':
+		      'Wisc Cloudlab (Alpha)':
 		      "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
 		      'Clemson Cloudlab':
 		      "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
