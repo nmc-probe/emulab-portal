@@ -6823,6 +6823,7 @@ sub HandleBlockstore($$$$$$@)
     my $readonly  = GeniXML::GetText("readonly", $blockref);
     my $leasename = GeniXML::GetText("persistent", $blockref);
     my $dataset_id= GeniXML::GetText("dataset", $blockref);
+    my $placement = GeniXML::GetText("placement", $blockref);
     my $type      = "";
     my $fixed     = $nodename;
     my $size      = 0;
@@ -6847,6 +6848,16 @@ sub HandleBlockstore($$$$$$@)
     }
     else {
 	$readonly = ($readonly eq "true" ? 1 : 0);
+    }
+    if (defined($placement)) {
+	if (lc($placement) !~ /^(any|sysvol|nonsysvol)$/i) {
+	    $message = "Improper placement: $placement";
+	    goto bad;
+	}
+	$placement = uc($placement);
+    }
+    else {
+	$placement = "ANY";
     }
     #
     # If ephemeral, size must be given. Else we get it below from the lease,
@@ -6936,7 +6947,7 @@ sub HandleBlockstore($$$$$$@)
 	}
     }
     push(@attributes, ["mountpoint", $mount, 0]);
-    push(@attributes, ["placement", "ANY", 0]);
+    push(@attributes, ["placement", $placement, 0]);
     push(@attributes, ["readonly", $readonly, 0]);
     push(@attributes, ["class", ($class eq "local" ? "local" : "SAN"), 1]);
 	
