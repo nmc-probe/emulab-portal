@@ -246,6 +246,8 @@ class Instance
     # Return aggregate based on the current user.
     #
     function DefaultAggregateList() {
+        global $ISCLOUD;
+            
         $am_array = array('Utah APT' =>
                           "urn:publicid:IDN+apt.emulab.net+authority+cm",
                           'Utah Cloudlab' =>
@@ -255,7 +257,7 @@ class Instance
                           'Utah PG'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm");
 
-        if (ISADMIN()) {
+        if ($ISCLOUD) {
             $am_array["Wisc Cloudlab (Alpha)"] =
                 "urn:publicid:IDN+wisc.cloudlab.us+authority+cm";
         }
