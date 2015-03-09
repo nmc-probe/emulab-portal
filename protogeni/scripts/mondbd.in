@@ -360,7 +360,9 @@ while (1) {
 				 "aggregate_id='$NICKNAME'," .
 				 "urn='urn:publicid:IDN+$DOMAIN+node+$switchnode'," .
 				 "selfRef='$URL/info/node/${DOMAIN}_node_$switchnode'" );
-	    
+
+	    # Switches generally don't have interfaces in the database,
+	    # but it doesn't hurt to try.
 	    AddInterfaces( $switchnode, $node, $ts );
 	}
     }
@@ -454,6 +456,14 @@ while (1) {
 
 	    next if( !defined( $enode ) || !defined( $inode ) );
 
+	    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interface SET " .
+				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interface#', " .
+				 "id='${DOMAIN}_interface_${snode}'," .
+				 "selfRef='$URL/info/interface/${DOMAIN}_interface_${snode}'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+interface+${snode}'," .
+				 "ts='$ts'," .
+				 "properties\$role='experimental'" );
+	    
 	    AddLink( "${lanid}e", $ts );
 	    AddLink( "${lanid}i", $ts );
 
