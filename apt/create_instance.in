@@ -710,10 +710,17 @@ while (1) {
 		$webtask->Exited(1);
 	    }
 	}
+	if (defined($response) && defined($response->logurl())) {
+	    $instance->SetPublicURL($response->logurl());
+	}
 	fatal("CreateSliver failed: ".
 	      (defined($response) ? $response->output() : "") . "\n");
     }
     last;
+}
+# This will get overwritten later.
+if (defined($response) && defined($response->logurl())) {
+    $instance->SetPublicURL($response->logurl());
 }
 
 #

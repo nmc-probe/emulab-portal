@@ -146,9 +146,9 @@ sub XMLRPC_TRANSPORT_ERROR()    { -32300; }
 # For debugging, stash the method and arguments in case we want to
 # print things out.
 #
-sub new($$;$$)
+sub new($$;$$$)
 {
-    my ($class, $code, $value, $output) = @_;
+    my ($class, $code, $value, $output, $logurl) = @_;
 
     if (!defined($output)) {
 	$output = "";
@@ -163,6 +163,9 @@ sub new($$;$$)
     my $self = {"code"      => $code,
 		"value"     => $value,
 		"output"    => $output};
+    $self->{"logurl"} = $logurl
+	if (defined($logurl));
+
     bless($self, $class);
     return $self;
 }
@@ -194,6 +197,10 @@ sub field($$)           { return ($_[0]->{$_[1]}); }
 sub code($)		{ return field($_[0], "code"); }
 sub value($)		{ return field($_[0], "value"); }
 sub output($)		{ return field($_[0], "output"); }
+# This is very optional.
+sub logurl($) {
+    return (exists($_[0]->{"logurl"}) ? $_[0]->{"logurl"} : undef);
+}
 
 # Check for response object. Very bad, but the XML encoder does not
 # allow me to intercept the encoding operation on a blessed object.

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -303,7 +303,7 @@ sub CallMethod($$$@)
     $xmlgoo =~ s/\<nil\/\>//g;
     my $parser   = RPC::XML::Parser->new();
     my $goo      = $parser->parse($xmlgoo);
-    my ($value,$output,$code);
+    my ($value,$output,$code,$logurl);
 
     # Python servers seem to return faults in structs, not as <fault> elements.
     # Sigh.
@@ -345,6 +345,8 @@ sub CallMethod($$$@)
 	}
 	else {
 	    $value  = $goo->value()->{'value'}->value;
+	    $logurl = $goo->value()->{'protogeni_error_url'}->value
+		if (exists($goo->value()->{'protogeni_error_url'}));
 	}
 	$output = $goo->value()->{'output'}->value
 	    if (exists($goo->value()->{'output'}));
@@ -353,7 +355,7 @@ sub CallMethod($$$@)
 	print STDERR "CallMethod: $method failed: $code";
 	print STDERR ", $output\n" if (defined($output) && $output ne "");
     }
-    return GeniResponse->new($code, $value, $output);
+    return GeniResponse->new($code, $value, $output, $logurl);
 
 }
 
