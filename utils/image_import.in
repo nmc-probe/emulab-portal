@@ -314,6 +314,11 @@ if ($getimage) {
 		    $image = $clone;
 		}
 	    }
+	    if ($update) {
+		# Update the imageurl in the descriptor.
+		$image->Update({"imagefile_url" =>
+		     $xmlparse->{'attribute'}->{"imagefile_url"}->{'value'}});
+	    }
 	}
 	if (DownLoadImage($image, $newhash, $user, $group)) {
 	    $image->Unlock();
