@@ -268,7 +268,7 @@ dolinux() {
 fixone() {
     echo "*** ${disk}${part}:"
     ptype=`sgdisk -p /dev/$disk | \
-	sed -n "s/^  *$part  *.*iB  *\([0-9A-F][0-9A-F]*\) */\1/p"`
+	sed -n "s/^  *$part  *.*iB  *\([0-9A-F][0-9A-F]*\).*/\1/p"`
     ptype=${ptype:-0}
 
     case $ptype in
