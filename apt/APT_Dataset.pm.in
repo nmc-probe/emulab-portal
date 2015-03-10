@@ -266,6 +266,8 @@ sub Delete($)
     $certificate->Delete()
 	if (defined($certificate));
 
+    DBQueryWarn("delete from web_tasks object_uuid='$uuid'") or
+	return -1;
     DBQueryWarn("delete from apt_datasets where uuid='$uuid'") or
 	return -1;
 
@@ -289,6 +291,23 @@ sub SetStatus($$)
     $self->{'DATASET'}->{'status'} = $status;
     return 0;
     
+}
+
+#
+# Load the project object for an experiment.
+#
+sub GetProject($)
+{
+    my ($self) = @_;
+    require Project;
+
+    my $project = Project->Lookup($self->pid_idx());
+    
+    if (! defined($project)) {
+	print("*** WARNING: Could not lookup project object for $self!\n");
+	return undef;
+    }
+    return $project;
 }
 
 #

@@ -137,6 +137,9 @@ echo "    window.CANAPPROVE = $canapprove;\n";
 echo "    window.CANREFRESH = $canrefresh;\n";
 echo "</script>\n";
 SPITREQUIRE("show-dataset");
+# For progress bubbles in the imaging modal.
+echo "<link rel='stylesheet' href='css/progress.css'>\n";
+echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
 SPITFOOTER();
 
 ?>

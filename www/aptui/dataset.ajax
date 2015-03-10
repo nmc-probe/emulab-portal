@@ -26,6 +26,7 @@ include_once("lease_defs.php");
 include_once("imageid_defs.php");
 include_once("blockstore_defs.php");
 include_once("node_defs.php");
+include_once("webtask.php");
 chdir("apt");
 include_once("dataset_defs.php");
 include_once("instance_defs.php");
@@ -57,6 +58,12 @@ function Do_CreateDataSet()
     }
     else {
 	$command = "webmanage_dataset create ";
+
+        # We are going to track imaging status.
+        if ($formfields["dataset_type"] == "imdataset") {
+            $webtask_id = WebTask::GenerateID();
+            $command .= " -t " . $webtask_id . " -- ";
+        }
     }
     $required = array("dataset_pid", "dataset_name", "dataset_type",
 		      "dataset_fstype", "dataset_read", "dataset_modify");
@@ -227,6 +234,14 @@ function Do_CreateDataSet()
 
     $retval = SUEXEC($this_uid, $pid, $command, SUEXEC_ACTION_CONTINUE);
     if ($retval) {
+	if (isset($webtask_id)) {
+            $webtask = WebTask::Lookup($webtask_id);
+            if ($webtask) {
+                $webtask->Delete();
+                SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+                return;
+            }
+	}
 	SPITAJAX_ERROR(1, $suexec_output);
 	return;
     }
@@ -395,22 +410,26 @@ function Do_ModifyDataSet()
     
     if (isset($formfields["dataset_read"])) {
         $perm   = $formfields["dataset_read"];
-        $retval = SUEXEC($this_uid, $dataset->pid(),
-                         "$command -R $perm $leaseid",
-                         SUEXEC_ACTION_CONTINUE);
-        if ($retval) {
-            SPITAJAX_ERROR(1, $suexec_output);
-            return;
+        if ($perm != $dataset->read_access()) {
+            $retval = SUEXEC($this_uid, $dataset->pid(),
+                             "$command -R $perm $leaseid",
+                             SUEXEC_ACTION_CONTINUE);
+            if ($retval) {
+                SPITAJAX_ERROR(1, $suexec_output);
+                return;
+            }
         }
     }
     if (isset($formfields["dataset_write"])) {
         $perm   = $formfields["dataset_write"];
-        $retval = SUEXEC($this_uid, $dataset->pid(),
-                         "$command -W $perm $leaseid",
-                         SUEXEC_ACTION_CONTINUE);
-        if ($retval) {
-            SPITAJAX_ERROR(1, $suexec_output);
-            return;
+        if ($perm != $dataset->write_access()) {
+            $retval = SUEXEC($this_uid, $dataset->pid(),
+                             "$command -W $perm $leaseid",
+                             SUEXEC_ACTION_CONTINUE);
+            if ($retval) {
+                SPITAJAX_ERROR(1, $suexec_output);
+                return;
+            }
         }
     }
     if ($dataset->type() == "imdataset" && $nodeid) {
@@ -672,7 +691,31 @@ function Do_GetInfo()
         $blob["state"] = $dataset->state();
     }
     $blob["size"] = $dataset->size() ? $dataset->size() : "0";
-    
+
+    #
+    # If we were generating an image.
+    #
+    $webtask = WebTask::LookupByObject($dataset->uuid());
+    if ($webtask) {
+        $taskdata = $webtask->TaskData();
+        #
+        # Size is in KB to avoid bigint problems. But kill the KB.
+        # 
+        if (isset($taskdata["image_size"])) {
+            if (preg_match("/^(\d+)KB$/",
+                           $taskdata["image_size"], $matches)) {
+                $taskdata["image_size"] = $matches[1]; 
+            }
+            $blob["image_size"] = $taskdata["image_size"];
+        }
+        else {
+            $blob["image_size"] = 0;
+        }
+        $blob["image_status"] = $taskdata["image_status"];
+        if ($webtask->exited()) {
+            $webtask->Delete();
+        }
+    }
     SPITAJAX_RESPONSE($blob);
 }
 

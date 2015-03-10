@@ -2648,7 +2648,9 @@ dataset:
 	$slice->UnLock();
 	if ($user->email()) {
 	    libtestbed::SENDMAIL($user->email(),
-				 "Failed to clone image",
+				 ($image->isdataset() ?
+				 "Failed to snapshot dataset" :
+				 "Failed to clone image"),
 				 "$output\n",
 				 $user->email(),
 				 "Bcc: $TBOPS");
@@ -2656,15 +2658,17 @@ dataset:
 	return -1;
     }
     if ($user->email()) {
-	    libtestbed::SENDMAIL($user->email(),
-				 "Finished cloning image",
-				 "Image URN: $image_urn\n".
-				 "Image URL: $image_url\n".
-				 "\n".
-				 "-----------------------------------------\n".
-				 "$output\n",
-				 $user->email(),
-				 "Bcc: $TBOPS");
+	libtestbed::SENDMAIL($user->email(),
+			     ($image->isdataset() ?
+			      "Finished taking snapshot of dataset" :
+			      "Finished cloning image"),
+			     "Image URN: $image_urn\n".
+			     "Image URL: $image_url\n".
+			     "\n".
+			     "-----------------------------------------\n".
+			     "$output\n",
+			     $user->email(),
+			     "Bcc: $TBOPS");
     }
     return 0;
 }
@@ -3620,6 +3624,7 @@ sub DescribeDataset($)
     require Lease;
     require Blockstore;
     require EmulabConstants;
+    require WebTask;
 
     if (! (defined($credentials) && defined($dataset))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
@@ -3676,14 +3681,45 @@ sub DescribeDataset($)
 		!defined($image->creator_urn()) ||
 		$image->creator_urn() ne $user->urn());
 
-	$blob->{'state'}    = ($image->size() ? "valid" : "new");
+	print STDERR Dumper($image);
+	
+	$blob->{'state'}    = "valid";
 	$blob->{'type'}     = "imdataset";
-	$blob->{"busy"}     = $image->locked() ? 1 : 0;
+	$blob->{"busy"}     = 0;
 	$blob->{'size'}     = 0;
 	$blob->{'created'}  = emutil::TBDateStringGMT($image->created());
 	$blob->{'updated'}  = emutil::TBDateStringGMT($image->updated());
 	$blob->{'expires'}  = "";
 	$blob->{'lastused'} = "";
+	#
+	# Is there an active webtask, then we are taking a snapshot, so
+	# report that info. 
+	#
+	my $webtask = WebTask->LookupByObject($image->uuid());
+	if (defined($webtask)) {
+	    $blob->{'image_size'}   = $webtask->imagesize() . "KB";
+	    $blob->{'image_status'} = $webtask->status();
+
+	    #
+	    # We have reported status, kill it. So if two parties are
+	    # trying to determine the status, one gets nothing. Maybe
+	    # we need a notion of staleness.
+	    #
+	    if ($webtask->HasExited()) {
+		# Final size.
+		if ($image->size()) {
+		    my $kbytes = int(($image->lba_high() -
+				      $image->lba_low() + 1) /
+				     (1024 / $image->lba_size()));
+		    $blob->{'image_size'} = $kbytes . "KB";
+		}
+		$webtask->Delete();
+	    }
+	    else {
+		$blob->{'state'} = "allocating";
+		$blob->{'busy'}  = 1;
+	    }
+	}
 	if ($image->size()) {
 	    my $kbytes = int(($image->lba_high() -
 			      $image->lba_low() + 1) /
@@ -3691,6 +3727,7 @@ sub DescribeDataset($)
 	    $blob->{'size'} =
 		Blockstore::ConvertToMebi("$kbytes" . "KB");
 	}
+	print STDERR Dumper($blob);
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }

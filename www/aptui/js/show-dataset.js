@@ -1,8 +1,8 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
-	 'js/lib/text!template/show-dataset.html',
+	 'js/lib/text!template/show-dataset.html', 'js/image',
 	 'jquery-ui'],
-function (_, sup, moment, mainString)
+function (_, sup, moment, mainString, ShowImagingModal)
 {
     'use strict';
     var mainTemplate    = _.template(mainString);
@@ -85,7 +85,7 @@ function (_, sup, moment, mainString)
 	 */
 	if (fields.dataset_state == "busy" ||
 	    fields.dataset_state == "allocating") {
-	    StateWatch();
+	    ShowProgressModal();
 	}
     }
 
@@ -114,6 +114,21 @@ function (_, sup, moment, mainString)
 	xmlthing.done(callback);
     }
     
+    function ShowProgressModal()
+    {
+	ShowImagingModal(function()
+			 {
+			     return sup.CallServerMethod(null,
+							 "dataset",
+							 "getinfo",
+							 {"uuid" :
+							    dataset_uuid});
+			 },
+			 function(failed)
+			 {
+			 });
+    }
+
     //
     // Delete dataset.
     //
