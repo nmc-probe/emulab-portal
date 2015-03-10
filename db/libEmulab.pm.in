@@ -265,6 +265,9 @@ sub EmulabLock($)
 {
     my ($name) = @_;
 
+    EmulabCreateLock($name) == 0
+	or return -1;
+
     my $query_result =
 	DBQueryWarn("update emulab_locks set value=1 " .
 		    "where name='$name' and value=0");
@@ -285,12 +288,45 @@ sub EmulabUnlock($)
     return 0;
 }
 
+sub EmulabCreateLock($)
+{
+    my ($name) = @_;
+    
+    my $query_result =
+	DBQueryWarn("select * from emulab_locks where name='$name'");
+    return -1
+	if (! $query_result);
+    if (!$query_result->numrows) {
+	DBQueryWarn("lock tables emulab_locks write")
+	    or return -1;
+
+	$query_result =
+	    DBQueryWarn("select * from emulab_locks where name='$name'");
+	if (! $query_result) {
+	    DBQueryWarn("unlock tables");
+	    return -1;
+	}
+	if (!$query_result->numrows &&
+	    !DBQueryWarn("insert into emulab_locks set ".
+			 "  name='$name',value=0")) {
+	    DBQueryWarn("unlock tables");
+	    return -1;
+	}
+	DBQueryWarn("unlock tables")
+	    or return -1;
+    }
+    return 0;
+}
+
 #
 # Count up/down locking.
 #
 sub EmulabCountLock($$)
 {
     my ($name, $count) = @_;
+
+    EmulabCreateLock($name) == 0
+	or return -1;
 
     my $query_result =
 	DBQueryWarn("update emulab_locks set value=value+1 " .
