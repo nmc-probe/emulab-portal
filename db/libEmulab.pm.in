@@ -307,7 +307,7 @@ sub EmulabCountUnlock($)
     my ($name) = @_;
 
     DBQueryWarn("update emulab_locks set value=value-1 ".
-		"where name='$name' and value>0");
+		"where name='$name' and value>0")
 	or return -1;
 
     return 0;
