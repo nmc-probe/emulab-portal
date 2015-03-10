@@ -1118,7 +1118,7 @@ sub Delete($;$)
 	or goto bad;
     DBQueryWarn("delete from images where imageid='$imageid'")
 	or goto bad;
-    DBQueryWarn("delete from web_tasks object_uuid='$uuid'") or
+    DBQueryWarn("delete from web_tasks where object_uuid='$uuid'") or
 	return -1;
     
     if ($purge || !$DOPROVENANCE) {
