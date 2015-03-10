@@ -285,4 +285,32 @@ sub EmulabUnlock($)
     return 0;
 }
 
+#
+# Count up/down locking.
+#
+sub EmulabCountLock($$)
+{
+    my ($name, $count) = @_;
+
+    my $query_result =
+	DBQueryWarn("update emulab_locks set value=value+1 " .
+		    "where name='$name' and value<${count}");
+
+    if (! $query_result || $query_result->affectedrows == 0) {
+	return -1;
+    }
+    return 0;
+}
+
+sub EmulabCountUnlock($)
+{
+    my ($name) = @_;
+
+    DBQueryWarn("update emulab_locks set value=value-1 ".
+		"where name='$name' and value>0");
+	or return -1;
+
+    return 0;
+}
+
 1;
