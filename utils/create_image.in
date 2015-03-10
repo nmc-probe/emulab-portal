@@ -1556,6 +1556,9 @@ sub check_progress($$)
 	    $cursize = 0;
 	}
     }
+    if (defined($webtask)) {
+	$webtask->imagesize($cursize / 1024);
+    }
     if ($cursize > $maximagesize) {
 	$result = "toobig";
 	print "$node_id: image capture has completed: image too big\n";
@@ -1578,9 +1581,6 @@ sub check_progress($$)
 	print "$node_id: still waiting ...".
 	    " it has been ". $curtdiff ." minutes.".
 	    " Current image size: $cursize bytes.\n";
-    }
-    if (defined($webtask)) {
-	$webtask->imagesize($cursize / 1024);
     }
     return 1;
 }
