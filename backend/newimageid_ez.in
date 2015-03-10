@@ -751,6 +751,13 @@ if (!$isdataset) {
     fatal("Could not create new OSID!")
 	if (!defined($new_osinfo));
 
+    #
+    # Insert a submap entry.
+    #
+    if (defined($parentos)) {
+	$new_osinfo->SetRunsOnParent($parentos);
+    }
+
     $newimageid_args{"path"} = $ipath;
     $osid = $new_osinfo->osid();
 
