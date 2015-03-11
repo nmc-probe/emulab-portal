@@ -189,7 +189,10 @@ function VerifySpeaksfor(speaksfor, signature)
 	document.cookie = cookie1;
 	document.cookie = cookie2;
 	document.cookie = cookie3;
-	if (EMBEDDED) {
+	if ($('#login_referrer').length) {
+	    window.location.replace($('#login_referrer').val());
+	}
+	else if (EMBEDDED) {
 	    window.parent.location.replace("../" + json.value.url);
 	}
 	else {

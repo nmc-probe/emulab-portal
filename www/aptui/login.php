@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -136,7 +136,8 @@ function SPITFORM($uid, $referrer, $error)
         echo "<span class='help-block'>Please login before continuing</span>";
     }
     if ($referrer) {
-	echo "<input type=hidden name=referrer value=$referrer>\n";
+	echo "<input type=hidden name=referrer id='login_referrer' ".
+            "value=$referrer>\n";
     }
 ?>
              <div class='form-group'>
