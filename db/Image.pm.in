@@ -1095,7 +1095,8 @@ sub Delete($;$)
     DBQueryWarn("lock tables images write, image_versions write, ".
 		"            os_info write, os_info_versions write, ".
 		"            osidtoimageid write, os_submap write, ".
-		"            image_permissions write, node_types read")
+		"            image_permissions write, node_types read, ".
+		"            web_tasks write")
 	or return -1;
 
     #
@@ -1118,8 +1119,8 @@ sub Delete($;$)
 	or goto bad;
     DBQueryWarn("delete from images where imageid='$imageid'")
 	or goto bad;
-    DBQueryWarn("delete from web_tasks where object_uuid='$uuid'") or
-	return -1;
+    DBQueryWarn("delete from web_tasks where object_uuid='$uuid'")
+	or goto bad;
     
     if ($purge || !$DOPROVENANCE) {
 	goto bad
