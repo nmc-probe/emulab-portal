@@ -135,6 +135,9 @@ sub handler()
 }
 $SIG{HUP} = \&handler;
 
+my %allnodes = ();
+my %allinterfaces = ();
+    
 sub AddInterfaces($$$) {
 
     my ($n, $node, $ts) = @_;
@@ -177,6 +180,8 @@ sub AddInterfaces($$$) {
 			     "node_id='${DOMAIN}_node_$n'," .
 			     "urn='urn:publicid:IDN+$DOMAIN+interface+$n:$i'," .
 			     "selfRef='$URL/info/interface/${DOMAIN}_interface_$n:$i'" );
+
+	$allinterfaces{"$n:$i"} = 1;
     }
 }
 
@@ -227,6 +232,16 @@ sub AddInterfaceVlan($$$$$) {
 			     "urn='urn:publicid:IDN+$idomain+interface+$iface'," .
 			     "ts='$ts'," .
 			     "properties\$role='stub'" );
+    } elsif( !exists( $allinterfaces{$iface} ) ) {
+	emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interface SET " .
+			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interface#', " .
+			     "id='${DOMAIN}_interface_${iface}'," .
+			     "selfRef='$URL/info/interface/${DOMAIN}_interface_${iface}'," .
+			     "urn='urn:publicid:IDN+$DOMAIN+interface+${iface}'," .
+			     "ts='$ts'," .
+			     "properties\$role='experimental'" );
+	    
+	$allinterfaces{$iface} = 1;
     }
     
     emdbi::DBQueryWarnN( $db, "INSERT INTO ops_link_interfacevlan SET " .
@@ -277,6 +292,10 @@ while (1) {
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_interface_addresses" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate_resource" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_node_interface" );
+
+    %allnodes = ();
+    %allinterfaces = ();
+    
     # The shared pool experiment isn't named consistently across sites.
     # Rather than fixing it, let's just grab everything we can find and
     # hope for the best.
@@ -309,6 +328,8 @@ while (1) {
 			     "urn='urn:publicid:IDN+$DOMAIN+node+$n'," .
 			     "selfRef='$URL/info/node/${DOMAIN}_node_$n'" );
 
+	$allnodes{$n} = 1;
+	
 	AddInterfaces( $n, $node, $ts );
     }
 
@@ -355,6 +376,8 @@ while (1) {
 				 "ts='$ts'," .
 				 "node_type='switch'" );
 
+	    $allnodes{$switchnode} = 1;
+	    
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
 				 "id='${DOMAIN}_node_$switchnode'," .
 				 "aggregate_id='$NICKNAME'," .
@@ -456,13 +479,14 @@ while (1) {
 
 	    next if( !defined( $enode ) || !defined( $inode ) );
 
-	    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_interface SET " .
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface SET " .
 				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interface#', " .
 				 "id='${DOMAIN}_interface_${snode}'," .
 				 "selfRef='$URL/info/interface/${DOMAIN}_interface_${snode}'," .
 				 "urn='urn:publicid:IDN+$DOMAIN+interface+${snode}'," .
 				 "ts='$ts'," .
-				 "properties\$role='experimental'" );
+				 "properties\$role='experimental'" )
+		unless( exists( $allinterfaces{$snode} ) );
 	    
 	    AddLink( "${lanid}e", $ts );
 	    AddLink( "${lanid}i", $ts );
