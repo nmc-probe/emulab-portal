@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -106,6 +106,7 @@ my %subboss_dhcp_servers;
 my %management_ifaces;
 my $m_network = inet_ntoa(inet_aton($MANAGEMENT_NETWORK) &
 			  inet_aton($MANAGEMENT_NETMASK));
+my $mgmt_just_nodes;
 
 sub RestartSubbossDhcp($$);
 sub SetupPXEBoot($$$$);
@@ -472,23 +473,37 @@ while (<IF>) {
 		    print $OUT "${spaces}\tfixed-address $ip;\n";
 		    print $OUT "${spaces}}\n\n";
 		}
-	} elsif (/^(\s*)\%\%management/) {
+	} elsif (/^(\s*)\%\%management(_nodes)?\s*$/) {
+	    # UW added this change, to allow for a different template file
+	    # definition of the management nodes.
+	    die("ERROR: more than one of '\%\%management' and/or ".
+		"'\%\%management_nodes' has been used in the ".
+		"'$DHCPD_TEMPLATE' file!") if (defined($mgmt_just_nodes));
+	    $mgmt_just_nodes = ($2) ? 1 : 0;
 	    my $spaces = $1;
 	    my $net  = $MANAGEMENT_NETWORK;
 	    my $mask = $MANAGEMENT_NETMASK;
 	    my $gate = $MANAGEMENT_GATEWAY;
 	    
 	    if (@management_ifaces) {
-		my @lines =
-		    ("subnet $net netmask $mask {",
-		     "    option subnet-mask          $mask;",
-		     "    option routers              $gate;",
-		     "    option domain-name-servers  $BOSSNODE_IP;",
-		     "    option domain-name          \"$OURDOMAIN\";",
-		     "    next-server                 $BOSSNODE_IP;",
-		     "",
-		     "",
-		     "    group {");
+		#
+		# UW wants more control in the template file. We still
+		# spit out the nodes, but without the subnet/group wrapper,
+		# which they put into the template file directly.
+		#
+		my @lines;
+		if (!$mgmt_just_nodes) {
+		    @lines =
+			("subnet $net netmask $mask {",
+			 "    option subnet-mask          $mask;",
+			 "    option routers              $gate;",
+			 "    option domain-name-servers  $BOSSNODE_IP;",
+			 "    option domain-name          \"$OURDOMAIN\";",
+			 "    next-server                 $BOSSNODE_IP;",
+			 "",
+			 "",
+			 "    group {");
+		}
 		foreach my $ref (@management_ifaces) {
 		    my ($hostname, $ip, $mac) = @{$ref};
 		    # naming convention.
@@ -504,7 +519,9 @@ while (<IF>) {
 			 "            fixed-address $ip;",
 			 "        }\n");
 		}
-		@lines = (@lines, "   }", "}");
+		if (!$mgmt_just_nodes) {
+		    @lines = (@lines, "   }", "}");
+		}
 		foreach my $line (@lines) {
 		    print $OUT $spaces . $line . "\n";
 		}
