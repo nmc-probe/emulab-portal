@@ -632,7 +632,7 @@ sub DoSnapshot()
 	goto failed
     }
     # Create a webtask for the caller, might be ignored but thats okay.
-    $webtask = WebTask->LookupOrCreate($dataset->uuid(), $webtask_id);
+    $webtask = WebTask->Create($dataset->uuid(), $webtask_id);
     if (defined($webtask)) {
 	# Convenient.
 	$webtask->AutoStore(1);
