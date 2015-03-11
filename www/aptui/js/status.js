@@ -30,6 +30,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
+    var lastStatus        = "";
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
@@ -287,11 +288,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
             // It has not... perform the initilization
             StatusWatchCallBack.active = 0;
 	}
-	// Flag so we know status has changed since last check.
-	if (typeof StatusWatchCallBack.laststatus == 'undefined') {
-            // It has not... perform the initilization
-            StatusWatchCallBack.laststatus = "";
-	}
 	var status = json.value.status;
 	if (json.code) {
 	    alert("The server has returned an error: " + json.value);
@@ -299,7 +295,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
 	var status_html = "";
     
-	if (status != StatusWatchCallBack.laststatus) {
+	if (status != lastStatus) {
 	    status_html = status;
 
 	    var bgtype = "panel-info";
@@ -382,7 +378,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	if (json.value.havemanifest && _.has(json.value, "sliverstatus")) {
 	    UpdateSliverStatus(json.value.sliverstatus);
 	}
-	StatusWatchCallBack.laststatus = status;
+	lastStatus = status;
 	if (! (status == 'terminating' || status == 'terminated' ||
 	       status == 'unknown')) {
 	    setTimeout(function f() { GetStatus(uuid) }, 5000);
@@ -992,6 +988,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		startOneSSH = function () {
 		    NewSSHTab(nodehostport, nodename);
 		};
+	    }
+	    // There is enough asynchrony that we have to watch for the
+	    // case that we went ready before we got this done, and so the
+	    // buttons won't be correct.
+	    if (lastStatus == "ready") {
+		EnableButtons();
 	    }
 	}
 	var xmlthing = sup.CallServerMethod(ajaxurl,
