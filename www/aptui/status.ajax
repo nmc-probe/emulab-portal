@@ -204,6 +204,7 @@ function Do_RequestExtension()
     global $ajax_args;
     global $TBMAIL_OPS, $APTMAIL, $APTBASE;
     $reason  = "";
+    $needapproval = 0;
 
     if (StatusSetupAjax()) {
 	goto bad;
@@ -231,7 +232,7 @@ function Do_RequestExtension()
 	    SPITAJAX_ERROR(1, "Must be an integer 1 <= days <= 365");
 	    goto bad;
 	}
-	$howlong = $howlong * (3600 * 24);
+	$seconds = $howlong * (3600 * 24);
 	$reason  = "Extended by site administrator";
     }
     else {
@@ -246,7 +247,7 @@ function Do_RequestExtension()
 	#
 	if (!isset($this_user)) {
             # Only extend for 24 hours. More later.
-	    $howlong = 3600 * 24;
+	    $seconds = 3600 * 24;
 
 	    if ($expires_time > time() + $howlong) {
 		sleep(2);
@@ -256,52 +257,66 @@ function Do_RequestExtension()
 	    }
 	}
 	else {
+            $diff = $expires_time - time();
 	    #
 	    # Registered users are granted up to 1 week automatically.
-	    # Beyond that, requires intervention.
+	    # Beyond that, requires approval. We do the same for
+            # requests that require approval, since we want to give them
+            # extra time until the next meeting of the "resource
+            # management committee."
 	    #
 	    if ($howlong > 7) {
-		$url = "$APTBASE/status.php?uuid=$uuid&extend=$howlong";
-		    
-		$instance->SendEmail($APTMAIL,
-		     "Experiment Extension Request: $uuid",
-		     "A request to extend this experiment was made but ".
-		     "requires\n".
-		     "administrator approval\n".
-		     "The request is for $howlong days, the reason given is:".
-		     "\n\n" . $reason . "\n\n".
-		     "Click on the following link (red-dot) to grant ".
-		     "the request\n\n". $url . "\n\n",
-		     "From: " . $creator->email());
-
-		# XXX 
-		SPITAJAX_ERROR(2, "Your request requires admininstrator ".
-			       "approval. You will receive email when your ".
-			       "request is granted. Thanks!");
-		sleep(2);
-		return;
+                $needapproval = $howlong;
+                $howlong = 7;
 	    }
-	    $diff = $expires_time - time();
-	    if ($diff > (3600 * 24 * 7)) {
-		SPITAJAX_ERROR(1, "You still have a week left!");
-		goto bad;
-	    }
+            else {
+                if ($diff > (3600 * 24 * 7)) {
+                    SPITAJAX_ERROR(1, "You still have a week left!");
+                    goto bad;
+                }
+            }
 	    #
 	    # The most we allow is a week out, no matter what they asked for.
 	    # So if there are five days left and they asked for seven, we
 	    # give them two. 
 	    #
-	    $howlong = $howlong * 3600 * 24;
-	    if ($expires_time + $howlong > time() + (3600 * 24 * 7)) {
-		$howlong = (3600 * 24 * 7) - diff;
+	    $seconds = $howlong * 3600 * 24;
+	    if ($expires_time + $seconds > time() + (3600 * 24 * 7)) {
+		$seconds = (3600 * 24 * 7) - $diff;
+                $howlong = intval($seconds / (3600 * 24 * 7));
 	    }
 	}
     }
-    $retval = SUEXEC("nobody", "nobody",
-		     "webmanage_instance extend $uuid $howlong",
-		     SUEXEC_ACTION_CONTINUE);
+    if ($seconds) {
+        $retval = SUEXEC("nobody", "nobody",
+                         "webmanage_instance extend $uuid $seconds",
+                         SUEXEC_ACTION_CONTINUE);
+    }
 
     if ($retval == 0) {
+        if ($needapproval) {
+            # Subtract out the extra time we added above.
+            $howlong = $needapproval - $howlong;
+            $url = "$APTBASE/status.php?uuid=$uuid&extend=$howlong";
+		    
+            $instance->SendEmail($APTMAIL,
+		     "Experiment Extension Request: $uuid",
+		     "A request to extend this experiment was made but ".
+		     "requires\n".
+		     "administrator approval\n".
+                     "The request is for $needapproval days, the reason ".
+                     "given is:\n\n".
+		     $reason . "\n\n".
+		     "Click on the following link (red-dot) to grant ".
+		     "the request\n\n". $url . "\n\n",
+		     "From: " . $creator->email());
+            
+            # XXX 
+            SPITAJAX_ERROR(2, "Your request requires admininstrator ".
+                           "approval. You will receive email when your ".
+                           "request is granted. Thanks!");
+            return;
+        }
 	# Refresh. 
 	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 	$new_expires = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
