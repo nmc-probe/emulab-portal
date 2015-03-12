@@ -136,8 +136,10 @@ function (_, editModalString)
 	    var expression = /^\s*$/;
 	    if (this.xml && ! expression.exec(this.xml))
 	    {
+	      console.log('before: ', this.xml);
 		var rspec = $.parseXML(this.xml);
 		convertNamespace(rspec.documentElement);
+	      console.log('after: ', rspec.documentElement.outerHTML);
 		this.input.trigger('change-topology',
 				   [{ rspec: rspec.documentElement.outerHTML }]);
 	    }
@@ -184,7 +186,7 @@ function (_, editModalString)
 	{
 	    this.root.find('#quickvm_editmodal').modal('hide');
 	    
-	    if (this.cancel_callback() != null) {
+	    if (this.cancel_callback !== null) {
 		this.cancel_callback();
 	    }
 	}

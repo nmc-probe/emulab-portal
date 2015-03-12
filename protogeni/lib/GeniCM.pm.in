@@ -751,6 +751,23 @@ sub GetTicketAuxAux($$$$$$$$$$)
 				  "objecttype" => "6"});
 
     #
+    # Look for toplevel address pools
+    #
+    my $address_pools = GeniXML::GetAddressPools($rspec);
+    foreach my $pool (@{ $address_pools }) {
+	if ($pool->{'type'} ne "any") {
+	    $response = GeniResponse->Create(GENIRESPONSE_ERROR, undef, "Only public address pools of type any are supported");
+	    goto bad;
+	}
+	print STDERR 'DEBUG: Adding row to virt_address_allocation';
+	$virtexperiment->NewTableRow("virt_address_allocation",
+		      {"pool_id" => $pool->{'client_id'},
+		       "count" => $pool->{'count'},
+		       "restriction" => $pool->{'type'},
+		       "version" => "ipv4" });
+    }
+
+    #
     # Look for toplevel elabinelab section.
     #
     my $elabinelab_settings = GeniXML::GetElabInElabSettings($rspec);

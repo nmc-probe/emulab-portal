@@ -42,7 +42,7 @@ GetManagerId GetColocate GetSubnodeOf GetStartupCommand GetTarball
 GetVirtualizationType SetVirtualizationSubtype GetVirtualizationSubtype
 GetExclusive SetExclusive GetLinkManager SetText GetText Serialize
 CreateDocument AddElement RemoveChild PolicyExists GetMask
-GetDiskImage IsUntaggedLan IsTaggedLan GetHopLinkID GetCapabilitySection
+GetDiskImage IsUntaggedLan IsTaggedLan GetAddressPools GetHopLinkID GetCapabilitySection
 GetSuggestedVlanFromHop GetAvailableVlanFromHop SetVlanTagInHop);
 
 use English;
@@ -983,6 +983,26 @@ sub IsTaggedLan($)
     if (scalar(@tagged) > 0) {
 	my $enabled = GetText("enabled", $tagged[0]);
 	$result = defined($enabled) && $enabled eq "true";
+    }
+    return $result;
+}
+
+sub GetAddressPools($)
+{
+    my ($rspec) = @_;
+    my $result = [];
+    my @pools = FindNodesNS("n:routable_pool", $rspec,
+			    $EMULAB_NS)->get_nodelist();
+    foreach my $pool (@pools) {
+	my $client_id = GetText("client_id", $pool);
+	my $count = GetText("count", $pool);
+	my $type = GetText("type", $pool);
+	push(@{ $result },
+	     {
+		 "client_id" => $client_id,
+		 "count" => $count,
+		 "type" => $type
+	     });
     }
     return $result;
 }
