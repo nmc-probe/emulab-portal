@@ -5113,6 +5113,7 @@ CREATE TABLE `virt_address_allocation` (
   `pool_id` varchar(32) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
   `eid` varchar(32) NOT NULL default '',
+  `exptidx` int(11) NOT NULL default '0',
   `count` int(10) NOT NULL default '0',
   `restriction` enum('contiguous','cidr','any') NOT NULL default 'any',
   `version` enum('ipv4','ipv6') NOT NULL default 'ipv4',
