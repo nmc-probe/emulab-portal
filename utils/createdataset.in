@@ -34,6 +34,7 @@ use CGI;
 sub usage()
 {
     print STDERR "Usage: createdataset [-hdU] [-o uid] [-a attrs] [-t type] [-f fstype] [-e expiration] -s size name\n";
+    print STDERR "Create a persistent dataset. Options:\n";
     print STDERR "   -h        This message\n";
     print STDERR "   -d        Print additional debug info\n";
     print STDERR "   -U        Create but do not approve; admin will need to approve later\n";
@@ -45,7 +46,12 @@ sub usage()
     print STDERR "   -e date   Expiration date (or 'never')\n";
     print STDERR "   -a attrs  comma-seperated string of key=value attributes\n";
     print STDERR "   -b        Allocate resources in the background\n";
-    print STDERR "   name      Name (in the form <pid>/<id>)\n";
+    print STDERR "   name      Name (in the form <pid>/<id> or <pid>/<gid>/<id>)\n";
+    print STDERR "\n";
+    print STDERR "Usage: createdataset -t imdataset [-I node,bsname] name\n";
+    print STDERR "Create a dataset image. Options:\n";
+    print STDERR "   -I node,bsname Take an immediate snapshot of a local blockstore on a node to populate the image.\n";
+    print STDERR "   name           Name (in the form <pid>/<id> or <pid>/<gid>/<id>)\n";
     exit(-1);
 }
 my $optlist  = "dhUo:s:t:e:a:f:bCR:W:I:";
@@ -635,4 +641,3 @@ sub fatal($)
     die("*** $0:\n".
 	"    $mesg\n");
 }
-
