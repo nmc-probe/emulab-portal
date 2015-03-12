@@ -5109,7 +5109,6 @@ CREATE TABLE `virt_node_public_addr` (
 
 DROP TABLE IF EXISTS `virt_address_allocation`;
 CREATE TABLE `virt_address_allocation` (
-  `idx` int(11) NOT NULL auto_increment,
   `pool_id` varchar(32) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
   `eid` varchar(32) NOT NULL default '',
@@ -5117,7 +5116,7 @@ CREATE TABLE `virt_address_allocation` (
   `count` int(10) NOT NULL default '0',
   `restriction` enum('contiguous','cidr','any') NOT NULL default 'any',
   `version` enum('ipv4','ipv6') NOT NULL default 'ipv4',
-  PRIMARY KEY (`idx`)
+  PRIMARY KEY (`exptidx`,`pool_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
