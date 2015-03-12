@@ -41,7 +41,7 @@ ACCEPTSLICENAME=1
 
 debug    = 0
 impotent = 0
-dokeys   = 1
+dokeys   = 0
 
 execfile( "test-common.py" )
 
@@ -104,9 +104,11 @@ if dokeys:
 params["impotent"]    = impotent
 rval,response = do_method_retry("cm", "CreateSliver", params)
 if rval:
+    print rval, response
     Fatal("Could not create sliver")
     pass
 sliver,manifest = response["value"]
+print rval, response
 print "Created the sliver"
 #print str(manifest)
 
