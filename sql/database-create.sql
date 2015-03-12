@@ -5109,7 +5109,7 @@ CREATE TABLE `virt_node_public_addr` (
 
 DROP TABLE IF EXISTS `virt_address_allocation`;
 CREATE TABLE `virt_address_allocation` (
-  `idx` int(10) unsigned NOT NULL default '0',
+  `idx` int(11) NOT NULL auto_increment,
   `pool_id` varchar(32) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
   `eid` varchar(32) NOT NULL default '',
