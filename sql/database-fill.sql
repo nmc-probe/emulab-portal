@@ -819,6 +819,13 @@ REPLACE INTO table_regex VALUES ('users','user_interface','text','regex','^(emul
 REPLACE INTO table_regex VALUES ('users','notes','text','redirect','default:fulltext',0,65535,NULL);
 REPLACE INTO table_regex VALUES ('users','initial_passphrase','text','redirect','default:tinytext',0,128,NULL);
 
+REPLACE INTO table_regex VALUES ('virt_address_allocation','pid','text','redirect','projects:pid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_address_allocation','eid','text','redirect','experiments:eid',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_address_allocation','pool_id','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_address_allocation','count','text','redirect','default:tinyint',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_address_allocation','restriction','text','regex','^(contiguous|cidr|any)$',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_address_allocation','version','text','regex','^(ipv4|ipv6)$',0,0,NULL);
+
 REPLACE INTO table_regex VALUES ('virt_agents','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_agents','eid','text','redirect','experiments:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_agents','vname','text','redirect','eventlist:vname',0,0,NULL);
