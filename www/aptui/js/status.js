@@ -1284,7 +1284,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
     function ShowConsolePassword(client_id)
     {
-	$('#console_password_clientid').val(client_id);
+	$('#console_password_clientid').html(client_id);
 	$('#console_password_input').val(nodePasswords[client_id]);
 	sup.ShowModal('#console_password_modal');
     }
