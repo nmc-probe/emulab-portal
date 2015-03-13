@@ -148,7 +148,7 @@ if (isset($profile)) {
 	}
 	 
 	#
-	# Must be public or belong to user. 
+	# Must be public or pass the permission test for the user.
 	#
 	if (! ($obj->ispublic() ||
 	       (isset($this_user) && $obj->CanInstantiate($this_user)))) {
@@ -400,8 +400,16 @@ function SPITFORM($formfields, $newuser, $errors)
         if (isset($this_user)) {
             echo "<button class='btn btn-default btn-sm pull-left' 
                          type='button' id='profile_copy_button'
-                         style='margin-right: 10px;'>
-                    Copy Profile
+                         style='margin-right: 10px;'
+		    data-toggle='popover'
+		    data-delay='{hide:1500, show:500}'
+		    data-html='true'
+		    data-content='When you copy a profile
+		    you are creating a new profile that
+		    uses the same source code and metadata (description,
+		    instructions) as the original profile, but without
+		    creating a new disk image. Instead, the new profile uses
+		    whatever images the original profile uses.'>Copy Profile
                   </button>";
             echo "<button class='btn btn-default btn-sm pull-left'
                           type='button' id='profile_show_button'>

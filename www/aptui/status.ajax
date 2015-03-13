@@ -89,6 +89,10 @@ function Do_GetInstanceStatus()
     $blob["status"] = $instance->status();
     # Indicate that we have a manifest and so we can view it.
     $blob["havemanifest"] = ($instance->manifest() ? 1 : 0);
+    # Provide PublicURL so that we can show the sliver info button
+    if ($instance->public_url()) {
+        $blob["publicURL"] = $instance->public_url();
+    }
     
     $webtask = WebTask::LookupByObject($instance->uuid());
     if ($webtask) {
@@ -377,7 +381,13 @@ function Do_ConsoleURL()
     $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval == 0) {
-	SPITAJAX_RESPONSE($webtask->TaskValue("value"));
+        $taskdata = $webtask->TaskData();
+        $blob = array();
+        $blob["url"] = $taskdata["url"];
+        if (isset($taskdata["password"])) {
+            $blob["password"] = $taskdata["password"];
+        }
+	SPITAJAX_RESPONSE($blob);
 	$webtask->Delete();
 	return;
     }

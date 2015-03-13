@@ -401,6 +401,9 @@ class Profile
     function CanView($user) {
 	return $this->CanInstantiate($user);
     }
+    function CanClone($user) {
+	return $this->CanInstantiate($user);
+    }
     function CanDelete($user) {
 	# Want to know if the project is APT or Cloud/Emulab. APT projects
         # may not delete profiles (yet).

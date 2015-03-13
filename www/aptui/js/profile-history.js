@@ -13,7 +13,10 @@ function (_, sup, profileString)
 	ajaxurl  = window.AJAXURL;
 
 	var profiles = JSON.parse(_.unescape($('#profiles-json')[0].textContent));
-	var profile_html = profileTemplate({profiles: profiles});
+	var profile_html =
+	    profileTemplate({profiles: profiles,
+			     withpublishing: window.WITHPUBLISHING});
+					    
 	$('#history-body').html(profile_html);
 
 	console.info(profiles);

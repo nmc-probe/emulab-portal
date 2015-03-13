@@ -37,47 +37,26 @@
 	    <td class='format-date' style='word-wrap:break-word;'>
 	      <%- formfields.profile_created %></td>
 	  </tr>
+	  <% if (withpublishing) { %>
 	  <tr>
 	    <td>Published:</td>
+	    <% if (formfields.profile_published != "") { %>
 	    <td id='profile_published' class='format-date'>
 	      <%- formfields.profile_published %></td>
+	    <% } else { %>
+	    <td class='text-danger'>Not Published!</td>
+	    <% } %>
 	  </tr>
-	  <tr>
-	    <td>Version&nbspURL:</td>
-	    <td><input href='<%- formfields.profile_version_url %>'
-		   onClick="this.select();"
-		   readonly 
-		   data-toggle="popover" data-html='true'
-		   data-content="Anyone with this URL can instantiate this
-		   <b>version</b> of your profile."
-		   data-triger='hover'
-		   value='<%- formfields.profile_version_url %>'>
-	    </td>
-	  </tr>
-	  <tr>
-	    <td>Profile&nbspURL:</td>
-	    <td><input href='<%- formfields.profile_profile_url %>'
-		   onClick="this.select();"
-		   readonly
-		   data-toggle="popover" data-html='true'
-		   data-content="This URL instantiates the
-		   most recently <b>published</b> version of your profile."
-		   data-triger='hover'
-		   value='<%- formfields.profile_profile_url %>'>
-	    </td>
-	  </tr>
+	  <% } %>
 	</table>
-	<% if (history) { %>
-	<a class='btn btn-info btn-xs pull-left'
-           id='profile_history_button'
-           style='margin-right: 10px; font-size: 12px'
-           href='profile-history.php?uuid=<%= profile_uuid %>'
-           type='button'>Version History
-	</a>
-	<% } %>
 	<% if (activity) { %>
 	<a class='btn btn-info btn-xs pull-left'
            id='profile_activity_button'
+	   data-toggle='popover'
+	   data-delay='{"hide":1500, "show":250}'
+	   data-html='true'
+	   data-content="View a history of when your profile was
+	   instantiated."
            style='margin-right: 10px; font-size: 12px'
            href='profile-activity.php?uuid=<%= profile_uuid %>'
            type='button'>Activity
@@ -206,7 +185,8 @@
 			  type='button'
 			  style='margin-right: 10px;'
 			  id='show_source_modal_button'>
-                    Source</button>
+		    <% if (viewing && canmodify) { %>Edit <% } %>Source
+		  </button>
 		  <button class='btn btn-primary btn-xs hidden'
 			  type='button'
 			  style='margin-right: 10px;'
@@ -283,6 +263,7 @@
 	    </div>
 
 	    <!-- Public listing checkbox -->
+	    <% if (isadmin) { %>
 	    <div class='row'>
 	      <div class='col-sm-10 col-sm-offset-2'>
 		<div class='checkbox format-me' data-compact='yep'>
@@ -297,6 +278,7 @@
 		</div>
 	      </div>
 	    </div>
+	    <% } %>
 
 	    <!-- Permission checkboxes. -->
 	    <div class='row'>
@@ -308,6 +290,7 @@
 	    <div class='row'>
 	      <div class='col-sm-9 col-sm-offset-3'>
 		<div class='format-me' data-key='profile_who'>
+		  <% if (1) { %>
 		  <div class='radio'>
                     <label>
                       <input type='radio' name='formfields[profile_who]'
@@ -315,9 +298,15 @@
 		             <% if (formfields.profile_who == "public") {
 				%>checked<% } %>
 			     value='public'>
-                      <em>Anyone</em> on the internet (guest users)
+		      <% if (iscloud) { %>
+                      <em>Anyone</em>
+		      <% } else { %>
+                      <em>Anyone</em> on the internet
+		      <% } %>
     	            </label>
                   </div>
+		  <% } %>
+		  <% if (0) { %>
                   <div class='radio'>
                     <label>
                       <input type='radio' name='formfields[profile_who]'
@@ -328,6 +317,7 @@
                       Only registered users of the website
     	            </label>
                   </div>
+		  <% } %>
                   <div class='radio'>
                     <label>
                       <input type='radio' name='formfields[profile_who]'
@@ -378,7 +368,7 @@
 	  <div class='form-group'>
             <div class='col-sm-offset-2 col-sm-10'>
 	      <% if (!viewing || canmodify) { %>
-              <button class='btn btn-primary btn-sm pull-right' disabled
+              <button class='btn btn-primary btn-xs pull-right' disabled
                       id='profile_submit_button'
                       style='margin-right: 10px;'
                       type='submit' name='create'>
@@ -386,39 +376,83 @@
 	      </button>
 	      <% } %>
 	      <% if (viewing) { %>
-	      <a class='btn btn-primary btn-sm pull-right' disabled
+	      <a class='btn btn-primary btn-xs pull-right' disabled
                  id='profile_instantiate_button'
                  style='margin-right: 10px;'
                  type='submit' name='create'>Instantiate
 	      </a>
-	      <button class='btn btn-success btn-sm pull-right' disabled
-                 id='guest_instantiate_button'
-                 style='margin-right: 10px;'
-     		 data-toggle='modal' data-target='#guest_instantiate_modal'
-                 type='button'>Instantiate as Guest
-	      </button>
-	      <a class='btn btn-primary btn-sm pull-left'
+	      <% if (!iscloud) { %>
+	      <span class='pull-right'
+		 data-toggle='popover'
+		 data-delay='{"hide":1500, "show":250}'
+		 data-html='true'
+		 data-content="When you instantiate as a guest, you get
+			       to see exactly how another user will
+			       experience your profile. This allows you to
+			       better debug your profile for other users">
+		<button class='btn btn-success btn-xs' disabled
+			id='guest_instantiate_button'
+			style='margin-right: 10px;'
+     			data-toggle='modal'
+			data-target='#guest_instantiate_modal'
+			type='button'>Instantiate as Guest
+		</button>
+	      </span>
+	      <% } %>
+	      <a class='btn btn-primary btn-xs pull-left'
                  id='profile_copy_button'
                  style='margin-right: 10px;'
                  type='button'
-		 href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'>
-                  Copy
+		 href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'
+		 data-toggle='popover'
+		 data-delay='{"hide":1500, "show":250}'
+		 data-html='true'
+		 data-content="When you <em>copy</em> (instead of
+                    clone), you are creating a new profile that
+		    uses the same source code and metadata (description,
+		    instructions) as the original profile, but without
+		    creating a new disk image. Instead, the new profile uses
+		    whatever images the original profile uses."> 
+                Copy
 	      </a>
+	      <span class='pull-left'
+		 data-toggle='popover'
+		 data-delay='{"hide":1500, "show":250}'
+		 data-html='true'
+		 data-content="Share your profile with other users by
+			       sending them a link to instantiate it.
+			       Click for more info.">
+		<button class='btn btn-primary btn-xs'
+			id='profile_share_button'
+     			data-toggle='modal' data-target='#share_profile_modal'
+			style='margin-right: 10px;'
+			type='button'>
+                  Share
+		</button>
+	      </span>
  	      <% if (candelete) { %>
-	      <button class='btn btn-danger btn-sm pull-left' disabled
+	      <button class='btn btn-danger btn-xs pull-left' disabled
                  id='profile_delete_button'
                  style='margin-right: 10px;'
      		 data-toggle='modal' data-target='#delete_modal'
                  type='button' name='delete'>Delete
 	      </button>
 	      <% } %>
- 	      <% if (canpublish) { %>
-	      <button class='btn btn-success btn-sm pull-right' disabled
-                 id='profile_publish_button'
-                 style='margin-right: 10px;'
-     		 data-toggle='modal' data-target='#publish_modal'
-                 type='button'>Publish
-	      </button>
+ 	      <% if (withpublishing && canpublish) { %>
+	      <span class='pull-right'
+		 data-toggle='popover'
+		 data-delay='{"hide":1500, "show":250}'
+		 data-html='true'
+		 data-content="Publishing is like creating
+		 a <em>checkpoint</em>. Click for more info.">
+		<button class='btn btn-success btn-xs' disabled
+			id='profile_publish_button'
+			style='margin-right: 10px;'
+     			data-toggle='modal' data-target='#publish_modal'
+			type='button'>
+		  Publish
+		</button>
+	      </span>
 	      <% } %>
 	      <% } %>
 	    </div>
@@ -492,4 +526,52 @@
   <div id='publish_div'></div>
   <div id='instantiate_div'></div>
   <div id='ppmodal_div'></div>
+  <div id='share_div'>
 </div>
+<% if (viewing && versions.length > 1) { %>
+<div class='row'>
+  <div class='col-sm-12'>
+    <div class='panel panel-default'>
+      <div class='panel-heading'>
+        <h4 class='panel-title text-center'>Version History</h4>
+      </div>
+      <div class='panel-body'>
+	<table class='table table-striped table-condensed'>
+	  <thead>
+	    <tr>
+	      <th>Vers</th>
+	      <th>Description</th>
+	      <th style='white-space: nowrap;'>
+		Created&nbsp;&nbsp;&nbsp;&nbsp;</th>
+	      <% if (withpublishing) { %>
+	      <th>Published</th>
+	      <% } %>
+	      <th>From</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <% _.each(versions, function(profile) { %>
+	    <%  if (profile.uuid != version_uuid) { %>
+	    <tr><% } else { %><tr class='success'><% } %>
+	      <td>
+		<a href='manage_profile.php?action=edit&uuid=<%- profile.uuid %>'>
+		  <%- profile.version %></a>
+	      </td>
+	      <td><%- profile.description %></td>
+	      <td style='white-space: nowrap;'><%- profile.created %></td>
+	      <% if (withpublishing) { %>
+	      <td><%- profile.published %></td>
+	      <% } %>
+              <td style='text-align:center'>
+		<a href='manage_profile.php?action=edit&uuid=<%- profile.uuid %>'>
+		  <%- profile.parent_version %></a>
+	      </td>
+	    </tr>
+	    <% }); %>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+</div>
+<% } %>

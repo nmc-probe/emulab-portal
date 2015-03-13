@@ -36,11 +36,13 @@
 	    <td class='format-date' style='word-wrap:break-word;'>
 	      <%- fields.profile_created %></td>
 	  </tr>
+	  <% if (withpublishing) { %>
 	  <tr>
 	    <td>Published:</td>
 	    <td id='profile_published' class='format-date'>
 	      <%- fields.profile_published %></td>
 	  </tr>
+	  <% } %>
 	</table>
 	<% if (history) { %>
 	<a class='btn btn-info btn-xs pull-left'

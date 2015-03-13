@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -99,6 +99,7 @@ echo "<div id='history-body'></div>\n";
 
 echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL  = 'server-ajax.php';\n";
+echo "    window.WITHPUBLISHING = $WITHPUBLISHING;\n";
 echo "</script>\n";
 echo "<script type='text/plain' id='profiles-json'>\n";
 echo json_encode($profiles);

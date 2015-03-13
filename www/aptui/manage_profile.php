@@ -58,6 +58,7 @@ function SPITFORM($formfields, $errors)
 {
     global $this_user, $projlist, $action, $profile, $DEFAULT_AGGREGATE;
     global $notifyupdate, $notifyclone, $snapuuid, $am_array, $ISCLOUD;
+    global $version_array, $WITHPUBLISHING;
     $viewing    = 0;
     $candelete  = 0;
     $canmodify  = 0;
@@ -137,6 +138,12 @@ function SPITFORM($formfields, $errors)
     echo "<script type='text/plain' id='projects-json'>\n";
     echo htmlentities(json_encode($plist));
     echo "</script>\n";
+
+    if ($viewing) {
+        echo "<script type='text/plain' id='versions-json'>\n";
+        echo json_encode($version_array);
+        echo "</script>\n";
+    }
     
     echo "<link rel='stylesheet'
             href='css/jquery-ui-1.10.4.custom.min.css'>\n";
@@ -164,6 +171,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.AMDEFAULT= '$amdefault';\n";
     echo "    window.BUTTONLABEL = '$button_label';\n";
     echo "    window.ISPPPROFILE = $ispp;\n";
+    echo "    window.WITHPUBLISHING = $WITHPUBLISHING;\n";
     if ($ISCLOUD) {
       echo "    window.ISCLOUD = true;";
     } else {
@@ -254,7 +262,7 @@ if (! isset($create)) {
 	    # New page action is now create, not copy or clone.
 	    $action = "create";
 	    $defaults["profile_rspec"]  = $profile->rspec();
-	    $defaults["profile_who"]   = "shared";
+	    $defaults["profile_who"]   = "private";
 	    if ($profile->script() && $profile->script() != "") {
 		$defaults["profile_script"] = $profile->script();
 	    }
@@ -307,6 +315,53 @@ if (! isset($create)) {
 	    if ($webtask && ! $webtask->exited()) {
 		$notifyclone = 1;
 	    }
+
+            #
+            # Spit out the version history.
+            #
+            $version_array  = array();
+            $profileid      = $profile->profileid();
+
+            $query_result =
+                DBQueryFatal("select v.*,DATE(v.created) as created ".
+                             "  from apt_profile_versions as v ".
+                             "where v.profileid='$profileid' ".
+                             "order by v.created desc");
+
+            while ($row = mysql_fetch_array($query_result)) {
+                $uuid    = $row["uuid"];
+                $version = $row["version"];
+                $pversion= $row["parent_version"];
+                $created = $row["created"];
+                $published = $row["published"];
+                $rspec   = $row["rspec"];
+                $desc    = '';
+                $obj     = array();
+
+                if ($version == 0) {
+                    $pversion = " ";
+                }
+                if (!$published) {
+                    $published = " ";
+                }
+                else {
+                    $published = date("Y-m-d", strtotime($published));
+                }
+                $parsed_xml = simplexml_load_string($rspec);
+                if ($parsed_xml &&
+                    $parsed_xml->rspec_tour &&
+                    $parsed_xml->rspec_tour->description) {
+                    $desc = (string) $parsed_xml->rspec_tour->description;
+                }
+                $obj["uuid"]    = $uuid;
+                $obj["version"] = $version;
+                $obj["description"] = $desc;
+                $obj["created"]     = $created;
+                $obj["published"]   = $published;
+                $obj["parent_version"] = $pversion;
+
+                $version_array[] = $obj;
+            }
 	}
     }
     else {
@@ -316,7 +371,7 @@ if (! isset($create)) {
 	    reset($projlist);
 	    $defaults["profile_pid"] = $project;
 	}
-	$defaults["profile_who"]   = "shared";
+	$defaults["profile_who"]   = "private";
     }
     SPITFORM($defaults, $errors);
     return;
@@ -467,15 +522,27 @@ else {
 	       "</value>");
 	fwrite($fp, "</attribute>\n");
     }
-    fwrite($fp, "<attribute name='profile_listed'><value>");
-    if (isset($formfields["profile_listed"]) &&
-	$formfields["profile_listed"] == "checked") {
-	fwrite($fp, "1");
+    #
+    # When the profile is created we mark it listed=public if a mere
+    # user. Mere users cannot change the value later. Admin users can
+    # always set/change the value.
+    #
+    if ($action != "edit" || ISADMIN()) {
+        fwrite($fp, "<attribute name='profile_listed'><value>");
+        if (ISADMIN()) {
+            if (isset($formfields["profile_listed"]) &&
+                $formfields["profile_listed"] == "checked") {
+                fwrite($fp, "1");
+            }
+            else {
+                fwrite($fp, "0");
+            }
+        }
+        elseif ($action != "edit") {
+            fwrite($fp, ($who == "public" ? "1" : "0"));
+        }
+        fwrite($fp, "</value></attribute>\n");
     }
-    else {
-	fwrite($fp, "0");
-    }
-    fwrite($fp, "</value></attribute>\n");
     fwrite($fp, "<attribute name='profile_shared'><value>" .
 	   ($who == "shared" ? 1 : 0) . "</value></attribute>\n");
     fwrite($fp, "<attribute name='profile_public'><value>" .

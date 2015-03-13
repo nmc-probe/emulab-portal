@@ -1,0 +1,49 @@
+<!-- Share a profile -->
+<div id='share_profile_modal' class='modal fade'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <button type='button'
+		class='close' data-dismiss='modal'
+                aria-hidden='true'>&times;</button>
+	<h4 class='modal-title text-center'>Share this Profile</h4>
+      </div>
+      <div class='modal-body'>
+	<p> You can share a profile by sending a link to your
+	collaborators. When sharing a <em>version</em>, the link refers to
+	the specific version you are sending. When sharing
+	a <em>profile</em>, the link always refers to the most recent
+	version of the profile (regardless of when the link is
+	used).
+	</p>
+        <center>
+	  <form class="form-horizontal">
+	    Share this version:
+	    <br>
+	    <div class="form-group">
+	      <div class="col-sm-12">
+		<input href='<%- formfields.profile_version_url %>'
+		       onClick="this.select();"
+		       class='form-control'
+		       readonly
+		       value='<%- formfields.profile_version_url %>'>
+	      </div>
+	    </div>
+	    Share this profile:
+	    <br>
+	    <div class="form-group">
+	      <div class="col-sm-12">
+		<input href='<%- formfields.profile_profile_url %>'
+		       onClick="this.select();"
+		       class='form-control'
+		       readonly
+		       value='<%- formfields.profile_profile_url %>'>
+	      </div>
+	    </div>
+	  </form>
+	</center>
+	<small>Click on the link to select it</small>
+      </div>
+    </div>
+  </div>
+</div>

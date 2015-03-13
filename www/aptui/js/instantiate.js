@@ -42,6 +42,12 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
 	    $('#about_div').html(window.ISCLOUD ?
 				 aboutcloudString : aboutaptString);
 	}
+	// This activates the popover subsystem.
+	$('[data-toggle="popover"]').popover({
+	    trigger: 'hover',
+	    placement: 'auto',
+	    container: 'body',
+	});
 
 	if (window.APT_OPTIONS.isNewUser) {
 	    $('#verify_modal_submit').click(function (event) {

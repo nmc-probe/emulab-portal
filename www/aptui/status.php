@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -120,8 +120,8 @@ if ($instance->profile_id()) {
 			$this_user->idx() == $creator->idx() &&
 			$this_user->idx() == $profile->creator_idx()) ||
 		       ISADMIN() ? 1 : 0);
-    $canclone       = (($profile->published() && isset($this_user) &&
-			$this_user->idx() == $creator->idx()) ||
+    $canclone       = ((isset($this_user) &&
+                        $profile->CanClone($this_user)) ||
 		       ISADMIN() ? 1 : 0);
     $public_url     = ($instance->public_url() ?
 		       "'" . $instance->public_url() . "'" : "null");

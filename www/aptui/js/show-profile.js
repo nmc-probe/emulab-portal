@@ -48,6 +48,7 @@ function (_, sup, moment, ppstart,
 	    profile_uuid:	profile_uuid,
 	    history:		window.HISTORY,
 	    isadmin:		window.ISADMIN,
+	    withpublishing:     window.WITHPUBLISHING,
 	});
 	$('#page-body').html(show_html);
 

@@ -62,7 +62,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sliceExpiresText:	window.APT_OPTIONS.sliceExpiresText,
 	    creatorUid:		window.APT_OPTIONS.creatorUid,
 	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
-	    publicURL:          window.APT_OPTIONS.publicURL,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
 	    errorURL:           errorURL,
@@ -155,6 +154,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sup.HideModal('#snapshot_modal');
 	    StartSnapshot();
 	});
+
+	// If we got a publicURL, set the href and show the button.
+	if (window.APT_OPTIONS.publicURL) {
+	    ShowSliverInfo(window.APT_OPTIONS.publicURL);
+	}
 
 	//
 	// Attach a hover popover to explain what Clone means. We need
@@ -307,6 +311,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    if (! StatusWatchCallBack.active && json.value.havemanifest) {
 		ShowTopo(uuid);
 		StatusWatchCallBack.active = 1;
+	    }
+	    // Ditto the publicURL.
+	    if (_.has(json.value, "publicURL")) {
+		ShowSliverInfo(json.value.publicURL);
 	    }
 	    
 	    if (status == 'provisioned') {
@@ -763,6 +771,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
     var hostportList = {};
 
+    // Remember passwords to show user later. 
+    var nodePasswords = {};
+
     //
     // Show a context menu over nodes in the topo viewer.
     //
@@ -797,9 +808,18 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    }
 		    DoReboot(client_id);
 		}
+		else if ($(e.target).text() == "Console Pswd") {
+		    ShowConsolePassword(client_id);
+		}
 		$('#context').contextmenu('destroy');
 	    }
 	})
+	if (_.has(nodePasswords, client_id)) {
+	    $('#context_menu_pswd').removeClass("hidden");
+	}
+	else {
+	    $('#context_menu_pswd').addClass("hidden");
+	}
 	$('#context').contextmenu('show', event);
     }
 
@@ -828,6 +848,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"  <ul class='dropdown-menu' role='menu'> " +
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
+	"    <li class='hidden' name='console_menu_pswd'> " +
+	"        <a href='#' name='console_pswd'>Console Pswd</a></li> " +
 	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
 	"  </ul>" +
 	"  </div>" +
@@ -934,7 +956,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		//
 		// Now a handler for the console action.
 		//
-		if (coninfo.length && !isguest) {
+		if (coninfo.length) {
 		    // Attach handler to the menu button.
 		    $('#listview-row-' + node + ' [name=console]')
 			.click(function (e) {
@@ -945,6 +967,17 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 				return false;
 			    }
 			    NewConsoleTab(node);
+			    return false;
+			});		    
+		    $('#listview-row-' + node + ' [name=console_pswd]')
+			.click(function (e) {
+			    e.preventDefault();
+			    if (isguest) {
+				alert("Only registered users can access " +
+				      "the console");
+				return false;
+			    }
+			    ShowConsolePassword(node);
 			    return false;
 			});		    
 		}
@@ -1038,7 +1071,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		result[key] = host;
 	    }
 	});
-	console.log(result);
 	return result;
     }
 
@@ -1103,8 +1135,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		sup.SpitOops("oops", "Could not start console: " + json.value);
 		return;
 	    }
-	    var url = json.value + '&noclose=1';
+	    var url = json.value.url + '&noclose=1';
 
+	    if (_.has(json.value, "password")) {
+		nodePasswords[client_id] = json.value.password;
+		$('#listview-row-' + client_id +
+		  ' [name=console_menu_pswd]').removeClass("hidden");
+	    }
+	    
 	    //
 	    // Need to create the tab before we can create the topo, since
 	    // we need to know the dimensions of the tab.
@@ -1238,5 +1276,18 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
     }
 
+    function ShowSliverInfo(url)
+    {
+	$("#sliverinfo_button").attr("href", url);
+	$("#sliverinfo_button").removeClass("hidden");
+    }
+
+    function ShowConsolePassword(client_id)
+    {
+	$('#console_password_clientid').val(client_id);
+	$('#console_password_input').val(nodePasswords[client_id]);
+	sup.ShowModal('#console_password_modal');
+    }
+    
     $(document).ready(initialize);
 });

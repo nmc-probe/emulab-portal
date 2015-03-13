@@ -451,6 +451,34 @@ sub WarnExpiring($$)
 #
 # Ask aggregate for the console URL for a node.
 #
+sub ConsoleInfo($$)
+{
+    my ($self, $sliver_urn) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"sliver_urn"  => $sliver_urn,
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+
+    return Genixmlrpc::CallMethod($cmurl, $context, "ConsoleInfo", $args);
+}
 sub ConsoleURL($$)
 {
     my ($self, $sliver_urn) = @_;

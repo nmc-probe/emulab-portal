@@ -547,23 +547,47 @@ sub DoConsole()
     if (!defined($sliver_urn)) {
 	fatal("Could not find node '$node_id' in manifest");
     }
-    my $response = $instance->ConsoleURL($sliver_urn);
+    my $response = $instance->ConsoleInfo($sliver_urn);
     if (!defined($response)) {
-	fatal("RPC Error calling ConsoleURL");
+	fatal("RPC Error calling ConsoleInfo");
+    }
+    if ($response->code() != GENIRESPONSE_SUCCESS) {
+	$response = $instance->ConsoleURL($sliver_urn);
+	if (!defined($response)) {
+	    fatal("RPC Error calling ConsoleURL");
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    fatal("Could not get console info");
+	}
+    }
+    my $url;
+    my $pswd;
+	
+    if (ref($response->value())) {
+	$url  = $response->value()->{'url'};
+	$pswd = $response->value()->{'password'}
+	    if (exists($response->value()->{'password'}));
+    }
+    else {
+	$url = $response->value();
     }
     if (defined($webtask)) {
-	$webtask->output($response->output());
-	$webtask->code($response->code());
-	$webtask->value($response->value())
-	    if (! $response->code());
+	if ($response->code()) {
+	    $webtask->output($response->output());
+	}
+	else {
+	    $webtask->url($url);
+	    $webtask->password($pswd) if (defined($pswd));
+	}
 	$webtask->Exited($response->code());
-	exit(0);
+	exit($response->code());
     }
     # For command line operation too.
     if ($response->code()) {
 	fatal($response->output());
     }
-    print $response->value() . "\n";
+    print $url . "\n";
+    print $pswd . "\n" if (defined($pswd));
     exit(0);
 }
 

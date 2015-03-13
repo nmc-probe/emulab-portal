@@ -111,6 +111,7 @@ echo "    window.AJAXURL      = 'server-ajax.php';\n";
 echo "    window.ISADMIN      = $isadmin;\n";
 echo "    window.HISTORY      = $history;\n";
 echo "    window.ISPPPROFILE  = $ispp;\n";
+echo "    window.WITHPUBLISHING = $WITHPUBLISHING;\n";
 echo "</script>\n";
 
 echo "<script src='js/lib/codemirror-min.js'></script>\n";

@@ -404,3 +404,7 @@ blockquote #selected_profile_description {
     cursor: default;
 }
 
+/* The default margins leave no space at all! */
+.popover-content {
+    margin: 0px 5px 5px 5px;
+}

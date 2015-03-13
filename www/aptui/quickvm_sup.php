@@ -38,6 +38,7 @@ $GOOGLEUA       = 'UA-45161989-1';
 # See tbauth.php3
 $CHANGEPSWD_PAGE= "changepswd.php";
 $MAXGUESTINSTANCES = 10;
+$WITHPUBLISHING = 0;
 
 #
 # Global flag to disable accounts. We do this on some pages which

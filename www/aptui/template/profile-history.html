@@ -10,7 +10,9 @@
 	  <th>Creator</th>
 	  <th>Description</th>
 	  <th>Created</th>
+	  <% if (withpublishing) { %>
 	  <th>Published</th>
+	  <% } %>
 	  <th>From</th>
 	</tr>
       </thead>
@@ -24,7 +26,9 @@
 	  <td><%- profile.creator %></td>
 	  <td><%- profile.description %></td>
 	  <td><%- profile.created %></td>
+	  <% if (withpublishing) { %>
 	  <td><%- profile.published %></td>
+	  <% } %>
           <td style='text-align:center'>
 	    <a href='manage_profile.php?action=edit&uuid=<%- profile.uuid %>'>
 	      <%- profile.parent_version %></a>

@@ -138,9 +138,9 @@ while ($row = mysql_fetch_array($query_result)) {
     if ($public)
 	$privacy = "Public";
     elseif ($shared)
-	$privacy = "Shared";
+	$privacy = "Site";
     else
-	$privacy = "Private";
+	$privacy = "Project";
 
     $parsed_xml = simplexml_load_string($rspec);
     if ($parsed_xml &&

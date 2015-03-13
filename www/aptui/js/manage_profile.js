@@ -10,12 +10,14 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/guest-instantiate.html',
 	 'js/lib/text!template/publish-modal.html',
 	 'js/lib/text!template/instantiate-modal.html',
+	 'js/lib/text!template/share-modal.html',
 	 // jQuery modules
 	 'filestyle','marked','jquery-ui','jquery-grid'],
 function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,
-	  guestInstantiateString, publishString, instantiateString)
+	  guestInstantiateString, publishString, instantiateString,
+	  shareString)
 {
     'use strict';
     var profile_uuid = null;
@@ -38,6 +40,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     var oopsTemplate      = _.template(oopsString);
     var guestInstTemplate = _.template(guestInstantiateString);
     var InstTemplate      = _.template(instantiateString);
+    var shareTemplate     = _.template(shareString);
     var stepsInitialized  = false;
 
     function initialize()
@@ -52,6 +55,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	var fields   = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors   = JSON.parse(_.unescape($('#error-json')[0].textContent));
 	var projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+	var versions = null;
+	if (window.VIEWING) {
+	    versions =
+		JSON.parse(_.unescape($('#versions-json')[0].textContent));
+	}
 	amlist = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
 
 	// Notice if we have an rspec in the formfields, to start from.
@@ -96,6 +104,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    manual:             window.MANUAL,
 	    snapuuid:		(window.SNAPUUID || null),
 	    general_error:      (errors.error || ''),
+	    iscloud:            window.ISCLOUD,
+	    versions:	        versions,
+	    withpublishing:     window.WITHPUBLISHING,
 	});
 	manage_html = formatter(manage_html, errors).html();
 	$('#manage-body').html(manage_html);
@@ -117,6 +128,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	$('#instantiate_div').html(instantiate_html);
     	var rspectext_html = rspectextTemplate({});
 	$('#rspectext_div').html(rspectext_html);
+	$('#share_div').html(shareTemplate({formfields: fields}))
 	
 	//
 	// Fix for filestyle problem; not a real class I guess, it
@@ -132,7 +144,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
-	    container: 'body'
+	    placement: 'auto',
+	    container: 'body',
 	});
 	// Format dates with moment before display.
 	$('.format-date').each(function() {
