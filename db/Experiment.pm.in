@@ -181,7 +181,8 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "virt_client_service_hooks",
 		   "virt_client_service_opts",
 		   "virt_blockstores",
-		   "virt_blockstore_attributes");
+		   "virt_blockstore_attributes",
+		   "virt_address_allocation");
 
 %physicalTables = ("delays"     => ["node_id", "vname", "vnode0", "vnode1"],
 		   "v2pmap"        => ["node_id", "vname"],
@@ -6358,6 +6359,28 @@ sub LookupBlockstore($$)
 	}
     }
     return $blockstore;
+}
+
+sub LookupAddressPools($$)
+{
+    my ($self, $pool_id_arg) = @_;
+    my $result = [];
+    my $virtexp = $self->GetVirtExperiment();
+
+    my $eid = DBQuoteSpecial($self->eid());
+    my $pid = DBQuoteSpecial($self->pid());
+    my $pool_id = DBQuoteSpecial($pool_id_arg);
+    my $dbresult =
+	DBQueryWarn("select IP, mask ".
+		    "from virt_node_public_addr ".
+		    "where eid=$eid and ".
+		    "pid=$pid and ".
+		    "pool_id=$pool_id");
+    while (my ($ip, $mask) = $dbresult->fetchrow_array()) {
+	push(@{ $result },
+	     { "ip" => $ip, "netmask" => $mask });
+    }
+    return $result;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

@@ -997,11 +997,13 @@ sub GetAddressPools($)
 	my $client_id = GetText("client_id", $pool);
 	my $count = GetText("count", $pool);
 	my $type = GetText("type", $pool);
+	my $cmurn = GetText("component_manager_id", $pool);
 	push(@{ $result },
 	     {
 		 "client_id" => $client_id,
 		 "count" => $count,
-		 "type" => $type
+		 "type" => $type,
+		 "cmurn" => $cmurn
 	     });
     }
     return $result;

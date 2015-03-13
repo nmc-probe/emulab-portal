@@ -755,16 +755,20 @@ sub GetTicketAuxAux($$$$$$$$$$)
     #
     my $address_pools = GeniXML::GetAddressPools($rspec);
     foreach my $pool (@{ $address_pools }) {
-	if ($pool->{'type'} ne "any") {
-	    $response = GeniResponse->Create(GENIRESPONSE_ERROR, undef, "Only public address pools of type any are supported");
-	    goto bad;
+	if (! defined($pool->{'cmurn'}) ||
+	    $pool->{'cmurn'} eq $ENV{'MYURN'})
+	{
+	    if ($pool->{'type'} ne "any") {
+		$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef, "Only public address pools of type any are supported");
+		goto bad;
+	    }
+	    print STDERR 'DEBUG: Adding row to virt_address_allocation';
+	    $virtexperiment->NewTableRow("virt_address_allocation",
+					 {"pool_id" => $pool->{'client_id'},
+					  "count" => $pool->{'count'},
+					  "restriction" => $pool->{'type'},
+					  "version" => "ipv4" });
 	}
-	print STDERR 'DEBUG: Adding row to virt_address_allocation';
-	$virtexperiment->NewTableRow("virt_address_allocation",
-		      {"pool_id" => $pool->{'client_id'},
-		       "count" => $pool->{'count'},
-		       "restriction" => $pool->{'type'},
-		       "version" => "ipv4" });
     }
 
     #
@@ -4195,6 +4199,8 @@ sub SliverWorkAux($$$$$$$$)
 	GeniXML::SetText("latitude", $location, $default_latitude);
 	GeniXML::SetText("longitude", $location, $default_longitude);
     }
+
+    AnnotateAddressPools($manifest, $experiment);
     
     #
     # Record all manifests (including updates) in the history. 
@@ -7157,6 +7163,37 @@ sub HandleBlockstore($$$$$$@)
 
   bad:
     return GeniResponse->Create($errorcode, undef, $message);
+}
+
+sub AnnotateAddressPools($$)
+{
+    my ($manifest, $experiment) = @_;
+    my @address_pools = GeniXML::FindNodesNS('n:routable_pool', $manifest, $GeniXML::EMULAB_NS)->get_nodelist();
+    foreach my $pool (@address_pools) {
+	# Ignore pools from other CMs
+	my $cmurn = GetText("component_manager_id", $pool);
+	if (! defined($cmurn) ||
+	    $cmurn eq $ENV{'MYURN'}) {
+	    # Clear out any address that might have been there
+	    # before. Mostly so we don't do something dumb if they
+	    # re-submit a manifest.
+	    my @old_addresses = GeniXML::FindNodesNS('n:ipv4', $pool, $GeniXML::EMULAB_NS)->get_nodelist();
+	    foreach my $old_address (@old_addresses) {
+		$pool->removeChild($old_address);
+	    };
+	    # Bind to this AM
+	    GeniXML::SetText("component_manager_id",
+			     $pool, $ENV{'MYURN'});
+	    # Fill actual address assignment for all pools
+	    my $pool_id = GetText("client_id", $pool);
+	    my $addressList = $experiment->LookupAddressPools($pool_id);
+	    foreach my $address (@{ $addressList }) {
+		my $newnode = GeniXML::AddElement('ipv4', $pool);
+		GeniXML::SetText("address", $newnode, $address->{"ip"});
+		GeniXML::SetText("netmask", $newnode, $address->{"netmask"});
+	    }
+	}
+    }
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
