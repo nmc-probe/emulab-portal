@@ -5390,6 +5390,127 @@ sub ReserveSharedBandwidth($;$$)
 }
 
 #
+# Allocate per-experiment public address pools.
+#
+# Returns 0 on success, -1 on failure.
+#
+# This is atomic: on success, all addresses are allocated; on failure,
+# everything is left unchanged.
+#
+# Current allocations are retained where appropriate, so this is suitable
+# for use by swapmod.
+#
+sub AllocatePublicAddrPools($)
+{
+    my ($self) = @_;
+    my $pid = $self->pid();
+    my $eid = $self->eid();
+    my %old_addrs;
+    my %pools= ();
+    my $db_result;
+    
+    DBQueryFatal( "LOCK TABLES virt_node_public_addr WRITE, " .
+		  "virt_address_allocation READ" );
+	
+    $db_result = DBQueryWarn( "SELECT IP,pool_id FROM virt_node_public_addr " .
+			      "WHERE pid='$pid' AND eid='$eid'" );
+    while( my ($addr,$pool) = $db_result->fetchrow_array() ) {
+	$old_addrs{$addr} = $pool;
+    }
+
+    $db_result = DBQueryWarn( "SELECT pool_id, count FROM virt_address_allocation " .
+			      "WHERE pid='$pid' AND eid='$eid'" );
+    while( my($pool,$count) = $db_result->fetchrow_array() ) {
+	$pools{$pool} = $count;
+    }
+
+    # First, release any addresses we have and no longer need (we do
+    # this eagerly, so we will never generate false failures on
+    # allocation).
+    while( my ($pool,$count) = each %pools ) {
+	$db_result = DBQueryWarn( "SELECT COUNT(*) FROM virt_node_public_addr " .
+				  "WHERE eid='$eid' AND pid='$pid' AND " .
+				  "pool_id='$pool'" );
+	my ($n) = $db_result->fetchrow_array();
+	    
+	if( $n > $count ) {
+	    my $spare;
+
+	    $spare = $n - $count;
+	    DBQueryWarn( "UPDATE virt_node_public_addr SET eid=NULL, " .
+			 "pid=NULL, pool_id=NULL WHERE eid='$eid' " .
+			 "AND pid='$pid' AND pool_id='$pool_id' " .
+			 "LIMIT $spare" );
+	}
+    }
+	
+    # Next, allocate any addresses we don't have and want.  If this
+    # fails, we know the entire request is impossible to satisfy, because
+    # we started with the table as close to empty as we could possibly
+    # get.
+    my $failed;
+	
+    while( my ($pool,$count) = each %pools ) {
+	$db_result = DBQueryWarn( "SELECT COUNT(*) FROM virt_node_public_addr " .
+				  "WHERE eid='$eid' AND pid='$pid' AND " .
+				  "pool_id='$pool'" );
+	my ($n) = $db_result->fetchrow_array();
+	    
+	if( $n < $count ) {
+	    my $extra;
+
+	    $extra = $count - $n;
+	    DBQueryWarn( "UPDATE virt_node_public_addr SET eid='$eid', " .
+			 "pid='$pid', pool_id='$pool' WHERE " .
+			 "node_id IS NULL AND eid IS NULL " .
+			 "LIMIT $extra" );
+		    
+	    $db_result = DBQueryWarn( "SELECT COUNT(*) FROM virt_node_public_addr " .
+				      "WHERE eid='$eid' AND pid='$pid' AND " .
+				      "pool_id='$pool'" );
+	    ($n) = $db_result->fetchrow_array();
+
+	    if( $n != $count ) {
+		# Couldn't do it.  Roll back.
+		DBQueryWarn( "UPDATE virt_node_public_addr SET " .
+			     "eid=NULL, pid=NULL, pool_id=NULL WHERE " .
+			     "eid='$eid' AND pid='$pid'" );
+	    
+		while( my ($addr,$pool) = each %old_addrs ) {
+		    DBQueryWarn( "UPDATE virt_node_public_addr SET " .
+				 "eid='$eid', pid='$pid', pool_id='$pool' " .
+				 "WHERE IP='$addr'" );
+		}
+
+		DBQueryFatal( "UNLOCK TABLES" );
+
+		return -1;
+	    }
+	}
+    }
+	
+    DBQueryFatal( "UNLOCK TABLES" );
+
+    return 0;
+}
+
+#
+# Release per-experiment public address pools.
+#
+sub ReleasePublicAddrPools($)
+{
+    my ($self) = @_;
+    my $pid = $self->pid();
+    my $eid = $self->eid();
+    
+    DBQueryWarn( "UPDATE virt_node_public_addr SET pool_id=NULL, " .
+		 "pid=NULL, eid=NULL WHERE pid='$pid' AND " .
+		 "eid='$eid'" );
+
+    return 0;
+}
+
+#
 # Get/Set ElabInElab attributes.
 #
 sub GetElabInElabAttrs($)

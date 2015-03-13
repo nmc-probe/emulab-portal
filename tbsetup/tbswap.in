@@ -563,6 +563,11 @@ sub doSwapout($) {
 	    }
 	}
 
+	if( $type >= CLEANUP ) {
+	    print "Releasing public address pools...\n";
+	    $experiment->ReleasePublicAddrPools();
+	}
+
 	#
 	# Grab our per-experiment switch stack name.
 	#
@@ -1040,6 +1045,16 @@ sub doSwapin($) {
 		Enable($experiment);
 	}
 	
+	# Allocate public IP addresses now.  We do it early, because it's
+	# very fast and might fail (it would be silly to go through all
+	# the effort of mapping nodes only to later abort because we
+	# didn't have enough public addresses).	
+	print "Allocating public addresses...\n";
+	if( $experiment->AllocatePublicAddrPools() < 0 ) {
+	    tberror( "Failed to allocate public address pools!" );
+	    return 1;
+	}
+	    	
 	print "Mapping to physical reality ...\n";
 	TBDebugTimeStamp("mapper wrapper started");
 

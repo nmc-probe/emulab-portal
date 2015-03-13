@@ -2414,7 +2414,7 @@ sub CreateVnodes($$$)
 		#
 		$query_result =
 		    DBQueryWarn( "SELECT IP, mask FROM virt_node_public_addr ".
-				 "WHERE node_id IS NULL" );
+				 "WHERE node_id IS NULL AND eid IS NULL" );
 
 		if (!$query_result || !$query_result->numrows ) {
 		    print STDERR "*** CreateVnodes: no free public address\n";

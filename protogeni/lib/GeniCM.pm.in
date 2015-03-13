@@ -2242,6 +2242,13 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	goto bad;
     }
 
+    # Allocate any public address pools.
+    if( $slice_experiment->AllocatePublicAddrPools() < 0 ) {
+	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					 "Could not allocate public address pools");
+	goto bad;
+    }
+    
     #
     # This creates the descriptors but does not download the images.
     # Must be done before the mapper runs.
