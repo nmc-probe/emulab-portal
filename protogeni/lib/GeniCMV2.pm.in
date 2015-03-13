@@ -3253,6 +3253,96 @@ sub ConsoleURL($)
 }
 
 #
+# Emulab specific function to ask for both URL and password.
+#
+sub ConsoleInfo($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $credentials  = $argref->{'credentials'};
+    my $sliver_urn   = $argref->{'sliver_urn'};
+
+    if (! (defined($credentials) &&
+	   defined($slice_urn) && defined($sliver_urn))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+    
+    my ($slice, $aggregate) = Credential2SliceAggregate($credential);
+    return $slice
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (! (defined($slice) && defined($aggregate))) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Slice does not exist");
+    }
+    main::AddLogfileMetaDataFromSlice($slice);
+
+    if ($slice_urn ne $slice->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Credential does not match the URN");
+    }
+    if ($user->urn() ne $slice->creator_urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Only slice creator can do this");
+    }
+    my $sliver = GeniSliver->Lookup($sliver_urn);
+    if (!defined($sliver)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Sliver does not exist");
+    }
+    if ($sliver->slice_uuid() ne $slice->uuid()) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Sliver is not in slice");
+    }
+    my $node_id = $sliver->resource_id();
+    my $node = Node->Lookup($node_id);
+    if (!defined($node)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "No node for sliver urn");
+    }
+    my $experiment = $slice->GetExperiment();
+    if (!defined($experiment)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "No local experiment for slice");
+    }
+    my $pid = $experiment->pid();
+    if (! $experiment->SameExperiment($node->Reservation())) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Node is not in the proper experiment");
+    }
+    #
+    # Not all nodes have a tipline.
+    #
+    my $tipserver;
+    if ($node->TipServer(\$tipserver)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Internal error getting console server");
+    }
+    if (!defined($tipserver)) {
+	return GeniResponse->Create(GENIRESPONSE_UNAVAILABLE, undef,
+				    "No console server for node");
+    }
+    my $url = $node->GenTipAclUrl();
+    if (!defined($url)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Internal error generating URL");
+    }
+    my $pswd = $node->root_password();
+    my $blob = {"url" => $url};
+    if (defined($pswd)) {
+	$blob->{"password"} = $pswd;
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+}
+
+#
 # Blockstore support.
 #
 my $CREATEDATASET   = "$TB/bin/createdataset";
