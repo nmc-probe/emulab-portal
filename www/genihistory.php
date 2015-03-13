@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -83,13 +83,6 @@ if ($ISCLRHOUSE) {
 }
 echo "</form>\n";
 
-function GeneratePopupDiv($id, $text) {
-    return "<div id=\"$id\" ".
-	"style='display:none;width:700;height:400;overflow:auto;'>\n" .
-	"$text\n".
-	"</div>\n";
-}
-
 if (1) {
     $myindex = $index;
     $dblink  = GetDBLink(($ch ? "ch" : "cm"));
@@ -151,7 +144,6 @@ if (1) {
 					    "Destroyed"    => "Destroyed",
 					    "Manifest"     => "Manifest"));
     $rows = array();
-    $popups = array();
 
     if (mysql_num_rows($query_result)) {
 	while ($row = mysql_fetch_array($query_result)) {
@@ -196,40 +188,20 @@ if (1) {
 	    }
 	    $url .= "$slice_info</a>";
 
+	    $manifest_url = "<a href='manifesthistory.php?uuid=$uuid'>manifest</a>";
+
 	    $tablerow = array("idx"       => $idx,
 			      "hrn"       => $url,
 			      "creator"   => $creator_info,
 			      "created"   => $created,
-			      "destroyed" => $destroyed);
+			      "destroyed" => $destroyed,
+			      "manifest"  => $manifest_url );
 
-	    $manifest_result =
-		DBQueryFatal("select * from manifest_history ".
-			     "where aggregate_uuid='$uuid' ".
-			     "order by idx desc limit 1", $dblink);
-
-	    if (mysql_num_rows($manifest_result)) {
-		$mrow = mysql_fetch_array($manifest_result);
-		$manifest = $mrow["manifest"];
-
-		$stuff = GeneratePopupDiv("manifest$idx", $manifest);
-		$popups[] = $stuff;
-		$tablerow["manifest"] =
-		    "<a href='#' title='' ".
-		    "onclick='PopUpWindowFromDiv(\"manifest$idx\");'".
-		    ">manifest</a>\n";
-	    }
-	    else {
-		$tablerow["Manifest"] = "Unknown";
-	    }
 	    $rows[]  = $tablerow;
 	    $myindex = $idx;
 	}
 	list ($html, $button) = TableRender($table, $rows);
 	echo $html;
-
-	foreach ($popups as $i => $popup) {
-	    echo "$popup\n";
-	}
 
 	$query_result =
 	    DBQueryFatal("select count(*) from aggregate_history as a ".
