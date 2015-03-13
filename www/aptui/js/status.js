@@ -905,7 +905,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    $(xml).find("node").each(function() {
 		var node   = $(this).attr("client_id");
 		var login  = $(this).find("login");
-		var coninfo= $(this).find("console");
+		var coninfo= this.getElementsByTagNameNS(EMULAB_NS, 'console');
 		var vnode  = this.getElementsByTagNameNS(EMULAB_NS, 'vnode');
 		var href   = "n/a";
 		var ssh    = "n/a";
