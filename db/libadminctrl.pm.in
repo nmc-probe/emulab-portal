@@ -220,7 +220,7 @@ my $TB		= "@prefix@";
 my $debug         = 0;
 my $expt_min;
 my $expt_max;
-my $expt_cur;
+my $expt_cur      = 0;;
 my %virt_types    = ();  # Indexed by virt type, gives number desired
 my %virt_classes  = ();  # Indexed by virt class, gives number desired
 my %node_types    = ();	 # Indexed by type, gives class
@@ -1105,6 +1105,7 @@ sub TBAdmissionControlCheck($$$)
 
     # Watch for update, see how many nodes this experiment is using now.
     $expt_cur  = scalar($experiment->NodeList(1));
+    $expt_cur  = 0 if (!defined($expt_cur));
     $expt_min -= $expt_cur;
 
     LoadNodeTypes();
