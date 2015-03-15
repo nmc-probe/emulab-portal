@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -189,9 +189,15 @@ zapsuperblocks()
 	local disk=${1##*/}
 
 	echo "Invalidating old potential superblocks on $disk"
+	if [ -x "$BINDIR/zapdisk" ]; then
+	    $BINDIR/zapdisk -v -SZ /dev/$disk
+	    return
+	fi
+
+	# XXX fall back to the old way
 	partitions=`echo /sys/block/$disk/$disk* 2>/dev/null`
 	for part in $partitions; do
-		dd if=/dev/zero of=/dev/${part##*/} bs=512 count=16 > /dev/null 2>&1
+	    dd if=/dev/zero of=/dev/${part##*/} bs=512 count=16 >/dev/null 2>&1
 	done
 
 	return 0
@@ -575,21 +581,32 @@ FRISBEE_OPTS="$FRISBEE_OPTS -k $MAXSOCKBUF"
 
 # Wipe the MBR and partition boot blocks on all disks if reloading
 case $STATUS in
-	*ALLOCATED=emulab-ops/reloading*)
-		disks=`find_disks`
-		for d in $disks; do
-			#[ $d = $DISK ] && continue
-			mount | grep "^/dev/$d" > /dev/null && continue
-			zapsuperblocks /dev/$d
-			echo "Invalidating MBR on /dev/$d"
-			dd if=/dev/zero of=/dev/$d bs=512 count=16
-		done
+*ALLOCATED=emulab-ops/reloading*)
+    disks=`find_disks`
+    for d in $disks; do
+	#[ $d = $DISK ] && continue
+	mount | grep "^/dev/$d" >/dev/null && continue
+	if [ -x "$BINDIR/zapdisk" ]; then
+	    echo "Invalidating superblocks and MBR/GPT on $d"
+	    $BINDIR/zapdisk -v -SBZ /dev/$d
+	else
+	    zapsuperblocks /dev/$d
+	    echo "Invalidating MBR/GPT on /dev/$d"
+	    # XXX not in the Linux MFS yet
+	    #sgdisk -Z /dev/$d >/dev/null 2>&1
+	    dd if=/dev/zero of=/dev/$d bs=512 count=16
+	fi
+    done
 
-		# XXX tmp, gather HW info (including disk speed tests)
-		if [ -x $BINDIR/rc.nodecheck ]; then
-		    $BINDIR/rc.nodecheck boot
-		fi
-		;;
+    #
+    # If we have nodecheck, run it. This allows us to both collect HW info
+    # (if nodecheck "collect" is enabled in the DB) and to run a destructive
+    # disk write speed test (as part of a nodecheck "check" operation).
+    #
+    if [ -x $BINDIR/rc.nodecheck ]; then
+	$BINDIR/rc.nodecheck boot
+    fi
+    ;;
 esac
 
 #

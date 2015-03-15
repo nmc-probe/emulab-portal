@@ -207,9 +207,15 @@ zapsuperblocks()
 	local disk=${1##*/}
 
 	echo "Invalidating old potential superblocks on $disk"
+	if [ -x "$BINDIR/zapdisk" ]; then
+	    $BINDIR/zapdisk -v -SZ /dev/$disk
+	    return
+	fi
+
+	# XXX fall back to the old way
 	partitions=`echo /sys/block/$disk/$disk* 2>/dev/null`
 	for part in $partitions; do
-		dd if=/dev/zero of=/dev/${part##*/} bs=512 count=16 > /dev/null 2>&1
+	    dd if=/dev/zero of=/dev/${part##*/} bs=512 count=16 >/dev/null 2>&1
 	done
 
 	return 0
@@ -567,10 +573,15 @@ case $STATUS in
     for d in $disks; do
 	#[ $d = $DISK ] && continue
 	mount | grep "^/dev/$d" >/dev/null && continue
-	zapsuperblocks $d
-	echo "Invalidating MBR on $d"
-	sgdisk -Z /dev/$d >/dev/null 2>&1
-	dd if=/dev/zero of=/dev/$d bs=512 count=16
+	if [ -x "$BINDIR/zapdisk" ]; then
+	    echo "Invalidating superblocks and MBR/GPT on $d"
+	    $BINDIR/zapdisk -v -SBZ /dev/$d
+	else
+	    zapsuperblocks $d
+	    echo "Invalidating MBR/GPT on $d"
+	    sgdisk -Z /dev/$d >/dev/null 2>&1
+	    dd if=/dev/zero of=/dev/$d bs=512 count=16
+	fi
     done
 
     #

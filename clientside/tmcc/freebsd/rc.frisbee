@@ -162,6 +162,14 @@ find_disks() {
 zapsuperblocks() {
     _DSK=$1
 
+    echo "Invalidating old potential superblocks on $_DSK"
+    if [ -x "$BINDIR/zapdisk" ]; then
+	$BINDIR/zapdisk -v -SZ /dev/$_DSK
+	return
+    fi
+
+    # XXX fall back to the old way
+
     #
     # Note we are not overly concerned about the consequences of misparsing
     # the fdisk output.  If we whack random blocks, it doesn't hurt anything.
@@ -558,12 +566,13 @@ case $STATUS in
     disks=`find_disks`
     for d in $disks; do
 	#[ $d = $DISK ] && continue
-	mount | grep "^/dev/$d" > /dev/null && continue
-	zapsuperblocks $d
-	echo "Invalidating MBR/GPT on $d"
-	if [ -x /sbin/gpart ]; then
-	    gpart destroy -F $d
+	mount | grep "^/dev/$d" >/dev/null && continue
+	if [ -x "$BINDIR/zapdisk" ]; then
+	    echo "Invalidating superblocks and MBR/GPT on $d"
+	    $BINDIR/zapdisk -v -SBZ /dev/$d
 	else
+	    zapsuperblocks $d
+	    echo "Invalidating MBR/GPT on $d"
 	    dd if=/dev/zero of=/dev/$d bs=512 count=16
 	fi
     done
