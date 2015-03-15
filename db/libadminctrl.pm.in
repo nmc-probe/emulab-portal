@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -220,6 +220,7 @@ my $TB		= "@prefix@";
 my $debug         = 0;
 my $expt_min;
 my $expt_max;
+my $expt_cur;
 my %virt_types    = ();  # Indexed by virt type, gives number desired
 my %virt_classes  = ();  # Indexed by virt class, gives number desired
 my %node_types    = ();	 # Indexed by type, gives class
@@ -1101,6 +1102,10 @@ sub TBAdmissionControlCheck($$$)
     #
     return -1
 	if (!TBExptMinMaxNodes($pid, $eid, \$expt_min, \$expt_max));
+
+    # Watch for update, see how many nodes this experiment is using now.
+    $expt_cur  = scalar($experiment->Nodelist(1));
+    $expt_min -= $expt_cur;
 
     LoadNodeTypes();
     LoadVirtNodeTypes($pid, $eid);
