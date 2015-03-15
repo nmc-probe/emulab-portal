@@ -1104,7 +1104,7 @@ sub TBAdmissionControlCheck($$$)
 	if (!TBExptMinMaxNodes($pid, $eid, \$expt_min, \$expt_max));
 
     # Watch for update, see how many nodes this experiment is using now.
-    $expt_cur  = scalar($experiment->Nodelist(1));
+    $expt_cur  = scalar($experiment->NodeList(1));
     $expt_min -= $expt_cur;
 
     LoadNodeTypes();
