@@ -260,6 +260,8 @@ my $experiment = Experiment->Lookup($pid, $eid);
 if (!defined($experiment)) {
     fatal("Could not lookup experiment object $pid,$eid!")
 }
+my $project = $experiment->GetProject();
+
 #
 # Verify that this person can muck with the experiment.
 #
@@ -439,9 +441,10 @@ sub AssignLoop()
 	    }
 	}
 	# Hack for Kirk.
-	if (!($impotent || $regression) && $MAINSITE && $pid eq "PNWorkshop") {
+	if (!($impotent || $regression) &&
+	    ($pid eq "PNWorkshop" || $project->IsNonLocal())) {
 	    while (1) {
-		if (libEmulab::EmulabLock("mapperlock") == 0) {
+		if (libEmulab::EmulabCountLock("mapperlock", 4) == 0) {
 		    $seriallock = 1;
 		    last;
 		}
@@ -465,7 +468,7 @@ sub AssignLoop()
 	    $gotlock = 0;
 	}
 	if ($seriallock) {
-	    libEmulab::EmulabUnlock("mapperlock");
+	    libEmulab::EmulabCountUnlock("mapperlock");
 	    $seriallock = 0;
 	}
 
@@ -527,8 +530,10 @@ sub AssignLoop()
 	# Keep going if we allocated some nodes.
 	$progress = ($retval == 3);
 
-	chat("Waiting 5 seconds and trying again...\n");
-	sleep(5);
+	# A little bit of backoff after failure. 
+	my $sval = int(rand($currentrun * 3)) + 3;
+	chat("Waiting $sval seconds and trying again...\n");
+	sleep($sval);
 	$currentrun++;
     }
     GatherAssignStats($pid, $eid, %{ $vtop->exptstats() })
@@ -666,6 +671,8 @@ sub RunAssign($$)
     if ($use_old_ptopgen == 1) {
 	$ptopargs .= "-Z ";
     }
+    $ptopargs	.= "-z "
+	if ($project->IsNonLocal());
     $ptopargs .= "-l $typelimitfile"
 	if (scalar(keys(%admission_control)));
 
@@ -950,7 +957,7 @@ END {
 	$gotlock = 0;
     }
     if ($seriallock) {
-	libEmulab::EmulabUnlock("mapperlock");
+	libEmulab::EmulabCountUnlock("mapperlock");
 	$seriallock = 0;
     }
 
