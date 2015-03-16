@@ -553,10 +553,6 @@ function Do_Refresh()
 	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
 	return;
     }
-    if ($instance->status() != "ready" && $instance->status() != "failed") {
-	SPITAJAX_ERROR(1, "Experiment is currently busy");
-	return;
-    }
     #
     # Call out to the backend.
     #

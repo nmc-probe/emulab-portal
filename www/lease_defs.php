@@ -296,7 +296,8 @@ class ImageDataset
     function id()            { return $this->dataset_id(); }
     function creator_uid()   { return $this->image->creator(); }
     function owner_uid()     { return $this->image->creator(); }
-    function uuid()          { return $this->image->uuid(); }
+    # Use the image uuid here.
+    function uuid()          { return $this->image->image_uuid(); }
     function pid()           { return $this->image->pid(); }
     function pid_idx()       { return $this->image->pid_idx(); }
     function gid()           { return $this->image->pid(); }

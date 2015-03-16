@@ -364,6 +364,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		status_html = "<font color=red>imaging</font>";
 		DisableButtons();
 	    }
+	    else if (status == 'imaging-failed') {
+		bgtype = "panel-danger";
+		status_message = "Your disk image request failed!";
+		status_html = "<font color=red>imaging-failed</font>";
+		DisableButtons();
+		EnableButton("terminate");
+		EnableButton("refresh");
+	    }
 	    else if (status == 'terminating' || status == 'terminated') {
 		status_html = "<font color=red>" + status + "</font>";
 		bgtype = "panel-danger";

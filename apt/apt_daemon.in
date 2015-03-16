@@ -147,7 +147,8 @@ sub KillFailedInstances()
 {
     my $query_result =
 	DBQueryWarn("select uuid,status from apt_instances ".
-		    "where (status='failed' or status='imaging') and ".
+		    "where (status='failed' or ".
+		    "       status='imaging' or status='imaging-failed') and ".
 		    "      (UNIX_TIMESTAMP(now()) - ".
 		    "       UNIX_TIMESTAMP(created) > 7200)");
     return
@@ -161,7 +162,7 @@ sub KillFailedInstances()
 	}
 	print STDERR "$instance is in the $status state\n";
 
-	if ($status eq "imaging") {
+	if ($status eq "imaging" || $status eq "imaging-failed") {
 	    #
 	    # Move it back to the ready state. But must lock so as not to
 	    # collide with with sa_daemon or the user.
