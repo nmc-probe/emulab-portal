@@ -3788,7 +3788,7 @@ sub DescribeDataset($)
 	# Is there an active webtask, then we are taking a snapshot, so
 	# report that info. 
 	#
-	my $webtask = WebTask->LookupByObject($image->uuid());
+	my $webtask = WebTask->LookupByObject($image->image_uuid());
 	if (defined($webtask)) {
 	    $blob->{'image_size'}   = $webtask->imagesize() . "KB";
 	    $blob->{'image_status'} = $webtask->status();
