@@ -92,6 +92,11 @@ if (mysql_num_rows($query_result) == 0) {
 	$message .= "<img src='images/redball.gif'>".
 	    "<a href='myprofiles.php?all=1'>Show all user Profile</a>";
     }
+    else {
+        $message .= "<img src='images/blueball.gif'>".
+            "<a href='myprofiles.php?all=1'>".
+            "Show all profiles you can instantiate</a>\n";
+    }
     SPITUSERERROR($message);
     exit();
 }
