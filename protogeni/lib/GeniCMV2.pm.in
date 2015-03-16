@@ -2605,7 +2605,7 @@ dataset:
     # updates the task structure as the imaging proceeds, and
     # ImageInfo below can reference that status.
     #
-    my $webtask = WebTask->Create($image->uuid());
+    my $webtask = WebTask->Create($image->image_uuid());
     if (!defined($webtask)) {
 	print STDERR "Could not create new web task structure\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -2635,6 +2635,9 @@ dataset:
     #
     $opt  = "";
     $opt .= " -b $bsname" if (defined($bsname));
+    if ($WITHPROVENANCE) {
+	$imagename .= ":" . $image->version();
+    }
     
     $output =
 	GeniUtil::ExecQuiet("$CREATEIMAGE -F -e -f $opt ".
@@ -2843,7 +2846,7 @@ sub ImageInfo($)
     # Is there an active webtask, then we are taking a snapshot, so
     # report that info. Otherwise the current file.
     #
-    my $webtask = WebTask->LookupByObject($image->uuid());
+    my $webtask = WebTask->LookupByObject($image->image_uuid());
     if (defined($webtask)) {
 	$blob->{'size'}   = $webtask->imagesize() . "KB";
 	$blob->{'status'} = $webtask->status();

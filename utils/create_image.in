@@ -727,7 +727,7 @@ if ($doprovenance && !$isdataset && $image->ready()) {
 }
 
 # See if a web task is tracking this image creation.
-$webtask = WebTask->LookupByObject($image->uuid());
+$webtask = WebTask->LookupByObject($image->image_uuid());
 if (defined($webtask)) {
     $webtask->AutoStore(1);
 }
