@@ -115,6 +115,21 @@
 	     href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'>
             Copy
 	  </a>
+	  <span class='pull-right''
+		data-toggle='popover'
+		data-delay='{"hide":1500, "show":250}'
+		data-html='true'
+		data-content="Share this profile with other users by
+			      sending them a link to instantiate it.
+			      Click for more info.">
+	    <button class='btn btn-info btn-sm'
+		    id='profile_share_button'
+     		    data-toggle='modal' data-target='#share_profile_modal'
+		    style='margin-right: 10px;'
+		    type='button'>
+              Share
+	    </button>
+	  </span>
 	</div>
       </div>
     </div>
@@ -142,4 +157,5 @@
   <div id='publish_div'></div>
   <div id='instantiate_div'></div>
   <div id='rspectext_div'></div>
+  <div id='share_div'>
 </div>

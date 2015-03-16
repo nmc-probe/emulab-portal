@@ -8,12 +8,13 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/guest-instantiate.html',
 	 'js/lib/text!template/instantiate-modal.html',
 	 'js/lib/text!template/oops-modal.html',
+	 'js/lib/text!template/share-modal.html',
 	 // jQuery modules
 	 'marked','jquery-ui','jquery-grid'],
 function (_, sup, moment, ppstart,
 	  showString, waitwaitString, 
 	  rendererString, showtopoString, rspectextviewString,
-	  guestInstantiateString, instantiateString, oopsString)
+	  guestInstantiateString, instantiateString, oopsString, shareString)
 {
     'use strict';
     var profile_uuid = null;
@@ -25,6 +26,7 @@ function (_, sup, moment, ppstart,
     var myCodeMirror = null;
     var showTemplate      = _.template(showString);
     var InstTemplate      = _.template(instantiateString);
+    var shareTemplate     = _.template(shareString);
 
     function initialize()
     {
@@ -60,6 +62,7 @@ function (_, sup, moment, ppstart,
 	$('#instantiate_div').html(instantiate_html);
 	$('#rspectext_div').html(rspectextviewString);
 	$('#oops_div').html(oopsString);
+	$('#share_div').html(shareTemplate({formfields: fields}))
 
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
