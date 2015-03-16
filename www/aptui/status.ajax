@@ -592,9 +592,9 @@ function Do_Refresh()
 }
 
 #
-# Ask the backend to reboot a node.
+# Ask the backend to reboot or reload a node.
 #
-function Do_Reboot()
+function Do_RebootOrReload($which)
 {
     global $this_user;
     global $ajax_args;
@@ -635,7 +635,7 @@ function Do_Reboot()
     $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC($this_user->uid(), "nobody",
 		     "webmanage_instance -t $webtask_id -- ".
-                     "  reboot $uuid " . escapeshellarg($node_id), 
+                     "  $which $uuid " . escapeshellarg($node_id), 
 		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
 
@@ -660,6 +660,14 @@ function Do_Reboot()
 	$webtask->Delete();
     }
     SPITAJAX_RESPONSE("Success");
+}
+function Do_Reboot()
+{
+    Do_RebootOrReload("reboot");
+}
+function Do_Reload()
+{
+    Do_RebootOrReload("reload");
 }
 
 # Local Variables:

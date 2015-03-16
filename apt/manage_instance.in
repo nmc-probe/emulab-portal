@@ -41,6 +41,7 @@ sub usage()
     print("Usage: manage_instance terminate instance\n");
     print("Usage: manage_instance refresh instance\n");
     print("Usage: manage_instance reboot instance node_id [node_id ...]\n");
+    print("Usage: manage_instance reload instance node_id [node_id ...]\n");
     print("Usage: manage_instance monitor instance\n");
     exit(-1);
 }
@@ -99,6 +100,7 @@ sub DoTerminate();
 sub DoExtend();
 sub DoRefresh();
 sub DoReboot();
+sub DoReload();
 sub StartMonitor();
 
 #
@@ -145,6 +147,9 @@ elsif ($action eq "refresh") {
 }
 elsif ($action eq "reboot") {
     DoReboot()
+}
+elsif ($action eq "reload") {
+    DoReload()
 }
 elsif ($action eq "monitor") {
     StartMonitor()
@@ -839,10 +844,11 @@ sub DoRefresh()
 }
 
 #
-# Reboot nodes.
+# Reboot or Reload nodes.
 #
-sub DoReboot()
+sub DoRebootOrReload($)
 {
+    my ($which) = @_;
     my $errmsg;
     my @slivers = ();
     
@@ -890,9 +896,9 @@ sub DoReboot()
 	$webtask->AutoStore(1);
     }
 
-    my $response = $instance->RestartSliver(@slivers);
+    my $response = $instance->SliverAction($which, @slivers);
     if (!defined($response)) {
-	$errmsg = "RPC Error calling RestartSliver";
+	$errmsg = "RPC Error calling SliverAction";
 	goto bad;
     }
 
@@ -932,6 +938,8 @@ sub DoReboot()
     }
     exit(1);
 }
+sub DoReboot() { return DoRebootOrReload("reboot"); }
+sub DoReload() { return DoRebootOrReload("reload"); }
 
 #
 # Start up the monitor for an instance. Only one though.

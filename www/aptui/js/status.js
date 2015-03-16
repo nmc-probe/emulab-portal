@@ -640,6 +640,44 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     }
 	
     //
+    // Request a node reload from the backend cluster.
+    //
+    function DoReload(node_id)
+    {
+	// Handler for hide modal to unbind the click handler.
+	$('#confirm_reload_modal').on('hidden.bs.modal', function (event) {
+	    console.info("reload hide");
+	    $(this).unbind(event);
+	    $('#confirm_reload_button').unbind("click.reload");
+	});
+	
+	// Throw up a confirmation modal, with handler bound to confirm.
+	$('#confirm_reload_button').bind("click.reload", function (event) {
+	    sup.HideModal('#confirm_reload_modal');
+	    console.info("Reload confirm");
+	    var callback = function(json) {
+		sup.HideModal('#waitwait-modal');
+	    
+		if (json.code) {
+		    sup.SpitOops("oops", "Failed to reload: " + json.value);
+		    return;
+		}
+		// bootstrap bg-warning color.
+		$('#' + jacksIDs[node_id] + ' .node .nodebox').css("fill",
+								   "#fcf8e3");
+	    }
+	    sup.ShowModal('#waitwait-modal');
+	    var xmlthing = sup.CallServerMethod(ajaxurl,
+						"status",
+						"Reload",
+						{"uuid"    : uuid,
+						 "node_id" : node_id});
+	    xmlthing.done(callback);
+	});
+	sup.ShowModal('#confirm_reload_modal');
+    }
+	
+    //
     // Fire up the backend of the ssh tab.
     //
     function StartSSH(id, authobject)
@@ -808,18 +846,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    }
 		    DoReboot(client_id);
 		}
-		else if ($(e.target).text() == "Console Pswd") {
-		    ShowConsolePassword(client_id);
+		else if ($(e.target).text() == "Reload") {
+		    if (isguest) {
+			alert("Only registered users can reload nodes");
+			return;
+		    }
+		    DoReload(client_id);
 		}
 		$('#context').contextmenu('destroy');
 	    }
 	})
-	if (_.has(nodePasswords, client_id)) {
-	    $('#context_menu_pswd').removeClass("hidden");
-	}
-	else {
-	    $('#context_menu_pswd').addClass("hidden");
-	}
 	$('#context').contextmenu('show', event);
     }
 
@@ -848,9 +884,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"  <ul class='dropdown-menu' role='menu'> " +
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
-	"    <li class='hidden' name='console_menu_pswd'> " +
-	"        <a href='#' name='console_pswd'>Console Pswd</a></li> " +
 	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
+	"    <li><a href='#' name='reload'>Reload</a></li> " +
 	"  </ul>" +
 	"  </div>" +
 	" </td>" +
@@ -952,7 +987,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    nodehostport = hostport;
 		    nodename = node;
 		}
-		
+
 		//
 		// Now a handler for the console action.
 		//
@@ -968,18 +1003,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			    }
 			    NewConsoleTab(node);
 			    return false;
-			});		    
-		    $('#listview-row-' + node + ' [name=console_pswd]')
-			.click(function (e) {
-			    e.preventDefault();
-			    if (isguest) {
-				alert("Only registered users can access " +
-				      "the console");
-				return false;
-			    }
-			    ShowConsolePassword(node);
-			    return false;
-			});		    
+			});
 		}
 		//
 		// And a handler for the reboot action.
@@ -992,6 +1016,20 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			    return false;
 			}
 			DoReboot(node);
+			return false;
+		    });
+		
+		//
+		// And a handler for the reload action.
+		//
+		$('#listview-row-' + node + ' [name=reboot]')
+		    .click(function (e) {
+			e.preventDefault();
+			if (isguest) {
+			    alert("Only registered users can reload nodes");
+			    return false;
+			}
+			DoReload(node);
 			return false;
 		    });
 		
@@ -1139,8 +1177,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 	    if (_.has(json.value, "password")) {
 		nodePasswords[client_id] = json.value.password;
-		$('#listview-row-' + client_id +
-		  ' [name=console_menu_pswd]').removeClass("hidden");
 	    }
 	    
 	    //
@@ -1171,7 +1207,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $("#" + tabname).trigger("killconsole");
 		    // Remove the content div. Have to delay this though.
 		    // See below.
-		    setTimeout(function(){ $("#" + tabname).remove() }, 3000);
+		    setTimeout(function(){
+			$("#" + tabname).remove() }, 3000);
 		});
 
 		// The content div.
@@ -1185,12 +1222,29 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// Now create the console iframe inside the new tab
 		var iwidth = "100%";
 		var iheight = 400;
-
-		$('#' + tabname).html('<iframe id="' + tabname + '_iframe" ' +
-				      'width=' + iwidth + ' ' +
-				      'height=' + iheight + ' ' +
-				      'src=\'' + url + '\'>');
+		
+		var html = '<iframe id="' + tabname + '_iframe" ' +
+		    'width=' + iwidth + ' ' +
+		    'height=' + iheight + ' ' +
+		    'src=\'' + url + '\'>';
 	    
+		if (_.has(json.value, "password")) {
+		    html =
+			"<div class='col-sm-4 col-sm-offset-4 text-center'>" +
+			" <small> " +
+			" <a data-toggle='collapse' " +
+			"    href='#password_" + tabname + "'>Password" +
+			"   </a></small> " +
+			" <div id='password_" + tabname + "' " +
+			"      class='collapse'> " +
+			"  <div class='well well-xs'>" +
+			nodePasswords[client_id] +
+			"  </div> " +
+			" </div> " +
+			"</div> " + html;
+		}		
+		$('#' + tabname).html(html);
+
 		//
 		// Setup a custom event handler so we can kill the connection.
 		// Called from the kill click handler above.
@@ -1200,11 +1254,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// can actually kill the content div with the iframe, cause
 		// its gone before the message is delivered. Just delay a
 		// couple of seconds. Maybe add a reply message later. The
-		// delay is above. 
+		// delay is above.
+		//
+		// In firefox, nodetipacl.php3 does not install a handler,
+		// so now the shellinabox code has that handler, and so this
+		// gets posted to the box directly. Oh well, so much for
+		// trying to stay out of the box code.
 		//
 		var sendkillmessage = function (event) {
 		    var iframe = $('#' + tabname + '_iframe')[0];
-		    iframe.contentWindow.postMessage("kill!", "*");
+		    iframe.contentWindow.postMessage("kill", "*");
 		};
 		// This is the handler for the button, which invokes
 		// the function above.
@@ -1282,12 +1341,5 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$("#sliverinfo_button").removeClass("hidden");
     }
 
-    function ShowConsolePassword(client_id)
-    {
-	$('#console_password_clientid').html(client_id);
-	$('#console_password_input').val(nodePasswords[client_id]);
-	sup.ShowModal('#console_password_modal');
-    }
-    
     $(document).ready(initialize);
 });

@@ -249,9 +249,8 @@
       <ul class="dropdown-menu" role="menu">
 	<li><a tabindex="-1">Shell</a></li>
 	<li><a tabindex="-1">Console</a></li>
-	<li class='hidden' id='context_menu_pswd'>
-	  <a tabindex="-1">Console Pswd</a></li>
 	<li><a tabindex="-1">Reboot</a></li>
+	<li><a tabindex="-1">Reload</a></li>
       </ul>
     </div>
   </div>
@@ -278,6 +277,23 @@
 	      </div>
 	    </div>
 	  </form>
+	</div>
+      </div>
+    </div>
+  </div>
+  <div id='confirm_reload_modal' class='modal fade'>
+    <div class='modal-dialog'>
+      <div class='modal-content'>
+	<div class='modal-body'>
+          <center><h3>Confirm Node Reload</h3>
+            <button type='button' style='margin-right: 20px;'
+                    class='btn btn-primary btn-sm' 
+                    data-dismiss='modal' aria-hidden='true'>
+	      Cancel</button>
+            <button class='btn btn-danger btn-sm'
+		    id='confirm_reload_button'>
+	      Confirm</button>
+	  </center>
 	</div>
       </div>
     </div>

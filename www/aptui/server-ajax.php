@@ -90,6 +90,8 @@ $routing = array("myprofiles" =>
                                                      "Do_SnapshotStatus",
 						 "Reboot" =>
                                                      "Do_Reboot",
+						 "Reload" =>
+                                                     "Do_Reload",
 						 "Refresh" =>
 						     "Do_Refresh")),
 		 "approveuser" =>

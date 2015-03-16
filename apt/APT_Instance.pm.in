@@ -747,9 +747,10 @@ sub SliceStatus($)
 #
 # Reboot some nodes
 #
-sub RestartSliver($@)
+sub SliverAction($$@)
 {
-    my ($self, @slivers) = @_;
+    my ($self, $which, @slivers) = @_;
+    my $method    = ($which eq "reboot" ? "RestartSliver" : "ReloadSliver");
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->GetGeniUser();
     my $slice     = $self->GetGeniSlice();
@@ -772,7 +773,7 @@ sub RestartSliver($@)
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($cmurl, $context, "RestartSliver", $args);
+    return Genixmlrpc::CallMethod($cmurl, $context, $method, $args);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
