@@ -67,8 +67,10 @@ function (_, sup, moment, ppstart,
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
+	    placement: 'auto',
 	    container: 'body'
 	});
+	
 	// Format dates with moment before display.
 	$('.format-date').each(function() {
 	    var date = $.trim($(this).html());
