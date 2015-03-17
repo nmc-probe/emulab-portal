@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2006-2013 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -50,6 +50,9 @@ FSUBDIR	       = 9
 endif
 ifeq ($(FBSDVERSION),FreeBSD10)
 FSUBDIR	       = 10
+endif
+ifeq ($(FBSDVERSION),FreeBSD11)
+FSUBDIR	       = 11
 endif
 SUBDIRS	       = $(FSUBDIR)
 
