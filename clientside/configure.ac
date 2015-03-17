@@ -280,6 +280,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/freebsd7/GNUmakefile tmcc/freebsd7/netif-emulab \
 	  tmcc/freebsd9/GNUmakefile tmcc/freebsd9/netif-emulab \
 	  tmcc/freebsd10/GNUmakefile tmcc/freebsd10/netif-emulab \
+	  tmcc/freebsd11/GNUmakefile tmcc/freebsd11/netif-emulab \
 	  tmcc/freenas8/GNUmakefile tmcc/freenas9/GNUmakefile \
 	  tmcc/cygwinxp/GNUmakefile tmcc/dp/GNUmakefile \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
