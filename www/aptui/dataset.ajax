@@ -57,13 +57,14 @@ function Do_CreateDataSet()
 	$command = "webcreatedataset ";
     }
     else {
-	$command = "webmanage_dataset create ";
+	$command = "webmanage_dataset ";
 
         # We are going to track imaging status.
         if ($formfields["dataset_type"] == "imdataset") {
             $webtask_id = WebTask::GenerateID();
             $command .= " -t " . $webtask_id . " -- ";
         }
+        $command .= " create ";
     }
     $required = array("dataset_pid", "dataset_name", "dataset_type",
 		      "dataset_fstype", "dataset_read", "dataset_modify");
