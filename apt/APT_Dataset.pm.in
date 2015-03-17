@@ -266,7 +266,7 @@ sub Delete($)
     $certificate->Delete()
 	if (defined($certificate));
 
-    DBQueryWarn("delete from web_tasks object_uuid='$uuid'") or
+    DBQueryWarn("delete from web_tasks where object_uuid='$uuid'") or
 	return -1;
     DBQueryWarn("delete from apt_datasets where uuid='$uuid'") or
 	return -1;
