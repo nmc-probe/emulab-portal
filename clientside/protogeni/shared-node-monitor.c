@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 University of Utah and the Flux Group.
+ * Copyright (c) 2014-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -33,11 +33,12 @@
 #define MAX_ERRS 0x80
 
 #define INTERFACE_MAX 0x10
+#define VLAN_MAX 0x1000
 struct interface {
     long old_rx_b, old_rx_p, old_rx_e, old_rx_d,
 	old_tx_b, old_tx_p, old_tx_e, old_tx_d;
-    int used;
-} interfaces[ INTERFACE_MAX ];
+    time_t t;
+} interfaces[ INTERFACE_MAX ][ VLAN_MAX ];
 
 static void cpu_util( char *buf ) {
 
@@ -217,7 +218,7 @@ extern int main( void ) {
     domain++;
 
     sprintf( id, "%s_node_%s", domain, node );
-    sprintf( interface_id, "%s_interface_%s:eth", domain, node );
+    sprintf( interface_id, "%s_interface", domain );
 
     /* FIXME go into background */
     
@@ -233,7 +234,10 @@ extern int main( void ) {
 	    { swap_free, "ops_node_swap_free" },
 	};
 	int i;
+	time_t t;
 
+	time( &t );
+	
 	for( i = 0; i < sizeof m / sizeof *m; i++ ) {
 	    char buf[ 0x100 ];
 
@@ -248,54 +252,94 @@ extern int main( void ) {
 	}
 
 	do {
-	    int c;
+	    char ifacename[ 0x10 ];
+	    int c, vlan;
+
+	    i = -1;
 	    
-	    if( fscanf( f, " eth%d:", &i ) == 1 && i < INTERFACE_MAX ) {
+	    if( fscanf( f, " eth%15[^:]:", ifacename ) == 1 ) {
+		char *p, *endp;
+		
+		i = strtol( ifacename, &endp, 10 );
+
+		if( *endp == '.' ) {
+		    /* 802.1q interface */
+		    vlan = strtol( endp + 1, &endp, 10 );
+		    if( vlan < 1 || vlan >= VLAN_MAX )
+			i = -1;
+		} else if( !*endp )
+		    /* physical interface */
+		    vlan = 0;
+		else
+		    /* invalid */
+		    i = -1;
+	    }
+
+	    if( i != -1 ) {
 		long rx_b, rx_p, rx_e, rx_d, tx_b, tx_p, tx_e, tx_d;
-		struct interface *interface = interfaces + i;
+		struct interface *interface = interfaces[ i ] + vlan;
 		
 		if( fscanf( f, " %ld %ld %ld %ld %*d %*d %*d %*d "
 			    "%ld %ld %ld %ld", &rx_b, &rx_p, &rx_e, &rx_d,
 			    &tx_b, &tx_p, &tx_e, &tx_d ) < 8 )
 		    continue;
 
-		if( interface->used ) {
+		if( interface->t > t - 3600 ) {
 		    char *p = strchr( interface_id, 0 );
 		    char buf[ 0x100 ];
-		    
-		    sprintf( p, "%d", i );
 
+		    if( vlan )
+			sprintf( p, "vlan_%s:eth%d:%d", node, i, vlan );
+		    else
+			sprintf( p, "_%s:eth%d", node, i );
+		    
 		    sprintf( buf, "%.1f", ( rx_b - interface->old_rx_b ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_rx_bps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_rx_bps" :
+				       "ops_interface_rx_bps",
 				       interface_id, buf );
 		    sprintf( buf, "%.1f", ( rx_p - interface->old_rx_p ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_rx_pps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_rx_pps" :
+				       "ops_interface_rx_pps",
 				       interface_id, buf );
 		    sprintf( buf, "%.1f", ( rx_e - interface->old_rx_e ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_rx_eps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_rx_eps" :
+				       "ops_interface_rx_eps",
 				       interface_id, buf );
 		    sprintf( buf, "%.1f", ( rx_d - interface->old_rx_d ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_rx_dps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_rx_dps" :
+				       "ops_interface_rx_dps",
 				       interface_id, buf );
 		    sprintf( buf, "%.1f", ( tx_b - interface->old_tx_b ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_tx_bps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_tx_bps" :
+				       "ops_interface_tx_bps",
 				       interface_id, buf );
 		    sprintf( buf, "%.1f", ( tx_p - interface->old_tx_p ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_tx_pps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_tx_pps" :
+				       "ops_interface_tx_pps",
 				       interface_id, buf );
 		    sprintf( buf, "%.1f", ( tx_e - interface->old_tx_e ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_tx_eps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_tx_eps" :
+				       "ops_interface_tx_eps",
 				       interface_id, buf );
 		    sprintf( buf, "%.1f", ( tx_d - interface->old_tx_d ) /
 			     (double) INTERVAL );
-		    send_notification( h, tuple, "ops_interface_tx_dps",
+		    send_notification( h, tuple, vlan ?
+				       "ops_interfacevlan_tx_dps" :
+				       "ops_interface_tx_dps",
 				       interface_id, buf );
 
 		    *p = 0;
@@ -309,7 +353,7 @@ extern int main( void ) {
 		interface->old_tx_p = tx_p;
 		interface->old_tx_e = tx_e;
 		interface->old_tx_d = tx_d;
-		interface->used = 1;
+		interface->t = t;
 	    }		
 		
 	    do
