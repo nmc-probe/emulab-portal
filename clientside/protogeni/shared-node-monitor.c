@@ -218,7 +218,7 @@ extern int main( void ) {
     domain++;
 
     sprintf( id, "%s_node_%s", domain, node );
-    sprintf( interface_id, "%s_interface", domain );
+    sprintf( interface_id, "%s_interface_%s:eth", domain, node );
 
     /* FIXME go into background */
     
@@ -289,9 +289,9 @@ extern int main( void ) {
 		    char buf[ 0x100 ];
 
 		    if( vlan )
-			sprintf( p, "vlan_%s:eth%d:%d", node, i, vlan );
+			sprintf( p, "%d:%d", i, vlan );
 		    else
-			sprintf( p, "_%s:eth%d", node, i );
+			sprintf( p, "%d", i );
 		    
 		    sprintf( buf, "%.1f", ( rx_b - interface->old_rx_b ) /
 			     (double) INTERVAL );
