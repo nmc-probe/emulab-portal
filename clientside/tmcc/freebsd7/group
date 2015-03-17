@@ -27,9 +27,9 @@ dialer:*:68:
 network:*:69:
 audit:*:77:
 www:*:80:
-sfs:*:171:
 messagebus:*:556:
 polkit:*:562:
 haldaemon:*:560:
+hast:*:845:
 nogroup:*:65533:
 nobody:*:65534:

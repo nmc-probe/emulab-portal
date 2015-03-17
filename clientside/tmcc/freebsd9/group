@@ -30,7 +30,6 @@ www:*:80:
 hast:*:845:
 nogroup:*:65533:
 nobody:*:65534:
-sfs:*:171:
 messagebus:*:556:
 polkit:*:562:
 haldaemon:*:560:
