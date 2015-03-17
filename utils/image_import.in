@@ -258,6 +258,7 @@ if (!defined($image)) {
     $image = CreateImage($url, $xmlparse, $user, $group, $imagename);
 }
 DBQueryWarn("select RELEASE_LOCK($safe_url)");
+
 exit(0)
     if ($verify);
 
@@ -342,6 +343,9 @@ if ($getimage) {
     }
     $EUID = $UID = $SAVEUID;
     $image->Unlock();
+}
+else {
+    print "Not downloading image ... add -g option\n";
 }
 exit(0);
 
