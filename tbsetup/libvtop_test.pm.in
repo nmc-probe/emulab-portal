@@ -1742,6 +1742,28 @@ sub LoadVirtNodes($)
 		}
 	    }
 	}
+	elsif ($attrkey eq "dataset" && !$self->preassign()) {
+	    #
+	    # Image backed dataset.
+	    #
+	    my $image = Image->Lookup($attrval);
+	    if (!defined($image)) {
+		warn("Dataset $attrval for blockstore $vname ".
+		     "does not exist!\n");
+		return -1;
+	    }
+	    if (!$image->isdataset()) {
+		warn("$attrval for blockstore $vname is not a dataset!\n");
+		return -1;
+	    }
+	    # Does user have read rights to this image?
+	    if (!$image->AccessCheck($self->realuser(),
+				     TB_IMAGEID_READINFO())) {
+		tberror("Not allowed to use dataset $attrval\n");
+		return -1;
+	    }
+	    $image->BumpLastUsed();
+	}
 
 	# Skip any blockstores that don't have a corresponding entry in the
 	# 'blockstores' libvtop hash.  Also skip any attributes that are not
