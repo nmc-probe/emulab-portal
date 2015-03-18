@@ -524,7 +524,7 @@ my $portalLogs =
      $project->isCloud() ? "cloudlab-logs\@flux.utah.edu" : $TBLOGS);
 
 $project->SendEmail($portalLogs, "New Profile Created",
-	 "Name:     ". $profile->name() . "\n".
+	 "Name:     ". $profile->versname() . "\n".
 	 "User:     ". $profile->creator() . "\n".
 	 "Project:  ". $profile->pid() .
 	                 " (" . $project->Brand()->brand() . ")\n".
