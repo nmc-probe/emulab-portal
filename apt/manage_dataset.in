@@ -761,8 +761,8 @@ sub PollDatasetStatus($$)
     $webtask->Exited(-1)
 	if (defined($webtask) && $seconds <= 0);
     
-#    unlink($logfile)
-#	if (defined($logfile));
+    unlink($logfile)
+	if (defined($logfile));
     return 0;
 }
 
