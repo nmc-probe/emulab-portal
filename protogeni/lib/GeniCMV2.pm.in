@@ -3783,7 +3783,7 @@ sub DescribeDataset($)
 	$blob->{'created'}  = emutil::TBDateStringGMT($image->created());
 	$blob->{'updated'}  = emutil::TBDateStringGMT($image->updated());
 	$blob->{'expires'}  = "";
-	$blob->{'lastused'} = "";
+	$blob->{'lastused'} = emutil::TBDateStringGMT($image->last_used());
 	#
 	# Is there an active webtask, then we are taking a snapshot, so
 	# report that info. 
