@@ -443,15 +443,18 @@ function Do_ModifyDataSet()
                     $retval = SUEXEC($this_uid, $dataset->pid(),
                              "webcreate_image -b $safe_bsname -p $pid ".
                              "$dname $safe_nodeid",
-                             SUEXEC_ACTION_CONTINUE);
+                             SUEXEC_ACTION_IGNORE);
         }
         else {
             $retval = SUEXEC($this_uid, $dataset->pid(),
                              "webmanage_dataset snapshot -i $instance_uuid ".
                              "   -b $safe_bsname $pid/$dname $safe_nodeid",
-                             SUEXEC_ACTION_CONTINUE);
+                             SUEXEC_ACTION_IGNORE);
         }
         if ($retval) {
+            if ($retval < 1) {
+                SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+            }
             SPITAJAX_ERROR(1, $suexec_output);
             return;
         }
