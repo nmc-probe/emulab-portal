@@ -68,6 +68,14 @@ sub versid($)
     return $self->profileid() . ":" . $self->version();
 }
 
+# Concat name/vers.
+sub versname($)
+{
+    my ($self) = @_;
+
+    return $self->name() . ":" . $self->version();
+}
+
 sub BlessRow($$)
 {
     my ($class, $row) = @_;
