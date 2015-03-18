@@ -102,7 +102,8 @@
 		       placeholder="eg: NNN(MB|GB|TB)"
 		       <% if (editing) { %> readonly <% } %>
 		       type="text">
-		</div>
+	      </div>
+	      <% if (! editing) { %>
 	      <div id='dataset_imageonly_div'
 		   <% if (formfields.dataset_type != "imdataset") {
 		      %> class='hidden' <% } %> >
@@ -138,7 +139,8 @@
 		       data-label="BS Name"
 		       placeholder="Blockstore name on the node"
 		       type="text">
-		</div>
+	      </div>
+	      <% } %>
 	      <div id='dataset_expires_div'
 		   <% if (formfields.dataset_type == "ltdataset" ||
 		          formfields.dataset_type == "imdataset") {

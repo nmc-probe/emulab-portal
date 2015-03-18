@@ -45,24 +45,22 @@
 		<td class='format-date'><%- formfields.dataset_created %></td>
 	      </tr>
 	      <% if (formfields.dataset_type != "imdataset") { %>
-		 <tr>
-		   <td>Expires</td>
-		   <td class='format-date'><%- formfields.dataset_expires %>
-		   </td>
-		 </tr>
-	         <tr>
-		   <td>Last Used</td>
-		   <td class='format-date'><%- formfields.dataset_lastused %>
-		   </td>
-		 </tr>
+	      <tr>
+		<td>Expires</td>
+		<td class='format-date'><%- formfields.dataset_expires %></td>
+	      </tr>
 	      <% } %>
+	      <tr>
+		<td>Last Used</td>
+		<td class='format-date'><%- formfields.dataset_lastused %></td>
+	      </tr>
 	      <tr>
 		<td>FS Type</td>
 		<td><%- formfields.dataset_fstype %></td>
 	      </tr>
 	      <tr>
 		<td>State</td>
-		<td><%- formfields.dataset_state %> 
+		<td id='dataset_state'><%- formfields.dataset_state %> 
  		  <% if (formfields.dataset_state == "unapproved") { %>
 		  <a href='#' class='btn btn-xs'
 		     data-toggle='popover'
@@ -136,9 +134,23 @@
                   id='dataset_extend_button'
                   style='margin-right: 10px;'
      		  data-toggle='modal' data-target='#extend_modal'
+		  data-toggle='popover'
+		  data-delay='{"hide":1000, "show":500}'
+		  data-content="Modify dataset settings."
                   type='button'>Extend
 	  </a>
 	  <% } %>
+	<% } %>
+ 	<% if (cansnapshot) { %>
+	  <button class='btn btn-primary btn-sm'
+                  id='dataset_snapshot_button'
+                  style='margin-right: 10px;'
+		  data-toggle='popover'
+		  data-delay='{"hide":1000, "show":500}'
+		  data-content="Take a new snapshot of the dataset
+		  contents. Click for more info."
+                  type='button'>Snapshot
+	  </button>
 	<% } %>
 	  <a type=button class='btn btn-info btn-sm'
                   id='embedded-anchors'
@@ -198,4 +210,5 @@
     </div>
   </div>
   <div id='imaging_div'></div>
+  <div id='snapshot_div'></div>
 </div>

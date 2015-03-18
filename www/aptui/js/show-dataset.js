@@ -1,14 +1,18 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
-	 'js/lib/text!template/show-dataset.html', 'js/image',
-	 'jquery-ui'],
-function (_, sup, moment, mainString, ShowImagingModal)
+	 'js/lib/text!template/show-dataset.html',
+	 'js/lib/text!template/snapshot-dataset.html',
+	 'js/image', 'jquery-ui'],
+function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 {
     'use strict';
     var mainTemplate    = _.template(mainString);
+    var snapTemplate    = _.template(snapshotString);
     var dataset_uuid    = null;
     var embedded        = 0;
     var canrefresh      = 0;
+    var cansnapshot     = 0;
+    var instances       = null;
     
     function initialize()
     {
@@ -16,15 +20,21 @@ function (_, sup, moment, mainString, ShowImagingModal)
 	dataset_uuid = window.UUID;
 	embedded     = window.EMBEDDED;
 	canrefresh   = window.CANREFRESH;
+	cansnapshot  = window.CANSNAPSHOT;
 
 	var fields = JSON.parse(_.unescape($('#fields-json')[0].textContent));
+	if (!embedded && cansnapshot) {
+	    instances =
+		JSON.parse(_.unescape($('#instances-json')[0].textContent));
+	}
 	
-	// Generate the templates.
+	// Generate the main template.
 	var html   = mainTemplate({
 	    formfields:		fields,
 	    candelete:	        window.CANDELETE,
 	    canapprove:	        window.CANAPPROVE,
 	    canrefresh:	        window.CANREFRESH,
+	    cansnapshot:        window.CANSNAPSHOT,
 	    embedded:		embedded,
 	    title:		window.TITLE,
 	});
@@ -33,7 +43,8 @@ function (_, sup, moment, mainString, ShowImagingModal)
 	// Initialize the popover system.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
-	    container: 'body'
+	    container: 'body',
+	    placement: 'auto',
 	});
 	
 	// Format dates with moment before display.
@@ -62,6 +73,14 @@ function (_, sup, moment, mainString, ShowImagingModal)
 	    event.preventDefault();
 	    RefreshDataset();
 	});
+	
+	// Snapshot for imdatasets
+	if (cansnapshot) {
+	    $('#dataset_snapshot_button').click(function (event) {
+		event.preventDefault();
+		ShowSnapshotModal(null, null);
+	    });
+	}
 	
 	// Confirm Delete
 	$('#delete-confirm').click(function (event) {
@@ -116,17 +135,33 @@ function (_, sup, moment, mainString, ShowImagingModal)
     
     function ShowProgressModal()
     {
-	ShowImagingModal(function()
-			 {
-			     return sup.CallServerMethod(null,
-							 "dataset",
-							 "getinfo",
-							 {"uuid" :
-							    dataset_uuid});
-			 },
-			 function(failed)
-			 {
-			 });
+	ShowImagingModal(
+	    function()
+	    {
+		return sup.CallServerMethod(null,
+					    "dataset",
+					    "getinfo",
+					    {"uuid" :
+					     dataset_uuid});
+	    },
+	    function(failed)
+	    {
+		// Update the status/size.
+		if (!failed) {
+		    var callback = function(json) {
+			if (!json.code) {
+			    $('#dataset_state').html(json.value.state);
+			    $('#dataset_size').html(json.value.size);
+			}
+		    };
+		    var xmlthing = sup.CallServerMethod(null,
+							"dataset",
+							"getinfo",
+							{"uuid" :
+							 dataset_uuid});
+		    xmlthing.done(callback);
+		}
+	    });
     }
 
     //
@@ -228,6 +263,185 @@ function (_, sup, moment, mainString, ShowImagingModal)
 					    {"uuid" : dataset_uuid});
 	xmlthing.done(callback);
     }
+
+    // Formatter for the form. This did not work out nicely at all!
+    function formatter(fieldString, errors)
+    {
+	var root   = $(fieldString);
+	var list   = root.find('.format-me');
+	list.each(function (index, item) {
+	    if (item.dataset) {
+		var key     = item.dataset['key'];
+		var margin  = 15;
+		var colsize = 12;
+
+		var outerdiv = $("<div class='form-group' " +
+				 "     style='margin-bottom: " + margin +
+				 "px;'></div>");
+
+		if ($(item).attr('data-label')) {
+		    var label_text =
+			"<label for='" + key + "' " +
+			" class='col-sm-3 control-label'> " +
+			item.dataset['label'];
+		    
+		    if ($(item).attr('data-help')) {
+			label_text = label_text +
+			    "<a href='#' class='btn btn-xs' " +
+			    " data-toggle='popover' " +
+			    " data-html='true' " +
+			    " data-delay='{\"hide\":1000}' " +
+			    " data-content='" + item.dataset['help'] + "'>" +
+			    "<span class='glyphicon glyphicon-question-sign'>" +
+			    " </span></a>";
+		    }
+		    label_text = label_text + "</label>";
+		    outerdiv.append($(label_text));
+		    colsize = 6;
+		}
+		var innerdiv = $("<div class='col-sm-" + colsize + "'></div>");
+		innerdiv.html($(item).clone());
+		
+		if (errors && _.has(errors, key)) {
+		    outerdiv.addClass('has-error');
+		    innerdiv.append('<label class="control-label" ' +
+				    'for="inputError">' +
+				    _.escape(errors[key]) + '</label>');
+		}
+		outerdiv.append(innerdiv);
+		$(item).after(outerdiv);
+		$(item).remove();
+	    }
+	});
+	return root;
+    }
+
+    /*
+     * Show the snapshot modal/form for imdatasets.
+     */
+    function ShowSnapshotModal(formfields, errors)
+    {
+	if (formfields === null) {
+	    formfields = {};
+	}
+	// Generate the main template.
+	var html   = snapTemplate({
+	    formfields:         formfields,
+	    embedded:		embedded,
+	    instancelist:	instances,
+	});
+	html = formatter(html, errors).html();
+	$('#snapshot_div').html(html);
+
+	// Handler for instance change.
+	$('#dataset_instance').change(function (event) {
+	    $("#dataset_instance option:selected" ).each(function() {
+		HandleInstanceChange($(this).val());
+		return;
+	    });
+	});
+	//
+	// Handle submit button.
+	//
+	$('#snapshot_submit_button').click(function (event) {
+	    event.preventDefault();
+	    HandleSubmit();
+	});
+	sup.ShowModal("#snapshot_modal");
+    }
+
+    function HandleSubmit()
+    {
+	// Submit with check only at first, since this will return
+	// very fast, so no need to throw up a waitwait.
+	SubmitForm(1);
+    }
+
+    //
+    // Submit the form.
+    //
+    function SubmitForm(checkonly)
+    {
+	// Current form contents as formfields array.
+	var formfields  = {};
+	
+	var callback = function(json) {
+	    console.info(json);
+
+	    if (json.code) {
+		sup.HideModal("#waitwait");
+		if (checkonly && json.code == 2) {
+		    // Regenerate with errors.
+		    ShowSnapshotModal(formfields, json.value);
+		    return;
+		}
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    // Now do the actual create.
+	    if (checkonly) {
+		SubmitForm(0);
+	    }
+	    else {
+		if (embedded) {
+		    window.parent.location.replace("../" + json.value);
+		}
+		else {
+		    window.location.replace(json.value);
+		}
+	    }
+	}
+	// Convert form data into formfields array, like all our
+	// form handler pages expect.
+	var fields = $('#snapshot_dataset_form').serializeArray();
+	$.each(fields, function(i, field) {
+	    formfields[field.name] = field.value;
+	});
+	formfields["dataset_uuid"] = dataset_uuid;
+	console.info(formfields);
+	sup.HideModal('#snapshot_modal');
+	sup.ShowModal('#waitwait');
+	var xmlthing = sup.CallServerMethod(null, "dataset", "modify",
+					    {"formfields" : formfields,
+					     "checkonly"  : checkonly,
+					     "embedded"   : window.EMBEDDED});
+	xmlthing.done(callback);
+    }
+
+    /*
+     * When instance changes, need to get the manifest and find the
+     * a node with a blockstore to offer the user.
+     */
+    function HandleInstanceChange(uuid)
+    {
+	var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
+	
+	var callback = function(json) {
+	    var xmlDoc = $.parseXML(json.value);
+	    var xml = $(xmlDoc);
+
+	    $(xml).find("node").each(function() {
+		var node  = $(this).attr("client_id");
+		var bsref = this.getElementsByTagNameNS(EMULAB_NS,'blockstore');
+
+		if (bsref.length) {
+		    var bsname   = $(bsref).attr("name");
+		    var bsclass  = $(bsref).attr("class");
+
+		    if (bsclass == "local") {
+			$('#dataset_node').val(node);
+			$('#dataset_bsname').val(bsname);
+			return;
+		    }
+		}
+	    });
+	};
+	var xmlthing = sup.CallServerMethod(null, "status",
+					    "GetInstanceManifest",
+					    {"uuid" : uuid});
+	xmlthing.done(callback);
+    }
+
     $(document).ready(initialize);
 });
 

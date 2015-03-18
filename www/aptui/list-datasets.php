@@ -162,13 +162,14 @@ echo "<input class='form-control search' type='search'
 echo "  <table class='tablesorter'>
          <thead>
           <tr>
-           <th>Name</th>
-           <th>&nbsp</th>\n";
+           <th>Name</th>";
 if (isset($all) && ISADMIN()) {
     echo " <th>Creator</th>";
 }
 echo "     <th>Project</th>
+           <th>Type</th>
            <th>Expires</th>
+           <th>URN</th>
           </tr>
          </thead>
          <tbody>\n";
@@ -188,24 +189,23 @@ while ($row = mysql_fetch_array($query_result)) {
     }
     $idx     = $dataset->idx();
     $name    = $dataset->id();
+    $dtype   = $dataset->type();
     $pid     = $dataset->pid();
     $creator = $dataset->owner_uid();
     $expires = $dataset->expires();
+    $urn     = $dataset->URN();
     
     echo " <tr>
-            <td>$name</td>\n";
-
-    echo " <td style='text-align:center'>
-             <a class='btn btn-primary btn-xs' type='button'
-	        id='show-dataset-button'
-                href='show-dataset.php?uuid=$uuid&embedded=$embedded'>Show</a>
-            </td>\n";
+            <td><a href='show-dataset.php?uuid=$uuid&embedded=$embedded'>
+             $name</a></td>\n";
 
     if (isset($all) && ISADMIN()) {
 	echo "<td>$creator</td>";
     }
     echo "  <td style='white-space:nowrap'>$pid</td>
+            <td>$dtype</td>
             <td class='format-date'>$expires</td>
+            <td>$urn</td>
            </tr>\n";
 }
 echo "   </tbody>

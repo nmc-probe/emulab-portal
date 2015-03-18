@@ -28,6 +28,8 @@ include("imageid_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 include("dataset_defs.php");
+include("instance_defs.php");
+include("profile_defs.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
 $page_title = "Show Dataset";
 
@@ -72,6 +74,9 @@ $canapprove = ($embedded && ISADMIN() &&
 
 # Remote datasets can be refreshed.
 $canrefresh = ($dataset->islocal() ? 0 : 1);
+
+# Can an image backed dataset be updated.
+$cansnapshot = ($candelete && $dataset->type() == "imdataset" ? 1 : 0);
 
 $fields = array();
 if ($dataset->type() == "stdataset") {
@@ -126,6 +131,27 @@ echo "<script type='text/plain' id='fields-json'>\n";
 echo htmlentities(json_encode($fields)) . "\n";
 echo "</script>\n";
 
+#
+# Instance list for image backed dataset.
+#
+if ($cansnapshot && !$embedded) {
+    $query_result =
+        DBQueryFatal("select uuid from apt_instances as a ".
+                     "where creator_idx='$this_idx'");
+    $instance_array = array();
+
+    while ($row = mysql_fetch_array($query_result)) {
+        $instance     = Instance::Lookup($row["uuid"]);
+        $profile      = Profile::Lookup($instance->profile_id(),
+                                        $instance->profile_version());
+        $instance_array[] =
+            array("uuid" => $instance->uuid(), "name" => $profile->name());
+    }
+    echo "<script type='text/plain' id='instances-json'>\n";
+    echo htmlentities(json_encode($instance_array));
+    echo "</script>\n";
+}
+
 SpitOopsModal("oops");
 SpitWaitModal("waitwait");
 
@@ -135,6 +161,7 @@ echo "    window.UUID       = '$uuid';\n";
 echo "    window.CANDELETE  = $candelete;\n";
 echo "    window.CANAPPROVE = $canapprove;\n";
 echo "    window.CANREFRESH = $canrefresh;\n";
+echo "    window.CANSNAPSHOT= $cansnapshot;\n";
 echo "</script>\n";
 SPITREQUIRE("show-dataset");
 # For progress bubbles in the imaging modal.
