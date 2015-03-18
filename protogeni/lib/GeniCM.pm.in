@@ -1360,6 +1360,13 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    my $startupCount = 0;
 	    foreach my $service (@services) {
 		if ($service->{'type'} eq "execute") {
+		    if (!defined($service->{'cmd'}) ||
+			$service->{'cmd'} eq "") {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+			     "Invalid service command: no command provided");
+			goto bad;
+		    }
 		    if ($startupCount == 0) {
 			$startupCommand = $service->{'cmd'};
 		    }
@@ -6854,7 +6861,7 @@ sub HandleBlockstore($$$$$$@)
     my $leasename = GeniXML::GetText("persistent", $blockref);
     my $dataset_id= GeniXML::GetText("dataset", $blockref);
     my $placement = GeniXML::GetText("placement", $blockref);
-    my $type      = "";
+    my $btype     = "";
     my $fixed     = $nodename;
     my $size      = 0;
 
@@ -6900,8 +6907,8 @@ sub HandleBlockstore($$$$$$@)
 	    my $gid = $pid;
 	    my $vers;
 	
-	    my ($domainsubauth,$type,$id) = GeniHRN::Parse($dataset_id);
-	    if ($type ne "dataset") {
+	    my ($domainsubauth,$dtype,$id) = GeniHRN::Parse($dataset_id);
+	    if ($dtype ne "dataset") {
 		$message = "Illegal dataset urn for $dataset_id";
 		goto bad;
 	    }
@@ -6953,6 +6960,7 @@ sub HandleBlockstore($$$$$$@)
 	    }
 	    # This needs to be name, not id.
 	    push(@attributes, ["dataset", $image->versname(), 0]);
+	    $btype = "imdataset";
 	    
 	    if (!$image->size()) {
 		$message = "No local size info for $dataset_id";
@@ -6994,8 +7002,8 @@ sub HandleBlockstore($$$$$$@)
 	    # Look for a urn and possibly project/group qualified lease name.
 	    #
 	    if (GeniHRN::IsValid($leasename)) {
-		my ($domainsubauth,$type,$id) = GeniHRN::Parse($leasename);
-		if ($type ne "dataset") {
+		my ($domainsubauth,$ltype,$id) = GeniHRN::Parse($leasename);
+		if ($ltype ne "dataset") {
 		    $message = "Illegal dataset urn for $leasename";
 		    goto bad;
 		}
@@ -7074,7 +7082,7 @@ sub HandleBlockstore($$$$$$@)
 		next
 		    if (!$credential->HasActualPrivilege("blockstores"));
 
-		my ($domain, $type, $id) =
+		my ($domain, undef, $id) =
 		    GeniHRN::Parse($credential->target_urn());
 
 		goto permokay
@@ -7102,8 +7110,8 @@ sub HandleBlockstore($$$$$$@)
 		$message = "Could not get blockstore for lease $leasename";
 		goto bad;
 	    }
-	    $type = $lease->type();
-	    $size = $blockstore->total_size();
+	    $btype = $lease->type();
+	    $size  = $blockstore->total_size();
 
 	    push(@attributes, ["lease", $lease->lease_idx(), 1]);
 	}
@@ -7146,7 +7154,7 @@ sub HandleBlockstore($$$$$$@)
     }
     $virtexperiment->NewTableRow("virt_blockstores",
 				 {"vname"     => $bsname,
-				  "type"      => $type,
+				  "type"      => $btype,
 				  "size"      => $size,
 				  "fixed"     => $fixed,
 				 });
