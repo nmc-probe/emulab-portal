@@ -2029,6 +2029,7 @@ CREATE TABLE `image_versions` (
   `mbr_version` varchar(50) NOT NULL default '1',
   `updated` datetime default NULL,
   `deleted` datetime default NULL,
+  `last_used` datetime default NULL,
   `format` varchar(8) NOT NULL default 'ndz',
   `access_key` varchar(64) default NULL,
   `auth_uuid` varchar(64) default NULL,
