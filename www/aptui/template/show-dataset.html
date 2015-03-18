@@ -127,6 +127,9 @@
                   id='embedded-anchors'
                   style='margin-right: 10px;'
 	          href='edit-dataset.php?uuid=<%- formfields.dataset_uuid %>'
+		  data-toggle='popover'
+		  data-delay='{"hide":1000, "show":500}'
+		  data-content="Modify dataset settings."
                   type='button'>Modify
 	  </a>
 	  <% if (formfields.dataset_type != "imdataset") { %>
@@ -136,7 +139,7 @@
      		  data-toggle='modal' data-target='#extend_modal'
 		  data-toggle='popover'
 		  data-delay='{"hide":1000, "show":500}'
-		  data-content="Modify dataset settings."
+		  data-content="Request an extension to expiration date."
                   type='button'>Extend
 	  </a>
 	  <% } %>
