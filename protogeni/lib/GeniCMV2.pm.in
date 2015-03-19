@@ -2421,6 +2421,7 @@ sub CreateImage($)
     my $wholedisk    = 0;
     my $bsname;
 
+    require EmulabConstants;
     require Image;
     require WebTask;
     
@@ -2513,8 +2514,11 @@ sub CreateImage($)
     # See if it already exists and check ownership permission.
     my $image = Image->Lookup($experiment->pid(), $imagename);
     if (defined($image)) {
-	if (!defined($image->creator_urn()) ||
-	    $image->creator_urn() ne $user->urn()) {
+	if (!((defined($image->creator_urn()) &&
+	       $image->creator_urn() eq $user->urn()) ||
+	      ($user->IsLocal() &&
+	       $image->AccessCheck($user->emulab_user(),
+				   EmulabConstants::TB_IMAGEID_ACCESS())))) {
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 					"This is not your image to overwrite");
 	}
