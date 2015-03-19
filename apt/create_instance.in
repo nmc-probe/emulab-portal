@@ -513,7 +513,8 @@ if ($localuser) {
 	fatal("Project provided does not exist");
     }
     if (!$project->AccessCheck($emulab_user, TB_PROJECT_CREATEEXPT)) {
-	fatal("No permission to create experiments in project $pid");
+	fatal("No permission to create experiments in project ".
+	      $project->pid());
     }
     $pid = $project->pid();
 }
