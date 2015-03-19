@@ -78,7 +78,8 @@
 		    id='snapshot_button' type=button
 		    data-toggle='modal' data-target='#snapshot_modal'>
               Snapshot</button>
-	    <button class='btn btn-xs btn-primary'
+	    <a class='btn btn-xs btn-primary'
+		    href='manage_profile.php?action=copy&uuid=<%= profileUUID %>'
 		    id='copy_button' type=button
 		    data-toggle='popover'
 		    data-delay='{"hide":1500, "show":500}'
@@ -89,7 +90,7 @@
 		    instructions) as the original profile, but without
 		    creating a new disk image. Instead, the new profile uses
 		    whatever images the original profile uses."> 
-	      Copy</button>
+	      Copy</a>
 	    <% } %>
 	    <button class='btn btn-xs btn-success' disabled
 		    id='extend_button' type=button>
