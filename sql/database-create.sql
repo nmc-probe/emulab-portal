@@ -134,6 +134,8 @@ CREATE TABLE `apt_instances` (
   `public_url` tinytext,
   `created` datetime default NULL,
   `status` varchar(32) default NULL,
+  `admin_lockdown` tinyint(1) NOT NULL default '0',
+  `user_lockdown` tinyint(1) NOT NULL default '0',
   `extension_code` varchar(32) default NULL,
   `extension_reason` mediumtext,
   `servername` tinytext,
