@@ -206,7 +206,7 @@ elsif (defined($bsname)) {
 # Need to look up the base image; the image that is currently running
 # on the node and being cloned.
 #
-if ($image->isdataset()) {
+if (defined($image) && $image->isdataset()) {
     $base_image = $image;
 }
 else {
