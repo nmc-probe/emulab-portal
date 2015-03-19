@@ -50,6 +50,7 @@ function (_, sup, moment, ppstart,
 	    profile_uuid:	profile_uuid,
 	    history:		window.HISTORY,
 	    isadmin:		window.ISADMIN,
+	    canedit:            window.CANEDIT,
 	    withpublishing:     window.WITHPUBLISHING,
 	});
 	$('#page-body').html(show_html);

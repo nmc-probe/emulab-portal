@@ -404,6 +404,11 @@ class Profile
     function CanClone($user) {
 	return $this->CanInstantiate($user);
     }
+    function CanEdit($user) {
+        if ($this->creator_idx() == $user->uid_idx() || ISADMIN())
+	    return 1;
+        return 0;
+    }
     function CanDelete($user) {
 	# Want to know if the project is APT or Cloud/Emulab. APT projects
         # may not delete profiles (yet).
