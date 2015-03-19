@@ -460,27 +460,33 @@ class Profile
 		    $node->sliver_type->disk_image["name"]))) {
 		continue;
 	    }
+            
 	    if ($node->sliver_type->disk_image["name"]) {
 		$name = $node->sliver_type->disk_image["name"];
-		#
-		# The only image that runs on Cloudlab is UBUNTU14-64-ARM
-		#
-		if (preg_match("/ARM/", $name)) {
-		    return "Utah Cloudlab";
-		}
-		return "Utah APT";
+		if (preg_match("/^http/", $name)) {
+                    $url = $name;
+                }
+                else {
+                    #
+                    # The only image that runs on Cloudlab is UBUNTU14-64-ARM
+                    #
+                    if (preg_match("/ARM/", $name)) {
+                        return "Utah Cloudlab";
+                    }
+                    return "Utah APT";
+                }
 	    }
-	    else {
-		$url = $node->sliver_type->disk_image["url"];
-		if (preg_match("/utah\.cloudlab\.us/", $url)) {
-		    return "Utah Cloudlab";
-		}
-		if (preg_match("/emulab\.net/", $url) ||
-		    preg_match("/geniracks\.net/", $url) ||
-		    preg_match("/instageni/", $url)) {
-		    return "Utah APT";
-		}
-	    }
+            else {
+                $url = $node->sliver_type->disk_image["url"];
+            }
+            if (preg_match("/utah\.cloudlab\.us/", $url)) {
+                return "Utah Cloudlab";
+            }
+            if (preg_match("/emulab\.net/", $url) ||
+                preg_match("/geniracks\.net/", $url) ||
+                preg_match("/instageni/", $url)) {
+                return "Utah APT";
+            }
 	}
 	return null;
     }

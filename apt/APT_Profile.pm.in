@@ -805,6 +805,12 @@ sub CheckNodeConstraints($$$)
 	next
 	    if (!(defined($image_url) || defined($image_urn)));
 
+	# Watch for url in the name, flipflop. 
+	if ($image_urn =~ /^http/) {
+	    $image_url = $image_urn;
+	    $image_urn = undef;
+	}
+
 	if (defined($image_urn)) {
 	    if ($iscloudlab && $image_urn !~ /ARM/) {
 		$$pmsg = "Node '$client_id' disk_image will not run ".
