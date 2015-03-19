@@ -267,7 +267,7 @@ function SPITFORM($formfields, $newuser, $errors)
     else {
 	echo "<h3 style='margin-top: 0px;'>";
     }
-    echo "<center>Run an Experiment";
+    echo "<center>Start Experiment";
     if (isset($profilename)) {
         echo " using profile &quot;$profilename&quot";
     }
