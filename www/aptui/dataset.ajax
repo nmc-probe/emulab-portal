@@ -441,8 +441,8 @@ function Do_ModifyDataSet()
 
         if ($embedded) {
                     $retval = SUEXEC($this_uid, $dataset->pid(),
-                             "webcreate_image -b $safe_bsname -p $pid ".
-                             "$dname $safe_nodeid",
+                             "webclone_image -b $safe_bsname ".
+                             "$pid/$dname $safe_nodeid",
                              SUEXEC_ACTION_IGNORE);
         }
         else {

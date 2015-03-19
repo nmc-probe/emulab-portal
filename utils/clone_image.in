@@ -68,6 +68,7 @@ my $nodelta     = 0; # To pass to create_image.
 my $global      = 0;
 my $shared      = 0;
 my $bsname;
+my ($base_osinfo, $base_image);
 
 #
 # Configure variables
@@ -190,21 +191,38 @@ if (! (defined($project) && defined($group))) {
 my $image = Image->Lookup($project->pid(), $imagename);
 
 #
+# Dataset checks.
+#
+if (defined($image)) {
+    if ($image->isdataset() && !defined($bsname)) {
+	fatal("You must provide a blockstore name (-b) for this image!");
+    }
+}
+elsif (defined($bsname)) {
+    fatal("Dataset must already exist before it can be cloned");
+}
+
+#
 # Need to look up the base image; the image that is currently running
 # on the node and being cloned.
 #
-my ($base_osinfo, $base_image) = $node->RunningOsImage();
-# No support for cloning MFSs, so there will always be a base image.
-if (! (defined($base_osinfo) && defined($base_image))) {
-    fatal("Could not determine osid/imageid for $node_id");
+if ($image->isdataset()) {
+    $base_image = $image;
 }
-print "$node_id is running $base_osinfo,$base_image\n"
-    if ($debug);
+else {
+    ($base_osinfo, $base_image) = $node->RunningOsImage();
+    # No support for cloning MFSs, so there will always be a base image.
+    if (! (defined($base_osinfo) && defined($base_image))) {
+	fatal("Could not determine osid/imageid for $node_id");
+    }
+    print "$node_id is running $base_osinfo,$base_image\n"
+	if ($debug);
+}
 
 # See if enabled.
 if ($DOPROVENANCE) {
     $doprovenance = 
-	EmulabFeatures->FeatureEnabled("ImageProvenance", $this_user, $project);
+	EmulabFeatures->FeatureEnabled("ImageProvenance", $this_user, $group);
 
     # Temporary override for all geni projects until we can export deltas.
     if ($project->IsNonLocal()) {
@@ -222,11 +240,8 @@ if (defined($image)) {
     #
     # Only EZ images or Datasets via this interface.
     #
-    if (!($image->ezid())) {
-	fatal("Only EZ images on this path. Dataset images not yet");
-    }
-    if ($image->isdataset() && !defined($bsname)) {
-	fatal("You must provide a blockstore name (-b) for this image!");
+    if (!($image->ezid() || $image->isdataset())) {
+	fatal("Only EZ images or datasets on this path.");
     }
 
     #
@@ -254,7 +269,7 @@ if (defined($image)) {
 	$image = $image->LookupMostRecent();
 	if (!defined($image)) {
 	    $image->Unlock();
-	    fatal("Cannot lookup osinfo for $image");
+	    fatal("Cannot lookup most recent version for $image");
 	}
 	
 	#
@@ -271,14 +286,19 @@ if (defined($image)) {
 	# We can reuse it, but reset the provenance just in case the node got
 	# reloaded.
 	#
+	# There is no provenance for datasets; strictly parent/child.
+	#
 	if (!$image->ready()) {
-	    my $osinfo = OSinfo->Lookup($image->imageid(), $image->version());
-	    if (!defined($osinfo)) {
-		$image->Unlock();
-		fatal("Cannot lookup osinfo for $image");
+	    if (!$image->isdataset()) {
+		my $osinfo =
+		    OSinfo->Lookup($image->imageid(), $image->version());
+		if (!defined($osinfo)) {
+		    $image->Unlock();
+		    fatal("Cannot lookup osinfo for $image");
+		}
+		$osinfo->SetProvenance($base_osinfo);
+		$image->SetProvenance($base_image);
 	    }
-	    $image->SetProvenance($base_image);
-	    $osinfo->SetProvenance($base_osinfo);
 	    $needclone = 0;
 	    print "Reusing image version " . $image->version() . ", ".
 		"since it was never marked ready.\n";

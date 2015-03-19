@@ -409,6 +409,7 @@ if (system("$checkquota -p $imagepid $user_uid") != 0) {
 #
 if ($WITHPROVENANCE) {
     my $project = Project->Lookup($image->pid());
+    my $group   = Group->Lookup($image->pid(), $image->gid());
     if (!defined($project)) {
 	die("*** $0:\n".
 	    "    Could not lookup project for $image\n");
@@ -416,7 +417,7 @@ if ($WITHPROVENANCE) {
 
     # But allow feature override. 
     $doprovenance = EmulabFeatures->FeatureEnabled("ImageProvenance",
-						   $this_user, $project);
+						   $this_user, $group);
     
     # Temporary override for all geni projects until we can export deltas.
     if ($project->IsNonLocal()) {

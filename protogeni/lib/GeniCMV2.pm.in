@@ -2542,14 +2542,13 @@ sub CreateImage($)
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
-    #
-    # We do not version datasets yet,
-    #
-    if (defined($image) && $image->isdataset()) {
-	goto dataset;
-    }
     my $opt  = "";
-    $opt .= " -e" if ($wholedisk);
+    if (defined($image) && $image->isdataset()) {
+	$opt .= " -b $bsname ";
+    }
+    else {
+	$opt .= " -e" if ($wholedisk);
+    }
 
     #
     # Let user override global setting.

@@ -623,11 +623,14 @@ sub Create($$$$$$$$)
 #
 # Clone an image descriptor from the DB, bumping the version number
 #
+# XXX A lot of stuff in here gets skipped for datasets.
+#
 sub NewVersion($$$$)
 {
     my ($self, $creator, $baseimage, $usrerr_ref) = @_;
     my $osid        = $self->imageid();
     my $version     = $self->version();
+    my $isdataset   = $self->isdataset();
     my $tableid     = int(rand(10000000));
     my $typelist    = "";
     my $ostablename = "os_info_versions" . $tableid;
@@ -642,42 +645,44 @@ sub NewVersion($$$$)
 	or return undef;
 
     my $query_result =
-	DBQueryWarn("create temporary table $ostablename ".
-		    "select * from os_info_versions ".
-		    "  where osid='$osid' and vers='$version'");
-    goto bad
-	if (!$query_result);
-
-    $query_result =
 	DBQueryWarn("create temporary table $imtablename ".
 		    "select * from image_versions ".
 		    "where imageid='$osid' and version='$version'");
     goto bad
 	if (!$query_result);
 
-    #
-    # Grab the current type list.
-    #
-    $query_result =
-	DBQueryWarn("select distinct type from osidtoimageid ".
-		    "where imageid='$osid'");
+    if (!$isdataset) {
+	$query_result =
+	    DBQueryWarn("create temporary table $ostablename ".
+			"select * from os_info_versions ".
+			"  where osid='$osid' and vers='$version'");
+	goto bad
+	    if (!$query_result);
+
+	#
+	# Grab the current type list.
+	#
+	$query_result =
+	    DBQueryWarn("select distinct type from osidtoimageid ".
+			"where imageid='$osid'");
     
-    goto bad
-	if (!$query_result);
+	goto bad
+	    if (!$query_result);
 
-    my @types = ();
-    while (my ($type) = $query_result->fetchrow_array()) {
-	push(@types, $type);
+	my @types = ();
+	while (my ($type) = $query_result->fetchrow_array()) {
+	    push(@types, $type);
+	}
+	$typelist = join(",", @types);
+
+	#
+	# Update the type list in the image being cloned. Better to do this
+	# when the types are changed, but this works too since no one uses
+	# this until the image is deleted.
+	#
+	DBQueryWarn("update image_versions set nodetypes='$typelist' ".
+		    "where imageid='$osid' and version='$version'");
     }
-    $typelist = join(",", @types);
-
-    #
-    # Update the type list in the image being cloned. Better to do this
-    # when the types are changed, but this works too since no one uses
-    # this until the image is deleted.
-    #
-    DBQueryWarn("update image_versions set nodetypes='$typelist' ".
-		"where imageid='$osid' and version='$version'");
 
     #
     # Now reset a few things in each table.
@@ -692,19 +697,21 @@ sub NewVersion($$$$)
     if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
 	$updater_urn = ",updater_urn=". DBQuoteSpecial($ENV{'GENIURN'});
     }
+
     #
     # Figure out which partition needs to be changed. EZ images only
     # at this time.
     #
     my $part_vers = "";
-    for (my $i = 1; $i <= 4; $i++) {
-	my $func = "part${i}_osid";
-	if (defined($self->$func())) {
-	    $part_vers = "part${i}_vers='${clone_vers}'";
-	    last;
+    if (!$isdataset) {
+	for (my $i = 1; $i <= 4; $i++) {
+	    my $func = "part${i}_osid";
+	    if (defined($self->$func())) {
+		$part_vers = "part${i}_vers='${clone_vers}',";
+		last;
+	    }
 	}
     }
-
     my $uid     = $creator->uid();
     my $uid_idx = $creator->uid_idx();
 
@@ -747,19 +754,20 @@ sub NewVersion($$$$)
     else {
 	$path .= ":${clone_vers}";
     }
-
-    DBQueryWarn("update $ostablename set ".
-		"  uuid=uuid(), ".
-		"  vers='$clone_vers',".
-		"  parent_osid=$parent_imageid,".
-		"  parent_vers=$parent_version ".
-		"where osid='$osid'")
-	or goto bad;
-
+    
+    if (!$isdataset) {
+	DBQueryWarn("update $ostablename set ".
+		    "  uuid=uuid(), ".
+		    "  vers='$clone_vers',".
+		    "  parent_osid=$parent_imageid,".
+		    "  parent_vers=$parent_version ".
+		    "where osid='$osid'")
+	    or goto bad;
+    }
     DBQueryWarn("update $imtablename set ".
 		"  uuid=uuid(),ready=0,path='$path',released=0, ".
-		"  $part_vers, default_vers='$clone_vers', ".
-		"  version='$clone_vers',".
+		"  $part_vers default_vers='$clone_vers', ".
+		"  version='$clone_vers',last_used=NULL, ".
 		"  created=now(),nodetypes='$typelist', ".
 		"  parent_imageid=$parent_imageid,".
 		"  parent_version=$parent_version, ".
@@ -771,12 +779,16 @@ sub NewVersion($$$$)
     # And insert into the real table. At this point we will be
     # inconsistent if we crash before the commit is done.
     #
-    if (! (DBQueryWarn("insert into os_info_versions ".
-		       "select * from $ostablename") &&
-	   DBQueryWarn("insert into image_versions ".
-		       "select * from $imtablename"))) {
+    if (!$isdataset) {
+	DBQueryWarn("insert into os_info_versions ".
+		    "select * from $ostablename")
+	    or goto bad;
+    }
+    if (! DBQueryWarn("insert into image_versions ".
+		      "select * from $imtablename")) {
 	DBQueryWarn("delete from os_info_versions ".
-		    "where osid='$osid' and vers='$clone_vers'");
+		    "where osid='$osid' and vers='$clone_vers'")
+	    if (!$isdataset);
 	DBQueryWarn("delete from image_versions ".
 		    "where imageid='$osid' and version='$clone_vers'");
 	goto bad;
@@ -1963,7 +1975,18 @@ sub MarkReleased($)
 
     return 0;
 }
+# Last used, for datasets.
+sub BumpLastUsed($)
+{
+    my ($self) = @_;
+    my $imageid = $self->imageid();
+    my $version = $self->version();
 
+    return -1
+	if (! DBQueryWarn("update image_versions set last_used=now() ".
+			  "where imageid='$imageid' and version='$version'"));
+    return 0;
+}
 
 # Are two images the same.
 sub SameImage($$)
