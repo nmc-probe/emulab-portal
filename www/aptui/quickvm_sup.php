@@ -275,7 +275,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li><a href='getcreds.php'>Download Credentials</a></li>
 	           <li><a href='changepswd.php'>Change Password</a></li>
 	           <li><a href='logout.php'>Logout</a></li>";
-	if (ISADMIN() || STUDLY()) {
+	if (1 || ISADMIN() || STUDLY()) {
 	    echo " <li class='divider'></li>
 	           <li><a href='activity.php'>Activity</a></li>
 	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
