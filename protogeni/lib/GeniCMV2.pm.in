@@ -1511,12 +1511,20 @@ sub UpdateTicket($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    $GeniTicket::CreateFromSignedError);
     }
+
     #
-    # Make sure the ticket was issued to the caller. Note special
-    # case for speaksfor.
+    # We need the user to sign the new ticket. 
     #
-    if ($ticket->owner_urn() ne
-	(defined($speaksfor) ? $speaksfor->target_urn() : $ENV{'GENIURN'})) {
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+    
+    #
+    # Make sure the ticket was issued to the caller.
+    #
+    if ($ticket->owner_urn() ne $user->urn()) {
+	print STDERR $ticket->owner_urn() . "\n";
+	print STDERR $user->urn() . "\n";
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "This is not your ticket");
     }
@@ -1528,13 +1536,6 @@ sub UpdateTicket($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "This ticket is for another slice");
     }
-    
-    #
-    # We need the user to sign the new ticket to. 
-    #
-    my $user = GeniCM::CreateUserFromCertificate($credential);
-    return $user
-	if (GeniResponse::IsResponse($user));
     
     return GeniCM::GetTicketAuxAux($slice, $user,
 				   $rspecstr, 1, $impotent, 1, 1, $ticket,
@@ -1648,11 +1649,18 @@ sub RedeemTicket($)
 				    $GeniTicket::CreateFromSignedError);
     }
     #
-    # Make sure the ticket was issued to the caller. Note special
-    # case for speaksfor.
+    # We need the user to sign the new ticket. 
     #
-    if ($ticket->owner_urn() ne
-	(defined($speaksfor) ? $speaksfor->target_urn() : $ENV{'GENIURN'})) {
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+    
+    #
+    # Make sure the ticket was issued to the caller. 
+    #
+    if ($ticket->owner_urn() ne $user->urn()) {
+	print STDERR $ticket->owner_urn() . "\n";
+	print STDERR $user->urn() . "\n";
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "This is not your ticket");
     }
