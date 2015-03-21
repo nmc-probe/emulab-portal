@@ -1030,7 +1030,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		//
 		// And a handler for the reload action.
 		//
-		$('#listview-row-' + node + ' [name=reboot]')
+		$('#listview-row-' + node + ' [name=reload]')
 		    .click(function (e) {
 			e.preventDefault();
 			if (isguest) {
