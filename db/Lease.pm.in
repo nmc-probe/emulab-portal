@@ -447,7 +447,7 @@ sub Delete($) {
     my $idx  = $self->idx();
     my $uuid = $self->uuid();
 
-    DBQueryWarn("delete from web_tasks where uuid='$uuid'")
+    DBQueryWarn("delete from web_tasks where object_uuid='$uuid'")
 	or return LEASE_ERROR_FAILED();
 
     DBQueryWarn("delete from project_leases where lease_idx=$idx")
