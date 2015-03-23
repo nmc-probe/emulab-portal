@@ -40,7 +40,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	uuid    = window.APT_OPTIONS.uuid;
 	oneonly = window.APT_OPTIONS.oneonly;
 	isadmin = window.APT_OPTIONS.isadmin;
-	isguest = !window.APT_OPTIONS.registered;
+	isguest = (window.APT_OPTIONS.registered ? false : true);
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
 	profile_uuid = window.APT_OPTIONS.profileUUID;
