@@ -595,6 +595,10 @@ function Do_RebootOrReload($which)
     global $this_user;
     global $ajax_args;
 
+    if (!isset($this_user)) {
+	SPITAJAX_ERROR(1, "Only registered users can reboot/reload nodes");
+	return;
+    }
     $this_idx = $this_user->uid_idx();
 
     if (!isset($ajax_args["node_id"])) {
