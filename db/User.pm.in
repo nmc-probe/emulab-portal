@@ -531,7 +531,7 @@ sub Create($$$$)
 			"  u.unix_uid + 1 = r.unix_uid ".
 			"where u.unix_uid>=$min_uid and ".
 			"      u.unix_uid<60000 and ".
-			"      r.unix_uid is null limit 1");
+			"      r.unix_uid is null order by u.unix_uid limit 1");
 	goto bad
 	    if (! $query_result);
 
@@ -543,8 +543,8 @@ sub Create($$$$)
 	my ($unused) = $query_result->fetchrow_array();
 
 	if (getpwuid($unused)) {
-	    # Keep going.
-	    $min_uid++;
+	    # Keep going from this one.
+	    $min_uid = $unused + 1;
 	}
 	else {
 	    # Break out of loop.
