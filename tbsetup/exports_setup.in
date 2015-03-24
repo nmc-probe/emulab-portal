@@ -625,10 +625,6 @@ if (!$TESTMODE) {
       #   with older mountd's ls will fail,
       #   with newer mountd's ls will hang til mountd is done.
       #
-      # However, mountd add exports to the kernel as it parses
-      # the file. So, we really have to look at the last line in
-      # exports and wait for that FS!
-      #
       if ($waittildone) {
 	  my $testdir = "/proj/" . TBOPSPID();
 	  TBDebugTimeStampsOn();
