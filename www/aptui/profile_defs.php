@@ -475,7 +475,8 @@ class Profile
                     #
                     # The only image that runs on Cloudlab is UBUNTU14-64-ARM
                     #
-                    if (preg_match("/ARM/", $name)) {
+                    if (preg_match("/ARM/", $name) ||
+		        preg_match("/OSCNF/", $name)) {
                         return "Utah Cloudlab";
                     }
                     return "Utah APT";
