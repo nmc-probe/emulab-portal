@@ -547,6 +547,8 @@ sub DoConsole()
 	if (!defined($webtask)) {
 	    fatal("Could not lookup/create webtask for $webtask_id");
 	}
+	# Convenient.
+	$webtask->AutoStore(1);
     }
     
     #
@@ -578,7 +580,7 @@ sub DoConsole()
 	    fatal("RPC Error calling ConsoleURL");
 	}
 	if ($response->code() != GENIRESPONSE_SUCCESS) {
-	    fatal("Could not get console info");
+	    fatal("Could not get console info: " . $response->output());
 	}
     }
     my $url;
