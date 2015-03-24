@@ -580,7 +580,10 @@ sub DoConsole()
 	    fatal("RPC Error calling ConsoleURL");
 	}
 	if ($response->code() != GENIRESPONSE_SUCCESS) {
-	    fatal("Could not get console info: " . $response->output());
+	    if ($response->value()) {
+		fatal($response->output());
+	    }
+	    fatal("Server returned error: " . $response->code);
 	}
     }
     my $url;
