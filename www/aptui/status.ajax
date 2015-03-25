@@ -221,7 +221,7 @@ function Do_RequestExtension()
     }
     $expires_time = strtotime($slice->expires());
 
-    if (!ISADMIN()) {
+    if (0 && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Extensions disabled during heavy usage. Please ".
                        "contact us if you need special arrangements");
 	goto bad;
