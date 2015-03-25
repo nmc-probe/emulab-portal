@@ -107,6 +107,8 @@ PROTOGENI_WEBSITE="www.emulab.net"
 # Set this to the nickname of your ProtoGENI federate.  Ask the GPO what
 # they call you if you're not sure.
 PROTOGENI_NICKNAME="utah-pg"
+# This value should be 12 if you are not in Utah. Ask before changing.
+PROTOGENI_MAXSERVERLOAD=24
 
 #
 # SSL Certificate stuff. Used to customize config files in ssl directory.

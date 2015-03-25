@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -49,11 +49,15 @@ $| = 1;
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin';
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
+#
+# Check for excessive load as early as possible. Use config variable
+# instead of sitevars cause we are trying to avoid touching anything.
+#
 BEGIN {
     $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin';
     my $uptime = `/usr/bin/uptime`;
     if ($uptime =~ /load averages:\s+([\.\d]+),\s+([\.\d]+),\s+[\.\d]+/) {
-	if ($1 > 12.0) {
+	if ($1 > @PROTOGENI_MAXSERVERLOAD@) {
 	    sleep(5);
 	    my $decoder = Frontier::RPC2->new();
 	    my $string  = $decoder->encode_fault(503, 
@@ -173,19 +177,6 @@ sub XMLError($$)
 #
 if (NoLogins()) {
     XMLError(503, "CM temporarily offline; please try again later");
-}
-
-#
-# Check for excessive load
-#
-if ($MAINSITE) {
-    my $uptime = `uptime`;
-    if ($uptime =~ /load averages:\s+([\.\d]+),\s+([\.\d]+),\s+[\.\d]+/) {
-	if ($1 > 10.0) {
-	    sleep(10);
-	    XMLError(503, "Server is WAY too busy; please try again later");
-	}
-    }
 }
 
 #
