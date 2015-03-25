@@ -2686,14 +2686,15 @@ sub syncVlansFromTables($$@) {
     #
     foreach my $port (values(%needTrunking)) {
 	if (!exists($currentTrunks{$port})) {
-	    debug("Enabling trunking on $port\n");
+	    if (!IsPortTagged($port)) {
+		debug("Enabling trunking on $port\n");
 	    
-	    next
-		if ($impotent);
+		next
+		    if ($impotent);
 	
-	    doTrunkEnable($stacks, $port, 1) == 0
-		or goto bad;
-
+		doTrunkEnable($stacks, $port, 1) == 0
+		    or goto bad;
+	    }
 	    # Mark is as being trunked.
 	    $currentTrunks{$port} = $needTrunking{$port};
 	}
