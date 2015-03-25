@@ -192,7 +192,11 @@ system("$TBACCT add $usr_uid");
 if ($?) {
     $project->GetProjectGroup()->DeleteMemberShip($user)
 	if (defined($project));
-    $user->Delete();
+    # Make sure the entire account is deleted. Leave DB record on failure
+    # so that we can try again later. 
+    if (system("$TBACCT -f del $usr_uid") == 0) {
+	$user->Delete();
+    }
     fatal("Could not instantiate user account!")
 }
 
@@ -203,7 +207,11 @@ system("$MKUSERCERT -p $certpass $usr_uid");
 if ($?) {
     $project->GetProjectGroup()->DeleteMemberShip($user)
 	if (defined($project));
-    $user->Delete();
+    # Make sure the entire account is deleted. Leave DB record on failure
+    # so that we can try again later. 
+    if (system("$TBACCT -f del $usr_uid") == 0) {
+	$user->Delete();
+    }
     fatal("Could not create local SSL certificate");
 }
 exit(0);
