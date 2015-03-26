@@ -806,7 +806,7 @@ sub CheckNodeConstraints($$$)
 	    if (!(defined($image_url) || defined($image_urn)));
 
 	# Watch for url in the name, flipflop. 
-	if ($image_urn =~ /^http/) {
+	if (defined($image_urn) && $image_urn =~ /^http/) {
 	    $image_url = $image_urn;
 	    $image_urn = undef;
 	}
