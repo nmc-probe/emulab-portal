@@ -75,19 +75,17 @@ my $ChassisInfo = {
         "maxPortsPerModule"     => 128, # Max # of ports in any module
         "bitmaskBitsPerModule"  => 1024, # Number of bits per module
     },
+    "force10-s6000" => {
+        "moduleSlots"           => 1,   # Max # of modules in chassis
+        "maxPortsPerModule"     => 128, # Max # of ports in any module
+        "bitmaskBitsPerModule"  => 1024, # Number of bits per module
+    },
 };
 
-# XXX - The static offset approach appears to be unrealiable, so we look up
-# the ifindex using the "ifDescr" table.  Each vlan has an "interface" listed
-# there.
 #
-# Force10 calculates ifIndex for VLANs as 0b10_0001_0000001_1110_00000000000000 + 802.1Q VLAN tag number
-#
-#my $vlanNumberToIfindexOffset = 1107787776;
-
-#
-# Force10 FTOS-EF-7.4.2.3 cannot set purely numeric administrative VLAN names (dot1qVlanStaticName) (by design...)
-# So we prepend some alphabetical characters when setting, end strip them when getting
+# FTOS does not allow purely numeric administrative VLAN names
+# (dot1qVlanStaticName) (by design...)  So we prepend some
+# alphabetical characters when setting, end strip them when getting
 #
 my $vlanStaticNamePrefix = "emuID";
 
@@ -170,6 +168,10 @@ sub new($$$;$) {
     #
     my $devicetype = getDeviceType($self->{NAME});
     $self->{TYPE}=$devicetype;
+
+    # Dynamically determined size of vlan PortSet bit vectors 
+    # (see bottom of readifIndex()).
+    $self->{PORTSET_NUMBYTES} = 0; 
 
     #
     # set up hashes for pending vlans
@@ -286,6 +288,7 @@ sub debug($$;$) {
 #
 sub readifIndex($) {
     my $self = shift;
+    my $vlan1ifIndex = 0;
     my $id = "$self->{NAME}::readifIndex()";
     $self->debug("$id:\n",2);
         
@@ -329,6 +332,28 @@ sub readifIndex($) {
 	    $self->{POIFINDEX}{"Po$poNum"} = $ifIndex;
 	    $self->debug("Port-channel $poNum, ifindex $ifIndex\n",2);
 	}
+	elsif ($descr =~ /vlan 1/i) {
+	    # Used below to dynamically determine switch's PortSet size.
+	    $vlan1ifIndex = $iid;
+	}
+    }
+
+    # Figure out the size of the vlan PortSet bit vectors.
+    if ($vlan1ifIndex) {
+	my $pset = $self->getMemberBitmask($vlan1ifIndex);
+	if ($pset) {
+	    $self->{PORTSET_NUMBYTES} = length($pset);
+	    $self->debug("$id: Detected PortSet bit vector size (in bytes):".
+			 " $self->{PORTSET_NUMBYTES}\n");
+	} else {
+	    warn "$id: Unable to fetch egress membership PortSet for Vlan 1".
+		 " - can't determine PortSet size!\n";
+	    return 0;
+	}
+    } else {
+	warn "$id: Unable to find ifIndex for Vlan 1 - can't determine ".
+	     "PortSet size!\n";
+	return 0;
     }
 
     # success
@@ -488,12 +513,8 @@ sub convertIfindexesToBitmask($@) {
     my $maxPortsPerModule    = $ChassisInfo->{$type}->{maxPortsPerModule};
     my $bitmaskBitsPerModule = $ChassisInfo->{$type}->{bitmaskBitsPerModule};
 
-    # initialize ( to avoid perl warnings )
-    my $bitmask = 0b0;
-    # Overwrite our bitmask with zeroes
-    for my $offset (0..($bitmaskBitsPerModule*$moduleSlots+7)) {
-        vec($bitmask, $offset, 1) = 0b0;
-    }
+    # Create an all-zero (empty) PortSet bit vector.
+    my $bitmask = pack("H*", '00' x $self->{PORTSET_NUMBYTES});
 
     # Convert all ifIndexes to modport format and parse modport information
     # to find out vec() offset and set the right bit
@@ -1131,7 +1152,7 @@ sub vlanHasPorts($$) {
 	warn "$id: ERROR: Could not get membership bitmask for blan: $vlan_number\n";
 	return 0;
     }
-    my $setcount = pack("%32b*", $membermask);
+    my $setcount = unpack("%32b*", $membermask);
 
     return $setcount ? 1 : 0;
 }
