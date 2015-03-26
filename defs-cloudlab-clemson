@@ -58,9 +58,6 @@ DISABLE_NSE=1
 #ELABINELAB=1
 # If we can run old images ... depends on whther elvind is installed.
 ELVIN_COMPAT=0
-# The name of the outer boss for inner boss to request services from.
-OUTERBOSS_NODENAME=boss.emulab.net
-OUTERBOSS_SSLCERTNAME=/usr/testbed/etc/outer_emulab.pem
 TBCOOKIESUFFIX="ClemsonCloudLab"
 # XXX hack to work around perl bug
 # Start a multicast IGMP querier
@@ -92,13 +89,16 @@ PRIVATE_NETMASK=255.255.252.0
 PUBLIC_NETWORK=130.127.132.0
 PUBLIC_ROUTER=130.127.132.1
 PUBLIC_NETMASK=255.255.252.0
-DHCPD_DYNRANGE="130.127.132.230 130.127.132.250"
+MANAGEMENT_NETWORK=10.128.192.0
+MANAGEMENT_NETMASK=255.255.252.0
+MANAGEMENT_ROUTER=10.128.192.51
+DHCPD_DYNRANGE="130.127.132.100 130.127.132.200"
 NAMED_FORWARDERS="155.98.32.70"
 NAMED_ALSONOTIFY="155.98.32.70"
 #
 # Must localize to avoid conflict with outer emulab frisbeed.
 #
-FRISEBEEMCASTADDR="235.51.132"
+FRISEBEEMCASTADDR="239.192.1"
 FRISEBEEMCASTPORT="6000"
 FRISEBEENUMPORTS="0"
 #
