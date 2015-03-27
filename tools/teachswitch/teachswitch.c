@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2003-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -68,6 +68,7 @@ int MAX(int a, int b) { if ((a) > (b)) return (a); else return (b); }
 
 int main(int argc, char **argv) {
     int interfaces[MAX_INTERFACES];
+    char *names[MAX_INTERFACES];
 #if defined(__FreeBSD__)
     int bpfnum;
 #elif defined(__linux__)
@@ -172,6 +173,7 @@ int main(int argc, char **argv) {
 	    if (interfaces[num_interfaces] < 0) {
 	    } else {
 		printf("Opened %s\n",bpfpath);
+		names[num_interfaces] = strdup(iface);
 		break;
 	    }
 	}
@@ -187,6 +189,7 @@ int main(int argc, char **argv) {
 	strcpy(req.ifr_name,iface);
 
 	if (ioctl(interfaces[num_interfaces],BIOCSETIF,&req) < 0) {
+	    fprintf(stderr, "%s: ", iface);
 	    perror("BIOSETIF failed");
 	    continue;
 	}
@@ -197,6 +200,7 @@ int main(int argc, char **argv) {
 	memset(&req, 0, sizeof(req));
 	strcpy(req.ifr_name, iface);
 	if (ioctl(sock,SIOCGIFINDEX, (caddr_t)&req) < 0) {
+	    fprintf(stderr, "%s: ", iface);
 	    perror("Getting interface index");
 	    exit(1);
 	}
@@ -210,6 +214,7 @@ int main(int argc, char **argv) {
 	memset(&req, 0, sizeof(req));
 	strcpy(req.ifr_name, iface);
 	if (ioctl(sock,SIOCGIFHWADDR, (caddr_t)&req) < 0) {
+	    fprintf(stderr, "%s: ", iface);
 	    perror("Getting interface hwaddr");
 	    exit(1);
 	}
@@ -268,6 +273,7 @@ int main(int argc, char **argv) {
 				 sizeof(socket_address));
 #endif
 	    if (send_result < 0) {
+		fprintf(stderr, "%s: ", names[i]);
 		perror("Failed to send packet");
 	    }
 	}
