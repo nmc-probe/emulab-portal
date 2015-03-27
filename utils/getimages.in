@@ -64,9 +64,9 @@ my $FBSD_VERSION = 4;
 if (`uname -r` =~ /^(\d+\.\d*)/) {
     $FBSD_VERSION = $1;
 }
-# Extra fetch options on FreeBSD 10.
+# Extra fetch options on FreeBSD 9.3 or greater.
 my $FETCHOPTIONS = "";
-if ($FBSD_VERSION >= 10.0) {
+if ($FBSD_VERSION >= 9.3) {
     $FETCHOPTIONS = "--no-verify-peer --no-verify-hostname";
 }
 
