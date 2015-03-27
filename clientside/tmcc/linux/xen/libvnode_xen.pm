@@ -201,6 +201,8 @@ my $EXTRAFS = "/capture";
 
 # Extra space for image metadata between reloads.
 my $METAFS = "/metadata";
+# So we can ask this from outside;
+sub METAFS()  { return $METAFS; }
 
 # Extra space for vminfo (/var/emulab/vms) between reloads.
 my $INFOFS = "/vminfo";
@@ -380,6 +382,12 @@ sub ImageLockName($)
 
     return "xenimage." .
 	(defined($imagename) ? $imagename : $defaultImage{'name'});
+}
+sub ImageLVName($)
+{
+    my ($imagename) = @_;
+
+    return "image+" . $imagename;
 }
 
 #
@@ -866,7 +874,7 @@ sub vnodeCreate($$$$)
 	# Okay to fail if image does not exist yet.
 	LoadImageMetadata($imagename, \$imagemetadata);
 
-	$lvname = "image+" . $imagename;
+	$lvname = ImageLVName($imagename);
 	if (!lvmFindVolume($lvname) && !defined($imagemetadata)) {
 	    
 	    #
@@ -909,7 +917,7 @@ sub vnodeCreate($$$$)
 	# Boot existing image. The base volume has to exist, since we do
 	# not have any reload info to get it.
 	#
-	$lvname = "image+" . $imagename;
+	$lvname = ImageLVName($imagename);
 	if (!lvmFindVolume($lvname)) {
 	    TBScriptUnlock();
 	    fatal("xen_vnodeCreate: ".
@@ -917,7 +925,7 @@ sub vnodeCreate($$$$)
 	}
     }
     else {
-	$lvname = "image+" . $imagename;
+	$lvname = ImageLVName($imagename);
 	$inreload = 1;
 
 	print STDERR "xen_vnodeCreate: loading image '$imagename'\n";
@@ -1106,7 +1114,7 @@ sub vnodeCreate($$$$)
 	    if ($REAP_GDS && $golden && $golden ne $ngolden) {
 		(my $oimage = $golden) =~ s/^_G_//;
 		my $glock = grabGoldenLock($oimage);
-		if ($glock && lvmGC($golden, 0)) {
+		if ($glock && lvmGC($golden, 0, 0)) {
 		    print STDERR "xen_vnodeCreate: could not GC ".
 			"unreferenced golden image '$golden'\n";
 		}
@@ -2570,7 +2578,7 @@ sub vnodeDestroy($$$$)
 		if ($REAP_GDS && $golden) {
 		    (my $oimage = $golden) =~ s/^_G_//;
 		    my $glock = grabGoldenLock($oimage);
-		    if ($glock && lvmGC($golden, 0)) {
+		    if ($glock && lvmGC($golden, 0, 0)) {
 			print STDERR "xen_vnodeDestroy: could not GC ".
 			    "unreferenced golden image '$golden'\n";
 		    }
@@ -2700,7 +2708,7 @@ sub copyRoot($$)
 sub createRootDisk($)
 {
     my ($lv) = @_;
-    my $lvname = "image+" . $lv;
+    my $lvname = ImageLVName($lv);
     my $full_path = lvmVolumePath($lvname);
     my $mountpoint= "/mnt/$lv";
 
@@ -2790,7 +2798,7 @@ sub CreatePrimaryDisk($$$$;$)
 	    push(@deltas, $imagemetadata);
 	    $imagemetadata = $parent_metadata;
 	}
-	$lvname = "image+" . $imagemetadata->{'IMAGENAME'};
+	$lvname = ImageLVName($imagemetadata->{'IMAGENAME'});
     }
     my $basedisk   = lvmVolumePath($lvname);
     my $rootvndisk = lvmVolumePath($target);
@@ -2992,7 +3000,7 @@ sub CreatePrimaryDisk($$$$;$)
 	    #
 	    while (@deltas) {
 		my $delta_metadata = pop(@deltas);
-		$lvname   = "image+" . $delta_metadata->{'IMAGENAME'};
+		$lvname   = ImageLVName($delta_metadata->{'IMAGENAME'});
 		$basedisk = lvmVolumePath($lvname);
 		$chunks   = $delta_metadata->{'IMAGECHUNKS'};
 	    
@@ -3016,7 +3024,7 @@ sub CreatePrimaryDisk($$$$;$)
 	#
 	while (@deltas) {
 	    my $delta_metadata = pop(@deltas);
-	    $lvname   = "image+" . $delta_metadata->{'IMAGENAME'};
+	    $lvname   = ImageLVName($delta_metadata->{'IMAGENAME'});
 	    $basedisk = lvmVolumePath($lvname);
 	    $chunks   = $delta_metadata->{'IMAGECHUNKS'};
 	    
@@ -3134,6 +3142,7 @@ sub cloneGoldenImage($$)
 	print STDERR "$imagename: WARNING: ".
 	    "could not activate $VGNAME/$lvname\n";
     }
+    markGoldenImage($imagename);
     TBDebugTimeStamp("$lvname: snapshot created and activated");
 
     return 0;
@@ -3151,6 +3160,24 @@ sub destroyGoldenImage($)
 
     return 0;
 }
+
+#
+# Mark usage time for garbage collection.
+#
+sub markGoldenImage($)
+{
+    my ($imagename) = @_;
+    my $imagedatepath = "$METAFS/${imagename}.gdate";
+
+    if (! -e $imagedatepath) {
+	mysystem2("touch $imagedatepath");	
+	return;
+    }
+    my (undef,undef,undef,undef,undef,undef,undef,undef,undef,
+	$mtime,undef,undef,undef) = stat($imagedatepath);
+
+    utime(time(), $mtime, $imagedatepath);
+}    
 
 #
 # Create a logical volume for the image if it doesn't already exist.
@@ -3233,7 +3260,7 @@ sub downloadOneImage($$$)
     my $image = $raref->{'IMAGENAME'};
     my $imagelockname = ImageLockName($image);
     my $tstamp = $raref->{'IMAGEMTIME'};
-    my $lvname = "image+" . $image;
+    my $lvname = ImageLVName($image);
     my $lvmpath = lvmVolumePath($lvname);
     my $imagedatepath = "$METAFS/${image}.date";
     my $imagemetapath = "$METAFS/${image}.metadata";
@@ -3291,7 +3318,7 @@ sub downloadOneImage($$$)
 	    print STDERR "Could not umount /mnt/$image\n";
 	    goto bad;
 	}
-	if (lvmGC($lvname, 1)) {
+	if (lvmGC($lvname, 1, 0)) {
 	    print STDERR "Could not GC or rename $lvname\n";
 	    goto bad;
 	}
@@ -4793,14 +4820,14 @@ sub lvmFindOrigin($)
 # GC an image lvm (or optionally rename it if busy).
 # We can collect the lvm if there are no other lvms based on it.
 #
-sub lvmGC($$)
+sub lvmGC($$$)
 {
-    my ($image,$dorename)  = @_;
+    my ($image,$dorename,$checkonly)  = @_;
     my $oldest   = 0;
     my $inuse    = 0;
     my $found    = 0;
 
-    TBDebugTimeStamp("lvmGC($image) invoked");
+    #TBDebugTimeStamp("lvmGC($image) invoked");
     if (! open(LVS, "lvs --noheadings -o lv_name,origin $VGNAME |")) {
 	print STDERR "Could not start lvs\n";
 	return -1;
@@ -4845,11 +4872,12 @@ sub lvmGC($$)
     close(LVS);
     return -1
 	if ($?);
-    print "found:$found, inuse:$inuse, oldest:$oldest\n";
     if (!$found) {
 	print STDERR "lvmGC($image): no such lvm found\n";
 	return -1;
     }
+    return $inuse
+	if ($checkonly);
     if (!$inuse) {
 	print "lvmGC($image): not in use; deleting\n";
 	if (lvmDestroyVolume($image, 1)) {
@@ -4857,6 +4885,7 @@ sub lvmGC($$)
 	}
 	return 0;
     }
+    #print "found:$found, inuse:$inuse, oldest:$oldest\n";
     if ($dorename) {
 	$oldest++;
 	# rename nicely works even when snapshots exist
@@ -5331,6 +5360,7 @@ sub RunWithLock($$)
 #
 # We need to control how many simultaneous creates happen at once.
 #
+my $MAXCONCURRENT = 3;
 my $createvnode_lockref;
 
 sub CreateVnodeLock()
@@ -5338,7 +5368,7 @@ sub CreateVnodeLock()
     my $tries = 1000;
     
     while ($tries) {
-	for (my $i = 0; $i < 3; $i++) {
+	for (my $i = 0; $i < $MAXCONCURRENT; $i++) {
 	    my $token  = "createvnode_${i}";
 	    TBDebugTimeStamp("grabbing vnode lock $token")
 		if ($lockdebug);
@@ -5367,6 +5397,39 @@ sub CreateVnodeUnlock()
     TBDebugTimeStamp("  releasing vnode lock")
 	if ($lockdebug);
     TBScriptUnlock($createvnode_lockref);
+}
+
+sub CreateVnodeLockAll()
+{
+    my @locks;
+    my $lockref;
+    
+    for (my $i = 0; $i < $MAXCONCURRENT; $i++) {
+	my $token  = "createvnode_${i}";
+	if (TBScriptLock($token, TBSCRIPTLOCK_NONBLOCKING(), 0, \$lockref) ==
+	    TBSCRIPTLOCK_OKAY()) {
+	    push(@locks, $lockref);
+	}
+	else {
+	    # Release all.
+	    foreach my $ref (@locks) {
+		TBScriptUnlock($ref);
+	    }
+	    return undef;
+	}
+    }
+    return \@locks;
+}
+
+sub CreateVnodeUnlockAll($)
+{
+    my ($plocks) = @_;
+    my @locks    = @$plocks;
+
+    # Release all.
+    foreach my $ref (@locks) {
+	TBScriptUnlock($ref);
+    }
 }
 
 1;
