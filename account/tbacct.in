@@ -493,7 +493,7 @@ sub AddUser()
 
     #
     # And the mailman lists if enabled. All users must get this cause
-    # mailman is used for project mail lists. when MAILMANSUPPORT=1
+    # mailman is used for project mail lists when MAILMANSUPPORT=1.
     #
     system("$ADDMMUSER $user")
 	if ($MAILMANSUPPORT);
