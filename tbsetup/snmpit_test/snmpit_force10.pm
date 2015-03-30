@@ -325,6 +325,18 @@ sub readifIndex($) {
 		$self->debug("mod $module, port $port, modport $modport, descr $descr\n",2);
 	    }
 	}
+	elsif ($descr =~ /Slot: (\d+) Port: (\d+)/) {
+	    my $module = $1;
+	    my $port = $2;
+
+	    my $modport = "${module}.${port}";
+	    my $ifIndex = $iid;
+	    
+	    $self->{IFINDEX}{$modport} = $ifIndex;
+	    $self->{IFINDEX}{$ifIndex} = $modport;
+	    $self->{PORTINDEX}{$ifIndex} = $descr;
+	    $self->debug("mod $module, port $port, modport $modport, descr $descr\n",2);
+	}
 	elsif ($descr =~ /port-channel (\d+)/i) {
 	    my $ifIndex = $iid;
 	    my $poNum = $1;
@@ -332,7 +344,7 @@ sub readifIndex($) {
 	    $self->{POIFINDEX}{"Po$poNum"} = $ifIndex;
 	    $self->debug("Port-channel $poNum, ifindex $ifIndex\n",2);
 	}
-	elsif ($descr =~ /vlan 1/i) {
+	elsif ($descr =~ /vlan 1/i || $descr =~ /vl1/i) {
 	    # Used below to dynamically determine switch's PortSet size.
 	    $vlan1ifIndex = $iid;
 	}
@@ -688,7 +700,7 @@ sub getVlanIfindex($$) {
     foreach my $result (@{$rows}) {
 	my ($name,$iid,$descr) = @{$result};
 
-	next unless $descr =~ /vlan\s+(\d+)/i;
+	next unless ($descr =~ /vlan\s+(\d+)/i || $descr =~ /vl(\d+)/i);
 	my $curvlnum = $1;
 
 	$self->debug("$id: got $name, $iid, descr $descr\n",2);
@@ -993,7 +1005,7 @@ sub listVlans($) {
 	foreach $ifIndex (keys %Names) {
 	    if ($status = snmpitGetWarn($self->{SESS},
 					["ifDescr",$ifIndex])) {
-		if ($status =~ /^Vlan\s(\d+)$/) {
+		if ($status =~ /^Vlan\s(\d+)$/ || $status =~ /^Vl(\d+)$/) {
 		    $Numbers{$ifIndex} = $1;
 		} else {
 		    warn "$id: ERROR: Unable to parse out vlan tag for ifindex $ifIndex\n";
