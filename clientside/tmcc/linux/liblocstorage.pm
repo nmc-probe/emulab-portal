@@ -916,6 +916,7 @@ sub os_check_storage_slice($$)
 	my $ginfo = $so->{'DISKINFO'};
 	my $bdisk = $so->{'BOOTDISK'};
 	my $pttype = "MBR";
+	my $slop = 0;
 
 	# figure out the device of interest
 	if ($bsid eq "SYSVOL") {
@@ -926,6 +927,8 @@ sub os_check_storage_slice($$)
 	    $dev = "emulab/$lv";
 	    $mdev = "mapper/emulab-$lv";
 	    $devtype = "LVM";
+	    # XXX LVM rounds up to extent size (4 MiB)
+	    $slop = 3;
 	}
 	my $devsize = $href->{'VOLSIZE'};
 
@@ -943,12 +946,9 @@ sub os_check_storage_slice($$)
 	# Ditto for size, unless this is the SYSVOL where we ignore user size
 	# or if the size was not specified.
 	#
-	# XXX Note that the size of the volume may be rounded up from what we
-	# asked for, hopefully not more than 1 MiB!
-	#
 	my $asize = $ginfo->{$dev}->{'size'};
 	if ($bsid ne "SYSVOL" && $devsize &&
-	    !($asize == $devsize || $asize == $devsize+1)) {
+	    !($asize >= $devsize && $asize <= $devsize + $slop)) {
 	    warn("*** $lv: actual size ($asize) != expected size ($devsize)\n");
 	    return -1;
 	}
