@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -578,6 +578,11 @@ function WRITEEXPERIMENTMENU($firstinitstate) {
 		    NavMenuButton("List OSIDs",
 				  "$TBBASE/showosid_list.php3");
 		}
+                # Do we have a storage pool? Then we support datasets.
+                if (HaveStoragePool()) {
+                    NavMenuButton("List Datasets",
+                                  "$TBBASE/list-datasets.php");
+                }
 
 		if ($login_status & CHECKLOGIN_TRUSTED &&
 		    $login_user->ApprovalList(0)) {
