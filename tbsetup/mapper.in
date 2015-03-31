@@ -671,8 +671,8 @@ sub RunAssign($$)
     if ($use_old_ptopgen == 1) {
 	$ptopargs .= "-Z ";
     }
-    $ptopargs	.= "-z "
-	if ($project->IsNonLocal());
+    $ptopargs .= "-z "
+	if ($project->IsNonLocal() || $vtop->sharednodecount());
     $ptopargs .= "-l $typelimitfile"
 	if (scalar(keys(%admission_control)));
 
