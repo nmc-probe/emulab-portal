@@ -349,7 +349,7 @@ function Do_RequestExtension()
             if ($expires_time + ($granted * 3600 * 24) >
                 time() + (3600 * 24 * $autoextend_maximum)) {
 		$seconds = (3600 * 24 * $autoextend_maximum) - $diff;
-                $granted = intval($seconds / (3600 * 24 * $autoextend_maximum));
+                $granted = intval($seconds / (3600 * 24));
 	    }
         }
     }
