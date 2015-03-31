@@ -119,18 +119,49 @@ function Do_GetInstanceStatus()
 #
 function Do_TerminateInstance()
 {
-    global $instance, $creator;
+    global $instance, $creator, $this_user, $ajax_args;
 
     if (StatusSetupAjax()) {
 	return;
     }
     $uuid = $instance->uuid();
-
-    # This needs work.
     $webtask_id = WebTask::GenerateID();
-    SUEXEC("nobody", "nobody",
-	   "webmanage_instance -t $webtask_id -- terminate $uuid",
-	   SUEXEC_ACTION_CONTINUE);
+
+    if ($instance->admin_lockdown() || $instance->user_lockdown()) {
+        if (! (isset($this_user) &&
+               ($instance->creator() == $this_user->uid() || ISADMIN()))) {
+            SPITAJAX_ERROR(1, "Not enough permission to terminate; ".
+                           "experiment is locked down");
+            return;
+        }
+        $override = substr($uuid, 2, 5);
+
+        if (! (isset($ajax_args["lockdown_override"]) &&
+               $ajax_args["lockdown_override"] == $override)) {
+            SPITAJAX_ERROR(1, "Lockdown override is incorrect");
+            return;
+        }
+        $retval = SUEXEC($this_user->uid(), "nobody",
+                         "webmanage_instance -t $webtask_id -- ".
+                         "  lockdown $uuid clear all",
+                         SUEXEC_ACTION_CONTINUE);
+        if ($retval) {
+            $webtask = WebTask::Lookup($webtask_id);
+
+            if ($webtask && $webtask->exited()) {
+                SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+                $webtask->Delete();
+            }
+            else {
+                SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+            }
+            return;
+        }
+    }
+    # This needs work.
+    $retval = SUEXEC("nobody", "nobody",
+                     "webmanage_instance -t $webtask_id -- terminate $uuid",
+                     SUEXEC_ACTION_CONTINUE);
     $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval == 0) {
@@ -207,8 +238,12 @@ function Do_RequestExtension()
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
     global $TBMAIL_OPS, $APTMAIL, $APTBASE;
+    $autoextend_maximum = TBGetSiteVar("aptui/autoextend_maximum");
+    $autoextend_maxage  = TBGetSiteVar("aptui/autoextend_maxage");
     $reason  = "";
+    $message = "";
     $needapproval = 0;
+    $granted = 0;
 
     if (StatusSetupAjax()) {
 	goto bad;
@@ -220,10 +255,11 @@ function Do_RequestExtension()
 	goto bad;
     }
     $expires_time = strtotime($slice->expires());
+    $created_time = strtotime($instance->created());
 
-    if (0 && !ISADMIN()) {
-	SPITAJAX_ERROR(1, "Extensions disabled during heavy usage. Please ".
-                       "contact us if you need special arrangements");
+    if ($autoextend_maximum == 0 && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Extensions are currenly disabled; please ".
+                       "contact us if you need to make special arrangements.");
 	goto bad;
     }
 
@@ -231,18 +267,17 @@ function Do_RequestExtension()
 	SPITAJAX_ERROR(1, "Missing number of days");
 	goto bad;
     }
-    $howlong = $ajax_args["howlong"];
-    if (! preg_match("/^\d+$/", $howlong)) {
+    $granted = $wanted = $ajax_args["howlong"];
+    if (! preg_match("/^\d+$/", $wanted)) {
 	SPITAJAX_ERROR(1, "Invalid characters in days");
 	goto bad;
     }
 
     if (ISADMIN()) {
-	if ($howlong < 1 || $howlong > 365) {
+	if ($wanted < 1 || $wanted > 365) {
 	    SPITAJAX_ERROR(1, "Must be an integer 1 <= days <= 365");
 	    goto bad;
 	}
-	$seconds = $howlong * (3600 * 24);
 	$reason  = "Extended by site administrator";
     }
     else {
@@ -257,27 +292,47 @@ function Do_RequestExtension()
 	#
 	if (!isset($this_user)) {
             # Only extend for 24 hours. More later.
-	    $seconds = 3600 * 24;
+            $granted = 1;
 
-	    if ($expires_time > time() + $howlong) {
-		sleep(2);
+	    if ($expires_time > time() + (3600 * 24 * $granted)) {
 		SPITAJAX_ERROR(1, "You still have a day left. ".
-			       "Try again tomorrow!");
-		goto bad;
+			       "Try again tomorrow");
+		goto delay;
 	    }
 	}
 	else {
-            $diff = $expires_time - time();
+            $diff  = $expires_time - time();
+            $cdiff = $created_time - time();
+            #
+            # After a month, all extension requests require admin approval.
+            #
+            if ($cdiff > (3600 * 24 * $autoextend_maxage)) {
+                $needapproval = 1;
+                $granted = 1;
+                $message = "because it was started more then ".
+                    "$autoextend_maxage days ago";
+            }
 	    #
-	    # Registered users are granted up to 1 week automatically.
-	    # Beyond that, requires approval. We do the same for
-            # requests that require approval, since we want to give them
-            # extra time until the next meeting of the "resource
-            # management committee."
+	    # Registered users are granted up to the autoextend_maximum
+            # automatically. Beyond that, requires approval, but we still
+            # give them whatever the free extension is, since we want
+            # to give them extra time until the next meeting of the
+            # "resource management committee."
 	    #
-	    if ($howlong > 7) {
-                $needapproval = $howlong;
-                $howlong = 7;
+	    elseif ($wanted > $autoextend_maxage) {
+                #
+                # We have plenty of time left, no extension just a message.
+                #
+                if ($diff > (3600 * 24 * 7)) {
+                    needAdminApproval($wanted, 0, $reason,
+                                      "because it was for longer then ".
+                                      "$autoextend_maximum days");
+                    goto delay;
+                }
+                $needapproval = 1;
+                $granted = $autoextend_maximum;
+                $message = "because it was for longer then ".
+                    "$autoextend_maximum days";
 	    }
             else {
                 if ($diff > (3600 * 24 * 7)) {
@@ -286,18 +341,20 @@ function Do_RequestExtension()
                 }
             }
 	    #
-	    # The most we allow is a week out, no matter what they asked for.
-	    # So if there are five days left and they asked for seven, we
-	    # give them two. 
+	    # The most we allow is the autoextend_maximum out, no
+	    # matter what they asked for. So, if the autoextend_maximum
+	    # is a week and there are five days left and they asked
+	    # for seven, we give them two.
 	    #
-	    $seconds = $howlong * 3600 * 24;
-	    if ($expires_time + $seconds > time() + (3600 * 24 * 7)) {
-		$seconds = (3600 * 24 * 7) - $diff;
-                $howlong = intval($seconds / (3600 * 24 * 7));
+            if ($expires_time + ($granted * 3600 * 24) >
+                time() + (3600 * 24 * $autoextend_maximum)) {
+		$seconds = (3600 * 24 * $autoextend_maximum) - $diff;
+                $granted = intval($seconds / (3600 * 24 * $autoextend_maximum));
 	    }
-	}
+        }
     }
-    if ($seconds) {
+    if ($granted > 0) {
+        $seconds = 3600 * 24 * $granted;
         $retval = SUEXEC("nobody", "nobody",
                          "webmanage_instance extend $uuid $seconds",
                          SUEXEC_ACTION_CONTINUE);
@@ -305,26 +362,9 @@ function Do_RequestExtension()
 
     if ($retval == 0) {
         if ($needapproval) {
-            # Subtract out the extra time we added above.
-            $howlong = $needapproval - $howlong;
-            $url = "$APTBASE/status.php?uuid=$uuid&extend=$howlong";
-		    
-            $instance->SendEmail($APTMAIL,
-		     "Experiment Extension Request: $uuid",
-		     "A request to extend this experiment was made but ".
-		     "requires\n".
-		     "administrator approval\n".
-                     "The request is for $needapproval days, the reason ".
-                     "given is:\n\n".
-		     $reason . "\n\n".
-		     "Click on the following link (red-dot) to grant ".
-		     "the request\n\n". $url . "\n\n",
-		     "From: " . $creator->email());
-            
-            # XXX 
-            SPITAJAX_ERROR(2, "Your request requires admininstrator ".
-                           "approval. You will receive email when your ".
-                           "request is granted. Thanks!");
+            needAdminApproval($wanted, $granted, $reason, $message);
+            if (!$granted)
+                goto delay;
             return;
         }
 	# Refresh. 
@@ -342,6 +382,14 @@ function Do_RequestExtension()
                "$APTBASE/status.php?uuid=$uuid\n",
 	       "From: $APTMAIL\n" .
 	       "BCC: $TBMAIL_OPS");
+        #
+        # We do not want to overwrite the reason in the DB if this
+        # was an admin extension, we want to keep whatever the user
+        # has written previously.
+        #
+        if (! ISADMIN()) {
+            $instance->SetExtensionReason($reason);
+        }
     }
     elseif ($retval > 0) {
 	SPITAJAX_ERROR(1, $suexec_output);
@@ -353,7 +401,49 @@ function Do_RequestExtension()
     }
     return;
 bad:
-    sleep(2);
+delay:
+    sleep(1);
+}
+
+#
+# Helper for above.
+#
+function needAdminApproval($wanted, $granted, $reason, $message)
+{
+    global $instance, $creator, $this_user, $suexec_output;
+    global $TBMAIL_OPS, $APTMAIL, $APTBASE;
+
+    $uuid = $instance->uuid();
+    # Subtract out the extra time we added above.
+    $howlong = $wanted - $granted;
+    $url = "$APTBASE/status.php?uuid=$uuid&extend=$howlong";
+
+    # Refresh. 
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    $new_expires = date("Y-m-d H:i:s",
+                        strtotime($slice->expires()) + ($howlong * 3600 * 24));
+		    
+    $instance->SendEmail("stoller",
+        "Experiment Extension Request: $uuid",
+        "A request to extend this experiment was made but requires\n".
+        "administrator approval" .
+        ($message ? " because $message" : "") . ".\n\n" .
+        "The request was for $wanted days, we granted $granted days, ".
+        "the reason given is:\n\n".
+        $reason . "\n\n".
+        "Granting the request would set the expiration to $new_expires\n".
+        "Click on the following link (red-dot) to grant ".
+        "the request\n\n". $url . "\n\n",
+        "From: " . $creator->email());
+
+    $instance->SetExtensionReason($reason);
+            
+    # XXX 
+    SPITAJAX_ERROR(2, "Your request requires admininstrator approval".
+                   ($message ? " because $message" : "") . ". " .
+                   "You will receive email when your ".
+                   "request is granted. Thanks!");
+    return;
 }
 
 #
