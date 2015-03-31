@@ -30,7 +30,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
+    var terminateTemplate = _.template(terminateString);
     var lastStatus        = "";
+    var lockdown          = 0;
+    var lockdown_code     = "";
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
@@ -44,6 +47,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
 	profile_uuid = window.APT_OPTIONS.profileUUID;
+	lockdown     = window.APT_OPTIONS.lockdown;
+	lockdown_code= uuid.substr(2, 5);
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 	var errorURL = (window.ISCLOUD ?
 			"cloudlab-ops@cloudlab.us" : "aptlab-ops@aptlab.net") +
@@ -65,6 +70,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
 	    errorURL:           errorURL,
+	    lockdown:           lockdown,
+	    lockdown_code:      lockdown_code,
 	    // The status panel starts out collapsed.
 	    status_panel_show:  (instanceStatus == "ready" ? false : true),
 	};
@@ -73,7 +80,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('#waitwait_div').html(waitwaitString);
 	$('#oops_div').html(oopsString);
 	$('#register_div').html(registerString);
-	$('#terminate_div').html(terminateString);
+	$('#terminate_div').html(terminateTemplate(template_args));
 	$('#oneonly_div').html(oneonlyString);
 	$('#approval_div').html(approvalString);
 
@@ -132,7 +139,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Setup the extend modal.
 	$('button#extend_button').click(function (event) {
 	    event.preventDefault();
-	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest, extend);
+	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest);
 	});
 	
 	// Handler for the refresh button
@@ -214,12 +221,26 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	
 	// Terminate an experiment.
 	$('button#terminate').click(function (event) {
+	    var lockdown_override = "";
 	    event.preventDefault();
-	    
 	    sup.HideModal('#terminate_modal');
+
+	    if (lockdown) {
+		if (lockdown_code != $('#terminate_lockdown_code').val()) {
+		    sup.SpitOops("oops", "Refusing to terminate; wrong code");
+		    return;
+		}
+		lockdown_override =  $('#terminate_lockdown_code').val();
+	    }
 	    DisableButtons();
 
 	    var callback = function(json) {
+		sup.HideModal("#waitwait-modal");
+		if (json.code) {
+		    EnableButtons();
+		    sup.SpitOops("oops", "Failed to terminate: " + json.value);
+		    return;
+		}
 		// This is considered the home page, for now.
 		window.location.replace('instantiate.php?default=' +
 					profile_uuid);
@@ -229,7 +250,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
 						"status",
 						"TerminateInstance",
-						{"uuid" : uuid});
+						{"uuid" : uuid,
+						 "lockdown_override" :
+						   lockdown_override});
 	    xmlthing.done(callback);
 	});
 
@@ -957,7 +980,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 		// Change the ID of the clone so its unique.
 		clone.attr('id', 'listview-row-' + node);
-		console.info(clone);
 		// Insert into the table, we will attach the handlers below.
 		$('#listview_table > tbody:last').append(clone);
 		// Set the client_id in the first column.

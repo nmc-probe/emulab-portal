@@ -6,7 +6,28 @@
         <button type='button' class='close' data-dismiss='modal'
                 aria-hidden='true'>&times;</button>
         <p>Are you sure you want to terminate this experiment? 
-          Click on the button below if you are really sure.</p><br>
+          Click on the button below if you are really sure.
+	</p>
+	<% if (lockdown) { %>
+	<p class='text-warning'>
+	  This experiment has been flagged as important, possibly because
+	  it was granted an extension by an administrator; please confirm
+	  that you <b>REALLY</b> want to terminate by copying the text in
+	  the left box into the right box:
+	</p>
+	<center>
+	  <input size=5 readonly value='<%- lockdown_code %>'>
+	  <input size=5 id='terminate_lockdown_code'>
+	</center>
+	<% if ($('#extension_reason').length) { %>
+	<br>
+	<div class='text-center'>Most recent extension request reason</div>
+	<div style='border: solid #000 1px;'>
+	  <div style='padding-left: 2px; padding-right: 2px;'><%- $('#extension_reason').val() %></div>
+	</div>
+	<% } %>
+	<% } %>
+	<br>
         <button class='btn btn-primary align-center' id='terminate'
                 type='submit' name='terminate'>Terminate</button>
       </div>

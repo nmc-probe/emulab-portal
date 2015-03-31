@@ -273,15 +273,17 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li class='divider'></li>
 	           <li><a href='ssh-keys.php'>Manage SSH Keys</a></li>
                    <li><a href='getcreds.php'>Download Credentials</a></li>
+	           <li><a href='signup.php'>Start/Join Project</a></li>
 	           <li><a href='changepswd.php'>Change Password</a></li>
 	           <li><a href='logout.php'>Logout</a></li>";
-	if (1 || ISADMIN() || STUDLY()) {
-	    echo " <li class='divider'></li>
-	           <li><a href='activity.php'>Activity</a></li>
+       echo "      <li class='divider'></li>
 	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
-	}
-	echo "    </ul>
+       if (ISADMIN()) {
+           echo "  <li class='divider'></li>
+	           <li><a href='activity.php'>Activity</a></li>";
+       }
+       echo "     </ul>
                 </li>\n";
     }
     echo "   </ul>

@@ -53,9 +53,14 @@
 	  <% } %>
 	  <tr>
 	    <td class='border-none'>Expires:</td>
-	    <td class='border-none' id='instance_expiration'>
-              <span id='quickvm_expires'><%- sliceExpiresText %></span>
-	      (<span id='quickvm_countdown'></span>)
+	    <td class='border-none'>
+	      <span id='instance_expiration'>
+		<span id='quickvm_expires'><%- sliceExpiresText %></span>
+		(<span id='quickvm_countdown'></span>)
+	      </span>
+	      <% if (isadmin && lockdown) { %>
+	      <span class='text-danger'><small>locked down</small></span>
+	      <% } %>
 	    </td>
 	  </tr>
 	  </table>
@@ -76,6 +81,7 @@
 		    id='snapshot_button' type=button
 		    data-toggle='modal' data-target='#snapshot_modal'>
               Snapshot</button>
+	    <% if (profileUUID && profileUUID != "") { %>
 	    <a class='btn btn-xs btn-primary'
 		    href='manage_profile.php?action=copy&uuid=<%= profileUUID %>'
 		    id='copy_button' type=button
@@ -89,6 +95,7 @@
 		    creating a new disk image. Instead, the new profile uses
 		    whatever images the original profile uses."> 
 	      Copy</a>
+	    <% } %>
 	    <% } %>
 	    <button class='btn btn-xs btn-success' disabled
 		    id='extend_button' type=button>

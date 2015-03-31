@@ -110,9 +110,9 @@ $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 $instance_status = $instance->status();
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
-if ($instance->profile_id()) {
+if ($instance->profile_id() &&
     $profile = Profile::Lookup($instance->profile_id(),
-			       $instance->profile_version());
+			       $instance->profile_version())) {
     $profile_name   = $profile->name();
     $profile_uuid   = $profile->uuid();
     $profile_public = ($profile->ispublic() ? "true" : "false");
@@ -149,6 +149,10 @@ $registered      = (isset($this_user) ? "true" : "false");
 $snapping        = 0;
 $oneonly         = (isset($oneonly) && $oneonly ? 1 : 0);
 $isadmin         = (ISADMIN() ? 1 : 0);
+$lockdown        = ($instance->admin_lockdown() ||
+                    $instance->user_lockdown() ? 1 : 0);
+$extension_reason= ($instance->extension_reason() ?
+                    CleanString($instance->extension_reason()) : "");
 
 #
 # We give ssh to the creator (real user or guest user).
@@ -199,6 +203,7 @@ echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.dossh = $dossh;\n";
 echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
+echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 if (isset($extend) && $extend != "") {
     echo "  window.APT_OPTIONS.extend = $extend;\n";
@@ -214,6 +219,7 @@ echo "<link rel='stylesheet'
 # For progress bubbles in the imaging modal.
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
 echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
+echo "<div class='hidden'><textarea id='extension_reason'>$extension_reason</textarea></div>\n";
 
 SPITFOOTER();
 ?>

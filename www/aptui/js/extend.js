@@ -249,8 +249,16 @@ define(['underscore', 'js/quickvm_sup',
 			howlong = 1;
 		}
 		reason = $("#why_extend").val();
+		if (reason.trim().length == 0) {
+		    $("#why_extend").val("");
+		    DisableSubmitButton();
+		    alert("Come on, say something useful please, " +
+			  "we really do read these!");
+		    return;
+		}
 		if (reason.length < minchars) {
-		    alert("Your reason is too short! Say more please.");
+		    alert("Your reason is too short. Say more please, " +
+			  "we really do read these!");
 		    return;
 		}
 	    }
@@ -298,12 +306,15 @@ define(['underscore', 'js/quickvm_sup',
 				  adminExtendString : isguest ?
 				  guestExtendString : userExtendString);
 
-	    // We have to wait till it is shown to actually set up
+	    // We have to wait till the modal is shown to actually set up
 	    // some of the content, since we need to know its width.
 	    $(modalname).on('shown.bs.modal', function (e) {
 		Initialize();
 		if (extendfor && isadmin) {
 		    $("#howlong_extend").val(extendfor);
+		}
+		if ($('#extension_reason').length && !isadmin) {
+		    $("#why_extend").val($('#extension_reason').val());
 		}
 		$(modalname).off('shown.bs.modal');
 	    });
