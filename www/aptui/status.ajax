@@ -423,7 +423,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
     $new_expires = date("Y-m-d H:i:s",
                         strtotime($slice->expires()) + ($howlong * 3600 * 24));
 		    
-    $instance->SendEmail("stoller",
+    $instance->SendEmail($APTMAIL,
         "Experiment Extension Request: $uuid",
         "A request to extend this experiment was made but requires\n".
         "administrator approval" .
