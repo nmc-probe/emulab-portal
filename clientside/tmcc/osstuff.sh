@@ -110,6 +110,11 @@ Linux)
 	    rel=$trel
 	fi
     fi
+    if [ -r /etc/centos-release ]; then
+	trel=`grep 'CentOS' /etc/centos-release | sed -e 's/CentOS .*release \([0-9.]\+\).*/\1/'` 	
+	dist="CentOS"
+	rel=$trel
+    fi
     # XXX hack check for stargate
     if [ -z "$dist" -a `uname -m` = "armv5tel" ]; then
         dist="Stargate"
