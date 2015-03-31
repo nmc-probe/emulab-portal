@@ -281,6 +281,12 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
 	}
 	// Enable the create button.
 	$('#instantiate_submit').attr('disabled', false);
+	if (window.NOPPRSPEC) {
+	    alert("Geni users may configure parameterized profiles " +
+		  "for demonstration purposes only. The parameterized " +
+		  "configuration will not be used if you Create this " +
+		  "experiment.");
+	}
     }
 
     var constraints;

@@ -213,6 +213,8 @@ function SPITFORM($formfields, $newuser, $errors)
     $amlist     = array();
     $showabout  = ($ISCLOUD || !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
+    $nopprspec  = (!isset($this_user) || $this_user->IsNonLocal() ?
+                   "true" : "false");
 
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
@@ -576,6 +578,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "    window.PROFILE    = '" . $formfields["profile"] . "';\n";
     echo "    window.AJAXURL    = 'server-ajax.php';\n";
     echo "    window.SHOWABOUT  = $showabout;\n";
+    echo "    window.NOPPRSPEC  = $nopprspec;\n";
     echo "    window.REGISTERED = $registered;\n";
     if ($newuser) {
 	echo "window.APT_OPTIONS.isNewUser = true;\n";
