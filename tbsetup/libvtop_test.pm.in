@@ -1428,7 +1428,7 @@ sub LoadVirtNodes($)
 
 	    if (defined($vnode->_parent_osinfo())
 		&& $vnode->_parent_osinfo()->osname() =~ /xen/i) {
-		$defmem = 512;
+		$defmem = 1024;
 		$minmem = 256;
 		$maxmem = 1024 * 16;
 	    }	    
