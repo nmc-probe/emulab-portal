@@ -38,8 +38,8 @@ if ($FBSD_MAJOR >= 10) {
     $PORTSRC      = "http://www.emulab.net/downloads/FreeBSD-10.0-ports.tar.gz";
 }
 my $ZZZ		 = "/usr/local/etc/rc.d/zzz-inelab.sh";
-my $DEFAULTOSID  = "FEDORA15-STD";
-my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU12-64-STD");
+my $DEFAULTOSID  = "UBUNTU14-64-STD";
+my @EXPORTEDOSIDS= ("FBSD82-STD", "UBUNTU12-64-STD", "UBUNTU14-64-STD");
 my $PGOSSITEVAR  = "protogeni/default_osname";
 my $CHPASS	 = "/usr/bin/chpass";
 my $SSHTB	 = "$PREFIX/bin/sshtb";
