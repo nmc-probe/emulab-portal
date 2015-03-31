@@ -345,7 +345,47 @@ sub SetManifest($$)
 
     $self->{'INSTANCE'}->{'manifest'} = $manifest;
     return 0;
-    
+}
+
+#
+# Set/Clear the lockdown bits.
+#
+sub SetLockdown($$$)
+{
+    my ($self,$which,$clear) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uuid = $self->uuid();
+    if ($which eq "admin") {
+	$which = "admin_lockdown";
+    }
+    elsif ($which eq "user") {
+	$which = "user_lockdown";
+    }
+    else {
+	return -1;
+    }
+    my $value = ($clear ? 0 : 1);
+
+    DBQueryWarn("update apt_instances set ${which}=${value} ".
+		"where uuid='$uuid'") or
+	return -1;
+
+    $self->{'INSTANCE'}->{$which} = $value;
+    return 0;
+}
+
+# Return a URL for the status page.
+sub webURL($)
+{
+    my ($self) = @_;
+    my $link = $self->Brand()->wwwBase();
+    $link    = $link . "/status.php?uuid=" . $self->uuid();
+
+    return $link;
 }
 
 #
@@ -432,8 +472,7 @@ sub WarnExpiring($$)
 	print STDERR "WarnExpiring: no email address for $geniuser\n";
 	return 0;
     }
-    my $link = $self->Brand()->wwwBase();
-    $link    = $link . "/status.php?uuid=" . $self->uuid();
+    my $link = $self->webURL();
     
     $self->Brand()->SendEmail($geniuser->email(),
 		     "Your experiment is expiring soon!",
@@ -774,6 +813,39 @@ sub SliverAction($$@)
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, $method, $args);
+}
+
+#
+# Lockdown
+#
+sub Lockdown($$)
+{
+    my ($self, $clear) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $slice     = $self->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+    $args->{"clear"} = 1
+	if ($clear);
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+
+    return Genixmlrpc::CallMethod($cmurl, $context, "Lockdown", $args);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

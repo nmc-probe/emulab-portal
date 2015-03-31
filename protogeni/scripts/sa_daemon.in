@@ -203,7 +203,8 @@ sub WarnSlices()
 	GeniDB::DBQueryWarn("select idx,expires,UNIX_TIMESTAMP(expires), ".
 			    "   UNIX_TIMESTAMP(created) ".
 			    "  from geni_slices ".
-			    "where shutdown is null and exptidx is null");
+			    "where shutdown is null and lockdown=0 and ".
+			    "      exptidx is null");
 
     while (my ($idx,$expires,$stamp,$created) =
 	   $query_result->fetchrow_array()) {
@@ -338,7 +339,8 @@ sub ExpireSlices()
 	GeniDB::DBQueryWarn("select idx from geni_slices ".
 			    "where UNIX_TIMESTAMP(now()) > ".
 			    "      UNIX_TIMESTAMP(expires) and ".
-			    "      shutdown is null and exptidx is null");
+			    "      shutdown is null and lockdown=0 and ".
+			    "      exptidx is null");
 
     while (my ($idx) = $query_result->fetchrow_array()) {
 	my $slice = GeniSlice->Lookup($idx);

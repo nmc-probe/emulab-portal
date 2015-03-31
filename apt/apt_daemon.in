@@ -221,6 +221,7 @@ sub ExpireInstances()
 	DBQueryWarn("select a.uuid,s.expires from apt_instances as a ".
 		    "left join geni.geni_slices as s on s.uuid=a.slice_uuid ".
 		    "where (a.status='ready') and ".
+		    "      a.admin_lockdown=0 and s.lockdown=0 and ".
 		    "      (UNIX_TIMESTAMP(now()) > ".
 		    "       UNIX_TIMESTAMP(s.expires))");
     return
@@ -259,11 +260,63 @@ sub ExpireInstances()
     }
 }
 
+#
+# Warn about locked down instances that have expired. 
+#
+sub ReportLockdownExpired()
+{
+    my @instances;
+    
+    my $query_result =
+	DBQueryWarn("select a.uuid,s.expires from apt_instances as a ".
+		    "left join geni.geni_slices as s on s.uuid=a.slice_uuid ".
+		    "where (a.admin_lockdown=1 or s.lockdown=1) and ".
+		    "      (UNIX_TIMESTAMP(now()) > ".
+		    "       UNIX_TIMESTAMP(s.expires))");
+    return
+	if (!$query_result);
+
+    while (my ($uuid,$expires) = $query_result->fetchrow_array()) {
+	my $instance = APT_Instance->Lookup($uuid);
+	if (!defined($instance)) {
+	    print STDERR "No such instance $uuid\n";
+	    next;
+	}
+	print STDERR "$uuid is locked down but expired at $expires\n";
+	push(@instances, $instance);
+    }
+    return
+	if (!@instances);
+
+    my $text = "";
+    foreach my $instance (@instances) {
+	my $profile = $instance->Profile();
+	my $creator = $instance->creator();
+	my $wwwlink = $instance->webURL();
+
+	$text .= $profile->name() . ",$creator: $wwwlink\n";
+    }
+    SENDMAIL($TBOPS,
+	     "APT daemon: Locked down instances",
+	     "The following instances are locked down but expired:\n\n".
+	     $text . "\n",
+	     $TBOPS);
+    
+}
+
+my $reportcounter = 0;
+
+# Do this once at startup
+if (! NoLogins()) {
+    ReportLockdownExpired();
+}
+
 while (1) {
     if (NoLogins()) {
 	sleep(5);
 	next;
     }
+    $reportcounter += $SLEEP_INTERVAL;
 
     print "Running at ".
 	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
@@ -271,6 +324,12 @@ while (1) {
     KillFailedInstances();
     ExpireInstances();
 
+    # Do this once every 24 hours.
+    if ($reportcounter >= (24 * 60 * 60)) {
+	ReportLockdownExpired();
+	$reportcounter = 0;
+    }
+    
     exit(0)
 	if ($oneshot);
     

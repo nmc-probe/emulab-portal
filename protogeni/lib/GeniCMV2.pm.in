@@ -58,6 +58,7 @@ use GeniStitch;
 use GeniStd;
 use emutil;
 use English;
+use libtestbed;
 use Data::Dumper;
 use XML::Simple;
 use Date::Parse;
@@ -723,6 +724,10 @@ sub DeleteSlice($)
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
+    }
+    if ($slice->lockdown()) {
+	return GeniResponse->Create(GENIRESPONSE_REFUSED(), undef,
+				    "Slice is locked down");
     }
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
@@ -3785,8 +3790,6 @@ sub DescribeDataset($)
 		!defined($image->creator_urn()) ||
 		$image->creator_urn() ne $user->urn());
 
-	print STDERR Dumper($image);
-	
 	$blob->{'state'}    = "valid";
 	$blob->{'type'}     = "imdataset";
 	$blob->{"busy"}     = 0;
@@ -3834,6 +3837,58 @@ sub DescribeDataset($)
 	print STDERR Dumper($blob);
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+}
+
+#
+# Set/Clear the lockdown.
+#
+sub Lockdown($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $clear        = $argref->{'clear'};
+    my $credentials  = $argref->{'credentials'};
+    
+    if (! (defined($credentials) && defined($slice_urn))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if (! GeniHRN::IsValid($slice_urn)) {
+	return GeniResponse->MalformedArgsResponse("Invalid URN");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
+    my $authority = GeniCM::CreateAuthorityFromCertificate($credential);
+    return $authority
+	if (GeniResponse::IsResponse($authority));
+
+    my ($slice, $aggregate) = Credential2SliceAggregate($credential);
+    return $slice
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (! (defined($slice) && defined($aggregate))) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Slice does not exist");
+    }
+    if ($slice_urn ne $slice->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Credential does not match the URN");
+    }
+    if ($slice->creator_urn() ne $user->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "Not enough permission to access image");
+    }
+    main::AddLogfileMetaDataFromSlice($slice);
+
+    if ($slice->SetLockdown(defined($clear) && $clear ? 1 : 0)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

@@ -65,6 +65,9 @@ class Instance
     function status()	    { return $this->field('status'); }
     function public_url()   { return $this->field('public_url'); }
     function manifest()	    { return $this->field('manifest'); }
+    function admin_lockdown() { return $this->field('admin_lockdown'); }
+    function user_lockdown(){ return $this->field('user_lockdown'); }
+    function extension_reason() { return $this->field('extension_reason'); }
     function servername()   { return $this->field('servername'); }
     function IsAPT() {
 	return preg_match('/aptlab/', $this->servername());
@@ -262,6 +265,16 @@ class Instance
                 "urn:publicid:IDN+wisc.cloudlab.us+authority+cm";
         }
         return $am_array;
+    }
+
+    function SetExtensionReason($reason)
+    {
+	$uuid = $this->uuid();
+        $safe_reason = mysql_escape_string($reason);
+
+        DBQueryWarn("update apt_instances set ".
+                    "  extension_reason='$safe_reason' ".
+                    "where uuid='$uuid'");
     }
 }
 ?>
