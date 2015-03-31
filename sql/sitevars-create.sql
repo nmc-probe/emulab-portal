@@ -154,6 +154,7 @@ INSERT INTO sitevariables VALUES ('storage/simultaneous_ro_datasets',NULL,'0','I
 INSERT INTO sitevariables VALUES ('aptlab/message',NULL,'','Message to display at the top of the APT interface',0);
 INSERT INTO sitevariables VALUES ('cloudlab/message',NULL,'','Message to display at the top of the CloudLab interface',0);
 INSERT INTO sitevariables VALUES ('aptui/autoextend_maximum',NULL,'7','Maximum number of days requested that will automaticaly be granted; zero means only admins can extend an experiment.',0);
+INSERT INTO sitevariables VALUES ('aptui/autoextend_maxage',NULL,'14','Maximum age (in days) of an experiment before all extension requests require admin approval.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
