@@ -1133,11 +1133,26 @@ sub os_get_partition_info($$)
     return -1;
 }
 
-sub os_nfsmount($$)
+sub os_nfsmount($$$)
 {
-    my ($remote,$local) = @_;
+    my ($remote,$local,$transport) = @_;
+    my $opts = "-b";
 
-    if (system("$NFSMOUNT $remote $local")) {
+    # XXX backward compat: use default
+    if (!defined($transport)) {
+	;
+    }
+    elsif ($transport eq "TCP") {
+	$opts .= ",tcp";
+    }
+    elsif ($transport eq "UDP") {
+	$opts .= ",udp";
+    }
+    elsif ($transport eq "osdefault") {
+	;
+    }
+
+    if (system("/sbin/mount -o $opts $remote $local")) {
 	return 1;
     }
 

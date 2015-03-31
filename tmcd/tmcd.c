@@ -4771,6 +4771,7 @@ COMMAND_PROTOTYPE(domounts)
 	 */
 	if (vers >= 32) {
 		char *fstype = "";
+		char *transport = NULL;
 
 		/* XXX sanity for code below */
 		if (reqp->sharing_mode[0] && !reqp->isvnode)
@@ -4781,6 +4782,36 @@ COMMAND_PROTOTYPE(domounts)
 		} else if (usesfs) {
 			fstype = "SFS";
 		} else {
+			/*
+			 * See what transport we should use.
+			 *
+			 * N.B. we did not need a version bump here because
+			 * older clients only match on /^FSTYPE=/ and so are
+			 * not affected by putting more stuff at the end of
+			 * the line.
+			 */
+			res = mydb_query("select value,defaultvalue "
+					 "from sitevariables "
+					 "where name='node/nfs_transport'", 2);
+			if (res && (nrows = (int)mysql_num_rows(res)) > 0) {
+				char *value = NULL;
+
+				row = mysql_fetch_row(res);
+				if (row[0] && row[0][0])
+					value = row[0];
+				else if (row[1] && row[1][0])
+					value = row[1];
+				if (value) {
+					if (!strcasecmp(value, "tcp"))
+						transport = "TCP";
+					else if (!strcasecmp(value, "udp"))
+						transport = "UDP";
+					else if (!strcasecmp(value, "osdefault"))
+						transport = "osdefault";
+				}
+			}
+			if (res)
+				mysql_free_result(res);
 #ifdef NFSRACY
 			fstype = "NFS-RACY";
 #else
@@ -4788,7 +4819,12 @@ COMMAND_PROTOTYPE(domounts)
 #endif
 		}
 
-		OUTPUT(buf, sizeof(buf), "FSTYPE=%s\n", fstype);
+		if (transport) {
+			OUTPUT(buf, sizeof(buf), "FSTYPE=%s TRANSPORT=%s\n",
+			       fstype, transport);
+		} else {
+			OUTPUT(buf, sizeof(buf), "FSTYPE=%s\n", fstype);
+		}
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
 #ifdef NOVIRTNFSMOUNTS

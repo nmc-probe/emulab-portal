@@ -2330,10 +2330,24 @@ sub os_get_partition_info($$)
     return -1;
 }
 
-sub os_nfsmount($$)
+sub os_nfsmount($$$)
 {
-    my ($remote,$local) = @_;
-    my $opts = "nolock,udp";
+    my ($remote,$local,$transport) = @_;
+    my $opts = "nolock";
+
+    # XXX backward compat: force UDP
+    if (!defined($transport)) {
+	$opts .= ",udp";
+    }
+    elsif ($transport eq "TCP") {
+	$opts .= ",tcp";
+    }
+    elsif ($transport eq "UDP") {
+	$opts .= ",udp";
+    }
+    elsif ($transport eq "osdefault") {
+	;
+    }
 
     # XXX doesn't work without this
     if (INXENVM()) {
@@ -2343,11 +2357,11 @@ sub os_nfsmount($$)
     #
     # XXX newer mount commands default to v4 and don't recognize "nolock".
     # Since we are not setup for v4 now anyway, explicitly try vers=3 first
-    # and then fall back on vers=2 and then nothing.
+    # and then fall back on vers=2 and then the default.
     #
     if (system("/bin/mount -o vers=3,$opts $remote $local") &&
 	system("/bin/mount -o vers=2,$opts $remote $local") &&
-	system("/bin/mount -o udp $remote $local")) {
+	system("/bin/mount $remote $local")) {
 	return 1;
     }
 
