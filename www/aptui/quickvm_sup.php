@@ -261,7 +261,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='http://docs.cloudlab.us' target='_blank'>Manual</a></form></li>\n";
     }
-    if ($login_user) {
+    if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
 	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
                     Actions <b class='caret'></b></a>
@@ -272,11 +272,13 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li><a href='instantiate.php'>Start Experiment</a></li>
                    <li class='divider'></li>
 	           <li><a href='ssh-keys.php'>Manage SSH Keys</a></li>
-                   <li><a href='getcreds.php'>Download Credentials</a></li>
-	           <li><a href='signup.php'>Start/Join Project</a></li>
-	           <li><a href='changepswd.php'>Change Password</a></li>
-	           <li><a href='logout.php'>Logout</a></li>";
-       echo "      <li class='divider'></li>
+                   <li><a href='getcreds.php'>Download Credentials</a></li>";
+       if (!$login_user->IsNonLocal()) {
+           echo "  <li><a href='signup.php'>Start/Join Project</a></li>
+	           <li><a href='changepswd.php'>Change Password</a></li>";
+       }
+       echo "      <li><a href='logout.php'>Logout</a></li>
+                   <li class='divider'></li>
 	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
        if (ISADMIN()) {
@@ -756,7 +758,8 @@ function RedirectLoginPage()
 }
 
 #
-# Check the login and redirect to login page.
+# Check the login and redirect to login page. We use NONLOCAL modifier
+# since the classic emulab interface refuses service to nonlocal users.
 #
 function CheckLoginOrRedirect($modifier = 0)
 {
@@ -767,7 +770,7 @@ function CheckLoginOrRedirect($modifier = 0)
     if (! ($check_status & CHECKLOGIN_LOGGEDIN)) {
 	RedirectLoginPage();
     }
-    CheckLoginConditions($check_status & ~$modifier);
+    CheckLoginConditions($check_status & ~($modifier|CHECKLOGIN_NONLOCAL));
     return $this_user;
 }
 

@@ -40,7 +40,7 @@ $dblink = GetDBLink("sa");
 RedirectSecure();
 $this_user = CheckLogin($check_status);
 if (isset($this_user)) {
-    CheckLoginOrDie();
+    CheckLoginOrDie(CHECKLOGIN_NONLOCAL|CHECKLOGIN_WEBONLY);
 }
 elseif ($ISCLOUD) {
     RedirectLoginPage();
@@ -213,8 +213,18 @@ function SPITFORM($formfields, $newuser, $errors)
     $amlist     = array();
     $showabout  = ($ISCLOUD || !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
+    $webonly    = ($registered && $this_user->webonly() ? "true" : "false");
     $nopprspec  = (!isset($this_user) || $this_user->IsNonLocal() ?
                    "true" : "false");
+    $portal     = "";
+    # Gack.
+    if (isset($this_user) && $this_user->IsNonLocal()) {
+        if (preg_match("/^[^+]*\+([^+]+)\+([^+]+)\+(.+)$/",
+                       $this_user->nonlocal_id(), $matches) &&
+            $matches[1] == "ch.geni.net") {
+            $portal = "https://portal.geni.net/";
+        }
+    }
 
     # XSS prevention.
     while (list ($key, $val) = each ($formfields)) {
@@ -399,7 +409,7 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "  <div id='selected_profile_description'></div>\n";
         echo "</div>";
         echo "<div class='panel-footer'>";
-        if (isset($this_user)) {
+        if (isset($this_user) && !$this_user->webonly()) {
             echo "<button class='btn btn-default btn-sm pull-left' 
                          type='button' id='profile_copy_button'
                          style='margin-right: 10px;'
@@ -436,7 +446,7 @@ function SPITFORM($formfields, $newuser, $errors)
         $thisuuid = $profile->uuid();
 	echo "<input type='hidden' name='profile' value='$thisuuid'>\n";
     }
-    if (isset($this_user)) {
+    if (isset($this_user) && !$this_user->webonly()) {
         echo "<div class='panel panel-info'>\n";
         echo "  <div class='panel-body bg-info' style='padding: 5px;'>\n";
         #
@@ -468,7 +478,7 @@ function SPITFORM($formfields, $newuser, $errors)
     #
     # Spit out a project selection list if more then one project membership
     #
-    if ($this_user) {
+    if ($this_user && !$this_user->webonly()) {
         if (count($projlist) == 1) {
             echo "<input id='profile_pid' type='hidden'
                      name='formfields[pid]'
@@ -496,7 +506,8 @@ function SPITFORM($formfields, $newuser, $errors)
         }
     }
 
-    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY())) {
+    if (isset($this_user) && !$this_user->webonly() && 
+        ($ISCLOUD || ISADMIN() || STUDLY())) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $amlist[] = $am;
@@ -580,6 +591,8 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "    window.SHOWABOUT  = $showabout;\n";
     echo "    window.NOPPRSPEC  = $nopprspec;\n";
     echo "    window.REGISTERED = $registered;\n";
+    echo "    window.WEBONLY    = $webonly;\n";
+    echo "    window.PORTAL     = '$portal';\n";
     if ($newuser) {
 	echo "window.APT_OPTIONS.isNewUser = true;\n";
     }

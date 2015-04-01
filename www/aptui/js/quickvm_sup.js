@@ -189,6 +189,13 @@ function VerifySpeaksfor(speaksfor, signature)
 	document.cookie = cookie1;
 	document.cookie = cookie2;
 	document.cookie = cookie3;
+
+	if (json.value.webonly) {
+	    alert("You do not belong to any projects at your Portal, " +
+		  "so you will have very limited capabilities. Please " +
+		  "join or create a project at your Portal, to enable " +
+		  "more capabilities.");
+	}
 	if ($('#login_referrer').length) {
 	    window.location.replace($('#login_referrer').val());
 	}

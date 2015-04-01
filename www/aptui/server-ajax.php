@@ -173,6 +173,13 @@ function CheckLoginForAjax($guestokay = false)
 	    SPITAJAX_ERROR(2, "Your account is no longer active");
 	    exit(2);
 	}
+        # Kludge, still thinking about it. If a geni user has no project
+        # permissions at their SA, then we mark the acount as WEBONLY, and
+        # deny access to anything that is not marked as guest okay. 
+	if ($check_status & CHECKLOGIN_WEBONLY && !$guestokay) {
+	    SPITAJAX_ERROR(2, "Your account is not allowed to do this");
+	    exit(2);
+        }
 	return;
     }
     if (!$guestokay) {

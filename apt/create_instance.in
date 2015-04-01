@@ -458,7 +458,15 @@ if ($localuser) {
 	if (0) {
 	    fatal("Could not update ssh keys for nonlocal user");
 	}
-
+	#
+	# Check project membership, must be a member of at least one
+	# valid project at the GPO portal.
+	#
+	system("$UPDATEGENIUSER -p " . $emulab_user->uid());
+	if ($?) {
+	    fatal("Not a member of any projects");
+	}
+	
 	# Nonlocal users get the holding project.
 	$pid = "CloudLab";
     }

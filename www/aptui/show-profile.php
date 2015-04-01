@@ -34,7 +34,7 @@ $page_title = "Show Profile";
 # Get current user.
 #
 RedirectSecure();
-$this_user = CheckLoginOrRedirect();
+$this_user = CheckLoginOrRedirect(CHECKLOGIN_WEBONLY);
 $this_idx  = $this_user->uid_idx();
 $isadmin   = (ISADMIN() ? 1 : 0);
 

@@ -179,10 +179,12 @@ fatal("Could not create user!")
     if (!defined($user));
 
 #
-# Add them to the holding project. This will need more thought.
+# Add them to the holding project. This will need more thought.  Start
+# them out with user permissions, which will prevent them doing much
+# of anything. Adjusted later.
 #
 if (defined($project) &&
-    $project->AddMemberShip($user, $Group::MemberShip::TRUSTSTRING_LOCALROOT)) {
+    $project->AddMemberShip($user, $Group::MemberShip::TRUSTSTRING_USER)) {
     $user->Delete();
     fatal("Could not add new user to project");
 }

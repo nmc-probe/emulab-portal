@@ -14,6 +14,8 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
     var selected_uuid = null;
     var selected_rspec = null;
     var ispprofile    = 0;
+    var webonly       = 0;
+    var portal        = null;
     var registered    = false;
     var jacks = {
       instance: null,
@@ -31,7 +33,10 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
 
 	window.APT_OPTIONS.initialize(sup);
 	registered = window.REGISTERED;
-	ajaxurl = window.AJAXURL;
+	webonly    = window.WEBONLY;
+	portal     = window.PORTAL;
+	ajaxurl    = window.AJAXURL;
+	
 	if ($('#amlist-json').length) {
 	    amlist  = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
 	}
@@ -79,6 +84,17 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
 	    $('#quickvm_topomodal').modal('hide');
 	});
 	$('#instantiate_submit').click(function (event) {
+	    if (webonly) {
+		event.preventDefault();
+		sup.SpitOops("oops",
+		     "You do not belong to any projects at your Portal, " +
+		     "so you have have very limited capabilities. Please " +
+		     "join or create a project at your " +
+		     (portal && portal != "" ?
+		      "<a href='" + portal + "'>Portal</a>" : "Portal") +
+		     " to enable more capabilities. Thanks!")
+		return false;
+	    }
 	    $("#waitwait-modal").modal('show');
 	    return true;
 	});
