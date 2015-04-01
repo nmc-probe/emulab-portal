@@ -33,9 +33,9 @@ use URI::Escape;
 #
 sub usage()
 {
-    print("Usage: import_image [-d] [-v] [-u <user>] [-g] [-p pid] ".
+    print("Usage: image_import [-d] [-v] [-u <user>] [-g] [-p pid] ".
 	  "[-i name] <url>\n");
-    print("       import_image [-d] [-u <user>] -r <imageid>\n");
+    print("       image_import [-d] [-u <user>] -r <imageid>\n");
     print("Options:\n");
     print(" -d      - Turn on debugging\n");
     print(" -v      - Verify XML description only\n");
