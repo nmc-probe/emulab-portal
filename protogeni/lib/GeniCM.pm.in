@@ -1527,6 +1527,25 @@ sub GetTicketAuxAux($$$$$$$$$$)
 				      "weight"   => 0.95})
 	    if (!defined($exclusive) || !$exclusive);
 
+	#
+	# Special hack for allocating from a specific chassis.
+	#
+	my ($chassis) =
+	    GeniXML::FindNodesNS("n:moonshot_chassis", $ref,
+				 $GeniXML::EMULAB_NS)->get_nodelist();
+	if (defined($chassis)) {
+	    my $chnum = GetText("chassis", $chassis);
+	    if ($chnum !~ /^\d+$/ || $chnum < 0 || $chnum > 8) {
+		$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						 "Bad chassis number");
+		goto bad;
+	    }
+	    $virtexperiment->NewTableRow("virt_node_desires",
+					 {"vname"    => $node_nickname,
+					  "desire"   => "ms-chassis${chnum}",
+					  "weight"   => 1.0})
+	}
+
 	# Stub program agent.
 	$virtexperiment->NewTableRow("virt_programs",
 				     {"vnode"   => $node_nickname,
