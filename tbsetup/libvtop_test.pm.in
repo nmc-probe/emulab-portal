@@ -2048,8 +2048,10 @@ sub LoadVirtLans($)
 	    tberror("Target vlan for $porttoken does not exist!\n");
 	    return -1;
 	}
-	# Very primitive access check.
-	if (! ($rowref->{'open'} || $self->user()->IsAdmin())) {
+	# Very primitive access check. But not for Geni experiments,
+	# we made the checks in the CM
+	if (! ($rowref->{'open'} || $self->user()->IsAdmin() ||
+	       exists($ENV{"GENIURN"}))) {
 	    tberror("Target vlan for $porttoken is not open!\n");
 	    return -1;
 	}

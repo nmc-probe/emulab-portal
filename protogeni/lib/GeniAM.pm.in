@@ -1148,7 +1148,9 @@ sub PerformOperationalAction
 	$args->{'slice_urn'} = $slice->urn();
 	$args->{'token'}     = $options->{"geni_sharelan_token"};
 	$args->{'lanname'}   = $options->{"geni_sharelan_lanname"};
-	
+	if (exists($options->{"geni_sharelan_restricted"})) {
+	    $args->{'restricted'} = $options->{"geni_sharelan_restricted"};
+	}
 	return GeniCMV2::ShareLan($args);
     }
     elsif ($action eq 'geni_unsharelan') {

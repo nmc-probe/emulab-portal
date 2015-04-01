@@ -3064,6 +3064,8 @@ sub ShareLanAux($$)
     my $credentials  = $argref->{'credentials'};
     my $linkname     = $argref->{'lanname'};
     my $token        = $argref->{'token'};
+    my $restricted   = (exists($argref->{'restricted'}) &&
+			$argref->{'restricted'} ? 1 : 0);
 
     require Lan;
     
@@ -3136,11 +3138,42 @@ sub ShareLanAux($$)
 				    "Lan is already shared");
     }
     if (!$revoke) {
+	my ($lan_cert, $lan_cred);
+	
+	#
+	# If the sharing is restricted, we need to mint a credential for
+	# the user that they can delegate. 
+	#
+	if ($restricted) {
+	    my $lan_urn = GeniHRN::Generate($OURDOMAIN, "vlan", $vlan->lanid());
+	    my $lan_hrn = "${PGENIDOMAIN}.vlan" . "." . $vlan->lanid();
+	    $lan_cert=
+		GeniCertificate->Create({"urn"   => $lan_urn,
+					 "hrn"   => $lan_hrn,
+					 'email' => $TBOPS});
+	    if (!defined($lan_cert)) {
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					    "Could not create certificate");
+	    }
+	    $lan_cred = 
+		GeniCredential->CreateSigned($lan_cert, $user,
+					     $GeniCredential::LOCALCM_FLAG);
+	    if (!defined($lan_cred)) {
+		$lan_cert->Delete();
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					    "Could not create credential");
+	    }
+	}
+	
 	#
 	# This operation has to be done as an admin person. 
 	#
+	my $opt = ($restricted ? "" : "-o");
+	
 	GeniUtil::FlipToElabMan();
-	my $output = GeniUtil::ExecQuiet("$WAP $SHAREVLAN -o $pid,$eid ".
+	my $output = GeniUtil::ExecQuiet("$WAP $SHAREVLAN $opt $pid,$eid ".
 					 "  $linkname $token");
 	my $ecode  = $?;
 	GeniUtil::FlipToGeniUser();
@@ -3148,6 +3181,8 @@ sub ShareLanAux($$)
 	    print STDERR "Failed to share vlan:\n";
 	    print STDERR $output;
 	    $slice->UnLock();
+	    $lan_cert->Delete()
+		if (defined($lan_cert));
 	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
 	}
 	libtestbed::SENDMAIL($TBOPS, "$linkname has been shared",
@@ -3158,7 +3193,9 @@ sub ShareLanAux($$)
 			     $TBOPS);
 	
 	$slice->UnLock();
-	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
+				    defined($lan_cred) ?
+				    $lan_cred->asString() : undef);
     }
     #
     # Revoking is a litte trickier since we have to worry about the
@@ -3166,6 +3203,14 @@ sub ShareLanAux($$)
     # backend program is going to revoke access from all the experiments
     # using those ports. Oh well.
     #
+    # Delete certificate (in case it was restricted, see above)
+    #
+    my $lan_urn  = GeniHRN::Generate($OURDOMAIN, "vlan", $vlan->lanid());
+    my $lan_cert = GeniCertificate->Lookup($lan_urn);
+    if (defined($lan_cert)) {
+	$lan_cert->Delete();
+    }
+    
     # This operation has to be done as an admin person. 
     #
     GeniUtil::FlipToElabMan();

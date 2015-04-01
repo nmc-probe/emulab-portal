@@ -1869,6 +1869,43 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	my $encap    = "default";
 
 	if (my $shared_vlan = GeniXML::GetSharedLanName($linkref)) {
+	    if ($shared_vlan !~ /^[-\w]*$/) {
+		$response =
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				 "Invalid shared lan name: $shared_vlan");
+		goto bad;
+	    }
+	    my $lanref = Lan->LookupSharedVLanByToken($shared_vlan);
+	    if (!defined($lanref)) {
+		$response =
+		    GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				 "No such shared lan: $shared_vlan");
+		goto bad;
+	    }
+	    if (!$lanref->{'open'}) {
+		#
+		# A closed lan, there needs to be a credential to use it.
+		#
+		my $allowed;
+		
+		foreach my $cred (@$credentials) {
+		    my ($domain, $type, $id) =
+			GeniHRN::Parse($cred->target_urn());
+
+		    if ($domain eq $OURDOMAIN && $type eq "vlan" &&
+			$id == $lanref->{'lanid'}) {
+			$allowed = $cred;
+			last;
+		    }
+		}
+		if (!defined($allowed)) {
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+			     "No permission to use shared lan: $shared_vlan");
+		    goto bad;
+		}
+	    }
+	    
 	    # This is the magic for libvtop.
 	    $virtexperiment->NewTableRow("virt_lan_settings",
 					 {"vname"   => $lanname,
