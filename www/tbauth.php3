@@ -45,30 +45,31 @@ define("CHECKLOGIN_NOTLOGGEDIN",	0);
 define("CHECKLOGIN_LOGGEDIN",		1);
 define("CHECKLOGIN_TIMEDOUT",		2);
 define("CHECKLOGIN_MAYBEVALID",		4);
-define("CHECKLOGIN_STATUSMASK",		0x0000ff);
-define("CHECKLOGIN_MODMASK",		0xffff00);
+define("CHECKLOGIN_STATUSMASK",		0x00000ff);
+define("CHECKLOGIN_MODMASK",		0xfffff00);
 #
 # These are modifiers of the above status fields. They are stored
 # as a bit field in the top part. This is intended to localize as
 # many queries related to login as possible. 
 #
-define("CHECKLOGIN_NEWUSER",		0x000100);
-define("CHECKLOGIN_UNVERIFIED",		0x000200);
-define("CHECKLOGIN_UNAPPROVED",		0x000400);
-define("CHECKLOGIN_ACTIVE",		0x000800);
-define("CHECKLOGIN_USERSTATUS",		0x000f00);
-define("CHECKLOGIN_PSWDEXPIRED",	0x001000);
-define("CHECKLOGIN_FROZEN",		0x002000);
-define("CHECKLOGIN_ISADMIN",		0x004000);
-define("CHECKLOGIN_TRUSTED",		0x008000);
-define("CHECKLOGIN_CVSWEB",		0x010000);
-define("CHECKLOGIN_ADMINON",		0x020000);
-define("CHECKLOGIN_WEBONLY",		0x040000);
-define("CHECKLOGIN_PLABUSER",		0x080000);
-define("CHECKLOGIN_STUDLY",		0x100000);
-define("CHECKLOGIN_WIKIONLY",		0x200000);
-define("CHECKLOGIN_OPSGUY",		0x400000);  # Member of emulab-ops.
-define("CHECKLOGIN_ISFOREIGN_ADMIN",	0x800000);  # Admin of another Emulab.
+define("CHECKLOGIN_NEWUSER",		0x0000100);
+define("CHECKLOGIN_UNVERIFIED",		0x0000200);
+define("CHECKLOGIN_UNAPPROVED",		0x0000400);
+define("CHECKLOGIN_ACTIVE",		0x0000800);
+define("CHECKLOGIN_USERSTATUS",		0x0000f00);
+define("CHECKLOGIN_PSWDEXPIRED",	0x0001000);
+define("CHECKLOGIN_FROZEN",		0x0002000);
+define("CHECKLOGIN_ISADMIN",		0x0004000);
+define("CHECKLOGIN_TRUSTED",		0x0008000);
+define("CHECKLOGIN_CVSWEB",		0x0010000);
+define("CHECKLOGIN_ADMINON",		0x0020000);
+define("CHECKLOGIN_WEBONLY",		0x0040000);
+define("CHECKLOGIN_PLABUSER",		0x0080000);
+define("CHECKLOGIN_STUDLY",		0x0100000);
+define("CHECKLOGIN_WIKIONLY",		0x0200000);
+define("CHECKLOGIN_OPSGUY",		0x0400000);  # Member of emulab-ops.
+define("CHECKLOGIN_ISFOREIGN_ADMIN",	0x0800000);  # Admin of another Emulab.
+define("CHECKLOGIN_NONLOCAL",		0x1000000);
 
 #
 # Constants for tracking possible login attacks.
@@ -262,7 +263,8 @@ function LoginStatus() {
 		     "       status,admin,cvsweb,g.trust,l.adminon,webonly, " .
 		     "       user_interface,n.type,u.stud,u.wikiname, ".
 		     "       u.wikionly,g.pid,u.foreign_admin,u.uid_idx, " .
-		     "       p.allow_workbench,u.weblogin_frozen ".
+		     "       p.allow_workbench,u.weblogin_frozen, ".
+                     "       u.nonlocal_id ".
 		     " from users as u ".
 		     "left join login as l on l.uid_idx=u.uid_idx ".
 		     "left join group_membership as g on g.uid_idx=u.uid_idx ".
@@ -287,6 +289,7 @@ function LoginStatus() {
     $opsguy    = 0;
     $workbench = 0;
     $frozen    = 0;
+    $nonlocal  = 0;
     
     while ($row = mysql_fetch_array($query_result)) {
 	$expired = $row[0];
@@ -320,6 +323,7 @@ function LoginStatus() {
 	$uid_idx         = $row[16];
 	$workbench      += $row[17];
 	$frozen          = $row[18];
+	$nonlocal        = $row[19] ? 1 : 0;
 
 	$CHECKLOGIN_NODETYPES[$type] = 1;
     }
@@ -452,6 +456,8 @@ function LoginStatus() {
 	$CHECKLOGIN_STATUS |= CHECKLOGIN_OPSGUY;
     if ($foreign_admin)
 	$CHECKLOGIN_STATUS |= CHECKLOGIN_ISFOREIGN_ADMIN;
+    if ($nonlocal)
+	$CHECKLOGIN_STATUS |= CHECKLOGIN_NONLOCAL;
 
     #
     # Set the magic enviroment variable, if appropriate, for the sake of
@@ -584,6 +590,9 @@ function CheckLoginConditions($status)
         USERERROR("Your account has not been approved yet!",
 		  1, HTTP_403_FORBIDDEN);
     if (($status & CHECKLOGIN_WEBONLY) && ! ISADMIN())
+        USERERROR("Your account does not permit you to access this page!",
+		  1, HTTP_403_FORBIDDEN);
+    if ($status & CHECKLOGIN_NONLOCAL)
         USERERROR("Your account does not permit you to access this page!",
 		  1, HTTP_403_FORBIDDEN);
     if (($status & CHECKLOGIN_WIKIONLY) && ! ISADMIN())
