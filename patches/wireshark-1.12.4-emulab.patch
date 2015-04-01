@@ -1,26 +1,26 @@
 diff -rNu epan/dissectors/Makefile.common epan/dissectors/Makefile.common
---- epan/dissectors/Makefile.common	2012-06-05 10:33:38.000000000 -0600
-+++ epan/dissectors/Makefile.common	2012-07-05 17:02:00.000000000 -0600
-@@ -534,6 +534,7 @@
+--- epan/dissectors/Makefile.common	2015-03-04 10:08:41.000000000 -0700
++++ epan/dissectors/Makefile.common	2015-03-31 21:57:56.458338755 -0600
+@@ -593,6 +593,7 @@
  	packet-fr.c		\
- 	packet-fractalgeneratorprotocol.c \
+ 	packet-fractalgeneratorprotocol.c	\
  	packet-frame.c		\
 +	packet-frisbee.c	\
  	packet-ftp.c		\
  	packet-fw1.c		\
  	packet-g723.c		\
-@@ -886,6 +887,7 @@
- 	packet-pptp.c		\
+@@ -1002,6 +1003,7 @@
  	packet-prp.c		\
  	packet-ptp.c		\
+ 	packet-ptpip.c		\
 +	packet-pubsub.c		\
+ 	packet-pulse.c		\
  	packet-pvfs2.c		\
  	packet-pw-atm.c		\
- 	packet-pw-cesopsn.c	\
 diff -rNu epan/dissectors/Makefile.in epan/dissectors/Makefile.in
---- epan/dissectors/Makefile.in	2012-06-21 12:21:39.000000000 -0600
-+++ epan/dissectors/Makefile.in	2012-07-05 17:04:03.789219737 -0600
-@@ -420,6 +420,7 @@
+--- epan/dissectors/Makefile.in	2015-03-04 10:09:10.000000000 -0700
++++ epan/dissectors/Makefile.in	2015-03-31 21:57:56.470338378 -0600
+@@ -504,6 +504,7 @@
  	libdissectors_la-packet-fr.lo \
  	libdissectors_la-packet-fractalgeneratorprotocol.lo \
  	libdissectors_la-packet-frame.lo \
@@ -28,31 +28,31 @@ diff -rNu epan/dissectors/Makefile.in epan/dissectors/Makefile.in
  	libdissectors_la-packet-ftp.lo libdissectors_la-packet-fw1.lo \
  	libdissectors_la-packet-g723.lo \
  	libdissectors_la-packet-gadu-gadu.lo \
-@@ -747,6 +748,7 @@
- 	libdissectors_la-packet-pppoe.lo \
+@@ -881,6 +882,7 @@
  	libdissectors_la-packet-pptp.lo libdissectors_la-packet-prp.lo \
  	libdissectors_la-packet-ptp.lo \
+ 	libdissectors_la-packet-ptpip.lo \
 +	libdissectors_la-packet-pubsub.lo \
+ 	libdissectors_la-packet-pulse.lo \
  	libdissectors_la-packet-pvfs2.lo \
  	libdissectors_la-packet-pw-atm.lo \
- 	libdissectors_la-packet-pw-cesopsn.lo \
-@@ -1902,6 +1904,7 @@
+@@ -2231,6 +2233,7 @@
  	packet-fr.c		\
- 	packet-fractalgeneratorprotocol.c \
+ 	packet-fractalgeneratorprotocol.c	\
  	packet-frame.c		\
 +	packet-frisbee.c	\
  	packet-ftp.c		\
  	packet-fw1.c		\
  	packet-g723.c		\
-@@ -2254,6 +2257,7 @@
- 	packet-pptp.c		\
+@@ -2640,6 +2643,7 @@
  	packet-prp.c		\
  	packet-ptp.c		\
+ 	packet-ptpip.c		\
 +	packet-pubsub.c		\
+ 	packet-pulse.c		\
  	packet-pvfs2.c		\
  	packet-pw-atm.c		\
- 	packet-pw-cesopsn.c	\
-@@ -2642,6 +2646,7 @@
+@@ -3075,6 +3079,7 @@
  	packet-fmp.h	\
  	packet-fr.h	\
  	packet-frame.h	\
@@ -60,15 +60,15 @@ diff -rNu epan/dissectors/Makefile.in epan/dissectors/Makefile.in
  	packet-ftam.h	\
  	packet-giop.h	\
  	packet-gluster.h	\
-@@ -2768,6 +2773,7 @@
- 	packet-ppi-geolocation-common.h		\
+@@ -3210,6 +3215,7 @@
  	packet-ppp.h	\
  	packet-pres.h	\
+ 	packet-ptpip.h	\
 +	packet-pubsub.h	\
  	packet-pw-atm.h		\
  	packet-pw-common.h	\
  	packet-q708.h	\
-@@ -3407,6 +3413,7 @@
+@@ -3909,6 +3915,7 @@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-fr.Plo@am__quote@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-fractalgeneratorprotocol.Plo@am__quote@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-frame.Plo@am__quote@
@@ -76,46 +76,46 @@ diff -rNu epan/dissectors/Makefile.in epan/dissectors/Makefile.in
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-ftam.Plo@am__quote@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-ftp.Plo@am__quote@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-fw1.Plo@am__quote@
-@@ -3807,6 +3814,7 @@
- @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-pptp.Plo@am__quote@
+@@ -4375,6 +4382,7 @@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-prp.Plo@am__quote@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-ptp.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-ptpip.Plo@am__quote@
 +@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-pubsub.Plo@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-pulse.Plo@am__quote@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-pvfs2.Plo@am__quote@
  @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-pw-atm.Plo@am__quote@
- @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdissectors_la-packet-pw-cesopsn.Plo@am__quote@
-@@ -6432,6 +6440,13 @@
+@@ -7323,6 +7331,13 @@
  @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
- @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-frame.lo `test -f 'packet-frame.c' || echo '$(srcdir)/'`packet-frame.c
+ @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-frame.lo `test -f 'packet-frame.c' || echo '$(srcdir)/'`packet-frame.c
  
 +libdissectors_la-packet-frisbee.lo: packet-frisbee.c
-+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-frisbee.lo -MD -MP -MF "$(DEPDIR)/libdissectors_la-packet-frisbee.Tpo" -c -o libdissectors_la-packet-frisbee.lo `test -f 'packet-frisbee.c' || echo '$(srcdir)/'`packet-frisbee.c; \
-+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libdissectors_la-packet-frisbee.Tpo" "$(DEPDIR)/libdissectors_la-packet-frisbee.Plo"; else rm -f "$(DEPDIR)/libdissectors_la-packet-frisbee.Tpo"; exit 1; fi
-+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='packet-frisbee.c' object='libdissectors_la-packet-frisbee.lo' libtool=yes @AMDEPBACKSLASH@
++@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-frisbee.lo -MD -MP -MF $(DEPDIR)/libdissectors_la-packet-frisbee.Tpo -c -o libdissectors_la-packet-frisbee.lo `test -f 'packet-frisbee.c' || echo '$(srcdir)/'`packet-frisbee.c
++@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdissectors_la-packet-frisbee.Tpo $(DEPDIR)/libdissectors_la-packet-frisbee.Plo
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='packet-frisbee.c' object='libdissectors_la-packet-frisbee.lo' libtool=yes @AMDEPBACKSLASH@
 +@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-frisbee.lo `test -f 'packet-frisbee.c' || echo '$(srcdir)/'`packet-frisbee.c
++@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-frisbee.lo `test -f 'packet-frisbee.c' || echo '$(srcdir)/'`packet-frisbee.c
 +
  libdissectors_la-packet-ftp.lo: packet-ftp.c
- @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-ftp.lo -MD -MP -MF "$(DEPDIR)/libdissectors_la-packet-ftp.Tpo" -c -o libdissectors_la-packet-ftp.lo `test -f 'packet-ftp.c' || echo '$(srcdir)/'`packet-ftp.c; \
- @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libdissectors_la-packet-ftp.Tpo" "$(DEPDIR)/libdissectors_la-packet-ftp.Plo"; else rm -f "$(DEPDIR)/libdissectors_la-packet-ftp.Tpo"; exit 1; fi
-@@ -8896,6 +8911,13 @@
+ @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-ftp.lo -MD -MP -MF $(DEPDIR)/libdissectors_la-packet-ftp.Tpo -c -o libdissectors_la-packet-ftp.lo `test -f 'packet-ftp.c' || echo '$(srcdir)/'`packet-ftp.c
+ @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdissectors_la-packet-ftp.Tpo $(DEPDIR)/libdissectors_la-packet-ftp.Plo
+@@ -10186,6 +10201,13 @@
  @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
- @am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-ptp.lo `test -f 'packet-ptp.c' || echo '$(srcdir)/'`packet-ptp.c
+ @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-ptpip.lo `test -f 'packet-ptpip.c' || echo '$(srcdir)/'`packet-ptpip.c
  
 +libdissectors_la-packet-pubsub.lo: packet-pubsub.c
-+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-pubsub.lo -MD -MP -MF "$(DEPDIR)/libdissectors_la-packet-pubsub.Tpo" -c -o libdissectors_la-packet-pubsub.lo `test -f 'packet-pubsub.c' || echo '$(srcdir)/'`packet-pubsub.c; \
-+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libdissectors_la-packet-pubsub.Tpo" "$(DEPDIR)/libdissectors_la-packet-pubsub.Plo"; else rm -f "$(DEPDIR)/libdissectors_la-packet-pubsub.Tpo"; exit 1; fi
-+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='packet-pubsub.c' object='libdissectors_la-packet-pubsub.lo' libtool=yes @AMDEPBACKSLASH@
++@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-pubsub.lo -MD -MP -MF $(DEPDIR)/libdissectors_la-packet-pubsub.Tpo -c -o libdissectors_la-packet-pubsub.lo `test -f 'packet-pubsub.c' || echo '$(srcdir)/'`packet-pubsub.c
++@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdissectors_la-packet-pubsub.Tpo $(DEPDIR)/libdissectors_la-packet-pubsub.Plo
++@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='packet-pubsub.c' object='libdissectors_la-packet-pubsub.lo' libtool=yes @AMDEPBACKSLASH@
 +@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-pubsub.lo `test -f 'packet-pubsub.c' || echo '$(srcdir)/'`packet-pubsub.c
++@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -c -o libdissectors_la-packet-pubsub.lo `test -f 'packet-pubsub.c' || echo '$(srcdir)/'`packet-pubsub.c
 +
- libdissectors_la-packet-pvfs2.lo: packet-pvfs2.c
- @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-pvfs2.lo -MD -MP -MF "$(DEPDIR)/libdissectors_la-packet-pvfs2.Tpo" -c -o libdissectors_la-packet-pvfs2.lo `test -f 'packet-pvfs2.c' || echo '$(srcdir)/'`packet-pvfs2.c; \
- @am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/libdissectors_la-packet-pvfs2.Tpo" "$(DEPDIR)/libdissectors_la-packet-pvfs2.Plo"; else rm -f "$(DEPDIR)/libdissectors_la-packet-pvfs2.Tpo"; exit 1; fi
+ libdissectors_la-packet-pulse.lo: packet-pulse.c
+ @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libdissectors_la_CFLAGS) $(CFLAGS) -MT libdissectors_la-packet-pulse.lo -MD -MP -MF $(DEPDIR)/libdissectors_la-packet-pulse.Tpo -c -o libdissectors_la-packet-pulse.lo `test -f 'packet-pulse.c' || echo '$(srcdir)/'`packet-pulse.c
+ @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libdissectors_la-packet-pulse.Tpo $(DEPDIR)/libdissectors_la-packet-pulse.Plo
 diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 --- epan/dissectors/packet-frisbee.c	1969-12-31 17:00:00.000000000 -0700
-+++ epan/dissectors/packet-frisbee.c	2012-07-06 17:05:37.000000000 -0600
-@@ -0,0 +1,590 @@
++++ epan/dissectors/packet-frisbee.c	2015-03-31 21:58:37.672335770 -0600
+@@ -0,0 +1,598 @@
 +/* packet-frisbee.c
 + * Routines for Utah Emulab frisbee protocol.
 + * Mike Hibler
@@ -154,6 +154,8 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 +#include <glib.h>
 +#include <epan/packet.h>
 +#include <epan/prefs.h>
++#include <epan/wmem/wmem.h>
++#include <stdio.h>
 +
 +#include "packet-frisbee.h"
 +
@@ -209,7 +211,7 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 + * Returns number of blocks in map.
 + */
 +int
-+parse_blockmap(BlockMap_t *blockmap, emem_strbuf_t *buf)
++parse_blockmap(BlockMap_t *blockmap, wmem_strbuf_t *buf)
 +{
 +    int block, count, mask;
 +    unsigned int i;
@@ -229,12 +231,12 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 +            } else {
 +                if (count > 0) {
 +                    if (did > 0)
-+                        ep_strbuf_append(buf, ",");
++                        wmem_strbuf_append(buf, ",");
 +                    if (count > 1)
-+                        ep_strbuf_append_printf(buf, "%d-%d",
-+                                                block, block+count-1);
++                        wmem_strbuf_append_printf(buf, "%d-%d",
++                                                  block, block+count-1);
 +                    else
-+                        ep_strbuf_append_printf(buf, "%d", block);
++                        wmem_strbuf_append_printf(buf, "%d", block);
 +                    did += count;
 +                    count = 0;
 +                }
@@ -245,12 +247,12 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 +    }
 +    if (count > 0) {
 +        if (did > 0)
-+            ep_strbuf_append(buf, ",");
++            wmem_strbuf_append(buf, ",");
 +        if (count > 1)
-+            ep_strbuf_append_printf(buf, "%d-%d",
-+                                    block, block+count-1);
++            wmem_strbuf_append_printf(buf, "%d-%d",
++                                      block, block+count-1);
 +        else
-+            ep_strbuf_append_printf(buf, "%d", block);
++            wmem_strbuf_append_printf(buf, "%d", block);
 +        did += count;
 +    }
 +
@@ -261,7 +263,7 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 + * Grievous oversight: all values are in little-endian on the wire!
 + */
 +static int
-+dissect_frisbee(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
++dissect_frisbee(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 +{
 +    proto_item	*ti = NULL;
 +    proto_tree	*frisbee_tree = NULL;
@@ -269,7 +271,7 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 +    int		offset = 0, count;
 +    guint	len;
 +    Packet_t	tmp;
-+    emem_strbuf_t *buf;
++    wmem_strbuf_t *buf;
 +
 +    /* Quick sanity check */
 +    if (tvb_length(tvb) < sizeof(tmp.hdr))
@@ -417,19 +419,20 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 +        if (len > sizeof(BlockMap_t))
 +            len = sizeof(BlockMap_t);
 +        tvb_memcpy(tvb, &tmp.msg.prequest.blockmap, offset, len);
-+        buf = ep_strbuf_new_label(NULL);
++        buf = wmem_strbuf_new_label(wmem_packet_scope());
 +        count = parse_blockmap(&tmp.msg.prequest.blockmap, buf);
 +        if (count > 0) {
 +            if (tree) {
 +                if (len < sizeof(BlockMap_t))
 +                    proto_tree_add_text(msg_tree, tvb, offset, len,
 +                                        "blocks (Truncated after %d of %d blocks): %d [%s]",
-+                                        len*CHAR_BIT, sizeof(BlockMap_t)*CHAR_BIT,
-+                                        count, buf->str);
++                                        len*CHAR_BIT, (int)sizeof(BlockMap_t)*CHAR_BIT,
++                                        count, wmem_strbuf_get_str(buf));
 +
 +                else
 +                    proto_tree_add_text(msg_tree, tvb, offset, len,
-+                                        "blocks: %d [%s]", count, buf->str);
++                                        "blocks: %d [%s]", count,
++                                        wmem_strbuf_get_str(buf));
 +            }
 +            offset += len;
 +            col_append_fstr(pinfo->cinfo, COL_INFO, ", %d blocks", count);
@@ -671,9 +674,9 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 +}
 +
 +static gboolean
-+dissect_frisbee_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
++dissect_frisbee_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 +{
-+	if (dissect_frisbee(tvb, pinfo, tree) == 0)
++	if (dissect_frisbee(tvb, pinfo, tree, data) == 0)
 +		return FALSE;
 +
 +	return TRUE;
@@ -687,11 +690,16 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 +void
 +proto_reg_handoff__frisbee(void)
 +{
-+	dissector_handle_t frisbee_handle;
++    static gboolean frisbee_prefs_initialized = FALSE;
++    static dissector_handle_t frisbee_handle;
 +
-+	frisbee_handle = new_create_dissector_handle(dissect_frisbee,
++    if (!frisbee_prefs_initialized) {
++        frisbee_handle = new_create_dissector_handle(dissect_frisbee,
 +                                                     proto_frisbee);
-+	heur_dissector_add("udp", dissect_frisbee_heur, proto_frisbee);
++        heur_dissector_add("udp", dissect_frisbee_heur, proto_frisbee);
++        dissector_add_handle("udp.port", frisbee_handle);
++        frisbee_prefs_initialized = TRUE;
++    }
 +}
 +
 +/*
@@ -708,33 +716,16 @@ diff -rNu epan/dissectors/packet-frisbee.c epan/dissectors/packet-frisbee.c
 + */
 diff -rNu epan/dissectors/packet-frisbee.h epan/dissectors/packet-frisbee.h
 --- epan/dissectors/packet-frisbee.h	1969-12-31 17:00:00.000000000 -0700
-+++ epan/dissectors/packet-frisbee.h	2012-07-05 12:11:44.000000000 -0600
++++ epan/dissectors/packet-frisbee.h	2015-03-31 21:57:56.477338737 -0600
 @@ -0,0 +1,423 @@
 +/*
 + * From clientside/os/frisbee.redux/decls.h
 + */
 +
 +/*
++ * EMULAB-COPYRIGHT
 + * Copyright (c) 2000-2011 University of Utah and the Flux Group.
-+ * 
-+ * {{{EMULAB-LICENSE
-+ * 
-+ * This file is part of the Emulab network testbed software.
-+ * 
-+ * This file is free software: you can redistribute it and/or modify it
-+ * under the terms of the GNU Affero General Public License as published by
-+ * the Free Software Foundation, either version 3 of the License, or (at
-+ * your option) any later version.
-+ * 
-+ * This file is distributed in the hope that it will be useful, but WITHOUT
-+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
-+ * License for more details.
-+ * 
-+ * You should have received a copy of the GNU Affero General Public License
-+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
-+ * 
-+ * }}}
++ * All rights reserved.
 + */
 +
 +/*
@@ -1152,7 +1143,7 @@ diff -rNu epan/dissectors/packet-frisbee.h epan/dissectors/packet-frisbee.h
 +#endif
 diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 --- epan/dissectors/packet-pubsub.c	1969-12-31 17:00:00.000000000 -0700
-+++ epan/dissectors/packet-pubsub.c	2012-07-06 17:17:29.000000000 -0600
++++ epan/dissectors/packet-pubsub.c	2015-03-31 21:57:56.478338529 -0600
 @@ -0,0 +1,415 @@
 +/* packet-pubsub.c
 + * Routines for Utah Emulab pubsub protocol
@@ -1203,7 +1194,6 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +static int hf_pubsub_key = -1;
 +static int hf_pubsub_valtype = -1;
 +static int hf_pubsub_vallen = -1;
-+static int hf_pubsub_value = -1;
 +
 +static gint ett_pubsub = -1;
 +static gint ett_pubsub_items = -1;
@@ -1236,7 +1226,7 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +    { 0, NULL }
 +};
 +
-+static int
++static void
 +dissect_pubsub(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 +{
 +    int		offset = 0;
@@ -1302,7 +1292,7 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +    if (tmp.len == sizeof(pheader_t)) {
 +        col_append_fstr(pinfo->cinfo, COL_INFO,
 +                        " Reply: Seq=%d", tmp.seq);
-+        return tvb_length(tvb);
++        //return tvb_length(tvb);
 +    }
 +    col_append_fstr(pinfo->cinfo, COL_INFO, ": Seq=%d ", tmp.seq);
 +
@@ -1361,7 +1351,7 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +        break;
 +    }
 +
-+    return tvb_length(tvb);
++    //return tvb_length(tvb);
 +}
 +
 +static void
@@ -1371,7 +1361,8 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +    proto_item	*item_ti = NULL;
 +    int		item_offset, val_offset;
 +    int		len, itype, ilen;
-+    char	*key, *val, valbuf[1024];
++    char	*key, valbuf[1024];
++    const char	*val;
 +
 +    while ((len = tvb_reported_length_remaining(tvb, offset)) > 0) {
 +        item_ti = proto_tree_add_item(tree, hf_pubsub_items, tvb,
@@ -1386,7 +1377,7 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +        ilen = tvb_get_ntohl(tvb, offset);
 +        offset += 4;
 +
-+        key = tvb_get_ephemeral_string(tvb, offset, ilen);
++        key = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, ilen, ENC_ASCII|ENC_NA);
 +        offset += ilen;
 +        if (ilen % 4)
 +            offset += (4 - (ilen % 4));
@@ -1430,7 +1421,7 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +            break;
 +        }
 +        case STRING_TYPE:
-+            val = tvb_get_ephemeral_string(tvb, offset, ilen);
++            val = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, ilen, ENC_ASCII|ENC_NA);
 +            break;
 +        case OPAQUE_TYPE:
 +            val = "[data]";
@@ -1554,7 +1545,7 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 +	dissector_handle_t pubsub_handle;
 +
 +	pubsub_handle = create_dissector_handle(dissect_pubsub, proto_pubsub);
-+	dissector_add("tcp.port", TCP_PORT_PUBSUB, pubsub_handle);
++	dissector_add_uint("tcp.port", TCP_PORT_PUBSUB, pubsub_handle);
 +}
 +
 +/*
@@ -1571,7 +1562,7 @@ diff -rNu epan/dissectors/packet-pubsub.c epan/dissectors/packet-pubsub.c
 + */
 diff -rNu epan/dissectors/packet-pubsub.h epan/dissectors/packet-pubsub.h
 --- epan/dissectors/packet-pubsub.h	1969-12-31 17:00:00.000000000 -0700
-+++ epan/dissectors/packet-pubsub.h	2012-07-05 09:14:46.000000000 -0600
++++ epan/dissectors/packet-pubsub.h	2015-03-31 21:57:56.479338324 -0600
 @@ -0,0 +1,73 @@
 +/*
 + * From pubsub/network.h
@@ -1647,53 +1638,52 @@ diff -rNu epan/dissectors/packet-pubsub.h epan/dissectors/packet-pubsub.h
 +	OPAQUE_TYPE = 7,
 +} pubsub_type_t;
 diff -rNu epan/dissectors/register.c epan/dissectors/register.c
---- epan/dissectors/register.c	2012-06-21 12:23:16.000000000 -0600
-+++ epan/dissectors/register.c	2012-07-06 17:18:09.000000000 -0600
-@@ -21,6 +21,7 @@
-   {extern void proto_register_9P (void); if(cb) (*cb)(RA_REGISTER, "proto_register_9P", client_data); proto_register_9P ();}
-   {extern void proto_register_HI2Operations (void); if(cb) (*cb)(RA_REGISTER, "proto_register_HI2Operations", client_data); proto_register_HI2Operations ();}
-   {extern void proto_register_ISystemActivator (void); if(cb) (*cb)(RA_REGISTER, "proto_register_ISystemActivator", client_data); proto_register_ISystemActivator ();}
-+  {extern void proto_register__frisbee (void); if(cb) (*cb)(RA_REGISTER, "proto_register__frisbee", client_data); proto_register__frisbee ();}
-   {extern void proto_register_a11 (void); if(cb) (*cb)(RA_REGISTER, "proto_register_a11", client_data); proto_register_a11 ();}
-   {extern void proto_register_aarp (void); if(cb) (*cb)(RA_REGISTER, "proto_register_aarp", client_data); proto_register_aarp ();}
-   {extern void proto_register_aasp (void); if(cb) (*cb)(RA_REGISTER, "proto_register_aasp", client_data); proto_register_aasp ();}
-@@ -783,6 +784,7 @@
-   {extern void proto_register_pres (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pres", client_data); proto_register_pres ();}
-   {extern void proto_register_prp (void); if(cb) (*cb)(RA_REGISTER, "proto_register_prp", client_data); proto_register_prp ();}
-   {extern void proto_register_ptp (void); if(cb) (*cb)(RA_REGISTER, "proto_register_ptp", client_data); proto_register_ptp ();}
-+  {extern void proto_register_pubsub (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pubsub", client_data); proto_register_pubsub ();}
-   {extern void proto_register_pvfs (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pvfs", client_data); proto_register_pvfs ();}
-   {extern void proto_register_pw_atm_ata (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pw_atm_ata", client_data); proto_register_pw_atm_ata ();}
-   {extern void proto_register_pw_cesopsn (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pw_cesopsn", client_data); proto_register_pw_cesopsn ();}
-@@ -1123,6 +1125,7 @@
-   {extern void proto_reg_handoff_9P (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_9P", client_data); proto_reg_handoff_9P ();}
-   {extern void proto_reg_handoff_HI2Operations (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_HI2Operations", client_data); proto_reg_handoff_HI2Operations ();}
-   {extern void proto_reg_handoff_ISystemActivator (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_ISystemActivator", client_data); proto_reg_handoff_ISystemActivator ();}
-+  {extern void proto_reg_handoff__frisbee (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff__frisbee", client_data); proto_reg_handoff__frisbee ();}
-   {extern void proto_reg_handoff_a11 (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_a11", client_data); proto_reg_handoff_a11 ();}
-   {extern void proto_reg_handoff_aarp (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_aarp", client_data); proto_reg_handoff_aarp ();}
-   {extern void proto_reg_handoff_aasp (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_aasp", client_data); proto_reg_handoff_aasp ();}
-@@ -1836,6 +1839,7 @@
-   {extern void proto_reg_handoff_pres (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pres", client_data); proto_reg_handoff_pres ();}
-   {extern void proto_reg_handoff_prp (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_prp", client_data); proto_reg_handoff_prp ();}
-   {extern void proto_reg_handoff_ptp (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_ptp", client_data); proto_reg_handoff_ptp ();}
-+  {extern void proto_reg_handoff_pubsub (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pubsub", client_data); proto_reg_handoff_pubsub ();}
-   {extern void proto_reg_handoff_pvfs (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pvfs", client_data); proto_reg_handoff_pvfs ();}
-   {extern void proto_reg_handoff_pw_atm_ata (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pw_atm_ata", client_data); proto_reg_handoff_pw_atm_ata ();}
-   {extern void proto_reg_handoff_pw_cesopsn (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pw_cesopsn", client_data); proto_reg_handoff_pw_cesopsn ();}
-@@ -2152,13 +2156,13 @@
+--- epan/dissectors/register.c	2015-03-04 10:10:55.000000000 -0700
++++ epan/dissectors/register.c	2015-03-31 21:57:56.482338627 -0600
+@@ -24,6 +24,7 @@
+     {extern void proto_register_AllJoyn (void); if(cb) (*cb)(RA_REGISTER, "proto_register_AllJoyn", client_data); proto_register_AllJoyn ();}
+     {extern void proto_register_HI2Operations (void); if(cb) (*cb)(RA_REGISTER, "proto_register_HI2Operations", client_data); proto_register_HI2Operations ();}
+     {extern void proto_register_ISystemActivator (void); if(cb) (*cb)(RA_REGISTER, "proto_register_ISystemActivator", client_data); proto_register_ISystemActivator ();}
++    {extern void proto_register__frisbee (void); if(cb) (*cb)(RA_REGISTER, "proto_register__frisbee", client_data); proto_register__frisbee ();}
+     {extern void proto_register_a11 (void); if(cb) (*cb)(RA_REGISTER, "proto_register_a11", client_data); proto_register_a11 ();}
+     {extern void proto_register_a21 (void); if(cb) (*cb)(RA_REGISTER, "proto_register_a21", client_data); proto_register_a21 ();}
+     {extern void proto_register_aarp (void); if(cb) (*cb)(RA_REGISTER, "proto_register_aarp", client_data); proto_register_aarp ();}
+@@ -913,6 +914,7 @@
+     {extern void proto_register_prp (void); if(cb) (*cb)(RA_REGISTER, "proto_register_prp", client_data); proto_register_prp ();}
+     {extern void proto_register_ptp (void); if(cb) (*cb)(RA_REGISTER, "proto_register_ptp", client_data); proto_register_ptp ();}
+     {extern void proto_register_ptpip (void); if(cb) (*cb)(RA_REGISTER, "proto_register_ptpip", client_data); proto_register_ptpip ();}
++    {extern void proto_register_pubsub (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pubsub", client_data); proto_register_pubsub ();}
+     {extern void proto_register_pulse (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pulse", client_data); proto_register_pulse ();}
+     {extern void proto_register_pvfs (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pvfs", client_data); proto_register_pvfs ();}
+     {extern void proto_register_pw_atm_ata (void); if(cb) (*cb)(RA_REGISTER, "proto_register_pw_atm_ata", client_data); proto_register_pw_atm_ata ();}
+@@ -1306,6 +1308,7 @@
+     {extern void proto_reg_handoff_AllJoyn (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_AllJoyn", client_data); proto_reg_handoff_AllJoyn ();}
+     {extern void proto_reg_handoff_HI2Operations (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_HI2Operations", client_data); proto_reg_handoff_HI2Operations ();}
+     {extern void proto_reg_handoff_ISystemActivator (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_ISystemActivator", client_data); proto_reg_handoff_ISystemActivator ();}
++    {extern void proto_reg_handoff__frisbee (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff__frisbee", client_data); proto_reg_handoff__frisbee ();}
+     {extern void proto_reg_handoff_a11 (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_a11", client_data); proto_reg_handoff_a11 ();}
+     {extern void proto_reg_handoff_a21 (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_a21", client_data); proto_reg_handoff_a21 ();}
+     {extern void proto_reg_handoff_aarp (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_aarp", client_data); proto_reg_handoff_aarp ();}
+@@ -2117,6 +2120,7 @@
+     {extern void proto_reg_handoff_prp (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_prp", client_data); proto_reg_handoff_prp ();}
+     {extern void proto_reg_handoff_ptp (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_ptp", client_data); proto_reg_handoff_ptp ();}
+     {extern void proto_reg_handoff_ptpIP (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_ptpIP", client_data); proto_reg_handoff_ptpIP ();}
++    {extern void proto_reg_handoff_pubsub (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pubsub", client_data); proto_reg_handoff_pubsub ();}
+     {extern void proto_reg_handoff_pulse (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pulse", client_data); proto_reg_handoff_pulse ();}
+     {extern void proto_reg_handoff_pvfs (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pvfs", client_data); proto_reg_handoff_pvfs ();}
+     {extern void proto_reg_handoff_pw_atm_ata (void); if(cb) (*cb)(RA_HANDOFF, "proto_reg_handoff_pw_atm_ata", client_data); proto_reg_handoff_pw_atm_ata ();}
+@@ -2476,12 +2480,12 @@
  
  static gulong proto_reg_count(void)
  {
--  return 1097;
-+  return 1099;
- 
+-    return 1277;
++    return 1279;
  }
  
  static gulong handoff_reg_count(void)
  {
--  return 1033;
-+  return 1035;
- 
+-    return 1176;
++    return 1178;
  }
  
+ gulong register_count(void)
