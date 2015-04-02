@@ -37,6 +37,9 @@ $NODE_USAGE_DB = 'node_usage';
   ["d820s", [qw(d820)], 1346155200]
 );
 
+# List of nodes to put into current free bar graph.
+@free_types = ('pc600', 'pc850', 'pc3000', 'd710', 'd820');
+
 #
 # PHP page header and footer for main page
 #
