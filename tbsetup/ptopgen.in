@@ -2277,12 +2277,17 @@ sub print_header {
 			"\" />\n";
 		}
 	    }
-	    my $result = DBQueryFatal("select token from shared_vlans ".
-				      "where open=1");
+	    my $result = DBQueryFatal("select token,open from shared_vlans");
 	    if ($result->rows > 0) {
 		print "<rspec_shared_vlan xmlns=\"" . $sharedns . "\">\n";
-		while (($token) = $result->fetchrow_array) {
-		    print "  <available name=\"" . $token . "\"/>\n";
+		while (($token,$open) = $result->fetchrow_array) {
+		    print "  <available name=\"" . $token . "\" ";
+		    my $restricted = "true";
+		    if ($open) {
+			$restricted = "false"
+		    }
+		    print "restricted=\"$restricted\" ";
+		    print "/>\n";
 		}
 		print "</rspec_shared_vlan>\n";
 	    }
