@@ -99,3 +99,5 @@ print PLOT "set style histogram rowstacked\n";
 print PLOT "plot 'freenodes.dat' using 2 ti col, '' using 3:xtic(1) ti col\n";
 close(PLOT)
     or die("Error running gnuplot");
+
+system("cp -fp freenodes.svg @prefix@/www/node_usage/");

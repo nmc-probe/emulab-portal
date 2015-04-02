@@ -29,7 +29,6 @@ cd @prefix@/libexec/node_usage
 ./gather
 ./analy
 ./analy2
-./freenodes
 ./mk-plots
 ./mk-php-pages
 ./publish

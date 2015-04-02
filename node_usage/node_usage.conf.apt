@@ -29,11 +29,11 @@ $NODE_USAGE_DB = 'node_usage';
 #   ...
 #
 @to_plot = (
-  ["r320s r720s", [qw(r320 r720)]],
+  ["r320s", [qw(r320)]],
 );
 
 # List of nodes to put into current free bar graph.
-@free_types = ('r320', 'r720');
+@free_types = ('r320');
 
 #
 # PHP page header and footer for main page
