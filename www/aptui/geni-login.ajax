@@ -403,7 +403,7 @@ function CreateNonLocalUser($urn, $email)
     $safe_email = escapeshellarg($email);
     
     $retval = SUEXEC("elabman", $TBOPSPID,
-		     "webcreategeniuser CloudLab $safe_urn $safe_email",
+		     "webcreategeniuser -p CloudLab $safe_urn $safe_email",
 		     SUEXEC_ACTION_CONTINUE);
     if ($retval)
 	return -1;
