@@ -29,7 +29,7 @@ $NODE_USAGE_DB = 'node_usage';
 #   ...
 #
 @to_plot = (
-  ["C220M4s", [qw(C220M4]],
+  ["C220M4s", [qw(C220M4)]],
 );
 
 # List of nodes to put into current free bar graph.
