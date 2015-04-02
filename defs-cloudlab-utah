@@ -142,3 +142,9 @@ AMD_ROOT=/.amd_mnt/ops
 
 # Blockstores
 BS_IQN_PREFIX=iqn.2014-11.us.cloudlab.utah
+
+#
+# If enabled, needs setup, see:
+#   http://users.emulab.net/trac/emulab/wiki/NodeUsageInstall
+#
+NODE_USAGE_SUPPORT=1
