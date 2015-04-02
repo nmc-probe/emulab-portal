@@ -521,3 +521,9 @@ DISABLE_NSE=1
 #
 PROTOGENI_SUPPORT=1
 PROTOGENI_DOMAIN="cloudlab-wisc"
+
+#
+# If enabled, needs setup, see:
+#   http://users.emulab.net/trac/emulab/wiki/NodeUsageInstall
+#
+NODE_USAGE_SUPPORT=1
