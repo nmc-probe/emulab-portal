@@ -154,6 +154,7 @@ if ($doprojects) {
     else {
 	$target_user->Update({"webonly" => 1});
     }
+    if (0) {
     my @projects;
     $target_user->ProjectMembershipList(\@projects);
     foreach my $project (@projects) {
@@ -163,6 +164,7 @@ if ($doprojects) {
 	$membership->ModifyTrust((@geniprojects ?
 				  $Group::MemberShip::TRUSTSTRING_LOCALROOT :
 				  $Group::MemberShip::TRUSTSTRING_USER));
+    }
     }
 }
 exit(0);
