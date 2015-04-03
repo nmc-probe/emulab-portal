@@ -308,7 +308,7 @@ function Do_RequestExtension()
             #
             if ($cdiff > (3600 * 24 * $autoextend_maxage)) {
                 $needapproval = 1;
-                $granted = 1;
+                $granted = 2;
                 $message = "because it was started more then ".
                     "$autoextend_maxage days ago";
             }
@@ -422,6 +422,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
     $new_expires = date("Y-m-d H:i:s",
                         strtotime($slice->expires()) + ($howlong * 3600 * 24));
+    $created = date("Y-m-d H:i:s", strtotime($instance->created()));
 		    
     $instance->SendEmail($APTMAIL,
         "Experiment Extension Request: $uuid",
@@ -431,9 +432,10 @@ function needAdminApproval($wanted, $granted, $reason, $message)
         "The request was for $wanted days, we granted $granted days, ".
         "the reason given is:\n\n".
         $reason . "\n\n".
+        "This experiment was started on $created\n".
         "Granting the request would set the expiration to $new_expires\n".
-        "Click on the following link (red-dot) to grant ".
-        "the request\n\n". $url . "\n\n",
+        "It is running on ". $instance->aggregate_urn() . "\n".
+        "\n\n". $url . "\n\n",
         "From: " . $creator->email());
 
     $instance->SetExtensionReason($reason);
