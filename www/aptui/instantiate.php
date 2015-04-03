@@ -213,7 +213,8 @@ function SPITFORM($formfields, $newuser, $errors)
     $amlist     = array();
     $showabout  = ($ISCLOUD || !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
-    $webonly    = ($registered && $this_user->webonly() ? "true" : "false");
+    $webonly    = (isset($this_user) &&
+                   $this_user->webonly() ? "true" : "false");
     $nopprspec  = (!isset($this_user) || $this_user->IsNonLocal() ?
                    "true" : "false");
     $portal     = "";
