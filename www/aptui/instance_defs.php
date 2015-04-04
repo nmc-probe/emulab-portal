@@ -69,6 +69,7 @@ class Instance
     function user_lockdown(){ return $this->field('user_lockdown'); }
     function extension_reason() { return $this->field('extension_reason'); }
     function servername()   { return $this->field('servername'); }
+    function aggregate_urn(){ return $this->field('aggregate_urn'); }
     function IsAPT() {
 	return preg_match('/aptlab/', $this->servername());
     }
