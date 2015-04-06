@@ -10,17 +10,20 @@ function (_, sup, sshkeysString, oopsString, waitwaitString)
     'use strict';
     var embedded        = 0;
     var target_uid      = "";
+    var nonlocal        = false;
     var sshkeysTemplate = _.template(sshkeysString);
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
 	embedded = window.EMBEDDED;
+	nonlocal = window.NONLOCAL;
 	target_uid = window.TARGET_UID;
 	var pubkeys = JSON.parse(_.unescape($('#sshkey-list')[0].textContent));
 
 	var html = sshkeysTemplate({
 	    pubkeys:	pubkeys,
+	    nonlocal:	nonlocal,
 	});
 	$('#page-body').html(html);
 	$('#oops_div').html(oopsString);

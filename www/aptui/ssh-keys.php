@@ -44,6 +44,7 @@ if (!isset($target_user)) {
 }
 $target_uid = $target_user->uid();
 $target_idx = $target_user->idx();
+$nonlocal   = ($target_user->IsNonLocal() ? "true" : "false");
 
 if (! ($target_user->SameUser($this_user) ||
        $target_user->AccessCheck($this_user, $TB_USERINFO_READINFO))) {
@@ -70,6 +71,7 @@ echo "<div id='page-body'></div>\n";
 echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL     = 'server-ajax.php';\n";
 echo "    window.TARGET_UID  = '$target_uid';\n";
+echo "    window.NONLOCAL    = $nonlocal;\n";
 echo "</script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
