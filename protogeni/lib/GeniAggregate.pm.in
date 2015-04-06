@@ -1688,6 +1688,26 @@ sub WaitForNodes($$@)
 		$node->_parent()->_waitend(time());
 	    }
 	}
+	# Adjust for image backed datasets which take more time to load.
+	my @blockstores = $experiment->LookupBlockstoresForNode($node->vname());
+	if (@blockstores) {
+	    require Blockstore;
+
+	    foreach my $blockstore (@blockstores) {
+		next
+		    if ($blockstore->type() ne "imdataset");
+		my $bsname = $blockstore->vname();
+		my $extra  = Blockstore::LoadEstimate($blockstore);
+
+		if ($extra < 0) {
+		    print STDERR
+			"*** Could not compute load estimate for $bsname\n";
+		    next;
+		}
+		print "Adding $extra seconds for blockstore $bsname\n";
+		$node->_maxwait($node->_maxwait() + $extra);
+	    }
+	}
     }
 
     #

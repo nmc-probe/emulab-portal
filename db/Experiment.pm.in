@@ -6342,7 +6342,8 @@ sub ClearGlobalIPAllocation($)
 }
 
 #
-# Find the blockstore details from the virt table. 
+# Find the blockstore details from the virt table. We should
+# make this a first class object, but too lazy right now.
 #
 sub LookupBlockstore($$)
 {
@@ -6358,7 +6359,41 @@ sub LookupBlockstore($$)
 	    last;
 	}
     }
+    if (defined($blockstore)) {
+	$blockstore->{'attributes'} = {};
+	foreach my $row
+	    ($virtexp->Table("virt_blockstore_attributes")->Rows()) {
+	    if ($row->vname() eq $bsname) {
+		$blockstore->{'attributes'}->{$row->attrkey()} =
+		    $row->attrvalue();
+	    }
+	}
+    }
     return $blockstore;
+}
+
+#
+# Lookup blockstores for a node in the topology.
+#
+sub LookupBlockstoresForNode($$)
+{
+    my ($self, $vname) = @_;
+    my @blockstores = ();
+    
+    # Now get this after we are sure we need it.
+    my $virtexp = $self->GetVirtExperiment();
+    
+    foreach my $bs ($virtexp->Table("virt_blockstores")->Rows()) {
+	if ($bs->fixed() eq $vname) {
+	    my $blockstore = $self->LookupBlockstore($bs->vname());
+	    if (!defined($blockstore)) {
+		print STDERR "Could not get blockstore for $vname\n";
+		return undef;
+	    }
+	    push(@blockstores, $blockstore);
+	}
+    }
+    return @blockstores;
 }
 
 sub LookupAddressPools($$)

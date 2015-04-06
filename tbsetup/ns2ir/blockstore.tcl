@@ -174,8 +174,10 @@ Blockstore instproc set-mount-point {newmount} {
 Blockstore instproc load-dataset {dataset} {
     $self instvar attributes
     $self instvar node
+    $self instvar type
 
     set attributes(dataset) $dataset
+    set type "imdataset"
     return
 }
 

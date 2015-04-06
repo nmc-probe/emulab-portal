@@ -637,6 +637,38 @@ sub ConvertToMebi($)
     return $size;
 }
 
+#
+# Compute a load time estimate for an image backed dataset.
+#
+sub LoadEstimate($)
+{
+    my ($blockstore) = @_;
+    my $bsname = $blockstore->vname();
+    require Image;
+
+    if (!exists($blockstore->{'attributes'}->{"dataset"})) {
+	print STDERR "No dataset attribute for $bsname\n";
+	return -1;
+    }
+    my $dataset = $blockstore->{'attributes'}->{"dataset"};
+    my $image   = Image->Lookup($dataset);
+    if (!defined($image)) {
+	print STDERR "No image for dataset $dataset for $bsname\n";
+	return -1;
+    }
+    # Bad, but don't want to use bignums to get MBs.
+    my $size = int(($image->lba_high() - $image->lba_low()) *
+		   ($image->lba_size() / (1024.0 * 1024.0)));
+    
+    #
+    # Temporary approach; look for the size attribute and use that
+    # to extend the waittime. Later we will use the amount of actual
+    # data.
+    #
+    my $extratime = int($size / 100);
+    return $extratime;
+}
+
 ############################################################################
 #
 # Package to describe a specific reservation of a blockstore.
