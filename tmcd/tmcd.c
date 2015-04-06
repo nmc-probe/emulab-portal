@@ -5369,12 +5369,13 @@ static int
 get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 		  int *disknump, int *biosdisknump, int *dotrimp,
 		  char **useacpip, char **useasfp, char **noclflushp,
-		  char **vgaonlyp, char **consoletypep, char **dom0memp)
+		  char **vgaonlyp, char **consoletypep, char **dom0memp,
+		  char **disableifp)
 {
 	MYSQL_RES	*res2;
 	MYSQL_ROW	row2;
 	char		*disktype, *useacpi, *useasf, *noclflush, *dom0mem;
-	char		*vgaonly, *consoletype, *attrclause;
+	char		*vgaonly, *consoletype, *disableif, *attrclause;
 	int		disknum, biosdisknum, dotrim;
 	unsigned int	trimtime;
 
@@ -5413,6 +5414,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	vgaonly = NULL;
 	consoletype = NULL;
 	dom0mem = NULL;
+	disableif = NULL;
 
 	/*
 	 * This query is intended to select certain attributes from
@@ -5445,6 +5447,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 		" attrkey='console_type' or "
 		" attrkey='vgaonly' or "
 		" attrkey='dom0mem' or "
+		" attrkey='ignore_if' or "
 		" attrkey='no_clflush')";
 
 	res2 = mydb_query("(select attrkey,attrvalue from nodes as n "
@@ -5523,6 +5526,10 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 					if (consoletype) free(consoletype);
 					consoletype = attrstr;
 				}
+				else if (strcmp(row2[0], "disable_if") == 0) {
+					if (disableif) free(disableif);
+					disableif = attrstr;
+				}
 			}
 			nrows2--;
 		}
@@ -5536,6 +5543,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	*noclflushp = noclflush ? noclflush : strdup("unknown");
 	*vgaonlyp = vgaonly;
 	*consoletypep = consoletype;
+	*disableifp = disableif;
 	*dom0memp = dom0mem ? dom0mem : strdup("1024M");
 
 	if (res2)
@@ -5588,7 +5596,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 	char            *loadpart, *OS, *prepare, *version;
 	int		nrows, zfill;
 	char		*server, *disktype, *useacpi, *useasf, *noclflush;
-	char		*vgaonly, *consoletype, *dom0mem;
+	char		*vgaonly, *consoletype, *dom0mem, *disableif;
 	int		disknum, biosdisknum, dotrim;
 
 	/*
@@ -5641,7 +5649,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 	 */
 	if (get_node_loadinfo(reqp, &server, &disktype, &disknum, &biosdisknum,
 			      &dotrim, &useacpi, &useasf, &noclflush,
-			      &vgaonly, &consoletype, &dom0mem)) {
+			      &vgaonly, &consoletype, &dom0mem, &disableif)) {
 		mysql_free_result(res);
 		return 1;
 	}
@@ -5780,6 +5788,10 @@ COMMAND_PROTOTYPE(doloadinfo)
 		}
 		bufp += OUTPUT(bufp, ebufp - bufp,
 			       " DOM0MEM=%s", dom0mem);
+		if (disableif) {
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       " DISABLEIF=%s", disableif);
+		}
 		if (dotrim > 0) {
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       " TRIM=%d", dotrim);
@@ -5942,6 +5954,8 @@ COMMAND_PROTOTYPE(doloadinfo)
 		free(consoletype);
 	if (dom0mem)
 		free(dom0mem);
+	if (disableif)
+		free(disableif);
 
 	client_writeback(sock, buf, strlen(buf), tcp);
 	if (verbose)
