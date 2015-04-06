@@ -1026,7 +1026,9 @@ sub main
 
 	# HACK: there's no simple way to distinguish grub2 from grub
 	# by the boot sector.
-	if ($bootloader eq 'grub' && -f "$imageroot/boot/grub/grub.cfg") {
+	if ($bootloader eq 'grub' &&
+	    (-f "$imageroot/boot/grub2/grub.cfg" ||
+	     -f "$imageroot/boot/grub/grub.cfg")) {
 		$bootloader = 'grub2';
 	}
 
@@ -1047,7 +1049,7 @@ sub main
 
 	}
 	elsif ($bootloader eq 'grub2') {
-		for (qw#/boot/grub/grub.cfg#) {
+		for (qw#/boot/grub2/grub.cfg /boot/grub/grub.cfg#) {
 			if (-f "$imageroot/$_") {
 				$grub_config = $_;
 				last;

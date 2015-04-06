@@ -1002,11 +1002,13 @@ dolinux() {
 	#
 	needfsck=0
 	fgconf=""
-	for f in grub.conf grub.cfg menu.lst; do
-	    if [ -z "$fgconf" -a -r /mnt/boot/grub/$f ]; then
-		fgconf=/boot/grub/$f
-		gconf=/mnt$fgconf
-	    fi
+	for d in grub2 grub; do
+	    for f in grub.conf grub.cfg menu.lst; do
+		if [ -z "$fgconf" -a -r /mnt/boot/$d/$f ]; then
+		    fgconf=/boot/$d/$f
+		    gconf=/mnt$fgconf
+		fi
+	    done
 	done
 	if [ -n "$fgconf" -a -r "$gconf" ]; then
 	    echo "  updating $fgconf"
@@ -1033,9 +1035,13 @@ dolinux() {
 
 	    # Ditto for UUID if we have one and grub conf uses it
 	    if [ -n "$RUUID" ] && \
-		grep -q '[br]oot=\)UUID=[^ ]* ' $tgconf 2>/dev/null; then
-		echo "    fixing root (UUID)"
-		sed -i '' -e "s;\([br]oot=\)UUID=[^ ]* ;\1UUID=$RUUID ;" $tgconf
+		grep -q -E '[br]oot=UUID=[^ ]+ ' $tgconf 2>/dev/null; then
+		OUUID=`grep -E -m 1 '[br]oot=UUID=[^ ]+ ' $tgconf | \
+			sed -e 's;.*UUID=\([^ ]*\) .*;\1;'`
+		if [ -n "$OUUID" -a $RUUID -ne $OUUID ]; then
+		    echo "    fixing root (UUID)"
+		    sed -i '' -e "s;$OUUID;$RUUID;g" $tgconf
+		fi
 	    fi
 
 	    #
@@ -1081,6 +1087,11 @@ dolinux() {
 	    if grep -q "^[^#].*set root='(hd[0-9],[^)]*)'" $tgconf 2>/dev/null; then
 		echo "    setting grub2 root to (hd${gdisk},${part})"
 		sed -i '' -e "s;set root='(hd[0-9],[^)]*)';set root='(hd${gdisk},${part})';" $tgconf
+	    fi
+	    # maybe no parens around the expression
+	    if grep -q "^[^#].*set root='hd[0-9],[^']*'" $tgconf 2>/dev/null; then
+		echo "    setting grub2 root to hd${gdisk},${part}"
+		sed -i '' -e "s;set root='hd[0-9],[^']*';set root='hd${gdisk},${part}';" $tgconf
 	    fi
 
 	    #
