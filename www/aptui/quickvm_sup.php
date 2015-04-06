@@ -271,11 +271,11 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li><a href='manage_profile.php'>Create Profile</a></li>
                    <li><a href='instantiate.php'>Start Experiment</a></li>
                    <li class='divider'></li>
-	           <li><a href='ssh-keys.php'>Manage SSH Keys</a></li>
-                   <li><a href='getcreds.php'>Download Credentials</a></li>";
+                   <li><a href='getcreds.php'>Download Credentials</a></li>
+                   <li><a href='ssh-keys.php'>Manage SSH Keys</a></li>
+                   <li><a href='signup.php'>Start/Join Project</a></li>\n";
        if (!$login_user->IsNonLocal()) {
-           echo "  <li><a href='signup.php'>Start/Join Project</a></li>
-	           <li><a href='changepswd.php'>Change Password</a></li>";
+           echo "  <li><a href='changepswd.php'>Change Password</a></li>";
        }
        echo "      <li><a href='logout.php'>Logout</a></li>
                    <li class='divider'></li>
