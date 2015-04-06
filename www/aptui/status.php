@@ -38,7 +38,7 @@ $ajax_request = 0;
 #
 $this_user = CheckLogin($check_status);
 if (isset($this_user)) {
-    CheckLoginOrDie();
+    CheckLoginOrDie(CHECKLOGIN_NONLOCAL);
 }
 
 #
