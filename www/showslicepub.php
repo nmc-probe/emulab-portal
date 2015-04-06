@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,20 +26,34 @@ include_once("geni_defs.php");
 include("table_defs.php");
 
 #
+# Get current user.
+#
+$this_user = CheckLogin($check_status);
+
+#
 # Public info, if you know the public token for the slice. 
 #
 $reqargs = RequiredPageArguments("publicid",  PAGEARG_STRING);
-
-#
-# Standard Testbed Header
-#
-PAGEHEADER("Geni Slice");
 
 $slice = GeniSlice::LookupByPublicID("cm", $publicid);
 if (!$slice) {
     USERERROR("No such slice $publicid", 1);
 }
 $slice_idx = $slice->idx();
+
+#
+# Send admins to the non-public page.
+#
+if (ISADMIN()) {
+    header("Location: ".
+           "$TBBASE/showslice.php?slice_idx=${slice_idx}&showtype=cm");
+    return;
+}
+
+#
+# Standard Testbed Header
+#
+PAGEHEADER("Geni Slice");
 
 function GeneratePopupDiv($id, $text) {
     return "<div id=\"$id\" ".

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -97,9 +97,9 @@ if ($slice->monitor_pid()) {
     $rows[] = array("Monitor PID"  => $slice->monitor_pid());
 }
 if ($slice->publicid()) {
-    $url = "$TBDOCBASE/showslicepub.php?publicid=" . $slice->publicid();
+    $url = "$TBBASE/showslicepub.php?publicid=" . $slice->publicid();
     
-    $rows[] = array("Public URL" => "<a href='$url'>http:// ...</a>");
+    $rows[] = array("Public URL" => "<a href='$url'>https:// ...</a>");
 }
 if (($manifest = $slice->GetManifest())) {
     $popups[] = GeneratePopupDiv("manifest$manifestidx", $manifest);
