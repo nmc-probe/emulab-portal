@@ -1881,12 +1881,22 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    }
 	}
 
+	my $isshared = 0;
+	my $emulated = 0;
+	my $encap    = "default";
+	
+	#
+	# Allow user to turn on link multiplexing. If multiplexing is on
+	# then set encapsulation to vlan. Might conflict with stuff below.
+	#
+	if (GeniXML::IsMultiplexedLan($linkref)) {
+	    $emulated = 1;
+	    $encap    = "vlan";
+	}
+
 	#
 	# Look for shared and tagging attributes for the link.
 	#
-	my $isshared = 0;
-	my $encap    = "default";
-
 	if (my $shared_vlan = GeniXML::GetSharedLanName($linkref)) {
 	    if ($shared_vlan !~ /^[-\w]*$/) {
 		$response =
@@ -2250,6 +2260,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					  "vport"       => $iface_vport,
 					  "vindex"	=> $vindex,
 					  "trivial_ok"  => $trivial_ok,
+					  "emulated"    => $emulated,
 					  "nobwshaping" => $besteffort,
 					  "ip"          => $ip,
 					  "delay"       => $latency,

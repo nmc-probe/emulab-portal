@@ -953,6 +953,14 @@ sub HasTagSetting($)
     return scalar(@tagged);
 }
 
+sub HasMultiplexSetting($)
+{
+    my ($link) = @_;
+    my @tmp    = FindNodesNS("n:link_multiplexing", $link,
+			     $EMULAB_NS)->get_nodelist();
+    return scalar(@tmp);
+}
+
 sub HasBestEffortSetting($)
 {
     my ($link) = @_;
@@ -982,6 +990,19 @@ sub IsTaggedLan($)
 			     $EMULAB_NS)->get_nodelist();
     if (scalar(@tagged) > 0) {
 	my $enabled = GetText("enabled", $tagged[0]);
+	$result = defined($enabled) && $enabled eq "true";
+    }
+    return $result;
+}
+
+sub IsMultiplexedLan($)
+{
+    my ($link) = @_;
+    my $result = 0;
+    my @tmp    = FindNodesNS("n:link_multiplexing", $link,
+			     $EMULAB_NS)->get_nodelist();
+    if (scalar(@tmp) > 0) {
+	my $enabled = GetText("enabled", $tmp[0]);
 	$result = defined($enabled) && $enabled eq "true";
     }
     return $result;
