@@ -135,6 +135,22 @@ if ($dosshkeys) {
     UpdateSSHKeys();
 }
 if ($doprojects) {
+    #
+    # If user is a member of a local project, then we can skip this
+    # check, we have vetted them ourselves.
+    #
+    my @projects;
+    if ($target_user->ProjectMembershipList(\@projects)) {
+	fatal("Error getting local project list");
+    }
+    # XXX All nonlocal cloudlab users are a member of the holding project,
+    # but that does not count as project membership.
+    if (@projects > 1) {
+	print "Local membership: @projects\n";
+	$target_user->Update({"webonly" => 0})
+	    if (!$impotent);
+	exit(0);
+    }
     my @geniprojects = ProjectMembership();
     if (@geniprojects) {
 	print "Portal membership: @geniprojects\n";
