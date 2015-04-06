@@ -59,6 +59,8 @@ esac
 # Handle pseudo arguments in the environment.
 #
 
+OLDBSD=${SLICEFIX_OLDBSD:-''}
+
 #
 # Explicitly enable/disable ACPI (BSD only)
 #
@@ -829,7 +831,7 @@ EOF1
 	umount $rootdev
 
 	# XXX need to fixup FS, see big comment above
-	if [ "x$vers" != "x4" ]; then
+	if [ "x$vers" != "x4" -a -n "$OLDBSD" ]; then
 		echo "WARNING: FBSD${vers} may have modified the UFS1 root FS"
 	fi
 

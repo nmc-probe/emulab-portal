@@ -513,6 +513,18 @@ fixone() {
     export SLICEFIX_DOM0MEM=`getvar DOM0MEM "$iline" unknown`
     export SLICEFIX_DISABLEIF=`getvar DISABLEIF "$iline" unknown`
 
+    #
+    # XXX stop complaining about potential UFS1 problems
+    # unless we are loading old FBSD4xx image.
+    #
+    _os=`getvar PARTOS "$iline" unknown`;
+    _osv=`getvar OSVERSION "$iline" 0`;
+    case "$_os/$_osv" in
+    FreeBSD/4.*)
+	export SLICEFIX_OLDFBSD=1
+	;;
+    esac
+
     $BINDIR/slicefix $PART $DISK
     return $?
 }
