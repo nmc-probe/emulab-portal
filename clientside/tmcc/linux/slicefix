@@ -599,7 +599,22 @@ dofreebsd() {
 	    dd if=/dev/random of=/mnt/entropy bs=4096 count=1 >/dev/null 2>&1
 	fi
 
-	lcbak=".preemulab"
+	#
+	# Modify /boot/loader.conf.
+	#
+	# We append all our settings at the end, prefixed by a header line.
+	# We also create a copy of the file before we make any modifications.
+	# This way the "prepare" script run when creating a new image can
+	# remove all these settings easily.
+	#
+	cp -p /mnt/boot/loader.conf /mnt/boot/loader.conf.preemulab || {
+	    echo "WARNING: could not create a copy of loader.conf"
+	}
+	cat <<EOF4 >>/mnt/boot/loader.conf
+# The remaining lines were added by Emulab slicefix.
+# DO NOT ADD ANYTHING AFTER THIS POINT AS IT WILL GET REMOVED.
+EOF4
+
 	if [ $changeacpi -eq 1 ]; then
 	    if [ $ACPI = "no" ]; then
 		on="dis"
@@ -607,15 +622,6 @@ dofreebsd() {
 		on="en"
 	    fi
 	    echo "  ${on}abling ACPI"
-	    if [ -n "$lcbak" ]; then
-		cp -fp /mnt/boot/loader.conf /mnt/boot/loader.conf${lcbak}
-		lcbak=""
-	    fi
-	    sed -i -e "/[Aa][Cc][Pp][Ii]/d" /mnt/boot/loader.conf || {
-		echo "Failed to update /boot/loader.conf"
-		umount $rootdev
-		return 1
-	    }
 	    if [ $ACPI = "no" ]; then
 		cat <<EOF1 >>/mnt/boot/loader.conf
 # disable ACPI
@@ -639,15 +645,6 @@ EOF2
 		on="en"
 	    fi
 	    echo "  ${on}abling ASF"
-	    if [ -n "$lcbak" ]; then
-		cp -fp /mnt/boot/loader.conf /mnt/boot/loader.conf${lcbak}
-		lcbak=""
-	    fi
-	    sed -i -e "/[Aa][Ss][Ff]/d" /mnt/boot/loader.conf || {
-		echo "Failed to update /boot/loader.conf"
-		umount $rootdev
-		return 1
-	    }
 	    if [ $ASF = "no" ]; then
 		cat <<EOF1 >>/mnt/boot/loader.conf
 # disable ASF
@@ -678,17 +675,6 @@ EOF0
 	#
 	if [ $changecons -eq 1 ]; then
 	    echo "  setting console to $CONSOLE"
-
-	    if [ -n "$lcbak" ]; then
-		cp -fp /mnt/boot/loader.conf /mnt/boot/loader.conf${lcbak}
-		lcbak=""
-	    fi
-	    # get rid of any existing console setting
-	    sed -i -e "/^console=/d" /mnt/boot/loader.conf || {
-		echo "Failed to update /boot/loader.conf"
-		umount $rootdev
-		return 1
-	    }
 
 	    case $CONSOLE in
 	    null|vid)
@@ -724,11 +710,6 @@ EOF0
 	    cat <<EOF1 >>/mnt/boot/loader.conf
 console="$cname"
 EOF1
-
-	    # get rid of any comconsole excesses
-	    if [ "$curconsole" = "comconsole" ]; then
-		sed -E -i -e "/^comconsole/d" -e "/^hint.$drv./d" /mnt/boot/loader.conf
-	    fi
 
 	    # now deal with comconsole settings
 	    if [ "$cname" = "comconsole" ]; then
@@ -783,15 +764,6 @@ EOF2
 		on="en"
 	    fi
 	    echo "  ${on}abling use of CLFLUSH"
-	    if [ -n "$lcbak" ]; then
-		cp -fp /mnt/boot/loader.conf /mnt/boot/loader.conf${lcbak}
-		lcbak=""
-	    fi
-	    sed -E -i -e "/clflush_disable/d" /mnt/boot/loader.conf || {
-		echo "Failed to update /boot/loader.conf"
-		umount $rootdev
-		return 1
-	    }
 	    cat <<EOF1 >>/mnt/boot/loader.conf
 # ${on}able CLFLUSH (hw.clflush_disable)
 hw.clflush_disable=$NOCLFLUSH

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,6 +46,7 @@ my $SFSUSERS    = "/etc/sfs/sfs_users";
 my $SFSHOSTKEY  = "/etc/sfs/sfs_host_key";
 my $MOUNTINFO	= "/var/db/mounttab";
 my $ENTROPY	= "/var/db/entropy/*";
+my $LOADERCONF	= "/boot/loader.conf";
 
 #
 # Dead wood in $BINDIR
@@ -238,6 +239,14 @@ if (-f $NTPDRIFT) {
 	die("Could not open $NTPDRIFT: $!");
     print DRIFT "0\n";
     close(DRIFT);
+}
+
+#
+# Restore a clean loader.conf file.
+#
+if (-f "$LOADERCONF.preemulab") {
+    print "Restoring original $LOADERCONF ...\n";
+    system("cp -p $LOADERCONF.preemulab $LOADERCONF");
 }
 
 print "Cleaning .pid files ...\n";
