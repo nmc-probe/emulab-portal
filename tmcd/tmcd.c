@@ -5447,7 +5447,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 		" attrkey='console_type' or "
 		" attrkey='vgaonly' or "
 		" attrkey='dom0mem' or "
-		" attrkey='ignore_if' or "
+		" attrkey='disable_if' or "
 		" attrkey='no_clflush')";
 
 	res2 = mydb_query("(select attrkey,attrvalue from nodes as n "
