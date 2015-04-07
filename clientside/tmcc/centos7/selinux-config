@@ -1,4 +1,3 @@
-
 # This file controls the state of SELinux on the system.
 # SELINUX= can take one of these three values:
 #     enforcing - SELinux security policy is enforced.
@@ -8,6 +7,4 @@ SELINUX=disabled
 # SELINUXTYPE= can take one of these two values:
 #     targeted - Targeted processes are protected,
 #     mls - Multi Level Security protection.
-SELINUXTYPE=targeted 
-
-
+SELINUXTYPE=targeted

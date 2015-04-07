@@ -57,7 +57,8 @@ COMMON		= $(SRCDIR)/../common
 DEFRUNLVLDIR	= $(RCDIR)/rc3.d
 
 install client-install:	baselinux-client-install common-install etc-install \
-			sup-install script-install bin-install
+			sup-install script-install bin-install \
+			sysetc-onceonly-install
 	@echo "Remember to install the PEM files if necessary"
 
 mfs-install: client-install baselinux-mfs-install
@@ -113,10 +114,10 @@ sysetc-install:	ifcfgs dir-install
 #	$(INSTALL) -m 644 ifcfg-eth[0-9]* $(SYSETCDIR)/sysconfig/network-scripts
 #	$(INSTALL) -m 744 $(SRCDIR)/ifup-emulabcnet $(SYSETCDIR)/sysconfig/network-scripts
 #	$(INSTALL) -m 644 $(SRCDIR)/logrotate-syslog $(SYSETCDIR)/logrotate.d/syslog
-#	$(INSTALL) -m 644 $(SRCDIR)/emulab-fstab-fixup.service $(SYSETCDIR)/systemd/system
+	$(INSTALL) -m 644 $(SRCDIR)/emulab-fstab-fixup.service $(SYSETCDIR)/systemd/system
 #	$(INSTALL) -m 644 $(SRCDIR)/ntpd.service $(SYSETCDIR)/systemd/system
 #	rm -f $(SYSETCDIR)/systemd/system/multi-user.target.wants/ntpd.service
-#	systemctl enable emulab-fstab-fixup.service
+	systemctl enable emulab-fstab-fixup.service
 #	systemctl enable ntpd.service
 	@echo "XXX sysetc-install commented out"
 
@@ -128,14 +129,14 @@ sysetc-remove:
 # or sufficient for all FCs
 sysetc-onceonly-install:
 #	@$(MYINSTALL) $(SRCDIR)/emulab-ld.so.conf $(SYSETCDIR)/ld.so.conf.d/emulab.conf
-#	@$(MYINSTALL) $(SRCDIR)/network $(SYSETCDIR)/sysconfig/network
+	@$(MYINSTALL) $(SRCDIR)/network $(SYSETCDIR)/sysconfig/network
 #	@$(MYINSTALL) $(SRCDIR)/init $(SYSETCDIR)/sysconfig/init
 #	@$(MYINSTALL) -m 644 $(SRCDIR)/i18n $(SYSETCDIR)/sysconfig/i18n
 #	@$(MYINSTALL) -m 600 $(SRCDIR)/login.defs $(SYSETCDIR)/login.defs
 #	@$(MYINSTALL) -m 600 $(SRCDIR)/securetty $(SYSETCDIR)/securetty
-#	@$(MYINSTALL) -m 440 $(SRCDIR)/sudoers $(SYSETCDIR)/sudoers
+	@$(MYINSTALL) -m 440 $(SRCDIR)/sudoers $(SYSETCDIR)/sudoers
 #	@$(MYINSTALL) $(SRCDIR)/rsyslog.conf $(SYSETCDIR)/rsyslog.conf
-#	@$(MYINSTALL) $(SRCDIR)/selinux-config $(SYSETCDIR)/selinux/config
+	@$(MYINSTALL) $(SRCDIR)/selinux-config $(SYSETCDIR)/selinux/config
 	@echo "XXX sysetc-onceonly-install commented out"
 
 script-install:	dir-install $(SCRIPTS)
