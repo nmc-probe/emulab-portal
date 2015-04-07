@@ -84,7 +84,7 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
 	    $('#quickvm_topomodal').modal('hide');
 	});
 	$('#instantiate_submit').click(function (event) {
-	    if (webonly) {
+	    if (webonly != 0) {
 		event.preventDefault();
 		sup.SpitOops("oops",
 		     "You do not belong to any projects at your Portal, " +

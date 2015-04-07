@@ -190,7 +190,7 @@ function VerifySpeaksfor(speaksfor, signature)
 	document.cookie = cookie2;
 	document.cookie = cookie3;
 
-	if (json.value.webonly) {
+	if (json.value.webonly != 0) {
 	    alert("You do not belong to any projects at your Portal, " +
 		  "so you will have very limited capabilities. Please " +
 		  "join or create a project at your Portal, to enable " +
