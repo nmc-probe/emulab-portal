@@ -184,7 +184,7 @@ fatal("Could not create user!")
 # of anything. Adjusted later.
 #
 if (defined($project) &&
-    $project->AddMemberShip($user, $Group::MemberShip::TRUSTSTRING_USER)) {
+    $project->AddMemberShip($user, $Group::MemberShip::TRUSTSTRING_LOCALROOT)) {
     $user->Delete();
     fatal("Could not add new user to project");
 }
