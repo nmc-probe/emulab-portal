@@ -202,6 +202,7 @@ loadone() {
     _NUM=$4
 
     echo "Loading image #$_NUM"
+    echo "  LOADINFO=\"$_LOADINFO\""
 
     ADDR=`getvar ADDR "$_LOADINFO"`;
     SERVER=`getvar SERVER "$_LOADINFO" $BOSSIP`;

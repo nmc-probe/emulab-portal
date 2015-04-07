@@ -617,7 +617,8 @@ EOF2
 	# Disable the management interface in the OS.
 	#
 	if [ -n "$DISABLEHINT" ]; then
-	    cat <<EOF0
+	    echo "  disabling interface $DISABLEIF"
+	    cat <<EOF0 >>/mnt/boot/loader.conf
 # disable dedicated management interface
 $DISABLEHINT="1"
 EOF0
@@ -663,6 +664,7 @@ EOF0
 
 	    # spit out the name
 	    cat <<EOF1 >>/mnt/boot/loader.conf
+# setting console to $CONSOLE
 console="$cname"
 EOF1
 
@@ -1022,7 +1024,7 @@ dolinux() {
 		grep -q -E '[br]oot=UUID=[^ ]+ ' $tgconf 2>/dev/null; then
 		OUUID=`grep -E -m 1 '[br]oot=UUID=[^ ]+ ' $tgconf | \
 			sed -e 's;.*UUID=\([^ ]*\) .*;\1;'`
-		if [ -n "$OUUID" -a $RUUID -ne $OUUID ]; then
+		if [ -n "$OUUID" -a $RUUID != $OUUID ]; then
 		    echo "    fixing root (UUID)"
 		    sed -i '' -e "s;$OUUID;$RUUID;g" $tgconf
 		fi

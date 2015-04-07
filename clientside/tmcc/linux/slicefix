@@ -662,7 +662,8 @@ EOF2
 	# Disable the management interface in the OS.
 	#
 	if [ -n "$DISABLEHINT" ]; then
-	    cat <<EOF0
+	    echo "  disabling interface $DISABLEIF"
+	    cat <<EOF0 >>/mnt/boot/loader.conf
 # disable dedicated management interface
 $DISABLEHINT="1"
 EOF0
@@ -708,6 +709,7 @@ EOF0
 
 	    # spit out the name
 	    cat <<EOF1 >>/mnt/boot/loader.conf
+# setting console to $CONSOLE
 console="$cname"
 EOF1
 
