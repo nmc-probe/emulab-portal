@@ -99,4 +99,18 @@ print PLOT "plot 'freenodes.dat' using 2 ti col, '' using 3:xtic(1) ti col\n";
 close(PLOT)
     or die("Error running gnuplot");
 
-system("cp -fp freenodes.svg @prefix@/www/node_usage/");
+#
+# Create a csv file.
+#
+open(DAT, ">freenodes.csv")
+    or die("Could open freenodes.csv for writing");
+print DAT "Type,Inuse,Free\n";
+foreach my $type (@free_types) {
+    my $free  = $free{$type};
+    my $inuse = $total{$type} - $free{$type};
+    
+    print DAT "$type,$inuse,$free\n";
+}
+close(DAT);
+
+system("cp -fp freenodes.svg freenodes.csv @prefix@/www/node_usage/");
