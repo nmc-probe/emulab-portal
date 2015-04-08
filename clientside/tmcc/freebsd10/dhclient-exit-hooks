@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -73,6 +73,13 @@ if [ -n "$interface" ]; then
     echo $interface > $BOOTDIR/controlif
 fi
 
+# All new for 2015, handle larger MTU on control net!
+if [ -n "$new_interface_mtu" ]; then
+    echo $new_interface_mtu > $BOOTDIR/controlmtu
+else
+    echo 1500 > $BOOTDIR/controlmtu
+fi
+
 #
 # For Xen-based vnodes we record the vnode name where the scripts expect it.
 # XXX this works because only Xen-based vnodes DHCP.
@@ -129,8 +136,12 @@ if [ -n "$new_routers" ]; then
     gw=`route -n get -inet default | grep gateway`
     gw=${gw##*: }
     if [ -z "$gw" -o "$gw" != "$new_routers" ]; then
-	echo "reset default route from \"$gw\" to \"$new_routers\""
-	route delete default
+	if [ -n "$gw" ]; then
+	    echo "reset default route from \"$gw\" to \"$new_routers\""
+	    route delete default
+	else
+	    echo "setting default route to \"$new_routers\""
+	fi
 	route add default $new_routers
     fi >>$LOGDIR/dhclient-exit.log 2>&1
 fi
