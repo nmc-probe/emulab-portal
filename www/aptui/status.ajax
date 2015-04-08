@@ -302,7 +302,7 @@ function Do_RequestExtension()
 	}
 	else {
             $diff  = $expires_time - time();
-            $cdiff = $created_time - time();
+            $cdiff = time() - $created_time;
             #
             # After a month, all extension requests require admin approval.
             #
