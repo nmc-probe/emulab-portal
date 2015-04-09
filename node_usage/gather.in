@@ -40,7 +40,8 @@ require "@prefix@/etc/node_usage.conf";
 
 my $prep    = 1;
 my $results = 1;
-my $fresh = 0;
+my $debug   = 0;
+my $fresh   = 0;
 
 # Turn off line buffering on output
 $| = 1; 
@@ -69,7 +70,6 @@ while (my ($class,$type) = $qr->fetchrow()) {
 $node_class{'?'} = '?';
 
 my %oos = ();
-my $rpidx;
 if (@NODE_OOS_EXPT > 0) {
     my $eidclause = join(" or ", map("eid='$_'", @NODE_OOS_EXPT));
     $qr = DBQueryFatal("select idx from experiments where pid='emulab-ops'".
@@ -77,14 +77,14 @@ if (@NODE_OOS_EXPT > 0) {
     while (my ($idx) = $qr->fetchrow()) {
 	$oos{$idx} = 1;
     }
-    print "Will skip experiments: ", join(' ', keys %oos), "\n";
+    print "Will skip experiments: ", join(' ', keys %oos), "\n"
+	if ($debug);
 }
 
 # XXX find the reloadpending exptid for a hack below
-my $rpidx;
 $qr = DBQueryFatal("select idx from experiments where pid='emulab-ops'".
 		   " and eid='reloadpending'");
-$rpidx = $qr->fetchrow();
+my $rpidx = $qr->fetchrow();
 
 our %last_trans;
 our %node_state;

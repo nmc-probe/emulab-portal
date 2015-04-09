@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# Copyright (c) 2009 University of Utah and the Flux Group.
+# Copyright (c) 2009-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,6 +28,12 @@ our @to_plot;
 require "@prefix@/etc/node_usage.conf";
 
 my $num = @to_plot;
+
+# Load the Testbed support stuff.
+use lib "@prefix@/lib";
+use emutil;
+
+my $debug = 0;
 
 chdir "@prefix@/data/node_usage";
 
@@ -87,7 +93,11 @@ sub plot ( $@ ) {
     print F "plot ", join(",\\\n     ", @plot_lines), "\n\n";
     close F;
 
-    system("/usr/local/bin/gnuplot node_usage-$what.gpl");
+    my $output =
+	emutil::ExecQuiet("/usr/local/bin/gnuplot node_usage-$what.gpl");
+    if (($? || $debug) && $output ne "") {
+	print STDERR $output;
+    }
 }
 
 plot("hourly_last2weeks",timefmt=>'%Y-%m-%d_%H:$M', format_x=>'%a\n%m/%d');
