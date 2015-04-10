@@ -91,8 +91,7 @@ open(PLOT, "|/usr/local/bin/gnuplot")
 print PLOT "set terminal svg\n";
 print PLOT "set output 'freenodes.svg'\n";
 print PLOT "set title '$date'\n";
-print PLOT "set boxwidth 0.9 relative\n";
-print PLOT "set xlabel \"Node Type\"\n";
+print PLOT "set boxwidth 0.5 absolute\n";
 print PLOT "set style fill solid 1 border lt -1\n";
 print PLOT "set style data histogram\n";
 print PLOT "set style histogram rowstacked\n";
