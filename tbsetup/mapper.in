@@ -707,7 +707,7 @@ sub RunAssign($$)
     $args = "-s 123456 $args"
 	if ($regression);
     $args = "-R $args PN=1.0"
-	if ($vtop->sharednodecount());
+	if (0 && $vtop->sharednodecount());
     
     # The prepass speeds up assign on big topos with virtual nodes.
     if ($prepass || $useprepass) {
