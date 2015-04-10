@@ -43,6 +43,7 @@ getopts('Si', \%opts);
 #
 my $TBOPS       = "@TBOPSEMAIL@";
 my $LINUX_FSNODE= @LINUX_FSNODE@;
+my $INC_MOUNTD  = @INCREMENTAL_MOUNTD@;
 
 my $etcdir;
 my $exports;
@@ -84,7 +85,11 @@ else {
 
     # incremental only applies to mountd
     if (defined($opts{'i'})) {
-	$incremental = 1;
+	if ($INC_MOUNTD) {
+	    $incremental = 1;
+	} else {
+	    print "WARNING: incremental updates not supported, ignoring option\n";
+	}
     }
 }
 

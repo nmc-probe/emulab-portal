@@ -74,6 +74,7 @@ my $LINUX_FSNODE= @LINUX_FSNODE@;
 my $NFSMAPTOUSER= "@NFSMAPTOUSER@";
 my $WITHZFS     = @WITHZFS@;
 my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
+my $INC_MOUNTD  = @INCREMENTAL_MOUNTD@;
 
 # XXX for TESTMODE: output to stdout
 my $TOSTDOUT	= 0;
@@ -169,7 +170,11 @@ if (defined($options{"w"})) {
     $waittildone = 1;
 }
 if (defined($options{"i"})) {
-    $incremental = 1;
+    if ($INC_MOUNTD) {
+	$incremental = 1;
+    } else {
+	print "WARNING: incremental updates not supported, ignoring option\n";
+    }
 }
 usage()
     if (@ARGV);
@@ -177,8 +182,10 @@ usage()
 if ($ZFS_NOEXPORT && !$waittildone) {
     print "WARNING: forcing wait mode\n";
     $waittildone = 1;
-    print "WARNING: forcing incremental updates\n";
-    $incremental = 1;
+    if ($INC_MOUNTD) {
+	print "WARNING: forcing incremental updates\n";
+	$incremental = 1;
+    }
 }
 
 #
