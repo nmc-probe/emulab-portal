@@ -67,7 +67,8 @@ class Instance
     function manifest()	    { return $this->field('manifest'); }
     function admin_lockdown() { return $this->field('admin_lockdown'); }
     function user_lockdown(){ return $this->field('user_lockdown'); }
-    function extension_reason() { return $this->field('extension_reason'); }
+    function extension_reason()  { return $this->field('extension_reason'); }
+    function extension_lockout() { return $this->field('extension_adminonly'); }
     function servername()   { return $this->field('servername'); }
     function aggregate_urn(){ return $this->field('aggregate_urn'); }
     function IsAPT() {
@@ -266,6 +267,14 @@ class Instance
                 "urn:publicid:IDN+wisc.cloudlab.us+authority+cm";
         }
         return $am_array;
+    }
+    # helper
+    function ParseURN($urn)
+    {
+        if (preg_match("/^[^+]*\+([^+]+)\+([^+]+)\+(.+)$/", $urn, $matches)) {
+            return array($matches[1], $matches[2], $matches[3]);
+        }
+        return array();
     }
 
     function SetExtensionReason($reason)
