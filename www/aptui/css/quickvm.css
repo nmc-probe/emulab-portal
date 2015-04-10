@@ -154,37 +154,36 @@ body {
 }
 
 @media (min-width: 970px) {
-
-#showtopo_dialog, #edit_dialog {
-  width: 950px;
-}
-
-#showtopo_description {
-  width: 643px;
-}
-
-#showtopo_div {
-  width: 643px;
-}
-#showtopo_nopicker {
-  width: 850px;
-}
-}
-
-@media (max-width: 969px) {
+  #showtopo_dialog {
+    width: 950px;
+  }
+  #showtopo_description {
+    width: 643px;
+  }
+  #showtopo_div {
+    width: 643px;
+  }
+  #showtopo_nopicker {
+    width: 850px;
+  }
   .modal-dialog {
-  width: auto;
-}
+    width: 700px;
+    margin: 30px auto;
+  }
 }
 
 @media (min-width: 910px) and (max-width: 969px) {
   #showtopo_description,
   #showtopo_div {
-  width: 610px;
-}
+    width: 610px;
+  }
   #showtopo_nopicker {
-  width: 800px;
-}
+    width: 800px;
+   }
+  .modal-dialog {
+    width: 800px;
+    margin: 30px auto;
+  }
 }
 
 @media (min-width: 850px) and (max-width: 909px) {
@@ -210,21 +209,25 @@ body {
 @media (min-width: 768px) and (max-width: 789px) {
   #showtopo_description,
   #showtopo_div {
-  width: 500px;
-}
+    width: 500px;
+  }
   #showtopo_nopicker {
-  width: 700px;
-}
+    width: 700px;
+  }
+  .modal-dialog {
+    width: 700px;
+    margin: 30px auto;
+  }
 }
 
 @media (min-width: 740px) and (max-width: 767px) {
   #showtopo_description,
   #showtopo_div {
   width: 470px;
-}
+  }
   #showtopo_nopicker {
-  width: 670px;
-}
+    width: 670px;
+  }
 }
 
 @media (min-width: 690px) and (max-width: 739px) {
