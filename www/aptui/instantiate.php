@@ -523,7 +523,8 @@ function SPITFORM($formfields, $newuser, $errors)
                 "<div class='form-horizontal' id='aggregate_selector'>
                    <div class='form-group'>
                    <label class='col-sm-4 control-label'
-                      style='text-align: right;'>Cluster:</label>
+                      style='text-align: right;'>
+       <a href=cluster-status.php target=_blank>Cluster:</a></label>
                    <div class='col-sm-6'>
                        <select name=\"formfields[where]\"
 		              id='profile_where' class='form-control'>
