@@ -139,11 +139,13 @@ if ($slice) {
     $slice_urn       = $slice->urn();
     $slice_expires   = DateStringGMT($slice->expires());
     $slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));
+    $slice_created   = DateStringGMT($instance->created());
 }
 else {
     $slice_urn = "";
     $slice_expires = "";
     $slice_expires_text = ""; 
+    $slice_created  = "";
 }
 $registered      = (isset($this_user) ? "true" : "false");
 $snapping        = 0;
@@ -153,6 +155,7 @@ $lockdown        = ($instance->admin_lockdown() ||
                     $instance->user_lockdown() ? 1 : 0);
 $extension_reason= ($instance->extension_reason() ?
                     CleanString($instance->extension_reason()) : "");
+$lockout         = $instance->extension_lockout();
 
 #
 # We give ssh to the creator (real user or guest user).
@@ -193,6 +196,7 @@ echo "  window.APT_OPTIONS.profilePublic = " . $profile_public . ";\n";
 echo "  window.APT_OPTIONS.sliceURN = '" . $slice_urn . "';\n";
 echo "  window.APT_OPTIONS.sliceExpires = '" . $slice_expires . "';\n";
 echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
+echo "  window.APT_OPTIONS.sliceCreated = '" . $slice_created . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "  window.APT_OPTIONS.registered = $registered;\n";
@@ -204,6 +208,7 @@ echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.dossh = $dossh;\n";
 echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
+echo "  window.APT_OPTIONS.lockout = $lockout;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 if (isset($extend) && $extend != "") {
     echo "  window.APT_OPTIONS.extend = $extend;\n";

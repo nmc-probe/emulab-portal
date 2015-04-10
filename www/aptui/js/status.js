@@ -32,6 +32,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var statusTemplate    = _.template(statusString);
     var terminateTemplate = _.template(terminateString);
     var lastStatus        = "";
+    var lockout           = 0;
     var lockdown          = 0;
     var lockdown_code     = "";
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
@@ -47,6 +48,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
 	profile_uuid = window.APT_OPTIONS.profileUUID;
+	lockout      = window.APT_OPTIONS.lockout;
 	lockdown     = window.APT_OPTIONS.lockdown;
 	lockdown_code= uuid.substr(2, 5);
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
@@ -65,11 +67,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sliceURN:		window.APT_OPTIONS.sliceURN,
 	    sliceExpires:	window.APT_OPTIONS.sliceExpires,
 	    sliceExpiresText:	window.APT_OPTIONS.sliceExpiresText,
+	    sliceCreated:	window.APT_OPTIONS.sliceCreated,
 	    creatorUid:		window.APT_OPTIONS.creatorUid,
 	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
 	    errorURL:           errorURL,
+	    lockout:            lockout,
 	    lockdown:           lockdown,
 	    lockdown_code:      lockdown_code,
 	    // The status panel starts out collapsed.
@@ -83,6 +87,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('#terminate_div').html(terminateTemplate(template_args));
 	$('#oneonly_div').html(oneonlyString);
 	$('#approval_div').html(approvalString);
+
+	// Format dates with moment before display.
+	$('.format-date').each(function() {
+	    var date = $.trim($(this).html());
+	    if (date != "") {
+		$(this).html(moment($(this).html()).format("lll"));
+	    }
+	});
 
 	//
 	// Look at initial status to determine if we show the progress bar.
@@ -155,13 +167,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 				    '&snapuuid=' + uuid);
 	});
 
-	// Handler for the Snapshot confirm button.
-	$('button#snapshot_confirm').click(function (event) {
-	    event.preventDefault();
-	    sup.HideModal('#snapshot_modal');
-	    StartSnapshot();
-	});
-
 	// If we got a publicURL, set the href and show the button.
 	if (window.APT_OPTIONS.publicURL) {
 	    ShowSliverInfo(window.APT_OPTIONS.publicURL);
@@ -217,6 +222,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    clearTimeout(popover_timer);
 	}).click(function(){
 	    clearTimeout(popover_timer);
+	    DoSnapshotNode();
 	});
 	
 	// Terminate an experiment.
@@ -255,6 +261,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 						   lockdown_override});
 	    xmlthing.done(callback);
 	});
+
+	// lockout change event handler.
+	$('#lockout_checkbox').change(function() {
+	    DoLockout($(this).is(":checked"));
+	});	
 
 	/*
 	 * Attach an event handler to the profile status collapse.
@@ -514,7 +525,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// Reformat in local time and show the user.
 		var local_date = new Date(when);
 
-		$("#quickvm_expires").html(moment(when).calendar());
+		$("#quickvm_expires").html(moment(when).format('lll'));
 
 		// Countdown also based on local time. 
 		target_date = local_date.getTime();
@@ -599,10 +610,29 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sup.SpitOops("oops", message);
 	    return;
 	}
-	$("#quickvm_expires").html(moment(json.value).calendar());
+	$("#quickvm_expires").html(moment(json.value).format('lll'));
 	
 	// Reset the countdown clock.
 	StartCountdownClock.reset = json.value;
+    }
+
+    //
+    // Request lockout set/clear.
+    //
+    function DoLockout(lockout)
+    {
+	lockout = (lockout ? 1 : 0);
+	
+	var callback = function(json) {
+	    if (json.code) {
+		alert("Failed to change lockout: " + json.value);
+		return;
+	    }
+	}
+	var xmlthing = sup.CallServerMethod(ajaxurl, "status", "Lockout",
+					     {"uuid" : uuid,
+					      "lockout" : lockout});
+	xmlthing.done(callback);
     }
 
     //
@@ -884,6 +914,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    }
 		    DoReload(client_id);
 		}
+		else if ($(e.target).text() == "Snapshot") {
+		    if (isguest) {
+			alert("Only registered users can snapshot nodes");
+			return;
+		    }
+		    DoSnapshotNode(client_id);
+		}
 		$('#context').contextmenu('destroy');
 	    }
 	})
@@ -912,11 +949,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"          data-toggle='dropdown'> " +
 	"      <span class='glyphicon glyphicon-cog'></span> " +
 	"  </button> " +
-	"  <ul class='dropdown-menu' role='menu'> " +
+	"  <ul class='dropdown-menu text-left' role='menu'> " +
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
 	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
 	"    <li><a href='#' name='reload'>Reload</a></li> " +
+	"    <li class=hidden><a href='#' name='snapshot'>Snapshot</a></li> " +
 	"  </ul>" +
 	"  </div>" +
 	" </td>" +
@@ -1063,6 +1101,20 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			return false;
 		    });
 		
+		//
+		// And a handler for the snapshot action.
+		//
+		$('#listview-row-' + node + ' [name=snapshot]')
+		    .click(function (e) {
+			e.preventDefault();
+			if (isguest) {
+			    alert("Only registered users can snapshot nodes");
+			    return false;
+			}
+			DoSnapshotNode(node);
+			return false;
+		    });
+		
 		nodecount++;
 	    });
 
@@ -1165,8 +1217,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     // Request to start a snapshot. This assumes a single node of course.
     //
-    function StartSnapshot()
+    function StartSnapshot(node_id, update_profile)
     {
+	if (node_id === undefined) {
+	    node_id = "";
+	}
 	sup.ShowModal('#waitwait-modal');
 
 	var callback = function(json) {
@@ -1180,11 +1235,54 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 	    ShowProgressModal();
 	}
-	var xmlthing = sup.CallServerMethod(ajaxurl,
-					    "status",
-					    "SnapShot",
-					    {"uuid" : uuid});
+	var xmlthing =
+	    sup.CallServerMethod(ajaxurl, "status", "SnapShot",
+				 {"uuid" : uuid,
+				  "node_id" : node_id,
+				  "update_profile" : update_profile});
 	xmlthing.done(callback);
+    }
+
+    //
+    // This is for snapshot of a single node profile, or a specific
+    // node in a multi-node profile.
+    //
+    function DoSnapshotNode(node_id)
+    {
+	// Default to update unless checkbox says otherwise.
+	var update_profile = 1;
+	
+	//
+	// Snapshot specific node from the context menu. We give the
+	// the user some extra options in confirm modal.
+	//
+	if (node_id) {
+	    // Default to checked any time we show the modal.
+	    $('#snapshot_update_profile').prop("checked", true);
+	    
+	    $('#snapshot_update_profile_div').removeClass("hidden");
+	}
+	else {
+	    $('#snapshot_update_profile_div').addClass("hidden");
+	}
+	sup.ShowModal('#snapshot_modal');
+
+	// Handler for the Snapshot confirm button.
+	$('button#snapshot_confirm').bind("click.snapshot", function (event) {
+	    event.preventDefault();
+	    $('button#snapshot_confirm').unbind("click.snapshot");
+	    if (node_id && $('#snapshot_update_profile').is(':checked')) {
+		update_profile = 1;
+	    }
+	    sup.HideModal('#snapshot_modal');
+	    StartSnapshot(node_id, update_profile);
+	});
+
+	// Handler for hide modal to unbind the click handler.
+	$('#snapshot_modal').on('hidden.bs.modal', function (event) {
+	    $(this).unbind(event);
+	    $('button#snapshot_confirm').unbind("click.snapshot");
+	});
     }
 
     //

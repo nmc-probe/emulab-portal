@@ -303,10 +303,20 @@ function Do_RequestExtension()
 	else {
             $diff  = $expires_time - time();
             $cdiff = time() - $created_time;
+
+            #
+            # If admin lockout, we are refusing any more free time.
+            #
+            if ($instance->extension_lockout()) {
+                $needapproval = 1;
+                $granted = 0;
+                $message = "because you are not allowed any more ".
+                    "free extensions";
+            }
             #
             # After a month, all extension requests require admin approval.
             #
-            if ($cdiff > (3600 * 24 * $autoextend_maxage)) {
+            elseif ($cdiff > (3600 * 24 * $autoextend_maxage)) {
                 $needapproval = 1;
                 $granted = 2;
                 $message = "because it was started more then ".
@@ -369,7 +379,9 @@ function Do_RequestExtension()
         }
 	# Refresh. 
 	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-	$new_expires = gmdate("Y-m-d\TH:i:s\Z", strtotime($slice->expires()));
+	$new_expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
+        $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
+        list($cluster) = Instance::ParseURN($instance->aggregate_urn());
 
 	SPITAJAX_RESPONSE($new_expires);
 
@@ -378,7 +390,9 @@ function Do_RequestExtension()
 	       "A request to extend your experiment was made and ".
 	       "granted.\n".
 	       "Your reason was:\n\n". $reason . "\n\n".
- 	       "Your experiment will now expire at $new_expires.\n\n\n".
+               "Your experiment was started on $created\n".
+ 	       "Your experiment will now expire at $new_expires\n".
+               "It is running on $cluster\n\n\n".
                "$APTBASE/status.php?uuid=$uuid\n",
 	       "From: $APTMAIL\n" .
 	       "BCC: $TBMAIL_OPS");
@@ -420,9 +434,10 @@ function needAdminApproval($wanted, $granted, $reason, $message)
 
     # Refresh. 
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-    $new_expires = date("Y-m-d H:i:s",
+    $new_expires = date("Y-m-d H:i:s T",
                         strtotime($slice->expires()) + ($howlong * 3600 * 24));
-    $created = date("Y-m-d H:i:s", strtotime($instance->created()));
+    $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
+    list($cluster) = Instance::ParseURN($instance->aggregate_urn());
 		    
     $instance->SendEmail($APTMAIL,
         "Experiment Extension Request: $uuid",
@@ -434,7 +449,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
         $reason . "\n\n".
         "This experiment was started on $created\n".
         "Granting the request would set the expiration to $new_expires\n".
-        "It is running on ". $instance->aggregate_urn() . "\n".
+        "It is running on $cluster\n".
         "\n\n". $url . "\n\n",
         "From: " . $creator->email());
 
@@ -443,8 +458,8 @@ function needAdminApproval($wanted, $granted, $reason, $message)
     # XXX 
     SPITAJAX_ERROR(2, "Your request requires admininstrator approval".
                    ($message ? " because $message" : "") . ". " .
-                   "You will receive email when your ".
-                   "request is granted. Thanks!");
+                   "You will receive email if/when your ".
+                   "request is granted (or denied). Thanks!");
     return;
 }
 
@@ -540,13 +555,28 @@ function Do_Snapshot()
 	SPITAJAX_ERROR(1, "Not your profile to change. Clone first!");
 	return;
     }
+    $optargs = "";
+    if (isset($ajax_args["node_id"])) {
+        $node_id = $ajax_args["node_id"];
+        if (!TBvalid_vnode_id($node_id)) {
+            SPITAJAX_ERROR(1, "Bad node id");
+            return;
+        }
+        $optargs .= " -s $node_id ";
+
+        if (isset($ajax_args["update_profile"]) &&
+            $ajax_args["update_profile"]) {
+            $optargs .= " -u all ";
+        }
+    }
     
     #
     # Call out to the backend.
     #
     $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC($this_user->uid(), "nobody",
-		     "webmanage_instance -t $webtask_id -- snapshot $uuid",
+		     "webmanage_instance -t $webtask_id -- ".
+                     "  snapshot $optargs $uuid",
 		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
 
@@ -766,6 +796,43 @@ function Do_Reboot()
 function Do_Reload()
 {
     Do_RebootOrReload("reload");
+}
+
+#
+# Set or clear the lockout flag
+#
+function Do_Lockout()
+{
+    global $this_user;
+    global $ajax_args;
+
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    if (!isset($ajax_args["lockout"])) {
+	SPITAJAX_ERROR(1, "Missing lockout value");
+	return;
+    }
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "Unknown instance uuid");
+	return;
+    }
+    if (!ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
+    $lockout = ($ajax_args["lockout"] ? 1 : 0);
+    if (!DBQueryWarn("update apt_instances set extension_adminonly='$lockout' ".
+                     "where uuid='$uuid'")) {
+	SPITAJAX_ERROR(1, "Database failure.");
+	return;
+    }
+    SPITAJAX_RESPONSE("Success");
 }
 
 # Local Variables:
