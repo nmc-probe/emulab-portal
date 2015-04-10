@@ -313,8 +313,9 @@ define(['underscore', 'js/quickvm_sup',
 		if (extendfor && isadmin) {
 		    $("#howlong_extend").val(extendfor);
 		}
-		if ($('#extension_reason').length && !isadmin) {
+		if ($('#extension_reason').length) {
 		    $("#why_extend").val($('#extension_reason').val());
+		    $("#why_extend_div").removeClass("hidden");
 		}
 		$(modalname).off('shown.bs.modal');
 	    });
