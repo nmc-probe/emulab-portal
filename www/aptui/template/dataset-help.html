@@ -21,17 +21,16 @@
       <em>Short-term</em> datasets are for situations where you want to run
       a series of experiments over a short time period (days to weeks)
       using the same large data set but where local storage may not be
-      practical because there is too much data to fit in a disk partition,
-      or performance requires that the data be local instead of remote.
+      practical because there is too much data to fit in a disk partition.
     </p>
     <p>
       <em>Image-Backed</em> datasets are the simplest kind of dataset; they
       are loaded onto your node into a spare partition or volume. In fact,
-      an image backed blockstore is an instance of an ephemeral blockstore
+      an image backed dataset is an instance of an ephemeral blockstore
       that is preloaded with the data contained in the image file. This
       saves you the trouble of having to copy your data to the local disk,
       either from across the public internet or from one of the blockstore
-      types above.
+      types above. 
     </p>
     <center><a href='https://wiki.emulab.net/wiki/EmulabStorage'>
 	More about Datasets</a></center>
