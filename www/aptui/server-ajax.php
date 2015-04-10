@@ -93,7 +93,9 @@ $routing = array("myprofiles" =>
 						 "Reload" =>
                                                      "Do_Reload",
 						 "Refresh" =>
-						     "Do_Refresh")),
+						     "Do_Refresh",
+						 "Lockout" =>
+						     "Do_Lockout")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,
