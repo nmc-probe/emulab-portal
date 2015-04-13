@@ -31,6 +31,12 @@
 # TODO: Fix uninitialized variable warnings in getStats()
 #
 
+# NOTE: This module can be made to with with Nexus (3172 at least) switches,
+# but "feature vtp" must be enabled in the switch config, along with a few
+# other hacks in the code below.
+# NOTE: That probably also means that you have to set the single_domain field
+# in the tbdb.switch_stack_types table entry for that switch stack.
+
 package snmpit_cisco;
 use strict;
 
@@ -157,7 +163,7 @@ sub new($$$;$) {
     #
     # We have to change our behavior depending on what OS the switch runs
     #
-    if (!($options->{'type'} =~ /^(\w+)(-modhack(-?))?(-ios)?$/)) {
+    if (!($options->{'type'} =~ /^(\w+)(-modhack(-?))?(-ios|-nx-os)?$/)) {
         warn "ERROR: Incorrectly formatted switch type name: ",
         $options->{'type'}, "\n";
         return undef;
@@ -175,8 +181,10 @@ sub new($$$;$) {
         $self->{NON_MODULAR_HACK} = 0;
     }
 
-    if ($4) {
+    if ($4 && $4 eq '-ios') {
         $self->{OSTYPE} = "IOS";
+    } elsif ($4 && $4 eq '-nx-os') {
+        $self->{OSTYPE} = "NX-OS";
     } else {
         $self->{OSTYPE} = "CatOS";
     }
@@ -221,7 +229,7 @@ sub new($$$;$) {
         push @mibs, "$mibpath/CISCO-STACK-MIB.txt";
         # The STACK mib contains some code for copying config via TFTP
         $self->{TFTPWRITE} = 1;
-    } elsif ($self->{OSTYPE} eq "IOS") {
+    } elsif ($self->{OSTYPE} eq "IOS" || $self->{OSTYPE} eq 'NX-OS') {
         push @mibs, "$mibpath/CISCO-STACK-MIB.txt",
                     "$mibpath/CISCO-VLAN-MEMBERSHIP-MIB.txt";
         # Backwards compatability: for some reason, some older installations
@@ -304,10 +312,23 @@ sub portControl ($$@) {
 
     $self->debug("portControl: $cmd -> (".Port->toStrings(@ports).")\n");
 
+    # Some switches don't allow you to change the link settings, so borrow a
+    # page from the snmpit_arista.pm book, and fake it.
+    # NOTE: mblodget brings up the good point that it may be the case that some
+    # switches have a few ports where this is a legit thing to set and a few
+    # ports where it's not.  In that case, we may actually wish to use
+    # something like the interfaces_capabilities table to control this setting.
+    my %fakeCmds;
+    if ($self->{OSTYPE} eq 'NX-OS') {
+        %fakeCmds = (
+            'full'  => 1,
+        );
+    }
+
     #
     # Find the command in the %cmdOIDs hash (defined at the top of this file)
     #
-    if (defined $cmdOIDs{$cmd}) {
+    if (defined $cmdOIDs{$cmd} && !defined($fakeCmds{$cmd}) {
         my @oid = @{$cmdOIDs{$cmd}};
         my $errors = 0;
 
@@ -881,8 +902,14 @@ sub createVlan($$;$$$) {
             [$VlanType,"1.$vlan_number","ethernet","INTEGER"],
             [$VlanName,"1.$vlan_number",$vlan_id,"OCTETSTR"],
             [$VlanSAID,"1.$vlan_number",$SAID,"OCTETSTR"]);
-        my @varList = ($vlan_number > 1000) ?  ($statusRow, $nameRow)
-        : ($statusRow, $typeRow, $nameRow, $saidRow);
+        my @varList;
+        if ($self->{OSTYPE} eq 'NX-OS') {
+            @varList = ($statusRow, $nameRow);
+        }
+        else {
+            @varList = ($vlan_number > 1000) ?  ($statusRow, $nameRow)
+                : ($statusRow, $typeRow, $nameRow, $saidRow);
+        }
         my $RetVal = snmpitSetWarn($self->{SESS}, new SNMP::VarList(@varList));
         print "",($RetVal? "Succeeded":"Failed"), ".\n";
 
@@ -1069,7 +1096,7 @@ sub opPortVlan($$$@) {
             $PortVlanMemb = "cpvlanPrivatePortSecondaryVlan";
             $format = $PORT_FORMAT_IFINDEX;
         }
-    } elsif ($self->{OSTYPE} eq "IOS") {
+    } elsif ($self->{OSTYPE} eq "IOS" || $self->{OSTYPE} eq 'NX-OS') {
         $PortVlanMemb = "vmVlan"; #index is ifIndex
         $format = $PORT_FORMAT_IFINDEX;
     }
@@ -1234,7 +1261,7 @@ sub removePortsFromVlan($@) {
     my $VlanPortVlan;
     if ($self->{OSTYPE} eq "CatOS") {
         $VlanPortVlan = "vlanPortVlan"; #index is ifIndex
-    } elsif ($self->{OSTYPE} eq "IOS") {
+    } elsif ($self->{OSTYPE} eq "IOS" || $self->{OSTYPE} eq 'NX-OS') {
         $VlanPortVlan = "vmVlan"; #index is ifIndex
     }
     my %ports;
@@ -1446,7 +1473,7 @@ sub vlanHasPorts($$) {
         my $VlanPortVlan;
         if ($self->{OSTYPE} eq "CatOS") {
             $VlanPortVlan = ["vlanPortVlan"]; #index is ifIndex
-        } elsif ($self->{OSTYPE} eq "IOS") {
+        } elsif ($self->{OSTYPE} eq "IOS" || $self->{OSTYPE} eq 'NX-OS') {
             $VlanPortVlan = ["vmVlan"]; #index is ifIndex
         }
         #
@@ -1549,7 +1576,7 @@ sub listVlans($) {
     my $VlanPortVlan;
     if ($self->{OSTYPE} eq "CatOS") {
         $VlanPortVlan = ["vlanPortVlan"]; #index is ifIndex
-    } elsif ($self->{OSTYPE} eq "IOS") {
+    } elsif ($self->{OSTYPE} eq "IOS" || $self->{OSTYPE} eq 'NX-OS') {
         $VlanPortVlan = ["vmVlan"]; #index is ifIndex
     }
 
@@ -2035,7 +2062,7 @@ sub readifIndex($) {
             $self->{IFINDEX}{$modport} = $ifindex;
             $self->{IFINDEX}{$ifindex} = $modport;
         }
-    } elsif ($self->{OSTYPE} eq "IOS") {
+    } elsif ($self->{OSTYPE} eq "IOS" || $self->{OSTYPE} eq 'NX-OS') {
         my ($rows) = snmpitBulkwalkFatal($self->{SESS},["ifDescr"]);
 
         foreach my $rowref (@$rows) {
