@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -82,6 +82,7 @@ use liblocsetup;
 #     The setup script assumes that /share is mounted after this runs.
 #
 my $noumount = 0;
+my $updatemasterpasswdfiles = 0;
 my %options = ();
 if (getopts("NM", \%options)) {
     if (defined($options{"N"})) {
@@ -90,6 +91,15 @@ if (getopts("NM", \%options)) {
     if (defined($options{"M"})) {
 	$updatemasterpasswdfiles = 1;
     }
+}
+#
+# Allow the updatemasterpasswdfiles flag to be passed along indirectly.
+# This file gets deleted below. We can touch this file from boss before
+# starting an image capture (before prepare runs) and not mess up old disk
+# images.
+#
+if (-e "$RUNDIR/updatemasterpasswdfiles") {
+    $updatemasterpasswdfiles = 1;
 }
 my $isvm = ((-e "$ETCDIR/genvmtype") ? 1 : 0);
 
