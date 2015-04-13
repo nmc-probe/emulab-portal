@@ -35,7 +35,8 @@ use POSIX qw(setsid close);
 #
 sub usage()
 {
-    print("Usage: manage_instance snapshot instance [imagename node_id]\n");
+    print("Usage: manage_instance snapshot ".
+	  "[-s node_id] [-i imagename] [-u node|all] instance\n");
     print("Usage: manage_instance consoleurl instance node\n");
     print("Usage: manage_instance extend instance seconds\n");
     print("Usage: manage_instance terminate instance\n");
@@ -59,7 +60,7 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
 
 # Debugging
-my $usemydevtree = 0;
+my $usemydevtree = 1;
 
 #
 # Untaint the path
@@ -174,6 +175,27 @@ sub DoSnapshot()
     my $errcode        = 1;
     my $needunlock     = 0;
     my $old_status     = $instance->status();
+    my $node_id;
+    my $imagename;
+    my $update_profile;
+
+    my $optlist = "n:i:u:";
+    my %options = ();
+    if (! getopts($optlist, \%options)) {
+	usage();
+    }
+    if (defined($options{"n"})) {
+	$node_id = $options{"n"};
+    }
+    if (defined($options{"i"})) {
+	$imagename = $options{"i"};
+    }
+    if (defined($options{"u"})) {
+	$update_profile = $options{"u"};
+	if ($update_profile !~ /^(node|all)$/) {
+	    usage();
+	}
+    }
     
     if ($old_status ne "ready") {
 	fatal("Instance must be in the ready state to take a snapshot");
@@ -196,33 +218,27 @@ sub DoSnapshot()
     }
     
     #
-    # If we get an imagename on the command line, the caller is
-    # saying it is responsible (clone). If we do not get one, we
-    # create the name and update the underlying profile with the new
-    # image urn.
+    # Might be a clone (manage_profile).
     #
-    my $project;
-    my $imagename;
-    my $node_id;
     my $sliver_urn;
-    my $update_profile = 0;
     
     my $profile = APT_Profile->Lookup($instance->profile_id());
     if (!defined($profile)) {
 	fatal("Could not lookup profile for instance");
     }
-    if (@ARGV) {
-	$imagename = shift(@ARGV);
-	if (@ARGV) {
-	    $node_id = shift(@ARGV);
+    my $project = Project->Lookup($profile->pid_idx());
+    if (!defined($project)) {
+	fatal("Could not lookup project for profile");
+    }
+    
+    if (defined($node_id)) {
+	if (!defined($imagename)) {
+	    $imagename = $profile->name() . "." . $node_id;
 	}
     }
     else {
-	$imagename = $profile->name();
-	$update_profile = 1;
-	$project = Project->Lookup($profile->pid_idx());
-	if (!defined($project)) {
-	    fatal("Could not lookup project for profile");
+	if (!defined($imagename)) {
+	    $imagename = $profile->name();
 	}
     }
     
@@ -236,6 +252,7 @@ sub DoSnapshot()
     my $node;
     my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
     if (!defined($node_id)) {
+	# We snapshot the one node in the instance.
 	if (@nodes != 1) {
 	    fatal("Too many nodes (> 1) to snapshot");
 	}
@@ -243,10 +260,11 @@ sub DoSnapshot()
 	$sliver_urn = GeniXML::GetSliverId($node);
     }
     else {
-	foreach $node (@nodes) {
-	    my $client_id = GeniXML::GetVirtualId($node);
+	foreach my $ref (@nodes) {
+	    my $client_id = GeniXML::GetVirtualId($ref);
 	    if ($node_id eq $client_id) {
-		$sliver_urn = GeniXML::GetSliverId($node);
+		$sliver_urn = GeniXML::GetSliverId($ref);
+		$node = $ref;
 		last;
 	    }
 	}
@@ -256,12 +274,11 @@ sub DoSnapshot()
     }
 
     #
-    # Really, a snapshot and not a clone. We are not going to allow this
-    # if the instance in on a different cluster then where the image was
-    # originally created, since otherwise the image provenance will look
-    # like spaghetti.
+    # We are not going to allow this if the instance is on a different
+    # cluster then where the image was originally created, since otherwise
+    # the image provenancewill look like spaghetti. 
     #
-    if ($update_profile) {
+    if (defined($update_profile)) {
 	my $diskref = GeniXML::GetDiskImage($node);
 	if (defined($diskref)) {
 	    my $image_url = GeniXML::GetText("url", $diskref);
@@ -476,7 +493,7 @@ sub DoSnapshot()
 	$errcode = 60;
 	goto bad;
     }
-    elsif ($update_profile) {
+    elsif (defined($update_profile)) {
 	#
 	# If successful, we create a new version of the profile and
 	# update the rspec to reflect the new image version. Note
@@ -496,7 +513,8 @@ sub DoSnapshot()
 		exit(1);
 	    }
 	}
-	$profile->UpdateDiskImage($version_url);
+	$profile->UpdateDiskImage($node_id, $version_url,
+				  ($update_profile eq "all" ? 1 : 0));
     }
     $instance->SetStatus("ready");
     # We garbage collect these later, so anyone waiting has a chance

@@ -97,8 +97,7 @@ if (!$creator) {
 if (! (isset($this_user) && ISADMIN())) {
     # An experiment created by a real user, can be accessed by that user only.
     # Ditto a guest user; must be the same guest.
-    if (! ((get_class($creator) == "User" &&
-	    isset($this_user) && $creator->uuid() == $this_user->uuid()) ||
+    if (! ((get_class($creator) == "User" && $instance->CanView($this_user)) ||
 	   (get_class($creator) == "GeniUser" &&
 	    isset($_COOKIE['quickvm_user']) &&
 	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {

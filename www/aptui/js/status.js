@@ -954,7 +954,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"    <li><a href='#' name='console'>Console</a></li> " +
 	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
 	"    <li><a href='#' name='reload'>Reload</a></li> " +
-	"    <li class=hidden><a href='#' name='snapshot'>Snapshot</a></li> " +
+	"    <li><a href='#' name='snapshot'>Snapshot</a></li> " +
 	"  </ul>" +
 	"  </div>" +
 	" </td>" +

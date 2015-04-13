@@ -78,7 +78,13 @@
 	    </a>
 	  </div>
 	  <% if (isadmin) { %>
-	  <div class='pull-left'>
+	  <div class='pull-left'
+	       data-toggle='popover'
+	       data-delay='{"hide":1500, "show":500}'
+	       data-html='true'
+	       data-content="When checked, only administrator can extend
+			     this experiment. No free time is granted to
+			     user at all"> 
 	    <label class="checkbox-inline" style='margin-right: 10px;'>
 	      <input type="checkbox" id="lockout_checkbox"
 		     <% if (lockout) { %>checked<% } %> >Lockout</label>
@@ -247,7 +253,8 @@
 	    Check this box if you want us to update your profile to use the
 	    new disk image. All nodes running the same image will be
 	    updated. If you uncheck the box, you will need to modify the
-	    profile source code yourself.
+	    profile source code yourself (you will receive email with the
+	    name/url of the new image).
 	  <br>
 	  </div>
 	  <div id='wholedisk_div' class='hidden'>
@@ -281,7 +288,7 @@
 	<li><a tabindex="-1">Console</a></li>
 	<li><a tabindex="-1">Reboot</a></li>
 	<li><a tabindex="-1">Reload</a></li>
-	<li class=hidden><a tabindex="-1">Snapshot</a></li>
+	<li><a tabindex="-1">Snapshot</a></li>
       </ul>
     </div>
   </div>

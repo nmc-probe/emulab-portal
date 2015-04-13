@@ -35,7 +35,7 @@ $creator  = null;
 #
 # Locate the objects and check permission.
 #
-function StatusSetupAjax()
+function StatusSetupAjax($needmodify)
 {
     global $this_user, $ajax_args;
     global $instance, $creator;
@@ -58,17 +58,24 @@ function StatusSetupAjax()
 	SPITAJAX_ERROR(1, "no such instance creator");
 	return 1;
     }
-    # Admin users do whatever the like.
+    # Admin users do whatever they like.
     if (isset($this_user) && ISADMIN()) {
 	return 0;
     }
-    # An experiment created by a real user, can be accessed by that user only.
-    # Ditto a guest user; must be the same guest.
-    if (! ((get_class($creator) == "User" &&
-	    isset($this_user) && $creator->uuid() == $this_user->uuid()) ||
-	   (get_class($creator) == "GeniUser" &&
-	    isset($_COOKIE['quickvm_user']) &&
-	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
+    # For a guest user; must be the same guest that created experiment.
+    if (get_class($creator) == "GeniUser") {
+        if (isset($_COOKIE['quickvm_user']) &&
+            $_COOKIE['quickvm_user'] == $creator->uuid()) {
+            return 0;
+        }
+	SPITAJAX_ERROR(1, "You do not have permission!");
+	return 1;
+    }
+    # An experiment created by a real user, can be accessed by other
+    # members of the project, subject to modify restrictions.
+    if (! (isset($this_user) && get_class($creator) == "User" &&
+           $instance->CanView($this_user) &&
+           (!$needmodify || $instance->CanModify($this_user)))) {
 	SPITAJAX_ERROR(1, "You do not have permission!");
 	return 1;
     }
@@ -82,7 +89,7 @@ function Do_GetInstanceStatus()
 {
     global $instance, $creator;
 
-    if (StatusSetupAjax()) {
+    if (StatusSetupAjax(0)) {
 	return;
     }
     $blob = array();
@@ -121,7 +128,7 @@ function Do_TerminateInstance()
 {
     global $instance, $creator, $this_user, $ajax_args;
 
-    if (StatusSetupAjax()) {
+    if (StatusSetupAjax(1)) {
 	return;
     }
     $uuid = $instance->uuid();
@@ -187,7 +194,7 @@ function Do_GetInstanceManifest()
 {
     global $instance, $creator;
 
-    if (StatusSetupAjax()) {
+    if (StatusSetupAjax(0)) {
 	return;
     }
 
@@ -208,7 +215,7 @@ function Do_GetSSHAuthObject()
     }
     $hostport = $ajax_args["hostport"];
     
-    if (StatusSetupAjax()) {
+    if (StatusSetupAjax(1)) {
 	return;
     }
     #
@@ -245,7 +252,7 @@ function Do_RequestExtension()
     $needapproval = 0;
     $granted = 0;
 
-    if (StatusSetupAjax()) {
+    if (StatusSetupAjax(1)) {
 	goto bad;
     }
     $uuid = $instance->uuid();
@@ -477,7 +484,7 @@ function Do_ConsoleURL()
     }
     $node = $ajax_args["node"];
 
-    if (StatusSetupAjax()) {
+    if (StatusSetupAjax(1)) {
 	return;
     }
     $uuid = $instance->uuid();
@@ -562,7 +569,7 @@ function Do_Snapshot()
             SPITAJAX_ERROR(1, "Bad node id");
             return;
         }
-        $optargs .= " -s $node_id ";
+        $optargs .= " -n $node_id ";
 
         if (isset($ajax_args["update_profile"]) &&
             $ajax_args["update_profile"]) {
@@ -576,7 +583,7 @@ function Do_Snapshot()
     $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC($this_user->uid(), "nobody",
 		     "webmanage_instance -t $webtask_id -- ".
-                     "  snapshot $optargs $uuid",
+                     "  snapshot $uuid $optargs",
 		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
 
