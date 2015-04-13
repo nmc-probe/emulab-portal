@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -53,8 +53,12 @@ mfs:
 mfs-install:
 frisbee-mfs:
 frisbee-mfs-install:
+
 newnode-mfs:
-newnode-mfs-install:
+	@$(MAKE) -C teachswitch all
+
+newnode-mfs-install: newnode-mfs
+	@$(MAKE) -C teachswitch client-install
 
 # How to recursively descend into subdirectories to make general
 # targets such as `all'.

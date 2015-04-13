@@ -249,6 +249,7 @@ outfiles="Makeconf GNUmakefile setversion \
  	  event/delay-agent/GNUmakefile \
 	  tools/GNUmakefile \
 	  tools/pcapper/GNUmakefile \
+	  tools/teachswitch/GNUmakefile \
 	  sensors/GNUmakefile \
 	  sensors/slothd/GNUmakefile \
 	  sensors/canaryd/GNUmakefile \

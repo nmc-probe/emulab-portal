@@ -177,6 +177,6 @@ mfs-install: destdircheck
 	fi
 
 newnode-mfs-install: mfs-install
-	(cd ../../../tools/teachswitch; $(MAKE) DESTDIR=$(DESTDIR) client-install)
-	$(INSTALL) -m 755 $(SRCDIR)/../../../install/newclient $(BINDIR)/newclient
+	(cd ../../tools/teachswitch; $(MAKE) DESTDIR=$(DESTDIR) client-install)
+	$(INSTALL) -m 755 $(SRCDIR)/../freebsd/newclient $(BINDIR)/newclient
 	$(INSTALL) -m 755 $(SRCDIR)/mfs-newnode-testbed.sh $(RCDIR)/testbed.sh

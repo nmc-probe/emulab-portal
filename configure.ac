@@ -1335,7 +1335,6 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	rc.d/3.elvin_gateway.sh rc.d/pelab.sh rc.d/capture.sh \
 	rc.d/3.mfrisbeed.sh rc.d/3.mfrisbeed-subboss.sh \
 	tools/GNUmakefile rc.d/1.mysql-server.sh tools/svn/GNUmakefile \
-	tools/teachswitch/GNUmakefile \
         tools/webcamapplet/GNUmakefile tools/whol/GNUmakefile \
         tools/selectapplet/GNUmakefile tools/rmanage/GNUmakefile \
 	$eventfiles \
@@ -1421,6 +1420,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/event/program-agent/GNUmakefile \
  clientside/event/disk-agent/GNUmakefile \
  clientside/tools/GNUmakefile clientside/tools/pcapper/GNUmakefile \
+ clientside/tools/teachswitch/GNUmakefile \
  clientside/sensors/GNUmakefile clientside/sensors/slothd/GNUmakefile \
  clientside/sensors/slothd/sdisrunning clientside/sensors/slothd/sddeploy \
  clientside/sensors/canaryd/GNUmakefile \
