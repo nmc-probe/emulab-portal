@@ -258,8 +258,8 @@ NAMED_FORWARDERS="144.92.254.254 128.104.254.254"
 # 2015-02-25
 # bpkroth
 #NAMED_ALSONOTIFY="128.104.222.8 10.130.6.8 192.168.6.8"
-NAMED_ALSONOTIFY="128.104.222.8 192.168.6.8 128.104.223.201 10.130.7.211 128.104.223.202 10.130.7.212 128.104.223.203 10.130.7.213"
-# TODO: NAMED_ALSONOTIFY="128.104.222.8 192.168.6.8 10.130.7.211 10.130.7.212 10.130.7.213"
+NAMED_ALSONOTIFY="128.104.222.8 192.168.6.8 128.104.223.201 10.130.7.201 128.104.223.202 10.130.7.202 128.104.223.203 10.130.7.203"
+NAMED_ALSONOTIFY="128.104.222.8 192.168.6.8 10.130.7.201 10.130.7.202 10.130.7.203"
 
 #
 # NTP server configuration:
@@ -521,9 +521,75 @@ DISABLE_NSE=1
 #
 PROTOGENI_SUPPORT=1
 PROTOGENI_DOMAIN="cloudlab-wisc"
+PROTOGENI_LOCALUSER=1
+PROTOGENI_GENIWEBLOGIN=0
+PROTOGENI_MAXSERVERLOAD=24
+
+# Blockstores
+BS_IQN_PREFIX=iqn.2015-04.us.cloudlab.wisconsin
 
 #
 # If enabled, needs setup, see:
 #   http://users.emulab.net/trac/emulab/wiki/NodeUsageInstall
 #
 NODE_USAGE_SUPPORT=1
+
+#
+# Fancy new browser in the console support
+#
+BROWSER_CONSOLE_ENABLE=0
+
+#
+# Set if direct NFS mounts from vnodes to ops don't work
+# e.g., due to firewalling on a segmented control network.
+#
+NOVIRTNFSMOUNTS=0
+
+# Image versioning and deltas.
+IMAGEPROVENANCE=1
+IMAGEDELTAS=0
+
+#
+# ZFS
+#
+WITHZFS=1
+ZFS_ROOT=z
+ZFS_QUOTA_USER="1G"
+ZFS_QUOTA_PROJECT="100G"
+ZFS_QUOTA_GROUP="10G"
+# We prefer to use NFSv4 for now.  amd/autofs doesn't generally have ghosting
+# turned on, so it's hard to see what's available.
+# 2015-04-04
+# bpkroth
+# Nevermind, that caused issues with emulab's ability to detect whether or not
+# an export from ops was available (more specifically mounted) on boss since so
+# far as we could tell FreeBSD doesn't have an equivalent to Linux's "cat
+# /proc/mounts" in order to determine what NFSv4 submounts were currently
+# mounted.
+# 2015-04-13
+# bpkroth
+WITHAMD=1
+AMD_ROOT=/.amd_mnt/ops.wisc.cloudlab.us
+# Break a dependency loop where exports_setup on boss only instructs ops to
+# generate exports for things that boss can see, but since those are mounted
+# from ops, without this we can't see them to instruct ops to export them to us.
+# That's really not the main purpose of the setting though.  Instead, it's
+# meant to reduce the number of exports that mountd has to handle to only those
+# that are active and necessary, rather than all of descendants of a
+# z/{users,groups,proj,share} fs.  That's probably less necessary on our
+# relatively smaller install than Utah's.
+# 2015-04-04
+# bpkroth
+ZFS_NOEXPORT=1
+# But that also adds an assumption that we've included Utah's incremental
+# mountd update patches to FreeBSD, which we haven't.  So, add another flag to
+# skip that.
+# 2015-04-08
+# bpkroth
+# RT #543192
+# NOTE: This option has since been taken upstream and renamed to
+# INCREMENTAL_MOUNTD, which defaults to 0, since really only Utah has that hack
+# right now.
+# 2015-04-10
+# bpkroth
+WITHOUT_INCREMENTAL_MOUNTD_UPDATES=1

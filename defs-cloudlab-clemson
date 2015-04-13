@@ -54,10 +54,6 @@ NTPSERVER=ops
 #EXTERNAL_NTPSERVER3=ntp1.emulab.net
 #EXTERNAL_NTPSERVER4=ntp1.emulab.net
 DISABLE_NSE=1
-# This means it is an inner elab!
-#ELABINELAB=1
-# If we can run old images ... depends on whther elvind is installed.
-ELVIN_COMPAT=0
 TBCOOKIESUFFIX="ClemsonCloudLab"
 # XXX hack to work around perl bug
 # Start a multicast IGMP querier
@@ -115,8 +111,10 @@ NODECONSOLE="vga"
 # Which version of the MFS.
 MFSVERSION="82"
 PROTOGENI_SUPPORT=1
-PROTOGENI_GENIRACK=1
 PROTOGENI_DOMAIN="clemsoncloudlab"
+PROTOGENI_LOCALUSER=1
+PROTOGENI_GENIWEBLOGIN=0
+PROTOGENI_MAXSERVERLOAD=24
 FANCYBANNER=1
 ISOLATEADMINS=0
 EC2META_ENABLE=1
@@ -125,7 +123,12 @@ EC2META_ENABLE=1
 # Fancy new browser in the console support
 #
 BROWSER_CONSOLE_ENABLE=0
-NOVIRTNFSMOUNTS=1
+
+#
+# Set if direct NFS mounts from vnodes to ops don't work
+# e.g., due to firewalling on a segmented control network.
+#
+NOVIRTNFSMOUNTS=0
 
 # Image versioning and deltas.
 IMAGEPROVENANCE=1
