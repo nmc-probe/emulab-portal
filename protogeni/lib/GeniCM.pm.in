@@ -6925,7 +6925,6 @@ sub HandleBlockstore($$$$$$@)
     my $class     = GeniXML::GetText("class", $blockref);
     my $mount     = GeniXML::GetText("mountpoint", $blockref);
     my $readonly  = GeniXML::GetText("readonly", $blockref);
-    my $leasename = GeniXML::GetText("persistent", $blockref);
     my $dataset_id= GeniXML::GetText("dataset", $blockref);
     my $placement = GeniXML::GetText("placement", $blockref);
     my $btype     = "";
@@ -6967,7 +6966,7 @@ sub HandleBlockstore($$$$$$@)
     # If ephemeral, size must be given. Else we get it below from the lease,
     # or we get it from the image if its an image backed blockstore.
     #
-    if (!defined($leasename)) {
+    if ($class eq "local") {
 	if (defined($dataset_id)) {
 	    # Default project to lookup lease.
 	    my $pid = $experiment->pid();
@@ -7060,7 +7059,7 @@ sub HandleBlockstore($$$$$$@)
 	$fixed = $bsname = $nodename;
 	push(@attributes, ["protocol", "iSCSI", 1]);
 
-	if (defined($leasename)) {
+	if (defined($dataset_id)) {
 	    # Default project to lookup lease.
 	    my $pid = $experiment->pid();
 	    my $gid = $pid;
@@ -7068,10 +7067,10 @@ sub HandleBlockstore($$$$$$@)
 	    #
 	    # Look for a urn and possibly project/group qualified lease name.
 	    #
-	    if (GeniHRN::IsValid($leasename)) {
-		my ($domainsubauth,$ltype,$id) = GeniHRN::Parse($leasename);
+	    if (GeniHRN::IsValid($dataset_id)) {
+		my ($domainsubauth,$ltype,$id) = GeniHRN::Parse($dataset_id);
 		if ($ltype ne "dataset") {
-		    $message = "Illegal dataset urn for $leasename";
+		    $message = "Illegal dataset urn for $dataset_id";
 		    goto bad;
 		}
 		my ($domain,$subauth) = split(":", $domainsubauth);
@@ -7082,24 +7081,24 @@ sub HandleBlockstore($$$$$$@)
 		if (defined($subauth)) {
 		    $pid = $subauth;
 		}
-		$leasename = $id;
+		$dataset_id = $id;
 
-		if ($leasename =~ /^(.*)\/\/(.*)$/) {
+		if ($dataset_id =~ /^(.*)\/\/(.*)$/) {
 		    $gid = $1;
-		    $leasename = $2;
+		    $dataset_id = $2;
 		}
-		if (!TBcheck_dbslot($leasename, "project_leases", "lease_id",
+		if (!TBcheck_dbslot($dataset_id, "project_leases", "lease_id",
 				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-		    $message = "Illegal dataset name: $leasename";
+		    $message = "Illegal dataset name: $dataset_id";
 		    goto bad;
 		}
 	    }
-	    my $lease = Lease->Lookup($pid, $gid, $leasename);
+	    my $lease = Lease->Lookup($pid, $gid, $dataset_id);
 	    if (!defined($lease)) {
 		#
 		# Dataset must already exist.
 		#
-		$message = "No such persistent dataset for $bsname: $leasename";
+		$message = "No such dataset for $bsname: $dataset_id";
 		$errorcode = GENIRESPONSE_SEARCHFAILED;
 		goto bad;
 	    }
@@ -7110,7 +7109,7 @@ sub HandleBlockstore($$$$$$@)
 		goto permokay
 		    if ($lease->AccessCheck($geniuser->emulab_user(),
 					    LEASE_ACCESS_READ()));
-		$message = "Not enough permission to use dataset: $leasename";
+		$message = "Not enough permission to use dataset: $dataset_id";
 		$errorcode = GENIRESPONSE_FORBIDDEN;
 		goto bad;
 	    }
@@ -7127,7 +7126,7 @@ sub HandleBlockstore($$$$$$@)
 	    #
 	    if ($experiment->pid() ne $lease->pid()) {
 		$message = "Not allowed to use dataset from a ".
-		    "different SA: $leasename";
+		    "different SA: $dataset_id";
 		$errorcode = GENIRESPONSE_FORBIDDEN;
 		goto bad;
 	    }
@@ -7158,7 +7157,7 @@ sub HandleBlockstore($$$$$$@)
 
 	    }
 	    # If we get here, its not allowed.
-	    $message = "No permission to use dataset $leasename";
+	    $message = "No permission to use dataset $dataset_id";
 	    $errorcode = GENIRESPONSE_FORBIDDEN;
 	    goto bad;
 
@@ -7167,14 +7166,14 @@ sub HandleBlockstore($$$$$$@)
 	    # Only one read-write user at a time.
 	    #
 	    if ($readonly && $lease->InUseReadWrite()) {
-		$message = "Dataset $leasename is already in use RW";
+		$message = "Dataset $dataset_id is already in use RW";
 		goto bad;
 	    }
 	    # We need some stuff from the blockstore to fill out the
 	    # virt tables below.
 	    my $blockstore = Blockstore->LookupByLease($lease->lease_idx());
 	    if (!defined($blockstore)) {
-		$message = "Could not get blockstore for lease $leasename";
+		$message = "Could not get blockstore for dataset $dataset_id";
 		goto bad;
 	    }
 	    $btype = $lease->type();
