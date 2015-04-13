@@ -36,7 +36,9 @@ $dblink = GetDBLink("sa");
 #
 $optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
 				 "all",           PAGEARG_BOOLEAN);
-
+if (!isset($all)) {
+    $all = 0;
+}
 #
 # Get current user.
 #
@@ -61,105 +63,152 @@ SPITHEADER(1);
 echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
-$query_result =
-    DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
-                 " (UNIX_TIMESTAMP(now()) > ".
-                 "  UNIX_TIMESTAMP(s.expires)) as expired ".
-                 "  from apt_instances as a ".
-                 "left join geni.geni_slices as s on ".
-                 "     s.uuid=a.slice_uuid ".
-		 "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
-		 (isset($all) && ISADMIN() ?
-		  "order by a.creator" :
-                  "where a.creator_uuid='$target_uuid'"));
+$query_result1 = null;
+$query_result2 = null;
 
-if (mysql_num_rows($query_result) == 0) {
-    $message = "<b>No experiments to show you. Maybe you want to ".
-	"<a href='instantiate.php'>start one?</a></b><br><br>";
-
-    if (ISADMIN()) {
-	$message .= "<img src='images/redball.gif'>".
-	    "<a href='myexperiments.php?all=1'>Show all user Experiments</a>";
-    }
-    SPITUSERERROR($message);
-    exit();
+if ($all && ISADMIN()) {
+    $query_result1 = 
+        DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
+                     " (UNIX_TIMESTAMP(now()) > ".
+                     "  UNIX_TIMESTAMP(s.expires)) as expired ".
+                     "  from apt_instances as a ".
+                     "left join geni.geni_slices as s on ".
+                     "     s.uuid=a.slice_uuid ".
+                     "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
+                     "order by a.creator");
 }
-echo "<div class='row'>
-       <div class='col-lg-10 col-lg-offset-1
-                   col-md-10 col-md-offset-1
-                   col-sm-12 col-sm-offset-0
-                   col-xs-12 col-xs-offset-0'>\n";
+else {
+    $query_result1 =
+        DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
+                     " (UNIX_TIMESTAMP(now()) > ".
+                     "  UNIX_TIMESTAMP(s.expires)) as expired ".
+                     "  from apt_instances as a ".
+                     "left join geni.geni_slices as s on ".
+                     "     s.uuid=a.slice_uuid ".
+                     "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
+                     "where a.creator_uuid='$target_uuid'");
 
-echo "<input class='form-control search' type='search' data-column='all'
-             id='experiment_search' placeholder='Search'>\n";
+    $query_result2 =
+        DBQueryFatal("select distinct a.*,s.expires,s.hrn,u.email, ".
+                     " (UNIX_TIMESTAMP(now()) > ".
+                     "  UNIX_TIMESTAMP(s.expires)) as expired ".
+                     "  from apt_instances as a ".
+                     "left join geni.geni_slices as s on ".
+                     "     s.uuid=a.slice_uuid ".
+                     "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
+                     "left join group_membership as g on ".
+                     "     g.uid_idx='$target_idx' and  ".
+                     "     g.pid_idx=a.pid_idx ".
+                     "where a.creator_uuid='$target_uuid' or ".
+                     "      g.uid_idx is not null ".
+                     "order by a.creator");
+}
 
-echo "  <table class='tablesorter'>
+function SPITROWS($all, $name, $result)
+{
+    echo "<input class='form-control search' type='search' data-column='all'
+             id='experiment_search_${name}' placeholder='Search'>\n";
+
+    echo "  <table class='tablesorter' id='tablesorter_${name}'>
          <thead>
           <tr>
            <th>Profile</th>\n";
-if (isset($all) && ISADMIN()) {
-    echo " <th>Slice</th>";
-    echo " <th>Creator</th>";
-    echo " <th>Project</th>";
-}
-echo "     <th>Status</th>
-           <th>Created</th>
-           <th>Expires</th>
-          </tr>
-         </thead>
+        
+    if (ISADMIN()) {
+        echo " <th>Slice</th>";
+    }
+    if ($all) {
+        echo "     <th>Creator</th>\n";
+    }
+    echo "     <th>Project</th>
+               <th>Status</th>
+               <th>Created</th>
+               <th>Expires</th>
+               </tr>
+             </thead>
          <tbody>\n";
+    
+    while ($row = mysql_fetch_array($result)) {
+        $profile_id   = $row["profile_id"];
+        $version      = $row["profile_version"];
+        $uuid         = $row["uuid"];
+        $status       = $row["status"];
+        $created      = DateStringGMT($row["created"]);
+        $expires      = DateStringGMT($row["expires"]);
+        $creator_idx  = $row["creator_idx"];
+        $profile_name = $profile_id;
+        $creator_uid  = $row["creator"];
+        $pid          = $row["pid"];
+        list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
+        $email        = $row["email"];
+        # If a guest user, use email instead.
+        if (isset($email)) {
+            $creator = $email;
+        }
+        else {
+            $creator = "<a href='$TBBASE/showuser.php3?user=$creator_idx'>".
+                "$creator_uid</a>";
+        }
+        if ($row["expired"]) {
+            $status = "expired";
+        }
 
-while ($row = mysql_fetch_array($query_result)) {
-    $profile_id   = $row["profile_id"];
-    $version      = $row["profile_version"];
-    $uuid         = $row["uuid"];
-    $status       = $row["status"];
-    $created      = DateStringGMT($row["created"]);
-    $expires      = DateStringGMT($row["expires"]);
-    $creator_idx  = $row["creator_idx"];
-    $profile_name = $profile_id;
-    $creator_uid  = $row["creator"];
-    $pid          = $row["pid"];
-    list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
-    $email        = $row["email"];
-    # If a guest user, use email instead.
-    if (isset($email)) {
-        $creator = $email;
-    }
-    else {
-        $creator = "<a href='$TBBASE/showuser.php3?user=$creator_idx'>".
-            "$creator_uid</a>";
-    }
-    if ($row["expired"]) {
-        $status = "expired";
-    }
+        $profile = Profile::Lookup($profile_id, $version);
+        if ($profile) {
+            $profile_name = $profile->name();
+        }
 
-    $profile = Profile::Lookup($profile_id, $version);
-    if ($profile) {
-	$profile_name = $profile->name();
-    }
-
-    echo " <tr>
+        echo " <tr>
             <td>
              <a href='status.php?uuid=$uuid'>$profile_name</a>
             </td>";
-    if (isset($all) && ISADMIN()) {
-	echo "<td>$hrn</td>";
-	echo "<td>$creator</td>";
-	echo "<td>$pid</td>";
-    }
-    echo "  <td>$status</td>
+        if (ISADMIN()) {
+            echo "<td>$hrn</td>";
+        }
+        if ($all) {
+            echo "<td>$creator</td>";
+        }
+        echo "  <td><a href='$TBBASE/showproject.php3?pid=$pid'>$pid</a></td>";
+        echo "  <td>$status</td>
             <td class='format-date'>$created</td>
             <td class='format-date'>$expires</td>
            </tr>\n";
-}
-echo "   </tbody>
+    }
+    echo "   </tbody>
         </table>\n";
-
-if (ISADMIN() && !isset($all)) {
-    echo "<img src='images/redball.gif'>
-          <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
 }
+
+echo "<div class='row'>
+        <div class='col-lg-10 col-lg-offset-1
+                    col-md-10 col-md-offset-1
+                    col-sm-12 col-sm-offset-0
+                    col-xs-12 col-xs-offset-0'>\n";
+
+if (mysql_num_rows($query_result1) == 0) {
+    $message = "<b>No experiments to show you. Maybe you want to ".
+	"<a href='instantiate.php'>start one?</a></b><br>";
+    if (ISADMIN()) {
+        $message .= "<img src='images/redball.gif'>".
+            "<a href='myexperiments.php?all=1'>";
+	$message .= "Show all user Experiments</a>";
+    }
+    echo $message;
+}
+else {
+    SPITROWS($all, "table1", $query_result1);
+
+    if (ISADMIN() && !$all) {
+        echo "<img src='images/redball.gif'>
+            <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
+    }
+}
+if ($query_result2 && mysql_num_rows($query_result2)) {
+    echo "<br>\n";
+    echo "Experiments started by all members of projects you belong to\n";
+    echo "<br>\n";
+    SPITROWS(1, "table2", $query_result2);
+}
+
 echo " </div>
       </div>\n";
 

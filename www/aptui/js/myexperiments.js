@@ -16,7 +16,16 @@ function (sup, moment)
 			     .format("MMM Do, h:mm a"));
 	    }
 	});
-	var table = $(".tablesorter")
+	InitTable("table1");
+	InitTable("table2");
+    }
+
+    function InitTable(name)
+    {
+	var tablename  = "#tablesorter_" + name;
+	var searchname = "#experiment_search_" + name;
+	
+	var table = $(tablename)
 		.tablesorter({
 		    theme : 'green',
 		    
@@ -45,7 +54,7 @@ function (sup, moment)
 	// this binds to the search using "search" and "keyup"
 	// Allows using filter_liveSearch or delayed search &
 	// pressing escape to cancel the search
-	$.tablesorter.filter.bindSearch( table, $('#experiment_search') );
+	$.tablesorter.filter.bindSearch(table, $(searchname));
     }
 
     $(document).ready(initialize);

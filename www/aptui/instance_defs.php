@@ -63,6 +63,8 @@ class Instance
     function profile_id()   { return $this->field('profile_id'); }
     function profile_version() { return $this->field('profile_version'); }
     function status()	    { return $this->field('status'); }
+    function pid()	    { return $this->field('pid'); }
+    function pid_idx()	    { return $this->field('pid_idx'); }
     function public_url()   { return $this->field('public_url'); }
     function manifest()	    { return $this->field('manifest'); }
     function admin_lockdown() { return $this->field('admin_lockdown'); }
@@ -285,6 +287,30 @@ class Instance
         DBQueryWarn("update apt_instances set ".
                     "  extension_reason='$safe_reason' ".
                     "where uuid='$uuid'");
+    }
+    #
+    # Permission check; does user have permission to view instance.
+    #
+    function CanView($user) {
+	if ($this->creator_idx() == $user->uid_idx()) {
+	    return 1;
+	}
+	# Otherwise a project membership test.
+	$project = Project::Lookup($this->pid_idx());
+	if (!$project) {
+	    return 0;
+	}
+	$isapproved = 0;
+	if ($project->IsMember($user, $isapproved) && $isapproved) {
+	    return 1;
+	}
+	return 0;
+    }
+    function CanModify($user) {
+	if ($this->creator_idx() == $user->uid_idx()) {
+	    return 1;
+	}
+        return 0;
     }
 }
 ?>
