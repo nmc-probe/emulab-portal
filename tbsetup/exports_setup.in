@@ -298,6 +298,23 @@ if ($WITHZFS && $ZFS_NOEXPORT) {
 	$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
 	$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
     }
+
+    #
+    # Well, this is to catch nonlocal users who are not members of a
+    # project yet. 
+    #
+    $active_result =
+	DBQueryFatal("select u.uid from user_stats as s ".
+		     "left join users as u on u.uid_idx=s.uid_idx ".
+		     "where u.status='" . USERSTATUS_ACTIVE() . "' and ".
+		     "      u.nonlocal_id is not null and ".
+		     "      (((UNIX_TIMESTAMP(now()) - ".
+		     "        UNIX_TIMESTAMP(s.last_activity)) <= $limit) or ".
+		     "       ((UNIX_TIMESTAMP(now()) - ".
+		     "        UNIX_TIMESTAMP(s.weblogin_last)) <= $limit))");
+    while (my ($uid) = $active_result->fetchrow_array()) {
+	$bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
+    }
 }
 
 my %ipgroups    = ();
