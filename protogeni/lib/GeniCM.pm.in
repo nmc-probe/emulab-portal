@@ -5638,6 +5638,10 @@ sub CreateUserFromCertificate($)
     my $user = GeniUser->Lookup($certificate->urn(), 1);
     if (defined($user)) {
 	if ($PROTOGENI_LOCALUSER && !$user->IsLocal()) {
+	    $user = User->LookupNonLocal($urn);
+	    if (defined($user)) {
+		return GeniUser->CreateFromLocal($user);
+	    }
 	    # Already exists as a geni user, need to make a real user.
 	    return GeniUtil::CreateLocalUser($urn, $email);
 	}
