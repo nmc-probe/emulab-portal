@@ -54,10 +54,11 @@ sub usage()
 	  "       -s     Create descriptor but do not snapshot\n".
 	  "       -n     Impotent mode\n".
 	  "       -F     Create a full image even if deltas are on\n".
+	  "       -U     Tell prepare to update master password files\n".
 	  "       -w     Wait for image to be created\n");
     exit(-1);
 }
-my $optlist     = "densg:wFr:b:";
+my $optlist     = "densg:wFr:b:U";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
@@ -67,6 +68,7 @@ my $waitmode    = 0;
 my $nodelta     = 0; # To pass to create_image.
 my $global      = 0;
 my $shared      = 0;
+my $update_prepare = 0;
 my $bsname;
 my ($base_osinfo, $base_image);
 
@@ -133,6 +135,9 @@ if (defined($options{"w"})) {
 }
 if (defined($options{"F"})) {
     $nodelta = 1;
+}
+if (defined($options{"U"})) {
+    $update_prepare = 1;
 }
 if (defined($options{"b"})) {
     $bsname = $options{"b"};
@@ -374,6 +379,9 @@ if (defined($image)) {
     my $opts = "-p $pid ";
     $opts   .= "-w " if ($waitmode);
     $opts   .= "-F " if ($nodelta);
+    $opts   .= "-U " if ($update_prepare);
+
+    print STDERR "FOO: $opts\n";
 
     #
     # Mike says do not pass versioned imagenames to create_image when
@@ -588,6 +596,7 @@ if ($nosnapshot) {
 my $opts = "-p $pid ";
 $opts   .= "-w " if ($waitmode);
 $opts   .= "-F " if ($nodelta);
+$opts   .= "-U " if ($update_prepare);
 $output  = emutil::ExecQuiet("$CREATEIMAGE $opts $imagename $node_id");
 if ($?) {
     print STDERR $output;

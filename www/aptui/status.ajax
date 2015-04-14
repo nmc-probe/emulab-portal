@@ -411,6 +411,7 @@ function Do_RequestExtension()
         if (! ISADMIN()) {
             $instance->SetExtensionReason($reason);
         }
+        $instance->BumpExtensionCount($granted);
     }
     elseif ($retval > 0) {
 	SPITAJAX_ERROR(1, $suexec_output);
@@ -461,6 +462,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
         "From: " . $creator->email());
 
     $instance->SetExtensionReason($reason);
+    $instance->BumpExtensionCount($granted);
             
     # XXX 
     SPITAJAX_ERROR(2, "Your request requires admininstrator approval".
@@ -575,6 +577,10 @@ function Do_Snapshot()
             $ajax_args["update_profile"]) {
             $optargs .= " -u all ";
         }
+    }
+    if (isset($ajax_args["update_prepare"]) &&
+        $ajax_args["update_prepare"]) {
+        $optargs .= " -U ";
     }
     
     #

@@ -2432,6 +2432,7 @@ sub CreateImage($)
     my $imagename    = $argref->{'imagename'};
     my $sliver_urn   = $argref->{'sliver_urn'};
     my $wholedisk    = 0;
+    my $update_prepare = 0;
     my $bsname;
 
     require EmulabConstants;
@@ -2447,6 +2448,8 @@ sub CreateImage($)
     }
     $wholedisk = 1
 	if (exists($argref->{'wholedisk'}) && $argref->{'wholedisk'});
+    $update_prepare = 1
+	if (exists($argref->{'update_prepare'}) && $argref->{'update_prepare'});
     # Optional blockstore name.
     if (exists($argref->{'bsname'})) {
 	$bsname = $argref->{'bsname'};
@@ -2651,6 +2654,7 @@ dataset:
     #
     $opt  = "";
     $opt .= " -b $bsname" if (defined($bsname));
+    $opt .= " -U " if ($update_prepare);
     if ($WITHPROVENANCE) {
 	$imagename .= ":" . $image->version();
     }

@@ -178,8 +178,9 @@ sub DoSnapshot()
     my $node_id;
     my $imagename;
     my $update_profile;
+    my $update_prepare = 0;
 
-    my $optlist = "n:i:u:";
+    my $optlist = "n:i:u:U";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	usage();
@@ -195,6 +196,9 @@ sub DoSnapshot()
 	if ($update_profile !~ /^(node|all)$/) {
 	    usage();
 	}
+    }
+    if (defined($options{"U"})) {
+	$update_prepare = 1;
     }
     
     if ($old_status ne "ready") {
@@ -349,6 +353,9 @@ sub DoSnapshot()
 	"credentials" => [$slice_credential->asString(),
 			  $speaksfor_credential->asString()],
     };
+    if ($update_prepare) {
+	$args->{'update_prepare'} = 1;
+    }
     #
     # This returns pretty fast, and then the imaging takes place in
     # the background at the aggregate. 

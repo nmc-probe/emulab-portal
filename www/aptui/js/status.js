@@ -1217,7 +1217,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     // Request to start a snapshot. This assumes a single node of course.
     //
-    function StartSnapshot(node_id, update_profile)
+    function StartSnapshot(node_id, update_profile, update_prepare)
     {
 	if (node_id === undefined) {
 	    node_id = "";
@@ -1239,7 +1239,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sup.CallServerMethod(ajaxurl, "status", "SnapShot",
 				 {"uuid" : uuid,
 				  "node_id" : node_id,
-				  "update_profile" : update_profile});
+				  "update_profile" : update_profile,
+				  "update_prepare" : update_prepare});
 	xmlthing.done(callback);
     }
 
@@ -1251,6 +1252,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     {
 	// Default to update unless checkbox says otherwise.
 	var update_profile = 1;
+	var update_prepare = 0;
+
+	// Default to unchecked any time we show the modal.
+	$('#snapshot_update_prepare').prop("checked", false);
 	
 	//
 	// Snapshot specific node from the context menu. We give the
@@ -1274,8 +1279,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    if (node_id && $('#snapshot_update_profile').is(':checked')) {
 		update_profile = 1;
 	    }
+	    if (node_id && $('#snapshot_update_prepare').is(':checked')) {
+		update_prepare = 1;
+	    }
 	    sup.HideModal('#snapshot_modal');
-	    StartSnapshot(node_id, update_profile);
+	    StartSnapshot(node_id, update_profile, update_prepare);
 	});
 
 	// Handler for hide modal to unbind the click handler.

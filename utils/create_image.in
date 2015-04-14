@@ -107,12 +107,13 @@ sub usage()
 	  "              image instead when a delta would be more than\n".
 	  "              <pct> percent the size of a full image.\n".
 	  "-M          - do not boot info MFS, run with ssh from current OS\n".
+	  "-U          - Tell prepare to update master password files\n".
 	  "-p <pid>    - project ID of the image; defaults to system project\n".
 	  "<imagename> - imagename to use\n".
 	  "<node>      - nodeid to create the image from\n");
     exit(-1);
 }
-my $optlist  = "p:wsNdfeDSMA:Fb:";
+my $optlist  = "p:wsNdfeDSMA:Fb:U";
 my $waitmode = 0;
 my $usessh   = 0;
 my $usenfs   = 0;
@@ -123,6 +124,7 @@ my $nodelta  = 0;
 my $nomfs    = 0;
 my $signature= 0;
 my $deltapct = 0;
+my $update_prepare = 0;
 my $bsname;
 my $webtask;
 
@@ -280,6 +282,9 @@ if (defined($options{"S"})) {
 if (defined($options{"M"})) {
     $nomfs = 1;
     $usessh = 1;
+}
+if (defined($options{"U"})) {
+    $update_prepare = 1;
 }
 if (defined($options{"A"})) {
     if (!$WITHDELTAS) {
@@ -1087,6 +1092,24 @@ if ($isec2node) {
 
     $EUID = $UID = $SAVEUID;
     goto ec2done;
+}
+
+#
+# Big hack; we want to tell the node to update the master password
+# files. But need to do this in a backwards compatable manner, and
+# in way that does not require too much new plumbing. So, just touch
+# file in /var/run, the current version of prepare looks for it.
+#
+if ($update_prepare) {
+    my $SAVEUID	= $UID;
+    $EUID = $UID = 0;
+    my $cmd = "$TB/bin/sshtb -n -o ConnectTimeout=10 ".
+	"-host $node_id touch /var/run/updatemasterpasswdfiles";
+    print STDERR "About to: '$cmd'\n" if ($debug);
+    system($cmd);
+    fatal("'$cmd' failed")
+	if ($?);
+    $EUID = $UID = $SAVEUID;
 }
 
 #
