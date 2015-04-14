@@ -60,7 +60,7 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
 
 # Debugging
-my $usemydevtree = 1;
+my $usemydevtree = 0;
 
 #
 # Untaint the path
