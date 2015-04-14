@@ -267,6 +267,8 @@ class Instance
         if ($ISCLOUD) {
             $am_array["Wisc Cloudlab (Alpha)"] =
                 "urn:publicid:IDN+wisc.cloudlab.us+authority+cm";
+            $am_array["Clemson Cloudlab (Alpha)"] =
+                "urn:publicid:IDN+clemson.cloudlab.us+authority+cm";
         }
         return $am_array;
     }
