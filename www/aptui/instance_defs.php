@@ -288,6 +288,16 @@ class Instance
                     "  extension_reason='$safe_reason' ".
                     "where uuid='$uuid'");
     }
+
+    function BumpExtensionCount($granted)
+    {
+	$uuid = $this->uuid();
+
+        DBQueryWarn("update apt_instances set ".
+                    "  extension_count=extension_count+1, ".
+                    "  extension_days=extension_days+${granted} ".
+                    "where uuid='$uuid'");
+    }
     #
     # Permission check; does user have permission to view instance.
     #
