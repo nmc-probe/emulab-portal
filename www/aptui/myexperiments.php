@@ -200,6 +200,7 @@ else {
     if (ISADMIN() && !$all) {
         echo "<img src='images/redball.gif'>
             <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
+        echo "<br>\n";
     }
 }
 if ($query_result2 && mysql_num_rows($query_result2)) {
