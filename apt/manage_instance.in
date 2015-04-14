@@ -35,8 +35,8 @@ use POSIX qw(setsid close);
 #
 sub usage()
 {
-    print("Usage: manage_instance snapshot ".
-	  "[-s node_id] [-i imagename] [-u node|all] instance\n");
+    print("Usage: manage_instance snapshot instance ".
+	  "[-n node_id] [-i imagename] [-u node|all]\n");
     print("Usage: manage_instance consoleurl instance node\n");
     print("Usage: manage_instance extend instance seconds\n");
     print("Usage: manage_instance terminate instance\n");
