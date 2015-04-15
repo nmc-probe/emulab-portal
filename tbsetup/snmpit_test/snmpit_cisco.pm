@@ -328,7 +328,7 @@ sub portControl ($$@) {
     #
     # Find the command in the %cmdOIDs hash (defined at the top of this file)
     #
-    if (defined $cmdOIDs{$cmd} && !defined($fakeCmds{$cmd}) {
+    if (defined $cmdOIDs{$cmd} && !defined($fakeCmds{$cmd})) {
         my @oid = @{$cmdOIDs{$cmd}};
         my $errors = 0;
 
