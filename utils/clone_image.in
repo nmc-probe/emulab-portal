@@ -380,8 +380,7 @@ if (defined($image)) {
     $opts   .= "-w " if ($waitmode);
     $opts   .= "-F " if ($nodelta);
     $opts   .= "-U " if ($update_prepare);
-
-    print STDERR "FOO: $opts\n";
+    $opts   .= "-b $bsname " if (defined($bsname));
 
     #
     # Mike says do not pass versioned imagenames to create_image when
@@ -597,6 +596,7 @@ my $opts = "-p $pid ";
 $opts   .= "-w " if ($waitmode);
 $opts   .= "-F " if ($nodelta);
 $opts   .= "-U " if ($update_prepare);
+$opts   .= "-b $bsname " if (defined($bsname));
 $output  = emutil::ExecQuiet("$CREATEIMAGE $opts $imagename $node_id");
 if ($?) {
     print STDERR $output;
