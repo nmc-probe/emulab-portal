@@ -457,7 +457,7 @@ fixone() {
     export SLICEFIX_CONSOLE=`getvar CONSOLE "$iline" unknown`
     export SLICEFIX_BIOSDISK=`getvar BIOSDISK "$iline"`
     export SLICEFIX_DOM0MEM=`getvar DOM0MEM "$iline" unknown`
-    export SLICEFIX_DISABLEIF=`getvar DISABLEIF "$iline" unknown`
+    export SLICEFIX_DISABLEIF=`getvar DISABLEIF "$iline"`
 
     $BINDIR/slicefix $PART $DISK
     return $?
@@ -620,6 +620,9 @@ esac
 FIRSTMBR=''
 devs=""
 while read line; do
+    echo "Loading image"
+    echo "  LOADINFO=\"$line\""
+
     #
     # Remember the info for this partition line so we can run slicefix later.
     # Yes, we can load the same partition multiple times due to our delta

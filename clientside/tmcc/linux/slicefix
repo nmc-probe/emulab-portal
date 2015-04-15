@@ -144,7 +144,7 @@ fi
 DISABLEIF=$SLICEFIX_DISABLEIF
 DISABLEHINT=
 if [ -n "$DISABLEIF" ]; then
-    _str=`echo $DISABLEIF | sed -E -e 's/^([a-zA-Z0-9]*[a-zA-Z])([0-9]+)/hint.\1.\2.disabled/'`
+    _str=`echo $DISABLEIF | sed -e 's/^([a-zA-Z0-9]*[a-zA-Z])([0-9][0-9]*)/hint.\1.\2.disabled/'`
     if [ "$_str" = "$DISABLEIF" ]; then
 	echo "WARNING: unparsable define name \"$DISABLEIF\" ignored"
     else
