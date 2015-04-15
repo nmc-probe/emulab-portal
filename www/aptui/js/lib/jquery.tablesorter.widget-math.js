@@ -129,6 +129,9 @@
 				math.mathType( table, wo, $mathCells, wo.math_priority, dataAttrib );
 
 				// only info tbody cells
+				$mathCells = c.$table.find('.' + c.cssInfoBlock + ', thead').find('[' + dataAttrib + ']');
+				math.mathType( table, wo, $mathCells, wo.math_priority, dataAttrib );
+				// only info tbody cells
 				$mathCells = c.$table.find('.' + c.cssInfoBlock + ', tfoot').find('[' + dataAttrib + ']');
 				math.mathType( table, wo, $mathCells, wo.math_priority, dataAttrib );
 
