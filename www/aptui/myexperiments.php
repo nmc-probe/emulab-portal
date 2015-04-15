@@ -230,7 +230,7 @@ else {
 }
 if ($query_result2 && mysql_num_rows($query_result2)) {
     echo "<br>\n";
-    echo "Experiments started by all members of projects you belong to\n";
+    echo "Other experiments in my projects";
     echo "<br>\n";
     SPITROWS(1, "table2", $query_result2);
 }
