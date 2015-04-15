@@ -283,7 +283,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
        if (ISADMIN()) {
            echo "  <li class='divider'></li>
-	           <li><a href='activity.php'>Activity</a></li>";
+	           <li><a href='activity.php'>Activity</a></li>
+	           <li><a href='sumstats.php'>Summary Stats</a></li>";
        }
        echo "     </ul>
                 </li>\n";

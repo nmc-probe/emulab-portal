@@ -1250,6 +1250,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     function DoSnapshotNode(node_id)
     {
+	// Do not allow snapshot if the experiment is not in the ready state.
+	if (lastStatus != "ready") {
+	    alert("Experiment is not ready yet, snapshot not allowed");
+	    return;
+	}
+	
 	// Default to update unless checkbox says otherwise.
 	var update_profile = 1;
 	var update_prepare = 0;

@@ -106,6 +106,8 @@ else {
 
 function SPITROWS($all, $name, $result)
 {
+    global $TBBASE, $urn_mapping;
+    
     echo "<input class='form-control search' type='search' data-column='all'
              id='experiment_search_${name}' placeholder='Search'>\n";
 
@@ -122,7 +124,12 @@ function SPITROWS($all, $name, $result)
     }
     echo "     <th>Project</th>
                <th>Status</th>
-               <th>Created</th>
+               <th>Cluster</th>\n";
+    if (ISADMIN()) {
+        echo " <th>P</th>\n";
+        echo " <th>V</th>\n";
+    }
+    echo "     <th>Created</th>
                <th>Expires</th>
                </tr>
              </thead>
@@ -139,15 +146,22 @@ function SPITROWS($all, $name, $result)
         $profile_name = $profile_id;
         $creator_uid  = $row["creator"];
         $pid          = $row["pid"];
+        $urn          = $row["aggregate_urn"];
+        $cluster      = $urn_mapping[$urn];
+        $pcount       = $row["physnode_count"];
+        $vcount       = $row["virtnode_count"];
         list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
         $email        = $row["email"];
         # If a guest user, use email instead.
         if (isset($email)) {
             $creator = $email;
         }
-        else {
+        elseif (ISADMIN()) {
             $creator = "<a href='$TBBASE/showuser.php3?user=$creator_idx'>".
                 "$creator_uid</a>";
+        }
+        else {
+            $creator = $creator_uid;
         }
         if ($row["expired"]) {
             $status = "expired";
@@ -168,9 +182,20 @@ function SPITROWS($all, $name, $result)
         if ($all) {
             echo "<td>$creator</td>";
         }
-        echo "  <td><a href='$TBBASE/showproject.php3?pid=$pid'>$pid</a></td>";
-        echo "  <td>$status</td>
-            <td class='format-date'>$created</td>
+        if (ISADMIN()) {
+            echo "  <td><a href='$TBBASE/showproject.php3?pid=$pid'>".
+                "$pid</a></td>";
+        }
+        else {
+            echo "  <td>$pid</td>\n";
+        }
+        echo "  <td>$status</td>\n";
+        echo "  <td>$cluster</td>\n";
+        if (ISADMIN()) {
+            echo "<td>$pcount</td>";
+            echo "<td>$vcount</td>";
+        }
+        echo"   <td class='format-date'>$created</td>
             <td class='format-date'>$expires</td>
            </tr>\n";
     }
@@ -190,7 +215,7 @@ if (mysql_num_rows($query_result1) == 0) {
     if (ISADMIN()) {
         $message .= "<img src='images/redball.gif'>".
             "<a href='myexperiments.php?all=1'>";
-	$message .= "Show all user Experiments</a>";
+	$message .= "Show all user Experiments</a><br>";
     }
     echo $message;
 }

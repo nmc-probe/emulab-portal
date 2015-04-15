@@ -30,6 +30,14 @@ else {
     $DEFAULT_AGGREGATE = "Utah APT";
 }
 
+$urn_mapping =
+    array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      => "Utah",
+          "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      => "Wisc",
+          "urn:publicid:IDN+clemson.cloudlab.us+authority+cm"   => "Clem",
+          "urn:publicid:IDN+apt.emulab.net+authority+cm"        => "APT",
+          "urn:publicid:IDN+emulab.net+authority+cm"            => "MS",
+          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm" => "DDC");
+
 class Instance
 {
     var	$instance;

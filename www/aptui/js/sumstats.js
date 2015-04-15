@@ -13,17 +13,17 @@ function (sup, moment)
 	    var date = $.trim($(this).html());
 	    if (date != "") {
 		$(this).html(moment($(this).html())
-			     .format("ll"));
+			     .format("MMM Do, h:mm a"));
 	    }
 	});
-	InitTable("table1");
-	InitTable("table2");
+	InitTable("uid");
+	InitTable("pid");
     }
 
     function InitTable(name)
     {
 	var tablename  = "#tablesorter_" + name;
-	var searchname = "#experiment_search_" + name;
+	var searchname = "#search_" + name;
 	
 	var table = $(tablename)
 		.tablesorter({
@@ -32,7 +32,7 @@ function (sup, moment)
 		    //cssChildRow: "tablesorter-childRow",
 
 		    // initialize zebra and filter widgets
-		    widgets: ["zebra", "filter", "resizable"],
+		    widgets: ["zebra", "filter", "resizable", "math"],
 
 		    widgetOptions: {
 			// include child row content while filtering, if true
@@ -47,9 +47,15 @@ function (sup, moment)
 			filter_ignoreCase : true,
 			// Only one search box.
 			filter_columnFilters : false,
+
+			// data-math attribute
+			math_data     : 'math',
+			// ignore first column
+			math_ignore   : [0],
+			// integers
+			math_mask     : '',
 		    }
 		});
-
 	// Target the $('.search') input using built in functioning
 	// this binds to the search using "search" and "keyup"
 	// Allows using filter_liveSearch or delayed search &
