@@ -9,7 +9,7 @@ use EmulabConstants;
 my $UTAHURL       = "http://www.emulab.net/downloads";
 my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-v3.xml";
 my $GENDEV        = "$TOP_SRCDIR/install/descriptors-gendev.xml";
-my @STDIMAGES     = ("FBSD82-STD", "FEDORA15-STD");
+my @STDIMAGES     = ("FBSD83-STD", "UBUNTU12-64-STD");
 my @MBRS          = ("emulab-mbr.dd", "emulab-mbr2.dd", "emulab-mbr3.dd");
 my $STDIMAGESURL  = "$UTAHURL/images-STD";
 
@@ -23,20 +23,10 @@ sub Install($$$)
 
     # Others for the rack.
     if ($PROTOGENI_GENIRACK) {
-	push(@STDIMAGES, "UBUNTU12-64-STD");
-	push(@STDIMAGES, "UBUNTU11-64-STD");
-	push(@STDIMAGES, "FBSD91-STD");
+	push(@STDIMAGES, "UBUNTU14-64-STD");
+	push(@STDIMAGES, "FBSD100-64-STD");
     }
-    #
-    # XXX don't want to risk breaking GENIRACK, so only do this otherwise.
-    #
-    # XXX we should really download: FBSD83-64-STD, FEDORA15-64-STD,
-    # UBUNTU10-STD-FW, and the Linux MFSes that are also part of the
-    # default descriptors, but downloading images takes a long time
-    # so we keep the number of images to a minimum.
-    #
     else {
-	@STDIMAGES = ("FBSD83-STD", "FEDORA15-STD");
 	$DESCRIPTORS = "$TOP_SRCDIR/install/descriptors-v4.xml";
     }
 
