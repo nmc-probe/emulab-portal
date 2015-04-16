@@ -1219,9 +1219,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     function StartSnapshot(node_id, update_profile, update_prepare)
     {
-	if (node_id === undefined) {
-	    node_id = "";
-	}
 	sup.ShowModal('#waitwait-modal');
 
 	var callback = function(json) {
@@ -1235,12 +1232,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 	    ShowProgressModal();
 	}
+	var args = {"uuid" : uuid,
+		    "update_profile" : update_profile,
+		    "update_prepare" : update_prepare};
+	if (node_id !== undefined) {
+	    args["node_id"] = node_id;
+	}
 	var xmlthing =
-	    sup.CallServerMethod(ajaxurl, "status", "SnapShot",
-				 {"uuid" : uuid,
-				  "node_id" : node_id,
-				  "update_profile" : update_profile,
-				  "update_prepare" : update_prepare});
+	    sup.CallServerMethod(ajaxurl, "status", "SnapShot", args);
 	xmlthing.done(callback);
     }
 
