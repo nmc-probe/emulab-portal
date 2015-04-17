@@ -77,6 +77,7 @@ dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/logrotate.d
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/dracut.conf.d
 	@echo "dir-install"
 
 baselinux-%: dir-install
@@ -124,8 +125,9 @@ sysetc-onceonly-install:
 	@$(MYINSTALL) -m 600 $(SRCDIR)/login.defs $(SYSETCDIR)/login.defs
 	@$(MYINSTALL) -m 600 $(SRCDIR)/securetty $(SYSETCDIR)/securetty
 	@$(MYINSTALL) -m 440 $(SRCDIR)/sudoers $(SYSETCDIR)/sudoers
-#	@$(MYINSTALL) $(SRCDIR)/rsyslog.conf $(SYSETCDIR)/rsyslog.conf
+	@$(MYINSTALL) $(SRCDIR)/rsyslog.conf $(SYSETCDIR)/rsyslog.conf
 	@$(MYINSTALL) $(SRCDIR)/selinux-config $(SYSETCDIR)/selinux/config
+	@$(MYINSTALL) $(SRCDIR)/emulab-dracut.conf $(SYSETCDIR)/dracut.conf.d/01-dist.conf
 	@echo "sysetc-onceonly-install"
 
 script-install:	dir-install $(SCRIPTS)
