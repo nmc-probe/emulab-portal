@@ -123,7 +123,8 @@ my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
-my $PROTOGENI_LOCALUSER= @PROTOGENI_LOCALUSER@;
+my $PROTOGENI_LOCALUSER   = @PROTOGENI_LOCALUSER@;
+my $PROTOGENI_NONFSMOUNTS = @PROTOGENI_NONFSMOUNTS@;
 
 # For location info.
 my $default_longitude = undef;
@@ -783,6 +784,9 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	if (exists($elabinelab_settings->{'xen'})) {
 	    $virtexperiment->multiplex_factor(2);
 	}
+    }
+    if ($PROTOGENI_NONFSMOUNTS) {
+	$virtexperiment->nonfsmounts(1);
     }
 
     #
