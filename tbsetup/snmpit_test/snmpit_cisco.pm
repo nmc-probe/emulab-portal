@@ -902,16 +902,24 @@ sub createVlan($$;$$$) {
             [$VlanType,"1.$vlan_number","ethernet","INTEGER"],
             [$VlanName,"1.$vlan_number",$vlan_id,"OCTETSTR"],
             [$VlanSAID,"1.$vlan_number",$SAID,"OCTETSTR"]);
-        my @varList;
+
+
+        my @varList = ($vlan_number > 1000) ?  ($statusRow, $nameRow)
+            : ($statusRow, $typeRow, $nameRow, $saidRow);
+
         if ($self->{OSTYPE} eq 'NX-OS') {
-            @varList = ($statusRow, $nameRow);
+            # must do statusRow alone, to create vlan subtree
+            @varList = $statusRow;
         }
-        else {
-            @varList = ($vlan_number > 1000) ?  ($statusRow, $nameRow)
-                : ($statusRow, $typeRow, $nameRow, $saidRow);
-        }
+
         my $RetVal = snmpitSetWarn($self->{SESS}, new SNMP::VarList(@varList));
         print "",($RetVal? "Succeeded":"Failed"), ".\n";
+
+        if ($self->{OSTYPE} eq 'NX-OS') {
+            # run the naming of the vlan as a separate call
+            @varList = $nameRow;
+            $RetVal = snmpitSetWarn($self->{SESS}, new SNMP::VarList(@varList));
+        }
 
         #
         # Check for success
