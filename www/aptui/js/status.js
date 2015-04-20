@@ -1284,7 +1284,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    if (node_id && $('#snapshot_update_profile').is(':checked')) {
 		update_profile = 1;
 	    }
-	    if (node_id && $('#snapshot_update_prepare').is(':checked')) {
+	    if ($('#snapshot_update_prepare').is(':checked')) {
 		update_prepare = 1;
 	    }
 	    sup.HideModal('#snapshot_modal');
