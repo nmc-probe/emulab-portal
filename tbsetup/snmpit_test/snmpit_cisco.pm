@@ -56,14 +56,15 @@ use Lan;
 #
 my %cmdOIDs =
 (
-    "enable"  => ["ifAdminStatus","up"],
-    "disable" => ["ifAdminStatus","down"],
-    "1000mbit"=> ["portAdminSpeed","s1000000000"],
-    "100mbit" => ["portAdminSpeed","s100000000"],
-    "10mbit"  => ["portAdminSpeed","s10000000"],
-    "full"    => ["portDuplex","full"],
-    "half"    => ["portDuplex","half"],
-    "auto"    => ["portAdminSpeed","autoDetect","portDuplex","auto"]
+    "enable"    => ["ifAdminStatus","up"],
+    "disable"   => ["ifAdminStatus","down"],
+    "10000mbit" => ["portAdminSpeed","s10000000000"],
+    "1000mbit"  => ["portAdminSpeed","s1000000000"],
+    "100mbit"   => ["portAdminSpeed","s100000000"],
+    "10mbit"    => ["portAdminSpeed","s10000000"],
+    "full"      => ["portDuplex","full"],
+    "half"      => ["portDuplex","half"],
+    "auto"      => ["portAdminSpeed","autoDetect","portDuplex","auto"]
 );
 
 #
@@ -321,7 +322,10 @@ sub portControl ($$@) {
     my %fakeCmds;
     if ($self->{OSTYPE} eq 'NX-OS') {
         %fakeCmds = (
-            'full'  => 1,
+            'full'      => 1,
+            '10000mbit' => 1,
+            '1000mbit'  => 1,
+            '100mbit'   => 1,
         );
     }
 
