@@ -27,9 +27,9 @@ include("lease_defs.php");
 include("imageid_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
-include("dataset_defs.php");
-include("instance_defs.php");
-include("profile_defs.php");
+include_once("dataset_defs.php");
+include_once("instance_defs.php");
+include_once("profile_defs.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
 $page_title = "Show Dataset";
 

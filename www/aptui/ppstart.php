@@ -25,8 +25,8 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
-include("profile_defs.php");
-include("instance_defs.php");
+include_once("profile_defs.php");
+include_once("instance_defs.php");
 
 #
 # Get current user.

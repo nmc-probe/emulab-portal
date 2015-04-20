@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -26,7 +26,7 @@ include("defs.php3");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
-include("instance_defs.php");
+include_once("instance_defs.php");
 
 #
 # Get current user but make sure coming in on SSL.

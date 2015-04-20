@@ -25,8 +25,8 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
-include("profile_defs.php");
-include("instance_defs.php");
+include_once("profile_defs.php");
+include_once("instance_defs.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
 $page_title = "Create Dataset";
 

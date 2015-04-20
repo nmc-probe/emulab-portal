@@ -28,8 +28,8 @@ include_once("geni_defs.php");
 include_once("webtask.php");
 chdir("apt");
 include("quickvm_sup.php");
-include("instance_defs.php");
-include("profile_defs.php");
+include_once("instance_defs.php");
+include_once("profile_defs.php");
 $page_title = "Instantiate a Profile";
 $dblink = GetDBLink("sa");
 
