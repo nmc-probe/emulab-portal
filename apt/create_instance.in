@@ -744,6 +744,7 @@ if (!defined($manifest)) {
 }
 $instance->SetStatus("provisioned");
 $instance->SetManifest($manifest);
+$instance->ComputeNodeCounts();
 
 #
 # but have to wait for the sliver to be ready, which means polling.
