@@ -10,7 +10,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/oops-modal.html',
 	 'js/lib/text!template/share-modal.html',
 	 // jQuery modules
-	 'marked','jquery-ui','jquery-grid'],
+	 'marked'],
 function (_, sup, moment, ppstart,
 	  showString, waitwaitString, 
 	  rendererString, showtopoString, rspectextviewString,

@@ -12,7 +12,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/instantiate-modal.html',
 	 'js/lib/text!template/share-modal.html',
 	 // jQuery modules
-	 'filestyle','marked','jquery-ui','jquery-grid'],
+	 'filestyle','marked'],
 function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,

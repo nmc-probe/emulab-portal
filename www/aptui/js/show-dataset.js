@@ -2,7 +2,7 @@ require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
 	 'js/lib/text!template/show-dataset.html',
 	 'js/lib/text!template/snapshot-dataset.html',
-	 'js/image', 'jquery-ui'],
+	 'js/image'],
 function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 {
     'use strict';

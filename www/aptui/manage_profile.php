@@ -181,7 +181,9 @@ function SPITFORM($formfields, $errors)
 	echo "    window.SNAPUUID = '$snapuuid';\n";
     }
     echo "</script>\n";
-    echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+    echo "<script src='js/lib/jquery.min.js'></script>\n";
+    echo "<script src='js/lib/jquery-ui.js'></script>\n";
+    echo "<script src='js/lib/jquery.appendGrid-1.3.1.min.js'></script>\n";
     echo "<script src='js/lib/codemirror-min.js'></script>\n";
     echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/manage_profile'>

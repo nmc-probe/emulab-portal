@@ -118,7 +118,9 @@ echo "</script>\n";
 
 echo "<script src='js/lib/codemirror-min.js'></script>\n";
 
-SPITREQUIRE("show-profile");
+SPITREQUIRE("show-profile",
+            "<script src='js/lib/jquery-ui.js'></script>\n".
+            "<script src='js/lib/jquery.appendGrid-1.3.1.min.js'></script>");
 SPITFOOTER();
 
 ?>
