@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,6 +29,13 @@ include("profile_defs.php");
 $page_title = "My Profiles";
 
 #
+# Verify page arguments.
+#
+$optargs = OptionalPageArguments("target_user",    PAGEARG_USER,
+				 "target_project", PAGEARG_PROJECT,
+                                 "min",            PAGEARG_INTEGER,
+                                 "max",            PAGEARG_INTEGER);
+#
 # Get current user.
 #
 RedirectSecure();
@@ -36,64 +43,106 @@ $this_user = CheckLoginOrRedirect();
 SPITHEADER(1);
 
 if (!ISADMIN()) {
-    SPITUSERERROR("Not enough permission to view this page!");
+    if (isset($target_user)) {
+        if (!$target_user->SameUser($this_user)) {
+            SPITUSERERROR("Not enough permission to view this page!");
+        }
+    }
+    elseif (isset($target_project)) {
+        $approved = 0;
+        
+        if (!$target_project->IsMember($this_user, $approved) && $approved) {
+            SPITUSERERROR("Not enough permission to view this page!");
+        }
+    }
+    else {
+        $target_user = $this_user;
+    }
 }
 $instances = array();
 
 #
-# First existing instances and then the history table.
+# Allow for targeted searches
 #
-$query1_result =
-    DBQueryFatal("select i.uuid,i.profile_version,i.created,'' as destroyed, ".
-		 "   i.creator,p.uuid as profile_uuid,p.name,p.pid,u.email ".
-		 "  from apt_instances as i ".
-		 "left join apt_profile_versions as p on ".
-		 "     p.profileid=i.profile_id and ".
-		 "     p.version=i.profile_version ".
-		 "left join geni.geni_users as u on u.uuid=i.creator_uuid ".
-		 "order by i.created desc");
-$query2_result =
+$whereclause = "";
+
+if (isset($target_user)) {
+    $target_idx  = $target_user->idx();
+    $whereclause = "where h.creator_idx='$target_idx'";
+}
+elseif (isset($target_project)) {
+    $target_idx   = $target_project->pid_idx();
+    $whereclause = "where h.pid_idx='$target_idx'";
+}
+if (isset($min) || isset($max)) {
+    if ($whereclause != "") {
+        $whereclause = "$whereclause and ";
+    }
+    else {
+        $whereclause = "where ";
+    }
+    if (isset($min)) {
+        $whereclause .= "UNIX_TIMESTAMP(h.created) > $min ";
+        if (isset($max)) {
+            $whereclause .= "and ";
+        }
+    }
+    if (isset($max)) {
+        $whereclause .= "UNIX_TIMESTAMP(h.created) < $max ";
+    }
+}
+
+$query_result =
     DBQueryFatal("select h.uuid,h.profile_version,h.created,h.destroyed, ".
-		 "    h.creator,p.uuid as profile_uuid,p.name,p.pid,u.email ".
+		 "    h.creator,p.uuid as profile_uuid,p.name,p.pid,u.email, ".
+                 "    h.physnode_count,h.virtnode_count, ".
+                 "    truncate(h.physnode_count * ".
+                 "      ((UNIX_TIMESTAMP(h.destroyed) - ".
+                 "        UNIX_TIMESTAMP(h.created)) / 3600.0),2) as phours ".
 		 "  from apt_instance_history as h ".
 		 "left join apt_profile_versions as p on ".
 		 "     p.profileid=h.profile_id and ".
 		 "     p.version=h.profile_version ".
 		 "left join geni.geni_users as u on u.uuid=h.creator_uuid ".
+                 $whereclause . " " .
 		 "order by h.created desc");
 
-if (mysql_num_rows($query1_result) == 0 &&
-    mysql_num_rows($query2_result) == 0) {
+if (mysql_num_rows($query_result) == 0) {
     $message = "<b>Oops, there is no activity to show you.</b><br>";
     SPITUSERERROR($message);
     exit();
 }
 
-foreach (array($query1_result, $query2_result) as $query_result) {
+if (1) {
     while ($row = mysql_fetch_array($query_result)) {
-	$uuid      = $row["uuid"];
 	$pname     = $row["name"];
 	$pproj     = $row["pid"];
 	$puuid     = $row["profile_uuid"];
-	$pversion  = $row["profile_version"];
-	$created   = $row["created"];
-	$destroyed = $row["destroyed"];
+	$created   = DateStringGMT($row["created"]);
+	$destroyed = DateStringGMT($row["destroyed"]);
 	$creator   = $row["creator"];
 	$email     = $row["email"];
+        $pcount    = $row["physnode_count"];
+        $vcount    = $row["virtnode_count"];
+        $phours    = $row["phours"];
+        # Backwards compat.
+        if (!isset($pproj)) {
+            $pproj = "";
+        }
+        if (!isset($destroyed)) {
+            $destroyed = "";
+        }
+        
 	# If a guest user, use email instead.
 	if (isset($email)) {
 	    $creator = $email;
 	}
 
-	$instance = array();
-	$instance["uuid"]        = $uuid;
-	$instance["p_name"]      = $pname;
-	$instance["p_pid"]       = $pproj;
-	$instance["p_uuid"]      = $puuid;
-	$instance["p_version"]   = $pversion;
-	$instance["creator"]     = $creator;
-	$instance["created"]     = $created;
-	$instance["destroyed"]   = $destroyed;
+        # Save space with array instead of hash.
+	$instance =
+            array($pname, $pproj, $puuid, $pcount, $vcount,
+                  $creator, $created, $destroyed, $phours);
+                          
 	$instances[] = $instance;
     }
 }
@@ -103,11 +152,47 @@ echo "<div id='activity-body'></div>\n";
 
 echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL  = 'server-ajax.php';\n";
+if (isset($min)) {
+    echo "    window.MIN  = $min;\n";
+}
+else {
+    echo "    window.MIN  = null;\n";
+}
+if (isset($max)) {
+    echo "    window.MAX  = $max;\n";
+}
+else {
+    echo "    window.MAX  = null;\n";
+}
+if (isset($target_user)) {
+    echo "    window.ARG = 'user=$target_idx';\n";
+}
+elseif (isset($target_project)) {
+    echo "    window.ARG = 'project=$target_idx';\n";
+}
+else {
+    echo "    window.ARG = null;\n";
+}
 echo "</script>\n";
 echo "<script type='text/plain' id='instances-json'>\n";
 echo json_encode($instances);
 echo "</script>\n";
-echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+echo "<link rel='stylesheet' href='css/tablesorter.css'>\n";
+echo "<link rel='stylesheet' href='css/jQRangeSlider.css'>\n";
+echo "<script src='js/lib/jquery.min.js'></script>\n";
+echo "<script src='js/lib/jquery-ui.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderMouseTouch.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderDraggable.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderHandle.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderBar.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderLabel.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSlider.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQDateRangeSliderHandle.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQDateRangeSlider.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRuler.js'></script>\n";
+echo "<script src='js/lib/jquery.tablesorter.min.js'></script>\n";
+echo "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>\n";
+echo "<script src='js/lib/jquery.tablesorter.widget-math.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/activity'></script>\n";
 

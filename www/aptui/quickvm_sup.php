@@ -40,6 +40,8 @@ $CHANGEPSWD_PAGE= "changepswd.php";
 $MAXGUESTINSTANCES = 10;
 $WITHPUBLISHING = 0;
 
+include_once("instance_defs.php");
+
 #
 # Global flag to disable accounts. We do this on some pages which
 # should not display login/account info.
@@ -281,10 +283,19 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li class='divider'></li>
 	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
+       echo "  <li class='divider'></li>\n";
        if (ISADMIN()) {
-           echo "  <li class='divider'></li>
-	           <li><a href='activity.php'>Activity</a></li>
-	           <li><a href='sumstats.php'>Summary Stats</a></li>";
+           $then = time() - (30 * 3600 * 24);
+           echo "  <li><a href='activity.php?min=$then'>
+                            History Data</a></li>
+	           <li><a href='sumstats.php'>Summary Stats</a></li>
+	           <li><a href='myexperiments.php?all=1'>
+                            All Experiments</a></li>";
+       }
+       else {
+           $then = time() - (90 * 3600 * 24);
+           echo "  <li><a href='activity.php?user=$login_uid&min=$then'>
+                            My History</a></li>\n";
        }
        echo "     </ul>
                 </li>\n";
@@ -302,6 +313,18 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     if ($message != "") {
         echo "<center style='margin-bottom: 5px; margin-top: -8px'>
          <font color=red>$message</font></center>\n";
+    }
+    if ($login_user) {
+        list($pcount, $phours) = Instance::CurrentUsage($login_user);
+        if ($pcount) {
+            $average = $phours / $pcount;
+            
+            echo "<center style='margin-bottom: 5px; margin-top: -8px'>
+              <span class=text-warning>
+                You are using $pcount physical nodes
+                   (average $average hours per node)
+              </span></center>\n";
+        }
     }
 
     if (!NOLOGINS() && !$login_user && $page_title != "Login") {
@@ -394,7 +417,7 @@ function SPITREQUIRE($main, $extras = "")
 {
     global $spatrequired;
     
-    echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+    echo "<script src='js/lib/jquery.min.js'></script>\n";
     echo $extras;
     echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/$main'></script>\n";
