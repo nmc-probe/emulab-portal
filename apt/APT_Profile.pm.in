@@ -716,12 +716,12 @@ sub UpdateDiskImage($$@)
 	#
 	# Pull out the disk url/urn of the specified node.
 	#
-	my $diskref = GeniXML::GetDiskImage($node);
+	my $Odiskref = GeniXML::GetDiskImage($node);
 	my $image_urn;
 	my $image_url;
-	if (defined($diskref)) {
-	    $image_url = GeniXML::GetText("url", $diskref);
-	    $image_urn = GeniXML::GetText("name", $diskref);
+	if (defined($Odiskref)) {
+	    $image_url = GeniXML::GetText("url", $Odiskref);
+	    $image_urn = GeniXML::GetText("name", $Odiskref);
 	    if (defined($image_url) || defined($image_urn)) {
 		# Watch for url in the name, flipflop. 
 		if (defined($image_urn) && $image_urn =~ /^http/) {
@@ -735,8 +735,15 @@ sub UpdateDiskImage($$@)
 	#
 	foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	    my $diskref   = GeniXML::GetDiskImage($ref);
-	    next
-		if (!defined($diskref));
+	    #
+	    # If the both this node and the original node did not
+	    # specify a disk image, then we update it. 
+	    #
+	    if (!defined($diskref)) {
+		push(@nodes, $ref)
+		    if (!defined($Odiskref));
+		next;
+	    }
 	    my $this_url = GeniXML::GetText("url", $diskref);
 	    my $this_urn = GeniXML::GetText("name", $diskref);
 	    next
