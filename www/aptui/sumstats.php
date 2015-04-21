@@ -26,13 +26,15 @@ include("defs.php3");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
-include("instance_defs.php");
+include_once("instance_defs.php");
 $page_title = "Summary Stats";
 
 #
 # Verify page arguments.
 #
-$optargs = OptionalPageArguments("showby",   PAGEARG_STRING);
+$optargs = OptionalPageArguments("showby",   PAGEARG_STRING,
+                                 "min",      PAGEARG_INTEGER,
+                                 "max",      PAGEARG_INTEGER);
 if (!isset($showby)) {
     $showby = "user";
 }
@@ -50,10 +52,19 @@ SPITHEADER(1);
 
 echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
+echo "<link rel='stylesheet'
+            href='css/jQRangeSlider.css'>\n";
 
 function ShowByCreator()
 {
-    global $urn_mapping, $TBBASE;
+    global $urn_mapping, $TBBASE, $min, $max;
+    $whereclause = "";
+
+    if (isset($min) && isset($max)) {
+        $whereclause =
+            "where (UNIX_TIMESTAMP(created) > $min and ".
+            "       UNIX_TIMESTAMP(created) < $max) ";
+    }
     
     $query_result =
         DBQueryFatal("select creator,aggregate_urn,count(creator) as ecount, ".
@@ -62,6 +73,7 @@ function ShowByCreator()
                      "     ((UNIX_TIMESTAMP(destroyed) - ".
                      "       UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
                      "from apt_instance_history ".
+                     $whereclause .
                      "group by creator,aggregate_urn");
     #
     # Aggregate the per aggregate rows into a single row per user.
@@ -118,19 +130,19 @@ function ShowByCreator()
           </tr>
           <tr>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>PHours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>PHours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>PHours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>PHours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>PHours</th>
           </tr>
           <tr>
@@ -138,23 +150,23 @@ function ShowByCreator()
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
           </tr>
          </thead>\n";
  echo"   <tfoot>
@@ -163,28 +175,28 @@ function ShowByCreator()
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
           </tr>
          </tfoot>\n";
 
     foreach ($uid_array as $uid => $ref) {
-        $uid = "<a href='$TBBASE/showuser.php3?user=$uid'>$uid</a>";
+        $uid = "<a href='activity.php?user=$uid'>$uid</a>";
         
         echo
             "<tr>".
@@ -211,7 +223,14 @@ function ShowByCreator()
 
 function ShowByProject()
 {
-    global $urn_mapping, $TBBASE;
+    global $urn_mapping, $TBBASE, $min, $max;
+    $whereclause = "";
+
+    if (isset($min) && isset($max)) {
+        $whereclause =
+            "where (UNIX_TIMESTAMP(created) > $min and ".
+            "       UNIX_TIMESTAMP(created) < $max) ";
+    }
     
     $query_result =
         DBQueryFatal("select pid,aggregate_urn,count(pid) as ecount, ".
@@ -220,6 +239,7 @@ function ShowByProject()
                      "     ((UNIX_TIMESTAMP(destroyed) - ".
                      "       UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
                      "from apt_instance_history ".
+                     $whereclause .
                      "group by pid,aggregate_urn");
     #
     # Aggregate the per aggregate rows into a single row per user.
@@ -279,19 +299,19 @@ function ShowByProject()
           </tr>
           <tr>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>Phours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>Phours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>Phours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>Phours</th>
            <th>Expt</th>
-           <th>Pnodes</th>
+           <th>PCs</th>
            <th>Phours</th>
           </tr>
           <tr>
@@ -299,7 +319,7 @@ function ShowByProject()
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
@@ -324,7 +344,7 @@ function ShowByProject()
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
-                  data-math='col-sum' data-math-mask='##0.00'>0</th>
+                  data-math='col-sum' data-math-mask='##0'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
@@ -346,7 +366,7 @@ function ShowByProject()
 
     foreach ($pid_array as $pid => $ref) {
         if ($pid != "NONE") {
-            $pid = "<a href='$TBBASE/showproject.php3?pid=$pid'>$pid</a>";
+            $pid = "<a href='activity.php?pid=$pid'>$pid</a>";
         }
         echo
             "<tr>".
@@ -370,24 +390,56 @@ function ShowByProject()
     }
     echo "</table>";
 }
-echo "<div class='row'>
-        <div class='col-lg-12 col-lg-offset-0
-                    col-md-12 col-md-offset-0
-                    col-sm-12 col-sm-offset-0
-                    col-xs-12 col-xs-offset-0'>\n";
-
 if ($showby == "user") {
-    echo "<a href='sumstats.php?showby=project'>Show project stats</a><br>\n"; 
-    ShowByCreator();
+    echo "<a href='sumstats.php?showby=project'>Show project stats</a><br>\n";
 }
 else {
     echo "<a href='sumstats.php?showby=user'>Show user stats</a><br>\n"; 
+}
+echo "<div class='row'>
+        <div class='col-xs-10 col-xs-offset-1'>\n";
+echo "    <div id='date-slider'></div>\n";
+echo "  </div>\n";
+echo "<button type='button' id='slider-go-button'
+         class='btn btn-primary btn-xs'
+         style='margin-left: 20px; margin-top: 40px;'>Go</button>\n";   
+echo "</div><br>\n";
+echo "<div class='row'>
+        <div class='col-xs-12 col-xs-offset-0'>\n";
+if ($showby == "user") {
+    ShowByCreator();
+}
+else {
     ShowByProject();
 }
 echo " </div>
       </div>\n";
 
-echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+echo "<script type='text/javascript'>\n";
+if (isset($min)) {
+    echo "    window.MIN  = $min;\n";
+}
+else {
+    echo "    window.MIN  = null;\n";
+}
+if (isset($max)) {
+    echo "    window.MAX  = $max;\n";
+}
+else {
+    echo "    window.MAX  = null;\n";
+}
+echo "</script>\n";
+echo "<script src='js/lib/jquery.min.js'></script>\n";
+echo "<script src='js/lib/jquery-ui.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderMouseTouch.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderDraggable.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderHandle.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderBar.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSliderLabel.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRangeSlider.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQDateRangeSliderHandle.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQDateRangeSlider.js'></script>\n";
+echo "<script src='js/lib/jQRangeSlider/jQRuler.js'></script>\n";
 echo "<script src='js/lib/jquery.tablesorter.min.js'></script>\n";
 echo "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>\n";
 echo "<script src='js/lib/jquery.tablesorter.widget-math.js'></script>\n";

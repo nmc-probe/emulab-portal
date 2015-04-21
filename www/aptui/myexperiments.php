@@ -26,8 +26,8 @@ include("defs.php3");
 include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
-include("profile_defs.php");
-include("instance_defs.php");
+include_once("profile_defs.php");
+include_once("instance_defs.php");
 $page_title = "My Experiments";
 $dblink = GetDBLink("sa");
 
@@ -70,7 +70,10 @@ if ($all && ISADMIN()) {
     $query_result1 = 
         DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
                      " (UNIX_TIMESTAMP(now()) > ".
-                     "  UNIX_TIMESTAMP(s.expires)) as expired ".
+                     "  UNIX_TIMESTAMP(s.expires)) as expired, ".
+                     "  truncate(a.physnode_count * ".
+                     "   ((UNIX_TIMESTAMP(now()) - ".
+                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours ".
                      "  from apt_instances as a ".
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
@@ -81,7 +84,10 @@ else {
     $query_result1 =
         DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
                      " (UNIX_TIMESTAMP(now()) > ".
-                     "  UNIX_TIMESTAMP(s.expires)) as expired ".
+                     "  UNIX_TIMESTAMP(s.expires)) as expired, ".
+                     "  truncate(a.physnode_count * ".
+                     "   ((UNIX_TIMESTAMP(now()) - ".
+                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours ".
                      "  from apt_instances as a ".
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
@@ -91,7 +97,10 @@ else {
     $query_result2 =
         DBQueryFatal("select distinct a.*,s.expires,s.hrn,u.email, ".
                      " (UNIX_TIMESTAMP(now()) > ".
-                     "  UNIX_TIMESTAMP(s.expires)) as expired ".
+                     "  UNIX_TIMESTAMP(s.expires)) as expired, ".
+                     "  truncate(a.physnode_count * ".
+                     "   ((UNIX_TIMESTAMP(now()) - ".
+                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours ".
                      "  from apt_instances as a ".
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
@@ -124,11 +133,10 @@ function SPITROWS($all, $name, $result)
     }
     echo "     <th>Project</th>
                <th>Status</th>
-               <th>Cluster</th>\n";
-    if (ISADMIN()) {
-        echo " <th>P</th>\n";
-        echo " <th>V</th>\n";
-    }
+               <th>Cluster</th>
+               <th>PCs</th>
+               <th>PHours<b>[1]</b></th>
+               <th>VMs</th>\n";
     echo "     <th>Created</th>
                <th>Expires</th>
                </tr>
@@ -150,6 +158,7 @@ function SPITROWS($all, $name, $result)
         $cluster      = $urn_mapping[$urn];
         $pcount       = $row["physnode_count"];
         $vcount       = $row["virtnode_count"];
+        $phours       = $row["phours"];
         list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
         $email        = $row["email"];
         # If a guest user, use email instead.
@@ -191,42 +200,31 @@ function SPITROWS($all, $name, $result)
         }
         echo "  <td>$status</td>\n";
         echo "  <td>$cluster</td>\n";
-        if (ISADMIN()) {
-            echo "<td>$pcount</td>";
-            echo "<td>$vcount</td>";
-        }
+        echo "  <td>$pcount</td>";
+        echo "  <td>$phours</td>";
+        echo "  <td>$vcount</td>";
         echo"   <td class='format-date'>$created</td>
             <td class='format-date'>$expires</td>
            </tr>\n";
     }
     echo "   </tbody>
         </table>\n";
+    echo "[1] <b>PHours</b>: Number of nodes times number of hours in use.<br>";
 }
 
 echo "<div class='row'>
-        <div class='col-lg-10 col-lg-offset-1
-                    col-md-10 col-md-offset-1
+        <div class='col-lg-12 col-lg-offset-0
+                    col-md-12 col-md-offset-0
                     col-sm-12 col-sm-offset-0
                     col-xs-12 col-xs-offset-0'>\n";
 
 if (mysql_num_rows($query_result1) == 0) {
     $message = "<b>No experiments to show you. Maybe you want to ".
 	"<a href='instantiate.php'>start one?</a></b><br>";
-    if (ISADMIN()) {
-        $message .= "<img src='images/redball.gif'>".
-            "<a href='myexperiments.php?all=1'>";
-	$message .= "Show all user Experiments</a><br>";
-    }
     echo $message;
 }
 else {
     SPITROWS($all, "table1", $query_result1);
-
-    if (ISADMIN() && !$all) {
-        echo "<img src='images/redball.gif'>
-            <a href='myexperiments.php?all=1'>Show all user Experiments</a>\n";
-        echo "<br>\n";
-    }
 }
 if ($query_result2 && mysql_num_rows($query_result2)) {
     echo "<br>\n";

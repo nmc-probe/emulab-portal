@@ -7,6 +7,15 @@ function (sup, moment)
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+	var default_min = new Date(2014, 6, 1);
+	var default_max = new Date();
+
+	if (window.MIN) {
+	    default_min = new Date(window.MIN * 1000);
+	}
+	if (window.MAX) {
+	    default_max = new Date(window.MAX * 1000);
+	}
 
 	// Format dates with moment before display.
 	$('.format-date').each(function() {
@@ -16,8 +25,23 @@ function (sup, moment)
 			     .format("MMM Do, h:mm a"));
 	    }
 	});
+	$("#date-slider").dateRangeSlider({
+	    bounds: {min: new Date(2014, 6, 1),
+		     max: new Date()},
+	    defaultValues: {min: default_min, max: default_max},
+	    arrows: false,
+	});
 	InitTable("uid");
 	InitTable("pid");
+
+	// Handler for the date range search button.
+	$('#slider-go-button').click(function() {
+	    var dateValues = $("#date-slider").dateRangeSlider("values");
+	    var min = Math.floor(dateValues.min.getTime()/1000);
+	    var max = Math.floor(dateValues.max.getTime()/1000);
+	    window.location.replace("sumstats.php?min=" + min +
+				    "&max=" + max);
+	});
     }
 
     function InitTable(name)

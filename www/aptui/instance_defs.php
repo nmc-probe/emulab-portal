@@ -332,5 +332,28 @@ class Instance
 	}
         return 0;
     }
+
+    #
+    # Determine user current usage.
+    #
+    function CurrentUsage($user) {
+        $user_idx = $user->idx();
+        $pcount = 0;
+        $phours = 0;
+
+        $query_result =
+            DBQueryFatal("select physnode_count, ".
+                         " truncate(physnode_count * ".
+                         "  ((UNIX_TIMESTAMP(now()) - ".
+                         "    UNIX_TIMESTAMP(created)) / 3600.0),2) as phours ".
+                         "  from apt_instances ".
+                         "where creator_idx='$user_idx' and physnode_count>0");
+
+        while ($row = mysql_fetch_array($query_result)) {
+            $pcount += $row["physnode_count"];
+            $phours += $row["phours"];
+        }
+        return array($pcount, $phours);
+    }
 }
 ?>

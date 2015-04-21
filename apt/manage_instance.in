@@ -38,7 +38,7 @@ sub usage()
     print("Usage: manage_instance snapshot instance ".
 	  "[-n node_id] [-i imagename] [-u node|all]\n");
     print("Usage: manage_instance consoleurl instance node\n");
-    print("Usage: manage_instance extend instance seconds\n");
+    print("Usage: manage_instance extend instance [-f] seconds\n");
     print("Usage: manage_instance terminate instance\n");
     print("Usage: manage_instance refresh instance\n");
     print("Usage: manage_instance reboot instance node_id [node_id ...]\n");
@@ -755,15 +755,26 @@ sub DoTerminate()
 #
 sub DoExtend()
 {
+    my $force = 0;
+    
     usage()
 	if (!@ARGV);
-    
+
+    if (@ARGV == 2) {
+	my $arg = shift(@ARGV);
+	if ($arg eq "-f") {
+	    $force = 1;
+	}
+	else {
+	    usage();
+	}
+    }
     my $seconds = shift(@ARGV);
     if ($seconds !~ /^\d*$/) {
 	usage();
     }
 
-    if ($instance->status() eq "failed") {
+    if ($instance->status() eq "failed" && !$force) {
 	fatal("Cannot extend failed instance!");
     }
     my $slice = $instance->GetGeniSlice();

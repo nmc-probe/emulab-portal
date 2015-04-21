@@ -154,6 +154,7 @@ APTUIFILES += $(wildcard $(SRCDIR)/aptui/*.gif)
 APTUIFILES += $(wildcard $(SRCDIR)/aptui/.htaccess)
 APTJSFILES  = $(wildcard $(SRCDIR)/aptui/js/*.js)
 APTLIBFILES = $(wildcard $(SRCDIR)/aptui/js/lib/*.js)
+APTJQRFILES = $(wildcard $(SRCDIR)/aptui/js/lib/jQRangeSlider/*.js)
 APTTEMPLATES = $(wildcard $(SRCDIR)/aptui/template/*.html)
 APTCSSFILES = $(wildcard $(SRCDIR)/aptui/css/*.css)
 APTFONTS = $(wildcard $(SRCDIR)/aptui/fonts/*)
@@ -218,6 +219,7 @@ ALLBLOB   = $(notdir $(BLOBFILES))
 ALLAPTUI  = $(notdir $(APTUIFILES))
 ALLAPTJS  = $(notdir $(APTJSFILES))
 ALLAPTLIB = $(notdir $(APTLIBFILES))
+ALLAPTJQR = $(notdir $(APTJQRFILES))
 ALLAPTTEMPLATES = $(notdir $(APTTEMPLATES))
 ALLAPTCSS = $(notdir $(APTCSSFILES))
 ALLAPTFONTS = $(notdir $(APTFONTS))
@@ -266,6 +268,7 @@ endif
 apt-install: 	$(addprefix $(INSTALL_WWWDIR)/apt/, $(ALLAPTUI)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/js/, $(ALLAPTJS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/js/lib/, $(ALLAPTLIB)) \
+	$(addprefix $(INSTALL_WWWDIR)/apt/js/lib/jQRangeSlider/, $(ALLAPTJQR)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/template/, $(ALLAPTTEMPLATES)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/css/, $(ALLAPTCSS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/fonts/, $(ALLAPTFONTS)) \
