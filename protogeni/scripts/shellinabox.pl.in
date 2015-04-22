@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -259,7 +259,7 @@ print "Access-Control-Allow-Origin: *\n";
 
 my $cmd = "shellinaboxd --no-beep " . ($debug ? "-d" : "-v") . " " .
     "--certfile=${CERTFILE} --keyfile=${KEYFILE} ".
-    "--cgi -c $TB/etc -s '/:$uid:$gid:$where:$command'";
+    "--cgi=49152-65535 -c $TB/etc -s '/:$uid:$gid:$where:$command'";
 
 info($cmd);
 if ($debug) {
