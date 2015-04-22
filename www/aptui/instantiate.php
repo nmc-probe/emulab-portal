@@ -80,6 +80,12 @@ if ($ISAPT && !$this_user) {
 }
 if ($this_user) {
     $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
+    if (count($projlist) == 0) {
+	SPITUSERERROR("You do not belong to any projects with permission to ".
+                      "create new experiments. Please contact your project ".
+                      "leader to grant you the neccessary privilege.");
+	exit();
+    }
 }
 if ($ISCLOUD) {
     $profile_default     = "ARM64OpenStack";
@@ -582,7 +588,8 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "<div id='editmodal_div'></div>\n";
     SpitOopsModal("oops");
 
-    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY())) {
+    if (isset($this_user) && !$this_user->webonly() &&
+        ($ISCLOUD || ISADMIN() || STUDLY())) {
 	echo "<script type='text/plain' id='amlist-json'>\n";
 	echo htmlentities(json_encode($amlist));
 	echo "</script>\n";

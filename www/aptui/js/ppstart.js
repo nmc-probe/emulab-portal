@@ -128,8 +128,6 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	// Instantiate the new rspec on the chosen aggregate.
 	function Instantiate(where)
 	{
-	    console.log(where);
-	    
 	    if (callback_done) {
 		callback_done(RSPEC, where);
 		return;
@@ -159,6 +157,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	{
 	    if (!amlist || amlist.length == 1) {
 		Instantiate(amdefault);
+		return;
 	    }
 	    var html = chooseTemplate({
 		amlist    : amlist,
