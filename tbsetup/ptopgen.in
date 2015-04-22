@@ -958,7 +958,8 @@ if ($virtstuff) {
 			   "     na.attrkey='dom0mem' ".
 			   "where na.attrkey is not null");
     while (my ($pnode,$ram) = $result->fetchrow_array) {
-	$node_ramusage{$pnode} = 0
+	# Allow for padding, do not really want to go to zero.
+	$node_ramusage{$pnode} = 768
 	    if (!exists($node_ramusage{$pnode}));
 
 	# Ug, units.
