@@ -1968,11 +1968,13 @@ sub enablePortTrunking2($$$$) {
     #
     # Set the type of the trunk - we only do dot1q for now
     #
-    my $trunkType = ["vlanTrunkPortEncapsulationType",$ifIndex,"dot1Q","INTEGER"];
-    $rv = snmpitSetWarn($self->{SESS},$trunkType);
-    if (!$rv) {
-        warn "ERROR: Unable to set encapsulation type\n";
-        return 0;
+    if ($self->{OSTYPE} ne 'NX-OS') {   # this oid is notWritable on Nexus devices
+        my $trunkType = ["vlanTrunkPortEncapsulationType",$ifIndex,"dot1Q","INTEGER"];
+        $rv = snmpitSetWarn($self->{SESS},$trunkType);
+        if (!$rv) {
+            warn "ERROR: Unable to set encapsulation type\n";
+            return 0;
+        }
     }
 
     #
