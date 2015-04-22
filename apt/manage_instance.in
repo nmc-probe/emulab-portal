@@ -1183,14 +1183,10 @@ sub DoLockdownInternal($$)
     my $response = $instance->Lockdown($clear);
     if (!defined($response)) {
 	print STDERR "RPC Error calling Lockdown\n";
-	# Clear this so we do not think it is locked down for real.
-	$slice->SetLockdown(0);
 	return -1;
     }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	print STDERR "Could not lockdown sliver: ". $response->output() . "\n";
-	# Clear this so we do not think it is locked down for real.
-	$slice->SetLockdown(0);
 	return -1;
     }
     return 0;
