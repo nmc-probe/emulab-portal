@@ -489,6 +489,35 @@ sub WarnExpiring($$)
     return 0;
 }
 
+
+sub ComputeNodeCounts($)
+{
+    my ($self) = @_;
+    my $physnode_count = 0;
+    my $virtnode_count = 0;
+
+    my $manifest = GeniXML::Parse($self->manifest());
+    if (! defined($manifest)) {
+	print STDERR "Could not parse manifest\n";
+	return -1;
+    }
+    foreach my $ref (GeniXML::FindNodes("n:node", $manifest)->get_nodelist()) {
+	my $virtualization_type = GeniXML::GetVirtualizationSubtype($ref);
+
+	if (defined($virtualization_type) &&
+	    $virtualization_type eq "emulab-xen") {
+
+	    $virtnode_count++;
+	    next;
+	}
+	$physnode_count++;
+    }
+    $self->Update({"physnode_count" => $physnode_count,
+		   "virtnode_count" => $virtnode_count})
+	== 0 or return -1;
+    return 0;
+}
+
 #
 # Ask aggregate for the console URL for a node.
 #
