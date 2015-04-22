@@ -295,11 +295,13 @@ sub UpdateSSHKeys()
 	fatal("Internal error getting self credential");
     }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
-	fatal("Could not get keys: " . $response->output());
+	fatal("Could not get keys: " . $response->code() . ": " .
+	      $response->output());
     }
     if (! ref($response->value())) {
 	fatal("No key array returned in response");
     }
+    
     # Dig out the key list.
     my @keys = ();
     

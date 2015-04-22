@@ -362,8 +362,9 @@ function Do_VerifySpeaksfor()
 	return;
     }
     if ($this_user->IsNonLocal() &&
-        UpdateCredentials($this_user, $_SESSION["certificate"], $speaksfor)) {
-	SPITAJAX_ERROR(-1, "Internal error updating user credentials");
+        UpdateCredentials($this_user, $_SESSION["certificate"],
+                          $speaksfor, $error)) {
+	SPITAJAX_ERROR(-1, "Error updating user credentials: $error");
 	session_destroy();
 	return;
     }
@@ -414,9 +415,9 @@ function CreateNonLocalUser($urn, $email)
 #
 # Update the certificate/credential for the user.
 # 
-function UpdateCredentials($user, $cert, $cred)
+function UpdateCredentials($user, $cert, $cred, &$error)
 {
-    global $TBMAINSITE;
+    global $TBMAINSITE, $suexec_output;
 
     $uid = $user->uid();
     $project = $user->FirstApprovedProject();
@@ -446,6 +447,7 @@ function UpdateCredentials($user, $cert, $cred)
         TBERROR("webupdategeniuser failed.\n ".
                 "Cert:\n${cert}\n\n".
                 "Cred:\n${$cred}\n", 0);
+        $error = $suexec_output;
     }
     unlink($credfile);
     unlink($certfile);
