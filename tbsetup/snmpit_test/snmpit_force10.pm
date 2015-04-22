@@ -1005,7 +1005,7 @@ sub listVlans($) {
 	foreach $ifIndex (keys %Names) {
 	    if ($status = snmpitGetWarn($self->{SESS},
 					["ifDescr",$ifIndex])) {
-		if ($status =~ /^Vlan\s(\d+)$/ || $status =~ /^Vl(\d+)$/) {
+		if ($status =~ /^Vlan\s(\d+)$/ || $status =~ /^vl(\d+)/i) {
 		    $Numbers{$ifIndex} = $1;
 		} else {
 		    warn "$id: ERROR: Unable to parse out vlan tag for ifindex $ifIndex\n";
@@ -1244,7 +1244,7 @@ sub setPortVlan($$@) {
     my ($self, $vlan_number, @ports) = @_;
     my $id = "$self->{NAME}::setPortVlan";
 
-    $self->debug("id: entering\n");
+    $self->debug("$id: entering\n");
 
     # Get the vlan's ifindex now.  No point in doing anything more if it
     # doesn't exist!
@@ -1259,8 +1259,8 @@ sub setPortVlan($$@) {
     # we are in for DB queries.
     my @portlist = $self->convertPortFormat($PORT_FORMAT_IFINDEX, @ports);
     my @portobjs = $self->convertPortFormat($PORT_FORMAT_PORT, @ports);
-    $self->debug("id: input ports: " . join(",",@ports) . "\n");
-    $self->debug("id: as ifIndexes: " . join(",",@portlist) . "\n");
+    $self->debug("$id: input ports: " . join(",",@ports) . "\n");
+    $self->debug("$id: as ifIndexes: " . join(",",@portlist) . "\n");
 
     if (scalar(@portlist) != scalar(@portobjs)) {
 	warn "$id: ERROR: Port object list length is different than ifindex list length for the same set of input ports!\n";
