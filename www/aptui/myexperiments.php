@@ -158,6 +158,7 @@ function SPITROWS($all, $name, $result)
         $cluster      = $urn_mapping[$urn];
         $pcount       = $row["physnode_count"];
         $vcount       = $row["virtnode_count"];
+        $lockdown     = $row["admin_lockdown"] || $row["user_lockdown"] ? 1 : 0;
         $phours       = $row["phours"];
         list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
         $email        = $row["email"];
@@ -203,9 +204,11 @@ function SPITROWS($all, $name, $result)
         echo "  <td>$pcount</td>";
         echo "  <td>$phours</td>";
         echo "  <td>$vcount</td>";
-        echo"   <td class='format-date'>$created</td>
-            <td class='format-date'>$expires</td>
-           </tr>\n";
+        echo "  <td class='format-date'>$created</td>\n";
+
+        $style = ($lockdown ? "style='color: red;'" : "");
+        echo "  <td class='format-date' $style>$expires</td>";
+        echo "</tr>\n";
     }
     echo "   </tbody>
         </table>\n";
