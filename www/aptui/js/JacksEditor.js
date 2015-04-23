@@ -37,17 +37,28 @@ function (_, editModalString)
 	}
     };
 
+    var waitingInstances = [];
+    var contextFetched = false;
+
     var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
     if (window.ISCLOUD)
     {
 	$('#edit_topo_modal_button').prop('disabled', true);
 	$.get(contextUrl).then(contextReady, contextFail);
     }
+    else
+    {
+      contextFetched = true;
+    }
 
     function contextReady(data)
     {
 	$('#edit_topo_modal_button').prop('disabled', false);
 	context = data;
+        contextFetched = true;
+        _.each(waitingInstances, function (f) {
+	  f();
+	});
     }
 
     function contextFail(fail1, fail2)
@@ -68,7 +79,8 @@ function (_, editModalString)
 	{
 	    this.mode = 'viewer';
 	}
-	this.render();
+        this.shown = false;
+        this.render();
     }
 
     JacksEditor.prototype = {
@@ -83,8 +95,9 @@ function (_, editModalString)
 	    this.root.find('#quickvm_editmodal').on('shown.bs.modal', _.bind(this.handleShown, this));
 	    this.root.find('#edit-save').click(_.bind(this.fetchXml, this));
 	    this.root.find('#edit-cancel, #edit-dismiss')
-		.click(_.bind(this.cancelEdit, this));
-	    this.instance = new window.Jacks({
+	      .click(_.bind(this.cancelEdit, this));
+	    var makeInstance = function () {
+	      this.instance = new window.Jacks({
 		mode: this.mode,
 		source: 'rspec',
 		root: '#edit_nopicker',
@@ -99,7 +112,17 @@ function (_, editModalString)
 		},
 		canvasOptions: context.canvasOptions,
 		constraints: context.constraints
-	    });
+	      });
+	    }.bind(this);
+
+	    if (contextFetched)
+	    {
+	      makeInstance();
+	    }
+	    else
+	    {
+	      waitingInstances.push(makeInstance);
+	    }
 	},
 
 	// Show a modal that lets the user edit their rspec. Callback
