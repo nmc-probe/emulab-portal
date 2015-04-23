@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -53,7 +53,8 @@ if (!isset($_SERVER["SSL_PROTOCOL"])) {
 #
 $reqargs = RequiredPageArguments("image",	PAGEARG_IMAGE,
 				 "access_key",	PAGEARG_STRING);
-$optargs = OptionalPageArguments("stamp",       PAGEARG_INTEGER);
+$optargs = OptionalPageArguments("stamp",       PAGEARG_INTEGER,
+                                 "sigfile",     PAGEARG_BOOLEAN);
 
 #
 # A cleanup function to keep the child from becoming a zombie, since
@@ -80,7 +81,9 @@ register_shutdown_function("SPEWCLEANUP");
 $imageid    = $image->imageid();
 $versid     = $image->versid();
 $access_key = escapeshellarg($access_key);
-$arg        = (isset($stamp) ? "-t " . escapeshellarg($stamp) : "");
+$arg        = "";
+$arg       .= (isset($stamp) ? "-t " . escapeshellarg($stamp) : "");
+$arg       .= (isset($sigfile) && $sigfile ? "-s " : "");
 $group      = $image->Group();
 $pid        = $group->pid();
 $unix_gid   = $group->unix_gid();
