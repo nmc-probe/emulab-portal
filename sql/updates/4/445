@@ -8,6 +8,11 @@ sub DoUpdate($$$)
 {
     my ($dbhandle, $dbname, $version) = @_;
 
+    DBQueryFatal("REPLACE INTO mode_transitions VALUES ".
+		 "('NORMALv2','SHUTDOWN','RELOAD-PCVM','SHUTDOWN',".
+		 " 'vnodereload')";
+    DBQueryFatal("REPLACE INTO state_transitions VALUES ".
+		 "('RELOAD-PCVM','SHUTDOWN','SHUTDOWN','vnodereload')");
     DBQueryFatal("REPLACE INTO state_transitions VALUES ".
 		 "('NORMALv2','BOOTING','BOOTING','vnodesetup')");
     DBQueryFatal("REPLACE INTO state_transitions VALUES ".
