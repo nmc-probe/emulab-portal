@@ -46,13 +46,15 @@ sub usage()
     print(" -i name - Use name for imagename.\n".
 	  "           Defaults to name in the desciptor\n");
     print(" -r      - Refresh (update ndz file) imported image.\n");
+    print(" -s      - With -r just update the sig file\n");
     exit(-1);
 }
-my $optlist = "dvu:p:gi:Ir";
+my $optlist = "dvu:p:gi:Irs";
 my $debug   = 0;
 my $verify  = 0;
 my $getimage= 0;
 my $update  = 0;
+my $dosig   = 0;
 my $force   = 0;
 my $user;
 my $group;
@@ -120,6 +122,7 @@ sub FetchMetadata($);
 sub CreateImage($$$$$);
 sub DownLoadImage($$$$);
 sub FetchImageFile($$);
+sub FetchSigFile($);
 
 #
 # There is no reason to run as root unless we need to ssh over
@@ -143,6 +146,9 @@ if (defined($options{"v"})) {
 }
 if (defined($options{"g"})) {
     $getimage = 1;
+}
+if (defined($options{"s"})) {
+    $dosig = 1;
 }
 if (defined($options{"i"})) {
     $imagename = $options{i};
@@ -326,11 +332,11 @@ if ($getimage) {
 	    $image->Unlock();
 	    exit(1);
 	}
-	# Update DB info. Use the hash we were given, no need to recalculate.
-	my $imageid = $image->imageid();
+	# Update DB info. 
+	my $versname = $image->versname();
 	# Run as root to access /proj
 	$EUID = $UID = 0;
-	if (system("$IMAGEVALIDATE -uq $imageid")) {
+	if (system("$IMAGEVALIDATE -u $versname")) {
 	    # XXX should this be fatal?
 	    print STDERR "Could not update DB info for $image\n";
 	}
@@ -344,6 +350,10 @@ if ($getimage) {
     }
     $EUID = $UID = $SAVEUID;
     $image->Unlock();
+}
+elsif ($update && $dosig) {
+    FetchSigFile($image) == 0
+	or exit(1);
 }
 else {
     print "Not downloading image ... add -g option\n";
@@ -556,16 +566,7 @@ sub DownLoadImage($$$$)
     # fail, which is okay since Mike says we can generate a new one,
     # it just takes a while to do.
     #
-    $image_url = uri_unescape($image->imagefile_url()) . "&sigfile=1";
-    $localfile = $image->path() . ".sig.new";
-    my $sigfile= $image->path() . ".sig";
-    
-    if (! FetchImageFile($image_url, $localfile)) {
-	system("/bin/mv -f $localfile $sigfile");
-	# Do not need this.
-	unlink("${localfile}.sha1")
-	    if (-e "${localfile}.sig.sha1");
-    }
+    FetchSigFile($image);
     return 0;
 }
 
@@ -669,6 +670,25 @@ sub FetchMetadata($)
     # We are going to let newimageid do the real checking.
     #
     return $xmlparse;
+}
+
+#
+# Fetch sig file.
+#
+sub FetchSigFile($)
+{
+    my ($image) = @_;
+    my $image_url  = uri_unescape($image->imagefile_url()) . "&sigfile=1";
+    my $localfile  = $image->path() . ".sig.new";
+    my $sigfile    = $image->path() . ".sig";
+    
+    if (! FetchImageFile($image_url, $localfile)) {
+	system("/bin/mv -f $localfile $sigfile");
+	# Do not need this.
+	unlink("${localfile}.sha1")
+	    if (-e "${localfile}.sha1");
+    }
+    return 0;
 }
 
 sub fatal($)
