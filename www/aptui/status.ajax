@@ -321,13 +321,20 @@ function Do_RequestExtension()
                     "free extensions";
             }
             #
-            # After a month, all extension requests require admin approval.
+            # After maxage, all extension requests require admin approval.
             #
             elseif ($cdiff > (3600 * 24 * $autoextend_maxage)) {
-                $needapproval = 1;
+                #
+                # Well, unless they asked for less then the free grant,
+                # which is a nice loophole people will probably notice.
+                #
                 $granted = 2;
-                $message = "because it was started more then ".
-                    "$autoextend_maxage days ago";
+                
+                if ($wanted > $granted) {
+                    $needapproval = 1;
+                    $message = "because it was started more then ".
+                        "$autoextend_maxage days ago";
+                }
             }
 	    #
 	    # Registered users are granted up to the autoextend_maximum
