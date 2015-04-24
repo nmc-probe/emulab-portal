@@ -119,6 +119,7 @@ sub fatal($);
 sub FetchMetadata($);
 sub CreateImage($$$$$);
 sub DownLoadImage($$$$);
+sub FetchImageFile($$);
 
 #
 # There is no reason to run as root unless we need to ssh over
@@ -488,61 +489,14 @@ sub DownLoadImage($$$$)
 {
     my ($image, $newhash, $user, $group) = @_;
     my $image_url = uri_unescape($image->imagefile_url());
-    my $safe_url  = User::escapeshellarg($image_url);
     my $localfile = $image->path() . ".new";
 
-    #
-    # Build up a new command line to do the fetch on ops
-    # But no reason to do this if an admin, which is important
-    # when the image is going into /usr/testbed/images.
-    #
-    if (!$user->IsAdmin()) {
-	my $cmdargs = "$TB/bin/fetchtar.proxy -h -u $user_uid";
-	my $glist = `/usr/bin/id -G $user_uid`;
-	if ($glist =~ /^([\d ]*)$/) {
-	    $glist = join(",", split(/\s+/, $1));
-	}
-	else {
-	    print STDERR "Unexpected results from 'id -G $user': $glist\n";
-	    return -1;
-	}
-	$cmdargs .= " -g '$glist' \"$safe_url\" $localfile";
-
-	print "Downloading $image_url ...\n";
-	if ($debug) {
-	    print "$cmdargs\n";
-	}
-	$EUID = $UID = 0;
-	system("sshtb -host $CONTROL $cmdargs ");
-	if ($?) {
-	    $EUID = $UID = $SAVEUID;
-	    print STDERR "Fetch of image file failed\n";
-	    return -1;
-	}
-	$UID = $SAVEUID;
-    }
-    else {
-	print "Downloading $image_url ...\n";
-	
-	if (! open(GET, "| nice -15 $WGET --no-check-certificate ".
-		   "--timeout=30 --waitretry=30 --retry-connrefused ".
-		   "-q -O $localfile -i -")) {
-	    print STDERR "Cannot start $WGET\n";
-	    return -1;
-	}
-	print GET "$image_url\n";
-	return -1
-	    if (!close(GET));
-
-	system("$SHA1 $localfile > ${localfile}.sha1");
-	if ($?) {
-	    print STDERR "Could not generate sha1 hash of $localfile\n";
-	    return -1;
-	}
+    if (FetchImageFile($image_url, $localfile)) {
+	return -1;
     }
 
     #
-    # Verify the hash.
+    # Verify the hash which was created by FetchImageFile().
     #
     my $newhashfile = $localfile . ".sha1";
     print "Verifying the hash ...\n";
@@ -596,8 +550,82 @@ sub DownLoadImage($$$$)
     if ($?) {
 	return -1;
     }
-    $EUID = $SAVEUID;
+
+    #
+    # Try to download a sig file. We have to accept that this might
+    # fail, which is okay since Mike says we can generate a new one,
+    # it just takes a while to do.
+    #
+    $image_url = uri_unescape($image->imagefile_url()) . "&sigfile=1";
+    $localfile = $image->path() . ".sig.new";
+    my $sigfile= $image->path() . ".sig";
+    
+    if (! FetchImageFile($image_url, $localfile)) {
+	system("/bin/mv -f $localfile $sigfile");
+	# Do not need this.
+	unlink("${localfile}.sha1")
+	    if (-e "${localfile}.sig.sha1");
+    }
     return 0;
+}
+
+#
+# Fetch a file.
+#
+sub FetchImageFile($$)
+{
+    my ($url, $localfile) = @_;
+    my $safe_url  = User::escapeshellarg($url);
+    
+    #
+    # Build up a new command line to do the fetch on ops
+    # But no reason to do this if an admin, which is important
+    # when the image is going into /usr/testbed/images.
+    #
+    if (!$user->IsAdmin()) {
+	my $cmdargs = "$TB/bin/fetchtar.proxy -h -u $user_uid";
+	my $glist = `/usr/bin/id -G $user_uid`;
+	if ($glist =~ /^([\d ]*)$/) {
+	    $glist = join(",", split(/\s+/, $1));
+	}
+	else {
+	    print STDERR "Unexpected results from 'id -G $user': $glist\n";
+	    return -1;
+	}
+	$cmdargs .= " -g '$glist' \"$safe_url\" $localfile";
+
+	print "Downloading $url ...\n";
+	if ($debug) {
+	    print "$cmdargs\n";
+	}
+	$EUID = $UID = 0;
+	system("sshtb -host $CONTROL $cmdargs ");
+	if ($?) {
+	    $EUID = $UID = $SAVEUID;
+	    print STDERR "Fetch of image file failed\n";
+	    return -1;
+	}
+	$UID = $SAVEUID;
+    }
+    else {
+	print "Downloading $url ...\n";
+	
+	if (! open(GET, "| nice -15 $WGET --no-check-certificate ".
+		   "--timeout=30 --waitretry=30 --retry-connrefused ".
+		   "-q -O $localfile -i -")) {
+	    print STDERR "Cannot start $WGET\n";
+	    return -1;
+	}
+	print GET "$url\n";
+	return -1
+	    if (!close(GET));
+
+	system("$SHA1 $localfile > ${localfile}.sha1");
+	if ($?) {
+	    print STDERR "Could not generate sha1 hash of $localfile\n";
+	    return -1;
+	}
+    }
 }
 
 #
