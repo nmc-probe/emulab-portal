@@ -2294,8 +2294,19 @@ sub vnodeBoot($$$$)
 	captureStart($vnode_id);
     }
 
-    # notify stated that we are about to boot
+    # notify stated that we are about to boot. We need this transition for
+    # stated to do its thing, this state name is treated specially.
     libutil::setState("BOOTING");
+
+    #
+    # But, we find ourselves stuck in BOOTING quite often if the VM
+    # fails to boot far enough to to send in a state transition. We want
+    # to catch this specific hangup, so we will send an intermediate
+    # state that the server side can notice, and watch for how long it
+    # stays in the state.
+    #
+    sleep(1);
+    libutil::setState("VNODEBOOTSTART");
 
     #
     # We are going to watch for a busted control network interface, which

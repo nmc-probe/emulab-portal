@@ -1801,11 +1801,11 @@ sub WaitForNodes($$@)
 		next;
 	    }
 	    #
-	    # Watch for a node stuck in BOOTING; this happens a lot with
-	    # XEN VMs, a reboot typically solves it. 
+	    # Watch for a node stuck in VNODEBOOTSTART; this happens a lot with
+	    # XEN VMs, a reboot typically solves it.
 	    #
 	    if ($node->isvirtnode() &&
-		$state eq TBDB_NODESTATE_BOOTING &&
+		$state eq TBDB_NODESTATE_VNODEBOOTSTART &&
 		$state eq $node->_laststate() &&
 		time() - $node->_laststatestamp() > 180) {
 		my $giveup = $node->_retried();
