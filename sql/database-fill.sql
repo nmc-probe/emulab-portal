@@ -582,6 +582,11 @@ REPLACE INTO state_transitions VALUES ('NORMALv2','ISUP','RECONFIG','DoReConfig'
 REPLACE INTO state_transitions VALUES ('NORMALv2','RECONFIG','TBSETUP','ReConfig');
 REPLACE INTO state_transitions VALUES ('NORMALv2','TBSETUP','ISUP','BootDone');
 REPLACE INTO state_transitions VALUES ('NORMALv1','TBSETUP','SHUTDOWN','Error');
+REPLACE INTO state_transitions VALUES ('NORMALv2','BOOTING','VNODEBOOTSTART','xencreate');
+REPLACE INTO state_transitions VALUES ('NORMALv2','VNODEBOOTSTART','TBSETUP','realboot');
+REPLACE INTO state_transitions VALUES ('NORMALv2','VNODEBOOTSTART','SHUTDOWN','bootfail');
+REPLACE INTO state_transitions VALUES ('NORMALv2','BOOTING','BOOTING','vnodesetup');
+REPLACE INTO state_transitions VALUES ('NORMALv2','SHUTDOWN','BOOTING','vnode_setup');
 REPLACE INTO state_transitions VALUES ('NORMAL','SHUTDOWN','SHUTDOWN','Retry');
 REPLACE INTO state_transitions VALUES ('NETBOOT','PXEBOOTING','BOOTING','BootInfo');
 REPLACE INTO state_transitions VALUES ('NODEALLOC','RES_INIT_CLEAN','RES_CLEAN_REBOOT','Reboot');
