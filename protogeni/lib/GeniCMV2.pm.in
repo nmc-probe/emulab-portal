@@ -3930,7 +3930,7 @@ sub Lockdown($)
     }
     if ($slice->creator_urn() ne $user->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				    "Not enough permission to access image");
+			    "Not enough permission to set/clr lockdown");
     }
     main::AddLogfileMetaDataFromSlice($slice);
 
