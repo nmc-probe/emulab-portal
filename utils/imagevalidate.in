@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2014 University of Utah and the Flux Group.
+# Copyright (c) 2014-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,8 +41,9 @@ use File::stat;
 #
 sub usage()
 {
-    print("Usage: imagevalidate [-dfupqR] [-H hash] [-V str] <imageid> ...\n" .
-	  "       imagevalidate [-dfupqR] [-H hash] [-V str] -a\n" .
+    print("Usage: imagevalidate [-dfupqRS] [-H hash] [-V str] <imageid> ...\n".
+	  "       imagevalidate [-dfupqRS] [-H hash] [-V str] -P pid\n".
+	  "       imagevalidate [-dfupqRS] [-H hash] [-V str] -a\n".
 	  "Options:\n".
 	  "       -d      Turn on debug mode\n".
 	  "       -f      Only update if DB says an image is out of date\n".
@@ -50,16 +51,19 @@ sub usage()
 	  "       -p      Show current information from the DB\n".
 	  "       -q      Update quietly, no messages about mismatches\n".
 	  "       -R      Set the relocatable flag if image file has relocations\n".
-	  "       -a      Update all images\n".
-	  "       -P pid  Update all images for a specific pid\n".
+	  "       -a      Validate/update all images\n".
+	  "       -P pid  Validate/update all images for a specific pid\n".
 	  "       -U      Do not modify updater_uid in DB\n".
 	  "       -H hash Use the provided hash rather than recalculating\n".
 	  "       -V str  Comma separated list of fields to validate/update\n".
 	  "               valid values: 'hash', 'range', 'size', 'all'\n".
-	  "               default is 'all'\n");
+	  "               default is 'all'\n".
+	  "       -S      Validate/update the image signature\n".
+	  "               (this is not a DB field so is not included in the\n".
+	  "               default or \"-V all\" validate/update\n");
     exit(-1);
 }
-my $optlist    = "dfnupqRaP:UH:V:F";
+my $optlist    = "dfnupqRaP:UH:V:FS";
 my $debug      = 0;
 my $showinfo   = 0;
 my $update     = 0;
@@ -68,6 +72,7 @@ my $setreloc   = 0;
 my $quiet      = 0;
 my $doall      = 0;
 my $doallpid;
+my $dosig      = 0;
 my $nouser     = 0;
 my %validate   = ();
 my @images     = ();
@@ -81,10 +86,18 @@ my $TB		= "@prefix@";
 my $SHA1	= "/sbin/sha1";
 my $IMAGEINFO	= "$TB/sbin/imageinfo";
 
+# XXX note: bin not sbin, /usr/testbed/sbin/imagehash is something 
+# entirely different!
+my $IMAGEHASH   = "$TB/bin/imagehash";
+
 # Protos
 sub doimage($);
-sub makehashfile($$$);
-sub removehashfile($);
+sub makehashfile($$$$);
+sub removehashfile($$);
+sub checksigfile($$);
+sub makesigfile($$);
+sub removesigfile($$);
+sub removeoldsigfile($);
 sub fatal($);
 
 #
@@ -163,6 +176,9 @@ if (defined($options{"V"})) {
     }
 } else {
     $validate{"all"} = 1;
+}
+if (defined($options{"S"})) {
+    $dosig = 1;
 }
 @images = @ARGV;
 
@@ -276,9 +292,13 @@ sub doimage($)
     }
     if (! -r "$path") {
 	print STDERR "$pidimage: path: image path '$path' cannot be read\n";
-	# if root and cannot read it, it doesn't exist so get rid of .sha1 file too
+	#
+	# If root and cannot read it, it doesn't exist so get rid of
+	# hash and signature files too
+	#
 	if ($UID == 0 && ($update || $fixit)) {
-	    removehashfile($path);
+	    removehashfile($pidimage, $path);
+	    removesigfile($pidimage, $path);
 	}
 	return 1;
     }
@@ -310,7 +330,10 @@ sub doimage($)
 		return 1;
 	    }
 	}
-	makehashfile($path, $hash, $fuid);
+	makehashfile($pidimage, $path, $hash, $fuid);
+	if ($dosig && checksigfile($pidimage, $path)) {
+	    makesigfile($pidimage, $path);
+	}
 	return 0;
     }
 
@@ -386,7 +409,7 @@ sub doimage($)
 		    print("$pidimage: hash: ")
 			if (!$quiet);
 		    if ($image->SetHash($filehash) == 0) {
-			makehashfile($path, $filehash, $fuid);
+			makehashfile($pidimage, $path, $filehash, $fuid);
 			$changed = 1;
 			print "[FIXED]\n"
 			    if (!$quiet);
@@ -401,7 +424,7 @@ sub doimage($)
 	    } elsif ($filehash) {
 		# even if the DB is correct, make sure .sha1 file is correct
 		if ($update) {
-		    makehashfile($path, $filehash, $fuid);
+		    makehashfile($pidimage, $path, $filehash, $fuid);
 		}
 	    }
 	}
@@ -500,6 +523,33 @@ sub doimage($)
 	}
     }
 
+    #
+    # Check/fix signature file.
+    #
+    if ($dosig) {
+	if (checksigfile($pidimage, $path)) {
+	    print("$pidimage: sig: image does not match signature\n")
+		if (!$update || !$quiet);
+	    if ($update) {
+		print("$pidimage: sig: ")
+		    if (!$quiet);
+		if (makesigfile($pidimage, $path) == 0) {
+		    $changed = 1;
+		    print "[FIXED]\n"
+			if (!$quiet);
+		} else {
+		    print "[FAILED]\n"
+			if (!$quiet);
+		    $rv = 1;
+		}
+	    } else {
+		$rv = 1;
+	    }
+	} elsif ($update) {
+	    removeoldsigfile($path);
+	}
+    }
+
     return $rv;
 }
 
@@ -508,43 +558,146 @@ sub partoffset($$)
     my ($part,$mbroff) = @_;
 }
 
-sub makehashfile($$$)
+# Return 0 if action is successful
+sub checksigfile($$)
 {
-    my ($imagepath,$hash,$fuid) = @_;
+    my ($pidimage,$imagepath) = @_;
+    my $sigfile = "$imagepath.sig";
 
-    my $hashfile;
-    if ($imagepath =~ /(.*)\.ndz$/) {
-	$hashfile = "$1.sha1";
-    } else {
-	$hashfile = "$imagepath.sha1";
+    if (! -e "$sigfile") {
+	# XXX the old stateful swapout path puts sigs in a sigs/ subdir
+	if ($imagepath =~ /^(.*)\/([^\/]+)$/) {
+	    my ($idir,$iname) = ($1,$2);
+	    my $osigfile = "$idir/sigs/$iname.sig";
+	    if (-e "$osigfile") {
+		print STDERR
+		    "$pidimage: WARNING: found old signature file $osigfile, ".
+		    "use -u to create new signature.\n";
+	    }
+	}
+
+	print STDERR
+	    "$pidimage: WARNING: no signature file for $imagepath\n";
+	return 1;
+    }
+    if (system("$IMAGEHASH -SX $imagepath")) {
+	print STDERR
+	    "$pidimage: WARNING: $imagepath does not match signature\n";
+	return 1;
+    }
+    return 0;
+}
+
+# Return 0 if action is successful
+sub makesigfile($$)
+{
+    my ($pidimage,$imagepath) = @_;
+    my $sigfile = "$imagepath.sig";
+
+    unlink($sigfile);
+    if (system("$IMAGEHASH -cXq $imagepath")) {
+	print STDERR
+	    "$pidimage: WARNING: could not create signature for $imagepath\n";
+	unlink($sigfile);
+	return 1;
     }
 
+    # XXX get rid of old sigfile
+    if ($imagepath =~ /^(.*)\/([^\/]+)$/) {
+	my ($idir,$iname) = ($1,$2);
+	my $osigfile = "$idir/sigs/$iname.sig";
+	if (-e "$osigfile") {
+	    print STDERR
+		"$pidimage: NOTE: removing old signature file $osigfile\n";
+	    unlink($osigfile);
+	}
+    }
+
+    return 0;
+}
+
+# Return 0 if action is successful
+sub removesigfile($$)
+{
+    my ($pidimage,$imagepath) = @_;
+    my $sigfile = "$imagepath.sig";
+
+    if (!unlink($sigfile)) {
+	return 1;
+    }
+
+    # XXX get rid of old sigfile
+    removeoldsigfile($imagepath);
+
+    return 0;
+}
+
+sub removeoldsigfile($)
+{
+    my ($imagepath) = @_;
+
+    if ($imagepath =~ /^(.*)\/([^\/]+)$/) {
+	my ($idir,$iname) = ($1,$2);
+	my $osigfile = "$idir/sigs/$iname.sig";
+	unlink($osigfile);
+    }
+}
+
+#
+# XXX Over time, we have used two different conventions for sha1 files.
+#
+# Old format is <image>.sig. New format is <image>.ndz.sig, possibly
+# with a version number. We take it upon ourselves to force everything
+# into the new format.
+#
+
+sub makehashfile($$$$)
+{
+    my ($pidimage,$imagepath,$hash,$fuid) = @_;
+
+    my $hashfile = "$imagepath.sha1";
     unlink($hashfile);
     if (open(HASH, ">$hashfile")) {
 	# XXX recreate the sha1 output format for compatibility
 	print HASH "SHA1 ($imagepath) = $hash\n";
 	close($hashfile);
-	if (defined($fuid)) {
-	    system("chown $fuid $hashfile");
+	if (defined($fuid) &&
+	    system("chown $fuid $hashfile >/dev/null 2>&1")) {
+	    print STDERR
+		"$pidimage: WARNING: could not chown $hashfile to $fuid\n";
 	}
-	system("touch -r $imagepath $hashfile");
+	if (system("touch -r $imagepath $hashfile >/dev/null 2>&1")) {
+	    print STDERR
+		"$pidimage: WARNING: could not set modtime of $hashfile\n";
+	}
+    } else {
+	print STDERR
+	    "$pidimage: WARNING: could not create $hashfile\n";
+    }
+
+    # Look for old format files so we can remove them
+    # XXX there only appear in the pre-version number days.
+    if ($imagepath =~ /(.*)\.ndz$/) {
+	my $oldhashfile = "$1.sha1";
+	if (-e "$oldhashfile") {
+	    print STDERR
+		"$pidimage: NOTE: removing old sha1 file $oldhashfile\n";
+	    unlink("$oldhashfile");
+	}
     }
 }
 
-sub removehashfile($)
+sub removehashfile($$)
 {
-    my ($imagepath) = @_;
+    my ($pidimage,$imagepath) = @_;
 
-    my $hashfile;
+    my $hashfile = "$imagepath.sha1";
+    unlink($hashfile);
+
+    # Remove old format file too
     if ($imagepath =~ /(.*)\.ndz$/) {
-	$hashfile = "$1.sha1";
-	if (-r "$hashfile") {
-	    unlink($hashfile);
-	}
-    }
-    $hashfile = "$imagepath.sha1";
-    if (-r "$hashfile") {
-	unlink($hashfile);
+	my $oldhashfile = "$1.sha1";
+	unlink($oldhashfile);
     }
 }
 
