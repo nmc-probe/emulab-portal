@@ -398,6 +398,39 @@ sub ListAll($$$)
 }
 
 #
+# Return a list of all versions of all images of the given format for the
+# given pid.
+#
+# If format is NULL, return all formats. If pid is NULL, return for all pids.
+# List is names of the form "pid/imagename:version".
+#
+sub ListAllVersions($$$)
+{
+    my ($class, $format, $pid) = @_;
+    my @result = ();
+
+    my $clause = "";
+    if (defined($format) && $format =~ /^([-\w]+)$/) {
+	$clause .= "and v.format='$1'";
+    }
+    if (defined($pid) && $pid =~ /^([-\w]+)$/) {
+	$clause .= "and v.pid='$1'";
+    }
+
+    my $query_result =
+	DBQueryWarn("select v.pid,v.imagename,v.version from ".
+		    "images as i, image_versions as v where ".
+		    "i.imageid=v.imageid and v.deleted is null ".
+		    "$clause order by v.pid,v.imagename,v.version");
+    if ($query_result) {
+	while (my ($pid,$name,$vers) = $query_result->fetchrow_array()) {
+	    push(@result, "$pid/$name:$vers");
+	}
+    }
+    return @result;
+}
+
+#
 # Refresh a class instance by reloading from the DB.
 #
 sub Refresh($)
@@ -1431,30 +1464,6 @@ sub UnLockTables($)
 }
 
 #
-# Return updated time for image as a UNIX timestamp via the passed ref.
-# Return 0 on success, non-zero otherwise.
-#
-sub GetUpdate($$)
-{
-    my ($self,$stampp) = @_;
-
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
-    my $imageid     = $self->imageid();
-
-    my $result = DBQueryWarn("select UNIX_TIMESTAMP(updated) ".
-			     "  from image_versions ".
-			     "where imageid='$imageid'");
-    if ($result && $result->numrows) {
-	my ($stamp) = $result->fetchrow_array();
-	$$stampp = $stamp;
-	return 0;
-    }
-}
-
-#
 # Get the disk offset at which the image will be loaded.
 # For a "whole disk" (loadpart == 0) image, it is always 0.
 # For a "partition" image, it depends on the MBR type of the image.
@@ -1483,6 +1492,31 @@ sub GetDiskOffset($)
 	if ($self->loadpart() > 4);
 
     return $mbr{$self->mbr_version()}[$self->loadpart()];
+}
+
+#
+# Return updated time for image as a UNIX timestamp via the passed ref.
+# Return 0 on success, non-zero otherwise.
+#
+sub GetUpdate($$)
+{
+    my ($self,$stampp) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid     = $self->imageid();
+    my $version     = $self->version();
+
+    my $result =
+	DBQueryWarn("select UNIX_TIMESTAMP(updated) from image_versions ".
+		    "where imageid='$imageid' and version='$version'");
+    if ($result && $result->numrows) {
+	my ($stamp) = $result->fetchrow_array();
+	$$stampp = $stamp;
+	return 0;
+    }
 }
 
 #
