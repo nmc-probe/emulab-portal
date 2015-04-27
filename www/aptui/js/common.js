@@ -28,7 +28,8 @@ window.APT_OPTIONS.configObject = {
 	'underscore': { exports: '_' },
 	'filesize' : { exports: 'filesize' },
 	'contextmenu': { },
-    }
+    },
+    urlArgs: "version=" + APT_COMMIT_HASH
 };
 
 window.APT_OPTIONS.initialize = function (sup)

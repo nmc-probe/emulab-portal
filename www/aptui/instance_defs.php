@@ -355,5 +355,12 @@ class Instance
         }
         return array($pcount, $phours);
     }
+
+    #
+    # Determine Commit Hash of Emulab Install
+    #
+    function CommitHash() {
+      return mysql_fetch_array(DBQueryFatal("select value from version_info where name='commithash'"))[0];
+    }
 }
 ?>
