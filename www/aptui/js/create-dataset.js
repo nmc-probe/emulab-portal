@@ -1,8 +1,7 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
 	 'js/lib/text!template/create-dataset.html',
-	 'js/lib/text!template/dataset-help.html',
-	 'jquery-ui'],
+	 'js/lib/text!template/dataset-help.html'],
 function (_, sup, moment, mainString, helpString)
 {
     'use strict';

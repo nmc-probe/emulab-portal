@@ -122,7 +122,8 @@ function SPITFORM($formfields, $errors)
     SpitOopsModal("oops");
     SpitWaitModal("waitwait");
     
-    SPITREQUIRE("create-dataset");
+    SPITREQUIRE("create-dataset",
+                "<script src='js/lib/jquery-ui.js'></script>");
     SPITFOOTER();
 }
 
