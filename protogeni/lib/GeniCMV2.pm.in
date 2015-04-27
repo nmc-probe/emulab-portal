@@ -3199,7 +3199,9 @@ sub ShareLanAux($$)
 	$slice->UnLock();
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
 				    defined($lan_cred) ?
-				    $lan_cred->asString() : undef);
+				    [{"geni_credential" =>
+					  $lan_cred->asString()}] :
+				    undef);
     }
     #
     # Revoking is a litte trickier since we have to worry about the
