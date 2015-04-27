@@ -96,6 +96,7 @@ CREATE TABLE `apt_datasets` (
 DROP TABLE IF EXISTS `apt_instance_history`;
 CREATE TABLE `apt_instance_history` (
   `uuid` varchar(40) NOT NULL default '',
+  `name` varchar(16) default NULL,
   `profile_id` int(10) unsigned NOT NULL default '0',
   `profile_version` int(10) unsigned NOT NULL default '0',
   `slice_uuid` varchar(40) NOT NULL default '',
@@ -126,6 +127,7 @@ CREATE TABLE `apt_instance_history` (
 DROP TABLE IF EXISTS `apt_instances`;
 CREATE TABLE `apt_instances` (
   `uuid` varchar(40) NOT NULL default '',
+  `name` varchar(16) default NULL,
   `profile_id` int(10) unsigned NOT NULL default '0',
   `profile_version` int(10) unsigned NOT NULL default '0',
   `slice_uuid` varchar(40) NOT NULL default '',
