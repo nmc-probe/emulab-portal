@@ -357,10 +357,18 @@ class Instance
     }
 
     #
-    # Determine Commit Hash of Emulab Install
+    # Return Caching Token, either the latest commit hash
+    # or the current time for development trees.
     #
-    function CommitHash() {
-      return mysql_fetch_array(DBQueryFatal("select value from version_info where name='commithash'"))[0];
+    function CacheToken() {
+      if (preg_match("/\/dev\//", $_SERVER["SCRIPT_NAME"]))
+      {
+        return date('Y-m-d-H:i:s');
+      }
+      else
+      {
+        return mysql_fetch_array(DBQueryFatal("select value from version_info where name='commithash'"))[0];
+      }
     }
 }
 ?>

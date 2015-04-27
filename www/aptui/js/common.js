@@ -29,7 +29,7 @@ window.APT_OPTIONS.configObject = {
 	'filesize' : { exports: 'filesize' },
 	'contextmenu': { },
     },
-    urlArgs: "version=" + APT_COMMIT_HASH
+    urlArgs: "version=" + APT_CACHE_TOKEN
 };
 
 window.APT_OPTIONS.initialize = function (sup)
