@@ -343,11 +343,21 @@ sub get_parttype($$$)
 #
 # Returns 1 if the volume manager has been initialized.
 # For LVM this means that the "emulab" volume group exists.
+# If an argument is provided, we return the number of PVs in the VG.
 #
-sub is_lvm_initialized()
+sub is_lvm_initialized($)
 {
-    my $vg = `vgs -o vg_name --noheadings emulab 2>/dev/null`;
+    my $pvsp = shift;
+
+    my $vg = `vgs -o vg_name,pv_count --noheadings emulab 2>/dev/null`;
     if ($vg) {
+	if ($pvsp) {
+	    if ($vg =~ /emulab\s+(\d+)/) {
+		$$pvsp = $1;
+	    } else {
+		$$pvsp = 1;
+	    }
+	}
 	return 1;
     }
     return 0;
@@ -602,8 +612,10 @@ sub os_init_storage($)
 	    #
 	    # Allow for the volume group to exist.
 	    #
-	    if (is_lvm_initialized()) {
+	    my $pvs = 1;
+	    if (is_lvm_initialized(\$pvs)) {
 		$so{'LVM_VGCREATED'} = 1;
+		$so{'LVM_VGDEVS'} = $pvs;
 	    }
 
 	    #
@@ -1410,12 +1422,15 @@ sub os_create_storage_slice($$$)
 		    return 0;
 		}
 
+		$so->{'LVM_VGDEVS'} = scalar(@devs);
 		$so->{'LVM_VGCREATED'} = 1;
 	    }
 
 	    #
 	    # Now create an LV for the volume:
 	    #
+	    # lvcreate -i 4 -n h2d2 -L 100m emulab
+	    #   or
 	    # lvcreate -n h2d2 -L 100m emulab
 	    #
 	    if ($lvsize == 0) {
@@ -1425,6 +1440,13 @@ sub os_create_storage_slice($$$)
 		} else {
 		    warn("*** $lv: could not find size of VG\n");
 		}
+	    }
+	    # try a striped LV first
+	    my $pvs = $so->{'LVM_VGDEVS'};
+	    if (defined($pvs) && $pvs > 1 &&
+		!mysystem("lvcreate -i $pvs -n $lv -L ${lvsize}m emulab $redir")) {
+		$href->{'LVDEV'} = "/dev/emulab/$lv";
+		return 1;
 	    }
 	    if (mysystem("lvcreate -n $lv -L ${lvsize}m emulab $redir")) {
 		warn("*** $lv: could not create LV$logmsg\n");
