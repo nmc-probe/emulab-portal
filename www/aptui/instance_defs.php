@@ -63,6 +63,7 @@ class Instance
 	return (is_null($this->instance) ? -1 : $this->instance[$name]);
     }
     function uuid()	    { return $this->field('uuid'); }
+    function name()	    { return $this->field('name'); }
     function slice_uuid()   { return $this->field('slice_uuid'); }
     function creator()	    { return $this->field('creator'); }
     function creator_idx()  { return $this->field('creator_idx'); }
@@ -110,6 +111,22 @@ class Instance
 	$query_result =
 	    DBQueryFatal("select uuid from apt_instances ".
 			 "where creator_uuid='$safe_token'");
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$uuid = $row[0];
+ 	return Instance::Lookup($uuid);
+    }
+
+    function LookupByName($project, $token) {
+	$safe_token = addslashes($token);
+        $pid_idx    = $project->pid_idx();
+
+	$query_result =
+	    DBQueryFatal("select uuid from apt_instances ".
+			 "where pid_idx='$pid_idx' and name='$safe_token'");
 
 	if (! ($query_result && mysql_num_rows($query_result))) {
 	    return null;

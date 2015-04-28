@@ -94,8 +94,9 @@ if (isset($min) || isset($max)) {
 
 $query_result =
     DBQueryFatal("select h.uuid,h.profile_version,h.created,h.destroyed, ".
-		 "    h.creator,p.uuid as profile_uuid,p.name,p.pid,u.email, ".
-                 "    h.physnode_count,h.virtnode_count, ".
+		 "    h.creator,p.uuid as profile_uuid,p.pid,u.email, ".
+                 "    h.physnode_count,h.virtnode_count,".
+                 "    h.name as instance_name,p.name as profile_name, ".
                  "    truncate(h.physnode_count * ".
                  "      ((UNIX_TIMESTAMP(h.destroyed) - ".
                  "        UNIX_TIMESTAMP(h.created)) / 3600.0),2) as phours ".
@@ -115,7 +116,8 @@ if (mysql_num_rows($query_result) == 0) {
 
 if (1) {
     while ($row = mysql_fetch_array($query_result)) {
-	$pname     = $row["name"];
+	$pname     = $row["profile_name"];
+        $iname     = $row["instance_name"];
 	$pproj     = $row["pid"];
 	$puuid     = $row["profile_uuid"];
 	$created   = DateStringGMT($row["created"]);
@@ -132,6 +134,9 @@ if (1) {
         if (!isset($destroyed)) {
             $destroyed = "";
         }
+        if (!isset($iname)) {
+            $iname = "&nbsp;";
+        }
         
 	# If a guest user, use email instead.
 	if (isset($email)) {
@@ -141,7 +146,7 @@ if (1) {
         # Save space with array instead of hash.
 	$instance =
             array($pname, $pproj, $puuid, $pcount, $vcount,
-                  $creator, $created, $destroyed, $phours);
+                  $creator, $created, $destroyed, $phours, $iname);
                           
 	$instances[] = $instance;
     }

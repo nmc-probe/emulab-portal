@@ -483,6 +483,42 @@ function SPITFORM($formfields, $newuser, $errors)
     }
 
     #
+    # Spit out an experient name box, which is optional and prefilled
+    # with a default.
+    #
+    if ($this_user) {
+        $thisclass = "form-group";
+        if ($errors && array_key_exists("name", $errors)) {
+            $thisclass .= " has-error";
+        }
+        echo "<div class='form-horizontal'>
+                <div class='$thisclass'>
+                  <label class='col-sm-4 control-label'
+                         style='text-align: right;'>Name:</label>
+                  <div class='col-sm-6'
+                       data-toggle='popover'
+		       data-delay='{hide:1500, show:500}'
+		       data-html='true'
+		       data-content='Provide a unique name to identity your
+                           new experiment. If you are in
+                           the habit of starting more then one experiment at
+                           a time this is really handy when trying to tell
+                           one experiment from another, or when referring to
+                           an experiment when asking for help.'>
+                    <input id='experiment_name'
+                           placeholder='Optional'
+                           class='form-control'
+                           name='formfields[name]'
+                           value='" . $formfields["name"] . "'>\n";
+        if ($errors && array_key_exists("name", $errors)) {
+            echo "  <label class='control-label'>". $errors["name"] . "</label>";
+        }
+        echo "    </div>
+                </div>
+              </div>\n";
+    }
+     
+    #
     # Spit out a project selection list if more then one project membership
     #
     if ($this_user && !$this_user->webonly()) {
@@ -736,6 +772,23 @@ if ($this_user) {
     }
     else {
         $args["pid"] = $project->pid_idx();
+    }
+
+    # Experiment name is optional, we generate one later.
+    if (isset($formfields["name"]) && $formfields["name"] != "") {
+        if (strlen($formfields["name"]) > 16) {
+            $errors["name"] = "Too long; must be <= 16 characters";
+        }
+        elseif (!TBvalid_eid($formfields["name"])) {
+            $errors["name"] = TBFieldErrorString();
+        }
+        elseif ($project &&
+                Instance::LookupByName($project, $formfields["name"])) {
+            $errors["name"] = "Already in use by another experiment";
+        }
+        else {
+            $args["instance_name"] = $formfields["name"];
+        }
     }
 }
 

@@ -17,6 +17,7 @@
     <table class='tablesorter' id='activity_table'>
       <thead>
 	<tr>
+	  <th>Name</th>
 	  <th>Profile</th>
 	  <th>Pid</th>
 	  <th>Creator</th>
@@ -28,7 +29,7 @@
 	</tr>
 	<tr>
           <th class='filter-false sorter-false'>Totals</th>
-	  <th class='filter-false sorter-false' colspan=2></th>
+	  <th class='filter-false sorter-false' colspan=3></th>
           <th class='filter-false sorter-false' data-math='col-sum'>0</th>
           <th class='filter-false sorter-false' data-math='col-sum'
 	      data-math-mask='##0'>0</th>
@@ -40,7 +41,7 @@
       <tfoot>
 	<tr>
           <th class='filter-false sorter-false'>Totals</th>
-	  <th class='filter-false sorter-false' colspan=2></th>
+	  <th class='filter-false sorter-false' colspan=3></th>
           <th class='filter-false sorter-false' data-math='col-sum'>0</th>
           <th class='filter-false sorter-false' data-math='col-sum'
 	      data-math-mask='##0'>0</th>
@@ -52,6 +53,7 @@
       <tbody>
 	<% _.each(instances, function(instance) { %>
 	<tr>
+	  <td><%- instance[0] %></a></td>
 	  <td>
 	    <a href='manage_profile.php?action=edit&uuid=<%- instance[2] %>'>
 	      <%- instance[0] %></a>

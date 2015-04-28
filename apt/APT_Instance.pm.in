@@ -143,9 +143,9 @@ sub Refresh($)
 #
 # Create an Instance
 #
-sub Create($$)
+sub Create($$$)
 {
-    my ($class, $argref) = @_;
+    my ($class, $argref, $perrmsg) = @_;
     my $uuid;
 
     if (exists($argref->{'uuid'})) {
@@ -155,6 +155,8 @@ sub Create($$)
     else {
 	$uuid = NewUUID();
     }
+    my $pid_idx = $argref->{'pid_idx'};
+    my $name    = $argref->{'name'};
 
     #
     # The uuid has to be unique, so lock the table for the check/insert.
@@ -167,7 +169,16 @@ sub Create($$)
 
     if ($query_result->numrows) {
 	DBQueryWarn("unlock tables");
-	tberror("Instance uuid $uuid already exists!");
+	$$perrmsg = "Instance uuid $uuid already exists!";
+	return undef;
+    }
+    $query_result =
+	DBQueryWarn("select name from apt_instances ".
+		    "where name='$name' and pid_idx='$pid_idx'");
+
+    if ($query_result->numrows) {
+	DBQueryWarn("unlock tables");
+	$$perrmsg = "Instance name already in use!";
 	return undef;
     }
 
@@ -177,7 +188,7 @@ sub Create($$)
 
     if (! DBQueryWarn($query)) {
 	DBQueryWarn("unlock tables");
-	tberror("Error inserting new apt_instance record for $uuid!");
+	$$perrmsg = "Error inserting new apt_instance record for $uuid!";
 	return undef;
     }
     DBQueryWarn("unlock tables");
@@ -617,11 +628,9 @@ sub Terminate($)
     if ($speaksfor_credential->IsExpired()) {
 	print STDERR "speaksfor credential has expired, generating a new one\n";
 
-	$slice_credential =
-	    GeniCredential->CreateSigned($slice, $context,
-					 $GeniCredential::LOCALSA_FLAG);
+	$slice_credential = APT_Geni::GenAuthCredential($slice);
 	if (!defined($slice_credential)) {
-	    print STDERR "Could not generate SA credential\n";
+	    print STDERR "Could not generate slice credential\n";
 	    return undef;
 	}
 	$credentials = [$slice_credential->asString()];
@@ -674,6 +683,7 @@ sub Terminate($)
 sub Extend($$)
 {
     my ($self, $new_expires) = @_;
+    my $credentials;
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->GetGeniUser();
     my $slice     = $self->GetGeniSlice();
@@ -681,6 +691,33 @@ sub Extend($$)
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    #
+    # Special case; if the speaksfor_credential has expired cause it
+    # was for a nonlocal user, we have no choice but to throw away
+    # these credentials and generate a new one issued to the local SA
+    # instead of the user. 
+    #
+    if ($speaksfor_credential->IsExpired()) {
+	print STDERR "speaksfor credential has expired, generating a new one\n";
+
+	$slice_credential = APT_Geni::GenAuthCredential($slice);
+	if (!defined($slice_credential)) {
+	    print STDERR "Could not generate slice credential\n";
+	    return undef;
+	}
+	$credentials = [$slice_credential->asString()];
+    }
+    else {
+	$credentials = [$slice_credential->asString(),
+			$speaksfor_credential->asString()];
+    }
 
     #
     # We need a special credentential in case the aggregate is enforcing
@@ -696,7 +733,8 @@ sub Extend($$)
     # is not in the same domain as the speaksfor, so we use the geni certificate
     # that the trusted signer gave us and is stored in the DB.
     #
-    if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal()) {
+    if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal() &&
+	!$speaksfor_credential->IsExpired()) {	
 	my (undef, $certificate_string) =
 	    $geniuser->emulab_user()->GetStoredCredential();
 	if (! defined($certificate_string)) {
@@ -708,6 +746,7 @@ sub Extend($$)
 	    print STDERR "Could not load stored certificate for $geniuser\n";
 	    return undef;
 	}
+	# This file will be auto deleted.
 	$certfile = $certificate->WriteToFile();
 	$userarg = "-c $certfile";
     }
@@ -727,18 +766,10 @@ sub Extend($$)
     unlink($credname);
     chomp($extcred);
 
-    my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
-
     my $args = {
 	"slice_urn"   => $slice->urn(),
 	"expiration"  => $new_expires,
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString(),
-			  $extcred],
+	"credentials" => [@$credentials, $extcred],
     };
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
@@ -853,23 +884,19 @@ sub Lockdown($$)
 {
     my ($self, $clear) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $geniuser  = $self->GetGeniUser();
     my $slice     = $self->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
-	if (! (defined($geniuser) && defined($authority) &&
+	if (! (defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+    my $slice_credential = APT_Geni::GenAuthCredential($slice);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (! defined($slice_credential));
 
     my $args = {
 	"slice_urn"   => $slice->urn(),
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => [$slice_credential->asString()],
     };
     $args->{"clear"} = 1
 	if ($clear);

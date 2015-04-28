@@ -254,7 +254,7 @@ foreach my $key ("username", "email", "profile") {
 # Gather up args and sanity check.
 #
 my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $project, $pid,
-    $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg);
+    $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg, $slice_id);
 
 #
 # Username and email has to be acceptable to Emulab user system.
@@ -274,6 +274,19 @@ if (! TBcheck_dbslot($value, "users", "usr_email",
     fatal("Illegal email address: $value");
 }
 $user_email = $value;
+
+#
+# The instance name is optional, we will make one up if not supplied.
+#
+if (exists($xmlparse->{'attribute'}->{"instance_name"}) &&
+    $xmlparse->{'attribute'}->{"instance_name"}->{'value'} ne "") {
+    $value = $xmlparse->{'attribute'}->{"instance_name"}->{'value'};
+    if (! TBcheck_dbslot($value, "experiments", "eid",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	fatal("Illegal instance name: $value");
+    }
+    $slice_id = $value;
+}
 
 #
 # Profile.
@@ -537,6 +550,10 @@ elsif (!$localuser) {
     }
     # Guest users get a holding project.
     $pid = "aptguests";
+    $project = Project->Lookup($pid);
+    if (!defined($project)) {
+	fatal("Project $pid does not exist");
+    }
 }
 # There will be "internal" keys cause we pass the flag asking for them.
 my @sshkeys;
@@ -561,7 +578,9 @@ if (defined($profile)) {
 # Now generate a slice registration and credential
 #
 my $safe_uid    = $user_uid; $safe_uid =~ s/_/-/;
-my $slice_id    = $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
+if (! defined($slice_id)) {
+    $slice_id   = $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
+}
 my $slice_urn   = GeniHRN::Generate("${OURDOMAIN}:${pid}", "slice", $slice_id);
 my $slice_hrn   = "${PGENIDOMAIN}.${slice_id}";
 my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
@@ -630,6 +649,7 @@ if (!defined($quickvm_uuid)) {
     fatal("Could not generate a new uuid");
 }
 my $blob = {'uuid'         => $quickvm_uuid,
+	    'name'         => $slice_id,
 	    'profile_id'   => $profileid,
 	    'profile_version' => $version,
 	    'slice_uuid'   => $slice_uuid,
@@ -645,10 +665,12 @@ if (defined($project)) {
     $blob->{"pid"}     = $project->pid();
     $blob->{"pid_idx"} = $project->pid_idx();
 }
-my $instance = APT_Instance->Create($blob);
+$errmsg = undef;
+my $instance = APT_Instance->Create($blob, \$errmsg);
 if (!defined($instance)) {
     $slice->Delete();
-    fatal("Could not create instance record for $quickvm_uuid");
+    fatal(defined($errmsg) ? $errmsg :
+	  "Could not create instance record for $quickvm_uuid");
 }
 #
 # Create a webtask so that we can store additional information about

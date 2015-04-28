@@ -123,11 +123,8 @@ function SPITROWS($all, $name, $result)
     echo "  <table class='tablesorter' id='tablesorter_${name}'>
          <thead>
           <tr>
+           <th>Name</th>
            <th>Profile</th>\n";
-        
-    if (ISADMIN()) {
-        echo " <th>Slice</th>";
-    }
     if ($all) {
         echo "     <th>Creator</th>\n";
     }
@@ -147,11 +144,12 @@ function SPITROWS($all, $name, $result)
         $profile_id   = $row["profile_id"];
         $version      = $row["profile_version"];
         $uuid         = $row["uuid"];
+        $name         = $row["name"];
         $status       = $row["status"];
         $created      = DateStringGMT($row["created"]);
         $expires      = DateStringGMT($row["expires"]);
         $creator_idx  = $row["creator_idx"];
-        $profile_name = $profile_id;
+        $profile_name = "$profile_id:$version";
         $creator_uid  = $row["creator"];
         $pid          = $row["pid"];
         $urn          = $row["aggregate_urn"];
@@ -176,18 +174,22 @@ function SPITROWS($all, $name, $result)
         if ($row["expired"]) {
             $status = "expired";
         }
-
         $profile = Profile::Lookup($profile_id, $version);
         if ($profile) {
-            $profile_name = $profile->name();
+            $profile_name  = $profile->name();
+            $profile_uuid  = $profile->uuid();
         }
-
-        echo " <tr>
-            <td>
-             <a href='status.php?uuid=$uuid'>$profile_name</a>
-            </td>";
-        if (ISADMIN()) {
-            echo "<td>$hrn</td>";
+        if (!isset($name)) {
+            $name = $hrn;
+        }
+        echo " <tr>\n";
+        echo "<td><a href='status.php?uuid=$uuid'>$name</a></td>";
+        if ($profile) {
+            echo "<td><a href='show-profile.php?uuid=$uuid'>
+                      $profile_name</a></td>";
+        }
+        else {
+            echo "<td>$profile_name</td>\n";
         }
         if ($all) {
             echo "<td>$creator</td>";
