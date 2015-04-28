@@ -3910,10 +3910,6 @@ sub Lockdown($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
-    my $user = GeniCM::CreateUserFromCertificate($credential);
-    return $user
-	if (GeniResponse::IsResponse($user));
-
     my $authority = GeniCM::CreateAuthorityFromCertificate($credential);
     return $authority
 	if (GeniResponse::IsResponse($authority));
@@ -3930,7 +3926,12 @@ sub Lockdown($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
     }
-    if ($slice->creator_urn() ne $user->urn()) {
+    #
+    # Only the SA for the slice can do this.
+    #
+    my $caller = $credential->owner_urnOBJ();
+    if (! ($caller->IsSA() &&
+	   $caller->domain() eq $slice->urnOBJ()->domain())) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 			    "Not enough permission to set/clr lockdown");
     }

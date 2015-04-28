@@ -33,6 +33,7 @@ use strict;
 use Exporter;
 use Carp;
 use vars qw(@ISA @EXPORT);
+use overload (fallback => 1, '""' => 'Stringify');
 
 @ISA    = "Exporter";
 @EXPORT = qw ( );
@@ -295,6 +296,51 @@ sub ParseInterface($)
     return undef unless $id =~ m{(.*)//(.*)};
 
     return ( $authority, $1, $2 );
+}
+
+#
+# OO implementation, tired of typing same stuff all the time
+#
+sub new($$)
+{
+    my ($class, $urn) = @_;
+
+    return $urn
+	if (ref($urn) && ref($urn) eq "GeniHRN");
+
+    if (! IsValid($urn)) {
+	print STDERR "GeniHRN::new: invalid urn $urn\n";
+	return undef;
+    }
+    my ($domain,$type,$id) = GeniHRN::Parse($urn);
+    my $self = {};
+    $self->{'urn'}     = $urn;
+    $self->{'domain'}  = $domain;
+    $self->{'type'}    = $type;
+    $self->{'id'}      = $id;
+    
+    bless($self, $class);
+    return $self;
+}
+# accessors
+sub field($$)           { return ($_[0]->{$_[1]}); }
+sub urn($)		{ return field($_[0], "urn"); }
+sub asString($)         { return $_[0]->urn(); }
+sub domain($)		{ return field($_[0], "domain"); }
+sub type($)		{ return field($_[0], "type"); }
+sub id($)		{ return field($_[0], "id"); }
+sub IsAuthority()       { return $_[0]->type() =~ /^authority$/i ? 1 : 0; }
+sub IsSA($)		{ return $_[0]->id() =~ /^SA$/i ? 1 : 0; }
+sub IsCM($)		{ return $_[0]->id() =~ /^CM$/i ? 1 : 0; }
+
+#
+# Stringify for text context.
+#
+sub Stringify($)
+{
+    my ($self) = @_;
+    
+    return $self->{"urn"};
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

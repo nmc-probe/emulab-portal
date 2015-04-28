@@ -166,6 +166,11 @@ sub Lookup($$)
     $slices{$self->urn()}  = $self;
     $slices{$self->uuid()} = $self;
     $slices{$self->hrn()}  = $self;
+
+    # Convert URNs to objects.
+    $self->{'SLICE'}->{'creator_urnOBJ'} = GeniHRN->new($self->creator_urn());
+    $self->{'SLICE'}->{'speaksfor_urnOBJ'} = GeniHRN->new($self->speaksfor_urn())
+	if (defined($self->speaksfor_urn()));
     
     return $self;
 }
@@ -299,6 +304,7 @@ sub uuid($)		{ return field($_[0], "uuid"); }
 sub publicid($)		{ return field($_[0], "publicid"); }
 sub creator_uuid($)	{ return field($_[0], "creator_uuid"); }
 sub creator_urn($)	{ return field($_[0], "creator_urn"); }
+sub creator_urnOBJ($)	{ return field($_[0], "creator_urnOBJ"); }
 sub created($)		{ return field($_[0], "created"); }
 sub shutdown($)		{ return field($_[0], "shutdown"); }
 sub isshutdown($)	{ return field($_[0], "isshutdown"); }
@@ -312,6 +318,7 @@ sub lockdown($)		{ return field($_[0], "lockdown"); }
 sub isplaceholder($)	{ return field($_[0], "isplaceholder"); }
 sub monitor_pid($)	{ return field($_[0], "monitor_pid"); }
 sub speaksfor_urn($)	{ return field($_[0], "speaksfor_urn"); }
+sub speaksfor_urnOBJ($)	{ return field($_[0], "speaksfor_urnOBJ"); }
 sub speaksfor_uuid($)	{ return field($_[0], "speaksfor_uuid"); }
 sub expiration_max($)	{ return field($_[0], "expiration_max"); }
 sub renew_limit($)	{ return field($_[0], "renew_limit"); }
@@ -390,6 +397,13 @@ sub urn($)
 	if (defined($urn) && $urn ne "");
 
     return $self->uuid();
+}
+
+sub urnOBJ($)
+{
+    my ($self) = @_;
+
+    return $self->GetCertificate()->urnOBJ();
 }
 
 #

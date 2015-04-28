@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -162,7 +162,10 @@ sub Lookup($$)
     # Get the domain as a convenience.
     my ($domain,undef,undef) = GeniHRN::Parse($self->{'AUTHORITY'}->{'urn'});
     $self->{'DOMAIN'} = $domain;
-    
+
+    # Convert URNs to objects.
+    $self->{'AUTHORITY'}->{'urnOBJ'} = GeniHRN->new($self->urn());
+
     return $self;
 }
 
@@ -228,6 +231,7 @@ sub expires($)		{ return field($_[0], "expires"); }
 sub created($)		{ return field($_[0], "created"); }
 sub uuid_prefix($)	{ return field($_[0], "uuid_prefix"); }
 sub urn($)		{ return field($_[0], "urn"); }
+sub urnOBJ($)		{ return field($_[0], "urnOBJ"); }
 sub url($)		{ return field($_[0], "url"); }
 sub hrn($)		{ return field($_[0], "hrn"); }
 sub type($)		{ return field($_[0], "type"); }

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -42,6 +42,7 @@ use vars qw(@ISA @EXPORT);
 # Must come after package declaration!
 use GeniDB;
 use GeniResponse;
+use GeniHRN;
 use emutil qw(TBGetUniqueIndex);
 use English;
 use XML::Simple;
@@ -114,6 +115,9 @@ sub Lookup($$)
     bless($self, $class);
     my $cert = $self->cert();
 
+    # Convert urn to object now.
+    $self->{'CERT'}->{'urnOBJ'} = GeniHRN->new($self->{'CERT'}->{'urn'});
+
     # Add to cache. 
     $certificates{$uuid} = $self;
     $certificates{$token} = $self
@@ -150,6 +154,7 @@ sub certfile($)		{ return field($_[0], "certfile"); }
 sub passphrase($)	{ return undef; }
 sub uri($)              { return field($_[0], "uri"); }
 sub urn($)              { return field($_[0], "urn"); }
+sub urnOBJ($)           { return field($_[0], "urnOBJ"); }
 sub rootcert($)	        { return $_[0]->{'ROOTCERT'}; }
 sub GetCertificate($)   { return $_[0]; }
 
@@ -1236,8 +1241,9 @@ sub VerifyGeniChain($$@)
 # Wrapper for local users.
 #
 package GeniCertificate::LocalUser;
-use GeniHRN;
+
 use English;
+use GeniHRN;
 use emdb;
 
 #
@@ -1258,10 +1264,13 @@ sub Create($$)
 
     my $self           = {};
     $self->{'CERT'}    = $query_result->fetchrow_hashref();
-    $self->{'CERT'}->{'urn'} = GeniHRN::Generate( $OURDOMAIN, "user",
-						  $self->{'CERT'}->{'uid'} );
+    $self->{'CERT'}->{'urn'} = GeniHRN::Generate($OURDOMAIN, "user",
+						 $self->{'CERT'}->{'uid'});
     $self->{'stored'}  = 1;
     bless($self, $class);
+
+    # Convert URNs to objects.
+    $self->{'CERT'}->{'urnOBJ'} = GeniHRN->new($self->urn());
 
     return $self;
 }
@@ -1275,6 +1284,7 @@ sub revoked($)		{ return field($_[0], "revoked"); }
 sub passphrase($)	{ return field($_[0], "password"); }
 sub uri($)              { return undef; }
 sub urn($)              { return field($_[0], "urn"); }
+sub urnOBJ($)           { return field($_[0], "urnOBJ"); }
 sub URL($)              { return undef; }
 sub URN($)              { return field($_[0], "urn"); }
 sub certfile($)		{ return undef; }
