@@ -143,7 +143,9 @@ if (! isset($create)) {
     $defaults["dataset_am"]     = '';
     # Default project.
     if (count($projlist) == 1) {
-	$defaults["dataset_pid"] = $projlist[0];
+	list($project, $grouplist) = each($projlist);
+	$defaults["dataset_pid"] = $project;
+        reset($projlist);
     }
 
     SPITFORM($defaults, $errors);
