@@ -144,6 +144,7 @@ CREATE TABLE `apt_instances` (
   `user_lockdown` tinyint(1) NOT NULL default '0',
   `extension_code` varchar(32) default NULL,
   `extension_reason` mediumtext,
+  `extension_history` mediumtext,
   `extension_adminonly` tinyint(1) NOT NULL default '0',
   `extension_count` smallint(5) unsigned NOT NULL default '0',
   `extension_days` smallint(5) unsigned NOT NULL default '0',
