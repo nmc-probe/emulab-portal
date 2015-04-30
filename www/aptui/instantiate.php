@@ -486,7 +486,7 @@ function SPITFORM($formfields, $newuser, $errors)
     # Spit out an experient name box, which is optional and prefilled
     # with a default.
     #
-    if ($this_user) {
+    if ($this_user && ISADMIN()) {
         $thisclass = "form-group";
         if ($errors && array_key_exists("name", $errors)) {
             $thisclass .= " has-error";
