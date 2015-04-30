@@ -495,7 +495,7 @@ sub WarnExpiring($$)
 		     "and click on the Extend button.\n".
 		     "\n".
 		     "Thanks!",
-		     $self->Brand()->OpsEmailAddress());
+		     $self->Brand()->LogsEmailAddress());
     
     return 0;
 }

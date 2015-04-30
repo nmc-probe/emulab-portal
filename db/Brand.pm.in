@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2014 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,6 +36,7 @@ use libtestbed;
 # Configure variables
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
+my $TBLOGS      = "@TBLOGSEMAIL@";
 my $TBAPPROVAL  = "@TBAPPROVALEMAIL@";
 my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $TBBASE      = "@TBBASE@";
@@ -90,9 +91,18 @@ sub OpsEmailAddress($)
 {
     my ($self) = @_;
 
-    return ($self->isAPT() ? "aptlab-ops\@aptlab.net" :
-	    $self->isCloud() ? "cloudlab-ops\@cloudlab.us" :
+    return ($self->isAPT() ? "portal-ops\@aptlab.net" :
+	    $self->isCloud() ? "portal-ops\@cloudlab.us" :
 	    $TBOPS);
+}
+
+sub LogsEmailAddress($)
+{
+    my ($self) = @_;
+
+    return ($self->isAPT() ? "apt-logs\@aptlab.net" :
+	    $self->isCloud() ? "cloudlab-logs\@cloudlab.us" :
+	    $TBLOGS);
 }
 
 sub EmailTag($)
@@ -112,6 +122,24 @@ sub SignupURL($$)
     return ($self->isAPT() || $self->isCloud() ?
 	    "${wwwbase}/signup.php?pid=$pid" :
 	    "${wwwbase}/joinproject.php3?target_pid=$pid");
+}
+
+sub UsersGroupName($)
+{
+    my ($self)  = @_;
+
+    return ($self->isAPT() || $self->isCloud() ?
+	    "apt-users\@googlegroups.com" :
+	    "cloudlab-users\@googlegroups.com");
+}
+
+sub UsersGroupURL($)
+{
+    my ($self)  = @_;
+    my $url = 'https://groups.google.com/forum/#!forum/';
+
+    return ($self->isAPT() || $self->isCloud() ?
+	    "$url/apt-users" : "$url/cloudlab-users");
 }
 
 # So we can localize MAILTAG variable.

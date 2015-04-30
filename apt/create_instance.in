@@ -178,7 +178,9 @@ if (!defined($this_user) || !$this_user->IsAdmin()) {
 # Email record.
 if (! $debug) {
     AuditStart(0, undef, LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY());
-    AddAuditInfo("cc", "aptnet-logs\@flux.utah.edu");
+    #
+    # Once we determine the project, we can add the appropriate log CC
+    #
 }
 
 # Connect to the SA DB.
@@ -555,6 +557,11 @@ elsif (!$localuser) {
 	fatal("Project $pid does not exist");
     }
 }
+#
+# Now we know where to send to logs.
+#
+AddAuditInfo("cc", $project->LogsEmailAddress());
+
 # There will be "internal" keys cause we pass the flag asking for them.
 my @sshkeys;
 if ($geniuser->GetKeyBundle(\@sshkeys, 1) < 0 || !@sshkeys) {

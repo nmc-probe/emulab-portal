@@ -529,8 +529,7 @@ $project->SendEmail($portalLogs, "New Profile Created",
 	 "Project:  ". $profile->pid() .
 	                 " (" . $project->Brand()->brand() . ")\n".
 	 "UUID:     ". $profile->uuid() . "\n".
-	 "URL:      ". $profile->AdminURL() . "\n",
-	 $TBOPS);
+	 "URL:      ". $profile->AdminURL() . "\n");
 
 exit(0);
 

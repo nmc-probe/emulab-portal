@@ -552,12 +552,11 @@ sub DoSnapshot()
     $slice->UnLock()
 	if ($needunlock);
     if (defined($logfile)) {
-	$instance->Brand()->SendEmail($instance->Brand()->OpsEmailAddress(),
-				      "Snapshot failed",
-				      "Error taking snapshot of $instance:\n\n".
-				      "$errmsg\n",
-				      $instance->Brand()->OpsEmailAddress(),
-				      undef, $logfile);
+	SENDMAIL($TBOPS,
+		 "Snapshot failed",
+		 "Error taking snapshot of $instance:\n\n".
+		 "$errmsg\n",
+		 $TBOPS, undef, $logfile);
 	unlink($logfile);
     }
     exit($errcode);
@@ -739,12 +738,11 @@ sub DoTerminate()
 	$webtask->Exited(1);
     }
     if (defined($logfile)) {
-	$instance->Brand()->SendEmail($instance->Brand()->OpsEmailAddress(),
-				      "Unable to terminate instance $uuid",
-				      "Error terminating $instance:\n\n".
-				      "$errmsg\n",
-				      $instance->Brand()->OpsEmailAddress(),
-				      undef, $logfile);
+	SENDMAIL($TBOPS,
+		 "Unable to terminate instance $uuid",
+		 "Error terminating $instance:\n\n".
+		 "$errmsg\n",
+		 $TBOPS, undef, $logfile);
 	unlink($logfile);
     }
     exit(1);

@@ -751,7 +751,7 @@ sub PollDatasetStatus($$)
 	    $project->SendEmail($this_user->email(),
 			"Your dataset is now ready to use",
 			"Dataset '$dname' is now allocated and ready to use.\n",
-				$project->OpsEmailAddress(), undef, $logfile);
+				$project->LogsEmailAddress(), undef, $logfile);
 	    $webtask->Exited(0)
 		if (defined($webtask));
 	    last;

@@ -75,7 +75,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTHOST      = "www.aptlab.net";
     $WWWHOST      = "www.aptlab.net";
     $APTBASE      = "https://www.aptlab.net";
-    $APTMAIL      = "APT Operations <aptlab-ops@aptlab.net>";
+    $APTMAIL      = "APT Operations <portal-ops@aptlab.net>";
     $GOOGLEUA     = 'UA-42844769-3';
     $TBMAILTAG    = "aptlab.net";
     # For devel trees
@@ -90,7 +90,7 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $APTHOST      = "www.cloudlab.us";
     $WWWHOST      = "www.cloudlab.us";
     $APTBASE      = "https://www.cloudlab.us";
-    $APTMAIL      = "CloudLab Operations <cloudlab-ops@cloudlab.us>";
+    $APTMAIL      = "CloudLab Operations <portal-ops@cloudlab.us>";
     $APTTITLE     = "CloudLab";
     $FAVICON      = "cloudlab.ico";
     $APTLOGO      = "cloudlogo.png";

@@ -1009,7 +1009,10 @@ sub SendApprovalEmail($$$)
     my $subject = "Membership Approved in '$pid/$gid'";
 
     if ($project->isAPT() || $project->isCloud()) {
-	$message .= "project $pid.";
+	my $helpurl  = $project->Brand()->UsersGroupURL();
+	
+	$message .= "project $pid.\n\n";
+	$message .= "Please be sure to join the Help Forum at $helpurl";
 	$subject  = "Membership Approved in Project $pid";
     }
     else {
