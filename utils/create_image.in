@@ -84,7 +84,17 @@ my $maximagesize = (6 * 1024**3);
 # relocations are always considered different for hash comparisons, so an
 # otherwise empty FreeBSD delta image would have 64K of data in it.
 #
-my $zipperopts = "N";
+# XXX change of heart: we now will generate relocations for FreeBSD
+# partition images. I *have* had occasion to relocate these (e.g., loading
+# them into a virtual disk for imagezip testing) and you just cannot use
+# them without relocations. Adding the -N flag for other images is done
+# later based on the def_boot_osid, so it won't try to do relocations for
+# Linux or Windows or anything else.
+#
+# So, only add "N" here if you absolutely, positively cannot tolerate
+# relocations anywhere!
+#
+my $zipperopts = "";
 
 #
 # Create a disk image.
@@ -950,6 +960,25 @@ else {
 	    $command .= " NEWSIGFILE=$id,sig";
 	}
     }
+
+    #
+    # See whether we need the "no relocations" flag or not.
+    # We only include generate relocations for FreeBSD parititon images.
+    #
+    my $needrelocs = 0;
+    if ($image->loadpart()) {
+	my $pnode  = Node->Lookup($node->phys_nodeid());
+	my $osinfo = OSinfo->Lookup($pnode->def_boot_osid());
+	if (defined($osinfo) && $osinfo->OS() eq "FreeBSD") {
+	    $needrelocs = 1;
+	}
+    }
+    if (!$needrelocs) {
+	$zipperopts .= ","
+	    if ($zipperopts);
+	$zipperopts .= "N";
+    }
+
     if ($deltapct > 0) {
 	$zipperopts .= ","
 	    if ($zipperopts);
