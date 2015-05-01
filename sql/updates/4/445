@@ -10,7 +10,7 @@ sub DoUpdate($$$)
 
     DBQueryFatal("REPLACE INTO mode_transitions VALUES ".
 		 "('NORMALv2','SHUTDOWN','RELOAD-PCVM','SHUTDOWN',".
-		 " 'vnodereload')";
+		 " 'vnodereload')");
     DBQueryFatal("REPLACE INTO state_transitions VALUES ".
 		 "('RELOAD-PCVM','SHUTDOWN','SHUTDOWN','vnodereload')");
     DBQueryFatal("REPLACE INTO state_transitions VALUES ".
