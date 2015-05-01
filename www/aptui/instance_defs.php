@@ -294,21 +294,30 @@ class Instance
     #
     function DefaultAggregateList() {
         global $ISCLOUD;
-            
-        $am_array = array('Utah APT' =>
-                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
-                          'Utah Cloudlab' =>
+        if ($ISCLOUD) {
+          $am_array = array(
+                          'Cloudlab Utah' =>
                           "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-                          'Utah DDC' =>
+			  'Cloudlab Wisconsin' =>
+			  "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
+			  'Cloudlab Clemson' =>
+			  "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
+                          'APT Utah' =>
+                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
+                          'IG UtahDDC' =>
+                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm"
+          );
+        } else {
+          $am_array = array(
+                          'Cloudlab Utah' =>
+                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
+                          'APT Utah' =>
+                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
+                          'IG UtahDDC' =>
                           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
                           'Utah PG'  =>
-                          "urn:publicid:IDN+emulab.net+authority+cm");
-
-        if ($ISCLOUD) {
-            $am_array["Wisc Cloudlab (Alpha)"] =
-                "urn:publicid:IDN+wisc.cloudlab.us+authority+cm";
-            $am_array["Clemson Cloudlab (Alpha)"] =
-                "urn:publicid:IDN+clemson.cloudlab.us+authority+cm";
+                          "urn:publicid:IDN+emulab.net+authority+cm"
+          );
         }
         return $am_array;
     }

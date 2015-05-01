@@ -352,18 +352,24 @@ function (_, Constraints, sup, ppstart, aboutaptString, aboutcloudString, waitwa
 	}
     }
 
-  var amValueToKey = {'Utah APT':
-		      "urn:publicid:IDN+apt.emulab.net+authority+cm",
-		      'Utah Cloudlab':
-		      "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-		      'Wisc Cloudlab (Alpha)':
-		      "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
-		      'Clemson Cloudlab (Alpha)':
-		      "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
-		      'Utah DDC':
-		      "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-		      'Utah PG':
-		      "urn:publicid:IDN+emulab.net+authority+cm"
+  var amValueToKey = {
+    'Cloudlab Utah':
+    "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
+
+    'Cloudlab Wisconsin':
+    "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
+
+    'Cloudlab Clemson':
+    "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
+
+    'APT Utah':
+    "urn:publicid:IDN+apt.emulab.net+authority+cm",
+
+    'IG UtahDDC':
+    "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
+
+    'Utah PG':
+    "urn:publicid:IDN+emulab.net+authority+cm"
   };
 
     function finishUpdateWhere(data)
