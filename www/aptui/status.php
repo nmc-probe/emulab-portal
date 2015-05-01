@@ -155,6 +155,9 @@ $lockdown        = ($instance->admin_lockdown() ||
                     $instance->user_lockdown() ? 1 : 0);
 $extension_reason= ($instance->extension_reason() ?
                     CleanString($instance->extension_reason()) : "");
+$extension_history= ($instance->extension_history() ?
+                    CleanString($instance->extension_history()) : "");
+$freenodes_url   = $freenodes_mapping[$instance->aggregate_urn()];
 $lockout         = $instance->extension_lockout();
 
 #
@@ -210,6 +213,7 @@ echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.lockout = $lockout;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
+echo "  window.APT_OPTIONS.freenodesurl = '$freenodes_url';\n";
 if (isset($extend) && $extend != "") {
     echo "  window.APT_OPTIONS.extend = $extend;\n";
 }
@@ -226,6 +230,7 @@ echo "<link rel='stylesheet'
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
 echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
 echo "<div class='hidden'><textarea id='extension_reason'>$extension_reason</textarea></div>\n";
+echo "<pre class='hidden' id='extension_history'>$extension_history</pre>\n";
 
 SPITFOOTER();
 ?>

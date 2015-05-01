@@ -244,7 +244,7 @@ function Do_RequestExtension()
 {
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
-    global $TBMAIL_OPS, $APTMAIL, $APTBASE;
+    global $TBMAIL_OPS, $APTMAIL, $EXTENSIONS, $APTBASE;
     $autoextend_maximum = TBGetSiteVar("aptui/autoextend_maximum");
     $autoextend_maxage  = TBGetSiteVar("aptui/autoextend_maxage");
     $reason  = "";
@@ -293,6 +293,11 @@ function Do_RequestExtension()
 	    goto bad;
 	}
 	$reason  = $ajax_args["reason"];
+
+        if (!TBvalid_fulltext($reason)) {
+	    SPITAJAX_ERROR(1, "Illegal characters in reason");
+	    goto bad;
+        }
 
 	#
 	# Guest users are treated differently.
@@ -385,18 +390,33 @@ function Do_RequestExtension()
     }
 
     if ($retval == 0) {
+	# Refresh. 
+	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+	$new_expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
+        $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
+        $before = date("Y-m-d H:i:s T", strtotime($expires_time));
+        $now = date("Y-m-d H:i:s T", strtotime(time()));
+        list($cluster) = Instance::ParseURN($instance->aggregate_urn());
+
+        #
+        # We store each extension request in an ongoing text field.
+        #
+        $text =
+            "Date: $now\n".
+            "Wanted: $wanted, Granted: $granted\n".
+            "Before: $before\n".
+            "After $new_expires\n".
+            "Reason:\n".
+            $reason . "\n\n".
+            "-----------------------------------------------\n";
+        $instance->AddExtensionHistory($text);
+
         if ($needapproval) {
             needAdminApproval($wanted, $granted, $reason, $message);
             if (!$granted)
                 goto delay;
             return;
         }
-	# Refresh. 
-	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-	$new_expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
-        $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
-        list($cluster) = Instance::ParseURN($instance->aggregate_urn());
-
 	SPITAJAX_RESPONSE($new_expires);
 
 	$instance->SendEmail($creator->email(),
@@ -408,8 +428,8 @@ function Do_RequestExtension()
  	       "Your experiment will now expire at $new_expires\n".
                "It is running on $cluster\n\n\n".
                "$APTBASE/status.php?uuid=$uuid\n",
-	       "From: $APTMAIL\n" .
-	       "BCC: $TBMAIL_OPS");
+	       "From: $EXTENSIONS\n" .
+	       "BCC: $EXTENSIONS");
         #
         # We do not want to overwrite the reason in the DB if this
         # was an admin extension, we want to keep whatever the user
@@ -440,7 +460,7 @@ delay:
 function needAdminApproval($wanted, $granted, $reason, $message)
 {
     global $instance, $creator, $this_user, $suexec_output;
-    global $TBMAIL_OPS, $APTMAIL, $APTBASE;
+    global $EXTENSIONS, $APTBASE;
 
     $uuid = $instance->uuid();
     # Subtract out the extra time we added above.
@@ -454,7 +474,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
     $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
     list($cluster) = Instance::ParseURN($instance->aggregate_urn());
 		    
-    $instance->SendEmail($APTMAIL,
+    $instance->SendEmail($EXTENSIONS,
         "Experiment Extension Request: $uuid",
         "A request to extend this experiment was made but requires\n".
         "administrator approval" .

@@ -27,6 +27,7 @@ $APTHOST	= "$WWWHOST";
 $COOKDIEDOMAIN  = "$WWWHOST";
 $APTBASE	= "$TBBASE/apt";
 $APTMAIL        = $TBMAIL_OPS;
+$EXTENSIONS     = $TBMAIL_OPS;
 $APTTITLE       = "APT";
 $FAVICON        = "aptlab.ico";
 $APTLOGO        = "aptlogo.png";
@@ -78,6 +79,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $APTMAIL      = "APT Operations <portal-ops@aptlab.net>";
     $GOOGLEUA     = 'UA-42844769-3';
     $TBMAILTAG    = "aptlab.net";
+    $EXTENSIONS   = "portal-extensions@aptlab.net";
     # For devel trees
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
 	$APTBASE .= "/" . $matches[1];
@@ -99,6 +101,7 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $ISCLOUD      = 1;
     $GOOGLEUA     = 'UA-42844769-2';
     $TBMAILTAG    = "cloudlab.us";
+    $EXTENSIONS   = "portal-extensions@cloudlab.us";
     # For devel trees
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
 	$APTBASE .= "/" . $matches[1];

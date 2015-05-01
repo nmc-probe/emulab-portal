@@ -151,7 +151,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Setup the extend modal.
 	$('button#extend_button').click(function (event) {
 	    event.preventDefault();
-	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest);
+	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin,
+			    isguest, null, window.APT_OPTIONS.freenodesurl);
 	});
 	
 	// Handler for the refresh button
@@ -299,7 +300,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
 	else if (window.APT_OPTIONS.extend) {
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest,
-			    window.APT_OPTIONS.extend);
+			    window.APT_OPTIONS.extend,
+			    window.APT_OPTIONS.freenodesurl);
 	}
     }
 

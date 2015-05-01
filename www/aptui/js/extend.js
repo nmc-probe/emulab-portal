@@ -261,6 +261,7 @@ define(['underscore', 'js/quickvm_sup',
 			  "we really do read these!");
 		    return;
 		}
+		$('#extension_reason').val(reason);
 	    }
 	    sup.HideModal('#extend_modal');
 	    sup.ShowModal("#waitwait-modal");
@@ -295,7 +296,7 @@ define(['underscore', 'js/quickvm_sup',
 		$(button).attr("disabled", "disabled");
 	    }
 	}
-	return function(thisuuid, func, admin, guest, extendfor)
+	return function(thisuuid, func, admin, guest, extendfor, url)
 	{
 	    isadmin  = admin;
 	    isguest  = guest;
@@ -316,6 +317,13 @@ define(['underscore', 'js/quickvm_sup',
 		if ($('#extension_reason').length) {
 		    $("#why_extend").val($('#extension_reason').val());
 		    $("#why_extend_div").removeClass("hidden");
+		}
+		if (admin && $('#extension_history').length) {
+		    $("#extend_history").text($('#extension_history').text());
+		    $("#extend_history_div").removeClass("hidden");
+		}
+		if (admin && url) {
+		    $("#extend_graphs_img").attr("src", url);
 		}
 		$(modalname).off('shown.bs.modal');
 	    });

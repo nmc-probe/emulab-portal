@@ -38,6 +38,18 @@ $urn_mapping =
           "urn:publicid:IDN+emulab.net+authority+cm"            => "MS",
           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm" => "DDC");
 
+$freenodes_mapping =
+    array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      =>
+          "https://www.utah.cloudlab.us/node_usage/freenodes.svg",
+          "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      =>
+          "https://www.wisc.cloudlab.us/node_usage/freenodes.svg",
+          "urn:publicid:IDN+clemson.cloudlab.us+authority+cm"   =>
+          "https://www.clemson.cloudlab.us/node_usage/freenodes.svg",
+          "urn:publicid:IDN+apt.emulab.net+authority+cm"        =>
+          "https://www.apt.emulab.net/node_usage/freenodes.svg",
+          "urn:publicid:IDN+emulab.net+authority+cm"            =>
+          "https://www.emulab.net/node_usage/freenodes.svg");
+
 class Instance
 {
     var	$instance;
@@ -78,7 +90,10 @@ class Instance
     function manifest()	    { return $this->field('manifest'); }
     function admin_lockdown() { return $this->field('admin_lockdown'); }
     function user_lockdown(){ return $this->field('user_lockdown'); }
+    function extension_count()   { return $this->field('extension_count'); }
+    function extension_days()    { return $this->field('extension_days'); }
     function extension_reason()  { return $this->field('extension_reason'); }
+    function extension_history() { return $this->field('extension_history'); }
     function extension_lockout() { return $this->field('extension_adminonly'); }
     function servername()   { return $this->field('servername'); }
     function aggregate_urn(){ return $this->field('aggregate_urn'); }
@@ -313,6 +328,17 @@ class Instance
 
         DBQueryWarn("update apt_instances set ".
                     "  extension_reason='$safe_reason' ".
+                    "where uuid='$uuid'");
+    }
+
+    function AddExtensionHistory($text)
+    {
+	$uuid = $this->uuid();
+        $safe_text = mysql_escape_string($text);
+
+        DBQueryWarn("update apt_instances set ".
+                    "extension_history=CONCAT('$safe_text',".
+                    "IFNULL(extension_history,'')) ".
                     "where uuid='$uuid'");
     }
 
