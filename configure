@@ -5240,6 +5240,7 @@ if test x"$PROTOGENI_NICKNAME" = x"unknown"; then
     *pks2.sdn.uky.edu) PROTOGENI_NICKNAME="ukypks2-ig";;
     *colorado.edu) PROTOGENI_NICKNAME="colorado-ig";;
     *cenic.net) PROTOGENI_NICKNAME="cenic-ig";;
+    *vt.edu) PROTOGENI_NICKNAME="vt-ig";;
     esac
 fi
 
