@@ -736,6 +736,9 @@ sub Reload($$)
 	    sleep(4);
 	    TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADSETUP);
 	    TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADING);
+
+	    $rc = $self->Reconfigure($nodeobject);
+
 	    TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADDONE);
 	    # reset to teh op mode of the loaded image.
 	    $nodeobject->Refresh();
@@ -744,7 +747,6 @@ sub Reload($$)
 	    TBSetNodeEventState($node_id,TBDB_NODESTATE_BOOTING);
 	    TBSetNodeEventState($node_id,TBDB_NODESTATE_ISUP);
 
-	    $rc = $self->Reconfigure($nodeobject);
 	    goto done;
 	}
     }
