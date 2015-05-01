@@ -608,6 +608,8 @@ sub ChangeLinkDelayConfig() {
     $query_string = "select l.*,o.OS from linkdelays as l ".
 	"left join nodes as n on n.node_id=l.node_id ".
 	"left join os_info as o on o.osid=n.def_boot_osid ".
+	"left join os_info_versions as ov on o.osid=ov.osid and ".
+	"  o.version=ov.vers and ov.deleted is null ".
 	"where l.pid='$pid' and l.eid='$eid' and l.vlan='$link' ";
 
     $query_string .= "and l.vnode='$srcvnode'"
