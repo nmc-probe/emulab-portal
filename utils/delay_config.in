@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -605,7 +605,7 @@ sub ChangeLinkDelayConfig() {
     my @query_clauses;
     my $query_string;
 
-    $query_string = "select l.*,o.OS from linkdelays as l ".
+    $query_string = "select l.*,ov.OS from linkdelays as l ".
 	"left join nodes as n on n.node_id=l.node_id ".
 	"left join os_info as o on o.osid=n.def_boot_osid ".
 	"left join os_info_versions as ov on o.osid=ov.osid and ".
