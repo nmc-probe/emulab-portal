@@ -1117,6 +1117,7 @@ SSLCryptoDevice builtin
 # General setup for the virtual host, inherited from global configuration
 DocumentRoot "@prefix@/www"
 ServerName @WWWHOST@
+ServerAlias @BOSSNODE@
 ServerAdmin @TBOPSEMAIL_NOSLASH@
 
 # Use separate log files for the SSL virtual host; note that LogLevel
