@@ -94,8 +94,8 @@ my $IMAGEHASH   = "$TB/bin/imagehash";
 sub doimage($);
 sub makehashfile($$$$);
 sub removehashfile($$);
-sub checksigfile($$);
-sub makesigfile($$);
+sub checksigfile($$$);
+sub makesigfile($$$);
 sub removesigfile($$);
 sub removeoldsigfile($);
 sub fatal($);
@@ -209,8 +209,8 @@ if ($doall) {
 	    fatal("No such project '$doallpid'");
 	}
     }
-    @images = Image->ListAll("ndz", $doallpid);
-    if (@images > 100 && $validate{"hash"}) {
+    @images = Image->ListAllVersions("ndz", $doallpid);
+    if (@images > 50 && ($validate{"hash"} || $dosig)) {
 	print STDERR "WARNING: processing ", int(@images),
 	" images, will take a LONG time!\n";
     }
@@ -259,6 +259,7 @@ sub doimage($)
     my $lbahi = $image->lba_high();
     my $lbasize = $image->lba_size();
     my $relocatable = $image->relocatable();
+    my $isdelta = $image->isdelta();
     my $stamp;
     $image->GetUpdate(\$stamp);
     $stamp = 0
@@ -331,8 +332,8 @@ sub doimage($)
 	    }
 	}
 	makehashfile($pidimage, $path, $hash, $fuid);
-	if ($dosig && checksigfile($pidimage, $path)) {
-	    makesigfile($pidimage, $path);
+	if ($dosig && checksigfile($pidimage, $path, $isdelta)) {
+	    makesigfile($pidimage, $path, $isdelta);
 	}
 	return 0;
     }
@@ -527,13 +528,13 @@ sub doimage($)
     # Check/fix signature file.
     #
     if ($dosig) {
-	if (checksigfile($pidimage, $path)) {
+	if (checksigfile($pidimage, $path, $isdelta)) {
 	    print("$pidimage: sig: image does not match signature\n")
 		if (!$update || !$quiet);
 	    if ($update) {
 		print("$pidimage: sig: ")
 		    if (!$quiet);
-		if (makesigfile($pidimage, $path) == 0) {
+		if (makesigfile($pidimage, $path, $isdelta) == 0) {
 		    $changed = 1;
 		    print "[FIXED]\n"
 			if (!$quiet);
@@ -559,9 +560,9 @@ sub partoffset($$)
 }
 
 # Return 0 if action is successful
-sub checksigfile($$)
+sub checksigfile($$$)
 {
-    my ($pidimage,$imagepath) = @_;
+    my ($pidimage,$imagepath,$isdelta) = @_;
     my $sigfile = "$imagepath.sig";
 
     if (! -e "$sigfile") {
@@ -580,6 +581,15 @@ sub checksigfile($$)
 	    "$pidimage: WARNING: no signature file for $imagepath\n";
 	return 1;
     }
+
+    # XXX delta images will have full-image signatures and won't match
+    if ($isdelta) {
+	print STDERR
+	    "$pidimage: WARNING: cannot verify signature of delta image ".
+	    "$imagepath\n";
+	return 0;
+    }
+
     if (system("$IMAGEHASH -SX $imagepath")) {
 	print STDERR
 	    "$pidimage: WARNING: $imagepath does not match signature\n";
@@ -589,18 +599,10 @@ sub checksigfile($$)
 }
 
 # Return 0 if action is successful
-sub makesigfile($$)
+sub makesigfile($$$)
 {
-    my ($pidimage,$imagepath) = @_;
+    my ($pidimage,$imagepath,$isdelta) = @_;
     my $sigfile = "$imagepath.sig";
-
-    unlink($sigfile);
-    if (system("$IMAGEHASH -cXq $imagepath")) {
-	print STDERR
-	    "$pidimage: WARNING: could not create signature for $imagepath\n";
-	unlink($sigfile);
-	return 1;
-    }
 
     # XXX get rid of old sigfile
     if ($imagepath =~ /^(.*)\/([^\/]+)$/) {
@@ -611,6 +613,23 @@ sub makesigfile($$)
 		"$pidimage: NOTE: removing old signature file $osigfile\n";
 	    unlink($osigfile);
 	}
+    }
+
+    # XXX delta images should have full-image signatures
+    if ($isdelta) {
+	print STDERR
+	    "$pidimage: WARNING: cannot create signature for delta image ".
+	    "$imagepath\n";
+
+	return 1;
+    }
+
+    unlink($sigfile);
+    if (system("$IMAGEHASH -cXq $imagepath")) {
+	print STDERR
+	    "$pidimage: WARNING: could not create signature for $imagepath\n";
+	unlink($sigfile);
+	return 1;
     }
 
     return 0;
