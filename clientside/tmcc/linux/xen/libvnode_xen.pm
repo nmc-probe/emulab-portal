@@ -2299,16 +2299,6 @@ sub vnodeBoot($$$$)
     libutil::setState("BOOTING");
 
     #
-    # But, we find ourselves stuck in BOOTING quite often if the VM
-    # fails to boot far enough to to send in a state transition. We want
-    # to catch this specific hangup, so we will send an intermediate
-    # state that the server side can notice, and watch for how long it
-    # stays in the state.
-    #
-    sleep(1);
-    libutil::setState("VNODEBOOTSTART");
-
-    #
     # We are going to watch for a busted control network interface, which
     # happens a lot. There is a problem with the control vif not working,
     # no idea why, some kind of XEN bug. But the symptom is easy enough
@@ -2350,6 +2340,15 @@ sub vnodeBoot($$$$)
 	    # Ping returns zero if any packets received.
 	    if (! $?) {
 		TBDebugTimeStamp("Created virtual machine $vnode_id");
+		#
+		# But, we still find ourselves stuck in BOOTING quite
+		# often if the VM fails to boot far enough to to send
+		# in a state transition. We want to catch this
+		# specific hangup, so we will send an intermediate
+		# state that the server side can notice, and watch for
+		# how long it stays in the state.
+		#
+		libutil::setState("VNODEBOOTSTART");
 		return 0;
 	    }
 	    $countdown--;

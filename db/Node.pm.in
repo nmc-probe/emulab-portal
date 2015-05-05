@@ -928,23 +928,28 @@ sub GetAllocState($$)
 #
 # We do this cause we always want to go to the DB.
 #
-sub GetEventState($$)
+sub GetEventState($$;$)
 {
-    my ($self, $pstate) = @_;
+    my ($self, $pstate, $popmode) = @_;
     my $node_id = $self->node_id();
 
     my $query_result =
-	DBQueryWarn("select eventstate from nodes where node_id='$node_id'");
+	DBQueryWarn("select eventstate,op_mode from nodes ".
+		    "where node_id='$node_id'");
     return -1
 	if (!$query_result || !$query_result->numrows);
 
-    my ($state) = $query_result->fetchrow_array();
+    my ($state,$op_mode) = $query_result->fetchrow_array();
     $state = TBDB_NODESTATE_UNKNOWN
 	if (!defined($state));
+    $op_mode = TBDB_NODEOPMODE_UNKNOWN
+	if (!defined($op_mode));
 
     $self->{'DBROW'}->{'eventstate'} = $state
 	if (defined($self->{'DBROW'}));
     $$pstate = $state;
+    $$popmode= $op_mode
+ 	if (defined($popmode));
     return 0;
 }
 

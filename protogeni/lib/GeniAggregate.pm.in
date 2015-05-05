@@ -1771,9 +1771,9 @@ sub WaitForNodes($$@)
 		}
 		$node->_waitstart($parent->_waitend());
 	    }
-	    my $state;
+	    my ($state,$op_mode);
 
-	    if ($node->GetEventState(\$state)) {
+	    if ($node->GetEventState(\$state, \$op_mode)) {
 		print STDERR "*** Error getting event state for $node_id.\n";
 		$node->_sliver()->SetStatus("failed")
 		    if (defined($node->_sliver()));
@@ -1805,6 +1805,7 @@ sub WaitForNodes($$@)
 	    # XEN VMs, a reboot typically solves it.
 	    #
 	    if ($node->isvirtnode() &&
+		$op_mode eq TBDB_NODEOPMODE_NORMALv2 &&
 		$state eq TBDB_NODESTATE_VNODEBOOTSTART &&
 		$state eq $node->_laststate() &&
 		time() - $node->_laststatestamp() > 180) {
