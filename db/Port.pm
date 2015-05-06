@@ -484,6 +484,7 @@ sub LookupByIface($$;$)
 
     my $card  = $rowref->{'card'};
     my $port  = $rowref->{'port'};
+    my $logical  = $rowref->{'logical'};
 
     my $inst = {};
     $inst->{"INTERFACES_ROW"} = $rowref;
@@ -491,7 +492,7 @@ sub LookupByIface($$;$)
     # wire mapping
     $query_result =
 	DBQueryWarn("select * from wires ".
-		    "where (node_id1='$nodeid' AND card1='$card' AND port1='$port') OR (node_id2='$nodeid' AND card2='$card' AND port2='$port')");
+		    "where (node_id1='$nodeid' AND card1='$card' AND port1='$port' and logical='$logical') OR (node_id2='$nodeid' AND card2='$card' AND port2='$port' and logical='$logical')");
     return undef
 	if (!$query_result or !$query_result->numrows);
 
