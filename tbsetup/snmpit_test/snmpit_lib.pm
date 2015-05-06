@@ -360,13 +360,21 @@ sub getVlanPorts (@) {
 	foreach my $member (@members) {
 	    my $nodeid;
 	    my $iface;
+	    my $port;
 	    
 	    if ($member->GetAttribute("node_id", \$nodeid) != 0 ||
 		$member->GetAttribute("iface", \$iface) != 0) {
 		die("*** $0:\n".
 		    "    Missing attributes for $member in $vlan\n");
 	    }
-	    push(@ports, Port->LookupByIface($nodeid, $iface));
+	    $port = Port->LookupByIface($nodeid, $iface);
+	    #
+	    # Ports can be undef -- i.e., if this is a layer 2 path implemented
+	    # by layer 1 wires, it hasn't been given a type yet.
+	    #
+	    if (defined($port)) {
+		push(@ports, $port);
+	    }
 	}	
     }
     return @ports;
