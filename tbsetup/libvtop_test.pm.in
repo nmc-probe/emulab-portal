@@ -3558,7 +3558,7 @@ sub GenVirtLans($)
 		    $others->{'virtualization_type'} = $vlan->_encapstyle();
 		}
 		if ($layer == 1) {
-		    $protocol = "wire";
+		    $vlan->_wiretype("wire");
 		}
 		
 		if ($trivial_ok) {
