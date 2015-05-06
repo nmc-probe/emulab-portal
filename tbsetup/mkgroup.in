@@ -228,11 +228,14 @@ if ($WITHZFS) {
     }
     
     #
-    # There is some lag before the automounter can mount the new
-    # volume. Lets delay until we can access the project directory.
+    # There is some lag before the automounter can mount the new volumes.
+    # Lets delay until we can access the project/group directories.
     #
     if (emutil::waitForMount($projdir) < 0) {
 	fatal("Could not access new project directory: $projdir");
+    }
+    if (emutil::waitForMount("$GRPROOT/$pid") < 0) {
+	fatal("Could not access new group directory: $GRPROOT/$pid");
     }
 }
 

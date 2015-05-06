@@ -345,6 +345,9 @@ if (! -e "$PROJROOT/$pid") {
 	    fatal("Could not access directory $PROJROOT/$pid");
 	}
     }
+    else {
+	fatal("Could not access directory $PROJROOT/$pid");
+    }
 }
 foreach my $dir (@DIRLIST) {
     if (! -e "$PROJROOT/$pid/$dir") {
@@ -353,7 +356,15 @@ foreach my $dir (@DIRLIST) {
 }
 
 if (! -e "$GRPROOT/$pid") {
-    fatal("Could not access directory $GRPROOT/$pid");
+    if ($WITHZFS) {
+	# Wait for mountd to finish
+	if (emutil::waitForMount("$GRPROOT/$pid") < 0) {
+	    fatal("Could not access directory $GRPROOT/$pid");
+	}
+    }
+    else {
+	fatal("Could not access directory $GRPROOT/$pid");
+    }
 }
 
 if ($SCRATCHROOT && ! -e "$SCRATCHROOT/$pid") {
