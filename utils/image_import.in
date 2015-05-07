@@ -627,6 +627,7 @@ sub FetchImageFile($$)
 	    return -1;
 	}
     }
+    return 0;
 }
 
 #
