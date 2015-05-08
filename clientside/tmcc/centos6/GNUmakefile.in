@@ -91,11 +91,13 @@ sysetc-install:	ifcfgs dir-install
 	$(INSTALL) -m 644 $(SRCDIR)/ifcfg-eth99 $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 644 ifcfg-eth[0-9]* $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 644 $(SRCDIR)/logrotate-syslog $(SYSETCDIR)/logrotate.d/syslog
+	$(INSTALL) -m 755 $(SRCDIR)/mellanox.modules $(SYSETCDIR)/sysconfig/modules
 	-ln -sf $(SYSETCDIR)/dhclient-enter-hooks $(SYSETCDIR)/dhcp/dhclient-enter-hooks
 	-ln -sf $(SYSETCDIR)/dhclient-exit-hooks $(SYSETCDIR)/dhcp/dhclient-exit-hooks
 
 sysetc-remove:
 	rm -rf $(SYSETCDIR)/modules.conf $(SYSETCDIR)/ntp.conf $(SYSETCDIR)/cron.pend
+
 
 # stuff we don't really need to do all the time and may not even be correct
 # or sufficient for all FCs
