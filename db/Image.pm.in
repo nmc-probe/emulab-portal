@@ -1180,8 +1180,19 @@ sub Delete($;$)
 	    or goto bad;
     }
     if ($self->ezid()) {
-	DBQueryWarn("delete from os_submap where osid='$imageid'")
+	# Cannot be a child or parent if I be dead.
+	DBQueryWarn("delete from os_submap where ".
+		    "  osid='$imageid' or parent_osid='$imageid'")
 	    or goto bad;
+	# Ditto.
+	DBQueryWarn("update os_info_versions set def_parentosid=null ".
+		    "  where def_parentosid='$imageid' and deleted is null")
+	    or goto bad;
+	# Ditto
+	DBQueryWarn("update os_info_versions set nextosid=null ".
+		    "  where nextosid='$imageid' and deleted is null")
+	    or goto bad;
+	
 	DBQueryWarn("delete from os_info where osid='$imageid'")
 	    or goto bad;
 	if ($purge || !$DOPROVENANCE) {
