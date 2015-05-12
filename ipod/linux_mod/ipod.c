@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2014 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -113,7 +113,12 @@ static struct ctl_path ipod_path[] = {
 
 static struct ctl_table_header *ipod_table_header;
 
-static unsigned int ipod_hook_fn(unsigned int hooknum,struct sk_buff *skb,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
+static unsigned int ipod_hook_fn(unsigned int hooknum,
+#else
+static unsigned int ipod_hook_fn(const struct nf_hook_ops *ops,
+#endif
+				 struct sk_buff *skb,
 				 const struct net_device *in,
 				 const struct net_device *out,
 				 int (*okfn)(struct sk_buff *));
@@ -125,8 +130,12 @@ static struct nf_hook_ops ipod_hook_ops = {
     .pf = PF_INET,
     .priority = NF_IP_PRI_FIRST,
 };
-
-static unsigned int ipod_hook_fn(unsigned int hooknum,struct sk_buff *skb,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
+static unsigned int ipod_hook_fn(unsigned int hooknum,
+#else
+static unsigned int ipod_hook_fn(const struct nf_hook_ops *ops,
+#endif
+				 struct sk_buff *skb,
 				 const struct net_device *in,
 				 const struct net_device *out,
 				 int (*okfn)(struct sk_buff *)) {
