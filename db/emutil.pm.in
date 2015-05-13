@@ -345,7 +345,7 @@ sub ParRun($$$@)
     local $SIG{QUIT} = $coderef;
     local $SIG{TERM} = $coderef;
     local $SIG{HUP}  = $coderef;
-    local $SIG{INT}  = 'IGNORE';
+    local $SIG{INT}  = $coderef;
 
     #
     # Initialize return.
