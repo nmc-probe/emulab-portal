@@ -106,6 +106,9 @@ else {
 # Use realpath to resolve any symlinks.
 #
 my $translated = realpath($tempfile);
+if (!defined($translated)) {
+    fatal("No such file: $tempfile\n");
+}
 if ($translated =~ /^([-\w\.\/]+)$/) {
     $tempfile = $1;
 }
