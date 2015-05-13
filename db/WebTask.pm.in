@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013-2014 University of Utah and the Flux Group.
+# Copyright (c) 2013-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -99,7 +99,6 @@ AUTOLOAD {
     elsif (exists($self->{'DATA'}->{$name})) {
 	return $self->{'DATA'}->{$name};
     }
-    carp("No such slot '$name' field in class $type");
     return undef;
 }
 
