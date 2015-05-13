@@ -1,3 +1,40 @@
+Index: config.guess
+===================================================================
+RCS file: /flux/CVS/emulab-iperf/config.guess,v
+retrieving revision 1.1.1.1
+retrieving revision 1.2
+diff -c -r1.1.1.1 -r1.2
+*** config.guess	24 Oct 2005 15:18:31 -0000	1.1.1.1
+--- config.guess	13 May 2015 22:06:39 -0000	1.2
+***************
+*** 3,9 ****
+  #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+  #   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+  
+! timestamp='2005-02-10'
+  
+  # This file is free software; you can redistribute it and/or modify it
+  # under the terms of the GNU General Public License as published by
+--- 3,9 ----
+  #   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
+  #   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+  
+! timestamp='2015-05-13'
+  
+  # This file is free software; you can redistribute it and/or modify it
+  # under the terms of the GNU General Public License as published by
+***************
+*** 824,829 ****
+--- 824,832 ----
+      i*86:Minix:*:*)
+  	echo ${UNAME_MACHINE}-pc-minix
+  	exit 0 ;;
++     aarch64:Linux:*:*)
++ 	echo ${UNAME_MACHINE}-unknown-linux-gnu
++ 	exit 0 ;;
+      arm*:Linux:*:*)
+  	echo ${UNAME_MACHINE}-unknown-linux-gnu
+  	exit 0 ;;
 Index: compat/Thread.c
 ===================================================================
 RCS file: /flux/CVS/emulab-iperf/compat/Thread.c,v
