@@ -365,13 +365,6 @@ if (!$verify) {
 	$EUID = $UID = $USERUID;
 	$genmode = 1;
     }
-    
-    #
-    # This script is audited when not in verify mode. Since all keys are first
-    # checked with verify mode, this should not cause any extra email from bad
-    # keys.
-    #
-    AuditStart(0);
 }
 
 #
