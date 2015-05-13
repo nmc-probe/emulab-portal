@@ -58,7 +58,7 @@ use Scalar::Util qw(looks_like_number);
 
 use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $RSPEC_3
             $RSPEC_0_1_NS $RSPEC_0_2_NS $RSPEC_2_NS
-            $EMULAB_NS $XSI_NS $STITCH_NS $SHAREDVLAN_NS $SITEINFO_NS
+            $EMULAB_NS $JACKS_NS $XSI_NS $STITCH_NS $SHAREDVLAN_NS $SITEINFO_NS
             $REQUEST_2_URL $MANIFEST_2_URL
             $REQUEST_3_URL $MANIFEST_3_URL);
 $RSPEC_0_1 = "0.1";
@@ -71,6 +71,7 @@ our $RSPEC_0_2_NS = "http://www.protogeni.net/resources/rspec/0.2";
 our $RSPEC_2_NS = "http://www.protogeni.net/resources/rspec/2";
 our $RSPEC_3_NS = "http://www.geni.net/resources/rspec/3";
 our $EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
+our $JACKS_NS = "http://www.protogeni.net/resources/rspec/ext/jacks/1";
 our $SITEINFO_NS = "http://www.protogeni.net/resources/rspec/ext/site-info/1";
 our $XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
 our $STITCH_NS = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
@@ -527,6 +528,18 @@ sub GetManagerId($)
 	$result = undef;
     }
     return $result;
+}
+
+sub SetManagerId($$)
+{
+    my ($node, $urn) = @_;
+
+    foreach my $tag ("component_manager_urn",
+		     "component_manager_id", "component_manager_uuid") {
+	$node->removeAttribute($tag);
+    }
+    GeniXML::SetText("component_manager_id", $node, $urn);    
+    return $node;
 }
 
 sub GetColocate($)
@@ -1284,6 +1297,28 @@ sub SetVlanTagInHop($$)
     GeniXML::SetText("vlanRangeAvailability", $capref, "$tag");
     GeniXML::SetText("suggestedVLANRange", $capref, "$tag");
     return 0;
+}
+
+sub GetJacksSiteId($)
+{
+    my ($node) = @_;
+
+    my $site = FindNodesNS("n:site", $node, $JACKS_NS)->pop();
+    return undef
+	if (!defined($site));
+
+    return GetText("id", $site);
+}
+
+sub SetJacksSiteManagerId($$)
+{
+    my ($node, $urn) = @_;
+
+    my $site = FindNodesNS("n:site", $node, $JACKS_NS)->pop();
+    return -1
+	if (!defined($site));
+
+    return SetManagerId($site, $urn);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
