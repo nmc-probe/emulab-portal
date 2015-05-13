@@ -90,6 +90,22 @@ CREATE TABLE `apt_datasets` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `apt_instance_aggregates`
+--
+
+DROP TABLE IF EXISTS `apt_instance_aggregates`;
+CREATE TABLE `apt_instance_aggregates` (
+  `uuid` varchar(40) NOT NULL default '',
+  `name` varchar(16) default NULL,
+  `aggregate_urn` varchar(128) default NULL,
+  `status` varchar(32) default NULL,
+  `public_url` tinytext,
+  `webtask_id` varchar(128) NOT NULL default '',
+  `manifest` mediumtext,
+  PRIMARY KEY (`uuid`,`aggregate_urn`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `apt_instance_history`
 --
 
