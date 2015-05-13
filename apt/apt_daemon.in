@@ -296,7 +296,7 @@ sub ReportLockdownExpired()
 
 	$text .= $profile->name() . ",$creator: $wwwlink\n";
     }
-    SENDMAIL($TBOPS,
+    SENDMAIL("portal-extensions\@aptlab.net",
 	     "APT daemon: Locked down instances",
 	     "The following instances are locked down but expired:\n\n".
 	     $text . "\n",
