@@ -75,7 +75,6 @@ common-install:	dir-install
 bin-install:	dir-install
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) bin-install)
 	$(INSTALL) -m 755 $(SRCDIR)/findcnet $(BINDIR)/findcnet
-	rm -f $(BINDIR)/rc/rc.linktest
 
 etc-install:	dir-install common-sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group

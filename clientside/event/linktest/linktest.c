@@ -85,7 +85,7 @@ main(int argc, char **argv) {
 	char *pidfile = NULL;
 	char *logfile = NULL;
 	char *progname;
-	char c;
+	int c;
 	char buf[BUFSIZ];
 	extern char build_info[];
 	pideid = NULL;
@@ -127,11 +127,14 @@ main(int argc, char **argv) {
 	    break;
 	  default:
 	    usage(progname);
+	    break;
 	  }
 	}
 
-	if (!pideid)
-	  usage(progname);
+	if (!pideid) {
+		fprintf(stderr, "Must specify a pid/eid via -e\n");
+		usage(progname);
+	}
 
 	if (debug)
 		loginit(0, 0);

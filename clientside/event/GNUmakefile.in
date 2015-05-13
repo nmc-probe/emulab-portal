@@ -29,10 +29,7 @@ ARCH	       := $(shell uname -m)
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS		= program-agent link-agent tevc proxy bs-agent
-ifneq ($(ARCH),aarch64)
-SUBDIRS        += linktest
-endif
+SUBDIRS		= program-agent link-agent tevc proxy bs-agent linktest
 ifeq ($(SYSTEM),Linux)
 SUBDIRS        += disk-agent
 endif
