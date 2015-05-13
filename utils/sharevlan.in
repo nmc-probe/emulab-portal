@@ -38,6 +38,7 @@ sub usage()
     print STDERR " -i    Show members.\n";
     print STDERR " -o    Sharing is open to everyone.\n";
     print STDERR " -l    List all shared vlans\n";
+    print STDERR " -c    Create a credential for private vlan\n";
     exit(-1);
 }
 my $optlist  = "hrRolifc";
