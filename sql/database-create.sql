@@ -5140,6 +5140,7 @@ CREATE TABLE `virt_lans` (
   `layer` tinyint(4) NOT NULL default '2',
   `implemented_by_path` tinytext,
   `implemented_by_link` tinytext,
+  `ip_aliases` tinytext,
   `ofenabled` tinyint(1) default '0',
   `ofcontroller` tinytext,
   `bridge_vname` varchar(32) default NULL,

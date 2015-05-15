@@ -1216,6 +1216,7 @@ REPLACE INTO table_regex VALUES ('virt_bridges','vlink','text','redirect','virt_
 REPLACE INTO table_regex VALUES ('virt_bridges','vport','int','redirect','default:tinyint',0,99,NULL);
 REPLACE INTO table_regex VALUES ('virt_lans','implemented_by_path','text','redirect','virt_paths:pathname',1,128,NULL);
 REPLACE INTO table_regex VALUES ('virt_lans','implemented_by_link','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_lans','ip_aliases','text','redirect','default:tinytext',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('elabinelab_attributes','role','text','regex','^(boss|router|ops|fs|node)$',0,0,NULL);
 REPLACE INTO table_regex VALUES ('elabinelab_attributes','attrkey','text','regex','^[-\\w\\.]+$',1,32,NULL);

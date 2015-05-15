@@ -252,6 +252,12 @@ LanLink instproc init {s nodes bw d type} {
 	}
     }
 
+    # Arrays to store information about ip addresses used
+    $self instvar used_ips
+    array set used_ips {}
+    $self instvar ipcounters
+    array set ipcounters {}
+
     # The default netmask, which the user may change (at his own peril).
     $self set netmask "255.255.255.0"
 
@@ -653,6 +659,7 @@ LanLink instproc fill_ips {} {
 	    set node [lindex $nodeport 0]
 	    set port [lindex $nodeport 1]
 	    set ip [$node ip $port]
+	    set ipaliases [$node get_ipaliases_port $port]
 	    set isremote [expr $isremote + [$node set isremote]]
 	    if {$ip != {}} {
 		if {$isremote} {
@@ -662,6 +669,14 @@ LanLink instproc fill_ips {} {
 		set subnet [inet_hltoa [expr $ipint & $netmaskint]]
 		set ips($ip) 1
 		$sim use_subnet $subnet $netmask
+	    }
+	    if {$ipaliases != {}} {
+		foreach $ipalias $ipaliases {
+		    set ipint [inet_atohl $ipalias]
+		    set subnet [inet_hltoa [expr $ipint & $netmaskint]]
+		    set ips($ipalias) 1
+		    $sim use_subnet $subnet $netmask
+		}
 	    }
 	}
     }
@@ -700,28 +715,49 @@ LanLink instproc fill_ips {} {
 	    set node [lindex $nodeport 0]
 	    set port [lindex $nodeport 1]
 	    if {[$node ip $port] == {}} {
-		set ip {}
-		set max [expr ~ $netmaskint]
-		# XXX 64-bit hack
-		set max [expr $max & 0xFFFFFFFF]
-		for {set i $ip_counter} {$i < $max} {incr i} {
-		    set nextip [inet_hltoa [expr $subnetint | $i]]
-		    
-		    if {! [info exists ips($nextip)]} {
-			set ip $nextip
-			set ips($ip) 1
-			set ip_counter [expr $i + 1]
-			break
-		    }
-		}
-		if {$ip == {}} {
-		    perror "Ran out of IP addresses in subnet $subnet."
-		    set ip "255.255.255.255"
-		}
+		set ip [$self _get_next_ip $subnetint $netmaskint]
 		$node ip $port $ip
+	    }
+	    set numaliases [$node get_wanted_ipaliases_port $port]
+	    for {set i 0} {$i < $numaliases} {incr i} {
+		set ip [$self _get_next_ip $subnetint $netmaskint]
+		$node add_ipalias_port $port $ip
 	    }
 	}
     }
+}
+
+# Internal helper - tracks used ip addresses, and doles out the
+# next address given the subnet and netmask (integer representations).
+LanLink instproc _get_next_ip {subnetint netmaskint} {
+    $self instvar used_ips
+    $self instvar ipcounters
+    set ip {}
+    set ip_counter 2
+    if {[info exists ipcounters($subnetint)]} {
+	set ip_counter $ipcounters($subnetint)
+    }
+    set max [expr ~ $netmaskint]
+    # XXX 64-bit hack
+    set max [expr $max & 0xFFFFFFFF]
+    for {set i $ip_counter} {$i < $max} {incr i} {
+	set nextip [inet_hltoa [expr $subnetint | $i]]
+	
+	if {! [info exists used_ips($nextip)]} {
+	    set ip $nextip
+	    set used_ips($ip) 1
+	    set ip_counter [expr $i + 1]
+	    break
+	}
+    }
+    if {$ip == {}} {
+	perror "Ran out of IP addresses in subnet $subnet."
+	set ip "255.255.255.255"
+	set ip_counter $max
+    }
+
+    set ipcounters($subnetint) $ip_counter
+    return $ip
 }
 
 #
@@ -1085,6 +1121,12 @@ Link instproc updatedb {DB} {
 	    }
 	}
 
+	# IP aliases
+	set ipaliases [$node get_ipaliases_port $port]
+	if {[llength $ipaliases] > 0} {
+	    lappend fields "ip_aliases"
+	}
+
 	set values [list $self $nodeportraw $netmask $delay($nodeport) $rdelay($nodeport) $bandwidth($nodeport) $rbandwidth($nodeport) $backfill($nodeport) $rbackfill($nodeport)  $loss($nodeport) $rloss($nodeport) $cost($nodeport) $widearea $emulated $uselinkdelay $nobwshaping $encap $limit_  $maxthresh_ $thresh_ $q_weight_ $linterm_ ${queue-in-bytes_}  $bytes_ $mean_pktsize_ $wait_ $setbit_ $droptail_ $red_ $gentle_ $trivial_ok $protocol $node $port $ip $mustdelay]
 
 	if { [info exists ebandwidth($nodeport)] } {
@@ -1115,6 +1157,12 @@ Link instproc updatedb {DB} {
 	}
 	if { $implemented_by != {} } {
 	    lappend values $implemented_by
+	}
+
+	# IP aliases
+	if {[llength $ipaliases] > 0} {
+	    set ipaliasesraw [join $ipaliases ","]
+	    lappend values $ipaliasesraw
 	}
 	
 	# openflow

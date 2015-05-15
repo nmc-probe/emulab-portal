@@ -368,6 +368,30 @@ namespace eval TBCOMPAT {
 	}
 	return $retval
     }
+
+    # Add an IP alias for a node given a particular lan.
+    proc add-ipalias {node obj ip} {
+	variable IP
+	set caller [lindex [info level -1] 0]
+	if {[regexp $IP $ip] == 0} {
+	    perror "$caller - $ip is not a valid IP address."
+	    return
+	}
+	$node add_ipalias $obj $ip
+    }
+
+    # Request a number of IP aliases for a node on a particular lan.
+    variable MAX_NODEPORT_IPALIASES 10
+    proc request-ipaliases {node obj count} {
+	variable MAX_NODEPORT_IPALIASES
+	set caller [lindex [info level -1] 0]
+	if {$count > $MAX_NODEPORT_IPALIASES} {
+	    perror "$caller - Number of IP aliases requested ($count) is too large (max: $MAX_NODEPORT_IPALIASES)."
+	    return
+	}
+	$node want_ipaliases $obj $count
+    }
+
 }
 
 # IP addresses routines.  These all do some checks and convert into set-ip
@@ -403,6 +427,40 @@ proc tb-set-ip-link {src link ip} {
 	return
     }
     ::TBCOMPAT::set-ip $src $link $ip
+}
+
+#
+# Append an IP address alias for a node given a particular lan or link.
+#
+proc tb-add-ip-alias-lan {src lan ip} {
+    if {[$lan info class] != "Lan"} {
+	perror "\[tb-add-ip-alias-lan] $lan is not a LAN."
+	return
+    }
+    ::TBCOMPAT::add-ipalias $src $lan $ip
+}
+proc tb-add-ip-alias-link {src link ip} {
+    if {[$link info class] != "Link"} {
+	perror "\[tb-add-ip-alias-link] $link is not a link."
+	return
+    }
+    ::TBCOMPAT::add-ipalias $src $link $ip
+}
+
+# Request a number of automatically assigned ip aliases on a lan or link.
+proc tb-request-ip-alias-lan {src lan count} {
+    if {[$lan info class] != "Lan"} {
+	perror "\[tb-add-ip-alias-lan] $lan is not a LAN."
+	return
+    }
+    ::TBCOMPAT::request-ipaliases $src $lan $count
+}
+proc tb-request-ip-alias-link {src link count} {
+    if {[$link info class] != "Link"} {
+	perror "\[tb-add-ip-alias-link] $link is not a link."
+	return
+    }
+    ::TBCOMPAT::request-ipaliases $src $link $count
 }
 
 #

@@ -57,6 +57,13 @@ Node instproc init {s} {
     # {} indicates an unassigned IP address for that port.
     $self set iplist {}
 
+    # ipaliaslist will contain a list of lists.  Each list contains the
+    # IP aliases for that particular port.  The second list contains
+    # the number of IP aliases requested for that port (for automatic
+    # assignment).
+    $self set ipaliaslist {}
+    $self set wantipaliaslist {}
+
     # A route list. 
     $self instvar routelist
     array set routelist {}
@@ -215,6 +222,7 @@ Node instproc updatedb {DB} {
     $self instvar rpms
     $self instvar startup
     $self instvar iplist
+    $self instvar ipaliaslist
     $self instvar tarfiles
     $self instvar failureaction
     $self instvar inner_elab_role
@@ -493,6 +501,8 @@ Node instproc add_lanlink {lanlink} {
 
     lappend portlist $lanlink
     lappend iplist ""
+    lappend ipaliaslist ""
+    lappend wantaliaslist ""
     return [expr [llength $portlist] - 1]
 }
 
@@ -526,6 +536,73 @@ Node instproc ip {port args} {
 	set ip [lindex $args 0]
 	set iplist [lreplace $iplist $port $port $ip]
     }    
+}
+
+# Add an ip alias for a port (append as list)
+Node instproc add_ipalias_port {port ipaddr} {
+    $self instvar ipaliaslist
+    set curlist [lindex $ipaliaslist $port]
+    lappend curlist $ipaddr
+    set ipaliaslist [lreplace $ipaliaslist $port $port $curlist]
+}
+
+# Append ip alias given a lanlink
+Node instproc add_ipalias {lan ipaddr} {
+    set targetport [$self find_port $lan]
+    if {$targetport == -1} {
+	perror "$self does not belong to link/lan: $lan"
+    }
+    $self add_ipalias_port $targetport $ipaddr
+}
+
+# Get the alias list for a port
+Node instproc get_ipaliases_port {port} {
+    $self instvar ipaliaslist
+    return [lindex $ipaliaslist $port]
+}
+
+# Get the alias list for a node on a given lan/link
+Node instproc get_ipaliases {lan} {
+    $self instvar ipaliaslist
+    set targetport [$self find_port $lan]
+    if {$targetport == -1} {
+	perror "$self does not belong to link/lan: $lan"
+    }
+    return [$self get_ipaliases_port $targetport]
+}
+
+# Mark down the number of IP aliases wanted on a particular port
+Node instproc want_ipaliases_port {port count} {
+    $self instvar wantipaliaslist
+    set wantipaliaslist [lreplace $wantipaliaslist $port $port $count]
+}
+
+# Mark that aliases are wanted on a given lanlink
+Node instproc want_ipaliases {lan count} {
+    set targetport [$self find_port $lan]
+    if {$targetport == -1} {
+	perror "$self does not belong to link/lan: $lan"
+    }
+    $self want_ipaliases_port $targetport $count
+}
+
+# Return the number of ip aliases desired for a given port
+Node instproc get_wanted_ipaliases_port {port} {
+    $self instvar wantipaliaslist
+    set wanted 0
+    if {[lindex $wantipaliaslist $port] != {}} {
+	set wanted [lindex $wantipaliaslist $port]
+    }
+    return $wanted
+}
+
+# Return the number of ip aliases desired for a node on a given lan
+Node instproc get_wanted_ipaliases {lan} {
+    set targetport [$self find_port $lan]
+    if {$targetport == -1} {
+	perror "$self does not belong to link/lan: $lan"
+    }
+    return [$self get_wanted_ipaliases_port $targetport]
 }
 
 # find_port lanlink
