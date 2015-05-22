@@ -128,7 +128,7 @@ if (isset($profile)) {
 	# version and instantiate that, since what we have is the most
 	# recent version, but might not be published.
 	#
-	if ($profile == $obj->profile_uuid() && !$obj->published()) {
+	if (0 && $profile == $obj->profile_uuid() && !$obj->published()) {
 	    $obj = $obj->LookupMostRecentPublished();
 	    if (! $obj) {
 		SPITUSERERROR("No published version for profile");
@@ -145,7 +145,7 @@ if (isset($profile)) {
 	# version and instantiate that, since what we have is the most
 	# recent version, but might not be published.
 	#
-	if (!isset($version) && !$obj->published()) {
+	if (0 && !isset($version) && !$obj->published()) {
 	    $obj = $obj->LookupMostRecentPublished();
 	    if (! $obj) {
 		SPITUSERERROR("No published version for profile");
