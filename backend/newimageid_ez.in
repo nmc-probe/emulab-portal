@@ -405,7 +405,7 @@ if ($allpc) {
     # Restrict by sitevar, but still do query to avoid mistakes.
     #
     my $default_typelist = TBGetSiteVar("images/default_typelist");
-    if (defined($default_typelist) && $default_typelist != "") {
+    if (defined($default_typelist) && $default_typelist ne "") {
 	$types_querystring .=
 	    "and (".
 	    join(" or ", map("nt.type='$_'", split(",", $default_typelist))) .
