@@ -57,6 +57,7 @@ my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
 my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $WITHDELTAS	= @IMAGEDELTAS@;
+my $IMAGEINFO	= "$TB/sbin/imageinfo";
 
 # Max number of retries (per node) before its deemed fatal. This allows
 # for the occasional pxeboot failure.
@@ -389,8 +390,14 @@ sub osload ($$) {
 	    # always prefer the full image if we have it.
 	    #
 	    if (! ($image->HaveFullImage() || $image->HaveDeltaImage())) {
-		tberror "$node: no full or delta image file!";
-		goto failednode;
+		#
+		# This should be an error, but until we run imagevalidate
+		# over all images, we want to do it here.
+		#
+		if (GetImageSize($image, $node)) {
+		    tberror "$node: no full or delta image file!";
+		    goto failednode;
+		}
 	    }
 	    my $isfull     = $image->HaveFullImage();
 	    my $loadpart   = $image->loadpart();
@@ -1245,6 +1252,61 @@ sub SetupReloadUISP($)
     #
     TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
 
+    return 0;
+}
+
+#
+# Grab the size and update the database.
+#
+sub GetImageSize($$)
+{
+    my ($image, $node) = @_;
+    my $imagesize = 0;
+    my $imagepath = $image->FullImageFile();
+
+    #
+    # Perform a few validity checks: imageid should have a file name
+    # and that file should exist.
+    #
+    if (!defined($imagepath)) {
+	tberror "No filename associated with $image!";
+	return -1;
+    }
+
+    if (! -R $imagepath) {
+	#
+	# There are two reasons why a legit image might not be readable.
+	# One is that we are in an elabinelab and the image has just not
+	# been downloaded yet. The other is that we are attempting to
+	# access a shared (via the grantimage mechanism) image which the
+	# caller cannot directly access.
+	#
+	# For either case, making a proxy query request via frisbee will
+	# tell us whether the image is accessible and, if so, its size.
+	# "imageinfo" makes that call for us.
+	#
+	my $frisimageid = $image->pid() . "/" . $image->imagename();
+	my $sizestr = `$IMAGEINFO -qs -N $node $frisimageid`;
+	if ($sizestr =~ /^(\d+)$/) {
+	    $imagesize = $1;
+	} else {
+	    tberror "$image: access not allowed or image does not exist.";
+	    return -1;
+	}
+    } else {
+	$imagesize = stat($imagepath)->size;
+    }
+
+    #
+    # A zero-length image cannot be right and will result in much confusion
+    # if allowed to pass: the image load will succeed, but the disk will be
+    # unchanged, making it appear that os_load loaded the default image.
+    #
+    if ($imagesize == 0) {
+	tberror "$imagepath is empty!";
+	return -1;
+    }
+    $image->SetFullSize($imagesize);
     return 0;
 }
 
