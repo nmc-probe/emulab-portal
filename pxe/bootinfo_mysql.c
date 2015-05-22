@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2014 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -70,7 +70,8 @@ findnode_bootinfo_db(struct in_addr ipaddr, int *events)
 			 "  n.node_id=na.node_id and na.attrkey='boot_method' "
 			 "left join node_type_attributes as nt on "
 			 "  n.type=nt.type and nt.attrkey='boot_method' "
-			 "where i.IP='%s' and i.role='ctrl'",
+			 "where i.IP='%s' and "
+			 "      (i.role='ctrl' or i.role='outer_ctrl')",
 			 3, inet_ntoa(ipaddr));
 	if (!res) {
 		error("Query failed for host %s\n", inet_ntoa(ipaddr));
