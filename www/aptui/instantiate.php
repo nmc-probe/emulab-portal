@@ -664,9 +664,9 @@ function SPITFORM($formfields, $newuser, $errors)
     $isadmin = (isset($this_user) && ISADMIN() ? 1 : 0);
     echo "    window.ISADMIN    = $isadmin;\n";
     echo "</script>\n";
-    echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
-    echo "<script src='js/lib/bootstrap.js'></script>\n";
-    echo "<script src='js/lib/require.js' data-main='js/instantiate'></script>";
+    echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
+    echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";
+    echo "<script src='js/lib/require.js?nocache=asdfasdf' data-main='js/instantiate?nocache=asdfasdf'></script>";
 }
 
 if (!isset($create)) {
