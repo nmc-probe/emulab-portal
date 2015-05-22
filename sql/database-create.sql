@@ -97,7 +97,7 @@ DROP TABLE IF EXISTS `apt_instance_aggregate_history`;
 CREATE TABLE `apt_instance_aggregate_history` (
   `uuid` varchar(40) NOT NULL default '',
   `name` varchar(16) default NULL,
-  `aggregate_urn` varchar(128) default NULL,
+  `aggregate_urn` varchar(128) NOT NULL default '',
   `status` varchar(32) default NULL,
   `physnode_count` smallint(5) unsigned NOT NULL default '0',
   `virtnode_count` smallint(5) unsigned NOT NULL default '0',

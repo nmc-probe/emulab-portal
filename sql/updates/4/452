@@ -8,13 +8,13 @@ sub DoUpdate($$$)
 {
     my ($dbhandle, $dbname, $version) = @_;
 
-    if (DBSlotExists("apt_instance_aggregates", "physnode_count")) {
+    if (!DBSlotExists("apt_instance_aggregates", "physnode_count")) {
 	DBQueryFatal("alter table apt_instance_aggregates add ".
 		     " `physnode_count` smallint(5) unsigned NOT NULL ".
 		     "   default '0' after status");
     }
-    if (DBSlotExists("apt_instance_aggregates", "virtnode_count")) {
-	DBQueryFatal("alter table apt_instance_aggregates ".
+    if (!DBSlotExists("apt_instance_aggregates", "virtnode_count")) {
+	DBQueryFatal("alter table apt_instance_aggregates add ".
 		     " `virtnode_count` smallint(5) unsigned NOT NULL ".
 		     "   default '0' after physnode_count");
     }
