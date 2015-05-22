@@ -594,16 +594,18 @@ sub DoConsole()
 	}
 	my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
 	foreach my $node (@nodes) {
-	    my $client_id  = GeniXML::GetVirtualId($node);
-	    my $sliver_urn = GeniXML::GetSliverId($node);
+	    my $client_id   = GeniXML::GetVirtualId($node);
+	    my $urn         = GeniXML::GetSliverId($node);
+	    my $manager_urn = GetManagerId($node);
 
 	    # No sliver urn or a different aggregate.
 	    next
-		if (! (defined($sliver_urn) &&
-		       $sliver_urn eq $obj->aggregate_urn()));
+		if (! (defined($urn) &&
+		       defined($manager_urn) &&
+		       $manager_urn eq $obj->aggregate_urn()));
 
 	    if ($node_id eq $client_id) {
-		$sliver_urn = GeniXML::GetSliverId($node);
+		$sliver_urn = $urn;
 		$sliver = $obj;
 	    }
 	}
@@ -1048,11 +1050,14 @@ sub DoRebootOrReload($)
 	foreach my $node (@nodes) {
 	    my $client_id = GeniXML::GetVirtualId($node);
 	    if (grep {$_ eq $client_id} @ARGV) {
-		my $sliver_urn = GeniXML::GetSliverId($node);
+		my $sliver_urn  = GeniXML::GetSliverId($node);
+		my $manager_urn = GetManagerId($node);
 
-		# No sliver urn, means a different aggregate.
+		# No sliver urn or a different aggregate.
 		next
-		    if (!defined($sliver_urn));
+		    if (! (defined($sliver_urn) &&
+			   defined($manager_urn) &&
+			   $manager_urn eq $obj->aggregate_urn()));
 
 		if (!exists($sliver_urns{$obj->aggregate_urn()})) {
 		    $sliver_urns{$obj->aggregate_urn()} = [];
