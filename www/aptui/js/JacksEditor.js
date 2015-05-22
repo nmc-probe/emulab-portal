@@ -191,10 +191,8 @@ function (_, editModalString, editInlineString)
 	    var expression = /^\s*$/;
 	    if (this.xml && ! expression.exec(this.xml))
 	    {
-	      console.log('before: ', this.xml);
 		var rspec = $.parseXML(this.xml);
 		convertNamespace(rspec.documentElement);
-	      console.log('after: ', rspec.documentElement.outerHTML);
 		this.input.trigger('change-topology',
 				   [{ rspec: rspec.documentElement.outerHTML }]);
 	    }
