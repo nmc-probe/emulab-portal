@@ -185,7 +185,7 @@ function SPITROWS($all, $name, $result)
         echo " <tr>\n";
         echo "<td><a href='status.php?uuid=$uuid'>$name</a></td>";
         if ($profile) {
-            echo "<td><a href='show-profile.php?uuid=$uuid'>
+            echo "<td><a href='show-profile.php?uuid=$profile_uuid'>
                       $profile_name</a></td>";
         }
         else {
