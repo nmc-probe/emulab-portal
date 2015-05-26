@@ -587,7 +587,7 @@ my $ssldir = "$USERDIR/$user_uid/.ssl";
 
 $UID = $EUID;
 system("$SSH -host $CONTROL ".
-       "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $ssldir ".
+       "'$ACCOUNTPROXY dropfile $user_uid $default_groupgid 0600 $ssldir ".
        ($encrypted ? "encrypted.pem" : "emulab.pem") . "' < usercert.pem") == 0
     or fatal("Could not copy certificate file to $CONTROL");
 $UID = $SAVEUID;
@@ -605,7 +605,7 @@ if ($encrypted) {
     # Drop the file into the user .ssl directory.
     $UID = $EUID;
     system("$SSH -host $CONTROL ".
-	   "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $ssldir ".
+	   "'$ACCOUNTPROXY dropfile $user_uid $default_groupgid 0600 $ssldir ".
 	   "encrypted.p12' < usercert.p12")
 	== 0 or fatal("Could not copy .p12 file to $CONTROL");
     $UID = $SAVEUID;
@@ -632,9 +632,9 @@ if ($encrypted) {
     # The key format is identical to openssh, so just copy it over.
     #
     $UID = $EUID;
-    system("$SSH -host $CONTROL ".
-	   "'$ACCOUNTPROXY dropfile $user $default_groupgid 0600 $sshdir ".
-	   "encrypted.key' < usercert_key.pem")
+    system("$SSH -host $CONTROL '$ACCOUNTPROXY ".
+	   " dropfile $user_uid $default_groupgid 0600 $sshdir ".
+	   " encrypted.key' < usercert_key.pem")
 	== 0 or fatal("Could not copy ssh key file to $CONTROL");
     $UID = $SAVEUID;
 
@@ -650,9 +650,9 @@ if ($encrypted) {
 	    or fatal("Could not extract ssh pubkey from $pemfile");
 
 	$UID = $EUID;
-	system("$SSH -host $CONTROL ".
-	       "'$ACCOUNTPROXY dropfile $user $default_groupgid 0644 $sshdir ".
-	       "encrypted.pub' < encrypted.pub")
+	system("$SSH -host $CONTROL '$ACCOUNTPROXY ".
+	       "  dropfile $user_uid $default_groupgid 0644 $sshdir ".
+	       "  encrypted.pub' < encrypted.pub")
 	    == 0 or fatal("Could not copy ssh pub key file to $CONTROL");
 	$UID = $SAVEUID;
 
