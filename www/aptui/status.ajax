@@ -108,8 +108,8 @@ function Do_GetInstanceStatus()
             $havemanifests = 0;
         }
         else {
-            $webtask = WebTask::Lookup($sliver->webtask_id());
-            if ($webtask) {
+            if ($sliver->webtask_id() &&
+                $webtask = WebTask::Lookup($sliver->webtask_id())) {
                 $sliverstatus = $webtask->TaskValue("sliverstatus");
                 if ($sliverstatus) {
                     $blob["sliverstatus"][$sliver->aggregate_urn()] =

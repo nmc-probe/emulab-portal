@@ -484,7 +484,11 @@ class InstanceSliver
         #
         # Backwards compat for a while, create a fake one. 
         #
+        $webtask_id = null;
         $webtask = WebTask::LookupByObject($instance->uuid());
+        if ($webtask) {
+            $webtask_id = $webtask->task_id();
+        }
         $foo->sliver = array(
             "uuid" => $instance->uuid(),
             "name" => $instance->name(),
@@ -492,7 +496,7 @@ class InstanceSliver
             "status" => $instance->status(),
             "public_url" => $instance->public_url(),
             "manifest" => $instance->manifest(),
-            "webtask_id" => $webtask->task_id(),
+            "webtask_id" => $webtask_id,
         );
         return $foo;
     }
