@@ -60,10 +60,10 @@ function SPITFORM($formfields, $showverify, $errors)
     global $ACCOUNTWARNING, $EMAILWARNING, $this_user, $joinproject, $toomany;
     $button_label = "Create Account";
 
+    SPITHEADER(1);
+
     echo "<link rel='stylesheet'
                 href='css/bootstrap-formhelpers.min.css'>\n";
-
-    SPITHEADER(1);
 
     echo "<div id='signup-body'></div>\n";
     echo "<div id='toomany_div'></div>\n";
