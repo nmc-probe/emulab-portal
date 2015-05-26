@@ -31,6 +31,7 @@ window.APT_OPTIONS.configObject = {
 	'filesize' : { exports: 'filesize' },
 	'contextmenu': { },
     },
+    waitSeconds: 0,
     urlArgs: "version=" + APT_CACHE_TOKEN
 };
 
