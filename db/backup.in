@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2010 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -142,8 +142,8 @@ if ($clean) {
     if ($clean == 1) {
 	print "Add the -y option to actually remove.\n";
     }
-    system("find . \\\( -name 'base.*.gz' -o -name 'update.*.gz' ".
-	   "         -o -name 'slowqueries.*.gz' \\\) ".
+    system("find . \\\( -name 'base.*' -o -name 'update.*' ".
+	   "         -o -name 'slowqueries.*' \\\) ".
 	   "-mtime +${BACKUPDAYS} -print $doit");
     exit(0);
 }
