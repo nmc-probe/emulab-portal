@@ -827,7 +827,8 @@ sub CheckNodeConstraints($$$)
 	    if ($image_urn =~ /UBUNTU14\-10\-64\-OS/) {
 		return 0;
 	    }
-	    elsif ($iscloudlab && $image_urn !~ /ARM/) {
+	    elsif ($iscloudlab &&
+		   !($image_urn =~ /ARM/ || $image_urn =~ /HPC/)) {
 		$$pmsg = "Node '$client_id' disk_image will not run ".
 		    "on the Cloudlab cluster";
 		return -1;
