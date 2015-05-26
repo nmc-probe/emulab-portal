@@ -128,7 +128,7 @@ sub UsersGroupName($)
 {
     my ($self)  = @_;
 
-    return ($self->isAPT() || $self->isCloud() ?
+    return ($self->isAPT() ?
 	    "apt-users\@googlegroups.com" :
 	    "cloudlab-users\@googlegroups.com");
 }
@@ -138,7 +138,7 @@ sub UsersGroupURL($)
     my ($self)  = @_;
     my $url = 'https://groups.google.com/forum/#!forum/';
 
-    return ($self->isAPT() || $self->isCloud() ?
+    return ($self->isAPT() ?
 	    "$url/apt-users" : "$url/cloudlab-users");
 }
 
