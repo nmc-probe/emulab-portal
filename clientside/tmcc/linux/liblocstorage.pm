@@ -790,8 +790,16 @@ sub os_check_storage_element($$)
 	#
 	my $dev = iscsi_to_dev($session);
 	if (!defined($dev)) {
-	    warn("*** $bsid: found iSCSI session but could not determine local device\n");
-	    return -1;
+	    #
+	    # XXX apparently the device may not show up immediately,
+	    # so pause and try again.
+	    #
+	    sleep(1);
+	    $dev = iscsi_to_dev($session);
+	    if (!defined($dev)) {
+		warn("*** $bsid: found iSCSI session but could not determine local device\n");
+		return -1;
+	    }
 	}
 	$href->{'LVDEV'} = "/dev/$dev";
 
