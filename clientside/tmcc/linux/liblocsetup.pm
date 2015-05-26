@@ -898,23 +898,38 @@ sub os_ifconfig_veth($$$$$;$$$$%)
 	    return "";
 	}
 
+	# XXX starting with CentOS7, vconfig is no longer
+	my $useip = 0;
+	if (! -x $VLANCONFIG) {
+	    $useip = 1;
+	}
+
 	# one time stuff
 	if (!exists($cookie->{"vlan"})) {
 	    $uplines  = "/sbin/insmod 8021q >/dev/null 2>&1\n    ";
-	    $uplines .= "$VLANCONFIG set_name_type VLAN_PLUS_VID_NO_PAD\n    ";
+	    $uplines .= "$VLANCONFIG set_name_type VLAN_PLUS_VID_NO_PAD\n    "
+		if (!$useip);
 	    $cookie->{"vlan"} = 1;
 	}
 
 	my $vdev = "vlan$vtag";
 
-	$uplines   .= "$VLANCONFIG add $iface $vtag\n    ";
+	if ($useip) {
+	    $uplines   .= "/sbin/ip link add link $iface name $vdev type vlan id $vtag\n    ";
+	} else {
+	    $uplines   .= "$VLANCONFIG add $iface $vtag\n    ";
+	}
 	$uplines   .= sprintf($IFCONFIG, $vdev, $inet, $mask);
 	# configure the MAC address.
 	$uplines   .= "\n    $IFCONFIGBIN $vdev hw ether $vmac"
 	    if ($vmac);
 
 	$downlines .= "$IFCONFIGBIN $vdev down\n    ";
-	$downlines .= "$VLANCONFIG rem $vdev";
+	if ($useip) {
+	    $downlines .= "/sbin/ip link delete $vdev";
+	} else {
+	    $downlines .= "$VLANCONFIG rem $vdev";
+	}
     }
 
     return ($uplines, $downlines);
