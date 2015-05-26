@@ -2036,7 +2036,7 @@ sub SetLogFile($$)
     my ($self, $logfile) = @_;
 
     return -1
-	if (! $self->Update({'logfileid' => $logfile->logid()}));
+	if ($self->Update({'logfileid' => $logfile->logid()}));
 
     return 0;
 }
@@ -2047,7 +2047,7 @@ sub SetReady($$)
     my ($self, $ready) = @_;
 
     return -1
-	if (! $self->Update({'ready' => $ready}));
+	if ($self->Update({'ready' => $ready}));
 
     return 0;
 }
@@ -2059,7 +2059,7 @@ sub MarkReleased($)
     my ($self) = @_;
 
     return -1
-	if (! $self->Update({'released' => 1}));
+	if ($self->Update({'released' => 1}));
 
     return 0;
 }
@@ -2190,7 +2190,7 @@ sub SetDelta($$)
     my ($self, $delta) = @_;
 
     return -1
-	if (! $self->Update({'isdelta' => $delta}));
+	if ($self->Update({'isdelta' => $delta}));
 
     return 0;
 }
@@ -2200,7 +2200,7 @@ sub SetSize($$)
     my ($self, $size) = @_;
 
     return -1
-	if (! $self->Update({'size' => $size}));
+	if ($self->Update({'size' => $size}));
 
     return 0;
 }
@@ -2210,7 +2210,7 @@ sub SetHash($$)
     my ($self, $hash) = @_;
 
     return -1
-	if (! $self->Update({'hash' => $hash}));
+	if ($self->Update({'hash' => $hash}));
 
     return 0;
 }
