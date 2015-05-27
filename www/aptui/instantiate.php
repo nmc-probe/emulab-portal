@@ -199,15 +199,35 @@ else {
 		     "order by p.topdog desc");
     while ($row = mysql_fetch_array($query_result)) {
 	$profile_array[$row["uuid"]] = $row["name"];
-        if (isset($default)) {
-            if ($default == $row["uuid"]) {
-                $profile_default = $row["uuid"];
-            }
-        }
-        elseif ($row["pid"] == $profile_default_pid &&
-                $row["name"] == $profile_default) {
+        if ($row["pid"] == $profile_default_pid &&
+            $row["name"] == $profile_default) {
 	    $profile_default = $row["uuid"];
 	}
+    }
+    #
+    # A specific profile, but we still want to give the user the selection
+    # list above, but the profile might not be in the list if it is not
+    # the highest numbered version.
+    #
+    if (isset($default)) {
+        if (IsValidUUID($default)) {
+            $obj = Profile::Lookup($default);
+            if (!$obj) {
+                SPITUSERERROR("Unknown default profile: $default");
+                exit();
+            }
+            if (! ($obj->ispublic() ||
+                   (isset($this_user) && $obj->CanInstantiate($this_user)))) {
+                SPITUSERERROR("No permission to use profile: $default");
+                exit();
+            }
+            $profile_array[$obj->uuid()] = $obj->name();
+            $profile_default = $obj->uuid();
+        }
+        else {
+            SPITUSERERROR("Illegal default profile: $default");
+            exit();
+        }
     }
 }
 
