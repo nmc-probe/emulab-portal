@@ -374,6 +374,15 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    event.preventDefault();
 	    PublishProfile();
 	});
+	// Handler for share modal; do not want to show it if the
+	// the profile is not saved.
+	$('#profile_share_button').click(function() {
+	    if (modified) {
+		alert("Please save your profile before sharing it!");
+		return false;
+	    }
+	    sup.ShowModal("#share_profile_modal");
+	});
 
 	/*
 	 * The instantiate button. If a plain profile, throw up the
@@ -941,6 +950,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	EnableButton("profile_copy_button");
 	EnableButton("guest_instantiate_button");
 	EnableButton("profile_publish_button");
+	EnableButton("profile_share_button");
     }
     function DisableButtons()
     {
@@ -950,6 +960,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	DisableButton("profile_copy_button");
 	DisableButton("guest_instantiate_button");
 	DisableButton("profile_publish_button");
+	DisableButton("profile_share_button");
     }
     function EnableButton(button)
     {
