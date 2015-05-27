@@ -83,7 +83,7 @@ function (_, editModalString, editInlineString)
 	{
 	    this.mode = 'viewer';
 	}
-    this.shown = false;
+	this.shown = false;
 
 	if (isInline) {
 		this.inline = 'inline';
@@ -174,7 +174,7 @@ function (_, editModalString, editInlineString)
 	    		this.handleShown();
 	    	}
 	    	else {
-				this.root.find('#quickvm_editmodal').modal('show');
+			this.root.find('#quickvm_editmodal').modal('show');
 	    	}
 	    }
 	},
