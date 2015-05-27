@@ -254,8 +254,9 @@ left: -999em;
 	margin: 0;
 }
 
-#inline_jacks #edit_nopicker {
+#inline_jacks #edit_nopicker, #inline_large_jacks #edit_nopicker {
 	height: auto;
+	width: 100%;
 }
 
 .wizard #finalize_container .panel {
