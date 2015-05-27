@@ -154,7 +154,7 @@ body {
 }
 
 @media (min-width: 970px) {
-  #showtopo_dialog {
+  #showtopo_dialog, #edit_dialog {
     width: 950px;
   }
   #showtopo_description {
@@ -163,56 +163,64 @@ body {
   #showtopo_div {
     width: 640px;
   }
-  #showtopo_nopicker {
+  #showtopo_nopicker, #edit_nopicker {
     width: 850px;
   }
   .modal-dialog {
-    width: 700px;
+    width: 850px;
     margin: 30px auto;
   }
 }
 
 @media (min-width: 910px) and (max-width: 969px) {
+  #showtopo_dialog, #edit_dialog {
+    width: 900px;
+  }
   #showtopo_description,
   #showtopo_div {
     width: 610px;
   }
-  #showtopo_nopicker {
+  #showtopo_nopicker, #edit_nopicker {
     width: 800px;
-   }
-  .modal-dialog {
-    width: 800px;
-    margin: 30px auto;
   }
 }
 
 @media (min-width: 850px) and (max-width: 909px) {
+  #showtopo_dialog, #edit_dialog {
+      width: 830px;
+  }
   #showtopo_description,
   #showtopo_div {
-  width: 560px;
-}
-  #showtopo_nopicker {
-  width: 750px;
-}
+      width: 560px;
+  }
+  #showtopo_nopicker, #edit_nopicker {
+      width: 730px;
+  }
 }
 
 @media (min-width: 790px) and (max-width: 849px) {
+  #showtopo_dialog, #edit_dialog {
+      width: 780px;
+  }
   #showtopo_description,
   #showtopo_div {
-  width: 510px;
-}
-  #showtopo_nopicker {
-  width: 710px;
-}
+      width: 510px;
+  }
+  #showtopo_nopicker, #edit_nopicker {
+      width: 680px;
+  }
 }
 
 @media (min-width: 768px) and (max-width: 789px) {
+  #showtopo_dialog, #edit_dialog {
+      width: 750px;
+  }
   #showtopo_description,
   #showtopo_div {
     width: 500px;
   }
-  #showtopo_nopicker {
-    width: 700px;
+  #showtopo_nopicker, #edit_nopicker {
+    width: 650px;
   }
   .modal-dialog {
     width: 700px;
@@ -221,39 +229,43 @@ body {
 }
 
 @media (min-width: 740px) and (max-width: 767px) {
+  #showtopo_dialog, #edit_dialog {
+      width: 720px;
+  }
   #showtopo_description,
   #showtopo_div {
-  width: 470px;
+      width: 470px;
   }
-  #showtopo_nopicker {
-    width: 670px;
+  #showtopo_nopicker, #edit_nopicker {
+      width: 620px;
   }
 }
 
 @media (min-width: 690px) and (max-width: 739px) {
+  #showtopo_dialog, #edit_dialog {
+      width: 680px;
+  }
   #showtopo_description,
   #showtopo_div {
-  width: 430px;
-}
-  #showtopo_nopicker {
-  width: 630px;
-}
+      width: 430px;
+  }
+  #showtopo_nopicker, #edit_nopicker {
+      width: 580px;
+  }
 }
 
 @media (max-width: 689px) {
   #showtopo_container > div, #edit_container > div {
-    width: 100%;
+      width: 100%;
   }
-
   #showtopo_container .form-group, #edit_container .form-group {
     height: 180px;
     border-bottom: 1px solid #DDD;
   }
-
   #quickvm_topomodal #profile_name {
-  height: 180px;
-  overflow-y: scroll;
-}
+      height: 180px;
+      overflow-y: scroll;
+  }
 }
 
 .modal-dialog .modal-content {
@@ -416,4 +428,11 @@ blockquote #selected_profile_description {
   padding: 3px;
   border-radius: 2px;
   margin-bottom: 5px;
+}
+
+.btn-tiny {
+  padding: 1px 4px;
+  font-size: 10px;
+  line-height: 1.24;
+  border-radius: 2px;
 }
