@@ -950,7 +950,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	EnableButton("profile_copy_button");
 	EnableButton("guest_instantiate_button");
 	EnableButton("profile_publish_button");
-	EnableButton("profile_share_button");
     }
     function DisableButtons()
     {
@@ -960,7 +959,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	DisableButton("profile_copy_button");
 	DisableButton("guest_instantiate_button");
 	DisableButton("profile_publish_button");
-	DisableButton("profile_share_button");
     }
     function EnableButton(button)
     {
