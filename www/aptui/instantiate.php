@@ -574,17 +574,21 @@ function SPITFORM($formfields, $newuser, $errors)
         $html = "<div id='aggregate_selector'>
                   <div class='form-horizontal experiment_option' id='nosite_selector'>
                    <div class='form-group'>
-                   <label class='col-sm-4 control-label'
-                      style='text-align: right;'>
-       <a href=cluster-status.php target=_blank>Cluster:</a></label>
-                   <div class='col-sm-6'>
+                     <label class='col-sm-4 control-label'
+                            style='text-align: right;'>Cluster:</label>
+                     <div class='col-sm-6'>
                        <select name=\"formfields[where]\"
 		              id='profile_where' class='form-control'>
                        $am_options</select><br>
-                </div><div class='col-sm-10 col-sm-offset-1' style='text-align: center'>
-		       <div class='alert alert-warning' id='where-warning' style='display: none'>This profile only works on some clusters. Incompatible clusters are unselectable.</div>
-</div></div></div>";
-        $html = $html . "<div id='site_selector' class='hidden'></div></div>";
+                     </div>
+                     <div class='col-sm-10 col-sm-offset-1'
+                          style='text-align: center'>
+		       <div class='alert alert-warning' id='where-warning' style='display: none; margin-bottom: 5px'>This profile only works on some clusters. Incompatible clusters are unselectable.</div>
+                     </div>
+                   </div>
+                  </div>
+                  <div id='site_selector' class='hidden'></div>
+                </div>\n";
         echo $html;
     }
     echo "</div>\n";
