@@ -378,7 +378,8 @@ function Do_BindParameters()
 	return;
     }
     if (Do_CheckForm($formfields, $profile, $rval)) {
-	SPITAJAX_ERROR(1, $rval);
+        # Special return value for JS code.
+	SPITAJAX_ERROR(2, $rval);
 	return;
     }
     if ($checkonly) {
