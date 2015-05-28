@@ -568,9 +568,9 @@ function SpitTopologyViewModal($modal_name, $profile_array)
                </div>
                <div class='modal-body'>
                  <!-- This topo diagram goes inside this div -->
-                 <div class='panel panel-default'
+                 <div class='row'
                             id='showtopo_container'>
-                  <div class='form-group pull-left'>
+                  <div class='form-group col-md-3 col-sm-3 col-xs-3'>
                     <input type='text' class='form-control'
 			   placeholder='Search'
                            id='profile_picker_search'>
@@ -587,7 +587,7 @@ function SpitTopologyViewModal($modal_name, $profile_array)
     }
     echo "          </ul>
                   </div> 
-                  <div class='pull-right'>
+                  <div class='col-md-9 col-sm-9 col-xs-9'>
                     <div class='panel-body'>
 		    <span id='showtopo_title'></span>
                      <div id='showtopo_div' class='jacks'></div>
