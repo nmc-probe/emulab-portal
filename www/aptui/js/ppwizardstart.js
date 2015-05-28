@@ -109,7 +109,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    return root;
 	}
 
-	function HandleSubmit()
+	function HandleSubmit(callback)
 	{
 	    /*
 	     * If not a registered user, then continue takes them back.
@@ -124,7 +124,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	      
 	    // Submit with check only at first, since this will return
 	    // very fast, so no need to throw up a waitwait.
-	    SubmitForm(1);
+	    SubmitForm(1, callback);
 	}
 
 	// Instantiate the new rspec on the chosen aggregate.
@@ -187,12 +187,12 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	// Submit the form. If no errors, we get back the rspec. Throw that
 	// up in a Jack editor window. 
 	//
-	function SubmitForm(checkonly)
+	function SubmitForm(checkonly, steps_callback)
 	{
 	    // Current form contents as formfields array.
 	    var formfields  = {};
 	
-	    var callback = function(json) {
+ 	    var callback = function(json) {
 		if (!checkonly) {
 		    sup.HideModal("#waitwait-modal");
 		}
@@ -200,30 +200,23 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		    if (checkonly && json.code == 2) {
 			// Regenerate page with errors.
 			GenerateModalBody(formfields, json.value);
-			return;
 		    }
-		    sup.HideModal('#ppmodal');
-		    $('#stepsContainer').steps('previous');
-		    $('#stepsContainer-t-1').parent().addClass('error');
-		    //sup.SpitOops("oops", json.value);
+		    else {
+			sup.SpitOops("oops", json.value);
+		    }
+		    steps_callback(false);
 		    return;
 		}
 		if (checkonly) {
 		    // Form checked out okay, submit again to generate rspec.
-		    sup.HideModal('#ppmodal');
-		    sup.ShowModal("#waitwait-modal");
-		    SubmitForm(0);
+		    SubmitForm(0, steps_callback);
 		}
 		else {
+		    steps_callback(true);
 		    if (_.has(json.value, "amdefault")) {
 			amdefault = json.value.amdefault;
 		    }
-		    // Got the rspec, show the editor.
-		    RSPEC = json.value.rspec;
-		    editor.show(json.value.rspec,
-				EditorDone, EditorCancel, button_label);
-
-		    EditorDone(editor.fetchXml());
+		    ShowEditor(json.value.rspec);
 		}
 	    }
 	    // Convert form data into formfields array, like all our
@@ -235,16 +228,21 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    // This clears any errors before new submit. Needs more thought.
 	    GenerateModalBody(formfields, null);
 
-	    var xmlthing = sup.CallServerMethod(null, "manage_profile",
-						"BindParameters",
-						{"formfields" : formfields,
-						 "uuid"       : uuid,
-						 "checkonly"  : checkonly});
+	    // Not in checkform mode, this will take time.
+	    if (!checkonly) {
+		sup.ShowModal("#waitwait-modal");
+	    }
+	    var xmlthing =
+		sup.CallServerMethod(null, "manage_profile",
+				     "BindParameters",
+				     {"formfields" : formfields,
+				      "uuid"       : uuid,
+				      "checkonly"  : checkonly});
 	    xmlthing.done(callback);
 	}
 
 	function StartPP(args) {
-		uuid = args.uuid;
+	    uuid = args.uuid;
 	    registered = args.registered;
 	    amlist = args.amlist;
 	    amdefault = args.amdefault;
@@ -272,7 +270,6 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	     * the initial values.
 	     */
 	    var callback = function(json) {
-		console.info(json);
 		if (json.code) {
 		    sup.SpitOops("oops", json.value);
 		}
@@ -293,6 +290,9 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		bodyTemplate = _.template(html);
 		GenerateModalBody(defaults, null);
 		//sup.ShowModal('#ppmodal');
+		if (args.rspec) {
+		    ShowEditor(args.rspec);
+		}
 	    }
 	    var xmlthing = sup.CallServerMethod(null, "instantiate",
 						"GetParameters",
@@ -302,8 +302,12 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 
 	function ChangeJacksRoot(root, selectionPane) {
 	    editor = new JacksEditor(root, true, true, selectionPane, true);
-	    editor.show(RSPEC,
-				EditorDone, EditorCancel, button_label);
+	    editor.show(RSPEC, EditorDone, EditorCancel, button_label);
+	}
+	function ShowEditor(rspec) {
+	    RSPEC = rspec;
+	    editor.show(RSPEC, EditorDone, EditorCancel, button_label);
+	    EditorDone(RSPEC);
 	}
 
 	return {

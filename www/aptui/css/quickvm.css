@@ -132,16 +132,13 @@ body {
   height: 300px;
 }
 
-#edit_nopicker {
-  height: 500px;
-}
-
 .edit_buttons {
   float: right;
   margin-top: 10px;
 }
 
 #edit_nopicker {
+  height: 500px;
   width: 100%;
 }
 

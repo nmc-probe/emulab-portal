@@ -37,13 +37,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
         $('#instantiate_submit').prop('disabled', true);
         $.get(contextUrl).then(contextReady, contextFail);
 
-    window.APT_OPTIONS.initialize(sup);
-    window.APT_OPTIONS.initialize(ppstart);
-    registered = window.REGISTERED;
+	window.APT_OPTIONS.initialize(sup);
+	window.APT_OPTIONS.initialize(ppstart);
+	registered = window.REGISTERED;
 	webonly    = window.WEBONLY;
 	isadmin    = window.ISADMIN;
 	portal     = window.PORTAL;
-    ajaxurl = window.AJAXURL;
+	ajaxurl    = window.AJAXURL;
 
 	$('#stepsContainer').steps({
 		headerTag: "h3",
@@ -52,26 +52,56 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		autoFocus: true,
 		onStepChanging: function(event, currentIndex, newIndex) {
 			if (currentIndex == 0 && newIndex == 1) {
-				if (ispprofile) {
-					if (selected_uuid != loaded_uuid) {
-						$('#stepsContainer-p-1 > div').attr('style','display:block');
-						ppstart.StartPP({uuid         : selected_uuid,
-							 registered   : registered,
-							 isadmin      : isadmin,
-							 amlist       : amlist,
-							 amdefault    : amdefault,
-							 callback     : ConfigureDone,
-							 button_label : "Accept"});
-						loaded_uuid = selected_uuid;
-						ppchanged = true;
-					}
+			    if (ispprofile) {
+				if (selected_uuid != loaded_uuid) {
+				    $('#stepsContainer-p-1 > div')
+					.attr('style','display:block');
+				    ppstart.StartPP(
+					{uuid         : selected_uuid,
+					 registered   : registered,
+					 isadmin      : isadmin,
+					 amlist       : amlist,
+					 amdefault    : amdefault,
+					 callback     : ConfigureDone,
+					 button_label : "Accept",
+					 rspec        :
+					   (!window.SKIPSTEPS ? null :
+					    $('#pp_rspec_textarea').val()),
+					});
+				    loaded_uuid = selected_uuid;
+				    ppchanged =
+					(window.SKIPSTEPS ? false : true);
 				}
-				else {
-					$('#stepsContainer-p-1 > div').attr('style','display:none');
-					loaded_uuid = selected_uuid;
-				}
+			    }
+			    else {
+				$('#stepsContainer-p-1 > div')
+				    .attr('style','display:none');
+				loaded_uuid = selected_uuid;
+			    }
 			}
 			else if (currentIndex == 1 && newIndex == 2) {
+				if (ispprofile && ppchanged &&
+				    !window.SKIPSTEPS) {
+				    ppstart.HandleSubmit(function(success) {
+					if (success) {
+					    ppchanged = false;
+					    $('#stepsContainer-t-1')
+						.parent().removeClass('error');
+					    $('#stepsContainer').steps('next');
+					}
+					else {
+					    $('#stepsContainer-t-1')
+						.parent().addClass('error');
+					}
+				    });
+				    // We do not proceed until the form is
+				    // submitted properly. This has a bad
+				    // side effect; the steps code assumes
+				    // this means failure and adds the error
+				    // class.
+				    return false;
+				}
+			    
 				// Set up the Finalize tab
 				$('#stepsContainer-p-2 #finalize_options').html('');
 				// Each .experiment_option in the form is copied to the last page.
@@ -134,10 +164,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 			else if (currentIndex == 2 && priorIndex == 1) {
 				// Keep the two panes the same height
 				$('#inline_container').css('height', $('#finalize_container').outerHeight());
-				if (ispprofile && ppchanged) {
-					ppstart.HandleSubmit();
-					ppchanged = false;
-				}
 			}
 
 			if (currentIndex < priorIndex) {
@@ -409,6 +435,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		$('#profile_where option')
 		    .filter('[value="'+ amdefault + '"]')
                     .prop('selected', true);		
+	    }
+	    if (window.SKIPSTEPS) {
+		$('#stepsContainer').steps("next");
+		if (ispprofile) {
+		    $('#stepsContainer').steps("next");
+		}
+		window.SKIPSTEPS = 0;
 	    }
 	    updateWhere();
 	};

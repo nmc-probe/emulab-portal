@@ -236,6 +236,7 @@ function SPITFORM($formfields, $newuser, $errors)
     global $TBBASE, $APTMAIL, $ISCLOUD;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
     global $projlist;
+    $skipsteps  = "false";
     $amlist     = array();
     $showabout  = ($ISCLOUD || !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
@@ -259,6 +260,7 @@ function SPITFORM($formfields, $newuser, $errors)
     }
     # XSS prevention.
     if ($errors) {
+        $skipsteps = "true";
 	while (list ($key, $val) = each ($errors)) {
 	    # Skip internal error, we want the html in those errors
 	    # and we know it is safe.
@@ -284,7 +286,7 @@ function SPITFORM($formfields, $newuser, $errors)
     };
 
     SPITHEADER(1);
-
+    echo "<div id='waitwait_div'></div>\n";
     echo "<div id='ppviewmodal_div'></div>\n";
     # Placeholder for the "about" panel, which is now a template file.
     echo "<div id='about_div' class='col-lg-8  col-lg-offset-2
@@ -604,7 +606,9 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "<textarea name='formfields[pp_rspec]'
             id='pp_rspec_textarea'
                     class='form-control hidden'
-                    type='textarea'></textarea>\n";
+                    type='textarea'>".
+        (isset($formfields['pp_rspec']) ? $formfields['pp_rspec'] : "") .
+        "</textarea>\n";
     echo "</form>\n
           </div>\n";
     if (!isset($this_user)) {
@@ -658,7 +662,6 @@ function SPITFORM($formfields, $newuser, $errors)
     }
 
     SpitTopologyViewModal("quickvm_topomodal", $profile_array);
-    echo "<div id='waitwait_div'></div>\n";
     echo "<div id='ppmodal_div'></div>\n";
     echo "<div id='instantiate_div'></div>\n";
     echo "<div id='editmodal_div'></div>\n";
@@ -678,6 +681,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "    window.REGISTERED = $registered;\n";
     echo "    window.WEBONLY    = $webonly;\n";
     echo "    window.PORTAL     = '$portal';\n";
+    echo "    window.SKIPSTEPS  = $skipsteps;\n";
     if ($newuser) {
 	echo "window.APT_OPTIONS.isNewUser = true;\n";
     }
@@ -793,8 +797,8 @@ elseif (! array_key_exists($formfields["profile"], $profile_array)) {
     $errors["profile"] = "Invalid Profile: " . $formfields["profile"];
 }
 else {
-    $profile = Profile::Lookup($formfields["profile"]);
-    if (!$profile) {
+    $temp = Profile::Lookup($formfields["profile"]);
+    if (!$temp) {
 	$errors["profile"] = "No such profile in the database";
     }
 }
