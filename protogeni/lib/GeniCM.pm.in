@@ -958,7 +958,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	# but will not make it out to all images for a while. 
 	#
 	my $fullhostname = $node_nickname . ".${eid}.${pid}.${OURDOMAIN}";
-	if (length($fullhostname) > 63) {
+	if (0 && length($fullhostname) > 63) {
 	    $response = GeniResponse->Create(GENIRESPONSE_TOOBIG, undef,
 				     "Hostname > 63 characters: $fullhostname");
 	    goto bad;
@@ -2754,12 +2754,15 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		my @candidates = $stitchpath->vlan_list();
 		my @tags       = ();
 		my $i = 0;
-		for ($i = 0; $i < scalar(@candidates) && $i < 20; $i++) {
+		for ($i = 0; $i < scalar(@candidates) && $i < 50; $i++) {
 		    my $t = $candidates[$i];
 		    push(@tags, $t)		
 			if (VLan->VlanTagAvailable($t));
 		}
 		if (!@tags) {
+		    print STDERR "No candidate vlan tags for $linkname\n";
+		    print STDERR "@candidates\n";
+		    print STDERR Dumper($stitchpath);
 		    $vlan->Destroy()
 			if ($madevlan);
 		    $response =
