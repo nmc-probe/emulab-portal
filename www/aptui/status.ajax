@@ -802,6 +802,7 @@ function Do_RebootOrReload($which)
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	}
 	else {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}
 	if ($webtask) {
