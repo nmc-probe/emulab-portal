@@ -73,8 +73,16 @@ if ($all && ISADMIN()) {
                      "  UNIX_TIMESTAMP(s.expires)) as expired, ".
                      "  truncate(a.physnode_count * ".
                      "   ((UNIX_TIMESTAMP(now()) - ".
-                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours ".
+                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours, ".
+                     " IFNULL(aggs.count,0) as aggrows, ".
+                     " agg.aggregate_urn as aggrow_urn".
                      "  from apt_instances as a ".
+                     "left join (".
+                     "    select uuid, COUNT(*) AS count ".
+                     "    from apt_instance_aggregates group by uuid) AS aggs ".
+                     "  on aggs.uuid=a.uuid ".
+                     "left join apt_instance_aggregates as agg ".
+                     "     on agg.uuid=a.uuid ".
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
@@ -87,8 +95,16 @@ else {
                      "  UNIX_TIMESTAMP(s.expires)) as expired, ".
                      "  truncate(a.physnode_count * ".
                      "   ((UNIX_TIMESTAMP(now()) - ".
-                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours ".
+                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours, ".
+                     " IFNULL(aggs.count,0) as aggrows, ".
+                     " agg.aggregate_urn as aggrow_urn".
                      "  from apt_instances as a ".
+                     "left join (".
+                     "    select uuid, COUNT(*) AS count ".
+                     "    from apt_instance_aggregates group by uuid) AS aggs ".
+                     "  on aggs.uuid=a.uuid ".
+                     "left join apt_instance_aggregates as agg ".
+                     "     on agg.uuid=a.uuid ".
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
@@ -100,8 +116,16 @@ else {
                      "  UNIX_TIMESTAMP(s.expires)) as expired, ".
                      "  truncate(a.physnode_count * ".
                      "   ((UNIX_TIMESTAMP(now()) - ".
-                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours ".
+                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours, ".
+                     " IFNULL(aggs.count,0) as aggrows, ".
+                     " agg.aggregate_urn as aggrow_urn".
                      "  from apt_instances as a ".
+                     "left join (".
+                     "    select uuid, COUNT(*) AS count ".
+                     "    from apt_instance_aggregates group by uuid) AS aggs ".
+                     "  on aggs.uuid=a.uuid ".
+                     "left join apt_instance_aggregates as agg ".
+                     "     on agg.uuid=a.uuid ".
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
@@ -152,8 +176,6 @@ function SPITROWS($all, $name, $result)
         $profile_name = "$profile_id:$version";
         $creator_uid  = $row["creator"];
         $pid          = $row["pid"];
-        $urn          = $row["aggregate_urn"];
-        $cluster      = $urn_mapping[$urn];
         $pcount       = $row["physnode_count"];
         $vcount       = $row["virtnode_count"];
         $lockdown     = $row["admin_lockdown"] || $row["user_lockdown"] ? 1 : 0;
@@ -182,6 +204,23 @@ function SPITROWS($all, $name, $result)
         if (!isset($name)) {
             $name = $hrn;
         }
+        #
+        # If arows non-zero, then we use that for aggregate_urn,
+        # and if its more then 1, we need to consume the extras rows
+        # to get the rest of the aggregate urns.
+        #
+        if ($row["aggrows"] > 0) {
+            $cluster = $urn_mapping[$row["aggrow_urn"]];
+
+            for ($i = 1; $i < $row["aggrows"]; $i++) {
+                $row = mysql_fetch_array($result);
+                $cluster .= "," . $urn_mapping[$row["aggrow_urn"]];
+            }
+        }
+        else {
+            $cluster = $urn_mapping[$row["aggregate_urn"]];
+        }
+        
         echo " <tr>\n";
         echo "<td><a href='status.php?uuid=$uuid'>$name</a></td>";
         if ($profile) {

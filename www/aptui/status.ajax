@@ -118,8 +118,8 @@ function Do_GetInstanceStatus()
             }
         }
         if ($sliver->public_url()) {
-            $blob["sliverurls"][$sliver->aggregate_urn()] =
-                $sliver->public_url();
+            $blob["sliverurls"][] = array("name" => $sliver->aggregate_name(),
+                                          "url"  => $sliver->public_url());
         }
     }
     $blob["havemanifests"] = $havemanifests;
@@ -509,15 +509,18 @@ function Do_ConsoleURL()
     global $instance, $creator;
     global $ajax_args;
 
+    if (StatusSetupAjax(1)) {
+	return;
+    }
+    if (!isset($this_user)) {
+	SPITAJAX_ERROR(1, "Only registered users can reboot/reload nodes");
+	return;
+    }
     if (!isset($ajax_args["node"])) {
 	SPITAJAX_ERROR(1, "Missing node argument");
 	return 1;
     }
     $node = $ajax_args["node"];
-
-    if (StatusSetupAjax(1)) {
-	return;
-    }
     $uuid = $instance->uuid();
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
     if (!slice) {
@@ -556,21 +559,19 @@ function Do_ConsoleURL()
 #
 function Do_Snapshot()
 {
-    global $this_user;
+    global $this_user, $instance;
     global $ajax_args;
 
+    if (StatusSetupAjax(1)) {
+	return;
+    }
+    if (!isset($this_user)) {
+	SPITAJAX_ERROR(1, "Only registered users can snapshot nodes");
+	return;
+    }
     $this_idx = $this_user->uid_idx();
-
-    if (!isset($ajax_args["uuid"])) {
-	SPITAJAX_ERROR(1, "Missing profile uuid");
-	return;
-    }
     $uuid = $ajax_args["uuid"];
-    $instance = Instance::Lookup($uuid);
-    if (!$instance) {
-	SPITAJAX_ERROR(1, "Unknown instance uuid");
-	return;
-    }
+    
     if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
 	return;
@@ -650,20 +651,18 @@ function Do_Snapshot()
 #
 function Do_SnapshotStatus()
 {
-    global $this_user;
+    global $this_user, $instance;
     global $ajax_args;
 
+    if (StatusSetupAjax(1)) {
+	return;
+    }
+    if (!isset($this_user)) {
+	SPITAJAX_ERROR(1, "Only registered users can snapshot nodes");
+	return;
+    }
     $this_idx = $this_user->uid_idx();
 
-    if (!isset($ajax_args["uuid"])) {
-	SPITAJAX_ERROR(1, "Missing profile uuid");
-	return;
-    }
-    $instance = Instance::Lookup($ajax_args["uuid"]);
-    if (!$instance) {
-	SPITAJAX_ERROR(1, "Unknown instance uuid");
-	return;
-    }
     if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Not enough permission");
 	return;
@@ -704,21 +703,17 @@ function Do_SnapshotStatus()
 #
 function Do_Refresh()
 {
-    global $this_user;
+    global $this_user, $instance;
     global $ajax_args;
 
+    #
+    # Guest users can do this.
+    #
+    if (StatusSetupAjax(1)) {
+	return;
+    }
     $this_idx = $this_user->uid_idx();
-
-    if (!isset($ajax_args["uuid"])) {
-	SPITAJAX_ERROR(1, "Missing profile uuid");
-	return;
-    }
     $uuid = $ajax_args["uuid"];
-    $instance = Instance::Lookup($uuid);
-    if (!$instance) {
-	SPITAJAX_ERROR(1, "Unknown instance uuid");
-	return;
-    }
     if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
 	return;
@@ -727,7 +722,7 @@ function Do_Refresh()
     # Call out to the backend.
     #
     $webtask_id = WebTask::GenerateID();
-    $retval = SUEXEC($this_user->uid(), "nobody",
+    $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t $webtask_id -- refresh $uuid",
 		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
@@ -757,14 +752,18 @@ function Do_Refresh()
 #
 function Do_RebootOrReload($which)
 {
-    global $this_user;
+    global $this_user, $instance;
     global $ajax_args;
 
+    if (StatusSetupAjax(1)) {
+	return;
+    }
     if (!isset($this_user)) {
 	SPITAJAX_ERROR(1, "Only registered users can reboot/reload nodes");
 	return;
     }
     $this_idx = $this_user->uid_idx();
+    $uuid = $ajax_args["uuid"];
 
     if (!isset($ajax_args["node_id"])) {
 	SPITAJAX_ERROR(1, "Missing node_id");
@@ -773,17 +772,6 @@ function Do_RebootOrReload($which)
     $node_id = $ajax_args["node_id"];
     if (!preg_match("/^[-\w]+$/", $node_id)) {
         SPITAJAX_ERROR(1, "Illegal characters in node_id");
-    }
-
-    if (!isset($ajax_args["uuid"])) {
-	SPITAJAX_ERROR(1, "Missing profile uuid");
-	return;
-    }
-    $uuid = $ajax_args["uuid"];
-    $instance = Instance::Lookup($uuid);
-    if (!$instance) {
-	SPITAJAX_ERROR(1, "Unknown instance uuid");
-	return;
     }
     if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
@@ -843,6 +831,10 @@ function Do_Lockout()
     global $this_user;
     global $ajax_args;
 
+    if (!isset($this_user) || !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
     $this_idx = $this_user->uid_idx();
 
     if (!isset($ajax_args["uuid"])) {
@@ -857,10 +849,6 @@ function Do_Lockout()
     $instance = Instance::Lookup($uuid);
     if (!$instance) {
 	SPITAJAX_ERROR(1, "Unknown instance uuid");
-	return;
-    }
-    if (!ISADMIN()) {
-	SPITAJAX_ERROR(1, "Not enough permission.");
 	return;
     }
     $lockout = ($ajax_args["lockout"] ? 1 : 0);

@@ -27,6 +27,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var profile_uuid= null;
     var extend      = null;
     var jacksIDs    = {};
+    var publicURLs  = null;
     var status_collapsed  = false;
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
@@ -168,11 +169,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    window.location.replace('manage_profile.php?action=clone' +
 				    '&snapuuid=' + uuid);
 	});
-
-	// If we got a publicURL, set the href and show the button.
-	if (window.APT_OPTIONS.publicURL) {
-	    ShowSliverInfo(window.APT_OPTIONS.publicURL);
-	}
 
 	//
 	// Attach a hover popover to explain what Clone means. We need
@@ -362,8 +358,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		StatusWatchCallBack.active = 1;
 	    }
 	    // Ditto the publicURL.
-	    if (_.has(json.value, "publicURL")) {
-		ShowSliverInfo(json.value.publicURL);
+	    if (_.has(json.value, "sliverurls")) {
+		ShowSliverInfo(json.value.sliverurls);
 	    }
 	    
 	    if (status == 'provisioned') {
@@ -1181,7 +1177,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    // Bind a function to start up ssh for one node topologies.
 	    if (nodecount == 1 && !oneonly && dossh) {
 		startOneSSH = function () {
-		    var nodename = hostportList.keys()[0];
+		    var nodename = Object.keys(hostportList)[0];
 		    var hostport = hostportList[nodename];
 		    NewSSHTab(hostport, nodename);
 		};
@@ -1542,10 +1538,51 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
     }
 
-    function ShowSliverInfo(url)
+    function ShowSliverInfo(urls)
     {
-	$("#sliverinfo_button").attr("href", url);
-	$("#sliverinfo_button").removeClass("hidden");
+	if (!publicURLs) {
+	    $('#sliverinfo_dropdown').change(function (event) {
+		var selected =
+		    $('#sliverinfo_dropdown select option:selected').val();
+		console.info(selected);
+
+		// Find the URL
+		_.each(publicURLs, function(obj) {
+		    var url  = obj.url;
+		    var name = obj.name;
+
+		    if (name == selected) {
+			$("#sliverinfo_dropdown a").attr("href", url);
+		    }
+		});
+	    });
+	}
+	publicURLs = urls;
+	if (urls.length == 0) {
+	    return;
+	}
+	if (urls.length == 1) {
+	    $("#sliverinfo_button").attr("href", urls[0].url);
+	    $("#sliverinfo_button").removeClass("hidden");
+	    $("#sliverinfo_dropdown").addClass("hidden");
+	    return;
+	}
+	// Selection list.
+	_.each(urls, function(obj) {
+	    var url  = obj.url;
+	    var name = obj.name;
+
+	    // Add only once of course
+	    var option = $('#sliverinfo_dropdown select option[value="' +
+			   name + '"]');
+	    
+	    if (! option.length) {
+		$("#sliverinfo_dropdown select").append(
+		    "<option value='" + name + "'>" + name + "</option>");
+	    }
+	});
+	$("#sliverinfo_button").addClass("hidden");
+	$("#sliverinfo_dropdown").removeClass("hidden");
     }
 
     $(document).ready(initialize);

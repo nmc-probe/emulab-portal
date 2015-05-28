@@ -109,6 +109,10 @@ class Instance
     function IsCloud() {
 	return preg_match('/cloudlab/', $this->servername());
     }
+    function aggregate_name() {
+        global $urn_mapping;
+        return $urn_mapping[$this->aggregate_urn()];
+    }
     
     # Hmm, how does one cause an error in a php constructor?
     function IsValid() {
@@ -469,6 +473,10 @@ class InstanceSliver
     function public_url()   { return $this->field('public_url'); }
     function webtask_id()   { return $this->field('webtask_id'); }
     function manifest()	    { return $this->field('manifest'); }
+    function aggregate_name() {
+        global $urn_mapping;
+        return $urn_mapping[$this->aggregate_urn()];
+    }
 
     # Hmm, how does one cause an error in a php constructor?
     function IsValid() {

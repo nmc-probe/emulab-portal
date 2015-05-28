@@ -15,10 +15,10 @@ function HideModal(which)
     
 function CallServerMethod(url, route, method, args)
 {
-    if (url == null) {
-	url = 'https://' + window.location.host + '/apt/server-ajax.php';
-	url = 'server-ajax.php';
-    }
+    // ignore url now.
+    url = 'https://' + window.location.host + '/apt/server-ajax.php';
+    url = 'server-ajax.php';
+
     if (args == null) {
 	args = {"noargs" : "noargs"};
     }
@@ -47,6 +47,33 @@ var jacksOutput;
 
 function maketopmap(divname, xml, showinfo, withoutMultiSite)
 {
+    var xmlDoc = $.parseXML(xml);
+    var xmlXML = $(xmlDoc);
+
+    /*
+     * See how many sites. Do not use multiSite if no sites or
+     * only one site. Overrides the withoutMultiSite argument if set.
+     */
+    var sites  = {};
+
+    $(xmlXML).find("node").each(function() {
+	var JACKS_NS = "http://www.protogeni.net/resources/rspec/ext/jacks/1";
+	var node_id  = $(this).attr("client_id");
+	var site     = this.getElementsByTagNameNS(JACKS_NS, 'site');
+	if (! site.length) {
+	    return;
+	}
+	var siteid = $(site).attr("id");
+	if (siteid === undefined) {
+	    console.log("No site ID in " + site);
+	    return;
+	}
+	sites[siteid] = siteid;
+    });
+    if (Object.keys(sites) <= 1) {
+	withoutMultiSite = true;
+    }
+    
     if (! jacksInstance)
     {
 	jacksInstance = new window.Jacks({

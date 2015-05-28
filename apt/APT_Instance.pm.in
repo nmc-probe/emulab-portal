@@ -453,6 +453,10 @@ sub RecordHistory($)
     my ($self) = @_;
     my $uuid = $self->uuid();
 
+    DBQueryWarn("replace into apt_instance_aggregate_history ".
+		"select * from apt_instance_aggregates where uuid='$uuid'")
+	or return -1;
+
     DBQueryWarn("replace into apt_instance_history ".
 		"select uuid,name,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
@@ -553,6 +557,9 @@ sub ComputeNodeCounts($)
 	    print STDERR "Could not parse manifest for $sliver\n";
 	    return -1;
 	}
+	my $pcount = 0;
+	my $vcount = 0;
+	
 	foreach my $ref (GeniXML::FindNodes("n:node",
 					    $manifest)->get_nodelist()) {
 	    my $virtualization_type = GeniXML::GetVirtualizationSubtype($ref);
@@ -565,11 +572,17 @@ sub ComputeNodeCounts($)
 
 	    if (defined($virtualization_type) &&
 		$virtualization_type eq "emulab-xen") {
-		$virtnode_count++;
+		$vcount++;
 		next;
 	    }
-	    $physnode_count++;
+	    $pcount++;
 	}
+	$sliver->Update({"physnode_count" => $pcount,
+			 "virtnode_count" => $vcount})
+	    == 0 or return -1;
+	    
+	$physnode_count += $pcount;
+	$virtnode_count += $vcount;
     }
     $self->Update({"physnode_count" => $physnode_count,
 		   "virtnode_count" => $virtnode_count})
@@ -731,7 +744,10 @@ sub instance($)	        { return $_[0]->{'INSTANCE'}; }
 sub GenTemp($$)
 {
     my ($class, $instance) = @_;
-    my $webtask = WebTask->Create($instance->uuid());    
+    my $webtask = WebTask->LookupByObject($instance->uuid());
+    if (!defined($webtask)) {
+	$webtask = WebTask->Create($instance->uuid());
+    }
     $webtask->AutoStore(1);
     
     my $self            = {};
@@ -868,6 +884,31 @@ sub Refresh($)
 	if ($self->webtask()->Refresh());
 
     return 0;
+}
+
+#
+# Perform some updates ...
+#
+sub Update($$)
+{
+    my ($self, $argref) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uuid = $self->uuid();
+    my $urn  = $self->aggregate_urn();
+
+    my $query = "update apt_instance_aggregates set ".
+	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
+
+    $query .= " where uuid='$uuid' and aggregate_urn='$urn'";
+
+    return -1
+	if (! DBQueryWarn($query));
+
+    return Refresh($self);
 }
 
 sub SetStatus($$)
