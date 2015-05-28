@@ -118,14 +118,12 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 							+'</div></div>');
 					}
 				});
+			    if (!$('#cluster_status_link').length) {
 				$('#stepsContainer-p-2 #finalize_options').parent().append(''
-					+'<div id="cluster_status_link" class="hidden"><center>'
+					+'<div id="cluster_status_link"><center>'
 						+'<a target="_blank" href="cluster-status.php">Check Cluster Status</a>'
 					+'</center></div>');
-
-				if ($('#nosite_selector').length || $('#site_selector').length) {
-					$('#cluster_status_link').removeClass('hidden');
-				}
+			    }
 			}
 
 			if (currentIndex == 2) {
