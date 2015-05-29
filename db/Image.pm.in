@@ -797,13 +797,13 @@ sub NewVersion($$$$)
     # Fix up the path by appending the version number.
     #
     my $path = $self->path();
-    if (0) {
-    if ($path =~ /^(.*):\d+$/) {
-	$path = $1 . ":${clone_vers}";
-    }
-    else {
-	$path .= ":${clone_vers}";
-    }
+    if (!$self->IsDirPath()) {
+	if ($path =~ /^(.*):\d+$/) {
+	    $path = $1 . ":${clone_vers}";
+	}
+	else {
+	    $path .= ":${clone_vers}";
+	}
     }
     
     if (!$isdataset) {
