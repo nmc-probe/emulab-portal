@@ -7192,6 +7192,19 @@ sub HandleBlockstore($$$$$$@)
 
 	    push(@attributes, ["lease", $lease->lease_idx(), 1]);
 	}
+	else {
+	    $size = GeniXML::GetText("size", $blockref);
+	
+	    if (!defined($size)) {
+		$message = "Missing blockstore size for $bsname";
+		goto bad;
+	    }
+	}
+	$size = Blockstore::ConvertToMebi($size);
+	if ($size < 0) {
+	    $message = "Illegal blockstore size for $bsname";
+	    goto bad;
+	}
     }
     else {
 	#
