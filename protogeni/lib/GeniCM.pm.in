@@ -7199,11 +7199,11 @@ sub HandleBlockstore($$$$$$@)
 		$message = "Missing blockstore size for $bsname";
 		goto bad;
 	    }
-	}
-	$size = Blockstore::ConvertToMebi($size);
-	if ($size < 0) {
-	    $message = "Illegal blockstore size for $bsname";
-	    goto bad;
+	    $size = Blockstore::ConvertToMebi($size);
+	    if ($size < 0) {
+		$message = "Illegal blockstore size for $bsname";
+		goto bad;
+	    }
 	}
     }
     else {
