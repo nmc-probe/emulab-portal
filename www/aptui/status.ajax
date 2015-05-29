@@ -123,6 +123,17 @@ function Do_GetInstanceStatus()
         }
     }
     $blob["havemanifests"] = $havemanifests;
+
+    # Reflect errors back to the user.
+    $webtask = WebTask::LookupByObject($instance->uuid());
+    if ($webtask && $webtask->exited()) {
+        if ($webtask->exitcode() == 26) {
+            $blob["reason"] = "Not enough free nodes, please try again later.";
+        }
+        else {
+            $blob["reason"] = htmlentities($webtask->TaskValue("output"));
+        }
+    }
     SPITAJAX_RESPONSE($blob);
 }
 
