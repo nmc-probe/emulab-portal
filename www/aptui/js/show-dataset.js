@@ -102,7 +102,8 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	 * If the state is busy, then lets poll watching for it to
 	 * go valid.
 	 */
-	if (fields.dataset_state == "busy" ||
+	if (cansnapshot &&
+	    fields.dataset_state == "busy" ||
 	    fields.dataset_state == "allocating") {
 	    ShowProgressModal();
 	}

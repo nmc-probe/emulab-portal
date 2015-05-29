@@ -96,7 +96,7 @@ function (_, sup, moment, mainString, helpString)
 	    }
 	}
 	if (!editing) {
-	    $('#create_dataset_form input[type=radio]').change(function() {
+	    $('#create_dataset_form [name=dataset_type]').change(function() {
 		var val = $(this).val();
 		if (val == "stdataset") {
 		    $('#dataset_expires_div').removeClass("hidden");
