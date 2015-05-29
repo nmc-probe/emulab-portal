@@ -407,8 +407,8 @@ function Do_RequestExtension()
 	$slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 	$new_expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
         $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
-        $before = date("Y-m-d H:i:s T", strtotime($expires_time));
-        $now = date("Y-m-d H:i:s T", strtotime(time()));
+        $before = date("Y-m-d H:i:s T", $expires_time);
+        $now = date("Y-m-d H:i:s T", time());
         list($cluster) = Instance::ParseURN($instance->aggregate_urn());
 
         #
