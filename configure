@@ -5243,6 +5243,7 @@ if test x"$PROTOGENI_NICKNAME" = x"unknown"; then
     *colorado.edu) PROTOGENI_NICKNAME="colorado-ig";;
     *cenic.net) PROTOGENI_NICKNAME="cenic-ig";;
     *vt.edu) PROTOGENI_NICKNAME="vt-ig";;
+    *stitch.geniracks.net) PROTOGENI_NICKNAME="stitch-ig";;
     esac
 fi
 
