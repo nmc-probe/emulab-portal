@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -33,12 +33,12 @@ PAGEHEADER("Emulab Software Distributions");
 ?>
 
 <ul>
-<li> The latest version of the Emulab
-    software is available upon request from our <a href="http://users.emulab.net/trac/emulab/wiki/GitRepository">git repository</a>
+<li> The latest version of the Emulab software can be
+     <a href="http://wiki.emulab.net/wiki/GitRepository">downloaded via Git</a>.
 </li><p>
 
 <li> 
-     Emulab GUI Client v0.2
+     The Emulab GUI Client v0.2.<br>
      <a href="/downloads/netlab-client.jar">(JAR</a>,
      <a href="/downloads/netlab-client-0.2.tar.gz">source tarball</a>
      <!-- <img src="/new.gif" alt="&lt;NEW&gt;"> -->).
@@ -50,13 +50,24 @@ PAGEHEADER("Emulab Software Distributions");
      for more information.
      </li><p>
 
-<li> Frisbee disk loader.
-     The latest frisbee and imagezip sources can be found in the
-     <a href="/downloads/emulab-080630.tar.gz">Emulab release</a>.
-     The last standalone ISO image for a bootable Frisbee client
-     is still <a href="/downloads/frisbee5-fs-20050819.iso">
-     frisbee5-fs-20050819.iso</a> which includes binaries built from the
-     5/16/2005 sources.
+<li> The Frisbee disk loader.<br>
+     We no longer support Frisbee as a separate distribution.
+     The Frisbee source is part of the Emulab source distribution and can
+     be found in the <code>clientside/os/frisbee.redux</code> subdirectory.
+     It is normally built as part of the complete Emulab build process,
+     but there is a <code>Makefile.sa-linux</code> which should work to build
+     Frisbee independently of Emulab. The tool for creating Frisbee format
+     disk images is in the <code>clientside/os/imagezip subdirectory</code>.
+     Likewise, there is a <code>Makefile.sa-linux</code> standalone Makefile.
+     <p>
+     We also no longer distribute a bootable FreeBSD ISO image with
+     the Frisbee client included. The last such distribution is from
+     July 2008 and can still be found
+     <a href="/downloads/frisbee6-fs-20080702.iso">here</a>,
+     but it is based on FreeBSD 6 and is unlikely to boot on any
+     modern hardware. However, with a small amount of work you should
+     be able to build the Frisbee client and embed it in the bootable
+     distro of your choice.
      </li>
 <ul>
 
