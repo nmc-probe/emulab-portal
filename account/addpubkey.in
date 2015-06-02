@@ -623,6 +623,7 @@ sub GenerateKeyFile()
 	unlink($outfile);
 	fatal("Could not copy authorized_keys file to $CONTROL");
     }
+    unlink($outfile);
     return 0;
 }
 
