@@ -39,13 +39,15 @@ sub usage()
 	  "Options:\n".
 	  "       -q      Turn on quiet mode\n".
 	  "       -f      Force even if it make no sense.\n".
-	  "       -m      With force, just mark as ready/released.\n");
+	  "       -m      With force, just mark as ready/released.\n".
+	  "       -n      Impotent mode; just show what would be done.\n");
     exit(-1);
 }
-my $optlist    = "dqfm";
+my $optlist    = "dqfmn";
 my $debug      = 0;
 my $quiet      = 0;
 my $force      = 0;
+my $impotent   = 0;
 my $markready  = 0;
 
 #
@@ -93,6 +95,9 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"q"})) {
     $quiet = 1;
 }
+if (defined($options{"n"})) {
+    $impotent = 1;
+}
 if (defined($options{"f"})) {
     $force = 1;
     if (defined($options{"m"})) {
@@ -124,9 +129,14 @@ if ($image->released() && !$force) {
 	  "Maybe you need to provide imageid:version");
 }
 if ($force && $markready) {
-    print "Marking image ready/released, but not doing anything else\n";
-    $image->MarkReady();
-    $image->MarkReleased();
+    if ($impotent) {
+	print "Would mark image ready/released, but not do anything else\n";
+    }
+    else {
+	print "Marking image ready/released, but not doing anything else\n";
+	$image->MarkReady();
+	$image->MarkReleased();
+    }
     exit(0);
 }
 if (!$image->ready()) {
@@ -166,46 +176,53 @@ else {
     $version0 = $image;
 }
 if ($version0->path() =~ /^\/usr\/testbed/) {
-    my $vers0dest = "$PROJROOT/" . $image->pid() . "/images/";
+    my $vers0src = "$PROJROOT/" . $image->pid() . "/images/";
+    if ($version0->IsDirPath()) {
+	# Add in the directory.
+	$vers0src .= basename($version0->path());
+    }
+    
     #
     # For version 0 of the image, create_image sticks the file out on /proj,
-    # but does not change the image path. 
+    # but leaves the image path set to $TB/images
     #
-    $copyfiles{"fillimagefile"} =
-	[($image->version() ?
-	  "/usr/testbed/images/" . basename($image->FullImageFile()) :
-	  $vers0dest . basename($image->FullImageFile())),
-	 $image->FullImageFile()];
-    $copyfiles{"deltaimagefile"} =	
-	[($image->version() ?
-	  "/usr/testbed/images/" . basename($image->DeltaImageFile()) :
-	  $vers0dest . basename($image->DeltaImageFile())),
-	 $image->DeltaImageFile()];
-    $copyfiles{"fullsigfile"} =
-	[($image->version() ?
-	  "/usr/testbed/images/" . basename($image->FullImageSigFile()) :
-	  $vers0dest . basename($image->FullImageSigFile())),
-	 $image->FullImageSigFile()];
-    $copyfiles{"deltasigfile"} =
-	[($image->version() ?
-	  "/usr/testbed/images/" . basename($image->DeltaImageSigFile()) :
-	  $vers0dest . basename($image->FullImageSigFile())),
-	 $image->DeltaImageSigFile()];
+    $copyfiles{($image->version() ?
+		$image->FullImageFile() : 
+		$vers0src . basename($image->FullImageFile()))} =
+		"/usr/testbed/images/" . basename($image->FullImageFile());
+    $copyfiles{($image->version() ?
+		$image->DeltaImageFile() :
+		$vers0src . basename($image->DeltaImageFile()))} =
+		"/usr/testbed/images/" . basename($image->DeltaImageFile());
+    $copyfiles{($image->version() ?
+		$image->FullImageSigFile() :
+		$vers0src . basename($image->FullImageSigFile()))} =
+		"/usr/testbed/images/" . basename($image->FullImageSigFile());
+    $copyfiles{($image->version() ?
+		$image->DeltaImageSigFile() :
+		$vers0src . basename($image->FullImageSigFile()))} =
+		"/usr/testbed/images/" . basename($image->DeltaImageSigFile());
     
     if ($image->version()) {
 	if ($image->IsDirPath()) {
-	    $updatepath = "/usr/testbed/image";
+	    $updatepath =
+		"/usr/testbed/images/" . basename($image->path()) . "/";
 	}
 	else {
-	    $updatepath = $image->FullImageFile();
+	    $updatepath = 
+		"/usr/testbed/images/" . basename($image->path());
 	}
     }
-    foreach my $key (keys(%copyfiles)) {
-	my ($from, $to) = @{$copyfiles{$key}};
+    foreach my $from (keys(%copyfiles)) {
+	my $to = $copyfiles{$from};
 
 	next
 	    if (! -e $from);
 
+	if ($impotent) {
+	    print "Would copy ${FSNODE}:$from $to\n";
+	    next;
+	}
 	if (!$quiet) {
 	    print "Copying ${FSNODE}:$from $to\n";
 	}
@@ -216,24 +233,34 @@ if ($version0->path() =~ /^\/usr\/testbed/) {
 	}
     }
     if (defined($updatepath)) {
-	if ($image->Update({"path" => $updatepath})) {
+	if ($impotent) {
+	    print "Would update path to $updatepath\n";
+	}
+	elsif ($image->Update({"path" => $updatepath})) {
 	    $image->Unlock();
 	    fatal("Failed to update path");
 	}
     }
-    if (!$quiet) {
-	print "Running imagevalidate ...\n";
+    if ($impotent) {
+	print "Would run imagevalidate on " . $image->versname() . "\n";
     }
-    system("$IMAGEVALIDATE -u " . ($quiet ? "-q " : "") .
-	   $image->pid() . "," . $image->imagename() . ":" .
-	   $image->version());
-    if ($?) {
-	$image->Unlock();
-	fatal("Failed to validate the image!");
+    else {
+	if (!$quiet) {
+	    print "Running imagevalidate on " . $image->versname() . "\n";
+	}
+	system("$IMAGEVALIDATE -u " . ($quiet ? "-q " : "") .
+	       $image->versname());
+	if ($?) {
+	    $image->Unlock();
+	    fatal("Failed to validate the image!");
+	}
     }
 }
 # Now mark as released.
-if ($image->Release()) {
+if ($impotent) {
+    print "Would mark image as released\n";
+}
+elsif ($image->Release()) {
     $image->Unlock();    
     fatal("Could not mark image as released!");
 }
@@ -242,16 +269,21 @@ if ($image->Release()) {
 if (keys(%copyfiles)) {
     my @todelete = ();
     
-    foreach my $key (keys(%copyfiles)) {
-	my ($from, $to) = @{$copyfiles{$key}};
-
+    foreach my $from (keys(%copyfiles)) {
 	push(@todelete, $from);
 	push(@todelete, $from . ".sha1");
     }
-    if (!$quiet) {
-	print "Removing temporary copy on $FSNODE\n";
+    if ($impotent) {
+	foreach my $file (@todelete) {
+	    print "Would delete $file\n";
+	}
     }
-    system("$SUDO $SSH ${FSNODE} rm -f @todelete");
+    else {
+	if (!$quiet) {
+	    print "Removing temporary copy on $FSNODE\n";
+	}
+	system("$SUDO $SSH ${FSNODE} rm -f @todelete");
+    }
 }
 
 $image->Unlock();    
