@@ -587,7 +587,10 @@ function CheckLoginConditions($status)
         USERERROR("You have not verified your account yet!",
 		  1, HTTP_403_FORBIDDEN);
     if ($status & CHECKLOGIN_UNAPPROVED)
-        USERERROR("Your account has not been approved yet!",
+        USERERROR("Your account has not been approved yet! ".
+                  "<br>Please wait till ".
+                  "your account is approved (you will receive email) and then ".
+                  "reload this page.",
 		  1, HTTP_403_FORBIDDEN);
     if (($status & CHECKLOGIN_WEBONLY) && ! ISADMIN())
         USERERROR("Your account does not permit you to access this page!",
