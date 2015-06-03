@@ -517,7 +517,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
 #
 function Do_ConsoleURL()
 {
-    global $instance, $creator;
+    global $instance, $creator, $this_user;
     global $ajax_args;
 
     if (StatusSetupAjax(1)) {
