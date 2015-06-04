@@ -249,6 +249,23 @@ sub AddInterfaceVlan($$$$$) {
 			 "link_id='${DOMAIN}_link_$linkid'" );
 }
 
+sub AddSliceUser($$$) {
+
+    my ($slice_id,$user_urn,$user_role) = @_;
+    my $udomain;
+    my $utype;
+    my $uname;
+
+    ( $udomain, $utype, $uname ) = GeniHRN::Parse( $user_urn );
+
+    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_slice_user SET " .
+			 "id='${udomain}_user_${uname}', " .
+			 "slice_id='$slice_id', " .
+			 "urn='$user_urn', " .
+			 "role='$user_role', " .
+			 "selfRef='$URL/info/user/${udomain}_user_${uname}';" );
+}
+
 my %portcounters;
 
 while (1) {
@@ -556,11 +573,207 @@ while (1) {
 	close( P );
     }
 
+    my %slices;
+    my %users;
+    
+    emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_aggregate_resource WRITE, " .
+			 "ops_aggregate_sliver WRITE, " .
+			 "ops_node WRITE, " .
+			 "ops_slice WRITE, " .
+			 "ops_slice_user WRITE, " .
+			 "ops_sliver WRITE, " .
+			 "ops_sliver_resource WRITE, " .
+			 "ops_user WRITE" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate_sliver" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_slice" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_slice_user" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_sliver" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_sliver_resource" );
+    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_user" );
+
+    $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT s.idx, s.uuid, s.slice_uuid, unix_timestamp(s.created)*1000000, unix_timestamp(slices.expires)*1000000, c1.urn, c2.urn, s.resource_id FROM `geni-cm`.geni_slivers AS s, `geni-cm`.geni_certificates AS c1, `geni-cm`.geni_certificates AS c2, `geni-cm`.geni_slices AS slices WHERE s.slice_uuid=c1.uuid AND s.creator_uuid=c2.uuid AND s.slice_uuid=slices.uuid AND s.resource_type='Node'" );
+    if( $query_result && $query_result->numrows) {
+	my @result;
+
+	while( @result = $query_result->fetchrow_array() ) {
+	    my ($idx, $uuid, $slice_uuid, $created, $expires, $slice_urn, $creator_urn, $node_id) = @result;
+
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver SET " .
+				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/sliver#', " .
+				 "id='${DOMAIN}_sliver_$idx'," .
+				 "selfRef='$URL/info/sliver/${DOMAIN}_sliver_$idx'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+sliver+$idx'," .
+				 "uuid='$uuid'," .
+				 "ts='$ts'," .
+				 "aggregate_urn='urn:publicid:IDN+$DOMAIN+authority+cm'," .
+				 "aggregate_href='$URL/info/aggregate/$NICKNAME'," .
+				 "slice_urn='$slice_urn'," .
+				 "slice_uuid='$slice_uuid'," .
+				 "creator='$creator_urn'," .
+				 "created='$created'," .
+				 "expires='$expires'," .
+				 "node_id='$node_id';" );
+
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver_resource SET " .
+				 "id='${DOMAIN}_node_${node_id}'," .
+				 "sliver_id='${DOMAIN}_sliver_${idx}'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+node+$node_id'," .
+				 "selfRef='$URL/info/node/${DOMAIN}_node_${node_id}';" );
+
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_sliver SET " .
+				 "id='${DOMAIN}_sliver_${idx}'," .
+				 "aggregate_id='$NICKNAME'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+sliver+$idx'," .
+				 "selfRef='$URL/info/sliver/${DOMAIN}_sliver_$idx'" );
+	    
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
+				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/node#', " .
+				 "id='${DOMAIN}_node_${node_id}'," .
+				 "selfRef='$URL/info/node/${DOMAIN}_node_${node_id}'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+node+$node_id'," .
+				 "ts='$ts'," .
+				 "node_type='server'" );
+
+	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
+				 "id='${DOMAIN}_node_${node_id}'," .
+				 "aggregate_id='$NICKNAME'," .
+				 "urn='urn:publicid:IDN+$DOMAIN+node+$node_id'," .
+				 "selfRef='$URL/info/node/${DOMAIN}_node_${node_id}'" );
+	    
+	    $slices{$slice_uuid} = 1;
+	}
+    }
+    
+    $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT s.idx, s.uuid, s.slice_uuid, unix_timestamp(s.created)*1000000, unix_timestamp(slices.expires)*1000000, c1.urn, c2.urn, s.resource_id FROM `geni-cm`.geni_slivers AS s, `geni-cm`.geni_certificates AS c1, `geni-cm`.geni_certificates AS c2, `geni-cm`.geni_slices AS slices WHERE s.slice_uuid=c1.uuid AND s.creator_uuid=c2.uuid AND s.slice_uuid=slices.uuid AND s.resource_type='Interface'" );
+    if( $query_result && $query_result->numrows) {
+	my @result;
+
+	while( @result = $query_result->fetchrow_array() ) {
+	    my ($idx, $uuid, $slice_uuid, $created, $expires, $slice_urn, $creator_urn, $if_id) = @result;
+
+	    $if_id =~ s{//}{:};
+	    
+	    my $pquery_result = emdbi::DBQueryWarnN(
+		$tbdb, "SELECT id FROM vlans WHERE members LIKE '%$if_id%'" );
+	    if( $pquery_result && $pquery_result->numrows ) {
+		my $lanid;
+		($lanid) = $pquery_result->fetchrow_array();
+		
+		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver SET " .
+				     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/sliver#', " .
+				     "id='${DOMAIN}_sliver_$idx'," .
+				     "selfRef='$URL/info/sliver/${DOMAIN}_sliver_$idx'," .
+				     "urn='urn:publicid:IDN+$DOMAIN+sliver+$idx'," .
+				     "uuid='$uuid'," .
+				     "ts='$ts'," .
+				     "aggregate_urn='urn:publicid:IDN+$DOMAIN+authority+cm'," .
+				     "aggregate_href='$URL/info/aggregate/$NICKNAME'," .
+				     "slice_urn='$slice_urn'," .
+				     "slice_uuid='$slice_uuid'," .
+				     "creator='$creator_urn'," .
+				     "created='$created'," .
+				     "expires='$expires'," .
+				     "link_id='${lanid}i';" );
+	    
+		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver_resource SET " .
+				     "id='${DOMAIN}_link_${lanid}i'," .
+				     "sliver_id='${DOMAIN}_sliver_${idx}'," .
+				     "urn='urn:publicid:IDN+$DOMAIN+link+${lanid}i'," .
+				     "selfRef='$URL/info/link/${DOMAIN}_link_${lanid}i';" );
+		
+		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_sliver SET " .
+				     "id='${DOMAIN}_sliver_${idx}'," .
+				     "aggregate_id='$NICKNAME'," .
+				     "urn='urn:publicid:IDN+$DOMAIN+sliver+$idx'," .
+				     "selfRef='$URL/info/sliver/${DOMAIN}_sliver_$idx'" );
+		$slices{$slice_uuid} = 1;
+	    }
+	}
+    }
+
+    foreach my $slice( keys( %slices ) ) {
+	$query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT s.uuid, unix_timestamp(s.created)*1000000, unix_timestamp(s.expires)*1000000, c1.urn, s.creator_uuid, c2.urn FROM `geni-cm`.geni_slices AS s, `geni-cm`.geni_certificates AS c1, `geni-cm`.geni_certificates AS c2 WHERE s.uuid='$slice' AND c1.uuid=s.uuid AND c2.uuid=s.creator_uuid;" );
+
+	if( $query_result && $query_result->numrows) {
+	    my @result;
+	    my $uquery_result;
+	    
+	    if( @result = $query_result->fetchrow_array() ) {
+		my ($slice_uuid, $created, $expires, $slice_urn, $creator_uuid, $creator_urn) = @result;
+
+		my $sdomain;
+		my $stype;
+		my $sname;
+		( $sdomain, $stype, $sname ) = GeniHRN::Parse( $slice_urn );
+
+		my $slice_id = "${sdomain}_${stype}_${sname}";
+		
+		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_slice SET " .
+				     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/slice#', " .
+				     "id='$slice_id'," .
+				     "selfRef='$URL/info/slice/$slice_id'," .
+				     "urn='$slice_urn'," .
+				     "uuid='$slice_uuid'," .
+				     "ts='$ts'," .
+				     "authority_urn='urn:publicid:IDN+$sdomain+authority+sa'," .
+				     "authority_href='$URL/info/authority/$sdomain'," .
+				     "created='$created'," .
+				     "expires='$expires';" );
+
+		AddSliceUser( $slice_id, $creator_urn, "creator" );
+		
+		$users{$creator_uuid} = 1;
+		
+		$uquery_result = emdbi::DBQueryWarnN( $tbdb, "SELECT b.user_uuid, c.urn FROM `geni-cm`.geni_bindings AS b, `geni-cm`.geni_certificates AS c WHERE b.user_uuid=c.uuid AND b.slice_uuid='$slice'" );
+		
+		if( $uquery_result && $uquery_result->numrows) {
+		    my @result;
+
+		    while( @result = $uquery_result->fetchrow_array() ) {
+			my ($user_uuid, $user_urn) = @result;
+
+			AddSliceUser( $slice_id, $user_urn, "user" );
+			
+			$users{$user_uuid} = 1;
+		    }
+		}
+	    }
+	}	
+    }
+
+    foreach my $user( keys( %users ) ) {
+	$query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT u.name, u.email, c.urn FROM `geni-cm`.geni_users AS u, `geni-cm`.geni_certificates AS c WHERE c.uuid=u.uuid AND u.uuid='$user';" );
+
+	if( $query_result && $query_result->numrows) {
+	    my @result;
+
+	    if( @result = $query_result->fetchrow_array() ) {
+		my ($user_name, $user_email, $user_urn) = @result;
+		my $udomain;
+		my $utype;
+		my $uname;
+
+		( $udomain, $utype, $uname ) = GeniHRN::Parse( $user_urn );
+
+		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_user SET " .
+				     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/user#', " .
+				     "id='${udomain}_user_${uname}', " .
+				     "selfRef='$URL/info/user/${udomain}_user_${uname}', " .
+				     "urn='$user_urn', " .
+				     "ts='$ts', " .
+				     "authority_urn='urn:publicid:IDN+$udomain+authority+sa', " .
+				     "authority_href='$URL/info/authority/$udomain'," .
+				     "fullname='$user_name', " .
+				     "email='$user_email';" );
+	    }
+	}
+    }			     
+
+    emdbi::DBQueryWarnN( $db, "UNLOCK TABLES" );
+    
     emdbi::DBQueryWarnN( $db, "FLUSH TABLES" );
     
     sleep( $INTERVAL );
-
-    # FIXME add slice, sliver, user information
 }
 
 sub fatal($)
