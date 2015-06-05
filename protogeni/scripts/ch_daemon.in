@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2013 University of Utah and the Flux Group.
+# Copyright (c) 2008-2013, 2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -187,6 +187,10 @@ sub ProbeCMs()
 	
 	next
 	    if ($authority->type() ne "cm");
+
+	# Silly.
+	next
+	    if ($authority->urn() =~ /al2s/);
 
 	if ($authority->disabled()) {
 	    $disabled .= "$urn\n";

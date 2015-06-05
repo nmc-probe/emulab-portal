@@ -149,12 +149,14 @@ sub Lookup($$)
     #
     # Grab the certificate, since we will probably want it.
     #
-    my $certificate = GeniCertificate->Lookup($uuid);
-    if (!defined($certificate)) {
-	print STDERR "Could not find certificate for authority $uuid\n";
-	return undef;
+    if ($self->{'AUTHORITY'}->{'urn'} !~ /al2s/)  {
+	my $certificate = GeniCertificate->Lookup($uuid);
+	if (!defined($certificate)) {
+	    print STDERR "Could not find certificate for authority $uuid\n";
+	    return undef;
+	}
+	$self->{'CERT'} = $certificate;
     }
-    $self->{'CERT'} = $certificate;
     
     # Add to cache. 
     $authorities{$self->{'AUTHORITY'}->{'uuid'}} = $self;
