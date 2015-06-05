@@ -354,6 +354,15 @@ function Do_RequestExtension()
                         "$autoextend_maxage days ago";
                 }
             }
+            #
+            # Temporary for GEC23
+            #
+            elseif (time() + ($wanted * 3600 * 24) >
+                    strtotime("2015-06-15 12:00:00")) {
+                $granted = 1;
+                $needapproval = 1;
+                $message = "because the testbed is mostly reserved for GEC23";
+            }
 	    #
 	    # Registered users are granted up to the autoextend_maximum
             # automatically. Beyond that, requires approval, but we still
