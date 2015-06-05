@@ -258,7 +258,7 @@ sub AddSliceUser($$$) {
 
     ( $udomain, $utype, $uname ) = GeniHRN::Parse( $user_urn );
 
-    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_slice_user SET " .
+    emdbi::DBQueryWarnN( $db, "INSERT IGNORE INTO ops_slice_user SET " .
 			 "id='${udomain}_user_${uname}', " .
 			 "slice_id='$slice_id', " .
 			 "urn='$user_urn', " .
