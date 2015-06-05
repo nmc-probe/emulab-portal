@@ -156,8 +156,8 @@ sub AddInterfaces($$$) {
 	    $speed = 1000000;
 	}
 
-	$speed *= 100;
-	$packets = $speed / 80;
+	$speed *= 1000;
+	$packets = $speed / 800;
 
 	emdbi::DBQueryWarnN( $db, "INSERT INTO ops_interface SET " .
 			     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/interface#', " .
@@ -541,6 +541,9 @@ while (1) {
 		my $tx_b = ( $counts[ 2 ] - $$oldcounts[ 2 ] ) / $INTERVAL;
 		my $tx_p = ( $counts[ 3 ] - $$oldcounts[ 3 ] ) / $INTERVAL;
 
+		$rx_b *= 8;
+		$tx_b *= 8;
+		
 		if( ( $rx_b >= 0 ) && ( $rx_p >= 0 ) &&
 		    ( $rx_b >= 0 ) && ( $rx_p >= 0 ) ) {
 		    emdbi::DBQueryWarnN( $db, "INSERT INTO " .

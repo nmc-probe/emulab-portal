@@ -47,7 +47,13 @@ void notification( event_handle_t h, event_notification_t n, void *unused ) {
 	       ( *p >= 'A' && *p <= 'Z' ) ||
 	       *p == '_' ) )
 	    return;
-		
+
+    /* The schema interpretation of "bps" changed from bytes per second
+       to bits per second in June 2015.  To avoid client-side version
+       headaches, we'll do the conversion here. */
+    if( strstr( tab, "_bps" ) )
+	sprintf( v, "%.1f", atof( v ) * 8.0 );
+    
     mysql_real_escape_string( &db, eid, id, strlen( id ) );
     mysql_real_escape_string( &db, ev, v, strlen( v ) );
 
