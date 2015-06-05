@@ -612,7 +612,7 @@ while (1) {
 				 "creator='$creator_urn'," .
 				 "created='$created'," .
 				 "expires='$expires'," .
-				 "node_id='$node_id';" );
+				 "node_id='${DOMAIN}_node_${node_id}';" );
 
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver_resource SET " .
 				 "id='${DOMAIN}_node_${node_id}'," .
@@ -673,7 +673,7 @@ while (1) {
 				     "creator='$creator_urn'," .
 				     "created='$created'," .
 				     "expires='$expires'," .
-				     "link_id='${lanid}i';" );
+				     "link_id='${DOMAIN}_link_${lanid}i';" );
 	    
 		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver_resource SET " .
 				     "id='${DOMAIN}_link_${lanid}i'," .
