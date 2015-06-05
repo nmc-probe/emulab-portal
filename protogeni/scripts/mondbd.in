@@ -585,13 +585,11 @@ while (1) {
 			 "ops_slice WRITE, " .
 			 "ops_slice_user WRITE, " .
 			 "ops_sliver WRITE, " .
-			 "ops_sliver_resource WRITE, " .
 			 "ops_user WRITE" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_aggregate_sliver" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_slice" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_slice_user" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_sliver" );
-    emdbi::DBQueryWarnN( $db, "DELETE FROM ops_sliver_resource" );
     emdbi::DBQueryWarnN( $db, "DELETE FROM ops_user" );
 
     $query_result = emdbi::DBQueryWarnN( $tbdb, "SELECT s.idx, s.uuid, s.slice_uuid, unix_timestamp(s.created)*1000000, unix_timestamp(slices.expires)*1000000, c1.urn, c2.urn, s.resource_id FROM `geni-cm`.geni_slivers AS s, `geni-cm`.geni_certificates AS c1, `geni-cm`.geni_certificates AS c2, `geni-cm`.geni_slices AS slices WHERE s.slice_uuid=c1.uuid AND s.creator_uuid=c2.uuid AND s.slice_uuid=slices.uuid AND s.resource_type='Node'" );
@@ -616,12 +614,6 @@ while (1) {
 				 "created='$created'," .
 				 "expires='$expires'," .
 				 "node_id='${DOMAIN}_node_${node_id}';" );
-
-	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver_resource SET " .
-				 "id='${DOMAIN}_node_${node_id}'," .
-				 "sliver_id='${DOMAIN}_sliver_${idx}'," .
-				 "urn='urn:publicid:IDN+$DOMAIN+node+$node_id'," .
-				 "selfRef='$URL/info/node/${DOMAIN}_node_${node_id}';" );
 
 	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_sliver SET " .
 				 "id='${DOMAIN}_sliver_${idx}'," .
@@ -678,12 +670,6 @@ while (1) {
 				     "expires='$expires'," .
 				     "link_id='${DOMAIN}_link_${lanid}i';" );
 	    
-		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver_resource SET " .
-				     "id='${DOMAIN}_link_${lanid}i'," .
-				     "sliver_id='${DOMAIN}_sliver_${idx}'," .
-				     "urn='urn:publicid:IDN+$DOMAIN+link+${lanid}i'," .
-				     "selfRef='$URL/info/link/${DOMAIN}_link_${lanid}i';" );
-		
 		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_sliver SET " .
 				     "id='${DOMAIN}_sliver_${idx}'," .
 				     "aggregate_id='$NICKNAME'," .
