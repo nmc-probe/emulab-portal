@@ -231,6 +231,9 @@ sub DoCreate()
 	    if ($size < 0) {
 		fatal("Could not parse size.");
 	    }
+	    if ($size <= 1) {
+		fatal("Size too small, try a little bigger");
+	    }
 	}
 	else {
 	    &$usage();
