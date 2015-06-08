@@ -40,7 +40,8 @@ LIB_STUFF       = portstats snmpit_intel.pm \
 		  snmpit_nortel.pm snmpit_hp.pm snmpit_apcon.pm \
 		  snmpit_arista.pm snmpit_arista_switch_daemon.py \
 		  snmpit_mellanox.pm MLNX_XMLGateway.pm \
-                  snmpit_force10.pm force10_expect.pm snmpit_h3c.pm
+                  snmpit_force10.pm force10_expect.pm snmpit_h3c.pm \
+                  snmpit_libNetconf.pm
 
 #
 # Force dependencies on the scripts so that they will be rerun through
