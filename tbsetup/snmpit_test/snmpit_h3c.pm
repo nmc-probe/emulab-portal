@@ -176,6 +176,14 @@ sub new($$$;$) {
 	      if $self->{DEBUG};
     }
 
+    # Use VRF for OF controller communication (H3C)?
+    if (exists($options->{'openflow_vrf'})
+	&& $options->{'openflow_vrf'}) {
+	$self->{OFVRF} = $options->{'openflow_vrf'};
+    } else {
+	$self->{OFVRF} = undef;
+    }
+
     #
     # set up hashes for internal use
     #
@@ -2088,12 +2096,16 @@ sub isOpenflowSupported($) {
     }
 }
 
+##############################################################################
+###                         H3C/Comware module                             ###
+##############################################################################
+
 package snmpit_h3c;
 use strict;
 use English;
+use XML::LibXML;
 use snmpit_lib;
-# use libtestbed;
-# use SNMP;
+use snmpit_libNetconf;
 use vars qw(@ISA);
 @ISA = 'snmpit_hpupd';
 
@@ -2116,6 +2128,45 @@ use vars qw(@ISA);
 # required as an atomic action for the older HP's.
 
 my $typeOID = 'hh3cifVLANType';
+
+#
+# Creates a new object.  Since snmpit_h3c is a child class of the HP
+# Provision class above, this constructor mainly relies on its
+# constructor.  The only other bit it does is create a
+# snmpit_libNetconf object for use when OpenFlow configuration is
+# requested.
+#
+# usage: new($classname,$devicename,$debuglevel,$authstr)
+#        returns a new object, blessed into the snmpit_intel class.
+#
+sub new($$$;$) {
+    my ($class, $devicename, $debuglevel, $authstr) = @_;
+
+    my ($community, $username, $passwd) = split(/:/, $authstr);
+    if (!$username) {
+	warn "$devicename: Username not set; defaulting to \"admin\"\n";
+	$username = "admin";
+    }
+
+    # Our parent class does most of the init work, and even blesses the
+    # returned object into THIS class (because this new() method didn't
+    # exist previously).
+    my $self = $class->SUPER::new($devicename, $debuglevel, $community);
+    if (!defined($self)) {
+	# Errors have already been emitted.
+	return undef;
+    }
+
+    my $ncobj = snmpit_libNetconf->new($devicename, $username, $passwd, 
+				       undef, $debuglevel);
+    if (!defined($ncobj)) {
+	warn "$self->{NAME}: Could not instantiate a libNetconf object!\n";
+	return undef;
+    }
+    $self->{NCOBJ} = $ncobj;
+
+    return $self;
+}
 
 # some h3c specific helper functions
 
@@ -2398,6 +2449,302 @@ sub otherTrunkedVlans($$$)
     my @others = ($self->leBitsToList($lowbits),
 		     map {$_ + 2048} $self->leBitsToList($highbits));
     return (grep { $_ ne "$pvid" } @others);
+}
+
+###
+### Section: Netconf support functions for H3C
+###
+my $H3C_DATA_URL = "http://www.hp.com/netconf/data:1.0";
+
+sub _el ($) { return XML::LibXML::Element->new($_[0]); }
+
+sub _zipelts (@) {
+    my $top_elt = shift;
+    my $cur_elt = $top_elt;
+    foreach $elt (@_) {
+	$cur_elt->appendChild($elt);
+	$cur_elt = $elt;
+    }
+    return $top_elt;
+}
+
+#
+# Make test filter to check for presence of OpenFlow commands on switch.
+#
+sub mkOFPTestFilter() {
+    my $filter_el = _el("filter");
+    $filter_el->setAttribute("type", "subtree");
+    my $top_el = _el("top");
+    $top_el->setNamespace($H3C_DATA_URL);
+    my $name_el = _el("Name");
+    $name_el->appendText("ofp");
+
+    return _zipelts($filter_el, $top_el, _el("RBAC"), _el("Features"), 
+		    _el("Feature"), $name_el);
+}
+
+#
+# Run a CLI command via Netconf
+#
+sub doH3CNetconfCLI($$) {
+    my ($self, $cmd) = @_;
+
+    my $retval = undef;
+
+    if (!$cmd) {
+	warn "snmpit_h3c::doH3CNetconfCLI(): Must supply CLI command!\n";
+	return undef;
+    }
+
+    my $cli_el = _el("Execution");
+    $cli_el->appendText($cmd);
+    my $clires = $self->{NCOBJ}->doRPC("CLI", $cli_el);
+    if ($clires->[0] == NCRPCRAWRES()) {
+	my $res_el = $clires->[1];
+	if ($res_el->nodeName() ne "CLI") {
+	    warn "snmpit_h3c::doH3CNetconfCLI(): got non-CLI data back!?\n";
+	    return undef;
+	}
+	my ($exec_el,) = $res_el->getChildrenByLocalName("Execution");
+	if (!$exec_el) {
+	    warn "snmpit_h3c::doH3CNetconfCLI(): No return data?!\n";
+	    return undef;
+	}
+	$retval = $exec_el->textContent() || "";
+    }
+    elsif ($clires->[0] eq NCRPCERR()) {
+	my $err = $clires->[1];
+	warn "snmpit_h3c::doH3CNetconfCLI(): Error returned:\n".
+	    "\ttype: $err->{type}, tag: $err->{tag}, sev: $err->{severity}\n".
+	    "\tmessage: $err->{message}\n".
+	    "\textra info: $err->{info}\n";
+	$retval = undef;
+    }
+    else {
+	warn "snmpit_h3c::doH3CNetconfCLI(): Unhandled return code ".
+	    "from libNetconf: $clires->[0]\n";
+	$retval = undef;
+    }
+
+    return $retval;
+}
+
+sub getOFInstances($) {
+    my ($self,) = @_;
+
+    my $instances = {};
+
+    my $rawres = $self->doH3CNetconfCLI("display openflow summary\n");
+    if (!defined($rawres)) {
+	warn "$self->{NAME} Cannot obtain list of OpenFlow instances!\n";
+	return undef;
+    }
+
+    while (my $rawln = split(/\n/, $rawres)) {
+	chomp $rawln;
+	RAWPARSE: for ($rawln) {
+	    /^(\d+)\s+(\w+)/ && do {
+		$instances->{$1} = $2;
+		last RAWPARSE;
+	    };
+	    # No default action
+	}
+    }
+
+    return $instances;
+}
+
+#
+# Create baseline OF instance for a given vlan.  Do not enable it.
+# OF controller is set elsewhere.
+#
+# WARNING: Does not check to see if instance exists first!
+#
+sub createOFInstance($$) {
+    my ($self, $vlan) = @_;
+
+    my $id = "$self->{NAME}::createOFInstance";
+
+    my $cmdstr = "openflow instance $vlan\n";
+    $cmdstr .= "classification vlan $vlan\n";
+    $cmdstr .= "flow-table mac-ip 100 extensibility 200\n";
+    $cmdstr .= "fail-open mode standalone\n";
+
+    my $clires = $self->doH3CNetconfCLI($cmdstr);
+    if (!defined($clires)) {
+	warn "$id: Error setting up OF instance for vlan $vlan\n";
+	return 0;
+    }
+    if ($clires =~ /^\s+(%.+)$/m) {
+	warn "$id: Error returned from CLI:\n".
+	    "\t$1\n";
+	return 0;
+    }
+
+    return 1;
+}
+
+###
+### OpenFlow snmpit module API functions follow.
+###
+
+#
+# Enable Openflow
+#
+sub enableOpenflow($$) {
+    my $self = shift;
+    my $vlan = shift;
+
+    my $id = "$self->{NAME}::enableOpenflow";
+
+    my $oflist = $self->getOFInstances();
+    if (!defined($oflist)) {
+	warn "$id: Could not fetch OF instance list!\n";
+	return 0;
+    }
+    if (!exists($oflist->{$vlan})) {
+	print "$id: Creating OF instance for vlan $vlan\n";
+	return 0
+	    if !$self->createOFInstance($vlan);
+    }
+
+    my $clires = $self->doH3CNetconfCLI("openflow instance $vlan\n".
+					"active instance\n");
+    if (!defined($clires)) {
+	warn "$id: Internal error while enabling OF for vlan $vlan\n";
+	return 0;
+    }
+    if ($clires =~ /^\s+(%.+)$/m) {
+	warn "$id: Error returned from CLI:\n".
+	    "\t$1\n";
+	return 0;
+    }
+
+    return 1;
+}
+
+#
+# Disable Openflow (and destroy related instance).
+#
+sub disableOpenflow($$) {
+    my $self = shift;
+    my $vlan = shift;
+
+    my $id = "$self->{NAME}::disableOpenflow";
+
+    my $oflist = $self->getOFInstances();
+    if (!defined($oflist)) {
+	warn "$id: Could not fetch OF instance list!\n";
+	return 0;
+    }
+    if (!exists($oflist->{$vlan})) {
+	warn "$id: No OF instance exists for vlan $vlan.\n";
+	return 1; # Not an error.
+    }
+
+    my $clires = $self->doH3CNetconfCLI("undo openflow instance $vlan\n");
+    if (!defined($clires)) {
+	warn "$id: Internal error while disabling OF for vlan $vlan\n";
+	return 0;
+    }
+    if ($clires =~ /^\s+(%.+)$/m) {
+	warn "$id: Error returned from CLI:\n".
+	    "\t$1\n";
+	return 0;
+    }
+
+    return 1;    
+}
+
+#
+# Set controller
+#
+sub setOpenflowController($$$$) {
+    my $self = shift;
+    my $vlan = shift;
+    my $controller = shift;
+    my $option = shift;
+
+    my $id = "self->{NAME}::setOpenflowController";
+    my ($ctrlproto, $ctrladdr, $ctrlport) = split(/:/, $controller);
+
+    # Get list of OF instances.
+    my $oflist = $self->getOFInstances();
+    if (!defined($oflist)) {
+	warn "$id: Error getting OF instances list.\n";
+	return 0;
+    }
+
+    # Create instance for this vlan, if it doesn't exist yet.
+    if (!exists($oflist->{$vlan})) {
+	print "$id: Creating OF instance for vlan $vlan\n";
+	return 0
+	    if !$self->createOFInstance($vlan);
+    }
+
+    # Put together command for setting the controller for the instance.
+    my $cmdstr = "openflow instance $vlan";
+    $cmdstr .= "controller 1 address ip $ctrladdr port $ctrlport".
+	(defined($self->{OFVRF}) ? " vrf $self->{OFVRF}\n" : "\n");
+    if (defined($option) && $option eq "fail-safe") {
+	$cmdstr .= "fail-open mode secure\n";
+    }
+
+    my $clires = $self->doH3CNetconfCLI($cmdstr);
+    if (!defined($clires)) {
+	warn "$id: Internal error while setting OF controller for vlan $vlan\n";
+	return 0;
+    }
+    if ($clires =~ /^\s+(%.+)$/m) {
+	warn "$id: Error returned from CLI:\n".
+	    "\t$1\n";
+	return 0;
+    }
+    
+    return 1;
+}
+
+#
+# Set listener
+#
+sub setOpenflowListener($$$) {
+    my $self = shift;
+    my $vlan = shift;
+    my $listener = shift;
+
+    warn "$self->{NAME}: OpenFlow listeners are not supported!";    
+    return 0;
+}
+
+#
+# Get used listener ports
+#
+sub getUsedOpenflowListenerPorts($) {
+    my $self = shift;
+
+    warn "$self->{NAME}: OpenFlow listeners are not supported!";    
+    return ();
+}
+
+#
+# Check if Openflow is supported on this switch
+#
+sub isOpenflowSupported($) {
+    my $self = shift;
+    my $myret = 0;
+
+    my $filter = mkOFPTestFilter();
+    my $res = $self->{NCOBJ}->doGet($filter);
+    if ($res && $res->[0] == $NCRPCDATA) {
+	my $data_el = $res->[1];
+	my $xpc = XML::LibXML::XPathContext->new($data_el);
+	$xpc->registerNs('x',$H3C_DATA_URL);
+	if ($xpc->findvalue("x:Name") eq "ofp") {
+	    $myret = 1;
+	}
+    }
+
+    return $myret;
 }
 
 # End with true

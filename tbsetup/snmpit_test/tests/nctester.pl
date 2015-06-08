@@ -9,20 +9,24 @@ if (@ARGV < 3) {
 }
 
 my ($switch, $user, $cmd, $xmlarg) = @ARGV;
+my $pass;
+($user, $pass) = split(/:/, $user);
 
 my $parser = XML::LibXML->new();
 
 my $argnode;
+
 if ($xmlarg) {
-    $argnode = eval { $parser->parse_balanced_chunk($xmlarg) };
+    my $argfrag = eval { $parser->parse_balanced_chunk($xmlarg) };
     if ($@) {
 	print "Error parsing XML argument: $@\n";
 	exit 1;
     }
+    $argnode = $argfrag->firstChild();
 }
 
-my $ncconn = snmpit_libNetconf->new($switch, $user);
-#$ncconn->debug(1);
+my $ncconn = snmpit_libNetconf->new($switch, $user, $pass);
+$ncconn->debug(1);
 if (!$ncconn) {
     print "Could not create new Netconf object for $switch!\n";
     exit 1;

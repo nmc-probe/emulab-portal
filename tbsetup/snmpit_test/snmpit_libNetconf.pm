@@ -34,6 +34,9 @@
 
 package snmpit_libNetconf;
 
+use Exporter qw( import );
+@EXPORT = qw ( NCRPCOK NCRPCDATA NCRPCRAWRES NCRPCERR );
+
 use Expect;
 use XML::LibXML;
 use Data::Dumper;
@@ -58,9 +61,10 @@ my $XMLNS_NCBASE   = "urn:ietf:params:xml:ns:netconf:base:1.0";
 my $NCCAP_BASE     = "urn:ietf:params:netconf:base:1.0";
 
 # Return codes from doRPC()
-my $NCRPCOK        = 1;
-my $NCRPCDATA      = 2;
-my $NCRPCERR       = 3;
+sub NCRPCOK()       { return 1; }
+sub NCRPCDATA()     { return 2; }
+sub NCRPCRAWRES()   { return 3; }
+sub NCRPCERR()      { return 4; }
 
 my @CAPABILITY_URNS = ($NCCAP_BASE,);
 my @DEF_EDIT_OPTS   = ("merge","replace","none");
@@ -73,46 +77,41 @@ my @DEF_EDIT_OPTS   = ("merge","replace","none");
 #
 # Create a new Netconf adapter object.  
 #
-# hostname and username components are required.  Port & debug level
+# hostname and username components are required.  password, port & debug level
 # are optional.
 #
-sub new($$$;$$) {
-
-    # The next two lines are some voodoo taken from perltoot(1)
+sub new($$$;$$$) {
     my $proto = shift;
     my $class = ref($proto) || $proto;
 
     my $name = shift;
-    my $userpass = shift;  # username and password
+    my $username = shift;
+    my $password = shift;
     my $port = shift;
-    my $debugLevel = shift;
+    my $debuglevel = shift;
 
-    #
     # Create the actual object
-    #
     my $self = {};
 
-    #
-    # Set the defaults for this object
-    # 
-    if (defined($debugLevel)) {
-        $self->{DEBUG} = $debugLevel;
+    # Init debug level
+    if (defined($debuglevel)) {
+        $self->{DEBUG} = $debuglevel;
     } else {
         $self->{DEBUG} = 0;
     }
 
-    # Grab usename and (if exists) password.
+    # store our device name.
     $self->{NAME} = $name;
-    ($self->{USERNAME}, $self->{PASSWORD}) = split(/:/, $userpass);
+
+    # Must pass in some kind of user name.
+    $self->{USERNAME} = $username;
     if (!$self->{USERNAME}) {
 	warn "libNetconf: ERROR: must supply username!\n";
 	return undef;
     }
 
     # Not strictly required if SSH keys are in use.
-    if (!$self->{PASSWORD}) {
-	$self->{PASSWORD} = "";
-    }
+    $self->{PASSWORD} = defined($password) ? $password : "";
 
     # Different port?
     if (defined($port)) {
@@ -121,6 +120,7 @@ sub new($$$;$$) {
 	$self->{PORT} = $NCSSHPORT;
     }
 
+    # Set initial message ID to use.
     $self->{MSGID} = $INITIAL_MSGID;
 
     if ($self->{DEBUG}) {
@@ -370,19 +370,25 @@ sub _decodeRPCReply($$) {
     my @rpc_errors = $root->getChildrenByLocalName("rpc-error");
     if (@rpc_errors) {
 	warn "Netconf RPC error(s) detected!\n";
-	return [$NCRPCERR, $self->_decodeRPCErrors(\@rpc_errors)];
-    }
-
-    # If there is a data element, it should be a singleton.
-    my ($data_el,) = $root->getChildrenByLocalName("data");
-    if ($data_el) {
-	return [$NCRPCDATA, $data_el];
+	return [NCRPCERR(), $self->_decodeRPCErrors(\@rpc_errors)];
     }
 
     # If there is an "ok" element, it should be a lone wolf.
     my ($ok_el,) = $root->getChildrenByLocalName("ok");
     if ($ok_el) {
-	return [$NCRPCOK, undef];
+	return [NCRPCOK(), undef];
+    }
+
+    # If there is a data element, it should be a singleton.
+    my ($data_el,) = $root->getChildrenByLocalName("data");
+    if ($data_el) {
+	return [NCRPCDATA(), $data_el];
+    }
+
+    # Unknown result data. Just pass back first child element "raw",
+    # if there are any children.
+    if ($root->hasChildNodes()) {
+	return [NCRPCRAWRES(), $root->firstChild()];
     }
 
     # Should not get here!
@@ -429,7 +435,7 @@ sub _closeSession($) {
     my ($self,) = @_;
     
     my $res = $self->doRPC("close-session");
-    if ($res && $res->[0] eq $NCRPCERR) {
+    if ($res && $res->[0] eq NCRPCERR()) {
 	warn "Error closing Netconf session with $self->{NAME}!\n";
 	$self->debugpr(Dumper($res->[1]));
     }
@@ -582,8 +588,9 @@ sub _doGetOp($$;$$) {
 	    warn "Input filter needs to be a valid XML::LibXML::Node object!\n";
 	    return undef;
 	}
-	if ($filter->nodeName() ne "filter") {
-	    warn "Top-level filter XML node must be called 'filter'\n";
+	my $fname = $filter->nodeName();
+	if ($fname ne "filter") {
+	    warn "Top-level filter XML node must be called 'filter' (was: $fname)\n";
 	    return undef;
 	}
 	push @XMLARGS, $filter;
