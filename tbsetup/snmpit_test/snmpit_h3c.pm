@@ -122,7 +122,7 @@ sub new($$$;$) {
 
     my $name = shift;
     my $debugLevel = shift;
-    my $community = shift;
+    my $authstr = shift;
 
     #
     # Create the actual object
@@ -153,10 +153,22 @@ sub new($$$;$) {
     $self->{MIN_VLAN}         = $options->{'min_vlan'};
     $self->{MAX_VLAN}         = $options->{'max_vlan'};
 
-    if ($community) { # Allow this to over-ride the default
-	$self->{COMMUNITY}    = $community;
+    # If no auth string was passed to the constructor, get value from DB.
+    if (!$authstr) {
+	$authstr = $options->{'snmp_community'};
+    }
+    # Grab extra auth parameters, if set.
+    my ($community, $username, $passwd) = split(/:/, $authstr);
+    $self->{COMMUNITY} = $community;
+    if ($username) {
+	$self->{USERNAME} = $username;
     } else {
-	$self->{COMMUNITY}    = $options->{'snmp_community'};
+	$self->{USERNAME} = "snmpit";
+    }
+    if ($passwd) {
+	$self->{PASSWORD} = $passwd;
+    } else {
+	$self->{PASSWORD} = $community;
     }
 
     # Use jumbo frames?
@@ -2142,23 +2154,17 @@ my $typeOID = 'hh3cifVLANType';
 sub new($$$;$) {
     my ($class, $devicename, $debuglevel, $authstr) = @_;
 
-    my ($community, $username, $passwd) = split(/:/, $authstr);
-    if (!$username) {
-	warn "$devicename: Username not set; defaulting to \"admin\"\n";
-	$username = "admin";
-    }
-
     # Our parent class does most of the init work, and even blesses the
     # returned object into THIS class (because this new() method didn't
     # exist previously).
-    my $self = $class->SUPER::new($devicename, $debuglevel, $community);
+    my $self = $class->SUPER::new($devicename, $debuglevel, $authstr);
     if (!defined($self)) {
 	# Errors have already been emitted.
 	return undef;
     }
 
-    my $ncobj = snmpit_libNetconf->new($devicename, $username, $passwd, 
-				       undef, $debuglevel);
+    my $ncobj = snmpit_libNetconf->new($devicename, $self->{USERNAME}, 
+				       $self->{PASSWORD}, undef, $debuglevel);
     if (!defined($ncobj)) {
 	warn "$self->{NAME}: Could not instantiate a libNetconf object!\n";
 	return undef;
@@ -2461,7 +2467,7 @@ sub _el ($) { return XML::LibXML::Element->new($_[0]); }
 sub _zipelts (@) {
     my $top_elt = shift;
     my $cur_elt = $top_elt;
-    foreach $elt (@_) {
+    foreach my $elt (@_) {
 	$cur_elt->appendChild($elt);
 	$cur_elt = $elt;
     }
@@ -2486,9 +2492,10 @@ sub mkOFPTestFilter() {
 #
 # Run a CLI command via Netconf
 #
-sub doH3CNetconfCLI($$) {
-    my ($self, $cmd) = @_;
+sub doH3CNetconfCLI($$;$) {
+    my ($self, $cmd, $execflag) = @_;
 
+    my $clitype = $execflag ? "Execution" : "Configuration";
     my $retval = undef;
 
     if (!$cmd) {
@@ -2496,7 +2503,7 @@ sub doH3CNetconfCLI($$) {
 	return undef;
     }
 
-    my $cli_el = _el("Execution");
+    my $cli_el = _el($clitype);
     $cli_el->appendText($cmd);
     my $clires = $self->{NCOBJ}->doRPC("CLI", $cli_el);
     if ($clires->[0] == NCRPCRAWRES()) {
@@ -2505,7 +2512,7 @@ sub doH3CNetconfCLI($$) {
 	    warn "snmpit_h3c::doH3CNetconfCLI(): got non-CLI data back!?\n";
 	    return undef;
 	}
-	my ($exec_el,) = $res_el->getChildrenByLocalName("Execution");
+	my ($exec_el,) = $res_el->getChildrenByLocalName($clitype);
 	if (!$exec_el) {
 	    warn "snmpit_h3c::doH3CNetconfCLI(): No return data?!\n";
 	    return undef;
@@ -2540,7 +2547,7 @@ sub getOFInstances($) {
 	return undef;
     }
 
-    while (my $rawln = split(/\n/, $rawres)) {
+    foreach my $rawln (split(/\n/, $rawres)) {
 	chomp $rawln;
 	RAWPARSE: for ($rawln) {
 	    /^(\d+)\s+(\w+)/ && do {
@@ -2683,7 +2690,7 @@ sub setOpenflowController($$$$) {
     }
 
     # Put together command for setting the controller for the instance.
-    my $cmdstr = "openflow instance $vlan";
+    my $cmdstr = "openflow instance $vlan\n";
     $cmdstr .= "controller 1 address ip $ctrladdr port $ctrlport".
 	(defined($self->{OFVRF}) ? " vrf $self->{OFVRF}\n" : "\n");
     if (defined($option) && $option eq "fail-safe") {
@@ -2735,11 +2742,11 @@ sub isOpenflowSupported($) {
 
     my $filter = mkOFPTestFilter();
     my $res = $self->{NCOBJ}->doGet($filter);
-    if ($res && $res->[0] == $NCRPCDATA) {
+    if ($res && $res->[0] == NCRPCDATA()) {
 	my $data_el = $res->[1];
 	my $xpc = XML::LibXML::XPathContext->new($data_el);
 	$xpc->registerNs('x',$H3C_DATA_URL);
-	if ($xpc->findvalue("x:Name") eq "ofp") {
+	if ($xpc->findvalue("//x:Name") eq "ofp") {
 	    $myret = 1;
 	}
     }

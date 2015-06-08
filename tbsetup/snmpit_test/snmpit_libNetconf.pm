@@ -145,7 +145,9 @@ sub new($$$;$$$) {
 sub DESTROY($) {
     my ($self,) = @_;
 
-    $self->_closeSession();
+    if ($self->{SESS}) {
+	$self->_closeSession();
+    }
     $self->{SESS} = undef;
 }
 
@@ -212,7 +214,7 @@ sub XMLPrettyPrint($) {
 sub _expectConnect($)
 {
     my $self = shift;
-    my $id = "$self->{NAME}::createExpectObject()";
+    my $id = "$self->{NAME}::expectConnect()";
     my $error = "";
     my $spawn_cmd = "ssh -s -o StrictHostKeyChecking=no -p $self->{PORT} -l $self->{USERNAME} $self->{NAME} netconf";
 
@@ -502,7 +504,7 @@ sub doRPC($$;$) {
 
     my $exp = $self->{SESS};
     my $docstr = $xmldoc->serialize() . $NCDELIM;
-    $docstr =~ s/[\n\r]//g;
+    #$docstr =~ s/[\n\r]//g;  # Need line endings for CLI commands...
     $self->debugpr("Submitting: ". $docstr ."\n");
 
     sleep 1;
