@@ -533,7 +533,7 @@ function Do_ConsoleURL()
 	return;
     }
     if (!isset($this_user)) {
-	SPITAJAX_ERROR(1, "Only registered users can reboot/reload nodes");
+	SPITAJAX_ERROR(1, "Only registered users can view node consoles");
 	return;
     }
     if (!isset($ajax_args["node"])) {
