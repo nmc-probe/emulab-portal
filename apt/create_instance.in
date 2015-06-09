@@ -88,7 +88,7 @@ my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
 my $SSHSETUP      = "$TB/sbin/aptssh-setup";
 my $ADDPUBKEY     = "$TB/sbin/addpubkey";
 my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
-my $STITCHER      = "/usr/testbed/gcf/src/stitcher.py";
+my $STITCHER      = "$TB/gcf/src/stitcher.py";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -786,14 +786,7 @@ sub WaitForSliver($)
 	sleep($interval);
 	$seconds -= $interval;
     
-	my $response =
-	    Genixmlrpc::CallMethod($cmurl, undef,
-				   "SliverStatus",
-				   { "slice_urn"   => $slice_urn,
-				     "credentials" =>
-					 [$slice_credential->asString(),
-					  $speaksfor_credential->asString()]});
-
+	my $response = $aggobj->SliceStatus();
 	if (!defined($response) || !defined($response->value()) ||
 	    ($response->code() != GENIRESPONSE_SUCCESS &&
 	     $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
@@ -875,11 +868,13 @@ if (ParRun({"maxwaittime" => 99999, "maxchildren" => scalar(@aggregate_list)},
     # kill things cleanly later.
     #
     $slice->UnLock();
+    print STDERR "Internal error in WaitForSlivers\n";
+    $webtask->output("Internal error in WaitForSlivers");
     $instance->SetStatus("failed");
     $webtask->Exited(1);
     exit(-1);
 }
-print STDERR "$slice_urn\n";
+print "$slice_urn\n";
 
 #
 # Check the exit codes; any failure is a total failure (for now).
@@ -890,18 +885,24 @@ foreach my $aggobj (@aggregate_list) {
 
     # Updated in a forked child, must refresh. 
     $aggobj->Refresh();
-    print . $aggobj->_authority()->urn() . "\n";
+    print $aggobj->aggregate_urn() . "\n";
+    if ($code) {
+	$failed++;
+	print "WaitforSliver Failure!\n";
+	if (defined($aggobj->webtask()->output())) {
+	    $webtask->output($aggobj->webtask()->output());
+	    print $aggobj->webtask()->output() . "\n";
+	}
+	else {
+	    $webtask->output("WaitforSliver Failure at " .
+			     $aggobj->aggregate_urn());
+	}
+    }
     if (defined($aggobj->public_url())) {
 	print $aggobj->public_url() . "\n";
     }
     print "\n" . $aggobj->manifest() . "\n\n";
     print "------------------------------------------------------------\n\n";
-    
-    if ($code) {
-	$failed = 1;
-	$webtask->output($aggobj->webtask()->output())
-	    if (defined($aggobj->webtask()->output()));
-    }
 }
 $slice->UnLock();
 
@@ -1115,7 +1116,10 @@ sub RunStitcher()
     my $tmpdir        = tmpnam();
     my $slicecredfile = "$tmpdir/slicecred.xml";
     my $speaksforfile = "$tmpdir/speaksforcred.xml";
+    my $al2scredfile  = "$tmpdir/al2scred.xml";
     my $rspecfile     = "$tmpdir/rspec.xml";
+    my $stdoutfile    = "$tmpdir/stitcher.stdout";
+    my $stderrfile    = "$tmpdir/stitcher.stderr";
     my $failed        = 0;
 
     #
@@ -1128,6 +1132,7 @@ sub RunStitcher()
     #
     my $command = "$STITCHER --fileDir $tmpdir --cred $speaksforfile ".
 	"--slicecredfile $slicecredfile --usercredfile $slicecredfile ".
+	"--al2scredfile $al2scredfile --debug ".
 	"--scsURL https://nutshell.maxgigapop.net:8443/geni/xmlrpc  ".
 	"--speaksfor $user_urn -V3 allocate $slice_urn $rspecfile";
 
@@ -1135,9 +1140,9 @@ sub RunStitcher()
 	if (! mkdir("$tmpdir", 0755));
 
     print "Using $tmpdir for stitcher\n"
-	if ($debug);
+	if ($debug || $verbose);
     print "Stitcher command: $command\n"
-	if ($debug);
+	if ($debug || $verbose);
 
     goto bad
 	if ($instance->WriteCredentials($tmpdir));
@@ -1156,21 +1161,21 @@ sub RunStitcher()
     # Okay, run the stitcher. Only to allocate, we will do the provisions
     # so that we can pass the ssh keys more easily.
     #
-    system("cd $tmpdir; $command");
+    system("cd $tmpdir; $command > $stdoutfile 2> $stderrfile");
     if ($?) {
-	$webtask->output("Stitcher failed!");
+	if (-s $stderrfile) {
+	    $webtask->output(`cat $stderrfile`);
+	    system("/bin/cat $stderrfile");
+	}
+	else {
+	    $webtask->output("Stitcher failed!");
+	}
 	#
 	# Even if we fail, want to pick up whatever aggregates the stitcher
 	# decided to use, so that we can ensure all slivers get cleaned up
 	# at termination.
 	#
 	$failed = 1;
-
-	#
-	# Dump the stitcher output. Ick.
-	#
-	system("/bin/cat $tmpdir/stitcher.log")
-	    if (-e "$tmpdir/stitcher.log");
     }
     
     #
@@ -1180,6 +1185,7 @@ sub RunStitcher()
     #
     my @agglist = ();
     my $agglistfile;
+    my $al2smanifest;
     opendir(DIR, $tmpdir);
     my @files  = readdir(DIR);
     closedir(DIR);
@@ -1187,7 +1193,9 @@ sub RunStitcher()
     foreach my $file (@files) {
 	if ($file =~ /amlist.txt$/) {
 	    $agglistfile = "$tmpdir/$file";
-	    last;
+	}
+	elsif ($file =~ /manifest-rspec-al2s/) {
+	    $al2smanifest = "$tmpdir/$file";
 	}
     }
     #
@@ -1244,6 +1252,35 @@ sub RunStitcher()
 	my $errmsg    = "Provision failed on $urn";
 	$webtask->Refresh();
 
+	#
+	# AL2S was done with a createsliver, so we know its ready.
+	# The thing we lack is a manifest, and I cannot seem to get
+	# get ListResources to work there, so just read the file. 
+	#
+	if ($aggobj->isAL2S()) {
+	    if (!defined($al2smanifest) || ! -e $al2smanifest) {
+		print STDERR "No manifest for AL2S\n";
+		$aggobj->SetStatus("failed");
+		$webtask->output("No manifest for AL2S");
+		$webtask->Exited(-1);
+		return -1;
+	    }
+	    my $manifest_string = "";
+	    if (! open(MAN, $al2smanifest)) {
+		print STDERR "Could not open $al2smanifest\n";
+		$aggobj->SetStatus("failed");
+		$webtask->output("Could not open manifest file");
+		$webtask->Exited(-1);
+		return -1;
+	    }
+	    while (<MAN>) {
+		$manifest_string .= $_;
+	    }
+	    close(MAN);
+	    $aggobj->SetManifest($manifest_string);
+	    $aggobj->SetStatus("provisioned");
+	    return 0;
+	}
 	print "Provisioning at $urn\n";
 	if ($aggobj->Provision(\$errmsg, \@sshkeys)) {
 	    $aggobj->SetStatus("failed");
@@ -1261,13 +1298,16 @@ sub RunStitcher()
 	    return -1;
 	}
 	print "Calling SliverStart at $urn\n";
-	if (! defined($aggobj->SliverAction(\$errmsg, "start"))) {
+	my $response = $aggobj->SliverAction(\$errmsg, "start"); 
+	if (! defined($response)) {
 	    $aggobj->SetStatus("failed");
 	    $webtask->output($errmsg);
 	    $webtask->Exited(-1);
 	    print STDERR "SliverStart failed on $urn: $errmsg\n";
 	    return -1;
 	}
+	$aggobj->SetPublicURL($response->logurl())
+	    if (defined($response->logurl()));
 	$aggobj->SetStatus("provisioned");
 	$aggobj->SetManifest($manifest);
 	return 0;
@@ -1298,11 +1338,21 @@ sub RunStitcher()
 	    goto bad;
 	}
     }
+#    system("/bin/rm -rf $tmpdir")
+#	if (!$debug && defined($tmpdir) && -e $tmpdir);
     return 0;
 
   bad:
-    system("/bin/rm -rf $tmpdir")
-	if (!$debug && defined($tmpdir) && -e $tmpdir);
+    #
+    # Dump the stitcher output. Ick.
+    #
+    if (defined($tmpdir) && -e "$tmpdir/stitcher.log") {
+	print "------------- Stitcher Log ---------------\n";
+	system("/bin/cat $tmpdir/stitcher.log");
+	print "-----------------------------------------\n";
+    }
+#    system("/bin/rm -rf $tmpdir")
+#	if (!$debug && defined($tmpdir) && -e $tmpdir);
     return -1;
 }
 

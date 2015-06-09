@@ -668,6 +668,24 @@ sub WriteCredentials($$)
 	fatal("Could not create $credfile");
     print XML $speaksfor_credential->asString();
     close(XML);
+
+    #
+    # We do not generally need this, but might as well generate it,
+    # since we do not easily know if the stitcher is going to contact
+    # the AL2S aggregate, which does not support speaksfor.
+    #
+    $credfile = "$directory/al2scred.xml";
+    my $authcred = APT_Geni::GenAuthCredential($slice);
+    if (!defined($authcred)) {
+	print STDERR "Could not general auth cred!\n";
+	return -1;
+    }
+    unlink($credfile)
+	if (-e $credfile);
+    open(XML, ">$credfile") or
+	fatal("Could not create $credfile");
+    print XML $authcred->asString();
+    close(XML);
     
     return 0;
 }
@@ -681,7 +699,10 @@ use POSIX qw(tmpnam);
 use English;
 use GeniResponse;
 use Genixmlrpc;
+use GeniXML;
+use GeniHRN;
 use APT_Geni;
+use Data::Dumper;
 use vars qw($AUTOLOAD);
 use overload ('""' => 'Stringify');
 
@@ -705,6 +726,12 @@ sub Lookup($$$)
     $self->{'HASH'}     = {};
     $self->{'INSTANCE'} = $instance;
     bless($self, $class);
+
+    # Handy;
+    $self->{'AGGURN'}   = GeniHRN->new($self->aggregate_urn());
+
+    # Kludge
+    $self->{'ISAL2S'}   = ($self->aggregate_urn() =~ /al2s/ ? 1 : 0);
 
     my $webtask = WebTask->Lookup($self->webtask_id());
     return $self
@@ -739,6 +766,8 @@ AUTOLOAD {
 }
 sub webtask($)	        { return $_[0]->{'WEBTASK'}; }
 sub instance($)	        { return $_[0]->{'INSTANCE'}; }
+sub domain($)		{ return $_[0]->{'AGGURN'}->domain(); }
+sub isAL2S($)           { return $_[0]->{'ISAL2S'}; }
 
 # Backwards compat for a while
 sub GenTemp($$)
@@ -764,6 +793,7 @@ sub GenTemp($$)
     $self->{'INSTANCE'} = $instance;
     $self->{'WEBTASK'}  = $webtask;
     $self->{'HASH'}     = {};
+    $self->{'ISAL2S'}   = 0;
     bless($self, $class);
     
     return $self;
@@ -944,17 +974,33 @@ sub SetPublicURL($$)
 }
 sub SetManifest($$)
 {
-    my ($self,$manifest) = @_;
+    my ($self,$manifest_string) = @_;
 
     my $uuid = $self->uuid();
     my $urn  = $self->aggregate_urn();
-    my $safe_manifest = DBQuoteSpecial($manifest);    
+
+    #
+    # Jacks cannot handle the stitching section, so remove it for now.
+    #
+    my $manifest = GeniXML::Parse($manifest_string);
+    if (! defined($manifest)) {
+	print STDERR "Could not parse manifest for $urn\n";
+	print STDERR $manifest_string;
+	return -1;
+    }
+    my $stitching = GeniXML::FindNodesNS("n:stitching",
+					 $manifest, $GeniXML::STITCH_NS)->pop();
+    if (defined($stitching)) {
+	$manifest->removeChild($stitching);
+	$manifest_string = GeniXML::Serialize($manifest);
+    }
+    my $safe_manifest = DBQuoteSpecial($manifest_string);
 
     DBQueryWarn("update apt_instance_aggregates set manifest=$safe_manifest ".
 		"where uuid='$uuid' and aggregate_urn='$urn'") or
 	return -1;
 
-    $self->{'DBROW'}->{'manifest'} = $manifest;
+    $self->{'DBROW'}->{'manifest'} = $manifest_string;
     return 0;
 }
 
@@ -972,7 +1018,8 @@ sub GetGeniAuthority($)
 sub Terminate($)
 {
     my ($self) = @_;
-    my $credentials;
+    my $method;
+    my @params;
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
@@ -990,36 +1037,48 @@ sub Terminate($)
 	$slice->SetExpiration(time() + 3600);
     }
 
-    my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
-
-    #
-    # Special case; if the speaksfor_credential has expired cause it
-    # was for a nonlocal user, we have no choice but to throw away
-    # these credentials and generate a new one issued to the local SA
-    # instead of the user. 
-    #
-    if ($speaksfor_credential->IsExpired()) {
-	print STDERR "speaksfor credential has expired, generating a new one\n";
-
-	$slice_credential = APT_Geni::GenAuthCredential($slice);
+    if ($self->isAL2S()) {
+	my $slice_credential = APT_Geni::GenAuthCredential($slice);
 	if (!defined($slice_credential)) {
 	    print STDERR "Could not generate slice credential\n";
 	    return undef;
 	}
-	$credentials = [$slice_credential->asString()];
+	$method = "DeleteSliver";
+	@params = ($slice->urn(), [$slice_credential->asString()], {});
     }
     else {
-	$credentials = [$slice_credential->asString(),
-			$speaksfor_credential->asString()];
+	my $credentials;
+	my ($slice_credential, $speaksfor_credential) =
+	    APT_Geni::GenCredentials($slice, $geniuser);
+	return undef
+	    if (! (defined($speaksfor_credential) &&
+		   defined($slice_credential)));
+	#
+	# Special case; if the speaksfor_credential has expired cause it
+	# was for a nonlocal user, we have no choice but to throw away
+	# these credentials and generate a new one issued to the local SA
+	# instead of the user. 
+	#
+	if ($speaksfor_credential->IsExpired()) {
+	    print STDERR
+		"speaksfor credential has expired, generating a new one\n";
+
+	    $slice_credential = APT_Geni::GenAuthCredential($slice);
+	    if (!defined($slice_credential)) {
+		print STDERR "Could not generate slice credential\n";
+		return undef;
+	    }
+	    $credentials = [$slice_credential->asString()];
+	}
+	else {
+	    $credentials = [$slice_credential->asString(),
+			    $speaksfor_credential->asString()];
+	}
+	$method = "DeleteSlice";
+	@params = ({"slice_urn"   => $slice->urn(),
+		    "credentials" => $credentials,
+		   });
     }
-    my $args = {
-	"slice_urn"   => $slice->urn(),
-	"credentials" => $credentials,
-    };
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
@@ -1032,7 +1091,7 @@ sub Terminate($)
     my $tries = 10;
     while ($tries) {
 	$response =
-	    Genixmlrpc::CallMethod($cmurl, $context, "DeleteSlice", $args);
+	    Genixmlrpc::CallMethod($cmurl, $context, $method, @params);
 
 	# SEARCHFAILED is success.
 	return $response
@@ -1061,6 +1120,8 @@ sub Extend($$)
 {
     my ($self, $new_expires) = @_;
     my $credentials;
+    my $method;
+    my @params;
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
@@ -1069,89 +1130,103 @@ sub Extend($$)
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
-
-    #
-    # Special case; if the speaksfor_credential has expired cause it
-    # was for a nonlocal user, we have no choice but to throw away
-    # these credentials and generate a new one issued to the local SA
-    # instead of the user. 
-    #
-    if ($speaksfor_credential->IsExpired()) {
-	print STDERR "speaksfor credential has expired, generating a new one\n";
-
-	$slice_credential = APT_Geni::GenAuthCredential($slice);
+    if ($self->isAL2S()) {
+	my $slice_credential = APT_Geni::GenAuthCredential($slice);
 	if (!defined($slice_credential)) {
 	    print STDERR "Could not generate slice credential\n";
 	    return undef;
 	}
-	$credentials = [$slice_credential->asString()];
+	$method = "RenewSliver";
+	@params = ($slice->urn(), [$slice_credential->asString()],
+		   $new_expires, {});
     }
     else {
-	$credentials = [$slice_credential->asString(),
-			$speaksfor_credential->asString()];
-    }
+	my ($slice_credential, $speaksfor_credential) =
+	    APT_Geni::GenCredentials($slice, $geniuser);
+	return undef
+	    if (! (defined($speaksfor_credential) &&
+		   defined($slice_credential)));
+	
+	#
+	# Special case; if the speaksfor_credential has expired cause it
+	# was for a nonlocal user, we have no choice but to throw away
+	# these credentials and generate a new one issued to the local SA
+	# instead of the user. 
+	#
+	if ($speaksfor_credential->IsExpired()) {
+	    print STDERR "speaksfor credential expired, generating a new one\n";
 
-    #
-    # We need a special credentential in case the aggregate is enforcing
-    # limits (as do Utah aggregates).
-    #
-    my $slice_urn = $slice->urn();
-    my $extcred   = "";
-    my $credname  = tmpnam();
-    my $userarg   = "-u " . $geniuser->urn();
-    my ($fh,$certfile);
-    #
-    # But if a nonlocal user from Geni, then the user we have in the database
-    # is not in the same domain as the speaksfor, so we use the geni certificate
-    # that the trusted signer gave us and is stored in the DB.
-    #
-    if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal() &&
-	!$speaksfor_credential->IsExpired()) {	
-	my (undef, $certificate_string) =
-	    $geniuser->emulab_user()->GetStoredCredential();
-	if (! defined($certificate_string)) {
-	    print STDERR "Could not get stored certificate for $geniuser\n";
+	    $slice_credential = APT_Geni::GenAuthCredential($slice);
+	    if (!defined($slice_credential)) {
+		print STDERR "Could not generate slice credential\n";
+		return undef;
+	    }
+	    $credentials = [$slice_credential->asString()];
+	}
+	else {
+	    $credentials = [$slice_credential->asString(),
+			    $speaksfor_credential->asString()];
+	}
+	#
+	# We need a special credentential in case the aggregate is enforcing
+	# limits (as do Utah aggregates).
+	#
+	my $slice_urn = $slice->urn();
+	my $extcred   = "";
+	my $credname  = tmpnam();
+	my $userarg   = "-u " . $geniuser->urn();
+	my ($fh,$certfile);
+	#
+	# But if a nonlocal user from Geni, then the user we have in
+	# the database is not in the same domain as the speaksfor, so
+	# we use the geni certificate that the trusted signer gave us
+	# and is stored in the DB.
+	#
+	if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal() &&
+	    !$speaksfor_credential->IsExpired()) {	
+	    my (undef, $certificate_string) =
+		$geniuser->emulab_user()->GetStoredCredential();
+	    if (! defined($certificate_string)) {
+		print STDERR "Could not get stored certificate for $geniuser\n";
+		return undef;
+	    }
+	    my $certificate =
+		GeniCertificate->LoadFromString($certificate_string);
+	    if (!defined($certificate)) {
+		print STDERR
+		    "Could not load stored certificate for $geniuser\n";
+		return undef;
+	    }
+	    # This file will be auto deleted.
+	    $certfile = $certificate->WriteToFile();
+	    $userarg = "-c $certfile";
+	}
+	system("$GENEXTENDCRED -a -o $credname -s $slice_urn -t 180 $userarg");
+	if ($?) {
+	    print STDERR "Could not create extended credential\n";
 	    return undef;
 	}
-	my $certificate = GeniCertificate->LoadFromString($certificate_string);
-	if (!defined($certificate)) {
-	    print STDERR "Could not load stored certificate for $geniuser\n";
+	if (!open(EXT, $credname)) {
+	    print STDERR "Could not open ext credfile $credname\n";
 	    return undef;
 	}
-	# This file will be auto deleted.
-	$certfile = $certificate->WriteToFile();
-	$userarg = "-c $certfile";
-    }
-    system("$GENEXTENDCRED -a -o $credname -s $slice_urn -t 180 $userarg");
-    if ($?) {
-	print STDERR "Could not create extended credential\n";
-	return undef;
-    }
-    if (!open(EXT, $credname)) {
-	print STDERR "Could not open ext credfile $credname\n";
-	return undef;
-    }
-    while (<EXT>) {
-	$extcred .= $_;
-    }
-    close(EXT);
-    unlink($credname);
-    chomp($extcred);
+	while (<EXT>) {
+	    $extcred .= $_;
+	}
+	close(EXT);
+	unlink($credname);
+	chomp($extcred);
 
-    my $args = {
-	"slice_urn"   => $slice->urn(),
-	"expiration"  => $new_expires,
-	"credentials" => [@$credentials, $extcred],
-    };
+	@params = ({"slice_urn"   => $slice->urn(),
+		    "expiration"  => $new_expires,
+		    "credentials" => [@$credentials, $extcred],
+		   });
+	$method = "RenewSlice";
+    }
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($cmurl, $context, "RenewSlice", $args);
+    return Genixmlrpc::CallMethod($cmurl, $context, $method, @params);
 }
 
 #
@@ -1160,6 +1235,7 @@ sub Extend($$)
 sub SliceStatus($)
 {
     my ($self) = @_;
+    my @params;
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
@@ -1168,21 +1244,43 @@ sub SliceStatus($)
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+    if ($self->isAL2S()) {
+	my $slice_credential = APT_Geni::GenAuthCredential($slice);
+	if (!defined($slice_credential)) {
+	    print STDERR "Could not generate slice credential\n";
+	    return undef;
+	}
+	@params = ($slice->urn(), [$slice_credential->asString()], {});
+    }
+    else {
+	my ($slice_credential, $speaksfor_credential) =
+	    APT_Geni::GenCredentials($slice, $geniuser);
+	return undef
+	    if (! (defined($speaksfor_credential) &&
+		   defined($slice_credential)));
 
-    my $args = {
-	"slice_urn"   => $slice->urn(),
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
-    };
+	@params = ({"slice_urn"   => $slice->urn(),
+		    "credentials" => [$slice_credential->asString(),
+				      $speaksfor_credential->asString()],
+		   });
+    }
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($cmurl, $context, "SliverStatus", $args);
+    my $response =
+	Genixmlrpc::CallMethod($cmurl, $context, "SliverStatus", @params);
+
+    return $response
+	if (!defined($response) ||
+	    $response->code() != GENIRESPONSE_SUCCESS ||
+	    !$self->isAL2S());
+
+    # Convert AM V2 to CM V3. Not such a great idea.
+    my $blob = {"details" => {},
+		"status"  => (exists($response->value()->{'geni_status'}) ?
+			      $response->value()->{'geni_status'} : "unknown"),
+    };
+    return GeniResponse->new($response->code(), $blob);
 }
 
 #
@@ -1191,6 +1289,9 @@ sub SliceStatus($)
 sub GetManifest($)
 {
     my ($self) = @_;
+    my $credentials;
+    my $method;
+    my @params;
     my $authority = $self->GetGeniAuthority();
     my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
@@ -1200,17 +1301,33 @@ sub GetManifest($)
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+    if ($self->isAL2S()) {
+	my $slice_credential = APT_Geni::GenAuthCredential($slice);
+	if (!defined($slice_credential)) {
+	    print STDERR "Could not generate slice credential\n";
+	    return undef;
+	}
+	$method = "ListResources";
 
-    my $args = {
-	"urn"   => $slice->urn(),
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
-    };
+	@params = ([$slice_credential->asString()],
+		   {"geni_slice_urn" => $slice->urn(),
+		    "geni_rspec_version" =>
+		    {'type'    => 'GENI',
+		     'version' => 3}
+		   });
+    }
+    else {
+	my ($slice_credential, $speaksfor_credential) =
+	    APT_Geni::GenCredentials($slice, $geniuser);
+	return undef
+	    if (! (defined($speaksfor_credential) &&
+		   defined($slice_credential)));
+
+	$method = "Resolve";
+	@params = ({"urn"   => $slice->urn(),
+		    "credentials" => [$slice_credential->asString(),
+				      $speaksfor_credential->asString()]});
+    }
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
@@ -1218,7 +1335,7 @@ sub GetManifest($)
     my $response;
     while ($tries) {
 	$response =
-	    Genixmlrpc::CallMethod($cmurl, $context, "Resolve", $args);
+	    Genixmlrpc::CallMethod($cmurl, $context, $method, @params);
 
 	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
 	    if (defined($response) &&
@@ -1237,9 +1354,10 @@ sub GetManifest($)
 	}
 	last;
     }
+    return $response->value()
+	if ($self->isAL2S());
     return undef
 	if (! exists($response->value()->{'manifest'}));
-    
     return $response->value()->{'manifest'};
 }
 
@@ -1290,6 +1408,9 @@ sub Provision($$$)
 	my $response =
 	    Genixmlrpc::CallMethod($cmurl, $context, "Provision", @params);
 
+	if (defined($response) && defined($response->logurl())) {
+	    $self->SetPublicURL($response->logurl());
+	}
 	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
 	    if (defined($response) &&
 		($response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
