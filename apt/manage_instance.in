@@ -833,11 +833,12 @@ sub DoExtend()
     my $coderef = sub {
 	my ($sliver) = @_;
 	my $webtask  = $sliver->webtask();
+	my $domain   = $sliver->domain();
 	my $errmsg;
 
 	my $response = $sliver->Extend($new_expires);
 	if (!defined($response)) {
-	    $errmsg = "Internal error calling Extend";
+	    $errmsg = "Internal error calling Renew at $domain";
 	    goto bad;
 	}
 	if ($response->code() != GENIRESPONSE_SUCCESS) {
@@ -850,7 +851,8 @@ sub DoExtend()
 		$webtask->Exited(1);
 		return 1;
 	    }
-	    $errmsg = "Failed to extend slice: ". $response->output();
+	    $errmsg = "Failed to extend slice at $domain: ".
+		$response->output();
 	    goto bad;
 	}
 	return 0;
@@ -1193,10 +1195,18 @@ sub StartMonitor()
     if (!$debug) {
 	$logfile = TBMakeLogname("aptmonitor");
 	if (TBBackGround($logfile)) {
-	    exit(0);
+	    return 0;
 	}
     }
     $instance->Update({"monitor_pid" => '$PID'});
+
+    #
+    # We just did the operation, no need to ask so soon, and we
+    # avoid locking the slice in case the user wants to reboot
+    # another node right away. For reboot/reload, nothing interesting
+    # is going to be reported for at least 30 seconds (XEN VM).
+    #
+    sleep(30);
     
     my $seconds  = 1500;
     my $interval = 15;
@@ -1262,7 +1272,7 @@ sub StartMonitor()
 
     while ($seconds > 0) {
 	$seconds -= $interval;
-
+	
 	#
 	# Lock the slice in case it is doing something else, like taking
 	# a disk image. Just skip this turn.
