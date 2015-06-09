@@ -1557,6 +1557,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		});
 	    });
 	}
+	// URLs change over time.
 	publicURLs = urls;
 	if (urls.length == 0) {
 	    return;
