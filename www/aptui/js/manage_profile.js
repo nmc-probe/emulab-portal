@@ -32,7 +32,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     var myCodeMirror = null;
     var genilibwarned= false;
     var isppprofile  = false;
-    var isadmin      = 0;
+    var isadmin      = 0; 
+    var APT_NS = "http://www.protogeni.net/resources/rspec/ext/apt-tour/1";
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
     var rendererTemplate  = _.template(rendererString);
@@ -416,7 +417,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    ExtractFromRspec();
 	    // We also got a geni-lib script, so show the XML button.
 	    if (gotscript) {
+		// No need to warn if starting with a script.
+		genilibwarned = 1;
 		$('#show_xml_modal_button').removeClass("hidden");
+		$('#profile_instructions').prop("readonly", true);
+		$('#profile_description').prop("readonly", true);
 	    }
 	}
 	else {
@@ -621,7 +626,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	if (expression.exec(rspec)) {
 	    return;
 	}
-	console.log('"' + rspec + '"');
+	//console.log('"' + rspec + '"');
 	var xmlDoc = $.parseXML(rspec);
 	var xml    = $(xmlDoc);
 
@@ -666,8 +671,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	// Write it back to the text area.
 	var s = new XMLSerializer();
 	var str = s.serializeToString(xml[0]);
-	console.info("SyncSteps");
-	console.info(str);
+	//console.info("SyncSteps");
+	//console.info(str);
 	$('#profile_rspec_textarea').val(str);
 	return 0;
     }
@@ -774,10 +779,18 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    ExtractFromRspec();
 	    SyncSteps();
 	    ProfileModified();
-	    // Allow editing the boxes now that we have an rspec.
-	    // This only matters on a brand new create age.
-	    $('#profile_instructions').prop("disabled", false);
-	    $('#profile_description').prop("disabled", false);
+	    if (gotscript) {
+		$('#profile_instructions').prop("readonly", true);
+		$('#profile_description').prop("readonly", true);
+	    }
+	    else {
+		// Allow editing the boxes now that we have an rspec.
+		// This only matters on a brand new create age.
+		$('#profile_instructions').prop("readonly", false);
+		$('#profile_description').prop("readonly", false);
+		$('#profile_instructions').prop("disabled", false);
+		$('#profile_description').prop("disabled", false);
+	    }
 	};
 
 	// No old rspec, use new one.
@@ -790,7 +803,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    return;
 	
 	// A script generated rspec, reuse the old tour section.
-	if (gotscript) {
+	if (gotscript && !newtour.length) {
 	    continuation(true);
 	    return;
 	}
@@ -825,6 +838,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	if (xmlDoc == null)
 	    return;
 	var xml    = $(xmlDoc);
+	console.info(rspec);
+	console.info(xml);
 	
 	$('#profile_description').val("");
 	$(xml).find("rspec_tour > description").each(function() {
@@ -1065,7 +1080,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
-	    console.info(json.value);
+	    //console.info(json.value);
 
 	    if (json.code) {
 		sup.SpitOops("oops",
