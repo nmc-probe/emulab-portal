@@ -951,6 +951,7 @@ sub CheckDatasets($$$)
 sub SetSites($$$$)
 {
     my ($prspecstr, $sitemap, $pneedstitcher, $perrmsg) = @_;
+    my %interface_map = ();
 
     my $rspec = GeniXML::Parse($$prspecstr);
     if (! defined($rspec)) {
@@ -972,24 +973,28 @@ sub SetSites($$$$)
 	}
 	GeniXML::SetManagerId($ref, $sitemap->{$site_mid});
 	GeniXML::SetJacksSiteManagerId($ref, $sitemap->{$site_mid});
+
+	#
+	# Get all of the interfaces, we need those for the links, so
+	# we can add the managers to them, according to site id.
+	#
+	foreach my $iref (GeniXML::FindNodes("n:interface",
+					     $ref)->get_nodelist()) {
+	    my $client_id = GeniXML::GetInterfaceId($iref);
+	    $interface_map{$client_id} = $site_mid;
+	}
     }
     foreach my $ref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
 	my %linksites = ();
 	my $client_id = GetVirtualId($ref);
 
-	foreach my $siteref (GeniXML::FindNodesNS("n:site", $ref,
-					  $GeniXML::JACKS_NS)->get_nodelist()) {
-	    my $site_id = GeniXML::GetText("id", $siteref);
+	foreach my $iref (GeniXML::FindNodes("n:interface_ref",
+					     $ref)->get_nodelist()) {
+	    my $client_id = GeniXML::GetInterfaceId($iref);
+	    next
+		if (!exists($interface_map{$client_id}));
 
-	    if (!defined($site_id)) {
-		$$perrmsg = "No site ID for link $client_id";
-		return -1;
-	    }
-	    my $site_mid = "site:" . $site_id;
-	    if (!exists($sitemap->{$site_mid})) {
-		$$perrmsg = "No site mapping for link $client_id ($site_id)";
-		return -1;
-	    }
+	    my $site_mid = $interface_map{$client_id};
 	    GeniXML::AddManagerToLink($ref, $sitemap->{$site_mid});
 	    $linksites{$sitemap->{$site_mid}} = 1;
 	}
