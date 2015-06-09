@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -76,6 +76,9 @@ my $savelog     = 0;
 # If set than send "fancy" email and also call tblog_find_error
 # on errors
 my $fancy       = 0;
+
+# We be forked.
+my $forked      = 0;
 
 # Extra info used when AUDIT_FANCY is set
 my %AUDIT_INFO;
@@ -377,6 +380,10 @@ sub AuditFork()
     # Create a new session to ensure we are clear of any process group.
     #
     POSIX::setsid();
+
+    # For exit handling.
+    $SAVEPID = $PID;
+    $forked  = 1;
     
     return 0;
 }
@@ -626,6 +633,9 @@ sub AddAuditInfo ($$) {
 # When the script ends, if the audit has not been sent, send it. 
 # 
 END {
+    return
+	if ($forked && $PID != $SAVEPID);
+    
     # Save, since shell commands will alter it.
     my $exitstatus = $?;
     
