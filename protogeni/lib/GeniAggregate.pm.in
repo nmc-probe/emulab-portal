@@ -204,6 +204,16 @@ sub Stringify($)
 }
 
 #
+# Flush from our little cache, as for the expire daemon.
+#
+sub Flush($)
+{
+    my ($self) = @_;
+
+    delete($aggregates{$self->idx()});
+}
+
+#
 # Create a Geni aggregate in the DB. This happens on the server side only
 # for now. The client side does not actually know its an aggregate, at
 # least not yet.
