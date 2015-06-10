@@ -2738,18 +2738,30 @@ sub getUsedOpenflowListenerPorts($) {
 #
 sub isOpenflowSupported($) {
     my $self = shift;
-    my $myret = 0;
 
-    my $filter = mkOFPTestFilter();
-    my $res = $self->{NCOBJ}->doGet($filter);
-    if ($res && $res->[0] == NCRPCDATA()) {
-	my $data_el = $res->[1];
-	my $xpc = XML::LibXML::XPathContext->new($data_el);
-	$xpc->registerNs('x',$H3C_DATA_URL);
-	if ($xpc->findvalue("//x:Name") eq "ofp") {
-	    $myret = 1;
-	}
-    }
+    # Just assume Comware switches support OF.  We'll quickly find out
+    # otherwise when trying to get the current list of OF instances in
+    # one of the real OF commands above.  Might want to add an option
+    # attribute to explicitly disable OF on a switch.
+    #
+    # We could call getOFInstances() here as a check, but that just
+    # makes the whole OF setup process take longer.
+    #
+    my $myret = 1;
+
+    # Code below doesn't work on the HP 12910. Switch complains about
+    # the "RBAC" token in the filter.
+    #
+    #my $filter = mkOFPTestFilter();
+    #my $res = $self->{NCOBJ}->doGet($filter);
+    #if ($res && $res->[0] == NCRPCDATA()) {
+    #	my $data_el = $res->[1];
+    #	my $xpc = XML::LibXML::XPathContext->new($data_el);
+    #	$xpc->registerNs('x',$H3C_DATA_URL);
+    #	if ($xpc->findvalue("//x:Name") eq "ofp") {
+    #	    $myret = 1;
+    #	}
+    #}
 
     return $myret;
 }
