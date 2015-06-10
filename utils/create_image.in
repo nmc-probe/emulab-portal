@@ -1374,9 +1374,9 @@ if ($isglobal && $usepath) {
 	 "Please run imagerelease when ready for release:\n".
 	 "    imagerelease -q $cname\n" :
 	 "Move image into place and run:\n".
-	 "    $imagevalidate -uq $cname\n");
+	 "    $imagevalidate -u $cname\n");
 }
-elsif (system("$imagevalidate -uq $cname") != 0) {
+elsif (system("$imagevalidate -u $cname") != 0) {
     $tbopsmsg =
 	"DB state update for image $cname failed, try again with:\n".
 	"    $imagevalidate -u $cname\n";
