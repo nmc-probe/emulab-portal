@@ -1167,6 +1167,7 @@ sub RunStitcher()
     }
     else {
 	$logfile->Open();
+	$logfile->SetPublic(1);
 	$instance->SetLogFile($logfile);
     }
 
