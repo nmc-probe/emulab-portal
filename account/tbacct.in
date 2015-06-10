@@ -465,7 +465,7 @@ sub AddUser()
     $UID  = $SAVEUID;
     $EUID = $UID;
 
-    if ($WITHZFS) {
+    if (0 && $WITHZFS) {
 	if ($ZFS_NOEXPORT) {
 	    #
 	    # Have to force the new directories to be exported.
