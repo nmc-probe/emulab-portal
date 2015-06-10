@@ -37,7 +37,7 @@ $urn_mapping =
           "urn:publicid:IDN+apt.emulab.net+authority+cm"        => "APT",
           "urn:publicid:IDN+emulab.net+authority+cm"            => "MS",
           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm" => "DDC",
-          "urn:publicid:IDN+stitch.geniracks.net+authority+cm"  => "Stitch",
+          "urn:publicid:IDN+stitch.geniracks.net+authority+cm"  => "UStitch",
           "urn:publicid:IDN+al2s.internet2.edu+authority+cm"    => "AL2S");
 
 $freenodes_mapping =
@@ -95,6 +95,7 @@ class Instance
     function pid()	    { return $this->field('pid'); }
     function pid_idx()	    { return $this->field('pid_idx'); }
     function public_url()   { return $this->field('public_url'); }
+    function logfileid()    { return $this->field('logfileid'); }
     function manifest()	    { return $this->field('manifest'); }
     function admin_lockdown() { return $this->field('admin_lockdown'); }
     function user_lockdown(){ return $this->field('user_lockdown'); }

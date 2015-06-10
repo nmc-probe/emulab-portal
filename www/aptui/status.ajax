@@ -87,7 +87,7 @@ function StatusSetupAjax($needmodify)
 #
 function Do_GetInstanceStatus()
 {
-    global $instance, $creator;
+    global $instance, $creator, $APTBASE;
 
     if (StatusSetupAjax(0)) {
 	return;
@@ -96,6 +96,11 @@ function Do_GetInstanceStatus()
     $blob["status"] = $instance->status();
     $blob["sliverstatus"] = array();
     $blob["sliverurls"]   = array();
+
+    if ($instance->logfileid()) {
+        $blob["logfile_url"] =
+            "$APTBASE/spewlogfile.php?logfile=" . $instance->logfileid();
+    }
     
     #
     # If we have all of our manifests, the client can request them

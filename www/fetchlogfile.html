@@ -1,16 +1,9 @@
-<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN'
-          'http://www.w3.org/TR/html4/loose.dtd'>
-<html>
-<head>
-  <script src="apt/js/lib/jquery-2.0.3.min.js"></script>
-  <script src="apt/js/lib/underscore-min.js"></script>
   <script>
     $(document).ready(function () {
       var lastIndex = 0;
       // The url is the same as this one with 'spewlogfile.php3' instead of
       // the current path.
-      var url = 'spewlogfile.php3' + 
-        window.location.search + '&isajax=1';
+      var url = window.location + '&isajax=1';
 
       // Fetch spewlogfile via AJAX call
       var xhr = new XMLHttpRequest();
@@ -53,8 +46,7 @@
       xhr.send();
     });
   </script>
-</head>
 <body>
   <pre></pre>
 </body>
-</html>
+

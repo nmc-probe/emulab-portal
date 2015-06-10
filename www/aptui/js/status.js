@@ -361,6 +361,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    if (_.has(json.value, "sliverurls")) {
 		ShowSliverInfo(json.value.sliverurls);
 	    }
+	    // Ditto the logfile.
+	    if (_.has(json.value, "logfile_url")) {
+		ShowLogfile(json.value.logfile_url);
+	    }
 	    
 	    if (status == 'provisioned') {
 		$("#status_progress_bar").width("66%");
@@ -1584,6 +1588,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	});
 	$("#sliverinfo_button").addClass("hidden");
 	$("#sliverinfo_dropdown").removeClass("hidden");
+    }
+
+    function ShowLogfile(url)
+    {
+	// URLs change over time.
+	$("#logfile_button").attr("href", url);
+	$("#logfile_button").removeClass("hidden");
     }
 
     $(document).ready(initialize);

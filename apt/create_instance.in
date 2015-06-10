@@ -123,6 +123,7 @@ use Genixmlrpc;
 use GeniResponse;
 use GeniXML;
 use WebTask;
+use Logfile;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -828,8 +829,6 @@ sub WaitForSliver($)
 	if (exists($repblob->{'public_url'})) {
 	    $public_url = $repblob->{'public_url'};
 	    $aggobj->SetPublicURL($public_url);
-	    # Temporary until web interface catches up.
-	    $instance->SetPublicURL($public_url);
 	}
 	if ($repblob->{'status'} eq "ready") {
 	    $ready = 1;
@@ -1158,6 +1157,20 @@ sub RunStitcher()
     close(XML);
 
     #
+    # Use a log file for the stitcher output, so we can spew it.
+    # The file in the tmp dir has to exist.
+    #
+    system("/bin/cp /dev/null $stdoutfile");
+    my $logfile = Logfile->Create($project->GetProjectGroup(), $stdoutfile);
+    if (!defined($logfile)) {
+	print STDERR "Could not create logfile\n";
+    }
+    else {
+	$logfile->Open();
+	$instance->SetLogFile($logfile);
+    }
+
+    #
     # Okay, run the stitcher. Only to allocate, we will do the provisions
     # so that we can pass the ssh keys more easily.
     #
@@ -1176,6 +1189,10 @@ sub RunStitcher()
 	# at termination.
 	#
 	$failed = 1;
+    }
+    if (defined($logfile)) {
+	$logfile->Close();
+	$logfile->Store();
     }
     
     #
@@ -1297,8 +1314,21 @@ sub RunStitcher()
 	    $webtask->Exited(-1);
 	    return -1;
 	}
+	# Web interface wants this as soon as possible.
+	$aggobj->SetManifest($manifest);
+	
+	print "Forcing correct slice expiration\n";
+	my $response = $aggobj->Extend($slice->ExpirationGMT());
+	if (!defined($response) ||
+	    $response->code() != GENIRESPONSE_SUCCESS) {
+	    $aggobj->SetStatus("failed");
+	    $webtask->output("Renew failed on $urn");
+	    $webtask->Exited(-1);
+	    print STDERR "Renew failed on $urn\n";
+	    return -1;
+	}
 	print "Calling SliverStart at $urn\n";
-	my $response = $aggobj->SliverAction(\$errmsg, "start"); 
+	$response = $aggobj->SliverAction(\$errmsg, "start"); 
 	if (! defined($response)) {
 	    $aggobj->SetStatus("failed");
 	    $webtask->output($errmsg);
@@ -1309,7 +1339,6 @@ sub RunStitcher()
 	$aggobj->SetPublicURL($response->logurl())
 	    if (defined($response->logurl()));
 	$aggobj->SetStatus("provisioned");
-	$aggobj->SetManifest($manifest);
 	return 0;
     };
     
@@ -1338,8 +1367,8 @@ sub RunStitcher()
 	    goto bad;
 	}
     }
-#    system("/bin/rm -rf $tmpdir")
-#	if (!$debug && defined($tmpdir) && -e $tmpdir);
+    system("/bin/rm -rf $tmpdir")
+	if (!$debug && defined($tmpdir) && -e $tmpdir);
     return 0;
 
   bad:
