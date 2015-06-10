@@ -2496,39 +2496,44 @@ sub doH3CNetconfCLI($$;$) {
     my ($self, $cmd, $execflag) = @_;
 
     my $clitype = $execflag ? "Execution" : "Configuration";
+    my $id = "$self->{NAME}::doH3CNetconfCLI";
     my $retval = undef;
 
     if (!$cmd) {
-	warn "snmpit_h3c::doH3CNetconfCLI(): Must supply CLI command!\n";
+	warn "$id: Must supply CLI command!\n";
 	return undef;
     }
 
     my $cli_el = _el($clitype);
     $cli_el->appendText($cmd);
     my $clires = $self->{NCOBJ}->doRPC("CLI", $cli_el);
-    if ($clires->[0] == NCRPCRAWRES()) {
+    if (!defined($clires)) {
+	warn "$id: Error attempting to run Netconf CLI command!\n";
+	return undef;
+    }
+    elsif ($clires->[0] == NCRPCRAWRES()) {
 	my $res_el = $clires->[1];
 	if ($res_el->nodeName() ne "CLI") {
-	    warn "snmpit_h3c::doH3CNetconfCLI(): got non-CLI data back!?\n";
+	    warn "$id: got non-CLI data back!?\n";
 	    return undef;
 	}
 	my ($exec_el,) = $res_el->getChildrenByLocalName($clitype);
 	if (!$exec_el) {
-	    warn "snmpit_h3c::doH3CNetconfCLI(): No return data?!\n";
+	    warn "$id: No return data?!\n";
 	    return undef;
 	}
 	$retval = $exec_el->textContent() || "";
     }
     elsif ($clires->[0] eq NCRPCERR()) {
 	my $err = $clires->[1];
-	warn "snmpit_h3c::doH3CNetconfCLI(): Error returned:\n".
+	warn "$id: Error returned:\n".
 	    "\ttype: $err->{type}, tag: $err->{tag}, sev: $err->{severity}\n".
 	    "\tmessage: $err->{message}\n".
 	    "\textra info: $err->{info}\n";
 	$retval = undef;
     }
     else {
-	warn "snmpit_h3c::doH3CNetconfCLI(): Unhandled return code ".
+	warn "$id: Unhandled return code ".
 	    "from libNetconf: $clires->[0]\n";
 	$retval = undef;
     }
@@ -2672,7 +2677,7 @@ sub setOpenflowController($$$$) {
     my $controller = shift;
     my $option = shift;
 
-    my $id = "self->{NAME}::setOpenflowController";
+    my $id = "$self->{NAME}::setOpenflowController";
     my ($ctrlproto, $ctrladdr, $ctrlport) = split(/:/, $controller);
 
     # Get list of OF instances.
@@ -2719,7 +2724,7 @@ sub setOpenflowListener($$$) {
     my $vlan = shift;
     my $listener = shift;
 
-    warn "$self->{NAME}: OpenFlow listeners are not supported!";    
+    warn "$self->{NAME}: OpenFlow listeners are not supported!\n";
     return 0;
 }
 
@@ -2729,7 +2734,7 @@ sub setOpenflowListener($$$) {
 sub getUsedOpenflowListenerPorts($) {
     my $self = shift;
 
-    warn "$self->{NAME}: OpenFlow listeners are not supported!";    
+    warn "$self->{NAME}: OpenFlow listeners are not supported!\n";
     return ();
 }
 

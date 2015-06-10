@@ -190,9 +190,7 @@ sub XMLPrettyPrint($) {
 
     eval { require XML::LibXML::PrettyPrint };
     if ($@) {
-	$retstr = 
-	    "-> Can't pretty print: XML::LibXML::PrettyPrint not found.\n" .
-	    $xmldom . "\n";
+	$retstr = $xmldom->toString(2) . "\n";
     } else {
 	my $pp = XML::LibXML::PrettyPrint->new(indent_string => "  ");
 	$retstr = $pp->pretty_print($xmldom->documentElement()->cloneNode(1))->toString();
@@ -261,15 +259,16 @@ sub _expectConnect($)
     my $hellodoc = $self->_mkNCHelloXML();
     my $docstr = $hellodoc->serialize() . $NCDELIM;
     $docstr =~ s/[\n\r]//g;
-    $self->debugpr("Sending Hello: ". $docstr ."\n");
+    $self->debugpr("Sending Hello:\n" . XMLPrettyPrint($hellodoc), 2);
     $exp->send($docstr);
     #sleep 1;
     #$exp->send("\n");
 
-    # Snap up the initial Netconf "Hello" message.
+    # Snap up the initial Netconf "Hello" message from switch.
     $self->{SWITCH_HELLO} = $exp->before();
-    $self->debugpr(XMLPrettyPrint($self->{SWITCH_HELLO}));
+    $self->debugpr("Switch Hello:\n". $self->{SWITCH_HELLO} ."\n", 2);
 
+    # Store it, yo.
     $self->{SESS} = $exp;
 
     return 1;
@@ -346,7 +345,7 @@ sub _decodeRPCReply($$) {
 	return undef;
     }
 
-    $self->debugpr("Decoding:\n". XMLPrettyPrint($respdom));
+    $self->debugpr("Decoding:\n". XMLPrettyPrint($respdom), 2);
 
     # Make sure this is an "rpc-reply" response.
     my $root = $respdom->documentElement();
@@ -439,7 +438,6 @@ sub _closeSession($) {
     my $res = $self->doRPC("close-session");
     if ($res && $res->[0] eq NCRPCERR()) {
 	warn "Error closing Netconf session with $self->{NAME}!\n";
-	$self->debugpr(Dumper($res->[1]));
     }
 }
 
@@ -505,7 +503,7 @@ sub doRPC($$;$) {
     my $exp = $self->{SESS};
     my $docstr = $xmldoc->serialize() . $NCDELIM;
     #$docstr =~ s/[\n\r]//g;  # Need line endings for CLI commands...
-    $self->debugpr("Submitting: ". $docstr ."\n");
+    $self->debugpr("Submitting: ". XMLPrettyPrint($xmldoc), 2);
 
     sleep 1;
     $exp->send($docstr);
