@@ -1178,7 +1178,8 @@ sub RunStitcher()
     system("cd $tmpdir; $command > $stdoutfile 2> $stderrfile");
     if ($?) {
 	if (-s $stderrfile) {
-	    $webtask->output(`cat $stderrfile`);
+	    my $stuff = `cat $stderrfile`;
+	    $webtask->output($stuff);
 	    system("/bin/cat $stderrfile");
 	}
 	else {
