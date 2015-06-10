@@ -1609,7 +1609,7 @@ sub AddNode($$)
 	$reload_args{'asyncmode'} = 0;
 	$reload_args{'waitmode'}  = 0;
 	$reload_args{'noreboot'}  = 1;
-	$reload_args{'imageid'}   = $image->imageid();
+	$reload_args{'imageid'}   = $image->versid();
 	$reload_args{'nodelist'}  = [ $node_id ];
 
 	if (EmulabFeatures->FeatureEnabled("NewOsload",$self->user(),
