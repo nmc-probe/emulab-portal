@@ -540,7 +540,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	    sites[siteid] = siteid;
 	});
 
-	if (!isadmin || Object.keys(sites) == 0) {
+	if (!isadmin || Object.keys(sites).length <= 1) {
 	    $("#site_selector").addClass("hidden");
 	    $("#nosite_selector").removeClass("hidden");
 	    // Clear the form data.
