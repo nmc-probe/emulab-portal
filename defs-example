@@ -414,14 +414,33 @@ DISABLE_EXPORTS_SETUP=0
 #
 # FRISEBEEMCASTADDR	Starting multicast address to use. Each frisbeed
 # 			download server instance gets a unique address.
-# FRISEBEEMCASTPORT	Starting port for download and upload servers.
-#			Each server gets a unique port number.
+#
+# Traditionally, we have used a subset of 234/8 which is officially
+# "unassigned" according to IANA. You would probably be better off using the
+# 239/8 range which is officially "administratively scoped" (i.e., for local
+# use). At any rate, you should not allow this traffic beyond your router.
+#
+# Note that MC addresses ARE NOT REUSED. They will increment from the start
+# value up to the next /8 boundary, at which point frisbee WILL STOP WORKING.
+# So if you start at "234.5.6" they will increment til it reaches 235.0.0.0.
+# The fact that we define the address to be three octets is historical (as
+# is our not reusing MC addresses).
+#
+# FRISEBEEMCASTPORT	When non-zero, starting port for download (UDP) and
+# 			upload (TCP) servers. Each instance of a server gets
+#			a unique port number. When zero, the server is free
+#			to choose any ephemeral port and NUMPORTS is ignored.
+#
 # FRISEBEENUMPORTS	When non-zero, limits the range of ports used for
 # 			download/upload to MCASTPORT to MCASTPORT+NUMPORTS-1.
-#			When zero, any port can be used.
+#			When zero, any port at or above MCASTPORT can be used.
+#
+# A value of 0 for MCASTPORT is the most efficient setting as it allows the
+# kernel to choose an available port. Otherwise, the server must try binding
+# to each port in the indicated range until it succeeds.
 #
 FRISEBEEMCASTADDR="234.5.6"
-FRISEBEEMCASTPORT=3564
+FRISEBEEMCASTPORT=0
 FRISEBEENUMPORTS=0
 
 #
