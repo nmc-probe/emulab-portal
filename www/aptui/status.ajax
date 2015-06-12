@@ -505,7 +505,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
         "Experiment Extension Request: $uuid",
         "A request to extend this experiment was made but requires\n".
         "administrator approval" .
-        ($message ? " because $message" : "") . ".\n\n" .
+        ($message ? " $message" : "") . ".\n\n" .
         "The request was for $wanted days, we granted $granted days, ".
         "the reason given is:\n\n".
         $reason . "\n\n".
