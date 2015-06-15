@@ -1132,6 +1132,9 @@ sub RunStitcher()
     my $command = "$STITCHER --fileDir $tmpdir --cred $speaksforfile ".
 	"--slicecredfile $slicecredfile --usercredfile $slicecredfile ".
 	"--al2scredfile $al2scredfile --debug ".
+	# We do not want these two files defaulting to user home dir.
+	"--GetVersionCacheName=$tmpdir/get_version_cache.json ".
+	"--AggNickCacheName=$tmpdir/agg_nick_cache ".
 	"--scsURL https://nutshell.maxgigapop.net:8443/geni/xmlrpc  ".
 	"--speaksfor $user_urn -V3 allocate $slice_urn $rspecfile";
 
@@ -1147,7 +1150,10 @@ sub RunStitcher()
 	if ($instance->WriteCredentials($tmpdir));
 
     goto bad
-	if (system("/bin/cp -fp /usr/testbed/etc/omni_config $tmpdir"));
+	if (system("/bin/cp -fp /usr/testbed/etc/stitcher/omni_config $tmpdir"));
+    goto bad
+	if (system("/bin/cp -fp /usr/testbed/etc/stitcher/agg_nick_cache ".
+		   "$tmpdir/agg_nick_cache"));
 
     if (!open(XML, ">$rspecfile")) {
 	print STDERR "Could not open $rspecfile: $!\n";
@@ -1175,6 +1181,7 @@ sub RunStitcher()
     # Okay, run the stitcher. Only to allocate, we will do the provisions
     # so that we can pass the ssh keys more easily.
     #
+    $instance->SetStatus("stitching");
     system("cd $tmpdir; $command > $stdoutfile 2> $stderrfile");
     if ($?) {
 	if (-s $stderrfile) {
@@ -1308,6 +1315,7 @@ sub RunStitcher()
 	    print STDERR "Provision failed on $urn: $errmsg\n";
 	    return -1;
 	}
+	$aggobj->SetStatus("provisioned");
 	print "Requesting manifest from $urn\n";
 	my $manifest = $aggobj->GetManifest();
 	if (!defined($manifest)) {
@@ -1340,7 +1348,6 @@ sub RunStitcher()
 	}
 	$aggobj->SetPublicURL($response->logurl())
 	    if (defined($response->logurl()));
-	$aggobj->SetStatus("provisioned");
 	return 0;
     };
     
@@ -1382,8 +1389,8 @@ sub RunStitcher()
 	system("/bin/cat $tmpdir/stitcher.log");
 	print "-----------------------------------------\n";
     }
-#    system("/bin/rm -rf $tmpdir")
-#	if (!$debug && defined($tmpdir) && -e $tmpdir);
+    system("/bin/rm -rf $tmpdir")
+	if (!$debug && defined($tmpdir) && -e $tmpdir);
     return -1;
 }
 
