@@ -1143,6 +1143,7 @@ sub Extend($$)
     my $credentials;
     my $method;
     my @params;
+    my $urn       = $self->aggregate_urn();
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
@@ -1247,7 +1248,28 @@ sub Extend($$)
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($cmurl, $context, $method, @params);
+    my $tries = 10;
+    my $response;
+    while ($tries) {
+	$response = Genixmlrpc::CallMethod($cmurl, $context, $method, @params);
+
+	return undef
+	    if (!defined($response));
+
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    if (($response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		 $response->code() == GENIRESPONSE_BUSY) &&
+		$tries >= 0) {
+		print STDERR "Server for $urn reports too busy or slice busy, ".
+		    "waiting a while ...\n";
+		sleep(int(rand(20)) + 10);
+		$tries--;
+		next;
+	    }
+	}
+	last;
+    }
+    return $response;
 }
 
 #
