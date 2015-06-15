@@ -365,8 +365,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    if (_.has(json.value, "logfile_url")) {
 		ShowLogfile(json.value.logfile_url);
 	    }
-	    
-	    if (status == 'provisioned') {
+
+	    if (status == 'stitching') {
+		status_html = "stitching";
+	    }
+	    else if (status == 'provisioned') {
 		$("#status_progress_bar").width("66%");
 		status_html = "booting";
 	    }
