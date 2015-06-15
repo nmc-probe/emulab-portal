@@ -102,7 +102,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Look at initial status to determine if we show the progress bar.
 	//
 	var spinwidth = 0;
-	if (instanceStatus == "created") {
+	if (instanceStatus == "created" ||
+	    instanceStatus == "stitching") {
 	    spinwidth = "33";
 	}
 	else if (instanceStatus == "provisioned") {
