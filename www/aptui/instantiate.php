@@ -805,6 +805,15 @@ else {
     if (!$temp) {
 	$errors["profile"] = "No such profile in the database";
     }
+    #
+    # Real users are allowed to use Paramterized Profiles, which means
+    # we could get an rspec.
+    #
+    if ($temp->isParameterized() && 
+        $this_user && !$this_user->IsNonLocal() &&
+        isset($formfields["pp_rspec"]) && $formfields["pp_rspec"] != "") {
+        $args["rspec"] = $formfields["pp_rspec"];
+    }
 }
 
 if ($this_user) {
@@ -853,16 +862,6 @@ if (!$this_user) {
 	    unset($geniuser);
 	}
     }
-}
-
-#
-# Real users are allowed to use Paramterized Profiles, which means
-# we could get an rspec.
-#
-if ($profile && $profile->isParameterized() && 
-    $this_user && !$this_user->IsNonLocal() &&
-    isset($formfields["pp_rspec"]) && $formfields["pp_rspec"] != "") {
-    $args["rspec"] = $formfields["pp_rspec"];
 }
 
 #
