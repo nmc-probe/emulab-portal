@@ -2031,6 +2031,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	}
 
 	my $edgecount = 0;
+	my $irefcount = 0;
 
 	foreach my $ref (@interfaces) {
 	    my $node_nickname = GeniXML::GetInterfaceNodeId($ref);
@@ -2040,6 +2041,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    if (! GeniXML::IsVersion0($ref) && defined($iface_id)) {
 		$node_nickname = $iface2node{$iface_id};
 	    }
+	    $irefcount++;
 
 	    #
 	    # Look for links that are really lans; one of the interfaces
@@ -2064,6 +2066,9 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    # the user has specified something impossible.
 	    #
 	    if (exists($external_nodemap{$node_nickname})) {
+		next
+		    if ($irefcount > 2);
+		    
 		my $external_noderef = $external_nodemap{$node_nickname};
 		my $stitchpath = GeniStitch->Lookup($lanname, $rspec);
 		if (! defined($stitchpath)) {

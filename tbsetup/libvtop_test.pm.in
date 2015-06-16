@@ -6647,7 +6647,7 @@ sub InterpLinksAux($)
 		    #
 		    my $protovlan;
 		    
-		    if (1) {
+		    if ($virtlan->_encapstyle() ne "vlan") {
 			if (exists($protovlans{$lan})) {
 			    $protovlan = $protovlans{$lan};
 			}
@@ -6683,8 +6683,8 @@ sub InterpLinksAux($)
 			return -1
 			    if (!defined($virtiface));
 
-			$portA = $virtiface->viface();
-			$virtiface->_vlanname($protovlan->vname());
+			$virtiface->_vlanname((defined($protovlan) ?
+					       $protovlan->vname() : $lan));
 		    }
 		    #
 		    # We need to reserve the shared bandwidth. 
@@ -6723,7 +6723,8 @@ sub InterpLinksAux($)
 			# which case we have to set its link pointer
 			# to the protovlan.
 			#
-			if ($protolan->type() eq "trivial") {
+			if ($protolan->type() eq "trivial" &&
+			    defined($protovlan)) {
 			    $protolan->SetLink($protovlan);
 			}
 		    }
@@ -6733,10 +6734,30 @@ sub InterpLinksAux($)
 						     $self->alloconly(),
 						     $protovlan);
 		    }
-		    $protolan->SetType("emulated");
-		    $protolan->SetRole("link/lan");
-		    $protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
-		
+		    if (defined($protovlan)) {
+			$protolan->SetType("emulated");
+			$protolan->SetRole("link/lan");
+		    }
+		    else {
+			$protolan->SetType("vlan");
+			$protolan->SetRole("emulated");
+			$protolan->SetAttribute("link/lan", $lan);
+			if (defined($pathA)) {
+			    my $path = $protolan->GetAttribute("switchpath");
+			    $protolan->SetAttribute("switchpath",
+						AddToSwitchPath($path, $pathA));
+			}
+		    }
+		    $protolan->AddInterface($nodeA, $vnodeA, $vportA,
+					    (defined($virtiface) ?
+					      $virtiface->viface() : $portA),
+					    (defined($protovlan) ?
+					     undef : $portA));
+
+		    # For below.
+		    $portA = $virtiface->viface()
+			if (defined($virtiface));
+
 		    #
 		    # If the "lannode" is placed on a node, and that node is
 		    # different than the current node, we have to connect the
@@ -6748,10 +6769,12 @@ sub InterpLinksAux($)
 			   $member0->_lanport() ne "null" &&
 			   $member0->_lannode() eq $nodeA &&
 			   $member0->_lanport() eq $portA)) {
-			$protovlan->AddMember($member0->_lannode(),
-					      $member0->_lanport())
-			    if (!$protovlan->IsMember($member0->_lannode(),
-						      $member0->_lanport()));
+			my $plan = $protovlan || $protolan;
+			
+			$plan->AddMember($member0->_lannode(),
+					 $member0->_lanport())
+			    if (!$plan->IsMember($member0->_lannode(),
+						 $member0->_lanport()));
 			$self->AddVirtPatch($lan,
 					    $member0->_lannode(),
 					    $member0->_lanport());
