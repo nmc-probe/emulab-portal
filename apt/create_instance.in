@@ -1305,6 +1305,7 @@ sub RunStitcher()
 	    close(MAN);
 	    $aggobj->SetManifest($manifest_string);
 	    $aggobj->SetStatus("provisioned");
+	    print STDERR $manifest_string . "\n";
 	    return 0;
 	}
 	print "Provisioning at $urn\n";
