@@ -120,6 +120,7 @@ my $ADDAUTHORITY   = "$TB/sbin/protogeni/addauthority";
 my $EMULAB_PEMFILE = "@prefix@/etc/genicm.pem";
 my $TARINSTALL     = "/usr/local/bin/install-tarfile";
 my $IMAGE_SETUP    = "$TB/sbin/image_setup";
+my $IMAGE_IMPORT   = "$TB/sbin/image_import";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
@@ -6983,34 +6984,78 @@ sub HandleBlockstore($$$$$$@)
     # or we get it from the image if its an image backed blockstore.
     #
     if ($class eq "local") {
-	if (defined($dataset_id)) {
-	    # Default project to lookup lease.
+	if (!defined($dataset_id)) {
+	    $size = GeniXML::GetText("size", $blockref);
+	
+	    if (!defined($size)) {
+		$message = "Missing blockstore size for $bsname";
+		goto bad;
+	    }
+	}
+	else {
+	    # Default project to lookup.
 	    my $pid = $experiment->pid();
 	    my $gid = $pid;
 	    my $vers;
+	    my $image;
 	
-	    my ($domainsubauth,$dtype,$id) = GeniHRN::Parse($dataset_id);
-	    if ($dtype ne "dataset") {
-		$message = "Illegal dataset urn for $dataset_id";
-		goto bad;
-	    }
-	    my ($domain,$subauth) = split(":", $domainsubauth);
-	    if ($domain ne $OURDOMAIN) {
-		$message = "This is not the correct site for this dataset";
-		goto bad;
-	    }
-	    if (defined($subauth)) {
-		$pid = $subauth;
-	    }
-	    if ($id =~ /^([^\/]+)\/\/([^\/]+)(\/\/(\d+))?$/) {
-		$id  = $2;
-		if (defined($4)) {
-		    $vers = $4;
+	    #
+	    # Is it a url. We might not have the image locally, but
+	    # will later when image_setup runs. But lets do a check to
+	    # make sure it really exist by trying to import it. This will
+	    # get the descriptor and the information we need.
+	    #
+	    if ($dataset_id =~ /^(ftp|http|https):/) {
+		if (!TBcheck_dbslot($dataset_id, "virt_nodes", "osname",
+				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+		    $message = "Invalid url for dataset";
+		    goto bad;
+		}
+		$image = Image->LookupByURL($dataset_id);
+		if (!defined($image)) {
+		    my $safe_url = User::escapeshellarg($dataset_id);
+
+		    print STDERR "$dataset_id is not here, trying to get it\n";
+		    system("$IMAGE_IMPORT -p $pid $safe_url");
+		    if ($?) {
+			$message = "Could not import $dataset_id";
+			goto bad;
+		    }
+		    $image = Image->LookupByURL($dataset_id);
+		    if (!defined($image)) {
+			$message = "Could not lookup dataset after import";
+			goto bad;
+		    }
 		}
 	    }
-	    my $image = Image->Lookup($pid, $id, $vers);
-	    if (!defined($image)) {
-		$message = "Unknown dataset: $dataset_id";
+	    elsif (GeniHRN::IsValid($dataset_id)) { 
+		my ($domainsubauth,$dtype,$id) = GeniHRN::Parse($dataset_id);
+		if ($dtype ne "dataset") {
+		    $message = "Illegal dataset urn for $dataset_id";
+		    goto bad;
+		}
+		my ($domain,$subauth) = split(":", $domainsubauth);
+		if ($domain ne $OURDOMAIN) {
+		    $message = "This is not the correct site for this dataset";
+		    goto bad;
+		}
+		if (defined($subauth)) {
+		    $pid = $subauth;
+		}
+		if ($id =~ /^([^\/]+)\/\/([^\/]+)(\/\/(\d+))?$/) {
+		    $id  = $2;
+		    if (defined($4)) {
+			$vers = $4;
+		    }
+		}
+		$image = Image->Lookup($pid, $id, $vers);
+		if (!defined($image)) {
+		    $message = "Unknown dataset: $dataset_id";
+		    goto bad;
+		}
+	    }
+	    else {
+		$message = "Invalid name/url for dataset";
 		goto bad;
 	    }
 	    if (!$image->isdataset()) {
@@ -7040,25 +7085,16 @@ sub HandleBlockstore($$$$$$@)
 		    goto bad;
 		}
 	    }
-	    # This needs to be name, not id.
 	    push(@attributes, ["dataset", $image->versname(), 0]);
 	    $btype = "imdataset";
 	    
-	    if (!$image->size()) {
+	    if (! ($image->lba_low() || $image->lba_high())) {
 		$message = "No local size info for $dataset_id";
 		goto bad;
 	    }
 	    $size = int(($image->lba_high() -
 			 $image->lba_low() + 1) /
 			(1024 / $image->lba_size())) . "KB";
-	}
-	else {
-	    $size = GeniXML::GetText("size", $blockref);
-	
-	    if (!defined($size)) {
-		$message = "Missing blockstore size for $bsname";
-		goto bad;
-	    }
 	}
 	$size = Blockstore::ConvertToMebi($size);
 	if ($size < 0) {

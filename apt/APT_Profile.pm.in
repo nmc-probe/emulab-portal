@@ -882,23 +882,49 @@ sub CheckDatasets($$$)
 	return -1;
     }
     foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	my $manager_urn = GetManagerId($ref);	
+	
 	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
 						   $ref,
 				   $GeniXML::EMULAB_NS)->get_nodelist()) {
-	    my $leaseurn = GeniXML::GetText("persistent", $blockref);
+	    my $dataset_id  = GeniXML::GetText("dataset", $blockref);
+	    my $class       = GeniXML::GetText("class", $blockref);
 
 	    #
 	    # We only care about datasets here, we let the backend
 	    # do the error checking on ephemeral blockstores.
 	    #
 	    next
-		if (!defined($leaseurn));
-	    
-	    if (!GeniHRN::IsValid($leaseurn)) {
-		$$pmsg = "Persistent dataset name is not a valid URN";
+		if (!defined($dataset_id));
+
+	    if (!defined($class)) {
+		$class = "remote";
+	    }
+	    elsif ($class ne "local" && $class ne "remote") {
+		$$pmsg = "class must be local or remote";
 		return 1;
 	    }
-	    my ($authority, $type, $id) = GeniHRN::Parse($leaseurn);
+
+	    #
+	    # If the dataset is local and its a URL, then make sure its
+	    # a valid URL.
+	    #
+	    if ($class eq "local" && $dataset_id =~ /^(http|https):/) {
+		if (!TBcheck_dbslot($dataset_id, "virt_nodes", "osname",
+				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)){
+		    $$pmsg = "Invalid url for dataset";
+		    return 1;
+		}
+		next;
+	    }
+	    if (!GeniHRN::IsValid($dataset_id)) {
+		$$pmsg = "Persistent dataset is not a valid URN";
+		return 1;
+	    }
+	    my $dataset_urn = $dataset_id;
+	    my ($dataset_authority, $type, $id) = GeniHRN::Parse($dataset_urn);
+	    my ($dataset_domain) = split(":", $dataset_authority);
+	    
 	    #
 	    # Separate project from name; this is how the rspec specifies
 	    # the dataset they want, since it might be in another project
@@ -907,36 +933,40 @@ sub CheckDatasets($$$)
 		$pid = $1;
 		$id  = $2;
 	    }
+
+	    #
+	    # The domain of the dataset has to match the domain of aggregate.
+	    # We also use this when creating a profile, so rspec might not
+	    # be bound.
+	    #
+	    if (defined($manager_urn)) {
+		my ($manager_authority) = GeniHRN::Parse($manager_urn);
+		my ($manager_domain) = split(":", $manager_authority);
+		
+		if ($manager_domain ne $dataset_domain) {
+		    $$pmsg = "Dataset $id is not located on $manager_authority";
+		    return 1;
+		}
+	    }
+	    next
+		if ($class eq "local");
 	    
 	    #
 	    # Not all backends have blockstore support.
 	    #
-	    if (!APT_Dataset::ValidBlockstoreBackend($authority)) {
-		$$pmsg = "Persistent dataset is not on a valid aggregate";
+	    if (!APT_Dataset::ValidBlockstoreBackend($dataset_authority)) {
+		$$pmsg = "Dataset $id is not on a valid aggregate";
 		return 1;
 	    }
+
 	    my $dataset = APT_Dataset->Lookup("$pid/$id");
 	    if (!defined($dataset)) {
-		$dataset = APT_Dataset->LookupByRemoteURN($leaseurn);
+		$dataset = APT_Dataset->LookupByRemoteURN($dataset_urn);
 		if (!defined($dataset)) {
 		    $$pmsg = "Persistent dataset '$pid/$id' does not exist";
 		    return 1;
 		}
 	    }
-
-	    #
-	    # Dataset must already exists on the aggregate. But we have to
-	    # make these checks again at instantiation, since the dataset
-	    # might be gone, or it might have different permissions
-	    # settings.
-	    #
-	    my ($d_authority) = GeniHRN::Parse($dataset->aggregate_urn());
-	    my ($domain,$subauth) = split(":", $authority);
-	    if ($domain ne $d_authority) {
-		$$pmsg = "Persistent dataset '$pid/$id' in not on $authority";
-		return 1;
-	    }
-
 	    #
 	    # XXX Need basic frontend permission checks?
 	    #

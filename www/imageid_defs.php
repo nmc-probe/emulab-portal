@@ -1153,4 +1153,19 @@ class Image
     function OSinfo() {
 	return OSinfo::Lookup($this->imageid(), $this->version());
     }
+
+    function URL() {
+        global $TBBASE;
+	$uuid           = $this->uuid();
+        $image_uuid     = $this->image_uuid();
+
+        return "$TBBASE/image_metadata.php?uuid=$image_uuid";
+    }
+    function VersionURL() {
+        global $TBBASE;
+	$uuid           = $this->uuid();
+        $image_uuid     = $this->image_uuid();
+
+        return "$TBBASE/image_metadata.php?uuid=$uuid";
+    }
 }

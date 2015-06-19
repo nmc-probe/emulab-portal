@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -24,6 +24,7 @@
 use English;
 use Getopt::Std;
 use Socket;
+use Data::Dumper;
     
 #
 # Fetch external image definitions and create local descriptors.
@@ -121,6 +122,8 @@ if (!$experiment->AccessCheck($this_user, TB_EXPT_MODIFY())) {
     tbdie("You are not allowed to modify experiment $eid in project $pid");
 }
 
+my @urllist = ();
+
 #
 # Look for any nodes that specify a url for the osname. 
 #
@@ -129,16 +132,41 @@ my $result = $experiment->TableLookUp("virt_nodes", "vname,osname");
 while (my ($vname, $osname) = $result->fetchrow()) {
     my $url;
     
-    next
-	if (! ($osname =~ /^(ftp|http|https):/));
+    if ($osname =~ /^(ftp|http|https):/) {
+	# Verify entire URL and taint check.
+	if ($osname =~ /^((http|https|ftp)\:\/\/[-\w\.\/\@\:\~\?\=\&]*)$/) {
+	    $url = $1;
+	}
+	else {
+	    tbdie("Invalid URL $osname\n");
+	}
+	push(@urllist, $url);
+    }
 
-    # Verify entire URL and taint check.
-    if ($osname =~ /^((http|https|ftp)\:\/\/[-\w\.\/\@\:\~\?\=\&]*)$/) {
-	$url = $1;
+    #
+    # Look for image backed datasets that refer to an external URL.
+    #
+    my @blockstores = $experiment->LookupBlockstoresForNode($vname);
+    foreach my $blockstore (@blockstores) {
+	next
+	    if ($blockstore->type() ne "imdataset");
+
+	if (!exists($blockstore->{'attributes'}->{'dataset'})) {
+	    tbdie("No dataset if for blockstore on $vname\n");
+	}
+	my $dataset = $blockstore->{'attributes'}->{'dataset'};
+	my $image   = Image->Lookup($dataset);
+	if (!defined($image)) {
+	    tbdie("Could not lookup image for $dataset");
+	}
+	next
+	    if ($image->IsLocal());
+
+	push(@urllist, $image->metadata_url());
     }
-    else {
-	tbdie("Invalid URL $osname\n");
-    }
+}
+
+foreach my $url (@urllist) {
     my $safe_url = User::escapeshellarg($url);
 
     #

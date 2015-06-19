@@ -105,6 +105,7 @@ sub DoRefresh();
 sub DoReboot();
 sub DoReload();
 sub DoLockdown();
+sub DoManifests();
 sub WriteCredentials();
 sub StartMonitor();
 
@@ -164,6 +165,9 @@ elsif ($action eq "lockdown") {
 }
 elsif ($action eq "writecreds") {
     WriteCredentials()
+}
+elsif ($action eq "getmanifests") {
+    DoManifests()
 }
 else {
     usage();
@@ -1169,6 +1173,61 @@ sub DoRebootOrReload($)
 }
 sub DoReboot() { return DoRebootOrReload("reboot"); }
 sub DoReload() { return DoRebootOrReload("reload"); }
+
+#
+# 
+#
+sub DoManifests()
+{
+    my $errmsg;
+    
+    my $slice = $instance->GetGeniSlice();
+    if (!defined($slice)) {
+	print STDERR "No slice for instance\n";
+	goto killit;
+    }
+
+    my $coderef = sub {
+	my ($sliver) = @_;
+	my $webtask  = $sliver->webtask();
+	my $errmsg;
+
+	my $response = $sliver->GetManifest();
+	if (!defined($response)) {
+	    $errmsg = "RPC Error calling GetManifest";
+	    goto bad;
+	}
+	return 0;
+      bad:
+	return 1;
+    };
+
+    my @return_codes = ();
+    my @agglist      = $instance->AggregateList();
+    if (ParRun({"maxwaittime" => 99999,
+		"maxchildren" => scalar(@agglist)},
+	    \@return_codes, $coderef, @agglist)) {
+	#
+	# The parent caught a signal. Leave things intact so that we can
+	# kill things cleanly later.
+	#
+	$errmsg = "Internal error calling GetManifest";
+	goto bad;
+    }
+    #
+    # Check the exit codes. 
+    #
+    foreach my $code (@return_codes) {
+	if ($code) {
+	    $errmsg = "Could not get manifest for some slivers";
+	    goto bad;
+	}
+    }
+    exit(0);
+  bad:
+    print STDERR $errmsg . "\n";
+    exit(1);
+}
 
 #
 # Start up the monitor for an instance. Only one though.

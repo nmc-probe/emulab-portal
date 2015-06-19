@@ -95,6 +95,7 @@ class Dataset
     function gid()           { return $this->pid(); }
     function aggregate_urn() { return $this->field("aggregate_urn"); }
     function remote_urn()    { return $this->field("remote_urn"); }
+    function remote_url()    { return $this->field("remote_url"); }
     function type()          { return $this->field("type"); }
     function fstype()        { return $this->field("fstype"); }
     function created()       { return NullDate($this->field("created")); }
@@ -175,6 +176,12 @@ class Dataset
     #
     function URN() {
         return $this->remote_urn();
+    }
+    function URL() {
+        if ($this->type() != "imdataset") {
+            return null;
+        }
+        return $this->remote_url();
     }
 
     function deleteCommand() {

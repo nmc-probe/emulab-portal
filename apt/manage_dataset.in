@@ -328,6 +328,9 @@ sub DoCreate()
     $blob = $response->value();
     $dataset->Update({"remote_uuid" => $blob->{"uuid"},
 		      "remote_urn"  => $blob->{"urn"}});
+    if (exists($blob->{'url'}) && $blob->{'url'} ne "") {
+	$dataset->Update({"remote_url" => $blob->{"url"}});
+    }
 
     #
     # Okay, this is silly; there is no distinct state for resource allocation.

@@ -108,6 +108,9 @@ $fields["dataset_write"]    = $dataset->write_access();
 if (ISADMIN()) {
     $fields["dataset_idx"]  = $dataset->idx();
 }
+if ($dataset->type() == "imdataset") {
+    $fields["dataset_url"]  = $dataset->URL();
+}
 
 #
 # The state is a bit of a problem, since local leases do not have

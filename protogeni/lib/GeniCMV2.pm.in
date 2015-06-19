@@ -3534,7 +3534,7 @@ sub CreateDataset($)
 	if ($PROTOGENI_LOCALUSER);
 
     # Stuff to put in the return blob.
-    my ($state,$uuid,$busy,$msg,$urn);
+    my ($state,$uuid,$busy,$msg,$urn,$url);
 
     #
     # Grab the lease or image to see if its been created/approved, we want
@@ -3552,6 +3552,7 @@ sub CreateDataset($)
 	$busy  = 0;
 	$urn   = GeniHRN::Generate($OURDOMAIN . ":" . $image->pid(), "dataset",
 				   $image->gid() . "//" . $image->imagename());
+	$url   = $image->LocalURL();
     }
     else {
 	my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
@@ -3584,6 +3585,8 @@ sub CreateDataset($)
 	"urn"   => $urn,
 	"busy"  => $busy,
     };
+    $blob->{'url'} = $url if (defined($url));
+    
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob, $msg);
 }
 sub DeleteDataset($)

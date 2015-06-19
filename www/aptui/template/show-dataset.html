@@ -83,8 +83,24 @@
 	      </tr>
 	      <tr>
 		<td>URN</td>
-		<td><%- formfields.dataset_urn %></td>
+		<td>
+		  <input onClick="this.select();"
+			 class='form-control'
+			 readonly
+			 value='<%- formfields.dataset_urn %>'>
+		</td>
 	      </tr>
+	      <% if (_.has(formfields, 'dataset_url')) { %>
+	      <tr>
+		<td>URL</td>
+		<td>
+		  <input onClick="this.select();"
+			 class='form-control'
+			 readonly
+			 value='<%- formfields.dataset_url %>'>
+		</td>
+	      </tr>
+	      <% } %>
 	      <% if (_.has(formfields, 'dataset_idx')) { %>
 	      <tr>
 		<td>Internal ID</td>
