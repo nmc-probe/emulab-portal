@@ -1352,11 +1352,12 @@ sub GetManifest($)
 	}
 	$method = "ListResources";
 
+	# This breaks, cause perl encodes '3' as an integer, but the
+	# python on the other side demands a string. 
 	@params = ([$slice_credential->asString()],
 		   {"geni_slice_urn" => $slice->urn(),
-		    "geni_rspec_version" =>
-		    {'type'    => 'GENI',
-		     'version' => 3}
+		    "geni_rspec_version" => {'version' => '3',
+					     'type'    => 'GENI'},
 		   });
     }
     else {
