@@ -57,7 +57,7 @@ my $TBBASE	= "@TBBASE@";
 # version of the software we are so it gives something we can handle.
 # Be sure to update this if you change the version in image_import
 #
-my $METADATA_SERVERVERSION = 1;
+my $METADATA_SERVERVERSION = 2;
 
 #
 # Untaint the path
@@ -144,7 +144,9 @@ sub DumpImage($)
 	$xmlfields{"gid"}      = $image->gid();
     }
     $xmlfields{"description"}  = $image->description();
-    $xmlfields{"loadpart"}     = $image->loadpart();
+    if (!$image->isdataset()) {
+	$xmlfields{"loadpart"} = $image->loadpart();
+    }
     $xmlfields{"global"}       = $image->global();
     $xmlfields{"shared"}       = $image->shared();
     if (defined($image->path()) && $image->path() ne "") {
@@ -164,6 +166,11 @@ sub DumpImage($)
     $xmlfields{"mbr_version"}  = $image->mbr_version();
     if ($clientvers > 0) {
 	$xmlfields{"isdataset"}    = $image->isdataset();
+	if ($clientvers > 1 && $image->isdataset()) {
+	    $xmlfields{"lba_low"}  = $image->lba_low();
+	    $xmlfields{"lba_high"} = $image->lba_high();
+	    $xmlfields{"lba_size"} = $image->lba_size();
+	}
     }
 
     if ($export) {
@@ -197,7 +204,7 @@ sub DumpImage($)
 	return $osinfo->pid() . "," . $osinfo->osname();
     }
 
-    if (!$image->ezid()) {
+    if (! ($image->ezid() || $image->isdataset())) {
 	$xmlfields{"loadlength"}   = $image->loadlength();
 	$xmlfields{"part1_osid"}   = MapOS($image->part1_osid());
 	$xmlfields{"part2_osid"}   = MapOS($image->part2_osid());
@@ -205,7 +212,7 @@ sub DumpImage($)
 	$xmlfields{"part4_osid"}   = MapOS($image->part4_osid());
 	$xmlfields{"default_osid"} = MapOS($image->default_osid());
     }
-    else {
+    elsif (!$image->isdataset()) {
 	my $osinfo = OSinfo->Lookup($image->imageid());
 	if (!defined($osinfo)) {
 	    fatal("Could not find osid for $image");
