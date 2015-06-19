@@ -70,6 +70,7 @@ CREATE TABLE `apt_datasets` (
   `aggregate_urn` varchar(128) default NULL,
   `remote_urn` varchar(128) NOT NULL default '',
   `remote_uuid` varchar(40) NOT NULL default '',
+  `remote_url` tinytext,
   `created` datetime default NULL,
   `expires` datetime default NULL,
   `last_used` datetime default NULL,
