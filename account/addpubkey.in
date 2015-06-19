@@ -277,7 +277,7 @@ if (defined($user)) {
 }
 
 #
-# If invoked as "nobody" we came from the web interface. We have to have
+7# If invoked as "nobody" we came from the web interface. We have to have
 # a credential in the environment, unless its just a key verification
 # operation, which anyone can do. 
 # 
@@ -360,7 +360,7 @@ if (!$verify) {
 	!$nodelete) {
 	fatal("You are not allowed to set pubkeys for $target_user\n");
     }
-    if (-d "$HOMEDIR/$user_uid/.ssh") {
+    if ($target_user->SameUser($this_user) && $this_user->active()) {
 	# Drop root privs, switch to target user.
 	$EUID = $UID = $USERUID;
 	$genmode = 1;
