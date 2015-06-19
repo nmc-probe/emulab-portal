@@ -116,9 +116,10 @@ function ShowByCreator()
         $uid_array[$uid][$cluster]["pcount"] = $pcount;
         $uid_array[$uid][$cluster]["phours"] = $phours;
     }
+    echo "<div id='output_dropdown'></div>\n";
     echo "<input class='form-control search' type='search' data-column='0'
-             id='search_uid' placeholder='Search'>\n";
-    echo "  <table class='tablesorter' id='tablesorter_uid'>
+             id='search_sumstats' placeholder='Search'>\n";
+    echo "  <table class='tablesorter' id='tablesorter_sumstats'>
          <thead>
           <tr>
            <th rowspan=2>UID</th>
@@ -285,9 +286,10 @@ function ShowByProject()
         $pid_array[$pid][$cluster]["pcount"] = $pcount;
         $pid_array[$pid][$cluster]["phours"] = $phours;
     }
+    echo "<div id='output_dropdown'></div>\n";
     echo "<input class='form-control search' type='search' data-column='0'
-             id='search_pid' placeholder='Search'>\n";
-    echo "  <table class='tablesorter' id='tablesorter_pid'>
+             id='search_sumstats' placeholder='Search'>\n";
+    echo "  <table class='tablesorter' id='tablesorter_sumstats'>
          <thead>
           <tr>
            <th rowspan=2>PID</th>
@@ -443,6 +445,7 @@ echo "<script src='js/lib/jQRangeSlider/jQRuler.js'></script>\n";
 echo "<script src='js/lib/jquery.tablesorter.min.js'></script>\n";
 echo "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>\n";
 echo "<script src='js/lib/jquery.tablesorter.widget-math.js'></script>\n";
+echo "<script src='js/lib/jquery.tablesorter.widget-output.js'></script>\n";
 echo "<script src='js/lib/bootstrap.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/sumstats'></script>\n";
 
