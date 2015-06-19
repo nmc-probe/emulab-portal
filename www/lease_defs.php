@@ -418,6 +418,12 @@ class ImageDataset
     function URN() {
         return $this->remote_urn();
     }
+    function URL() {
+        global $TBBASE;
+        $uuid     = $this->uuid();
+
+        return "$TBBASE/image_metadata.php?uuid=$image_uuid";
+    }
     
     function deleteCommand() {
 	return  "webdelete_image -F -p " . $this->image->imageid();
