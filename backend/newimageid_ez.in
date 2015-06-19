@@ -216,6 +216,9 @@ my %xmlfields =
      "nextosid",	=> ["nextosid",		$SLOT_ADMINONLY],
      "def_parentosid",	=> ["def_parentosid",	$SLOT_OPTIONAL],
      "isdataset",	=> ["isdataset",	$SLOT_OPTIONAL],
+     "lba_low",    	=> ["lba_low",		$SLOT_OPTIONAL],
+     "lba_high",	=> ["lba_high",		$SLOT_OPTIONAL],
+     "lba_size",	=> ["lba_size",		$SLOT_OPTIONAL],
 );
 
 #
