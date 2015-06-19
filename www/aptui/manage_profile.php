@@ -219,6 +219,52 @@ if (isset($action) && ($action == "edit" || $action == "copy")) {
 	elseif (!$profile->CanView($this_user) && !ISADMIN()) {
 	    SPITUSERERROR("Not enough permission!");
 	}
+        #
+        # Spit out the version history.
+        #
+        $version_array  = array();
+        $profileid      = $profile->profileid();
+
+        $query_result =
+            DBQueryFatal("select v.*,DATE(v.created) as created ".
+                         "  from apt_profile_versions as v ".
+                         "where v.profileid='$profileid' ".
+                         "order by v.created desc");
+
+        while ($row = mysql_fetch_array($query_result)) {
+            $uuid    = $row["uuid"];
+            $version = $row["version"];
+            $pversion= $row["parent_version"];
+            $created = $row["created"];
+            $published = $row["published"];
+            $rspec   = $row["rspec"];
+            $desc    = '';
+            $obj     = array();
+
+            if ($version == 0) {
+                $pversion = " ";
+            }
+            if (!$published) {
+                $published = " ";
+            }
+            else {
+                $published = date("Y-m-d", strtotime($published));
+            }
+            $parsed_xml = simplexml_load_string($rspec);
+            if ($parsed_xml &&
+                $parsed_xml->rspec_tour &&
+                $parsed_xml->rspec_tour->description) {
+                $desc = (string) $parsed_xml->rspec_tour->description;
+            }
+            $obj["uuid"]    = $uuid;
+            $obj["version"] = $version;
+            $obj["description"] = $desc;
+            $obj["created"]     = $created;
+            $obj["published"]   = $published;
+            $obj["parent_version"] = $pversion;
+            
+            $version_array[] = $obj;
+        }
     }
 }
 
@@ -317,53 +363,6 @@ if (! isset($create)) {
 	    if ($webtask && ! $webtask->exited()) {
 		$notifyclone = 1;
 	    }
-
-            #
-            # Spit out the version history.
-            #
-            $version_array  = array();
-            $profileid      = $profile->profileid();
-
-            $query_result =
-                DBQueryFatal("select v.*,DATE(v.created) as created ".
-                             "  from apt_profile_versions as v ".
-                             "where v.profileid='$profileid' ".
-                             "order by v.created desc");
-
-            while ($row = mysql_fetch_array($query_result)) {
-                $uuid    = $row["uuid"];
-                $version = $row["version"];
-                $pversion= $row["parent_version"];
-                $created = $row["created"];
-                $published = $row["published"];
-                $rspec   = $row["rspec"];
-                $desc    = '';
-                $obj     = array();
-
-                if ($version == 0) {
-                    $pversion = " ";
-                }
-                if (!$published) {
-                    $published = " ";
-                }
-                else {
-                    $published = date("Y-m-d", strtotime($published));
-                }
-                $parsed_xml = simplexml_load_string($rspec);
-                if ($parsed_xml &&
-                    $parsed_xml->rspec_tour &&
-                    $parsed_xml->rspec_tour->description) {
-                    $desc = (string) $parsed_xml->rspec_tour->description;
-                }
-                $obj["uuid"]    = $uuid;
-                $obj["version"] = $version;
-                $obj["description"] = $desc;
-                $obj["created"]     = $created;
-                $obj["published"]   = $published;
-                $obj["parent_version"] = $pversion;
-
-                $version_array[] = $obj;
-            }
 	}
     }
     else {
