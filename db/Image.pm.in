@@ -507,7 +507,7 @@ sub Create($$$$$$$$)
     # Pass-through optional slots, otherwise the DB default is used.
     foreach my $key ("path", "shared", "global", "ezid", "mbr_version",
 		     "metadata_url", "imagefile_url", "released",
-		     "isdataset") {
+		     "isdataset", "lba_size", "lba_low", "lba_high") {
 	if (exists($argref->{$key})) {
 	    push(@arg_slots, $key);
 	}
