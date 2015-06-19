@@ -277,7 +277,7 @@ if (defined($user)) {
 }
 
 #
-7# If invoked as "nobody" we came from the web interface. We have to have
+# If invoked as "nobody" we came from the web interface. We have to have
 # a credential in the environment, unless its just a key verification
 # operation, which anyone can do. 
 # 
