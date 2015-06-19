@@ -1118,6 +1118,12 @@ if test "$TBMAINSITE" = 1; then
     FANCYBANNER=1
 fi
 
+# Mailman has been flushed
+if test "$MAILMANSUPPORT" = 1; then
+    AC_MSG_WARN([Forcing MAILMANSUPPORT off, no longer supported. Change your defs files!])
+    MAILMANSUPPORT=0
+fi
+
 #
 # Get rid of old third-party distributions in the source tree since we now
 # unpack them in the build tree. In the case of tg2.0, it actually breaks
@@ -1380,10 +1386,6 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	robots/mezzanine/mezzanine/GNUmakefile \
 	robots/tracker/GNUmakefile \
 	robots/mezzanine/mezzcal/GNUmakefile robots/robomonitord \
-        wiki/GNUmakefile wiki/addwikiuser wiki/wikiproxy \
-	wiki/usertemplate wiki/webhometemplate wiki/LocalSite.cfg \
-        wiki/delwikiuser wiki/setwikigroups wiki/addwikiproj \
-        bugdb/GNUmakefile bugdb/bugdbproxy \
         protogeni/GNUmakefile protogeni/security/GNUmakefile \
         protogeni/xmlrpc/GNUmakefile protogeni/lib/GNUmakefile \
         protogeni/scripts/GNUmakefile protogeni/etc/GNUmakefile \
@@ -1394,18 +1396,6 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	protogeni/rspec-emulab/2/GNUmakefile \
         apt/GNUmakefile \
         collab/GNUmakefile \
-        collab/trac/GNUmakefile \
-        collab/plone/GNUmakefile \
-        collab/jabber/GNUmakefile \
-        collab/mailman/GNUmakefile collab/cvstools/GNUmakefile \
-	collab/mailman/mmlistmembership \
-	collab/mailman/addmmlist collab/mailman/mmsetup \
-	collab/mailman/delmmlist collab/mailman/mmxlogin \
-	collab/mailman/genaliases collab/mailman/setmmlistmembers \
-	collab/mailman/mailmanproxy collab/mailman/setmmpasswd \
-	collab/cvstools/cvs.proxy collab/cvstools/cvs_ctrl \
-	collab/cvstools/cvsrepo_ctrl.proxy collab/cvstools/cvsrepo_ctrl \
-	collab/cvstools/webcvsrepo_ctrl \
 	collab/exp-vis/GNUmakefile collab/exp-vis/fetch-vis \
 	node_usage/GNUmakefile node_usage/mk-plots \
 	node_usage/analy node_usage/publish \
