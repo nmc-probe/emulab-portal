@@ -1374,18 +1374,6 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	install/libinstall.pm install/update-install install/update-testbed \
 	mote/GNUmakefile mote/tbuisp mote/tbsgmotepower mote/newmote \
 	mote/sgtools/GNUmakefile \
-	robots/GNUmakefile robots/tbsetdest/GNUmakefile \
-	robots/mtp/GNUmakefile robots/emc/GNUmakefile \
-	robots/emc/test_emcd.sh robots/emc/loclistener \
-	robots/vmcd/GNUmakefile robots/vmcd/test_vmc-client.sh \
-	robots/rmcd/GNUmakefile robots/primotion/GNUmakefile \
-	robots/primotion/test_gorobot.sh robots/primotion/dgrobot/GNUmakefile \
-	robots/mezzanine/GNUmakefile robots/mezzanine/rtk2/GNUmakefile \
-	robots/mezzanine/libfg/GNUmakefile \
-	robots/mezzanine/libmezz/GNUmakefile \
-	robots/mezzanine/mezzanine/GNUmakefile \
-	robots/tracker/GNUmakefile \
-	robots/mezzanine/mezzcal/GNUmakefile robots/robomonitord \
         protogeni/GNUmakefile protogeni/security/GNUmakefile \
         protogeni/xmlrpc/GNUmakefile protogeni/lib/GNUmakefile \
         protogeni/scripts/GNUmakefile protogeni/etc/GNUmakefile \
