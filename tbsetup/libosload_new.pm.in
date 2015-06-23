@@ -46,6 +46,7 @@ use OSinfo;
 use English;
 use event;
 use Data::Dumper;
+use File::stat;
 use IO::Handle;
 use overload ('""' => 'Stringify');
 
@@ -57,6 +58,7 @@ my $ELABINELAB  = @ELABINELAB@;
 my $PROJROOT    = "@PROJROOT_DIR@";
 my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $WITHDELTAS	= @IMAGEDELTAS@;
+my $IMAGEINFO	= "$TB/sbin/imageinfo";
 
 # Paths to binaries
 my $TBUISP	    = "$TB/bin/tbuisp";
@@ -1185,7 +1187,60 @@ sub WaitTillReloadDone($$$$$@)
     return @failed;
 }
 
+#
+# Grab the size and update the database.
+#
+sub GetImageSize($$$)
+{
+    my ($self, $image, $node) = @_;
+    my $imagesize = 0;
+    my $imagepath = $image->FullImageFile();
 
+    #
+    # Perform a few validity checks: imageid should have a file name
+    # and that file should exist.
+    #
+    if (!defined($imagepath)) {
+	tberror "No filename associated with $image!";
+	return -1;
+    }
+
+    if (! -R $imagepath) {
+	#
+	# There are two reasons why a legit image might not be readable.
+	# One is that we are in an elabinelab and the image has just not
+	# been downloaded yet. The other is that we are attempting to
+	# access a shared (via the grantimage mechanism) image which the
+	# caller cannot directly access.
+	#
+	# For either case, making a proxy query request via frisbee will
+	# tell us whether the image is accessible and, if so, its size.
+	# "imageinfo" makes that call for us.
+	#
+	my $frisimageid = $image->pid() . "/" . $image->imagename();
+	my $sizestr = `$IMAGEINFO -qs -N $node $frisimageid`;
+	if ($sizestr =~ /^(\d+)$/) {
+	    $imagesize = $1;
+	} else {
+	    tberror "$image: access not allowed or image does not exist.";
+	    return -1;
+	}
+    } else {
+	$imagesize = stat($imagepath)->size;
+    }
+
+    #
+    # A zero-length image cannot be right and will result in much confusion
+    # if allowed to pass: the image load will succeed, but the disk will be
+    # unchanged, making it appear that os_load loaded the default image.
+    #
+    if ($imagesize == 0) {
+	tberror "$imagepath is empty!";
+	return -1;
+    }
+    $image->SetFullSize($imagesize);
+    return 0;
+}
 
 #
 # Return two array references (possbily empty) of:
@@ -1730,8 +1785,14 @@ sub _CheckImages($$)
 	# always prefer the full image if we have it.
 	#
 	if (! ($image->HaveFullImage() || $image->HaveDeltaImage())) {
-	    tberror "$image: no full or delta image file!";
-	    return -1;
+	    #
+	    # This should be an error, but until we run imagevalidate
+	    # over all images, we want to do it here.
+	    #
+	    if ($self->GetImageSize($image, $nodeobject)) {
+		tberror "$nodeobject: no full or delta image file!";
+		goto failednode;
+	    }
 	}
 	if (! ($image->size() || $image->deltasize())) {
 	    tberror "$image: no size info!";
@@ -1994,8 +2055,8 @@ sub UpdatePartitions($$)
 	    my $partname = "part${i}_osid";
 	    my $partvers = "part${i}_vers";
 
-	    my $osid = $rowref->{$partname};
-	    my $vers = $rowref->{$partvers};
+	    my $osid = $image->DBData()->{$partname};
+	    my $vers = $image->DBData()->{$partvers};
 	    if (defined($osid)) {
 		my $osinfo = OSinfo->Lookup($osid, $vers);
 		if (!defined($osinfo)) {
@@ -2479,12 +2540,11 @@ sub SetupReload($$)
     }
 
     my $imageid = $images[0]->imageid();
-    my $osid = $image->default_osid();
-
+    my $osid = $images[0]->default_osid();
     #
     # Get the path to the image
     #
-    my $path = $image->path();
+    my $path = $images[0]->path();
 
     #
     # Tell stated that we're about to start reloading
@@ -2521,12 +2581,12 @@ sub Reload($$)
 
     my @images = @{$self->GetImages($nodeobject)};
     my $imageid = $images[0]->imageid();
-    my $osid = $image->default_osid();
+    my $osid = $images[0]->default_osid();
 
     #
     # Get the path to the image
     #
-    my $path = $image->path();
+    my $path = $images[0]->path();
 
     TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADING);
 

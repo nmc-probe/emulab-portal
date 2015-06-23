@@ -318,7 +318,7 @@ sub SetupReload($$)
     my @images = @{$self->GetImages($nodeobject)};
     my $newimageid = $images[0]->imageid();
     my $newpart = $images[0]->loadpart();
-    my $newosid = $image->default_osid();
+    my $newosid = $images[0]->default_osid();
 
     if (@images > 1) {
 	tbwarn "$self ($node_id): switches can load only one image; using first!";
