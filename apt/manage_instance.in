@@ -253,6 +253,16 @@ sub DoSnapshot()
 	    $imagename = $profile->name();
 	}
     }
+    #
+    # Make sure a valid imagename. This a local test of course, but this
+    # only works on IG aggregates anyway.
+    #
+    if (! TBcheck_dbslot($imagename, "images",
+			 "imagename", TBDB_CHECKDBSLOT_ERROR)) {
+	$imagename = $profile->profileid();
+	$imagename .= "." . $node_id;
+	    if (defined($node_id));
+    }
 
     #
     # Sanity checks. 
@@ -789,6 +799,7 @@ sub DoTerminate()
 sub DoExtend()
 {
     my $force = 0;
+    my $lockdown = 0;
     
     usage()
 	if (!@ARGV);
@@ -830,6 +841,12 @@ sub DoExtend()
     # Save in case of error.
     my $oldexpires = $slice->expires();
 
+    # Lockdown on admin extensions longer then XX days. 
+    if (defined($this_user) && $this_user->IsAdmin() &&
+	($seconds / (24 * 60 * 60)) > 10) {
+	$lockdown = 1
+    }
+    
     # Need to update slice before creating new credential. 
     $slice->AddToExpiration($seconds);
     my $new_expires = $slice->ExpirationGMT();
@@ -888,8 +905,7 @@ sub DoExtend()
 	}
     }
     # Lockdown.
-    if (defined($this_user) && $this_user->IsAdmin() &&
-	($seconds / (24 * 60 * 60)) > 10) {
+    if ($lockdown) {
 	if (DoLockdownInternal("set", "admin")) {
 	    SENDMAIL($TBOPS,
 		     "Failed to lock down APT Instance",
@@ -1046,6 +1062,7 @@ sub DoRebootOrReload($)
     }
 
     my %sliver_urns = ();
+    my %node_ids    = ();
     my @slivers     = ();
     foreach my $obj ($instance->AggregateList()) {
 	my $manifest = GeniXML::Parse($obj->manifest());
@@ -1070,6 +1087,7 @@ sub DoRebootOrReload($)
 		    push(@slivers, $obj);
 		}
 		push(@{ $sliver_urns{$obj->aggregate_urn()} }, $sliver_urn);
+		$node_ids{$sliver_urn} = $client_id;
 	    }
 	}
     }
@@ -1099,9 +1117,6 @@ sub DoRebootOrReload($)
 	my @urns     = @{ $sliver_urns{$sliver->aggregate_urn()} };
 	my $errmsg;
 
-	# Clear this so that web interface will not update it.
-	$webtask->sliverstatus({});
-
 	my $response = $sliver->SliverAction(\$errmsg, $which, @urns);
 	if (!defined($response)) {
 	    $errmsg = "RPC Error calling SliverAction";
@@ -1118,6 +1133,16 @@ sub DoRebootOrReload($)
 	    }
 	    $errmsg = $response->output();
 	    goto bad;
+	}
+	# Tell the web interface something is different. Real status will
+	# come later when the monitor starts up. 
+	if ($webtask->sliverstatus()) {
+	    my $blob = $webtask->sliverstatus();
+	    foreach my $urn (@urns) {
+		my $node_id = $node_ids{$urn};
+		$blob->{$node_id}->{'status'} = "changing";
+	    }
+	    $webtask->sliverstatus($blob);
 	}
 	return 0;
       bad:
