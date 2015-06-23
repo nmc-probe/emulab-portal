@@ -260,7 +260,7 @@ sub DoSnapshot()
     if (! TBcheck_dbslot($imagename, "images",
 			 "imagename", TBDB_CHECKDBSLOT_ERROR)) {
 	$imagename = $profile->profileid();
-	$imagename .= "." . $node_id;
+	$imagename .= "." . $node_id
 	    if (defined($node_id));
     }
 
