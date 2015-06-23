@@ -808,6 +808,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
     my %external_nodemap  = ();
     my %external_linkmap  = ();
     my %external_vportmap = ();
+    my %external_lanrefs  = ();
 
     # Always do this to avoid buildup.
     $slice_experiment->ClearBackupState();
@@ -2032,7 +2033,6 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	}
 
 	my $edgecount = 0;
-	my $irefcount = 0;
 
 	foreach my $ref (@interfaces) {
 	    my $node_nickname = GeniXML::GetInterfaceNodeId($ref);
@@ -2042,7 +2042,6 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    if (! GeniXML::IsVersion0($ref) && defined($iface_id)) {
 		$node_nickname = $iface2node{$iface_id};
 	    }
-	    $irefcount++;
 
 	    #
 	    # Look for links that are really lans; one of the interfaces
@@ -2067,10 +2066,17 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    # the user has specified something impossible.
 	    #
 	    if (exists($external_nodemap{$node_nickname})) {
-		next
-		    if ($irefcount > 2);
-		    
 		my $external_noderef = $external_nodemap{$node_nickname};
+		my $manager_id       = GeniXML::GetManagerId($external_noderef);
+
+		#
+		# There might be multiple external interfaces for the same
+		# lan in the case of "stitch to lan". We only care about the
+		# first one we see for each external stitch point.
+		#
+		next
+		    if (exists($external_lanrefs{"${lanname}:${manager_id}"}));
+		
 		my $stitchpath = GeniStitch->Lookup($lanname, $rspec);
 		if (! defined($stitchpath)) {
 		    $response =
@@ -2152,7 +2158,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		$iface_vport = $external_vportmap{$node_nickname};
 		$external_vportmap{$node_nickname} += 1;
 		$external_linkmap{$lanname} = $linkref;
-
+		$external_lanrefs{"${lanname}:${manager_id}"} = $external_noderef;
 		# Allow rspec to provide IP for other side.
 		$ip = GeniXML::GetIp($ref, $external_noderef);
 	    }
