@@ -2293,7 +2293,7 @@ sub TempImageFile($)
     my $name   = $self->imagename();
 
     if ($self->IsDirPath()) {
-	return $path . $name . ".ddz" . ($vers ? ":$vers" : "") . ".tmp";
+	return $path . $name . ".ndz" . ($vers ? ":$vers" : "") . ".tmp";
     }
     return $path . ".tmp";
 }
