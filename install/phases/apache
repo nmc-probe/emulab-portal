@@ -59,6 +59,28 @@ sub Install($$$)
 		if (-e "$TOP_OBJDIR/apache/php.ini");
 	    ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/apache install-php-ini");
 	};
+	if ($FBSD_MAJOR > 10 || ($FBSD_MAJOR == 10 && $FBSD_MINOR >= 1)) {
+	    # make sure we use the old mysql interface rather than mysqli
+	    Phase "php.conf", "Fixing php.conf file", sub {
+		DoneIfEdited($PHP_CONF);
+		open(PC, "<$PHP_CONF") or
+		    PhaseFail("Unable to open $PHP_CONF: $!");
+		my @pc = <PC>;
+		close(PC);
+		my $opts = "";
+		foreach my $line (@pc) {
+		    if ($line =~ /^PHP_EXT_INC=\(.*\)/) {
+			$opts = $1;
+			last;
+		    }
+		}
+		$opts =~ s/mysqli//;
+		if ($opts !~ /mysql/) {
+		    $opts .= " mysql";
+		}
+		AppendToFileFatal($PHP_CONF, "PHP_EXT_INC=$opts");
+	    }
+	}
 	if (ISOPSNODE($server)) {
 	    Phase "wikidocs", "Installing wikidocs redirect", sub {
 		PhaseSkip("wikidocs not supported on ops")

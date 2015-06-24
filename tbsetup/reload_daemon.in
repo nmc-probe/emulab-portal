@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -446,7 +446,7 @@ while (1) {
 	    my $idid = "$imageid/$mustwipe";
 
 	    $images{$node} = $imageid;
-	    if (defined(@{$imagenodes{$idid}})) {
+	    if (@{$imagenodes{$idid}} > 0) {
 		push(@{$imagenodes{$idid}},$node);
 	    } else {
 		$imagenodes{$idid} = [$node];

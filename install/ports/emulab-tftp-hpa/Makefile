@@ -19,11 +19,11 @@ COMMENT=	"The tftpd-hpa TFTP distribution as configured for Emulab"
 PATCH_STRIP=	-p1
 
 GNU_CONFIGURE=	YES
-USE_GMAKE=	YES
+USES=		gmake
+
+DESTDIRNAME=	INSTALLROOT
 
 CONFIGURE_ARGS+=--without-tcpwrappers
-
-NO_STAGE=	yes
 
 # for now only install the daemon
 INSTALL_WRKSRC=	${WRKSRC}/tftpd

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2010, 2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -336,7 +336,7 @@ for ($attempt = 0; $attempt < 16; $attempt++) {
 	my $mungedName = mungeName( $node );
 	if (exists $nodeProps{$mungedName}{"pos"}) {
 	    $s = $nodeProps{$mungedName}{"pos"};
-	    if ($s =~ /^\s*(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/) {
+	    if ($s =~ /^\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/) {
 		$nodes{ $node }{"x"} = int($1 + 0.5);
 		$nodes{ $node }{"y"} = int($2 + 0.5);
 	    } else {

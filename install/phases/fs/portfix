@@ -15,6 +15,20 @@ sub Install($$$)
 
     # XXX Temporary.
     Phase "portfixup", "Fixing up packages", sub {
+	Phase "perllink", "Looking for working $EMULAB_PERL_PATH link", sub {
+	    DoneIfExecutable($EMULAB_PERL_PATH);
+	    if (! -x $PORT_PERL_PATH) {
+		PhaseFail("$PORT_PERL_PATH does not exist!");
+	    }
+	    ExecQuietFatal("ln -sf $PORT_PERL_PATH $EMULAB_PERL_PATH");
+	};
+	Phase "pythonlink", "Looking for working $EMULAB_PYTHON_PATH link", sub {
+	    DoneIfExecutable($EMULAB_PYTHON_PATH);
+	    if (! -x $PORT_PYTHON_PATH) {
+		PhaseFail("$PORT_PYTHON_PATH does not exist!");
+	    }
+	    ExecQuietFatal("ln -sf $PORT_PYTHON_PATH $EMULAB_PYTHON_PATH");
+	};
 	Phase "rsync", "Looking for rsync and installing", sub {
 	    DoneIfPackageInstalled("rsync");
 	    my $pname = GetPackage("rsync", $packagedir);

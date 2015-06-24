@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -396,6 +396,18 @@ sub DoneIfDoesntExist($) {
     if (!$filename) { PhaseFail("Bad filename passed to DoneIfExists"); }
     if (!-e $filename) {
 	PhaseSkip("File does not exist");
+    }
+}
+
+#
+# Check to see if the phase is already done, as evidenced by the existance
+# and executability of a file.
+#
+sub DoneIfExecutable($) {
+    my ($filename) = @_;
+    if (!$filename) { PhaseFail("Bad filename passed to DoneIfExecutable"); }
+    if (-x "$filename") {
+	PhaseSkip("File already exists and is executable");
     }
 }
 
@@ -829,7 +841,7 @@ sub InstalledPackage($$) {
 	$args = $exact ? "-I" : "-I -X";
 	@foo = `pkg_info $args $pname 2>/dev/null`;
     } elsif (-x "/usr/sbin/pkg") {
-	$args = $exact ? "" : "-x";
+	$args = $exact ? "-E" : "-E -x";
 	@foo = `pkg info $args $pname 2>/dev/null`;
     } else {
 	PhaseFail("No package tools found!?");

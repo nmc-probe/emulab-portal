@@ -1,40 +1,29 @@
 # ports collection makefile for: emulab-extras
+# Date created:         15 June 2015
+# Whom:                 testbed-ops@flux.utah.edu
 
 .include "../emulab-boss/Makefile.emulab"
 
 PORTNAME=	emulab-extras
-PORTVERSION=	1.0
+PORTVERSION=	${EMULAB_PORTVERSION}
 CATEGORIES=	misc
 MASTER_SITES=	#none
-DISTFILES=      #none
+DISTFILES=	#none
 EXTRACT_ONLY=	#none
-COMMENT=	"Extra convenience packages for Emulab"
 
 MAINTAINER=	testbed-ops@flux.utah.edu
+COMMENT=	"Extra convenience packages for Emulab"
 
 NO_BUILD=	yes
 
-#
-# This prevents any ports from trying to run interactively - some, like the
-# net-snmp port, ask silly questions without this option.
-#
-.MAKEFLAGS+=	-DBATCH
+# XXX for libtasn1 (required by emacs)
+.MAKEFLAGS+=	DISABLE_VULNERABILITIES=yes
 
 #
-# Make sure we don't get the wrong version of Perl..
+# This prevents any ports from trying to configure interactively.
 #
-.MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if ${EMULAB_PORTVERSION} == "6.0"
-.MAKEFLAGS+=	PERL_VERSION=5.14.4 PERL_VER=5.14 PERL_ARCH=mach
-.elif ${EMULAB_PORTVERSION} == "5.1"
-.MAKEFLAGS+=	PERL_VERSION=5.12.5 PERL_VER=5.12 PERL_ARCH=mach
-.elif ${EMULAB_PORTVERSION} == "5.0"
-.MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
-.elif (${EMULAB_PORTVERSION} == "3.1" || ${EMULAB_PORTVERSION} == "4.0")
-.MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
-.elif ${EMULAB_PORTVERSION} == "3.0"
-.MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
-.endif
+BATCH=		yes
+.MAKEFLAGS+=	-DBATCH
 
 #
 # Emacs configuration options. Controls the worst of the excesses.
@@ -64,32 +53,38 @@ NO_BUILD=	yes
 .MAKEFLAGS+=	WITHOUT_XIM=yes
 .MAKEFLAGS+=	WITHOUT_XPM=yes
 
-# XXX avoid dragging in 4.1 in portupgrade/ruby/ruby-bdb
-.MAKEFLAGS+=	WITH_BDB_VER=42
+#
+# XXX hackary to get around bugs in Makefiles:
+#
+# Both pango (required by graphviz) and gtk-update-icon-cache (required by
+# emacs) perform a Makefile (pre-configure target) existence check using
+# ".if exists" for the cairo port. However, since that check is done at
+# Makefile parse time, the things they are checking for might not yet be
+# installed. Instead those items get installed as a result of the dependencies
+# in the Makefile. The Makefiles should really be changed to make run-time
+# check (i.e., a shell "test" command) for the existence of packages that
+# they might install.
+#
+RUN_DEPENDS=	\
+	${LOCALBASE}/libdata/pkgconfig/cairo-gobject.pc:${PORTSDIR}/graphics/cairo
 
 # XXX do vim-lite to avoid dragging in gtk
-RUN_DEPENDS=	\
-        ${LOCALBASE}/bin/bash:${PORTSDIR}/shells/bash \
-        ${LOCALBASE}/bin/zsh:${PORTSDIR}/shells/zsh \
-        ${LOCALBASE}/bin/jove:${PORTSDIR}/editors/jove \
-        ${LOCALBASE}/bin/emacs:${PORTSDIR}/editors/emacs \
-        ${LOCALBASE}/bin/vim:${PORTSDIR}/editors/vim-lite \
-        ${LOCALBASE}/sbin/lsof:${PORTSDIR}/sysutils/lsof \
-        ${LOCALBASE}/bin/netcat:${PORTSDIR}/net/netcat \
-        ${LOCALBASE}/bin/ttcp:${PORTSDIR}/benchmarks/ttcp \
-        ${LOCALBASE}/sbin/e2fsck:${PORTSDIR}/sysutils/e2fsprogs \
-        ${LOCALBASE}/sbin/portupgrade:${PORTSDIR}/ports-mgmt/portupgrade \
-        ${PYTHON_SITELIBDIR}/svn/client.py:${PORTSDIR}/devel/py-subversion \
-        ${LOCALBASE}/bin/xterm:${PORTSDIR}/x11/xterm
-
-.if ${OSMAJOR} < 10
 RUN_DEPENDS+=	\
-        ${LOCALBASE}/sbin/portaudit:${PORTSDIR}/ports-mgmt/portaudit
-.endif
+	bash:${PORTSDIR}/shells/bash \
+	${LOCALBASE}/sbin/e2fsck:${PORTSDIR}/sysutils/e2fsprogs \
+	emacs:${PORTSDIR}/editors/emacs \
+	jove:${PORTSDIR}/editors/jove \
+	lsof:${PORTSDIR}/sysutils/lsof \
+	ttcp:${PORTSDIR}/benchmarks/ttcp \
+	vim:${PORTSDIR}/editors/vim-lite \
+	xterm:${PORTSDIR}/x11/xterm \
+	zsh:${PORTSDIR}/shells/zsh
 
-USE_PYTHON=	yes
+RUN_DEPENDS+=	\
+	${PYTHON_PKGNAMEPREFIX}subversion>0:${PORTSDIR}/devel/py-subversion
+
+USES=		python:2.7
 
 do-install:	# empty
 
-NO_STAGE=	yes
 .include <bsd.port.mk>
