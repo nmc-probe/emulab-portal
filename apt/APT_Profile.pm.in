@@ -824,7 +824,8 @@ sub CheckNodeConstraints($$$)
 	}
 
 	if (defined($image_urn)) {
-	    if ($image_urn =~ /UBUNTU14\-10\-64\-OS/) {
+	    if ($image_urn =~ /UBUNTU14\-10\-64\-OS/ ||
+		$image_urn =~ /UBUNTU15\-04\-64\-OS/) {
 		return 0;
 	    }
 	    elsif ($iscloudlab &&
