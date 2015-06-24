@@ -190,6 +190,8 @@ CREATE TABLE `apt_instances` (
   `servername` tinytext,
   `monitor_pid` int(11) default '0',
   `logfileid` varchar(40) default NULL,
+  `cert` mediumtext,
+  `privkey` mediumtext,
   `rspec` mediumtext,
   `params` mediumtext,
   `manifest` mediumtext,

@@ -628,6 +628,10 @@ my $isglobal  = $image->global();
 my $usepath   = 0;
 my $isdataset = $image->isdataset();
 my $hackprefix= $PROJROOT . "/" . $image->pid() . "/images/";
+if ($image->IsDirPath()) {
+    # Add in the directory.
+    $hackprefix .= basename($image->path()) . "/";
+}
 
 #
 # If we are creating a signature file for this image, get the
@@ -1340,17 +1344,23 @@ if ($delta && $deltapct > 0 && defined($logfile)) {
 
 #
 # The upload completed okay, so move the files into place so that
-# imagevalidate finds them in the correct place.
+# imagevalidate finds them in the correct place. We have to watch for
+# the case that usepath=1 (target is in /usr/testbed); we do not want
+# to rename them to the target (will not work anyway), they have to
+# stay in /proj. More succintly, we always move the new files to the
+# hackprefix location.
 #
-if (system("/bin/mv -f $filename " .
-	   ($delta ?
-	    $image->DeltaImageFile() : $image->FullImageFile()))) {
+if (system("/bin/mv -f $filename $hackprefix" . 
+	   basename(($delta ?
+		     $image->DeltaImageFile() :
+		     $image->FullImageFile())))) {
     fatal("Could not move new image file into place");
 }
 if ($dstsigfile &&
-    system("/bin/mv -f $dstsigfile " .
-	   ($delta ?
-	    $image->FullImageSigFile() : $image->FullImageSigFile()))) {
+    system("/bin/mv -f $dstsigfile $hackprefix" .
+	   basename(($delta ?
+		     $image->FullImageSigFile() :
+		     $image->FullImageSigFile())))) {
     fatal("Could not move new signature file into place");
 }
 
@@ -1366,15 +1376,12 @@ my $cname = "$imagepid/$imagename";
 $cname .= ":$version"
     if ($doprovenance);
 my $tbopsmsg = "";
-if ($isglobal && $usepath) {
+if ($isglobal && ($usepath || $doprovenance)) {
     $tbopsmsg =
 	"Did not update DB state for global image $cname\n".
-	"since image was written to '$filename' instead of $TB/images.\n".
-	($doprovenance ?
-	 "Please run imagerelease when ready for release:\n".
-	 "    imagerelease -q $cname\n" :
-	 "Move image into place and run:\n".
-	 "    $imagevalidate -u $cname\n");
+	"since image was written to '$filename' instead of $TB/images.\n\n".
+	"Please run imagerelease when ready for release:\n".
+	"    imagerelease -q $cname\n";
 }
 elsif (system("$imagevalidate -u $cname") != 0) {
     $tbopsmsg =

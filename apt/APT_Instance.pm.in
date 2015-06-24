@@ -1648,12 +1648,22 @@ sub Lockdown($$)
     my $authority = $self->GetGeniAuthority();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
+    my $oldexpires;
     return undef
 	if (! (defined($authority) &&
 	       defined($slice) && defined($context)));
 
+    #
+    # If the slice is expired, then the credential we generate will
+    # not be valid. So extend the slice so we can clear the lockdown.
+    #
+    if ($clear && $slice->IsExpired()) {
+	$oldexpires = $slice->expires();
+	$slice->SetExpiration(time() + 3600);
+    }
+
     my $slice_credential = APT_Geni::GenAuthCredential($slice);
-    return undef
+    goto bad
 	if (! defined($slice_credential));
 
     my $args = {
@@ -1665,7 +1675,14 @@ sub Lockdown($$)
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    return Genixmlrpc::CallMethod($cmurl, $context, "Lockdown", $args);
+    my $response = Genixmlrpc::CallMethod($cmurl, $context, "Lockdown", $args);
+    $slice->SetExpiration($oldexpires)
+	if (defined($oldexpires));
+    return $response;
+  bad:
+    $slice->SetExpiration($oldexpires)
+	if (defined($oldexpires));
+    return undef;
 }
 
 #

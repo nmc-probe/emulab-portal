@@ -824,7 +824,8 @@ sub CheckNodeConstraints($$$)
 	}
 
 	if (defined($image_urn)) {
-	    if ($image_urn =~ /UBUNTU14\-10\-64\-OS/) {
+	    if ($image_urn =~ /UBUNTU14\-10\-64\-OS/ ||
+		$image_urn =~ /UBUNTU15\-04\-64\-OS/) {
 		return 0;
 	    }
 	    elsif ($iscloudlab &&
@@ -1025,7 +1026,8 @@ sub SetSites($$$$)
 		if (!exists($interface_map{$client_id}));
 
 	    my $site_mid = $interface_map{$client_id};
-	    GeniXML::AddManagerToLink($ref, $sitemap->{$site_mid});
+	    GeniXML::AddManagerToLink($ref, $sitemap->{$site_mid})
+		if (!exists($linksites{$sitemap->{$site_mid}}));
 	    $linksites{$sitemap->{$site_mid}} = 1;
 	}
 	# if more then one site for a link, must use the stitcher.
