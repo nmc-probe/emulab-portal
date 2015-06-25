@@ -1405,9 +1405,9 @@ sub GetManifest($)
     return $response->value()->{'manifest'};
 }
 
-sub Provision($$$)
+sub Provision($$$$)
 {
-    my ($self, $perrmsg, $keys) = @_;
+    my ($self, $perrmsg, $keys, $cert, $key) = @_;
     my $authority = $self->GetGeniAuthority();
     my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
@@ -1433,12 +1433,14 @@ sub Provision($$$)
 		   {"geni_type" => "geni_sfa",
 		    "geni_version" => 3,
 		    "geni_value" => $slice_credential->asString()},
-		  ],		 
+		  ],
 		  # Options array.
 		  {"speaking_for" => $geniuser->urn(),
 		   "geni_speaking_for" => $geniuser->urn(),
 		   "geni_users" => [{'urn'   => $geniuser->urn(),
 				     'keys'  => $keys }],
+		   "geni_certificate" => $cert,
+		   "geni_key"         => $key,
 		  });
  
     my $cmurl = $authority->url();

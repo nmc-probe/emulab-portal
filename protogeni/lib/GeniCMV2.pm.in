@@ -482,6 +482,18 @@ sub CreateSliver($)
     }
     main::AddLogfileMetaDataFromSlice($slice);
 
+    #
+    # If we got a cert/key, record them for the slice. This is a
+    # generic openssl key/cert that is stored on the nodes (and from
+    # which an ssh key pair can be derived).
+    #
+    if (exists($argref->{'certificate'}) || exists($argref->{'key'})) {
+	$slice->AddGenericCert((exists($argref->{'certificate'}) ?
+				$argref->{'certificate'} : undef),
+			       (exists($argref->{'key'}) ?
+				$argref->{'key'} : undef));
+    }
+
     # Make sure that the next phase sees all changes.
     Experiment->FlushAll();
     Node->FlushAll();

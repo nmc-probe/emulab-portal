@@ -89,6 +89,7 @@ my $SSHSETUP      = "$TB/sbin/aptssh-setup";
 my $ADDPUBKEY     = "$TB/sbin/addpubkey";
 my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
+my $OPENSSL       = "/usr/bin/openssl";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -590,6 +591,27 @@ if (defined($profile)) {
 }
 
 #
+# Generate a new ssl key/cert to be used to derive an ssh key pair,
+# or whatever else is needed. This is sent along as an option when the
+# sliver is created (or provisioned, when stitching).
+#
+my $sslkeyfile = "/tmp/key$$.pem";
+my $sslcrtfile = "/tmp/crt$$.pem";
+
+system("$OPENSSL req -x509 -newkey rsa:2048 ".
+       "-keyout $sslkeyfile -out $sslcrtfile ".
+       "-days 2000 -nodes -subj '/CN=localhost' -text");
+if ($?) {
+    unlink($sslkeyfile);
+    unlink($sslcrtfile);
+    fatal("Could not generate ssl key/cert");
+}
+my $sslkey = `cat $sslkeyfile`;
+my $sslcrt = `cat $sslcrtfile`;
+unlink($sslkeyfile);
+unlink($sslcrtfile);
+
+#
 #
 # Now generate a slice registration and credential
 #
@@ -661,6 +683,8 @@ my $blob = {'uuid'         => $quickvm_uuid,
 	    'status'       => "created",
 	    'servername'   => $SERVER_NAME,
 	    'rspec'        => $rspecstr,
+	    'cert'         => $sslcrt,
+	    'privkey'      => $sslkey,
 };
 if (defined($project)) {
     $blob->{"pid"}     = $project->pid();
@@ -1027,11 +1051,14 @@ sub CreateSliver($)
 					 [{'urn'   => $user_urn,
 					   'login' => $user_uid,
 					   'keys'  => \@sshkeys }],
-					 "credentials" =>
+				     "credentials" =>
 					 [$slice_credential->asString(),
 					  $speaksfor_credential->asString(),
 					  @dataset_credentials
-					 ]});
+					 ],
+				     "certificate" => $sslcrt,
+				     "key"         => $sslkey,
+				   });
 
 	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
 	    if (defined($response) &&
@@ -1319,7 +1346,7 @@ sub RunStitcher()
 	    return 0;
 	}
 	print "Provisioning at $urn\n";
-	if ($aggobj->Provision(\$errmsg, \@sshkeys)) {
+	if ($aggobj->Provision(\$errmsg, \@sshkeys, $sslcrt, $sslkey)) {
 	    $aggobj->SetStatus("failed");
 	    $webtask->output($errmsg);
 	    $webtask->Exited(-1);
