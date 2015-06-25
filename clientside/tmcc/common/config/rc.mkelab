@@ -2495,8 +2495,15 @@ sub SetupBossNode($)
 	# We take advantage of a FreeBSD rc.named script option to force
 	# it to wait til it can resolve outer boss.
 	#
-	print RC "named_wait=\"YES\"\n";
-	print RC "named_wait_host=\"$bossname\"\n";
+	# XXX argh! This doesn't work in 10.1 with the firewall setup below.
+	# The named wait takes place before the firewall rules are loaded.
+	# Maybe this worked before because our custom kernel defaulted to
+	# an open firewall?
+	#
+	if ($FBSD_VERSION < 10.1) {
+	    print RC "named_wait=\"YES\"\n";
+	    print RC "named_wait_host=\"$bossname\"\n";
+	}
     }
     print RC "network_interfaces=\"\$network_interfaces lo0\"\n";
     print RC "static_routes=\"outerboss vnodes\"\n";
