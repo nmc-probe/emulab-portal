@@ -44,7 +44,7 @@ use GeniUser;
 use GeniHRN;
 use English;
 use libEmulab;
-use emutil qw(TBGetUniqueIndex);
+use emutil;
 use Date::Parse;
 use Data::Dumper;
 use vars qw();
@@ -354,6 +354,8 @@ sub Delete($)
     my $uuid = $self->uuid();
     my $idx  = $self->idx();
 
+    DBQueryWarn("delete from geni_slicecerts where uuid='$uuid'")
+	or return -1;
     DBQueryWarn("delete from geni_bindings where slice_uuid='$uuid'")
 	or return -1;
     DBQueryWarn("delete from geni_certificates where uuid='$uuid'")
@@ -1450,6 +1452,30 @@ sub SetPublicID($)
 
     $self->{'SLICE'}->{'publicid'} = $publicid;
     return 0;
+}
+
+#
+# Add a generic certificate/key for a slice.
+#
+sub AddGenericCert($$$)
+{
+    my ($self, $cert, $key) = @_;
+    my $uuid  = $self->uuid();
+    my $query = "insert into geni_slicecerts set uuid='$uuid' ";
+
+    if (defined($cert)) {
+	return -1
+	    if (!TBcheck_dbslot($cert, "default", "fulltext",
+				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR));
+	$query .= ",cert=" . DBQuoteSpecial($cert);
+    }
+    if (defined($key)) {
+	return -1
+	    if (!TBcheck_dbslot($key, "default", "fulltext",
+				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR));
+	$query .= ",privkey=" . DBQuoteSpecial($key);
+    }
+    return DBQueryWarn($query);
 }
 
 ##########################################################################

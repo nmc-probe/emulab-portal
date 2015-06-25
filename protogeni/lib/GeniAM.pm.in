@@ -385,6 +385,14 @@ sub CreateSliver()
         'credentials' => $credentials,
         'keys' => $sliver_keys
     };
+    if (defined($options)) {
+	if (exists($options->{'geni_certificate'})) {
+	    $create_args->{'certificate'} = $options->{'geni_certificate'};
+	}
+	if (exists($options->{'geni_key'})) {
+	    $create_args->{'key'} = $options->{'geni_key'};
+	}
+    }
     my $response = GeniCMV2::CreateSliver($create_args);
     if (!ref($response)) {
 	# This is cause GeniCMV2::CreateSliver does a fork, and the child
@@ -1027,7 +1035,14 @@ sub Provision
 	'credentials' => $credentials,
 	'keys' => $sliver_keys
     };
-
+    if (defined($options)) {
+	if (exists($options->{'geni_certificate'})) {
+	    $args->{'certificate'} = $options->{'geni_certificate'};
+	}
+	if (exists($options->{'geni_key'})) {
+	    $args->{'key'} = $options->{'geni_key'};
+	}
+    }
     my $response = GeniCMV2::RedeemTicket($args);
     if (! GeniResponse::IsError($response)) {
 	my $description = Describe($urn_args, $credential_args, []);

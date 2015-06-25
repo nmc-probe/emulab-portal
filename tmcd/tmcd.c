@@ -398,6 +398,8 @@ COMMAND_PROTOTYPE(dogeniuserurn);
 COMMAND_PROTOTYPE(dogeniuseremail);
 COMMAND_PROTOTYPE(dogenigeniuser);
 COMMAND_PROTOTYPE(dogenimanifest);
+COMMAND_PROTOTYPE(dogenicert);
+COMMAND_PROTOTYPE(dogenikey);
 COMMAND_PROTOTYPE(dogenicontrolmac);
 COMMAND_PROTOTYPE(dogeniversion);
 COMMAND_PROTOTYPE(dogenigetversion);
@@ -532,6 +534,8 @@ struct command {
 	/* Yes, "geni_user" is a stupid name.  Wasn't my idea. */
 	{ "geni_geni_user", FULLCONFIG_NONE, 0, dogenigeniuser },
 	{ "geni_manifest", FULLCONFIG_NONE, 0, dogenimanifest },
+	{ "geni_certificate", FULLCONFIG_NONE, 0, dogenicert },
+	{ "geni_key", FULLCONFIG_NONE, 0, dogenikey },
 	{ "geni_control_mac", FULLCONFIG_NONE, 0, dogenicontrolmac },
 	{ "geni_version", FULLCONFIG_NONE, 0, dogeniversion },
 	{ "geni_getversion", FULLCONFIG_NONE, 0, dogenigetversion },
@@ -12411,6 +12415,68 @@ static char *getgenimanifest( tmcdreq_t *reqp ) {
 	return strdup( buf );
 }
 
+static char *getgenicert( tmcdreq_t *reqp ) {
+    
+	MYSQL_RES	*res;
+	char		buf[ MAXTMCDPACKET ];
+	buf[0] = (char) NULL;  
+
+	res = mydb_query( "SELECT c.cert FROM `geni-cm`.geni_slivers AS s, "
+			  "`geni-cm`.geni_slicecerts AS c WHERE "
+			  "s.resource_uuid='%s' AND "
+			  "c.uuid = s.slice_uuid", 1, reqp->nodeuuid );
+
+	if( !res ) {
+		error( "getgenicert: %s: DB error getting certificate!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+
+		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
+	}
+
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: getgenicert: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
+static char *getgenikey( tmcdreq_t *reqp ) {
+    
+	MYSQL_RES	*res;
+	char		buf[ MAXTMCDPACKET ];
+	buf[0] = (char) NULL;  
+
+	res = mydb_query( "SELECT c.privkey FROM `geni-cm`.geni_slivers AS s, "
+			  "`geni-cm`.geni_slicecerts AS c WHERE "
+			  "s.resource_uuid='%s' AND "
+			  "c.uuid = s.slice_uuid", 1, reqp->nodeuuid );
+
+	if( !res ) {
+		error( "getgenikey: %s: DB error getting certificate!\n",
+		       reqp->nodeid );
+		return NULL;
+	}
+
+	if( mysql_num_rows( res ) ) {
+		MYSQL_ROW row = mysql_fetch_row( res );
+
+		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
+	}
+
+	mysql_free_result( res );
+
+	if( verbose )
+		info( "%s: getgenikey: %s", reqp->nodeid, buf );
+	
+	return strdup( buf );
+}
+
 static char *getgenigeniuser( tmcdreq_t *reqp ) {
     
 	MYSQL_RES	*res;
@@ -12691,6 +12757,8 @@ MAKEGENICOMMAND(userurn)
 MAKEGENICOMMAND(useremail)
 MAKEGENICOMMAND(geniuser)
 MAKEGENICOMMAND(manifest)
+MAKEGENICOMMAND(cert)
+MAKEGENICOMMAND(key)
 MAKEGENICOMMAND(controlmac)
 MAKEGENICOMMAND(version)
 MAKEGENICOMMAND(getversion)
@@ -12726,7 +12794,9 @@ struct genicommand {
     { "user_email", getgeniuseremail, 1, "Show the e-mail address of this "
       "sliver's creator" },
     { "user_urn", getgeniuserurn, 1, "Show the URN of this sliver's creator" },
-    { "version", getgeniversion, 1, NULL }
+    { "version", getgeniversion, 1, NULL },
+    { "certificate", getgenicert, 1, NULL },
+    { "key", getgenikey, 1, NULL },
 };
 
 COMMAND_PROTOTYPE(dogenicommands)

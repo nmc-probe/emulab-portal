@@ -2791,7 +2791,7 @@ sub NodeList($;$$)
 	my $node = Node->Lookup($nodeid);
 	if (!defined($node)) {
 	    print STDERR "*** Could not map $nodeid to its object\n";
-	    return undef;
+	    next;
 	}
 	push(@nodes, $node);
     }

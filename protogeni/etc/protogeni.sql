@@ -222,6 +222,14 @@ CREATE TABLE `geni_userkeys` (
   INDEX `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
+DROP TABLE IF EXISTS `geni_slicecerts`;
+CREATE TABLE `geni_slicecerts` (
+  `uuid` varchar(40) NOT NULL default '',
+  `cert` text,
+  `privkey` text,
+  INDEX `uuid` (`uuid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
 DROP TABLE IF EXISTS `geni_resources`;
 CREATE TABLE `geni_resources` (
   `pid` varchar(12) NOT NULL default '',
