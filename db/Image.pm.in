@@ -1746,17 +1746,21 @@ sub TypeList($;$)
 {
     my ($self, $osinfo) = @_;
     my @result  = ();
+    require NodeType;
 
     #
     # Deleted images stash a list in the descriptor.
     #
     if ($self->deleted()) {
 	if ($self->nodetypes()) {
-	    @result = split(",", $self->nodetypes());
+	    foreach my $type (split(",", $self->nodetypes())) {
+		my $typeinfo = NodeType->Lookup($type);
+		push(@result, $typeinfo)
+		    if (defined($typeinfo));
+	    }
 	}
 	return @result;
     }
-    require NodeType;
 
     my $imageid = $self->imageid();
     my $clause  = (defined($osinfo) ?
