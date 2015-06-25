@@ -389,9 +389,6 @@ sub Install($$$)
 	    Phase "installing", "Installing (please be patient)", sub {
 		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE boss-install");
 	    };
-	    Phase "postinstall", "Post Installing Testbed Software", sub {
-		ExecQuietFatal("cd $TOP_OBJDIR; $GMAKE post-install");
-	    };
 	    Phase "rc.testbed", "Installing testbed RC scripts", sub {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/rc.d install");
 	    };
