@@ -52,7 +52,7 @@ SUBDIRS = \
 	clientside/lib \
 	db assign www @optional_subdirs@ clientside ipod security sensors \
 	pxe tbsetup account tmcd utils backend tip ipod vis \
-	sensors os xmlrpc install/newnode_sshkeys mote tools/whol \
+	sensors os xmlrpc install/newnode_sshkeys tools/whol \
 	tools/svn wiki collab/exp-vis node_usage install
 ifeq ($(ISMAINSITE),1)
 SUBDIRS += tools/rmanage
@@ -127,10 +127,8 @@ post-install:
 ifeq ($(EVENTSYS),1)
 	@$(MAKE) -C event post-install
 endif
-	@$(MAKE) -C mote post-install
 	@$(MAKE) -C tools post-install
 	@$(MAKE) -C wiki post-install
-	@$(MAKE) -C bugdb post-install
 	@$(MAKE) -C collab post-install
 	@$(MAKE) -C utils post-install
 ifeq ($(NODE_USAGE_SUPPORT),1)
