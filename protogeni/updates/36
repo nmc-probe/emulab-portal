@@ -5,7 +5,7 @@ use strict;
 use GeniDB;
 
 sub DoUpdate($$$)
-
+{
     my ($dbhandle, $dbname, $version) = @_;
 
     DBSetDefault($dbhandle);
