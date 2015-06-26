@@ -102,16 +102,13 @@ RUN_DEPENDS+=	\
 	${LOCALBASE}/libexec/mysqld:${PORTSDIR}/databases/mysql${MYSQL_VER}-server \
 	${LOCALBASE}/include/boost/config.hpp:${PORTSDIR}/devel/boost-all
 
-## only needed for mysql 5.1
-#RUN_DEPENDS+=	\
-#	mysqlhotcopy:${PORTSDIR}/databases/mysql${MYSQL_VER}-scripts
-
 # perl packages
 # XXX all the versions listed here are ones that are known to work
 #     on a 10.0 system.
 #
 RUN_DEPENDS+=	\
 	p5-BSD-Resource>=1.2907:${PORTSDIR}/devel/p5-BSD-Resource \
+	p5-CGI>=4.13:${PORTSDIR}/www/p5-CGI \
 	p5-Class-ISA>=0.36:${PORTSDIR}/devel/p5-Class-ISA \
 	p5-DBD-mysql>=4.025:${PORTSDIR}/databases/p5-DBD-mysql \
 	p5-DBI>=1.630:${PORTSDIR}/databases/p5-DBI \

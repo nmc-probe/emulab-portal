@@ -1,7 +1,13 @@
+# XXX FreeBSD has removed the xerces-c2 port. This is a copy of the
+# last (xerces-c2-devel) version that existed. We need this to compile
+# assign right now. Note that we call this package xerces-c2 rather than
+# xerces-c2-devel so we don't mess up any of our packages existance checks
+# (e.g., in protogeni/scripts/initsite).
+#
 # Created by: "Bjoern A. Zeeb" (bzeeb+freebsdports@zabbadoz.net)
 # $FreeBSD: branches/2014Q3/textproc/xerces-c2-devel/Makefile 347131 2014-03-05 18:19:46Z thierry $
 
-PORTNAME=	xerces-c2-devel
+PORTNAME=	xerces-c2
 PORTVERSION=	2.8.0
 PORTREVISION=	1
 CATEGORIES=	misc textproc
@@ -12,7 +18,7 @@ DISTNAME=	xerces-c-src_${PORTVERSION:S/./_/g}
 MAINTAINER=	jmohacsi@bsd.hu
 COMMENT=	Validating XML parser from the Apache XML Project
 
-CONFLICTS=	xerces_c2-[0-9]* xerces-c3-[0-9]*
+CONFLICTS=	xerces-c3-[0-9]*
 
 MAKE_JOBS_UNSAFE=	yes
 
