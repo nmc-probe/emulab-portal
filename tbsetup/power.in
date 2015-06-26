@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -240,8 +240,12 @@ if ($ELABINELAB) {
 		# What if the node is on? Nothing is going to
 		# happen and changing the state is wrong.
 		#
-		$newstate = TBDB_NODESTATE_SHUTDOWN()
-		    if ($oldstate eq TBDB_NODESTATE_POWEROFF());
+		if ($oldstate eq TBDB_NODESTATE_POWEROFF()) {
+		    $newstate = TBDB_NODESTATE_SHUTDOWN()
+		} else {
+		    $newstate = $oldstate;
+	    }
+
 	    }
 	    print "$node: $oldstate, $newstate\n";
 	    
@@ -249,7 +253,7 @@ if ($ELABINELAB) {
 	    # Avoid sending duplicate events; annoys stated.
 	    #
 	    $node->SetEventState($newstate)
-		if (defined($newstate) && $newstate ne $oldstate);
+		if ($newstate ne $oldstate);
 	}
     }
     exit($rval);

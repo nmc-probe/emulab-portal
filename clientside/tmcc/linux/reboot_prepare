@@ -31,7 +31,7 @@ touch /var/lock/subsys/tbprepare
 # an S89tbprepare link.  So we make sure systemd thinks it got started, and 
 # then the K89tbprepare links will be run appropriately...
 #
-if [ -x /bin/systemd ]; then
+if [ -x /bin/systemd -o -x /lib/systemd/systemd ]; then
     echo "Emulab scheduling tbprepare to run via systemd."
     systemctl start tbprepare.service
 fi

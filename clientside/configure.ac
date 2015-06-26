@@ -288,6 +288,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/openbsd/GNUmakefile tmcc/ron/GNUmakefile \
 	  tmcc/plab/GNUmakefile tmcc/cygwinseven/GNUmakefile \
 	  tmcc/centos6/GNUmakefile \
+	  tmcc/centos7/GNUmakefile \
 	  os/GNUmakefile os/syncd/GNUmakefile \
 	  os/dijkstra/GNUmakefile os/genhostsfile/GNUmakefile \
 	  os/frisbee.redux/GNUmakefile \

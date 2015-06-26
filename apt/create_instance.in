@@ -620,7 +620,7 @@ if (! defined($slice_id)) {
     $slice_id   = $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
 }
 my $slice_urn   = GeniHRN::Generate("${OURDOMAIN}:${pid}", "slice", $slice_id);
-my $slice_hrn   = "${PGENIDOMAIN}.${slice_id}";
+my $slice_hrn   = "${PGENIDOMAIN}.${pid}.${slice_id}";
 my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
 
 #
@@ -1439,6 +1439,9 @@ sub fatal($) {
 	if (defined($slice));
     $instance->SetStatus("failed")
 	if (defined($instance));
+
+    print STDERR Dumper($xmlparse)
+	if (defined($xmlparse));
 
     print STDERR "*** $0:\n".
 	         "    $mesg\n";
