@@ -1376,17 +1376,27 @@ my $cname = "$imagepid/$imagename";
 $cname .= ":$version"
     if ($doprovenance);
 my $tbopsmsg = "";
-if ($isglobal && ($usepath || $doprovenance)) {
+
+#
+# User and nonglobal images are immediately marked as "released", and
+# so we must run imagevalidate on them. Global system images need to be
+# explicity released, but for those we must not run imagevaildate when
+# writing the image to /proj and provenance is off, since we would overwrite
+# the values for the image that is actually in use in /usr/testbed/images
+# 
+if ($pid ne TBOPSPID() || !$isglobal || $version || $doprovenance) {
+    if (system("$imagevalidate -u $cname") != 0) {
+	$tbopsmsg =
+	    "DB state update for image $cname failed, try again with:\n".
+	    "    $imagevalidate -u $cname\n";
+    }
+}
+elsif ($isglobal && $pid eq TBOPSPID()) {
     $tbopsmsg =
 	"Did not update DB state for global image $cname\n".
 	"since image was written to '$filename' instead of $TB/images.\n\n".
 	"Please run imagerelease when ready for release:\n".
 	"    imagerelease -q $cname\n";
-}
-elsif (system("$imagevalidate -u $cname") != 0) {
-    $tbopsmsg =
-	"DB state update for image $cname failed, try again with:\n".
-	"    $imagevalidate -u $cname\n";
 }
 if ($tbopsmsg) {
     SENDMAIL($TBOPS,
