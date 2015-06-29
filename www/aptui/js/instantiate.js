@@ -60,10 +60,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 					{uuid         : selected_uuid,
 					 registered   : registered,
 					 isadmin      : isadmin,
-					 amlist       : amlist,
-					 amdefault    : amdefault,
 					 callback     : ConfigureDone,
-					 button_label : "Accept",
 					 rspec        :
 					   (!window.SKIPSTEPS ? null :
 					    $('#pp_rspec_textarea').val()),
@@ -486,20 +483,12 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     /*
      * Callback from the PP configurator. Stash rspec into the form.
      */
-    function ConfigureDone(newRspec, where) {
+    function ConfigureDone(newRspec) {
 	// If not a registered user, we do not get an rspec back, since
 	// the user is not allowed to change the configuration.
 	if (newRspec) {
 	    $('#pp_rspec_textarea').val(newRspec);
-	}
-	// Need to change the form before submit.
-	if (where && $('#profile_where').length) {
-	    // Deselect current option.
-	    $('#profile_where option').prop("selected", false);
-	    // Find and select new option.
-	    $('#profile_where option')
-		.filter('[value="'+ where + '"]')
-                .prop('selected', true);		
+	    CreateAggregateSelectors(newRspec);
 	}
 	// Enable the create button.
 	$('#instantiate_submit').attr('disabled', false);
