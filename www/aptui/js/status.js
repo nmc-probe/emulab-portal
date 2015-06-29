@@ -155,7 +155,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('button#extend_button').click(function (event) {
 	    event.preventDefault();
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin,
-			    isguest, null, window.APT_OPTIONS.freenodesurl);
+			    isguest, null, window.APT_OPTIONS.freenodesurl,
+			    window.APT_OPTIONS.physnode_count,
+			    window.APT_OPTIONS.physnode_hours);
 	});
 	
 	// Handler for the refresh button
@@ -299,7 +301,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	else if (window.APT_OPTIONS.extend) {
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest,
 			    window.APT_OPTIONS.extend,
-			    window.APT_OPTIONS.freenodesurl);
+			    window.APT_OPTIONS.freenodesurl,
+			    window.APT_OPTIONS.physnode_count,
+			    window.APT_OPTIONS.physnode_hours);
 	}
     }
 
@@ -684,9 +688,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$.each(oblob , function(urn, iblob) {
 	    $.each(iblob , function(node_id, details) {
 		if (details.status == "ready") {
-		    // Bootstrap bg-success color
+		    // Greenish.
 		    $('#' + jacksIDs[node_id] + ' .node .nodebox')
-			.css("fill", "#dff0d8");
+			.css("fill", "#91E388");
 		}
 		else if (details.status == "failed") {
 		    // Bootstrap bg-danger color
@@ -697,6 +701,39 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    // Bootstrap bg-warning color
 		    $('#' + jacksIDs[node_id] + ' .node .nodebox')
 			.css("fill", "#fcf8e3");
+		}
+		var html =
+		    "<table class='table table-condensed'><tbody> " +
+		    "<tr><td>Node:</td><td>" +
+		        details.component_urn + "</td></tr>" +
+		    "<tr><td>Status:</td><td>" +
+		        details.status + "</td></tr>" +
+		    "<tr><td>State:</td><td>" +
+		        details.state + "</td></tr>" +
+		    "<tr><td>Raw State:</td><td>" +
+		        details.rawstate + "</td></tr>" +
+		    "</tbody></table>";
+
+		if ($('#' + jacksIDs[node_id]).data("bs.popover")) {
+		    $('#' + jacksIDs[node_id])
+			.data("bs.popover").options.content = html;
+
+		    var isVisible = $('#' + jacksIDs[node_id]).
+			data('bs.popover').tip().hasClass('in');
+		    if (isVisible) {
+			$('#' + jacksIDs[node_id])
+			    .data('bs.popover').tip()
+			    .find('.popover-content').html(html);
+		    }
+		}
+		else {
+		    $('#' + jacksIDs[node_id])
+			.popover({"content"   : html,
+				  "trigger"   : "hover",
+				  "html"      : true,
+				  "container" : "body",
+				  "placement" : "auto",
+				 });
 		}
 	    });
 	});
