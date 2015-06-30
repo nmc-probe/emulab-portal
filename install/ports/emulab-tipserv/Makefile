@@ -33,6 +33,8 @@ RUN_DEPENDS=	\
 	ipmitool:${PORTSDIR}/misc/ipmitool-devel
 
 RUN_DEPENDS+=	\
+	git:${PORTSDIR}/devel/git \
+	gmake:${PORTSDIR}/devel/gmake \
         netcat:${PORTSDIR}/net/netcat \
 	sudo:${PORTSDIR}/security/sudo
 

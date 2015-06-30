@@ -29,6 +29,7 @@ BATCH=		yes
 RUN_DEPENDS:= ${BUILD_DEPENDS}
 
 RUN_DEPENDS+=	\
+	git:${PORTSDIR}/devel/git \
 	gmake:${PORTSDIR}/devel/gmake \
 	rsync:${PORTSDIR}/net/rsync \
 	smbd:${PORTSDIR}/net/samba36 \

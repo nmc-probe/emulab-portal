@@ -16,9 +16,6 @@ COMMENT=	"Extra convenience packages for Emulab"
 
 NO_BUILD=	yes
 
-# XXX for libtasn1 (required by emacs)
-.MAKEFLAGS+=	DISABLE_VULNERABILITIES=yes
-
 #
 # This prevents any ports from trying to configure interactively.
 #
@@ -73,10 +70,14 @@ RUN_DEPENDS+=	\
 	bash:${PORTSDIR}/shells/bash \
 	${LOCALBASE}/sbin/e2fsck:${PORTSDIR}/sysutils/e2fsprogs \
 	emacs:${PORTSDIR}/editors/emacs \
+	git:${PORTSDIR}/devel/git \
 	jove:${PORTSDIR}/editors/jove \
 	lsof:${PORTSDIR}/sysutils/lsof \
+	rsync:${PORTSDIR}/net/rsync \
+	sudo:${PORTSDIR}/security/sudo \
 	ttcp:${PORTSDIR}/benchmarks/ttcp \
 	vim:${PORTSDIR}/editors/vim-lite \
+	xauth:${PORTSDIR}/x11/xauth \
 	xterm:${PORTSDIR}/x11/xterm \
 	zsh:${PORTSDIR}/shells/zsh
 

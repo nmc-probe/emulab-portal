@@ -16,7 +16,7 @@ COMMENT=	"Meta-port for an Emulab boss node"
 
 # XXX old 2.8.0 xerces-c until we get assign converted
 #XERCES_PORT=	textproc/xerces-c3
-XERCES_PORT=	misc/xerces-c2-devel
+XERCES_PORT=	misc/xerces-c2
 
 #
 # For PHP, specify that we want the Apache module.
