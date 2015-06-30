@@ -80,6 +80,7 @@ if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $GOOGLEUA     = 'UA-42844769-3';
     $TBMAILTAG    = "aptlab.net";
     $EXTENSIONS   = "portal-extensions@aptlab.net";
+    $TBAUTHTIMEOUT= (24 * 3600 * 7);
     # For devel trees
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
 	$APTBASE .= "/" . $matches[1];
@@ -102,6 +103,7 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
     $GOOGLEUA     = 'UA-42844769-2';
     $TBMAILTAG    = "cloudlab.us";
     $EXTENSIONS   = "portal-extensions@cloudlab.us";
+    $TBAUTHTIMEOUT= (24 * 3600 * 14);
     # For devel trees
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
 	$APTBASE .= "/" . $matches[1];
@@ -165,6 +167,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         <link rel='stylesheet' href='css/bootstrap.css'>
         <link rel='stylesheet' href='css/quickvm.css'>
         <link rel='stylesheet' href='css/$APTSTYLE'>";
+    echo "<script src='js/lib/jquery.min.js'></script>\n";
     echo "<script>APT_CACHE_TOKEN='" . Instance::CacheToken() . "';</script>";
     echo "<script src='js/common.js?nocache=asdfasdf'></script>
         <link rel='stylesheet' href='css/jquery-steps.css'>
@@ -323,15 +326,34 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     }
     if ($login_user) {
         list($pcount, $phours) = Instance::CurrentUsage($login_user);
-        if ($pcount) {
-            $average = sprintf("%.2f", $phours / $pcount);
-            
-            echo "<center style='margin-bottom: 5px; margin-top: -8px'>
-              <span class=text-warning>
-                You are using $pcount physical nodes
-                   (average $average hours per node)
-              </span></center>\n";
+        $weeksusage = Instance::WeeksUsage($login_user);
+        $monthsusage = Instance::MonthsUsage($login_user);
+        if ($phours || $weeksusage || $monthsusage) {
+            echo "<center style='margin-bottom: 5px; margin-top: -8px'>";
+            if ($phours) {
+                $phours = sprintf("%.2f", $phours);
+                echo "<span class='text-info'>
+                       Current Usage: $phours Node Hours</span>";
+            }
+            if ($weeksusage) {
+                $weeksusage = sprintf("%.0f", $weeksusage);
+                if ($phours) echo ", ";
+                echo "<span class='text-warning'>
+                       Prev Week: $weeksusage</span>";
+            }
+            if ($monthsusage) {
+                $monthsusage = sprintf("%.0f", $monthsusage);
+                if ($phours || $weeksusage) echo ", ";
+                echo "<span class='text-danger'>
+                       Prev Month: $monthsusage</span>";
+            }
+            echo "<a href='#' class='btn btn-xs' data-toggle='modal' ".
+                "data-target='#myusage_modal'> ".
+                "<span class='glyphicon glyphicon-question-sign'></span> ".
+                "</a>\n";
+            echo "</center>\n";
         }
+        readfile("template/myusage.html");
     }
 
     if (!NOLOGINS() && !$login_user && $page_title != "Login") {
@@ -424,7 +446,6 @@ function SPITREQUIRE($main, $extras = "")
 {
     global $spatrequired;
     
-    echo "<script src='js/lib/jquery.min.js'></script>\n";
     echo $extras;
     echo "<script src='js/lib/bootstrap.js'></script>\n";
     echo "<script src='js/lib/require.js' data-main='js/$main'></script>\n";

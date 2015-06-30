@@ -17,6 +17,8 @@ define(['underscore', 'js/quickvm_sup',
 	var uuid       = 0;
 	var callback   = null;
 	var howlong    = 1; // Number of days being requested.
+	var physnode_count  = 0;
+	var physnode_hours  = 0;
 
 	function Initialize()
 	{
@@ -51,6 +53,8 @@ define(['underscore', 'js/quickvm_sup',
 			$("#datepicker").focus();
 			return false;
 		    }
+		    var howlong = DateToDays();
+		    $('#future_usage').text(physnode_count * howlong * 24);
 		});
 	    }
 	    
@@ -62,6 +66,12 @@ define(['underscore', 'js/quickvm_sup',
 	    });
 	    // Clear existing text.
 	    $('#why_extend').val('');
+	    // Current usage.
+	    if (physnode_count) {
+		$("#extend_usage").removeClass("hidden");
+		$('#current_usage').text(physnode_hours);
+		$('#future_usage').text(physnode_count * 24);
+	    }
 	}
 
 	function InitializeSlider()
@@ -124,6 +134,30 @@ define(['underscore', 'js/quickvm_sup',
 	}
 
 	/*
+	 * Pick which instructions to show (label number) based on number
+	 * of phys/virt nodes. Hacky.
+	 */
+	function PickInstructions(days) {
+	    // No physical nodes, we require minimal info and will always
+	    // grant the extension.
+	    if (physnode_count == 0) return 0;
+	    // Long term extension request, must justify.
+	    if (days > (12 * 7)) return 3;
+	    // Under 10 days of node hours used and asking for a short
+	    // extension, minimal info is okay. 
+	    if (physnode_hours < (10 * 24) && (physnode_count * days) <= 10) {
+		return 0;
+	    }
+	    if (days <= 7) {
+		return 0;
+	    }
+	    if (days < (12 * 7)) {
+		return 1;
+	    }
+	    return 2;
+	}
+
+	/*
 	 * User has changed the slider. Show new instructions.
 	 */
 	var minchars  = 120; // For the character countdown.
@@ -147,29 +181,29 @@ define(['underscore', 'js/quickvm_sup',
 		var day      = Math.round(which / divider) + 1;
 		extend_value = day + " days";
 		setvalue     = Math.round((day - 1) * divider);
-		label        = 0;
 		howlong      = day;
+		label        = PickInstructions(howlong);
 	    }
 	    else if (which <= 66) {
 		var divider  = 33 / 20.0;
 		var day      = Math.round((which - 33) / divider) + 7;
 		extend_value = day + " days";
 		setvalue     = Math.round((day - 7) * divider) + 33;
-		label        = 1;
 		howlong      = day;
+		label        = PickInstructions(howlong);
 	    }
 	    else if (which <= 97) {
 		var divider  = 33 / 8.0;
 		var week     = Math.round((which - 66) / divider) + 4;
 		extend_value = week + " weeks";
 		setvalue     = Math.round((week - 4) * divider) + 66;
-		label        = 2;
 		howlong      = week * 7;
+		label        = PickInstructions(howlong);
 	    }
 	    else {
 		extend_value = "Longer";
 		setvalue     = 100;
-		label        = 3;
+		label        = 2;
 		// User has to fill in the date box, then we can figure
 		// it out. 
 		howlong      = null;
@@ -178,6 +212,10 @@ define(['underscore', 'js/quickvm_sup',
 
 	    $('#label' + lastlabel + "_request").addClass("hidden");
 	    $('#label' + label + "_request").removeClass("hidden");
+
+	    if (howlong) {
+		$('#future_usage').text(physnode_count * howlong * 24);
+	    }
 
 	    // For the char countdown below.
 	    minchars = $('#label' + label + "_request").attr('data-minchars');
@@ -213,6 +251,25 @@ define(['underscore', 'js/quickvm_sup',
 	    $('#extend_counter_msg').html(msg);
 	}
 
+	/*
+	 * Convert date to howlong in days.
+	 */
+	function DateToDays()
+	{
+	    var days  = 0;
+	    var today = new Date();
+	    var later = new Date($('#datepicker').val());
+	    var diff  = (later - today);
+	    if (diff < 0) {
+		alert("No time travel to the past please");
+		$("#datepicker").focus();
+		return 0;
+	    }
+	    days = parseInt((diff / 1000) / (3600 * 24));
+
+	    return (days < 1 ? 1 : days);
+	}
+	
 	//
 	// Request experiment extension. 
 	//
@@ -233,20 +290,7 @@ define(['underscore', 'js/quickvm_sup',
 			$("#datepicker").focus();
 			return;
 		    }
-		    /*
-		     * Convert date to howlong in days.
-		     */
-		    var today = new Date();
-		    var later = new Date($('#datepicker').val());
-		    var diff  = (later - today);
-		    if (diff < 0) {
-			alert("No time travel to the past please");
-			$("#datepicker").focus();
-			return;
-		    }
-		    howlong = parseInt((diff / 1000) / (3600 * 24));
-		    if (howlong < 1)
-			howlong = 1;
+		    howlong = DateToDays();
 		}
 		reason = $("#why_extend").val();
 		if (reason.trim().length == 0) {
@@ -296,12 +340,15 @@ define(['underscore', 'js/quickvm_sup',
 		$(button).attr("disabled", "disabled");
 	    }
 	}
-	return function(thisuuid, func, admin, guest, extendfor, url)
+	return function(thisuuid, func, admin, guest, extendfor,
+			url, pcount, phours)
 	{
-	    isadmin  = admin;
+//	    isadmin  = admin;
 	    isguest  = guest;
 	    uuid     = thisuuid;
 	    callback = func;
+	    physnode_count = pcount;
+	    physnode_hours = phours;
 	    
 	    $('#extend_div').html(isadmin ?
 				  adminExtendString : isguest ?
