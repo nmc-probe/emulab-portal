@@ -895,7 +895,7 @@ sub DelPackage($$$) {
     } else {
 	PhaseFail("No package tools found!?");
     }
-    $args .= "-x $pname";
+    $args .= " -x $pname";
 
     if ($fatal) {
 	ExecQuietFatal("$cmd $args");

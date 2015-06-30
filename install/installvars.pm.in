@@ -124,6 +124,9 @@ if ($FBSD_MAJOR > 7 || ($FBSD_MAJOR == 7 && $FBSD_MINOR > 2)) {
 
 # XXX temporary for tftp
 $TFTPD_PKG	  = "emulab-tftp-hpa-0.48";
+if ($FBSD_MAJOR > 10 || ($FBSD_MAJOR == 10 && $FBSD_MINOR > 0)) {
+    $TFTPD_PKG = "emulab-tftp-hpa-5.2";
+}
 
 # XXX temporary for perl DBD mysql access (only needed for FBSD7 and below)
 $P5DBD_PKG	  = "p5-DBD-mysql50-3.0002";
