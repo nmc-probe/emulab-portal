@@ -627,7 +627,9 @@ my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
 # Make sure slice is unique. Probably retry here at some point. 
 #
 if (GeniSlice->Lookup($slice_hrn) || GeniSlice->Lookup($slice_urn)) {
-    fatal("Could not form a unique slice name");
+    fatal(defined($slice_id) ?
+	  "Slice name already in use, please use another" :
+	  "Could not form a unique slice name");
 }
 	    
 #
