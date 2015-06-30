@@ -1030,8 +1030,8 @@ sub SetupFsNode()
 	    AddPackage($emulabconfig{EXTRA_PKG}, $emulabconfig{EXTRA_PKG_DIR}, 1);
 	}
 
-	# XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
 	if ($FBSD_VERSION >= 10.1) {
+	    # XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
 	    if (! -x "/usr/bin/perl") {
 		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
 	    }
@@ -1039,6 +1039,12 @@ sub SetupFsNode()
 	    if (! -x "/usr/local/bin/python") {
 		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
 	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
 	}
     }
 
@@ -1597,8 +1603,8 @@ sub SetupOpsNode($)
 	    AddPackage("$pdir/emacs-23", "emacs-23.2_4,2", 0);
 	}
 
-	# XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
 	if ($FBSD_VERSION >= 10.1) {
+	    # XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
 	    if (! -x "/usr/bin/perl") {
 		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
 	    }
@@ -1606,6 +1612,12 @@ sub SetupOpsNode($)
 	    if (! -x "/usr/local/bin/python") {
 		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
 	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
 	}
     }
 
@@ -2327,8 +2339,8 @@ sub SetupBossNode($)
 	    AddPackage("$pdir/emacs-23", "emacs-23.2_4,2", 0);
 	}
 
-	# XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
 	if ($FBSD_VERSION >= 10.1) {
+	    # XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
 	    if (! -x "/usr/bin/perl") {
 		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
 	    }
@@ -2336,6 +2348,12 @@ sub SetupBossNode($)
 	    if (! -x "/usr/local/bin/python") {
 		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
 	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
 	}
     }
 
@@ -3000,7 +3018,6 @@ sub SetupOpsJail()
 	    AddPackage($emulabconfig{EXTRA_PKG}, "/packages", 1);
 	}
 
-	# XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
 	if ($FBSD_VERSION >= 10.1) {
 	    if (! -x "/usr/bin/perl") {
 		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
@@ -3009,6 +3026,12 @@ sub SetupOpsJail()
 	    if (! -x "/usr/local/bin/python") {
 		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
 	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
 	}
     }
 
@@ -3819,13 +3842,84 @@ sub DelPackage($@)
     system("$cmd $args $list");
 }
 
+#
+# Synchronize all installed packages with the Emulab repository and
+# mark that all packages should be updated from that repo in the future.
+#
+sub SyncPackages()
+{
+    my $pkgconf = "/etc/pkg/Emulab.conf";
+
+    # Only do this where it has been tested
+    if ($FBSD_VERSION < 10.1) {
+	return;
+    }
+
+    # don't ask questions
+    $ENV{"ASSUME_ALWAYS_YES"} = "true";
+
+    #
+    # Create /etc/pkg/Emulab.conf, saving old one if it exists.
+    #
+    if (-e "$pkgconf") {
+	unlink("$pkgconf.bak");
+	rename($pkgconf, "$pkgconf.bak");
+    }
+    open(CF, ">$pkgconf")
+	or SetupFatal("Could not open $pkgconf: $!");
+    print CF <<"EOF";
+Emulab: {
+  url: "https://www.emulab.net/FreeBSD/$FBSD_VERSION/packages",
+  mirror_type: NONE,
+  enabled: yes
+}
+EOF
+    close(CF);
+
+    #
+    # Sync with the master repo.
+    # If we can't, just warn about it.
+    #
+    if (system("pkg upgrade -r Emulab >/tmp/sperrs 2>&1")) {
+	print STDERR
+	    "*** Could not sync packages with Emulab repo! See /tmp/sperrs\n";
+	return;
+    }
+
+    #
+    # Now mark all installed packages as being part of the Emulab repo.
+    # XXX we remove any old annotation first.
+    #
+    system("pkg annotate -aq -D repository >/dev/null 2>&1");
+    if (system("pkg annotate -aq -A repository Emulab >/tmp/aperrs 2>&1")) {
+	print STDERR
+	    "*** Could not annotate packages! See /tmp/aperrs\n";
+	return;
+    }
+}
+
 sub DelAllPackages()
 {
-    if (system("pkg lock -yq perl5") || system("pkg lock -yq pkg")) {
+    # Only do this where it has been tested
+    if ($FBSD_VERSION < 10.1) {
+	return;
+    }
+
+    # don't ask questions
+    $ENV{"ASSUME_ALWAYS_YES"} = "true";
+
+    # cannot remove perl since we are running a perl script!
+    if (system("pkg lock -yq perl5")) {
 	SetupFatal("Could not lock perl5 and pkg!");
     }
-    if (system("pkg delete -yaf >>/tmp/rperrs 2>&1")) {
+    if (system("pkg delete -af >>/tmp/rperrs 2>&1")) {
 	SetupFatal("Could not delete old packages!");
     }
-    system("pkg unlock -yaq");
+
+    # force the reinstall of pkg
+    if (system("pkg info >/dev/null 2>&1")) {
+	SetupFatal("Yargh!! Could not reinstall 'pkg'!");
+    }
+
+    system("pkg unlock -aq");
 }
