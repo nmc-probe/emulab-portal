@@ -183,6 +183,7 @@ CREATE TABLE `apt_instances` (
   `extension_reason` mediumtext,
   `extension_history` mediumtext,
   `extension_adminonly` tinyint(1) NOT NULL default '0',
+  `extension_requested` tinyint(1) NOT NULL default '0',
   `extension_count` smallint(5) unsigned NOT NULL default '0',
   `extension_days` smallint(5) unsigned NOT NULL default '0',
   `physnode_count` smallint(5) unsigned NOT NULL default '0',
