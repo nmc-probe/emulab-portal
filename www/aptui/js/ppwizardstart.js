@@ -16,13 +16,10 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	var editorLarge   = null;
 	var defaults      = null;
 	var uuid          = "";
-	var amlist        = null;
-	var amdefault     = null;
 	var registered    = true;
 	var isadmin       = 0;
-	var callback_done = null;
-	var button_label  = "Instantiate";
 	var RSPEC	  = null;
+	var configuredone_callback = null;
 
 	//
 	// Moved into a separate function since we want to regen the form
@@ -116,9 +113,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	     */
 	    if (!registered) {
 		sup.HideModal('#ppmodal');
-		if (callback_done) {
-		    callback_done(null);
-		}
+		configuredone_callback(null);
 		return;
 	    }
 	      
@@ -127,62 +122,21 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    SubmitForm(1, callback);
 	}
 
-	// Instantiate the new rspec on the chosen aggregate.
-	function Instantiate(where)
-	{	    
-	    if (callback_done) {
-		callback_done(RSPEC, where);
-		return;
-	    }
-	    var callback = function(json) {
-		sup.HideModal("#waitwait-modal");
-
-		if (json.code) {
-		    sup.SpitOops("oops", json.value);
-		    return;
-		}
-		window.location.replace(json.value);
-	    }
-	    sup.ShowModal("#waitwait-modal");
-	    var xmlthing = sup.CallServerMethod(null, "instantiate",
-						"Instantiate",
-						{"rspec"  : RSPEC,
-						 "where"  : where,
-						 "uuid"   : uuid});
-	    xmlthing.done(callback);
-	}
-
 	//
-	// Editor callback, returning the new rspec.
+	// Configuration is done, we have the new rspec.
 	//
-	function EditorDone(newRspec)
+	function ConfigureDone()
 	{
-	    if (!amlist || amlist.length == 1) {
-		Instantiate(amdefault);
-	    }
-	    var html = chooseTemplate({
-		amlist    : amlist,
-		amdefault : amdefault,
-	    });
-	    $('#instantiate_div').html(html);
+	    configuredone_callback(RSPEC);
 
-	    // Handler for instantiate submit button, which is in
-	    // the modal.
-	    $('#stepsContainer .actions a[href="#finish"]').click(function (event) {
+	    // Handler for instantiate submit button, which is in the page.
+	    $('#stepsContainer .actions a[href="#finish"]')
+		.click(function (event) {
 		event.preventDefault();
-		Instantiate($('.aggregate_selector #profile_where option:selected').val());
 		$('#instantiate_submit').click();
 	    });
 	}
 
-	//
-	// Editor canceled; put back the configure modal.
-	//
-	function EditorCancel()
-	{
-	    sup.ShowModal('#ppmodal');
-	}
-	
 	//
 	// Submit the form. If no errors, we get back the rspec. Throw that
 	// up in a Jack editor window. 
@@ -212,11 +166,12 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		    SubmitForm(0, steps_callback);
 		}
 		else {
+		    RSPEC = json.value.rspec;
+		    ConfigureDone();
+		    // Must be after the callback, so that any changes to
+		    // the aggregate selector is reflected in the final tab
 		    steps_callback(true);
-		    if (_.has(json.value, "amdefault")) {
-			amdefault = json.value.amdefault;
-		    }
-		    ShowEditor(json.value.rspec);
+		    ShowEditor();
 		}
 	    }
 	    // Convert form data into formfields array, like all our
@@ -244,8 +199,6 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	function StartPP(args) {
 	    uuid = args.uuid;
 	    registered = args.registered;
-	    amlist = args.amlist;
-	    amdefault = args.amdefault;
 	    isadmin = args.isadmin;
 	    
 	    if (bodyTemplate) {
@@ -256,14 +209,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    // Caller might already have an editor instance.
 	    editor = new JacksEditor($('#inline_jacks'), true, true,
 				     true, true, !isadmin);
-	    // Callback; instead of instantiate, send rspec to callback.
-	    if (_.has(args, "callback")) {
-		callback_done = args.callback;
-	    }
-	    // Allow caller to change the Jacks accept button label.
-	    if (_.has(args, "button_label")) {
-		button_label = args.button_label;
-	    }
+	    configuredone_callback = args.callback;
 	    
 	    /*
 	     * Need to ask for the profile parameter form fragment and
@@ -291,7 +237,9 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		GenerateModalBody(defaults, null);
 		//sup.ShowModal('#ppmodal');
 		if (args.rspec) {
-		    ShowEditor(args.rspec);
+		    RSPEC = args.rspec;
+		    ConfigureDone();
+		    ShowEditor();
 		}
 	    }
 	    var xmlthing = sup.CallServerMethod(null, "instantiate",
@@ -302,12 +250,10 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 
 	function ChangeJacksRoot(root, selectionPane) {
 	    editor = new JacksEditor(root, true, true, selectionPane, true);
-	    editor.show(RSPEC, EditorDone, EditorCancel, button_label);
+	    editor.show(RSPEC);
 	}
-	function ShowEditor(rspec) {
-	    RSPEC = rspec;
-	    editor.show(RSPEC, EditorDone, EditorCancel, button_label);
-	    EditorDone(RSPEC);
+	function ShowEditor() {
+	    editor.show(RSPEC);
 	}
 
 	return {
