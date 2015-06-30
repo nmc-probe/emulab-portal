@@ -791,7 +791,7 @@ if test -z "$TBAUTHDOMAIN"; then
     TBAUTHDOMAIN=".$OURDOMAIN"
 fi
 if test -z "$TBAUTHTIMEOUT"; then
-    TBAUTHTIMEOUT="21600"
+    TBAUTHTIMEOUT="86400"
 fi
 if test -z "$WWW"; then
     WWW="$WWWHOST"

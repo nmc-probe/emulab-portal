@@ -32,7 +32,6 @@ $CHECKLOGIN_UID			= 0;
 $CHECKLOGIN_IDX			= null;
 $CHECKLOGIN_NOLOGINS		= -1;
 $CHECKLOGIN_WIKINAME            = "";
-$CHECKLOGIN_IDLETIME            = 0;
 $CHECKLOGIN_HASHKEY             = null;
 $CHECKLOGIN_HASHHASH            = null;
 $CHECKLOGIN_USER                = null;
@@ -356,7 +355,6 @@ function LoginStatus() {
 	$CHECKLOGIN_STATUS = CHECKLOGIN_TIMEDOUT;
 	return $CHECKLOGIN_STATUS;
     }
-    $CHECKLOGIN_IDLETIME = time() - ($timeout - $TBAUTHTIMEOUT);
 
     #
     # We know the login has not expired. The problem is that we might not
@@ -1013,7 +1011,8 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     # the new hash value. If the user is already logged in, thats
     # okay; just update it in place with a new hash and timeout. 
     #
-    $timeout = $now + $TBAUTHTIMEOUT;
+    # One hour initially, it will get bumped as soon as they hit another page.
+    $timeout = $now + 3600;
     $hashkey = GENHASH();
     # See note in CrossLogin() in db/User.pm.in. Do not change this.
     $crc     = bin2hex(mhash(MHASH_CRC32, $hashkey));
@@ -1347,7 +1346,9 @@ function BumpLogoutTime()
     global $TBAUTHTIMEOUT, $CHECKLOGIN_HASHKEY, $CHECKLOGIN_IDX;
 
     if (! is_null($CHECKLOGIN_HASHKEY)) {
-	$timeout = time() + $TBAUTHTIMEOUT;
+	$timeout = time() + (ISADMINISTRATOR() ? 3600 * 24 : $TBAUTHTIMEOUT);
+
+            $TBAUTHTIMEOUT;
 
 	DBQueryFatal("UPDATE login set timeout='$timeout' ".
 		     "where uid_idx='$CHECKLOGIN_IDX' and ".
