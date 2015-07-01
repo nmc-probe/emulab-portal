@@ -58,6 +58,22 @@ CREATE TABLE `active_checkups` (
 -- Table structure for table `apt_datasets`
 --
 
+DROP TABLE IF EXISTS `apt_aggregates`;
+CREATE TABLE `apt_aggregates` (
+  `urn` varchar(128) default NULL,
+  `name` varchar(32) NOT NULL default '',
+  `nickname` varchar(32) NOT NULL default '',
+  `abbreviation` varchar(16) NOT NULL default '',
+  `updated` datetime NOT NULL default '0000-00-00 00:00:00',
+  `weburl` tinytext,
+  `jsondata` text,
+  PRIMARY KEY  (`urn`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `apt_datasets`
+--
+
 DROP TABLE IF EXISTS `apt_datasets`;
 CREATE TABLE `apt_datasets` (
   `idx` int(10) unsigned NOT NULL default '0',
