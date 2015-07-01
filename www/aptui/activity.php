@@ -184,7 +184,6 @@ echo json_encode($instances);
 echo "</script>\n";
 echo "<link rel='stylesheet' href='css/tablesorter.css'>\n";
 echo "<link rel='stylesheet' href='css/jQRangeSlider.css'>\n";
-echo "<script src='js/lib/jquery.min.js'></script>\n";
 echo "<script src='js/lib/jquery-ui.js'></script>\n";
 echo "<script src='js/lib/jQRangeSlider/jQRangeSliderMouseTouch.js'></script>\n";
 echo "<script src='js/lib/jQRangeSlider/jQRangeSliderDraggable.js'></script>\n";

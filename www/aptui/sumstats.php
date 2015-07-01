@@ -431,7 +431,6 @@ else {
     echo "    window.MAX  = null;\n";
 }
 echo "</script>\n";
-echo "<script src='js/lib/jquery.min.js'></script>\n";
 echo "<script src='js/lib/jquery-ui.js'></script>\n";
 echo "<script src='js/lib/jQRangeSlider/jQRangeSliderMouseTouch.js'></script>\n";
 echo "<script src='js/lib/jQRangeSlider/jQRangeSliderDraggable.js'></script>\n";

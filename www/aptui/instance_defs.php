@@ -104,6 +104,8 @@ class Instance
     function extension_reason()  { return $this->field('extension_reason'); }
     function extension_history() { return $this->field('extension_history'); }
     function extension_lockout() { return $this->field('extension_adminonly'); }
+    function physnode_count()    { return $this->field('physnode_count'); }
+    function virtnode_count()    { return $this->field('virtnode_count'); }
     function servername()   { return $this->field('servername'); }
     function aggregate_urn(){ return $this->field('aggregate_urn'); }
     function IsAPT() {
@@ -409,18 +411,127 @@ class Instance
         $phours = 0;
 
         $query_result =
-            DBQueryFatal("select physnode_count, ".
-                         " truncate(physnode_count * ".
+            DBQueryFatal("select sum(physnode_count), ".
+                         " truncate(sum(physnode_count * ".
                          "  ((UNIX_TIMESTAMP(now()) - ".
-                         "    UNIX_TIMESTAMP(created)) / 3600.0),2) as phours ".
+                         "    UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
                          "  from apt_instances ".
                          "where creator_idx='$user_idx' and physnode_count>0");
 
-        while ($row = mysql_fetch_array($query_result)) {
-            $pcount += $row["physnode_count"];
-            $phours += $row["phours"];
-        }
+        $row = mysql_fetch_array($query_result);
+        $pcount = $row[0] ? $row[0] : 0;
+        $phours = $row[1] ? $row[1] : 0;
         return array($pcount, $phours);
+    }
+
+    #
+    # Usage over the last week. Just phours, cause pcount is not very useful.
+    #
+    function WeeksUsage($user) {
+        $user_idx = $user->idx();
+        $weekago  = time() - (3600 * 24 * 7);
+        $phours   = 0;
+
+        #
+        # This gets existing experiments back one week.
+        #
+        $query_result =
+            DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created) ".
+                         "  from apt_instances ".
+                         "where creator_idx='$user_idx' and ".
+                         "      physnode_count>0");
+
+	while ($row = mysql_fetch_array($query_result)) {
+            $pnodes   = $row[0];
+            $created  = $row[1];
+
+            if ($created < $weekago)
+                $diff = (3600 * 24 * 7);
+            else
+                $diff = time() - $created;
+
+            $phours += $pnodes * ($diff / 3600.0);
+        }
+
+        #
+        # This gets experiments terminated in the last week.
+        #
+        $query_result =
+            DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created), ".
+                         "       UNIX_TIMESTAMP(destroyed) ".
+                         "  from apt_instance_history ".
+                         "where creator_idx='$user_idx' and ".
+                         "      physnode_count>0 and " .
+                         "      destroyed>DATE_SUB(curdate(), INTERVAL 1 WEEK)");
+
+	while ($row = mysql_fetch_array($query_result)) {
+            $pnodes    = $row[0];
+            $created   = $row[1];
+            $destroyed = $row[2];
+
+            if ($created < $weekago)
+                $diff = $destroyed - $weekago;
+            else
+                $diff = $destroyed - $created;
+
+            $phours += $pnodes * ($diff / 3600.0);
+        }
+        return $phours;
+    }
+
+    #
+    # Usage over the last months Just phours, cause pcount is not very useful.
+    #
+    function MonthsUsage($user) {
+        $user_idx = $user->idx();
+        $monthago = time() - (3600 * 24 * 28);
+        $phours   = 0;
+
+        #
+        # This gets existing experiments back one week.
+        #
+        $query_result =
+            DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created) ".
+                         "  from apt_instances ".
+                         "where creator_idx='$user_idx' and ".
+                         "      physnode_count>0");
+
+	while ($row = mysql_fetch_array($query_result)) {
+            $pnodes   = $row[0];
+            $created  = $row[1];
+
+            if ($created < $monthago)
+                $diff = (3600 * 24 * 28);
+            else
+                $diff = time() - $created;
+
+            $phours += $pnodes * ($diff / 3600.0);
+        }
+
+        #
+        # This gets experiments terminated in the last week.
+        #
+        $query_result =
+            DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created), ".
+                         "       UNIX_TIMESTAMP(destroyed) ".
+                         "  from apt_instance_history ".
+                         "where creator_idx='$user_idx' and ".
+                         "      physnode_count>0 and " .
+                         "      destroyed>DATE_SUB(curdate(), INTERVAL 1 MONTH)");
+
+	while ($row = mysql_fetch_array($query_result)) {
+            $pnodes    = $row[0];
+            $created   = $row[1];
+            $destroyed = $row[2];
+
+            if ($created < $monthago)
+                $diff = $destroyed - $monthago;
+            else
+                $diff = $destroyed - $created;
+
+            $phours += $pnodes * ($diff / 3600.0);
+        }
+        return $phours;
     }
 
     #

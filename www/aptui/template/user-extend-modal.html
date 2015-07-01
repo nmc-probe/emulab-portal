@@ -1,4 +1,20 @@
 <!-- This is the extend modal -->
+<style>
+#extend_usage {
+  text-align: center;
+  display: table;
+}
+#extend_usage a {
+  position: relative;
+  vertical-align: middle;
+  display: table-cell;
+}
+#extend_usage div {
+  vertical-align: middle;
+  display: table-cell;
+}  
+</style>
+
 <div id='extend_modal' class='modal fade'>
   <div class='modal-dialog'>
     <div class='modal-content'>
@@ -14,45 +30,55 @@
 		  <span id='extend_value'>1 day</span></h4>
 	      </center>
 	      <div id='extend_slider'></div>
-	      <br>
 	      <div class='row'>
 		<div class='col-lg-10 col-lg-offset-1
                             col-md-10 col-md-offset-1
                             col-sm-12 col-sm-offset-0
                             col-xs-12 col-xs-offset-0'>
+		  <div id='extend_usage' class='hidden center-block'>
+		    <a href='#' class='btn btn-xs' data-toggle='modal'
+                       data-target='#myusage_modal'>
+                      <span class='glyphicon glyphicon-question-sign'></span>
+                    </a>
+		    <div>
+		      <span>Current Usage:</span>
+		      <span id='current_usage' class='text-info'></span>
+		      <span class='text-info'>Node Hours</span>
+		      <br>
+		      <span>Requesting:</span>
+		      <span id='future_usage' class='text-info'></span>
+		      <span class='text-info'>more Node Hours</span>
+		    </div>
+		  </div><br>
 		  <div id='label0_request' data-minchars='120'>
 		    <p>
 		      Please provide a short explanation (a few sentences)
-		      telling us why need more time.  Then click on the
+		      explaining why you need more time.  Then click on the
 		      request button.
 		    </p>
 		  </div>
 		  <div id='label1_request' class='hidden' data-minchars='240'>
 		    <p>
 		      Please provide a short explanation (a few sentences)
-		      telling us why need more time.  Then click on the
-		      request button. You will receive email when your
-  		      extension is granted, if you do not hear back in a
-  		      day or two, please contact us.
+		      explaining why you need more time.  Then click on the
+		      request button. The more <em>node hours</em> you
+		      want, the more rationale we want to see. Small
+		      experiments and/or small extension requests, are
+		      typically approved very quickly, but if you want a
+		      lot more node hours, then be sure to tell us a good
+		      story.
 		    </p>
 		  </div>
-		  <div id='label2_request' class='hidden' data-minchars='380'>
+		  <div id='label2_request' class='hidden' data-minchars='512'>
 		    <p>
-		      Extensions this large require a more detailed
-		      explanation.  Please provide a paragraph, and then
-		      click on the request button. You will receive email
-  		      when your extension is granted, if you do not hear
-  		      back in a day or two, please contact us.
-		    </p>
-		  </div>
-		  <div id='label3_request' class='hidden' data-minchars='512'>
-		    <p>
-		      Please select a date and be sure to tell us in
-		      detail why you need such a long extension.  Be sure
-  		      include a phone number where we can contact you to
+		      Please select a date and be sure to tell us in detail
+		      why you need such a long extension; such long
+		      extensions are rare and require approval from
+		      the <em>resource management committee</em>.  Be sure
+  		      to include a phone number where we can contact you to
   		      discuss your extension. Then click on the request
   		      button. You will receive email when your extension is
-  		      granted, if you do not hear back in a day or two,
+  		      granted, but if you do not hear back in a day or two,
   		      please contact us.
 		    </p>
 		    <center><input type='text' id='datepicker'
