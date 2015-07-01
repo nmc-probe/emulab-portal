@@ -64,6 +64,7 @@ CREATE TABLE `apt_aggregates` (
   `name` varchar(32) NOT NULL default '',
   `nickname` varchar(32) NOT NULL default '',
   `abbreviation` varchar(16) NOT NULL default '',
+  `noupdate` tinyint(1) NOT NULL default '0',
   `updated` datetime NOT NULL default '0000-00-00 00:00:00',
   `weburl` tinytext,
   `jsondata` text,
