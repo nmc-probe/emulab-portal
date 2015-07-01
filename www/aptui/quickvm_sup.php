@@ -330,20 +330,19 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         $monthsusage = Instance::MonthsUsage($login_user);
         if ($phours || $weeksusage || $monthsusage) {
             echo "<center style='margin-bottom: 5px; margin-top: -8px'>";
-            if ($phours) {
+            if ($phours) 
                 $phours = sprintf("%.2f", $phours);
-                echo "<span class='text-info'>
+            echo "<span class='text-info'>
                        Current Usage: $phours Node Hours</span>";
-            }
             if ($weeksusage) {
                 $weeksusage = sprintf("%.0f", $weeksusage);
-                if ($phours) echo ", ";
+                echo ", ";
                 echo "<span class='text-warning'>
                        Prev Week: $weeksusage</span>";
             }
             if ($monthsusage) {
                 $monthsusage = sprintf("%.0f", $monthsusage);
-                if ($phours || $weeksusage) echo ", ";
+                echo ", ";
                 echo "<span class='text-danger'>
                        Prev Month: $monthsusage</span>";
             }
