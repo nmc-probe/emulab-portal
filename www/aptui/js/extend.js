@@ -343,7 +343,7 @@ define(['underscore', 'js/quickvm_sup',
 	return function(thisuuid, func, admin, guest, extendfor,
 			url, pcount, phours)
 	{
-//	    isadmin  = admin;
+	    isadmin  = admin;
 	    isguest  = guest;
 	    uuid     = thisuuid;
 	    callback = func;
