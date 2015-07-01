@@ -60,7 +60,7 @@ CREATE TABLE `active_checkups` (
 
 DROP TABLE IF EXISTS `apt_aggregates`;
 CREATE TABLE `apt_aggregates` (
-  `urn` varchar(128) default NULL,
+  `urn` varchar(128) NOT NULL default '',
   `name` varchar(32) NOT NULL default '',
   `nickname` varchar(32) NOT NULL default '',
   `abbreviation` varchar(16) NOT NULL default '',
