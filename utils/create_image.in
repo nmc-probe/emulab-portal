@@ -148,6 +148,7 @@ my $BOSSIP	= "@BOSSNODE_IP@";
 my $CONTROL     = "@USERNODE@";
 my $NONFS	= @NOSHAREDFS@;
 my $PROJROOT    = "@PROJROOT_DIR@";
+my $GROUPROOT   = "@GROUPSROOT_DIR@";
 my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $WITHDELTAS  = @IMAGEDELTAS@;
 my $ISFS        = ("@BOSSNODE_IP@" eq "@FSNODE_IP@") ? 1 : 0;
@@ -627,7 +628,10 @@ my $filename  = $image->TempImageFile();
 my $isglobal  = $image->global();
 my $usepath   = 0;
 my $isdataset = $image->isdataset();
-my $hackprefix= $PROJROOT . "/" . $image->pid() . "/images/";
+my $hackprefix= ($image->pid() eq $image->gid() ?
+		 $PROJROOT . "/" . $image->pid() . "/images/" :
+		 $GROUPROOT . "/" .
+		    $image->pid() . "/" . $image->gid() . "/images/");
 if ($image->IsDirPath()) {
     # Add in the directory.
     $hackprefix .= basename($image->path()) . "/";
