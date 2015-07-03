@@ -69,8 +69,8 @@ define(['underscore', 'js/quickvm_sup',
 	    // Current usage.
 	    if (physnode_count) {
 		$("#extend_usage").removeClass("hidden");
-		$('#current_usage').text(physnode_hours);
-		$('#future_usage').text(physnode_count * 24);
+		$('#current_usage').val(Math.round(physnode_hours));
+		$('#future_usage').val(Math.round(physnode_count * 24));
 	    }
 	}
 

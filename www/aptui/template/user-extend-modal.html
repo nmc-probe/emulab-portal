@@ -20,24 +20,29 @@
               <div id='extend_slider'></div>
             </div> <!-- /col -->
           </div> <!-- /row -->
-          <div class='row'>
-            <div class='col-lg-10 col-lg-offset-1
-                        col-md-10 col-md-offset-1
-                        col-sm-12 col-sm-offset-0
-                        col-xs-12 col-xs-offset-0'>
-              <a href='#' class='btn btn-xs' data-toggle='modal'
-                 data-target='#myusage_modal'>
-                <span class='glyphicon glyphicon-question-sign'></span>
-              </a>
-              <div>
-                <span>Current Usage:</span>
-                <span id='current_usage' class='text-info'></span>
-                <span class='text-info'>Node Hours</span>
-                <br>
-                <span>Requesting:</span>
-                <span id='future_usage' class='text-info'></span>
-                <span class='text-info'>more Node Hours</span>
-              </div>
+          <div class='row well form-inline'>
+            <div class='col-sm-3'>
+              <h5>Node-Hours&nbsp;<a href='#' class='btn btn-xs' data-toggle='modal'
+                   data-target='#myusage_modal'>
+                  <span class='glyphicon glyphicon-question-sign'></span>
+                </a>
+              </h5>
+            </div>
+            <div class='col-xs-4'>
+              <div class="form-group">
+                <div class="input-group">
+                  <span class="input-group-addon">So far</span>
+                  <input type="text" class="form-control" id='current_usage' size="6" readonly></input>
+                </div> <!-- /input-group -->
+              </div> <!-- /form-group -->
+            </div> <!-- /col -->
+            <div class='col-xs-5'>
+              <div class="form-group">
+                <div class="input-group">
+                  <span class="input-group-addon">Requesting</span>
+                  <input type="text" class="form-control" id='future_usage' size="6" readonly></input>
+                </div> <!-- /input-group -->
+              </div> <!-- /form-group -->
             </div> <!-- /col -->
           </div> <!-- /row -->
           <div class='row'>
