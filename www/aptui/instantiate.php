@@ -295,7 +295,7 @@ function SPITFORM($formfields, $newuser, $errors)
                                       col-md-8  col-md-offset-2
                                       col-sm-10  col-sm-offset-1
                                       col-xs-12 col-xs-offset-0'></div>\n";
-    echo "<div id='stepsContainer' class='row'>
+    echo "<div id='stepsContainer'>
           <h3>Select a Profile</h3>
           <div class='col-lg-8  col-lg-offset-2
                       col-md-8  col-md-offset-2
