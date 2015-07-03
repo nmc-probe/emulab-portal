@@ -238,14 +238,17 @@ define(['underscore', 'js/quickvm_sup',
 		var left  = minchars - len;
 		if (left <= 0) {
 		    left = 0;
+		    $('#extend_counter_alert').addClass("hidden");
 		    EnableSubmitButton();
 		}
 		else if (left) {
 		    msg = "You need at least " + left + " more characters";
+		    $('#extend_counter_alert').removeClass("hidden");
 		    DisableSubmitButton();
 		}
 	    }
 	    else {
+                $('#extend_counter_alert').removeClass("hidden");
 		DisableSubmitButton();
 	    }
 	    $('#extend_counter_msg').html(msg);
