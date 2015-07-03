@@ -197,6 +197,20 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     if ($embedded) {
 	goto embed;
     }
+
+    # Put the special message, if any, above the header
+    if ($ISCLOUD) {
+        $message = TBGetSiteVar("cloudlab/message");
+    }
+    else {
+        $message = TBGetSiteVar("aptlab/message");
+    }
+    if ($message != "") {
+        echo "<div class='alert alert-warning alert-dismissible' role='alert' style='margin-bottom: 0'>
+              <button type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true'>&times;</span></button>
+                $message
+          </div>";
+    }
     echo "
          <div class='navbar navbar-static-top' style='margin-bottom: 10px'
               role='navigation'>
@@ -314,16 +328,6 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
            </div>
          </div>\n";
 
-    if ($ISCLOUD) {
-        $message = TBGetSiteVar("cloudlab/message");
-    }
-    else {
-        $message = TBGetSiteVar("aptlab/message");
-    }
-    if ($message != "") {
-        echo "<center style='margin-bottom: 5px; margin-top: -8px'>
-         <font color=red>$message</font></center>\n";
-    }
     if ($login_user) {
         list($pcount, $phours) = Instance::CurrentUsage($login_user);
         $weeksusage = Instance::WeeksUsage($login_user);
