@@ -54,7 +54,7 @@ define(['underscore', 'js/quickvm_sup',
 			return false;
 		    }
 		    var howlong = DateToDays();
-		    $('#future_usage').text(physnode_count * howlong * 24);
+		    $('#future_usage').val(Math.round(physnode_count * howlong * 24));
 		});
 	    }
 	    
@@ -214,7 +214,7 @@ define(['underscore', 'js/quickvm_sup',
 	    $('#label' + label + "_request").removeClass("hidden");
 
 	    if (howlong) {
-		$('#future_usage').text(physnode_count * howlong * 24);
+		$('#future_usage').val(Math.round(physnode_count * howlong * 24));
 	    }
 
 	    // For the char countdown below.
