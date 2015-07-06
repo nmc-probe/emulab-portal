@@ -250,9 +250,9 @@ my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $project, $pid,
 # Username and email has to be acceptable to Emulab user system.
 #
 $value = $xmlparse->{'attribute'}->{"username"}->{'value'};
-if (! TBcheck_dbslot($value, "users", "usr_name",
+if (! TBcheck_dbslot($value, "users", "uid",
 		     TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-    fatal("Illegal username: $value");
+    fatal("Illegal username: $value - " . TBFieldErrorString());
 }
 $user_uid = $value;
 $user_urn = GeniHRN::Generate("$OURDOMAIN", "user", $user_uid);
