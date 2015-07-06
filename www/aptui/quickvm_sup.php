@@ -354,7 +354,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
             }
             echo "<a href='#' class='btn btn-xs' data-toggle='modal' ".
                 "data-target='#myusage_modal'> ".
-                "<span class='glyphicon glyphicon-question-sign'></span> ".
+                "<span class='glyphicon glyphicon-question-sign' ".
+                "      style='margin-bottom: 4px;'></span> ".
                 "</a>\n";
             echo "</center>\n";
         }
