@@ -693,6 +693,8 @@ function SPITFORM($formfields, $newuser, $errors)
     }
     $isadmin = (isset($this_user) && ISADMIN() ? 1 : 0);
     echo "    window.ISADMIN    = $isadmin;\n";
+    $multisite = (isset($this_user) && (ISADMIN() || STUDLY()) ? 1 : 0);
+    echo "    window.MULTISITE  = $multisite;\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";

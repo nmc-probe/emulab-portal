@@ -33,6 +33,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     var genilibwarned= false;
     var isppprofile  = false;
     var isadmin      = 0; 
+    var multisite    = 0; 
     var APT_NS = "http://www.protogeni.net/resources/rspec/ext/apt-tour/1";
     var manageTemplate    = _.template(manageString);
     var waitwaitTemplate  = _.template(waitwaitString);
@@ -54,6 +55,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	ajaxurl       = window.AJAXURL;
 	isppprofile   = window.ISPPPROFILE;
 	isadmin       = window.ISADMIN;
+	multisite     = window.MULTISITE;
 
 	var fields   = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors   = JSON.parse(_.unescape($('#error-json')[0].textContent));
@@ -119,7 +121,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     	var showtopo_html = showtopoTemplate({});
 	$('#showtopomodal_div').html(showtopo_html);
 	editor = new JacksEditor($('#editmodal_div'),
-				 false, false, false, false, !isadmin);
+				 false, false, false, false, !multisite);
     	var renderer_html = rendererTemplate({});
 	$('#renderer_div').html(renderer_html);
     	var oops_html = oopsTemplate({});

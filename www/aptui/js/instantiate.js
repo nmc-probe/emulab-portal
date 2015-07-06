@@ -16,6 +16,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     var ispprofile    = 0;
     var webonly       = 0;
     var isadmin       = 0;
+    var multisite     = 0;
     var portal        = null;
     var registered    = false;
     var JACKS_NS      = "http://www.protogeni.net/resources/rspec/ext/jacks/1";
@@ -42,6 +43,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	registered = window.REGISTERED;
 	webonly    = window.WEBONLY;
 	isadmin    = window.ISADMIN;
+	multisite  = window.MULTISITE;
 	portal     = window.PORTAL;
 	ajaxurl    = window.AJAXURL;
 
@@ -365,7 +367,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	var continuation = function(rspec, description, name, amdefault, ispp) {
 	    $('#showtopo_title').html("<h3>" + name + "</h3>");
 	    $('#showtopo_description').html(description);
-	    sup.maketopmap('#showtopo_div', rspec, false, !isadmin);
+	    sup.maketopmap('#showtopo_div', rspec, false, !multisite);
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
     }
@@ -373,7 +375,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     // Used to generate the topology on Tab 3 of the wizard for non-pp profiles
     function ShowProfileSelectionInline(selectedElement, root, selectionPane) {
 	editor = new JacksEditor(root, true, true,
-				 selectionPane, true, !isadmin);
+				 selectionPane, true, !multisite);
 	var continuation = function(rspec, description, name, amdefault, ispp) {
 	    editor.show(rspec);
 	};
@@ -529,7 +531,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	    sites[siteid] = siteid;
 	});
 
-	if (!isadmin || Object.keys(sites).length <= 1) {
+	if (!multisite || Object.keys(sites).length <= 1) {
 	    $("#site_selector").addClass("hidden");
 	    $("#nosite_selector").removeClass("hidden");
 	    // Clear the form data.
