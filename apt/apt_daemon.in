@@ -56,7 +56,8 @@ my $LOGFILE          = "$TB/log/apt_daemon.log";
 my $MANAGEINSTANCE   = "$TB/bin/manage_instance";
 my $PROTOUSER	     = "elabman";
 my $SUDO	     = "/usr/local/bin/sudo";
-my $SLEEP_INTERVAL   = 60;
+my $WGET             = "/usr/local/bin/wget";
+my $SLEEP_INTERVAL   = 300;
 my $UPDATE_INTERVAL  = (60 * 60 * 24);
 
 #
@@ -199,8 +200,9 @@ sub KillFailedInstances()
 	    print STDERR "Would try to terminate $instance\n";
 	    next;
 	}
+	# Use debug option to keep it from going into the background.
 	my $output = emutil::ExecQuiet("$SUDO -u $PROTOUSER ".
-				       "$MANAGEINSTANCE terminate $uuid");
+				       "$MANAGEINSTANCE -d terminate $uuid");
 	my $status = $?;
 	print STDERR "$output\n"
 	    if ($output ne "");
@@ -247,8 +249,9 @@ sub ExpireInstances()
 	    print STDERR "Would try to terminate $instance\n";
 	    next;
 	}
+	# Use debug option to keep it from going into the background.
 	my $output = emutil::ExecQuiet("$SUDO -u $PROTOUSER ".
-				       "$MANAGEINSTANCE terminate $uuid");
+				       "$MANAGEINSTANCE -d terminate $uuid");
 	my $status = $?;
 	print STDERR "$output\n"
 	    if ($output ne "");
@@ -303,6 +306,8 @@ sub ReportLockdownExpired()
 	     $TBOPS);
     
 }
+
+exit(0);
 
 my $reportcounter = 0;
 
