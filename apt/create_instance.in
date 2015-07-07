@@ -693,7 +693,7 @@ my $blob = {'uuid'         => $quickvm_uuid,
 	    'servername'   => $SERVER_NAME,
 	    'rspec'        => $rspecstr,
 	    'cert'         => $alt_certificate->cert(),
-	    'privkey'      => $alt_certificate->privkey(),
+	    'privkey'      => $alt_certificate->PrivKeyDelimited(),
 };
 if (defined($project)) {
     $blob->{"pid"}     = $project->pid();
@@ -1066,7 +1066,8 @@ sub CreateSliver($)
 					  @dataset_credentials
 					 ],
 				     "certificate" => $alt_certificate->cert(),
-				     "key"         => $alt_certificate->privkey(),
+				     "key"         =>
+				        $alt_certificate->PrivKeyDelimited(),
 				   });
 
 	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
@@ -1357,7 +1358,7 @@ sub RunStitcher()
 	print "Provisioning at $urn\n";
 	if ($aggobj->Provision(\$errmsg, \@sshkeys,
 			       $alt_certificate->cert(),
-			       $alt_certificate->privkey())) {
+			       $alt_certificate->PrivKeyDelimited())) {
 	    $aggobj->SetStatus("failed");
 	    $webtask->output($errmsg);
 	    $webtask->Exited(-1);

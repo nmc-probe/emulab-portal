@@ -1043,6 +1043,17 @@ sub WriteKeyToFile($)
     return $filename;
 }
 
+# Hmm, how did we get into this odd state?
+sub PrivKeyDelimited($)
+{
+    my ($self) = @_;
+
+    return
+	"-----BEGIN RSA PRIVATE KEY-----\n" .
+	$self->privkey() .
+	"-----END RSA PRIVATE KEY-----\n";
+}
+
 #
 # Find the root certificate for a single certificate. Optional set of
 # chain certs provided.
