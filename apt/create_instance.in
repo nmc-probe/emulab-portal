@@ -82,6 +82,7 @@ my $TBLOGS        = "@TBLOGSEMAIL@";
 my $OURDOMAIN     = "@OURDOMAIN@";
 my $MAINSITE      = @TBMAINSITE@;
 my $PGENIDOMAIN   = "@PROTOGENI_DOMAIN@";
+my $PROTOGENI_URL = "@PROTOGENI_URL@";
 my $SACERT	  = "$TB/etc/genisa.pem";
 my $CMCERT	  = "$TB/etc/genicm.pem";
 my $SSHKEYGEN     = "/usr/bin/ssh-keygen";
@@ -591,27 +592,6 @@ if (defined($profile)) {
 }
 
 #
-# Generate a new ssl key/cert to be used to derive an ssh key pair,
-# or whatever else is needed. This is sent along as an option when the
-# sliver is created (or provisioned, when stitching).
-#
-my $sslkeyfile = "/tmp/key$$.pem";
-my $sslcrtfile = "/tmp/crt$$.pem";
-
-system("$OPENSSL req -x509 -newkey rsa:2048 ".
-       "-keyout $sslkeyfile -out $sslcrtfile ".
-       "-days 2000 -nodes -subj '/CN=localhost' -text");
-if ($?) {
-    unlink($sslkeyfile);
-    unlink($sslcrtfile);
-    fatal("Could not generate ssl key/cert");
-}
-my $sslkey = `cat $sslkeyfile`;
-my $sslcrt = `cat $sslcrtfile`;
-unlink($sslkeyfile);
-unlink($sslcrtfile);
-
-#
 #
 # Now generate a slice registration and credential
 #
@@ -658,6 +638,33 @@ if ($slice->SetExpiration(time() + (($localuser ? 16 : 3) * 3600)) != 0) {
 my $slice_uuid = $slice->uuid();
 
 #
+# Generate a new ssl key/cert to be used to derive an ssh key pair
+# or whatever else is needed. This is sent along as an option when the
+# sliver is created (or provisioned, when stitching).
+#
+# This is going to be a real geni certificate, albeit a slice
+# certificate in the alternate CA domain, that can be used at the
+# "portal" XMLRPC interface. The key is unencrypted and put on the
+# nodes, hence the alternate CA, and the XMLRPC server will not allow
+# this certificate to do anything, except at the portal RPC server.
+#
+my $alt_urn = GeniHRN::Generate("aptlab.net:${pid}", "slice", $slice_id);
+my $alt_hrn = "aptlab.${pid}.${slice_id}";
+my $alt_url = "$PROTOGENI_URL/portal";
+
+my $altblob = {"urn"      => $alt_urn,
+	       "hrn"      => $alt_hrn,
+	       "url"      => $alt_url,
+	       "uuid"     => $slice_uuid,
+	       "email"    => $user_email,
+	       "nostore"  => 1,
+	       "useaptca" => 1,
+	       "showuuid" => 1};
+my $alt_certificate = GeniCertificate->Create($altblob);
+fatal("Could not create alt certificate")
+    if (!defined($alt_certificate));
+
+#
 # Generate credentials we need.
 #
 my ($slice_credential, $speaksfor_credential) =
@@ -685,8 +692,8 @@ my $blob = {'uuid'         => $quickvm_uuid,
 	    'status'       => "created",
 	    'servername'   => $SERVER_NAME,
 	    'rspec'        => $rspecstr,
-	    'cert'         => $sslcrt,
-	    'privkey'      => $sslkey,
+	    'cert'         => $alt_certificate->cert(),
+	    'privkey'      => $alt_certificate->privkey(),
 };
 if (defined($project)) {
     $blob->{"pid"}     = $project->pid();
@@ -1058,8 +1065,8 @@ sub CreateSliver($)
 					  $speaksfor_credential->asString(),
 					  @dataset_credentials
 					 ],
-				     "certificate" => $sslcrt,
-				     "key"         => $sslkey,
+				     "certificate" => $alt_certificate->cert(),
+				     "key"         => $alt_certificate->privkey(),
 				   });
 
 	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
@@ -1348,7 +1355,9 @@ sub RunStitcher()
 	    return 0;
 	}
 	print "Provisioning at $urn\n";
-	if ($aggobj->Provision(\$errmsg, \@sshkeys, $sslcrt, $sslkey)) {
+	if ($aggobj->Provision(\$errmsg, \@sshkeys,
+			       $alt_certificate->cert(),
+			       $alt_certificate->privkey())) {
 	    $aggobj->SetStatus("failed");
 	    $webtask->output($errmsg);
 	    $webtask->Exited(-1);
