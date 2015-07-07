@@ -107,6 +107,7 @@ my %GENI_MODULES = ( "cm"        => "@prefix@/lib/protogeni-cm.pm",
 		     "sa"        => "@prefix@/lib/protogeni-sa.pm",
 		     "ch"        => "@prefix@/lib/protogeni-ch.pm",
 		     "ses"       => "@prefix@/lib/protogeni-ses.pm",
+		     "portal"    => "@prefix@/lib/protogeni-portal.pm",
 		     # XXX This is temporary! 
 		     "instools"  =>
 		             "@prefix@/lib/instools/protogeni-instools.pm",
