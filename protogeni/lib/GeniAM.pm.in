@@ -635,6 +635,8 @@ sub CreateImage()
     };
     $args->{'global'} = $options->{'global'}
         if (defined($options) && exists($options->{'global'}));
+    $args->{'update_prepare'} = $options->{'update_prepare'}
+        if (defined($options) && exists($options->{'update_prepare'}));
 	
     my $response = GeniCMV2::CreateImage($args);
     return $response;
