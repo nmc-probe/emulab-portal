@@ -248,6 +248,7 @@ define(['underscore', 'js/quickvm_sup',
 		}
 	    }
 	    else {
+                msg = "You need at least " + minchars + " more characters";
                 $('#extend_counter_alert').removeClass("hidden");
 		DisableSubmitButton();
 	    }
