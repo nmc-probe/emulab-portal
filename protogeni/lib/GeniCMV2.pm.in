@@ -613,13 +613,16 @@ sub DeleteSliver($)
 				    "Credential does not match the URN");
     }
 
-    # If a monitor process is running, we are "busy".
-    if ($slice->monitor_pid()) {
-	return GeniResponse->MonitorResponse();
-    }
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
+    # If a monitor process is running, we are "busy".
+    GeniCM::CheckMonitor($slice);
+    if ($slice->monitor_pid()) {
+	$slice->UnLock();
+	return GeniResponse->MonitorResponse();
+    }
+    
     # If any slivers are imaging, then we are busy as well.
     if ($aggregate->CheckSliverStates("imaging")) {
 	$slice->UnLock();
@@ -758,6 +761,7 @@ sub DeleteSlice($)
     # directly, which *does* kill the monitor, so admin cleanup
     # is not affected.
     #
+    GeniCM::CheckMonitor($slice);
     if ($slice->monitor_pid()) {
 	$slice->UnLock();
 	return GeniResponse->MonitorResponse();
@@ -943,11 +947,6 @@ sub SliverAction($$$$$)
     }
     main::AddLogfileMetaDataFromSlice($slice);
 
-    # If a monitor process is running, we are "busy".
-    if ($slice->monitor_pid()) {
-	return GeniResponse->MonitorResponse();
-    }
-    
     if (defined($slice_urn)) {
 	if (! GeniHRN::IsValid($slice_urn)) {
 	    return
@@ -960,6 +959,12 @@ sub SliverAction($$$$$)
     }
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
+    }
+    # If a monitor process is running, we are "busy".
+    GeniCM::CheckMonitor($slice);
+    if ($slice->monitor_pid()) {
+	$slice->UnLock();
+	return GeniResponse->MonitorResponse();
     }
     # Shutdown slices get nothing.
     if ($slice->shutdown()) {
@@ -1392,6 +1397,7 @@ sub GetTicket($)
 	}
 
 	# If a monitor process is running, we are "busy".
+	GeniCM::CheckMonitor($slice);
 	if ($slice->monitor_pid()) {
 	    return GeniResponse->MonitorResponse();
 	}
@@ -1508,6 +1514,7 @@ sub UpdateTicket($)
     main::AddLogfileMetaDataFromSlice($slice);
 	
     # If a monitor process is running, we are "busy".
+    GeniCM::CheckMonitor($slice);
     if ($slice->monitor_pid()) {
 	return GeniResponse->MonitorResponse();
     }
@@ -1604,6 +1611,7 @@ sub UpdateSliver($)
     main::AddLogfileMetaDataFromSlice($slice);
 
     # If a monitor process is running, we are "busy".
+    GeniCM::CheckMonitor($slice);
     if ($slice->monitor_pid()) {
 	return GeniResponse->MonitorResponse();
     }
@@ -1695,6 +1703,7 @@ sub RedeemTicket($)
     main::AddLogfileMetaDataFromSlice($slice);
     
     # If a monitor process is running, we are "busy".
+    GeniCM::CheckMonitor($slice);
     if ($slice->monitor_pid()) {
 	return GeniResponse->MonitorResponse();
     }
@@ -2490,6 +2499,7 @@ sub CreateImage($)
     main::AddLogfileMetaDataFromSlice($slice);
 
     # If a monitor process is running, we are "busy".
+    GeniCM::CheckMonitor($slice);
     if ($slice->monitor_pid()) {
 	return GeniResponse->MonitorResponse();
     }
@@ -3123,11 +3133,6 @@ sub ShareLanAux($$)
     }
     main::AddLogfileMetaDataFromSlice($slice);
 
-    # If a monitor process is running, we are "busy".
-    if ($slice->monitor_pid()) {
-	return GeniResponse->MonitorResponse();
-    }
-    
     if ($slice_urn ne $slice->urn()) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
@@ -3137,6 +3142,12 @@ sub ShareLanAux($$)
     #
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
+    }
+    # If a monitor process is running, we are "busy".
+    GeniCM::CheckMonitor($slice);
+    if ($slice->monitor_pid()) {
+	$slice->UnLock();
+	return GeniResponse->MonitorResponse();
     }
     my $experiment = $slice->GetExperiment();
     if (!defined($experiment)) {
@@ -3949,9 +3960,8 @@ sub Lockdown($)
     # Only the SA for the slice can do this.
     #
     my $caller = GeniHRN->new($credential->owner_urn());
-    my ($tmp) = split(":", $slice->urnOBJ()->domain());
     if (! ($caller->IsSA() && 
-	   $caller->domain() eq $tmp)) {
+	   $caller->domain() eq $slice->urnOBJ()->domain())) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 			    "Not enough permission to set/clr lockdown");
     }

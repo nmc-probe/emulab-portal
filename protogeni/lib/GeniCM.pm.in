@@ -6026,6 +6026,16 @@ sub CleanupDeadSlice($;$)
     my $experiment = $slice->GetExperiment();
 
     if (defined($experiment)) {
+	#
+	# Do not allow a paniced slice to be terminated until the panic
+	# is cleared. 
+	#
+	if ($experiment->state() eq EXPTSTATE_PANICED() ||
+	    # Need this cause we are not locking. We need to lock.
+	    $experiment->paniced()) {
+	    print STDERR "Refusing to terminate a paniced experiment\n";
+	    return -1;
+	}
 	my $pid = $experiment->pid();
 	my $eid = $experiment->eid();
 
@@ -6710,6 +6720,27 @@ sub ReserveLocalVlanTag($$$)
 	if ($createdvlan);
     print STDERR "Reserved tag $tag for $lanname\n";
     return [$lanid, $tag];
+}
+
+#
+# Check the monitor process, clear it if it died.
+#
+sub CheckMonitor($)
+{
+    my ($slice) = @_;
+    my $pid = $slice->monitor_pid();
+
+    #
+    # See if the process still exists.
+    #
+    if (kill(0, $pid) == 0) {
+	if ($!{ESRCH}) {
+	    print STDERR "Monitor process $pid no longer exists.\n";
+	    $slice->ClearMonitorPid();
+	    return 0;
+	}
+    }
+    return 0;
 }
 
 #
