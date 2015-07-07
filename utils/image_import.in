@@ -320,7 +320,7 @@ if ($getimage) {
 		    $image->Unlock();
 		    fatal("Cannot lookup most recent version of $image");
 		}
-		# Reuse is not ready/released.
+		# Reuse if not ready/released.
 		if ($image->ready() && $image->released()) {
 		    my $clone = $image->NewVersion($user, undef, undef);
 		    if (!defined($clone)) {
