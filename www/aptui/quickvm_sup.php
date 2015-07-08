@@ -197,6 +197,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     if ($embedded) {
 	goto embed;
     }
+
     echo "
          <div class='navbar navbar-static-top' style='margin-bottom: 10px'
               role='navigation'>
@@ -313,7 +314,10 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     echo "   </ul>
            </div>
          </div>\n";
-
+    
+    # Put the special message, if any, right below the header. Note that the
+    # negative margin is to put it flush below the navbar without having to
+    # permanently remove the bottom margin on the navbar
     if ($ISCLOUD) {
         $message = TBGetSiteVar("cloudlab/message");
     }
@@ -321,9 +325,11 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         $message = TBGetSiteVar("aptlab/message");
     }
     if ($message != "") {
-        echo "<center style='margin-bottom: 5px; margin-top: -8px'>
-         <font color=red>$message</font></center>\n";
+        echo "<div class='alert alert-warning alert-dismissible' role='alert' style='margin-top: -10px'>
+                $message
+          </div>";
     }
+
     if ($login_user) {
         list($pcount, $phours) = Instance::CurrentUsage($login_user);
         $weeksusage = Instance::WeeksUsage($login_user);
@@ -348,7 +354,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
             }
             echo "<a href='#' class='btn btn-xs' data-toggle='modal' ".
                 "data-target='#myusage_modal'> ".
-                "<span class='glyphicon glyphicon-question-sign'></span> ".
+                "<span class='glyphicon glyphicon-question-sign' ".
+                "      style='margin-bottom: 4px;'></span> ".
                 "</a>\n";
             echo "</center>\n";
         }

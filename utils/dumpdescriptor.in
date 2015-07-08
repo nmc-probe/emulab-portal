@@ -41,6 +41,7 @@ my $debug      = 0;
 my $dotypes    = 0;
 my $export     = 0;
 my $clientvers = 0;
+my $argumentid;
 
 #
 # Configure variables
@@ -112,18 +113,18 @@ if (@ARGV) {
 }
 
 if (defined($options{"i"})) {
-    my $imageid = $options{"i"};
-    my $image = Image->Lookup($imageid);
+    $argumentid = $options{"i"};
+    my $image = Image->Lookup($argumentid);
     if (!defined($image)) {
-	fatal("No such image: $imageid");
+	fatal("No such image: $argumentid");
     }
     DumpImage($image);
 }
 elsif (defined($options{"o"})) {
-    my $osid = $options{"o"};
-    my $osinfo = OSinfo->Lookup($osid);
+    $argumentid = $options{"o"};
+    my $osinfo = OSinfo->Lookup($argumentid);
     if (!defined($osinfo)) {
-	fatal("No such osid: $osid");
+	fatal("No such osid: $argumentid");
     }
     DumpOS($osinfo);
 }
@@ -174,8 +175,10 @@ sub DumpImage($)
     }
 
     if ($export) {
+	my $url;
 	my $imageid    = $image->imageid();
 	my $uuid       = $image->uuid();
+	my $image_uuid = $image->image_uuid();
 	my $access_key = $image->access_key();
 	if (!defined($access_key) || $access_key eq "") {
 	    $access_key = TBGenSecretKey();
@@ -184,11 +187,22 @@ sub DumpImage($)
 	    }
 	}
 	#
-	# Generate a url that allows the image to be downloaded.
+	# Generate a url that allows the image to be downloaded. This is a
+	# little confusing cause of the ways the caller can request an
+	# image.  If using the image uuid (which means, whatever the
+	# current version is right now), then return a URL that is not
+	# version specific. Otherwise, return URL to the actual image
+	# version. The messiness is how to determine that we want the
+	# version specific or not, from the script arguments.
 	#
-	my $url = "$TBBASE/spewimage.php".
-	    "?imageid=$uuid&access_key=$access_key";
-	
+	if ($argumentid =~ /:/) {
+	    $url = "$TBBASE/spewimage.php".
+		"?imageid=$uuid&access_key=$access_key";
+	}
+	else {
+	    $url = "$TBBASE/spewimage.php".
+		"?imageid=$image_uuid&access_key=$access_key";
+	}
 	$xmlfields{"imagefile_url"} = $url;
     }
 

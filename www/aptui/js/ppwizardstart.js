@@ -17,7 +17,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	var defaults      = null;
 	var uuid          = "";
 	var registered    = true;
-	var isadmin       = 0;
+	var multisite     = 0;
 	var RSPEC	  = null;
 	var configuredone_callback = null;
 
@@ -199,7 +199,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	function StartPP(args) {
 	    uuid = args.uuid;
 	    registered = args.registered;
-	    isadmin = args.isadmin;
+	    multisite = args.multisite;
 	    
 	    if (bodyTemplate) {
 		GenerateModalBody(defaults, null);
@@ -208,7 +208,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    }
 	    // Caller might already have an editor instance.
 	    editor = new JacksEditor($('#inline_jacks'), true, true,
-				     true, true, !isadmin);
+				     true, true, !multisite);
 	    configuredone_callback = args.callback;
 	    
 	    /*

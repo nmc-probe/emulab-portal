@@ -295,7 +295,7 @@ function SPITFORM($formfields, $newuser, $errors)
                                       col-md-8  col-md-offset-2
                                       col-sm-10  col-sm-offset-1
                                       col-xs-12 col-xs-offset-0'></div>\n";
-    echo "<div id='stepsContainer' class='row'>
+    echo "<div id='stepsContainer'>
           <h3>Select a Profile</h3>
           <div class='col-lg-8  col-lg-offset-2
                       col-md-8  col-md-offset-2
@@ -693,6 +693,8 @@ function SPITFORM($formfields, $newuser, $errors)
     }
     $isadmin = (isset($this_user) && ISADMIN() ? 1 : 0);
     echo "    window.ISADMIN    = $isadmin;\n";
+    $multisite = (isset($this_user) && (ISADMIN() || STUDLY()) ? 1 : 0);
+    echo "    window.MULTISITE  = $multisite;\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";

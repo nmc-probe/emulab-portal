@@ -210,7 +210,7 @@ foreach my $url (@urllist) {
     my $opts = "";
     $opts .= " -d"
 	if ($debug);
-    system("$IMPORTER $opts -g -p $pid $safe_url");
+    system("$IMPORTER $opts -g -p $pid -r " . $image->imageid());
     exit(-1)
 	if ($?);
 }

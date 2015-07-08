@@ -516,18 +516,9 @@ function CHECKURL($url, &$error) {
 	    $error = "URL is malformed; spaces are not allowed!";
 	    return 0;
 	}
-	
-	if (strcmp($HTTPTAG, substr($url, 0, strlen($HTTPTAG))) &&
-	    strcmp($HTTPSTAG, substr($url, 0, strlen($HTTPSTAG)))) {
-	    $url = "${HTTPTAG}" . $url;
-	}
-
-	$fp = @fopen($url, "r");
-	if (!$fp) {
-	    $error = "URL is not valid; Cannot be accessed!";
-	    return 0;
-	}
-	fclose($fp);
+        #
+        # We no longer fopen the url ... 
+        #
     }
     return 1;
 }

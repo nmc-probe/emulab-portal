@@ -67,6 +67,7 @@ function SPITFORM($formfields, $errors)
     $activity   = 0;
     $ispp       = 0;
     $isadmin    = (ISADMIN() ? 1 : 0);
+    $multisite  = (ISADMIN() || STUDLY() ? 1 : 0);
     $version_uuid = "null";
     $profile_uuid = "null";
 
@@ -165,6 +166,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.CANMODIFY= $canmodify;\n";
     echo "    window.CANPUBLISH= $canpublish;\n";
     echo "    window.ISADMIN  = $isadmin;\n";
+    echo "    window.MULTISITE  = $multisite;\n";
     echo "    window.HISTORY  = $history;\n";
     echo "    window.ACTIVITY = $activity;\n";
     echo "    window.TITLE    = '$title';\n";

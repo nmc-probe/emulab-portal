@@ -312,12 +312,15 @@ sub new($$)
 	print STDERR "GeniHRN::new: invalid urn $urn\n";
 	return undef;
     }
-    my ($domain,$type,$id) = GeniHRN::Parse($urn);
+    my ($authority,$type,$id) = GeniHRN::Parse($urn);
     my $self = {};
-    $self->{'urn'}     = $urn;
-    $self->{'domain'}  = $domain;
-    $self->{'type'}    = $type;
-    $self->{'id'}      = $id;
+    $self->{'urn'}        = $urn;
+    $self->{'type'}       = $type;
+    $self->{'id'}         = $id;
+    $self->{'authority'}  = $authority;
+    my ($domain,$subauth) = split(":", $authority);
+    $self->{'domain'}     = $domain;
+    $self->{'subauth'}    = $subauth;
     
     bless($self, $class);
     return $self;
@@ -326,7 +329,9 @@ sub new($$)
 sub field($$)           { return ($_[0]->{$_[1]}); }
 sub urn($)		{ return field($_[0], "urn"); }
 sub asString($)         { return $_[0]->urn(); }
+sub authority($)	{ return field($_[0], "authority"); }
 sub domain($)		{ return field($_[0], "domain"); }
+sub subauth($)		{ return field($_[0], "subauth"); }
 sub type($)		{ return field($_[0], "type"); }
 sub id($)		{ return field($_[0], "id"); }
 sub IsAuthority()       { return $_[0]->type() =~ /^authority$/i ? 1 : 0; }

@@ -207,6 +207,7 @@ sub Create($$;$)
     my $uuid     = (exists($argref->{'uuid'})    ? $argref->{'uuid'}    :undef);
     my $url      = (exists($argref->{'url'})     ? $argref->{'url'}     :undef);
     my $showuuid = (exists($argref->{'showuuid'})? $argref->{'showuuid'}:undef);
+    my $nostore  = (exists($argref->{'nostore'}) ? $argref->{'nostore'} :0);
 
     # Let mkcert generate a new one.
     $uuid = ""
@@ -281,6 +282,10 @@ sub Create($$;$)
 	if (!defined($certificate));
 
     $certificate->{'CERT'}->{'privkey'} = $privkey;
+
+    goto done
+	if ($nostore);
+    
     #
     # We need to be sure this certificate is unique, so do a table
     # lock and check before calling Store.
@@ -316,6 +321,7 @@ sub Create($$;$)
 	print STDERR "Could not write new certificate to DB\n";
 	goto bad;
     }
+  done:
     DBQueryWarn("unlock tables");
     return $certificate;
   bad:
@@ -617,6 +623,9 @@ sub LoadFromArray($$@)
     $self->{'CERT'}->{'created'}   = undef;
     $self->{'CERT'}->{'uri'}       = $url;
     $self->{'CERT'}->{'urn'}       = $urn;
+    # Convert URNs to objects.
+    $self->{'CERT'}->{'urnOBJ'}    = GeniHRN->new($urn)	if (defined($urn));
+
     return $self;
 }
 
@@ -1032,6 +1041,17 @@ sub WriteKeyToFile($)
     print $tempfile "-----END RSA PRIVATE KEY-----\n";
 
     return $filename;
+}
+
+# Hmm, how did we get into this odd state?
+sub PrivKeyDelimited($)
+{
+    my ($self) = @_;
+
+    return
+	"-----BEGIN RSA PRIVATE KEY-----\n" .
+	$self->privkey() .
+	"-----END RSA PRIVATE KEY-----\n";
 }
 
 #

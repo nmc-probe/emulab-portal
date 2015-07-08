@@ -54,7 +54,7 @@ define(['underscore', 'js/quickvm_sup',
 			return false;
 		    }
 		    var howlong = DateToDays();
-		    $('#future_usage').text(physnode_count * howlong * 24);
+		    $('#future_usage').val(Math.round(physnode_count * howlong * 24));
 		});
 	    }
 	    
@@ -69,8 +69,8 @@ define(['underscore', 'js/quickvm_sup',
 	    // Current usage.
 	    if (physnode_count) {
 		$("#extend_usage").removeClass("hidden");
-		$('#current_usage').text(physnode_hours);
-		$('#future_usage').text(physnode_count * 24);
+		$('#current_usage').val(Math.round(physnode_hours));
+		$('#future_usage').val(Math.round(physnode_count * 24));
 	    }
 	}
 
@@ -214,7 +214,7 @@ define(['underscore', 'js/quickvm_sup',
 	    $('#label' + label + "_request").removeClass("hidden");
 
 	    if (howlong) {
-		$('#future_usage').text(physnode_count * howlong * 24);
+		$('#future_usage').val(Math.round(physnode_count * howlong * 24));
 	    }
 
 	    // For the char countdown below.
@@ -238,14 +238,18 @@ define(['underscore', 'js/quickvm_sup',
 		var left  = minchars - len;
 		if (left <= 0) {
 		    left = 0;
+		    $('#extend_counter_alert').addClass("hidden");
 		    EnableSubmitButton();
 		}
 		else if (left) {
 		    msg = "You need at least " + left + " more characters";
+		    $('#extend_counter_alert').removeClass("hidden");
 		    DisableSubmitButton();
 		}
 	    }
 	    else {
+                msg = "You need at least " + minchars + " more characters";
+                $('#extend_counter_alert').removeClass("hidden");
 		DisableSubmitButton();
 	    }
 	    $('#extend_counter_msg').html(msg);
@@ -343,7 +347,7 @@ define(['underscore', 'js/quickvm_sup',
 	return function(thisuuid, func, admin, guest, extendfor,
 			url, pcount, phours)
 	{
-//	    isadmin  = admin;
+	    isadmin  = admin;
 	    isguest  = guest;
 	    uuid     = thisuuid;
 	    callback = func;

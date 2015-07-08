@@ -54,9 +54,12 @@ if (0 && ! $image->isglobal()) {
     SPITERROR(403, "No permission to access image");
 }
 
-# Pass imageid:version to backend script.
+# Pass imageid:version to backend script if its a specific version request.
+$imagearg = ($image->image_uuid() eq $uuid && is_null($version) ?
+    $image->imageid() : $image->versid());
+
 $fp = popen("$TBSUEXEC_PATH nobody nobody webdumpdescriptor ".
-	    "-e -v $clientversion -i " . $image->versid(), "r");
+	    "-e -v $clientversion -i " . $imagearg, "r");
 if (! $fp) {
     SPITERROR(404, "Could not get metadata for $uuid!");
 }
