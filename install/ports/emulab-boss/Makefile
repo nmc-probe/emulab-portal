@@ -137,7 +137,8 @@ RUN_DEPENDS+=	\
 
 # python packages
 RUN_DEPENDS+=	\
-	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb
+	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb \
+	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml
 
 # apache related ports
 RUN_DEPENDS+=	\
