@@ -55,7 +55,7 @@ if (0 && ! $image->isglobal()) {
 }
 
 # Pass imageid:version to backend script if its a specific version request.
-$imagearg = ($image->image_uuid() eq $uuid && is_null($version) ?
+$imagearg = ($image->image_uuid() == $uuid && is_null($version) ?
     $image->imageid() : $image->versid());
 
 $fp = popen("$TBSUEXEC_PATH nobody nobody webdumpdescriptor ".
