@@ -27,12 +27,13 @@ else
     opts="$opts -O max_connections=350"
 fi
 
-logopt="--log-long-format --log=@prefix@/log/mysql/base --log-slow-queries=@prefix@/log/mysql/slowqueries"
+logopt="--log-long-format --log=@prefix@/log/mysql/base --log-bin=@prefix@/log/mysql/update --log-slow-queries=@prefix@/log/mysql/slowqueries"
 
 if [ $major -eq 5 ]; then
 	safeprog=/usr/local/bin/mysqld_safe
 	if [ $minor -gt 1 ]; then
 	    logopt="--general_log=1 --general_log_file=@prefix@/log/mysql/base"
+	    logopt="$logopt --log-bin=@prefix@/log/mysql/update"
 	    logopt="$logopt --slow_query_log=1 --slow_query_log_file=@prefix@/log/mysql/slowqueries"
 
 	    # XXX awkward: no -O, a couple of name changes
