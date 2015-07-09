@@ -307,8 +307,6 @@ sub ReportLockdownExpired()
     
 }
 
-exit(0);
-
 my $reportcounter = 0;
 
 # Do this once at startup
