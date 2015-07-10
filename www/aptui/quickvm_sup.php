@@ -327,8 +327,6 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     if ($message != "") {
         echo "<div class='alert alert-warning alert-dismissible'
                  role='alert' style='margin-top: -10px'>
-              <button type='button' class='close' data-dismiss='alert'>
-                 <span>&times;</span></button>
                 <center>$message</center>
           </div>";
     }
