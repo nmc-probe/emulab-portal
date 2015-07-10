@@ -18,6 +18,7 @@ smmsp:*:25:
 mailnull:*:26:
 guest:*:31:
 bind:*:53:
+unbound:*:59:
 proxy:*:62:
 authpf:*:63:
 _pflogd:*:64:
@@ -33,3 +34,5 @@ nobody:*:65534:
 messagebus:*:556:
 polkit:*:562:
 haldaemon:*:560:
+_tss:*:601:
+git_daemon:*:964:
