@@ -280,7 +280,7 @@ else {
     #
     # Do a mysqldump. This will reset the log files.
     #
-    if (system("$MYSQLDUMP --all ".
+    if (system("$MYSQLDUMP --create-options ".
 	       "--flush-logs --lock-tables $DBNAME > $backname")) {
 	fatal("mysqldump failed!");
     }
