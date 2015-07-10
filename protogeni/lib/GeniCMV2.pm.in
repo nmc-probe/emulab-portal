@@ -1717,6 +1717,17 @@ sub RedeemTicket($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
     }
+    #
+    # If we got a cert/key, record them for the slice. This is a
+    # generic openssl key/cert that is stored on the nodes (and from
+    # which an ssh key pair can be derived).
+    #
+    if (exists($argref->{'certificate'}) || exists($argref->{'key'})) {
+	$slice->AddGenericCert((exists($argref->{'certificate'}) ?
+				$argref->{'certificate'} : undef),
+			       (exists($argref->{'key'}) ?
+				$argref->{'key'} : undef));
+    }
     my $isupdate = defined($aggregate);
 
     return GeniCM::SliverWorkAux($credential, $open_ticket, $keys,
