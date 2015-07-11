@@ -831,12 +831,12 @@ sub CheckNodeConstraints($$$)
 	    elsif ($iscloudlab &&
 		   !($image_urn =~ /ARM/ || $image_urn =~ /HPC/)) {
 		$$pmsg = "The disk image specified for node '$client_id' ".
-		    "will not run on the Cloudlab cluster";
+		    "will not run on the Cloudlab Utah cluster";
 		return -1;
 	    }
 	    elsif (!$iscloudlab && $image_urn =~ /ARM/) {
 		$$pmsg = "The disk image specified for node '$client_id' ".
-		    "will only run on the Cloudlab cluster";
+		    "will only run on the Cloudlab Utah cluster";
 		return -1;
 	    }
 	}
@@ -854,7 +854,7 @@ sub CheckNodeConstraints($$$)
 	if ($iscloudlab) {
 	    if ($image_host ne $cloudwww) {
 		$$pmsg = "The disk image specified for node '$client_id' ".
-		    "will not run on the Cloudlab cluster";
+		    "will not run on the Cloudlab Utah cluster";
 		return -1;
 	    }
 	}
