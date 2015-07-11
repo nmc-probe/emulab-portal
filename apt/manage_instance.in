@@ -48,8 +48,9 @@ sub usage()
     print("Usage: manage_instance writecreds instance directory\n");
     exit(-1);
 }
-my $optlist     = "dt:";
+my $optlist     = "dt:s";
 my $debug       = 0;
+my $silent      = 0;
 my $webtask_id;
 my $webtask;
 
@@ -122,6 +123,9 @@ if (defined($options{"t"})) {
 }
 if (defined($options{"d"})) {
     $debug++;
+}
+if (defined($options{"s"})) {
+    $silent = 1;
 }
 if (@ARGV < 2) {
     usage();
@@ -725,6 +729,7 @@ sub DoTerminate()
     }
     my $coderef = sub {
 	my ($sliver) = @_;
+	my $urn = $sliver->aggregate_urn();
 	my $errmsg;
 
 	my $response = $sliver->Terminate();
@@ -745,7 +750,7 @@ sub DoTerminate()
 	}
 	return 0;
       bad:
-	print STDERR "$errmsg\n";
+	print STDERR "$urn: $errmsg\n";
 	return -1;
     };
     my @return_codes = ();
@@ -783,11 +788,15 @@ sub DoTerminate()
     $instance->SetStatus($old_status);
     $slice->UnLock();
     if (defined($logfile)) {
+	my $instance_name = $instance->name();
+	my $slice_uuid    = $slice->uuid();
 	SENDMAIL($TBOPS,
 		 "Unable to terminate instance $uuid",
-		 "Error terminating $instance:\n\n".
+		 "Name: $instance_name\n".
+		 "Slice: $slice_uuid\n\n".
 		 "$errmsg\n",
-		 $TBOPS, undef, $logfile);
+		 $TBOPS, undef, $logfile)
+	    if (!$silent);
 	unlink($logfile);
     }
     exit(1);
