@@ -6754,10 +6754,6 @@ sub InterpLinksAux($)
 					    (defined($protovlan) ?
 					     undef : $portA));
 
-		    # For below.
-		    $portA = $virtiface->viface()
-			if (defined($virtiface));
-
 		    #
 		    # If the "lannode" is placed on a node, and that node is
 		    # different than the current node, we have to connect the
@@ -6779,6 +6775,10 @@ sub InterpLinksAux($)
 					    $member0->_lannode(),
 					    $member0->_lanport());
 		    }
+		    
+		    # For below.
+		    $portA = $virtiface->viface()
+			if (defined($virtiface));
 		}
 		else {
 		    $protolan = ProtoLan->Lookup($experiment, $lan);
@@ -6855,7 +6855,17 @@ sub InterpLinksAux($)
 			$protolan->SetType("trivial");
 			$protolan->SetRole("link/lan");
 		    }
-		    $protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA);
+		    #
+		    # A lan can be a mix of real and trivial members, say if
+		    # its a lan of multiple members that spans two physical
+		    # nodes with multiple members on each node. In this case,
+		    # we have to mark these interfaces in the lans table to
+		    # make it easy for snmpit to ignore them when setting up
+		    # the physical part of the lan, and just use the physical
+		    # interfaces that were added above. 
+		    #
+		    $protolan->AddInterface($nodeA, $vnodeA, $vportA, $portA,
+					    undef, {"trivial" => "yes"});
 		}
 		else {
 		    # next plink
