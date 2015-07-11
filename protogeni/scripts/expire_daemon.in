@@ -131,6 +131,7 @@ require GeniAggregate;
 require Genixmlrpc;
 use GeniResponse;
 use Experiment;
+use EmulabConstants;
 use Node;
 use libtestbed;
 use emutil;
@@ -444,6 +445,11 @@ sub ExpireSlices()
 	    $slice->UnLock();
 	    goto skip;
 	}
+	if ($experiment->state() eq EXPTSTATE_PANICED()) {
+	    print STDERR "Refusing to terminate a paniced experiment\n";
+	    goto skip;
+	}
+	
 	#
 	# See if we have any local nodes. No point in using the idle
 	# check if there are no nodes. 
@@ -578,11 +584,14 @@ sub RegisterSlices()
 	my $slice = $aggregate->GetSlice();
 	if (!defined($slice)) {
 	    # slice is gone, lets not worry.
+	    $aggregate->Flush();
 	    next;
 	}
 	# Run the register script. Ignore errors; we will retry again later.
 	print STDERR "Registering $slice ($aggregate)\n";
 	system("$REGISTER " . $slice->idx());
+	$slice->Flush();
+	$aggregate->Flush();
     }
 }
 
@@ -986,7 +995,7 @@ sub CheckIdle()
 	if (!defined($experiment)) {
 	    print STDERR "Could not get experiment for $slice. Expiring ...\n";
 	    $slice->UnLock();
-	    goto cleanup;
+	    goto skip;
 	}
 	if ($experiment->Refresh() != 0) {
 	    print STDERR "Could not flush $experiment\n";
