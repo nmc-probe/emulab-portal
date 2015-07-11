@@ -2414,8 +2414,10 @@ COMMAND_PROTOTYPE(doifconfig)
 
 		if (strcmp(row[6], "vlan") == 0 && !row[3]) {
 			/*
-			 * Convert to a loopback lan, however the client
-			 * is able to do it.
+			 * A vlan that ended up trivial since all the
+			 * members are on the same node. Convert to a
+			 * loopback lan, however the client is able to do
+			 * it.
 			 */
 			isveth    = 0;
 			doencap   = 0;
@@ -2429,6 +2431,7 @@ COMMAND_PROTOTYPE(doifconfig)
 			doencap = 0;
 			ifacetype = "veth";
 		} else {
+			/* This is typically a plain vlan */
 			isveth = 0;
 			doencap = 0;
 			ifacetype = row[6];
