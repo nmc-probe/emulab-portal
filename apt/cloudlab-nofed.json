@@ -1,0 +1,34 @@
+{
+ "name": "CloudLab Sites",
+ "children": [
+  {
+   "name": "Utah",
+   "order": 1,
+   "color": "#ca3737",
+   "size": 315,
+   "howfull": 315,
+   "children": [ { "name": "m400", "size": 315, "howfull": 200, "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-utah%29" } ],
+   "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-utah%29"
+  },
+  {
+   "name": "Clemson",
+   "order": 2,
+   "color": "#ca8f37",
+   "size": 100,
+   "howfull": 100,
+   "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-clemson%29",
+   "children": [ { "name": "c8220", "size": 96, "howfull": 30, "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-clemson%29" },
+                 { "name": "c8220x", "size": 4,  "howfull": 3, "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-clemson%29" } ]
+  },
+  {
+   "name": "Wisconsin",
+   "order": 3,
+   "color": "#caca37",
+   "size": 100,
+   "howfull": 100,
+   "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-wisconsin%29",
+   "children": [ { "name": "C220M4", "size": 90, "howfull": 30, "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-wisconsin%29" },
+                 { "name": "C240M4", "size": 10, "howfull": 3, "url": "http://docs.cloudlab.us/hardware.html#%28part._cloudlab-wisconsin%29" } ]
+  }
+ ]
+}
