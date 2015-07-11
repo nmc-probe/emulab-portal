@@ -104,6 +104,7 @@ class Instance
     function extension_reason()  { return $this->field('extension_reason'); }
     function extension_history() { return $this->field('extension_history'); }
     function extension_lockout() { return $this->field('extension_adminonly'); }
+    function extension_requested(){return $this->field('extension_requested');}
     function physnode_count()    { return $this->field('physnode_count'); }
     function virtnode_count()    { return $this->field('virtnode_count'); }
     function servername()   { return $this->field('servername'); }
@@ -354,6 +355,15 @@ class Instance
 
         DBQueryWarn("update apt_instances set ".
                     "  extension_reason='$safe_reason' ".
+                    "where uuid='$uuid'");
+    }
+
+    function SetExtensionRequested($value)
+    {
+	$uuid = $this->uuid();
+
+        DBQueryWarn("update apt_instances set ".
+                    "  extension_requested='$value' ".
                     "where uuid='$uuid'");
     }
 

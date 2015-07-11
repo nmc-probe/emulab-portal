@@ -156,6 +156,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    event.preventDefault();
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin,
 			    isguest, null, window.APT_OPTIONS.freenodesurl,
+			    window.APT_OPTIONS.extension_requested,
 			    window.APT_OPTIONS.physnode_count,
 			    window.APT_OPTIONS.physnode_hours);
 	});
@@ -302,6 +303,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest,
 			    window.APT_OPTIONS.extend,
 			    window.APT_OPTIONS.freenodesurl,
+			    window.APT_OPTIONS.extension_requested,
 			    window.APT_OPTIONS.physnode_count,
 			    window.APT_OPTIONS.physnode_hours);
 	}

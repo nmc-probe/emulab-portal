@@ -219,6 +219,8 @@ echo "  window.APT_OPTIONS.dossh = $dossh;\n";
 echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.lockout = $lockout;\n";
+echo "  window.APT_OPTIONS.extension_requested = " .
+    $instance->extension_requested() . ";\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 echo "  window.APT_OPTIONS.physnode_count = " .
     $instance->physnode_count() . ";\n";

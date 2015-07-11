@@ -29,6 +29,16 @@ define(['underscore', 'js/quickvm_sup',
 		event.preventDefault();
 		RequestExtension();
 	    });
+	    if (isadmin) {
+		$('#howlong_extend').change(function() {
+		    EnableSubmitButton();
+		});
+		// Button handler.
+		$('button#deny-extension').click(function (event) {
+		    event.preventDefault();
+		    DenyExtension();
+		});
+	    }
 
 	    /*
 	     * If the modal contains the slider, set it up.
@@ -61,16 +71,18 @@ define(['underscore', 'js/quickvm_sup',
 	    /*
 	     * Countdown for text box.
 	     */
-	    $('#why_extend').on('focus keyup', function (e) {
-		UpdateCountdown();
-	    });
-	    // Clear existing text.
-	    $('#why_extend').val('');
-	    // Current usage.
-	    if (physnode_count) {
-		$("#extend_usage").removeClass("hidden");
-		$('#current_usage').val(Math.round(physnode_hours));
-		$('#future_usage').val(Math.round(physnode_count * 24));
+	    if (! isadmin) {
+		$('#why_extend').on('focus keyup', function (e) {
+		    UpdateCountdown();
+		});
+		// Clear existing text.
+		$('#why_extend').val('');
+		// Current usage.
+		if (physnode_count) {
+		    $("#extend_usage").removeClass("hidden");
+		    $('#current_usage').val(Math.round(physnode_hours));
+		    $('#future_usage').val(Math.round(physnode_count * 24));
+		}
 	    }
 	}
 
@@ -283,6 +295,7 @@ define(['underscore', 'js/quickvm_sup',
 
 	    if (isadmin) {
 		howlong = $("#howlong_extend").val();
+		reason  = $("#extend_message").val();
 	    }
 	    else {
 		if (howlong == null) {
@@ -326,6 +339,30 @@ define(['underscore', 'js/quickvm_sup',
 		return;
 	    });
 	}
+	
+	function DenyExtension()
+	{
+	    var message  = $("#extend_message").val();
+
+	    sup.HideModal('#extend_modal');
+	    if (!isadmin) {
+		return;
+	    }
+	    var deny_callback = function(json) {
+		sup.HideModal("#waitwait-modal");
+		if (json.code) {
+		    sup.SpitOops("oops", "Failed to Deny: " + json.value);
+		    return;
+		}
+	    }
+	    sup.ShowModal("#waitwait-modal");
+	    var xmlthing = sup.CallServerMethod(null,
+						"status",
+						"DenyExtension",
+						{"uuid"   : uuid,
+						 "message" : message});
+	    xmlthing.done(deny_callback);
+	}
 
 	function EnableSubmitButton()
 	{
@@ -345,7 +382,7 @@ define(['underscore', 'js/quickvm_sup',
 	    }
 	}
 	return function(thisuuid, func, admin, guest, extendfor,
-			url, pcount, phours)
+			url, needapproval, pcount, phours)
 	{
 	    isadmin  = admin;
 	    isguest  = guest;
@@ -353,6 +390,8 @@ define(['underscore', 'js/quickvm_sup',
 	    callback = func;
 	    physnode_count = pcount;
 	    physnode_hours = phours;
+
+	    console.info(needapproval);
 	    
 	    $('#extend_div').html(isadmin ?
 				  adminExtendString : isguest ?
@@ -362,8 +401,14 @@ define(['underscore', 'js/quickvm_sup',
 	    // some of the content, since we need to know its width.
 	    $(modalname).on('shown.bs.modal', function (e) {
 		Initialize();
-		if (extendfor && isadmin) {
-		    $("#howlong_extend").val(extendfor);
+		if (admin) {
+		    if (extendfor) {
+			$("#howlong_extend").val(extendfor);
+			EnableSubmitButton();
+		    }
+		    else {
+			DisableSubmitButton();
+		    }
 		}
 		if ($('#extension_reason').length) {
 		    $("#why_extend").val($('#extension_reason').val());
@@ -375,6 +420,9 @@ define(['underscore', 'js/quickvm_sup',
 		}
 		if (admin && url) {
 		    $("#extend_graphs_img").attr("src", url);
+		}
+		if (admin && needapproval) {
+		    $("#deny-extension").removeClass("hidden");
 		}
 		$(modalname).off('shown.bs.modal');
 	    });

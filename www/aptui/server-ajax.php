@@ -84,6 +84,8 @@ $routing = array("myprofiles" =>
 						     "Do_ConsoleURL",
 						 "RequestExtension" =>
 						     "Do_RequestExtension",
+						 "DenyExtension" =>
+						     "Do_DenyExtension",
 						 "SnapShot" =>
 						     "Do_Snapshot",
 						 "SnapshotStatus" =>
