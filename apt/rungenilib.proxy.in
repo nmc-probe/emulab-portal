@@ -39,10 +39,11 @@ sub usage()
  
     exit(-1);
 }
-my $optlist = "u:vpb:";
+my $optlist = "u:vpb:W";
 my $user;
 my $getparams= 0;
 my $paramsize;
+my $warningsfatal = 0;
 
 #
 # Configure variables
@@ -99,6 +100,9 @@ if (defined($options{"b"})) {
 }
 if (defined($options{"u"})) {
     $user = $options{"u"};
+}
+if (defined($options{"W"})) {
+    $warningsfatal = 1;
 }
 
 #
@@ -192,6 +196,9 @@ if ($getparams) {
 }
 elsif (defined($paramsize) && $paramsize) {
     $ENV{'GENILIB_PORTAL_PARAMS_PATH'} = $pfile;
+}
+if ($warningsfatal) {
+    $ENV{'GENILIB_PORTAL_WARNINGS_ARE_FATAL'} = "1";
 }
 
 #

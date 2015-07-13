@@ -299,6 +299,12 @@ function Do_CheckScript()
 	SPITAJAX_ERROR(1, "Missing script");
 	return;
     }
+
+    $warningsfatal = "";
+    if (isset($ajax_args["warningsfatal"]) && $ajax_args["warningsfatal"]) {
+	$warningsfatal = "-W";
+    }
+
     $infname  = tempnam("/tmp", "genilibin");
     $outfname = tempnam("/tmp", "genilibout");
 
@@ -312,7 +318,7 @@ function Do_CheckScript()
     # Invoke the backend.
     #
     $retval = SUEXEC($this_uid, "nobody",
-		     "webrungenilib -o $outfname $infname",
+		     "webrungenilib $warningsfatal -o $outfname $infname",
 		     SUEXEC_ACTION_IGNORE);
     
     if ($retval != 0) {
@@ -386,6 +392,12 @@ function Do_BindParameters()
 	SPITAJAX_RESPONSE(0);
 	return;
     }
+
+    $warningsfatal = "";
+    if (isset($ajax_args["warningsfatal"]) && $ajax_args["warningsfatal"]) {
+	$warningsfatal = "-W";
+    }
+
     $infname   = tempnam("/tmp", "genilibin");
     $parmfname = tempnam("/tmp", "genilibparm");
     $outfname  = tempnam("/tmp", "genilibout");
@@ -405,7 +417,7 @@ function Do_BindParameters()
     # Invoke the backend.
     #
     $retval = SUEXEC($this_uid, "nobody",
-		     "webrungenilib -b $parmfname -o $outfname $infname",
+		     "webrungenilib $warningsfatal -b $parmfname -o $outfname $infname",
 		     SUEXEC_ACTION_CONTINUE);
     
     if ($retval != 0) {

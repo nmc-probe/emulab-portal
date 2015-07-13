@@ -506,17 +506,41 @@ class Profile
 	}
 	$fields    = json_decode($json_data);
 	$defaults  = array();
-	$form      = "";
+	$formBasic    = "";
+	$formAdvanced = "";
+	$formGroups   = "";
 
 	while (list ($name, $val) = each ($fields)) {
+	    $form    = "";
 	    $type    = $val->type;
 	    $prompt  = $val->description;
 	    $defval  = $val->defaultValue;
 	    $options = $val->legalValues;
+	    $longhelp  = $val->longDescription;
+	    $advanced  = $val->advanced;
+	    $groupId   = $val->groupId;
+	    $groupName = $val->groupName;
+	    $hasGroup = false;
+	    $data_help_string = "";
+	    $advanced_attr = "";
 
 	    $defaults[$name] = $defval;
 	    if (!isset($prompt) || !$prompt) {
 		$prompt = $name;
+	    }
+	    if (!isset($advanced)) {
+		$advanced = false;
+	    }
+            # Let advanced-tagged params dominate groupId; we don't generate groupId yet anyway.
+	    if ($advanced) {
+		$advanced_attr = " pp-param-group='advanced' pp-param-group-name='Advanced Parameters'";
+	    }
+	    else if (isset($groupId) && $groupId && isset($groupName) && $groupName) {
+		$advanced_attr = " pp-param-group='$groupId' pp-param-group-name='$groupName'";
+		$hasGroup = true;
+	    }
+	    if (isset($longhelp) && $longhelp) {
+		$data_help_string = "data-help='$longhelp'";
 	    }
 
 	    if ($type == "boolean") {
@@ -527,6 +551,7 @@ class Profile
 		    "      class='format-me' ".
 		    "      data-key='$name' ".
 		    "      data-label='$prompt' ".
+		    "      $data_help_string $advanced_attr".
 		    "      value='checked' ".
 		    "      type='checkbox'>";
 		if ($defval) {
@@ -542,6 +567,7 @@ class Profile
 		    "       class='form-control format-me' ".
 		    "       data-key='$name' ".
 		    "       data-label='$prompt' ".
+		    "       $data_help_string $advanced_attr".
 		    "       placeholder='Please Select'> ";
 		foreach ($options as $option) {
 		    if (gettype($option) == "array") {
@@ -568,10 +594,24 @@ class Profile
 		    "class='form-control format-me' ".
 		    "data-key='$name' ".
 		    "data-label='$prompt' ".
+		    "$data_help_string $advanced_attr".
 		    "type='text'>";
 	    }
+
+	    if ($advanced) {
+		$formAdvanced .= $form;
+	    }
+	    else if ($hasGroup) {
+		$formGroups .= $form;
+	    }
+	    else {
+		$formBasic .= $form;
+	    }
 	}
-	return array($form, $defaults);
+
+	$finalForm = $formBasic . $formAdvanced . $formGroups;
+
+	return array($finalForm, $defaults);
     }
 }
 ?>
