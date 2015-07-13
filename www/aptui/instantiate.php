@@ -240,7 +240,7 @@ function SPITFORM($formfields, $newuser, $errors)
     global $projlist;
     $skipsteps  = "false";
     $amlist     = array();
-    $showabout  = !$ISCLOUD && (!$this_user ? 1 : 0);
+    $showabout  = (!$ISCLOUD && !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
     $webonly    = (isset($this_user) &&
                    $this_user->webonly() ? "true" : "false");
