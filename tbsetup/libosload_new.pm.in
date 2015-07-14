@@ -408,6 +408,7 @@ sub osload($$$) {
     $flags{zerofree}    = 0;
     $flags{prepare}     = 0;
     $flags{swapinfo}    = 0;
+    $flags{usedefault}  = 1;
 
     # These come in from the caller.
     my @imageids;
@@ -442,11 +443,24 @@ sub osload($$$) {
 	$flags{$flag} = $args->{$flag};
     }
     # handle some of the flags specially
-    if (defined($args->{'imageid'})) {
-	@imageids = split(/,/, $args->{'imageid'});
+    if ($flags{usecurrent}) {
+	$flags{usedefault} = 0;
     }
-    if (defined($args->{'imageids'})) {
+    if (defined($args->{'image'})) {
+	@images = split(/,/, $args->{'image'});
+	$flags{usedefault} = $flags{usecurrent} = 0;
+    }
+    elsif (defined($args->{'images'})) {
+	@images = @{$args->{'images'}};
+	$flags{usedefault} = $flags{usecurrent} = 0;
+    }
+    elsif (defined($args->{'imageids'})) {
 	@imageids = @{$args->{'imageids'}};
+	$flags{usedefault} = $flags{usecurrent} = 0;
+    }
+    elsif (defined($args->{'imageid'})) {
+	@imageids = split(/,/, $args->{'imageid'});
+	$flags{usedefault} = $flags{usecurrent} = 0;
     }
     if (defined($args->{'nodeflags'})) {
 	%nodeflags = %{$args->{'nodeflags'}};
@@ -1739,13 +1753,17 @@ sub AddNode($$$$)
 
     my $imagelistref = $self->GetImages($nodeobject);
 
-    if (!defined($imagelistref) || scalar(@$imagelistref) == 0) {
+    if ($self->nodeflag($nodeobject,'usedefault')) {
+	if (defined($imagelistref) && scalar(@$imagelistref)) {
+	    tbwarn("$self AddNode($node_id): we were given $imagelist, but are " . 
+		   " going to use the default OS instead!");
+	}
+
 	if ($self->_LoadDefaultImages($nodeobject)) {
 	    return -1;
 	}
     }
-
-    if ($self->nodeflag($nodeobject,'usecurrent')) {
+    elsif ($self->nodeflag($nodeobject,'usecurrent')) {
 	if (defined($imagelistref) && scalar(@$imagelistref)) {
 	    tbwarn("$self AddNode($node_id): we were given $imagelist, but are " . 
 		   " going to use the current OS instead!");
