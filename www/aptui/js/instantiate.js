@@ -120,7 +120,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 			    if (!$('#cluster_status_link').length) {
 				$('#stepsContainer-p-2 #finalize_options').parent().append(''
 					+'<div id="cluster_status_link"><center>'
-						+'<a target="_blank" href="cluster-status.php">Check Cluster Status</a>'
+						+'<a target="_blank" href="cluster-graphs.php">Check Cluster Status</a>'
 					+'</center></div>');
 			    }
 			}
