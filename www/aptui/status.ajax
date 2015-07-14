@@ -601,7 +601,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
 #
 function Do_ConsoleURL()
 {
-    global $instance, $creator, $this_user;
+    global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
 
     if (StatusSetupAjax(1)) {
@@ -644,6 +644,9 @@ function Do_ConsoleURL()
 	SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	$webtask->Delete();
     }
+    elseif ($suexec_output != "") {
+        SPITAJAX_ERROR(1, $suexec_output);
+    }
     else {
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
     }
@@ -654,7 +657,7 @@ function Do_ConsoleURL()
 #
 function Do_Snapshot()
 {
-    global $this_user, $instance;
+    global $this_user, $instance, $suexec_output;
     global $ajax_args;
 
     if (StatusSetupAjax(1)) {
@@ -727,6 +730,9 @@ function Do_Snapshot()
 	elseif ($webtask) {
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
 	else {
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}
@@ -798,7 +804,7 @@ function Do_SnapshotStatus()
 #
 function Do_Refresh()
 {
-    global $this_user, $instance;
+    global $this_user, $instance, $suexec_output;
     global $ajax_args;
 
     #
@@ -831,6 +837,9 @@ function Do_Refresh()
 	elseif ($webtask) {
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
 	else {
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}
@@ -847,7 +856,7 @@ function Do_Refresh()
 #
 function Do_RebootOrReload($which)
 {
-    global $this_user, $instance;
+    global $this_user, $instance, $suexec_output;
     global $ajax_args;
 
     if (StatusSetupAjax(1)) {
@@ -896,7 +905,10 @@ function Do_RebootOrReload($which)
 	elseif ($webtask) {
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	}
-	else {
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+        else {
 	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}
