@@ -547,9 +547,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		"<option value='" + name + "'>" + name + "</option>";
 	});
 
+	var sitenum = 0;
 	for (var siteid in sites) {
 	    html = html +
-		"<div id='site"+siteid+"cluster' class='form-horizontal experiment_option'>" +
+		"<div id='site"+sitenum+"cluster' class='form-horizontal experiment_option'>" +
 		"  <div class='form-group'>" +
 		"    <label class='col-sm-4 control-label' " +
 		"           style='text-align: right;'>"+
@@ -560,6 +561,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		"              class='form-control'>" + options +
 		"      </select>" +
 		"</div></div></div>";
+	    sitenum++;
 	}
 	//console.info(html);
 	$("#nosite_selector").addClass("hidden");
