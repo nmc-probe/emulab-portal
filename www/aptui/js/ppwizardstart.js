@@ -342,11 +342,11 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 			if ($(item).attr('data-help')) {
 			    var help_panel_url = key + "_help_subpanel_collapse";
 			    label_text = label_text +
-				"<span class='pp-param-tooltip' " +
-				" data-toggle='tooltip' " +
-				" data-html='true' " +
+				"<span class='pp-param-popover' " +
+				" data-toggle='popover' " +
+				" data-trigger='hover' " +
 				//" data-delay='{\"hide\":1000}' " +
-				" title='" + item.dataset['help'] + "'>" +
+				" data-content='" + item.dataset['help'] + "'>" +
 				" <a href='#" + help_panel_url + "'" +
 				" data-toggle='collapse'>" +
 				"<i class='glyphicon glyphicon-question-sign'></i>" +
@@ -540,8 +540,8 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		    ht + '</div></div></div></div>';
 		root.prepend(ht);
 	    }
-	    // Tell Bootstrap to initialize the tooltips
-	    root.append('<script>$("span.pp-param-tooltip").tooltip();</script>');
+	    // Tell Bootstrap to initialize the popovers
+	    root.append('<script>$(document).ready(function(){$("[data-toggle=\'popover\']").popover();});</script>');
 	    // Make sure group panels with errors are open, not closed.
 	    root.append(groupErrorOpenerScript);
 	    return root;
