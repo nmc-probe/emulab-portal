@@ -397,7 +397,8 @@ sub UpdateAggregateGraphs()
 		    $total_inuse += $inuse;
 		    $total_size  += $size;
 		}
-		$cluster->{'howfull'} = int($total_inuse);
+		# Rob says the toplevel numbers both have to be total_size.
+		$cluster->{'howfull'} = int($total_size);
 		$cluster->{'size'}    = int($total_size);
 	    }
 	    #print Dumper($obj);
