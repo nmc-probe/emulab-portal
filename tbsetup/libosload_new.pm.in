@@ -499,6 +499,17 @@ sub osload($$$) {
 	}
     }
 
+    if (@imageids) {
+	foreach my $imageid (@imageids) {
+	    my $image = Image->Lookup($imageid);
+	    if (!defined($image)) {
+		tberror("No such imageid $imageid");
+		return -1;
+	    }
+	    push(@images, $image);
+	}
+    }
+
     foreach my $i (0 .. $#imageids) {
 	my $imageid = $imageids[$i];
 	$images[$i] = Image->Lookup($imageid);
@@ -1788,7 +1799,15 @@ sub _CheckImages($$)
 
     $self->dprint(0,"_CheckImages($node_id)");
 
-    my @images = @{$self->GetImages($nodeobject)};
+    my $imagelistref = $self->GetImages($nodeobject);
+    if (!defined($imagelistref)) {
+	#
+	# Sometimes we can be called with no images to load, just so we
+	# can reconfigure the node.  So catch that case.
+	#
+	return 0;
+    }
+    my @images = @$imagelistref;
     my @imageids = map { $_->imageid() } @images;
     my @imageidxs = (0 .. $#imageids);
 
