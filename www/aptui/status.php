@@ -228,7 +228,7 @@ echo "  window.APT_OPTIONS.virtnode_count = " .
     $instance->virtnode_count() . ";\n";
 echo "  window.APT_OPTIONS.physnode_hours = " .
     sprintf("%.2f;\n", $instance->physnode_count() *
-            ((time() - strtotime($slice->created())) / 3600));
+            ((time() - strtotime($instance->created())) / 3600));
 echo "  window.APT_OPTIONS.freenodesurl = '$freenodes_url';\n";
 if (isset($extend) && $extend != "") {
     echo "  window.APT_OPTIONS.extend = $extend;\n";
