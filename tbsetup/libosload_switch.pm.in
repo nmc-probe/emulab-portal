@@ -1558,11 +1558,11 @@ sub uploadImageTftp($$$;$) {
 	tberror "$self uploadImageTftp($node_id): could not check for allow-no-signatures option, assuming does not have it: $retval,$!";
 	$has_sig_support = 0;
 	$sigstuff = "";
-	goto failure;
     }
     else {
 	for my $line (@linehist) {
-	    if ($line =~ /Invalid input: allow-no-signature/) {
+	    #print "ANS CHECK: $line\n";
+	    if ($line =~ /Invalid input:\s+allow-no-signature/i) {
 		$has_sig_support = 0;
 		$sigstuff = "";
 	    }
