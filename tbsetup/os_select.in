@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -124,7 +124,7 @@ if (! ($clear || $list || $default || $waitmode)) {
     $osid = shift();
 
     # Untaint args.
-    if ($osid =~ /^([-\w\+\.\/]+)$/) {
+    if ($osid =~ /^([-\w\+\.\/]+(?::\d+)?)$/) {
 	$osid = $1;
     }
     else {
