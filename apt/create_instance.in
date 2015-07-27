@@ -302,29 +302,36 @@ else {
 }
 
 #
+# Sanity check sites
+#
+if (defined($sitemap)) {
+    foreach my $siteid (keys(%{ $sitemap })) {
+	my $manager_urn = $sitemap->{$siteid};
+
+	foreach my $oid (keys(%{ $sitemap })) {
+	    next if
+		($oid eq $siteid);
+
+	    if ($manager_urn eq $sitemap->{$oid}) {
+		UserError("You selected the same cluster for two sites.");
+	    }
+	}
+    }
+}
+
+#
 # Update rspec with site aggregate urns.
 #
-if (keys(%{$sitemap})) {
-    # SetSites will tell us if we must use stitcher.
-    my $needstitcher = 0;
+# SetSites will tell us if we must use stitcher.
+#
+my $needstitcher = 0;
     
-    if (APT_Profile::SetSites(\$rspecstr, $sitemap, \$needstitcher, \$errmsg)) {
-	fatal($errmsg);
-    }
-    # but do not override command line force.
-    $usestitcher = 1 if ($needstitcher);
-}
-elsif (APT_Profile::BindRspec(\$rspecstr, $default_aggregate_urn, \$errmsg)) {
+if (APT_Profile::SetSites(\$rspecstr, $sitemap, $default_aggregate_urn,
+			  \@aggregate_urns, \$needstitcher, \$errmsg)) {
     fatal($errmsg);
 }
-if (keys(%{$sitemap})) {
-    foreach my $siteid (keys(%{$sitemap})) {
-	push(@aggregate_urns, $sitemap->{$siteid})
-    }
-}
-else {
-    push(@aggregate_urns, $default_aggregate_urn);
-}
+# but do not override command line force.
+$usestitcher = 1 if ($needstitcher);
 
 #
 # Look for datasets; need to verify that the datasets being referenced
@@ -1146,7 +1153,7 @@ sub CreateSlivers()
 	    $instance->SetStatus("failed");
 	    $webtask->output($aggobj->webtask()->output())
 		if (defined($aggobj->webtask()->output()));
-	    $webtask->Exited(1);
+	    $webtask->Exited($code);
 	    return 1;
 	}
     }

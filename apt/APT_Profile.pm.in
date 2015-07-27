@@ -979,10 +979,12 @@ sub CheckDatasets($$$)
 #
 # Set the component_manager_urn for the sites.
 #
-sub SetSites($$$$)
+sub SetSites($$$$$$)
 {
-    my ($prspecstr, $sitemap, $pneedstitcher, $perrmsg) = @_;
-    my %interface_map = ();
+    my ($prspecstr, $sitemap, $default_aggregate_urn, $paggregate_urns,
+	$pneedstitcher, $perrmsg) = @_;
+    my %interface_map   = ();
+    my %aggregates      = ();
 
     my $rspec = GeniXML::Parse($$prspecstr);
     if (! defined($rspec)) {
@@ -991,19 +993,45 @@ sub SetSites($$$$)
     }
     foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	my $client_id   = GetVirtualId($ref);
+	my $manager_urn = GetManagerId($ref);	
 	my $site_id     = GeniXML::GetJacksSiteId($ref);
 
-	if (!defined($site_id)) {
-	    $$perrmsg = "No site ID for node $client_id";
-	    return -1;
+	# A node can be bound in the rspec.
+	if (defined($manager_urn)) {
+	    if (!GeniHRN::IsValid($manager_urn)) {
+		$$perrmsg = "$client_id has an invalid manager URN";
+		return 1;
+	    }
 	}
-	my $site_mid = "site:" . $site_id;
-	if (!exists($sitemap->{$site_mid})) {
-	    $$perrmsg = "No site mapping for node $client_id ($site_id)";
-	    return -1;
+	# Or there is a site tag, and a site mapping for it.
+	elsif (defined($site_id)) {
+	    if (defined($sitemap)) {
+		my $site_mid = "site:" . $site_id;
+
+		if (!exists($sitemap->{$site_mid})) {
+		    $$perrmsg =
+			"No site mapping for node $client_id ($site_id)";
+		    return -1;
+		}
+		$manager_urn = $sitemap->{$site_mid};
+	    }
+	    else {
+		$manager_urn = $default_aggregate_urn;
+	    }
+	    if (!GeniHRN::IsValid($manager_urn)) {
+		$$perrmsg = "$site_id has an invalid manager URN";
+		return 1;
+	    }
+	    GeniXML::SetManagerId($ref, $manager_urn);
+	    GeniXML::SetJacksSiteManagerId($ref, $manager_urn);
 	}
-	GeniXML::SetManagerId($ref, $sitemap->{$site_mid});
-	GeniXML::SetJacksSiteManagerId($ref, $sitemap->{$site_mid});
+	# Else use the default aggregate.
+	else {
+	    $manager_urn = $default_aggregate_urn;
+	    
+	    GeniXML::SetManagerId($ref, $manager_urn);
+	}
+	$aggregates{$manager_urn} = $manager_urn;
 
 	#
 	# Get all of the interfaces, we need those for the links, so
@@ -1012,12 +1040,11 @@ sub SetSites($$$$)
 	foreach my $iref (GeniXML::FindNodes("n:interface",
 					     $ref)->get_nodelist()) {
 	    my $client_id = GeniXML::GetInterfaceId($iref);
-	    $interface_map{$client_id} = $site_mid;
+	    $interface_map{$client_id} = $manager_urn;
 	}
     }
     foreach my $ref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
 	my %linksites = ();
-	my $client_id = GetVirtualId($ref);
 
 	foreach my $iref (GeniXML::FindNodes("n:interface_ref",
 					     $ref)->get_nodelist()) {
@@ -1025,35 +1052,18 @@ sub SetSites($$$$)
 	    next
 		if (!exists($interface_map{$client_id}));
 
-	    my $site_mid = $interface_map{$client_id};
-	    GeniXML::AddManagerToLink($ref, $sitemap->{$site_mid})
-		if (!exists($linksites{$sitemap->{$site_mid}}));
-	    $linksites{$sitemap->{$site_mid}} = 1;
+	    my $manager_urn = $interface_map{$client_id};
+	    
+	    GeniXML::AddManagerToLink($ref, $manager_urn)
+		if (!exists($linksites{$manager_urn}));
+	    $linksites{$manager_urn} = 1;
 	}
 	# if more then one site for a link, must use the stitcher.
 	$$pneedstitcher = 1
 	    if (keys(%linksites) > 1);
     }
     $$prspecstr = GeniXML::Serialize($rspec);
-    return 0;
-}
-
-#
-# Set the component_manager_urn for the rspec
-#
-sub BindRspec($$$)
-{
-    my ($prspecstr, $aggregate_urn, $perrmsg) = @_;
-
-    my $rspec = GeniXML::Parse($$prspecstr);
-    if (! defined($rspec)) {
-	$$perrmsg = "Could not parse rspec\n";
-	return -1;
-    }
-    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
-	GeniXML::SetManagerId($ref, $aggregate_urn);
-    }
-    $$prspecstr = GeniXML::Serialize($rspec);
+    @$paggregate_urns = keys(%aggregates);
     return 0;
 }
 
