@@ -484,6 +484,9 @@ class Instance
             else
                 $diff = $destroyed - $created;
 
+            if ($diff < 0)
+                $diff = 0;
+
             $phours += $pnodes * ($diff / 3600.0);
         }
         return $phours;
