@@ -1357,7 +1357,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	if (node_id) {
 	    // Default to checked any time we show the modal.
 	    $('#snapshot_update_profile').prop("checked", true);
-	    
 	    $('#snapshot_update_profile_div').removeClass("hidden");
 	}
 	else {
@@ -1369,8 +1368,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('button#snapshot_confirm').bind("click.snapshot", function (event) {
 	    event.preventDefault();
 	    $('button#snapshot_confirm').unbind("click.snapshot");
-	    if (node_id && $('#snapshot_update_profile').is(':checked')) {
-		update_profile = 1;
+	    if (node_id) {
+		update_profile = 
+		    $('#snapshot_update_profile').is(':checked') ? 1 : 0;
 	    }
 	    if ($('#snapshot_update_prepare').is(':checked')) {
 		update_prepare = 1;

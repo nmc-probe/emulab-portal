@@ -706,6 +706,12 @@ function Do_Snapshot()
             $optargs .= " -u all ";
         }
     }
+    else {
+        #
+        # Single node profile snapshot, we always update the profile.
+        #
+        $optargs .= " -u node ";
+    }
     if (isset($ajax_args["update_prepare"]) &&
         $ajax_args["update_prepare"]) {
         $optargs .= " -U ";
