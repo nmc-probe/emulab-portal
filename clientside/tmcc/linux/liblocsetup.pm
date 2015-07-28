@@ -1295,6 +1295,18 @@ sub MapShell($)
    return $fullpath;
 }
 
+sub os_samefs($$)
+{
+    my ($d1,$d2) = @_;
+
+    my $d1dev = `stat -c '%d' $d1`;
+    chomp($d1dev) if ($? == 0);
+    my $d2dev = `stat -c '%d' $d2`;
+    chomp($d2dev) if ($? == 0);
+
+    return ($d1dev && $d2dev && $d1dev == $d2dev) ? 1 : 0;
+}
+
 # Return non-zero if given directory is on a "local" filesystem
 sub os_islocaldir($)
 {
@@ -1305,6 +1317,15 @@ sub os_islocaldir($)
     if (grep(!/^filesystem/i, @dfoutput) > 0) {
 	$rv = 1;
     }
+
+    #
+    # XXX hack for NFS-based MFS. We treat it as a local directory
+    # if it is on the same FS as /.
+    #
+    if ($rv == 0 && libsetup::MFS() && os_samefs("/", $dir)) {
+	$rv = 1;
+    }
+
     return $rv;
 }
 
