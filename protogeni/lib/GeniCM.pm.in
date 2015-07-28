@@ -1686,6 +1686,16 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	}
 	
 	#
+	# Look for node desires that pass through to the backend.
+	#
+	foreach my $desire_ref (GeniXML::GetNodeDesires($ref)) {
+	    $virtexperiment->NewTableRow("virt_node_desires",
+				 {"vname"    => $node_nickname,
+				  "desire"   => $desire_ref->{'name'},
+				  "weight"   => $desire_ref->{'weight'}});
+	}
+	
+	#
 	# Local blockstores
 	#
 	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",

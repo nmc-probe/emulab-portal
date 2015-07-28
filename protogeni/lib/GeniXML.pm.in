@@ -633,6 +633,23 @@ sub GetNodeAttributes($)
     return @result;
 }
 
+sub GetNodeDesires($)
+{
+    my ($node) = @_;
+    my @result = ();
+
+    my @desires = FindNodesNS("n:fd", $node, $EMULAB_NS)->get_nodelist();
+
+    foreach my $desire (@desires) {
+	my $name   = GetText("name", $desire);
+	my $weight = GetText("weight", $desire);
+	if (defined($name) && $name ne "" && defined($weight)) {
+	    push(@result, {"name" => $name, "weight" => $weight});
+	}
+    }
+    return @result;
+}
+
 sub GetStartupCommand($)
 {
     my ($node) = @_;
