@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2005, 2006, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,23 +29,50 @@ include_once("node_defs.php");
 # 
 
 #
-# Only known and logged in users can do this.
-#
-$this_user = CheckLoginOrDie();
-$uid       = $this_user->uid();
-$isadmin   = ISADMIN();
-
-#
 # Verify page arguments.
 #
 $reqargs = RequiredPageArguments("node",      PAGEARG_NODE);
-$optargs = OptionalPageArguments("linecount", PAGEARG_INTEGER);
+$optargs = OptionalPageArguments("linecount", PAGEARG_INTEGER,
+                                 "key",       PAGEARG_STRING);
 $node_id = $node->node_id();
 
-if (!$isadmin &&
-    !$node->AccessCheck($this_user, $TB_NODEACCESS_READINFO)) {
-    USERERROR("You do not have permission to view the console log ".
-	      "for $node_id!", 1);
+if (isset($key)) {
+    $safe_key = addslashes($key);
+    
+    $query_result =
+	DBQueryFatal("select urlstamp from tiplines ".
+		     "where node_id='$node_id' and urlhash='$safe_key' and ".
+		     "      urlstamp!=0");
+    
+    if (mysql_num_rows($query_result) == 0) {
+	USERERROR("Invalid node or invalid key", 1);
+    } else {
+	$row = mysql_fetch_array($query_result);
+	$stamp = $row['urlstamp'];
+	if ($stamp <= time()) {
+	    DBQueryFatal("update tiplines set urlhash=NULL,urlstamp=0 ".
+	    		 "where node_id='$node_id'");
+	    USERERROR("Key is no longer valid", 1);
+	}
+    }
+    $uid     = "nobody";
+    $isadmin = 0;
+    $optarg  = "-k " . escapeshellarg($key);
+}
+else {
+    #
+    # Only known and logged in users can do this.
+    #
+    $this_user = CheckLoginOrDie();
+    $uid       = $this_user->uid();
+    $isadmin   = ISADMIN();
+    $optarg    = "";
+    
+    if (!$isadmin &&
+        !$node->AccessCheck($this_user, $TB_NODEACCESS_READINFO)) {
+        USERERROR("You do not have permission to view the console log ".
+                  "for $node_id!", 1);
+    }
 }
 
 #
@@ -55,10 +82,7 @@ if (isset($linecount) && $linecount != "") {
     if (! TBvalid_integer($linecount)) {
 	PAGEARGERROR("Illegal characters in linecount!");
     }
-    $optarg = "-l $linecount";
-}
-else {
-    $optarg = "";
+    $optarg .= " -l $linecount";
 }
 
 #
