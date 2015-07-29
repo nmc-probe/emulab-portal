@@ -30,6 +30,9 @@
 use strict;
 use English;
 use Getopt::Std;
+use Data::Dumper;
+use JSON;
+use File::Basename;
 
 #
 # Look for APT things that need to be dealt with.
@@ -307,7 +310,121 @@ sub ReportLockdownExpired()
     
 }
 
-exit(0);
+#
+# Gather up aggregate info. At the moment, there is still a lot of
+# Utah specific goings on here. 
+#
+sub UpdateAggregateGraphs()
+{
+    my $freeblob = {};
+
+    my $query_result =
+	DBQueryWarn("select * from apt_aggregates where noupdate=0");
+
+    return 0
+	if (!$query_result->numrows);
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $urn  = $row->{'urn'};
+	my $url  = $row->{'weburl'} . "/node_usage/freenodes.csv";
+	my $name = $row->{'nickname'};
+
+	system("$WGET --no-check-certificate ".
+	       "--timeout=30 --waitretry=30 --retry-connrefused ".
+	       "-q -O /tmp/freenodes.csv '$url'");
+	next
+	    if ($?);
+
+	if (-z "/tmp/freenodes.csv") {
+	    print STDERR "Zero length csv file for $urn\n";
+	    next;
+	}
+	if (!open(CSV, "/tmp/freenodes.csv")) {
+	    print STDERR "Could not open csv file for $urn\n";
+	    next;
+	}
+	my $line = <CSV>;
+	if ($line !~ /^Type,Inuse,Free$/) {
+	    print STDERR "Invalid first line in csv file for $urn\n";
+	    close(CSV);
+	    next;
+	}
+	while (<CSV>) {
+	    if ($_ =~ /^([-\w]+),(\d+),(\d+)$/) {
+		$freeblob->{$name}->{$1} = {"inuse" => $2, "free" => $3};
+	    }
+	}
+	close(CSV);
+    }
+    #print Dumper($freeblob);
+
+    #
+    # We are currently operating from two master json files. We make a
+    # a copy of those, and then update them with new info, and write them
+    # back. This will need to be generalized at some point. 
+    #
+    my $NOFED   = "$TB/etc/cloudlab-nofed.json";
+    my $FEDONLY = "$TB/etc/cloudlab-fedonly.json";
+
+    foreach my $file ($NOFED, $FEDONLY) {
+	if (-e $file) {
+	    my $data = `/bin/cat $file`;
+	    my $obj  = decode_json($data);
+	    if (!defined($obj)) {
+		print STDERR "Could not decide json in $file\n";
+		next;
+	    }
+	    foreach my $cluster (@{ $obj->{'children'} }) {
+		my $name = $cluster->{'name'};
+		next
+		    if (!exists($freeblob->{$name}));
+
+		my $total_size  = 0;
+		my $total_inuse = 0;
+
+		foreach my $child (@{ $cluster->{'children'} }) {
+		    my $type = $child->{'name'};
+		    
+		    if (!exists($freeblob->{$name}->{$type})) {
+			print STDERR "$name: Did not get a count for $type\n";
+			next;
+		    }
+		    my $inuse = $freeblob->{$name}->{$type}->{'inuse'};
+		    my $size  = $freeblob->{$name}->{$type}->{'free'} + $inuse;
+
+		    $child->{'howfull'} = int($inuse);
+		    $child->{'size'}    = int($size);
+		    $total_inuse += $inuse;
+		    $total_size  += $size;
+		}
+		# Rob says the toplevel numbers both have to be total_size.
+		$cluster->{'howfull'} = int($total_size);
+		$cluster->{'size'}    = int($total_size);
+	    }
+	    #print Dumper($obj);
+	    #
+	    # Write out new file for web ui.
+	    #
+	    my $tfile = "/tmp/$$.json";
+	    if (open(JS, ">$tfile")) {
+		my $json_text = to_json($obj, { pretty => 1 });
+		print JS $json_text . "\n";
+		close(JS);
+	    }
+	    else {
+		print STDERR "Could not open temp json file for new data\n";
+		next;
+	    }
+	    system("/bin/mv -f $tfile $TB/www/apt/" . basename($file));
+	    if ($?) {
+		print STDERR "Could not copy new json file to ".
+		    "$TB/www/apt/" . basename($file) . "\n";
+	    }
+	    unlink($tfile);
+	}
+    }
+    return 0;
+}
 
 my $reportcounter = 0;
 
@@ -328,6 +445,7 @@ while (1) {
 
     KillFailedInstances();
     ExpireInstances();
+    UpdateAggregateGraphs();
 
     # Do this once every 24 hours.
     if ($reportcounter >= (24 * 60 * 60)) {

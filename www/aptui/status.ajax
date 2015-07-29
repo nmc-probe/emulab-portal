@@ -303,7 +303,10 @@ function Do_RequestExtension()
 	    SPITAJAX_ERROR(1, "Must be an integer 1 <= days <= 365");
 	    goto bad;
 	}
-	$reason  = "Extended by site administrator";
+        $reason = "Your experiment was extended by the site administrator.\n";
+	if (isset($ajax_args["reason"]) && $ajax_args["reason"] != "") {
+            $reason .= "\n" . $ajax_args["reason"];
+        }
     }
     else {
 	if (!isset($ajax_args["reason"]) || $ajax_args["reason"] == "") {
@@ -448,9 +451,11 @@ function Do_RequestExtension()
 
 	$instance->SendEmail($creator->email(),
 	       "Experiment Extension: $uuid",
-	       "A request to extend your experiment was made and ".
-	       "granted.\n".
-	       "Your reason was:\n\n". $reason . "\n\n".
+               (ISADMIN() ? $reason :
+                "A request to extend your experiment was made and ".
+                "granted.\n".
+                "Your reason was:\n\n". $reason) .
+               "\n\n".
                "Your experiment was started on $created\n".
  	       "Your experiment will now expire at $new_expires\n".
                "It is running on $cluster\n\n\n".
@@ -465,6 +470,9 @@ function Do_RequestExtension()
         if (! ISADMIN()) {
             $instance->SetExtensionReason($reason);
         }
+        else {
+            $instance->SetExtensionRequested(1);
+        }
         $instance->BumpExtensionCount($granted);
     }
     elseif ($retval > 0) {
@@ -476,6 +484,67 @@ function Do_RequestExtension()
 	goto bad;
     }
     return;
+bad:
+delay:
+    sleep(1);
+}
+
+#
+# Deny extension,
+#
+function Do_DenyExtension()
+{
+    global $instance, $creator, $this_user, $suexec_output;
+    global $ajax_args;
+    global $TBMAIL_OPS, $APTMAIL, $EXTENSIONS, $APTBASE;
+    $reason  = "";
+    $message = "";
+
+    if (StatusSetupAjax(1)) {
+	goto bad;
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	goto bad;
+    }
+    if (!ISADMIN()) {
+	SPITAJAX_ERROR(1, "You do not have permission to do this.");
+	goto bad;
+    }
+    $reason = "Your extension was denied by the site administrator!\n";
+    if (isset($ajax_args["message"]) && $ajax_args["message"] != "") {
+        $reason .= "\n" . $ajax_args["message"];
+    }
+
+    $expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
+    $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
+    $now     = date("Y-m-d H:i:s T", time());
+
+    #
+    # We store each extension request in an ongoing text field.
+    #
+    $text =
+        "Date: $now\n".
+        "Expires: $expires\n".
+        "Reason:\n".
+        $reason . "\n\n".
+        "-----------------------------------------------\n";
+    $instance->AddExtensionHistory($text);
+
+    $instance->SendEmail($creator->email(),
+	       "Experiment Extension Denied: $uuid",
+               $reason .
+               "\n\n".
+               "Your experiment was started on $created\n".
+ 	       "Your experiment expires at $expires\n".
+               "$APTBASE/status.php?uuid=$uuid\n",
+	       "From: $EXTENSIONS\n" .
+	       "BCC: $EXTENSIONS");
+
+    $instance->SetExtensionRequested(0);
+    SPITAJAX_RESPONSE("Success");
 bad:
 delay:
     sleep(1);
@@ -517,6 +586,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
 
     $instance->SetExtensionReason($reason);
     $instance->BumpExtensionCount($granted);
+    $instance->SetExtensionRequested(1);
             
     # XXX 
     SPITAJAX_ERROR(2, "Your request requires admininstrator approval".
@@ -531,7 +601,7 @@ function needAdminApproval($wanted, $granted, $reason, $message)
 #
 function Do_ConsoleURL()
 {
-    global $instance, $creator, $this_user;
+    global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
 
     if (StatusSetupAjax(1)) {
@@ -574,6 +644,9 @@ function Do_ConsoleURL()
 	SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	$webtask->Delete();
     }
+    elseif ($suexec_output != "") {
+        SPITAJAX_ERROR(1, $suexec_output);
+    }
     else {
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
     }
@@ -584,7 +657,7 @@ function Do_ConsoleURL()
 #
 function Do_Snapshot()
 {
-    global $this_user, $instance;
+    global $this_user, $instance, $suexec_output;
     global $ajax_args;
 
     if (StatusSetupAjax(1)) {
@@ -633,6 +706,12 @@ function Do_Snapshot()
             $optargs .= " -u all ";
         }
     }
+    else {
+        #
+        # Single node profile snapshot, we always update the profile.
+        #
+        $optargs .= " -u node ";
+    }
     if (isset($ajax_args["update_prepare"]) &&
         $ajax_args["update_prepare"]) {
         $optargs .= " -U ";
@@ -657,6 +736,9 @@ function Do_Snapshot()
 	elseif ($webtask) {
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
 	else {
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}
@@ -728,7 +810,7 @@ function Do_SnapshotStatus()
 #
 function Do_Refresh()
 {
-    global $this_user, $instance;
+    global $this_user, $instance, $suexec_output;
     global $ajax_args;
 
     #
@@ -761,6 +843,9 @@ function Do_Refresh()
 	elseif ($webtask) {
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
 	else {
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}
@@ -777,7 +862,7 @@ function Do_Refresh()
 #
 function Do_RebootOrReload($which)
 {
-    global $this_user, $instance;
+    global $this_user, $instance, $suexec_output;
     global $ajax_args;
 
     if (StatusSetupAjax(1)) {
@@ -826,7 +911,10 @@ function Do_RebootOrReload($which)
 	elseif ($webtask) {
 	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
 	}
-	else {
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+        else {
 	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	}

@@ -361,12 +361,25 @@ sub getVlanPorts (@) {
 	    my $nodeid;
 	    my $iface;
 	    my $port;
+	    my $trivial;
 	    
 	    if ($member->GetAttribute("node_id", \$nodeid) != 0 ||
 		$member->GetAttribute("iface", \$iface) != 0) {
 		die("*** $0:\n".
 		    "    Missing attributes for $member in $vlan\n");
 	    }
+	    #
+	    # A lan that is a mix of real ports and trivial ports, is type vlan
+	    # (so it gets built on the switches), but will include those
+	    # trivial ports in the member list, but they need to be ignored
+	    # when operating on it as a vlan. libvtop sets this attribute when
+	    # it happens, and we watch for it here, pruning out those trivial
+	    # interfaces. A better way might be to remove them completely in
+	    # libvtop, but thats a bigger change with more side effects.
+	    #
+	    next
+		if ($member->GetAttribute("trivial", \$trivial) == 0);
+	
 	    $port = Port->LookupByIface($nodeid, $iface);
 	    #
 	    # Ports can be undef -- i.e., if this is a layer 2 path implemented
@@ -1171,6 +1184,8 @@ sub getDeviceOptions($) {
     if ($debug) {
 	print "Options for $switch:\n";
 	while (my ($key,$value) = each %options) {
+	    $value = "undef"
+		if (!defined($value));
 	    print "$key = $value\n"
 	}
     }

@@ -35,9 +35,15 @@ $dblink = GetDBLink("sa");
 # Verify page arguments.
 #
 $optargs = OptionalPageArguments("target_user",   PAGEARG_USER,
-				 "all",           PAGEARG_BOOLEAN);
+				 "all",           PAGEARG_BOOLEAN,
+                                 "extend",        PAGEARG_BOOLEAN);
+
 if (!isset($all)) {
     $all = 0;
+}
+# Admin only.
+if (!isset($extend)) {
+    $extend = 0;
 }
 #
 # Get current user.
@@ -66,7 +72,11 @@ echo "<link rel='stylesheet'
 $query_result1 = null;
 $query_result2 = null;
 
-if ($all && ISADMIN()) {
+if (($all || $extend) && ISADMIN()) {
+    $where = "";
+    if ($extend) {
+        $where = "where a.extension_requested=1";
+    }
     $query_result1 = 
         DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
                      " (UNIX_TIMESTAMP(now()) > ".
@@ -86,7 +96,7 @@ if ($all && ISADMIN()) {
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
-                     "order by a.creator");
+                     "$where order by a.creator");
 }
 else {
     $query_result1 =
@@ -263,11 +273,19 @@ echo "<div class='row'>
                     col-xs-12 col-xs-offset-0'>\n";
 
 if (mysql_num_rows($query_result1) == 0) {
-    $message = "<b>No experiments to show you. Maybe you want to ".
-	"<a href='instantiate.php'>start one?</a></b><br>";
+    $message = "<b>No experiments to show you.</b> ";
+
+    if (! ($all || $extend)) {
+        $message .= "Maybe you want to ".
+            "<b><a href='instantiate.php'>start one?</a></b><br>";
+    }
     echo $message;
 }
 else {
+    if (ISADMIN() && !$extend) {
+        echo "<a href='myexperiments.php?extend=1'>
+              Show Outstanding Extensions Requests</a><br>";
+    }
     SPITROWS($all, "table1", $query_result1);
 }
 if ($query_result2 && mysql_num_rows($query_result2)) {

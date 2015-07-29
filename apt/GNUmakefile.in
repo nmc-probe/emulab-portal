@@ -60,8 +60,9 @@ install: $(addprefix $(INSTALL_BINDIR)/, $(BIN_SCRIPTS)) \
 	$(addprefix $(INSTALL_SBINDIR)/, $(SBIN_SCRIPTS)) \
 	$(addprefix $(INSTALL_LIBDIR)/, $(LIB_SCRIPTS)) \
 	$(addprefix $(INSTALL_LIBEXECDIR)/, $(LIBEXEC_SCRIPTS)) \
-	$(addprefix $(INSTALL_DIR)/opsdir/libexec/, $(USERLIBEXEC))
-
+	$(addprefix $(INSTALL_DIR)/opsdir/libexec/, $(USERLIBEXEC)) \
+	$(INSTALL_ETCDIR)/cloudlab-fedonly.json \
+	$(INSTALL_ETCDIR)/cloudlab-nofed.json
 
 boss-install: install install-subdirs
 

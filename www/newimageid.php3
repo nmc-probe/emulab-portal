@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -111,9 +111,9 @@ function SPITFORM($formfields, $errors)
     if ($isadmin) {
 	$osid_result =
 	    DBQueryFatal("select v.* from os_info as o ".
-			 "left join os_info_versions as v on "
+			 "left join os_info_versions as v on ".
 			 "     v.osid=o.osid and v.vers=o.version ".
-			 "where (v.path='' or path is v.NULL) and ".
+			 "where (v.path='' or v.path is NULL) and ".
 			 "      v.version!='' and v.version is not NULL ".
 			 "order by o.pid,o.osname");
     }
@@ -122,7 +122,7 @@ function SPITFORM($formfields, $errors)
 	
 	$osid_result =
 	    DBQueryFatal("select distinct o.* from os_info as o ".
-			 "left join os_info_versions as v on "
+			 "left join os_info_versions as v on ".
 			 "     v.osid=o.osid and v.vers=o.version ".
 			 "left join group_membership as m ".
 			 "     on m.pid=o.pid ".
@@ -578,6 +578,41 @@ if (!isset($formfields["default_osid"]) ||
     $errors["Boot OS"] = "Missing Field";
 }
 
+$project = null;
+$group   = null;
+
+#
+# Project:
+#
+if (!TBvalid_pid($formfields["pid"])) {
+    $errors["Project"] = "Invalid project name";
+}
+elseif (! ($project = Project::Lookup($formfields["pid"]))) {
+    $errors["Project"] = "Invalid project name";
+}
+
+if (isset($formfields["gid"]) && $formfields["gid"] != "") {
+    if ($formfields["pid"] == $formfields["gid"] && $project) {
+	$group = $project->DefaultGroup();
+    }
+    elseif (!TBvalid_gid($formfields["gid"])) {
+	$errors["Group"] = "Invalid group name";
+    }
+    elseif ($project &&
+	    ! ($group = $project->LookupSubgroupByName($formfields["gid"]))) {
+	$errors["Group"] = "Invalid group name";
+    }
+}
+elseif ($project) {
+    $group = $project->DefaultGroup();
+}
+
+# Permission check if we managed to get a proper group above.
+if ($group &&
+    ! $group->AccessCheck($this_user, $TB_PROJECT_MAKEIMAGEID)) {
+    $errors["Project"] = "Not enough permission";
+}
+
 #
 # Build up argument array to pass along.
 #
@@ -788,11 +823,6 @@ if (mysql_num_rows($query_result)) {
     }
 }
 
-$pid = $image->pid();
-$gid_idx = $image->gid_idx();
-$group = Group::Lookup($gid_idx);
-$project = $image->Project();
-    
 # Send to the backend for more checking, and eventually, to update the DB.
 $imagename = $args["imagename"];
 if (! ($image = Image::NewImageId(0, $imagename, $args, $this_user, $group,

@@ -104,6 +104,7 @@ class Instance
     function extension_reason()  { return $this->field('extension_reason'); }
     function extension_history() { return $this->field('extension_history'); }
     function extension_lockout() { return $this->field('extension_adminonly'); }
+    function extension_requested(){return $this->field('extension_requested');}
     function physnode_count()    { return $this->field('physnode_count'); }
     function virtnode_count()    { return $this->field('virtnode_count'); }
     function servername()   { return $this->field('servername'); }
@@ -357,6 +358,15 @@ class Instance
                     "where uuid='$uuid'");
     }
 
+    function SetExtensionRequested($value)
+    {
+	$uuid = $this->uuid();
+
+        DBQueryWarn("update apt_instances set ".
+                    "  extension_requested='$value' ".
+                    "where uuid='$uuid'");
+    }
+
     function AddExtensionHistory($text)
     {
 	$uuid = $this->uuid();
@@ -474,6 +484,9 @@ class Instance
             else
                 $diff = $destroyed - $created;
 
+            if ($diff < 0)
+                $diff = 0;
+
             $phours += $pnodes * ($diff / 3600.0);
         }
         return $phours;
@@ -528,6 +541,9 @@ class Instance
                 $diff = $destroyed - $monthago;
             else
                 $diff = $destroyed - $created;
+
+            if ($diff < 0)
+                $diff = 0;
 
             $phours += $pnodes * ($diff / 3600.0);
         }

@@ -325,8 +325,9 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         $message = TBGetSiteVar("aptlab/message");
     }
     if ($message != "") {
-        echo "<div class='alert alert-warning alert-dismissible' role='alert' style='margin-top: -10px'>
-                $message
+        echo "<div class='alert alert-warning alert-dismissible'
+                 role='alert' style='margin-top: -10px'>
+                <center>$message</center>
           </div>";
     }
 

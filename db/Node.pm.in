@@ -356,6 +356,22 @@ sub LookupByType($$)
     return @result;
 }
 
+#
+# Do we have regular nodes? Class method.
+#
+sub HaveExperimentNodes()
+{
+    my $query_result =
+	DBQueryWarn("select count(node_id) from nodes as n ".
+		    "left join node_types as t on t.type=n.type ".
+		    "where t.class='pc'");
+    return 0
+	if (!$query_result);
+    
+    my ($count) = $query_result->fetchrow_array();
+    return $count;
+}
+
 sub Create($$$$)
 {
     my ($class, $node_id, $experiment, $argref) = @_;

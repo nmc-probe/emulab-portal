@@ -65,6 +65,7 @@ use Lan;
 use User;
 use Experiment;
 use NodeType;
+use Node;
 use English;
 use Data::Dumper;
 use XML::Simple;
@@ -755,21 +756,24 @@ sub GetTicketAuxAux($$$$$$$$$$)
     #
     # Look for toplevel address pools
     #
-    my $address_pools = GeniXML::GetAddressPools($rspec);
-    foreach my $pool (@{ $address_pools }) {
-	if (! defined($pool->{'cmurn'}) ||
-	    $pool->{'cmurn'} eq $ENV{'MYURN'})
-	{
-	    if ($pool->{'type'} ne "any") {
-		$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef, "Only public address pools of type any are supported");
-		goto bad;
-	    }
-	    print STDERR 'DEBUG: Adding row to virt_address_allocation';
-	    $virtexperiment->NewTableRow("virt_address_allocation",
+    if (Node::HaveExperimentNodes()) {
+	my $address_pools = GeniXML::GetAddressPools($rspec);
+	foreach my $pool (@{ $address_pools }) {
+	    if (! defined($pool->{'cmurn'}) ||
+		$pool->{'cmurn'} eq $ENV{'MYURN'})
+	    {
+		if ($pool->{'type'} ne "any") {
+		    $response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+		     "Only public address pools of type any are supported");
+		    goto bad;
+		}
+		print STDERR 'DEBUG: Adding row to virt_address_allocation';
+		$virtexperiment->NewTableRow("virt_address_allocation",
 					 {"pool_id" => $pool->{'client_id'},
 					  "count" => $pool->{'count'},
 					  "restriction" => $pool->{'type'},
 					  "version" => "ipv4" });
+	    }
 	}
     }
 
@@ -1679,6 +1683,16 @@ sub GetTicketAuxAux($$$$$$$$$$)
 					 {"vname"     => $node_nickname,
 					  "attrkey"   => $attr_ref->{'key'},
 					  "attrvalue" => $attr_ref->{'value'}});
+	}
+	
+	#
+	# Look for node desires that pass through to the backend.
+	#
+	foreach my $desire_ref (GeniXML::GetNodeDesires($ref)) {
+	    $virtexperiment->NewTableRow("virt_node_desires",
+				 {"vname"    => $node_nickname,
+				  "desire"   => $desire_ref->{'name'},
+				  "weight"   => $desire_ref->{'weight'}});
 	}
 	
 	#
@@ -6853,7 +6867,7 @@ sub SetSliceExpiration($$$$@)
     }
 
     #
-    # A sitevar controls the sliver lifetime.
+    # A sitevar controls the sliver lifetime. zero means no limit.
     #
     my $max_sliver_lifetime = 0;
     if (!GetSiteVar('protogeni/max_sliver_lifetime',
@@ -6867,7 +6881,8 @@ sub SetSliceExpiration($$$$@)
     #
     my $slice_experiment = $slice->GetExperiment();
     if ($slice_experiment && !$slice_experiment->HasPhysNodes()) {
-	$max_sliver_lifetime = 90;
+	$max_sliver_lifetime = 90
+	    if ($max_sliver_lifetime && $max_sliver_lifetime < 90);
     }
     
     #
@@ -6939,7 +6954,8 @@ sub SetSliceExpiration($$$$@)
 	    goto bad;
 	}
     }
-    elsif ($diff > (3600 * 24 * $max_sliver_lifetime)) {
+    elsif ($max_sliver_lifetime &&
+	   $diff > (3600 * 24 * $max_sliver_lifetime)) {
 	if ($alap) {
 	    $when = time() + (3600 * 24 * $max_sliver_lifetime);
 	}

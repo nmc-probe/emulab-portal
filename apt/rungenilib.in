@@ -46,11 +46,12 @@ sub usage()
  
     exit(-1);
 }
-my $optlist    = "do:pb:";
+my $optlist    = "do:pb:W";
 my $debug      = 0;
 my $getparams  = 0;
 my $paramfile;
 my $ofile;
+my $warningsfatal = 0;
 
 #
 # Configure variables
@@ -110,6 +111,9 @@ if (defined($options{"d"})) {
 }
 if (defined($options{"p"})) {
     $getparams = 1;
+}
+if (defined($options{"W"})) {
+    $warningsfatal = 1;
 }
 if (defined($options{"b"})) {
     $paramfile = $options{"b"};
@@ -187,6 +191,7 @@ system("touch $outfile") == 0 or
 my $cmdargs = "$TB/libexec/rungenilib.proxy ";
 $cmdargs .= " -u " . $this_user->uid();
 $cmdargs .= ($getparams ? " -p " : "");
+$cmdargs .= ($warningsfatal ? " -W " : "");
 
 #
 # We want to send over both files via STDIN, so combine them, and pass

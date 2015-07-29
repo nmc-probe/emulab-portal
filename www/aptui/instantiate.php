@@ -240,7 +240,7 @@ function SPITFORM($formfields, $newuser, $errors)
     global $projlist;
     $skipsteps  = "false";
     $amlist     = array();
-    $showabout  = ($ISCLOUD || !$this_user ? 1 : 0);
+    $showabout  = (!$ISCLOUD && !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
     $webonly    = (isset($this_user) &&
                    $this_user->webonly() ? "true" : "false");
@@ -564,7 +564,7 @@ function SPITFORM($formfields, $newuser, $errors)
         ($ISCLOUD || ISADMIN() || STUDLY())) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
-	    $amlist[] = $am;
+	    $amlist[$urn] = $am;
 	    $selected = "";
 	    if ($formfields["where"] == $am) {
 		$selected = "selected";
@@ -891,9 +891,9 @@ if ($this_user && ($ISCLOUD || ISADMIN() || STUDLY())) {
             array_key_exists($formfields["where"], $am_array)) {
 	    $aggregate_urn = $am_array[$formfields["where"]];
     }
-    else {
-        $errors["where"] = "Invalid Aggregate";
-    }
+    # A fully bound rspec will not have aggregate settings, but we let
+    # the backend deal with it. If the JS code is working, this should
+    # never happen by mistake.
 }
 if (count($errors)) {
     SPITFORM($formfields, false, $errors);

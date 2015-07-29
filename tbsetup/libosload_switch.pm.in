@@ -150,13 +150,13 @@ my %sequences =
       { 'timeout' => 300,
 	'presend' => $tchar,
 	'seq' => [ [ '((#\s+)|(=>))$', "boot\n", 'line' ],
-		   [ 'continue \[y\/n\]\?\s*$', "y", 'line' ] ] },
+		   [ '(C|c)ontinue (\(|\[)y\/n(\)|\])\?\s*$', "y", 'line' ] ] },
       'rebootContinueOpt' =>
       { 'timeout' => 5,
 	'presend' => $tchar,
 	'seq' => [ [ '((#\s+)|(=>))$', "boot\n", 'line' ],
-		   [ 'continue \[y\/n\]\?\s*$', "y", 'line' ],
-		   [ 'save current configuration \[y\/n\/\^C\]\s*$?', 'y', 'line' ] ] },
+		   [ '(C|c)ontinue (\(|\[)y\/n(\)|\])\?\s*$', "y", 'line' ],
+		   [ 'save current configuration (\(|\[)y\/n(\)|\])\s*$?', 'y', 'line' ] ] },
       # just drain, send nothing.
       'drain' =>
       { 'timeout' => 10,
@@ -1460,8 +1460,8 @@ sub writeConfig($$$) {
 			    { 'timeout' => 10,
 			      'presend' => $tchar,
 			      'seq' => [ [ '#\s+$', "include-credentials\n", 'line' ],
-					 [ '\?\[y\/n\]\s+$', "y\n", 'line' ],
-					 [ '\?\[y\/n\]\s+$', "y\n", 'line' ] ] });
+					 [ '\?(\(|\[)y\/n(\)|\])\s+$', "y\n", 'line' ],
+					 [ '\?(\(|\[)y\/n(\)|\])\s+$', "y\n", 'line' ] ] });
     if ($retval < 0) {
 	tbwarn "$self writeConfig($node_id): include-credentials funky, but continuing!: $retval, $!\n";
     }
@@ -1540,11 +1540,41 @@ sub uploadImageTftp($$$;$) {
     }
 
     my @linehist = ();
+    #
+    # Sadly, once we get past a specific version of HP switch firmware, we have
+    # to check to see if we need to append the "allow-no-signature" option to
+    # the tftp flash command, so that the older, unsigned image can be flashed.
+    # But of course, older releases don't support that option :).  So, try first
+    # with the option; then without if it fails.
+    #
+    my $has_sig_support = 1;
+    my $sigstuff = " allow-no-signature";
     $retval = $self->expect($nodeobject,\@linehist,undef,
-			    { 'timeout' => 120,
+			    { 'timeout' => 60,
 			      'presend' => $tchar,
-			      'seq' => [ [ '#\s*$', "copy tftp flash ${BOSSNODE_IP} $tmpfilename\n", 'line' ],
-					 [ 'continue \[y\/n\]\?\s*', "y\n", 'line' ],
+			      'seq' => [ [ '#\s*$', "copy tftp flash 0.0.0.0 /foo  primary allow-no-signature\n", 'line' ],
+					 [ '#\s*$', undef, 'line' ] ] });
+    if ($retval < 0) {
+	tberror "$self uploadImageTftp($node_id): could not check for allow-no-signatures option, assuming does not have it: $retval,$!";
+	$has_sig_support = 0;
+	$sigstuff = "";
+    }
+    else {
+	for my $line (@linehist) {
+	    #print "ANS CHECK: $line\n";
+	    if ($line =~ /Invalid input:\s+allow-no-signature/i) {
+		$has_sig_support = 0;
+		$sigstuff = "";
+	    }
+	}
+    }
+
+    @linehist = ();
+    $retval = $self->expect($nodeobject,\@linehist,undef,
+			    { 'timeout' => 300,
+			      'presend' => $tchar,
+			      'seq' => [ [ '#\s*$', "copy tftp flash ${BOSSNODE_IP} $tmpfilename primary $sigstuff\n", 'line' ],
+					 [ '(C|c)ontinue (\(|\[)y\/n(\)|\])\?\s*', "y\n", 'line' ],
 					 [ '#\s*$', undef, 'line' ] ] });
     if ($retval < 0) {
 	tberror "$self uploadImageTftp($node_id): could not upload file via tftp: $retval,$!";

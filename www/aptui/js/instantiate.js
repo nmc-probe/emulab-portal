@@ -120,7 +120,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 			    if (!$('#cluster_status_link').length) {
 				$('#stepsContainer-p-2 #finalize_options').parent().append(''
 					+'<div id="cluster_status_link"><center>'
-						+'<a target="_blank" href="cluster-status.php">Check Cluster Status</a>'
+						+'<a target="_blank" href="cluster-graphs.php">Check Cluster Status</a>'
 					+'</center></div>');
 			    }
 			}
@@ -512,25 +512,52 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	var xml    = $(xmlDoc);
 	var sites  = {};
 	var html   = "";
+	var bound  = 0;
+	var count  = 0;
 
 	/*
 	 * Find the sites. Might not be any if not a multisite topology
 	 */
 	$(xml).find("node").each(function() {
 	    var node_id = $(this).attr("client_id");
-	    var site   = this.getElementsByTagNameNS(JACKS_NS, 'site');
+	    var site    = this.getElementsByTagNameNS(JACKS_NS, 'site');
+	    var manager = $(this).attr("component_manager_id");
 
-	    if (! site.length) {
-		return;
+	    // Keep track of how many bound nodes, of the total.
+	    count++;
+
+	    if (manager && manager.length) {
+		var parser = /^urn:publicid:idn\+([\w#!:.]*)\+/i;
+		var matches = parser.exec(manager);
+		if (! matches) {
+		    console.error("Could not parse urn: " + manager);
+		    return;
+		}
+		// Bound node, no dropdown will be provided for these
+		// nodes, and if all nodes are bound, no dropdown at all.
+		bound++;
 	    }
-	    var siteid = $(site).attr("id");
-	    if (siteid === undefined) {
-		console.log("No site ID in " + site);
-		return;
+	    else if (site.length) {
+		var siteid = $(site).attr("id");
+		if (siteid === undefined) {
+		    console.error("No site ID in " + site);
+		    return;
+		}
+		sites[siteid] = siteid;
 	    }
-	    sites[siteid] = siteid;
 	});
 
+	// All nodes bound, no dropdown.
+	if (count == bound) {
+	    $("#site_selector").addClass("hidden");
+	    $("#nosite_selector").addClass("hidden");
+	    // Clear the form data.
+	    $("#site_selector").html("");
+	    $("#nosite_selector").html("");
+	    return;
+	}
+
+	// If multisite is disabled for the user, or no sites or 1 site.
 	if (!multisite || Object.keys(sites).length <= 1) {
 	    $("#site_selector").addClass("hidden");
 	    $("#nosite_selector").removeClass("hidden");
@@ -539,17 +566,19 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	    return;
 	}
 
-	// Create the dropdown selection list. First the options which
-	// are duplicated in each dropdown.
-	var options = "";
-	_.each(amlist, function(name) {
-	    options = options +
-		"<option value='" + name + "'>" + name + "</option>";
-	});
+	var sitenum = 0;
 
-	for (var siteid in sites) {
+	// Create the dropdown selection lists.
+	_.each(sites, function(siteid) {
+	    var options = "";
+	    _.each(amlist, function(name, key) {
+		options = options +
+		    "<option value='" + name + "'>" + name + "</option>";
+	    });
+
 	    html = html +
-		"<div id='site"+siteid+"cluster' class='form-horizontal experiment_option'>" +
+		"<div id='site"+sitenum+"cluster' " +
+		"     class='form-horizontal experiment_option'>" +
 		"  <div class='form-group'>" +
 		"    <label class='col-sm-4 control-label' " +
 		"           style='text-align: right;'>"+
@@ -560,7 +589,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		"              class='form-control'>" + options +
 		"      </select>" +
 		"</div></div></div>";
-	}
+	    sitenum++;
+	});
 	//console.info(html);
 	$("#nosite_selector").addClass("hidden");
 	$("#site_selector").removeClass("hidden");

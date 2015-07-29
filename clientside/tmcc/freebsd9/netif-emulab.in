@@ -1,5 +1,6 @@
+#!/bin/sh
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,10 +29,10 @@
 #
 
 # PROVIDE: netif-emulab
-# REQUIRE: atm1 ipfilter mountcritlocal serial sppp sysctl
-# REQUIRE: adjkerntz hostname ipfs ipnat kldxref random
+# REQUIRE: atm1 FILESYSTEMS serial sppp sysctl
+# REQUIRE: ipfilter ipfs netoptions
 # BEFORE: netif
-# KEYWORD: nojail
+# KEYWORD: nojailvnet
 
 . /etc/rc.subr
 . /etc/network.subr
@@ -115,6 +116,21 @@ cnet_dhcp()
 	if [ -x /usr/local/sbin/dhclient ]; then
 	    echo "`date`: Using dhclient port..."
 	    dhclient_program="/usr/local/sbin/dhclient"
+
+	    # newer dhcp ports also don't have -i timeout option
+	    _vers=`/usr/local/sbin/dhclient --version 2>&1`
+	    if [ $? -eq 0 ]; then
+		case "$_vers" in
+		isc-dhclient-V3*)
+		    ;;
+		*)
+		    dhclient_flags=`echo $dhclient_flags | sed -e 's/-i [0-9][0-9]*//'`
+		    dhclient_flags="$dhclient_flags -d"
+		    ;;
+		esac
+		echo "`date`: port version \"$_vers\", flags: $dhclient_flags"
+	    fi
+
 	    ${dhclient_program} ${dhclient_flags} $*
 	    echo "`date`: $dhclient_program returned $?"
 	else
@@ -218,6 +234,13 @@ cnet_start()
 		WA_BOOTMETHOD="dhcp"
 	fi
 
+	#
+	# Let's always bring up lo0 first.
+	# Needed for the static configuration case (else clause).
+	# Also needed for newer dhclients which need some interface to bind to.
+	#
+	ifconfig lo0 inet 127.0.0.1 up
+
 	if [ "$WA_BOOTMETHOD" = "dhcp" ]; then
 	        #
 	        # use good ol' Emulab dhcp!
@@ -253,10 +276,6 @@ cnet_start()
 		echo "Emulab statically configuring control net on $cnetif ..."
 		ifconfig "$cnetif" inet "$WA_IP_ADDR" netmask "$WA_IP_NETMASK" up
 		route add default "$WA_IP_GATEWAY"
-
-		# bring up lo0 too, since we neuter netif
-		ifconfig lo0 inet 127.0.0.1 up
-		route add 127.0.0.1 -interface lo0
 
 		# setup resolv.conf
 		echo "search $WA_DOMAIN" > /etc/resolv.conf

@@ -2125,6 +2125,8 @@ CREATE TABLE `image_versions` (
   `isdelta` tinyint(1) NOT NULL default '0',
   `isdataset` tinyint(1) NOT NULL default '0',
   `released` tinyint(1) NOT NULL default '0',
+  `ims_reported` datetime default NULL,
+  `ims_noreport` tinyint(1) NOT NULL default '0',
   `nodetypes` text default NULL,
   `uploader_path` tinytext,
   `notes` mediumtext,

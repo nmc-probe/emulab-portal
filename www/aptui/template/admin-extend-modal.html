@@ -9,10 +9,10 @@
 	<div class='row'>
 	  <div class='col-sm-12'>
             <form id='extend_request_form' role='form'>
-	      <center><h4>How many Days? Default is 1 day</h4></center>
+	      <center><h4>How many Days?</h4></center>
               <div class='row'>
                 <div class='col-sm-2 col-sm-offset-5'>
-		  <input id='howlong_extend' type='text' placeholder='1'
+		  <input id='howlong_extend' type='text'
                          class='form-control'>
 		</div>
 	      </div>
@@ -47,9 +47,22 @@
 		</div>
 		<br>
 	      </div>
-              <button class='btn btn-primary btn-sm align-center'
-	              id='request-extension'
-                      type='submit' name='request'>Extend</button>
+	      <center>
+		Message to send to user
+		<br>
+                <textarea id='extend_message'
+                          class='form-control'
+                          rows=5></textarea>
+		<br>
+		<button class='btn btn-danger btn-sm hidden'
+			style='margin-right: 20px;'
+			id='deny-extension'
+			type='submit' name='request'>Deny</button>
+		<button class='btn btn-primary btn-sm'
+			id='request-extension'
+			type='submit' name='request'>Extend</button>
+	      </center>
+	      </div>
             </form>
           </div>
 	</div>
