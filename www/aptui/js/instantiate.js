@@ -502,6 +502,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	}
     }
 
+    var sites  = {};
     /*
      * Build up a list of Aggregate selectors. Normally just one, but for
      * a multisite aggregate, need more then one.
@@ -510,10 +511,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     {
 	var xmlDoc = $.parseXML(rspec);
 	var xml    = $(xmlDoc);
-	var sites  = {};
 	var html   = "";
 	var bound  = 0;
 	var count  = 0;
+        sites = {};
 
 	/*
 	 * Find the sites. Might not be any if not a multisite topology
@@ -588,13 +589,16 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		"      <select name=\"formfields[sites][" + siteid + "]\"" +
 		"              class='form-control'>" + options +
 		"      </select>" +
-		"</div></div></div>";
+		"</div>" +
+	        "<div class='col-sm-4'></div><div class='col-sm-6 alert alert-warning' id='where-warning' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site only works on some clusters. Incompatible clusters are unselectable.</div>" +
+	        "</div></div>";
 	    sitenum++;
 	});
 	//console.info(html);
 	$("#nosite_selector").addClass("hidden");
 	$("#site_selector").removeClass("hidden");
 	$("#site_selector").html(html);
+      updateWhere();
     }
 
     var constraints;
@@ -664,24 +668,43 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     "urn:publicid:IDN+emulab.net+authority+cm"
   };
 
-    function finishUpdateWhere(data)
+    function finishUpdateWhere(allNodes, nodesBySite)
+    {
+      if (!multisite || Object.keys(sites).length <= 1) {
+	updateSiteConstraints(allNodes, $('#nosite_selector'));
+      } else {
+	_.each(_.keys(sites), function (siteId) {
+	  var nodes = nodesBySite[siteId];
+	  if (nodes)
+	  {
+	    updateSiteConstraints(nodes, $('#site_selector #site' + siteId + 'cluster'));
+	  }
+	  //else
+	  {
+	    console.log('Could not find siteId', siteId, nodesBySite);
+	  }
+	})
+      }
+    }
+
+    function updateSiteConstraints(nodes, domNode)
     {
       var allowed = [];
       var rejected = [];
-      var bound = data;
+      var bound = nodes;
       var subclause = 'node';
       var clause = 'aggregates';
       allowed = constraints.getValidList(bound, subclause,
 					 clause, rejected);
       if (rejected.length > 0)
       {
-	$('#where-warning').show();
+	domNode.find('#where-warning').show();
       }
       else
       {
-	$('#where-warning').hide();
+	domNode.find('#where-warning').hide();
       }
-      $('#profile_where').children().each(function () {
+      domNode.find('select').children().each(function () {
 	var value = $(this).attr('value');
 	var key = amValueToKey[value];
 	var i = 0;
