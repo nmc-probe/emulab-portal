@@ -503,6 +503,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     }
 
     var sites  = {};
+    var siteIdToSiteNum = {};
     /*
      * Build up a list of Aggregate selectors. Normally just one, but for
      * a multisite aggregate, need more then one.
@@ -571,6 +572,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 
 	// Create the dropdown selection lists.
 	_.each(sites, function(siteid) {
+	    siteIdToSiteNum[siteid] = sitenum;
 	    var options = "";
 	    _.each(amlist, function(name, key) {
 		options = options +
@@ -677,9 +679,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	  var nodes = nodesBySite[siteId];
 	  if (nodes)
 	  {
-	    updateSiteConstraints(nodes, $('#site_selector #site' + siteId + 'cluster'));
+	    updateSiteConstraints(nodes, $('#site_selector #site' + siteIdToSiteNum[siteId] + 'cluster'));
 	  }
-	  //else
+	  else
 	  {
 	    console.log('Could not find siteId', siteId, nodesBySite);
 	  }
