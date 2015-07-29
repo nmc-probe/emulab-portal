@@ -135,6 +135,10 @@ function Do_GetInstanceStatus()
         if ($webtask->exitcode() == 26) {
             $blob["reason"] = "Not enough free nodes, please try again later.";
         }
+        if ($webtask->exitcode() == 25) {
+            $blob["reason"]  = "Not enough available bandwidth for a link.\n\n";
+            $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
+        }
         else {
             $blob["reason"] = htmlentities($webtask->TaskValue("output"));
         }
@@ -604,7 +608,7 @@ function Do_ConsoleURL()
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
 
-    if (StatusSetupAjax(1)) {
+    if (StatusSetupAjax(0)) {
 	return;
     }
     if (!isset($this_user)) {
@@ -635,6 +639,9 @@ function Do_ConsoleURL()
         $blob["url"] = $taskdata["url"];
         if (isset($taskdata["password"])) {
             $blob["password"] = $taskdata["password"];
+        }
+        if (isset($taskdata["logurl"])) {
+            $blob["logurl"] = $taskdata["logurl"];
         }
 	SPITAJAX_RESPONSE($blob);
 	$webtask->Delete();

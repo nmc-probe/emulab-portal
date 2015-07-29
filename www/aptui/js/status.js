@@ -964,6 +964,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    }
 		    NewConsoleTab(client_id);
 		}
+		else if ($(e.target).text() == "Console Log") {
+		    if (isguest) {
+			alert("Only registered users can access the console");
+			return;
+		    }
+		    ConsoleLog(client_id);
+		}
 		else if ($(e.target).text() == "Reboot") {
 		    if (isguest) {
 			alert("Only registered users can reboot nodes");
@@ -1008,7 +1015,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	" <td name='sshurl'>n/a</td>" +
 	" <td name='menu' align=center> " +
 	"  <div name='action-menu' class='dropdown'>" +
-	"  <button type='button' " +
+	"  <button id='action-menu-button' type='button' " +
 	"          class='btn btn-primary btn-sm dropdown-toggle' " +
 	"          data-toggle='dropdown'> " +
 	"      <span class='glyphicon glyphicon-cog'></span> " +
@@ -1016,6 +1023,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"  <ul class='dropdown-menu text-left' role='menu'> " +
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
+	"    <li><a href='#' name='consolelog'>Console Log</a></li> " +
 	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
 	"    <li><a href='#' name='reload'>Reload</a></li> " +
 	"    <li><a href='#' name='snapshot'>Snapshot</a></li> " +
@@ -1132,6 +1140,18 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 				return false;
 			    }
 			    NewConsoleTab(node);
+			    return false;
+			});
+		    $('#listview-row-' + node + ' [name=consolelog]')
+			.click(function (e) {
+			    e.preventDefault();
+			    if (isguest) {
+				alert("Only registered users can access " +
+				      "the console log");
+				return false;
+			    }
+			    $('#action-menu-button').dropdown('toggle');
+			    ConsoleLog(node);
 			    return false;
 			});
 		}
@@ -1503,6 +1523,40 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$('#quicktabs_ul a[href="#' + tabname + '"]').tab('show');
 		return;
 	    }
+	}
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "ConsoleURL",
+					    {"uuid" : uuid,
+					     "node" : client_id});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Console log. We get the url and open up a new tab.
+    //
+    function ConsoleLog(client_id)
+    {
+	// Avoid popup blockers by creating the window right away.
+	var spinner = 'https://' + window.location.host + '/images/spinner.gif';
+	var win = window.open("", '_blank');
+	win.document.write("<center><span style='font-size:30px'>" +
+			   "Please wait ... </span>" +
+			   "<img src='" + spinner + "'/></center>");
+	
+	sup.ShowModal('#waitwait-modal');
+
+	var callback = function(json) {
+	    sup.HideModal('#waitwait-modal');
+	    
+	    if (json.code) {
+		win.close();
+		sup.SpitOops("oops", "Could not get log: " + json.value);
+		return;
+	    }
+	    var url   = json.value.logurl;
+	    win.location = url;
+	    win.focus();
 	}
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
