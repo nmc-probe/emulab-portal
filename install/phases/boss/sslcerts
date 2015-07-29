@@ -125,7 +125,7 @@ sub Install($$$)
 		if (-e "$APACHE_KEYFILE") {
 		    DoneIfIdentical("$APACHE_KEYFILE",
 				    "$TOP_OBJDIR/ssl/$APACHE_KEYPEM");
-		    BackUpFileFatal($APACHE_KEYPEM);
+		    BackUpFileFatal($APACHE_KEYFILE);
 		}
 		ExecQuietFatal("$CP $TOP_OBJDIR/ssl/$APACHE_KEYPEM ".
 			       "    $APACHE_KEYFILE");
