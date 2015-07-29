@@ -766,13 +766,24 @@ print STDERR "$rspecstr\n";
 # Exit and let caller poll for status.
 #
 if (!$debug) {
+    # Need this in the child.
+    my $parent_lockname = "lock_$PID";
+
+    # Before the fork, lock the lock in the parent. It will be
+    # unlocked just before the parent exits, thus informing the
+    # child.
+    DBQueryWarn("select GET_LOCK('$parent_lockname', 5)");
+    
     my $child = fork();
     if ($child) {
 	# Parent exits but avoid libaudit email.
 	exit(0);
     }
-    # Let parent exit;
-    sleep(2);
+    # XXX Need to let the parent finish up first so that the log file
+    # is properly sent, but the parent is is in the "defunct" state,
+    # so cannot use kill(0) to figure out it is gone.
+    DBQueryWarn("select GET_LOCK('$parent_lockname', 15)");
+
     # All of the logging magic happens in here.
     libaudit::AuditFork();
 }
