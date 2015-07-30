@@ -30,7 +30,7 @@ use Exporter;
 @EXPORT =
     qw ( AuditStart AuditEnd AuditAbort AuditFork AuditSetARGV AuditGetARGV
 	 AddAuditInfo
-	 LogStart LogEnd LogAbort AuditDisconnect
+	 LogStart LogEnd LogAbort AuditDisconnect AuditPrefork
 	 LIBAUDIT_NODAEMON LIBAUDIT_DAEMON LIBAUDIT_LOGONLY
 	 LIBAUDIT_NODELETE LIBAUDIT_FANCY LIBAUDIT_LOGTBOPS LIBAUDIT_LOGTBLOGS
        );
@@ -64,6 +64,9 @@ my $auditing	= 0;
 
 # Where the log is going. When not defined, do not send it in email!
 my $logfile;
+
+# Sleazy.
+my $prefork;
 
 # Logonly, not to audit list.
 my $logonly     = 0;
@@ -325,8 +328,25 @@ sub AuditAbort()
 	    undef($logfile);
 	}
 	delete @ENV{'TBAUDITLOG', 'TBAUDITON'};
+
+	touch($prefork)
+	    if (defined($prefork));
     }
     return 0;
+}
+
+#
+# Indicate we are about to fork. In general, we want the parent to exit
+# first so the first part of the logging email gets sent. Otherwise the
+# file might get deleted out from under the child.
+# So we use some sleaze to make sure that happens.
+#
+sub AuditPrefork()
+{
+    return 0
+	if (!$auditing);
+
+    $prefork = "/var/tmp/auditfork_$PID";
 }
 
 #
@@ -337,6 +357,18 @@ sub AuditFork()
 {
     return 0
 	if (!$auditing || !defined($logfile));
+
+    #
+    # If prefork is set, we want the parent to exit first. So we wait for
+    # that to happen.
+    #
+    if (defined($prefork)) {
+	while (! -e $prefork) {
+	    sleep(1);
+	}
+	unlink($prefork);
+    }
+    $prefork = undef;
 
     open(LOG, ">> $logfile") or
 	die("opening $logfile for $logfile: $!");
@@ -440,12 +472,12 @@ sub SendAuditMail($)
 	    # Do not save empty logfile. 
 	    unlink($logfile)
 		if (defined($logfile));
-	    return;
+	    goto done;
 	}
 
 	if ($fancy) {
 	    SendFancyMail($exitstatus);
-	    return;
+	    goto done;
 	}
 
 	#
@@ -497,6 +529,9 @@ sub SendAuditMail($)
 	    unlink($logfile)
 		if (defined($logfile) && !$savelog);
 	}
+      done:
+	system("/usr/bin/touch $prefork")
+	    if (defined($prefork));
     }
 }
 
