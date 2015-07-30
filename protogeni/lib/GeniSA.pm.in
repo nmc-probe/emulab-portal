@@ -72,6 +72,11 @@ my $PROTOGENI_URL  = "@PROTOGENI_URL@";
 my $RegisterNow    = 0;
 my $API_VERSION    = 1.01;
 
+my $allow_nonproject_slice_share    = 1;
+#$allow_nonproject_slice_share
+#  if set to true, users can share slices to users that are not in 
+#  the project of the slice
+
 #
 # Tell the client what API revision we support.  The correspondence
 # between revision numbers and API features is to be specified elsewhere.
@@ -441,25 +446,31 @@ sub Resolve($)
 # API says that the caller provides that, but I see that as being
 # silly and more work then the user needs to deal with. 
 #
-sub Register($)
+sub Register($) {
+	my ($argref) = @_;
+	return RegisterInternal($argref, undef);
+}
+sub RegisterInternal($$)
 {
     require Experiment;
     
     # FIXME once migration to URNs is complete, $type should be removed
     # (it's deduced automatically from the URN).
-    my ($argref) = @_;
+    my ($argref, $project_name) = @_;
     my $cred  = $argref->{'credential'};
     my $creds = $argref->{'credentials'};
     my $type  = $argref->{'type'};
     my $hrn   = $argref->{'hrn'};
     my $urn   = $argref->{'urn'};
 
-    if (! ((defined($hrn) || defined($urn)) &&
-	   (defined($cred) || defined($creds)))) {
-	return GeniResponse->MalformedArgsResponse();
+    if (! ((defined($hrn) || defined($urn)))) {
+	return GeniResponse->MalformedArgsResponse('hrn or urn argument required');
+    }
+    if (! (defined($cred) || defined($creds))) {
+	return GeniResponse->MalformedArgsResponse('credential or credentials argument required');
     }
     if (defined($urn)) {
-	return GeniResponse->MalformedArgsResponse()
+	return GeniResponse->MalformedArgsResponse('invalid urn "'.$urn.'"')
 	    if (!GeniHRN::IsValid($urn));
 	$hrn = undef;
     }
@@ -468,7 +479,7 @@ sub Register($)
 	$hrn = undef;
     }
     elsif (defined($hrn) && !($hrn =~ /^[-\w\.]*$/)) {
-	return GeniResponse->MalformedArgsResponse();
+	return GeniResponse->MalformedArgsResponse('invalid hrn "'.$hrn.'"');
     }
     elsif (! ($hrn =~ /^[-\w]+$/)) {
 	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -490,21 +501,43 @@ sub Register($)
 	$hrn  = $id;
     }
     elsif (!defined($type)) {
-	return GeniResponse->MalformedArgsResponse();
+	return GeniResponse->MalformedArgsResponse('type required');
     }
 
-    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    my ($server_auth, $server_type, $server_authname) = GeniHRN::Parse( $ENV{'MYURN'} );
+    my $authority;
+    if (defined($project_name)) {
+        my $subauth_urn = GeniHRN::Generate($server_auth . ':' . $project_name, $server_type, $server_authname);
+        $authority = GeniAuthority->Lookup($subauth_urn);
+    } else {
+        $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    }
     if (!defined($authority)) {
 	print STDERR "Could not find local authority object\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
     my ($credential, $speaksfor);
     if (defined($cred)) {
+        if (defined($project_name)) {
+            #don't check sub authority when project_name is defined
+            $credential = GeniCredential::CheckCredential($cred);
+        } else {
 	$credential = GeniCredential::CheckCredential($cred, $authority);
     }
+    }
     else {
+        if (defined($project_name)) {
+            #don't check sub authority when project_name is defined
+            ($credential,$speaksfor) = GeniStd::CheckCredentials($creds);
+
+            #wvdemeer: AddUserCredWhenSpeaksForOnly automatically adds a user credential when only speaksfor is present and it is needed, allowed and possible.
+            #          note on error handling: if the credential provided to it is a response, it will just return that response.
+            ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor, $creds);
+        } else {
 	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
     }
+    }
+    
     return $credential
 	if (GeniResponse::IsResponse($credential));
    
@@ -526,10 +559,29 @@ sub Register($)
 				    "Who are you? No local record");
     }
     
-    if( !CheckMembership( $this_user ) ) {
+    if( !defined( $project_name) && !CheckMembership( $this_user ) ) {
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
 				     undef, "No privilege at this " .
 				     "authority" );
+    }
+
+    
+    if (defined( $project_name) ) {
+    # check if the user is a member with correct priviledges 
+    # of the project the slice should be created in
+    my $project = Project->Lookup( $project_name );
+    if (!defined( $project )) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+            "Project '$project_name' not known");
+    }
+    if (!$this_user->IsLocal()) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, "Who are you? No local record");
+    }
+    my $emulabuser = $this_user->emulab_user();
+    if (! $project->AccessCheck( $emulabuser, EmulabConstants::TB_PROJECT_CREATEEXPT() ) ) {
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN,
+            undef, "No privilege for project " . $project_name . "" );
+    }
     }
 
     #
@@ -594,7 +646,14 @@ sub Register($)
 	}
 
 	my ($ourdomain, undef, undef) = GeniHRN::Parse( $ENV{ 'MYURN' } );
-	my $urn = GeniHRN::Generate( $ourdomain, "slice", $hrn );
+	my $urn = defined($project_name) ? 
+		GeniHRN::Generate( $server_auth . ':' . $project_name , "slice", $hrn )
+	      : GeniHRN::Generate( $ourdomain, "slice", $hrn );
+    
+        if (!defined($urn)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"internal error creating URN");
+        }
 	
 	#
 	# When using this interface, the HRN does not correspond to an
@@ -844,10 +903,27 @@ sub GetKeys($)
     }
     my ($credential, $speaksfor);
     if (defined($cred)) {
-	$credential = GeniCredential::CheckCredential($cred, $authority);
+        if (defined ($ignore_subauthority) && $ignore_subauthority) {
+	#NOTE:
+        #  the check for the credential $authority was removed
+        #  this is needed to allow the geni-sa to work without sub authorities
+	#  but this ALSO allows sharing with non-project members
+        #     That is actually a nice feature. 
+        #     The previous restriction to sharing only within a 
+        #        project can be reimplemented by checking project membership of the target user manually here. 
+	$credential = GeniCredential::CheckCredential($cred);
+
+        } else {
+            $credential = GeniCredential::CheckCredential($cred, $authority);
+        }
     }
     else {
-	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+        if (defined ($ignore_subauthority) && $ignore_subauthority) {
+            #Same note as above about check for matching $authority
+	($credential,$speaksfor) = GeniStd::CheckCredentials($creds);
+        } else {
+            ($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
+        }
     }
     return $credential
 	if (GeniResponse::IsResponse($credential));
@@ -899,6 +975,12 @@ sub GetKeys($)
 sub BindToSlice($)
 {
     my ($argref) = @_;
+    return BindToSliceInternal($argref, 0);
+}
+
+sub BindToSliceInternal($$)
+{
+    my ($argref, $ignore_subauthority) = @_;
     my $cred  = $argref->{'credential'};
     my $creds = $argref->{'credentials'};
     my $urn   = $argref->{'urn'};
@@ -951,6 +1033,24 @@ sub BindToSlice($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED,
 				    undef, "No such user here");
     }
+   
+    if (defined ($ignore_subauthority) && $ignore_subauthority && ! $allow_nonproject_slice_share) {
+        #check if target user is member of project of slice
+        my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
+        my @slice_auth_parts = split(':', $slice_authority);
+        my $slice_auth_parts_size = scalar @slice_auth_parts;
+        my $project_id;
+        #my $project_urn;
+        if ($slice_auth_parts_size == 2) {
+            $project_id = $slice_auth_parts[1];
+            #$project_urn = GeniHRN::Generate($slice_auth_parts[0], 'project', $slice_auth_parts[1]);
+        }
+        if (defined($project_id) && !CheckMembershipByProjectId($target_user, $project_id)) {
+            return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+                "Target user $urn is not a member of project $project_id to which the target slice belongs" );
+        }
+    }
+
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse("slice");
     }
@@ -1155,9 +1255,17 @@ sub RenewSlice($)
 sub RegisterSliver($)
 {
     my ($argref) = @_;
+
+    return RegisterSliverInternal($argref, 1, undef);
+}
+sub RegisterSliverInternal($$$)
+{
+    my ($argref, $verify_credential, $authority_urn) = @_;
     my $credstr  = $argref->{'credential'};
     my $slice_urn= $argref->{'slice_urn'};
     my $blob     = $argref->{'info'};
+
+    $verify_credential = 1 if (!defined($verify_credential));
 
     if (! (defined($blob) && defined($slice_urn) && defined($credstr))) {
 	return GeniResponse->MalformedArgsResponse("Missing Arguments");
@@ -1185,6 +1293,7 @@ sub RegisterSliver($)
 				    "No such slice here");
     }
 
+    if ($verify_credential) {
     if ($credential->target_urn() eq $authority->urn()) {
 	#
 	# Old permission check until all CMs are updated to send a
@@ -1221,6 +1330,7 @@ sub RegisterSliver($)
 	if ($t_domain ne $o_domain) {
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				"Target domain is different then owner");
+    	   }
 	}
     }
     
@@ -1236,7 +1346,7 @@ sub RegisterSliver($)
     if (!exists($blob->{'urn'})) {
 	return GeniResponse->MalformedArgsResponse("Please tell me the urn");
     }
-    my $manager_urn = $credential->owner_cert()->urn();
+    my $manager_urn = defined($authority_urn) ? $authority_urn : $credential->owner_cert()->urn();
     if (!defined($manager_urn)) {
 	print STDERR "No URN in $credential\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -1270,8 +1380,16 @@ sub RegisterSliver($)
 sub UnRegisterSliver($)
 {
     my ($argref) = @_;
+
+    return UnRegisterSliverInternal($argref, 1, undef);
+}
+sub UnRegisterSliverInternal($$$)
+{
+    my ($argref, $verify_credential, $sliver_urn) = @_;
     my $credstr  = $argref->{'credential'};
     my $slice_urn= $argref->{'slice_urn'};
+
+    $verify_credential = 1 if (!defined($verify_credential));
 
     if (! (defined($slice_urn) && defined($credstr))) {
 	return GeniResponse->MalformedArgsResponse("Missing Arguments");
@@ -1292,6 +1410,7 @@ sub UnRegisterSliver($)
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 
+    if ($verify_credential) {
     if ($credential->target_urn() eq $authority->urn()) {
 	#
 	# Old permission check until all CMs are updated to send a
@@ -1330,6 +1449,7 @@ sub UnRegisterSliver($)
 				"Target domain is different then owner");
 	}
     }
+    }
     
     my $slice = GeniSlice->Lookup($slice_urn);
     if (!defined($slice)) {
@@ -1337,7 +1457,9 @@ sub UnRegisterSliver($)
 				    "No such slice here");
     }
 
-    my $manager_urn = $credential->owner_cert()->urn();
+    my $clientsliver;
+    if (!defined($sliver_urn)) {
+        my $manager_urn = $credential->owner_cert()->urn();
     if (!defined($manager_urn)) {
 	print STDERR "No URN in $credential\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -1348,8 +1470,12 @@ sub UnRegisterSliver($)
     #
     # See if one already exists; overwrite it.
     #
-    my $clientsliver =
-	GeniSlice::ClientSliver->LookupByAuthority($slice, $manager_urn);
+        $clientsliver = 
+            GeniSlice::ClientSliver->LookupByAuthority($slice, $manager_urn);
+    } else {
+        $clientsliver = 
+            GeniSlice::ClientSliver->Lookup($sliver_urn);
+    }
 
     $clientsliver->Delete()
 	if (defined($clientsliver));
@@ -1376,6 +1502,34 @@ sub CheckMembership($$)
     }
 
     my $project = Project->Lookup( $main::PROJECT );
+
+    return 0 unless defined( $project );
+
+    return 0 unless $geniuser->IsLocal();
+    my $user = $geniuser->emulab_user();
+
+    return $project->AccessCheck( $user,
+				  EmulabConstants::TB_PROJECT_CREATEEXPT() );
+}
+
+#
+# Same as CheckMembership, but this one takes the project_id 
+# as argument instead of deriving it from current sub authority
+#
+sub CheckMembershipByProjectId($$)
+{
+    require EmulabConstants;
+
+    my ($geniuser, $project_id) = @_;
+
+    if(!defined($project_id) || !$project_id) {
+	# No project specified -- i.e. the top level SA.  For now, allow
+	# every local user to use it.  But when we want to turn on
+	# mandatory project association for slices, we will reject this.
+	return 1;
+    }
+
+    my $project = Project->Lookup( $project_id );
 
     return 0 unless defined( $project );
 

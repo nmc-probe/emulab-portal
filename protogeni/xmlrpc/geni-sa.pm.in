@@ -34,7 +34,7 @@ use Frontier::RPC2;
 
 # Do this early so that we talk to the right DB.
 use vars qw($GENI_DBNAME $GENI_METHODS $EMULAB_PEMFILE
-	    $GENI_RESPONSE_CONVERTER);
+	    $GENI_RESPONSE_CONVERTER $GENI_VERSION);
 BEGIN { $GENI_DBNAME = "geni"; }
 
 # Configure variables
@@ -46,34 +46,127 @@ use lib '@prefix@/lib';
 use GeniStdSA;
 use GeniResponse;
 
-$GENI_METHODS = {
-    # SLICE_INFO
-    "get_version"                  => \&GeniStdSA::GetVersion,
-    "create_slice"                 => \&GeniStdSA::CreateSlice,
-    "lookup_slices"                => \&GeniStdSA::LookupSlices,
-    "update_slice"                 => \&GeniStdSA::UpdateSlice,
-    "get_credentials"              => \&GeniStdSA::GetCredentials,
+GeniStdSA::SetGeniVersion($GENI_VERSION);
 
-    # SLICE_MEMBERS
-    "modify_slice_membership"      => \&GeniStdSA::ModifySliceMembership,
-    "lookup_slice_members"         => \&GeniStdSA::LookupSliceMembers,
-    "lookup_slices_for_member"     => \&GeniStdSA::LookupSlicesForMember,
-
-    # SLIVER INFO
-    "create_sliver_info"           => \&GeniStdSA::CreateSliverInfo,
-    "update_sliver_info"           => \&GeniStdSA::UpdateSliverInfo,
-    "delete_sliver_info"           => \&GeniStdSA::DeleteSliverInfo,
-    "lookup_sliver_info"           => \&GeniStdSA::LookupSliverInfo,
-
-    # PROJECT_SERVICE
-    "create_project"               => \&GeniStdSA::CreateProject,
-    "lookup_projects"              => \&GeniStdSA::LookupProjects,
-    "update_project"               => \&GeniStdSA::UpdateProject,
-
-    # PROJECT_SERVICE
-    "modify_project_membership"    => \&GeniStdSA::ModifyProjectMembership,
-    "lookup_project_members"       => \&GeniStdSA::LookupProjectMembers,
-    "lookup_projects_for_member"   => \&GeniStdSA::LookupProjectsForMember,
-};
+if (defined($GENI_VERSION)) {
+    if ($GENI_VERSION != 1) {
+        if ($GENI_VERSION != 2) {
+            print STDERR "Invalid API version: $GENI_VERSION\n";
+            print STDERR "Will fall back to API version 2\n";
+            #fallback to version 2
+        }
+        $GENI_METHODS = {
+            "get_version"                  => \&GeniStdSA::GetVersion,
+    
+            "create"                       => \&GeniStdSA::Create,
+            "lookup"                       => \&GeniStdSA::Lookup,
+            "update"                       => \&GeniStdSA::Update,
+            "delete"                       => \&GeniStdSA::Delete,
+        
+            "get_credentials"              => \&GeniStdSA::GetCredentials,
+    
+            "modify_membership"            => \&GeniStdSA::ModifyMembership,
+            "lookup_for_member"            => \&GeniStdSA::LookupForMember,
+            "lookup_members"               => \&GeniStdSA::LookupMembers,
+    
+            "create_slice"                 => \&GeniStdSA::InvalidApi1,
+            "lookup_slices"                => \&GeniStdSA::InvalidApi1,
+            "update_slice"                 => \&GeniStdSA::InvalidApi1,
+            "modify_slice_membership"      => \&GeniStdSA::InvalidApi1,
+            "lookup_slice_members"         => \&GeniStdSA::InvalidApi1,
+            "lookup_slices_for_member"     => \&GeniStdSA::InvalidApi1,
+            "create_sliver_info"           => \&GeniStdSA::InvalidApi1,
+            "update_sliver_info"           => \&GeniStdSA::InvalidApi1,
+            "delete_sliver_info"           => \&GeniStdSA::InvalidApi1,
+            "lookup_sliver_info"           => \&GeniStdSA::InvalidApi1,
+            "create_project"               => \&GeniStdSA::InvalidApi1,
+            "lookup_projects"              => \&GeniStdSA::InvalidApi1,
+            "update_project"               => \&GeniStdSA::InvalidApi1,
+            "modify_project_membership"    => \&GeniStdSA::InvalidApi1,
+            "lookup_projects_for_member"   => \&GeniStdSA::InvalidApi1,
+            "lookup_project_members"       => \&GeniStdSA::InvalidApi1
+        };
+    } else {
+        $GENI_METHODS = {
+            # SLICE_INFO
+            "get_version"                  => \&GeniStdSA::GetVersion,
+            "create_slice"                 => \&GeniStdSA::CreateSlice,
+            "lookup_slices"                => \&GeniStdSA::LookupSlices,
+            "update_slice"                 => \&GeniStdSA::UpdateSlice,
+            "get_credentials"              => \&GeniStdSA::GetCredentials,
+        
+            # SLICE_MEMBERS
+            "modify_slice_membership"      => \&GeniStdSA::ModifySliceMembership,
+            "lookup_slice_members"         => \&GeniStdSA::LookupSliceMembers,
+            "lookup_slices_for_member"     => \&GeniStdSA::LookupSlicesForMember,
+        
+            # SLIVER INFO
+            "create_sliver_info"           => \&GeniStdSA::CreateSliverInfo,
+            "update_sliver_info"           => \&GeniStdSA::UpdateSliverInfo,
+            "delete_sliver_info"           => \&GeniStdSA::DeleteSliverInfo,
+            "lookup_sliver_info"           => \&GeniStdSA::LookupSliverInfo,
+        
+            # PROJECT_SERVICE
+            "create_project"               => \&GeniStdSA::CreateProject,
+            "lookup_projects"              => \&GeniStdSA::LookupProjects,
+            "update_project"               => \&GeniStdSA::UpdateProject,
+        
+            # PROJECT_SERVICE
+            "modify_project_membership"    => \&GeniStdSA::ModifyProjectMembership,
+            "lookup_project_members"       => \&GeniStdSA::LookupProjectMembers,
+            "lookup_projects_for_member"   => \&GeniStdSA::LookupProjectsForMember,
+        
+        
+            "create"                       => \&GeniStdSA::InvalidApi2,
+            "lookup"                       => \&GeniStdSA::InvalidApi2,
+            "update"                       => \&GeniStdSA::InvalidApi2,
+            "delete"                       => \&GeniStdSA::InvalidApi2,
+            "modify_membership"            => \&GeniStdSA::InvalidApi2,
+            "lookup_for_member"            => \&GeniStdSA::InvalidApi2,
+            "lookup_members"               => \&GeniStdSA::InvalidApi2
+        };
+    }
+} else {
+    print STDERR "No API version specified in URL\n";
+    print STDERR "Will fall back to supporting both API version 1 and version 2. get_version will fall back to version 2.\n";
+    $GENI_METHODS = {
+        # SLICE_INFO
+        "get_version"                  => \&GeniStdSA::GetVersion,
+        "create_slice"                 => \&GeniStdSA::CreateSlice,
+        "lookup_slices"                => \&GeniStdSA::LookupSlices,
+        "update_slice"                 => \&GeniStdSA::UpdateSlice,
+        "get_credentials"              => \&GeniStdSA::GetCredentials,
+    
+        # SLICE_MEMBERS
+        "modify_slice_membership"      => \&GeniStdSA::ModifySliceMembership,
+        "lookup_slice_members"         => \&GeniStdSA::LookupSliceMembers,
+        "lookup_slices_for_member"     => \&GeniStdSA::LookupSlicesForMember,
+    
+        # SLIVER INFO
+        "create_sliver_info"           => \&GeniStdSA::CreateSliverInfo,
+        "update_sliver_info"           => \&GeniStdSA::UpdateSliverInfo,
+        "delete_sliver_info"           => \&GeniStdSA::DeleteSliverInfo,
+        "lookup_sliver_info"           => \&GeniStdSA::LookupSliverInfo,
+    
+        # PROJECT_SERVICE
+        "create_project"               => \&GeniStdSA::CreateProject,
+        "lookup_projects"              => \&GeniStdSA::LookupProjects,
+        "update_project"               => \&GeniStdSA::UpdateProject,
+    
+        # PROJECT_SERVICE
+        "modify_project_membership"    => \&GeniStdSA::ModifyProjectMembership,
+        "lookup_project_members"       => \&GeniStdSA::LookupProjectMembers,
+        "lookup_projects_for_member"   => \&GeniStdSA::LookupProjectsForMember,
+    
+        #version 2 support
+        "create"                       => \&GeniStdSA::Create,
+        "lookup"                       => \&GeniStdSA::Lookup,
+        "update"                       => \&GeniStdSA::Update,
+        "delete"                       => \&GeniStdSA::Delete,
+        "modify_membership"            => \&GeniStdSA::ModifyMembership,
+        "lookup_for_member"            => \&GeniStdSA::LookupForMember,
+        "lookup_members"               => \&GeniStdSA::LookupMembers,
+    };
+}
 
 1;

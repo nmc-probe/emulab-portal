@@ -1641,6 +1641,28 @@ sub Create($$$$$)
     return GeniSlice::ClientSliver->Lookup($idx);
 }
 
+sub UpdateExpire($$)
+{
+    my ($self, $new_expires) = @_;
+
+    if (! ref($self)) {
+        print STDERR "UpdateExpire error: self ref error\n";
+        return -1;
+    }
+
+    my $idx  = $self->idx();
+
+    my $safe_expires = DBQuoteSpecial($new_expires);
+
+    my $query_res = DBQueryWarn("update client_slivers set expires=$safe_expires where idx='$idx'");
+	if (!$query_res) {
+        print STDERR "UpdateExpire error: DB error\n";
+        return -1;
+    }
+    
+    return 0;
+}
+
 #
 # Delete it.
 #

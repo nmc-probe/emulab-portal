@@ -38,7 +38,7 @@ use Exporter;
 use vars qw(@ISA @EXPORT);
 
 @ISA    = "Exporter";
-@EXPORT = qw ( FilterCredentials auto_add_sa CheckCredentials FilterFields );
+@EXPORT = qw ( FilterCredentials auto_add_sa CheckCredentials AddUserCredWhenSpeaksForOnly FilterFields WrapResponse CheckMatchAllowed CheckFieldsAllowed GetMatchFilter GetMatchFilterNew CheckFieldsRequired );
 
 use GeniSA;
 use GeniResponse;
@@ -51,6 +51,7 @@ use Data::Dumper;
 use Carp qw(cluck carp);
 use POSIX qw(strftime);
 use Date::Parse;
+use Time::Local;
 
 # Filter out any credentials of an uknown type leaving only geni_sfa
 # version 2 and version 3 credentials in a list. Also invokes
@@ -373,6 +374,36 @@ sub CheckCredentials($;$)
     return (wantarray() ? ($error) : $error);
 }
 
+sub AddUserCredWhenSpeaksForOnly
+{
+    my ($credential, $speaksfor) = @_;
+    if (!defined($credential) && defined($speaksfor)) {
+        $credential = GeniSA::GetCredential({
+                "credential" => $speaksfor->asString()
+            });
+        return (WrapResponse($credential, 'Error in AddUserCredWhenSpeaksForOnly: '), $speaksfor) if (GeniResponse::IsError($credential));
+        $credential = GeniCredential->CreateFromSigned($credential->{"value"});
+    }
+    return ($credential, $speaksfor);
+}
+
+sub WrapResponse
+{
+    my ($response, $prefix) = @_;
+
+    #debug: check if called correctly
+    if (!GeniResponse::IsResponse($response)) {
+        use Data::Dumper;
+        return GeniResponse->Create(GENIRESPONSE_ERROR, undef, "Internal error calling WrapResponse: " . Dumper( $response, @_ ) ); 
+    }
+
+    my $new_output = $prefix . $response->{'output'};
+    $response->{'output'} = $new_output;
+
+    return $response;
+}
+
+
 # Takes a blob and returns a new one with only the fields defined by
 # the filter.
 sub FilterFields($$)
@@ -401,22 +432,94 @@ sub FilterFields($$)
 sub GetMatchFilter($)
 {
     my ($options) = @_;
-    my $match = [];
+    my $match;
     my $filter;
 
     if (exists($options->{'match'})) {
-	push(@{ $match }, getMaybeArray($options->{'match'}->{'MEMBER_URN'}));
-	push(@{ $match }, getMaybeArray($options->{'match'}->{'MEMBER_UID'}));
-	push(@{ $match }, getMaybeArray($options->{'match'}->{'SLICE_URN'}));
+        $match = {};
+        my $matches = $options->{'match'};
+        foreach my $key (keys %$matches) {
+            my $value = $matches->{$key};
+            my $valueAr;
+            if (ref($value) eq 'ARRAY') {
+                $valueAr = $value;
+            } else {
+                $valueAr = [ $value ];
+            }
+            $match->{$key} = $valueAr;
+        }
     }
 
-
-    $filter = $options->{'filter'}
-      if (exists($options->{'filter'}));
+    if (exists($options->{'filter'})) {
+        $filter = $options->{'filter'}
+    }
 
     return ($match, $filter);
 }
 
+sub CheckMatchAllowed($$$$$)
+{
+    my ($methodname, $match, $allowed, $forbidden, $unimplemented) = @_;
+
+    return CheckMatchOrFieldAllowed($methodname, 'match', $match, $allowed, $forbidden, $unimplemented);
+}
+sub CheckFieldsRequired($$$)
+{
+    my ($methodname, $fields, $required) = @_;
+
+    for my $req (@$required) {
+        my $is_present = 0;
+        foreach my $key (keys %$fields) {
+            if ($key eq $req) {
+                $is_present = 1;
+            }
+        }
+        if (! $is_present) {
+            return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+                $methodname . ' requires field "' . $req . '" to be specified');
+        }
+    }
+
+    return 1;
+}
+sub CheckFieldsAllowed($$$$$)
+{
+    my ($methodname, $fields, $allowed, $forbidden, $unimplemented) = @_;
+
+    return CheckMatchOrFieldAllowed($methodname, 'field', $fields, $allowed, $forbidden, $unimplemented);
+}
+sub CheckMatchOrFieldAllowed($$$$$$)
+{
+    my ($methodname, $optionname, $optionval, $allowed, $forbidden, $unimplemented) = @_;
+
+    foreach my $key (keys %$optionval) {
+        for my $uni (@$unimplemented) {
+            if ($key eq $uni) {
+                #GENIRESPONSE_NOT_IMPLEMENTED is not really appropriate, since we implement the method, just not this argument
+                return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+                    $methodname . ' does not implement ' . $optionname . ' "' . $key . '"');
+            }
+        }
+        for my $forb (@$forbidden) {
+            if ($key eq $forb) {
+                return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+                    $methodname . ' does not allow ' . $optionname . ' "' . $key . '"');
+            }
+        }
+        my $is_allowed = 0;
+        for my $all (@$allowed) {
+            if ($key eq $all) {
+                $is_allowed = 1;
+            }
+        }
+        if (! $is_allowed) {
+            return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+                $methodname . ' does not know ' . $optionname . ' "' . $key . '"');
+        }
+    }
+
+    return 1;
+}
 
 # Take a reference that might be an array or might be a scalar or
 # might be undefined. Return an array
@@ -452,6 +555,50 @@ sub DateTimeGMT($)
 
     return POSIX::strftime("20%y-%m-%dT%H:%M:%S GMT",
 			   gmtime(str2time($datetime)));
+}
+
+#
+# Return date in RFC3339 time format.
+#
+sub DateTimeStringToRFC3339String($)
+{
+    my ($datetime) = @_;
+
+    return POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+            gmtime(str2time($datetime)));
+}
+
+#perl datetime to RFC3339 string
+sub DateTimeToRFC3339String($)
+{
+    my ($datetime) = @_;
+
+    return POSIX::strftime("20%y-%m-%dT%H:%M:%SZ",
+            gmtime($datetime));
+}
+
+sub RFC3339StringToDateTime($)
+{
+    my ($expiration) = @_;
+
+    if (defined($expiration)) {
+        #code adapted from GeniCM.pm SetSliceExpiration
+        if (ref($expiration) eq 'Frontier::RPC2::DateTime::ISO8601') {
+            $expiration = $expiration->value;
+        }
+
+        my $when = eval { timegm(strptime($expiration)); };
+        if ($@) {
+            my $message = $@;
+            return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, "Could not parse date '$expiration': $message");
+        }
+        if (!defined($when)) {
+            return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, "Could not parse date '$expiration'");
+        }
+
+        return $when;
+    }
+    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, "No date found");
 }
 
 1;

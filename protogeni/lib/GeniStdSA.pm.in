@@ -40,6 +40,8 @@ use vars qw(@ISA @EXPORT);
 @ISA    = "Exporter";
 @EXPORT = qw ( );
 
+use libdb;
+
 use GeniStd;
 use GeniSA;
 use GeniSlice;
@@ -50,18 +52,239 @@ use GeniCredential;
 use GeniRegistry;
 use emutil;
 use Data::Dumper;
+use Date::Parse;
+use POSIX qw(strftime);
+use Time::Local;
 
 my $coder = Frontier::RPC2->new('use_objects' => 1);
 
+my $GENI_VERSION;
+
+
+sub SetGeniVersion($) 
+{
+    ($GENI_VERSION) = @_;
+}
+
 sub GetVersion()
 {
+    my $me = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($me)) {
+        print STDERR "Could not find local authority object\n";
+        return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+
+    my $api_version = "2";
+    if (defined($GENI_VERSION) && $GENI_VERSION == 1) {
+        $api_version = "1";
+    }
+
+    my $url = $me->url();
+    $url =~ s/sa$/geni-sa/;
+
     my $blob = {
-	"VERSION" => $coder->string("0.1"),
-	"SERVICES" => ["SLICE", "SLICE_MEMBER"],
-	"CREDENTIAL_TYPES" => ["SFA"], # => [$coder->string("3")]],
-	"ROLES" => ["AUTHORITY", "ADMIN", "MEMBER"]
+        "VERSION" => $coder->string($api_version),
+        "URN" => $me->urn(),
+        "IMPLEMENTATION" => { "code_version" => $coder->string("0.2") },
+        "SERVICES" => ["SLICE", "SLICE_MEMBER", "PROJECT", "PROJECT_MEMBER", "SLIVER_INFO"],
+        "CREDENTIAL_TYPES" => [ { "type" => "geni_sfa", "version" => $coder->string("3") },
+            { "type" => "geni_abac", "version" => $coder->string("1") } 
+        ],
+        "ROLES" => ["AUTHORITY", "ADMIN", "MEMBER"],
+        "API_VERSIONS" => {
+            "1" => "$url/1",
+            "2" => "$url/2",
+        },
+        'FIELDS' => {
+            'SLICE_UID' => { 
+                'OBJECT' => 'SLICE',
+                'TYPE' => 'UID',
+                'CREATE' => 'NOT ALLOWED',
+                'UPDATE' => $coder->boolean(0),
+                'MATCH' => $coder->boolean(0),
+            },
+            'SLICE_EXPIRED' => { 
+                'OBJECT' => 'SLICE',
+                'TYPE' => 'BOOLEAN',
+                'CREATE' => 'NOT ALLOWED',
+                'UPDATE' => $coder->boolean(0),
+                'MATCH' => $coder->boolean(0),
+            },
+            'SLICE_PROJECT_URN' => { 
+                'OBJECT' => 'SLICE',
+                'TYPE' => 'URN',
+                'CREATE' => 'REQUIRED',
+                'UPDATE' => $coder->boolean(0),
+                'MATCH' => $coder->boolean(0),
+            },
+            '_EMULAB_SLICE_HRN' => {
+                'OBJECT' => 'SLICE',
+                'TYPE' => 'STRING',
+                'CREATE' => 'NOT ALLOWED',
+                'UPDATE' => $coder->boolean(0),
+                'MATCH' => $coder->boolean(0),
+            },
+            'SLIVER_INFO_AGGREGATE_URN' => {
+                'OBJECT' => 'SLIVER_INFO',
+                'TYPE' => 'URN',
+                'CREATE' => 'REQUIRED',
+                'UPDATE' => $coder->boolean(0),
+                'MATCH' => $coder->boolean(0),
+            },
+            'SLIVER_INFO_CREATOR_URN' => {
+                'OBJECT' => 'SLIVER_INFO',
+                'TYPE' => 'URN',
+                'CREATE' => 'REQUIRED',
+                'UPDATE' => $coder->boolean(0),
+                'MATCH' => $coder->boolean(0),
+            },
+        }
     };
+
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+}
+
+sub InvalidApi1($$) {
+    return InvalidApi('1');
+}
+
+sub InvalidApi2($$) {
+    return InvalidApi('2');
+}
+
+sub InvalidApi($$)
+{
+    my ($method_api_version) = @_;
+
+    my $me = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($me)) {
+        print STDERR "Could not find local authority object\n";
+        return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+
+    my $url = $me->url();
+    $url =~ s/sa$/geni-sa/;
+
+    my $api_version = "1";
+    if (defined($GENI_VERSION) && $GENI_VERSION == 2) {
+        $api_version = "2";
+    }
+
+    return GeniResponse->MalformedArgsResponse('You called a method which belongs to version ' . $method_api_version. ' of the API.'.
+        ' This URL ("'. $url .'/'.$api_version.'") is for version '. $api_version . ' of the API.');
+}
+
+# Create in v2 of the API works for different objects.
+sub Create($$)
+{
+    my ($type, $credential_args, $options) = @_;
+
+    if (uc($type) eq 'SLICE') {
+        return CreateSlice($credential_args, $options);
+    }
+    if (uc($type) eq 'SLIVER_INFO') {
+        return CreateSliverInfo($credential_args, $options);
+    }
+
+	return GeniResponse->MalformedArgsResponse('create not supported for type "' . $type . '"');
+}
+
+# Create in v2 of the API works for different objects.
+sub Lookup($$)
+{
+    my ($type, $credential_args, $options) = @_;
+
+    if (uc($type) eq 'SLICE') {
+        return LookupSlices($credential_args, $options);
+    }
+    if (uc($type) eq 'PROJECT') {
+        return LookupProjects($credential_args, $options);
+    }
+
+    if (uc($type) eq 'SLIVER_INFO') {
+        return LookupSliverInfo($credential_args, $options);
+    }
+
+	return GeniResponse->MalformedArgsResponse('lookup not supported for type "' . $type . '"');
+}
+
+sub Update($$)
+{
+    my ($type, $urn, $credential_args, $options) = @_;
+
+    if (uc($type) eq 'SLICE') {
+        return UpdateSlice($urn, $credential_args, $options);
+    }
+    if (uc($type) eq 'PROJECT') {
+        return UpdateProject($urn, $credential_args, $options);
+    }
+
+    if (uc($type) eq 'SLIVER_INFO') {
+        return UpdateSliverInfo($urn, $credential_args, $options);
+    }
+
+	return GeniResponse->MalformedArgsResponse('update not supported for type "' . $type . '"');
+}
+
+sub Delete($$)
+{
+    my ($type, $urn_to_delete, $credential_args, $options) = @_;
+
+    if (uc($type) eq 'SLIVER_INFO') {
+        return DeleteSliverInfo($urn_to_delete, $credential_args, $options);
+    }
+
+	return GeniResponse->MalformedArgsResponse('delete not supported for type "' . $type . '"');
+}
+
+sub ModifyMembership($$)
+{
+    my ($type, $urn, $credential_args, $options) = @_;
+
+    if (uc($type) eq 'SLICE') {
+        return ModifySliceMembership($urn, $credential_args, $options);
+    }
+    if (uc($type) eq 'PROJECT') {
+        return ModifyProjectMembership($urn, $credential_args, $options);
+    }
+
+	return GeniResponse->MalformedArgsResponse('modify_membership not supported for type "' . $type . '"');
+}
+
+sub LookupMembers($$)
+{
+    my ($type, $urn, $credential_args, $options) = @_;
+
+    if (uc($type) eq 'SLICE') {
+        return LookupSliceMembers($urn, $credential_args, $options);
+    }
+    if (uc($type) eq 'PROJECT') {
+        return LookupProjectMembers($urn, $credential_args, $options);
+    }
+
+	return GeniResponse->MalformedArgsResponse('lookup_members not supported for type "' . $type . '"');
+}
+
+sub LookupForMember($$)
+{
+    my ($type, $member_urn, $credential_args, $options) = @_;
+
+    if (! defined($type) ||
+        ! defined($member_urn) ||
+        ! defined($credential_args) ||
+        ! defined($options))
+    {
+        return GeniResponse->MalformedArgsResponse('lookup_for_member requires a member urn, a list of credentials, and an options field');
+    }
+
+    if (uc($type) eq 'SLICE') {
+        return LookupSlicesForMember($member_urn, $credential_args, $options);
+    }
+    if (uc($type) eq 'PROJECT') {
+        return LookupProjectsForMember($member_urn, $credential_args, $options);
+    }
+
+	return GeniResponse->MalformedArgsResponse('lookup_for_member not supported for type "' . $type . '"');
 }
 
 sub CreateSlice($$)
@@ -72,33 +295,85 @@ sub CreateSlice($$)
 	! exists($options->{'fields'}) ||
 	! exists($options->{'fields'}->{'SLICE_NAME'}))
     {
-	return GeniResponse->MalformedArgsResponse('Requires a list of credentials, an options field, and a SLICE_NAME in the options field');
+        return GeniResponse->MalformedArgsResponse('create SLICE requires a list of credentials, an options field, and a SLICE_NAME in the options field');
     }
 
-    my $hrn = $options->{'fields'}->{'SLICE_NAME'};
+    my $fields = $options->{'fields'};
+
+    #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
+    my $checkRes = GeniStd::CheckFieldsAllowed('create SLICE', $fields, 
+        ['SLICE_EXPIRATION', 'SLICE_DESCRIPTION', 'SLICE_NAME', 'SLICE_PROJECT_URN'], 
+        ['SLICE_URN', 'SLICE_UID', 'SLICE_EXPIRED', 'SLICE_CREATION'], 
+        []); 
+    return $checkRes if (GeniResponse::IsError($checkRes));
+    $checkRes = CheckFieldsRequired('create SLICE', $fields, ['SLICE_NAME', 'SLICE_PROJECT_URN']);
+    return $checkRes if (GeniResponse::IsError($checkRes));
+
+    my $hrn = $fields->{'SLICE_NAME'};
     my $args = {
 	"credentials" => GeniStd::FilterCredentials($credential_args),
 	"hrn" => $hrn,
 	"type" => "slice"
     };
-    if (exists($options->{'fields'}->{'SLICE_EXPIRATION'})) {
-	$args->{'expiration'} = $options->{'fields'}->{'SLICE_EXPIRATION'};
+    if (exists($fields->{'SLICE_EXPIRATION'})) {
+        $args->{'expiration'} = $fields->{'SLICE_EXPIRATION'};
     }
-    my $response = GeniSA::Register($args);
+
+    my $response;
+    if (exists($fields->{'SLICE_PROJECT_URN'})) {
+        my $project_urn = $fields->{'SLICE_PROJECT_URN'};
+	    my ($authority, $type, $project_name) = GeniHRN::Parse( $project_urn );
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'project urn "' . $project_urn . '" not valid') unless defined( $project_name );
+        my $project = Project->Lookup( $project_name );
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'project "' . $project_urn . '" not found') unless defined( $project );
+        my ($server_auth, $server_type, $server_authname) = GeniHRN::Parse( $ENV{'MYURN'} );
+        my $subauth_urn = GeniHRN::Generate($server_auth . ':' . $project_name, $server_type, $server_authname);
+        my $authority = GeniAuthority->Lookup($subauth_urn);
+        if (!defined($authority)) {
+            print STDERR "Could not find authority '" . $subauth_urn . "' (MYURN=$ENV{'MYURN'})\n";
+            return GeniResponse->Create(GENIRESPONSE_ERROR);
+        }
+
+
+        $response = GeniSA::RegisterInternal($args, $project_name);
+    } else {
+        #wvdemeer: was: $response = GeniSA::Register($args);   
+        #          But we don't allow SLICE without project, because:
+        #          The API specifies: "Required (if SA supports project)" for SLICE_PROJECT_URN create
+        $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "must specify SLICE_PROJECT_URN");
+    }
     if (GeniResponse::IsError($response)) {
 	return $response;
     }
 
     my $sliceCred = GeniCredential->CreateFromSigned(GeniResponse::value($response));
     my $slice = GeniSlice->Lookup($sliceCred->target_urn());
-    if (exists($options->{'fields'}->{'SLICE_DESCRIPTION'})) {
-	my $description = $options->{'fields'}->{'SLICE_DESCRIPTION'};
+    my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
+    my @slice_auth_parts = split(':', $slice_authority);
+    my $slice_auth_parts_size = scalar @slice_auth_parts;
+    my $project_urn = 'unknown';
+    if ($slice_auth_parts_size == 2) {
+        $project_urn = GeniHRN::Generate($slice_auth_parts[0], 'project', $slice_auth_parts[1]);
+    }
+
+    if (exists($fields->{'SLICE_DESCRIPTION'})) {
+        my $description = $fields->{'SLICE_DESCRIPTION'};
 	$slice->SetDescription($description);
     }
 
     my $blob = {
 	"SLICE_URN" => $sliceCred->target_urn(),
-	"SLICE_EXPIRATION" => $sliceCred->expires()
+        "SLICE_NAME"        => $slice_name,
+        "_EMULAB_SLICE_HRN"         => $slice->hrn(),
+        "SLICE_PROJECT_URN" => $project_urn,
+        "SLICE_UID"         => $slice->uuid(),
+        "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
+        "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
+#       "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($sliceCred->expires())
+        "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
+        "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
+#too bad the API doesn't let you return the credential(s) when using create.
 #	,"SLICE_CREDENTIAL" => GeniResponse::value($response)
     };
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
@@ -108,44 +383,74 @@ sub LookupSlices()
 {
     my ($credential_args, $options) = @_;
 
-    my $credential = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
-    # TODO: Make sure that slice URN is the same as the credential URN
     $credential->HasPrivilege( "authority" ) or
 	$credential->HasPrivilege( "resolve" ) or
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 
+    my $this_user = GeniUser->Lookup((defined($speaksfor) ?  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
+    if (!defined($this_user)) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, "Who are you? No local record");
+    }
+
     my ($match, $filter) = GeniStd::GetMatchFilter($options);
 
+    #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
+    my $checkRes = GeniStd::CheckMatchAllowed('lookup SLICE', $match, 
+        ['SLICE_URN'],
+        ['SLICE_CREATION', 'SLICE_EXPIRATION', 'SLICE_NAME', 'SLICE_DESCRIPTION'], 
+        ['SLICE_UID', 'SLICE_EXPIRED', 'SLICE_PROJECT_URN', '_EMULAB_SLICE_HRN']); 
+    return $checkRes if (GeniResponse::IsError($checkRes));
+
     my $members = {};
-    if (defined($match)) {
-	foreach my $key (@{ $match }) {
+    if (defined($match) && defined($match->{'SLICE_URN'})) {
+        my $match_slice_urns = $match->{'SLICE_URN'};
+        foreach my $key (@$match_slice_urns) {
 	    my $slice = GeniSlice->Lookup($key);
+
+            #check if user is allowed to access slice
+            my $allowed = 0;
 	    if (defined($slice)) {
-		my $description = '';
-		if (defined($slice->description())) {
-		    $description = $slice->description();
+               if ($slice->creator_urn() ne $this_user->urn() && !$slice->IsBound($this_user)) {
+                   #user is not allowed to access this slice
+                   $allowed = 0; 
+               } else {
+                   $allowed = 1; 
 		}
-		my $isExpired = 'False';
-		if ($slice->IsExpired()) {
-		    $isExpired = 'True';
 		}
 
+            if (defined($slice)) {
+                my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
+                my @slice_auth_parts = split(':', $slice_authority);
+                my $slice_auth_parts_size = scalar @slice_auth_parts;
+                my $project_urn = 'unknown';
+                if ($slice_auth_parts_size == 2) {
+                    $project_urn = GeniHRN::Generate($slice_auth_parts[0], 'project', $slice_auth_parts[1]);
+                }
+
+                #We always allow access to slice name. The other slice info is not for everyone.
 		my $completeblob = {
 		    "SLICE_URN"         => $slice->urn(),
+                    "SLICE_NAME"        => $slice_name,
+                    "_EMULAB_SLICE_HRN"         => $slice->hrn(),
+                    "SLICE_PROJECT_URN" => $project_urn
+                };
+                if ($allowed) {
+                    my $extrablob = {
 		    "SLICE_UID"         => $slice->uuid(),
-		    "SLICE_CREATION"    =>
-			GeniStd::DateTimeGMT($slice->created()),
-		    "SLICE_EXPIRATION"  => 
-		        GeniStd::DateTimeGMT($slice->expires()),
-		    "SLICE_EXPIRED"     => $isExpired,
-		    "SLICE_NAME"        => $slice->hrn(),
-		    "SLICE_DESCRIPTION" => $description,
-		    "SLICE_PROJECT_URN" => "Unimplemented"
+                        "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
+                        "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
+                        "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
+#                    "SLICE_EXPIRED"     => ($slice->IsExpired() ? 'True' : 'False'),
+                        "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
 		};
+                    @$completeblob{keys %$extrablob} = values %$extrablob;
+                }
 		my $blob = GeniStd::FilterFields($completeblob, $filter);
 		$members->{$slice->urn()} = $blob;
 	    }
@@ -158,22 +463,45 @@ sub UpdateSlice()
 {
     my ($slice_urn, $credential_args, $options) = @_;
 
-    # TODO: Make sure that slice URN is the same as the credential URN
-    my $slice = GeniSlice->Lookup($slice_urn);
-    my $response;
-    if (exists($options->{'fields'}->{'SLICE_DESCRIPTION'})) {
-	$slice->SetDescription($options->{'fields'}->{'SLICE_DESCRIPTION'});
-    }
-    if (exists($options->{'fields'}->{'SLICE_EXPIRATION'})) {
-	my $args = {
-	    "credentials" => GeniStd::FilterCredentials($credential_args),
-	    "expiration"  => $options->{'fields'}->{'SLICE_EXPIRATION'}
-	};
-	$response = GeniSA::RenewSlice($args);
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+    if ($credential->target_urn() ne $slice_urn) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, 
+            "You gave a credential for " . $credential->target_urn() . " but tried to update another slice: ". $slice_urn);
     }
 
-    return $response
-	if (GeniResponse::IsError($response));
+    my $slice = GeniSlice->Lookup($slice_urn);
+    if (!defined($slice)) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+            "No such Slice")
+    }
+
+    my $fields = $options->{'fields'};
+
+    #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
+    my $checkRes = GeniStd::CheckFieldsAllowed('update SLICE', $fields, 
+        ['SLICE_EXPIRATION', 'SLICE_DESCRIPTION'], 
+        ['SLICE_URN', 'SLICE_UID', 'SLICE_EXPIRED', 'SLICE_PROJECT_URN', 'SLICE_CREATION', 'SLICE_NAME'], 
+        []); 
+    return $checkRes if (GeniResponse::IsError($checkRes));
+
+    if (exists($fields->{'SLICE_DESCRIPTION'})) {
+        $slice->SetDescription($fields->{'SLICE_DESCRIPTION'});
+    }
+    if (exists($fields->{'SLICE_EXPIRATION'})) {
+	my $args = {
+	    "credentials" => GeniStd::FilterCredentials($credential_args),
+            "expiration"  => $fields->{'SLICE_EXPIRATION'}
+	};
+        my $response = GeniSA::RenewSlice($args);
+        return $response if (GeniResponse::IsError($response));
+    }
 
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, {});
 }
@@ -185,14 +513,35 @@ sub GetCredentials()
 	! defined($credential_args) ||
 	! defined($options))
     {
-	return GeniResponse->MalformedArgsResponse('Requires a slice urn, a list of credentials, and an options field');
+        return GeniResponse->MalformedArgsResponse('get_credentials requires a slice urn, a list of credentials, and an options field');
     }
 
-    my $credential = GeniSA::GetCredential({
+    if(! GeniHRN::IsValid( $slice_urn ) ) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid slice URN: "'. $slice_urn . '"');
+    }
+    my ($slice_urn_auth, $slice_urn_type, $sliceurn_name) = GeniHRN::Parse( $slice_urn );
+    if ($slice_urn_type ne 'slice') {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a slice URN: "'. $slice_urn . '"');
+    }
+
+    #check if speaksfor, and if so, if need to add user cred
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    return $credential if (defined($credential) && GeniResponse::IsResponse($credential));
+    if (!defined($credential) && defined($speaksfor)) {
+        #request and add a user credential to $credential_args
+        $credential = GeniSA::GetCredential({
+                "credential" => $speaksfor->asString()
+            });
+        return (WrapResponse($credential, 'Error when GetCredentials tried to request user credential: '), $speaksfor) if (GeniResponse::IsError($credential));
+        #$credential_args = [ $credential->{"value"}, $speaksfor->asString() ];
+        $credential_args = [ $credential->{"value"}, @$credential_args ];
+    }
+
+    $credential = GeniSA::GetCredential({
 	"urn" => $slice_urn,
-	"credentials" => GeniStd::FilterCredentials($credential_args) });
-    return $credential
-	if (GeniResponse::IsError($credential));
+            "credentials" => GeniStd::FilterCredentials($credential_args) 
+        });
+    return GeniStd::WrapResponse($credential, 'get_credentials encountered an error requesting the slice credential: ') if (GeniResponse::IsError($credential));
 
     my $blob = {
 	"geni_type" => "geni_sfa",
@@ -210,7 +559,7 @@ sub ModifySliceMembership()
 	! defined($credential_args) ||
 	! defined($options) || ref($options) ne "HASH")
     {
-	return GeniResponse->MalformedArgsResponse('Requires a slice urn, a list of credentials, and an options field');
+	return GeniResponse->MalformedArgsResponse('modify membership for SLICE requires a slice urn, a list of credentials, and an options field');
     }
 
     my $adding = $options->{'members_to_add'};
@@ -239,7 +588,7 @@ sub ModifySliceMembership()
     foreach my $current (@{ $adding }) {
 	if (exists($current->{'SLICE_MEMBER'})) {
 	    $params->{"urn"} = $current->{'SLICE_MEMBER'};
-	    my $result = GeniSA::BindToSlice($params);
+            my $result = GeniSA::BindToSliceInternal($params, 1);
 	    if (GeniResponse::IsError($result)) {
 		return $result;
 	    }
@@ -255,13 +604,11 @@ sub LookupSliceMembers()
 	! defined($credential_args) ||
 	! defined($options))
     {
-	return GeniResponse->MalformedArgsResponse('Requires a slice urn, a list of credentials, and an options field');
+        return GeniResponse->MalformedArgsResponse('lookup members for SLICE requires a slice urn, a list of credentials, and an options field');
     }
 
-    my ($credential, $speaksfor) =
-	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
-    return $credential
-	if (GeniResponse::IsResponse($credential));
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    return $credential if (GeniResponse::IsResponse($credential));
 
     $credential->HasPrivilege( "pi" ) or
 	$credential->HasPrivilege( "bind" ) or
@@ -276,11 +623,11 @@ sub LookupSliceMembers()
 				    "Who are you? No local record");
     }
 
-    # TODO: How do we validate slice urn?
-#    if ($credential->target_urn() ne $slice_urn) {
-#	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-#				    "Slice URN does not match credential URN");
-#    }
+    my $cred_target_urn = $credential->target_urn();
+    if ($cred_target_urn ne $slice_urn) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+            "Slice URN ($slice_urn) does not match credential URN ($cred_target_urn)");
+    }
 
     my $slice = GeniSlice->Lookup($slice_urn);
     if (!defined($slice)) {
@@ -294,14 +641,18 @@ sub LookupSliceMembers()
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Failed to lookup member bindings");
     }
-    push(@{ $uuids }, $this_user->uuid());
+    #was this, but I think this is not correct: push(@{ $uuids }, $this_user->uuid());
+    push(@{ $uuids }, $slice->creator_uuid());
 
     my $result = [];
     foreach my $id (@{ $uuids }) {
 	my $user = GeniUser->Lookup($id, 1);
 	if (defined($user)) {
-	    push(@{ $result }, { 'SLICE_MEMBER' => $user->urn(),
-				 'SLICE_ROLE' => 'MEMBER' });
+	    push(@{ $result }, { 
+                'SLICE_MEMBER' => $user->urn(),
+				'SLICE_ROLE' => 'MEMBER' #on emulab, there is only a 'MEMBER' role for slices
+            },
+        );
 	}
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $result);
@@ -314,13 +665,13 @@ sub LookupSlicesForMember($$$)
 	! defined($credential_args) ||
 	! defined($options))
     {
-	return GeniResponse->MalformedArgsResponse('Requires a member urn, a list of credentials, and an options field');
+        return GeniResponse->MalformedArgsResponse('lookup SLICE for member requires a member urn, a list of credentials, and an options field');
     }
 
     my ($credential, $speaksfor) =
 	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
-    return $credential
-	if (GeniResponse::IsResponse($credential));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
 
     my $this_user =
 	GeniUser->Lookup((defined($speaksfor) ?
@@ -339,10 +690,8 @@ sub LookupSlicesForMember($$$)
     my @created = GeniSlice->LookupByCreator($this_user);
     my @bound = GeniSlice->BoundToUser($this_user);
 
-    addSlicesToMemberList(\@created, $result)
-	if (@created);
-    addSlicesToMemberList(\@bound, $result)
-	if (@bound);
+    addSlicesToMemberList(\@created, $result) if (@created);
+    addSlicesToMemberList(\@bound, $result) if (@bound);
 
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $result);
 }
@@ -354,7 +703,8 @@ sub addSlicesToMemberList($$)
     foreach my $slice (@{ $slices }) {
 	my $blob = {
 	    'SLICE_URN' => $slice->urn(),
-	    'SLICE_ROLE' => 'MEMBER'
+            'SLICE_ROLE' => 'MEMBER', #on emulab, there is only a 'MEMBER' role for slices
+            'EXPIRED' => $coder->boolean($slice->IsExpired())
 	};
 	push(@{ $result }, $blob);
     }
@@ -363,67 +713,266 @@ sub addSlicesToMemberList($$)
 sub CreateSliverInfo($$$$)
 {
     my ($credential_args, $options) = @_;
-    if (! defined($credential_args) ||
-	! defined($options) || ref($options) ne "HASH" ||
-	! exists($options->{'fields'}))
+    if (! defined($credential_args) || ! defined($options))
     {
-	return GeniResponse->MalformedArgsResponse('Requires a list of credentials, and an options field');
+        return GeniResponse->MalformedArgsResponse('create SLIVER_INFO requires a list of credentials argument, and an options argument');
     }
 
-    if (! defined($options->{'fields'}->{'SLIVER_INFO_SLICE_URN'}) ||
-	! defined($options->{'fields'}->{'SLIVER_INFO_URN'}) ||
-	! defined($options->{'fields'}->{'SLIVER_INFO_AGGREGATE_URN'}) ||
-	! defined($options->{'fields'}->{'SLIVER_INFO_CREATOR_URN'}) ||
-	! defined($options->{'fields'}->{'SLIVER_INFO_CREATION'}) ||
-	! defined($options->{'fields'}->{'SLIVER_INFO_EXPIRATION'})) {
-	return GeniResponse->MalformedArgsResponse('Required option is missing. Make sure to include SLIVER_INFO_SLICE_URN, SLIVER_INFO_URN, SLIVER_INFO_AGGREGATE_URN, SLIVER_INFO_CREATOR_URN, SLIVER_INFO_CREATION, and SLIVER_INFO_EXPIRATION');
+    if (ref($options) ne "HASH" || ! exists($options->{'fields'}))
+    {
+        return GeniResponse->MalformedArgsResponse('The options argument of create SLIVER_INFO should be an struct containing a "fields" member');
     }
-    my ($credential, $speaksfor) =
-	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
-    return $credential
-	if (GeniResponse::IsResponse($credential));
+
+    my $fields = $options->{'fields'};
+
+    my $requiredFields = ['SLIVER_INFO_SLICE_URN', 'SLIVER_INFO_URN', 'SLIVER_INFO_AGGREGATE_URN', 'SLIVER_INFO_CREATOR_URN', 'SLIVER_INFO_EXPIRATION'];
+    #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
+    my $checkRes = GeniStd::CheckFieldsAllowed('create SLIVER_INFO', $fields, 
+        [ @$requiredFields, 'SLIVER_INFO_CREATION' ], 
+        [], 
+        []); 
+    return $checkRes if (GeniResponse::IsError($checkRes));
+    $checkRes = CheckFieldsRequired('create SLIVER_INFO', $fields, $requiredFields);
+    return $checkRes if (GeniResponse::IsError($checkRes));
+
+    my $slice_urn = $fields->{'SLIVER_INFO_SLICE_URN'};
+
+    my ($creator_authority, $creator_type, $creator_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_CREATOR_URN'} );
+    my ($sliver_authority_authority, $sliver_authority_type, $sliver_authority_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_AGGREGATE_URN'} );
+    my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice_urn );
+    my ($sliver_info_urn_authority, $sliver_info_urn_type, $sliver_info_urn_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_URN'} );
+
+    if ($creator_type ne 'user') {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_CREATOR_URN is not a user URN');
+    }
+    if ($sliver_authority_type ne 'authority') {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_AGGREGATE_URN is not an authority URN');
+    }
+    if ($slice_type ne 'slice') {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_SLICE_URN is not a slice URN');
+    }
+    if ($sliver_info_urn_type ne 'sliver') {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_URN is not a sliver URN');
+    }
+
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    #not needed, because needs slice credential instead of user cred: ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef, "Insufficient privilege" );
+    if ($credential->target_urn() ne $slice_urn) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, 
+            "You gave a credential for " . $credential->target_urn() . " but tried to create SLIVER_INFO for slice ". $slice_urn);
+    }
+
+    my $slice = GeniSlice->Lookup($slice_urn);
+    if (!defined($slice)) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+            "No such slice here: " . $slice_urn)
+    }
+
+    my $created = defined($fields->{'SLIVER_INFO_CREATION'}) ? 
+    $fields->{'SLIVER_INFO_CREATION'} : 
+    POSIX::strftime("20%y-%m-%dT%H:%M:%SZ", gmtime(time())); #now
 
     my $info = {
-	'creator_urn' => $options->{'fields'}->{'SLIVER_INFO_CREATOR_URN'},
-	'urn' => $options->{'fields'}->{'SLIVER_INFO_URN'},
-	'created' => $options->{'fields'}->{'SLIVER_INFO_CREATION'},
-	'expires' => $options->{'fields'}->{'SLIVER_INFO_EXPIRATION'}
+        'creator_urn' => $fields->{'SLIVER_INFO_CREATOR_URN'},
+        'urn' => $fields->{'SLIVER_INFO_URN'},
+        'created' => $created,
+        'expires' => $fields->{'SLIVER_INFO_EXPIRATION'}
     };
     my $params = {
 	'credential' => $credential,
-	'slice_urn' => $options->{'fields'}->{'SLIVER_INFO_SLICE_URN'},
-	'info' => $info,
+        'slice_urn' => $fields->{'SLIVER_INFO_SLICE_URN'},
+        'info' => $info
     };
-    return GeniSA::RegisterSliver($params);
+
+    #register without verifying if credential is CM
+    my $registerSliverRes = GeniSA::RegisterSliverInternal($params, 0, $fields->{'SLIVER_INFO_AGGREGATE_URN'});
+    return $registerSliverRes if (GeniResponse::IsResponse($registerSliverRes) and GeniResponse::IsError($registerSliverRes));
+
+    #create reply
+    my $sliver = GeniSlice::ClientSliver->Lookup($fields->{'SLIVER_INFO_URN'});
+
+    if (!defined($sliver)) {
+        return GeniResponse->Create(4, '', 'Internal error: the sliver was not registered');
+    }
+    if (!defined($sliver->urn())) {
+        return GeniResponse->Create(4, '', 'Internal error: the sliver urn was not registered');
+    }
+    if (!defined($sliver->manager_urn())) {
+        return GeniResponse->Create(4, '', 'Internal error: the sliver manager_urn was not registered');
+    }
+
+    my $blob = {
+        'SLIVER_INFO_AGGREGATE_URN' => $sliver->manager_urn(),
+        'SLIVER_INFO_URN'	        => $sliver->urn(),
+        'SLIVER_INFO_SLICE_URN'     => $slice->urn(),
+        'SLIVER_INFO_CREATION'      => GeniStd::DateTimeStringToRFC3339String($sliver->created()),
+        'SLIVER_INFO_EXPIRATION'    => GeniStd::DateTimeStringToRFC3339String($sliver->expires())
+    };
+    my $user = User->Lookup($sliver->creator_idx());
+    if (defined($user)) {
+        $user = GeniUser->CreateFromLocal($user);
+    }
+    if (defined($user)) {
+        $blob->{'SLIVER_INFO_CREATOR_URN'} = $user->urn();
+    }
+
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 
 sub UpdateSliverInfo($$)
 {
-    my ($credential_args, $options) = @_;
-    return GeniResponse->Create(GENIRESPONSE_NOT_IMPLEMENTED, undef,
-				"Update Sliver Info is not implemented");
+    my ($sliver_urn, $credential_args, $options) = @_;
+
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my $sliver = GeniSlice::ClientSliver->Lookup($sliver_urn);
+    if (!defined($sliver)) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+            "No such sliver known: " . $sliver_urn)
+    }
+    my $slice_idx = $sliver->slice_idx(); 
+    my $aggregate_url = $sliver->manager_urn();
+
+    my $slice = GeniSlice->Lookup($slice_idx);
+    if (!defined($slice)) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+            "No such slice here: " . $slice_idx)
+    }
+
+    my $slice_urn = $slice->urn();
+
+    if ($credential->target_urn() ne $slice_urn) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, 
+            "You gave a credential for " . $credential->target_urn() . " but tried to update SLIVER_INFO for another slice: ". $slice_urn);
+    }
+
+
+    my $fields = $options->{'fields'};
+
+    #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
+    my $checkRes = GeniStd::CheckFieldsAllowed('update SLIVER_INFO', $fields, 
+        ['SLIVER_INFO_EXPIRATION'], 
+        ['SLIVER_INFO_SLICE_URN', 'SLIVER_INFO_URN', 'SLIVER_INFO_AGGREGATE_URN', 'SLIVER_INFO_CREATOR_URN', 'SLIVER_INFO_CREATION'], 
+        []); 
+    return $checkRes if (GeniResponse::IsError($checkRes));
+    $checkRes = CheckFieldsRequired('update SLIVER_INFO', $fields, ['SLIVER_INFO_EXPIRATION']);
+    return $checkRes if (GeniResponse::IsError($checkRes));
+
+    if (exists($fields->{'SLIVER_INFO_EXPIRATION'})) {
+        my $new_expire_str = $fields->{'SLIVER_INFO_EXPIRATION'};
+        my $new_expire_date = GeniStd::RFC3339StringToDateTime($new_expire_str);
+        #for some reason, you can't put UC times into the DB, or time gets screwed up. So we need to put localtime in there.
+        my $new_expire_dbdate = strftime('%Y-%m-%dT%H:%M:%S%z', localtime($new_expire_date));
+        print STDOUT "new_expire_dbdate=$new_expire_dbdate\n";
+        my $update_success = $sliver->UpdateExpire($new_expire_dbdate) == 0;
+        if (!$update_success) {
+            return GeniResponse->Create(GENIRESPONSE_ERROR, undef, 
+                'Something went wrong updating the sliver expire date');
+        }
+    }
+
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, {});
 }
 
 sub DeleteSliverInfo()
 {
-    my ($slice_urn, $aggregate_url, $credential_args, $options) = @_;
-    if (! defined($slice_urn) ||
-	! defined($aggregate_url) ||
+    my ($sliver_urn, $credential_args, $options) = @_;
+    if (! defined($sliver_urn) ||
 	! defined($credential_args) ||
 	! defined($options))
     {
-	return GeniResponse->MalformedArgsResponse('Requires a slice urn, an aggregate url, a list of credentials, and an options field');
+        return GeniResponse->MalformedArgsResponse('delete SLIVER_INFO requires a sliver urn, a list of credentials, and an options field');
     }
 
     my ($credential, $speaksfor) =
 	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
-    return $credential
-	if (GeniResponse::IsResponse($credential));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
+
+    my $sliver = GeniSlice::ClientSliver->Lookup($sliver_urn);
+    if (!defined($sliver)) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+            "No such sliver known: " . $sliver_urn)
+    }
+    my $slice_idx = $sliver->slice_idx(); 
+    my $aggregate_url = $sliver->manager_urn();
+
+    my $slice = GeniSlice->Lookup($slice_idx);
+    if (!defined($slice)) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+            "No such slice here: " . $slice_idx)
+    }
+
+    my $slice_urn = $slice->urn();
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef, "Insufficient privilege" );
+    if ($credential->target_urn() ne $slice_urn) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, 
+            "You gave a credential for " . $credential->target_urn() . " but tried to delete SLIVER_INFO for slice ". $slice_urn);
+    }
+
     my $params = {
 	'credential' => $credential,
-	'slice_urn' => $slice_urn
+        'slice_urn' => $slice_urn
     };
-    return GeniSA::UnRegisterSliver($params);
+    return GeniSA::UnRegisterSliverInternal($params, 0, $sliver_urn);
+}
+
+sub CheckIfUserIsSliceMember($$)
+{
+    my ($this_user, $slice) = @_; 
+
+    #check if user has access to slice
+    my $uuids = [];
+    my $error = $slice->UserBindings($uuids);
+    if ($error != 0) {
+        return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+            "Failed to lookup member bindings");
+    }
+    push(@{ $uuids }, $slice->creator_uuid());
+
+    my $user_uuid = $this_user->uuid();
+
+    foreach my $uuid (@$uuids) {
+        if ($uuid eq $user_uuid) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+sub AddSliverBlob($$$)
+{
+    my ($blob, $sliver, $slice) = @_;
+
+    $blob->{$sliver->urn()} = {
+        'SLIVER_INFO_AGGREGATE_URN' => $sliver->manager_urn(),
+        'SLIVER_INFO_URN'	        => $sliver->urn(),
+        'SLIVER_INFO_SLICE_URN'     => $slice->urn(),
+        'SLIVER_INFO_CREATION'      => GeniStd::DateTimeStringToRFC3339String($sliver->created()),
+        'SLIVER_INFO_EXPIRATION'    => GeniStd::DateTimeStringToRFC3339String($sliver->expires())
+    };
+    my $user = User->Lookup($sliver->creator_idx());
+    if (defined($user)) {
+        $user = GeniUser->CreateFromLocal($user);
+    }
+    if (defined($user)) {
+        $blob->{$sliver->urn()}->{'SLIVER_INFO_CREATOR_URN'} = $user->urn();
+    }
 }
 
 sub LookupSliverInfo($$)
@@ -433,58 +982,82 @@ sub LookupSliverInfo($$)
     if (! (defined($credential_args) && defined($options) &&
 	   ref($options) eq "HASH")) {
 	return
-	    GeniResponse->MalformedArgsResponse('Requires a list of '.
-					'credentials, and an options field');
+	    GeniResponse->MalformedArgsResponse('lookup SLIVER_INFO requires a list of credentials, and an options field');
     }
-    my ($credential, $speaksfor) =
-	GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
-    return $credential
-	if (GeniResponse::IsResponse($credential));
-    return GeniResponse->MalformedArgsResponse()
-	if (!defined($credential));
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
+    return GeniResponse->MalformedArgsResponse('lookup SLIVER_INFO: no credential found') if (!defined($credential));
 
-    my $this_user =
-	GeniUser->Lookup((defined($speaksfor) ?
-			  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
+    my $this_user = GeniUser->Lookup((defined($speaksfor) ? $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
     if (!defined($this_user)) {
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				    "Who are you? No local record");
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, "Who are you? No local record");
     }
+
     my ($match, $filter) = GeniStd::GetMatchFilter($options);
     
-    if (! (defined($options->{'match'}) &&
-	   defined($options->{'match'}->{'SLIVER_INFO_SLICE_URN'}))) {
-	return
-	    GeniResponse->MalformedArgsResponse('Required match is missing: '.
-						'SLIVER_INFO_SLICE_URN');
+    #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
+    my $checkRes = GeniStd::CheckMatchAllowed('lookup SLIVER_INFO', $match, 
+        ['SLIVER_INFO_SLICE_URN', 'SLIVER_INFO_URN'],
+        ['SLIVER_INFO_EXPIRATION', 'SLIVER_INFO_CREATION'], 
+        ['SLIVER_INFO_AGGREGATE_URN', 'SLIVER_INFO_CREATOR_URN']); 
+    return $checkRes if (GeniResponse::IsError($checkRes));
+    
+    if ((! defined($match->{'SLIVER_INFO_SLICE_URN'}) ) && (! defined($match->{'SLIVER_INFO_URN'}) )) {
+        return GeniResponse->MalformedArgsResponse('You are required to match on either SLIVER_INFO_SLICE_URN or SLIVER_INFO_URN');
     }
-    my $slice = GeniSlice->Lookup($options->{'match'}{'SLIVER_INFO_SLICE_URN'});
-    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
-	if (!defined($slice));
+
+    if (defined($match) && 
+        defined($match->{'SLIVER_INFO_SLICE_URN'}) && 
+        defined($match->{'SLIVER_INFO_URN'})) {
+        return GeniResponse->MalformedArgsResponse('Match on both SLIVER_INFO_SLICE_URN and SLIVER_INFO_URN is not implemented');
+    }
+
+    my $blob = {};
+    if (defined($match) && defined($match->{'SLIVER_INFO_SLICE_URN'})) {
+        my $match_slice_urns = $match->{'SLIVER_INFO_SLICE_URN'};
+        foreach my $slice_urn (@$match_slice_urns) {
+            my $slice = GeniSlice->Lookup($slice_urn);
+            if (defined($slice)) {
+                my $is_slice_member = CheckIfUserIsSliceMember($this_user, $slice);
+                if (!$is_slice_member) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+                        "Only members of a slice can list all slivers for that slice. And you are not a member of slice " . $slice_urn);
+    }
+    
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse("slice");
     }
     my @slivers = GeniSlice::ClientSliver->LookupBySlice($slice);
-    my $blob = {};
     foreach my $sliver (@slivers) {
-	$blob->{$sliver->urn()} = {
-	    'SLIVER_INFO_AGGREGATE_URN' => $sliver->manager_urn(),
-	    'SLIVER_INFO_URN'	        => $sliver->urn(),
-	    'SLIVER_INFO_SLICE_URN'     => $slice->urn(),
-	    'SLIVER_INFO_CREATION'      =>
-		GeniStd::DateTimeGMT($sliver->created()),
-	    'SLIVER_INFO_EXPIRATION'    =>
-	        GeniStd::DateTimeGMT($sliver->expires())
-	};
-	my $user = User->Lookup($sliver->creator_idx());
-	if (defined($user)) {
-	    $user = GeniUser->CreateFromLocal($user);
+                    AddSliverBlob($blob, $sliver, $slice);
 	}
-	if (defined($user)) {
-	    $blob->{$sliver->urn()}->{'SLIVER_INFO_CREATOR_URN'} = $user->urn();
+                $slice->UnLock();
 	}
     }
+    }
+    if (defined($match) && defined($match->{'SLIVER_INFO_URN'})) {
+        my $match_sliver_urns = $match->{'SLIVER_INFO_URN'};
+        foreach my $sliver_urn (@$match_sliver_urns) {
+            my $sliver = GeniSlice::ClientSliver->Lookup($sliver_urn);
+            if (defined($sliver)) {
+                my $slice = GeniSlice->Lookup($sliver->slice_idx());;
+                if (defined($slice)) {
+                    my $is_slice_member = CheckIfUserIsSliceMember($this_user, $slice);
+                    if (!$is_slice_member) {
+                        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+                            "Only members of a slice can list all slivers for that slice. And you are not a member of slice " . $sliver_urn);
+                    }
+
+                    if ($slice->Lock() != 0) {
+                        return GeniResponse->BusyResponse("slice");
+                    }
+                    AddSliverBlob($blob, $sliver, $slice);
     $slice->UnLock();
+                }
+            }
+        }
+    }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 
@@ -514,14 +1087,151 @@ sub ModifyProjectMembership()
 
 sub LookupProjectMembers()
 {
-    return GeniResponse->Create(GENIRESPONSE_NOT_IMPLEMENTED, undef,
-				"Lookup Project is not implemented");
+    my ($project_urn, $credential_args, $options) = @_;
+    if (! defined($project_urn) ||
+        ! defined($credential_args) ||
+        ! defined($options))
+    {
+        return GeniResponse->MalformedArgsResponse('lookup PROJECT members requires a project urn, a list of credentials, and an options field');
 }
+
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+    
+    my $this_user = GeniUser->Lookup((defined($speaksfor) ?  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
+    if (!defined($this_user)) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef, "Who are you? No local record");
+    }
+
+    if(! GeniHRN::IsValid( $project_urn ) ) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid project URN: "'. $project_urn . '"');
+    }
+    my ($authority, $type, $pid) = GeniHRN::Parse( $project_urn );
+
+    if ( ($type ne "project") || !defined($pid)) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid project URN: "'. $project_urn . '"');
+    }
+
+    my $query_result =  DBQueryWarn("select uid,trust from group_membership ".
+        "where pid='$pid'");
+
+    if (!$query_result) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+            "Problem fetching members in this project")
+    }
+
+    my $result = [];
+    my $is_member = 0;
+    while (my ($user_uuid,$trust) = $query_result->fetchrow_array()) {
+        my $geni_role = 'UNKNOWN';
+        $geni_role = 'MEMBER' if $trust eq 'user';
+        $geni_role = 'MEMBER' if $trust eq 'local_root';
+        $geni_role = 'ADMIN' if $trust eq 'group_root';
+        $geni_role = 'ADMIN' if $trust eq 'project_root';
+
+        my $user = User->Lookup("$user_uuid");
+        return undef if (!defined($user));
+        my $geni_user=GeniUser->CreateFromLocal($user);
+        if (defined($geni_user)) {
+            if ($geni_user->urn() eq $this_user->urn()) {
+                $is_member = 1;
+            }
+
+            push(@{ $result }, { 
+                    'PROJECT_MEMBER' => $geni_user->urn(),
+                    'PROJECT_EMULAB_ROLE' => $trust,
+                    'PROJECT_ROLE' => $geni_role
+                });
+        }
+    }
+
+    if (! $is_member) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+            "Only members of a project can list all members for that project");
+    }
+
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $result);
+}
+
 
 sub LookupProjectsForMember()
 {
-    return GeniResponse->Create(GENIRESPONSE_NOT_IMPLEMENTED, undef,
-			      "Lookup Projects for Member is not implemented");
+    my ($member_urn, $credential_args, $options) = @_;
+    if (! defined($member_urn) ||
+        ! defined($credential_args) ||
+        ! defined($options))
+    {
+        my $missing = '';
+        if (! defined($member_urn)) { $missing .= 'member_urn'; }
+        if (! defined($credential_args)) { $missing .= ' credentials'; }
+        if (! defined($options)) { $missing .= ' options'; }
+        return GeniResponse->MalformedArgsResponse('lookup PROJECT for member requires a member urn, a list of credentials, and an options field. Missing: ' . $missing);
+    }
+
+    my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
+    ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
+    return $credential if (GeniResponse::IsResponse($credential));
+    if (! defined($credential) ) {
+        return GeniResponse->MalformedArgsResponse('No valid credential found credential_list argument.');
+    }
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+    
+    my $this_user = GeniUser->Lookup((defined($speaksfor) ?  $speaksfor->target_urn() : $ENV{'GENIURN'}), 1);
+    if (!defined($this_user)) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+            "Who are you? No local record");
+    }
+
+    if(! GeniHRN::IsValid( $member_urn ) ) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid user URN "'.$member_urn . '"');
+    }
+    my ($authority, $type, $username) = GeniHRN::Parse( $member_urn );
+
+    if ( ($type ne "user") || !defined($username)) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid user URN "'.$member_urn . '"');
+    }
+
+    if ($this_user->urn() ne $member_urn) {
+        return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+            "You are forbidden to request project membership for other members");
+    }
+
+    my $query_result =  DBQueryWarn("select pid,trust from group_membership ".
+        "where uid='$username'");
+
+    if (!$query_result) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef, "Problem fetching members in this project")
+    }
+
+    my $result = [];
+    while (my ($project_name, $trust) = $query_result->fetchrow_array()) {
+        my $geni_role = 'UNKNOWN';
+        $geni_role = 'MEMBER' if $trust eq 'user';
+        $geni_role = 'MEMBER' if $trust eq 'local_root';
+        $geni_role = 'ADMIN' if $trust eq 'group_root';
+        $geni_role = 'ADMIN' if $trust eq 'project_root';
+
+        my $project= Project->Lookup("$project_name");
+        return undef if (!defined($project));
+        my $project_urn = GeniHRN::Generate(@OURDOMAIN@, 'project', $project_name);
+        push(@{ $result }, { 
+                'PROJECT_URN' => $project_urn,
+                'PROJECT_ROLE' => $geni_role,
+                'PROJECT_EMULAB_ROLE' => $trust,
+                'EXPIRED' => $coder->boolean(0) 
+            });
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $result);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

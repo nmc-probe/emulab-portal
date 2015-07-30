@@ -46,18 +46,63 @@ use lib '@prefix@/lib';
 use GeniMA;
 use GeniResponse;
 
-$GENI_METHODS = {
-    "get_version"                     => \&GeniMA::GetVersion,
-    "lookup_public_member_info"       => \&GeniMA::LookupPublic,
-    "lookup_private_member_info"      => \&GeniMA::LookupPrivate,
-    "lookup_identifying_member_info"  => \&GeniMA::LookupIdentifying,
-    "update_member_info"              => \&GeniMA::UpdateMember,
-    "get_credentials"                 => \&GeniMA::GetCredentials,
+GeniMA::SetGeniVersion($GENI_VERSION);
 
-    "create_key"                      => \&GeniMA::CreateKey,
-    "delete_key"                      => \&GeniMA::DeleteKey,
-    "update_key"                      => \&GeniMA::UpdateKey,
-    "lookup_keys"                     => \&GeniMA::LookupKeys,
-};
+if (defined($GENI_VERSION)) {
+        if ($GENI_VERSION != 1) {
+            if ($GENI_VERSION != 2) {
+                print STDERR "Invalid API version: $GENI_VERSION\n";
+                print STDERR "Will fall back to API version 2\n";
+                #fallback to version 2
+            }
+            $GENI_METHODS = {
+                 "get_version"                  => \&GeniMA::GetVersion,
+
+                 "create"                       => \&GeniMA::Create,
+                 "lookup"                       => \&GeniMA::Lookup,
+                 "update"                       => \&GeniMA::Update,
+                 "delete"                       => \&GeniMA::Delete,
+    
+                 "get_credentials"              => \&GeniMA::GetCredentials,
+            };
+        } else {
+            $GENI_METHODS = {
+                 "get_version"                     => \&GeniMA::GetVersion,
+                 "lookup_public_member_info"       => \&GeniMA::LookupPublic,
+                 "lookup_private_member_info"      => \&GeniMA::LookupPrivate,
+                 "lookup_identifying_member_info"  => \&GeniMA::LookupIdentifying,
+                 "update_member_info"              => \&GeniMA::UpdateMember,
+                 "get_credentials"                 => \&GeniMA::GetCredentials,
+             
+                 "create_key"                      => \&GeniMA::CreateKey,
+                 "delete_key"                      => \&GeniMA::DeleteKey,
+                 "update_key"                      => \&GeniMA::UpdateKey,
+                 "lookup_keys"                     => \&GeniMA::LookupKeys,
+         };
+     }
+} else {
+    print STDERR "No API version specified in URL\n";
+    print STDERR "Will fall back to supporting both API version 1 and version 2. get_version will fall back to version 2.\n";
+
+    $GENI_METHODS = {
+            "get_version"                     => \&GeniMA::GetVersion,
+            "get_credentials"                 => \&GeniMA::GetCredentials,
+
+            "lookup_public_member_info"       => \&GeniMA::LookupPublic,
+            "lookup_private_member_info"      => \&GeniMA::LookupPrivate,
+            "lookup_identifying_member_info"  => \&GeniMA::LookupIdentifying,
+            "update_member_info"              => \&GeniMA::UpdateMember,
+        
+            "create_key"                      => \&GeniMA::CreateKey,
+            "delete_key"                      => \&GeniMA::DeleteKey,
+            "update_key"                      => \&GeniMA::UpdateKey,
+            "lookup_keys"                     => \&GeniMA::LookupKeys,
+
+            "create"                          => \&GeniMA::Create,
+            "lookup"                          => \&GeniMA::Lookup,
+            "update"                          => \&GeniMA::Update,
+            "delete"                          => \&GeniMA::Delete,
+    };
+}
 
 1;
