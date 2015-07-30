@@ -481,7 +481,7 @@ sub RecordHistory($)
     DBQueryWarn("replace into apt_instance_history ".
 		"select uuid,name,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
-		"       aggregate_urn,public_url,created,now(), ".
+		"       aggregate_urn,public_url,created,now(),0, ".
 		"       extension_count,extension_days, ".
 		"       physnode_count,virtnode_count, ".
 		"       servername,rspec,params,manifest ".

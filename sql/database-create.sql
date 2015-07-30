@@ -163,6 +163,7 @@ CREATE TABLE `apt_instance_history` (
   `public_url` tinytext,
   `created` datetime default NULL,
   `destroyed` datetime default NULL,
+  `expired` tinyint(1) NOT NULL default '0',
   `extension_count` smallint(5) unsigned NOT NULL default '0',
   `extension_days` smallint(5) unsigned NOT NULL default '0',
   `physnode_count` smallint(5) unsigned NOT NULL default '0',
