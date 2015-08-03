@@ -1043,13 +1043,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// multiple manifests, but only need to do this once, on any
 	// one of the manifests.
 	//
-	var UpdateInstructions = function(xml) {
+	var UpdateInstructions = function(xml,uridata) {
 	    var instructionRenderer = new marked.Renderer();
 	    instructionRenderer.defaultLink = instructionRenderer.link;
 	    instructionRenderer.link = function (href, title, text) {
 		var template = UriTemplate.parse(href);
-		var data = MakeUriData(xml);
-		return this.defaultLink(template.expand(data), title, text);
+		return this.defaultLink(template.expand(uridata), title, text);
 	    };
 
 	    // Suck the instructions out of the tour and put them into
@@ -1216,16 +1215,23 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    // Add the instructions from only one manifest.
 	    var gottour = 0;
 
+	    // Save off some templatizing data as we process each manifest.
+	    var uridata = {};
+	    // Save off the last manifest xml blob so we quick process the
+	    // possibly templatized instructions quickly, without reparsing the
+	    // manifest again needlessly.
+	    var xml = null;
+
 	    _.each(json.value, function(manifest, aggregate_urn) {
 		var xmlDoc = $.parseXML(manifest);
-		var xml = $(xmlDoc);
+		xml = $(xmlDoc);
 
-		if (!gottour) {
-		    UpdateInstructions(xml);
-		    gottour = 1;
-		}
+		MakeUriData(xml,uridata);
 		ProcessNodes(aggregate_urn, xml);
 	    });
+
+	    if (xml != null)
+		UpdateInstructions(xml,uridata);
 
 	    /*
 	     * If a single node, show the clone button and maybe the
@@ -1288,18 +1294,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	});
     }
 
-    function MakeUriData(xml)
+    function MakeUriData(xml,uridata)
     {
-	var result = {};
 	xml.find('node').each(function () {
 	    var node = $(this);
 	    var host = node.find('host').attr('name');
 	    if (host) {
 		var key = 'host-' + node.attr('client_id');
-		result[key] = host;
+		uridata[key] = host;
 	    }
 	});
-	return result;
     }
 
     function ShowProgressModal()
