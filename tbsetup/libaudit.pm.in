@@ -33,6 +33,7 @@ use Exporter;
 	 LogStart LogEnd LogAbort AuditDisconnect AuditPrefork
 	 LIBAUDIT_NODAEMON LIBAUDIT_DAEMON LIBAUDIT_LOGONLY
 	 LIBAUDIT_NODELETE LIBAUDIT_FANCY LIBAUDIT_LOGTBOPS LIBAUDIT_LOGTBLOGS
+	 LIBAUDIT_DEBUG
        );
 
 # After package decl.
@@ -101,6 +102,21 @@ if (my ($name,undef,undef,undef,undef,undef,$gcos) = getpwuid($UID)) {
 }
 
 #
+# Debugging audit is a pain.
+#
+my $debugfile;
+
+sub DebugAudit($)
+{
+    my ($msg) = @_;
+    
+    if (defined($debugfile)) {
+	system("/bin/date >> $debugfile");
+	system("/bin/echo '$msg' >> $debugfile");
+    }
+}
+
+#
 # Options to AuditStart.
 #
 sub LIBAUDIT_NODAEMON	{ 0; }
@@ -111,6 +127,7 @@ sub LIBAUDIT_FANCY      { 0x08; } # Only use if libdb and libtblog are
                                   # already in use
 sub LIBAUDIT_LOGTBOPS	{ 0x10; }
 sub LIBAUDIT_LOGTBLOGS	{ 0x20; }
+sub LIBAUDIT_DEBUG	{ 0x40; }
 
 #
 # Start an audit (or log) of a script. First arg is a flag indicating if
@@ -135,6 +152,9 @@ sub AuditStart($;$$)
     if (defined($options)) {
 	if ($options & LIBAUDIT_NODELETE()) {
 	    $savelog = 1;
+	}
+	if ($options & LIBAUDIT_DEBUG()) {
+	    $debugfile = "/var/tmp/auditdebug.$$";
 	}
 	if ($options & LIBAUDIT_LOGONLY()) {
 	    $logonly = 1;
@@ -329,7 +349,7 @@ sub AuditAbort()
 	}
 	delete @ENV{'TBAUDITLOG', 'TBAUDITON'};
 
-	touch($prefork)
+	system("/usr/bin/touch $prefork")
 	    if (defined($prefork));
     }
     return 0;
@@ -372,7 +392,7 @@ sub AuditFork()
 
     open(LOG, ">> $logfile") or
 	die("opening $logfile for $logfile: $!");
-	
+
     close(STDOUT);
     close(STDERR);
     POSIX::dup2(fileno(LOG), 1);
@@ -395,9 +415,11 @@ sub AuditFork()
     #
     if (!$daemon && $PERL_VERSION >= 5.008) {
 	close($libaudit::SAVE_STDOUT)
-	    if ($libaudit::SAVE_STDOUT);
+	    if ($libaudit::SAVE_STDOUT &&
+		fileno($libaudit::SAVE_STDOUT) != 1);
 	close($libaudit::SAVE_STDERR)
-	    if ($libaudit::SAVE_STDERR);
+	    if ($libaudit::SAVE_STDERR &&
+		fileno($libaudit::SAVE_STDERR) != 2);
 	$libaudit::SAVE_STDOUT = 0;
 	$libaudit::SAVE_STDERR = 0;
     }
