@@ -191,7 +191,8 @@ if (!defined($this_user) || !$this_user->IsAdmin()) {
 
 # Email record.
 if (! $debug) {
-    AuditStart(0, undef, LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY());
+    my $opts = LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY();
+    AuditStart(0, undef, $opts);
     #
     # Once we determine the project, we can add the appropriate log CC
     #
@@ -578,6 +579,10 @@ elsif (!$localuser) {
 #
 if (!$debug) {
     AddAuditInfo("cc", $project->LogsEmailAddress());
+    if ($MAINSITE && $project->isEmulab()) {
+	# Mostly people use the Cloudlab UI.
+	AddAuditInfo("cc", "cloudlab-logs\@cloudlab.us");
+    }
 }
 
 # There will be "internal" keys cause we pass the flag asking for them.
