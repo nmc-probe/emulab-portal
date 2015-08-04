@@ -134,15 +134,12 @@ my $debug  = 0;
 # Local Functions
 #
 sub getSliceList();
-sub parseSliceName($);
-sub parseSlicePath($);
-sub calcSliceSizes($);
 sub restartIstgt();
 sub getIfConfig($);
 sub getVlan($);
 sub getNextAuthITag();
 sub genSerial();
-sub findAuthITag($);
+sub findAuthITag($;$);
 sub createVlanInterface($$);
 sub removeVlanInterface($$);
 sub setupIPAlias($;$);
@@ -286,7 +283,7 @@ sub vnodeCreate($$$$)
 
     # Create vmid from the vnode's name.
     my $vmid;
-    if ($vnode_id =~ /^\w+\d+\-(\d+)$/) {
+    if ($vnode_id =~ /^\w+\-(\d+)$/) {
 	$vmid = $1;
     } else {
 	fatal("blockstore_vnodeCreate: ".
@@ -537,99 +534,8 @@ sub runBlockstoreCmds($$$) {
     return 0;
 }
 
-# Yank information about blockstore slices out of FreeNAS.
-# Note: this is an expensive call - may want to re-visit caching some of
-# this later if performance becomes a problem.
 sub getSliceList() {
-    my $sliceshash = {};
-
-    # Grab list of slices (iscsi extents) from FreeNAS
-    my @slist = freenasParseListing($FREENAS_CLI_VERB_IST_EXTENT);
-
-    # Just return if there are no slices.
-    return if !@slist;
-
-    # Go through each slice hash, culling out extra info.
-    # Save hash in global list.  Throw out malformed stuff.
-    foreach my $slice (@slist) {
-	my ($pid,$eid,$volname) = parseSliceName($slice->{'name'});
-	my ($bsid, $vnode_id) = parseSlicePath($slice->{'path'});
-	if (!defined($pid) || !defined($bsid)) {
-	    warn("*** WARNING: blockstore_getSliceList: ".
-		 "malformed slice entry, skipping.");
-	    next;
-	}
-	$slice->{'pid'} = $pid;
-	$slice->{'eid'} = $eid;
-	$slice->{'volname'} = $volname;
-	$slice->{'bsid'} = $bsid;
-	$slice->{'vnode_id'} = $vnode_id;
-	$sliceshash->{$vnode_id} = $slice;
-    }
-
-    # Do the messy work of getting slice size info into mebibytes.
-    calcSliceSizes($sliceshash);
-
-    return $sliceshash;
-}
-
-# helper function.
-# Slice names look like: 'iqn.<date>.<tld>.<domain>:<pid>:<eid>:<volname>'
-sub parseSliceName($) {
-    my $name = shift;
-    my @parts = split(/:/, $name);
-    if (scalar(@parts) != 4) {
-	warn("*** WARNING: blockstore_parseSliceName: Bad slice name: $name");
-	return undef;
-    }
-    shift @parts;
-    return @parts;
-}
-
-# helper function.
-# Paths look like this: '/mnt/<blockstore_id>/<vnode_id>' for file-based
-# extent (slice), and 'zvol/<blockstore_id>/<vnode_id>' for zvol extents.
-sub parseSlicePath($) {
-    my $path = shift;
-
-    my @parts = split(/\//, $path);
-    shift @parts
-	if (scalar(@parts) == 4 && !$parts[0]); # chomp leading slash part
-    if (scalar(@parts) != 3 ||  $parts[0] !~ /^(mnt|zvol)$/i) {
-	warn("*** WARNING: blockstore_parseSlicePath: ".
-	     "malformed slice path: $path");
-	return undef;
-    }
-    shift @parts;
-    return @parts;
-}
-
-sub calcSliceSizes($) {
-    my $sliceshash = shift;
-
-    # Ugh... Have to look up size via the "volume" list for zvol slices.
-    my $zvollist = freenasVolumeList(0, 0);
-
-    foreach my $slice (values(%$sliceshash)) {
-	my $vnode_id = $slice->{'vnode_id'};
-	my $type = lc($slice->{'type'});
-
-	if ($type eq "zvol") {
-	    if (!exists($zvollist->{$vnode_id})) {
-		warn("*** WARNING: blockstore_calcSliceList: ".
-		     "Could not find matching volume entry ($vnode_id) for ".
-		     "zvol slice: $slice->{'name'}");
-		next;
-	    }
-	    # already converted to Mebi
-	    $slice->{'size'} = $zvollist->{$vnode_id}->{'size'};
-	} elsif ($type eq "file") {
-	    my $size = $slice->{'filesize'};
-	    $size =~ s/B$/iB/; # re-write with correct units.
-	    $slice->{'size'} = convertToMebi($size);
-	}
-    }
-    return;
+    return freenasSliceList();
 }
 
 # Helper function - restart the ISTGT process to reconfigure iSCSI stuff.
@@ -872,14 +778,22 @@ sub exportSlice($$$$) {
     # The "else" code is left just in case we need it again in the future.
     #
     if (!exists($priv->{'iname'})) {
+	#
 	# Create iSCSI extent.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
-			     "add $iqn $pool/$volume") };
-	if ($@) {
+	#
+	my $res = freenasRequest($FREENAS_API_RESOURCE_IST_EXTENT,
+				 "POST", undef,
+				 {"iscsi_target_extent_name" => $iqn,
+				  "iscsi_target_extent_type" => "Disk",
+				  "iscsi_target_extent_disk" => "zvol/$pool/$volume"});
+	if (!$res) {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Failed to create iSCSI extent: $@");
 	    return -1;
 	}
+
+	# save the index for making a target association
+	my $eindex = $res->{'id'};
 
 	# Create iSCSI auth group
 	my $tag = getNextAuthITag();
@@ -889,6 +803,15 @@ sub exportSlice($$$$) {
 	    return -1;
 	}
 	$tag = $1; # untaint.
+
+	#
+	# Create an authorized initiator.
+        #
+	# XXX sigh...once again the FreeNAS API does not work, it just
+	# returns status 302 with reason "FOUND" which is normally a
+	# redirect to a new location (but it returns the same location
+	# in this case).
+	#
 	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
 			     "add $tag ALL $network/$cmask $tag_ident") };
 	if ($@) {
@@ -897,21 +820,39 @@ sub exportSlice($$$$) {
 	    return -1;
 	}
 
-	# Create iSCSI target
+	#
+	# Create iSCSI target.
+	#
+	# XXX ugh, FreeNAS 9.3 no longer supports RO iSCSI targets?
+	# This is not just an API thing, you cannot do it through the
+	# GUI either!
+	#
 	my $serial = genSerial();
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
-			     "add $iqn $serial $ISCSI_GLOBAL_PORTAL ".
-			     "$tag Auto -1 flags=$perm") };
-	if ($@) {
+	$res = freenasRequest($FREENAS_API_RESOURCE_IST_TARGET,
+			      "POST", undef,
+			      {"iscsi_target_name" => $iqn,
+			       "iscsi_target_portalgroup" => $ISCSI_GLOBAL_PORTAL,
+			       "iscsi_target_initiatorgroup" => $tag,
+			       "iscsi_target_authtype" => "None",
+			       "iscsi_target_serial" => $serial});
+	if (!$res) {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Failed to create iSCSI target: $@");
 	    return -1;
 	}
+	if (!exists($res->{'id'})) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "No index for iSCSI target we just created!?");
+	    return -1;
+	}
+	my $tindex = $res->{'id'};
 
 	# Bind iSCSI target to slice (extent)
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_ASSOC,
-			     "add $iqn $iqn") };
-	if ($@) {
+	$res = freenasRequest($FREENAS_API_RESOURCE_IST_ASSOC,
+			      "POST", undef,
+			      {"iscsi_target" => $tindex,
+			       "iscsi_extent" => $eindex});
+	if (!$res) {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Failed to associate iSCSI target with extent: $@");
 	    return -1;
@@ -935,23 +876,17 @@ sub exportSlice($$$$) {
 
 	# Check current use mode - must not be RW.  Searching for the
 	# target entry serves as a sanity check as well.
-	my $found = 0;
-	my @ist_list = freenasParseListing($FREENAS_CLI_VERB_IST_TARGET);
-	foreach my $ist (@ist_list) {
-	    if ($ist->{'name'} eq $iqn) {
-		if ($ist->{'flags'} ne "ro") {
-		    warn("*** ERROR: blockstore_exportSlice: $volname: ".
-			 "Cannot re-export in-use RW dataset!");
-		    return -1;
-		} else {
-		    $found = 1;
-		    last;
-		}
-	    }
-	}
-	if (!$found) {
+	my $targets = freenasTargetList(1);
+	if (!exists($targets->{$iqn})) {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Couldn't find the iSCSI target while attempting re-export!");
+	    return -1;
+	}
+	# XXX should check for RO vs RW, but that is not exposed by
+	# FreeNAS as of 9.3
+	if (0) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Cannot re-export in-use RW dataset!");
 	    return -1;
 	}
 
@@ -1001,20 +936,22 @@ sub exportSlice($$$$) {
 
 # Helper function.
 # Locate and return tag for given identifier, if it exists.
-sub findAuthITag($) {
-    my ($ident,) = @_;
+sub findAuthITag($;$) {
+    my ($ident,$idxp) = @_;
 
     return undef
 	if !defined($ident);
 
-    my @authentries = freenasParseListing($FREENAS_CLI_VERB_IST_AUTHI);
+    my $aiinfo = freenasAuthInitList();
 
-    return undef
-	if !@authentries;
-
-    foreach my $authent (@authentries) {
-	if ($authent->{'comment'} eq $ident) {
-	    return $authent;
+    foreach my $ai (keys %{$aiinfo}) {
+	my $aient = $aiinfo->{$ai};
+	if (exists($aient->{'comment'}) && $aient->{'comment'} eq $ident &&
+	    exists($aient->{'tag'})) {
+	    if ($idxp) {
+		$$idxp = $aient->{'id'};
+	    }
+	    return $aient;
 	}
     }
 
@@ -1024,19 +961,21 @@ sub findAuthITag($) {
 # Helper function.
 # Locate and return next unused tag ID for iSCSI initiator groups.
 sub getNextAuthITag() {
-    my @authentries = freenasParseListing($FREENAS_CLI_VERB_IST_AUTHI);
+    my $aiinfo = freenasAuthInitList();
+
+    my @taglist = ();
+    foreach my $ai (keys %{$aiinfo}) {
+	my $tag = $aiinfo->{$ai}->{'tag'};
+	if (defined($tag) && $tag =~ /^(\d+)$/) {
+	    push(@taglist, $1);
+	}
+    }
 
     my $freetag = 1;
-
-    return $freetag
-	if !@authentries;
-
-    foreach my $curtag (sort {$a <=> $b} map {$_->{'tag'}} @authentries) {
-	next if (!defined($curtag) || $curtag !~ /^\d+$/);
-	if ($freetag < $curtag) {
-	    last;
-	}
-	$freetag += 1;
+    foreach my $curtag (sort {$a <=> $b} @taglist) {
+	last
+	    if ($freetag < $curtag);
+	$freetag++;
     }
 
     return $freetag;
@@ -1348,7 +1287,8 @@ sub unexportSlice($$$$) {
     # modify the set of authorized initiators.
     my $authtag = 0;
     my @pruned_networks = ();
-    my $curtag = findAuthITag($tag_ident);
+    my $authidx;
+    my $curtag = findAuthITag($tag_ident,\$authidx);
     if ($curtag && $curtag->{'tag'} =~ /^(\d+)$/) {
 	$authtag = $1; # untaint;
 	@pruned_networks = grep {!/^$network\/$cmask$/} split(/\s+/, $curtag->{'auth_network'});
@@ -1357,38 +1297,48 @@ sub unexportSlice($$$$) {
     # If there are no networks left in the authorized initiators list, then
     # we are completely done with this export - tear it down!
     if (!@pruned_networks) {
-	# Remove iSCSI target to extent mapping.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_ASSOC,
-			     "del $iqn $iqn") };
-	if ($@) {
+	my ($associd,$targetid,$extentid,$msg);
+	my $assocs = freenasAssocList();
+	foreach my $aid (keys %$assocs) {
+	    if (exists($assocs->{$aid}->{'target_name'}) &&
+		$assocs->{$aid}->{'target_name'} eq $iqn &&
+		exists($assocs->{$aid}->{'extent_name'}) &&
+		$assocs->{$aid}->{'extent_name'} eq $iqn) {
+		$associd = $aid;
+		$targetid = $assocs->{$aid}->{'target'};
+		$extentid = $assocs->{$aid}->{'extent'};
+		last;
+	    }
+	}
+	if (!$associd ||
+	    !freenasRequest("$FREENAS_API_RESOURCE_IST_ASSOC/$associd",
+			    "DELETE", undef, undef, undef, \$msg)) {
 	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-		 "Failed to disassociate iSCSI target with extent: $@");
+		 "Failed to disassociate iSCSI target with extent:\n$msg");
 	}
 
 	# Remove iSCSI target.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_TARGET,
-			     "del $iqn") };
-	if ($@) {
+	if (!$targetid ||
+	    !freenasRequest("$FREENAS_API_RESOURCE_IST_TARGET/$targetid",
+			    "DELETE", undef, undef, undef, \$msg)) {
 	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-		 "Failed to remove iSCSI target: $@");
+		 "Failed to remove iSCSI target:\n$msg");
 	}
 
 	# Remove iSCSI auth group
-	if ($authtag) {
-	    eval { freenasRunCmd($FREENAS_CLI_VERB_IST_AUTHI,
-				 "del $authtag") };
-	    if ($@) {
-		warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-		     "Failed to remove iSCSI auth group: $@");
-	    }
+	if (!$authidx ||
+	    !freenasRequest("$FREENAS_API_RESOURCE_IST_AUTHI/$authidx",
+			    "DELETE", undef, undef, undef, \$msg)) {
+	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
+		 "Failed to remove iSCSI auth group:\n$msg");
 	}
 
 	# Remove iSCSI extent.
-	eval { freenasRunCmd($FREENAS_CLI_VERB_IST_EXTENT, 
-			     "del $iqn") };
-	if ($@) {
+	if (!$extentid ||
+	    !freenasRequest("$FREENAS_API_RESOURCE_IST_EXTENT/$extentid",
+			    "DELETE", undef, undef, undef, \$msg)) {
 	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
-		 "Failed to remove iSCSI extent: $@");
+		 "Failed to remove iSCSI extent:\n$msg");
 	}
     }
     # This export is still referenced, so leave export but update the
