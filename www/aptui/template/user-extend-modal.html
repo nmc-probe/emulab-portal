@@ -21,12 +21,27 @@
                 <div class='col-xs-12'>
                   <div id='extend_slider'></div>
                 </div> <!-- /col -->
-                <div class='col-sm-3'>
-                  <h5>Node-Hours&nbsp;<a href='#' class='btn btn-xs' data-toggle='modal'
-                      data-target='#myusage_modal'>
-                      <span class='glyphicon glyphicon-question-sign'></span>
-                    </a>
-                  </h5>
+                <div class='col-sm-3' id='myusage-info'>
+                  <span style='font-weight: 500;'>Node-Hours&nbsp;<span>
+		    <a href='#' class='btn btn-xs' id='myusage-popover'
+		       data-toggle='popover'
+		       data-html='true'
+		       data-placement='auto'
+		       data-content='
+		       <p>
+			 Usage is tracked in terms of <em>node hours</em>:
+			 the number of nodes multiplied by the number of
+			 hours they are allocated.
+		       </p>
+		       <p> 
+			 You can find your current usage by selecting <b>My
+			   Experiments</b> from the <b>Actions</b> menu. You
+			 can view your historical usage by selecting <b>My
+			   History</b>.
+		       </p>'> 
+		      <span class='glyphicon glyphicon-question-sign' 
+			    style='margin-bottom: 4px;'></span> 
+		    </a></span>
                 </div>
                 <div class='col-xs-4 form-inline'>
                   <div class="form-group">
