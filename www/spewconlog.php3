@@ -106,12 +106,13 @@ if (! $fp) {
     USERERROR("Spew console log failed!", 1);
 }
 
-header("Content-Type: text/plain; charset=us-ascii");
-header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
-header("Cache-Control: no-cache, must-revalidate");
-header("Pragma: no-cache");
+echo "<html>
+       <head>
+        <meta http-equiv='Content-Type' content='text/html; charset=UTF-8' />
+        <title>Console log for $node_id</title>    
+       </head>
+       <body><pre>\n";
 flush();
-
 while (!feof($fp)) {
     $string = fgets($fp, 1024);
     echo "$string";
@@ -119,5 +120,6 @@ while (!feof($fp)) {
 }
 pclose($fp);
 $fp = 0;
+echo "</pre></body></html>\n";
 
 ?>
