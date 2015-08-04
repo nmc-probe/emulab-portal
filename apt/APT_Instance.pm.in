@@ -29,10 +29,15 @@ use English;
 use Data::Dumper;
 use POSIX qw(tmpnam);
 use Exporter;
-use vars qw(@ISA @EXPORT $AUTOLOAD);
-
+use vars qw(@ISA @EXPORT $AUTOLOAD
+	    $RECORDHISTORY_TERMINATED $RECORDHISTORY_EXPIRED);
 @ISA    = "Exporter";
-@EXPORT = qw ( );
+
+# RecordHistory flags.
+$RECORDHISTORY_TERMINATED	= 0x00;
+$RECORDHISTORY_EXPIRED		= 0x01;
+
+@EXPORT = qw($RECORDHISTORY_TERMINATED $RECORDHISTORY_EXPIRED);
 
 # Must come after package declaration!
 use EmulabConstants;
@@ -469,10 +474,12 @@ sub Profile($)
 # Record a history entry.
 # We do this when the instance is terminated. 
 #
-sub RecordHistory($)
+
+sub RecordHistory($$)
 {
-    my ($self) = @_;
+    my ($self, $flags) = @_;
     my $uuid = $self->uuid();
+    my $expired = ($flags ? 1 : 0);
 
     DBQueryWarn("replace into apt_instance_aggregate_history ".
 		"select * from apt_instance_aggregates where uuid='$uuid'")
@@ -481,7 +488,7 @@ sub RecordHistory($)
     DBQueryWarn("replace into apt_instance_history ".
 		"select uuid,name,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
-		"       aggregate_urn,public_url,created,now(),0, ".
+		"       aggregate_urn,public_url,created,now(),$expired, ".
 		"       extension_count,extension_days, ".
 		"       physnode_count,virtnode_count, ".
 		"       servername,rspec,params,manifest ".

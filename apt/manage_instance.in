@@ -697,6 +697,17 @@ sub DoTerminate()
 {
     my $errmsg;
     my $logfile;
+    my $expired = $RECORDHISTORY_TERMINATED;
+
+    if (@ARGV) {
+	my $arg = shift(@ARGV);
+	if ($arg eq "-e") {
+	    $expired = $RECORDHISTORY_EXPIRED;
+	}
+	else {
+	    usage();
+	}
+    }
     
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
@@ -793,7 +804,7 @@ sub DoTerminate()
     }
     
     $slice->Delete();
-    $instance->RecordHistory();
+    $instance->RecordHistory($expired);
   killit:
     $instance->Delete();
     unlink($logfile)
@@ -1057,7 +1068,7 @@ sub DoRefresh()
     $slice->UnLock();
     exit(0);
   killit:
-    $instance->RecordHistory();
+    $instance->RecordHistory($RECORDHISTORY_TERMINATED);
     $instance->Delete();
     exit(0);
   bad:
@@ -1210,7 +1221,7 @@ sub DoRebootOrReload($)
     StartMonitor();
     exit(0);
   killit:
-    $instance->RecordHistory();
+    $instance->RecordHistory($RECORDHISTORY_TERMINATED);
     $instance->Delete();
     exit(0);
   bad:
