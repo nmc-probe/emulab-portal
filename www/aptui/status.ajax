@@ -190,16 +190,19 @@ function Do_TerminateInstance()
             return;
         }
     }
-    # This needs work.
+    # We do not want to see the busy errors, and that is the only error
+    # that gets returned, that is not also emailed by the script. So just
+    # use the ignore option.
     $retval = SUEXEC("nobody", "nobody",
                      "webmanage_instance terminate $uuid",
-                     SUEXEC_ACTION_CONTINUE);
+                     SUEXEC_ACTION_IGNORE);
 
     if ($retval == 0) {
 	SPITAJAX_RESPONSE("");
 	return;
     }
-    SPITAJAX_ERROR(-1, "Unable to Terminate; please try again later");
+    SPITAJAX_ERROR(-1, "Your experiment is probably busy, ".
+        "please try again later.");
 }
 
 #
