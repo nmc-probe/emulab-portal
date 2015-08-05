@@ -254,7 +254,7 @@ sub ExpireInstances()
 	}
 	# Use debug option to keep it from going into the background.
 	my $output = emutil::ExecQuiet("$SUDO -u $PROTOUSER ".
-				       "$MANAGEINSTANCE -d terminate $uuid");
+				       "$MANAGEINSTANCE -d terminate $uuid -e");
 	my $status = $?;
 	print STDERR "$output\n"
 	    if ($output ne "");
