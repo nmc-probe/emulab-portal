@@ -131,6 +131,7 @@ my $ALIASMASK            = "255.255.255.255";
 my $LINUX_MKFS		 = "/usr/local/sbin/mke2fs";
 my $FBSD_MKFS		 = "/sbin/newfs";
 my $API_AUTHINFO	 = "$ETCDIR/freenas-api.auth";
+my $API_SERVERIP	 = "/var/emulab/boot/myip";
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -158,6 +159,7 @@ my %cliverbs = (
 #
 my $debug  = 0;
 my $auth;
+my $server;
 
 sub freenasPoolList();
 sub freenasVolumeList($;$);
@@ -245,6 +247,19 @@ sub freenasRequest($;$$$$$)
 	$auth = $1;
     }
 
+    # XXX use the node's IP rather than "localhost" if possible
+    if (!$server) {
+	$server = "localhost";
+	if (-e "$API_SERVERIP" && open(FD, "<$API_SERVERIP")) {
+	    $server = <FD>;
+	    close(FD);
+	    chomp $server;
+	    if ($server =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
+		$server = $1;
+	    }
+	}
+    }
+
     $method = "GET"
 	if (!defined($method));
 
@@ -261,7 +276,7 @@ sub freenasRequest($;$$$$$)
 	}
     }
 
-    my $url = "http://localhost/api/v1.0/$resource/$paramstr";
+    my $url = "http://$server/api/v1.0/$resource/$paramstr";
     print STDERR "freenasRequest: URL: $url\nCONTENT: $datastr\n"
 	if ($debug);
 
