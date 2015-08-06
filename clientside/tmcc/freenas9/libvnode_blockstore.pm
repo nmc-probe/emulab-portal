@@ -1231,14 +1231,14 @@ sub removeVlanInterface($$) {
     # Does the vlan interface exist?  Nothing to do if it doesn't!
     if (!getVlan($vtag)) {
 	warn("*** WARNING: blockstore_removeVlanInterface: ".
-	     "Vlan entry does not exist...");
+	     "Vlan entry for $vtag does not exist...");
 	return 0;
     }
 
     if (!addressExists($viface)) {
 	if (system("$IFCONFIG $viface destroy") != 0) {
 	    warn("*** ERROR: blockstore_removeVlanInterface: ".
-		 "failure while removing vlan interface: $?");
+		 "failure while removing $viface interface: $?");
 	}
     }
 
@@ -1310,6 +1310,9 @@ sub unexportSlice($$$$) {
 		last;
 	    }
 	}
+
+	# Remove association
+	$msg = "assoc for $iqn not found\n";
 	if (!$associd ||
 	    !freenasRequest("$FREENAS_API_RESOURCE_IST_ASSOC/$associd",
 			    "DELETE", undef, undef, undef, \$msg)) {

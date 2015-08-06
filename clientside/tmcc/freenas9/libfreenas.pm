@@ -329,6 +329,8 @@ sub freenasRequest($;$$$$$)
 			$content = $cref->{'__all__'};
 		    } elsif (exists($cref->{'error'})) {
 			$content = $cref->{'error'};
+		    } elsif (exists($cref->{'error_message'})) {
+			$content = $cref->{'error_message'};
 		    }
 		} elsif ($cref) {
 		    $content = $cref;
