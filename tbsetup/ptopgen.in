@@ -472,6 +472,9 @@ while (my ($cnode, $ccard, $cport, $ciface, $enode, $ecard, $eport, $eiface,
 	   $external_manager_urn,
 	   $external_network_id, $external_network_iface_urn,
        $external_network_link_urn, $subport, $speed1, $speed2) = $result->fetchrow_array) {
+    # Might not have an interface entry for one side or the other.
+    $speed1 = 0 if (!defined($speed1));
+    $speed2 = 0 if (!defined($speed2));
     # Speed is the lesser of the interface speeds
     my $speed = $speed1;
     if ($speed1 == 0 ||
