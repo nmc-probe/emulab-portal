@@ -402,10 +402,31 @@ sub LookupSlices()
 
     #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
     my $checkRes = GeniStd::CheckMatchAllowed('lookup SLICE', $match, 
-        ['SLICE_URN'],
+        ['SLICE_URN', 'SLICE_EXPIRED'],
         ['SLICE_CREATION', 'SLICE_EXPIRATION', 'SLICE_NAME', 'SLICE_DESCRIPTION'], 
-        ['SLICE_UID', 'SLICE_EXPIRED', 'SLICE_PROJECT_URN', '_EMULAB_SLICE_HRN']); 
+        ['SLICE_UID', 'SLICE_PROJECT_URN', '_EMULAB_SLICE_HRN']); 
     return $checkRes if (GeniResponse::IsError($checkRes));
+
+    my $match_is_expired = 0;
+    my $match_is_not_expired = 0;
+    if (defined($match) && defined($match->{'SLICE_EXPIRED'})) {
+        my $match_slice_expired = $match->{'SLICE_EXPIRED'};
+        foreach my $key (@$match_slice_expired) {
+            if (ref($key) =~ /^Frontier::RPC2::Boolean/ ) {
+                $key = $key->value;
+            }
+            my $str = lc($key);
+            if ($str eq 'false' || $str eq 'no' || !$key) {
+                $match_is_not_expired = 1;
+            } else {
+                $match_is_expired = 1;
+            }
+        }
+    }
+    if (!$match_is_expired && !$match_is_not_expired) {
+        $match_is_expired = 1;
+        $match_is_not_expired = 1;
+    }
 
     my $members = {};
     if (defined($match) && defined($match->{'SLICE_URN'})) {
@@ -424,7 +445,18 @@ sub LookupSlices()
 		}
 		}
 
+            my $matches_expired = 0;
             if (defined($slice)) {
+                my $slice_expired = $slice->IsExpired() ? 1 : 0;
+                if ($match_is_not_expired && !$slice_expired) {
+                    $matches_expired = 1;
+                }
+                if ($match_is_expired && $slice_expired) {
+                    $matches_expired = 1;
+                }
+           }
+
+            if (defined($slice) && $matches_expired) {
                 my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
                 my @slice_auth_parts = split(':', $slice_authority);
                 my $slice_auth_parts_size = scalar @slice_auth_parts;
