@@ -1,0 +1,32 @@
+#
+# Image import and IMS stuff.
+#
+use strict;
+use libdb;
+
+sub DoUpdate($$$)
+{
+    my ($dbhandle, $dbname, $version) = @_;
+
+    if (!DBSlotExists("image_versions", "origin_urn")) {
+	DBQueryFatal("alter table image_versions add ".
+		     " `origin_urn` varchar(128) default NULL ".
+		     "   after imagefile_url");
+    }
+    if (!DBSlotExists("image_versions", "origin_uuid")) {
+	DBQueryFatal("alter table image_versions add ".
+		     " `origin_uuid` varchar(64) default NULL ".
+		     "   after origin_urn");
+    }
+    if (!DBSlotExists("image_versions", "origin_neednotify")) {
+	DBQueryFatal("alter table image_versions add ".
+		     " `origin_neednotify` tinyint(1) NOT NULL default '0' ".
+		     "   after origin_uuid");
+    }
+    return 0;
+}
+1;
+
+# Local Variables:
+# mode:perl
+# End:
