@@ -114,6 +114,7 @@ my @GENIRESPONSE_STRINGS =
      "Vlan Unavailable",
      "Insufficient Bandwidth",
      "Insufficient Nodes",
+     "Insufficient Memory",
     );
 $GENIRESPONSE_STRINGS[GENIRESPONSE_NOT_IMPLEMENTED] = "Not Implemented";
 sub GENIRESPONSE_STRING($)
