@@ -13,10 +13,15 @@ sub DoUpdate($$$)
 		     " `origin_urn` varchar(128) default NULL ".
 		     "   after imagefile_url");
     }
+    if (!DBSlotExists("image_versions", "origin_name")) {
+	DBQueryFatal("alter table image_versions add ".
+		     " `origin_name` varchar(128) default NULL ".
+		     "   after origin_urn");
+    }
     if (!DBSlotExists("image_versions", "origin_uuid")) {
 	DBQueryFatal("alter table image_versions add ".
 		     " `origin_uuid` varchar(64) default NULL ".
-		     "   after origin_urn");
+		     "   after origin_name");
     }
     if (!DBSlotExists("image_versions", "origin_neednotify")) {
 	DBQueryFatal("alter table image_versions add ".

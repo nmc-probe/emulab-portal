@@ -2121,6 +2121,7 @@ CREATE TABLE `image_versions` (
   `metadata_url` tinytext,
   `imagefile_url` tinytext,
   `origin_urn` varchar(128) default NULL,
+  `origin_name` varchar(128) default NULL,
   `origin_uuid` varchar(64) default NULL,
   `origin_neednotify` tinyint(1) NOT NULL default '0',
   `logfileid` varchar(40) default NULL,
