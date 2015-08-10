@@ -23,6 +23,16 @@ sub DoUpdate($$$)
 		     " `origin_neednotify` tinyint(1) NOT NULL default '0' ".
 		     "   after origin_uuid");
     }
+
+    my $var = "protogeni/use_imagetracker";
+    if (!TBSiteVarExists($var)) {
+	my $desc   = "Enable use of the image tracker.";
+	my $defval = "0";
+
+	DBQueryFatal("INSERT INTO sitevariables VALUES ".
+                     "('$var',NULL,'$defval','$desc',0)");
+    }
+    
     return 0;
 }
 1;
