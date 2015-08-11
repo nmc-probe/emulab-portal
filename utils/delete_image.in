@@ -230,8 +230,8 @@ if ($purge || $rename) {
 	    }
 	}
 	else {
-	    my $newname = $dirname . 
-		"/" . $image->imagename() . ":" . $image->imageid();
+	    my $newname = dirname($dirname) . "/" . basename($dirname) .
+		":" . $image->imageid();
 
 	    if ($impotent) {
 		print "Would rename $dirname to $newname\n" if (-e $dirname);
