@@ -106,7 +106,7 @@ function ShowByCreator()
                                                        "pcount" => 0,
                                                        "phours" => 0));
         }
-        if ($cluster == "MS" || $cluster == "DDC") {
+        if ($cluster == "Emulab" || $cluster == "DDC") {
             next;
         }
         $uid_array[$uid]["ecount"] += $ecount;
@@ -276,7 +276,7 @@ function ShowByProject()
                                                        "pcount" => 0,
                                                        "phours" => 0));
         }
-        if ($cluster == "MS" || $cluster == "DDC") {
+        if ($cluster == "Emulab" || $cluster == "DDC") {
             next;
         }
         $pid_array[$pid]["ecount"] += $ecount;
