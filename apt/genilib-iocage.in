@@ -1,0 +1,332 @@
+#!/usr/bin/perl -w
+
+#
+# Copyright (c) 2015 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use BSD::Resource;
+use POSIX qw(:signal_h);
+use File::Basename;
+    
+#
+# Fire up an instance of a FreeBSD jail to run a geni-lib script.
+# Since we must be invoked as root, the caller is responsible for all
+# permission checks.
+#
+# We use iocage to manage jails. We have a template jail instance that
+# has python, geni-lib, etc. in it. We clone that per-call to execute
+# the geni-lib script. Pretty fast since ZFS is used to clone the filesystem
+# and the jail runs essentially no daemons.
+#
+# XXX Note that although iocage supports resource limits, we don't use them
+# right now because it requires a non-standard option to the kernel (that
+# we don't have compiled in). So for the moment, we let our caller apply
+# any CPU limits. Here are the limits set on the template (in the event we
+# someday start using them):
+#	cputime="600:sigkill"
+#	maxproc="100:deny"
+#	memoryuse="1G:deny"
+# see rctl(8) for details.
+#
+# XXX Note that we don't use the passed-in user either. We just run the
+# script as "nobody" in the jail. We can add the user's account to the
+# jail if that proves necessary.
+#
+
+my $CMD_TIMEOUT = 600;
+my $CMD_QUOTA	= "2G";
+
+my $IOCAGE = "/usr/local/sbin/iocage";
+my $INTERP = "/usr/local/bin/python";
+#my $INTERP = "/bin/sh";
+
+# this is a ZFS snapshot that we make of the base FS
+my $JAILROOT = "/iocage/jails";
+
+my $jailattrs = "compression=off quota=$CMD_QUOTA exec_timeout=$CMD_TIMEOUT exec_clean=0";
+# XXX for now
+$jailattrs .= " rlimits=off";
+# XXX speed things up
+$jailattrs .= " vnet=off ip6=disable";
+# XXX when cloning, hostname is not set 
+#$jailattrs .= " hostname=py-cage.emulab.net host_hostname=py-cage.emulab.net";
+# XXX maybe not a good idea
+#$jailattrs .= " exec_start=/usr/bin/true exec_stop=/usr/bin/true";
+
+my $starttime = time();
+
+sub usage()
+{
+    print STDOUT
+	"Usage: genilib-jail [-u user] [-p paramfile] [-o outfile] [-n jailname] script\n".
+        "Executes the given geni-lib script in a jail\n";
+ 
+    exit(-1);
+}
+my $optlist = "du:p:o:n:";
+my $jailname = "py-cage-$$";
+my $user = "nobody";
+my $uid;
+my $gid;
+my $pfile;
+my $ofile;
+my $ifile;
+
+sub msg(@);
+
+#
+# Configure variables
+#
+my $TB       = "@prefix@";
+my $GENILIB  = "$TB/lib/geni-lib/";
+my $debug    = 0;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "/bin:/usr/bin:/sbin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+$ENV{"PYTHONPATH"} = $GENILIB;
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use libtestbed;
+
+my $jailtag;
+my $jailstate = 0;
+
+END {
+    my $ecode = $?;
+
+    if ($ecode) {
+	print STDERR "Unexpected exit, cleaning up...\n";
+    }
+    if ($jailtag) {
+	if ($jailstate == 2) {
+	    msg("Stopping jail");
+	    if (system("$IOCAGE stop $jailtag")) {
+		print STDERR "*** could not stop geni-lib jail $jailtag\n";
+	    }
+	    msg("Stopping done");
+	    $jailstate = 1;
+	}
+	if ($jailstate == 1) {
+	    msg("Destroying jail");
+	    if (system("$IOCAGE destroy -f $jailtag")) {
+		print STDERR "*** could not destroy geni-lib jail $jailtag\n";
+	    }
+	    msg("Destroying done");
+	    $jailstate = 0;
+	}
+    }
+    $? = $ecode;
+}
+
+#
+# Parse command arguments. Once we return from getopts, all that should
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"p"})) {
+    $pfile = $options{"p"};
+}
+if (defined($options{"o"})) {
+    $ofile = $options{"o"};
+}
+if (defined($options{"u"})) {
+    $user = $options{"u"};
+}
+if (defined($options{"n"})) {
+    $jailname = $options{"n"};
+    if ($jailname !~ /^[-\w]+$/) {
+	print STDERR "Come on, keep the name simple...\n";
+	usage();
+    }
+}
+
+if (@ARGV < 1) {
+    print STDERR "Must specify a script\n";
+    usage();
+}
+$ifile = $ARGV[0];
+
+if (!$ofile) {
+    print STDERR "Must specify an output file (-o)\n";
+    usage();
+}
+
+# Must be a legit user
+(undef,undef,$uid,$gid) = getpwnam($user) or
+    die("*** $0:\n".
+	"    Invalid user '$user'!");
+
+# Must run as root
+if ($UID != 0) {
+    die("*** $0:\n".
+	"    Must be root to run this script!");
+}
+
+# Make sure jail infrastructure is there
+if (! -d "$JAILROOT") {
+    die("*** $0:\n".
+	"    $JAILROOT does not exist; is iocage installed?");
+}
+
+#
+# Fire up a jail instance
+#
+msg("Cloning py-cage");
+if (system("$IOCAGE clone py-cage tag=$jailname $jailattrs")) {
+    print STDERR "Could not create geni-lib jail\n";
+    exit(1);
+}
+msg("Cloning done");
+$jailstate = 1;
+$jailtag = $jailname;
+
+#
+# Find the UUID so we can locate the ZFS
+# list output:
+# -     2b0ecbff-3f6c-11e5-a21b-38eaa71273f9  off   down   py-cage-34420
+#
+my $jailuuid;
+msg("Finding UUID");
+my $info = `$IOCAGE list | grep $jailtag`;
+msg("Finding done");
+if ($info =~ /\s(\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\s/) {
+    $jailuuid = $1;
+} else {
+    print STDERR "Could not find UUID for geni-lib jail\n";
+    exit(1);
+}
+my $jailrootdir = "$JAILROOT/$jailuuid/root";
+if (! -d $jailrootdir) {
+    print STDERR "Could not find root FS for $jailtag ($jailuuid)\n";
+    exit(1);
+}
+
+#
+# Drop our files into the jail FS
+# We create a protected directory owned by the user so that people
+# cannot snoop from outside the jail.
+#
+my $tempdir = "/tmp/genilib/";
+if (!mkdir("$jailrootdir$tempdir", 0700) ||
+    !chown($uid, $gid, "$jailrootdir$tempdir")) {
+    print STDERR "Could not create geni-lib jail tempdir\n";
+    exit(1);
+}
+
+my $j_ifile = $tempdir . basename($ifile);
+my $j_ofile = $tempdir . basename($ofile);
+my $j_pfile = $tempdir . basename($pfile)
+    if ($pfile);
+
+msg("Stashing files");
+if (system("cp -p $ifile $jailrootdir$j_ifile") ||
+    ($pfile && system("cp -p $pfile $jailrootdir$j_pfile"))) {
+    print STDERR "Could not populate jail\n";
+    exit(1);
+}
+
+#
+# XXX adjust the environment for the portal module to reflect the jail.
+#
+if (exists($ENV{'GENILIB_PORTAL_MODE'}) &&
+    $ENV{'GENILIB_PORTAL_MODE'} eq "Yep") {
+    $ENV{'GENILIB_PORTAL_REQUEST_PATH'} = $j_ofile;
+    if (exists($ENV{'GENILIB_PORTAL_DUMPPARAMS_PATH'})) {
+	$ENV{'GENILIB_PORTAL_DUMPPARAMS_PATH'} = $j_ofile;
+    }
+    if ($pfile && exists($ENV{'GENILIB_PORTAL_PARAMS_PATH'})) {
+	$ENV{'GENILIB_PORTAL_PARAMS_PATH'} = $j_pfile;
+    }
+}
+
+# XXX we have to explicitly set this after cloning!
+system("$IOCAGE set hostname=$jailtag.emulab.net $jailtag");
+
+#
+# Fire up the jail
+#
+msg("Start jail");
+if (system("$IOCAGE start $jailtag")) {
+    print STDERR "Could not start jail $jailtag\n";
+    exit(1);
+}
+msg("Starting done");
+$jailstate = 2;
+
+#
+# And execute the command as the indicated jail user.
+#
+# XXX currently we run the command as the real user (-u), but note that
+# they will have no passwd entry inside the jail. May cause problems.
+# If so, we can run as nobody in the jail (-U nobody) or add the real
+# user to the jail (but that is a lot of work for one command...)
+#
+msg("Execing command");
+my $status = system("$IOCAGE exec -u $user $jailtag $INTERP $j_ifile");
+msg("Execing done");
+
+if ($status) {
+    if ($status == -1) {
+	print STDERR "Could not run jail $jailtag\n";
+    } elsif ($status & 127) {
+	$status &= 127;
+	print STDERR "Jail $jailtag execution died with signal $status\n";
+	$status = 2;
+    } else {
+	$status >>= 8;
+	print STDERR "Jail $jailtag execution failed with exit code $status\n";
+    }
+    exit($status);
+}
+
+if (system("cp -p $jailrootdir$j_ofile $ofile")) {
+    print STDERR "Could not copy back results of command\n";
+    exit(1);
+}
+
+exit(0);
+
+sub msg(@)
+{
+    #my $stamp = time() - $starttime;
+    #printf STDERR "[%3d] ", $stamp;
+    #print STDERR @_, "\n";
+}
