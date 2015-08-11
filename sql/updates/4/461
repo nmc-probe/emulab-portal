@@ -28,6 +28,11 @@ sub DoUpdate($$$)
 		     " `origin_neednotify` tinyint(1) NOT NULL default '0' ".
 		     "   after origin_uuid");
     }
+    if (!DBSlotExists("image_versions", "origin_needupdate")) {
+	DBQueryFatal("alter table image_versions add ".
+		     " `origin_needupdate` tinyint(1) NOT NULL default '0' ".
+		     "   after origin_neednotify");
+    }
 
     my $var = "protogeni/use_imagetracker";
     if (!TBSiteVarExists($var)) {

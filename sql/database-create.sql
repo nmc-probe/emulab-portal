@@ -2124,6 +2124,7 @@ CREATE TABLE `image_versions` (
   `origin_name` varchar(128) default NULL,
   `origin_uuid` varchar(64) default NULL,
   `origin_neednotify` tinyint(1) NOT NULL default '0',
+  `origin_needupdate` tinyint(1) NOT NULL default '0',
   `logfileid` varchar(40) default NULL,
   `noexport` tinyint(1) NOT NULL default '0',
   `ready` tinyint(1) NOT NULL default '0',
