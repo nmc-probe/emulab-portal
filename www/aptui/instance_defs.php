@@ -322,7 +322,7 @@ class Instance
                           "urn:publicid:IDN+apt.emulab.net+authority+cm",
                           'IG UtahDDC' =>
                           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Utah PG'  =>
+                          'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );
         } else {
@@ -333,7 +333,7 @@ class Instance
                           "urn:publicid:IDN+apt.emulab.net+authority+cm",
                           'IG UtahDDC' =>
                           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Utah PG'  =>
+                          'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );
         }

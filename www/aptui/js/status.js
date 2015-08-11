@@ -1644,7 +1644,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	      },
 	      {
 		"id": "urn:publicid:IDN+emulab.net+authority+cm",
-		"name": "PG Utah"
+		"name": "Emulab"
 	      }
 	    ]
 		},

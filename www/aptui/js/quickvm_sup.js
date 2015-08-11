@@ -119,7 +119,7 @@ function maketopmap(divname, xml, showinfo, withoutMultiSite)
 	      },
 	      {
 		"id": "urn:publicid:IDN+emulab.net+authority+cm",
-		"name": "PG Utah"
+		"name": "Emulab"
 	      }
 	    ]
 	  }

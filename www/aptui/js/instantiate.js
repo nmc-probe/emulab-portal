@@ -666,7 +666,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     'IG UtahDDC':
     "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
 
-    'Utah PG':
+    'Emulab':
     "urn:publicid:IDN+emulab.net+authority+cm"
   };
 
