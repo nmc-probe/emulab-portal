@@ -15,7 +15,7 @@ sub DoUpdate($$$)
     
     DBQueryFatal("REPLACE INTO table_regex VALUES ".
 		 " ('images','origin_name','text','regex',".
-		 "  '^[-\\\\w\\\\.+:]+\$', ".
+		 "  '^[-\\\\w\\\\.+:\\\\/]+\$', ".
 		 "  0,128,NULL)");
     
     DBQueryFatal("REPLACE INTO table_regex VALUES ".
