@@ -782,6 +782,16 @@ sub check_initrd
 		    udev_supports_label($initrd_dir);
 	}
 
+	#
+	# XXX we are going to wing it here and assume "yes" and "yes" if the
+	# initrd is the Fedora/CentOS "early cpio" variety. Would take more
+	# machinery to extract the real initrd CPIO archive that appears to
+	# be appended to the initial small one. I'm just not that in to it.
+	#
+	if (!$handles_label && !$handles_uuid && -f "$initrd_dir/early_cpio") {
+	    $handles_label = $handles_uuid = 1;
+	}
+
 	`$UMOUNT "$initrd_dir" > /dev/null 2> /dev/null`;
 	`$RM -rf "$initrd_dir" "$decompressed_initrd"`;
 	
