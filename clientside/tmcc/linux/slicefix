@@ -193,6 +193,9 @@ if [ $CONSOLE = "unknown" ]; then
     echo "WARNING: console type not set, assuming \"sio1\""
     CONSOLE=sio1
 fi
+# XXX reset SLICEFIX_CONSOLE for the benefit of linux_slicefix
+SLICEFIX_CONSOLE=$CONSOLE
+
 # DOM0MEM is optional
 DOM0MEM=$SLICEFIX_DOM0MEM
 
