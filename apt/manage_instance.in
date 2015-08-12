@@ -291,7 +291,8 @@ sub DoSnapshot()
 	}
 	($node)     = @nodes;
 	$sliver_urn = GeniXML::GetSliverId($node);
-	$aggregate     = $agg;
+	$node_id    = GeniXML::GetVirtualId($node);
+	$aggregate  = $agg;
     }
     else {
 	# Find the node in its manifest.
@@ -552,8 +553,13 @@ sub DoSnapshot()
     $webtask->Exited(0)
 	if (defined($webtask));
     $slice->UnLock();
-    unlink($logfile)
-	if (defined($logfile));
+    if (defined($logfile)) {
+	SENDMAIL($TBOPS,
+		 "Instance Snapshot Complete",
+		 "Finished taking snapshot of $instance.\n",
+		 $TBOPS, undef, $logfile);
+	unlink($logfile);
+    }
     exit(0);
   bad:
     if ($sliver_ready) {
