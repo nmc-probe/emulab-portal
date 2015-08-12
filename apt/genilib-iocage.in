@@ -58,7 +58,8 @@ my $CMD_TIMEOUT = 600;
 my $CMD_QUOTA	= "2G";
 
 my $IOCAGE = "/usr/local/sbin/iocage";
-my $INTERP = "/usr/local/bin/python";
+my $PROG = $0;
+my $INTERP = "nice -15 /usr/local/bin/python";
 #my $INTERP = "/bin/sh";
 
 # this is a ZFS snapshot that we make of the base FS
@@ -79,12 +80,21 @@ my $starttime = time();
 sub usage()
 {
     print STDOUT
-	"Usage: genilib-jail [-u user] [-p paramfile] [-o outfile] [-n jailname] script\n".
-        "Executes the given geni-lib script in a jail\n";
+	"Usage: $PROG [-d] [-n jailname] [-u user] [-p paramfile] [-o outfile] script\n".
+	"   or: $PROG [-CR] [-n jailname]\n".
+        "Execute the given geni-lib script in a jail or just create/remove a jail\n".
+	"Options:\n".
+	"  -u user      User to run script as.\n".
+	"  -p paramfile JSON params to pass to script.\n".
+	"  -o outfile   File in which to place script results.\n".
+	"  -n jailname  Name of jail; default is 'py-cage-<pid>'.\n".
+	"  -d           Turn on debugging.\n".
+	"  -C           Just create the jail; use 'jexec' to run commands.\n".
+	"  -R           Remove an existing (left-over) jail; must specify a name (-n)\n";
  
     exit(-1);
 }
-my $optlist = "du:p:o:n:";
+my $optlist = "du:p:o:n:CR";
 my $jailname = "py-cage-$$";
 my $user = "nobody";
 my $uid;
@@ -93,13 +103,16 @@ my $pfile;
 my $ofile;
 my $ifile;
 
+# action: 1: create, 2: destroy, 4: run script
+my $action = 4;
+
 sub msg(@);
 
 #
 # Configure variables
 #
-my $TB       = "@prefix@";
-my $GENILIB  = "$TB/lib/geni-lib/";
+my $TBROOT   = "@prefix@";
+my $GENILIB  = "$TBROOT/lib/geni-lib/";
 my $debug    = 0;
 
 #
@@ -112,7 +125,10 @@ $| = 1;
 # 
 $ENV{'PATH'} = "/bin:/usr/bin:/sbin:/usr/sbin";
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
-$ENV{"PYTHONPATH"} = $GENILIB;
+
+# Where geni-lib should be mounted in the jail
+my $GENILIB_MNT = "/usr/testbed/lib/geni-lib/";
+$ENV{"PYTHONPATH"} = $GENILIB_MNT;
 
 #
 # Testbed Support libraries
@@ -122,32 +138,40 @@ use libtestbed;
 
 my $jailtag;
 my $jailstate = 0;
+my $jailuuid;
 
 END {
-    my $ecode = $?;
+    if ($jailstate) {
+	my $ecode = $?;
 
-    if ($ecode) {
-	print STDERR "Unexpected exit, cleaning up...\n";
-    }
-    if ($jailtag) {
-	if ($jailstate == 2) {
-	    msg("Stopping jail");
-	    if (system("$IOCAGE stop $jailtag")) {
-		print STDERR "*** could not stop geni-lib jail $jailtag\n";
-	    }
-	    msg("Stopping done");
-	    $jailstate = 1;
+	if ($ecode) {
+	    print STDERR "Unexpected exit, cleaning up...\n";
 	}
-	if ($jailstate == 1) {
-	    msg("Destroying jail");
-	    if (system("$IOCAGE destroy -f $jailtag")) {
-		print STDERR "*** could not destroy geni-lib jail $jailtag\n";
+	if ($action != 1 || $ecode) {
+	    if ($jailstate == 2) {
+		msg("Stopping jail");
+		if (system("$IOCAGE stop $jailtag")) {
+		    print STDERR "*** could not stop jail $jailtag\n";
+		}
+		msg("Stopping done");
+		$jailstate = 1;
 	    }
-	    msg("Destroying done");
-	    $jailstate = 0;
+	    if ($jailstate == 1) {
+		msg("Destroying jail");
+
+		# XXX make sure special FSes get unmounted 
+		system("umount $JAILROOT/$jailuuid/root$GENILIB_MNT >/dev/null 2>&1")
+		    if ($jailuuid);
+
+		if (system("$IOCAGE destroy -f $jailtag")) {
+		    print STDERR "*** could not destroy jail $jailtag\n";
+		}
+		msg("Destroying done");
+		$jailstate = 0;
+	    }
 	}
+	$? = $ecode;
     }
-    $? = $ecode;
 }
 
 #
@@ -157,6 +181,12 @@ END {
 my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
+}
+if (defined($options{"C"})) {
+    $action = 1;
+}
+if (defined($options{"R"})) {
+    $action = 2;
 }
 if (defined($options{"d"})) {
     $debug = 1;
@@ -178,15 +208,32 @@ if (defined($options{"n"})) {
     }
 }
 
-if (@ARGV < 1) {
-    print STDERR "Must specify a script\n";
-    usage();
+#
+# Extract params from the environment (if invoked via rungenilib.proxy).
+#
+if (!$ofile && exists($ENV{'GENILIB_PORTAL_REQUEST_PATH'})) {
+    $ofile = $ENV{'GENILIB_PORTAL_REQUEST_PATH'};
 }
-$ifile = $ARGV[0];
+if (!$pfile && exists($ENV{'GENILIB_PORTAL_PARAMS_PATH'})) {
+    $pfile = $ENV{'GENILIB_PORTAL_PARAMS_PATH'};
+}
 
-if (!$ofile) {
-    print STDERR "Must specify an output file (-o)\n";
-    usage();
+if ($action == 4) {
+    if (@ARGV < 1) {
+	print STDERR "Must specify a script\n";
+	usage();
+    }
+    $ifile = $ARGV[0];
+
+    if (!$ofile) {
+	print STDERR "Must specify an output file (-o)\n";
+	usage();
+    }
+} else {
+    if (@ARGV != 0) {
+	print STDERR "Too many args for create/destroy\n";
+	usage();
+    }
 }
 
 # Must be a legit user
@@ -207,6 +254,33 @@ if (! -d "$JAILROOT") {
 }
 
 #
+# Action checks.
+# If only creating (-C) or running normally, then jail should not exist.
+# If only removing (-R), then jail should exist.
+#
+# XXX we have to do an 'iocage list' to determine existance and that is
+# expensive, so we just don't do it.
+#
+#if ($action != 2 && -e "$JAILROOT/$jailname") {
+#    die("*** $0:\n    $jailname already exists");
+#}
+
+#
+# Removing an existing jail, just set the jailstate and exit.
+#
+if ($action == 2) {
+    my $info = `$IOCAGE list | grep $jailname`;
+    if ($info =~ /\s(\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\s/) {
+	$jailuuid = $1;
+    } else {
+	die("*** $0:\n    $jailname does not exist");
+    }
+    $jailtag = $jailname;
+    $jailstate = 2;
+    exit(0);
+}
+
+#
 # Fire up a jail instance
 #
 msg("Cloning py-cage");
@@ -218,12 +292,14 @@ msg("Cloning done");
 $jailstate = 1;
 $jailtag = $jailname;
 
+# XXX we have to explicitly set this after cloning!
+system("$IOCAGE set hostname=$jailtag.emulab.net $jailtag");
+
 #
 # Find the UUID so we can locate the ZFS
 # list output:
 # -     2b0ecbff-3f6c-11e5-a21b-38eaa71273f9  off   down   py-cage-34420
 #
-my $jailuuid;
 msg("Finding UUID");
 my $info = `$IOCAGE list | grep $jailtag`;
 msg("Finding done");
@@ -240,45 +316,68 @@ if (! -d $jailrootdir) {
 }
 
 #
+# XXX mount host geni-lib in jail
+# This way we don't have to copy in the geni-lib files and they
+# will always be up-to-date. Also make dev trees work.
+#
+if (system("mount -t nullfs -o ro $GENILIB $jailrootdir$GENILIB_MNT")) {
+    print STDERR "Could not mount $GENILIB in $jailtag\n";
+    exit(1);
+}
+
+#
 # Drop our files into the jail FS
 # We create a protected directory owned by the user so that people
 # cannot snoop from outside the jail.
 #
-my $tempdir = "/tmp/genilib/";
-if (!mkdir("$jailrootdir$tempdir", 0700) ||
-    !chown($uid, $gid, "$jailrootdir$tempdir")) {
-    print STDERR "Could not create geni-lib jail tempdir\n";
-    exit(1);
-}
+my ($j_ifile,$j_ofile,$j_pfile);
+if ($action != 1) {
+    my $tempdir = "/tmp/genilib/";
+    if (!mkdir("$jailrootdir$tempdir", 0700) ||
+	!chown($uid, $gid, "$jailrootdir$tempdir")) {
+	print STDERR "Could not create geni-lib jail tempdir\n";
+	exit(1);
+    }
 
-my $j_ifile = $tempdir . basename($ifile);
-my $j_ofile = $tempdir . basename($ofile);
-my $j_pfile = $tempdir . basename($pfile)
-    if ($pfile);
+    $j_ifile = $tempdir . basename($ifile);
+    $j_ofile = $tempdir . basename($ofile);
+    $j_pfile = $tempdir . basename($pfile)
+	if ($pfile);
 
-msg("Stashing files");
-if (system("cp -p $ifile $jailrootdir$j_ifile") ||
-    ($pfile && system("cp -p $pfile $jailrootdir$j_pfile"))) {
-    print STDERR "Could not populate jail\n";
-    exit(1);
-}
+    msg("Stashing files");
+    if (system("cp -p $ifile $jailrootdir$j_ifile") ||
+	($pfile && system("cp -p $pfile $jailrootdir$j_pfile"))) {
+	print STDERR "Could not populate jail\n";
+	exit(1);
+    }
 
-#
-# XXX adjust the environment for the portal module to reflect the jail.
-#
-if (exists($ENV{'GENILIB_PORTAL_MODE'}) &&
-    $ENV{'GENILIB_PORTAL_MODE'} eq "Yep") {
+    #
+    # XXX adjust the environment for the portal module to reflect the jail.
+    #
+    #
+    # XXX adjust the environment for the portal module to reflect the jail.
+    #
     $ENV{'GENILIB_PORTAL_REQUEST_PATH'} = $j_ofile;
     if (exists($ENV{'GENILIB_PORTAL_DUMPPARAMS_PATH'})) {
 	$ENV{'GENILIB_PORTAL_DUMPPARAMS_PATH'} = $j_ofile;
     }
-    if ($pfile && exists($ENV{'GENILIB_PORTAL_PARAMS_PATH'})) {
+    if ($pfile) {
 	$ENV{'GENILIB_PORTAL_PARAMS_PATH'} = $j_pfile;
     }
-}
 
-# XXX we have to explicitly set this after cloning!
-system("$IOCAGE set hostname=$jailtag.emulab.net $jailtag");
+    #
+    # Make other aspects of the environment appear a little bit sane.
+    # XXX okay, not really THAT sane since the user will not exist in the jail.
+    #
+    $ENV{'SHELL'} = "/bin/sh";
+    $ENV{'USER'} = $user;
+    $ENV{'USERNAME'} = $user;
+    $ENV{'LOGNAME'} = $user;
+    $ENV{'HOME'} = $tempdir;
+    delete $ENV{'DISPLAY'};
+    delete @ENV{'SUDO_UID', 'SUDO_GID', 'SUDO_USER', 'SUDO_COMMAND'};
+    delete @ENV{'SSH_AUTH_SOCK', 'SSH_CLIENT', 'SSH_CONNECTION', 'SSH_TTY'};
+}
 
 #
 # Fire up the jail
@@ -299,9 +398,14 @@ $jailstate = 2;
 # If so, we can run as nobody in the jail (-U nobody) or add the real
 # user to the jail (but that is a lot of work for one command...)
 #
-msg("Execing command");
-my $status = system("$IOCAGE exec -u $user $jailtag $INTERP $j_ifile");
-msg("Execing done");
+my $status = -1;
+if ($action != 1) {
+    msg("Execing command");
+    $status = system("$IOCAGE exec -u $user $jailtag $INTERP $j_ifile");
+    msg("Execing done");
+} else {
+    $status = 0;
+}
 
 if ($status) {
     if ($status == -1) {
@@ -314,19 +418,31 @@ if ($status) {
 	$status >>= 8;
 	print STDERR "Jail $jailtag execution failed with exit code $status\n";
     }
-    exit($status);
+
+    # XXX odd semantics: if debug is set, don't remove jail on error
+    if ($debug) {
+	print STDERR "WARNING: not destroying jail, you will need to do it:\n".
+	    "    sudo $PROG -R -n $jailtag\n";
+	$jailstate = 0;
+    }
 }
 
-if (system("cp -p $jailrootdir$j_ofile $ofile")) {
-    print STDERR "Could not copy back results of command\n";
-    exit(1);
+if ($action != 1) {
+    if (system("cp -p $jailrootdir$j_ofile $ofile")) {
+	print STDERR "Could not copy back results of command\n";
+	exit(1);
+    }
+} else {
+    print STDERR "Jail '$jailtag' running. Root FS at '$jailrootdir'.\n";
 }
 
-exit(0);
+exit($status);
 
 sub msg(@)
 {
-    #my $stamp = time() - $starttime;
-    #printf STDERR "[%3d] ", $stamp;
-    #print STDERR @_, "\n";
+    if ($debug) {
+	my $stamp = time() - $starttime;
+	printf STDERR "[%3d] ", $stamp;
+	print STDERR @_, "\n";
+    }
 }
