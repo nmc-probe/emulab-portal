@@ -774,6 +774,11 @@ sub exportSlice($$$$) {
     # done yet for this volume.  (If this is a persistent lease, it
     # may already be exported and in use.)
     #
+    # XXX note that the API doc indicates that you would just specify
+    # type 'ZVOL' but that doesn't work. You have to set:
+    #      iscsi_target_extent_type=='Disk' and
+    #      iscsi_target_extent_disk=='zvol/...'
+    #
     # XXX currently iname will never exist since we don't share mappings.
     # The "else" code is left just in case we need it again in the future.
     #

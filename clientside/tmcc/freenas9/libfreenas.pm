@@ -28,12 +28,8 @@
 #
 # XXX things the API cannot do yet:
 #
-# 1. create a zvol,
-# 2. create an iSCSI extent (POST) with type='ZVOL',
-#    Actually, you can do this if you specify
-#      iscsi_target_extent_type=='Disk' and
-#      iscsi_target_extent_disk=='zvol/...'
-# 3. create an authorized initiator (POST); always return 302 FOUND
+# 1. create a zvol volume; no API exists,
+# 2. create an authorized initiator (POST); always return 302 FOUND
 #
 # API also does not report an error for:
 #
