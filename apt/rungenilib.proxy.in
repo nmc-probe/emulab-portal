@@ -220,6 +220,7 @@ if ($warningsfatal) {
     $ENV{'GENILIB_PORTAL_WARNINGS_ARE_FATAL'} = "1";
 }
 
+my $exit_status;
 if ($usejail) {
     #
     # We are executing the command in a jail, fire off the jail script.
@@ -283,7 +284,7 @@ if ($usejail) {
     # Parent waits.
     #
     waitpid($pid, 0);
-    my $exit_status = $?;
+    $exit_status = $?;
 }
 
 #
