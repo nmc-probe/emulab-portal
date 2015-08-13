@@ -54,7 +54,7 @@ my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
 my $TESTMODE = 0;
 my $GENILIB  = "$TB/lib/geni-lib/";
-my $JAILPROG = "$TB/sbin/genilib-jail";
+my $JAILPROG = "$TB/libexec/genilib-jail";
 my $debug    = 0;
 
 # Locals
