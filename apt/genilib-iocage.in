@@ -333,8 +333,7 @@ if (system("mount -t nullfs -o ro $GENILIB $jailrootdir$GENILIB_MNT")) {
 my ($j_ifile,$j_ofile,$j_pfile);
 if ($action != 1) {
     my $tempdir = "/tmp/genilib/";
-    if (!mkdir("$jailrootdir$tempdir", 0700) ||
-	!chown($uid, $gid, "$jailrootdir$tempdir")) {
+    if (!mkdir("$jailrootdir$tempdir", 0700)) {
 	print STDERR "Could not create geni-lib jail tempdir\n";
 	exit(1);
     }
@@ -346,14 +345,12 @@ if ($action != 1) {
 
     msg("Stashing files");
     if (system("cp -p $ifile $jailrootdir$j_ifile") ||
-	($pfile && system("cp -p $pfile $jailrootdir$j_pfile"))) {
+	($pfile && system("cp -p $pfile $jailrootdir$j_pfile")) ||
+	system("chown -R $uid:$gid $jailrootdir$tempdir")) {
 	print STDERR "Could not populate jail\n";
 	exit(1);
     }
 
-    #
-    # XXX adjust the environment for the portal module to reflect the jail.
-    #
     #
     # XXX adjust the environment for the portal module to reflect the jail.
     #
@@ -428,9 +425,25 @@ if ($status) {
 }
 
 if ($action != 1) {
-    if (system("cp -p $jailrootdir$j_ofile $ofile")) {
+    #
+    # Oh the joys of running as root. Now we need to take away user
+    # permission from the jail directory (recall the user can access
+    # it from outside) and then verify that the source file isn't a
+    # symlink (a cheap-o realpath check). Our caller is responsible
+    # for defending the target file.
+    #
+    my $tempdir = "/tmp/genilib";
+    if (-l "$jailrootdir$tempdir" ||
+	chown(0, -1, "$jailrootdir$tempdir") != 1) {
 	print STDERR "Could not copy back results of command\n";
 	exit(1);
+    }
+    if (-e "$jailrootdir$j_ofile") {
+	if (-l "$jailrootdir$j_ofile" ||
+	    system("cp $jailrootdir$j_ofile $ofile")) {
+	    print STDERR "Could not copy back results of command\n";
+	    exit(1);
+	}
     }
 } else {
     print STDERR "Jail '$jailtag' running. Root FS at '$jailrootdir'.\n";
