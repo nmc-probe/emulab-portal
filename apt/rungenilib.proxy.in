@@ -34,16 +34,18 @@ use POSIX qw(:signal_h);
 sub usage()
 {
     print STDOUT
-	"Usage: rungenilib.proxy -u user [args ...]\n".
-        "Where options and arguments are those required by geni-lib\n";
+	"Usage: rungenilib.proxy [-J] -u user [args ...]\n".
+        "Where options and arguments are those required by geni-lib,\n".
+	"except for -J which says to run script in a jail.\n";
  
     exit(-1);
 }
-my $optlist = "u:vpb:W";
+my $optlist = "u:vpb:WJ";
 my $user;
 my $getparams= 0;
 my $paramsize;
 my $warningsfatal = 0;
+my $usejail = 0;
 
 #
 # Configure variables
@@ -52,6 +54,7 @@ my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
 my $TESTMODE = 0;
 my $GENILIB  = "$TB/lib/geni-lib/";
+my $JAILPROG = "$TB/sbin/genilib-jail";
 my $debug    = 0;
 
 # Locals
@@ -104,19 +107,23 @@ if (defined($options{"u"})) {
 if (defined($options{"W"})) {
     $warningsfatal = 1;
 }
+if (defined($options{"J"})) {
+    $usejail = 1;
+}
 
 #
 # First option has to be the -u option, the user to run this script as.
 # In testmode, we are not run as root, so run as the current user, and
 # in the current directory (not invoked with ssh in testmode). 
 #
+my ($unix_uid,$unix_gid,$unix_glist);
 if (! $TESTMODE) {
     if ($UID != 0) {
 	die("*** $0:\n".
 	    "    Must be root to run this script!");
     }
 
-    my (undef,undef,$unix_uid) = getpwnam($user) or
+    (undef,undef,$unix_uid) = getpwnam($user) or
 	die("*** $0:\n".
 	    "    No such user $user\n");
 
@@ -125,29 +132,37 @@ if (! $TESTMODE) {
     # cause thats the correct thing to do. Too bad perl does not have a
     # getgrouplist function like the C library.
     #
-    my $glist = `id -G $user`;
-    if ($glist =~ /^([\d ]*)$/) {
-	$glist = $1;
+    $unix_glist = `id -G $user`;
+    if ($unix_glist =~ /^([\d ]*)$/) {
+	$unix_glist = $1;
     }
     else {
 	die("*** $0:\n".
-	    "    Unexpected results from 'id -G $user': $glist\n");
+	    "    Unexpected results from 'id -G $user': $unix_glist\n");
     }
 
     # Need to split off the first group and create a proper list for $GUID.
-    my @gglist   = split(" ", $glist);
-    my $unix_gid = $gglist[0];
-    $glist       = "$unix_gid $glist";
+    my @gglist   = split(" ", $unix_glist);
+    $unix_gid    = $gglist[0];
+    $unix_glist  = "$unix_gid $unix_glist";
 
     # Flip to user and never go back!
-    $GID            = $unix_gid;
-    $EGID           = $glist;
-    $EUID = $UID    = $unix_uid;
-    $ENV{'USER'}    = $user;
-    $ENV{'LOGNAME'} = $user;
+    if (!$usejail) {
+	$GID            = $unix_gid;
+	$EGID           = $unix_glist;
+	$EUID = $UID    = $unix_uid;
+	$ENV{'USER'}    = $user;
+	$ENV{'LOGNAME'} = $user;
+    }
 
     #
     # Create the tempdir and chmod it to keep people out.
+    #
+    # Note that in the $usejail case, the directory will be owned by root.
+    # We leave it that way til the end so that a malicious user won't slip
+    # in and insert symlinks for $ifile and $pfile. Since those files will
+    # also be written as root, we need to make sure they aren't symlinks to
+    # somewhere that the user could not normally access.
     #
     if (! mkdir($tempdir, 0750)) {
 	die("Could not mkdir $tempdir: $!\n");
@@ -158,6 +173,10 @@ if (! $TESTMODE) {
     if (! chdir($tempdir)) {
 	die("Could not chdir to $tempdir: $!\n");
     }
+}
+elsif ($usejail && $UID != 0) {
+    die("*** $0:\n".
+	"    Must be root to run this script with -J!");
 }
 
 #
@@ -201,42 +220,71 @@ if ($warningsfatal) {
     $ENV{'GENILIB_PORTAL_WARNINGS_ARE_FATAL'} = "1";
 }
 
-#
-# Fork a child process to run the parser in.
-#
-my $pid = fork();
+if ($usejail) {
+    #
+    # We are executing the command in a jail, fire off the jail script.
+    # Note that the directory with all the files is owned by root and
+    # not writable by the user. We have to do this since the jail script
+    # runs as root and trusts us to validate all the files. The only way
+    # we can do that is to prevent the user from messing with them til
+    # the jail is done.
+    #
+    # Note that the jail script will copy the files again into the jail
+    # name space. Those copies will be owned by the user so they can be
+    # read/written.
+    #
 
-if (!defined($pid)) {
-    die("*** $0:\n".
-	"    Could not fork a new process!");
-}
-
-#
-# Child runs the parser, niced down, and then exits.
-#
-if (! $pid) {
-    # Set the CPU limit for us.
-    setrlimit(RLIMIT_CPU, 600, 600);
-    
-    # Give parent a chance to react.
-    sleep(1);
+    $exit_status = system("$JAILPROG -u $user $ifile");
 
     #
-    # Dup stdout to stderr; all output is considered error output.
-    # which allows us to use stdout to send the rspec back to boss.
+    # Now that we are done with the files, chown them to the user and
+    # drop our permissions for any remaining activities (e.g., reading
+    # the results file).
     #
-    close(STDOUT);
-    POSIX::dup2(fileno(STDERR), 1);
+    if ($unix_uid) {
+	chown($unix_uid, $unix_gid, $tempdir, $ifile, $pfile, $ofile);
+	$GID  = $unix_gid;
+	$EGID = $unix_glist;
+	$EUID = $UID = $unix_uid;
+    }
+} else {
+    #
+    # Fork a child process to run the parser in.
+    #
+    my $pid = fork();
 
-    exec("nice -15 /usr/local/bin/python $ifile");
-    die("Could not exec the parser!\n");
+    if (!defined($pid)) {
+	die("*** $0:\n".
+	    "    Could not fork a new process!");
+    }
+
+    #
+    # Child runs the parser, niced down, and then exits.
+    #
+    if (! $pid) {
+	# Set the CPU limit for us.
+	setrlimit(RLIMIT_CPU, 600, 600);
+	
+	# Give parent a chance to react.
+	sleep(1);
+
+	#
+	# Dup stdout to stderr; all output is considered error output.
+	# which allows us to use stdout to send the rspec back to boss.
+	#
+	close(STDOUT);
+	POSIX::dup2(fileno(STDERR), 1);
+
+	exec("nice -15 /usr/local/bin/python $ifile");
+	die("Could not exec the parser!\n");
+    }
+
+    #
+    # Parent waits.
+    #
+    waitpid($pid, 0);
+    my $exit_status = $?;
 }
-
-#
-# Parent waits.
-#
-waitpid($pid, 0);
-my $exit_status = $?;
 
 #
 # If the child was KILLed, then it overran its time limit.
