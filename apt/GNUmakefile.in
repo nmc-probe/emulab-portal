@@ -38,7 +38,7 @@ WEB_BIN_SCRIPTS = webmanage_profile webmanage_instance webmanage_dataset \
                   webcreate_instance webrungenilib
 WEB_SBIN_SCRIPTS=
 LIBEXEC_SCRIPTS	= $(WEB_BIN_SCRIPTS) $(WEB_SBIN_SCRIPTS)
-USERLIBEXEC     = rungenilib.proxy
+USERLIBEXEC     = rungenilib.proxy genilib-jail genilib-iocage
 
 # These scripts installed setuid, with sudo. 
 SETUID_BIN_SCRIPTS   = rungenilib

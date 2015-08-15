@@ -135,6 +135,10 @@ function Do_GetInstanceStatus()
         if ($webtask->exitcode() == 26) {
             $blob["reason"] = "Not enough free nodes, please try again later.";
         }
+        if ($webtask->exitcode() == 25) {
+            $blob["reason"]  = "Not enough available bandwidth for a link.\n\n";
+            $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
+        }
         else {
             $blob["reason"] = htmlentities($webtask->TaskValue("output"));
         }
@@ -186,16 +190,19 @@ function Do_TerminateInstance()
             return;
         }
     }
-    # This needs work.
+    # We do not want to see the busy errors, and that is the only error
+    # that gets returned, that is not also emailed by the script. So just
+    # use the ignore option.
     $retval = SUEXEC("nobody", "nobody",
                      "webmanage_instance terminate $uuid",
-                     SUEXEC_ACTION_CONTINUE);
+                     SUEXEC_ACTION_IGNORE);
 
     if ($retval == 0) {
 	SPITAJAX_RESPONSE("");
 	return;
     }
-    SPITAJAX_ERROR(-1, "Unable to Terminate; please try again later");
+    SPITAJAX_ERROR(-1, "Your experiment is probably busy, ".
+        "please try again later.");
 }
 
 #
@@ -604,7 +611,7 @@ function Do_ConsoleURL()
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
 
-    if (StatusSetupAjax(1)) {
+    if (StatusSetupAjax(0)) {
 	return;
     }
     if (!isset($this_user)) {
@@ -635,6 +642,9 @@ function Do_ConsoleURL()
         $blob["url"] = $taskdata["url"];
         if (isset($taskdata["password"])) {
             $blob["password"] = $taskdata["password"];
+        }
+        if (isset($taskdata["logurl"])) {
+            $blob["logurl"] = $taskdata["logurl"];
         }
 	SPITAJAX_RESPONSE($blob);
 	$webtask->Delete();

@@ -964,6 +964,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    }
 		    NewConsoleTab(client_id);
 		}
+		else if ($(e.target).text() == "Console Log") {
+		    if (isguest) {
+			alert("Only registered users can access the console");
+			return;
+		    }
+		    ConsoleLog(client_id);
+		}
 		else if ($(e.target).text() == "Reboot") {
 		    if (isguest) {
 			alert("Only registered users can reboot nodes");
@@ -1008,7 +1015,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	" <td name='sshurl'>n/a</td>" +
 	" <td name='menu' align=center> " +
 	"  <div name='action-menu' class='dropdown'>" +
-	"  <button type='button' " +
+	"  <button id='action-menu-button' type='button' " +
 	"          class='btn btn-primary btn-sm dropdown-toggle' " +
 	"          data-toggle='dropdown'> " +
 	"      <span class='glyphicon glyphicon-cog'></span> " +
@@ -1016,6 +1023,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"  <ul class='dropdown-menu text-left' role='menu'> " +
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
+	"    <li><a href='#' name='consolelog'>Console Log</a></li> " +
 	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
 	"    <li><a href='#' name='reload'>Reload</a></li> " +
 	"    <li><a href='#' name='snapshot'>Snapshot</a></li> " +
@@ -1035,13 +1043,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// multiple manifests, but only need to do this once, on any
 	// one of the manifests.
 	//
-	var UpdateInstructions = function(xml) {
+	var UpdateInstructions = function(xml,uridata) {
 	    var instructionRenderer = new marked.Renderer();
 	    instructionRenderer.defaultLink = instructionRenderer.link;
 	    instructionRenderer.link = function (href, title, text) {
 		var template = UriTemplate.parse(href);
-		var data = MakeUriData(xml);
-		return this.defaultLink(template.expand(data), title, text);
+		return this.defaultLink(template.expand(uridata), title, text);
 	    };
 
 	    // Suck the instructions out of the tour and put them into
@@ -1134,6 +1141,18 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			    NewConsoleTab(node);
 			    return false;
 			});
+		    $('#listview-row-' + node + ' [name=consolelog]')
+			.click(function (e) {
+			    e.preventDefault();
+			    if (isguest) {
+				alert("Only registered users can access " +
+				      "the console log");
+				return false;
+			    }
+			    $('#action-menu-button').dropdown('toggle');
+			    ConsoleLog(node);
+			    return false;
+			});
 		}
 		//
 		// And a handler for the reboot action.
@@ -1196,16 +1215,23 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    // Add the instructions from only one manifest.
 	    var gottour = 0;
 
+	    // Save off some templatizing data as we process each manifest.
+	    var uridata = {};
+	    // Save off the last manifest xml blob so we quick process the
+	    // possibly templatized instructions quickly, without reparsing the
+	    // manifest again needlessly.
+	    var xml = null;
+
 	    _.each(json.value, function(manifest, aggregate_urn) {
 		var xmlDoc = $.parseXML(manifest);
-		var xml = $(xmlDoc);
+		xml = $(xmlDoc);
 
-		if (!gottour) {
-		    UpdateInstructions(xml);
-		    gottour = 1;
-		}
+		MakeUriData(xml,uridata);
 		ProcessNodes(aggregate_urn, xml);
 	    });
+
+	    if (xml != null)
+		UpdateInstructions(xml,uridata);
 
 	    /*
 	     * If a single node, show the clone button and maybe the
@@ -1268,18 +1294,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	});
     }
 
-    function MakeUriData(xml)
+    function MakeUriData(xml,uridata)
     {
-	var result = {};
 	xml.find('node').each(function () {
 	    var node = $(this);
 	    var host = node.find('host').attr('name');
 	    if (host) {
 		var key = 'host-' + node.attr('client_id');
-		result[key] = host;
+		uridata[key] = host;
 	    }
 	});
-	return result;
     }
 
     function ShowProgressModal()
@@ -1512,6 +1536,40 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	xmlthing.done(callback);
     }
 
+    //
+    // Console log. We get the url and open up a new tab.
+    //
+    function ConsoleLog(client_id)
+    {
+	// Avoid popup blockers by creating the window right away.
+	var spinner = 'https://' + window.location.host + '/images/spinner.gif';
+	var win = window.open("", '_blank');
+	win.document.write("<center><span style='font-size:30px'>" +
+			   "Please wait ... </span>" +
+			   "<img src='" + spinner + "'/></center>");
+	
+	sup.ShowModal('#waitwait-modal');
+
+	var callback = function(json) {
+	    sup.HideModal('#waitwait-modal');
+	    
+	    if (json.code) {
+		win.close();
+		sup.SpitOops("oops", "Could not get log: " + json.value);
+		return;
+	    }
+	    var url   = json.value.logurl;
+	    win.location = url;
+	    win.focus();
+	}
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "ConsoleURL",
+					    {"uuid" : uuid,
+					     "node" : client_id});
+	xmlthing.done(callback);
+    }
+
     var jacksInstance;
     var jacksInput;
     var jacksOutput;
@@ -1586,7 +1644,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	      },
 	      {
 		"id": "urn:publicid:IDN+emulab.net+authority+cm",
-		"name": "PG Utah"
+		"name": "Emulab"
 	      }
 	    ]
 		},

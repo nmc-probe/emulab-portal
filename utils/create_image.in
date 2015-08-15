@@ -628,7 +628,7 @@ my $filename  = $image->TempImageFile();
 my $isglobal  = $image->global();
 my $usepath   = 0;
 my $isdataset = $image->isdataset();
-my $hackprefix= ($image->pid() eq $image->gid() ?
+my $hackprefix= ($image->pid() eq $image->gid() || $isglobal ? 
 		 $PROJROOT . "/" . $image->pid() . "/images/" :
 		 $GROUPROOT . "/" .
 		    $image->pid() . "/" . $image->gid() . "/images/");

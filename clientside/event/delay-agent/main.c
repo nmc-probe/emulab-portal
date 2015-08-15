@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2015 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -81,7 +81,7 @@ int kern_hz;
 
 int main(int argc, char **argv)
 {
-  char c;
+  int c;
   char *server = "localhost";
   char * port  = NULL;
   char *map_file = NULL;

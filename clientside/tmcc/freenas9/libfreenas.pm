@@ -24,26 +24,51 @@
 # Support functions for the libvnode API and also for bscontrol which is
 # a proxy for the blockstore server control program on boss.
 #
+# Uses the FreeNAS API directly.
+#
+# XXX things the API cannot do yet:
+#
+# 1. create a zvol volume; no API exists,
+# 2. create an authorized initiator (POST); always return 302 FOUND
+#
+# API also does not report an error for:
+#
+# 1. attempting to remove a snapshot with a dependent clone
+#
+# So right now we use the API for all listing functions (get volumes,
+# get extents, etc.) and for snapshots/clones and destroying "datasets".
+#
 
 package libfreenas;
 use Exporter;
 @ISA    = "Exporter";
 @EXPORT =
     qw( 
-	freenasPoolList freenasVolumeList
+	freenasPoolList freenasVolumeList freenasSliceList
+	freenasAuthInitList freenasExtentList freenasTargetList
+	freenasAssocList
 	freenasVolumeCreate freenasVolumeDestroy freenasFSCreate
 	freenasVolumeSnapshot freenasVolumeClone
 	freenasVolumeDesnapshot freenasVolumeDeclone
 	freenasRunCmd freenasParseListing
+	freenasRequest
 	$FREENAS_CLI_VERB_IFACE $FREENAS_CLI_VERB_IST_EXTENT
 	$FREENAS_CLI_VERB_IST_AUTHI $FREENAS_CLI_VERB_IST_TARGET
 	$FREENAS_CLI_VERB_IST_ASSOC $FREENAS_CLI_VERB_VLAN
 	$FREENAS_CLI_VERB_VOLUME $FREENAS_CLI_VERB_POOL
 	$FREENAS_CLI_VERB_SNAPSHOT
+
+	$FREENAS_API_RESOURCE_IFACE $FREENAS_API_RESOURCE_IST_EXTENT
+	$FREENAS_API_RESOURCE_IST_AUTHI $FREENAS_API_RESOURCE_IST_TARGET
+	$FREENAS_API_RESOURCE_IST_ASSOC $FREENAS_API_RESOURCE_VLAN
+	$FREENAS_API_RESOURCE_VOLUME $FREENAS_API_RESOURCE_SNAPSHOT
     );
 
 use strict;
 use English;
+use HTTP::Tiny;
+use JSON::PP;
+use MIME::Base64;
 use Data::Dumper;
 use Socket;
 use File::Basename;
@@ -56,6 +81,17 @@ use libutil;
 use libtestbed;
 use libsetup;
 
+#
+# Exported resources
+#
+our $FREENAS_API_RESOURCE_IFACE       = "network/interface";
+our $FREENAS_API_RESOURCE_IST_EXTENT  = "services/iscsi/extent";
+our $FREENAS_API_RESOURCE_IST_AUTHI   = "services/iscsi/authorizedinitiator";
+our $FREENAS_API_RESOURCE_IST_TARGET  = "services/iscsi/target";
+our $FREENAS_API_RESOURCE_IST_ASSOC   = "services/iscsi/targettoextent";
+our $FREENAS_API_RESOURCE_VLAN        = "network/vlan";
+our $FREENAS_API_RESOURCE_VOLUME      = "storage/volume";
+our $FREENAS_API_RESOURCE_SNAPSHOT    = "storage/snapshot";
 
 #
 # Exported CLI constants
@@ -90,6 +126,8 @@ my $IFCONFIG             = "/sbin/ifconfig";
 my $ALIASMASK            = "255.255.255.255";
 my $LINUX_MKFS		 = "/usr/local/sbin/mke2fs";
 my $FBSD_MKFS		 = "/sbin/newfs";
+my $API_AUTHINFO	 = "$ETCDIR/freenas-api.auth";
+my $API_SERVERIP	 = "/var/emulab/boot/myip";
 
 # storageconfig constants
 # XXX: should go somewhere more general
@@ -116,6 +154,8 @@ my %cliverbs = (
 # Global variables
 #
 my $debug  = 0;
+my $auth;
+my $server;
 
 sub freenasPoolList();
 sub freenasVolumeList($;$);
@@ -136,6 +176,11 @@ sub freenasVolumeDeclone($$);
 sub listPools();
 sub convertZfsToMebi($);
 sub volumeDestroy($$$$);
+sub snapshotHasClone($$);
+sub getZvolsFromVolinfo($);
+sub parseSliceName($);
+sub parseSlicePath($);
+sub calcSliceSizes($);
 
 #
 # Turn off line buffering on output
@@ -149,6 +194,168 @@ sub setDebug($)
 	if ($debug);
 }
 
+#
+# Make a request via the FreeNAS v1.0 API.
+#   $resourse is the resource path, e.g., "account/users"
+#   $method is "GET", "PUT", "POST", or "DELETE" (default is "GET")
+#   $paramp is a reference to a hash of KEY=VALUE URL params (default is ())
+#   $datap is a reference to a hash of KEY=VALUE input content (default is ())
+#   $exstat is the expected success status code if not the method default
+#   $errorp is a reference to a string, used to return error string if !undef
+# Return value is the decoded (as a hash) JSON KEY=VALUE returned by request
+# Returns undef on failure.
+#
+sub freenasRequest($;$$$$$)
+{
+    my ($resource,$method,$paramp,$datap,$exstat,$errorp) = @_;
+    my %data = $datap ? %$datap : ();
+    my ($datastr,$paramstr);
+    my %status = (
+	"GET"    => 200,
+	"PUT"    => 200,
+	"POST"   => 201,
+	"DELETE" => 204
+    );
+
+    # XXX read the authentication info in user:password format
+    if (!$auth) {
+	if (!open(FD, "<$API_AUTHINFO")) {
+	    my $msg = "could not open $API_AUTHINFO";
+	    if ($errorp) {
+		$$errorp = $msg;
+	    } else {
+		warn("*** ERROR: freenasRequest: $msg");
+	    }
+	    return undef;
+	}
+	$auth = <FD>;
+	close(FD);
+	chomp $auth;
+	if ($auth !~ /^(\w+:.*)$/) {
+	    my $msg = " bogus authinfo, wrong format";
+	    if ($errorp) {
+		$$errorp = $msg;
+	    } else {
+		warn("*** ERROR: freenasRequest: $msg");
+	    }
+	    return undef;
+	}
+	$auth = $1;
+    }
+
+    # XXX use the node's IP rather than "localhost" if possible
+    if (!$server) {
+	$server = "localhost";
+	if (-e "$API_SERVERIP" && open(FD, "<$API_SERVERIP")) {
+	    $server = <FD>;
+	    close(FD);
+	    chomp $server;
+	    if ($server =~ /^(\d+\.\d+\.\d+\.\d+)$/) {
+		$server = $1;
+	    }
+	}
+    }
+
+    $method = "GET"
+	if (!defined($method));
+
+    $datastr = encode_json(\%data);
+    $paramstr = "";
+    if ($paramp) {
+	my @params = ();
+	foreach my $k (keys %$paramp) {
+	    my $v = $paramp->{$k};
+	    push @params, "$k=$v";
+	}
+	if (@params) {
+	    $paramstr = "?" . join('&', @params);
+	}
+    }
+
+    my $url = "http://$server/api/v1.0/$resource/$paramstr";
+    print STDERR "freenasRequest: URL: $url\nCONTENT: $datastr\n"
+	if ($debug);
+
+    my %headers = (
+	"Content-Type"  => "application/json",
+	"Authorization" => "Basic " . MIME::Base64::encode_base64($auth, "")
+    );
+    my $http = HTTP::Tiny->new("timeout" => 30);
+    my %options = ("headers" => \%headers, "content" => $datastr); 
+
+    my $res = $http->request($method, $url, \%options);
+    print STDERR "freenasRequest: RESPONSE: ", Dumper($res), "\n"
+	if ($debug);
+
+    $exstat = $status{$method}
+	if (!defined($exstat));
+
+    if ($res->{'success'} && $res->{'status'} == $exstat) {
+	if (exists($res->{'headers'}{'content-type'}) &&
+	    $res->{'headers'}{'content-type'} eq "application/json") {
+	    return JSON::PP->new->decode($res->{'content'});
+	}
+	if (!exists($res->{'content'})) {
+	    return {};
+	}
+	if (!ref($res->{'content'})) {
+	    return { "content" => $res->{'content'} };
+	}
+	my $msg = "Unparsable content: " . Dumper($res->{'content'});
+	if ($errorp) {
+	    $$errorp = $msg;
+	} else {
+	    warn("*** ERROR: freenasRequest: $msg");
+	}
+	return undef;
+    }
+    if ($res->{'reason'}) {
+	my $content;
+
+	if (exists($res->{'content'}) &&
+	    exists($res->{'headers'}{'content-type'})) {
+	    my $ctype = $res->{'headers'}{'content-type'};
+	    if ($ctype eq "text/plain") {
+		$content = $res->{'content'};
+	    } elsif ($ctype eq "application/json") {
+		my $cref =
+		    JSON::PP->new->allow_nonref->decode($res->{'content'});
+		if ($cref && ref $cref) {
+		    if (exists($cref->{'__all__'})) {
+			$content = $cref->{'__all__'};
+		    } elsif (exists($cref->{'error'})) {
+			$content = $cref->{'error'};
+		    } elsif (exists($cref->{'error_message'})) {
+			$content = $cref->{'error_message'};
+		    }
+		} elsif ($cref) {
+		    $content = $cref;
+		} else {
+		    $content = $res->{'content'};
+		}
+	    }
+	}
+	my $msg = "Request failed: " . $res->{'reason'};
+	if ($content) {
+	    $msg .= "\nFreeNAS error: $content";
+	}
+	if ($errorp) {
+	    $$errorp = $msg;
+	} else {
+	    warn("*** ERROR: freenasRequest: $msg");
+	}
+	return undef;
+    }
+
+    my $msg = "Request failed: " . Dumper($res);
+    if ($errorp) {
+	$$errorp = $msg;
+    } else {
+	warn("*** ERROR: freenasRequest: $msg");
+    }
+    return undef;
+}
+
 sub freenasVolumeList($;$)
 {
     my ($inameinfo,$snapinfo) = @_;
@@ -157,35 +364,38 @@ sub freenasVolumeList($;$)
     $inameinfo = 0 if (!defined($inameinfo));
     $snapinfo  = 0 if (!defined($snapinfo));
 
+    # Assorted hack maps
+    my %inames = ();	# volume-name -> slice-name
+    my %snaps = ();	# volume-name -> (snapshot1 snapshot2 ...)
+    my %clones = ();	# clone-volume-name -> snapshot
+    my %zvolsizes = ();	# volume-name -> volsize
+
     #
     # Extract blockstores from the freenas volume info and augment
     # with slice info where it exists.
     # 
-    my %inames = ();
     if ($inameinfo) {
-	my @slist = freenasParseListing($FREENAS_CLI_VERB_IST_EXTENT);
-	foreach my $slice (@slist) {
-	    if ($slice->{'path'} =~ /^zvol\/([-\w]+\/[-\w+]+)$/) {
-		$inames{$1} = $slice->{'name'};
+	my $extinfo = freenasRequest($FREENAS_API_RESOURCE_IST_EXTENT,
+				     "GET", { "limit" => 0 });
+	foreach my $ext (@$extinfo) {
+	    if ($ext->{'iscsi_target_extent_path'} =~ /^\/dev\/zvol\/([-\w]+\/[-\w+]+)$/) {
+		$inames{$1} = $ext->{'iscsi_target_extent_name'};
 	    }
 	}
     }
 
-    # volume-name -> (snapshot1 snapshot2 ...)
-    my %snaps = ();
-    # clone-volume-name -> snapshot
-    my %clones = ();
     if ($snapinfo) {
-	my @slist = freenasParseListing($FREENAS_CLI_VERB_SNAPSHOT);
+	my $sinfo = freenasRequest($FREENAS_API_RESOURCE_SNAPSHOT,
+				   "GET", { "limit" => 0 });
 	my @snames = ();
-	foreach my $snap (@slist) {
-	    my $vol = $snap->{'vol_name'};
+	foreach my $snap (@$sinfo) {
+	    my $vol = $snap->{'filesystem'};
 	    next if (!$vol);
 
 	    # XXX only handle zvols right now
-	    next if ($snap->{'snap_parent'} ne 'volume');
+	    next if ($snap->{'parent_type'} ne 'volume');
 
-	    if ($snap->{'snap_name'} =~ /^(.*)\/([^\/]+)$/) {
+	    if ($snap->{'fullname'} =~ /^(.*)\/([^\/]+)$/) {
 		my $sname = $2;
 		push(@snames, "$1/$2");
 		$snaps{$vol} = [ ] if (!exists($snaps{$vol}));
@@ -211,22 +421,50 @@ sub freenasVolumeList($;$)
 	}
     }
 
-    my @zvols = freenasParseListing($FREENAS_CLI_VERB_VOLUME);
+    # XXX unbelievable: the API does not return the volsize of a zvol!
+    # Gotta do it ourselves...
+    if (open(ZFS, "$ZFS_CMD get -t volume -o name,value -Hp volsize |")) {
+	while (my $line = <ZFS>) {
+	    chomp $line;
+	    my ($name, $val) = split(/\s+/, $line);
+	    $zvolsizes{$name} = $val;
+	}
+	close(ZFS);
+    } else {
+	warn("*** WARNING: could not run 'zfs get' for zvol size info");
+    }
+
+    #
+    # The FreeNAS API returns pools, filesystems, zvols using "volume"
+    # so we have to dig the zvols out from there.
+    #
+    my $vinfo = freenasRequest($FREENAS_API_RESOURCE_VOLUME,
+			       "GET", {"limit" => 0});
+    my @zvols = getZvolsFromVolinfo($vinfo);
+
     foreach my $zvol (@zvols) {
 	my $vol = {};
-	if ($zvol->{'vol_name'} =~ /^([-\w]+)\/([-\w+]+)$/) {
+	my $volname = $zvol->{'path'};
+
+	if ($volname =~ /^([-\w]+)\/([-\w+]+)$/) {
 	    $vol->{'pool'} = $1;
 	    $vol->{'volume'} = $2;
-	    $vol->{'size'} = convertZfsToMebi($zvol->{'vol_size'});
-	    if ($inameinfo && exists($inames{$zvol->{'vol_name'}})) {
-		$vol->{'iname'} = $inames{$zvol->{'vol_name'}};
+	    if (exists($zvolsizes{$volname})) {
+		$vol->{'size'} = convertToMebi($zvolsizes{$volname});
+	    } else {
+		$vol->{'size'} = 0;
+		warn("*** WARNING: could not get volume size of $volname");
+	    }
+
+	    if ($inameinfo && exists($inames{$zvol->{'path'}})) {
+		$vol->{'iname'} = $inames{$zvol->{'path'}};
 	    }
 	    if ($snapinfo) {
-		my $sref = $snaps{$zvol->{'vol_name'}};
+		my $sref = $snaps{$zvol->{'path'}};
 		if ($sref && @$sref > 0) {
 		    $vol->{'snapshots'} = join(',', @$sref);
 		}
-		my $sname = $clones{$zvol->{'vol_name'}};
+		my $sname = $clones{$zvol->{'path'}};
 		if ($sname) {
 		    $vol->{'cloneof'} = $sname;
 		}
@@ -242,6 +480,11 @@ sub freenasPoolList() {
     return listPools();
 }
 
+#
+# Create a ZFS zvol.
+# Unbelievably, the FreeNAS 1.0 API does not support creation of a zvol
+# so we have to use the old, hacky interface.
+#
 sub freenasVolumeCreate($$$)
 {
     my ($pool, $volname, $size) = @_;
@@ -277,7 +520,7 @@ sub freenasVolumeCreate($$$)
 
     # Allocate volume in zpool
     eval { freenasRunCmd($FREENAS_CLI_VERB_VOLUME, 
-			 "add $pool $volname ${size}MB off") };
+			 "add $pool $volname ${size}M off") };
     if ($@) {
 	my $msg = "  $@";
 	$msg =~ s/\\n/\n  /g;
@@ -333,13 +576,11 @@ sub freenasVolumeSnapshot($$;$)
     }
 
     # Let's do it!
-    eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT,
-			 "add $pool/$snapshot") };
-    if ($@) {
-	my $msg = "  $@";
-	$msg =~ s/\\n/\n  /g;
-	warn("*** ERROR: freenasVolumeSnapshot: ".
-	     "'add $pool/$snapshot' failed:\n$msg");
+    my $res = freenasRequest($FREENAS_API_RESOURCE_SNAPSHOT, "POST", undef,
+			     {"dataset" => "$pool/$volname",
+			      "name" => "$tstamp"});
+    if (!$res) {
+	warn("*** ERROR: freenasVolumeSnapshot: could not create snapshot");
 	return -1;
     }
 
@@ -384,32 +625,42 @@ sub freenasVolumeDesnapshot($$;$)
 
 	foreach my $sname (@snaps) {
 	    if (!$tstamp || $snapshot eq $sname) {
-		eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT, 
-				     "del $pool/$sname") };
-		if ($@) {
-		    if ($@ =~ /has dependent clones/) {
-			warn("*** WARNING: freenasVolumeDesnapshot: ".
-			     "snapshot '$sname' in use");
+		#
+		# XXX API does not return an error if you try to remove
+		# a snapshot that has a clone. So we have to check ourselves.
+		#
+		if (snapshotHasClone($sname, $vollist)) {
+		    warn("*** WARNING: freenasVolumeDesnapshot: ".
+			 "snapshot '$sname' in use");
 
-			#
-			# XXX only return an error for this case if we are
-			# removing a specific snapshot. Otherwise, it causes
-			# too much drama up the line for something that is
-			# "normal" (i.e., we are attempting to remove all
-			# snapshots and some of them are in use).
-			#
-			if ($tstamp) {
-			    $rv = -1;
-			}
-		    } else {
-			my $msg = "  $@";
-			$msg =~ s/\\n/\n  /g;
-			warn("*** ERROR: freenasVolumeDesnapshot: ".
-			     "'del $pool/$snapshot' failed:\n$msg");
-
-			# if it isn't an "in use" error, we really do fail
+		    #
+		    # XXX only return an error for this case if we are
+		    # removing a specific snapshot. Otherwise, it causes
+		    # too much drama up the line for something that is
+		    # "normal" (i.e., we are attempting to remove all
+		    # snapshots and some of them are in use).
+		    #
+		    if ($tstamp) {
 			$rv = -1;
 		    }
+		    next;
+		}
+
+		#
+		# Otherwise, try to remove the snapshot.
+		#
+		my $msg;
+		my $resource =
+		    "$FREENAS_API_RESOURCE_SNAPSHOT/${pool}\%2F${sname}";
+
+		my $res = freenasRequest($resource, "DELETE",
+					 undef, undef, undef, \$msg);
+		if (!$res) {
+		    warn("*** ERROR: freenasVolumeDesnapshot: ".
+			 "delete of $snapshot failed:\n$msg");
+
+		    # if it isn't an "in use" error, we really do fail
+		    $rv = -1;
 		}
 	    }
 	}
@@ -495,14 +746,13 @@ sub freenasVolumeClone($$$;$)
 	$snapshot = "$ovolname\@$tag";
     }
 
-    # Let's do it!
-    eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT,
-			 "clone $pool/$snapshot $pool/$nvolname") };
-    if ($@) {
-	my $msg = "  $@";
-	$msg =~ s/\\n/\n  /g;
-	warn("*** ERROR: freenasVolumeClone: ".
-	     "'clone $pool/$snapshot $pool/$nvolname' failed:\n$msg");
+    my $resource =
+	"$FREENAS_API_RESOURCE_SNAPSHOT/${pool}\%2F${snapshot}/clone";
+
+    my $res = freenasRequest($resource, "POST", undef,
+			     {"name" => "$pool/$nvolname"}, 202);
+    if (!$res) {
+	warn("*** ERROR: freenasVolumeClone: could not create clone");
 	return -1;
     }
 
@@ -568,19 +818,22 @@ sub volumeDestroy($$$$) {
     # Deallocate volume.  Wrap in loop to enable retries.
     my $count;
     for ($count = 1; $count <= $MAX_RETRY_COUNT; $count++) {
-	eval { freenasRunCmd($FREENAS_CLI_VERB_VOLUME, 
-			     "del $pool $volname") };
-	# Process exceptions thrown during deletion attempt.  Retry on
-	# some errors.
-	if ($@) { 
-	    if ($@ =~ /dataset is busy/) {
+	my $resource = "$FREENAS_API_RESOURCE_VOLUME/$pool/datasets/$volname";
+	my $msg;
+
+	my $res = freenasRequest($resource, "DELETE", undef, undef,
+				 undef, \$msg);
+
+	# Retry on some errors
+	if (!$res) { 
+	    if ($msg =~ /dataset is busy/) {
 		warn("*** WARNING: $tag: ".
 		     "Volume is busy. ".
 		     "Waiting $VOLUME_BUSY_WAIT seconds before trying again ".
 		     "(count=$count).");
 		sleep $VOLUME_BUSY_WAIT;
 	    }
-	    elsif ($@ =~ /does not exist/) {
+	    elsif ($msg =~ /does not exist/) {
 		if ($count < $MAX_RETRY_COUNT) {
 		    warn("*** WARNING: $tag: ".
 			 "Volume seems to be gone, retrying.");
@@ -596,7 +849,6 @@ sub volumeDestroy($$$$) {
 		}
 	    } 
 	    else {
-		my $msg = "  $@";
 		$msg =~ s/\\n/\n  /g;
 		warn("*** ERROR: $tag: ".
 		     "Volume removal failed:\n$msg");
@@ -623,10 +875,14 @@ sub volumeDestroy($$$$) {
     if (exists($vref->{'cloneof'})) {
 	my $snapshot = $vref->{'cloneof'};
 	if ($declone) {
-	    eval { freenasRunCmd($FREENAS_CLI_VERB_SNAPSHOT, 
-				 "del $pool/$snapshot") };
-	    if ($@) {
-		if ($@ =~ /has dependent clones/) {
+	    my $msg;
+	    my $resource =
+		"$FREENAS_API_RESOURCE_SNAPSHOT/${pool}\%2F${snapshot}";
+
+	    my $res = freenasRequest($resource, "DELETE",
+				     undef, undef, undef, \$msg);
+	    if (!$res) {
+		if ($msg =~ /has dependent clones/) {
 		    return 0;
 		}
 		my $msg = "  $@";
@@ -641,6 +897,19 @@ sub volumeDestroy($$$$) {
 	}
     }
 
+    return 0;
+}
+
+sub snapshotHasClone($$)
+{
+    my ($sname, $vollist) = @_;
+
+    foreach my $vol (keys %{$vollist}) {
+	if (exists($vollist->{$vol}->{'cloneof'}) && 
+	    $vollist->{$vol}->{'cloneof'} eq $sname) {
+	    return 1;
+	}
+    }
     return 0;
 }
 
@@ -746,6 +1015,171 @@ sub freenasFSCreate($$$) {
     return 0;
 }
 
+#
+# Return list of authorized initiators
+#
+sub freenasAuthInitList() {
+    my $aihash = {};
+    my $aiinfo = freenasRequest($FREENAS_API_RESOURCE_IST_AUTHI,
+				"GET", { "limit" => 0 });
+
+    foreach my $ai (@$aiinfo) {
+	# XXX shorten the names
+	foreach my $key (keys %{$ai}) {
+	    if ($key =~ /^iscsi_target_initiator_(.*)/) {
+		if (!exists($ai->{$1})) {
+		    $ai->{$1} = $ai->{$key};
+		    delete $ai->{$key};
+		}
+	    }
+	}
+	$aihash->{$ai->{'id'}} = $ai;
+    }
+
+    return $aihash;
+}
+
+#
+# Return list of extents
+#
+sub freenasExtentList($) {
+    my ($byname) = @_;
+    my $exthash = {};
+    my $extinfo = freenasRequest($FREENAS_API_RESOURCE_IST_EXTENT,
+				 "GET", { "limit" => 0 });
+
+    foreach my $ext (@$extinfo) {
+	# XXX shorten the names
+	foreach my $key (keys %{$ext}) {
+	    if ($key =~ /^iscsi_target_extent_(.*)/) {
+		if (!exists($ext->{$1})) {
+		    $ext->{$1} = $ext->{$key};
+		    delete $ext->{$key};
+		}
+	    }
+	}
+	if ($byname) {
+	    $exthash->{$ext->{'name'}} = $ext;
+	} else {
+	    $exthash->{$ext->{'id'}} = $ext;
+	}
+    }
+
+    return $exthash;
+}
+
+#
+# Return list of targets
+#
+sub freenasTargetList($) {
+    my ($byname) = @_;
+    my $thash = {};
+    my $tinfo = freenasRequest($FREENAS_API_RESOURCE_IST_TARGET,
+				"GET", { "limit" => 0 });
+
+    foreach my $t (@$tinfo) {
+	# XXX shorten the names
+	foreach my $key (keys %{$t}) {
+	    if ($key =~ /^iscsi_target_(.*)/) {
+		if (!exists($t->{$1})) {
+		    $t->{$1} = $t->{$key};
+		    delete $t->{$key};
+		}
+	    }
+	}
+	if ($byname) {
+	    $thash->{$t->{'name'}} = $t;
+	} else {
+	    $thash->{$t->{'id'}} = $t;
+	}
+    }
+
+    return $thash;
+}
+
+#
+# Return list of associations.
+# If getnames is non-zero, we resolve the extent/target indicies into names.
+#
+sub freenasAssocList() {
+    my $ahash = {};
+    my $ainfo = freenasRequest($FREENAS_API_RESOURCE_IST_ASSOC,
+			       "GET", { "limit" => 0 });
+    if (@$ainfo == 0) {
+	return $ahash;
+    }
+
+    #
+    # Map indicies to names for targets and extents.
+    # Our use of these associations pretty much operate on names but
+    # internally they are tracked by indicies. Note that these indicies
+    # can change as targets and extents come and go, so we cannot cache
+    # the mappings, we have to look them up everytime.
+    #
+    my $einfo = freenasExtentList(0);
+    my $tinfo = freenasTargetList(0);
+
+    foreach my $a (@$ainfo) {
+	# XXX shorten the names
+	foreach my $key (keys %{$a}) {
+	    if ($key =~ /^iscsi_(.*)/) {
+		if (!exists($a->{$1})) {
+		    $a->{$1} = $a->{$key};
+		    delete $a->{$key};
+		}
+	    }
+	    if ($key eq "iscsi_extent") {
+		if ($einfo && exists($einfo->{$a->{'extent'}})) {
+		    $a->{'extent_name'} = $einfo->{$a->{'extent'}}->{'name'};
+		}
+	    }
+	    if ($key eq "iscsi_target") {
+		if ($tinfo && exists($tinfo->{$a->{'target'}})) {
+		    $a->{'target_name'} = $tinfo->{$a->{'target'}}->{'name'};
+		}
+	    }
+	}
+	$ahash->{$a->{'id'}} = $a;
+    }
+
+    return $ahash;
+}
+
+#
+# Yank information about Emulab blockstore slices out of FreeNAS.
+# We start with the extent info and augment with Emulab-specific info.
+#
+sub freenasSliceList() {
+    my $sliceshash = {};
+
+    my $extinfo = freenasExtentList(0);
+
+    # Go through each slice hash, culling out extra info.
+    # Save hash in global list.  Throw out malformed stuff.
+    foreach my $eref (keys %$extinfo) {
+	my $slice = $extinfo->{$eref};
+
+	my ($pid,$eid,$volname) = parseSliceName($slice->{'name'});
+	my ($bsid, $vnode_id) = parseSlicePath($slice->{'path'});
+	if (!defined($pid) || !defined($bsid)) {
+	    warn("*** WARNING: blockstore_getSliceList: ".
+		 "malformed slice entry, skipping.");
+	    next;
+	}
+	$slice->{'pid'} = $pid;
+	$slice->{'eid'} = $eid;
+	$slice->{'volname'} = $volname;
+	$slice->{'bsid'} = $bsid;
+	$slice->{'vnode_id'} = $vnode_id;
+	$sliceshash->{$vnode_id} = $slice;
+    }
+
+    # Do the messy work of getting slice size info into mebibytes.
+    calcSliceSizes($sliceshash);
+
+    return $sliceshash;
+}
+
 #######################################################################
 # package-local functions
 #
@@ -764,25 +1198,31 @@ sub freenasFSCreate($$$) {
 #
 sub listPools() {
     my $poolh = {};
-    my @pools = freenasParseListing($FREENAS_CLI_VERB_POOL);
+    my $vinfo = freenasRequest($FREENAS_API_RESOURCE_VOLUME,
+			       "GET",  {"limit" => 0});
     
     # Create hash with pool name as key.  Stuff in some sentinel values
     # in case we don't get a match from 'zpool list' below.
-    foreach my $pool (@pools) {
+    foreach my $pool (@$vinfo) {
 	$pool->{'size'} = 0;
 	$pool->{'avail'} = 0;
-	$poolh->{$pool->{'volume_name'}} = $pool;
+	$pool->{'used'} = 0;
+	my $vname = $pool->{'vol_name'};
+	if ($vname) {
+	    $poolh->{$vname} = $pool;
+	} else {
+	    warn("*** WARNING: listPools: pool has no vol_name!");
+	}
     }
 
-    # Yuck - have to go after capacity and status info by calling the
-    # 'zfs' command line utility since the CLI doesn't return this info.
     open(ZFS, "$ZFS_CMD get -o name,property,value -Hp used,avail |") or
 	die "Can't run 'zfs get'!";
 
     while (my $line = <ZFS>) {
 	chomp $line;
 	my ($pname, $prop, $val) = split(/\s+/, $line);
-	next if $pname =~ /\//;  # filter out zvols.
+	next if $pname =~ /\//;  	  # filter out zvols.
+	next if $pname eq "freenas-boot"; # and the system pool.
 	if (exists($poolh->{$pname})) {
 	    my $pool = $poolh->{$pname};
 	    if ($prop eq "available") {
@@ -791,7 +1231,7 @@ sub listPools() {
 		$pool->{'used'} = convertZfsToMebi($val);
 	    }
 	} else {
-	    warn("*** WARNING: blockstore_getPoolInfo: ".
+	    warn("*** WARNING: listPools: ".
 		 "No FreeNAS entry for zpool: $pname");
 	}
     }
@@ -822,6 +1262,86 @@ sub convertZfsToMebi($) {
 	$zsize = $1 . "iB";
     }
     return convertToMebi($zsize);
+}
+
+sub getZvolsFromVolinfo($)
+{
+    my ($vinfo) = @_;
+    my @zvols = ();
+
+    foreach my $vol (@$vinfo) {
+	if (exists($vol->{'type'}) && $vol->{'type'} eq "zvol") {
+	    # If path doesn't exist, then name is actually the path
+	    if (!exists($vol->{'path'})) {
+		if ($vol->{'name'} =~ /^[^\/]+\/(.*)/) {
+		    $vol->{'path'} = $vol->{'name'};
+		    $vol->{'name'} = $1;
+		}
+	    }
+	    push(@zvols, $vol);
+	    next;
+	}
+
+	# not a zvol, see if there are children and search those
+	if (exists($vol->{'children'})) {
+	    push(@zvols, getZvolsFromVolinfo($vol->{'children'}));
+	}
+    }
+
+    return @zvols;
+}
+
+# helper function.
+# Slice names look like: 'iqn.<date>.<tld>.<domain>:<pid>:<eid>:<volname>'
+sub parseSliceName($) {
+    my $name = shift;
+    my @parts = split(/:/, $name);
+    if (scalar(@parts) != 4) {
+	warn("*** WARNING: blockstore_parseSliceName: Bad slice name: $name");
+	return undef;
+    }
+    shift @parts;
+    return @parts;
+}
+
+# helper function.
+# Paths look like this: '/mnt/<blockstore_id>/<vnode_id>' for file-based
+# extent (slice), and '/dev/zvol/<blockstore_id>/<vnode_id>' for zvol extents.
+sub parseSlicePath($) {
+    my $path = shift;
+
+    if ($path =~ /^\/(mnt|dev\/zvol)\/([^\/]+)\/([^\/]+)/) {
+	return ($2, $3);
+    }
+
+    return undef;
+}
+
+sub calcSliceSizes($) {
+    my $sliceshash = shift;
+
+    # Ugh... Have to look up size via the "volume" list for zvol slices.
+    my $zvollist = freenasVolumeList(0, 0);
+
+    foreach my $slice (values(%$sliceshash)) {
+	my $vnode_id = $slice->{'vnode_id'};
+	my $type = lc($slice->{'type'});
+
+	if ($type eq "zvol") {
+	    if (!exists($zvollist->{$vnode_id})) {
+		warn("*** WARNING: blockstore_calcSliceList: ".
+		     "Could not find matching volume entry ($vnode_id) for ".
+		     "zvol slice: $slice->{'name'}");
+		next;
+	    }
+	    # already converted to Mebi
+	    $slice->{'size'} = $zvollist->{$vnode_id}->{'size'};
+	} elsif ($type eq "file") {
+	    my $size = $slice->{'filesize'};
+	    $size =~ s/B$/iB/; # re-write with correct units.
+	    $slice->{'size'} = convertToMebi($size);
+	}
+    }
 }
 
 # Required perl foo

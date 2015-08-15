@@ -1536,6 +1536,12 @@ sub GetTicketAuxAux($$$$$$$$$$)
 				      "desire"   => "pcshared",
 				      "weight"   => 0.95})
 	    if (!defined($exclusive) || !$exclusive);
+	
+	$virtexperiment->NewTableRow("virt_node_desires",
+				     {"vname"    => $node_nickname,
+				      "desire"   => "d820-explicit",
+				      "weight"   => 0.95})
+	    if ($MAINSITE && !defined($exclusive) || !$exclusive);
 
 	#
 	# Special hack for allocating from a specific chassis.
@@ -2390,9 +2396,16 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	goto bad;
     }
     $slice_experiment->CleanLogFiles();
+
+    #
+    # When doing an initial allocation, we do not want fixnode to bypass
+    # normal assign constraint checking, so do not use update mode
+    # (the mapper will pass internal option to assign to prevent fixnode).
+    #
+    my $aopts = ($isupdate ? "-u" : "");
     
     $output =
-	GeniUtil::ExecQuiet("$MAPPER -a -d -v -u -z -o $tmpfile $pid $eid");
+	GeniUtil::ExecQuiet("$MAPPER -a -d -v $aopts -z -o $tmpfile $pid $eid");
     if ($?) {
 	my $logstuff     = "";
 	my $errorstr     = "";
@@ -2402,6 +2415,7 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	my $inviolations = 0;
 	my $precheck;
 	my $inprecheck   = 0;
+	my $insummary    = 0;
 	my $errorcode = GENIRESPONSE_ERROR;
 	
 	unlink($tmpfile);
@@ -2431,6 +2445,17 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    if (!defined($precheck) && $line =~ /precheck:$/) {
 		$inprecheck = 1;
 		$precheck   = "";
+	    }
+	    elsif ($line =~ /Summary:$/) {
+		$insummary = 1;
+	    }
+	    elsif ($line =~ /End Summary$/) {
+		$insummary = 0;
+	    }
+	    elsif ($insummary &&
+		   $line =~ /ram: used=(\d+) total=(\d+)/ && $1 > $2) {
+		$errorstr  = "Not enough memory";
+		$errorcode = GENIRESPONSE_INSUFFICIENT_MEMORY();
 	    }
 	    elsif (!defined($violations) &&
 		$line =~ /Violations:\s*(\d*)/ && $1 != 0) {

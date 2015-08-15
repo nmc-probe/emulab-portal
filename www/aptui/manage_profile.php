@@ -67,7 +67,7 @@ function SPITFORM($formfields, $errors)
     $activity   = 0;
     $ispp       = 0;
     $isadmin    = (ISADMIN() ? 1 : 0);
-    $multisite  = (ISADMIN() || STUDLY() ? 1 : 0);
+    $multisite  = 1;
     $version_uuid = "null";
     $profile_uuid = "null";
 

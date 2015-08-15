@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005, 2006 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,11 +29,12 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print(STDOUT "Usage: spewconlog [-l linecount] node\n");
+    print(STDOUT "Usage: spewconlog [-l linecount] [-k key] node\n");
     exit(-1);
 }
-my $optlist   = "l:";
+my $optlist   = "l:k:";
 my $linecount = 0;
+my $key;
 my $logdir    = "/var/log/tiplogs";
 my $logname;
 my $cmd;
@@ -86,6 +87,7 @@ $| = 1;
 use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
+use Node;
 
 # Be careful not to exit on transient error
 $libdb::DBQUERY_MAXTRIES = 30;
@@ -103,6 +105,9 @@ my $logfile;
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"k"})) {
+    $key = $options{"k"};
+}
 if (defined($options{"l"})) {
     $linecount = $options{"l"};
 
@@ -117,45 +122,60 @@ if (defined($options{"l"})) {
 }
 usage()
     if (@ARGV != 1);
-my $node = $ARGV[0];
+my $node_id = $ARGV[0];
 
 # Untaint
-if ($node =~ /^([-\w]+)$/) {
-    $node = $1;
+if ($node_id =~ /^([-\w]+)$/) {
+    $node_id = $1;
 }
 else {
-    die("*** Tainted node name: $node\n");
+    die("*** Tainted node name: $node_id\n");
 }
-
-#
-# Check permission.
-#
-if (!TBAdmin($UID) &&
-    (! TBNodeAccessCheck($UID, TB_NODEACCESS_READINFO, ($node)))) {
+my $node = Node->Lookup($node_id);
+if (!defined($node)) {
     die("*** $0:\n".
-	"    You not have permission to view console log for $node!\n");
+	"    No such node $node_id!\n");
 }
 
 #
 # Grab DB data. 
 #
 my $query_result =
-    DBQueryFatal("select server from tiplines where node_id='$node'");
+    DBQueryFatal("select server from tiplines where node_id='$node_id'");
 
 if (!$query_result->numrows) {
     die("*** $0:\n".
-	"    No console log (tipline) available for $node!\n");
+	"    No console log (tipline) available for $node_id!\n");
 }
 my ($tipserver) = $query_result->fetchrow_array();
 
 #
+# Check permission. Called as nobody if there is a key.
+#
+if (defined($key)) {
+    if ($node->CheckTipAcl($key)) {
+	die("*** $0:\n".
+	    "    You not have permission to view console log for $node_id!\n");
+    }
+    $node->ClrTipAclUrl();
+}
+elsif (!TBAdmin($UID) &&
+       (! TBNodeAccessCheck($UID, TB_NODEACCESS_READINFO, ($node_id)))) {
+    die("*** $0:\n".
+	"    You not have permission to view console log for $node_id!\n");
+}
+
+#
 # Form the logfile name; admin users get the .log while users get .run.
 #
-if (!TBAdmin($UID)) {
-    $logname = "$logdir/${node}.run"
+if ($node->isvirtnode()) {
+    $logname = "/var/emulab/vms/vminfo/$node_id/${node_id}.log";
+}
+elsif (defined($key) || !TBAdmin($UID)) {
+    $logname = "$logdir/${node_id}.run";
 }
 else {
-    $logname = "$logdir/${node}.log"
+    $logname = "$logdir/${node_id}.log";
 }
 
 if ($linecount) {

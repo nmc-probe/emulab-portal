@@ -283,6 +283,14 @@ sub UpdateSSHKeys()
 	@params = ("KEY", @params);
 	$isportal = 1;
     }
+    elsif ($auth =~ /iminds\.be/) {
+	$url = $certificate->url();
+	$url =~ s/sa$/geni-ma/;
+	$url .= "/2";
+	$method = "lookup";
+	@params = ("KEY", @params);
+	$isportal = 1;
+    }
     else {
 	$url = $certificate->url();
 	$url =~ s/sa$/geni-ma/;
@@ -386,8 +394,6 @@ sub UpdateSSHKeys()
 #
 sub ProjectMembership()
 {
-    my $isportal = 0;
-
     #
     # Load the SA cert to act as caller context.
     #
@@ -439,19 +445,25 @@ sub ProjectMembership()
 		  {"speaking_for" => $user_urn,
 		   "geni_speaking_for" => $user_urn,
 		  });
-    my $method;
+    my $method = "lookup_projects_for_member";
     my $url;
     my ($auth,$type,$id) = GeniHRN::Parse($user_urn);
+    #
+    # XXX We need to ask for the version ... 
+    #
     if ($auth =~ /geni\.net/) {
 	$url = "https://ch.geni.net/SA";
-	$method = "lookup_projects_for_member";
 	@params = ($user_urn, @params);
-	$isportal = 1;
+    }
+    elsif ($auth =~ /iminds\.be/) {
+	$url = $certificate->url();
+	$url =~ s/sa$/geni-sa/;
+	$url .= "/1";
+	@params = ($user_urn, @params);
     }
     else {
 	$url = $certificate->url();
 	$url =~ s/sa$/geni-sa/;
-	$method = "lookup_projects_for_member";
     }
     my $response =
 	Genixmlrpc::CallMethod($url, $context, $method, @params);
@@ -459,6 +471,7 @@ sub ProjectMembership()
 	fatal("Internal error getting self credential");
     }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
+	print STDERR Dumper(\@params);
 	fatal("Could not get project membership: " . $response->output());
     }
     if (! ref($response->value())) {

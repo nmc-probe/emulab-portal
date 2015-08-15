@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013-2014 University of Utah and the Flux Group.
+# Copyright (c) 2013-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1087,7 +1087,7 @@ sub os_check_storage_element($$)
 	# See if it is in the config file.
 	# If not, we have not done the one-time initialization, return 0.
 	#
-	if (! -r "$ISCSICNF" || mysystem("grep -q '$uuid' $ISCSICNF")) {
+	if (! -r "$ISCSICNF" || mysystem("grep -q '${uuid}\$' $ISCSICNF")) {
 	    return 0;
 	}
 
@@ -1515,7 +1515,7 @@ sub os_create_storage_element($$$)
 	#
 	# Handle one-time setup of /etc/iscsi.conf.
 	#
-	if (! -r "$ISCSICNF" || mysystem("grep -q '$uuid' $ISCSICNF $redir")) {
+	if (! -r "$ISCSICNF" || mysystem("grep -q '${uuid}\$' $ISCSICNF $redir")) {
 	    if (!open(FD, ">>$ISCSICNF")) {
 		warn("*** could not update $ISCSICNF\n");
 		return 0;
@@ -1994,7 +1994,7 @@ sub os_remove_storage_element($$$)
 	#
 	# Remove /etc/iscsi.conf entry for block store
 	#
-	if ($teardown && !mysystem("grep -q '$uuid' $ISCSICNF $redir")) {
+	if ($teardown && !mysystem("grep -q '${uuid}\$' $ISCSICNF $redir")) {
 	    if (open(OFD, "<$ISCSICNF") && open(NFD, ">$ISCSICNF.new")) {
 		# parser!? we don't need no stinkin parser...
 		my $inentry = 0;

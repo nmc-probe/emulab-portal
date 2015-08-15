@@ -34,6 +34,7 @@ import BaseHTTPServer
 from SimpleXMLRPCServer import SimpleXMLRPCDispatcher
 
 # Testbed specific stuff
+TBDIR = "@prefix@"
 TBPATH = "@prefix@/lib"
 if TBPATH not in sys.path:
     sys.path.append(TBPATH)
@@ -86,6 +87,10 @@ ALLOWED_PATHS  = [ STD_PATH, "@prefix@" ]
 
 # syslog facility
 LOGFACIL	= "@TBLOGFACIL@"
+
+# See below.
+WITHZFS            = @WITHZFS@
+ZFS_NOEXPORT       = @ZFS_NOEXPORT@
 
 ##
 # Taken from the SimpleXMLRPCServer module in the python installation and
@@ -362,6 +367,24 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
             self.logit('No such cert with serial "%s"' % serial)
             raise Exception('No such cert with serial "%s"' % serial)
 
+        #
+        # We have to make sure the exports are done, since the user might
+        # not be using the web interface at all.
+        #
+        if WITHZFS and ZFS_NOEXPORT:
+            res = DBQueryFatal("select last_activity from user_stats as s "
+                               "where uid_idx=%s and "
+                               "      last_activity < now() - (24 * 3600) ",
+                               (str(self.uid_idx),))
+            # Do not do this every time.
+            if len(res):
+                DBQueryFatal("update user_stats set last_activity=now() "
+                             "where uid_idx=%s ",
+                             (str(self.uid_idx),))
+                if os.system(TBDIR + "/sbin/exports_setup"):
+                    raise Exception("exports_setup failed")
+                pass
+            pass
         pass
 
     #

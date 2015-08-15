@@ -3902,6 +3902,21 @@ sub GenTipAclUrl($;$)
 
     return "$TBBASE/nodetipacl.php3?node_id=$node_id&key=$hash";
 }
+sub CheckTipAcl($$)
+{
+    my ($self,$hash) = @_;
+    my $node_id   = $self->node_id();
+    my $safe_hash = DBQuoteSpecial($hash);
+    
+    my $query_result =
+	DBQueryWarn("select node_id from tiplines ".
+		    "where node_id='$node_id' and urlhash=$safe_hash and ".
+		    "      UNIX_TIMESTAMP(now())<=urlstamp");
+    return -1
+	if (!$query_result || !$query_result->numrows);
+
+    return 0;
+}
 sub ClrTipAclUrl($)
 {
     my ($self) = @_;

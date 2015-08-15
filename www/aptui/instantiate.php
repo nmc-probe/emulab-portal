@@ -693,7 +693,7 @@ function SPITFORM($formfields, $newuser, $errors)
     }
     $isadmin = (isset($this_user) && ISADMIN() ? 1 : 0);
     echo "    window.ISADMIN    = $isadmin;\n";
-    $multisite = (isset($this_user) && (ISADMIN() || STUDLY()) ? 1 : 0);
+    $multisite = (isset($this_user) ? 1 : 0);
     echo "    window.MULTISITE  = $multisite;\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
@@ -874,7 +874,7 @@ if (!$this_user) {
 $aggregate_urn = "";
 $sitemap = array();
 
-if ($this_user && ($ISCLOUD || ISADMIN() || STUDLY())) {
+if ($this_user) {
     if (isset($formfields["sites"]) && is_array($formfields["sites"])) {
         while (list($siteid, $am) = each($formfields["sites"])) {
             if (array_key_exists($am, $am_array)) {

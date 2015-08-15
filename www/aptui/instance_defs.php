@@ -35,7 +35,7 @@ $urn_mapping =
           "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      => "Wisc",
           "urn:publicid:IDN+clemson.cloudlab.us+authority+cm"   => "Clem",
           "urn:publicid:IDN+apt.emulab.net+authority+cm"        => "APT",
-          "urn:publicid:IDN+emulab.net+authority+cm"            => "MS",
+          "urn:publicid:IDN+emulab.net+authority+cm"            => "Emulab",
           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm" => "DDC",
           "urn:publicid:IDN+stitch.geniracks.net+authority+cm"  => "UStitch",
           "urn:publicid:IDN+al2s.internet2.edu+authority+am"    => "AL2S");
@@ -322,7 +322,7 @@ class Instance
                           "urn:publicid:IDN+apt.emulab.net+authority+cm",
                           'IG UtahDDC' =>
                           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Utah PG'  =>
+                          'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );
         } else {
@@ -333,7 +333,7 @@ class Instance
                           "urn:publicid:IDN+apt.emulab.net+authority+cm",
                           'IG UtahDDC' =>
                           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Utah PG'  =>
+                          'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );
         }

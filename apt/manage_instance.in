@@ -291,7 +291,8 @@ sub DoSnapshot()
 	}
 	($node)     = @nodes;
 	$sliver_urn = GeniXML::GetSliverId($node);
-	$aggregate     = $agg;
+	$node_id    = GeniXML::GetVirtualId($node);
+	$aggregate  = $agg;
     }
     else {
 	# Find the node in its manifest.
@@ -442,13 +443,15 @@ sub DoSnapshot()
     
 	my $response = $aggregate->SliceStatus();
 	if ($response->code() != GENIRESPONSE_SUCCESS &&
+	    $response->code() != GENIRESPONSE_RPCERROR &&
 	    $response->code() != GENIRESPONSE_BUSY) {
 	    $errmsg = "Sliverstatus failed: ". $response->output() . "\n";
 	    $failed = 1;
 	    last;
 	}
 	next
-	    if ($response->code() == GENIRESPONSE_BUSY);
+	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_RPCERROR);
 
 	my $blob = $response->value();
 	if (defined($webtask)) {
@@ -484,13 +487,15 @@ sub DoSnapshot()
 	#
 	$response = $aggregate->ImageInfo($image_urn);
 	if ($response->code() != GENIRESPONSE_SUCCESS &&
+	    $response->code() != GENIRESPONSE_RPCERROR &&
 	    $response->code() != GENIRESPONSE_BUSY) {
 	    $errmsg = "Imageinfo failed: ". $response->output() . "\n";
 	    $failed = 1;
 	    last;
 	}
 	next
-	    if ($response->code() == GENIRESPONSE_BUSY);
+	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_RPCERROR);
 
 	$blob = $response->value();
 	if (defined($webtask)) {
@@ -548,8 +553,13 @@ sub DoSnapshot()
     $webtask->Exited(0)
 	if (defined($webtask));
     $slice->UnLock();
-    unlink($logfile)
-	if (defined($logfile));
+    if (defined($logfile)) {
+	SENDMAIL($TBOPS,
+		 "Instance Snapshot Complete",
+		 "Finished taking snapshot of $instance.\n",
+		 $TBOPS, undef, $logfile);
+	unlink($logfile);
+    }
     exit(0);
   bad:
     if ($sliver_ready) {
@@ -650,11 +660,16 @@ sub DoConsole()
     }
     my $url;
     my $pswd;
+    my $logurl;
 	
     if (ref($response->value())) {
 	$url  = $response->value()->{'url'};
 	$pswd = $response->value()->{'password'}
 	    if (exists($response->value()->{'password'}));
+	$logurl = $response->value()->{'logurl'}
+	    if (exists($response->value()->{'logurl'}));
+
+	print Dumper($response->value());
     }
     else {
 	$url = $response->value();
@@ -666,6 +681,7 @@ sub DoConsole()
 	else {
 	    $webtask->url($url);
 	    $webtask->password($pswd) if (defined($pswd));
+	    $webtask->logurl($logurl) if (defined($logurl));
 	}
 	$webtask->Exited($response->code());
 	exit($response->code());
@@ -676,6 +692,7 @@ sub DoConsole()
     }
     print $url . "\n";
     print $pswd . "\n" if (defined($pswd));
+    print $logurl . "\n" if (defined($logurl));
     exit(0);
 }
 
@@ -686,6 +703,17 @@ sub DoTerminate()
 {
     my $errmsg;
     my $logfile;
+    my $expired = $RECORDHISTORY_TERMINATED;
+
+    if (@ARGV) {
+	my $arg = shift(@ARGV);
+	if ($arg eq "-e") {
+	    $expired = $RECORDHISTORY_EXPIRED;
+	}
+	else {
+	    usage();
+	}
+    }
     
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
@@ -782,7 +810,7 @@ sub DoTerminate()
     }
     
     $slice->Delete();
-    $instance->RecordHistory();
+    $instance->RecordHistory($expired);
   killit:
     $instance->Delete();
     unlink($logfile)
@@ -1046,7 +1074,7 @@ sub DoRefresh()
     $slice->UnLock();
     exit(0);
   killit:
-    $instance->RecordHistory();
+    $instance->RecordHistory($RECORDHISTORY_TERMINATED);
     $instance->Delete();
     exit(0);
   bad:
@@ -1199,7 +1227,7 @@ sub DoRebootOrReload($)
     StartMonitor();
     exit(0);
   killit:
-    $instance->RecordHistory();
+    $instance->RecordHistory($RECORDHISTORY_TERMINATED);
     $instance->Delete();
     exit(0);
   bad:
@@ -1489,7 +1517,7 @@ sub DoLockdownInternal($$)
 	    return -1;
 	}
     }
-    exit(0);
+    return 0;
 }
 
 sub DoLockdown()

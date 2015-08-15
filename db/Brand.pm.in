@@ -136,7 +136,7 @@ sub UsersGroupName($)
 sub UsersGroupURL($)
 {
     my ($self)  = @_;
-    my $url = 'https://groups.google.com/forum/#!forum/';
+    my $url = 'https://groups.google.com/forum/#!forum';
 
     return ($self->isAPT() ?
 	    "$url/apt-users" : "$url/cloudlab-users");

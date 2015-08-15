@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2012, 2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -135,13 +135,13 @@ sub New($$)
 sub DBnum($) {
     return $_[0]->{'dbnum'}; }
 sub Query($$) {
-    return emdbi::DBQueryN($_[0]->DBnum(), $_[0]); }
+    return emdbi::DBQueryN($_[0]->DBnum(), $_[1]); }
 sub QueryFatal($$) {
-    return emdbi::DBQueryFatalN($_[0]->DBnum(), $_[0]); }
+    return emdbi::DBQueryFatalN($_[0]->DBnum(), $_[1]); }
 sub QueryWarn($$) {
-    return emdbi::DBQueryWarnN($_[0]->DBnum(), $_[0]); }
+    return emdbi::DBQueryWarnN($_[0]->DBnum(), $_[1]); }
 sub QuoteSpecial($$) {
-    return emdbi::DBQuoteSpecialN($_[0]->DBnum(), $_[0]); }
+    return emdbi::DBQuoteSpecialN($_[0]->DBnum(), $_[1]); }
 sub Warn($$;$) {
     emdbi::DBError($_[0], $_[1]); }
 sub Fatal($$;$) {
@@ -149,13 +149,13 @@ sub Fatal($$;$) {
 sub Err($) {
     return emdbi::DBErrN($_[0]->DBnum()); }
 sub TableExists($$) {
-    return emdbi::DBTableExistsN($_[0]->DBnum(), $_[0]); }
+    return emdbi::DBTableExistsN($_[0]->DBnum(), $_[1]); }
 sub SlotExists($$$) {
-    return emdbi::DBSlotExistsN($_[0]->DBnum(), $_[0], $_[1]); }
+    return emdbi::DBSlotExistsN($_[0]->DBnum(), $_[1], $_[2]); }
 sub KeyExists($$$) {
-    return emdbi::DBKeyExistsN($_[0]->DBnum(), $_[0], $_[1]); }
+    return emdbi::DBKeyExistsN($_[0]->DBnum(), $_[1], $_[2]); }
 sub SlotType($$$) {
-    return emdbi::DBSlotExistsN($_[0]->DBnum(), $_[0], $_[1]); }
+    return emdbi::DBSlotExistsN($_[0]->DBnum(), $_[1], $_[2]); }
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

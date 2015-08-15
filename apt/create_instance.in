@@ -191,7 +191,8 @@ if (!defined($this_user) || !$this_user->IsAdmin()) {
 
 # Email record.
 if (! $debug) {
-    AuditStart(0, undef, LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY());
+    my $opts = LIBAUDIT_LOGTBLOGS()|LIBAUDIT_LOGONLY();
+    AuditStart(0, undef, $opts);
     #
     # Once we determine the project, we can add the appropriate log CC
     #
@@ -495,7 +496,9 @@ if ($localuser) {
 	#
 	system("$UPDATEGENIUSER -p " . $emulab_user->uid());
 	if ($?) {
-	    fatal("Not a member of any projects");
+	    UserError("Could not get your project membership from your ".
+		      "member authority. It is probably offline, please try ".
+		      "again later.");
 	}
 	
 	# Nonlocal users get the holding project.
@@ -578,6 +581,10 @@ elsif (!$localuser) {
 #
 if (!$debug) {
     AddAuditInfo("cc", $project->LogsEmailAddress());
+    if ($MAINSITE && $project->isEmulab()) {
+	# Mostly people use the Cloudlab UI.
+	AddAuditInfo("cc", "cloudlab-logs\@cloudlab.us");
+    }
 }
 
 # There will be "internal" keys cause we pass the flag asking for them.
@@ -766,13 +773,12 @@ print STDERR "$rspecstr\n";
 # Exit and let caller poll for status.
 #
 if (!$debug) {
+    libaudit::AuditPrefork();
     my $child = fork();
     if ($child) {
 	# Parent exits but avoid libaudit email.
 	exit(0);
     }
-    # Let parent exit;
-    sleep(2);
     # All of the logging magic happens in here.
     libaudit::AuditFork();
 }

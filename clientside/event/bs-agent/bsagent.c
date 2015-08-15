@@ -64,7 +64,7 @@ main(int argc, char **argv) {
 	char *keyfile = NULL;
 	char *logfile = NULL;
 	char *progname;
-	char c;
+	int c;
 	char buf[BUFSIZ];
 	pideid = NULL;
 	
@@ -91,12 +91,15 @@ main(int argc, char **argv) {
 	    keyfile = optarg;
 	    break;
 	  default:
+	    fprintf(stderr, "*** invalid argument '%c'\n", c);
 	    usage(progname);
 	  }
 	}
 
-	if (!pideid)
+	if (!pideid) {
+	  fprintf(stderr, "*** must specify pid/eid\n");
 	  usage(progname);
+	}
 
 	if (debug)
 		loginit(0, 0);

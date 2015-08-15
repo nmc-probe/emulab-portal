@@ -397,6 +397,7 @@ define(['underscore', 'js/quickvm_sup',
 				  adminExtendString : isguest ?
 				  guestExtendString : userExtendString);
 
+
 	    // We have to wait till the modal is shown to actually set up
 	    // some of the content, since we need to know its width.
 	    $(modalname).on('shown.bs.modal', function (e) {
@@ -423,6 +424,12 @@ define(['underscore', 'js/quickvm_sup',
 		}
 		if (admin && needapproval) {
 		    $("#deny-extension").removeClass("hidden");
+		}
+		if (! (admin || guest)) {
+		    $('#myusage-popover').popover({
+			trigger: 'hover',
+			placement: 'right',
+		    });
 		}
 		$(modalname).off('shown.bs.modal');
 	    });

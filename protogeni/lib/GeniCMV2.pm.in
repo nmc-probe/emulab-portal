@@ -3447,6 +3447,10 @@ sub ConsoleInfo($)
     if (defined($pswd)) {
 	$blob->{"password"} = $pswd;
     }
+    # Another URL for the console log, but only phys nodes.
+    $url =~ s/nodetipacl/spewconlog/;
+    $blob->{"logurl"} = $url;
+
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 

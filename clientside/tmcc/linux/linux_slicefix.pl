@@ -213,6 +213,7 @@ sub fix_grub_dom0mem
 	}
 
 	seek FILE, 0, 0;
+	truncate FILE, 0;
 
 	print FILE @buffer;
 
@@ -276,11 +277,11 @@ sub fix_swap_partitions
 
 sub file_replace_string
 {
-	my ($imageroot, $file, $old_root, $new_root) = @_;
+	my ($imageroot, $file, $ostr, $nstr) = @_;
 	my @buffer;
 
-	if (!$old_root) {
-		print STDERR "old_root is empty\n";
+	if (!$ostr) {
+		print STDERR "old string is empty\n";
 		return 1;
 	}
 
@@ -288,11 +289,12 @@ sub file_replace_string
 	     die "Couldn't open $imageroot/$file: $!\n";
 
 	while (<FILE>) {
-		s#$old_root#$new_root#g;
+		s#$ostr#$nstr#g;
 		push @buffer, $_;
 	}
 
 	seek FILE, 0, 0;
+	truncate FILE, 0;
 
 	print FILE @buffer;
 
@@ -404,11 +406,11 @@ sub find_default_grub2_entry
 			next if ($current_entry < $default);
 			last if ($current_entry > $default);
 
-			if ($1 eq 'linux') {
+			if ($1 eq 'linux' || $1 eq 'linux16') {
 				$_ = $2;
 				($kernel, $cmdline) = /^(\S+)\s+(.*)$/;
 			}
-			elsif ($1 eq 'initrd') {
+			elsif ($1 eq 'initrd' || $1 eq 'initrd16') {
 				$initrd = $2;
 			}
 		}
@@ -457,6 +459,7 @@ sub set_grub_root_device
 		push @buffer, $_;
 	}
 	seek FILE, 0, 0;
+	truncate FILE, 0;
 	print FILE @buffer;
 	close FILE;
 }
@@ -501,6 +504,7 @@ sub set_grub2_root_device
 		push @buffer, "$_\n";
 	}
 	seek FILE, 0, 0;
+	truncate FILE, 0;
 	print FILE @buffer;
 	close FILE;
 }
@@ -778,6 +782,16 @@ sub check_initrd
 		    udev_supports_label($initrd_dir);
 	}
 
+	#
+	# XXX we are going to wing it here and assume "yes" and "yes" if the
+	# initrd is the Fedora/CentOS "early cpio" variety. Would take more
+	# machinery to extract the real initrd CPIO archive that appears to
+	# be appended to the initial small one. I'm just not that in to it.
+	#
+	if (!$handles_label && !$handles_uuid && -f "$initrd_dir/early_cpio") {
+	    $handles_label = $handles_uuid = 1;
+	}
+
 	`$UMOUNT "$initrd_dir" > /dev/null 2> /dev/null`;
 	`$RM -rf "$initrd_dir" "$decompressed_initrd"`;
 	
@@ -836,6 +850,166 @@ sub update_random_seed
 	open SEED, ">$imageroot/var/lib/random-seed";
 	print SEED $seed;
 	close SEED;
+}
+
+sub fix_console
+{
+    my ($imageroot, $file) = @_;
+
+    my $console = $ENV{"SLICEFIX_CONSOLE"};
+    if (!$console) {
+	print STDERR "no SLICEFIX_CONSOLE, leaving console as is\n";
+	return;
+    }
+
+    print STDERR "Setting console device to $console\n";
+
+    # XXX should be passed in
+    my $sspeed = 115200;
+
+    my $sunit = -1;
+    if ($console =~ /^sio(\d+)$/) {
+	$sunit = ($1 > 1) ? $1 - 1 : 0;
+    }
+
+    fix_grub_console($imageroot, $file, $console, $sunit, $sspeed);
+
+    # XXX we don't bother with /etc/inittab, only RHLnn-STD used it
+
+    # Fixup upstart console config
+    my $getty = "$imageroot/etc/init/ttyS0.conf";
+    if (-e "$getty") {
+	# If we don't already have a backup, create one
+	if (! -e "$getty.preemulab") {
+	    if (system("cp -p $getty $getty.preemulab")) {
+		print STDERR "WARNING: could not backup old $getty!\n";
+	    }
+	}
+
+	if ($sunit < 0) {
+	    # XXX cannot use .override as old version don't support it,
+	    # so get rid of it
+	    if (unlink($getty) == 0) {
+		print STDERR "could not remove $getty\n";
+	    }
+	} else {
+	    # XXX wtf, apparently port/baud can be in either order
+	    #     helluva way to run a command line...
+	    file_replace_string($imageroot, "/etc/init/ttyS0.conf",
+				"ttyS. [0-9]+ ", "ttyS$sunit $sspeed ");
+	    file_replace_string($imageroot, "/etc/init/ttyS0.conf",
+				"[0-9]+ ttyS. ", "$sspeed ttyS$sunit ");
+	}
+    }
+    # previously moved out of the way
+    elsif (-e "$getty.preemulab") {
+	if ($sunit >= 0) {
+	    # copy it back
+	    system("cp -p $getty.preemulab $getty");
+	    
+	    # tweak it as above
+	    file_replace_string($imageroot, "/etc/init/ttyS0.conf",
+				"ttyS. [0-9]+ ", "ttyS$sunit $sspeed ");
+	    file_replace_string($imageroot, "/etc/init/ttyS0.conf",
+				"[0-9]+ ttyS. ", "$sspeed ttyS$sunit ");
+	}
+    }
+}
+
+sub fix_grub_console
+{
+	my ($imageroot, $file, $console, $sunit, $sspeed) = @_;
+
+	open FILE, "+<$imageroot/$file" ||
+	     die "Couldn't open $imageroot/$file: $!\n";
+
+	my @buffer = ();
+	while (<FILE>) {
+	    #
+	    # Fix up serial --unit=N --speed=S line:
+	    #  vga/null: comment out
+	    #  sio*: uncomment and make sure N is correct (must exist!)
+	    #
+	    if (/^(#?)serial\s/) {
+		my $com = $1;
+		if ($sunit < 0) {
+		    if ($com) {
+			push @buffer, $_;
+		    } else {
+			push @buffer, "#$_";
+		    }
+		} else {
+		    push @buffer, "serial --unit=$sunit --speed=$sspeed\n";
+		}
+		next;
+	    }
+	    #
+	    # grub1 terminal lines
+	    #
+	    if (/^terminal\s/) {
+		if ($sunit < 0) {
+		    push @buffer, "terminal --timeout=5 console\n";
+		} else {
+		    push @buffer, "terminal --dumb --timeout=0 serial console\n";
+		}
+		next;
+	    }
+	    #
+	    # grub2 terminal_{input,output} lines
+	    #
+	    if (/^terminal_(input|output)\s/) {
+		my $dir = $1;
+		if ($sunit < 0) {
+		    push @buffer, "terminal_$dir console\n";
+		} else {
+		    push @buffer, "terminal_$dir serial\n";
+		}
+		next;
+	    }
+	    #
+	    # Kernel and initrd command lines with VGA (tty0)
+	    #
+	    if (/console=tty0\s/) {
+		# get rid of any existing serial console clauses
+		s#console=ttyS\S+##g;
+		if ($sunit >= 0) {
+		    # change tty0 to appropriate serial device
+		    s#console=tty0#console=ttyS$sunit,$sspeed#;
+		}
+		push @buffer, $_;
+		next;
+	    }
+	    #
+	    # Kernel and initrd command lines with serial (ttyS*)
+	    #
+	    if (/console=ttyS(\d+)/) {
+		# get rid of any existing VGA clause
+		s#console=tty0##g;
+		if ($sunit < 0) {
+		    # replace serial with VGA
+		    s#console=ttyS\S+#console=tty0#g;
+		} else {
+		    # fixup serial lines
+		    s#console=ttyS\S+#console=ttyS$sunit,$sspeed#g;
+		}
+		push @buffer, $_;
+		next;
+	    }
+
+	    #
+	    # Otherwise, just copy
+	    #
+	    push @buffer, $_;
+	}
+
+	seek FILE, 0, 0;
+	truncate FILE, 0;
+
+	print FILE @buffer;
+
+	close FILE;
+
+	return;
 }
 
 #
@@ -1148,6 +1322,7 @@ sub main
 		set_grub2_root_device($imageroot, $grub_config, $root);
 	}
 	fix_grub_dom0mem($imageroot, $grub_config);
+	fix_console($imageroot, $grub_config);
 
 	fix_swap_partitions($imageroot, $root,
 		$kernel_has_ide ? $old_root : undef );

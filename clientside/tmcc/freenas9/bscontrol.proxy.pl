@@ -49,6 +49,13 @@ sub usage()
     print STDERR "            Destroy snapshot <vol>/<pool>@<tstamp>; if <tstamp> is not given, destroy all snapshots\n";
     print STDERR "   declone <pool> <vol>\n";
     print STDERR "            Destroy clone <vol> in <pool>; also destroys associated snapshot if this is the last clone\n";
+    print STDERR "iSCSI-related debugging commands:\n";
+    print STDERR "   slices    Print info about Emulab slices\n";
+    print STDERR "   targets   Print info about iSCSI targets\n";
+    print STDERR "   extents   Print info about iSCSI extents\n";
+    print STDERR "   assocs    Print info about iSCSI target/extent assocs\n";
+    print STDERR "   authinit  Print info about iSCSI authorized initiators\n";
+    print STDERR "   nextaitag Print next available initiator tag\n";
     exit(-1);
 }
 my $optlist  = "hd";
@@ -78,6 +85,12 @@ my %cmds = (
     "destroy"    => \&destroy,
     "desnapshot" => \&desnapshot,
     "declone"    => \&declone,
+    "slices"     => \&slices,
+    "extents"    => \&extents,
+    "authinit"   => \&authinit,
+    "nextaitag"  => \&nexttag,
+    "targets"    => \&targets,
+    "assocs"     => \&assocs,
 );
 
 #
@@ -150,6 +163,124 @@ sub volumes()
     }
 
     return 0;
+}
+
+#
+# Print uninterpreted Emulab slice info.
+#
+sub slices()
+{
+    my $eref = freenasSliceList();
+    foreach my $ext (keys %{$eref}) {
+	foreach my $key ("pid", "eid", "volname", "bsid", "vnode_id", "size", "type") {
+	    my $val = $eref->{$ext}->{$key};
+	    $val = lc($val)
+		if ($key eq "type");
+	    print "$key=$val "
+		if (defined($val));
+	}
+	print "\n";
+    }
+
+    return 0;
+}
+
+#
+# Print uninterpreted iSCSI extent info.
+#
+sub extents()
+{
+    my $eref = freenasExtentList(0);
+    foreach my $ext (keys %{$eref}) {
+	foreach my $key ("id", "name", "path", "type", "blocksize", "filesize", "naa") {
+	    my $val = $eref->{$ext}->{$key};
+	    $val = lc($val)
+		if ($key eq "type");
+	    print "$key=$val "
+		if (defined($val));
+	}
+	print "\n";
+    }
+
+    return 0;
+}
+
+#
+# Print uninterpreted iSCSI target info.
+#
+sub targets()
+{
+    my $airef = freenasTargetList(0);
+    foreach my $ai (keys %{$airef}) {
+	foreach my $key ("id", "name", "alias", "serial", "portalgroup", "authgroup", "authtype", "initiatorgroup") {
+	    my $val = $airef->{$ai}->{$key};
+	    print "$key=$val "
+		if (defined($val));
+	}
+	print "\n";
+    }
+
+    return 0;
+}
+
+#
+# Print uninterpreted iSCSI target/extent association info.
+#
+sub assocs()
+{
+    my $aref = freenasAssocList();
+    foreach my $a (keys %{$aref}) {
+	foreach my $key ("id", "target", "target_name", "extent", "extent_name") {
+	    my $val = $aref->{$a}->{$key};
+	    print "$key=$val "
+		if (defined($val));
+	}
+	print "\n";
+    }
+
+    return 0;
+}
+
+#
+# Print uninterpreted iSCSI authorized initiator info.
+#
+sub authinit()
+{
+    my $airef = freenasAuthInitList();
+    foreach my $ai (keys %{$airef}) {
+	foreach my $key ("id", "tag", "auth_network", "comment") {
+	    my $val = $airef->{$ai}->{$key};
+	    print "$key=$val "
+		if (defined($val));
+	}
+	print "\n";
+    }
+
+    return 0;
+}
+
+#
+# Print next available authinit tag
+#
+sub nexttag() {
+    my $aiinfo = freenasAuthInitList();
+
+    my @taglist = ();
+    foreach my $ai (keys %{$aiinfo}) {
+	my $tag = $aiinfo->{$ai}->{'tag'};
+	if (defined($tag) && $tag =~ /^(\d+)$/) {
+	    push(@taglist, $1);
+	}
+    }
+
+    my $freetag = 1;
+    foreach my $curtag (sort {$a <=> $b} @taglist) {
+	last
+	    if ($freetag < $curtag);
+	$freetag++;
+    }
+
+    print "nexttag=$freetag\n";
 }
 
 sub create($$$;$)

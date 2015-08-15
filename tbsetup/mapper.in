@@ -700,6 +700,8 @@ sub RunAssign($$)
     $args .= "$ptopfile $vtopfile";
     $args = "-P $args"
 	if (!$vtop->sharednodecount());
+    $args = "-F $args"
+	if (!$updating);
     $args = "-uod -c .75 $args"
 	if ($vtop->virtnodecount() || $vtop->simnodecount());
     $args = "-n $args"
