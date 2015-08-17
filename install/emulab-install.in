@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2014 University of Utah and the Flux Group.
+# Copyright (c) 2010-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -243,8 +243,7 @@ elsif ($server eq "boss") {
 	      'exports', 'nfsmounts', 'boss/mibs', 'boss/crontab', 'sudoers',
 	      'samba', 'boss/ssh', 'boss/hostkeys',
 	      'boss/rndc', 'boss/loaderconf', 'boss/sysctlconf',
-	      'boss/sslcerts', 'boss/mailman', 'boss/pubsub',
-	      'boss/software', 
+	      'boss/sslcerts', 'boss/pubsub', 'boss/software', 
               #
 	      # The next few items must be after the software install since 
 	      # they use testbed libraries and such.
@@ -268,7 +267,7 @@ elsif ($server eq "ops") {
 	      'ops/ports', 'ops/portfix', 'ops/patches', 'ntpd', 'ops/rcconf',
 	      'ops/sendmail', 'ops/syslog', 'exports', 'nfsmounts',
 	      'ops/crontab', 'sudoers', 'samba', 'ops/ssh', 'capture',
-	      'ops/rcfiles', 'apache', 'ops/database', 'ops/mailman',
+	      'ops/rcfiles', 'apache', 'ops/database',
 	      'ops/cvsd', 'ops/flyspray', 'ops/twiki', 'ops/firewall'
 	     );
 }

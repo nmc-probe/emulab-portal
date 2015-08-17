@@ -3,8 +3,9 @@ libexec/clusterd
 include/pubsub/pubsub.h
 include/pubsub/elvin_hash.h
 lib/libpubsub.a
-lib/libpubsub.so.1
-lib/libpubsub.so
 lib/libpubsub_r.a
+lib/libpubsub.la
+lib/libpubsub.so
+lib/libpubsub.so.1
+lib/libpubsub.so.1.0.0
 etc/rc.d/2.pubsubd.sh
-@dirrm include/pubsub

@@ -42,7 +42,7 @@ sub Install($$$)
 	    PhaseSkip("mysqld already initialzed")
 		if (-d "$MYSQLDBDIR/mysql");
 
-	    ExecQuietFatal("$MYSQLINSTALL --ldata=${MYSQLDBDIR}");
+	    ExecQuietFatal("$MYSQLINSTALL --ldata=${MYSQLDBDIR} --basedir=/usr/local");
 	    ExecQuietFatal("$CHOWN -R mysql:mysql $MYSQLDBDIR");
 	};
 	

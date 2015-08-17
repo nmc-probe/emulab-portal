@@ -30,9 +30,8 @@ post-patch:
 
 # get rid of the test apps
 post-install:
-	${RM} -f ${PREFIX}/bin/telnet-chatd
-	${RM} -f ${PREFIX}/bin/telnet-client
-	${RM} -f ${PREFIX}/bin/telnet-proxy
+	${RM} ${PREFIX}/bin/telnet-chatd
+	${RM} ${PREFIX}/bin/telnet-client
+	${RM} ${PREFIX}/bin/telnet-proxy
 
-NO_STAGE=	yes
 .include <bsd.port.mk>

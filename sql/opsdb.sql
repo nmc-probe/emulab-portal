@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS emulab_dbs (
   dbname varchar(64) NOT NULL default '',
   PRIMARY KEY  (dbname)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 alter table emulab_dbs add date_created datetime default NULL;
 update emulab_dbs set date_created=now();

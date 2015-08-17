@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2014 University of Utah and the Flux Group.
+# Copyright (c) 2004-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -642,7 +642,7 @@ sub doboot()
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-5.1";
 	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-9.2-packages${suf}.tar.gz";
 	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-3.1";
-    } elsif ($FBSD_VERSION >= 10.0) {
+    } elsif ($FBSD_VERSION == 10.0) {
 	my $suf = ($FBSD_ARCH eq "amd64") ? "-64" : "";
 	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/10.0/packages${suf}";
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
@@ -652,6 +652,30 @@ sub doboot()
 	$emulabconfig{BOSS_PKG}     = "emulab-boss-6.0";
 	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-10.0-packages${suf}.tar.gz";
 	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-4.0";
+    } elsif ($FBSD_VERSION == 10.1) {
+	my $suf = ($FBSD_ARCH eq "amd64") ? "-64" : "";
+	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/10.1/packages${suf}";
+	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{EXTRA_PKG_DIR}= $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{FS_PKG}       = "emulab-fs-6.1";
+	$emulabconfig{OPS_PKG}      = "emulab-ops-6.1";
+	$emulabconfig{BOSS_PKG}     = "emulab-boss-6.1";
+	$emulabconfig{EXTRA_PKG}    = "emulab-extras-6.1";
+	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-10.1-packages${suf}.tar.gz";
+	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-6.1";
+    } elsif ($FBSD_VERSION >= 10.2) {
+	my $suf = ($FBSD_ARCH eq "amd64") ? "-64" : "";
+	$emulabconfig{FS_PKG_DIR} = "/share/freebsd/10.2/packages${suf}";
+	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{EXTRA_PKG_DIR}= $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{FS_PKG}       = "emulab-fs-6.2";
+	$emulabconfig{OPS_PKG}      = "emulab-ops-6.2";
+	$emulabconfig{BOSS_PKG}     = "emulab-boss-6.2";
+	$emulabconfig{EXTRA_PKG}    = "emulab-extras-6.2";
+	$emulabconfig{PACKAGE_TARBALL} = "FreeBSD-10.2-packages${suf}.tar.gz";
+	$emulabconfig{PGENI_PKG}    = "emulab-protogeni-6.2";
     }
     #
     # If there is a package tarball, prefer that and grab it now.
@@ -661,6 +685,7 @@ sub doboot()
 	$emulabconfig{FS_PKG_DIR}   = "$TBDIR/packages";
 	$emulabconfig{OPS_PKG_DIR}  = $emulabconfig{FS_PKG_DIR};
 	$emulabconfig{BOSS_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
+	$emulabconfig{EXTRA_PKG_DIR} = $emulabconfig{FS_PKG_DIR};
 
 	mysystem("fetch $FETCHOPTIONS -q -o /usr/packages.tar.gz ".
 		 "'http://${bossname}/downloads/" .
@@ -672,7 +697,8 @@ sub doboot()
     else {
 	if (! -e $emulabconfig{"BOSS_PKG_DIR"} ||
 	    ! -e $emulabconfig{"OPS_PKG_DIR"} ||
-	    ! -e $emulabconfig{"FS_PKG_DIR"}) {
+	    ! -e $emulabconfig{"FS_PKG_DIR"} ||
+	    ! -e $emulabconfig{"EXTRA_PKG_DIR"}) {
 	    SetupFatal("Could not locate boss/ops/fs packages");
 	}
     }
@@ -1002,9 +1028,36 @@ sub SetupFsNode()
 	    SetupFatal("Could not get package info from Emulab!");
 	}
 
+	if ($FBSD_VERSION >= 10.1) {
+	    print "Removing ALL packages.\n";
+	    DelAllPackages();
+	}
+
 	print "Installing the fs metaport.\n";
 	RecreateDir("/usr/ports", 1);
 	AddPackage($emulabconfig{FS_PKG}, $emulabconfig{FS_PKG_DIR}, 0);
+
+	# Add extras (i.e., emacs) to make life worth living
+	if ($FBSD_VERSION >= 10.1) {
+	    AddPackage($emulabconfig{EXTRA_PKG}, $emulabconfig{EXTRA_PKG_DIR}, 1);
+	}
+
+	if ($FBSD_VERSION >= 10.1) {
+	    # XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
+	    if (! -x "/usr/bin/perl") {
+		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
+	    }
+	    # hmm...python too?
+	    if (! -x "/usr/local/bin/python") {
+		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
+	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
+	}
     }
 
     #
@@ -1512,28 +1565,33 @@ sub SetupOpsNode($)
 	}
 	my $pdir = $emulabconfig{OPS_PKG_DIR};
 	
-	print "Removing conflicting packages.\n";
-	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
-	DelPackage(1, "mysql-client")
-	    if (-e "/usr/local/bin/mysql");
-	DelPackage(0, "emacs")
-	    if (-e "$pdir/emacs-23");
-    
-	# XXX 8.2+ images have rpm-3 installed
-	if ($FBSD_VERSION >= 8.2) {
-	    DelPackage(0, "rpm-3");
-	}
+	if ($FBSD_VERSION >= 10.1) {
+	    print "Removing ALL packages.\n";
+	    DelAllPackages();
+	} else {
+	    print "Removing conflicting packages.\n";
+	    $ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
+	    DelPackage(1, "mysql-client")
+		if (-e "/usr/local/bin/mysql");
+	    DelPackage(0, "emacs")
+		if (-e "$pdir/emacs-23");
+	    
+	    # XXX 8.2+ images have rpm-3 installed
+	    if ($FBSD_VERSION >= 8.2) {
+		DelPackage(0, "rpm-3");
+	    }
 
-	# XXX 10.x images have py-distribute installed
-	if ($FBSD_VERSION == 10.0) {
-	    DelPackage(0, "py27-distribute");
-	}
+	    # XXX 10.x images have py-distribute installed
+	    if ($FBSD_VERSION == 10.0) {
+		DelPackage(0, "py27-distribute");
+	    }
 
-	# XXX 7.3 image is out of sync right now
-	if ($FBSD_VERSION == 7.3) {
-	    DelPackage(0, "python25", "py25",
-		       "sudo", "png", "tiff",
-		       "git", "rpm", "p5-libwww");
+	    # XXX 7.3 image is out of sync right now
+	    if ($FBSD_VERSION == 7.3) {
+		DelPackage(0, "python25", "py25",
+			   "sudo", "png", "tiff",
+			   "git", "rpm", "p5-libwww");
+	    }
 	}
 
 	print "Installing the ops metaport.\n";
@@ -1549,8 +1607,29 @@ sub SetupOpsNode($)
 	    print "Installing the fs metaport.\n";
 	    AddPackage($emulabconfig{FS_PKG}, $emulabconfig{FS_PKG_DIR}, 0);
 	}
-	if (-e "$pdir/emacs-23") {
+
+	# Add extras (i.e., emacs) to make life worth living
+	if ($FBSD_VERSION >= 10.1) {
+	    AddPackage($emulabconfig{EXTRA_PKG}, $emulabconfig{EXTRA_PKG_DIR}, 1);
+	} elsif (-e "$pdir/emacs-23") {
 	    AddPackage("$pdir/emacs-23", "emacs-23.2_4,2", 0);
+	}
+
+	if ($FBSD_VERSION >= 10.1) {
+	    # XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
+	    if (! -x "/usr/bin/perl") {
+		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
+	    }
+	    # hmm...python too?
+	    if (! -x "/usr/local/bin/python") {
+		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
+	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
 	}
     }
 
@@ -1828,6 +1907,15 @@ sub SetupOpsNode($)
 	# fail if this mountd restart fails!
 	#
 	system("mountd -r");
+	#
+	# XXX force regeneration of a key and cert for sendmail
+	#
+	if ($FBSD_VERSION >= 10) {
+	    mysystem("rm -f /etc/mail/certs/[ch]*");
+	    # XXX this can takes 5-10 minutes, use the one from the image
+	    #system("openssl dhparam -out /etc/mail/certs/dh.param 2048");
+	    #chmod(0600, "/etc/mail/certs/dh.param");
+	}
 	mysystem("/etc/rc.d/sendmail start");
     } else {
 	# XXX FBSD4 is such a pain...
@@ -2199,32 +2287,41 @@ sub SetupBossNode($)
 	}
 	my $pdir = $emulabconfig{BOSS_PKG_DIR};
 	
-	print "Removing conflicting packages.\n";
-	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
-	DelPackage(1, "mysql-client")
-	    if (-e "/usr/local/bin/mysql");
-	DelPackage(0, "emacs")
-	    if (-e "$pdir/emacs-23");
-	DelPackage(0, "net-snmp")
-	    if (-e "/usr/local/include/net-snmp");
+	#
+	# Let's see if we can do this the easy way...
+	# Remove all packages execpt pkg and perl and see what happens!
+	#
+	if ($FBSD_VERSION >= 10.1) {
+	    print "Removing ALL packages.\n";
+	    DelAllPackages();
+	} else {
+	    print "Removing conflicting packages.\n";
+	    $ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
+	    DelPackage(1, "mysql-client")
+		if (-e "/usr/local/bin/mysql");
+	    DelPackage(0, "emacs")
+		if (-e "$pdir/emacs-23");
+	    DelPackage(0, "net-snmp")
+		if (-e "/usr/local/include/net-snmp");
 
-	# XXX 8.2+ images have dhcp3 client installed, but we need dhcp4
-	# XXX 8.2+ images have rpm-3 installed
-	if ($FBSD_VERSION >= 8.2) {
-	    DelPackage(0, "isc-dhcp3");
-	    DelPackage(0, "rpm-3");
-	}
+	    # XXX 8.2+ images have dhcp3 client installed, but we need dhcp4
+	    # XXX 8.2+ images have rpm-3 installed
+	    if ($FBSD_VERSION >= 8.2) {
+		DelPackage(0, "isc-dhcp3");
+		DelPackage(0, "rpm-3");
+	    }
 
-	# XXX 10.x images have py-distribute installed
-	if ($FBSD_VERSION == 10.0) {
-	    DelPackage(0, "py27-distribute");
-	}
+	    # XXX 10.x images have py-distribute installed
+	    if ($FBSD_VERSION == 10.0) {
+		DelPackage(0, "py27-distribute");
+	    }
 
-	# XXX 7.3 image is out of sync right now
-	if ($FBSD_VERSION == 7.3) {
-	    DelPackage(0, "python25", "py25",
-		       "sudo", "png", "tiff",
-		       "git", "rpm", "p5-libwww");
+	    # XXX 7.3 image is out of sync right now
+	    if ($FBSD_VERSION == 7.3) {
+		DelPackage(0, "python25", "py25",
+			   "sudo", "png", "tiff",
+			   "git", "rpm", "p5-libwww");
+	    }
 	}
 
 	print "Installing the boss metaport.\n";
@@ -2246,8 +2343,29 @@ sub SetupBossNode($)
 	    # XXX lives in the boss package dir
 	    AddPackage($emulabconfig{PGENI_PKG}, $emulabconfig{BOSS_PKG_DIR}, 1);
 	}
-	if (-e "$pdir/emacs-23") {
+
+	# Add extras (i.e., emacs) to make life worth living
+	if ($FBSD_VERSION >= 10.1) {
+	    AddPackage($emulabconfig{EXTRA_PKG}, $emulabconfig{EXTRA_PKG_DIR}, 1);
+	} elsif (-e "$pdir/emacs-23") {
 	    AddPackage("$pdir/emacs-23", "emacs-23.2_4,2", 0);
+	}
+
+	if ($FBSD_VERSION >= 10.1) {
+	    # XXX FreeBSD got rid of the /usr/bin/perl symlink; we need it.
+	    if (! -x "/usr/bin/perl") {
+		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
+	    }
+	    # hmm...python too?
+	    if (! -x "/usr/local/bin/python") {
+		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
+	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
 	}
     }
 
@@ -2407,8 +2525,15 @@ sub SetupBossNode($)
 	# We take advantage of a FreeBSD rc.named script option to force
 	# it to wait til it can resolve outer boss.
 	#
-	print RC "named_wait=\"YES\"\n";
-	print RC "named_wait_host=\"$bossname\"\n";
+	# XXX argh! This doesn't work in 10.1 with the firewall setup below.
+	# The named wait takes place before the firewall rules are loaded.
+	# Maybe this worked before because our custom kernel defaulted to
+	# an open firewall?
+	#
+	if ($FBSD_VERSION < 10.1) {
+	    print RC "named_wait=\"YES\"\n";
+	    print RC "named_wait_host=\"$bossname\"\n";
+	}
     }
     print RC "network_interfaces=\"\$network_interfaces lo0\"\n";
     print RC "static_routes=\"outerboss vnodes\"\n";
@@ -2867,32 +2992,59 @@ sub SetupOpsJail()
 	if (!$emulabconfig{OPS_PKG_DIR} || !$emulabconfig{OPS_PKG}) {
 	    SetupFatal("Could not get package info from Emulab!");
 	}
-	print "Removing conflicting packages.\n";
-	$ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
-	DelPackage(1, "mysql-client")
-	    if (-e "/usr/local/bin/mysql");
-    
-	# XXX 8.2+ images have rpm-3 installed
-	if ($FBSD_VERSION >= 8.2) {
-	    DelPackage(0, "rpm-3");
-	}
 
-	# XXX 10.x images have py-distribute installed
-	if ($FBSD_VERSION == 10.0) {
-	    DelPackage(0, "py27-distribute");
-	}
+	if ($FBSD_VERSION >= 10.1) {
+	    print "Removing ALL packages.\n";
+	    DelAllPackages();
+	} else {
+	    print "Removing conflicting packages.\n";
+	    $ENV{"PYEASYINSTALL_UNINSTALLARGS"} = "-H None";
+	    DelPackage(1, "mysql-client")
+		if (-e "/usr/local/bin/mysql");
+	    
+	    # XXX 8.2+ images have rpm-3 installed
+	    if ($FBSD_VERSION >= 8.2) {
+		DelPackage(0, "rpm-3");
+	    }
 
-	# XXX 7.3 image is out of sync right now
-	if ($FBSD_VERSION == 7.3) {
-	    DelPackage(0, "python25", "py25",
-		       "sudo", "png", "tiff",
-		       "git", "rpm", "p5-libwww");
+	    # XXX 10.x images have py-distribute installed
+	    if ($FBSD_VERSION == 10.0) {
+		DelPackage(0, "py27-distribute");
+	    }
+
+	    # XXX 7.3 image is out of sync right now
+	    if ($FBSD_VERSION == 7.3) {
+		DelPackage(0, "python25", "py25",
+			   "sudo", "png", "tiff",
+			   "git", "rpm", "p5-libwww");
+	    }
 	}
 
 	print "Installing the ops metaport.\n";
 	RecreateDir("/usr/ports", 1);
 	# Mounted from outside the jail.
 	AddPackage($emulabconfig{OPS_PKG}, "/packages", 0);
+
+	# Add extras (i.e., emacs) to make life worth living
+	if ($FBSD_VERSION >= 10.1) {
+	    AddPackage($emulabconfig{EXTRA_PKG}, "/packages", 1);
+	}
+
+	if ($FBSD_VERSION >= 10.1) {
+	    if (! -x "/usr/bin/perl") {
+		system("ln -sf /usr/local/bin/perl5 /usr/bin/perl");
+	    }
+	    # hmm...python too?
+	    if (! -x "/usr/local/bin/python") {
+		system("ln -sf /usr/local/bin/python2 /usr/local/bin/python");
+	    }
+
+	    #
+	    # Create a pkg config file for the Emulab repository and synch
+	    # up with it.
+	    #
+	    SyncPackages();
+	}
     }
 
     #
@@ -3700,4 +3852,86 @@ sub DelPackage($@)
 
     # note: non-fatal
     system("$cmd $args $list");
+}
+
+#
+# Synchronize all installed packages with the Emulab repository and
+# mark that all packages should be updated from that repo in the future.
+#
+sub SyncPackages()
+{
+    my $pkgconf = "/etc/pkg/Emulab.conf";
+
+    # Only do this where it has been tested
+    if ($FBSD_VERSION < 10.1) {
+	return;
+    }
+
+    # don't ask questions
+    $ENV{"ASSUME_ALWAYS_YES"} = "true";
+
+    #
+    # Create /etc/pkg/Emulab.conf, saving old one if it exists.
+    #
+    if (-e "$pkgconf") {
+	unlink("$pkgconf.bak");
+	rename($pkgconf, "$pkgconf.bak");
+    }
+    open(CF, ">$pkgconf")
+	or SetupFatal("Could not open $pkgconf: $!");
+    print CF <<"EOF";
+Emulab: {
+  url: "https://www.emulab.net/FreeBSD/$FBSD_VERSION/packages",
+  mirror_type: NONE,
+  enabled: yes
+}
+EOF
+    close(CF);
+
+    #
+    # Sync with the master repo.
+    # If we can't, just warn about it.
+    #
+    if (system("pkg upgrade -r Emulab >/tmp/sperrs 2>&1")) {
+	print STDERR
+	    "*** Could not sync packages with Emulab repo! See /tmp/sperrs\n";
+	return;
+    }
+
+    #
+    # Now mark all installed packages as being part of the Emulab repo.
+    # XXX we remove any old annotation first.
+    #
+    system("pkg annotate -aq -D repository >/dev/null 2>&1");
+    if (system("pkg annotate -aq -A repository Emulab >/tmp/aperrs 2>&1")) {
+	print STDERR
+	    "*** Could not annotate packages! See /tmp/aperrs\n";
+	return;
+    }
+}
+
+sub DelAllPackages()
+{
+    # Only do this where it has been tested
+    if ($FBSD_VERSION < 10.1) {
+	return;
+    }
+
+    # don't ask questions
+    $ENV{"ASSUME_ALWAYS_YES"} = "true";
+
+    # cannot remove perl since we are running a perl script!
+    if (system("pkg lock -yq perl5")) {
+	SetupFatal("Could not lock perl5 and pkg!");
+    }
+    if (system("pkg delete -af >>/tmp/rperrs 2>&1")) {
+	SetupFatal("Could not delete old packages!");
+    }
+
+    # force the reinstall of pkg
+    if (system("pkg info >/dev/null 2>&1")) {
+	SetupFatal("Yargh!! Could not reinstall 'pkg'!");
+    }
+
+    system("pkg unlock -aq");
 }

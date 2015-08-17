@@ -1,7 +1,6 @@
 # New ports collection makefile for: emulab-boss
-# Date created:         28 January 2003
-# Whom:                 ricci@cs.utah.edu
-# Updated:              1 October 2009 jwalsh@atl.lmco.com
+# Date created:         15 June 2015
+# Whom:                 testbed-ops@flux.utah.edu
 
 .include "../emulab-boss/Makefile.emulab"
 
@@ -11,55 +10,33 @@ CATEGORIES=	misc
 MASTER_SITES=	#none
 DISTFILES=	#none
 EXTRACT_ONLY=	#none
-COMMENT=	"Meta-port for an Emulab boss node"
 
 MAINTAINER=	testbed-ops@flux.utah.edu
+COMMENT=	"Meta-port for an Emulab boss node"
+
+# XXX old 2.8.0 xerces-c until we get assign converted
+#XERCES_PORT=	textproc/xerces-c3
+XERCES_PORT=	misc/xerces-c2
 
 #
-# We set this so that the mysql server port doesn't do name resolution
+# For PHP, specify that we want the Apache module.
 #
-.MAKEFLAGS+=	-DSKIP_DNS_CHECK
+WANT_PHP_MOD=	yes
 
 #
-# We must make sure PERL is built with this.
+# PHP modules to build.
+# XXX based on current boss install.
 #
-.MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if ${PORTVERSION} == "6.0"
-.MAKEFLAGS+=	PERL_VERSION=5.14.4 PERL_VER=5.14 PERL_ARCH=mach
-.elif ${PORTVERSION} == "5.1"
-.MAKEFLAGS+=	PERL_VERSION=5.12.5 PERL_VER=5.12 PERL_ARCH=mach
-.elif ${PORTVERSION} == "5.0"
-.MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
-.elif (${PORTVERSION} == "3.1" || ${PORTVERSION} == "4.0")
-.MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
-.elif ${PORTVERSION} == "3.0"
-.MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
-.endif
+USE_PHP=	bz2 ctype curl dom filter gd hash iconv json mcrypt mysql \
+		openssl pdo phar posix session simplexml sockets tokenizer \
+		xml xmlreader xmlrpc xmlwriter
 
 #
-# For SWIG, so that it doesn't feel the need to suck in php and apache
-# XXX Something is broken on FreeBSD 6.X and SWIG_LANGUAGES='x y z' breaks.
+# Various ports need to agree on what version of apache.
 #
-.MAKEFLAGS+=	SWIG_LANGUAGES= 
-.MAKEFLAGS+=    WANT_SWIG_PERL=yes WANT_SWIG_PYTHON=yes WANT_SWIG_TCL=yes
-
-#
-# For PHP, specify the version and that we want the Apache module
-# Version is specified via PHP_VER above.
-#
-.MAKEFLAGS+=	WANT_PHP_MOD=yes
-
-#
-# Various ports need to agree on what version of apache. Make sure this
-# agrees with what is in the emulab-ops and emulab-php* metaports.
-#
-.MAKEFLAGS+=	-DWITH_APACHE
-.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
+www_apache22_SET=	SUEXEC
 .MAKEFLAGS+=	APACHE_PORT=www/apache22
 .MAKEFLAGS+=	WITH_SUEXEC=yes
-.else
-.MAKEFLAGS+=	APACHE_PORT=www/apache13-modssl
-.endif
 
 #
 # Use the base version of openssl
@@ -67,233 +44,123 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 .MAKEFLAGS+=	WITH_OPENSSL_BASE=yes
 
 #
-# This prevents any ports from trying to run interactively - some, like the
-# net-snmp port, ask silly questions without this option.
+# This prevents any ports from trying to configure interactively.
 #
-.MAKEFLAGS+=	-DBATCH
-
-#
-# Specifically for rpm4 so it won't drag in tetex just to format the doc!
-#
-.MAKEFLAGS+=	WITHOUT_LATEX=yes
-
-#
-# XXX not really build dependencies, but these Emulab-specific ports need
-# to get installed before any attempt to install the standard versions.
-#
-.if (${PORTVERSION} == "1.7" || ${PORTVERSION} == "2.0")
-BUILD_DEPENDS=	\
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql${MYSQL_VER}
-.elif (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-       ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
-# back to a standard p5-DBD-mysql5x install
-BUILD_DEPENDS=	\
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/DBD/mysql.pm:${PORTSDIR}/databases/p5-DBD-mysql${MYSQL_VER} \
-	${LOCALBASE}/libexec/apache22/libphp${PHP_VER}.so:${PORTSDIR}/misc/emulab-php${PHP_VER}
-.else
-BUILD_DEPENDS=	\
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Mysql.pm:${PORTSDIR}/misc/p5-DBD-mysql50-old \
-	${LOCALBASE}/libexec/apache/libphp${PHP_VER}.so:${PORTSDIR}/misc/emulab-php${PHP_VER}
-.endif
-
-# XXX force our version of tcl early to prevent installing a newer version
-BUILD_DEPENDS+=	tclsh8.4:${PORTSDIR}/lang/tcl84
+BATCH=		yes
+.MAKEFLAGS+=	BATCH=yes
 
 LIB_DEPENDS= libgd.so:${PORTSDIR}/graphics/gd \
-	mhash.2:${PORTSDIR}/security/mhash \
-	mysqlclient:${PORTSDIR}/databases/mysql${MYSQL_VER}-client \
-	snmp.4:${PORTSDIR}/misc/net-snmp4
-
-.if ${OSMAJOR} >= 6
-LIB_DEPENDS+= xerces-c.27:${PORTSDIR}/textproc/xerces-c2
-.endif
-.if ${OSMAJOR} >= 7
-LIB_DEPENDS+= xmlrpc:${PORTSDIR}/net/xmlrpc-c
-.endif
-
-# no linuxthreads on amd64
-# old libtool in ulsshxmlrpcpp causes shlibs to be whacked
-.if ${OSARCH} == "i386"
-.if ${OSMAJOR} < 8
-LIB_DEPENDS+= lthread.[236]:${PORTSDIR}/devel/linuxthreads
-.endif
-LIB_DEPENDS+= ulsshxmlrpcpp.0:${PORTSDIR}/misc/ulsshxmlrpcpp
-.endif
-
-#
-# Until/unless the pubsub Makefile is changed, we must include libelvin.
-# This is because the pubsub libraries have to be built with ELVIN_COMPAT
-# to talk to pubsub on ops, and building with compat means that the gateway
-# will be built.  Building that requires elvin libraries...
-#
-.if defined(ELVIN_COMPAT)
-LIB_DEPENDS+= vin4.2:${PORTSDIR}/misc/libelvin \
-	pubsub.1:${PORTSDIR}/misc/emulab-pubsub-elvincompat
-.else
-LIB_DEPENDS+= pubsub.1:${PORTSDIR}/misc/emulab-pubsub
-.endif
+	libmhash.so:${PORTSDIR}/security/mhash \
+	libmysqlclient.so:${PORTSDIR}/databases/mysql${MYSQL_VER}-client \
+	libnetsnmp.so:${PORTSDIR}/net-mgmt/net-snmp \
+	libxerces-c.so:${PORTSDIR}/${XERCES_PORT} \
+	libxmlrpc.so:${PORTSDIR}/net/xmlrpc-c \
+	libpubsub.so:${PORTSDIR}/misc/emulab-pubsub
 
 # We need the BUILD_DEPENDS above to wind up in the dependency list
 RUN_DEPENDS:= ${BUILD_DEPENDS}
 
+#
+# XXX hackary to get around bugs in Makefiles:
+#
+# Both pango (required by graphviz) and gtk-update-icon-cache (required by
+# emacs) perform a Makefile (pre-configure target) existence check using
+# ".if exists" for the cairo port. However, since that check is done at
+# Makefile parse time, the things they are checking for might not yet be
+# installed. Instead those items get installed as a result of the dependencies
+# in the Makefile. The Makefiles should really be changed to make run-time
+# check (i.e., a shell "test" command) for the existence of packages that
+# they might install.
+#
 RUN_DEPENDS+=	\
-	fping:${PORTSDIR}/net/fping \
-	rsync:${PORTSDIR}/net/rsync \
-	neato:${PORTSDIR}/graphics/graphviz \
-        swish-e:${PORTSDIR}/www/swish-e \
-	${LOCALBASE}/libexec/mysqld:${PORTSDIR}/databases/mysql${MYSQL_VER}-server \
-	anytopnm:${PORTSDIR}/graphics/netpbm \
-	otclsh:${PORTSDIR}/lang/otcl \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/SNMP.pm:${PORTSDIR}/${P5SNMP_PORT} \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/SNMP_Session.pm:${PORTSDIR}/net-mgmt/p5-SNMP_Session \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Net/Telnet.pm:${PORTSDIR}/net/p5-Net-Telnet \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Net/IP.pm:${PORTSDIR}/net-mgmt/p5-Net-IP \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Math/BigInt.pm:${PORTSDIR}/math/p5-Math-BigInt \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/BSD/Resource.pm:${PORTSDIR}/devel/p5-BSD-Resource \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Time/HiRes.pm:${PORTSDIR}/devel/p5-Time-HiRes \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/MD5.pm:${PORTSDIR}/security/p5-MD5 \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Digest/SHA1.pm:${PORTSDIR}/security/p5-Digest-SHA1 \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Expect.pm:${PORTSDIR}/lang/p5-Expect \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/IO/Pty.pm:${PORTSDIR}/devel/p5-IO-Tty \
-	rpm:${PORTSDIR}/archivers/rpm4 \
-	xvcg:${PORTSDIR}/graphics/vcg \
+	${LOCALBASE}/libdata/pkgconfig/cairo-gobject.pc:${PORTSDIR}/graphics/cairo
+
+#
+# Emulab-hacked versions of standard ports
+#
+RUN_DEPENDS+=	\
 	${LOCALBASE}/libexec/tftpd:${PORTSDIR}/misc/emulab-tftp-hpa \
+	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/misc/emulab-py-m2crypto
+
+# apps
+RUN_DEPENDS+=	\
+	anytopnm:${PORTSDIR}/graphics/netpbm \
+	autoconf:${PORTSDIR}/devel/autoconf \
+	curl:${PORTSDIR}/ftp/curl \
+	git:${PORTSDIR}/devel/git \
+	gmake:${PORTSDIR}/devel/gmake \
+	kmetis:${PORTSDIR}/math/metis4 \
+	libtool:${PORTSDIR}/devel/libtool \
+	neato:${PORTSDIR}/graphics/graphviz \
+	otclsh:${PORTSDIR}/misc/otcl \
+	rpm:${PORTSDIR}/archivers/rpm4 \
+	rsync:${PORTSDIR}/net/rsync \
+	swig2.0:${PORTSDIR}/devel/swig20 \
 	sudo:${PORTSDIR}/security/sudo \
 	wget:${PORTSDIR}/ftp/wget \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/XML/Parser:${PORTSDIR}/textproc/p5-XML-Parser \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/RPC/XML.pm:${PORTSDIR}/net/p5-RPC-XML \
-	${LOCALBASE}/include/boost:${PORTSDIR}/${BOOST_PORT} \
-	gmake:${PORTSDIR}/devel/gmake \
-	git:${PORTSDIR}/devel/git \
-        curl:${PORTSDIR}/ftp/curl \
-	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb \
-	mysqlhotcopy:${PORTSDIR}/databases/mysql${MYSQL_VER}-scripts \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/JSON.pm:${PORTSDIR}/converters/p5-JSON
+	xvcg:${PORTSDIR}/graphics/vcg \
+	${LOCALBASE}/libexec/mysqld:${PORTSDIR}/databases/mysql${MYSQL_VER}-server \
+	${LOCALBASE}/include/boost/config.hpp:${PORTSDIR}/devel/boost-all
 
-.if (${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
+# perl packages
+# XXX all the versions listed here are ones that are known to work
+#     on a 10.0 system.
+#
 RUN_DEPENDS+=	\
-	kmetis:${PORTSDIR}/math/metis4
-.else
+	p5-BSD-Resource>=1.2907:${PORTSDIR}/devel/p5-BSD-Resource \
+	p5-CGI>=4.13:${PORTSDIR}/www/p5-CGI \
+	p5-Class-ISA>=0.36:${PORTSDIR}/devel/p5-Class-ISA \
+	p5-DBD-mysql>=4.025:${PORTSDIR}/databases/p5-DBD-mysql \
+	p5-DBI>=1.630:${PORTSDIR}/databases/p5-DBI \
+	p5-Digest-SHA1>=2.13:${PORTSDIR}/security/p5-Digest-SHA1 \
+	p5-Expect>=1.21:${PORTSDIR}/lang/p5-Expect \
+	p5-GD>=2.50:${PORTSDIR}/graphics/p5-GD \
+	p5-IO-EventMux>=2.02:${PORTSDIR}/misc/p5-IO-EventMux \
+	p5-IO-EventMux-Socket-MsgHdr>=0.02:${PORTSDIR}/misc/p5-IO-EventMux-Socket-MsgHdr \
+	p5-IO-Tty>=1.10:${PORTSDIR}/devel/p5-IO-Tty \
+	p5-JSON>=2.61:${PORTSDIR}/converters/p5-JSON \
+	p5-LWP-Protocol-https>=6.04:${PORTSDIR}/www/p5-LWP-Protocol-https \
+	p5-Math-BigInt>=1.997:${PORTSDIR}/math/p5-Math-BigInt \
+	p5-MD5>=2.03:${PORTSDIR}/security/p5-MD5 \
+	p5-Net-Telnet>=3.04:${PORTSDIR}/net/p5-Net-Telnet \
+	p5-Net-IP>=1.26:${PORTSDIR}/net-mgmt/p5-Net-IP \
+	p5-Privileges-Drop>=1.01:${PORTSDIR}/misc/p5-Privileges-Drop \
+	p5-RPC-Async>=1.05:${PORTSDIR}/misc/p5-RPC-Async \
+	p5-RPC-XML>=0.77:${PORTSDIR}/net/p5-RPC-XML \
+	p5-SNMP_Session>=1.13:${PORTSDIR}/net-mgmt/p5-SNMP_Session \
+	p5-Time-HiRes>=1.9726:${PORTSDIR}/devel/p5-Time-HiRes \
+	p5-TimeDate>=2.30:${PORTSDIR}/devel/p5-TimeDate \
+	p5-Tree-Binary>=1.05:${PORTSDIR}/devel/p5-Tree-Binary \
+	p5-XML-LibXML>=2.0107:${PORTSDIR}/textproc/p5-XML-LibXML \
+	p5-XML-Parser>=2.41:${PORTSDIR}/textproc/p5-XML-Parser \
+	p5-XML-Simple>=2.20:${PORTSDIR}/textproc/p5-XML-Simple
+
+# python packages
 RUN_DEPENDS+=	\
-	kmetis:${PORTSDIR}/math/metis
-.endif
+	${PYTHON_PKGNAMEPREFIX}MySQLdb>0:${PORTSDIR}/databases/py-MySQLdb \
+	${PYTHON_PKGNAMEPREFIX}lxml>0:${PORTSDIR}/devel/py-lxml
 
 # apache related ports
-.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
 RUN_DEPENDS+=	\
 	${LOCALBASE}/libexec/apache22/mod_ssl.so:${PORTSDIR}/${APACHE_PORT} \
 	${LOCALBASE}/libexec/apache22/mod_fastcgi.so:${PORTSDIR}/www/mod_fastcgi
-.else
-RUN_DEPENDS+=	\
-	${LOCALBASE}/etc/apache/ssl.crl:${PORTSDIR}/${APACHE_PORT} \
-	mod_auth_mysql>1:${PORTSDIR}/www/mod_auth_mysql
-.endif
 
-# m2crypto port
-.if ${PORTVERSION} == "6.0"
-# the egg is dead, long live the egg!
+# Port versions of current or former "core" utilties
 RUN_DEPENDS+=	\
-	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/misc/emulab-py-m2crypto-noegg
-.elif (${PORTVERSION} == "3.0" || ${PORTVERSION} == "3.1" || \
-     ${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1")
-# must handle patching of m2crypto when the port is built
-RUN_DEPENDS+=	\
-	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/misc/emulab-py-m2crypto
-.else
-# for older version we can patch the standard m2crypto once installed
-RUN_DEPENDS+=	\
-	${PYTHON_PKGNAMEPREFIX}m2crypto>0:${PORTSDIR}/security/py-m2crypto
-.endif
-
-# dhcpd port
-.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
-RUN_DEPENDS+=	\
-	dhcpd:${PORTSDIR}/net/isc-dhcp42-server
-.elif (${PORTVERSION} == "3.1" || ${PORTVERSION} == "3.0")
-RUN_DEPENDS+=	\
-	dhcpd:${PORTSDIR}/net/isc-dhcp30-server
-.elif ${PORTVERSION} == "2.1"
-RUN_DEPENDS+=	\
-	dhcpd:${PORTSDIR}/net/isc-dhcp3-server
-.endif
-
-# misc. old vs. new port stuff
-.if (${PORTVERSION} == "4.0" || ${PORTVERSION} == "5.0" || \
-     ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
-RUN_DEPENDS+=	\
-	autoconf:${PORTSDIR}/devel/autoconf \
-	libtool:${PORTSDIR}/devel/libtool
-.else
-RUN_DEPENDS+=	\
-	autoconf-2.13:${PORTSDIR}/devel/autoconf213
-.endif
-.if (${PORTVERSION} == "1.7" || ${PORTVERSION} == "2.0")
-# for old versions there used to be a problem with newer GD + older perl 
-RUN_DEPENDS+=	\
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/GD.pm:${PORTSDIR}/misc/p5-GD-old
-.else
-RUN_DEPENDS+=	\
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/GD.pm:${PORTSDIR}/graphics/p5-GD \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/XML/Parser.pm:${PORTSDIR}/textproc/p5-XML-Parser \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/RPC/Async.pm:${PORTSDIR}/misc/p5-RPC-Async \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Privileges/Drop.pm:${PORTSDIR}/misc/p5-Privileges-Drop \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/IO/EventMux.pm:${PORTSDIR}/misc/p5-IO-EventMux \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/IO/EventMux/Socket/MsgHdr.pm:${PORTSDIR}/misc/p5-IO-EventMux-Socket-MsgHdr \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Tree/Binary.pm:${PORTSDIR}/devel/p5-Tree-Binary
-.if (${PORTVERSION} == "5.0" || ${PORTVERSION} == "5.1" || ${PORTVERSION} == "6.0")
-# perl 5.12 and beyond wants this
-RUN_DEPENDS+= \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Class/ISA.pm:${PORTSDIR}/devel/p5-Class-ISA
-.endif
-.endif
-
-.if ${OSMAJOR} >= 10
-# bind is no longer part of the base system
-RUN_DEPENDS+= \
+	dhcpd:${PORTSDIR}/net/isc-dhcp42-server \
 	${LOCALBASE}/sbin/rndc:${PORTSDIR}/dns/bind99
-# include GCC for now to build Emulab SW (assign)
-RUN_DEPENDS+= \
-	${LOCALBASE}/bin/gcc46:${PORTSDIR}/lang/gcc46
-.endif
 
-.if ${OSMAJOR} >= 6
-RUN_DEPENDS+= \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/DBI.pm:${PORTSDIR}/databases/p5-DBI \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/XML/Simple.pm:${PORTSDIR}/textproc/p5-XML-Simple \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/XML/LibXML.pm:${PORTSDIR}/textproc/p5-XML-LibXML \
-	swig:${PORTSDIR}/devel/swig13 \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Date/Parse.pm:${PORTSDIR}/devel/p5-TimeDate
-.else
-RUN_DEPENDS+= cvsup:${PORTSDIR}/net/cvsup-without-gui \
-	${LOCALBASE}/libexec/apache/libphp${PHP_VER}.so:${PORTSDIR}/www/mod_php${PHP_VER} \
-	${LOCALBASE}/include/php/ext/openssl/php_openssl.h:${PORTSDIR}/lang/php${PHP_VER}-extensions \
-	${LOCALBASE}/lib/tcl8.4/sql1.0/libTclMySQL.so.1:${PORTSDIR}/databases/tcl-Mysql \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/DBI.pm:${PORTSDIR}/databases/p5-DBI-137 \
-	swig1.1:${PORTSDIR}/devel/swig11 \
-	${LOCALBASE}/sbin/named:${PORTSDIR}/dns/bind9
-.endif
-
-.if ${OSMAJOR} >= 8
-RUN_DEPENDS+= \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/LWP/Protocol/https.pm:${PORTSDIR}/www/p5-LWP-Protocol-https
-.endif
-
-# make sure these get installed
-RUN_DEPENDS+=	\
-	${LOCALBASE}/libdata/xorg/libraries:${PORTSDIR}/x11/xorg-libraries \
-        ${LOCALBASE}/bin/xauth:${PORTSDIR}/x11/xauth
+## For reasons lost in the mists of time, we install this
+#RUN_DEPENDS+=	\
+#	${LOCALBASE}/libdata/pkgconfig/x11.pc:${PORTSDIR}/x11/xorg-libraries
 
 USE_PERL5=	yes
-USE_PYTHON=	yes
+USES=		python:2.7
 
 NO_BUILD=	yes
 
 do-install:	# empty
 
-NO_STAGE=	yes
 .include <bsd.port.mk>
 
 vars:
@@ -302,5 +169,10 @@ vars:
 	@echo "BUILD_DEPENDS=$(BUILD_DEPENDS)"
 	@echo "LIB_DEPENDS=$(LIB_DEPENDS)"
 	@echo "RUN_DEPENDS=$(RUN_DEPENDS)"
-	@echo "PERL_VER/ARCH=${PERL_VER}/${PERL_ARCH}"
 	@echo "PYTHON_PKGNAMEPREFIX=${PYTHON_PKGNAMEPREFIX}"
+	@echo "MYSQL_VER=${MYSQL_VER}"
+	@echo "APACHE_PORT/VERSION=${APACHE_PORT}/${APACHE_VERSION}"
+	@echo "USE_APACHE/USE_APACHE_BUILD/USE_APACHE_RUN=${USE_APACHE}/${USE_APACHE_BUILD}/${USE_APACHE_RUN}"
+	@echo "USE_PHP=${USE_PHP}"
+	@echo "TCL_VER/TK_VER=${TCL_VER}/${TK_VER}"
+

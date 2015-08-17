@@ -1,97 +1,75 @@
 # New ports collection makefile for: emulab-protogeni
-# Date created:         21 July 2009
-# Whom:                 stoller@flux.utah.edu
+# Date created:         15 June 2015
+# Whom:                 testbed-ops@flux.utah.edu
 
 .include "../emulab-boss/Makefile.emulab"
 
-# XXX deal with out-of-sync-edness of meta ports
-.if ${EMULAB_PORTVERSION} == "6.0"
-PORTVERSION=	4.0
-.elif ${EMULAB_PORTVERSION} == "5.1"
-PORTVERSION=	3.1
-.elif ${EMULAB_PORTVERSION} == "5.0"
-PORTVERSION=	3.0
-.elif ${EMULAB_PORTVERSION} == "4.0"
-PORTVERSION=	2.0
-.else
-PORTVERSION=	1.1
-.endif
-
 PORTNAME=	emulab-protogeni
+PORTVERSION=	${EMULAB_PORTVERSION}
 CATEGORIES=	misc
 MASTER_SITES=	#none
 DISTFILES=	#none
 EXTRACT_ONLY=	#none
-COMMENT=	"Meta-port for a protogeni site"
 
 MAINTAINER=	testbed-ops@flux.utah.edu
-
-.MAKEFLAGS+=	WITH_OPENSSL_BASE=yes
-
-#
-# We set this so that the mysql server port doesn't do name resolution
-#
-.MAKEFLAGS+=	-DSKIP_DNS_CHECK
+COMMENT=	"Meta-port for a protogeni site"
 
 #
-# We must make sure PERL is built with this.
+# For PHP, specify that we want the Apache module.
 #
-.MAKEFLAGS+=	ENABLE_SUIDPERL=yes
-.if ${EMULAB_PORTVERSION} == "6.0"
-.MAKEFLAGS+=	PERL_VERSION=5.14.4 PERL_VER=5.14 PERL_ARCH=mach
-.elif ${EMULAB_PORTVERSION} == "5.1"
-.MAKEFLAGS+=	PERL_VERSION=5.12.5 PERL_VER=5.12 PERL_ARCH=mach
-.elif ${EMULAB_PORTVERSION} == "5.0"
-.MAKEFLAGS+=	PERL_VERSION=5.12.4 PERL_VER=5.12.4 PERL_ARCH=mach
-.elif (${EMULAB_PORTVERSION} == "3.1" || ${EMULAB_PORTVERSION} == "4.0")
-.MAKEFLAGS+=	PERL_VERSION=5.10.1 PERL_VER=5.10.1 PERL_ARCH=mach
-.elif ${EMULAB_PORTVERSION} == "3.0"
-.MAKEFLAGS+=	PERL_VERSION=5.10.0 PERL_VER=5.10.0 PERL_ARCH=mach
-.endif
+WANT_PHP_MOD=	yes
 
 #
-# For SWIG, so that it doesn't feel the need to suck in php and apache
-# XXX Something is broken on FreeBSD 6.X and SWIG_LANGUAGES='x y z' breaks.
+# Various ports need to agree on what version of apache.
 #
-.MAKEFLAGS+=	SWIG_LANGUAGES= 
-.MAKEFLAGS+=    WANT_SWIG_PERL=yes WANT_SWIG_PYTHON=yes WANT_SWIG_TCL=yes
-
-#
-# Various ports need to agree on what version of apache. Make sure this
-# agrees with what is in the emulab-ops and emulab-php4 metaports.
-#
-.if ${PORTVERSION} != "1.1"
+www_apache22_SET=	SUEXEC
 .MAKEFLAGS+=	APACHE_PORT=www/apache22
-.else
-.MAKEFLAGS+=	APACHE_PORT=www/apache13-modssl
-.endif
+.MAKEFLAGS+=	WITH_SUEXEC=yes
+
+#
+# Use the base version of openssl
+#
+.MAKEFLAGS+=	WITH_OPENSSL_BASE=yes
 
 #
 # This prevents any ports from trying to run interactively - some, like the
 # net-snmp port, ask silly questions without this option.
 #
+BATCH=		yes
 .MAKEFLAGS+=	-DBATCH
 
-LIB_DEPENDS= xml2.5:${PORTSDIR}/textproc/libxml2
+LIB_DEPENDS= libxml2.so:${PORTSDIR}/textproc/libxml2
 
+# apps
+RUN_DEPENDS+=	\
+	xmlsec1:${PORTSDIR}/security/xmlsec1
+
+# perl packages
+# XXX all the versions listed here are ones that are known to work
+#     on a 10.0 system.
+#
 RUN_DEPENDS+= \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Crypt/SSLeay.pm:${PORTSDIR}/security/p5-Crypt-SSLeay \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/XML/LibXML.pm:${PORTSDIR}/textproc/p5-XML-LibXML \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Frontier/Client.pm:${PORTSDIR}/net/p5-Frontier-RPC \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Convert/ASN1.pm:${PORTSDIR}/converters/p5-Convert-ASN1 \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/Crypt/X509.pm:${PORTSDIR}/security/p5-Crypt-X509 \
-	${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/${PERL_ARCH}/Crypt/OpenSSL/X509.pm:${PORTSDIR}/security/p5-Crypt-OpenSSL-X509 \
-${LOCALBASE}/lib/perl5/site_perl/${PERL_VER}/XML/SemanticDiff.pm:${PORTSDIR}/textproc/p5-XML-SemanticDiff \
-	xmlsec1:${PORTSDIR}/security/xmlsec1 \
-	${LOCALBASE}/libexec/apache22/mod_wsgi.so:${PORTSDIR}/www/mod_wsgi3 \
-	${PYTHON_PKGNAMEPREFIX}flask:${PORTSDIR}/www/py-flask
+	p5-Crypt-SSLeay>=0.72:${PORTSDIR}/security/p5-Crypt-SSLeay \
+	p5-XML-LibXML>=2.0107:${PORTSDIR}/textproc/p5-XML-LibXML \
+	p5-Frontier-RPC>0:${PORTSDIR}/net/p5-Frontier-RPC \
+	p5-Convert-ASN1>=0.26:${PORTSDIR}/converters/p5-Convert-ASN1 \
+	p5-Crypt-X509>=0.51:${PORTSDIR}/security/p5-Crypt-X509 \
+	p5-Crypt-OpenSSL-X509>=1.8.04:${PORTSDIR}/security/p5-Crypt-OpenSSL-X509 \
+	p5-XML-SemanticDiff>=1.0002:${PORTSDIR}/textproc/p5-XML-SemanticDiff
+
+# python packages
+RUN_DEPENDS+=	\
+	${PYTHON_PKGNAMEPREFIX}Flask>=0.10:${PORTSDIR}/www/py-flask
+
+# apache related ports
+RUN_DEPENDS+=	\
+	${LOCALBASE}/libexec/apache22/mod_wsgi.so:${PORTSDIR}/www/mod_wsgi3
 
 USE_PERL5=	yes
-USE_PYTHON=	yes
+USES=		python:2.7
 
 NO_BUILD=	yes
 
 do-install:	# empty
 
-NO_STAGE=	yes
 .include <bsd.port.mk>

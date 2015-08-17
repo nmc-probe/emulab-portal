@@ -1,6 +1,6 @@
 # -*- python -*-
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -142,6 +142,9 @@ def TBDBConnect(dbnum=0,db=None,user=None,host=None,passwd=None):
             if cargs.has_key('passwd'):
                 cargs['passwd'] = None
                 pass
+            # XXX we need this for mysql 5.5 and above to avoid metadata
+            # lock hangs, even when using MyISAM tables.
+            __DB[dbnum].autocommit(True)
             __DBConnectArgs[dbnum] = cargs
         except:
             if debug:

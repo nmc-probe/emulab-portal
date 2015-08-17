@@ -455,8 +455,22 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
         if pid:
             # Parent process
             if self.active_children is None:
-                self.active_children = []
-            self.active_children.append(pid)
+                if sys.version_info.major == 2:
+                    if (sys.version_info.minor < 7 and
+                        sys.version_info.micro < 9):
+                        self.active_children = []
+                    else:
+                        self.active_children = set()
+                        pass
+                else:
+                    print "Only python version 2"
+                    sys.exit(1);
+                    pass
+                pass
+            if type(self.active_children) is list:
+                self.active_children.append(pid)
+            else:
+                self.active_children.add(pid)
             request.socket.close()
             return
         else:

@@ -58,7 +58,7 @@ CREATE TABLE experiment_templates (
   PRIMARY KEY  (guid, vers),
   KEY pidtid (pid,tid),
   KEY pideid (pid,eid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # Temporary storage for graphs generated with dot.
@@ -71,7 +71,7 @@ CREATE TABLE experiment_template_graphs (
   image mediumblob,
   imap mediumtext,
   PRIMARY KEY  (parent_guid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # I like to keep the nsfiles (or whatever the input will be) separate
@@ -100,7 +100,7 @@ CREATE TABLE experiment_template_inputs (
   input_idx int(10) unsigned NOT NULL default '0',
   PRIMARY KEY  (parent_guid, parent_vers, idx),
   KEY pidtid (pid,tid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # And this is the table of inputs mentioned above.
@@ -114,7 +114,7 @@ CREATE TABLE experiment_template_input_data (
   input mediumtext,
   PRIMARY KEY  (idx),
   UNIQUE KEY md5 (md5)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # These are the various settings that result from an NS file being parsed
@@ -162,7 +162,7 @@ CREATE TABLE experiment_template_settings (
   savedisk tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (parent_guid, parent_vers),
   KEY pidtid (pid,tid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # This is versioned metadata that goes with each template. We store the
@@ -182,7 +182,7 @@ CREATE TABLE experiment_template_metadata (
   -- A type descriptor for the metadata, when not user generated.
   metadata_type enum('tid','template_description','parameter_description') default NULL,
   PRIMARY KEY  (parent_guid, parent_vers, metadata_guid, metadata_vers)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # The actual versioned metadata.
@@ -208,7 +208,7 @@ CREATE TABLE experiment_template_metadata_items (
   PRIMARY KEY (guid, vers),
   KEY parent (parent_guid,parent_vers),
   KEY template (template_guid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # This is a table of formal parameters for the template, with optional
@@ -248,7 +248,7 @@ CREATE TABLE experiment_template_parameters (
   metadata_vers smallint(5) unsigned NOT NULL default '0',
   PRIMARY KEY  (parent_guid, parent_vers, name),
   KEY pidtid (pid,tid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # Hmm, the above table is a problem wrt experiment parsing. 
@@ -280,7 +280,7 @@ CREATE TABLE experiment_template_events (
   eventtype smallint(5) unsigned NOT NULL default '0',
   arguments text,
   PRIMARY KEY  (parent_guid, parent_vers, vname)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # This table is a wrapper around the current experiments table, which will
@@ -332,7 +332,7 @@ CREATE TABLE experiment_template_instances (
   KEY  (exptidx),
   KEY  (parent_guid,parent_vers),
   KEY  (pid,eid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # These are the bindings for the formal parameters above. Note that values
@@ -360,7 +360,7 @@ CREATE TABLE experiment_template_instance_bindings (
   PRIMARY KEY  (instance_idx, name),
   KEY parent_guid (parent_guid,parent_vers),
   KEY pidtid (pid,eid)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # This is the proto structure for the new Experiment object. These are
@@ -387,7 +387,7 @@ CREATE TABLE experiment_runs (
   -- The NS file is stored in the archive.
   swapmod tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (exptidx, idx)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # As mentioned above, these are bindings for each Experiment run, which
@@ -401,7 +401,7 @@ CREATE TABLE experiment_run_bindings (
   name varchar(64) NOT NULL default '',
   value tinytext NOT NULL,
   PRIMARY KEY  (exptidx, runidx, name)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
 #
 # This table holds the names of nodes that failed to respond during a start
@@ -419,5 +419,5 @@ CREATE TABLE experiment_template_instance_deadnodes (
   -- The vname of the node since that is typically more useful.
   vname varchar(32) NOT NULL default '',
   PRIMARY KEY  (instance_idx, runidx, node_id)
-) TYPE=MyISAM;
+) ENGINE=MyISAM;
 
