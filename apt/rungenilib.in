@@ -188,7 +188,11 @@ system("touch $outfile") == 0 or
 # result back to a file if not in anonmode. Remember to tack on the
 # user ID to flip to, when not in testmode.
 #
-my $cmdargs = "$TB/libexec/rungenilib.proxy ";
+my $cmdargs = "$TB/libexec/rungenilib.proxy";
+
+# lets try out the python jail
+$cmdargs .= " -J";
+
 $cmdargs .= " -u " . $this_user->uid();
 $cmdargs .= ($getparams ? " -p " : "");
 $cmdargs .= ($warningsfatal ? " -W " : "");
