@@ -456,8 +456,9 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
             # Parent process
             if self.active_children is None:
                 if sys.version_info.major == 2:
-                    if (sys.version_info.minor < 7 and
-                        sys.version_info.micro < 9):
+                    if (sys.version_info.minor < 7 or
+                        (sys.version_info.minor == 7 and
+                         sys.version_info.micro < 8)):
                         self.active_children = []
                     else:
                         self.active_children = set()
