@@ -2043,6 +2043,18 @@ CREATE TABLE `image_history` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `image_notifications`
+--
+
+DROP TABLE IF EXISTS `image_notifications`;
+CREATE TABLE `image_notifications` (
+  `imageid` int(8) unsigned NOT NULL default '0',
+  `version` int(8) unsigned NOT NULL default '0',
+  `origin_uuid` varchar(64) default NULL,
+  PRIMARY KEY  (`imageid`,`version`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `image_permissions`
 --
 
@@ -2142,6 +2154,17 @@ CREATE TABLE `image_versions` (
   KEY `old_imageid` (`old_imageid`),
   KEY `uuid` (`uuid`),
   FULLTEXT KEY `imagesearch` (`imagename`,`description`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `image_updates`
+--
+
+DROP TABLE IF EXISTS `image_updates`;
+CREATE TABLE `image_updates` (
+  `imageid` int(8) unsigned NOT NULL default '0',
+  `url` varchar(255) NOT NULL default '',
+  PRIMARY KEY  (`imageid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
