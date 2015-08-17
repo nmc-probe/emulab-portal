@@ -77,6 +77,12 @@ PLIST_SUB+=		TRANSICU="@comment "
 .endif
 .endif
 
+.if (${TRANSCODER} == "IconvFBSD")
+. if ${OPSYS} == FreeBSD && ${OSVERSION} >= 1002000
+EXTRA_PATCHES+=		${FILESDIR}/extra-patch-iconv-hack
+. endif
+.endif
+
 USE_LDCONFIG=	yes
 
 XERCESWRKSRC=		${WRKSRC}/src/xercesc
