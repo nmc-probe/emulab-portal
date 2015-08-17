@@ -64,7 +64,11 @@ $BOSS_PORT = "emulab-boss-1.8";
 $OPS_PORT  = "emulab-ops-1.4"; 
 $FS_PORT   = "emulab-fs-1.4";
 if ($FBSD_MAJOR > 4) {
-    if ($FBSD_MAJOR > 10 || ($FBSD_MAJOR == 10 && $FBSD_MINOR > 0)) {
+    if ($FBSD_MAJOR > 10 || ($FBSD_MAJOR == 10 && $FBSD_MINOR > 1)) {
+	$BOSS_PORT = "emulab-boss-6.2";
+	$OPS_PORT = "emulab-ops-6.2";
+	$FS_PORT = "emulab-fs-6.2";
+    } elsif ($FBSD_MAJOR == 10 && $FBSD_MINOR > 0) {
 	$BOSS_PORT = "emulab-boss-6.1";
 	$OPS_PORT = "emulab-ops-6.1";
 	$FS_PORT = "emulab-fs-6.1";
@@ -109,7 +113,9 @@ $PHP_PORT = "php4-extensions-1.0";
 if ($FBSD_MAJOR > 7 || ($FBSD_MAJOR == 7 && $FBSD_MINOR > 2)) {
     $PHP_VERSION = 5;
     # there is no longer an explict extensions package
-    if ($FBSD_MAJOR > 10 || ($FBSD_MAJOR == 10 && $FBSD_MINOR > 0)) {
+    if ($FBSD_MAJOR > 10 || ($FBSD_MAJOR == 10 && $FBSD_MINOR > 1)) {
+	$PHP_PORT = "php56-5.6.11";
+    } elsif ($FBSD_MAJOR == 10 && $FBSD_MINOR > 0) {
 	$PHP_PORT = "php56-5.6.9";
     } elsif ($FBSD_MAJOR > 9 || ($FBSD_MAJOR == 9 && $FBSD_MINOR > 1)) {
 	$PHP_PORT = "php5-extensions-1.7";
