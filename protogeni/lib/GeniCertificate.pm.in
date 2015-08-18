@@ -754,6 +754,7 @@ sub WriteToFile($;$)
 	}
 	print $tempfile "-----END RSA PRIVATE KEY-----\n";
     }
+    close $tempfile;
     return $filename;
 }
 
@@ -1040,6 +1041,7 @@ sub WriteKeyToFile($)
     print $tempfile $self->privkey();
     print $tempfile "-----END RSA PRIVATE KEY-----\n";
 
+    close $tempfile;
     return $filename;
 }
 
