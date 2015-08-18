@@ -754,6 +754,9 @@ sub WriteToFile($;$)
 	}
 	print $tempfile "-----END RSA PRIVATE KEY-----\n";
     }
+    # Close the file handle... partly to avoid a file descriptor leak,
+    # but most importantly to flush the file so subsequent reads actually
+    # retrieve the certificate!!!
     close $tempfile;
     return $filename;
 }
@@ -1041,6 +1044,9 @@ sub WriteKeyToFile($)
     print $tempfile $self->privkey();
     print $tempfile "-----END RSA PRIVATE KEY-----\n";
 
+    # Close the file handle... partly to avoid a file descriptor leak,
+    # but most importantly to flush the file so subsequent reads actually
+    # retrieve the key!!!
     close $tempfile;
     return $filename;
 }
