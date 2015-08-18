@@ -3009,7 +3009,7 @@ class experiment:
 
                 ipres = DBQuery("select IP from interfaces "
                                 "where node_id=%s and role='ctrl'",
-                                (nodeid))
+                                (nodeid,))
 
                 if not ipres or len(ipres) == 0:
                     continue
@@ -3029,7 +3029,7 @@ class experiment:
 			 "left join interfaces as i on "
 			 "i.node_id=n1.node_id and i.role='ctrl' "
 			 "where n2.node_id=%s",
-                         (agent[2]))
+                         (agent[2],))
 
                 if not ipres or len(ipres) == 0:
                     continue
@@ -3578,7 +3578,7 @@ class node:
                       " nt.isdynamic=0 and nt.class not in ("
                       " 'pcplabphys','switch','shark','power','misc')"
                       + type_test,
-                      (self.uid_idx),
+                      (self.uid_idx,),
                       asDict=True)
 
         if len(res) == 0:
@@ -4380,7 +4380,7 @@ class subboss:
                            "  from interfaces as i "
                            "left join reserved as r on r.node_id=i.node_id "
                            "where i.IP=%s and i.role='ctrl'",
-                           (self.clientip))
+                           (self.clientip,))
         
         # IP must map to a node.
         if len(res) == 0:
@@ -4788,7 +4788,7 @@ class elabinelab:
                            "left join experiments as e on e.pid=r.pid and "
                            "     e.eid=r.eid "
                            "where i.IP=%s and i.role='ctrl'",
-                           (self.clientip))
+                           (self.clientip,))
         
         # IP must map to a node.
         if len(res) == 0:
