@@ -38,9 +38,11 @@ fi
 
 if [ $reboot -eq 1 ]; then
     if [ $dohalt -eq 1 ]; then
-        /sbin/halt
+	# This little bit of sillyness is to ensure that this
+	# script exits with zero status before the node halts.
+        (sleep 1; /sbin/halt) >/dev/null 2>&1 </dev/null &
     else
-        /sbin/reboot
+        (sleep 1; /sbin/reboot) >/dev/null 2>&1 </dev/null &
     fi
 fi
 exit 0
