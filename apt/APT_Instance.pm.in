@@ -359,9 +359,10 @@ sub SetStatus($$)
 
     my $uuid = $self->uuid();
 
-    DBQueryWarn("update apt_instances set status='$status' ".
-		"where uuid='$uuid'") or
-	return -1;
+    DBQueryWarn("update apt_instances set ".
+		"  status='$status',status_timestamp=now() ".
+		"where uuid='$uuid'")
+	or return -1;
 
     $self->{'INSTANCE'}->{'status'} = $status;
     return 0;
