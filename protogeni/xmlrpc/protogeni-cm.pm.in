@@ -114,6 +114,7 @@ elsif ($GENI_VERSION eq "2.0") {
 	"DescribeDataset"   => \&GeniCMV2::DescribeDataset,
 	"ModifyDataset"     => \&GeniCMV2::ModifyDataset,
 	"Lockdown"          => \&GeniCMV2::Lockdown,
+	"TriggerImageUpdate"=> \&GeniCMV2::TriggerImageUpdate,
     };
 }
 

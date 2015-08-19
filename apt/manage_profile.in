@@ -83,6 +83,7 @@ use lib "@prefix@/lib";
 use EmulabConstants;
 use emdb;
 use emutil;
+use libEmulab;
 use User;
 use Project;
 use APT_Profile;
@@ -462,9 +463,18 @@ if (defined($instance)) {
     # The script helpfully put the new image urn in the webtask.
     #
     $webtask->Refresh();
-    my $image_url = $webtask->image_url();
-    if (!defined($image_url) ||
-	$profile->UpdateDiskImage($node_id, $image_url, 0)) {
+    my $newimage;
+
+    if (GetSiteVar("protogeni/use_imagetracker") &&	
+	EmulabFeatures->FeatureEnabled("APT_UseImageTracker",
+				       $this_user, $project)) {
+	$newimage = $webtask->image_urn();
+    }
+    else {
+	$newimage = $webtask->image_url();
+    }
+    if (!defined($newimage) ||
+	$profile->UpdateDiskImage($node_id, $newimage, 0)) {
 	$webtask->Delete()
 	    if (!defined($webtask_id));
 	$profile->Delete(1);

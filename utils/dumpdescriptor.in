@@ -52,6 +52,9 @@ my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $TBGROUP_DIR	= "@GROUPSROOT_DIR@";
 my $TBPROJ_DIR	= "@PROJROOT_DIR@";
 my $TBBASE	= "@TBBASE@";
+my $PGENISUPPORT= @PROTOGENI_SUPPORT@;
+my $OURDOMAIN   = "@OURDOMAIN@";
+my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 
 #
 # When fetching the metadata, we now tell the server what client
@@ -81,6 +84,8 @@ use User;
 use Project;
 use Image;
 use OSinfo;
+use EmulabFeatures;
+$EmulabFeatures::verbose = 0;
 
 # Protos
 sub fatal($);
@@ -165,7 +170,7 @@ sub DumpImage($)
     $xmlfields{"hash"}         = $image->hash()
     	if ($export && defined($image->hash()) && $image->hash() ne "");
     $xmlfields{"mbr_version"}  = $image->mbr_version();
-    if ($clientvers > 0) {
+    if ($export && $clientvers > 0) {
 	$xmlfields{"isdataset"}    = $image->isdataset();
 	if ($clientvers > 1 && $image->isdataset()) {
 	    $xmlfields{"lba_low"}  = $image->lba_low();
@@ -204,6 +209,30 @@ sub DumpImage($)
 		"?imageid=$image_uuid&access_key=$access_key";
 	}
 	$xmlfields{"imagefile_url"} = $url;
+
+	if ($clientvers > 2) {
+	    #
+	    # If this is a nonlocal image, send along where it came from.
+	    # This allows the caller to trace back to the origin.
+	    #
+	    if (!$image->IsLocal()) {
+		$xmlfields{'metadata_url'} = $image->metadata_url();
+	    }
+	    # Tell the caller if we have delta/full images.
+	    $xmlfields{'havedelta'} = $image->HaveDeltaImage();
+	    $xmlfields{'havefull'}  = $image->HaveFullImage();
+
+	    if ($PGENISUPPORT) {
+		# Tell the caller some extras for debugging image tracking (IMS).
+		$xmlfields{'origin_uuid'} = $image_uuid;
+		$xmlfields{'origin_name'} = $image->versname();
+		# And the URN is required for image tracking.
+		require GeniHRN;
+		
+		$xmlfields{'origin_urn'}  =
+		    GeniHRN::Generate($OURDOMAIN, "authority", "cm");
+	    }
+	}
     }
 
     sub MapOS($) {

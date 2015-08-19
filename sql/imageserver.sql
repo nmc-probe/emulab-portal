@@ -15,29 +15,36 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+--
+-- Table structure for table `image_versions`
+--
+
 DROP TABLE IF EXISTS `image_versions`;
 CREATE TABLE `image_versions` (
+  `urn` varchar(128) default NULL,
   `imagename` varchar(30) NOT NULL default '',
   `version` int(8) unsigned NOT NULL default '0',
-  `imageid` int(8) unsigned NOT NULL default '0',
   `version_uuid` varchar(40) NOT NULL default '',
-  `creator` varchar(8) default NULL,
+  `image_uuid` varchar(40) NOT NULL default '',
   `creator_urn` varchar(128) default NULL,
   `created` datetime default NULL,
-  `description` tinytext NOT NULL,
-  `os_type` varchar(32) NOT NULL default '',
-  `os_version` varchar(12) default '',
-  `os_features` mediumtext defaut '',
+  `description` text NOT NULL,
+  `filesize` bigint(20) unsigned NOT NULL default '0',
+  `hash` varchar(64) default NULL,
+  `lba_low` bigint(20) unsigned NOT NULL default '0',
+  `lba_high` bigint(20) unsigned NOT NULL default '0',
+  `lba_size` int(10) unsigned NOT NULL default '512',
   `mbr_version` varchar(50) NOT NULL default '1',
+  `arch` enum ('i386','x86_64','aarch64') NOT NULL default 'x86_64',
+  `visibility` enum ('project','public') NOT NULL default 'public',
+  `virtualizaton` enum ('raw-pc','emulab-xen') NOT NULL default 'raw-pc',
+  `osfeatures` text default NULL,
   `metadata_url` tinytext,
-  `imagefile_url` tinytext,
-  `isdataset` tinyint(1) NOT NULL default '0',
-  `nodetypes` text default NULL,
-  `bitsize` enum ('32','64') NOT NULL default '32',
-  `arch` enum ('x86','arm64') NOT NULL default 'x86',
-  PRIMARY KEY  (`imageid`,`version`),
-  UNIQUE KEY `uuid` (`uuid`),
-  FULLTEXT KEY `imagesearch` (`imagename`,`description`)
+  `types_known_working` text default NULL,
+  `types_known_notworking` text default NULL,
+  `types_unknown` text default NULL,
+  PRIMARY KEY (`urn`,`version`),
+  UNIQUE KEY `version_uuid` (`version_uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -46,18 +53,18 @@ CREATE TABLE `image_versions` (
 
 DROP TABLE IF EXISTS `images`;
 CREATE TABLE `images` (
+  `urn` varchar(128) default NULL,
   `imagename` varchar(30) NOT NULL default '',
-  `imageid` int(8) unsigned NOT NULL default '0',
-  `version` int(8) unsigned NOT NULL default '0',
   `aggregate_urn` varchar(128) default NULL,
-  `image_urn` varchar(128) default NULL,
-  `pid` varchar(48) NOT NULL default '',
-  `gid` varchar(32) NOT NULL default '',
-  `uuid` varchar(40) NOT NULL default '',
+  `project_urn` varchar(128) default NULL,
+  `image_uuid` varchar(40) NOT NULL default '',
+  `isdataset` tinyint(1) NOT NULL default '0',
+  `issystem` tinyint(1) NOT NULL default '0',
+  `isversioned` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL,
   `locker_pid` int(11) default '0',
-  PRIMARY KEY  (`imageid`),
-  UNIQUE KEY `uuid` (`uuid`)
+  PRIMARY KEY (`urn`),
+  UNIQUE KEY `image_uuid` (`image_uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

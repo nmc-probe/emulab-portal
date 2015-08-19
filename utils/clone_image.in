@@ -47,18 +47,19 @@ sub usage()
 {
     print("Usage: clone_image [-dwe] [-n | -s] <imagename> <node_id>\n".
 	  "Options:\n".
-	  "       -d     Turn on debug mode\n".
-	  "       -e     Create a whole disk image\n".
-	  "       -g 0,1 Override base image global setting\n".
-	  "       -r 0,1 Override base image shared (within project) setting\n".
-	  "       -s     Create descriptor but do not snapshot\n".
-	  "       -n     Impotent mode\n".
-	  "       -F     Create a full image even if deltas are on\n".
-	  "       -U     Tell prepare to update master password files\n".
-	  "       -w     Wait for image to be created\n");
+	  "       -d      Turn on debug mode\n".
+	  "       -e      Create a whole disk image\n".
+	  "       -g 0,1  Override base image global setting\n".
+	  "       -r 0,1  Override base image shared (within project) setting\n".
+	  "       -s      Create descriptor but do not snapshot\n".
+	  "       -n      Impotent mode\n".
+	  "       -F      Create a full image even if deltas are on\n".
+	  "       -U      Tell prepare to update master password files\n".
+	  "       -B uuid Setup a copyback to origin uuid after snapshot\n".
+	  "       -w      Wait for image to be created\n");
     exit(-1);
 }
-my $optlist     = "densg:wFr:b:U";
+my $optlist     = "densg:wFr:b:UB:";
 my $debug       = 0;
 my $wholedisk   = 0;
 my $impotent    = 0;
@@ -69,6 +70,7 @@ my $nodelta     = 0; # To pass to create_image.
 my $global      = 0;
 my $shared      = 0;
 my $update_prepare = 0;
+my $origin_uuid;
 my $bsname;
 my ($base_osinfo, $base_image);
 
@@ -140,6 +142,16 @@ if (defined($options{"F"})) {
 }
 if (defined($options{"U"})) {
     $update_prepare = 1;
+}
+if (defined($options{"B"})) {
+    $origin_uuid = $options{"B"};
+
+    if ($origin_uuid =~ /^([-\w]+)$/) {
+	$origin_uuid = $1;
+    }
+    else {
+	fatal("Bad data in $origin_uuid");
+    }
 }
 if (defined($options{"b"})) {
     $bsname = $options{"b"};
@@ -274,7 +286,7 @@ if (defined($image)) {
     if ($image->Lock()) {
 	fatal("Image is locked, please try again later!\n");
     }
-    if ($DOPROVENANCE && $doprovenance) {
+    if ($DOPROVENANCE && $doprovenance && !$image->noversioning()) {
         #
 	# This will include unreleased images (in image_versions, but
 	# not the one pointed to by the images table). 
@@ -368,6 +380,11 @@ if (defined($image)) {
 	    }
 	}
     }
+    else {
+	# For create_image to be happy. 
+	$image->ClearReady(0);
+    }
+    
     #
     # If a wholedisk image was requested, we need to change the
     # descriptor, since it might not have started out as a whole disk
@@ -392,6 +409,7 @@ if (defined($image)) {
     $opts   .= "-w " if ($waitmode);
     $opts   .= "-F " if ($nodelta);
     $opts   .= "-U " if ($update_prepare);
+    $opts   .= "-B $origin_uuid " if (defined($origin_uuid));
     $opts   .= "-b $bsname " if (defined($bsname));
 
     #
@@ -546,6 +564,17 @@ if (defined($base_image)) {
 	$xmlfields{"mtype_${type_id}"} = 1;
     }
 }
+#
+# If we are being told that this new image needs to be copied back to
+# its original home, then copy the origin urn to new image from the
+# old image.
+#
+if (defined($origin_uuid)) {
+    if (! (defined($base_image) && defined($base_image->origin_urn()))) {
+	fatal("No origin_urn in $base_image");
+    }
+    $xmlfields{"origin_urn"} = $base_image->origin_urn();
+}
 
 #
 # Create the XML file to pass to newimageid_ez.
@@ -600,6 +629,14 @@ if (!defined($osinfo)) {
 if ($DOPROVENANCE && $doprovenance) {
     $image->SetProvenance($base_image);
     $osinfo->SetProvenance($base_osinfo);
+    #
+    # The portal is telling us that this image is really a snapshot of
+    # an image at another cluster which is not doing versioning, so we
+    # do not do versioning here.
+    #
+    if ($origin_uuid && $base_image->noversioning()) {
+	$image->SetNoVersioning(1);
+    }
 }
 if ($debug) {
     print "Created $osinfo\n";
@@ -614,8 +651,8 @@ my $opts = "-p $pid ";
 $opts   .= "-w " if ($waitmode);
 $opts   .= "-F " if ($nodelta);
 $opts   .= "-U " if ($update_prepare);
+$opts   .= "-B $origin_uuid " if (defined($origin_uuid));
 $opts   .= "-b $bsname " if (defined($bsname));
-$output  = emutil::ExecQuiet("$CREATEIMAGE $opts $imagename $node_id");
 if ($?) {
     print STDERR $output;
     fatal("Failed to create image");

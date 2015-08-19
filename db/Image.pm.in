@@ -507,7 +507,8 @@ sub Create($$$$$$$$)
     # Pass-through optional slots, otherwise the DB default is used.
     foreach my $key ("path", "shared", "global", "ezid", "mbr_version",
 		     "metadata_url", "imagefile_url", "released",
-		     "isdataset", "lba_size", "lba_low", "lba_high") {
+		     "isdataset", "lba_size", "lba_low", "lba_high",
+		     "origin_uuid", "origin_urn", "origin_name") {
 	if (exists($argref->{$key})) {
 	    push(@arg_slots, $key);
 	}
@@ -603,8 +604,8 @@ sub Create($$$$$$$$)
     # us to track actual geni users, since all of that happens
     # as geniuser. We do not bother to set this for local users.
     #
-    if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
-	$query .= ",creator_urn=". DBQuoteSpecial($ENV{'GENIURN'});
+    if (exists($ENV{'REALGENIURN'}) && $ENV{'REALGENIURN'} ne "") {
+	$query .= ",creator_urn=". DBQuoteSpecial($ENV{'REALGENIURN'});
     }
 
     # Create the main entry:
@@ -743,8 +744,8 @@ sub NewVersion($$$$)
     # us to track actual geni users, since all of that happens
     # as geniuser. We do not bother to set this for local users.
     #
-    if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
-	$updater_urn = ",updater_urn=". DBQuoteSpecial($ENV{'GENIURN'});
+    if (exists($ENV{'REALGENIURN'}) && $ENV{'REALGENIURN'} ne "") {
+	$updater_urn = ",updater_urn=". DBQuoteSpecial($ENV{'REALGENIURN'});
     }
 
     #
@@ -822,6 +823,8 @@ sub NewVersion($$$$)
 		"  created=now(),nodetypes='$typelist', ".
 		"  parent_imageid=$parent_imageid,".
 		"  parent_version=$parent_version, ".
+		"  origin_neednotify=0,origin_needupdate=0, ".
+		"  origin_uuid=NULL,origin_name=NULL, ".
 		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
 	or goto bad;
@@ -1183,6 +1186,10 @@ sub Delete($;$)
     DBQueryWarn("delete from images where imageid='$imageid'")
 	or goto bad;
     DBQueryWarn("delete from web_tasks where object_uuid='$uuid'")
+	or goto bad;
+    DBQueryWarn("delete from image_notifications where imageid='$imageid'")
+	or goto bad;
+    DBQueryWarn("delete from image_updates where imageid='$imageid'")
 	or goto bad;
     
     if ($purge || !$DOPROVENANCE) {
@@ -1573,8 +1580,8 @@ sub MarkUpdate($$;$)
     # us to track actual geni users, since all of that happens
     # as geniuser. We do not bother to set this for local users.
     #
-    if (exists($ENV{'GENIURN'}) && $ENV{'GENIURN'} ne "") {
-	$updater_urn = ", updater_urn=". DBQuoteSpecial($ENV{'GENIURN'});
+    if (exists($ENV{'REALGENIURN'}) && $ENV{'REALGENIURN'} ne "") {
+	$updater_urn = ", updater_urn=". DBQuoteSpecial($ENV{'REALGENIURN'});
     }
     
     if (defined($stamp)) {
@@ -1587,6 +1594,44 @@ sub MarkUpdate($$;$)
     return -1
 	if (! DBQueryWarn("update image_versions set updated=$stamp " .
 			  "  $updater $updater_idx $updater_urn ".
+			  "where imageid='$imageid' and version='$version'"));
+
+    return 0;
+}
+
+#
+# Mark the IMS update time in the record,
+#
+sub MarkIMSReported($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid     = $self->imageid();
+    my $version     = $self->version();
+
+    return -1
+	if (! DBQueryWarn("update image_versions set ims_reported=now() " .
+			  "where imageid='$imageid' and version='$version'"));
+
+    return 0;
+}
+sub ClearIMSReported($)
+{
+    my ($self) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid     = $self->imageid();
+    my $version     = $self->version();
+
+    return -1
+	if (! DBQueryWarn("update image_versions set ims_reported=NULL " .
 			  "where imageid='$imageid' and version='$version'"));
 
     return 0;
@@ -2216,6 +2261,25 @@ sub SetHash($$)
     return -1
 	if ($self->Update({'hash' => $hash}));
 
+    return 0;
+}
+
+sub SetNoVersioning($$)
+{
+    my ($self, $value) = @_;
+    $value = ($value ? 1 : 0);
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid = $self->imageid();
+
+    return -1
+	if (! DBQueryWarn("update images set noversioning='$value' " .
+			  "where imageid='$imageid'"));
+	    
+    $self->{'IMAGE'}->{'noversioning'} = $value;
     return 0;
 }
 

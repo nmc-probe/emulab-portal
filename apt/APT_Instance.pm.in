@@ -1552,9 +1552,10 @@ sub ConsoleURL($$)
 #
 # Create an Image,
 #
-sub CreateImage($$$$;$)
+sub CreateImage($$$$;$$$)
 {
-    my ($self, $sliver_urn, $imagename, $update_prepare, $bsname) = @_;
+    my ($self, $sliver_urn, $imagename, $update_prepare,
+	$copyback_uuid, $bsname) = @_;
     my $authority = $self->GetGeniAuthority();
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
@@ -1581,6 +1582,8 @@ sub CreateImage($$$$;$)
 	if (defined($bsname));
     $args->{'update_prepare'} = 1
 	if ($update_prepare);
+    $args->{'copyback_uuid'} = $copyback_uuid
+	if (defined($copyback_uuid));
 
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);

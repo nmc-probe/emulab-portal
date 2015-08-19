@@ -172,16 +172,25 @@ sub Untranscribe($)
 # Break a URN into (sub-)authority, type, and ID components.  There
 # might be further structure in the authority part, but we'll ignore
 # that for now.
-sub Parse($)
+sub Parse($;$)
 {
-    my ($hrn) = @_;
+    my ($token, $hrn) = @_;
 
+    #
+    # When called as a Class method, we want to return an object.
+    #
+    if (@_ == 1) {
+	$hrn = $token;
+    }
     if (!defined($hrn)) {
 	carp("GeniHRN::Parse: hrn is undefined");
 	return 0;
     }
     return undef if !IsValid( $hrn );
 
+    if (@_ == 2) {
+	return GeniHRN->new($hrn);
+    }
     $hrn = Unescape( $hrn );
 
     $hrn =~ /^[^+]*\+([^+]+)\+([^+]+)\+(.+)$/;
@@ -289,6 +298,10 @@ sub ParseInterface($)
 	carp("GeniHRN::ParseInterface: urn is undefined");
 	return 0;
     }
+    # Allow as instance method.
+    if (ref($urn)) {
+	$urn = $urn->urn();
+    }
     my ($authority,$type,$id) = Parse( $urn );
 
     return undef if $type ne "interface";
@@ -296,6 +309,37 @@ sub ParseInterface($)
     return undef unless $id =~ m{(.*)//(.*)};
 
     return ( $authority, $1, $2 );
+}
+
+sub ParseImage($)
+{
+    my ($urn) = @_;
+
+    if (!defined($urn)) {
+	carp("GeniHRN::ParseImage: urn is undefined");
+	return 0;
+    }
+    # Allow as instance method.
+    if (ref($urn)) {
+	$urn = $urn->urn();
+    }
+    my ($authority,$type,$id) = Parse( $urn );
+
+    return undef if $type ne "image";
+
+    my ($ospid,$os,undef,$vers) = ($id =~ m{([^/]+)//([^/]+)(//(\d+))?});
+    return undef if (!defined($ospid));
+
+    return ($authority, $ospid, $os, $vers);
+}
+sub GenerateImage($$$$)
+{
+    my ($authority,$pid,$os,$vers) = @_;
+
+    if (defined($vers)) {
+	return Generate($authority, "image", $pid . "//" . $os . "//" . $vers);
+    }
+    return Generate($authority, "image", $pid . "//" . $os);
 }
 
 #

@@ -57,6 +57,7 @@ use GeniHRN;
 use GeniXML;
 use GeniStitch;
 use GeniUsage;
+use GeniImage;
 use libtestbed;
 use emutil;
 use EmulabConstants;
@@ -483,12 +484,12 @@ sub GetTicket($;$)
 	    if (GeniResponse::IsResponse($ticket));
     }
     return GetTicketAux($credential,
-			$rspecstr, $isupdate, $impotent, 0, 1, $ticket);
+			$rspecstr, $isupdate, $impotent, 0, 1, 0, $ticket);
 }
 
-sub GetTicketAux($$$$$$$$@)
+sub GetTicketAux($$$$$$$$$@)
 {
-    my ($credential, $rspecstr, $isupdate, $impotent, $v2, $level,
+    my ($credential, $rspecstr, $isupdate, $impotent, $v2, $level, $usetracker,
 	$ticket, $speaksfor, @morecreds) = @_;
     
     defined($credential) &&
@@ -531,13 +532,14 @@ sub GetTicketAux($$$$$$$$@)
     main::AddLogfileMetaDataFromSlice($slice);
     
     return GetTicketAuxAux($slice, $user, $rspecstr,
-			   $isupdate, $impotent, $v2, $level, $ticket,
-			   [$credential, @morecreds], $speaksfor);
+			   $isupdate, $impotent, $v2, $level, $usetracker,
+			   $ticket, [$credential, @morecreds], $speaksfor);
 }
-sub GetTicketAuxAux($$$$$$$$$$)
+sub GetTicketAuxAux($$$$$$$$$$$)
 {
     my ($slice, $user, $rspecstr, $isupdate,
-	$impotent, $v2, $level, $ticket, $credentials, $speaksfor) = @_;
+	$impotent, $v2, $level, $usetracker,
+	$ticket, $credentials, $speaksfor) = @_;
     my $response    = undef;
     my $restorevirt = 0;	# Flag to restore virtual state
     my $restorephys = 0;	# Flag to restore physical state
@@ -592,6 +594,17 @@ sub GetTicketAuxAux($$$$$$$$$$)
 	    # Cannot get the value, say no.
 	    $allow_externalusers = 0;
     }
+
+    # Image tracker.
+    my $use_imagetracker;
+    if (!GetSiteVar('protogeni/use_imagetracker', \$use_imagetracker)) {
+	# Cannot get the value, say no.
+	$use_imagetracker = 0;
+    }
+    # But the Portal is currently the one telling us to use the tracker
+    # for specific slices.
+    $use_imagetracker = 1
+	if ($use_imagetracker && $usetracker);
 
     # Figure out if user has a credentials that exempts him
     # from the following policy. If external users are blocked access
@@ -1014,28 +1027,42 @@ sub GetTicketAuxAux($$$$$$$$$$)
 		}
 		$osinfo = OSinfo->Lookup($ospid, $os, $vers);
 		if (!defined($osinfo)) {
-		    $response =
-			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-					     "Unknown image URN: $dname");
-		    goto bad;
+		    if ($use_imagetracker) {
+			my $image = GeniImage::MapToLocalImage($dname, $pid);
+			if (GeniResponse::IsError($image)) {
+			    $response = $image;
+			    goto bad;
+			}
+			$osname = ($image->IsLocal() ?
+				   $image->versname() :
+				   $image->metadata_url());
+		    }
+		    else {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						 "Unknown image URN: $dname");
+			goto bad;
+		    }
 		}
-		#
-		# The OS must be in the current project, or it must
-		# be global (okay, shared).
-		#
-		if (! ($osinfo->shared() ||
-		       $osinfo->pid() eq $slice_experiment->pid())) {
-		    $response =
-			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+		else {
+		    #
+		    # The OS must be in the current project, or it must
+		    # be global (okay, shared).
+		    #
+		    if (! ($osinfo->shared() ||
+			   $osinfo->pid() eq $slice_experiment->pid())) {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				 "Insufficient permission to use $osinfo");
-		    goto bad;
-		}
+			goto bad;
+		    }
 		
-		#
-		# This is only going to be used in raw mode. 
-		#
-		$osname  = "$ospid/$os";
-		$osname .= ":${vers}" if (defined($vers));
+		    #
+		    # This is only going to be used in raw mode. 
+		    #
+		    $osname  = "$ospid/$os";
+		    $osname .= ":${vers}" if (defined($vers));
+		}
 	    }
 	}
 
@@ -5301,7 +5328,8 @@ sub SliceStatus($)
 	    $details{$node_uuid} = "ready";
 	    $detailsNew{$urn}    = "ready";
 	}
-	elsif ($node->eventstate() eq TBDB_NODESTATE_TBFAILED()) {
+	elsif ($node->eventstate() eq TBDB_NODESTATE_TBFAILED() ||
+	       $node->eventstate() eq TBDB_NODESTATE_RELOADFAILED()) {
 	    $details{$node_uuid} = "failed";
 	    $detailsNew{$urn}    = "failed";
 	    $summary = "failed";
@@ -5497,7 +5525,8 @@ sub SliverStatus($)
 	    $details{$node_uuid} = "ready";
 	    $detailsNew{$urn}    = "ready";
 	}
-	elsif ($node->eventstate() eq TBDB_NODESTATE_TBFAILED()) {
+	elsif ($node->eventstate() eq TBDB_NODESTATE_TBFAILED() ||
+	       $node->eventstate() eq TBDB_NODESTATE_RELOADFAILED()) {
 	    $details{$node_uuid} = "failed";
 	    $detailsNew{$urn}    = "failed";
 	    $summary = "failed";

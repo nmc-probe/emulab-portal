@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -44,6 +44,7 @@ use GeniSA;
 use GeniResponse;
 use GeniCredential;
 use GeniRegistry;
+use GeniHRN;
 use emutil;
 use URI;
 use Data::Dumper;
@@ -324,6 +325,11 @@ sub CheckCredentials($;$)
 			$error = $speaksfor;
 			goto bad;
 		    }
+		}
+		# Put this into the ENV for the backend scripts.
+		if (GeniHRN::IsValid($speaksfor->target_urn()) &&
+		    $speaksfor->target_urn() =~ /^(urn:publicid:.*)$/) {
+		    $ENV{'REALGENIURN'} = $1;
 		}
 		main::AddLogfileMetaDataFromSpeaksFor($speaksfor);
 

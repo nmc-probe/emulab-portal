@@ -1,0 +1,379 @@
+#!/usr/bin/perl -wT
+#
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+package GeniImage;
+
+#
+use strict;
+use Exporter;
+use vars qw(@ISA @EXPORT);
+
+@ISA    = "Exporter";
+@EXPORT = qw ( );
+
+use GeniDB;
+use GeniCredential;
+use GeniCertificate;
+use GeniAuthority;
+use GeniHRN;
+use Genixmlrpc;
+use GeniResponse;
+use GeniUtil;
+use Image;
+use OSinfo;
+use emutil;
+use Node;
+use English;
+use Data::Dumper;
+use overload ('""' => 'Stringify');
+
+# Configure variables
+my $TB		   = "@prefix@";
+my $TBOPS          = "@TBOPSEMAIL@";
+my $TBAPPROVAL     = "@TBAPPROVALEMAIL@";
+my $TBAUDIT   	   = "@TBAUDITEMAIL@";
+my $BOSSNODE       = "@BOSSNODE@";
+my $OURDOMAIN      = "@OURDOMAIN@";
+my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
+#my $IMSURL         = "https://www.emulab.net:12369/protogeni/stoller/xmlrpc/ims";
+my $IMSURL         = "https://www.emulab.net:12369/protogeni/xmlrpc/ims";
+my $CLIENTVERS     = 1;
+my $IMPORTER       = "$TB/sbin/image_import";
+
+# Cached copy of credential to talk to IMS.
+my $IMS_credential;
+
+# Debugging
+my $usemydevtree  = 1;
+
+#
+# Get a credential to talk to the IMS.
+#
+sub GetServerCredential()
+{
+    return $IMS_credential
+	if (defined($IMS_credential));
+    
+    my $response =
+	Genixmlrpc::CallMethod($IMSURL, undef, "GetCredential");
+    if (!defined($response)) {
+	print STDERR "RPC error getting credential\n";
+	return undef;
+    }
+    if ($response->IsError()) {
+	print STDERR "GetCredential: " . $response->Dump() . "\n";
+	return undef;
+    }
+    $IMS_credential = GeniCredential->CreateFromSigned($response->value(), 1);
+    if (!defined($IMS_credential)) {
+	print STDERR $GeniCredential::CreateFromSignedError . "\n";
+	return undef;
+    }
+    return $IMS_credential;
+}
+
+#
+# Ask the IMS for its info on the URN. Might be a versioned qualified
+# URN, but if not the IMS will send back data for the most recent version.
+#
+sub GetImageData($;$)
+{
+    my ($urn, $pmsg) = @_;
+    my $errormsg;
+
+    my $credential = GetServerCredential();
+    if (!defined($credential)) {
+	$errormsg = "Could not get a credential to talk to the IMS";
+	goto bad;
+    }
+
+    my $response =
+	Genixmlrpc::CallMethod($IMSURL, undef, "GetImageInfo",
+			       {"credential" => $credential->asString(),
+				"urn"        => $urn});
+    
+    if (!defined($response) || $response->code()) {
+	my $msg = "GetImageInfo failed for urn:";
+	
+	if (!defined($response)) {
+	    $errormsg = "$msg RPC error";
+	    goto bad;
+	}
+	elsif (defined($response->output())) {
+	    $errormsg = "$msg " . $response->output();
+	    goto bad;
+	}
+	else {
+	    $errormsg = "$msg " . GENIRESPONSE_STRING($response->code());
+	    goto bad;
+	}
+    }
+    return $response->value();
+
+  bad:
+    if (defined($pmsg)) {
+	$$pmsg = $errormsg;
+	return undef;
+    }
+    return GeniResponse->Create(GENIRESPONSE_RPCERROR)
+	if (!defined($response));
+
+    return GeniResponse->Create($response->code(),
+				$response->value(), $response->output());
+}
+
+#
+# Map a URN to a local image. We do this by asking the tracker for
+# the image info, then looking to see if we have that image locally,
+# via the image URL.
+#
+# I think that we eventually want to stop using the metadata url as
+# the lookup token, and switch to recording the URN of the origin image.
+# For one, this will avoid call backs to the image tracker server.
+#
+# If we do not have a local copy, try to load it using the URL.
+#
+sub MapToLocalImage($$)
+{
+    my ($urn, $pid) = @_;
+
+    my $blob = GetImageData($urn);
+    return $blob
+	if (GeniResponse::IsError($blob));
+
+    my $url  = $blob->{'metadata_url'};
+
+    print STDERR Dumper($blob);
+
+    #
+    # So, look to see if the user is trying to use an image that is
+    # present in the current project. This will happen if after an import
+    # the user takes a snapshot, then uses it again on the local cluster.
+    # We can avoid the re-importation of the image into GeniSlices, although
+    # if a user in a different project tries to use the image, we will still
+    # end up doing an import. 
+    #
+    # We are looking for an image with the same name, but we verify with
+    # the hash that is stored at the image server. 
+    #
+    my $hrn = GeniHRN->new($urn);
+    # The image might be version specific.
+    my (undef,$imagename,$version) = split("\/\/", $hrn->id());
+    if (defined($version) && $version !~ /^\d+$/) {
+	print STDERR "Bad version number in $urn\n";
+	return undef;
+    }
+    my $image = Image->Lookup($pid,$imagename);
+    if (defined($image)) {
+	#
+	# So, we might not have all the versions of the image, and in fact
+	# we might be out of sync with the origin (might change with delta
+	# support).  So look through all versions for an image with the same
+	# hash.
+	#
+	my @allversions = ();
+	if ($image->AllVersions(\@allversions)) {
+	    return undef;
+	}
+	foreach my $im (@allversions) {
+	    if (defined($im->hash()) && exists($blob->{'sha1hash'}) &&
+		$im->hash() eq $blob->{'sha1hash'}) {
+		print STDERR "MapToLocalImage: Found local image $im\n";
+		return $im;
+	    }
+	}
+    }
+
+    # Now look for the URL. It will be updated later if it needs to be.
+    $image = Image->LookupByURL($url);
+    if (defined($image)) {
+	#
+	# Update this field.
+	#
+	$image->SetNoVersioning(!$blob->{'isversioned'});
+    }
+    my $safe_url = GeniUtil::escapeshellarg($url);
+
+    # Try to import the descriptor.
+    system("$IMPORTER -d -p GeniSlices $safe_url");
+    if ($?) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Image importer failure for $urn");
+    }
+    $image = Image->LookupByURL($blob->{'metadata_url'});
+    if (!defined($image)) {
+	print STDERR "Could not lookup image after import: $url\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+			    "Could not lookup image after import: $url");
+    }
+    #
+    # If the IMS says that the image not versioned at the origin cluster,
+    # then we do not want to do that here either, when we import updated
+    # versions of the image. Not that if the image is cloned to another
+    # name/project such that the new image is now local, we of course want
+    # to version the image if the local testbed has versioning turned on.
+    #
+    if (!$blob->{'isversioned'}) {
+	$image->SetNoVersioning(1);
+    }
+    return $image;
+}
+
+#
+# Trigger an update at the origin for an image. This will cause the origin
+# to pull the new image over to create a new version of it. This is NOT a
+# call to the IMS, but to the CM at the origin. 
+#
+sub TriggerUpdate($$)
+{
+    my ($image, $pmsg) = @_;
+    my $authority_urn;
+    require emdb;
+
+    #
+    # This should be called with the image locked. Make sure.
+    #
+    if (! $image->Lock()) {
+	$$pmsg = "Image is not locked, something is wrong";
+	$image->Unlock();
+	return -1;
+    }    
+    my $imageid = $image->imageid();
+    my $version = $image->version();
+
+    #
+    # Grab the info from the copybacks table, it tells us what to
+    # send to along to the origin site.
+    #
+    my $query_result =
+	emdb::DBQueryWarn("select origin_uuid from image_notifications ".
+			  "where imageid='$imageid' and version='$version'");
+    if (! (defined($query_result) && $query_result->numrows())) {
+	$$pmsg = "Could not get info from image_copybacks table";
+	return -1;
+    }
+    my ($origin_uuid) = $query_result->fetchrow_array();
+    
+    #
+    # We are going to contact the CM at the aggregate for the project.
+    # We might not have the origin fields set, so have to fall back to
+    # looking at the project.
+    #
+    if (defined($image->origin_urn())) {
+	$authority_urn = $image->origin_urn();
+    }
+    else {
+	my $project = $image->GetProject();
+	return -1
+	    if (!defined($project));
+    
+	my $hrn = GeniHRN->new($project->nonlocal_id());
+	return -1
+	    if (!defined($hrn));
+
+	my $authority_urn =
+	    GeniHRN::Generate($hrn->domain(), "authority", "cm");
+    }
+    my $authority = GeniAuthority->CreateFromRegistry("cm", $authority_urn);
+    if (!defined($authority)) {
+	$$pmsg = "Could not lookup authority: $authority_urn\n";
+	return -1;
+    }
+
+    #
+    # Okay, send a blob to the origin CM telling it to pick up
+    # this new version of the image.
+    #
+    my $blob = {
+	"origin_uuid"   => $origin_uuid,
+	"imagename"     => $image->versname(),
+	"metadata_url"  => $image->LocalVersionURL(),
+    };
+
+    #
+    # We need a credential to talk to the CM, but it does not export
+    # a GetCredential call. Really, all we need to do is prove we are
+    # a CM in the federation, so create a self-signed credential; the
+    # call will verify the signature.
+    #
+    # This is just a basic security measure. 
+    #
+    my $context = Genixmlrpc->GetContext();
+    if (!defined($context)) {
+	$$pmsg = "No XMLRPC context defined";
+	return -1;
+    }
+    my $me = $context->certificate();
+    my $credential = GeniCredential->CreateSigned($me, $me, $me);
+    if (!defined($credential)) {
+	$$pmsg = "Could not create self signed credential";
+	return -1;
+    }
+
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+
+    my $response =
+	Genixmlrpc::CallMethod($cmurl, undef, "TriggerImageUpdate",
+			       {"credentials" => [$credential->asString()],
+				"info"        => $blob});
+    
+    if (!defined($response) || $response->code()) {
+	my $msg = "TriggerImageUpdate failed: ";
+	
+	if (!defined($response)) {
+	    $msg .= "RPC error";
+	}
+	elsif (defined($response->output())) {
+	    $msg .= $response->output();
+	}
+	else {
+	    $msg .= GENIRESPONSE_STRING($response->code());
+	}
+	if (defined($response) &&
+	    ($response->code() == GENIRESPONSE_SEARCHFAILED() ||
+	     $response->code() == GENIRESPONSE_REFUSED)) {
+	    emdb::DBQueryWarn("delete from image_notifications ".
+			      "where imageid='$imageid' and ".
+			      "      version='$version'");
+	}
+	$$pmsg = $msg;
+	return -1;
+    }
+    #
+    # The remote cluster accepted, our responsibilty is done.
+    #
+    emdb::DBQueryWarn("delete from image_notifications ".
+		      "where imageid='$imageid' and ".
+		      "      version='$version'");
+    return 0;
+}
+
+# _Always_ make sure that this 1 is at the end of the file...
+1;

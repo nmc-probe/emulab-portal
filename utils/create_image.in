@@ -118,12 +118,13 @@ sub usage()
 	  "              <pct> percent the size of a full image.\n".
 	  "-M          - do not boot info MFS, run with ssh from current OS\n".
 	  "-U          - Tell prepare to update master password files\n".
+	  "-B          - uuid Setup a copyback to origin uuid after snapshot\n".
 	  "-p <pid>    - project ID of the image; defaults to system project\n".
 	  "<imagename> - imagename to use\n".
 	  "<node>      - nodeid to create the image from\n");
     exit(-1);
 }
-my $optlist  = "p:wsNdfeDSMA:Fb:U";
+my $optlist  = "p:wsNdfeDSMA:Fb:UB:";
 my $waitmode = 0;
 my $usessh   = 0;
 my $usenfs   = 0;
@@ -136,6 +137,7 @@ my $signature= 0;
 my $deltapct = 0;
 my $update_prepare = 0;
 my $bsname;
+my $origin_uuid;
 my $webtask;
 
 #
@@ -206,6 +208,7 @@ my $osselect    = "$TB/bin/os_select";
 my $checkquota  = "$TB/sbin/checkquota";
 my $imagehash	= "$TB/bin/imagehash";
 my $imagevalidate = "$TB/sbin/imagevalidate";
+my $TRIGGERUPDATE = "$TB/sbin/protogeni/triggerimageupdate";
 my $SHA1	= "/sbin/sha1";
 my $SCP		= "/usr/bin/scp";
 my $def_devtype	= "ad";
@@ -264,6 +267,17 @@ if (defined($options{"d"})) {
 if (defined($options{"f"})) {
     $foreground = 1;
     $waitmode = 0;
+}
+if (defined($options{"B"})) {
+    $origin_uuid = $options{"B"};
+
+    if ($origin_uuid =~ /^([-\w]+)$/) {
+	$origin_uuid = $1;
+    }
+    else {
+	die("*** $0:\n".
+	    "    Bad data in $origin_uuid\n");
+    }
 }
 if (defined($options{"b"})) {
     $bsname = $options{"b"};
@@ -326,17 +340,6 @@ my $target     = $ARGV[1];
 #
 $EUID = $UID;
 
-#
-# Untaint the arguments.
-#
-if ($imagename =~ /^([-\w\.\+:]+)$/) {
-    $imagename = $1;
-}
-else {
-    die("*** $0:\n".
-	"    Bad data in $imagename.\n");
-}
-    
 if (defined($options{"p"})) {
     $imagepid = $options{"p"};
 	
@@ -1367,6 +1370,11 @@ if ($dstsigfile &&
 		     $image->FullImageSigFile())))) {
     fatal("Could not move new signature file into place");
 }
+# We use this below for email.
+$filename = $hackprefix . 
+    basename(($delta ?
+	      $image->DeltaImageFile() :
+	      $image->FullImageFile()));
 
 #
 # Update fields in the DB related to the image.
@@ -1454,10 +1462,24 @@ $image->SetDelta($delta ? 1 : 0);
 #
 $image->MarkReady();
 if (! ($isglobal && $pid eq TBOPSPID()) || !$doprovenance) {
-    if ($image->Release()) {
-	$image->Unlock();
-	exit(1);
-    }
+    $image->Release()
+}
+#
+# If we are being told that this new image needs to be copied back to
+# its original home, setup the copyback table. I ended up putting this
+# here instead of clone_image, cause when provenance is turned off, the
+# readybit is still set while a new snapshot is taken, so cannot use that
+# to control when the copyback actually happens. It might make more sense
+# to clear the readybit in this case, but since most sites are not doing
+# provenance, need to be careful about a change like this.
+#
+if (defined($origin_uuid)) {
+    DBQueryWarn("replace into image_notifications set ".
+		"  imageid='$imageid',version='$version', ".
+		"  origin_uuid='$origin_uuid'");
+    # This can fail, we will catch it later from the CM daemon when
+    # we try again. Use the nolock option since we have it.
+    system("$TRIGGERUPDATE -l $imageid");
 }
 $image->Unlock();
 exit(0);

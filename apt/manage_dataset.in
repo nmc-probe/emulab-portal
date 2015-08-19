@@ -709,7 +709,8 @@ sub DoSnapShotInternal($$$$$)
 	goto failed;
     }
     my $response = $aggregate->CreateImage($sliver_urn,
-					   $dataset->dataset_id(), 0, $bsname);
+					   $dataset->dataset_id(),
+					   0, undef, $bsname);
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	$errmsg = "SnapshotDataset failed: ". $response->output() . "\n";
 	goto failed;

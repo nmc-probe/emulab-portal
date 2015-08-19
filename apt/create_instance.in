@@ -59,6 +59,7 @@ my $xmlparse;
 my $instance;
 my $slice;
 my $sitemap;
+my $usetracker = 0;
 my @aggregate_urns = ();
 
 # Debugging
@@ -114,6 +115,7 @@ use User;
 use Project;
 use OSinfo;
 use emutil;
+use libEmulab;
 use GeniDB;
 use GeniUser;
 use GeniCertificate;
@@ -126,6 +128,7 @@ use GeniResponse;
 use GeniXML;
 use WebTask;
 use Logfile;
+use EmulabFeatures;
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -559,6 +562,12 @@ if ($localuser) {
 	      $project->pid());
     }
     $pid = $project->pid();
+
+    # Use of the Image Tracker is a Portal directive at the moment.
+    $usetracker = 1
+	if (GetSiteVar("protogeni/use_imagetracker") &&	
+	    EmulabFeatures->FeatureEnabled("APT_UseImageTracker",
+					   $emulab_user, $project));
 }
 elsif (!$localuser) {
     if (defined($sshkey)) {    #
@@ -1081,6 +1090,7 @@ sub CreateSliver($)
 				     "certificate" => $alt_certificate->cert(),
 				     "key"         =>
 				        $alt_certificate->PrivKeyDelimited(),
+				     "usetracker"  => $usetracker,
 				   });
 
 	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {

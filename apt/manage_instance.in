@@ -82,6 +82,7 @@ use lib "@prefix@/lib";
 use EmulabConstants;
 use emdb;
 use emutil;
+use libEmulab;
 use libtestbed;
 use User;
 use Project;
@@ -93,6 +94,7 @@ use GeniHRN;
 use Genixmlrpc;
 use GeniResponse;
 use GeniSlice;
+use GeniImage;
 use WebTask;
 use EmulabFeatures;
 
@@ -109,6 +111,7 @@ sub DoLockdown();
 sub DoManifests();
 sub WriteCredentials();
 sub StartMonitor();
+sub DoImageTrackerStuff($$$$$);
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -191,7 +194,11 @@ sub DoSnapshot()
     my $node_id;
     my $imagename;
     my $update_profile;
+    my $copyback_uuid;
+    my $copyback_urn;
     my $update_prepare = 0;
+    my $doversions = 0;
+    my $usetracker = 0;
 
     my $optlist = "n:i:u:U";
     my %options = ();
@@ -293,6 +300,26 @@ sub DoSnapshot()
 	$sliver_urn = GeniXML::GetSliverId($node);
 	$node_id    = GeniXML::GetVirtualId($node);
 	$aggregate  = $agg;
+	#
+	# Instruct the remote cluster to copy the image back to its origin,
+	# but we need to ask the IMS for uuid of the image that is running,
+	# so we can tell the cluster, which then tells the origin cluster.
+	#
+	if (GetSiteVar("protogeni/use_imagetracker") &&	
+	    EmulabFeatures->FeatureEnabled("APT_UseImageTracker",
+					   $this_user, $project)) {
+	    #
+	    # If there is no diskinfo or if it references a system image,
+	    # then we have to wait until the snapshot is done to find out
+	    # what the image was called, via the return from CreateImage().
+	    #
+	    $usetracker = 1;
+
+	    if (DoImageTrackerStuff($agg, $node, $project,
+				    \$copyback_uuid, \$copyback_urn)) {
+		fatal("Image tracking error");
+	    }
+	}
     }
     else {
 	# Find the node in its manifest.
@@ -364,6 +391,10 @@ sub DoSnapshot()
 		}
 	    }
 	}
+	# Do this here to avoid output to logfile.
+	$doversions =
+	    EmulabFeatures->FeatureEnabled("APT_ProfileVersions",
+					   $this_user, $project);
     }
     if ($slice->Lock()) {
 	fatal("Slice is busy, cannot lock it");
@@ -385,7 +416,8 @@ sub DoSnapshot()
     # the background at the aggregate. 
     #
     my $response =
-	$aggregate->CreateImage($sliver_urn, $imagename, $update_prepare);
+	$aggregate->CreateImage($sliver_urn, $imagename,
+				$update_prepare, $copyback_uuid);
     if (!defined($response)) {
 	$errmsg = "Internal error creating image";
 	$instance->SetStatus($old_status);
@@ -531,10 +563,6 @@ sub DoSnapshot()
 	# that we expect the CM is doing image versioning, so do not
 	# bother to check if the image version is actually new.
 	#
-	my $doversions =
-	    EmulabFeatures->FeatureEnabled("APT_ProfileVersions",
-					   $this_user, $project);
-
 	if ($doversions) {
 	    $profile = $profile->NewVersion($this_user);
 	    if (!defined($profile)) {
@@ -544,7 +572,14 @@ sub DoSnapshot()
 		exit(1);
 	    }
 	}
-	$profile->UpdateDiskImage($node_id, $version_url,
+	# DoImageTrackerStuff determined that we use whatever the cluster
+	# tells us, it is the home of the image.
+	$copyback_urn = $version_urn
+	    if ($usetracker && !defined($copyback_urn));
+	
+	$profile->UpdateDiskImage($node_id,
+				  (defined($copyback_urn) ?
+				   $copyback_urn : $version_url),
 				  ($update_profile eq "all" ? 1 : 0));
     }
     $instance->SetStatus("ready");
@@ -553,12 +588,19 @@ sub DoSnapshot()
     $webtask->Exited(0)
 	if (defined($webtask));
     $slice->UnLock();
-    if (defined($logfile)) {
+    if (defined($logfile) && -s $logfile) {
 	SENDMAIL($TBOPS,
 		 "Instance Snapshot Complete",
 		 "Finished taking snapshot of $instance.\n",
 		 $TBOPS, undef, $logfile);
 	unlink($logfile);
+    }
+    if (!$sliver_ready) {
+	#
+	# Image is ready, but sliver is not. Start a monitor so that
+	# web interface is updated.
+	#
+	StartMonitor();
     }
     exit(0);
   bad:
@@ -589,6 +631,91 @@ sub DoSnapshot()
 	unlink($logfile);
     }
     exit($errcode);
+}
+
+sub DoImageTrackerStuff($$$$$)
+{
+    my ($aggregate, $node, $project, $puuid, $purn) = @_;
+    my $node_id = GeniXML::GetVirtualId($node);
+    my $errmsg;
+
+    #
+    # If we do not have a diskinfo section, we will use the URN we get back
+    # from the cluster (it is a snapshot of the default image).
+    #
+    my $diskinfo = GeniXML::GetDiskImage($node);
+    return 0
+	if (!defined($diskinfo));
+
+    #
+    # This one needs more thought, it might be a URL.
+    #
+    my $image_urn = GeniXML::GetText("name", $diskinfo);
+    return 0
+	if (!defined($diskinfo));
+    
+    if (!GeniHRN::IsValid($image_urn)) {
+	print STDERR "Invalid disk image URN for $node_id\n";
+	return -1;
+    }
+			
+    Genixmlrpc->SetContext(APT_Geni::GeniContext());
+    my $blob = GeniImage::GetImageData($image_urn, \$errmsg);
+    Genixmlrpc->SetContext(undef);
+    
+    if (!defined($blob)) {
+	print STDERR "Could not get info from the IMS for ".
+	    "$image_urn:\n" . $errmsg . "\n";
+	return -1;
+    }
+    #
+    # System Image? We use the URN we get back from CreateSliver().
+    # The cluster will be the origin for the new image.
+    #
+    return 0
+	if ($blob->{'issystem'});
+
+    my $copyback_uuid = $blob->{'version_uuid'};
+    my $copyback_urn  = $image_urn;
+
+    my $hrn = GeniHRN->Parse($image_urn);
+    my (undef,$ospid,$os,$vers) = $hrn->ParseImage();
+
+    #
+    # What happens if the user is doing a snapshot on the cluster where
+    # the image lives? The copyback (import) makes no sense in that case,
+    # but what if its the same cluster but different projects? In this case
+    # a copyback is not wrong, but sure is inefficient.
+    #
+    # Aside; should we allow snapshots (in the web ui) across projects?
+    #
+    if ($hrn->domain() eq $aggregate->domain()) {
+	my $projhrn = GeniHRN->Parse($blob->{'project_urn'});
+	if (!defined($projhrn)) {
+	    print STDERR "Could not parse " . $blob->{'project_urn'} . "\n";
+	    return -1;
+	}
+	if ($projhrn->subauth() eq $project->pid()) {
+	    # We use the URN we get back from CreateSliver().
+	    return 0;
+	}
+    }
+
+    #
+    # If we are going to update the profile, we need to know what to
+    # change the image urn to, and that depends on what version the
+    # image is currently at (if the image is being versioned).
+    #
+    if ($blob->{'isversioned'}) {
+	if (defined($vers)) {
+	    $vers++;
+	    $copyback_urn = GeniHRN::GenerateImage($hrn->authority(),
+						   $ospid, $os, $vers);
+	}
+    }
+    $$puuid = $copyback_uuid;
+    $$purn  = $copyback_urn;
+    return 0;
 }
 
 #
@@ -1065,9 +1192,14 @@ sub DoRefresh()
     #
     # Check the exit codes. 
     #
-    foreach my $code (@return_codes) {
+    foreach my $agg (@agglist) {
+	my $code = shift(@return_codes);
+	
 	if ($code) {
 	    $errmsg = "Some slivers could not be refreshed";
+	    if ($agg->output()) {
+		$errmsg .= ": " . $agg->output();
+	    }
 	    goto bad;
 	}
     }
@@ -1303,7 +1435,6 @@ sub DoManifests()
 sub StartMonitor()
 {
     my $logfile;
-    my $needunlock = 0;
     my $signaled   = 0;
     
     my $slice = $instance->GetGeniSlice();

@@ -108,6 +108,7 @@ my %GENI_MODULES = ( "cm"        => "@prefix@/lib/protogeni-cm.pm",
 		     "ch"        => "@prefix@/lib/protogeni-ch.pm",
 		     "ses"       => "@prefix@/lib/protogeni-ses.pm",
 		     "portal"    => "@prefix@/lib/protogeni-portal.pm",
+		     "ims"       => "@prefix@/lib/protogeni-ims.pm",
 		     # XXX This is temporary! 
 		     "instools"  =>
 		             "@prefix@/lib/instools/protogeni-instools.pm",
@@ -262,6 +263,8 @@ if (exists($ENV{'SSL_CLIENT_CERT'})) {
 	if ($tmp =~ /^uniformResourceIdentifier=(urn:publicid:.*)$/ ||
 	    $tmp =~ /^(urn:publicid:.*)$/) {
 	    $GENIURN = $ENV{'GENIURN'} = $1;
+	    # Cause of speaksfor, see GeniStd.pm
+	    $ENV{'REALGENIURN'} = $GENIURN;
 	}
     }
 }

@@ -688,7 +688,7 @@ sub Unlock($)
 #
 sub UpdateDiskImage($$@)
 {
-    my ($self, $node_id, $image_url, $all) = @_;
+    my ($self, $node_id, $newimage, $all) = @_;
     my $rspec = GeniXML::Parse($self->rspec());
     if (! defined($rspec)) {
 	print STDERR "UpdateDiskImage: Could not parse rspec\n";
@@ -756,7 +756,7 @@ sub UpdateDiskImage($$@)
 	    }
 	    if (defined($image_url)) {
 		push(@nodes, $ref)
-		    if (defined($this_url) && $this_url eq $image_url);
+		    if ((defined($this_url) && $this_url eq $image_url));
 	    }
 	    else {
 		push(@nodes, $ref)
@@ -772,7 +772,7 @@ sub UpdateDiskImage($$@)
 	return -1;
     }
     foreach my $node (@nodes) {
-	GeniXML::SetDiskImage($node, $image_url);
+	GeniXML::SetDiskImage($node, $newimage);
     }
     if ($self->UpdateVersion({"rspec" => GeniXML::Serialize($rspec)})) {
 	print STDERR "UpdateDiskImage: Could not update rspec\n";

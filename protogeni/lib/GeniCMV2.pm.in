@@ -57,6 +57,7 @@ use GeniXML;
 use GeniStitch;
 use GeniStd;
 use emutil;
+use libEmulab;
 use English;
 use libtestbed;
 use Data::Dumper;
@@ -105,6 +106,8 @@ my $WAP            = "$TB/sbin/withadminprivs";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
 my $XMLLINT	   = "/usr/local/bin/xmllint";
 my $PRERENDER      = "$TB/libexec/vis/prerender";
+my $IMPORTER       = "$TB/sbin/image_import";
+my $POSTIMAGEDATA  = "$TB/sbin/protogeni/postimagedata";
 my $EMULAB_PEMFILE = "@prefix@/etc/genicm.pem";
 # Just one of these, at Utah.
 my $GENICH_PEMFILE = "@prefix@/etc/genich.pem";
@@ -397,6 +400,7 @@ sub CreateSliver($)
     my $credentials  = $argref->{'credentials'};
     my $keys         = $argref->{'keys'};
     my $impotent     = $argref->{'impotent'} || 0;
+    my $usetracker   = $argref->{'usetracker'} || 0;
     require Node;
     require Experiment;
     require libtestbed;
@@ -470,7 +474,7 @@ sub CreateSliver($)
 	}
     }
     my $rspec = GeniCM::GetTicketAux($credential, $rspecstr,
-				     0, $impotent, 1, 0,
+				     0, $impotent, 1, 0, $usetracker,
 				     undef, $speaksfor, @morecreds);
     return $rspec
 	if (GeniResponse::IsResponse($rspec));
@@ -1366,6 +1370,7 @@ sub GetTicket($)
     my $rspecstr     = $argref->{'rspec'};
     my $credentials  = $argref->{'credentials'};
     my $impotent     = $argref->{'impotent'} || 0;
+    my $usetracker   = $argref->{'usetracker'} || 0;
 
     if (! (defined($credentials) &&
 	   defined($slice_urn) && defined($rspecstr))) {
@@ -1457,7 +1462,8 @@ sub GetTicket($)
 	# Slice does not exist yet. 
     }
     return GeniCM::GetTicketAux($credential, $rspecstr,
-				0, $impotent, 1, 1, undef, $speaksfor);
+				0, $impotent, 1, 1, $usetracker,
+				undef, $speaksfor);
 }    
 	
 #
@@ -1471,6 +1477,7 @@ sub UpdateTicket($)
     my $rspecstr     = $argref->{'rspec'};
     my $credentials  = $argref->{'credentials'};
     my $impotent     = $argref->{'impotent'} || 0;
+    my $usetracker   = $argref->{'usetracker'} || 0;
 
     if (! (defined($credentials) && defined($ticketstr) &&
 	   defined($slice_urn) && defined($rspecstr))) {
@@ -1565,7 +1572,8 @@ sub UpdateTicket($)
     }
     
     return GeniCM::GetTicketAuxAux($slice, $user,
-				   $rspecstr, 1, $impotent, 1, 1, $ticket,
+				   $rspecstr, 1, $impotent, 1, 1,
+				   $usetracker, $ticket,
 				   [$credential, @morecreds], $speaksfor);
 }
 
@@ -1579,6 +1587,7 @@ sub UpdateSliver($)
     my $rspecstr     = $argref->{'rspec'};
     my $credentials  = $argref->{'credentials'};
     my $impotent     = $argref->{'impotent'} || 0;
+    my $usetracker   = $argref->{'usetracker'} || 0;
 
     if (! (defined($credentials) &&
 	   defined($sliver_urn) && defined($rspecstr))) {
@@ -1647,7 +1656,8 @@ sub UpdateSliver($)
 	if (GeniResponse::IsResponse($user));
     
     return GeniCM::GetTicketAuxAux($slice, $user,
-				   $rspecstr, 1, $impotent, 1, 1, undef,
+				   $rspecstr, 1, $impotent, 1, 1,
+				   $usetracker, undef,
 				   [$credential, @morecreds], $speaksfor);
 }
 
@@ -2469,6 +2479,7 @@ sub CreateImage($)
     my $wholedisk    = 0;
     my $update_prepare = 0;
     my $bsname;
+    my $copyback_uuid;
 
     require EmulabConstants;
     require Image;
@@ -2490,6 +2501,12 @@ sub CreateImage($)
 	$bsname = $argref->{'bsname'};
 	return GeniResponse->MalformedArgsResponse("Improper bsname argument")
 	    if ($bsname !~ /^[-\w\.\+]*$/);
+    }
+    # Optional copyback directive.
+    if (exists($argref->{'copyback_uuid'})) {
+	$copyback_uuid = $argref->{'copyback_uuid'};
+	return GeniResponse->MalformedArgsResponse("Improper copyback argument")
+	    if ($copyback_uuid !~ /^[-\w\.\+]*$/);
     }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
@@ -2600,6 +2617,7 @@ sub CreateImage($)
     }
     else {
 	$opt .= " -e" if ($wholedisk);
+	$opt .= " -B $copyback_uuid" if (defined($copyback_uuid));
     }
 
     #
@@ -2638,6 +2656,10 @@ sub CreateImage($)
     else {
 	# Cause of image versioning.
 	$image = $image->LookupMostRecent();
+
+	$image->Update({"updater_urn" =>
+			    (defined($speaksfor) ?
+			     $speaksfor->target_urn() : $ENV{'GENIURN'})});
     }
 dataset:    
     #
@@ -2645,7 +2667,7 @@ dataset:
     #
     my $image_urn = GeniHRN::Generate($OURDOMAIN, "image",
 				      $pid . "//" . $imagename);
-    my $version_urn .= ":" . $image->version();
+    my $version_urn = $image_urn . ":" . $image->version();
     my $image_url = "$TBBASE/image_metadata.php?uuid=" .
 	$image->image_uuid();
     my $version_url = "$TBBASE/image_metadata.php?uuid=" .
@@ -2677,10 +2699,7 @@ dataset:
     #
     my $mypid = main::WrapperFork();
     if ($mypid) {
-	my @blob = ($image_urn, $image_url);
-	if ($WITHPROVENANCE) {
-	    @blob = (@blob, $version_url, $version_url);
-	}
+	my @blob = ($image_urn, $image_url, $version_urn, $version_url);
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@blob);
     }
     $slice->UnLock();
@@ -2690,10 +2709,12 @@ dataset:
     #
     $opt  = "";
     $opt .= " -b $bsname" if (defined($bsname));
+    $opt .= " -B $copyback_uuid" if (defined($copyback_uuid));
     $opt .= " -U " if ($update_prepare);
-    if ($WITHPROVENANCE) {
-	$imagename .= ":" . $image->version();
-    }
+
+    # After clone_image, we can determine the new image name. Versioning
+    # was handled in clone_image.
+    $imagename = $image->imagename() . ":" . $image->version();
     
     $output =
 	GeniUtil::ExecQuiet("$CREATEIMAGE -F -e -f $opt ".
@@ -2716,6 +2737,17 @@ dataset:
 	}
 	return -1;
     }
+    #
+    # If we are using the image tracker, but but not copying the image
+    # back (copyback_uuid) then post the image data to the IMS. We do
+    # this here since at the moment, only images created on this path
+    # should be reported to the IMS (global system images too).
+    #
+    if (GetSiteVar("protogeni/use_imagetracker") && !defined($copyback_uuid)) {
+	system("$POSTIMAGEDATA " . $image->versname());
+	# Failure is okay, the daemon will pick it up.
+    }
+    
     if ($user->email()) {
 	libtestbed::SENDMAIL($user->email(),
 			     ($image->isdataset() ?
@@ -2926,6 +2958,113 @@ sub ImageInfo($)
 	}
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+}
+
+#
+# Trigger an image update; we are the origin for the image, we
+# need to go ask the remote cluster for a new version of an
+# image created at the remote cluster.
+#
+sub TriggerImageUpdate($)
+{
+    my ($argref) = @_;
+    my $blob         = $argref->{'info'};
+    my $credentials  = $argref->{'credentials'};
+    require Image;
+    require emdb;
+
+    if (! (defined($credentials) && defined($blob))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    #
+    # The best we can do is make sure the caller is a CM in the federation.
+    #
+    my $caller_authority =
+	GeniAuthority->CreateFromRegistry("cm", $ENV{'GENIURN'});
+    if (!defined($caller_authority)) {
+	return GeniResponse->Create(GENIRESPONSE_REFUSED,
+				    undef, "Who are You?");
+    }
+
+    # Force debugging log.
+    print STDERR Dumper($blob);
+
+    # Must have all these:
+    foreach my $key ("origin_uuid", "imagename", "metadata_url") {
+	if (! (exists($blob->{$key}) &&
+	       defined($blob->{$key}) && $blob->{$key} ne "")) {
+	    return GeniResponse->MalformedArgsResponse("Missing $key");
+	}
+    }
+    my $localimage = Image->Lookup($blob->{'origin_uuid'});
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
+	if (!defined($localimage));
+
+    # Need the most recent version of the image.
+    my $currentimage = Image->Lookup($localimage->image_uuid());
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"Internal error getting most current image")
+	if (!defined($currentimage));
+
+    # Better be the same, or something is out of whack.
+    if ($localimage->version() != $currentimage->version()) {
+	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				    "Image version mismatch");
+    }
+    my $imageid = $localimage->imageid();
+    my $version = $localimage->version();
+
+    #
+    # Are we still in an update? If so, return an error to the caller.
+    #
+    if ($localimage->Lock()) {
+	return GeniResponse->Create(GENIRESPONSE_BUSY, undef,
+				    "image is locked");
+    }
+    #
+    # If we already have a conflicting entry in the updates table,
+    # that is bad.
+    #
+    my $query_result =
+	emdb::DBQueryWarn("select url from image_updates ".
+			  "where imageid='$imageid'");
+    if (!defined($query_result)) {
+	$localimage->Unlock();
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    if ($query_result->numrows) {
+	my ($url) = $query_result->fetchrow_array();
+	if ($url eq $blob->{'metadata_url'}) {
+	    $localimage->Unlock();
+	    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+	}
+	$localimage->Unlock();
+	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				    "Conflicting image update is pending");
+    }
+    my $safe_url = DBQuoteSpecial($blob->{'metadata_url'});
+    
+    emdb::DBQueryWarn("insert into image_updates set ".
+		      "  imageid='$imageid',url=$safe_url");
+    $localimage->Unlock();
+
+    #
+    # At this point, we can just return to the caller. It is now up to
+    # us to pull the new image in, and if we fail we send email and hope
+    # someone fixes something. 
+    #
+    my $mypid = main::WrapperFork();
+    if ($mypid) {
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS)
+    }
+    
+    # Try to import right away, if it fails the daemon will catch it later.
+    system("$IMPORTER -d -g -r -c $imageid");
+    return 0;
 }
 
 #

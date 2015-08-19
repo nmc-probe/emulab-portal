@@ -32,18 +32,20 @@ use Data::Dumper;
 
 sub usage()
 {
-    print "Usage: $0 [-d] [-v] [-g] eid\n";
+    print "Usage: $0 [-d] [-v] [-g] [-p pid] eid\n";
     print("Options:\n");
     print(" -d      - Turn on debugging\n");
     print(" -v      - Verify XML descriptions only\n");
     print(" -g      - Download image after creating descriptors\n");
+    print(" -p pid  - Import image into specified project instead\n");
  
     exit(-1);
 }
-my $optlist  = "dvg";
+my $optlist  = "dvgp:";
 my $debug    = 0;
 my $verify   = 0;
 my $getimages= 0;
+my $importpid;
 
 #
 # Functions
@@ -78,6 +80,7 @@ use libtblog;
 use Experiment;
 use Image;
 use User;
+use Project;
 
 my %options = ();
 if (! getopts($optlist, \%options)) {
@@ -91,6 +94,9 @@ if (defined($options{"d"})) {
 }
 if (defined($options{"g"})) {
     $getimages = 1;
+}
+if (defined($options{"p"})) {
+    $importpid = $options{"p"};
 }
 if (@ARGV != 1) {
     usage();
@@ -114,6 +120,18 @@ if (! $experiment) {
 }
 my $pid = $experiment->pid();
 my $eid = $experiment->eid();
+
+# We allow override of what project the image is imported into.
+# Caller must be a member of this project too. 
+if (defined($importpid)) {
+    my $project = Project->Lookup($importpid);
+    tbdie("No such project for import")
+	if (!defined($project));
+    $importpid = $project->pid();
+}
+else {
+    $importpid = $pid;
+}
 
 #
 # User must have at least MODIFY permissions to use this script
@@ -170,10 +188,8 @@ foreach my $url (@urllist) {
     my $safe_url = User::escapeshellarg($url);
 
     #
-    # See if we have already created this descriptor. If so, we
-    # do not do anything until later when the experiment is
-    # being swapped in. At this point, we just want to verify
-    # the information and create the descriptor. Later we will
+    # See if we have already created this descriptor. We want to
+    # verify the information and create the descriptor. Later we will
     # fetch the image file, or refetch if it is stale.
     #
     my $image = Image->LookupByURL($url);
@@ -185,16 +201,26 @@ foreach my $url (@urllist) {
 	next
 	    if ($image->IsLocal());
     }
-    else {
-	my $opts = "";
-	$opts .= " -d"
-	    if ($debug);
-	$opts .= " -v"
-	    if ($verify);
-	system("$IMPORTER $opts -p $pid $safe_url");
-	exit(-1)
-	    if ($?);
+    #
+    # Because of versioning, we still want to create a new version
+    # of the image descriptor now (if it is stale) so that the mapper
+    # sees the new version. We do not have to fetch it till later.
+    # The importer will not do anything if the image is not stale. 
+    #
+    my $opts = "";
+    $opts .= " -d"
+	if ($debug);
+    $opts .= " -v"
+	if ($verify);
+    if (defined($image)) {
+	system("$IMPORTER $opts -p $importpid -r " . $image->imageid());
     }
+    else {
+	system("$IMPORTER $opts -p $importpid $safe_url");
+    }
+    exit(-1)
+	if ($?);
+
     next
 	if ($verify);
 
@@ -207,10 +233,10 @@ foreach my $url (@urllist) {
     next
 	if (! $getimages);
 
-    my $opts = "";
+    $opts = "";
     $opts .= " -d"
 	if ($debug);
-    system("$IMPORTER $opts -g -p $pid -r " . $image->imageid());
+    system("$IMPORTER $opts -g -p $importpid -r " . $image->imageid());
     exit(-1)
 	if ($?);
 }

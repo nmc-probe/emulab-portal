@@ -145,13 +145,6 @@ if ($image->pid() eq TBOPSPID() && $image->global() && !$FORCE) {
 	  "Use -F if you are sure.\n");
 }
 
-# See if enabled.
-if ($WITHPROVENANCE) {
-    $doprovenance = 
-	EmulabFeatures->FeatureEnabled("ImageProvenance", undef,
-				       $image->GetProject());
-}
-
 #
 # Before we do anything destructive, we lock the descriptor.
 #

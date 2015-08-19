@@ -50,7 +50,8 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  genextendcred rspeclint chstats listactive \
 		  maptoslice webmaptoslice setexpiration \
 		  mondbd parsecert creategeniuser webcreategeniuser \
-		  updategeniuser webupdategeniuser verifycert webverifycert
+		  updategeniuser webupdategeniuser verifycert webverifycert \
+		  postimagedata getimagedata triggerimageupdate
 
 ifeq ($(ISCLEARINGHOUSE),1)
 PSBIN_STUFF     += ch_daemon

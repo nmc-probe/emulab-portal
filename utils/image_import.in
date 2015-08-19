@@ -35,7 +35,7 @@ sub usage()
 {
     print("Usage: image_import [-d] [-v] [-u <user>] [-g] [-p pid] ".
 	  "[-i name] <url>\n");
-    print("       image_import [-d] [-u <user>] -r <imageid>\n");
+    print("       image_import [-d] [-u <user>] -r [-c] <imageid>\n");
     print("Options:\n");
     print(" -d      - Turn on debugging\n");
     print(" -v      - Verify XML description only\n");
@@ -47,17 +47,20 @@ sub usage()
 	  "           Defaults to name in the desciptor\n");
     print(" -r      - Refresh (update ndz file) imported image.\n");
     print(" -s      - With -r just update the sig file\n");
+    print(" -c      - With -r update ndz file using the updates table\n");
     exit(-1);
 }
-my $optlist = "dvu:p:gi:Irs";
+my $optlist = "dvu:p:gi:Irsc";
 my $debug   = 0;
 my $verify  = 0;
 my $getimage= 0;
 my $update  = 0;
 my $dosig   = 0;
 my $force   = 0;
+my $copyback= 0;
 my $user;
 my $group;
+my $image;
 my $imagename;
 
 #
@@ -65,6 +68,7 @@ my $imagename;
 #
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
+my $TBLOGS      = "@TBLOGSEMAIL@";
 my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $TBGROUP_DIR	= "@GROUPSROOT_DIR@";
 my $TBPROJ_DIR	= "@PROJROOT_DIR@";
@@ -77,8 +81,10 @@ my $SHA1	= "/sbin/sha1";
 my $SAVEUID	= $UID;
 my $IMAGEVALIDATE = "$TB/sbin/imagevalidate";
 my $DELETEIMAGE   = "$TB/sbin/delete_image";
+my $POSTIMAGEINFO = "$TB/sbin/protogeni/postimagedata";
 my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $DOIMAGEDIRS   = @IMAGEDIRECTORIES@;
+my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $doprovenance  = 0;
 
 #
@@ -86,7 +92,7 @@ my $doprovenance  = 0;
 # version of the software we are so it gives something we can handle.
 # Be sure to update this if you change the version in dumpdescriptor.
 #
-my $METADATA_CLIENTVERSION = 2;
+my $METADATA_CLIENTVERSION = 3;
 
 #
 # Untaint the path
@@ -112,6 +118,7 @@ if ($EUID != 0) {
 #
 use lib "@prefix@/lib";
 use libdb;
+use emutil;
 use EmulabConstants;
 use EmulabFeatures;
 use libtestbed;
@@ -163,6 +170,9 @@ if (defined($options{"i"})) {
 }
 if (defined($options{"r"})) {
     $update   = 1;
+    if (defined($options{"c"})) {
+	$copyback = 1;
+    }
 }
 if (defined($options{"R"})) {
     $update = 1;
@@ -202,19 +212,53 @@ if ($update) {
     usage()
 	if (!@ARGV);
 
-    my $image = Image->Lookup($ARGV[0]);
+    $image = Image->Lookup(shift(@ARGV));
     if (!defined($image)) {
 	fatal("Image descriptor does not exist");
     }
-    if (!defined($image->metadata_url())) {
-	fatal("Not an imported image");
+    if ($copyback) {
+	#
+	# We have to look in the updates table, but we want to do this
+	# locked so that no one else can mess with it. So lock up here,
+	# and skip locking below. See fatal(), we will unlock there if
+	# things go bad.
+	#
+	if ($image->Lock()) {
+	    print "$image is currently locked. Please try again later\n";
+	    exit(0);
+	}
+	my $imageid = $image->imageid();
+	my $query_result =
+	    DBQueryWarn("select url from image_updates ".
+			"where imageid='$imageid'");
+	if (!$query_result) {
+	    $image->Unlock();
+	    exit(-1);
+	}
+	if (!$query_result->numrows) {
+	    print "No update in table. Nothing to do.\n";
+	    $image->Unlock();
+	    exit(0);
+	}
+	($url) = $query_result->fetchrow_array();
     }
-    $url = $image->metadata_url();
+    else {
+	if (!defined($image->metadata_url())) {
+	    fatal("Not an imported image");
+	}
+	$url = $image->metadata_url();
+    }
 
     # If the user is not an admin, must have perm on the image.
     if (!$user->IsAdmin() &&
 	!$image->AccessCheck($user, TB_IMAGEID_CREATE())) {
 	fatal("$user does not have permission $image");
+    }
+    # Need this below.
+    if ($WITHPROVENANCE && !$image->noversioning()) {
+	$doprovenance =
+	    EmulabFeatures->FeatureEnabled("ImageProvenance",
+					   undef, $image->GetGroup());
     }
 }
 else {
@@ -262,32 +306,29 @@ if ($newhash =~/^(.*)$/) {
 # get created at the same time. It would be pretty silly,
 # but users are users ... 
 #
-my $safe_url = DBQuoteSpecial($url);
-my $query_result = DBQueryWarn("select GET_LOCK($safe_url, 120)");
-if (!$query_result ||
-    !$query_result->numrows) {
-    fatal("Could not get the SQL lock for a long time!");
+if (!$update) {
+    my $safe_url = DBQuoteSpecial($url);
+    my $query_result = DBQueryWarn("select GET_LOCK($safe_url, 120)");
+    if (!$query_result ||
+	!$query_result->numrows) {
+	fatal("Could not get the SQL lock for a long time!");
+    }
+    $image = Image->LookupByURL($url);
+    if (!defined($image)) {
+	$image = CreateImage($url, $xmlparse, $user, $group, $imagename);
+    }
+    DBQueryWarn("select RELEASE_LOCK($safe_url)");
 }
-my $image = Image->LookupByURL($url);
-if (!defined($image)) {
-    $image = CreateImage($url, $xmlparse, $user, $group, $imagename);
-}
-DBQueryWarn("select RELEASE_LOCK($safe_url)");
-
 exit(0)
     if ($verify);
 
-#
-# If the image has not been downloaded or if the hash has changed,
-# get a new copy.
-#
-if ($getimage) {
+if ($update || $getimage) {
     #
     # We need to get the lock since someone else could already
     # be downloading it. Even worse, someone might be taking a local
     # snapshot, although at the moment we do not support that.
     #
-    if ($image->Lock()) {
+    if (!$copyback && $image->Lock()) {
 	print "$image is currently locked. Waiting ...\n";
 
 	my $maxwait = 600;
@@ -299,43 +340,70 @@ if ($getimage) {
 	    fatal("Could not get the image lock after a long time");
 	}
     }
+}
+#
+# If updating, see if we need a new version of the image descriptor.
+#
+if ($update && $newhash ne $image->hash()) {
+    if ($doprovenance) {
+	#
+	# This will include unreleased images (in image_versions, but
+	# not the one pointed to by the images table). 
+	#
+	$image = $image->LookupMostRecent();
+	if (!defined($image)) {
+	    $image->Unlock();
+	    fatal("Cannot lookup most recent version of $image");
+	}
+	# Reuse if not ready/released. Do not change this test,
+	# see below in CreateImage().
+	if ($image->ready() && $image->released()) {
+	    my $clone = $image->NewVersion($user, undef, undef);
+	    if (!defined($clone)) {
+		$image->Unlock();
+		fatal("Could not clone image descriptor $image");
+	    }
+	    $image = $clone;
+
+	    if (!$getimage) {
+		#
+		# So, here is a bit of a quandry. We want this new version
+		# of the image to be the released version (for mapping),
+		# even though we do not have image file yet. So we will
+		# force the image to be released even though it is not
+		# "ready" yet.
+		#
+		$image->MarkReady();
+		$image->Release();
+		$image->ClearReady();
+	    }
+	}
+    }
+    # Update these in the descriptor.
+    my @slots = ("imagefile_url");
+    foreach my $key (@slots) {
+	next
+	    if (!exists($xmlparse->{'attribute'}->{$key}));
+		
+	my $value = $xmlparse->{'attribute'}->{$key}->{'value'};
+	if (! TBcheck_dbslot($value, "images",
+			     $key, TBDB_CHECKDBSLOT_ERROR)) {
+	    $image->Unlock();
+	    fatal("Illegal value for $key: " . TBFieldErrorString());
+	}
+	$image->Update({$key => $value});
+    }
+}
+#
+# If the image has not been downloaded or if the hash has changed,
+# get a new copy.
+#
+if ($getimage) {
     # Run as root to access /proj
     $EUID = $UID = 0;
     if (! -e $image->FullImageFile() || $newhash ne $image->hash() || $force) {
 	$EUID = $UID = $SAVEUID;
-	#
-	# When updating an image ... 
-	#
-	if ($update && $WITHPROVENANCE) {
-	    $doprovenance =
-		EmulabFeatures->FeatureEnabled("ImageProvenance",
-					       undef, $image->GetProject());
-	    if ($doprovenance) {
-		#
-		# This will include unreleased images (in image_versions, but
-		# not the one pointed to by the images table). 
-		#
-		$image = $image->LookupMostRecent();
-		if (!defined($image)) {
-		    $image->Unlock();
-		    fatal("Cannot lookup most recent version of $image");
-		}
-		# Reuse if not ready/released.
-		if ($image->ready() && $image->released()) {
-		    my $clone = $image->NewVersion($user, undef, undef);
-		    if (!defined($clone)) {
-			$image->Unlock();
-			fatal("Could not clone image descriptor $image");
-		    }
-		    $image = $clone;
-		}
-	    }
-	    if ($update) {
-		# Update the imageurl in the descriptor.
-		$image->Update({"imagefile_url" =>
-		     $xmlparse->{'attribute'}->{"imagefile_url"}->{'value'}});
-	    }
-	}
+
 	if (DownLoadImage($image, $newhash, $user, $group)) {
 	    $image->Unlock();
 	    exit(1);
@@ -352,12 +420,56 @@ if ($getimage) {
 	$image->MarkReady();
 	$image->Release();
 	# Its more important to know when we brought the new version in.
-	if ($WITHPROVENANCE && $doprovenance && $update) {
+	if ($update) {
 	    $image->MarkUpdate($user);
+	}
+	if ($copyback) {
+	    # Tell image owner that it has been updated.
+	    my $name = $image->pid() . "/" . $image->imagename();
+	    my $project = $image->GetProject();
+	    my $TO;
+	    my $CC = "Bcc: " . $project->LogsEmailAddress();
+	    my $FROM = $project->OpsEmailAddress();
+	    
+	    my $creator = User->Lookup($image->creator_idx());
+	    if (defined($creator)) {
+		$TO = $creator->email();
+	    }
+	    if ($PGENISUPPORT && defined($image->creator_urn())) {
+		require GeniUser;
+		my $geniuser = GeniUser->Lookup($image->creator_urn(), 1);
+		if (defined($geniuser)) {
+		    if (defined($TO)) {
+			$CC = $CC . "\n" . "CC: " . $geniuser->email();
+		    }
+		    else {
+			$TO = $geniuser->email();
+		    }
+		}
+	    }
+	    $TO = $TBLOGS
+		if (!defined($TO));
+	    $image->GetProject()->SendEmail($TO,
+		    "Image imported: $versname",
+		    "Image $name has been sucessfully imported from\n".
+		    $image->imagefile_url(),
+		    $FROM, $CC);
 	}
     }
     $EUID = $UID = $SAVEUID;
-    $image->Unlock();
+    if ($copyback) {
+	# Delete entry from the updates table while we are still locked.
+	my $imageid = $image->imageid();
+	DBQueryWarn("delete from image_updates ".
+		    "where imageid='$imageid'");
+
+	# Clear this to make the image gets posted.
+	$image->ClearIMSReported();
+
+	# Tell the IMS about this new image. If this fails, the daemon
+	# will take care of it. 
+	system("$POSTIMAGEINFO -d $imageid");
+    }
 }
 elsif ($update && $dosig) {
     FetchSigFile($image) == 0
@@ -365,6 +477,9 @@ elsif ($update && $dosig) {
 }
 else {
     print "Not downloading image ... add -g option\n";
+}
+if ($update || $getimage) {
+    $image->Unlock();
 }
 exit(0);
 
@@ -377,6 +492,12 @@ sub CreateImage($$$$$)
     my ($url, $xmlparse, $user, $group, $imagename) = @_;
     my $alltypes = "-a";
     my $global   = 0;
+
+    # We do not care about or handle these here.
+    foreach my $key ("metadata_url", "havefull", "havedelta") {
+	delete($xmlparse->{'attribute'}->{$key})
+	    if (exists($xmlparse->{'attribute'}->{$key}));
+    }
     
     $xmlparse->{'attribute'}->{"pid"} = {};
     $xmlparse->{'attribute'}->{"gid"} = {};
@@ -499,7 +620,10 @@ sub CreateImage($$$$$)
     if (!defined($image)) {
 	fatal("Could not lookup new image for $url");
     }
-    $image->MarkReady();
+    #
+    # We are going to mark as released but not ready, since this *is* the
+    # image we want people to run, but we still have to actually get it.
+    #
     $image->MarkReleased();
     return $image;
 }
@@ -708,6 +832,9 @@ sub FetchSigFile($)
 sub fatal($)
 {
     my ($mesg) = @_;
+
+    $image->Unlock()
+	if (defined($image) && $image->GotLock());
 
     print STDERR "*** $0:\n".
 	         "    $mesg\n";
