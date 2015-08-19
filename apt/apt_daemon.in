@@ -151,8 +151,7 @@ sub KillFailedInstances()
 {
     my $query_result =
 	DBQueryWarn("select uuid,status from apt_instances ".
-		    "where (status='failed' or ".
-		    "       status='imaging' or status='imaging-failed') and ".
+		    "where status='failed' and ".
 		    "      (UNIX_TIMESTAMP(now()) - ".
 		    "       UNIX_TIMESTAMP(created) > 7200)");
     return
@@ -166,31 +165,6 @@ sub KillFailedInstances()
 	}
 	print STDERR "$instance is in the $status state\n";
 
-	if ($status eq "imaging" || $status eq "imaging-failed") {
-	    #
-	    # Move it back to the ready state. But must lock so as not to
-	    # collide with with sa_daemon or the user.
-	    #
-	    my $genislice = $instance->GetGeniSlice();
-	    goto skip
-		if (!defined($genislice));
-	    goto skip
-		if ($genislice->Lock() != 0);
-	    if ($impotent) {
-		print STDERR
-		    "Would change $instance status from imaging to ready\n";
-	    }
-	    else {
-		print STDERR
-		    "Changing $instance status from imaging to ready\n";
-		$instance->Update({"status" => "ready"});
-	    }
-	    $genislice->UnLock();
-	  skip:
-	    $genislice->Flush();
-	    next;
-	}
-	
 	#
 	# Try to terminate the instance. We cannot take the lock since
 	# we are going to call manage_instance to do the termination.
@@ -214,6 +188,54 @@ sub KillFailedInstances()
 	    # Need to send email at some point. 
 	    #
 	}
+    }
+}
+
+#
+# Look for failed imaging operations. 
+#
+sub FixFailedImaging()
+{
+    my $query_result =
+	DBQueryWarn("select uuid,status from apt_instances ".
+		    "where (status='imaging' or status='imaging-failed') and ".
+		    "      status_timestamp is not null and ".
+		    "      (UNIX_TIMESTAMP(now()) - ".
+		    "       UNIX_TIMESTAMP(status_timestamp) > 3600)");
+    return
+	if (!$query_result);
+
+    while (my ($uuid,$status) = $query_result->fetchrow_array()) {
+	my $instance = APT_Instance->Lookup($uuid);
+	if (!defined($instance)) {
+	    print STDERR "No such instance $uuid\n";
+	    next;
+	}
+	print STDERR "$instance is in the $status state\n";
+
+	#
+	# We want to move it back to the ready state if its been there
+	# a long time. But must lock so as not to collide with with
+	# sa_daemon or the user.
+	#
+	my $genislice = $instance->GetGeniSlice();
+	goto skip
+	    if (!defined($genislice));
+	goto skip
+	    if ($genislice->Lock() != 0);
+	if ($impotent) {
+	    print STDERR
+		"Would change $instance status from $status to ready\n";
+	}
+	else {
+	    print STDERR
+		"Changing $instance status from $status to ready\n";
+	    $instance->SetStatus("ready");
+	}
+	$genislice->UnLock();
+      skip:
+	$genislice->Flush();
+	next;
     }
 }
 
@@ -444,6 +466,7 @@ while (1) {
 	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
 
     KillFailedInstances();
+    FixFailedImaging();
     ExpireInstances();
     UpdateAggregateGraphs();
 
