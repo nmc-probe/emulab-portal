@@ -1059,6 +1059,7 @@ sub WaitTillReloadDone($$$$$@)
 		if ($waittime > $maxwait ||
 		    $eventstate eq TBDB_NODESTATE_TBFAILED() ||
 		    $eventstate eq TBDB_NODESTATE_PXEFAILED() ||
+		    $eventstate eq TBDB_NODESTATE_RELOADFAILED() ||
 		    $isstuck) {
 
 		    #
@@ -1079,6 +1080,7 @@ sub WaitTillReloadDone($$$$$@)
 			"it has been $t minutes since it was rebooted.";
 
 		    if ($eventstate eq TBDB_NODESTATE_TBFAILED() ||
+			$eventstate eq TBDB_NODESTATE_RELOADFAILED() ||
 			$eventstate eq TBDB_NODESTATE_PXEFAILED()) {
 			tbnotice("  $node is stuck in $eventstate.");
 		    }
@@ -1120,6 +1122,7 @@ sub WaitTillReloadDone($$$$$@)
 				     (60*6),
 				     \$actual_state,
 				     (TBDB_NODESTATE_TBFAILED,
+				      TBDB_NODESTATE_RELOADFAILED,
 				      TBDB_NODESTATE_PXEFAILED,
 				      TBDB_NODESTATE_ISUP))) {
 		    $done{$node} = $waitmode;

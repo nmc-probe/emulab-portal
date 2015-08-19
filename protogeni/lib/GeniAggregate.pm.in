@@ -1012,7 +1012,7 @@ sub Action($$$)
     # but we want to do this after we have forked off from the parent
     # and we have returned to the client (rpc). 
     #
-    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -g $pid,$eid");
+    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -d -g $pid,$eid");
     if ($?) {
 	$msg = "Could not setup images:\n$output";
 	goto bad;
@@ -1616,7 +1616,8 @@ sub WaitForNodes($$@)
 {
     my ($self, $pfailed, @nodes) = @_;
     my %nodes = ();
-    my @waitstates = (TBDB_NODESTATE_TBFAILED, TBDB_NODESTATE_ISUP);
+    my @waitstates = (TBDB_NODESTATE_TBFAILED, TBDB_NODESTATE_RELOADFAILED,
+		      TBDB_NODESTATE_ISUP);
 
     return 0
 	if (!@nodes);

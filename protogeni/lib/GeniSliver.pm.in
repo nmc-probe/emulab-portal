@@ -689,7 +689,7 @@ use emutil;
 use XML::Simple;
 use libdb qw(TBDB_ALLOCSTATE_RES_INIT_DIRTY TBDB_NODESTATE_SHUTDOWN
 	     TBResolveNextOSID TBDB_NODESTATE_ISUP TBDB_NODESTATE_TBFAILED
-	     TBDB_NODESTATE_PXEWAIT);
+             TBDB_NODESTATE_RELOADFAILED TBDB_NODESTATE_PXEWAIT);
 
 # Error log for local physical node. This overrides the default method above,
 # since it is stored in the node.
@@ -1357,7 +1357,8 @@ sub ComputeStatus($$)
 	# inner elab is setup and running okay. Inner boss/ops do tell
 	# us their state, so we use that to determine ready.
 	#
-	if ($node->eventstate() eq TBDB_NODESTATE_TBFAILED()) {
+	if ($node->eventstate() eq TBDB_NODESTATE_TBFAILED() ||
+	    $node->eventstate() eq TBDB_NODESTATE_RELOADFAILED()) {
 	    $status = "failed";
 	    goto done;
 	}
@@ -1379,7 +1380,8 @@ sub ComputeStatus($$)
     if ($eventstate eq TBDB_NODESTATE_ISUP()) {
 	$status = "ready";
     }
-    elsif ($eventstate eq TBDB_NODESTATE_TBFAILED()) {
+    elsif ($eventstate eq TBDB_NODESTATE_TBFAILED() ||
+	   $eventstate eq TBDB_NODESTATE_RELOADFAILED()) {
 	$status = "failed";
     }
     elsif ($eventstate eq TBDB_NODESTATE_SHUTDOWN() ||

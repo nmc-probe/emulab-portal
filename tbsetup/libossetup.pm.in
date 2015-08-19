@@ -802,7 +802,9 @@ sub WaitForNodes($@)
 {
     my ($self, @nodelist) = @_;
     my %nodes = ();
-    my @waitstates = (TBDB_NODESTATE_TBFAILED, TBDB_NODESTATE_ISUP);
+    my @waitstates = (TBDB_NODESTATE_TBFAILED,
+		      TBDB_NODESTATE_RELOADFAILED,
+		      TBDB_NODESTATE_ISUP);
 
     # Maybe all nodes failed to light up?
     return 0
