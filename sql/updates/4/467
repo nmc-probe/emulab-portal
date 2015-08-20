@@ -12,11 +12,10 @@ sub DoUpdate($$$)
 {
     my ($dbhandle, $dbname, $version) = @_;
 
-    DBQueryFatal(<<SQL
+    DBQueryFatal(<<'SQL'
 ALTER TABLE outlets_remoteauth 
     ADD COLUMN key_privlvl 
-        ENUM ('CALLBACK', 'USER', 'OPERATOR', 'ADMINISTRATOR', 'OTHER') 
-        NOT NULL DEFAULT 'ADMINISTRATOR'
+        ENUM ('CALLBACK', 'USER', 'OPERATOR', 'ADMINISTRATOR', 'OTHER') DEFAULT NULL
 SQL
     );
     return 0;
