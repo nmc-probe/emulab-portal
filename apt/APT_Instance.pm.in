@@ -1415,7 +1415,7 @@ sub GetManifest($)
 
 sub Provision($$$$)
 {
-    my ($self, $perrmsg, $keys, $cert, $key) = @_;
+    my ($self, $perrmsg, $users, $cert, $key) = @_;
     my $authority = $self->GetGeniAuthority();
     my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
@@ -1445,8 +1445,7 @@ sub Provision($$$$)
 		  # Options array.
 		  {"speaking_for" => $geniuser->urn(),
 		   "geni_speaking_for" => $geniuser->urn(),
-		   "geni_users" => [{'urn'   => $geniuser->urn(),
-				     'keys'  => $keys }],
+		   "geni_users"       => $users,
 		   "geni_certificate" => $cert,
 		   "geni_key"         => $key,
 		  });

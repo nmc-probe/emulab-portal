@@ -73,6 +73,7 @@ sub GenCredentials($$$$);
 sub CreateDatasetCreds($$$$$);
 sub CreateSlivers();
 sub RunStitcher();
+sub GetSSHKeys($$$);
 
 #
 # Configure variables
@@ -92,6 +93,10 @@ my $ADDPUBKEY     = "$TB/sbin/addpubkey";
 my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
+
+# Names of the holding projects.
+my $APT_HOLDINGPROJECT   = "aptguests";
+my $CLOUD_HOLDINGPROJECT = "CloudLab";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -113,6 +118,7 @@ use APT_Geni;
 use APT_Dataset;
 use User;
 use Project;
+use Group;
 use OSinfo;
 use emutil;
 use libEmulab;
@@ -505,7 +511,7 @@ if ($localuser) {
 	}
 	
 	# Nonlocal users get the holding project.
-	$pid = "CloudLab";
+	$pid = $CLOUD_HOLDINGPROJECT;
     }
     elsif (defined($sshkey) && !$emulab_user->LookupSSHKey($sshkey)) {
 	#
@@ -579,7 +585,7 @@ elsif (!$localuser) {
 	$geniuser->AddKey($sshkey);
     }
     # Guest users get a holding project.
-    $pid = "aptguests";
+    $pid = $APT_HOLDINGPROJECT;
     $project = Project->Lookup($pid);
     if (!defined($project)) {
 	fatal("Project $pid does not exist");
@@ -596,10 +602,13 @@ if (!$debug) {
     }
 }
 
-# There will be "internal" keys cause we pass the flag asking for them.
-my @sshkeys;
-if ($geniuser->GetKeyBundle(\@sshkeys, 1) < 0 || !@sshkeys) {
-    fatal("No ssh keys to use for $geniuser!");
+#
+# Get the set of keys (accounts) that need to be sent along. We build
+# them in CM format, but convert to AM format later if needed.
+#
+my $sshkeys;
+if (GetSSHKeys($geniuser, $project, \$sshkeys) < 0 || !@{$sshkeys}) {
+    fatal("No ssh keys to use for $geniuser/$project!");
 }
 
 # Generate the extra credentials that tells the backend this experiment
@@ -1078,10 +1087,7 @@ sub CreateSliver($)
 				   "CreateSliver",
 				   { "slice_urn"   => $slice_urn,
 				     "rspec"       => $rspecstr,
-				     "keys"        =>
-					 [{'urn'   => $user_urn,
-					   'login' => $user_uid,
-					   'keys'  => \@sshkeys }],
+				     "keys"        => $sshkeys,
 				     "credentials" =>
 					 [$slice_credential->asString(),
 					  $speaksfor_credential->asString(),
@@ -1192,9 +1198,14 @@ sub RunStitcher()
     my $failed        = 0;
 
     #
-    # The AM API uses a different ssh key structure, just a list of strings.
+    # The AM API uses a different ssh key structure.
     #
-    @sshkeys = map { $_->{'key'} } @sshkeys;
+    my $users = [];
+    foreach my $user (@{$sshkeys}) {
+	push(@{$users},
+	     {"urn"  => $user->{'urn'},
+	      "keys" => map { $_->{'key'} } @{$user->{'keys'}}});
+    }
 
     #
     # Hey, I think stitcher/omni has as many options as snmpit. Wow!
@@ -1379,7 +1390,7 @@ sub RunStitcher()
 	    return 0;
 	}
 	print "Provisioning at $urn\n";
-	if ($aggobj->Provision(\$errmsg, \@sshkeys,
+	if ($aggobj->Provision(\$errmsg, $users,
 			       $alt_certificate->cert(),
 			       $alt_certificate->PrivKeyDelimited())) {
 	    $aggobj->SetStatus("failed");
@@ -1465,6 +1476,74 @@ sub RunStitcher()
 #    system("/bin/rm -rf $tmpdir")
 #	if (!$debug && defined($tmpdir) && -e $tmpdir);
     return -1;
+}
+
+#
+# Build a set of sshkeys.
+#
+sub GetSSHKeys($$$)
+{
+    my ($geniuser, $project, $pref) = @_;
+    my $rval;
+    my @keys;
+
+    if ($geniuser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
+	print STDERR "No ssh keys for $geniuser\n";
+	return -1;
+    }
+
+    #
+    # CM format.
+    #
+    $rval = [{'urn'   => $geniuser->urn(),
+	      'login' => $geniuser->uid(),
+	      'keys'  => [ @keys ]
+	     }];
+
+    if (! ($project->pid() eq $APT_HOLDINGPROJECT ||
+	   $project->pid() eq $CLOUD_HOLDINGPROJECT)) {
+	#
+	# Get other users from the project. Real local users are easy,
+	# nonlocal users from the GPO portal are messy.
+	#
+	my @members;
+	if ($project->GetProjectGroup()->MemberList(\@members)) {
+	    print STDERR "Error getting memberlist for $project\n";
+	}
+	else {
+	    foreach my $member (@members) {
+		next
+		    if ($member->SameUser($geniuser->emulab_user()));
+	    
+		my $guser = GeniUser->CreateFromLocal($member);
+		next
+		    if (!defined($guser));
+
+		#
+		# So, users coming in from the trusted signer have their keys
+		# at their home portal. We download those keys whenever they
+		# log in, and cache them in their local stub account, but they
+		# could be out of date. But in order to refresh those keys, we
+		# would need a valid (not expired) speaks-for credential, which
+		# we might have, but typically not since they have short expire
+		# times. So, lets not worry about this right now, just use the
+		# cached keys and see who complains.
+		#
+		@keys = ();
+		if ($guser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
+		    print STDERR "No ssh keys for $guser\n";
+		    next;
+		}
+		push(@{$rval}, {'urn'   => $guser->urn(),
+				'login' => $guser->uid(),
+				'keys'  => [ @keys ]
+		               });
+	    }
+	}
+    }
+    print STDERR Dumper($rval);
+    $$pref = $rval;
+    return 0;
 }
 
 sub fatal($) {
