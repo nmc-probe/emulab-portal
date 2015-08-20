@@ -319,13 +319,12 @@ sub CheckCredentials($;$)
 		    }
 		    $speaksfor->SetTargetCert($speakee_certificate);
 		}
-		else {
-		    $speaksfor = GeniCredential::CheckCredential($speaksfor);
-		    if (GeniResponse::IsError($speaksfor)) {
-			$error = $speaksfor;
-			goto bad;
-		    }
+		$speaksfor = GeniCredential::CheckCredential($speaksfor);
+		if (GeniResponse::IsError($speaksfor)) {
+		    $error = $speaksfor;
+		    goto bad;
 		}
+
 		# Put this into the ENV for the backend scripts.
 		if (GeniHRN::IsValid($speaksfor->target_urn()) &&
 		    $speaksfor->target_urn() =~ /^(urn:publicid:.*)$/) {
