@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -96,14 +96,15 @@ endif
 ifeq ($(MDSUBDIR),redhat9)
 MDSUBDIR  = linux9
 endif
-ifeq ($(MDSUBDIR),ubuntu14)
-MDSUBDIR  = ubuntu14
-endif
 ifeq ($(MDSUBDIR),Moonshot)
 MDSUBDIR  = linux-ms
 endif
 ifeq ($(MDSUBDIR),ubuntu12)
 MDSUBDIR  = ubuntu11
+endif
+# XXX lets try this
+ifeq ($(MDSUBDIR),debian8)
+MDSUBDIR  = ubuntu15
 endif
 ifeq ($(findstring fedora,$(MDSUBDIR)),fedora)
 ifeq ($(MDREL),15)

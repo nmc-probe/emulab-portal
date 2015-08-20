@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2007-2014 University of Utah and the Flux Group.
+# Copyright (c) 2007-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -92,6 +92,16 @@ Linux)
     if [ -r /etc/lsb-release ]; then
         dist=`grep DISTRIB_ID /etc/lsb-release | awk -F = '{ print $2; }'`
         rel=`grep DISTRIB_RELEASE /etc/lsb-release | awk -F = '{ print $2; }'`
+    fi
+    if [ -z "$dist" -a -r /etc/os-release ]; then
+	dist=`(. /etc/os-release ; echo $ID)`
+	if [ "$dist" = "debian" ]; then
+	    trel=`(. /etc/os-release ; echo $VERSION_ID)`
+	    if [ -n "$trel" ]; then
+		dist="Debian"
+		rel=$trel
+	    fi
+	fi
     fi
     if [ -z "$dist" -a -r /etc/redhat-release ]; then
         trel=`grep 'Red Hat' /etc/redhat-release | sed -e 's/Red Hat Linux release \([0-9]\(\.[0-9]\)\?\).*/\1/'`
