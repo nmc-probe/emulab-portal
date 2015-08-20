@@ -3527,6 +3527,9 @@ CREATE TABLE `outlets_remoteauth` (
   `key_role` varchar(64) NOT NULL default '',
   `key_uid` varchar(64) NOT NULL default '',
   `mykey` text NOT NULL,
+  -- NOTE: These are mostly pulled from ipmitool.  Other protocols may need
+  -- other values or not care at all, hence the addition of OTHER to the list.
+  `key_privlvl` enum('CALLBACK','USER','OPERATOR','ADMINISTRATOR','OTHER') NOT NULL DEFAULT 'ADMINISTRATOR',
   PRIMARY KEY  (`node_id`,`key_type`,`key_role`,`key_uid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
