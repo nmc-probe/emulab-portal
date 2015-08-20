@@ -179,7 +179,7 @@ find_disks() {
 	echo $disks
 }
 
-# Wipe out the superblocks on any partitions by zeroing the first 16 sectors.
+# Wipe out the superblocks on any partitions by zeroing the first 4MB.
 # This implementation doesn't suffer the limitations of the FreeBSD one in that:
 # A) All partitions get zapped, even if not DOS MBR partitions
 # B) We can zap the partition device since Linux isn't overprotective of superblocks,
@@ -197,7 +197,7 @@ zapsuperblocks()
 	# XXX fall back to the old way
 	partitions=`echo /sys/block/$disk/$disk* 2>/dev/null`
 	for part in $partitions; do
-	    dd if=/dev/zero of=/dev/${part##*/} bs=512 count=16 >/dev/null 2>&1
+	    dd if=/dev/zero of=/dev/${part##*/} bs=512 count=8192 >/dev/null 2>&1
 	done
 
 	return 0
@@ -596,7 +596,7 @@ case $STATUS in
 	    echo "Invalidating MBR/GPT on /dev/$d"
 	    # XXX not in the Linux MFS yet
 	    #sgdisk -Z /dev/$d >/dev/null 2>&1
-	    dd if=/dev/zero of=/dev/$d bs=512 count=16
+	    dd if=/dev/zero of=/dev/$d bs=512 count=8192
 	fi
     done
 
