@@ -6626,6 +6626,8 @@ sub AddKeys($$$)
     if (exists($keys->[0]->{'urn'}) || exists($keys->[0]->{'login'})) {
 	foreach my $ref (@{ $keys }) {
 	    goto bad
+		if (ref($ref) ne "HASH");
+	    goto bad
 		if (! (exists($ref->{'urn'}) || exists($ref->{'login'})));
 
 	    my @keylist = ();
