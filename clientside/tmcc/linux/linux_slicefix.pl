@@ -712,6 +712,7 @@ sub check_kernel
 		$buffer = substr $buffer, 1;
 	}
 	if ($rc == 0) {
+		close KERNEL;
 		return undef;
 	}
 
@@ -722,7 +723,6 @@ sub check_kernel
 	}
 	close KERNEL;
 	close GZIP;
-
 
 	open KERNEL, $kernel_file or die "Couldn't open raw kernel: $!\n";
 	while (<KERNEL>) {
@@ -789,6 +789,7 @@ sub check_initrd
 	# be appended to the initial small one. I'm just not that in to it.
 	#
 	if (!$handles_label && !$handles_uuid && -f "$initrd_dir/early_cpio") {
+	    print "Found initrd early_cpio; assuming handles label/UUID\n";
 	    $handles_label = $handles_uuid = 1;
 	}
 
@@ -802,12 +803,12 @@ sub check_initrd
 		split /:/;
 		push @loopdevs, $_[0];
 	}
+	close LOSETUP;
 	
 	for my $dev (@loopdevs) {
 		`$LOSETUP -d $dev`;
 	}
 		
-
 	return ($handles_label, $handles_uuid);
 }
 
