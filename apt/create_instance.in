@@ -69,7 +69,6 @@ my $usemydevtree  = 0;
 sub fatal($);
 sub UserError($);
 sub SnapShot($$$);
-sub GenCredentials($$$$);
 sub CreateDatasetCreds($$$$$);
 sub CreateSlivers();
 sub RunStitcher();
@@ -1202,9 +1201,11 @@ sub RunStitcher()
     #
     my $users = [];
     foreach my $user (@{$sshkeys}) {
+	my @tmp = map { $_->{'key'} } @{$user->{'keys'}};
+	
 	push(@{$users},
 	     {"urn"  => $user->{'urn'},
-	      "keys" => map { $_->{'key'} } @{$user->{'keys'}}});
+	      "keys" => [ @tmp ] });
     }
 
     #
@@ -1212,7 +1213,9 @@ sub RunStitcher()
     #
     my $command = "$STITCHER --fileDir $tmpdir --cred $speaksforfile ".
 	"--slicecredfile $slicecredfile --usercredfile $slicecredfile ".
-	"--al2scredfile $al2scredfile --debug ".
+	($speaksfor_credential->type() eq "speaksfor" ?
+	 "--al2scredfile $al2scredfile " : "") .
+	"--debug ".
 	# We do not want these two files defaulting to user home dir.
 	"--GetVersionCacheName=$tmpdir/get_version_cache.json ".
 	"--AggNickCacheName=$tmpdir/agg_nick_cache ".

@@ -50,6 +50,9 @@ my $SACERT	  = "$TB/etc/genisa.pem";
 # libraries that make the XMLRPC calls.
 my %credcache = ();
 
+# Use real abac credentials (which means we can do speaks-for at ALS2).
+my $USEABACCREDS  = 0;
+
 #
 # Generate the credentials we need. 
 #
@@ -123,15 +126,23 @@ sub GenCredentials($$;$)
 		prnt STDERR "Could not load SA authority object\n";
 		goto bad;
 	    }
-	    $speaksfor = GeniCredential->Create($geniuser, $sa_authority);
-	    if (!defined($speaksfor)) {
-		print STDERR "Could not create speaksfor credential\n";
-		goto bad;
+
+	    if ($USEABACCREDS) {
+		$speaksfor = GenABACCredential($geniuser, $sa_authority);
+		goto bad
+		    if (!defined($speaksfor));
 	    }
-	    $speaksfor->SetType("speaksfor");
-	    if ($speaksfor->Sign($speaker_signer)) {
-		print STDERR "Could not sign speaksfor credential\n";
-		goto bad;
+	    else {
+		$speaksfor = GeniCredential->Create($geniuser, $sa_authority);
+		if (!defined($speaksfor)) {
+		    print STDERR "Could not create speaksfor credential\n";
+		    goto bad;
+		}
+		$speaksfor->SetType("speaksfor");
+		if ($speaksfor->Sign($speaker_signer)) {
+		    print STDERR "Could not sign speaksfor credential\n";
+		    goto bad;
+		}
 	    }
 	}
 	$credential = GeniCredential->Create($target, $geniuser);
@@ -225,6 +236,59 @@ sub GenAuthCredential($;$)
 	return undef
     }
     return $credential;
+}
+
+#
+# Generate a real ABAC credential
+#
+sub GenABACCredential($$)
+{
+    my ($geniuser, $speaker) = @_;
+    require ABAC;
+    import ABAC;
+
+    my $userfile = $geniuser->GetCertificate()->WriteToFile(1);
+    if (!defined($userfile)) {
+	print STDERR "Could not write user cert/key to file!\n";
+	return undef;
+    }
+    my $speakerfile = $speaker->GetCertificate()->WriteToFile(1);
+    if (!defined($speakerfile)) {
+	print STDERR "Could not write speaker cert/key to file!\n";
+	return undef;
+    }
+    my $abacuser = ABAC::ID->new($userfile);
+    if (!defined($abacuser)) {
+	print STDERR "Could not create user ABAC:ID for $geniuser\n";
+	return undef;
+    }
+    $abacuser->load_privkey($userfile);
+
+    my $abactool = ABAC::ID->new($speakerfile);
+    if (!defined($abactool)) {
+	print STDERR "Could not create speaker ABAC:ID\n";
+	return undef;
+    }
+
+    my $abacattr = ABAC::Attribute->new($abacuser,
+					"speaks_for_" . $abacuser->keyid(),
+					30 * 24 * 60 * 60);
+    if (!defined($abacattr)) {
+	print STDERR "Could not create ABAC::Attribute\n";
+	return undef;
+    }
+    
+    $abacattr->principal($abactool->keyid());
+    $abacattr->bake();
+    my $xml  = $abacattr->cert_chunk();
+    my $cred = GeniCredential->CreateFromSigned($xml);
+    if (!defined($cred)) {
+	print STDERR "Could not create ABAC credential from $xml\n";
+	return undef;
+    }
+    $cred->SetTargetCert($geniuser->GetCertificate());
+    $cred->SetOwnerCert($speaker->GetCertificate());
+    return $cred;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
