@@ -12,12 +12,11 @@ sub DoUpdate($$$)
 {
     my ($dbhandle, $dbname, $version) = @_;
 
-    DBQueryFatal(<<'SQL'
-ALTER TABLE outlets_remoteauth 
-    ADD COLUMN key_privlvl 
-        ENUM ('CALLBACK', 'USER', 'OPERATOR', 'ADMINISTRATOR', 'OTHER') DEFAULT NULL
-SQL
-    );
+    if (!DBSlotExists("outlets_remoteauth", "key_privlvl")) {
+	DBQueryFatal("ALTER TABLE outlets_remoteauth add ".
+		     " `key_privlvl` ENUM ('CALLBACK', 'USER', 'OPERATOR', ".
+		     "'ADMINISTRATOR', 'OTHER') DEFAULT NULL ");
+    }
     return 0;
 }
 1;
