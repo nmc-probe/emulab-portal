@@ -2574,6 +2574,52 @@ COMMAND_PROTOTYPE(doifconfig)
 		}
 		mysql_free_result(res);
 	}
+
+	/* 
+	 * A whole new wart here! Aliases, as we used them previously,
+	 * are too conflated with VMs and VM hosts to try and re-tool
+	 * the original logic.  Now we want to use them as distinct,
+	 * user-definable entities that are attached to a particular
+	 * interface. They should work on both physical and virtual nodes.
+	 */
+	if (vers >= 40) {
+		char *bufp = buf;
+		MYSQL_RES *res;
+		MYSQL_ROW row;
+		int nrows;
+		char *nodecol = "";
+
+		nodecol = (reqp->isvnode && reqp->asvnode) 
+			? "vnode_id" : "node_id";
+
+		res = mydb_query("select IP, mask, mac, vlanid "
+				 "from vinterfaces "
+				 "where type='alias' and %s='%s'",
+				 4, nodecol, reqp->nodeid);
+		if (res == NULL)
+			goto adone;
+		
+		nrows = (int)mysql_num_rows(res);
+		while (nrows > 0) {
+			nrows--;
+			row = mysql_fetch_row(res);
+			if (!row || !row[0] || !row[1] || !row[2] 
+			    || !row[3] || !row[4])
+				continue;
+			bufp += OUTPUT(bufp, ebufp - bufp,
+				       "INTERFACE IFACETYPE=alias "
+				       "INET=%s MASK=%s MAC=%s "
+				       "SPEED= DUPLEX= IFACE= "
+				       "RTABID= LAN=%s"
+				       row[0], row[1], row[2], row[3]);
+			client_writeback(sock, buf, strlen(buf), tcp);
+			if (verbose)
+				info("%s: IFCONFIG: %s", reqp->nodeid, buf);
+		}
+		mysql_free_result(res);
+	adone: ;
+	}
+
 	return 0;
 }
 
