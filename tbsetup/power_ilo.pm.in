@@ -40,9 +40,12 @@
 
 package power_ilo;
 
+use strict;
+use warnings;
+
 use Exporter;
-@ISA = ("Exporter");
-@EXPORT = qw( iloctrl );
+our @ISA = ("Exporter");
+our @EXPORT = qw( iloctrl );
 
 use lib "@prefix@/lib";
 use libdb;
@@ -121,9 +124,9 @@ sub iloctrl($$@) {
 	        }
 	    }
 	    elsif ($krole eq "ipmi-kgkey") {
-		$kgkey = $row->{'mykey'} =~ s/^0x//;
-                # NOTE: key_privlvl is currently ignored in case this is the
-                # only authentication mechanism being used.
+		($kgkey = $row->{'mykey'}) =~ s/^0x//;
+	        # NOTE: key_privlvl is currently ignored in case this is the
+	        # only authentication mechanism being used.
 	    }
 	}
 
@@ -288,11 +291,11 @@ sub iloexec($$$$$$$;$) {
 	$SIG{'ALRM'} = sub {
 	    $SIG{'PIPE'} = 'IGNORE';
 	    $SIG{'CHLD'} = 'IGNORE';
-	    kill(INT,$pid);
+	    kill('INT',$pid);
 	    select(undef,undef,undef,0.1);
-	    kill(TERM,$pid);
+	    kill('TERM',$pid);
 	    select(undef,undef,undef,0.1);
-	    kill(KILL,$pid);
+	    kill('KILL',$pid);
 	    die "iloexec($node_id) timed out in ssh!";
 	};
 
@@ -337,7 +340,7 @@ sub iloexec($$$$$$$;$) {
     # Talk to ssh over the pty: wait for expected output and send responses
     #
     my @lines = ();
-    foreach $es (@expect_seq) {
+    foreach my $es (@expect_seq) {
 	my ($rval,$sval) = @$es;
 
 	my $found = 0;
@@ -397,7 +400,7 @@ sub iloexec($$$$$$$;$) {
 	}
 	sleep(1);
     }
-    kill(KILL,$pid) if (!$dead);
+    kill('KILL',$pid) if (!$dead);
 
     # if we get here, things probably went ok...
     return 0;
@@ -460,7 +463,7 @@ sub ipmiexec($$$$$$$;$$$) {
     # XXX IPMI takes about 40 seconds to timeout and doesn't
     # have an option to control?!
 
-    my $privlvl_args = ($key_privlvl) ? " -L $key_privlvl" : '';
+    my $privlvl_args = ($privlvl) ? " -L $privlvl" : '';
     my $ipmicmd = "ipmitool -I $iface -H $IP -U $key_uid $privlvl_args -E -K power $cmd";
     print "*** Executing '$ipmicmd', output:\n"
 	if ($debug > 1);

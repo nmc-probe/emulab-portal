@@ -98,7 +98,7 @@ sub new($$$;$) {
 	        }
 	    } 
 	    elsif ($role eq "ipmi-kgkey") {
-		$self->{KGKEY} = $row->{'mykey'} =~ s/^0x//;
+		($self->{KGKEY} = $row->{'mykey'}) =~ s/^0x//;
 	    }
 	}
     }
