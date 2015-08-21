@@ -2592,8 +2592,11 @@ COMMAND_PROTOTYPE(doifconfig)
 		nodecol = (reqp->isvnode && reqp->asvnode) 
 			? "vnode_id" : "node_id";
 
-		res = mydb_query("select IP, mask, mac, vlanid "
-				 "from vinterfaces "
+		res = mydb_query("select v.IP, v.mask, v.mac, vll.vname "
+				 "from vinterfaces as v "
+				 "left join virt_lan_lans as vll "
+				 "on v.virtlanidx = vll.idx "
+				 "and v.exptidx = vll.exptidx "
 				 "where type='alias' and %s='%s'",
 				 4, nodecol, reqp->nodeid);
 		if (res == NULL)
@@ -2603,8 +2606,7 @@ COMMAND_PROTOTYPE(doifconfig)
 		while (nrows > 0) {
 			nrows--;
 			row = mysql_fetch_row(res);
-			if (!row || !row[0] || !row[1] || !row[2] 
-			    || !row[3] || !row[4])
+			if (!row || !row[0] || !row[1] || !row[2] || !row[3])
 				continue;
 			bufp += OUTPUT(bufp, ebufp - bufp,
 				       "INTERFACE IFACETYPE=alias "

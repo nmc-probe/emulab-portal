@@ -8977,6 +8977,63 @@ sub UpLoadIPAddresses($)
 				   "$pnodename:$iface $ip ($viface)\n");
 		}
 	    }
+
+	    #
+	    # Spit out any IP aliases as vinterface table entries.
+	    # Note that this is different from the classic use of IP
+	    # aliases as a multiplexing mechanism. Here we are setting
+	    # up IP aliases that have been explicitly requested by the
+	    # user for this node on this lan. IP aliases in this context
+	    # can be validly requested and assigned to both physical
+	    # and virtual nodes.
+	    #
+	    # Note well that the MAC addresses used for these IP alias
+	    # entries purposely matches that of the interface on which
+	    # it is to be setup on the client-side. This is how the
+	    # client-side knows which interface to apply it to.
+	    #
+	    if ($member->{ip_aliases}) {
+		my $pnodename  = $self->solution_v2p()->{$vnodename};
+		my $pnode      = $self->pnodes()->{$pnodename};
+		my $pifobj     = Interface->LookupByIface($pnode, $iface);
+		
+		my %argref = (
+		    mac        => $pifobj->mac(),
+		    mask       => $mask,
+		    type       => "ipalias",
+		    iface      => $iface,
+		    exptidx    => $self->experiment->idx(),
+		    virtlanidx => $virtlan->idx(),			
+		   );
+
+		# Grab VM info, if this is a VM that is. The target inteface
+		# for tha alias should have already been created in the
+		# vinterfaces table.
+		if (exists($self->solution_v2v()->{$vnodename})) {
+		    my $pvnodename = $self->solution_v2v()->{$vnodename};
+		    my $pvnode = $self->pnodes()->{$pvnodename};
+		    if ($pvnode->isjailed()) {
+			$argref{vnode_id} = $pvnodename;
+			my $vifobj = Interface::VInterface->LookupByVirtLan(
+			    $self->experiment(), $virtlan->vname(), $vnodename);
+			$argref->{mac} = $vifobj->mac();
+		    }
+		}
+
+		my @ip_aliases = split(/,/, $member->{ip_aliases});
+		foreach my $ipa (@ip_aliases) {
+		    $argref{IP} = $ipa;
+		    my $aiface = 
+			($self->impotent() || $self->alloconly() ?
+			 Interface::VInterface->MakeFake($pnodename, \%argref) :
+			 Interface::VInterface->Create($pnodename, \%argref));
+
+		    $self->printdb("IP Alias: $member - " .
+				   (exists($argref{vnode_id}) ? 
+				   $argref{vnode_id} : $pnodename) .
+				   ":$mac $ipa ($aiface)\n");
+		}
+	    }
 	}
     }
     return 0;
