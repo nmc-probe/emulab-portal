@@ -81,7 +81,7 @@ sub new($$$;$) {
     $self->{KGKEY}      = "";
 
     # Fetch authentication credentials from the DB.
-    my $res = DBQueryFatal("select key_role,key_uid,mykey" . 
+    my $res = DBQueryFatal("select key_role,key_uid,mykey,key_privlvl" . 
 			   " from outlets_remoteauth" . 
 			   " where node_id='$devicename'".
 			   " and key_type='$KTYPE'");
@@ -93,9 +93,12 @@ sub new($$$;$) {
 	    if ($role eq "ipmi-passwd") {
 		$self->{USERNAME} = $row->{'key_uid'};
 		$self->{PASSWORD} = $row->{'mykey'};
+	        if ($row->{'key_privlvl'}) {
+	            $self->{PRIVLVL} = $row->{'key_privlvl'};
+	        }
 	    } 
 	    elsif ($role eq "ipmi-kgkey") {
-		$self->{KGKEY} = $row->{'mykey'} =~ s/^0x//;
+		($self->{KGKEY} = $row->{'mykey'}) =~ s/^0x//;
 	    }
 	}
     }
@@ -105,6 +108,9 @@ sub new($$$;$) {
 	$self->{IPMICMD} .= " -I lanplus -y $self->{KGKEY}";
     } elsif ($self->{DEVICETYPE} eq "ipmi-ms") {
 	$self->{IPMICMD} .= " -I lanplus";
+    }
+    if ($self->{PRIVLVL}) {
+        $self->{IPMICMD} .= " -L $self->{PRIVLVL}";
     }
 
     # Do a quick query, to see if it works
@@ -274,3 +280,7 @@ sub _get_msaddr($$) {
 
 # End with true
 1;
+
+# vim: set ft=perl et sw=4 ts=8:
+# Not sure what the (no)et sw=? ts=? rules should be in this file - they're kind of mixed.
+# Seems like a leading tab in some places and then 4 expanded spaces.  Maybe et sw=4 ts=8.
