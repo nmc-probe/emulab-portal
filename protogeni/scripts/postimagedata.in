@@ -206,6 +206,7 @@ else {
 			   "where ezid=1 and isdataset=0 and ".
 			   "      i.imageid is not null and ".
 			   "      ims_noreport=0 and ".
+			   "      origin_urn is null and ".
 			   "      deleted is null and ".
 			   "      ((v.pid='$TBOPSPID' and v.global=1) ".
 			   "       $only_system_clause) and ".
