@@ -1,10 +1,10 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'constraints', 'js/quickvm_sup', 'js/ppwizardstart', 'js/JacksEditor',
+	['underscore', 'constraints', 'js/quickvm_sup', 'js/ppwizardstart', 'js/JacksEditor', 'js/wizard-template',
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
 	 'js/lib/text!template/waitwait-modal.html',
          'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
-function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudString, waitwaitString)
+function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcloudString, waitwaitString)
 {
     'use strict';
 
@@ -29,7 +29,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     var editor        = null;
     var loaded_uuid	  = null;
     var ppchanged     = false;
-
+    var monitor       = null;
 
     function initialize()
     {
@@ -38,6 +38,18 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
         $('#profile_where').prop('disabled', true);
         $('#instantiate_submit').prop('disabled', true);
         $.get(contextUrl).then(contextReady, contextFail);
+
+	var jqxhr = $.getJSON('https://clnode049.clemson.cloudlab.us:8081/index.html?callback=?')
+		.done(function(data) {
+			monitor = data;
+			// Check if third tab is already active.
+			// If it is, the user got to the third tab before the request was finished.
+			if ($('#stepsContainer-p-2').is(':visible')) {
+				CreateClusterStatus();
+			}
+		}).error(function(a) {
+			console.log(a);
+		});
 
 	window.APT_OPTIONS.initialize(sup);
 	window.APT_OPTIONS.initialize(ppstart);
@@ -119,18 +131,11 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 							+'</div></div>');
 					}
 				});
-			    /*
-			     * BOGUS!
-			     */
-			    $('#stepsContainer-p-2 #finalize_options ' +
-			      '#profile_pid').change(function (event) {
-				  // Write back to original. 
-				  $('#project_selector #profile_pid')
-				      .val($(this).val());
-				  UpdateImageConstraints();
-				  return true;
-			    });
-			    
+				// Build the picker that uses the monitoring stats.
+				// Currently does not support multisite, so don't call if it is multisite.
+				if ($('#aggregate_selector #site_selector').hasClass('hidden')) {
+					CreateClusterStatus();
+				}
 			    if (!$('#cluster_status_link').length) {
 				$('#stepsContainer-p-2 #finalize_options').parent().append(''
 					+'<div id="cluster_status_link"><center>'
@@ -352,6 +357,91 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
         ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
+    }
+
+    function CreateClusterStatus() {
+    	if (monitor == null || $.isEmptyObject(monitor)) {
+    		return;
+    	}
+    	var html = '<div id="cluster_picker_status" class="btn-group">'
+					    +'<button type="button" class="form-control btn btn-default dropdown-toggle" data-toggle="dropdown">'
+					    	+'<span class="value"></span>'
+							+'<span class="caret"></span>'
+					    +'</button>'
+					    +'<ul class="dropdown-menu" role="menu">'
+					    	+'<li role="separator" class="divider"></li>'
+					    +'</ul>'
+					+'</div>';
+		var which = 'nosite_selector';
+
+		// Need to add support for multisite
+		/*if (!$('#aggregate_selector #site_selector').hasClass('hidden')) {
+			which = 'site_selector';
+		}*/
+
+		$('.'+which+' #profile_where').after(html);
+		$('.'+which+' #profile_where').addClass('hidden');
+
+		var dropdown = $('#cluster_picker_status .dropdown-menu .divider');
+		$('#'+which+' #profile_where option').each(function() {
+			if ($(this).prop('disabled')) {
+				dropdown.after('<li class="disabled"><a data-toggle="tooltip" data-placement="right" data-html="true" title="<div>This testbed is incompatible with the selected profile</div>" href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>')
+			}
+			else {
+				dropdown.before('<li class="enabled"><a href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>');
+			}
+		});
+
+		$('#cluster_picker_status .dropdown-menu a').on('click', function(){    
+		    $('#cluster_picker_status .dropdown-toggle .value').html($(this).attr('value'));   
+		    $('.'+which+' #profile_where').val($('#cluster_picker_status .value').html()); 
+		    
+		    if ($(this).children('.picker_stats').length) {
+		    	if (!$('#cluster_picker_status .dropdown-toggle > .picker_stats').length) {
+		    		$('#cluster_picker_status .dropdown-toggle').append('<div class="picker_stats"></div>');
+		    	}
+		    	else {
+		    		$('#cluster_picker_status .dropdown-toggle > .picker_stats').html('');
+		    	}
+
+		    	$('#cluster_picker_status .dropdown-toggle > .picker_stats').append($(this).children('.picker_stats').html());
+		    }
+
+		    $('#cluster_picker_status .selected').removeClass('selected');
+		    $(this).parent().addClass('selected');
+		});
+
+
+		// HARDCODED, from mockup state! //
+		$('#cluster_picker_status .dropdown-menu li a:contains("APT Utah")').parent().attr('data-testbed','utahApt');
+		$('#cluster_picker_status .dropdown-menu li a:contains("IG UtahDDC")').parent().attr('data-testbed','utahddc-ig');
+		$('#cluster_picker_status .dropdown-menu li a:contains("Utah PG")').parent().attr('data-testbed','utah-pg');
+		$('#cluster_picker_status .dropdown-menu li a:contains("Cloudlab Clemson")').parent().attr('data-testbed','cloudlabClemson');
+		$('#cluster_picker_status .dropdown-menu li a:contains("Cloudlab Wisconsin")').parent().attr('data-testbed','cloudlabWisconsin');
+		$('#cluster_picker_status .dropdown-menu li a:contains("Cloudlab Utah")').parent().attr('data-testbed','cloudlabUtah');
+		// END HARDCODED //
+
+		// Set up statistics
+		$('#cluster_picker_status .dropdown-menu .enabled a').each(function() {
+			var data = monitor[$(this).parent().attr('data-testbed')];
+			if (data && !$.isEmptyObject(data)) {
+				// Calculate testbed rating and set up tooltips.
+				var rating = wt.CalculateRating(data);
+
+				$(this).parent().attr('data-rating', rating[0]);
+
+				var stats = wt.StatsLineHTML(wt.AssignGlyph(rating[0]), rating[1]);
+				$(this).append(stats);
+			}
+		});
+
+		$('#cluster_picker_status .dropdown-menu').find('.enabled').sort(function (a, b) {
+			return +b.dataset.rating - +a.dataset.rating;
+		}).prependTo($('#cluster_picker_status .dropdown-menu'));
+
+		$('[data-toggle="tooltip"]').tooltip();
+
+		$('#cluster_picker_status .dropdown-menu .enabled a')[0].click();
     }
 
     function SwitchJacks(which) {
