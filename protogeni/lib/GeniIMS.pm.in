@@ -320,6 +320,11 @@ sub UpdateImage($$)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Image UUID mismatch");
     }
+    my %types_known_working = ();
+    foreach my $type (split(",", $blob->{'types_known_working'}),
+		      split(",", $imagedata->{'types_known_working'})) {
+	$types_known_working{$type} = $type;
+    }
     my %sets = (
 	"description" => $blob->{'description'},
 	"filesize" => $blob->{'filesize'},
@@ -332,6 +337,7 @@ sub UpdateImage($$)
 	"visibility" => $blob->{'visibility'},
 	"virtualizaton" => $blob->{'virtualizaton'},
 	"osfeatures" => $blob->{'osfeatures'},
+	"types_known_working" => join(",", sort(keys(%types_known_working))),
 	);
     my $created = timelocal(strptime($blob->{'created'}));
 
@@ -415,6 +421,7 @@ sub NewImage($)
 	"virtualizaton" => $blob->{'virtualizaton'},
 	"osfeatures" => $blob->{'osfeatures'},
 	"metadata_url" => $blob->{'metadata_url'},
+	"types_known_working" => $blob->{'types_known_working'},
 	);
     my $created = timelocal(strptime($blob->{'created'}));
 
