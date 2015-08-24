@@ -1421,7 +1421,10 @@ sub LoadVirtNodes($)
 	# We need a way to associate these defaults with the virtualization
 	# type, but that is a function of the image. Needs more thought.
 	#
-	if ($isvirt && $vnode->type() ne "blockstore") {
+	if ($isvirt &&
+	    !($vnode->type() eq "blockstore" ||
+	      $vnode->type() eq "interconnect" ||
+	      $vnode->type() eq "interconnect-vm")) {
 	    my $defmem = 128;
 	    my $minmem = 128;
 	    my $maxmem = 128;
