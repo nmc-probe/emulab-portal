@@ -41,14 +41,13 @@ sub usage()
     print "Usage: postimagedata [-f] [-n] [-d] [-a] all | [imageid ...]\n";
     exit(1);
 }
-my $optlist  = "fndvsa";
+my $optlist  = "fndva";
 my $impotent = 0;
 my $force    = 0;
 my $debug    = 0;
 my $verbose  = 0;
 my $errors   = 0;
 my $allvers  = 0;
-my $system   = 0;
 
 #
 # Configure variables
@@ -130,9 +129,6 @@ if (defined($options{"d"})) {
 if (defined($options{"v"})) {
     $verbose = 1;
 }
-if (defined($options{"s"})) {
-    $system = 1;
-}
 usage()
     if (!@ARGV);
 # Avoid mistakes, force caller to say they want all images posted.
@@ -193,10 +189,6 @@ else {
     # Force allows updating all images previously reported
     my $ims_reported_clause =
 	($force ? "1 or" : "ims_reported is null or");
-    # System allows reporting only system images.
-    my $only_system_clause =
-	($system ? "" :
-	 " or (metadata_url is null and creator_urn is not null)");
     
     # List of all images that have not been reported to the IMS.
     my $query_result =
@@ -208,8 +200,9 @@ else {
 			   "      ims_noreport=0 and ".
 			   "      origin_urn is null and ".
 			   "      deleted is null and ".
-			   "      ((v.pid='$TBOPSPID' and v.global=1) ".
-			   "       $only_system_clause) and ".
+                           "      metadata_url is null and ".
+			   "      (creator_urn is not null or ".
+			   "       (v.pid='$TBOPSPID' and v.global=1)) and ".
 			   "      ($ims_reported_clause ".
 			   "       created > ims_reported or ".
 			   "       updated > ims_reported) ".
