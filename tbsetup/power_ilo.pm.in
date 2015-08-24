@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -124,6 +124,14 @@ sub iloctrl($$@) {
 	        }
 	    }
 	    elsif ($krole eq "ipmi-kgkey") {
+		#
+		# XXX looks like we always need a user ID.
+		# Not just for the check in ipmiexec, but for ipmitool too.
+		# ipmitool seems to want both uid/password in addition to key,
+		# otherwise it prompts for a password.
+		#
+		$kuid = $row->{'key_uid'};
+
 		($kgkey = $row->{'mykey'}) =~ s/^0x//;
 	        # NOTE: key_privlvl is currently ignored in case this is the
 	        # only authentication mechanism being used.
