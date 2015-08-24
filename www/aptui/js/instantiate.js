@@ -39,7 +39,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
         $('#instantiate_submit').prop('disabled', true);
         $.get(contextUrl).then(contextReady, contextFail);
 
-	var jqxhr = $.getJSON('https://clnode049.clemson.cloudlab.us:8081/index.html?callback=?')
+	var jqxhr = $.getJSON('https://clnode049.clemson.cloudlab.us:8081/index.html?names=urn&callback=?')
 		.done(function(data) {
 			monitor = data;
 			// Check if third tab is already active.
@@ -363,15 +363,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
     	if (monitor == null || $.isEmptyObject(monitor)) {
     		return;
     	}
-    	var html = '<div id="cluster_picker_status" class="btn-group">'
-					    +'<button type="button" class="form-control btn btn-default dropdown-toggle" data-toggle="dropdown">'
-					    	+'<span class="value"></span>'
-							+'<span class="caret"></span>'
-					    +'</button>'
-					    +'<ul class="dropdown-menu" role="menu">'
-					    	+'<li role="separator" class="divider"></li>'
-					    +'</ul>'
-					+'</div>';
 		var which = 'nosite_selector';
 
 		// Need to add support for multisite
@@ -379,20 +370,16 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 			which = 'site_selector';
 		}*/
 
+    	var html = wt.ClusterStatusHTML($('#'+which+' #profile_where option'));
+
 		$('.'+which+' #profile_where').after(html);
 		$('.'+which+' #profile_where').addClass('hidden');
 
-		var dropdown = $('#cluster_picker_status .dropdown-menu .divider');
-		$('#'+which+' #profile_where option').each(function() {
-			if ($(this).prop('disabled')) {
-				dropdown.after('<li class="disabled"><a data-toggle="tooltip" data-placement="right" data-html="true" title="<div>This testbed is incompatible with the selected profile</div>" href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>')
-			}
-			else {
-				dropdown.before('<li class="enabled"><a href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>');
-			}
+    	html.find('.dropdown-menu a').on('click', function(){    
+    		wt.StatusClickEvent(html, this);
+    		$('.'+which+' #profile_where').val($('#cluster_picker_status .value').html()); 
 		});
-
-		$('#cluster_picker_status .dropdown-menu a').on('click', function(){    
+		/*$('#cluster_picker_status .dropdown-menu a').on('click', function(){    
 		    $('#cluster_picker_status .dropdown-toggle .value').html($(this).attr('value'));   
 		    $('.'+which+' #profile_where').val($('#cluster_picker_status .value').html()); 
 		    
@@ -409,29 +396,19 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 
 		    $('#cluster_picker_status .selected').removeClass('selected');
 		    $(this).parent().addClass('selected');
-		});
+		});*/
 
-
-		// HARDCODED, from mockup state! //
-		$('#cluster_picker_status .dropdown-menu li a:contains("APT Utah")').parent().attr('data-testbed','utahApt');
-		$('#cluster_picker_status .dropdown-menu li a:contains("IG UtahDDC")').parent().attr('data-testbed','utahddc-ig');
-		$('#cluster_picker_status .dropdown-menu li a:contains("Utah PG")').parent().attr('data-testbed','utah-pg');
-		$('#cluster_picker_status .dropdown-menu li a:contains("Cloudlab Clemson")').parent().attr('data-testbed','cloudlabClemson');
-		$('#cluster_picker_status .dropdown-menu li a:contains("Cloudlab Wisconsin")').parent().attr('data-testbed','cloudlabWisconsin');
-		$('#cluster_picker_status .dropdown-menu li a:contains("Cloudlab Utah")').parent().attr('data-testbed','cloudlabUtah');
-		// END HARDCODED //
-
-		// Set up statistics
-		$('#cluster_picker_status .dropdown-menu .enabled a').each(function() {
-			var data = monitor[$(this).parent().attr('data-testbed')];
+		_.each(amlist, function(name, key) {
+			var data = monitor[key];
+			var target = $('#cluster_picker_status .dropdown-menu .enabled a:contains("'+name+'")');
 			if (data && !$.isEmptyObject(data)) {
 				// Calculate testbed rating and set up tooltips.
 				var rating = wt.CalculateRating(data);
 
-				$(this).parent().attr('data-rating', rating[0]);
+				target.parent().attr('data-rating', rating[0]);
 
 				var stats = wt.StatsLineHTML(wt.AssignGlyph(rating[0]), rating[1]);
-				$(this).append(stats);
+				target.append(stats);
 			}
 		});
 
