@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -526,6 +526,16 @@ foreach (keys(%{ $MyStruct->failedlist() })) {
 
     push @{$t->{any_type}{"failed_${fatal}_list"}}, $_;
     push @{$t->{by_type}{$type}{"failed_${fatal}_list"}}, $_;
+
+    #
+    # Image success/failure tracking but only on first load since we do
+    # not know what the user has done after that.
+    #
+    if ($node->_setupoperation() eq $RELOAD) {
+	my $image = $node->_loadimage();
+	$image->RecordImageStatus($experiment, $node,
+				  ($what eq 'boot' ? "bootfail" : "reloadfail"));
+    }
 }
 foreach (keys(%{ $MyStruct->nodelist() })) {
     my $node   = $MyStruct->node($_);
@@ -602,7 +612,7 @@ if (defined $tally{reload}) {
 	    my $type = $node_types[0];
 	    
 	    $summary .= add_failed_nodes($line, 2, %{$d_t{$type}});
-	    
+
 	} else {
 	    
 	    $summary .= "$line:\n";
@@ -663,6 +673,14 @@ if ($exit_code == 0) {
 		$image = $node->_loadimage();
 	    }
 	    $todo{$node_id} = [$osinfo, $image];
+
+	    #
+	    # Image success/failure tracking but only on first load since we do
+	    # not know what the user has done after that.
+	    #
+	    if (defined($image)) {
+		$image->RecordImageStatus($experiment, $node, "success");
+	    }
 	}
     }
     Image->RecordImageHistory($experiment, 'os_setup',

@@ -1063,6 +1063,7 @@ sub Action($$$)
 	$node->_reloaded(0);
 	# Backpointer used in WaitForNodes().
 	$node->_sliver($sliver);
+	$node->_image(undef);
 	
 	if ($reservation->SameExperiment($experiment)) {
 	    my $vnode;
@@ -1122,6 +1123,7 @@ sub Action($$$)
 			push(@{ $reloads{$image->versid()} }, $vnode);
 			$imageinfo{$vnode->node_id()} = [$osinfo, $image];
 			$vnode->_reloaded(1);
+			$vnode->_image($image);
 
 			#
 			# Remove from reboots; we no longer want to do this,
@@ -1235,11 +1237,11 @@ sub Action($$$)
 		} 
 		push(@{ $reloads{$image->versid()} }, $node);
 		$node->_reloaded(1);
+		$node->_image($image);
 
 		# As with os_setup, we do not count images unless
 		# they are actually reloaded. I have no idea why.
 		$imageinfo{$node->node_id()} = [$osinfo, $image];
-		
 		
 		# Reload means reboot or power on.
 		# But skip the firewall; that is done specially since
@@ -1870,6 +1872,21 @@ sub WaitForNodes($$@)
 		$node->_sliver()->status() eq "failed");
 
 	$node->_bootlog(undef);
+
+	if (defined($node->_image()) && defined($node->_sliver())) {
+	    my $image  = $node->_image();
+	    my $status = "success";
+
+	    if ($node->_sliver()->status() eq "failed") {
+		if ($node->eventstate() eq TBDB_NODESTATE_RELOADFAILED) {
+		    $status = "reloadfail";
+		}
+		else {
+		    $status = "bootfail";
+		}
+	    }
+	    $image->RecordImageStatus($experiment, $node, $status);
+	}
 	
 	#
 	# Create a logfile from the boot log.
