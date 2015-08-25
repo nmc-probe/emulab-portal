@@ -112,6 +112,7 @@ my $USERDEL     = "/usr/sbin/userdel";
 my $USERMOD     = "/usr/sbin/usermod";
 my $GROUPADD	= "/usr/sbin/groupadd";
 my $GROUPDEL	= "/usr/sbin/groupdel";
+my $IPBIN       = "/sbin/ip";
 my $IFCONFIGBIN = "/sbin/ifconfig";
 my $IFCONFIG    = "$IFCONFIGBIN %s inet %s netmask %s";
 my $VLANCONFIG  = "/sbin/vconfig";
@@ -425,6 +426,15 @@ sub os_ifconfig_line($$$$$$$$;$$$)
     if ($iface_type eq "gre" && GENVNODE()) {
 	$uplines   = "$IFCONFIGBIN $iface $inet netmask $mask mtu 1450 up";
 	$downlines = "$IFCONFIGBIN $iface down";
+	return ($uplines, $downlines);
+    }
+
+    #
+    # Simple setup for IP aliases.
+    #
+    if ($iface_type eq "alias") {
+	$uplines = "$IPBIN addr add $inet/$mask dev $iface";
+	$downlines = "$IPBIN addr del $inet/$mask dev $iface";
 	return ($uplines, $downlines);
     }
 
