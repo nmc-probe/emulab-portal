@@ -60,6 +60,7 @@ my $coder = Frontier::RPC2->new('use_objects' => 1);
 
 my $GENI_VERSION;
 
+my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
 
 sub SetGeniVersion($) 
 {
@@ -334,6 +335,31 @@ sub CreateSlice($$)
             return GeniResponse->Create(GENIRESPONSE_ERROR);
         }
 
+        #Duplicate check for duplicate slice (GeniSA Register already does this). 
+        #But by doing it ourself, we can give a nicer error.
+        my $tempslice = GeniSlice->Lookup("${PGENIDOMAIN}.${hrn}");
+        if ($tempslice) {
+            my $existing_urn = $tempslice->urn();
+            my ($existing_slice_authority, $existing_slice_type, $existing_slice_name) = GeniHRN::Parse( $existing_urn );
+            my @existing_slice_auth_parts = split(':', $existing_slice_authority);
+            my $existing_slice_auth_parts_size = scalar @existing_slice_auth_parts;
+            if ($existing_slice_auth_parts_size == 2) {
+                my $existing_slice_project_name = $existing_slice_auth_parts[1];
+                if (!defined($project_name) || $project_name ne $existing_slice_project_name) {
+                    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+                        "An existing slice in project $existing_slice_project_name already has ".
+                        "the same name as the slice you are trying to create: $hrn  \n".
+                        "Slices are not allowed to have the same name, even if projects differ.");
+                }
+            } else {
+                if (defined($project_name)) {
+                    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+                        "An existing slice (without project) already has ".
+                        "the same name as the slice you are trying to create: $hrn  \n".
+                        "Slices are not allowed to have the same name, even if projects differ.");
+                }
+            }
+        }
 
         $response = GeniSA::RegisterInternal($args, $project_name);
     } else {
