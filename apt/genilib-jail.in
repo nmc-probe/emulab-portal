@@ -133,7 +133,7 @@ END {
     if ($jailstate) {
 	my $ecode = $?;
 
-	if ($ecode) {
+	if ($debug && $ecode) {
 	    print STDERR "Unexpected exit, cleaning up...\n";
 	}
 	if ($action != 1 || $ecode) {
@@ -289,14 +289,14 @@ if ($action == 2) {
 msg("Snapshotting base FS");
 if (system("zfs snapshot $ZFSBASE/$jailuuid/root\@$jailname")) {
     print STDERR "Could not create geni-lib jail snapshot\n";
-    exit(1);
+    exit(-1);
 }
 msg("Snapshotting done");
 $snapshot = "$ZFSBASE/$jailuuid/root\@$jailname";
 msg("Cloning py-cage FS");
 if (system("zfs clone $zfsattrs $snapshot $ZFSBASE/$jailname")) {
     print STDERR "Could not create geni-lib jail FS\n";
-    exit(1);
+    exit(-1);
 }
 msg("Cloning done");
 $jailstate = 1;
@@ -310,7 +310,7 @@ my $jailrootdir = "$JAILROOT/$jailtag";
 #
 if (system("mount -t nullfs -o ro $GENILIB $jailrootdir$GENILIB_MNT")) {
     print STDERR "Could not mount $GENILIB in $jailtag\n";
-    exit(1);
+    exit(-1);
 }
 
 #
@@ -323,7 +323,7 @@ if ($action != 1) {
     my $tempdir = "/tmp/genilib/";
     if (!mkdir("$jailrootdir$tempdir", 0700)) {
 	print STDERR "Could not create geni-lib jail tempdir\n";
-	exit(1);
+	exit(-1);
     }
 
     $j_ifile = $tempdir . basename($ifile);
@@ -336,7 +336,7 @@ if ($action != 1) {
 	($pfile && system("cp -p $pfile $jailrootdir$j_pfile")) ||
 	system("chown -R $uid:$gid $jailrootdir$tempdir")) {
 	print STDERR "Could not populate jail\n";
-	exit(1);
+	exit(-1);
     }
 
     #
@@ -376,7 +376,7 @@ if ($USEJAILRUN && $action != 1) {
     msg("Start jail");
     if (start_jail($jailtag, $jailrootdir)) {
 	print STDERR "Could not start geni-lib jail $jailtag\n";
-	exit(1);
+	exit(-1);
     }
     msg("Starting done");
     $jailstate = 2;
@@ -404,10 +404,12 @@ if ($status) {
     } elsif ($status & 127) {
 	$status &= 127;
 	print STDERR "Jail $jailtag execution died with signal $status\n";
-	$status = 2;
+	$status = -2;
     } else {
 	$status >>= 8;
-	print STDERR "Jail $jailtag execution failed with exit code $status\n";
+	if ($status <= 100 || $debug) {
+	    print STDERR "Jail $jailtag execution failed with exit code $status\n";
+	}
     }
 
     # XXX odd semantics: if debug is set, don't remove jail on error
@@ -430,13 +432,13 @@ if ($action != 1) {
     if (-l "$jailrootdir$tempdir" ||
 	chown(0, -1, "$jailrootdir$tempdir") != 1) {
 	print STDERR "Could not copy back results of command\n";
-	exit(1);
+	exit(-1);
     }
     if (-e "$jailrootdir$j_ofile") {
 	if (-l "$jailrootdir$j_ofile" ||
 	    system("cp $jailrootdir$j_ofile $ofile")) {
 	    print STDERR "Could not copy back results of command\n";
-	    exit(1);
+	    exit(-1);
 	}
     }
 } else {

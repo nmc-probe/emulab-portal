@@ -418,7 +418,7 @@ function Do_BindParameters()
     #
     $retval = SUEXEC($this_uid, "nobody",
 		     "webrungenilib $warningsfatal -b $parmfname -o $outfname $infname",
-		     SUEXEC_ACTION_CONTINUE);
+		     SUEXEC_ACTION_IGNORE);
     
     if ($retval != 0) {
 	if ($retval < 0) {
@@ -426,6 +426,7 @@ function Do_BindParameters()
 	    SPITAJAX_ERROR(-1, "Internal error, we have been notified");
 	}
 	else {
+            # This might be a json structure, the JS code looks for it. 
 	    $errors = file_get_contents($outfname);
 	    SPITAJAX_ERROR(1, $errors);
 	}

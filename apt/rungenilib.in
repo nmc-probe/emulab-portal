@@ -273,7 +273,9 @@ if ($exit_status) {
     }
     unlink($outfile);
     unlink($infile);
-    exit(1);
+    # We want to pass along the exit status, since it indicates an internal
+    # vs script error.
+    exit($exit_status >> 8);
 }
 if (defined($ofile)) {
     system("cat $outfile > $ofile");
