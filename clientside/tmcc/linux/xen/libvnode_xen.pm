@@ -1760,6 +1760,15 @@ sub vnodePreConfig($$$$$){
 	#
 	if ($vninfo->{'ishvm'}) {
 	    unlink("$vnoderoot/etc/wall_cmos_clock");
+
+	    #
+	    # FreeBSD recommends this workaround for stability issues when
+	    # running under Xen. I do not know if the problem is specific to
+	    # HVM, I am just using $ishvm as it indicates a 10.x FreeBSD which
+	    # is the only version which lists this problem in the errata.
+	    #
+	    mysystem("echo 'vfs.unmapped_buf_allowed=0' ".
+		     ">> $vnoderoot/boot/loader.conf");
 	}
     }
     #
