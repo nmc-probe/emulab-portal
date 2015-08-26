@@ -74,6 +74,13 @@ my $API_VERSION    = 1.01;
 #
 my $SERVERVERSION = 1;
 
+#
+# Yuck, until we have image testing in place, we have to hardwire the
+# x86 types.
+#
+my $X86TYPES = ("C240M4","C220M4","pcvm","r320","c6220","dl360","r720",
+		"c8220","c8220x","d2100","d710","d820","pc3000");
+
 # We are using a different DB.
 my $DB;
 
@@ -399,6 +406,11 @@ sub NewImage($)
 	    return GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
     }
+    my %types_known_working = ();
+    foreach my $type (split(",", $blob->{'types_known_working'}), $X86TYPES) {
+	$types_known_working{$type} = $type;
+    }
+    
     #
     # Insert new version of the image.
     #
@@ -421,7 +433,7 @@ sub NewImage($)
 	"virtualizaton" => $blob->{'virtualizaton'},
 	"osfeatures" => $blob->{'osfeatures'},
 	"metadata_url" => $blob->{'metadata_url'},
-	"types_known_working" => $blob->{'types_known_working'},
+	"types_known_working" => join(",", sort(keys(%types_known_working))),
 	);
     my $created = timelocal(strptime($blob->{'created'}));
 
