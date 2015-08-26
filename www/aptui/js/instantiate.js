@@ -194,6 +194,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 
 	if ($('#amlist-json').length) {
 	    amlist  = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+	  _.each(_.keys(amlist), function (key) {
+	    amValueToKey[amlist[key]] = key;
+	  });
 	}
 
 	$('#waitwait_div').html(waitwaitString);
@@ -377,7 +380,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	editor = new JacksEditor(root, true, true,
 				 selectionPane, true, !multisite);
 	var continuation = function(rspec, description, name, amdefault, ispp) {
+	  if (rspec)
+	  {
 	    editor.show(rspec);
+	  }
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
     }
@@ -625,6 +631,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	readyCallback: function (input, output) {
 	  jacks.input = input;
 	  jacks.output = output;
+	  jacks.output.on('found-images', onFoundImages);
           $('#profile_where').prop('disabled', false);
           $('#instantiate_submit').prop('disabled', false);
 	  updateWhere();
@@ -633,6 +640,53 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	constraints: context.constraints
       });
     }
+
+  var foundImages = [];
+
+  function onFoundImages(images)
+  {
+    console.log(images);
+    if (! _.isEqual(foundImages, images))
+    {
+      foundImages = images;
+      // STUB: Replace this with an ajax call to get images
+      _.delay(imageUpdate, 5000);
+    }
+  }
+
+  function imageUpdate()
+  {
+    // STUB: Parse ajax call results and generate new context options and constraints
+    var newOptions = {
+      contextOptions: {
+	images: [
+	  {
+            "id": "urn:publicid:IDN+emulab.net+image+emulab-ops:SOME_NAME",
+            "name": "SOME_NAME Blah Blah"
+	  },
+	]
+      },
+      constraints: [
+	{
+	  "node": {
+            "aggregates": [
+              "urn:publicid:IDN+apt.emulab.net+authority+cm"
+            ],
+            "images": [
+              "urn:publicid:IDN+emulab.net+image+emulab-ops:SOME_TYPE"
+            ],
+            "types": [
+              "raw-pc"
+            ]
+	  }
+	},
+      ]
+    };
+    constraints.addPossibles(newOptions.contextOptions);
+    constraints.allowAllSets(newOptions.constraints);
+    console.log('imageUpdate');
+    updateWhere();
+  }
 
     function contextFail(fail1, fail2)
     {
@@ -650,7 +704,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	}
     }
 
-  var amValueToKey = {
+  var amValueToKey = {};
+/*
     'Cloudlab Utah':
     "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
 
@@ -669,7 +724,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     'Emulab':
     "urn:publicid:IDN+emulab.net+authority+cm"
   };
-
+*/
     function finishUpdateWhere(allNodes, nodesBySite)
     {
       if (!multisite || Object.keys(sites).length <= 1) {

@@ -723,11 +723,19 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	}
 
 	function ChangeJacksRoot(root, selectionPane) {
+//	  console.log(RSPEC);
+	  if (RSPEC)
+	  {
 	    editor = new JacksEditor(root, true, true, selectionPane, true);
 	    editor.show(RSPEC);
+	  }
 	}
 	function ShowEditor() {
+//	  console.log(RSPEC);
+	  if (RSPEC)
+	  {
 	    editor.show(RSPEC);
+	  }
 	}
 
 	return {

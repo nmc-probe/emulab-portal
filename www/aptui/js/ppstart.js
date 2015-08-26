@@ -219,8 +219,12 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		    }
 		    // Got the rspec, show the editor.
 		    RSPEC = json.value.rspec;
+		  console.log(json);
+		  if (json.value.rspec)
+		  {
 		    editor.show(json.value.rspec,
 				EditorDone, EditorCancel, button_label);
+		  }
 		}
 	    }
 	    // Convert form data into formfields array, like all our
