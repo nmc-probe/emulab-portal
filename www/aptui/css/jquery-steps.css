@@ -317,74 +317,74 @@ left: -999em;
 	}
 }
 
-#cluster_picker_status button {
+.cluster_picker_status button {
 	padding-left: 16px;
 }
 
-#cluster_picker_status .btn {
+.cluster_picker_status .btn {
     cursor: default;
     background-color: #FFF;
     border-radius: 4px;
     text-align: left;
 }
 
-#cluster_picker_status .caret {
+.cluster_picker_status .caret {
     position: absolute;
     right: 16px;
     top: 15px;
 }
 
-#cluster_picker_status .btn-default:hover, #cluster_picker_status .btn-default:focus, #cluster_picker_status .btn-default:active, #cluster_picker_status .btn-default.active, #cluster_picker_status .open .dropdown-toggle.btn-default {
+.cluster_picker_status .btn-default:hover, .cluster_picker_status .btn-default:focus, .cluster_picker_status .btn-default:active, .cluster_picker_status .btn-default.active, .cluster_picker_status .open .dropdown-toggle.btn-default {
     background-color: #FFF;    
 }
 
-#cluster_picker_status
+.cluster_picker_status
 
-#cluster_picker_status .btn-group.open .dropdown-toggle {
+.cluster_picker_status .btn-group.open .dropdown-toggle {
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px rgba(102, 175, 233, 0.6)
 }
 
-#cluster_picker_status.btn-group {width: 100%}
-#cluster_picker_status .dropdown-menu {width: 100%;}
+.cluster_picker_status.btn-group {width: 100%}
+.cluster_picker_status .dropdown-menu {width: 100%;}
 
 
-#cluster_picker_status li {
+.cluster_picker_status li {
 	position: relative;
 }
 
-#cluster_picker_status .picker_stats {
+.cluster_picker_status .picker_stats {
     position: absolute;
     right: 10px;
     top: 4px;
 }
 
-#cluster_picker_status .dropdown-toggle .picker_stats {
+.cluster_picker_status .dropdown-toggle .picker_stats {
 	right: 35px;
 	top: 8px;
 	z-index: 2;
 }
 
-#cluster_picker_status .text-healthy {
+.cluster_picker_status .text-healthy {
 	color: #8ab800;
 }
 
-#cluster_picker_status .text-unhealthy {
+.cluster_picker_status .text-unhealthy {
 	color: #FF6600;
 }
 
-#cluster_picker_status .selected {
+.cluster_picker_status .selected {
 	background-color: #f5f5f5;
 }
 
-#cluster_picker_status .dropdown-menu:hover .selected {
+.cluster_picker_status .dropdown-menu:hover .selected {
 	background-color: #FFF;
 }
 
-#cluster_picker_status .tooltip .tooltip-inner div {
+.cluster_picker_status .tooltip .tooltip-inner div {
 	text-align: left;
 	white-space: nowrap;
 }
 
-#cluster_picker_status .tooltip .tooltip-inner {
+.cluster_picker_status .tooltip .tooltip-inner {
 	max-width: 400px;
 }

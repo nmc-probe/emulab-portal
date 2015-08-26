@@ -2,7 +2,7 @@ define(['underscore'],
 function(_) {
 
 	function ClusterStatusHTML(options) {
-		var html = $('<div id="cluster_picker_status" class="btn-group">'
+		var html = $('<div class="cluster_picker_status btn-group">'
 					    +'<button type="button" class="form-control btn btn-default dropdown-toggle" data-toggle="dropdown">'
 					    	+'<span class="value"></span>'
 							+'<span class="caret"></span>'
@@ -21,6 +21,10 @@ function(_) {
 				dropdown.before('<li class="enabled"><a href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>');
 			}
 		});
+
+		if (!html.find('.disabled').length) {
+			html.find('.divider').remove();
+		}
 
 		return html;
 	}

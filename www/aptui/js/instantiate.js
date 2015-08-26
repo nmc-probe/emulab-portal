@@ -39,7 +39,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
         $('#instantiate_submit').prop('disabled', true);
         $.get(contextUrl).then(contextReady, contextFail);
 
-	var jqxhr = $.getJSON('https://clnode049.clemson.cloudlab.us:8081/index.html?names=urn&callback=?')
+	var jqxhr = $.getJSON('https://clnode063.clemson.cloudlab.us:8081/index.html?names=urn&callback=?')
 		.done(function(data) {
 			monitor = data;
 			// Check if third tab is already active.
@@ -132,10 +132,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 					}
 				});
 				// Build the picker that uses the monitoring stats.
-				// Currently does not support multisite, so don't call if it is multisite.
-				if ($('#aggregate_selector #site_selector').hasClass('hidden')) {
-					CreateClusterStatus();
-				}
+				CreateClusterStatus();
+
 			    if (!$('#cluster_status_link').length) {
 				$('#stepsContainer-p-2 #finalize_options').parent().append(''
 					+'<div id="cluster_status_link"><center>'
@@ -363,62 +361,42 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
     	if (monitor == null || $.isEmptyObject(monitor)) {
     		return;
     	}
-		var which = 'nosite_selector';
 
-		// Need to add support for multisite
-		/*if (!$('#aggregate_selector #site_selector').hasClass('hidden')) {
-			which = 'site_selector';
-		}*/
+    	$('#finalize_options .cluster-group').each(function() {
+			var which = $(this).parent().parent().attr('class');
 
-    	var html = wt.ClusterStatusHTML($('#'+which+' #profile_where option'));
+	    	var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'));
 
-		$('.'+which+' #profile_where').after(html);
-		$('.'+which+' #profile_where').addClass('hidden');
+			$('.'+which+' .form-control').after(html);
+			$('.'+which+' select.form-control').addClass('hidden');
 
-    	html.find('.dropdown-menu a').on('click', function(){    
-    		wt.StatusClickEvent(html, this);
-    		$('.'+which+' #profile_where').val($('#cluster_picker_status .value').html()); 
-		});
-		/*$('#cluster_picker_status .dropdown-menu a').on('click', function(){    
-		    $('#cluster_picker_status .dropdown-toggle .value').html($(this).attr('value'));   
-		    $('.'+which+' #profile_where').val($('#cluster_picker_status .value').html()); 
-		    
-		    if ($(this).children('.picker_stats').length) {
-		    	if (!$('#cluster_picker_status .dropdown-toggle > .picker_stats').length) {
-		    		$('#cluster_picker_status .dropdown-toggle').append('<div class="picker_stats"></div>');
-		    	}
-		    	else {
-		    		$('#cluster_picker_status .dropdown-toggle > .picker_stats').html('');
-		    	}
+	    	html.find('.dropdown-menu a').on('click', function(){    
+	    		wt.StatusClickEvent(html, this);
+	    		$('.'+which+' .form-control').val($('.'+which+' .cluster_picker_status .value').html()); 
+			});
 
-		    	$('#cluster_picker_status .dropdown-toggle > .picker_stats').append($(this).children('.picker_stats').html());
-		    }
+			_.each(amlist, function(name, key) {
+				var data = monitor[key];
+				var target = $('.'+which+' .cluster_picker_status .dropdown-menu .enabled a:contains("'+name+'")');
+				if (data && !$.isEmptyObject(data)) {
+					// Calculate testbed rating and set up tooltips.
+					var rating = wt.CalculateRating(data);
 
-		    $('#cluster_picker_status .selected').removeClass('selected');
-		    $(this).parent().addClass('selected');
-		});*/
+					target.parent().attr('data-rating', rating[0]);
 
-		_.each(amlist, function(name, key) {
-			var data = monitor[key];
-			var target = $('#cluster_picker_status .dropdown-menu .enabled a:contains("'+name+'")');
-			if (data && !$.isEmptyObject(data)) {
-				// Calculate testbed rating and set up tooltips.
-				var rating = wt.CalculateRating(data);
+					var stats = wt.StatsLineHTML(wt.AssignGlyph(rating[0]), rating[1]);
+					target.append(stats);
+				}
+			});
 
-				target.parent().attr('data-rating', rating[0]);
+			$('.'+which+' .cluster_picker_status .dropdown-menu').find('.enabled').sort(function (a, b) {
+				return +b.dataset.rating - +a.dataset.rating;
+			}).prependTo($('.'+which+' .cluster_picker_status .dropdown-menu'));
 
-				var stats = wt.StatsLineHTML(wt.AssignGlyph(rating[0]), rating[1]);
-				target.append(stats);
-			}
-		});
-
-		$('#cluster_picker_status .dropdown-menu').find('.enabled').sort(function (a, b) {
-			return +b.dataset.rating - +a.dataset.rating;
-		}).prependTo($('#cluster_picker_status .dropdown-menu'));
+			$('.'+which+' .cluster_picker_status .dropdown-menu .enabled a')[0].click();
+    	});
 
 		$('[data-toggle="tooltip"]').tooltip();
-
-		$('#cluster_picker_status .dropdown-menu .enabled a')[0].click();
     }
 
     function SwitchJacks(which) {
@@ -698,7 +676,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	    html = html +
 		"<div id='site"+sitenum+"cluster' " +
 		"     class='form-horizontal experiment_option'>" +
-		"  <div class='form-group'>" +
+		"  <div class='form-group cluster-group'>" +
 		"    <label class='col-sm-4 control-label' " +
 		"           style='text-align: right;'>"+
 		"          Site " + siteid  + " Cluster:</a>" +

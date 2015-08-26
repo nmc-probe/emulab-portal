@@ -571,7 +571,7 @@ function SPITFORM($formfields, $newuser, $errors)
 
         $html = "<div id='aggregate_selector'>
                   <div class='form-horizontal experiment_option' id='nosite_selector'>
-                   <div class='form-group'>
+                   <div class='form-group cluster-group'>
                      <label class='col-sm-4 control-label'
                             style='text-align: right;'>Cluster:</label>
                      <div class='col-sm-6'>
