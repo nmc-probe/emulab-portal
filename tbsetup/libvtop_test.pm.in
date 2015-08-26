@@ -8988,39 +8988,40 @@ sub UpLoadIPAddresses($)
 	    # and virtual nodes.
 	    #
 	    # Note well that the MAC addresses used for these IP alias
-	    # entries purposely matches that of the interface on which
-	    # it is to be setup on the client-side. This is how the
-	    # client-side knows which interface to apply it to.
+	    # entries purposely match those of the interfaces on which
+	    # they are to be setup on the client-side. This is how the
+	    # client-side knows which interface to apply them to.
 	    #
-	    if ($member->{ip_aliases}) {
-		my $pnodename  = $self->solution_v2p()->{$vnodename};
-		my $pnode      = $self->pnodes()->{$pnodename};
-		my $pifobj     = Interface->LookupByIface($pnode, $iface);
-		
+	    if ($member->ip_aliases()) {
 		my %argref = (
-		    mac        => $pifobj->mac(),
 		    mask       => $mask,
-		    type       => "ipalias",
+		    type       => "alias",
 		    iface      => $iface,
 		    exptidx    => $self->experiment->idx(),
-		    virtlanidx => $virtlan->idx(),			
+		    virtlanidx => $virtlan->idx(),
 		   );
 
-		# Grab VM info, if this is a VM that is. The target inteface
-		# for tha alias should have already been created in the
-		# vinterfaces table.
+		my $pnodename  = $self->solution_v2p()->{$vnodename};
+
+		# Grab VM info, if this is a VM that is. 
 		if (exists($self->solution_v2v()->{$vnodename})) {
-		    my $pvnodename = $self->solution_v2v()->{$vnodename};
-		    my $pvnode = $self->pnodes()->{$pvnodename};
-		    if ($pvnode->isjailed()) {
-			$argref{vnode_id} = $pvnodename;
-			my $vifobj = Interface::VInterface->LookupByVirtLan(
-			    $self->experiment(), $virtlan->vname(), $vnodename);
-			$argref->{mac} = $vifobj->mac();
-		    }
+		    $argref{vnode_id} = $self->solution_v2v()->{$vnodename};
 		}
 
-		my @ip_aliases = split(/,/, $member->{ip_aliases});
+		# Is the node connecting via virtual interface? The
+		# target inteface for tha alias should have already
+		# been created in the vinterfaces table by this time.
+		if ($member->usevirtiface()) {
+		    my $vif = Interface::VInterface->LookupByVirtLan(
+			$self->experiment(), $virtlan->vname(), $vnodename);
+		    $argref{mac} = $vif->mac();
+		} else {
+		    my $pnode    = $self->pnodes()->{$pnodename};
+		    my $pif      = Interface->LookupByIface($pnode, $iface);
+		    $argref{mac} = $pif->mac();
+		}
+
+		my @ip_aliases = split(/,/, $member->ip_aliases());
 		foreach my $ipa (@ip_aliases) {
 		    $argref{IP} = $ipa;
 		    my $aiface = 
@@ -9031,7 +9032,7 @@ sub UpLoadIPAddresses($)
 		    $self->printdb("IP Alias: $member - " .
 				   (exists($argref{vnode_id}) ? 
 				   $argref{vnode_id} : $pnodename) .
-				   ":$mac $ipa ($aiface)\n");
+				   ":$argref{mac} $ipa ($aiface)\n");
 		}
 	    }
 	}

@@ -222,7 +222,6 @@ Node instproc updatedb {DB} {
     $self instvar rpms
     $self instvar startup
     $self instvar iplist
-    $self instvar ipaliaslist
     $self instvar tarfiles
     $self instvar failureaction
     $self instvar inner_elab_role
@@ -486,6 +485,8 @@ Node instproc updatedb {DB} {
 Node instproc add_lanlink {lanlink} {
     $self instvar portlist
     $self instvar iplist
+    $self instvar ipaliaslist
+    $self instvar wantipaliaslist
     $self instvar simulated
 
     # Check if we're making too many lanlinks to this node
@@ -502,7 +503,7 @@ Node instproc add_lanlink {lanlink} {
     lappend portlist $lanlink
     lappend iplist ""
     lappend ipaliaslist ""
-    lappend wantaliaslist ""
+    lappend wantipaliaslist ""
     return [expr [llength $portlist] - 1]
 }
 

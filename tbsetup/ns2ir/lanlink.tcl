@@ -623,6 +623,7 @@ LanLink instproc fill_ips {} {
     $self instvar sim
     $self instvar widearea
     $self instvar netmask
+    $self instvar used_ips
     set isremote 0
     set netmaskint [inet_atohl $netmask]
 
@@ -667,14 +668,14 @@ LanLink instproc fill_ips {} {
 		}
 		set ipint [inet_atohl $ip]
 		set subnet [inet_hltoa [expr $ipint & $netmaskint]]
-		set ips($ip) 1
+		set used_ips($ip) 1
 		$sim use_subnet $subnet $netmask
 	    }
 	    if {$ipaliases != {}} {
-		foreach $ipalias $ipaliases {
+		foreach ipalias $ipaliases {
 		    set ipint [inet_atohl $ipalias]
 		    set subnet [inet_hltoa [expr $ipint & $netmaskint]]
-		    set ips($ipalias) 1
+		    set used_ips($ipalias) 1
 		    $sim use_subnet $subnet $netmask
 		}
 	    }
@@ -1365,6 +1366,12 @@ Lan instproc updatedb {DB} {
             lappend fields "fixed_iface"
         }
 
+	# IP aliases
+	set ipaliases [$node get_ipaliases_port $port]
+	if {[llength $ipaliases] > 0} {
+	    lappend fields "ip_aliases"
+	}
+
 	set values [list $self $nodeportraw $netmask $delay($nodeport) $rdelay($nodeport) $bandwidth($nodeport) $rbandwidth($nodeport) $backfill($nodeport) $rbackfill($nodeport) $loss($nodeport) $rloss($nodeport) $cost($nodeport) $widearea $emulated $uselinkdelay $nobwshaping $encap $limit_  $maxthresh_ $thresh_ $q_weight_ $linterm_ ${queue-in-bytes_}  $bytes_ $mean_pktsize_ $wait_ $setbit_ $droptail_ $red_ $gentle_ $trivial_ok $protocol $is_accesspoint $node $port $ip $mustdelay]
 
 	if { [info exists ebandwidth($nodeport)] } {
@@ -1389,6 +1396,12 @@ Lan instproc updatedb {DB} {
         if {$fixed_iface($nodeport) != 0} {
             lappend values $fixed_iface($nodeport)
         }
+
+	# IP aliases
+	if {[llength $ipaliases] > 0} {
+	    set ipaliasesraw [join $ipaliases ","]
+	    lappend values $ipaliasesraw
+	}
 
 	# openflow
 	#

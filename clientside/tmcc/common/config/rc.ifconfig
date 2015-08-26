@@ -126,6 +126,7 @@ sub doboot()
     my $downcmds     = "";
     my @ifacelist    = ();
     my @ifacemap     = ();
+    my %mac2iface    = ();
 
     print STDOUT "Checking Testbed interface configuration ... \n";
 
@@ -198,8 +199,9 @@ sub doboot()
 	    # Trivially parsable map for users, which associate an IP
 	    # with a local interface. 
 	    push(@ifacemap, "$iface $inet $mac");
+	    $mac2iface{$mac} = $iface;
 	}
-	elsif ($ifconfig->{ISVIRT} &&
+	elsif ($ifconfig->{ISVIRT} && $ifconfig->{ITYPE} ne 'alias' &&
 	       (INXENVM() || SHADOW() ||
 		(GENVNODE() && GENVNODETYPE() eq 'openvz'))) {
 
@@ -244,6 +246,7 @@ sub doboot()
 	    # Trivially parsable map for users, which associate an IP
 	    # with a local interface. 
 	    push(@ifacemap, "$iface $inet $mac");
+	    $mac2iface{$mac} = $iface;
 	}
 	else {
 	    my $itype	 = $ifconfig->{ITYPE};
@@ -257,6 +260,22 @@ sub doboot()
 	    my $ifrtabid = undef;
 	    my $encap    = $ifconfig->{ENCAP};
 	    my $vtag	 = $ifconfig->{VTAG};
+
+	    # For IP aliases - late bind to the interface since it may
+	    # have only just been created by a prior invocation of
+	    # os_ifconfig_veth() (e.g., vlan interface). We keep a hash
+	    # of mac->iface mappings, built up as we process ifconfig
+	    # entries.  Note that this implies that the prequisite
+	    # interfaces have already been processed before aliases appear!
+	    if ($itype eq "alias") {
+		if (exists($mac2iface{$vmac})) {
+		    $iface = $mac2iface{$vmac};
+		} else {
+		    warn("Could not find interface for IP alias: $vmac\n");
+		    next;
+		}
+		$viface = "$iface:$id";
+	    }
 
 	    #
 	    # A bit of history.
@@ -295,6 +314,9 @@ sub doboot()
 	    # Trivially parsable map for users, which associate an IP
 	    # with a local interface. 
 	    push(@ifacemap, "$viface $inet $vmac");
+	    if ($itype ne "alias") {
+		$mac2iface{$vmac} = $viface;
+	    }
 	}
     }
 

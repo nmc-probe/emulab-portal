@@ -2394,6 +2394,15 @@ COMMAND_PROTOTYPE(doifconfig)
 		nrows--;
 
 		/*
+		 * If the interface type is 'alias', and this is not
+		 * do not process here.  Such IP alias entries will be
+		 * handled below.  Old (very old) IP alias processing
+		 * occurs via "IPALIAS=" lines, generated above.
+		 */
+		if (strcmp(row[6], "alias") == 0)
+			continue;
+
+		/*
 		 * When the proxy is asking for the container, we give it info
 		 * for a plain interface, since that is all it sees.
 		 */
@@ -2583,43 +2592,44 @@ COMMAND_PROTOTYPE(doifconfig)
 	 * interface. They should work on both physical and virtual nodes.
 	 */
 	if (vers >= 40) {
-		char *bufp = buf;
 		MYSQL_RES *res;
 		MYSQL_ROW row;
 		int nrows;
 		char *nodecol = "";
 
 		nodecol = (reqp->isvnode && reqp->asvnode) 
-			? "vnode_id" : "node_id";
+			? "v.vnode_id" : "v.node_id";
 
-		res = mydb_query("select v.IP, v.mask, v.mac, vll.vname "
+		res = mydb_query("select v.IP, v.mask, v.unit, v.mac, "
+				 " vll.vname "
 				 "from vinterfaces as v "
 				 "left join virt_lan_lans as vll "
 				 "on v.virtlanidx = vll.idx "
 				 "and v.exptidx = vll.exptidx "
-				 "where type='alias' and %s='%s'",
-				 4, nodecol, reqp->nodeid);
+				 "where v.type='alias' and %s='%s'",
+				 5, nodecol, reqp->nodeid);
 		if (res == NULL)
-			goto adone;
+			goto ipadone;
 		
 		nrows = (int)mysql_num_rows(res);
 		while (nrows > 0) {
 			nrows--;
 			row = mysql_fetch_row(res);
-			if (!row || !row[0] || !row[1] || !row[2] || !row[3])
+			if (!row || !row[0] || !row[1] || !row[2] ||
+			    !row[3] || !row[4])
 				continue;
-			bufp += OUTPUT(bufp, ebufp - bufp,
-				       "INTERFACE IFACETYPE=alias "
-				       "INET=%s MASK=%s MAC=%s "
-				       "SPEED= DUPLEX= IFACE= "
-				       "RTABID= LAN=%s"
-				       row[0], row[1], row[2], row[3]);
+			OUTPUT(buf, sizeof(buf),
+			       "INTERFACE IFACETYPE=alias "
+			       "INET=%s MASK=%s ID=%s VMAC=%s PMAC=none "
+			       "RTABID= ENCAPSULATE=0 LAN=%s VTAG=\n",
+			       row[0], CHECKMASK(row[1]), row[2], row[3], 
+			       row[4]);
 			client_writeback(sock, buf, strlen(buf), tcp);
 			if (verbose)
 				info("%s: IFCONFIG: %s", reqp->nodeid, buf);
 		}
 		mysql_free_result(res);
-	adone: ;
+	ipadone: ;
 	}
 
 	return 0;

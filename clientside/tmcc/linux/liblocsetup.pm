@@ -430,15 +430,6 @@ sub os_ifconfig_line($$$$$$$$;$$$)
     }
 
     #
-    # Simple setup for IP aliases.
-    #
-    if ($iface_type eq "alias") {
-	$uplines = "$IPBIN addr add $inet/$mask dev $iface";
-	$downlines = "$IPBIN addr del $inet/$mask dev $iface";
-	return ($uplines, $downlines);
-    }
-
-    #
     # Special handling for new style interfaces (which have settings).
     # This should all move into per-type modules at some point.
     #
@@ -882,11 +873,8 @@ sub os_ifconfig_veth($$$$$;$$$$%)
     # IP aliases
     #
     if ($itype eq "alias") {
-	my $aif = "$iface:$id";
-
-	$uplines   = sprintf($IFCONFIG, $aif, $inet, $mask);
-	$downlines = "$IFCONFIGBIN $aif down";
-
+	$uplines = "$IPBIN addr add $inet/$mask dev $iface";
+	$downlines = "$IPBIN addr del $inet/$mask dev $iface";
 	return ($uplines, $downlines);
     }
 
