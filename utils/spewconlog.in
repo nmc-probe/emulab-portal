@@ -29,12 +29,13 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print(STDOUT "Usage: spewconlog [-l linecount] [-k key] node\n");
+    print(STDOUT "Usage: spewconlog [-l linecount] [-k key [-r]] node\n");
     exit(-1);
 }
-my $optlist   = "l:k:";
+my $optlist   = "l:k:r";
 my $linecount = 0;
 my $key;
+my $reuseurl  = 0;
 my $logdir    = "/var/log/tiplogs";
 my $logname;
 my $cmd;
@@ -120,6 +121,9 @@ if (defined($options{"l"})) {
 	    "    Bad data in linecount: $linecount\n");
     }
 }
+if (defined($options{"r"})) {
+    $reuseurl = 1;
+}
 usage()
     if (@ARGV != 1);
 my $node_id = $ARGV[0];
@@ -157,7 +161,9 @@ if (defined($key)) {
 	die("*** $0:\n".
 	    "    You not have permission to view console log for $node_id!\n");
     }
-    $node->ClrTipAclUrl();
+    if (!$reuseurl) {
+	$node->ClrTipAclUrl();
+    }
 }
 elsif (!TBAdmin($UID) &&
        (! TBNodeAccessCheck($UID, TB_NODEACCESS_READINFO, ($node_id)))) {

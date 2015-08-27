@@ -40,7 +40,7 @@ if (isset($key)) {
     $safe_key = addslashes($key);
     
     $query_result =
-	DBQueryFatal("select urlstamp from tiplines ".
+	DBQueryFatal("select urlstamp, reuseurl from tiplines ".
 		     "where node_id='$node_id' and urlhash='$safe_key' and ".
 		     "      urlstamp!=0");
     
@@ -50,7 +50,8 @@ if (isset($key)) {
 	$row = mysql_fetch_array($query_result);
 	$stamp = $row['urlstamp'];
 	if ($stamp <= time()) {
-	    DBQueryFatal("update tiplines set urlhash=NULL,urlstamp=0 ".
+	    DBQueryFatal("update tiplines set urlhash=NULL,urlstamp=0,".
+			 "reuseurl=0 ".
 	    		 "where node_id='$node_id'");
 	    USERERROR("Key is no longer valid", 1);
 	}
@@ -58,6 +59,10 @@ if (isset($key)) {
     $uid     = "nobody";
     $isadmin = 0;
     $optarg  = "-k " . escapeshellarg($key);
+    $reuse = $row['reuseurl'];
+    if ($reuse == 1) {
+      $optarg .= " -r";
+    }
 }
 else {
     #

@@ -3876,9 +3876,9 @@ sub SendApod($$)
 # The hash can only be used once and is valid for a short time
 # (say, 30 seconds). 
 #
-sub GenTipAclUrl($;$)
+sub GenTipAclUrl($;$$)
 {
-    my ($self,$expstamp) = @_;
+    my ($self,$expstamp,$reuseurl) = @_;
     my $node_id = $self->node_id();
     my $hash = TBGenSecretKey();
     if (!defined($hash)) {
@@ -3895,8 +3895,15 @@ sub GenTipAclUrl($;$)
 	return undef;
     }
 
+    if (!defined($reuseurl)) {
+	$reuseurl = 0;
+    } elsif ($reuseurl != 0 && $reuseurl != 1) {
+	print STDERR "Invalid value for 'reuseurl': $reuseurl\n";
+	return undef;
+    }
+
     DBQueryWarn("update tiplines set urlhash='$hash', ".
-		"  urlstamp=$expstamp ".
+		"  urlstamp=$expstamp, reuseurl=$reuseurl ".
 		"where node_id='$node_id'")
 	or return undef;
 
@@ -3922,7 +3929,7 @@ sub ClrTipAclUrl($)
     my ($self) = @_;
     my $node_id = $self->node_id();
     
-    DBQueryWarn("update tiplines set urlhash=NULL,urlstamp=0 ".
+    DBQueryWarn("update tiplines set urlhash=NULL,urlstamp=0,reuseurl=0 ".
 		"where node_id='$node_id'")
 	or return -1;
 
