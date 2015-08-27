@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2013 University of Utah and the Flux Group.
+# Copyright (c) 2009-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -124,22 +124,24 @@ $xminfo{"disksizes"} = "";
 #
 # Copy the kernel (and ramdisk) into the directory and change xminfo.
 #
-if (! -e $xminfo{"kernel"}) {
-    Fatal($xminfo{"kernel"} . " does not exist");
-}
-my $kernel = "$EXTRAFS/$role/" . basename($xminfo{"kernel"});
-system("cp " . $xminfo{"kernel"} . " $kernel") == 0
-    or Fatal("Could not copy kernel to $kernel");
-$xminfo{"kernel"} = basename($xminfo{"kernel"});
-
-if (exists($xminfo{"ramdisk"})) {
-    if (! -e $xminfo{"ramdisk"}) {
-	Fatal($xminfo{"ramdisk"} . " does not exist");
+if (exists($xminfo{"kernel"})) {
+    if (! -e $xminfo{"kernel"}) {
+	Fatal($xminfo{"kernel"} . " does not exist");
     }
-    my $ramdisk = "$EXTRAFS/$role/" . basename($xminfo{"ramdisk"});
-    system("cp " . $xminfo{"ramdisk"} . " $ramdisk") == 0
-	or Fatal("Could not copy ramdisk to $ramdisk");
-    $xminfo{"ramdisk"} = basename($xminfo{"ramdisk"});
+    my $kernel = "$EXTRAFS/$role/" . basename($xminfo{"kernel"});
+    system("cp " . $xminfo{"kernel"} . " $kernel") == 0
+	or Fatal("Could not copy kernel to $kernel");
+    $xminfo{"kernel"} = basename($xminfo{"kernel"});
+
+    if (exists($xminfo{"ramdisk"})) {
+	if (! -e $xminfo{"ramdisk"}) {
+	    Fatal($xminfo{"ramdisk"} . " does not exist");
+	}
+	my $ramdisk = "$EXTRAFS/$role/" . basename($xminfo{"ramdisk"});
+	system("cp " . $xminfo{"ramdisk"} . " $ramdisk") == 0
+	    or Fatal("Could not copy ramdisk to $ramdisk");
+	$xminfo{"ramdisk"} = basename($xminfo{"ramdisk"});
+    }
 }
 
 #
