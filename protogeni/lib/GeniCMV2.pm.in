@@ -3010,13 +3010,12 @@ sub TriggerImageUpdate($)
 				"Internal error getting most current image")
 	if (!defined($currentimage));
 
-    # Better be the same, or something is out of whack.
-    if ($localimage->version() != $currentimage->version()) {
-	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				    "Image version mismatch");
-    }
+    #
+    # The snapshot might not be of the most recent version of the image,
+    # but at the moment we are not worry about the parent/child relationships,
+    # as we do for provenance. Need to at some point cause of deltas
+    #
     my $imageid = $localimage->imageid();
-    my $version = $localimage->version();
 
     #
     # Are we still in an update? If so, return an error to the caller.
@@ -3625,7 +3624,10 @@ sub CreateDataset($)
     # Only real local users can do blockstores, or the credential
     # must include the correct priv.
     #
-    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	if (! ((defined($user) && $user->IsLocal()) ||
 	       $credential->HasActualPrivilege("blockstores")));
