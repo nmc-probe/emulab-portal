@@ -61,9 +61,6 @@ my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $QUICKVM     = "$TB/sbin/protogeni/quickvm";
 
-# Debugging
-my $usemydevtree = 0;
-
 #
 # Untaint the path
 #
@@ -254,27 +251,6 @@ sub DoSnapshot()
 	fatal("Could not lookup project for profile");
     }
     
-    if (defined($node_id)) {
-	if (!defined($imagename)) {
-	    $imagename = $profile->name() . "." . $node_id;
-	}
-    }
-    else {
-	if (!defined($imagename)) {
-	    $imagename = $profile->name();
-	}
-    }
-    #
-    # Make sure a valid imagename. This a local test of course, but this
-    # only works on IG aggregates anyway.
-    #
-    if (! TBcheck_dbslot($imagename, "images",
-			 "imagename", TBDB_CHECKDBSLOT_ERROR)) {
-	$imagename = $profile->profileid();
-	$imagename .= "." . $node_id
-	    if (defined($node_id));
-    }
-
     #
     # Sanity checks. 
     #
@@ -300,28 +276,14 @@ sub DoSnapshot()
 	$sliver_urn = GeniXML::GetSliverId($node);
 	$node_id    = GeniXML::GetVirtualId($node);
 	$aggregate  = $agg;
-	#
-	# Instruct the remote cluster to copy the image back to its origin,
-	# but we need to ask the IMS for uuid of the image that is running,
-	# so we can tell the cluster, which then tells the origin cluster.
-	#
-	if (GetSiteVar("protogeni/use_imagetracker") &&	
-	    EmulabFeatures->FeatureEnabled("APT_UseImageTracker",
-					   $this_user, $project)) {
-	    #
-	    # If there is no diskinfo or if it references a system image,
-	    # then we have to wait until the snapshot is done to find out
-	    # what the image was called, via the return from CreateImage().
-	    #
-	    $usetracker = 1;
-
-	    if (DoImageTrackerStuff($agg, $node, $project,
-				    \$copyback_uuid, \$copyback_urn)) {
-		fatal("Image tracking error");
-	    }
+	# Profile Snapshot, always use the profile name. Clone passes in name.
+	if (!defined($imagename)) {
+	    $imagename = $profile->name();
 	}
     }
     else {
+	my $nodecount = 0;
+	
 	# Find the node in its manifest.
 	foreach my $agg (@aggs) {
 	    my $manifest = GeniXML::Parse($agg->manifest());
@@ -330,6 +292,8 @@ sub DoSnapshot()
 	    }
 	    foreach my $ref (GeniXML::FindNodes("n:node",
 						$manifest)->get_nodelist()) {
+		$nodecount++;
+		
 		my $client_id   = GeniXML::GetVirtualId($ref);
 		my $manager_urn = GetManagerId($ref);
 		my $urn          = GeniXML::GetSliverId($ref);
@@ -351,6 +315,52 @@ sub DoSnapshot()
 	if (!defined($sliver_urn)) {
 	    fatal("Could not find node '$node_id' in manifest");
 	}
+	#
+	# So, we want Profile snapshot above (of a single node profile) and
+	# Node snapshot in a single node profile to behave the same wrt the
+	# image name, so look at the nodecount to see if need to append the
+	# nodeid to the imagename. 
+	#
+	if (!defined($imagename)) {
+	    $imagename = $profile->name();
+	    if ($nodecount > 1) {
+		$imagename .= "." . $node_id;
+	    }
+	}
+    }
+    #
+    # Make sure a valid imagename. This a local test of course, but this
+    # only works on IG aggregates anyway.
+    #
+    if (! TBcheck_dbslot($imagename, "images",
+			 "imagename", TBDB_CHECKDBSLOT_ERROR)) {
+	$imagename = $profile->profileid();
+	$imagename .= "." . $node_id
+	    if (defined($node_id));
+    }
+    
+    #
+    # Instruct the remote cluster to copy the image back to its origin,
+    # but we need to ask the IMS for uuid of the image that is running,
+    # so we can tell the cluster, which then tells the origin cluster.
+    #
+    if (GetSiteVar("protogeni/use_imagetracker") &&	
+	EmulabFeatures->FeatureEnabled("APT_UseImageTracker",
+					   $this_user, $project)) {
+	#
+	# If there is no diskinfo or if it references a system image,
+	# then we have to wait until the snapshot is done to find out
+	# what the image was called, via the return from CreateImage().
+	#
+	$usetracker = 1;
+
+	if (DoImageTrackerStuff($aggregate, $node, $project,
+				\$copyback_uuid, \$copyback_urn)) {
+	    fatal("Image tracking error");
+	}
+    }
+    if (0) {
+	fatal("$copyback_uuid, $copyback_urn\n");
     }
 
     #
@@ -363,7 +373,7 @@ sub DoSnapshot()
 	if (defined($diskref)) {
 	    my $authority = $aggregate->GetGeniAuthority();
 	    my $image_url = GeniXML::GetText("url", $diskref);
-	    if (defined($image_url)) {
+	    if (defined($image_url) && !$usetracker) {
 		require URI;
 
 		# Get the hostname for the image URL.
@@ -616,7 +626,7 @@ sub DoSnapshot()
 	$instance->SetStatus("imaging-failed");
     }
     print STDERR "$errmsg\n";
-    if (defined($errmsg)) {
+    if (defined($errmsg) && defined($webtask)) {
 	$webtask->Exited($errcode);
 	$webtask->output($errmsg);
     }
@@ -650,22 +660,19 @@ sub DoImageTrackerStuff($$$$$)
     #
     # This one needs more thought, it might be a URL.
     #
-    my $image_urn = GeniXML::GetText("name", $diskinfo);
-    return 0
-	if (!defined($diskinfo));
-    
-    if (!GeniHRN::IsValid($image_urn)) {
-	print STDERR "Invalid disk image URN for $node_id\n";
-	return -1;
+    my $image_token = GeniXML::GetText("name", $diskinfo);
+    if (!defined($image_token)) {
+	$image_token = GeniXML::GetText("url", $diskinfo);
+	return 0
+	    if (!defined($image_token));
     }
-			
     Genixmlrpc->SetContext(APT_Geni::GeniContext());
-    my $blob = GeniImage::GetImageData($image_urn, \$errmsg);
+    my $blob = GeniImage::GetImageData($image_token, \$errmsg);
     Genixmlrpc->SetContext(undef);
     
     if (!defined($blob)) {
 	print STDERR "Could not get info from the IMS for ".
-	    "$image_urn:\n" . $errmsg . "\n";
+	    "$image_token:\n" . $errmsg . "\n";
 	return -1;
     }
     #
@@ -675,6 +682,7 @@ sub DoImageTrackerStuff($$$$$)
     return 0
 	if ($blob->{'issystem'});
 
+    my $image_urn     = $blob->{'urn'};
     my $copyback_uuid = $blob->{'version_uuid'};
     my $copyback_urn  = $image_urn;
 
@@ -704,14 +712,17 @@ sub DoImageTrackerStuff($$$$$)
     #
     # If we are going to update the profile, we need to know what to
     # change the image urn to, and that depends on what version the
-    # image is currently at (if the image is being versioned).
+    # image is currently at, AT THE ORIGIN CLUSTER. The urn we get back
+    # from the snapshotting cluster is not what we care about, we need
+    # a urn for the origin cluster. But that depends on what version the
+    # origin cluster is at (the highest numbered version). But if we are
+    # doing a snapshot of an earlier version, we cannot generate the
+    # versio here, we have to ask what it will be. 
     #
     if ($blob->{'isversioned'}) {
-	if (defined($vers)) {
-	    $vers++;
-	    $copyback_urn = GeniHRN::GenerateImage($hrn->authority(),
-						   $ospid, $os, $vers);
-	}
+	$copyback_urn = GeniHRN::GenerateImage($hrn->authority(),
+					       $ospid, $os,
+					       $blob->{'maxversion'} + 1);
     }
     $$puuid = $copyback_uuid;
     $$purn  = $copyback_urn;
