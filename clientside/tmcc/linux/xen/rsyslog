@@ -3,8 +3,8 @@
 /var/log/emulab.log
 {
 	rotate 7
-	maxsize 10M
 	daily
+	size 50M
 	missingok
 	notifempty
 	delaycompress
@@ -27,7 +27,6 @@
 /var/log/messages
 {
 	rotate 4
-	maxsize 10M
 	weekly
 	missingok
 	notifempty
