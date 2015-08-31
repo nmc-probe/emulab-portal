@@ -33,12 +33,14 @@ sub usage {
     print "          Add -c to ssh to control instead\n";
     print "-s      - No parallelization in -r, -f, or -b.\n";
     print "-t      - Tag source with instageni-YYYYMMDD\n";
+    print "-S dir  - Directory where src directories are stored\n";
     print "rack    - Specific rack, or all racks\n";
     exit(1);
 }
-my $optlist    = "binuUdDhfForlc78tsp:aAR:CL";
+my $optlist    = "binuUdDhfForlc78tsp:aAR:CLS:I:";
 my $rebuild    = 0;
 my $install    = 0;
+my $installdir;
 my $rsync      = 0;
 my $rsyncdir;
 my $dofunc     = 0;
@@ -55,7 +57,7 @@ my $UTAHBOSS      = "boss.utah.geniracks.net";
 my $UTAHCTRL      = "control.utah.geniracks.net";
 my $DDCBOSS       = "boss.utahddc.geniracks.net";
 my $DDCCTRL       = "control.utahddc.geniracks.net";
-my $STITCHBOSS    = "boss.utahddc.geniracks.net";
+my $STITCHBOSS    = "boss.stitch.geniracks.net";
 my $APTBOSS       = "boss.apt.emulab.net";
 my $APTCTRL       = "";
 my $UTAHCLOUDBOSS = "boss.utah.cloudlab.us";
@@ -73,8 +75,11 @@ my %CLOUDCLUSTERS = ("apt"     => [ $APTBOSS, $APTCTRL ],
 my %UTAHCLUSTERS =  ("utahig"  => [ $UTAHBOSS, $UTAHCTRL ],
 		     "utahddc" => [ $DDCBOSS, $DDCCTRL ],
 		     "stitch"  => [ $STITCHBOSS, $DDCCTRL ],
+		     "cisco"   => [ "cisco.boss.geniracks.net",
+				    "cisco.control-nodes.geniracks.net" ],
 );
-my %G7RACKS  = ("bbn"       => [ "boss.instageni.gpolab.bbn.com",
+my %G7RACKS  = (
+		"bbn"       => [ "boss.instageni.gpolab.bbn.com",
 				 "gpolab.control-nodes.geniracks.net" ],
 		"nwu"       => [ "boss.instageni.northwestern.edu",
 				 "nu.control-nodes.geniracks.net" ],
@@ -88,6 +93,7 @@ my %G7RACKS  = ("bbn"       => [ "boss.instageni.gpolab.bbn.com",
 				 "princeton.control-nodes.geniracks.net" ],
 		"clemson"   => [ "boss.instageni.clemson.edu",
 				 "clemson.control-nodes.geniracks.net" ],
+# Off the air.
 #		"kansas"    => [ "boss.instageni.ku.gpeni.net",
 #				 "kansas.control-nodes.geniracks.net" ],
 		"nyu"       => [ "boss.genirack.nyu.edu",
@@ -128,18 +134,19 @@ my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
 				 "nps.control-nodes.geniracks.net" ],
 	       "ohio"       => [ "boss.instageni.osu.edu",
 				 "ohio.control-nodes.geniracks.net" ],
-	       "umkc"       => [ "boss.instageni.umkc.edu",
-				 "umkc.control-nodes.geniracks.net" ],
+#	       Broken fan.
+#	       "umkc"       => [ "boss.instageni.umkc.edu",
+#				 "umkc.control-nodes.geniracks.net" ],
 	       "ucla"	    => [ "boss.instageni.idre.ucla.edu",
 				 "ucla.control-nodes.geniracks.net" ],
 	       "uky2"       => [ "boss.pks2.sdn.uky.edu",
 				 "uky2.control-nodes.geniracks.net" ],
+	       "uky3"       => [ "boss.mcv.sdn.uky.edu",
+				 "uky3.control-nodes.geniracks.net" ],
 	       "boulder"    => [ "boss.instageni.colorado.edu",
 				 "boulder.control-nodes.geniracks.net" ],
 	       "cenic"      => [ "boss.instageni.cenic.net",
 				 "cenic.control-nodes.geniracks.net" ],
-#	       "cisco"      => [ "boss.cisco.geniracks.net",
-#				 "cisco.control-nodes.geniracks.net" ],
 	       "uw"         => [ "boss.instageni.washington.edu",
 				 "uw.control-nodes.geniracks.net" ],
 	       "utc"        => [ "boss.instageni.utc.edu",
@@ -185,16 +192,26 @@ my @ALLCLOUD = map { $CLOUDCLUSTERS{$_}[$which] } keys(%CLOUDCLUSTERS);
 my @ALLRACKS = (@G7RACKS, @G8RACKS);
 my @TODO     = ($UTAHRACK, $DDCRACK, @ALLRACKS);
 my %SKIP     = ();
-my $HOME     = "/home/stoller";
+
+# Default.
+my $HOME     = $ENV{"HOME"};
+my $TBSRC    = "$HOME/testbed-noelvin";
 
 if (defined($options{"i"})) {
     $install = 1;
+}
+if (defined($options{"I"})) {
+    $install    = 1;
+    $installdir = $options{"I"};
 }
 if (defined($options{"c"})) {
     $doctrl = 1;
 }
 if (defined($options{"s"})) {
     $nopar = 1;
+}
+if (defined($options{"S"})) {
+    $TBSRC = $options{"S"};
 }
 if (defined($options{"f"})) {
     $dofunc = 1;
@@ -290,6 +307,14 @@ else {
     }
 }
 
+if (! -e $TBSRC) {
+    fatal("$TBSRC does not appear to exist. Use the -S option?");
+}
+foreach my $file ("emulab-devel", "pubsub", "shellinabox", ".rsyncignore") {
+    fatal("$file does not exist in $TBSRC")
+	if (! -e "$TBSRC/$file");
+}
+
 if (defined($options{"t"})) {
     TagSchema();
 }
@@ -327,6 +352,50 @@ if ($dofunc && !$install) {
 		(defined($limit) ? "-l $limit" : "");
 	}
 	elsif (0) {
+	    if (0) {
+		$command = "sudo mkadmin.pl codybum foo/cody.pub";
+	    }
+	    elsif (0) {
+		$command = "/usr/testbed/sbin/wap /usr/testbed/sbin/newuser ".
+		    "-s $devel/stuff/rhyat1.xml";
+	    }
+	    elsif (1) {
+		$command = "cat $devel/stuff/uky.sql | mysql tbdb ";
+
+	    }
+	    elsif (0) {
+		$command = "/usr/testbed/sbin/wap /usr/testbed/sbin/tbacct ".
+		    "-f add codybum; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/tbacct ".
+		    "-f add rhyat1; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/tbacct ".
+		    "-f add nasir";
+	    }
+	    else {
+		$command =
+		    "cat $devel/stuff/uky.sql | mysql tbdb; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/modgroups ".
+		    "-s -a emulab-ops:emulab-ops:group_root nasir; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/modgroups ".
+		    "-s -a emulab-ops:emulab-ops:group_root codybum; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/modgroups ".
+		    "-s -a emulab-ops:emulab-ops:group_root rhyat1; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/tbacct ".
+		    "-f mod codybum; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/tbacct ".
+		    "-f mod rhyat1; ".
+		    "/usr/testbed/sbin/wap /usr/testbed/sbin/tbacct ".
+		    "-f mod nasir ";
+	    }
+	}
+	elsif (0) {
+	    $command = "sudo /usr/local/etc/rc.d/tftpd-hpa.sh stop; sleep 2; ".
+		"sudo /usr/local/etc/rc.d/tftpd-hpa.sh start";
+	}
+	elsif (0) {
+	    $command = "sudo /usr/testbed/sbin/backup -c -y";
+	}
+	elsif (0) {
 	    $command = "cd $devobj/firewall; gmake insertrules insertvars";
 	}
 	elsif (0) {
@@ -349,11 +418,6 @@ if ($dofunc && !$install) {
 	}
 	elsif (0) {
 	    $command = "cd /tmp; wget http://www.emulab.net/downloads/ops-monitoring.tar.gz && cd /usr/local && sudo tar xf /tmp/ops-monitoring.tar.gz; mysqladmin create monitoring; cd /usr/local/ops-monitoring/local/unit-tests && python ./local_table_reset.py; sudo /usr/testbed/sbin/protogeni/mondbd";
-	}
-	elsif (0) {
-	    system("mkdir -p /home/stoller/genirack/racks/certs/$rack");
-	    system("scp elabman\@${rack}:/usr/testbed/etc/{emulab.pem,openvpn-client.pem} /home/stoller/genirack/racks/certs/$rack");
-	    $command = "ls /dev/null";
 	}
 	elsif (0) {
 	    $command = "scp -p /usr/testbed/etc/openvpn-server.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/openvpn-dh.pem elabman\@control:openvpn; scp -p /usr/testbed/etc/emulab.pem elabman\@control:openvpn; scp -p $devel/openvpn/openvpn.conf elabman\@control:openvpn";
@@ -392,8 +456,8 @@ if ($dofunc && !$install) {
 		"sudo gmake install-head; /usr/testbed/sbin/named_setup";
 	}
 	elsif (0) {
-	    $command = "cd emulab-devel/obj/apache; sudo gmake install; ".
-		"sudo /usr/local/etc/rc.d/apache22 restart ";
+	    $command = "cd emulab-devel/obj/protogeni/lib; ".
+		"gmake; sudo gmake install";
 	}
 	elsif (0) {
 	    $command = "cd emulab-devel/obj/node_usage; sudo gmake install";
@@ -414,9 +478,13 @@ if ($dofunc && !$install) {
 	elsif (0) {
 	    $command = "sudo /usr/testbed/sbin/protogeni/getcacerts ";
 	}
-	elsif (0) {
+	elsif (1) {
 	    $command = "/usr/testbed/sbin/wap ".
-	      "/usr/testbed/sbin/grantimage -a -x emulab-ops,CENTOS63-64-STD";
+	      "/usr/testbed/sbin/delete_image -p -F emulab-ops,CENTOS63-64-STD";
+	}
+	elsif (1) {
+	    $command = "/usr/testbed/sbin/wap ".
+	      "/usr/testbed/sbin/grantimage -a -x emulab-ops,CENTOS66-64-STD";
 	}
 	elsif (0) {
 	    $command = "/usr/testbed/sbin/wap ".
@@ -428,7 +496,7 @@ if ($dofunc && !$install) {
 	      "cat $devel/stuff/fee.sql | mysql tbdb";
 	}
 	elsif (0) {
-	    $command = "cat $devel/stuff/fee.sql | mysql tbdb; ";
+	    $command = "cat $devel/stuff/i.sql | mysql tbdb; ";
 	}
 	elsif (0) {
 	    $command = "/usr/testbed/sbin/wap /usr/testbed/bin/editnodetype ".
@@ -446,7 +514,7 @@ if ($dofunc && !$install) {
 		"cat emulab-devel/emulab-devel/stuff/novz.sql | ".
 		"   mysql tbdb";
 	}
-	elsif (1) {
+	elsif (0) {
 	    $command = 
 		"/usr/testbed/sbin/withadminprivs /usr/testbed/sbin/image_import -g ".
 		"  'https://www.apt.emulab.net/image_metadata.php\\\\\?uuid=61e7048a-fb33-11e4-8b63-2f7555356a5c'; ".
@@ -534,8 +602,8 @@ if ($rsync) {
 	    if ($doctrl) {
 		print "-> rsyncing $rsyncdir\n";
 		system("rsync -a --timeout=60 --delete ".
-		       "--exclude-from $HOME/.rsyncignore ".
-		       "     $HOME/testbed-noelvin/$rsyncdir ".
+		       "--exclude-from $TBSRC/.rsyncignore ".
+		       "     $TBSRC/$rsyncdir ".
 		       "  elabman\@${rack}:$dir");
 		if ($?) {
 		    print STDERR "** $rack: ".
@@ -546,8 +614,8 @@ if ($rsync) {
 	    else {
 		print "-> rsyncing emulab-devel/$rsyncdir\n";
 		system("rsync -a --timeout=60 --delete ".
-		       "--exclude-from $HOME/.rsyncignore ".
-		       "     $HOME/testbed-noelvin/emulab-devel/$rsyncdir ".
+		       "--exclude-from $TBSRC/.rsyncignore ".
+		       "     $TBSRC/emulab-devel/$rsyncdir ".
 		       "  elabman\@${rack}:emulab-devel/emulab-devel/$dir");
 		if ($?) {
 		    print STDERR "** $rack: ".
@@ -578,9 +646,9 @@ if ($rsync) {
 	}
 	print "-> rsyncing emulab-devel\n";
 	system("rsync -a --timeout=60 --delete ".
-	       "--exclude-from $HOME/.rsyncignore ".
-	       "     $HOME/testbed-noelvin/emulab-devel ".
-	       "     $HOME/testbed-noelvin/reconfig.rack ".
+	       "--exclude-from $TBSRC/.rsyncignore ".
+	       "     $TBSRC/emulab-devel ".
+	       "     $TBSRC/reconfig.rack ".
 	       "  elabman\@${rack}:emulab-devel");
 	if ($?) {
 	    print STDERR "** $rack: error rsyncing emulab-devel\n";
@@ -588,16 +656,16 @@ if ($rsync) {
 	}
 	print "-> rsyncing pubsub\n";
 	system("rsync -a --timeout=60 --delete ".
-	       "--exclude-from $HOME/.rsyncignore ".
-	       "     $HOME/testbed-noelvin/pubsub elabman\@${rack}:");
+	       "--exclude-from $TBSRC/.rsyncignore ".
+	       "     $TBSRC/pubsub elabman\@${rack}:");
 	if ($?) {
 	    print STDERR "** $rack: error rsyncing pubsub\n";
 	    return 1;
 	}
 	print "-> rsyncing shellinabox\n";
 	system("rsync -a --timeout=60 --delete ".
-	       "--exclude-from $HOME/.rsyncignore ".
-	       "     $HOME/testbed-noelvin/shellinabox elabman\@${rack}:");
+	       "--exclude-from $TBSRC/.rsyncignore ".
+	       "     $TBSRC/shellinabox elabman\@${rack}:");
 	if ($?) {
 	    print STDERR "** $rack: error rsyncing shellinabox\n";
 	    return 1;
@@ -708,6 +776,15 @@ if ($install) {
 	    next;
 	}
 	print "installing on $rack ...\n";
+
+	if (defined($installdir)) {
+	    if (SSH($rack, "cd emulab-devel/obj/$installdir; ".
+		    "         sudo gmake install")) {
+		print STDERR "** could not install on boss!\n";
+		$SKIP{$rack} = "could not install on boss";
+		next;
+	    }
+	}
 
 	print "-> Shutting down testbed ...\n";
 	if (SSH($rack,

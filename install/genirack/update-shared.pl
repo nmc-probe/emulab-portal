@@ -176,13 +176,13 @@ sub UpdateClientSide($)
 #
 # Update the client side,
 #
-sub UpdateSpecial($)
+sub UpdateXenInstall($)
 {
     my ($node) = @_;
     
     system("sudo ssh $opts $node ".
-	   " 'cp -fp $eltb/emulab-devel/clientside/tmcc/common/mkvnode.pl ".
-	   "    /usr/local/etc/emulab'");
+	   " 'cd $eltb/$objdir/tmcc/linux; ".
+	   "    make ${type}-install >& /tmp/install-${type}.log' ");
     return -1
 	if ($?);
 }
@@ -335,6 +335,42 @@ sub FixMounts($)
     return -1
 	if ($?);
     system("sudo ssh $opts $node /usr/local/etc/emulab/rc/rc.mounts boot");
+    return -1
+	if ($?);
+
+    return 0;
+}
+
+sub ClearLogs($)
+{
+    my ($node) = @_;
+    
+    system("sudo ssh $opts $node rm -f /var/log/syslog /var/log/emulab.log");
+    return -1
+	if ($?);
+    system("sudo ssh $opts $node 'kill -HUP `cat /var/run/rsyslogd.pid`'");
+    return -1
+	if ($?);
+
+    return 0;
+}
+
+sub FixDHCP($)
+{
+    my ($node) = @_;
+    
+    system("sudo ssh $opts $node ls -l /etc/dhcp/dhcpd.conf");
+    return -1
+	if ($?);
+
+    return 0;
+}
+
+sub HaltAllVMs($)
+{
+    my ($node) = @_;
+    
+    system("sudo ssh $opts $node xl shutdown -a -w");
     return -1
 	if ($?);
 
