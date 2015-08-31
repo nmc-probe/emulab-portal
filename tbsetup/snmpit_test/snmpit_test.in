@@ -1449,6 +1449,10 @@ $vlan_id,$ddep, $pideid,           $vname,   $members
 	    $vlan = VLan->Lookup($vlan_id);
 	}
 	else {
+	    #
+	    # Watch for oddly named vlans on switches we do not fully
+	    # control (say, scidmz in Utah).
+	    #
 	    $vlan = VLan->Lookup($experiment, $vlan_id);
 	}
         if (!defined($vlan)) {
