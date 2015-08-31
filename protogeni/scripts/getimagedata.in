@@ -101,9 +101,6 @@ if (defined($options{"d"})) {
 usage()
     if (!@ARGV);
 
-fatal("Not a valid URN")
-    if (!GeniHRN::IsValid($ARGV[0]));
-
 # Connect to the proper DB.
 DBConnect(GENICM_DBNAME());
 

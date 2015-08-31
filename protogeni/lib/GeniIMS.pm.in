@@ -78,7 +78,7 @@ my $SERVERVERSION = 1;
 # Yuck, until we have image testing in place, we have to hardwire the
 # x86 types.
 #
-my $X86TYPES = ("C240M4","C220M4","pcvm","r320","c6220","dl360","r720",
+my @X86TYPES = ("C240M4","C220M4","pcvm","r320","c6220","dl360","r720",
 		"c8220","c8220x","d2100","d710","d820","pc3000");
 
 # We are using a different DB.
@@ -407,7 +407,7 @@ sub NewImage($)
 	}
     }
     my %types_known_working = ();
-    foreach my $type (split(",", $blob->{'types_known_working'}), $X86TYPES) {
+    foreach my $type (split(",", $blob->{'types_known_working'}), @X86TYPES) {
 	$types_known_working{$type} = $type;
     }
     
@@ -452,17 +452,19 @@ sub NewImage($)
 sub GetImageInfo($)
 {
     my ($argref) = @_;
-    my $cred  = $argref->{'credential'};
-    my $urn   = $argref->{'urn'};
-    
+    my $cred   = $argref->{'credential'};
+    my $urn    = $argref->{'urn'};
+    my $url    = $argref->{'url'};
+    my $query_result;
+
     if (! defined($cred)) {
 	return GeniResponse->MalformedArgsResponse("Where's the credential?");
     }
-    if (! defined($urn)) {
-	return GeniResponse->MalformedArgsResponse("Where's the urn?");
+    if (! (defined($urn) || defined($url))) {
+	return GeniResponse->MalformedArgsResponse("Where's the urn/url?");
     }
     return GeniResponse->MalformedArgsResponse("Malformed URN")
-	if (!GeniHRN::IsValid($urn));
+	if (defined($urn) && !GeniHRN::IsValid($urn));
 
     my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
     if (!defined($authority)) {
@@ -477,38 +479,48 @@ sub GetImageInfo($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "Insufficient permission to getimageinfo");
 
-    my $hrn = GeniHRN->new($urn);
-    return GeniResponse->MalformedArgsResponse("Could not parse URN")
-	if (!defined($urn));
-    
-    return GeniResponse->MalformedArgsResponse("Not an image URN")
-	if ($hrn->type() ne "image");
-
-    # The id might be version specific.
-    my ($pid,$imagename,$version) = split("\/\/", $hrn->id());
-    print STDERR Dumper($hrn);
-
-    if (defined($version)) {
-	if ($version !~ /^\d+$/) {
-	    return GeniResponse->MalformedArgsResponse("Bad version number")
-	}
-	# Kill the version number from the url.
-	$urn =~ s/:\d+$//;
-    }
-    my $safe_urn = DBQuoteSpecial($urn);
-
     # IMS database handle.
     InitDBHandle();
 
-    my $query_result = 
-	$DB->QueryWarn("select i.*,v.* from image_versions as v ".
-		       "left join images as i on ".
-		       "     i.image_uuid=v.image_uuid ".
-		       "where v.urn=$safe_urn ".
-		       (defined($version) ?
-			"and v.version='$version' " :
-			"order by v.version desc limit 1"));
+    if (defined($urn)) {
+	my $hrn = GeniHRN->new($urn);
+	return GeniResponse->MalformedArgsResponse("Could not parse URN")
+	    if (!defined($urn));
+    
+	return GeniResponse->MalformedArgsResponse("Not an image URN")
+	    if ($hrn->type() ne "image");
 
+	# The id might be version specific.
+	my ($pid,$imagename,$version) = split("\/\/", $hrn->id());
+	print STDERR Dumper($hrn);
+
+	if (defined($version)) {
+	    if ($version !~ /^\d+$/) {
+		return GeniResponse->MalformedArgsResponse("Bad version number")
+	    }
+	    # Kill the version number from the url.
+	    $urn =~ s/:\d+$//;
+	}
+	my $safe_urn = DBQuoteSpecial($urn);
+
+	$query_result = 
+	    $DB->QueryWarn("select i.*,v.* from image_versions as v ".
+			   "left join images as i on ".
+			   "     i.image_uuid=v.image_uuid ".
+			   "where v.urn=$safe_urn ".
+			   (defined($version) ?
+			    "and v.version='$version' " :
+			    "order by v.version desc limit 1"));
+    }
+    else {
+	my $safe_url = DBQuoteSpecial($url);
+
+	$query_result = 
+	    $DB->QueryWarn("select i.*,v.* from image_versions as v ".
+			   "left join images as i on ".
+			   "     i.image_uuid=v.image_uuid ".
+			   "where v.metadata_url=$safe_url");
+    }
     return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)    
 	if (!defined($query_result) ||
 	    !$query_result->numrows());
@@ -520,6 +532,7 @@ sub GetImageInfo($)
     my $row = $query_result->fetchrow_hashref();
 
     my $blob = {"server_version" => $SERVERVERSION,
+		"urn"            => $row->{'urn'},
 		"imagename"      => $row->{'imagename'},
 		"version"        => $row->{'version'},
 		"version_uuid"   => $row->{'version_uuid'},
@@ -531,6 +544,27 @@ sub GetImageInfo($)
 		"project_urn"    => $row->{'project_urn'},
     };
 
+    #
+    # This is for the portal; for a versioned image, lets find the highest
+    # numbered version for the caller so it can formulate a next version
+    # URN. This is an odd way to do this, but the Portal has to know what
+    # to call the new image so it can edit the profile.
+    #
+    if ($row->{'isversioned'}) {
+	my $safe_urn = DBQuoteSpecial($row->{'urn'});
+	
+	$query_result = 
+	    $DB->QueryWarn("select v.version from image_versions as v ".
+			   "where v.urn=$safe_urn ".
+			   "order by v.version desc limit 1");
+	if (!defined($query_result) ||
+	    !$query_result->numrows()) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Could not look up highest version");
+	}
+	my $row = $query_result->fetchrow_hashref();
+	$blob->{'maxversion'} = $row->{"version"};
+    }
     print STDERR Dumper($blob);
 
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);

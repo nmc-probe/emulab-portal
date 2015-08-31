@@ -104,7 +104,7 @@ sub GetServerCredential()
 #
 sub GetImageData($;$)
 {
-    my ($urn, $pmsg) = @_;
+    my ($token, $pmsg) = @_;
     my $errormsg;
 
     my $credential = GetServerCredential();
@@ -112,11 +112,12 @@ sub GetImageData($;$)
 	$errormsg = "Could not get a credential to talk to the IMS";
 	goto bad;
     }
+    my $key = (GeniHRN::IsValid($token) ? "urn" : "url");
 
     my $response =
 	Genixmlrpc::CallMethod($IMSURL, undef, "GetImageInfo",
 			       {"credential" => $credential->asString(),
-				"urn"        => $urn});
+				$key         => $token});
     
     if (!defined($response) || $response->code()) {
 	my $msg = "GetImageInfo failed for urn:";
@@ -217,6 +218,7 @@ sub MapToLocalImage($$)
 	# Update this field.
 	#
 	$image->SetNoVersioning(!$blob->{'isversioned'});
+	return $image;
     }
     my $safe_url = GeniUtil::escapeshellarg($url);
 
@@ -233,7 +235,7 @@ sub MapToLocalImage($$)
 			    "Could not lookup image after import: $url");
     }
     #
-    # If the IMS says that the image not versioned at the origin cluster,
+    # If the IMS says that the image is not versioned at the origin cluster,
     # then we do not want to do that here either, when we import updated
     # versions of the image. Not that if the image is cloned to another
     # name/project such that the new image is now local, we of course want
