@@ -94,7 +94,7 @@ if (isset($min) || isset($max)) {
 
 $query_result =
     DBQueryFatal("select h.uuid,h.profile_version,h.created,h.destroyed, ".
-		 "    h.creator,p.uuid as profile_uuid,p.pid,u.email, ".
+		 "    h.creator,p.uuid as profile_uuid,h.pid,u.email, ".
                  "    h.physnode_count,h.virtnode_count,".
                  "    h.name as instance_name,p.name as profile_name, ".
                  "    truncate(h.physnode_count * ".
