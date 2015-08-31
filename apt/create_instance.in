@@ -63,7 +63,7 @@ my $usetracker = 0;
 my @aggregate_urns = ();
 
 # Debugging
-my $usemydevtree  = 0;
+my $usemydevtree  = 1;
 
 # Protos
 sub fatal($);
@@ -308,24 +308,6 @@ if (exists($xmlparse->{'attribute'}->{"rspec"})) {
 }
 else {
     $rspecstr  = $profile->CheckFirewall(!$localuser);
-}
-
-#
-# Sanity check sites
-#
-if (defined($sitemap)) {
-    foreach my $siteid (keys(%{ $sitemap })) {
-	my $manager_urn = $sitemap->{$siteid};
-
-	foreach my $oid (keys(%{ $sitemap })) {
-	    next if
-		($oid eq $siteid);
-
-	    if ($manager_urn eq $sitemap->{$oid}) {
-		UserError("You selected the same cluster for two sites.");
-	    }
-	}
-    }
 }
 
 #
