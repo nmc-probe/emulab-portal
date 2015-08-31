@@ -56,7 +56,9 @@ include $(TESTBED_SRCDIR)/GNUmakerules
 #
 pems:	emulab.pem server.pem client.pem
 
-emulab.pem:	dirsmade mkserial emulab.cnf emulab-geni.cnf emulab.key 
+prebuild: dirsmade emulab.cnf emulab-geni.cnf
+
+emulab.pem:	dirsmade emulab.cnf emulab-geni.cnf emulab.key 
 	#
 	# Create the Certificate Authority.
 	# The certificate is installed on both boss and remote nodes.

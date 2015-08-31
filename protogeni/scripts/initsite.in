@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -40,9 +40,10 @@ sub usage()
     print "Usage: initpgenisite\n";
     exit(1);
 }
-my $optlist = "";
+my $optlist = "n";
 my $asch    = @PROTOGENI_ISCLEARINGHOUSE@;
 my $cflag   = ($asch ? "-c" : "");
+my $noregister = 0;
 
 #
 # Configure variables
@@ -132,6 +133,9 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"n"})) {
+    $noregister = 1;
+}
 
 #
 # People seem to miss this.
@@ -148,7 +152,7 @@ if ($PGENIDOMAIN =~ /^unknown/i) {
 if (system($FIXROOTCERT)) {
     fatal("Could not fix root certificate");
 }
-else {
+elsif (!$noregister) {
     unlink( "$TB/etc/.protogeni_federated" );
 }
 
@@ -491,7 +495,7 @@ else {
     };
 }
 
-if (!$asch) {
+if (!$asch && !$noregister) {
     #
     # Register the certificates at the clearinghouse.
     #
