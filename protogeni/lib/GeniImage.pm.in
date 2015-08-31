@@ -70,7 +70,7 @@ my $IMPORTER       = "$TB/sbin/image_import";
 my $IMS_credential;
 
 # Debugging
-my $usemydevtree  = 1;
+my $usemydevtree  = 0;
 
 #
 # Get a credential to talk to the IMS.
