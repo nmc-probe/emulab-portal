@@ -23,11 +23,16 @@ sub Install($$$)
 		qq|nfs_server_flags="-u -t -n 16"|,
 		qq|syslogd_flags=""|);
 
+    # Do not hardwire the mountd port in elabinelab, no firewall issues.
+    my $mountd_port = "";
+    if (!$ELABINELAB) {
+	$mountd_port = "-p 900";
+    }
     # No more NFS races as of 9.2!
     if ($FBSD_MAJOR > 9 || ($FBSD_MAJOR == 9 && $FBSD_MINOR > 1)) {
-	push(@adds, qq|mountd_flags="-r -p 900 -S"|);
+	push(@adds, qq|mountd_flags="-r $mountd_port -S"|);
     } else {
-	push(@adds, qq|mountd_flags="-r -p 900"|);
+	push(@adds, qq|mountd_flags="-r $mountd_port"|);
     }
 
     if (ISFS($server)) {
