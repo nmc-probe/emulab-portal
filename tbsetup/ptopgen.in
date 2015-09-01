@@ -954,7 +954,10 @@ if ($virtstuff) {
 		      "and r.exptidx!=" . $experiment->idx() : ""));
 
     while (my ($pnode,$memory) = $result->fetchrow_array()) {
-	$node_ramusage{$pnode} = 0
+	#
+	# We need a fair amount of pad, even when dom0mem is set (below).
+	#
+	$node_ramusage{$pnode} = 1024
 	    if (!exists($node_ramusage{$pnode}));
 	
 	$node_ramusage{$pnode} += $memory;
@@ -973,7 +976,7 @@ if ($virtstuff) {
 			   "where na.attrkey is not null");
     while (my ($pnode,$ram) = $result->fetchrow_array) {
 	# Allow for padding, do not really want to go to zero.
-	$node_ramusage{$pnode} = 768
+	$node_ramusage{$pnode} = 1024
 	    if (!exists($node_ramusage{$pnode}));
 
 	# Ug, units.
