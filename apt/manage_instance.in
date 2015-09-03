@@ -190,6 +190,7 @@ sub DoSnapshot()
     my $old_status     = $instance->status();
     my $node_id;
     my $imagename;
+    my $cloneprofile;
     my $update_profile;
     my $copyback_uuid;
     my $copyback_urn;
@@ -197,7 +198,7 @@ sub DoSnapshot()
     my $doversions = 0;
     my $usetracker = 0;
 
-    my $optlist = "n:i:u:U";
+    my $optlist = "n:i:u:Uc:";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	usage();
@@ -208,6 +209,9 @@ sub DoSnapshot()
     if (defined($options{"i"})) {
 	$imagename = $options{"i"};
     }
+    if (defined($options{"c"})) {
+	$cloneprofile = $options{"c"};
+    }
     if (defined($options{"u"})) {
 	$update_profile = $options{"u"};
 	if ($update_profile !~ /^(node|all)$/) {
@@ -217,7 +221,12 @@ sub DoSnapshot()
     if (defined($options{"U"})) {
 	$update_prepare = 1;
     }
-    
+    if (defined($cloneprofile) && defined($update_profile)) {
+	fatal("Not allowed to update profile when cloning a profile");
+    }
+    if (defined($cloneprofile) && !defined($imagename)) {
+	fatal("Must supply image name when cloning a profile");
+    }
     if ($old_status ne "ready") {
 	fatal("Instance must be in the ready state to take a snapshot");
     }
@@ -241,14 +250,21 @@ sub DoSnapshot()
     my $sliver_urn;
     my $aggregate;
     my $node;
-    
-    my $profile = APT_Profile->Lookup($instance->profile_id());
+    my $profile;
+
+    if (defined($cloneprofile)) {
+	$profile = APT_Profile->Lookup($cloneprofile);
+    }
+    else {
+	$profile = APT_Profile->Lookup($instance->profile_id());
+    }
     if (!defined($profile)) {
-	fatal("Could not lookup profile for instance");
+	fatal("Could not lookup profile for " .
+	      (defined($cloneprofile) ? "cloning" : "snapshot"));
     }
     my $project = Project->Lookup($profile->pid_idx());
     if (!defined($project)) {
-	fatal("Could not lookup project for profile");
+	fatal("Could not lookup project for $profile");
     }
     
     #
@@ -343,18 +359,20 @@ sub DoSnapshot()
     # Instruct the remote cluster to copy the image back to its origin,
     # but we need to ask the IMS for uuid of the image that is running,
     # so we can tell the cluster, which then tells the origin cluster.
+    # We also need to know what the new URN of the image will be, for
+    # updating the profile. 
     #
     if (GetSiteVar("protogeni/use_imagetracker") &&	
 	EmulabFeatures->FeatureEnabled("APT_UseImageTracker",
 					   $this_user, $project)) {
-	#
-	# If there is no diskinfo or if it references a system image,
-	# then we have to wait until the snapshot is done to find out
-	# what the image was called, via the return from CreateImage().
-	#
 	$usetracker = 1;
 
-	if (DoImageTrackerStuff($aggregate, $node, $project,
+	#
+	# When cloning, we use the URN returned by the cluster; it is
+	# the origin of the new image.
+	#
+	if (!defined($cloneprofile) &&
+	    DoImageTrackerStuff($aggregate, $node, $project,
 				\$copyback_uuid, \$copyback_urn)) {
 	    fatal("Image tracking error");
 	}
@@ -583,7 +601,7 @@ sub DoSnapshot()
 	    }
 	}
 	# DoImageTrackerStuff determined that we use whatever the cluster
-	# tells us, it is the home of the image.
+	# tells us, cause it is the home of the image.
 	$copyback_urn = $version_urn
 	    if ($usetracker && !defined($copyback_urn));
 	
@@ -666,14 +684,45 @@ sub DoImageTrackerStuff($$$$$)
 	return 0
 	    if (!defined($image_token));
     }
+    if (GeniHRN::IsValid($image_token)) {
+	my ($auth,$ospid) = GeniHRN::ParseImage($image_token);
+	if (!defined($ospid)) {
+	    print STDERR "Invalid image urn: $image_token\n";
+	    return 1;
+	}
+    }
+    
     Genixmlrpc->SetContext(APT_Geni::GeniContext());
     my $blob = GeniImage::GetImageData($image_token, \$errmsg);
     Genixmlrpc->SetContext(undef);
     
     if (!defined($blob)) {
-	print STDERR "Could not get info from the IMS for ".
-	    "$image_token:\n" . $errmsg . "\n";
-	return -1;
+	if (GeniHRN::IsValid($image_token)) {
+	    #
+	    # See if this is for a system image (emulab-ops). If it is,
+	    # and the domain is not the MS, then retry with a MS URN.
+	    #
+	    # This is sorta temporary; at some point there will not be any
+	    # profiles using the URNs that are not in the image tracker.
+	    # Of course a user is free to set the URN to anything the want,
+	    # which is why I expect this code to be here for a while. 
+	    #
+	    my $urn;
+	    my $hrn = GeniHRN->new($image_token);
+	    my ($auth,$ospid,$os,$vers) = $hrn->ParseImage();
+	    if ($ospid eq TBOPSPID() && $auth ne "emulab.net") {
+		$urn = GeniHRN::GenerateImage("emulab.net",
+						 TBOPSPID(), $os, $vers);
+	    }
+	    Genixmlrpc->SetContext(APT_Geni::GeniContext());
+	    $blob = GeniImage::GetImageData($urn, \$errmsg);
+	    Genixmlrpc->SetContext(undef);
+	}
+	if (!defined($blob)) {
+	    print STDERR "Could not get info from the IMS for ".
+		"$image_token:\n" . $errmsg . "\n";
+	    return -1;
+	}
     }
     #
     # System Image? We use the URN we get back from CreateSliver().
@@ -717,7 +766,7 @@ sub DoImageTrackerStuff($$$$$)
     # a urn for the origin cluster. But that depends on what version the
     # origin cluster is at (the highest numbered version). But if we are
     # doing a snapshot of an earlier version, we cannot generate the
-    # versio here, we have to ask what it will be. 
+    # version here, we have to ask what it will be. 
     #
     if ($blob->{'isversioned'}) {
 	$copyback_urn = GeniHRN::GenerateImage($hrn->authority(),

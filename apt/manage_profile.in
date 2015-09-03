@@ -423,6 +423,7 @@ else {
 if (defined($instance)) {
     my $apt_uuid   = $instance->uuid();
     my $imagename  = $profile->name();
+    my $new_uuid   = $profile->uuid();
 
     #
     # Grab the webtask object so we can watch it. We are looking
@@ -443,7 +444,7 @@ if (defined($instance)) {
     }
 
     my $command = "$MANAGEINSTANCE -t " . $webtask->task_id() . " -- ".
-	"snapshot $apt_uuid -n $node_id -i $imagename";
+	"snapshot $apt_uuid -c $new_uuid -n $node_id -i $imagename";
     
     #
     # This returns pretty fast, and then the imaging takes place in
