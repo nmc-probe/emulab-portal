@@ -59,12 +59,14 @@ sub Install($$$)
 	    # This is for complete regen of an existing site, but we
 	    # want to retain the old key/cert, as for a genirack rebuild.
 	    #
-	    if (-e $OLDEMULABPEM && -e $OLDEMULABKEY && $PGENISUPPORT) {
+	    if (-e $OLDEMULABPEM && -e $OLDEMULABKEY) {
 		ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/ssl prebuild");
 		ExecQuietFatal("$CP -p $OLDEMULABKEY $TOP_OBJDIR/ssl");
 		ExecQuietFatal("$CP $OLDEMULABPEM $TOP_OBJDIR/ssl");
-		# Prevent reregistration of old certs.
-		ExecQuietFatal("$TOUCH $ETCDIR/.protogeni_federated");
+		if ($PGENISUPPORT) {
+		    # Prevent reregistration of old certs.
+		    ExecQuietFatal("$TOUCH $ETCDIR/.protogeni_federated");
+		}
 	    }
 	    ExecQuietFatal("$GMAKE -C $TOP_OBJDIR/ssl remote-site");
 	};
