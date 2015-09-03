@@ -238,6 +238,7 @@ class Instance
 	$retval = SUEXEC($uid, $pid,
 			 "webcreate_instance $options -u $uuid $xmlname",
 			 SUEXEC_ACTION_IGNORE);
+	unlink($xmlname);
 
 	if ($retval != 0) {
 	    if ($retval < 0) {
@@ -258,8 +259,6 @@ class Instance
 	    }
 	    return null;
 	}
-	unlink($xmlname);
-
 	$instance = Instance::Lookup($uuid);
 	if (!$instance) {
 	    $errors["error"] = "Transient error(5); please try again later.";
@@ -346,6 +345,13 @@ class Instance
             return array($matches[1], $matches[2], $matches[3]);
         }
         return array();
+    }
+    function ValidURN($urn)
+    {
+        if (preg_match("/^[^+]*\+([^+]+)\+([^+]+)\+(.+)$/", $urn)) {
+            return true;
+        }
+        return false;
     }
 
     function SetExtensionReason($reason)
