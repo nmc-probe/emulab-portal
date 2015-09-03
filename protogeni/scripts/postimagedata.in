@@ -81,7 +81,6 @@ $| = 1;
 
 # Now we can load the libraries after setting the proper DB.
 use lib '@prefix@/lib';
-use libaudit;
 use emutil;
 use GeniDB;
 use EmulabConstants;
@@ -139,10 +138,6 @@ if ($ARGV[0] eq "all") {
     print "Posting for all local images, hope that is okay!\n";
     sleep(2);
 }
-
-# Record output in case of error.
-LogStart(0)
-    if (!$debug);
 
 # Connect to the proper DB.
 DBConnect(GENICM_DBNAME());
@@ -221,9 +216,6 @@ else {
 	}
     }
 }
-# No errors at this point, nothing to report.
-AuditAbort()
-    if (!$debug && !$errors);
 exit($errors);
 
 sub PostImageInfo($)
@@ -305,6 +297,10 @@ sub PostImageInfo($)
     else {
 	$project_urn = GeniHRN::Generate($OURDOMAIN . ":" . $image->pid(),
 					 "authority", "sa");
+    }
+    if (!defined($project_urn)) {
+	print STDERR "Could not form a project_urn for $image. Skipping ... \n";
+	return 0;
     }
     my $isversioned = 
 	($WITHPROVENANCE &&
