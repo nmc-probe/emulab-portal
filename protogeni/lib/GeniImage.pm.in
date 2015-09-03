@@ -222,6 +222,16 @@ sub MapToLocalImage($$)
     }
     my $safe_url = GeniUtil::escapeshellarg($url);
 
+    #
+    # If this is a system image and it does not exist locally, do
+    # we really want to import it into the GeniSlices project? I
+    # think not, so lets return an error. 
+    #
+    if ($blob->{'issystem'}) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Not allowed to import system image: $urn");
+    }
+
     # Try to import the descriptor.
     system("$IMPORTER -d -p GeniSlices $safe_url");
     if ($?) {
