@@ -43,13 +43,12 @@ sub usage()
     print "Usage: quickvm [-u uuid] [--site site:1=aggregate ...] <xmlfile>\n";
     exit(1);
 }
-my @optlist = ('d', 'v', 'u=s', 't=s', 'a=s', 'S');
+my @optlist = ('d', 'v', 'u=s', 'a=s', 'S');
 my $debug   = 0;
 my $verbose = 1;
 my $DEFAULT_URN  = "urn:publicid:IDN+apt.emulab.net+authority+cm";
 my $xmlfile;
 my $webtask;
-my $webtask_id;
 my $localuser  = 0;
 my $usestitcher= 0;
 my $quickuuid;
@@ -155,9 +154,6 @@ if (defined($options{"v"})) {
 }
 if (defined($options{"S"})) {
     $usestitcher = 1;
-}
-if (defined($options{"t"})) {
-    $webtask_id = $options{"t"};
 }
 if (defined($options{"u"})) {
     $quickuuid = $options{"u"};
@@ -795,8 +791,20 @@ if ($usestitcher) {
 }
 else {
     my $rval = CreateSlivers();
-    exit($rval)
-	if ($rval);
+    #
+    # We do not want email for not enough node errors, so look at the
+    # return code to see if we want to kill the log (user will see the
+    # error in the web ui). 
+    #
+    if ($rval) {
+	if ($rval == GENIRESPONSE_INSUFFICIENT_NODES ||
+	    $rval == GENIRESPONSE_INSUFFICIENT_MEMORY) {
+	    AuditAbort()
+		if (!$debug);
+	}
+	$webtask->Exited($rval);
+	exit($rval);
+    }
 }
 $instance->SetStatus("provisioned");
 $instance->ComputeNodeCounts();
@@ -1095,7 +1103,7 @@ sub CreateSliver($)
 		$webtask->Exited($response->code());
 	    }
 	    else {
-		$webtask->Exited(1);
+		$webtask->Exited(-1);
 	    }
 	    $aggobj->SetStatus("failed");
 	    
@@ -1114,7 +1122,7 @@ sub CreateSliver($)
     }
     my $manifest = $response->value()->[1];
     if (!defined($manifest)) {
-	$webtask->Exited(1);
+	$webtask->Exited(-1);
 	$aggobj->SetStatus("failed");
 	print STDERR "CreateSliver $urn: No manifest returned\n";
 	return -1;
@@ -1138,7 +1146,6 @@ sub CreateSlivers()
 	#
 	$slice->UnLock();
 	$instance->SetStatus("failed");
-	$webtask->Exited(1);
 	return -1;
     }
     #
@@ -1156,8 +1163,10 @@ sub CreateSlivers()
 	    $instance->SetStatus("failed");
 	    $webtask->output($aggobj->webtask()->output())
 		if (defined($aggobj->webtask()->output()));
-	    $webtask->Exited($code);
-	    return 1;
+	    # This will be the createsliver exit code if we got one, or -1.
+	    $code = $aggobj->webtask()->exitcode()
+		if (defined($aggobj->webtask()->exitcode()));
+	    return $code;
 	}
     }
     return 0;
