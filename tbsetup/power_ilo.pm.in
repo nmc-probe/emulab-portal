@@ -116,7 +116,7 @@ sub iloctrl($$@) {
 	my ($krole,$kuid,$kkey,$kgkey,$kprivlvl);
 	while (my $row = $res->fetchrow_hashref()) {
 	    $krole = $row->{'key_role'};
-	    if ($krole eq "ipmi-passwd") {
+	    if ($krole eq "ipmi-passwd" || $krole eq "ssh-key") {
 		$kuid = $row->{'key_uid'};
 		$kkey = $row->{'mykey'};
 	        if ($row->{'key_privlvl'}) {
@@ -140,9 +140,6 @@ sub iloctrl($$@) {
 
 	if ($kgkey && $kkey) {
 	    $krole = 'ipmi-kgkey-passwd';
-	}
-	elsif ($kkey) {
-	    $krole = 'ipmi-passwd';
 	}
 	elsif ($kgkey) {
 	    $krole = 'ipmi-kgkey';
