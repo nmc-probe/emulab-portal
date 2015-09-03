@@ -1162,7 +1162,9 @@ sub Delete($;$)
 		"            os_info write, os_info_versions write, ".
 		"            osidtoimageid write, os_submap write, ".
 		"            image_permissions write, node_types read, ".
-		"            web_tasks write")
+		"            web_tasks write, ".
+		"            image_notifications write, ".
+		"            image_updates write")
 	or return -1;
 
     #
