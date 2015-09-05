@@ -635,7 +635,7 @@ function Do_ConsoleURL()
     $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t $webtask_id -- consoleurl $uuid " .
 		     escapeshellarg($node),
-		     SUEXEC_ACTION_CONTINUE);
+		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
 
     if ($retval == 0) {
@@ -651,6 +651,9 @@ function Do_ConsoleURL()
 	SPITAJAX_RESPONSE($blob);
 	$webtask->Delete();
 	return;
+    }
+    elseif ($retval < 0) {
+        SUEXECERROR(SUEXEC_ACTION_CONTINUE);
     }
     if ($webtask) {
 	SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
