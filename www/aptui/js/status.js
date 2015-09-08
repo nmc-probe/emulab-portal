@@ -54,11 +54,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	lockdown_code= uuid.substr(2, 5);
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 	var errorURL = (window.ISCLOUD ?
-			"cloudlab-ops@cloudlab.us" : "aptlab-ops@aptlab.net") +
-	    "?subject=" +
-	    encodeURIComponent("Help needed for instance: " + uuid) +
-	    "&body=" + encodeURIComponent("\n\nInstance URL: " +
-					  document.location.href);
+			"https://groups.google.com/d/forum/cloudlab-users" :
+			"https://groups.google.com/d/forum/apt-users");
 
 	// Generate the templates.
 	var template_args = {
