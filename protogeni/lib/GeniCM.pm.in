@@ -7061,12 +7061,16 @@ sub HandleBlockstore($$$$$$@)
 	$message = "Illegal blockstore class";
 	goto bad;
     }
-    if ($class eq "local" &&
-	(!defined($bsname) ||
-	 !TBcheck_dbslot($bsname, "blockstores", "bs_id",
-			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR))) {
-	$message = "Illegal blockstore name: $bsname";
-	goto bad;
+    if ($class eq "local") {
+	if (!defined($bsname)) {
+	    $message = "Local blockstores must be named";
+	    goto bad;
+	}
+	if (!TBcheck_dbslot($bsname, "blockstores", "bs_id",
+			    TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	    $message = "Illegal blockstore name: $bsname";
+	    goto bad;
+	}
     }
     if (!defined($mount)) {
 	$message = "Missing blockstore mount point";
