@@ -124,16 +124,14 @@ sub GetImageData($;$)
 	
 	if (!defined($response)) {
 	    $errormsg = "$msg RPC error";
-	    goto bad;
 	}
 	elsif (defined($response->output())) {
 	    $errormsg = "$msg " . $response->output();
-	    goto bad;
 	}
 	else {
 	    $errormsg = "$msg " . GENIRESPONSE_STRING($response->code());
-	    goto bad;
 	}
+	goto bad;
     }
     return $response->value();
 
@@ -146,7 +144,7 @@ sub GetImageData($;$)
 	if (!defined($response));
 
     return GeniResponse->Create($response->code(),
-				$response->value(), $response->output());
+				$response->value(), $errormsg);
 }
 
 #
