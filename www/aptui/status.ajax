@@ -141,6 +141,11 @@ function Do_GetInstanceStatus()
             $blob["reason"]  = "Not enough available bandwidth for a link.\n\n";
             $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
         }
+        elseif ($webtask->exitcode() == 28) {
+            $blob["reason"]  = "Your topology could not be mapped to physical ".
+                "resource.\n\n";
+            $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
+        }
         else {
             $blob["reason"] = htmlentities($webtask->TaskValue("output"));
         }
