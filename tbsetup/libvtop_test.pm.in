@@ -2905,8 +2905,9 @@ sub GenVirtLans($)
 	# The OS on all nodes in a lan containing remote blockstores
 	# (sanlan) must support the "rem-bstore" OS feature.
 	if ($sanlan && $nodesdo{"rem-bstore"} != $realnodes) {
-	    tberror("The OS on all nodes in sanlan $vname must support ".
-		    "remote blockstores.\n");
+	    tberror("$vname: All nodes connecting to a link/lan that ".
+		    "includes remote blockstores must support the ".
+		    "'rem-bstore' OS feature!\n");
 	    return -1;
 	}
 
@@ -3077,6 +3078,12 @@ sub GenVirtLans($)
 	foreach my $member (@members) {
 	    $member->_encapstyle($encapval);
 	    $member->_emulated($emulated);
+	}
+
+	if ($sanlan && $vlan->_encapstyle() ne "vlan") {
+	    tberror("$vname: Links/LANs that host remote blockstores must ".
+		    "use 'vlan' encapsulation!\n");
+	    return -1;
 	}
 
 	#
