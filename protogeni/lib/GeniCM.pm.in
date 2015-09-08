@@ -2505,7 +2505,9 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		$line !~ /^Node/ && $line !~ /^Type/ && $line !~ /^Policy/) {
 		
 		if ($line =~ /^\*\*\*[\s\w]*precheck failed/) {
-		    $errorstr = "Precheck failure";
+		    $errorstr  = "Precheck failure";
+		    $errorcode = GENIRESPONSE_NO_MAPPING()
+			if ($errorcode == GENIRESPONSE_ERROR());
 		}
 		elsif ($line =~ /^Annealing/) {
 		    $inprecheck = 0;
