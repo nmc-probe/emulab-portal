@@ -792,13 +792,15 @@ if ($usestitcher) {
 else {
     my $rval = CreateSlivers();
     #
-    # We do not want email for not enough node errors, so look at the
+    # We do not want email for most mapping errors, so look at the
     # return code to see if we want to kill the log (user will see the
     # error in the web ui). 
     #
     if ($rval) {
 	if ($rval == GENIRESPONSE_INSUFFICIENT_NODES ||
-	    $rval == GENIRESPONSE_INSUFFICIENT_MEMORY) {
+	    $rval == GENIRESPONSE_INSUFFICIENT_MEMORY ||
+	    $rval == GENIRESPONSE_INSUFFICIENT_BANDWIDTH ||
+	    $rval == GENIRESPONSE_NO_MAPPING) {
 	    AuditAbort()
 		if (!$debug);
 	}
