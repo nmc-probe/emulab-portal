@@ -321,6 +321,10 @@ if ($snap) {
     if (!defined($instance)) {
 	fatal("Could not look up instance $uuid");
     }
+    if ($instance->status() ne "ready") {
+	$errors{"error"} = "Instance must be in the ready state for cloning";
+	UserError();
+    }
     if ($instance->AggregateList() != 1) {
 	$errors{"error"} = "Must be only one aggregate to snapshot";
 	UserError();
