@@ -1657,7 +1657,7 @@ sub run_with_ssh($$)
     my ($cmd,$output) = @_;
     my $stat = undef;
     $node_id = $node->phys_nodeid()
-	if ($isvirtnode);
+	if ($isvirtnode && !$isdataset);
 
     $cmd = "$TB/bin/sshtb -n -host $node_id $cmd";
     if (defined($output)) {
