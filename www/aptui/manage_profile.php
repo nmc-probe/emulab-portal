@@ -299,6 +299,10 @@ if (! isset($create)) {
 		else if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 		    SPITUSERERROR("Not enough permission!");
 		}
+                else if ($instance->status() != "ready") {
+		    SPITUSERERROR("Instance is busy, cannot clone it. " .
+                                  "Please try again later.");
+                }
 		$profile = Profile::Lookup($instance->profile_id(),
 					   $instance->profile_version());
 		if (!$profile) {
