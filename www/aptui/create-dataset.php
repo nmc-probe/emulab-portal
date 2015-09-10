@@ -90,7 +90,7 @@ function SPITFORM($formfields, $errors)
             $profile      = Profile::Lookup($instance->profile_id(),
                                             $instance->profile_version());
             $instance_array[] =
-                array("uuid" => $uuid, "name" => $profile->name());
+                array("uuid" => $uuid, "name" => $instance->name());
         }
         echo "<script type='text/plain' id='instances-json'>\n";
         echo htmlentities(json_encode($instance_array));
