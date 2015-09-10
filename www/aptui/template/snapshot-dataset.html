@@ -38,7 +38,21 @@
 		</option>
 		<% }); %>
 	      </select>
-	      <% } %>
+	      <select name="dataset_node"
+		      id="dataset_node"
+		      class='form-control format-me'
+		      data-key="dataset_node"
+		      data-label="Node"
+		      placeholder='Please Select'>
+	      </select>
+	      <select name="dataset_bsname"
+		      id="dataset_bsname"
+		      class='form-control format-me'
+		      data-key="dataset_bsname"
+		      data-label="BS Name"
+		      placeholder='Please Select'>
+	      </select>
+	      <% } else if (embedded) { %>
 	      <input name="dataset_node" id='dataset_node'
 		     value="<%- formfields.dataset_node %>"
 		     class="form-control format-me"
@@ -53,6 +67,7 @@
 		     data-label="BS Name"
 		     placeholder="Blockstore name on the node"
 		     type="text">
+	      <% } %>
 	    </div>
 	    <br><br>
 	    <center>
