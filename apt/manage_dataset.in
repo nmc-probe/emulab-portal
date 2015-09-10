@@ -354,8 +354,17 @@ sub DoCreate()
     if ($type eq "imdataset" &&
 	DoSnapShotInternal($dataset, $aggregate,
 			   $bsname, $nodeid, \$errmsg)) {
+	$response = $dataset->DeleteDataset();
+	if ($response->code() == GENIRESPONSE_SUCCESS ||
+	    $response->code() == GENIRESPONSE_SEARCHFAILED) {
+	    $instance->Unlock();
+	    goto failed;
+	}
+	# We want to keep the local dataset record around since we could
+	# not delete it remotely.
 	$instance->Unlock();
-	goto failed;
+	# This will set the webtask, see below.
+	fatal($errmsg);
     }
     if (PollDatasetStatus($dataset, \$errmsg)) {
 	# Exit and let child poll
