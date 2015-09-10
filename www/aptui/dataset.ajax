@@ -139,7 +139,7 @@ function Do_CreateDataSet()
     else {
         #
         # Not going to allow descriptor only image datasets, must
-        # provide the node/bsname, and the instance if on the APT path.
+        # provide the node and bsname, and the instance if on the APT path.
         #
         if (! (isset($formfields["dataset_node"]) &&
             $formfields["dataset_node"] != "")) {
