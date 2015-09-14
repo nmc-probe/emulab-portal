@@ -4,7 +4,7 @@
 PORTNAME=	ipmitool
 PORTVERSION=	1.8.15
 #PORTREVISION=	1
-CATEGORIES=	sysutils
+CATEGORIES=	misc
 MASTER_SITES=	SF
 
 MAINTAINER=	steve.polyack@intermedix.com
