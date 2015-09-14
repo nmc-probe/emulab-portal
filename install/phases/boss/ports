@@ -22,6 +22,12 @@ sub Install($$$)
 		}
 		AddPackage($BOSS_PORT, $packagedir);
 	    };
+
+	    # XXX haven't had dependency issues in a long time, skip these
+	    if ($FBSD_MAJOR >= 10) {
+		PhaseSkip("Packages installed");
+	    }
+
 	    if ($FBSD_MAJOR > 4) {
 		Phase "php", "Installing php${PHP_VERSION} package", sub {
 		    DoneIfPackageInstalled($PHP_PORT, 1);
@@ -119,18 +125,18 @@ sub Install($$$)
 		    AddPackage($pname, $packagedir);
 		}
 	    }
-	    if ($PGENISUPPORT) {
-		Phase "protogeni", "Installing protogeni packages", sub {
-		    if ($FBSD_MAJOR > 6 || ($FBSD_MAJOR == 6 && $FBSD_MINOR > 2)) {
-			DoneIfPackageInstalled("emulab-protogeni", 0);
-			my $pname = GetPackage("emulab-protogeni", $packagedir);
-			AddPackage($pname, $packagedir);
-		    } else {
-			PhaseSkip("OS install too old for Protogeni");
-		    }
-		};
-	    }
 	};
+	if ($PGENISUPPORT) {
+	    Phase "protogeni", "Installing protogeni packages", sub {
+		if ($FBSD_MAJOR > 6 || ($FBSD_MAJOR == 6 && $FBSD_MINOR > 2)) {
+		    DoneIfPackageInstalled("emulab-protogeni", 0);
+		    my $pname = GetPackage("emulab-protogeni", $packagedir);
+		    AddPackage($pname, $packagedir);
+		} else {
+		    PhaseSkip("OS install too old for Protogeni");
+		}
+	    };
+	}
 	if (ISFS($server)) {
 	    Phase "fs-packages", "Installing FS packages", sub {
 		DoneIfPackageInstalled($FS_PORT, 1);

@@ -22,6 +22,12 @@ sub Install($$$)
 		}
 		AddPackage($OPS_PORT, $packagedir);
 	    };
+
+	    # XXX haven't had dependency issues in a long time, skip these
+	    if ($FBSD_MAJOR >= 10) {
+		PhaseSkip("Packages installed");
+	    }
+
 	    if ($FBSD_MAJOR > 4) {
 		Phase "php", "Installing php${PHP_VERSION} package", sub {
 		    DoneIfPackageInstalled($PHP_PORT, 1);

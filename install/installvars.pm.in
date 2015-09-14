@@ -113,10 +113,8 @@ $PHP_PORT = "php4-extensions-1.0";
 if ($FBSD_MAJOR > 7 || ($FBSD_MAJOR == 7 && $FBSD_MINOR > 2)) {
     $PHP_VERSION = 5;
     # there is no longer an explict extensions package
-    if ($FBSD_MAJOR > 10 || ($FBSD_MAJOR == 10 && $FBSD_MINOR > 1)) {
-	$PHP_PORT = "php56-5.6.12";
-    } elsif ($FBSD_MAJOR == 10 && $FBSD_MINOR > 0) {
-	$PHP_PORT = "php56-5.6.9";
+    if ($FBSD_MAJOR == 10 && $FBSD_MINOR > 0) {
+	$PHP_PORT = "php56";
     } elsif ($FBSD_MAJOR > 9 || ($FBSD_MAJOR == 9 && $FBSD_MINOR > 1)) {
 	$PHP_PORT = "php5-extensions-1.7";
     } elsif ($FBSD_MAJOR > 8 || ($FBSD_MAJOR == 8 && $FBSD_MINOR > 2)) {
