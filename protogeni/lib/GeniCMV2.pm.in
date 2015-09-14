@@ -3905,8 +3905,9 @@ sub ModifyDataset($)
     # All we can handle is extend and modify permission bits.
     #
     if (exists($argref->{'extend'})) {
-	return GeniResponse->Create(GENIRESPONSE_UNSUPPORTED)
-	    if ($islease);
+	return GeniResponse->Create(GENIRESPONSE_UNSUPPORTED, undef,
+				    "IM datasets cannot be extended")
+	    if (!$islease);
 	$cmd = "$EXTENDDATASET ";	
     }
     elsif (exists($argref->{'read_access'}) ||
