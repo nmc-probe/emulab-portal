@@ -360,7 +360,7 @@ sub GetAdvertisement($$$$)
     my $invocation = "$PTOPGEN -x -g $version -r -f";
     if (defined($experiment)) {
 	my $eid = $experiment->eid();
-	my $pif = $experiment->pid();
+	my $pid = $experiment->pid();
 	$invocation .= " -p $pid -e $eid";
     }
     $invocation .= " -a" unless $available;
