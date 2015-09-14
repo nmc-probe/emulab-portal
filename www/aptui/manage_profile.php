@@ -611,7 +611,7 @@ if ($retval) {
 	}
     }
 }
-#unlink($xmlname);
+unlink($xmlname);
 if (count($errors)) {
     SPITFORM($formfields, $errors);
     return;
