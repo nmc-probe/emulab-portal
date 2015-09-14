@@ -312,10 +312,10 @@ else {
 # SetSites will tell us if we must use stitcher.
 #
 my $needstitcher = 0;
-    
-if (APT_Profile::SetSites(\$rspecstr, $sitemap, $default_aggregate_urn,
-			  \@aggregate_urns, \$needstitcher, \$errmsg)) {
-    fatal($errmsg);
+my $tmp = APT_Profile::SetSites(\$rspecstr, $sitemap, $default_aggregate_urn,
+				\@aggregate_urns, \$needstitcher, \$errmsg);
+if ($tmp) {
+    ($tmp < 0 ? fatal($errmsg) : UserError($errmsg));
 }
 # but do not override command line force.
 $usestitcher = 1 if ($needstitcher);
