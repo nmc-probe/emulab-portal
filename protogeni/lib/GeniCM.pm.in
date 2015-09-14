@@ -2078,6 +2078,16 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    if (!$istunnel && exists($external_nodemap{$node_nickname})) {
 		$encap = "vlan";
 	    }
+	    #
+	    # If the link includes blockstores, it is a "sanlan" and so
+	    # it has to be encap=vlan and best effort.
+	    #
+	    if (0 &&
+		defined($nodetype) && $nodetype->type() eq "blockstore") {
+		$encap      = "vlan";
+		$trivial_ok = 0;
+		$besteffort = 1;
+	    }
 	}
 
 	my $edgecount = 0;
@@ -2416,11 +2426,12 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     my $tmpfile = POSIX::tmpnam();
 
     # First a prerun to get the node counts and verify topo.
-    system("$VTOPGEN -p $pid $eid");
+    $output = GeniUtil::ExecQuiet("$VTOPGEN -p $pid $eid");
     if ($?) {
+	print STDERR "$output\n";
 	$response =
-	    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-				 "Could not verify topo");
+	    GeniResponse->Create(GENIRESPONSE_NO_MAPPING, undef,
+				 "Could not verify topo:\n$output");
 	goto bad;
     }
     $slice_experiment->CleanLogFiles();
