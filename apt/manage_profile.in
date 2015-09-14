@@ -115,16 +115,6 @@ if (! defined($this_user)) {
     }
 }
 
-if ($action eq "delete") {
-    exit(DeleteProfile($ARGV[0]));
-}
-elsif ($action eq "publish") {
-    exit(PublishProfile($ARGV[0]));
-}
-elsif (! ($action eq "create" || $action eq "update")) {
-    usage();
-}
-
 #
 # Parse command arguments. Once we return from getopts, all that should be
 # left are the required arguments.
@@ -144,8 +134,19 @@ if (defined($options{"t"})) {
     $webtask_id = $options{"t"};
 }
 if ($action eq "update") {
+    usage()
+	if (!@ARGV);
     $update = 1;
     $uuid = shift(@ARGV);
+}
+elsif ($action eq "delete") {
+    exit(DeleteProfile($ARGV[0]));
+}
+elsif ($action eq "publish") {
+    exit(PublishProfile($ARGV[0]));
+}
+elsif ($action ne "create") {
+    usage();
 }
 my $xmlfile = shift(@ARGV);
 
@@ -436,12 +437,15 @@ if (defined($instance)) {
     # commmand line, so that we can communicate with the script we
     # call that does the work. 
     #
-    $webtask = WebTask->Create($profile->uuid(), $webtask_id);
     if (!defined($webtask)) {
-	$profile->Delete(1);
+	$webtask = WebTask->Create($profile->uuid(), $webtask_id);
+	if (!defined($webtask)) {
+	    $profile->Delete(1);
+	    fatal("Could not create webtask for snapshot");
+	}
+	$webtask->AutoStore(1);
     }
-    $webtask->AutoStore(1);
-
+    
     if ($profile->Lock()) {
 	$profile->Delete(1);
 	fatal("Could not lock new profile");
@@ -458,11 +462,16 @@ if (defined($instance)) {
     #
     my $output = emutil::ExecQuiet($command);
     if ($?) {
+	my $stat = $? >> 8;
+	
 	$profile->Delete(1);
 	$webtask->Delete()
 	    if (!defined($webtask_id));
 	print STDERR $output . "\n";
-	fatal("Failed to create disk image!");
+	if ($stat < 0) {
+	    fatal("Failed to create disk image!");
+	}
+	UserError($output);
     }
     #
     # The script helpfully put the new image urn in the webtask.
@@ -560,6 +569,10 @@ sub fatal($)
 {
     my ($mesg) = @_;
 
+    if (defined($webtask)) {
+	$webtask->output($mesg);
+	$webtask->Exited(-1);
+    }
     print STDERR "*** $0:\n".
 	         "    $mesg\n";
     # Exit with negative status so web interface treats it as system error.
@@ -568,8 +581,8 @@ sub fatal($)
 
 #
 # Generate a simple XML file that PHP can parse. The web interface
-# relies on using the same name attributes for the errors, as for
-# the incoming values.
+# relies on using the same name attributes for the errors, as for the
+# incoming values. This makes sense to use from Create/Update only.
 #
 sub UserError(;$)
 {
@@ -579,12 +592,23 @@ sub UserError(;$)
 	$errors{"error"} = $msg;
     }
     if (keys(%errors)) {
-	print "<errors>\n";
-	foreach my $key (keys(%errors)) {
-    	    print "<error name='$key'>" . CGI::escapeHTML($errors{$key});
-	    print "</error>\n";
+	if (defined($webtask_id)) {
+	    my $xml = "<errors>\n";
+	    
+	    foreach my $key (keys(%errors)) {
+		$xml .= "<error name='$key'>" . CGI::escapeHTML($errors{$key});
+		$xml .= "</error>\n";
+	    }
+	    $xml .= "</errors>\n";
+
+	    $webtask->Exited(1);
+	    $webtask->output($xml);
 	}
-	print "</errors>\n";
+	else {
+	    foreach my $key (keys(%errors)) {
+		print "$key: " . $errors{$key} . "\n";
+	    }
+	}
     }
     # Exit with positive status so web interface treats it as user error.
     exit(1);
@@ -604,15 +628,26 @@ sub escapeshellarg($)
 sub DeleteProfile($)
 {
     my ($name)  = @_;
+    my $errmsg;
+    
     my $profile = APT_Profile->Lookup($name);
     if (!defined($profile)) {
 	fatal("No such profile exists");
     }
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate(undef, $webtask_id);
+	if (!defined($webtask)) {
+	    fatal("Could not lookup/create webtask");
+	}
+	$webtask->AutoStore(1);
+    }
     if (!$profile->IsHead()) {
-	UserError("Only allowed to delete the most recent profile");
+	$errmsg = "Only allowed to delete the most recent profile";
+	goto uerror;
     }
     if (!CanDelete($profile)) {
-	UserError("Not allowed to delete this profile (version)");
+	$errmsg = "Not allowed to delete this profile (version)";
+	goto uerror;
     }
     #
     # Version zero is special of course.
@@ -626,7 +661,17 @@ sub DeleteProfile($)
 	$profile->Delete(1) == 0 or
 	    fatal("Could not delete profile");
     }
+    # No need for this anymore.
+    $webtask->Delete()
+	if (!defined($webtask));
     return 0;
+  uerror:
+    if (defined($webtask)) {
+	$webtask->Exited(1);
+	$webtask->output($errmsg);
+    }
+    print STDERR "$errmsg\n";
+    return 1;
 }
 
 #
@@ -635,16 +680,34 @@ sub DeleteProfile($)
 sub PublishProfile($)
 {
     my ($name)  = @_;
+    my $errmsg;
+
     my $profile = APT_Profile->Lookup($name);
     if (!defined($profile)) {
 	fatal("No such profile exists");
     }
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate(undef, $webtask_id);
+	if (!defined($webtask)) {
+	    fatal("Could not lookup/create webtask");
+	}
+	$webtask->AutoStore(1);
+    }
     if (!$profile->IsHead()) {
-	UserError("Only allowed to publish the most recent profile");
+	$errmsg = "Only allowed to publish the most recent profile";
+	goto uerror;
     }
     $profile->Publish() == 0 or
 	fatal("Could not publish profile");
     return 0;
+    
+  uerror:
+    if (defined($webtask)) {
+	$webtask->Exited(1);
+	$webtask->output($errmsg);
+    }
+    print STDERR "$errmsg\n";
+    return 1;
 }
 
 #

@@ -57,14 +57,7 @@ function Do_CreateDataSet()
 	$command = "webcreatedataset ";
     }
     else {
-	$command = "webmanage_dataset ";
-
-        # We are going to track imaging status.
-        if ($formfields["dataset_type"] == "imdataset") {
-            $webtask_id = WebTask::GenerateID();
-            $command .= " -t " . $webtask_id . " -- ";
-        }
-        $command .= " create ";
+	$command  = "webmanage_dataset create ";
     }
     $required = array("dataset_pid", "dataset_name", "dataset_type",
 		      "dataset_fstype", "dataset_read", "dataset_modify");
@@ -235,14 +228,6 @@ function Do_CreateDataSet()
 
     $retval = SUEXEC($this_uid, $pid, $command, SUEXEC_ACTION_CONTINUE);
     if ($retval) {
-	if (isset($webtask_id)) {
-            $webtask = WebTask::Lookup($webtask_id);
-            if ($webtask) {
-                $webtask->Delete();
-                SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
-                return;
-            }
-	}
 	SPITAJAX_ERROR(1, $suexec_output);
 	return;
     }

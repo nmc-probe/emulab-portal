@@ -83,6 +83,7 @@ use GeniXML;
 
 # Protos
 sub fatal($);
+sub uerror($);
 sub DoCreate();
 sub DoDelete();
 sub DoRefresh();
@@ -107,6 +108,11 @@ if (defined($options{"d"})) {
 }
 if (defined($options{"t"})) {
     $webtask_id = $options{"t"};
+    $webtask = WebTask->LookupOrCreate(undef, $webtask_id);
+    if (!defined($webtask)) {
+	fatal("Could not create webtask object");
+    }
+    $webtask->AutoStore(1);
 }
 if (@ARGV < 1) {
     usage();
@@ -297,14 +303,6 @@ sub DoCreate()
     if (!defined($dataset)) {
 	fatal("Internal error creating dataset object");
     }
-    # Now we can create.
-    if (defined($webtask_id)) {
-	$webtask = WebTask->Create($dataset->uuid(), $webtask_id);
-	if (defined($webtask)) {
-	    # Convenient.
-	    $webtask->AutoStore(1);
-	}
-    }
     
     # new dataset is returned locked. If we have instance, try to lock
     # that now, else its a failure.
@@ -314,7 +312,17 @@ sub DoCreate()
 	    goto failed;
 	}
     }
-    
+    #
+    # For IM datasets always create a webtask for tracking imaging status.
+    #
+    if ($type eq "imdataset") {
+	$webtask = WebTask->Create($dataset->uuid());
+	if (!defined($webtask)) {
+	    $errmsg = "Could not create webtask object";
+	    goto failed;
+	}
+	$webtask->AutoStore(1);
+    }
     #
     # Ask the aggregate to create the dataset. 
     #
@@ -386,7 +394,7 @@ sub DoCreate()
 #
 sub DoDelete()
 {
-    my $errmsg = "Could not delete dataset";
+    my $errmsg  = "Could not delete dataset";
     
     if (@ARGV != 1) {
 	fatal("usage: $0 delete pid/name");
@@ -397,13 +405,18 @@ sub DoDelete()
 	fatal("No such dataset");
     }
     if ($dataset->Lock()) {
-	fatal("dataset is busy, cannot lock it");
+	uerror("dataset is busy, cannot lock it");
     }
     my $response = $dataset->DeleteDataset();
     if ($response->code() != GENIRESPONSE_SUCCESS &&
-	$response->code() != GENIRESPONSE_SEARCHFAILED) {
+	$response->code() != GENIRESPONSE_SEARCHFAILED &&
+	$response->code() != GENIRESPONSE_BUSY) {
 	$errmsg = "DeleteDataset failed: ". $response->output() . "\n";
 	goto failed;
+    }
+    if ($response->code() != GENIRESPONSE_BUSY) {
+	$dataset->Unlock();
+	uerror("dataset was busy at the remote cluster, try again later");
     }
     $dataset->Delete();
     return 0;
@@ -430,7 +443,7 @@ sub DoRefresh()
 	fatal("No such dataset");
     }
     if ($dataset->Lock()) {
-	fatal("dataset is busy, cannot lock it");
+	uerror("dataset is busy, cannot lock it");
     }
     if (DoRefreshInternal($dataset, \$errmsg)) {
 	goto failed;
@@ -451,7 +464,7 @@ sub DoRefreshInternal($$)
     my $response = $dataset->DescribeDataset();
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
-	    $$pmesg = "Dataset no longer exists at the target\n";
+	    $$pmesg = "Dataset no longer exists at the remote cluster\n";
 	}
 	else {
 	    $$pmesg = "DescribeDataset failed: ". $response->output() . "\n";
@@ -529,7 +542,7 @@ sub DoModify()
 	$blob->{'write_access'} = $write_access;
     }
     if ($dataset->Lock()) {
-	fatal("dataset is busy, cannot lock it");
+	uerror("dataset is busy, cannot lock it");
     }
     if (keys(%$blob)) {
 	if ($dataset->Update($blob)) {
@@ -580,7 +593,7 @@ sub DoExtend()
 	fatal("No such dataset");
     }
     if ($dataset->Lock()) {
-	fatal("dataset is busy, cannot lock it");
+	uerror("dataset is busy, cannot lock it");
     }
     my $response = $dataset->ExtendDataset();
     if ($response->code() != GENIRESPONSE_SUCCESS) {
@@ -645,20 +658,31 @@ sub DoSnapshot()
 	fatal("Could not find aggregate for $nodeid");
     }
     if ($dataset->Lock()) {
-	fatal("dataset is busy, cannot lock it");
+	uerror("dataset is busy, cannot lock it");
     }
     if ($instance->Lock()) {
-	# undef so we do not try to unlock it below.
-	$instance = undef;
-	$errmsg = "instance is busy, cannot lock it";
-	goto failed
+	$dataset->Unlock();
+	uerror("instance is busy, cannot lock it");
     }
-    # Create a webtask for the caller, might be ignored but thats okay.
-    $webtask = WebTask->Create($dataset->uuid(), $webtask_id);
+    #
+    # Always create a webtask for tracking imaging status. Must be
+    # associated with the object.
+    #
     if (defined($webtask)) {
-	# Convenient.
+	if ($webtask->object_uuid() ne $dataset->uuid()) {
+	    $errmsg = "Webtask not associated with dataset!";
+	    goto failed;
+	}
+    }
+    else {
+	$webtask = WebTask->LookupOrCreate($dataset->uuid());
+	if (!defined($webtask)) {
+	    $errmsg = "Could not create webtask object!";
+	    goto failed;
+	}
 	$webtask->AutoStore(1);
     }
+    
     if (DoSnapShotInternal($dataset, $aggregate, $bsname, $nodeid, \$errmsg)) {
 	goto failed;
     }
@@ -671,7 +695,7 @@ sub DoSnapshot()
     return 0;
     
   failed:
-    $instance->Unlock() if (defined($instance));
+    $instance->Unlock();
     $dataset->Unlock();
     # This will set the webtask, see below.
     fatal($errmsg);
@@ -773,7 +797,7 @@ sub PollDatasetStatus($$)
 	if ($dataset->state() eq "valid") {
 	    $project->SendEmail($this_user->email(),
 			"Your dataset is now ready to use",
-			"Dataset '$dname' is now allocated and ready to use.\n",
+			"Dataset '$dname' is now ready to use.\n",
 				$project->LogsEmailAddress(), undef, $logfile);
 	    $webtask->Exited(0)
 		if (defined($webtask));
@@ -797,10 +821,21 @@ sub fatal($)
 	$webtask->output($mesg);
 	$webtask->Exited(-1);
     }
-    print STDERR "*** $0:\n".
-	         "    $mesg\n";
+    print STDERR "$mesg\n";
     # Exit with negative status so web interface treats it as system error.
     exit(-1);
+}
+
+sub uerror($)
+{
+    my ($mesg) = @_;
+
+    if (defined($webtask)) {
+	$webtask->output($mesg);
+	$webtask->Exited(1);
+    }
+    print STDERR "$mesg\n";
+    exit(1);
 }
 
 sub escapeshellarg($)

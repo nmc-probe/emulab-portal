@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -71,6 +71,40 @@ class WebTask {
 	$idx = $row['task_id'];
 	
 	return WebTask::Lookup($idx);
+    }
+
+    #
+    # Create an anonymous web task (not associated with an object). This
+    # is useful when using a webtask to create a new object via a backend
+    # script.
+    #
+    function CreateAnonymous() {
+        $task_id = WebTask::GenerateID();
+
+        $query_result = 
+            DBQueryWarn("insert into web_tasks set task_id='$task_id', ".
+                        "  created=now(), object_uuid='$task_id'");
+	if (!$query_result || !mysql_num_rows($query_result)) {
+            return null;
+        }
+        return WebTask::Lookup($task_id);
+    }
+
+    function Refresh($task_id) {
+	if (! $this->IsValid())
+	    return -1;
+        $task_id = $this->task_id();
+
+	$query_result =
+	    DBQueryWarn("select * from web_tasks ".
+			"where task_id='$task_id'");
+
+	if (!$query_result || !mysql_num_rows($query_result)) {
+	    $this->webtask = NULL;
+	    return -1;
+	}
+	$this->webtask = mysql_fetch_array($query_result);
+        return 0;
     }
 
     # We delete from the web interface.

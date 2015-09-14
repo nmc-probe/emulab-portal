@@ -109,22 +109,32 @@ function Do_DeleteProfile()
 	SPITAJAX_ERROR(1, "Not enough permission");
 	return;
     }
-
-    #
-    # Invoke backend.
-    #
+    
+    $webtask = WebTask::CreateAnonymous();
+    if (!$webtask) {
+	SPITAJAX_ERROR(-1, "Internal webtask Error");
+	return;
+    }
     $retval = SUEXEC($this_uid, $profile->pid(),
-		     "webmanage_profile delete " . $profile->uuid(),
-		     SUEXEC_ACTION_CONTINUE);
+		     "webmanage_profile -t " . $webtask->task_id() . " " .
+                     "delete " . $profile->uuid(),
+		     SUEXEC_ACTION_IGNORE);
+
     if ($retval != 0) {
-	$error = "Transient error; please try again later";
-	
-	if ($retval && count($suexec_output_array)) {
-	    $error = $suexec_output_array[0];
-	}
+        $webtask->Refresh();
+        if ($retval < 0) {
+            $error  = "Internal Error; please try again later\n\n";
+            $error .= $webtask->output();
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            $error = $webtask->output();
+        }
+        $webtask->Delete();
 	SPITAJAX_ERROR(1, $error);
 	return;
     }
+    $webtask->Delete();
     # Lookup next most recent version
     $profile = Profile::Lookup($profile->profileid());
     if (!$profile) {
@@ -174,21 +184,30 @@ function Do_PublishProfile()
 	SPITAJAX_ERROR(1, "Not allowed to publish non-head version");
 	return;
     }
-    #
-    # Invoke backend.
-    #
+    $webtask = WebTask::CreateAnonymous();
+    if (!$webtask) {
+	SPITAJAX_ERROR(-1, "Internal webtask Error");
+	return;
+    }
     $retval = SUEXEC($this_uid, $profile->pid(),
-		     "webmanage_profile publish " . $profile->uuid(),
-		     SUEXEC_ACTION_CONTINUE);
+		     "webmanage_profile -t " . $webtask->task_id() . " " .
+                     "publish " . $profile->uuid(),
+		     SUEXEC_ACTION_IGNORE);
     if ($retval != 0) {
-	$error = "Transient error; please try again later";
-	
-	if ($retval && count($suexec_output_array)) {
-	    $error = $suexec_output_array[0];
-	}
+        $webtask->Refresh();
+        if ($retval < 0) {
+            $error  = "Internal Error; please try again later\n\n";
+            $error .= $webtask->output();
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            $error = $webtask->output();
+        }
+        $webtask->Delete();
 	SPITAJAX_ERROR(1, $error);
 	return;
     }
+    $webtask->Delete();
     $profile->Refresh();
     SPITAJAX_RESPONSE(array("published" => $profile->published()));
 }

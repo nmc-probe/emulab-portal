@@ -185,7 +185,7 @@ sub DoSnapshot()
 {
     my $errmsg;
     my $logfile;
-    my $errcode        = 1;
+    my $errcode        = -1;
     my $needunlock     = 0;
     my $old_status     = $instance->status();
     my $node_id;
@@ -415,7 +415,7 @@ sub DoSnapshot()
 		if ($image_host ne $authority_host) {
 		    $errmsg  = "Not allowed to take a snapshot on this cluster";
 		    $errcode = 1;
-		    goto bad;
+		    goto uerror;
 		}
 	    }
 	}
@@ -425,7 +425,9 @@ sub DoSnapshot()
 					   $this_user, $project);
     }
     if ($slice->Lock()) {
-	fatal("Slice is busy, cannot lock it");
+	$errmsg  = "Experiment is busy, please try again later.";
+	$errcode = 1;
+	goto uerror;
     }
     $needunlock = 1;
 
@@ -576,12 +578,11 @@ sub DoSnapshot()
     if ($failed) {
 	$errmsg = "Imaging failed"
 	    if (!defined($errmsg));
-	$errcode = 1;
 	goto bad;
     }
     elsif (!$ready) {
 	$errmsg  = "Imaging timed out";
-	$errcode = 60;
+	$errcode = -2;
 	goto bad;
     }
     elsif (defined($update_profile)) {
@@ -643,13 +644,6 @@ sub DoSnapshot()
     else {
 	$instance->SetStatus("imaging-failed");
     }
-    print STDERR "$errmsg\n";
-    if (defined($errmsg) && defined($webtask)) {
-	$webtask->Exited($errcode);
-	$webtask->output($errmsg);
-    }
-    $slice->UnLock()
-	if ($needunlock);
     if (defined($logfile)) {
 	SENDMAIL($TBOPS,
 		 "Snapshot failed",
@@ -658,6 +652,15 @@ sub DoSnapshot()
 		 $TBOPS, undef, $logfile);
 	unlink($logfile);
     }
+  uerror:
+    print STDERR "$errmsg\n";
+    if (defined($errmsg) && defined($webtask)) {
+	$webtask->Exited($errcode);
+	$webtask->output($errmsg);
+    }
+    $slice->UnLock()
+	if ($needunlock);
+
     exit($errcode);
 }
 
