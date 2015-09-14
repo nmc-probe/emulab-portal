@@ -503,16 +503,18 @@ sub Delete($$)
     $purge = 0
 	if (!defined($purge));
     
-    DBQueryWarn("lock tables apt_profiles write, apt_profile_versions write")
+    DBQueryWarn("lock tables apt_profiles write, apt_profile_versions write, ".
+		"     web_tasks write")
 	or return -1;
 
-    DBQueryWarn("delete from apt_profiles where profileid='$profileid'")
-	or goto bad;
-    
     if ($purge) {
-	goto bad
-	    if (! DBQueryWarn("delete from apt_profile_versions ".
-			      "where profileid='$profileid'"));
+	# Delete any associated webtasks too.
+	DBQueryWarn("delete apt_profile_versions, web_tasks ".
+		    "  from apt_profile_versions ".
+		    "left join web_tasks on ".
+		    "     web_tasks.object_uuid=apt_profile_versions.uuid ".
+		    "where apt_profile_versions.profileid='$profileid'")
+	    or goto bad;
     }
     else {
 	# Set deleted on all of the versions.
@@ -520,7 +522,15 @@ sub Delete($$)
 		    "    deleted=now(),locked=null,locker_pid=0 ".
 		    "where profileid='$profileid'")
 	    or goto bad;
+	# Delete any leftover webtasks.
+	DBQueryWarn("delete web_tasks from apt_profile_versions ".
+		    "left join web_tasks on ".
+		    "   web_tasks.object_uuid=apt_profile_versions.uuid ".
+		    "where apt_profile_versions.profileid='$profileid'");
     }
+    DBQueryWarn("delete from apt_profiles where profileid='$profileid'")
+	or goto bad;
+    
     DBQueryWarn("unlock tables");
     return 0;
 
@@ -1057,6 +1067,11 @@ sub SetSites($$$$$$)
 	    GeniXML::AddManagerToLink($ref, $manager_urn)
 		if (!exists($linksites{$manager_urn}));
 	    $linksites{$manager_urn} = 1;
+	}
+	# Two clusters only (point to point links and lans).
+	if (keys(%linksites) > 2) {
+	    $$perrmsg = "Multisite links/lans may span at most two clusters";
+	    return 1;
 	}
 	# if more then one site for a link, must use the stitcher.
 	$$pneedstitcher = 1
