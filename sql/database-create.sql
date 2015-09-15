@@ -2158,6 +2158,7 @@ CREATE TABLE `image_versions` (
   `origin_needupdate` tinyint(1) NOT NULL default '0',
   `logfileid` varchar(40) default NULL,
   `noexport` tinyint(1) NOT NULL default '0',
+  `noclone` tinyint(1) NOT NULL default '0',
   `ready` tinyint(1) NOT NULL default '0',
   `isdelta` tinyint(1) NOT NULL default '0',
   `isdataset` tinyint(1) NOT NULL default '0',
