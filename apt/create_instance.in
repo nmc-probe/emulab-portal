@@ -250,7 +250,7 @@ foreach my $key ("username", "email", "profile") {
 # Gather up args and sanity check.
 #
 my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $project, $pid,
-    $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg, $slice_id);
+    $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg, $userslice_id);
 
 #
 # Username and email has to be acceptable to Emulab user system.
@@ -281,7 +281,7 @@ if (exists($xmlparse->{'attribute'}->{"instance_name"}) &&
 			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
 	fatal("Illegal instance name: $value");
     }
-    $slice_id = $value;
+    $userslice_id = $value;
 }
 
 #
@@ -605,9 +605,8 @@ if (defined($profile)) {
 # Now generate a slice registration and credential
 #
 my $safe_uid    = $user_uid; $safe_uid =~ s/_/-/;
-if (! defined($slice_id)) {
-    $slice_id   = $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1);
-}
+my $slice_id    = (defined($userslice_id) ? $userslice_id :
+		   $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1));
 my $slice_urn   = GeniHRN::Generate("${OURDOMAIN}:${pid}", "slice", $slice_id);
 my $slice_hrn   = "${PGENIDOMAIN}.${pid}.${slice_id}";
 my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
@@ -616,9 +615,14 @@ my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
 # Make sure slice is unique. Probably retry here at some point. 
 #
 if (GeniSlice->Lookup($slice_hrn) || GeniSlice->Lookup($slice_urn)) {
-    fatal(defined($slice_id) ?
-	  "Slice name already in use, please use another" :
-	  "Could not form a unique slice name");
+    if (defined($userslice_id)) {
+	UserError("Slice name already in use, please use another. If you ".
+		  "just terminated an experiment with this name, it takes a ".
+		  "minute or two for the name to become available again.");
+    }
+    else {
+	fatal("Could not form a unique slice name");
+    }
 }
 	    
 #
@@ -797,7 +801,8 @@ else {
     # error in the web ui). 
     #
     if ($rval) {
-	if ($rval == GENIRESPONSE_INSUFFICIENT_NODES ||
+	if ($rval == GENIRESPONSE_BADARGS ||
+	    $rval == GENIRESPONSE_INSUFFICIENT_NODES ||
 	    $rval == GENIRESPONSE_INSUFFICIENT_MEMORY ||
 	    $rval == GENIRESPONSE_INSUFFICIENT_BANDWIDTH ||
 	    $rval == GENIRESPONSE_NO_MAPPING) {
@@ -1263,6 +1268,28 @@ sub RunStitcher()
     if ($?) {
 	if (-s $stderrfile) {
 	    my $stuff = `cat $stderrfile`;
+
+	    #
+	    # Try to find some useful output.
+	    #
+	    my $morestuff;
+	    
+	    if (open(SLOG, $stdoutfile)) {
+		while (<SLOG>) {
+		    if ($_ =~ /^Allocation of slivers in .* failed:/) {
+			$morestuff = $_;
+		    }
+		    elsif (defined($morestuff)) {
+			if ($_ =~ /^Allocate slivers in slice .* failed/) {
+			    last;
+			}
+			$morestuff .= $_;
+		    }
+		}
+		close(SLOG);
+		$stuff .= "\n\n" . $morestuff
+		    if (defined($morestuff));
+	    }
 	    $webtask->output($stuff);
 	    system("/bin/cat $stderrfile");
 	}
