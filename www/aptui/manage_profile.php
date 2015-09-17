@@ -599,7 +599,16 @@ if ($retval) {
 	#
 	# Decode simple XML that is returned. 
 	#
-	$parsed = simplexml_load_string($suexec_output);
+        if (isset($webtask_id)) {
+            $webtask = WebTask::Lookup($webtask_id);
+            if ($webtask) {
+                $parsed = simplexml_load_string($webtask->output());
+            }
+        }
+        else {
+            # We should always use a webtask.
+            $parsed = simplexml_load_string($suexec_output);
+        }
 	if (!$parsed) {
 	    $errors["error"] = "Internal Error; please try again later.";
 	    TBERROR("Could not parse XML output:\n$suexec_output\n", 0);
