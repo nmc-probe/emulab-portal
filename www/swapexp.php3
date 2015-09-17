@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -126,6 +126,7 @@ $idleswap_bit  = $experiment->idleswap();
 $idleswap_time = $experiment->idleswap_timeout();
 $idlethresh    = min($idleswap_time/60.0,TBGetSiteVar("idle/threshold"));
 $lockdown      = $experiment->lockdown();
+$isgeni        = $experiment->geniflags();
 
 # Template Instance Experiments get special treatment in this page.
 $instance = TemplateInstance::LookupByExptidx($exptidx);
@@ -315,6 +316,9 @@ else {
 	else {
 	    STARTLOG($experiment);
 	}
+    }
+    elseif ($isgeni) {
+        echo "Done!";
     }
     elseif ($isbatch) {
 	if (strcmp($inout, "in") == 0) {
