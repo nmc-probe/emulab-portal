@@ -286,6 +286,20 @@ sub SetProcessID($$)
     return 0;
 }
 
+# Set the object uuid.
+sub SetObject($$)
+{
+    my ($self, $uuid) = @_;
+    my $task_id       = $self->task_id();
+
+    DBQueryWarn("update web_tasks set object_uuid='$uuid' ".
+		"where task_id='$task_id'")
+	or return -1;
+
+    $self->{'DBROW'}->{'object_uuid'} = $uuid;
+    return 0;
+}
+
 #
 # Mark as exited. We want to leave the row around long enough for
 # anyone waiting to notice it has finished. We will have to GC these
