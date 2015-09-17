@@ -53,7 +53,9 @@ $routing = array("myprofiles" =>
 						 "Instantiate" =>
 						     "Do_Instantiate",
 						 "GetParameters" =>
-						     "Do_GetParameters")),
+                                                     "Do_GetParameters",
+						 "GetImageInfo" =>
+						     "Do_GetImageInfo")),
 		 "manage_profile" =>
 			array("file"    => "manage_profile.ajax",
 			      "guest"   => false,

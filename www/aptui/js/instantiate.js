@@ -256,7 +256,33 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		     " to enable more capabilities. Thanks!")
 		return false;
 	    }
+	    // Prevent double click.
+	    if ($(this).data('submitted') === true) {
+		// Previously submitted - don't submit again
+		console.info("Ignoring double submit");
+		event.preventDefault();
+		return false;
+	    }
+	    else {
+		// See if all cluster selections have been made. Seems
+		// to be a common problem.
+		if (!AllClustersSelected()) {
+		    alert("Please make all your cluster selections!");
+		    event.preventDefault();
+		    return false;
+		}
+		// Mark it so that the next submit can be ignored
+		$(this).data('submitted', true);
+	    }
 	    $("#waitwait-modal").modal('show');
+	    return true;
+	});
+	/*
+	 * Need to update image constraints when the project selector
+	 * is changed.
+	 */
+	$('#profile_pid').change(function (event) {
+	    UpdateImageConstraints();
 	    return true;
 	});
 	$('#profile_copy_button').click(function (event) {
@@ -595,10 +621,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		"    </label> " +
 		"    <div class='col-sm-6'>" +
 		"      <select name=\"formfields[sites][" + siteid + "]\"" +
-		"              class='form-control'>" + options +
+		"              class='form-control'>" +
+		"        <option value=''>Please Select</option>" + options +
 		"      </select>" +
 		"</div>" +
-	        "<div class='col-sm-4'></div><div class='col-sm-6 alert alert-warning' id='where-warning' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site only works on some clusters. Incompatible clusters are unselectable.</div>" +
+	        "<div class='col-sm-4'></div>" +
+		"<div class='col-sm-6 alert alert-warning' id='where-warning' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site only works on some clusters. Incompatible clusters are unselectable.</div>" +
+	        "<div class='col-sm-6 alert alert-danger' id='where-nowhere' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site <b>will not work on any clusters</b>. All clusters are unselectable.</div>" +
 	        "</div></div>";
 	    sitenum++;
 	});
@@ -607,6 +636,30 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	$("#site_selector").removeClass("hidden");
 	$("#site_selector").html(html);
       updateWhere();
+    }
+
+    /*
+     * Make sure all clusters slected before submit.
+     */
+    function AllClustersSelected() 
+    {
+	if (!multisite || Object.keys(sites).length <= 1) {
+	    return $('#nosite_selector').find('select').val() != "";
+	}
+	else {
+	    var allgood = 1;
+	    _.each(_.keys(sites), function (siteId) {
+		$('#site_selector #site' +
+		  siteIdToSiteNum[siteId] + 'cluster')
+		    .find('select').each(function () {
+			if ($(this).val() == "") {
+			    allgood = 0;
+			    return;
+			}
+		    });
+	    });
+	    return allgood;
+	}
     }
 
     var constraints;
@@ -641,52 +694,51 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
       });
     }
 
-  var foundImages = [];
+    var foundImages = [];
 
-  function onFoundImages(images)
-  {
-    console.log(images);
-    if (! _.isEqual(foundImages, images))
+    function onFoundImages(images)
     {
-      foundImages = images;
-      // STUB: Replace this with an ajax call to get images
-      _.delay(imageUpdate, 5000);
-    }
-  }
+	if (! _.isEqual(foundImages, images)) {
+	    foundImages = images;
 
-  function imageUpdate()
-  {
-    // STUB: Parse ajax call results and generate new context options and constraints
-    var newOptions = {
-      contextOptions: {
-	images: [
-	  {
-            "id": "urn:publicid:IDN+emulab.net+image+emulab-ops:SOME_NAME",
-            "name": "SOME_NAME Blah Blah"
-	  },
-	]
-      },
-      constraints: [
-	{
-	  "node": {
-            "aggregates": [
-              "urn:publicid:IDN+apt.emulab.net+authority+cm"
-            ],
-            "images": [
-              "urn:publicid:IDN+emulab.net+image+emulab-ops:SOME_TYPE"
-            ],
-            "types": [
-              "raw-pc"
-            ]
-	  }
-	},
-      ]
-    };
-    constraints.addPossibles(newOptions.contextOptions);
-    constraints.allowAllSets(newOptions.constraints);
-    console.log('imageUpdate');
-    updateWhere();
-  }
+	    UpdateImageConstraints();
+	}
+	return true;
+    }
+
+    /*
+     * Update the image constraints if anything changes.
+     */
+    function UpdateImageConstraints() {
+	console.log("UpdateImageConstraints");
+	console.log(foundImages);
+
+	if (!foundImages.length) {
+	    return;
+	}
+      
+	var callback = function(json) {
+	    if (json.code) {
+		alert("Could not get image info: " + json.value);
+		return;
+	    }
+	    console.log(json.value);
+	    if (1) {
+		constraints.addPossibles({ images: json.value.images });
+		constraints.allowAllSets(json.value.constraints);
+		updateWhere();
+	    }
+	};
+	// Must pass the selected project along for constraint checking.
+	var $xmlthing =
+	    sup.CallServerMethod(ajaxurl,
+				 "instantiate", "GetImageInfo",
+				 {"images"  : foundImages,
+				  "project" : $('#project_selector')
+				                     .find('select').val()});
+	$xmlthing.done(callback);
+	return true;
+    }
 
     function contextFail(fail1, fail2)
     {
@@ -704,27 +756,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	}
     }
 
-  var amValueToKey = {};
-/*
-    'Cloudlab Utah':
-    "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-
-    'Cloudlab Wisconsin':
-    "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
-
-    'Cloudlab Clemson':
-    "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
-
-    'APT Utah':
-    "urn:publicid:IDN+apt.emulab.net+authority+cm",
-
-    'IG UtahDDC':
-    "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-
-    'Emulab':
-    "urn:publicid:IDN+emulab.net+authority+cm"
-  };
-*/
+    var amValueToKey = {};
+    
     function finishUpdateWhere(allNodes, nodesBySite)
     {
       if (!multisite || Object.keys(sites).length <= 1) {
@@ -753,16 +786,27 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
       var clause = 'aggregates';
       allowed = constraints.getValidList(bound, subclause,
 					 clause, rejected);
-      if (rejected.length > 0)
+      if (allowed.length == 0)
+      {
+	domNode.find('#where-warning').hide();
+	domNode.find('#where-nowhere').show();
+      }
+      else if (rejected.length > 0)
       {
 	domNode.find('#where-warning').show();
+	domNode.find('#where-nowhere').hide();
       }
       else
       {
 	domNode.find('#where-warning').hide();
+	domNode.find('#where-nowhere').hide();
       }
       domNode.find('select').children().each(function () {
 	var value = $(this).attr('value');
+	// Skip the Please Select option
+	if (value == "") {
+	    return;
+	}
 	var key = amValueToKey[value];
 	var i = 0;
 	var found = false;
@@ -777,10 +821,17 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	if (found)
 	{
 	  $(this).prop('disabled', false);
+	  if (allowed.length == 1) {
+	      $(this).attr('selected', "selected");
+	      // This does not appear to do anything, at least in Chrome
+	      $(this).prop('selected', true);
+	  }
 	}
 	else
 	{
 	  $(this).prop('disabled', true);
+	  $(this).removeAttr('selected');
+	  // See above comment.
 	  $(this).prop('selected', false);
 	}
       });

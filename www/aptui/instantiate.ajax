@@ -180,6 +180,186 @@ function Do_Instantiate()
     SPITAJAX_RESPONSE("status.php?uuid=$uuid");
 }
 
+#
+# Return constraint info for a set of images.
+#
+function Do_GetImageInfo()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($ajax_args["images"])) {
+	SPITAJAX_ERROR(1, "Missing image list");
+	return;
+    }
+    if ($this_user && !$this_user->webonly()) {
+        if (!isset($ajax_args["project"])) {
+            SPITAJAX_ERROR(1, "Missing project selection");
+            return;
+        }
+        $pid = $ajax_args["project"];
+        if (!preg_match("/^[\w]+$/", $pid)) {
+            SPITAJAX_ERROR(1, "Illegal project name: $pid");
+            return;
+        }
+        $project = Project::Lookup($pid);
+        if (!$project) {
+            SPITAJAX_ERROR(1, "No such project: $pid");
+            return;
+        }
+        $approved = 0;
+        if (! (ISADMIN() ||
+               ($project->IsMember($this_user, $approved) && $approved))) {
+            SPITAJAX_ERROR(1, "Not a member of project: $pid");
+            return;
+        }
+    }
+    $dblink = DBConnect("ims");
+
+    $constraints = array();
+    $images      = array();
+
+    foreach ($ajax_args["images"] as $urn) {
+        if (Instance::ValidURN($urn)) {
+            # This // vs : thing is a pain.
+            $urn = preg_replace('/\/\//', ":", $urn);
+            # Need to see if there is a specific version.
+            list ($auth,$type,$id) = Instance::ParseURN($urn);
+            list ($proj,$name,$version) = preg_split('/:/', $id);
+
+            #
+            # Lookup is without the version number in the urn.
+            #
+            $urn = preg_replace('/:\d+$/', "", $urn);
+            $safe_urn = addslashes($urn);
+
+            #
+            # Gack, if this is for a system image in emulab-ops, and it is
+            # not in the database, it is probably cause the urn is referencing
+            # the wrong domain. If we do not find what we are looking for, then
+            # we want to try again with "emulab.net" cause that is most likely
+            # what the user really means. 
+            #
+            if ($proj == "emulab-ops") {
+                $checkagain = 1;
+            }
+         again:
+            if (is_null($version)) {
+                $query_result =
+                    DBQueryWarn("select i.*,v.* from images as i ".
+                                "left join image_versions as v on ".
+                                "     v.urn=i.urn ".
+                                "where i.urn='$safe_urn' ".
+                                "order by v.version desc limit 1",
+                                $dblink);
+            }
+            else {
+                $query_result =
+                    DBQueryWarn("select i.*,v.* from image_versions as v ".
+                                "left join images as i on ".
+                                "     i.image_uuid=v.image_uuid ".
+                                "where v.urn='$safe_urn' and v.version='$version'",
+                                $dblink);
+            }
+            if ($query_result && !mysql_num_rows($query_result) && $checkagain) {
+                list ($a,$b,$c) = Instance::ParseURN($urn);
+                $urn = "urn:publicid:IDN+emulab.net+image+${c}";
+                $safe_urn = addslashes($urn);
+                $checkagain = 0;
+                goto again;
+            }
+        }
+        elseif (parse_url($urn)) {
+            #
+            # Or it must be a URL.
+            #
+            $safe_url = addslashes($urn);
+
+            $query_result = 
+                DBQueryWarn("select i.*,v.* from image_versions as v ".
+                            "left join images as i on ".
+                            "     i.image_uuid=v.image_uuid ".
+                            "where v.metadata_url='$safe_url'",
+                            $dblink);
+        }
+        else {
+            continue;
+        }
+        if (!$query_result || !mysql_num_rows($query_result)) {
+            # Is this the right thing to do?
+            continue;
+        }
+        $row = mysql_fetch_array($query_result);
+
+        #
+        # Need to look at the privacy setting, and if the image is not
+        # public, the user has to be in the same project as the image
+        # (or own the image), or it has to be listed in the permissions.
+        #
+        if ($row["visibility"] != "public") {
+            # This will not be set for guests.
+            if (!isset($project)) {
+                continue;
+            }
+            
+            #
+            # Project selection box has to match the project the image
+            # belongs too. If the user changes the project selection, we
+            # have to rerun the constraints.
+            #
+            list ($auth) = Instance::ParseURN($row["project_urn"]);
+            list ($domain,$impid) = preg_split('/:/', $auth);
+            if ($impid && $impid == $pid) {
+                goto allowed;
+            }
+
+            #
+            # Check special permissions.
+            #
+            $perms_result =
+                DBQueryWarn("select * from image_permissions ".
+                            "where urn='" . addslashes($row["urn"]) . "'",
+                            $dblink);
+
+            while ($prow = mysql_fetch_array($perms_result)) {
+                $ptype = $prow["permission_type"];
+                $purn  = $prow["permission_urn"];
+                
+                if ($ptype == "user") {
+                    list ($ign1,$ign2,$id) = Instance::ParseURN($purn);
+                    if ($id && $id == $this_user->uid()) {
+                        goto allowed;
+                    }
+                }
+                elseif ($ptype == "project") {
+                    list ($auth) = Instance::ParseURN($purn);
+                    list ($domain,$ppid) = preg_split('/:/', $auth);
+                    if ($ppid && $ppid == $pid) {
+                        goto allowed;
+                    }
+                }
+            }
+            continue;
+        }
+   allowed:
+        $constraints[] =
+            array("node" =>
+                  array("images" => array($row["urn"]),
+                        "type"   => array($row["virtualizaton"])));
+        $constraints[] =
+            array("node" =>
+                  array("images"   => array($row["urn"]),
+                        "hardware" => array($row["types_known_working"])));
+
+        $images[] = array("id"   => $urn,
+                          "name" => $row["description"]);
+    }
+    $result = array(array("constraints" => $constraints,
+                          "images" => $images));
+    
+    SPITAJAX_RESPONSE($result);
+}
+
 # Local Variables:
 # mode:php
 # End:
