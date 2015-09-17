@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -134,9 +134,9 @@ if ($experiment->IsInstance()) {
     die("Failed to exec $template_swapout!");
 }
 elsif ($experiment->geniflags()) {
-    my $uuid = $experiment->uuid();
+    my $uuid = $experiment->eid_uuid();
     
-    exec "$cleanupslice $uuid";
+    exec "$cleanupslice -m $uuid";
     die("Failed to exec $cleanupslice!");
 }
 else {
