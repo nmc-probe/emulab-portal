@@ -251,12 +251,18 @@ sub GetHoldingProject($$)
     require Group;
 
     {
-	my ($domainsubauth, undef, undef) = GeniHRN::Parse($urn);
-	my ($domain,$subauth) = split(":", $domainsubauth);
+	my $hrn = GeniHRN->new($urn);
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Could create hrn object from $urn")
+	    if (!defined($hrn));
+
+	my $domainsubauth = $hrn->authority();
+	my $domain        = $hrn->domain();
+	my $subauth       = $hrn->subauth();
 	my ($project_id,$group_id,$project_urn);
 	
 	if ($PROTOGENI_LOCALUSER && defined($subauth)) {
-	    if (GeniHRN::Authoritative($urn, $OURDOMAIN)) {
+	    if ($domain eq $OURDOMAIN) {
 		#
 		# Local user. Confirm a member of the project, and if so
 		# operate in that project (as that user).
