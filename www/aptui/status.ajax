@@ -485,7 +485,7 @@ function Do_RequestExtension()
             $instance->SetExtensionReason($reason);
         }
         else {
-            $instance->SetExtensionRequested(1);
+            $instance->SetExtensionRequested(0);
         }
         $instance->BumpExtensionCount($granted);
     }
