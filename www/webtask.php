@@ -91,7 +91,7 @@ class WebTask {
         return WebTask::Lookup($task_id);
     }
 
-    function Refresh($task_id) {
+    function Refresh() {
 	if (! $this->IsValid())
 	    return -1;
         $task_id = $this->task_id();
