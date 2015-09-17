@@ -30,10 +30,11 @@ sub usage()
 {
     exit(-1);
 }
-my $optlist	= "dwi";
+my $optlist	= "dwxi";
 my $debug	= 0;
 my $genwires    = 0;
 my $genilo      = 0;
+my $genips      = 0;
 
 #
 # Configure variables
@@ -45,6 +46,7 @@ my $ILOPSWD   = "$TB/etc/ilo.pswd";
 sub Fatal($);
 sub GenXML(@);
 sub GenWires(@);
+sub GenIPs(@);
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/site/bin';
@@ -73,6 +75,9 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"d"})) {
     $debug = 1;
 }
+if (defined($options{"i"})) {
+    $genips = 1;
+}
 if (defined($options{"w"})) {
     $genwires = 1;
 }
@@ -97,6 +102,9 @@ if ($genwires) {
 }
 elsif ($genilo) {
     GenXML(@nodes);
+}
+elsif ($genips) {
+    GenIPs(@nodes);
 }
 exit(0);
 
@@ -163,6 +171,22 @@ sub GenWires(@)
 	}
     }
     print "<wiring>\n";
+}
+
+sub GenIPs(@)
+{
+    my @nodes = @_;
+
+    foreach my $node (@nodes) {
+	my $control = Interface->LookupControl($node);
+	my $mngmnt  = Interface->LookupManagement($node);
+
+	if (! (defined($control) && defined($mngmnt))) {
+	    Fatal("No control or management interface for $node");
+	}
+	print $node->node_id() .
+	    " " . $control->IP() . " " . $mngmnt->IP() . "\n";
+    }
 }
 
 sub PrintInterface($$)
