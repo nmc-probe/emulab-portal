@@ -21,7 +21,7 @@
    "children": [ { "name": "dl360", "size": 33, "howfull": 5, "url": "http://docs.cloudlab.us/hardware.html#%28part._ig-ddc%29" } ]
   },
   {
-   "name": "Utah PG",
+   "name": "Emulab",
    "order": 6,
    "color": "#2f10ad",
    "size" : 0,
