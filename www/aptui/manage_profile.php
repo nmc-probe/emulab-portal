@@ -572,19 +572,18 @@ else {
 #
 # Call out to the backend.
 #
-$command = "webmanage_profile ";
+$webtask    = WebTask::CreateAnonymous();
+$webtask_id = $webtask->task_id();
+$command    = "webmanage_profile ";
+
 if ($action == "edit") {
-    $command .= " update " . $profile->uuid();
+    $command .= " update -t $webtask_id " . $profile->uuid();
 }
 else {
-    $command .= " create";
+    $command .= " create -t $webtask_id ";
 }
 if (isset($snapuuid)) {
     $command .= " -s " . escapeshellarg($snapuuid);
-    
-    # We want to pass a webtask id along for tracking the image progress.
-    $webtask_id = WebTask::GenerateID();
-    $command .= " -t " . $webtask_id;
 }
 $command .= " $xmlname";
 
@@ -596,18 +595,9 @@ if ($retval) {
 	SUEXECERROR(SUEXEC_ACTION_CONTINUE);
     }
     else {
-	#
-	# Decode simple XML that is returned. 
-	#
-        if (isset($webtask_id)) {
-            $webtask = WebTask::Lookup($webtask_id);
-            if ($webtask) {
-                $parsed = simplexml_load_string($webtask->output());
-            }
-        }
-        else {
-            # We should always use a webtask.
-            $parsed = simplexml_load_string($suexec_output);
+        $webtask->Refresh();
+        if ($webtask->TaskValue("output")) {
+            $parsed = simplexml_load_string($webtask->TaskValue("output"));
         }
 	if (!$parsed) {
 	    $errors["error"] = "Internal Error; please try again later.";
@@ -624,6 +614,11 @@ unlink($xmlname);
 if (count($errors)) {
     SPITFORM($formfields, $errors);
     return;
+}
+
+# Done with this, unless doing a snapshot (needed for imaging status).
+if (!isset($snapuuid)) {
+    $webtask->Delete();
 }
 
 #

@@ -151,6 +151,31 @@ elsif ($action ne "create") {
 my $xmlfile = shift(@ARGV);
 
 #
+# Create the webtask object, even though we do not have a profile
+# object yet, we will set it below. We use the webtask to pass the
+# errors back to the web interface before the profile is created.
+#
+# Note that if we fail, we want to leave the webtask around for the
+# web interface, it will need to delete it. 
+#
+# If doing a snapshot, we always create one since that is the easiest
+# way to communicate with the manage_instance script, even if we ran
+# this from the command line. 
+#
+if (defined($webtask_id) || $snap) {
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+    }
+    else {
+	$webtask = WebTask->Create(undef);
+    }
+    if (!defined($webtask)) {
+	fatal("Could not create webtask for profile");
+    }
+    $webtask->AutoStore(1);
+}
+
+#
 # These are the fields that we allow to come in from the XMLfile.
 #
 my $SLOT_OPTIONAL	= 0x1;	# The field is not required.
@@ -417,6 +442,10 @@ else {
 	}
 	fatal("Could not create new profile");
     }
+    # Had to wait to do this, see comment above.
+    $webtask->SetObject($profile->uuid())
+	if (defined($webtask));
+    
     if (!$this_user->IsAdmin()) {
 	$profile->Publish();
     }
@@ -430,22 +459,6 @@ if (defined($instance)) {
     my $imagename  = $profile->name();
     my $new_uuid   = $profile->uuid();
 
-    #
-    # Grab the webtask object so we can watch it. We are looking
-    # for it to finish, so we can unlock the profile for use. Note
-    # this always creates a webtask, even if not directed to on the
-    # commmand line, so that we can communicate with the script we
-    # call that does the work. 
-    #
-    if (!defined($webtask)) {
-	$webtask = WebTask->Create($profile->uuid(), $webtask_id);
-	if (!defined($webtask)) {
-	    $profile->Delete(1);
-	    fatal("Could not create webtask for snapshot");
-	}
-	$webtask->AutoStore(1);
-    }
-    
     if ($profile->Lock()) {
 	$profile->Delete(1);
 	fatal("Could not lock new profile");
@@ -653,17 +666,19 @@ sub DeleteProfile($)
     # Version zero is special of course.
     #
     if ($profile->version()) {
-	$profile->DeleteVersion(0) == 0 or
+	$profile->DeleteVersion() == 0 or
 	    fatal("Could not delete profile version");
     }
     else {
 	# Purge it. At some point we want to save them.
 	$profile->Delete(1) == 0 or
 	    fatal("Could not delete profile");
+	# Kill off object webtask, since we do not do that when purging.
+	WebTask->DeleteByObject($profile->uuid());
     }
-    # No need for this anymore.
+    # No need for this anonymous webtask anymore.
     $webtask->Delete()
-	if (!defined($webtask));
+	if (defined($webtask));
     return 0;
   uerror:
     if (defined($webtask)) {

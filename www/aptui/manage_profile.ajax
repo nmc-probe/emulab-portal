@@ -44,7 +44,7 @@ function Do_CloneStatus()
     }
     $profile = Profile::Lookup($ajax_args["uuid"]);
     if (!$profile) {
-	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	SPITAJAX_ERROR(1, "Clone operation failed, could not create disk image");
 	return;
     }
     if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
@@ -116,19 +116,19 @@ function Do_DeleteProfile()
 	return;
     }
     $retval = SUEXEC($this_uid, $profile->pid(),
-		     "webmanage_profile -t " . $webtask->task_id() . " " .
-                     "delete " . $profile->uuid(),
+		     "webmanage_profile delete -t " . $webtask->task_id() . 
+                     " " . $profile->uuid(),
 		     SUEXEC_ACTION_IGNORE);
 
     if ($retval != 0) {
         $webtask->Refresh();
         if ($retval < 0) {
             $error  = "Internal Error; please try again later\n\n";
-            $error .= $webtask->output();
+            $error .= $webtask->TaskValue("output");
 	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
         }
         else {
-            $error = $webtask->output();
+            $error = $webtask->TaskValue("output");
         }
         $webtask->Delete();
 	SPITAJAX_ERROR(1, $error);
@@ -190,18 +190,18 @@ function Do_PublishProfile()
 	return;
     }
     $retval = SUEXEC($this_uid, $profile->pid(),
-		     "webmanage_profile -t " . $webtask->task_id() . " " .
-                     "publish " . $profile->uuid(),
+		     "webmanage_profile publish -t " . $webtask->task_id() . 
+                     " " . $profile->uuid(),
 		     SUEXEC_ACTION_IGNORE);
     if ($retval != 0) {
         $webtask->Refresh();
         if ($retval < 0) {
             $error  = "Internal Error; please try again later\n\n";
-            $error .= $webtask->output();
+            $error .= $webtask->TaskValue("output");
 	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
         }
         else {
-            $error = $webtask->output();
+            $error = $webtask->TaskValue("output");
         }
         $webtask->Delete();
 	SPITAJAX_ERROR(1, $error);

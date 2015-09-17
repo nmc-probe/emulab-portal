@@ -508,11 +508,9 @@ sub Delete($$)
 	or return -1;
 
     if ($purge) {
-	# Delete any associated webtasks too.
-	DBQueryWarn("delete apt_profile_versions, web_tasks ".
-		    "  from apt_profile_versions ".
-		    "left join web_tasks on ".
-		    "     web_tasks.object_uuid=apt_profile_versions.uuid ".
+	# Do not delete the web task here, it is needed to pass status
+	# back to the web interface during profile creation. 
+	DBQueryWarn("delete from apt_profile_versions ".
 		    "where apt_profile_versions.profileid='$profileid'")
 	    or goto bad;
     }
@@ -547,7 +545,8 @@ sub DeleteVersion($)
 {
     my ($self) = @_;
 
-    DBQueryWarn("lock tables apt_profile_versions write, apt_profiles write")
+    DBQueryWarn("lock tables apt_profile_versions write, ".
+		"     apt_profiles write, web_tasks write")
 	or return -1;
 
     my $profileid = $self->profileid();
@@ -567,10 +566,18 @@ sub DeleteVersion($)
 	print STDERR "Profile::DeleteVersion: not the head version of $self\n";
 	goto bad;
     }
+    # Delete leftover webtask.
+    DBQueryWarn("delete web_tasks from apt_profile_versions ".
+		"left join web_tasks on ".
+		"   web_tasks.object_uuid=apt_profile_versions.uuid ".
+		"where apt_profile_versions.profileid='$profileid' and ".
+		"      apt_profile_versions.version='$version'");
+
     goto bad
 	if (!DBQueryWarn("delete from apt_profile_versions ".
 			 "where profileid='$profileid' and ".
 			 "      version='$version'"));
+
     goto bad
 	if (!DBQueryWarn("update apt_profiles set version=version-1 ".
 			 "where profileid='$profileid' and ".
