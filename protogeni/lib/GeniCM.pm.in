@@ -777,7 +777,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		$pool->{'cmurn'} eq $ENV{'MYURN'})
 	    {
 		if ($pool->{'type'} ne "any") {
-		    $response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+		    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 		     "Only public address pools of type any are supported");
 		    goto bad;
 		}
@@ -1459,7 +1459,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 			   ($shell eq "csh" || $shell eq "sh" ||
 			    $shell eq "/bin/csh" || $shell eq "/bin/sh"))) {
 			$response =
-			    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "Invalid shell in execute");
 			goto bad;
 		    }
@@ -1518,7 +1518,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					      "ordering"  => 0});
 	    }
 	    else {
-		$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+		$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "No role for elabinelab");
 		goto bad;
 	    }
@@ -1532,7 +1532,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	if (defined($failure_ref)) {
 	    my $action = GeniXML::GetText("action", $failure_ref);
 	    if ($action ne "nonfatal") {
-		$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+		$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						 "Bad failure action");
 		goto bad;
 	    }
@@ -1961,7 +1961,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    my $lanref = Lan->LookupSharedVLanByToken($shared_vlan);
 	    if (!defined($lanref)) {
 		$response =
-		    GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				 "No such shared lan: $shared_vlan");
 		goto bad;
 	    }
@@ -1983,7 +1983,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		}
 		if (!defined($allowed)) {
 		    $response =
-			GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 			     "No permission to use shared lan: $shared_vlan");
 		    goto bad;
 		}
@@ -2050,7 +2050,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 
 	    if (!defined($iface_id)) {
 		$response =
-		    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				 "$lanname: Need interface id for links");
 		goto bad;
 	    }
@@ -2061,7 +2061,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 
 	    if (!defined($node_nickname)) {
 		$response =
-		    GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 				 "$lanname: Need node id for links");
 		goto bad;
 	    }
@@ -2374,8 +2374,12 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	if ($virtexperiment->Store()) {
 	    print STDERR $warnings
 		if ($warnings ne "");
-	    
-	    $response = GeniResponse->Create(GENIRESPONSE_ERROR,
+
+	    #
+	    # In general, an error here is something illegal in the rspec,
+	    # so return that with the normal BADARGS code.
+	    #
+	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS,
 					     undef, $warnings);
 	    goto bad;
 	}
@@ -2397,7 +2401,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     # Allocate any public address pools.
     if( $slice_experiment->AllocatePublicAddrPools() < 0 ) {
 	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
-					 "Could not allocate public address pools");
+				 "Could not allocate public address pools");
 	goto bad;
     }
     
@@ -2455,7 +2459,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	my $precheck;
 	my $inprecheck   = 0;
 	my $insummary    = 0;
-	my $errorcode = GENIRESPONSE_ERROR;
+	my $errorcode = GENIRESPONSE_NO_MAPPING;
 	
 	unlink($tmpfile);
 	if ($isupdate) {
@@ -2518,8 +2522,6 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		
 		if ($line =~ /^\*\*\*[\s\w]*precheck failed/) {
 		    $errorstr  = "Precheck failure";
-		    $errorcode = GENIRESPONSE_NO_MAPPING()
-			if ($errorcode == GENIRESPONSE_ERROR());
 		}
 		elsif ($line =~ /^Annealing/) {
 		    $inprecheck = 0;
@@ -7052,7 +7054,7 @@ sub HandleBlockstore($$$$$$@)
 {
     my ($experiment, $virtexperiment,
 	$geniuser, $slice, $noderef, $blockref, @credentials) = @_;
-    my $errorcode = GENIRESPONSE_ERROR;
+    my $errorcode = GENIRESPONSE_BADARGS;
     my $message   = "Unknown Error";
     my $nodename  = GeniXML::GetVirtualId($noderef);
     my @attributes = ();
@@ -7146,11 +7148,13 @@ sub HandleBlockstore($$$$$$@)
 		    system("$IMAGE_IMPORT -p $pid $safe_url");
 		    if ($?) {
 			$message = "Could not import $dataset_id";
+			$errorcode = GENIRESPONSE_ERROR;
 			goto bad;
 		    }
 		    $image = Image->LookupByURL($dataset_id);
 		    if (!defined($image)) {
 			$message = "Could not lookup dataset after import";
+			$errorcode = GENIRESPONSE_ERROR;
 			goto bad;
 		    }
 		}
@@ -7217,6 +7221,7 @@ sub HandleBlockstore($$$$$$@)
 	    
 	    if (! ($image->lba_low() || $image->lba_high())) {
 		$message = "No local size info for $dataset_id";
+		$errorcode = GENIRESPONSE_ERROR;
 		goto bad;
 	    }
 	    $size = int(($image->lba_high() -
