@@ -281,7 +281,7 @@ function SPITFORM($formfields, $newuser, $errors)
 	echo "<div class='$class'>\n";
 	echo "     $html\n";
 	if ($errors && array_key_exists($field, $errors)) {
-	    echo "<label class='control-label' for='$field'>" .
+	    echo "<label class='control-label small' for='$field'>" .
 		$errors[$field] . "</label>\n";
 	}
 	echo "</div>\n";
@@ -441,7 +441,7 @@ function SPITFORM($formfields, $newuser, $errors)
                   <span id='selected_profile_text'>
                   </span></span>\n";
         if ($errors && array_key_exists("profile", $errors)) {
-            echo "<label class='control-label' for='inputError'>" .
+            echo "<label class='control-label small' for='inputError'>" .
                 $errors["profile"] .
                 " </label>\n";
         }
@@ -522,7 +522,8 @@ function SPITFORM($formfields, $newuser, $errors)
                            name='formfields[name]'
                            value='" . $formfields["name"] . "'>\n";
         if ($errors && array_key_exists("name", $errors)) {
-            echo "  <label class='control-label'>". $errors["name"] . "</label>";
+            echo "  <label class='control-label small' for='experiment_name'>".
+                $errors["name"] . "</label>";
         }
         echo "    </div>
                 </div>
@@ -549,7 +550,7 @@ function SPITFORM($formfields, $newuser, $errors)
                     "<option $selected value='$pid'>$pid</option>\n";
             }
             $html =
-                "<div class='form-horizontal experiment_option' id='profile_selector'><div class='form-group'>
+                "<div class='form-horizontal experiment_option' id='project_selector'><div class='form-group'>
                    <label class='col-sm-4 control-label'
                       style='text-align: right;'>Project:</label>
                    <div class='col-sm-6'>
@@ -581,11 +582,13 @@ function SPITFORM($formfields, $newuser, $errors)
                      <div class='col-sm-6'>
                        <select name=\"formfields[where]\"
 		              id='profile_where' class='form-control'>
+		       <option value=''>Please Select</option>
                        $am_options</select><br>
                      </div>
                      <div class='col-sm-10 col-sm-offset-1'
                           style='text-align: center'>
 		       <div class='alert alert-warning' id='where-warning' style='display: none; margin-bottom: 5px'>This profile only works on some clusters. Incompatible clusters are unselectable.</div>
+		       <div class='alert alert-danger' id='where-nowhere' style='display: none; margin-bottom: 5px'>This profile <b>will not work on any clusters</b>. All clusters are unselectable.</div>
                      </div>
                    </div>
                   </div>
