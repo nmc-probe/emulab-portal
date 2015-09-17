@@ -84,7 +84,8 @@ class WebTask {
         $query_result = 
             DBQueryWarn("insert into web_tasks set task_id='$task_id', ".
                         "  created=now(), object_uuid='$task_id'");
-	if (!$query_result || !mysql_num_rows($query_result)) {
+        
+	if (!$query_result) {
             return null;
         }
         return WebTask::Lookup($task_id);
