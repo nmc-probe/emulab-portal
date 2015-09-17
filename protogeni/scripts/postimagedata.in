@@ -91,6 +91,8 @@ use Genixmlrpc;
 use GeniRegistry;
 use libEmulab;
 use Image;
+use User;
+use Group;
 use OSinfo;
 use emdb qw();
 use EmulabFeatures;
@@ -241,19 +243,27 @@ sub PostImageInfo($)
 	# Just skip, something is very wrong.
 	return 0;
     }
-
-    my $credential = GetServerCredential();
-
+    #
+    # Grab image permissions.
+    #
+    my $perms_result =
+	emdb::DBQueryWarn("select * from image_permissions ".
+			  "where imageid='$imageid'");
+    if (!defined($perms_result)) {
+	return -1;
+    }
     #
     # Grab the current type list.
     #
     my $types_result =
 	emdb::DBQueryWarn("select distinct type from osidtoimageid ".
 			  "where imageid='$imageid'");
-    
     if (!defined($types_result)) {
 	return -1;
     }
+    # Does not return if error.
+    my $credential = GetServerCredential();
+    
     my $arch  = "x86_64";
     my $virtualizaton = "raw-pc";
     my @types = ();
@@ -332,6 +342,7 @@ sub PostImageInfo($)
 		"virtualizaton"  => $virtualizaton,
 		"metadata_url"   => $image->LocalVersionURL(),
 		"types_known_working" => join(",", @types),
+		"image_permissions" => [],
     };
     #
     # If this is a nonlocal image, send the origin along so that the
@@ -339,6 +350,64 @@ sub PostImageInfo($)
     #
     if (!$image->IsLocal()) {
 	$blob->{'origin_url'} = $image->metadata_url();
+    }
+    #
+    # Add the local image permissions. 
+    #
+    while (my $row = $perms_result->fetchrow_hashref()) {
+	my $ptype = $row->{'permission_type'};
+	my $idx   = $row->{'permission_idx'};
+	my $id    = $row->{'permission_id'};
+	my $urn;
+	
+	if ($ptype eq "user") {
+	    my $user = User->Lookup($idx);
+	    if (!defined($user)) {
+		print STDERR "No such user $id ($idx) in permissions table\n";
+		next;
+	    }
+	    $urn = GeniHRN::Generate($OURDOMAIN, "user", $user->uid());
+	}
+	elsif ($ptype eq "group") {
+	    my $group = Group->Lookup($idx);
+	    if (!defined($group)) {
+		print STDERR "No such group $id ($idx) in permissions table\n";
+		next;
+	    }
+	    # IMS is not group aware.
+	    $ptype = "project";
+
+	    if (!$group->IsProjectGroup()) {
+		print STDERR "Not a project group in permissions table: $group\n";
+		next;
+	    }
+	    my $proj = $group->GetProject();
+	    if ($proj->IsNonLocal()) {
+		#
+		# If we are doing real projects, then the nonlocal_id is in the
+		# proper subauth format. 
+		#
+		if ($PGENILOCALUSER) {
+		    $urn = $proj->nonlocal_id();
+		}
+		else {
+		    my ($domain, undef, $id) =
+			GeniHRN::Parse($proj->nonlocal_id());
+		    $urn = GeniHRN::Generate($domain . ":" . $proj->pid(),
+					     "authority", $id);
+		}
+	    }
+	    else {
+		$urn = GeniHRN::Generate($OURDOMAIN . ":" . $proj->pid(),
+					 "authority", "sa");
+	    }
+	}
+	else {
+	    print STDERR "Invalid permission_type: $ptype\n";
+	    return -1;
+	}
+	push(@{ $blob->{'image_permissions'} },
+	     {"type" => $ptype, "urn" => $urn})
     }
     print Dumper($blob)
 	if ($debug);

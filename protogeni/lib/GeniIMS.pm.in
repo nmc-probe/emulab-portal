@@ -182,13 +182,25 @@ sub PostImageInfo($)
     return $response
 	if (GeniResponse::IsResponse($response));
 
+    #
+    # Verify that that the urn of the image is in the same domain as the
+    # the calling entitiy. 
+    #
+    my $image_hrn  = GeniHRN->new($blob->{'urn'});
+    my $caller_hrn = GeniHRN->new($credential->owner_urn());
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+			"Not allowed to postimageinfo for the image domain")
+	if ($image_hrn->domain() ne $caller_hrn->domain());
+
     InitDBHandle();
 
     #
     # Big lock.
     #
     return GeniResponse->Create(GENIRESPONSE_ERROR)
-	if (! $DB->QueryWarn("lock tables images write,image_versions write"));
+	if (! $DB->QueryWarn("lock tables images write, ".
+			     "     image_versions write, ".
+			     "     image_permissions write"));
     
     #
     # If the image exists, we allow certain updates to be made.
@@ -273,7 +285,7 @@ sub VerifyBlob($)
     }
     
     # Other slots that must exists.
-    foreach my $key ("created", "arch", "types_known_working") {
+    foreach my $key ("created", "arch", "types_known_working", "visibility") {
 	return GeniResponse->MalformedArgsResponse("Missing $key")
 	    if (! (exists($blob->{$key}) && defined($blob->{$key})));
     }
@@ -285,10 +297,35 @@ sub VerifyBlob($)
 	if (!defined(str2time($blob->{'created'})));
     return GeniResponse->MalformedArgsResponse("Illegal arch")
 	if ($blob->{'arch'} !~ /^(i386|x86_64|aarch64)$/);
+    return GeniResponse->MalformedArgsResponse("Illegal visibility")
+	if ($blob->{'visibility'} !~ /^(project|public)$/);
     # We allow an empty list here.
     return GeniResponse->MalformedArgsResponse("Illegal types_known_working")
 	if ($blob->{'types_known_working'} !~ /^[-\w,]*$/);
-    
+    # Permissions are optional.
+    if (exists($blob->{'image_permissions'})) {
+	foreach my $ref (@{ $blob->{'image_permissions'} }) {
+	    return GeniResponse->MalformedArgsResponse("Malformed permissions")
+		if (!(exists($ref->{'type'}) && exists($ref->{'urn'})));
+	    return GeniResponse->MalformedArgsResponse("Bad permission type")
+		if ($ref->{'type'} ne "user" && $ref->{'type'} ne "project");
+	    return GeniResponse->MalformedArgsResponse("Invalid permission urn")
+		if (! GeniHRN::IsValid($ref->{'urn'}));
+
+	    my $hrn = GeniHRN->new($ref->{'urn'});
+	    if ($ref->{'type'} eq "user") {
+		return GeniResponse->MalformedArgsResponse("Improper user urn ".
+							   "for permission")
+		    if ($hrn->type() ne "user");
+	    }
+	    else {
+		return GeniResponse->MalformedArgsResponse("Improper project ".
+							   "urn for permission")
+		    if ($hrn->type() ne "authority" ||
+			!defined($hrn->subauth()));
+	    }
+	}
+    }
     return 0;
   bad:
     return GeniResponse->MalformedArgsResponse($error);
@@ -347,6 +384,29 @@ sub UpdateImage($$)
 	"types_known_working" => join(",", sort(keys(%types_known_working))),
 	);
     my $created = timelocal(strptime($blob->{'created'}));
+
+    #
+    # Process the image permissions first.
+    #
+    if (exists($blob->{'image_permissions'})) {
+	$DB->QueryWarn("delete from image_permissions ".
+		       "where image_uuid='$image_uuid'")
+	    or return GeniResponse->Create(GENIRESPONSE_ERROR);
+	
+	foreach my $ref (@{ $blob->{'image_permissions'} }) {
+	    my $type = $ref->{'type'};
+	    my $safe_purn = DBQuoteSpecial($ref->{'urn'});
+	    my $safe_urn  = DBQuoteSpecial($blob->{'urn'});
+	    my $safe_name = DBQuoteSpecial($blob->{'imagename'});
+
+	    $DB->QueryWarn("insert into image_permissions set ".
+			   "  urn=$safe_urn,imagename=$safe_name, ".
+			   "  image_uuid='$image_uuid', ".
+			   "  permission_type='$type', ".
+			   "  permission_urn=$safe_purn") 
+		or return GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+    }
 
     if (! $DB->QueryWarn("update image_versions set ".
 			 "  created=FROM_UNIXTIME($created), ".
@@ -437,13 +497,37 @@ sub NewImage($)
 	);
     my $created = timelocal(strptime($blob->{'created'}));
 
+    #
+    # Process the image permissions first.
+    #
+    if (exists($blob->{'image_permissions'})) {
+	$DB->QueryWarn("delete from image_permissions ".
+		       "where image_uuid='$image_uuid'")
+	    or GeniResponse->Create(GENIRESPONSE_ERROR);
+	
+	foreach my $ref (@{ $blob->{'image_permissions'} }) {
+	    my $type = $ref->{'type'};
+	    my $safe_purn = DBQuoteSpecial($ref->{'urn'});
+	    my $safe_urn  = DBQuoteSpecial($blob->{'urn'});
+	    my $safe_name = DBQuoteSpecial($blob->{'imagename'});
+
+	    $DB->QueryWarn("insert into image_permissions set ".
+			   "  urn=$safe_urn,imagename=$safe_name, ".
+			   "  image_uuid='$image_uuid', ".
+			   "  permission_type='$type', ".
+			   "  permission_urn=$safe_purn") 
+		or return GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+    }
     if (! $DB->QueryWarn("insert into image_versions set ".
 			 "  created=FROM_UNIXTIME($created), ".
 			 join(",", map("$_=" . DBQuoteSpecial($sets{$_}),
 				       keys(%sets))))) {
-	$DB->QueryWarn("delete from images where image_uuid='$image_uuid'")
-	    if ($needdelete);
-
+	if ($needdelete) {
+	    $DB->QueryWarn("delete from images where image_uuid='$image_uuid'");
+	    $DB->QueryWarn("delete from image_permissions ".
+			   "where image_uuid='$image_uuid'");
+	}
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
