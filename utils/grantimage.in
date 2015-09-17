@@ -41,12 +41,14 @@ sub usage()
     print STDERR "	-g   Grant access to a specific group (project)\n";
     print STDERR "	-a   Grant global read-only access\n";
     print STDERR "	-x   Also grant access to protogeni users\n";
-    print STDERR "Alternate form:\n";
+    print STDERR "      -c   Set the noclone flag. Clear with -r\n";
+    print STDERR "      -p   Set the noexport flag. Clear with -r\n";
+    print STDERR "Alternate form for permissions:\n";
     print STDERR "  -R acl   Grant project|global read-only access\n";
     print STDERR "  -W acl   Grant creator|project write access\n";
     exit(-1);
 }
-my $optlist  = "hg:dnru:wlaxR:W:";
+my $optlist  = "hg:dnru:wlaxR:W:cp";
 my $impotent = 0;
 my $debug    = 0;
 my $revoke   = 0;
@@ -54,6 +56,8 @@ my $writable = 0;
 my $listonly = 0;
 my $global   = 0;
 my $protogeni= 0;
+my $noclone  = 0;
+my $noexport = 0;
 my $gid;
 my $uid;
 my $target;
@@ -132,6 +136,12 @@ if (defined($options{w})) {
 if (defined($options{x})) {
     $protogeni = 1;
 }
+if (defined($options{c})) {
+    $noclone = 1;
+}
+if (defined($options{p})) {
+    $noexport = 1;
+}
 if (defined($options{g})) {
     $gid = $options{g};
 }
@@ -153,7 +163,8 @@ usage()
     if (@ARGV != 1);
 usage()
     if (! ($listonly || $global || defined($gid) || defined($uid) ||
-	   defined($read_access) || defined($write_access)));
+	   defined($read_access) || defined($write_access) ||
+	   $noclone || $noexport));
 
 my $imageid = $ARGV[0];
 
@@ -203,6 +214,15 @@ if ($listonly) {
 	print "writable" if ($write);
 	print "\n";
     }
+    exit(0);
+}
+elsif ($noclone || $noexport) {
+    my $val = ($revoke ? 0 : 1);
+    
+    $image->Update({"noclone" => $val})
+	if ($noclone);
+    $image->Update({"noexport" => $val})
+	if ($noexport);
     exit(0);
 }
 elsif ($global || defined($read_access)) {
