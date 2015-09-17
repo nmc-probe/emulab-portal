@@ -5,6 +5,11 @@ use strict;
 use libinstall;
 use installvars;
 
+my $OLDRSAKEY = "/usr/emulabcerts/id_rsa";
+my $OLDRSAPUB = "/usr/emulabcerts/id_rsa.pub";
+my $OLDDSAKEY = "/usr/emulabcerts/id_dsa";
+my $OLDDSAPUB = "/usr/emulabcerts/id_dsa.pub";
+
 sub Install($$$)
 {
     my ($server, $isupdate, $impotent) = @_;
@@ -16,7 +21,14 @@ sub Install($$$)
     Phase "ssh", "Setting up root ssh from boss to ops", sub {
 	Phase "keygen", "Creating root RSA private key", sub {
 	    DoneIfExists($ROOT_PRIVKEY);
-	    ExecQuietFatal("$SSH_KEYGEN -t rsa -P '' -f $ROOT_PRIVKEY");
+
+	    if (-e $OLDRSAKEY && -e $OLDRSAPUB) {
+		ExecQuietFatal("$CP -p $OLDRSAKEY $ROOT_PRIVKEY");
+		ExecQuietFatal("$CP -p $OLDRSAPUB $ROOT_PUBKEY");
+	    }
+	    else {
+		ExecQuietFatal("$SSH_KEYGEN -t rsa -P '' -f $ROOT_PRIVKEY");
+	    }
 	};
 	#
 	# Stick it into the DB.
@@ -34,7 +46,13 @@ sub Install($$$)
 	#
 	Phase "keygen", "Creating root DSA private key", sub {
 	    DoneIfExists($ROOT_DSA_PRIVKEY);
-	    ExecQuietFatal("$SSH_KEYGEN -t dsa -P '' -f $ROOT_DSA_PRIVKEY");
+	    if (-e $OLDDSAKEY && -e $OLDDSAPUB) {
+		ExecQuietFatal("$CP -p $OLDDSAKEY $ROOT_DSA_PRIVKEY");
+		ExecQuietFatal("$CP -p $OLDDSAPUB $ROOT_DSA_PUBKEY");
+	    }
+	    else {
+		ExecQuietFatal("$SSH_KEYGEN -t dsa -P '' -f $ROOT_DSA_PRIVKEY");
+	    }
 	};
 	
 	Phase "ssh", "Editing ssh config file", sub {
