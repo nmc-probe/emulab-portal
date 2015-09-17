@@ -135,20 +135,26 @@ function Do_GetInstanceStatus()
         if ($webtask->exitcode() == 26) {
             $blob["reason"]  = "Not enough free nodes, please try again later.";
             $blob["reason"] .= "\n\n";
-            $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
         }
         elseif ($webtask->exitcode() == 25) {
             $blob["reason"]  = "Not enough available bandwidth for a link.\n\n";
-            $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
         }
         elseif ($webtask->exitcode() == 28) {
             $blob["reason"]  = "Your topology could not be mapped to physical ".
                 "resource.\n\n";
-            $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
+        }
+        elseif ($webtask->exitcode() == 1) {
+            #
+            # This is GENIRESPONSE_BADARGS which typically means an error
+            # in the input rspec, something the user must have put in it.
+            #
+            $blob["reason"]  = "Your topology source contains invalid ".
+                "values.\n\n";
         }
         else {
-            $blob["reason"] = htmlentities($webtask->TaskValue("output"));
+            $blob["reason"] = "";
         }
+        $blob["reason"] .= htmlentities($webtask->TaskValue("output"));
     }
     SPITAJAX_RESPONSE($blob);
 }
