@@ -1100,6 +1100,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    if (json.value.rspec != "") {
 		gotscript = 1;
 		NewRspecHandler(json.value.rspec);
+		// Force this; the script is obviously different, but the
+		// the XML might be exactly same. Still want to save it. 
+		ProfileModified();
 		// Show the XML source button.
 		$('#show_xml_modal_button').removeClass("hidden");
 	    }
