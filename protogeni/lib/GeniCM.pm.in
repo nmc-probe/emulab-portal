@@ -3699,7 +3699,7 @@ sub SliverWorkAux($$$$$$$$)
 	print STDERR $output;
 
 	$response =
-	    GeniResponse->Create(GENIRESPONSE_ERROR, $message, $logstuff);
+	    GeniResponse->Create(GENIRESPONSE_NO_MAPPING, $message, $logstuff);
 
 	# So we can find things later.
 	$experiment->SaveLogFiles();
