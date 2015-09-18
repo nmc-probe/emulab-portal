@@ -698,6 +698,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 
     function onFoundImages(images)
     {
+	if (1) {
+	    return true;
+	}
 	if (! _.isEqual(foundImages, images)) {
 	    foundImages = images;
 
