@@ -170,6 +170,12 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 		reader.onload = function(event) {
 		    var newrspec = event.target.result;
 
+		    /*
+		     * Clear the file so that the change handler will
+		     * run if the same file is selected again (say, after
+		     * fixing a script error).
+		     */
+		    $("#sourcefile").filestyle('clear');
 		    changeRspec(newrspec);
 		};
 		reader.readAsText(this.files[0]);
