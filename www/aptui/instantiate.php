@@ -534,9 +534,11 @@ function SPITFORM($formfields, $newuser, $errors)
     #
     if ($this_user && !$this_user->webonly()) {
         if (count($projlist) == 1) {
-            echo "<input id='profile_pid' type='hidden'
+            # We need this to look like the selector below, for the JS code.
+            echo "<div class='hidden' id='project_selector'>
+                   <input id='profile_pid' type='hidden'
                      name='formfields[pid]'
-                     value='" . $formfields["pid"] . "'>\n";
+                     value='" . $formfields["pid"] . "'></div>\n";
         }
         else {
             $project_options = "";
@@ -549,7 +551,9 @@ function SPITFORM($formfields, $newuser, $errors)
                     "<option $selected value='$pid'>$pid</option>\n";
             }
             $html =
-                "<div class='form-horizontal experiment_option' id='project_selector'><div class='form-group'>
+                "<div class='form-horizontal experiment_option'
+                      id='project_selector'>
+                  <div class='form-group'>
                    <label class='col-sm-4 control-label'
                       style='text-align: right;'>Project:</label>
                    <div class='col-sm-6'>

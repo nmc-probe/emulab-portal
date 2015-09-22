@@ -117,6 +117,18 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 							+'</div></div>');
 					}
 				});
+			    /*
+			     * BOGUS!
+			     */
+			    $('#stepsContainer-p-2 #finalize_options ' +
+			      '#profile_pid').change(function (event) {
+				  // Write back to original. 
+				  $('#project_selector #profile_pid')
+				      .val($(this).val());
+				  UpdateImageConstraints();
+				  return true;
+			    });
+			    
 			    if (!$('#cluster_status_link').length) {
 				$('#stepsContainer-p-2 #finalize_options').parent().append(''
 					+'<div id="cluster_status_link"><center>'
@@ -635,11 +647,11 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	$("#nosite_selector").addClass("hidden");
 	$("#site_selector").removeClass("hidden");
 	$("#site_selector").html(html);
-      updateWhere();
+	updateWhere();
     }
 
     /*
-     * Make sure all clusters slected before submit.
+     * Make sure all clusters selected before submit.
      */
     function AllClustersSelected() 
     {
@@ -713,9 +725,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
      * Update the image constraints if anything changes.
      */
     function UpdateImageConstraints() {
-	console.log("UpdateImageConstraints");
-	console.log(foundImages);
-
 	if (!foundImages.length) {
 	    return;
 	}
@@ -732,13 +741,19 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		updateWhere();
 	    }
 	};
-	// Must pass the selected project along for constraint checking.
+	/*
+	 * Must pass the selected project along for constraint checking.
+	 * But we have this problem of the actual project selection being a
+	 * copy cause of the steps containerizaton. There is a handler on
+	 * that copy, to write the new selection back to the original, which
+	 * is what we reference below. 
+	 */
 	var $xmlthing =
 	    sup.CallServerMethod(ajaxurl,
 				 "instantiate", "GetImageInfo",
 				 {"images"  : foundImages,
-				  "project" : $('#project_selector')
-				                     .find('select').val()});
+				  "project" : $('#project_selector #profile_pid')
+				                  .val()});
 	$xmlthing.done(callback);
 	return true;
     }
