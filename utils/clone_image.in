@@ -270,6 +270,15 @@ if (defined($image)) {
     }
 
     #
+    # Only project members or an admin can snapshot a noclone image.
+    #
+    if ($image->noclone() &&
+	!$image->AccessCheck($this_user, TB_IMAGEID_CREATE) &&
+	!$this_user->IsAdmin()) {
+	fatal("You are not allowed to snapshot this image");
+    }
+
+    #
     # The access check above determines if the caller has permission
     # to overwrite the image file. 
     # Not that this matters, cause create_image is going to make the
@@ -439,6 +448,15 @@ if (!$base_image->ezid()) {
 }
 
 #
+# Only project members or an admin can clone a noclone image.
+#
+if ($base_image->noclone() &&
+    !$base_image->AccessCheck($this_user, TB_IMAGEID_CREATE) &&
+    !$this_user->IsAdmin()) {
+    fatal("You are not allowed to clone $base_image");
+}
+
+#
 # Not allowed to derive an image from one that has not been released.
 # Maybe relax this in the future, but this is a good simplification for
 # now.
@@ -503,6 +521,7 @@ if (defined($base_image)) {
     $xmlfields{"mbr_version"}     = $base_image->mbr_version();
     $xmlfields{"loadpart"}        = $base_image->loadpart();
     $xmlfields{"noexport"}        = $base_image->noexport();
+    $xmlfields{"noclone"}         = $base_image->noclone();
 
     # Short form uses wholedisk instead. Should fix this. 
     if ($base_image->loadpart() == 0 && $base_image->loadlength() == 4) {
