@@ -26,13 +26,51 @@
 	  </table>
 	  <center>
 	    <img id='imaging-spinner' src='images/spinner.gif' />
+	  </center>
+	  <div id='imaging_modal_done_div' class='hidden'>
+	    Your new image name (or url) is below. If your profile is a
+	    geni-lib python script, you will need to edit your profile to
+	    change any nodes that should use this new image.
+	    <br>
+	    <br>
+	    <center>
+	      <b><span id='imaging-modal-imagename'></span></b>
+	    </center>
+	    <br>
+	  </div>
+	  <center>
             <button type='button' id='imaging-close'
                     class='btn btn-default btn-sm hidden' 
                     data-dismiss='modal'>
-              Close</button>
+	      Close</button>
 	  </center>
 	  <br>
 	</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id='imaging-done-modal' class='modal fade'>
+  <div class='modal-dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <h4><center>Your new image is ready!</center></h4>
+      </div>
+      <div class='modal-body'>
+	  Your new image name (or url) is below. If your profile is a
+	  geni-lib python script, you will need to edit your profile to
+	  change any nodes that should use this new image.
+	  <br>
+	  <br>
+	  <center>
+	  <b><span id='imaging-done-modal-imagename'></span></b>
+	  <br>
+	  <br>
+          <button type='button' id='imaging-done-modal-close'
+                  class='btn btn-default btn-sm' 
+                  data-dismiss='modal'>
+            Close</button>
+	</center>
       </div>
     </div>
   </div>
