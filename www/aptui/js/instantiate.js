@@ -527,7 +527,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	// Enable the create button.
 	$('#instantiate_submit').attr('disabled', false);
 	if (window.NOPPRSPEC) {
-	    alert("Geni users may configure parameterized profiles " +
+	    alert("Guest users may configure parameterized profiles " +
 		  "for demonstration purposes only. The parameterized " +
 		  "configuration will not be used if you Create this " +
 		  "experiment.");
