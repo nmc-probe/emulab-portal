@@ -169,7 +169,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 		var reader = new FileReader();
 		reader.onload = function(event) {
 		    var newrspec = event.target.result;
-
 		    /*
 		     * Clear the file so that the change handler will
 		     * run if the same file is selected again (say, after
@@ -471,6 +470,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    DisableButton("profile_submit_button");
 	    if (window.UPDATED) {
 		initNotifyUpdate();
+	    }
+	    else if (gotscript && window.CLONEWARN) {
+		sup.ShowModal('#warn_pp_modal');
 	    }
 	}
     }

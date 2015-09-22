@@ -68,6 +68,7 @@ function SPITFORM($formfields, $errors)
     $ispp       = 0;
     $isadmin    = (ISADMIN() ? 1 : 0);
     $multisite  = 1;
+    $clonewarn  = 0;
     $version_uuid = "null";
     $profile_uuid = "null";
 
@@ -90,6 +91,13 @@ function SPITFORM($formfields, $errors)
 	}
     }
     else  {
+        # New page action is now create, not copy or clone.
+        if ($action == "copy" || $action == "clone") {
+            if ($action == "clone") {
+                $clonewarn = 1;
+            }
+	    $action = "create";
+        }
 	$button_label = "Create";
 	$title        = "Create Profile";
     }
@@ -168,6 +176,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.ISADMIN  = $isadmin;\n";
     echo "    window.MULTISITE  = $multisite;\n";
     echo "    window.HISTORY  = $history;\n";
+    echo "    window.CLONEWARN = $clonewarn;\n";
     echo "    window.ACTIVITY = $activity;\n";
     echo "    window.TITLE    = '$title';\n";
     echo "    window.AMDEFAULT= '$amdefault';\n";
@@ -312,8 +321,6 @@ if (! isset($create)) {
 		    SPITUSERERROR("Not allowed to access this profile!");
 		}
 	    }
-	    # New page action is now create, not copy or clone.
-	    $action = "create";
 	    $defaults["profile_rspec"]  = $profile->rspec();
 	    $defaults["profile_who"]   = "private";
 	    if ($profile->script() && $profile->script() != "") {
