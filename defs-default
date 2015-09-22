@@ -109,6 +109,8 @@ PROTOGENI_WEBSITE="www.emulab.net"
 PROTOGENI_NICKNAME="utah-pg"
 # This value should be 12 if you are not in Utah. Ask before changing.
 PROTOGENI_MAXSERVERLOAD=24
+# Do not set this without asking Utah.
+PROTOGENI_LOCALUSER=1
 
 #
 # SSL Certificate stuff. Used to customize config files in ssl directory.
