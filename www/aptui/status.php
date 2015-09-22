@@ -125,6 +125,7 @@ if ($instance->profile_id() &&
 		       ISADMIN() ? 1 : 0);
     $public_url     = ($instance->public_url() ?
 		       "'" . $instance->public_url() . "'" : "null");
+    $ispprofile     = $profile->script() ? 1 : 0;
 }
 else {
     $profile_name   = "";
@@ -133,6 +134,7 @@ else {
     $cansnap        = 0;
     $canclone       = 0;
     $public_url     = "null";
+    $ispprofile     = 0;
 
 }
 if ($slice) {
@@ -216,6 +218,7 @@ echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.dossh = $dossh;\n";
+echo "  window.APT_OPTIONS.ispprofile = $ispprofile;\n";
 echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.lockout = $lockout;\n";
