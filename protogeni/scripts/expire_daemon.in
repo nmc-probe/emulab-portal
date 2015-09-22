@@ -66,6 +66,9 @@ my $LOGFILE       = "$TB/log/expire_daemon.log";
 my $IDLETIMES	  = "$TB/sbin/idletimes";
 my $EMULAB_PEMFILE = "$TB/etc/genicm.pem";
 my $REGISTER      = "$TB/sbin/protogeni/register_sliver";
+my $TRIGGERUPDATE = "$TB/sbin/protogeni/triggerimageupdate";
+my $POSTIMAGEDATA = "$TB/sbin/protogeni/postimagedata";
+my $IMPORTER      = "$TB/sbin/image_import";
 my $CLEANUPSLICE  = "$TB/sbin/cleanupslice";
 my $CLEANUPTICKET = "$TB/sbin/cleanupticket";
 my $SLEEP_INTERVAL= 60;
@@ -138,6 +141,7 @@ use emutil;
 use libEmulab;
 use Logfile;
 use Project;
+use Image;
 
 #
 # So we know who/what we are acting as.
@@ -1262,10 +1266,104 @@ sub CheckIdle()
 	$slice->Flush()
 	    if (defined($slice));
     }
-}    
+}
+
+#
+# Deal with image tracker stuff. 
+#
+sub HandleImageTracking()
+{
+    if (!GetSiteVar("protogeni/use_imagetracker")) {
+	return;
+    }
+    
+    #
+    # Look for images notifications; these are new local snapshots that need
+    # to be copied back to their origin, so we have to tell the origin of that
+    # image.
+    #
+    my $query_result =
+	DBQueryWarn("select * from image_notifications");
+    return
+	if (!$query_result);
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $imageid = $row->{'imageid'};
+	my $image   = Image->Lookup($imageid);
+	if (!defined($image)) {
+	    print STDERR "$imageid no longer exists. Skipping notification.\n";
+	    next;
+	}
+	if ($impotent) {
+	    print "Would trigger update for $image\n";
+	    next;
+	}
+	
+	#
+	# Lets avoid needless errors cause the image is locked, take the
+	# lock here and call it with the nolock option.
+	#
+	if ($image->Lock()) {
+	    print STDERR "$image is locked, skipping\n";
+	    next;
+	}
+	my $output = emutil::ExecQuiet("$TRIGGERUPDATE -l $imageid");
+	my $status = $?;
+	$image->Unlock();
+	if ($?) {
+	    print $output;
+	    SENDMAIL($TBOPS,
+		     "Could not trigger an image update for $imageid",
+		     $output,
+		     $TBOPS);
+	}
+    }
+
+    #
+    # Look for images that need to be copied back (cause we were notified
+    # in the loop above). These are images that need to be imported from
+    # the cluster where the snapshot was made.
+    #
+    $query_result =
+	DBQueryWarn("select * from image_updates");
+    return
+	if (!$query_result);
+    
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $imageid = $row->{'imageid'};
+	my $image   = Image->Lookup($imageid);
+	
+	if (!defined($image)) {
+	    print STDERR "$imageid no longer exists. Skipping update ...\n";
+	    next;
+	}
+	if ($impotent) {
+	    print "Would import new version of $image\n";
+	    next;
+	}
+	my $output = emutil::ExecQuiet("$IMPORTER -d -g -r -c $imageid");
+	if ($?) {
+	    print $output;
+	    SENDMAIL($TBOPS,
+		     "Could not import image update for $imageid",
+		     $output,
+		     $TBOPS);
+	}
+    }
+    my $opt = ($impotent ? "-n" : "");
+
+    # Trigger a posting to the IMS for any new images.
+    my $output = emutil::ExecQuiet("$POSTIMAGEDATA -v $opt all");
+    print $output;
+    if ($?) {
+	SENDMAIL($TBOPS,
+		 "Could not post image data to the IMS",
+		 $output,
+		 $TBOPS);
+    }
+}
 
 if ($oneshot) {
-    WarnSlices();
+    HandleImageTracking();
     exit(0);
 }
 
@@ -1326,6 +1424,7 @@ while (1) {
 	ReportOrphanedCerts();
 	$reportcounter = 0;
     }
+    HandleImageTracking();
 
     # Be certain stale info is gone.
     Experiment->FlushAll();
