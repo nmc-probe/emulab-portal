@@ -440,6 +440,7 @@ sub DoSnapshot()
 	# Convenient.
 	$webtask->AutoStore(1);
     }
+    $instance->SetStatus("imaging");
 
     #
     # This returns pretty fast, and then the imaging takes place in
@@ -451,12 +452,15 @@ sub DoSnapshot()
     if (!defined($response)) {
 	$errmsg = "Internal error creating image";
 	$instance->SetStatus($old_status);
-	goto bad;
+	goto uerror;
     }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	$errmsg = "Could not create image: " . $response->output() . "\n";
+	$errcode = 1
+	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE);
 	$instance->SetStatus($old_status);
-	goto bad;
+	goto uerror;
     }
     my ($image_urn, $image_url,
 	$version_urn, $version_url) = @{ $response->value() };
@@ -467,6 +471,15 @@ sub DoSnapshot()
     if (defined($webtask)) {
 	$webtask->image_urn($version_urn);
 	$webtask->image_url($version_url);
+
+	# DoImageTrackerStuff determined that we use whatever the cluster
+	# tells us, cause it is the home of the image.
+	my $copyback_urn = $version_urn
+	    if ($usetracker && !defined($copyback_urn));
+
+	# For the web interface.
+	$webtask->image_name((defined($copyback_urn) ?
+			      $copyback_urn : $version_url));
     }
     else {
 	print "$image_urn,$image_url\n";
@@ -506,6 +519,7 @@ sub DoSnapshot()
 	my $response = $aggregate->SliceStatus();
 	if ($response->code() != GENIRESPONSE_SUCCESS &&
 	    $response->code() != GENIRESPONSE_RPCERROR &&
+	    $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
 	    $response->code() != GENIRESPONSE_BUSY) {
 	    $errmsg = "Sliverstatus failed: ". $response->output() . "\n";
 	    $failed = 1;
@@ -513,6 +527,7 @@ sub DoSnapshot()
 	}
 	next
 	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
 		$response->code() == GENIRESPONSE_RPCERROR);
 
 	my $blob = $response->value();
@@ -550,6 +565,7 @@ sub DoSnapshot()
 	$response = $aggregate->ImageInfo($image_urn);
 	if ($response->code() != GENIRESPONSE_SUCCESS &&
 	    $response->code() != GENIRESPONSE_RPCERROR &&
+	    $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
 	    $response->code() != GENIRESPONSE_BUSY) {
 	    $errmsg = "Imageinfo failed: ". $response->output() . "\n";
 	    $failed = 1;
@@ -557,6 +573,7 @@ sub DoSnapshot()
 	}
 	next
 	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
 		$response->code() == GENIRESPONSE_RPCERROR);
 
 	$blob = $response->value();
@@ -605,7 +622,7 @@ sub DoSnapshot()
 	# tells us, cause it is the home of the image.
 	$copyback_urn = $version_urn
 	    if ($usetracker && !defined($copyback_urn));
-	
+
 	$profile->UpdateDiskImage($node_id,
 				  (defined($copyback_urn) ?
 				   $copyback_urn : $version_url),
@@ -633,17 +650,14 @@ sub DoSnapshot()
     }
     exit(0);
   bad:
-    if ($sliver_ready) {
+    if (!$sliver_ready) {
 	#
-	# If the sliver comes back ready in spite of the imaging failure,
-	# then change the instance back to ready. User will already know
-	# that the imaging failed.
+	# Image is ready, but sliver is not. Start a monitor so that
+	# web interface is updated.
 	#
-	$instance->SetStatus("ready");
+	StartMonitor();
     }
-    else {
-	$instance->SetStatus("imaging-failed");
-    }
+    $instance->SetStatus("ready");
     if (defined($logfile)) {
 	SENDMAIL($TBOPS,
 		 "Snapshot failed",
@@ -970,7 +984,8 @@ sub DoTerminate()
 	# SEARCHFAILED is success.
 	if ($response->code() != GENIRESPONSE_SUCCESS &&
 	    $response->code() != GENIRESPONSE_SEARCHFAILED) {
-	    if ($response->code() == GENIRESPONSE_BUSY) {
+	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE) {
 		$errmsg = "Slice was busy for too long; try again later?";
 		goto bad;
 	    }
