@@ -120,7 +120,7 @@ sub GetImageData($;$)
 				$key         => $token});
     
     if (!defined($response) || $response->code()) {
-	my $msg = "GetImageInfo failed for urn:";
+	my $msg = "GetImageInfo failed for $token:";
 	
 	if (!defined($response)) {
 	    $errormsg = "$msg RPC error";
