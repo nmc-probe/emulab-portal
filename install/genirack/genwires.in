@@ -170,7 +170,7 @@ sub GenWires(@)
 	    PrintInterface($interface, $location);
 	}
     }
-    print "<wiring>\n";
+    print "</wiring>\n";
 }
 
 sub GenIPs(@)
