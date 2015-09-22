@@ -23,6 +23,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var oneonly     = 0;
     var isadmin     = 0;
     var isguest     = 0;
+    var ispprofile  = 0;
     var dossh       = 1;
     var profile_uuid= null;
     var extend      = null;
@@ -48,6 +49,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	isguest = (window.APT_OPTIONS.registered ? false : true);
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
+	ispprofile = window.APT_OPTIONS.ispprofile;
 	profile_uuid = window.APT_OPTIONS.profileUUID;
 	lockout      = window.APT_OPTIONS.lockout;
 	lockdown     = window.APT_OPTIONS.lockdown;
@@ -388,7 +390,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $("#status_progress_bar").width("100%");
 		}
 		EnableButtons();
-		AutoStartSSH();
+		// We should be looking at the node status instead.
+		if (lastStatus != "imaging") {
+		    AutoStartSSH();
+		}
 	    }
 	    else if (status == 'failed') {
 		bgtype = "panel-danger";
@@ -1378,10 +1383,20 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	if (node_id) {
 	    // Default to checked any time we show the modal.
 	    $('#snapshot_update_profile').prop("checked", true);
-	    $('#snapshot_update_profile_div').removeClass("hidden");
+	    if (ispprofile) {
+		$('#snapshot_update_profile_div').addClass("hidden");
+		$('#snapshot_update_script_div').removeClass("hidden");
+	    }
+	    else {
+		$('#snapshot_update_profile_div').removeClass("hidden");
+		$('#snapshot_update_script_div').addClass("hidden");
+	    }
 	}
 	else {
 	    $('#snapshot_update_profile_div').addClass("hidden");
+	    if (ispprofile) {
+		$('#snapshot_update_script_div').removeClass("hidden");
+	    }
 	}
 	sup.ShowModal('#snapshot_modal');
 

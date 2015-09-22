@@ -63,6 +63,9 @@ function Do_CloneStatus()
 	# Success, but not sure what to report. Come back to this later.
 	$blob["exited"]   = $webtask->exited();
 	$blob["exitcode"] = $webtask->exitcode();
+        if (isset($taskdata["image_name"])) {
+            $blob["image_name"] = $taskdata["image_name"];
+        }
     }
     #
     # Size is in KB to avoid bigint problems. But kill the KB.

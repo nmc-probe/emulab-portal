@@ -29,7 +29,7 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 		    if (imaging_modal_active) {
 			sup.HideModal("#imaging-modal");
 			imaging_modal_active = false;
-			$('#imaging_modal').off('hidden.bs.modal');
+			$('#imaging-modal').off('hidden.bs.modal');
 		    }
 		    sup.SpitOops("oops", "Server says: " + json.value);
 		    completion_callback(1);
@@ -42,9 +42,9 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 		    imaging_modal_display = false;
 
 		    // Handler so we know the user closed the modal.
-		    $('#imaging_modal').on('hidden.bs.modal', function (e) {
+		    $('#imaging-modal').on('hidden.bs.modal', function (e) {
 			imaging_modal_active = false;
-			$('#imaging_modal').off('hidden.bs.modal');
+			$('#imaging-modal').off('hidden.bs.modal');
 		    })		
 		}
 
@@ -85,6 +85,20 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 			$('#tracker-ready').removeClass('progtrckr-todo');
 			$('#tracker-ready').addClass('progtrckr-done');
 			$('#imaging-spinner').addClass("hidden");
+			if (_.has(value, "image_name")) {
+			    $('#imaging-done-modal-imagename')
+				.text(value["image_name"]);
+			    $('#imaging-modal-imagename')
+				.text(value["image_name"]);
+
+			    if (!imaging_modal_active) {
+				sup.ShowModal("#imaging-done-modal");
+			    }
+			    else {
+				$('#imaging_modal_done_div')
+				    .removeClass("hidden");
+			    }
+			}
 			$('#imaging-close').removeClass("hidden");
 			completion_callback(0);
 			return;
@@ -135,9 +149,10 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 
 	    if (imagingTemplate == null) {
 		imagingTemplate  = _.template(imagingString);
-    		var imaging_html     = imagingTemplate({});
-		$('#imaging_div').html(imaging_html);
 	    }
+    	    var imaging_html = imagingTemplate({});
+	    $('#imaging_div').html(imaging_html);
+	    
 	    imaging_modal_display = true;	    
 	    ShowImagingModal();
 	}

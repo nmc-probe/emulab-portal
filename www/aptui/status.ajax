@@ -826,6 +826,9 @@ function Do_SnapshotStatus()
 	# Success, but not sure what to report. Come back to this later.
 	$blob["exited"]   = $webtask->exited();
 	$blob["exitcode"] = $webtask->exitcode();
+        if (isset($taskdata["image_name"])) {
+            $blob["image_name"] = $taskdata["image_name"];
+        }
 	$webtask->Delete();
     }
     SPITAJAX_RESPONSE($blob);
