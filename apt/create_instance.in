@@ -1564,7 +1564,6 @@ sub GetSSHKeys($$$)
 	    }
 	}
     }
-    print STDERR Dumper($rval);
     $$pref = $rval;
     return 0;
 }
