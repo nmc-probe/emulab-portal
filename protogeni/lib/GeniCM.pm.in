@@ -1569,7 +1569,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				     {"vname"    => $node_nickname,
 				      "desire"   => "d820-explicit",
 				      "weight"   => 0.95})
-	    if ($MAINSITE && !defined($exclusive) || !$exclusive);
+	    if ($MAINSITE && (!defined($exclusive) || !$exclusive));
 
 	#
 	# Special hack for allocating from a specific chassis.
