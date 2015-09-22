@@ -198,7 +198,7 @@ function Do_GetImageInfo()
             return;
         }
         $pid = $ajax_args["project"];
-        if (!preg_match("/^[\w]+$/", $pid)) {
+        if (!preg_match("/^[-\w]+$/", $pid)) {
             SPITAJAX_ERROR(1, "Illegal project name: $pid");
             return;
         }
