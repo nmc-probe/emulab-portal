@@ -244,8 +244,7 @@ function SPITFORM($formfields, $newuser, $errors)
     $registered = (isset($this_user) ? "true" : "false");
     $webonly    = (isset($this_user) &&
                    $this_user->webonly() ? "true" : "false");
-    $nopprspec  = (!isset($this_user) || $this_user->IsNonLocal() ?
-                   "true" : "false");
+    $nopprspec  = (!isset($this_user) ? "true" : "false");
     $portal     = "";
     # Gack.
     if (isset($this_user) && $this_user->IsNonLocal()) {
@@ -813,11 +812,10 @@ else {
 	$errors["profile"] = "No such profile in the database";
     }
     #
-    # Real users are allowed to use Paramterized Profiles, which means
+    # Real/Geni users are allowed to use Paramterized Profiles, which means
     # we could get an rspec.
     #
-    if ($temp->isParameterized() && 
-        $this_user && !$this_user->IsNonLocal() &&
+    if ($temp->isParameterized() && $this_user &&
         isset($formfields["pp_rspec"]) && $formfields["pp_rspec"] != "") {
         $args["rspec"] = $formfields["pp_rspec"];
     }

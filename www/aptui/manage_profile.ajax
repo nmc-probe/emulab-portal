@@ -304,16 +304,6 @@ function Do_CheckScript()
     $this_idx = $this_user->uid_idx();
     $this_uid = $this_user->uid();
 
-    #
-    # Only local users for now, not users whose accounts were created
-    # by geni-login. Not until we have proper sandboxing while running
-    # the geni-lib code.
-    #
-    if ($this_user->IsNonLocal()) {
-	SPITAJAX_ERROR(1, "You are not allowed to use geni-lib scripts.");
-	return;
-    }
-
     if (!isset($ajax_args["script"])) {
 	SPITAJAX_ERROR(1, "Missing script");
 	return;

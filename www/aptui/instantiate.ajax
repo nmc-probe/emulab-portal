@@ -136,8 +136,8 @@ function Do_Instantiate()
     $args["username"]   = $this_user->uid();
     $args["email"]      = $this_user->email();
     $args["profile"]    = $profile->uuid();
-    # Guest/Geni users not allowed to provide rspec
-    if (isset($this_user) && !$this_user->IsNonLocal() &&
+    # Guest users not allowed to provide rspec
+    if (isset($this_user) &&
         array_key_exists("rspec", $ajax_args)) {
 	$args["rspec"]  = $ajax_args["rspec"];
     }

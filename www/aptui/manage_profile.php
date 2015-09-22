@@ -452,17 +452,6 @@ else {
 }
 
 #
-# Only local users for now, not users whose accounts were created
-# by geni-login. Not until we have proper sandboxing while running
-# the geni-lib code.
-#
-if ($this_user->IsNonLocal() && 
-    isset($formfields["profile_script"]) &&
-    $formfields["profile_script"] != "") {
-    $errors["error"] = "You are not allowed to use geni-lib scripts.";
-}
-
-#
 # Sanity check the snapuuid argument. 
 #
 if (isset($action) && $action == "clone") {
