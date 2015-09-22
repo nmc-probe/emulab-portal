@@ -575,8 +575,7 @@ sub GetImageInfo($)
 	    if ($hrn->type() ne "image");
 
 	# The id might be version specific.
-	my ($pid,$imagename,$version) = split("\/\/", $hrn->id());
-	print STDERR Dumper($hrn);
+	my (undef,$pid,$imagename,$version) = $hrn->ParseImage();
 
 	if (defined($version)) {
 	    if ($version !~ /^\d+$/) {
@@ -584,7 +583,10 @@ sub GetImageInfo($)
 	    }
 	    # Kill the version number from the url.
 	    $urn =~ s/:\d+$//;
+	    $urn =~ s/\/\/\d+$//;
 	}
+	# This // vs : thing is a pain.
+	$urn =~ s/\/\//:/;
 	my $safe_urn = DBQuoteSpecial($urn);
 
 	$query_result = 
