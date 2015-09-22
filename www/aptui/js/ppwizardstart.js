@@ -553,8 +553,12 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	     * If not a registered user, then continue takes them back.
 	     */
 	    if (!registered) {
-		sup.HideModal('#ppmodal');
-		configuredone_callback(null);
+		// Need this timeout so that the steps container code runs.
+                setTimeout(function f() { 
+                              callback(true);
+		              ShowEditor();
+			      ConfigureDone();
+                           }, 200);
 		return;
 	    }
 	      
