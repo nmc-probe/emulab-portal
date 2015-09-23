@@ -39,7 +39,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
         $('#instantiate_submit').prop('disabled', true);
         $.get(contextUrl).then(contextReady, contextFail);
 
-	var jqxhr = $.getJSON('https://clnode063.clemson.cloudlab.us:8081/index.html?names=urn&callback=?')
+	var jqxhr = $.getJSON('https://clnode095.clemson.cloudlab.us:8081/index.html?names=urn&callback=?')
 		.done(function(data) {
 			monitor = data;
 			// Check if third tab is already active.
@@ -362,6 +362,19 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
     		return;
     	}
 
+    	console.log(monitor);
+
+
+
+
+    	// HARDCODED FOR MOCKUP, REMOVE
+    	monitor["urn:publicid:IDN+utahddc.geniracks.net+authority+cm"] = {health:0,status:"FAILURE"};
+    	monitor["urn:publicid:IDN+emulab.net+authority+cm"].rawPCsAvailable = 14;
+    	monitor["urn:publicid:IDN+clemson.cloudlab.us+authority+cm"].health = 49;
+    	monitor["urn:publicid:IDN+wisc.cloudlab.us+authority+cm"].rawPCsAvailable = 20;
+
+
+
     	$('#finalize_options .cluster-group').each(function() {
 			var which = $(this).parent().parent().attr('class');
 
@@ -382,10 +395,12 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 					// Calculate testbed rating and set up tooltips.
 					var rating = wt.CalculateRating(data);
 
-					target.parent().attr('data-rating', rating[0]);
+					target.parent().attr('data-health', rating[0]).attr('data-rating', rating[1]);
 
-					var stats = wt.StatsLineHTML(wt.AssignGlyph(rating[0]), rating[1]);
-					target.append(stats);
+					var classes = wt.AssignStatusClass(rating[0], rating[1]);
+					target.addClass(classes[0]).addClass(classes[1]);
+
+					target.append(wt.StatsLineHTML(classes, rating[2]));
 				}
 			});
 
@@ -679,7 +694,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 		"  <div class='form-group cluster-group'>" +
 		"    <label class='col-sm-4 control-label' " +
 		"           style='text-align: right;'>"+
-		"          Site " + siteid  + " Cluster:</a>" +
+		"          " + siteid  + " Cluster:</a>" +
 		"    </label> " +
 		"    <div class='col-sm-6'>" +
 		"      <select name=\"formfields[sites][" + siteid + "]\"" +

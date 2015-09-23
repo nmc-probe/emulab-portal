@@ -352,15 +352,16 @@ left: -999em;
 	position: relative;
 }
 
-.cluster_picker_status .picker_stats {
+.cluster_picker_status .tooltip_div {
     position: absolute;
     right: 10px;
-    top: 4px;
+    top: 3px;
 }
 
 .cluster_picker_status .dropdown-toggle .picker_stats {
+	position: absolute;
 	right: 35px;
-	top: 8px;
+	top: 6px;
 	z-index: 2;
 }
 
@@ -370,6 +371,67 @@ left: -999em;
 
 .cluster_picker_status .text-unhealthy {
 	color: #FF6600;
+}
+
+.cluster_picker_status .circle {
+	display: block;
+	border-radius: 50%;
+	border: 5px solid;
+	width: 20px;
+	height: 20px;
+	position: relative;
+}
+
+.cluster_picker_status .resource_healthy .circle {
+	background-color: #449d44;
+}
+
+.cluster_picker_status .resource_unhealthy .circle {
+	background-color: #ec971f;
+}
+
+.cluster_picker_status .resource_down .circle {
+	background-color: #c9302c;
+}
+
+.cluster_picker_status .status_healthy .circle {
+	border-color: #398439;
+}
+
+.cluster_picker_status .status_unhealthy .circle {
+	border-color: #d58512;
+}
+
+.cluster_picker_status .status_down .circle {
+	border-color: #ac2925;
+	background-color: #c9302c;
+}
+
+.cluster_picker_status .resource_healthy .tooltip.right .tooltip-inner, .cluster_picker_status .status_healthy .tooltip.left .tooltip-inner {
+	background-color: #398439;
+}
+
+.cluster_picker_status .resource_healthy .tooltip.right .tooltip-arrow, .cluster_picker_status .status_healthy .tooltip.left .tooltip-arrow {
+	border-right-color: #398439;
+	border-left-color: #398439;
+}
+
+.cluster_picker_status .resource_unhealthy .tooltip.right .tooltip-inner, .cluster_picker_status .status_unhealthy .tooltip.left .tooltip-inner {
+	background-color: #d58512;
+}
+
+.cluster_picker_status .resource_unhealthy .tooltip.right .tooltip-arrow, .cluster_picker_status .status_unhealthy .tooltip.left .tooltip-arrow {
+	border-right-color: #d58512;
+	border-left-color: #d58512;
+}
+
+.cluster_picker_status .resource_down .tooltip.right .tooltip-inner, .cluster_picker_status .status_down .tooltip.left .tooltip-inner {
+	background-color: #ac2925;
+}
+
+.cluster_picker_status .resource_down .tooltip.right .tooltip-arrow, .cluster_picker_status .status_down .tooltip.left .tooltip-arrow {
+	border-right-color: #ac2925;
+	border-left-color: #ac2925;
 }
 
 .cluster_picker_status .selected {

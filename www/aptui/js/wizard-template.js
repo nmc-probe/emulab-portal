@@ -32,7 +32,7 @@ function(_) {
 	function StatusClickEvent(html, that) {
 		    html.find('.dropdown-toggle .value').html($(that).attr('value'));   
 		    
-		    if ($(that).children('.picker_stats').length) {
+		    if ($(that).find('.picker_stats').length) {
 		    	if (!html.find('.dropdown-toggle > .picker_stats').length) {
 		    		html.find('.dropdown-toggle').append('<div class="picker_stats"></div>');
 		    	}
@@ -40,7 +40,7 @@ function(_) {
 		    		html.find('.dropdown-toggle > .picker_stats').html('');
 		    	}
 
-		    	html.find('.dropdown-toggle > .picker_stats').append($(that).children('.picker_stats').html());
+		    	html.find('.dropdown-toggle > .picker_stats').append($(that).find('.picker_stats').html());
 		    }
 
 		    html.find('.selected').removeClass('selected');
@@ -48,33 +48,31 @@ function(_) {
 	}
 
 	function CalculateRating(data, type) {
+		var health = 0;
 		var rating = 0;
-		var tooltip = '';
+		var tooltip = [];
 
 
 		if (data.status == 'SUCCESS') {
 			if (data.health) {
-				rating = data.health;
-				tooltip += '<div>Testbed is '
-				if (rating >= 75) {
-					tooltip += 'healthy';
-				}
-				else if (rating >= 50) {
-					tooltip += 'moderately healthy';
+				health = data.health;
+				tooltip[0] = '<div>Testbed is '
+				if (health >= 50) {
+					tooltip[0] += 'healthy';
 				}
 				else {
-					tooltip += 'unhealthy';
+					tooltip[0] += 'unhealthy';
 				}
-				tooltip += '</div>';
+				tooltip[0] += '</div>';
 			}
 			else {
-				rating = 100;
-				tooltip += '<div>Testbed is up</div>'
+				health = 100;
+				tooltip[0] = '<div>Testbed is up</div>'
 			}
 		}
 		else {
-			tooltip += '<div>Testbed is down</div>'
-			return [rating, tooltip];
+			tooltip[0] = '<div>Testbed is down</div>'
+			return [health, rating, tooltip];
 		}
 
 		var available, max, label;
@@ -91,36 +89,53 @@ function(_) {
 
 		if (!isNaN(available) && !isNaN(max)) {
 			var ratio = available/max;
-			rating = rating * ratio;
-			tooltip += '<div>'+available+'/'+max+' ('+Math.round(ratio*100)+'%) '+label+' available</div>';
+			rating = available;
+			tooltip[1] = '<div>'+available+'/'+max+' ('+Math.round(ratio*100)+'%) '+label+' available</div>';
 		}
 
-		return [rating, tooltip];
+		return [health, rating, tooltip];
 	}
 
-	function AssignGlyph(rating) {
-		if (rating >= 50) {
-			return ['text-success', 'glyphicon-plus'];
+	function AssignStatusClass(health, rating) {
+		var result = [];
+		if (health >= 50) {
+			result[0] = 'status_healthy';
 		}
-		else if (rating > 0) {
-			return ['text-warning', 'glyphicon-minus'];
+		else if (health > 0) {
+			result[0] = 'status_unhealthy';
 		}
 		else {
-			return ['text-danger', 'glyphicon-remove'];
+			result[0] = 'status_down';
 		}
+
+		if (rating > 20) {
+			result[1] = 'resource_healthy';
+		}
+		else if (rating > 10) {
+			result[1] = 'resource_unhealthy';
+		}
+		else {
+			result[1] = 'resource_down';
+		}
+
+		return result;
 	}
 
-	function StatsLineHTML(glyph, title) {
-		return '<div class="picker_stats" data-toggle="tooltip" data-placement="right" data-html="true" title="'+title+'">'
-							+'<span class="picker_status '+glyph[0]+'"><span class="glyphicon '+glyph[1]+'"></span></span>'
-							+'</div>';
+	function StatsLineHTML(classes, title) {
+		var title1 = '';
+		if (title[1]) {
+			title1 = ' data-toggle="tooltip" data-placement="right" data-html="true" title="'+title[1]+'"';
+		}
+		return '<div class="tooltip_div"'+title1+'><div class="picker_stats" data-toggle="tooltip" data-placement="left" data-html="true" title="'+title[0]+'">'
+							+'<span class="picker_status '+classes[0]+' '+classes[1]+'"><span class="circle"></span></span>'
+							+'</div></div>';
 	}
 
 	return {
 		ClusterStatusHTML: ClusterStatusHTML,
 		StatusClickEvent: StatusClickEvent,
 		CalculateRating: CalculateRating,
-		AssignGlyph: AssignGlyph,
+		AssignStatusClass: AssignStatusClass,
 		StatsLineHTML
 	};
 }
