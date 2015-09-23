@@ -479,10 +479,12 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
                     .prop('selected', true);		
 	    }
 	    if (window.SKIPSTEPS) {
-		$('#stepsContainer').steps("next");
-		if (ispprofile) {
-		    $('#stepsContainer').steps("next");
-		}
+	    	if (!$('#stepsContainer-p-0 fieldset > .has-error').length) {
+				$('#stepsContainer').steps("next");
+				if (ispprofile) {
+				    $('#stepsContainer').steps("next");
+				}
+	    	}
 		window.SKIPSTEPS = 0;
 	    }
 	    updateWhere();

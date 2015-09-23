@@ -350,14 +350,6 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "   <fieldset>\n";
 
     #
-    # Look for non-specific error.
-    #
-    if ($errors && array_key_exists("error", $errors)) {
-	echo "<font color=red><center>" . $errors["error"] .
-	    "</center></font><br>";
-    }
-
-    #
     # Ask for user information
     #
     if (!isset($this_user)) {
@@ -638,8 +630,15 @@ function SPITFORM($formfields, $newuser, $errors)
                             <div id='finalize_container' class='col-lg-8 col-md-8 col-sm-8 col-xs-12'>
                                 <div class='panel panel-default'>
                                     <div class='panel-heading'>Please review the selections below and then click Finish.</div>
-                                    <div class='panel-body'>
-                                        <div id='finalize_options'></div>
+                                    <div class='panel-body'>\n";
+    #
+    # Look for non-specific error.
+    #
+    if ($errors && array_key_exists("error", $errors)) {
+    echo "<div style='margin-bottom: 10px;'><font color=red><center>" . $errors["error"] .
+        "</center></font></div>";
+    }
+    echo "<div id='finalize_options'></div>
                                     </div>
                                 </div>
                             </div>
@@ -648,6 +647,8 @@ function SPITFORM($formfields, $newuser, $errors)
                                 <div id='inline_jacks'></div>
                             </div>
                                     </div>\n";
+
+
     echo "</div>\n";
     echo "<button class='btn btn-primary btn-sm'
         style='display:block;visibility:hidden;'
