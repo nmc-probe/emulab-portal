@@ -829,6 +829,8 @@ END {
 
     if ($exitcode) {
 	if ($logging) {
+	    # In case the callee flipped.
+	    GeniUtil::FlipToGeniUser();
 	    LogEnd(0);
 	    if (!$logforked) {
                 # Use eval to avoid messing up the output stream if any errors.
