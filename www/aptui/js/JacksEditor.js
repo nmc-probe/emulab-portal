@@ -68,8 +68,13 @@ function (_, editModalString, editInlineString)
     }
 
     function JacksEditor (root, isViewer, isInline,
-			  withoutSelection, withoutMenu, withoutMultiSite)
+			  withoutSelection, withoutMenu, withoutMultiSite, options)
     {
+      this.showRspec = false;
+      if (options)
+      {
+	this.showRspec = (options.showRspec == true);
+      }
 	this.root = root;
 	this.instance = null;
 	this.input = null;
@@ -131,7 +136,7 @@ function (_, editModalString, editInlineString)
 		nodeSelect: this.selectionPane,
 		readyCallback: _.bind(this.jacksReady, this),
 		show: {
-		    rspec: false,
+		    rspec: this.showRspec,
 		    tour: false,
 		    version: false,
 		    menu: this.menu,

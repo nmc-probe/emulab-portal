@@ -1,3 +1,28 @@
+(function ()
+{
+ var getQueryParams = function(qs) {
+   qs = qs.split('+').join(' ');
+   var params = {};
+   var re = /[?&]?([^=]+)=([^&]*)/g;
+   var tokens = re.exec(qs);
+   
+   while (tokens) {
+     params[decodeURIComponent(tokens[1])]
+       = decodeURIComponent(tokens[2]);
+     tokens = re.exec(qs);
+   }
+    
+   return params;
+ };
+
+ var params = getQueryParams(window.location.search);
+ if (! params.source)
+ {
+   window.JACKS_LOADER = { params: { source: 'utah' } };
+ }
+}
+)();
+
 window.APT_OPTIONS = window.APT_OPTIONS || {};
 
 window.APT_OPTIONS.configObject = {
@@ -14,8 +39,8 @@ window.APT_OPTIONS.configObject = {
 	'underscore': 'js/lib/underscore-min',
 	'filesize': 'js/lib/filesize.min',
 	'contextmenu': 'js/lib/bootstrap-contextmenu',
-	'jacks': 'https://www.emulab.net/protogeni/jacks-stable/js/jacks',
-	'constraints': 'https://www.emulab.net/protogeni/jacks-devel/js/Constraints'
+	'jacks': 'https://www.emulab.net/protogeni/jacks-utah/js/jacks',
+	'constraints': 'https://www.emulab.net/protogeni/jacks-utah/js/Constraints'
     },
     shim: {
 	'jquery-ui': { },

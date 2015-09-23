@@ -294,6 +294,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	 * is changed.
 	 */
 	$('#profile_pid').change(function (event) {
+	  console.log('profile-pid change');
 	    UpdateImageConstraints();
 	    return true;
 	});
@@ -675,10 +676,11 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     }
 
     var constraints;
+    var context;
 
     function contextReady(data)
     {
-      var context = data;
+      context = data;
       if (typeof(context) === 'string')
       {
 	context = JSON.parse(context);
@@ -711,7 +713,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     function onFoundImages(images)
     {
 	if (1) {
-	    return true;
+//	    return true;
 	}
 	if (! _.isEqual(foundImages, images)) {
 	    foundImages = images;
@@ -729,16 +731,20 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	    return;
 	}
       
+      $('#stepsContainer .actions a[href="#finish"]').attr('disabled', true);
 	var callback = function(json) {
 	    if (json.code) {
 		alert("Could not get image info: " + json.value);
 		return;
 	    }
-	    console.log(json.value);
+	    console.log('json', json.value);
+	  console.log('foundImages', foundImages);
 	    if (1) {
-		constraints.addPossibles({ images: json.value.images });
-		constraints.allowAllSets(json.value.constraints);
-		updateWhere();
+	      constraints = new Constraints(context);
+	      constraints.addPossibles({ images: foundImages });
+	      allowWithSites(json.value[0].constraints);
+	      updateWhere();
+      $('#stepsContainer .actions a[href="#finish"]').removeAttr('disabled');
 	    }
 	};
 	/*
@@ -757,6 +763,49 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	$xmlthing.done(callback);
 	return true;
     }
+
+  function allowWithSites(newConstraints)
+  {
+    console.log('newConstraints', newConstraints);
+    var sites = context.canvasOptions.site_info;
+    var finalItems = [];
+    _.each(newConstraints, function (item) {
+      console.log('item:', item);
+      var valid = [];
+      _.each(_.keys(sites), function (key) {
+	if ((item.node.hardware &&
+	     _.contains(sites[key].hardware, item.node.hardware[0])) ||
+	    (item.node.types &&
+	     _.contains(sites[key].types, item.node.types[0])))
+	{
+	  valid.push(key);
+	}
+      });
+      if (valid.length > 0)
+      {
+	item.node.aggregates = valid;
+	finalItems.push(item);
+      }
+    });
+    console.log(finalItems);
+    constraints.allowAllSets(finalItems);
+    constraints.allowAllSets([
+      {
+	node: {
+	  aggregates: ['!'],
+	  images: ['!'],
+	  hardware: ['!']
+	}
+      },
+      {
+	node: {
+	  aggregates: ['!'],
+	  images: ['!'],
+	  types: ['!']
+	}
+      },
+    ]);
+  }
 
     function contextFail(fail1, fail2)
     {
@@ -778,6 +827,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     
     function finishUpdateWhere(allNodes, nodesBySite)
     {
+      console.log('finishUpdateWhere');
       if (!multisite || Object.keys(sites).length <= 1) {
 	updateSiteConstraints(allNodes, $('#nosite_selector'));
       } else {
