@@ -40,6 +40,7 @@ function Do_CreateDataSet()
     global $ajax_args;
     global $DBFieldErrstr, $TBDIR, $APTBASE, $embedded;
     global $suexec_output, $suexec_output_array;
+    global $urn_mapping;
 
     $this_idx   = $this_user->uid_idx();
     $this_uid   = $this_user->uid();
@@ -127,6 +128,16 @@ function Do_CreateDataSet()
         }
         else {
             $command .= " -s " . $formfields["dataset_size"];
+        }
+        if (! (isset($formfields["dataset_cluster"]) &&
+               $formfields["dataset_cluster"] != "")) {
+            $errors["dataset_cluster"] = "Missing field";
+        }
+        elseif (!array_key_exists($formfields["dataset_cluster"], $urn_mapping)) {
+            $errors["dataset_cluster"] = "Illegal value";
+        }
+        else {
+            $command .= " -a '" . $formfields["dataset_cluster"] . "' ";
         }
     }
     else {
@@ -484,8 +495,11 @@ function Do_DeleteDataset()
     # Invoke backend.
     #
     $retval = SUEXEC($this_uid, $dataset->pid(), $command,
-		     SUEXEC_ACTION_CONTINUE);
+		     SUEXEC_ACTION_IGNORE);
     if ($retval != 0) {
+        if ($retval < 0) {
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
 	$error = "Transient error; please try again later";
 	
 	if ($retval && count($suexec_output_array)) {
@@ -573,8 +587,11 @@ function Do_RefreshDataset()
     $retval = SUEXEC($this_uid, $dataset->pid(),
 		     "webmanage_dataset refresh " .
 		     $dataset->pid() . "/" . $dataset->id(),
-		     SUEXEC_ACTION_CONTINUE);
+		     SUEXEC_ACTION_IGNORE);
     if ($retval != 0) {
+        if ($retval < 0) {
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
 	$error = "Transient error; please try again later";
 	
 	if ($retval && count($suexec_output_array)) {
@@ -628,8 +645,11 @@ function Do_ExtendDataset()
     # Invoke backend.
     #
     $retval = SUEXEC($this_uid, $dataset->pid(), $command,
-		     SUEXEC_ACTION_CONTINUE);
+		     SUEXEC_ACTION_IGNORE);
     if ($retval != 0) {
+        if ($retval < 0) {
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
 	$error = "Transient error; please try again later";
 	
 	if ($retval && count($suexec_output_array)) {

@@ -103,8 +103,8 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	 * go valid.
 	 */
 	if (cansnapshot &&
-	    fields.dataset_state == "busy" ||
-	    fields.dataset_state == "allocating") {
+	    (fields.dataset_state == "busy" ||
+	     fields.dataset_state == "allocating")) {
 	    ShowProgressModal();
 	}
     }

@@ -11,6 +11,7 @@ function (_, sup, moment, mainString, helpString)
     var fstypes      = null;
     var projlist     = null;
     var instances    = null;
+    var amlist       = null;
     var editing      = false;
     var isadmin      = false;
     var embedded     = 0;
@@ -31,6 +32,9 @@ function (_, sup, moment, mainString, helpString)
 	if (!embedded) {
 	    instances =
 		JSON.parse(_.unescape($('#instances-json')[0].textContent));
+	    if ($('#amlist-json').length) {
+		amlist = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+	    }
 	}
 	GeneratePageBody(fields, null);
     }
@@ -47,6 +51,7 @@ function (_, sup, moment, mainString, helpString)
 	    fstypes:		fstypes,
 	    projects:           projlist,
 	    instancelist:	instances,
+	    amlist:		amlist,
 	    title:		window.TITLE,
 	    embedded:		window.EMBEDDED,
 	    editing:		editing,
@@ -102,18 +107,21 @@ function (_, sup, moment, mainString, helpString)
 		    $('#dataset_expires_div').removeClass("hidden");
 		    $('#dataset_size_div').removeClass("hidden");
 		    $('#dataset_fstype_div').removeClass("hidden");
+		    $('#dataset_cluster_div').removeClass("hidden");
 		    $('#dataset_imageonly_div').addClass("hidden");
 		}
 		else if (val == "ltdataset") {
 		    $('#dataset_expires_div').addClass("hidden");
 		    $('#dataset_size_div').removeClass("hidden");
 		    $('#dataset_fstype_div').removeClass("hidden");
+		    $('#dataset_cluster_div').removeClass("hidden");
 		    $('#dataset_imageonly_div').addClass("hidden");
 		}
 		else {
 		    $('#dataset_expires_div').addClass("hidden");
 		    $('#dataset_size_div').addClass("hidden");
 		    $('#dataset_fstype_div').addClass("hidden");
+		    $('#dataset_cluster_div').addClass("hidden");
 		    $('#dataset_imageonly_div').removeClass("hidden");
 		}
 	    });

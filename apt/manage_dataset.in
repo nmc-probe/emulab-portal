@@ -158,9 +158,9 @@ sub DoCreate()
 {
     my $usage = sub {
 	print STDERR "Usage: manage_dataset create ".
-	    "[-t type] [-f fstype] [-e expiration] [-a am_urn] ".
+	    "[-t type] [-f fstype] [-e expiration] ".
 	    "[-R global|project] [-W creator|project] ".
-	    "-s size pid/name\n";
+	    "[-a am_urn] -s size pid/name\n";
 	exit(-1);
     };
     my $aggregate_urn = "urn:publicid:IDN+apt.emulab.net+authority+cm";
@@ -175,13 +175,16 @@ sub DoCreate()
     # imdataset snapshot info.
     my ($instance,$aggregate,$nodeid,$bsname);
     
-    my $optlist = "ds:t:e:f:w:p:R:W:I:i:";
+    my $optlist = "ds:t:e:f:w:p:R:W:I:i:a:";
     my %options = ();
     if (! getopts($optlist, \%options)) {
 	&$usage();
     }
     if (defined($options{"d"})) {
 	$debug = 1;
+    }
+    if (defined($options{"a"})) {
+	$aggregate_urn = $options{"a"};
     }
     if (defined($options{"t"})) {
 	$type = $options{"t"};
@@ -212,6 +215,12 @@ sub DoCreate()
 	    fatal("Could not find aggregate for $nodeid");
 	}
 	$aggregate_urn = $aggregate->aggregate_urn();
+    }
+    else {
+	if ($aggregate_urn ne "urn:publicid:IDN+apt.emulab.net+authority+cm" &&
+	    $aggregate_urn ne "urn:publicid:IDN+emulab.net+authority+cm") {
+	    fatal("Invalid cluster selection");
+	}
     }
     if (defined($options{"f"})) {
 	$fstype = $options{"f"};
@@ -254,7 +263,7 @@ sub DoCreate()
     }
     
     &$usage()
-	if (@ARGV != 1 ||
+	if (@ARGV != 1 || !defined($aggregate_urn) ||
 	    ($type ne "imdataset" && !defined($size)) ||
 	    ($type eq "stdataset" && !defined($expires)));
     my $name = shift(@ARGV);
@@ -414,7 +423,7 @@ sub DoDelete()
 	$errmsg = "DeleteDataset failed: ". $response->output() . "\n";
 	goto failed;
     }
-    if ($response->code() != GENIRESPONSE_BUSY) {
+    if ($response->code() == GENIRESPONSE_BUSY) {
 	$dataset->Unlock();
 	uerror("dataset was busy at the remote cluster, try again later");
     }

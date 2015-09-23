@@ -95,6 +95,13 @@ function SPITFORM($formfields, $errors)
         echo "<script type='text/plain' id='instances-json'>\n";
         echo htmlentities(json_encode($instance_array));
         echo "</script>\n";
+
+        $amlist = array();
+        $amlist["urn:publicid:IDN+apt.emulab.net+authority+cm"] = "APT";
+        $amlist["urn:publicid:IDN+emulab.net+authority+cm"] = "Emulab";
+	echo "<script type='text/plain' id='amlist-json'>\n";
+	echo htmlentities(json_encode($amlist));
+	echo "</script>\n";
     }
     
     # FS types.

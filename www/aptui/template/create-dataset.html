@@ -102,6 +102,30 @@
 		       <% if (editing) { %> readonly <% } %>
 		       type="text">
 	      </div>
+	      <% if (! embedded) { %>
+	      <div id='dataset_cluster_div'
+		   <% if (formfields.dataset_type == "imdataset") {
+		      %> class='hidden' <% } %> >
+		<% if (! editing) { %>
+		<select name="dataset_cluster"
+			id="dataset_cluster"
+			class='form-control format-me'
+			data-key="dataset_cluster"
+			data-label="Cluster"
+			placeholder='Please Select'>
+		  <option value=''>Please Select</option>
+		  <% _.each(amlist, function(name, value) { %>
+		  <option
+		     <% if (value == formfields.dataset_cluster) { %>
+	             selected
+		     <% } %>
+		     value='<%= value %>'><%= name %>
+		  </option>
+		  <% }); %>
+		</select>
+		<% } %>
+	      </div>
+	      <% } %>
 	      <% if (! editing) { %>
 	      <div id='dataset_imageonly_div'
 		   <% if (formfields.dataset_type != "imdataset") {
