@@ -218,8 +218,8 @@ sub AuditStart($;$$)
     #
     if ($UID != $EUID) {
 	chown($UID, $EUID, $logfile);
-	chmod(0664, $logfile);
     }
+    chmod(0666, $logfile);
 
     # Save old stderr and stdout.
     if (!$daemon && $PERL_VERSION >= 5.008) {
