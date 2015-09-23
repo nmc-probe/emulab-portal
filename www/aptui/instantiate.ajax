@@ -345,7 +345,7 @@ function Do_GetImageInfo()
         $constraints[] =
             array("node" =>
                   array("images" => array($row["urn"]),
-                        "type"   => array($row["virtualizaton"])));
+                        "types"   => array($row["virtualizaton"])));
         $constraints[] =
             array("node" =>
                   array("images"   => array($row["urn"]),

@@ -742,7 +742,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	    if (1) {
 	      constraints = new Constraints(context);
 	      constraints.addPossibles({ images: foundImages });
-	      allowWithSites(json.value[0].constraints);
+	      allowWithSites(json.value[0].images, json.value[0].constraints);
 	      updateWhere();
       $('#stepsContainer .actions a[href="#finish"]').removeAttr('disabled');
 	    }
@@ -764,8 +764,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	return true;
     }
 
-  function allowWithSites(newConstraints)
+  function allowWithSites(newImages, newConstraints)
   {
+    console.log('newImages', newImages);
     console.log('newConstraints', newConstraints);
     var sites = context.canvasOptions.site_info;
     var finalItems = [];
@@ -773,19 +774,41 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
       console.log('item:', item);
       var valid = [];
       _.each(_.keys(sites), function (key) {
-	if ((item.node.hardware &&
-	     _.contains(sites[key].hardware, item.node.hardware[0])) ||
-	    (item.node.types &&
-	     _.contains(sites[key].types, item.node.types[0])))
+	// Items from server might just be comma-separated lists in
+	// strings instead of split out properly. Let's split them out
+	// here.
+	item.node.hardware = splitItems(item.node.hardware);
+	item.node.types = splitItems(item.node.types);
+
+	// The image list returned are the only valid images
+	if (_.findWhere(newImages, { id: item.node.images[0] }))
 	{
-	  valid.push(key);
+	  _.each(item.node.hardware, function (hardware) {
+	    if (_.contains(sites[key].hardware, hardware))
+	    {
+	      finalItems.push({
+		node: {
+		  hardware: [hardware],
+		  images: item.node.images,
+		  aggregates: [key]
+		}
+	      });
+	    }
+	  });
+	  _.each(item.node.types, function (type) {
+	    if (_.contains(sites[key].types, type))
+	    {
+	      finalItems.push({
+		node: {
+		  types: [type],
+		  images: item.node.images,
+		  aggregates: [key]
+		}
+	      });
+	    }
+	  });
 	}
       });
-      if (valid.length > 0)
-      {
-	item.node.aggregates = valid;
-	finalItems.push(item);
-      }
     });
     console.log(finalItems);
     constraints.allowAllSets(finalItems);
@@ -805,6 +828,14 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	}
       },
     ]);
+  }
+
+  function splitItems(list) {
+    var result = [];
+    _.each(list, function (item) {
+      result = result.concat(item.split(','));
+    });
+    return result;
   }
 
     function contextFail(fail1, fail2)
