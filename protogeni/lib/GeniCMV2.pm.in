@@ -1662,6 +1662,451 @@ sub UpdateSliver($)
 }
 
 #
+# These next couple are special hacks.
+#
+sub AddNodes($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $credentials  = $argref->{'credentials'};
+    my $nodelist     = $argref->{'nodes'};
+    my $response;
+
+    if (! (defined($credentials) &&
+	   defined($slice_urn) && defined($nodelist))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    # It was agreed that nodes is a hash of:
+    #
+    #  {"node45" : {"diskimage" : "urn...",
+    #               "startup"   : "/bin/echo",
+    #               "tarballs"  : ["tarball1", "tarball2", ...],
+    #               "lans"      : ["lan1", "lan2", ...]
+    #               "node"      : "pc189"}}
+    #
+    if (ref($nodelist) ne "HASH") {
+	return GeniResponse->MalformedArgsResponse("nodes is not a hash");
+    }
+    my ($credential,$speaksfor,@morecreds) =
+	GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my ($slice, $aggregate) = Credential2SliceAggregate($credential);
+    return $slice
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (! (defined($slice))) {
+	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "No slice here");
+    }
+    if ($slice_urn ne $slice->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Credential does not match the URN");
+    }
+    my $manifest = $aggregate->GetManifest(0);
+    return GeniResponse->Create(GENIRESPONSE_ERROR(), undef,
+				"Could not get manifest for slice")
+	if (!defined($manifest));
+
+    #
+    # Make sure no duplicates.
+    #
+    foreach my $noderef (GeniXML::FindNodes("n:node",
+					    $manifest)->get_nodelist()) {
+	my $id = GeniXML::GetVirtualId($noderef);
+	if (!defined($id)) {
+	    print STDERR "No virtual node for $noderef\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR());
+	}
+	if (exists($nodelist->{$id})) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS(), undef,
+					"Already have $id in the topology!");
+	}
+    }
+    # Keep track of which nodes have to be added to which lans.
+    my %ifacestoaddtolans = ();
+    
+    foreach my $nodeid (keys(%{$nodelist})) {
+	my $blob = $nodelist->{$nodeid};
+	next
+	    if (!exists($blob->{"lans"}));
+
+	if (ref($blob->{'lans'}) ne "ARRAY") {
+	    return GeniResponse->MalformedArgsResponse("lans for $nodeid ".
+						       "is not a list");
+	}
+	foreach my $lan (@{ $blob->{'lans'} }) {
+	    if (!exists($ifacestoaddtolans{$lan})) {
+		$ifacestoaddtolans{$lan} = [];
+	    }
+	    push(@{ $ifacestoaddtolans{$lan} }, "$nodeid:$lan");
+	}
+    }
+    # But make sure all these lans exist.
+    if (keys(%ifacestoaddtolans)) {
+	my %tmp = ();
+	
+	foreach my $linkref (GeniXML::FindNodes("n:link",
+						$manifest)->get_nodelist()) {
+	    my $id = GeniXML::GetVirtualId($linkref);
+	    if (!defined($id)) {
+		print STDERR "No client id for $linkref\n";
+		return GeniResponse->Create(GENIRESPONSE_ERROR());
+	    }
+	    $tmp{$id} = $id;
+	}
+	foreach my $lan (keys(%ifacestoaddtolans)) {
+	    if (!exists($tmp{$lan})) {
+		return GeniResponse->MalformedArgsResponse("No such $lan");
+	    }
+	}
+    }
+    main::AddLogfileMetaDataFromSlice($slice);
+
+    #
+    # Add new nodes.
+    #
+    foreach my $nodeid (keys(%{$nodelist})) {
+	my $blob = $nodelist->{$nodeid};
+ 	my $xml  = "";
+
+	if (ref($blob) ne "HASH") {
+	    return GeniResponse->MalformedArgsResponse("$nodeid is not a hash");
+	}
+	$xml .= "<node client_id='$nodeid'>\n";
+	$xml .= "  <sliver_type name='raw'>\n";
+	if (exists($blob->{'diskimage'})) {
+	    my $urn = $blob->{'diskimage'};
+	    $xml .= "    <disk_image name='$urn'/>\n";
+	}
+	$xml .= "  </sliver_type>\n";
+	if (exists($blob->{'tarballs'}) || exists($blob->{'startup'})) {
+	    $xml .= "  <services>\n";
+
+	    if (exists($blob->{'tarballs'}) &&
+		ref($blob->{'tarballs'}) ne "ARRAY") {
+		return GeniResponse->MalformedArgsResponse("tarballs for $nodeid ".
+							   "is not a list");
+	    }
+	    foreach my $tarball (@{ $blob->{'tarballs'} }) {
+		$xml .= "      <install url='$tarball' install_path='/' />\n";
+	    }
+	    if (exists($blob->{'startup'})) {
+		my $command = $blob->{'startup'};
+		
+		$xml .= "      <execute shell='/bin/bash' ".
+		    "command='$command' />\n";
+	    }
+	    $xml .= "  </services>\n";
+	}
+	if (exists($blob->{'lans'})) {
+	    foreach my $lan (@{ $blob->{'lans'} }) {
+		$xml .= "    <interface client_id='$nodeid:$lan' />\n";
+	    }
+	}
+	$xml .= "</node>";
+
+	my $child = GeniXML::Parse($xml);
+	if (!defined($child)) {
+	    print STDERR "Could not parse XML for $nodeid: $xml\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Could not parse XML for $nodeid: $xml");
+	}
+	$manifest->appendChild($child);
+    }
+    #
+    # Find each lan that has new nodes, and add to the interface list.
+    #
+    if (keys(%ifacestoaddtolans)) {
+	foreach my $linkref (GeniXML::FindNodes("n:link",
+						$manifest)->get_nodelist()) {
+	    my $id = GeniXML::GetVirtualId($linkref);
+
+	    next
+		if (!exists($ifacestoaddtolans{$id}));
+
+	    foreach my $iface (@{ $ifacestoaddtolans{$id} }) {
+		my $ifaceref =
+		    GeniXML::Parse("<interface_ref client_id='$iface'/>");
+		$linkref->appendChild($ifaceref);
+	    }
+	}
+    }
+    my $rspecstr = GeniXML::Serialize($manifest);
+    print STDERR "$rspecstr\n";
+
+    #
+    # Any user can update the sliver. 
+    #
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
+    my $rspec = GeniCM::GetTicketAuxAux($slice, $user,
+					$rspecstr, 1, 0, 1, -1, 0, undef,
+					[$credential, @morecreds], $speaksfor);
+    return $rspec
+	if (GeniResponse::IsResponse($rspec));
+
+    # Make sure that the next phase sees all changes.
+    Experiment->FlushAll();
+    Node->FlushAll();
+
+    my $response = GeniCM::SliverWorkAux($credential, $rspec,
+					 undef, 1, 0, 1, 1, $speaksfor);
+
+    if (GeniResponse::IsError($response)) {
+	print STDERR "Redeem failed\n";
+	# Not sure what to do here.
+	my $ticket = GeniTicket->SliceTicket($slice);
+	if (defined($ticket)) {
+	    if ($ticket->Lock() != 0) {
+		print STDERR "Could not lock $ticket\n";
+	    }
+	    elsif ($ticket->Release(TICKET_PURGED)) {
+		print STDERR "Could not release $ticket\n";
+	    }
+	}
+	return $response;
+    }
+    if ($slice->WaitForLock(30) != 0) {
+	print STDERR "AddNodes: Could not lock $slice before start\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Internal Error");
+    }
+    # We get the manifest from the aggregate object, so that the
+    # expiration goes in.
+    my $sliver_manifest = $aggregate->GetManifest(1);
+
+    #
+    # At this point we want to return and let the startsliver proceed
+    # in the background. Parent never returns, just the child.
+    #
+    my $mypid = main::WrapperFork();
+    if ($mypid) {
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $sliver_manifest);
+    }
+
+    # Make sure that the next phase sees all changes.
+    Experiment->FlushAll();
+    Node->FlushAll();
+
+    #
+    # The callee might also do a wrapper fork, so remember our PID
+    # to make sure we unlock properly in only the parent side of the
+    # fork. Child runs with slice unlocked for now. 
+    #
+    $mypid = $PID;
+    
+    if ($aggregate->Start($API_VERSION,
+			  $GeniAggregate::ACTION_FLAGS_SYNCVLANS) != 0) {
+	if ($PID == $mypid) {
+	    $slice->UnLock();
+	    print STDERR "Could not start sliver.\n";
+	}
+	else {
+	    print STDERR "Error waiting for nodes.\n";
+	}
+	return -1;
+    }
+    if ($PID == $mypid) {
+	$slice->UnLock();
+    }
+    return 0;
+}
+
+sub DeleteNodes($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $credentials  = $argref->{'credentials'};
+    my $nodelist     = $argref->{'nodes'};
+    my %nodelist     = ();
+    my $response;
+
+    if (! (defined($credentials) &&
+	   defined($slice_urn) && defined($nodelist))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    # It was agreed that nodes is a list of client ids.
+    if (ref($nodelist) ne "ARRAY") {
+	return GeniResponse->MalformedArgsResponse("nodes is not a list");
+    }
+    foreach my $nodeid (@{$nodelist}) {
+	$nodelist{$nodeid} = $nodeid;
+    }
+    my ($credential,$speaksfor,@morecreds) =
+	GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege( "pi" ) or
+	$credential->HasPrivilege( "bind" ) or
+	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
+				     "Insufficient privilege" );
+
+    my ($slice, $aggregate) = Credential2SliceAggregate($credential);
+    return $slice
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (! (defined($slice))) {
+	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				    "No slice here");
+    }
+    if ($slice_urn ne $slice->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Credential does not match the URN");
+    }
+    my $manifest = $aggregate->GetManifest(0);
+    return GeniResponse->Create(GENIRESPONSE_ERROR(), undef,
+				"Could not get manifest for slice")
+	if (!defined($manifest));
+
+    #
+    # Make sure all nodes listed are in the experiment.
+    #
+    my %allnodes = ();
+    foreach my $noderef (GeniXML::FindNodes("n:node",
+					    $manifest)->get_nodelist()) {
+	my $id = GeniXML::GetVirtualId($noderef);
+	if (!defined($id)) {
+	    print STDERR "No virtual node for $noderef\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR());
+	}
+	$allnodes{$id} = $id;
+    }
+    foreach my $nodeid (keys(%nodelist)) {
+	if (!exists($allnodes{$nodeid})) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS(), undef,
+					"No such node $nodeid in the topology!");
+	}
+    }
+    main::AddLogfileMetaDataFromSlice($slice);
+
+    #
+    # Suck out nodes. Also figure out what nodes have to be removed
+    # from which lans.
+    #
+    my %ifacestoremovefromlans = ();
+    
+    foreach my $noderef (GeniXML::FindNodes("n:node",
+					    $manifest)->get_nodelist()) {
+	my $id = GeniXML::GetVirtualId($noderef);
+	next
+	    if (!exists($nodelist{$id}));
+
+	# Remember all ifaces to purge from lans.
+	foreach my $iref (GeniXML::FindNodes("n:interface",
+					     $noderef)->get_nodelist()) {
+	    my $client_id = GeniXML::GetInterfaceId($iref);
+	    $ifacestoremovefromlans{$client_id} = $client_id;
+	}
+	$manifest->removeChild($noderef);
+    }
+    # Purge the ifaces from lans.
+    if (keys(%ifacestoremovefromlans)) {
+	foreach my $linkref (GeniXML::FindNodes("n:link",
+						$manifest)->get_nodelist()) {
+	    foreach my $iref (GeniXML::FindNodes("n:interface_ref",
+						 $linkref)->get_nodelist()) {
+		my $client_id = GeniXML::GetInterfaceId($iref);
+		next
+		    if (!exists($ifacestoremovefromlans{$client_id}));
+
+		$linkref->removeChild($iref);
+	    }
+	}
+    }
+    my $rspecstr = GeniXML::Serialize($manifest);
+    print STDERR "$rspecstr\n";
+
+    #
+    # Any user can update the sliver. 
+    #
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
+    my $rspec = GeniCM::GetTicketAuxAux($slice, $user,
+					$rspecstr, 1, 0, 1, -1, 0, undef,
+					[$credential, @morecreds], $speaksfor);
+    return $rspec
+	if (GeniResponse::IsResponse($rspec));
+
+    # Make sure that the next phase sees all changes.
+    Experiment->FlushAll();
+    Node->FlushAll();
+
+    my $response = GeniCM::SliverWorkAux($credential, $rspec,
+					 undef, 1, 0, 1, 1, $speaksfor);
+
+    if (GeniResponse::IsError($response)) {
+	print STDERR "Redeem failed\n";
+	# Not sure what to do here.
+	my $ticket = GeniTicket->SliceTicket($slice);
+	if (defined($ticket)) {
+	    if ($ticket->Lock() != 0) {
+		print STDERR "Could not lock $ticket\n";
+	    }
+	    elsif ($ticket->Release(TICKET_PURGED)) {
+		print STDERR "Could not release $ticket\n";
+	    }
+	}
+	return $response;
+    }
+    if ($slice->WaitForLock(30) != 0) {
+	print STDERR "DeleteNodes: Could not lock $slice before start\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Internal Error");
+    }
+    # We get the manifest from the aggregate object, so that the
+    # expiration goes in.
+    my $sliver_manifest = $aggregate->GetManifest(1);
+
+    #
+    # At this point we want to return and let the startsliver proceed
+    # in the background. Parent never returns, just the child.
+    #
+    my $mypid = main::WrapperFork();
+    if ($mypid) {
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS, $sliver_manifest);
+    }
+
+    # Make sure that the next phase sees all changes.
+    Experiment->FlushAll();
+    Node->FlushAll();
+
+    #
+    # The callee might also do a wrapper fork, so remember our PID
+    # to make sure we unlock properly in only the parent side of the
+    # fork. Child runs with slice unlocked for now. 
+    #
+    $mypid = $PID;
+    
+    if ($aggregate->Start($API_VERSION,
+			  $GeniAggregate::ACTION_FLAGS_SYNCVLANS) != 0) {
+	if ($PID == $mypid) {
+	    $slice->UnLock();
+	    print STDERR "Could not start sliver.\n";
+	}
+	else {
+	    print STDERR "Error waiting for nodes.\n";
+	}
+	return -1;
+    }
+    if ($PID == $mypid) {
+	$slice->UnLock();
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $sliver_manifest);
+}
+
+#
 # Redeem a ticket
 #
 sub RedeemTicket($)

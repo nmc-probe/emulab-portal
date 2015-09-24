@@ -34,7 +34,7 @@ package GeniAggregate;
 #
 use strict;
 use Exporter;
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT @EXPORT_OK $ACTION_FLAGS_SYNCVLANS);
 
 @ISA    = qw(Exporter);
 @EXPORT = qw();
@@ -94,6 +94,11 @@ my $ELAB_SETUP     = "$TB/sbin/elabinelab";
 # Cache of instances to avoid regenerating them.
 my %aggregates     = ();
 BEGIN { use GeniUtil; GeniUtil::AddCache(\%aggregates); }
+
+# Action() flags.
+$ACTION_FLAGS_SYNCVLANS	= 0x01;
+
+@EXPORT_OK = qw($ACTION_FLAGS_SYNCVLANS);
 
 #
 # Lookup by URN, idx, or uuid.
@@ -926,25 +931,25 @@ sub ProcessManifest($$)
     return 0;
 }
 
-sub Start($$)
+sub Start($$;$)
 {
-    my ($self, $version) = @_;
+    my ($self, $version, $flags) = @_;
 
-    return $self->Action($version, "start");
+    return $self->Action($version, "start", $flags);
 }
 
-sub Restart($$)
+sub Restart($$;$)
 {
-    my ($self, $version) = @_;
+    my ($self, $version, $flags) = @_;
 
-    return $self->Action($version, "restart");
+    return $self->Action($version, "restart", $flags);
 }
 
-sub Reload($$)
+sub Reload($$;$)
 {
-    my ($self, $version) = @_;
+    my ($self, $version, $flags) = @_;
 
-    return $self->Action($version, "reload");
+    return $self->Action($version, "reload", $flags);
 }
 
 #
@@ -956,13 +961,14 @@ sub Reload($$)
 # XXX Is is assumed that there is a single toplevel aggregate for the
 # slice, so we can get all the nodes.
 #
-sub Action($$$)
+sub Action($$$;$)
 {
-    my ($self, $version, $action) = @_;
+    my ($self, $version, $action, $flags) = @_;
     $self->ClearBootFailure();
     my $msg = "Internal Error: ";
     my $restart = ($action eq "restart" ? 1 : 0);
     my $reload  = ($action eq "reload" ? 1 : 0);
+    $flags      = 0 if (!defined($flags));
     require Lan;
     require OSinfo;
     require Image;
@@ -1389,24 +1395,37 @@ sub Action($$$)
 	    $msg .= "$NAMEDSETUP failed\n";
 	    goto bad;
 	}
-	my @diff = ();
-	my @same = ();
-	    
-	if (Lan->CompareVlansWithSwitches($experiment, \@diff, \@same)) {
-	    print STDERR "CompareVlansWithSwitches failed!\n";
-	    goto bad;
-	}
-	if (@diff) {
-	    system("$SNMPIT -f ". join(" ", map("-o $_", @diff)));
+	if ($flags & $ACTION_FLAGS_SYNCVLANS) {
+	    if (Lan->CompareVlansWithSwitches2($experiment)) {
+		$msg .= "CompareVlansWithSwitches2 failed!\n";
+		goto bad;
+	    }
+	    system("$SNMPIT -X $pid $eid");
 	    if ($?) {
-		$msg .= "Failed to remove obsolete VLANs.";
+		$msg .= "Failed to synchronize vlans";
 		goto bad;
 	    }
 	}
-	system("$SNMPIT -t $pid $eid");
-	if ($?) {
-	    $msg .= "Failed to setup vlans";
-	    goto bad;
+	else {
+	    my @diff = ();
+	    my @same = ();
+	    
+	    if (Lan->CompareVlansWithSwitches($experiment, \@diff, \@same)) {
+		print STDERR "CompareVlansWithSwitches failed!\n";
+		goto bad;
+	    }
+	    if (@diff) {
+		system("$SNMPIT -f ". join(" ", map("-o $_", @diff)));
+		if ($?) {
+		    $msg .= "Failed to remove obsolete VLANs.";
+		    goto bad;
+		}
+	    }
+	    system("$SNMPIT -t $pid $eid");
+	    if ($?) {
+		$msg .= "Failed to setup vlans";
+		goto bad;
+	    }
 	}
 	if ($experiment->SetupPortLans()) {
 	    $msg .= "Failed to setup shared vlan ports";
@@ -1953,9 +1972,9 @@ sub WaitForNodes($$@)
 # Stop all the slivers in the aggregate. Stop is brutal, better to
 # use restart!
 #
-sub Stop($$)
+sub Stop($$;$)
 {
-    my ($self, $version) = @_;
+    my ($self, $version, $flags) = @_;
     $self->ClearBootFailure();
     my $msg = "Internal Error: ";
 

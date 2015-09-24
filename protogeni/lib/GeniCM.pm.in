@@ -693,7 +693,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    goto bad;
 	}
     }
-    elsif ($v2 && $level && !defined($ticket) && !defined($aggregate)) {
+    elsif ($v2 && $level > 0 && !defined($ticket) && !defined($aggregate)) {
 	print STDERR "No aggregate for $slice in version two API\n";
 	$response = GeniResponse->Create(GENIRESPONSE_ERROR);
 	goto bad;
@@ -3031,7 +3031,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     #
     # For the version 2 minimal API, just return the annotated rspec.
     #
-    if ($v2 && $level == 0) {
+    if ($v2 && $level <= 0) {
 	# Bad, should leave it locked, but Redeem below would fail, and
 	# this whole arrangement is temporary, so lets not worry about it.
 	$slice->UnLock();
@@ -3203,7 +3203,7 @@ sub SliverWorkAux($$$$$$$$)
     require User;
 
     # V2 API support.
-    if ($v2 && $level == 0) {
+    if (($v2 && $level == 0) || ref($object) ne "GeniTicket") {
 	$rspec = $object;
     }
     else {
@@ -4106,14 +4106,8 @@ sub SliverWorkAux($$$$$$$$)
 	    if ($inaggregate) {
 		my $nickname = "$linkname." . $node->node_id() . ".$iface_name";
 		$sliver = $linkaggregate->FindSliverByNickname($nickname);
-
-		if (!defined($sliver)) {
-		    $message = "Could not find existing sliver for ".
-			"$nickname in $linkname";
-		    goto bad;
-		}
 	    }
-	    else {
+	    if (!defined($sliver)) {
 		$sliver = GeniSliver::Interface->Create($slice,
 							$owner,
 							$node->node_id(),
