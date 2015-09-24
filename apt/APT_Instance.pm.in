@@ -30,14 +30,21 @@ use Data::Dumper;
 use POSIX qw(tmpnam);
 use Exporter;
 use vars qw(@ISA @EXPORT $AUTOLOAD
-	    $RECORDHISTORY_TERMINATED $RECORDHISTORY_EXPIRED);
+	    $RECORDHISTORY_TERMINATED $RECORDHISTORY_EXPIRED
+	    $APT_HOLDINGPROJECT $CLOUD_HOLDINGPROJECT);
+
 @ISA    = "Exporter";
 
 # RecordHistory flags.
 $RECORDHISTORY_TERMINATED	= 0x00;
 $RECORDHISTORY_EXPIRED		= 0x01;
 
-@EXPORT = qw($RECORDHISTORY_TERMINATED $RECORDHISTORY_EXPIRED);
+# Names of the holding projects.
+$APT_HOLDINGPROJECT   = "aptguests";
+$CLOUD_HOLDINGPROJECT = "CloudLab";
+
+@EXPORT = qw($RECORDHISTORY_TERMINATED $RECORDHISTORY_EXPIRED
+             $APT_HOLDINGPROJECT $CLOUD_HOLDINGPROJECT);
 
 # Must come after package declaration!
 use EmulabConstants;
@@ -526,6 +533,14 @@ sub GetGeniAuthority($)
     return APT_Geni::GetAuthority($self->aggregate_urn());
 }
 
+sub GetProject($)
+{
+    my ($self) = @_;
+    require Project;
+    
+    return Project->Lookup($self->pid_idx());
+}
+
 #
 # Warn creator that the experiment is going to expire. This is hooked
 # in from the sa_daemon, so we can send a message that is less geni like
@@ -716,6 +731,80 @@ sub WriteCredentials($$)
     print XML $authcred->asString();
     close(XML);
     
+    return 0;
+}
+
+#
+# Build a set of sshkeys.
+#
+sub GetSSHKeys($$)
+{
+    my ($self, $pref) = @_;
+    my $rval;
+    my @keys;
+
+    my $geniuser = $self->GetGeniUser();
+    return -1
+	if (!defined($geniuser));
+    my $project  = $self->GetProject();
+    return -1
+	if (!defined($project));
+
+    if ($geniuser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
+	print STDERR "No ssh keys for $geniuser\n";
+	return -1;
+    }
+
+    #
+    # CM format.
+    #
+    $rval = [{'urn'   => $geniuser->urn(),
+	      'login' => $geniuser->uid(),
+	      'keys'  => [ @keys ]
+	     }];
+
+    if (! ($project->pid() eq $APT_HOLDINGPROJECT ||
+	   $project->pid() eq $CLOUD_HOLDINGPROJECT)) {
+	#
+	# Get other users from the project. Real local users are easy,
+	# nonlocal users from the GPO portal are messy.
+	#
+	my @members;
+	if ($project->GetProjectGroup()->MemberList(\@members)) {
+	    print STDERR "Error getting memberlist for $project\n";
+	}
+	else {
+	    foreach my $member (@members) {
+		next
+		    if ($member->SameUser($geniuser->emulab_user()));
+	    
+		my $guser = GeniUser->CreateFromLocal($member);
+		next
+		    if (!defined($guser));
+
+		#
+		# So, users coming in from the trusted signer have their keys
+		# at their home portal. We download those keys whenever they
+		# log in, and cache them in their local stub account, but they
+		# could be out of date. But in order to refresh those keys, we
+		# would need a valid (not expired) speaks-for credential, which
+		# we might have, but typically not since they have short expire
+		# times. So, lets not worry about this right now, just use the
+		# cached keys and see who complains.
+		#
+		@keys = ();
+		if ($guser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
+		    print STDERR "No ssh keys for $guser\n";
+		    next;
+		}
+		push(@{$rval}, {'urn'   => $guser->urn(),
+				'login' => $guser->uid(),
+				'keys'  => [ @keys ]
+		               });
+	    }
+	}
+    }
+    $$pref = $rval;
     return 0;
 }
 

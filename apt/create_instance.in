@@ -92,10 +92,6 @@ my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
 
-# Names of the holding projects.
-my $APT_HOLDINGPROJECT   = "aptguests";
-my $CLOUD_HOLDINGPROJECT = "CloudLab";
-
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
@@ -579,15 +575,6 @@ if (!$debug) {
     }
 }
 
-#
-# Get the set of keys (accounts) that need to be sent along. We build
-# them in CM format, but convert to AM format later if needed.
-#
-my $sshkeys;
-if (GetSSHKeys($geniuser, $project, \$sshkeys) < 0 || !@{$sshkeys}) {
-    fatal("No ssh keys to use for $geniuser/$project!");
-}
-
 # Generate the extra credentials that tells the backend this experiment
 # can access the datasets.
 my @dataset_credentials = ();
@@ -725,6 +712,17 @@ if (keys(%{$sitemap})) {
 }
 else {
     $instance->Update({'aggregate_urn' => $default_aggregate_urn});
+}
+
+#
+# Get the set of keys (accounts) that need to be sent along. We build
+# them in CM format, but convert to AM format later if needed.
+#
+my $sshkeys;
+if ($instance->GetSSHKeys(\$sshkeys) < 0 || !@{$sshkeys}) {
+    $slice->Delete();
+    $instance->Delete();
+    fatal("Error constructing ssh key list");
 }
 
 # We use this list of references for ParRun below.
