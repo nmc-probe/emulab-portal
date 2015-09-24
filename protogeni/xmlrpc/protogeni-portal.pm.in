@@ -46,6 +46,7 @@ $GENI_METHODS = {
     "GetVersion"        => \&GeniPortal::GetVersion,
     "GetCredential"     => \&GeniPortal::GetCredential,
     "GetManifests"      => \&GeniPortal::GetManifests,
+    "GetSSHKeys"        => \&GeniPortal::GetSSHKeys,
 };
 
 1;

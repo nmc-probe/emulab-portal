@@ -222,5 +222,46 @@ sub GetManifests($)
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
 }
 
+#
+# Get SSH keys for the instance (implied by the credential).
+#
+sub GetSSHKeys($)
+{
+    my ($argref) = @_;
+    my $cred = $argref->{'credential'};
+
+    if (!defined($cred)) {
+	return GeniResponse->MalformedArgsResponse("Missing credential");
+    }
+
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR "Could not find local authority object\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    my $credential = GeniCredential::CheckCredential($cred, $authority);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $slice = MapCertToSlice($credential->owner_cert());
+    return $slice
+	if (GeniResponse::IsResponse($slice));
+
+    #
+    # Given the slice, we need to find the Portal instance. 
+    #
+    my $instance = APT_Instance->LookupBySlice($slice->uuid());
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				"No portal instance for slice")
+	if (!defined($instance));
+
+    my $sshkeys;
+    if ($instance->GetSSHKeys(\$sshkeys) < 0 || !@{$sshkeys}) {
+	print STDERR "Could not get SSH keys\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $sshkeys);
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
