@@ -220,6 +220,9 @@ function Do_GetImageInfo()
     $images      = array();
 
     foreach ($ajax_args["images"] as $urn) {
+        $types = array();
+        $virts = array();
+        
         if (Instance::ValidURN($urn)) {
             # This // vs : thing is a pain.
             $urn = preg_replace('/\/\//', ":", $urn);
@@ -233,40 +236,34 @@ function Do_GetImageInfo()
             $urn = preg_replace('/:\d+$/', "", $urn);
             $safe_urn = addslashes($urn);
 
-            #
-            # Gack, if this is for a system image in emulab-ops, and it is
-            # not in the database, it is probably cause the urn is referencing
-            # the wrong domain. If we do not find what we are looking for, then
-            # we want to try again with "emulab.net" cause that is most likely
-            # what the user really means. 
-            #
-            if ($proj == "emulab-ops") {
-                $checkagain = 1;
-            }
          again:
             if (is_null($version)) {
+                if ($proj == "emulab-ops") {
+                    list ($a,$b,$c) = Instance::ParseURN($urn);
+                    $safe_urn = addslashes("urn:publicid:IDN+%+image+${c}");
+                    $innerclause = "urn like '$safe_urn'";
+                }
+                else {
+                    $innerclause = "urn='$safe_urn'";
+                }
                 $query_result =
-                    DBQueryWarn("select i.*,v.* from images as i ".
-                                "left join image_versions as v on ".
-                                "     v.urn=i.urn ".
-                                "where i.urn='$safe_urn' ".
-                                "order by v.version desc limit 1",
+                    DBQueryFatal("select i.*,v.* from image_versions as v ".
+                                 "   inner join ".
+                                 "      (select urn,max(version) as version ".
+                                 "         from image_versions ".
+                                 "       where $innerclause ".
+                                 "       group by urn) as ij ".
+                                 "   on v.urn=ij.urn and v.version=ij.version ".
+                                 "left join images as i on i.urn=v.urn",
                                 $dblink);
             }
             else {
                 $query_result =
-                    DBQueryWarn("select i.*,v.* from image_versions as v ".
+                    DBQueryFatal("select i.*,v.* from image_versions as v ".
                                 "left join images as i on ".
                                 "     i.image_uuid=v.image_uuid ".
                                 "where v.urn='$safe_urn' and v.version='$version'",
                                 $dblink);
-            }
-            if ($query_result && !mysql_num_rows($query_result) && $checkagain) {
-                list ($a,$b,$c) = Instance::ParseURN($urn);
-                $urn = "urn:publicid:IDN+emulab.net+image+${c}";
-                $safe_urn = addslashes($urn);
-                $checkagain = 0;
-                goto again;
             }
         }
         elseif (parse_url($urn)) {
@@ -289,70 +286,81 @@ function Do_GetImageInfo()
             # Is this the right thing to do?
             continue;
         }
-        $row = mysql_fetch_array($query_result);
+        while ($row = mysql_fetch_array($query_result)) {
+            #
+            # Need to look at the privacy setting, and if the image is not
+            # public, the user has to be in the same project as the image
+            # (or own the image), or it has to be listed in the permissions.
+            #
+            if ($row["visibility"] != "public") {
+                # This will not be set for guests.
+                if (!isset($project)) {
+                    continue;
+                }
+            
+                #
+                # Project selection box has to match the project the image
+                # belongs too. If the user changes the project selection, we
+                # have to rerun the constraints.
+                #
+                list ($auth) = Instance::ParseURN($row["project_urn"]);
+                list ($domain,$impid) = preg_split('/:/', $auth);
+                if ($impid && $impid == $pid) {
+                    goto allowed;
+                }
 
-        #
-        # Need to look at the privacy setting, and if the image is not
-        # public, the user has to be in the same project as the image
-        # (or own the image), or it has to be listed in the permissions.
-        #
-        if ($row["visibility"] != "public") {
-            # This will not be set for guests.
-            if (!isset($project)) {
+                #
+                # Check special permissions.
+                #
+                $perms_result =
+                    DBQueryWarn("select * from image_permissions ".
+                                "where urn='" . addslashes($row["urn"]) . "'",
+                                $dblink);
+
+                while ($prow = mysql_fetch_array($perms_result)) {
+                    $ptype = $prow["permission_type"];
+                    $purn  = $prow["permission_urn"];
+                    
+                    if ($ptype == "user") {
+                        list ($ign1,$ign2,$id) = Instance::ParseURN($purn);
+                        if ($id && $id == $this_user->uid()) {
+                            goto allowed;
+                        }
+                    }
+                    elseif ($ptype == "project") {
+                        list ($auth) = Instance::ParseURN($purn);
+                        list ($domain,$ppid) = preg_split('/:/', $auth);
+                        if ($ppid && $ppid == $pid) {
+                            goto allowed;
+                        }
+                    }
+                }
                 continue;
             }
-            
-            #
-            # Project selection box has to match the project the image
-            # belongs too. If the user changes the project selection, we
-            # have to rerun the constraints.
-            #
-            list ($auth) = Instance::ParseURN($row["project_urn"]);
-            list ($domain,$impid) = preg_split('/:/', $auth);
-            if ($impid && $impid == $pid) {
-                goto allowed;
-            }
-
-            #
-            # Check special permissions.
-            #
-            $perms_result =
-                DBQueryWarn("select * from image_permissions ".
-                            "where urn='" . addslashes($row["urn"]) . "'",
-                            $dblink);
-
-            while ($prow = mysql_fetch_array($perms_result)) {
-                $ptype = $prow["permission_type"];
-                $purn  = $prow["permission_urn"];
-                
-                if ($ptype == "user") {
-                    list ($ign1,$ign2,$id) = Instance::ParseURN($purn);
-                    if ($id && $id == $this_user->uid()) {
-                        goto allowed;
-                    }
-                }
-                elseif ($ptype == "project") {
-                    list ($auth) = Instance::ParseURN($purn);
-                    list ($domain,$ppid) = preg_split('/:/', $auth);
-                    if ($ppid && $ppid == $pid) {
-                        goto allowed;
-                    }
-                }
-            }
-            continue;
+     allowed:
+	    foreach (preg_split("/,/", $row["types_known_working"]) as $type) {
+                $types[$type] = $type;
+	    }
+            $virts[$row["virtualizaton"]] = $row["virtualizaton"];
+            $description = $row["description"];
         }
-   allowed:
-        $constraints[] =
-            array("node" =>
-                  array("images" => array($row["urn"]),
-                        "types"   => array($row["virtualizaton"])));
-        $constraints[] =
-            array("node" =>
-                  array("images"   => array($row["urn"]),
-                        "hardware" => array($row["types_known_working"])));
+        if (count($types)) {
+            # These are reversed from what they should mean!
+            $typelist = implode(",", array_keys($types));
+            $virtlist = implode(",", array_keys($virts));
 
-        $images[] = array("id"   => $urn,
-                          "name" => $row["description"]);
+            $constraints[] =
+                array("node" =>
+                      array("images" => array($urn),
+                            "types"  => array($virtlist)));
+            $constraints[] =
+                array("node" =>
+                      array("images"   => array($urn),
+                            "hardware" => array($typelist)));
+
+            $images[] = array("id"   => $urn,
+                              "name" => $description);
+        }
     }
     $result = array(array("constraints" => $constraints,
                           "images" => $images));
