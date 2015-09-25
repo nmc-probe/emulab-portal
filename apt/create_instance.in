@@ -1190,6 +1190,8 @@ sub RunStitcher()
     my $rspecfile     = "$tmpdir/rspec.xml";
     my $stdoutfile    = "$tmpdir/stitcher.stdout";
     my $stderrfile    = "$tmpdir/stitcher.stderr";
+    # Who we are speaking for.
+    my $speaksfor_urn = $slice_credential->owner_urn();
     my $failed        = 0;
 
     #
@@ -1216,7 +1218,7 @@ sub RunStitcher()
 	"--GetVersionCacheName=$tmpdir/get_version_cache.json ".
 	"--AggNickCacheName=$tmpdir/agg_nick_cache ".
 	"--scsURL https://nutshell.maxgigapop.net:8443/geni/xmlrpc  ".
-	"--speaksfor $user_urn -V3 allocate $slice_urn $rspecfile";
+	"--speaksfor $speaksfor_urn -V3 allocate $slice_urn $rspecfile";
 
     return -1
 	if (! mkdir("$tmpdir", 0755));
