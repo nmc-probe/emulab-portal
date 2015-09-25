@@ -17,6 +17,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
     var webonly       = 0;
     var isadmin       = 0;
     var multisite     = 0;
+    var doconstraints = 0;
     var portal        = null;
     var registered    = false;
     var JACKS_NS      = "http://www.protogeni.net/resources/rspec/ext/jacks/1";
@@ -46,6 +47,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 	multisite  = window.MULTISITE;
 	portal     = window.PORTAL;
 	ajaxurl    = window.AJAXURL;
+	doconstraints = window.DOCONSTRAINTS;
 
 	$('#stepsContainer').steps({
 		headerTag: "h3",
@@ -714,8 +716,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 
     function onFoundImages(images)
     {
-	if (1) {
-//	    return true;
+	if (! doconstraints) {
+	    return true;
 	}
 	if (! _.isEqual(foundImages, images)) {
 	    foundImages = images;
@@ -729,7 +731,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
      * Update the image constraints if anything changes.
      */
     function UpdateImageConstraints() {
-	if (!foundImages.length) {
+	if (!foundImages.length || !doconstraints) {
 	    return;
 	}
       
@@ -739,14 +741,17 @@ function (_, Constraints, sup, ppstart, JacksEditor, aboutaptString, aboutcloudS
 		alert("Could not get image info: " + json.value);
 		return;
 	    }
-	    console.log('json', json.value);
-	  console.log('foundImages', foundImages);
+	    // This gets munged someplace, and so the printed value
+	    // is not what actually comes back. Copy before print.
+	    var mycopy = $.extend(true, {}, json.value);
+	    console.log('json', mycopy);
 	    if (1) {
 	      constraints = new Constraints(context);
 	      constraints.addPossibles({ images: foundImages });
 	      allowWithSites(json.value[0].images, json.value[0].constraints);
 	      updateWhere();
-      $('#stepsContainer .actions a[href="#finish"]').removeAttr('disabled');
+              $('#stepsContainer .actions a[href="#finish"]')
+		    .removeAttr('disabled');
 	    }
 	};
 	/*

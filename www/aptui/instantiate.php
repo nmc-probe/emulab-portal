@@ -557,7 +557,7 @@ function SPITFORM($formfields, $newuser, $errors)
     }
 
     if (isset($this_user) && !$this_user->webonly() && 
-        ($ISCLOUD || ISADMIN() || STUDLY())) {
+        ($ISCLOUD || ISADMINISTRATOR() || STUDLY())) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $amlist[$urn] = $am;
@@ -681,7 +681,7 @@ function SPITFORM($formfields, $newuser, $errors)
     SpitOopsModal("oops");
 
     if (isset($this_user) && !$this_user->webonly() &&
-        ($ISCLOUD || ISADMIN() || STUDLY())) {
+        ($ISCLOUD || ISADMINISTRATOR() || STUDLY())) {
 	echo "<script type='text/plain' id='amlist-json'>\n";
 	echo htmlentities(json_encode($amlist));
 	echo "</script>\n";
@@ -702,6 +702,9 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "    window.ISADMIN    = $isadmin;\n";
     $multisite = (isset($this_user) ? 1 : 0);
     echo "    window.MULTISITE  = $multisite;\n";
+    $doconstraints = (isset($this_user) &&
+                      (ISADMINISTRATOR() || STUDLY()) ? 1 : 0);
+    echo "    window.DOCONSTRAINTS = $doconstraints;\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";
