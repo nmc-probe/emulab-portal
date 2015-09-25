@@ -3423,8 +3423,8 @@ sub GenVirtLans($)
 	    my ($top_bw0, $top_rbw0) = $self->virtlantopbw($vlan, $member0);
 	    my ($top_bw1, $top_rbw1) = $self->virtlantopbw($vlan, $member1);
 
-	    my $top_bw  = min($top_bw0, $top_rbw1);
-	    my $top_rbw = min($top_rbw0, $top_bw1);
+	    my $top_bw  = max($top_bw0, $top_rbw1);
+	    my $top_rbw = max($top_rbw0, $top_bw1);
 
 	    if (($shaped ||
 		 (($traced || $rtraced) &&
@@ -3529,7 +3529,7 @@ sub GenVirtLans($)
 				       'virtual_interface_id' => "$member1" },
 				      {'virtual_node_id' => $delayname,
 				       'virtual_interface_id' =>"$member0" },
-				      ($top_bw == 0 ? "*" : $top_bw), 
+				      ($top_bw == 0 ? "*" : $top_rbw), 
 				      $vlan->_wiretype(), $others);
 		    
 		    $self->printdb("Delay node $plink ($delayname) = " . 
@@ -8827,18 +8827,18 @@ sub UploadVlans($)
 		    return -1;
 		}
 
+		my $interface = Interface->LookupByIface($pnodename, $iface);
+		if (!defined($interface)) {
+		    tberror("No such interface $pnodename:$iface\n");
+		    return -1;
+		}
+		
 		#
 		# This happens when the user asks assign to give it the
 		# default speed ("*" bw in the NS file). Need to assign it
 		# from the interface info.
 		#
 		if (! $speed) {
-		    my $interface = Interface->LookupByIface($pnodename,
-							     $iface);
-		    if (!defined($interface)) {
-			tberror("No such interface $pnodename:$iface\n");
-			return -1;
-		    }
 		    $speed = $self->interfacespeedmbps($interface->type(),
 						       "ethernet");
 		}
@@ -8848,9 +8848,22 @@ sub UploadVlans($)
 		    $speed = $speed / 1000;
 		}
 	    }
-	    my $dbgline = "Interface: $pnodename:$iface";
+	    my $ifacetype = $interface->type();
+	    my $dbgline = "Interface: $pnodename:$iface type:$ifacetype";
+	    my $max_speed;
+
+	    my $itype_result =
+		DBQueryWarn("select max_speed / 1000 from interface_types ".
+			    "where type='$ifacetype'");
+	    if ($itype_result && $itype_result->numrows) {
+		($max_speed) = int($itype_result->fetchrow_array());
+		$dbgline .= " max:$max_speed";
+	    }
 
 	    if ($speed) {
+		if (defined($max_speed) && $speed > $max_speed) {
+		    tbwarn("Illegal interface speed for $pnodename:$iface\n");
+		}
 		$dbgline .= " speed:$speed";
 		$args->{'current_speed'} = $speed;
 	    }
