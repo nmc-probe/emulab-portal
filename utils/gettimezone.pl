@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2011 University of Utah and the Flux Group.
+# Copyright (c) 2011-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -60,10 +60,10 @@ my %aliases = (
 
 sub sumfile($);
 
-# no localtime file, use default
+# no localtime file means UTC
 if (! -e "/etc/localtime") {
-    print STDERR "WARNING: you have no timezone set, default to $defaulttz\n";
-    print "$defaulttz\n";
+    print STDERR "WARNING: you have no timezone set, default to UTC\n";
+    print "UTC\n";
     exit(0);
 }
 
