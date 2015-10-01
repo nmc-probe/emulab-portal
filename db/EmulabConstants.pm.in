@@ -668,6 +668,8 @@ sub TBDB_SECLEVEL_ZAPDISK()	{ TBDB_SECLEVEL_YELLOW(); }
 #
 sub TBDB_PHYSICAL_NODE_TABLES() {
     return (
+	'blockstore_state'	=> [ 'node_id' ],
+	'blockstores'		=> [ 'node_id' ],
 	'current_reloads'	=> [ 'node_id' ],
 	'delays'		=> [ 'node_id' ],
 	'iface_counters'	=> [ 'node_id' ],
