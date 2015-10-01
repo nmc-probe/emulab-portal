@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2014 University of Utah and the Flux Group.
+# Copyright (c) 2004-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -54,18 +54,19 @@ if (!TBAdmin()) {
 # Handle command-line arguments
 #
 sub usage {
-    print STDERR "Usage: $0 [-f | -F] [-q] [-n] [-s] [-S] <node>\n";
+    print STDERR "Usage: $0 [-f | -F] [-q] [-n] [-s] [-S] [-H] <node>\n";
     print STDERR "Options:\n";
     print STDERR " -n       - Dry run mode\n";
     print STDERR " -v       - Be more chatty\n";
     print STDERR " -S       - Save off DB state before deletion\n";
     print STDERR " -f       - Force mode; deletenode even if not in hwdown\n";
     print STDERR " -F       - FORCE MODE; deletenode even if not in hwdown\n";
+    print STDERR " -H       - Remove node history entries as well\n";
     exit(1);
 }
 
 my %options = ();
-if (!getopts("bFfvnSs",\%options)) {
+if (!getopts("bFfHvnSs",\%options)) {
     usage();
 }
 usage()
@@ -181,10 +182,32 @@ foreach $node (@subnodes) {
     # Okay, let's clean out them tables
     #
     while (my ($table, $clist) = each %clean_tables) {
+	#
+	# Handle some special cases:
+	# - only remove node_history if explicitly requested
+	# - some blockstore state is indexed by just bsidx
+	#
+	if ($table eq "node_history" && !$options{"H"}) {
+	    print STDERR "Leaving node history.\n"
+		if (defined($options{"v"}));
+	    next;
+	}
+	if ($table eq "blockstores") {
+	    print "${pre}Removing from table blockstore_attributes, column bsidx\n"
+		if (defined($options{"v"}));
+	    DBQueryFatal("DELETE FROM blockstore_attributes WHERE bsidx IN ".
+		"(SELECT bsidx FROM blockstores WHERE node_id='$node')")
+		if (!defined($options{"n"}));
+
+	    print "${pre}Removing from table blockstore_trees, column bsidx\n"
+		if (defined($options{"v"}));
+	    DBQueryFatal("DELETE FROM blockstore_trees WHERE bsidx IN ".
+		"(SELECT bsidx FROM blockstores WHERE node_id='$node')")
+		if (!defined($options{"n"}));
+	}
 	foreach my $column (@$clist) {
 	    print "${pre}Removing from table $table, column $column\n"
 		if (defined($options{"v"}));
-	    
 	    DBQueryFatal("DELETE FROM $table WHERE $column='$node';")
 		if (!defined($options{"n"}));
 	}
