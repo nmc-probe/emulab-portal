@@ -45,6 +45,7 @@ $| = 1;
 # the column(s) in that table that contains a node name
 #
 my %clean_tables = TBDB_PHYSICAL_NODE_TABLES;
+my %history_tables = TBDB_PHYSICAL_NODE_HISTORY_TABLES;
 
 if (!TBAdmin()) {
     die "Sorry, only testbed administrators can run this script!\n";
@@ -184,14 +185,8 @@ foreach $node (@subnodes) {
     while (my ($table, $clist) = each %clean_tables) {
 	#
 	# Handle some special cases:
-	# - only remove node_history if explicitly requested
 	# - some blockstore state is indexed by just bsidx
 	#
-	if ($table eq "node_history" && !$options{"H"}) {
-	    print STDERR "Leaving node history.\n"
-		if (defined($options{"v"}));
-	    next;
-	}
 	if ($table eq "blockstores") {
 	    print "${pre}Removing from table blockstore_attributes, column bsidx\n"
 		if (defined($options{"v"}));
@@ -210,6 +205,20 @@ foreach $node (@subnodes) {
 		if (defined($options{"v"}));
 	    DBQueryFatal("DELETE FROM $table WHERE $column='$node';")
 		if (!defined($options{"n"}));
+	}
+    }
+
+    #
+    # Clear out history related tables if requested.
+    #
+    if ($options{"H"}) {
+	while (my ($table, $clist) = each %history_tables) {
+	    foreach my $column (@$clist) {
+		print "${pre}Removing from table $table, column $column\n"
+		    if (defined($options{"v"}));
+		DBQueryFatal("DELETE FROM $table WHERE $column='$node';")
+		    if (!defined($options{"n"}));
+	    }
 	}
     }
 }
