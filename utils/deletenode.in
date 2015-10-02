@@ -172,6 +172,15 @@ if ($options{"S"}) {
 		}
 	    }
 	}
+	# We always save the history tables content regardless of -H
+	while (my ($table, $clist) = each %history_tables) {
+	    foreach my $column (@$clist) {
+		if (system("mysqldump $dumpopts -w \"$column='$node'\" tbdb $table >> $savefile")) {
+		    print STDERR "*** Failed to save $table info for $node, aborting\n";
+		    exit(1);
+		}
+	    }
+	}
     }
 }
 
