@@ -278,6 +278,35 @@ function Do_GetImageInfo()
                             "     i.image_uuid=v.image_uuid ".
                             "where v.metadata_url='$safe_url'",
                             $dblink);
+
+            if ($query_result && !mysql_num_rows($query_result)) {
+                #
+                # See if the url is for the image instead of a specific
+                # version. 
+                #
+                $query = parse_url($urn, PHP_URL_QUERY);
+                if ($query) {
+                    parse_str($query, $args);
+                    if (isset($args["uuid"]) && IsValidUUID($args["uuid"])) {
+                        $uuid = $args["uuid"];
+
+                        $query_result =
+                            DBQueryWarn("select i.*,v.* ".
+                                 "  from image_versions as v ".
+                                 "   inner join ".
+                                 "      (select image_uuid, ".
+                                 "              max(version) as version ".
+                                 "         from image_versions ".
+                                 "       where image_uuid='$uuid' ".
+                                 "       group by image_uuid) as ij ".
+                                 "   on v.image_uuid=ij.image_uuid and ".
+                                 "      v.version=ij.version ".
+                                 "left join images as i on ".
+                                 "     i.image_uuid=v.image_uuid",
+                                 $dblink);
+                    }
+                }
+            }
         }
         else {
             continue;

@@ -704,7 +704,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "    window.MULTISITE  = $multisite;\n";
     $doconstraints = (isset($this_user) &&
                       (ISADMINISTRATOR() || STUDLY()) ? 1 : 0);
-    echo "    window.DOCONSTRAINTS = $doconstraints;\n";
+    echo "    window.DOCONSTRAINTS = 1;\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";
