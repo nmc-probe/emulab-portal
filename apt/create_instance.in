@@ -906,9 +906,12 @@ sub WaitForSliver($)
 	    # XXX Need better handling for timeout.
 	    print STDERR "*** $urn timed out.\n";
 	    $webtask->output("Experiment setup on $urn timed out");
+	    $webtask->Exited(GENIRESPONSE_TIMEDOUT);
 	}
-	$webtask->Exited(1);
-	return 1;
+	else {
+	    $webtask->Exited(1);
+	}
+	return $webtask->exitcode();
     }
     $aggobj->SetStatus("ready");
     $webtask->Exited(0);
@@ -949,11 +952,14 @@ foreach my $aggobj (@aggregate_list) {
 	print "WaitforSliver Failure!\n";
 	if (defined($aggobj->webtask()->output())) {
 	    $webtask->output($aggobj->webtask()->output());
+	    $webtask->Exited($aggobj->webtask()->exitcode());
 	    print $aggobj->webtask()->output() . "\n";
+	    
 	}
 	else {
 	    $webtask->output("WaitforSliver Failure at " .
 			     $aggobj->aggregate_urn());
+	    $webtask->Exited(1);
 	}
     }
     if (defined($aggobj->public_url())) {
@@ -966,7 +972,7 @@ $slice->UnLock();
 
 if ($failed) {
     $instance->SetStatus("failed");
-    $webtask->Exited(1);
+    # Webtask exit status set above.
 }
 else {
     $instance->SetStatus("ready");

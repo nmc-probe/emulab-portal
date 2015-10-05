@@ -141,7 +141,12 @@ function Do_GetInstanceStatus()
         }
         elseif ($webtask->exitcode() == 28) {
             $blob["reason"]  = "Your topology could not be mapped to physical ".
-                "resource.\n\n";
+                "resources.\n\n";
+        }
+        elseif ($webtask->exitcode() == 8) {
+            $blob["reason"]  = "Your experiment timed out while setting up, ".
+                "most likely because one or more nodes failed to boot. The ".
+                "node consoles may provide more information.\n\n";
         }
         elseif ($webtask->exitcode() == 1) {
             #
