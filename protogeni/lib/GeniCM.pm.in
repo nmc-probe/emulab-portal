@@ -3717,8 +3717,9 @@ sub SliverWorkAux($$$$$$$$)
     #
     $output = GeniUtil::ExecQuiet("$TARFILES_SETUP -q $pid $eid");
     if ($?) {
-	$message = "Could not setup tarfiles:\n$output";
+	my $message = "Could not setup tarfiles:\n$output";
 	print STDERR $message;
+	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef, $message);
 	goto bad;
     }
 
