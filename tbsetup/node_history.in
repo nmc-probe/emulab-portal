@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2005-2014 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -152,9 +152,6 @@ if (defined($options{"l"})) {
 if (defined($options{"n"})) {
     $numrecs = $options{"n"};
 }
-if (defined($options{"x"})) {
-    $startrecord = $options{"x"};
-}
 if (defined($options{"r"})) {
     $revorder = 1;
 }
@@ -163,6 +160,10 @@ if (defined($options{"s"})) {
 }
 if (defined($options{"d"})) {
     $datetime = timelocal(strptime($options{"d"}));
+    $summary  = 0;
+}
+if (defined($options{"x"})) {
+    $startrecord = $options{"x"};
     $summary  = 0;
 }
 if (defined($options{"t"})) {
@@ -356,21 +357,34 @@ if ($datelimit) {
     $querymod .= " AND stamp<='$datelimit'";
 }
 
-# XXX maybe it would be better to sort them here in perl, outside the DB?
-#     Note that the combo field order by is strictly to convince mysql
-#     to use an index for sort instead of filesort. I have no idea why
-#     it does this, but it cuts the query from 70 seconds to under 1 second.
-#
-my $orderby = " ORDER BY history_id,stamp ASC";
 # Bogus, but reading the entire table is nuts! Millions of rows. 
 my $limitby = ($showall && $numrecs ? "limit " . $numrecs * 10 : "");
 
-my $query_result =
-    DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid, ".
-		 "  experiment_stats.exptidx,cnet_ip,phys_nodeid,history_id ".
-		 "FROM node_history,experiment_stats ".
-		 "WHERE node_history.exptidx=experiment_stats.exptidx ".
-		 "$querymod $orderby $limitby");
+#
+# If we are not getting all the records and we want the most recent
+# then we have to reverse the initial DB sort and then reverse again
+# using mysql sub-query fu.
+#
+my $query_result;
+if ($revorder && $limitby) {
+    my $orderby = " ORDER BY stamp DESC";
+    $query_result =
+	DBQueryFatal("SELECT * from (SELECT node_id,stamp,op,uid,pid,eid, ".
+		     "  experiment_stats.exptidx,cnet_ip,phys_nodeid, ".
+		     "  history_id ".
+		     "FROM node_history,experiment_stats ".
+		     "WHERE node_history.exptidx=experiment_stats.exptidx ".
+		     "$querymod $orderby $limitby) SUB ORDER BY stamp ASC");
+} else {
+    my $orderby = " ORDER BY stamp ASC";
+    $query_result =
+	DBQueryFatal("SELECT node_id,stamp,op,uid,pid,eid, ".
+		     "  experiment_stats.exptidx,cnet_ip,phys_nodeid, ".
+		     "  history_id ".
+		     "FROM node_history,experiment_stats ".
+		     "WHERE node_history.exptidx=experiment_stats.exptidx ".
+		     "$querymod $orderby $limitby");
+}
 
 my $lastid = 0;
 my $laststamp = 0;
