@@ -30,6 +30,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
     var loaded_uuid	  = null;
     var ppchanged     = false;
     var monitor       = null;
+    var types         = null;
 
     function initialize()
     {
@@ -39,7 +40,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
         $('#instantiate_submit').prop('disabled', true);
         $.get(contextUrl).then(contextReady, contextFail);
 
-	var jqxhr = $.getJSON('https://clnode095.clemson.cloudlab.us:8081/index.html?names=urn&callback=?')
+	var jqxhr = $.getJSON('https://ops.emulab.net/servicemon/?names=urn&callback=?')
 		.done(function(data) {
 			monitor = data;
 			// Check if third tab is already active.
@@ -362,23 +363,15 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
     		return;
     	}
 
-    	console.log(monitor);
-
-
-
-
-    	// HARDCODED FOR MOCKUP, REMOVE
-    	monitor["urn:publicid:IDN+utahddc.geniracks.net+authority+cm"] = {health:0,status:"FAILURE"};
-    	monitor["urn:publicid:IDN+emulab.net+authority+cm"].rawPCsAvailable = 14;
-    	monitor["urn:publicid:IDN+clemson.cloudlab.us+authority+cm"].health = 49;
-    	monitor["urn:publicid:IDN+wisc.cloudlab.us+authority+cm"].rawPCsAvailable = 20;
-
-
-
     	$('#finalize_options .cluster-group').each(function() {
+            var resourceType = "PC";
+            var label = $(this).find('.control-label').attr('name');
+            if (types && label && types[label] && types[label]['emulab-xen']) {
+                resourceType = "VM";
+            }
 			var which = $(this).parent().parent().attr('class');
 
-	    	var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'));
+	    	var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'), window.FEDERATEDLIST);
 
 			$('.'+which+' .form-control').after(html);
 			$('.'+which+' select.form-control').addClass('hidden');
@@ -393,7 +386,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 				var target = $('.'+which+' .cluster_picker_status .dropdown-menu .enabled a:contains("'+name+'")');
 				if (data && !$.isEmptyObject(data)) {
 					// Calculate testbed rating and set up tooltips.
-					var rating = wt.CalculateRating(data);
+					var rating = wt.CalculateRating(data, resourceType);
 
 					target.parent().attr('data-health', rating[0]).attr('data-rating', rating[1]);
 
@@ -404,9 +397,21 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 				}
 			});
 
-			$('.'+which+' .cluster_picker_status .dropdown-menu').find('.enabled').sort(function (a, b) {
-				return +b.dataset.rating - +a.dataset.rating;
-			}).prependTo($('.'+which+' .cluster_picker_status .dropdown-menu'));
+            var sort = function (a, b) {
+                var aHealth = Math.ceil((+a.dataset.health)/50);
+                var bHealth = Math.ceil((+b.dataset.health)/50);
+
+                if (aHealth > bHealth) {
+                    return -1;
+                }
+                else if (aHealth < bHealth) {
+                    return 1;
+                }
+                return +b.dataset.rating - +a.dataset.rating;
+            };
+
+			$('.'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.native').sort(sort).prependTo($('.'+which+' .cluster_picker_status .dropdown-menu'));
+            $('.'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('.'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
 
 			$('.'+which+' .cluster_picker_status .dropdown-menu .enabled a')[0].click();
     	});
@@ -682,6 +687,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	// Create the dropdown selection lists.
 	_.each(sites, function(siteid) {
 	    siteIdToSiteNum[siteid] = sitenum;
+
 	    var options = "";
 	    _.each(amlist, function(name, key) {
 		options = options +
@@ -693,13 +699,14 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 		"     class='form-horizontal experiment_option'>" +
 		"  <div class='form-group cluster-group'>" +
 		"    <label class='col-sm-4 control-label' " +
-		"           style='text-align: right;'>"+
+		"           style='text-align: right;'"+
+        "           name='"+siteid+"'>"+
 		"          " + siteid  + " Cluster:</a>" +
 		"    </label> " +
 		"    <div class='col-sm-6'>" +
 		"      <select name=\"formfields[sites][" + siteid + "]\"" +
 		"              class='form-control'>" +
-		"        <option value=''>Please Select</option>" + options +
+		"        " + options +
 		"      </select>" +
 		"</div>" +
 	        "<div class='col-sm-4'></div>" +
@@ -765,6 +772,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	  jacks.output.on('found-images', onFoundImages);
           $('#profile_where').prop('disabled', false);
           $('#instantiate_submit').prop('disabled', false);
+      jacks.output.on('found-types', onFoundTypes);
 	  updateWhere();
 	},
 	canvasOptions: context.canvasOptions,
@@ -785,6 +793,14 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	    UpdateImageConstraints();
 	}
 	return true;
+    }
+
+    function onFoundTypes(t) 
+    {
+        types = {};
+        _.each(t, function(item) {
+            types[item.name] = item.types;
+        });
     }
 
     /*

@@ -450,3 +450,15 @@ left: -999em;
 .cluster_picker_status .tooltip .tooltip-inner {
 	max-width: 400px;
 }
+
+.cluster_picker_status .federatedDivider {
+	overflow: visible;
+	margin: 24px 0 0;
+}
+
+.cluster_picker_status .federatedDivider > div {
+	color: #aaa;
+	position: absolute;
+	top: -20px;
+	left: 10px;
+}

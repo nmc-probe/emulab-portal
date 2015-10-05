@@ -680,6 +680,15 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "<div id='editmodal_div'></div>\n";
     SpitOopsModal("oops");
 
+
+    #TEMPORARILY HARD CODED. Used to separate federated sites
+    if ($ISCLOUD) {
+        echo "<script type='text/javascript'>\n";
+        echo "    window.FEDERATEDLIST  = ['IG UtahDDC', 'Emulab', 'APT Utah'];\n";
+        echo "</script>\n";
+    }
+
+
     if (isset($this_user) && !$this_user->webonly() &&
         ($ISCLOUD || ISADMINISTRATOR() || STUDLY())) {
 	echo "<script type='text/plain' id='amlist-json'>\n";

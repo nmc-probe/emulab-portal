@@ -1,29 +1,44 @@
 define(['underscore'],
 function(_) {
 
-	function ClusterStatusHTML(options) {
+	function ClusterStatusHTML(options, fedlist) {
 		var html = $('<div class="cluster_picker_status btn-group">'
 					    +'<button type="button" class="form-control btn btn-default dropdown-toggle" data-toggle="dropdown">'
 					    	+'<span class="value"></span>'
 							+'<span class="caret"></span>'
 					    +'</button>'
 					    +'<ul class="dropdown-menu" role="menu">'
-					    	+'<li role="separator" class="divider"></li>'
+					    	+'<li role="separator" class="divider federatedDivider"><div>Federated Clusters<div></li>'
+					    	+'<li role="separator" class="divider disabledDivider"></li>'
 					    +'</ul>'
 					+'</div>');
 
-		var dropdown = html.find('.dropdown-menu .divider');
+		var dropdown = html.find('.dropdown-menu .disabledDivider');
+		var federated = html.find('.dropdown-menu .federatedDivider');
+		var disabled = 0;
+		var fed = 0;
 		$(options).each(function() {
 			if ($(this).prop('disabled')) {
 				dropdown.after('<li class="disabled"><a data-toggle="tooltip" data-placement="right" data-html="true" title="<div>This testbed is incompatible with the selected profile</div>" href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>')
+				disabled++;
 			}
 			else {
-				dropdown.before('<li class="enabled"><a href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>');
+				if (_.contains(fedlist, $(this).attr('value'))) {
+					federated.after('<li class="enabled federated"><a href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>');
+					fed++;
+				}
+				else {
+					federated.before('<li class="enabled native"><a href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>');
+				}
 			}
 		});
 
-		if (!html.find('.disabled').length) {
-			html.find('.divider').remove();
+		if (!disabled) {
+			html.find('.disabledDivider').remove();
+		}
+
+		if (!fed) {
+			html.find('.federatedDivider').remove();
 		}
 
 		return html;
@@ -57,7 +72,7 @@ function(_) {
 			if (data.health) {
 				health = data.health;
 				tooltip[0] = '<div>Testbed is '
-				if (health >= 50) {
+				if (health > 50) {
 					tooltip[0] += 'healthy';
 				}
 				else {
