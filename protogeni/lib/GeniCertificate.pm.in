@@ -49,6 +49,7 @@ use XML::Simple;
 use XML::LibXML;
 use Data::Dumper;
 use File::Temp qw(tempfile);
+use Carp qw(cluck);
 use overload ('""' => 'Stringify');
 
 # Configure variables
@@ -450,7 +451,7 @@ sub LoadFromString($$)
     close(CHILD);
     waitpid($childpid, 0);
     if ($? || !@certlines) {
-	print STDERR "openssl x509 failed to parse certificate\n";
+	cluck("openssl x509 failed to parse certificate\n$string\n");
 	return undef;
     }
     my $certificate = GeniCertificate->LoadFromArray($string, @certlines);
