@@ -914,7 +914,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		sitenum++;
 	    });
 	}
->>>>>>> Reformulate instantiate page into a template. Rework the step container
 	//console.info(html);
 	$("#cluster_selector").html(html);
 	$("#cluster_selector").removeClass("hidden");
