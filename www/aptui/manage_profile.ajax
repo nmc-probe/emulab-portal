@@ -391,7 +391,7 @@ function Do_BindParameters()
     $this_idx = $this_user->uid_idx();
     $this_uid = $this_user->uid();
     
-    if (!$profile->CanInstantiate($this_user)) {
+    if (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
 	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
 	return;
     }
