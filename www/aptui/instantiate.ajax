@@ -339,7 +339,10 @@ function Do_GetImageInfo()
                 }
 
                 #
-                # Check special permissions.
+                # Check special permissions. Note that I do not do an
+                # ISADMIN() check since that does not travel with the
+                # user via the geni API, so it would just fail on the
+                # backend anyway.
                 #
                 $perms_result =
                     DBQueryWarn("select * from image_permissions ".
