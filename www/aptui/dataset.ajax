@@ -555,7 +555,7 @@ function Do_ApproveDataset()
 	SPITAJAX_ERROR(1, $error);
 	return;
     }
-    SPITAJAX_RESPONSE("show-dataset.php?uuid=$dataset_uuid");
+    SPITAJAX_RESPONSE("show-dataset.php?uuid=$lease_uuid");
 }
 
 function Do_RefreshDataset()
