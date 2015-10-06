@@ -1734,6 +1734,25 @@ sub AddNodes($)
     
     foreach my $nodeid (keys(%{$nodelist})) {
 	my $blob = $nodelist->{$nodeid};
+
+	#
+	# If the user specifies a physical node, lets make sure that
+	# node is not already reserved.
+	#
+	if (exists($blob->{'node'})) {
+	    require Node;
+
+	    my $pnodeid = $blob->{'node'};
+	    my $pnode   = Node->Lookup($pnodeid);
+	    if (!defined($pnode)) {
+		return GeniResponse->Create(GENIRESPONSE_BADARGS(), undef,
+				"Physical node $pnodeid does not exist");
+	    }
+	    if ($pnode->IsReserved()) {
+		return GeniResponse->Create(GENIRESPONSE_BADARGS(), undef,
+				"Physical node $pnodeid is not available");
+	    }
+	}
 	next
 	    if (!exists($blob->{"lans"}));
 
@@ -1774,12 +1793,19 @@ sub AddNodes($)
     #
     foreach my $nodeid (keys(%{$nodelist})) {
 	my $blob = $nodelist->{$nodeid};
+	my $component_id = "";
  	my $xml  = "";
 
 	if (ref($blob) ne "HASH") {
 	    return GeniResponse->MalformedArgsResponse("$nodeid is not a hash");
 	}
-	$xml .= "<node client_id='$nodeid'>\n";
+	if (exists($blob->{'node'})) {
+	    my $pnodeid = $blob->{'node'};
+	    my $urn = GeniHRN::Generate($OURDOMAIN, "node", $pnodeid);
+	    $component_id = "component_id='$urn'";
+	}
+	
+	$xml .= "<node client_id='$nodeid' $component_id>\n";
 	$xml .= "  <sliver_type name='raw'>\n";
 	if (exists($blob->{'diskimage'})) {
 	    my $urn = $blob->{'diskimage'};
