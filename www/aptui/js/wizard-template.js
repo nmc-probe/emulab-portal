@@ -28,7 +28,12 @@ function(_) {
 					fed++;
 				}
 				else {
-					federated.before('<li class="enabled native"><a href="#" value="'+$(this).attr('value')+'">'+$(this).attr('value')+'</a></li>');
+				        var optvalue = $(this).attr('value');
+				        // Look for Please Select option
+				        if (optvalue == "") {
+					    optvalue = $(this).text();
+					}
+					federated.before('<li class="enabled native"><a href="#" value="'+optvalue+'">'+optvalue+'</a></li>');
 				}
 			}
 		});
