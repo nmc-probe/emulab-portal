@@ -250,7 +250,7 @@ else {
         # Do not send email, mkusercert sends email and hides the password.
         $retval = SUEXEC($target_uid, "nobody",
                          "webmkusercert -C -p $safe_password $target_uid",
-                         SUEXEC_ACTION_IGNORE);
+                         SUEXEC_ACTION_CONTINUE);
     }
 }
 echo "<script>HideWaitModal('waitwait');</script>\n";
