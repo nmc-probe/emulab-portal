@@ -1028,10 +1028,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	};
 	/*
 	 * Must pass the selected project along for constraint checking.
-	 * But we have this problem of the actual project selection being a
-	 * copy cause of the steps containerizaton. There is a handler on
-	 * that copy, to write the new selection back to the original, which
-	 * is what we reference below. 
 	 */
 	var $xmlthing =
 	    sup.CallServerMethod(ajaxurl,
