@@ -3031,6 +3031,11 @@ sub CreateImage($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No node for sliver urn");
     }
+    if ($node->IsTainted()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "node is tainted - image creation denied");
+    }
+    
     my $experiment = $slice->GetExperiment();
     if (!defined($experiment)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
@@ -3939,6 +3944,10 @@ sub ConsoleURL($)
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No node for sliver urn");
     }
+    if ($node->IsTainted()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "node is tainted - console access denied");
+    }
     my $experiment = $slice->GetExperiment();
     if (!defined($experiment)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
@@ -4023,6 +4032,10 @@ sub ConsoleInfo($)
     if (!defined($node)) {
 	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
 				    "No node for sliver urn");
+    }
+    if ($node->IsTainted()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				    "node is tainted - console access denied");
     }
     my $experiment = $slice->GetExperiment();
     if (!defined($experiment)) {

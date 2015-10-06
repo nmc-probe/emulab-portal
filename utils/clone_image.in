@@ -196,6 +196,10 @@ $isvirtnode = $node->isvirtnode();
 if (!$node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE())) {
     fatal("Not enough permission");
 }
+if ($node->IsTainted()) {
+    fatal("$node is tainted - image creation denied!");
+}
+
 my $experiment = $node->Reservation();
 if (!defined($experiment)) {
     fatal("Node is not reserved");
