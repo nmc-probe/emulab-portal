@@ -30,6 +30,8 @@ chdir("apt");
 include("quickvm_sup.php");
 include_once("instance_defs.php");
 include_once("profile_defs.php");
+# Must be after quickvm_sup.php since it changes the auth domain.
+include_once("../session.php");
 $page_title = "Instantiate a Profile";
 $dblink = GetDBLink("sa");
 
@@ -52,8 +54,6 @@ elseif ($ISCLOUD) {
 $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "profile",       PAGEARG_STRING,
 				 "version",       PAGEARG_INTEGER,
-				 "stuffing",      PAGEARG_STRING,
-				 "verify",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
 				 "asguest",       PAGEARG_BOOLEAN,
 				 "default",       PAGEARG_STRING,
@@ -238,14 +238,33 @@ function SPITFORM($formfields, $newuser, $errors)
     global $TBBASE, $APTMAIL, $ISCLOUD;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
     global $projlist;
-    $skipsteps  = "false";
     $amlist     = array();
     $showabout  = (!$ISCLOUD && !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
+    # We use webonly to mark users that have no project membership
+    # at the Geni portal.
     $webonly    = (isset($this_user) &&
                    $this_user->webonly() ? "true" : "false");
+    $cancopy    = (isset($this_user) && !$this_user->webonly() ? 1 : 0);
     $nopprspec  = (!isset($this_user) ? "true" : "false");
+    $cluster    = ($ISCLOUD ? "Cloudlab" : "APT");    
     $portal     = "";
+    $showpicker = (isset($profile) ? 0 : 1);
+    if (isset($profilename)) {
+        $profilename = "'$profilename'";
+    }
+    else {
+        $profilename = "null";
+    }
+
+    # I think this will take care of XSS prevention?
+    echo "<script type='text/plain' id='form-json'>\n";
+    echo htmlentities(json_encode($formfields)) . "\n";
+    echo "</script>\n";
+    echo "<script type='text/plain' id='error-json'>\n";
+    echo htmlentities(json_encode($errors));
+    echo "</script>\n";
+    
     # Gack.
     if (isset($this_user) && $this_user->IsNonLocal()) {
         if (preg_match("/^[^+]*\+([^+]+)\+([^+]+)\+(.+)$/",
@@ -255,432 +274,35 @@ function SPITFORM($formfields, $newuser, $errors)
         }
     }
 
-    # XSS prevention.
-    while (list ($key, $val) = each ($formfields)) {
-	$formfields[$key] = CleanString($val);
-    }
-    # XSS prevention.
-    if ($errors) {
-        $skipsteps = "true";
-	while (list ($key, $val) = each ($errors)) {
-	    # Skip internal error, we want the html in those errors
-	    # and we know it is safe.
-	    if ($key == "error") {
-		continue;
-	    }
-	    $errors[$key] = CleanString($val);
-	}
-    }
-
-    $formatter = function($field, $html) use ($errors) {
-	$class = "form-group";
-	if ($errors && array_key_exists($field, $errors)) {
-	    $class .= " has-error";
-	}
-	echo "<div class='$class'>\n";
-	echo "     $html\n";
-	if ($errors && array_key_exists($field, $errors)) {
-	    echo "<label class='control-label small' for='$field'>" .
-		$errors[$field] . "</label>\n";
-	}
-	echo "</div>\n";
-    };
-
     SPITHEADER(1);
-    echo "<div id='waitwait_div'></div>\n";
-    echo "<div id='ppviewmodal_div'></div>\n";
-    # Placeholder for the "about" panel, which is now a template file.
-    echo "<div id='about_div' class='col-lg-8  col-lg-offset-2
-                                      col-md-8  col-md-offset-2
-                                      col-sm-10  col-sm-offset-1
-                                      col-xs-12 col-xs-offset-0'></div>\n";
-    echo "<div id='stepsContainer'>
-          <h3>Select a Profile</h3>
-          <div class='col-lg-8  col-lg-offset-2
-                      col-md-8  col-md-offset-2
-                      col-sm-10  col-sm-offset-1
-                      col-xs-12 col-xs-offset-0'>\n";
 
-
-    echo "<form id='quickvm_form' role='form'
-            enctype='multipart/form-data'
-            method='post' action='instantiate.php'>\n";
-    if (!$this_user) {
-	echo "<div class='panel panel-default'>
-                <div class='panel-heading'>
-                   <h3 class='panel-title'>\n";
-    echo "<center>Start Experiment";
-    if (isset($profilename)) {
-        echo " using profile &quot;$profilename&quot";
-    }
-    echo "</center></h3>\n";
-    }
-    else {
-    # Will only show header when linked to a profile
-    if (isset($profilename)) {
-        echo "<h3 style='margin: 0px;'>";
-        echo "<center>Start Experiment";
-        echo " using profile &quot;$profilename&quot";
-        echo "</center></h3>\n";
-    }
-    }
-
-    if (!$this_user) {
-	echo "   </div>
-	      <div class='panel-body'>\n";
-    }
-    
-    #
-    # If linked to a specific profile, description goes here
-    #
-    if ($profile) {
-	$cluster = ($ISCLOUD ? "Cloudlab" : "APT");
-	
-	if (!$this_user) {
-	    echo "  <p>Fill out the form below to run an experiment ".
-		"using this profile:</p>\n";
-	}
-        # Note: Following line is also duplicated below
-        echo "  <blockquote><p><span id='selected_profile_description'></span></p></blockquote>\n";
-        echo "  <p>When you click the &quot;Create&quot; button, the virtual or
-                   physical machines described in the profile will be booted
-                   on ${cluster}'s hardware<p>\n";
-    }
-
-    echo "   <fieldset>\n";
+    # Place to hang the toplevel template.
+    echo "<div id='main-body'></div>\n";
 
     #
-    # Ask for user information
-    #
-    if (!isset($this_user)) {
-	$formatter("username", 
-		  "<input name=\"formfields[username]\"
-		          value='" . $formfields["username"] . "'
-                          class='form-control'
-                          placeholder='Pick a user name'
-                          autofocus type='text'>");
-   
-	$formatter("email", 
-		  "<input name=\"formfields[email]\"
-                          type='text'
-                          value='" . $formfields["email"] . "'
-                          class='form-control'
-                          placeholder='Your email address' type='text'>");
-    }
-    # We put the ssh stuff in two different places, so make it a function.
-    $spitsshkeystuff = function() use ($formfields, $formatter) {
-	if ($formfields["sshkey"] == "") {
-	    $title_text = "<span class='text-warning'>
-                    No SSH key, browser shell only!<span>";
-	    $expand_text = "Add Key";
-	}
-	else {
-	    $title_text = "<span class='text-info'>
-                    Your SSH key</span>";
-	    $expand_text = "Update";
-	}
-        echo "<div class='form-group row' style='margin-bottom: 0px;'>";
-        echo "  <div class='col-md-12'>
-                  <div class='panel panel-default'>\n";
-        echo "      <div class='panel-heading'>$title_text
-                     <a class='pull-right'
-                        data-toggle='collapse' href='#mysshkey'>
-                      $expand_text</a>\n";
-        echo "      </div>\n";
-	echo "      <div id='mysshkey' class='panel-collapse collapse'>\n";
-        echo "       <div class='panel-body'>";
-	
-	$formatter("keyfile",
-		   "<span class='help-block'>
-                     Upload a file or paste it in the text box. This will ".
-		   "allow you to login using your favorite ssh client. Without ".
-		   "a SSH key, you will be limited to using a shell window in ".
-		   "your browser. If you already see a key here, you can ".
-		   "change it and we will remember your new key for next time. ".
-                   "Don't know how to generate your SSH key? ".
-		   "See <a href='https://help.github.com/articles/generating-ssh-keys'>this tutorial.</a></span>".
-		   "<input type=file name='keyfile'>");
-
-	$formatter("sshkey", 
-		  "<textarea name=\"formfields[sshkey]\" 
-                             placeholder='Paste in your ssh public key.'
-                             class='form-control'
-                             rows=4 cols=45>" . $formfields["sshkey"] .
-                  "</textarea>");
-
-        echo "       </div>";
-        echo "       <div class='clearfix'></div>";
-        echo "      </div>";
-        echo "    </div>";
-        echo "</div></div>"; # End of panel/row.
-    };
-    if (!isset($this_user)) {
-	$spitsshkeystuff();
-    }
-
-    #
-    # Only print profile selection box if we weren't linked to a specific
-    # profile
-    #
-    if (!isset($profile)) {
-        echo "<div class='form-group row' style='margin-bottom: 0px;'>";
-        echo "<input id='selected_profile' type='hidden' 
-                       name='formfields[profile]'/>";
-        echo "<div class='col-md-12'><div class='panel panel-default'>\n";
-        echo "<div class='panel-heading'>
-                  <span class='panel-title'><strong>Selected Profile:</strong> 
-                  <span id='selected_profile_text'>
-                  </span></span>\n";
-        if ($errors && array_key_exists("profile", $errors)) {
-            echo "<label class='control-label small' for='inputError'>" .
-                $errors["profile"] .
-                " </label>\n";
-        }
-        echo " </div>\n";
-        # Note: Following line is also duplicated above
-        echo "<div class='panel-body'>";
-        echo "  <div id='selected_profile_description'></div>\n";
-        echo "</div>";
-        echo "<div class='panel-footer'>";
-        if (isset($this_user) && !$this_user->webonly()) {
-            echo "<button class='btn btn-default btn-sm pull-left' 
-                         type='button' id='profile_copy_button'
-                         style='margin-right: 10px;'
-		    data-toggle='popover'
-		    data-delay='{hide:1500, show:500}'
-		    data-html='true'
-		    data-content='When you copy a profile
-		    you are creating a new profile that
-		    uses the same source code and metadata (description,
-		    instructions) as the original profile, but without
-		    creating a new disk image. Instead, the new profile uses
-		    whatever images the original profile uses.'>Copy Profile
-                  </button>";
-            echo "<button class='btn btn-default btn-sm pull-left'
-                          type='button' id='profile_show_button'>
-                    Show Profile
-                  </button>";
-        }
-        echo "<button id='profile' class='btn btn-primary btn-sm pull-right' 
-                         type='button' name='profile_button'>
-                    Change Profile
-                  </button>";
-        echo "<div class='clearfix'></div>";
-        echo "</div>";
-        echo "</div></div></div>"; # End of panel/row.
-    }
-    else {
-	echo "<input id='selected_profile' type='hidden'
-                     name='formfields[profile]'
-                     value='" . $formfields["profile"] . "'>\n";
-
-	# Send the original argument for the initial array stuff above.
-        # Needs more work.
-        $thisuuid = $profile->uuid();
-	echo "<input type='hidden' name='profile' value='$thisuuid'>\n";
-    }
-
-    #
-    # Container for the inputs that get copied to the last step of the wizard
-    #
-    echo "<div id='experiment_options' class='hidden'>\n";
-    #
-    # Spit out an experient name box, which is optional and prefilled
-    # with a default.
-    #
-    if ($this_user) {
-        $thisclass = "form-group";
-        if ($errors && array_key_exists("name", $errors)) {
-            $thisclass .= " has-error";
-        }
-        echo "<div id='name_selector' class='form-horizontal experiment_option'>
-                <div class='$thisclass'>
-                  <label class='col-sm-4 control-label'
-                         style='text-align: right;'>Name:</label>
-                  <div class='col-sm-6'
-                       data-toggle='popover'
-               data-delay='{hide:1500, show:500}'
-               data-html='true'
-               data-content='Provide a unique name to identity your
-                           new experiment. If you are in
-                           the habit of starting more then one experiment at
-                           a time this is really handy when trying to tell
-                           one experiment from another, or when referring to
-                           an experiment when asking for help.'>
-                    <input id='experiment_name'
-                           placeholder='Optional'
-                           class='form-control'
-                           name='formfields[name]'
-                           value='" . $formfields["name"] . "'>\n";
-        if ($errors && array_key_exists("name", $errors)) {
-            echo "  <label class='control-label small' for='experiment_name'>".
-                $errors["name"] . "</label>";
-        }
-        echo "    </div>
-                </div>
-              </div>\n";
-    }
-     
-    #
-    # Spit out a project selection list if more then one project membership
+    # Spit out a project selection list if a real user.
     #
     if ($this_user && !$this_user->webonly()) {
-        if (count($projlist) == 1) {
-            # We need this to look like the selector below, for the JS code.
-            echo "<div class='hidden' id='project_selector'>
-                   <input id='profile_pid' type='hidden'
-                     name='formfields[pid]'
-                     value='" . $formfields["pid"] . "'></div>\n";
+        $plist = array();
+        while (list($project) = each($projlist)) {
+            $plist[] = $project;
         }
-        else {
-            $project_options = "";
-            while (list($pid) = each($projlist)) {
-                $selected = "";
-                if ($formfields["pid"] == $pid) {
-                    $selected = "selected";
-                }
-                $project_options .= 
-                    "<option $selected value='$pid'>$pid</option>\n";
-            }
-            $html =
-                "<div class='form-horizontal experiment_option'
-                      id='project_selector'>
-                  <div class='form-group'>
-                   <label class='col-sm-4 control-label'
-                      style='text-align: right;'>Project:</label>
-                   <div class='col-sm-6'>
-                       <select name=\"formfields[pid]\"
-		              id='profile_pid' class='form-control'>
-                       $project_options</select></div></div></div>\n";
-            echo $html;
-        }
+        echo "<script type='text/plain' id='projects-json'>\n";
+        echo htmlentities(json_encode($plist));
+        echo "</script>\n";
     }
-
-    if (isset($this_user) && !$this_user->webonly() && 
-        ($ISCLOUD || ISADMINISTRATOR() || STUDLY())) {
+    #
+    # And AM list if that is allowed.
+    #
+    if (isset($this_user) && !$this_user->webonly() && $ISCLOUD) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $amlist[$urn] = $am;
-	    $selected = "";
-	    if ($formfields["where"] == $am) {
-		$selected = "selected";
-	    }
-	    $am_options .= 
-		"<option $selected value='$am'>$am</option>\n";
-	}
-
-        $html = "<div id='aggregate_selector'>
-                  <div class='form-horizontal experiment_option' id='nosite_selector'>
-                   <div class='form-group cluster-group'>
-                     <label class='col-sm-4 control-label'
-                            style='text-align: right;'>Cluster:</label>
-                     <div class='col-sm-6'>
-                       <select name=\"formfields[where]\"
-		              id='profile_where' class='form-control'>
-		       <option value=''>Please Select</option>
-                       $am_options</select><br>
-                     </div>
-                     <div class='col-sm-10 col-sm-offset-1'
-                          style='text-align: center'>
-		       <div class='alert alert-warning' id='where-warning' style='display: none; margin-bottom: 5px'>This profile only works on some clusters. Incompatible clusters are unselectable.</div>
-		       <div class='alert alert-danger' id='where-nowhere' style='display: none; margin-bottom: 5px'>This profile <b>will not work on any clusters</b>. All clusters are unselectable.</div>
-                     </div>
-                   </div>
-                  </div>
-                  <div id='site_selector' class='hidden'></div>
-                </div>\n";
-        echo $html;
+        }
+	echo "<script type='text/plain' id='amlist-json'>\n";
+	echo htmlentities(json_encode($amlist));
+	echo "</script>\n";
     }
-    echo "</div>\n";
-    echo "</fieldset>
-           <div class='form-group row hidden'>
-           <div class='col-sm-6 col-sm-offset-3'>
-           
-           <button class='btn btn-primary btn-block hidden'
-              id='configurator_button'
-              type='button'>Configure
-           </button>
-           <button class='btn btn-success btn-block hidden' id='instantiate_submit'
-              type='submit' name='create'>Create!
-           </button>
-           </div>
-           </div>\n";
-
-    # This is for a PP rspec.
-    echo "<textarea name='formfields[pp_rspec]'
-            id='pp_rspec_textarea'
-                    class='form-control hidden'
-                    type='textarea'>".
-        (isset($formfields['pp_rspec']) ? $formfields['pp_rspec'] : "") .
-        "</textarea>\n";
-    echo "</form>\n
-          </div>\n";
-    if (!isset($this_user)) {
-        echo "</div>
-              </div>\n";
-    }
-    echo "<h3>Parameterize</h3><div class='col-lg-8  col-lg-offset-2
-                                    col-md-8  col-md-offset-2
-                                    col-sm-10  col-sm-offset-1
-                                    col-xs-12 col-xs-offset-0'></div>\n";
-    echo "<h3>Finalize</h3><div class='col-lg-8  col-lg-offset-2
-                                    col-md-8  col-md-offset-2
-                                    col-sm-10  col-sm-offset-1
-                                    col-xs-12 col-xs-offset-0'>
-                            <div id='finalize_container' class='col-lg-8 col-md-8 col-sm-8 col-xs-12'>
-                                <div class='panel panel-default'>
-                                    <div class='panel-heading'>Please review the selections below and then click Finish.</div>
-                                    <div class='panel-body'>\n";
-    #
-    # Look for non-specific error.
-    #
-    if ($errors && array_key_exists("error", $errors)) {
-    echo "<div style='margin-bottom: 10px;'><font color=red><center>" . $errors["error"] .
-        "</center></font></div>";
-    }
-    echo "<div id='finalize_options'></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div id='inline_container' class='col-lg-4 col-md-4 col-sm-4 col-xs-12'>
-                                <a id='inline_overlay' href='#'><span class='glyphicon glyphicon-fullscreen' aria-hidden='true'></span></a> 
-                                <div id='inline_jacks'></div>
-                            </div>
-                                    </div>\n";
-
-
-    echo "</div>\n";
-    echo "<button class='btn btn-primary btn-sm'
-        style='display:block;visibility:hidden;'
-                id='modal_profile_continue_button'
-                type='button' name='create'>Continue</button>\n";
-    if (!isset($this_user)) {
-	SpitVerifyModal("verify_modal", "Create");
-    
-	if ($newuser) {
-	    if (is_string($newuser)) {
-		$stuffing = $newuser;
-	    }
-	    else {
-		$stuffing = substr(GENHASH(), 0, 16);
-	    }
-	    mail($formfields["email"],
-		 "aptlab.net: Verification code for creating your experiment",
-		 "Here is your user verification code. Please copy and\n".
-		 "paste this code into the box on the experiment page.\n\n".
-		 "      $stuffing\n",
-		 "From: $APTMAIL");
-	    echo "<input type='hidden' name='stuffing' value='$stuffing' />";
-	}
-    }
-
-    SpitTopologyViewModal("quickvm_topomodal", $profile_array);
-    echo "<div id='ppmodal_div'></div>\n";
-    echo "<div id='instantiate_div'></div>\n";
-    echo "<div id='editmodal_div'></div>\n";
-    SpitOopsModal("oops");
-
-
     #TEMPORARILY HARD CODED. Used to separate federated sites
     if ($ISCLOUD) {
         echo "<script type='text/javascript'>\n";
@@ -688,25 +310,19 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "</script>\n";
     }
 
-
-    if (isset($this_user) && !$this_user->webonly() &&
-        ($ISCLOUD || ISADMINISTRATOR() || STUDLY())) {
-	echo "<script type='text/plain' id='amlist-json'>\n";
-	echo htmlentities(json_encode($amlist));
-	echo "</script>\n";
-    }
+    SpitTopologyViewModal("quickvm_topomodal", $profile_array);
+    SpitOopsModal("oops");
     echo "<script type='text/javascript'>\n";
     echo "    window.PROFILE    = '" . $formfields["profile"] . "';\n";
+    echo "    window.PROFILENAME= $profilename;\n";
     echo "    window.AJAXURL    = 'server-ajax.php';\n";
     echo "    window.SHOWABOUT  = $showabout;\n";
     echo "    window.NOPPRSPEC  = $nopprspec;\n";
     echo "    window.REGISTERED = $registered;\n";
     echo "    window.WEBONLY    = $webonly;\n";
     echo "    window.PORTAL     = '$portal';\n";
-    echo "    window.SKIPSTEPS  = $skipsteps;\n";
-    if ($newuser) {
-	echo "window.APT_OPTIONS.isNewUser = true;\n";
-    }
+    echo "    window.SHOWPICKER = $showpicker;\n";
+    echo "    window.CANCOPY = $cancopy;\n";
     $isadmin = (isset($this_user) && ISADMIN() ? 1 : 0);
     echo "    window.ISADMIN    = $isadmin;\n";
     $multisite = (isset($this_user) ? 1 : 0);
@@ -717,7 +333,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";
-    echo "<script src='js/lib/require.js?nocache=asdfasdf' data-main='js/instantiate?nocache=asdfasdf'></script>";
+    echo "<script src='js/lib/require.js?nocache=asdfasdf' data-main='js/newinstantiate?nocache=asdfasdf'></script>";
 }
 
 if (!isset($create)) {
@@ -785,272 +401,14 @@ if (!isset($create)) {
 	    $defaults["sshkey"]   = $geniuser->SSHKey();
 	}
     }
+    if (!$this_user) {
+        # We use a session. in case we need to do verification
+        session_start();
+        session_unset();
+    }
     SPITFORM($defaults, false, array());
     echo "<div style='display: none'><div id='jacks-dummy'></div></div>\n";
     SPITFOOTER();
     return;
 }
-#
-# Otherwise, must validate and redisplay if errors
-#
-$errors = array();
-$args   = array();
-
-if (!$this_user) {
-    #
-    # These check do not matter for a logged in user; we ignore the values.
-    #
-    if (!isset($formfields["email"]) || $formfields["email"] == "") {
-	$errors["email"] = "Missing Field";
-    }
-    elseif (! TBvalid_email($formfields["email"])) {
-	$errors["email"] = TBFieldErrorString();
-    }
-    if (!isset($formfields["username"]) || $formfields["username"] == "") {
-	$errors["username"] = "Missing Field";
-    }
-    elseif (! TBvalid_uid($formfields["username"])) {
-	$errors["username"] = TBFieldErrorString();
-    }
-    elseif (User::LookupByUid($formfields["username"])) {
-        # Do not allow uid overlap with real users.
-	$errors["username"] = "Already in use - if you have an Emulab account, log in first";
-    }
-}
-if (!isset($formfields["profile"]) || $formfields["profile"] == "") {
-    $errors["profile"] = "No selection made";
-}
-elseif (! array_key_exists($formfields["profile"], $profile_array)) {
-    $errors["profile"] = "Invalid Profile: " . $formfields["profile"];
-}
-else {
-    $temp = Profile::Lookup($formfields["profile"]);
-    if (!$temp) {
-	$errors["profile"] = "No such profile in the database";
-    }
-    #
-    # Real/Geni users are allowed to use Paramterized Profiles, which means
-    # we could get an rspec.
-    #
-    if ($temp->isParameterized() && $this_user &&
-        isset($formfields["pp_rspec"]) && $formfields["pp_rspec"] != "") {
-        $args["rspec"] = $formfields["pp_rspec"];
-    }
-}
-
-if ($this_user) {
-    #
-    # Project has to exist.  
-    #
-    $project = Project::LookupByPid($formfields["pid"]);
-    if (!$project) {
-        $errors["pid"] = "No such project";
-    }
-    # User better be a member.
-    elseif (!ISADMIN() &&
-        (!$project->IsMember($this_user, $isapproved) || !$isapproved)) {
-        $errors["pid"] = "Illegal project";
-    }
-    else {
-        $args["pid"] = $project->pid_idx();
-    }
-
-    # Experiment name is optional, we generate one later.
-    if (isset($formfields["name"]) && $formfields["name"] != "") {
-        if (strlen($formfields["name"]) > 16) {
-            $errors["name"] = "Too long; must be <= 16 characters";
-        }
-        elseif (!TBvalid_eid($formfields["name"])) {
-            $errors["name"] = TBFieldErrorString();
-        }
-        elseif ($project &&
-                Instance::LookupByName($project, $formfields["name"])) {
-            $errors["name"] = "Already in use by another experiment";
-        }
-        else {
-            $args["instance_name"] = $formfields["name"];
-        }
-    }
-}
-
-#
-# More sanity checks. 
-#
-if (!$this_user) {
-    $geniuser = GeniUser::LookupByEmail("sa", $formfields["email"]);
-    if ($geniuser) {
-	if ($geniuser->name() != $formfields["username"]) {    
-            $errors["email"] = "Already in use by another guest user";
-	    unset($geniuser);
-	}
-    }
-}
-
-#
-# Allow admin users to select the Aggregate. Experimental.
-#
-$aggregate_urn = "";
-$sitemap = array();
-
-if ($this_user) {
-    if (isset($formfields["sites"]) && is_array($formfields["sites"])) {
-        while (list($siteid, $am) = each($formfields["sites"])) {
-            if (array_key_exists($am, $am_array)) {
-                $sitemap[$siteid] = $am_array[$am];
-            }
-            else {
-                $errors["sites"] = "Invalid Aggregate";
-                break;
-            }
-        }
-    }
-    elseif (isset($formfields["where"]) &&
-            $formfields["where"] != "" &&
-            array_key_exists($formfields["where"], $am_array)) {
-	    $aggregate_urn = $am_array[$formfields["where"]];
-    }
-    # A fully bound rspec will not have aggregate settings, but we let
-    # the backend deal with it. If the JS code is working, this should
-    # never happen by mistake.
-}
-if (count($errors)) {
-    SPITFORM($formfields, false, $errors);
-    SPITFOOTER();
-    return;
-}
-
-#
-# SSH keys are now optional for guest users; they just have to
-# use the web based ssh window.
-#
-# Backend verifies pubkey and returns error. We first look for a 
-# file and then fall back to an inline field.
-#
-if (isset($_FILES['keyfile']) &&
-    $_FILES['keyfile']['name'] != "" &&
-    $_FILES['keyfile']['name'] != "none") {
-
-    $localfile = $_FILES['keyfile']['tmp_name'];
-    $args["sshkey"] = file_get_contents($localfile);
-    #
-    # The filename will be lost on another trip through the browser.
-    # So stick the key into the box.
-    #
-    $formfields["sshkey"] = $args["sshkey"];
-}
-elseif (isset($formfields["sshkey"]) && $formfields["sshkey"] != "") {
-    $args["sshkey"] = $formfields["sshkey"];
-}
-
-if (count($errors)) {
-    SPITFORM($formfields, false, $errors);
-    SPITFOOTER();
-    return;
-}
-# Silently ignore the form for a logged in user. 
-$args["username"] = ($this_user ? $this_user->uid() : $formfields["username"]);
-$args["email"]    = ($this_user ? $this_user->email() : $formfields["email"]);
-$args["profile"]  = $formfields["profile"];
-
-#
-# See if user exists and is verified. We send email with a code, which
-# they have to paste back into a box we add to the form. See above.
-#
-# We also get here if the user exists, but the browser did not have
-# the tokens, as will happen if switching to another browser. We
-# force the user to repeat the verification with the same code we
-# have stored in the DB.
-#
-if (!$this_user &&
-    (!$geniuser || !isset($_COOKIE['quickvm_authkey']) ||
-     $_COOKIE['quickvm_authkey'] != $geniuser->auth_token())) {
-    if (isset($stuffing) && $stuffing != "") {
-	if (! (isset($verify) && $verify == $stuffing)) {
-	    SPITFORM($formfields, $stuffing, $errors);
-	    SPITFOOTER();
-	    return;
-	}
-	#
-	# If this is an existing user and they give us the right code,
-	# we can check again for an existing VM and redirect to the
-	# status page, like we do above.
-	#
-	if ($geniuser) {
-	    $instance = Instance::LookupByCreator($geniuser->uuid());
-	    if ($instance && $instance->status() != "terminating") {
-		# Reset this cookie so status page is happy and so we
-                # will stop asking.
-		setcookie("quickvm_user",
-			  $geniuser->uuid(), time() + (24 * 3600 * 30),
-			  "/", $TBAUTHDOMAIN, 0);
-		header("Location: status.php?oneonly=1&uuid=" .
-		       $instance->uuid());
-		return;
-	    }
-            #
-            # Watch for too many instances by guest user and redirect
-            # to the signup page.
-            #
-            if (Instance::GuestInstanceCount($geniuser) > $MAXGUESTINSTANCES) {
-		header("Location: signup.php?toomany=1");
-		return;
-            }
-	}
-	# Pass to backend to save in user object.
-	$args["auth_token"] = $stuffing;
-    }
-    else {
-	# Existing user, use existing auth token.
-	# New user, we create a new one.
-	$token = ($geniuser ? $geniuser->auth_token() : true);
-
-	SPITFORM($formfields, $token, $errors);
-	SPITFOOTER();
-	return;
-    }
-}
-
-# Admins can change aggregate.
-$options = "";
-
-if ($aggregate_urn != "") {
-    $options = " -a '$aggregate_urn'";
-}
-elseif (count($sitemap)) {
-    while (list($siteid, $urn) = each($sitemap)) {
-        $options .= "--site 'site:${siteid}=${urn}' ";
-    }
-}
-
-#
-# Invoke the backend.
-#
-list ($instance, $creator) =
-    Instance::Instantiate($this_user, $options, $args, $errors);
-
-if (!$instance) {
-    SPITFORM($formfields, false, $errors);
-    SPITFOOTER();
-    return;
-}
-    
-#
-# Remember the user and auth key so that we can verify.
-#
-# The cookie handling is a pain since we run this under the aptlab
-# virtual host, but the config uses a different domain, and so the
-# cookies do not work. So, we have to look at our SERVER_NAME and
-# set the cookie appropriately. 
-#
-if (!$this_user) {
-    $cookiedomain = $TBAUTHDOMAIN;
-
-    setcookie("quickvm_user",
-	      $creator->uuid(), time() + (24 * 3600 * 30),
-	      "/", $cookiedomain, 0);
-    setcookie("quickvm_authkey",
-	      $creator->auth_token(), time() + (24 * 3600 * 30),
-	      "/", $cookiedomain, 0);
-}
-header("Location: status.php?uuid=" . $instance->uuid());
 ?>

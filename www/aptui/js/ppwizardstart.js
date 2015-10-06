@@ -15,6 +15,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	var editor        = null;
 	var editorLarge   = null;
 	var defaults      = null;
+	var ppdivname     = null;
 	var uuid          = "";
 	var registered    = true;
 	var multisite     = 0;
@@ -474,7 +475,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		else
 		    ht += 'value';
 		ht += ' in response to these bad parameter values, because' +
-		    ' this profile\'s geni-lib script suggested they would' +
+		    " this profile's geni-lib script suggested they would" +
 		    ' help.  Please check them.';
 		ht += '</div></div></div></div>';
 		root.prepend(ht);
@@ -576,13 +577,6 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    warningsfatal = 1;
 
 	    configuredone_callback(RSPEC);
-
-	    // Handler for instantiate submit button, which is in the page.
-	    $('#stepsContainer .actions a[href="#finish"]')
-		.click(function (event) {
-		event.preventDefault();
-		$('#instantiate_submit').click();
-	    });
 	}
 
 	//
@@ -628,7 +622,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 			    // been changed...
 			    warningsfatal = 0;
 
-			    // These *are* the droids we're looking for...
+			    // These *are* the droids we are looking for...
 			    GenerateModalBody(formfields, newjsonval);
 			}
 			else {
@@ -678,6 +672,7 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 	    uuid = args.uuid;
 	    registered = args.registered;
 	    multisite = args.multisite;
+	    ppdivname = args.ppdivname;
 	    
 	    if (bodyTemplate) {
 		GenerateModalBody(defaults, null);
@@ -698,8 +693,8 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		    sup.SpitOops("oops", json.value);
 		}
 		defaults = json.value.defaults;
-		// This is the modal.
-		$('#stepsContainer-p-1').html(ppmodalString);
+		// Insert into the provided container.
+		$('#' + ppdivname).html(ppmodalString);
 		// This is the form inside the modal
 		bodyTemplate = _.template(ppbodyString);
 		// This is the aggregate selector modal.
@@ -713,7 +708,6 @@ function(_, sup, JacksEditor, ppmodalString, ppbodyString, chooserString)
 		});
 		bodyTemplate = _.template(html);
 		GenerateModalBody(defaults, null);
-		//sup.ShowModal('#ppmodal');
 		if (args.rspec) {
 		    RSPEC = args.rspec;
 		    ConfigureDone();

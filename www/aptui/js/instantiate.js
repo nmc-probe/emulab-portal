@@ -1,15 +1,19 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'constraints', 'js/quickvm_sup', 'js/ppwizardstart', 'js/JacksEditor', 'js/wizard-template',
+	['underscore', 'constraints', 'js/quickvm_sup',
+	 'js/ppwizardstart', 'js/JacksEditor', 'js/wizard-template',
+	 'js/lib/text!template/instantiate.html',
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
 	 'js/lib/text!template/waitwait-modal.html',
          'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
-function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcloudString, waitwaitString)
+function (_, Constraints, sup, ppstart, JacksEditor, wt,
+	  instantiateString, aboutaptString, aboutcloudString, waitwaitString)
 {
     'use strict';
 
     var ajaxurl;
     var amlist        = null;
+    var projlist      = null;
     var amdefault     = null;
     var selected_uuid = null;
     var selected_rspec = null;
@@ -18,6 +22,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
     var isadmin       = 0;
     var multisite     = 0;
     var doconstraints = 0;
+    var amValueToKey  = {};
+    var showpicker    = 0;
     var portal        = null;
     var registered    = false;
     var JACKS_NS      = "http://www.protogeni.net/resources/rspec/ext/jacks/1";
@@ -27,30 +33,17 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
       output: null
     };
     var editor        = null;
-    var loaded_uuid	  = null;
+    var loaded_uuid   = null;
     var ppchanged     = false;
     var monitor       = null;
     var types         = null;
+    var mainTemplate  = _.template(instantiateString);
 
     function initialize()
     {
     // Get context for constraints
 	var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
-        $('#profile_where').prop('disabled', true);
-        $('#instantiate_submit').prop('disabled', true);
         $.get(contextUrl).then(contextReady, contextFail);
-
-	var jqxhr = $.getJSON('https://ops.emulab.net/servicemon/?names=urn&callback=?')
-		.done(function(data) {
-			monitor = data;
-			// Check if third tab is already active.
-			// If it is, the user got to the third tab before the request was finished.
-			if ($('#stepsContainer-p-2').is(':visible')) {
-				CreateClusterStatus();
-			}
-		}).error(function(a) {
-			console.log(a);
-		});
 
 	window.APT_OPTIONS.initialize(sup);
 	window.APT_OPTIONS.initialize(ppstart);
@@ -61,136 +54,70 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	portal     = window.PORTAL;
 	ajaxurl    = window.AJAXURL;
 	doconstraints = window.DOCONSTRAINTS;
+	showpicker    = window.SHOWPICKER;
 
+	if ($('#amlist-json').length) {
+	    amlist  = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+	    _.each(_.keys(amlist), function (key) {
+		amValueToKey[amlist[key]] = key;
+	    });
+	}
+	if ($('#projects-json').length) {
+	    projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+	}
+	var formfields = JSON.parse(_.unescape($('#form-json')[0].textContent));
+
+	var html = mainTemplate({
+	    formfields:		formfields,
+	    projects:           projlist,
+	    amlist:		amlist,
+	    registered:		registered,
+	    profilename:        window.PROFILENAME,
+	    profileuuid:        window.PROFILEUUID,
+	    showpicker:		showpicker,
+	    cancopy:		window.CANCOPY,
+	    clustername:        (window.ISCLOUD ? "CloudLab" : "APT"),
+	});
+	$('#main-body').html(html);
+
+	var jqxhr =
+	    $.getJSON('https://ops.emulab.net/servicemon/?names=urn&callback=?')
+	    .done(function(data) {
+		monitor = data;
+		CreateClusterStatus();
+	    }).error(function(a) {
+		console.log(a);
+	    });
+
+	$('#waitwait_div').html(waitwaitString);
+	// The about panel.
+	if (window.SHOWABOUT) {
+	    $('#about_div').html(window.ISCLOUD ?
+				 aboutcloudString : aboutaptString);
+	}
 	$('#stepsContainer').steps({
-		headerTag: "h3",
-		bodyTag: "div",
-		transitionEffect: "slideLeft",
-		autoFocus: true,
-		onStepChanging: function(event, currentIndex, newIndex) {
-			if (currentIndex == 0 && newIndex == 1) {
-			    if (ispprofile) {
-				if (selected_uuid != loaded_uuid) {
-				    $('#stepsContainer-p-1 > div')
-					.attr('style','display:block');
-				    ppstart.StartPP(
-					{uuid         : selected_uuid,
-					 registered   : registered,
-					 isadmin      : isadmin,
-					 callback     : ConfigureDone,
-					 rspec        :
-					   (!window.SKIPSTEPS ? null :
-					    $('#pp_rspec_textarea').val()),
-					});
-				    loaded_uuid = selected_uuid;
-				    ppchanged =
-					(window.SKIPSTEPS ? false : true);
-				}
-			    }
-			    else {
-				$('#stepsContainer-p-1 > div')
-				    .attr('style','display:none');
-				loaded_uuid = selected_uuid;
-			    }
-			}
-			else if (currentIndex == 1 && newIndex == 2) {
-				if (ispprofile && ppchanged &&
-				    !window.SKIPSTEPS) {
-				    ppstart.HandleSubmit(function(success) {
-					if (success) {
-					    ppchanged = false;
-					    $('#stepsContainer-t-1')
-						.parent().removeClass('error');
-					    $('#stepsContainer').steps('next');
-					}
-					else {
-					    $('#stepsContainer-t-1')
-						.parent().addClass('error');
-					}
-				    });
-				    // We do not proceed until the form is
-				    // submitted properly. This has a bad
-				    // side effect; the steps code assumes
-				    // this means failure and adds the error
-				    // class.
-				    return false;
-				}
-			    
-				// Set up the Finalize tab
-				$('#stepsContainer-p-2 #finalize_options').html('');
-				// Each .experiment_option in the form is copied to the last page.
-				// When the finish button is pressed, these values are copied back.
-				$('#experiment_options .experiment_option').each(function() {
-					if (!$(this).hasClass('hidden')) {
-						var fieldId = $(this).attr('id');
-						var fieldHTML = $(this).html();
-
-						$('#stepsContainer-p-2 #finalize_options').append(''
-							+'<div class="'+fieldId+'">'
-							+'<div class="form-horizontal">'
-							+fieldHTML
-							+'</div></div>');
-					}
-				});
-				// Build the picker that uses the monitoring stats.
-				CreateClusterStatus();
-
-			    if (!$('#cluster_status_link').length) {
-				$('#stepsContainer-p-2 #finalize_options').parent().append(''
-					+'<div id="cluster_status_link"><center>'
-						+'<a target="_blank" href="cluster-graphs.php">Check Cluster Status</a>'
-					+'</center></div>');
-			    }
-			}
-
-			if (currentIndex == 2) {
-				SwitchJacks('small');
-			}
-
-			if (currentIndex == 0 && selected_uuid == null) {
-				return false;
-			}
-			return true;
-		},
-		onStepChanged: function(event, currentIndex, priorIndex) {
-			var cIndex = currentIndex;
-			if (currentIndex == 1) {
-				// If the profile isn't parameterized, skip the second step
-				if (!ispprofile) {
-					if (priorIndex < currentIndex) {
-						// Generate the profile on the third tab
-						ShowProfileSelectionInline($('#profile_name .current'), $('#stepsContainer-p-2 #inline_jacks'), true);
-
-						$(this).steps('next');
-						$('#stepsContainer-t-1').parent().removeClass('done').addClass('disabled');
-					}
-					if (priorIndex > currentIndex) {
-						$(this).steps('previous');
-						cIndex--;
-					}
-				}
-				$('#pp_form input').change(function() {
-					ppchanged = true;
-				});
-				$('#pp_form select').change(function() {
-					ppchanged = true;
-				});
-			}
-			else if (currentIndex == 2 && priorIndex == 1) {
-				// Keep the two panes the same height
-				$('#inline_container').css('height', $('#finalize_container').outerHeight());
-			}
-
-			if (currentIndex < priorIndex) {
-				// Disable going forward by clicking on the labels
-				for (var i = cIndex+1; i < $('.steps > ul > li').length; i++) {
-					$('#stepsContainer-t-'+i).parent().removeClass('done').addClass('disabled');
-				}
-			}
-		}
+	    headerTag: "h3",
+	    bodyTag: "div",
+	    transitionEffect: "slideLeft",
+	    autoFocus: true,
+	    onStepChanging: function(event, currentIndex, newIndex) {
+		return StepChanging(this, event, currentIndex, newIndex);
+	    },
+	    onStepChanged: function(event, currentIndex, priorIndex) {
+		return StepChanged(this, event, currentIndex, priorIndex);
+	    },
+	    onFinishing: function(event, currentIndex) {
+		return Instantiate(this, event);
+	    },
+	});
+	// This activates the popover subsystem. 
+	$('[data-toggle="popover"]').popover({
+	    trigger: 'hover',
+	    placement: 'auto',
+	    container: 'body',
 	});
 
-	// Set up wizard final page formatting
+	// Format the step labels across the top to match the panel widths.
 	$('#stepsContainer .steps').addClass('col-lg-8 col-lg-offset-2 col-md-8 col-md-offset-2 col-sm-10 col-sm-offset-1 col-xs-12 col-xs-offset-0');
 	$('#stepsContainer .actions').addClass('col-lg-8 col-lg-offset-2 col-md-8 col-md-offset-2 col-sm-10 col-sm-offset-1 col-xs-12 col-xs-offset-0');
 
@@ -199,45 +126,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 		SwitchJacks('large');
 	});
 
-	// Set up the Finish button to submit the form
-	$('#stepsContainer .actions a[href="#finish"]').click(function() {
-		$('#stepsContainer-p-2 #finalize_options > div').each(function() {
-			var fieldId = $(this).attr('class');
-			$('#'+fieldId+' .form-control').val($('.'+fieldId+' .form-control').val());
-		});
-		if (!ispprofile) {
-			$('#instantiate_submit').click();
-		}
-	});
-
-	if ($('#amlist-json').length) {
-	    amlist  = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
-	  _.each(_.keys(amlist), function (key) {
-	    amValueToKey[amlist[key]] = key;
-	  });
-	}
-
-	$('#waitwait_div').html(waitwaitString);
-	// The about panel.
-	if (window.SHOWABOUT) {
-	    $('#about_div').html(window.ISCLOUD ?
-				 aboutcloudString : aboutaptString);
-	}
-	// This activates the popover subsystem.
-	$('[data-toggle="popover"]').popover({
-	    trigger: 'hover',
-	    placement: 'auto',
-	    container: 'body',
-	});
-
-	if (window.APT_OPTIONS.isNewUser) {
-	    $('#verify_modal_submit').click(function (event) {
-		$('#verify_modal').modal('hide');
-		$("#waitwait-modal").modal('show');
-		return true;
-	    });
-	    $('#verify_modal').modal('show');
-	}
         $('#quickvm_topomodal').on('shown.bs.modal', function() {
             ShowProfileSelection($('#profile_name .current'))
         });
@@ -261,39 +149,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	    console.log(selected_uuid);
 	    $('#quickvm_topomodal').modal('hide');
 	    $('.steps .error').removeClass('error');
-	});
-	$('#instantiate_submit').click(function (event) {
-	    if (webonly != 0) {
-		event.preventDefault();
-		sup.SpitOops("oops",
-		     "You do not belong to any projects at your Portal, " +
-		     "so you have have very limited capabilities. Please " +
-		     "join or create a project at your " +
-		     (portal && portal != "" ?
-		      "<a href='" + portal + "'>Portal</a>" : "Portal") +
-		     " to enable more capabilities. Thanks!")
-		return false;
-	    }
-	    // Prevent double click.
-	    if ($(this).data('submitted') === true) {
-		// Previously submitted - don't submit again
-		console.info("Ignoring double submit");
-		event.preventDefault();
-		return false;
-	    }
-	    else {
-		// See if all cluster selections have been made. Seems
-		// to be a common problem.
-		if (!AllClustersSelected()) {
-		    alert("Please make all your cluster selections!");
-		    event.preventDefault();
-		    return false;
-		}
-		// Mark it so that the next submit can be ignored
-		$(this).data('submitted', true);
-	    }
-	    $("#waitwait-modal").modal('show');
-	    return true;
 	});
 	/*
 	 * Need to update image constraints when the project selector
@@ -352,50 +207,404 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 		    matches.show();
 		}, 500);
 	});
+
+	//
+	// SSH file upload handler, to move the file contents into
+	// the ssh text area. 
+	//
+	if (!registered) {
+	    $('#input_keyfile').change(function() {
+		var reader = new FileReader();
+		reader.onload = function(event) {
+		    /*
+		     * Clear the file so that the change handler will
+		     * run if the same file is selected again.
+		     */
+		    $("#input_sshkey").text(event.target.result);
+		};
+		reader.readAsText(this.files[0]);
+	    });
+	}
 	    
 	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
         ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
     }
 
+    var doingformcheck = 0;
+    
+    // Step is changing
+    function StepChanging(step, event, currentIndex, newIndex) {
+	if (currentIndex == 0 && newIndex == 1) {
+	    // Check step 0 form values. Any errors, we stop here.
+	    if (!registered && !doingformcheck) {
+		doingformcheck = 1;
+		CheckStep0(function (success) {
+		    if (success) {
+			$('#stepsContainer-t-0').parent().removeClass('error');
+			$('#stepsContainer').steps('next');
+		    }
+		    else {
+			$('#stepsContainer-t-0').parent().addClass('error');
+		    }
+		    // Here to avoid recursion.
+		    doingformcheck = 0;
+		});
+		return false;
+	    } 
+	    if (ispprofile) {
+		if (selected_uuid != loaded_uuid) {
+		    $('#stepsContainer-p-1 > div')
+			.attr('style','display:block');
+		    ppstart.StartPP({
+			uuid         : selected_uuid,
+			ppdivname    : "pp-container",
+			registered   : registered,
+			isadmin      : isadmin,
+			callback     : ConfigureDone,
+			rspec        : null,
+		    });
+		    loaded_uuid = selected_uuid;
+		    ppchanged = true;
+		}
+	    }
+	    else {
+		$('#stepsContainer-p-1 > div').attr('style','display:none');
+		loaded_uuid = selected_uuid;
+	    }
+	}
+	else if (currentIndex == 1 && newIndex == 2) {
+	    if (ispprofile && ppchanged) {
+		ppstart.HandleSubmit(function(success) {
+		    if (success) {
+			ppchanged = false;
+			$('#stepsContainer-t-1').parent().removeClass('error');
+			$('#stepsContainer').steps('next');
+		    }
+		    else {
+			$('#stepsContainer-t-1').parent().addClass('error');
+		    }
+		});
+		// We do not proceed until the form is submitted
+		// properly. This has a bad side effect; the steps
+		// code assumes this means failure and adds the error
+		// class.
+		return false;
+	    }
+	}
+	if (currentIndex == 2) {
+	    SwitchJacks('small');
+	}
+	if (currentIndex == 0 && selected_uuid == null) {
+	    return false;
+	}
+	return true;
+    }
+
+    // Step is done changing.
+    function StepChanged(step, event, currentIndex, priorIndex) {
+	var cIndex = currentIndex;
+	if (currentIndex == 1) {
+	    // If the profile isn't parameterized, skip the second step
+	    if (!ispprofile) {
+		if (priorIndex < currentIndex) {
+		    // Generate the profile on the third tab
+		    ShowProfileSelectionInline($('#profile_name .current'),
+			       $('#stepsContainer-p-2 #inline_jacks'), true);
+
+		    $(step).steps('next');
+		    $('#stepsContainer-t-1').parent().removeClass('done')
+			.addClass('disabled');
+		}
+		if (priorIndex > currentIndex) {
+		    $(step).steps('previous');
+		    cIndex--;
+		}
+	    }
+	    $('#pp_form input').change(function() {
+		ppchanged = true;
+	    });
+	    $('#pp_form select').change(function() {
+		ppchanged = true;
+	    });
+	}
+	else if (currentIndex == 2 && priorIndex == 1) {
+	    // Keep the two panes the same height
+	    $('#inline_container').css('height',
+				       $('#finalize_container').outerHeight());
+	}
+	if (currentIndex < priorIndex) {
+	    // Disable going forward by clicking on the labels
+	    for (var i = cIndex+1; i < $('.steps > ul > li').length; i++) {
+		$('#stepsContainer-t-'+i).parent()
+		    .removeClass('done').addClass('disabled');
+	    }
+	}
+    }
+
+    /*
+     * Check the form values on step 0 of the wizard.
+     */
+    function CheckStep0(step_callback)
+    {
+	SubmitForm(1, 0, function (json) {
+	    if (json.code == 0) {
+		step_callback(true);
+		return;
+	    }
+	    // Internal error.
+	    if (json.code < 0) {
+		step_callback(false);
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    // Form error
+	    if (json.code == 2) {
+		// Regenerate page with errors.
+		ShowFormErrors(json.value);
+		step_callback(false);
+		return;
+	    }
+	    // Email not verified, throw up form.
+	    if (json.code == 3) {
+		sup.ShowModal('#verify_modal');
+		
+		var doverify = function() {
+		    var check_callback = function(json) {
+			console.info(json);
+
+			if (!json.code) {
+			    // Token was good, we can keep going.
+			    sup.HideModal('#verify_modal');
+			    $('#verify_modal_submit').off("click");
+			    $('#verification_token').parent()
+				.removeClass("has-error");
+			    $('#verification_token_error')
+				.addClass("hidden");
+
+			    if (_.has(json.value, "cookies")) {
+				SetCookies(json.value.cookies);
+			    }
+			    // Redirect if so instructed.
+			    if (_.has(json.value, "redirect")) {
+				window.location.replace(json.value.redirect);
+				return;
+			    }
+			    // Otherwise continue the work flow.
+			    step_callback(true);
+			    return;
+			}
+			// Bad token. Show the error. Continue button
+			// is still active.
+			$('#verification_token').parent().addClass("has-error");
+			$('#verification_token_error').removeClass("hidden");
+			$('#verification_token_error').html("Incorrect!");
+		    };
+		    var token = $('#verification_token').val();
+		    var xmlthing = sup.CallServerMethod(null, "instantiate",
+							"VerifyEmail",
+							{"token" : token});
+		    xmlthing.done(check_callback);
+		};
+		$('#verify_modal_submit').on("click", function (event) {
+		    // Submit token for check. We loop until it passes.
+		    doverify();
+		});
+	    }
+	});
+    }
+
+    function Instantiate()
+    {
+	if (webonly != 0) {
+	    event.preventDefault();
+	    sup.SpitOops("oops",
+			 "You do not belong to any projects at your Portal, " +
+			 "so you have have very limited capabilities. Please " +
+			 "join or create a project at your " +
+			 (portal && portal != "" ?
+			  "<a href='" + portal + "'>Portal</a>" : "Portal") +
+			 " to enable more capabilities. Thanks!")
+	    return false;
+	}
+	// Prevent double click.
+	if ($(this).data('submitted') === true) {
+	    // Previously submitted - don't submit again
+	    console.info("Ignoring double submit");
+	    event.preventDefault();
+	    return false;
+	}
+	else {
+	    // See if all cluster selections have been made. Seems
+	    // to be a common problem.
+	    if (!AllClustersSelected()) {
+		alert("Please make all your cluster selections!");
+		event.preventDefault();
+		return false;
+	    }
+	    // Mark it so that the next submit can be ignored
+	    $(this).data('submitted', true);
+	}
+	// Submit with checkonly first, then for real
+	SubmitForm(1, 2, function (json) {
+	    console.info(json);
+	    // Internal error.
+	    if (json.code < 0) {
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    // Form error
+	    if (json.code == 2) {
+		ShowFormErrors(json.value);
+		return;
+	    }
+	    $("#waitwait-modal").modal('show');
+	    SubmitForm(0, 2, function(json) {
+		$("#waitwait-modal").modal('hide');
+		if (json.code) {
+		    console.info(json);
+		    if (json.code == 2) {
+			ShowFormErrors(json.value);
+			return;
+		    }
+		    sup.SpitOops("oops", json.value);		    
+		}
+		/*
+		 * The return value will have a redirect url in it,
+		 * and some optional cookies.
+		 */
+		if (_.has(json.value, "cookies")) {
+		    SetCookies(json.value.cookies);
+		}
+		window.location.replace(json.value.redirect);
+	    });
+	});
+	return true;
+    }
+
+    function ShowFormErrors(errors) {
+	$('.step-forms').find('.format-me').each(function () {
+	    var input = $(this).find(":input")[0];
+	    var label = $(this).find(".control-error")[0];
+	    var key   = $(input).data("key");
+	    if (key && _.has(errors, key)) {
+		$(this).addClass("has-error");
+		$(label).html(_.escape(errors[key]));
+		$(label).removeClass("hidden");
+	    }
+	});
+	// General Error on the last step.
+	if (_.has(errors, "error")) {
+	    $('#general_error').html(_.escape(errors[error]));
+	}
+    }
+
+    function ClearFormErrors() {
+	$('.step-forms').find('.format-me').each(function () {
+	    var input = $(this).find(":input")[0];
+	    var label = $(this).find(".control-label")[0];
+	    var key   = $(input).data("key");
+	    if (key) {
+		$(this).removeClass("has-error");
+		$(label).html("");
+		$(label).addClass("hidden");
+	    }
+	});
+	$('#general_error').html("");
+    }
+
+    //
+    // Submit the form. The step matters only when checking.
+    //
+    function SubmitForm(checkonly, step, callback)
+    {
+	// Current form contents as formfields array.
+	var formfields  = {};
+	
+	var rpc_callback = function(json) {
+	    console.info(json);
+	    callback(json);
+	}
+	ClearFormErrors();
+	// Convert form data into formfields array, like all our
+	// form handler pages expect.
+	var fields = $('.step-forms').serializeArray();
+	$.each(fields, function(i, field) {
+	    formfields[field.name] = field.value;
+	});
+	console.info(formfields);
+	var xmlthing = sup.CallServerMethod(null, "instantiate",
+					    (checkonly ?
+					     "CheckForm" : "Submit"),
+					    {"formfields" : formfields,
+					     "step"       : step});
+	xmlthing.done(rpc_callback);
+    }
+
+    function SetCookies(cookies) {
+	// Delete existing cookies first
+	var expires = "expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+
+	$.each(cookies, function(name, value) {
+	    document.cookie = name + '=; ' + expires;
+
+	    var cookie = 
+		name + '=' + value.value +
+		'; domain=' + value.domain +
+		'; max-age=' + value.expires + '; path=/; secure';
+
+	    document.cookie = cookie;
+	    console.info(cookie);
+	});
+    }
+    
     function CreateClusterStatus() {
+	console.log("CreateClusterStatus", monitor);
     	if (monitor == null || $.isEmptyObject(monitor)) {
     		return;
     	}
 
     	$('#finalize_options .cluster-group').each(function() {
+	    console.log($(this));
+	    if ($(this).hasClass("pickered")) {
+		return;
+	    }
+	    $(this).addClass("pickered");
+	    
             var resourceType = "PC";
             var label = $(this).find('.control-label').attr('name');
             if (types && label && types[label] && types[label]['emulab-xen']) {
                 resourceType = "VM";
             }
-			var which = $(this).parent().parent().attr('class');
+	    var which = $(this).parent().attr('id');
+	    console.log(which);
 
-	    	var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'), window.FEDERATEDLIST);
+	    var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'), window.FEDERATEDLIST);
+	    console.log(html);
 
-			$('.'+which+' .form-control').after(html);
-			$('.'+which+' select.form-control').addClass('hidden');
+	    $('#'+which+' .form-control').after(html);
+	    $('#'+which+' select.form-control').addClass('hidden');
 
-	    	html.find('.dropdown-menu a').on('click', function(){    
-	    		wt.StatusClickEvent(html, this);
-	    		$('.'+which+' .form-control').val($('.'+which+' .cluster_picker_status .value').html()); 
-			});
+	    html.find('.dropdown-menu a').on('click', function(){    
+	    	wt.StatusClickEvent(html, this);
+	    	$('#'+which+' .form-control').val($('#'+which+' .cluster_picker_status .value').html()); 
+	    });
 
-			_.each(amlist, function(name, key) {
-				var data = monitor[key];
-				var target = $('.'+which+' .cluster_picker_status .dropdown-menu .enabled a:contains("'+name+'")');
-				if (data && !$.isEmptyObject(data)) {
-					// Calculate testbed rating and set up tooltips.
-					var rating = wt.CalculateRating(data, resourceType);
+	    _.each(amlist, function(name, key) {
+		var data = monitor[key];
+		var target = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a:contains("'+name+'")');
+		if (data && !$.isEmptyObject(data)) {
+		    // Calculate testbed rating and set up tooltips.
+		    var rating = wt.CalculateRating(data, resourceType);
+		    
+		    target.parent().attr('data-health', rating[0]).attr('data-rating', rating[1]);
+		    
+		    var classes = wt.AssignStatusClass(rating[0], rating[1]);
+		    target.addClass(classes[0]).addClass(classes[1]);
 
-					target.parent().attr('data-health', rating[0]).attr('data-rating', rating[1]);
-
-					var classes = wt.AssignStatusClass(rating[0], rating[1]);
-					target.addClass(classes[0]).addClass(classes[1]);
-
-					target.append(wt.StatsLineHTML(classes, rating[2]));
-				}
-			});
+		    target.append(wt.StatsLineHTML(classes, rating[2]));
+		}
+	    });
 
             var sort = function (a, b) {
                 var aHealth = Math.ceil((+a.dataset.health)/50);
@@ -410,13 +619,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
                 return +b.dataset.rating - +a.dataset.rating;
             };
 
-			$('.'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.native').sort(sort).prependTo($('.'+which+' .cluster_picker_status .dropdown-menu'));
-            $('.'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('.'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
+	    $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.native').sort(sort).prependTo($('#'+which+' .cluster_picker_status .dropdown-menu'));
+            $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('#'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
 
-			$('.'+which+' .cluster_picker_status .dropdown-menu .enabled a')[0].click();
+	    $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a')[0].click();
     	});
-
-		$('[data-toggle="tooltip"]').tooltip();
+	
+	$('[data-toggle="tooltip"]').tooltip();
     }
 
     function SwitchJacks(which) {
@@ -511,31 +720,16 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	    $('#showtopo_title').html("<h3>" + name + "</h3>");
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
+	    $('#finalize_profile_name').val(name);
 
 	    ispprofile    = ispp;
 	    selected_uuid = profile_value;
 	    selected_rspec = rspec;
 	    amdefault     = amdef;
 
-	    // Show the configuration button, disable the create button.
-	    if (ispprofile) {
-		$('#instantiate_submit').attr('disabled', true);
-	    }
-	    else {
-		$('#instantiate_submit').attr('disabled', false);
-	    }
-
 	    CreateAggregateSelectors(rspec);
-
-	    // Hide the aggregate picker for a parameterized profile.
-	    // Shown later.
-	    if (ispprofile) {
-		$("#aggregate_selector").addClass("hidden");
-	    }
-	    else {
-		$("#aggregate_selector").removeClass("hidden");
-	    }
-
+	    CreateClusterStatus();
+	    
 	    // Set the default aggregate.
 	    if ($('#profile_where').length) {
 		// Deselect current option.
@@ -544,15 +738,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 		$('#profile_where option')
 		    .filter('[value="'+ amdefault + '"]')
                     .prop('selected', true);		
-	    }
-	    if (window.SKIPSTEPS) {
-	    	if (!$('#stepsContainer-p-0 fieldset > .has-error').length) {
-				$('#stepsContainer').steps("next");
-				if (ispprofile) {
-				    $('#stepsContainer').steps("next");
-				}
-	    	}
-		window.SKIPSTEPS = 0;
 	    }
 	    updateWhere();
 	};
@@ -605,9 +790,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	if (newRspec) {
 	    $('#pp_rspec_textarea').val(newRspec);
 	    CreateAggregateSelectors(newRspec);
+	    CreateClusterStatus();
 	}
-	// Enable the create button.
-	$('#instantiate_submit').attr('disabled', false);
 	if (window.NOPPRSPEC) {
 	    alert("Guest users may configure parameterized profiles " +
 		  "for demonstration purposes only. The parameterized " +
@@ -665,60 +849,75 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 
 	// All nodes bound, no dropdown.
 	if (count == bound) {
-	    $("#site_selector").addClass("hidden");
-	    $("#nosite_selector").addClass("hidden");
+	    $("#cluster_selector").addClass("hidden");
 	    // Clear the form data.
-	    $("#site_selector").html("");
-	    $("#nosite_selector").html("");
+	    $("#cluster_selector").html("");
 	    return;
 	}
 
-	// If multisite is disabled for the user, or no sites or 1 site.
-	if (!multisite || Object.keys(sites).length <= 1) {
-	    $("#site_selector").addClass("hidden");
-	    $("#nosite_selector").removeClass("hidden");
-	    // Clear the form data.
-	    $("#site_selector").html("");
-	    return;
-	}
-
+	// Clear for new profile.
+	siteIdToSiteNum = {};
 	var sitenum = 0;
 
 	// Create the dropdown selection lists.
-	_.each(sites, function(siteid) {
-	    siteIdToSiteNum[siteid] = sitenum;
+	var options = "";
+	_.each(amlist, function(name, key) {
+	    options = options +
+		"<option value='" + name + "'>" + name + "</option>";
+	});
+	$("#cluster_selector").html("");
 
-	    var options = "";
-	    _.each(amlist, function(name, key) {
-		options = options +
-		    "<option value='" + name + "'>" + name + "</option>";
-	    });
-
-	    html = html +
-		"<div id='site"+sitenum+"cluster' " +
+	// If multisite is disabled for the user, or no sites or 1 site.
+	if (!multisite || Object.keys(sites).length <= 1) {
+	    html = 
+		"<div id='nosite_selector' " +
 		"     class='form-horizontal experiment_option'>" +
 		"  <div class='form-group cluster-group'>" +
 		"    <label class='col-sm-4 control-label' " +
-		"           style='text-align: right;'"+
-        "           name='"+siteid+"'>"+
-		"          " + siteid  + " Cluster:</a>" +
+		"           style='text-align: right;'>Cluster:</a>" +
 		"    </label> " +
 		"    <div class='col-sm-6'>" +
-		"      <select name=\"formfields[sites][" + siteid + "]\"" +
+		"      <select name='where' id='profile_where' " +
 		"              class='form-control'>" +
-		"        " + options +
+		"        <option value=''>Please Select</option>" +
+		options +
 		"      </select>" +
-		"</div>" +
-	        "<div class='col-sm-4'></div>" +
-		"<div class='col-sm-6 alert alert-warning' id='where-warning' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site only works on some clusters. Incompatible clusters are unselectable.</div>" +
-	        "<div class='col-sm-6 alert alert-danger' id='where-nowhere' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site <b>will not work on any clusters</b>. All clusters are unselectable.</div>" +
-	        "</div></div>";
-	    sitenum++;
-	});
+		"    </div>" +
+		"<div class='col-sm-4'></div>" +
+		"<div class='col-sm-6 alert alert-danger' id='where-nowhere' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site <b>will not work on any clusters</b>. All clusters are unselectable.</div>" +
+		"  </div>" +
+		"</div>";
+	}
+	else {
+	    _.each(sites, function(siteid) {
+		siteIdToSiteNum[siteid] = sitenum;
+
+		html = html +
+		    "<div id='site"+sitenum+"cluster' " +
+		    "     class='form-horizontal experiment_option'>" +
+		    "  <div class='form-group cluster-group'>" +
+		    "    <label class='col-sm-4 control-label' " +
+		    "           style='text-align: right;'>"+
+		    "          Site " + siteid  + " Cluster:</a>" +
+		    "    </label> " +
+		    "    <div class='col-sm-6'>" +
+		    "      <select name=\"formfields[sites][" + siteid + "]\"" +
+		    "              class='form-control'>" +
+		    "        <option value=''>Please Select</option>" +
+		    options +
+		    "      </select>" +
+		    "    </div>" +
+		    "<div class='col-sm-4'></div>" +
+		    "<div class='col-sm-6 alert alert-danger' id='where-nowhere' style='display: none; margin-top: 5px; margin-bottom: 5px'>This site <b>will not work on any clusters</b>. All clusters are unselectable.</div>" +
+		    "  </div>" +
+		    "</div>";
+		sitenum++;
+	    });
+	}
+>>>>>>> Reformulate instantiate page into a template. Rework the step container
 	//console.info(html);
-	$("#nosite_selector").addClass("hidden");
-	$("#site_selector").removeClass("hidden");
-	$("#site_selector").html(html);
+	$("#cluster_selector").html(html);
+	$("#cluster_selector").removeClass("hidden");
 	updateWhere();
     }
 
@@ -770,9 +969,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	  jacks.input = input;
 	  jacks.output = output;
 	  jacks.output.on('found-images', onFoundImages);
-          $('#profile_where').prop('disabled', false);
-          $('#instantiate_submit').prop('disabled', false);
-      jacks.output.on('found-types', onFoundTypes);
+	  jacks.output.on('found-types', onFoundTypes);
 	  updateWhere();
 	},
 	canvasOptions: context.canvasOptions,
@@ -811,7 +1008,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	    return;
 	}
       
-      $('#stepsContainer .actions a[href="#finish"]').attr('disabled', true);
+	$('#stepsContainer .actions a[href="#finish"]').attr('disabled', true);
 	var callback = function(json) {
 	    if (json.code) {
 		alert("Could not get image info: " + json.value);
@@ -937,8 +1134,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt, aboutaptString, aboutcl
 	}
     }
 
-    var amValueToKey = {};
-    
     function finishUpdateWhere(allNodes, nodesBySite)
     {
       console.log('finishUpdateWhere');

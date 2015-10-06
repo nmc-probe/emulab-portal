@@ -91,7 +91,7 @@ function Do_GetParameters()
 	    return;
 	}	    
     }
-    elseif (!$profile->CanInstantiate($this_user)) {
+    elseif (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
 	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
 	return;
     }
@@ -128,7 +128,7 @@ function Do_Instantiate()
 	    return;
 	}	    
     }
-    elseif (!$profile->CanInstantiate($this_user)) {
+    elseif (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
 	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
 	return;
     }
@@ -291,7 +291,7 @@ function Do_GetImageInfo()
                         $uuid = $args["uuid"];
 
                         $query_result =
-                            DBQueryWarn("select i.*,v.* ".
+                            DBQueryFatal("select i.*,v.* ".
                                  "  from image_versions as v ".
                                  "   inner join ".
                                  "      (select image_uuid, ".
@@ -395,6 +395,426 @@ function Do_GetImageInfo()
                           "images" => $images));
     
     SPITAJAX_RESPONSE($result);
+}
+
+#
+# Allow for checking at each step, although at the moment we
+# do notreally do this.
+#
+function Do_CheckForm()
+{
+    global $ajax_args;
+
+    if (!isset($ajax_args["step"])) {
+	SPITAJAX_ERROR(-1, "Missing step number");
+	return -1;
+    }
+    if ($ajax_args["step"] == 0) {
+        if (CheckStep0() == 0) {
+            SPITAJAX_RESPONSE(0);
+        }
+    }
+    if ($ajax_args["step"] == 2) {
+        if (CheckStep2() == 0) {
+            SPITAJAX_RESPONSE(0);
+        }
+    }
+}
+
+#
+# Check form arguments on the fist step, so we can halt progress
+# right away.
+#
+function CheckStep0()
+{
+    global $this_user;
+    global $ajax_args;
+    global $APTMAIL;
+
+    if (!isset($ajax_args["formfields"])) {
+	SPITAJAX_ERROR(-1, "Missing formfields");
+	return -1;
+    }
+    $formfields = $ajax_args["formfields"];
+    $errors = array();
+
+    #
+    # There is nothing to do for registered users.
+    #
+    if ($this_user) {
+        return 0;
+    }
+    # For email verification if needed.
+    session_start();
+
+    if (!isset($formfields["email"]) || $formfields["email"] == "") {
+        $errors["email"] = "Missing Field";
+    }
+    elseif (! TBvalid_email($formfields["email"])) {
+        $errors["email"] = TBFieldErrorString();
+    }
+    if (!isset($formfields["username"]) ||
+        $formfields["username"] == "") {
+        $errors["username"] = "Missing Field";
+    }
+    elseif (! TBvalid_uid($formfields["username"])) {
+        $errors["username"] = TBFieldErrorString();
+    }
+    elseif (User::LookupByUid($formfields["username"])) {
+        # Do not allow uid overlap with real users.
+        $errors["username"] = "Already in use - ".
+            "if you have an Emulab account, log in first";
+    }
+    else {
+        if (!isset($_SESSION["verified"])) {
+            $_SESSION["verified"] = 0;
+            $_SESSION["codesent"] = 0;
+        }
+        $geniuser = GeniUser::LookupByEmail("sa", $formfields["email"]);
+        if ($geniuser) {
+            if ($geniuser->name() != $formfields["username"]) {    
+                $errors["email"] = "Already in use by another guest user";
+                goto done;
+            }
+            if (isset($_COOKIE['quickvm_authkey']) &&
+                $_COOKIE['quickvm_authkey'] == $geniuser->auth_token()) {
+                $_SESSION["verified"] = 1;
+            }
+            else {
+                # Store existing token in session for below.
+                $_SESSION["auth_token"] = $geniuser->auth_token();
+                # Store user too, convenient for below.
+                $_SESSION["geniuser"] = $geniuser->uuid();
+            }
+        }
+        elseif (!isset($_SESSION["auth_token"])) {
+            # Generate a new token for guest user to be created later.
+            $_SESSION["auth_token"] = substr(GENHASH(), 0, 16);
+        }
+        #
+        # If we need to verify and we have not sent the email, do so.
+        #
+        if (!$_SESSION["verified"] && !$_SESSION["codesent"]) {
+	    mail($formfields["email"],
+		 "aptlab.net: Verification code for creating your experiment",
+		 "Here is your user verification code. Please copy and\n".
+		 "paste this code into the box on the experiment page.\n\n".
+		 "      " . $_SESSION["auth_token"] . "\n",
+		 "From: $APTMAIL");
+            $_SESSION["codesent"] = 1;
+	}
+        #
+        # Tell caller to throw up the verification form.
+        #
+        if (!$_SESSION["verified"]) {
+            SPITAJAX_ERROR(3, 0);
+            return -1;
+        }
+    }
+ done:
+    if (count($errors)) {
+	SPITAJAX_ERROR(2, $errors);
+	return -1;
+    }
+    return 0;
+}
+
+#
+# Check email verification token for guest users.
+#
+function Do_VerifyEmail()
+{
+    global $this_user;
+    global $ajax_args;
+    global $TBAUTHDOMAIN;
+    # auth token stored in session above.
+    session_start();
+
+    #
+    # See if user exists and is verified. We send email with a code, which
+    # they have to paste back into a box we add to the form. See above.
+    #
+    # We also get here if the user exists, but the browser did not have
+    # the tokens, as will happen if switching to another browser. We
+    # force the user to repeat the verification with the same code we
+    # have stored in the DB.
+    #
+    if ($_SESSION["verified"]) {
+        SPITAJAX_RESPONSE(0);
+        return;
+    }
+    if (!isset($ajax_args["token"])) {
+	SPITAJAX_ERROR(-1, "Missing verification token argument");
+	return;
+    }
+    if (!isset($_SESSION["auth_token"])) {
+	SPITAJAX_ERROR(-1, "Internal error finding verification token");
+	return;
+    }
+    if ($_SESSION["auth_token"] != $ajax_args["token"]) {
+	SPITAJAX_ERROR(1, "Token did not match, please try again");
+	return;
+    }
+    $blob = array();
+    
+    if (isset($_SESSION["geniuser"])) {
+        $geniuser = GeniUser::Lookup("sa", $_SESSION["geniuser"]);
+        if (!$geniuser) {
+            SPITAJAX_ERROR(-1, "Internal error looking up geni user");
+            return;
+        }
+        #
+        # Reset the cookies so status page is happy and so we
+        # will stop asking the user to verify their email.
+        #
+        $cookiedomain = $TBAUTHDOMAIN;
+        $expires = time() + (24 * 3600 * 30);
+        
+        $blob["cookies"]
+            = array("quickvm_user" =>
+                    array("value"   => $geniuser->uuid(),
+                          "expires" => $expires,
+                          "domain"  => $cookiedomain),
+                    "quickvm_authkey" =>
+                    array("value"   => $geniuser->auth_token(),
+                          "expires" => $expires,
+                          "domain"  => $cookiedomain));
+        
+	#
+	# If this is an existing user and they give us the right code,
+	# we can check again for an existing experiment and redirect to the
+	# status page.
+	#
+        $instance = Instance::LookupByCreator($geniuser->uuid());
+        if ($instance && $instance->status() != "terminating") {
+            $blob["redirect"] = "status.php?oneonly=1&uuid=" .
+                $instance->uuid();
+            SPITAJAX_RESPONSE($blob);
+            session_destroy();
+            return;
+        }
+    }
+    $_SESSION["verified"] = 1;
+    SPITAJAX_RESPONSE($blob);
+}
+
+function CheckStep2()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($ajax_args["formfields"])) {
+	SPITAJAX_ERROR(-1, "Missing formfields");
+	return -1;
+    }
+    $formfields = $ajax_args["formfields"];
+    $am_array   = Instance::DefaultAggregateList();
+    $errors     = array();
+
+    #
+    # The initial page load did profile checking, this is just a
+    # secondary check, so if there are failures, we can show them
+    # as a general error on the last step.
+    #
+    if (!isset($formfields["profile"]) || $formfields["profile"] == "") {
+        $errors["error"] = "No profile selection made";
+    }
+    else {
+        $profile = Profile::Lookup($formfields["profile"]);
+        if (!$profile) {
+            $errors["error"] = "No such profile exists";
+        }
+        elseif (!($profile->ispublic() ||
+                  (isset($this_user) && $profile->CanInstantiate($this_user)))){
+            $errors["error"] = "No permission to use profile";
+        }
+    }
+    if (!$this_user) {
+        #
+        # Need to make sure we got verified.
+        #
+        session_start();
+        if (!isset($_SESSION["verified"]) || !$_SESSION["verified"]) {
+            $errors["error"] = "Your verification step failed";
+        }
+    }
+    if ($this_user) {
+        if (isset($formfields["sites"]) && is_array($formfields["sites"])) {
+            while (list($siteid, $am) = each($formfields["sites"])) {
+                if (!array_key_exists($am, $am_array)) {
+                    $errors["sites"] = "Invalid Aggregate: $siteid";
+                    break;
+                }
+            }
+        }
+        elseif (! (isset($formfields["where"]) &&
+                   $formfields["where"] != "" &&
+                   array_key_exists($formfields["where"], $am_array))) {
+            $errors["where"] = "Missing aggregate selection";
+        }
+        
+        #
+        # Project has to exist.  
+        #
+        $project = Project::LookupByPid($formfields["pid"]);
+        if (!$project) {
+            $errors["pid"] = "No such project";
+        }
+        # User better be a member.
+        elseif (!ISADMIN() &&
+                (!$project->IsMember($this_user, $isapproved) ||
+                 !$isapproved)) {
+            $errors["pid"] = "Illegal project";
+        }
+
+        # Experiment name is optional, we generate one later.
+        if (isset($formfields["name"]) && $formfields["name"] != "") {
+            if (strlen($formfields["name"]) > 16) {
+                $errors["name"] = "Too long; must be <= 16 characters";
+            }
+            elseif (!TBvalid_eid($formfields["name"])) {
+                $errors["name"] = TBFieldErrorString();
+            }
+            elseif ($project &&
+                    Instance::LookupByName($project, $formfields["name"])) {
+                $errors["name"] = "Already in use by another experiment";
+            }
+        }
+    }
+    if (count($errors)) {
+	SPITAJAX_ERROR(2, $errors);
+	return -1;
+    }
+    return 0;
+}
+
+#
+# Submit
+#
+function Do_Submit()
+{
+    global $this_user;
+    global $ajax_args;
+    global $TBAUTHDOMAIN;
+
+    if (!isset($ajax_args["formfields"])) {
+	SPITAJAX_ERROR(1, "Missing formfields");
+	return;
+    }
+    #
+    # Must recheck form values of course. 
+    #
+    if (CheckStep0()) {
+        return;
+    }
+    # Step1 is for a parameterized profile, handled elsewhere. 
+    if (CheckStep2()) {
+        return;
+    }
+    $formfields = $ajax_args["formfields"];
+    $am_array   = Instance::DefaultAggregateList();
+    $errors     = array();
+    $args       = array();
+    $profile    = Profile::Lookup($formfields["profile"]);
+
+    #
+    # SSH keys are optional for guest users; they just have to
+    # use the web based ssh window.
+    #
+    # Backend verifies pubkey and returns error. 
+    #
+    if (isset($formfields["sshkey"]) && $formfields["sshkey"] != "") {
+        $args["sshkey"] = $formfields["sshkey"];
+    }
+    #
+    # Real/Geni users are allowed to use Paramterized Profiles, which means
+    # we could get an rspec.
+    #
+    if ($profile->isParameterized() && $this_user &&
+        isset($formfields["pp_rspec"]) && $formfields["pp_rspec"] != "") {
+        $args["rspec"] = $formfields["pp_rspec"];
+    }
+
+    $aggregate_urn = "";
+    $sitemap = array();
+
+    if ($this_user) {
+        if (isset($formfields["sites"]) && is_array($formfields["sites"])) {
+            while (list($siteid, $am) = each($formfields["sites"])) {
+                if (array_key_exists($am, $am_array)) {
+                    $sitemap[$siteid] = $am_array[$am];
+                }
+            }
+        }
+        else {
+	    $aggregate_urn = $am_array[$formfields["where"]];
+        }
+        # Required for real users.
+        $args["pid"] = $formfields["pid"];
+
+        # Experiment name is optional, we generate one later.
+        if (isset($formfields["name"]) && $formfields["name"] != "") {
+            $args["instance_name"] = $formfields["name"];
+        }
+    }
+    # Ignore the form for a logged in user. 
+    $args["username"] = ($this_user ?
+                         $this_user->uid() : $formfields["username"]);
+    $args["email"]    = ($this_user ?
+                         $this_user->email() : $formfields["email"]);
+    $args["profile"]  = $formfields["profile"];
+
+    if (0) {
+        TBERROR(print_r($args, true), 0);
+        SPITAJAX_RESPONSE(0);
+        return;
+    }
+    $options = "";
+
+    if ($aggregate_urn != "") {
+        $options = " -a '$aggregate_urn'";
+    }
+    elseif (count($sitemap)) {
+        while (list($siteid, $urn) = each($sitemap)) {
+            $options .= "--site 'site:${siteid}=${urn}' ";
+        }
+    }
+    #
+    # Invoke the backend.
+    #
+    list ($instance, $creator) =
+        Instance::Instantiate($this_user, $options, $args, $errors);
+
+    if (!$instance) {
+	SPITAJAX_ERROR(2, $errors);
+        return;
+    }
+    $blob = array("redirect" => "status.php?uuid=" . $instance->uuid());
+
+    #
+    # Remember the user and auth key so that we can verify.
+    #
+    # The cookie handling is a pain since we run this under the aptlab
+    # virtual host, but the config uses a different domain, and so the
+    # cookies do not work. So, we have to look at our SERVER_NAME and
+    # set the cookie appropriately. 
+    #
+    if (!$this_user) {
+        $cookiedomain = $TBAUTHDOMAIN;
+        $expires = time() + (24 * 3600 * 30);
+
+        $blob["cookies"] = array("quickvm_user" =>
+                                 array("value"   => $creator->uuid(),
+                                       "expires" => $expires,
+                                       "domain"  => $cookiedomain),
+                                 "quickvm_authkey" =>
+                                 array("value"   => $this_creator->auth_token(),
+                                       "expires" => $expires,
+                                       "domain"  => $cookiedomain));
+        session_destroy();
+    }
+    SPITAJAX_RESPONSE($blob);
+    return;
 }
 
 # Local Variables:

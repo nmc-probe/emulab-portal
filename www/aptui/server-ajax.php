@@ -50,6 +50,12 @@ $routing = array("myprofiles" =>
 			      "guest"   => true,
 			      "methods" => array("GetProfile" =>
 						     "Do_GetProfile",
+						 "CheckForm" =>
+						     "Do_CheckForm",
+						 "VerifyEmail" =>
+						     "Do_VerifyEmail",
+						 "Submit" =>
+						     "Do_Submit",
 						 "Instantiate" =>
 						     "Do_Instantiate",
 						 "GetParameters" =>
