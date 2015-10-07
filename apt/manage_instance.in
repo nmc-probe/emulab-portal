@@ -763,13 +763,13 @@ sub DoImageTrackerStuff($$$$$)
     #
     # Aside; should we allow snapshots (in the web ui) across projects?
     #
-    if ($hrn->domain() eq $aggregate->domain()) {
+    if (lc($hrn->domain()) eq lc($aggregate->domain())) {
 	my $projhrn = GeniHRN->Parse($blob->{'project_urn'});
 	if (!defined($projhrn)) {
 	    print STDERR "Could not parse " . $blob->{'project_urn'} . "\n";
 	    return -1;
 	}
-	if ($projhrn->subauth() eq $project->pid()) {
+	if (lc($projhrn->subauth()) eq lc($project->pid())) {
 	    # We use the URN we get back from CreateSliver().
 	    return 0;
 	}
