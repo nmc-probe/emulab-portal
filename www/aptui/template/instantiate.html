@@ -150,9 +150,6 @@
 	      <!-- Profile selection box -->
 	      <% if (showpicker) { %>
 		<div class='form-group row' style='margin-bottom: 0px;'>
-		  <input id='selected_profile'
-			 type='hidden' 
-			 name='profile'/>
 		  <div class='col-md-12'>
 		    <div class='panel panel-default'>
 		      <div class='panel-heading'>
@@ -227,6 +224,10 @@
            forms -->
       <form id='step2-form' role='form' class="step-forms"
             method='post' action='instantiate.php'>
+	// JS code sets this after selection change.
+	<input id='selected_profile'
+	       type='hidden' 
+	       name='profile'/>
       	<div id='finalize_container'
 	     class='col-lg-8 col-md-8 col-sm-8 col-xs-12'>
 	  <div class='panel panel-default'>
