@@ -832,14 +832,13 @@ sub exportSlice($$$$) {
 	# This is not just an API thing, you cannot do it through the
 	# GUI either!
 	#
-	my $serial = genSerial();
+	# XXX ugh2, this used to all be done with iscsi/target, but now
+	# they have broken it into two pieces: create the target, create
+	# a target group.
+	#
 	$res = freenasRequest($FREENAS_API_RESOURCE_IST_TARGET,
 			      "POST", undef,
-			      {"iscsi_target_name" => $iqn,
-			       "iscsi_target_portalgroup" => $ISCSI_GLOBAL_PORTAL,
-			       "iscsi_target_initiatorgroup" => $tag,
-			       "iscsi_target_authtype" => "None",
-			       "iscsi_target_serial" => $serial});
+			      {"iscsi_target_name" => $iqn});
 	if (!$res) {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Failed to create iSCSI target: $@");
@@ -851,6 +850,19 @@ sub exportSlice($$$$) {
 	    return -1;
 	}
 	my $tindex = $res->{'id'};
+
+	$res = freenasRequest($FREENAS_API_RESOURCE_IST_TGTGROUP,
+			      "POST", undef,
+			      {"iscsi_target" => $tindex,
+			       "iscsi_target_initiatorgroup" => $tag,
+			       "iscsi_target_portalgroup" => $ISCSI_GLOBAL_PORTAL,
+			       "iscsi_target_authgroup" => undef,
+			       "iscsi_target_authtype" => "None"});
+	if (!$res) {
+	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
+		 "Failed to create iSCSI targetgroup: $@");
+	    return -1;
+	}
 
 	# Bind iSCSI target to slice (extent)
 	$res = freenasRequest($FREENAS_API_RESOURCE_IST_ASSOC,
@@ -1302,7 +1314,7 @@ sub unexportSlice($$$$) {
     # If there are no networks left in the authorized initiators list, then
     # we are completely done with this export - tear it down!
     if (!@pruned_networks) {
-	my ($associd,$targetid,$extentid,$msg);
+	my ($associd,$targetid,$extentid,$tgroupid,$msg);
 	my $assocs = freenasAssocList();
 	foreach my $aid (keys %$assocs) {
 	    if (exists($assocs->{$aid}->{'target_name'}) &&
@@ -1312,6 +1324,7 @@ sub unexportSlice($$$$) {
 		$associd = $aid;
 		$targetid = $assocs->{$aid}->{'target'};
 		$extentid = $assocs->{$aid}->{'extent'};
+		$tgroupid = $assocs->{$aid}->{'target_group'};
 		last;
 	    }
 	}
@@ -1323,6 +1336,14 @@ sub unexportSlice($$$$) {
 			    "DELETE", undef, undef, undef, \$msg)) {
 	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
 		 "Failed to disassociate iSCSI target with extent:\n$msg");
+	}
+
+	# Remove target group.
+	if (!$tgroupid ||
+	    !freenasRequest("$FREENAS_API_RESOURCE_IST_TGTGROUP/$tgroupid",
+			    "DELETE", undef, undef, undef, \$msg)) {
+	    warn("*** WARNING: blockstore_unexportSlice: $volname: ".
+		 "Failed to remove iSCSI target group:\n$msg");
 	}
 
 	# Remove iSCSI target.

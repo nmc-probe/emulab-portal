@@ -46,7 +46,7 @@ use Exporter;
     qw( 
 	freenasPoolList freenasVolumeList freenasSliceList
 	freenasAuthInitList freenasExtentList freenasTargetList
-	freenasAssocList
+	freenasTargetGroupList freenasAssocList
 	freenasVolumeCreate freenasVolumeDestroy freenasFSCreate
 	freenasVolumeSnapshot freenasVolumeClone
 	freenasVolumeDesnapshot freenasVolumeDeclone
@@ -60,6 +60,7 @@ use Exporter;
 
 	$FREENAS_API_RESOURCE_IFACE $FREENAS_API_RESOURCE_IST_EXTENT
 	$FREENAS_API_RESOURCE_IST_AUTHI $FREENAS_API_RESOURCE_IST_TARGET
+	$FREENAS_API_RESOURCE_IST_TGTGROUP
 	$FREENAS_API_RESOURCE_IST_ASSOC $FREENAS_API_RESOURCE_VLAN
 	$FREENAS_API_RESOURCE_VOLUME $FREENAS_API_RESOURCE_SNAPSHOT
     );
@@ -88,6 +89,7 @@ our $FREENAS_API_RESOURCE_IFACE       = "network/interface";
 our $FREENAS_API_RESOURCE_IST_EXTENT  = "services/iscsi/extent";
 our $FREENAS_API_RESOURCE_IST_AUTHI   = "services/iscsi/authorizedinitiator";
 our $FREENAS_API_RESOURCE_IST_TARGET  = "services/iscsi/target";
+our $FREENAS_API_RESOURCE_IST_TGTGROUP= "services/iscsi/targetgroup";
 our $FREENAS_API_RESOURCE_IST_ASSOC   = "services/iscsi/targettoextent";
 our $FREENAS_API_RESOURCE_VLAN        = "network/vlan";
 our $FREENAS_API_RESOURCE_VOLUME      = "storage/volume";
@@ -1098,6 +1100,40 @@ sub freenasTargetList($) {
 }
 
 #
+# Return list of target groups
+#
+sub freenasTargetGroupList($) {
+    my ($byname) = @_;
+    my $thash = {};
+    my $tinfo = freenasRequest($FREENAS_API_RESOURCE_IST_TGTGROUP,
+				"GET", { "limit" => 0 });
+
+    foreach my $t (@$tinfo) {
+	# XXX shorten the names
+	foreach my $key (keys %{$t}) {
+	    # XXX groups do nt have names, name them by target id
+	    if ($key eq "iscsi_target") {
+		$t->{'name'} = $t->{$key};
+		delete $t->{$key};
+	    }
+	    elsif ($key =~ /^iscsi_target_(.*)/) {
+		if (!exists($t->{$1})) {
+		    $t->{$1} = $t->{$key};
+		    delete $t->{$key};
+		}
+	    }
+	}
+	if ($byname) {
+	    $thash->{$t->{'name'}} = $t;
+	} else {
+	    $thash->{$t->{'id'}} = $t;
+	}
+    }
+
+    return $thash;
+}
+
+#
 # Return list of associations.
 # If getnames is non-zero, we resolve the extent/target indicies into names.
 #
@@ -1118,6 +1154,7 @@ sub freenasAssocList() {
     #
     my $einfo = freenasExtentList(0);
     my $tinfo = freenasTargetList(0);
+    my $tginfo = freenasTargetGroupList(1);
 
     foreach my $a (@$ainfo) {
 	# XXX shorten the names
@@ -1139,6 +1176,11 @@ sub freenasAssocList() {
 		}
 	    }
 	}
+	# XXX associate with the target group too
+	if (exists($a->{'target'}) && exists($tginfo->{$a->{'target'}})) {
+	    $a->{'target_group'} = $tginfo->{$a->{'target'}}->{'id'};
+	}
+
 	$ahash->{$a->{'id'}} = $a;
     }
 

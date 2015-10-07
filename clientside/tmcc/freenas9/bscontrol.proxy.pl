@@ -206,16 +206,29 @@ sub extents()
 }
 
 #
-# Print uninterpreted iSCSI target info.
+# Print semi-interpreted iSCSI target info.
+#
+# XXX At some point between 9.3 stable releases, they changed most of the
+# target info to be associated with a target group instead. We just recouple
+# them here.
 #
 sub targets()
 {
-    my $airef = freenasTargetList(0);
-    foreach my $ai (keys %{$airef}) {
-	foreach my $key ("id", "name", "alias", "serial", "portalgroup", "authgroup", "authtype", "initiatorgroup") {
-	    my $val = $airef->{$ai}->{$key};
+    my $tref = freenasTargetList(0);
+    my $tgref = freenasTargetGroupList(1);
+    foreach my $t (keys %{$tref}) {
+	foreach my $key ("id", "name", "alias") {
+	    my $val = $tref->{$t}->{$key};
 	    print "$key=$val "
 		if (defined($val));
+	}
+	if (exists($tgref->{$t})) {
+	    my $tg = $tgref->{$t};
+	    foreach my $key ("portalgroup", "initiatorgroup", "authgroup", "authtype", "initialdigest") {
+		my $val = $tg->{$key};
+		print "$key=$val "
+		    if (defined($val));
+	    }
 	}
 	print "\n";
     }
@@ -230,7 +243,7 @@ sub assocs()
 {
     my $aref = freenasAssocList();
     foreach my $a (keys %{$aref}) {
-	foreach my $key ("id", "target", "target_name", "extent", "extent_name") {
+	foreach my $key ("id", "target", "target_name", "target_group", "extent", "extent_name") {
 	    my $val = $aref->{$a}->{$key};
 	    print "$key=$val "
 		if (defined($val));
