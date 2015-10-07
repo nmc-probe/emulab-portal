@@ -12324,8 +12324,7 @@ static char *getgeniuserurn( tmcdreq_t *reqp ) {
 	MYSQL_RES	*res;
 	char		buf[MYBUFSIZE];
 
-	res = mydb_query( "SELECT IFNULL( slice.speaksfor_urn, "
-			  "slice.creator_urn ) FROM "
+	res = mydb_query( "SELECT slice.creator_urn FROM "
 			  "`geni-cm`.geni_slices AS slice, "
 			  "`geni-cm`.geni_slivers AS sliver WHERE "
 			  "sliver.resource_uuid='%s' AND "
@@ -12363,8 +12362,7 @@ static char *getgeniuseremail( tmcdreq_t *reqp ) {
 	/* This is a big pain, because certificates for local users are
 	   stored differently than those for foreign users.  First
 	   figure out who the user is... */
-	res = mydb_query( "SELECT IFNULL( slice.speaksfor_urn, "
-			  "slice.creator_urn ) FROM "
+	res = mydb_query( "SELECT slice.creator_urn FROM "
 			  "`geni-cm`.geni_slices AS slice, "
 			  "`geni-cm`.geni_slivers AS sliver WHERE "
 			  "sliver.resource_uuid='%s' AND "
