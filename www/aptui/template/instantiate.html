@@ -193,14 +193,7 @@
 		    </div>
 		  </div>
 		</div>
-	      <% } else { %>
-	      <input id='selected_profile' type='hidden'
-		     name='profile'
-		     value='<% formfields.profile %>'>
-	      <!-- Send the original page argument -->
-	      <input type='hidden' name='profile'
-		     value='<% profileuuid %>'>
-	    <% } %>
+	      <% } %>
 	  </div>
 	</div>
       </form>
@@ -224,10 +217,10 @@
            forms -->
       <form id='step2-form' role='form' class="step-forms"
             method='post' action='instantiate.php'>
-	// JS code sets this after selection change.
+	<!-- JS code sets this after selection change. -->
 	<input id='selected_profile'
-	       type='hidden' 
-	       name='profile'/>
+	       type='hidden'
+	       name='profile'>
       	<div id='finalize_container'
 	     class='col-lg-8 col-md-8 col-sm-8 col-xs-12'>
 	  <div class='panel panel-default'>
