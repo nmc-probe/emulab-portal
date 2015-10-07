@@ -445,6 +445,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    // Mark it so that the next submit can be ignored
 	    $(this).data('submitted', true);
 	}
+	
 	// Submit with checkonly first, then for real
 	SubmitForm(1, 2, function (json) {
 	    console.info(json);
@@ -554,18 +555,16 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		'; max-age=' + value.expires + '; path=/; secure';
 
 	    document.cookie = cookie;
-	    console.info(cookie);
 	});
     }
     
     function CreateClusterStatus() {
-	console.log("CreateClusterStatus", monitor);
+	//console.log("CreateClusterStatus", monitor);
     	if (monitor == null || $.isEmptyObject(monitor)) {
     		return;
     	}
 
     	$('#finalize_options .cluster-group').each(function() {
-	    console.log($(this));
 	    if ($(this).hasClass("pickered")) {
 		return;
 	    }
@@ -577,10 +576,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
                 resourceType = "VM";
             }
 	    var which = $(this).parent().attr('id');
-	    console.log(which);
 
 	    var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'), window.FEDERATEDLIST);
-	    console.log(html);
 
 	    $('#'+which+' .form-control').after(html);
 	    $('#'+which+' select.form-control').addClass('hidden');
@@ -728,7 +725,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    amdefault     = amdef;
 
 	    CreateAggregateSelectors(rspec);
-	    CreateClusterStatus();
 	    
 	    // Set the default aggregate.
 	    if ($('#profile_where').length) {
@@ -739,7 +735,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		    .filter('[value="'+ amdefault + '"]')
                     .prop('selected', true);		
 	    }
-	    updateWhere();
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
     }
@@ -790,7 +785,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	if (newRspec) {
 	    $('#pp_rspec_textarea').val(newRspec);
 	    CreateAggregateSelectors(newRspec);
-	    CreateClusterStatus();
 	}
 	if (window.NOPPRSPEC) {
 	    alert("Guest users may configure parameterized profiles " +
@@ -814,6 +808,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	var bound  = 0;
 	var count  = 0;
         sites = {};
+
+	//console.info("CreateAggregateSelectors");
 
 	/*
 	 * Find the sites. Might not be any if not a multisite topology
@@ -865,7 +861,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    options = options +
 		"<option value='" + name + "'>" + name + "</option>";
 	});
-	$("#cluster_selector").html("");
 
 	// If multisite is disabled for the user, or no sites or 1 site.
 	if (!multisite || Object.keys(sites).length <= 1) {
@@ -915,9 +910,12 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    });
 	}
 	//console.info(html);
+
+	$("#cluster_selector").html("");
 	$("#cluster_selector").html(html);
+	updateWhere();	
+	CreateClusterStatus();
 	$("#cluster_selector").removeClass("hidden");
-	updateWhere();
     }
 
     /*
@@ -925,23 +923,15 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
      */
     function AllClustersSelected() 
     {
-	if (!multisite || Object.keys(sites).length <= 1) {
-	    return $('#nosite_selector').find('select').val() != "";
-	}
-	else {
-	    var allgood = 1;
-	    _.each(_.keys(sites), function (siteId) {
-		$('#site_selector #site' +
-		  siteIdToSiteNum[siteId] + 'cluster')
-		    .find('select').each(function () {
-			if ($(this).val() == "") {
-			    allgood = 0;
-			    return;
-			}
-		    });
-	    });
-	    return allgood;
-	}
+	var allgood = 1;
+
+	$('#cluster_selector').find('select').each(function () {
+	    if ($(this).val() == null || $(this).val() == "") {
+		allgood = 0;
+		return;
+	    }
+	});
+	return allgood;
     }
 
     var constraints;
@@ -1016,15 +1006,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    // This gets munged someplace, and so the printed value
 	    // is not what actually comes back. Copy before print.
 	    var mycopy = $.extend(true, {}, json.value);
-	    console.log('json', mycopy);
-	    if (1) {
-	      constraints = new Constraints(context);
-	      constraints.addPossibles({ images: foundImages });
-	      allowWithSites(json.value[0].images, json.value[0].constraints);
-	      updateWhere();
-              $('#stepsContainer .actions a[href="#finish"]')
-		    .removeAttr('disabled');
-	    }
+	    //console.log('json', mycopy);
+	    constraints = new Constraints(context);
+	    constraints.addPossibles({ images: foundImages });
+	    allowWithSites(json.value[0].images, json.value[0].constraints);
+	    CreateAggregateSelectors(selected_rspec);
+            $('#stepsContainer .actions a[href="#finish"]')
+		.removeAttr('disabled');
 	};
 	/*
 	 * Must pass the selected project along for constraint checking.
@@ -1085,7 +1073,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	}
       });
     });
-    console.log(finalItems);
+    //console.log(finalItems);
     constraints.allowAllSets(finalItems);
     constraints.allowAllSets([
       {
@@ -1121,6 +1109,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     function updateWhere()
     {
+	//console.info("updateWhere");
+	
 	if (jacks.input && constraints && selected_rspec)
 	{
 	  jacks.input.trigger('change-topology',
@@ -1131,22 +1121,24 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     function finishUpdateWhere(allNodes, nodesBySite)
     {
-      console.log('finishUpdateWhere');
-      if (!multisite || Object.keys(sites).length <= 1) {
-	updateSiteConstraints(allNodes, $('#nosite_selector'));
-      } else {
-	_.each(_.keys(sites), function (siteId) {
-	  var nodes = nodesBySite[siteId];
-	  if (nodes)
-	  {
-	    updateSiteConstraints(nodes, $('#site_selector #site' + siteIdToSiteNum[siteId] + 'cluster'));
-	  }
-	  else
-	  {
-	    console.log('Could not find siteId', siteId, nodesBySite);
-	  }
-	})
-      }
+	if (!multisite || Object.keys(sites).length <= 1) {
+	    updateSiteConstraints(allNodes,
+				  $('#cluster_selector .cluster-group'));
+	}
+	else {
+	    _.each(_.keys(sites), function (siteId) {
+		var nodes   = nodesBySite[siteId];
+		var sitenum = siteIdToSiteNum[siteId];
+		var domid   = '#cluster_selector #site' + sitenum + 'cluster' +
+		    '.cluster-group';
+		if (nodes) {
+		    updateSiteConstraints(nodes, $(domid));
+		}
+		else {
+		    console.log('Could not find siteId', siteId, nodesBySite);
+		}
+	    })
+	}
     }
 
     function updateSiteConstraints(nodes, domNode)
@@ -1158,6 +1150,15 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
       var clause = 'aggregates';
       allowed = constraints.getValidList(bound, subclause,
 					 clause, rejected);
+
+      if (0) {
+	console.info("updateSiteConstraints");
+	console.info(domNode);
+        console.info(bound);
+        console.info(allowed);
+        console.info(rejected);
+      }
+	
       if (allowed.length == 0)
       {
 	domNode.find('#where-warning').hide();
