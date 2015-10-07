@@ -263,6 +263,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 			isadmin      : isadmin,
 			callback     : ConfigureDone,
 			rspec        : null,
+		        multisite    : multisite
 		    });
 		    loaded_uuid = selected_uuid;
 		    ppchanged = true;
