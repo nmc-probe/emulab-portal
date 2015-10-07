@@ -1263,8 +1263,8 @@ sub listPools() {
     while (my $line = <ZFS>) {
 	chomp $line;
 	my ($pname, $prop, $val) = split(/\s+/, $line);
-	next if $pname =~ /\//;  	  # filter out zvols.
-	next if $pname eq "freenas-boot"; # and the system pool.
+	next if $pname =~ /\//;  	   # filter out zvols.
+	next if $pname =~ /^freenas-boot/; # and the system pool and snapshots.
 	if (exists($poolh->{$pname})) {
 	    my $pool = $poolh->{$pname};
 	    if ($prop eq "available") {
