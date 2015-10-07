@@ -307,7 +307,7 @@ sub TriggerUpdate($$)
 	return -1
 	    if (!defined($hrn));
 
-	my $authority_urn =
+	$authority_urn =
 	    GeniHRN::Generate($hrn->domain(), "authority", "cm");
     }
     my $authority = GeniAuthority->CreateFromRegistry("cm", $authority_urn);
