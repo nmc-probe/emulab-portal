@@ -495,7 +495,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	});
 	// General Error on the last step.
 	if (_.has(errors, "error")) {
-	    $('#general_error').html(_.escape(errors[error]));
+	    $('#general_error').html(_.escape(errors["error"]));
 	}
     }
 
