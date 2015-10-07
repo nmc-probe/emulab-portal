@@ -156,7 +156,7 @@ function(_) {
 		StatusClickEvent: StatusClickEvent,
 		CalculateRating: CalculateRating,
 		AssignStatusClass: AssignStatusClass,
-		StatsLineHTML
+		StatsLineHTML: StatsLineHTML
 	};
 }
 );
