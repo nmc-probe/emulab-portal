@@ -12236,6 +12236,7 @@ static char *getgeniclientid( tmcdreq_t *reqp ) {
 static char *getgenisliceurn( tmcdreq_t *reqp ) {
 
 	MYSQL_RES	*res;
+	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
 
 	res = mydb_query( "SELECT c.urn FROM `geni-cm`.geni_slivers AS s, "
@@ -12243,17 +12244,15 @@ static char *getgenisliceurn( tmcdreq_t *reqp ) {
 			  "s.resource_uuid='%s' AND "
 			  "c.uuid = s.slice_uuid", 1, reqp->nodeuuid );
 
-	if( !res ) {
+	if( !res || !mysql_num_rows( res ) ) {
 		error( "geni_slice_urn: %s: DB error getting URN!\n",
 		       reqp->nodeid );
 		return NULL;
 	}
 
-	if( mysql_num_rows( res ) ) {
-		MYSQL_ROW row = mysql_fetch_row( res );
+	row = mysql_fetch_row( res );
 
-		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
-	}
+	GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
 
 	mysql_free_result( res );
 
@@ -12322,6 +12321,7 @@ static char *getgenisliceemail( tmcdreq_t *reqp ) {
 static char *getgeniuserurn( tmcdreq_t *reqp ) {
     
 	MYSQL_RES	*res;
+	MYSQL_ROW	row;
 	char		buf[MYBUFSIZE];
 
 	res = mydb_query( "SELECT slice.creator_urn FROM "
@@ -12331,17 +12331,15 @@ static char *getgeniuserurn( tmcdreq_t *reqp ) {
 			  "slice.uuid = sliver.slice_uuid", 1,
 			  reqp->nodeuuid );
 
-	if( !res ) {
+	if( !res || !mysql_num_rows( res ) ) {
 		error( "geni_user_urn: %s: DB error getting URN!\n",
 		       reqp->nodeid );
 		return NULL;
 	}
 
-	if( mysql_num_rows( res ) ) {
-		MYSQL_ROW row = mysql_fetch_row( res );
+	row = mysql_fetch_row( res );
 
-		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
-	}
+	GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
 
 	mysql_free_result( res );
 
