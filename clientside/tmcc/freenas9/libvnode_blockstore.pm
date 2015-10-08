@@ -140,6 +140,7 @@ sub getVlan($);
 sub getNextAuthITag();
 sub genSerial();
 sub findAuthITag($;$);
+sub findAuthIId($);
 sub createVlanInterface($$);
 sub removeVlanInterface($$);
 sub setupIPAlias($;$);
@@ -789,6 +790,7 @@ sub exportSlice($$$$) {
 	my $res = freenasRequest($FREENAS_API_RESOURCE_IST_EXTENT,
 				 "POST", undef,
 				 {"iscsi_target_extent_name" => $iqn,
+				  "iscsi_target_extent_serial" => genSerial(),
 				  "iscsi_target_extent_type" => "Disk",
 				  "iscsi_target_extent_disk" => "zvol/$pool/$volume"});
 	if (!$res) {
@@ -851,10 +853,13 @@ sub exportSlice($$$$) {
 	}
 	my $tindex = $res->{'id'};
 
+	# XXX we need the authinit index, not tag
+	my $aindex = findAuthIId($tag);
+
 	$res = freenasRequest($FREENAS_API_RESOURCE_IST_TGTGROUP,
 			      "POST", undef,
 			      {"iscsi_target" => $tindex,
-			       "iscsi_target_initiatorgroup" => $tag,
+			       "iscsi_target_initiatorgroup" => $aindex,
 			       "iscsi_target_portalgroup" => $ISCSI_GLOBAL_PORTAL,
 			       "iscsi_target_authgroup" => undef,
 			       "iscsi_target_authtype" => "None"});
@@ -969,6 +974,26 @@ sub findAuthITag($;$) {
 		$$idxp = $aient->{'id'};
 	    }
 	    return $aient;
+	}
+    }
+
+    return undef;
+}
+
+# Helper function.
+# Locate and return ID for given auth tag, if it exists
+sub findAuthIId($) {
+    my ($tag) = @_;
+
+    return undef
+	if !defined($tag);
+
+    my $aiinfo = freenasAuthInitList();
+
+    foreach my $ai (keys %{$aiinfo}) {
+	my $aient = $aiinfo->{$ai};
+	if (exists($aient->{'tag'}) && $aient->{'tag'} eq $tag) {
+	    return $aient->{'id'};
 	}
     }
 
