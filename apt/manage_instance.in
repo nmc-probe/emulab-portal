@@ -458,7 +458,8 @@ sub DoSnapshot()
 	$errmsg = "Could not create image: " . $response->output() . "\n";
 	$errcode = 1
 	    if ($response->code() == GENIRESPONSE_BUSY ||
-		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE);
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		$response->code() == GENIRESPONSE_FORBIDDEN);
 	$instance->SetStatus($old_status);
 	goto uerror;
     }
