@@ -37,6 +37,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var lockout           = 0;
     var lockdown          = 0;
     var lockdown_code     = "";
+    var consolenodes      = {};
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
@@ -334,7 +335,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Call back for above.
     function StatusWatchCallBack(uuid, json)
     {
-	console.info(json);
+	//console.info(json);
 	
 	// Flag to indicate that we have seen ready and do not
 	// need to do initial stuff. We need this cause the
@@ -947,12 +948,32 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var event = jacksevent.event;
 	var client_id = jacksevent.client_id;
 
+	/*
+	 * Make a copy of the master menu if we have not already.
+	 */
+	var cid = "context-menu-" + client_id;
+	if (! $('#' + cid).length) {
+	    var clone  = $("#context-menu").clone();
+
+	    // Change the ID of the clone so its unique.
+	    clone.attr('id', cid);
+	    
+	    // Insert into the context div.
+	    $('#context').append(clone);
+
+	    // If no console, then grey out the options.
+	    if (!_.has(consolenodes, client_id)) {
+		$(clone).find("li[id=console]").addClass("disabled");
+		$(clone).find("li[id=consolelog]").addClass("disabled");
+	    }
+	}
+
 	//
 	// We generate a new menu object each time causes it easier and
 	// not enough overhead to worry about.
 	//
 	$('#context').contextmenu({
-	    target:'#context-menu', 
+	    target: '#' + cid, 
 	    onItem: function(context,e) {
 		$('#context').contextmenu('closemenu');
 
@@ -960,6 +981,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    NewSSHTab(hostportList[client_id], client_id);
 		}
 		else if ($(e.target).text() == "Console") {
+		    if (!_.has(consolenodes, client_id)) {
+			e.preventDefault();
+			return false;
+		    }
 		    if (isguest) {
 			alert("Only registered users can access the console");
 			return;
@@ -967,6 +992,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    NewConsoleTab(client_id);
 		}
 		else if ($(e.target).text() == "Console Log") {
+		    if (!_.has(consolenodes, client_id)) {
+			e.preventDefault();
+			return false;
+		    }
 		    if (isguest) {
 			alert("Only registered users can access the console");
 			return;
@@ -1155,7 +1184,17 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			    ConsoleLog(node);
 			    return false;
 			});
+		    // Remember we have a console, for the context menu.
+		    consolenodes[node] = node;
 		}
+		else {
+		    // Need to the context menu too. painful.
+		    $('#listview-row-' + node + ' [name=consolelog]')
+			.parent().addClass('disabled');		    
+		    $('#listview-row-' + node + ' [name=console]')
+			.parent().addClass('disabled');		    
+		}
+		
 		//
 		// And a handler for the reboot action.
 		//
