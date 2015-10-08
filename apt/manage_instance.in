@@ -108,7 +108,7 @@ sub DoLockdown();
 sub DoManifests();
 sub WriteCredentials();
 sub StartMonitor();
-sub DoImageTrackerStuff($$$$$);
+sub DoImageTrackerStuff($$$$$$);
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -371,10 +371,19 @@ sub DoSnapshot()
 	# When cloning, we use the URN returned by the cluster; it is
 	# the origin of the new image.
 	#
-	if (!defined($cloneprofile) &&
-	    DoImageTrackerStuff($aggregate, $node, $project,
-				\$copyback_uuid, \$copyback_urn)) {
-	    fatal("Image tracking error");
+	if (!defined($cloneprofile)) {
+	    my $rval = DoImageTrackerStuff($aggregate, $node, $project,
+					   \$copyback_uuid, \$copyback_urn,
+					   \$errmsg);
+	    if ($rval) {
+		if ($rval < 0) {
+		    fatal($errmsg);
+		}
+		else {
+		    $errcode = 1;
+		    goto uerror;
+		}
+	    }
 	}
     }
     if (0) {
@@ -679,9 +688,9 @@ sub DoSnapshot()
     exit($errcode);
 }
 
-sub DoImageTrackerStuff($$$$$)
+sub DoImageTrackerStuff($$$$$$)
 {
-    my ($aggregate, $node, $project, $puuid, $purn) = @_;
+    my ($aggregate, $node, $project, $puuid, $purn, $perrmsg) = @_;
     my $node_id = GeniXML::GetVirtualId($node);
     my $errmsg;
 
@@ -705,7 +714,7 @@ sub DoImageTrackerStuff($$$$$)
     if (GeniHRN::IsValid($image_token)) {
 	my ($auth,$ospid) = GeniHRN::ParseImage($image_token);
 	if (!defined($ospid)) {
-	    print STDERR "Invalid image urn: $image_token\n";
+	    $$perrmsg = "Invalid image urn: $image_token";
 	    return 1;
 	}
     }
@@ -731,15 +740,15 @@ sub DoImageTrackerStuff($$$$$)
 	    if ($ospid eq TBOPSPID() && $auth ne "emulab.net") {
 		$urn = GeniHRN::GenerateImage("emulab.net",
 						 TBOPSPID(), $os, $vers);
+		Genixmlrpc->SetContext(APT_Geni::GeniContext());
+		$blob = GeniImage::GetImageData($urn, \$errmsg);
+		Genixmlrpc->SetContext(undef);
 	    }
-	    Genixmlrpc->SetContext(APT_Geni::GeniContext());
-	    $blob = GeniImage::GetImageData($urn, \$errmsg);
-	    Genixmlrpc->SetContext(undef);
 	}
 	if (!defined($blob)) {
-	    print STDERR "Could not get info from the IMS for ".
-		"$image_token:\n" . $errmsg . "\n";
-	    return -1;
+	    $$perrmsg = "Could not get info from the image server for ".
+		"$image_token:\n" . $errmsg;
+	    return 1;
 	}
     }
     #
@@ -767,7 +776,7 @@ sub DoImageTrackerStuff($$$$$)
     if (lc($hrn->domain()) eq lc($aggregate->domain())) {
 	my $projhrn = GeniHRN->Parse($blob->{'project_urn'});
 	if (!defined($projhrn)) {
-	    print STDERR "Could not parse " . $blob->{'project_urn'} . "\n";
+	    $$perrmsg = "Could not parse " . $blob->{'project_urn'} . "\n";
 	    return -1;
 	}
 	if (lc($projhrn->subauth()) eq lc($project->pid())) {
