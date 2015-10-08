@@ -785,6 +785,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	// the user is not allowed to change the configuration.
 	if (newRspec) {
 	    $('#pp_rspec_textarea').val(newRspec);
+	    selected_rspec = newRspec;
 	    CreateAggregateSelectors(newRspec);
 	}
 	if (window.NOPPRSPEC) {
