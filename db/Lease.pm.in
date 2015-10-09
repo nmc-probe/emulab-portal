@@ -648,6 +648,21 @@ sub AllocResources($;$$) {
 	    $self->UpdateState("unapproved");
 	    return LEASE_ERROR_FAILED();
 	}
+
+	#
+	# XXX create an initial snapshot too. If this fails, we just warn;
+	# a snapshot can always be created with bscontrol later.
+	#
+	if (!$self->IsExclusiveUse()) {
+	    my $tstamp = time();
+	    $rv = system("$BSCONTROL snapshot lease-$idx $tstamp");
+	    if ($rv) {
+		print STDERR "$self: AllocResources: ".
+		    "WARNING: could not create initial snapshot.\n";
+	    } else {
+		$self->SetAttribute("last_snapshot", $tstamp, "integer");
+	    }
+	}
     }
 
     # It all worked!
