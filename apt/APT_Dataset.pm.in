@@ -135,7 +135,9 @@ sub ValidBlockstoreBackend($)
     my ($domain,$subauth) = split(":", $authority);
     
     return 1
-	if ($domain eq "emulab.net" || $domain eq "apt.emulab.net");
+	if ($domain eq "emulab.net" ||
+	    $domain eq "apt.emulab.net" ||
+	    $domain eq "clemson.cloudlab.us");
 
     return 0;
 }
