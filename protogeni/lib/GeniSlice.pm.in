@@ -263,19 +263,23 @@ sub Create($$$$;$$)
 	# If the existing entry is a placeholder, and we got the creator,
 	# then replace the existing entry to make it a non-placeholder.
 	#
-	if ($isplaceholder && defined($creator)) {
-	    push(@insert_data, "idx='$curidx'");
+	if ($isplaceholder) {
+	    if (defined($creator)) {
+		push(@insert_data, "idx='$curidx'");
 	    
-	    if (! DBQueryWarn("replace into geni_slices set " .
-			      "  isplaceholder=0, ".
-			      join(",", @insert_data))) {
-		DBQueryWarn("unlock tables");
-		return undef;
+		if (! DBQueryWarn("replace into geni_slices set " .
+				  "  isplaceholder=0, ".
+				  join(",", @insert_data))) {
+		    DBQueryWarn("unlock tables");
+		    return undef;
+		}
+		$idx = $curidx;
 	    }
-	    $idx = $curidx;
+	    goto lookup;
 	}
-	# Slice exists, no inserts needed. Just lookup. 
-	goto lookup;
+	print STDERR "Slice already exists in database\n";
+	DBQueryWarn("unlock tables");
+	return undef;
     }
     # Do this after above code since we might need to overwrite entry.
     push(@insert_data, "idx='$idx'");

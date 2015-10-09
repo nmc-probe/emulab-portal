@@ -2407,9 +2407,16 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     
     #
     # This creates the descriptors but does not download the images.
-    # Must be done before the mapper runs.
+    # Must be done before the mapper runs. All imported images are
+    # globally available, so makes no sense to put them into the
+    # project of the slice. In fact, if someone else in another project
+    # tried to use the same image, the update will fail when
+    # PROTOGENI_LOCALUSER=1 since it was imported by another real user,
+    # and the current user will not have write permission on it.
     #
-    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP $pid,$eid");
+    my $output = 
+	GeniUtil::ExecuteQuietAsGeniUser("$IMAGE_SETUP ".
+					 "-p GeniSlices $pid,$eid");
     if ($?) {
 	my $message = "Could not setup images:\n$output";
 	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef, $message);
@@ -3122,6 +3129,12 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	VLan::ClearReservedVlanTag($lanid, $vlan_tag);
     }
     if ($v2 && $level == 0) {
+	if (defined($slice_experiment) && -e $slice_experiment->WorkDir()) {
+	    my $dir = $slice_experiment->WorkDir();
+	    
+	    system("/bin/rm -rf ${dir}.failed");
+	    system("/bin/cp -rp ${dir} ${dir}.failed");
+	}
 	CleanupDeadSlice($slice, 1)
 	    if (defined($slice));
 	return $response;

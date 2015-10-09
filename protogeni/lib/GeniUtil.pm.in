@@ -115,6 +115,7 @@ sub FlipToUser($$;$)
     $EGID           = $glist;
     $EUID = $UID    = $unix_uid;
     $ENV{'USER'}    = $user;
+    $ENV{'GID'}     = $default_gid;
     $ENV{'LOGNAME'} = $user;
     $ENV{'HOME'}    = "$USERROOT/$user";
     return 0;
@@ -131,6 +132,51 @@ sub FlipToElabMan()
 {
     $EUID = 0;
     return FlipToUser($PROTOUSER, $PROTOPROJ);
+}
+
+#
+# Execute a command as GeniUser and then return to original UID/GID
+#
+sub ExecuteAsGeniUser($;$)
+{
+    my ($command, $default_gid) = @_;
+
+    my $current_uid  = $UID;
+    my $current_euid = $EUID;
+    my $current_gid  = $GID;
+    my $current_egid = $EGID;
+
+    FlipToGeniUser($default_gid);
+    my $retval = system($command);
+
+    $EUID   = 0;
+    $GID    = $current_gid;
+    $EGID   = $current_egid;
+    $UID    = $current_uid;
+    $EUID   = $current_euid;
+
+    return $retval;
+}
+
+sub ExecuteQuietAsGeniUser($;$)
+{
+    my ($command, $default_gid) = @_;
+
+    my $current_uid  = $UID;
+    my $current_euid = $EUID;
+    my $current_gid  = $GID;
+    my $current_egid = $EGID;
+
+    FlipToGeniUser($default_gid);
+    my $output = ExecQuiet($command);
+
+    $EUID   = 0;
+    $GID    = $current_gid;
+    $EGID   = $current_egid;
+    $UID    = $current_uid;
+    $EUID   = $current_euid;
+
+    return $output;
 }
 
 #

@@ -1016,9 +1016,18 @@ sub Action($$$;$)
     #
     # Download the images. If this fails, we have wasted our time,
     # but we want to do this after we have forked off from the parent
-    # and we have returned to the client (rpc). 
+    # and we have returned to the client (rpc).
     #
-    my $output = GeniUtil::ExecQuiet("$IMAGE_SETUP -d -g $pid,$eid");
+    # All imported images are globally available, so makes no sense to
+    # put them into the project of the slice. In fact, if someone else
+    # in another project tried to use the same image, the update will
+    # fail when PROTOGENI_LOCALUSER=1 since it was imported by another
+    # real user, and the current user will not have write permission
+    # on it.
+    #
+    my $output = 
+	GeniUtil::ExecuteQuietAsGeniUser("$IMAGE_SETUP ".
+					 "-d -g -p GeniSlices $pid,$eid");
     if ($?) {
 	$msg = "Could not setup images:\n$output";
 	goto bad;
