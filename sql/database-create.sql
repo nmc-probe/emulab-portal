@@ -2183,6 +2183,8 @@ CREATE TABLE `image_versions` (
 DROP TABLE IF EXISTS `image_updates`;
 CREATE TABLE `image_updates` (
   `imageid` int(8) unsigned NOT NULL default '0',
+  `updater` varchar(8) default NULL,
+  `updater_idx` mediumint(8) unsigned NOT NULL default '0',
   `updater_urn` varchar(128) default NULL,
   `url` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`imageid`)
