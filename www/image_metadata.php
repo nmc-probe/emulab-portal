@@ -50,7 +50,10 @@ $image = Image::LookupByUUID($uuid, $version);
 if (! isset($image)) {
     SPITERROR(404, "Could not find $uuid!");
 }
-if (0 && ! $image->isglobal()) {
+if ($image->noexport()) {
+    SPITERROR(403, "This image is marked as export restricted");
+}
+if (!$image->isglobal()) {
     SPITERROR(403, "No permission to access image");
 }
 
