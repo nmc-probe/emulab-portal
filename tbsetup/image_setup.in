@@ -186,6 +186,7 @@ while (my ($vname, $osname) = $result->fetchrow()) {
 
 foreach my $url (@urllist) {
     my $safe_url = User::escapeshellarg($url);
+    my $imagepid = $importpid;
 
     #
     # See if we have already created this descriptor. We want to
@@ -213,10 +214,14 @@ foreach my $url (@urllist) {
     $opts .= " -v"
 	if ($verify);
     if (defined($image)) {
-	system("$IMPORTER $opts -p $importpid -r " . $image->imageid());
+	# Update image in the project it already exists in. Technically,
+	# I should (probably) not have to specify this. 
+	$imagepid = $image->pid();
+	
+	system("$IMPORTER $opts -p $imagepid -r " . $image->imageid());
     }
     else {
-	system("$IMPORTER $opts -p $importpid $safe_url");
+	system("$IMPORTER $opts -p $imagepid $safe_url");
     }
     exit(-1)
 	if ($?);
@@ -236,7 +241,7 @@ foreach my $url (@urllist) {
     $opts = "";
     $opts .= " -d"
 	if ($debug);
-    system("$IMPORTER $opts -g -p $importpid -r " . $image->imageid());
+    system("$IMPORTER $opts -g -p $imagepid -r " . $image->imageid());
     exit(-1)
 	if ($?);
 }
