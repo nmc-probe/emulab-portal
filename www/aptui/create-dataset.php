@@ -99,6 +99,7 @@ function SPITFORM($formfields, $errors)
         $amlist = array();
         $amlist["urn:publicid:IDN+apt.emulab.net+authority+cm"] = "APT";
         $amlist["urn:publicid:IDN+emulab.net+authority+cm"] = "Emulab";
+        $amlist["urn:publicid:IDN+clemson.cloudlab.us+authority+cm"] = "Clemson";
 	echo "<script type='text/plain' id='amlist-json'>\n";
 	echo htmlentities(json_encode($amlist));
 	echo "</script>\n";

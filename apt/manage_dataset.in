@@ -217,8 +217,7 @@ sub DoCreate()
 	$aggregate_urn = $aggregate->aggregate_urn();
     }
     else {
-	if ($aggregate_urn ne "urn:publicid:IDN+apt.emulab.net+authority+cm" &&
-	    $aggregate_urn ne "urn:publicid:IDN+emulab.net+authority+cm") {
+	if (!APT_Dataset::ValidBlockstoreBackend($aggregate_urn)) {	
 	    fatal("Invalid cluster selection");
 	}
     }
