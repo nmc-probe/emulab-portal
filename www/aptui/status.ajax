@@ -141,7 +141,9 @@ function Do_GetInstanceStatus()
         }
         elseif ($webtask->exitcode() == 28) {
             $blob["reason"]  = "Your topology could not be mapped to physical ".
-                "resources.\n\n";
+                "resources. Clicking the 'Sliver' button above will provide ".
+                "lots of info, some of which might be useful in figuring out ".
+                "why it failed.\n\n";
         }
         elseif ($webtask->exitcode() == 8) {
             $blob["reason"]  = "Your experiment timed out while setting up, ".
