@@ -522,6 +522,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     {
 	// Current form contents as formfields array.
 	var formfields  = {};
+	var sites       = {};
 	
 	var rpc_callback = function(json) {
 	    console.info(json);
@@ -532,8 +533,22 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	// form handler pages expect.
 	var fields = $('.step-forms').serializeArray();
 	$.each(fields, function(i, field) {
-	    formfields[field.name] = field.value;
+	    /*
+	     * The sites array is special since we want that to be
+	     * an array inside of the formfields array, and serialize
+	     * is not going to do that for us. 
+	     */
+	    var site = /^sites\[(.*)\]$/g.exec(field.name);
+	    if (site) {
+		sites[site[1]] = field.value;
+	    }
+	    else {
+		formfields[field.name] = field.value;
+	    }
 	});
+	if (Object.keys(sites).length) {
+	    formfields["sites"] = sites;
+	}
 	console.info(formfields);
 	var xmlthing = sup.CallServerMethod(null, "instantiate",
 					    (checkonly ?
@@ -898,7 +913,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		    "          Site " + siteid  + " Cluster:</a>" +
 		    "    </label> " +
 		    "    <div class='col-sm-6'>" +
-		    "      <select name=\"formfields[sites][" + siteid + "]\"" +
+		    "      <select name=\"sites[" + siteid + "]\"" +
 		    "              class='form-control'>" +
 		    "        <option value=''>Please Select</option>" +
 		    options +
