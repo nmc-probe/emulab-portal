@@ -3540,7 +3540,7 @@ sub TriggerImageUpdate($)
     my $update_user = GeniUser->Lookup($blob->{'updater_urn'}, 1);
     if (defined($update_user)) {
 	my $updater = $update_user->uid();
-	my $updater_idx = $update_user->uid_idx();
+	my $updater_idx = $update_user->idx();
 	
 	$update_fields = ", updater='$updater',updater_idx='$updater_idx'";
     }
