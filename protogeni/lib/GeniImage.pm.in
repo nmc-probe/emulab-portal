@@ -230,8 +230,16 @@ sub MapToLocalImage($$)
 				    "Not allowed to import system image: $urn");
     }
 
-    # Try to import the descriptor.
-    system("$IMPORTER -d -p GeniSlices $safe_url");
+    #
+    # Try to import the descriptor. Since we are putting the image into
+    # the GeniSlices project, we must execute as the GeniUser. But
+    # when PROTOGENI_LOCALUSER=1, we might be running as the user
+    # creating the slice. All imported images are globally available,
+    # so makes no sense to put them into the project of the slice,
+    # and in fact, if someone else uses the image, the update check
+    # will fail unless we do it as the geniuser.
+    #
+    GeniUtil::ExecuteAsGeniUser("$IMPORTER -d -p GeniSlices $safe_url");
     if ($?) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Image importer failure for $urn");
@@ -323,6 +331,7 @@ sub TriggerUpdate($$)
     my $blob = {
 	"origin_uuid"   => $origin_uuid,
 	"imagename"     => $image->versname(),
+	"updater_urn"   => $image->updater_urn(),
 	"metadata_url"  => $image->LocalVersionURL(),
     };
 

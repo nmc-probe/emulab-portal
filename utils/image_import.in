@@ -62,6 +62,7 @@ my $user;
 my $group;
 my $image;
 my $imagename;
+my $copyback_urn;
 
 #
 # Configure variables
@@ -206,7 +207,6 @@ if (!defined($user)) {
 	fatal("You ($UID) do not exist!");
     }
 }
-my $user_uid = $user->uid();
 
 if ($update) {
     usage()
@@ -217,6 +217,8 @@ if ($update) {
 	fatal("Image descriptor does not exist");
     }
     if ($copyback) {
+	my ($updater_uid,$updater_idx);
+	
 	#
 	# We have to look in the updates table, but we want to do this
 	# locked so that no one else can mess with it. So lock up here,
@@ -229,7 +231,7 @@ if ($update) {
 	}
 	my $imageid = $image->imageid();
 	my $query_result =
-	    DBQueryWarn("select url from image_updates ".
+	    DBQueryWarn("select * from image_updates ".
 			"where imageid='$imageid'");
 	if (!$query_result) {
 	    $image->Unlock();
@@ -240,7 +242,31 @@ if ($update) {
 	    $image->Unlock();
 	    exit(0);
 	}
-	($url) = $query_result->fetchrow_array();
+	my $row = $query_result->fetchrow_hashref();
+	$url          = $row->{'url'};
+	$updater_uid  = $row->{'updater'};
+	$updater_idx  = $row->{'updater_idx'};
+	$copyback_urn = $row->{'updater_urn'};
+
+	#
+	# Also want the user doing the import to be the user who actually
+	# did the update on the remote cluster, if we happen to have that
+	# record. If not, we have to do it as the creator (someone in the
+	# project the image belongs to). 
+	#
+	$user = undef;
+	if (defined($updater_uid)) {
+	    $user = User->Lookup($updater_idx);
+	}
+	if (!defined($user)) {
+	    $user = User->Lookup($image->creator_idx());
+	}
+	if (!defined($user)) {
+	    print STDERR "No current user to import image as.\n";
+	    $image->Unlock();
+	    exit(-1);
+	}
+	$UID = $SAVEUID = $user->unix_uid();
     }
     else {
 	if (!defined($image->metadata_url())) {
@@ -465,6 +491,10 @@ if ($getimage) {
 
 	# Clear this to make the image gets posted.
 	$image->ClearIMSReported();
+
+	# Mark the updater.
+	$image->Update({'updater_urn' => $copyback_urn})
+	    if (defined($copyback_urn));
 
 	# Tell the IMS about this new image. If this fails, the daemon
 	# will take care of it. 
@@ -713,6 +743,7 @@ sub FetchImageFile($$)
 {
     my ($url, $localfile) = @_;
     my $safe_url  = User::escapeshellarg($url);
+    my $user_uid  = $user->uid();
     
     #
     # Build up a new command line to do the fetch on ops

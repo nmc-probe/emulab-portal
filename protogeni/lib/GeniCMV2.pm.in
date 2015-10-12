@@ -3470,12 +3470,17 @@ sub TriggerImageUpdate($)
     print STDERR Dumper($blob);
 
     # Must have all these:
-    foreach my $key ("origin_uuid", "imagename", "metadata_url") {
+    foreach my $key ("origin_uuid", "imagename", "metadata_url",
+		     "updater_urn") {
 	if (! (exists($blob->{$key}) &&
 	       defined($blob->{$key}) && $blob->{$key} ne "")) {
 	    return GeniResponse->MalformedArgsResponse("Missing $key");
 	}
     }
+    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				"invalid updater urn")
+	if (! GeniHRN::IsValid($blob->{'updater_urn'}));
+    
     my $localimage = Image->Lookup($blob->{'origin_uuid'});
     return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
 	if (!defined($localimage));
@@ -3522,9 +3527,26 @@ sub TriggerImageUpdate($)
 				    "Conflicting image update is pending");
     }
     my $safe_url = DBQuoteSpecial($blob->{'metadata_url'});
-    
+    my $safe_urn = DBQuoteSpecial($blob->{'updater_urn'});
+    my $update_fields = "";
+
+    #
+    # We might know the updater or we might not. If we do that is nice,
+    # cause then we can set the updater fields in the new image version
+    # accordingly. If not a local user record, then at least we can set
+    # updater URN, but do the actual import update in the context of the
+    # image creator (image_import decides this). 
+    #
+    my $update_user = GeniUser->Lookup($blob->{'updater_urn'}, 1);
+    if (defined($update_user)) {
+	my $updater = $update_user->uid();
+	my $updater_idx = $update_user->uid_idx();
+	
+	$update_fields = ", updater='$updater',updater_idx='$updater_idx'";
+    }
     emdb::DBQueryWarn("insert into image_updates set ".
-		      "  imageid='$imageid',url=$safe_url");
+		      "  imageid='$imageid',url=$safe_url, ".
+		      "  updater_urn=$safe_urn $update_fields");
     $localimage->Unlock();
 
     #
@@ -3536,7 +3558,7 @@ sub TriggerImageUpdate($)
     if ($mypid) {
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS)
     }
-    
+
     # Try to import right away, if it fails the daemon will catch it later.
     system("$IMPORTER -d -g -r -c $imageid");
     return 0;
