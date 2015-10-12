@@ -133,13 +133,6 @@ else {
     $importpid = $pid;
 }
 
-#
-# User must have at least MODIFY permissions to use this script
-#
-if (!$experiment->AccessCheck($this_user, TB_EXPT_MODIFY())) {
-    tbdie("You are not allowed to modify experiment $eid in project $pid");
-}
-
 my @urllist = ();
 
 #
