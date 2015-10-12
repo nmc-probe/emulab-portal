@@ -2423,7 +2423,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	print STDERR $message;
 	goto bad;
     }
-    print STDERR $output;
+    #print STDERR $output;
 
     # Do a render cause its nice to have on the show experiment page.
     system("$PRERENDER -r $pid $eid");
