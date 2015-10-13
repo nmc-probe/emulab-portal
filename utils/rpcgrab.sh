@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2005-2009 University of Utah and the Flux Group.
+# Copyright (c) 2005-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,7 +28,7 @@
 # Uses the ancient Utah "reverse cat" tac program.
 #
 
-tac=/usr/site/bin/tac
+tac="tail -r"
 
 if [ $# -eq 0 ]; then exit 1; fi
 host=$1
