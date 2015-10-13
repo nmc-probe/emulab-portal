@@ -2734,6 +2734,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 						$GeniXML::EMULAB_NS);
 	    }
 	    GeniXML::SetText("name", $vnoderef, $node->node_id());
+	    GeniXML::SetText("hardware_type", $vnoderef, $node->type());
 	    GeniXML::SetText("sliver_id", $rspec, $sliver_urn);
 	}
 	GeniXML::SetExclusive($rspec, $exclusive);
