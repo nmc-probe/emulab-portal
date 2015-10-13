@@ -1839,15 +1839,24 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     #
     my @rules = ();
 
-    push(@rules, "-N INCOMING_${vnode_id}");
-    push(@rules, "-F INCOMING_${vnode_id}");
-    push(@rules, "-N OUTGOING_${vnode_id}");
-    push(@rules, "-F OUTGOING_${vnode_id}");
+    # Ick, iptables has a 28 character limit on chain names. But we have to
+    # be backwards compatible with existing chain names. See corresponding
+    # code in emulab-cnet.pl
+    my $INCOMING_CHAIN = "INCOMING_${vnode_id}";
+    my $OUTGOING_CHAIN = "OUTGOING_${vnode_id}";
+    if (length($INCOMING_CHAIN) > 28) {
+	my $INCOMING_CHAIN = "I_${vnode_id}";
+	my $OUTGOING_CHAIN = "O_${vnode_id}";
+    }
+    push(@rules, "-N $INCOMING_CHAIN");
+    push(@rules, "-F $INCOMING_CHAIN");
+    push(@rules, "-N $OUTGOING_CHAIN");
+    push(@rules, "-F $OUTGOING_CHAIN");
 
     # Match existing dynamic rules as early as possible.
-    push(@rules, "-A INCOMING_${vnode_id} -m conntrack ".
+    push(@rules, "-A $INCOMING_CHAIN -m conntrack ".
 	 "--ctstate RELATED,ESTABLISHED -j ACCEPT");
-    push(@rules, "-A OUTGOING_${vnode_id} -m conntrack ".
+    push(@rules, "-A $OUTGOING_CHAIN -m conntrack ".
 	 "--ctstate RELATED,ESTABLISHED -j ACCEPT");
 
     # Do all the rules regardless of whether they fail
@@ -1857,14 +1866,14 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     @rules = ();
 
     if ($vnconfig->{'fwconfig'}->{'fwinfo'}->{'TYPE'} eq "none") {
-	push(@rules, "-A INCOMING_${vnode_id} -j ACCEPT");
-	push(@rules, "-A OUTGOING_${vnode_id} -j ACCEPT");
+	push(@rules, "-A $INCOMING_CHAIN -j ACCEPT");
+	push(@rules, "-A $OUTGOING_CHAIN -j ACCEPT");
     }
     else {
 	if (0) {
-	    push(@rules, "-A INCOMING_${vnode_id} -j LOG ".
+	    push(@rules, "-A $INCOMING_CHAIN -j LOG ".
 		 "  --log-prefix 'IIN ${vnode_id}: ' --log-level 5");
-	    push(@rules, "-A OUTGOING_${vnode_id} -j LOG ".
+	    push(@rules, "-A $OUTGOING_CHAIN -j LOG ".
 		 "  --log-prefix 'OOUT ${vnode_id}: ' --log-level 5");
 	}
 
@@ -1874,11 +1883,11 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 	#
 	my $local_tmcd_port = $TMCD_PORT + $vmid;
 	push(@rules,
-	     "-A OUTGOING_${vnode_id} -p tcp ".
+	     "-A $OUTGOING_CHAIN -p tcp ".
 	     "-d $ctrlip --dport $local_tmcd_port ".
 	     "-m conntrack --ctstate NEW -j ACCEPT");
 	push(@rules,
-	     "-A OUTGOING_${vnode_id} -p udp ".
+	     "-A $OUTGOING_CHAIN -p udp ".
 	     "-d $ctrlip --dport $local_tmcd_port ".
 	     "-m conntrack --ctstate NEW -j ACCEPT");
 
@@ -1888,8 +1897,8 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 	foreach my $rule (@{ $vnconfig->{'fwconfig'}->{'fwrules'} }) {
 	    my $rulestr = $rule->{'RULE'};
 	    $rulestr =~ s/\s+me\s+/ $ctrlip /g;
-	    $rulestr =~ s/\s+INSIDE\s+/ OUTGOING_${vnode_id} /g;
-	    $rulestr =~ s/\s+OUTSIDE\s+/ INCOMING_${vnode_id} /g;
+	    $rulestr =~ s/\s+INSIDE\s+/ $OUTGOING_CHAIN /g;
+	    $rulestr =~ s/\s+OUTSIDE\s+/ $INCOMING_CHAIN /g;
 	    $rulestr =~ s/^iptables //;
 	    push(@rules, $rulestr);
 	}
@@ -1899,9 +1908,9 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 	# since they are going to get dropped.
 	#
 	if (0) {
-	    push(@rules, "-A INCOMING_${vnode_id} -j LOG ".
+	    push(@rules, "-A $INCOMING_CHAIN -j LOG ".
 		 "  --log-prefix 'IN ${vnode_id}: ' --log-level 5");
-	    push(@rules, "-A OUTGOING_${vnode_id} -j LOG ".
+	    push(@rules, "-A $OUTGOING_CHAIN -j LOG ".
 	     "  --log-prefix 'OUT ${vnode_id}: ' --log-level 5");
 	}
     }
@@ -2512,15 +2521,24 @@ sub vnodeDestroy($$$$)
 	}
     }
 
+    # Kill the chains.
+    # Ick, iptables has a 28 character limit on chain names. But we have to
+    # be backwards compatible with existing chain names. See corresponding
+    # code in emulab-cnet.pl
+    my $INCOMING_CHAIN = "INCOMING_${vnode_id}";
+    my $OUTGOING_CHAIN = "OUTGOING_${vnode_id}";
+    if (length($INCOMING_CHAIN) > 28) {
+	my $INCOMING_CHAIN = "I_${vnode_id}";
+	my $OUTGOING_CHAIN = "O_${vnode_id}";
+    }
+    DoIPtables("-F $INCOMING_CHAIN");
+    DoIPtables("-X $INCOMING_CHAIN");
+    DoIPtables("-F $OUTGOING_CHAIN");
+    DoIPtables("-X $OUTGOING_CHAIN");
+
     # Always do this.
     return -1
 	if (vnodeTearDown($vnode_id, $vmid, $vnconfig, $private));
-
-    # Kill the chains.
-    DoIPtables("-F INCOMING_${vnode_id}");
-    DoIPtables("-X INCOMING_${vnode_id}");
-    DoIPtables("-F OUTGOING_${vnode_id}");
-    DoIPtables("-X OUTGOING_${vnode_id}");
 
     # DHCP entry...
     if (exists($vninfo->{'dhcp'})) {

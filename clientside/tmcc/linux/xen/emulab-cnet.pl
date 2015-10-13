@@ -159,6 +159,16 @@ my $local_tmcd_port = $TMCD_PORT + $vmid;
 my $outer_controlif = `cat $BOOTDIR/controlif`;
 chomp($outer_controlif);
 
+# Ick, iptables has a 28 character limit on chain names. But we have to
+# be backwards compatible with existing chain names. See corresponding
+# code in libvnode_xen.
+my $INCOMING_CHAIN = "INCOMING_${vnode_id}";
+my $OUTGOING_CHAIN = "OUTGOING_${vnode_id}";
+if (length($INCOMING_CHAIN) > 28) {
+    my $INCOMING_CHAIN = "I_${vnode_id}";
+    my $OUTGOING_CHAIN = "O_${vnode_id}";
+}
+
 #
 # We setup a bunch of iptables rules when a container goes online, and
 # then clear them when it goes offline.
@@ -210,9 +220,9 @@ sub Online()
     if ($VIFROUTING) {
 	push(@rules,
 	     "-A FORWARD -i $vif -s $vnode_ip ".
-	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	     "-m mac --mac-source $vnode_mac -j $OUTGOING_CHAIN");
 	push(@rules,
-	     "-A FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}");
+	     "-A FORWARD -o $vif -d $vnode_ip -j $INCOMING_CHAIN");
 
 	#
 	# Another wrinkle. We have to think about packets coming from
@@ -223,7 +233,7 @@ sub Online()
 	# 
 	push(@rules,
 	     "-A INPUT -i $vif -s $vnode_ip ".
-	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	     "-m mac --mac-source $vnode_mac -j $OUTGOING_CHAIN");
 
 	#
 	# This rule effectively says that if the packet was not filtered 
@@ -243,11 +253,11 @@ sub Online()
 	#
 	push(@rules,
 	     "-I FORWARD -m physdev --physdev-is-bridged ".
-	     "--physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}");
+	     "--physdev-in $vif -s $vnode_ip -j $OUTGOING_CHAIN");
 	    
 	push(@rules,
 	     "-I FORWARD -m physdev --physdev-is-bridged ".
-	     "--physdev-out $vif -j INCOMING_${vnode_id}");
+	     "--physdev-out $vif -j $INCOMING_CHAIN");
 
 	#
 	# Another wrinkle. We have to think about packets coming from
@@ -261,7 +271,7 @@ sub Online()
 	# eth0, according to iptables logging. WTF!
 	# 
 	push(@rules,
-	     "-A INPUT -s $vnode_ip -j OUTGOING_${vnode_id}");
+	     "-A INPUT -s $vnode_ip -j $OUTGOING_CHAIN");
 
 	push(@rules,
 	     "-A OUTPUT -d $vnode_ip -j ACCEPT");
@@ -336,6 +346,13 @@ sub Online()
     }
 
     # 
+    # Watch for a vnode with a public IP, no need to nat. 
+    #
+    if (isRoutable($vnode_ip)) {
+	goto skipnat;
+    }
+
+    # 
     # If the source is from the vnode, headed to the local control 
     # net, no need for any NAT; just let it through.
     #
@@ -390,7 +407,8 @@ sub Online()
 	 "-t nat -A POSTROUTING ".
 	 "-s $vnode_ip -o $outer_controlif ".
 	 "-j SNAT --to-source $host_ip");
-    
+
+  skipnat:
     # Apply the rules
     DoIPtables(@rules) == 0 or
 	return -1;
@@ -415,12 +433,12 @@ sub Offline()
     if ($VIFROUTING) {
 	push(@rules,
 	     "-D FORWARD -i $vif -s $vnode_ip ".
-	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	     "-m mac --mac-source $vnode_mac -j $OUTGOING_CHAIN");
 	push(@rules,
-	     "-D FORWARD -o $vif -d $vnode_ip -j INCOMING_${vnode_id}");
+	     "-D FORWARD -o $vif -d $vnode_ip -j $INCOMING_CHAIN");
 	push(@rules,
 	     "-D INPUT -i $vif -s $vnode_ip ".
-	     "-m mac --mac-source $vnode_mac -j OUTGOING_${vnode_id}");
+	     "-m mac --mac-source $vnode_mac -j $OUTGOING_CHAIN");
 	push(@rules,
 	     "-D OUTPUT -o $vif -j ACCEPT");
 	
@@ -428,12 +446,12 @@ sub Offline()
     else {
 	push(@rules,
 	     "-D FORWARD -m physdev --physdev-is-bridged ".
-	     "--physdev-in $vif -s $vnode_ip -j OUTGOING_${vnode_id}");
+	     "--physdev-in $vif -s $vnode_ip -j $OUTGOING_CHAIN");
 	push(@rules,
 	     "-D FORWARD -m physdev --physdev-is-bridged ".
-	     "--physdev-out $vif -j INCOMING_${vnode_id}");
+	     "--physdev-out $vif -j $INCOMING_CHAIN");
 	push(@rules,
-	     "-D INPUT -s $vnode_ip -j OUTGOING_${vnode_id}");
+	     "-D INPUT -s $vnode_ip -j $OUTGOING_CHAIN");
 	push(@rules,
 	     "-D OUTPUT -d $vnode_ip -j ACCEPT");
     }
@@ -469,6 +487,13 @@ sub Offline()
 	     "-o $bridge");
     }
 
+    # 
+    # Watch for a vnode with a public IP, no need to nat. 
+    #
+    if (isRoutable($vnode_ip)) {
+	goto skipnat;
+    }
+
     push(@rules,
 	 "-t nat -D POSTROUTING -j ACCEPT ".
 	 "-s $vnode_ip -d $jail_network/$jail_netmask");
@@ -495,6 +520,7 @@ sub Offline()
 	 "-t nat -D POSTROUTING ".
 	 "-s $vnode_ip -o $outer_controlif -j SNAT --to-source $host_ip");
 
+  skipnat:
     # evproxy
     push(@rules,
 	 "-t nat -D PREROUTING -j DNAT -p tcp ".
