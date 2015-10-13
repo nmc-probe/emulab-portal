@@ -1043,6 +1043,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"<tr id='listview-row'>" +
 	" <td name='client_id'>n/a</td>" +
 	" <td name='node_id'>n/a</td>" +
+	" <td name='type'>n/a</td>" +
 	" <td name='sshurl'>n/a</td>" +
 	" <td name='menu' align=center> " +
 	"  <div name='action-menu' class='dropdown'>" +
@@ -1126,10 +1127,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$('#listview_table > tbody:last').append(clone);
 		// Set the client_id in the first column.
 		$('#listview-row-' + node + " [name=client_id]").html(node);
-		// And the node_id.
+		// And the node_id/type
 		if (vnode.length) {
 		    $('#listview-row-' + node + " [name=node_id]")
 			.html($(vnode).attr("name"));
+		    $('#listview-row-' + node + " [name=type]")
+			.html($(vnode).attr("hardware_type"));
 		}
 		
 		if (login.length && dossh) {
