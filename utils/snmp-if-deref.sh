@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2006 University of Utah and the Flux Group.
+# Copyright (c) 2006-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,8 +22,9 @@
 # }}}
 #
 
-SNMPGET="/usr/local/bin/snmpget -m CISCO-STACK-MIB:CISCO-PAGP-MIB -Ovq"
 community="public"
+
+SNMPGET="/usr/local/bin/snmpget -v 2c -c $community -m CISCO-STACK-MIB:CISCO-PAGP-MIB -Ovq"
 
 if [ $# -lt 4 ]
 then
@@ -38,15 +39,15 @@ attr=$4
 trunk=$5
     
 
-index=`$SNMPGET $addr $community portIfIndex.$module.$port 2> /dev/null`
+index=`$SNMPGET $addr portIfIndex.$module.$port 2> /dev/null`
 if [ $? -eq 0 -a "x$index" != "x" ]
 then
     if [ "x$trunk" = "xtrunk" ]
     then
-        index=`$SNMPGET $addr $community pagpGroupIfIndex.$index 2> /dev/null`
+        index=`$SNMPGET $addr pagpGroupIfIndex.$index 2> /dev/null`
     fi
 
-    retval=`$SNMPGET $addr $community ifEntry.$attr.$index 2> /dev/null`
+    retval=`$SNMPGET $addr ifEntry.$attr.$index 2> /dev/null`
     if [ $? -eq 0 -a "x$retval" != "x" ]
     then
 	echo $retval
