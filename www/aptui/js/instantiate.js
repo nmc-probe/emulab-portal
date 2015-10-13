@@ -186,7 +186,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	// Profile picker search box.
 	var profile_picker_timeout = null;
 	
-	$("#profile_picker_search").on("keyup", function () {
+	$("#profile_picker_search").on("keyup", function (event) {
 	    var options   = $('#profile_name');
 	    var userInput = $("#profile_picker_search").val();
 	    userInput = userInput.toLowerCase();
@@ -206,6 +206,18 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		    options.children("li").hide();
 		    matches.show();
 		}, 500);
+
+	    // User types return while searching, if there was only one
+	    // choice, then we select it. Convenience. 
+	    if (event.keyCode == 13) {
+		var matches = 
+		    options.children("li").filter(function() {
+			return $(this).css('display') == 'block';
+		    });
+		if (matches && matches.length == 1) {
+		    ShowProfileSelection(matches[0]);
+		}
+	    }
 	});
 
 	//
