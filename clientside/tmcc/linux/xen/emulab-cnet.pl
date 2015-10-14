@@ -468,7 +468,7 @@ sub Offline()
 	 "--to-destination $host_ip:$local_tmcd_port");
 
     # Apply the rules
-    if (DoIPtables(@rules) != 0) {
+    if (DoIPtablesNoFail(@rules) != 0) {
 	print STDERR "WARNING: could not remove iptables rules\n";
     }
 
