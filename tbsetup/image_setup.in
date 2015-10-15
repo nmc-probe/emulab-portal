@@ -38,7 +38,6 @@ sub usage()
     print(" -v      - Verify XML descriptions only\n");
     print(" -g      - Download image after creating descriptors\n");
     print(" -p pid  - Import image into specified project instead\n");
- 
     exit(-1);
 }
 my $optlist  = "dvgp:";
@@ -180,6 +179,7 @@ while (my ($vname, $osname) = $result->fetchrow()) {
 foreach my $url (@urllist) {
     my $safe_url = User::escapeshellarg($url);
     my $imagepid = $importpid;
+    my $imageuid = $user_uid;
 
     #
     # See if we have already created this descriptor. We want to
@@ -210,11 +210,22 @@ foreach my $url (@urllist) {
 	# Update image in the project it already exists in. Technically,
 	# I should (probably) not have to specify this. 
 	$imagepid = $image->pid();
+
+	#
+	# Backwards compat problem for IG slices. We used to import
+	# images as the user into their project, but now we are importing
+	# into GeniSlices as geniuser. But if an image was already here,
+	# we will fail the permissions checks, so tell the importer to
+	# to the update as the user that owns the image. Might need to
+	# to actually move those images at some point.
+	#
+	$imageuid = $image->creator();
 	
-	system("$IMPORTER $opts -p $imagepid -r " . $image->imageid());
+	system("$IMPORTER $opts -u $imageuid ".
+	       "   -p $imagepid -r " . $image->imageid());
     }
     else {
-	system("$IMPORTER $opts -p $imagepid $safe_url");
+	system("$IMPORTER $opts -u $imageuid -p $imagepid $safe_url");
     }
     exit(-1)
 	if ($?);
@@ -234,7 +245,8 @@ foreach my $url (@urllist) {
     $opts = "";
     $opts .= " -d"
 	if ($debug);
-    system("$IMPORTER $opts -g -p $imagepid -r " . $image->imageid());
+    system("$IMPORTER $opts -g -u $imageuid ".
+	   "  -p $imagepid -r " . $image->imageid());
     exit(-1)
 	if ($?);
 }
