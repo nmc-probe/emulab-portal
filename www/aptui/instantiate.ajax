@@ -627,10 +627,12 @@ function CheckStep2()
         if (!$profile) {
             $errors["error"] = "No such profile exists";
         }
-        elseif (!($profile->ispublic() ||
-                  (isset($this_user) && $profile->CanInstantiate($this_user)))){
-            $errors["error"] = "No permission to use profile";
-        }
+        #
+        # Our permission model is that anyone who knows the uuid can
+        # instantiate the profile, and either they provided the URL
+        # in the URL or its a profile uuid they got from the instantiate
+        # page via their permissions. So no checks here.
+        #
     }
     if (!$this_user) {
         #
