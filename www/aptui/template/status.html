@@ -51,6 +51,17 @@
 		 <%- profileName %></a></td>
 	  </tr>
 	  <% } %>
+	  <% if (isadmin) { %>
+	    <td class='border-none'>Creator:</td>
+	    <td class='border-none'>
+	      <% if (registered) { %>
+		<a href="https://www.emulab.net/showuser.php3?user=<%- creatorUid %>">
+		  <%- creatorUid %></a>
+	      <% } else { %>
+	        <a href="mailto:<%- creatorEmail %>"><%- creatorEmail %></a>
+	      <% } %>
+	    </td>
+	  <% } %>
 	  <tr>
 	    <td class='border-none'>Created:</td>
 	    <td class='border-none format-date'><%- sliceCreated %></td>
