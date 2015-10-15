@@ -507,9 +507,7 @@ sub GetHoldingProject($$)
     if ($PROTOGENI_LOCALUSER) {
 	#
 	# The user is added to both the holding project, and the group
-	# if a sub authority is provided. We give only user permissions,
-	# since we just need the object for access checks, not for
-	# experiment permissions.
+	# if a sub authority is provided. 
 	#
 	my $trust = $Group::MemberShip::TRUSTSTRING_LOCALROOT;
 	my $pid   = $project->pid();
