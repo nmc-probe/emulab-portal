@@ -297,7 +297,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
            $then = time() - (30 * 3600 * 24);
            echo "  <li><a href='activity.php?min=$then'>
                             History Data</a></li>
-	           <li><a href='sumstats.php'>Summary Stats</a></li>
+	           <li><a href='sumstats.php?min=$then'>Summary Stats</a></li>
 	           <li><a href='myexperiments.php?all=1'>
                             All Experiments</a></li>
 	           <li><a href='myprofiles.php?all=1'>
