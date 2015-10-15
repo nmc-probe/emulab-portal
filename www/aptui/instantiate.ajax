@@ -766,6 +766,13 @@ function Do_Submit()
     $args["email"]    = ($this_user ?
                          $this_user->email() : $formfields["email"]);
     $args["profile"]  = $formfields["profile"];
+    if (!$this_user) {
+        session_start();
+
+        if (isset($_SESSION["verified"])) {
+            $args["auth_token"] = $_SESSION["auth_token"];
+        }
+    }
 
     if (0) {
         TBERROR(print_r($args, true), 0);
