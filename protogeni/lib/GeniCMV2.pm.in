@@ -1130,6 +1130,7 @@ sub SliverStatus($)
     my ($argref)     = @_;
     my $slice_urn    = $argref->{'slice_urn'};
     my $credentials  = $argref->{'credentials'};
+    require Node;
 
     if (! (defined($credentials) && defined($slice_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
@@ -1224,10 +1225,31 @@ sub SliverStatus($)
 	    "status" => $status,
 	    "error"  => $error,
 	};
-	if (ref($sliver) eq "GeniSliver::Node" &&
-	    defined($sliver->rawstate())) {
-	    $blob->{'details'}->{$sliver_urn}->{'rawstate'} =
-		$sliver->rawstate();
+	if (ref($sliver) eq "GeniSliver::Node") {
+	    my $details = $blob->{'details'}->{$sliver_urn};
+		
+	    if (defined($sliver->rawstate())) {
+		$details->{'rawstate'} = $sliver->rawstate();
+	    }
+	    my $node = Node->Lookup($sliver->resource_id());
+	    if (defined($node) &&
+		defined($node->startupcmd()) && $node->startupcmd() ne "") {
+		if (defined($node->startstatus()) &&
+		    $node->startstatus() ne "none") {
+		    $details->{'execute_state'}   = "exited";
+		    $details->{'execute_status'}  = $node->startstatus();
+		}
+		else {
+		    if ($node->eventstate() eq "ISUP") {
+			$details->{'execute_state'}   = "running";
+			$details->{'execute_status'}  = "unknown";
+		    }
+		    else {
+			$details->{'execute_state'}   = "n/a";
+			$details->{'execute_status'}  = "n/a";
+		    }
+		}
+	    }
 	}
     }
     $slice->UnLock();
