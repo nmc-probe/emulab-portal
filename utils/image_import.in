@@ -257,6 +257,11 @@ if ($update) {
 	$user = undef;
 	if (defined($updater_uid)) {
 	    $user = User->Lookup($updater_idx);
+	    # Ick, setgroups skips nonlocal users, so user does not have
+	    # permission to do this on ops. Needs thought.
+	    if ($user->IsNonLocal()) {
+		$user = undef;
+	    }
 	}
 	if (!defined($user)) {
 	    $user = User->Lookup($image->creator_idx());
@@ -266,7 +271,9 @@ if ($update) {
 	    $image->Unlock();
 	    exit(-1);
 	}
-	$UID = $SAVEUID = $user->unix_uid();
+	$EUID = 0;
+	$UID  = $SAVEUID = $user->unix_uid();
+	$EUID = $UID;
     }
     else {
 	if (!defined($image->metadata_url())) {
