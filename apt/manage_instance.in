@@ -108,6 +108,7 @@ sub DoLockdown();
 sub DoManifests();
 sub WriteCredentials();
 sub StartMonitor();
+sub StartMonitorInternal(;$);
 sub DoImageTrackerStuff($$$$$$);
 
 #
@@ -481,15 +482,28 @@ sub DoSnapshot()
     if (defined($webtask)) {
 	$webtask->image_urn($version_urn);
 	$webtask->image_url($version_url);
+	my $image_name;
 
-	# DoImageTrackerStuff determined that we use whatever the cluster
-	# tells us, cause it is the home of the image.
-	my $copyback_urn = $version_urn
-	    if ($usetracker && !defined($copyback_urn));
+	if ($usetracker) {
+	    # DoImageTrackerStuff determined that we use whatever the cluster
+	    # tells us, cause it is the home of the image.
+	    if (!defined($copyback_urn)) {
+		$image_name = $version_urn;
+	    }
+	    else {
+		$image_name = $copyback_urn;
+	    }
+	}
+	else {
+	    $image_name = $version_url;
+	}
+	$webtask->image_name($image_name);
 
-	# For the web interface.
-	$webtask->image_name((defined($copyback_urn) ?
-			      $copyback_urn : $version_url));
+	# We tell the web interface that the image has to be copied
+	# back,
+	if (defined($copyback_uuid)) {
+	    $webtask->copyback_uuid($copyback_uuid);
+	}
     }
     else {
 	print "$image_urn,$image_url\n";
@@ -590,8 +604,20 @@ sub DoSnapshot()
 	if (defined($webtask)) {
 	    $webtask->image_size($blob->{'size'}) 	
 		if (exists($blob->{'size'}));
-	    $webtask->image_status($blob->{'status'})
-		if (exists($blob->{'status'}));
+	    
+	    if (exists($blob->{'status'})) {
+		#
+		# If the image is ready, but needs to be copied back to
+		# its origin, hold of ready till later. We will wait for
+		# the copyback to finish, see below.
+		#
+		if (defined($copyback_uuid)) {
+		    $webtask->image_status("copying");
+		}
+		else {
+		    $webtask->image_status($blob->{'status'});
+		}
+	    }
 	}
 	if ($blob->{'status'} eq "ready") {
 	    $ready = 1;
@@ -639,6 +665,45 @@ sub DoSnapshot()
 				  ($update_profile eq "all" ? 1 : 0));
     }
     $instance->SetStatus("ready");
+    
+    #
+    # If there is a copyback_uuid, we want to wait for that to finish.
+    #
+    if (defined($copyback_uuid)) {
+	#
+	# We know the copyback is done when the IMS has the info.
+	#
+	my $copied  = 0;
+	$seconds  = 1000;
+
+	while ($seconds > 0) {
+	    sleep($interval);
+	    $seconds -= $interval;
+
+	    #
+	    # It would clearly be more more efficient to just look in
+	    # the IMS database. 
+	    #
+	    Genixmlrpc->SetContext(APT_Geni::GeniContext());
+	    my $blob = GeniImage::GetImageData($copyback_urn, \$errmsg);
+	    Genixmlrpc->SetContext(undef);
+	    # We get back undefined if the image is not posted yet.
+	    if (defined($blob)) {
+		$copied = 1;
+		last;
+	    }
+	    sleep($interval);
+	}
+	# Tell the web interface. 
+	if (!$copied) {
+	    $errmsg  = "Failed to copy image back to its origin cluster";
+	    $errcode = 1;
+	    goto bad;
+	}
+	elsif (defined($webtask)) {
+	    $webtask->image_status("ready");
+	}
+    }
     # We garbage collect these later, so anyone waiting has a chance
     # to see the exit status
     $webtask->Exited(0)
@@ -656,7 +721,7 @@ sub DoSnapshot()
 	# Image is ready, but sliver is not. Start a monitor so that
 	# web interface is updated.
 	#
-	StartMonitor();
+	StartMonitorInternal();
     }
     exit(0);
   bad:
@@ -665,7 +730,7 @@ sub DoSnapshot()
 	# Image is ready, but sliver is not. Start a monitor so that
 	# web interface is updated.
 	#
-	StartMonitor();
+	StartMonitorInternal();
     }
     $instance->SetStatus("ready");
     if (defined($logfile)) {
@@ -1452,7 +1517,7 @@ sub DoRebootOrReload($)
     # has actually come back up.
     #
     # XXX This will not return unless a monitor is already running.
-    StartMonitor();
+    StartMonitorInternal();
     exit(0);
   killit:
     $instance->RecordHistory($RECORDHISTORY_TERMINATED);
@@ -1530,8 +1595,32 @@ sub DoManifests()
 #
 sub StartMonitor()
 {
+    my $waitforstartup = 0;
+    
+    if (@ARGV && $ARGV[0] eq "-w") {
+	$waitforstartup = 1;
+    }
+
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	if (!defined($webtask)) {
+	    fatal("Could not lookup/create webtask for $webtask_id");
+	}
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+    return StartMonitorInternal($waitforstartup)
+}
+
+sub StartMonitorInternal(;$)
+{
+    my ($waitforstartup) = @_;
     my $logfile;
     my $signaled   = 0;
+
+    # Wait for the startup command to finish.
+    $waitforstartup = 0
+	if (!defined($waitforstartup));
     
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
@@ -1562,7 +1651,7 @@ sub StartMonitor()
     #
     sleep(30);
     
-    my $seconds  = 1500;
+    my $seconds  = ($waitforstartup ? 3600 : 900);
     my $interval = 15;
     # Shorten default timeout now.
     Genixmlrpc->SetTimeout(30);
@@ -1578,6 +1667,7 @@ sub StartMonitor()
 	    return GENIRESPONSE_RPCERROR;
 	}
 	if (($response->code() != GENIRESPONSE_SUCCESS &&
+	     $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
 	     $response->code() != GENIRESPONSE_BUSY)) {
 	    print STDERR "SliverStatus failed";
 	    print STDERR ": " . $response->output() . "\n";
@@ -1603,13 +1693,19 @@ sub StartMonitor()
 	# Convert to something smaller, with info the web interface
 	# cares about. 
 	#
-	my $statusblob = {};
+	my $statusblob  = {};
+	my $executing   = 0;
 	foreach my $urn (keys(%{$blob->{'details'}})) {
 	    my $details = $blob->{'details'}->{$urn};
 	    my $node_id = $details->{'client_id'};
 	    $statusblob->{$node_id} = $details;
+
+	    # Startup command is still running.
+	    $executing++
+		if (exists($details->{'execute_state'}) &&
+		    $details->{'execute_state'} ne "exited");
 	}
-	if ($debug) {
+	if (1) {
 	    print STDERR Dumper($statusblob);
 	}
 	$webtask->sliverstatus($statusblob);
@@ -1618,7 +1714,8 @@ sub StartMonitor()
 	# We poll until the status goes ready. Might not be a good idea.
 	#
 	if ($blob->{'status'} eq "ready") {
-	    return 0;
+	    return 0
+		if (!$executing || !$waitforstartup);
 	}
 	# Not done yet. 
 	return 1;
@@ -1672,8 +1769,8 @@ sub StartMonitor()
 	
 	sleep($interval);
     }
-    unlink($logfile)
-	if (defined($logfile));
+#    unlink($logfile)
+#	if (defined($logfile) && !$debug);
     exit(0);
 }
 

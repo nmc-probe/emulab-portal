@@ -142,7 +142,7 @@ if ($slice) {
     $instance_name   = $instance->name();
     # Until old instances are gone.
     if (!$instance_name) {
-        $instance_name = $slice_urn;
+        list ($a,$b,$instance_name) = Instance::ParseURN($slice_urn);
     }
     $slice_expires   = DateStringGMT($slice->expires());
     $slice_expires_text = gmdate("m-d\TH:i\Z", strtotime($slice->expires()));

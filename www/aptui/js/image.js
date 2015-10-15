@@ -77,11 +77,21 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 			$('#tracker-finishing').removeClass('progtrckr-todo');
 			$('#tracker-finishing').addClass('progtrckr-done');
 		    }
+		    else if (status == "copying") {
+			$('#tracker-imaging').removeClass('progtrckr-todo');
+			$('#tracker-imaging').addClass('progtrckr-done');
+			$('#tracker-finishing').removeClass('progtrckr-todo');
+			$('#tracker-finishing').addClass('progtrckr-done');
+			$('#tracker-copying').removeClass('progtrckr-todo');
+			$('#tracker-copying').addClass('progtrckr-done');
+		    }
 		    else if (status == "ready") {
 			$('#tracker-imaging').removeClass('progtrckr-todo');
 			$('#tracker-imaging').addClass('progtrckr-done');
 			$('#tracker-finishing').removeClass('progtrckr-todo');
 			$('#tracker-finishing').addClass('progtrckr-done');
+			$('#tracker-copying').removeClass('progtrckr-todo');
+			$('#tracker-copying').addClass('progtrckr-done');
 			$('#tracker-ready').removeClass('progtrckr-todo');
 			$('#tracker-ready').addClass('progtrckr-done');
 			$('#imaging-spinner').addClass("hidden");
@@ -108,9 +118,16 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 			    $('#tracker-imaging').removeClass('progtrckr-todo');
 			    $('#tracker-imaging').addClass('progtrckr-failed');
 			}
-			if (laststatus == "imaging" || laststatus == "preparing") {
+			if (laststatus == "imaging" ||
+			    laststatus == "preparing") {
 			    $('#tracker-finishing').removeClass('progtrckr-todo');
 			    $('#tracker-finishing').addClass('progtrckr-failed');
+			}
+			if (laststatus == "imaging" ||
+			    laststatus == "preparing" ||
+			    laststatus == "finishing") {
+			    $('#tracker-copying').removeClass('progtrckr-todo');
+			    $('#tracker-copying').addClass('progtrckr-failed');
 			}
 			$('#tracker-ready').removeClass('progtrckr-todo');
 			$('#tracker-ready').addClass('progtrckr-failed');
@@ -150,11 +167,21 @@ define(['underscore', 'js/quickvm_sup', 'filesize',
 	    if (imagingTemplate == null) {
 		imagingTemplate  = _.template(imagingString);
 	    }
-    	    var imaging_html = imagingTemplate({});
-	    $('#imaging_div').html(imaging_html);
 	    
-	    imaging_modal_display = true;	    
-	    ShowImagingModal();
+	    var callback = function(json) {
+		var value = json.value;
+		console.log("ShowImagingModal Startup");
+		console.log(json);
+		
+    		var imaging_html = imagingTemplate({
+		    needcopy : _.has(json.value, "copyback_uuid")});
+		$('#imaging_div').html(imaging_html);
+		
+		imaging_modal_display = true;	    
+		ShowImagingModal();
+	    };
+	    var $xmlthing = status_callback();
+	    $xmlthing.done(callback);
 	}
     }
 );

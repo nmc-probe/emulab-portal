@@ -308,6 +308,11 @@ function Do_RequestExtension()
     }
     $expires_time = strtotime($slice->expires());
     $created_time = strtotime($instance->created());
+    $instance_name = $instance->name();
+    # Until old instances are gone.
+    if (!$instance_name) {
+        list ($a,$b,$instance_name) = Instance::ParseURN($slice->urn());
+    }
 
     if ($autoextend_maximum == 0 && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Extensions are currenly disabled; please ".
@@ -477,7 +482,7 @@ function Do_RequestExtension()
 	SPITAJAX_RESPONSE($new_expires);
 
 	$instance->SendEmail($creator->email(),
-	       "Experiment Extension: $uuid",
+	       "Experiment Extension: $instance_name",
                (ISADMIN() ? $reason :
                 "A request to extend your experiment was made and ".
                 "granted.\n".
@@ -536,6 +541,11 @@ function Do_DenyExtension()
 	SPITAJAX_ERROR(1, "no slice for instance");
 	goto bad;
     }
+    $instance_name = $instance->name();
+    # Until old instances are gone.
+    if (!$instance_name) {
+        list ($a,$b,$instance_name) = Instance::ParseURN($slice->urn());
+    }
     if (!ISADMIN()) {
 	SPITAJAX_ERROR(1, "You do not have permission to do this.");
 	goto bad;
@@ -561,7 +571,7 @@ function Do_DenyExtension()
     $instance->AddExtensionHistory($text);
 
     $instance->SendEmail($creator->email(),
-	       "Experiment Extension Denied: $uuid",
+	       "Experiment Extension Denied: $instance_name",
                $reason .
                "\n\n".
                "Your experiment was started on $created\n".
@@ -596,9 +606,15 @@ function needAdminApproval($wanted, $granted, $reason, $message)
                         strtotime($slice->expires()) + ($howlong * 3600 * 24));
     $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
     list($cluster) = Instance::ParseURN($instance->aggregate_urn());
+
+    $instance_name = $instance->name();
+    # Until old instances are gone.
+    if (!$instance_name) {
+        list ($a,$b,$instance_name) = Instance::ParseURN($slice->urn());
+    }
 		    
     $instance->SendEmail($EXTENSIONS,
-        "Experiment Extension Request: $uuid",
+        "Experiment Extension Request: $instance_name",
         "A request to extend this experiment was made but requires\n".
         "administrator approval" .
         ($message ? " $message" : "") . ".\n\n" .
@@ -829,6 +845,9 @@ function Do_SnapshotStatus()
     }
     $blob["node_status"]  = $taskdata["rawstate"];
     $blob["image_status"] = $taskdata["image_status"];
+    if (isset($taskdata["copyback_uuid"])) {
+        $blob["copyback_uuid"] = $taskdata["copyback_uuid"];
+    }
     if ($webtask->exited()) {
 	# Success, but not sure what to report. Come back to this later.
 	$blob["exited"]   = $webtask->exited();

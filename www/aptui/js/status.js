@@ -335,7 +335,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Call back for above.
     function StatusWatchCallBack(uuid, json)
     {
-	//console.info(json);
+	console.info(json);
 	
 	// Flag to indicate that we have seen ready and do not
 	// need to do initial stuff. We need this cause the
@@ -383,7 +383,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    else if (status == 'ready') {
 		bgtype = "panel-success";
 		status_message = "Your experiment is ready!";
-		status_html = "<font color=green>ready</font>";
+
+		if (servicesExecuting(json.value)) {
+		    status_html = "<font color=green>booted</font>";
+		    status_html += " (startup services are still running)";
+		}		
+		else {
+		    status_html = "<font color=green>ready</font>";
+		}
 		if ($("#status_progress_div").length) {
 		    $("#status_progress_div").removeClass("progress-striped");
 		    $("#status_progress_div").removeClass("active");
@@ -450,6 +457,17 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		.addClass(bgtype);
 	    $("#quickvm_status").html(status_html);
 	}
+	else if (lastStatus == "ready" && status == "ready") {
+	    if (servicesExecuting(json.value)) {
+		status_html = "<font color=green>booted</font>";
+		status_html += " (startup services are still running)";
+	    }		
+	    else {
+		status_html = "<font color=green>ready</font>";
+	    }
+	    $("#quickvm_status").html(status_html);
+	}
+		 
 	//
 	// Look for a sliverstatus blob.
 	//
@@ -687,6 +705,17 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					     {"uuid" : uuid});
 	xmlthing.done(callback);
     }
+
+    var svgimg = document.createElementNS('http://www.w3.org/2000/svg','image');
+    svgimg.setAttributeNS(null,'class','node-status-icon');
+    svgimg.setAttributeNS(null,'height','15');
+    svgimg.setAttributeNS(null,'width','15');
+    svgimg.setAttributeNS('http://www.w3.org/1999/xlink','href',
+			  'fonts/record8.svg');
+    svgimg.setAttributeNS(null,'x','13');
+    svgimg.setAttributeNS(null,'y','-23');
+    svgimg.setAttributeNS(null, 'visibility', 'visible');
+
     // Helper for above and called from the status callback.
     function UpdateSliverStatus(oblob)
     {
@@ -707,17 +736,68 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#' + jacksIDs[node_id] + ' .node .nodebox')
 			.css("fill", "#fcf8e3");
 		}
+		
 		var html =
 		    "<table class='table table-condensed'><tbody> " +
 		    "<tr><td>Node:</td><td>" +
 		        details.component_urn + "</td></tr>" +
 		    "<tr><td>Status:</td><td>" +
 		        details.status + "</td></tr>" +
-		    "<tr><td>State:</td><td>" +
-		        details.state + "</td></tr>" +
 		    "<tr><td>Raw State:</td><td>" +
-		        details.rawstate + "</td></tr>" +
-		    "</tbody></table>";
+		        details.rawstate + "</td></tr>";
+
+		if (_.has(details, "execute_state")) {
+		    var tag;
+		    var icon;
+			
+		    if (details.execute_state == "running") {
+			tag  = "Running";
+			icon = "record8.svg";
+		    }
+		    else if (details.execute_state == "exited") {
+			if (details.execute_status != 0) {
+			    tag  = "Exited (" + details.execute_status + ")";
+			    icon = "cancel22.svg";
+			}
+			else {
+			    tag  = "Finished";
+			    icon = "check64.svg";
+			}
+		    }
+		    else {
+			tag  = "Pending";
+			icon = "button14.svg"
+		    }
+		    html += "<tr><td>Startup Service:</td><td>" +
+			tag + "</td></tr>";
+		    
+		    $('#' + jacksIDs[node_id] + ' .node .node-status')
+		        .css("visibility", "visible");
+
+		    if (!$('#' + jacksIDs[node_id] +
+			   ' .node .node-status-icon').length) {
+			$('#' + jacksIDs[node_id] + ' .node .node-status')
+		            .append(svgimg);
+		    }
+		    $('#' + jacksIDs[node_id] + ' .node .node-status-icon')
+			.attr("href", "fonts/" + icon);
+		    
+		    if ($('#' + jacksIDs[node_id] + ' .node .node-status-icon')
+			.data("bs.tooltip")) {
+			$('#' + jacksIDs[node_id] + ' .node .node-status-icon')
+			    .data("bs.tooltip").options.title = tag;
+		    }
+		    else {
+			$('#' + jacksIDs[node_id] + ' .node .node-status-icon')
+			    .tooltip({"title"     : tag,
+				      "trigger"   : "hover",
+				      "html"      : true,
+				      "container" : "body",
+				      "placement" : "auto right",
+				     });
+		    }
+		}
+		html += "</tbody></table>";
 
 		if ($('#' + jacksIDs[node_id]).data("bs.popover")) {
 		    $('#' + jacksIDs[node_id])
@@ -742,7 +822,43 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 	    });
 	});
-    }	
+    }
+
+    //
+    // Check the status blob to see if any nodes have execute services
+    // still running.
+    //
+    function servicesExecuting(blob)
+    {
+	if (_.has(blob, "sliverstatus")) {
+	    for (var urn in blob.sliverstatus) {
+		var nodes = blob.sliverstatus[urn];
+		for (var nodeid in nodes) {
+		    var status = nodes[nodeid];
+		    if (_.has(status, "execute_state") &&
+			status.execute_state != "exited") {
+			return 1;
+		    }
+		}
+	    }
+	}
+	return 0;
+    }
+    function hasExecutionServices(blob)
+    {
+	if (_.has(blob, "sliverstatus")) {
+	    for (var urn in blob.sliverstatus) {
+		var nodes = blob.sliverstatus[urn];
+		for (var nodeid in nodes) {
+		    var status = nodes[nodeid];
+		    if (_.has(status, "execute_state")) {
+			return 1;
+		    }
+		}
+	    }
+	}
+	return 0;
+    }
 	
     //
     // Request a node reboot from the backend cluster.
@@ -1653,7 +1769,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			_.each(object.nodes, function (node) {
 			    jacksIDs[node.client_id] = node.id;
 			});
-			console.log(jacksIDs);
+			//console.log("jacksIDs");
+			//console.log(jacksIDs);
 			ShowManifest(object.rspec);
 		    });
 		

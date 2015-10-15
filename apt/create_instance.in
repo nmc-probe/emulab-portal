@@ -49,6 +49,7 @@ my $verbose = 1;
 my $DEFAULT_URN  = "urn:publicid:IDN+apt.emulab.net+authority+cm";
 my $xmlfile;
 my $webtask;
+my $webtask_id;
 my $localuser  = 0;
 my $usestitcher= 0;
 my $quickuuid;
@@ -62,7 +63,7 @@ my $usetracker = 0;
 my @aggregate_urns = ();
 
 # Debugging
-my $usemydevtree  = 0;
+my $usemydevtree  = 1;
 
 # Protos
 sub fatal($);
@@ -91,6 +92,7 @@ my $ADDPUBKEY     = "$TB/sbin/addpubkey";
 my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
+my $MANAGEINSTANCE= "$TB/bin/manage_instance";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -751,6 +753,7 @@ $webtask = WebTask->Create($instance->uuid());
 if (!defined($webtask)) {
     fatal("Could not create a webtask!");
 }
+$webtask_id = $webtask->task_id();
 $webtask->AutoStore(1);
 
 print STDERR "\n";
@@ -937,6 +940,9 @@ if (ParRun({"maxwaittime" => 99999, "maxchildren" => scalar(@aggregate_list)},
 }
 print "$slice_urn\n";
 
+# Count up nodes running a startup service.
+my $startuprunning = 0;
+
 #
 # Check the exit codes; any failure is a total failure (for now).
 #
@@ -954,12 +960,23 @@ foreach my $aggobj (@aggregate_list) {
 	    $webtask->output($aggobj->webtask()->output());
 	    $webtask->Exited($aggobj->webtask()->exitcode());
 	    print $aggobj->webtask()->output() . "\n";
-	    
 	}
 	else {
 	    $webtask->output("WaitforSliver Failure at " .
 			     $aggobj->aggregate_urn());
 	    $webtask->Exited(1);
+	}
+    }
+    else {
+	my $statusblob = $aggobj->webtask()->sliverstatus();
+
+	print Dumper($statusblob);
+
+	foreach my $details (values(%{ $statusblob })) {
+	    # Startup command is still running.
+	    $startuprunning++
+		if (exists($details->{'execute_state'}) &&
+		    $details->{'execute_state'} ne "exited");
 	}
     }
     if (defined($aggobj->public_url())) {
@@ -976,7 +993,19 @@ if ($failed) {
 }
 else {
     $instance->SetStatus("ready");
-    $webtask->Exited(0);
+
+    #
+    # If there are still execute services running, lets keep polling
+    # using the monitor.
+    #
+    if ($startuprunning) {
+	print "$MANAGEINSTANCE -t $webtask_id monitor $quickvm_uuid -w\n";
+	
+	system("$MANAGEINSTANCE -t $webtask_id monitor $quickvm_uuid -w")
+    }
+    else {
+	$webtask->Exited(0);
+    }
 }
 exit(0);
 
