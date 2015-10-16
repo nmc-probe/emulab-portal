@@ -972,7 +972,7 @@ sub CheckDatasets($$$)
 	    #
 	    # Not all backends have blockstore support.
 	    #
-	    if (!APT_Dataset::ValidBlockstoreBackend($dataset_authority)) {
+	    if (!APT_Dataset::ValidBlockstoreBackend($dataset_urn)) {
 		$$pmsg = "Dataset $id is not on a valid aggregate";
 		return 1;
 	    }

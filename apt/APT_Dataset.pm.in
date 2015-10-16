@@ -132,7 +132,10 @@ sub DESTROY {
 sub ValidBlockstoreBackend($)
 {
     my ($authority) = @_;
-    my ($domain,$subauth) = split(":", $authority);
+    my $hrn = GeniHRN->new($authority);
+    return -1
+	if (!defined($hrn));
+    my $domain = $hrn->domain();
     
     return 1
 	if ($domain eq "emulab.net" ||
