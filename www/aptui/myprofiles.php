@@ -61,7 +61,7 @@ $joinclause  = "";
 $orderclause = "";
 
 if (isset($all)) {
-    if (ISADMIN()) {
+    if (ISADMIN() || ISFOREIGN_ADMIN()) {
 	$whereclause = "";
     }
     else {
@@ -88,7 +88,7 @@ if (mysql_num_rows($query_result) == 0) {
     $message = "<b>No profiles to show you. Maybe you want to ".
 	"<a href='manage_profile.php'>create one?</a></b><br><br>";
 
-    if (ISADMIN()) {
+    if (ISADMIN() || ISFOREIGN_ADMIN()) {
 	$message .= "<img src='images/redball.gif'>".
 	    "<a href='myprofiles.php?all=1'>Show all user Profile</a>";
     }
@@ -183,7 +183,7 @@ echo "   </tbody>
         </table>\n";
 
 if (!isset($all)) {
-    if (ISADMIN()) {
+    if (ISADMIN() || ISFOREIGN_ADMIN()) {
 	echo "<img src='images/redball.gif'>
           <a href='myprofiles.php?all=1'>Show all user profiles</a>\n";
     }

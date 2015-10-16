@@ -293,20 +293,19 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
        echo "  <li class='divider'></li>\n";
-       if (ISADMIN()) {
+       $then = time() - (90 * 3600 * 24);
+       echo "  <li><a href='activity.php?user=$login_uid&min=$then'>
+                            My History</a></li>\n";
+       if (ISADMIN() || ISFOREIGN_ADMIN()) {
+           echo "  <li class='divider'></li>\n";
            $then = time() - (30 * 3600 * 24);
            echo "  <li><a href='activity.php?min=$then'>
                             History Data</a></li>
-	           <li><a href='sumstats.php?min=$then'>Summary Stats</a></li>
-	           <li><a href='myexperiments.php?all=1'>
+	           <li><a href='sumstats.php?min=$then'>Summary Stats</a></li>";
+           echo "<li><a href='myexperiments.php?all=1'>
                             All Experiments</a></li>
-	           <li><a href='myprofiles.php?all=1'>
+	             <li><a href='myprofiles.php?all=1'>
                             All Profiles</a></li>";
-       }
-       else {
-           $then = time() - (90 * 3600 * 24);
-           echo "  <li><a href='activity.php?user=$login_uid&min=$then'>
-                            My History</a></li>\n";
        }
        echo "     </ul>
                 </li>\n";

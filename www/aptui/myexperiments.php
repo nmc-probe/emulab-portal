@@ -72,7 +72,7 @@ echo "<link rel='stylesheet'
 $query_result1 = null;
 $query_result2 = null;
 
-if (($all || $extend) && ISADMIN()) {
+if (($all || $extend) && (ISADMIN() || ISFOREIGN_ADMIN())) {
     $where = "";
     if ($extend) {
         $where = "where a.extension_requested=1";
@@ -85,7 +85,7 @@ if (($all || $extend) && ISADMIN()) {
                      "   ((UNIX_TIMESTAMP(now()) - ".
                      "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours, ".
                      " IFNULL(aggs.count,0) as aggrows, ".
-                     " agg.aggregate_urn as aggrow_urn".
+                     " agg.aggregate_urn as aggrow_urn ".
                      "  from apt_instances as a ".
                      "left join (".
                      "    select uuid, COUNT(*) AS count ".
@@ -128,7 +128,7 @@ else {
                      "   ((UNIX_TIMESTAMP(now()) - ".
                      "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours, ".
                      " IFNULL(aggs.count,0) as aggrows, ".
-                     " agg.aggregate_urn as aggrow_urn".
+                     " agg.aggregate_urn as aggrow_urn ".
                      "  from apt_instances as a ".
                      "left join (".
                      "    select uuid, COUNT(*) AS count ".
@@ -147,9 +147,9 @@ else {
                      "order by a.creator");
 }
 
-function SPITROWS($all, $name, $result)
+function SPITROWS($showall, $name, $result)
 {
-    global $TBBASE, $urn_mapping;
+    global $TBBASE, $urn_mapping, $all, $extend;
     
     echo "<input class='form-control search' type='search' data-column='all'
              id='experiment_search_${name}' placeholder='Search'>\n";
@@ -159,7 +159,7 @@ function SPITROWS($all, $name, $result)
           <tr>
            <th>Name</th>
            <th>Profile</th>\n";
-    if ($all) {
+    if ($showall || $all) {
         echo "     <th>Creator</th>\n";
     }
     echo "     <th>Project</th>
@@ -231,8 +231,19 @@ function SPITROWS($all, $name, $result)
             $cluster = $urn_mapping[$row["aggregate_urn"]];
         }
         
-        echo " <tr>\n";
-        echo "<td><a href='status.php?uuid=$uuid'>$name</a></td>";
+        echo " <tr><td>\n";
+        if ($all || $extend) {
+            if (ISADMIN()) {
+                echo "<a href='status.php?uuid=$uuid'>$name</a>";
+            }
+            else {
+                echo $name;
+            }
+        }
+        else {
+            echo "<a href='status.php?uuid=$uuid'>$name</a>";
+        }
+        echo "</td>\n";
         if ($profile) {
             echo "<td><a href='show-profile.php?uuid=$profile_uuid'>
                       $profile_name</a></td>";
@@ -240,7 +251,7 @@ function SPITROWS($all, $name, $result)
         else {
             echo "<td>$profile_name</td>\n";
         }
-        if ($all) {
+        if ($showall) {
             echo "<td>$creator</td>";
         }
         if (ISADMIN()) {

@@ -53,7 +53,7 @@ $profile = Profile::Lookup($uuid);
 if (!$profile) {
     SPITUSERERROR("No such profile!");
 }
-if (!$profile->CanView($this_user) && !ISADMIN()) {
+if (!$profile->CanView($this_user) && !(ISADMIN() || ISFOREIGN_ADMIN())) {
     SPITUSERERROR("Not enough permission!");
 }
 $profile_uuid = $profile->profile_uuid();

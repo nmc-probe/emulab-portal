@@ -45,7 +45,7 @@ if (!isset($showby)) {
 RedirectSecure();
 $this_user = CheckLoginOrRedirect();
 
-if (!ISADMIN()) {
+if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
     SPITUSERERROR("You do not have permission to view summary stats");
 }
 SPITHEADER(1);
@@ -60,10 +60,11 @@ function ShowByCreator()
     global $urn_mapping, $TBBASE, $min, $max;
     $whereclause = "";
 
-    if (isset($min) && isset($max)) {
-        $whereclause =
-            "where (UNIX_TIMESTAMP(created) > $min and ".
-            "       UNIX_TIMESTAMP(created) < $max) ";
+    if (isset($min)) {
+        $whereclause = "where UNIX_TIMESTAMP(created) > $min ";
+        if (isset($max)) {
+            $whereclause .= "and UNIX_TIMESTAMP(created) < $max ";
+        }
     }
     
     $query_result =
@@ -122,7 +123,7 @@ function ShowByCreator()
     echo "  <table class='tablesorter' id='tablesorter_sumstats'>
          <thead>
           <tr>
-           <th rowspan=2>UID</th>
+           <th rowspan=1>UID</th>
            <th colspan=3>Totals</th>
            <th colspan=3>APT</th>
            <th colspan=3>Utah</th>
@@ -130,6 +131,8 @@ function ShowByCreator()
            <th colspan=3>Clem</th>
           </tr>
           <tr>
+           <th class='filter-false sorter-false'
+               style='padding-left:1px; text-align:left'>Total</th>
            <th>Expt</th>
            <th>PCs</th>
            <th>PHours</th>
@@ -147,7 +150,7 @@ function ShowByCreator()
            <th>PHours</th>
           </tr>
           <tr>
-           <th class='filter-false sorter-false'>Totals</th>
+           <th class='filter-false sorter-false' data-math='col-count'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 
@@ -227,10 +230,11 @@ function ShowByProject()
     global $urn_mapping, $TBBASE, $min, $max;
     $whereclause = "";
 
-    if (isset($min) && isset($max)) {
-        $whereclause =
-            "where (UNIX_TIMESTAMP(created) > $min and ".
-            "       UNIX_TIMESTAMP(created) < $max) ";
+    if (isset($min)) {
+        $whereclause = "where UNIX_TIMESTAMP(created) > $min ";
+        if (isset($max)) {        
+            $whereclause .= " and UNIX_TIMESTAMP(created) < $max ";
+        }
     }
     
     $query_result =
@@ -292,7 +296,7 @@ function ShowByProject()
     echo "  <table class='tablesorter' id='tablesorter_sumstats'>
          <thead>
           <tr>
-           <th rowspan=2>PID</th>
+           <th rowspan=1>PID</th>
            <th colspan=3>Totals</th>
            <th colspan=3>APT</th>
            <th colspan=3>Utah</th>
@@ -300,6 +304,8 @@ function ShowByProject()
            <th colspan=3>Clem</th>
           </tr>
           <tr>
+           <th class='filter-false sorter-false'
+               style='padding-left:1px; text-align:left'>Total</th>
            <th>Expt</th>
            <th>PCs</th>
            <th>Phours</th>
@@ -317,7 +323,7 @@ function ShowByProject()
            <th>Phours</th>
           </tr>
           <tr>
-           <th class='filter-false sorter-false'>Totals</th>
+           <th class='filter-false sorter-false' data-math='col-count'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' data-math='col-sum'>0</th>
            <th class='filter-false sorter-false' 

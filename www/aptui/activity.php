@@ -42,7 +42,7 @@ RedirectSecure();
 $this_user = CheckLoginOrRedirect();
 SPITHEADER(1);
 
-if (!ISADMIN()) {
+if (!(ISADMIN() || ISFOREIGN_ADMIN())) {
     if (isset($target_user)) {
         if (!$target_user->SameUser($this_user)) {
             SPITUSERERROR("Not enough permission to view this page!");
