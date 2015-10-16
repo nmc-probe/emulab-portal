@@ -68,14 +68,23 @@ function ShowByCreator()
     }
     
     $query_result =
-        DBQueryFatal("select creator,aggregate_urn,count(creator) as ecount, ".
+        DBQueryFatal("(select creator,aggregate_urn,count(creator) as ecount, ".
                      "   sum(physnode_count) as pcount, ".
                      "   truncate(sum(physnode_count * ".
                      "     ((UNIX_TIMESTAMP(destroyed) - ".
                      "       UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
-                     "from apt_instance_history ".
-                     $whereclause .
-                     "group by creator,aggregate_urn");
+                     " from apt_instance_history ".
+                       $whereclause .
+                     " group by creator,aggregate_urn) ".
+                     "union ".
+                     "(select creator,aggregate_urn,count(creator) as ecount,".
+                     "   sum(physnode_count) as pcount, ".
+                     "   truncate(sum(physnode_count * ".
+                     "     ((UNIX_TIMESTAMP(now()) - ".
+                     "       UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
+                     " from apt_instances ".
+                       $whereclause .
+                     " group by creator,aggregate_urn)");
     #
     # Aggregate the per aggregate rows into a single row per user.
     #
@@ -238,14 +247,23 @@ function ShowByProject()
     }
     
     $query_result =
-        DBQueryFatal("select pid,aggregate_urn,count(pid) as ecount, ".
+        DBQueryFatal("(select pid,aggregate_urn,count(pid) as ecount, ".
                      "   sum(physnode_count) as pcount, ".
                      "   truncate(sum(physnode_count * ".
                      "     ((UNIX_TIMESTAMP(destroyed) - ".
                      "       UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
-                     "from apt_instance_history ".
-                     $whereclause .
-                     "group by pid,aggregate_urn");
+                     " from apt_instance_history ".
+                       $whereclause .
+                     " group by pid,aggregate_urn) ".
+                     "union ".
+                     "(select pid,aggregate_urn,count(pid) as ecount, ".
+                     "   sum(physnode_count) as pcount, ".
+                     "   truncate(sum(physnode_count * ".
+                     "     ((UNIX_TIMESTAMP(now()) - ".
+                     "       UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
+                     " from apt_instances ".
+                       $whereclause .
+                     " group by pid,aggregate_urn)");
     #
     # Aggregate the per aggregate rows into a single row per user.
     #
@@ -398,11 +416,20 @@ function ShowByProject()
     }
     echo "</table>";
 }
+$minmax = "";
+if (isset($min)) {
+    $minmax .= "&min=$min";
+    if (isset($max)) {
+        $minmax .= "&max=$max";
+    }
+}
 if ($showby == "user") {
-    echo "<a href='sumstats.php?showby=project'>Show project stats</a><br>\n";
+    echo "<a href='sumstats.php?showby=project$minmax'>".
+        "Show project stats</a><br>\n";
 }
 else {
-    echo "<a href='sumstats.php?showby=user'>Show user stats</a><br>\n"; 
+    echo "<a href='sumstats.php?showby=user$minmax'>".
+        "Show user stats</a><br>\n"; 
 }
 echo "<div class='row'>
         <div class='col-xs-10 col-xs-offset-1'>\n";
