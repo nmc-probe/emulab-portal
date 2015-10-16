@@ -777,7 +777,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    if (!$('#' + jacksIDs[node_id] +
 			   ' .node .node-status-icon').length) {
 			$('#' + jacksIDs[node_id] + ' .node .node-status')
-		            .append(svgimg);
+		            .append(svgimg.cloneNode());
 		    }
 		    $('#' + jacksIDs[node_id] + ' .node .node-status-icon')
 			.attr("href", "fonts/" + icon);
