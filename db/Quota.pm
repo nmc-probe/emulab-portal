@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012,2013 University of Utah and the Flux Group.
+# Copyright (c) 2012-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -179,7 +179,7 @@ sub Create($$) {
     $size      = $argref->{'size'};
     $notes     = $argref->{'notes'} || "";
     
-    if (!($quota_id && $pid && $type && $size)) {
+    if (!($quota_id && $pid && $type && defined($size))) {
 	print STDERR "Quota->Create: Missing required parameters in argref\n";
 	return undef;
     }
@@ -227,7 +227,7 @@ sub Create($$) {
 	}
 	$safe_notes = DBQuoteSpecial($notes);	
     } else {
-	$safe_notes = "";
+	$safe_notes = "NULL";
     }
 
     # Get a unique quota index and slam this stuff into the DB.

@@ -134,6 +134,7 @@ INSERT INTO sitevariables VALUES ('nodecheck/check',NULL,'0','When set, perform 
 INSERT INTO sitevariables VALUES ('general/xenvifrouting',NULL,'0','Non-zero value says to use vif routing on XEN shared nodes.',0);
 INSERT INTO sitevariables VALUES ('general/default_xen_parentosid',NULL,'emulab-ops,XEN43-64-STD','The default parent OSID to use for XEN capable images.',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/usequotas',NULL,'0','If non-zero, enforce per-project dataset quotas',0);
+INSERT INTO sitevariables VALUES ('storage/stdataset/default_quota',NULL,'0','Default quota (in MiB) to use for a project if no current quota is set. Only applies if usequotas is set for this type (0 == pid must have explicit quota, -1 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/maxextend',NULL,'2','Number of times a user can extend the lease (0 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/extendperiod',NULL,'1','Length (days) of each user-requested extention (0 == do not allow extensions)',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/maxidle',NULL,'0','Max time (days) from last use before lease is marked expired (0 == unlimited)',0);
@@ -146,6 +147,7 @@ INSERT INTO sitevariables VALUES ('storage/ltdataset/extendperiod',NULL,'0','Len
 INSERT INTO sitevariables VALUES ('storage/ltdataset/maxlease',NULL,'0','Max time (days) from creation before lease is marked expired (0 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('storage/stdataset/autodestroy',NULL,'1','If non-zero, destroy expired datasets after grace period, otherwise lock them',0);
 INSERT INTO sitevariables VALUES ('storage/ltdataset/usequotas',NULL,'1','If non-zero, enforce per-project dataset quotas',0);
+INSERT INTO sitevariables VALUES ('storage/ltdataset/default_quota',NULL,'0','Default quota (in MiB) to use for a project if no current quota is set. Only applies if usequotas is set for this type (0 == pid must have explicit quota, -1 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('storage/ltdataset/maxsize',NULL,'0','Max size (MiB) of a dataset (0 == unlimited)',0);
 INSERT INTO sitevariables VALUES ('storage/ltdataset/graceperiod',NULL,'180','Time (days) before an expired dataset will be destroyed (0 == no grace period)',0);
 INSERT INTO sitevariables VALUES ('storage/ltdataset/maxidle',NULL,'180','Max time (days) from last use before lease is marked expired (0 == unlimited)',0);

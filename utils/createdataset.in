@@ -72,7 +72,7 @@ my %attrs = ();
 my $read_access;
 my $write_access;
 
-my $qname = "global_ltdataset";
+my $qprefix = "global_";
 my $quota;
 
 # Valid dataset types
@@ -384,9 +384,40 @@ if (Lease->Lookup($pid, $gid, $lname)) {
 # must be below the project limit.
 #
 if ($vars->{"usequotas"}) {
+    my $qname = $qprefix . $dstype;
     $quota = Quota->Lookup($pid, $qname);
     if (!defined($quota)) {
-	fatal("No $qname quota associated with $pid.");
+	#
+	# XXX Quota does not exist. See if there is a system-wide
+	# default and use that if so (also, create a quota entry).
+	#
+	my $qval = $vars->{"default_quota"};
+	if ($qval) {
+	    my $qargs = {
+		"quota_id" => $qname,
+		"pid" => $pid,
+		"type" => $dstype,
+		"size" => 0,
+		"notes" => "SystemDefault"
+	    };
+	    $quota = Quota->Create($qargs);
+
+	    # XXX set size explicitly because of special "unlimited" value
+	    if (defined($quota)) {
+		my $rv;
+		if ($qval == -1) {
+		    $rv = $quota->SetUnlimited();
+		} else {
+		    $rv = $quota->SetSize($qval);
+		}
+		if ($rv) {
+		    print STDERR "*** could not set quota size $qval\n";
+		}
+	    }
+	}
+	if (!defined($quota)) {
+	    fatal("No $qname quota associated with $pid.");
+	}
     }
 
     #
