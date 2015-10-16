@@ -30,7 +30,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     var modified     = false;
     var editor       = null;
     var myCodeMirror = null;
-    var genilibwarned= false;
     var isppprofile  = false;
     var isadmin      = 0; 
     var multisite    = 0; 
@@ -424,8 +423,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    ExtractFromRspec();
 	    // We also got a geni-lib script, so show the XML button.
 	    if (gotscript) {
-		// No need to warn if starting with a script.
-		genilibwarned = 1;
 		$('#show_xml_modal_button').removeClass("hidden");
 		$('#profile_instructions').prop("readonly", true);
 		$('#profile_description').prop("readonly", true);
@@ -1076,15 +1073,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     //
     function checkScript(script)
     {
-	// Beta feature; warn user, prompt for confirmation.
-	if (!genilibwarned) {
-	    genilibwarned = 1;
-	    var ok = confirm("geni-lib scripts are an experimental feature. "+
-			     "Do you wish to continue?");
-	    if (ok == false) {
-		return;
-	    }
-	}
 	// Save for later.
 	$('#profile_script_textarea').val(script);
 
