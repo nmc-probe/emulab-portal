@@ -300,7 +300,8 @@ sub DeleteUser()
     }
 
     # XXX we only handle homedirs of the form /users/$user here...
-    if ($hdir ne "$USERROOT/$user" || WhackDir($USERROOT, $user)) {
+    if ($hdir ne "$USERROOT/$user" ||
+	(-e $hdir && WhackDir($USERROOT, $user))) {
 	fatal("Could not destroy $user homedir $hdir");
     }
 
