@@ -47,6 +47,16 @@ if ($query_result) {
 }
 
 #
+# Number of experiments ever
+#
+$query_result =
+    DBQueryFatal("select count(uuid) from apt_instance_history where servername='www.cloudlab.us'");
+if ($query_result) {
+    $row = mysql_fetch_array($query_result);
+    $blob["total_experiments"] = $row[0];
+}
+
+#
 # Number Cloudlab projects.
 #
 $query_result =
