@@ -26,6 +26,11 @@ include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
 
+# 
+# Allow this to be fetched from pages loaded anywhere
+#
+header("Access-Control-Allow-Origin: *");
+
 #
 # For the Cloudlab front page, to display some current stats.
 #
