@@ -820,7 +820,7 @@ function Do_Submit()
                                        "expires" => $expires,
                                        "domain"  => $cookiedomain),
                                  "quickvm_authkey" =>
-                                 array("value"   => $this_creator->auth_token(),
+                                 array("value"   => $creator->auth_token(),
                                        "expires" => $expires,
                                        "domain"  => $cookiedomain));
         session_destroy();
