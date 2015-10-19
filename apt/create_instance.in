@@ -331,14 +331,6 @@ $errmsg = "Bad dataset";
 if (APT_Profile::CheckDatasets($rspecstr, $profile->pid(), \$errmsg)) {
     UserError($errmsg);
 }
-#
-# A temporary hack to make sure that the user does not try to run
-# an x386 image on the Cloudlab cluster (ARMs). This will eventually
-# get replaced with Jon's constraint checking code.
-#
-if ($profile->CheckNodeConstraints($default_aggregate_urn, \$errmsg)) {
-    UserError($errmsg);
-}
 
 #
 # Use ssh-keygen to see if the key is valid and convertable. We first
