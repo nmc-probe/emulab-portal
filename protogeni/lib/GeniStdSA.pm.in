@@ -1281,7 +1281,7 @@ sub LookupProjectsForMember()
 
         my $project= Project->Lookup("$project_name");
         return undef if (!defined($project));
-        my $project_urn = GeniHRN::Generate(@OURDOMAIN@, 'project', $project_name);
+        my $project_urn = GeniHRN::Generate('@OURDOMAIN@', 'project', $project_name);
         push(@{ $result }, { 
                 'PROJECT_URN' => $project_urn,
                 'PROJECT_ROLE' => $geni_role,
