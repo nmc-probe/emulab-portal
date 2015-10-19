@@ -1830,6 +1830,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	      {
 		"id": "urn:publicid:IDN+emulab.net+authority+cm",
 		"name": "Emulab"
+	      },
+	      {
+		"id": "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm",
+		"name": "UGent WALL2"
 	      }
 	    ]
 		},

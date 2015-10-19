@@ -38,7 +38,8 @@ $urn_mapping =
           "urn:publicid:IDN+emulab.net+authority+cm"            => "Emulab",
           "urn:publicid:IDN+utahddc.geniracks.net+authority+cm" => "DDC",
           "urn:publicid:IDN+stitch.geniracks.net+authority+cm"  => "UStitch",
-          "urn:publicid:IDN+al2s.internet2.edu+authority+am"    => "AL2S");
+          "urn:publicid:IDN+al2s.internet2.edu+authority+am"    => "AL2S",
+          "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm" => "UGent");
 
 $freenodes_mapping =
     array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      =>
@@ -324,6 +325,10 @@ class Instance
                           'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );
+          if (ISADMIN()) {
+              $am_array["UGent WALL2"] =
+                  "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm";
+          }
         } else {
           $am_array = array(
                           'Cloudlab Utah' =>

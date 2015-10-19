@@ -877,6 +877,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $("#cluster_selector").addClass("hidden");
 	    // Clear the form data.
 	    $("#cluster_selector").html("");
+	    // Tell the server not to whine about no aggregate selection.
+	    $("#fully_bound").val("1");
 	    return;
 	}
 
