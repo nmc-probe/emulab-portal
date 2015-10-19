@@ -469,8 +469,14 @@ sub NewImage($)
 	}
     }
     my %types_known_working = ();
-    foreach my $type (split(",", $blob->{'types_known_working'}), @X86TYPES) {
+    foreach my $type (split(",", $blob->{'types_known_working'})) {
 	$types_known_working{$type} = $type;
+    }
+    # Until we have image testing.
+    if ($blob->{'arch'} ne "aarch64") {
+	foreach my $type (@X86TYPES) {
+	    $types_known_working{$type} = $type;
+	}
     }
     
     #
