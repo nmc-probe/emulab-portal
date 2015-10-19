@@ -81,9 +81,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	$('#main-body').html(html);
 
 	var jqxhr =
-	    $.getJSON('https://ops.emulab.net/servicemon/?names=urn&callback=?')
+	    $.get('https://ops.emulab.net/servicemon/?names=urn')
 	    .done(function(data) {
-		monitor = data;
+		monitor = JSON.parse(data);
 		CreateClusterStatus();
 	    }).error(function(a) {
 		console.log(a);
