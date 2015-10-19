@@ -1788,9 +1788,10 @@ sub getChannelIfIndex($@) {
 
     # If we don't yet have a portchannel index, and a single port was
     # passed in, just return the ifindex for that port (single wire trunks).
-    if (!$ifindex && scalar(@ports) == 1) {
-	if (exists($self->{IFINDEX}{$ports[0]})) {
-	    $ifindex = $self->{IFINDEX}{$ports[0]};
+    if (!$ifindex && scalar(@modports) == 1) {
+	$self->debug("$id: no portchannel found, single port passed in: $modports[0]\n");
+	if (exists($self->{IFINDEX}{$modports[0]})) {
+	    $ifindex = $self->{IFINDEX}{$modports[0]};
 	}
     }
 
