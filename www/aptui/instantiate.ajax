@@ -652,10 +652,13 @@ function CheckStep2()
                 }
             }
         }
-        elseif (! (isset($formfields["where"]) &&
-                   $formfields["where"] != "" &&
-                   array_key_exists($formfields["where"], $am_array))) {
-            $errors["where"] = "Missing aggregate selection";
+        elseif (!isset($formfields["fully_bound"]) ||
+                $formfields["fully_bound"] == "0") {
+            if (!(isset($formfields["where"]) &&
+                  $formfields["where"] != "" &&
+                  array_key_exists($formfields["where"], $am_array))) {
+                $errors["where"] = "Missing aggregate selection";
+            }
         }
         
         #
