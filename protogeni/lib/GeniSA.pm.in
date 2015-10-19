@@ -891,6 +891,7 @@ sub GetKeys($)
     my $creds    = $argref->{'credentials'};
     # Hidden option. Remove later.
     my $version  = $argref->{'version'} || 1;
+    my $ignore_subauthority;
 
     if (! (defined($cred) || defined($creds))) {
 	return GeniResponse->MalformedArgsResponse();
