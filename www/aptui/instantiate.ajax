@@ -605,6 +605,7 @@ function CheckStep2()
 {
     global $this_user;
     global $ajax_args;
+    global $ISAPT, $ISCLOUD;
 
     if (!isset($ajax_args["formfields"])) {
 	SPITAJAX_ERROR(-1, "Missing formfields");
@@ -651,6 +652,10 @@ function CheckStep2()
                     break;
                 }
             }
+        }
+        elseif ($ISAPT) {
+            # No choice
+            ;
         }
         elseif (!isset($formfields["fully_bound"]) ||
                 $formfields["fully_bound"] == "0") {
@@ -703,7 +708,7 @@ function Do_Submit()
 {
     global $this_user;
     global $ajax_args;
-    global $TBAUTHDOMAIN;
+    global $TBAUTHDOMAIN, $ISAPT;
 
     if (!isset($ajax_args["formfields"])) {
 	SPITAJAX_ERROR(1, "Missing formfields");
@@ -747,7 +752,10 @@ function Do_Submit()
     $sitemap = array();
 
     if ($this_user) {
-        if (isset($formfields["sites"]) && is_array($formfields["sites"])) {
+        if ($ISAPT) {
+	    $aggregate_urn = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+        }
+        elseif (isset($formfields["sites"]) && is_array($formfields["sites"])) {
             while (list($siteid, $am) = each($formfields["sites"])) {
                 if (array_key_exists($am, $am_array)) {
                     $sitemap[$siteid] = $am_array[$am];
