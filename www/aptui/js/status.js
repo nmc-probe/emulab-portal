@@ -1056,6 +1056,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Remember passwords to show user later. 
     var nodePasswords = {};
 
+    // Per node context menus.
+    var contextMenus = {};
+
     //
     // Show a context menu over nodes in the topo viewer.
     //
@@ -1063,25 +1066,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     {
 	var event = jacksevent.event;
 	var client_id = jacksevent.client_id;
-
-	/*
-	 * Make a copy of the master menu if we have not already.
-	 */
 	var cid = "context-menu-" + client_id;
-	if (! $('#' + cid).length) {
-	    var clone  = $("#context-menu").clone();
 
-	    // Change the ID of the clone so its unique.
-	    clone.attr('id', cid);
-	    
-	    // Insert into the context div.
-	    $('#context').append(clone);
-
-	    // If no console, then grey out the options.
-	    if (!_.has(consolenodes, client_id)) {
-		$(clone).find("li[id=console]").addClass("disabled");
-		$(clone).find("li[id=consolelog]").addClass("disabled");
-	    }
+	if (!_.has(contextMenus, client_id)) {
+	    return;
 	}
 
 	//
@@ -1230,6 +1218,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		var node   = $(this).attr("client_id");
 		var login  = $(this).find("login");
+		var stype  = $(this).find("sliver_type");
 		var coninfo= this.getElementsByTagNameNS(EMULAB_NS, 'console');
 		var vnode  = this.getElementsByTagNameNS(EMULAB_NS, 'vnode');
 		var href   = "n/a";
@@ -1249,6 +1238,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			.html($(vnode).attr("name"));
 		    $('#listview-row-' + node + " [name=type]")
 			.html($(vnode).attr("hardware_type"));
+		}
+
+		if (stype.length &&
+		    $(stype).attr("name") === "emulab-blockstore") {
+		    $('#listview-row-' + node + " [name=menu]").text("n/a");
+		    return;
 		}
 		
 		if (login.length && dossh) {
@@ -1355,6 +1350,25 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			DoSnapshotNode(node);
 			return false;
 		    });
+
+
+		/*
+		 * Make a copy of the master context menu and init.
+		 */
+		var clone = $("#context-menu").clone();
+
+		// Change the ID of the clone so its unique.
+		clone.attr('id', "context-menu-" + node);
+	    
+		// Insert into the context div.
+		$('#context').append(clone);
+
+		// If no console, then grey out the options.
+		if (!_.has(consolenodes, node)) {
+		    $(clone).find("li[id=console]").addClass("disabled");
+		    $(clone).find("li[id=consolelog]").addClass("disabled");
+		}
+		contextMenus[node] = clone;
 		
 		nodecount++;
 	    });
