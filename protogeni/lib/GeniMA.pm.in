@@ -450,7 +450,7 @@ sub UpdateMember($$$)
 {
     my ($member_urn, $credential_args, $options) = @_;
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-				"update MEMBER is unimplemented");
+				"Update Member is Unimplemented");
 }
 
 sub GetCredentials($$$)
@@ -464,14 +464,16 @@ sub GetCredentials($$$)
     my $credential_args = GeniStd::FilterCredentials($credential_args);
     if (@{ $credential_args }) {
 	($credential,$speaksfor) = GeniStd::CheckCredentials($credential_args);
-        return $credential if (GeniResponse::IsResponse($credential));
+	return $credential
+	    if (GeniResponse::IsResponse($credential));
     }
     my $args = { "urn" => $member_urn };
     if (defined($speaksfor)) {
 	$args->{"credential"} = $speaksfor->asString();
     }
     $credential = GeniSA::GetCredential($args);
-    return $credential if (GeniResponse::IsError($credential));
+    return $credential
+	if (GeniResponse::IsError($credential));
 
     my $blob = {
 	"geni_type" => "geni_sfa",
