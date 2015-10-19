@@ -298,6 +298,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                             My History</a></li>\n";
        if (ISADMIN() || ISFOREIGN_ADMIN()) {
            echo "  <li class='divider'></li>\n";
+           echo "  <li><a href='dashboard.php'>DashBoard</a></li>";
            $then = time() - (30 * 3600 * 24);
            echo "  <li><a href='activity.php?min=$then'>
                             History Data</a></li>

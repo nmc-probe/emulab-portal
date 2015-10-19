@@ -45,6 +45,11 @@ $routing = array("myprofiles" =>
 						      "Do_CreateSecret",
 						 "VerifySpeaksfor" =>
 						      "Do_VerifySpeaksfor")),
+		 "dashboard" =>
+			array("file"    => "dashboard.ajax",
+			      "guest"   => true,
+			      "methods" => array("GetStats" =>
+						      "Do_GetStats")),
 		 "instantiate" =>
 			array("file"    => "instantiate.ajax",
 			      "guest"   => true,

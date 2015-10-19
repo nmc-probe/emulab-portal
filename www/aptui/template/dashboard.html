@@ -1,0 +1,173 @@
+<style>
+.panel-body-dashboard {
+	padding: 5px;
+}
+
+</style>
+<div class='row'>
+  <div class='col-sm-6'>
+    <div class='panel panel-default' id='experiments-started-panel'>
+      <div class="panel-heading">
+	<h5><center>Experiment Activity</center></h5>
+      </div>
+      <div class='panel-body panel-body-dashboard'>
+	<table class="table table-condensed table-bordered"
+	       id='experiments-started-table'>
+	  <thead>
+	    <tr>
+	      <td></td>
+	      <% _.each(dashboard.started, function(value, key) { %>
+		<th><%- key %></th>
+	      <% }); %>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <tr>
+	      <td>Started</td>
+	      <% _.each(dashboard.started, function(value, key) { %>
+		<td><%- value %></td>
+	      <% }); %>
+	    </tr>
+	    <tr class="hidden">
+	      <td>Errors</td>
+	      <% _.each(dashboard.errors, function(value, key) { %>
+		<td><%- value %></td>
+	      <% }); %>
+	    </tr>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+  <div class='col-sm-6'>
+    <div class='panel panel-default' id='experiments-latest-panel'>
+      <div class="panel-heading">
+	<h5><center>Latest Experiments</center></h5>
+      </div>
+      <div class='panel-body panel-body-dashboard'>
+	<table class="table table-condensed table-bordered"
+	       id='experiments-latest-table'>
+	  <thead>
+	    <tr>
+	      <th>Name</th>
+	      <th>Creator</th>
+	      <th>Nodes</th>
+	      <th>Created</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <% _.each(dashboard.latest, function(value, key) { %>
+	      <tr>
+		<% if (!isadmin) { %>
+		  <td><%- key %></td>
+		  <td><%- value.creator %></td>
+		<% } %>
+		<% if (isadmin) { %>
+		  <td><a href="status.php?uuid=<%- value.uuid %>">
+		    <%- key %></a></td>
+		  <td><a href="https://www.emulab.net/showuser.php3?user=<%- value.creator_idx %>"><%- value.creator %></a></td>
+   	        <% } %>
+		<td><%- value.physnode_count %></td>
+		<td class="format-date"><%- value.created %></td>
+	      </tr>
+	    <% }); %>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='row'>
+  <div class='col-sm-4'>
+    <div class='panel panel-default' id='experiments-users-panel'>
+      <div class="panel-heading">
+	<h5><center>Heaviest Users (Current)</center></h5>
+      </div>
+      <div class='panel-body panel-body-dashboard'>
+	<table class="table table-condensed table-bordered"
+	       id='experiments-latest-table'>
+	  <thead>
+	    <tr>
+	      <th>Name</th>
+	      <th>Nodes</th>
+	      <th>Expts</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <% _.each(dashboard.heaviest_users, function(value, key) { %>
+	      <tr>
+		<% if (!isadmin) { %>
+		  <td><%- key %></td>
+		<% } %>
+		<% if (isadmin) { %>
+		  <td><a href="https://www.emulab.net/showuser.php3?user=<%- value.creator_idx %>"><%- key %></a></td>
+   	        <% } %>
+		<td><%- value.physnode_count %></td>
+		<td><%- value.experiment_count %></td>
+	      </tr>
+	    <% }); %>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+  <div class='col-sm-4'>
+    <div class='panel panel-default' id='experiments-projects-panel'>
+      <div class="panel-heading">
+	<h5><center>Heaviest Projects (Current)</center></h5>
+      </div>
+      <div class='panel-body panel-body-dashboard'>
+	<table class="table table-condensed table-bordered"
+	       id='experiments-latest-table'>
+	  <thead>
+	    <tr>
+	      <th>Name</th>
+	      <th>Nodes</th>
+	      <th>Expts</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <% _.each(dashboard.heaviest_projects, function(value, key) { %>
+	      <tr>
+		<% if (!isadmin) { %>
+		  <td><%- key %></td>
+		<% } %>
+		<% if (isadmin) { %>
+		  <td><a href="https://www.emulab.net/showproject.php3?pid=<%- key %>"><%- key %></a></td>
+   	        <% } %>
+		<td><%- value.physnode_count %></td>
+		<td><%- value.experiment_count %></td>
+	      </tr>
+	    <% }); %>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+  <div class='col-sm-4'>
+    <div class='panel panel-default' id='profiles-panel'>
+      <div class="panel-heading">
+	<h5><center>Popular Profiles (Epoch)</center></h5>
+      </div>
+      <div class='panel-body panel-body-dashboard'>
+	<table class="table table-condensed table-bordered">
+	  <thead>
+	    <tr>
+	      <th>Name</th>
+	      <th>Count</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <% _.each(dashboard.heaviest_profiles, function(value, key) { %>
+	      <tr>
+		<td><a href="show-profile.php?uuid=<%- value.uuid %>">
+		  <%- value.name %></a></td>
+		<td><%- value.count %></td>
+	      </tr>
+	    <% }); %>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+</div>

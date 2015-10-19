@@ -1,0 +1,159 @@
+<?php
+#
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+chdir("..");
+chdir("apt");
+include_once("instance_defs.php");
+
+#
+# Number of experiments started over range of time periods. 
+#
+$scales  = array("Day"   => (24 * 3600),
+                 "Week"  => (24 * 3600 * 7),
+                 "Month" => (24 * 3600 * 30),
+                 "Year"  => (24 * 3600 * 365),
+                 "Epoch" => time());
+
+#
+# Server side of getting dashboard stats.
+#
+function Do_GetStats()
+{
+    global $scales;
+    
+    $started = array();
+
+    foreach ($scales as $key => $age) {
+        $query_result =
+            DBQueryFatal("select ".
+                 "(select count(uuid) from apt_instances ".
+                 " where created > DATE_SUB(now(),interval $age second)),".
+                 "(select count(uuid) from apt_instance_history ".
+                 " where created > DATE_SUB(now(),interval $age second))");
+        $row = mysql_fetch_array($query_result);
+        $started[$key] = $row[0] + $row[1];
+    }
+    $dashboard = array("started" => $started,
+                       "errors"  => array("Day"   => "n/a",
+                                          "Week"  => "n/a",
+                                          "Month" => "n/a",
+                                          "Year"  => "n/a",
+                                          "Epoch" => "n/a"));
+
+    #
+    # What are most recent swapins
+    #
+    $latest = array();
+
+    $query_result =
+        DBQueryFatal("select name,uuid,creator,creator_idx,".
+                     "  physnode_count,created ".
+                     "from apt_instances ".
+                     "order by created desc limit 5");
+    while ($row = mysql_fetch_array($query_result)) {
+        $name        = $row["name"];
+        $uuid        = $row["uuid"];
+        $creator     = $row["creator"];
+        $creator_idx = $row["creator_idx"];
+        $pcount      = $row["physnode_count"];
+        $created     = $row["created"];
+
+        $latest[$name] = array("uuid" => $uuid,
+                               "creator_idx" => $creator_idx,
+                               "creator" => $creator,
+                               "physnode_count" => $pcount,
+                               "created" => $created);
+    }
+    $dashboard["latest"] = $latest;
+
+    #
+    # Who are the heaviest users
+    #
+    $users    = array();
+
+    $query_result =
+        DBQueryFatal("select creator,creator_idx,count(creator) as ecount, ".
+                     "   sum(physnode_count) as pcount ".
+                     "from apt_instances group by creator ".
+                     "order by pcount desc limit 10");
+    while ($row = mysql_fetch_array($query_result)) {
+        $creator     = $row["creator"];
+        $creator_idx = $row["creator_idx"];
+        $pcount      = $row["pcount"];
+        $ecount      = $row["ecount"];
+
+        $users[$creator] = array("creator_idx" => $creator_idx,
+                                 "physnode_count" => $pcount,
+                                 "experiment_count" => $ecount);
+    }
+    $dashboard["heaviest_users"] = $users;
+
+    #
+    # Who are the heaviest projects
+    #
+    $projects = array();
+
+    $query_result =
+        DBQueryFatal("select pid,count(pid) as ecount, ".
+                     "   sum(physnode_count) as pcount ".
+                     "from apt_instances group by pid ".
+                     "order by pcount desc limit 10");
+    while ($row = mysql_fetch_array($query_result)) {
+        $pid     = $row["pid"];
+        $pcount  = $row["pcount"];
+        $ecount  = $row["ecount"];
+
+        $projects[$pid] = array("pid" => $pid,
+                                "physnode_count" => $pcount,
+                                "experiment_count" => $ecount);
+    }
+    $dashboard["heaviest_projects"] = $projects;
+
+    #
+    # Most popular profiles (since the Epoch).
+    #
+    $profiles = array();
+
+    $query_result =
+        DBQueryFatal("select p.uuid,p.name,count(h.profile_id) as count ".
+                     "   from apt_instance_history as h ".
+                     "left join apt_profiles as p on p.profileid=h.profile_id ".
+                     "group by profile_id order by count desc limit 10");
+    while ($row = mysql_fetch_array($query_result)) {
+        $name       = $row["name"];
+        $count      = $row["count"];
+        $uuid       = $row["uuid"];
+
+        $profiles[$name] = array("name"  => $name,
+                                 "uuid"  => $uuid,
+                                 "count" => $count);
+    }
+    $dashboard["heaviest_profiles"] = $profiles;
+
+    SPITAJAX_RESPONSE($dashboard);
+}
+
+# Local Variables:
+# mode:php
+# End:
+?>
