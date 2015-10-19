@@ -78,4 +78,14 @@ if ($query_result) {
     $blob["distinct_users"] = mysql_num_rows($query_result);
 }
 
+#
+# Number of profiles (both public and private)
+#
+$query_result =
+    DBQueryFatal("select count(uuid) from apt_profiles");
+if ($query_result) {
+    $row = mysql_fetch_array($query_result);
+    $blob["profiles"] = $row[0];
+}
+
 echo json_encode($blob);
