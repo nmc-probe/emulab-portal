@@ -42,6 +42,7 @@ function Do_GetStats()
     global $scales;
     
     $started = array();
+    $errors  = array();
 
     foreach ($scales as $key => $age) {
         $query_result =
@@ -52,13 +53,15 @@ function Do_GetStats()
                  " where created > DATE_SUB(now(),interval $age second))");
         $row = mysql_fetch_array($query_result);
         $started[$key] = $row[0] + $row[1];
+
+        $query_result =
+            DBQueryFatal("select count(uuid) from apt_instance_failures ".
+                    " where created > DATE_SUB(now(),interval $age second)");
+        $row = mysql_fetch_array($query_result);
+        $errors[$key] = $row[0] + $row[1];
     }
     $dashboard = array("started" => $started,
-                       "errors"  => array("Day"   => "n/a",
-                                          "Week"  => "n/a",
-                                          "Month" => "n/a",
-                                          "Year"  => "n/a",
-                                          "Epoch" => "n/a"));
+                       "errors"  => $errors);
 
     #
     # What are most recent swapins

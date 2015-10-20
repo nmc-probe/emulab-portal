@@ -782,6 +782,9 @@ if ($usestitcher) {
     if ($rval) {
 	$slice->UnLock();
 	$instance->SetStatus("failed");
+	$instance->RecordError($rval,
+			       (defined($webtask->output()) ?
+				$webtask->output() : ""));
 	$webtask->Exited(1);
 	exit($rval);
     }
@@ -794,6 +797,9 @@ else {
     # error in the web ui). 
     #
     if ($rval) {
+	$instance->RecordError($rval,
+			       (defined($webtask->output()) ?
+				$webtask->output() : ""));
 	if ($rval == GENIRESPONSE_BADARGS ||
 	    $rval == GENIRESPONSE_INSUFFICIENT_NODES ||
 	    $rval == GENIRESPONSE_INSUFFICIENT_MEMORY ||
@@ -982,6 +988,9 @@ $slice->UnLock();
 if ($failed) {
     $instance->SetStatus("failed");
     # Webtask exit status set above.
+    $instance->RecordError($webtask->exitcode(),
+			   (defined($webtask->output()) ?
+			    $webtask->output() : ""));
 }
 else {
     $instance->SetStatus("ready");

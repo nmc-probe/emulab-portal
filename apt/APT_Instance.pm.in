@@ -482,7 +482,6 @@ sub Profile($)
 # Record a history entry.
 # We do this when the instance is terminated. 
 #
-
 sub RecordHistory($$)
 {
     my ($self, $flags) = @_;
@@ -500,6 +499,22 @@ sub RecordHistory($$)
 		"       extension_count,extension_days, ".
 		"       physnode_count,virtnode_count, ".
 		"       servername,rspec,params,manifest ".
+		" from apt_instances where uuid='$uuid'")
+	or return -1;
+
+    return 0;
+}
+
+sub RecordError($$$)
+{
+    my ($self, $exitcode, $message) = @_;
+    my $uuid = $self->uuid();
+    my $safe_message = DBQuoteSpecial($message);
+
+    DBQueryWarn("replace into apt_instance_failures ".
+		"select uuid,name,profile_id,profile_version,slice_uuid, ".
+		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
+		"       created,'$exitcode',$safe_message ".
 		" from apt_instances where uuid='$uuid'")
 	or return -1;
 

@@ -15,6 +15,22 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+
+--
+-- Table structure for table `image_permissions`
+--
+
+DROP TABLE IF EXISTS `image_permissions`;
+CREATE TABLE `image_permissions` (
+  `urn` varchar(128) default NULL,
+  `imagename` varchar(30) NOT NULL default '',
+  `image_uuid` varchar(40) NOT NULL default '',
+  `permission_type` enum('user','project') NOT NULL default 'user',
+  `permission_urn` varchar(128) NOT NULL default '',
+  PRIMARY KEY  (`urn`,`permission_urn`),
+  UNIQUE KEY `uuidurn` (`image_uuid`,`permission_urn`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
 --
 -- Table structure for table `image_versions`
 --
