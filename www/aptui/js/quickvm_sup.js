@@ -123,7 +123,11 @@ function maketopmap(divname, xml, showinfo, withoutMultiSite)
 	      },
 	      {
 		"id": "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm",
-		"name": "UGent WALL2"
+		"name": "iMinds Virt Wall 2"
+	      },
+	      {
+		"id": "urn:publicid:IDN+uky.emulab.net+authority+cm",
+		"name": "UKY Emulab"
 	      }
 	    ]
 	  }

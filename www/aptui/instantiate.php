@@ -306,7 +306,7 @@ function SPITFORM($formfields, $newuser, $errors)
     #TEMPORARILY HARD CODED. Used to separate federated sites
     if ($ISCLOUD) {
         echo "<script type='text/javascript'>\n";
-        echo "    window.FEDERATEDLIST  = ['IG UtahDDC', 'Emulab', 'APT Utah', 'UGent WALL2'];\n";
+        echo "    window.FEDERATEDLIST  = ['IG UtahDDC', 'Emulab', 'APT Utah', 'iMinds Virt Wall 2', 'UKY Emulab'];\n";
         echo "</script>\n";
     }
 

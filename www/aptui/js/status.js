@@ -1825,7 +1825,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	      },
 	      {
 		"id": "urn:publicid:IDN+apt.emulab.net+authority+cm",
-		"name": "Apt Utah"
+		"name": "APT Utah"
 	      },
 	      {
 		"id": "urn:publicid:IDN+emulab.net+authority+cm",
@@ -1833,7 +1833,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	      },
 	      {
 		"id": "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm",
-		"name": "UGent WALL2"
+		"name": "iMinds Virt Wall 2"
+	      },
+	      {
+		"id": "urn:publicid:IDN+uky.emulab.net+authority+cm",
+		"name": "UKY Emulab"
 	      }
 	    ]
 		},
