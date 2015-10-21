@@ -607,6 +607,15 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     $use_imagetracker = 1
 	if ($use_imagetracker && $usetracker);
 
+    #
+    # Watch for sites that do not support openflow, we want to fail early.
+    #
+    my $no_openflow = 0;
+    if (!GetSiteVar('general/no_openflow', \$no_openflow)){
+	# Cannot get the value, say no.
+	$no_openflow = 1;
+    }
+
     # Figure out if user has a credentials that exempts him
     # from the following policy. If external users are blocked access
     # and he presents a credential that exempts him from it, 
@@ -2353,6 +2362,12 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					  "uselinkdelay"=> $uselinkdelay,
 					 });
 	    if ($ofcontroller && $ofcontroller ne "") {
+		if ($no_openflow) {
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				"$lanname: No openflow at this aggregate!");
+		    goto bad;
+		}
 		$virtlan->ofenabled(1);
 		$virtlan->ofcontroller($ofcontroller);
 	    }
@@ -7209,7 +7224,6 @@ sub HandleBlockstore($$$$$$@)
 		if (!$image->AccessCheck($geniuser->emulab_user(),
 					 TB_IMAGEID_READINFO())) {
 		    $message = "Not enough permission to use $dataset_id";
-		    $errorcode = GENIRESPONSE_FORBIDDEN;
 		    goto bad;
 		}
 	    }
@@ -7221,7 +7235,6 @@ sub HandleBlockstore($$$$$$@)
 		if (! ($image->global() ||
 		       $image->pid() eq $experiment->pid())) {
 		    $message = "Not enough permission to use $dataset_id";
-		    $errorcode = GENIRESPONSE_FORBIDDEN;
 		    goto bad;
 		}
 	    }
@@ -7292,7 +7305,6 @@ sub HandleBlockstore($$$$$$@)
 		# Dataset must already exist.
 		#
 		$message = "No such dataset for $bsname: $dataset_id";
-		$errorcode = GENIRESPONSE_SEARCHFAILED;
 		goto bad;
 	    }
 	    if ($PROTOGENI_LOCALUSER) {
@@ -7303,7 +7315,6 @@ sub HandleBlockstore($$$$$$@)
 		    if ($lease->AccessCheck($geniuser->emulab_user(),
 					    LEASE_ACCESS_READ()));
 		$message = "Not enough permission to use dataset: $dataset_id";
-		$errorcode = GENIRESPONSE_FORBIDDEN;
 		goto bad;
 	    }
 	    # Local user can use their own local lease. 
@@ -7320,7 +7331,6 @@ sub HandleBlockstore($$$$$$@)
 	    if ($experiment->pid() ne $lease->pid()) {
 		$message = "Not allowed to use dataset from a ".
 		    "different SA: $dataset_id";
-		$errorcode = GENIRESPONSE_FORBIDDEN;
 		goto bad;
 	    }
 	    # Same SA, same project (subauth). Always allowed.
@@ -7351,7 +7361,6 @@ sub HandleBlockstore($$$$$$@)
 	    }
 	    # If we get here, its not allowed.
 	    $message = "No permission to use dataset $dataset_id";
-	    $errorcode = GENIRESPONSE_FORBIDDEN;
 	    goto bad;
 
 	  permokay:
