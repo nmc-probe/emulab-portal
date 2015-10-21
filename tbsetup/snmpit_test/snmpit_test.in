@@ -1988,35 +1988,7 @@ sub doVlansFromTables($$@) {
 		    delete($trunkedPorts{$port->toString()});
 		}
 	    }
-	    
-	    #
-	    # Set openflow
-	    #
-	    # A much more right place for the openflow settings is CreateOneVlan,
-	    # however, it is called by sync vlan function and others, which don't destroy
-	    # the existing lan_attributes rows.
-	    #
-	    # TODO: Move this part to CreateOneVlan and Make sure the existed 
-	    #       vlan_attributes rows are deleted
-	    #
-	    my $ofenabled;
-	    $vlan->GetAttribute("ofenabled", \$ofenabled);
-	    if (defined($ofenabled) && $ofenabled == 1) {
-	        my $ofcontroller;
-	        $vlan->GetAttribute("ofcontroller", \$ofcontroller);
-	        if (defined($ofcontroller) && $ofcontroller ne "") {
-	            $errors += doSetOpenflowController($stacks, $vlanid,
-						       $ofcontroller);
-	        }
-	        $errors += doEnableOpenflowListener($stacks, $vlanid);
-	        $errors += doOpenflowEnable($stacks, $vlanid);
-	    
-	        # doEnableOpenflowListener updates the lan_arrtibutes table,
-	        # so vlan should refresh itself. But here vlan will not be
-	        # used any more, so maybe we can comment this refresh.
-	        $vlan->Refresh();	    
-	    }
-	    
+
 	    # Delete this vlan from the list that will be created below.
 	    delete($vlans{"$vlanid"});
 	}
@@ -2057,34 +2029,7 @@ sub doVlansFromTables($$@) {
 	my $vlanid = $vlan->id();
 	my @ports  = getVlanPorts($vlanid);
 
-	$errors += CreateOneVlan($experiment, $stack, $vlanid, @ports);
-	
-	#
-	# Set openflow
-	# 
-	# A much more right place for the openflow settings is CreateOneVlan,
-	# however, it is called by sync vlan function and others, which\
-	# don't destroy the existing lan_attributes rows.
-	#
-	# TODO: Move this part to CreateOneVlan and Make sure the existed 
-	#       vlan_attributes rows are deleted
-	#
-	my $ofenabled;
-	$vlan->GetAttribute("ofenabled", \$ofenabled);
-	if (defined($ofenabled) && $ofenabled == 1) {
-	    my $ofcontroller;
-	    $vlan->GetAttribute("ofcontroller", \$ofcontroller);
-	    if (defined($ofcontroller) && $ofcontroller ne "") {
-	        $errors += doSetOpenflowController($stacks, $vlanid, $ofcontroller);
-	    }
-	    $errors += doEnableOpenflowListener($stacks, $vlanid);
-	    $errors += doOpenflowEnable($stacks, $vlanid);
-	    
-	    # doEnableOpenflowListener updates the lan_attributes table, so 
-	    # vlan should refresh itself. But here vlan will not be
-	    # used any more, so maybe we can comment this refresh.
-	    $vlan->Refresh();	    
-	}
+	$errors += CreateOneVlan($experiment, $stack, $vlanid, @ports);	
     }
     return $errors;
 }
@@ -2108,6 +2053,27 @@ sub CreateOneVlan($$$@)
 	}
     }
     else {
+	#
+	# Check and see if OF was requested.  If so, check to make sure
+	# all switches in scope support it.  Fail early if not.
+	#
+	my $vlan = VLan->Lookup($vlanid);
+	if (!defined($vlan)) {
+	    die("Could not locate vlan $vlanid in the DB\n");
+	}
+	my $ofenabled;
+	$vlan->GetAttribute("ofenabled", \$ofenabled);
+	$ofenabled = (defined($ofenabled) && $ofenabled == 1) ? 1 : 0;
+	if ($ofenabled) {
+	    if (!$stack->isOpenflowSupported(@ports)) {
+		tberror({type => 'secondary', severity => SEV_SECONDARY,
+			 error => ['create_vlan_failed', $vlanid]},
+			"OpenFlow requested for VLAN $vlanid, but ".
+			"is not supported on all switches in scope.\n");
+		return 1;
+	    }
+	}
+
 	my $vlan_number = $stack->createVlan($vlanid, $vlanid, \@ports);
 	if (!$vlan_number) {
 	    tberror({type => 'secondary', severity => SEV_SECONDARY,
@@ -2122,6 +2088,24 @@ sub CreateOneVlan($$$@)
 		print STDERR "*** Could not remove failed vlan: $vlanid\n";
 	    }
 	    $errors++;
+	} else {
+	    #
+	    # Set up and enable openflow, if requested.
+	    #
+	    if ($ofenabled) {
+	        my $ofcontroller;
+	        $vlan->GetAttribute("ofcontroller", \$ofcontroller);
+	        if (defined($ofcontroller) && $ofcontroller ne "") {
+	            $errors += doSetOpenflowController([$stack], $vlanid,
+						       $ofcontroller);
+	        }
+	        $errors += doEnableOpenflowListener([$stack], $vlanid);
+	        $errors += doOpenflowEnable([$stack], $vlanid);
+
+	        # doEnableOpenflowListener updates the lan_attributes table,
+	        # so vlan should refresh itself.
+	        $vlan->Refresh();
+	    }
 	}
     }
     return $errors

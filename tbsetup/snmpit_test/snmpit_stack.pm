@@ -1347,6 +1347,37 @@ sub reapCall($$) {
 }
 
 #
+# Check to see if OpenFlow is supported on switches in this stack that
+# own any of the ports passed in, or all switches in the stack if no
+# port list is supplied.
+#
+sub isOpenflowSupported($;@) {
+    my $self = shift;
+    my @ports = @_;
+    my $supported = 0;
+    my @devicenames = ();
+
+    if (@ports) {
+	my %map = mapPortsToDevices(@ports);
+	@devicenames = keys %map;
+    } else {
+	@devicenames = keys %{$self->{DEVICES}}
+    }
+
+    foreach my $devicename (@devicenames) {
+	my $device = $self->{DEVICES}{$devicename};
+	if ($device->isOpenflowSupported()) {
+	    $supported++;
+	} else {
+	    warn "WARNING: snmpit_stack::isOpenflowSupported: Device ".
+		 "$devicename does not support OpenFlow.\n";
+	}
+    }
+
+    return ($supported == scalar(@devicenames)) ? 1 : 0;
+}
+
+#
 # Enable Openflow
 #
 # enableOpenflow(self, vlan_id);
