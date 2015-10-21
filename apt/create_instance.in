@@ -1202,6 +1202,10 @@ sub CreateSlivers()
 	if ($code) {
 	    $slice->UnLock();
 	    $instance->SetStatus("failed");
+	    # Promote the log up to the instance so that so its easy to find.
+	    $instance->SetPublicURL($aggobj->public_url())
+		if (defined($aggobj->public_url()));
+	    # Ditto the error output.
 	    $webtask->output($aggobj->webtask()->output())
 		if (defined($aggobj->webtask()->output()));
 	    # This will be the createsliver exit code if we got one, or -1.
@@ -1489,6 +1493,7 @@ sub RunStitcher()
 	    print STDERR "SliverStart failed on $urn: $errmsg\n";
 	    return -1;
 	}
+	# This will get overwritten later during the wait.
 	$aggobj->SetPublicURL($response->logurl())
 	    if (defined($response->logurl()));
 	return 0;
