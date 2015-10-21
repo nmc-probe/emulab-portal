@@ -646,7 +646,7 @@ sub ModifySliceMembership()
     foreach my $current (@{ $adding }) {
 	if (exists($current->{'SLICE_MEMBER'})) {
 	    $params->{"urn"} = $current->{'SLICE_MEMBER'};
-            my $result = GeniSA::BindToSliceInternal($params, 1);
+            my $result = GeniSA::BindToSlice($params);
 	    if (GeniResponse::IsError($result)) {
 		return $result;
 	    }

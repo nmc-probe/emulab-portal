@@ -958,12 +958,6 @@ sub GetKeys($)
 sub BindToSlice($)
 {
     my ($argref) = @_;
-    return BindToSliceInternal($argref, 0);
-}
-
-sub BindToSliceInternal($$)
-{
-    my ($argref, $ignore_subauthority) = @_;
     my $cred  = $argref->{'credential'};
     my $creds = $argref->{'credentials'};
     my $urn   = $argref->{'urn'};
@@ -1017,7 +1011,7 @@ sub BindToSliceInternal($$)
 				    undef, "No such user here");
     }
    
-    if (defined ($ignore_subauthority) && $ignore_subauthority && ! $allow_nonproject_slice_share) {
+    if (!$allow_nonproject_slice_share) {
         #check if target user is member of project of slice
         my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
         my @slice_auth_parts = split(':', $slice_authority);
