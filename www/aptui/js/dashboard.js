@@ -14,7 +14,6 @@ function (_, sup, moment, dashboardString)
 
 	DashboardLoop();
 	setInterval(DashboardLoop,5000);
-
 	setInterval(UpdateTimes,1000);
     }
 
@@ -26,7 +25,6 @@ function (_, sup, moment, dashboardString)
 	    var dashboard_html = dashboardTemplate({"dashboard": json.value,
 						    "isadmin": isadmin});
 	    $('#page-body').html(dashboard_html);
-
 	    $('#last-refresh').data("time",new Date());
 	    
 	    // Format dates with moment before display.
