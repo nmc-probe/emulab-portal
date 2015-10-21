@@ -891,7 +891,6 @@ sub GetKeys($)
     my $creds    = $argref->{'credentials'};
     # Hidden option. Remove later.
     my $version  = $argref->{'version'} || 1;
-    my $ignore_subauthority;
 
     if (! (defined($cred) || defined($creds))) {
 	return GeniResponse->MalformedArgsResponse();
@@ -904,27 +903,10 @@ sub GetKeys($)
     }
     my ($credential, $speaksfor);
     if (defined($cred)) {
-        if (defined ($ignore_subauthority) && $ignore_subauthority) {
-	#NOTE:
-        #  the check for the credential $authority was removed
-        #  this is needed to allow the geni-sa to work without sub authorities
-	#  but this ALSO allows sharing with non-project members
-        #     That is actually a nice feature. 
-        #     The previous restriction to sharing only within a 
-        #        project can be reimplemented by checking project membership of the target user manually here. 
-	$credential = GeniCredential::CheckCredential($cred);
-
-        } else {
-            $credential = GeniCredential::CheckCredential($cred, $authority);
-        }
+        $credential = GeniCredential::CheckCredential($cred, $authority);
     }
     else {
-        if (defined ($ignore_subauthority) && $ignore_subauthority) {
-            #Same note as above about check for matching $authority
-	($credential,$speaksfor) = GeniStd::CheckCredentials($creds);
-        } else {
-            ($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
-        }
+        ($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
     }
     return $credential
 	if (GeniResponse::IsResponse($credential));
