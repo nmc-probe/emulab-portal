@@ -160,6 +160,7 @@ INSERT INTO sitevariables VALUES ('aptui/autoextend_maxage',NULL,'14','Maximum a
 INSERT INTO sitevariables VALUES ('node/nfs_transport',NULL,'udp','Transport protocol to be used by NFS mounts on clients. One of: udp, tcp, or osdefault, where osdefault means use the client OS default setting.',0);
 INSERT INTO sitevariables VALUES ('images/default_typelist',NULL,'','List of types to associate with an imported image when it is not appropriate to associate all existing types.',0);
 INSERT INTO sitevariables VALUES ('protogeni/use_imagetracker',NULL,'0','Enable use of the image tracker.',0);
+INSERT INTO sitevariables VALUES ('general/no_openflow',NULL,'0','Disallow topologies that specify openflow controllers, there is no local support for it.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
