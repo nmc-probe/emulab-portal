@@ -284,7 +284,7 @@ sub vnodeCreate($$$$)
 
     # Create vmid from the vnode's name.
     my $vmid;
-    if ($vnode_id =~ /^\w+\-(\d+)$/) {
+    if ($vnode_id =~ /^[-\w]+\-(\d+)$/) {
 	$vmid = $1;
     } else {
 	fatal("blockstore_vnodeCreate: ".
