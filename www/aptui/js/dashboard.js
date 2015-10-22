@@ -13,6 +13,7 @@ function (_, sup, moment, dashboardString)
 	isadmin = window.ISADMIN;
 
 	DashboardLoop();
+	setInterval(UpdateTimes,1000);
     }
 
     function DashboardLoop()
@@ -23,6 +24,8 @@ function (_, sup, moment, dashboardString)
 	    var dashboard_html = dashboardTemplate({"dashboard": json.value,
 						    "isadmin": isadmin});
 	    $('#page-body').html(dashboard_html);
+
+	    $('#last-refresh').data("time",new Date());
 	    
 	    // Format dates with moment before display.
 	    $('.format-date').each(function() {
@@ -32,11 +35,25 @@ function (_, sup, moment, dashboardString)
 				 .format("ddd h:mm A"));
 		}
 	    });
+	    UpdateTimes();
+
 	    setTimeout(function f() { DashboardLoop() }, 5000);
 	}
 	var xmlthing = sup.CallServerMethod(null, "dashboard",
 					    "GetStats", null);
 	xmlthing.done(callback);
     }
+
+    function UpdateTimes()
+    {
+        $('.format-date-relative').each(function() {
+            var date = $(this).data("time");
+            if (date != "") {
+                $(this).html(moment(date).fromNow());
+            }
+        });
+
+    }
+
     $(document).ready(initialize);
 });
