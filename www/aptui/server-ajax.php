@@ -50,6 +50,11 @@ $routing = array("myprofiles" =>
 			      "guest"   => true,
 			      "methods" => array("GetStats" =>
 						      "Do_GetStats")),
+		 "sumstats" =>
+			array("file"    => "sumstats.ajax",
+			      "guest"   => false,
+			      "methods" => array("GetDurationInfo" =>
+						      "Do_GetDurationInfo")),
 		 "instantiate" =>
 			array("file"    => "instantiate.ajax",
 			      "guest"   => true,

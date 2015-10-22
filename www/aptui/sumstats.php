@@ -425,12 +425,14 @@ if (isset($min)) {
 }
 if ($showby == "user") {
     echo "<a href='sumstats.php?showby=project$minmax'>".
-        "Show project stats</a><br>\n";
+        "Show project stats</a>,";
 }
 else {
     echo "<a href='sumstats.php?showby=user$minmax'>".
-        "Show user stats</a><br>\n"; 
+        "Show user stats</a>,"; 
 }
+echo "<a href='summary-graphs.php'> Summary Graphs</a><br>\n";
+
 echo "<div class='row'>
         <div class='col-xs-10 col-xs-offset-1'>\n";
 echo "    <div id='date-slider'></div>\n";
