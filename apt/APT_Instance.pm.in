@@ -514,7 +514,7 @@ sub RecordError($$$)
     DBQueryWarn("replace into apt_instance_failures ".
 		"select uuid,name,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
-		"       created,'$exitcode',$safe_message ".
+		"       created,'$exitcode',$safe_message,public_url ".
 		" from apt_instances where uuid='$uuid'")
 	or return -1;
 
