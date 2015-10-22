@@ -162,6 +162,7 @@ CREATE TABLE `apt_instance_failures` (
   `created` datetime default NULL,
   `exitcode` int(10) default '0',
   `exitmessage` mediumtext,
+  `public_url` tinytext,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
