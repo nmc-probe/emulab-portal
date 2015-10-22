@@ -13,6 +13,8 @@ function (_, sup, moment, dashboardString)
 	isadmin = window.ISADMIN;
 
 	DashboardLoop();
+	setInterval(DashboardLoop,5000);
+
 	setInterval(UpdateTimes,1000);
     }
 
@@ -36,8 +38,6 @@ function (_, sup, moment, dashboardString)
 		}
 	    });
 	    UpdateTimes();
-
-	    setTimeout(function f() { DashboardLoop() }, 5000);
 	}
 	var xmlthing = sup.CallServerMethod(null, "dashboard",
 					    "GetStats", null);
