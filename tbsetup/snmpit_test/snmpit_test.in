@@ -2426,6 +2426,19 @@ sub syncVlansFromTables($$@) {
 			$stack->removeSomePortsFromTrunk($vlanid, @trunkports)
 			    or goto bad;
 		    }
+		    # Disable OpenFlow, if set for vlan
+		    my $vlan = VLan->Lookup($vlanid);
+		    if ($vlan) {
+			my $ofenabled;
+			$vlan->GetAttribute("ofenabled",\$ofenabled);
+			if (defined($ofenabled) && $ofenabled == 1) {
+			    if (!$stack->disableOpenflow($vlanid)) {
+				print STDERR "Could not disable openflow ".
+				             "on stale vlan: $vlanid\n";
+				goto bad;
+			    }
+			}
+		    }
 		    if (!$stack->removeVlan($vlanid)) {
 			print STDERR "Could not remove vlan: $vlanid\n";
 			goto bad;
