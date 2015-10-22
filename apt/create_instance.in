@@ -964,6 +964,9 @@ foreach my $aggobj (@aggregate_list) {
 			     $aggobj->aggregate_urn());
 	    $webtask->Exited(1);
 	}
+	# Promote the log up to the instance so that so its easy to find.
+	$instance->SetPublicURL($aggobj->public_url())
+	    if (defined($aggobj->public_url()));
     }
     else {
 	my $statusblob = $aggobj->webtask()->sliverstatus();
