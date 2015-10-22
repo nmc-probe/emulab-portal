@@ -39,10 +39,14 @@ $scales  = array("Day"   => (24 * 3600),
 #
 function Do_GetStats()
 {
-    global $scales;
+    global $scales, $geni_response_codes;
     
-    $started = array();
-    $errors  = array();
+    $started   = array();
+    $errors    = array();
+    $breakdown = array();
+    $breakdown["timedout"] = array();
+    $breakdown["mapping"]  = array();
+    $breakdown["other"]    = array();
 
     foreach ($scales as $key => $age) {
         $query_result =
@@ -59,9 +63,35 @@ function Do_GetStats()
                     " where created > DATE_SUB(now(),interval $age second)");
         $row = mysql_fetch_array($query_result);
         $errors[$key] = $row[0] + $row[1];
+
+        $query_result =
+            DBQueryFatal("select exitcode,count(exitcode) as count ".
+                         "  from apt_instance_failures ".
+                         "where created>DATE_SUB(now(),interval $age second)".
+                         "group by exitcode");
+        while ($row = mysql_fetch_array($query_result)) {
+            $exitcode = $row[0];
+            $count    = $row[1];
+            if ($exitcode == 8) {
+                $breakdown["timedout"][$key] = $count;
+            }
+            elseif ($exitcode >= 24 && $exitcode < 30) {
+                if (!isset($breakdown["mapping"][$key])) {
+                    $breakdown["mapping"][$key] = 0;
+                }
+                $breakdown["mapping"][$key] += $count;
+            }
+            else {
+                if (!isset($breakdown["other"][$key])) {
+                    $breakdown["other"][$key] = 0;
+                }
+                $breakdown["other"][$key] += $count;
+            }
+        }
     }
-    $dashboard = array("started" => $started,
-                       "errors"  => $errors);
+    $dashboard = array("started"   => $started,
+                       "errors"    => $errors,
+                       "breakdown" => $breakdown);
 
     #
     # What are most recent swapins
@@ -153,6 +183,45 @@ function Do_GetStats()
     }
     $dashboard["heaviest_profiles"] = $profiles;
 
+    #
+    # Detailed info on the 10 most recent errors.
+    #
+    $error_details = array();
+
+    $query_result =
+        DBQueryFatal("select f.name,exitcode,f.created,f.public_url,f.uuid,".
+                     "  IF(i.uuid,1,0) as active,f.exitmessage ".
+                     "from apt_instance_failures as f ".
+                     "left join apt_instances as i on ".
+                     "     i.uuid=f.uuid ".
+                     "left join apt_instance_history as h on ".
+                     "     h.uuid=f.uuid ".
+                     "order by f.created desc limit 10");
+
+    while ($row = mysql_fetch_array($query_result)) {
+        $name       = $row["name"];
+        $exitcode   = $row["exitcode"];
+        $url        = $row["public_url"];
+        $active     = $row["active"] ? 1 : 0;
+        $uuid       = $row["uuid"];
+        $created    = $row["created"];
+        $message    = $row["exitmessage"];
+        $reason     = $exitcode;
+
+        if ($exitcode >= 0 && $exitcode <= count($geni_response_codes)) {
+            $reason = $geni_response_codes[$exitcode];
+        }
+        $error_details[$uuid] = array("name"     => $name,
+                                      "uuid"     => $uuid,
+                                      "exitcode" => $exitcode,
+                                      "active"   => $active,
+                                      "created"  => $created,
+                                      "reason"   => $reason,
+                                      "message"  => $message,
+                                      "url"      => $url);
+    }
+    $dashboard["error_details"] = $error_details;
+    
     SPITAJAX_RESPONSE($dashboard);
 }
 

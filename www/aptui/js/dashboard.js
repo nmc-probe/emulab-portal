@@ -13,7 +13,7 @@ function (_, sup, moment, dashboardString)
 	isadmin = window.ISADMIN;
 
 	DashboardLoop();
-	setInterval(DashboardLoop,5000);
+	setInterval(DashboardLoop,30000);
 	setInterval(UpdateTimes,1000);
     }
 
@@ -33,6 +33,17 @@ function (_, sup, moment, dashboardString)
 		if (date != "") {
 		    $(this).html(moment($(this).html())
 				 .format("ddd h:mm A"));
+		}
+	    });
+	    $('[data-toggle="popover"]').popover({
+		trigger: 'hover',
+		placement: 'auto',
+		html: true,
+		content: function () {
+		    var uuid = $(this).data("uuid");
+		    var html = "<code style='white-space: pre-wrap'>" +
+			json.value.error_details[uuid].message + "</code>";
+		    return html;
 		}
 	    });
 	    UpdateTimes();

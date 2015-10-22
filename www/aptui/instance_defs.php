@@ -54,6 +54,38 @@ $freenodes_mapping =
           "urn:publicid:IDN+emulab.net+authority+cm"            =>
           "https://www.emulab.net/node_usage/freenodes.svg");
 
+$geni_response_codes =
+    array("Success",
+          "Bad Arguments",
+          "Error",
+          "Forbidden",
+          "Bad Version",
+          "Server Error",
+          "Too Big",
+          "Refused",
+          "Timed Out",
+          "Database Error",
+          "RPC Error",
+          "Unavailable",
+          "Search Failed",
+          "Unsupported",
+          "Busy",
+          "Expired",
+          "In Progress",
+          "Already Exists",
+          "Error 18",
+          "Error 19",
+          "Error 20",
+          "Error 21",
+          "Error 22",
+          "Error 23",
+          "Vlan Unavailable",
+          "Insufficient Bandwidth",
+          "Insufficient Nodes",
+          "Insufficient Memory",
+          "No Mapping Possible",
+    );
+
 class Instance
 {
     var	$instance;
