@@ -39,7 +39,7 @@ $scales  = array("Day"   => (24 * 3600),
 #
 function Do_GetStats()
 {
-    global $scales, $geni_response_codes;
+    global $scales, $geni_response_codes, $urn_mapping;
     
     $started   = array();
     $errors    = array();
@@ -99,9 +99,12 @@ function Do_GetStats()
     $latest = array();
 
     $query_result =
-        DBQueryFatal("select name,uuid,creator,creator_idx,".
-                     "  physnode_count,created ".
-                     "from apt_instances ".
+        DBQueryFatal("select i.name,i.uuid,i.creator,i.creator_idx,".
+                     "  i.physnode_count,i.created,i.aggregate_urn, ".
+                     "  p.uuid as profile_uuid,p.name as profile_name ".
+                     "from apt_instances as i ".
+                     "left join apt_profiles as p on ".
+                     "     p.profileid=i.profile_id ".
                      "order by created desc limit 5");
     while ($row = mysql_fetch_array($query_result)) {
         $name        = $row["name"];
@@ -110,12 +113,23 @@ function Do_GetStats()
         $creator_idx = $row["creator_idx"];
         $pcount      = $row["physnode_count"];
         $created     = $row["created"];
+        $profile_uuid = $row["profile_uuid"];
+        $profile_name = $row["profile_name"];
+        $aggregate_urn= $row["aggregate_urn"];
+        $cluster      = "N/A";
 
-        $latest[$name] = array("uuid" => $uuid,
+        if ($aggregate_urn && $aggregate_urn != "") {
+            $cluster = $urn_mapping[$aggregate_urn];
+        }
+        $latest[$uuid] = array("uuid" => $uuid,
+                               "name" => $name,
                                "creator_idx" => $creator_idx,
                                "creator" => $creator,
                                "physnode_count" => $pcount,
-                               "created" => $created);
+                               "created" => $created,
+                               "cluster"  => $cluster,
+                               "profile_uuid" => $profile_uuid,
+                               "profile_name" => $profile_name);
     }
     $dashboard["latest"] = $latest;
 
@@ -190,12 +204,16 @@ function Do_GetStats()
 
     $query_result =
         DBQueryFatal("select f.name,exitcode,f.created,f.public_url,f.uuid,".
-                     "  IF(i.uuid,1,0) as active,f.exitmessage ".
+                     "  IF(i.uuid,1,0) as active,f.exitmessage, ".
+                     "  p.uuid as profile_uuid,p.name as profile_name, ".
+                     "  h.aggregate_urn ".
                      "from apt_instance_failures as f ".
                      "left join apt_instances as i on ".
                      "     i.uuid=f.uuid ".
                      "left join apt_instance_history as h on ".
                      "     h.uuid=f.uuid ".
+                     "left join apt_profiles as p on ".
+                     "     p.profileid=f.profile_id ".
                      "order by f.created desc limit 10");
 
     while ($row = mysql_fetch_array($query_result)) {
@@ -207,9 +225,16 @@ function Do_GetStats()
         $created    = $row["created"];
         $message    = $row["exitmessage"];
         $reason     = $exitcode;
+        $profile_uuid = $row["profile_uuid"];
+        $profile_name = $row["profile_name"];
+        $aggregate_urn= $row["aggregate_urn"];
+        $cluster      = "N/A";
 
         if ($exitcode >= 0 && $exitcode <= count($geni_response_codes)) {
             $reason = $geni_response_codes[$exitcode];
+        }
+        if ($aggregate_urn && $aggregate_urn != "") {
+            $cluster = $urn_mapping[$aggregate_urn];
         }
         $error_details[$uuid] = array("name"     => $name,
                                       "uuid"     => $uuid,
@@ -218,7 +243,11 @@ function Do_GetStats()
                                       "created"  => $created,
                                       "reason"   => $reason,
                                       "message"  => $message,
-                                      "url"      => $url);
+                                      "url"      => $url,
+                                      "cluster"  => $cluster,
+                                      "profile_uuid" => $profile_uuid,
+                                      "profile_name" => $profile_name);
+                                      
     }
     $dashboard["error_details"] = $error_details;
     
