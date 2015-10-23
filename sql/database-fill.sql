@@ -1195,7 +1195,7 @@ REPLACE INTO table_regex VALUES ('os_info','reboot_waittime','int','redirect','d
 REPLACE INTO table_regex VALUES ('os_info','taint_states','text','regex','^[-\\w,]*$',1,128,NULL);
 
 REPLACE INTO table_regex VALUES ('sitevariables','name','text','regex','^[\\w\\/]+$',1,255,NULL);
-REPLACE INTO table_regex VALUES ('sitevariables','value','text','redirect','default:text',0,0,NULL);
+REPLACE INTO table_regex VALUES ('sitevariables','value','text','redirect','default:html_text',0,0,NULL);
 REPLACE INTO table_regex VALUES ('sitevariables','reset','text','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('sitevariables','defaultvalue','text','redirect','default:html_text',0,0,NULL);
 REPLACE INTO table_regex VALUES ('sitevariables','description','text','redirect','default:html_text',0,0,NULL);
