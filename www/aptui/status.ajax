@@ -313,6 +313,12 @@ function Do_RequestExtension()
     if (!$instance_name) {
         list ($a,$b,$instance_name) = Instance::ParseURN($slice->urn());
     }
+    #
+    # If no physical nodes (only VMs), double the maximums.
+    #
+    if (!$instance->physnode_count()) {
+        $autoextend_maxage  *= 2;
+    }
 
     if ($autoextend_maximum == 0 && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Extensions are currenly disabled; please ".
