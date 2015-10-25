@@ -476,9 +476,8 @@ if ($localuser) {
 		      "member authority. It is probably offline, please try ".
 		      "again later.");
 	}
-	
-	# Nonlocal users get the holding project.
-	$pid = $CLOUD_HOLDINGPROJECT;
+	# Nonlocal users get the holding project can now join/create
+	# real projects, so we get the pid passed in.
     }
     elsif (defined($sshkey) && !$emulab_user->LookupSSHKey($sshkey)) {
 	#
