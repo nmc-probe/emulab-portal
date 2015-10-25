@@ -334,7 +334,7 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
 	next;
     }
 
-    $moduserinfo_args{$key} = $value;
+    $moduserinfo_args{$dbslot} = $value;
 }
 UserError()
     if (keys(%errors));
@@ -342,7 +342,7 @@ UserError()
 #
 # Now do special checks.
 #
-my $target_uid = $moduserinfo_args{"uid"};
+my $target_uid = $moduserinfo_args{"uid_idx"};
 my $target_user = User->Lookup($target_uid);
 if (!defined($target_user)) {
     UserError("uid: No such user ($target_uid)");
