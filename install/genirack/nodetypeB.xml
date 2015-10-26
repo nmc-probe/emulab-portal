@@ -5,5 +5,5 @@
 <attribute name="attr_string_delay_osid">  <value>emulab-ops,FBSD82-STD</value></attribute>
 <attribute name="attr_string_diskloadmfs_osid">  <value>emulab-ops,FRISBEE-MFS</value></attribute>
 <attribute name="attr_string_jail_osid">  <value>emulab-ops,FEDORA15-STD</value></attribute>
-<attribute name="attr_string_default_imageid">  <value>emulab-ops:FBSD82-STD,emulab-ops:FEDORA15-STD</value></attribute>
+<attribute name="attr_string_default_imageid">  <value>emulab-ops:UBUNTU14-64-STD</value></attribute>
 </nodetype>
