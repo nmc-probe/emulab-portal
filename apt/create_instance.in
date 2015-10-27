@@ -658,6 +658,14 @@ fatal("Could not create alt certificate")
     if (!defined($alt_certificate));
 
 #
+# Encrypt blocks.
+#
+$tmp = APT_Profile::EncryptBlocks(\$rspecstr, $alt_certificate, \$errmsg);
+if ($tmp) {
+    ($tmp < 0 ? fatal($errmsg) : UserError($errmsg));
+}
+
+#
 # Generate credentials we need.
 #
 my ($slice_credential, $speaksfor_credential) =

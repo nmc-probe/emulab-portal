@@ -52,6 +52,7 @@ use GeniHRN;
 use libtestbed;
 use English;
 use Data::Dumper;
+use File::Temp qw(tempfile :mktemp tmpnam :POSIX);
 use overload ('""' => 'Stringify');
 
 # Configure variables
@@ -1086,6 +1087,65 @@ sub SetSites($$$$$$)
     }
     $$prspecstr = GeniXML::Serialize($rspec);
     @$paggregate_urns = keys(%aggregates);
+    return 0;
+}
+
+#
+# Encrypt blocks.
+#
+sub EncryptBlocks($$$)
+{
+    my ($pxml, $certificate, $pmsg) = @_;
+    my @encrypt = ();
+    
+    my $rspec = GeniXML::Parse($$pxml);
+    if (! defined($rspec)) {
+	print STDERR "EncryptBlocks: Could not parse rspec\n";
+	return -1;
+    }
+    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+	foreach my $encref (GeniXML::FindNodesNS("n:encrypt", $ref,
+				   $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    my $text = $encref->textContent();
+	    next
+		if (!$text || $text eq "");
+	    my $encrypted = GeniXML::GetText("encrypted", $encref);
+	    next
+		if ($encrypted);
+	    
+	    push(@encrypt, $encref);
+	}
+	foreach my $encref (GeniXML::FindNodesNS("n:password", $ref,
+				   $GeniXML::EMULAB_NS)->get_nodelist()) {
+	    my $plaintext = substr(TBGenSecretKey(), 0, 12);
+	    $encref->appendText($plaintext);
+	    push(@encrypt, $encref);
+	}
+    }
+    if (@encrypt) {
+	my $certname = $certificate->WriteToFile();
+	if (!defined($certname)) {
+	    $$pmsg = "Could not encrypt blocks; not able to write certificate";
+	    return -1;
+	}
+	foreach my $ref (@encrypt) {
+	    my $tempname = mktemp("/tmp/encrypt.XXXXXX");
+	    emutil::PipeCommand("/usr/bin/openssl smime ".
+				"-encrypt -outform PEM ".
+				"-out $tempname ".
+				"-aes256 $certname",
+				$ref->textContent(), $pmsg);
+	    if ($?) {
+		return -1;
+	    }
+	    my $encrypted = `cat $tempname`;
+	    $ref->setAttribute("encrypted", "true");
+	    $ref->removeChildNodes();
+	    $ref->appendText($encrypted);
+	    unlink($tempname);
+	}
+	$$pxml = GeniXML::Serialize($rspec);
+    }
     return 0;
 }
 
