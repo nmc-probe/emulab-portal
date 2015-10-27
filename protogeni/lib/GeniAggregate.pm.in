@@ -1842,22 +1842,27 @@ sub WaitForNodes($$@)
 		next;
 	    }
 	    #
-	    # Watch for a node stuck in VNODEBOOTSTART; this happens a lot with
-	    # XEN VMs, a reboot typically solves it.
+	    # Watch for a node stuck in VNODEBOOTSTART or BOOTING. For VMs,
+	    # this happens a lot, a reboot typically solves it. For physnodes,
+	    # we just fail. 
 	    #
-	    if ($node->isvirtnode() &&
-		$op_mode eq TBDB_NODEOPMODE_NORMALv2 &&
-		$state eq TBDB_NODESTATE_VNODEBOOTSTART &&
+	    if ($op_mode eq TBDB_NODEOPMODE_NORMALv2 &&
+		($state eq TBDB_NODESTATE_VNODEBOOTSTART ||
+		 $state eq TBDB_NODESTATE_BOOTING) &&
 		$state eq $node->_laststate() &&
-		time() - $node->_laststatestamp() > 180) {
+		time() - $node->_laststatestamp() > 240) {
 		my $giveup = $node->_retried();
+		# physnode, give up right away.
+		$giveup = 1
+		    if (!$node->isvirtnode());
+
 		if ($giveup) {
 		    print STDERR
-			"$node_id still stuck in BOOTING, giving up.\n";
+			"$node_id still stuck in $state, giving up.\n";
 		}
 		else {
 		    print STDERR
-			"$node_id is stuck in BOOTING, restarting it.\n";
+			"$node_id is stuck in $state, restarting it.\n";
 		    $node->_retried(1);
 		    system("$NODEREBOOT $node_id");
 		    $giveup = 1
