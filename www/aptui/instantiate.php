@@ -80,6 +80,19 @@ if ($ISAPT && !$this_user) {
 }
 if ($this_user) {
     $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
+    #
+    # Cull out the nonlocal projects, we do not want to show those
+    # since they are just the holding projects.
+    #
+    $tmp = array();
+    while (list($pid) = each($projlist)) {
+        $project = Project::Lookup($pid);
+        if ($project && !$project->IsNonLocal()) {
+            $tmp[$pid] = $projlist[$pid];
+        }
+    }
+    $projlist = $tmp;
+    
     if (count($projlist) == 0) {
 	SPITUSERERROR("You do not belong to any projects with permission to ".
                       "create new experiments. Please contact your project ".
