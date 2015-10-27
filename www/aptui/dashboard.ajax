@@ -40,6 +40,11 @@ $scales  = array("Day"   => (24 * 3600),
 function Do_GetStats()
 {
     global $scales, $geni_response_codes, $urn_mapping;
+
+    if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
+        SPITAJAX_ERROR(1, "Not enough permission");
+        return;
+    }
     
     $started   = array();
     $errors    = array();
@@ -64,6 +69,10 @@ function Do_GetStats()
         $row = mysql_fetch_array($query_result);
         $errors[$key] = $row[0] + $row[1];
 
+        $breakdown["timedout"][$key] = 0;
+        $breakdown["mapping"][$key]  = 0;
+        $breakdown["other"][$key]    = 0;
+
         $query_result =
             DBQueryFatal("select exitcode,count(exitcode) as count ".
                          "  from apt_instance_failures ".
@@ -75,16 +84,10 @@ function Do_GetStats()
             if ($exitcode == 8) {
                 $breakdown["timedout"][$key] = $count;
             }
-            elseif ($exitcode >= 24 && $exitcode < 30) {
-                if (!isset($breakdown["mapping"][$key])) {
-                    $breakdown["mapping"][$key] = 0;
-                }
+            elseif ($exitcode == 1 || ($exitcode >= 24 && $exitcode < 30)) {
                 $breakdown["mapping"][$key] += $count;
             }
             else {
-                if (!isset($breakdown["other"][$key])) {
-                    $breakdown["other"][$key] = 0;
-                }
                 $breakdown["other"][$key] += $count;
             }
         }
@@ -206,7 +209,7 @@ function Do_GetStats()
         DBQueryFatal("select f.name,exitcode,f.created,f.public_url,f.uuid,".
                      "  IF(i.uuid,1,0) as active,f.exitmessage, ".
                      "  p.uuid as profile_uuid,p.name as profile_name, ".
-                     "  h.aggregate_urn ".
+                     "  h.aggregate_urn,f.slice_uuid ".
                      "from apt_instance_failures as f ".
                      "left join apt_instances as i on ".
                      "     i.uuid=f.uuid ".
@@ -225,6 +228,7 @@ function Do_GetStats()
         $created    = $row["created"];
         $message    = $row["exitmessage"];
         $reason     = $exitcode;
+        $slice_uuid = $row["slice_uuid"];
         $profile_uuid = $row["profile_uuid"];
         $profile_name = $row["profile_name"];
         $aggregate_urn= $row["aggregate_urn"];
@@ -235,6 +239,24 @@ function Do_GetStats()
         }
         if ($aggregate_urn && $aggregate_urn != "") {
             $cluster = $urn_mapping[$aggregate_urn];
+        }
+        #
+        # Ick. If the url is for the showslicepub link, we have a problem;
+        # the link is good only while the slice is alive. After that, we have
+        # to use a private url (which is okay, cause only admins are going
+        # to see it and be able to use it).
+        #
+        if (ISFOREIGN_ADMIN()) {
+            $url = null;
+        }
+        elseif (preg_match("/^(https:.*)\/showslicepub/", $url, $matches)) {
+            if (ISADMIN()) {
+                $url = $matches[1] . "/showslicelogs.php?slice_uuid=".
+                    $slice_uuid;
+            }
+            else {
+                $url = null;
+            }
         }
         $error_details[$uuid] = array("name"     => $name,
                                       "uuid"     => $uuid,
