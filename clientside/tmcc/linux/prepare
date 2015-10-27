@@ -429,8 +429,8 @@ foreach my $file (@SOCKETS) {
 
 print "Removing extra Ports from $SSHDCONFIG\n";
 if (-e $SSHDCONFIG) {
-    # Remove high numbered ports.
-    system("sed -i.bak -e '/^Port [0-9]\{3,\}/d' $SSHDCONFIG");
+    # Kill off old sshd ports.
+    system("sed -i.bak -e '/^# EmulabJail/,\$d' $SSHDCONFIG");
     warn("*** Could not remove Port lines\n")
 	if ($?);
 }
