@@ -2620,13 +2620,21 @@ sub vnodeHalt($$$$)
 	alarm 0;
 
 	#
-	# Any failure, do a destroy.
+	# Any failure, do a destroy. But first check to see if it even
+	# exists anymore.
 	#
 	if ($stat) {
-	    print STDERR "$XM shutdown returned $stat. Doing a destroy!\n";
-	    my $status = RunWithLock("xmtool", "$XM destroy $vnode_id");
-	    fatal("Could not destroy $vnode_id")
-		if ($status);
+	    print STDERR "$XM shutdown returned $stat.\n";
+	    my $status = RunWithLock("xmtool", "$XM list $vnode_id");
+	    if ($status) {
+		print STDERR "VM appears to be gone though.\n";
+	    }
+	    else {
+		print STDERR "Doing a destroy!\n";
+		$status = RunWithLock("xmtool", "$XM destroy $vnode_id");
+		fatal("Could not destroy $vnode_id")
+		    if ($status);
+	    }
 	}
     }
     else {
