@@ -1568,35 +1568,6 @@ sub vnodePreConfig($$$$$){
 	}
 	$private->{'disks'} = $disks;
     }
-    if (!exists($vninfo->{'os'})) {
-	#
-	# Ick, we lost this info during reboot cause we start with a
-	# fresh private info. Need to ponder this. But anyway, this is
-	# a temp hack so we can apply some fixups to all containers.
-	#
-	# Make sure its a Linux partition. If not, ignore it.
-	#
-	my $devname = "$VGNAME/${vnode_id}";
-	$devname =~ s/\-/\-\-/g;
-	$devname =~ s/\//\-/g;
-	my $devfile = "/dev/mapper/$devname";
-	print STDERR "$devfile\n";
-	return 0
-	    if (! -e $devfile);
-	
-	my $stype = `sfdisk $devfile -c 2`;
-	chomp($stype);
-	return 0
-	    if ($? || $stype == 0);
-
-	print STDERR "stype $stype\n";
-	
-	
-	$fixups = 1;
-	$vninfo->{'os'} = "Linux";
-	$private->{'rootpartition'} = "${devfile}p2";
-    }
-    
     #
     # XXX can only do the rest for nodes whose files systems we can mount.
     #
@@ -1632,20 +1603,17 @@ sub vnodePreConfig($$$$$){
 	mysystem("mount $dev $vnoderoot");
     }
 
-    #
-    # Deal with fixups and return
-    #
-    if ($fixups) {
-	mysystem2("/bin/cp -fp /etc/ntp.conf $vnoderoot/etc/ntp.conf");
-	goto done;
-    }
-
     # XXX We need to get rid of this or get it from tmcd!
     if (! -e "$vnoderoot/etc/emulab/genvmtype") {
 	mysystem2("echo 'xen' > $vnoderoot/etc/emulab/genvmtype");
 	goto bad
 	    if ($?);
     }
+    # Kill off old sshd ports.
+    mysystem2("sed -i.bak -e '/^# EmulabJail/,\$d' ".
+	      "   $vnoderoot/etc/ssh/sshd_config");
+    goto bad
+	if ($?);
 
     # Use the physical host pubsub daemon
     my (undef, $ctrlip) = findControlNet();

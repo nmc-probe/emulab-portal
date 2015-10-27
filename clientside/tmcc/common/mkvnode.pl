@@ -638,10 +638,34 @@ if (! -e "$VNDIR/vnode.info") {
     # bootvnodes wants this to be here...
     mysystem("mkdir -p /var/emulab/jails/$vnodeid");
 }
-# This state structure is saved to disk for TearDown.
+else {
+    #
+    # Restore the state and throw away the private data. 
+    #
+    if (-e "$VNDIR/vnode.state") {
+	my $tmp = eval { Storable::retrieve("$VNDIR/vnode.state"); };
+	if ($@) {
+	    print STDERR "$@";
+	}
+	else {
+	    # Restore this from the saved state for vnodepreconfig.
+	    $vnstate->{'private'}->{'os'} = $tmp->{'os'}
+	        if (exists($tmp->{'os'}));
+	    $vnstate->{'private'}->{'rootpartition'} = $tmp->{'rootpartition'}
+	        if (exists($tmp->{'rootpartition'}));
+	}
+    }
+}
+# This state structure is saved to disk for TearDown and Reboot.
 $vnstate->{"vmid"}   = $vmid;
 $vnstate->{"vmtype"} = $vmtype;
 $vnstate->{"uuid"}   = $nodeuuid;
+# Save this for reboot. 
+$vnstate->{'os'} = $vnstate->{'private'}->{'os'}
+    if (exists($vnstate->{'private'}->{'os'}));
+$vnstate->{'rootpartition'} = $vnstate->{'private'}->{'rootpartition'}
+    if (exists($vnstate->{'private'}->{'rootpartition'}));
+
 # Store the state to disk.
 if (StoreState()) {
     MyFatal("Could not store container state to disk");
@@ -669,15 +693,15 @@ sub callback($)
     # Set up sshd port to listen on. If the vnode has its own IP
     # then listen on both 22 and the per-vnode port.
     #
-    if (system('grep -q -e EmulabJail $path/etc/ssh/sshd_config')) {
-	if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "") {
-	    my $sshdport = VNCONFIG('SSHDPORT');
+    if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "") {
+	my $sshdport = VNCONFIG('SSHDPORT');
 
-	    mysystem2("echo '# EmulabJail' >> $path/etc/ssh/sshd_config");
-	    mysystem2("echo 'Port $sshdport' >> $path/etc/ssh/sshd_config");
-	    if (VNCONFIG('CTRLIP') ne $ext_ctrlip) {
-		mysystem2("echo 'Port 22' >> $path/etc/ssh/sshd_config");
-	    }
+	mysystem2("echo '# EmulabJail' >> $path/etc/ssh/sshd_config");
+	mysystem2("echo '# DO NOT MAKE ANY CHANGES BELOW THIS LINE!' ".
+		  "      >> $path/etc/ssh/sshd_config");
+	mysystem2("echo 'Port $sshdport' >> $path/etc/ssh/sshd_config");
+	if (VNCONFIG('CTRLIP') ne $ext_ctrlip) {
+	    mysystem2("echo 'Port 22' >> $path/etc/ssh/sshd_config");
 	}
     }
     # Localize the timezone.
@@ -823,7 +847,7 @@ while (1) {
 	    # since in XEN, the user can type reboot, which causes the
 	    # domain to disappear for a while. We do not want to be
 	    # fooled by that. Halt is another issue; if the user halts
-	    # from inside the container it iss never coming back and the 
+	    # from inside the container it is never coming back and the 
 	    # user has screwed himself. Need to restart from the frontend.
 	    #
 	    sleep(15);
