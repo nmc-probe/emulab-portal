@@ -1108,10 +1108,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				$osname = "UBUNTU12-64-STD";
 			    }
 			}
-			elsif (!defined($osname)) {
-			    # Allow for url above.
-			    $osname = "UBUNTU12-64-STD";
-			}
+			# If not set, we will pick up the default_image below.
 			#
 			# Look for the knobs
 			#
