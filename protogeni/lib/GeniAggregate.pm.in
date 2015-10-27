@@ -1847,10 +1847,11 @@ sub WaitForNodes($$@)
 	    # we just fail. 
 	    #
 	    if ($op_mode eq TBDB_NODEOPMODE_NORMALv2 &&
-		($state eq TBDB_NODESTATE_VNODEBOOTSTART ||
-		 $state eq TBDB_NODESTATE_BOOTING) &&
 		$state eq $node->_laststate() &&
-		time() - $node->_laststatestamp() > 240) {
+		(($state eq TBDB_NODESTATE_VNODEBOOTSTART &&
+		  time() - $node->_laststatestamp() > 240) ||
+		 ($state eq TBDB_NODESTATE_BOOTING &&
+		  time() - $node->_laststatestamp() > 400))) {
 		my $giveup = $node->_retried();
 		# physnode, give up right away.
 		$giveup = 1
