@@ -1813,8 +1813,8 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
     my $INCOMING_CHAIN = "INCOMING_${vnode_id}";
     my $OUTGOING_CHAIN = "OUTGOING_${vnode_id}";
     if (length($INCOMING_CHAIN) > 28) {
-	my $INCOMING_CHAIN = "I_${vnode_id}";
-	my $OUTGOING_CHAIN = "O_${vnode_id}";
+	$INCOMING_CHAIN = "I_${vnode_id}";
+	$OUTGOING_CHAIN = "O_${vnode_id}";
     }
     push(@rules, "-N $INCOMING_CHAIN");
     push(@rules, "-F $INCOMING_CHAIN");
@@ -2496,8 +2496,8 @@ sub vnodeDestroy($$$$)
     my $INCOMING_CHAIN = "INCOMING_${vnode_id}";
     my $OUTGOING_CHAIN = "OUTGOING_${vnode_id}";
     if (length($INCOMING_CHAIN) > 28) {
-	my $INCOMING_CHAIN = "I_${vnode_id}";
-	my $OUTGOING_CHAIN = "O_${vnode_id}";
+	$INCOMING_CHAIN = "I_${vnode_id}";
+	$OUTGOING_CHAIN = "O_${vnode_id}";
     }
     DoIPtables("-F $INCOMING_CHAIN");
     DoIPtables("-X $INCOMING_CHAIN");

@@ -165,8 +165,8 @@ chomp($outer_controlif);
 my $INCOMING_CHAIN = "INCOMING_${vnode_id}";
 my $OUTGOING_CHAIN = "OUTGOING_${vnode_id}";
 if (length($INCOMING_CHAIN) > 28) {
-    my $INCOMING_CHAIN = "I_${vnode_id}";
-    my $OUTGOING_CHAIN = "O_${vnode_id}";
+    $INCOMING_CHAIN = "I_${vnode_id}";
+    $OUTGOING_CHAIN = "O_${vnode_id}";
 }
 
 #
