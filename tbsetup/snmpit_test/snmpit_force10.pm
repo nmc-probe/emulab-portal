@@ -109,6 +109,9 @@ my $PORT_FORMAT_IFINDEX  = 1;
 my $PORT_FORMAT_MODPORT  = 2;
 my $PORT_FORMAT_PORT     = 3;
 
+# OpenFlow constants
+my $MAX_OF_ID = 8;
+
 #
 # Creates a new object.
 #
@@ -144,6 +147,9 @@ sub new($$$;$) {
 
     # List of ports in trunk mode - used as a secondary check.
     $self->{TRUNKS} = {};
+
+    # Mapping from OF instances to vlans.
+    $self->{OFMAP} = undef;
 
     #
     # Get config options from the database
@@ -1177,7 +1183,7 @@ sub vlanHasPorts($$) {
 #        returns the new VLAN number on success
 #        returns 0 on failure
 #
-sub createVlan($$$) {
+sub createVlan($$$;$) {
     my $self = shift;
     
     # as known in db and as will be saved in administrative vlan
@@ -1187,12 +1193,23 @@ sub createVlan($$$) {
     # 802.1Q vlan tag
     my $vlan_number = shift; 
 
+    # Grab any additional settings for vlan.
+    my $otherargs = shift;
+
     my $id = "$self->{NAME}::createVlan()";
 	
     # Check to see if the requested vlan number already exists.
     if ($self->vlanNumberExists($vlan_number)) {
 	warn "$id: ERROR: VLAN $vlan_number already exists\n";
 	return 0;
+    }
+
+    # Was OpenFlow requested?  If so then we have to create an OF instance
+    # first and use CLI commands to create an OF-associated VLAN.  Thanks
+    # FTOS...
+    if ($otherargs && ref($otherargs) eq 'HASH' && 
+	exists($otherargs->{"ofenabled"}) && $otherargs->{"ofenabled"} == 1) {
+	return $self->createOFVlan($vlan_id, $vlan_number);
     }
 
     # Create VLAN
@@ -1406,6 +1423,23 @@ sub removeVlan($@) {
 		    warn "$id: ERROR: Removal of VLAN $vlan_number failed.\n";
 		    $errors++;
 		    next;
+		}
+
+		# If a prior operation, e.g. disableOpenflow(), has
+		# loaded the OFMAP, then search it to see if there is
+		# an associated OF instance and remove it if so.  We
+		# don't want to load the OFMAP if it hasn't been loaded
+		# because it is an expensive CLI-based operation.
+		my $ofid = 0;
+		if ($self->{OFMAP} && ($ofid = $self->vlan2OFID($vlan_number)) > 0) {
+		    my $cmd = "no openflow of-instance $ofid";
+		    my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmd, 1);
+		    if ($fail) {
+			warn "$id: ERROR: Failed to remove OFID $ofid for vlan $vlan_number: $output\n";
+			$errors++;
+		    } else {
+			delete $self->{OFMAP}->{$ofid};
+		    }
 		}
 	}
 	
@@ -1901,8 +1935,128 @@ sub resetVlanIfOnTrunk($$$) {
 
 
 ##############################################################################
-## OpenFlow functionality - not implemented yet.
+## OpenFlow functionality.
 ##
+
+#
+# Get current set of OF instances - utility function
+#
+sub getOFInstances($) {
+    my $self = shift;
+
+    # If we've already fetched the OF instances mapping, return it.
+    # Functions that manipulate this mapping need to keep it up to date!
+    if ($self->{OFMAP}) {
+	return $self->{OFMAP};
+    }
+
+    my $cmd = "show openflow of-instance";
+    my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmd,0);
+    return undef
+	if $fail;
+
+    $self->{OFMAP} = {};
+
+    my $curinst = 0;
+    foreach my $ofln (split(/\n/, $output)) {
+	chomp $ofln;
+	$self->debug("getOFInstances: considering output line: $ofln\n",2);
+	OFLN: for ($ofln) {
+	    /^Instance\s+:\s+(\d+)/ && do {
+		$curinst = $1;
+		$self->{OFMAP}->{$curinst} = 0;
+		last OFLN;
+	    };
+
+	    /^\s+Vl (\d+)/ && do {
+		$self->{OFMAP}->{$curinst} = $1;
+		last OFLN;
+	    };
+	}
+    }
+
+    return $self->{OFMAP};
+}
+
+#
+# Get the OF ID for a given VLAN - utility function
+#
+sub vlan2OFID($$) {
+    my $self = shift;
+    my $vlan = shift;
+    my $ofid = -1;
+
+    # Find the OFID for the given vlan.
+    my $ofmap = $self->getOFInstances();
+    if (!defined($ofmap)) {
+	warn "ERROR: Unable to get OF instance map for $self->{NAME}\n";
+	return 0;
+    }
+    foreach my $k (keys %{$ofmap}) {
+	if ($ofmap->{$k} == $vlan) {
+	    $ofid = $k;
+	    last;
+	}
+    }
+
+    return $ofid;
+}
+
+#
+# Create OF-associated vlan - specialized version of createVlan()
+#
+sub createOFVlan($$$) {
+    my $self = shift;
+    my $vlan_id = shift;
+    my $vlan_number = shift;
+    my $ofid = -1;
+
+    # Find a free OFID
+    my $ofmap = $self->getOFInstances();
+    if (!defined($ofmap)) {
+	warn "ERROR: Unable to get OF instance map for $self->{NAME}!\n";
+	return 0;
+    }
+    for (my $i = 1; $i <= $MAX_OF_ID; $i++) {
+	if (!exists($ofmap->{$i})) {
+	    $ofid = $i;
+	    last;
+	}
+    }
+    if ($ofid < 1) {
+	warn "ERROR: No free OF instances on $self->{NAME}!\n";
+	return 0;
+    }
+
+    # Create the OF instance
+    my @cmds = ("openflow of-instance $ofid",
+		"interface-type vlan");
+    my $cmdstr = join("\n", @cmds);
+    my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr,1);
+    if ($fail) {
+	warn "ERROR: Failed to create OF instance with ID $ofid on $self->{NAME}!\n";
+	return 0
+    }
+    $self->{OFMAP}->{$ofid} = $vlan_number;
+
+    # Create the OF-associated VLAN
+    $vlan_id = addVlanPrefix($vlan_id);
+    @cmds = ("interface vlan $vlan_number of-instance $ofid",
+	     "name $vlan_id");
+    $cmdstr = join("\n", @cmds);
+    ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr, 1);
+    if ($fail) {
+	warn "ERROR: Failed to create OF-associated vlan $vlan_number on $self->{NAME}: $output\n";
+	$cmdstr = "no openflow of-instance $ofid";
+	($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr,1);
+	if ($fail) {
+	    warn "ERROR: Could not remove OF instance after failed OF vlan creation: $output\n";
+	}
+	return 0;
+    }
+
+    return $vlan_number;
+}
 
 #
 # Enable Openflow
@@ -1910,13 +2064,24 @@ sub resetVlanIfOnTrunk($$$) {
 sub enableOpenflow($$) {
     my $self = shift;
     my $vlan = shift;
-    my $RetVal;
-    
-    #
-    # Force10 switch doesn't support Openflow yet.
-    #
-    warn "ERROR: Force10 swith doesn't support Openflow now";
-    return 0;
+    my $ofid = $self->vlan2OFID($vlan);
+
+    if ($ofid < 1) {
+	warn "Unable to lookup OFID for vlan $vlan on $self->{NAME}\n";
+	return 0;
+    }
+
+    # Instance and vlan should have already been created.  Enable away!
+    my @cmds = ("openflow of-instance $ofid",
+		"no shutdown");
+    my $cmdstr = join("\n", @cmds);
+    my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr, 1);
+    if ($fail) {
+	warn "ERROR: Failed to enable OFID $ofid for vlan $vlan on $self->{NAME}: $output\n";
+	return 0;
+    }
+
+    return 1;
 }
 
 #
@@ -1925,13 +2090,33 @@ sub enableOpenflow($$) {
 sub disableOpenflow($$) {
     my $self = shift;
     my $vlan = shift;
-    my $RetVal;
-    
-    #
-    # Force10 switch doesn't support Openflow yet.
-    #
-    warn "ERROR: Force10 swith doesn't support Openflow now";
-    return 0;
+    my $ofid = $self->vlan2OFID($vlan);
+
+    if ($ofid < 1) {
+	warn "Unable to lookup OFID for vlan $vlan on $self->{NAME}\n";
+	return 0;
+    }
+
+    # Disable the OF instance, but do not attempt to destroy it since it
+    # is still associated with a vlan at this point.
+    my @cmds = ("openflow of-instance $ofid",
+		"shutdown");
+    my $cmdstr = join("\n", @cmds);
+    my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr, 1);
+    if ($fail) {
+	warn "ERROR: Failed to disable OFID $ofid for vlan $vlan on $self->{NAME}: $output\n";
+	return 0;
+    }
+
+    # We don't actually remove the OF instace now because the VLAN
+    # still exists.  FTOS doesn't allow removal of an OF instance if
+    # it has any vlans associated.  We will destroy the OF instance
+    # later after removing the vlan. Note that one thing we HAVE done
+    # here is load the OFID map for this device (by calling
+    # vlan2OFID).  We will use this fact in removeVlan() to decide to
+    # search for an associated OFID to remove.
+
+    return 1;
 }
 
 #
@@ -1941,13 +2126,27 @@ sub setOpenflowController($$$) {
     my $self = shift;
     my $vlan = shift;
     my $controller = shift;
-    my $RetVal;
-    
-    #
-    # Force10 switch doesn't support Openflow yet.
-    #
-    warn "ERROR: Force10 swith doesn't support Openflow now";
-    return 0;
+    my $ofid = $self->vlan2OFID($vlan);
+
+    if ($ofid < 1) {
+	warn "Unable to lookup OFID for vlan $vlan on $self->{NAME}\n";
+	return 0;
+    }
+
+    # Parse out controller string
+    my (undef, $controller_ip, $port) = split(/:/, $controller);
+
+    # Instance and vlan should have already been created.
+    my @cmds = ("openflow of-instance $ofid",
+		"controller 1 $controller_ip port $port tcp");
+    my $cmdstr = join("\n", @cmds);
+    my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr, 1);
+    if ($fail) {
+	warn "ERROR: Failed to enable OFID $ofid for vlan $vlan on $self->{NAME}: $output\n";
+	return 0;
+    }
+
+    return 1;
 }
 
 #
@@ -1959,11 +2158,9 @@ sub setOpenflowListener($$$) {
     my $listener = shift;
     my $RetVal;
     
-    #
-    # Force10 switch doesn't support Openflow yet.
-    #
-    warn "ERROR: Force10 swith doesn't support Openflow now";
-    return 0;
+    # Warn, but do not return an error.
+    warn "WARNING: FTOS doesn't support OpenFlow listeners.\n";
+    return 1;
 }
 
 #
@@ -1973,8 +2170,8 @@ sub getUsedOpenflowListenerPorts($) {
     my $self = shift;
     my %ports = ();
 
-    warn "ERROR: Force10 swith doesn't support Openflow now\n";
-
+    # Warn and return an empty hash.
+    warn "WARNING: FTOS doesn't support OpenFlow listeners.\n";
     return %ports;
 }
 
@@ -1982,9 +2179,19 @@ sub getUsedOpenflowListenerPorts($) {
 # Check if Openflow is supported on this switch
 #
 sub isOpenflowSupported($) {
-    #
-    # Force10 switch doesn't support Openflow yet.
-    #
+    my $self = shift;
+
+    my $cmd = "show openflow";
+    my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmd,0);
+    if ($fail) {
+	$self->debug("'show openflow' returned error: $output\n");
+	return 0;
+    }
+
+    # See if there is output talking about OpenFlow support.
+    return 1
+	if ($output =~ /openflow switch/i);
+
     return 0;
 }
 

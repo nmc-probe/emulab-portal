@@ -609,7 +609,7 @@ if ($opt{S}) {
 # Arguments for making private VLANs
 #
 # Build up a list of extra arguments to be passed to createVlan()
-my @pvlanArgs = ();
+my %pvlanArgs = ();
 if ($opt{y}) {
     #
     # Make sure the private VLAN type they gave is valid, and make sure they
@@ -619,7 +619,7 @@ if ($opt{y}) {
 	$opt{y} ne "community") {
 	die "Unknown private VLAN type $opt{y}\n";
     }
-    @pvlanArgs = $opt{y};
+    $pvlanArgs{"pvtype"} = $opt{y};
     if ($opt{y} ne "primary") {
 	if (!$opt{x} || !$opt{z}) {
 	    tberror "-x and -z must be given when -y is $opt{y}!";
@@ -641,7 +641,8 @@ if ($opt{y}) {
 		    "argument has been given";
 	    }
 	}
-	push @pvlanArgs,$opt{x},$opt{z};
+	$pvlanArgs{"pvprimary"} = $opt{x};
+	$pvlanArgs{"pvport"} = $opt{z};
     }
 }
 
@@ -2043,6 +2044,7 @@ sub CreateOneVlan($$$@)
     my $stack  = shift();
     my $vlanid = shift();
     my @ports  = @_;
+    my %otherargs = ();
     my $errors = 0;
 
     if ($stack->vlanExists($vlanid)) {
@@ -2072,9 +2074,11 @@ sub CreateOneVlan($$$@)
 			"is not supported on all switches in scope.\n");
 		return 1;
 	    }
+	    $otherargs{"ofenabled"} = 1;
 	}
 
-	my $vlan_number = $stack->createVlan($vlanid, $vlanid, \@ports);
+	my $vlan_number = $stack->createVlan($vlanid, $vlanid, 
+					     \@ports, \%otherargs);
 	if (!$vlan_number) {
 	    tberror({type => 'secondary', severity => SEV_SECONDARY,
 		     error => ['create_vlan_failed', $vlanid]},
@@ -3480,7 +3484,7 @@ sub doMakeVlan($$@) {
 	print "Creating VLAN $target_vlan ...\n"
 	    if (!$quiet);
 	my $vlan_number = $stack->createVlan($device_id, $target_vlan->lanid(),
-					     \@ports,@pvlanArgs);
+					     \@ports,\%pvlanArgs);
 	if (!$quiet) {
 	    print "VLAN creation ";
 	    print $vlan_number? "succeeded":"failed",".\n";
