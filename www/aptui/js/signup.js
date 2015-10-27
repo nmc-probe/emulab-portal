@@ -32,7 +32,9 @@ function (_, sup,
 	renderForm(fields, errors,
 		   window.APT_OPTIONS.joinproject,
 		   window.APT_OPTIONS.ShowVerifyModal,
-		   window.APT_OPTIONS.this_user);
+		   window.APT_OPTIONS.this_user,
+		   (window.APT_OPTIONS.this_user ?
+		    window.APT_OPTIONS.promoting : false));
 
 	/*
 	 * When switching from start to join, show the hidden fields
@@ -55,7 +57,8 @@ function (_, sup,
 	}
     }
 
-    function renderForm(formfields, errors, joinproject, showVerify, thisUser)
+    function renderForm(formfields, errors, joinproject, showVerify,
+			thisUser, promoting)
     {
 	var buttonLabel = (joinproject ? "Join Project" : "Start Project");
 	var about = aboutTemplate({});
@@ -64,7 +67,8 @@ function (_, sup,
 	    label: buttonLabel
 	});
 	var personal = formatter(personalTemplate({
-	    formfields: formfields
+	    formfields: formfields,
+	    promoting: promoting,
 	}), errors);
 	var project = Newformatter(projectTemplate({
 	    joinproject: joinproject,
@@ -75,6 +79,7 @@ function (_, sup,
 	    general_error: (errors.error || ''),
 	    about_account: (ISCLOUD || thisUser ? null : about),
 	    this_user: thisUser,
+	    promoting: promoting,
 	    joinproject: joinproject,
 	    verify_modal: verify,
 	    pubkey: formfields.pubkey,

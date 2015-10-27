@@ -27,6 +27,8 @@ chdir("apt");
 include("quickvm_sup.php");
 # Do not create anything, just do the checks.
 $debug = 0;
+# Update mode.
+$promoting = 0;
 
 #
 # Get current user.
@@ -35,7 +37,16 @@ RedirectSecure();
 $this_user = CheckLogin($check_status);
 if (isset($this_user)) {
     # Allow unapproved users to join multiple groups ...
-    CheckLoginOrDie(CHECKLOGIN_UNAPPROVED);
+    CheckLoginOrDie(CHECKLOGIN_UNAPPROVED|CHECKLOGIN_NONLOCAL);
+}
+
+# Force nonlocal user to provide more complete personal info.
+if ($this_user && $this_user->IsNonLocal()) {
+    # Might want to use a different test, or add a flag to the users table
+    # indicating that a user has been promoted to allow project create/join.
+    if (!$this_user->country() || $this_user->country() == "") {
+        $promoting = 1;
+    }
 }
 
 #
@@ -58,6 +69,7 @@ function SPITFORM($formfields, $showverify, $errors)
 {
     global $TBDB_UIDLEN, $TBDB_PIDLEN, $TBDOCBASE, $WWWHOST;
     global $ACCOUNTWARNING, $EMAILWARNING, $this_user, $joinproject, $toomany;
+    global $promoting;
     $button_label = "Create Account";
 
     SPITHEADER(1);
@@ -85,7 +97,13 @@ function SPITFORM($formfields, $showverify, $errors)
         echo "window.APT_OPTIONS.ShowVerifyModal = true;\n";
     }
     if ($this_user) {
-	echo "window.APT_OPTIONS.this_user = true;\n";
+        echo "window.APT_OPTIONS.this_user = true;\n";
+        if ($promoting) {
+            echo "window.APT_OPTIONS.promoting = true;\n";
+        }
+        else {
+            echo "window.APT_OPTIONS.promoting = false;\n";
+        }
     }
     else {
 	echo "window.APT_OPTIONS.this_user = false;\n";
@@ -127,16 +145,27 @@ if (! isset($create)) {
     $defaults["startorjoin"] = "start";
     $joinproject = 0;
 
-    if (isset($uid)) {
-	$defaults["uid"] = CleanString($uid);
+    if ($this_user && $promoting) {
+        $defaults["uid"]         = $this_user->uid();
+        $defaults["email"]       = $this_user->email();
+        $defaults["city"]        = $this_user->city();
+        $defaults["state"]       = $this_user->state();
+        $defaults["country"]     = $this_user->country();
+        $defaults["fullname"]    = $this_user->name();
+        $defaults["affiliation"] = $this_user->affil();
+    }
+    else {
+        if (isset($uid)) {
+            $defaults["uid"] = CleanString($uid);
+        }
+        if (isset($email)) {
+            $defaults["email"] = CleanString($email);
+        }
     }
     if (isset($pid)) {
-	$defaults["pid"] = CleanString($pid);
+        $defaults["pid"] = CleanString($pid);
         $defaults["startorjoin"] = "join";
         $joinproject = 1;
-    }
-    if (isset($email)) {
-	$defaults["email"] = CleanString($email);
     }
     
     SPITFORM($defaults, 0, $errors);
@@ -163,7 +192,7 @@ if ($formfields["startorjoin"] == "join") {
 #
 # These fields are required
 #
-if (! $this_user) {
+if (!$this_user || $promoting) {
     if (!isset($formfields["uid"]) ||
 	strcmp($formfields["uid"], "") == 0) {
 	$errors["uid"] = "Missing Field";
@@ -171,8 +200,9 @@ if (! $this_user) {
     elseif (!TBvalid_uid($formfields["uid"])) {
 	$errors["uid"] = TBFieldErrorString();
     }
-    elseif (User::Lookup($formfields["uid"]) ||
-	    posix_getpwnam($formfields["uid"])) {
+    elseif (!$promoting &&
+            (User::Lookup($formfields["uid"]) ||
+             posix_getpwnam($formfields["uid"]))) {
 	$errors["uid"] = "Already in use. Pick another";
     }
     if (!isset($formfields["fullname"]) ||
@@ -195,7 +225,8 @@ if (! $this_user) {
     elseif (! TBvalid_email($formfields["email"])) {
 	$errors["email"] = TBFieldErrorString();
     }
-    elseif (User::LookupByEmail($formfields["email"])) {
+    elseif (!$promoting &&
+            User::LookupByEmail($formfields["email"])) {
         #
         # Treat this error separate. Not allowed.
         #
@@ -230,22 +261,24 @@ if (! $this_user) {
     elseif (! TBvalid_city($formfields["city"])) {
 	$errors["city"] = TBFieldErrorString();
     }
-    if (!isset($formfields["password1"]) ||
-	strcmp($formfields["password1"], "") == 0) {
-	$errors["password1"] = "Missing Field";
-    }
-    if (!isset($formfields["password2"]) ||
-	strcmp($formfields["password2"], "") == 0) {
-	$errors["password2"] = "Missing Field";
-    }
-    elseif (strcmp($formfields["password1"], $formfields["password2"])) {
-	$errors["password2"] = "Does not match password";
-    }
-    elseif (! CHECKPASSWORD($formfields["uid"],
-			    $formfields["password1"],
-			    $formfields["fullname"],
-			    $formfields["email"], $checkerror)) {
-	$errors["password1"] = "$checkerror";
+    if (!$promoting) {
+        if (!isset($formfields["password1"]) ||
+            strcmp($formfields["password1"], "") == 0) {
+            $errors["password1"] = "Missing Field";
+        }
+        if (!isset($formfields["password2"]) ||
+            strcmp($formfields["password2"], "") == 0) {
+            $errors["password2"] = "Missing Field";
+        }
+        elseif (strcmp($formfields["password1"], $formfields["password2"])) {
+            $errors["password2"] = "Does not match password";
+        }
+        elseif (! CHECKPASSWORD($formfields["uid"],
+                                $formfields["password1"],
+                                $formfields["fullname"],
+                                $formfields["email"], $checkerror)) {
+            $errors["password1"] = "$checkerror";
+        }
     }
 }
 
@@ -308,7 +341,7 @@ if (count($errors)) {
 # we go any further. We use a session variable to store the
 # key we send to the user in email.
 #
-if (!$this_user) {
+if (!$this_user || $promoting) {
     session_start();
     if (!isset($_SESSION["verify_key"])) {
 	$_SESSION["verify_key"] = substr(GENHASH(), 0, 16);
@@ -346,6 +379,27 @@ if ($debug) {
 	    print_r($formfields, TRUE), 0);
     SPITFORM($formfields, 0, $errors);
     return;
+}
+
+#
+# If a nonlocal user upgrading account, do a ModUserInfo and then
+# continue as a normal user (even though they are still nonlocal).
+#
+if ($this_user && $promoting) {
+    $args["name"]	   = $formfields["fullname"];
+    $args["city"]          = $formfields["city"];
+    $args["state"]         = $formfields["state"];
+    $args["country"]       = $formfields["country"];
+    $args["shell"]         = 'tcsh';
+    $args["affiliation"]   = $formfields["affiliation"];
+
+    if (! User::ModUserInfo($this_user, $this_user->uid(), $args, $errors)) {
+        # Always respit the form so that the form fields are not lost.
+        SPITFORM($formfields, 0, $errors);
+        PAGEFOOTER();
+        return;
+    }
+    $this_user->Refresh();
 }
 
 #

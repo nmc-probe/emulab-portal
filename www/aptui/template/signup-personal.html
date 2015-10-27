@@ -1,11 +1,14 @@
 <input name="formfields[uid]" value="<%- formfields.uid %>"
        class="form-control" data-key="uid"
-       placeholder="Username" autofocus type="text">
+       placeholder="Username"
+       <% if (promoting) { %>readonly<% } else { %>autofocus<% } %>
+       type="text">
 <input name="formfields[fullname]" value="<%- formfields.fullname %>"
        class="form-control" data-key="fullname"
        placeholder="Full Name" type="text">
 <input name="formfields[email]" value="<%- formfields.email %>"
        class="form-control" data-key="email"
+       <% if (promoting) { %>readonly<% } %>
        placeholder="Email" type="text">
 <input name="formfields[affiliation]" value="<%- formfields.affiliation %>"
        class="form-control" data-key="affiliation"
@@ -24,6 +27,7 @@
 <input name="formfields[city]" value="<%- formfields.city %>"
        class="form-control" data-key="city"
        placeholder="City" type="text">
+<% if (!promoting) { %>
 <div data-key="keyfile">
   <span class="help-block">SSH Public Key file</span>
   <input type="file" name="keyfile"
@@ -35,3 +39,4 @@
 <input name="formfields[password2]" value="<%- formfields.password2 %>"
        class="form-control" data-key="password2"
        placeholder="Confirm Password" type="password">
+<% } %>
