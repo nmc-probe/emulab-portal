@@ -556,6 +556,60 @@ sub ExecQuiet($)
     return $output;
 }
 
+sub PipeCommand($$$)
+{
+    my ($command, $input, $pmsg) = @_;
+
+    require Socket;
+    import Socket qw(:DEFAULT);
+    require IO::Handle;     # thousands of lines just for autoflush :-(
+    
+    if (! socketpair(CHILD, PARENT, AF_UNIX(), SOCK_STREAM(), PF_UNSPEC())) {
+	print STDERR "*** PipeTo: Could not create socketpair\n";
+	return undef;
+    }
+    CHILD->autoflush(1);
+    PARENT->autoflush(1);
+
+    my $childpid = fork();
+    if (! $childpid) {
+	close CHILD;
+
+	#
+	# Dup our descriptors to the parent, and exec the program.
+	# The parent then talks to it read/write.
+	#
+	open(STDIN,  "<&PARENT") || die "Cannot redirect stdin";
+	open(STDOUT, ">&PARENT") || die "Cannot redirect stdout";
+	open(STDERR, ">&PARENT") || die "Cannot redirect stderr";
+
+	exec($command);
+	die("*** $0:\n".
+	    "    exec '$string' failed: $!\n");
+    }
+    close PARENT;
+
+    # Write input to the child.
+    print CHILD $input;
+    # Tell the process we are done writing. ie: Send it an EOF.
+    shutdown(CHILD,1);
+    
+    my $output = "";
+    while (<CHILD>) {
+	$output .= $_;
+    }
+    close(CHILD);
+    waitpid($childpid, 0);
+    if ($?) {
+	$$pmsg = "PipeCommand failed: '$command'";
+	if ($output ne "") {
+	    $$pmsg .= "\n" . $output;
+	}
+	return undef;
+    }
+    return $output;
+}
+
 #
 # Given a set of edges: [[cisco1, cisco3], [cisco3, cisco4]].
 # Return a spanning tree. Deadly simple algorithm. 
