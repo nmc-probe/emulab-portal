@@ -85,6 +85,14 @@ $geni_response_codes =
           "Insufficient Memory",
           "No Mapping Possible",
     );
+define("GENIRESPONSE_BADARGS",   	       1);
+define("GENIRESPONSE_TIMEDOUT",                8);
+define("GENIRESPONSE_VLAN_UNAVAILABLE",        24);
+define("GENIRESPONSE_INSUFFICIENT_BANDWIDTH",  25);
+define("GENIRESPONSE_INSUFFICIENT_NODES",      26);
+define("GENIRESPONSE_INSUFFICIENT_MEMORY",     27);
+define("GENIRESPONSE_NO_MAPPING",              28);
+define("GENIRESPONSE_STITCHER_ERROR",          101);
 
 class Instance
 {

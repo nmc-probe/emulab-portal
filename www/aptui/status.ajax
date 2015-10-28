@@ -132,31 +132,39 @@ function Do_GetInstanceStatus()
     # Reflect errors back to the user.
     $webtask = WebTask::LookupByObject($instance->uuid());
     if ($webtask && $webtask->exited()) {
-        if ($webtask->exitcode() == 26) {
+        if ($webtask->exitcode() == GENIRESPONSE_INSUFFICIENT_NODES) {
             $blob["reason"]  = "Not enough free nodes, please try again later.";
             $blob["reason"] .= "\n\n";
         }
-        elseif ($webtask->exitcode() == 25) {
+        elseif ($webtask->exitcode() == GENIRESPONSE_INSUFFICIENT_BANDWIDTH) {
             $blob["reason"]  = "Not enough available bandwidth for a link.\n\n";
         }
-        elseif ($webtask->exitcode() == 28) {
+        elseif ($webtask->exitcode() == GENIRESPONSE_NO_MAPPING) {
             $blob["reason"]  = "Your topology could not be mapped to physical ".
                 "resources. Clicking the 'Sliver' button above will provide ".
                 "lots of info, some of which might be useful in figuring out ".
                 "why it failed.\n\n";
         }
-        elseif ($webtask->exitcode() == 8) {
+        elseif ($webtask->exitcode() == GENIRESPONSE_TIMEDOUT) {
             $blob["reason"]  = "Your experiment timed out while setting up, ".
                 "most likely because one or more nodes failed to boot. The ".
                 "node consoles may provide more information.\n\n";
         }
-        elseif ($webtask->exitcode() == 1) {
+        elseif ($webtask->exitcode() == GENIRESPONSE_BADARGS) {
             #
             # This is GENIRESPONSE_BADARGS which typically means an error
             # in the input rspec, something the user must have put in it.
             #
             $blob["reason"]  = "Your topology source contains invalid ".
                 "values.\n\n";
+        }
+        elseif ($webtask->exitcode() == GENIRESPONSE_STITCHER_ERROR) {
+            #
+            # This is GENIRESPONSE_STITCHER_ERROR which is a catch all.
+            #
+            $blob["reason"]  = "Your multi-site topology could not be ".
+                "stitched together. Please look closely at the ".
+                "error message below to see what went wrong.\n\n";
         }
         else {
             $blob["reason"] = "";

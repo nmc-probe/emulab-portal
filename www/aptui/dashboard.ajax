@@ -81,10 +81,12 @@ function Do_GetStats()
         while ($row = mysql_fetch_array($query_result)) {
             $exitcode = $row[0];
             $count    = $row[1];
-            if ($exitcode == 8) {
+            if ($exitcode == GENIRESPONSE_TIMEDOUT) {
                 $breakdown["timedout"][$key] = $count;
             }
-            elseif ($exitcode == 1 || ($exitcode >= 24 && $exitcode < 30)) {
+            elseif ($exitcode == GENIRESPONSE_BADARGS ||
+                    ($exitcode >= GENIRESPONSE_VLAN_UNAVAILABLE &&
+                     $exitcode <= GENIRESPONSE_NO_MAPPING)) {
                 $breakdown["mapping"][$key] += $count;
             }
             else {
@@ -238,6 +240,9 @@ function Do_GetStats()
 
         if ($exitcode >= 0 && $exitcode <= count($geni_response_codes)) {
             $reason = $geni_response_codes[$exitcode];
+        }
+        elseif ($exitcode == GENIRESPONSE_STITCHER_ERROR) {
+            $reason = "Stitcher Failed";
         }
         if ($aggregate_urn && $aggregate_urn != "") {
             $cluster = $urn_mapping[$aggregate_urn];
