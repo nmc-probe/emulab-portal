@@ -2520,7 +2520,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		$errorcode = GENIRESPONSE_INSUFFICIENT_MEMORY();
 	    }
 	    elsif (!defined($violations) &&
-		$line =~ /Violations:\s*(\d*)/ && $1 != 0) {
+		$line =~ /Violations:\s*([+-]?\d*)/ && $1 != 0) {
 		$violations   = "";
 		$inviolations = 1;
 		$inprecheck   = 0;
@@ -2564,7 +2564,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 
 		# Attempt to parse the violations into something human readable.
 		if ($line =~ /no_connect:\s*[1-9]/ ||
-		    $line =~ /bandwidth:\s*[1-9]/) {
+		    $line =~ /bandwidth:\s*[+-]?[1-9]/) {
 		    $errorstr  = "Not enough bandwidth to connect some nodes"; 
 		    $errorcode = GENIRESPONSE_INSUFFICIENT_BANDWIDTH();
 		}
