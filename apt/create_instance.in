@@ -1243,7 +1243,7 @@ sub RunStitcher()
     # Who we are speaking for.
     my $speaksfor_urn = $slice_credential->owner_urn();
     my $failed        = 0;
-    my $errcode       = -1;
+    my $errcode       = GENIRESPONSE_STITCHER_ERROR();
 
     #
     # The AM API uses a different ssh key structure.
