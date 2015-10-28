@@ -792,7 +792,7 @@ if ($usestitcher) {
 	$instance->RecordError($rval,
 			       (defined($webtask->output()) ?
 				$webtask->output() : ""));
-	$webtask->Exited(1);
+	$webtask->Exited($rval);
 	exit($rval);
     }
 }
@@ -1243,6 +1243,7 @@ sub RunStitcher()
     # Who we are speaking for.
     my $speaksfor_urn = $slice_credential->owner_urn();
     my $failed        = 0;
+    my $errcode       = -1;
 
     #
     # The AM API uses a different ssh key structure.
@@ -1316,6 +1317,8 @@ sub RunStitcher()
     $instance->SetStatus("stitching");
     system("cd $tmpdir; $command > $stdoutfile 2> $stderrfile");
     if ($?) {
+	$errcode = $? >> 8;
+	
 	if (-s $stderrfile) {
 	    my $stuff = `cat $stderrfile`;
 
@@ -1350,7 +1353,7 @@ sub RunStitcher()
 	# Even if we fail, want to pick up whatever aggregates the stitcher
 	# decided to use, so that we can ensure all slivers get cleaned up
 	# at termination.
-	#
+	# 
 	$failed = 1;
     }
     if (defined($logfile)) {
@@ -1549,7 +1552,7 @@ sub RunStitcher()
     }
 #    system("/bin/rm -rf $tmpdir")
 #	if (!$debug && defined($tmpdir) && -e $tmpdir);
-    return -1;
+    return $errcode;
 }
 
 #
