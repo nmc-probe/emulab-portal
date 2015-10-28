@@ -1950,7 +1950,7 @@ sub getOFInstances($) {
 	return $self->{OFMAP};
     }
 
-    my $cmd = "show openflow of-instance";
+    my $cmd = "show openflow of-instance | no-more";
     my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmd,0);
     return undef
 	if $fail;
@@ -2028,9 +2028,13 @@ sub createOFVlan($$$) {
 	return 0;
     }
 
-    # Create the OF instance
+    # Create the OF instance.  Enable all of the goodies. Set to type "vlan".
     my @cmds = ("openflow of-instance $ofid",
-		"interface-type vlan");
+		"flow-map l2 enable",
+		"flow-map l3 enable",
+		"interface-type vlan",
+		"learning-switch-assist enable",
+		"multiple-fwd-table enable");
     my $cmdstr = join("\n", @cmds);
     my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr,1);
     if ($fail) {
@@ -2181,7 +2185,7 @@ sub getUsedOpenflowListenerPorts($) {
 sub isOpenflowSupported($) {
     my $self = shift;
 
-    my $cmd = "show openflow";
+    my $cmd = "show openflow | no-more";
     my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmd,0);
     if ($fail) {
 	$self->debug("'show openflow' returned error: $output\n");
