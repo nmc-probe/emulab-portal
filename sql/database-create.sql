@@ -163,6 +163,7 @@ CREATE TABLE `apt_instance_failures` (
   `exitcode` int(10) default '0',
   `exitmessage` mediumtext,
   `public_url` tinytext,
+  `logfileid` varchar(40) default NULL,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -184,6 +185,7 @@ CREATE TABLE `apt_instance_history` (
   `pid_idx` mediumint(8) unsigned default NULL,
   `aggregate_urn` varchar(128) default NULL,
   `public_url` tinytext,
+  `logfileid` varchar(40) default NULL,
   `created` datetime default NULL,
   `destroyed` datetime default NULL,
   `expired` tinyint(1) NOT NULL default '0',
@@ -2053,6 +2055,17 @@ CREATE TABLE `image_boot_status` (
   `status` enum('success','reloadfail','bootfail') NOT NULL default 'success',
   PRIMARY KEY  (`idx`),
   KEY `stamp` (`stamp`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `image_deletions`
+--
+
+DROP TABLE IF EXISTS `image_deletions`;
+CREATE TABLE `image_deletions` (
+  `urn` varchar(128) default NULL,
+  `image_uuid` varchar(40) NOT NULL default '',
+  PRIMARY KEY  (`urn`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
