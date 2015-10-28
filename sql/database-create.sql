@@ -2058,17 +2058,6 @@ CREATE TABLE `image_boot_status` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
--- Table structure for table `image_deletions`
---
-
-DROP TABLE IF EXISTS `image_deletions`;
-CREATE TABLE `image_deletions` (
-  `urn` varchar(128) default NULL,
-  `image_uuid` varchar(40) NOT NULL default '',
-  PRIMARY KEY  (`urn`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
-
---
 -- Table structure for table `image_history`
 --
 
