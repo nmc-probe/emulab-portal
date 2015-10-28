@@ -317,13 +317,6 @@ sub Delete($)
     my ($self) = @_;
     my $uuid = $self->uuid();
 
-    if (defined($self->logfileid())) {
-	my $logfile = Logfile->Lookup($self->logfileid());
-	if (defined($logfile)) {
-	    # purge the actual file.
-	    $logfile->Delete(1);
-	}
-    }
     foreach my $agg ($self->AggregateList()) {
 	$agg->Delete() == 0
 	    or return -1;
