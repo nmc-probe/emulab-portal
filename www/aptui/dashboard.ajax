@@ -39,7 +39,7 @@ $scales  = array("Day"   => (24 * 3600),
 #
 function Do_GetStats()
 {
-    global $scales, $geni_response_codes, $urn_mapping;
+    global $scales, $geni_response_codes, $urn_mapping, $TBBASE;
 
     if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
         SPITAJAX_ERROR(1, "Not enough permission");
@@ -209,7 +209,7 @@ function Do_GetStats()
         DBQueryFatal("select f.name,exitcode,f.created,f.public_url,f.uuid,".
                      "  IF(i.uuid,1,0) as active,f.exitmessage, ".
                      "  p.uuid as profile_uuid,p.name as profile_name, ".
-                     "  h.aggregate_urn,f.slice_uuid ".
+                     "  h.aggregate_urn,f.slice_uuid,f.logfileid,f.creator ".
                      "from apt_instance_failures as f ".
                      "left join apt_instances as i on ".
                      "     i.uuid=f.uuid ".
@@ -223,9 +223,11 @@ function Do_GetStats()
         $name       = $row["name"];
         $exitcode   = $row["exitcode"];
         $url        = $row["public_url"];
+        $logfileid  = $row["logfileid"];
         $active     = $row["active"] ? 1 : 0;
         $uuid       = $row["uuid"];
         $created    = $row["created"];
+        $creator    = $row["creator"];
         $message    = $row["exitmessage"];
         $reason     = $exitcode;
         $slice_uuid = $row["slice_uuid"];
@@ -249,6 +251,15 @@ function Do_GetStats()
         if (ISFOREIGN_ADMIN()) {
             $url = null;
         }
+        elseif (!$url) {
+            #
+            # If there is a log file, show that instead.
+            #
+            if ($logfileid) {
+                $url = $TBBASE . "/" .
+                    CreateURL("spewlogfile", "logfile", $logfileid);
+            }
+        }
         elseif (preg_match("/^(https:.*)\/showslicepub/", $url, $matches)) {
             if (ISADMIN()) {
                 $url = $matches[1] . "/showslicelogs.php?slice_uuid=".
@@ -263,6 +274,7 @@ function Do_GetStats()
                                       "exitcode" => $exitcode,
                                       "active"   => $active,
                                       "created"  => $created,
+                                      "creator"  => $creator,
                                       "reason"   => $reason,
                                       "message"  => $message,
                                       "url"      => $url,

@@ -224,6 +224,7 @@
 	  <thead>
 	    <tr>
 	      <th>Name</th>
+	      <th>Creator</th>
 	      <th>When</th>
 	      <th>Profile</th>
 	      <th>Cluster</th>
@@ -240,6 +241,7 @@
 		<% }else { %>
 		<td><%- value.name %></td>
 	    <% } %>
+	    <td><%- value.creator %></td>
 	    <td class="format-date"><%- value.created %></td>
 	    <td><a href="show-profile.php?uuid=<%- value.profile_uuid %>">
 	      <%- value.profile_name %></a></td>
