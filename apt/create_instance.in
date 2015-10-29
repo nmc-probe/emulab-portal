@@ -1318,6 +1318,7 @@ sub RunStitcher()
     system("cd $tmpdir; $command > $stdoutfile 2> $stderrfile");
     if ($?) {
 	$errcode = $? >> 8;
+	$errcode = GENIRESPONSE_STITCHER_ERROR() if ($errcode == 1);
 	
 	if (-s $stderrfile) {
 	    my $stuff = `cat $stderrfile`;
