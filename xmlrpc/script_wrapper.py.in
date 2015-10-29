@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2004-2014 University of Utah and the Flux Group.
+# Copyright (c) 2004-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -404,7 +404,7 @@ class reload:
 
     def apply(self):
         try:
-            opts, req_args = getopt.getopt(self.argv, "i:p:m:sre:c",
+            opts, req_args = getopt.getopt(self.argv, "i:p:m:sre:cF",
                                            [ "help" ]);
             pass
         except getopt.error, e:
@@ -436,6 +436,9 @@ class reload:
                 pass
             elif opt == "-c":
                 params["usecurrent"] = "yes";
+                pass
+            elif opt == "-F":
+                params["force"] = "yes";
                 pass
             elif opt == "-e":
                 pid,eid = string.split(val, ",")
@@ -472,6 +475,7 @@ class reload:
 	print "    -m    - Specify internal image id (instead of -i and -p)";
 	print "    -r    - Do *not* reboot nodes; do that yourself";
         print "    -c    - Reload nodes with the image currently on them";
+        print "    -F    - Force; clobber any existing MBR/partition table";
  	print "    -e    - Reload all nodes in the given experiment";
 	print "  node    - Node to reload (pcXXX)";
         wrapperoptions();

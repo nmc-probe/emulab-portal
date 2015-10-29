@@ -2391,6 +2391,11 @@ class experiment:
                     argstr += " -c "
                     pass
                 pass
+            elif opt == "force":
+                if xbool(val):
+                    argstr += " -P "
+                    pass
+                pass
             pass
 
         argstr += " -e "
@@ -4017,6 +4022,11 @@ class node:
             elif opt == "usecurrent":
                 if xbool(val):
                     argstr += " -c "
+                    pass
+                pass
+            elif opt == "force":
+                if xbool(val):
+                    argstr += " -P "
                     pass
                 pass
             pass
