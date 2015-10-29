@@ -21,7 +21,7 @@
               enctype='multipart/form-data'
 	      method='post' action='signup.php'>
 	  <div class='row'>
-	    <div class='<% if (this_user) { %>col-sm-12<% } else { %>col-sm-6<% } %>'>
+	    <div class='<% if (this_user && !promoting) { %>col-sm-12<% } else { %>col-sm-6<% } %>'>
 	      <%= verify_modal %>
 	      <input type='hidden' name='formfields[pubkey]'
 		     value='<%- pubkey %>'>

@@ -151,7 +151,6 @@ if (! isset($create)) {
         $defaults["city"]        = $this_user->city();
         $defaults["state"]       = $this_user->state();
         $defaults["country"]     = $this_user->country();
-        $defaults["fullname"]    = $this_user->name();
         $defaults["affiliation"] = $this_user->affil();
     }
     else {
