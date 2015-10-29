@@ -774,7 +774,7 @@ REPLACE INTO table_regex VALUES ('groups','change','text','regex','^permit$',0,0
 REPLACE INTO table_regex VALUES ('groups','add','text','regex','^permit$',0,0,NULL);
 REPLACE INTO table_regex VALUES ('groups','trust','text','regex','^(user|local_root|group_root)$',0,0,NULL);
 
-REPLACE INTO table_regex VALUES ('nodes','node_id','text','regex','^[-\\w]+$',1,12,NULL);
+REPLACE INTO table_regex VALUES ('nodes','node_id','text','regex','^[-\\w]+$',1,32,NULL);
 REPLACE INTO table_regex VALUES ('nseconfigs','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('nseconfigs','eid','text','redirect','experiments:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('nseconfigs','vname','text','redirect','virt_nodes:vname',0,0,NULL);
