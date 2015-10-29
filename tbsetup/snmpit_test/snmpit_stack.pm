@@ -546,19 +546,15 @@ sub newVlanNumber($$$) {
 # returns: 1 on success
 # returns: 0 on failure
 #
-sub createVlan($$$$;$$$) {
+sub createVlan($$$$;$) {
     my $self = shift;
     my $device_id = shift;
     my $vlan_id = shift;
     my @ports = @{shift()};
-    my @otherargs = @_;
+    my $otherargs = shift;
     my $vlan_number;
     my %map;
     my $errortype = "Creating";
-
-
-    # We ignore other args for now, since generic stacks don't support
-    # private VLANs and VTP;
 
     $self->lock();
     LOCKBLOCK: {
@@ -571,7 +567,8 @@ sub createVlan($$$$;$$$) {
 	print "Creating VLAN $vlan_id as VLAN #$vlan_number on stack " .
                  "$self->{STACKID} ... \n";
 	if ($self->{ALLVLANSONLEADER}) {
-		$res = $self->{LEADER}->createVlan($vlan_id, $vlan_number);
+		$res = $self->{LEADER}->createVlan($vlan_id, $vlan_number, 
+						   $otherargs);
 		$self->unlock();
 		if (!$res) { goto failed; }
 	}
@@ -580,7 +577,7 @@ sub createVlan($$$$;$$$) {
 	    if ($self->{ALLVLANSONLEADER} &&
 		($devicename eq $self->{LEADERNAME})) { next; }
 	    $device = $self->{DEVICES}{$devicename};
-	    $res = $device->createVlan($vlan_id, $vlan_number);
+	    $res = $device->createVlan($vlan_id, $vlan_number, $otherargs);
 	    if (!$res) {
 		goto failed;
 	    }

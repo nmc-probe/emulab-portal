@@ -797,17 +797,19 @@ sub findVlan($$;$) {
 #        is 'community' or 'isolated', then the assocated primary VLAN and
 #        promiscous port must also be given
 #
-sub createVlan($$;$$$) {
+sub createVlan($$$;$) {
     my $self = shift;
     my $vlan_id = shift;
     my $vlan_number = shift;
+    my $otherargs = shift;
 
     my ($private_type,$private_primary,$private_port);
-    if (@_) {
-        $private_type = shift;
+    if ($otherargs && ref($otherargs) eq 'HASH' && 
+	exists($otherargs->{"pvtype"})) {
+        $private_type = $otherargs->{"pvtype"};
         if ($private_type ne "primary") {
-            $private_primary = shift;
-            $private_port = shift;
+            $private_primary = $otherargs->{"pvprimary"};
+            $private_port = $otherargs->{"pvport"};
         }
     } else {
         $private_type = "normal";

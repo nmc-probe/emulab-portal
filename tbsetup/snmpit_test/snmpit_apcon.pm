@@ -962,10 +962,11 @@ sub findVlan($$;$) {
 #        returns the new VLAN number on success
 #        returns 0 on failure
 #
-sub createVlan($$$) {
+sub createVlan($$$;$) {
     my $self = shift;
     my $vlan_id = shift;
     my $vlan_number = shift; # we ignore this on Apcon switch
+    my $otherargs = shift;
     my $id = $self->{NAME} . ":createVlan";
 
     #

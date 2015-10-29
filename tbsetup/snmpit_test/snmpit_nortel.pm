@@ -512,10 +512,11 @@ sub findVlan($$;$) {
 # name it at this point.  We'll try to add ports later.
 # we have to supply all parameters in the same SNMP packet, however.
 #
-sub createVlan($$$) {
+sub createVlan($$$;$) {
     my $self = shift;
     my $vlan_id = shift;
     my $vlan_number = shift;
+    my $otherargs = shift;
     my $id = $self->{NAME} . ":createVlan";
 
     if (!defined($vlan_number)) {

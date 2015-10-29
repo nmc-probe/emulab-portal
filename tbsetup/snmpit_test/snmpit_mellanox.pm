@@ -776,10 +776,11 @@ sub findVlan($$;$) {
 #        returns the new VLAN number on success
 #        returns 0 on failure
 #
-sub createVlan($$$) {
+sub createVlan($$$;$) {
     my $self = shift;
     my $vlan_id = shift;
     my $vlan_number = shift;
+    my $otherargs = shift;
     my $id = $self->{NAME} . "::createVlan";
 
     if (!defined($vlan_number)) {

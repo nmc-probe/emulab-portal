@@ -512,10 +512,11 @@ sub findVlan($$;$) {
 # register the fact in the pending hashes, so that when the addPorts()
 # call gets made, it will retrieve the appropriate tag number.
 #
-sub createVlan($$$) {
+sub createVlan($$$;$) {
     my $self = shift;
     my $vlan_id = shift;
     my $vlan_number = shift;
+    my $otherargs = shift;
 
     if (!defined($vlan_number)) {
 	warn "foundry::createVlan called without supplying vlan_number";
