@@ -85,6 +85,7 @@ if ($EUID != 0) {
 use lib "@prefix@/lib";
 use EmulabConstants;
 use EmulabFeatures;
+use libEmulab;
 use libtestbed;
 use User;
 use Image;
@@ -348,6 +349,13 @@ if ($purge || $rename) {
 exit(0)
     if ($impotent);
 
+#
+# If using the image tracker, have to notify the IMS.
+#
+if (GetSiteVar("protogeni/use_imagetracker")) {
+    $image->SchedIMSDeletion() == 0
+	or fatal("Could not schedule IMS deletion");
+}
 if ($image->Delete() != 0) {
     fatal("Could not delete image!");
 }

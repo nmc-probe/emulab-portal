@@ -432,13 +432,44 @@ sub NewImage($)
 {
     my ($blob) = @_;
     my $needdelete  = 0;
+    my $image_urn    = $blob->{'urn'};
     my $image_uuid   = $blob->{'image_uuid'};
     my $version_uuid = $blob->{'version_uuid'};
+    my $safe_urn     = DBQuoteSpecial($image_urn);
+    my $safe_uuid    = DBQuoteSpecial($image_uuid);
+
+    #
+    # Okay, we have to deal with a image that was deleted at the origin
+    # cluster, and then recreated before we got the deletion message.
+    # To keep the logic simple, and because creating images takes a long
+    # time (so this will not happen often), we just assume that if the
+    # image uuid for a urn changes, the origin has done exactly that, and
+    # so we delete the existing image and all its versions, and start a
+    # new one.
+    #
+    my $query_result =
+	$DB->QueryWarn("select image_uuid from images ".
+		       "where urn=$safe_urn and image_uuid!=$safe_uuid");
+    if (!$query_result) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    if ($query_result->numrows) {
+	print STDERR "Deleting existing image $image_urn with ".
+	    "stale uuid $image_uuid\n";
+	
+	$DB->QueryWarn("delete images,image_versions from images ".
+		       "inner join image_versions on ".
+		       "      images.urn=image_versions.urn and ".
+		       "      images.image_uuid=image_versions.image_uuid ".
+		       "where images.urn=$safe_urn and ".
+		       "      images.image_uuid=$safe_uuid")
+	    or GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
 
     #
     # Create an entry in the images table if one does not exist.
     #
-    my $query_result =
+    $query_result =
 	$DB->QueryWarn("select urn from images ".
 		       "where image_uuid='$image_uuid'");
     if (!$query_result) {
@@ -577,7 +608,7 @@ sub GetImageInfo($)
     if (defined($urn)) {
 	my $hrn = GeniHRN->new($urn);
 	return GeniResponse->MalformedArgsResponse("Could not parse URN")
-	    if (!defined($urn));
+	    if (!defined($hrn));
     
 	return GeniResponse->MalformedArgsResponse("Not an image URN")
 	    if ($hrn->type() ne "image");
@@ -686,6 +717,89 @@ sub GetImageInfo($)
     print STDERR Dumper($blob);
 
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+}
+
+sub DeleteImageInfo($)
+{
+    my ($argref) = @_;
+    my $cred   = $argref->{'credential'};
+    my $urn    = $argref->{'urn'};
+    my $uuid   = $argref->{'uuid'};
+    my $query_result;
+
+    if (! defined($cred)) {
+	return GeniResponse->MalformedArgsResponse("Where's the credential?");
+    }
+    if (! (defined($urn) && defined($uuid))) {
+	return GeniResponse->MalformedArgsResponse("Missing urn or uuid args");
+    }
+    return GeniResponse->MalformedArgsResponse("Malformed URN")
+	if (!GeniHRN::IsValid($urn));
+
+    my $authority = GeniAuthority->Lookup($ENV{'MYURN'});
+    if (!defined($authority)) {
+	print STDERR "Could not find local authority object\n";
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    my $credential = GeniCredential::CheckCredential($cred, $authority);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    $credential->HasPrivilege("postimageinfo") or
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+			    "Insufficient permission to deleteimageinfo");
+
+    my $hrn = GeniHRN->new($urn);
+    return GeniResponse->MalformedArgsResponse("Could not parse URN")
+	if (!defined($hrn));
+    
+    return GeniResponse->MalformedArgsResponse("Not an image URN")
+	if ($hrn->type() ne "image");
+
+    return  GeniResponse->MalformedArgsResponse("Not a UUID")
+	if ($uuid !~ /^\w+\-\w+\-\w+\-\w+\-\w+$/);
+
+    #
+    # Verify that that the urn of the image is in the same domain as the
+    # the calling entitiy. 
+    #
+    my $caller_hrn = GeniHRN->new($credential->owner_urn());
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+			"Not allowed to deleteimageinfo for the image domain")
+	if ($hrn->domain() ne $caller_hrn->domain());
+
+    # The id might be version specific.
+    my (undef,$pid,$imagename,$version) = $hrn->ParseImage();
+
+    if (defined($version)) {
+	return GeniResponse->MalformedArgsResponse("Not allowed to delete ".
+						   "an image version");
+    }
+
+    # IMS database handle.
+    InitDBHandle();
+
+    # This // vs : thing is a pain.
+    $urn =~ s/\/\//:/;
+    my $safe_urn  = DBQuoteSpecial($urn);
+
+    #
+    # We use the uuid in this deletion so we do not delete a current
+    # image cause the deletion came in out of order with a new image
+    # creation (image created, deleted, created again). 
+    #
+    $query_result =
+	$DB->QueryWarn("delete images,image_versions from images ".
+		       "inner join image_versions on ".
+		       "      images.urn=image_versions.urn and ".
+		       "      images.image_uuid=image_versions.image_uuid ".
+		       "where images.urn=$safe_urn and ".
+		       "      images.image_uuid='$uuid'");
+    
+    return GeniResponse->Create(GENIRESPONSE_ERROR)    
+	if (!defined($query_result));
+
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

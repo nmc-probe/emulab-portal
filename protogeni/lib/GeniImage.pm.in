@@ -35,7 +35,7 @@ use Exporter;
 use vars qw(@ISA @EXPORT);
 
 @ISA    = "Exporter";
-@EXPORT = qw ( );
+@EXPORT = qw (IMSURL);
 
 use GeniDB;
 use GeniCredential;
@@ -61,16 +61,24 @@ my $TBAUDIT   	   = "@TBAUDITEMAIL@";
 my $BOSSNODE       = "@BOSSNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
 my $PGENIDOMAIN    = "@PROTOGENI_DOMAIN@";
-#my $IMSURL         = "https://www.emulab.net:12369/protogeni/stoller/xmlrpc/ims";
 my $IMSURL         = "https://www.emulab.net:12369/protogeni/xmlrpc/ims";
 my $CLIENTVERS     = 1;
 my $IMPORTER       = "$TB/sbin/image_import";
+if (0) {
+    $IMSURL = "https://www.emulab.net:12369/protogeni/stoller/xmlrpc/ims";
+}
 
 # Cached copy of credential to talk to IMS.
 my $IMS_credential;
 
 # Debugging
 my $usemydevtree  = 0;
+
+# Export.
+sub IMSURL()
+{
+    return $IMSURL;
+}
 
 #
 # Get a credential to talk to the IMS.
@@ -145,6 +153,64 @@ sub GetImageData($;$)
 
     return GeniResponse->Create($response->code(),
 				$response->value(), $errormsg);
+}
+
+#
+# Tell the image server we have deleted an image we previously told
+# it about. We send the uuid in addition to the URN to avoid consistency
+# problems caused by out of order notifications to the server, say if
+# an image is created, deleted, then created again. We always assign a
+# unique uuid to the image, and the IMS has that. We could get fancier
+# but this is a rare race condition.
+#
+sub DeleteImageData($$;$)
+{
+    my ($urn, $uuid, $pmsg) = @_;
+    my $safe_urn = DBQuoteSpecial($urn);
+    my $errormsg;
+
+    my $credential = GetServerCredential();
+    if (!defined($credential)) {
+	$errormsg = "Could not get a credential to talk to the IMS";
+	goto bad;
+    }
+
+    my $response =
+	Genixmlrpc::CallMethod($IMSURL, undef, "DeleteImageInfo",
+			       {"credential" => $credential->asString(),
+				"urn"        => $urn,
+				"uuid"       => $uuid});
+    
+    if (!defined($response) || $response->code()) {
+	my $msg = "DeleteImageInfo failed for $urn/$uuid:";
+	
+	if (!defined($response)) {
+	    $errormsg = "$msg RPC error";
+	}
+	elsif ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+	    goto done;
+	}
+	elsif (defined($response->output())) {
+	    $errormsg = "$msg " . $response->output();
+	}
+	else {
+	    $errormsg = "$msg " . GENIRESPONSE_STRING($response->code());
+	}
+	goto bad;
+    }
+    #
+    # The remote cluster accepted, our responsibilty is done.
+    #
+  done:
+    emdb::DBQueryWarn("delete from image_deletions ".
+		      "where urn=$safe_urn and image_uuid='$uuid'");
+    return 0;
+
+  bad:
+    if (defined($pmsg)) {
+	$$pmsg = $errormsg;
+    }
+    return -1;
 }
 
 #

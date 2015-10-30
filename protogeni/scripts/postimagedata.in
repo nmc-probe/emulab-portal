@@ -61,8 +61,6 @@ my $PGENILOCALUSER= @PROTOGENI_LOCALUSER@;
 my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $CMCERT	  = "$TB/etc/genicm.pem";
 my $OURDOMAIN     = "@OURDOMAIN@";
-#my $IMSURL        = "https://www.emulab.net:12369/protogeni/stoller/xmlrpc/ims";
-my $IMSURL        = "https://www.emulab.net:12369/protogeni/xmlrpc/ims";
 my $CLIENTVERS    = 1;
 
 # un-taint path
@@ -96,6 +94,7 @@ use Group;
 use OSinfo;
 use emdb qw();
 use EmulabFeatures;
+use GeniImage;
 $EmulabFeatures::verbose = 0;
 my $TBOPSPID = TBOPSPID();
 
@@ -423,7 +422,7 @@ sub PostImageInfo($)
     # Push the blob to the image server.
     #
     my $response =
-	Genixmlrpc::CallMethod($IMSURL, undef, "PostImageInfo",
+	Genixmlrpc::CallMethod(IMSURL(), undef, "PostImageInfo",
 			       {"credential" => $credential->asString(),
 				"imageinfo"  => $blob});
     if (!defined($response) || $response->code()) {
@@ -459,7 +458,7 @@ sub GetServerCredential()
 	if (defined($IMS_credential));
     
     my $response =
-	Genixmlrpc::CallMethod($IMSURL, undef, "GetCredential");
+	Genixmlrpc::CallMethod(IMSURL(), undef, "GetCredential");
     if (!defined($response)) {
 	fatal("RPC error getting credential");
     }

@@ -68,6 +68,7 @@ my $EMULAB_PEMFILE = "$TB/etc/genicm.pem";
 my $REGISTER      = "$TB/sbin/protogeni/register_sliver";
 my $TRIGGERUPDATE = "$TB/sbin/protogeni/triggerimageupdate";
 my $POSTIMAGEDATA = "$TB/sbin/protogeni/postimagedata";
+my $DELETEIMAGEDATA = "$TB/sbin/protogeni/deleteimagedata";
 my $IMPORTER      = "$TB/sbin/image_import";
 my $CLEANUPSLICE  = "$TB/sbin/cleanupslice";
 my $CLEANUPTICKET = "$TB/sbin/cleanupticket";
@@ -1276,13 +1277,42 @@ sub HandleImageTracking()
     if (!GetSiteVar("protogeni/use_imagetracker")) {
 	return;
     }
+
+    #
+    # Look for images deletions.
+    #
+    my $query_result =
+	DBQueryWarn("select * from image_deletions");
+    return
+	if (!$query_result);
+    while (my $row = $query_result->fetchrow_hashref()) {
+	my $urn  = $row->{'urn'};
+	my $uuid = $row->{'image_uuid'};
+
+	if ($impotent) {
+	    print "Would trigger image delete for $urn\n";
+	    next;
+	}
+
+	my $output = emutil::ExecQuiet("$DELETEIMAGEDATA '$urn' $uuid");
+	if ($?) {
+	    print $output;
+	    SENDMAIL($TBOPS,
+		     "Could not delete image data at the IMS for $urn/$uuid",
+		     $output,
+		     $TBOPS);
+	    next;
+	}
+	DBQueryWarn("delete from image_deletions ".
+		    "where urn='$urn' and image_uuid='$uuid'");
+    }
     
     #
     # Look for images notifications; these are new local snapshots that need
     # to be copied back to their origin, so we have to tell the origin of that
     # image.
     #
-    my $query_result =
+    $query_result =
 	DBQueryWarn("select * from image_notifications");
     return
 	if (!$query_result);
