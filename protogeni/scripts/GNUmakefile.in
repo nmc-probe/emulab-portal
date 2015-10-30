@@ -51,7 +51,7 @@ PSBIN_STUFF	= register_resources expire_daemon gencrl postcrl \
 		  maptoslice webmaptoslice setexpiration \
 		  mondbd parsecert creategeniuser webcreategeniuser \
 		  updategeniuser webupdategeniuser verifycert webverifycert \
-		  postimagedata getimagedata triggerimageupdate dumpcredential \
+		  postimagedata getimagedata triggerimageupdate \
 		  deleteimagedata
 
 ifeq ($(ISCLEARINGHOUSE),1)
