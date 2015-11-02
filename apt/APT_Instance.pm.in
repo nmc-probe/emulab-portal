@@ -1164,6 +1164,8 @@ sub Terminate($)
     if ($slice->IsExpired()) {
 	$slice->SetExpiration(time() + 3600);
     }
+    # We might change this below.
+    my $cmurl = $authority->url();
 
     if ($self->isAL2S()) {
 	my $slice_credential = APT_Geni::GenAuthCredential($slice);
@@ -1202,13 +1204,13 @@ sub Terminate($)
 	    $credentials = [$slice_credential->asString(),
 			    $speaksfor_credential->asString()];
 	}
-	$method = "DeleteSlice";
-	@params = ({"slice_urn"   => $slice->urn(),
-		    "credentials" => $credentials,
-		   });
+	$method = "DeleteSliver";
+	@params = ($slice->urn(), $credentials, {"blocking" => 'true'});
+	
+	# Convert URL to use AM interface.
+	$cmurl =~ s/\/cm$/\/am/;
+	$cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
     }
-    my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     #
     # We have to watch for resource busy errors, and retry. For a while
