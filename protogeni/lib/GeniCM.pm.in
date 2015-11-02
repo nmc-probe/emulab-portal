@@ -2548,13 +2548,16 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		else {
 		    $precheck .= $line;
 		    #
-		    # Watch for standard Insufficient message:
+		    # Watch for standard Insufficient messages:
 		    #
 		    # *** 2 nodes of type pc requested, but only 1 available \
 		    #          nodes of type pc found
+		    # *** No available physical nodes of type c8220 found 
 		    #
-		    if ($line =~
-			/^\s*\*\*\* (\d*) nodes of type ([-\w]*) requested, but/) {
+		    if (($line =~
+			 /^\s*\*\*\* (\d*) nodes of type ([-\w]*) requested, but/) ||
+			($line =~
+			 /^\s*\*\*\* No available physical nodes of type/)) {
 			$errorcode = GENIRESPONSE_INSUFFICIENT_NODES();
 		    }
 		}
