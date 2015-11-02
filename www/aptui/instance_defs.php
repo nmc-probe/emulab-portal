@@ -151,6 +151,7 @@ class Instance
     function virtnode_count()    { return $this->field('virtnode_count'); }
     function servername()   { return $this->field('servername'); }
     function aggregate_urn(){ return $this->field('aggregate_urn'); }
+    function private_key()  { return $this->field('privkey'); }
     function IsAPT() {
 	return preg_match('/aptlab/', $this->servername());
     }

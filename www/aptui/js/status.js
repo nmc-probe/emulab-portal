@@ -1199,6 +1199,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#instructions_text').html(marked(text));
 		    // Make the div visible.
 		    $('#instructions_panel').removeClass("hidden");
+		    
 		});
 	    });
 	}
@@ -1386,11 +1387,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    // Clear the list view table before adding nodes. Not needed?
             $('#listview_table > tbody').html("");
 
-	    // Add the instructions from only one manifest.
-	    var gottour = 0;
-
 	    // Save off some templatizing data as we process each manifest.
 	    var uridata = {};
+	    
 	    // Save off the last manifest xml blob so we quick process the
 	    // possibly templatized instructions quickly, without reparsing the
 	    // manifest again needlessly.
@@ -1404,8 +1403,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		ProcessNodes(aggregate_urn, xml);
 	    });
 
-	    if (xml != null)
+	    if (xml != null) {
 		UpdateInstructions(xml,uridata);
+		FindEncryptionBlocks(xml);
+	    }
 
 	    /*
 	     * If a single node, show the clone button and maybe the
@@ -1478,6 +1479,64 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		uridata[key] = host;
 	    }
 	});
+    }
+
+    function FindEncryptionBlocks(xml)
+    {
+	var blocks    = {};
+	var passwords = xml[0].getElementsByTagNameNS(EMULAB_NS, 'password');
+
+	// Search the instructions for the pattern.
+	var regex   = /\{password-.*\}/gi;
+	var needed  = $('#instructions_text').html().match(regex);
+	//console.log(needed);
+
+	if (!needed || !needed.length)
+	    return;
+
+	// Look for all the encryption blocks in the manifest ...
+	_.each(passwords, function (password) {
+	    var name  = $(password).attr('name');
+	    var stuff = $(password).text();
+	    var key   = 'password-' + name;
+
+	    // ... and see if we referenced it in the instructions.
+	    _.each(needed, function(match) {
+		var token = match.slice(1,-1);
+		
+		if (token == key) {
+		    blocks[key] = stuff;
+		}
+	    });
+	});
+	// These are blocks that are referenced in the instructions
+	// and need the server to decrypt.  At some point we might
+	// want to do that here in javascript, but maybe later.
+	//console.log(blocks);
+
+	var callback = function(json) {
+	    //console.log(json);
+	    if (json.code) {
+		sup.SpitOops("oops", "Could not decrypt secrets: " +
+			     json.value);
+		return;
+	    }
+	    var itext = $('#instructions_text').html();
+
+	    _.each(json.value, function(plaintext, key) {
+		key = "{" + key + "}";
+		// replace in the instructions text.
+		itext = itext.replace(key, plaintext);
+	    });
+	    // Write the instructions back after replacing patterns
+	    $('#instructions_text').html(itext);
+	};
+    	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "DecryptBlocks",
+					    {"uuid"   : uuid,
+					     "blocks" : blocks});
+	xmlthing.done(callback);
     }
 
     function ShowProgressModal()

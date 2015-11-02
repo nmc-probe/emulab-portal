@@ -114,6 +114,8 @@ $routing = array("myprofiles" =>
                                                      "Do_Reload",
 						 "Refresh" =>
 						     "Do_Refresh",
+						 "DecryptBlocks" =>
+						     "Do_DecryptBlocks",
 						 "Lockout" =>
 						     "Do_Lockout")),
 		 "approveuser" =>
