@@ -1222,6 +1222,11 @@ sub Delete
 	'slice_urn' => $urns[0],
 	'credentials' => $credentials
     };
+    # Optional blocking.
+    if (defined($option_args) &&
+	exists($option_args->{'blocking'}) && $option_args->{'blocking'}) {
+	$args->{'blocking'} = 1;
+    }
     my $response = GeniCMV2::DeleteSlice($args);
     if (!ref($response)) {
 	# This is cause GeniCMV2::DeleteSlice does a fork, and the child
