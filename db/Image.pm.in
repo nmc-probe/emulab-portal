@@ -2069,14 +2069,15 @@ sub RecordImageStatus($$$$)
     my $type    = $node->type();
     my $node_id = $node->node_id();
     my $rsrcidx = $experiment->rsrcidx();
+    my $exptidx = $experiment->idx();
     my $imageid = $self->imageid();
     my $version = $self->version();
     
     DBQueryWarn("insert into image_boot_status ".
-		    "(stamp, rsrcidx, node_id, node_type, ".
+		    "(stamp, exptidx, rsrcidx, node_id, node_type, ".
 		    " imageid, imageid_version, status) ".
 		    "values(UNIX_TIMESTAMP(now()), ".
-		    "       $rsrcidx, '$node_id', '$type', ".
+		    "       $exptidx, $rsrcidx, '$node_id', '$type', ".
 		    "       $imageid, $version, '$status')")
 	    or return -1;
     return 0;

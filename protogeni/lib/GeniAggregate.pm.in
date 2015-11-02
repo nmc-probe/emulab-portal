@@ -1701,6 +1701,7 @@ sub WaitForNodes($$@)
 	$node->_laststate("");
 	$node->_laststatestamp(time());
 	$node->_retried(0);
+	$node->_bootstatus(undef);
 	$node->Refresh();
 	#
 	# Count up number of virtnodes on each physnode.
@@ -1828,6 +1829,15 @@ sub WaitForNodes($$@)
 		    if (defined($node->_sliver()));
 		$node->_waitend(time());
 		delete($nodes{$node_id});
+		if ($state eq TBDB_NODESTATE_RELOADFAILED) {
+		    $node->_bootstatus("reloadfail");
+		}
+		elsif ($state eq TBDB_NODESTATE_TBFAILED) {
+		    $node->_bootstatus("tbfailed");
+		}
+		elsif ($state eq TBDB_NODESTATE_ISUP) {
+		    $node->_bootstatus("success");
+		}
 		next;
 	    }
 	    $waittime = time() - $node->_waitstart();
@@ -1838,6 +1848,7 @@ sub WaitForNodes($$@)
 		$node->_sliver()->SetStatus("failed")
 		    if (defined($node->_sliver()));
 		$node->_waitend(time());
+		$node->_bootstatus("timedout");
 		delete($nodes{$node_id});
 		next;
 	    }
@@ -1873,6 +1884,7 @@ sub WaitForNodes($$@)
 		    $node->_sliver()->SetStatus("failed")
 			if (defined($node->_sliver()));
 		    $node->_waitend(time());
+		    $node->_bootstatus("bootfail");
 		    delete($nodes{$node_id});
 		}
 		next;
@@ -1907,19 +1919,12 @@ sub WaitForNodes($$@)
 
 	$node->_bootlog(undef);
 
-	if (defined($node->_image()) && defined($node->_sliver())) {
+	if (defined($node->_image()) && defined($node->_sliver()) &&
+	    defined($node->_bootstatus())) {
 	    my $image  = $node->_image();
-	    my $status = "success";
 
-	    if ($node->_sliver()->status() eq "failed") {
-		if ($node->eventstate() eq TBDB_NODESTATE_RELOADFAILED) {
-		    $status = "reloadfail";
-		}
-		else {
-		    $status = "bootfail";
-		}
-	    }
-	    $image->RecordImageStatus($experiment, $node, $status);
+	    $image->RecordImageStatus($experiment, $node,
+				      $node->_bootstatus());
 	}
 	
 	#

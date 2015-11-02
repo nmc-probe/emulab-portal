@@ -2047,12 +2047,13 @@ DROP TABLE IF EXISTS `image_boot_status`;
 CREATE TABLE `image_boot_status` (
   `idx` int(10) unsigned NOT NULL auto_increment,
   `stamp` int(10) unsigned NOT NULL,
+  `exptidx` int(11) NOT NULL default '0',
   `rsrcidx` int(10) unsigned default NULL,
   `node_id` varchar(32) NOT NULL,
   `node_type` varchar(30) NOT NULL,
   `imageid` int(8) default NULL,
   `imageid_version` int(8) default NULL,
-  `status` enum('success','reloadfail','bootfail') NOT NULL default 'success',
+  `status` enum('success','reloadfail','bootfail','timedout','tbfailed') NOT NULL default 'success',
   PRIMARY KEY  (`idx`),
   KEY `stamp` (`stamp`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
