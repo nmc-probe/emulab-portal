@@ -2349,7 +2349,7 @@ my %h3c_cmdOIDs =
 sub readifIndex($) {
     my $self = shift;
     my ($t_off, $maxport, $name, $ifindex, $iidoid, $port, $mod) = (0,0);
-    my ($leadmod, $modport);
+    my ($leadmod, $modport, $submod);
     my ($ge, $fe, $he) = ("GigabitEthernet", "FortyGigE", "HundredGigE");
     my $te = "Ten-$ge";
     $self->debug($self->{NAME} . "::readifIndex:\n", 2);
@@ -2374,8 +2374,12 @@ sub readifIndex($) {
 	$self->{IFDESCR}{$ifindex} = $iidoid;
 	$maxport = $ifindex if ($ifindex > $maxport);
 	next unless
-	    ($iidoid =~ /^($ge|$te|$fe|$he)(\d+)\/\d+\/(\d+)$/);
-	($mod, $port) = ($2,$3);
+	    ($iidoid =~ /^($ge|$te|$fe|$he)(\d+)\/(\d+)\/(\d+)$/);
+	($mod, $submod, $port) = ($2,$3,$4);
+	# HORRIBLE hack for submodules > 0
+	if ($submod > 0) {
+	    $port = $ifindex;
+	}
 	$leadmod = $mod unless defined($leadmod);
 	$mod++ if ($leadmod eq '0');
 	$modport = "$mod.$port";
