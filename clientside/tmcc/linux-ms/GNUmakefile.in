@@ -99,6 +99,7 @@ sysetc-fixup:
 	$(INSTALL) -m 644 $(SRCDIR)/interfaces $(SYSETCDIR)/network/interfaces
 	$(INSTALL) -m 644 $(SRCDIR)/sudoers $(SYSETCDIR)/sudoers.d/99-emulab
 	$(INSTALL) -m 755 $(SRCDIR)/ntp $(SYSETCDIR)/init.d/ntp
+	$(INSTALL) -m 644 $(SRCDIR)/99-emulab $(SYSETCDIR)/flash-kernel/ubootenv.d/99-emulab
 
 script-install:	dir-install $(SCRIPTS)
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) script-install)
