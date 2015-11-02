@@ -20,8 +20,8 @@
 # 
 # }}}
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
-# Copyright (c) 2004-2014 Regents, University of California.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2004-2015 Regents, University of California.
 # All rights reserved.
 #
 
@@ -39,12 +39,10 @@ $| = 1; # Turn off line buffering on output
 
 use English;
 use SNMP;
-use Carp qw(cluck);
 use lib '/usr/testbed/lib';
 use snmpit_lib;
 
 use libtestbed;
-use Lan;
 use Port;
 
 #
@@ -179,15 +177,6 @@ sub new($$$;$) {
 	$self->{DOJUMBO} = 0;
     }
 
-    # module offset hack?
-    if (exists($options->{'module_offset'})
-	&& int($options->{'module_offset'}) > 0) {
-	$self->{MODULE_OFFSET} = $options->{'module_offset'};
-	print "$self->{NAME}: Using custom module offset: ".
-	      "$self->{MODULE_OFFSET}\n"
-	      if $self->{DEBUG};
-    }
-
     # Use VRF for OF controller communication (H3C)?
     if (exists($options->{'openflow_vrf'})
 	&& $options->{'openflow_vrf'}) {
@@ -202,6 +191,7 @@ sub new($$$;$) {
     $self->{IFINDEX} = {};
     $self->{TRUNKINDEX} = {};
     $self->{TRUNKS} = {};
+    $self->{IFDESCR} = {};
     $self->{cmdOIDs} = \%cmdOIDs;
 
     # other global variables
@@ -262,8 +252,11 @@ sub new($$$;$) {
 
     warn ("Queried switch type: $self->{HPTYPE}\n") if ($self->{DEBUG});
 
-    $class = $self->{H3C} = 'snmpit_h3c'
-	if ($test_case =~ '^.1.3.6.1.4.1.25506');
+    if ($test_case =~ '^.1.3.6.1.4.1.25506') {
+       my $sysDescr = snmpitGet($self->{SESS}, ['sysDescr', 0], 1);
+       $class = $self->{H3C} =
+               ($sysDescr =~ / Version 5\./) ? 'snmpit_h3cv5' : 'snmpit_h3c';
+    }
     bless($self,$class);
     $self->readifIndex();
 
@@ -644,7 +637,7 @@ sub convertPortFormat($$@) {
 	    @results = map $self->{IFINDEX}{$_}, @ports;
 	    goto done;
 	} elsif ($output == $PORT_FORMAT_PORT) {
-	    $self->debug("Converting ifindex to Port object\n",3);
+	    $self->debug("Converting modport to Port object\n",3);
 	    @results = map Port->LookupByStringForced("$name:$_"), @ports;
 	    goto done;
 	}
@@ -917,7 +910,7 @@ sub setVlanLists($@) {
 	}
     }
     $j = $self->set($todo);
-    if (!defined($j)) { cluck "vlists failed\n";}
+    if (!defined($j)) { print "vlists failed\n";}
     return $j;
 }
 
@@ -1286,7 +1279,7 @@ sub UpdateField($$$@) {
 
 
     foreach $portname (@ports) {
-	my ($row) = $self->convertPortFormat($PORT_FORMAT_IFINDEX,$portname);
+	($row) = $self->convertPortFormat($PORT_FORMAT_IFINDEX,$portname);
 	next
 	    if (!defined($row));
 	$self->debug("checking row $row for $val ...\n");
@@ -1484,6 +1477,13 @@ sub listPorts($) {
 	if ($status = $self->{SESS}->get(["ifOperStatus",$ifIndex])) {
 	    $Link{$ifIndex} = $status;
 	}
+        if ($self->{H3C}) {
+            if ($status = $self->get1("hh3cifEthernetSpeed",$ifIndex))
+                { $speed{$ifIndex} = $status; }
+            if ($status = $self->get1("hh3cifEthernetDuplex",$ifIndex))
+                { $duplex{$ifIndex} = $status; }
+            next;
+        }
 	# HP combines speed and duplex and it has to be teased apart lexically.
 	if ($status = $self->get1("hpSwitchPortFastEtherMode",$ifIndex)) {
 	    my @parse = split("-duplex-", $status);
@@ -1810,20 +1810,16 @@ my %blade_sizes = (
    hpSwitchJ8698A => 24, # hp5412zl
    hpSwitchJ8770A => 24, # hp4204
    hpSwitchJ8773A => 24, # hp4208
-   hpMoonshot45XGc => 64, # Moonshot chassis switch (Comware)
-   hp12910AC      => 97, # HP FlexFabric 12910 switch (Comware)
 );
 
 sub calcModPort($$) {
     my ($self, $ifindex) = @_;
-    my ($j, $port, $mod, $bladesize);
-
-    # Check to see if a module offset option was passed in during
-    # initialization (this is a hack...).
-    if (exists($self->{MODULE_OFFSET}) && $self->{MODULE_OFFSET}) {
-	$bladesize = $self->{MODULE_OFFSET};
-    } else {
-	$bladesize = $blade_sizes{$self->{HPTYPE}};
+    my ($j, $port, $mod);
+    my $bladesize = $blade_sizes{$self->{HPTYPE}};
+    if ($self->{H3C}) {
+        if ($j = $self->{IFINDEX}{$ifindex})
+            { return $j; }
+        else { return "0.$ifindex"; }
     }
     if (defined($bladesize)) {
 	$j = $ifindex - 1;
@@ -2179,7 +2175,7 @@ sub new($$$;$) {
 
 sub getOidToMappedList($$$) {
     my ($self, $oid, $idx) = @_;
-    my $bits = substr($self->get1($oid,$idx), 0, $self->{USELIM});
+    my $bits = $self->get1($oid,$idx);
     return map { $self->{d1dx2ifx}{$_} } $self->portSetToList($bits);
 }
 
@@ -2353,22 +2349,41 @@ my %h3c_cmdOIDs =
 sub readifIndex($) {
     my $self = shift;
     my ($t_off, $maxport, $name, $ifindex, $iidoid, $port, $mod) = (0,0);
+    my ($leadmod, $modport, $submod);
+    my ($ge, $fe, $he) = ("GigabitEthernet", "FortyGigE", "HundredGigE");
+    my $te = "Ten-$ge";
     $self->debug($self->{NAME} . "::readifIndex:\n", 2);
 
-    # First grab the list of ports on the switch via the "ifType"
+    # First, we scrape the dot2dBasePortIfIndex table, which maps port/LAG
+    # ifindices to their offsets inside of the PortSets used in various
+    # SNMP tables (e.g. dot1qVlanStaticEgressPorts).
+    my ($rows) = snmpitBulkwalk($self->{SESS}, ["dot1dBasePortIfIndex"]);
+    $self->{d1dx2ifx} = { map { (@$_[1], @$_[2])} @$rows };
+    $self->{ifx2d1dx} = { map { (@$_[2], @$_[1])} @$rows };
+
+    # Second, grab the list of ports on the switch via the "ifDescr"
     # table.  Keep track of the highest ifindex we've seen as
     # "maxport".  Load up the IFINDEX map with what we get.  
     # KRW: Shouldn't this filter based on the actual port type?  
     # Otherwise we will end up with a large "maxport" due to LAGs 
     # and other virtual ports with large ifindices.
-    my ($rows) = snmpitBulkwalkFatal($self->{SESS}, ["ifType"]);
+    ($rows) = snmpitBulkwalkFatal($self->{SESS}, ["ifDescr"]);
     foreach my $rowref (@$rows) {
 	($name,$ifindex,$iidoid) = @$rowref;
 	$self->debug("got $name, $ifindex, iidoid $iidoid\n", 2);
+	$self->{IFDESCR}{$ifindex} = $iidoid;
 	$maxport = $ifindex if ($ifindex > $maxport);
-	my $modport = $self->calcModPort($ifindex);
-	my $portindex = $ifindex ;
-	$self->{IFINDEX}{$modport} = $portindex;
+	next unless
+	    ($iidoid =~ /^($ge|$te|$fe|$he)(\d+)\/(\d+)\/(\d+)$/);
+	($mod, $submod, $port) = ($2,$3,$4);
+	# HORRIBLE hack for submodules > 0
+	if ($submod > 0) {
+	    $port = $ifindex;
+	}
+	$leadmod = $mod unless defined($leadmod);
+	$mod++ if ($leadmod eq '0');
+	$modport = "$mod.$port";
+	$self->{IFINDEX}{$modport} = $ifindex;
 	$self->{IFINDEX}{$ifindex} = $modport;
     }
 
@@ -2389,28 +2404,20 @@ sub readifIndex($) {
 	($name,$ifindex,$iidoid) = @$rowref;
 	my @mems = $self->portSetToList($iidoid);
 	next unless(@mems);
+	if (ref($self) eq 'snmpit_h3cv5')
+	    { @mems = map { $self->{d1dx2ifx}{$_};} @mems; }
 	$self->{TRUNKS}{$ifindex - $t_off} = [ @mems];
 	map {$self->{TRUNKINDEX}{$_} = $ifindex - $t_off; } @mems;
-	my $modport = $self->{IFINDEX}{$mems[0]};
+	$modport = $self->{IFINDEX}{$mems[0]};
 	foreach $port (@mems, $ifindex) {
-	    $name = $self->{IFINDEX}{$port};
+	    $name = $self->{IFINDEX}{$port} || "0.$ifindex";
 	    $self->{IFINDEX}{$port} = $modport;
 	    $self->{IFINDEX}{$name} = $ifindex;
 	}
     }
 
-    # Next we scrape the dot2dBasePortIfIndex table, which maps port/LAG
-    # ifindices to their offsets inside of the PortSets used in various
-    # SNMP tables (e.g. dot1qVlanStaticEgressPorts).
-    ($rows) = snmpitBulkwalk($self->{SESS}, ["dot1dBasePortIfIndex"]);
-    $self->{d1dx2ifx} = { map { (@$_[1], @$_[2])} @$rows };
-    $self->{ifx2d1dx} = { map { (@$_[2], @$_[1])} @$rows };
-
-    # Record some final metadata for this switch. Make sure $maxport is
-    # a multiple of 32 (KRW: Required by Comware?)
-    if ($maxport > 0) { $maxport = (($maxport - 1) | 31) + 1 };
+    # Record some final metadata for this switch.
     $self->{MAXPORT} = $maxport;
-    $self->{USELIM} = $maxport / 8; # maximum byte offset.
     $self->{TRUNKOFFSET} = $t_off;
     $self->{cmdOIDs} = \%h3c_cmdOIDs;
 }
@@ -2770,6 +2777,130 @@ sub isOpenflowSupported($) {
     #}
 
     return $myret;
+}
+
+#
+# DETER has an hp10512 switch running version 5 comware
+#
+# There are there are at least two differences between the v5 and v7
+# firmware impacting snmpit.  The first is that snmp modification
+# to vlan membership of aggregates is not allowed.
+#
+# We will assume that any aggregates are created, placed into trunk
+# mode and enabled manually by testbed operators, and will only support
+# dynamic vlan changes, i.e. no -E, -T, -U on aggregates.
+#
+# The second is that the clearing membership of a trunked port in
+# a vlan does not remove the vlan from the list of vlans permitted
+# on the trunk, resulting in misleading configuration files, i.e.
+# the vlan would appear to be permitted on the trunk if recreated
+# but would not be passed on the port.  We'll worry about dual
+# mode ports later.
+#
+# Both of these problems are addressed by a v5 specific version
+# of setVlanMembers which invokes CLI specifically to patch up
+# the special cases.  The rest of the routines below are just helpers.
+
+# The only other v5 change is that in reading the aggregate
+# memberships, the indices are in the dot1d space.  This may also be
+# true of v7, but the v7 switches we've seen so far the same values
+# in the dot1d and ifIndex space for normal ports, which is not true
+# on DETER's v5 switch.
+
+package snmpit_h3cv5;
+use strict;
+use vars qw(@ISA);
+@ISA = 'snmpit_h3c';
+my @expect_results;
+
+sub simpleCli($$$) {
+   my ($self, $out, $in) = @_;
+   $self->setup_cli()
+       unless ($self->{CLI_SESSION});
+   my $sess = $self->{CLI_SESSION} ;
+   $sess->send($out . "\r");
+   @expect_results = $sess->expect(2, $in);
+   my $accum = $sess->set_accum("");
+}
+
+sub setup_cli($) {
+    my $self = shift;
+    my $host = $self->{NAME};
+    if (!eval("require Expect")) {
+       die ("$host"."::setup_cli: require Expect failed, aborting\n");
+    }
+    require Expect;
+    local $ENV{PATH} = '/bin:/usr/bin'; # silence taint error
+    my $sess = $self->{CLI_SESSION} = Expect->spawn("telnet",$host);
+    $sess->notransfer(0);
+    if ($self->{DEBUG} == 0) { $sess->log_stdout(0); }
+}
+
+sub setTrunkVlans($$$@) {
+    my ($self, $idx, $add, @vlans) = @_;
+    my ($iname, $hname) = ($self->{IFDESCR}{$idx}, $self->{NAME});
+    $self->simpleCli("return","<$hname>");
+    $self->simpleCli("system-view","[$hname]");
+    $self->simpleCli("interface $iname","[$hname-$iname]");
+    while (scalar(@vlans)) {
+       # Comware CLI seems to limit you to having <=10 vlans in the following
+       my @leadvs = splice(@vlans,0,8);
+       my $cmd = ($add ? "" : "undo ") .
+                       "port trunk permit vlan " . join(' ',@leadvs);
+       $self->simpleCli($cmd,"[$hname-$iname]");
+    }
+}
+sub setVlanMembers($$$) {
+    my ($self, $vlan, $mems, $ifIndex) = @_;
+    my $cur_mems = $self->getVlanMembers($vlan);
+
+    # look for changes, fix permitted list on dropped trunked ports
+    foreach my $idx (keys %$cur_mems, keys %$mems) {
+       # ifIndex of any aggregate will also appear; members dealt with then.
+       next
+           if ($self->{TRUNKINDEX}->{$idx});
+       # consider only changes. (also $idx's appearing twice are not changing!)
+       next
+           unless (exists($$mems{$idx}) ne exists($$cur_mems{$idx}));
+       my $ax = $idx - $self->{TRUNKOFFSET};
+       if (($ax > 0) && exists ($self->{TRUNKS}->{$ax})) {
+           foreach my $i (@{$self->{TRUNKS}->{$ax}})
+               {$$mems{$idx} ? ($$mems{$i} = 'tagged') : delete($$mems{$i});}
+           $self->setTrunkVlans($idx, $$mems{$idx}, $vlan);
+           next;
+       }
+       next
+           unless ($$cur_mems{$idx} && ($$cur_mems{$idx} eq 'tagged'));
+       # if here, we are dropping the non-aggregate trunked port $idx.
+       $self->setTrunkVlans($idx, 0, $vlan);
+    }
+    # now safe to handle non-aggregates as before
+    return snmpit_h3c::setVlanMembers($self, $vlan, $mems);
+}
+
+# we ran this under the debugger to cleam up the mess generated
+# by the second problem noted above.
+sub tidyTrunks($@) {
+    my ($self, @trunks) = @_;
+    my $fv = { $self->findVlans() };
+    my @all = values %$fv;
+    foreach my $idx (keys %{$self->trunkedPorts(@trunks)}) {
+       my $tvlans = {};
+       my @vnums = $self->otherTrunkedVlans($idx,0);
+       foreach my $ov ($self->otherTrunkedVlans($idx,0)) {
+           if (!  scalar(grep {$_ eq $ov} @all))
+               { $self->debug("$idx, $ov -> no vlan\n");}
+           elsif (! ${$self->getVlanMembers($ov)}{$idx})
+               { $self->debug("$idx, $ov -> not member\n");}
+           else { next;}
+           $$tvlans{$ov} = 1;
+       }
+       my @tmems = keys %$tvlans;
+       if (@tmems) {
+           print "bad mems of trunk $idx are ". join(',',@tmems) ."\n";
+           $self->setTrunkVlans($idx, 0, @tmems);
+       }
+    }
 }
 
 # End with true
