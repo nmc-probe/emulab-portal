@@ -211,7 +211,9 @@ function Do_GetStats()
         DBQueryFatal("select f.name,exitcode,f.created,f.public_url,f.uuid,".
                      "  IF(i.uuid,1,0) as active,f.exitmessage, ".
                      "  p.uuid as profile_uuid,p.name as profile_name, ".
-                     "  h.aggregate_urn,f.slice_uuid,f.logfileid,f.creator ".
+                     "  IF(i.uuid,i.aggregate_urn,h.aggregate_urn) ".
+                     "    as aggregate_urn, ".
+                     "  f.slice_uuid,f.logfileid,f.creator ".
                      "from apt_instance_failures as f ".
                      "left join apt_instances as i on ".
                      "     i.uuid=f.uuid ".
