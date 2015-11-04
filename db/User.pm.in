@@ -656,6 +656,8 @@ sub Delete($)
 	or return -1;
     DBQueryWarn("delete from user_stats where uid_idx='$uid_idx'")
 	or return -1;
+    DBQueryWarn("delete from apt_profile_favorites where uid_idx='$uid_idx'")
+	or return -1;
     DBQueryWarn("delete from users where uid_idx='$uid_idx'")
 	or return -1;
 

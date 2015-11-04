@@ -71,7 +71,11 @@ $routing = array("myprofiles" =>
 						 "GetParameters" =>
                                                      "Do_GetParameters",
 						 "GetImageInfo" =>
-						     "Do_GetImageInfo")),
+						     "Do_GetImageInfo",
+						 "MarkFavorite" =>
+						     "Do_MarkFavorite",
+						 "ClearFavorite" =>
+						     "Do_ClearFavorite")),
 		 "manage_profile" =>
 			array("file"    => "manage_profile.ajax",
 			      "guest"   => false,

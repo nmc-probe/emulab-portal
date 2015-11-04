@@ -505,7 +505,7 @@ sub Delete($$)
 	if (!defined($purge));
     
     DBQueryWarn("lock tables apt_profiles write, apt_profile_versions write, ".
-		"     web_tasks write")
+		"     web_tasks write, apt_profile_favorites write")
 	or return -1;
 
     if ($purge) {
@@ -527,6 +527,9 @@ sub Delete($$)
 		    "   web_tasks.object_uuid=apt_profile_versions.uuid ".
 		    "where apt_profile_versions.profileid='$profileid'");
     }
+    DBQueryWarn("delete from apt_profile_favorites ".
+		"where profileid='$profileid'")
+	or goto bad;
     DBQueryWarn("delete from apt_profiles where profileid='$profileid'")
 	or goto bad;
     

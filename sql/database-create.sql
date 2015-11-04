@@ -197,7 +197,8 @@ CREATE TABLE `apt_instance_history` (
   `rspec` mediumtext,
   `params` mediumtext,
   `manifest` mediumtext,
-  PRIMARY KEY (`uuid`)
+  PRIMARY KEY (`uuid`),
+  KEY `profile_id` (`profile_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -241,6 +242,19 @@ CREATE TABLE `apt_instances` (
   `params` mediumtext,
   `manifest` mediumtext,
   PRIMARY KEY (`uuid`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `apt_profile_versions`
+--
+
+DROP TABLE IF EXISTS `apt_profile_favorites`;
+CREATE TABLE `apt_profile_favorites` (
+  `uid` varchar(8) NOT NULL default '',
+  `uid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `profileid` int(10) unsigned NOT NULL default '0',  
+  `marked` datetime default NULL,
+  PRIMARY KEY (`uid_idx`,`profileid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

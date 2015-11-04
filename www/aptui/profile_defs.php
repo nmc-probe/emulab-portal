@@ -432,6 +432,99 @@ class Profile
         return 0;
     }
 
+    function UsageInfo($user) {
+        $profile_id  = $this->profileid();
+        $userclause  = "";
+
+        if ($user) {
+            $creator_idx = $user->idx();
+            $userclause  = "and creator_idx='$creator_idx' ";
+        }
+
+        #
+        # This is last used.
+        #
+        $query_result =
+            DBQueryFatal("select max(UNIX_TIMESTAMP(created)) ".
+                         "  from apt_instances ".
+                         "where profile_id='$profile_id' ".
+                         $userclause);
+        $row = mysql_fetch_row($query_result);
+        if (!$row[0]) {
+            $query_result =
+                DBQueryFatal("select max(UNIX_TIMESTAMP(created)) ".
+                             "  from apt_instance_history ".
+                             "where profile_id='$profile_id' ".
+                             $userclause);
+            $row = mysql_fetch_row($query_result);
+        }
+        if (!$row[0]) {
+            return array(0, 0);
+        }
+        $lastused = $row[0];
+
+        #
+        # Now we want number of times used.
+        #
+        $count = 0;
+        $query_result =
+            DBQueryFatal("select ".
+                         "(select count(profile_id) ".
+                         "   from apt_instances ".
+                         " where profile_id='$profile_id' ".
+                           $userclause . ") as count1, ".
+                         "(select count(profile_id) ".
+                         "   from apt_instance_history ".
+                         " where profile_id='$profile_id' ".
+                           $userclause . ") as count2");
+        if (mysql_num_rows($query_result)) {
+            $row   = mysql_fetch_row($query_result);
+            $count = ($row[0] ? $row[0] : 0) + ($row[1] ? $row[1] : 0);
+        }
+        return array($lastused, $count);
+    }
+
+    function isFavorite($user) {
+        if (!$user) {
+            return 0;
+        }
+        $profile_id  = $this->profileid();
+        $user_idx    = $user->idx();
+
+        $query_result =
+            DBQueryFatal("select * from apt_profile_favorites ".
+                         "where uid_idx='$user_idx' and ".
+                         "      profileid='$profile_id'");
+
+        return mysql_num_rows($query_result);
+    }
+
+    function MarkFavorite($user) {
+        $profile_id  = $this->profileid();
+        $user_uid    = $user->uid();
+        $user_idx    = $user->idx();
+
+        if (!DBQueryWarn("replace into apt_profile_favorites set ".
+                         "  uid='$user_uid',uid_idx='$user_idx', ".
+                         "  profileid='$profile_id',now()")) {
+            return -1;
+        }
+        return 0;
+    }
+
+    function ClearFavorite($user) {
+        $profile_id  = $this->profileid();
+        $user_uid    = $user->uid();
+        $user_idx    = $user->idx();
+
+        if (!DBQueryWarn("delete from apt_profile_favorites ".
+                         "where uid_idx='$user_idx' and ".
+                         "      profileid='$profile_id'")) {
+            return -1;
+        }
+        return 0;
+    }
+
     function BestAggregate($rspec = null) {
 	if (!$rspec) {
 	    $rspec = $this->rspec();

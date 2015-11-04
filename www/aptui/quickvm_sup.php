@@ -582,65 +582,6 @@ function SpitLoginModal($id)
 }
 
 #
-# Topology view modal, shared across a few pages.
-#
-function SpitTopologyViewModal($modal_name, $profile_array)
-{
-    echo "<!-- This is the topology view modal -->
-          <div id='$modal_name' class='modal fade'>
-          <div class='modal-dialog'  id='showtopo_dialog'>
-            <div class='modal-content'>
-               <div class='modal-header'>
-                <button type='button' class='close' data-dismiss='modal'
-                   aria-hidden='true'>
-                   &times;</button>
-                <h3>Select a Profile</h3>
-               </div>
-               <div class='modal-body'>
-                 <!-- This topo diagram goes inside this div -->
-                 <div class='row'
-                            id='showtopo_container'>
-                  <div class='form-group col-md-3 col-sm-3 col-xs-3'>
-                    <input type='text' class='form-control'
-			   placeholder='Search'
-                           id='profile_picker_search'>
-                    <ul class='list-group' id='profile_name'
-                            name='profile'
-                            >\n";
-    while (list ($id, $title) = each ($profile_array)) {
-	$selected = "";
-	if ($profile_value == $id)
-	    $selected = "selected";
-                      
-	echo "          <li class='list-group-item profile-item' $selected
-                            value='$id'>$title </li>\n";
-    }
-    echo "          </ul>
-                  </div> 
-                  <div class='col-md-9 col-sm-9 col-xs-9'>
-                    <div class='panel-body'>
-		    <span id='showtopo_title'></span>
-                     <div id='showtopo_div' class='jacks'></div>
-                     <span class='pull-left' id='showtopo_description'></span>
-                    </div>
-                   </div>
-                 </div>
-                 <div id='showtopo_buttons' class='pull-right'>
-                     <button id='showtopo_select'
-                           class='btn btn-primary btn-sm'
-                           type='submit' name='select'>
-                              Select Profile</button>
-                      <button type='button' class='btn btn-default btn-sm' 
-                      data-dismiss='modal' aria-hidden='true'>
-                     Cancel</button>
-                    </div>
-               </div>
-            </div>
-          </div>
-       </div>\n";
-}
-
-#
 # Please Wait.
 #
 function SpitWaitModal($id)

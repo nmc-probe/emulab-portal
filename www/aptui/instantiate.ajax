@@ -56,6 +56,7 @@ function Do_GetProfile()
 	$amdefault = $profile->BestAggregate();
     }
     $ispp = ($profile->isParameterized() ? 1 : 0);
+    list ($lastused, $count) = $profile->UsageInfo($this_user);
     
     #
     # Knowing the UUID means the user can instantiate it,
@@ -63,6 +64,11 @@ function Do_GetProfile()
     #
     SPITAJAX_RESPONSE(array('rspec'       => $profile->rspec(),
 			    'name'        => $profile->name(),
+                            'version'     => $profile->version(),
+                            'lastused'    => $lastused,
+                            'usecount'    => $count,
+                            'creator'     => $profile->creator(),
+                            'created'     => $profile->created(),
 			    'ispprofile'  => $ispp,
 			    'amdefault'   => $amdefault));
 }
@@ -838,6 +844,52 @@ function Do_Submit()
     }
     SPITAJAX_RESPONSE($blob);
     return;
+}
+
+#
+# Mark (or clear) a profile as a favorite.
+#
+function Do_MarkFavorite()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if (!isset($this_user)) {
+        SPITAJAX_ERROR(1, "Guest users may not set profile favorites");
+        return;
+    }
+    $profile->MarkFavorite($this_user);
+    SPITAJAX_RESPONSE(0);
+}
+function Do_ClearFavorite()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if (!isset($this_user)) {
+        SPITAJAX_ERROR(1, "Guest users may not set profile favorites");
+        return;
+    }
+    $profile->ClearFavorite($this_user);
+    SPITAJAX_RESPONSE(0);
 }
 
 # Local Variables:

@@ -14,6 +14,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var ajaxurl;
     var amlist        = null;
     var projlist      = null;
+    var profilelist   = null;
     var amdefault     = null;
     var selected_uuid = null;
     var selected_rspec = null;
@@ -57,18 +58,19 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	showpicker    = window.SHOWPICKER;
 
 	if ($('#amlist-json').length) {
-	    amlist  = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
+	    amlist = decodejson('#amlist-json');
 	    _.each(_.keys(amlist), function (key) {
 		amValueToKey[amlist[key]] = key;
 	    });
 	}
 	if ($('#projects-json').length) {
-	    projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+	    projlist = decodejson('#projects-json');
 	}
-	var formfields = JSON.parse(_.unescape($('#form-json')[0].textContent));
+	profilelist = decodejson('#profiles-json');
 
 	var html = mainTemplate({
-	    formfields:		formfields,
+	    formfields:		decodejson('#form-json'),
+	    profiles:           profilelist,
 	    projects:           projlist,
 	    amlist:		amlist,
 	    registered:		registered,
@@ -241,6 +243,11 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
         ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
+    }
+
+    // Helper.
+    function decodejson(id) {
+	return JSON.parse(_.unescape($(id)[0].textContent));
     }
 
     var doingformcheck = 0;

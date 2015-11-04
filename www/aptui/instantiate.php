@@ -246,6 +246,46 @@ else {
     }
 }
 
+#
+# Rebuild the array with extra info for the profile picker.
+#
+$tmp_array = array();
+
+while (list ($uuid, $title) = each ($profile_array)) {
+    $tmp = Profile::Lookup($uuid);
+    if ($tmp) {
+        list ($lastused, $count) = $tmp->UsageInfo($this_user);
+        
+        $tmp_array[$uuid] =
+            array("name"     => $tmp->name(),
+                  "project"  => $tmp->pid(),
+                  "favorite" => $tmp->isFavorite($this_user),
+                  "lastused" => $lastused,
+                  "usecount" => $count);
+    }
+}
+#
+# Now we want to order the list.
+#
+if ($this_user) {
+    uasort($tmp_array, function($a, $b) {
+        if ($a["lastused"] == $b["lastused"]) {
+            return 0;
+        }
+        return ($a["lastused"] > $b["lastused"]) ? -1 : 1;
+    });
+}
+else {
+    uasort($tmp_array, function($a, $b) {
+        if ($a["usecount"] == $b["usecount"]) {
+            return 0;
+        }
+        return ($a["usecount"] > $b["usecount"]) ? -1 : 1;
+    });
+}
+$profile_array = $tmp_array;
+#TBERROR(print_r($profile_array, true), 0);
+
 function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $APTMAIL, $ISCLOUD;
@@ -269,6 +309,7 @@ function SPITFORM($formfields, $newuser, $errors)
     else {
         $profilename = "null";
     }
+    SPITHEADER(1);
 
     # I think this will take care of XSS prevention?
     echo "<script type='text/plain' id='form-json'>\n";
@@ -276,6 +317,9 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "</script>\n";
     echo "<script type='text/plain' id='error-json'>\n";
     echo htmlentities(json_encode($errors));
+    echo "</script>\n";
+    echo "<script type='text/plain' id='profiles-json'>\n";
+    echo htmlentities(json_encode($profile_array));
     echo "</script>\n";
     
     # Gack.
@@ -286,8 +330,6 @@ function SPITFORM($formfields, $newuser, $errors)
             $portal = "https://portal.geni.net/";
         }
     }
-
-    SPITHEADER(1);
 
     # Place to hang the toplevel template.
     echo "<div id='main-body'></div>\n";
@@ -323,7 +365,6 @@ function SPITFORM($formfields, $newuser, $errors)
         echo "</script>\n";
     }
 
-    SpitTopologyViewModal("quickvm_topomodal", $profile_array);
     SpitOopsModal("oops");
     echo "<script type='text/javascript'>\n";
     echo "    window.PROFILE    = '" . $formfields["profile"] . "';\n";
