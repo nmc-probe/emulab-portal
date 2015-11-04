@@ -86,8 +86,9 @@ if ($this_user) {
     #
     $tmp = array();
     while (list($pid) = each($projlist)) {
-        $project = Project::Lookup($pid);
-        if ($project && !$project->IsNonLocal()) {
+        # Watch out for killing page variable called "project"
+        $proj = Project::Lookup($pid);
+        if ($proj && !$proj->IsNonLocal()) {
             $tmp[$pid] = $projlist[$pid];
         }
     }
