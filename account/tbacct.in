@@ -565,9 +565,8 @@ sub AddUser()
     }
     $EUID = 0;
 
-    CheckDotFiles();
-
   skipstuff:
+    CheckDotFiles();
     return 0;
 }
 
