@@ -1106,24 +1106,22 @@ sub EncryptBlocks($$$)
 	print STDERR "EncryptBlocks: Could not parse rspec\n";
 	return -1;
     }
-    foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
-	foreach my $encref (GeniXML::FindNodesNS("n:encrypt", $ref,
-				   $GeniXML::EMULAB_NS)->get_nodelist()) {
-	    my $text = $encref->textContent();
-	    next
-		if (!$text || $text eq "");
-	    my $encrypted = GeniXML::GetText("encrypted", $encref);
-	    next
-		if ($encrypted);
+    foreach my $encref (GeniXML::FindNodesNS("n:encrypt", $rspec,
+				    $GeniXML::EMULAB_NS)->get_nodelist()) {
+	my $text = $encref->textContent();
+	next
+	    if (!$text || $text eq "");
+	my $encrypted = GeniXML::GetText("encrypted", $encref);
+	next
+	    if ($encrypted);
 	    
-	    push(@encrypt, $encref);
-	}
-	foreach my $encref (GeniXML::FindNodesNS("n:password", $ref,
+	push(@encrypt, $encref);
+    }
+    foreach my $encref (GeniXML::FindNodesNS("n:password", $rspec,
 				   $GeniXML::EMULAB_NS)->get_nodelist()) {
-	    my $plaintext = substr(TBGenSecretKey(), 0, 12);
-	    $encref->appendText($plaintext);
-	    push(@encrypt, $encref);
-	}
+	my $plaintext = substr(TBGenSecretKey(), 0, 12);
+	$encref->appendText($plaintext);
+	push(@encrypt, $encref);
     }
     if (@encrypt) {
 	my $certname = $certificate->WriteToFile();
