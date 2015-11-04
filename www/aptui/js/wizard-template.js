@@ -28,12 +28,14 @@ function(_) {
 					fed++;
 				}
 				else {
-				        var optvalue = $(this).attr('value');
-				        // Look for Please Select option
-				        if (optvalue == "") {
+					var optvalue = $(this).attr('value');
+					var opthidden = "";
+					// Look for Please Select option
+					if (optvalue == "") {
 					    optvalue = $(this).text();
+					    opthidden = ' hidden';
 					}
-					federated.before('<li class="enabled native"><a href="#" value="'+optvalue+'">'+optvalue+'</a></li>');
+					federated.before('<li class="enabled native'+opthidden+'"><a href="#" value="'+optvalue+'">'+optvalue+'</a></li>');
 				}
 			}
 		});
@@ -62,6 +64,9 @@ function(_) {
 
 		    	html.find('.dropdown-toggle > .picker_stats').append($(that).find('.picker_stats').html());
 		    }
+		    else {
+		    	html.find('.dropdown-toggle > .picker_stats').html('');
+		    }
 
 		    html.find('.selected').removeClass('selected');
 		    $(that).parent().addClass('selected');
@@ -71,7 +76,6 @@ function(_) {
 		var health = 0;
 		var rating = 0;
 		var tooltip = [];
-
 
 		if (data.status == 'SUCCESS') {
 			if (data.health) {
@@ -95,24 +99,27 @@ function(_) {
 			return [health, rating, tooltip];
 		}
 
-		var available, max, label;
-		if (type == 'VM') {
-			available = parseInt(data.VMsAvailable);
-			max = parseInt(data.VMsTotal);
-			label = 'VMs';
+		var available = [], max = [], label = [];
+		if (_.contains(type, 'PC')) {
+			available.push(parseInt(data.rawPCsAvailable));
+			max.push(parseInt(data.rawPCsTotal));
+			label.push('PCs');
+		}
+		if (_.contains(type, 'VM')) {
+			available.push(parseInt(data.VMsAvailable));
+			max.push(parseInt(data.VMsTotal));
+			label.push('VMs');
 		} 
-		else {
-			available = parseInt(data.rawPCsAvailable);
-			max = parseInt(data.rawPCsTotal);
-			label = 'PCs';
-		}
 
-		if (!isNaN(available) && !isNaN(max)) {
-			var ratio = available/max;
-			rating = available;
-			tooltip[1] = '<div>'+available+'/'+max+' ('+Math.round(ratio*100)+'%) '+label+' available</div>';
+		for (var i = 0; i < type.length; i++) {
+			if (!isNaN(available[i]) && !isNaN(max[i])) {
+				if (rating == 0) {
+					rating = available[i];
+				}
+				var ratio = available[i]/max[i];
+				tooltip.push('<div>'+available[i]+'/'+max[i]+' ('+Math.round(ratio*100)+'%) '+label[i]+' available</div>');
+			}
 		}
-
 		return [health, rating, tooltip];
 	}
 
@@ -144,7 +151,11 @@ function(_) {
 	function StatsLineHTML(classes, title) {
 		var title1 = '';
 		if (title[1]) {
-			title1 = ' data-toggle="tooltip" data-placement="right" data-html="true" title="'+title[1]+'"';
+			title1 = ' data-toggle="tooltip" data-placement="right" data-html="true" title="'
+			for (var i = 1; i < title.length; i++) {
+				title1 += title[i]+' ';
+			}
+			title1 += '"';
 		}
 		return '<div class="tooltip_div"'+title1+'><div class="picker_stats" data-toggle="tooltip" data-placement="left" data-html="true" title="'+title[0]+'">'
 							+'<span class="picker_status '+classes[0]+' '+classes[1]+'"><span class="circle"></span></span>'

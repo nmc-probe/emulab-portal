@@ -596,7 +596,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     function CreateClusterStatus() {
 	//console.log("CreateClusterStatus", monitor);
     	if (monitor == null || $.isEmptyObject(monitor)) {
-    		return;
+    	    return;
     	}
 
     	$('#finalize_options .cluster-group').each(function() {
@@ -605,10 +605,17 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    }
 	    $(this).addClass("pickered");
 	    
-            var resourceType = "PC";
+            var resourceTypes = ["PC"];
+            // Have to do look this up based off of the site name since that's 
+            // the only hook Jacks is giving.
             var label = $(this).find('.control-label').attr('name');
-            if (types && label && types[label] && types[label]['emulab-xen']) {
-                resourceType = "VM";
+            if (types && label && types[label]) {
+                if (types[label]['emulab-xen']) {
+                    if (Object.keys(types[label]).length == 1) {
+                        resourceTypes = [];
+                    }
+                    resourceTypes.push("VM");
+                }
             }
 	    var which = $(this).parent().attr('id');
 
@@ -617,7 +624,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $('#'+which+' .form-control').after(html);
 	    $('#'+which+' select.form-control').addClass('hidden');
 
-	    html.find('.dropdown-menu a').on('click', function(){    
+	    html.find('.dropdown-menu a').on('click', function() {    
 	    	wt.StatusClickEvent(html, this);
 	    	$('#'+which+' .form-control').val($('#'+which+' .cluster_picker_status .value').html()); 
 	    });
@@ -627,7 +634,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		var target = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a:contains("'+name+'")');
 		if (data && !$.isEmptyObject(data)) {
 		    // Calculate testbed rating and set up tooltips.
-		    var rating = wt.CalculateRating(data, resourceType);
+		    var rating = wt.CalculateRating(data, resourceTypes);
 		    
 		    target.parent().attr('data-health', rating[0]).attr('data-rating', rating[1]);
 		    
@@ -654,7 +661,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.native').sort(sort).prependTo($('#'+which+' .cluster_picker_status .dropdown-menu'));
             $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('#'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
 
-	    $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a')[0].click();
+            var pickerStatus = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a');
+            if (pickerStatus.length == 2) {
+            	pickerStatus[1].click();
+            }
+            else {
+	    	pickerStatus[0].click();
+            }
     	});
 	
 	$('[data-toggle="tooltip"]').tooltip();
@@ -906,7 +919,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		"<div id='nosite_selector' " +
 		"     class='form-horizontal experiment_option'>" +
 		"  <div class='form-group cluster-group'>" +
-		"    <label class='col-sm-4 control-label' " +
+		"    <label class='col-sm-4 control-label' name='" + _.values(sites)[0] + "' " +
 		"           style='text-align: right;'>Cluster:</a>" +
 		"    </label> " +
 		"    <div class='col-sm-6'>" +
@@ -929,7 +942,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		    "<div id='site"+sitenum+"cluster' " +
 		    "     class='form-horizontal experiment_option'>" +
 		    "  <div class='form-group cluster-group'>" +
-		    "    <label class='col-sm-4 control-label' " +
+		    "    <label class='col-sm-4 control-label' name='" + siteid + "' " +
 		    "           style='text-align: right;'>"+
 		    "          Site " + siteid  + " Cluster:</a>" +
 		    "    </label> " +
