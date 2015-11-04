@@ -21,7 +21,10 @@ function (_, sup, moment, dashboardString)
     {
 	var callback = function(json) {
 	    console.log(json);
-	    
+	    if (json.code) {
+		console.log("Could not get dashboard data: " + json.value);
+		return;
+	    }
 	    var dashboard_html = dashboardTemplate({"dashboard": json.value,
 						    "isadmin": isadmin});
 	    $('#page-body').html(dashboard_html);
