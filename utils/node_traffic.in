@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2011 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,13 +39,14 @@ sub usage()
     print STDERR "-s	     Show only traffic sent by each node\n";
     print STDERR "-i seconds Show stats over a <seconds>-period interval\n";
     print STDERR "-E	     Aggregate by experiment\n";
+    print STDERR "-d         Debugging output\n";
 #    print STDERR "-C	     Show control net traffic\n";
     exit(-1);
 }
 
 sub gather($$);
 
-my $optlist  = "CEi:aArs";
+my $optlist  = "CEi:aArsd";
 my $debug = 0;
 my $interval = 0;
 my $doall = 0;
@@ -99,6 +100,9 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{"h"})) {
     usage();
 }
+if (defined($options{"d"})) {
+    $debug = 1;
+}
 if (defined($options{"a"})) {
     $doall = 1;
 }
@@ -133,10 +137,29 @@ if (defined($options{"C"})) {
 #
 my $nclause = "";
 if (@nodes > 0) {
-	$nclause = "and n.node_id in (" . join(",", map("'$_'", @nodes)) . ")";
+	$nclause = "and n.node_id in ('" . join("','", @nodes) . "')";
 }
 
 my $query_result;
+
+#
+# Find the names of all the control net switches.
+# Note that shared switches will have role==testswitch, so include those.
+#
+$query_result = DBQueryWarn("select node_id from nodes where".
+			    "  role='ctrlswitch' or role='testswitch'");
+if (! $query_result || $query_result->numrows == 0) {
+    print STDERR "No control net switches found!?\n";
+    exit(0);
+}
+my @switches = ();
+while (my ($sw) = $query_result->fetchrow_array()) {
+    push(@switches, $sw);
+}
+my $sclause = "and node_id2 in ('" . join("','", @switches) . "')";
+
+print STDERR "Switches: ", join(" ", @switches), "\n"
+    if ($debug);
 
 if ($doall == 2) {
     $query_result =
@@ -144,7 +167,7 @@ if ($doall == 2) {
 		    " from wires as w,nodes as n".
 		    " left join reserved as r on n.node_id=r.node_id".
 		    " where w.node_id1=n.node_id".
-		    "  and (node_id2 like 'cisco%' or node_id2 like 'procurve%')".
+		    "  $sclause".
 		    "  and w.type='Control'".
 		    "  and n.role='testnode' $nclause".
 		    " order by node_id2,card2,port2");
@@ -153,7 +176,7 @@ if ($doall == 2) {
 	DBQueryWarn("select r.pid,r.eid,node_id1,eventstate,card1,port1,node_id2".
 		    " from wires as w,nodes as n,reserved as r".
 		    " where w.node_id1=n.node_id and w.node_id1=r.node_id".
-		    "  and (node_id2 like 'cisco%' or node_id2 like 'procurve%')".
+		    "  $sclause".
 		    "  and w.type='Control'".
 		    "  and n.role='testnode' $nclause".
 		    " order by node_id2,card2,port2");
@@ -162,6 +185,10 @@ if (! $query_result || $query_result->numrows == 0) {
     print STDERR "Node(s) not found.\n";
     exit(0);
 }
+
+print STDERR "Nodes: "
+    if ($debug);
+
 while (my %row = $query_result->fetchhash()) {
     my $switch = $row{'node_id2'};
     my $pc = $row{'node_id1'};
@@ -187,6 +214,9 @@ while (my %row = $query_result->fetchhash()) {
     push(@{$switches{$switch}}, $cnet);
     $pcs{$cnet}{'exp'} = $exp;
     $pcs{$cnet}{'state'} = $row{'eventstate'};
+
+    print "$pc "
+	if ($debug);
 }
 
 my %before = ();
@@ -204,7 +234,7 @@ my %expcounts = ();
 my @list = ();
 foreach my $node (keys %pcs) {
     if (!exists($after{$node}{'counts'})) {
-	print STDERR "*** $node: got no portstats!?\n";
+	print STDERR "*** $node: got no portstats, not an admin?\n";
 	next;
     }
 
