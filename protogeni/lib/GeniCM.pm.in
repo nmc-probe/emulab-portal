@@ -1105,7 +1105,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 			if (defined($osinfo)) {
 			    if (! $osinfo->IsSubOS()) {
 				$parent_osname = $osname;
-				$osname = "UBUNTU12-64-STD";
+				$osname = "UBUNTU14-64-STD";
 			    }
 			}
 			# If not set, we will pick up the default_image below.
