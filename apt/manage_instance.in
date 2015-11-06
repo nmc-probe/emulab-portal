@@ -1651,7 +1651,7 @@ sub StartMonitorInternal(;$)
     #
     sleep(30);
     
-    my $seconds  = ($waitforstartup ? 3600 : 900);
+    my $seconds  = ($waitforstartup ? 7200 : 900);
     my $interval = 15;
     # Shorten default timeout now.
     Genixmlrpc->SetTimeout(30);
@@ -1705,7 +1705,7 @@ sub StartMonitorInternal(;$)
 		if (exists($details->{'execute_state'}) &&
 		    $details->{'execute_state'} ne "exited");
 	}
-	if (1) {
+	if ($debug) {
 	    print STDERR Dumper($statusblob);
 	}
 	$webtask->sliverstatus($statusblob);
@@ -1728,7 +1728,7 @@ sub StartMonitorInternal(;$)
 	# Lock the slice in case it is doing something else, like taking
 	# a disk image. Just skip this turn.
 	#
-	next
+	goto delay
 	    if ($slice->Lock());
 
 	my $handler = sub {
@@ -1766,11 +1766,11 @@ sub StartMonitorInternal(;$)
 	}
 	last
 	    if ($done);
-	
+      delay:
 	sleep($interval);
     }
-#    unlink($logfile)
-#	if (defined($logfile) && !$debug);
+    unlink($logfile)
+	if (defined($logfile) && !$debug);
     exit(0);
 }
 
