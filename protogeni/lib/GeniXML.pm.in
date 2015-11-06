@@ -887,6 +887,19 @@ sub XenPtype($)
     return undef;
 }
 
+sub MultiplexFactor($)
+{
+    my ($rspec) = @_;
+    
+    my $mfactor = FindNodesNS("n:collocate_factor", $rspec, $EMULAB_NS)->pop();
+    if (defined($mfactor)) {
+	my $count = GetText("count", $mfactor);
+	return $count
+	    if (defined($count) && $count =~ /^\d+$/);
+    }
+    return undef;
+}
+
 sub OpenFlowController($)
 {
     my ($link) = @_;

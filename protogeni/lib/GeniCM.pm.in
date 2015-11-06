@@ -751,7 +751,13 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     }
     # Turn off fixnode; we will control this on the commandline.
     $virtexperiment->allowfixnode(0);
-    $virtexperiment->multiplex_factor(10);
+
+    #
+    # Allow user to control the multiplex factor. Note that ptopgen
+    # will not allow the mfactor to be more then what we set as the
+    # max for the node, but in general we set it low here.
+    #
+    $virtexperiment->multiplex_factor(GeniXML::MultiplexFactor($rspec) || 10);
 
     #
     # Add global vtypes.
