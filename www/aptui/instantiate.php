@@ -102,10 +102,8 @@ if ($this_user) {
     }
 }
 if ($ISCLOUD) {
-#    $profile_default     = "ARM64OpenStack";
-#    $profile_default_pid = "emulab-ops";
-    $profile_default     = "Tutorial-OpenStack";
-    $profile_default_pid = "CloudLab";
+    $profile_default     = "OpenStack";
+    $profile_default_pid = "emulab-ops";
 }
 else {
     $profile_default     = "OneVM";
