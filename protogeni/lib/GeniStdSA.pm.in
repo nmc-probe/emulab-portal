@@ -341,6 +341,7 @@ sub CreateSlice($$)
         if ($tempslice) {
             my $existing_urn = $tempslice->urn();
             my ($existing_slice_authority, $existing_slice_type, $existing_slice_name) = GeniHRN::Parse( $existing_urn );
+            return GeniResponse->Create(GENIRESPONSE_SERVERERROR, undef, 'internal error: got invalid existing_urn "' . $existing_urn . '"') unless defined( $existing_slice_name );
             my @existing_slice_auth_parts = split(':', $existing_slice_authority);
             my $existing_slice_auth_parts_size = scalar @existing_slice_auth_parts;
             if ($existing_slice_auth_parts_size == 2) {
@@ -376,6 +377,7 @@ sub CreateSlice($$)
     my $sliceCred = GeniCredential->CreateFromSigned(GeniResponse::value($response));
     my $slice = GeniSlice->Lookup($sliceCred->target_urn());
     my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
+    return GeniResponse->Create(GENIRESPONSE_SERVERERROR, undef, 'internal error: got invalid slice urn "' . $slice->urn() . '"') unless defined( $slice_name );
     my @slice_auth_parts = split(':', $slice_authority);
     my $slice_auth_parts_size = scalar @slice_auth_parts;
     my $project_urn = 'unknown';
@@ -484,6 +486,7 @@ sub LookupSlices()
 
             if (defined($slice) && $matches_expired) {
                 my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
+                return GeniResponse->Create(GENIRESPONSE_SERVERERROR, undef, 'internal error: got invalid slice urn "' . $slice->urn() . '"') unless defined( $slice_name );
                 my @slice_auth_parts = split(':', $slice_authority);
                 my $slice_auth_parts_size = scalar @slice_auth_parts;
                 my $project_urn = 'unknown';
@@ -800,16 +803,16 @@ sub CreateSliverInfo($$$$)
     my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice_urn );
     my ($sliver_info_urn_authority, $sliver_info_urn_type, $sliver_info_urn_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_URN'} );
 
-    if ($creator_type ne 'user') {
+    if (!defined($creator_type) || $creator_type ne 'user') {
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_CREATOR_URN is not a user URN');
     }
-    if ($sliver_authority_type ne 'authority') {
+    if (!defined($sliver_authority_type) || $sliver_authority_type ne 'authority') {
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_AGGREGATE_URN is not an authority URN');
     }
-    if ($slice_type ne 'slice') {
+    if (!defined($slice_type) || $slice_type ne 'slice') {
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_SLICE_URN is not a slice URN');
     }
-    if ($sliver_info_urn_type ne 'sliver') {
+    if (!defined($sliver_info_urn_type) || $sliver_info_urn_type ne 'sliver') {
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLIVER_INFO_URN is not a sliver URN');
     }
 
