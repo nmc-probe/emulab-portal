@@ -1213,6 +1213,14 @@ sub Terminate($)
     }
 
     #
+    # Hmm, we have to bump this up a bunch, since we are using blocking
+    # Terminate at IG aggregates, and that can take a while. It actually
+    # does not affect the remote cluster if this times out (it will still
+    # terminate just fine), but lets avoid local error messages.
+    #
+    Genixmlrpc->SetTimeout(900);
+
+    #
     # We have to watch for resource busy errors, and retry. For a while
     # at least. Eventually give up cause it might be a permanently locked
     # slice cause of earlier error. 
