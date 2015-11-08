@@ -1120,6 +1120,16 @@ dolinux() {
 		    # otherwise, replace any console=ttyS? clauses
 		    sed -E -i '' -e 's;console=ttyS[^ ]+;console=tty0;' $tgconf
 		fi
+		# Xen command line uses vga
+		if grep -q 'console=vga ' $tgconf 2>/dev/null; then
+		    # already have console=vga, get rid of any console=com? clauses
+		    sed -E -i '' -e 's;console=com[^ ]+;;' $tgconf
+		    sed -E -i '' -e 's;com[^=]+=[^ ]+;;' $tgconf
+		else
+		    # otherwise, replace any console=com? clauses
+		    sed -E -i '' -e 's;console=com[^ ]+;console=vga;' $tgconf
+		    sed -E -i '' -e 's;com[^=]+=[^ ]+;;' $tgconf
+		fi
 
 		# take care of upstart getty process
 		# XXX cannot use .override as old version don't support it
@@ -1168,6 +1178,18 @@ dolinux() {
 		else
 		    # otherwise, replace console=tty0
 		    sed -i '' -e "s;console=tty0;console=ttyS$u,$s;" $tgconf
+		fi
+		# and fixup Xen command lines
+		xu=`expr $u + 1`
+		if grep -q "console=com[^ ]" $tgconf 2>/dev/null; then
+		    # already have console=com?, make sure it is correct
+		    sed -E -i '' -e "s;console=com[^ ]+;console=com$xu;" $tgconf
+		    sed -E -i '' -e "s;com[^=]+=[^ ]+;com$xu=$s;" $tgconf
+		    # and remove console=vga
+		    sed -i '' -e 's;console=vga;;' $tgconf
+		else
+		    # otherwise, replace console=vga
+		    sed -i '' -e "s;console=vga;com$xu=$s console=com$xu;" $tgconf
 		fi
 
 		# take care of upstart getty process
