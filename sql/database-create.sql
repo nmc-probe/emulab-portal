@@ -2072,9 +2072,9 @@ CREATE TABLE `image_boot_status` (
   KEY `stamp` (`stamp`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
----
---- Table structure for table `image_deletions`
----
+--
+-- Table structure for table `image_deletions`
+--
 
 DROP TABLE IF EXISTS `image_deletions`;
 CREATE TABLE `image_deletions` (
