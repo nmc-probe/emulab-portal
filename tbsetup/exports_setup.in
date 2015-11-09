@@ -74,6 +74,7 @@ my $LINUX_FSNODE= @LINUX_FSNODE@;
 my $NFSMAPTOUSER= "@NFSMAPTOUSER@";
 my $WITHZFS     = @WITHZFS@;
 my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
+my $WITHAMD     = @WITHAMD@;
 my $INC_MOUNTD  = @INCREMENTAL_MOUNTD@;
 
 # XXX for TESTMODE: output to stdout
@@ -87,6 +88,7 @@ my $SSH		= "$TB/bin/sshtb -l root -host $FSNODE";
 my $PROG	= "$TB/sbin/exports_setup.proxy";
 my $exportstail = "/var/tmp/exports.tail";
 my $smbconftail = "/var/tmp/smbconf.tail";
+my $bossmountfile = "$TB/etc/validmounts.txt";
 my @row; 
 
 # For determining file server mountpoints (XXX BSD specific)
@@ -398,31 +400,19 @@ while ($row = $nodes_result->fetchrow_hashref) {
 	    # Construct a list of directories accessible from this node.
 	    # First the project and group directories.
 	    # XXX needs to be fixed for shared experiments?
-	    if (-d "$PROJROOT/$pid") {
-		push(@dirlist, "$projdir/$pid");
-		push(@smbshares, ["proj-$pid", "$projdir/$pid"]);
-	    }
-	    else {
-		print STDERR
-		    "*** exports_setup: $PROJROOT/$pid does not exist!\n";
-	    }
+	    push(@dirlist, "$projdir/$pid");
+	    push(@smbshares, ["proj-$pid", "$projdir/$pid"]);
 	
 	    if ($gid ne $pid) {
-		if (-d "$GROUPROOT/$pid/$gid") {
-		    push(@dirlist, "$groupdir/$pid/$gid");
-		    push(@smbshares, ["${pid}-${gid}", "$groupdir/$pid/$gid"]);
-		}
-		else {
-		    print STDERR "*** exports_setup: ".
-			"$GROUPROOT/$pid/$gid does not exist!\n";
-		}
+		push(@dirlist, "$groupdir/$pid/$gid");
+		push(@smbshares, ["${pid}-${gid}", "$groupdir/$pid/$gid"]);
 	    }
 	    if ($ZFS_NOEXPORT && $gid eq $pid) {
 		$bossexports{"$projdir/$pid"}  = "$projdir/$pid";
 		$bossexports{"$groupdir/$pid"} = "$groupdir/$pid";
 	    }
 
-	    if ($scratchdir && -d "$SCRATCHROOT/$pid") {
+	    if ($scratchdir) {
 		push(@dirlist, "$scratchdir/$pid");
 		push(@smbshares, ["scratch-$pid", "$scratchdir/$pid"]);
 	    }
@@ -451,14 +441,8 @@ while ($row = $nodes_result->fetchrow_hashref) {
 	    while (@usersrow = $users_result->fetchrow_array) {
 		my $uid = $usersrow[0];
 
-		if (-d "$USERROOT/$uid") {
-		    push(@dirlist, "$usersdir/$uid");
-		    push(@smbshares, [$uid, "$usersdir/$uid"]);
-		}
-		else {
-		    print STDERR "*** exports_setup: ".
-			"$USERROOT/$uid does not exist!\n";
-		}
+		push(@dirlist, "$usersdir/$uid");
+		push(@smbshares, [$uid, "$usersdir/$uid"]);
 
 		if ($ZFS_NOEXPORT) {
 		    $bossexports{"$usersdir/$uid"} = "$usersdir/$uid";
@@ -526,6 +510,15 @@ while ($row = $nodes_result->fetchrow_hashref) {
     }
 }
 
+#
+# When using FreeBSD autofs on boss, we generate a list of valid directories
+# that can be mounted. We use this in an executable map script to avoid
+# attempting (and failing after several seconds) to mount arbitrary paths
+# under /users, /proj, and /groups.
+#
+my $bossdirlist = ($WITHZFS && !$WITHAMD) ? 1 : 0;
+my @bossmounts = ();
+
 # just cuz
 sub sortbyip {
     my @ao = split('\.', $a);
@@ -583,10 +576,40 @@ if ($ZFS_NOEXPORT) {
 	    print "$str -maproot=$NFSMAPTOUSER $BOSSNODE\n"
 	    if ($debug);
 	}
+
+	# remember all valid mount points
+	if ($bossdirlist) {
+	    push(@bossmounts, $fs);
+	}
     }
 }
 
 close(MAP);
+
+#
+# Spit out an autofs map if needed. We will move this into place once we
+# know that the fs node has updated its exports.
+#
+# If $ZFS_NOEXPORT, we use info from %bossexports that we computed above
+# Otherwise, we use @mountpoints which is export info we got from ops
+#
+if ($bossdirlist) {
+    if (open(BM, ">$bossmountfile.new")) {
+	my $list = $ZFS_NOEXPORT ? \@bossmounts : \@mountpoints;
+	foreach my $dir (sort @$list) {
+	    print BM "$dir\n"
+		if ($dir ne "/");
+	}
+	close(BM);
+    } else {
+	$bossdirlist = 0;
+	print STDERR "*** $0: WARNING: could not update $bossmountfile,".
+	    " will try to mount anything!\n";
+	if (!$TESTMODE) {
+	    unlink("bossmountfile.new", $bossmountfile);
+	}
+    }
+}
 
 #
 # Spit out smb shares!
@@ -628,6 +651,9 @@ if (!$TESTMODE) {
       if ($WINSUPPORT) {
 	  system("/bin/cat $smbconftail");
       }
+      if ($bossdirlist) {
+	  system("/bin/cat $bossmountfile.new");
+      }
   }
   else {
       my $arg = ($incremental ? "-i" : "");
@@ -662,6 +688,13 @@ if (!$TESTMODE) {
 	      last;
 	  }
 	  TBDebugTimeStamp("Wait done");
+      }
+
+      #
+      # Move the new boss autofs mount map in place.
+      #
+      if ($bossdirlist) {
+	  rename("$bossmountfile.new", $bossmountfile);
       }
   }
 

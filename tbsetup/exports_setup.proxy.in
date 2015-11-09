@@ -54,9 +54,11 @@ my $exportstail;
 my $pidfile;
 my $daemon;
 my $incremental;
+my $issamba = 0;
 
 # Are we modifying the Samba config file or the NFS exports?
 if (defined($opts{'S'})) {
+    $issamba	 = 1;
     $etcdir      = ($LINUX_FSNODE ? "/etc/samba" : "/usr/local/etc");
     $exports	 = "$etcdir/smb.conf";
     $exportsnew  = "$etcdir/smb.conf.new";
@@ -120,7 +122,47 @@ use libtestbed;
 #
 open(TAIL, ">$exportstail") || fatal("Couldn't open $exportstail\n");
 while (<STDIN>) {
-    print TAIL $_;
+    #
+    # Pass through if samba or a comment or blank line.
+    # We don't test samba lines since we assume the samba invocation
+    # of us (-S) will follow the normal invocation and have the same
+    # directories.
+    #
+    if ($issamba || $_ !~ /^\//) {
+	print TAIL $_;
+	next;
+    }
+
+    #
+    # As we do this, we parse the lines and check each of the exported
+    # filesystems to make sure they exist. Otherwise mountd may prematurely
+    # fail. We used to do this on the boss-side, but that would stat the
+    # directories across NFS, and in some cases, before the filesystem
+    # was even exported!
+    #
+    my @tokens = ();
+    my $numdirs = 0;
+    my $dirsdone = 0;
+    foreach my $token (split) {
+	if (!$dirsdone) {
+	    # starts with a slash, assume it is an exported dir
+	    if ($token =~ /^\//) {
+		if (! -d "$token") {
+		    print STDERR "$token: does not exist, ignored\n";
+		    next;
+		}
+		$numdirs++;
+	    } else {
+		$dirsdone = 1;
+	    }
+	}
+	push(@tokens, $token);
+    }
+    
+    # if there were valid directories to export, do so
+    if ($numdirs > 0) {
+	print TAIL join(' ', @tokens), "\n";
+    }
 }
 close(TAIL);
 chmod(0444, $exportstail);
@@ -160,7 +202,7 @@ system("cat $exportstail >> $exportsnew") == 0 or
 # an inconsisency. But only for mountd, not smbd.
 #
 my $outfile;
-if (defined($opts{'S'})) {
+if ($issamba) {
     system("/usr/bin/diff -q $exports $exportsnew >/dev/null");
 } else {
     $outfile = "/tmp/exports_diff." . time();
@@ -202,7 +244,7 @@ if (!$LINUX_FSNODE) {
     # here so we don't have to bother checking the content, we just have to
     # wait for it to exist.
     #
-    if (!defined($opts{'S'}) && unlink("/var/run/mountd.ts") != 0) {
+    if (!$issamba && unlink("/var/run/mountd.ts") != 0) {
 	$checkstamp = 1;
     }
 
@@ -218,7 +260,7 @@ if (!$LINUX_FSNODE) {
 }
 else {
     # Not supporting Samba at this time. 
-    if (! defined($opts{'S'})) {
+    if (!$issamba) {
 	#
 	# run exportfs. linux handles exports changes much more gracefully
 	# then freebsd does.
