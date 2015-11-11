@@ -2655,12 +2655,11 @@ sub CreateVnodes($$$)
 	    $node->SetNodeHistory(TB_NODEHISTORY_OP_CREATE(),
 				   $user, $experiment);
 	    #
-	    # On a shared node, generate a new root password so that
-	    # tmcd can return it in the jail config call. On a dedicated
-	    # node, the physical host password is used.
+	    # Always, generate a new root password so that tmcd can
+	    # return it in the jail config call. Safer if all nodes have
+	    # different root passwords.
 	    #
-	    $node->NewRootPasswd()
-		if (defined($sharing_mode) && $sharing_mode);
+	    $node->NewRootPasswd();
 	}
     }
     @$rptr = @created;
