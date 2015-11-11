@@ -353,6 +353,20 @@ function Do_VerifySpeaksfor()
                 return;
             }
         }
+        else {
+            #
+            # Ug, if this geni user came in on the regular geni api first,
+            # we have a user record but they might not be a member of the
+            # Cloudlab holding project. 
+            #
+            if ($TBMAINSITE) {
+                $project = Project::Lookup("CloudLab");
+                if (! $project->IsMember($this_user, $ignored)) {
+                    $project->AddNewMember($this_user,
+                                           TBDB_TRUSTSTRING_LOCALROOT);
+                }
+            }
+        }
     }
     list ($loginhash, $logincrc) =
 	DOLOGIN_MAGIC($this_user->uid(), $this_user->uid_idx(), null, 0, 1);
