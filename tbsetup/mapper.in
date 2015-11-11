@@ -702,7 +702,7 @@ sub RunAssign($$)
 	if (!$vtop->sharednodecount());
     $args = "-F $args"
 	if (!$updating);
-    $args = "-uod -c .75 $args"
+    $args = "-uod -c .75 -H 3 $args"
 	if ($vtop->virtnodecount() || $vtop->simnodecount());
     $args = "-n $args"
     	if ($precheck);
