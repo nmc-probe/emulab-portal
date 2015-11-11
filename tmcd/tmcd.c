@@ -11281,7 +11281,7 @@ COMMAND_PROTOTYPE(doarpinfo)
 			    /* isxen != 0 */
 			    row[4] && row[4][0] && atoi(row[4]) &&
 			    /* xenvifrouting != NULL */
-			    row[5] &&
+			    (row[5] || xenvifrouting) &&
 			    /* mac is set, should always be set though */
 			    row[6]) {
 				cnetmac = row[6];
@@ -11807,6 +11807,36 @@ COMMAND_PROTOTYPE(donodeattributes)
 		mysql_free_result(res);
 		client_writeback(sock, buf, strlen(buf), tcp);
 	}
+	/*
+	 * Brutal hack to get this site variable to dedicated XEN
+	 * physical hosts since they are added by the mapper, and have no
+	 * virt table entries.
+	 */
+	res = mydb_query("select node_id from nodes as n "
+			 "left join os_info as o on o.osid=n.def_boot_osid "
+			 "left join os_info_versions as ov on "
+			 "     ov.osid=o.osid and ov.vers=o.version "
+			 "where node_id='%s' and "
+			 "      FIND_IN_SET('xen-host',ov.osfeatures)",
+			 1, reqp->nodeid);
+	if (!res || (int)mysql_num_rows(res) == 0) {
+		if (res)
+			mysql_free_result(res);
+		return 0;
+	}
+	res = mydb_query("select value,defaultvalue from sitevariables "
+			"where name='general/xenvifrouting'", 2);
+	if (!res || (int)mysql_num_rows(res) == 0) {
+		if (res)
+			mysql_free_result(res);
+		return 0;
+	}
+	row = mysql_fetch_row(res);
+	if (row[0] && row[0][0]) {
+		strcpy(buf, "xenvifrouting=1\n");
+		client_writeback(sock, buf, strlen(buf), tcp);
+	}
+	mysql_free_result(res);
 	return 0;
 }
 
