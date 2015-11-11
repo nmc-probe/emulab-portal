@@ -1906,7 +1906,7 @@ sub AddNodes($)
     Experiment->FlushAll();
     Node->FlushAll();
 
-    my $response = GeniCM::SliverWorkAux($credential, $rspec,
+    $response = GeniCM::SliverWorkAux($credential, $rspec,
 					 undef, 1, 0, 1, 1, $speaksfor);
 
     if (GeniResponse::IsError($response)) {
@@ -2091,7 +2091,7 @@ sub DeleteNodes($)
     Experiment->FlushAll();
     Node->FlushAll();
 
-    my $response = GeniCM::SliverWorkAux($credential, $rspec,
+    $response = GeniCM::SliverWorkAux($credential, $rspec,
 					 undef, 1, 0, 1, 1, $speaksfor);
 
     if (GeniResponse::IsError($response)) {
