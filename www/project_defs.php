@@ -463,10 +463,10 @@ class Project
     #
     # Add *new* member to project group; starts out with trust=none.
     #
-    function AddNewMember($user) {
+    function AddNewMember($user, $trust = TBDB_TRUSTSTRING_NONE) {
 	$group = $this->DefaultGroup();
 
-	return $group->AddNewMember($user);
+	return $group->AddNewMember($user, $trust);
     }
 
     #

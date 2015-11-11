@@ -621,7 +621,7 @@ class Group
     #
     # Add *new* member to group; starts out with trust=none.
     #
-    function AddNewMember($user) {
+    function AddNewMember($user, $trust = TBDB_TRUSTSTRING_NONE) {
 	$uid     = $user->uid();
 	$uid_idx = $user->uid_idx();
 	$pid     = $this->pid();
@@ -634,7 +634,7 @@ class Group
 			 " trust, date_applied) ".
 			 "values ('$uid', '$uid_idx', '$gid', '$gid_idx', ".
 			 "        '$pid', '$pid_idx', ".
-			 "        'none', now())")) {
+			 "        '$trust', now())")) {
 	    return -1;
 	}
 	return 0;
