@@ -226,15 +226,17 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    var source = $.trim($('#profile_rspec_textarea').val());
 	    $('#rspec_modal_editbuttons').addClass("hidden");
 	    $('#rspec_modal_viewbuttons').removeClass("hidden");
-	    $('#modal_profile_rspec_textarea').prop("readonly", true);
 	    $('#modal_profile_rspec_textarea').val(source);
+	    $('#modal_profile_rspec_textarea').prop("readonly", true);
 	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
 	    $('#rspec_modal').modal('show');
 	});
 	
         $('#rspec_modal').on('shown.bs.modal', function() {
-	    var source = $('#modal_profile_rspec_textarea').val();
-	    var mode   = "text/xml";
+	    var source   = $('#modal_profile_rspec_textarea').val();
+	    var mode     = "text/xml";
+	    var readonly = window.CLONING ||
+		$('#modal_profile_rspec_textarea').prop("readonly");
 
 	    // Need to determine the mode.
 	    var myRe = /^import/m;
@@ -249,6 +251,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 		smartIndent: true,
 		autofocus: true,
                 mode: mode,
+		readOnly: readonly,
 	    });
 
 	    //
@@ -468,7 +471,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    if (window.UPDATED) {
 		initNotifyUpdate();
 	    }
-	    else if (gotscript && window.CLONEWARN) {
+	    else if (gotscript && window.CLONING) {
 		sup.ShowModal('#warn_pp_modal');
 	    }
 	}
