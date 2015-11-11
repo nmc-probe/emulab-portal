@@ -2246,8 +2246,10 @@ sub SchedIMSDeletion($)
 
     # The expire daemon will pick this up.
     DBQueryWarn("replace into image_deletions set ".
-		" urn='$urn',image_uuid='$uuid',deleted=now()");
+		" urn='$urn',image_uuid='$uuid',deleted=now()")
+	or return -1;
 
+    return 0;
 }
 
 #
