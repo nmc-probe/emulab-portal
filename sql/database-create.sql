@@ -222,6 +222,8 @@ CREATE TABLE `apt_instances` (
   `created` datetime default NULL,
   `status` varchar(32) default NULL,
   `status_timestamp` datetime default NULL,
+  `canceled` tinyint(2) NOT NULL default '0',
+  `canceled_timestamp` datetime default NULL,
   `admin_lockdown` tinyint(1) NOT NULL default '0',
   `user_lockdown` tinyint(1) NOT NULL default '0',
   `extension_code` varchar(32) default NULL,
