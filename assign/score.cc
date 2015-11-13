@@ -1067,6 +1067,11 @@ void remove_node(vvertex vv)
   SSUB(SCORE_PNODE * (powf(1+ ((tr->get_current_load()+1) * 1.0)/tr->get_max_load(),2)));
   SADD(SCORE_PNODE * (powf(1+ tr->get_current_load() * 1.0/tr->get_max_load(),2)));
 #endif
+#ifdef PACK_TIGHT
+  // Inverse of LOAD_BALANCE
+  SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()+1)) * 1.0)/tr->get_max_load(),0.5)));
+  SADD(SCORE_PNODE * (powf((tr->get_max_load() - tr->get_current_load()) * 1.0/tr->get_max_load(),0.5)));
+#endif
   if (pnode->total_load == 0) {
     // If the pnode is now free, we need to do some cleanup
     SDEBUG(cerr << "  releasing pnode" << endl);
@@ -1465,6 +1470,10 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
 #ifdef LOAD_BALANCE
   SSUB(SCORE_PNODE * (powf(1 + ((tr->get_current_load()-1) * 1.0)/tr->get_max_load(),2)));
   SADD(SCORE_PNODE * (powf(1 + ((tr->get_current_load()) * 1.0)/tr->get_max_load(),2)));
+#endif
+#ifdef PACK_TIGHT
+  SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()-1)) * 1.0)/tr->get_max_load(),0.5)));
+  SADD(SCORE_PNODE * (powf(((tr->get_max_load() - tr->get_current_load()) * 1.0)/tr->get_max_load(),0.5)));
 #endif
 
   // node no longer unassigned
