@@ -1064,8 +1064,8 @@ void remove_node(vvertex vv)
 #ifdef LOAD_BALANCE
   // Use this tricky formula to score based on how 'full' the pnode is, so that
   // we prefer to equally fill the minimum number of pnodes
-  SSUB(SCORE_PNODE * (powf(1+ ((pnode->current_load+1) * 1.0)/pnode->max_load,2)));
-  SADD(SCORE_PNODE * (powf(1+ pnode->current_load * 1.0/pnode->max_load,2)));
+  SSUB(SCORE_PNODE * (powf(1+ ((tr->get_current_load()+1) * 1.0)/tr->get_max_load(),2)));
+  SADD(SCORE_PNODE * (powf(1+ tr->get_current_load() * 1.0/tr->get_max_load(),2)));
 #endif
   if (pnode->total_load == 0) {
     // If the pnode is now free, we need to do some cleanup
@@ -1463,8 +1463,8 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
     }
   }
 #ifdef LOAD_BALANCE
-  SSUB(SCORE_PNODE * (powf(1 + ((pnode->current_load-1) * 1.0)/pnode->max_load,2)));
-  SADD(SCORE_PNODE * (powf(1 + ((pnode->current_load) * 1.0)/pnode->max_load,2)));
+  SSUB(SCORE_PNODE * (powf(1 + ((tr->get_current_load()-1) * 1.0)/tr->get_max_load(),2)));
+  SADD(SCORE_PNODE * (powf(1 + ((tr->get_current_load()) * 1.0)/tr->get_max_load(),2)));
 #endif
 
   // node no longer unassigned
