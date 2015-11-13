@@ -224,17 +224,27 @@ sub DeleteImageData($$;$)
 #
 # If we do not have a local copy, try to load it using the URL.
 #
+# Cache just for this, to avoid repeated calls for same image.
+#
+my %localblobcache = ();
+
 sub MapToLocalImage($$)
 {
     my ($urn, $pid) = @_;
+    my $blob;
 
-    my $blob = GetImageData($urn);
-    return $blob
-	if (GeniResponse::IsError($blob));
+    if (exists($localblobcache{$urn})) {
+	$blob = $localblobcache{$urn};
+    }
+    else {
+	$blob = GetImageData($urn);
+	return $blob
+	    if (GeniResponse::IsError($blob));
+	$localblobcache{$urn} = $blob;
+    }
+    my $url = $blob->{'metadata_url'};
 
-    my $url  = $blob->{'metadata_url'};
-
-    print STDERR Dumper($blob);
+    #print STDERR Dumper($blob);
 
     #
     # So, look to see if the user is trying to use an image that is
