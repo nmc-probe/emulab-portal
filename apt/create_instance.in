@@ -843,12 +843,13 @@ sub WaitForSliver($)
     # Debugging
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
-    my $seconds  = 1500;
+    my $seconds  = 900;
     my $interval = 15;
     my $ready    = 0;
     my $failed   = 0;
     my $public_url;
     my $repblob;
+    my $laststatus;
 
     while ($seconds > 0) {
 	sleep($interval);
@@ -860,6 +861,8 @@ sub WaitForSliver($)
 	     $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
 	     $response->code() != GENIRESPONSE_BUSY)) {
 	    print STDERR "SliverStatus failed";
+	    print STDERR Dumper($response);
+	    
 	    if (defined($response)) {
 		print STDERR ": " . $response->output();
 		if ($response->output() =~ /read timeout/) {
@@ -890,8 +893,38 @@ sub WaitForSliver($)
 	    my $details = $repblob->{'details'}->{$urn};
 	    my $node_id = $details->{'client_id'};
 	    $statusblob->{$node_id} = $details;
+	    #
+	    # Look at the last blob. If we changed, view that as progress.
+	    #
+	    # The idea is that as long as progress is being made we keep
+	    # waiting, by resetting the waittime if it gets below a
+	    # threshold. That way, if we go too long with nothing happening,
+	    # we will stop. The user can always use the Refresh button on
+	    # the status page.
+	    #
+	    if (defined($laststatus)) {
+		if (!exists($laststatus->{$node_id})) {
+		    $seconds = 600
+			if ($seconds < 600);
+		}
+		else {
+		    if (exists($details->{"rawstate"}) &&
+			$laststatus->{$node_id}->{"rawstate"} ne
+			$details->{"rawstate"}) {
+			# This is IG specific.
+			$seconds = 300
+			    if ($seconds < 300);
+		    }
+		    elsif ($laststatus->{$node_id}->{"status"} ne
+			   $details->{"status"}) {
+			$seconds = 450
+			    if ($seconds < 450);
+		    }
+		}
+	    }
 	}
 	$webtask->sliverstatus($statusblob);
+	$laststatus = $statusblob;
 
 	if (exists($repblob->{'public_url'})) {
 	    $public_url = $repblob->{'public_url'};
