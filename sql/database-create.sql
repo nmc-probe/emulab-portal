@@ -5623,7 +5623,7 @@ CREATE TABLE `web_tasks` (
   `process_id` int(11) default '0',
   `object_uuid` varchar(40) NOT NULL default '',
   `exitcode` tinyint(3) default '0',
-  `task_data` text,
+  `task_data` mediumtext,
   PRIMARY KEY  (`task_id`),
   KEY `object_uuid` (`object_uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
