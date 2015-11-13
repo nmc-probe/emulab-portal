@@ -1114,6 +1114,8 @@ sub CreateSliver($)
     # Debugging
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
+    Genixmlrpc->SetTimeout(900);
+
     #
     # This creates the sliver and starts it. We have to watch for the
     # server being too busy.
