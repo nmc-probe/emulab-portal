@@ -50,6 +50,8 @@ using namespace boost;
 extern switch_pred_map_map switch_preds;
 
 extern bool disable_pclasses;
+extern bool strategy_balance;
+extern bool strategy_pack;
 
 double score;			// The score of the current mapping
 int violated;			// How many times the restrictions
@@ -1061,17 +1063,17 @@ void remove_node(vvertex vv)
   int old_load = tr->get_current_load();
   tr->remove_load(vnode->typecount);
   pnode->total_load -= vnode->typecount;
-#ifdef LOAD_BALANCE
-  // Use this tricky formula to score based on how 'full' the pnode is, so that
-  // we prefer to equally fill the minimum number of pnodes
-  SSUB(SCORE_PNODE * (powf(1+ ((tr->get_current_load()+1) * 1.0)/tr->get_max_load(),2)));
-  SADD(SCORE_PNODE * (powf(1+ tr->get_current_load() * 1.0/tr->get_max_load(),2)));
-#endif
-#ifdef PACK_TIGHT
-  // Inverse of LOAD_BALANCE
-  SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()+1)) * 1.0)/tr->get_max_load(),0.5)));
-  SADD(SCORE_PNODE * (powf((tr->get_max_load() - tr->get_current_load()) * 1.0/tr->get_max_load(),0.5)));
-#endif
+  if (strategy_balance) {
+    // Use this tricky formula to score based on how 'full' the pnode is, so
+    // that we prefer to equally fill the minimum number of pnodes
+    SSUB(SCORE_PNODE * (powf(1+ ((tr->get_current_load()+1) * 1.0)/tr->get_max_load(),2)));
+    SADD(SCORE_PNODE * (powf(1+ tr->get_current_load() * 1.0/tr->get_max_load(),2)));
+  }
+  if (strategy_pack) {
+    // Inverse of strategy_balance
+    SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()+1)) * 1.0)/tr->get_max_load(),0.5)));
+    SADD(SCORE_PNODE * (powf((tr->get_max_load() - tr->get_current_load()) * 1.0/tr->get_max_load(),0.5)));
+  }
   if (pnode->total_load == 0) {
     // If the pnode is now free, we need to do some cleanup
     SDEBUG(cerr << "  releasing pnode" << endl);
@@ -1467,14 +1469,15 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
 	lit++;
     }
   }
-#ifdef LOAD_BALANCE
-  SSUB(SCORE_PNODE * (powf(1 + ((tr->get_current_load()-1) * 1.0)/tr->get_max_load(),2)));
-  SADD(SCORE_PNODE * (powf(1 + ((tr->get_current_load()) * 1.0)/tr->get_max_load(),2)));
-#endif
-#ifdef PACK_TIGHT
-  SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()-1)) * 1.0)/tr->get_max_load(),0.5)));
-  SADD(SCORE_PNODE * (powf(((tr->get_max_load() - tr->get_current_load()) * 1.0)/tr->get_max_load(),0.5)));
-#endif
+
+  if (strategy_balance) {
+    SSUB(SCORE_PNODE * (powf(1 + ((tr->get_current_load()-1) * 1.0)/tr->get_max_load(),2)));
+    SADD(SCORE_PNODE * (powf(1 + ((tr->get_current_load()) * 1.0)/tr->get_max_load(),2)));
+  }
+  if (strategy_pack) {
+    SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()-1)) * 1.0)/tr->get_max_load(),0.5)));
+    SADD(SCORE_PNODE * (powf(((tr->get_max_load() - tr->get_current_load()) * 1.0)/tr->get_max_load(),0.5)));
+  }
 
   // node no longer unassigned
   SSUB(SCORE_UNASSIGNED);

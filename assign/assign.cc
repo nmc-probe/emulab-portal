@@ -156,6 +156,14 @@ bool check_fixed_nodes = false;
 // If true, dump a bunch of configrution information
 bool dump_config = false;
 
+// If true, turn on some scoring options that attempt to evenly balance vnodes
+// across pnodes
+bool strategy_balance = false;
+
+// If true, turn on some scoring options that attempt to pack vnodes as tightly
+// as possible onto pnodes
+bool strategy_pack = false;
+
 // Use XML for file input
 // bool xml_input = false;
 #ifdef WITH_XML
@@ -488,6 +496,8 @@ void print_help() {
   cout << "  -F          - Apply additional checking to fixed nodes" << endl;
   cout << "  -D          - Dump configuration options" << endl;
   cout << "  -R          - Randomize order of nodes in pclasses" << endl;
+  cout << "  -S <str>    - Set vnode packing strategy. Currently supported" << endl;
+  cout << "                values are 'balance' and 'pack'" << endl;
   cout << "  cparams     - You probably don't want to touch these!" << endl;
   cout << "                If you must, see config.h in the source for a list"
        << endl;
@@ -891,9 +901,9 @@ int main(int argc,char **argv) {
 	char* ptopFileFormat;
 	char* vtopFileFormat;
 	char* delims = "/";
-	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:W:FDf:R";
+	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:W:FDf:RS:";
 #else
-	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:FDR";
+	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:FDRS:";
 #endif	
 	
   while ((ch = getopt(argc,argv,flags)) != -1) {
@@ -1040,6 +1050,16 @@ int main(int argc,char **argv) {
 	case 'R':
 	  randomize_order = true;
 	  break;
+
+        case 'S':
+          if (strcmp(optarg,"balance") == 0) {
+              strategy_balance = true;
+          } else if (strcmp(optarg,"pack") == 0) {
+              strategy_pack = true;
+          } else {
+              print_help();
+          }
+          break;
 		
 	default:
       print_help();
