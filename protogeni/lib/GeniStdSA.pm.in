@@ -1034,11 +1034,20 @@ sub DeleteSliverInfo()
             "You gave a credential for " . $credential->target_urn() . " but tried to delete SLIVER_INFO for slice ". $slice_urn);
     }
 
-    my $params = {
-	'credential' => $credential,
-        'slice_urn' => $slice_urn
-    };
-    return GeniSA::UnRegisterSliverInternal($params, 0, $sliver_urn);
+    if ($slice->Lock() != 0) {
+        return GeniResponse->BusyResponse("slice");
+    }
+    # We need to check for sliver again, because the previous ClientSliver->Lookup did not have slice lock
+    my $clientsliver = GeniSlice::ClientSliver->Lookup($sliver_urn);
+    if (defined($clientsliver)) {
+        $clientsliver->Delete();
+        print STDOUT "SLIVER_INFO for sliver $sliver_urn of slice $slice_urn was deleted.\n";
+    } else {
+        print STDERR "SLIVER_INFO for sliver $sliver_urn of slice $slice_urn did not exist anymore.\n";
+    }
+
+    $slice->UnLock();
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
 }
 
 sub CheckIfUserIsSliceMember($$)
