@@ -182,6 +182,8 @@ ZFS_QUOTA_USER="1G"
 ZFS_QUOTA_PROJECT="100G"
 ZFS_QUOTA_GROUP="5G"
 ZFS_NOEXPORT=1
+
+# WITHZFS only: use AMD instead of autofs for /proj, /users mounts on boss
 WITHAMD=0
 
 # Utah-only hacked mountd

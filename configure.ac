@@ -1361,7 +1361,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	xmlrpc/imageid xmlrpc/osid xmlrpc/server xmlrpc/xmlrpcbag \
 	cdrom/GNUmakefile cdrom/tbbootconfig/GNUmakefile \
 	cdrom/groklilo/GNUmakefile \
-	flash/GNUmakefile \
+	autofs/GNUmakefile flash/GNUmakefile \
 	dhcpd/dhcpd.conf.template dhcpd/GNUmakefile \
 	dhcpd/dhcpd.conf.subboss.template \
 	ntpd/GNUmakefile \

@@ -52,10 +52,10 @@ SUBDIRS = \
 	clientside/lib \
 	db assign www @optional_subdirs@ clientside ipod security sensors \
 	pxe tbsetup account tmcd utils backend tip ipod vis \
-	sensors os xmlrpc install/newnode_sshkeys tools/whol \
+	sensors os xmlrpc autofs install/newnode_sshkeys \
 	tools/svn wiki collab/exp-vis node_usage install
 ifeq ($(ISMAINSITE),1)
-SUBDIRS += tools/rmanage
+SUBDIRS += tools/rmanage tools/whol
 endif
 ifeq ($(PGENISUPPORT),1)
 SUBDIRS += protogeni apt
