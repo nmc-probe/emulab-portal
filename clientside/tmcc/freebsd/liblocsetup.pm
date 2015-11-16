@@ -459,7 +459,7 @@ sub os_useradd($$$$$$$$$)
 	# Locally, if directory exists and is populated, skip -m
 	# cause FreeBSD copies files in anyway!
 	$args .= "-m "
-	    if (! -d $homedir || ! -e "$homedir/.cshrc");
+	    if (! -d $homedir || ! -e "$homedir/.profile");
     }
     else {
 	# populate on remote nodes. At some point will tar files over.

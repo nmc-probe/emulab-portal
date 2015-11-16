@@ -1111,7 +1111,7 @@ sub os_useradd_real($$$$$$$$$)
 
 	# Locally, if directory exists and is populated, skip -m
 	# and make sure no attempt is made to create.
-	if (! -d $homedir || ! -e "$homedir/.cshrc") {
+	if (! -d $homedir || ! -e "$homedir/.profile") {
 	    $args .= "-m ";
 	}
 	else {
