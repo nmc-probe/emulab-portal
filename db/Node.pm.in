@@ -2215,6 +2215,12 @@ sub CreateVnodes($$$)
 	$nodenum    = "";
 	$ipbase     = 0;
     }
+    elsif ($pnode =~ /^(.*)-r(\d+)-(\d+)$/) {
+	# Cloudlab Wisconsin naming.
+	$nodeprefix = $1;
+	$nodenum    = "$2$3";
+	$ipbase     = $nodenum;
+    }
     elsif ($pnode =~ /^(.*\D)(\d+)$/) {
 	$nodeprefix = $1;
 	$nodenum    = $2;
