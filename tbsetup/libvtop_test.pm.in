@@ -7121,7 +7121,7 @@ sub InitializePhysNode($$$)
     my ($self, $pnodename, $role, $vnodename) = @_;
     my $pnode = $self->pnodes()->{$pnodename};
 
-    $self->printdb("InitPnode: $pnodename,$vnodename\n");
+    $self->printdb("InitPnode: $pnodename,$role,$vnodename\n");
 
     # If this is a node in the topology (in the vnodes() array) then
     # there must be a virtual physical node (which might be the same
@@ -9522,8 +9522,11 @@ sub newvname($$$)
 	next
 	    if (exists($self->current_v2v->{$vname}));
 
-	return $vname
-	    if ($pnodename eq $self->current_v2p->{$vname});
+	if ($pnodename eq $self->current_v2p->{$vname}) {
+	    return $vname
+		if ($pnodename ne $vname);
+	    last;
+	}
     }
     
     while (1) {
