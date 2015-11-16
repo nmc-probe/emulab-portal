@@ -1548,7 +1548,7 @@ sub UserDir($)
     return $self->path();
 }
 # Long term storage.
-sub InfoDir($$)
+sub InfoDir($)
 {
     my ($self) = @_;
 
