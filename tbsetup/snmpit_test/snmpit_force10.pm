@@ -151,6 +151,10 @@ sub new($$$;$) {
     # Mapping from OF instances to vlans.
     $self->{OFMAP} = undef;
 
+    # Flag for whether or not the switch uses vlan tags in the Q-BRIDGE-MIB 
+    # tables.  This is detected in readifIndex().
+    $self->{USEVLANTAGS} = 0;
+
     #
     # Get config options from the database
     #
@@ -356,7 +360,46 @@ sub readifIndex($) {
 	}
     }
 
+    # Determine if vlan tags are used in the Q-BRIDGE-MIB tables, or
+    # ifIndexes from IF-MIB.
+    ($rows) = snmpitBulkwalkFatal($self->{SESS},["dot1qVlanStaticName"]);
+    if (!scalar(@{$rows})) {
+	warn "$id: WARNING: No entries in dot1qVlanStaticName table! Can't ".
+	     "determine if tags or ifIndexes are in use in the Q-BRIDGE-MIB - ".
+	     "assuming not...\n";
+	$self->{USEVLANTAGS} = 0;
+    } else {
+	# First entry SHOULD be that of vlan 1.
+	my $vlan1row = (@{$rows})[0];
+	my ($oid,$iid,$ifname) = @{$vlan1row};
+	$self->debug("got $oid, $iid, ifname $ifname\n",2);
+	if ($oid ne "dot1qVlanStaticName") {
+	    warn "$id: ERROR: Foreign OID ($oid) returned while attempting ".
+		"to access dot1qVlanStaticName table!\n";
+	    return 0;
+	}
+	if ($iid == 1) {
+	    if ($ifname ne "Vlan 1") {
+		warn "$id: WARNING: $self->{NAME} appears to use vlan tags ".
+		     "in Q-BRIDGE tables, but the name for Vlan 1 is not ".
+		     "'Vlan 1'. Assuming vlan tags are in use anyway...\n";
+	    }
+	    $self->debug("Switch $self->{NAME} uses vlan tags in Q-BRIDGE tables.\n");
+	    $self->{USEVLANTAGS} = 1;
+	} else {
+	    if ($iid < 1000000000) {
+		warn "$id: WARNING: First entry in dot1qVlanStaticName table ".
+		     "on $self->{NAME} is below 1000000000, but not equal ".
+		     "to 1 (value: $iid).  We will assume this switch uses ".
+		     "vlan tags in the Q-BRIDGE tables anyway...\n";
+	    }
+	    $self->debug("Switch $self->{NAME} DOES NOT use vlan tags in Q-BRIDGE tables.\n");
+	    $self->{USEVLANTAGS} = 0;
+	}
+    }
+
     # Figure out the size of the vlan PortSet bit vectors.
+    $vlan1ifIndex = 1 if $self->{USEVLANTAGS};
     if ($vlan1ifIndex) {
 	my $pset = $self->getMemberBitmask($vlan1ifIndex);
 	if ($pset) {
@@ -369,7 +412,7 @@ sub readifIndex($) {
 	    return 0;
 	}
     } else {
-	warn "$id: Unable to find ifIndex for Vlan 1 - can't determine ".
+	warn "$id: ERROR: Unable to find ifIndex for Vlan 1 - can't determine ".
 	     "PortSet size!\n";
 	return 0;
     }
@@ -695,8 +738,10 @@ sub getVlanIfindex($$) {
     my ($self, $vlan_number) = @_;
     my $id = "$self->{NAME}::getVlanIfindex()";
 
+    my $table_oid = $self->{USEVLANTAGS} ? "dot1qVlanStaticName" : "ifDescr";
+
     my %results = ();
-    my ($rows) = snmpitBulkwalkFatal($self->{SESS},["ifDescr"]);
+    my ($rows) = snmpitBulkwalkFatal($self->{SESS},[$table_oid]);
     
     if (!$rows || !@{$rows}) {
 	warn "$id: ERROR: No interface description rows returned (snmp).";
@@ -705,9 +750,17 @@ sub getVlanIfindex($$) {
 
     foreach my $result (@{$rows}) {
 	my ($name,$iid,$descr) = @{$result};
+	my $curvlnum = 0;
 
-	next unless ($descr =~ /vlan\s+(\d+)/i || $descr =~ /vl(\d+)/i);
-	my $curvlnum = $1;
+	if ($self->{USEVLANTAGS}) {
+	    # Q-BRIDGE indexes are simply the vlan tags.
+	    $curvlnum = $iid;
+	} else {
+	    # If we are iterating over the ifDescr table, these will match
+	    # and we will adjust the vlan tag (number) accordingly.
+	    next unless ($descr =~ /vlan\s+(\d+)/i || $descr =~ /vl(\d+)/i);
+	    $curvlnum = $1;
+	}
 
 	$self->debug("$id: got $name, $iid, descr $descr\n",2);
 
@@ -1003,27 +1056,21 @@ sub listVlans($) {
 	
 	my ($ifIndex, $status);
 	
-	# get corresponding VLAN numbers
-	# (i.e. the "real" vlan tags as known by the switch, called 
-	# "cisco-specific" in the snmpit_cisco.pm module;
-	# with "vlan id" they mean the vlan name as known in the 
-	# database = the administrative name in the switch, not the tag)
+	# Get corresponding VLAN numbers (i.e. the "real" vlan tags as known 
+	# by the switch). Note that this may be a no-op mapping if we
+	# previously determined that the switch uses vlan tags in the
+	# Q-BRIDGE-MIB tables.
+	my %vlanmap = $self->getVlanIfindex("ALL");
 	foreach $ifIndex (keys %Names) {
-	    if ($status = snmpitGetWarn($self->{SESS},
-					["ifDescr",$ifIndex])) {
-		if ($status =~ /^Vlan\s(\d+)$/ || $status =~ /^vl(\d+)/i) {
-		    $Numbers{$ifIndex} = $1;
-		} else {
-		    warn "$id: ERROR: Unable to parse out vlan tag for ifindex $ifIndex\n";
-		    return undef;
-		}
+	    if (exists($vlanmap{$ifIndex})) {
+		$Numbers{$ifIndex} = $vlanmap{$ifIndex};
 	    } else {
 		warn "$id: ERROR: Unable to get vlan tag for ifindex $ifIndex\n";
 		return undef;
 	    }
 	}
 	
-	# get corresponding port bitmaps from dot1qVlanStaticEgressPorts
+	# Get corresponding port bitmaps from dot1qVlanStaticEgressPorts
 	# and find out the corresponding port ifIndexes
 	foreach $ifIndex (keys %Names) {
 	    my $membermask = $self->getMemberBitmask($ifIndex);
@@ -1167,7 +1214,7 @@ sub vlanHasPorts($$) {
 
     my $membermask = $self->getMemberBitmask($vlifindex);
     if (!defined($membermask)) {
-	warn "$id: ERROR: Could not get membership bitmask for blan: $vlan_number\n";
+	warn "$id: ERROR: Could not get membership bitmask for vlan: $vlan_number\n";
 	return 0;
     }
     my $setcount = unpack("%32b*", $membermask);
