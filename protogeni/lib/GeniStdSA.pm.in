@@ -328,6 +328,7 @@ sub CreateSlice($$)
         my $project = Project->Lookup( $project_name );
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'project "' . $project_urn . '" not found') unless defined( $project );
         my ($server_auth, $server_type, $server_authname) = GeniHRN::Parse( $ENV{'MYURN'} );
+        return GeniResponse->Create(GENIRESPONSE_SERVERERROR, undef, 'internal error: got invalid server urn "' . $ENV{'MYURN'} . '"') unless defined( $server_authname );
         my $subauth_urn = GeniHRN::Generate($server_auth . ':' . $project_name, $server_type, $server_authname);
         my $authority = GeniAuthority->Lookup($subauth_urn);
         if (!defined($authority)) {
@@ -834,55 +835,102 @@ sub CreateSliverInfo($$$$)
             "No such slice here: " . $slice_urn)
     }
 
+    my $user = GeniUser->Lookup($fields->{'SLIVER_INFO_CREATOR_URN'}, 1);
+    if (!defined($user)) {
+        return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef, 'No user ' . $fields->{'SLIVER_INFO_CREATOR_URN'} . ' here');
+    } else {
+        #is this needed?
+        #$user = GeniUser->CreateFromLocal($user);
+
+        #TODO: check if user is in slice
+        my $uuids = [];
+        my $error = $slice->UserBindings($uuids);
+        if ($error != 0) {
+            return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+                "Failed to lookup SLICE member bindings");
+        }
+        push(@{ $uuids }, $slice->creator_uuid());
+
+        my $valid_slice_member = 0;
+        foreach my $id (@{ $uuids }) {
+            my $user = GeniUser->Lookup($id, 1);
+            if (defined($user)) {
+                if ($user->urn() eq $fields->{'SLIVER_INFO_CREATOR_URN'}) {
+                    $valid_slice_member = 1;
+                }
+            }
+        }
+
+        if (!$valid_slice_member) {
+            return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef, 
+                'User ' . $fields->{'SLIVER_INFO_CREATOR_URN'} . ' is not a member of slice ' . $slice_urn);
+        }
+    }
+
     my $created = defined($fields->{'SLIVER_INFO_CREATION'}) ? 
     $fields->{'SLIVER_INFO_CREATION'} : 
     POSIX::strftime("20%y-%m-%dT%H:%M:%SZ", gmtime(time())); #now
 
-    my $info = {
+    my $blob= {
         'creator_urn' => $fields->{'SLIVER_INFO_CREATOR_URN'},
         'urn' => $fields->{'SLIVER_INFO_URN'},
         'created' => $created,
         'expires' => $fields->{'SLIVER_INFO_EXPIRATION'}
     };
-    my $params = {
-	'credential' => $credential,
-        'slice_urn' => $fields->{'SLIVER_INFO_SLICE_URN'},
-        'info' => $info
-    };
 
-    #register without verifying if credential is CM
-    my $registerSliverRes = GeniSA::RegisterSliverInternal($params, 0, $fields->{'SLIVER_INFO_AGGREGATE_URN'});
-    return $registerSliverRes if (GeniResponse::IsResponse($registerSliverRes) and GeniResponse::IsError($registerSliverRes));
-
-    #create reply
-    my $sliver = GeniSlice::ClientSliver->Lookup($fields->{'SLIVER_INFO_URN'});
-
-    if (!defined($sliver)) {
-        return GeniResponse->Create(4, '', 'Internal error: the sliver was not registered');
-    }
-    if (!defined($sliver->urn())) {
-        return GeniResponse->Create(4, '', 'Internal error: the sliver urn was not registered');
-    }
-    if (!defined($sliver->manager_urn())) {
-        return GeniResponse->Create(4, '', 'Internal error: the sliver manager_urn was not registered');
+    if ($slice->Lock() != 0) {
+        return GeniResponse->BusyResponse("slice");
     }
 
-    my $blob = {
-        'SLIVER_INFO_AGGREGATE_URN' => $sliver->manager_urn(),
-        'SLIVER_INFO_URN'	        => $sliver->urn(),
+    #
+    # See if one already exists
+    #
+    my $clientsliver = GeniSlice::ClientSliver->Lookup($fields->{'SLIVER_INFO_URN'});
+	if (defined($clientsliver)) {
+        $slice->UnLock();
+        return GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS, undef, 'SLIVER_INFO for sliver "' . $fields->{'SLIVER_INFO_URN'} . '" already exists');
+    }
+
+    $clientsliver = GeniSlice::ClientSliver->Create($slice, $fields->{'SLIVER_INFO_AGGREGATE_URN'}, $user, $blob);
+    if (!defined($clientsliver)) {
+        $slice->UnLock();
+        print STDERR "Could not register sliver for $slice_urn\n";
+        print STDERR Dumper($blob);
+        print STDERR Dumper($user);
+        return GeniResponse->Create(GENIRESPONSE_ERROR, undef, 'Could not create SLIVER_INFO for sliver "' . $fields->{'SLIVER_INFO_URN'} . '"');
+    }
+    $slice->UnLock();
+
+    ##lookup created sliver
+    #my $clientsliver = GeniSlice::ClientSliver->Lookup($fields->{'SLIVER_INFO_URN'});
+
+    if (!defined($clientsliver)) {
+        return GeniResponse->Create(GENIRESPONSE_ERROR, undef, 'Internal error: the sliver was not registered');
+    }
+    if (!defined($clientsliver->urn())) {
+        return GeniResponse->Create(GENIRESPONSE_ERROR, undef, 'Internal error: the sliver urn was not registered');
+    }
+    if (!defined($clientsliver->manager_urn())) {
+        return GeniResponse->Create(GENIRESPONSE_ERROR, undef, 'Internal error: the sliver manager_urn was not registered');
+    }
+
+    my $created_sliver_fields = {
+        'SLIVER_INFO_AGGREGATE_URN' => $clientsliver->manager_urn(),
+        'SLIVER_INFO_URN'	        => $clientsliver->urn(),
         'SLIVER_INFO_SLICE_URN'     => $slice->urn(),
-        'SLIVER_INFO_CREATION'      => GeniStd::DateTimeStringToRFC3339String($sliver->created()),
-        'SLIVER_INFO_EXPIRATION'    => GeniStd::DateTimeStringToRFC3339String($sliver->expires())
+        'SLIVER_INFO_CREATION'      => GeniStd::DateTimeStringToRFC3339String($clientsliver->created()),
+        'SLIVER_INFO_EXPIRATION'    => GeniStd::DateTimeStringToRFC3339String($clientsliver->expires()),
+        '_EMULAB_SLIVER_INFO_IDX' => $clientsliver->idx()
     };
-    my $user = User->Lookup($sliver->creator_idx());
-    if (defined($user)) {
-        $user = GeniUser->CreateFromLocal($user);
+    my $created_sliver_user = User->Lookup($clientsliver->creator_idx());
+    if (defined($created_sliver_user)) {
+        $created_sliver_user = GeniUser->CreateFromLocal($created_sliver_user);
     }
-    if (defined($user)) {
-        $blob->{'SLIVER_INFO_CREATOR_URN'} = $user->urn();
+    if (defined($created_sliver_user)) {
+        $created_sliver_fields->{'SLIVER_INFO_CREATOR_URN'} = $created_sliver_user->urn();
     }
 
-    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $created_sliver_fields);
 }
 
 sub UpdateSliverInfo($$)
