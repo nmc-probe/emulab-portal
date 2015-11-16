@@ -71,7 +71,7 @@ sub usage ()
     print STDERR " -A   - Tell ptopgen all nodes are free; only with -n\n";
     exit($WRAPPER_FAILED);
 }
-my $optlist    = "dvunfprqczxm:ko:altzZACFNL:";
+my $optlist    = "dvunfprqczxm:ko:altzZACFNL:S:";
 my $verbose    = 0;
 my $debug      = 0;
 my $fixmode    = 0;
@@ -85,6 +85,7 @@ my $prepass    = 0;
 my $alloconly  = 0;
 my $outfile;
 my $mfactor;
+my $packoption;
 my $regression = 0;
 my $noassign   = 0;  # Only with regression mode, use previous solution.
 my $noregfree  = 0;  # Only with regression mode, leave physical state at end.
@@ -200,6 +201,11 @@ if (defined($options{"f"})) {
 }
 if (defined($options{"F"})) {
     $fixlannodes = 1;
+}
+if (defined($options{"S"})) {
+    $packoption = $options{"S"};
+    fatal("Bad -S option; must be pack or balance")
+	if (! ($packoption eq "balance" || $packoption eq "pack"));
 }
 if (defined($options{"p"})) {
     $precheck = 1;
@@ -706,6 +712,8 @@ sub RunAssign($$)
 	if ($vtop->virtnodecount() || $vtop->simnodecount());
     $args = "-n $args"
     	if ($precheck);
+    $args = "-S $packoption $args"
+    	if (defined($packoption));
     $args = "-s 123456 $args"
 	if ($regression);
     $args = "-R $args PN=1.0"

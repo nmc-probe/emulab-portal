@@ -758,6 +758,11 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     # max for the node, but in general we set it low here.
     #
     $virtexperiment->multiplex_factor(GeniXML::MultiplexFactor($rspec) || 10);
+    #
+    # The packing strategy is sorta independent; the user can specify either
+    # pack or balance (load balance).
+    #
+    my $packing_option = GeniXML::PackingStrategy($rspec);
 
     #
     # Add global vtypes.
@@ -2471,6 +2476,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     # (the mapper will pass internal option to assign to prevent fixnode).
     #
     my $aopts = ($isupdate ? "-u" : "");
+    $aopts   .= " -S $packing_option" if (defined($packing_option));
     
     $output =
 	GeniUtil::ExecQuiet("$MAPPER -a -d -v $aopts -z -o $tmpfile $pid $eid");

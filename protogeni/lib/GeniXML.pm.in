@@ -900,6 +900,19 @@ sub MultiplexFactor($)
     return undef;
 }
 
+sub PackingStrategy($)
+{
+    my ($rspec) = @_;
+    
+    my $tmp = FindNodesNS("n:packing_strategy", $rspec, $EMULAB_NS)->pop();
+    if (defined($tmp)) {
+	my $strategy = GetText("strategy", $tmp);
+	return $strategy
+	    if (defined($strategy) && $strategy =~ /^(pack|balance)$/);
+    }
+    return undef;
+}
+
 sub OpenFlowController($)
 {
     my ($link) = @_;
