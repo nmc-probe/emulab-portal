@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -92,8 +92,8 @@ my $piddir    = (($pid eq $gid) ? "$projroot/$pid" : "$grouproot/$pid/$gid");
 my $expdir    = "$piddir/exp";
 my $eiddir    = "$expdir/$eid";
 my $eidlink   = "$projroot/$pid/exp/$eid";
-my $workdir   = TBExptWorkDir($pid, $eid);
-my $INFODIR   = "$TB/expinfo";
+my $workdir   = $experiment->WorkDir();
+my $expinfo   = $experiment->InfoDir();
 
 #
 # Unix info for the group
@@ -175,11 +175,9 @@ if (! -e $workdir) {
 #
 # Create the expinfo directory.
 #
-my $expinfo = "$INFODIR/$pid/$eid";
-
 if (! -e $expinfo) {
-    if (! mkdir($expinfo, 0777)) {
-	fatal("Could not create $expinfo: $!");
+    if (system("mkdir -p -m 777 $expinfo")) {
+	fatal("Could not create $expinfo");
     }
     #
     # expinfo dir should have the group ID of the primary project group.
