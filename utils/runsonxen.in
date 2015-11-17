@@ -33,8 +33,7 @@ my $PROTOGENI_GENIRACK = @PROTOGENI_GENIRACK@;
 #
 # Mark an image as running on XEN. 
 #
-my @OTHER_PARENTS  = ("XEN44-64-BIGFS", "XEN41-64-STD", "XEN43-64-STD",
-		      "XEN44-64-THIN", "XEN44-64-STD");
+my @OTHER_PARENTS  = ("XEN44-64-BIGFS", "XEN44-64-THIN", "XEN44-64-STD");
 if ($PROTOGENI_GENIRACK) {
     push(@OTHER_PARENTS, "XEN44-64-GENIRACK");
 }
@@ -143,8 +142,6 @@ if ($clear) {
 	    DBQueryFatal("delete from osidtoimageid ".
 			 "where osid='$imageid' and type='pcvm'");
 	    DBQueryFatal("delete from os_submap ".
-			 "where osid='$imageid'");
-	    DBQueryFatal("update os_info set def_parentosid=NULL ".
 			 "where osid='$imageid'");
 	}
     }
