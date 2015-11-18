@@ -821,6 +821,12 @@ sub DeleteSlice($)
     }
     my $retval = GeniCM::CleanupDeadSlice($slice, 1);
     if ($retval) {
+        #wvdemeer: Something went wrong deleting the slice.
+        #          But we have a taken a lock above.
+        #          So we need to unlock, or retry becomes impossible and the slice stays locked forever.
+        #          If all is successfull, unlock is apparently not needed, I assume this is because the lock is deleted along with the slice.
+        $slice->UnLock();
+
 	return -1
 	    if (!$blocking);
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
