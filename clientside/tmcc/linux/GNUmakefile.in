@@ -204,7 +204,10 @@ sysetc-install:	dir-install ifcfgs
 	    ln -sf $(RRCDIR)/rc.local $(SYSETCDIR)/rc.local; \
         fi
 	if [ -e $(SYSETCDIR)/sysctl.conf ]; then \
-		cat $(SRCDIR)/sysctl.conf.tail >> $(SYSETCDIR)/sysctl.conf; \
+	    if grep -q 'START added by Emulab' $(SYSETCDIR)/sysctl.conf; then \
+		sed -i -e '/START added by Emulab/,/END added by Emulab/d' $(SYSETCDIR)/sysctl.conf; \
+	    fi; \
+	    cat $(SRCDIR)/sysctl.conf.tail >> $(SYSETCDIR)/sysctl.conf; \
 	fi
 
 sysetc-remove:
