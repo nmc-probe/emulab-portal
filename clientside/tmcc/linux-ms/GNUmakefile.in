@@ -68,6 +68,8 @@ dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/network
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/rsyslog.d
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/sudoers.d
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/flash-kernel
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/flash-kernel/ubootenv.d
 
 common-install:	dir-install
 	(cd ../common; $(MAKE) DESTDIR=$(DESTDIR) local-install)
