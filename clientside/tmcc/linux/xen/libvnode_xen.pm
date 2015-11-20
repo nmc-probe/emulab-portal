@@ -277,7 +277,7 @@ my $LVM_FULLDISKONLY = 0;
 
 # Whether or not to use partitions only when they are big.
 my $LVM_ONLYLARGEPARTS = 1;
-my $LVM_LARGEPARTPCT = 8;
+my $LVM_LARGEPARTPCT = 10;
 
 # In general, you only want to use one partition per disk since we stripe.
 my $LVM_ONEPARTPERDISK = 1;
@@ -610,10 +610,10 @@ sub rootPreConfig($)
 		# XXX Another heurstic to try to weed out the system
 		# disk whenever feasible: if a partition device represents
 		# less than some percentage of the max possible space,
-		# avoid it. At Utah this one is tuned (8%) to avoid using
+		# avoid it. At Utah this one is tuned (10%) to avoid using
 		# left over space on the system disk of d820s (which have
-		# six other larger drives) while using it on the pc3000s
-		# and d710s.
+		# six other larger drives) or d430s (which have two large
+		# disks) while using it on the pc3000s and d710s.
 		#
 		if ($LVM_ONLYLARGEPARTS && $psize < $sizeThreshold) {
 		    print STDERR "WARNING: not using $ppath for LVM (too small)\n";
