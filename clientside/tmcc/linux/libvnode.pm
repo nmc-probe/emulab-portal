@@ -171,11 +171,31 @@ sub removePortForward($) {
     return forwardPort($ref,1);
 }
 
+# Is the given device an SSD?
+sub isSSD($)
+{
+    my ($dev) = @_;
+    my $isssd = 0;
+
+    if (-e "/dev/$dev" && -x "/sbin/hdparm" &&
+	open(HFD, "/sbin/hdparm -I /dev/$dev 2>/dev/null |")) {
+	while (my $line = <HFD>) {
+	    chomp($line);
+	    if ($line =~ /:\s+solid state device$/i) {
+		$isssd = 1;
+		last;
+	    }
+	}
+	close(HFD);
+    }
+
+    return $isssd;
+}
+
 #
 # A spare disk or disk partition is one whose partition ID is 0 and is not
 # mounted and is not in /etc/fstab AND is >= the specified minsize (in MiB).
-# Yes, this means it's possible that we might steal partitions that are
-# in /etc/fstab by UUID -- oh well.
+# Note that we do now check labels and UUIDs as well as names in fstab.
 #
 # This function returns a hash of:
 #   device name => part number => {size,path}
@@ -184,8 +204,11 @@ sub removePortForward($) {
 # Note that a device name => {size,fullpath} entry is filled IF the device
 # has no partitions.
 #
-sub findSpareDisks($) {
-    my ($minsize) = @_;
+# If the optional $skipssds is set, we identify each disk as an SSD or not,
+# skipping ones that are.
+#
+sub findSpareDisks($;$) {
+    my ($minsize,$skipssds) = @_;
 
     my %retval = ();
     my %mounts = ();
@@ -230,6 +253,7 @@ sub findSpareDisks($) {
 
     open (PFD,"/proc/partitions") 
 	or die "open(/proc/partitions): $!";
+
     while (my $line = <PFD>) {
 	chomp($line);
 
@@ -272,6 +296,16 @@ sub findSpareDisks($) {
 		$dev = $1;
 	    }
 
+	    # This is a partition on an earlier discovered disk device,
+	    # ignore the disk device. This is signalled by clearing the size.
+	    if (exists($retval{$dev}{"size"})) {
+		delete $retval{$dev}{"size"};
+		delete $retval{$dev}{"path"};
+		if (scalar(keys(%{$retval{$dev}})) == 0) {
+		    delete $retval{$dev};
+		}
+	    }
+
 	    # XXX don't include extended partitions (the reason is to filter
 	    # out pseudo partitions that linux creates for bsd disklabel 
 	    # slices -- we don't want to use those!
@@ -281,15 +315,10 @@ sub findSpareDisks($) {
 	    next 
 		if ($part > 4);
 
-	    # This is a partition on an earlier discovered disk device,
-	    # ignore the disk device.
-	    if (exists($retval{$dev}{"size"})) {
-		delete $retval{$dev}{"size"};
-		delete $retval{$dev}{"path"};
-		if (scalar(keys(%{$retval{$dev}})) == 0) {
-		    delete $retval{$dev};
-		}
-	    }
+	    # If asked to, ignore SSDs
+	    next
+		if ($skipssds && isSSD($dev));
+
 	    if (!defined($mounts{"/dev/$devpart"}) 
 		&& !defined($ftents{"/dev/$devpart"})) {
 
@@ -326,6 +355,10 @@ sub findSpareDisks($) {
 	}
 	else {
 isdisk:
+	    # If asked to, ignore SSDs
+	    next
+		if ($skipssds && isSSD($devpart));
+
 	    if (!defined($mounts{"/dev/$devpart"}) &&
 		!defined($ftents{"/dev/$devpart"}) &&
 		$size >= $minsize) {
@@ -334,9 +367,9 @@ isdisk:
 	    }
 	}
     }
-    foreach my $k (keys(%retval)) {
-	if (scalar(keys(%{$retval{$k}})) == 0) {
-	    delete $retval{$k};
+    foreach my $d (keys(%retval)) {
+	if (scalar(keys(%{$retval{$d}})) == 0) {
+	    delete $retval{$d};
 	}
     }
     close(PFD);

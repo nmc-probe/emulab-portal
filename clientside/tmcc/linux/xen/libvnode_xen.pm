@@ -272,6 +272,9 @@ my $MAXROUTETTABLE = 255;
 # Striping
 my $STRIPE_COUNT   = 1;
 
+# Avoid using SSDs unless there are only SSDs
+my $LVM_AVOIDSSD = 1;
+
 # Whether or not to use only unpartitioned (unused) disks to form the Xen VG.
 my $LVM_FULLDISKONLY = 0;
 
@@ -527,21 +530,31 @@ sub rootPreConfig($)
     }
 
     #
-    # Make sure pieces are at least a 5GiB.
+    # Make sure pieces are at least 5 GiB.
     #
-    my %devs = libvnode::findSpareDisks(5 * 1024);
+    my $minpsize = 5 * 1024;
+    my %devs = findSpareDisks($minpsize, $LVM_AVOIDSSD);
+
+    # if ignoring SSDs but came up with nothing, we have to use them!
+    if ($LVM_AVOIDSSD && keys(%devs) == 0) {
+	%devs = findSpareDisks($minpsize, 0);
+    }
 
     #
     # Turn on write caching. Hacky. 
     # XXX note we do not use the returned "path" here as we need to
     # change the setting on all devices, not just the whole disk devices.
     #
+    my %diddev = ();
     foreach my $dev (keys(%devs)) {
 	# only mess with the disks we are going to use
-	if (exists($devs{$dev}{"size"}) || $LVM_FULLDISKONLY == 0) {
+	if (!exists($diddev{$dev}) &&
+	    (exists($devs{$dev}{"size"}) || $LVM_FULLDISKONLY == 0)) {
 	    mysystem2("hdparm -W1 /dev/$dev");
+	    $diddev{$dev} = 1;
 	}
     }
+    undef %diddev;
 
     #
     # See if our LVM volume group for VMs exists and create it if not.
@@ -552,7 +565,8 @@ sub rootPreConfig($)
 	    if ($debug);
 
 	#
-	# Total up potential maximum size
+	# Total up potential maximum size.
+	# Also determine mix of SSDs and non-SSDs if required.
 	#
 	my $maxtotalSize = 0;
 	my $sizeThreshold = 0;
@@ -575,7 +589,7 @@ sub rootPreConfig($)
 	#
 	my $totalSize = 0;
 	my @blockdevs = ();
-	foreach my $dev (keys(%devs)) {
+	foreach my $dev (sort keys(%devs)) {
 	    #
 	    # Whole disk is available, use it.
 	    #
@@ -1739,6 +1753,29 @@ sub vnodePreConfig($$$$$){
 		     ">> $vnoderoot/boot/loader.conf");
 	}
     }
+
+    #
+    # XXX avoid extra filesystem creation in libsetup if possible.
+    # This is specifically for the case of local home/proj directories.
+    # If we have to stick an extra FS mount in /etc/fstab, then we can
+    # no longer cleanly image the root partition.
+    #
+    # So we set it up to only use the extra space if it is explicitly
+    # specified by the user with XEN_EXTRAFS or XEN_EXTRADISKS.
+    # Otherwise we force use of '/'.
+    #
+    # We do this by mildly abusing the /var/emulab/boot/extrafs file,
+    # that was intended for coexistence between blockstores and mkextrafs.
+    # By putting FS=/ in there, we can force libsetup's os_mkextrafs to
+    # use the root filesystem.
+    #
+    if (!exists($vnconfig->{'attributes'}->{'XEN_EXTRAFS'}) &&
+	!exists($vnconfig->{'attributes'}->{'XEN_EXTRADISKS'})) {
+	mysystem("echo 'FS=/' > $vnoderoot/var/emulab/boot/extrafs");
+    } else {
+	unlink("$vnoderoot/var/emulab/boot/extrafs");
+    }
+
     #
     # We have to do what slicefix does when it localizes an image.
     #
