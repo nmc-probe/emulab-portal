@@ -848,7 +848,8 @@ sub isMounted($)
     while (<MOUNT>) {
 	if ($_ =~ /^([-\w\.\/:\(\)]+) on ([-\w\.\/]+) \((.*)\)$/) {
 	    # Search for nfs string in the option list.
-	    foreach my $opt (split(',', $3)) {
+	    # N.B. there may be a space after the comma in the list
+	    foreach my $opt (split(/, ?/, $3)) {
 		if ($opt eq "nfs" && $2 eq $dir) {
 		    $rval = 1;
 		}
