@@ -533,11 +533,11 @@ sub rootPreConfig($)
     # Make sure pieces are at least 5 GiB.
     #
     my $minpsize = 5 * 1024;
-    my %devs = findSpareDisks($minpsize, $LVM_AVOIDSSD);
+    my %devs = libvnode::findSpareDisks($minpsize, $LVM_AVOIDSSD);
 
     # if ignoring SSDs but came up with nothing, we have to use them!
     if ($LVM_AVOIDSSD && keys(%devs) == 0) {
-	%devs = findSpareDisks($minpsize, 0);
+	%devs = libvnode::findSpareDisks($minpsize, 0);
     }
 
     #
