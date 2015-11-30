@@ -73,7 +73,7 @@ PidFile /var/run/httpd.pid
 #
 # Timeout: The number of seconds before receives and sends time out.
 #
-Timeout 300
+Timeout 1000
 
 #
 # KeepAlive: Whether or not to allow persistent connections (more than
