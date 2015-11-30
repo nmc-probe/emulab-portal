@@ -367,7 +367,7 @@ class Instance
                           'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );
-          if (ISADMIN()) {
+          if (ISADMIN() || ISFOREIGN_ADMIN()) {
               $am_array["iMinds Virt Wall 2"] =
                   "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm";
               $am_array["UKY Emulab"] =
