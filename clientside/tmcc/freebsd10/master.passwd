@@ -1,4 +1,4 @@
-# $FreeBSD: releng/10.0/etc/master.passwd 256366 2013-10-12 06:08:18Z rpaulo $
+# $FreeBSD: releng/10.2/etc/master.passwd 256366 2013-10-12 06:08:18Z rpaulo $
 #
 root:$1$0DKicYf8$PsfF3uhmTrtuaJKH/rxtQ/:0:0::0:0:Charlie &:/root:/bin/csh
 toor:$1$0DKicYf8$PsfF3uhmTrtuaJKH/rxtQ/:0:0::0:0:Chaplin &:/root:/bin/csh
@@ -24,7 +24,6 @@ auditdistd:*:78:77::0:0:Auditdistd unprivileged user:/var/empty:/usr/sbin/nologi
 www:*:80:80::0:0:World Wide Web Owner:/nonexistent:/usr/sbin/nologin
 hast:*:845:845::0:0:HAST unprivileged user:/var/empty:/usr/sbin/nologin
 nobody:*:65534:65534::0:0:Unprivileged user:/nonexistent:/usr/sbin/nologin
-sfs:*:171:171::0:0:SFS pseudo-user:/:/usr/sbin/nologin
 messagebus:*:556:556::0:0:D-BUS Daemon User:/nonexistent:/usr/sbin/nologin
 polkit:*:562:562::0:0:PolicyKit Daemon User:/nonexistent:/usr/sbin/nologin
 haldaemon:*:560:560::0:0:HAL Daemon User:/nonexistent:/usr/sbin/nologin
