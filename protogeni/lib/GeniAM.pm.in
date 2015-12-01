@@ -795,7 +795,7 @@ sub Describe
     }
 
     my $blob = {
-	'geni_rspec' => GeniXML::Serialize($manifest),
+	'geni_rspec' => ( defined($manifest) ? GeniXML::Serialize($manifest) : GeniStd::GenerateEmptyManifest() ),
 	'geni_urn' => $slice->urn(),
 	'geni_slivers' => \@geni_slivers
     };
