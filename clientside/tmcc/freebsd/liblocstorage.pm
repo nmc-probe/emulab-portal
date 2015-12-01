@@ -1609,9 +1609,16 @@ sub os_create_storage_slice($$$)
 	}
 
 	#
+	# Make sure geom doesn't attempt to respect the bogus CHS
+	# values in MBRs as they will quite likely cause misalignment
+	# for SSDs and 4K-sector drives.
+	#
+	mysystem("sysctl kern.geom.part.mbr.enforce_chs=0 >/dev/null 2>&1");
+
+	#
 	# System volume:
 	#
-	# gpart add -i 4 -t freebsd da0
+	# gpart add -i 4 -a 2048 -t freebsd da0
 	# gpart create -s BSD da0s4
 	# gpart add -t freebsd-ufs da0s4
 	#
@@ -1619,7 +1626,7 @@ sub os_create_storage_slice($$$)
 	    my $slice = "$bdisk" . "s4";
 	    my $part = "$slice" . "a";
 
-	    if (mysystem("$GPART add -i 4 -t freebsd $bdisk $redir")) {
+	    if (mysystem("$GPART add -i 4 -a 2048 -t freebsd $bdisk $redir")) {
 		warn("*** $lv: could not create $slice$logmsg\n");
 		return 0;
 	    }
@@ -1638,9 +1645,9 @@ sub os_create_storage_slice($$$)
 	    #
 	    # If partitions have not yet been initialized handle that:
 	    #
-	    # gpart add -i 4 -t freebsd da0	(ANY only)
+	    # gpart add -i 4 -a 2048 -t freebsd da0	(ANY only)
 	    # gpart create -s mbr da1
-	    # gpart add -i 1 -t freebsd da1
+	    # gpart add -i 1 -a 2048 -t freebsd da1
 	    #
 	    if (!exists($so->{'SPACEMAP'})) {
 		my %spacemap = ();
@@ -1683,7 +1690,7 @@ sub os_create_storage_slice($$$)
 			    }
 			    $pnum = $spacemap{$disk}{'pnum'} = 1;
 			}
-			if (mysystem("$GPART add -i $pnum -t freebsd $disk $redir")) {
+			if (mysystem("$GPART add -i $pnum -a 2048 -t freebsd $disk $redir")) {
 			    warn("*** $lv: could not create ${disk}s${pnum}$logmsg\n");
 			    return 0;
 			}
