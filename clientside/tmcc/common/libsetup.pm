@@ -570,7 +570,7 @@ sub cleanup_node ($) {
 
     print STDOUT "Cleaning node; removing configuration files\n";
     unlink TMUSESFS, TMROLE, ISSIMTRAFGENPATH, ISDELAYNODEPATH;
-    unlink TMSTORAGEMAP, TMDISKINFO, TMEXTRAFS;
+    unlink TMSTORAGEMAP, TMDISKINFO;
 
     #
     # If scrubbing, also remove the password/group files and DBs so
@@ -578,6 +578,8 @@ sub cleanup_node ($) {
     #
     if ($scrub) {
 	unlink TMNICKNAME;
+	# XXX !scrub allows this to be initialized from outside (libvnode)
+	unlink TMEXTRAFS;
     }
 }
 
