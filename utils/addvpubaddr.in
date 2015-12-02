@@ -92,7 +92,8 @@ for( $i = $first; $i <= $last; $i++ ) {
 
     if( $delete ) {
 	$result = DBQueryWarn( "DELETE FROM virt_node_public_addr WHERE " .
-			       "IP='$addr' AND node_id IS NULL" );
+			       "IP='$addr' AND node_id IS NULL AND " .
+			       "pid IS NULL AND eid IS NULL" );
     } else {
 	$result = DBQueryWarn( "INSERT INTO virt_node_public_addr SET " .
 			       "IP='$addr', mask='$netmask'" );
