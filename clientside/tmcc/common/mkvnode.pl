@@ -755,41 +755,44 @@ if (defined(VNCONFIG('SSHDPORT')) && VNCONFIG('SSHDPORT') ne "" &&
 # it running in its new context. Still, lets protect it with a timer
 # since it might get hung up inside and we do not want to get stuck here.
 #
-my $childpid = fork();
-if ($childpid) {
-    my $timedout = 0;
-    local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
-    alarm 180
-	if (!$ISXENVM);
-    waitpid($childpid, 0);
-    alarm 0
-	if (!$ISXENVM);
+if (!$ISXENVM) {
+    my $childpid = fork();
+    if ($childpid) {
+	my $timedout = 0;
+	local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
+	alarm 180;
+	waitpid($childpid, 0);
+	alarm 0;
 
-    #
-    # If failure then cleanup.
-    #
-    if ($? || $timedout) {
-	MyFatal("$vnodeid container startup ".
-		($timedout ? "timed out." : "failed."));
+	#
+	# If failure then cleanup.
+	#
+	if ($? || $timedout) {
+	    MyFatal("$vnodeid container startup ".
+		    ($timedout ? "timed out." : "failed."));
+	}
+    }
+    else {
+	#
+	# We want to call this as clean as possible.
+	#
+	$SIG{TERM} = 'DEFAULT';
+	$SIG{INT}  = 'DEFAULT';
+	$SIG{USR1} = 'DEFAULT';
+	$SIG{USR2} = 'DEFAULT';
+	$SIG{HUP}  = 'DEFAULT';
+	POSIX::setsid();
+
+	if ($libops{$vmtype}{"vnodeBoot"}->($vnodeid, $vmid,
+					    \%vnconfig, $vnstate->{'private'})){
+	    print STDERR "*** ERROR: vnodeBoot failed\n";
+	    exit(1);
+	}
+	exit(0);
     }
 }
-else {
-    #
-    # We want to call this as clean as possible.
-    #
-    $SIG{TERM} = 'DEFAULT';
-    $SIG{INT}  = 'DEFAULT';
-    $SIG{USR1} = 'DEFAULT';
-    $SIG{USR2} = 'DEFAULT';
-    $SIG{HUP}  = 'DEFAULT';
-    POSIX::setsid();
-
-    if ($libops{$vmtype}{"vnodeBoot"}->($vnodeid, $vmid,
-				\%vnconfig, $vnstate->{'private'})) {
-	print STDERR "*** ERROR: vnodeBoot failed\n";
-	exit(1);
-    }
-    exit(0);
+elsif (safeLibOp('vnodeBoot', 1, 1)) {
+    MyFatal("$vnodeid container startup failed.");
 }
 if (safeLibOp('vnodePostConfig', 1, 1)) {
     MyFatal("vnodePostConfig failed");

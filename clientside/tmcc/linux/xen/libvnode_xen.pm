@@ -84,6 +84,7 @@ use File::Basename;
 use File::Path;
 use File::Copy;
 use File::Temp;
+use POSIX qw(:signal_h);
 
 # Pull in libvnode
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
@@ -295,6 +296,10 @@ my $VIFROUTING   = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
 my $TMCD_PORT	 = 7777;
 
+# Number of concurrent containers set up in parallel. We bump this up
+# a bit down in doingThinLVM().
+my $MAXCONCURRENT = 3;
+
 #
 # Information about the running Xen hypervisor
 #
@@ -336,6 +341,7 @@ sub LookupRouteTable($);
 sub FreeRouteTable($);
 sub downloadOneImage($$$);
 sub captureRunning($);
+sub checkForInterrupt();
 
 sub getXenInfo()
 {
@@ -782,8 +788,9 @@ sub rootPreConfigNetwork($$$$)
 
     TBDebugTimeStamp("rootPreConfigNetwork: grabbing global lock $GLOBAL_CONF_LOCK")
 	if ($lockdebug);
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the global lock after a long time!\n";
+    if (TBScriptLock($GLOBAL_CONF_LOCK,
+		     TBSCRIPTLOCK_INTERRUPTIBLE(), 900) != TBSCRIPTLOCK_OKAY()){
+	print STDERR "Could not get the global lock!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got global lock")
@@ -863,9 +870,10 @@ sub vnodeCreate($$$$)
     my $imagelockname = ImageLockName($imagename);
     TBDebugTimeStamp("grabbing image lock $imagelockname shared")
 	if ($lockdebug);
-    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
-	!= TBSCRIPTLOCK_OKAY()) {
-	fatal("Could not get $imagelockname lock after a long time!");
+    if (TBScriptLock($imagelockname,
+		     TBSCRIPTLOCK_INTERRUPTIBLE()|TBSCRIPTLOCK_SHAREDLOCK(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
+	fatal("Could not get $imagelockname lock!");
     }
     TBDebugTimeStamp("  got image lock")
 	if ($lockdebug);
@@ -899,10 +907,9 @@ sub vnodeCreate($$$$)
 	    TBScriptUnlock();	    
 	    TBDebugTimeStamp("grabbing image lock $imagelockname exclusive")
 		if ($lockdebug);
-	    if (TBScriptLock($imagelockname, undef, 1800)
+	    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_INTERRUPTIBLE(), 1800)
 		!= TBSCRIPTLOCK_OKAY()) {
-		fatal("Could not get $imagelockname write lock ".
-		      "after a long time!");
+		fatal("Could not get $imagelockname write lock!");
 	    }
 	    TBDebugTimeStamp("  got image lock")
 		if ($lockdebug);
@@ -918,7 +925,9 @@ sub vnodeCreate($$$$)
 	    TBScriptUnlock();
 	    TBDebugTimeStamp("grabbing image lock $imagelockname shared")
 		if ($lockdebug);
-	    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
+	    if (TBScriptLock($imagelockname,
+			     TBSCRIPTLOCK_INTERRUPTIBLE()|
+			     TBSCRIPTLOCK_SHAREDLOCK(), 1800)
 		!= TBSCRIPTLOCK_OKAY()) {
 		fatal("Could not get $imagelockname lock back ".
 		      "after a long time!");
@@ -2099,8 +2108,9 @@ sub vnodePreConfigExpNetwork($$$$)
 	#
 	TBDebugTimeStamp("vnodePreConfigExpNetwork: grabbing global lock $GLOBAL_CONF_LOCK")
 	    if ($lockdebug);
-	if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	    print STDERR "Could not get the global lock after a long time!\n";
+	if (TBScriptLock($GLOBAL_CONF_LOCK, TBSCRIPTLOCK_INTERRUPTIBLE(), 900)
+	    != TBSCRIPTLOCK_OKAY()) {
+	    print STDERR "Could not get the global lock!\n";
 	    return -1;
 	}
 	TBDebugTimeStamp("  got global lock")
@@ -2375,6 +2385,8 @@ sub vnodeBoot($$$$)
 		return 0;
 	    }
 	    $countdown--;
+	    last
+		if (checkForInterrupt());
 	}
 	#
 	# Tear it down and try again. Use vnodeHalt cause it protects
@@ -2392,6 +2404,8 @@ sub vnodeBoot($$$$)
 	    TBDebugTimeStamp("Container not gone yet");
 	}
 	TBDebugTimeStamp("Container is gone ($i)!");
+	last
+	    if (checkForInterrupt());
     }
     return -1;
 }
@@ -3131,7 +3145,8 @@ sub grabGoldenLock($)
 
     TBDebugTimeStamp("grabbing gimage lock $token")
 	if ($lockdebug);
-    if (TBScriptLock($token, undef, 900, \$lockref) == TBSCRIPTLOCK_OKAY()) {
+    if (TBScriptLock($token, TBSCRIPTLOCK_INTERRUPTIBLE(),
+		     900, \$lockref) == TBSCRIPTLOCK_OKAY()) {
 	TBDebugTimeStamp("  got gimage lock")
 	    if ($lockdebug);
 	return $lockref;
@@ -3283,10 +3298,10 @@ sub createImageDisk($$$$)
     # And back to a shared lock.
     TBDebugTimeStamp("grabbing image lock $imagelockname shared")
 	if ($lockdebug);
-    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
-	!= TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get $imagelockname lock back ".
-	    "after a long time!\n";
+    if (TBScriptLock($imagelockname,
+		     TBSCRIPTLOCK_INTERRUPTIBLE()|TBSCRIPTLOCK_SHAREDLOCK(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname lock back!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got image lock")
@@ -3321,9 +3336,9 @@ sub downloadOneImage($$$)
 
     TBDebugTimeStamp("grabbing image lock $imagelockname exclusive")
 	if ($lockdebug);
-    if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get $imagelockname write lock".
-	    "after a long time!\n";
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_INTERRUPTIBLE(), 1800)
+	!= TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname write lock!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got image lock")
@@ -4230,8 +4245,9 @@ sub createExpBridges($$$)
     #
     TBDebugTimeStamp("createExpBridges: grabbing global lock $GLOBAL_CONF_LOCK")
 	if ($lockdebug);
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the global lock after a long time!\n";
+    if (TBScriptLock($GLOBAL_CONF_LOCK, TBSCRIPTLOCK_INTERRUPTIBLE(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get the global lock!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got global lock")
@@ -4720,7 +4736,7 @@ sub doingThinLVM()
 	$usethin = 0;
 	return 0;
     }
-
+    $MAXCONCURRENT = 5;
     return 1;
 }
 
@@ -4959,7 +4975,8 @@ sub AllocateIFBs($$$)
 
     TBDebugTimeStamp("AllocateIFBs: grabbing global lock $GLOBAL_CONF_LOCK")
 	if ($lockdebug);
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
+    if (TBScriptLock($GLOBAL_CONF_LOCK, TBSCRIPTLOCK_INTERRUPTIBLE(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
@@ -5407,16 +5424,30 @@ sub RunWithLock($$)
     return $status;
 }
 
+sub checkForInterrupt()
+{
+    my $sigset = POSIX::SigSet->new;
+    sigpending($sigset);
+
+    # XXX Why isn't SIGRTMIN and SIGRTMAX defined in th POSIX module.
+    for (my $i = 1; $i < 50; $i++) {
+	if ($sigset->ismember($i)) {
+	    print "checkForInterrupt: Signal $i is pending\n";
+	    return 1;
+	}
+    }
+    return 0;
+}
+
 #
 # We need to control how many simultaneous creates happen at once.
 #
-my $MAXCONCURRENT = 3;
 my $createvnode_lockref;
 
 sub CreateVnodeLock()
 {
     my $tries = 1000;
-    
+
     while ($tries) {
 	for (my $i = 0; $i < $MAXCONCURRENT; $i++) {
 	    my $token  = "createvnode_${i}";
@@ -5435,7 +5466,11 @@ sub CreateVnodeLock()
 	}
 	print "Still trying to get the create lock at " . time() . "\n"
 	    if (($tries % 60) == 0);
+	return -1
+	    if (checkForInterrupt());
 	sleep(4);
+	return -1
+	    if (checkForInterrupt());
 	$tries--;
     }
     TBDebugTimeStamp("Could not get the createvnode lock after a long time!");
