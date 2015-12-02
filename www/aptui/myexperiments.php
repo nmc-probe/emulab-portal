@@ -180,6 +180,7 @@ function SPITROWS($showall, $name, $result)
         $uuid         = $row["uuid"];
         $name         = $row["name"];
         $status       = $row["status"];
+        $canceled     = $row["canceled"];
         $created      = DateStringGMT($row["created"]);
         $expires      = DateStringGMT($row["expires"]);
         $creator_idx  = $row["creator_idx"];
@@ -205,6 +206,9 @@ function SPITROWS($showall, $name, $result)
         }
         if ($row["expired"]) {
             $status = "expired";
+        }
+        elseif ($canceled) {
+            $status = "canceled";
         }
         $profile = Profile::Lookup($profile_id, $version);
         if ($profile) {

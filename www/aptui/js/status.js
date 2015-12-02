@@ -379,6 +379,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    else if (status == 'provisioned') {
 		$("#status_progress_bar").width("66%");
 		status_html = "booting";
+		if (json.value.canceled) {
+		    status_html += " (but canceled)";
+		}
+		else {
+		    // So the user can cancel. 
+		    EnableButton("terminate");
+		}
 	    }
 	    else if (status == 'ready') {
 		bgtype = "panel-success";
@@ -397,6 +404,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $("#status_progress_div").addClass("progress-bar-success");
 		    $("#status_progress_bar").width("100%");
 		}
+		$('#error_panel').addClass("hidden");
 		EnableButtons();
 		// We should be looking at the node status instead.
 		if (lastStatus != "imaging") {

@@ -120,6 +120,7 @@ function Do_GetInstanceStatus()
     }
     $blob = array();
     $blob["status"] = $instance->status();
+    $blob["canceled"] = $instance->canceled() ? 1 : 0;
     $blob["sliverstatus"] = array();
     $blob["sliverurls"]   = array();
 
