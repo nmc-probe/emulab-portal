@@ -33,7 +33,7 @@ include_once("instance_defs.php");
 #
 RedirectSecure();
 $this_user = CheckLogin($check_status);
-if ($ISCLOUD) {
+if ($ISCLOUD || $ISPNET) {
     if (! ($CHECKLOGIN_STATUS & CHECKLOGIN_LOGGEDIN)) {
 	header("Location: login.php");
 	return;

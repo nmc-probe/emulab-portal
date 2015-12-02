@@ -60,7 +60,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 	var errorURL = (window.ISCLOUD ?
 			"https://groups.google.com/d/forum/cloudlab-users" :
-			"https://groups.google.com/d/forum/apt-users");
+			(windwow.ISPNET ? 
+			 "https://groups.google.com/d/forum/phantomnet-users" :
+			    "https://groups.google.com/d/forum/apt-users"));
 
 	// Generate the templates.
 	var template_args = {

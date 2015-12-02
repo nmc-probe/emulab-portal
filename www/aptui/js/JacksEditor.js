@@ -40,8 +40,17 @@ function (_, editModalString, editInlineString)
     var waitingInstances = [];
     var contextFetched = false;
 
-    var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
+    var contextUrl = "";
     if (window.ISCLOUD)
+    {
+	contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
+    }
+    else if (window.ISPNET)
+    {
+	contextUrl = 'https://www.emulab.net/protogeni/jacks-context/phantomnet.json';
+    }
+
+    if (window.ISCLOUD || window.ISPNET)
     {
 	$('#edit_topo_modal_button').prop('disabled', true);
 	$.get(contextUrl).then(contextReady, contextFail);

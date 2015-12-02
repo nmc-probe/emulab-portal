@@ -4,11 +4,12 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/instantiate.html',
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
+	 'js/lib/text!template/aboutpnet.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
          'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
 function (_, Constraints, sup, ppstart, JacksEditor, wt,
-	  instantiateString, aboutaptString, aboutcloudString,
+	  instantiateString, aboutaptString, aboutcloudString, aboutpnetString,
 	  waitwaitString, rspecviewString)
 {
     'use strict';
@@ -82,7 +83,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    profilevers:        window.PROFILEVERS,
 	    showpicker:		showpicker,
 	    cancopy:		window.CANCOPY,
-	    clustername:        (window.ISCLOUD ? "CloudLab" : "APT"),
+	    clustername:        (window.ISCLOUD ? "CloudLab" : 
+				 (window.ISPNET ? "PhantomNet" : "APT")),
 	});
 	$('#main-body').html(html);
 
@@ -99,8 +101,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	$('#rspecview_div').html(rspecviewString);
 	// The about panel.
 	if (window.SHOWABOUT) {
-	    $('#about_div').html(window.ISCLOUD ?
-				 aboutcloudString : aboutaptString);
+	    $('#about_div').html(window.ISCLOUD ? aboutcloudString :
+				 (window.ISPNET ? aboutpnetString : 
+				  aboutaptString));
 	}
 	$('#stepsContainer').steps({
 	    headerTag: "h3",

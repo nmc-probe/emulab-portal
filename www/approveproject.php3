@@ -132,6 +132,9 @@ if ($this_project->isAPT()) {
 elseif ($this_project->isCloud()) {
     $APPROVAL_MAIL = "cloudlab-approval@cloudlab.us";
 }
+elseif ($this_project->isPNet()) {
+    $APPROVAL_MAIL = "phantomnet-approval@phantomnet.org";
+}
 
 #
 # Well, looks like everything is okay. Change the project approval

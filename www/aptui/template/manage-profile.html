@@ -324,7 +324,7 @@
 		             <% if (formfields.profile_who == "public") {
 				%>checked<% } %>
 			     value='public'>
-		      <% if (iscloud) { %>
+		      <% if (iscloud || ispnet) { %>
                       <em>Anyone</em>
 		      <% } else { %>
                       <em>Anyone</em> on the internet
@@ -422,7 +422,7 @@
                      style='margin-right: 10px;'
                      type='submit' name='create'>Instantiate
 		  </a>
-		  <% if (!iscloud) { %>
+		  <% if (!(iscloud || ispnet)) { %>
 		    <span class='pull-right'
 			  data-toggle='popover'
 			  data-delay='{"hide":1500, "show":250}'

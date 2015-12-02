@@ -691,7 +691,7 @@ class Group
 	$usr_URL	= $user->URL();
 	$url            = $project->wwwBase();
 	
-	if ($project->isAPT() || $project->isCloud()) {
+	if ($project->isAPT() || $project->isCloud() || $project->isPNet()) {
 	    $url .= "/approveuser.php?uid=$joining_uid&pid=$pid";
 	    $message =
 		"You can approve or reject this user:\n\n".
