@@ -227,6 +227,30 @@
 	       name='fully_bound' value="0">
       	<div id='finalize_container'
 	     class='col-lg-8 col-md-8 col-sm-8 col-xs-12'>
+	  <div class='panel panel-default' style="margin-bottom: 5px">
+	    <div class='panel-body'
+		 style="padding-top: 5px; padding-bottom: 0px;">
+	      <table class='table table-condensed nospaceafter border-none'
+		     style="font-size: 14px; font-family: Arial,sans-serif;">
+		<tr>
+		  <td style="padding: 0px;">
+		    <span style="font-weight: bolder;">Profile:</span>
+		    <span id='finalize_profile_name'><%= profilename %></span>
+		  </td>
+		  <td style="padding: 0px;">
+		    <span style="font-weight: bolder;">Version:</span>
+		    <span id='finalize_profile_version'><%= profilevers %>
+		    </span>
+		  </td>
+		  <td style="padding: 0px;">
+		    <button class='btn btn-primary btn-xs'
+			    type='button'
+			    id="show_xml_modal_button">
+		      Source</button></td>
+		</tr>
+	      </table>
+	    </div>
+	  </div>
 	  <div class='panel panel-default'>
 	    <div class='panel-heading'>
 	      Please review the selections below and then click Finish.
@@ -239,18 +263,6 @@
 		</font>
 	      </div>
 	      <div id='finalize_options'>
-		<div class='form-horizontal'>
-		  <div class='form-group'>
-		    <label class='col-sm-4'
-			   style='text-align: right;'>Profile:</label>
-		    <div class='col-sm-6'>
-		      <input id='finalize_profile_name'
-			     class='form-control'
-			     readonly
-			     value='<%= profilename %>'>
-		    </div>
-		  </div>
-		</div>
 		<% if (registered) { %>
 		  <!-- Optional experiment name -->
 		  <div id='name_selector'
@@ -427,6 +439,7 @@
   </div>
 </div>
 <div id='waitwait_div'></div>
+<div id='rspecview_div'></div>
 <div id='ppviewmodal_div'></div>
 <div id='ppmodal_div'></div>
 <div id='instantiate_div'></div>

@@ -46,7 +46,8 @@ class Profile
 	    # version with the uuid.
 	    #
 	    $query_result =
-		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid, ".
+                            "    i.disabled as profile_disabled ".
 			    "  from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid and ".
@@ -55,7 +56,8 @@ class Profile
 
 	    if (!$query_result || !mysql_num_rows($query_result)) {
 		$query_result =
-		    DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+		    DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid, ".
+                                "    i.disabled as profile_disabled ".
 				"  from apt_profile_versions as v ".
 				"left join apt_profiles as i on ".
 				"     v.profileid=i.profileid ".
@@ -65,7 +67,8 @@ class Profile
 	}
 	elseif (is_null($version)) {
 	    $query_result =
-		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid, ".
+                            "    i.disabled as profile_disabled ".
 			    "  from apt_profiles as i ".
 			    "left join apt_profile_versions as v on ".
 			    "     v.profileid=i.profileid and ".
@@ -75,7 +78,8 @@ class Profile
 	else {
 	    $safe_version = addslashes($version);
 	    $query_result =
-	        DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid ".
+	        DBQueryWarn("select i.*,v.*,i.uuid as profile_uuid, ".
+                            "    i.disabled as profile_disabled ".
 			    "  from apt_profile_versions as v ".
 			    "left join apt_profiles as i on ".
 			    "     i.profileid=v.profileid ".
@@ -117,6 +121,8 @@ class Profile
     function locked()	    { return $this->field('status'); }
     function status()	    { return $this->field('locked'); }
     function topdog()	    { return $this->field('topdog'); }
+    function disabled()	    { return $this->field('disabled'); }
+    function profile_disabled()    { return $this->field('profile_disabled'); }
     function parent_profileid()    { return $this->field('parent_profileid'); }
     function parent_version()      { return $this->field('parent_version'); }
 
@@ -127,6 +133,10 @@ class Profile
     # PP profiles have parameter defs.
     function isParameterized() {
 	return ($this->paramdefs() != "" ? 1 : 0);
+    }
+    # A profile is disabled if version is disabled or entire profile is disabled
+    function isDisabled() {
+	return ($this->disabled() || $this->profile_disabled());
     }
     
     # Hmm, how does one cause an error in a php constructor?

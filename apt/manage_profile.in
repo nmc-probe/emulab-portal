@@ -196,6 +196,8 @@ my %xmlfields =
      "profile_shared"      => ["shared",	$SLOT_OPTIONAL|$SLOT_UPDATE],
      "profile_topdog"      => ["topdog",	$SLOT_OPTIONAL|
 			                          $SLOT_UPDATE|$SLOT_ADMINONLY],
+     "profile_disabled"    => ["disabled",	$SLOT_OPTIONAL|
+			                          $SLOT_UPDATE|$SLOT_ADMINONLY],
      "rspec"		   => ["rspec",		$SLOT_REQUIRED|$SLOT_UPDATE],
      "script"		   => ["script",	$SLOT_OPTIONAL|$SLOT_UPDATE],
 );
@@ -403,6 +405,9 @@ if ($update) {
 		if (!defined($profile)) {
 		    fatal("Could not create new version of the profile");
 		}
+		# Tell the web interface we created a new version.
+		$webtask->newProfile($profile->uuid())
+		    if (defined($webtask));
 	    }
 	    $profile->UpdateVersion({"rspec" => $update_args{"rspec"}})
 		if (exists($update_args{"rspec"}));
@@ -420,6 +425,14 @@ if ($update) {
     }
     $profile->UpdateMetaData(\%update_args) == 0 or
 	fatal("Could not update profile record");
+
+    #
+    # Disabled is version specific right now.
+    #
+    if ($this_user->IsAdmin() &&
+	exists($update_args{"disabled"})) {
+	$profile->UpdateVersion({"disabled" => $update_args{"disabled"}});
+    }
 
     # Bump the modtime.
     $profile->MarkModified();

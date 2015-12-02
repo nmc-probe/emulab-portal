@@ -61,6 +61,7 @@ $version_uuid = $profile->uuid();
 $ispp         = ($profile->isParameterized() ? 1 : 0);
 $history      = ($profile->HasHistory() ? 1 : 0);
 $canedit      = ($profile->CanEdit($this_user) ? 1 : 0);
+$disabled     = ($profile->isDisabled() ? 1 : 0);
 
 $defaults = array();
 $defaults["profile_name"]        = $profile->name();
@@ -111,6 +112,7 @@ echo "    window.VERSION_UUID = '$version_uuid';\n";
 echo "    window.AJAXURL      = 'server-ajax.php';\n";
 echo "    window.ISADMIN      = $isadmin;\n";
 echo "    window.CANEDIT      = $canedit;\n";
+echo "    window.DISABLED     = $disabled;\n";
 echo "    window.HISTORY      = $history;\n";
 echo "    window.ISPPPROFILE  = $ispp;\n";
 echo "    window.WITHPUBLISHING = $WITHPUBLISHING;\n";

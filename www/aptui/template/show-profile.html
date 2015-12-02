@@ -43,6 +43,23 @@
 	      <%- fields.profile_published %></td>
 	  </tr>
 	  <% } %>
+	  <% if (disabled) { %>
+	    <tr>
+	      <td>Disabled:</td><td><span class="text-danger">Yes</span>
+		<a href='#' class='btn btn-xs'
+		   data-toggle='popover'
+		   data-html='true'
+		   data-delay='{"hide":500}'
+		   data-content="This profile has been disabled by an
+				 administrator. You may be able to instantiate
+				 another version of this profile, see the
+				 version info above.">
+		  <span class='glyphicon glyphicon-question-sign'
+			style='margin-bottom: 4px;'></span>
+		</a>
+	      </td>
+	    </tr>
+	  <% } %>
 	</table>
 	<% if (history) { %>
 	<a class='btn btn-info btn-xs pull-left'
@@ -104,6 +121,7 @@
 	    </td>
 	  </tr>
 	  </table>
+	  <% if (!disabled) { %>
 	  <button class='btn btn-primary btn-sm pull-right'
              id='profile_instantiate_button'
              style='margin-right: 10px;'
@@ -115,6 +133,7 @@
 	     href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'>
             Copy
 	  </a>
+	  <% } %>
 	  <% if (canedit) { %>
 	  <a class='btn btn-primary btn-sm pull-right'
              style='margin-right: 10px;'
@@ -123,6 +142,7 @@
             Edit
 	  </a>
 	  <% } %>
+	  <% if (!disabled) { %>
 	  <span class='pull-right''
 		data-toggle='popover'
 		data-delay='{"hide":1500, "show":250}'
@@ -138,6 +158,7 @@
               Share
 	    </button>
 	  </span>
+	  <% } %>
 	</div>
       </div>
     </div>

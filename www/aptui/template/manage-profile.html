@@ -23,7 +23,13 @@
 	  <% } else { %>
 	    <%- formfields.profile_version %>
 	  <% } %>
-	  </td></tr>
+	  <% if (version_uuid != latest_uuid) { %>
+	    (Latest:
+	    <a href='manage_profile.php?action=edit&uuid=<%= latest_uuid %>'>
+	       <%- latest_version %></a>)
+	  <% } %>
+	    </td>
+	  </tr>
 	  <tr>
 	    <td>Project:</td>
 	    <td><%- formfields.profile_pid %></td>
@@ -47,6 +53,23 @@
 	    <td class='text-danger'>Not Published!</td>
 	    <% } %>
 	  </tr>
+	  <% } %>
+	  <% if (disabled) { %>
+	    <tr>
+	      <td>Disabled:</td><td><span class="text-danger">Yes</span>
+		<a href='#' class='btn btn-xs'
+		   data-toggle='popover'
+		   data-html='true'
+		   data-delay='{"hide":500}'
+		   data-content="This profile has been disabled by an
+				 administrator. You may be able to instantiate
+				 another version of this profile, see the
+				 version info above.">
+		  <span class='glyphicon glyphicon-question-sign'
+			style='margin-bottom: 4px;'></span>
+		</a>
+	      </td>
+	    </tr>
 	  <% } %>
 	</table>
 	<% if (activity) { %>
@@ -343,7 +366,21 @@
 			   data-key='profile_topdog'
 			   id='profile_topdog' value='checked'
 			   type='checkbox'>Put this profile at the top of
-			   the list.
+		    the list.
+		  </label>
+		</div>
+	      </div>
+	    </div>
+	    <div class='row'>
+	      <div class='col-sm-10 col-sm-offset-2'>
+		<div class='checkbox format-me' data-key='profile_disabled'
+		     data-compact='yep'>
+                  <label>
+		    <input name=formfields[profile_disabled]
+			   <%- formfields.profile_disabled %>
+			   data-key='profile_disabled'
+			   id='profile_disabled' value='checked'
+			   type='checkbox'>Disable this version.
 		  </label>
 		</div>
 	      </div>
@@ -376,83 +413,85 @@
 	      </button>
 	      <% } %>
 	      <% if (viewing) { %>
-	      <a class='btn btn-primary btn-xs pull-right' disabled
-                 id='profile_instantiate_button'
-                 style='margin-right: 10px;'
-                 type='submit' name='create'>Instantiate
-	      </a>
-	      <% if (!iscloud) { %>
-	      <span class='pull-right'
-		 data-toggle='popover'
-		 data-delay='{"hide":1500, "show":250}'
-		 data-html='true'
-		 data-content="When you instantiate as a guest, you get
+		<% if (!disabled) { %>
+		  <a class='btn btn-primary btn-xs pull-right' disabled
+                     id='profile_instantiate_button'
+                     style='margin-right: 10px;'
+                     type='submit' name='create'>Instantiate
+		  </a>
+		  <% if (!iscloud) { %>
+		    <span class='pull-right'
+			  data-toggle='popover'
+			  data-delay='{"hide":1500, "show":250}'
+			  data-html='true'
+			  data-content="When you instantiate as a guest, you get
 			       to see exactly how another user will
 			       experience your profile. This allows you to
 			       better debug your profile for other users">
-		<button class='btn btn-success btn-xs' disabled
-			id='guest_instantiate_button'
-			style='margin-right: 10px;'
-     			data-toggle='modal'
-			data-target='#guest_instantiate_modal'
-			type='button'>Instantiate as Guest
-		</button>
-	      </span>
-	      <% } %>
-	      <a class='btn btn-primary btn-xs pull-left'
-                 id='profile_copy_button'
-                 style='margin-right: 10px;'
-                 type='button'
-		 href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'
-		 data-toggle='popover'
-		 data-delay='{"hide":1500, "show":250}'
-		 data-html='true'
-		 data-content="When you <em>copy</em> (instead of
+		      <button class='btn btn-success btn-xs' disabled
+			      id='guest_instantiate_button'
+			      style='margin-right: 10px;'
+     			      data-toggle='modal'
+			      data-target='#guest_instantiate_modal'
+			      type='button'>Instantiate as Guest
+		      </button>
+		    </span>
+		  <% } %>
+		  <a class='btn btn-primary btn-xs pull-left'
+                     id='profile_copy_button'
+                     style='margin-right: 10px;'
+                     type='button'
+		     href='manage_profile.php?action=copy&uuid=<%= version_uuid %>'
+		     data-toggle='popover'
+		     data-delay='{"hide":1500, "show":250}'
+		     data-html='true'
+		     data-content="When you <em>copy</em> (instead of
                     clone), you are creating a new profile that
 		    uses the same source code and metadata (description,
 		    instructions) as the original profile, but without
 		    creating a new disk image. Instead, the new profile uses
 		    whatever images the original profile uses."> 
-                Copy
-	      </a>
-	      <span class='pull-left'
-		 data-toggle='popover'
-		 data-delay='{"hide":1500, "show":250}'
-		 data-html='true'
-		 data-content="Share your profile with other users by
-			       sending them a link to instantiate it.
-			       Click for more info.">
-		<button class='btn btn-primary btn-xs'
-			id='profile_share_button'
-			style='margin-right: 10px;'
-			type='button'>
-                  Share
-		</button>
-	      </span>
- 	      <% if (candelete) { %>
-	      <button class='btn btn-danger btn-xs pull-left' disabled
-                 id='profile_delete_button'
-                 style='margin-right: 10px;'
-     		 data-toggle='modal' data-target='#delete_modal'
-                 type='button' name='delete'>Delete
-	      </button>
-	      <% } %>
- 	      <% if (withpublishing && canpublish) { %>
-	      <span class='pull-right'
-		 data-toggle='popover'
-		 data-delay='{"hide":1500, "show":250}'
-		 data-html='true'
-		 data-content="Publishing is like creating
-		 a <em>checkpoint</em>. Click for more info.">
-		<button class='btn btn-success btn-xs' disabled
-			id='profile_publish_button'
-			style='margin-right: 10px;'
-     			data-toggle='modal' data-target='#publish_modal'
-			type='button'>
-		  Publish
-		</button>
-	      </span>
-	      <% } %>
+                    Copy
+		  </a>
+		  <span class='pull-left'
+			data-toggle='popover'
+			data-delay='{"hide":1500, "show":250}'
+			data-html='true'
+			data-content="Share your profile with other users by
+				      sending them a link to instantiate it.
+				      Click for more info.">
+		    <button class='btn btn-primary btn-xs'
+			    id='profile_share_button'
+			    style='margin-right: 10px;'
+			    type='button'>
+                      Share
+		    </button>
+		  </span>
+		<% } %>
+ 		<% if (candelete) { %>
+		  <button class='btn btn-danger btn-xs pull-left' disabled
+			  id='profile_delete_button'
+			  style='margin-right: 10px;'
+     			  data-toggle='modal' data-target='#delete_modal'
+			  type='button' name='delete'>Delete
+		  </button>
+		<% } %>
+ 		<% if (withpublishing && canpublish) { %>
+		  <span class='pull-right'
+			data-toggle='popover'
+			data-delay='{"hide":1500, "show":250}'
+			data-html='true'
+			data-content="Publishing is like creating
+			      a <em>checkpoint</em>. Click for more info.">
+		    <button class='btn btn-success btn-xs' disabled
+			    id='profile_publish_button'
+			    style='margin-right: 10px;'
+     			    data-toggle='modal' data-target='#publish_modal'
+			    type='button'>
+		      Publish`
+		    </button>
+		  </span>
+		<% } %>
 	      <% } %>
 	    </div>
 	  </div>

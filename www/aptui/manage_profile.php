@@ -69,8 +69,11 @@ function SPITFORM($formfields, $errors)
     $isadmin    = (ISADMIN() ? 1 : 0);
     $multisite  = 1;
     $cloning    = 0;
+    $disabled   = 0;
     $version_uuid = "null";
     $profile_uuid = "null";
+    $latest_uuid    = "null";
+    $latest_version = "null";
 
     if ($action == "edit") {
 	$button_label = "Save";
@@ -83,12 +86,16 @@ function SPITFORM($formfields, $errors)
 	$canpublish   = ($profile->CanPublish() ? 1 : 0);
 	$activity     = ($profile->HasActivity() ? 1 : 0);
 	$ispp         = ($profile->isParameterized() ? 1 : 0);
+        $disabled     = ($profile->isDisabled() ? 1 : 0);
 	if ($canmodify) {
 	    $title    = "Modify Profile";
 	}
 	else {
 	    $title    = "View Profile";
 	}
+        $latest_profile = Profile::Lookup($profile->profile_uuid());
+        $latest_uuid    = "'" . $latest_profile->uuid() . "'";
+        $latest_version = $latest_profile->version();
     }
     else  {
         # New page action is now create, not copy or clone.
@@ -166,6 +173,8 @@ function SPITFORM($formfields, $errors)
     echo "    window.VIEWING  = $viewing;\n";
     echo "    window.VERSION_UUID = $version_uuid;\n";
     echo "    window.PROFILE_UUID = $profile_uuid;\n";
+    echo "    window.LATEST_UUID = $latest_uuid;\n";
+    echo "    window.LATEST_VERSION = $latest_version;\n";
     echo "    window.UPDATED  = $notifyupdate;\n";
     echo "    window.SNAPPING = $notifyclone;\n";
     echo "    window.AJAXURL  = 'server-ajax.php';\n";
@@ -173,6 +182,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.CANDELETE= $candelete;\n";
     echo "    window.CANMODIFY= $canmodify;\n";
     echo "    window.CANPUBLISH= $canpublish;\n";
+    echo "    window.DISABLED= $disabled;\n";
     echo "    window.ISADMIN  = $isadmin;\n";
     echo "    window.MULTISITE  = $multisite;\n";
     echo "    window.HISTORY  = $history;\n";
@@ -356,6 +366,8 @@ if (! isset($create)) {
 		 ($profile->ispublic() ? "public" : "private"));
 	    $defaults["profile_topdog"]      =
 		($profile->topdog() ? "checked" : "");
+	    $defaults["profile_disabled"]      =
+		($profile->isDisabled() ? "checked" : "");
 
 	    # Warm fuzzy message.
 	    if (isset($_SESSION["notifyupdate"])) {
@@ -559,6 +571,15 @@ else {
 	    fwrite($fp, "0");
 	}
 	fwrite($fp, "</value></attribute>\n");
+	fwrite($fp, "<attribute name='profile_disabled'><value>");
+	if (isset($formfields["profile_disabled"]) &&
+	    $formfields["profile_disabled"] == "checked") {
+	    fwrite($fp, "1");
+	}
+	else {
+	    fwrite($fp, "0");
+	}
+	fwrite($fp, "</value></attribute>\n");
     }
     fwrite($fp, "</profile>\n");
     fclose($fp);
@@ -577,9 +598,9 @@ if ($action == "edit") {
 }
 else {
     $command .= " create -t $webtask_id ";
-}
-if (isset($snapuuid)) {
-    $command .= " -s " . escapeshellarg($snapuuid);
+    if (isset($snapuuid)) {
+        $command .= " -s " . escapeshellarg($snapuuid);
+    }
 }
 $command .= " $xmlname";
 
@@ -612,15 +633,25 @@ if (count($errors)) {
     return;
 }
 
+#
+# Need the index to pass back through. But when its an edit operation,
+# we have to let the backend tell us it created a new version, since
+# we want to return to that.
+#
+if ($action == "edit") {
+    if ($webtask->TaskValue("newProfile")) {
+        $profile = Profile::Lookup($webtask->TaskValue("newProfile"));
+    }
+}
+else {
+    $profile = Profile::LookupByName($project, $formfields["profile_name"]);
+}
+
 # Done with this, unless doing a snapshot (needed for imaging status).
 if (!isset($snapuuid)) {
     $webtask->Delete();
 }
 
-#
-# Need the index to pass back through.
-#
-$profile = Profile::LookupByName($project, $formfields["profile_name"]);
 if ($profile) {
     $uuid = $profile->uuid();
 }
