@@ -457,7 +457,10 @@ sub TBGenSecretKey()
     my $key=`/bin/dd if=/dev/urandom count=128 bs=1 2> /dev/null | /sbin/md5`;
     return undef
 	if ($?);
-    chomp($key);
+    # Silly taint check for caller.
+    if ($key =~ /^(.*)$/) {
+	$key = $1;
+    }
     return $key;
 }
 

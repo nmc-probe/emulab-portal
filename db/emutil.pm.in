@@ -718,11 +718,19 @@ sub BackTraceOnWarning($)
 sub PassWordHash($)
 {
     my ($password) = @_;
-    
-    my @salt_chars = ('a'..'z','A'..'Z','0'..'9');
-    my $salt = $salt_chars[rand(@salt_chars)] .
-	       $salt_chars[rand(@salt_chars)];
-    my $passhash = crypt($password, "\$1\$${salt}");
+    # Leave these here cause of SELFLOADER_DATA;
+    my $MAINSITE   = @TBMAINSITE@;
+    my $ELABINELAB = @ELABINELAB@;
+    my $salt;
+    require libtestbed;
+
+    if ($MAINSITE || $ELABINELAB) {
+	$salt = "\$5\$" . substr(libtestbed::TBGenSecretKey(), 0, 16) . "\$";
+    }
+    else {
+	$salt = "\$1\$" . substr(libtestbed::TBGenSecretKey(), 0, 8) . "\$";
+    }
+    my $passhash = crypt($password, $salt);
 
     return $passhash;
 }

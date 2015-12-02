@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -87,6 +87,7 @@ use libdb;
 use libtestbed;
 use User;
 use EmulabConstants();
+use emutil;
 
 # Protos
 sub fatal($);
@@ -360,7 +361,7 @@ else {
 	}
 	fatal("Checkpass failed with $?");
     }
-    $newuser_args{'usr_pswd'} = crypt($pswd, "\$1\$" . substr(time(), 0, 8));
+    $newuser_args{'usr_pswd'} = PassWordHash($pswd);    
 }
 
 #
