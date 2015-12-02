@@ -128,7 +128,19 @@ sub findswaps()
     my $rootfs = `df / | grep /dev/`;
     if ($rootfs =~ /^(\/dev\/[a-z]+)\d+/) {
 	$rdisk = $1;
-    } else {
+    }
+    elsif ($rootfs =~ /^(\/dev\/[^\s]+)\s/) {
+	$rootfs = `readlink -f $1`;
+	if ($rootfs =~ /^(\/dev\/[a-z]+)\d+/) {
+	    $rdisk = $1;
+	}
+	else {
+	    print STDERR "*** WARNING: could not identify root disk, ".
+		"no swap enabled\n";
+	    return;
+	}
+    }
+    else {
 	print STDERR "*** WARNING: could not identify root disk, ".
 	    "no swap enabled\n";
 	return;

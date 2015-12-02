@@ -87,7 +87,7 @@ common-install:	dir-install
 	@echo "no centos-specific common files"
 
 bin-install:	dir-install
-	$(INSTALL) -m 755 $(SRCDIR)/emulab-systemd-swaps $(BINDIR)
+	$(INSTALL) -m 755 $(SRCDIR)/../linux/emulab-systemd-swaps $(BINDIR)
 	@echo "centos7 systemd swap.service"
 
 etc-install:	dir-install sysetc-remove sysetc-install
@@ -107,7 +107,7 @@ sysetc-install:	ifcfgs dir-install
 	$(INSTALL) -m 644 ifcfg-eth[0-9]* $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 744 $(SRCDIR)/ifup-emulabcnet $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 644 $(SRCDIR)/logrotate-syslog $(SYSETCDIR)/logrotate.d/syslog
-	$(INSTALL) -m 644 $(SRCDIR)/emulab-fstab-fixup.service $(SYSETCDIR)/systemd/system
+	$(INSTALL) -m 644 $(SRCDIR)/../linux/emulab-fstab-fixup.service $(SYSETCDIR)/systemd/system
 	$(INSTALL) -m 644 $(SRCDIR)/ntpd.service $(SYSETCDIR)/systemd/system
 	rm -f $(SYSETCDIR)/systemd/system/multi-user.target.wants/ntpd.service
 	systemctl enable emulab-fstab-fixup.service
