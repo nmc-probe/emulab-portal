@@ -639,6 +639,7 @@ if (count($errors)) {
 # we want to return to that.
 #
 if ($action == "edit") {
+    $webtask->Refresh();
     if ($webtask->TaskValue("newProfile")) {
         $profile = Profile::Lookup($webtask->TaskValue("newProfile"));
     }
