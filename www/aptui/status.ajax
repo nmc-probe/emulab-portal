@@ -62,6 +62,10 @@ function StatusSetupAjax($needmodify)
     if (isset($this_user) && ISADMIN()) {
 	return 0;
     }
+    # Foreign admins can look.
+    if (isset($this_user) && ISFOREIGN_ADMIN() && !$needmodify) {
+	return 0;
+    }
     # For a guest user; must be the same guest that created experiment.
     if (get_class($creator) == "GeniUser") {
         if (isset($_COOKIE['quickvm_user']) &&
