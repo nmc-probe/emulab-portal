@@ -715,7 +715,9 @@ sub DeleteSlice($)
     my $slice_urn    = $argref->{'slice_urn'};
     my $credentials  = $argref->{'credentials'};
     my $impotent     = $argref->{'impotent'} || 0;
+    my $cancel       = 0;
     my $blocking     = 0;
+    my $canceled     = 0;
 
     if (! (defined($credentials) && defined($slice_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
@@ -725,6 +727,9 @@ sub DeleteSlice($)
     }
     if (exists($argref->{'blocking'}) && $argref->{'blocking'}) {
 	$blocking = 1;
+    }
+    if (exists($argref->{'cancel'}) && $argref->{'cancel'}) {
+	$cancel = 1;
     }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
@@ -767,11 +772,26 @@ sub DeleteSlice($)
     #
     GeniCM::CheckMonitor($slice);
     if ($slice->monitor_pid()) {
-	$slice->UnLock();
-	return GeniResponse->MonitorResponse();
+	if (!$cancel) {
+	    $slice->UnLock();
+	    return GeniResponse->MonitorResponse()
+	}
+	    
+	#
+	# But what we can do is set the cancel flag, which the monitor is
+	# checking each time through the loop. This will cause it to stop
+	# rebooting timed out nodes, and quit earlier. The caller will not
+	# have to retry as long. 
+	#
+	my $slice_experiment = $slice->GetExperiment();
+	if (defined($slice_experiment)) {
+	    $slice_experiment->SetCancelFlag(1);
+	}
+	print STDERR "Canceling the monitor (" . $slice->monitor_pid() . ")\n";
+	$canceled = 1;
     }
     # If any slivers are imaging, then we are busy as well.
-    if (defined($aggregate) &&
+    elsif (defined($aggregate) &&
 	$aggregate->CheckSliverStates("imaging")) {
 	$slice->UnLock();
 	return GeniResponse->BusyResponse();
@@ -785,6 +805,16 @@ sub DeleteSlice($)
 	my $mypid = main::WrapperFork();
 	if ($mypid) {
 	    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+	}
+    }
+    #
+    # If we were canceled, we wait for the monitor to stop, instead of
+    #
+    if ($canceled) {
+	while ($slice->monitor_pid()) {
+	    sleep(10);
+	    GeniCM::CheckMonitor($slice);
+	    print STDERR "Checking to see if monitor has stopped ...\n";
 	}
     }
     my $retval = GeniCM::CleanupDeadSlice($slice, 1);

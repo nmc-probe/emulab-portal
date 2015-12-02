@@ -1004,18 +1004,24 @@ sub UnProvision($;$)
 	my $pid = $experiment->pid();
 	my $eid = $experiment->eid();
 
-	if ($node->isremotenode() && $node->isvirtnode()) {
-	    system("$VNODESETUP -p -q -m -k $pid $eid $node_id");
-	    if ($?) {
-		print STDERR "$VNODESETUP -k failed on $node_id\n";
-		return -1;
+	#
+	# Shared virtnode only for this part, we want to avoid duplicated
+	# or unnecessary work (no need to tear down on dedicated hosts).
+	#
+	if ($self->status() ne "stopped") {
+	    if ($node->isremotenode() && $node->isvirtnode()) {
+		system("$VNODESETUP -p -q -m -k $pid $eid $node_id");
+		if ($?) {
+		    print STDERR "$VNODESETUP -k failed on $node_id\n";
+		    return -1;
+		}
 	    }
-	}
-	elsif ($node->sharing_mode()) {
-	    system("$VNODESETUP -j -q -m -k $pid $eid $node_id");
-	    if ($?) {
-		print STDERR "$VNODESETUP -k failed on $node_id\n";
-		return -1;
+	    elsif ($node->sharing_mode()) {
+		system("$VNODESETUP -j -q -m -k $pid $eid $node_id");
+		if ($?) {
+		    print STDERR "$VNODESETUP -k failed on $node_id\n";
+		    return -1;
+		}
 	    }
 	}
 
@@ -1311,7 +1317,7 @@ sub ComputeStatus($$)
     # If the sliver is "broken" then call it failed. It might be failed,
     # but if the node actually came up okay later, we set it back to okay.
     #
-    if ($self->status() eq "broken") {
+    if ($self->status() eq "broken" || $self->status() eq "canceled") {
 	$$pref = "failed";
 	return 0;
     }

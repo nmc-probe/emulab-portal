@@ -430,6 +430,11 @@ sub DeleteSliver()
 	exists($options->{'blocking'}) && $options->{'blocking'}) {
 	$delete_args->{'blocking'} = 1;
     }
+    # And cancel
+    if (defined($options) &&
+	exists($options->{'cancel'}) && $options->{'cancel'}) {
+	$delete_args->{'cancel'} = 1;
+    }
     
     my $response = GeniCMV2::DeleteSlice($delete_args);
     if (!ref($response)) {

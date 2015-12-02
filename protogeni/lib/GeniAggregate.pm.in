@@ -1076,6 +1076,7 @@ sub Action($$$;$)
 	    goto bad;
 	}
 	$node->_reloaded(0);
+	$node->_rebooted(0);
 	# Backpointer used in WaitForNodes().
 	$node->_sliver($sliver);
 	$node->_image(undef);
@@ -1549,6 +1550,9 @@ sub Action($$$;$)
     if (keys(%reboots)) {
 	my @node_ids = keys(%reboots);
 
+	# Mark them as being rebooted. See below.
+	map { $_->_rebooted(1) } values(%reboots);
+
 	#
 	# Should waiting be an option?
 	#
@@ -1773,10 +1777,18 @@ sub WaitForNodes($$@)
 	$canceled = $experiment->canceled();
 	if ($canceled) {
 	    print STDERR "WaitForNodes canceled; terminating early!\n";
+	    #
+	    # Mark the remaining nodes as canceled (which really means failure).
+	    #
+	    foreach my $node (values(%nodes)) {
+		$node->_sliver()->SetStatus("canceled")
+		    if (defined($node->_sliver()));
+	    }
 	    # Reset before return; do not want it left.
 	    $slice->LockTables();
-	    $experiment->SetCancelFlag(0);
+	    # Do this first so others know we are reacting to the cancel.
 	    $slice->ClearMonitorPid();
+	    $experiment->SetCancelFlag(0);
 	    $slice->UnLockTables();
 	    return -1;
 	}
@@ -1864,17 +1876,18 @@ sub WaitForNodes($$@)
 		 ($state eq TBDB_NODESTATE_BOOTING &&
 		  time() - $node->_laststatestamp() > 400))) {
 		my $giveup = $node->_retried();
+		my $minutes = int($waittime / 60);
 		# physnode, give up right away.
 		$giveup = 1
 		    if (!$node->isvirtnode());
 
 		if ($giveup) {
-		    print STDERR
-			"$node_id still stuck in $state, giving up.\n";
+		    print STDERR "$node_id still stuck in $state at $minutes, ".
+			"giving up.\n";
 		}
 		else {
-		    print STDERR
-			"$node_id is stuck in $state, restarting it.\n";
+		    print STDERR "$node_id is stuck in $state at $minutes, ".
+			"restarting it.\n";
 		    $node->_retried(1);
 		    system("$NODEREBOOT $node_id");
 		    $giveup = 1
@@ -1893,6 +1906,9 @@ sub WaitForNodes($$@)
 	    if ($node->_laststate() ne $state) {
 		$node->_laststatestamp(time());
 		$node->_laststate($state);
+		my $minutes = int($waittime / 60);
+		print STDERR "$node switches to $state at ".
+		    "$minutes minutes (" . time() . ")\n";
 	    }
 	    if (int($waittime / 60) > $minutes) {
 		# Changing minutes is why we get this print for just
@@ -1978,11 +1994,11 @@ sub WaitForNodes($$@)
     }
     # Too late, but reset before return; do not want it left set.
     $slice->LockTables();
+    # Do this first. See cancel in DeleteSlice().
+    $slice->ClearMonitorPid();
     if ($experiment->canceled()) {
 	$experiment->SetCancelFlag(0);
     }
-    # Do this last. 
-    $slice->ClearMonitorPid();
     $slice->UnLockTables();
     
     return 0;
@@ -2180,8 +2196,9 @@ sub UnProvision($;$)
     # Might be an aggregate that includes link aggregates. Lets do those
     # first to avoid work when tearing down the nodes.
     #
-    my @links = ();
-    my @nodes = ();
+    my @links  = ();
+    my @nodes  = ();
+    my @shared = ();
 
     foreach my $sliver (@slivers) {
 	if (ref($sliver) eq "GeniAggregate::Link" ||
@@ -2193,7 +2210,22 @@ sub UnProvision($;$)
 	    return -1;
 	}
 	elsif (ref($sliver) eq "GeniSliver::Node") {
-	    push(@nodes, $sliver);
+	    #
+	    # We need an optimization here, to speed up teardown of
+	    # vnodes on shared nodes, which will happen one at a time
+	    # if we let them go through the sliver Unprovision() call.
+	    #
+	    my $node = Node->Lookup($sliver->resource_id());
+	    if (!defined($node)) {
+		print STDERR "Could not map $sliver to its a node\n";
+		next;
+	    }
+	    if ($node->isvirtnode() && $node->sharing_mode()) {
+		push(@shared, $sliver);
+	    }
+	    else {
+		push(@nodes, $sliver);
+	    }
 	}
     }
     foreach my $sliver (@links) {
@@ -2208,6 +2240,34 @@ sub UnProvision($;$)
 	    print STDERR "Could not unprovision $sliver in $self\n";
 	    $sliver->SetStatus("broken");
 	    next;
+	}
+    }
+    # Now do the shared nodes in a group.
+    if (@shared) {
+	my $experiment = Experiment->Lookup($self->slice_uuid());
+	if (!defined($experiment)) {
+	    print STDERR "Could not map $self to its experiment\n";
+	    return 0;
+	}
+	my $pid = $experiment->pid();
+	my $eid = $experiment->eid();
+	my @ids = map { $_->resource_id() } @shared;
+
+	system("$VNODESETUP -j -q -m -k $pid $eid @ids");
+	if ($?) {
+	    print STDERR "$VNODESETUP -k failed on @ids\n";
+	}
+	# Mark as stopped to avoid duplicate work later.
+	foreach my $sliver (@shared) {
+	    $sliver->SetStatus("stopped");
+	    #
+	    # Now we can unprovision, which will be much faster now.
+	    #
+	    if ($sliver->UnProvision($nophysfree) != 0) {
+		print STDERR "Could not unprovision $sliver in $self\n";
+		$sliver->SetStatus("broken");
+		next;
+	    }
 	}
     }
     return 0;
