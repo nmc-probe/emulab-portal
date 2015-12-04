@@ -30,8 +30,17 @@
 	  <td><%- profile.published %></td>
 	  <% } %>
           <td style='text-align:center'>
-	    <a href='manage_profile.php?action=edit&uuid=<%- profile.uuid %>'>
-	      <%- profile.parent_version %></a>
+	    <% if (profile.parent_uuid) { %>
+	      <% if (profile.version == 0) { %>
+		<a href='show-profile.php?uuid=<%- profile.parent_uuid %>'>
+		  <%- profile.parent_version %></a>
+	      <% } else { %>
+	        <a href='manage_profile.php?action=edit&uuid=<%- profile.parent_uuid %>'>
+		  <%- profile.parent_version %></a>
+	      <% } %>
+	    <% } else { %>
+	       &nbsp;
+	    <% } %>
 	  </td>
 	</tr>
 	<% }); %>

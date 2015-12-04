@@ -285,7 +285,7 @@ class Profile
 
 	$query_result =
 	    DBQueryWarn("select max(version) from apt_profile_versions ".
-			"where profileid='$profileid'");
+			"where profileid='$profileid' and deleted is null");
 	if (!$query_result || !mysql_num_rows($query_result)) {
 	    return -1;
 	}

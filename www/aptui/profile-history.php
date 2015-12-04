@@ -52,14 +52,20 @@ $profileid = $profile->profileid();
 $profiles  = array();
 
 $query_result =
-    DBQueryFatal("select v.*,DATE(v.created) as created ".
+    DBQueryFatal("select v.*,DATE(v.created) as created,vp.uuid as parent_uuid ".
 		 "  from apt_profile_versions as v ".
-		 "where v.profileid='$profileid' ".
+                 "left join apt_profile_versions as vp on ".
+                 "     v.parent_profileid is not null and ".
+                 "     vp.profileid=v.parent_profileid and ".
+                 "     vp.version=v.parent_version ".
+		 "where v.profileid='$profileid' and v.deleted is null ".
 		 "order by v.created desc");
 
 while ($row = mysql_fetch_array($query_result)) {
     $idx     = $row["profileid"];
+    $pidx    = $row["parent_profileid"];
     $uuid    = $row["uuid"];
+    $puuid   = $row["parent_uuid"];
     $version = $row["version"];
     $pversion= $row["parent_version"];
     $name    = $row["name"];
@@ -70,9 +76,6 @@ while ($row = mysql_fetch_array($query_result)) {
     $rspec   = $row["rspec"];
     $desc    = '';
 
-    if ($version == 0) {
-	$pversion = " ";
-    }
     if (!$published) {
 	$published = " ";
     }
@@ -89,6 +92,7 @@ while ($row = mysql_fetch_array($query_result)) {
     $profile["description"] = $desc;
     $profile["created"]     = $created;
     $profile["published"]   = $published;
+    $profile["parent_uuid"] = $puuid;
     $profile["parent_version"] = $pversion;
 
     $profiles[] = $profile;

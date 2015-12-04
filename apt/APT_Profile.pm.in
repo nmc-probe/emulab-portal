@@ -406,7 +406,7 @@ sub NewVersion($$)
 			  "   parent_profileid,parent_version,rspec, ".
 			  "   script,paramdefs) ".
 			  "select name,profileid,'$newvers',pid,pid_idx, ".
-			  "  '$uid','$uid_idx',now(),uuid(),parent_profileid, ".
+			  "  '$uid','$uid_idx',now(),uuid(),'$profileid', ".
 			  "  '$version',rspec,script,paramdefs ".
 			  "from apt_profile_versions as v ".
 			  "where v.profileid='$profileid' and ".
@@ -517,8 +517,7 @@ sub Delete($$)
     }
     else {
 	# Set deleted on all of the versions.
-	DBQueryWarn("update apt_profile_versions set ".
-		    "    deleted=now(),locked=null,locker_pid=0 ".
+	DBQueryWarn("update apt_profile_versions set deleted=now() ".
 		    "where profileid='$profileid'")
 	    or goto bad;
 	# Delete any leftover webtasks.
@@ -557,19 +556,18 @@ sub DeleteVersion($)
     my $version   = $self->version();
 
     #
-    # Only the "head" version can be deleted
+    # Need to know what profile becomes the head version. This will
+    # always be the highest numbered undeleted profile.
     #
     my $query_result =
 	DBQueryWarn("select max(version) from apt_profile_versions ".
-		    "where profileid='$profileid'");
+		    "where profileid='$profileid' and version!=${version} ".
+		    "      and deleted is null");
     goto bad
 	if (!$query_result || !$query_result->numrows);
 
-    my ($head) = $query_result->fetchrow_array();
-    if ($head != $version) {
-	print STDERR "Profile::DeleteVersion: not the head version of $self\n";
-	goto bad;
-    }
+    my ($newhead) = $query_result->fetchrow_array();
+
     # Delete leftover webtask.
     DBQueryWarn("delete web_tasks from apt_profile_versions ".
 		"left join web_tasks on ".
@@ -578,12 +576,12 @@ sub DeleteVersion($)
 		"      apt_profile_versions.version='$version'");
 
     goto bad
-	if (!DBQueryWarn("delete from apt_profile_versions ".
+	if (!DBQueryWarn("update apt_profile_versions set deleted=now() ".
 			 "where profileid='$profileid' and ".
 			 "      version='$version'"));
 
     goto bad
-	if (!DBQueryWarn("update apt_profiles set version=version-1 ".
+	if (!DBQueryWarn("update apt_profiles set version=$newhead ".
 			 "where profileid='$profileid' and ".
 			 "      version='$version'"));
     DBQueryWarn("unlock tables");
@@ -1158,7 +1156,7 @@ sub IsHead($)
 
     my $query_result =
 	DBQueryWarn("select max(version) from apt_profile_versions ".
-		    "where profileid='$profileid'");
+		    "where profileid='$profileid' and deleted is null");
     return -1
 	if (!$query_result || !$query_result->numrows);
 

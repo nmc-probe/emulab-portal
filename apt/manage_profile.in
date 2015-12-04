@@ -36,20 +36,23 @@ use POSIX qw(setsid);
 #
 sub usage()
 {
-    print("Usage: manage_profile create [-s uuid] <xmlfile>\n");
+    print("Usage: manage_profile create [-s uuid | -c uuid] <xmlfile>\n");
     print("Usage: manage_profile update <profile> <xmlfile>\n");
     print("Usage: manage_profile publish <profile>\n");
     print("Usage: manage_profile delete <profile>\n");
     exit(-1);
 }
-my $optlist     = "ds:t:";
+my $optlist     = "ds:t:c:";
 my $debug       = 0;
 my $update      = 0;
 my $snap        = 0;
+my $copy        = 0;
+my $copyuuid;
 my $uuid;
 my $rspec;
 my $script;
 my $profile;
+my $parent_profile;
 my $instance;
 my $aggregate;
 my $node_id;
@@ -128,7 +131,11 @@ if (defined($options{"d"})) {
 }
 if (defined($options{"s"})) {
     $snap = 1;
-    $uuid = $options{"s"};
+    $copyuuid = $options{"s"};
+}
+if (defined($options{"c"})) {
+    $copy = 1;
+    $copyuuid = $options{"c"};
 }
 if (defined($options{"t"})) {
     $webtask_id = $options{"t"};
@@ -345,9 +352,9 @@ if (defined($script) && $script ne "") {
 # sanity check to make sure there is just one node. 
 #
 if ($snap) {
-    $instance = APT_Instance->Lookup($uuid);
+    $instance = APT_Instance->Lookup($copyuuid);
     if (!defined($instance)) {
-	fatal("Could not look up instance $uuid");
+	fatal("Could not look up instance $copyuuid");
     }
     if ($instance->status() ne "ready") {
 	$errors{"error"} = "Instance must be in the ready state for cloning";
@@ -375,7 +382,15 @@ if ($snap) {
 	$errors{"error"} = "$node_id is not at " . $aggregate->aggregate_urn();
 	UserError();
     }
+    $parent_profile = $instance->Profile();
 }
+elsif ($copy) {
+    $parent_profile = APT_Profile->Lookup($copyuuid);
+    if (!defined($parent_profile)) {
+	fatal("Could not look up copy profile $copyuuid");
+    }
+}
+
 if ($update) {
     $profile = APT_Profile->Lookup($uuid);
     if (!defined($profile)) {
@@ -440,14 +455,12 @@ if ($update) {
 else {
     my $usererror;
 
-    $profile = APT_Profile->Lookup($new_args{"pid"}, $new_args{"name"});
-    if (defined($profile)) {
+    if (defined(APT_Profile->Lookup($new_args{"pid"}, $new_args{"name"}))) {
 	$errors{"profile_name"} = "Already in use";
 	UserError();
     }
-    $profile =
-	APT_Profile->Create($profile, $project,
-			    $this_user, \%new_args, \$usererror);
+    $profile = APT_Profile->Create($parent_profile, $project,
+				   $this_user, \%new_args, \$usererror);
     if (!defined($profile)) {
 	if (defined($usererror)) {
 	    $errors{"profile_name"} = $usererror;
@@ -683,11 +696,8 @@ sub DeleteProfile($)
 	    fatal("Could not delete profile version");
     }
     else {
-	# Purge it. At some point we want to save them.
-	$profile->Delete(1) == 0 or
+	$profile->Delete(0) == 0 or
 	    fatal("Could not delete profile");
-	# Kill off object webtask, since we do not do that when purging.
-	WebTask->DeleteByObject($profile->uuid());
     }
     # No need for this anonymous webtask anymore.
     $webtask->Delete()
@@ -750,8 +760,6 @@ sub CanDelete($)
     my $project = Project->Lookup($profile->pid_idx());
     return 0
 	if (!defined($project));
-    return 0
-        if (!$profile->IsHead());
     return 1
 	if ($this_user->IsAdmin() || $this_user->stud());
     return 1

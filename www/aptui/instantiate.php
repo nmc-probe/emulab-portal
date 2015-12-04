@@ -132,7 +132,7 @@ if (isset($profile)) {
 	SPITUSERERROR("Illegal profile for guest user: $profile");
 	exit();
     }
-    if (! $obj) {
+    if (! $obj || $obj->deleted()) {
 	SPITUSERERROR("No such profile: $profile");
 	exit();
     }

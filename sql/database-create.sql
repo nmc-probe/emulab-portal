@@ -247,7 +247,7 @@ CREATE TABLE `apt_instances` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
--- Table structure for table `apt_profile_versions`
+-- Table structure for table `apt_profile_favorites`
 --
 
 DROP TABLE IF EXISTS `apt_profile_favorites`;
@@ -284,7 +284,6 @@ CREATE TABLE `apt_profile_versions` (
   `script` mediumtext,
   `paramdefs` mediumtext,
   PRIMARY KEY (`profileid`,`version`),
-  UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`),
   UNIQUE KEY `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
