@@ -30,7 +30,8 @@ use Getopt::Std;
 #
 my $DUMPDATES   = "/etc/dumpdates";
 my @DBFILES     = ();
-my @SYSVARDIRS  = ("lib/dhcp", "lib/dhclient", "lib/dhcp3", "spool/clientmqueue",
+my @SYSVARDIRS  = ("backups", "lib/dhcp", "lib/dhclient", "lib/dhcp3",
+		   "spool/clientmqueue",
 		   "log/audit", "log/account", "log/mysql", "log/ntpstats");
 my @VARDIRS	= ("logs", "db", "jails", "boot", "lock", "vms");
 my @SOCKETS	= ("/dev/log", "/var/run/acpid.socket");
@@ -59,7 +60,10 @@ my @DEADFILES	= ("rc.agents", "rc.delayagent", "rc.delta", "rc.healthd",
 		   "rc.setup", "rc.slothd", "rc.testbed",
 		   "batchcmddone", "bootsetup", "install-tarfile",
 		   "jailsetup", "update_delays",
-		   "sethostname" # replaced by sethostname.dhclient on linux
+		   # replaced by sethostname.dhclient
+		   "sethostname",
+		   # now in /usr/local/bin
+		   "frisbee", "frisupload"
 		   );
 
 # Drag in path stuff so we can find emulab stuff.

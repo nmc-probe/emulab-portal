@@ -446,7 +446,7 @@ while (1) {
 	    my $idid = "$imageid/$mustwipe";
 
 	    $images{$node} = $imageid;
-	    if (@{$imagenodes{$idid}} > 0) {
+	    if (exists($imagenodes{$idid})) {
 		push(@{$imagenodes{$idid}},$node);
 	    } else {
 		$imagenodes{$idid} = [$node];

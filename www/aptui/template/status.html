@@ -120,7 +120,7 @@
 	  </div>
 	  <% } %>
 	  <div class='pull-right'>
-	    <% if (registered) { %>
+	    <% if (registered && !isfadmin) { %>
 	    <button class='btn btn-xs btn-primary hidden' disabled
 		    id='clone_button' type=button>
               Clone</button>
@@ -145,11 +145,14 @@
 	    <% } %>
 	    <button class='btn btn-xs btn-success' disabled
 		    id='extend_button' type=button>
-              Extend</button>
-	    <button class='btn btn-xs btn-danger' disabled
-		    id='terminate_button' type=button
-		    data-toggle='modal' data-target='#terminate_modal'>
-              Terminate</button>
+              <% if (isfadmin) { %>Extension History<% } else { %>Extend<% } %>
+	    </button>
+	    <% if (!isfadmin) { %>
+	      <button class='btn btn-xs btn-danger' disabled
+		      id='terminate_button' type=button
+		      data-toggle='modal' data-target='#terminate_modal'>
+		Terminate</button>
+	    <% } %>
 	  </div>
 	</div>
       </div>
@@ -393,6 +396,24 @@
 		    id='confirm_reload_button'>
 	      Confirm</button>
 	  </center>
+	</div>
+      </div>
+    </div>
+  </div>
+  <!-- This is the extend history modal for foreign admins -->
+  <div id='extend_history_modal' class='modal fade'>
+    <div class='modal-dialog'>
+      <div class='modal-content'>
+	<div class='modal-header'>
+          <button type='button' class='close' data-dismiss='modal'
+                  aria-hidden='true'>&times;</button>
+	  <h5>
+	    <a data-toggle="collapse"
+	       href="#history">Extension History</a>
+	  </h5>
+	</div>
+	<div class='modal-body'>
+	  <pre id="extend_history"></pre>
 	</div>
       </div>
     </div>

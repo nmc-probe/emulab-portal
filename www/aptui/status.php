@@ -40,6 +40,12 @@ $this_user = CheckLogin($check_status);
 if (isset($this_user)) {
     CheckLoginOrDie(CHECKLOGIN_NONLOCAL);
 }
+#
+# We do not set the isfadmin flag if the user has normal permission
+# to see this experiment, since that would change what the user sees.
+# Okay for real admins, but not for foreign admins.
+#
+$isfadmin = 0;
 
 #
 # Verify page arguments.
@@ -102,7 +108,13 @@ if (! (isset($this_user) && ISADMIN())) {
 	   (get_class($creator) == "GeniUser" &&
 	    isset($_COOKIE['quickvm_user']) &&
 	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
-	PAGEERROR("You do not have permission to look at this experiment!");
+        if (ISFOREIGN_ADMIN()) {
+            # See comment above.
+            $isfadmin = 1;
+        }
+        else {
+            PAGEERROR("You do not have permission to look at this experiment!");
+        }
     }
 }
 $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
@@ -213,6 +225,7 @@ echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
 echo "  window.APT_OPTIONS.registered = $registered;\n";
 echo "  window.APT_OPTIONS.isadmin = $isadmin;\n";
+echo "  window.APT_OPTIONS.isfadmin = $isfadmin;\n";
 echo "  window.APT_OPTIONS.cansnap = $cansnap;\n";
 echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
@@ -249,7 +262,9 @@ echo "<link rel='stylesheet'
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
 echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
 echo "<div class='hidden'><textarea id='extension_reason'>$extension_reason</textarea></div>\n";
-echo "<pre class='hidden' id='extension_history'>$extension_history</pre>\n";
+if ($extension_reason != "") {
+   echo "<pre class='hidden' id='extension_history'>$extension_history</pre>\n";
+}
 
 SPITFOOTER();
 ?>

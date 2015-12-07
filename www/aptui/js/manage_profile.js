@@ -99,6 +99,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    button_label:       window.BUTTONLABEL,
 	    version_uuid:	window.VERSION_UUID,
 	    profile_uuid:	window.PROFILE_UUID,
+	    latest_uuid:	window.LATEST_UUID,
+	    latest_version:	window.LATEST_VERSION,
 	    candelete:		window.CANDELETE,
 	    canmodify:		window.CANMODIFY,
 	    canpublish:		window.CANPUBLISH,
@@ -106,9 +108,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    history:		window.HISTORY,
 	    activity:		window.ACTIVITY,
 	    manual:             window.MANUAL,
+	    copyuuid:		(window.COPYUUID || null),
 	    snapuuid:		(window.SNAPUUID || null),
 	    general_error:      (errors.error || ''),
 	    iscloud:            window.ISCLOUD,
+	    disabled:           window.DISABLED,
 	    versions:	        versions,
 	    withpublishing:     window.WITHPUBLISHING,
 	});
@@ -349,6 +353,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	$('#profile_who_registered').change(function() { ProfileModified(); });
 	$('#profile_who_private').change(function() { ProfileModified(); });
 	$('#profile_topdog').change(function() { ProfileModified(); });
+	$('#profile_disabled').change(function() { ProfileModified(); });
 	
 	/*
 	 * A double click handler that will render the instructions

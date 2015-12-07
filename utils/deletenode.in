@@ -60,6 +60,7 @@ sub usage {
     print STDERR " -n       - Dry run mode\n";
     print STDERR " -v       - Be more chatty\n";
     print STDERR " -S       - Save off DB state before deletion\n";
+    print STDERR " -s       - Only perform DB deletions; do not restart daemons\n";
     print STDERR " -f       - Force mode; deletenode even if not in hwdown\n";
     print STDERR " -F       - FORCE MODE; deletenode even if not in hwdown\n";
     print STDERR " -H       - Remove node history entries as well\n";

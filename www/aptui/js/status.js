@@ -22,6 +22,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var uuid        = null;
     var oneonly     = 0;
     var isadmin     = 0;
+    var isfadmin    = 0;
     var isguest     = 0;
     var ispprofile  = 0;
     var dossh       = 1;
@@ -47,6 +48,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	uuid    = window.APT_OPTIONS.uuid;
 	oneonly = window.APT_OPTIONS.oneonly;
 	isadmin = window.APT_OPTIONS.isadmin;
+	isfadmin= window.APT_OPTIONS.isfadmin;
 	isguest = (window.APT_OPTIONS.registered ? false : true);
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
@@ -74,6 +76,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    creatorEmail:	window.APT_OPTIONS.creatorEmail,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
+	    isfadmin:           window.APT_OPTIONS.isfadmin,
 	    errorURL:           errorURL,
 	    lockout:            lockout,
 	    lockdown:           lockdown,
@@ -154,6 +157,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Setup the extend modal.
 	$('button#extend_button').click(function (event) {
 	    event.preventDefault();
+	    if (isfadmin) {
+		if ($('#extension_history').length) {
+		    $("#extend_history").text($('#extension_history').text());
+		    sup.ShowModal("#extend_history_modal");
+		}
+		return;
+	    }
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin,
 			    isguest, null, window.APT_OPTIONS.freenodesurl,
 			    window.APT_OPTIONS.extension_requested,
@@ -379,6 +389,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    else if (status == 'provisioned') {
 		$("#status_progress_bar").width("66%");
 		status_html = "booting";
+		if (json.value.canceled) {
+		    status_html += " (but canceled)";
+		}
+		else {
+		    // So the user can cancel. 
+		    EnableButton("terminate");
+		}
 	    }
 	    else if (status == 'ready') {
 		bgtype = "panel-success";
@@ -397,6 +414,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $("#status_progress_div").addClass("progress-bar-success");
 		    $("#status_progress_bar").width("100%");
 		}
+		$('#error_panel').addClass("hidden");
 		EnableButtons();
 		// We should be looking at the node status instead.
 		if (lastStatus != "imaging") {
@@ -1064,6 +1082,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     function ContextMenuShow(jacksevent)
     {
+	// Foreign admins have no permission for anything.
+	if (isfadmin) {
+	    return;
+	}
 	var event = jacksevent.event;
 	var client_id = jacksevent.client_id;
 	var cid = "context-menu-" + client_id;
@@ -1272,6 +1294,15 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 
 		//
+		// Foreign admins do not get a menu, but easier to just
+		// hide it.
+		//
+		if (isfadmin) {
+		    $('#listview-row-' + node + ' [name=action-menu]')
+			.addClass("invisible");
+		}
+
+		//
 		// Now a handler for the console action.
 		//
 		if (coninfo.length) {
@@ -1303,7 +1334,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    consolenodes[node] = node;
 		}
 		else {
-		    // Need to the context menu too. painful.
+		    // Need to do this on the context menu too, but painful.
 		    $('#listview-row-' + node + ' [name=consolelog]')
 			.parent().addClass('disabled');		    
 		    $('#listview-row-' + node + ' [name=console]')
@@ -1405,7 +1436,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 	    if (xml != null) {
 		UpdateInstructions(xml,uridata);
-		FindEncryptionBlocks(xml);
+		// Do not show secrets if viewing using foreign admin creds
+		if (!isfadmin) {
+		    FindEncryptionBlocks(xml);
+		}
 	    }
 
 	    /*

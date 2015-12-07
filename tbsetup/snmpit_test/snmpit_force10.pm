@@ -2080,7 +2080,7 @@ sub createOFVlan($$$) {
 		"flow-map l2 enable",
 		"flow-map l3 enable",
 		"interface-type vlan",
-		"learning-switch-assist enable",
+		#"learning-switch-assist enable",
 		"multiple-fwd-table enable");
     my $cmdstr = join("\n", @cmds);
     my ($fail, $output) = $self->{EXP_OBJ}->doCLICmd($cmdstr,1);

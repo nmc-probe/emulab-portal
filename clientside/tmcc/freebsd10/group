@@ -1,10 +1,10 @@
-# $FreeBSD: releng/10.0/etc/group 256366 2013-10-12 06:08:18Z rpaulo $
+# $FreeBSD: releng/10.2/etc/group 256366 2013-10-12 06:08:18Z rpaulo $
 #
 wheel:*:0:root,toor
 daemon:*:1:
-kmem:*:2:root
-sys:*:3:root
-tty:*:4:root
+kmem:*:2:
+sys:*:3:
+tty:*:4:
 operator:*:5:root
 mail:*:6:
 bin:*:7:
@@ -31,7 +31,6 @@ www:*:80:
 hast:*:845:
 nogroup:*:65533:
 nobody:*:65534:
-sfs:*:171:
 messagebus:*:556:
 polkit:*:562:
 haldaemon:*:560:

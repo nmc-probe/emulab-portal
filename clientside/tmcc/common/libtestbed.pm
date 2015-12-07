@@ -34,7 +34,8 @@ use Exporter;
 	      TBSCRIPTLOCK_OKAY TBSCRIPTLOCK_TIMEDOUT
 	      TBSCRIPTLOCK_IGNORE TBSCRIPTLOCK_FAILED TBSCRIPTLOCK_GLOBALWAIT
 	      TBSCRIPTLOCK_SHAREDLOCK TBSCRIPTLOCK_NONBLOCKING
-	      TBSCRIPTLOCK_WOULDBLOCK
+	      TBSCRIPTLOCK_WOULDBLOCK TBSCRIPTLOCK_INTERRUPTED
+	      TBSCRIPTLOCK_INTERRUPTIBLE
 	      TBTimeStamp TBTimeStampWithDate TBBackGround ReOpenLog
 	    );
 
@@ -44,6 +45,7 @@ use English;
 use Fcntl ':flock';
 use IO::Handle;
 use Time::HiRes qw(gettimeofday);
+use POSIX qw(:signal_h);
 
 #
 # Turn off line buffering on output
@@ -267,10 +269,12 @@ sub TBSCRIPTLOCK_OKAY()		{ 0;  }
 sub TBSCRIPTLOCK_TIMEDOUT()	{ 1;  }
 sub TBSCRIPTLOCK_IGNORE()	{ 2;  }
 sub TBSCRIPTLOCK_WOULDBLOCK()	{ 4;  }
+sub TBSCRIPTLOCK_INTERRUPTED()	{ 8;  }
 sub TBSCRIPTLOCK_FAILED()	{ -1; }
 sub TBSCRIPTLOCK_GLOBALWAIT()	{ 0x01; }
 sub TBSCRIPTLOCK_SHAREDLOCK()	{ 0x10; }
 sub TBSCRIPTLOCK_NONBLOCKING()	{ 0x20; }
+sub TBSCRIPTLOCK_INTERRUPTIBLE(){ 0x40; }
 
 #
 # There are two kinds of serialization.
@@ -288,6 +292,7 @@ sub TBScriptLock($;$$$)
     local *LOCK;
     my $global = 0;
     my $shared = 0;
+    my $interruptible = 0;
 
     if (!defined($waittime)) {
 	$waittime = 30;
@@ -299,6 +304,8 @@ sub TBScriptLock($;$$$)
 	if (defined($flags) && ($flags & TBSCRIPTLOCK_GLOBALWAIT()));
     $shared = 1
 	if (defined($flags) && ($flags & TBSCRIPTLOCK_SHAREDLOCK()));
+    $interruptible = 1
+	if (defined($flags) && ($flags & TBSCRIPTLOCK_INTERRUPTIBLE()));
     $lockname = "/var/tmp/testbed_${token}_lockfile";
 
     my $oldmask = umask(0000);
@@ -309,6 +316,20 @@ sub TBScriptLock($;$$$)
 	return TBSCRIPTLOCK_FAILED();
     }
     umask($oldmask);
+
+    my $checkforinterrupt = sub {
+	my $sigset = POSIX::SigSet->new;
+	sigpending($sigset);
+
+	# XXX Why isn't SIGRTMIN and SIGRTMAX defined in the POSIX module.
+	for (my $i = 1; $i < 50; $i++) {
+	    if ($sigset->ismember($i)) {
+		print "checkForInterrupt: Signal $i is pending\n";
+		return 1;
+	    }
+	}
+	return 0;
+    };
 
     if (! $global) {
 	#
@@ -329,6 +350,10 @@ sub TBScriptLock($;$$$)
 		return TBSCRIPTLOCK_TIMEDOUT();
 	    }
 	    sleep(1);
+	    if ($interruptible && &$checkforinterrupt()) {
+		print STDERR "ScriptLock interrupted by signal!\n";
+		return TBSCRIPTLOCK_INTERRUPTED();
+	    }
 	}
 	# Okay, got the lock. Save the handle. We need it below.
 	if (defined($lockhandle_ref)) {
@@ -373,9 +398,13 @@ sub TBScriptLock($;$$$)
 		return TBSCRIPTLOCK_TIMEDOUT();
 	    }
 	    sleep(1);
+	    if ($interruptible && &$checkforinterrupt()) {
+		print STDERR "ScriptLock interrupted by signal!\n";
+		return TBSCRIPTLOCK_INTERRUPTED();
+	    }
 	}
 
-	$count = 0;
+	my $count = 0;
 	#
 	# If we did not get the lock, wait for the process that did to finish.
 	#
@@ -397,6 +426,10 @@ sub TBScriptLock($;$$$)
 		    return TBSCRIPTLOCK_TIMEDOUT();
 		}
 		sleep(1);
+		if ($interruptible && &$checkforinterrupt()) {
+		    print STDERR "ScriptLock interrupted by signal!\n";
+		    return TBSCRIPTLOCK_INTERRUPTED();
+		}
 	    }
 	}
     }

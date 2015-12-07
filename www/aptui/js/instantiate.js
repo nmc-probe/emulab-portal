@@ -5,9 +5,15 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
 	 'js/lib/text!template/waitwait-modal.html',
+<<<<<<< HEAD
 	 'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
+=======
+	 'js/lib/text!template/rspectextview-modal.html',
+         'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
+>>>>>>> master
 function (_, Constraints, sup, ppstart, JacksEditor, wt,
-	  instantiateString, aboutaptString, aboutcloudString, waitwaitString)
+	  instantiateString, aboutaptString, aboutcloudString,
+	  waitwaitString, rspecviewString)
 {
     'use strict';
 
@@ -18,7 +24,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var recentcount   = 5;
     var amdefault     = null;
     var selected_uuid = null;
-    var selected_rspec = null;
+    var selected_rspec   = null;
+    var selected_version = null;
     var ispprofile    = 0;
     var webonly       = 0;
     var isadmin       = 0;
@@ -86,8 +93,14 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    registered:         registered,
 	    profilename:        window.PROFILENAME,
 	    profileuuid:        window.PROFILEUUID,
+<<<<<<< HEAD
 	    showpicker:         showpicker,
 	    cancopy:            window.CANCOPY,
+=======
+	    profilevers:        window.PROFILEVERS,
+	    showpicker:		showpicker,
+	    cancopy:		window.CANCOPY,
+>>>>>>> master
 	    clustername:        (window.ISCLOUD ? "CloudLab" : "APT"),
 	});
 	$('#main-body').html(html);
@@ -102,6 +115,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    });
 
 	$('#waitwait_div').html(waitwaitString);
+	$('#rspecview_div').html(rspecviewString);
 	// The about panel.
 	if (window.SHOWABOUT) {
 	    $('#about_div').html(window.ISCLOUD ?
@@ -193,6 +207,26 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    var url = "show-profile.php?uuid=" + selected_uuid;
 	    window.location.replace(url);
 	    return false;
+	});
+
+	$('#show_xml_modal_button').click(function (event) {
+	    //
+	    // Show the XML source in the modal. This is used when we
+	    // have a script, and the XML was generated. We show the
+	    // XML, but it is not intended to be edited.
+	    //
+	    $('#rspec_modal_editbuttons').addClass("hidden");
+	    $('#rspec_modal_viewbuttons').removeClass("hidden");
+	    $('#modal_profile_rspec_textarea').val(selected_rspec);
+	    $('#modal_profile_rspec_textarea').prop("readonly", true);
+	    $('#modal_profile_rspec_div').addClass("hidden");
+	    $('#modal_profile_rspec_textarea').removeClass("hidden");
+	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
+	    $('#rspec_modal').modal('show');
+	});
+	$('#close_rspec_modal_button').click(function (event) {
+	    $('#rspec_modal').modal('hide');
+	    $('#modal_profile_rspec_textarea').val("");
 	});
 
 	// Profile picker search box.
@@ -804,6 +838,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $(selectedElement).addClass('selected');
 	}
 	
+<<<<<<< HEAD
 	var continuation = function(rspec, description, name, amdefault, ispp) {
 	    var profileInfo = profilelist[$(selectedElement).attr('value')]
 	    var isFavorite = profileInfo.favorite;
@@ -815,6 +850,11 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		"</button>");
 
 	    $('#showtopo_project').html(profileInfo.project);
+=======
+	var continuation = function(rspec, description, name, version,
+				    amdefault, ispp) {
+	    $('#showtopo_title').html("<h3>" + name + "</h3>");
+>>>>>>> master
 	    $('#showtopo_description').html(description);
 
 	    sup.maketopmap('#showtopo_div', rspec, false, !multisite);
@@ -870,7 +910,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     function ShowProfileSelectionInline(selectedElement, root, selectionPane) {
 	editor = new JacksEditor(root, true, true,
 				 selectionPane, true, !multisite);
-	var continuation = function(rspec, description, name, amdefault, ispp) {
+	var continuation = function(rspec, description, name, version,
+				    amdefault, ispp) {
 	  if (rspec)
 	  {
 	    editor.show(rspec);
@@ -892,16 +933,19 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	$('#selected_profile').attr('value', profile_value);
 	$('#selected_profile_text').html("" + profile_name);
 	
-	var continuation = function(rspec, description, name, amdef, ispp) {
+	var continuation = function(rspec, description, name, version,
+				    amdef, ispp) {
 	    $('#showtopo_title').html("<h3>" + name + "</h3>");
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
-	    $('#finalize_profile_name').val(name);
+	    $('#finalize_profile_name').text(name);
+	    $('#finalize_profile_version').text(version);
 
 	    ispprofile    = ispp;
 	    selected_uuid = profile_value;
-	    selected_rspec = rspec;
-	    amdefault     = amdef;
+	    selected_rspec   = rspec;
+	    selected_version = version;
+	    amdefault        = amdef;
 
 	    CreateAggregateSelectors(rspec);
 	    
@@ -946,7 +990,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		description = "Hmm, no description for this profile";
 	    }
 	    continuation(json.value.rspec, description,
-			 json.value.name, json.value.amdefault,
+			 json.value.name, json.value.version,
+			 json.value.amdefault,
 			 json.value.ispprofile);
 	}
 	var $xmlthing = sup.CallServerMethod(ajaxurl,

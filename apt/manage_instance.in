@@ -1015,7 +1015,22 @@ sub DoTerminate()
     # a disk image.
     #
     if ($slice->Lock()) {
-	fatal("Slice is busy, cannot lock it");
+	#
+	# A special case is if the slice is provisioning. This means the
+	# user is giving up on it, and we want to tell the aggregate to
+	# kill it. Not all aggregates are going to allow this, so need
+	# to be able to deal with that.
+	#
+	if ($instance->status() ne "provisioned") {
+	    fatal("Slice is busy, cannot lock it");
+	}
+	if (!$instance->canceled()) {
+	    print "Marking instance canceled\n";
+	    $instance->MarkCanceled();
+	}
+	sleep(1);
+	# We have an obvious race here since we do not have the lock.
+	exit(0);
     }
     my $old_status = $instance->status();
     $instance->SetStatus("terminating");

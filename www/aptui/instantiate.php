@@ -132,7 +132,7 @@ if (isset($profile)) {
 	SPITUSERERROR("Illegal profile for guest user: $profile");
 	exit();
     }
-    if (! $obj) {
+    if (! $obj || $obj->deleted()) {
 	SPITUSERERROR("No such profile: $profile");
 	exit();
     }
@@ -179,6 +179,10 @@ if (isset($profile)) {
 	$profile_array[$profile->uuid()] = $profile->name();
 	$profilename = $profile->name();
     }
+    if ($profile->isDisabled()) {
+        SPITUSERERROR("This profile is disabled!");
+        exit();
+    }
 }
 else {
     #
@@ -209,7 +213,8 @@ else {
 		     "     v.profileid=p.profileid and ".
 		     "     v.version=p.version ".
 		     "$joinclause ".
-		     "where locked is null and ($whereclause) ".
+		     "where locked is null and p.disabled=0 and ".
+                     "      v.disabled=0 and ($whereclause) ".
 		     "order by p.topdog desc");
     while ($row = mysql_fetch_array($query_result)) {
 	$profile_array[$row["uuid"]] = $row["name"];
@@ -233,6 +238,10 @@ else {
             if (! ($obj->ispublic() ||
                    (isset($this_user) && $obj->CanInstantiate($this_user)))) {
                 SPITUSERERROR("No permission to use profile: $default");
+                exit();
+            }
+            if ($obj->isDisabled()) {
+                SPITUSERERROR("This profile is disabled!");
                 exit();
             }
             $profile_array[$obj->uuid()] = $obj->name();
@@ -304,9 +313,11 @@ function SPITFORM($formfields, $newuser, $errors)
     $showpicker = (isset($profile) ? 0 : 1);
     if (isset($profilename)) {
         $profilename = "'$profilename'";
+        $profilevers = $profile->version();
     }
     else {
         $profilename = "null";
+        $profilevers = "null";
     }
     SPITHEADER(1);
 
@@ -368,6 +379,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "<script type='text/javascript'>\n";
     echo "    window.PROFILE    = '" . $formfields["profile"] . "';\n";
     echo "    window.PROFILENAME= $profilename;\n";
+    echo "    window.PROFILEVERS= $profilevers;\n";
     echo "    window.AJAXURL    = 'server-ajax.php';\n";
     echo "    window.SHOWABOUT  = $showabout;\n";
     echo "    window.NOPPRSPEC  = $nopprspec;\n";

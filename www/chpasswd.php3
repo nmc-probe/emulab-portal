@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2007, 2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -212,7 +212,13 @@ setcookie($TBAUTHCOOKIE, "", time() - 1000000, "/", $TBAUTHDOMAIN, 0);
 # Okay to spit this now that the cookie has been sent (cleared).
 PAGEHEADER("Reset Your Password", $view);
 
-$encoding = crypt("$password1");
+if ($TBMAINSITE || $ELABINELAB) {
+    $salt = "\$5\$" . substr(GENHASH(), 0, 16) . "\$";
+}
+else {
+    $salt = "\$1\$" . substr(GENHASH(), 0, 8) . "\$";
+}
+$encoding = crypt("$password1", $salt);
 $safe_encoding = escapeshellarg($encoding);
 
 STARTBUSY("Resetting your password");

@@ -213,7 +213,13 @@ if (count($errors)) {
     SPITFORM($password1, $password2, $errors);
     return;
 }
-$encoding = crypt("$password1");
+if ($TBMAINSITE || $ELABINELAB) {
+    $salt = "\$5\$" . substr(GENHASH(), 0, 16) . "\$";
+}
+else {
+    $salt = "\$1\$" . substr(GENHASH(), 0, 8) . "\$";
+}
+$encoding = crypt("$password1", $salt);
 $safe_encoding = escapeshellarg($encoding);
 
 #

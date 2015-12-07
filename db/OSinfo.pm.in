@@ -454,8 +454,7 @@ sub Update($$)
     my $vers = $self->vers();
     
     my $query = "update os_info_versions set ".
-	join(",", map("$_='" . $argref->{$_} . "'", keys(%{$argref})));
-
+	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
     $query .= " where osid='$osid' and vers='$vers'";
 
     return -1

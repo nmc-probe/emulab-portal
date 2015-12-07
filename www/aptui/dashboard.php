@@ -34,7 +34,8 @@ $page_title = "Dash Board";
 #
 RedirectSecure();
 $this_user = CheckLoginOrRedirect();
-$isadmin = (ISADMIN() ? 1 : 0);
+$isadmin   = (ISADMIN() ? 1 : 0);
+$isfadmin  = (ISFOREIGN_ADMIN() ? 1 : 0);
 
 if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
     SPITUSERERROR("You do not have permission to view the dashboard");
@@ -46,6 +47,7 @@ echo "<div id='page-body'></div>\n";
 
 echo "<script type='text/javascript'>\n";
 echo "    window.ISADMIN    = $isadmin;\n";
+echo "    window.ISFADMIN   = $isfadmin;\n";
 echo "</script>\n";
 
 echo "<script src='js/lib/bootstrap.js'></script>\n";

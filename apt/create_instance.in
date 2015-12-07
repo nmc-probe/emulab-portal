@@ -847,6 +847,7 @@ sub WaitForSliver($)
     my $interval = 15;
     my $ready    = 0;
     my $failed   = 0;
+    my $rpcfail  = 0;
     my $public_url;
     my $repblob;
     my $laststatus;
@@ -859,7 +860,8 @@ sub WaitForSliver($)
 	if (!defined($response) || !defined($response->value()) ||
 	    ($response->code() != GENIRESPONSE_SUCCESS &&
 	     $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
-	     $response->code() != GENIRESPONSE_BUSY)) {
+	     $response->code() != GENIRESPONSE_BUSY &&
+	     $response->code() != GENIRESPONSE_RPCERROR)) {
 	    print STDERR "SliverStatus failed";
 	    
 	    if (defined($response)) {
@@ -878,6 +880,23 @@ sub WaitForSliver($)
 	    $failed = 1;
 	    last;
 	}
+	if ($response->code() == GENIRESPONSE_RPCERROR) {
+	    if ($rpcfail > 10) {
+		if ($response->output() =~ /read timeout/) {
+		    $webtask->output("Lost contact with the aggregate. " .
+				     "Possibly a network failure, ".
+				     "please try again later.");
+		}
+		else {
+		    $webtask->output($response->output());
+		}
+		$failed = 1;
+		last;
+	    }
+	    $rpcfail++;
+	    next;
+	}
+	$rpcfail = 0;
 	next
 	    if ($response->code() == GENIRESPONSE_BUSY ||
 		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE);
@@ -888,6 +907,7 @@ sub WaitForSliver($)
 	# cares about. We get this on each loop, update so the web
 	# interface can show changes.
 	#
+	my $changed = 0;
 	my $statusblob = {};
 	foreach my $urn (keys(%{$repblob->{'details'}})) {
 	    my $details = $repblob->{'details'}->{$urn};
@@ -940,6 +960,13 @@ sub WaitForSliver($)
 	    $webtask->output("Experiment setup on $urn failed");
 	    last;
 	}
+	elsif ($instance->IsCanceled()) {
+	    last;
+	}
+    }
+    if ($instance->IsCanceled()) {
+	$webtask->Exited(0);
+	return 0;
     }
     if ($failed || !$ready) {
 	$aggobj->SetStatus("failed");
@@ -980,6 +1007,18 @@ print "$slice_urn\n";
 
 # Count up nodes running a startup service.
 my $startuprunning = 0;
+
+#
+# If we were canceled, then none of the stuff below matters, we
+# are going to do a terminate.
+#
+if ($instance->IsCanceled()) {
+    $instance->SetStatus("canceled");
+    $slice->UnLock();
+
+    system("$MANAGEINSTANCE -t $webtask_id terminate $quickvm_uuid");
+    exit(0);
+}
 
 #
 # Check the exit codes; any failure is a total failure (for now).

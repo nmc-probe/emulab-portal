@@ -51,6 +51,7 @@ function (_, sup, moment, ppstart,
 	    history:		window.HISTORY,
 	    isadmin:		window.ISADMIN,
 	    canedit:            window.CANEDIT,
+	    disabled:           window.DISABLED,
 	    withpublishing:     window.WITHPUBLISHING,
 	});
 	$('#page-body').html(show_html);

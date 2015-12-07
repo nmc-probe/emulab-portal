@@ -876,18 +876,17 @@ sub ModUserInfo($$$$)
 	#
 	# Compare. Must change it!
 	# 
-	if ($old_encoding eq $new_encoding) {
+	if (!$isadmin && $old_encoding eq $new_encoding) {
 	    $$usrerr_ref = "Error: " .
 		"New password same as old password";
 	    return undef;
 	}
 
 	#
-	# Do it again. This ensures we use the current algorithm, not whatever
-	# it was encoded with last time.
-	# XXX Perl crypt doesn't have this option!
-	# XXX $new_encoding  = crypt($argref->{"password1"});
-
+	# Do it again. This ensures we use the current algorithm with a
+	# new random salt, not whatever it was encoded with last time.
+	#
+	$new_encoding = PassWordHash($argref->{"password1"});
 	my $safe_encoding = escapeshellarg($new_encoding);
 
 	#

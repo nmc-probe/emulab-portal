@@ -134,6 +134,7 @@ class Instance
     function profile_id()   { return $this->field('profile_id'); }
     function profile_version() { return $this->field('profile_version'); }
     function status()	    { return $this->field('status'); }
+    function canceled()	    { return $this->field('canceled'); }
     function pid()	    { return $this->field('pid'); }
     function pid_idx()	    { return $this->field('pid_idx'); }
     function public_url()   { return $this->field('public_url'); }
@@ -367,7 +368,7 @@ class Instance
                           'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );
-          if (ISADMIN()) {
+          if (ISADMIN() || ISFOREIGN_ADMIN()) {
               $am_array["iMinds Virt Wall 2"] =
                   "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm";
               $am_array["UKY Emulab"] =

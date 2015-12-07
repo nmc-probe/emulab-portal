@@ -247,7 +247,7 @@ CREATE TABLE `apt_instances` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
--- Table structure for table `apt_profile_versions`
+-- Table structure for table `apt_profile_favorites`
 --
 
 DROP TABLE IF EXISTS `apt_profile_favorites`;
@@ -275,6 +275,7 @@ CREATE TABLE `apt_profile_versions` (
   `created` datetime default NULL,
   `published` datetime default NULL,
   `deleted` datetime default NULL,
+  `disabled` tinyint(1) NOT NULL default '0',
   `uuid` varchar(40) NOT NULL,
   `parent_profileid` int(8) unsigned default NULL,
   `parent_version` int(8) unsigned default NULL,
@@ -283,7 +284,6 @@ CREATE TABLE `apt_profile_versions` (
   `script` mediumtext,
   `paramdefs` mediumtext,
   PRIMARY KEY (`profileid`,`version`),
-  UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`),
   UNIQUE KEY `uuid` (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -303,6 +303,7 @@ CREATE TABLE `apt_profiles` (
   `shared` tinyint(1) NOT NULL default '0',
   `listed` tinyint(1) NOT NULL default '0',
   `topdog` tinyint(1) NOT NULL default '0',
+  `disabled` tinyint(1) NOT NULL default '0',
   `locked` datetime default NULL,
   `locker_pid` int(11) default '0',
   PRIMARY KEY (`profileid`),
@@ -4057,7 +4058,7 @@ CREATE TABLE `projects` (
   `nonlocal_id` varchar(128) default NULL,
   `nonlocal_type` tinytext,
   `manager_urn` varchar(128) default NULL,
-  `genesis` enum('emulab','aptlab','cloudlab') NOT NULL default 'emulab',
+  `genesis` enum('emulab','aptlab','cloudlab','phantomnet') NOT NULL default 'emulab',
   PRIMARY KEY  (`pid_idx`),
   UNIQUE KEY `pid` (`pid`),
   KEY `unix_gid` (`unix_gid`),
@@ -4825,7 +4826,7 @@ CREATE TABLE `users` (
   `default_project` mediumint(8) unsigned default NULL,
   `nocollabtools` tinyint(1) default '0',
   `initial_passphrase` varchar(128) default NULL,
-  `genesis` enum('emulab','aptlab','cloudlab') NOT NULL default 'emulab',
+  `genesis` enum('emulab','aptlab','cloudlab','phantomnet') NOT NULL default 'emulab',
   PRIMARY KEY  (`uid_idx`),
   KEY `unix_uid` (`unix_uid`),
   KEY `status` (`status`),

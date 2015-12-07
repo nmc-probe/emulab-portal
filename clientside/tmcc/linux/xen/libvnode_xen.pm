@@ -84,6 +84,7 @@ use File::Basename;
 use File::Path;
 use File::Copy;
 use File::Temp;
+use POSIX qw(:signal_h);
 
 # Pull in libvnode
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
@@ -272,6 +273,9 @@ my $MAXROUTETTABLE = 255;
 # Striping
 my $STRIPE_COUNT   = 1;
 
+# Avoid using SSDs unless there are only SSDs
+my $LVM_AVOIDSSD = 1;
+
 # Whether or not to use only unpartitioned (unused) disks to form the Xen VG.
 my $LVM_FULLDISKONLY = 0;
 
@@ -291,6 +295,10 @@ my $BRIDGENAME   = "xenbr0";
 my $VIFROUTING   = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
 my $TMCD_PORT	 = 7777;
+
+# Number of concurrent containers set up in parallel. We bump this up
+# a bit down in doingThinLVM().
+my $MAXCONCURRENT = 3;
 
 #
 # Information about the running Xen hypervisor
@@ -333,6 +341,7 @@ sub LookupRouteTable($);
 sub FreeRouteTable($);
 sub downloadOneImage($$$);
 sub captureRunning($);
+sub checkForInterrupt();
 
 sub getXenInfo()
 {
@@ -527,21 +536,31 @@ sub rootPreConfig($)
     }
 
     #
-    # Make sure pieces are at least a 5GiB.
+    # Make sure pieces are at least 5 GiB.
     #
-    my %devs = libvnode::findSpareDisks(5 * 1024);
+    my $minpsize = 5 * 1024;
+    my %devs = libvnode::findSpareDisks($minpsize, $LVM_AVOIDSSD);
+
+    # if ignoring SSDs but came up with nothing, we have to use them!
+    if ($LVM_AVOIDSSD && keys(%devs) == 0) {
+	%devs = libvnode::findSpareDisks($minpsize, 0);
+    }
 
     #
     # Turn on write caching. Hacky. 
     # XXX note we do not use the returned "path" here as we need to
     # change the setting on all devices, not just the whole disk devices.
     #
+    my %diddev = ();
     foreach my $dev (keys(%devs)) {
 	# only mess with the disks we are going to use
-	if (exists($devs{$dev}{"size"}) || $LVM_FULLDISKONLY == 0) {
+	if (!exists($diddev{$dev}) &&
+	    (exists($devs{$dev}{"size"}) || $LVM_FULLDISKONLY == 0)) {
 	    mysystem2("hdparm -W1 /dev/$dev");
+	    $diddev{$dev} = 1;
 	}
     }
+    undef %diddev;
 
     #
     # See if our LVM volume group for VMs exists and create it if not.
@@ -552,7 +571,8 @@ sub rootPreConfig($)
 	    if ($debug);
 
 	#
-	# Total up potential maximum size
+	# Total up potential maximum size.
+	# Also determine mix of SSDs and non-SSDs if required.
 	#
 	my $maxtotalSize = 0;
 	my $sizeThreshold = 0;
@@ -575,7 +595,7 @@ sub rootPreConfig($)
 	#
 	my $totalSize = 0;
 	my @blockdevs = ();
-	foreach my $dev (keys(%devs)) {
+	foreach my $dev (sort keys(%devs)) {
 	    #
 	    # Whole disk is available, use it.
 	    #
@@ -768,8 +788,9 @@ sub rootPreConfigNetwork($$$$)
 
     TBDebugTimeStamp("rootPreConfigNetwork: grabbing global lock $GLOBAL_CONF_LOCK")
 	if ($lockdebug);
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the global lock after a long time!\n";
+    if (TBScriptLock($GLOBAL_CONF_LOCK,
+		     TBSCRIPTLOCK_INTERRUPTIBLE(), 900) != TBSCRIPTLOCK_OKAY()){
+	print STDERR "Could not get the global lock!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got global lock")
@@ -849,9 +870,10 @@ sub vnodeCreate($$$$)
     my $imagelockname = ImageLockName($imagename);
     TBDebugTimeStamp("grabbing image lock $imagelockname shared")
 	if ($lockdebug);
-    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
-	!= TBSCRIPTLOCK_OKAY()) {
-	fatal("Could not get $imagelockname lock after a long time!");
+    if (TBScriptLock($imagelockname,
+		     TBSCRIPTLOCK_INTERRUPTIBLE()|TBSCRIPTLOCK_SHAREDLOCK(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
+	fatal("Could not get $imagelockname lock!");
     }
     TBDebugTimeStamp("  got image lock")
 	if ($lockdebug);
@@ -885,10 +907,9 @@ sub vnodeCreate($$$$)
 	    TBScriptUnlock();	    
 	    TBDebugTimeStamp("grabbing image lock $imagelockname exclusive")
 		if ($lockdebug);
-	    if (TBScriptLock($imagelockname, undef, 1800)
+	    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_INTERRUPTIBLE(), 1800)
 		!= TBSCRIPTLOCK_OKAY()) {
-		fatal("Could not get $imagelockname write lock ".
-		      "after a long time!");
+		fatal("Could not get $imagelockname write lock!");
 	    }
 	    TBDebugTimeStamp("  got image lock")
 		if ($lockdebug);
@@ -904,7 +925,9 @@ sub vnodeCreate($$$$)
 	    TBScriptUnlock();
 	    TBDebugTimeStamp("grabbing image lock $imagelockname shared")
 		if ($lockdebug);
-	    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
+	    if (TBScriptLock($imagelockname,
+			     TBSCRIPTLOCK_INTERRUPTIBLE()|
+			     TBSCRIPTLOCK_SHAREDLOCK(), 1800)
 		!= TBSCRIPTLOCK_OKAY()) {
 		fatal("Could not get $imagelockname lock back ".
 		      "after a long time!");
@@ -1739,6 +1762,29 @@ sub vnodePreConfig($$$$$){
 		     ">> $vnoderoot/boot/loader.conf");
 	}
     }
+
+    #
+    # XXX avoid extra filesystem creation in libsetup if possible.
+    # This is specifically for the case of local home/proj directories.
+    # If we have to stick an extra FS mount in /etc/fstab, then we can
+    # no longer cleanly image the root partition.
+    #
+    # So we set it up to only use the extra space if it is explicitly
+    # specified by the user with XEN_EXTRAFS or XEN_EXTRADISKS.
+    # Otherwise we force use of '/'.
+    #
+    # We do this by mildly abusing the /var/emulab/boot/extrafs file,
+    # that was intended for coexistence between blockstores and mkextrafs.
+    # By putting FS=/ in there, we can force libsetup's os_mkextrafs to
+    # use the root filesystem.
+    #
+    if (!exists($vnconfig->{'attributes'}->{'XEN_EXTRAFS'}) &&
+	!exists($vnconfig->{'attributes'}->{'XEN_EXTRADISKS'})) {
+	mysystem("echo 'FS=/' > $vnoderoot/var/emulab/boot/extrafs");
+    } else {
+	unlink("$vnoderoot/var/emulab/boot/extrafs");
+    }
+
     #
     # We have to do what slicefix does when it localizes an image.
     #
@@ -2062,8 +2108,9 @@ sub vnodePreConfigExpNetwork($$$$)
 	#
 	TBDebugTimeStamp("vnodePreConfigExpNetwork: grabbing global lock $GLOBAL_CONF_LOCK")
 	    if ($lockdebug);
-	if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 900) != TBSCRIPTLOCK_OKAY()) {
-	    print STDERR "Could not get the global lock after a long time!\n";
+	if (TBScriptLock($GLOBAL_CONF_LOCK, TBSCRIPTLOCK_INTERRUPTIBLE(), 900)
+	    != TBSCRIPTLOCK_OKAY()) {
+	    print STDERR "Could not get the global lock!\n";
 	    return -1;
 	}
 	TBDebugTimeStamp("  got global lock")
@@ -2338,6 +2385,8 @@ sub vnodeBoot($$$$)
 		return 0;
 	    }
 	    $countdown--;
+	    last
+		if (checkForInterrupt());
 	}
 	#
 	# Tear it down and try again. Use vnodeHalt cause it protects
@@ -2355,6 +2404,8 @@ sub vnodeBoot($$$$)
 	    TBDebugTimeStamp("Container not gone yet");
 	}
 	TBDebugTimeStamp("Container is gone ($i)!");
+	last
+	    if (checkForInterrupt());
     }
     return -1;
 }
@@ -3094,7 +3145,8 @@ sub grabGoldenLock($)
 
     TBDebugTimeStamp("grabbing gimage lock $token")
 	if ($lockdebug);
-    if (TBScriptLock($token, undef, 900, \$lockref) == TBSCRIPTLOCK_OKAY()) {
+    if (TBScriptLock($token, TBSCRIPTLOCK_INTERRUPTIBLE(),
+		     900, \$lockref) == TBSCRIPTLOCK_OKAY()) {
 	TBDebugTimeStamp("  got gimage lock")
 	    if ($lockdebug);
 	return $lockref;
@@ -3246,10 +3298,10 @@ sub createImageDisk($$$$)
     # And back to a shared lock.
     TBDebugTimeStamp("grabbing image lock $imagelockname shared")
 	if ($lockdebug);
-    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_SHAREDLOCK(), 1800)
-	!= TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get $imagelockname lock back ".
-	    "after a long time!\n";
+    if (TBScriptLock($imagelockname,
+		     TBSCRIPTLOCK_INTERRUPTIBLE()|TBSCRIPTLOCK_SHAREDLOCK(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname lock back!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got image lock")
@@ -3284,9 +3336,9 @@ sub downloadOneImage($$$)
 
     TBDebugTimeStamp("grabbing image lock $imagelockname exclusive")
 	if ($lockdebug);
-    if (TBScriptLock($imagelockname, undef, 1800) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get $imagelockname write lock".
-	    "after a long time!\n";
+    if (TBScriptLock($imagelockname, TBSCRIPTLOCK_INTERRUPTIBLE(), 1800)
+	!= TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get $imagelockname write lock!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got image lock")
@@ -4193,8 +4245,9 @@ sub createExpBridges($$$)
     #
     TBDebugTimeStamp("createExpBridges: grabbing global lock $GLOBAL_CONF_LOCK")
 	if ($lockdebug);
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
-	print STDERR "Could not get the global lock after a long time!\n";
+    if (TBScriptLock($GLOBAL_CONF_LOCK, TBSCRIPTLOCK_INTERRUPTIBLE(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
+	print STDERR "Could not get the global lock!\n";
 	return -1;
     }
     TBDebugTimeStamp("  got global lock")
@@ -4683,7 +4736,7 @@ sub doingThinLVM()
 	$usethin = 0;
 	return 0;
     }
-
+    $MAXCONCURRENT = 5;
     return 1;
 }
 
@@ -4922,7 +4975,8 @@ sub AllocateIFBs($$$)
 
     TBDebugTimeStamp("AllocateIFBs: grabbing global lock $GLOBAL_CONF_LOCK")
 	if ($lockdebug);
-    if (TBScriptLock($GLOBAL_CONF_LOCK, 0, 1800) != TBSCRIPTLOCK_OKAY()) {
+    if (TBScriptLock($GLOBAL_CONF_LOCK, TBSCRIPTLOCK_INTERRUPTIBLE(),
+		     1800) != TBSCRIPTLOCK_OKAY()) {
 	print STDERR "Could not get the global lock after a long time!\n";
 	return -1;
     }
@@ -5370,16 +5424,30 @@ sub RunWithLock($$)
     return $status;
 }
 
+sub checkForInterrupt()
+{
+    my $sigset = POSIX::SigSet->new;
+    sigpending($sigset);
+
+    # XXX Why isn't SIGRTMIN and SIGRTMAX defined in th POSIX module.
+    for (my $i = 1; $i < 50; $i++) {
+	if ($sigset->ismember($i)) {
+	    print "checkForInterrupt: Signal $i is pending\n";
+	    return 1;
+	}
+    }
+    return 0;
+}
+
 #
 # We need to control how many simultaneous creates happen at once.
 #
-my $MAXCONCURRENT = 3;
 my $createvnode_lockref;
 
 sub CreateVnodeLock()
 {
     my $tries = 1000;
-    
+
     while ($tries) {
 	for (my $i = 0; $i < $MAXCONCURRENT; $i++) {
 	    my $token  = "createvnode_${i}";
@@ -5398,7 +5466,11 @@ sub CreateVnodeLock()
 	}
 	print "Still trying to get the create lock at " . time() . "\n"
 	    if (($tries % 60) == 0);
+	return -1
+	    if (checkForInterrupt());
 	sleep(4);
+	return -1
+	    if (checkForInterrupt());
 	$tries--;
     }
     TBDebugTimeStamp("Could not get the createvnode lock after a long time!");

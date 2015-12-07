@@ -47,6 +47,7 @@ $this_idx  = $this_user->uid_idx();
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "action",      PAGEARG_STRING,
 				 "uuid",        PAGEARG_STRING,
+				 "copyuuid",    PAGEARG_STRING,
 				 "snapuuid",    PAGEARG_STRING,
 				 "finished",    PAGEARG_BOOLEAN,
 				 "formfields",  PAGEARG_ARRAY);
@@ -57,7 +58,7 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 function SPITFORM($formfields, $errors)
 {
     global $this_user, $projlist, $action, $profile, $DEFAULT_AGGREGATE;
-    global $notifyupdate, $notifyclone, $snapuuid, $am_array, $ISCLOUD;
+    global $notifyupdate, $notifyclone, $copyuuid, $snapuuid, $am_array, $ISCLOUD;
     global $version_array, $WITHPUBLISHING;
     $viewing    = 0;
     $candelete  = 0;
@@ -69,8 +70,11 @@ function SPITFORM($formfields, $errors)
     $isadmin    = (ISADMIN() ? 1 : 0);
     $multisite  = 1;
     $cloning    = 0;
+    $disabled   = 0;
     $version_uuid = "null";
     $profile_uuid = "null";
+    $latest_uuid    = "null";
+    $latest_version = "null";
 
     if ($action == "edit") {
 	$button_label = "Save";
@@ -83,12 +87,16 @@ function SPITFORM($formfields, $errors)
 	$canpublish   = ($profile->CanPublish() ? 1 : 0);
 	$activity     = ($profile->HasActivity() ? 1 : 0);
 	$ispp         = ($profile->isParameterized() ? 1 : 0);
+        $disabled     = ($profile->isDisabled() ? 1 : 0);
 	if ($canmodify) {
 	    $title    = "Modify Profile";
 	}
 	else {
 	    $title    = "View Profile";
 	}
+        $latest_profile = Profile::Lookup($profile->profile_uuid());
+        $latest_uuid    = "'" . $latest_profile->uuid() . "'";
+        $latest_version = $latest_profile->version();
     }
     else  {
         # New page action is now create, not copy or clone.
@@ -166,6 +174,8 @@ function SPITFORM($formfields, $errors)
     echo "    window.VIEWING  = $viewing;\n";
     echo "    window.VERSION_UUID = $version_uuid;\n";
     echo "    window.PROFILE_UUID = $profile_uuid;\n";
+    echo "    window.LATEST_UUID = $latest_uuid;\n";
+    echo "    window.LATEST_VERSION = $latest_version;\n";
     echo "    window.UPDATED  = $notifyupdate;\n";
     echo "    window.SNAPPING = $notifyclone;\n";
     echo "    window.AJAXURL  = 'server-ajax.php';\n";
@@ -173,6 +183,7 @@ function SPITFORM($formfields, $errors)
     echo "    window.CANDELETE= $candelete;\n";
     echo "    window.CANMODIFY= $canmodify;\n";
     echo "    window.CANPUBLISH= $canpublish;\n";
+    echo "    window.DISABLED= $disabled;\n";
     echo "    window.ISADMIN  = $isadmin;\n";
     echo "    window.MULTISITE  = $multisite;\n";
     echo "    window.HISTORY  = $history;\n";
@@ -184,11 +195,14 @@ function SPITFORM($formfields, $errors)
     echo "    window.ISPPPROFILE = $ispp;\n";
     echo "    window.WITHPUBLISHING = $WITHPUBLISHING;\n";
     if ($ISCLOUD) {
-      echo "    window.ISCLOUD = true;";
+      echo "    window.ISCLOUD = true;\n";
     } else {
-      echo "    window.ISCLOUD = false;";
+      echo "    window.ISCLOUD = false;\n";
     }
-    if (isset($snapuuid)) {
+    if (isset($copyuuid)) {
+	echo "    window.COPYUUID = '$copyuuid';\n";
+    }
+    elseif (isset($snapuuid)) {
 	echo "    window.SNAPUUID = '$snapuuid';\n";
     }
     echo "</script>\n";
@@ -221,6 +235,9 @@ if (isset($action) && ($action == "edit" || $action == "copy")) {
 	else if ($profile->locked()) {
 	    SPITUSERERROR("Profile is currently locked!");
 	}
+	else if ($profile->deleted()) {
+	    SPITUSERERROR("Profile is has been deleted!");
+	}
 	if ($action == "edit") {
 	    if ($this_idx != $profile->creator_idx() && !ISADMIN()) {
 		SPITUSERERROR("Not enough permission!");
@@ -236,13 +253,20 @@ if (isset($action) && ($action == "edit" || $action == "copy")) {
         $profileid      = $profile->profileid();
 
         $query_result =
-            DBQueryFatal("select v.*,DATE(v.created) as created ".
+            DBQueryFatal("select v.*,DATE(v.created) as created, ".
+                         "    vp.uuid as parent_uuid ".
                          "  from apt_profile_versions as v ".
-                         "where v.profileid='$profileid' ".
+                         "left join apt_profile_versions as vp on ".
+                         "     v.parent_profileid is not null and ".
+                         "     vp.profileid=v.parent_profileid and ".
+                         "     vp.version=v.parent_version ".
+                         "where v.profileid='$profileid' and ".
+                         "      v.deleted is null ".
                          "order by v.created desc");
 
         while ($row = mysql_fetch_array($query_result)) {
             $uuid    = $row["uuid"];
+            $puuid   = $row["parent_uuid"];
             $version = $row["version"];
             $pversion= $row["parent_version"];
             $created = $row["created"];
@@ -251,9 +275,6 @@ if (isset($action) && ($action == "edit" || $action == "copy")) {
             $desc    = '';
             $obj     = array();
 
-            if ($version == 0) {
-                $pversion = " ";
-            }
             if (!$published) {
                 $published = " ";
             }
@@ -271,6 +292,7 @@ if (isset($action) && ($action == "edit" || $action == "copy")) {
             $obj["description"] = $desc;
             $obj["created"]     = $created;
             $obj["published"]   = $published;
+            $obj["parent_uuid"] = $puuid;
             $obj["parent_version"] = $pversion;
             
             $version_array[] = $obj;
@@ -321,6 +343,10 @@ if (! isset($create)) {
 		    SPITUSERERROR("Not allowed to access this profile!");
 		}
 	    }
+            elseif ($action == "copy") {
+                # Pass this along through the new create page.
+                $copyuuid = $profile->uuid();
+            }
 	    $defaults["profile_rspec"]  = $profile->rspec();
 	    $defaults["profile_who"]   = "private";
 	    if ($profile->script() && $profile->script() != "") {
@@ -356,6 +382,8 @@ if (! isset($create)) {
 		 ($profile->ispublic() ? "public" : "private"));
 	    $defaults["profile_topdog"]      =
 		($profile->topdog() ? "checked" : "");
+	    $defaults["profile_disabled"]      =
+		($profile->isDisabled() ? "checked" : "");
 
 	    # Warm fuzzy message.
 	    if (isset($_SESSION["notifyupdate"])) {
@@ -459,7 +487,7 @@ else {
 }
 
 #
-# Sanity check the snapuuid argument. 
+# Sanity check the snapuuid argument when doing a clone.
 #
 if (isset($action) && $action == "clone") {
     if (!isset($snapuuid) || $snapuuid == "" || !IsValidUUID($snapuuid)) {
@@ -559,6 +587,15 @@ else {
 	    fwrite($fp, "0");
 	}
 	fwrite($fp, "</value></attribute>\n");
+	fwrite($fp, "<attribute name='profile_disabled'><value>");
+	if (isset($formfields["profile_disabled"]) &&
+	    $formfields["profile_disabled"] == "checked") {
+	    fwrite($fp, "1");
+	}
+	else {
+	    fwrite($fp, "0");
+	}
+	fwrite($fp, "</value></attribute>\n");
     }
     fwrite($fp, "</profile>\n");
     fclose($fp);
@@ -577,9 +614,12 @@ if ($action == "edit") {
 }
 else {
     $command .= " create -t $webtask_id ";
-}
-if (isset($snapuuid)) {
-    $command .= " -s " . escapeshellarg($snapuuid);
+    if (isset($copyuuid)) {
+        $command .= "-c " . escapeshellarg($copyuuid);
+    }
+    elseif (isset($snapuuid)) {
+        $command .= "-s " . escapeshellarg($snapuuid);
+    }
 }
 $command .= " $xmlname";
 
@@ -605,6 +645,7 @@ if ($retval) {
 	    }
 	}
     }
+    $webtask->Delete();
 }
 unlink($xmlname);
 if (count($errors)) {
@@ -612,15 +653,26 @@ if (count($errors)) {
     return;
 }
 
+#
+# Need the index to pass back through. But when its an edit operation,
+# we have to let the backend tell us it created a new version, since
+# we want to return to that.
+#
+if ($action == "edit") {
+    $webtask->Refresh();
+    if ($webtask->TaskValue("newProfile")) {
+        $profile = Profile::Lookup($webtask->TaskValue("newProfile"));
+    }
+}
+else {
+    $profile = Profile::LookupByName($project, $formfields["profile_name"]);
+}
+
 # Done with this, unless doing a snapshot (needed for imaging status).
 if (!isset($snapuuid)) {
     $webtask->Delete();
 }
 
-#
-# Need the index to pass back through.
-#
-$profile = Profile::LookupByName($project, $formfields["profile_name"]);
 if ($profile) {
     $uuid = $profile->uuid();
 }
