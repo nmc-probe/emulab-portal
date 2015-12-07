@@ -2422,8 +2422,12 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     }
 
     # Allocate any public address pools.
-    if( $slice_experiment->AllocatePublicAddrPools() < 0 ) {
-	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+    my $tmp = $slice_experiment->AllocatePublicAddrPools();
+    if ($tmp) {
+	$response =
+	    GeniResponse->Create(($tmp < 0 ?
+				  GENIRESPONSE_ERROR : GENIRESPONSE_NO_MAPPING),
+				 undef,
 				 "Could not allocate public address pools");
 	goto bad;
     }
