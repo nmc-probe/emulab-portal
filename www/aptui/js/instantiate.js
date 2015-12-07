@@ -5,7 +5,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
 	 'js/lib/text!template/waitwait-modal.html',
-         'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
+	 'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
 function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	  instantiateString, aboutaptString, aboutcloudString, waitwaitString)
 {
@@ -15,6 +15,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var amlist        = null;
     var projlist      = null;
     var profilelist   = null;
+    var recentcount   = 5;
     var amdefault     = null;
     var selected_uuid = null;
     var selected_rspec = null;
@@ -44,7 +45,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     {
     // Get context for constraints
 	var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
-        $.get(contextUrl).then(contextReady, contextFail);
+	$.get(contextUrl).then(contextReady, contextFail);
 
 	window.APT_OPTIONS.initialize(sup);
 	window.APT_OPTIONS.initialize(ppstart);
@@ -67,17 +68,26 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    projlist = decodejson('#projects-json');
 	}
 	profilelist = decodejson('#profiles-json');
+	var recentlist = decodefirstn('#profiles-json', recentcount);
+	var projcategories = MakeProfileCategories(profilelist);
+
+	console.log(profilelist);
 
 	var html = mainTemplate({
-	    formfields:		decodejson('#form-json'),
+	    formfields:         decodejson('#form-json'),
 	    profiles:           profilelist,
+	    projprofiles:       projcategories.inproj,
+	    otherprofiles:      projcategories.otherproj,
+	    recent:             recentlist,
+	    showpopular:        (_.where(_.values(recentlist),{usecount: 0}).length == recentlist.length),
+	    favorites:          projcategories.favorite,
 	    projects:           projlist,
-	    amlist:		amlist,
-	    registered:		registered,
+	    amlist:             amlist,
+	    registered:         registered,
 	    profilename:        window.PROFILENAME,
 	    profileuuid:        window.PROFILEUUID,
-	    showpicker:		showpicker,
-	    cancopy:		window.CANCOPY,
+	    showpicker:         showpicker,
+	    cancopy:            window.CANCOPY,
 	    clustername:        (window.ISCLOUD ? "CloudLab" : "APT"),
 	});
 	$('#main-body').html(html);
@@ -128,9 +138,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		SwitchJacks('large');
 	});
 
-        $('#quickvm_topomodal').on('shown.bs.modal', function() {
-            ShowProfileSelection($('#profile_name .current'))
-        });
+	$('#quickvm_topomodal').on('shown.bs.modal', function() {
+	    ShowProfileSelection($('#profile_name .current'))
+	});
 
 	$('button#reset-form').click(function (event) {
 	    event.preventDefault();
@@ -197,7 +207,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    profile_picker_timeout =
 		window.setTimeout(function() {
 		    var matches = 
-			options.children("li").filter(function() {
+			options.children("ul").children("li").filter(function() {
 			    var text = $(this).text();
 			    text = text.toLowerCase();
 
@@ -205,8 +215,21 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				return true;
 			    return false;
 			});
-		    options.children("li").hide();
+		    options.children("ul").children("li").hide();
 		    matches.show();
+		    console.log(userInput);
+		    if (userInput == '') {
+			$('#title_recently_used').removeClass('hidden');
+			$('#recently_used').removeClass('hidden');
+			$('#title_favorites').removeClass('hidden');
+			$('#favorites').removeClass('hidden');
+		    }
+		    else {
+			$('#title_recently_used').addClass('hidden');
+			$('#recently_used').addClass('hidden');
+			$('#title_favorites').addClass('hidden');
+			$('#favorites').addClass('hidden');
+		    }
 		}, 500);
 
 	    // User types return while searching, if there was only one
@@ -240,14 +263,68 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    });
 	}
 	    
-	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
-        ChangeProfileSelection(startProfile);
+	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']:first');
+	console.log(startProfile);
+	ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
+
+	$('#profile_name > span').click(function() {
+	    var ul = '#'+($(this).attr('id').slice('title-'.length));
+	    if ($(this).children('.category_collapsable').hasClass('expanded')) {
+		$(ul).addClass('hidden');
+		$(this).children('.category_collapsable').removeClass('expanded');
+	    }
+	    else {
+		$(ul).removeClass('hidden');
+		$(this).children('.category_collapsable').addClass('expanded');
+	    }
+	});
     }
 
     // Helper.
     function decodejson(id) {
 	return JSON.parse(_.unescape($(id)[0].textContent));
+    }
+
+    function decodefirstn(id, n) {
+	var json = $(id)[0].textContent;
+	console.log(json);
+	json = json.slice(2,json.length-1);
+	var split = json.split('},');
+	if (split.length > 1) { 
+	  json = "";
+	  for (var i = 0; i < n; i++) {
+	    if (split[i]) {
+	      if (i > 0) {
+		json += ',';
+	      }
+	      json += split[i]+'}';
+	    }
+	  }
+	}
+
+	return JSON.parse(_.unescape('{'+json+'}'));
+    }
+
+    // Put profiles into the correct categories to be built in the template
+    function MakeProfileCategories(profiles) {
+      var result = {favorite:{},inproj:{},otherproj:{}};
+
+      _.each(profilelist, function(obj, key) {
+	    if (obj.favorite == 1) {
+	      result.favorite[key] = obj;
+	    }
+	    if (_.contains(projlist,obj.project)) {
+	      if (!result.inproj[obj.project]) {
+		result.inproj[obj.project] = {};
+	      }
+	      result.inproj[obj.project][key] = obj;
+	    }
+	    else {
+	      result.otherproj[key] = obj;
+	    }
+	});
+      return result;
     }
 
     var doingformcheck = 0;
@@ -282,7 +359,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 			isadmin      : isadmin,
 			callback     : ConfigureDone,
 			rspec        : null,
-		        multisite    : multisite
+			multisite    : multisite
 		    });
 		    loaded_uuid = selected_uuid;
 		    ppchanged = true;
@@ -488,7 +565,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 			ShowFormErrors(json.value);
 			return;
 		    }
-		    sup.SpitOops("oops", json.value);		    
+		    sup.SpitOops("oops", json.value);               
 		}
 		/*
 		 * The return value will have a redirect url in it,
@@ -595,28 +672,28 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     
     function CreateClusterStatus() {
 	//console.log("CreateClusterStatus", monitor);
-    	if (monitor == null || $.isEmptyObject(monitor)) {
-    	    return;
-    	}
+	if (monitor == null || $.isEmptyObject(monitor)) {
+	    return;
+	}
 
-    	$('#finalize_options .cluster-group').each(function() {
+	$('#finalize_options .cluster-group').each(function() {
 	    if ($(this).hasClass("pickered")) {
 		return;
 	    }
 	    $(this).addClass("pickered");
 	    
-            var resourceTypes = ["PC"];
-            // Have to do look this up based off of the site name since that's 
-            // the only hook Jacks is giving.
-            var label = $(this).find('.control-label').attr('name');
-            if (types && label && types[label]) {
-                if (types[label]['emulab-xen']) {
-                    if (Object.keys(types[label]).length == 1) {
-                        resourceTypes = [];
-                    }
-                    resourceTypes.push("VM");
-                }
-            }
+	    var resourceTypes = ["PC"];
+	    // Have to do look this up based off of the site name since that's 
+	    // the only hook Jacks is giving.
+	    var label = $(this).find('.control-label').attr('name');
+	    if (types && label && types[label]) {
+		if (types[label]['emulab-xen']) {
+		    if (Object.keys(types[label]).length == 1) {
+			resourceTypes = [];
+		    }
+		    resourceTypes.push("VM");
+		}
+	    }
 	    var which = $(this).parent().attr('id');
 
 	    var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'), window.FEDERATEDLIST);
@@ -625,8 +702,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $('#'+which+' select.form-control').addClass('hidden');
 
 	    html.find('.dropdown-menu a').on('click', function() {    
-	    	wt.StatusClickEvent(html, this);
-	    	$('#'+which+' .form-control').val($('#'+which+' .cluster_picker_status .value').html()); 
+		wt.StatusClickEvent(html, this);
+		$('#'+which+' .form-control').val($('#'+which+' .cluster_picker_status .value').html()); 
 	    });
 
 	    _.each(amlist, function(name, key) {
@@ -645,38 +722,38 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		}
 	    });
 
-            var sort = function (a, b) {
-                var aHealth = Math.ceil((+a.dataset.health)/50);
-                var bHealth = Math.ceil((+b.dataset.health)/50);
+	    var sort = function (a, b) {
+		var aHealth = Math.ceil((+a.dataset.health)/50);
+		var bHealth = Math.ceil((+b.dataset.health)/50);
 
-                if (aHealth > bHealth) {
-                    return -1;
-                }
-                else if (aHealth < bHealth) {
-                    return 1;
-                }
-                return +b.dataset.rating - +a.dataset.rating;
-            };
+		if (aHealth > bHealth) {
+		    return -1;
+		}
+		else if (aHealth < bHealth) {
+		    return 1;
+		}
+		return +b.dataset.rating - +a.dataset.rating;
+	    };
 
 	    $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.native').sort(sort).prependTo($('#'+which+' .cluster_picker_status .dropdown-menu'));
-            $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('#'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
+	    $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('#'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
 
-            var pickerStatus = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a');
-            if (pickerStatus.length == 2) {
-            	pickerStatus[1].click();
-            }
-            else {
-	    	pickerStatus[0].click();
-            }
-    	});
+	    var pickerStatus = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a');
+	    if (pickerStatus.length == 2) {
+		pickerStatus[1].click();
+	    }
+	    else {
+		pickerStatus[0].click();
+	    }
+	});
 	
 	$('[data-toggle="tooltip"]').tooltip();
     }
 
     function SwitchJacks(which) {
-    	if (which == 'small' && $('#stepsContainer-p-2 #inline_jacks').html() == '') {
+	if (which == 'small' && $('#stepsContainer-p-2 #inline_jacks').html() == '') {
 			$('#stepsContainer #finalize_container').removeClass('col-lg-12 col-md-12 col-sm-12');
-    		$('#stepsContainer #finalize_container').addClass('col-lg-8 col-md-8 col-sm-8');
+		$('#stepsContainer #finalize_container').addClass('col-lg-8 col-md-8 col-sm-8');
 			$('#stepsContainer #inline_large_jacks').html('');
 			$('#inline_large_container').addClass('hidden');
 			if (ispprofile) {
@@ -686,22 +763,22 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				ShowProfileSelectionInline($('#profile_name .current'), $('#stepsContainer-p-2 #inline_jacks'), true);
 			}
 			$('#stepsContainer-p-2 #inline_container').removeClass('hidden');
-    	}
-    	else if (which == 'large') {
-    		// Sometimes the steps library will clean up the added elements
-    		if ($('#inline_large_container').length === 0) {	
-	    		$('<div id="inline_large_container" class="hidden"></div>').insertAfter('#stepsContainer .content');
+	}
+	else if (which == 'large') {
+		// Sometimes the steps library will clean up the added elements
+		if ($('#inline_large_container').length === 0) {        
+			$('<div id="inline_large_container" class="hidden"></div>').insertAfter('#stepsContainer .content');
 				$('#inline_large_container').html(''
 					+'<button id="closeLargeInline" type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>'
 					+'<div id="inline_large_jacks"></div>');
 				$('#stepsContainer #inline_large_container').addClass('col-lg-8 col-lg-offset-2 col-md-8 col-md-offset-2 col-sm-10 col-sm-offset-1 col-xs-12 col-xs-offset-0');
-    		
+		
 				$('#closeLargeInline').click(function() {
 					SwitchJacks('small');
 				});
-    		}
+		}
 
-    		$('#stepsContainer #finalize_container').removeClass('col-lg-8 col-md-8 col-sm-8');
+		$('#stepsContainer #finalize_container').removeClass('col-lg-8 col-md-8 col-sm-8');
 			$('#stepsContainer #finalize_container').addClass('col-lg-12 col-md-12 col-sm-12');
 			$('#stepsContainer-p-2 #inline_jacks').html('');
 			$('#stepsContainer-p-2 #inline_container').addClass('hidden');
@@ -712,7 +789,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				ShowProfileSelectionInline($('#profile_name .current'), $('#stepsContainer #inline_large_jacks'), false);
 			}
 			$('#inline_large_container').removeClass('hidden');
-    	}
+	}
     }
 
     function resetForm($form) {
@@ -728,11 +805,65 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	}
 	
 	var continuation = function(rspec, description, name, amdefault, ispp) {
-	    $('#showtopo_title').html("<h3>" + name + "</h3>");
+	    var profileInfo = profilelist[$(selectedElement).attr('value')]
+	    var isFavorite = profileInfo.favorite;
+
+	    // Add title name and favorite button
+	    $('#showtopo_title').html("<h3>" + name + "</h3>" +
+		"<button id='favorite_button' class='btn btn-default btn-sm'>" + 
+		"<span id='set_favorite' class='glyphicon glyphicon-star" + ((isFavorite == 1) ? " favorite" : "") + "'></span>" + 
+		"</button>");
+
+	    $('#showtopo_project').html(profileInfo.project);
 	    $('#showtopo_description').html(description);
+
 	    sup.maketopmap('#showtopo_div', rspec, false, !multisite);
+
+	    // Set favorite toggle click event
+	    $('#favorite_button').click(function() {
+		ToggleFavorite(selectedElement)}
+	    );
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
+    }
+    
+    function ToggleFavorite(target) {
+	var wasFav = profilelist[$(target).attr('value')].favorite;
+	var callback = function(e) {	
+	    if (wasFav) {
+		$('#set_favorite').removeClass('favorite');
+		profilelist[$(target).attr('value')].favorite = 0;
+		$('#favorites li[value='+$(target).attr('value')+']').remove();
+
+		// They were selected on the item in the favorites list, which was just removed
+		// Adjust their selection to the first instance of that profile.
+		if ($('#profile_name .selected').length == 0) {
+		    $('#profile_name li[value='+$(target).attr('value')+']')[0].click();
+		}
+
+		if ($('#favorites li').length == 0) {
+		    $('#title_favorites').addClass('hidden');
+		}
+	    }
+	    else {
+		$('#set_favorite').addClass('favorite');
+		profilelist[$(target).attr('value')].favorite = 1;
+
+		var clone = $(target).clone();
+		$(clone).removeClass('selected');
+		$('#favorites').append(clone);
+		$(clone).click(function (event) {
+		    event.preventDefault();
+		    ShowProfileSelection(event.target);
+		});
+
+		$('#title_favorites').removeClass('hidden');
+	    }
+	}
+	var $xmlthing = sup.CallServerMethod(ajaxurl,
+					     "instantiate", (wasFav ? "ClearFavorite" : "MarkFavorite"),
+					     {"uuid" : $(target).attr('value')});
+	$xmlthing.done(callback);
     }
 
     // Used to generate the topology on Tab 3 of the wizard for non-pp profiles
@@ -756,7 +887,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $(selectedElement).addClass('current');
 	}
 
-	var profile_name = $(selectedElement).text();
+	var profile_name = $(selectedElement).attr('name');
 	var profile_value = $(selectedElement).attr('value');
 	$('#selected_profile').attr('value', profile_value);
 	$('#selected_profile_text').html("" + profile_name);
@@ -781,7 +912,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		// Find and select new option.
 		$('#profile_where option')
 		    .filter('[value="'+ amdefault + '"]')
-                    .prop('selected', true);		
+		    .prop('selected', true);            
 	    }
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
@@ -856,7 +987,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	var html   = "";
 	var bound  = 0;
 	var count  = 0;
-        sites = {};
+	sites = {};
 
 	//console.info("CreateAggregateSelectors");
 
@@ -964,7 +1095,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
 	$("#cluster_selector").html("");
 	$("#cluster_selector").html(html);
-	updateWhere();	
+	updateWhere();  
 	CreateClusterStatus();
 	$("#cluster_selector").removeClass("hidden");
     }
@@ -1034,10 +1165,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     function onFoundTypes(t) 
     {
-        types = {};
-        _.each(t, function(item) {
-            types[item.name] = item.types;
-        });
+	types = {};
+	_.each(t, function(item) {
+	    types[item.name] = item.types;
+	});
     }
 
     /*
@@ -1062,7 +1193,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    constraints.addPossibles({ images: foundImages });
 	    allowWithSites(json.value[0].images, json.value[0].constraints);
 	    CreateAggregateSelectors(selected_rspec);
-            $('#stepsContainer .actions a[href="#finish"]')
+	    $('#stepsContainer .actions a[href="#finish"]')
 		.removeAttr('disabled');
 	};
 	/*
@@ -1073,7 +1204,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				 "instantiate", "GetImageInfo",
 				 {"images"  : foundImages,
 				  "project" : $('#project_selector #profile_pid')
-				                  .val()});
+						  .val()});
 	$xmlthing.done(callback);
 	return true;
     }
@@ -1154,8 +1285,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     function contextFail(fail1, fail2)
     {
-        console.log('Failed to fetch context', fail1, fail2);
-        alert('Failed to fetch context from ' + contextUrl + '\n\n' + 'Check your network connection and try again or contact testbed support with this message and the URL of this webpage.');
+	console.log('Failed to fetch context', fail1, fail2);
+	alert('Failed to fetch context from ' + contextUrl + '\n\n' + 'Check your network connection and try again or contact testbed support with this message and the URL of this webpage.');
     }
 
     function updateWhere()
@@ -1205,9 +1336,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
       if (0) {
 	console.info("updateSiteConstraints");
 	console.info(domNode);
-        console.info(bound);
-        console.info(allowed);
-        console.info(rejected);
+	console.info(bound);
+	console.info(allowed);
+	console.info(rejected);
       }
 	
       if (allowed.length == 0)
