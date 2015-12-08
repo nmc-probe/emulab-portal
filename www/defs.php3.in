@@ -682,7 +682,7 @@ function SetDomainDefs()
 {
     global $WWWHOST, $OURDOMAIN, $WWW, $THISHOMEBASE, $TBAUTHDOMAIN, $TBBASE;
     global $TBDOCBASE, $TBWWW, $WIKINODE, $WIKIDOCURL, $TBMAINSITE, $FORUMURL;
-    global $ALTERNATE_DOMAINS, $FLAVOR, $DOMVIEW;
+    global $ALTERNATE_DOMAINS, $FLAVOR, $DOMVIEW, $ISALTDOMAIN;
 
     foreach ($ALTERNATE_DOMAINS as $altdom) {
 	list($dpat, $ovr) = $altdom;
