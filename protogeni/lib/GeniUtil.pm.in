@@ -63,6 +63,7 @@ my $USELOCALPROJ       = 0;
 my $PROTOGENI_LOCALUSER= @PROTOGENI_LOCALUSER@;
 my $WITHZFS            = @WITHZFS@;
 my $ZFS_NOEXPORT       = @ZFS_NOEXPORT@;
+my $WITHAMD            = @WITHAMD@;
 my $SUDO               = "/usr/local/bin/sudo";
 my $WAP                = "$TB/sbin/withadminprivs";
 my $NEWGROUP           = "$TB/bin/newgroup";
