@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -241,10 +241,9 @@ print "Panic Button has been ". ($reset ? "cleared" : "pressed") . "\n";
 # Send email notification to user *and* to tbops.
 #
 SENDMAIL("$user_name <$user_email>",
-	 "Panic Button ". ($reset ? "Cleared" : "Pressed") .
-	    " for Experiment $pid/$eid",
-	 "$user_uid has " . ($reset ? "cleared" : "pressed") .
-	   " the panic button for experiment $pid/$eid",
+	 "Quarantine notification for Experiment $pid/$eid",
+	 "Experiment $pid/$eid has been ".
+	 ($reset ? "released from quarantine" : "quarantined") . "\n",
 	 "$user_name <$user_email>",
 	 "Cc:  $swapper_name <$swapper_email>\n".
 	 "Bcc: $TBOPS");
@@ -263,9 +262,9 @@ sub fatal($)
     # Send a message to the testbed list. Append the logfile.
     #
     SENDMAIL("$user_name <$user_email>",
-	     "Panic Button Failure for Experiment $pid/$eid",
-	     "$user_uid ". ($reset ? "cleared" : "pressed") .
-	       " the panic button for experiment $pid/$eid,\n".
+	     "Quarantine Failure for Experiment $pid/$eid",
+	     "$user_uid ". ($reset ? "cleared" : "set") .
+	       " Quarantine mode for experiment $pid/$eid,\n".
 	     "BUT there was a failure!\n\n".
 	     "$mesg\n",
 	     "$user_name <$user_email>",
