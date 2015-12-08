@@ -184,8 +184,17 @@ sub Install($$$)
 			      "/var/run/poolmonitor.pid",
 		      "$LOGDIR/lease_daemon.log       644  14   1000  *     Z ".
 		      "/var/run/lease_daemon.pid",
+		      "$LOGDIR/apache_access_log      644  7   10000  *    BZ ".
+			      "/var/run/httpd.pid",
+		      "$LOGDIR/apache_error_log       644  7   10000  *    BZ ".
+			      "/var/run/httpd.pid",
+		      "$LOGDIR/apache_ssl_engine_log  644  7   10000  *    BZ ".
+			      "/var/run/httpd.pid",
+		      "$LOGDIR/apache_ssl_request_log 644  7   10000  *    BZ ".
+			      "/var/run/httpd.pid",
+		      "$LOGDIR/apache_ssl_access_log  644  7   10000  *    BZ ".
+			      "/var/run/httpd.pid"
 		);
-			      
 	};
     };
 
