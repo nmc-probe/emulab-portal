@@ -114,22 +114,6 @@ MaxClients         150
 MaxRequestsPerChild  0
 </IfModule>
 
-# worker MPM
-# StartServers: initial number of server processes to start
-# MaxClients: maximum number of simultaneous client connections
-# MinSpareThreads: minimum number of worker threads which are kept spare
-# MaxSpareThreads: maximum number of worker threads which are kept spare
-# ThreadsPerChild: constant number of worker threads in each server process
-# MaxRequestsPerChild: maximum number of requests a server process serves
-<IfModule worker.c>
-StartServers         5
-MaxClients         150
-MinSpareThreads     15
-MaxSpareThreads     50 
-ThreadsPerChild     20
-MaxRequestsPerChild  0
-</IfModule>
-
 #
 # Listen: Allows you to bind Apache to specific IP addresses and/or
 # ports, in addition to the default. See also the <VirtualHost>
@@ -819,7 +803,7 @@ SSLVerifyDepth  10
 <Files ~ "\.(cgi|shtml|phtml|php3?)$">
     SSLOptions +StdEnvVars
 </Files>
-<Directory "/var/www/cgi-bin">
+<Directory "/usr/local/www/apache22/cgi-bin">
     SSLOptions +StdEnvVars
 </Directory>
 
@@ -997,7 +981,7 @@ SSLVerifyClient none
 <Files ~ "\.(cgi|shtml|phtml|php3?)$">
     SSLOptions +StdEnvVars
 </Files>
-<Directory "/var/www/cgi-bin">
+<Directory "/usr/local/www/apache22/cgi-bin">
     SSLOptions +StdEnvVars
 </Directory>
 
