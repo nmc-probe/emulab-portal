@@ -337,6 +337,20 @@ Phase "rcconf", "Updating $RCCONF", sub {
 		      "${APACHEPREFIX}_geni_configfile=\"$HTTPD_GENI_CONF\"",
 		      "${APACHEPREFIX}_geni_enable=\"YES\"");
 };
+Phase "newsyslog", "Updating $NEWSYSLOG_CONF", sub {
+    DoneIfEdited($NEWSYSLOG_CONF);
+    AppendToFileFatal($NEWSYSLOG_CONF,
+	      "$LOGDIR/apache_access_log.geni      644  7   10000  *    BZ ".
+		      "/var/run/httpd-geni.pid",
+	      "$LOGDIR/apache_error_log.geni       644  7   10000  *    BZ ".
+		      "/var/run/httpd-geni.pid",
+	      "$LOGDIR/apache_ssl_engine_log.geni  644  7   10000  *    BZ ".
+		      "/var/run/httpd-geni.pid",
+	      "$LOGDIR/apache_ssl_request_log.geni 644  7   10000  *    BZ ".
+		      "/var/run/httpd-geni.pid",
+	      "$LOGDIR/apache_ssl_access_log.geni  644  7   10000  *    BZ ".
+		      "/var/run/httpd-geni.pid");
+};
 
 #
 # user/project that slices (experiments) belong to.
