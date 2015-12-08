@@ -59,6 +59,7 @@ my $TBBASE      = "@TBBASE@";
 my $TBWWW       = "@TBWWW@";
 my $WITHZFS     = @WITHZFS@;
 my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
+my $WITHAMD     = @WITHAMD@;
 my $SSH         = "$TB/bin/sshtb";
 my $ADDMMLIST   = "$TB/sbin/addmmlist";
 my $OPSDBCONTROL= "$TB/sbin/opsdb_control";
@@ -225,6 +226,16 @@ if ($WITHZFS) {
 	$project->BumpActivity();
 	system($EXPORTSSETUP) == 0 or
 	    fatal("$EXPORTSSETUP failed");
+    } elsif (!$WITHAMD) {
+	#
+	# If we are using autofs, we need to recreate the local autofs
+	# mapfile so it includes the newly created directories. Otherwise,
+	# accesses to those new directories will not force a mount and
+	# the waitForMount() calls below will always fail.
+	#
+	$project->BumpActivity();
+	system("$EXPORTSSETUP -B") == 0 or
+	    fatal("$EXPORTSSETUP -B failed");
     }
     
     #
