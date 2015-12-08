@@ -311,6 +311,7 @@ AC_SUBST(INCREMENTAL_MOUNTD)
 AC_SUBST(WITHAMD)
 AC_SUBST(AMD_ROOT)
 AC_SUBST(BS_IQN_PREFIX)
+AC_SUBST(ATTENUATOR)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -472,6 +473,7 @@ INCREMENTAL_MOUNTD=0
 WITHAMD=0
 AMD_ROOT=/.amd_mnt
 BS_IQN_PREFIX=iqn.2000-10.net.emulab
+ATTENUATOR=""
 
 #
 # XXX You really don't want to change these!
@@ -1334,6 +1336,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/remove_old_www utils/epmodeset \
 	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
 	utils/mktestbedtest utils/pxelinux_makeconf \
+	utils/addvpubaddr utils/attend utils/atten \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \

@@ -194,3 +194,6 @@ INCREMENTAL_MOUNTD=1
 
 # Blockstores
 BS_IQN_PREFIX=iqn.2000-10.net.emulab
+
+# Programmable RF attenuator (for PhantomNet).
+ATTENUATOR=patten1
