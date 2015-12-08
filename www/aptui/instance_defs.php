@@ -138,6 +138,7 @@ class Instance
     function profile_version() { return $this->field('profile_version'); }
     function status()	    { return $this->field('status'); }
     function canceled()	    { return $this->field('canceled'); }
+    function paniced()	    { return $this->field('paniced'); }
     function pid()	    { return $this->field('pid'); }
     function pid_idx()	    { return $this->field('pid_idx'); }
     function public_url()   { return $this->field('public_url'); }

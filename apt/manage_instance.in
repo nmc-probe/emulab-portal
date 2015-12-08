@@ -45,6 +45,7 @@ sub usage()
     print("Usage: manage_instance reload instance node_id [node_id ...]\n");
     print("Usage: manage_instance monitor instance\n");
     print("Usage: manage_instance lockdown instance set|clear user|admin\n");
+    print("Usage: manage_instance panic instance set|clear\n");
     print("Usage: manage_instance writecreds instance directory\n");
     exit(-1);
 }
@@ -105,6 +106,7 @@ sub DoRefresh();
 sub DoReboot();
 sub DoReload();
 sub DoLockdown();
+sub DoPanic();
 sub DoManifests();
 sub WriteCredentials();
 sub StartMonitor();
@@ -167,6 +169,9 @@ elsif ($action eq "monitor") {
 }
 elsif ($action eq "lockdown") {
     DoLockdown()
+}
+elsif ($action eq "panic") {
+    DoPanic()
 }
 elsif ($action eq "writecreds") {
     WriteCredentials()
@@ -1646,7 +1651,7 @@ sub StartMonitorInternal(;$)
 	if (kill(0, $pid)) {
 	    print STDERR "Monitor already running ($pid). ".
 		"Kill it before starting a new one.\n";
-	    exit(0);
+	    return 1;
 	}
 	$instance->Update({"monitor_pid" => 0});
     }
@@ -1662,9 +1667,9 @@ sub StartMonitorInternal(;$)
     # We just did the operation, no need to ask so soon, and we
     # avoid locking the slice in case the user wants to reboot
     # another node right away. For reboot/reload, nothing interesting
-    # is going to be reported for at least 30 seconds (XEN VM).
+    # is going to be reported for a while.
     #
-    sleep(30);
+    sleep(15);
     
     my $seconds  = ($waitforstartup ? 7200 : 900);
     my $interval = 15;
@@ -1885,6 +1890,91 @@ sub DoLockdown()
     }
     $slice->UnLock();
     exit(0);
+}
+
+sub DoPanic()
+{
+    my $emsg;
+    
+    usage()
+	if (@ARGV != 1);
+    
+    my $setclr = shift(@ARGV);
+    fatal("Must specify either 'set' or 'clear'")
+	if ($setclr !~ /^(set|clear)$/);
+
+    my $slice = $instance->GetGeniSlice();
+    if (!defined($slice)) {
+	fatal("No slice for instance");
+    }
+    if ($slice->Lock()) {
+	fatal("Experiment is busy, cannot lock it. Please try again later");
+    }
+    #
+    # Create the webtask object, but AFTER locking the slice so we do
+    # not destroy one in use.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
+    #
+    # And tell the backend clusters to lockdown the slice.
+    #
+    my $coderef = sub {
+	my ($sliver) = @_;
+	my $webtask  = $sliver->webtask();
+
+	my $response = $sliver->Panic(($setclr eq "clear" ? 1 : 0));
+	if (!defined($response)) {
+	    print STDERR "RPC Error calling Panic\n";
+	    return -1;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    print STDERR "Could not panic sliver: ".
+		$response->output() . "\n";
+	    return -1;
+	}
+	# Tell the web interface something is different. Real status will
+	# come later when the monitor starts up. 
+	if ($webtask->sliverstatus()) {
+	    my $blob = $webtask->sliverstatus();
+	    foreach my $node_id (keys(%{ $blob })) {
+		$blob->{$node_id}->{'status'} = "changing";
+	    }
+	    $webtask->sliverstatus($blob);
+	}
+	return 0;
+    };
+    my @return_codes = ();
+    my @agglist =      $instance->AggregateList();
+    if (ParRun({"maxwaittime" => 99999,
+		"maxchildren" => scalar(@agglist)},
+	       \@return_codes, $coderef, @agglist)) {
+	$emsg = "Internal error calling Lockdown()";
+	goto bad;
+    }
+    #
+    # Check the exit codes. 
+    #
+    foreach my $code (@return_codes) {
+	if ($code) {
+	    print STDERR "Some slivers could not be paniced";
+	    goto bad;
+	}
+    }
+    if ($instance->SetPanic(($setclr eq "clear" ? 1 : 0))) {
+	$emsg  = "Could not update instance panic flag";
+	goto bad;
+    }
+    StartMonitorInternal();
+    $slice->UnLock();
+    exit(0);
+  bad:
+    $slice->UnLock();
+    exit(-1);
 }
 
 #

@@ -487,6 +487,29 @@ sub SetLockdown($$$)
     return 0;
 }
 
+#
+# Set/Clear the panic flag.
+#
+sub SetPanic($$)
+{
+    my ($self,$clear) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $uuid  = $self->uuid();
+    my $value = ($clear ? 0 : 1);
+
+    DBQueryWarn("update apt_instances set paniced=${value} ".
+		(!$clear ? ",paniced_timestamp=now() " : "") .
+		"where uuid='$uuid'") or
+	return -1;
+
+    $self->{'INSTANCE'}->{"paniced"} = $value;
+    return 0;
+}
+
 # Return a URL for the status page.
 sub webURL($)
 {
@@ -1836,6 +1859,52 @@ sub Lockdown($$)
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context, "Lockdown", $args);
+    $slice->SetExpiration($oldexpires)
+	if (defined($oldexpires));
+    return $response;
+  bad:
+    $slice->SetExpiration($oldexpires)
+	if (defined($oldexpires));
+    return undef;
+}
+
+#
+# Panic
+#
+sub Panic($$)
+{
+    my ($self, $clear) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $slice     = $self->instance()->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    my $oldexpires;
+    return undef
+	if (! (defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    #
+    # If the slice is expired, then the credential we generate will
+    # not be valid. So extend the slice so we can clear the panic.
+    #
+    if ($clear && $slice->IsExpired()) {
+	$oldexpires = $slice->expires();
+	$slice->SetExpiration(time() + 3600);
+    }
+
+    my $slice_credential = APT_Geni::GenAuthCredential($slice);
+    goto bad
+	if (! defined($slice_credential));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"credentials" => [$slice_credential->asString()],
+    };
+    $args->{"clear"} = 1
+	if ($clear);
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+
+    my $response = Genixmlrpc::CallMethod($cmurl, $context, "Panic", $args);
     $slice->SetExpiration($oldexpires)
 	if (defined($oldexpires));
     return $response;

@@ -179,6 +179,7 @@ $extension_history= ($instance->extension_history() ?
                     CleanString($instance->extension_history()) : "");
 $freenodes_url   = $freenodes_mapping[$instance->aggregate_urn()];
 $lockout         = $instance->extension_lockout();
+$paniced         = $instance->paniced();
 
 #
 # We give ssh to the creator (real user or guest user).
@@ -235,6 +236,7 @@ echo "  window.APT_OPTIONS.ispprofile = $ispprofile;\n";
 echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.lockout = $lockout;\n";
+echo "  window.APT_OPTIONS.paniced = $paniced;\n";
 echo "  window.APT_OPTIONS.extension_requested = " .
     $instance->extension_requested() . ";\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";

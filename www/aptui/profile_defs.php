@@ -516,7 +516,7 @@ class Profile
 
         if (!DBQueryWarn("replace into apt_profile_favorites set ".
                          "  uid='$user_uid',uid_idx='$user_idx', ".
-                         "  profileid='$profile_id',now()")) {
+                         "  profileid='$profile_id',marked=now()")) {
             return -1;
         }
         return 0;

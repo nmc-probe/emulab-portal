@@ -1132,6 +1132,69 @@ function Do_Lockout()
     SPITAJAX_RESPONSE("Success");
 }
 
+#
+# Handle Quarantine request/clear.
+#
+function Do_Quarantine()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($this_user) || !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    if (!isset($ajax_args["quarantine"])) {
+	SPITAJAX_ERROR(1, "Missing quarantine value");
+	return;
+    }
+    $which = ($ajax_args["quarantine"] ? "set" : "clear");
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "Unknown instance uuid");
+	return;
+    }
+
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC($this_user->uid(), "nobody",
+		     "webmanage_instance -t $webtask_id -- panic $uuid $which",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+        else {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    if ($webtask) {
+	$webtask->Delete();
+    }
+    SPITAJAX_RESPONSE("Success");
+}
+
 # Local Variables:
 # mode:php
 # End:
