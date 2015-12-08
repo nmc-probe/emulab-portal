@@ -194,6 +194,7 @@ $RSS_HEADER_PNNEWS =
 # virtual domain.  We include a site-dependent definitions file.
 #
 $ALTERNATE_DOMAINS = array();
+$ISALTDOMAIN       = 0;
 $DOMVIEW           = NULL;
 $altdomfile = strtolower("alternate_domains_${OURDOMAIN}.php");
 if (file_exists($altdomfile)) {
@@ -686,6 +687,7 @@ function SetDomainDefs()
     foreach ($ALTERNATE_DOMAINS as $altdom) {
 	list($dpat, $ovr) = $altdom;
 	if (preg_match($dpat, $_SERVER['SERVER_NAME']) == 1) {
+	    $ISALTDOMAIN  = 1;
 	    # Replacement defs derived from the virtual domain itself.
 	    $WWWHOST	  = $_SERVER['SERVER_NAME'];
 	    $OURDOMAIN    = implode(".", array_slice(explode(".",$WWWHOST),1));

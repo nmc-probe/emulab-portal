@@ -110,7 +110,7 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
 	$APTBASE .= "/" . $matches[1];
     }
 }
-elseif ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.phantomnet.org") {
+elseif ($ISALTDOMAIN && $_SERVER["SERVER_NAME"] == "www.phantomnet.org") {
     $ISVSERVER    = 1;
     $TBAUTHDOMAIN = ".phantomnet.org";
     $COOKDIEDOMAIN= "www.phantomnet.org";
