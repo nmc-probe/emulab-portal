@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -48,7 +48,6 @@ my $partial = 0;
 #
 my $TB          = "@prefix@";
 my $consetup    = "$TB/libexec/console_setup";
-my $exportsetup = "$TB/sbin/exports_setup";
 my $makeconf    = "$TB/sbin/dhcpd_makeconf";
 
 #

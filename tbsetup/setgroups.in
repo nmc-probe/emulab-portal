@@ -65,12 +65,9 @@ my $ELABINELAB    = @ELABINELAB@;
 my $WIKISUPPORT   = @WIKISUPPORT@;
 my $BUGDBSUPPORT  = @BUGDBSUPPORT@;
 my $OPSDBSUPPORT  = @OPSDBSUPPORT@;
-my $WITHZFS       = @WITHZFS@;
-my $ZFS_NOEXPORT  = @ZFS_NOEXPORT@;
 my $SETWIKIGROUPS = "$TB/sbin/setwikigroups";
 my $SETBUGDBGROUPS= "$TB/sbin/setbugdbgroups";
 my $OPSDBCONTROL  = "$TB/sbin/opsdb_control";
-my $EXPORTSSETUP  = "$TB/sbin/exports_setup";
 my $ACCOUNTPROXY  = "$TB/sbin/accountsetup";
 
 my $SSH     = "$TB/bin/sshtb";
