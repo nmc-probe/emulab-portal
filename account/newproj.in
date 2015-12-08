@@ -227,7 +227,8 @@ fatal($@)
 if (exists($xmlparse->{'attribute'}->{"genesis"})) {
     $genesis = $xmlparse->{'attribute'}->{"genesis"}->{'value'};
     delete($xmlparse->{'attribute'}->{"genesis"});
-    if (! ($genesis eq "aptlab" || $genesis eq "cloudlab")) {
+    if (! ($genesis eq "aptlab" || $genesis eq "cloudlab" || 
+	   $genesis eq "phantomnet")) {
 	fatal("Bad genesis: $genesis");
     }
 }
@@ -374,7 +375,7 @@ exit(0)
 my $new_pid = $newproj_args{'pid'};
 delete($newproj_args{'pid'});
 delete($newproj_args{'head_uid'});
-# Genesis (APT or Cloud)
+# Genesis (APT, CloudLab, or PhantomNet)
 $newproj_args{'genesis'} = $genesis
     if (defined($genesis));
 

@@ -215,7 +215,8 @@ print STDERR Dumper($xmlparse)
 if (exists($xmlparse->{'attribute'}->{"genesis"})) {
     $genesis = $xmlparse->{'attribute'}->{"genesis"}->{'value'};
     delete($xmlparse->{'attribute'}->{"genesis"});
-    if (! ($genesis eq "aptlab" || $genesis eq "cloudlab")) {
+    if (! ($genesis eq "aptlab" || $genesis eq "cloudlab" || 
+	   $genesis eq "phantomnet")) {
 	fatal("Bad genesis: $genesis");
     }
     # Remove these, we do not require them on the APT path.
@@ -434,7 +435,7 @@ if (exists($newuser_args{'uid'})) {
     $new_uid = $newuser_args{'uid'};
     delete($newuser_args{'uid'});
 }
-# Genesis (APT or Cloud)
+# Genesis (APT, CloudLab or PhantomNet)
 $newuser_args{'genesis'} = $genesis
     if (defined($genesis));
 
