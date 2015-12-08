@@ -402,7 +402,7 @@ function SPITFORM($formfields, $newuser, $errors)
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";
-    echo "<script src='js/lib/require.js?nocache=asdfasdf' data-main='js/instantiate?nocache=asdfasdf'></script>";
+    echo "<script src='js/lib/require.js?nocache=asdfasdf' data-main='js/instantiate.js?nocache=asdfasdf'></script>";
 }
 
 if (!isset($create)) {
