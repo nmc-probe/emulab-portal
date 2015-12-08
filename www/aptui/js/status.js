@@ -60,7 +60,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 	var errorURL = (window.ISCLOUD ?
 			"https://groups.google.com/d/forum/cloudlab-users" :
-			(windwow.ISPNET ? 
+			(window.ISPNET ? 
 			 "https://groups.google.com/d/forum/phantomnet-users" :
 			    "https://groups.google.com/d/forum/apt-users"));
 
