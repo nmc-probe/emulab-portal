@@ -256,11 +256,14 @@ function SendProjAdminMail($project, $from, $to,
     
     $projadminmail =
 	($project->isAPT() ? "aptlab-approval@aptlab.net" :
-	 $project->isCloud() ? "cloudlab-approval@cloudlab.us" :
-	 $TBMAIL_APPROVAL);
+	 ($project->isCloud() ? "cloudlab-approval@cloudlab.us" :
+	  ($project->isPNet() ? "phantomnet-approval@phantomnet.org" :
+	   $TBMAIL_APPROVAL)));
     $TBMAILTAG =
 	($project->isAPT() ? "aptlab.net" :
-	 $project->isCloud() ? "cloudlab.us" : $TBMAILTAG);
+	 ($project->isCloud() ? "cloudlab.us" : 
+	  ($project->isPNet() ? "phantomnet.org" :
+	   $TBMAILTAG)));
     if ($headers) {
         $headers .= "\n";
     }
@@ -686,7 +689,12 @@ function SetDomainDefs()
 	    # Replacement defs derived from the virtual domain itself.
 	    $WWWHOST	  = $_SERVER['SERVER_NAME'];
 	    $OURDOMAIN    = implode(".", array_slice(explode(".",$WWWHOST),1));
-	    $WWW	  = $WWWHOST;
+            # For devel trees
+	    if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
+	        $WWW      = $WWWHOST . "/" . $matches[1];
+	    } else {
+	        $WWW	  = $WWWHOST;
+	    }
 	    $TBAUTHDOMAIN = ".$OURDOMAIN";
 	    $TBBASE	  = "https://$WWWHOST";
 	    $TBDOCBASE	  = "http://$WWWHOST";

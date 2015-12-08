@@ -20,11 +20,13 @@ function (_, sup,
     var projectTemplate = _.template(projectString);
     var signupTemplate = _.template(signupString);
     var ISCLOUD = 0;
+    var ISPNET = 0;
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
 	ISCLOUD = window.ISCLOUD;
+	ISPNET  = window.ISPNET;
 	$('#toomany_div').html(toomanyString);
 
 	var fields = JSON.parse(_.unescape($('#form-json')[0].textContent));
@@ -77,7 +79,7 @@ function (_, sup,
 	var signup = signupTemplate({
 	    button_label: buttonLabel,
 	    general_error: (errors.error || ''),
-	    about_account: (ISCLOUD || thisUser ? null : about),
+	    about_account: (ISCLOUD || ISPNET || thisUser ? null : about),
 	    this_user: thisUser,
 	    promoting: promoting,
 	    joinproject: joinproject,

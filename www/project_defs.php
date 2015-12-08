@@ -166,6 +166,7 @@ class Project
     function genesis()	     { return $this->field("genesis"); }
     function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
     function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
+    function isPNet()	     { return $this->genesis() == "phantomnet" ? 1 : 0; }
     function IsNonLocal() {
 	return ($this->field("nonlocal_id") ? 1 : 0);
     }
@@ -174,20 +175,25 @@ class Project
 	global $TBWWW;
 	
 	return ($this->isAPT() ? "https://www.aptlab.net" :
-		$this->isCloud() ? "https://www.cloudlab.us" : $TBWWW);
+		($this->isCloud() ? "https://www.cloudlab.us" : 
+		 ($this->isPNet() ? "https://www.phantomnet.org" :
+		  $TBWWW)));
     }
     function ApprovalEmailAddress() {
 	global $TBMAIL_APPROVAL;
 
 	return ($this->isAPT() ? "aptlab-approval@aptlab.net" :
-		$this->isCloud() ? "cloudlab-approval@cloudlab.us" :
-		$TBMAIL_APPROVAL);
+		($this->isCloud() ? "cloudlab-approval@cloudlab.us" :
+		 ($this->isPNet() ? "phantomnet-approval@phantomnet.org" :
+		  $TBMAIL_APPROVAL)));
     }
     function EmailTag() {
 	global $THISHOMEBASE;
 	
 	return ($this->isAPT() ? "aptlab.net" :
-		$this->isCloud() ? "cloudlab.us" : $THISHOMEBASE);
+		($this->isCloud() ? "cloudlab.us" : 
+		 ($this->isPNet() ? "phantomnet.org" :
+		  $THISHOMEBASE)));
     }
 
     function unix_gid() {

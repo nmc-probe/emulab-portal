@@ -88,8 +88,10 @@ if (NOLOGINS()) {
 function SPITFORM($uid, $referrer, $error)
 {
     global $TBDB_UIDLEN, $TBBASE, $refer;
-    global $ISAPT, $ISCLOUD, $showguestlogin;
-    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.us") .
+    global $ISAPT, $ISCLOUD, $ISPNET, $showguestlogin;
+    $pwlab = ($ISAPT ? "Aptlab.net" : 
+	      ($ISCLOUD ? "CloudLab.us" :
+	       ($ISPNET ? "PhantomNet.org" : ""))) .
 	" or Emulab.net Username";
     
     header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");

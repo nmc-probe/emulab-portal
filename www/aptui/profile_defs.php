@@ -238,11 +238,11 @@ class Profile
     # URL. To the specific version of the profile.
     #
     function URL() {
-	global $APTBASE, $ISVSERVER, $ISCLOUD;
+        global $APTBASE, $ISVSERVER, $ISCLOUD, $ISPNET;
 	
 	$uuid = $this->uuid();
 
-	if ($this->ispublic() || ($ISCLOUD && $this->shared())) {
+	if ($this->ispublic() || (($ISCLOUD || $ISPNET) && $this->shared())) {
 	    $pid  = $this->pid();
 	    $name = $this->name();
 	    $vers = $this->version();
@@ -259,11 +259,11 @@ class Profile
     }
     # And the URL of the profile itself.
     function ProfileURL() {
-	global $APTBASE, $ISVSERVER, $ISCLOUD;
+        global $APTBASE, $ISVSERVER, $ISCLOUD, $ISPNET;
 	
 	$uuid = $this->profile_uuid();
 
-	if ($this->ispublic() || ($ISCLOUD && $this->shared())) {
+	if ($this->ispublic() || (($ISCLOUD || $ISPNET) && $this->shared())) {
 	    $pid  = $this->pid();
 	    $name = $this->name();
 	    if ($ISVSERVER)

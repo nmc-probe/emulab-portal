@@ -34,6 +34,7 @@ $APTLOGO        = "aptlogo.png";
 $APTSTYLE       = "apt.css";
 $ISAPT		= 1;
 $ISCLOUD        = 0;
+$ISPNET         = 0;
 $ISVSERVER      = 0;
 $GOOGLEUA       = 'UA-45161989-1';
 # See tbauth.php3
@@ -109,6 +110,30 @@ elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
 	$APTBASE .= "/" . $matches[1];
     }
 }
+elseif ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.phantomnet.org") {
+    $ISVSERVER    = 1;
+    $TBAUTHDOMAIN = ".phantomnet.org";
+    $COOKDIEDOMAIN= "www.phantomnet.org";
+    $APTHOST      = "www.phantomnet.org";
+    $WWWHOST      = "www.phantomnet.org";
+    $APTBASE      = "https://www.phantomnet.org";
+    $APTMAIL      = "PhantomNet Operations <portal-ops@phantomnet.org>";
+    $APTTITLE     = "PhantomNet";
+    $FAVICON      = "phantomnet.ico";
+    $APTLOGO      = "phantomlogo.png";
+    $APTSTYLE     = "phantomnet.css";
+    $ISAPT	  = 0;
+    $ISPNET       = 1;
+    #$GOOGLEUA     = 'UA-42844769-2';
+    $TBMAILTAG    = "phantomnet.org";
+    $EXTENSIONS   = "portal-extensions@phantomnet.org";
+    $TBAUTHTIMEOUT= (24 * 3600 * 14);
+    # For devel trees
+    if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
+	$APTBASE .= "/" . $matches[1];
+    }
+}
+
 # For backend scripts to know how they were invoked.
 if (isset($_SERVER['SERVER_NAME'])) { 
     putenv("SERVER_NAME=" . $_SERVER['SERVER_NAME']);
@@ -118,14 +143,15 @@ if (isset($_SERVER['SERVER_NAME'])) {
 # Redefine this so APT errors are styled properly. Called by PAGEERROR();.
 #
 $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
-    global $drewheader, $ISAPT, $spatrequired;
+    global $drewheader, $ISCLOUD, $ISPNET, $spatrequired;
 
     if (! $drewheader) {
 	SPITHEADER();
     }
     echo $msg;
     echo "<script type='text/javascript'>\n";
-    echo "    window.ISCLOUD = " . ($ISAPT ? "0" : "1") . ";\n";
+    echo "    window.ISCLOUD = " . ($ISCLOUD ? "1" : "0") . ";\n";
+    echo "    window.ISPNET  = " . ($ISPNET  ? "1" : "0") . ";\n";
     echo "</script>\n";
     if (!$spatrequired) {
 	echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
@@ -141,7 +167,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 				 $ignore2 = NULL, $ignore3 = NULL)
 {
     global $TBMAINSITE, $APTTITLE, $FAVICON, $APTLOGO, $APTSTYLE, $ISAPT;
-    global $GOOGLEUA, $ISCLOUD;
+    global $GOOGLEUA, $ISCLOUD, $ISPNET;
     global $login_user, $login_status;
     global $disable_accounts, $page_title, $drewheader, $embedded;
     $title = $APTTITLE;
@@ -175,9 +201,12 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
       </head>
     <body style='display: none;'>\n";
 
-    $manual = ($ISAPT ? "http://docs.aptlab.net" : "http://docs.cloudlab.us");
+    $manual = ($ISAPT ? "http://docs.aptlab.net" : 
+	       ($ISCLOUD ? "http://docs.cloudlab.us" : 
+		($ISPNET ? "http://wiki.phantomnet.org" : "")));
     echo "<script type='text/javascript'>\n";
-    echo "    window.ISCLOUD  = " . ($ISAPT ? "0" : "1") . ";\n";
+    echo "    window.ISCLOUD  = " . ($ISCLOUD ? "1" : "0") . ";\n";
+    echo "    window.ISPNET   = " . ($ISPNET  ? "1" : "0") . ";\n";
     echo "    window.MANUAL   = '$manual';\n";
     echo "    window.EMBEDDED = $embedded;\n";
     echo "</script>\n";
@@ -268,9 +297,13 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='http://docs.aptlab.net' target='_blank'>Manual</a></form></li>\n";
     }
-    if ($ISCLOUD) {
+    elseif ($ISCLOUD) {
 	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='http://docs.cloudlab.us' target='_blank'>Manual</a></form></li>\n";
+    }
+    elseif ($ISPNET) {
+	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
+                       href='http://wiki.phantomnet.org' target='_blank'>Wiki</a></form></li>\n";
     }
     if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
@@ -318,11 +351,14 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     # Put the special message, if any, right below the header. Note that the
     # negative margin is to put it flush below the navbar without having to
     # permanently remove the bottom margin on the navbar
-    if ($ISCLOUD) {
-        $message = TBGetSiteVar("cloudlab/message");
-    }
-    else {
+    if ($ISAPT) {
         $message = TBGetSiteVar("aptlab/message");
+    }
+    elseif ($ISCLOUD) {
+        $message = TBGetSiteVar("cloudlab/message");
+    } 
+    elseif ($ISPNET) {
+        $message = TBGetSiteVar("phantomnet/message");
     }
     if ($message != "") {
         echo "<div class='alert alert-warning alert-dismissible'
@@ -381,8 +417,10 @@ function SPITHEADER($thinheader = 0,
 }
 
 $PAGEFOOTER_FUNCTION = function($ignored = NULL) {
-    global $ISAPT, $embedded;
-    $groupname = ($ISAPT ? "apt-users" : "cloudlab-users");
+    global $ISAPT, $ISCLOUD, $ISPNET, $embedded;
+    $groupname = ($ISAPT ? "apt-users" : 
+		  ($ISCLOUD ? "cloudlab-users" : 
+		   ($ISPNET ? "phantomnet-users" : "")));
     
     echo "</div>
       </div>\n";
@@ -516,8 +554,10 @@ function SpitVerifyModal($id, $label)
 #
 function SpitLoginModal($id)
 {
-    global $APTTITLE, $ISAPT, $ISCLOUD;
-    $pwlab = ($ISAPT ? "Aptlab.net" : "CloudLab.us") .
+    global $APTTITLE, $ISAPT, $ISCLOUD, $ISPNET;
+    $pwlab = ($ISAPT ? "Aptlab.net" : 
+	      ($ISCLOUD ? "CloudLab.us" :
+	       ($ISPNET ? "PhantomNet.org" : ""))) .
 	" or Emulab.net Username";
     $pwlab = "$pwlab";
     $referrer = CleanString($_SERVER['REQUEST_URI']);
@@ -633,8 +673,10 @@ function SpitOopsModal($id)
 
 function SpitNSFModal()
 {
-    global $ISAPT;
-    $nsfnumber = ($ISAPT ? "CNS-1338155" : "CNS-1302688");
+    global $ISAPT, $ISCLOUD, $ISPNET;
+    $nsfnumber = ($ISAPT ? "CNS-1338155" : 
+		  ($ISCLOUD ? "CNS-1302688" :
+		   ($ISPNET ? "CNS-XXXXXXX" : "")));
     
     echo "<!-- This is the NSF Supported modal -->
           <div id='nsf_supported_modal' class='modal fade'>

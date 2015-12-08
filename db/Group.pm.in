@@ -944,7 +944,7 @@ sub SendJoinEmail($$)
 	"ZIP/Postal Code: $usr_zip\n".
 	"Country:         $usr_country\n";
 
-    if ($project->isAPT() || $project->isCloud()) {
+    if ($project->isAPT() || $project->isCloud() || $project->isPNet()) {
 	my $url = $project->wwwBase() . "/approveuser.php?uid=$uid&pid=$pid";
 	    
 	$message .=
@@ -1008,7 +1008,7 @@ sub SendApprovalEmail($$$)
 	"as a member of ";
     my $subject = "Membership Approved in '$pid/$gid'";
 
-    if ($project->isAPT() || $project->isCloud()) {
+    if ($project->isAPT() || $project->isCloud() || $project->isPNet()) {
 	my $helpurl  = $project->Brand()->UsersGroupURL();
 	
 	$message .= "project $pid.\n\n";
