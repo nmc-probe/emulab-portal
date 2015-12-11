@@ -7,6 +7,7 @@
 
 PORTNAME=	tftp-hpa
 PORTVERSION=	5.2
+PORTREVISION=	1
 #CATEGORIES=	net
 CATEGORIES=	misc
 MASTER_SITES=	http://www.emulab.net/distributions/
