@@ -1177,6 +1177,20 @@ sub Action($$$;$)
 		    if ($vnode->sharing_mode());
 		
 		#
+		# Taint the pnode if this vnode was tainted by its OS
+		# and is not on a shared host.  No user access already on
+		# the latter.
+		#
+		if (($vnode->IsTainted(TB_TAINTSTATE_USERONLY) ||
+		     $vnode->IsTainted(TB_TAINTSTATE_BLACKBOX))) {
+		    if ($node->AddTaintState(TB_TAINTSTATE_BLACKBOX)) {
+			$msg .= "Could not add blackbox taint state to ".
+			    "vnode host $node!\n";
+			goto bad;
+		    }
+		}
+		
+		#
 		# Now it gets messy. Do not want to mess with the physnode
 		# if its running other vnodes, and we just need to fire up
 		# a new one. But if the physnode is going to get rebooted,
