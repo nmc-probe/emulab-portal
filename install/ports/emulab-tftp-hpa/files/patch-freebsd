@@ -223,7 +223,7 @@ diff -rcN tftp-hpa-5.2.orig/tftpd/tftpd-hpa.sh tftp-hpa-5.2/tftpd/tftpd-hpa.sh
 + exit 0
 diff -rcN tftp-hpa-5.2.orig/tftpd/tftpd.c tftp-hpa-5.2/tftpd/tftpd.c
 *** tftp-hpa-5.2.orig/tftpd/tftpd.c	Sun Dec 11 15:13:52 2011
---- tftp-hpa-5.2/tftpd/tftpd.c	Mon Jun 29 16:35:35 2015
+--- tftp-hpa-5.2/tftpd/tftpd.c	Fri Dec 11 11:08:31 2015
 ***************
 *** 48,53 ****
 --- 48,54 ----
@@ -540,6 +540,23 @@ diff -rcN tftp-hpa-5.2.orig/tftpd/tftpd.c tftp-hpa-5.2/tftpd/tftpd.c
       }
   
       /* Child process: handle the actual request here */
+***************
+*** 938,944 ****
+         syslog daemon gets restarted by the time we get here. */
+      if (secure && standalone) {
+          closelog();
+!         openlog(__progname, LOG_PID | LOG_NDELAY, LOG_DAEMON);
+      }
+  
+  #ifdef HAVE_TCPWRAPPERS
+--- 1072,1078 ----
+         syslog daemon gets restarted by the time we get here. */
+      if (secure && standalone) {
+          closelog();
+!         openlog(__progname, LOG_PID | LOG_NDELAY, LOGFACIL);
+      }
+  
+  #ifdef HAVE_TCPWRAPPERS
 ***************
 *** 1119,1141 ****
                   exit(0);
