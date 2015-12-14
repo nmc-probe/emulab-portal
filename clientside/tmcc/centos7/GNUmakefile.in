@@ -81,25 +81,22 @@ dir-install:
 	@echo "dir-install"
 
 baselinux-%: dir-install
-	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) $(subst baselinux-,,$@))
+	# Tell ../linux/GNUMakefile.in that we want systemd files, not SYSV
+	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) USES_SYSTEMD=1 $(subst baselinux-,,$@))
 
 common-install:	dir-install
 	@echo "no centos-specific common files"
 
 bin-install:	dir-install
-	$(INSTALL) -m 755 $(SRCDIR)/../linux/emulab-systemd-swaps $(BINDIR)
-	@echo "centos7 systemd swap.service"
+	@echo "no centos-specific bin files"
 
 etc-install:	dir-install sysetc-remove sysetc-install
 	$(INSTALL) -m 755 $(SRCDIR)/rc.local $(RCDIR)/rc.local
-	$(INSTALL) -m 755 $(SRCDIR)/testbed $(RCDIR)/init.d/testbed
 	@echo "centos-specific etc-install done"
 
 sysetc-install:	ifcfgs dir-install
 	# Clean up stuff from the base linux install. Ick.
 	# See ntpd.service below.
-	rm -f $(RCDIR)/init.d/ntpd
-	rm -f $(DEFRUNLVLDIR)/S58ntpd
 	ln -sf /etc/dhclient-enter-hooks $(SYSETCDIR)/dhcp/
 	ln -sf /etc/dhclient-exit-hooks $(SYSETCDIR)/dhcp/
 	$(INSTALL) -m 644 $(SRCDIR)/ntp.conf $(SYSETCDIR)/ntp.conf
@@ -107,11 +104,10 @@ sysetc-install:	ifcfgs dir-install
 	$(INSTALL) -m 644 ifcfg-eth[0-9]* $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 744 $(SRCDIR)/ifup-emulabcnet $(SYSETCDIR)/sysconfig/network-scripts
 	$(INSTALL) -m 644 $(SRCDIR)/logrotate-syslog $(SYSETCDIR)/logrotate.d/syslog
-	$(INSTALL) -m 644 $(SRCDIR)/../linux/emulab-fstab-fixup.service $(SYSETCDIR)/systemd/system
 	$(INSTALL) -m 644 $(SRCDIR)/ntpd.service $(SYSETCDIR)/systemd/system
-	rm -f $(SYSETCDIR)/systemd/system/multi-user.target.wants/ntpd.service
-	systemctl enable emulab-fstab-fixup.service
-	systemctl enable ntpd.service
+	ln -sf $(SYSETCDIR)/systemd/system/ntpd.service \
+		$(SYSETCDIR)/systemd/system/multi-user.target.wants/ntpd.service
+	systemctl daemon-reload
 
 sysetc-remove:
 	rm -rf $(SYSETCDIR)/modules.conf $(SYSETCDIR)/ntp.conf $(SYSETCDIR)/cron.pend

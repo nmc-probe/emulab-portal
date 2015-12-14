@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -64,6 +64,14 @@ case "$1" in
 	# This stuff done from rc.local cause I cannot figure
 	# out a way to log to the console instead of messages.
 	# Note, /var/lock/subsys/testbed will be created at that time.
+	# BUT: if systemd is our init, rc.local DOES NOT kick this off; it gets
+	# done here!
+	if [ -f /etc/emulab/uses-systemd -a -f /usr/local/etc/emulab/rc/rc.testbed ] ; then
+	    mkdir -p /var/lock/subsys
+	    echo -n 'testbed config: '
+            /usr/local/etc/emulab/rc/rc.testbed
+	    touch /var/lock/subsys/testbed
+	fi
 	;;
   stop)
   	rm -f /var/lock/subsys/testbed /var/emulab/boot/controlif
