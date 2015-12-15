@@ -2263,6 +2263,7 @@ CREATE TABLE `images` (
   `uuid` varchar(40) NOT NULL default '',
   `nodelta` tinyint(1) NOT NULL default '0',
   `noversioning` tinyint(1) NOT NULL default '0',
+  `metadata_url` tinytext,
   `locked` datetime default NULL,
   `locker_pid` int(11) default '0',
   PRIMARY KEY  (`imageid`),

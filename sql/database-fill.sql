@@ -1078,6 +1078,7 @@ REPLACE INTO table_regex VALUES ('images','max_concurrent','text','redirect','de
 REPLACE INTO table_regex VALUES ('images','reboot_waittime','text','redirect','default:int',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','format','text','regex','^[-\\w]+$',1,8,NULL);
 REPLACE INTO table_regex VALUES ('images','hash','text','regex','^[\\w]+$',16,64,NULL);
+REPLACE INTO table_regex VALUES ('images','deltahash','text','regex','^[\\w]+$',16,64,NULL);
 REPLACE INTO `table_regex` VALUES ('images','size','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_low','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_high','int','redirect','default:bigint',0,0,NULL);
