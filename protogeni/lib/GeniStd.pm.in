@@ -301,6 +301,9 @@ sub CheckCredentials($;$)
 				      "Could not load speaker certificate");
 			goto bad;
 		    }
+		    # WARNING: be careful with this, this overrides the
+		    # authorized speaker in the speaksfor without any check!
+		    # You need to check it with ABAC if you do this!
 		    $speaksfor->SetOwnerCert($speaker_certificate);
 
 		    #
@@ -318,7 +321,17 @@ sub CheckCredentials($;$)
 				      "Could not load user certificate");
 			goto bad;
 		    }
+		    # WARNING: be careful with this, this overrides the
+		    # speakee in the speaksfor without any check!
+		    # You need to check it with ABAC if you do this!
 		    $speaksfor->SetTargetCert($speakee_certificate);
+
+		    # After the above, we MUST check everything with ABAC .
+		    $speaksfor = GeniCredential::ABAC::CheckCredential($speaksfor);
+		    if (GeniResponse::IsError($speaksfor)) {
+			$error = $speaksfor;
+			goto bad;
+		    }
 		}
 		$speaksfor = GeniCredential::CheckCredential($speaksfor);
 		if (GeniResponse::IsError($speaksfor)) {
