@@ -206,6 +206,10 @@ body {
   background: #eee;
 }
 
+#showtopo_description p:last-child {
+  margin: 0;
+}
+
 #showtopo_container .form-group {
   margin: 0;
   height: 100%;

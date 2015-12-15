@@ -4,13 +4,9 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/instantiate.html',
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',
-	 'js/lib/text!template/waitwait-modal.html',
-<<<<<<< HEAD
-	 'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
-=======
+	 'js/lib/text!template/waitwait-modal.html',	
 	 'js/lib/text!template/rspectextview-modal.html',
-         'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
->>>>>>> master
+	 'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
 function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	  instantiateString, aboutaptString, aboutcloudString,
 	  waitwaitString, rspecviewString)
@@ -20,6 +16,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var ajaxurl;
     var amlist        = null;
     var projlist      = null;
+    var sysprojlist   = ['emulab-ops', 'emulab-ops-test'];
     var profilelist   = null;
     var recentcount   = 5;
     var amdefault     = null;
@@ -76,34 +73,38 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	}
 	profilelist = decodejson('#profiles-json');
 	var recentlist = decodefirstn('#profiles-json', recentcount);
+	_.each(recentlist, function(obj, key) {
+	    if (_.contains(sysprojlist, obj.project)) {
+		obj.project = "Default";
+	    }
+	});
 	var projcategories = MakeProfileCategories(profilelist);
 
-	console.log(profilelist);
+	console.log(recentlist);
 
 	var html = mainTemplate({
 	    formfields:         decodejson('#form-json'),
 	    profiles:           profilelist,
 	    projprofiles:       projcategories.inproj,
+	    systemprofiles:        projcategories.sysproj,
 	    otherprofiles:      projcategories.otherproj,
 	    recent:             recentlist,
-	    showpopular:        (_.where(_.values(recentlist),{usecount: 0}).length == recentlist.length),
+	    showpopular:        (_.where(_.values(recentlist),{usecount: 0}).length == recentcount),
 	    favorites:          projcategories.favorite,
 	    projects:           projlist,
 	    amlist:             amlist,
 	    registered:         registered,
 	    profilename:        window.PROFILENAME,
-	    profileuuid:        window.PROFILEUUID,
-<<<<<<< HEAD
-	    showpicker:         showpicker,
-	    cancopy:            window.CANCOPY,
-=======
+	    profileuuid:        window.PROFILEUUID,	
 	    profilevers:        window.PROFILEVERS,
 	    showpicker:		showpicker,
-	    cancopy:		window.CANCOPY,
->>>>>>> master
+	    cancopy:		window.CANCOPY,	
 	    clustername:        (window.ISCLOUD ? "CloudLab" : "APT"),
 	});
 	$('#main-body').html(html);
+
+	// Check if the browser has cookies stating what they previoiusly had minimized.
+	CookieCollapse('#profile_name > span', 'pp_collpased');
 
 	var jqxhr =
 	    $.get('https://ops.emulab.net/servicemon/?names=urn')
@@ -298,20 +299,29 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	}
 	    
 	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']:first');
-	console.log(startProfile);
 	ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
 
+	// Set up the click function for expanding and collapsing profile groups
 	$('#profile_name > span').click(function() {
 	    var ul = '#'+($(this).attr('id').slice('title-'.length));
 	    if ($(this).children('.category_collapsable').hasClass('expanded')) {
 		$(ul).addClass('hidden');
 		$(this).children('.category_collapsable').removeClass('expanded');
+		$(this).children('.category_collapsable').addClass('collapsed');
 	    }
 	    else {
 		$(ul).removeClass('hidden');
 		$(this).children('.category_collapsable').addClass('expanded');
+		$(this).children('.category_collapsable').removeClass('collapsed');
 	    }
+
+	    var collapsed = [];
+	    $('#profile_name .category_collapsable.collapsed').each(function() {
+		collapsed.push($(this).parent().attr('id'));
+	    });
+
+	    SetCookie('pp_collpased',JSON.stringify(collapsed),30);
 	});
     }
 
@@ -324,7 +334,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	var json = $(id)[0].textContent;
 	console.log(json);
 	json = json.slice(2,json.length-1);
-	var split = json.split('},');
+	console.log(json);
+	var split = json.replace('},','}|,');
+	console.log(split);
+	split = json.split('|,');
 	if (split.length > 1) { 
 	  json = "";
 	  for (var i = 0; i < n; i++) {
@@ -332,30 +345,59 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	      if (i > 0) {
 		json += ',';
 	      }
-	      json += split[i]+'}';
+	      json += split[i];
 	    }
 	  }
 	}
+	console.log(json);
 
 	return JSON.parse(_.unescape('{'+json+'}'));
     }
 
+    // Handler to minimize span elements based on the cookie name
+    function CookieCollapse(target, cookieName) {
+	var cookie = GetCookie(cookieName);
+
+	if (cookie != null) {  
+	    var collapsed = JSON.parse(cookie);
+    
+	    $(target).each(function() {
+		if (_.contains(collapsed, $(this).attr('id'))) {
+		    $(this).children('.category_collapsable').removeClass('expanded').addClass('collapsed');
+		    var ul = '#'+($(this).attr('id').slice('title-'.length));
+		    $(ul).addClass('hidden');
+		}
+	    });
+	}
+    } 
+
     // Put profiles into the correct categories to be built in the template
     function MakeProfileCategories(profiles) {
-      var result = {favorite:{},inproj:{},otherproj:{}};
+      var result = {favorite:{},inproj:{},sysproj:{},otherproj:{}};
 
       _.each(profilelist, function(obj, key) {
 	    if (obj.favorite == 1) {
-	      result.favorite[key] = obj;
+	      if (_.contains(sysprojlist, obj.project)) {
+		result.favorite[key] = $.parseJSON(JSON.stringify(obj));
+		result.favorite[key].project = "Default";
+	      }
+	      else {
+		result.favorite[key] = obj;
+	      }
 	    }
-	    if (_.contains(projlist,obj.project)) {
+	    if (_.contains(projlist, obj.project)) {
 	      if (!result.inproj[obj.project]) {
 		result.inproj[obj.project] = {};
 	      }
 	      result.inproj[obj.project][key] = obj;
 	    }
 	    else {
-	      result.otherproj[key] = obj;
+	      if (_.contains(sysprojlist, obj.project)) {
+		result.sysproj[key] = obj;
+	      }
+	      else {
+		result.otherproj[key] = obj;
+	      }
 	    }
 	});
       return result;
@@ -703,6 +745,32 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    document.cookie = cookie;
 	});
     }
+
+    function SetCookie(name, value, days) {
+	// Delete existing cookies first
+	var expires = "expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+	document.cookie = name + '=; ' + expires;
+
+	var date = new Date();
+	date.setTime(date.getTime()+(days*24*60*60*1000))
+
+	var cookie = name + '=' + value +
+		'; expires=' + date.toGMTString() + '; path=/';
+
+	document.cookie = cookie;
+    }
+
+    // Cookie parser found from Google
+    function GetCookie(name) {
+	var nameEQ = name + "=";
+	var ca = document.cookie.split(';');
+	for(var i=0;i < ca.length;i++) {
+	    var c = ca[i];
+	    while (c.charAt(0)==' ') c = c.substring(1,c.length);
+	    if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+	}
+	return null;
+    }
     
     function CreateClusterStatus() {
 	//console.log("CreateClusterStatus", monitor);
@@ -838,8 +906,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $(selectedElement).addClass('selected');
 	}
 	
-<<<<<<< HEAD
-	var continuation = function(rspec, description, name, amdefault, ispp) {
+	var continuation = function(rspec, description, name, version,
+				    creator, created, amdefault, ispp) {	
 	    var profileInfo = profilelist[$(selectedElement).attr('value')]
 	    var isFavorite = profileInfo.favorite;
 
@@ -849,12 +917,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		"<span id='set_favorite' class='glyphicon glyphicon-star" + ((isFavorite == 1) ? " favorite" : "") + "'></span>" + 
 		"</button>");
 
-	    $('#showtopo_project').html(profileInfo.project);
-=======
-	var continuation = function(rspec, description, name, version,
-				    amdefault, ispp) {
-	    $('#showtopo_title').html("<h3>" + name + "</h3>");
->>>>>>> master
+	    $('#showtopo_author').html(creator);
+	    $('#showtopo_project').html(profileInfo.project);  
+	    $('#showtopo_version').html(version); 
+	    $('#showtopo_last_updated').html(created);
 	    $('#showtopo_description').html(description);
 
 	    sup.maketopmap('#showtopo_div', rspec, false, !multisite);
@@ -972,7 +1038,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    
 	    var xmlDoc = $.parseXML(json.value.rspec);
 	    var xml    = $(xmlDoc);
-    
+	    console.log(json);
 	    /*
 	     * We now use the desciption from inside the rspec, unless there
 	     * is none, in which case look to see if the we got one in the
@@ -991,6 +1057,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    }
 	    continuation(json.value.rspec, description,
 			 json.value.name, json.value.version,
+			 json.value.creator, json.value.created,
 			 json.value.amdefault,
 			 json.value.ispprofile);
 	}
