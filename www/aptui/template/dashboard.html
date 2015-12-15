@@ -214,6 +214,40 @@
 </div>
 <div class='row'>
   <div class='col-sm-10 col-sm-offset-1'>
+    <div class='panel panel-default' id='extension-requests-panel'>
+      <div class="panel-heading">
+	<h5><center>Outstanding Extension Requests</center></h5>
+      </div>
+      <div class='panel-body panel-body-dashboard'>
+	<table class="table table-condensed table-bordered table-dashboard">
+	  <thead>
+	    <tr>
+	      <th>Name</th>
+	      <th>Creator</th>
+	      <th>Project</th>
+	      <th>Created</th>
+	      <th>Expires</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <% _.each(dashboard.extension_requests, function(value, key) { %>
+	      <tr>
+		<td><a href="status.php?uuid=<%- value.uuid %>">
+		    <%- value.name %></a></td>
+		<td><%- value.creator %></td>
+		<td><%- value.pid %></td>
+		<td class="format-date"><%- value.created %></td>
+		<td class="format-date"><%- value.expires %></td>
+	      </tr>
+	    <% }); %>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='row'>
+  <div class='col-sm-10 col-sm-offset-1'>
     <div class='panel panel-default' id='error-details-panel'>
       <div class="panel-heading">
 	<h5><center>Recent Errors (Details)</center></h5>

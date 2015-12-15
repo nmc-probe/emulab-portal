@@ -292,6 +292,37 @@ function Do_GetStats()
     }
     $dashboard["error_details"] = $error_details;
     
+    #
+    # Experiments waiting for extensions from an administrator
+    #
+    $extension_details = array();
+
+    $query_result =
+        DBQueryFatal("select a.*,s.expires, ".
+                     "   (UNIX_TIMESTAMP(now()) > ".
+                     "    UNIX_TIMESTAMP(s.expires)) as expired ".
+                     "  from apt_instances as a ".
+                     "left join geni.geni_slices as s on ".
+                     "     s.uuid=a.slice_uuid ".
+                     "where a.extension_requested=1 order by a.creator");
+
+    while ($row = mysql_fetch_array($query_result)) {
+        $name       = $row["name"];
+        $uuid       = $row["uuid"];
+        $pid        = $row["pid"];
+        $expires    = $row["expires"];
+        $created    = $row["created"];
+        $creator    = $row["creator"];
+
+        $extension_details[$uuid] = array("name"     => $name,
+                                          "uuid"     => $uuid,
+                                          "pid"      => $pid,
+                                          "creator"  => $creator,
+                                          "created"  => $created,
+                                          "expires"  => $expires);
+    }
+    $dashboard["extension_requests"] = $extension_details;
+    
     SPITAJAX_RESPONSE($dashboard);
 }
 
