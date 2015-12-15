@@ -170,7 +170,7 @@ main(int argc, char **argv)
 		 * Use setjmp and timer to prevent NFS lockup.
 		 */
 		if (setjmp(deadline) == 0) {
-			alarm(15);
+			alarm(30);
 
 			if ((infp = gzopen(buf, "r")) == NULL) {
 				syslog(LOG_ERR, "Opening %s: %m", buf);
@@ -188,7 +188,7 @@ main(int argc, char **argv)
 	sprintf(buf, "%s/%s", USERSVAR, LOGINS);
 
 	if (setjmp(deadline) == 0) {
-		alarm(15);
+		alarm(30);
 
 		if ((infp = gzopen(buf, "r")) == NULL) {
 			syslog(LOG_ERR, "Opening %s: %m", buf);

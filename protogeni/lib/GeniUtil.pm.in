@@ -63,6 +63,7 @@ my $USELOCALPROJ       = 0;
 my $PROTOGENI_LOCALUSER= @PROTOGENI_LOCALUSER@;
 my $WITHZFS            = @WITHZFS@;
 my $ZFS_NOEXPORT       = @ZFS_NOEXPORT@;
+my $WITHAMD            = @WITHAMD@;
 my $SUDO               = "/usr/local/bin/sudo";
 my $WAP                = "$TB/sbin/withadminprivs";
 my $NEWGROUP           = "$TB/bin/newgroup";
@@ -532,14 +533,26 @@ sub GetHoldingProject($$)
 	$ENV{'EMULAB_REAL_USER'} = $creator->emulab_user()->uid_idx();
     }
   done:
-    if ($WITHZFS && $ZFS_NOEXPORT) {
-	#
-	# Have to force the new directories to be exported.
-	# See ZFS code in exports_setup
-	#
-	$project->BumpActivity();
-	system($EXPORTSSETUP) == 0 or
-	    fatal("$EXPORTSSETUP failed");
+    if ($WITHZFS) {
+	if ($ZFS_NOEXPORT) {
+	    #
+	    # Have to force the new directories to be exported.
+	    # See ZFS code in exports_setup
+	    #
+	    $project->BumpActivity();
+	    system($EXPORTSSETUP) == 0 or
+		fatal("$EXPORTSSETUP failed");
+	} elsif (!$WITHAMD) {
+	    #
+	    # If we are using autofs, we need to recreate the local autofs
+	    # mapfile so it includes the newly created directories. Otherwise,
+	    # accesses to those new directories will not force a mount and
+	    # the waitForMount() calls below will always fail.
+	    #
+	    $project->BumpActivity();
+	    system("$EXPORTSSETUP -B") == 0 or
+		fatal("$EXPORTSSETUP -B failed");
+	}
     }
     return $group;
 }

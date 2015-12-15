@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2004-2014 University of Utah and the Flux Group.
+# Copyright (c) 2004-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -29,7 +29,7 @@
 
 # XXX compat with RedHat feature
 if [ ! -d /var/lock/subsys ]; then
-    mkdir /var/lock/subsys
+    mkdir -p /var/lock/subsys
 fi
 
 # XXX serial console seems to be in raw mode, makes our messages ugly :-)
@@ -37,13 +37,6 @@ if [ ! -e /dev/hvc0 -a -c /dev/ttyS0 ]; then
     stty -F /dev/ttyS0 opost onlcr
 fi
 
-#
-# Testbed Setup.
-#
-if [ -f /usr/local/etc/emulab/rc/rc.testbed ] ; then
-        echo -n 'testbed config: '
-        /usr/local/etc/emulab/rc/rc.testbed
-        touch /var/lock/subsys/testbed
-fi
+touch /var/lock/subsys/local
 
 echo "Boot Complete"

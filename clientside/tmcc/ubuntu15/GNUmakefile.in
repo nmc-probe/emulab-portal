@@ -71,10 +71,8 @@ common-install:	dir-install
 	(cd ../common; $(MAKE) DESTDIR=$(DESTDIR) local-install)
 
 bin-install:	dir-install
-	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) bin-install)
+	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) USES_SYSTEMD=1 bin-install)
 	$(INSTALL) -m 755 $(SRCDIR)/findcnet $(BINDIR)/findcnet
-	$(INSTALL) -m 755 $(SRCDIR)/../linux/emulab-systemd-swaps $(BINDIR)
-	@echo "Emulab systemd swap.service"
 
 etc-install:	dir-install common-sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group
@@ -84,7 +82,8 @@ etc-install:	dir-install common-sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/hosts $(ETCDIR)/hosts
 
 common-sysetc-install:	dir-install
-	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) RRCDIR=$(RRCDIR) sysetc-install)
+	# Tell ../linux/GNUMakefile.in that we want systemd files, not SYSV
+	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) RRCDIR=$(RRCDIR) USES_SYSTEMD=1 sysetc-install)
 
 sysetc-fixup:
 	rm -rf $(SYSETCDIR)/modules.conf $(SYSETCDIR)/cron.pend $(SYSETCDIR)/sysconfig $(SYSETCDIR)/init.d/ntpd
@@ -108,15 +107,12 @@ systemd-fixup:
 	rm -f /lib/systemd/system/network-online.target.wants/ifup-wait-all-auto.service
 	ln -sf ../ifup-wait-emulab-cnet.service \
 		/lib/systemd/system/network-online.target.wants/ifup-wait-emulab-cnet.service
-	$(INSTALL) -m 644 $(SRCDIR)/../linux/emulab-fstab-fixup.service \
-		/lib/systemd/system
-	systemctl enable emulab-fstab-fixup.service
 
 script-install:	dir-install $(SCRIPTS)
-	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) script-install)
+	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) USES_SYSTEMD=1 script-install)
 
 genirack-install:
-	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) genirack-install)
+	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) USES_SYSTEMD=1 genirack-install)
 	$(INSTALL) -m 755 $(SRCDIR)/genirack.sh $(RCDIR)/init.d/genirack.sh
 	-ln -sf $(RRCDIR)/init.d/genirack.sh $(DEFRUNLVLDIR)/S10genirack.sh
 	-ln -sf $(RRCDIR)/init.d/genirack.sh $(SYSETCDIR)/rc2.d/S10genirack.sh

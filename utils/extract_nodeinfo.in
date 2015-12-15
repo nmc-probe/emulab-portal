@@ -1,0 +1,615 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2015 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+
+#
+# Extract node data from the DB for the given date range.
+#
+# For each node we create a series of records reflecting its allocation
+# history over the given time range.
+#
+# Each history record looks like:
+#   (hist_ix,node_ix,start,end,expt_ix)
+# Each node record look like:
+#   (node_ix,name,IP,MAC)
+# Each experiment record looks like:
+#   (expt_ix,name,proj_ix)
+# Each user record looks like:
+#   (user_ix,name,affil,city,state,country,zip)
+# Each project record looks like:
+#   (proj_ix,name)
+#
+# Since each user can be a member of more than one project, we also have
+# a user-to-projects table with records:
+#   (user_ix,proj_ix)
+#
+use English;
+use Getopt::Std;
+use Date::Parse;
+
+sub usage()
+{
+    print STDERR "Usage: extract_info [-ahdAN] [-n node] -s starttime -e endtime\n";
+    print STDERR "   -h         This message\n";
+    print STDERR "   -d         Print additional debug info\n";
+    print STDERR "   -a		Get info for all nodes\n";
+    print STDERR "   -n node    Get info for a specific node\n";
+    print STDERR "   -A         Anonymize info\n";
+    print STDERR "   -N         Print in normalized CSV format\n";
+    print STDERR "   -S         Print in summary form\n";
+}
+
+my $optlist = "adhANSs:e:n:";
+my $debug = 0;
+my $anonymize = 0;
+my $normalize = 0;
+my $summary = 0;
+my $starttime;
+my $endtime;
+my $allnodes = 0;
+my $node;
+
+sub nodehistory($$;$);
+sub nodes($);
+sub experiments($);
+sub projects($);
+sub users($);
+
+#
+# Configure variables
+#
+my $TB		 = "@prefix@";
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use libdb;
+use Node;
+use Interface;
+use Group;
+use User;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{h})) {
+    usage();
+}
+if (defined($options{d})) {
+    $debug++;
+}
+if (defined($options{a})) {
+    $allnodes++;
+}
+if (defined($options{A})) {
+    $anonymize++;
+}
+if (defined($options{N})) {
+    $normalize = 1;
+    $summary = 0;
+}
+if (defined($options{S})) {
+    $summary = 1;
+    $normalize = 0;
+}
+if (defined($options{n})) {
+    if ($options{n} =~ /^([-\w]+)$/) {
+	$node = $1;
+	if (!Node->Lookup($1)) {
+	    die("Not a valid node.");
+	}
+    } else {
+       die("Invalid node name.");
+    }
+    $allnodes = 0;
+}
+if (defined($options{s})) {
+   $starttime = str2time($options{s});
+   if (!defined($starttime)) {
+       die("Could not parse start date.");
+   }
+}
+if (defined($options{e})) {
+   $endtime = str2time($options{e});
+   if (!defined($endtime)) {
+       die("Could not parse end date.");
+   }
+}
+
+if (!$starttime || !$endtime) {
+    die("Must specify a start and end time.");
+}
+
+if (!$allnodes && !$node) {
+    die("Must specify a node name or -a.");
+}
+
+#
+# Phase 1: build up the node history records
+#
+my $history = nodehistory($starttime, $endtime, $node);
+if (!$history) {
+    die("Could not get node history records.");
+}
+
+#
+# Phase 2: use history records to build up node list
+# 
+my $nodes = nodes($history);
+
+#
+# Phase 3: use history records to build up experiment list
+# 
+my $expts = experiments($history);
+
+#
+# Phase 4: use experiment records to build up project list
+# 
+my $projects = projects($expts);
+
+#
+# Phase 5: use projects users list to build up user list
+# 
+my $users = users($projects);
+
+print "History [$starttime-$endtime]:\n";
+my $ix = 1;
+foreach my $he (@$history) {
+    my $node = $he->{'node'};
+    my $nix = $he->{'node_idx'};
+    my $s = $he->{'start'};
+    my $e = $he->{'end'};
+    my $eix = $he->{'expt_idx'};
+    my $eeix = $he->{'emulab_exptidx'};
+    #
+    # In summary form, just the info that is needed for student project:
+    # [time range]: node: user,...
+    #
+    if ($summary) {
+	my $ee = $expts->[$eix-1];
+	my $pix = $ee->{'proj_idx'};
+	my $pe = $projects->[$pix-1];
+	my $ulist = join(',', @{$pe->{'users'}});	
+	print "node='$node', start='$s', end='$e', ulist='$ulist'\n";
+    } elsif ($normalize) {
+	print "index,node_index,start,end,expt_index\n"
+	    if ($ix == 1);
+	print "$ix,$nix,$s,$e,$eix\n";
+    } else {
+	print "$ix: node=$nix ($node), time=[$s-$e], expt=$eix ($eeix)\n";
+    }
+    $ix++;
+}
+
+if ($summary) {
+    goto dumpusers;
+}
+
+print "\nNodes:\n";
+foreach my $ne (@$nodes) {
+    my $nix = $ne->{'node_idx'};
+    my $name = $ne->{'name'};
+    my $ip = $ne->{'IP'};
+    my $mac = $ne->{'mac'};
+    if ($normalize) {
+	print "node_index,name,IP,mac\n"
+	    if ($nix == 1);
+	print "$nix,$name,$ip,$mac\n";
+    } else {
+	print "$nix: name=$name, IP=$ip, mac=$mac\n";
+    }
+}
+
+print "\nExperiments:\n";
+foreach my $ee (@$expts) {
+    my $eix = $ee->{'expt_idx'};
+    my $name = $ee->{'name'};
+    my $proj = $ee->{'proj'};
+    my $pix = $ee->{'proj_idx'};
+    my $eeix = $ee->{'emulab_exptidx'};
+    if ($normalize) {
+	print "expt_index,name,proj_index\n"
+	    if ($eix == 1);
+	print "$eix,$name,$pix\n";
+    } else {
+	print "$eix: name=$name, proj=$pix ($proj), emulab_idx=$eeix\n";
+    }
+}
+
+print "\nProjects:\n";
+foreach my $pe (@$projects) {
+    my $pix = $pe->{'proj_idx'};
+    my $name = $pe->{'name'};
+    my $nusers = @{$pe->{'users'}};
+    if ($normalize) {
+	print "project_index,name\n"
+	    if ($pix == 1);
+	print "$pix,$name\n";
+    } else {
+	my $ulist = join(',', @{$pe->{'users'}});
+	print "$pix: name=$name, users=$nusers ($ulist)\n";
+    }
+}
+
+dumpusers:
+
+print "\nUsers:\n";
+foreach my $ue (@$users) {
+    my $uix = $ue->{'user_idx'};
+    my $name = $ue->{'name'};
+    my $affil = $ue->{'affil'};
+    my $city = $ue->{'city'};
+    my $state = $ue->{'state'};
+    my $country = $ue->{'country'};
+    my $zip = $ue->{'zip'};
+    if ($summary) {
+	$affil =~ s/^\s+//; $affil =~ s/'//g;
+	$city =~ s/^\s+//; $city =~ s/'//g;
+	$state =~ s/^\s+//; $state =~ s/'//g;
+	$country =~ s/^\s+//; $country =~ s/'//g;
+	$zip =~ s/^\s+//; $zip =~ s/'//g;
+	print "index='$uix', name='$name', affil='$affil', city='$city', state='$state', country='$country', zip='$zip'\n";
+    } elsif ($normalize) {
+	print "user_index,name,affil,city,state,country,zip\n"
+	    if ($uix == 1);
+	print "$uix,$name,$affil,$city,$state,$country,$zip\n";
+    } else {
+	print "$uix: name='$name', affil='$affil', city='$city', state='$state', country='$country', zip='$zip'\n";
+    }
+}
+
+if ($normalize) {
+    print "\nUserToProject:\n";
+    print "user_index,proj_index\n";
+    foreach my $pe (@$projects) {
+	my $pix = $pe->{'proj_idx'};
+	foreach my $uix (@{$pe->{'users'}}) {
+	    print "$uix,$pix\n";
+	}
+    }
+}
+
+exit(0);
+
+sub nodehistory($$;$)
+{
+    my ($stime,$etime,$dnode) = @_;
+    my @history = ();
+    my %validnode = ();
+
+    #
+    # XXX we need to figure out what every node in question was doing at
+    # the beginning of the time window.
+    #
+    my @mynodes = ();
+    my $nodelist = "";
+    if ($dnode) {
+	push(@mynodes, $dnode);
+	$nodelist = "node_id='$dnode'";
+    } else {
+	my $query =
+	    DBQueryFatal("SELECT n.node_id FROM nodes AS n, node_types AS t ".
+			 "WHERE n.type=t.type AND n.role='testnode' ".
+			 "  AND t.class='pc' ORDER BY n.priority");
+	if (!$query) {
+	    return undef;
+	}
+	while (my %row = $query->fetchhash()) {
+	    push(@mynodes, $row{'node_id'});
+	}
+	$nodelist = "node_id in ('" . join("','", @mynodes) . "')";
+    }
+
+    my %allocstart = ();
+    my %allocexpt = ();
+
+    #
+    # Find the most recent node_history record before the start time and
+    # see if it was allocated or free.
+    #
+    foreach my $node (@mynodes) {
+	my $query =
+	    DBQueryFatal("SELECT op,exptidx FROM node_history ".
+			 "WHERE stamp<$starttime AND $nodelist ".
+			 "ORDER BY stamp DESC LIMIT 1");
+	if ($query && $query->numrows) {
+	    my %row = $query->fetchhash();
+	    my $op = $row{'op'};
+	    if ($op eq "alloc" || $op eq "move") {
+		$allocstart{$node} = $starttime;
+		$allocexpt{$node} = $row{'exptidx'};
+	    }
+	}
+	$validnode{$node} = 1;
+    }
+
+    #
+    # Get all the history records that fall into the time range.
+    #
+    my $query =
+	DBQueryFatal("SELECT node_id,op,exptidx,stamp,phys_nodeid ".
+		     "FROM node_history ".
+		     "WHERE stamp>=$starttime AND stamp<$endtime ".
+		     "    AND $nodelist ".
+		     "ORDER by history_id");
+    if (!$query) {
+	return undef;
+    }
+
+    while (my %row = $query->fetchhash()) {
+	my $op = $row{'op'};
+	my $node = $row{'node_id'};
+	my $exptidx = $row{'exptidx'};
+	my $stamp = $row{'stamp'};
+	my $pnode = $row{'phys_nodeid'};
+
+	if ($op eq "alloc") {
+	    if (exists($allocstart{$node})) {
+		print STDERR
+		    "*** inconsistant data: $node already allocated\n";
+	    }
+	    $allocstart{$node} = $stamp;
+	    $allocexpt{$node} = $exptidx;
+	    next;
+	}
+	if ($op eq "free" || $op eq "move") {
+	    if (!exists($allocstart{$node})) {
+		print STDERR
+		    "*** inconsistant data: $node already free ($exptidx)\n"
+		    if ($exptidx != 3204 && # reloading
+			$exptidx != 3210 && # reloadpending
+			$exptidx != 3205);  # hwdown
+		next;
+	    }
+	    if ($stamp < $allocstart{$node}) {
+		print STDERR
+		    "*** inconsistant data: bogus start/stop times\n";
+	    } else {
+		my $he = {
+		    'node' => $node,
+		    'start' => $allocstart{$node},
+		    'end' => $stamp,
+		    'emulab_exptidx' => $allocexpt{$node}
+		};
+		push(@history, $he);
+	    }
+	    delete $allocstart{$node};
+	    delete $allocexpt{$node};
+	    next;
+	}
+    }
+
+    #
+    # Add records for any node still allocated at the end of the range
+    #
+    foreach my $node (keys %allocstart) {
+	my $he = {
+	    'node' => $node,
+	    'start' => $allocstart{$node},
+	    'end' => $endtime,
+	    'emulab_exptidx' => $allocexpt{$node}
+	};
+	push(@history, $he);
+    }
+
+    return \@history;
+}
+
+sub nodes($)
+{
+    my ($history) = @_;
+    my @nodes = ();
+    my $nix = 1;
+    my %nodeix = ();
+
+    foreach my $he (@$history) {
+	my $n = $he->{'node'};
+	my $s = $he->{'start'};
+	my $e = $he->{'end'};
+
+	if (!exists($nodeix{$n})) {
+	    # make sure the node still exists
+	    my $nobj = Node->Lookup($n);
+	    if (!$nobj) {
+		print STDERR "*** bad node: no such node: $n\n";
+		next;
+	    }
+	    my $iobj = Interface->LookupControl($nobj);
+	    if (!$iobj) {
+		print STDERR "*** bad node: no control interface\n";
+		next;
+	    }
+	    my $ip = $iobj->IP();
+	    my $mac = $iobj->mac();
+	    if (!$ip || !$mac) {
+		print STDERR "*** bad node: no cnet IP/MAC\n";
+		next;
+	    }
+	    my $ne = {
+		'node_idx' => $nix,
+		'name' => $n,
+		'IP' => $ip,
+		'mac' => $mac
+	    };
+	    push(@nodes, $ne);
+	    $nodeix{$n} = $nix;
+	    $nix++;
+	}
+	$he->{'node_idx'} = $nodeix{$n};
+    }
+
+    return \@nodes;
+}
+
+sub experiments($)
+{
+    my ($history) = @_;
+    my @expts = ();
+    my $eix = 1;
+    my %exptix = ();
+
+    foreach my $he (@$history) {
+	my $eeix = $he->{'emulab_exptidx'};
+
+	if (!exists($exptix{$eeix})) {
+	    my $query =
+		DBQueryFatal("SELECT pid,eid FROM experiment_stats ".
+			     "WHERE exptidx=$eeix");
+	    if (!$query) {
+		return undef;
+	    }
+	    if ($query->numrows == 0) {
+		print STDERR "*** bad experiment: no such experiment: $eeix\n";
+		next;
+	    }
+	    my %row = $query->fetchhash();
+	    my $pid = $row{'pid'};
+	    my $eid = $row{'eid'};
+	    if (!$pid || !$eid) {
+		print STDERR "*** bad experiment: no pid/eid\n";
+		next;
+	    }
+	    my $ee = {
+		'expt_idx' => $eix,
+		'name' => $eid,
+		'proj' => $pid,
+		'emulab_exptidx' => $eeix
+	    };
+	    push(@expts, $ee);
+	    $exptix{$eeix} = $eix;
+	    $eix++;
+	}
+	$he->{'expt_idx'} = $exptix{$eeix};
+    }
+
+    return \@expts;
+}
+
+sub projects($)
+{
+    my ($expts) = @_;
+    my @projs = ();
+    my $pix = 1;
+    my %projix = ();
+
+    foreach my $ee (@$expts) {
+	my $pid = $ee->{'proj'};
+	if (!exists($projix{$pid})) {
+	    # Look up the projects main group
+	    my $gobj = Group->Lookup($pid, $pid);
+	    if (!$gobj) {
+		print STDERR "*** bad project: no project or group\n";
+		next;
+	    }
+	    my @users = ();
+	    if ($gobj->MemberList(\@users) != 0) {
+		print STDERR "*** bad project: could not get user list\n";
+		next;
+	    }
+
+	    my $pe = {
+		'proj_idx' => $pix,
+		'name' => $pid,
+		'user_objs' => \@users
+	    };
+	    push(@projs, $pe);
+	    $projix{$pid} = $pix;
+	    $pix++;
+	}
+	$ee->{'proj_idx'} = $projix{$pid};
+    }
+
+    return \@projs;
+}
+
+sub users($)
+{
+    my ($projs) = @_;
+    my @users = ();
+    my $uix = 1;
+    my %userix = ();
+    my %userprojs = ();
+
+    foreach my $pe (@$projs) {
+	my $uobjs = $pe->{'user_objs'};
+	my @pusers = ();
+	foreach my $obj (@$uobjs) {
+	    my $name = $obj->uid();
+	    if (!$obj->active() || $obj->webonly()) {
+		#print STDERR "Skip inactive/webonly user '$name'\n";
+		next;
+	    }
+	    my $affil = $obj->affil();
+	    $affil ="" if !defined($affil);
+	    $affil =~ tr/,/ /s if ($normalize);
+	    my $city = $obj->city();
+	    $city ="" if !defined($city);
+	    $city =~ tr/,/ /s if ($normalize);
+	    my $state = $obj->state();
+	    $state ="" if !defined($state);
+	    $state =~ tr/,/ /s if ($normalize);
+	    my $country = $obj->country();
+	    $country ="" if !defined($country);
+	    $country =~ tr/,/ /s if ($normalize);
+	    my $zip = $obj->zip();
+	    $zip ="" if !defined($zip);
+	    $zip =~ tr/,/ /s if ($normalize);
+
+	    if (!exists($userix{$name})) {
+		my $ue = {
+		    'user_idx' => $uix,
+		    'name' => $name,
+		    'affil' => $affil,
+		    'city' => $city,
+		    'state' => $state,
+		    'country' => $country,
+		    'zip' => $zip
+		};
+		push(@users, $ue);
+		$userix{$name} = $uix;
+		$uix++;
+	    }
+	    push(@pusers, $userix{$name});
+	}
+	delete $pe->{'user_objs'};
+	$pe->{'users'} = \@pusers;
+    }
+
+    return \@users;
+}

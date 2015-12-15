@@ -889,7 +889,7 @@ REPLACE INTO table_regex VALUES ('virt_lans','modbase','int','redirect','default
 REPLACE INTO table_regex VALUES ('virt_lans','compat','int','redirect','default:boolean',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_lans','layer','int','redirect','default:tinyint',1,2,NULL);
 REPLACE INTO table_regex VALUES ('virt_lans','ofenabled','int','redirect','default:boolean',0,0,NULL);
-REPLACE INTO table_regex VALUES ('virt_lans','ofcontroller','text','redirect','default:tinytext',0,0,NULL);
+REPLACE INTO table_regex VALUES ('virt_lans','ofcontroller','text','regex','^tcp:(\\d+\\.+){3,3}\\d+:\\d+$',0,32,NULL);
 
 REPLACE INTO table_regex VALUES ('virt_node_disks','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_node_disks','eid','text','redirect','experiments:eid',0,0,NULL);
@@ -1078,6 +1078,7 @@ REPLACE INTO table_regex VALUES ('images','max_concurrent','text','redirect','de
 REPLACE INTO table_regex VALUES ('images','reboot_waittime','text','redirect','default:int',0,0,NULL);
 REPLACE INTO table_regex VALUES ('images','format','text','regex','^[-\\w]+$',1,8,NULL);
 REPLACE INTO table_regex VALUES ('images','hash','text','regex','^[\\w]+$',16,64,NULL);
+REPLACE INTO table_regex VALUES ('images','deltahash','text','regex','^[\\w]+$',16,64,NULL);
 REPLACE INTO `table_regex` VALUES ('images','size','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_low','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_high','int','redirect','default:bigint',0,0,NULL);

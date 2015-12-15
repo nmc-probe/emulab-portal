@@ -34,14 +34,16 @@ use Getopt::Std;
 sub usage()
 {
     print(STDERR
-	  "Usage: exports_setup [-i] [-n] [-d] [-w]\n".
+	  "Usage: exports_setup [-B] [-i] [-n] [-d] [-w]\n".
 	  "switches and arguments:\n".
+	  "-B         - just create the list of valid mounts for boss (does not affect the fs exports file or mountd)\n".
 	  "-i         - incremental (differential) update (if mounted supports it)\n".
 	  "-w         - wait mode; wait for mountd to finish before exiting\n".
 	  "-n         - impotent; dump exports to stdout\n");
     exit(-1);
 }
-my $optlist    = "indw";
+my $optlist    = "Bindw";
+my $bosslistonly = 0;
 my $impotent   = 0;
 my $debug      = 0;
 my $waittildone= 0;
@@ -162,6 +164,9 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"B"})) {
+    $bosslistonly = 1;
+}
 if (defined($options{"n"})) {
     $impotent = 1;
 }
@@ -181,7 +186,12 @@ if (defined($options{"i"})) {
 usage()
     if (@ARGV);
 
-if ($ZFS_NOEXPORT && !$waittildone) {
+if ($bosslistonly) {
+    if (!$WITHZFS || $WITHAMD) {
+	print STDERR "-B only makes sense with ZFS and not AMD\n";
+	exit(1);
+    }
+} elsif ($ZFS_NOEXPORT && !$waittildone) {
     print "WARNING: forcing wait mode\n";
     $waittildone = 1;
     if ($INC_MOUNTD) {
@@ -604,11 +614,24 @@ if ($bossdirlist) {
     } else {
 	$bossdirlist = 0;
 	print STDERR "*** $0: WARNING: could not update $bossmountfile,".
-	    " will try to mount anything!\n";
+	    " boss will not mount anything!\n";
 	if (!$TESTMODE) {
 	    unlink("bossmountfile.new", $bossmountfile);
 	}
     }
+}
+
+if ($bosslistonly) {
+    if (!$TESTMODE && $bossdirlist) {
+	if ($impotent) {
+	    system("/bin/cat $bossmountfile.new");
+	} else {
+	    rename("$bossmountfile.new", $bossmountfile);
+	}
+	unlink("$exportstail", "$smbconftail", "$bossmountfile.new");
+	TBScriptUnlock();
+    }
+    exit(0);
 }
 
 #

@@ -109,14 +109,24 @@
 	  <% if (isadmin) { %>
 	  <div class='pull-left'
 	       data-toggle='popover'
-	       data-delay='{"hide":1500, "show":500}'
-	       data-html='true'
+	       data-delay='{"hide":1000, "show":500}'
 	       data-content="When checked, only administrator can extend
 			     this experiment. No free time is granted to
-			     user at all"> 
+			     user at all."> 
 	    <label class="checkbox-inline" style='margin-right: 10px;'>
 	      <input type="checkbox" id="lockout_checkbox"
 		     <% if (lockout) { %>checked<% } %> >Lockout</label>
+	  </div>
+	  <div class='pull-left'
+	       data-toggle='popover'
+	       data-delay='{"hide":1000, "show":500}'
+	       data-content="When checked, the experiment is put into
+			     Quarantine (emulab panic) mode.">
+	    <label class="checkbox-inline" style='margin-right: 10px;'>
+	      <input type="checkbox" id="quarantine_checkbox"
+		     <% if (paniced) { %>checked<% } %> >
+	      <span <% if (paniced) { %>class="text-danger"<% } %> >
+		Quarantined</span></label>
 	  </div>
 	  <% } %>
 	  <div class='pull-right'>

@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Copyright (c) 2001-2013 University of Utah and the Flux Group.
+# Copyright (c) 2001-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,7 +28,7 @@ ALTPIDFILE=/var/run/httpd.pid
 LOGDIR=/usr/testbed/log
 DESTDIR=/z/testbed/logs/apache
 APACHECTL=/usr/local/sbin/apachectl
-LOGS='apache_access_log apache_error_log apache_ssl_engine_log apache_ssl_request_log apache_ssl_access_log'
+LOGS='apache_access_log apache_error_log apache_ssl_engine_log apache_ssl_request_log apache_ssl_access_log apache_access_log,geni apache_error_log.geni apache_ssl_engine_log.geni apache_ssl_request_log.geni apache_ssl_access_log.geni'
 SIZELIMIT=5000  # about 5 MB
 DATE=`date '+%Y-%m-%d'`
 MAXTRIES=10

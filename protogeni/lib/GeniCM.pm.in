@@ -2422,8 +2422,12 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     }
 
     # Allocate any public address pools.
-    if( $slice_experiment->AllocatePublicAddrPools() < 0 ) {
-	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+    my $tmp = $slice_experiment->AllocatePublicAddrPools();
+    if ($tmp) {
+	$response =
+	    GeniResponse->Create(($tmp < 0 ?
+				  GENIRESPONSE_ERROR : GENIRESPONSE_NO_MAPPING),
+				 undef,
 				 "Could not allocate public address pools");
 	goto bad;
     }
@@ -4614,7 +4618,31 @@ sub RenewSliverAux($$$)
     # expiration so we can see what the user actually tried to do.
     #
     main::AddLogfileMetaData("renew_request", $expires);
-    
+
+    #
+    # Check all of the nodes in the underlying experiment to see if
+    # any are sched-reserved or pre-reserved. If so we decline the
+    # extension.
+    #
+    my $slice_experiment = $slice->GetExperiment();
+    my @pnodes = $slice_experiment->NodeList();
+
+    foreach my $pnode (@pnodes) {
+	my $pnodeid = $pnode->node_id();
+	
+	if (defined($pnode->reserved_pid()) &&
+	    $pnode->reserved_pid() ne $slice_experiment->pid()) {
+	    $slice->UnLock();
+	    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				"Refused cause $pnodeid is pre-reserved");
+	}
+	if (defined($pnode->NextReservation())) {
+	    $slice->UnLock();
+	    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				"Refused cause $pnodeid is sched-reserved");
+	}
+    }
+
     my $response = SetSliceExpiration($slice,
 				      $expires, 0, $alap, @{ $credentials });
     if (GeniResponse::IsError($response)) {

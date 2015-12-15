@@ -65,6 +65,7 @@ my $RENAMEDIRS = 1;
 my $TB		      = "@prefix@";
 my $USERPATH          = "$TB/bin";
 my $WITHZFS	      = @WITHZFS@;
+my $ZFS_NOEXPORT      = @ZFS_NOEXPORT@;
 my $OURDOMAIN         = "@OURDOMAIN@";
 my $ZFS_ROOT          = "@ZFS_ROOT@";
 my $ZFS_QUOTA_USER    = "@ZFS_QUOTA_USER@";
@@ -84,6 +85,7 @@ my $ZFS		      = "/sbin/zfs";
 my $KEYGEN	      = "/usr/bin/ssh-keygen";
 my $SKEL	      = "/usr/share/skel";
 my $PIDFILE           = "/var/run/mountd.pid";
+my $TSFILE	      = "/var/run/mountd.ts";
 
 # XXX
 my $NOSUCHUSER  = 67;
@@ -721,8 +723,66 @@ sub MakeDir($$)
 	$cmdarg = "";
 	$path = "$fs/$dir";
     }
+    #
+    # If we are relying on ZFS to HUP mountd (!ZFS_NOEXPORT), then we have to
+    # give mountd a chance to finish its work before we return. This is because
+    # it is likely that our caller (on boss) will try to access the directory
+    # via NFS after we return and if mountd is not done, that will fail.
+    # If ZFS_NOEXPORT is set, then our caller will do the HUPing and waiting.
+    #
+    my $waitforit = 0;
+    if (!$ZFS_NOEXPORT) {
+	#
+	# Note that "waiting for mountd" involves a Utah hack to mountd to
+	# make it record a timestamp in a file when it is done. If there is
+	# no timestamp file, assume we are not running the hacked mountd and
+	# don't sleep. If the file exists, remove it and wait for it to
+	# reappear as a sign mountd is done.
+	#
+	# XXX since we cannot guarantee that mountd gets HUP'ed when we
+	# call zfs (i.e., the command fails or the nfsshare attribute is
+	# not set correctly) we save the old timestamp and put it back
+	# on failures. Otherwise, the next call to us or exports_setup will
+	# not properly wait for mountd.
+	#
+	if (-e "$TSFILE" && rename("$TSFILE", "$TSFILE.bak") != 0) {
+	    $waitforit = 1;
+	}
+    }
+
     if (mysystem("$cmd $cmdarg $path")) {
-	return $?;
+	my $stat = $?;
+	if ($waitforit && !rename("$TSFILE.bak", "$TSFILE")) {
+	    print STDERR "accountsetup: could not replace $TSFILE;".
+		" You must HUP mountd\n";
+	}
+	return $stat;
+    }
+
+    if ($waitforit) {
+	# With potentially thousands of mount points, this can take 15 seconds!
+	my $wtime = 15;
+	my $i;
+
+	for ($i = 0; $i < $wtime; $i++) {
+	    if (-e "$TSFILE") {
+		print "accountsetup: mountd done.\n"
+		    if ($i > 0);
+		last;
+	    }
+	    print "accountsetup: waiting for mountd to finish ($i)...\n";
+	    sleep(1);
+	}
+	if ($i == $wtime) {
+	    print STDERR "accountsetup: mountd not finished after $i seconds;".
+		"Perhaps ZFS sharenfs attribute not set on $path?\n";
+	    if (!rename("$TSFILE.bak", "$TSFILE")) {
+		print STDERR "accountsetup: could not replace $TSFILE;".
+		    " You must HUP mountd\n";
+	    }
+	} else {
+	    unlink("$TSFILE.bak");
+	}
     }
 
     # should we be setting permissions or ownership here?

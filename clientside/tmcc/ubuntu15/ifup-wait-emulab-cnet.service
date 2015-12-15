@@ -9,4 +9,4 @@ Before=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=2min
-ExecStart=/bin/sh -ec 'while [ ! -e /run/cnet ]; do sleep 1; done; exit 0'
+ExecStart=/bin/sh -ec 'while [ ! -e /var/run/cnet ]; do sleep 1; done; exit 0'

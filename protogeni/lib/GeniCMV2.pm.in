@@ -64,6 +64,7 @@ use Data::Dumper;
 use XML::Simple;
 use Date::Parse;
 use POSIX qw(strftime tmpnam);
+use POSIX qw(setsid :sys_wait_h);
 use Time::Local;
 use Compress::Zlib;
 use File::Temp qw(tempfile);
@@ -104,6 +105,7 @@ my $CREATEIMAGE    = "$TB/bin/create_image";
 my $DELETEIMAGE    = "$TB/sbin/delete_image";
 my $WAP            = "$TB/sbin/withadminprivs";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
+my $PANIC          = "$TB/sbin/panic";
 my $XMLLINT	   = "/usr/local/bin/xmllint";
 my $PRERENDER      = "$TB/libexec/vis/prerender";
 my $IMPORTER       = "$TB/sbin/image_import";
@@ -819,6 +821,12 @@ sub DeleteSlice($)
     }
     my $retval = GeniCM::CleanupDeadSlice($slice, 1);
     if ($retval) {
+        #wvdemeer: Something went wrong deleting the slice.
+        #          But we have a taken a lock above.
+        #          So we need to unlock, or retry becomes impossible and the slice stays locked forever.
+        #          If all is successfull, unlock is apparently not needed, I assume this is because the lock is deleted along with the slice.
+        $slice->UnLock();
+
 	return -1
 	    if (!$blocking);
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -4686,6 +4694,108 @@ sub Lockdown($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+}
+
+#
+# Turn on/off "panic" mode for an experiment. We use level 1 since not
+# all clusters support control network vlan modifications. 
+#
+sub Panic($)
+{
+    my ($argref) = @_;
+    my $slice_urn    = $argref->{'slice_urn'};
+    my $clear        = $argref->{'clear'};
+    my $credentials  = $argref->{'credentials'};
+    
+    if (! (defined($credentials) && defined($slice_urn))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    if (! GeniHRN::IsValid($slice_urn)) {
+	return GeniResponse->MalformedArgsResponse("Invalid URN");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $authority = GeniCM::CreateAuthorityFromCertificate($credential);
+    return $authority
+	if (GeniResponse::IsResponse($authority));
+
+    my ($slice, $aggregate) = Credential2SliceAggregate($credential);
+    return $slice
+	if (defined($slice) && GeniResponse::IsResponse($slice));
+
+    if (! (defined($slice) && defined($aggregate))) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				    "Slice does not exist");
+    }
+    if ($slice_urn ne $slice->urn()) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
+				    "Credential does not match the URN");
+    }
+    #
+    # Only the SA for the slice can do this.
+    #
+    my $caller = GeniHRN->new($credential->owner_urn());
+    if (! ($caller->IsSA() && 
+	   $caller->domain() eq $slice->urnOBJ()->domain())) {
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+			    "Not enough permission to turn on/off panic mode");
+    }
+    if ($slice->Lock() != 0) {
+	return GeniResponse->BusyResponse();
+    }
+    main::AddLogfileMetaDataFromSlice($slice);
+
+    my $experiment = $slice->GetExperiment();
+    if (!defined($experiment)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "No local experiment for slice");
+    }
+    my $pid = $experiment->pid();
+    my $eid = $experiment->eid();
+    my $command = "$WAP $PANIC -l 1 " . ($clear ? "-r " : "") . "$pid $eid";
+    #
+    # The backend script sends a bunch of stuff to stdout, so capture it.
+    # We want to do this in the background cause it is going to take a long
+    # time, so fork and start the backend script, but wait a few seconds for
+    # early errors.
+    #
+    my $mypid = main::WrapperFork();
+    if ($mypid) {
+	sleep(3);
+	my $kid = waitpid($mypid, &WNOHANG);
+	if ($kid == $mypid) {
+	    my $stat = $?;
+	    if ($stat & 127) {
+		# died with a signal, return the signal
+		$stat = $stat & 127;
+	    } else {
+		# else return the exit code
+		$stat = $stat >> 8;
+	    }
+	    $slice->UnLock();
+	    return GeniResponse->Create(GENIRESPONSE_ERROR);
+	}
+	# We want to unlock it so we can get status, so we set the shutdown
+	# flag since that will prevent any other changes from happening.
+	if (!$clear) {
+	    $slice->SetShutdown(undef, 1);
+	}
+	$slice->UnLock();
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+    }
+    GeniUtil::FlipToElabMan();
+    my $output = GeniUtil::ExecQuiet($command);
+    # Not a typical op, so always print debugging info;
+    print STDERR $output;
+    if ($?) {
+	return -1;
+    }
+    if ($clear) {
+	$slice->ClearShutdown();
+    }
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

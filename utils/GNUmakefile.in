@@ -54,7 +54,7 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  update_sitevars delete_image sitecheckin sitecheckin_client \
 		  mktestbedtest fixrootcert addservers poolmonitor \
 		  node_exclude managetaint shutdown-shared imagerelease \
-		  runsonxen pxelinux_makeconf imagetodir
+		  runsonxen pxelinux_makeconf imagetodir attend atten
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
                   webwanodecheckin webspewimage webdumpdescriptor \

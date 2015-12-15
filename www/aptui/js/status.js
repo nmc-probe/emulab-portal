@@ -35,6 +35,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var statusTemplate    = _.template(statusString);
     var terminateTemplate = _.template(terminateString);
     var lastStatus        = "";
+    var paniced           = 0;
     var lockout           = 0;
     var lockdown          = 0;
     var lockdown_code     = "";
@@ -54,13 +55,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	extend  = window.APT_OPTIONS.extend || null;
 	ispprofile = window.APT_OPTIONS.ispprofile;
 	profile_uuid = window.APT_OPTIONS.profileUUID;
+	paniced      = window.APT_OPTIONS.paniced;
 	lockout      = window.APT_OPTIONS.lockout;
 	lockdown     = window.APT_OPTIONS.lockdown;
 	lockdown_code= uuid.substr(2, 5);
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
 	var errorURL = (window.ISCLOUD ?
 			"https://groups.google.com/d/forum/cloudlab-users" :
-			"https://groups.google.com/d/forum/apt-users");
+			(window.ISPNET ? 
+			 "https://groups.google.com/d/forum/phantomnet-users" :
+			    "https://groups.google.com/d/forum/apt-users"));
 
 	// Generate the templates.
 	var template_args = {
@@ -78,6 +82,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    isadmin:            window.APT_OPTIONS.isadmin,
 	    isfadmin:           window.APT_OPTIONS.isfadmin,
 	    errorURL:           errorURL,
+	    paniced:            paniced,
 	    lockout:            lockout,
 	    lockdown:           lockdown,
 	    lockdown_code:      lockdown_code,
@@ -277,6 +282,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// lockout change event handler.
 	$('#lockout_checkbox').change(function() {
 	    DoLockout($(this).is(":checked"));
+	});	
+	// Quarantine change event handler.
+	$('#quarantine_checkbox').change(function() {
+	    DoQuarantine($(this).is(":checked"));
 	});	
 
 	/*
@@ -700,6 +709,28 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     }
 
     //
+    // Request panic mode set/clear.
+    //
+    function DoQuarantine(mode)
+    {
+	mode = (mode ? 1 : 0);
+	
+	var callback = function(json) {
+	    sup.HideModal('#waitwait-modal');
+	    if (json.code) {
+		sup.SpitOops("oops",
+			     "Failed to change Quarantine mode: " + json.value);
+		return;
+	    }
+	}
+	sup.ShowModal('#waitwait-modal');
+	var xmlthing = sup.CallServerMethod(ajaxurl, "status", "Quarantine",
+					     {"uuid" : uuid,
+					      "quarantine" : mode});
+	xmlthing.done(callback);
+    }
+
+    //
     // Request a refresh from the backend cluster, to see if the sliverstatus
     // has changed. 
     //
@@ -887,7 +918,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sup.HideModal('#waitwait-modal');
 	    
 	    if (json.code) {
-		sup.SpitOops("oops", "Failed to reboot: " + json.value);
+		Sup.spitoops("oops", "Failed to reboot: " + json.value);
 		return;
 	    }
 	    // Trigger status to change the nodes.

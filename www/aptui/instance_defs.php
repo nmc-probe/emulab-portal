@@ -23,11 +23,14 @@
 #
 #
 
-if ($ISCLOUD) {
+if ($ISAPT) {
+    $DEFAULT_AGGREGATE = "Utah APT";
+}
+elseif ($ISCLOUD) {
     $DEFAULT_AGGREGATE = "Utah Cloudlab";
 }
-else {
-    $DEFAULT_AGGREGATE = "Utah APT";
+elseif ($ISPNET) {
+    $DEFAULT_AGGREGATE = "Emulab";
 }
 
 $urn_mapping =
@@ -135,6 +138,7 @@ class Instance
     function profile_version() { return $this->field('profile_version'); }
     function status()	    { return $this->field('status'); }
     function canceled()	    { return $this->field('canceled'); }
+    function paniced()	    { return $this->field('paniced'); }
     function pid()	    { return $this->field('pid'); }
     function pid_idx()	    { return $this->field('pid_idx'); }
     function public_url()   { return $this->field('public_url'); }
@@ -158,6 +162,9 @@ class Instance
     }
     function IsCloud() {
 	return preg_match('/cloudlab/', $this->servername());
+    }
+    function IsPNet() {
+	return preg_match('/phantomnet/', $this->servername());
     }
     function aggregate_name() {
         global $urn_mapping;
@@ -352,8 +359,20 @@ class Instance
     # Return aggregate based on the current user.
     #
     function DefaultAggregateList() {
-        global $ISCLOUD;
-        if ($ISCLOUD) {
+        global $ISAPT, $ISCLOUD, $ISPNET;
+	if ($ISAPT) {
+          $am_array = array(
+                          'Cloudlab Utah' =>
+                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
+                          'APT Utah' =>
+                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
+                          'IG UtahDDC' =>
+                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
+                          'Emulab'  =>
+                          "urn:publicid:IDN+emulab.net+authority+cm"
+          );
+        }
+        elseif ($ISCLOUD) {
           $am_array = array(
                           'Cloudlab Utah' =>
                           "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
@@ -374,14 +393,9 @@ class Instance
               $am_array["UKY Emulab"] =
                   "urn:publicid:IDN+uky.emulab.net+authority+cm";
           }
-        } else {
+        } 
+	elseif ($ISPNET) {
           $am_array = array(
-                          'Cloudlab Utah' =>
-                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-                          'APT Utah' =>
-                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
-                          'IG UtahDDC' =>
-                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
                           'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"
           );

@@ -1123,9 +1123,9 @@ sub SetIdleIgnore($$)
 #
 # Set the shutdown field.
 #
-sub SetShutdown($$)
+sub SetShutdown($$;$)
 {
-    my ($self, $shutdown) = @_;
+    my ($self, $shutdown, $isshutdown) = @_;
     my $uuid = $self->uuid();
     my $when;
 
@@ -1135,11 +1135,14 @@ sub SetShutdown($$)
     else {
 	$when = "NULL";
     }
+    $isshutdown = (defined($isshutdown) ? ($isshutdown ? 1 : 0) : 0);
+
     #
     # Always clear isshutdown so that expire_daemon knows of change.
     #
     my $query_result =
-	DBQueryWarn("update geni_slices set shutdown=$when, isshutdown=0 " .
+	DBQueryWarn("update geni_slices set ".
+		    "  shutdown=$when, isshutdown=$isshutdown " .
 		    "where uuid='$uuid'");
     
     return -1
@@ -1147,6 +1150,24 @@ sub SetShutdown($$)
 
     # XXX Wrong format, but harmless.
     $self->{'SLICE'}->{'shutdown'}   = ($shutdown ? time() : undef);
+    $self->{'SLICE'}->{'isshutdown'} = $isshutdown;
+    return 0;
+}
+sub ClearShutdown($)
+{
+    my ($self) = @_;
+    my $uuid = $self->uuid();
+
+    my $query_result =
+	DBQueryWarn("update geni_slices set ".
+		    "  shutdown=null, isshutdown=0 " .
+		    "where uuid='$uuid'");
+    
+    return -1
+	if (!$query_result);
+
+    # XXX Wrong format, but harmless.
+    $self->{'SLICE'}->{'shutdown'}   = undef;
     $self->{'SLICE'}->{'isshutdown'} = 0;
     return 0;
 }

@@ -121,7 +121,9 @@ $routing = array("myprofiles" =>
 						 "DecryptBlocks" =>
 						     "Do_DecryptBlocks",
 						 "Lockout" =>
-						     "Do_Lockout")),
+                                                     "Do_Lockout",
+						 "Quarantine" =>
+						     "Do_Quarantine")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,

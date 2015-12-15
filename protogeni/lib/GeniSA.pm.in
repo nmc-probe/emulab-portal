@@ -1232,17 +1232,9 @@ sub RenewSlice($)
 sub RegisterSliver($)
 {
     my ($argref) = @_;
-
-    return RegisterSliverInternal($argref, 1, undef);
-}
-sub RegisterSliverInternal($$$)
-{
-    my ($argref, $verify_credential, $authority_urn) = @_;
     my $credstr  = $argref->{'credential'};
     my $slice_urn= $argref->{'slice_urn'};
     my $blob     = $argref->{'info'};
-
-    $verify_credential = 1 if (!defined($verify_credential));
 
     if (! (defined($blob) && defined($slice_urn) && defined($credstr))) {
 	return GeniResponse->MalformedArgsResponse("Missing Arguments");
@@ -1270,7 +1262,6 @@ sub RegisterSliverInternal($$$)
 				    "No such slice here");
     }
 
-    if ($verify_credential) {
     if ($credential->target_urn() eq $authority->urn()) {
 	#
 	# Old permission check until all CMs are updated to send a
@@ -1307,7 +1298,6 @@ sub RegisterSliverInternal($$$)
 	if ($t_domain ne $o_domain) {
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				"Target domain is different then owner");
-    	   }
 	}
     }
     
@@ -1323,7 +1313,7 @@ sub RegisterSliverInternal($$$)
     if (!exists($blob->{'urn'})) {
 	return GeniResponse->MalformedArgsResponse("Please tell me the urn");
     }
-    my $manager_urn = defined($authority_urn) ? $authority_urn : $credential->owner_cert()->urn();
+    my $manager_urn = $credential->owner_cert()->urn();
     if (!defined($manager_urn)) {
 	print STDERR "No URN in $credential\n";
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -1331,18 +1321,28 @@ sub RegisterSliverInternal($$$)
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse("slice");
     }
-    #
-    # See if one already exists; overwrite it.
-    #
-    my $clientsliver =
-	GeniSlice::ClientSliver->LookupByAuthority($slice, $manager_urn);
-    $clientsliver->Delete()
-	if (defined($clientsliver));
+
+    #OLD behaviour:
+    ##
+    ## See if one already exists; overwrite it.
+    ##
+    #my $clientsliver =
+	#GeniSlice::ClientSliver->LookupByAuthority($slice, $manager_urn);
+    #$clientsliver->Delete()
+	#if (defined($clientsliver));
+
+    #new behaviour: only delete if same sliver urn already exists.
+    my $sliver_urn = $blob->{'urn'}; #TODO error: URN in blob is "SliceAggregate" urn, which is not a real sliver URN!
+    my $clientsliver = GeniSlice::ClientSliver->Lookup($sliver_urn);
+    if (defined($clientsliver)) {
+        print STDERR "First deleting sliver, because it already exists: $sliver_urn in slice $slice_urn\n";
+        $clientsliver->Delete();
+    }
     
     $clientsliver =
 	GeniSlice::ClientSliver->Create($slice, $manager_urn, $user, $blob);
     if (!defined($clientsliver)) {
-	print STDERR "Could not register sliver for $slice_urn\n";
+	print STDERR "Could not register sliver $sliver_urn for $slice_urn\n";
 	print STDERR Dumper($blob);
 	$slice->UnLock();
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -1357,16 +1357,8 @@ sub RegisterSliverInternal($$$)
 sub UnRegisterSliver($)
 {
     my ($argref) = @_;
-
-    return UnRegisterSliverInternal($argref, 1, undef);
-}
-sub UnRegisterSliverInternal($$$)
-{
-    my ($argref, $verify_credential, $sliver_urn) = @_;
     my $credstr  = $argref->{'credential'};
     my $slice_urn= $argref->{'slice_urn'};
-
-    $verify_credential = 1 if (!defined($verify_credential));
 
     if (! (defined($slice_urn) && defined($credstr))) {
 	return GeniResponse->MalformedArgsResponse("Missing Arguments");
@@ -1387,7 +1379,6 @@ sub UnRegisterSliverInternal($$$)
 	return GeniResponse->Create( GENIRESPONSE_FORBIDDEN, undef,
 				     "Insufficient privilege" );
 
-    if ($verify_credential) {
     if ($credential->target_urn() eq $authority->urn()) {
 	#
 	# Old permission check until all CMs are updated to send a
@@ -1424,7 +1415,6 @@ sub UnRegisterSliverInternal($$$)
 	if ($t_domain ne $o_domain) {
 	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				"Target domain is different then owner");
-	}
     }
     }
     
@@ -1435,7 +1425,6 @@ sub UnRegisterSliverInternal($$$)
     }
 
     my $clientsliver;
-    if (!defined($sliver_urn)) {
         my $manager_urn = $credential->owner_cert()->urn();
     if (!defined($manager_urn)) {
 	print STDERR "No URN in $credential\n";
@@ -1449,10 +1438,6 @@ sub UnRegisterSliverInternal($$$)
     #
         $clientsliver = 
             GeniSlice::ClientSliver->LookupByAuthority($slice, $manager_urn);
-    } else {
-        $clientsliver = 
-            GeniSlice::ClientSliver->Lookup($sliver_urn);
-    }
 
     $clientsliver->Delete()
 	if (defined($clientsliver));

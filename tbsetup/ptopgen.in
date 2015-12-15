@@ -2064,6 +2064,9 @@ if ($TRACK_INTERSWITCH_BANDWIDTH) {
     foreach my $vlan (@vlans) {
 	my @members;
 
+	next
+	    if ($vlan->IsInternal());
+
 	if ($vlan->MemberList(\@members) != 0) {
 	    die("*** $0:\n".
 		"    Unable to load members for $vlan\n");

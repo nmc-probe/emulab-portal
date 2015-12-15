@@ -137,6 +137,11 @@ case "$1" in
 			@prefix@/sbin/apt_daemon
 		fi
 
+		if [ -n "@ATTENUATOR@" -a -x @prefix@/sbin/attend ]; then
+			echo -n " attend"
+			@prefix@/sbin/attend &
+		fi
+
 		#
 		# Could trigger experiment creation, so make sure everything
 		# else is setup first; i.e., run this last!
@@ -224,6 +229,9 @@ case "$1" in
 		fi
 		if [ -r /var/run/apt_daemon.pid ]; then
 			kill `cat /var/run/apt_daemon.pid`
+		fi
+		if [ -r /var/run/attend.pid ]; then
+			kill `cat /var/run/attend.pid`
 		fi
 
 		;;

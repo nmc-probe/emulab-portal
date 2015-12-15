@@ -58,7 +58,8 @@ $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 function SPITFORM($formfields, $errors)
 {
     global $this_user, $projlist, $action, $profile, $DEFAULT_AGGREGATE;
-    global $notifyupdate, $notifyclone, $copyuuid, $snapuuid, $am_array, $ISCLOUD;
+    global $notifyupdate, $notifyclone, $copyuuid, $snapuuid, $am_array;
+    global $ISCLOUD, $ISPNET;
     global $version_array, $WITHPUBLISHING;
     $viewing    = 0;
     $candelete  = 0;
@@ -198,6 +199,11 @@ function SPITFORM($formfields, $errors)
       echo "    window.ISCLOUD = true;\n";
     } else {
       echo "    window.ISCLOUD = false;\n";
+    }
+    if ($ISPNET) {
+      echo "    window.ISPNET = true;";
+    } else {
+      echo "    window.ISPNET = false;";
     }
     if (isset($copyuuid)) {
 	echo "    window.COPYUUID = '$copyuuid';\n";

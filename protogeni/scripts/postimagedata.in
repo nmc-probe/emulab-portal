@@ -197,7 +197,7 @@ else {
 			   "      ims_noreport=0 and ".
 			   "      origin_urn is null and ".
 			   "      deleted is null and ".
-                           "      metadata_url is null and ".
+                           "      v.metadata_url is null and ".
 			   "      (creator_urn is not null or ".
 			   "       (v.pid='$TBOPSPID' and v.global=1)) and ".
 			   "      ($ims_reported_clause ".

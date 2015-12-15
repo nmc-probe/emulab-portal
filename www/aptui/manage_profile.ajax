@@ -505,7 +505,7 @@ function Do_CheckForm($formfields, $profile, &$rval)
 		}
 	    }
 	    else {
-		if (!TBcheck_dbslot($val, "default", "tinytext",
+		if (!TBcheck_dbslot($val, "default", "text",
 			TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
 		    $errors[$name] = TBFieldErrorString();
 		}

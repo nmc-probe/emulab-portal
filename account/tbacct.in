@@ -521,34 +521,31 @@ sub AddUser()
 	$target_user->Update({'initial_passphrase' => "NULL"});
     }
     
-    if ($nocollabtools) {
-	$EUID = 0;
-	goto skipstuff;
+    if (!$nocollabtools) {
+	# Add to elists.
+	system("$GENELISTS -u $user")
+	    if (! $batch);
+
+	# And to the wiki if enabled.
+	system("$ADDWIKIUSER $user")
+	    if ($WIKISUPPORT && $user ne $PROTOUSER);
+
+	# And to the bugdb if enabled.
+	system("$ADDBUGDBUSER $user")
+	    if ($BUGDBSUPPORT && $user ne $PROTOUSER);
+
+	# And to the OPS db if enabled.
+	system("$OPSDBCONTROL adduser $user")
+	    if ($OPSDBSUPPORT && $user ne $PROTOUSER);
+
+	# And to the chat server if enabled.
+	system("$ADDCHATUSER $user")
+	    if ($CHATSUPPORT && $user ne $PROTOUSER);
+
+	# And to the trac system if enabled.
+	system("$ADDTRACUSER $user")
+	    if ($TRACSUPPORT && $user ne $PROTOUSER);
     }
-    
-    # Add to elists.
-    system("$GENELISTS -u $user")
-	if (! $batch);
-
-    # And to the wiki if enabled.
-    system("$ADDWIKIUSER $user")
-	if ($WIKISUPPORT && $user ne $PROTOUSER);
-
-    # And to the bugdb if enabled.
-    system("$ADDBUGDBUSER $user")
-	if ($BUGDBSUPPORT && $user ne $PROTOUSER);
-
-    # And to the OPS db if enabled.
-    system("$OPSDBCONTROL adduser $user")
-	if ($OPSDBSUPPORT && $user ne $PROTOUSER);
-
-    # And to the chat server if enabled.
-    system("$ADDCHATUSER $user")
-	if ($CHATSUPPORT && $user ne $PROTOUSER);
-
-    # And to the trac system if enabled.
-    system("$ADDTRACUSER $user")
-	if ($TRACSUPPORT && $user ne $PROTOUSER);
 
     #
     # Must update the exports file or else nodes will complain.  There

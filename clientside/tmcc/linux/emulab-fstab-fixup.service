@@ -8,7 +8,7 @@ Conflicts=shutdown.target
 [Service]
 Type=oneshot
 RemainAfterExit=no
-ExecStart=/usr/local/etc/emulab/emulab-systemd-swaps
+ExecStart=/usr/local/etc/emulab/initscripts/emulab-systemd-swaps
 Restart=no
 
 [Install]
