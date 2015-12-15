@@ -2376,6 +2376,13 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				"$lanname: No openflow at this aggregate!");
 		    goto bad;
 		}
+		if (!TBcheck_dbslot($ofcontroller, "virt_lans", "ofcontroller",
+			    TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+		    $response =
+			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				"$lanname: Improper openflow controller!");
+		    goto bad;
+		}
 		$virtlan->ofenabled(1);
 		$virtlan->ofcontroller($ofcontroller);
 	    }
