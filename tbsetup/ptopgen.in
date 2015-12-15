@@ -2328,7 +2328,8 @@ sub print_header {
 		my $configured = $result->rows;
 		
 		$result = DBQueryFatal("select IP from virt_node_public_addr ".
-				       "where node_id is null");
+				       "where node_id is null and " .
+				       "pool_id is null");
 		my $available = $result->rows;
 		
 		print "<rspec_routable_addresses xmlns=\"" . $emulabns . "\" " .
