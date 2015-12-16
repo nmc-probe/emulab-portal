@@ -847,6 +847,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     my %external_linkmap  = ();
     my %external_vportmap = ();
     my %external_lanrefs  = ();
+    my $routable_ip_count = 0;
 
     # Always do this to avoid buildup.
     $slice_experiment->ClearBackupState();
@@ -1574,6 +1575,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					 {"vname"   => $node_nickname,
 					  "attrkey" => "routable_control_ip",
 					  "attrvalue" => "true"});
+	    $routable_ip_count++;
 	}
 
 	$virtexperiment->NewTableRow("virt_node_desires",
@@ -1837,6 +1839,18 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	}
     }
 
+    #
+    # Precheck the routable_ip_count so we can bail early. This test is
+    # simple when it is a new sliver.
+    #
+    if (!$isupdate && $routable_ip_count &&
+	!Node->HaveRoutableIPs($routable_ip_count)) {
+	$response =
+	    GeniResponse->Create(GENIRESPONSE_NO_MAPPING,
+				 undef,
+				 "Not enough free routable IP addresses");
+	goto bad;
+    }
     goto skiplinks
 	if (!defined(GeniXML::FindFirst("n:link", $rspec)));
 
@@ -2020,8 +2034,13 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	#
 	if (GeniXML::HasTagSetting($linkref)) {
 	    $encap = (IsTaggedLan($linkref) ? "vlan" : "default");
-	    if (IsTaggedLan($linkref)) {
+	    if (IsTaggedLan($linkref) && !GeniXML::HasTrivialSetting($linkref)){
 		$trivial_ok = 0;
+	    }
+	    elsif (GeniXML::HasTrivialSetting($linkref)) {
+		if (!GeniXML::TrivialOkay($linkref)) {
+		    $trivial_ok = 0;
+		}
 	    }
 	}
 
