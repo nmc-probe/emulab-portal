@@ -1419,6 +1419,7 @@ sub RunStitcher()
 		    if (defined($morestuff));
 	    }
 	    $webtask->output($stuff);
+	    print $morestuff . "\n\n" if (defined($morestuff));
 	    system("/bin/cat $stderrfile");
 	}
 	else {
