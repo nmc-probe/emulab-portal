@@ -1050,7 +1050,8 @@ if ($allnodes) {
 # In genimode exclude nodes with exclusion attribute.
 if ($genimode ne $NO_GENI) {
     $free_condition = "($free_condition and ".
-	"(nat1.attrvalue is null or nat1.attrvalue=0))";
+	"(nat1.attrvalue is null or nat1.attrvalue=0) and ".
+	"(natype.attrvalue is null or natype.attrvalue=0))";
 }
 
 if (defined($component_name)) {
@@ -1074,6 +1075,9 @@ $result =
 		 "left join node_attributes as nat1 on ".
 		 "     nat1.node_id=a.node_id and ".
 		 "     nat1.attrkey='protogeni_exclude' ".
+		 "left join node_type_attributes as natype on ".
+		 "     natype.type=a.type and ".
+		 "     natype.attrkey='protogeni_exclude' ".
 		 "left join node_attributes as nat2 on ".
 		 "     nat2.node_id=a.node_id and ".
 		 "     nat2.attrkey='shared_weight' ".
