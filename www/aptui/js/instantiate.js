@@ -3,7 +3,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/ppwizardstart', 'js/JacksEditor', 'js/wizard-template',
 	 'js/lib/text!template/instantiate.html',
 	 'js/lib/text!template/aboutapt.html',
-	 'js/lib/text!template/aboutcloudlab.html',	
+	 'js/lib/text!template/aboutcloudlab.html',     
 	 'js/lib/text!template/aboutpnet.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
@@ -18,6 +18,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var amlist        = null;
     var projlist      = null;
     var sysprojlist   = ['emulab-ops', 'emulab-ops-test'];
+    var psysprojlist  = ['phantomnet', 'testproject'];
     var profilelist   = null;
     var recentcount   = 5;
     var amdefault     = null;
@@ -75,8 +76,15 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	profilelist = decodejson('#profiles-json');
 	var recentlist = decodefirstn('#profiles-json', recentcount);
 	_.each(recentlist, function(obj, key) {
-	    if (_.contains(sysprojlist, obj.project)) {
-		obj.project = "Default";
+	    if (window.ISPNET) {
+		if (_.contains(psysprojlist, obj.project)) {
+		    obj.project = "System";
+		}
+	    }
+	    else {
+		if (_.contains(sysprojlist, obj.project)) {
+		    obj.project = "System";
+		}
 	    }
 	});
 	var projcategories = MakeProfileCategories(profilelist);
@@ -96,10 +104,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    amlist:             amlist,
 	    registered:         registered,
 	    profilename:        window.PROFILENAME,
-	    profileuuid:        window.PROFILEUUID,	
+	    profileuuid:        window.PROFILEUUID,     
 	    profilevers:        window.PROFILEVERS,
-	    showpicker:		showpicker,	
-	    cancopy:		window.CANCOPY,
+	    showpicker:         showpicker,     
+	    cancopy:            window.CANCOPY,
 	    clustername:        (window.ISCLOUD ? "CloudLab" : 
 				 (window.ISPNET ? "PhantomNet" : "APT")),
 	
@@ -256,7 +264,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 			});
 		    options.children("ul").children("li").hide();
 		    matches.show();
-		    console.log(userInput);
+
 		    if (userInput == '') {
 			$('#title_recently_used').removeClass('hidden');
 			$('#recently_used').removeClass('hidden');
@@ -275,8 +283,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    // choice, then we select it. Convenience. 
 	    if (event.keyCode == 13) {
 		var matches = 
-		    options.children("li").filter(function() {
-			return $(this).css('display') == 'block';
+		    options.find("li").filter(function() {
+			return (!$(this).parent().hasClass('hidden') && $(this).css('display') == 'block');
 		    });
 		if (matches && matches.length == 1) {
 		    ShowProfileSelection(matches[0]);
@@ -336,12 +344,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     function decodefirstn(id, n) {
 	var json = $(id)[0].textContent;
-	console.log(json);
 	json = json.slice(2,json.length-1);
-	console.log(json);
 	var split = json.replace('},','}|,');
-	console.log(split);
 	split = json.split('|,');
+
 	if (split.length > 1) { 
 	  json = "";
 	  for (var i = 0; i < n; i++) {
@@ -353,7 +359,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    }
 	  }
 	}
-	console.log(json);
 
 	return JSON.parse(_.unescape('{'+json+'}'));
     }
@@ -379,11 +384,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     function MakeProfileCategories(profiles) {
       var result = {favorite:{},inproj:{},sysproj:{},otherproj:{}};
 
+      // This section should probably be rethought as it's not very clean. 
+      //Didn't have time to refactor for initial release.
       _.each(profilelist, function(obj, key) {
 	    if (obj.favorite == 1) {
-	      if (_.contains(sysprojlist, obj.project)) {
+	      if ((window.ISPNET && _.contains(psysprojlist, obj.project)) || (!window.ISPNET &&_.contains(sysprojlist, obj.project))) {
 		result.favorite[key] = $.parseJSON(JSON.stringify(obj));
-		result.favorite[key].project = "Default";
+		result.favorite[key].project = "System";
 	      }
 	      else {
 		result.favorite[key] = obj;
@@ -396,7 +403,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	      result.inproj[obj.project][key] = obj;
 	    }
 	    else {
-	      if (_.contains(sysprojlist, obj.project)) {
+	      if ((window.ISPNET && _.contains(psysprojlist, obj.project)) || (!window.ISPNET &&_.contains(sysprojlist, obj.project))) {
 		result.sysproj[key] = obj;
 	      }
 	      else {
@@ -911,7 +918,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	}
 	
 	var continuation = function(rspec, description, name, version,
-				    creator, created, amdefault, ispp) {	
+				    creator, created, amdefault, ispp) {        
 	    var profileInfo = profilelist[$(selectedElement).attr('value')]
 	    var isFavorite = profileInfo.favorite;
 
@@ -939,7 +946,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     
     function ToggleFavorite(target) {
 	var wasFav = profilelist[$(target).attr('value')].favorite;
-	var callback = function(e) {	
+	var callback = function(e) {    
 	    if (wasFav) {
 		$('#set_favorite').removeClass('favorite');
 		profilelist[$(target).attr('value')].favorite = 0;

@@ -221,10 +221,6 @@ body {
   height: 600px;
 }
 
-#showtopo_nopicker {
-  height: 300px;
-}
-
 .edit_buttons {
   float: right;
   margin-top: 10px;
@@ -236,7 +232,7 @@ body {
 }
 
 #showtopo_div {
-    height: 40%;
+    height: 44%;
 }
 
 #showtopo_statuspage {
@@ -247,27 +243,21 @@ body {
   #showtopo_dialog, #edit_dialog {
     width: 950px;
   }
-  #showtopo_div {
-    width: 640px;
-  }
-  #showtopo_nopicker, #edit_nopicker {
-    width: 850px;
-  }
   .modal-dialog {
     width: 850px;
     margin: 30px auto;
   }
 }
 
+@media (min-width: 1220px) {
+  #showtopo_dialog {
+    width: 1200px;
+  }
+}
+
 @media (min-width: 910px) and (max-width: 969px) {
   #showtopo_dialog, #edit_dialog {
     width: 900px;
-  }
-  #showtopo_div {
-    width: 610px;
-  }
-  #showtopo_nopicker, #edit_nopicker {
-    width: 800px;
   }
   .modal-dialog {
     width: 800px;
@@ -279,12 +269,6 @@ body {
   #showtopo_dialog, #edit_dialog {
       width: 830px;
   }
-  #showtopo_div {
-      width: 560px;
-  }
-  #showtopo_nopicker, #edit_nopicker {
-      width: 730px;
-  }
   .modal-dialog {
     width: 730px;
     margin: 30px auto;
@@ -294,12 +278,6 @@ body {
 @media (min-width: 790px) and (max-width: 849px) {
   #showtopo_dialog, #edit_dialog {
       width: 780px;
-  }
-  #showtopo_div {
-      width: 510px;
-  }
-  #showtopo_nopicker, #edit_nopicker {
-      width: 680px;
   }
   .modal-dialog {
     width: 680px;
@@ -311,12 +289,6 @@ body {
   #showtopo_dialog, #edit_dialog {
       width: 750px;
   }
-  #showtopo_div {
-    width: 500px;
-  }
-  #showtopo_nopicker, #edit_nopicker {
-    width: 650px;
-  }
   .modal-dialog {
     width: 700px;
     margin: 30px auto;
@@ -327,12 +299,6 @@ body {
   #showtopo_dialog, #edit_dialog {
       width: 720px;
   }
-  #showtopo_div {
-      width: 470px;
-  }
-  #showtopo_nopicker, #edit_nopicker {
-      width: 620px;
-  }
   .modal-dialog {
     width: 620px;
     margin: 30px auto;
@@ -342,12 +308,6 @@ body {
 @media (min-width: 690px) and (max-width: 739px) {
   #showtopo_dialog, #edit_dialog {
       width: 680px;
-  }
-  #showtopo_div {
-      width: 430px;
-  }
-  #showtopo_nopicker, #edit_nopicker {
-      width: 580px;
   }
   .modal-dialog {
     width: 580px;
@@ -366,6 +326,12 @@ body {
   #quickvm_topomodal #profile_name {
       height: 180px;
       overflow-y: scroll;
+  }
+  #showtopo_container #showtopo_details {
+    height: 200px;
+  }
+  #showtopo_dialog #showtopo_div {
+    height: 200px;
   }
   .modal-dialog {
     width: 90%;
@@ -394,17 +360,17 @@ body {
 }
 
 #quickvm_topomodal .modal-body {
-  margin-top: -57px;
+  margin-top: 0px;
   overflow: hidden;
-  padding: 72px 0 10px 20px;
-  height: 600px;
+  padding: 10px 0 10px 20px;
+  height: 640px;
 }
 
 #showtopo_buttons {
   margin-bottom: 10px;
   position: absolute;
   bottom: 0;
-  right: 0;
+  right: 10px;
 }
 /*
 #showtopo_div {
