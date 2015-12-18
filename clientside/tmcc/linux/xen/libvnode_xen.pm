@@ -1651,7 +1651,14 @@ sub vnodePreConfig($$$$$){
     if ($vninfo->{'os'} ne "FreeBSD") {
 	# Should be handled in libsetup.pm, but just in case
 	if (! -e "$vnoderoot/var/emulab/boot/localevserver" ) {
-	    mysystem2("echo '$ctrlip' > $vnoderoot/var/emulab/boot/localevserver");
+	    my $evip;
+	    if (isRoutable($vnconfig->{'config'}->{'CTRLIP'})) {
+		$evip = $ctrlip;
+	    }
+	    else {
+		($evip) = domain0ControlNet();
+	    }
+	    mysystem2("echo '$evip' > $vnoderoot/var/emulab/boot/localevserver");
 	    goto bad
 		if ($?);
 	}
