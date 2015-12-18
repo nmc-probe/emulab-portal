@@ -164,7 +164,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    event.preventDefault();
 	    if (isfadmin) {
 		if ($('#extension_history').length) {
-		    $("#extend_history").text($('#extension_history').text());
+		    $("#fadmin_extend_history")
+			.text($('#extension_history').text());
 		    sup.ShowModal("#extend_history_modal");
 		}
 		return;

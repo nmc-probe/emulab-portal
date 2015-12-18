@@ -38,6 +38,13 @@ function (_, sup, moment, dashboardString)
 				 .format("ddd h:mm A"));
 		}
 	    });
+	    $('.format-date-withday').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html())
+				 .format("MMM D h:mm A"));
+		}
+	    });
 	    $('[data-toggle="popover"]').popover({
 		trigger: 'hover',
 		placement: 'auto',

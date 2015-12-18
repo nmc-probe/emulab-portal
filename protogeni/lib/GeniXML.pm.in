@@ -1037,6 +1037,14 @@ sub HasBestEffortSetting($)
     return scalar(@tagged);
 }
 
+sub HasTrivialSetting($)
+{
+    my ($link) = @_;
+    my @tmp = FindNodesNS("n:trivial_ok", $link,
+			  $EMULAB_NS)->get_nodelist();
+    return scalar(@tmp);
+}
+
 sub IsUntaggedLan($)
 {
     my ($link) = @_;
@@ -1068,6 +1076,19 @@ sub IsMultiplexedLan($)
     my ($link) = @_;
     my $result = 0;
     my @tmp    = FindNodesNS("n:link_multiplexing", $link,
+			     $EMULAB_NS)->get_nodelist();
+    if (scalar(@tmp) > 0) {
+	my $enabled = GetText("enabled", $tmp[0]);
+	$result = defined($enabled) && $enabled eq "true";
+    }
+    return $result;
+}
+
+sub TrivialOkay($)
+{
+    my ($link) = @_;
+    my $result = 0;
+    my @tmp    = FindNodesNS("n:trivial_ok", $link,
 			     $EMULAB_NS)->get_nodelist();
     if (scalar(@tmp) > 0) {
 	my $enabled = GetText("enabled", $tmp[0]);

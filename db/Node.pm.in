@@ -4023,5 +4023,21 @@ sub OnRemoteNode($)
     return $physhost->isremotenode();
 }
 
+#
+# Quick check to see if we have routable IPs addresses free.
+#
+sub HaveRoutableIPs($$)
+{
+    my ($class, $needed) = @_;
+
+    my $query_result =
+	DBQueryWarn("select count(ip) from virt_node_public_addr ".
+		    "where node_id is null and eid is null");
+    return 0
+	if (!$query_result || $query_result->numrows < $needed);
+
+    return 1;
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;
