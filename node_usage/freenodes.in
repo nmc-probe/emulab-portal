@@ -71,6 +71,28 @@ foreach my $type (@free_types) {
     }
     $free{$type} = $count;
 }
+
+#
+# Create a csv file.
+#
+open(DAT, ">freenodes.csv")
+    or die("Could open freenodes.csv for writing");
+print DAT "Type,Inuse,Free\n";
+foreach my $type (@free_types) {
+    my $free  = $free{$type};
+    my $inuse = $total{$type} - $free{$type};
+    
+    print DAT "$type,$inuse,$free\n";
+}
+close(DAT);
+
+system("cp -fp freenodes.csv @prefix@/www/node_usage/");
+
+if (! -x "/usr/local/bin/gnuplot") {
+    print STDERR "gnuplot is not installed, bailing without creating plots.\n";
+    exit(1);
+}
+
 open(DAT, ">freenodes.dat")
     or die("Could open freenodes.dat for writing");
 print DAT "Type\tInuse\tFree\n";
@@ -96,18 +118,4 @@ print PLOT "plot 'freenodes.dat' using 2 ti col, '' using 3:xtic(1) ti col\n";
 close(PLOT)
     or die("Error running gnuplot");
 
-#
-# Create a csv file.
-#
-open(DAT, ">freenodes.csv")
-    or die("Could open freenodes.csv for writing");
-print DAT "Type,Inuse,Free\n";
-foreach my $type (@free_types) {
-    my $free  = $free{$type};
-    my $inuse = $total{$type} - $free{$type};
-    
-    print DAT "$type,$inuse,$free\n";
-}
-close(DAT);
-
-system("cp -fp freenodes.svg freenodes.csv @prefix@/www/node_usage/");
+system("cp -fp freenodes.svg @prefix@/www/node_usage/");
