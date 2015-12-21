@@ -324,10 +324,10 @@
 		             <% if (formfields.profile_who == "public") {
 				%>checked<% } %>
 			     value='public'>
-		      <% if (iscloud || ispnet) { %>
-                      <em>Anyone</em>
-		      <% } else { %>
+		      <% if (isapt) { %>
                       <em>Anyone</em> on the internet
+		      <% } else { %>
+                      <em>Anyone</em>
 		      <% } %>
     	            </label>
                   </div>

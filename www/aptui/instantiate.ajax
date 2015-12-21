@@ -115,75 +115,8 @@ function Do_GetParameters()
 #
 function Do_Instantiate()
 {
-    global $this_user, $DEFAULT_AGGREGATE, $ISCLOUD;
-    global $ajax_args;
-    $am_array = Instance::DefaultAggregateList();
-    
-    if (!isset($ajax_args["uuid"])) {
-	SPITAJAX_ERROR(1, "Missing profile uuid");
-	return;
-    }
-    $profile = Profile::Lookup($ajax_args["uuid"]);
-    if (!$profile) {
-	SPITAJAX_ERROR(1, "Unknown profile uuid");
-	return;
-    }
-    if (!isset($this_user)) {
-	if (!$profile->ispublic()) {
-	    SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
-	    return;
-	}	    
-    }
-    elseif (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
-	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
-	return;
-    }
-    $args = array();
-    $args["username"]   = $this_user->uid();
-    $args["email"]      = $this_user->email();
-    $args["profile"]    = $profile->uuid();
-    # Guest users not allowed to provide rspec
-    if (isset($this_user) &&
-        array_key_exists("rspec", $ajax_args)) {
-	$args["rspec"]  = $ajax_args["rspec"];
-    }
-    $opts = "";
-    # Guest users not allowed to choose aggregate.
-    if (isset($this_user) && ($ISCLOUD || ISADMIN() || STUDLY()) &&
-	isset($ajax_args["where"])) {
-	if (array_key_exists($ajax_args["where"], $am_array)) {
-	    $opts = "-a " . $am_array[$ajax_args["where"]];
-	}
-	else {
-	    SPITAJAX_ERROR(1, "Invalid Aggregate");
-	    return;
-	}
-    }
-    else {
-	# Temporary until constraint system in place.
-	$best = $profile->BestAggregate();
-	if (!$best) {
-	    $best = $DEFAULT_AGGREGATE;
-	}
-	$opts = "-a " . $am_array[$best];
-    }
-
-    #
-    # Invoke the backend.
-    #
-    $errors = array();
-    list ($instance, $creator) =
-	Instance::Instantiate($this_user, $opts, $args, $errors);
-
-    if (!isset($instance) || is_null($instance)) {
-	SPITAJAX_ERROR(1, $errors["error"]);
-        return;
-    }
-    #
-    # Redirect user to status page.
-    #
-    $uuid = $instance->uuid();
-    SPITAJAX_RESPONSE("status.php?uuid=$uuid");
+    SPITAJAX_ERROR(1, "This interface is deprecated");
+    return;
 }
 
 #
@@ -611,7 +544,7 @@ function CheckStep2()
 {
     global $this_user;
     global $ajax_args;
-    global $ISAPT, $ISPNET, $ISCLOUD;
+    global $ISAPT, $ISPNET, $ISCLOUD, $ISEMULAB;
 
     if (!isset($ajax_args["formfields"])) {
 	SPITAJAX_ERROR(-1, "Missing formfields");
@@ -659,7 +592,7 @@ function CheckStep2()
                 }
             }
         }
-        elseif ($ISAPT || $ISPNET) {
+        elseif ($ISAPT || $ISPNET || $ISEMULAB) {
             # No choice
             ;
         }
@@ -714,7 +647,7 @@ function Do_Submit()
 {
     global $this_user;
     global $ajax_args;
-    global $TBAUTHDOMAIN, $ISAPT, $ISPNET;
+    global $TBAUTHDOMAIN, $ISAPT, $ISPNET, $DEFAULT_AGGREGATE_URN;
 
     if (!isset($ajax_args["formfields"])) {
 	SPITAJAX_ERROR(1, "Missing formfields");
@@ -758,12 +691,9 @@ function Do_Submit()
     $sitemap = array();
 
     if ($this_user) {
-        if ($ISAPT) {
-	    $aggregate_urn = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+        if ($ISAPT || $ISPNET) {
+	    $aggregate_urn = $DEFAULT_AGGREGATE_URN;
         }
-	elseif ($ISPNET) {
-	    $aggregate_urn = "urn:publicid:IDN+emulab.net+authority+cm";
-	}
         elseif (isset($formfields["sites"]) && is_array($formfields["sites"])) {
             while (list($siteid, $am) = each($formfields["sites"])) {
                 if (array_key_exists($am, $am_array)) {

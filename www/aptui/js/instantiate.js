@@ -83,8 +83,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    profilevers:        window.PROFILEVERS,
 	    showpicker:		showpicker,
 	    cancopy:		window.CANCOPY,
-	    clustername:        (window.ISCLOUD ? "CloudLab" : 
-				 (window.ISPNET ? "PhantomNet" : "APT")),
+	    clustername:        window.PORTAL_NAME,
 	});
 	$('#main-body').html(html);
 

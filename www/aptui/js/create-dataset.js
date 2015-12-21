@@ -56,8 +56,6 @@ function (_, sup, moment, mainString, helpString)
 	    embedded:		window.EMBEDDED,
 	    editing:		editing,
 	    isadmin:		isadmin,
-	    sitename:           (window.ISCLOUD ? "CloudLab" : 
-				 (window.ISPNET ? "PhantomNet" : "APT")),
 	});
 	html = formatter(html, errors).html();
 	$('#main-body').html(html);

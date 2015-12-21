@@ -419,9 +419,7 @@ if (!$this_user) {
     # Force initial SSL cert generation.
     $args["passphrase"]    = $formfields["password1"];
     # Flag to the backend.
-    $args["genesis"]	   = ($ISAPT ? "aptlab" : 
-			      ($ISPNET ? "phantomnet" : 
-			       "cloudlab"));
+    $args["genesis"]	   = $PORTAL_GENESIS;
 
     #
     # Backend verifies pubkey and returns error. We first look for a 
@@ -517,9 +515,9 @@ $args["linkedtous"]        = 1;
 $args["plab"]              = 0;
 $args["ron"]               = 0;
 $args["funders"]           = "None";
-$args["whynotpublic"]      = ($ISAPT ? "aptlab" : ($ISPNET ? "phantomnet" : "cloudlab"));
+$args["whynotpublic"]      = $PORTAL_GENESIS;
 # Flag to the backend.
-$args["genesis"]	   = ($ISAPT ? "aptlab" : ($ISPNET ? "phantomnet" : "cloudlab"));
+$args["genesis"]	   = $PORTAL_GENESIS;
 
 if (! ($project = Project::NewNewProject($args, $error))) {
     $errors["error"] = $error;
