@@ -75,7 +75,7 @@ function (_, sup,
 	var signup = signupTemplate({
 	    button_label: buttonLabel,
 	    general_error: (errors.error || ''),
-	    about_account: (window.ISAPT || !thisUser ? about : null),
+	    about_account: (window.ISAPT && !thisUser ? about : null),
 	    this_user: thisUser,
 	    promoting: promoting,
 	    joinproject: joinproject,
