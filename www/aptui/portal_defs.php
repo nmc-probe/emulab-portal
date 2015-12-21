@@ -61,8 +61,6 @@ $PORTAL_NAME            = "Emulab";
 #
 # The Utah MotherShip defines alternate portals. 
 #
-if ($TBMAINSITE) {
-    include_once("portal_mainsite.php");
-}
+include_once("portal_mainsite.php");
 
 ?>
