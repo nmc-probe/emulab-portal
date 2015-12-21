@@ -39,6 +39,10 @@ if ($_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $WWWHOST      = "www.aptlab.net";
     $APTBASE      = "https://www.aptlab.net";
     $APTMAIL      = "APT Operations <portal-ops@aptlab.net>";
+    $APTTITLE     = "APT";
+    $FAVICON      = "aptlab.ico";
+    $APTLOGO      = "aptlogo.png";
+    $APTSTYLE     = "apt.css";
     $GOOGLEUA     = 'UA-42844769-3';
     $TBMAILTAG    = "aptlab.net";
     $EXTENSIONS   = "portal-extensions@aptlab.net";
