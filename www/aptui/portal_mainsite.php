@@ -114,10 +114,10 @@ elseif ($ISALTDOMAIN && $_SERVER["SERVER_NAME"] == "www.phantomnet.org") {
     $PORTAL_MANUAL         = "http://wiki.phantomnet.org";
     $PORTAL_MOTD_SITEVAR   = "phantomnet/message";
     $PORTAL_HELPFORUM      = "phantomnet-users";
-    $PORTAL_PASSWORD_HELP  = "PhantomNet.org  or Emulab.net Username";
+    $PORTAL_PASSWORD_HELP  = "PhantomNet.org or Emulab.net Username";
     $PORTAL_NSFNUMBER      = "CNS-1305384";
     $DEFAULT_AGGREGATE     = "Emulab";
-    $DEFAULT_AGGREGATE_URN = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+    $DEFAULT_AGGREGATE_URN = "urn:publicid:IDN+emulab.net+authority+cm";
     $PORTAL_GENESIS        = "phantomnet";
     $PORTAL_NAME           = "PhantomNet";
 }
