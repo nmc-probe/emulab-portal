@@ -60,11 +60,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	lockdown     = window.APT_OPTIONS.lockdown;
 	lockdown_code= uuid.substr(2, 5);
 	var instanceStatus = window.APT_OPTIONS.instanceStatus;
-	var errorURL = (window.ISCLOUD ?
-			"https://groups.google.com/d/forum/cloudlab-users" :
-			(window.ISPNET ? 
-			 "https://groups.google.com/d/forum/phantomnet-users" :
-			    "https://groups.google.com/d/forum/apt-users"));
+	var errorURL = window.HELPFORUM;
 
 	// Generate the templates.
 	var template_args = {

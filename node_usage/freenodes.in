@@ -61,11 +61,8 @@ foreach my $type (@free_types) {
     $query_result =
 	DBQueryFatal("select count(a.node_id) from nodes as a ".
 		     "left join reserved as b on a.node_id=b.node_id ".
-		     "left join nodetypeXpid_permissions as p ".
-		     "     on a.type=p.type ".
 		     "where b.node_id is null and a.type='$type' and ".
                      "    a.reserved_pid is null and ".
-		     "    p.pid is null and ".
                      "    (a.eventstate='" . TBDB_NODESTATE_ISUP . "' or ".
                      "     a.eventstate='" . TBDB_NODESTATE_POWEROFF . "' or ".
                      "     a.eventstate='" . TBDB_NODESTATE_PXEWAIT . "')");
@@ -74,6 +71,28 @@ foreach my $type (@free_types) {
     }
     $free{$type} = $count;
 }
+
+#
+# Create a csv file.
+#
+open(DAT, ">freenodes.csv")
+    or die("Could open freenodes.csv for writing");
+print DAT "Type,Inuse,Free\n";
+foreach my $type (@free_types) {
+    my $free  = $free{$type};
+    my $inuse = $total{$type} - $free{$type};
+    
+    print DAT "$type,$inuse,$free\n";
+}
+close(DAT);
+
+system("cp -fp freenodes.csv @prefix@/www/node_usage/");
+
+if (! -x "/usr/local/bin/gnuplot") {
+    print STDERR "gnuplot is not installed, bailing without creating plots.\n";
+    exit(1);
+}
+
 open(DAT, ">freenodes.dat")
     or die("Could open freenodes.dat for writing");
 print DAT "Type\tInuse\tFree\n";
@@ -99,18 +118,4 @@ print PLOT "plot 'freenodes.dat' using 2 ti col, '' using 3:xtic(1) ti col\n";
 close(PLOT)
     or die("Error running gnuplot");
 
-#
-# Create a csv file.
-#
-open(DAT, ">freenodes.csv")
-    or die("Could open freenodes.csv for writing");
-print DAT "Type,Inuse,Free\n";
-foreach my $type (@free_types) {
-    my $free  = $free{$type};
-    my $inuse = $total{$type} - $free{$type};
-    
-    print DAT "$type,$inuse,$free\n";
-}
-close(DAT);
-
-system("cp -fp freenodes.svg freenodes.csv @prefix@/www/node_usage/");
+system("cp -fp freenodes.svg @prefix@/www/node_usage/");

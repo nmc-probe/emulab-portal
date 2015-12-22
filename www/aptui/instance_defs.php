@@ -23,16 +23,6 @@
 #
 #
 
-if ($ISAPT) {
-    $DEFAULT_AGGREGATE = "Utah APT";
-}
-elseif ($ISCLOUD) {
-    $DEFAULT_AGGREGATE = "Utah Cloudlab";
-}
-elseif ($ISPNET) {
-    $DEFAULT_AGGREGATE = "Emulab";
-}
-
 $urn_mapping =
     array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      => "Utah",
           "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      => "Wisc",
@@ -359,7 +349,7 @@ class Instance
     # Return aggregate based on the current user.
     #
     function DefaultAggregateList() {
-        global $ISAPT, $ISCLOUD, $ISPNET;
+        global $ISAPT, $ISCLOUD, $ISPNET, $ISEMULAB;
 	if ($ISAPT) {
           $am_array = array(
                           'Cloudlab Utah' =>
@@ -394,7 +384,7 @@ class Instance
                   "urn:publicid:IDN+uky.emulab.net+authority+cm";
           }
         } 
-	elseif ($ISPNET) {
+	elseif ($ISPNET || $ISEMULAB) {
           $am_array = array(
                           'Emulab'  =>
                           "urn:publicid:IDN+emulab.net+authority+cm"

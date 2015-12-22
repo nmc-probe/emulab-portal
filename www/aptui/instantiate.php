@@ -44,7 +44,7 @@ $this_user = CheckLogin($check_status);
 if (isset($this_user)) {
     CheckLoginOrDie(CHECKLOGIN_NONLOCAL|CHECKLOGIN_WEBONLY);
 }
-elseif ($ISCLOUD || $ISPNET) {
+elseif (!$ISAPT) {
     RedirectLoginPage();
 }
 
@@ -300,7 +300,7 @@ $profile_array = $tmp_array;
 
 function SPITFORM($formfields, $newuser, $errors)
 {
-    global $TBBASE, $APTMAIL, $ISAPT, $ISCLOUD, $ISPNET;
+    global $TBBASE, $APTMAIL, $ISAPT, $ISCLOUD, $ISPNET, $PORTAL_NAME;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
     global $projlist;
     $amlist     = array();
@@ -312,7 +312,6 @@ function SPITFORM($formfields, $newuser, $errors)
                    $this_user->webonly() ? "true" : "false");
     $cancopy    = (isset($this_user) && !$this_user->webonly() ? 1 : 0);
     $nopprspec  = (!isset($this_user) ? "true" : "false");
-    $cluster    = ($ISCLOUD ? "Cloudlab" : ($ISPNET ? "PhantomNet" : "APT"));
     $portal     = "";
     $showpicker = (isset($profile) ? 0 : 1);
     if (isset($profilename)) {
@@ -399,6 +398,7 @@ function SPITFORM($formfields, $newuser, $errors)
     $doconstraints = (isset($this_user) &&
                       (ISADMINISTRATOR() || STUDLY()) ? 1 : 0);
     echo "    window.DOCONSTRAINTS = 1;\n";
+    echo "    window.PORTAL_NAME = '$PORTAL_NAME';\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";

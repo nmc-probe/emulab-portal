@@ -706,14 +706,6 @@ if (!defined($instance)) {
     fatal(defined($errmsg) ? $errmsg :
 	  "Could not create instance record for $quickvm_uuid");
 }
-# To keep stuff happy until multisite support finished.
-if (keys(%{$sitemap})) {
-    my ($temp_aggregate_urn) = values(%{$sitemap});
-    $instance->Update({'aggregate_urn' => $temp_aggregate_urn});
-}
-else {
-    $instance->Update({'aggregate_urn' => $default_aggregate_urn});
-}
 
 #
 # Get the set of keys (accounts) that need to be sent along. We build
@@ -743,6 +735,9 @@ foreach my $aggregate_urn (@aggregate_urns) {
     $aggobj->_authority($authority);
     push(@aggregate_list, $aggobj);
 }
+
+# To keep stuff happy until multisite support finished.
+$instance->Update({'aggregate_urn' => $aggregate_urns[0]});
 
 #
 # Create a webtask so that we can store additional information about

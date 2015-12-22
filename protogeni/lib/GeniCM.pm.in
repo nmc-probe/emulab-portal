@@ -611,9 +611,14 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     # Watch for sites that do not support openflow, we want to fail early.
     #
     my $no_openflow = 0;
+    my $ignore_openflow = 0;
     if (!GetSiteVar('general/no_openflow', \$no_openflow)){
 	# Cannot get the value, say no.
 	$no_openflow = 1;
+    }
+    if ($no_openflow =~ /ignore/) {
+	$no_openflow = 1;
+	$ignore_openflow = 1;
     }
 
     # Figure out if user has a credentials that exempts him
@@ -2388,7 +2393,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					  "fixed_iface" => $iface_name,
 					  "uselinkdelay"=> $uselinkdelay,
 					 });
-	    if ($ofcontroller && $ofcontroller ne "") {
+	    if ($ofcontroller && $ofcontroller ne "" && !$ignore_openflow) {
 		if ($no_openflow) {
 		    $response =
 			GeniResponse->Create(GENIRESPONSE_BADARGS, undef,

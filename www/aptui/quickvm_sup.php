@@ -21,27 +21,7 @@
 # 
 # }}}
 #
-$APTHOST	= "$WWWHOST";
-# No sure why tbauth uses WWWHOST for the login cookies, but it
-# causes confusion in geni-login.ajax. 
-$COOKDIEDOMAIN  = "$WWWHOST";
-$APTBASE	= "$TBBASE/apt";
-$APTMAIL        = $TBMAIL_OPS;
-$EXTENSIONS     = $TBMAIL_OPS;
-$APTTITLE       = "APT";
-$FAVICON        = "aptlab.ico";
-$APTLOGO        = "aptlogo.png";
-$APTSTYLE       = "apt.css";
-$ISAPT		= 1;
-$ISCLOUD        = 0;
-$ISPNET         = 0;
-$ISVSERVER      = 0;
-$GOOGLEUA       = 'UA-45161989-1';
-# See tbauth.php3
-$CHANGEPSWD_PAGE= "changepswd.php";
-$MAXGUESTINSTANCES = 10;
-$WITHPUBLISHING = 0;
-
+include_once("portal_defs.php");
 include_once("instance_defs.php");
 
 #
@@ -63,77 +43,6 @@ if (isset($_REQUEST["embedded"]) && $_REQUEST["embedded"]) {
 # Flag to signal that a requires was spit. For errors.
 $spatrequired = 0;
 
-#
-# So, we could be coming in on the alternate APT address (virtual server)
-# which causes cookie problems. I need to look into avoiding this problem
-# but for now, just change the global value of the TBAUTHDOMAIN when we do.
-# The downside is that users will have to log in twice if they switch back
-# and forth.
-#
-if ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.aptlab.net") {
-    $ISVSERVER    = 1;
-    $TBAUTHDOMAIN = ".aptlab.net";
-    $COOKDIEDOMAIN= ".aptlab.net";
-    $APTHOST      = "www.aptlab.net";
-    $WWWHOST      = "www.aptlab.net";
-    $APTBASE      = "https://www.aptlab.net";
-    $APTMAIL      = "APT Operations <portal-ops@aptlab.net>";
-    $GOOGLEUA     = 'UA-42844769-3';
-    $TBMAILTAG    = "aptlab.net";
-    $EXTENSIONS   = "portal-extensions@aptlab.net";
-    $TBAUTHTIMEOUT= (24 * 3600 * 7);
-    # For devel trees
-    if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
-	$APTBASE .= "/" . $matches[1];
-    }
-}
-elseif (0 || ($TBMAINSITE && $_SERVER["SERVER_NAME"] == "www.cloudlab.us")) {
-    $ISVSERVER    = 1;
-    $TBAUTHDOMAIN = ".cloudlab.us";
-    $COOKDIEDOMAIN= "www.cloudlab.us";
-    $APTHOST      = "www.cloudlab.us";
-    $WWWHOST      = "www.cloudlab.us";
-    $APTBASE      = "https://www.cloudlab.us";
-    $APTMAIL      = "CloudLab Operations <portal-ops@cloudlab.us>";
-    $APTTITLE     = "CloudLab";
-    $FAVICON      = "cloudlab.ico";
-    $APTLOGO      = "cloudlogo.png";
-    $APTSTYLE     = "cloudlab.css";
-    $ISAPT	  = 0;
-    $ISCLOUD      = 1;
-    $GOOGLEUA     = 'UA-42844769-2';
-    $TBMAILTAG    = "cloudlab.us";
-    $EXTENSIONS   = "portal-extensions@cloudlab.us";
-    $TBAUTHTIMEOUT= (24 * 3600 * 14);
-    # For devel trees
-    if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
-	$APTBASE .= "/" . $matches[1];
-    }
-}
-elseif ($ISALTDOMAIN && $_SERVER["SERVER_NAME"] == "www.phantomnet.org") {
-    $ISVSERVER    = 1;
-    $TBAUTHDOMAIN = ".phantomnet.org";
-    $COOKDIEDOMAIN= "www.phantomnet.org";
-    $APTHOST      = "www.phantomnet.org";
-    $WWWHOST      = "www.phantomnet.org";
-    $APTBASE      = "https://www.phantomnet.org";
-    $APTMAIL      = "PhantomNet Operations <portal-ops@phantomnet.org>";
-    $APTTITLE     = "PhantomNet";
-    $FAVICON      = "phantomnet.ico";
-    $APTLOGO      = "phantomlogo.png";
-    $APTSTYLE     = "phantomnet.css";
-    $ISAPT	  = 0;
-    $ISPNET       = 1;
-    #$GOOGLEUA     = 'UA-42844769-2';
-    $TBMAILTAG    = "phantomnet.org";
-    $EXTENSIONS   = "portal-extensions@phantomnet.org";
-    $TBAUTHTIMEOUT= (24 * 3600 * 14);
-    # For devel trees
-    if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
-	$APTBASE .= "/" . $matches[1];
-    }
-}
-
 # For backend scripts to know how they were invoked.
 if (isset($_SERVER['SERVER_NAME'])) { 
     putenv("SERVER_NAME=" . $_SERVER['SERVER_NAME']);
@@ -143,15 +52,20 @@ if (isset($_SERVER['SERVER_NAME'])) {
 # Redefine this so APT errors are styled properly. Called by PAGEERROR();.
 #
 $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
-    global $drewheader, $ISCLOUD, $ISPNET, $spatrequired;
+    global $drewheader, $ISCLOUD, $ISPNET, $ISEMULAB, $ISAPT, $PORTAL_HELPFORUM;
+    global $spatrequired;
 
     if (! $drewheader) {
 	SPITHEADER();
     }
     echo $msg;
     echo "<script type='text/javascript'>\n";
-    echo "    window.ISCLOUD = " . ($ISCLOUD ? "1" : "0") . ";\n";
-    echo "    window.ISPNET  = " . ($ISPNET  ? "1" : "0") . ";\n";
+    echo "    window.ISEMULAB  = " . ($ISEMULAB ? "1" : "0") . ";\n";
+    echo "    window.ISCLOUD   = " . ($ISCLOUD  ? "1" : "0") . ";\n";
+    echo "    window.ISPNET    = " . ($ISPNET   ? "1" : "0") . ";\n";
+    echo "    window.ISAPT     = " . ($ISAPT    ? "1" : "0") . ";\n";
+    echo "    window.HELPFORUM = " .
+        "'https://groups.google.com/d/forum/${PORTAL_HELPFORUM}';\n";
     echo "</script>\n";
     if (!$spatrequired) {
 	echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
@@ -166,8 +80,9 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
 $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 				 $ignore2 = NULL, $ignore3 = NULL)
 {
+    global $PORTAL_MANUAL, $PORTAL_MOTD_SITEVAR, $PORTAL_HELPFORUM;
     global $TBMAINSITE, $APTTITLE, $FAVICON, $APTLOGO, $APTSTYLE, $ISAPT;
-    global $GOOGLEUA, $ISCLOUD, $ISPNET;
+    global $GOOGLEUA, $ISCLOUD, $ISPNET, $ISEMULAB, $TBBASE, $ISEMULAB;
     global $login_user, $login_status;
     global $disable_accounts, $page_title, $drewheader, $embedded;
     $title = $APTTITLE;
@@ -197,17 +112,18 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     echo "<script>APT_CACHE_TOKEN='" . Instance::CacheToken() . "';</script>";
     echo "<script src='js/common.js?nocache=asdfasdf'></script>
         <link rel='stylesheet' href='css/jquery-steps.css'>
-        <script src='https://www.emulab.net/emulab_sup.js'></script>
+        <script src='$TBBASE/emulab_sup.js'></script>
       </head>
     <body style='display: none;'>\n";
 
-    $manual = ($ISAPT ? "http://docs.aptlab.net" : 
-	       ($ISCLOUD ? "http://docs.cloudlab.us" : 
-		($ISPNET ? "http://wiki.phantomnet.org" : "")));
     echo "<script type='text/javascript'>\n";
-    echo "    window.ISCLOUD  = " . ($ISCLOUD ? "1" : "0") . ";\n";
-    echo "    window.ISPNET   = " . ($ISPNET  ? "1" : "0") . ";\n";
-    echo "    window.MANUAL   = '$manual';\n";
+    echo "    window.ISEMULAB = " . ($ISEMULAB ? "1" : "0") . ";\n";
+    echo "    window.ISCLOUD  = " . ($ISCLOUD  ? "1" : "0") . ";\n";
+    echo "    window.ISPNET   = " . ($ISPNET   ? "1" : "0") . ";\n";
+    echo "    window.ISAPT    = " . ($ISAPT    ? "1" : "0") . ";\n";
+    echo "    window.MANUAL   = '$PORTAL_MANUAL';\n";
+    echo "    window.HELPFORUM = " .
+        "'https://groups.google.com/d/forum/${PORTAL_HELPFORUM}';\n";
     echo "    window.EMBEDDED = $embedded;\n";
     echo "</script>\n";
     
@@ -293,18 +209,11 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
              <ul class='nav navbar-nav navbar-left apt-left'>
                 <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
                        href='landing.php'>Home</a></form></li>\n";
-    if ($ISAPT) {
-	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
-                       href='http://docs.aptlab.net' target='_blank'>Manual</a></form></li>\n";
-    }
-    elseif ($ISCLOUD) {
-	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
-                       href='http://docs.cloudlab.us' target='_blank'>Manual</a></form></li>\n";
-    }
-    elseif ($ISPNET) {
-	echo "  <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
-                       href='http://wiki.phantomnet.org' target='_blank'>Wiki</a></form></li>\n";
-    }
+    echo "      <li class='apt-left'><form>".
+        "           <a class='btn btn-quickvm-home navbar-btn' ".
+        "              href='$PORTAL_MANUAL' target='_blank'> ".
+        ($ISEMULAB || $ISPNET ? "Wiki" : "Manual") . "</a></form></li>\n";
+
     if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
 	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
@@ -347,22 +256,16 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     echo "   </ul>
            </div>
          </div>\n";
-    
+
+    #
     # Put the special message, if any, right below the header. Note that the
     # negative margin is to put it flush below the navbar without having to
     # permanently remove the bottom margin on the navbar
-    if ($ISAPT) {
-        $message = TBGetSiteVar("aptlab/message");
-    }
-    elseif ($ISCLOUD) {
-        $message = TBGetSiteVar("cloudlab/message");
-    } 
-    elseif ($ISPNET) {
-        $message = TBGetSiteVar("phantomnet/message");
-    }
+    #
+    $message = TBGetSiteVar($PORTAL_MOTD_SITEVAR);
     if ($message != "") {
         echo "<div class='alert alert-warning alert-dismissible'
-                 role='alert' style='margin-top: -10px'>
+                 role='alert' style='margin-top: -10px; padding: 5px;'>
                 <center>$message</center>
           </div>";
     }
@@ -417,17 +320,16 @@ function SPITHEADER($thinheader = 0,
 }
 
 $PAGEFOOTER_FUNCTION = function($ignored = NULL) {
-    global $ISAPT, $ISCLOUD, $ISPNET, $embedded;
-    $groupname = ($ISAPT ? "apt-users" : 
-		  ($ISCLOUD ? "cloudlab-users" : 
-		   ($ISPNET ? "phantomnet-users" : "")));
-    
+    global $PORTAL_HELPFORUM, $PORTAL_NSFNUMBER, $embedded;
+
     echo "</div>
       </div>\n";
     if ($embedded) {
 	return;
     }
-    SpitNSFModal();
+    if ($PORTAL_NSFNUMBER) {
+        SpitNSFModal();
+    }
     echo "
       <!--- Footer -->
       <div>
@@ -438,12 +340,14 @@ $PAGEFOOTER_FUNCTION = function($ignored = NULL) {
              <img src='images/emulab-whiteout.png' id='elabpower'></a>
         </div>
 	<span>Question or comment? Join the
-           <a href='https://groups.google.com/forum/#!forum/${groupname}'
+           <a href='https://groups.google.com/forum/#!forum/${PORTAL_HELPFORUM}'
               target='_blank'>Help Forum</a></span>
            <div class='pull-right'>\n";
-    echo " <a data-toggle='modal' style='margin-right: 10px;'
+    if ($PORTAL_NSFNUMBER) {
+        echo " <a data-toggle='modal' style='margin-right: 10px;'
               href='#nsf_supported_modal'
 	      data-target='#nsf_supported_modal'>Supported by NSF</a>\n";
+    }
     echo "&copy; 2015
           <a href='http://www.utah.edu' target='_blank'>
              The University of Utah</a>
@@ -554,12 +458,8 @@ function SpitVerifyModal($id, $label)
 #
 function SpitLoginModal($id)
 {
-    global $APTTITLE, $ISAPT, $ISCLOUD, $ISPNET;
-    $pwlab = ($ISAPT ? "Aptlab.net" : 
-	      ($ISCLOUD ? "CloudLab.us" :
-	       ($ISPNET ? "PhantomNet.org" : ""))) .
-	" or Emulab.net Username";
-    $pwlab = "$pwlab";
+    global $PORTAL_PASSWORD_HELP;
+    global $APTTITLE, $ISCLOUD;
     $referrer = CleanString($_SERVER['REQUEST_URI']);
 ?>
     <!-- This is the login modal -->
@@ -582,7 +482,7 @@ function SpitLoginModal($id)
                 <label for='uid' class='col-sm-2 control-label'>Username</label>
                 <div class='col-sm-10'>
                     <input name='uid' class='form-control'
-                           placeholder='<?php echo $pwlab ?>'
+                           placeholder='<?php echo $PORTAL_PASSWORD_HELP ?>'
                            autofocus type='text'>
                 </div>
              </div>
@@ -673,10 +573,7 @@ function SpitOopsModal($id)
 
 function SpitNSFModal()
 {
-    global $ISAPT, $ISCLOUD, $ISPNET;
-    $nsfnumber = ($ISAPT ? "CNS-1338155" : 
-		  ($ISCLOUD ? "CNS-1302688" :
-		   ($ISPNET ? "CNS-XXXXXXX" : "")));
+    global $PORTAL_NSFNUMBER;
     
     echo "<!-- This is the NSF Supported modal -->
           <div id='nsf_supported_modal' class='modal fade'>
@@ -685,7 +582,7 @@ function SpitNSFModal()
               <div class='modal-body'>
                 This material is based upon work supported by the
                 National Science Foundation under Grant
-                No. ${nsfnumber}. Any opinions, findings, and
+                No. ${PORTAL_NSFNUMBER}. Any opinions, findings, and
                 conclusions or recommendations expressed in this
                 material are those of the author(s) and do not
                 necessarily reflect the views of the National Science

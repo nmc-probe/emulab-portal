@@ -87,13 +87,10 @@ if (NOLOGINS()) {
 # 
 function SPITFORM($uid, $referrer, $error)
 {
+    global $PORTAL_PASSWORD_HELP;
     global $TBDB_UIDLEN, $TBBASE, $refer;
-    global $ISAPT, $ISCLOUD, $ISPNET, $showguestlogin;
-    $pwlab = ($ISAPT ? "Aptlab.net" : 
-	      ($ISCLOUD ? "CloudLab.us" :
-	       ($ISPNET ? "PhantomNet.org" : ""))) .
-	" or Emulab.net Username";
-    
+    global $ISAPT, $ISCLOUD, $showguestlogin;
+
     header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
     header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
     header("Cache-Control: no-cache, max-age=0, must-revalidate, no-store");
@@ -146,7 +143,7 @@ function SPITFORM($uid, $referrer, $error)
                 <label for='uid' class='col-sm-2 control-label'>Username</label>
                 <div class='col-sm-10'>
                     <input name='uid' class='form-control'
-                           placeholder='<?php echo $pwlab ?>'
+                           placeholder='<?php echo $PORTAL_PASSWORD_HELP ?>'
                            autofocus type='text'>
                 </div>
              </div>

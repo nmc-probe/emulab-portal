@@ -41,7 +41,7 @@ function (_, editModalString, editInlineString)
     var contextFetched = false;
 
     var contextUrl = "";
-    if (window.ISCLOUD)
+    if (window.ISCLOUD || window.ISEMULAB)
     {
 	contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
     }
