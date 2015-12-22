@@ -3,7 +3,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/ppwizardstart', 'js/JacksEditor', 'js/wizard-template',
 	 'js/lib/text!template/instantiate.html',
 	 'js/lib/text!template/aboutapt.html',
-	 'js/lib/text!template/aboutcloudlab.html',
+	 'js/lib/text!template/aboutcloudlab.html',     
 	 'js/lib/text!template/aboutpnet.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
@@ -17,7 +17,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var ajaxurl;
     var amlist        = null;
     var projlist      = null;
+    var sysprojlist   = ['emulab-ops', 'emulab-ops-test'];
+    var psysprojlist  = ['phantomnet', 'testproject'];
     var profilelist   = null;
+    var recentcount   = 5;
     var amdefault     = null;
     var selected_uuid = null;
     var selected_rspec   = null;
@@ -71,19 +74,42 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    projlist = decodejson('#projects-json');
 	}
 	profilelist = decodejson('#profiles-json');
+	var recentlist = decodefirstn('#profiles-json', recentcount);
+	_.each(recentlist, function(obj, key) {
+	    if (window.ISPNET) {
+		if (_.contains(psysprojlist, obj.project)) {
+		    obj.project = "System";
+		}
+	    }
+	    else {
+		if (_.contains(sysprojlist, obj.project)) {
+		    obj.project = "System";
+		}
+	    }
+	});
+	var projcategories = MakeProfileCategories(profilelist);
+
+	console.log(recentlist);
 
 	var html = mainTemplate({
-	    formfields:		decodejson('#form-json'),
+	    formfields:         decodejson('#form-json'),
 	    profiles:           profilelist,
+	    projprofiles:       projcategories.inproj,
+	    systemprofiles:        projcategories.sysproj,
+	    otherprofiles:      projcategories.otherproj,
+	    recent:             recentlist,
+	    showpopular:        (_.where(_.values(recentlist),{usecount: 0}).length == recentcount),
+	    favorites:          projcategories.favorite,
 	    projects:           projlist,
-	    amlist:		amlist,
-	    registered:		registered,
+	    amlist:             amlist,
+	    registered:         registered,
 	    profilename:        window.PROFILENAME,
-	    profileuuid:        window.PROFILEUUID,
-	    profilevers:        window.PROFILEVERS,
-	    showpicker:		showpicker,
-	    cancopy:		window.CANCOPY,
+	    profileuuid:        window.PROFILEUUID,     
+	    profilevers:        window.PROFILEVERS,     
+	    showpicker:         showpicker,
+	    cancopy:            window.CANCOPY,
 	    clustername:        window.PORTAL_NAME,
+
 	});
 	$('#main-body').html(html);
 
@@ -118,7 +144,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		'</a>');
 
 	// END TEMPORARY BUTTON
-	
+
+
+	// Check if the browser has cookies stating what they previoiusly had minimized.
+	CookieCollapse('#profile_name > span', 'pp_collpased');
 
 	var jqxhr =
 	    $.get('https://ops.emulab.net/servicemon/?names=urn')
@@ -257,7 +286,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    profile_picker_timeout =
 		window.setTimeout(function() {
 		    var matches = 
-			options.children("li").filter(function() {
+			options.children("ul").children("li").filter(function() {
 			    var text = $(this).text();
 			    text = text.toLowerCase();
 
@@ -265,16 +294,29 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				return true;
 			    return false;
 			});
-		    options.children("li").hide();
+		    options.children("ul").children("li").hide();
 		    matches.show();
+
+		    if (userInput == '') {
+			$('#title_recently_used').removeClass('hidden');
+			$('#recently_used').removeClass('hidden');
+			$('#title_favorites').removeClass('hidden');
+			$('#favorites').removeClass('hidden');
+		    }
+		    else {
+			$('#title_recently_used').addClass('hidden');
+			$('#recently_used').addClass('hidden');
+			$('#title_favorites').addClass('hidden');
+			$('#favorites').addClass('hidden');
+		    }
 		}, 500);
 
 	    // User types return while searching, if there was only one
 	    // choice, then we select it. Convenience. 
 	    if (event.keyCode == 13) {
 		var matches = 
-		    options.children("li").filter(function() {
-			return $(this).css('display') == 'block';
+		    options.find("li").filter(function() {
+			return (!$(this).parent().hasClass('hidden') && $(this).css('display') == 'block');
 		    });
 		if (matches && matches.length == 1) {
 		    ShowProfileSelection(matches[0]);
@@ -300,14 +342,108 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    });
 	}
 	    
-	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
+	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']:first');
 	ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
+
+	// Set up the click function for expanding and collapsing profile groups
+	$('#profile_name > span').click(function() {
+	    var ul = '#'+($(this).attr('id').slice('title-'.length));
+	    if ($(this).children('.category_collapsable').hasClass('expanded')) {
+		$(ul).addClass('hidden');
+		$(this).children('.category_collapsable').removeClass('expanded');
+		$(this).children('.category_collapsable').addClass('collapsed');
+	    }
+	    else {
+		$(ul).removeClass('hidden');
+		$(this).children('.category_collapsable').addClass('expanded');
+		$(this).children('.category_collapsable').removeClass('collapsed');
+	    }
+
+	    var collapsed = [];
+	    $('#profile_name .category_collapsable.collapsed').each(function() {
+		collapsed.push($(this).parent().attr('id'));
+	    });
+
+	    SetCookie('pp_collpased',JSON.stringify(collapsed),30);
+	});
     }
 
     // Helper.
     function decodejson(id) {
 	return JSON.parse(_.unescape($(id)[0].textContent));
+    }
+
+    function decodefirstn(id, n) {
+	var json = $(id)[0].textContent;
+	json = json.slice(2,json.length-1);
+	var split = json.replace('},','}|,');
+	split = json.split('|,');
+
+	if (split.length > 1) { 
+	  json = "";
+	  for (var i = 0; i < n; i++) {
+	    if (split[i]) {
+	      if (i > 0) {
+		json += ',';
+	      }
+	      json += split[i];
+	    }
+	  }
+	}
+
+	return JSON.parse(_.unescape('{'+json+'}'));
+    }
+
+    // Handler to minimize span elements based on the cookie name
+    function CookieCollapse(target, cookieName) {
+	var cookie = GetCookie(cookieName);
+
+	if (cookie != null) {  
+	    var collapsed = JSON.parse(cookie);
+    
+	    $(target).each(function() {
+		if (_.contains(collapsed, $(this).attr('id'))) {
+		    $(this).children('.category_collapsable').removeClass('expanded').addClass('collapsed');
+		    var ul = '#'+($(this).attr('id').slice('title-'.length));
+		    $(ul).addClass('hidden');
+		}
+	    });
+	}
+    } 
+
+    // Put profiles into the correct categories to be built in the template
+    function MakeProfileCategories(profiles) {
+      var result = {favorite:{},inproj:{},sysproj:{},otherproj:{}};
+
+      // This section should probably be rethought as it's not very clean. 
+      //Didn't have time to refactor for initial release.
+      _.each(profilelist, function(obj, key) {
+	    if (obj.favorite == 1) {
+	      if ((window.ISPNET && _.contains(psysprojlist, obj.project)) || (!window.ISPNET &&_.contains(sysprojlist, obj.project))) {
+		result.favorite[key] = $.parseJSON(JSON.stringify(obj));
+		result.favorite[key].project = "System";
+	      }
+	      else {
+		result.favorite[key] = obj;
+	      }
+	    }
+	    if (_.contains(projlist, obj.project)) {
+	      if (!result.inproj[obj.project]) {
+		result.inproj[obj.project] = {};
+	      }
+	      result.inproj[obj.project][key] = obj;
+	    }
+	    else {
+	      if ((window.ISPNET && _.contains(psysprojlist, obj.project)) || (!window.ISPNET &&_.contains(sysprojlist, obj.project))) {
+		result.sysproj[key] = obj;
+	      }
+	      else {
+		result.otherproj[key] = obj;
+	      }
+	    }
+	});
+      return result;
     }
 
     var doingformcheck = 0;
@@ -548,7 +684,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 			ShowFormErrors(json.value);
 			return;
 		    }
-		    sup.SpitOops("oops", json.value);		    
+		    sup.SpitOops("oops", json.value);               
 		}
 		/*
 		 * The return value will have a redirect url in it,
@@ -652,14 +788,40 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    document.cookie = cookie;
 	});
     }
+
+    function SetCookie(name, value, days) {
+	// Delete existing cookies first
+	var expires = "expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+	document.cookie = name + '=; ' + expires;
+
+	var date = new Date();
+	date.setTime(date.getTime()+(days*24*60*60*1000))
+
+	var cookie = name + '=' + value +
+		'; expires=' + date.toGMTString() + '; path=/';
+
+	document.cookie = cookie;
+    }
+
+    // Cookie parser found from Google
+    function GetCookie(name) {
+	var nameEQ = name + "=";
+	var ca = document.cookie.split(';');
+	for(var i=0;i < ca.length;i++) {
+	    var c = ca[i];
+	    while (c.charAt(0)==' ') c = c.substring(1,c.length);
+	    if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+	}
+	return null;
+    }
     
     function CreateClusterStatus() {
 	//console.log("CreateClusterStatus", monitor);
-    	if (monitor == null || $.isEmptyObject(monitor)) {
-    	    return;
-    	}
+	if (monitor == null || $.isEmptyObject(monitor)) {
+	    return;
+	}
 
-    	$('#finalize_options .cluster-group').each(function() {
+	$('#finalize_options .cluster-group').each(function() {
 	    if ($(this).hasClass("pickered")) {
 		return;
 	    }
@@ -685,8 +847,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $('#'+which+' select.form-control').addClass('hidden');
 
 	    html.find('.dropdown-menu a').on('click', function() {    
-	    	wt.StatusClickEvent(html, this);
-	    	$('#'+which+' .form-control').val($('#'+which+' .cluster_picker_status .value').html()); 
+		wt.StatusClickEvent(html, this);
+		$('#'+which+' .form-control').val($('#'+which+' .cluster_picker_status .value').html()); 
 	    });
 
 	    _.each(amlist, function(name, key) {
@@ -723,20 +885,20 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
 	    var pickerStatus = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a');
 	    if (pickerStatus.length == 2) {
-	    	pickerStatus[1].click();
+		pickerStatus[1].click();
 	    }
 	    else {
-	    	pickerStatus[0].click();
+		pickerStatus[0].click();
 	    }
-    	});
+	});
 	
 	$('[data-toggle="tooltip"]').tooltip();
     }
 
     function SwitchJacks(which) {
-    	if (which == 'small' && $('#stepsContainer-p-2 #inline_jacks').html() == '') {
+	if (which == 'small' && $('#stepsContainer-p-2 #inline_jacks').html() == '') {
 			$('#stepsContainer #finalize_container').removeClass('col-lg-12 col-md-12 col-sm-12');
-    		$('#stepsContainer #finalize_container').addClass('col-lg-8 col-md-8 col-sm-8');
+		$('#stepsContainer #finalize_container').addClass('col-lg-8 col-md-8 col-sm-8');
 			$('#stepsContainer #inline_large_jacks').html('');
 			$('#inline_large_container').addClass('hidden');
 			if (ispprofile) {
@@ -746,22 +908,22 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				ShowProfileSelectionInline($('#profile_name .current'), $('#stepsContainer-p-2 #inline_jacks'), true);
 			}
 			$('#stepsContainer-p-2 #inline_container').removeClass('hidden');
-    	}
-    	else if (which == 'large') {
-    		// Sometimes the steps library will clean up the added elements
-    		if ($('#inline_large_container').length === 0) {	
-	    		$('<div id="inline_large_container" class="hidden"></div>').insertAfter('#stepsContainer .content');
+	}
+	else if (which == 'large') {
+		// Sometimes the steps library will clean up the added elements
+		if ($('#inline_large_container').length === 0) {        
+			$('<div id="inline_large_container" class="hidden"></div>').insertAfter('#stepsContainer .content');
 				$('#inline_large_container').html(''
 					+'<button id="closeLargeInline" type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>'
 					+'<div id="inline_large_jacks"></div>');
 				$('#stepsContainer #inline_large_container').addClass('col-lg-8 col-lg-offset-2 col-md-8 col-md-offset-2 col-sm-10 col-sm-offset-1 col-xs-12 col-xs-offset-0');
-    		
+		
 				$('#closeLargeInline').click(function() {
 					SwitchJacks('small');
 				});
-    		}
+		}
 
-    		$('#stepsContainer #finalize_container').removeClass('col-lg-8 col-md-8 col-sm-8');
+		$('#stepsContainer #finalize_container').removeClass('col-lg-8 col-md-8 col-sm-8');
 			$('#stepsContainer #finalize_container').addClass('col-lg-12 col-md-12 col-sm-12');
 			$('#stepsContainer-p-2 #inline_jacks').html('');
 			$('#stepsContainer-p-2 #inline_container').addClass('hidden');
@@ -772,7 +934,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				ShowProfileSelectionInline($('#profile_name .current'), $('#stepsContainer #inline_large_jacks'), false);
 			}
 			$('#inline_large_container').removeClass('hidden');
-    	}
+	}
     }
 
     function resetForm($form) {
@@ -788,12 +950,69 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	}
 	
 	var continuation = function(rspec, description, name, version,
-				    amdefault, ispp) {
-	    $('#showtopo_title').html("<h3>" + name + "</h3>");
+				    creator, created, amdefault, ispp) {        
+	    var profileInfo = profilelist[$(selectedElement).attr('value')]
+	    var isFavorite = profileInfo.favorite;
+
+	    // Add title name and favorite button
+	    $('#showtopo_title').html("<h3>" + name + "</h3>" +
+		"<button id='favorite_button' class='btn btn-default btn-sm'>" + 
+		"<span id='set_favorite' class='glyphicon glyphicon-star" + ((isFavorite == 1) ? " favorite" : "") + "'></span>" + 
+		"</button>");
+
+	    $('#showtopo_author').html(creator);
+	    $('#showtopo_project').html(profileInfo.project);  
+	    $('#showtopo_version').html(version); 
+	    $('#showtopo_last_updated').html(created);
 	    $('#showtopo_description').html(description);
+
 	    sup.maketopmap('#showtopo_div', rspec, false, !multisite);
+
+	    // Set favorite toggle click event
+	    $('#favorite_button').click(function() {
+		ToggleFavorite(selectedElement)}
+	    );
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
+    }
+    
+    function ToggleFavorite(target) {
+	var wasFav = profilelist[$(target).attr('value')].favorite;
+	var callback = function(e) {    
+	    if (wasFav) {
+		$('#set_favorite').removeClass('favorite');
+		profilelist[$(target).attr('value')].favorite = 0;
+		$('#favorites li[value='+$(target).attr('value')+']').remove();
+
+		// They were selected on the item in the favorites list, which was just removed
+		// Adjust their selection to the first instance of that profile.
+		if ($('#profile_name .selected').length == 0) {
+		    $('#profile_name li[value='+$(target).attr('value')+']')[0].click();
+		}
+
+		if ($('#favorites li').length == 0) {
+		    $('#title_favorites').addClass('hidden');
+		}
+	    }
+	    else {
+		$('#set_favorite').addClass('favorite');
+		profilelist[$(target).attr('value')].favorite = 1;
+
+		var clone = $(target).clone();
+		$(clone).removeClass('selected');
+		$('#favorites').append(clone);
+		$(clone).click(function (event) {
+		    event.preventDefault();
+		    ShowProfileSelection(event.target);
+		});
+
+		$('#title_favorites').removeClass('hidden');
+	    }
+	}
+	var $xmlthing = sup.CallServerMethod(ajaxurl,
+					     "instantiate", (wasFav ? "ClearFavorite" : "MarkFavorite"),
+					     {"uuid" : $(target).attr('value')});
+	$xmlthing.done(callback);
     }
 
     // Used to generate the topology on Tab 3 of the wizard for non-pp profiles
@@ -818,7 +1037,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $(selectedElement).addClass('current');
 	}
 
-	var profile_name = $(selectedElement).text();
+	var profile_name = $(selectedElement).attr('name');
 	var profile_value = $(selectedElement).attr('value');
 	$('#selected_profile').attr('value', profile_value);
 	$('#selected_profile_text').html("" + profile_name);
@@ -846,7 +1065,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		// Find and select new option.
 		$('#profile_where option')
 		    .filter('[value="'+ amdefault + '"]')
-		    .prop('selected', true);		
+		    .prop('selected', true);            
 	    }
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
@@ -862,7 +1081,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    
 	    var xmlDoc = $.parseXML(json.value.rspec);
 	    var xml    = $(xmlDoc);
-    
+	    console.log(json);
 	    /*
 	     * We now use the desciption from inside the rspec, unless there
 	     * is none, in which case look to see if the we got one in the
@@ -881,6 +1100,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    }
 	    continuation(json.value.rspec, description,
 			 json.value.name, json.value.version,
+			 json.value.creator, json.value.created,
 			 json.value.amdefault,
 			 json.value.ispprofile);
 	}
@@ -1030,7 +1250,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
 	$("#cluster_selector").html("");
 	$("#cluster_selector").html(html);
-	updateWhere();	
+	updateWhere();  
 	CreateClusterStatus();
 	$("#cluster_selector").removeClass("hidden");
     }
@@ -1329,4 +1549,3 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     $(document).ready(initialize);
 });
-	
