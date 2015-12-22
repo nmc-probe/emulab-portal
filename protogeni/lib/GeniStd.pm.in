@@ -556,7 +556,7 @@ sub GenerateEmptyManifest()
 	'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '.
 	'type="manifest" '.
 	'xsi:schemaLocation="http://www.geni.net/resources/rspec/3 '.
-	'http://www.geni.net/resources/rspec/3/manifest.xsd ">';
+	'http://www.geni.net/resources/rspec/3/manifest.xsd "></rspec>';
 }
 
 #
