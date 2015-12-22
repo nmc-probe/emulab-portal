@@ -1,7 +1,7 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'constraints', 'js/quickvm_sup',
 	 'js/ppwizardstart', 'js/JacksEditor', 'js/wizard-template',
-	 'js/lib/text!template/instantiate.html',
+	 'js/lib/text!template/instantiate-new.html',
 	 'js/lib/text!template/aboutapt.html',
 	 'js/lib/text!template/aboutcloudlab.html',     
 	 'js/lib/text!template/aboutpnet.html',
