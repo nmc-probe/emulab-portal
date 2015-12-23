@@ -1083,12 +1083,28 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		    #
 		    if (! ($osinfo->shared() ||
 			   $osinfo->pid() eq $slice_experiment->pid())) {
-			$response =
-			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				 "Insufficient permission to use $osinfo");
-			goto bad;
+			if ($PROTOGENI_LOCALUSER && $user->IsLocal()) {
+			    require Image;
+			    my $image = Image->Lookup($ospid,$os,$vers);
+			    if (!defined($image)) {
+				$response =
+				    GeniResponse->Create(GENIRESPONSE_BADARGS,
+							 undef,
+							 "No image: $dname");
+				goto bad;
+			    }
+			    goto noperm
+				if (!$image->AccessCheck($user->emulab_user(),
+							 TB_IMAGEID_READINFO));
+			}
+			else {
+			  noperm:
+			    $response =
+				GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				 "Insufficient permission to use $dname");
+			    goto bad;			
+			}
 		    }
-		
 		    #
 		    # This is only going to be used in raw mode. 
 		    #
