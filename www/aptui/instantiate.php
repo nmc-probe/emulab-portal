@@ -57,6 +57,7 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
 				 "asguest",       PAGEARG_BOOLEAN,
 				 "default",       PAGEARG_STRING,
+                                 "classic",       PAGEARG_STRING,
 				 "formfields",    PAGEARG_ARRAY);
 
 if ($ISAPT && !$this_user) {
@@ -78,6 +79,29 @@ if ($ISAPT && !$this_user) {
 	}
     }
 }
+#
+# Alternate version of the picker, temporary.
+#
+if (isset($classic)) {
+    #
+    # This file is the default picker.
+    #
+    if ($classic == "true") {
+        setcookie("picker", "classic", 0, "/", $TBAUTHDOMAIN, 0);
+        $classic = 1;
+    }
+    else {
+        setcookie("picker", "new", 0, "/", $TBAUTHDOMAIN, 0);
+        $classic = 0;
+    }
+}
+elseif (isset($_COOKIE['picker'])) {
+    $classic = ($_COOKIE['picker'] == "classic" ? 1 : 0);
+}
+else {
+    $classic = 1;
+}
+
 if ($this_user) {
     $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
     #
@@ -302,7 +326,7 @@ function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $APTMAIL, $ISAPT, $ISCLOUD, $ISPNET, $PORTAL_NAME;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
-    global $projlist;
+    global $projlist, $classic;
     $amlist     = array();
     $showabout  = ($ISAPT && !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
@@ -399,10 +423,13 @@ function SPITFORM($formfields, $newuser, $errors)
                       (ISADMINISTRATOR() || STUDLY()) ? 1 : 0);
     echo "    window.DOCONSTRAINTS = 1;\n";
     echo "    window.PORTAL_NAME = '$PORTAL_NAME';\n";
+    echo "    window.CLASSIC = " . ($classic ? "true" : "false") . ";\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";
-    echo "<script src='js/lib/require.js?nocache=asdfasdf' data-main='js/instantiate.js?nocache=asdfasdf'></script>";
+    echo "<script src='js/lib/require.js?nocache=asdfasdf' ".
+        "data-main='js/instantiate" . ($classic ? "" : "-new") .
+        ".js?nocache=asdfasdf'></script>";
 }
 
 if (!isset($create)) {
