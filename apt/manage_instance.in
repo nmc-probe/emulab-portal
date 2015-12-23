@@ -853,6 +853,8 @@ sub DoImageTrackerStuff($$$$$$)
 	    # We use the URN we get back from CreateSliver().
 	    return 0;
 	}
+	# Ditto
+	return 0;
     }
 
     #
