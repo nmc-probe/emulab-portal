@@ -18,7 +18,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var amlist        = null;
     var projlist      = null;
     var sysprojlist   = ['emulab-ops', 'emulab-ops-test'];
-    var psysprojlist  = ['phantomnet', 'testproject'];
+    var psysprojlist  = ['PhantomNet', 'testproject'];
     var profilelist   = null;
     var recentcount   = 5;
     var amdefault     = null;
@@ -74,7 +74,25 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    projlist = decodejson('#projects-json');
 	}
 	profilelist = decodejson('#profiles-json');
-	var recentlist = decodefirstn('#profiles-json', recentcount);
+
+	var profileToArray = _.pairs(profilelist);
+	var recentlist = _.filter(profileToArray, function(value) {
+	    return value[1]['usecount'] > 0;
+	});
+
+	var neverUsed = 0;
+	if (recentlist.length == 0 || !registered) {
+	    neverUsed = 1;
+	    recentlist = profileToArray;
+	}
+
+	// Note that sortBy orders by ascending, so the most recent
+	// are at the end of the array.
+	recentlist = _.sortBy(recentlist, function(obj) {
+	    return obj[1].lastused;
+	});
+	recentlist = _.last(recentlist, recentcount);
+
 	_.each(recentlist, function(obj, key) {
 	    if (window.ISPNET) {
 		if (_.contains(psysprojlist, obj.project)) {
@@ -87,9 +105,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		}
 	    }
 	});
-	var projcategories = MakeProfileCategories(profilelist);
-
-	console.log(recentlist);
+	var projcategories = MakeProfileCategories(profilelist);	
 
 	var html = mainTemplate({
 	    formfields:         decodejson('#form-json'),
@@ -98,7 +114,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    systemprofiles:        projcategories.sysproj,
 	    otherprofiles:      projcategories.otherproj,
 	    recent:             recentlist,
-	    showpopular:        (_.where(_.values(recentlist),{usecount: 0}).length == recentcount),
+	    showpopular:        neverUsed,
 	    favorites:          projcategories.favorite,
 	    projects:           projlist,
 	    amlist:             amlist,
@@ -375,27 +391,6 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	return JSON.parse(_.unescape($(id)[0].textContent));
     }
 
-    function decodefirstn(id, n) {
-	var json = $(id)[0].textContent;
-	json = json.slice(2,json.length-1);
-	var split = json.replace('},','}|,');
-	split = json.split('|,');
-
-	if (split.length > 1) { 
-	  json = "";
-	  for (var i = 0; i < n; i++) {
-	    if (split[i]) {
-	      if (i > 0) {
-		json += ',';
-	      }
-	      json += split[i];
-	    }
-	  }
-	}
-
-	return JSON.parse(_.unescape('{'+json+'}'));
-    }
-
     // Handler to minimize span elements based on the cookie name
     function CookieCollapse(target, cookieName) {
 	var cookie = GetCookie(cookieName);
@@ -418,10 +413,11 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
       var result = {favorite:{},inproj:{},sysproj:{},otherproj:{}};
 
       // This section should probably be rethought as it's not very clean. 
-      //Didn't have time to refactor for initial release.
+      // Didn't have time to refactor for initial release.
       _.each(profilelist, function(obj, key) {
+	    var isSystem = (window.ISPNET && _.contains(psysprojlist, obj.project)) || (!window.ISPNET &&_.contains(sysprojlist, obj.project))
 	    if (obj.favorite == 1) {
-	      if ((window.ISPNET && _.contains(psysprojlist, obj.project)) || (!window.ISPNET &&_.contains(sysprojlist, obj.project))) {
+	      if (isSystem	) {
 		result.favorite[key] = $.parseJSON(JSON.stringify(obj));
 		result.favorite[key].project = "System";
 	      }
@@ -429,19 +425,17 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		result.favorite[key] = obj;
 	      }
 	    }
+	    if (isSystem) {
+	      result.sysproj[key] = obj;
+	    }
 	    if (_.contains(projlist, obj.project)) {
 	      if (!result.inproj[obj.project]) {
 		result.inproj[obj.project] = {};
 	      }
 	      result.inproj[obj.project][key] = obj;
 	    }
-	    else {
-	      if ((window.ISPNET && _.contains(psysprojlist, obj.project)) || (!window.ISPNET &&_.contains(sysprojlist, obj.project))) {
-		result.sysproj[key] = obj;
-	      }
-	      else {
-		result.otherproj[key] = obj;
-	      }
+	    else if (!isSystem) {
+	      result.otherproj[key] = obj;
 	    }
 	});
       return result;
@@ -1021,7 +1015,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	editor = new JacksEditor(root, true, true,
 				 selectionPane, true, !multisite);
 	var continuation = function(rspec, description, name, version,
-				    amdefault, ispp) {
+				    creator, created, amdefault, ispp) {
 	  if (rspec)
 	  {
 	    editor.show(rspec);
@@ -1044,7 +1038,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	$('#selected_profile_text').html("" + profile_name);
 	
 	var continuation = function(rspec, description, name, version,
-				    amdef, ispp) {
+				    creator, created, amdef, ispp) {
 	    $('#showtopo_title').html("<h3>" + name + "</h3>");
 	    $('#showtopo_description').html(description);
 	    $('#selected_profile_description').html(description);
