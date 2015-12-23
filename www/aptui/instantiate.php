@@ -348,6 +348,10 @@ function SPITFORM($formfields, $newuser, $errors)
     }
     SPITHEADER(1);
 
+    if (!$classic) {
+        echo "<link rel='stylesheet' href='css/picker.css'>\n";
+    }
+
     # I think this will take care of XSS prevention?
     echo "<script type='text/plain' id='form-json'>\n";
     echo htmlentities(json_encode($formfields)) . "\n";

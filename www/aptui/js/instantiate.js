@@ -106,7 +106,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    btnhtml += whichchar + 'classic=true';
 	}
 	btnhtml = btnhtml.replace('&&','&').replace('?&','?');
-
+	btnhtml.replace('#','');
+	
 	$('#quickvm_topomodal #showtopo_dialog .modal-header').append('<a '+
 		' href="'+btnhtml+'"'+
 		'>'+
