@@ -12475,7 +12475,7 @@ static char *getgeniuseremail( tmcdreq_t *reqp ) {
 static char *getgenimanifest( tmcdreq_t *reqp ) {
     
 	MYSQL_RES	*res;
-	char		buf[ MAXTMCDPACKET ];
+	char		*buf;
 
 	res = mydb_query( "SELECT m.manifest FROM `geni-cm`.geni_slivers AS s, "
 			  "`geni-cm`.geni_manifests AS m WHERE "
@@ -12491,15 +12491,16 @@ static char *getgenimanifest( tmcdreq_t *reqp ) {
 	if( mysql_num_rows( res ) ) {
 		MYSQL_ROW row = mysql_fetch_row( res );
 
-		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
-	}
+		buf = strdup( row[ 0 ] );
+	} else
+	        buf = strdup( "" );
 
 	mysql_free_result( res );
 
 	if( verbose )
 		info( "%s: geni_slice_urn: %s", reqp->nodeid, buf );
 	
-	return strdup( buf );
+	return buf;
 }
 
 static char *getgenicert( tmcdreq_t *reqp ) {
