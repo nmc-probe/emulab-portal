@@ -79,6 +79,7 @@ if ($ISAPT && !$this_user) {
 	}
     }
 }
+
 #
 # Alternate version of the picker, temporary.
 #
@@ -328,6 +329,7 @@ function SPITFORM($formfields, $newuser, $errors)
     global $profile_array, $this_user, $profilename, $profile, $am_array;
     global $projlist, $classic;
     $amlist     = array();
+    $fedlist    = array();
     $showabout  = ($ISAPT && !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
     # We use webonly to mark users that have no project membership
@@ -394,18 +396,21 @@ function SPITFORM($formfields, $newuser, $errors)
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $amlist[$urn] = $am;
+            #
+            # We need to mark federated sites for the cluster dropdown.
+            #
+            $aggregate = Aggregate::Lookup($urn);
+            if ($aggregate && $aggregate->isfederate()) {
+                $fedlist[] = "'" . $aggregate->name() . "'";
+            }
         }
 	echo "<script type='text/plain' id='amlist-json'>\n";
 	echo htmlentities(json_encode($amlist));
 	echo "</script>\n";
-    }
-    #TEMPORARILY HARD CODED. Used to separate federated sites
-    if ($ISCLOUD) {
         echo "<script type='text/javascript'>\n";
-        echo "    window.FEDERATEDLIST  = ['IG UtahDDC', 'Emulab', 'APT Utah', 'iMinds Virt Wall 2', 'UKY Emulab'];\n";
+        echo "    window.FEDERATEDLIST  = [". implode(",", $fedlist) . "];\n";
         echo "</script>\n";
     }
-
     SpitOopsModal("oops");
     echo "<script type='text/javascript'>\n";
     echo "    window.PROFILE    = '" . $formfields["profile"] . "';\n";

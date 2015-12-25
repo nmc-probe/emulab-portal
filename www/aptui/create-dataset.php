@@ -96,10 +96,13 @@ function SPITFORM($formfields, $errors)
         echo htmlentities(json_encode($instance_array));
         echo "</script>\n";
 
+        #
+        # Ask the DB for the list of aggregates that do datasets.
+        #
         $amlist = array();
-        $amlist["urn:publicid:IDN+apt.emulab.net+authority+cm"] = "APT";
-        $amlist["urn:publicid:IDN+emulab.net+authority+cm"] = "Emulab";
-        $amlist["urn:publicid:IDN+clemson.cloudlab.us+authority+cm"] = "Clemson";
+        foreach (Aggregate::SupportsDatasetsList() as $aggregate) {
+            $amlist[$aggregate->urn()] = $aggregate->nickname();
+        }
 	echo "<script type='text/plain' id='amlist-json'>\n";
 	echo htmlentities(json_encode($amlist));
 	echo "</script>\n";

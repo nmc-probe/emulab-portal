@@ -78,21 +78,22 @@ my $usemydevtree  = 0;
 #
 # Lookup by uuid.
 #
-sub Lookup($$;$)
+sub Lookup($$)
 {
-    my ($class, $uuid) = @_;
+    my ($class, $token) = @_;
+    my $query_result;
 
-    if ($uuid !~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
-	return undef
+    if ($token =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
+	# Look in cache first
+	return $instances{$token}
+            if (exists($instances{$token}));
+
+	$query_result =
+	    DBQueryWarn("select * from apt_instances where uuid='$token'");
     }
-
-    # Look in cache first
-    return $instances{"$uuid"}
-        if (exists($instances{"$uuid"}));
-    
-    my $query_result =
-	DBQueryWarn("select * from apt_instances where uuid='$uuid'");
-
+    else {
+	return undef;
+    }
     return undef
 	if (!$query_result || !$query_result->numrows);
 
@@ -118,7 +119,7 @@ sub Lookup($$;$)
     $self->{'AGGREGATES'} = $aggregates;
     
     # Add to cache. 
-    $instances{"$uuid"} = $self;
+    $instances{$self->uuid()} = $self;
     
     return $self;
 }
@@ -1033,7 +1034,7 @@ sub Stringify($)
     my $uuid  = $self->uuid();
     my $urn   = $self->aggregate_urn();
 
-    return "[APT_Aggregate: $uuid, $urn]";
+    return "[APT_Instance::Aggregate: $uuid, $urn]";
 }
 
 #
@@ -1911,6 +1912,48 @@ sub Panic($$)
   bad:
     $slice->SetExpiration($oldexpires)
 	if (defined($oldexpires));
+    return undef;
+}
+
+#
+# Control Linktest
+#
+sub RunLinktest($$$)
+{
+    my ($self, $action, $level) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $urn       = $self->aggregate_urn();
+    my $geniuser  = $self->instance()->GetGeniUser();
+    my $slice     = $self->instance()->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return undef
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"credentials" => [$slice_credential->asString(),
+			  $speaksfor_credential->asString()],
+    };
+    if ($action eq "kill") {
+	$args->{"stop"} = 1;
+    }
+    else {
+	$args->{"level"} = $level;
+    }
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+
+    my $response = Genixmlrpc::CallMethod($cmurl,
+					  $context, "RunLinktest", $args);
+    return $response;
+  bad:
     return undef;
 }
 

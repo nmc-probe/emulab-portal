@@ -647,7 +647,7 @@ function Do_Submit()
 {
     global $this_user;
     global $ajax_args;
-    global $TBAUTHDOMAIN, $ISAPT, $ISPNET, $DEFAULT_AGGREGATE_URN;
+    global $TBAUTHDOMAIN, $ISAPT, $ISPNET, $ISEMULAB, $DEFAULT_AGGREGATE_URN;
 
     if (!isset($ajax_args["formfields"])) {
 	SPITAJAX_ERROR(1, "Missing formfields");
@@ -691,18 +691,21 @@ function Do_Submit()
     $sitemap = array();
 
     if ($this_user) {
-        if ($ISAPT || $ISPNET) {
-	    $aggregate_urn = $DEFAULT_AGGREGATE_URN;
-        }
-        elseif (isset($formfields["sites"]) && is_array($formfields["sites"])) {
+        if (isset($formfields["sites"]) && is_array($formfields["sites"])) {
             while (list($siteid, $am) = each($formfields["sites"])) {
                 if (array_key_exists($am, $am_array)) {
                     $sitemap[$siteid] = $am_array[$am];
                 }
             }
         }
-        else {
+        elseif ($ISAPT || $ISPNET || $ISEMULAB) {
+            $aggregate_urn = $DEFAULT_AGGREGATE_URN;
+        }
+        elseif (isset($formfields["where"])) {
 	    $aggregate_urn = $am_array[$formfields["where"]];
+        }
+        else {
+            $aggregate_urn = $DEFAULT_AGGREGATE_URN;
         }
         # Required for real users.
         $args["pid"] = $formfields["pid"];

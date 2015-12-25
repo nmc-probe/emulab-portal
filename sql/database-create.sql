@@ -64,9 +64,13 @@ CREATE TABLE `apt_aggregates` (
   `name` varchar(32) NOT NULL default '',
   `nickname` varchar(32) NOT NULL default '',
   `abbreviation` varchar(16) NOT NULL default '',
+  `adminonly` tinyint(1) NOT NULL default '0',
+  `isfederate` tinyint(1) NOT NULL default '0',
   `noupdate` tinyint(1) NOT NULL default '0',
   `updated` datetime NOT NULL default '0000-00-00 00:00:00',
   `weburl` tinytext,
+  `has_datasets` tinyint(1) NOT NULL default '0',
+  `portals` set('emulab','aptlab','cloudlab','phantomnet') default NULL,
   `jsondata` text,
   PRIMARY KEY  (`urn`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;

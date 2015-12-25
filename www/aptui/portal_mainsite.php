@@ -51,14 +51,15 @@ if ($_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
         $APTBASE .= "/" . $matches[1];
     }
-    $PORTAL_MANUAL       = "http://docs.aptlab.net";
-    $PORTAL_MOTD_SITEVAR = "aptlab/message";
-    $PORTAL_HELPFORUM    = "apt-users";
-    $PORTAL_PASSWORD_HELP= "Aptlab.net or Emulab.net Username";
-    $PORTAL_NSFNUMBER    = "CNS-1338155";
-    $DEFAULT_AGGREGATE   = "Utah APT";
-    $PORTAL_GENESIS      = "aptlab";
-    $PORTAL_NAME         = "APT";
+    $PORTAL_MANUAL         = "http://docs.aptlab.net";
+    $PORTAL_MOTD_SITEVAR   = "aptlab/message";
+    $PORTAL_HELPFORUM      = "apt-users";
+    $PORTAL_PASSWORD_HELP  = "Aptlab.net or Emulab.net Username";
+    $PORTAL_NSFNUMBER      = "CNS-1338155";
+    $DEFAULT_AGGREGATE     = "Utah APT";
+    $DEFAULT_AGGREGATE_URN = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+    $PORTAL_GENESIS        = "aptlab";
+    $PORTAL_NAME           = "APT";
 }
 elseif ($_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
     $ISVSERVER    = 1;

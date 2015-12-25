@@ -22,30 +22,7 @@
 # }}}
 #
 #
-
-$urn_mapping =
-    array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      => "Utah",
-          "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      => "Wisc",
-          "urn:publicid:IDN+clemson.cloudlab.us+authority+cm"   => "Clem",
-          "urn:publicid:IDN+apt.emulab.net+authority+cm"        => "APT",
-          "urn:publicid:IDN+emulab.net+authority+cm"            => "Emulab",
-          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm" => "DDC",
-          "urn:publicid:IDN+stitch.geniracks.net+authority+cm"  => "UStitch",
-          "urn:publicid:IDN+al2s.internet2.edu+authority+am"    => "AL2S",
-          "urn:publicid:IDN+uky.emulab.edu+authority+cm"        => "UKY",
-          "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm" => "Wall2");
-
-$freenodes_mapping =
-    array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      =>
-          "https://www.utah.cloudlab.us/node_usage/freenodes.svg",
-          "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      =>
-          "https://www.wisc.cloudlab.us/node_usage/freenodes.svg",
-          "urn:publicid:IDN+clemson.cloudlab.us+authority+cm"   =>
-          "https://www.clemson.cloudlab.us/node_usage/freenodes.svg",
-          "urn:publicid:IDN+apt.emulab.net+authority+cm"        =>
-          "https://www.apt.emulab.net/node_usage/freenodes.svg",
-          "urn:publicid:IDN+emulab.net+authority+cm"            =>
-          "https://www.emulab.net/node_usage/freenodes.svg");
+include_once("aggregate_defs.php");
 
 $geni_response_codes =
     array("Success",
@@ -349,49 +326,9 @@ class Instance
     # Return aggregate based on the current user.
     #
     function DefaultAggregateList() {
-        global $ISAPT, $ISCLOUD, $ISPNET, $ISEMULAB;
-	if ($ISAPT) {
-          $am_array = array(
-                          'Cloudlab Utah' =>
-                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-                          'APT Utah' =>
-                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
-                          'IG UtahDDC' =>
-                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Emulab'  =>
-                          "urn:publicid:IDN+emulab.net+authority+cm"
-          );
-        }
-        elseif ($ISCLOUD) {
-          $am_array = array(
-                          'Cloudlab Utah' =>
-                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-			  'Cloudlab Wisconsin' =>
-			  "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
-			  'Cloudlab Clemson' =>
-			  "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
-                          'APT Utah' =>
-                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
-                          'IG UtahDDC' =>
-                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Emulab'  =>
-                          "urn:publicid:IDN+emulab.net+authority+cm"
-          );
-          if (ISADMIN() || ISFOREIGN_ADMIN()) {
-              $am_array["iMinds Virt Wall 2"] =
-                  "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm";
-              $am_array["UKY Emulab"] =
-                  "urn:publicid:IDN+uky.emulab.net+authority+cm";
-          }
-        } 
-	elseif ($ISPNET || $ISEMULAB) {
-          $am_array = array(
-                          'Emulab'  =>
-                          "urn:publicid:IDN+emulab.net+authority+cm"
-          );
-        }
-        return $am_array;
+        return Aggregate::DefaultAggregateList();
     }
+
     # helper
     function ParseURN($urn)
     {

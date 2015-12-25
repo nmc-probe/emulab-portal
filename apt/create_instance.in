@@ -46,14 +46,12 @@ sub usage()
 my @optlist = ('d', 'v', 'u=s', 'a=s', 'S');
 my $debug   = 0;
 my $verbose = 1;
-my $DEFAULT_URN  = "urn:publicid:IDN+apt.emulab.net+authority+cm";
 my $xmlfile;
 my $webtask;
 my $webtask_id;
 my $localuser  = 0;
 my $usestitcher= 0;
 my $quickuuid;
-my $default_aggregate_urn = $DEFAULT_URN;
 my $this_user;
 my $xmlparse;
 my $instance;
@@ -93,6 +91,8 @@ my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
 my $MANAGEINSTANCE= "$TB/bin/manage_instance";
+my $DEFAULT_URN   = "urn:publicid:IDN+${OURDOMAIN}+authority+cm";
+my $default_aggregate_urn = $DEFAULT_URN;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';

@@ -160,10 +160,10 @@ sub DoCreate()
 	print STDERR "Usage: manage_dataset create ".
 	    "[-t type] [-f fstype] [-e expiration] ".
 	    "[-R global|project] [-W creator|project] ".
-	    "[-a am_urn] -s size pid/name\n";
+	    "-a am_urn -s size pid/name\n";
 	exit(-1);
     };
-    my $aggregate_urn = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+    my $aggregate_urn;
     my $errmsg;
     my $pid;
     my $expires;
@@ -185,6 +185,9 @@ sub DoCreate()
     }
     if (defined($options{"a"})) {
 	$aggregate_urn = $options{"a"};
+    }
+    else {
+	&$usage();
     }
     if (defined($options{"t"})) {
 	$type = $options{"t"};

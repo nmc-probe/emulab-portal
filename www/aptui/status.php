@@ -177,7 +177,7 @@ $extension_reason= ($instance->extension_reason() ?
                     CleanString($instance->extension_reason()) : "");
 $extension_history= ($instance->extension_history() ?
                     CleanString($instance->extension_history()) : "");
-$freenodes_url   = $freenodes_mapping[$instance->aggregate_urn()];
+$freenodes_url   = Aggregate::Lookup($instance->aggregate_urn())->FreeNodesURL();
 $lockout         = $instance->extension_lockout();
 $paniced         = $instance->paniced();
 
