@@ -470,6 +470,17 @@ function SUEXEC($uid, $gid, $cmdandargs, $action) {
     if ($suexec_retval == 255) {
 	$suexec_retval = -1;
     }
+    #
+    # suexec.c puts its error message between 100 and 125. Convert that
+    # to an internal error and generate an error that says something useful.
+    #
+    if ($suexec_retval >= 100 && $suexec_retval <= 125) {
+        if (!count($suexec_output_array)) {
+            $suexec_output_array[0] =
+                "Internal suexec error $suexec_retval. See the suexec log";
+        }
+        $suexec_retval = -1;
+    }
 
     if (count($suexec_output_array)) {
 	for ($i = 0; $i < count($suexec_output_array); $i++) {
