@@ -185,7 +185,7 @@ $paniced         = $instance->paniced();
 # We give ssh to the creator (real user or guest user).
 #
 $dossh =
-    (((isset($this_user) && $this_user->SameUser($creator)) ||
+    (((isset($this_user) && $instance->CanDoSSH($this_user)) ||
       (isset($_COOKIE['quickvm_user']) &&
        $_COOKIE['quickvm_user'] == $creator->uuid())) ? 1 : 0);
 
@@ -224,6 +224,7 @@ echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
 echo "  window.APT_OPTIONS.sliceCreated = '" . $slice_created . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
+echo "  window.APT_OPTIONS.thisUid = '" . $this_user->uid() . "';\n";
 echo "  window.APT_OPTIONS.registered = $registered;\n";
 echo "  window.APT_OPTIONS.isadmin = $isadmin;\n";
 echo "  window.APT_OPTIONS.isfadmin = $isfadmin;\n";

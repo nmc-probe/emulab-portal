@@ -1080,10 +1080,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Ask the server for an authentication object that allows
 	// to start an ssh shell.
 	var callback = function(json) {
-//	    console.info(json.value);
+	    console.info(json.value);
 
 	    if (json.code) {
-		alert("Failed to gain authentication for ssh.");
+		sup.SpitOops("oops", "Failed to get ssh auth object: " +
+			     json.value);
+		return;
 	    }
 	    else {
 		StartSSH(tabname, json.value);
@@ -1298,7 +1300,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		
 		if (login.length && dossh) {
-		    var user   = login.attr("username");
+		    var user   = window.APT_OPTIONS.thisUid;
 		    var host   = login.attr("hostname");
 		    var port   = login.attr("port");
 		    var url    = "ssh://" + user + "@" + host + ":" + port +"/";

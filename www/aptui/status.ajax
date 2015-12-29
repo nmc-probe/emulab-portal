@@ -299,21 +299,19 @@ function Do_GetSSHAuthObject()
     }
     $hostport = $ajax_args["hostport"];
     
-    if (StatusSetupAjax(1)) {
+    if (StatusSetupAjax(0)) {
 	return;
     }
-    #
-    # XXX Need to deal with multiple members of an experiment.
-    #
-    if (! ((isset($this_user) && $this_user->SameUser($creator)) ||
+    if (! ((isset($this_user) && $instance->CanDoSSH($this_user)) ||
 	   (isset($_COOKIE['quickvm_user']) &&
 	    $_COOKIE['quickvm_user'] == $creator->uuid()))) {
-	SPITAJAX_ERROR(1, "Not allowed to ssh; only the creator");
+	SPITAJAX_ERROR(1, "Not allowed to ssh; ".
+                       "only the creator or a project member");
 	return;
     }
     
     $nodeid = $ajax_args["nodeid"];
-    $auth   = SSHAuthObject($creator->uid(), $hostport);
+    $auth   = SSHAuthObject($this_user->uid(), $hostport);
     if (!$auth) {
 	SPITAJAX_ERROR(1, "Could not create authentication object");
 	return;

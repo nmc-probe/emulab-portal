@@ -408,6 +408,27 @@ class Instance
 	}
         return 0;
     }
+    function CanDoSSH($user) {
+	if ($this->creator_idx() == $user->uid_idx()) {
+	    return 1;
+	}
+        #
+        # IsNonLocal() is not the correct test, since we now allow geni users
+        # to start/join real projects. Need to think about this.
+        #
+        if (!$user->IsNonLocal()) {
+            # Otherwise a project membership test.
+            $project = Project::Lookup($this->pid_idx());
+            if (!$project) {
+                return 0;
+            }
+            $isapproved = 0;
+            if ($project->IsMember($user, $isapproved) && $isapproved) {
+                return 1;
+            }
+        }
+        return 0;
+    }
 
     #
     # Determine user current usage.
