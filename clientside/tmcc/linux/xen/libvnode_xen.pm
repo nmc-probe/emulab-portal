@@ -2077,6 +2077,17 @@ sub vnodePreConfigExpNetwork($$$$)
 				       $ldinfo, "ifb$ifb", $script, $sh, $log);
 	    }
 	}
+	#
+	# We must always create a script to do XEN bridge stuff.
+	#
+	if ($script eq "") {
+	    $script = "$VMDIR/$vnode_id/enet-$mac";
+	    my $sh  = "${script}.sh";
+	    my $log = "${script}.log";
+
+	    createExpNetworkScript($vmid, $interface, $brname,
+				   undef, undef, $script, $sh, $log);
+	}
 
 	# add interface to config file line
 	$vifstr .= ", 'vifname=$ifname, mac=" .
@@ -4105,6 +4116,9 @@ sub createExpNetworkScript($$$$$$$$)
     print FILE "if [ \$STAT -ne 0 -o \"\$OP\" != \"online\" ]; then\n";
     print FILE "    exit \$STAT\n";
     print FILE "fi\n";
+    goto skipshaping
+	if (!defined($info));
+	
     print FILE "# XXX redo what vif-bridge does to get named interface\n";
     print FILE "vifname=`xenstore-read \$XENBUS_PATH/vifname`\n";
     print FILE "echo \"Configuring shaping for \$vifname (MAC ",
@@ -4231,6 +4245,7 @@ sub createExpNetworkScript($$$$$$$$)
 	print FILE "echo \"$cmd\"\n";
 	print FILE "$cmd\n\n";
     }
+  skipshaping:
     print FILE "exit 0\n";
 
     close(FILE);
