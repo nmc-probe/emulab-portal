@@ -2588,7 +2588,7 @@ sub createOFInstance($$) {
     my $cmdstr = "openflow instance $vlan\n";
     $cmdstr .= "classification vlan $vlan\n";
     $cmdstr .= "flow-table mac-ip 100 extensibility 200\n";
-    $cmdstr .= "fail-open mode standalone\n";
+    $cmdstr .= "fail-open mode secure\n";
 
     my $clires = $self->doH3CNetconfCLI($cmdstr);
     if (!defined($clires)) {
@@ -2706,9 +2706,9 @@ sub setOpenflowController($$$$) {
     my $cmdstr = "openflow instance $vlan\n";
     $cmdstr .= "controller 1 address ip $ctrladdr port $ctrlport".
 	(defined($self->{OFVRF}) ? " vrf $self->{OFVRF}\n" : "\n");
-    if (defined($option) && $option eq "fail-safe") {
-	$cmdstr .= "fail-open mode secure\n";
-    }
+    #if (defined($option) && $option eq "fail-safe") {
+    #	$cmdstr .= "fail-open mode secure\n";
+    #}
 
     my $clires = $self->doH3CNetconfCLI($cmdstr);
     if (!defined($clires)) {
