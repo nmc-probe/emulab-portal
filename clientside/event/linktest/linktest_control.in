@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2015 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,7 +46,7 @@ sub usage()
     exit(-1);
 }
 my $optlist  = "dkl:o:t:mfr";
-my $debug    = 2;
+my $debug    = 1;
 my $cancel   = 0;
 my $sendmail = 0;
 my $forcerun = 0;
@@ -353,7 +353,7 @@ push(@cmdargs, "-r")
     if ($reportonly);
 
 print "Running '@cmdargs'\n"
-    if ($debug);
+    if ($debug > 1);
 
 # For sshtb
 $UID=0;
