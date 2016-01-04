@@ -224,15 +224,17 @@ if (exists($auth->{'console'})) {
     $command = "$CONSOLEBIN -e -a $tempfile $nodeid";
 }
 else {
-    my $sshopts  = "";
+    # Cause of stateful firewall idle timeout. 
+    my $sshopts  = "-o ServerAliveInterval=300 -o ServerAliveCountMax=3 ";
+    # Guest users have no home dir, and we are deprecating ops anyway.
+    $sshopts    .= "-q -o BatchMode=yes -o StrictHostKeyChecking=no ";
     my $username = $uid;
     
     # No gid, see if a phony user.
     if (!defined($gid)) {
 	if (-e "$APTDIR/$uid") {
-	    $sshopts  = "-i $APTDIR/$uid/id_rsa ";
-	    $sshopts .= "-q -o BatchMode=yes -o StrictHostKeyChecking=no ";
-	    $sshopts .= "-o UserKnownHostsFile=${APTDIR}/$uid/known_hosts";
+	    $sshopts .= "-i $APTDIR/$uid/id_rsa ";
+	    $sshopts .= "-o UserKnownHostsFile=${APTDIR}/$uid/known_hosts ";
 	    $where    = "$APTDIR/$uid";
 	    # Switch to nobody for below.
 	    $uid = "nobody";
