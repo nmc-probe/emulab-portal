@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -623,6 +623,8 @@ class InstanceSliver
     function public_url()   { return $this->field('public_url'); }
     function webtask_id()   { return $this->field('webtask_id'); }
     function manifest()	    { return $this->field('manifest'); }
+    function physnode_count() { return $this->field('physnode_count'); }
+    function virtnode_count() { return $this->field('virtnode_count'); }
     function aggregate_name() {
         global $urn_mapping;
         return $urn_mapping[$this->aggregate_urn()];

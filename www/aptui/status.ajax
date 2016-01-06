@@ -1254,6 +1254,9 @@ function Do_Linktest()
             if ($sliver->webtask_id() &&
                 $webtask = WebTask::Lookup($sliver->webtask_id())) {
 
+                if (!($sliver->physnode_count() || $sliver->virtnode_count())) {
+                    continue;
+                }
                 $tmp = array();
                 $tmp["status"] = $webtask->TaskValue("status");
                 if ($webtask->TaskValue("status") == "running") {

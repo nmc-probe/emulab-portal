@@ -2084,7 +2084,15 @@ sub DoLinktest()
     $instance->SetStatus("linktest");
     
     my @return_codes = ();
-    my @agglist =      $instance->AggregateList();
+    my @agglist      = ();
+    #
+    # Cull out any aggregates with no nodes.
+    #
+    foreach my $agg ($instance->AggregateList()) {
+	push(@agglist, $agg)
+	    if ($agg->physnode_count() || $agg->virtnode_count());
+    }
+    
     if (ParRun({"maxwaittime" => 99999,
 		"maxchildren" => scalar(@agglist)},
 	       \@return_codes, $coderef, @agglist)) {
