@@ -111,6 +111,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	//
 	var spinwidth = 0;
 	if (instanceStatus == "created" ||
+	    instanceStatus == "provisioning" ||
 	    instanceStatus == "stitching") {
 	    spinwidth = "33";
 	}
