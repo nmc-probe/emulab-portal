@@ -4873,33 +4873,11 @@ sub RunLinktest($)
 	my $mypid = main::WrapperFork();
 	if ($mypid) {
 	    #
-	    # Wait a few seconds for immediate errors or finish.
+	    # Wait a few seconds for immediate errors or finish. We cannot
+	    # use waitpid since the child returns, it does not exit. We can
+	    # look at linktest_pid instead, but we will not know about an
+	    # error. 
 	    #
-	    sleep(5);
-	    my $kid = waitpid($mypid, &WNOHANG);
-	    if ($kid == $mypid) {
-		my $stat = $?;
-		if ($stat & 127) {
-		    # died with a signal, return the signal
-		    $stat = $stat & 127;
-		} else {
-		    # else return the exit code
-		    $stat = $stat >> 8;
-		}
-		my $output = undef;
-		my $fname  = $logfile->filename();
-		$output = `cat $fname` if (-s $fname);
-		$logfile->Delete(1);
-		print STDERR "foo\n";
-		if ($stat) {
-		    return GeniResponse->Create(GENIRESPONSE_ERROR,
-						undef, $output);
-		}
-		return GeniResponse->Create(GENIRESPONSE_SUCCESS,
-					    {"status"  => "stopped",
-					     "results" => $output}, $output);
-	    }
-	    print STDERR $logfile->URL() . "\n";
 	    return GeniResponse->Create(GENIRESPONSE_SUCCESS,
 					{"status"  => "running",
 					 "url"     =>  $logfile->URL()});
@@ -4907,7 +4885,7 @@ sub RunLinktest($)
     }
     my $pid = $experiment->pid();
     my $eid = $experiment->eid();
-    my $output;
+    my $output = "";
 
     if ($action eq "status") {
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
@@ -4919,7 +4897,7 @@ sub RunLinktest($)
 	$output = GeniUtil::ExecQuiet("$LINKTEST -k $pid $eid");
     }
     else {
-	my $command = "$LINKTEST -l $level -e ";
+	my $command = "$LINKTEST -l $level ";
 	$command .= "-o " . $logfile->filename() . " "
 	    if (defined($async));
 	$command .= "$pid $eid";
@@ -4929,9 +4907,21 @@ sub RunLinktest($)
     my $exitval = $?;
     
     if (defined($async)) {
-	if ($exitval) {
-	    my $fname = $logfile->filename();
-	    $output .= `cat $fname` if (-s $fname);
+	my $fname = $logfile->filename();
+	#
+	# This is a pain; if linktest bailed early, the log file will
+	# be empty, and the user will not see any output cause we have
+	# forked and so there is no way to return the output. So stuff it
+	# into the logfile.
+	#
+	if ($exitval && -z $fname) {
+	    if (open(LOG, ">" . $logfile->filename())) {
+		print LOG $output;
+		close(LOG);
+	    }
+	}
+	elsif (-s $fname) {
+	    $output = `cat $fname`;
 	}
 	#
 	# Delay for bit then delete the log file. Need to do this a different
@@ -4941,8 +4931,9 @@ sub RunLinktest($)
 	sleep(30);
 	$logfile->Delete(1);
     }
+    print STDERR $output;
+    
     if ($exitval) {
-	print STDERR $output;
 	return -1
 	    if (defined($async));
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef, $output);
