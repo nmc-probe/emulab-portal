@@ -31,6 +31,7 @@ many links).
     experiments (5-10 nodes), doing the full bandwidth test can add 2-3
     minutes. If you decide you have waited long enough, you can use the
     Stop Linktest button on the topology tab.
+  * Linktest does not yet work on links or lans that span clusters.
 
 #### Finally
 
