@@ -12,6 +12,20 @@ function HideModal(which)
 //   console.log('Hide modal ' + which);
     $( which ).modal('hide');
 }
+
+function ShowWaitWait(message)
+{
+    if (message === undefined)
+	message = "";
+    
+    $('#waitwait-modal-withmessage-message').html(message);
+    ShowModal('#waitwait-modal-withmessage');
+}
+function HideWaitWait()
+{
+    $('#waitwait-modal-withmessage-message').html("");
+    HideModal('#waitwait-modal-withmessage');
+}
     
 function CallServerMethod(url, route, method, args)
 {
@@ -271,6 +285,8 @@ function VerifySpeaksfor(speaksfor, signature)
 return {
     ShowModal: ShowModal,
     HideModal: HideModal,
+    ShowWaitWait: ShowWaitWait,
+    HideWaitWait: HideWaitWait,
     CallServerMethod: CallServerMethod,
     maketopmap: maketopmap,
     SpitOops: SpitOops,

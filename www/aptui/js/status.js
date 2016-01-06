@@ -10,11 +10,13 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/snapshot-help.html',
 	 'js/lib/text!template/oneonly-modal.html',
 	 'js/lib/text!template/approval-modal.html',
+	 'js/lib/text!template/linktest-modal.html',
 	 'contextmenu'],
 function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	  ShowExtendModal, statusString, waitwaitString, oopsString,
 	  registerString, terminateString,
-	  cloneHelpString, snapshotHelpString, oneonlyString, approvalString)
+	  cloneHelpString, snapshotHelpString, oneonlyString,
+	  approvalString, linktestString)
 {
     'use strict';
     var nodecount   = 0;
@@ -34,6 +36,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
     var terminateTemplate = _.template(terminateString);
+    var instanceStatus    = "";
     var lastStatus        = "";
     var paniced           = 0;
     var lockout           = 0;
@@ -59,7 +62,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	lockout      = window.APT_OPTIONS.lockout;
 	lockdown     = window.APT_OPTIONS.lockdown;
 	lockdown_code= uuid.substr(2, 5);
-	var instanceStatus = window.APT_OPTIONS.instanceStatus;
+	instanceStatus = window.APT_OPTIONS.instanceStatus;
 	var errorURL = window.HELPFORUM;
 
 	// Generate the templates.
@@ -93,6 +96,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('#terminate_div').html(terminateTemplate(template_args));
 	$('#oneonly_div').html(oneonlyString);
 	$('#approval_div').html(approvalString);
+	$('#linktest_div').html(linktestString);
 
 	// Format dates with moment before display.
 	$('.format-date').each(function() {
@@ -178,7 +182,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    event.preventDefault();
 	    DoRefresh();
 	});
-	
 	// Handler for the Clone button.
 	$('button#clone_button').click(function (event) {
 	    event.preventDefault();
@@ -307,8 +310,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
  	    $('#profile_status_collapse').trigger('hide.bs.collapse');
 	}
 
+	SetupLinktest(instanceStatus);
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
-	GetStatus(uuid);
+	StartStatusWatch();
 	if (window.APT_OPTIONS.oneonly) {
 	    sup.ShowModal('#oneonly-modal');
 	}
@@ -325,21 +329,35 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
     }
 
-    // Periodically ask the server for the status and update the display.
-    // We sometimes want to trigger this before the next wakeup, so use
-    // a flag to prevent more then one at a time.
-    var statusbusy = 0;
-    
-    function GetStatus(uuid)
+    //
+    // The status watch is a periodic timer, but we sometimes want to
+    // hold off running it for a while, and other times we want to run
+    // it before the next time comes up. We use flags for both of these
+    // cases.
+    //
+    var statusBusy = 0;
+    var statusHold = 0;
+    var statusID;
+
+    function StartStatusWatch()
     {
-	// One at a time
-	if (statusbusy)
+	GetStatus();
+	statusID = setInterval(GetStatus, 5000);
+    }
+    
+    function GetStatus()
+    {
+	// Clearly not thread safe, but its okay.
+	if (statusBusy || statusHold)
 	    return;
-	statusbusy = 1;
+	statusBusy = 1;
 	
 	var callback = function(json) {
-	    StatusWatchCallBack(uuid, json);
-	    statusbusy = 0;
+	    StatusWatchCallBack(json);
+	    if (instanceStatus == 'terminated') {
+		clearInterval(statusID);
+	    }
+	    statusBusy = 0;
 	}
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
@@ -349,25 +367,26 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     }
 
     // Call back for above.
-    function StatusWatchCallBack(uuid, json)
+    function StatusWatchCallBack(json)
     {
 	console.info(json);
 	
 	// Flag to indicate that we have seen ready and do not
 	// need to do initial stuff. We need this cause the
-	// the staus can change later, back to busy for a while.
+	// the status can change later, back to busy for a while.
 	if (typeof StatusWatchCallBack.active == 'undefined') {
             // It has not... perform the initilization
             StatusWatchCallBack.active = 0;
 	}
-	var status = json.value.status;
 	if (json.code) {
-	    alert("The server has returned an error: " + json.value);
-	    status = "unknown";
+	    instanceStatus = "unknown";
+	}
+	else {
+	    instanceStatus = json.value.status;
 	}
 	var status_html = "";
     
-	if (status != lastStatus) {
+	if (instanceStatus != lastStatus) {
 	    status_html = status;
 
 	    var bgtype = "panel-info";
@@ -389,10 +408,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		ShowLogfile(json.value.logfile_url);
 	    }
 
-	    if (status == 'stitching') {
+	    if (instanceStatus == 'stitching') {
 		status_html = "stitching";
 	    }
-	    else if (status == 'provisioned') {
+	    else if (instanceStatus == 'provisioning') {
+		status_html = "provisioning";
+	    }
+	    else if (instanceStatus == 'provisioned') {
 		$("#status_progress_bar").width("66%");
 		status_html = "booting";
 		if (json.value.canceled) {
@@ -403,7 +425,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    EnableButton("terminate");
 		}
 	    }
-	    else if (status == 'ready') {
+	    else if (instanceStatus == 'ready') {
 		bgtype = "panel-success";
 		status_message = "Your experiment is ready!";
 
@@ -427,7 +449,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    AutoStartSSH();
 		}
 	    }
-	    else if (status == 'failed') {
+	    else if (instanceStatus == 'failed') {
 		bgtype = "panel-danger";
 
 		if (_.has(json.value, "reason")) {
@@ -450,14 +472,21 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		EnableButton("terminate");
 		EnableButton("refresh");
 	    }
-	    else if (status == 'imaging') {
+	    else if (instanceStatus == 'imaging') {
 		bgtype = "panel-warning";
 		status_message = "Your experiment is busy while we  " +
 		    "copy your disk";
 		status_html = "<font color=red>imaging</font>";
 		DisableButtons();
 	    }
-	    else if (status == 'imaging-failed') {
+	    else if (instanceStatus == 'linktest') {
+		bgtype = "panel-warning";
+		status_message = "Your experiment is busy while we  " +
+		    "run linktest";
+		status_html = "<font color=red>linktest</font>";
+		DisableButtons();
+	    }
+	    else if (instanceStatus == 'imaging-failed') {
 		bgtype = "panel-danger";
 		status_message = "Your disk image request failed!";
 		status_html = "<font color=red>imaging-failed</font>";
@@ -465,12 +494,19 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		EnableButton("terminate");
 		EnableButton("refresh");
 	    }
-	    else if (status == 'terminating' || status == 'terminated') {
-		status_html = "<font color=red>" + status + "</font>";
+	    else if (instanceStatus == 'terminating' ||
+		     instanceStatus == 'terminated') {
+		status_html = "<font color=red>" + instanceStatus + "</font>";
 		bgtype = "panel-danger";
 		status_message = "Your experiment has been terminated!";
 		DisableButtons();
 		StartCountdownClock.stop = 1;
+	    }
+	    else if (instanceStatus == "unknown") {
+		status_html = "<font color=red>" + instanceStatus + "</font>";
+		bgtype = "panel-warning";
+		status_message = "The server is temporarily unavailable!";
+		DisableButtons();
 	    }
 	    if (!status_collapsed) {
 		$("#status_message").html(status_message);
@@ -481,7 +517,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		.addClass(bgtype);
 	    $("#quickvm_status").html(status_html);
 	}
-	else if (lastStatus == "ready" && status == "ready") {
+	else if (lastStatus == "ready" && instanceStatus == "ready") {
 	    if (servicesExecuting(json.value)) {
 		status_html = "<font color=green>booted</font>";
 		status_html += " (startup services are still running)";
@@ -498,11 +534,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	if (json.value.havemanifests && _.has(json.value, "sliverstatus")) {
 	    UpdateSliverStatus(json.value.sliverstatus);
 	}
-	lastStatus = status;
-	if (! (status == 'terminating' || status == 'terminated' ||
-	       status == 'unknown')) {
-	    setTimeout(function f() { GetStatus(uuid) }, 5000);
-	}
+	lastStatus = instanceStatus;
     }
 
     //
@@ -515,6 +547,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	EnableButton("extend");
 	EnableButton("clone");
 	EnableButton("snapshot");
+	ToggleLinktestButtons(instanceStatus);	
     }
     function DisableButtons()
     {
@@ -523,6 +556,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	DisableButton("extend");
 	DisableButton("clone");
 	DisableButton("snapshot");
+	ToggleLinktestButtons(instanceStatus);	
     }
     function EnableButton(button)
     {
@@ -544,6 +578,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    button = "#clone_button";
 	else if (button == "snapshot" && nodecount == 1)
 	    button = "#snapshot_button";
+	else if (button == "start-linktest")
+	    button = "#linktest-modal-button";
+	else if (button == "stop-linktest")
+	    button = "#linktest-stop-button";
 	else
 	    return;
 
@@ -742,7 +780,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		return;
 	    }
 	    // Trigger status update.
-	    GetStatus(uuid);
+	    GetStatus();
 	}
 	sup.ShowModal('#waitwait-modal');
 	var xmlthing = sup.CallServerMethod(ajaxurl,
@@ -919,7 +957,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		return;
 	    }
 	    // Trigger status to change the nodes.
-	    GetStatus(uuid);
+	    GetStatus();
 	}
 	sup.ShowModal('#waitwait-modal');
 	var xmlthing = sup.CallServerMethod(ajaxurl,
@@ -954,7 +992,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    return;
 		}
 		// Trigger status update.
-		GetStatus(uuid);
+		GetStatus();
 	    }
 	    sup.ShowModal('#waitwait-modal');
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
@@ -2042,5 +2080,203 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$("#logfile_button").removeClass("hidden");
     }
 
+    //
+    // Create a new tab to show linktest results. Cause of multisite, there
+    // can be more then one. 
+    //
+    function NewLinktestTab(name, results, url)
+    {
+	// Replace spaces with underscore. Silly. 
+	var site = name.split(' ').join('_');
+	    
+	//
+	// Need to create the tab before we can create the topo, since
+	// we need to know the dimensions of the tab.
+	//
+	var tabname = site + "_linktest";
+	if (! $("#" + tabname).length) {
+	    // The tab.
+	    var html = "<li><a href='#" + tabname + "' data-toggle='tab'>" +
+		name + "" +
+		"<button class='close' type='button' " +
+		"        id='" + tabname + "_kill'>x</button>" +
+		"</a>" +
+		"</li>";	
+
+	    // Append to end of tabs
+	    $("#quicktabs_ul").append(html);
+
+	    // Install a click handler for the X button.
+	    $("#" + tabname + "_kill").click(function(e) {
+		e.preventDefault();
+		// remove the li from the ul.
+		$(this).parent().parent().remove();
+		// Remove the content div.
+		$("#" + tabname).remove();
+		// Activate the "profile" tab.
+		$('#quicktabs_ul a[href="#profile"]').tab('show');
+	    });
+
+	    // The content div.
+	    html = "<div class='tab-pane' id='" + tabname + "'></div>";
+
+	    // Add the tab content wrapper to the DOM,
+	    $("#quicktabs_content").append(html);
+
+	    // And make it active
+	    $('#quicktabs_ul a:last').tab('show') // Select last tab
+	}
+	else {
+	    // Switch back to it.
+	    $('#quicktabs_ul a[href="#' + tabname + '"]').tab('show');
+	}
+
+	//
+	// Inside tab content is either the results or an iframe to
+	// spew the the log file.
+	//
+	var html;
+	
+	if (results) {
+	    html = "<div style='overflow-y: scroll;'><pre>" +
+		results + "</pre></div>";
+	}
+	else if (url) {
+	    // Create the iframe inside the new tab
+	    var iwidth = "100%";
+	    var iheight = 400;
+		
+	    html = '<iframe id="' + tabname + '_iframe" ' +
+		'width=' + iwidth + ' ' +
+		'height=' + iheight + ' ' +
+		'src=\'' + url + '\'>';
+	}		
+	$('#' + tabname).html(html);
+    }
+
+    //
+    // Linktest support.
+    //
+    function SetupLinktest(status) {
+	require(['js/lib/text!template/linktest.md'],
+		function(md) {
+		    console.info(md);
+		    console.info(marked(md));
+		    $('#linktest-help').html(marked(md));
+		});
+
+	// Handler for the linktest modal button
+	$('button#linktest-modal-button').click(function (event) {
+	    event.preventDefault();
+	    sup.ShowModal('#linktest-modal');
+	});
+	// And for the start button in the modal.
+	$('button#linktest-start-button').click(function (event) {
+	    event.preventDefault();
+	    StartLinktest();
+	});
+	// Stop button for a running or wedged linktest.
+	$('button#linktest-stop-button').click(function (event) {
+	    event.preventDefault();
+	    StopLinktest();
+	});
+	ToggleLinktestButtons(status);
+    }
+    function ToggleLinktestButtons(status) {
+	if (status == "ready") {
+	    $('#linktest-stop-button').addClass("hidden");
+	    $('#linktest-modal-button').removeClass("hidden");
+	    EnableButton("start-linktest");
+	    DisableButton("stop-linktest");
+	}
+	else if (status == "linktest") {
+	    DisableButton("start-linktest");
+	    EnableButton("stop-linktest");
+	    $('#linktest-modal-button').addClass("hidden");
+	    $('#linktest-stop-button').removeClass("hidden");
+	}
+	else {
+	    DisableButton("start-linktest");
+	}
+    }
+
+    //
+    // Fire off linktest and put results into tabs.
+    //
+    function StartLinktest() {
+	sup.HideModal('#linktest-modal');
+	var level = $('#linktest-level option:selected').val();
+	
+	var callback = function(json) {
+	    console.log("Linktest Startup");
+	    console.log(json);
+
+	    sup.HideWaitWait();
+	    statusHold = 0;
+	    GetStatus();
+	    if (json.code) {
+		sup.SpitOops("oops", "Could not start linktest: " + json.value);
+		EnableButton("start-linktest");
+		return;
+	    }
+	    $.each(json.value , function(site, details) {
+		var name = "Linktest";
+		if (Object.keys(json.value).length > 1) {
+		    name = name + " " + site;
+		}
+		
+		if (details.status == "stopped") {
+		    //
+		    // We have the output right away.
+		    //
+		    NewLinktestTab(name, details.results, null);
+		}
+		else {
+		    NewLinktestTab(name, null, details.url);
+		}
+	    });
+	};
+	statusHold = 1;
+	DisableButton("start-linktest");
+	sup.ShowWaitWait("We are starting linktest ... patience please");
+    	var xmlthing = sup.CallServerMethod(null,
+					    "status",
+					    "LinktestControl",
+					    {"action" : "start",
+					     "level"  : level,
+					     "uuid" : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Stop a running linktest.
+    //
+    function StopLinktest() {
+	// If linktest completed, we will not be in the linktest state,
+	// so nothing to stop. But if the user killed the tab while it
+	// is still running, we will want to stop it.
+	if (instanceStatus != "linktest")
+	    return;
+	
+	var callback = function(json) {
+	    sup.HideWaitWait();
+	    statusHold = 0;
+	    GetStatus();
+	    if (json.code) {
+		sup.SpitOops("oops", "Could not stop linktest: " + json.value);
+		EnableButton("stop-linktest");
+		return;
+	    }
+	};
+	statusHold = 1;
+	DisableButton("stop-linktest");
+	sup.ShowWaitWait("We are shutting down linktest ... patience please");
+    	var xmlthing = sup.CallServerMethod(null,
+					    "status",
+					    "LinktestControl",
+					    {"action" : "stop",
+					     "uuid" : uuid});
+	xmlthing.done(callback);
+    }
     $(document).ready(initialize);
 });

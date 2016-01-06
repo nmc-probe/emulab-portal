@@ -131,6 +131,12 @@
 	  <% } %>
 	  <div class='pull-right'>
 	    <% if (registered && !isfadmin) { %>
+	    <button class='btn btn-xs btn-success hidden' disabled
+		    style='margin-right: 10px;'
+		    id='linktest-stop-button' type=button
+ 		    data-toggle='popover'
+		    data-content='Stop a running or wedged linktest'>
+	      Stop Linktest</button>
 	    <button class='btn btn-xs btn-primary hidden' disabled
 		    id='clone_button' type=button>
               Clone</button>
@@ -244,11 +250,17 @@
               <small>Click on a node for more options. 
                 Click and drag to move things around.</small>
 	      <% if (registered) { %>
-	      <button class='btn btn-xs btn-success pull-right' disabled
-		      id='refresh_button' type=button
-		      data-toggle='popover'
-		      data-content='Ask cluster for updated node status'>
-		Refresh Status</button>
+		<button class='btn btn-xs btn-success pull-right' disabled
+			id='refresh_button' type=button
+			data-toggle='popover'
+			data-content='Ask cluster for updated node status'>
+		  Refresh Status</button>
+		<button class='btn btn-xs btn-success pull-right' disabled
+			style='margin-right: 10px;'
+			id='linktest-modal-button' type=button
+ 			data-toggle='popover'
+			data-content='Run linktest on the topology'>
+		  Run Linktest</button>
 	    <% } %>
 	    </div>
             <div class='tab-pane' id='listview'>
@@ -436,4 +448,5 @@
   <div id='imaging_div'></div>
   <div id='oneonly_div'></div>
   <div id='approval_div'></div>
+  <div id='linktest_div'></div>
 </div>

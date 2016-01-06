@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2015 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1941,11 +1941,16 @@ sub RunLinktest($$$)
 	"credentials" => [$slice_credential->asString(),
 			  $speaksfor_credential->asString()],
     };
-    if ($action eq "kill") {
-	$args->{"stop"} = 1;
+    if ($action eq "stop") {
+	$args->{"action"} = "stop";
+    }
+    elsif ($action eq "status") {
+	$args->{"action"} = "status";
     }
     else {
-	$args->{"level"} = $level;
+	$args->{"action"} = "start";
+	$args->{"async"}  = 1;
+	$args->{"level"}  = $level;
     }
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);

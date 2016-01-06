@@ -123,7 +123,9 @@ $routing = array("myprofiles" =>
 						 "Lockout" =>
                                                      "Do_Lockout",
 						 "Quarantine" =>
-						     "Do_Quarantine")),
+						     "Do_Quarantine",
+						 "LinktestControl" =>
+						     "Do_Linktest")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,

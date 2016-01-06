@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1993,27 +1993,18 @@ sub DoLinktest()
     my $action = "start";
     my $level  = 1;
     my $errmsg;
+    my $errcode = 1;
     
     if (@ARGV) {
 	my $arg = shift(@ARGV);
 	if ($arg eq "-k") {
-	    $action = "kill";
+	    $action = "stop";
 	}
 	elsif ($arg =~ /^\d$/ && $arg >= 1 && $arg <= 4) {
 	    $level = $arg;
 	}
 	else {
 	    usage();
-	}
-    }
-    if ($action eq "start") {
-	if ($instance->status() ne "ready") {
-	    fatal("Must be ready to run linktest!");
-	}
-    }
-    else {
-	if ($instance->status() ne "linktest") {
-	    fatal("Linktest is not running!");
 	}
     }
     my $slice = $instance->GetGeniSlice();
@@ -2032,6 +2023,19 @@ sub DoLinktest()
     #
     if ($slice->Lock()) {
 	fatal("Slice is busy, cannot lock it");
+    }
+    # Check after lock to prevent concurrent startup. 
+    if ($action eq "start") {
+	if ($instance->status() ne "ready") {
+	    $slice->UnLock();
+	    fatal("Must be ready to run linktest!");
+	}
+    }
+    else {
+	if ($instance->status() ne "linktest") {
+	    $slice->UnLock();
+	    fatal("Linktest is not running!");
+	}
     }
     #
     # Create the webtask object, but AFTER locking the slice so we do
@@ -2056,17 +2060,28 @@ sub DoLinktest()
 	    return -1;
 	}
 	if ($response->code() != GENIRESPONSE_SUCCESS) {
-	    print STDERR "Could not run linktest on sliver: ".
+	    print STDERR "Could not $action linktest on sliver: ".
 		$response->output() . "\n";
 	    $webtask->output($response->output());
-	    $webtask->Exited(1);
-	    return 1;
+	    $webtask->Exited($response->code());
+	    return $response->code();
 	}
-	print STDERR "foo\n" . $response->output() . "\n";
-	$webtask->output($response->output());
-	$webtask->Exited(0);
+	my $blob = $response->value();
+	if ($blob->{'status'} eq "running") {
+	    $webtask->status("running");
+	    $webtask->url($blob->{'url'});
+	}
+	elsif ($blob->{'status'} eq "stopped") {
+	    $webtask->status("stopped");
+	    $webtask->results($blob->{'results'});
+	    $webtask->Exited(0);
+	}
 	return 0;
     };
+    # Change status now.
+    my $old_status = $instance->status();
+    $instance->SetStatus("linktest");
+    
     my @return_codes = ();
     my @agglist =      $instance->AggregateList();
     if (ParRun({"maxwaittime" => 99999,
@@ -2081,24 +2096,71 @@ sub DoLinktest()
     foreach my $agg (@agglist) {
 	my $code = shift(@return_codes);
 	if ($code) {
-	    $errmsg = "Could not run linktest on some slivers";
+	    $errmsg = "Could not $action linktest on some slivers";
 	    if ($agg->webtask()->output()) {
 		$errmsg .= ": " . $agg->webtask()->output();
+		$errcode = $code;
 	    }
 	    goto bad;
 	}
-	if (!defined($webtask) && $agg->webtask()->output()) {
-	    print $agg->webtask()->output();
+	if (!defined($webtask) && $agg->webtask()->results()) {
+	    print $agg->webtask()->results();
 	}
     }
-    $slice->UnLock();
+    if ($action eq "stop") {
+	$instance->SetStatus("ready");
+	$slice->UnLock();
+	exit(0);
+    }
+    #
+    # Okay, now we want to wait for linktest to finish on all the clusters
+    # so that we can change the status back to ready.
+    #
+    my $logfile = TBMakeLogname("linktest");
+	
+    if (my $childpid = TBBackGround($logfile)) {
+	sleep(1);
+	my $status = 0;
+	my $foo = waitpid($childpid, &WNOHANG);
+	if ($foo) {
+	    $status = $? >> 8;
+	}
+	# Unlock so user can stop linktest.
+	$slice->UnLock();
+	exit($status);
+    }
+    #
+    # Loop, asking each cluster for the linktest status,
+    #
+    my %running = map { $_->aggregate_urn() => $_ } @agglist;
+    while (keys(%running)) {
+	foreach my $sliver (values(%running)) {
+	    my $response = $sliver->RunLinktest("status");
+	    if (!defined($response)) {
+		print STDERR "RPC Error calling linktest on $sliver\n";
+		next;
+	    }
+	    if ($response->code() != GENIRESPONSE_SUCCESS) {
+		print STDERR "Could not get linktest status for sliver: ".
+		    $response->output() . "\n";
+		next;
+	    }
+	    my $blob = $response->value();
+	    if ($blob->{'status'} eq "stopped") {
+		delete($running{$sliver->aggregate_urn()});
+	    }
+	}
+	sleep(5);
+    }
+    $instance->SetStatus($old_status);
     exit(0);
   bad:
+    $instance->SetStatus($old_status);
     $slice->UnLock();
     print STDERR $errmsg . "\n";
     if (defined($webtask)) {
 	$webtask->output($errmsg);
-	$webtask->Exited(1);
+	$webtask->Exited($errcode);
     }
     exit(1);
 }

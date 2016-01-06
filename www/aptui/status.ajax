@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1191,6 +1191,117 @@ function Do_Quarantine()
 	$webtask->Delete();
     }
     SPITAJAX_RESPONSE("Success");
+}
+
+function Do_Linktest()
+{
+    global $instance, $this_user, $ajax_args, $urn_mapping;
+
+    if (StatusSetupAjax(0)) {
+	return;
+    }
+    if (!isset($ajax_args["action"])) {
+	SPITAJAX_ERROR(1, "Missing action");
+	return;
+    }
+    $action = $ajax_args["action"];
+    $uuid = $ajax_args["uuid"];
+    $blob = array();
+    $level = 1;
+
+    if (isset($ajax_args["level"])) {
+        $level = $ajax_args["level"];
+        if (!preg_match("/^\d+$/", $level) || $level < 1 || $level > 4) {
+            SPITAJAX_ERROR(1, "Bad level request");
+            return;
+        }
+    }
+
+    if ($action == "start") {
+        if ($instance->status() == "linktest") {
+            SPITAJAX_ERROR(1, "Linktest already running");
+            return;
+        }
+        $webtask_id = WebTask::GenerateID();
+        $retval = SUEXEC($this_user->uid(), "nobody",
+                         "webmanage_instance -t $webtask_id -- ".
+                         "linktest $uuid $level",
+                         SUEXEC_ACTION_IGNORE);
+        $webtask = WebTask::Lookup($webtask_id);
+
+        if ($retval != 0) {
+            if ($retval < 0) {
+                SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+                # Notify tbops.
+                SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+            }
+            elseif ($webtask) {
+                SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+            }
+            else {
+                SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+                SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+            }
+            if ($webtask) {
+                $webtask->Delete();
+            }
+            return;
+        }
+        # This one does not tell us anything.
+        $webtask->Delete();
+        # Look at per sliver.
+        foreach ($instance->slivers() as $sliver) {
+            if ($sliver->webtask_id() &&
+                $webtask = WebTask::Lookup($sliver->webtask_id())) {
+
+                $tmp = array();
+                $tmp["status"] = $webtask->TaskValue("status");
+                if ($webtask->TaskValue("status") == "running") {
+                    $tmp["url"] = $webtask->TaskValue("url");
+                }
+                else {
+                    $tmp["results"] = $webtask->TaskValue("results");
+                }
+                $blob[$urn_mapping[$sliver->aggregate_urn()]] = $tmp;
+            }
+        }
+        SPITAJAX_RESPONSE($blob);
+    }
+    elseif ($action == "stop") {
+        if ($instance->status() != "linktest") {
+            SPITAJAX_RESPONSE(0);
+            return;
+        }
+        $webtask_id = WebTask::GenerateID();
+        $retval = SUEXEC($this_user->uid(), "nobody",
+                         "webmanage_instance -t $webtask_id -- ".
+                         "linktest $uuid -k",
+                         SUEXEC_ACTION_IGNORE);
+        $webtask = WebTask::Lookup($webtask_id);
+
+        if ($retval != 0) {
+            if ($retval < 0) {
+                SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+                # Notify tbops.
+                SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+            }
+            elseif ($webtask) {
+                SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+            }
+            else {
+                SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+                SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+            }
+            if ($webtask) {
+                $webtask->Delete();
+            }
+            return;
+        }
+        SPITAJAX_RESPONSE(0);
+    }
+    else {
+       SPITAJAX_ERROR(-1, "Improper lintest action"); 
+    }
 }
 
 # Local Variables:
