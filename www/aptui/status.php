@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -224,7 +224,12 @@ echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
 echo "  window.APT_OPTIONS.sliceCreated = '" . $slice_created . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
-echo "  window.APT_OPTIONS.thisUid = '" . $this_user->uid() . "';\n";
+if (isset($this_user)) {
+    echo "  window.APT_OPTIONS.thisUid = '" . $this_user->uid() . "';\n";
+}
+else {
+    echo "  window.APT_OPTIONS.thisUid = '" . $creator_uid . "';\n";
+}
 echo "  window.APT_OPTIONS.registered = $registered;\n";
 echo "  window.APT_OPTIONS.isadmin = $isadmin;\n";
 echo "  window.APT_OPTIONS.isfadmin = $isfadmin;\n";
