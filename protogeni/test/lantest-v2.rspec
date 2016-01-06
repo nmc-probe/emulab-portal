@@ -14,12 +14,26 @@ http://www.protogeni.net/resources/rspec/2/request.xsd"
     <sliver_type name="raw-pc" />
     <interface client_id="geni2:if0" />
   </node>
-  <link client_id="link0">
+  <node client_id="geni3"
+        exclusive="true">
+    <sliver_type name="raw-pc" />
+    <interface client_id="geni3:if0" />
+  </node>
+  <link client_id="lan0">
     <interface_ref client_id="geni1:if0" />
     <interface_ref client_id="geni2:if0" />
-    <property source_id="geni1:if0" dest_id="geni2:if0"
+    <interface_ref client_id="geni3:if0" />
+    <property source_id="geni1:if0" dest_id="lan0"
 	      capacity="50000" latency="15" packet_loss="0.05"/>
-    <property source_id="geni2:if0" dest_id="geni1:if0"
+    <property source_id="lan0" dest_id="geni1:if0"
+	      capacity="50000" latency="15" packet_loss="0.05"/>
+    <property source_id="geni2:if0" dest_id="lan0"
+	      capacity="50000" latency="15" packet_loss="0.05"/>
+    <property source_id="lan0" dest_id="geni2:if0"
+	      capacity="50000" latency="15" packet_loss="0.05"/>
+    <property source_id="geni3:if0" dest_id="lan0"
+	      capacity="50000" latency="15" packet_loss="0.05"/>
+    <property source_id="lan0" dest_id="geni3:if0"
 	      capacity="50000" latency="15" packet_loss="0.05"/>
   </link>
 </rspec>
