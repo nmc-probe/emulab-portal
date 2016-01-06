@@ -1488,8 +1488,8 @@ sub DoRebootOrReload($)
 	}
 	if ($response->code() != GENIRESPONSE_SUCCESS) {
 	    if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
-		$errmsg = "Slice is gone";
-		goto bad;
+		print STDERR "Slice is already gone on $sliver";
+		goto gone;
 	    }
 	    if ($response->code() == GENIRESPONSE_BUSY) {
 		$errmsg = "Experiment is busy; try again later";
@@ -1498,6 +1498,7 @@ sub DoRebootOrReload($)
 	    $errmsg = $response->output();
 	    goto bad;
 	}
+      gone:
 	# Tell the web interface something is different. Real status will
 	# come later when the monitor starts up. 
 	if ($webtask->sliverstatus()) {
