@@ -85,7 +85,7 @@ elseif ($_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
 	$APTBASE .= "/" . $matches[1];
     }
     $PORTAL_MANUAL       = "http://docs.cloudlab.us";
-    $PORTAL_MOTD_SITEVAR = "aptlab/message";
+    $PORTAL_MOTD_SITEVAR = "cloudlab/message";
     $PORTAL_HELPFORUM    = "cloudlab-users";
     $PORTAL_PASSWORD_HELP= "CloudLab.us or Emulab.net Username";
     $PORTAL_NSFNUMBER    = "CNS-1302688";
