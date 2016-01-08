@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -474,11 +474,10 @@ function SUEXEC($uid, $gid, $cmdandargs, $action) {
     # suexec.c puts its error message between 100 and 125. Convert that
     # to an internal error and generate an error that says something useful.
     #
-    if ($suexec_retval >= 100 && $suexec_retval <= 125) {
-        if (!count($suexec_output_array)) {
-            $suexec_output_array[0] =
-                "Internal suexec error $suexec_retval. See the suexec log";
-        }
+    if ($suexec_retval >= 100 && $suexec_retval <= 125 &&
+        !count($suexec_output_array)) {
+        $suexec_output_array[0] =
+            "Internal suexec error $suexec_retval. See the suexec log";
         $suexec_retval = -1;
     }
 
