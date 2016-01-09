@@ -1014,13 +1014,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var jsonauth = $.parseJSON(authobject);
 	
 	var callback = function(stuff) {
+	    console.info(stuff);
             var split   = stuff.split(':');
             var session = split[0];
     	    var port    = split[1];
 
             var url   = jsonauth.baseurl + ':' + port + '/' + '#' +
 		encodeURIComponent(document.location.href) + ',' + session;
-//            console.info(url);
+            console.info(url);
 	    var iwidth = "100%";
             var iheight = 400;
 
@@ -1045,7 +1046,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
 	var xmlthing = $.ajax({
 	    // the URL for the request
-     	    url: jsonauth.baseurl + '/d77e8041d1ad',
+	    url: jsonauth.baseurl + '/d77e8041d1ad',
+	    //url: jsonauth.baseurl + '/myshbox',
 	    
      	    // the data to send (will be converted to a query string)
 	    data: {
@@ -1066,6 +1068,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // the ssh tab with a panel in it, and then call StartSSH above
     // to get things going.
     //
+    var sshtabcounter = 0;
+    
     function NewSSHTab(hostport, client_id)
     {
 	var pair = hostport.split(":");
@@ -1076,7 +1080,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Need to create the tab before we can create the topo, since
 	// we need to know the dimensions of the tab.
 	//
-	var tabname = client_id + "_tab";
+	var tabname = client_id + "_" + sshtabcounter++ + "_tab";
+	console.info(tabname);
+	
 	if (! $("#" + tabname).length) {
 	    // The tab.
 	    var html = "<li><a href='#" + tabname + "' data-toggle='tab'>" +
