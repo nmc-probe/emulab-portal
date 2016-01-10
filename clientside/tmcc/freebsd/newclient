@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -237,6 +237,22 @@ if ($client_type eq "ops") {
 }
 
 #
+# See if we can identify the control net interface
+#
+my $cnetiface;
+if (-e "/var/emulab/boot/controlif") {
+    my $cnet = `cat /var/emulab/boot/controlif`;
+    chomp $cnet;
+    foreach my $aref (@ifaces) {
+	my ($iface, $mac, $status) = @$aref;
+	if ($cnet eq $iface) {
+	    $cnetiface = $cnet;
+	    last;
+	}
+    }
+}
+
+#
 # Start the program that will annouce us to the switch, so that it learns
 # MAC addresses, etc.
 #
@@ -315,6 +331,9 @@ sub buildURL {
 	$ifaceindex++;
     }
 
+    if ($cnetiface) {
+	$URL .= "&cnetiface=" . urlencode($cnetiface);
+    }
     $URL .= "&messages=" . urlencode(join "", @::messages);
 
     return $URL;
