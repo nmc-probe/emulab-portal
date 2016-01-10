@@ -1,6 +1,6 @@
 <?PHP
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -189,7 +189,7 @@ $row = mysql_fetch_array($query_result)
 
 $query_result = DBQueryFatal("SELECT card, mac, interface_type, switch_id, " .
 	"switch_card, switch_port, cable, len FROM new_interfaces " .
-	"where new_node_id=$id");
+	"where new_node_id=$id order by card");
 while ($row = mysql_fetch_array($query_result)) {
     $card        = $row['card'];
     $mac         = $row['mac'];

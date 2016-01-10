@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,7 +43,8 @@ $reqargs = RequiredPageArguments("cpuspeed",    PAGEARG_STRING,
 $optargs = OptionalPageArguments("node_id",     PAGEARG_STRING,
 				 "identifier",  PAGEARG_STRING,
 				 "use_temp_IP", PAGEARG_STRING,
-				 "type",        PAGEARG_STRING);
+				 "type",        PAGEARG_STRING,
+				 "cnetiface",	PAGEARG_STRING);
 
 #
 # Grab the IP address that this node has right now, so that we can contact it
@@ -65,6 +66,9 @@ foreach ($_GET as $key => $value) {
 		    $interfaces[$ifacenum]["type"] = $matches[1];
 		}
 	        $interfaces[$ifacenum]["card"] = $ifacenum;
+		if (isset($cnetiface) && $cnetiface == $value) {
+		    $cnetcard = $ifacenum;
+		}
 	    } else {
 		echo "Bad interface name ". CleanString($value). ", ignored!";
 	        $interfaces[$ifacenum]["bad"] = 1;
@@ -92,6 +96,9 @@ foreach ($_GET as $key => $value) {
 # weed out bad ones
 foreach ($interfaces as $i => $interface) {
     if (isset($interface["bad"])) {
+	if (isset($cnetcard) && $cnetcard == $interface["card"]) {
+	    unset($cnetcard);
+	}
 	unset($interfaces[$i]);
     }
 }
@@ -225,10 +232,14 @@ foreach ($interfaces as $interface) {
     $mac = $interface["mac"];
     $type = $interface["type"];
     $clause = "";
+    # see if they specified the cnet interface and this is it
+    if (isset($cnetcard) && $cnetcard == $card) {
+	$clause .= ", role='ctrl'";
+    }
     # XXX not a 6 byte value, assume it is a guid
     # XXX probably should check interface_capabilities for the type
     if (strlen($mac) != 12) {
-	$clause = ", guid='$mac'";
+	$clause .= ", guid='$mac'";
 	# XXX 16 bytes implies an Infiniband port GUID to us
 	# cons up what would be the mac
 	if (strlen($mac) == 16) {

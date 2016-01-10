@@ -1,6 +1,6 @@
 <?PHP
 #
-# Copyright (c) 2003-2013 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -410,8 +410,12 @@ while ($row = mysql_fetch_array($nodes_result)) {
 	while ($irow = mysql_fetch_array($ifaces_result)) {
 	    $card  = $irow["card"];
 	    $iface = "eth${card}";
+	    $role = $irow["role"];
+	    if (!isset($role)) {
+		$role = "";
+	    }
 
-	    if ($iface == $control_iface) {
+	    if ($role == TBDB_IFACEROLE_CONTROL || $iface == $control_iface) {
 		$mac = $irow["mac"];
 		
 		if ($irow["switch_id"]) {
@@ -424,7 +428,11 @@ while ($row = mysql_fetch_array($nodes_result)) {
 		else {
 		    $port = "unknown";
 		}
-		break;
+
+		# new_interfaces role is definitive, else keep looking
+		if ($role == TBDB_IFACEROLE_CONTROL) {
+		    break;
+		}
 	    }
 	}
 	
