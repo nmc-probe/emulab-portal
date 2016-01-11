@@ -59,26 +59,43 @@ my $ChassisInfo = {
         "moduleSlots"           => 8,   # Max # of modules in chassis
         "maxPortsPerModule"     => 48,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 224, # Number of bits per module
+	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
     },
     "force10e1200" => {
         "moduleSlots"           => 14,  # Max # of modules in chassis
         "maxPortsPerModule"     => 48,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 96,  # Number of bits per module
+	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
     },
     "force10s55" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 64,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 768, # Number of bits per module
+	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
     },
     "force10-z9000" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 128, # Max # of ports in any module
         "bitmaskBitsPerModule"  => 1024, # Number of bits per module
+	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+    },
+    "force10-z9500" => {
+        "moduleSlots"           => 3,   # Max # of modules in chassis
+        "maxPortsPerModule"     => 192, # Max # of ports in any module
+        "bitmaskBitsPerModule"  => 192, # Number of bits per module
+	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
     },
     "force10-s6000" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 128, # Max # of ports in any module
         "bitmaskBitsPerModule"  => 1024, # Number of bits per module
+	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+    },
+    "force10-s3048" => {
+        "moduleSlots"           => 1,   # Max # of modules in chassis
+        "maxPortsPerModule"     => 52,  # Max # of ports in any module
+        "bitmaskBitsPerModule"  => 1024, # Number of bits per module
+	"zeroBased"             => 0,   # Whether ports/mods are 0 or 1-based
     },
 };
 
@@ -323,7 +340,10 @@ sub readifIndex($) {
 	    my $type = $1;
 	    my $module = $2;
 	    my $port = defined($4) ? $4 : $3;
-	    # Note: Force10 modules and ports start at 0 instead of 1.
+	    # Note: Some Force10 switches (versions?) use zero-based
+	    #       modules and ports, while others use 1-based. The
+	    #       "ChassisInfo" defs above have a variable that
+	    #       indicates which switch model is doing what.
 	    my $modport = "${module}.${port}";
 	    my $ifIndex = $iid;
 	    
@@ -525,13 +545,12 @@ sub convertBitmaskToIfindexes($$) {
     my $moduleSlots          = $ChassisInfo->{$type}->{moduleSlots};
     my $maxPortsPerModule    = $ChassisInfo->{$type}->{maxPortsPerModule};
     my $bitmaskBitsPerModule = $ChassisInfo->{$type}->{bitmaskBitsPerModule};
+    my $zeroBased            = $ChassisInfo->{$type}->{zeroBased};
 
     my @ifIndexes;
-                                                          
-    # start at module 0
-    my $mod = 0;                                          
+
+    my $mod = 0;
     while ($mod < $moduleSlots) {
-        # start at port 0
         my $port = 0;
 
         # loop over until maxports.  Not usefull to loop over
@@ -548,8 +567,10 @@ sub convertBitmaskToIfindexes($$) {
                 # the offset we're actually looking for
                 + (7 - ($port % 8));
 
-            if ( vec($bitmask,$offset,1) ) { 
-                push @ifIndexes, $self->{IFINDEX}{"${mod}.${port}"};
+            if ( vec($bitmask,$offset,1) ) {
+		my $lmod  = $zeroBased ? $mod  : $mod  + 1;
+		my $lport = $zeroBased ? $port : $port + 1;
+                push @ifIndexes, $self->{IFINDEX}{"${lmod}.${lport}"};
             }
             $port++;
         }
@@ -573,6 +594,7 @@ sub convertIfindexesToBitmask($@) {
     my $moduleSlots          = $ChassisInfo->{$type}->{moduleSlots};
     my $maxPortsPerModule    = $ChassisInfo->{$type}->{maxPortsPerModule};
     my $bitmaskBitsPerModule = $ChassisInfo->{$type}->{bitmaskBitsPerModule};
+    my $zeroBased            = $ChassisInfo->{$type}->{zeroBased};
 
     # Create an all-zero (empty) PortSet bit vector.
     my $bitmask = pack("H*", '00' x $self->{PORTSET_NUMBYTES});
@@ -583,9 +605,8 @@ sub convertIfindexesToBitmask($@) {
 
     foreach my $modport (@modports) {
         $modport =~ /(\d+)\.(\d+)/;
-        my $mod  = $1;
-        my $port = $2;
-
+        my $mod  = $zeroBased ? $1 : $1 - 1;
+        my $port = $zeroBased ? $2 : $2 - 1;
 
 	$self->debug("$id: modport $modport\n");
 
