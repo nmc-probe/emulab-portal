@@ -2309,7 +2309,7 @@ DROP TABLE IF EXISTS `interface_state`;
 CREATE TABLE `interface_state` (
   `node_id` varchar(32) NOT NULL default '',
   `card` tinyint(3) unsigned NOT NULL default '0',
-  `port` tinyint(3) unsigned NOT NULL default '0',
+  `port` smallint(5) unsigned NOT NULL default '0',
   `iface` varchar(32) NOT NULL,
   `enabled` tinyint(1) default '1',
   `tagged` tinyint(1) default '0',
@@ -2329,7 +2329,7 @@ CREATE TABLE `interface_types` (
   `full_duplex` tinyint(1) default NULL,
   `manufacturer` varchar(30) default NULL,
   `model` varchar(30) default NULL,
-  `ports` tinyint(4) default NULL,
+  `ports` smallint(5) unsigned default NULL,
   `connector` varchar(30) default NULL,
   PRIMARY KEY  (`type`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -2342,7 +2342,7 @@ DROP TABLE IF EXISTS `interfaces`;
 CREATE TABLE `interfaces` (
   `node_id` varchar(32) NOT NULL default '',
   `card` tinyint(3) unsigned NOT NULL default '0',
-  `port` tinyint(3) unsigned NOT NULL default '0',
+  `port` smallint(5) unsigned NOT NULL default '0',
   `mac` varchar(12) NOT NULL default '000000000000',
   `guid` varchar(16) default NULL,
   `IP` varchar(15) default NULL,
@@ -2764,13 +2764,13 @@ CREATE TABLE `new_interfaces` (
   `new_interface_id` int(11) NOT NULL auto_increment,
   `new_node_id` int(11) NOT NULL default '0',
   `card` int(11) NOT NULL default '0',
-  `port` tinyint(3) unsigned default NULL,
+  `port` smallint(5) unsigned default NULL,
   `mac` varchar(12) NOT NULL default '',
   `guid` varchar(16) default NULL,
   `interface_type` varchar(15) default NULL,
   `switch_id` varchar(32) default NULL,
   `switch_card` tinyint(3) default NULL,
-  `switch_port` tinyint(3) default NULL,
+  `switch_port` smallint(5) unsigned default NULL,
   `cable` smallint(6) default NULL,
   `len` tinyint(4) default NULL,
   `role` tinytext,
@@ -2790,7 +2790,7 @@ CREATE TABLE `new_interface_types` (
   `full_duplex` tinyint(1) default NULL,
   `manufacturer` varchar(30) default NULL,
   `model` varchar(30) default NULL,
-  `ports` tinyint(4) default NULL,
+  `ports` smallint(5) unsigned default NULL,
   `connector` varchar(30) default NULL,
   PRIMARY KEY  (`new_interface_type_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=latin1;
@@ -2832,10 +2832,10 @@ CREATE TABLE `new_wires` (
   `type` enum('Node','Serial','Power','Dnard','Control','Trunk','OuterControl','Unused','Management') default NULL,
   `node_id1` char(32) default NULL,
   `card1` tinyint(3) unsigned default NULL,
-  `port1` tinyint(3) unsigned default NULL,
+  `port1` smallint(5) unsigned default NULL,
   `node_id2` char(32) default NULL,
   `card2` tinyint(3) unsigned default NULL,
-  `port2` tinyint(3) unsigned default NULL,
+  `port2` smallint(5) unsigned default NULL,
   PRIMARY KEY  (`new_wire_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -3879,7 +3879,7 @@ DROP TABLE IF EXISTS `port_counters`;
 CREATE TABLE `port_counters` (
   `node_id` char(32) NOT NULL default '',
   `card` tinyint(3) unsigned NOT NULL default '0',
-  `port` tinyint(3) unsigned NOT NULL default '0',
+  `port` smallint(5) unsigned NOT NULL default '0',
   `ifInOctets` int(10) unsigned NOT NULL default '0',
   `ifInUcastPkts` int(10) unsigned NOT NULL default '0',
   `ifInNUcastPkts` int(10) unsigned NOT NULL default '0',
@@ -5292,7 +5292,7 @@ CREATE TABLE `virt_node_public_addr` (
   `mask` varchar(15) default NULL,
   `node_id` varchar(32) default NULL,
   `card` tinyint(3) unsigned default '0',
-  `port` tinyint(3) unsigned default '0',
+  `port` smallint(5) unsigned default '0',
   `pool_id` varchar(32) default NULL,
   `pid` varchar(48) default NULL,
   `eid` varchar(32) default NULL,
@@ -5855,10 +5855,10 @@ CREATE TABLE `wires` (
   `type` enum('Node','Serial','Power','Dnard','Control','Trunk','OuterControl','Unused','Management') NOT NULL default 'Node',
   `node_id1` char(32) NOT NULL default '',
   `card1` tinyint(3) unsigned NOT NULL default '0',
-  `port1` tinyint(3) unsigned NOT NULL default '0',
+  `port1` smallint(5) unsigned NOT NULL default '0',
   `node_id2` char(32) NOT NULL default '',
   `card2` tinyint(3) unsigned NOT NULL default '0',
-  `port2` tinyint(3) unsigned NOT NULL default '0',
+  `port2` smallint(5) unsigned NOT NULL default '0',
   `logical` tinyint(1) unsigned NOT NULL default '0',
   `trunkid` mediumint(4) unsigned NOT NULL default '0',
   `external_interface` tinytext,
