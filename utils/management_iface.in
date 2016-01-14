@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,11 +46,13 @@ sub usage()
     print STDERR "  -a pswd  Password auth; provide login and password.\n";
     print STDERR "  -a key   SSH key auth; provide login and key path.\n";
     print STDERR "  -r       Remove management interface from DB.\n";
+    print STDERR "  -n       Do not restart daemons after changing DB.\n";
     exit(-1);
 }
-my $optlist  = "ht:a:rs:";
+my $optlist  = "ht:a:rs:n";
 my $debug    = 0;
 my $remove   = 0;
+my $norestart = 0;
 my $authtype;
 my $type;
 my $switchinfo;
@@ -106,6 +108,9 @@ if (defined($options{'r'})) {
     $remove = 1;
     usage()
 	if (@ARGV != 1);
+}
+if (defined($options{'n'})) {
+    $norestart = 1;
 }
 if (defined($options{'s'})) {
     $switchinfo = $options{'s'};
@@ -265,7 +270,7 @@ else {
 #
 # Restart DHCPD. 
 #
-if (!$node->isremotenode()) {
+if (!$norestart && !$node->isremotenode()) {
     print "Re-generating dhcpd.conf and restarting dhcpd\n";
     if (system("$DHCPD_MAKECONF -i -r")) {
 	fatal("Unable to restart dhcpd");
@@ -301,7 +306,7 @@ sub RemoveManagementInterface($)
     #
     # Restart DHCPD. 
     #
-    if (!$node->isremotenode()) {
+    if (!$norestart && !$node->isremotenode()) {
 	print "Re-generating dhcpd.conf and restarting dhcpd\n";
 	if (system("$DHCPD_MAKECONF -i -r")) {
 	    fatal("Unable to restart dhcpd");
