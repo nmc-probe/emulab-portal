@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -64,6 +64,7 @@ my $endtime;
 my $typelist;
 my $pid;
 my $count;
+my $project;
 
 # Protos
 sub fatal($);
@@ -227,9 +228,23 @@ if ($list) {
     exit(0);
 }
 
-my $project = Project->Lookup($pid);
-if (!defined($project)) {
-    fatal("No such project $pid\n");
+if ($pid =~ /^(.*):(.*)$/) {
+    require GeniHRN;
+
+    my $urn = GeniHRN::Generate($pid, "authority", "sa");
+
+    $project = Project->LookupNonLocal($urn);
+    if (!defined($project)) {
+	fatal("No such nonlocal project $pid\n");
+    }
+    $pid = $project->pid();
+}
+else {
+    $project = Project->Lookup($pid);
+
+    if (!defined($project)) {
+	fatal("No such project $pid\n");
+    }
 }
 my $pid_idx = $project->pid_idx();
 
