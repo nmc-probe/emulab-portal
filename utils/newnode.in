@@ -211,10 +211,24 @@ NODE: foreach my $node_id (@node_ids) {
     }
     my ($control_iface,$virtnode_capacity,$adminmfs,$adminmfs_osid);
 
-    if ($typeinfo->control_interface(\$control_iface) || !$control_iface) {
-	warn "No control interface for $type is defined in the DB!\n";
-	next NODE;
+    #
+    # If the control interface was explicitly specified, use that.
+    # Otherwise, look for a node_type default.
+    #
+    $query_result = DBQueryFatal("SELECT card from new_interfaces ".
+				 "WHERE new_node_id='$new_node_id'".
+				 "  AND role='ctrl'");
+    if ($query_result->num_rows()) {
+	my ($card) = $query_result->fetchrow();
+	$control_iface = "eth$card";
+    } else {
+	$typeinfo->control_interface(\$control_iface);
     }
+    if (!$control_iface) {
+	    warn "No control interface for $type is defined in the DB!\n";
+	    next NODE;
+    }
+
     if ($typeinfo->virtnode_capacity(\$virtnode_capacity)) {
 	warn "Failure looking up virtnode_capacity for $type in the DB!\n";
 	next NODE;
