@@ -172,9 +172,9 @@ while (my $connection = $listen_socket->accept()) {
                 # This means it worked, but we are not going to return any
                 # content to the caller
                 if ($verbose) { 
-                    print "Returing status code " . RC_NO_CONTENT .  "\n";
+                    print "Returing status code " . RC_OK .  "\n";
                 }
-                $connection->send_status_line(RC_NO_CONTENT);
+                $connection->send_status_line(RC_OK);
                 $connection->close();
                 exit 0;
             }
