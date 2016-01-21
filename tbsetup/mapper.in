@@ -272,6 +272,10 @@ if (!defined($experiment)) {
 }
 my $project = $experiment->GetProject();
 
+if ($pid eq "emulab-ops" || $pid eq "testbed") {
+    $gblinkcheck++;
+}
+
 #
 # Verify that this person can muck with the experiment.
 #
@@ -390,6 +394,12 @@ sub MapperWrapper()
 	exit(0)
 	    if ($clear && !$regression);
     }
+    if (!$toponly && $gblinkcheck) {
+	if ($vtop->gblinks() && $vtop->mgblinks()) {
+	    fatal("Not allowed to mix <=1Gb and >1Gb links");
+	}
+    }
+
     AssignLoop();
     return 0;
 }
