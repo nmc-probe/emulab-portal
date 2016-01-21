@@ -92,6 +92,7 @@ my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
 my $MANAGEINSTANCE= "$TB/bin/manage_instance";
 my $DEFAULT_URN   = "urn:publicid:IDN+${OURDOMAIN}+authority+cm";
+my $GUEST_URN     = "urn:publicid:IDN+apt.emulab.net+authority+cm";
 my $default_aggregate_urn = $DEFAULT_URN;
 
 # un-taint path
@@ -399,9 +400,14 @@ else {
     # In Utah, check for alternate SA
     #
     if (!defined($geniuser) && $MAINSITE) {
+	foreach my $urn (@aggregate_urns) {
+	    if ($urn ne $GUEST_URN) {
+		UserError("Guests are not allowed to use cluster: $urn");
+	    }
+	}
 	$user_urn = GeniHRN::Generate("aptlab.net", "user", $user_uid);
 	$user_hrn = "aptlab.${user_uid}";
-	$geniuser = GeniUser->Lookup($user_urn, 0);
+	$geniuser = GeniUser->LookupGuestOnly($user_urn);
     }
 }
 if (!defined($geniuser)) {

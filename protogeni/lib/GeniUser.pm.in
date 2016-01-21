@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -258,6 +258,38 @@ sub Stringify($)
     my $idx = $self->idx();
 
     return "[GeniUser: $hrn, IDX: $idx]";
+}
+
+#
+# This lookup is needed to deal with a design choice mistake; we are using
+# the geni-sa DB for both portal guest users and for Geni nonlocal users
+# (PROTOGENI_LOCALUSER=1). This causes a conflict, the portal guest users
+# should be someplace else. 
+#
+sub LookupGuestOnly($$)
+{
+    my ($class, $urn) = @_;
+
+    return undef
+	if (!GeniHRN::IsValid($urn));
+
+    my ($authority, $type, $id) = GeniHRN::Parse($urn);
+    return undef
+	if ($type ne "user");
+
+    my $safe_urn = DBQuoteSpecial($urn);
+	    
+    my $query_result =
+	DBQueryWarn("SELECT geni_users.idx FROM ".
+		    "  geni_users, geni_certificates " .
+		    "WHERE geni_users.uuid = geni_certificates.uuid AND " .
+		    "geni_certificates.urn = $safe_urn;" );
+
+    return undef
+	if (! ($query_result && $query_result->numrows));
+
+    my ($idx) = $query_result->fetchrow_array();
+    return GeniUser->Lookup($idx);
 }
 
 #
