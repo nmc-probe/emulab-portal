@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2015 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -2805,6 +2805,31 @@ COMMAND_PROTOTYPE(doaccounts)
 		error("ACCOUNTS: %s: DB Error setting exit update_accounts!\n",
 		      reqp->nodeid);
 	}
+#ifdef EVENTSYS
+	if (reqp->update_accounts) {
+		address_tuple_t tuple;
+		char buf[BUFSIZ];
+
+		tuple = address_tuple_alloc();
+		if (tuple == NULL) {
+			error("ACCOUNTS: Unable to allocate address tuple!\n");
+		}
+		else {
+			tuple->host      = BOSSNODE;
+			tuple->objtype   = "TBUPDATEACCOUNTS";
+			tuple->objname	 = reqp->nodeid;
+			sprintf(buf, "%d", reqp->update_accounts);
+			tuple->eventtype = buf;
+
+			if (myevent_send(tuple)) {
+				error("Error sending event\n");
+				info("%s: STARTSTAT: sendevent failed!\n",
+				     reqp->nodeid);
+			}
+			address_tuple_free(tuple);
+		}
+	}
+#endif /* EVENTSYS */
 
 	/*
 	 * Now onto the users in the project.
@@ -4241,6 +4266,33 @@ COMMAND_PROTOTYPE(dostartstat)
 		      reqp->nodeid);
 		return 1;
 	}
+#ifdef EVENTSYS
+	address_tuple_t tuple;
+	char buf[BUFSIZ];
+
+	/*
+	 * Send an event with the command status.
+	 */
+	/* XXX: Maybe we don't need to alloc a new tuple every time through */
+	tuple = address_tuple_alloc();
+	if (tuple == NULL) {
+		error("dostate: Unable to allocate address tuple!\n");
+	}
+	else {
+		tuple->host      = BOSSNODE;
+		tuple->objtype   = "TBSTARTSTATUS";
+		tuple->objname	 = reqp->nodeid;
+		sprintf(buf, "%d", exitstatus);
+		tuple->eventtype = buf;
+
+		if (myevent_send(tuple)) {
+			error("Error sending event\n");
+			info("%s: STARTSTAT: %d failed!\n",
+			     reqp->nodeid, exitstatus);
+		}
+		address_tuple_free(tuple);
+	}
+#endif /* EVENTSYS */
 	return 0;
 }
 
