@@ -191,7 +191,7 @@ system("touch $outfile") == 0 or
 my $cmdargs = "$TB/libexec/rungenilib.proxy";
 
 # lets try out the python jail
-$cmdargs .= " -J";
+#$cmdargs .= " -J";
 
 $cmdargs .= " -u " . $this_user->uid();
 $cmdargs .= ($getparams ? " -p " : "");
