@@ -1962,6 +1962,10 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
 	    $switchobj = undef;
 	}
 
+	if ($pid && $pid ne 'emulab-ops' && $pid ne 'testbed') {
+	    $leaf_iface_type = undef;
+	}
+
 	# This comes from the switch info, unless its a direct link
 	# between two nodes; use ethernet in this case.
 	my $basetype;
