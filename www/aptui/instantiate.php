@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -292,6 +292,9 @@ while (list ($uuid, $title) = each ($profile_array)) {
     $tmp = Profile::Lookup($uuid);
     if ($tmp) {
         list ($lastused, $count) = $tmp->UsageInfo($this_user);
+        if ($lastused == 0) {
+            list ($unused, $count) = $tmp->UsageInfo(null);
+        }
         
         $tmp_array[$uuid] =
             array("name"     => $tmp->name(),
