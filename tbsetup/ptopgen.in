@@ -1822,6 +1822,10 @@ if ($genimode ne $NO_GENI) {
     }
 }
 
+$interfaceprotocols = {};
+$interfacespeeds = {};
+$interface_auxspeeds = {};
+
 # Read interface types. First need to find the protocols an interface supports
 # and then then the speed for each of those protocols.
 # Note that we are going to assume anything attached to a switch is ethernet.
@@ -1836,6 +1840,18 @@ while (($type,$capkey,$capval) = $result->fetchrow_array) {
     }
     else {
 	die("Improper defspeed $capval for $type!\n");
+    }
+}
+
+# Read interface auxspeeds.
+$result = DBQueryFatal("SELECT type,capkey,capval from interface_capabilities ".
+		       "where capkey like '%_auxspeeds'");
+while (($type,$capkey,$capval) = $result->fetchrow_array) {
+    if ($capkey =~ /^([-\w]+)_auxspeeds$/) {
+	$interface_auxspeeds{$type} = [ split(",", $capval) ];
+    }
+    else {
+	die("Improper auxspeeds $capval for $type!\n");
     }
 }
 
@@ -1933,8 +1949,18 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
 	if (!defined($node2obj)) {
 	    fatal("Could not lookup $node2");
 	}
-	my $switchobj = ($node2obj->isswitch() ? $node2obj :
-			 ($node1obj->isswitch() ? $node1obj : undef));
+	my $switchobj;
+	my $leaf_iface_type;
+	if ($node2obj->isswitch())
+	{
+	    $switchobj = $node2obj;
+	    $leaf_iface_type = get_iface_type($node1,$card1,$port1);
+	} elsif ($node1obj->isswitch()) {
+	    $switchobj = $node1obj;
+	    $leaf_iface_type = get_iface_type($node2,$card2,$port2);
+	} else {
+	    $switchobj = undef;
+	}
 
 	# This comes from the switch info, unless its a direct link
 	# between two nodes; use ethernet in this case.
@@ -2028,6 +2054,13 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
 			
 			push @types, "$basetype-$val";
 		    }
+		}
+	    }
+
+	    if (defined($leaf_iface_type)) {
+		my @speeds = get_iface_auxspeeds($leaf_iface_type);
+		for my $speed (@speeds) {
+		    push @types, "$basetype-$speed";
 		}
 	    }
 
@@ -2209,7 +2242,7 @@ exit(0);
 
 # Print out links
 sub get_iface {
-    ($node,$card,$port) = @_;
+    my ($node,$card,$port) = @_;
     if (defined($interfacemap{"$node:$card:$port"})) {
 	if ($interfacemap{"$node:$card:$port"} eq "") {
 	    return "(null)";
@@ -2230,7 +2263,7 @@ sub get_iface {
 # Find the bandwidth for an interface, when using the given protocol (which
 # most of the time is ethernet).
 sub get_ifacebw {
-    ($node,$card,$port,$protocol) = @_;
+    my ($node,$card,$port,$protocol) = @_;
     if (defined($interfacetypes{"$node:$card:$port"})) {
 	my $bw = $interfacespeeds{$interfacetypes{"$node:$card:$port"}}{$protocol};
 	return $bw if defined( $bw );
@@ -2238,8 +2271,22 @@ sub get_ifacebw {
     return $default_switchport_speed;
 }
 
+sub get_iface_type {
+    my ($node,$card,$port) = @_;
+    return $interfacetypes{"$node:$card:$port"};
+}
+
+sub get_iface_auxspeeds {
+    my ($type) = @_;
+    my @result = ();
+    if (exists($interface_auxspeeds{"$type"})) {
+	push(@result, @{ $interface_auxspeeds{"$type"} });
+    }
+    return @result;
+}
+
 sub get_ifaceswitch {
-    ($node,$iface) = @_;
+    my ($node,$iface) = @_;
     if (defined($interfaceswitches{"$node:$iface"})) {
 	return $interfaceswitches{"$node:$iface"};
     } else {
@@ -2248,7 +2295,7 @@ sub get_ifaceswitch {
 }
 
 sub get_ifacecardport {
-    ($node,$iface) = @_;
+    my ($node,$iface) = @_;
     if (defined($interfacecardports{"$node:$iface"})) {
 	return @{$interfacecardports{"$node:$iface"}};
     } else {
