@@ -193,7 +193,7 @@ my @G7RACKS  = map { $G7RACKS{$_}[$which] } keys(%G7RACKS);
 my @G8RACKS  = map { $G8RACKS{$_}[$which] } keys(%G8RACKS);
 my @ALLCLOUD = map { $CLOUDCLUSTERS{$_}[$which] } keys(%CLOUDCLUSTERS);
 my @ALLRACKS = (@G7RACKS, @G8RACKS);
-my @TODO     = ($UTAHRACK, $DDCRACK, @ALLRACKS);
+my @TODO     = @ALLRACKS;
 my %SKIP     = ();
 
 # Default.
@@ -253,15 +253,9 @@ if (defined($options{"u"}) || defined($options{"d"}) ||
 }
 elsif (defined($options{"7"})) {
     @TODO = @G7RACKS;
-    if (! defined($options{"U"})) {
-	@TODO = ($UTAHRACK, @TODO);
-    }
 }
 elsif (defined($options{"8"})) {
     @TODO = @G8RACKS;
-    if (! defined($options{"D"})) {
-	@TODO = ($DDCRACK, @TODO);
-    }
 }
 elsif (defined($options{"C"})) {
     if (@ARGV) {
@@ -302,12 +296,6 @@ elsif (@ARGV) {
 }
 else {
     @TODO = @ALLRACKS;
-    if (! defined($options{"D"})) {
-	@TODO = ($DDCRACK, @TODO);
-    }
-    if (! defined($options{"U"})) {
-	@TODO = ($UTAHRACK, @TODO);
-    }
 }
 
 if (! -e $TBSRC) {
