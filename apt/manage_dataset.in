@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -183,17 +183,17 @@ sub DoCreate()
     if (defined($options{"d"})) {
 	$debug = 1;
     }
-    if (defined($options{"a"})) {
-	$aggregate_urn = $options{"a"};
-    }
-    else {
-	&$usage();
-    }
     if (defined($options{"t"})) {
 	$type = $options{"t"};
 	&$usage()
 	    if (! ($type eq "stdataset" || $type eq "ltdataset" ||
 		   $type eq "imdataset"));
+    }
+    if (defined($options{"a"})) {
+	$aggregate_urn = $options{"a"};
+    }
+    elsif ($type ne "imdataset") {
+	&$usage();
     }
     if ($type eq "imdataset") {
 	if (!exists($options{"i"})) {
