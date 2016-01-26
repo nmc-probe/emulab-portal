@@ -1278,7 +1278,9 @@ sub Cancel
 sub GetOpState
 {
     my ($sliver) = @_;
-    my $result = 'geni_ready';
+    #NOTE: geni_ready or geni_failed should not be the default. 
+    #      If we don't know, we don't know, so we just return "unknown"
+    my $result = 'unknown';
     if ($sliver->status() eq 'failed') {
 	$result = 'geni_failed';
     } elsif ($sliver->status() eq 'unknown') {
@@ -1297,8 +1299,16 @@ sub GetOpState
 	     && $sliver->state() eq 'new') {
 	$result = 'geni_notready';
     } elsif ($sliver->status() eq 'changing'
+	     && $sliver->state() eq 'new') {
+	$result = 'geni_notready';
+    } elsif ($sliver->status() eq 'changing'
 	     && $sliver->state() eq 'updating_users') {
 	$result = 'geni_updating_users';
+    } else {
+        print STDERR "\nWARNING AMv3 Status processing: unknown status. Details:\n   sliver->status=".$sliver->status()."\n    sliver->state=".$sliver->state()."\n\n";
+        #NOTE: geni_ready or geni_failed should not be the default. 
+        #      If we don't know, we don't know, so we just return "unknown"
+        $result = 'unknown';
     }
     return $result;
 }
