@@ -111,6 +111,9 @@ PROTOGENI_NICKNAME="utah-pg"
 PROTOGENI_MAXSERVERLOAD=24
 # Do not set this without asking Utah.
 PROTOGENI_LOCALUSER=1
+# Portal for the Cloudlab Cluster.
+CLUSTER_PORTAL="boss.emulab.net"
+CLUSTER_PUBSUBD_PORT=16506
 
 #
 # SSL Certificate stuff. Used to customize config files in ssl directory.
