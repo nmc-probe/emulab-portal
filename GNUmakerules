@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -107,6 +107,21 @@ distclean: default-clean
 
 default-clean:
 	rm -f GNUmakefile
+
+# This is to avoid warnings about duplicate targets.
+default-install:
+ifeq ($(ISMAINSITE),1)
+ifeq ($(TBROOT),/usr/testbed/devel/stoller)
+	(cd $(SRCDIR) ; \
+	  git status --porcelain -s -b | head -1 | grep -q -s mothership)
+else
+	/usr/bin/true
+endif
+else
+	/usr/bin/true
+endif
+
+install:	default-install
 
 #
 # Where to find source files.
