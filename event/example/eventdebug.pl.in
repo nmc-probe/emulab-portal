@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# Copyright (c) 2002-2004 University of Utah and the Flux Group.
+# Copyright (c) 2002-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -74,25 +74,7 @@ if ($expt) {
     %$tuple = ( expt => $expt );
 }
 
-if (!event_subscribe($handle,\&callbackFunc,$tuple)) {
-	die "Could not subscribe to event\n";
-}
-
-#
-# Note a difference from tbrecv.c - we don't yet have event_main() functional
-# in perl, so we have to poll. (Nothing special about the select, it's just
-# a wacky way to get usleep() )
-#
-while (1) {
-	event_poll($handle);
-	select(undef, undef, undef, 0.25);
-}
-
-if (event_unregister($handle) == 0) {
-	die "Unable to unregister with event system\n";
-}
-
-exit(0);
+my $gotone;
 
 sub callbackFunc($$$) {
 	my ($handle,$notification,$data) = @_;
@@ -108,4 +90,31 @@ sub callbackFunc($$$) {
 		$notification);
 	print "Event: $time $site $expt $group $host $objtype $objname " .
 		"$eventtype\n";
+
+	$gotone++;
 }
+
+if (!event_subscribe($handle,\&callbackFunc,$tuple)) {
+	die "Could not subscribe to event\n";
+}
+
+#
+# Note a difference from tbrecv.c - we don't yet have event_main() functional
+# in perl, so we have to poll. (Nothing special about the select, it's just
+# a wacky way to get usleep() )
+#
+while (1) {
+    $gotone = 1;
+    while ($gotone) {
+	$gotone = 0;
+	event_poll($handle);
+    }
+    event_poll_blocking($handle, 5000);
+}
+
+if (event_unregister($handle) == 0) {
+	die "Unable to unregister with event system\n";
+}
+
+exit(0);
+
