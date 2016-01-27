@@ -658,6 +658,8 @@ TBOPSEMAIL_NOSLASH
 TBOPSEMAIL
 BS_IQN_PREFIX
 ATTENUATOR
+CLUSTER_PORTAL
+CLUSTER_PUBSUBD_PORT
 AMD_ROOT
 WITHAMD
 ZFS_NOEXPORT
@@ -5148,6 +5150,8 @@ WITHAMD=0
 AMD_ROOT=/.amd_mnt
 BS_IQN_PREFIX=iqn.2000-10.net.emulab
 ATTENUATOR=""
+CLUSTER_PORTAL=""
+CLUSTER_PUBSUBD_PORT=""
 
 #
 # XXX You really don't want to change these!
@@ -7015,6 +7019,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
         protogeni/xmlrpc/GNUmakefile protogeni/lib/GNUmakefile \
         protogeni/scripts/GNUmakefile protogeni/etc/GNUmakefile \
         protogeni/test/GNUmakefile protogeni/pubxmlrpc/GNUmakefile \
+	protogeni/event/GNUmakefile \
 	protogeni/rspec-emulab/GNUmakefile \
         protogeni/rspec-emulab/0.1/GNUmakefile \
 	protogeni/rspec-emulab/0.2/GNUmakefile \
