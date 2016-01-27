@@ -164,6 +164,16 @@ sub DESTROY {
 }
 
 #
+# Flush from our little cache, as for the expire daemon.
+#
+sub Flush($)
+{
+    my ($self) = @_;
+
+    delete($instances{$self->uuid()});
+}
+
+#
 # Refresh a class instance by reloading from the DB.
 #
 sub Refresh($)
@@ -879,6 +889,54 @@ sub GetSSHKeys($$)
     return 0;
 }
 
+#
+# Update the image status in the webtask for the instance. This is not
+# clean at all, need a better way to do this.
+#
+sub UpdateImageStatus($$)
+{
+    my ($self, $details) = @_;
+
+    DBQueryWarn("lock tables web_tasks write, apt_instances write, ".
+		"            apt_instance_aggregates write")
+	or return {};
+
+    $self->Refresh();
+    if ($self->status() ne "imaging") {
+	goto done;
+    }
+    my $webtask = WebTask->LookupByObject($self->uuid());
+    if (!defined($webtask)) {
+	goto done;
+    }
+    #
+    # This will need to change; we can get updates from polling or
+    # from the event stream. The events are processed out of band from
+    # from the polling, so we have a consistency problem. In addition,
+    # the event stream is sending status for just a single node since
+    # events are bounded in size.
+    #
+    # In other words, the new image status has to be merged into the
+    # existing status. We have use some kind of lock to avoid scrambling
+    # the json data, and for now it is a table lock.
+    #
+    # Also, the blob has a timestamp in it, so we can sorta tell which
+    # is most recent (not perfect, but does not really need to be).
+    #
+    if (defined($webtask->image_stamp()) &&
+	defined($details->{'utc'}) &&
+	$details->{'utc'} < $webtask->image_stamp()) {
+	goto done;
+    }
+    $webtask->image_size($details->{'size'});
+    $webtask->image_status($details->{'status'});
+    $webtask->image_stamp($details->{'utc'});
+    $webtask->Store();
+  done:
+    DBQueryWarn("unlock tables");
+    return 0;
+}
+
 ###################################################################
 package APT_Instance::Aggregate;
 use emdb;
@@ -1199,6 +1257,52 @@ sub GetGeniAuthority($)
     require GeniAuthority;
 
     return APT_Geni::GetAuthority($self->aggregate_urn());
+}
+
+#
+# Update the sliverstatus in the webtask. 
+#
+sub UpdateWebStatus($$)
+{
+    my ($self, $hash) = @_;
+
+    DBQueryWarn("lock tables web_tasks write")
+	or return {};
+
+    $self->webtask()->Refresh();
+    my $current = $self->webtask()->sliverstatus();
+    if (!defined($current)) {
+	$current = {};
+    }
+
+    #
+    # This will need to change; we can get updates from polling or
+    # from the event stream. The events are processed out of band from
+    # from the polling, so we have a consistency problem. In addition,
+    # the event stream is sending status for just a single node since
+    # events are bounded in size.
+    #
+    # In other words, the new node state has to be merged into the
+    # existing status. We have use some kind of lock to avoid scrambling
+    # the json data, and for now it is a table lock.
+    #
+    # Also, the blob has a timestamp in it, so we can sorta tell which
+    # is most recent (not perfect, but does not really need to be).
+    #
+    foreach my $urn (keys(%{ $hash })) {
+	my $details = $hash->{$urn};
+	my $node_id = $details->{'client_id'};
+	
+	if (!exists($current->{$node_id}) ||
+	    !exists($current->{$node_id}->{"utc"}) ||
+	    !exists($details->{"utc"}) ||
+	    $details->{"utc"} >= $current->{$node_id}->{"utc"}) {
+	    $current->{$node_id} = $details;
+	}
+    }
+    $self->webtask()->sliverstatus($current);
+    DBQueryWarn("unlock tables");
+    return $current;
 }
 
 #

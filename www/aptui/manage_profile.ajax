@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -59,14 +59,6 @@ function Do_CloneStatus()
     $taskdata = $webtask->TaskData();
     $blob = array();
 
-    if ($webtask->exited()) {
-	# Success, but not sure what to report. Come back to this later.
-	$blob["exited"]   = $webtask->exited();
-	$blob["exitcode"] = $webtask->exitcode();
-        if (isset($taskdata["image_name"])) {
-            $blob["image_name"] = $taskdata["image_name"];
-        }
-    }
     #
     # Size is in KB to avoid bigint problems. But kill the KB.
     # 
@@ -79,9 +71,35 @@ function Do_CloneStatus()
     else {
 	$blob["image_size"] = 0;
     }
-    $blob["node_status"]  = $taskdata["rawstate"];
     $blob["image_status"] = $taskdata["image_status"];
     
+    #
+    # Lets put the node status in too. The backend has helpfully told us
+    # the aggregate and node to track down the status.
+    #
+    if (isset($taskdata["aggregate_urn"]) && isset($taskdata["client_id"])) {
+        $sliver = InstanceSliver::Lookup($instance, $taskdata["aggregate_urn"]);
+        if ($sliver) {
+            $slwebtask = WebTask::Lookup($sliver->webtask_id());
+            $sliverstatus = $slwebtask->TaskValue("sliverstatus");
+            if ($sliverstatus) {
+                foreach ($sliverstatus as $node_id => $node_status) {
+                    if ($node_id == $taskdata["client_id"]) {
+                        $blob["node_status"] = $node_status["rawstate"];
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if ($webtask->exited()) {
+	# Success, but not sure what to report. Come back to this later.
+	$blob["exited"]   = $webtask->exited();
+	$blob["exitcode"] = $webtask->exitcode();
+        if (isset($taskdata["image_name"])) {
+            $blob["image_name"] = $taskdata["image_name"];
+        }
+    }
     SPITAJAX_RESPONSE($blob);
 }
 
