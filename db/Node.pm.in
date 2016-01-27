@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2015 University of Utah and the Flux Group.
+# Copyright (c) 2005-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1323,6 +1323,7 @@ sub sharing_mode($)	{ return L__reservation($_[0], 'sharing_mode'); }
 sub erole($)		{ return L__reservation($_[0], 'erole'); }
 sub eid($)              { return L__reservation($_[0], 'eid'); }
 sub pid($)              { return L__reservation($_[0], 'pid'); }
+sub genisliver_idx($)   { return L__reservation($_[0], 'genisliver_idx'); }
 sub external_resource_index($) {
     return L__reservation($_[0], 'external_resource_index'); }
 sub external_resource_id($) {
