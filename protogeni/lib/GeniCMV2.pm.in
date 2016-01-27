@@ -1226,6 +1226,7 @@ sub SliverStatus($)
     my $blob = {
 	"state"   => $aggregate->state(),
 	"status"  => $aggregate->status(),
+	"utc"     => time(),
 	"details" => {},
     };
     $blob->{'public_url'} =
@@ -1242,54 +1243,15 @@ sub SliverStatus($)
 	elsif ($sliver->resource_type() ne "Node") {
 	    next;
 	}
-
-	my $sliver_urn    = $sliver->sliver_urn();
-	my $resource_id   = $sliver->resource_id();
-	my $state         = $sliver->state();
-	my $status        = $sliver->status();
-	my $nickname      = $sliver->nickname() || "";
-	my $error         = "";
-
-	# New is the same as stopped. Separate state is handy.
-	$state = "stopped"
-	    if ($state eq "new");
-
-	if ($status eq "failed") {
-	    $error = $sliver->ErrorLog();
+	my $sliver_urn = $sliver->sliver_urn();
+	my $details = $sliver->GenerateStatusBlob();
+	next
+	    if (!defined($details));
+	
+	if ($details->{'status'} eq "failed") {
+	    $details->{'error'} = $sliver->ErrorLog();
 	}
-	$blob->{'details'}->{$sliver_urn} = {
-	    "component_urn" => $resource_id,
-	    "client_id" => $nickname,
-	    "state"  => $state,
-	    "status" => $status,
-	    "error"  => $error,
-	};
-	if (ref($sliver) eq "GeniSliver::Node") {
-	    my $details = $blob->{'details'}->{$sliver_urn};
-		
-	    if (defined($sliver->rawstate())) {
-		$details->{'rawstate'} = $sliver->rawstate();
-	    }
-	    my $node = Node->Lookup($sliver->resource_id());
-	    if (defined($node) &&
-		defined($node->startupcmd()) && $node->startupcmd() ne "") {
-		if (defined($node->startstatus()) &&
-		    $node->startstatus() ne "none") {
-		    $details->{'execute_state'}   = "exited";
-		    $details->{'execute_status'}  = $node->startstatus();
-		}
-		else {
-		    if ($node->eventstate() eq "ISUP") {
-			$details->{'execute_state'}   = "running";
-			$details->{'execute_status'}  = "unknown";
-		    }
-		    else {
-			$details->{'execute_state'}   = "n/a";
-			$details->{'execute_status'}  = "n/a";
-		    }
-		}
-	    }
-	}
+	$blob->{'details'}->{$sliver_urn} = $details;
     }
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
@@ -3016,6 +2978,7 @@ sub CreateImage($)
     require EmulabConstants;
     require Image;
     require WebTask;
+    require GeniEvent;
     
     if (! (defined($credentials) && defined($imagename) &&
 	   defined($slice_urn) && defined($sliver_urn))) {
@@ -3240,7 +3203,7 @@ dataset:
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@blob);
     }
     $slice->UnLock();
-    
+
     #
     # Do the snapshot.
     #
@@ -3252,7 +3215,47 @@ dataset:
     # After clone_image, we can determine the new image name. Versioning
     # was handled in clone_image.
     $imagename = $image->imagename() . ":" . $image->version();
-    
+
+    #
+    # Okay we are going to fork again and watch the webtask for
+    # size changes (and exit of course) and generate Geni style
+    # events.
+    #
+    $mypid = main::WrapperFork();
+    if ($mypid) {
+	my $lastsize = 0;
+	my $laststatus = "";
+	
+	do {
+	    sleep(5);
+	    # Probably deleted.
+	    $webtask->Refresh() == 0
+		or last;
+	    # Check the child, if it is gone we want to stop too.
+	    if (kill(0, $mypid) == 0) {
+		last
+		    if ($!{ESRCH});
+	    }
+	    if ($webtask->imagesize() != $lastsize ||
+		$webtask->status() ne $laststatus) {
+		GeniEvent->SendEvent({"type"    => "IMAGESTATUS",
+				      "slice"   => $slice->urn(),
+				      "urn"     => $image_urn,
+				      "details" =>
+				          { "utc"    => time(),
+					    "size"   => $webtask->imagesize(),
+					    "status" => $webtask->status()}});
+		$lastsize   = $webtask->imagesize();
+		$laststatus = $webtask->status();
+	    }
+	} while (!$webtask->HasExited());
+	# Sleep a little while to give the caller time to pick up status
+	# since it is polling. Then delete the webtask.
+	sleep(30);
+	$webtask->Delete();
+	waitpid($mypid, &WNOHANG);
+	return 0;
+    }
     $output =
 	GeniUtil::ExecQuiet("$CREATEIMAGE -F -e -f $opt ".
 			    "   -p $pid $imagename $node_id");
@@ -3465,7 +3468,7 @@ sub ImageInfo($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 		    "Not enough permission to access image");
     }
-    my $blob = { "size" => 0, "status" => "ready" };
+    my $blob = { "size" => 0, "status" => "ready", "utc" => time() };
     
     #
     # Is there an active webtask, then we are taking a snapshot, so
@@ -3475,15 +3478,6 @@ sub ImageInfo($)
     if (defined($webtask)) {
 	$blob->{'size'}   = $webtask->imagesize() . "KB";
 	$blob->{'status'} = $webtask->status();
-
-	#
-	# We have reported status, kill it. So if two parties are
-	# trying to determine the status, one gets nothing. Maybe
-	# we need a notion of staleness.
-	#
-	if ($webtask->HasExited()) {
-	    $webtask->Delete();
-	}
     }
     else {
 	my $path = ($image->HaveDeltaImage() ?
@@ -4912,7 +4906,7 @@ sub RunLinktest($)
 	# This is a pain; if linktest bailed early, the log file will
 	# be empty, and the user will not see any output cause we have
 	# forked and so there is no way to return the output. So stuff it
-	# into the logfile.
+	# into the logfile for it to be spewed to the user. 
 	#
 	if ($exitval && -z $fname) {
 	    if (open(LOG, ">" . $logfile->filename())) {
