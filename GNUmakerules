@@ -113,7 +113,7 @@ default-install:
 ifeq ($(ISMAINSITE),1)
 ifeq ($(TBROOT),/usr/testbed/devel/stoller)
 	(cd $(SRCDIR) ; \
-	  git status --porcelain -s -b | head -1 | grep -q -s mothership)
+	  git status --porcelain -s -b | head -1 | grep -q -s current)
 else
 	/usr/bin/true
 endif

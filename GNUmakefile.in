@@ -436,7 +436,7 @@ BRANCHECHO= @echo "Skipping branch check since not the Mothership"
 ifeq ($(ISMAINSITE),1)
 ifeq ($(TBROOT),/usr/testbed)
 BRANCHCHECK= cd $(SRCDIR) && \
-		git status --porcelain -s -b | head -1 | grep -q -s mothership
+		git status --porcelain -s -b | head -1 | grep -q -s current
 BRANCHECHO= @echo "Checking to make sure you are on the mothership branch"
 endif
 endif
