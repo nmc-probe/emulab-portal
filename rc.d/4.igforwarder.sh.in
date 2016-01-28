@@ -24,7 +24,7 @@ pidfile=/var/run/pubsub_forward.pid
 certfile=$TBROOT/etc/emulab.pem
 keyfile=$TBROOT/etc/emulab.key
 remoteport=@CLUSTER_PUBSUBD_PORT@
-args="-d -s $CLUSTER_PORTAL -p $remoteport -K $keyfile -C $certfile -S"
+args="-s $CLUSTER_PORTAL -p $remoteport -K $keyfile -C $certfile -S"
 
 case "$1" in
     start|faststart|quietstart|onestart|forcestart)
