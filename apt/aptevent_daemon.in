@@ -158,11 +158,9 @@ sub callback($$$)
     my $type      = event_notification_get_string($handle, $note, "type");
     my $details   = event_notification_get_string($handle, $note, "details");
 
-    print "Event: $time $site $type $urn $slice $details\n";
-
-    return
-	if ($slice !~ /stoller/);
-    
+    if ($debug) {
+	print "Event: $time $site $type $urn $slice $details\n";
+    }
     my $instance = APT_Instance->LookupBySlice($slice);
     return
 	if (!defined($instance));
