@@ -2028,6 +2028,9 @@ sub LoadVirtLans($)
 	    if (defined($tag) && $tag > 1000) {
 		$virtlan->_wiretype("ethernet-highvlan");
 	    }
+	    elsif ($virtlan->_protocol =~ /^ethernet-/) {
+		$virtlan->_wiretype($virtlan->_protocol());
+	    }
 	}
     }
 
@@ -3323,7 +3326,7 @@ sub GenVirtLans($)
 	    #
 	    # Lets see how many <=1Gb and >1Gb links we have. HACK!
 	    #
-	    if (!$emulated && ($bandwidth > 0 || $rbandwidth)) {
+	    if (!$emulated && ($bandwidth || $rbandwidth)) {
 		# Must convert this to kbps like everything else is.
 		my $OneGb = 1000 * 1000;
 		
@@ -3499,10 +3502,12 @@ sub GenVirtLans($)
 				     'virtual_interface_id' => "$member0" },
 				    {'virtual_node_id' => $vname1,
 				     'virtual_interface_id' => "$member1" },
-				      ($top_bw == 0 ? "*" : 
-				       max($top_bw, $top_rbw)),
-				      $vlan->_wiretype(),
-				      $others);
+				    ($top_bw == 0 ? "*" : 
+				     max($top_bw, $top_rbw)),
+				    ($emulated ? $vlan->_wiretype() :
+				     $self->GetWiretype($vlan->_wiretype(),
+						 max($top_bw, $top_rbw))),
+				    $others);
 		    }
 		    my @delayinfo = ($delay,$bw,$backfill,$loss,
 				     $rdelay,$rbw,$rbackfill,$rloss, 0);
@@ -3541,7 +3546,9 @@ sub GenVirtLans($)
 				      {'virtual_node_id' => $delayname,
 				       'virtual_interface_id' => "$member1" },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $vlan->_wiretype(), $others);
+				      $self->GetWiretype($vlan->_wiretype(),
+						  max($top_bw, $top_rbw)),
+				      $others);
 		    
 		    $self->createLink($vname,
 				      "linksdelaydst/$vname/$member1,$member0",
@@ -3551,7 +3558,9 @@ sub GenVirtLans($)
 				      {'virtual_node_id' => $delayname,
 				       'virtual_interface_id' =>"$member0" },
 				      ($top_bw == 0 ? "*" : $top_rbw), 
-				      $vlan->_wiretype(), $others);
+				      $self->GetWiretype($vlan->_wiretype(),
+						  max($top_bw, $top_rbw)),
+				      $others);
 		    
 		    $self->printdb("Delay node $plink ($delayname) = " . 
 				   join(" ", @delayinfo) . "\n");
@@ -3575,6 +3584,7 @@ sub GenVirtLans($)
 		my $plink = "linksimple/$vname/$member0,$member1";
 		my $bw = '';
 		my $others = {'isgeninode' => $vlan->_geninodes()};
+		my $wiretype = $vlan->_wiretype();
 
 		if ($emulated) {
 		    $bw = max($top_bw,$top_rbw);
@@ -3582,6 +3592,8 @@ sub GenVirtLans($)
 		else {
 		    # Let assign choose bw if top_bw is zero.
 		    $bw = ($top_bw == 0 ? "*" : $top_bw);
+		    $wiretype = $self->GetWiretype($wiretype,
+						   max($top_bw, $top_rbw));
 		}
 		if ($emulated) {
 		    $others->{'emulated'} = 1
@@ -3589,7 +3601,7 @@ sub GenVirtLans($)
 		    $others->{'virtualization_type'} = $vlan->_encapstyle();
 		}
 		if ($layer == 1) {
-		    $vlan->_wiretype("wire");
+		    $wiretype = "wire";
 		}
 		
 		if ($trivial_ok) {
@@ -3641,7 +3653,7 @@ sub GenVirtLans($)
 				       'virtual_interface_id' =>"$member0" },
 				      {'virtual_node_id' => $vname1,
 				       'virtual_interface_id' =>"$member1" },
-				      $bw, $vlan->_wiretype(), $others);
+				      $bw, $wiretype, $others);
 		}
 	    }
 	}
@@ -3759,7 +3771,7 @@ sub GenVirtLans($)
 		#
 		# Lets see how many <=1Gb and >1Gb links we have. HACK!
 		#
-		if (!$emulated && ($bandwidth > 0 || $rbandwidth)) {
+		if (!$emulated && ($bandwidth || $rbandwidth)) {
 		    # Must convert this to kbps like everything else is.
 		    my $OneGb = 1000 * 1000;
 		    my $maxbw = max($bw, $rbw);
@@ -3815,9 +3827,12 @@ sub GenVirtLans($)
 					  {'virtual_node_id' => $vnodevname,
 					   'virtual_interface_id' =>"$member" },
 					  {'virtual_node_id' => "$lannode" },
-					  $top_bw == 0 ? "*" : 
-					  max($top_bw,$top_rbw),
-					  $vlan->_wiretype(), $others);
+					  ($top_bw == 0 ? "*" : 
+					   max($top_bw,$top_rbw)),
+					  ($emulated ? $vlan->_wiretype() :
+					  $self->GetWiretype($vlan->_wiretype(),
+						      max($top_bw, $top_rbw))),
+					  $others);
 			
 			$self->printdb("Delay link $plink = " .
 				       join(" ", @delayinfo) . "\n");
@@ -3851,8 +3866,10 @@ sub GenVirtLans($)
 					 'virtual_interface_id' =>"$member" },
 				       {'virtual_node_id' => $delayname,
 					 'virtual_interface_id' =>"$member" },
-					  $top_bw == 0 ? "*" : $top_bw,
-					  $vlan->_wiretype(), $others);
+				       $top_bw == 0 ? "*" : $top_bw,
+				       $self->GetWiretype($vlan->_wiretype(),
+							  $top_bw),
+				       $others);
 				
 			$self->createLink($vname,
 					  "linkdelaydst/$vname/$member",
@@ -3861,8 +3878,10 @@ sub GenVirtLans($)
 					 'virtual_interface_id' =>"$member" },
 					{'virtual_node_id' => $delayname,
 					 'virtual_interface_id' =>"$member" },
-					  $top_bw == 0 ? "*" : $top_bw,
-					  $vlan->_wiretype(), {});
+					$top_bw == 0 ? "*" : $top_bw,
+				        $self->GetWiretype($vlan->_wiretype(),
+							   $top_bw),
+					$others);
 			
 			$self->printdb("Delay node $plink ($delayname) = " .
 				       join(" ", @delayinfo) . "\n");
@@ -3887,10 +3906,15 @@ sub GenVirtLans($)
 		else {
 		    my $plink = "linklan/$vname/$member";
 		    my $others = {'isgeninode' => $vlan->_geninodes()};
+		    my $wiretype = $vlan->_wiretype();
+		    
 		    if ($emulated) {
 			$others->{'emulated'} = 1 if ($member->_emulated());
 			$others->{'virtualization_type'} =
 			    $member->_encapstyle();
+		    }
+		    else {
+			$wiretype = $self->GetWiretype($wiretype, $top_bw);
 		    }
 		    if ($trivial_ok) {
 			$others->{'trivial_ok'} = 1;
@@ -3929,7 +3953,7 @@ sub GenVirtLans($)
 				       'virtual_interface_id' =>"$member" },
 				      {'virtual_node_id' => $lannode },
 				      ($top_bw == 0 ? "*" : $top_bw), 
-				      $vlan->_wiretype(), $others);
+				      $wiretype, $others);
 		}
 	    }
 	}
@@ -10056,6 +10080,37 @@ sub AddToSwitchPath($$)
     }
     my $rval = join(" ", @cur);
     return $rval;
+}
+
+#
+# Wiretypes.
+#
+sub GetWiretype($$$)
+{
+    my ($self, $wiretype, $bandwidth) = @_;
+
+    return $wiretype
+	if (!$MAINSITE);
+
+    return $wiretype
+	if ($wiretype =~ /^ethernet-/ || $wiretype !~ /^ethernet/);
+
+    if ($bandwidth == 0) {
+	$wiretype = "ethernet";
+    }
+    elsif ($bandwidth <= 100000) {
+	# 100 Mbit
+	$wiretype = "ethernet-100000";
+    }
+    elsif ($bandwidth <= 1000000) {
+	# 1 Gbit
+	$wiretype = "ethernet-1000000";
+    }
+    else {
+	# 10 Gbit
+	$wiretype = "ethernet-10000000";
+    }
+    return $wiretype;
 }
 
 1;
