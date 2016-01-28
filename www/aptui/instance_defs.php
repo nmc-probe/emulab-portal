@@ -413,19 +413,24 @@ class Instance
 	    return 1;
 	}
         #
-        # IsNonLocal() is not the correct test, since we now allow geni users
-        # to start/join real projects. Need to think about this.
+        # These are the guest projects.
         #
-        if (!$user->IsNonLocal()) {
-            # Otherwise a project membership test.
-            $project = Project::Lookup($this->pid_idx());
-            if (!$project) {
-                return 0;
-            }
-            $isapproved = 0;
-            if ($project->IsMember($user, $isapproved) && $isapproved) {
-                return 1;
-            }
+        $APT_HOLDINGPROJECT   = "aptguests";
+        $CLOUD_HOLDINGPROJECT = "CloudLab";
+        
+        if ($this->pid() == $APT_HOLDINGPROJECT ||
+            $this->pid() == $CLOUD_HOLDINGPROJECT) {
+            return 0;
+        }
+        
+        # Otherwise a project membership test.
+        $project = Project::Lookup($this->pid_idx());
+        if (!$project) {
+            return 0;
+        }
+        $isapproved = 0;
+        if ($project->IsMember($user, $isapproved) && $isapproved) {
+            return 1;
         }
         return 0;
     }
