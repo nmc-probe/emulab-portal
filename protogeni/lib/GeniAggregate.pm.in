@@ -2508,6 +2508,34 @@ sub CancelUpdateAccounts($)
     return 0;
 }
 
+#
+# Generate the blob for status. 
+#
+sub GenerateStatusBlob($)
+{
+    my ($self) = @_;
+
+    my $sliver_urn    = $self->sliver_urn();
+    my $resource_id   = $self->resource_id();
+    my $state         = $self->state();
+    my $status        = $self->status();
+    my $nickname      = $self->nickname() || "";
+
+    # New is the same as stopped. Separate state is handy.
+    $state = "stopped"
+	if ($state eq "new");
+
+    my $blob = {
+	"component_urn" => $resource_id,
+	"client_id"     => $nickname,
+	"state"         => $state,
+	"status"        => $status,
+	"error"         => "",
+	"utc"           => time(),
+    };
+    return $blob;
+}
+
 ############################################################################
 #
 # Link aggregates need special handling.
