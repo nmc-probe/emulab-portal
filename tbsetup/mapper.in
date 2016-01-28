@@ -272,10 +272,6 @@ if (!defined($experiment)) {
 }
 my $project = $experiment->GetProject();
 
-if ($pid eq "emulab-ops" || $pid eq "testbed") {
-    $gblinkcheck++;
-}
-
 #
 # Verify that this person can muck with the experiment.
 #
