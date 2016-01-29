@@ -183,7 +183,7 @@ else {
 #
 if ($list) {
     my $query_result = 
-	DBQueryFatal("select *,(count>0) as needed from node_reservations ".
+	DBQueryFatal("select *,(count>0) as needed from project_reservations ".
 		     "order by needed desc, priority desc, created asc");
 
     if ($query_result->numrows) {
@@ -261,7 +261,7 @@ if ($info) {
 	if ($nodes_result && $nodes_result->numrows);
     
     my $query_result =
-	DBQueryFatal("select * from node_reservations ".
+	DBQueryFatal("select * from project_reservations ".
 		     "where pid_idx='$pid_idx'");
 
     if ($query_result->numrows) {
@@ -331,7 +331,7 @@ if ($UID) {
 # Clear and exit.
 #
 if ($clear) {
-    DBQueryFatal("delete from node_reservations where pid_idx='$pid_idx'");
+    DBQueryFatal("delete from project_reservations where pid_idx='$pid_idx'");
     if ($revoke) {
 	DBQueryFatal("update nodes set reserved_pid=null ".
 		     "where reserved_pid='$pid'");
@@ -363,7 +363,7 @@ if (defined($typelist)) {
 # Lets say that a current request is an error. delete and recreate.
 #
 my $query_result =
-    DBQueryFatal("select * from node_reservations where pid_idx='$pid_idx'");
+    DBQueryFatal("select * from project_reservations where pid_idx='$pid_idx'");
 
 if ($query_result->numrows) {
     fatal("Already have a reservation request for $pid, please clear it first");
@@ -384,7 +384,7 @@ if ($endtime) {
     my $tmp = str2time($endtime);
     $endarg = ",end=FROM_UNIXTIME($tmp)";
 }
-DBQueryFatal("insert into node_reservations set ".
+DBQueryFatal("insert into project_reservations set ".
 	     "  pid='$pid', pid_idx='$pid_idx', count='$count', ".
 	     "  creator='$uid', creator_idx='$uid_idx', ".
 	     "  created=now(),active=0 $typearg $startarg $endarg");
@@ -408,10 +408,10 @@ sub StartReservation($)
     my ($pid) = @_;
 
     DBQueryFatal("lock tables nodes write, node_types read, ".
-		 " node_reservations write, reserved read");
+		 " project_reservations write, reserved read");
     
     my $query_result =
-	DBQueryFatal("select * from node_reservations where pid='$pid'");
+	DBQueryFatal("select * from project_reservations where pid='$pid'");
     if (!$query_result->numrows) {
 	fatal("No reservation defined for project");
     }
@@ -521,7 +521,7 @@ sub StartReservation($)
     $count -= $current;
     $count = 0 if ($count < 0);
 
-    DBQueryFatal("update node_reservations set ".
+    DBQueryFatal("update project_reservations set ".
 		 "       count='$count',active=1 ".
 		 "where pid='$pid'");
     DBQueryFatal("unlock tables");
