@@ -32,7 +32,7 @@ use Date::Parse;
 sub usage()
 {
     print STDERR "Usage: prereserve [-t typelist] [-n priority] ".
-	"[-s start] [-e end [-r]] pid count\n";
+	"[-s start] [-e end [-r]] pid [count | node_id node_id ...\n";
     print STDERR "       prereserve -c [-r] pid\n";
     print STDERR "       prereserve -i pid\n";
     print STDERR "       prereserve -a pid\n";
@@ -59,6 +59,7 @@ my $clear    = 0;
 my $revoke   = 0;
 my $sendmail = 0;
 my $activate = 0;
+my @nodelist = ();
 my $starttime;
 my $endtime;
 my $typelist;
@@ -168,10 +169,25 @@ elsif ($activate) {
 }
 else {
     usage()
-	if (@ARGV != 2);
+	if (@ARGV < 2);
     
-    $pid   = $ARGV[0];
-    $count = $ARGV[1];
+    $pid   = shift(@ARGV);
+    $count = shift(@ARGV);
+
+    if ($count !~ /^\d+$/) {
+	if (defined($typelist)) {
+	    fatal("Not allowed to specify types and a node list together");
+	}
+	@nodelist = ($count, @ARGV);
+	$count    = scalar(@nodelist);
+
+	foreach my $nodeid (@nodelist) {
+	    my $node = Node->Lookup($nodeid);
+	    if (!defined($node)) {
+		fatal("No such node $nodeid");
+	    }
+	}
+    }
 
     if ($priority && ! ($priority =~ /^\d*$/)) {
 	usage();
@@ -203,7 +219,7 @@ if ($list) {
 	my $endtime   = $row->{'end'};
 	my $active    = $row->{'active'};
 	my $current = 0;
-    
+
 	my $current_result =
 	    DBQueryFatal("select count(*) from nodes where reserved_pid='$pid'");
 
@@ -253,6 +269,7 @@ my $pid_idx = $project->pid_idx();
 #
 if ($info) {
     my $current = 0;
+    my $pending = 0;
     
     my $nodes_result =
 	DBQueryFatal("select node_id from nodes where reserved_pid='$pid'");
@@ -310,6 +327,27 @@ if ($info) {
 	    printf("%-15s %-10s %-32s\n", $node_id, $type, $pideid);
 	}
     }
+    my $noderes_result =
+	DBQueryFatal("select node_id from node_reservations ".
+		     "where pid_idx='$pid_idx'");
+    if ($noderes_result->numrows) {
+	print "-------------------------------------------------------------\n";
+	print "Still waiting for these nodes\n";
+	printf("%-15s %-10s %-32s\n",
+	       "NodeID", "Type", "Pid/Eid");
+	print "-------------------------------------------------------------\n";
+
+	while (my ($node_id) = $noderes_result->fetchrow_array()) {
+	    my $node   = Node->Lookup($node_id);
+	    my $type   = $node->type();
+	    my $pideid = "--";
+
+	    if ($node->IsReserved()) {
+		$pideid = $node->pid() . "/" . $node->eid();
+	    }
+	    printf("%-15s %-10s %-32s\n", $node_id, $type, $pideid);
+	}
+    }
     exit(0);
 }
 
@@ -331,6 +369,7 @@ if ($UID) {
 # Clear and exit.
 #
 if ($clear) {
+    DBQueryFatal("delete from node_reservations where pid_idx='$pid_idx'");
     DBQueryFatal("delete from project_reservations where pid_idx='$pid_idx'");
     if ($revoke) {
 	DBQueryFatal("update nodes set reserved_pid=null ".
@@ -384,10 +423,26 @@ if ($endtime) {
     my $tmp = str2time($endtime);
     $endarg = ",end=FROM_UNIXTIME($tmp)";
 }
+DBQueryFatal("lock tables project_reservations write, ".
+	     "            node_reservations write");
 DBQueryFatal("insert into project_reservations set ".
 	     "  pid='$pid', pid_idx='$pid_idx', count='$count', ".
 	     "  creator='$uid', creator_idx='$uid_idx', ".
 	     "  created=now(),active=0 $typearg $startarg $endarg");
+if (@nodelist) {
+    foreach my $node_id (@nodelist) {
+	if (!DBQueryWarn("insert into node_reservations set ".
+			 "  pid='$pid', pid_idx='$pid_idx', ".
+			 "  node_id='$node_id'")) {
+	    DBQueryWarn("delete from project_reservations ".
+			"where pid_idx='$pid_idx'");
+	    DBQueryWarn("delete from node_reservations ".
+			"where pid_idx='$pid_idx'");
+	    exit(-1);
+	}
+    }
+}
+DBQueryFatal("unlock tables");
 print "Node reservation request for $count nodes has been created.\n";
 
 #
@@ -408,8 +463,12 @@ sub StartReservation($)
     my ($pid) = @_;
 
     DBQueryFatal("lock tables nodes write, node_types read, ".
-		 " project_reservations write, reserved read");
-    
+		 " project_reservations write, ".
+		 " node_reservations write, reserved write");
+
+    my $noderes_result =
+	DBQueryFatal("select node_id from node_reservations where pid='$pid'");
+
     my $query_result =
 	DBQueryFatal("select * from project_reservations where pid='$pid'");
     if (!$query_result->numrows) {
@@ -441,6 +500,36 @@ sub StartReservation($)
 	    "for project $pid.\n";
 	if ($current >= $count) {
 	    goto done;
+	}
+    }
+
+    #
+    # If we have a node list, then we do not do any type stuff, we
+    # operate on specific nodes.
+    #
+    if ($noderes_result->numrows) {
+	@types = ();
+
+	while (my ($node_id) = $noderes_result->fetchrow_array()) {
+	    my $query_result =
+		DBQueryFatal("select pid,eid from reserved ".
+			     "where node_id='$node_id'");
+
+	    if ($query_result->numrows) {
+		my ($curpid) = $query_result->fetchrow_array();
+		if ($curpid ne $pid) {
+		    #
+		    # Someone else still has it, skip.
+		    #
+		    next;
+		}
+	    }
+	    # Free or we already have it.
+	    $current++;
+	    DBQueryFatal("delete from node_reservations ".
+			 "where node_id='$node_id'");
+	    DBQueryFatal("update nodes set reserved_pid='$pid' ".
+			 "where node_id='$node_id'");
 	}
     }
 
