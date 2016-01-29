@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2015 University of Utah and the Flux Group.
+# Copyright (c) 2005-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -3664,7 +3664,7 @@ sub CheckPreReserve($$)
     my $type = $self->type();
     my $node_id = $self->node_id();
     
-    DBQueryWarn("lock tables node_reservations write, nodes write")
+    DBQueryWarn("lock tables project_reservations write, nodes write")
 	or return undef;
 
     #
@@ -3673,8 +3673,8 @@ sub CheckPreReserve($$)
     #
     my $query_result =
 	DBQueryWarn("select reserved_pid,count,active from nodes ".
-		    "left join node_reservations on ".
-		    "     node_reservations.pid=nodes.reserved_pid ".
+		    "left join project_reservations on ".
+		    "     project_reservations.pid=nodes.reserved_pid ".
 		    "where nodes.node_id='$node_id'");
 
     goto done
@@ -3700,7 +3700,7 @@ sub CheckPreReserve($$)
 
     # Find only active unfilled reservations.
     $query_result =
-	DBQueryWarn("select pid,count from node_reservations ".
+	DBQueryWarn("select pid,count from project_reservations ".
 		    "where active=1 and count>0 and ".
 		    "       (types is null or ".
 		    "        FIND_IN_SET('$type', types)) ".
@@ -3716,7 +3716,7 @@ sub CheckPreReserve($$)
 	if (DBQueryWarn("update nodes set reserved_pid='$pid' ".
 			"where node_id='$node_id'")) {
 	    
-	    DBQueryWarn("update node_reservations set count=count-1 ".
+	    DBQueryWarn("update project_reservations set count=count-1 ".
 			"where pid='$pid'");
 	    
 	    $result = $pid;
