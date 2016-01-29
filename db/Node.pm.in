@@ -3664,7 +3664,8 @@ sub CheckPreReserve($$)
     my $type = $self->type();
     my $node_id = $self->node_id();
     
-    DBQueryWarn("lock tables project_reservations write, nodes write")
+    DBQueryWarn("lock tables project_reservations write, nodes write, ".
+		"            node_reservations write")
 	or return undef;
 
     #
@@ -3677,12 +3678,13 @@ sub CheckPreReserve($$)
 		    "     project_reservations.pid=nodes.reserved_pid ".
 		    "where nodes.node_id='$node_id'");
 
+    # numrows would be zero if the node was suddenly deleted.
     goto done
 	if (!defined($query_result) || !$query_result->numrows);
 
     #
     # If there is a reserved pid already set for this node, check to see
-    # if the reervation request is still active. If not, we can clear it,
+    # if the reservation request is still active. If not, we can clear it,
     # which will allow it to be set again below, if needed.
     #
     my ($pid,$count,$active) = $query_result->fetchrow_array();
@@ -3712,13 +3714,25 @@ sub CheckPreReserve($$)
     
     if ($query_result->numrows) {
 	my ($pid,$count) = $query_result->fetchrow_array();
+	#
+	# See if this is fullfulling a specific node reservation request.
+	# Need to delete that row if so.
+	#
+	my $noderes_result =
+	    DBQueryWarn("select node_id from node_reservations ".
+			"where node_id='$node_id' and pid='$pid'");
+	goto done
+	    if (!$noderes_result);
 
 	if (DBQueryWarn("update nodes set reserved_pid='$pid' ".
 			"where node_id='$node_id'")) {
 	    
 	    DBQueryWarn("update project_reservations set count=count-1 ".
 			"where pid='$pid'");
-	    
+	    if ($noderes_result->numrows) {
+		DBQueryWarn("delete from node_reservations ".
+			    "where node_id='$node_id'");
+	    }
 	    $result = $pid;
 
 	    if ($count == 1) {

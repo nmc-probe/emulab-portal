@@ -3998,6 +3998,18 @@ CREATE TABLE `project_reservations` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `node_reservations`
+--
+
+DROP TABLE IF EXISTS `node_reservations`;
+CREATE TABLE `node_reservations` (
+  `node_id` varchar(32) NOT NULL default '',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  PRIMARY KEY (`node_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `project_stats`
 --
 
