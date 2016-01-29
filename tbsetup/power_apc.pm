@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -98,8 +98,18 @@ sub power {
     my $oids = $CtlOIDS{"default"};
     my $type = SNMP::translateObj($self->{SESS}->get("sysObjectID.0"));
 
-    if (defined($type) &&
-	$type eq "masterSwitchrPDU") { $oids = $CtlOIDS{"rPDU"}; }
+    print "Got type '$type'\n" if $self->{DEBUG};
+    if (defined($type)) {
+	if ($type eq "masterSwitchrPDU") {
+	    $oids = $CtlOIDS{"rPDU"};
+	}
+	# XXX the AP8941 power controllers we have need to use this OID
+	# else they return an error on set operations (though the operations
+	# do work!)
+	elsif ($type eq "masterSwitch.6") {
+	    $oids = $CtlOIDS{"rPDU"};
+	}
+    }
 
 #   "sPDUOutletCtl" is ".1.3.6.1.4.1.318.1.1.4.4.2.1.3";
     if    ($op eq "on")  { $op = @$oids[1]; }
@@ -160,7 +170,7 @@ sub status {
     # for older ones;
     # the load status table OID is:      ".1.3.6.1.4.1.318.1.1.12.2.3.1.1.2".
     #
-    my $phases;
+    my ($phases,$banks);
 
     $phases = $self->{SESS}->get([["rPDUIdentDeviceNumPhases",0]]);
     if (!$phases) {
@@ -174,23 +184,50 @@ sub status {
 	}
     }
 
+    $banks = $self->{SESS}->get([["rPDULoadDevNumBanks",0]]);
+    if (!$banks) {
+	# not clear if we really need this, so just continue
+	print STDERR "Query phase: LoadDevNumBanks failed\n"
+	    if $self->{DEBUG};
+	$banks = 0;
+    }
+
     print "Okay.\nPhase report was '$phases'\n" if $self->{DEBUG};
+    print "Bank report was '$banks'\n" if $self->{DEBUG};
     my ($varname, $index, $power, $val, $done);
+    my %perphase = ();
+    my %perbank = ();
     my $oid = ["rPDULoadStatusLoad",1];
 
     $self->{SESS}->get($oid);
     while ($$oid[0] =~ /rPDULoad/) {
+	print "rPDULoadStatusLoad returns: ", join('/', @$oid), "\n" if $self->{DEBUG} > 1;
         ($varname, $index, $val) = @{$oid};
         if ($varname eq "rPDULoadStatusLoad") {
             if ($index <= $phases) {
     		print "Raw current value $val\n" if $self->{DEBUG};
                 $status{current} += $val;
-            }
+		$perphase{$index} = $val;
+            } elsif ($phases == 1 && $banks > 0) {
+		$perbank{$index-$phases} = $val;
+	    }
         }
         $self->{SESS}->getnext($oid);
     }
 
-    print "Total raw current is $status{current}\n" if $self->{DEBUG};
+    if ($self->{DEBUG}) {
+	print "Total raw current is $status{current}\n";
+	print "Phases:\n";
+	foreach my $i (sort keys %perphase) {
+	    print "$i: ", $perphase{$i} / 10, "\n";
+	}
+	if ($banks > 0) {
+	    print "Banks:\n";
+	    foreach my $i (sort keys %perbank) {
+		print "$i: ", $perbank{$i} / 10, "\n";
+	    }
+	}
+    }
     $status{current} /= 10;
 
     if ($statusp) {
