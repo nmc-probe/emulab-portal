@@ -149,7 +149,7 @@ case "$1" in
 
 		if [ -n "@ATTENUATOR@" -a -x @prefix@/sbin/attend ]; then
 			echo -n " attend"
-			@prefix@/sbin/attend &
+			@prefix@/sbin/attend
 		fi
 
 		if /usr/local/bin/mysql monitoring < /dev/null; then
