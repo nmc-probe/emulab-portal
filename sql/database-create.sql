@@ -3026,6 +3026,19 @@ CREATE TABLE `node_licensekeys` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `node_reservations`
+--
+
+DROP TABLE IF EXISTS `node_reservations`;
+CREATE TABLE `node_reservations` (
+  `node_id` varchar(32) NOT NULL default '',
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `reservation_name` varchar(48) NOT NULL default 'default',
+  PRIMARY KEY (`node_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `node_rusage`
 --
 
@@ -3234,6 +3247,7 @@ CREATE TABLE `nodes` (
   `destination_y` float default NULL,
   `destination_orientation` float default NULL,
   `reserved_pid` varchar(48) default NULL,
+  `reservation_name` varchar(48) default NULL,
   `uuid` varchar(40) NOT NULL default '',
   `reserved_memory` int(10) unsigned default '0',
   `nonfsmounts` tinyint(1) NOT NULL default '0',
@@ -3985,6 +3999,7 @@ DROP TABLE IF EXISTS `project_reservations`;
 CREATE TABLE `project_reservations` (
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `name` varchar(48) NOT NULL default 'default',
   `priority` smallint(5) NOT NULL default '0',
   `count` smallint(5) NOT NULL default '0',
   `types` varchar(128) default NULL,
@@ -3994,19 +4009,8 @@ CREATE TABLE `project_reservations` (
   `start` datetime default NULL,
   `end` datetime default NULL,
   `active` tinyint(1) NOT NULL default '0',
-  PRIMARY KEY (`pid_idx`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
-
---
--- Table structure for table `node_reservations`
---
-
-DROP TABLE IF EXISTS `node_reservations`;
-CREATE TABLE `node_reservations` (
-  `node_id` varchar(32) NOT NULL default '',
-  `pid` varchar(48) NOT NULL default '',
-  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
-  PRIMARY KEY (`node_id`)
+  `terminal` tinyint(1) NOT NULL default '0',
+  PRIMARY KEY (`pid_idx`,`name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
