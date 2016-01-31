@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -181,6 +181,7 @@ if [ $CONSOLE = "unknown" ]; then
     echo "WARNING: console type not set, assuming \"sio1\""
     CONSOLE=sio1
 fi
+
 # DOM0MEM is optional
 DOM0MEM=$SLICEFIX_DOM0MEM
 
@@ -260,7 +261,7 @@ dofreebsd() {
 	#
 	# This is clearly not a solution.
 	#
-	vers=`uname -v | sed -e 's/FreeBSD \([0-9]\).*/\1/'`
+	vers=`uname -v | sed -e 's/FreeBSD \([0-9][0-9]*\).*/\1/'`
 
 	# see if there is a root ('a') partition on this BSD slice
 	`disklabel ${disk}s${part} 2>&1 | grep -s -E '^[ ]+a:' >/dev/null` || {
