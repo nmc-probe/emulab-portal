@@ -5494,7 +5494,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	char		*disktype, *useacpi, *useasf, *noclflush, *dom0mem;
 	char		*vgaonly, *consoletype, *disableif, *attrclause;
 	int		disknum, biosdisknum, dotrim;
-	unsigned int	trimtime;
+	unsigned int	trimiv, trimtime;
 
 	res2 = mydb_query("select IP "
 			  " from interfaces as i, subbosses as s "
@@ -5524,6 +5524,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	disknum = DISKNUM;
 	biosdisknum = -1;
 	dotrim = 0;
+	trimiv = 0;
 	trimtime = 0;
 	useacpi = NULL;
 	useasf = NULL;
@@ -5557,6 +5558,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 		"(attrkey='bootdisk_unit' or "
 		" attrkey='bootdisk_bios_id' or "
 		" attrkey='bootdisk_trim' or "
+		" attrkey='bootdisk_trim_interval' or "
 		" attrkey='bootdisk_lasttrim' or "
 		" attrkey='disktype' or "
 		" attrkey='use_acpi' or "
@@ -5609,6 +5611,10 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 				}
 				else if (strcmp(row2[0], "bootdisk_trim") == 0) {
 					dotrim = atoi(attrstr);
+					free(attrstr);
+				}
+				else if (strcmp(row2[0], "bootdisk_trim_interval") == 0) {
+					trimiv = (unsigned int)atoi(attrstr);
 					free(attrstr);
 				}
 				else if (strcmp(row2[0], "bootdisk_lasttrim") == 0) {
@@ -5666,32 +5672,78 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	if (res2)
 		mysql_free_result(res2);
 
+	/*
+	 * Disk TRIMing. Originally, we had it so that a per node (nodetype)
+	 * attribute 'bootdisk_trim' determined whether the boot disk should
+	 * be TRIMed and the 'disk_trim_interval' site-variable specifying the
+	 * interval between trims.
+	 *
+	 * That really too coarse-grained for the interval, so now we have
+	 * the per node (nodetype) 'bootdisk_trim_interval' attribute which
+	 * if non-zero specifies the interval. Thus, it is now a three-level
+	 * hierarcy: system-wide, per-nodetype, per-node.
+	 *
+	 * To disable trim system-wide, set the site-variable to zero.
+	 * Otherwise (if you are going to do any trimming at all), set it to
+	 * some reasonable default value.
+	 *
+	 * To set a system-wide value, set the site-variable to the interval
+	 * and set the bootdisk_trim attribute non-zero for nodetypes and/or
+	 * nodes that should be trimmed.
+	 *
+	 * To set different per-nodetype (per node) trim intervals, set
+	 * the site-variable non-zero, set the per-nodetype (per-node)
+	 * bootdisk_trim attribute non-zero, and then set per-nodetype
+	 * (per-node) 'bootdisk_trim_interval' values as desired.
+	 *
+	 * To disable trim for a particular node, just set its bootdisk_trim
+	 * attribute to zero. To disable it for a nodetype, you will have to
+	 * set the per-node bootdisk_trim attribute to zero for all nodes of
+	 * that type.
+	 */
 	if (dotrim > 0) {
 		struct timeval now;
-		unsigned int trimiv = 0;
+		unsigned int gtrimiv = 0;
 
-		gettimeofday(&now, NULL);
+		/* default to no trim */
+		dotrim = 0;
 
+		/* XXX super conservative: only trim if going through reload */
+		if (strcmp(reqp->pid, RELOADPID) != 0 ||
+		    strcmp(reqp->eid, RELOADEID) != 0)
+			goto trimdone;
+
+		/* Get global trim interval. Trim disabled if == 0 */
 		res2 = mydb_query("select value,defaultvalue from sitevariables "
 				  "where name='general/disk_trim_interval'", 2);
 		if (res2 && (int)mysql_num_rows(res2) > 0) {
 			row2 = mysql_fetch_row(res2);
 			if (row2[0] && row2[0][0])
-				trimiv = (unsigned int)atoi(row2[0]);
+				gtrimiv = (unsigned int)atoi(row2[0]);
 			else if (row2[1] && row2[1][0])
-				trimiv = (unsigned int)atoi(row2[1]);
+				gtrimiv = (unsigned int)atoi(row2[1]);
 		}
 		if (res2)
 			mysql_free_result(res2);
 
-		if (trimiv && now.tv_sec > (time_t)(trimtime + trimiv)) {
+		/* if globally disabled, skip */
+		if (!gtrimiv)
+			goto trimdone;
+
+		/* use global val if no node(type) specific trim interval */
+		if (!trimiv)
+			trimiv = gtrimiv;
+
+		/* time to trim! */
+		gettimeofday(&now, NULL);
+		if (now.tv_sec > (time_t)(trimtime + trimiv)) {
 			mydb_update("replace into node_attributes values "
-				    "('%s', 'bootdisk_lasttrim', '%u')",
+				    "('%s','bootdisk_lasttrim','%u')",
 				    reqp->nodeid, (unsigned)now.tv_sec);
 			dotrim = 1;
-		} else
-			dotrim = 0;
+		}
 	}
+ trimdone:
 	*dotrimp = dotrim;
 
 	return 0;
