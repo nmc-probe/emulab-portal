@@ -1,23 +1,23 @@
 /*
  * Copyright (c) 2000-2010 University of Utah and the Flux Group.
- * 
+ *
  * {{{EMULAB-LICENSE
- * 
+ *
  * This file is part of the Emulab network testbed software.
- * 
+ *
  * This file is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or (at
  * your option) any later version.
- * 
+ *
  * This file is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
  * License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * }}}
  */
 
@@ -107,7 +107,7 @@ static unsigned long scoredebugcount = 0;
 #define SDEBUG(a) a
 #endif
 #else
-#define SDEBUG(a) 
+#define SDEBUG(a)
 #endif
 
 #define MIN(a,b) (((a) < (b))? (a) : (b))
@@ -353,7 +353,7 @@ float find_link_resolutions(resolution_vector &resolutions, pvertex pv,
       }
       info.switches.push_front(*switch_it);
       resolutions.push_back(info);
-      
+
       total_weight += LINK_RESOLVE_INTRASWITCH;
       SDEBUG(cerr << "    intraswitch " << first << " and " << second
           <<                     endl);
@@ -486,7 +486,7 @@ float find_link_resolutions(resolution_vector &resolutions, pvertex pv,
       }
     }
   }
-      
+
   return total_weight;
 
 }
@@ -509,7 +509,7 @@ inline float resolution_cost(tb_link_info::linkType res_type) {
 	    // These shouldn't be passed in: fall through to below and die
 	break;
     }
-    
+
     cerr << "*** Internal error: Should not be here. (resolution_cost)" << endl;
     exit(EXIT_FATAL);
 }
@@ -582,7 +582,7 @@ void resolve_link(vvertex vv, pvertex pv, tb_vnode *vnode, tb_pnode *pnode,
 
     if (dest_pv == pv) {
       SDEBUG(cerr << "  trivial link" << endl);
-      
+
       if (allow_trivial_links && vlink->allow_trivial) {
         vlink->link_info.type_used = tb_link_info::LINK_TRIVIAL;
         /*
@@ -609,11 +609,11 @@ void resolve_link(vvertex vv, pvertex pv, tb_vnode *vnode, tb_pnode *pnode,
       resolution_vector resolutions;
       float total_weight = find_link_resolutions(resolutions, pv, dest_pv,
           vlink,pnode,dest_pnode,flipped);
-      
+
       int n_resolutions = resolutions.size();
       //int resolution_index = n_resolutions - 1;
       int resolution_index = n_resolutions;
-      
+
       /*
        * check for no link
        */
@@ -723,7 +723,7 @@ void resolve_links(vvertex vv, pvertex pv, tb_vnode *vnode, tb_pnode *pnode,
       SDEBUG(cerr << "    seen before - skipping" << endl);
       continue;
     } else {
-      seen_links.insert(vlink);      
+      seen_links.insert(vlink);
       resolve_link(vv,pv,vnode,pnode,deterministic,*vedge_it);
     }
   }
@@ -795,7 +795,7 @@ void unscore_link_info(vedge ve,tb_pnode *src_pnode,tb_pnode *dst_pnode, tb_vnod
     SDEBUG(cerr << "  interswitch link" << endl);
     src_pnode->nontrivial_bw_used -= vlink->delay_info.bandwidth;
     dst_pnode->nontrivial_bw_used -= vlink->delay_info.bandwidth;
-    
+
 #ifndef INTERSWITCH_LENGTH
     SSUB(SCORE_INTERSWITCH_LINK);
 #endif
@@ -834,7 +834,7 @@ void unscore_link_info(vedge ve,tb_pnode *src_pnode,tb_pnode *dst_pnode, tb_vnod
     dst_pnode->nontrivial_bw_used -= vlink->delay_info.bandwidth;
 
     SSUB(SCORE_INTRASWITCH_LINK);
-    
+
     unscore_link(vlink->link_info.plinks.front(),ve,src_pnode,dst_pnode);
     unscore_link(vlink->link_info.plinks.back(),ve,src_pnode,dst_pnode);
     vlink->link_info.plinks.clear();
@@ -924,7 +924,7 @@ void remove_node(vvertex vv)
 
   assert(pnode != NULL);
 
-  /* 
+  /*
    * Find the type on the pnode that this vnode is associated with
    */
   tb_pnode::types_map::iterator mit = pnode->types.find(vnode->type);
@@ -941,7 +941,7 @@ void remove_node(vvertex vv)
   } else {
       tr = mit->second;
   }
- 
+
 
   /*
    * Clean up the pnode's state
@@ -963,7 +963,7 @@ void remove_node(vvertex vv)
   if (vnode->vclass != NULL) {
     double score_delta = vnode->vclass->unassign_node(vnode->type);
     SDEBUG(cerr << "  vclass unassign " << score_delta << endl);
-    
+
     if (score_delta <= -1) {
       violated--;
       vinfo.vclass--;
@@ -1037,26 +1037,26 @@ void remove_node(vvertex vv)
     if (! dest_vnode->assigned) {
       continue;
     }
-    
+
     // Find the pnode on the ther end of the link, and unscore it!
     pvertex dest_pv = dest_vnode->assignment;
     tb_pnode *dest_pnode = get(pvertex_pmap,dest_pv);
     unscore_link_info(*vedge_it,pnode,dest_pnode,vnode,dest_vnode);
-    
+
     // If the other end was connected before, it's not now
     if (!vlink->no_connection) {
       SDEBUG(cerr << "      link now in violation.\n";)
       mark_vlink_unassigned(vlink);
     }
-    
+
   }
- 
+
 #ifdef PENALIZE_UNUSED_INTERFACES
   // Keep track of the number of interfaces that the pnode is using
   SSUB((pnode->total_interfaces - pnode->used_interfaces) * SCORE_UNUSED_INTERFACE);
   pnode->used_interfaces = 0;
 #endif
- 
+
   /*
    * Adjust scores for the pnode
    */
@@ -1070,9 +1070,15 @@ void remove_node(vvertex vv)
     SADD(SCORE_PNODE * (powf(1+ tr->get_current_load() * 1.0/tr->get_max_load(),2)));
   }
   if (strategy_pack) {
-    // Inverse of strategy_balance
-    SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()+1)) * 1.0)/tr->get_max_load(),0.5)));
-    SADD(SCORE_PNODE * (powf((tr->get_max_load() - tr->get_current_load()) * 1.0/tr->get_max_load(),0.5)));
+    // Inverse of strategy_balance - note that we have to make sure to not let
+    // the number drop below zero (which might happen if allow_overload is set)
+    int leftover_slots = tr->get_max_load() - tr->get_current_load();
+    int prev_leftover_slots = tr->get_max_load() - (tr->get_current_load()+1);
+    if (prev_leftover_slots < 0) { prev_leftover_slots = 0; }
+    if (leftover_slots < 0) { leftover_slots = 0; }
+
+    SSUB(SCORE_PNODE * (powf((prev_leftover_slots * 1.0)/tr->get_max_load(),0.5)));
+    SADD(SCORE_PNODE * (powf((leftover_slots * 1.0)/tr->get_max_load(),0.5)));
   }
   if (pnode->total_load == 0) {
     // If the pnode is now free, we need to do some cleanup
@@ -1114,7 +1120,7 @@ void remove_node(vvertex vv)
   SADD(SCORE_UNASSIGNED);
   vinfo.unassigned++;
   violated++;
-  
+
 
   /*
    * Scoring for features and desires
@@ -1136,7 +1142,7 @@ void score_link_info(vedge ve, tb_pnode *src_pnode, tb_pnode *dst_pnode, tb_vnod
 {
   tb_vlink *vlink = get(vedge_pmap,ve);
   tb_pnode *the_switch;
-  
+
   // If this link is to be adjusted to the native speed of the interface, go
   // ahead and do that now - we use the minimum of the two endpoint interfaces
   // Note! Not currently supported on trivial links! (it's illegal for
@@ -1151,7 +1157,7 @@ void score_link_info(vedge ve, tb_pnode *src_pnode, tb_pnode *dst_pnode, tb_vnod
     vlink->delay_info.bandwidth =
       min(front_plink->delay_info.bandwidth, back_plink->delay_info.bandwidth);
   }
-  
+
   switch (vlink->link_info.type_used) {
   case tb_link_info::LINK_DIRECT:
     SADD(SCORE_DIRECT_LINK);
@@ -1231,7 +1237,7 @@ void score_link_info(vedge ve, tb_pnode *src_pnode, tb_pnode *dst_pnode, tb_vnod
 	new_over_bw = 0;
       }
       SDEBUG(cerr << "  new trivial bandwidth over by " << new_over_bw << endl);
-	
+
       if (new_over_bw) {
 	// Count how many multiples of the maximum bandwidth we're at
         int new_multiple = src_pnode->trivial_bw_used / src_pnode->trivial_bw;
@@ -1322,7 +1328,7 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
   cerr << *pnode;
 #endif
   SDEBUG(cerr << "  vnode type = " << vnode->type << endl);
-  
+
   /*
    * Handle types - first, check to see if the node is capable of taking on the
    * vnode's type. If it can with a static type, just do the bookkeeping for
@@ -1414,7 +1420,7 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
 #ifdef PENALIZE_UNUSED_INTERFACES
   pnode->used_interfaces = 0;
 #endif
- 
+
   /*
    * Record the node's assignment. Need to do this now so that 'loopback' links
    * work below.
@@ -1426,7 +1432,7 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
   if (!skip_links) {
       resolve_links(vv,pv,vnode,pnode,deterministic);
   }
-  
+
   int old_load = tr->get_current_load();
   int old_total_load = pnode->total_load;
 
@@ -1459,7 +1465,7 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
     // ptypes
     tb_pnode::types_list::iterator lit = pnode->type_list.begin();
     while (lit != pnode->type_list.end()) {
-	int new_violations = 
+	int new_violations =
 	    (*lit)->get_ptype()->add_users((*lit)->get_max_load());
 	if (new_violations) {
 	    SADD(SCORE_MAX_TYPES * new_violations);
@@ -1475,8 +1481,14 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
     SADD(SCORE_PNODE * (powf(1 + ((tr->get_current_load()) * 1.0)/tr->get_max_load(),2)));
   }
   if (strategy_pack) {
-    SSUB(SCORE_PNODE * (powf(((tr->get_max_load() - (tr->get_current_load()-1)) * 1.0)/tr->get_max_load(),0.5)));
-    SADD(SCORE_PNODE * (powf(((tr->get_max_load() - tr->get_current_load()) * 1.0)/tr->get_max_load(),0.5)));
+    /* Note comment above about not letting drop below zero */
+    int leftover_slots = tr->get_max_load() - tr->get_current_load();
+    int prev_leftover_slots = tr->get_max_load() - (tr->get_current_load()-1);
+    if (prev_leftover_slots < 0) { prev_leftover_slots = 0; }
+    if (leftover_slots < 0) { leftover_slots = 0; }
+
+    SSUB(SCORE_PNODE * (powf((prev_leftover_slots * 1.0)/tr->get_max_load(),0.5)));
+    SADD(SCORE_PNODE * (powf((leftover_slots * 1.0)/tr->get_max_load(),0.5)));
   }
 
   // node no longer unassigned
@@ -1518,7 +1530,7 @@ int add_node(vvertex vv,pvertex pv, bool deterministic, bool is_fixed, bool skip
       pclass_set(vnode,pnode);
     }
   }
-  
+
   return 0;
 }
 
@@ -1564,7 +1576,7 @@ bool find_best_link(pvertex pv,pvertex switch_pv,tb_vlink *vlink,
 
       // Whether we check the 'source' or 'destination' on the vlink against
       // the phyisical link's source interface depends on whether the
-      // interface order in the in the pedge matches the interface order in 
+      // interface order in the in the pedge matches the interface order in
       // the vlink
       bool plink_order_reversed;
       tb_vnode *src_vnode = get(vvertex_pmap,vlink->src);
@@ -1643,7 +1655,7 @@ bool find_best_link(pvertex pv,pvertex switch_pv,tb_vlink *vlink,
       if (vlink->emulated) {
 	// For emulated links, we need to do bin packing. Right now, we use the
 	// first-fit approximation; there may be a better one
-	
+
 	// Skip any links that already have non-emulated links assigned to them
 	if (plink->nonemulated > 0) {
 	    continue;
@@ -1710,7 +1722,7 @@ int find_interswitch_path(pvertex src_pv,pvertex dest_pv,
   sedge current_se;
   svertex current_sv = dest_sv;
   switch_pred_map &preds = *switch_preds[src_sv];
-  
+
   if (preds[dest_sv] == dest_sv) {
     // unreachable
     return 0;
@@ -1738,7 +1750,7 @@ void score_link(pedge pe,vedge ve,tb_pnode *src_pnode, tb_pnode *dst_pnode)
   cerr << *plink;
   cerr << *vlink;
 #endif
-  
+
   if (plink->is_type == tb_plink::PLINK_NORMAL) {
     // need to account for three things here, the possiblity of a new plink
     // the user of a new emulated link, and a possible violation.
@@ -1824,7 +1836,7 @@ void score_link(pedge pe,vedge ve,tb_pnode *src_pnode, tb_pnode *dst_pnode)
     } else {
       new_over_bw = 0;
     }
-    
+
     if (new_over_bw) {
       // Count how many multiples of the maximum bandwidth we're at
       int num_violations =
@@ -1949,7 +1961,7 @@ void unscore_link(pedge pe,vedge ve, tb_pnode *src_pnode, tb_pnode *dst_pnode)
       }
   }
 #endif
-  
+
   // bandwidth check
   if (plink->is_type != tb_plink::PLINK_LAN) {
 #ifdef PENALIZE_BANDWIDTH
@@ -2010,7 +2022,7 @@ score_and_violations score_fds(tb_vnode *vnode, tb_pnode *pnode, bool add) {
 	switch (fdit.membership()) {
 	    case tb_featuredesire_set_iterator::BOTH:
 		/*
-		 * On both 
+		 * On both
 		 */
 		// note: Right now, global features cannot be
 		// desires, so there is no code path for them here
@@ -2050,7 +2062,7 @@ score_and_violations score_fds(tb_vnode *vnode, tb_pnode *pnode, bool add) {
 		 * On the pnode, but not the vnode
 		 */
 		// What we do here depends on what kind o feature it is
-		if (fdit->is_local()) { 
+		if (fdit->is_local()) {
 		    // Do nothing for local features that are not matched -
 		    // they are free to waste
 		} else if (fdit->is_global()) {
@@ -2083,4 +2095,3 @@ score_and_violations score_fds(tb_vnode *vnode, tb_pnode *pnode, bool add) {
     //   endl;
     return score_and_violations(score_delta,violations_delta);
 }
-
