@@ -3721,9 +3721,30 @@ sub CheckPreReserve($$)
 	#
 	my $noderes_result =
 	    DBQueryWarn("select node_id from node_reservations ".
-			"where node_id='$node_id' and pid='$pid'");
+			"where pid='$pid'");
 	goto done
 	    if (!$noderes_result);
+
+	#
+	# Note that if there any entries in the node_reservations table,
+	# then only those specific nodes can fulfill the request. Search
+	# the list for the node_id we are freeing.
+	#
+	if ($noderes_result->numrows) {
+	    my $okay = 0;
+	    
+	    while (my ($id) = $noderes_result->fetchrow_array()) {
+		if ($node_id eq $id) {
+		    $okay = 1;
+		    last;
+		}
+	    }
+	    #
+	    # XXX We should look for another reservation to fulfill.
+	    #
+	    goto done
+		if (!$okay);
+	}
 
 	if (DBQueryWarn("update nodes set reserved_pid='$pid' ".
 			"where node_id='$node_id'")) {
