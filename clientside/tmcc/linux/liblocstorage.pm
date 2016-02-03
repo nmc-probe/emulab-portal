@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013-2015 University of Utah and the Flux Group.
+# Copyright (c) 2013-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -947,8 +947,13 @@ sub os_check_storage_slice($$)
 	    $dev = "emulab/$lv";
 	    $mdev = "mapper/emulab-$lv";
 	    $devtype = "LVM";
-	    # XXX LVM rounds up to extent size (4 MiB)
-	    $slop = 3;
+	    # XXX LVM rounds up to physical extent size (4 MiB)
+	    # on every physical volume that is in the VG
+	    if (exists($so->{'LVM_VGDEVS'}) && $so->{'LVM_VGDEVS'} > 1) {
+		$slop = (4 * $so->{'LVM_VGDEVS'}) - 1;
+	    } else {
+		$slop = 3;
+	    }
 	}
 	my $devsize = $href->{'VOLSIZE'};
 
