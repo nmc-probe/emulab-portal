@@ -137,7 +137,7 @@ function Do_GetInstanceStatus()
     # If we have all of our manifests, the client can request them
     # and show the topology.
     #
-    $havemanifests = 1;
+    $havemanifests = $instance->slivers() ? 1 : 0;
 
     foreach ($instance->slivers() as $sliver) {
         if (!$sliver->manifest()) {
