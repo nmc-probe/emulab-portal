@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1175,7 +1175,7 @@ sub handleCtrlEvent($$) {
 		$experiment->eid() eq NODERELOADING_EID) {
 		$nodeobj->RemoveTaintState();
 		$nodeobj->ClearSchedReload();
-		my $reserved_pid = $nodeobj->CheckPreReserve(1);
+		my $reserved_pid = $nodeobj->CheckPreReserve(1,1);
 		if (defined($reserved_pid)) {
 		    info("$node: Setting pre reserve to $reserved_pid\n");
 		}

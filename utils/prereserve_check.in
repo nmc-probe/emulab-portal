@@ -91,23 +91,27 @@ my $query_result =
 		 "      UNIX_TIMESTAMP(now()) > UNIX_TIMESTAMP(end)");
 
 while (my $row = $query_result->fetchrow_hashref()) {
-    my $pid    = $row->{'pid'};
+    my $pid     = $row->{'pid'};
+    my $resname = $row->{'name'};
 
     if ($debug) {
-	print "Terminating pre-reserve for project $pid\n";
+	print "Terminating pre-reserve $pid,$resname\n";
     }
     if (!$impotent) {
-	my $output = emutil::ExecQuiet("$PRERESERVE -c -r $pid");
+	my $output = emutil::ExecQuiet("$PRERESERVE -c -r -n $resname $pid");
 	if ($?) {
-	    print STDERR "Error terminating pre reservation for $pid!\n";
+	    print STDERR
+		"Error terminating pre reservation $pid,$resname!\n";
 
-	    SENDMAIL($TBOPS, "Error Terminating pre reservation for $pid",
-		     "The pre reservation request for project $pid, ".
+	    SENDMAIL($TBOPS,
+		     "Error Terminating pre reservation $pid,$resname",
+		     "The pre reservation request $pid,$resname ".
 		     "could not be terminated!\n\n" . $output . "\n", $TBOPS);
 	}
 	else {
-	    SENDMAIL($TBOPS, "Pre Reservation for $pid has been terminated",
-		     "The pre reservation request for project $pid, ".
+	    SENDMAIL($TBOPS,
+		     "Pre Reservation $pid,$resname has been terminated",
+		     "The pre reservation $pid,$resname ".
 		     "has been terminated\n", $TBOPS);
 	}
     }
@@ -118,23 +122,24 @@ while (my $row = $query_result->fetchrow_hashref()) {
 #
 $query_result =
     DBQueryFatal("select * from project_reservations ".
-		 "where active=0 and start is not null and ".
+		 "where active=0 and terminal=0 and start is not null and ".
 		 "       UNIX_TIMESTAMP(now()) >= UNIX_TIMESTAMP(start) ".
 		 "order by priority desc, created asc");
 
 while (my $row = $query_result->fetchrow_hashref()) {
-    my $pid    = $row->{'pid'};
+    my $pid     = $row->{'pid'};
+    my $resname = $row->{'name'};
 
     if ($debug) {
-	print "Activating pre-reserve for project $pid\n";
+	print "Activating pre-reserve $pid,$resname\n";
     }
     if (!$impotent) {
-	my $output = emutil::ExecQuiet("$PRERESERVE -a $pid");
+	my $output = emutil::ExecQuiet("$PRERESERVE -a -n $resname $pid");
 	if ($?) {
-	    print STDERR "Error activating pre reservation for $pid!\n";
+	    print STDERR "Error activating pre reservation $pid,$resname!\n";
 	    
-	    SENDMAIL($TBOPS, "Error activating pre reservation for $pid",
-		     "The pre reservation request for project $pid, ".
+	    SENDMAIL($TBOPS, "Error activating pre reservation $pid,$resname",
+		     "The pre reservation request $pid,$resname ".
 		     "could not be activated!\n\n" . $output . "\n", $TBOPS);
 	}
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -660,7 +660,7 @@ foreach my $node (@freed_nodes) {
 		or $error++;
 
 	    # Handle pre-reserve.
-	    my $rpid = $node->CheckPreReserve($quiet);
+	    my $rpid = $node->CheckPreReserve(1, $quiet);
 	}
 	next;
     }
@@ -677,7 +677,7 @@ foreach my $node (@freed_nodes) {
     }
 
     # Handle pre-reserve.
-    my $rpid = $node->CheckPreReserve($quiet);
+    my $rpid = $node->CheckPreReserve(1, $quiet);
 
     print "Releasing node '$node_id' ...\n"
 	if (!$quiet);

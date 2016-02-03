@@ -605,6 +605,11 @@ class InstanceSliver
     # Constructor by lookup on unique index.
     #
     function InstanceSliver($instance, $urn) {
+        if (!$instance) {
+            TBMAIL("stoller", "undefined instance", $urn);
+	    $this->sliver = null;
+	    return;
+        }
 	$uuid = $instance->uuid();
 
 	$query_result =
