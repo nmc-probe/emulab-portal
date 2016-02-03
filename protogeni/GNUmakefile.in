@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008-2012 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -36,7 +36,7 @@ ELABINELAB      = @ELABINELAB@
 
 include $(OBJDIR)/Makeconf
 
-SUBDIRS	= security xmlrpc lib scripts etc rspec-emulab pubxmlrpc
+SUBDIRS	= security xmlrpc lib scripts etc rspec-emulab pubxmlrpc event
 
 all:	check-submodule all-subdirs
 
@@ -51,6 +51,7 @@ install:
 	@$(MAKE) -C rspec-emulab install
 	@$(MAKE) -C test install
 	@$(MAKE) -C pubxmlrpc install
+	@$(MAKE) -C event install
 
 check-submodule: 
 	@if [ ! -e "rspec-emulab" ]; then \

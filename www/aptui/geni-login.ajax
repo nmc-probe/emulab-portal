@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -452,7 +452,8 @@ function UpdateCredentials($user, $cert, $cred, &$error)
     chmod($credfile, 0666);
     
     $retval = SUEXEC($uid, $pid,
-		     "webupdategeniuser -p -c $credfile -e $certfile $arg $uid",
+		     "webupdategeniuser -p -u ".
+                     "  -c $credfile -e $certfile $arg $uid",
 		     SUEXEC_ACTION_CONTINUE);
 
     if ($retval) {

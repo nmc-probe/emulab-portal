@@ -908,12 +908,13 @@ sub WaitForSliver($)
 	# cares about. We get this on each loop, update so the web
 	# interface can show changes.
 	#
+	my $statusblob = $aggobj->UpdateWebStatus($repblob->{'details'});
+	
 	my $changed = 0;
-	my $statusblob = {};
 	foreach my $urn (keys(%{$repblob->{'details'}})) {
 	    my $details = $repblob->{'details'}->{$urn};
 	    my $node_id = $details->{'client_id'};
-	    $statusblob->{$node_id} = $details;
+
 	    #
 	    # Look at the last blob. If we changed, view that as progress.
 	    #
@@ -944,7 +945,6 @@ sub WaitForSliver($)
 		}
 	    }
 	}
-	$webtask->sliverstatus($statusblob);
 	$laststatus = $statusblob;
 
 	if (exists($repblob->{'public_url'})) {
@@ -1006,9 +1006,6 @@ if (ParRun({"maxwaittime" => 99999, "maxchildren" => scalar(@aggregate_list)},
 }
 print "$slice_urn\n";
 
-# Count up nodes running a startup service.
-my $startuprunning = 0;
-
 #
 # If we were canceled, then none of the stuff below matters, we
 # are going to do a terminate.
@@ -1020,6 +1017,9 @@ if ($instance->IsCanceled()) {
     system("$MANAGEINSTANCE -t $webtask_id terminate $quickvm_uuid");
     exit(0);
 }
+
+# Count up nodes running a startup service.
+my $startuprunning = 0;
 
 #
 # Check the exit codes; any failure is a total failure (for now).

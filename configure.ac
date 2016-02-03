@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -312,6 +312,8 @@ AC_SUBST(WITHAMD)
 AC_SUBST(AMD_ROOT)
 AC_SUBST(BS_IQN_PREFIX)
 AC_SUBST(ATTENUATOR)
+AC_SUBST(CLUSTER_PORTAL)
+AC_SUBST(CLUSTER_PUBSUBD_PORT)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -474,6 +476,8 @@ WITHAMD=0
 AMD_ROOT=/.amd_mnt
 BS_IQN_PREFIX=iqn.2000-10.net.emulab
 ATTENUATOR=""
+CLUSTER_PORTAL=""
+CLUSTER_PUBSUBD_PORT=""
 
 #
 # XXX You really don't want to change these!
@@ -1381,6 +1385,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
         protogeni/xmlrpc/GNUmakefile protogeni/lib/GNUmakefile \
         protogeni/scripts/GNUmakefile protogeni/etc/GNUmakefile \
         protogeni/test/GNUmakefile protogeni/pubxmlrpc/GNUmakefile \
+	protogeni/event/GNUmakefile \
 	protogeni/rspec-emulab/GNUmakefile \
         protogeni/rspec-emulab/0.1/GNUmakefile \
 	protogeni/rspec-emulab/0.2/GNUmakefile \

@@ -343,7 +343,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     function StartStatusWatch()
     {
 	GetStatus();
-	statusID = setInterval(GetStatus, 5000);
+	statusID = setInterval(GetStatus, 4000);
     }
     
     function GetStatus()
@@ -364,6 +364,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					    "status",
 					    "GetInstanceStatus",
 					     {"uuid" : uuid});
+	xmlthing.fail(function(jqXHR, textStatus) {
+	    console.info("GetStatus failed: " + textStatus);
+	    statusBusy = 0;
+	});
 	xmlthing.done(callback);
     }
 

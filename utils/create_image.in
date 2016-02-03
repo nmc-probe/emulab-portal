@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -58,7 +58,8 @@ use Cwd qw(realpath);
 my $maxwait      = (72 * 60);
 my $idlewait     = ( 8 * 60);
 my $reportwait   = ( 2 * 60);
-my $checkwait    = 15;
+# Check more frequently for web updates, sez Leigh.
+my $checkwait    = 5;
 my $maximagesize = (6 * 1024**3);
 
 #
@@ -1110,6 +1111,10 @@ if ($isec2node) {
 	if ($?);
 
     $EUID = $UID = $SAVEUID;
+
+    if (defined($webtask)) {
+	$webtask->status("finishing");
+    }
     goto ec2done;
 }
 
@@ -1294,6 +1299,9 @@ if (!$isdataset) {
 	$bootlog = undef;
     }
 }
+if (defined($webtask)) {
+    $webtask->status("finishing");
+}
 if (! cleanup()) {
     fatal("Problem encountered while cleaning up!\n");
 }
@@ -1316,9 +1324,6 @@ if ($result != 0) {
 }
 
 ec2done:
-if (defined($webtask)) {
-    $webtask->status("finishing");
-}
 
 #
 # XXX ugh! If we were doing the autodelta thing, we have to check our logfile

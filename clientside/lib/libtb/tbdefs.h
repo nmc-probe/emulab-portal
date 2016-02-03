@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -37,6 +37,8 @@
 #define TBDB_FLEN_EVOBJTYPE	128
 #define TBDB_FLEN_EVOBJNAME	128
 #define TBDB_FLEN_EVEVENTTYPE	128
+#define TBDB_FLEN_EVEVENTSITE	128
+#define TBDB_FLEN_EVEVENTEXPT	128
 #define TBDB_FLEN_PRIVKEY	64
 #define TBDB_FLEN_SFSHOSTID	128
 #define TBDB_FLEN_RPMS		4096

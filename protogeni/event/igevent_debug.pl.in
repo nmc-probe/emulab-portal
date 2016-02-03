@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# Copyright (c) 2002-2016 University of Utah and the Flux Group.
+# Copyright (c) 2002-2004, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -61,6 +61,9 @@ if ($opt{s}) { $server = $opt{s}; } else { $server = "localhost"; }
 if ($opt{b}) { $port = @BOSSEVENTPORT@ ; }
 if ($opt{p}) { $port = $opt{p}; }
 
+$port = 16507
+    if (!defined($port));
+
 my $URL = "elvin://$server";
 if ($port) { $URL .= ":$port"; }
 
@@ -74,26 +77,6 @@ if ($expt) {
     %$tuple = ( expt => $expt );
 }
 
-my $gotone;
-
-sub callbackFunc($$$) {
-	my ($handle,$notification,$data) = @_;
-
-	my $time      = time();
-	my $site      = event_notification_get_site($handle, $notification);
-	my $expt      = event_notification_get_expt($handle, $notification);
-	my $group     = event_notification_get_group($handle, $notification);
-	my $host      = event_notification_get_host($handle, $notification);
-	my $objtype   = event_notification_get_objtype($handle, $notification);
-	my $objname   = event_notification_get_objname($handle, $notification);
-	my $eventtype = event_notification_get_eventtype($handle,
-		$notification);
-	print "Event: $time $site $expt $group $host $objtype $objname " .
-		"$eventtype\n";
-
-	$gotone++;
-}
-
 if (!event_subscribe($handle,\&callbackFunc,$tuple)) {
 	die "Could not subscribe to event\n";
 }
@@ -104,12 +87,8 @@ if (!event_subscribe($handle,\&callbackFunc,$tuple)) {
 # a wacky way to get usleep() )
 #
 while (1) {
-    $gotone = 1;
-    while ($gotone) {
-	$gotone = 0;
 	event_poll($handle);
-    }
-    event_poll_blocking($handle, 5000);
+	select(undef, undef, undef, 0.25);
 }
 
 if (event_unregister($handle) == 0) {
@@ -118,3 +97,15 @@ if (event_unregister($handle) == 0) {
 
 exit(0);
 
+sub callbackFunc($$$) {
+	my ($handle,$note,$data) = @_;
+
+	my $time      = time();
+	my $site      = event_notification_get_site($handle, $note);
+	my $urn       = event_notification_get_string($handle, $note, "urn");
+	my $slice     = event_notification_get_string($handle, $note, "slice");
+	my $type      = event_notification_get_string($handle, $note, "type");
+	my $details   = event_notification_get_string($handle, $note, "details");
+
+	print "Event: $time $site $type $urn $slice $details\n";
+}

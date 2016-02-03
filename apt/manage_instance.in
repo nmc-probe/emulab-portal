@@ -459,8 +459,14 @@ sub DoSnapshot()
 	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
 	# Convenient.
 	$webtask->AutoStore(1);
+	# This is convenience for the web server.
+	if (defined($webtask)) {
+	    $webtask->aggregate_urn($aggregate->aggregate_urn());
+	    $webtask->client_id($node_id);
+	}
     }
     $instance->SetStatus("imaging");
+    $aggregate->SetStatus("imaging");
 
     #
     # This returns pretty fast, and then the imaging takes place in
@@ -472,6 +478,7 @@ sub DoSnapshot()
     if (!defined($response)) {
 	$errmsg = "Internal error creating image";
 	$instance->SetStatus($old_status);
+	$aggregate->SetStatus($old_status);
 	goto uerror;
     }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
@@ -481,6 +488,7 @@ sub DoSnapshot()
 		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
 		$response->code() == GENIRESPONSE_FORBIDDEN);
 	$instance->SetStatus($old_status);
+	$aggregate->SetStatus($old_status);
 	goto uerror;
     }
     my ($image_urn, $image_url,
@@ -541,7 +549,7 @@ sub DoSnapshot()
     # Poll for a reasonable amount of time.
     #
     my $seconds  = 1500;
-    my $interval = 10;
+    my $interval = 15;
     my $ready    = 0;
     my $sliver_ready = 0;
     my $failed   = 0;
@@ -565,25 +573,8 @@ sub DoSnapshot()
 		$response->code() == GENIRESPONSE_RPCERROR);
 
 	my $blob = $response->value();
-	if (defined($webtask)) {
-	    # Special for imaging status display
-	    foreach my $urn (keys(%{$blob->{'details'}})) {
-		my $details = $blob->{'details'}->{$urn};
-		
-		if ($urn eq $sliver_urn) {
-		    $webtask->state($details->{'state'});
-		    $webtask->rawstate($details->{'rawstate'});
-		}
-	    }
-	}
 	# This is the per-aggregate status, we always set this for web UI.
-	my $statusblob = {};
-	foreach my $urn (keys(%{$blob->{'details'}})) {
-	    my $details = $blob->{'details'}->{$urn};
-	    my $node_id = $details->{'client_id'};
-	    $statusblob->{$node_id} = $details;
-	}
-	$aggregate->webtask()->sliverstatus($statusblob);
+	$aggregate->UpdateWebStatus($blob->{'details'});
 	
 	if ($blob->{'status'} eq "failed") {
 	    $failed = 1;
@@ -610,34 +601,34 @@ sub DoSnapshot()
 		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
 		$response->code() == GENIRESPONSE_RPCERROR);
 
-	$blob = $response->value();
+	my $imageblob = $response->value();
 	if (defined($webtask)) {
-	    $webtask->image_size($blob->{'size'}) 	
-		if (exists($blob->{'size'}));
-	    
-	    if (exists($blob->{'status'})) {
-		#
-		# If the image is ready, but needs to be copied back to
-		# its origin, hold of ready till later. We will wait for
-		# the copyback to finish, see below.
-		#
-		if (defined($copyback_uuid)) {
-		    $webtask->image_status("copying");
-		}
-		else {
-		    $webtask->image_status($blob->{'status'});
-		}
+	    my %blobcopy = %{ $imageblob };
+
+	    #
+	    # If the image is ready, but needs to be copied back to
+	    # its origin, hold of ready till later. We will wait for
+	    # the copyback to finish, see below.
+	    #
+	    if ($imageblob->{'status'} eq "ready" && defined($copyback_uuid)) {
+		$blobcopy{'status'} = "copying";
 	    }
+	    # This is also being updated by the event system.
+	    $instance->UpdateImageStatus(\%blobcopy);
 	}
-	if ($blob->{'status'} eq "ready") {
+	if ($imageblob->{'status'} eq "ready") {
 	    $ready = 1;
 	    last;
 	}
-	elsif ($blob->{'status'} eq "failed") {
+	elsif ($imageblob->{'status'} eq "failed") {
 	    $failed = 1;
 	    last;
 	}
     }
+    # Cause of image status events.
+    $webtask->Refresh()
+	if (defined($webtask));
+    
     if ($failed) {
 	$errmsg = "Imaging failed"
 	    if (!defined($errmsg));
@@ -675,6 +666,7 @@ sub DoSnapshot()
 				  ($update_profile eq "all" ? 1 : 0));
     }
     $instance->SetStatus("ready");
+    $aggregate->SetStatus("ready");
     
     #
     # If there is a copyback_uuid, we want to wait for that to finish.
@@ -743,6 +735,7 @@ sub DoSnapshot()
 	StartMonitorInternal();
     }
     $instance->SetStatus("ready");
+    $aggregate->SetStatus("ready");
     if (defined($logfile)) {
 	SENDMAIL($TBOPS,
 		 "Snapshot failed",
@@ -1345,17 +1338,8 @@ sub DoRefresh()
 	elsif ($blob->{'status'} eq "failed") {
 	    $sliver->SetStatus("failed");
 	}
-	#
-	# Convert to something smaller, with info the web interface
-	# cares about. 
-	#
-	my $statusblob = {};
-	foreach my $urn (keys(%{$blob->{'details'}})) {
-	    my $details = $blob->{'details'}->{$urn};
-	    my $node_id = $details->{'client_id'};
-	    $statusblob->{$node_id} = $details;
-	}
-	$webtask->sliverstatus($statusblob);
+	# This is the per-aggregate status, we always set this for web UI.
+	my $statusblob = $sliver->UpdateWebStatus($blob->{'details'});
 	if ($debug) {
 	    print STDERR Dumper($statusblob);
 	}
@@ -1678,7 +1662,7 @@ sub StartMonitorInternal(;$)
     # another node right away. For reboot/reload, nothing interesting
     # is going to be reported for a while.
     #
-    sleep(15);
+    sleep(30);
     
     my $seconds  = ($waitforstartup ? 7200 : 900);
     my $interval = 15;
@@ -1718,27 +1702,22 @@ sub StartMonitorInternal(;$)
 	}
     
 	my $blob = $response->value();
-	#
-	# Convert to something smaller, with info the web interface
-	# cares about. 
-	#
-	my $statusblob  = {};
-	my $executing   = 0;
-	foreach my $urn (keys(%{$blob->{'details'}})) {
-	    my $details = $blob->{'details'}->{$urn};
-	    my $node_id = $details->{'client_id'};
-	    $statusblob->{$node_id} = $details;
-
-	    # Startup command is still running.
-	    $executing++
-		if (exists($details->{'execute_state'}) &&
-		    $details->{'execute_state'} ne "exited");
-	}
+	# This is the per-aggregate status, we always set this for web UI.
+	my $statusblob = $sliver->UpdateWebStatus($blob->{'details'});
 	if ($debug) {
 	    print STDERR Dumper($statusblob);
 	}
-	$webtask->sliverstatus($statusblob);
-
+	# Look for nodes still executing
+	my $executing = 0;
+	if ($waitforstartup) {
+	    foreach my $node_id (keys(${$statusblob})) {
+		my $details = $statusblob->{'node_id'};
+		
+		$executing++
+		    if (exists($details->{'execute_state'}) &&
+			$details->{'execute_state'} ne "exited");
+	    }
+	}
 	#
 	# We poll until the status goes ready. Might not be a good idea.
 	#
