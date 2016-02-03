@@ -303,6 +303,7 @@ function Do_GuestInstantiate()
 
     if (!$instance) {
 	SPITAJAX_ERROR(1, $errors["error"]);
+        return;
     }
     #
     # Return the cookies the clients needs to set, so that it can load
