@@ -4093,7 +4093,11 @@ sub HaveRoutableIPs($$)
 	DBQueryWarn("select count(ip) from virt_node_public_addr ".
 		    "where node_id is null and eid is null");
     return 0
-	if (!$query_result || $query_result->numrows < $needed);
+	if (!$query_result || $query_result->numrows < 1);
+
+    my( $count ) = $query_result->fetchrow_array();
+    return 0
+	if( $count < $needed );
 
     return 1;
 }
