@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2004-2015 University of Utah and the Flux Group.
+# Copyright (c) 2004-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -118,27 +118,7 @@ SWITCH: for ($action) {
 	last SWITCH;
     };
     /^reset$/i && do {
-	#
-	# XXX this should be docleanup(3), but we have not implemented
-	# the nasty temporary removal of LVM/ZFS/etc state from the
-	# imageable filesystems for local blockstores.
-	#
-	# So for now we just do a shutdown. This will do the right thing
-	# for SAN-based blockstores which only use traditional filesystem
-	# mounts (i.e., no volume manager) and thus have no local disk
-	# state (as SAN mounts do not appear in /etc/fstab).
-	#
-	# It is also the right thing for the local SYSVOL case in which
-	# you want the blockstore to be included in the image.
-	#
-	# It is not correct for other blockstores, where you will get
-	# partial state in the image (e.g., in /etc/lvm or /etc/zfs).
-	#
-	# The moral is: if you are going to do a custom image, you should
-	# only use persistent SAN-based blockstores or create a SYSVOL local
-	# blockstore and take a whole-disk image!
-	#
-	docleanup(0);
+	docleanup(3);
 	last SWITCH;
     };
     # XXX non-standard, for debugging
@@ -524,7 +504,21 @@ sub docleanup($)
 	    fatal("Could not retrieve stashed storage config!");
 	}
 
-	if ($doteardown) {
+	#
+	# XXX the $dolocal is a quick hack to ensure that when we are
+	# doing a reconfig/reset ala:
+	#   rc.storageremote reset
+	#   rc.storagelocal reset
+	# that we don't remove the OLDCONFIG until the end. Otherwise
+	# we would not reconfig/reset the local blockstores because there
+	# would be no config when we reached rc.storagelocal! This relies
+	# heavily on the ordering of the two scripts in rc.config and the
+	# fact that we reverse that list of scripts when we shutdown.
+	# We use this hack below as well where we remove STORAGEMAP and
+	# DISKINFO. Note that the storage state will be inconsistent between
+	# removing the remote and local storage, but we can live with that.
+	#
+	if ($doteardown && $dolocal) {
 	    unlink($OLDCONFIG);
 	}
     }
@@ -540,8 +534,16 @@ sub docleanup($)
 	}
     }
 
-    if ($doteardown == 2) {
-	print "Forcing teardown of storage, ignore errors...\n";
+    my $msg = "";
+    if ($dolocal && !$doremote) {
+	$msg = "local ";
+    } elsif (!$dolocal && $doremote) {
+	$msg = "remote ";
+    }
+    if ($doteardown == 1 || $doteardown == 2) {
+	print "Forcing teardown of ${msg}storage, volatile blockstores WILL BE DESTROYED...\n";
+    } elsif ($doteardown == 3) {
+	print "Clearing ${msg}storage config from root filesystem, volatile blockstores will be preserved...\n";
     }
 
     my @cmds = ();
@@ -578,7 +580,10 @@ sub docleanup($)
 	system("/bin/kill `cat $bsapidfile`");
     }
 
-    unlink($STORAGEMAP, $DISKINFO);
+    # XXX see XXX comment above.
+    if ($dolocal) {
+	unlink($STORAGEMAP, $DISKINFO);
+    }
 }
 
 #
@@ -755,7 +760,9 @@ sub process($$$$)
 		    print "unmounted " . $href->{'MOUNTPOINT'} .
 			($doteardown ? " and " : " ");
 		}
-		if ($doteardown) {
+		if ($doteardown == 3) {
+		    print "deactivated $dev";
+		} elsif ($doteardown) {
 		    print "destroyed $dev";
 		}
 		print "\n";

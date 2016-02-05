@@ -481,18 +481,24 @@ sub get_diskinfo()
     # We only do this if we know there are volume groups, else lvs will fail.
     #
     if ($gotvgs &&
-	open(FD, "lvs -o vg_name,lv_name,lv_size --units m --noheadings|")) {
+	open(FD, "lvs -o vg_name,lv_name,lv_size,lv_attr --units m --noheadings|")) {
 	while (<FD>) {
-	    if (/^\s+(\S+)\s+(\S+)\s+(\d+)\.\d+m$/) {
+	    if (/^\s+(\S+)\s+(\S+)\s+(\d+)\.\d+m\s+([-a-zA-Z]{9})$/) {
 		my $vg = $1;
 		my $lv = $2;
 		my $size = $3;
+		my $attrs = $4;
 		my $dev = "$vg/$lv";
 
 		$geominfo{$dev}{'level'} = 2;
 		$geominfo{$dev}{'type'} = "LVM";
 		$geominfo{$dev}{'size'} = $size;
 		$geominfo{$dev}{'inuse'} = 1;
+		if ($attrs =~ /^....a....$/) {
+		    $geominfo{$dev}{'active'} = 1;
+		} else {
+		    $geominfo{$dev}{'active'} = 0;
+		}
 	    }
 	}
 	close(FD);
@@ -505,9 +511,9 @@ sub get_diskinfo()
 # See if this is a filesystem type we can deal with.
 # If so, return the type suitable for use by fsck and mount.
 #
-sub get_fstype($$;$)
+sub get_fstype($$;$$)
 {
-    my ($href,$dev,$rwref) = @_;
+    my ($href,$dev,$rwref,$silent) = @_;
     my $type = "";
 
     #
@@ -548,10 +554,53 @@ sub get_fstype($$;$)
 	return "ufs";
     }
 
+    if (!$silent) {
+	my $lv = $href->{'VOLNAME'};
+	if ($type) {
+	    warn("*** $lv: unsupported FS ($type) on $dev\n");
+	} else {
+	    warn("*** $lv: unknown or no FS on $dev\n");
+	}
+    }
     if ($rwref) {
 	$$rwref = 0;
     }
     return undef;
+}
+
+#
+# Check that the device for a blockstore has a valid filesystem by
+# fscking it. If $fixit is zero, run the fsck RO just to report if
+# the filesystem is there and consistent, otherwise attempt to fix it.
+# $redir is a redirect string for output of the fsck command.
+#
+# Returns 1 if all is well, 0 otherwise.
+#
+sub checkfs($$$)
+{
+    my ($href,$fixit,$redir) = @_;
+    my $lv = $href->{'VOLNAME'};
+    my $mdev = $href->{'LVDEV'};
+
+    # determine the filesystem type
+    my $fstype = get_fstype($href, $mdev);
+    if (!$fstype) {
+	return 0;
+    }
+
+    my $fopt = "-p";
+    if (!$fixit || $href->{'PERMS'} eq "RO") {
+	$fopt = "-n";
+    }
+
+    # XXX cannot fsck ufs, right now we just pretend everything is okay
+    if ($fstype ne "ufs" &&
+	mysystem("$FSCK $fopt $mdev $redir")) {
+	warn("*** $lv: fsck of $mdev failed\n");
+	return 0;
+    }
+
+    return 1;
 }
 
 #
@@ -694,6 +743,9 @@ sub os_show_storage($)
 	    if ($type eq "DISK") {
 		print STDERR ", pttype=", $dinfo->{$dev}->{'ptabtype'};
 	    }
+	    elsif ($type eq "LVM") {
+		print STDERR ", active=", $dinfo->{$dev}->{'active'};
+	    }
 	    print STDERR "\n";
 	}
     }
@@ -801,6 +853,7 @@ sub os_check_storage_element($$)
 		return -1;
 	    }
 	}
+
 	$href->{'LVDEV'} = "/dev/$dev";
 
 	#
@@ -813,22 +866,15 @@ sub os_check_storage_element($$)
 	#
 	my $mpoint = $href->{'MOUNTPOINT'};
 	if ($mpoint) {
-	    my $line = `$MOUNT | grep '^/dev/$dev on '`;
-	    if (!$line) {
-		my $mopt = "";
-		my $fopt = "-p";
+	    my $mdev = $href->{'LVDEV'};
+	    my $mopt = "";
 
+	    my $line = `$MOUNT | grep '^$mdev on '`;
+	    if (!$line) {
 		# determine the filesystem type
 		my $rw = 0;
-		my $fstype = get_fstype($href, "/dev/$dev", \$rw);
+		my $fstype = get_fstype($href, $mdev, \$rw);
 		if (!$fstype) {
-		    if (exists($href->{'FSTYPE'})) {
-			warn("*** $bsid: unsupported FS (".
-			     $href->{'FSTYPE'}.
-			     ") on /dev/$dev\n");
-		    } else {
-			warn("*** $bsid: unknown FS on /dev/$dev\n");
-		    }
 		    return -1;
 		}
 
@@ -839,12 +885,11 @@ sub os_check_storage_element($$)
 		    if ($fstype eq "ufs") {
 			$mopt .= ",ufstype=ufs2";
 		    }
-		    $fopt = "-n";
 		}
 		# OS only supports RO mounting, right now we just fail
 		elsif ($rw == 0) {
 		    warn("*** $bsid: OS only supports RO mounting of ".
-			 $href->{'FSTYPE'}. " FSes\n");
+			 "$fstype FSes\n");
 		    return -1;
 		}
 
@@ -854,22 +899,26 @@ sub os_check_storage_element($$)
 		    return -1;
 		}
 
-		# fsck it in case of an abrupt shutdown
-		# XXX cannot fsck ufs
-		if ($fstype ne "ufs" &&
-		    mysystem("$FSCK $fopt /dev/$dev $redir")) {
-		    warn("*** $bsid: fsck of /dev/$dev failed\n");
+		# fsck the filesystem in case of an abrupt shutdown.
+		if (!checkfs($href, 1, $redir)) {
 		    return -1;
 		}
-		if (mysystem("$MOUNT $mopt /dev/$dev $mpoint $redir")) {
-		    warn("*** $bsid: could not mount /dev/$dev on $mpoint\n");
+
+		# and mount it
+		if (mysystem("$MOUNT $mopt $mdev $mpoint $redir")) {
+		    warn("*** $bsid: could not mount $mdev on $mpoint\n");
 		    return -1;
 		}
 	    }
-	    elsif ($line !~ /^\/dev\/$dev on (\S+) / || $1 ne $mpoint) {
+	    elsif ($line !~ /^${mdev} on (\S+) / || $1 ne $mpoint) {
 		warn("*** $bsid: mounted on $1, should be on $mpoint\n");
 		return -1;
 	    }
+	}
+
+	# XXX set the fstype for reporting
+	if (!exists($href->{'FSTYPE'})) {
+	    get_fstype($href, "/dev/$dev");
 	}
 
 	return 1;
@@ -931,7 +980,7 @@ sub os_check_storage_slice($$)
     #
     if ($href->{'CLASS'} eq "local") {
 	my $lv = $href->{'VOLNAME'};
-	my ($dev, $devtype, $mdev);
+	my ($dev, $devtype, $rdev);
 
 	my $ginfo = $so->{'DISKINFO'};
 	my $bdisk = $so->{'BOOTDISK'};
@@ -940,12 +989,13 @@ sub os_check_storage_slice($$)
 
 	# figure out the device of interest
 	if ($bsid eq "SYSVOL") {
-	    $dev = $mdev = "${bdisk}4";
+	    $dev = $rdev = "${bdisk}4";
 	    $devtype = "PART";
 	    $pttype = $ginfo->{$bdisk}->{'ptabtype'};
 	} else {
 	    $dev = "emulab/$lv";
-	    $mdev = "mapper/emulab-$lv";
+	    # XXX the real path is returned by mount
+	    $rdev = "mapper/emulab-$lv";
 	    $devtype = "LVM";
 	    # XXX LVM rounds up to physical extent size (4 MiB)
 	    # on every physical volume that is in the VG
@@ -995,20 +1045,73 @@ sub os_check_storage_slice($$)
 	    }
 	}
 
-	# if there is a mountpoint, make sure it is mounted
-	my $mpoint = $href->{'MOUNTPOINT'};
-	if ($mpoint) {
-	    my $line = `$MOUNT | grep '^/dev/$mdev on '`;
-	    if (!$line && mysystem("$MOUNT $mpoint")) {
-		warn("*** $lv: is not mounted, should be on $mpoint\n");
+	#
+	# If it is an LVM, may sure it is active.
+	#
+	if ($devtype eq "LVM" && $ginfo->{$dev}->{'active'} == 0) {
+	    if (mysystem("lvchange -ay $dev")) {
+		warn("*** $lv: could not activate LV $dev\n");
 		return -1;
 	    }
-	    if ($line && ($line !~ /^\/dev\/$mdev on (\S+) / || $1 ne $mpoint)) {
-		warn("*** $lv: mounted on $1, should be on $mpoint\n");
-		return -1;
+	    sleep(1);
+	}
+
+	#
+	# If there is a mountpoint, make sure it is mounted.
+	#
+	my $mpoint = $href->{'MOUNTPOINT'};
+	if ($mpoint) {
+	    my $line = `$MOUNT | grep '^/dev/$rdev on '`;
+	    if (!$line) {
+		#
+		# See if the mount exists in /etc/fstab.
+		#
+		# XXX Right now if it does not, it might be because we
+		# removed it prior to creating an image. So we make some
+		# additional sanity checks (right now fsck'ing the alleged FS)
+		# and if it passes, re-add the mount line.
+		#
+		$line = `grep '^/dev/$dev\[\[:space:\]\]' /etc/fstab`;
+		if (!$line) {
+		    warn("  $lv: mount of /dev/$dev missing from fstab; sanity checking and re-adding...\n");
+		    my $fstype = get_fstype($href, "/dev/$dev");
+		    if (!$fstype) {
+			return -1;
+		    }
+
+		    # XXX sanity check, is there a recognized FS on the dev?
+		    # XXX checkfs needs LVDEV set
+		    $href->{'LVDEV'} = "/dev/$dev";
+		    if (!checkfs($href, 0, "")) {
+			undef $href->{'LVDEV'};
+			return -1;
+		    }
+		    undef $href->{'LVDEV'};
+		    if (!open(FD, ">>/etc/fstab")) {
+			warn("*** $lv: could not add mount to /etc/fstab\n");
+			return -1;
+		    }
+		    print FD "# /dev/$dev added by $BINDIR/rc/rc.storage\n";
+		    print FD "/dev/$dev\t$mpoint\t$fstype\tdefaults\t0\t0\n";
+		    close(FD);
+		}
+
+		if (mysystem("$MOUNT $mpoint")) {
+		    warn("*** $lv: is not mounted, should be on $mpoint\n");
+		    return -1;
+		}
+	    } else {
+		if ($line !~ /^\/dev\/$rdev on (\S+) / || $1 ne $mpoint) {
+		    warn("*** $lv: mounted on $1, should be on $mpoint\n");
+		    return -1;
+		}
 	    }
 	}
 
+	# XXX set the fstype for reporting
+	if (!exists($href->{'FSTYPE'})) {
+	    get_fstype($href, "/dev/$dev");
+	}
 	$href->{'LVDEV'} = "/dev/$dev";
 	return 1;
     }
@@ -1045,7 +1148,6 @@ sub os_create_storage($$)
     }
 
     my $mopt = "";
-    my $fopt = "-p";
 
     if (exists($href->{'MOUNTPOINT'})) {
 	my $lv = $href->{'VOLNAME'};
@@ -1066,43 +1168,33 @@ sub os_create_storage($$)
 	#
 	if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI" &&
 	    $href->{'PERSIST'} != 0) {
-	    # determine the filesystem type
+
+	    # check for the easy errors first, before time consuming fsck
 	    my $rw = 0;
 	    $fstype = get_fstype($href, $mdev, \$rw);
 	    if (!$fstype) {
-		if (exists($href->{'FSTYPE'})) {
-		    warn("*** $lv: unsupported FS (".
-			 $href->{'FSTYPE'}.
-			 ") on $mdev\n");
-		} else {
-		    warn("*** $lv: unknown FS on $mdev\n");
-		}
 		return 0;
 	    }
 
-	    # check for RO export and adjust options accordingly
+	    # check for RO export and adjust mount options accordingly
 	    if ($href->{'PERMS'} eq "RO") {
 		$mopt = "-o ro";
 		# XXX for ufs
 		if ($fstype eq "ufs") {
 		    $mopt .= ",ufstype=ufs2";
 		}
-		$fopt = "-n";
 	    }
 	    # OS only supports RO mounting, right now we just fail
 	    elsif ($rw == 0) {
 		warn("*** $lv: OS only supports RO mounting of ".
-		     $href->{'FSTYPE'}. " FSes\n");
+		     "$fstype FSes\n");
 		return 0;
 	    }
 
-	    # XXX cannot fsck ufs
-	    if ($fstype ne "ufs" &&
-		mysystem("$FSCK $fopt $mdev $redir")) {
-		warn("*** $lv: fsck of persistent store $mdev failed\n");
+	    # finally do the fsck, fixing errors if possible
+	    if (!checkfs($href, 1, $redir)) {
 		return 0;
 	    }
-
 	}
 	elsif (exists($href->{'DATASET'})) {
 	    #
@@ -1131,7 +1223,6 @@ sub os_create_storage($$)
 	    }
 	    $fstype = get_fstype($href, $mdev);
 	    if (!$fstype) {
-		warn("*** $lv: unknown FS in dataset on $mdev\n");
 		return 0;
 	    }
 	}
@@ -1520,6 +1611,11 @@ sub os_remove_storage_element($$$)
 	    warn("*** $bsid: Could not logout iSCSI sesssion (uuid=$uuid)\n");
 	}
 
+	#
+	# XXX Note that we do a delete even when just doing a "reset"
+	# (teardown == 3). This operation will clear out the local DB
+	# state in /etc/iscsi and does not affect the server side.
+	#
 	if ($teardown &&
 	    mysystem("$ISCSI -m node -T $uuid -p $hostip -o delete $redir")) {
 	    warn("*** $bsid: could not perform teardown of iSCSI block store (uuid=$uuid)\n");
@@ -1543,6 +1639,9 @@ sub os_remove_storage_element($$$)
 #
 # teardown==0 means we are rebooting: unmount and shutdown gvinum
 # teardown==1 means we are reconfiguring and will be destroying everything
+# teardown==2 means the same as 1 but we ignore errors and alway plow ahead
+# teardown==3 means we are taking an image and we recoverably remove
+#             blockstore state from the root filesystem.
 #
 sub os_remove_storage_slice($$$)
 {
@@ -1597,6 +1696,11 @@ sub os_remove_storage_slice($$$)
 		warn("*** $lv: could not unmount $mpoint\n");
 	    }
 
+	    #
+	    # Even if we are doing a non-destructive teardown (3) it is
+	    # okay to remove the mountpoint even if the unmount failed.
+	    # We will be rebooting anyway.
+	    #
 	    if ($teardown) {
 		my $tdev = "/dev/$dev";
 		$tdev =~ s/\//\\\//g;
@@ -1606,6 +1710,56 @@ sub os_remove_storage_slice($$$)
 	    }
 	}
 
+	#
+	# Teardown for imaging (3).
+	# Here we just want to clear blockstore related state from the
+	# root filesystem so that we get a clean image:
+	#
+	# For SYSVOL, there is nothing further to do. If they are taking
+	# a full disk image, then the blockstore will be included in the
+	# image unless the imagezip called explicitly ignores the partition.
+	# We can live with this as full images are discouraged now.
+	#
+	# For NONSYSVOL, aka an LVM VG on the extra disks, we try
+	# deactivating the volume and, at the end, clearing out any state
+	# in /etc/lvm/{backup,archive}. That info will get recreated on
+	# reboot.
+	#
+	# For ANY, we treat it the same as NONSYSVOL. There is a potential
+	# problem that a full disk image would include sda4 which would
+	# appear as a valid PV in an otherwise incomplete VG when the
+	# image is loaded elsewhere. This will cause lots of warnings,
+	# but again, we don't care so much about full images.
+	#
+	if ($teardown == 3) {
+	    if ($ginfo->{$dev}->{'type'} eq "LVM") {
+		if (mysystem("lvchange -an $dev $redir")) {
+		    warn("*** $lv: could not deactivate $dev\n");
+		} else {
+		    sleep(1);
+		}
+		# XXX mark it deactive in our state regardless
+		$ginfo->{$dev}->{'active'} = 0;
+
+		#
+		# If there are no more active LVMs, clear out the
+		# in-filesystem LVM state.
+		#
+		my $active = 0;
+		foreach $dev (keys %$ginfo) {
+		    if ($ginfo->{$dev}->{'type'} eq "LVM" &&
+			$ginfo->{$dev}->{'active'} == 1) {
+			$active++;
+		    }
+		}
+		if ($active == 0 &&
+		    mysystem("rm -rf /etc/lvm/backup/* /etc/lvm/archive/* $redir")) {
+		    warn("*** $lv: could not remove /etc/lvm state\n");
+		}
+	    }
+	    return 1;
+	}
+	
 	#
 	# Remove LV
 	#
