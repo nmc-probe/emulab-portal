@@ -3689,7 +3689,8 @@ sub CheckPreReserve($$$)
     # not look in the object ($self) since it might be stale.
     #
     my $query_result =
-	DBQueryWarn("select reserved_pid,count,active,terminal from nodes ".
+	DBQueryWarn("select reserved_pid,reservation_name, ".
+		    "  count,active,terminal from nodes ".
 		    "left join project_reservations on ".
 		    "     project_reservations.pid=nodes.reserved_pid and ".
 		    "     project_reservations.name=nodes.reservation_name ".
@@ -3704,10 +3705,17 @@ sub CheckPreReserve($$$)
     # if the reservation request is still active. If not, we can clear it,
     # which will allow it to be set again below, if needed.
     #
-    my ($pid,$count,$active,$terminal) = $query_result->fetchrow_array();
+    my ($pid,$resname,$count,$active,$terminal) =
+	$query_result->fetchrow_array();
     if (defined($pid)) {
+	# There is an active pre-reserve for this node.
 	goto done
 	    if (defined($count) && $active && !$terminal);
+	# If the reservation_name is null, the node was prereserved
+	# via the web page, not by a prereserve command line. Do not
+	# mess with it.
+	goto done
+	    if (!defined($resname));
 	
 	DBQueryWarn("update nodes set reserved_pid=null, ".
 		    "  reservation_name=null ".
