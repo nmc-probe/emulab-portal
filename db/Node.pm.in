@@ -3729,9 +3729,7 @@ sub CheckPreReserve($$$)
     goto done
 	if (!$query_result);
 
-    while ($query_result->numrows) {
-	my ($pid,$count,$resname) = $query_result->fetchrow_array();
-
+    while (my ($pid,$count,$resname) = $query_result->fetchrow_array()) {
 	#
 	# See if this is fullfulling a specific node reservation request.
 	# Need to delete that row if so. 
