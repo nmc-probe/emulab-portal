@@ -3170,11 +3170,6 @@ sub GetGeniSliverInfo($$;$)
 sub SetStatus($$)
 {
     my ($self, $status) = @_;
-
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
     my $node_id = $self->node_id();
 
     return -1
@@ -3182,6 +3177,25 @@ sub SetStatus($$)
 			  "where node_id='$node_id'"));
     $self->{"DBROW"}->{'node_status'} = $status;
     return 0;
+}
+
+#
+# Get the status slot for a node.
+#
+sub GetStatus($)
+{
+    my ($self) = @_;
+    my $node_id = $self->node_id();
+
+    my $query_result =
+	DBQueryWarn("select status,status_timestamp from node_status ".
+		    "where node_id='$node_id'");
+    return undef
+	if (! (defined($query_result) && $query_result->numrows));
+
+    my ($status,$stamp) = $query_result->fetchrow_array();
+    $self->{"DBROW"}->{'node_status'} = $status;
+    return $status;
 }
 
 #
