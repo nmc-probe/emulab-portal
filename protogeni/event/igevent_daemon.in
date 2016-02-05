@@ -194,6 +194,7 @@ sub callback($$$)
 	if (!defined($objtype) ||
 	    ($objtype ne TBDB_TBEVENT_NODESTATE() &&
 	     $objtype ne TBDB_TBEVENT_NODESTARTSTATUS() &&
+	     $objtype ne TBDB_TBEVENT_NODESTATUS() &&
 	     $objtype ne TBDB_TBEVENT_NODEACCOUNTS()));
 
     my $node_id = event_notification_get_objname($handle, $notification);
@@ -233,6 +234,7 @@ sub callback($$$)
     # and forward directly (above).
     #
     if ($objtype eq TBDB_TBEVENT_NODESTATE() ||
+	$objtype eq TBDB_TBEVENT_NODESTATUS() ||
 	$objtype eq TBDB_TBEVENT_NODEACCOUNTS()) {
 	my $oldstatus = $sliver->status();
 	my $newstatus;
