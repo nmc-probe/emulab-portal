@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -371,11 +371,16 @@ sub GetHoldingProject($$)
 	#
 	$project = Project->LookupNonLocal($project_urn);
 	if (!defined($project)) {
-	    if ($PROTOGENI_LOCALUSER && defined($subauth)) {
+	    #
+	    # XXX Because of a bug in the schema, we have to truncate
+	    # to the maximum group length, which might cause collisions.
+	    #
+	    if (length($project_id) > TB_GID_LEN() ||
+		($PROTOGENI_LOCALUSER && defined($subauth))) {
 		#
 		# Need to make project name unique.
 		#
-		my $proot   = substr($project_id, 0, TB_PID_LEN() - 5);
+		my $proot   = substr($project_id, 0, TB_GID_LEN() - 5);
 		$project_id = undef;
 		for (my $i = 0; $i < 100; $i++) {
 		    my $pid = "${proot}-PG${i}";
