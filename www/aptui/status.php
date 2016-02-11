@@ -180,6 +180,7 @@ $extension_history= ($instance->extension_history() ?
 $freenodes_url   = Aggregate::Lookup($instance->aggregate_urn())->FreeNodesURL();
 $lockout         = $instance->extension_lockout();
 $paniced         = $instance->paniced();
+$project         = $instance->pid();
 
 #
 # We give ssh to the creator (real user or guest user).
@@ -243,6 +244,7 @@ echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.lockout = $lockout;\n";
 echo "  window.APT_OPTIONS.paniced = $paniced;\n";
+echo "  window.APT_OPTIONS.project = '$project';\n";
 echo "  window.APT_OPTIONS.extension_requested = " .
     $instance->extension_requested() . ";\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
