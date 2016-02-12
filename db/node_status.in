@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2008 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,6 +34,7 @@ use English;
 my $TB		= "@prefix@";
 my $TBOPS       = "@TBOPSEMAIL@";
 my $TBLOGS      = "@TBLOGSEMAIL@";
+my $BOSSNODE    = "@BOSSNODE@";
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -52,6 +53,8 @@ $| = 1;
 # Load the Testbed support stuff.
 use lib "@prefix@/lib";
 use libdb;
+use EmulabConstants;
+use event;
 
 #
 # Only root and admins are allowed to use this script
@@ -181,6 +184,13 @@ while (my ($node,$status,$pid,$remote,$isvirt,$isplab,$timediff) =
     if (!$debug) {
 	DBQueryFatal("update node_status set status='$newstatus' ".
 		     "where node_id='$node'");
+	#
+	# Generate local event.
+	#
+	event::EventSendWarn(objtype   => TBDB_TBEVENT_NODESTATUS,
+			     objname   => $node,
+			     eventtype => $newstatus,
+			     host      => $BOSSNODE);	
     }
 }
 

@@ -1311,7 +1311,10 @@ sub LoadVirtNodes($)
 		if (!defined($image)) {
 		    tberror("Invalid os url $osname!\n");
 		}
-		$osinfo = OSinfo->Lookup($image->imageid());
+		# Have to make sure we get the corresponding osinfo version.
+		$osinfo = OSinfo->Lookup($image->pid(),
+					 $image->imagename(),
+					 $image->version());
 	    }
 	    elsif ($osname =~ /^(.*)\/(.*)$/) {
 		$osinfo = OSinfo->Lookup($osname);

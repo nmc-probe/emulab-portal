@@ -246,6 +246,11 @@ sub doimage($)
 	return 1;
     }
 
+    if ($image->IsDirPath()) {
+	print STDERR "$pidimage: cannot handle directory paths yet\n";
+	return 1;
+    }
+
     my $path = $image->FullImageFile();
     $path = ""
 	if (!defined($path));
@@ -260,6 +265,7 @@ sub doimage($)
     my $lbasize = $image->lba_size();
     my $relocatable = $image->relocatable();
     my $isdelta = $image->isdelta();
+    my $dsize = $image->deltasize();
     my $stamp;
     $image->GetUpdate(\$stamp);
     $stamp = 0
@@ -269,8 +275,14 @@ sub doimage($)
 	print "$pidimage: path: $path\n";
 	print "$pidimage: mtime: $stamp\n";
 	if ($validate{"all"} || $validate{"size"}) {
-	    my $chunks = int(($size + (1024*1024-1)) / (1024*1024));
-	    print "$pidimage: size: $size ($chunks chunks)\n";
+	    my $chunks;
+	    if ($isdelta) {
+		$chunks = int(($dsize + (1024*1024-1)) / (1024*1024));
+		print "$pidimage: deltasize: $dsize ($chunks chunks)\n";
+	    } else {
+		$chunks = int(($size + (1024*1024-1)) / (1024*1024));
+		print "$pidimage: size: $size ($chunks chunks)\n";
+	    }
 	}
 	if ($validate{"all"} || $validate{"hash"}) {
 	    print "$pidimage: hash: $hash\n";
@@ -362,23 +374,53 @@ sub doimage($)
     # Check/fix file size.
     #
     if ($validate{"all"} || $validate{"size"}) {
-	if ($fsize != $size) {
-	    print("$pidimage: size: DB size ($size) != file size ($fsize)\n")
-		if (!$update || !$quiet);
-	    if ($update) {
-		print("$pidimage: size: ")
-		    if (!$quiet);
-		if ($image->SetSize($fsize) == 0) {
-		    $changed = 1;
-		    print "[FIXED]\n"
+	if ($isdelta) {
+	    if ($fsize != $dsize) {
+		print("$pidimage: size: DB deltasize ($dsize) != file size ($fsize)\n")
+		    if (!$update || !$quiet);
+		if ($update) {
+		    print("$pidimage: dsize: ")
 			if (!$quiet);
+		    if ($image->SetDeltaSize($fsize) == 0) {
+			$changed = 1;
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FAILED]\n"
+			    if (!$quiet);
+			$rv = 1;
+		    }
 		} else {
-		    print "[FAILED]\n"
-			if (!$quiet);
 		    $rv = 1;
 		}
-	    } else {
-		$rv = 1;
+	    }
+	    # XXX backward compat, only one of size/deltasize should be set
+	    if ($update) {
+		$image->SetSize(0);
+	    }
+	} else {
+	    if ($fsize != $size) {
+		print("$pidimage: size: DB size ($size) != file size ($fsize)\n")
+		    if (!$update || !$quiet);
+		if ($update) {
+		    print("$pidimage: size: ")
+			if (!$quiet);
+		    if ($image->SetSize($fsize) == 0) {
+			$changed = 1;
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FAILED]\n"
+			    if (!$quiet);
+			$rv = 1;
+		    }
+		} else {
+		    $rv = 1;
+		}
+	    }
+	    # XXX backward compat, only one of size/deltasize should be set
+	    if ($update) {
+		$image->SetDeltaSize(0);
 	    }
 	}
     }

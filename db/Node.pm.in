@@ -3170,11 +3170,6 @@ sub GetGeniSliverInfo($$;$)
 sub SetStatus($$)
 {
     my ($self, $status) = @_;
-
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
     my $node_id = $self->node_id();
 
     return -1
@@ -3182,6 +3177,25 @@ sub SetStatus($$)
 			  "where node_id='$node_id'"));
     $self->{"DBROW"}->{'node_status'} = $status;
     return 0;
+}
+
+#
+# Get the status slot for a node.
+#
+sub GetStatus($)
+{
+    my ($self) = @_;
+    my $node_id = $self->node_id();
+
+    my $query_result =
+	DBQueryWarn("select status,status_timestamp from node_status ".
+		    "where node_id='$node_id'");
+    return undef
+	if (! (defined($query_result) && $query_result->numrows));
+
+    my ($status,$stamp) = $query_result->fetchrow_array();
+    $self->{"DBROW"}->{'node_status'} = $status;
+    return $status;
 }
 
 #
@@ -3689,7 +3703,8 @@ sub CheckPreReserve($$$)
     # not look in the object ($self) since it might be stale.
     #
     my $query_result =
-	DBQueryWarn("select reserved_pid,count,active,terminal from nodes ".
+	DBQueryWarn("select reserved_pid,reservation_name, ".
+		    "  count,active,terminal from nodes ".
 		    "left join project_reservations on ".
 		    "     project_reservations.pid=nodes.reserved_pid and ".
 		    "     project_reservations.name=nodes.reservation_name ".
@@ -3704,10 +3719,17 @@ sub CheckPreReserve($$$)
     # if the reservation request is still active. If not, we can clear it,
     # which will allow it to be set again below, if needed.
     #
-    my ($pid,$count,$active,$terminal) = $query_result->fetchrow_array();
+    my ($pid,$resname,$count,$active,$terminal) =
+	$query_result->fetchrow_array();
     if (defined($pid)) {
+	# There is an active pre-reserve for this node.
 	goto done
 	    if (defined($count) && $active && !$terminal);
+	# If the reservation_name is null, the node was prereserved
+	# via the web page, not by a prereserve command line. Do not
+	# mess with it.
+	goto done
+	    if (!defined($resname));
 	
 	DBQueryWarn("update nodes set reserved_pid=null, ".
 		    "  reservation_name=null ".
@@ -3729,9 +3751,7 @@ sub CheckPreReserve($$$)
     goto done
 	if (!$query_result);
 
-    while ($query_result->numrows) {
-	my ($pid,$count,$resname) = $query_result->fetchrow_array();
-
+    while (my ($pid,$count,$resname) = $query_result->fetchrow_array()) {
 	#
 	# See if this is fullfulling a specific node reservation request.
 	# Need to delete that row if so. 
@@ -4093,7 +4113,11 @@ sub HaveRoutableIPs($$)
 	DBQueryWarn("select count(ip) from virt_node_public_addr ".
 		    "where node_id is null and eid is null");
     return 0
-	if (!$query_result || $query_result->numrows < $needed);
+	if (!$query_result || $query_result->numrows < 1);
+
+    my( $count ) = $query_result->fetchrow_array();
+    return 0
+	if( $count < $needed );
 
     return 1;
 }

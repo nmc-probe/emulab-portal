@@ -9,10 +9,9 @@ use OSinfo;
 use Image;
 use EmulabConstants;
 
-my $UTAHURL       = "http://www.emulab.net/downloads";
 my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-xen.xml";
-my $XENIMAGE      = "XEN43-64-STD";
-my $STDIMAGESURL  = "$UTAHURL/images-STD";
+# See the images phase file if you change this.
+my $XENIMAGE      = "XEN44-64-STD";
 
 sub Install($$$)
 {
@@ -25,8 +24,7 @@ sub Install($$$)
     #
     # These are the images that are known to run as XEN guests.
     #
-    my @images = ("FEDORA15-STD", "FBSD82-STD", "FBSD91-STD",
-		  "UBUNTU12-64-STD", "UBUNTU11-64-STD");
+    my @images = ("UBUNTU14-64-STD", "CENTOS71-64-STD", "FBSD102-64-STD");
 
     Phase "xen", "Adding XEN Support", sub {
 	#
@@ -38,39 +36,6 @@ sub Install($$$)
 			   "   $SUDO -u $PROTOUSER $WAP ".
 			   "   perl load-descriptors -a $DESCRIPTORS");
 	};
-	foreach my $imagename ($XENIMAGE) {
-	    my $localfile = "$PREFIX/images/${imagename}.ndz";
-	    my $url       = "$STDIMAGESURL/${imagename}.ndz";
-	    
-	    Phase "$imagename", "Fetching $imagename. Patience!", sub {
-		DoneIfExists($localfile);
-		FetchFileFatal($url, $localfile);
-	    };
-	    $localfile = "$PREFIX/images/${imagename}.xml";
-	    $url       = "$STDIMAGESURL/${imagename}.xml";
-	    
-	    Phase "${imagename}_xml", "Fetching $imagename metadata.", sub {
-		DoneIfExists($localfile);
-		FetchFileFatal($url, $localfile);
-	    };
-	    Phase "${imagename}_load", "Loading the image descriptor.", sub {
-		ExecQuietFatal("cd $TOP_OBJDIR/install; ".
-			       "   $SUDO -u $PROTOUSER $WAP ".
-			       "   perl load-descriptors -a $localfile");
-	    };
-	    #
-	    # XXX the metadata file may not contain any or all of the newer
-	    # DB state. So we update the metadata using imagevalidate.
-	    #
-	    Phase "${imagename}_validate", "Validating DB info for image.", sub {
-		my $iname = TBOPSPID() . "/" . $imagename;
-		ExecQuietFatal("$SUDO -u $PROTOUSER ".
-			       "$PREFIX/sbin/imagerelease -f -m $iname");
-		ExecQuietFatal("$SUDO -u $PROTOUSER ".
-			       "$PREFIX/sbin/imagevalidate -uq $iname");
-	    };
-	}
-
 	#
 	# Now that XEN-STD is loaded, need to find the nodetype for
 	# PCVM and link them via the default_osid. We could avoid this by

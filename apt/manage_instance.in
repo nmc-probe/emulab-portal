@@ -1788,6 +1788,12 @@ sub StartMonitorInternal(;$)
 sub DoLockdownInternal($$)
 {
     my ($setclr,$which) = @_;
+
+    # The web interface (and in the future the xmlrpc interface) sets this.
+    my $this_user = User->ImpliedUser();
+    if (! defined($this_user)) {
+	$this_user = User->ThisUser();
+    }
     
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
@@ -1820,6 +1826,24 @@ sub DoLockdownInternal($$)
     my $coderef = sub {
 	my ($sliver) = @_;
 
+	#
+	# We cannot do lockdown at AL2S. More generally, it only works at
+	# Emulab based aggregates, but we do not talk to other aggregates.
+	#
+	if ($sliver->ISAL2S()) {
+	    return 0
+		if ($clear);
+	    
+	    my $project = $instance->GetProject();
+	    $project->SendEmail($this_user->email(),
+				"Failed to completely lock down APT Instance",
+				"Failed to completely lock down $instance,\n".
+				"cause it crosses AL2S.\n\n".
+				$instance->webURL() . "\n",
+				$project->OpsEmailAddress(),
+				"CC: " . $project->OpsEmailAddress());
+	    return 0;
+	}
 	my $response = $sliver->Lockdown($clear);
 	if (!defined($response)) {
 	    print STDERR "RPC Error calling Lockdown\n";

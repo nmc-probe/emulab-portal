@@ -85,7 +85,7 @@ endif
 #
 # For installation on boss node
 # 
-boss-install:	install-checks install-branchcheck \
+boss-install:	install-checks \
 		install-subdirs install-mkdirs \
 		install-setbuildinfo
 	@echo "Boss node installed!"
@@ -95,19 +95,19 @@ boss-install-force:	install-subdirs install-mkdirs install-setbuildinfo
 	@echo "Boss node installed!"
 
 # Skip only the schema checks, but do the other checks.
-boss-install-noschemacheck: install-updatecheck install-branchcheck \
+boss-install-noschemacheck: install-updatecheck \
 		install-sitevarscheck install-dbfillcheck \
 		install-genischemacheck install-subdirs install-mkdirs \
 		install-setbuildinfo
 
 # Skip the update check. 
-boss-install-noupdatecheck: install-schemacheck install-branchcheck \
+boss-install-noupdatecheck: install-schemacheck \
 		install-sitevarscheck install-dbfillcheck \
 		install-genischemacheck install-subdirs install-mkdirs \
 		install-setbuildinfo
 
 # Only the checks:
-install-checks: install-branchcheck \
+install-checks: \
 		install-updatecheck \
 		install-schemacheck \
 		install-sitevarscheck \

@@ -109,7 +109,7 @@ default-clean:
 	rm -f GNUmakefile
 
 # This is to avoid warnings about duplicate targets.
-default-install:
+default-install-notusing:
 ifeq ($(ISMAINSITE),1)
 ifeq ($(TBROOT),/usr/testbed/devel/stoller)
 	(cd $(SRCDIR) ; \
@@ -121,7 +121,7 @@ else
 	/usr/bin/true
 endif
 
-install:	default-install
+#install:	default-install
 
 #
 # Where to find source files.

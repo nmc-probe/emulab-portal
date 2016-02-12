@@ -1515,6 +1515,7 @@ sub GenerateStatusBlob($)
 	print STDERR "Could not map node $resource_id to its object\n";
 	return -1;
     }
+    my $nodestatus    = $node->GetStatus() || "unknown";
 
     # New is the same as stopped. Separate state is handy.
     $state = "stopped"
@@ -1528,6 +1529,7 @@ sub GenerateStatusBlob($)
 	# We do not put this unless its for SliverStatus. Too big.
 	"error"         => "",
 	"rawstate"      => $node->eventstate(),
+	"nodestatus"    => $nodestatus,
 	"utc"           => time(),
     };
 

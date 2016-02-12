@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2015 University of Utah and the Flux Group.
+# Copyright (c) 2010-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -635,7 +635,7 @@ sub CreateImage($$$$$)
 	print STDERR "$newxml\n";
     }
     # Verify first, Use skip admin checks option.
-    open(NEW, "| $NEWIMAGE_EZ $alltypes -s -v -")
+    open(NEW, "| $NEWIMAGE_EZ $alltypes -f -s -v -")
 	or fatal("Cannot start $NEWIMAGE_EZ");
     print NEW $newxml;
     if (!close(NEW)) {
@@ -645,7 +645,7 @@ sub CreateImage($$$$$)
     return undef
 	if ($verify);
     
-    open(NEW, "| $NEWIMAGE_EZ $alltypes -s -")
+    open(NEW, "| $NEWIMAGE_EZ $alltypes -f -s -")
 	or fatal("Cannot start $NEWIMAGE_EZ");
     print NEW $newxml;
     if (!close(NEW)) {

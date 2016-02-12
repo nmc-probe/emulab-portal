@@ -7931,7 +7931,37 @@ COMMAND_PROTOTYPE(doisalive)
 {
 	int		doaccounts = 0;
 	char		buf[MYBUFSIZE];
+#ifdef EVENTSYS
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	address_tuple_t tuple;
 
+	/*
+	 * Get current status. We want to send an event if it changes.
+	 */
+	res = mydb_query("select status from node_status where node_id='%s'",
+			 1, reqp->nodeid);
+	if (res) {
+		if (mysql_num_rows(res)) {
+			row = mysql_fetch_row(res);
+			if (row[0] && row[0][0] && strcmp(row[0], "up")) {
+				tuple = address_tuple_alloc();
+				if (tuple != NULL) {
+					tuple->host      = BOSSNODE;
+					tuple->objtype   = "TBNODESTATUS";
+					tuple->objname	 = reqp->nodeid;
+					tuple->eventtype = "up";
+
+					if (myevent_send(tuple)) {
+						error("Error sending event\n");
+					}
+					address_tuple_free(tuple);
+				}
+			}
+		}
+		mysql_free_result(res);
+	}
+#endif /* EVENTSYS */
 	/*
 	 * See db/node_status script, which uses this info (timestamps)
 	 * to determine when nodes are down.

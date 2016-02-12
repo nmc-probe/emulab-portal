@@ -94,9 +94,8 @@ my %G7RACKS  = (
 				 "princeton.control-nodes.geniracks.net" ],
 		"clemson"   => [ "boss.instageni.clemson.edu",
 				 "clemson.control-nodes.geniracks.net" ],
-# Off the air.
-#		"kansas"    => [ "boss.instageni.ku.gpeni.net",
-#				 "kansas.control-nodes.geniracks.net" ],
+		"kansas"    => [ "boss.instageni.ku.gpeni.net",
+				 "kansas.control-nodes.geniracks.net" ],
 		"nyu"       => [ "boss.genirack.nyu.edu",
 				 "nyu.control-nodes.geniracks.net" ],
 # Off the air.

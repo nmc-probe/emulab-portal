@@ -316,6 +316,13 @@ my $tmp = APT_Profile::SetSites(\$rspecstr, $sitemap, $default_aggregate_urn,
 if ($tmp) {
     ($tmp < 0 ? fatal($errmsg) : UserError($errmsg));
 }
+#
+# Yep, this can happen when users do not put any nodes in their rspec.
+#
+if (!@aggregate_urns) {
+    UserError("There are no nodes in your experiment, syntax error?");
+}
+
 # but do not override command line force.
 $usestitcher = 1 if ($needstitcher);
 
