@@ -1,10 +1,4 @@
 <descriptors>
-<mapping name="RHL-STD">
-    <value>FEDORA15-STD</value>
-</mapping>
-<mapping name="FBSD-STD">
-    <value>FBSD83-STD</value>
-</mapping>
 <osid>
  <attribute name="OS"><value>FreeBSD</value></attribute>
  <attribute name="description"><value>Frisbee (FreeBSD) in an MFS</value></attribute>
@@ -31,19 +25,6 @@
  <attribute name="reboot_waittime"><value>150</value></attribute>
  <attribute name="shared"><value>1</value></attribute>
  <attribute name="version"><value>4.X</value></attribute>
-</osid>
-<osid>
- <attribute name="OS"><value>Linux</value></attribute>
- <attribute name="description"><value>IPTables Firewall</value></attribute>
- <attribute name="features"><value>ping,ssh,ipod,isup,veths,linktest</value></attribute>
- <attribute name="magic"><value></value></attribute>
- <attribute name="mustclean"><value>1</value></attribute>
- <attribute name="nextosid"><value>emulab-ops,UBUNTU10-STD-FW</value></attribute>
- <attribute name="op_mode"><value>NORMALv2</value></attribute>
- <attribute name="osname"><value>FW-IPTABLES</value></attribute>
- <attribute name="pid"><value>emulab-ops</value></attribute>
- <attribute name="reboot_waittime"><value>120</value></attribute>
- <attribute name="shared"><value>1</value></attribute>
 </osid>
 <osid>
  <attribute name="OS"><value>Other</value></attribute>
@@ -198,79 +179,4 @@
  <attribute name="shared"><value>0</value></attribute>
  <attribute name="version"><value>2.6.27.8</value></attribute>
 </osid>
-<image>
- <attribute name="OS"><value>Fedora</value></attribute>
- <attribute name="description"><value>Standard 32-bit Fedora 15 image</value></attribute>
- <attribute name="gid"><value>emulab-ops</value></attribute>
- <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>FEDORA15-STD</value></attribute>
- <attribute name="loadpart"><value>2</value></attribute>
- <attribute name="mbr_version"><value>2</value></attribute>
- <attribute name="op_mode"><value>NORMALv2</value></attribute>
- <attribute name="osfeatures"><value>ping,ssh,ipod,isup,linktest,vlans</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/FEDORA15-STD.ndz</value></attribute>
- <attribute name="pid"><value>emulab-ops</value></attribute>
- <attribute name="shared"><value>0</value></attribute>
- <attribute name="version"><value>15</value></attribute>
-</image>
-<image>
- <attribute name="OS"><value>FreeBSD</value></attribute>
- <attribute name="description"><value>FreeBSD 8.3 32-bit version</value></attribute>
- <attribute name="gid"><value>emulab-ops</value></attribute>
- <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>FBSD83-STD</value></attribute>
- <attribute name="loadpart"><value>1</value></attribute>
- <attribute name="mbr_version"><value>2</value></attribute>
- <attribute name="op_mode"><value>NORMALv2</value></attribute>
- <attribute name="osfeatures"><value>ping,ssh,ipod,isup,mlinks,linktest,vlans</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/FBSD83-STD.ndz</value></attribute>
- <attribute name="pid"><value>emulab-ops</value></attribute>
- <attribute name="shared"><value>0</value></attribute>
- <attribute name="version"><value>8.3</value></attribute>
-</image>
-<image>
- <attribute name="OS"><value>Linux</value></attribute>
- <attribute name="description"><value>Firewall image based on ubuntu 10</value></attribute>
- <attribute name="gid"><value>emulab-ops</value></attribute>
- <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>UBUNTU10-STD-FW</value></attribute>
- <attribute name="loadpart"><value>2</value></attribute>
- <attribute name="mbr_version"><value>2</value></attribute>
- <attribute name="op_mode"><value>NORMALv2</value></attribute>
- <attribute name="osfeatures"><value>ping,ssh,ipod,isup,linktest</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/UBUNTU10-STD-FW.ndz</value></attribute>
- <attribute name="pid"><value>emulab-ops</value></attribute>
- <attribute name="shared"><value>0</value></attribute>
- <attribute name="version"><value>10</value></attribute>
-</image>
-<image>
- <attribute name="OS"><value>Fedora</value></attribute>
- <attribute name="description"><value>Standard 64-bit Fedora 15 image</value></attribute>
- <attribute name="gid"><value>emulab-ops</value></attribute>
- <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>FEDORA15-64-STD</value></attribute>
- <attribute name="loadpart"><value>2</value></attribute>
- <attribute name="mbr_version"><value>2</value></attribute>
- <attribute name="op_mode"><value>NORMALv2</value></attribute>
- <attribute name="osfeatures"><value>ping,ssh,ipod,isup,linktest</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/FEDORA15-64-STD.ndz</value></attribute>
- <attribute name="pid"><value>emulab-ops</value></attribute>
- <attribute name="shared"><value>0</value></attribute>
- <attribute name="version"><value>15</value></attribute>
-</image>
-<image>
- <attribute name="OS"><value>FreeBSD</value></attribute>
- <attribute name="description"><value>FreeBSD 8.3 64-bit version </value></attribute>
- <attribute name="gid"><value>emulab-ops</value></attribute>
- <attribute name="global"><value>1</value></attribute>
- <attribute name="imagename"><value>FBSD83-64-STD</value></attribute>
- <attribute name="loadpart"><value>1</value></attribute>
- <attribute name="mbr_version"><value>2</value></attribute>
- <attribute name="op_mode"><value>NORMALv2</value></attribute>
- <attribute name="osfeatures"><value>ping,ssh,ipod,isup,mlinks,linktest,vlans</value></attribute>
- <attribute name="path"><value>/usr/testbed/images/FBSD83-64-STD.ndz</value></attribute>
- <attribute name="pid"><value>emulab-ops</value></attribute>
- <attribute name="shared"><value>0</value></attribute>
- <attribute name="version"><value>8.3</value></attribute>
-</image>
 </descriptors>
