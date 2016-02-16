@@ -189,8 +189,10 @@ ZFS_QUOTA_PROJECT="100G"
 ZFS_QUOTA_GROUP="5G"
 ZFS_NOEXPORT=1
 
+# XXX autofs still has some problems, stick with AMD for now
 # WITHZFS only: use AMD instead of autofs for /proj, /users mounts on boss
-WITHAMD=0
+WITHAMD=1
+AMD_ROOT=/.amd_mnt/ops
 
 # Utah-only hacked mountd
 INCREMENTAL_MOUNTD=1
