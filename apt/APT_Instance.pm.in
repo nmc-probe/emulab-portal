@@ -1607,6 +1607,9 @@ sub SliceStatus($)
 		"status"  => (exists($response->value()->{'geni_status'}) ?
 			      $response->value()->{'geni_status'} : "unknown"),
     };
+    if ($debug) {
+	print STDERR "$cmurl :\n" . Dumper($blob) . "\n";
+    }
     return GeniResponse->new($response->code(), $blob);
 }
 
