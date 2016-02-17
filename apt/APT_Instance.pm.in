@@ -74,6 +74,16 @@ my $debug      = 0;
 
 # Debugging
 my $usemydevtree  = 0;
+sub devurl($)
+{
+    my ($cmurl) = @_;
+
+    if ($usemydevtree) {
+	$cmurl =~ s/protogeni/protogeni\/stoller/;
+	$cmurl =~ s/12369/12396/;
+    }
+    return $cmurl;
+}
 
 #
 # Lookup by uuid.
@@ -818,13 +828,13 @@ sub WriteCredentials($$)
 #
 # Build a set of sshkeys.
 #
-sub GetSSHKeys($$)
+sub GetSSHKeys($$;$)
 {
-    my ($self, $pref) = @_;
+    my ($self, $pref, $target_user) = @_;
     my $rval;
     my @keys;
 
-    my $geniuser = $self->GetGeniUser();
+    my $geniuser = $target_user || $self->GetGeniUser();
     return -1
 	if (!defined($geniuser));
     my $project  = $self->GetProject();
@@ -843,6 +853,10 @@ sub GetSSHKeys($$)
 	      'login' => $geniuser->uid(),
 	      'keys'  => [ @keys ]
 	     }];
+
+    # Want keys for single user.
+    goto done
+	if (defined($target_user));
 
     if (! ($project->pid() eq $APT_HOLDINGPROJECT ||
 	   $project->pid() eq $CLOUD_HOLDINGPROJECT)) {
@@ -885,6 +899,7 @@ sub GetSSHKeys($$)
 	    }
 	}
     }
+  done:
     $$pref = $rval;
     return 0;
 }
@@ -952,6 +967,7 @@ use APT_Geni;
 use Data::Dumper;
 use vars qw($AUTOLOAD);
 use overload ('""' => 'Stringify');
+sub devurl($) { return APT_Instance::devurl($_[0]); }
 
 #
 # Lookup and create a class instance to return.
@@ -1376,7 +1392,7 @@ sub Terminate($)
 	
 	# Convert URL to use AM interface.
 	$cmurl =~ s/\/cm$/\/am/;
-	$cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+	$cmurl = devurl($cmurl) if ($usemydevtree);
     }
 
     #
@@ -1530,8 +1546,8 @@ sub Extend($$)
 	$method = "RenewSlice";
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
-
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+    
     my $tries = 10;
     my $response;
     while ($tries) {
@@ -1592,7 +1608,7 @@ sub SliceStatus($)
 		   });
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response =
 	Genixmlrpc::CallMethod($cmurl, $context, "SliverStatus", @params);
@@ -1660,7 +1676,7 @@ sub GetManifest($)
 				      $speaksfor_credential->asString()]});
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $tries = 10;
     my $response;
@@ -1732,7 +1748,7 @@ sub Provision($$$$)
     my $cmurl = $authority->url();
     # Convert URL.
     $cmurl =~ s/\/cm$/\/am/;
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
     $cmurl .= "/3.0";
 
     my $tries = 10;
@@ -1790,7 +1806,7 @@ sub ConsoleInfo($$)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ConsoleInfo", $args);
 }
@@ -1822,7 +1838,7 @@ sub ConsoleURL($$)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ConsoleURL", $args);
 }
@@ -1864,7 +1880,7 @@ sub CreateImage($$$$;$$$)
 	if (defined($copyback_uuid));
 
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
     
     return Genixmlrpc::CallMethod($cmurl, $context, "CreateImage", $args);
 }
@@ -1903,7 +1919,7 @@ sub SliverAction($$$@)
 	$args->{"slice_urn"} = $slice->urn();
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response;
     my $tries = 5;
@@ -1964,7 +1980,7 @@ sub Lockdown($$)
     $args->{"clear"} = 1
 	if ($clear);
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context, "Lockdown", $args);
     $slice->SetExpiration($oldexpires)
@@ -2010,7 +2026,7 @@ sub Panic($$)
     $args->{"clear"} = 1
 	if ($clear);
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context, "Panic", $args);
     $slice->SetExpiration($oldexpires)
@@ -2060,7 +2076,7 @@ sub RunLinktest($$$)
 	$args->{"level"}  = $level;
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl,
 					  $context, "RunLinktest", $args);
@@ -2095,9 +2111,79 @@ sub ImageInfo($$)
 			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ImageInfo", $args);
+}
+
+#
+# Update ssh keys.
+#
+sub UpdateKeys($$)
+{
+    my ($self, $users) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $urn       = $self->aggregate_urn();
+    my $geniuser  = $self->instance()->GetGeniUser();
+    my $slice     = $self->instance()->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return -1
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser);
+    return -1
+	if (! (defined($speaksfor_credential) &&
+	       defined($slice_credential)));
+
+    #
+    # AM V3 API.
+    #
+    my @params = ([$slice->urn()],
+		  [{"geni_type" => "geni_sfa",
+		    "geni_version" => 3,
+		    "geni_value" => $speaksfor_credential->asString()},
+		   {"geni_type" => "geni_sfa",
+		    "geni_version" => 3,
+		    "geni_value" => $slice_credential->asString()},
+		  ],
+		  "geni_update_users",
+		  # Options array.
+		  {"speaking_for" => $geniuser->urn(),
+		   "geni_speaking_for" => $geniuser->urn(),
+		   "geni_users"       => $users,
+		  });
+ 
+    my $cmurl = $authority->url();
+    # Convert URL.
+    $cmurl =~ s/\/cm$/\/am/;
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+    $cmurl .= "/3.0";
+
+    my $tries = 10;
+    my $response;
+    while ($tries) {
+	$response =
+	    Genixmlrpc::CallMethod($cmurl, $context,
+				   "PerformOperationalAction", @params);
+
+	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	    if (defined($response) &&
+		($response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		 $response->code() == GENIRESPONSE_BUSY) &&
+		$tries >= 0) {
+		print STDERR "Server for $urn reports too busy or slice busy, ".
+		    "waiting a while ...\n";
+		sleep(int(rand(20)) + 10);
+		$tries--;
+		next;
+	    }
+	    return $response;
+	}
+	last;
+    }
+    return $response;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

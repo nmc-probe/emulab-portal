@@ -48,6 +48,7 @@ sub usage()
     print("Usage: manage_instance panic instance set|clear\n");
     print("Usage: manage_instance linktest instance [-k | level]\n");
     print("Usage: manage_instance writecreds instance directory\n");
+    print("Usage: manage_instance updatekeys instance [uid] \n");
     exit(-1);
 }
 my $optlist     = "dt:s";
@@ -94,6 +95,7 @@ use Genixmlrpc;
 use GeniResponse;
 use GeniSlice;
 use GeniImage;
+use GeniUser;
 use WebTask;
 use EmulabFeatures;
 
@@ -110,6 +112,7 @@ sub DoLockdown();
 sub DoPanic();
 sub DoManifests();
 sub DoLinktest();
+sub DoUpdateKeys();
 sub WriteCredentials();
 sub StartMonitor();
 sub StartMonitorInternal(;$);
@@ -177,6 +180,9 @@ elsif ($action eq "panic") {
 }
 elsif ($action eq "linktest") {
     DoLinktest()
+}
+elsif ($action eq "updatekeys") {
+    DoUpdateKeys()
 }
 elsif ($action eq "writecreds") {
     WriteCredentials()
@@ -2168,6 +2174,136 @@ sub DoLinktest()
     exit(0);
   bad:
     $instance->SetStatus($old_status);
+    $slice->UnLock();
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited($errcode);
+    }
+    exit(1);
+}
+
+#
+# Update SSH keys.
+# 
+sub DoUpdateKeys()
+{
+    my $target_user;
+    my $errmsg;
+    my $errcode = 1;
+    
+    if (@ARGV) {
+	my $uid = shift(@ARGV);
+	# If a target user, we are operating on that user, not the
+	# entire instance.
+	$target_user = User->Lookup($uid);
+	if (!defined($target_user)) {
+	    fatal("no such target user $uid");
+	}
+	$target_user = GeniUser::LocalUser->Create($target_user);
+    }
+    my $slice = $instance->GetGeniSlice();
+    if (!defined($slice)) {
+	fatal("No slice for instance!");
+    }
+    # The web interface (and in the future the xmlrpc interface) sets this.
+    my $this_user = User->ImpliedUser();
+    if (! defined($this_user)) {
+	$this_user = User->ThisUser();
+    }
+
+    # This returns in CM format.
+    my $sshkeys;
+    if ($instance->GetSSHKeys(\$sshkeys, $target_user) < 0 || !@{$sshkeys}) {
+	fatal("Could not get ssh keys for instance");
+    }
+
+    #
+    # The AM API uses a different ssh key structure.
+    #
+    my $users = [];
+    foreach my $user (@{$sshkeys}) {
+	my @tmp = map { $_->{'key'} } @{$user->{'keys'}};
+	
+	push(@{$users},
+	     {"urn"  => $user->{'urn'},
+	      "keys" => [ @tmp ] });
+    }
+
+    #
+    # Lock the slice in case it is doing something else, like taking
+    # a disk image.
+    #
+    if ($slice->Lock()) {
+	fatal("Slice is busy, cannot lock it");
+    }
+    #
+    # Create the webtask object, but AFTER locking the slice so we do
+    # not destroy one in use.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
+    #
+    # And tell the backend clusters to do the update.
+    #
+    my $coderef = sub {
+	my ($sliver) = @_;
+	my $webtask  = $sliver->webtask();
+
+	my $response = $sliver->UpdateKeys($users);
+	if (!defined($response)) {
+	    print STDERR "RPC Error calling updatekeys on $sliver\n";
+	    return -1;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    print STDERR "Could not update keys on sliver: ".
+		$response->output() . "\n";
+	    $webtask->output($response->output());
+	    $webtask->Exited($response->code());
+	    return $response->code();
+	}
+	return 0;
+    };
+    my @return_codes = ();
+    my @agglist      = ();
+    #
+    # Cull out any aggregates with no nodes.
+    #
+    foreach my $agg ($instance->AggregateList()) {
+	push(@agglist, $agg)
+	    if ($agg->physnode_count() || $agg->virtnode_count());
+    }
+    
+    if (ParRun({"maxwaittime" => 99999,
+		"maxchildren" => scalar(@agglist)},
+	       \@return_codes, $coderef, @agglist)) {
+	$errmsg = "Internal error calling UpdateKeys()";
+	goto bad;
+    }
+    #
+    # Check the exit codes. 
+    #
+    foreach my $agg (@agglist) {
+	my $code = shift(@return_codes);
+	if ($code) {
+	    $errmsg = "Could not update keys on some slivers";
+	    if ($agg->webtask()->output()) {
+		$errmsg .= ": " . $agg->webtask()->output();
+		$errcode = $code;
+	    }
+	    goto bad;
+	}
+	if (!defined($webtask) && $agg->webtask()->results()) {
+	    print $agg->webtask()->results();
+	}
+    }
+    $slice->UnLock();
+    exit(0);
+  bad:
     $slice->UnLock();
     print STDERR $errmsg . "\n";
     if (defined($webtask)) {
