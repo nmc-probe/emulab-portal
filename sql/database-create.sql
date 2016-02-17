@@ -243,6 +243,7 @@ CREATE TABLE `apt_instances` (
   `virtnode_count` smallint(5) unsigned NOT NULL default '0',
   `servername` tinytext,
   `monitor_pid` int(11) default '0',
+  `needupdate` tinyint(3) NOT NULL default '0',
   `logfileid` varchar(40) default NULL,
   `cert` mediumtext,
   `privkey` mediumtext,
