@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -137,7 +137,6 @@ use Group;
 
 # Need a command line option.
 my $debug      = 0;
-my $mailerrors = 1;
 my $mailsendlog= 0;
 my $nostorelogs= 0;
 my $noanything = 0;
