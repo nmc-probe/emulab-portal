@@ -60,9 +60,6 @@ my $sitemap;
 my $usetracker = 0;
 my @aggregate_urns = ();
 
-# Debugging
-my $usemydevtree  = 0;
-
 # Protos
 sub fatal($);
 sub UserError($);
@@ -849,7 +846,7 @@ sub WaitForSliver($)
     $webtask->Refresh();
 
     # Debugging
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = APT_Instance::devurl($cmurl);
 
     my $seconds  = 900;
     my $interval = 15;
@@ -1192,7 +1189,7 @@ sub CreateSliver($)
     $webtask->Refresh();
 
     # Debugging
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = APT_Instance::devurl($cmurl);
 
     Genixmlrpc->SetTimeout(900);
 
