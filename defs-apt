@@ -66,6 +66,7 @@ TBCOOKIESUFFIX="APT"
 # Start a multicast IGMP querier
 NEEDMCQUERIER=0
 TBUSEDBI=1
+BIGDB=1
 #
 # SSL Certificate stuff. Used to customize config files in ssl directory.
 # Note that OrganizationalUnit is set in the cnf file.
