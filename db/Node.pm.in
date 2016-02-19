@@ -64,6 +64,7 @@ $NODEROLE_TESTNODE	= 'testnode';
 
 # Cache of instances to avoid regenerating them.
 %nodes = ();
+BEGIN { use emutil; emutil::AddCache(\%nodes); }
 
 # Little helper and debug function.
 sub mysystem($)

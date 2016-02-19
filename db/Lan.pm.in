@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2015 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -52,6 +52,7 @@ my $TBOPS       = "@TBOPSEMAIL@";
 
 # Cache of instances to avoid regenerating them.
 my %lans   = ();
+BEGIN { use emutil; emutil::AddCache(\%lans); }
 
 my $debug  = 0;
 sub debugging() {return $debug; }
@@ -1397,6 +1398,7 @@ use overload ('""' => 'Stringify');
 
 # Cache of instances to avoid regenerating them.
 my %members   = ();
+BEGIN { use emutil; emutil::AddCache(\%members); }
 
 #
 # Lookup and create a class instance to return.
@@ -1671,6 +1673,7 @@ use overload ('""' => 'Stringify');
 
 # Cache of instances to avoid regenerating them.
 my %interfaces   = ();
+BEGIN { use emutil; emutil::AddCache(\%interfaces); }
 
 # accessors
 sub field($$)     { return ((! ref($_[0])) ? -1 : $_[0]->{'IFACE'}->{$_[1]}); }
@@ -2438,6 +2441,7 @@ my $SNMPIT = "$TB/bin/snmpit";
 
 # Cache of instances to avoid regenerating them.
 my %vlans   = ();
+BEGIN { use emutil; emutil::AddCache(\%vlans); }
 
 #
 # Lookup and create a class instance to return.
@@ -3746,6 +3750,7 @@ use overload ('""' => 'Stringify');
 
 # Cache of instances to avoid regenerating them.
 my %tunnels   = ();
+BEGIN { use emutil; emutil::AddCache(\%tunnels); }
 
 #
 # Lookup and create a class instance to return.
