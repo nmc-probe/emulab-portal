@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -80,12 +80,20 @@ my $PACKAGE_VERSION = 0.1;
 sub Context($$;$$)
 {
     my ($class, $certificate, $keyfile, $password) = @_;
+    my $certfile;
 
     $keyfile = $certificate->certfile()
 	if (!defined($keyfile));
-
+    
+    if (ref($certificate)) {
+	$certfile = $certificate->certfile();
+    }
+    else {
+	$certfile = $certificate;
+	$certificate = undef;
+    }
     my $self = {"certificate"  => $certificate,
-		"certfile"     => $certificate->certfile(),
+		"certfile"     => $certfile,
 		"keyfile"      => $keyfile,
 		"password"     => $password};
     bless($self, $class);
