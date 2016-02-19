@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2015 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -212,13 +212,13 @@ sub GeniContext()
 sub GenAuthCredential($;$)
 {
     my ($target, $privs) = @_;
-    my $certificate = GeniCertificate->LoadFromFile($SACERT);
-    if (!defined($certificate)) {
+
+    my $owner = GeniCertificate->LoadFromFile($SACERT);
+    if (!defined($owner)) {
 	print STDERR "Could not load certificate from $SACERT\n";
 	return undef;
     }
-
-    my $credential = GeniCredential->Create($target, $certificate);
+    my $credential = GeniCredential->Create($target, $owner);
     if (!defined($credential)) {
 	print STDERR "Could not create credential for $target\n";
 	return undef;
