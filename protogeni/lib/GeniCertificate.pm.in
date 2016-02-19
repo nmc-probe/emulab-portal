@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -47,6 +47,8 @@ use emutil qw(TBGetUniqueIndex);
 use English;
 use XML::Simple;
 use XML::LibXML;
+use Crypt::X509;
+use Crypt::OpenSSL::X509;
 use Data::Dumper;
 use File::Temp qw(tempfile);
 use Carp qw(cluck);
@@ -392,6 +394,11 @@ sub LoadFromString($$)
 {
     my ($class, $string) = @_;
 
+    my $new = LoadFromStringFast($class, $string);
+    return $new
+	if (defined($new));
+#    print STDERR "Falling back to slow certificate\n";
+
     if (! ($string =~ /^[\012\015\040-\176]*$/)) {
 	print STDERR "Improper chars in certificate string\n";
 	return undef;
@@ -471,6 +478,18 @@ sub LoadFromFile($$)
     my ($class, $filename) = @_;
     my $contents = "";
 
+    # No need to load the same file over and over;
+    return $certificates{"$filename"}
+        if (exists($certificates{"$filename"}));
+
+    my $new = LoadFromFileFast($class, $filename);
+    if (defined($new)) {
+	# Add to cache.
+	$certificates{$filename} = $new;
+	return $new;
+    }
+#    print STDERR "Falling back to slow certificate\n";
+
     #
     # We need the original contents of the file, since openssl prints
     # only the first certificate it finds, but we need all of them for
@@ -512,6 +531,9 @@ sub LoadFromFile($$)
     my $certificate = GeniCertificate->LoadFromArray($contents, @certlines);
     return undef
 	if (!defined($certificate));
+
+    # Add to cache.
+    $certificates{$filename} = $certificate;
     
     $certificate->{'CERT'}->{'certfile'} = $filename;
     return $certificate;
@@ -628,6 +650,151 @@ sub LoadFromArray($$@)
     $self->{'CERT'}->{'urnOBJ'}    = GeniHRN->new($urn)	if (defined($urn));
 
     return $self;
+}
+
+#
+# New version.
+#
+sub LoadFromStringFast($$)
+{
+    my ($class, $string) = @_;
+    my ($urn,$uuid);
+
+    if (! ($string =~ /^[\012\015\040-\176]*$/)) {
+	print STDERR "Improper chars in certificate string\n";
+	return undef;
+    }
+    #
+    # The certificate might already have the header and footer
+    # so only add them if needed. This is for backwards compatibility
+    # with early code that stripped the header and footer strings. Dumb.
+    #
+    if ($string !~ /^-----BEGIN CERTIFICATE-----/) {
+	$string = "-----BEGIN CERTIFICATE-----\n" . $string;
+    }
+    if ($string !~ /\n$/) {
+	$string = $string . "\n";
+    }
+    if ($string !~ /END CERTIFICATE-----$/) {
+	$string = $string . "-----END CERTIFICATE-----\n";
+    }
+    my $x509 = eval { Crypt::OpenSSL::X509->new_from_string($string); };
+    if ($@) {
+	print STDERR $@;
+	return undef;
+    }
+    my $cert = $x509->as_string(Crypt::OpenSSL::X509::FORMAT_ASN1);
+    if (!defined($cert) || $cert eq '') {
+	print STDERR "Could not convert certificate to ASN1\n";
+	return undef;
+    }
+    my $decoded = Crypt::X509->new(cert => $cert);
+    if (!defined($decoded) || $decoded->error) {
+	print STDERR "Error decoding certificate:" . $decoded->error . "\n";
+	return undef;
+    }
+    #
+    # If no subjectAltName, we have to quit the fast path.
+    #
+    # It would be great to get the URL too, but the Perl interface does
+    # provide the Authority Information Access section. So we have to
+    # do it later when requested, using the external routines.
+    #
+    if (!defined($decoded->SubjectAltName)) {
+	#print STDERR "No SubjectAltName in certificate\n";
+	return undef;
+    }
+    foreach my $tmp (@{ $decoded->SubjectAltName }) {
+	if ($tmp =~ /^uniformResourceIdentifier=(urn:publicid:.*)$/ ||
+	    $tmp =~ /^(urn:publicid:.*)$/) {
+	    $urn = $1;
+	}
+    }
+    # Ditto if the SubjectAltName does not have a URN in it.
+    if (!defined($urn) || !GeniHRN::IsValid($urn)) {
+	#print STDERR "No URN in SubjectAltName in certificate\n";
+	return undef;
+    }
+    if (!defined($uuid)) {
+	if ($x509->subject() =~ /CN=([-\w\.]*)/) {
+	    $uuid = $1;
+	}
+	# As above if no uuid, we have to fall back to the slow method.
+	else {
+	    print STDERR "Could not find uuid in 'DN'\n";
+	    return undef;
+	}
+    }
+
+    #
+    # We have to be backwards compatible with how openssl gives this.
+    # Unforunately, we have been storing the DN in the certificates
+    # table with "subject= " at the front of the string. The fields are
+    # are slash delimited, instead of comma delimited.
+    #
+    my $subject = join("/", split(", ", $x509->subject()));
+    my $issuer  = join("/", split(", ", $x509->issuer()));
+    my $DN = "subject= /" . $subject;
+
+    my $self          = {};
+    $self->{'CERT'}   = {};
+    $self->{'stored'} = 0;
+    bless($self, $class);
+
+    $self->{'CERT'}->{'uuid'}      = $uuid;
+    $self->{'CERT'}->{'cert'}      = $string;
+    $self->{'CERT'}->{'DN'}        = $DN;
+    $self->{'CERT'}->{'subject'}   = $subject;
+    $self->{'CERT'}->{'issuer'}    = $issuer;
+    $self->{'CERT'}->{'privkey'}   = undef;
+    $self->{'CERT'}->{'revoked'}   = undef;
+    $self->{'CERT'}->{'created'}   = undef;
+    $self->{'CERT'}->{'uri'}       = undef;;
+    $self->{'CERT'}->{'urn'}       = $urn;
+    $self->{'CERT'}->{'certfile'}  = undef;
+    # Convert URNs to objects.
+    $self->{'CERT'}->{'urnOBJ'}    = GeniHRN->new($urn);
+
+    return $self;
+}
+
+sub LoadFromFileFast($$)
+{
+    my ($class, $filename) = @_;
+    my $contents = "";
+
+    #
+    # We need the original contents of the file, since it might contain
+    # multiple certs, but we only care about decoding the first. Also, the
+    # file might include a text representation, but we want to throw that
+    # away.
+    #
+    if (! open(CERT, $filename)) {
+	print STDERR "Could not open $filename: $!\n";
+	return undef;
+    }
+    my $incert = 0;
+    while (<CERT>) {
+	my $line = $_;
+	
+	if ($line =~ /^-----BEGIN CERT/) {
+	    $incert = 1;
+	}
+	if ($incert) {
+	    $contents .= $line;
+	}
+	if ($line =~ /^-----END CERT/) {
+	    $incert = 0;
+	}
+    }
+    close(CERT);
+
+    my $certificate = GeniCertificate->LoadFromStringFast($contents);
+    return undef
+	if (!defined($certificate));
+    
+    $certificate->{'CERT'}->{'certfile'} = $filename;
+    return $certificate;
 }
 
 #
