@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2015 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,16 +34,8 @@ use vars qw(@ISA @EXPORT $AUTOLOAD);
 @EXPORT = qw ( );
 
 # Must come after package declaration!
-use EmulabConstants;
 use emdb;
-use emutil;
-use libtestbed;
 use GeniHRN;
-use Genixmlrpc;
-use GeniResponse;
-use GeniCertificate;
-use GeniAuthority;
-use GeniCredential;
 use overload ('""' => 'Stringify');
 
 # Configure variables
