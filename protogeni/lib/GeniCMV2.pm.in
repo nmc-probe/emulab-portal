@@ -2274,19 +2274,16 @@ sub BindToSlice($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
     }
-    
-    #
-    # Find or create the user.
-    #
-    my $user = GeniCM::CreateUserFromCertificate($credential);
-    return $user
-	if (GeniResponse::IsResponse($user));
-    
+    my $creator = GeniUser->Lookup($slice->creator_uuid(), 1);
+    if (!defined($creator)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR(), undef,
+				    "Could not lookup slice creator");
+    }
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
     if (defined($keys)) {
-	my $response = GeniCM::AddKeys($slice, $user, $keys);
+	my $response = GeniCM::AddKeys($slice, $creator, $keys);
 	if (GeniResponse::IsResponse($response)) {
 	    $slice->UnLock();
 	    return $response;
