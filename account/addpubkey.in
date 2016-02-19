@@ -101,7 +101,9 @@ use libaudit;
 use libdb;
 use libtestbed;
 use User;
-use APT_Utility;
+if (@PROTOGENI_SUPPORT@) {
+    require APT_Utility;
+}
 
 #
 # Function prototypes
@@ -472,8 +474,9 @@ sub ParseKey($) {
     # Mark user record as modified so nodes are updated.
     #
     TBNodeUpdateAccountsByUID($user_uid);
-    APT_Utility::UpdateInstancesByUser($target_user);
-
+    if (@PROTOGENI_SUPPORT@) {
+	APT_Utility::UpdateInstancesByUser($target_user);
+    }
     my $chunked = "";
 
     while (length($key)) {
