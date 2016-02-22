@@ -496,7 +496,7 @@ sub PushUpdates()
 	# so this is safe for now. 
 	#	
 	$genislice->UnLock();
-	system("$MANAGEINSTANCE updatekeys $uuid");
+	system("$SUDO -u $PROTOUSER $MANAGEINSTANCE updatekeys $uuid");
 	if ($?) {
 	    $instance->Update({"needupdate" => 1});
 	}
