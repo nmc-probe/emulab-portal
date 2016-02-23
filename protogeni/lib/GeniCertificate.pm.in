@@ -705,7 +705,6 @@ sub LoadFromStringFast($$)
 	return undef;
     }
     foreach my $tmp (@{ $decoded->SubjectAltName }) {
-	print STDERR "$tmp\n";
 	if ($tmp =~ /^uniformResourceIdentifier=(urn:publicid:.*)$/ ||
 	    $tmp =~ /^(urn:publicid:.*)$/) {
 	    $urn = $1;
