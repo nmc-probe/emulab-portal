@@ -666,7 +666,7 @@ sub LoadFromStringFast($$)
     }
     #
     # The certificate might already have the header and footer
-    # so only add them if needed. This is for backwards compatibility
+    # So only add them if needed. This is for backwards compatibility
     # with early code that stripped the header and footer strings. Dumb.
     #
     if ($string !~ /^-----BEGIN CERTIFICATE-----/) {
@@ -705,9 +705,13 @@ sub LoadFromStringFast($$)
 	return undef;
     }
     foreach my $tmp (@{ $decoded->SubjectAltName }) {
+	print STDERR "$tmp\n";
 	if ($tmp =~ /^uniformResourceIdentifier=(urn:publicid:.*)$/ ||
 	    $tmp =~ /^(urn:publicid:.*)$/) {
 	    $urn = $1;
+	}
+	elsif ($tmp =~ /^uniformResourceIdentifier=urn:uuid:([-\w]+)$/) {
+	    $uuid = $1;
 	}
     }
     # Ditto if the SubjectAltName does not have a URN in it.
