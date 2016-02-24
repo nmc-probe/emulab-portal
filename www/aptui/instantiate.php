@@ -100,7 +100,7 @@ elseif (isset($_COOKIE['picker'])) {
     $classic = ($_COOKIE['picker'] == "classic" ? 1 : 0);
 }
 else {
-    $classic = 1;
+    $classic = 0;
 }
 
 if ($this_user) {
