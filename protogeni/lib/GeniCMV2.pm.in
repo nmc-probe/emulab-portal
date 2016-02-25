@@ -4888,7 +4888,7 @@ sub RunLinktest($)
 	$output = GeniUtil::ExecQuiet("$LINKTEST -k $pid $eid");
     }
     else {
-	my $command = "$LINKTEST -l $level ";
+	my $command = "$LINKTEST -l $level -t 3600 ";
 	$command .= "-o " . $logfile->filename() . " "
 	    if (defined($async));
 	$command .= "$pid $eid";
