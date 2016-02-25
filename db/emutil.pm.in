@@ -603,7 +603,7 @@ sub PipeCommand($$$)
 
 	exec($command);
 	die("*** $0:\n".
-	    "    exec '$string' failed: $!\n");
+	    "    exec '$command' failed: $!\n");
     }
     close PARENT;
 

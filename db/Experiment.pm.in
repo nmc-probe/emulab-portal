@@ -5441,7 +5441,7 @@ sub AllocatePublicAddrPools($)
 	    $spare = $n - $count;
 	    DBQueryWarn( "UPDATE virt_node_public_addr SET eid=NULL, " .
 			 "pid=NULL, pool_id=NULL WHERE eid='$eid' " .
-			 "AND pid='$pid' AND pool_id='$pool_id' " .
+			 "AND pid='$pid' AND pool_id='$pool' " .
 			 "LIMIT $spare" );
 	}
     }
