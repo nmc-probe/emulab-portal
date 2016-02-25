@@ -1716,7 +1716,7 @@ sub StartMonitorInternal(;$)
 	# Look for nodes still executing
 	my $executing = 0;
 	if ($waitforstartup) {
-	    foreach my $node_id (keys(${$statusblob})) {
+	    foreach my $node_id (keys(%{$statusblob})) {
 		my $details = $statusblob->{'node_id'};
 		
 		$executing++
