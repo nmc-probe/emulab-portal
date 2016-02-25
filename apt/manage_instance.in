@@ -2148,10 +2148,12 @@ sub DoLinktest()
 	exit($status);
     }
     #
-    # Loop, asking each cluster for the linktest status,
+    # Loop, asking each cluster for the linktest status.
     #
+    my $tlimit  = 3600;
+    my $errors  = 0;
     my %running = map { $_->aggregate_urn() => $_ } @agglist;
-    while (keys(%running)) {
+    while ($tlimit > 0 && keys(%running)) {
 	foreach my $sliver (values(%running)) {
 	    my $response = $sliver->RunLinktest("status");
 	    if (!defined($response)) {
@@ -2159,8 +2161,18 @@ sub DoLinktest()
 		next;
 	    }
 	    if ($response->code() != GENIRESPONSE_SUCCESS) {
+		if ($response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		    $response->code() == GENIRESPONSE_BUSY) {
+		    next;
+		}
 		print STDERR "Could not get linktest status for sliver: ".
 		    $response->output() . "\n";
+		delete($running{$sliver->aggregate_urn()});
+		# If the sliver was deleted during linktest, we do not
+		# consider it an error.
+		if ($response->code() != GENIRESPONSE_SEARCHFAILED) {
+		    $errors++;
+		}
 		next;
 	    }
 	    my $blob = $response->value();
@@ -2168,9 +2180,23 @@ sub DoLinktest()
 		delete($running{$sliver->aggregate_urn()});
 	    }
 	}
+	$tlimit -= 5;
 	sleep(5);
     }
+    if ($tlimit <= 0) {
+	print STDERR "Linktest run timed out!\n";
+	# Lets generate email for now, still debugging.
+	$errors++;
+    }
     $instance->SetStatus($old_status);
+    if ($errors) {
+	SENDMAIL($TBOPS,
+		 "Error running linktest",
+		 "Error running linktest on $instance.\n",
+		 $TBOPS, undef, $logfile);
+
+    }
+    unlink($logfile);
     exit(0);
   bad:
     $instance->SetStatus($old_status);
