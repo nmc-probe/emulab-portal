@@ -169,6 +169,21 @@ class Instance
  	return Instance::Lookup($uuid);
     }
 
+    function LookupBySlice($token) {
+	$safe_token = addslashes($token);
+
+	$query_result =
+	    DBQueryFatal("select uuid from apt_instances ".
+			 "where slice_uuid='$safe_token'");
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$uuid = $row[0];
+ 	return Instance::Lookup($uuid);
+    }
+
     function LookupByName($project, $token) {
 	$safe_token = addslashes($token);
         $pid_idx    = $project->pid_idx();
