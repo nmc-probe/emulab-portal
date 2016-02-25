@@ -62,18 +62,20 @@
 		     placeholder="City" type="text">
 	      
 	    </div>
-	    <div class="form-group">
-	      <div class="col-sm-5" style="padding:0;">
-		<input name="password1" value="<%- formfields.password1 %>"
-		     class="form-control format-me" data-key="password1"
-		     placeholder="Password" type="password">
+	    <% if (!nopassword) { %>
+	      <div class="form-group">
+		<div class="col-sm-5" style="padding:0;">
+		  <input name="password1" value="<%- formfields.password1 %>"
+			 class="form-control format-me" data-key="password1"
+			 placeholder="Password" type="password">
+		</div>
+		<div class="col-sm-5 col-sm-offset-2" style="padding:0;">
+		  <input name="password2" value="<%- formfields.password2 %>"
+			 class="form-control format-me" data-key="password2"
+			 placeholder="Confirm Password" type="password">
+		</div>
 	      </div>
-	      <div class="col-sm-5 col-sm-offset-2" style="padding:0;">
-		<input name="password2" value="<%- formfields.password2 %>"
-		       class="form-control format-me" data-key="password2"
-		       placeholder="Confirm Password" type="password">
-	      </div>
-	    </div>
+	    <% } %>
             <button class='btn btn-primary btn-sm pull-right'
 		    style="margin-top: 15px;"
 		    id='submit_button' disabled
