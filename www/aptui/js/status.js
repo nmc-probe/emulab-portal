@@ -959,7 +959,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sup.HideModal('#waitwait-modal');
 	    
 	    if (json.code) {
-		Sup.spitoops("oops", "Failed to reboot: " + json.value);
+		sup.spitoops("oops", "Failed to reboot: " + json.value);
 		return;
 	    }
 	    // Trigger status to change the nodes.
