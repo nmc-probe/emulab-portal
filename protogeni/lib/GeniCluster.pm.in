@@ -41,6 +41,7 @@ use vars qw(@ISA @EXPORT);
 
 # Must come after package declaration!
 use emdb;
+use emutil;
 use libtestbed;
 use libEmulab;
 use GeniResponse;
@@ -114,19 +115,49 @@ sub InUse()
     my @blob = ();
 
     my $query_result =
-	DBQueryWarn("select n.node_id,r.pid,r.eid,n.reserved_pid ".
+	DBQueryWarn("select n.node_id,n.type,r.pid,r.eid,n.reserved_pid,".
+		    "  unix_timestamp(s.expires),e.autoswap, ".
+		    "  (e.autoswap_timeout - ".
+		    "   ((unix_timestamp(now()) - ".
+		    "     unix_timestamp(stats.swapin_last))/60)) as ttl, ".
+		    "  u.uid,stats.slice_uuid,cert.urn ".
 		    "  from nodes as n ".
 		    "left join reserved as r on r.node_id=n.node_id ".
 		    "left join node_types as t on t.type=n.type ".
+		    "left join experiments as e on e.idx=r.exptidx ".
+		    "left join experiment_stats as stats on ".
+		    "     stats.exptidx=e.idx ".
+		    "left join `geni-cm`.geni_slices as s on ".
+		    "     s.uuid=stats.slice_uuid ".
+		    "left join `geni-cm`.geni_certificates as cert on ".
+		    "     cert.uuid=stats.slice_uuid ".
+		    "left join users as u on u.uid_idx=e.swapper_idx ".
 		    "where n.role='testnode' and t.class='pc' ".
 		    "order by n.node_id");
-    
-    while (my ($node_id,$pid,$eid,$reserved_pid) =
+    while (my ($node_id,$type,$pid,$eid,$reserved_pid,$expires,
+	       $autoswap,$ttl,$uid,$slice_uuid,$slice_urn) =
 	   $query_result->fetchrow_array()) {
-
-	push(@blob, {"node_id" => $node_id,
-		     "pid" => $pid || "",
-		     "eid" => $eid || "",
+	#
+	# Try and compute a time the node will be released. This is a guess
+	# at best, lots of things can change as soon as we calculate it.
+	#
+	if (defined($expires)) {
+	    $ttl = $expires - time();
+	}
+	elsif (defined($eid) && $autoswap && defined($ttl)) {
+	    $ttl = $ttl * 60;
+	}
+	else {
+	    $ttl = "";
+	}
+	push(@blob, {"node_id"      => $node_id,
+		     "type"         => $type,
+		     "pid"          => $pid || "",
+		     "eid"          => $eid || "",
+		     "uid"          => $uid || "",
+		     "ttl"          => $ttl,
+		     "slice_urn"    => $slice_urn || "",
+		     "slice_uuid"   => $slice_uuid || "",
 		     "reserved_pid" => $reserved_pid || ""});
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@blob);
