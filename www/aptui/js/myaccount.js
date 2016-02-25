@@ -54,6 +54,7 @@ function (_, sup, myaccountString, verifyString, oopsString, waitwaitString)
 	    formfields: formfields,
 	    general_error: (errors.error || ''),
 	    verify_modal: verify,
+	    nopassword: window.APT_OPTIONS.nopassword,
 	}), errors);
 	
 	$('#page-body').html(myaccount);
