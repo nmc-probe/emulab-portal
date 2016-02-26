@@ -338,9 +338,9 @@ sub GetHoldingProject($$)
 	    $project_id  = $subauth;
 	    $project_id  =~ s/\./-/g;
 
-	    if (!Project->ValidPID($project_id)) {
+	    if (! (defined($project_urn) && Project->ValidPID($project_id))) {
 		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-			"Not a valid local project name for $project_urn");
+			"Not a valid local project name for $domainsubauth");
 	    }
 	}
 	else {
