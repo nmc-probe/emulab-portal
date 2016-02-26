@@ -1,0 +1,88 @@
+<?php
+#
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+chdir("..");
+chdir("apt");
+include_once("instance_defs.php");
+
+#
+# Server side of getting dashboard stats.
+#
+function Do_GetStatus()
+{
+    global $ajax_args, $geni_response_codes, $urn_mapping, $TBBASE;
+    global $TBSUEXEC_PATH;
+
+    if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
+        SPITAJAX_ERROR(1, "Not enough permission");
+        return;
+    }
+    if (Instance::ValidURN($ajax_args["cluster"])) {
+        $cluster = $ajax_args["cluster"];
+    }
+    else {
+        $cluster = $ajax_args["cluster"] . ".cm";
+    }
+    $inuse = array();
+    $fp = popen("$TBSUEXEC_PATH elabman tbadmin ".
+                "webportal_xmlrpc -a $cluster InUse", "r");
+    $string = "";
+    while (!feof($fp)) {
+        $string .= fgets($fp, 1024);
+    }
+    pclose($fp);
+    $inuse = json_decode($string);
+
+    #
+    # We want to convert slice_urns to local instances so that we
+    # convert the uid/pids to local names and provide links to the
+    # instances. 
+    #
+    $instances = array();
+
+    foreach ($inuse as $details) {
+        if (property_exists($details, "slice_uuid") &&
+            $details->slice_uuid != "") {
+
+            if (array_key_exists($details->slice_uuid, $instances)) {
+                $instance = $instances[$details->slice_uuid];
+            }
+            else {
+                $instance = Instance::LookupBySlice($details->slice_uuid);
+                $instances[$details->slice_uuid] = $instance;
+            }
+            if ($instance) {
+                $details->pid = $instance->pid();
+                $details->instance_uuid = $instance->uuid();
+                $details->instance_name = $instance->name();
+            }
+        }
+    }
+    $dashboard["inuse"] = $inuse;
+    SPITAJAX_RESPONSE($dashboard);
+}
+
+# Local Variables:
+# mode:php
+# End:
+?>

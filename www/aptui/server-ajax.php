@@ -47,9 +47,14 @@ $routing = array("myprofiles" =>
 						      "Do_VerifySpeaksfor")),
 		 "dashboard" =>
 			array("file"    => "dashboard.ajax",
-			      "guest"   => true,
+			      "guest"   => false,
 			      "methods" => array("GetStats" =>
 						      "Do_GetStats")),
+		 "cluster-status" =>
+			array("file"    => "cluster-status.ajax",
+			      "guest"   => false,
+			      "methods" => array("GetStatus" =>
+						      "Do_GetStatus")),
 		 "sumstats" =>
 			array("file"    => "sumstats.ajax",
 			      "guest"   => false,
