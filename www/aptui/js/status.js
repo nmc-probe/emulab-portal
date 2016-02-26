@@ -1297,6 +1297,15 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					"renderer": instructionRenderer });
 		
 		    var text = $(this).text();
+		    // Search the instructions for {host-foo} pattern.
+		    var regex   = /\{host-.*\}/gi;
+		    var needed  = text.match(regex);
+		    if (needed && needed.length) {
+			_.each(uridata, function(host, key) {
+			    regex = new RegExp("\{" + key + "\}", "gi");
+			    text = text.replace(regex, host);
+			});
+		    }
 		    // Stick the text in
 		    $('#instructions_text').html(marked(text));
 		    // Make the div visible.
@@ -1520,6 +1529,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		if (!isfadmin) {
 		    FindEncryptionBlocks(xml);
 		}
+
 	    }
 
 	    /*
