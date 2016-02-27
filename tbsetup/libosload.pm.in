@@ -69,6 +69,7 @@ my $TBLOADWAIT  = (10 * 60);
 
 my $osselect	    = "$TB/bin/os_select";
 my $TBUISP	    = "$TB/bin/tbuisp";
+my $TBADB           = "$TB/bin/tbadb";
 
 # Locals
 my $debug           = 0;
@@ -640,6 +641,12 @@ sub osload ($$) {
 	    $reload_mode = "UISP";
 	    $reload_func = \&SetupReloadUISP;
 	    $reboot_required = 0; # We don't reboot motes to reload them
+	    $zeronode = 0; # and we don't zero "the disk"
+	}
+	elsif ($class eq "ue") {
+	    $reload_mode = "UE";
+	    $reload_func = \&SetupReloadUE;
+	    $reboot_required = 0; # We don't reboot UEs to reload them
 	    $zeronode = 0; # and we don't zero "the disk"
 	} else {
 	    $reload_mode = "Frisbee";
@@ -1235,6 +1242,65 @@ sub SetupReloadUISP($)
     my $rv = system("$TBUISP upload $path $node");
     if ($rv) {
 	tberror "$node: tbuisp failed";
+	return -1;
+    }
+
+    #
+    # Tell stated that we've finished reloading the node
+    #
+    TBSetNodeEventState($node,TBDB_NODESTATE_RELOADDONE);
+
+    system("$osselect $osid $node");
+    if ($?) {
+	tberror "os_select $osid failed!";
+	goto failednode;
+    }
+
+    #
+    # 'Reboot' the node (from stated's perspective, anyway)
+    # has been shutdown, so that the os_select will take effect
+    #
+    TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
+
+    return 0;
+}
+
+#
+# Setup a UE (mobile handset) reload via ADB rather than Frisbee. This
+# calls a script on the UE's "console" server that then pulls across
+# the image (if necessary) and loads it on the specified device.
+#
+sub SetupReloadUE($)
+{
+    my $reload_info   = $_[0];
+    my $node          = $reload_info->{'node'};
+    my $imageid       = $reload_info->{'imageid'};
+    my $osid          = $reload_info->{'osid'};
+
+    #
+    # Get the path to the image
+    #
+    my $img = Image->Lookup($imageid);
+    my $path = $img->path();
+
+    #
+    # Tell stated that we're about to start reloading
+    #
+    TBSetNodeNextOpMode($node,TBDB_NODEOPMODE_RELOADUE);
+
+    #
+    # The mote goes 'down', then starts to reload
+    #
+    TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
+    TBSetNodeEventState($node,TBDB_NODESTATE_RELOADING);
+
+    #
+    # Invoke local script that calls the remote end that
+    # actually does the work.
+    #
+    my $rv = system("$TBADB upload $path $node");
+    if ($rv) {
+	tberror "$node: tbadb failed";
 	return -1;
     }
 

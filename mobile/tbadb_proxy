@@ -1,0 +1,384 @@
+#!/usr/bin/perl -w
+
+#
+# Copyright (c) 2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+
+use strict;
+use English;
+use libjsonrpc;
+use tbadb_rpc;
+
+
+# Function prototypes
+sub send_error($$$);
+sub do_lru_cleanup();
+sub rpc_checkimage($);
+sub rpc_loadimage($);
+sub rpc_captureimage($);
+sub rpc_reboot($);
+sub rpc_forwardadb($);
+sub rpc_ping($);
+sub rpc_exit($);
+
+
+# Dispatch table
+my %DISPATCH = (
+    'checkimage'   => \&rpc_checkimage,
+    'loadimage'    => \&rpc_loadimage,
+    'captureimage' => \&rpc_captureimage,
+    'reboot'       => \&rpc_reboot,
+    'forwardadb'   => \&rpc_forwardadb,
+    'ping'         => \&rpc_ping,
+    'exit'         => \&rpc_exit,
+);
+
+
+# Global variables
+my $debug = 1;
+my $ADB = "/usr/bin/adb";
+my $TOUCH = "/usr/bin/touch";
+my $TBADB_IMAGE_CACHE_DIR = "/z/adb_img_cache";
+my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
+my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
+
+# AUTOFLUSH!
+$| = 1;
+
+# Send "hello" To let remote end know we are ready.
+die "tbadb_proxy: Could not send hello to caller!\n"
+    if !SendRPCData(*STDOUT, EncodeResult(-1, { HELLO => 1 }));
+
+# Main RPC processing loop.
+while (1) {
+    # Get PDU
+    my $pdu;
+    my $rcode = RecvRPCData(*STDIN, \$pdu);
+    if ($rcode == -1) {
+	warn "tbadb_proxy: Timed out waiting for RPC data. Exiting!\n";
+	exit 1;
+    }
+    elsif ($rcode == 0) {
+	warn "tbadb_proxy: Error receiving RPC data. Exiting!\n";
+	exit 1;
+    }
+    
+    # Decode PDU
+    my $data = DecodeRPCData($pdu);
+    if (!$data) {
+	warn "tbadb_proxy: Unable to decode RPC. Exiting!\n";
+	exit 1;
+    }
+
+    # Dispatch function calls
+    my $func = $data->{FUNCTION};
+    if (defined($func)) {
+	if (!exists($DISPATCH{$func})) {
+	    warn "Unkown RPC called: $func. Exiting!\n";
+	    send_error($data->{FID}, RPCERR_BADFUNC, "Unknown function: $func");
+	    exit 1;
+	}
+	$DISPATCH{$func}->($data);
+    } else {
+	warn "tbadb_proxy: Received RPC data that was not a function call. Exiting!\n";
+	exit 1;
+    }
+}
+
+
+sub send_error($$$) {
+    my ($fid, $code, $message) = @_;
+
+    # Send failure result back.
+    return SendRPCData(*STDOUT, EncodeError($fid, $code, $message));
+}
+
+
+# Helper that does LRU on our image cache
+sub do_lru_cleanup() {
+    my $tot = 0;
+    my @files = ();
+    my $err = 0;
+
+    # Make sure the cache dir actually exists.
+    if (!-d $TBADB_IMAGE_CACHE_DIR) {
+	warn "tbadb_proxy::do_lru_cleanup: Image dir is not valid: $TBADB_IMAGE_CACHE_DIR\n";
+	return 0;
+    }
+
+    # Read entries in cache dir and tally size
+    my $dh;
+    if (!opendir($dh, $TBADB_IMAGE_CACHE_DIR)) {
+	warn "tbadb_proxy::do_lru_cleanup: Failed to clean up img dir!\n";
+	return 0;
+    }
+    while (my $ent = readdir($dh)) {
+	my $dname = "$TBADB_IMAGE_CACHE_DIR/$ent";
+	next if ($ent =~ /^\..*$/ || !-d $dname);
+	my $subdh;
+	if (!opendir($subdh, $dname)) {
+	    warn "tbadb_proxy::do_lru_cleanup: Could not descend into $dname\n";
+	    $err = 1;
+	    last;
+	}
+	while (my $subent = readdir($subdh)) {
+	    next if ($subent =~ /^\..*$/);
+	    my $imfile  = "$dname/$subent";
+	    my $lrufile = "$dname/.$subent.lru";
+	    if (!-e $lrufile) {
+		warn "tbadb_proxy::do_lru_cleanup: creating missing LRU file for: $imfile";
+		if (system($TOUCH, "$lrufile") != 0) {
+		    warn "tbadb_proxy::do_lru_cleanup: could not create LRU file: $lrufile\n";
+		    $err = 1;
+		    last;
+		}
+	    }
+	    my $lutime  = (stat($lrufile))[9];
+	    my $imsize  = (stat($imfile))[7];
+	    if (!defined($lutime) || $lutime < 0) {
+		warn "tbadb_proxy::do_lru_cleanup: Something weird happened while trying to stat $lrufile!\n";
+		$err = 1;
+		last;
+	    }
+	    if (!defined($imsize) || $imsize < 0) {
+		warn "tbadb_proxy::do_lru_cleanup: Something weird happened while trying to stat $imfile!\n";
+		$err = 1;
+		last;
+	    }
+	    warn "tbadb_proxy::do_lru_cleanup: image file found: $ent/$subent:$lutime:$imsize\n"
+		if $debug;
+	    push @files, [$imfile, $lutime, $imsize];
+	    $tot += $imsize;
+	}
+	close $subdh;
+	last if $err;
+    }
+    close $dh;
+    return 0 if $err;
+
+    # Prune?
+    if ($tot > $WM_HIGH) {
+	warn "tbadb_proxy::do_lru_cleanup: Invoking LRU cleanup ($tot)\n";
+	my @sortedfiles = sort { $a->[1] <=> $b->[1] } @files;
+	while ($tot > $WM_LOW && scalar(@sortedfiles)) {
+	    my ($imfile, undef, $imsize) = @{shift(@sortedfiles)};
+	    $imfile =~ /^(.+)\/(.+)$/;
+	    my $lrufile = "$1/.$2.lru";
+	    if (!unlink($imfile, $lrufile)) {
+		warn "tbadb_proxy::do_lru_cleanup: Could not remove $imfile: $!\n";
+		return 0;
+	    }
+	    warn "tbadb_proxy::do_lru_cleanup: removed file $imfile\n";
+	    $tot -= $imsize;
+	}
+	if ($tot > $WM_LOW) {
+	    warn "Unable to prune enough images to get under low watermark ($WM_LOW)!\n";
+	    return 0;
+	}
+    }
+
+    return 1;
+}
+
+
+sub rpc_checkimage($) {
+    my ($data) = @_;
+    my $proj    = $data->{ARGS}->{IMG_PROJ};
+    my $srcname = $data->{ARGS}->{IMG_NAME};
+    my $srctime = $data->{ARGS}->{IMG_TIME};
+    my $srcsize = $data->{ARGS}->{IMG_SIZE};
+
+    if (!$proj || !$srcname || !$srctime || !defined($srcsize)) {
+	warn "tbadb_proxy::rpc_checkimage: Argument(s) missing from RPC!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
+	exit 1;
+    }
+
+    warn "tbadb_proxy::rpc_checkimage: Image check requested for $proj/$srcname\n";
+
+    my $projdir = "$TBADB_IMAGE_CACHE_DIR/$proj";
+    if (!-d $projdir) {
+	if (!mkdir($projdir, 0750)) {
+	    warn "tbadb_proxy::rpc_checkimage: Failed to create project image directory: $projdir: $1\n";
+	    send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
+	    exit 1;
+	}
+    }
+
+    my $lrufile = "$projdir/.$srcname.lru";
+    my $imgfile = "$projdir/$srcname";
+    if (-f $imgfile) {
+	# Was the cached image placed (created) more recently than the
+	# timestamp provided for the upstream version? Is the size different?
+	my @imstats = stat($imgfile);
+	my $imtime = $imstats[9];
+	my $imsize = $imstats[7];
+	warn "rpc_checkimage: UPSTREAM stats: $srcname, $srctime, $srcsize\n";
+	warn "rpc_checkimage: LOCAL stats:    $srcname, $imtime, $imsize\n";
+	if ($imtime >= $srctime && $imsize == $srcsize) {
+	    if (!SendRPCData(*STDOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
+		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+		exit 1;
+	    }
+	    return;
+	} else {
+	    # Delete older existing image to make way for new version.
+	    if (!unlink($imgfile)) {
+		warn "tbadb_proxy::rpc_checkimage: Could not remove old image: $imgfile\n";
+		send_error($data->{FID}, RPCERR_INTERNAL, "Failed to remove older version of image.");
+		exit 1;
+	    }
+	}
+    }
+
+    # Touch image's LRU file (even though the image may not have been
+    # transferred yet; presumably it will be shortly).
+    if (system($TOUCH, "$lrufile") != 0) {
+	warn "tbadb_proxy::rpc_checkimage: Could not update timestamp on $lrufile!\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
+	exit 1;
+    }
+
+    # Check to see if we are over quota, and LRU prune if so.
+    if (!do_lru_cleanup()) {
+	warn "tbadb_proxy::rpc_loadimage: Error cleaning up cache. Exiting!\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, 
+		   "Failed while cleaning up image cache.");
+	exit 1;
+    }
+
+    # If we need/want to enforce some concurrency limits from this side,
+    # we could send back a "WAIT" result here, which would tell the caller
+    # to wait for some amount of time (maybe we specify), then call again.
+
+    # Request that the image be transferred over (scp from boss)
+    if (!SendRPCData(*STDOUT,
+	     EncodeResult($data->{FID}, 
+			  { NEED_IMG => 1, 
+			    REMOTE_PATH => "$projdir" }))) {
+	warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+	exit 1;
+    }
+
+    return;
+}
+
+
+sub rpc_loadimage($) {
+    my ($data) = @_;
+
+    # Check arguments
+    my $imgname = $data->{ARGS}->{IMG_NAME};
+    my $node    = $data->{ARGS}->{NODE_ID};
+    my $proj    = $data->{ARGS}->{IMG_PROJ};
+    if (!$imgname || !$node || !$proj) {
+	warn "tbadb_proxy::rpc_loadimage: missing RPC arguments!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
+	exit 1;
+    }
+    my $fname = "$TBADB_IMAGE_CACHE_DIR/$proj/$imgname";
+    if (!-f $fname) {
+	warn "tbadb_proxy::rpc_loadimage: no such image file: $fname\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "No such image.");
+	exit 1;
+    }
+    # XXX: Check validity of node id!
+
+    # XXX: Load image on to unit and report success/fail to caller!
+    warn "tbadb_proxy::rpc_loadimage: Loading image $proj/$imgname on to $node\n";
+    send_error($data->{FID}, RPCERR_NOTIMPL, "loadimage not implemented yet.");
+
+    return;
+}
+
+
+sub rpc_captureimage($) {
+    my ($data) = @_;
+
+    # XXX: fill me in!
+    warn "tbadb_proxy::rpc_captureimage: Called...\n";
+    send_error($data->{FID}, RPCERR_NOTIMPL, "captureimage not implemented yet.");
+    return;
+}
+
+
+sub rpc_reboot($) {
+    my ($data) = @_;
+
+    my $node = $data->{ARGS}->{NODE_ID};
+    if (!$node) {
+	warn "tbadb_proxy::rpc_reboot: No node_id provided in RPC args!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "node_id missing.");
+	exit 1;
+    }
+    # XXX: Check vailidity of node_id!
+
+    # XXX: Reboot the unit and report back to caller!
+    warn "tbadb_proxy::rpc_reboot: rebooting node $node\n";
+    send_error($data->{FID}, RPCERR_NOTIMPL, "reboot not implemented yet.");
+
+    return;
+}
+
+
+sub rpc_forwardadb($) {
+    my ($data) = @_;
+
+    my $node  = $data->{ARGS}->{NODE_ID};
+    my $dhost = $data->{ARGS}->{DEST_HOST};
+    my $dport = $data->{ARGS}->{DEST_PORT};
+
+    if (!$node || !$dhost || !$dport) {
+	warn "tbadb_proxy::rpc_forwardadb: Missing RPC args!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
+	exit 1;
+    }
+    if ($dport < 1 || $dport > 65535) {
+	warn "tbadb_proxy::rpc_forwardadb: requested port is out of range: $dport!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Requested port is out of range.");
+	exit 1;
+    }
+    # XXX: Check vailidity of node_id!
+
+    # XXX: Setup forwarding from the ADB daemon on the unit to the
+    #      destionation port, and report back to caller!
+    warn "tbadb_proxy::rpc_forwardadb: fowarding ADB on node $node to destination host $dhost port $dport\n";
+    send_error($data->{FID}, RPCERR_NOTIMPL, "forwardadb not implemented yet.");
+
+    return;
+}
+
+
+sub rpc_ping($) {
+    my ($data) = @_;
+
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { PONG => 1 }));
+    return;
+}
+
+sub rpc_exit($) {
+    my ($data) = @_;
+
+    # Send acknowledgement and exit.  No arguments expected.
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    exit 0;
+}
