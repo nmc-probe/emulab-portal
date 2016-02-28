@@ -28,15 +28,17 @@ use English;
 use POSIX ":sys_wait_h";
 use Getopt::Std;
 use Data::Dumper;
-use File::Basename;
 
+use lib "@prefix@/lib";
 use libjsonrpc;
 use EmulabConstants;
 use Image;
 use User;
 
 # Func prototypes
+sub cmd_setup($@);
 sub cmd_loadimage($@);
+sub cmd_forward($@);
 sub cmd_reboot($;@);
 sub GetSSHPipe();
 sub chldhandler($);
@@ -44,33 +46,37 @@ sub genhandler($);
 sub cleanexit($);
 sub mysystem($);
 
-# AUTOCONF variables
-#my $TB = "@prefix@";
-
 # Global variables
-my $SSHPIPE;
-my $CHWAITTMO = 10;
-my $TBADB_PROXYCMD = "cd ~kwebb/git/emulab-devel/mobile && ./tbadb_proxy 2> /tmp/tbadb_proxy.log";
+my $TB = "@prefix@";
+my $MINHLEN   = 2;
+my $MAXHLEN   = 32;
+my $MINCMDLEN = 2;
+my $MAXCMDLEN = 32;
+my %SSHPIPES = ();
+my $TBADB_PROXYCMD = "/usr/testbed/sbin/tbadb_proxy";
 my $TBADB_HELLO_TMO      = 10;
 my $TBADB_CHECKIMAGE_TMO = 30;
 my $TBADB_LOADIMAGE_TMO  = 120;
 my $TBADB_REBOOT_TMO     = 60;
+my $CHILD_WAIT_TMO       = 10;
 my $SCP = "/usr/bin/scp";
 my $SSHTB = "$TB/bin/sshtb";
 my @SSH_ARGS = ('-o','BatchMode=yes','-o','StrictHostKeyChecking=no',
 		'-o','ConnectTimeout=10');
 
 my %DISPATCH = (
+    'setup'     => \&cmd_setup,
     'loadimage' => \&cmd_loadimage,
+    'forward'   => \&cmd_forward,
     'reboot'    => \&cmd_reboot,
 );
 
 sub showhelp() {
-    print "Usage: $0 <rhost> <cmd> <args>\n\n";
-    print "<rhost>: Remote host to run on (hosts adb-controlled devices)\n".
-	  "<cmd>:   TBADB command to run (see list below).\n".
-	  "<args>:  set of arguments specific to <cmd>\n";
+    print "Usage: $0 <cmd> <cmd_args>\n\n";
+    print "<cmd>:       TBADB command to run (see list below).\n".
+	  "<cmd_args>:  set of arguments specific to <cmd>\n";
     print "Command list: ". join(", ", keys %DISPATCH) ."\n";
+    print "Run again listing just a command to get that command's help.\n";
 }
 
 #
@@ -95,28 +101,42 @@ if (! defined($this_user)) {
     die("You ($UID) do not exist!\n");
 }
 
-
+# Parse command line switches.
 my %opts = ();
-if (!getopts("dh",\%opts) || $opts{'h'} || @ARGV < 2) {
+if (!getopts("dhn:",\%opts) || $opts{'h'} || @ARGV < 1) {
     showhelp();
     exit 1;
 }
 
-my ($RHOST, $CMD, @ARGS) = @ARGV;
-
 my $debug = $opts{'d'} ? 1 : 0;
-
 $libjsonrpc::debug = 1 if $debug;
 
-die "tbadb: unknown command: $CMD\n"
+# Untaint node_id argument, if provided.
+my $node_id = $opts{'n'} ? $opts{'n'} : "";
+if ($node_id) {
+    die "$0: malformed node_id argument!\n"
+	if ($node_id !~ /^([-\w]{$MINHLEN, $MAXHLEN})$/);
+    $node_id = $1;    
+}
+
+# Gather other command line args.
+my ($CMD, @ARGS) = @ARGV;
+
+# Untaint command
+die "$tbadb: malformed command!\n"
+    if (!$CMD =~ /^([-\w]{$MINCMDLEN,$MAXCMDLEN})$/);
+$CMD = $1;
+
+die "$0: unknown command: $CMD\n"
     if (!exists($DISPATCH{$CMD}));
 
 # Setup stuff for the SSH Pipe.
 $SIG{CHLD} = \&chldhandler;
 $SIG{HUP} = $SIG{TERM} = $SIG{INT} = \&genhandler;
-$SSHPIPE = TBADB::SSHPipe->New($RHOST, $TBADB_PROXYCMD);
+$SSHPIPE = TBADB::SSHPipe->New($TBADB_PROXYCMD);
 
-exit $DISPATCH{$CMD}->($RHOST, @ARGS);
+# Execute!
+exit $DISPATCH{$CMD}->($node_id, @ARGS);
 
 
 #
@@ -126,11 +146,17 @@ exit $DISPATCH{$CMD}->($RHOST, @ARGS);
 # if necessary.  The remote end keeps an LRU cache of images.
 #
 sub cmd_loadimage($@) {
-    my ($rhost, $imagepid, $imagename, $node_id) = @_;
+    my ($node_id, $imagepid, $imagename) = @_;
 
-    # Argument checks.
-    die "tbadb::cmd_loadimage: missing one or more arguments (need: <project> <image_name> <node_id>)!\n"
-	if (!$rhost || !$imagepid || !$imagename || !$node_id);
+    # Check and untaint arguments.
+    die "tbadb::cmd_loadimage: missing one or more arguments (need: <node_id> <project> <image_name>)!\n"
+	if (!$node_id || !$imagepid || !$imagename);
+    die "tbadb::cmd_loadimage: malformed project id!"
+	if ($imagepid !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
+    $imagepid = $1;
+    die "tbadb::cmd_loadimage: malformed image id/name!"
+	if ($imagename !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
+    $imagename = $1;
 
     # Lookup image and extract some info.
     my $image = Image->Lookup($imagepid, $imagename);
@@ -153,20 +179,20 @@ sub cmd_loadimage($@) {
 	if (!defined($node));
     die("tbadb::cmd_loadimage: You do not have permission to load an image onto $node\n")
 	if (!$node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE));
-
+    
+    # Grab the RPC pipe.
+    my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
+    die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
+	if (!$rpcin || !$rpcout);
+    
     # Get stats from the image file.
     my @fstats = stat($imagepath);
     my $mtime = $fstats[9];
     my $size  = $fstats[7];
 
-    # Grab the RPC pipe.
-    my ($chin, $chout) = GetPipe();
-    die "tbadb::cmd_loadimage: Failed to get valid SSH pipe filehandles!\n"
-	if (!$chin || !$chout);
-
     # Have remote side check for this image in its cache.
     die "tbadb::cmd_loadimage: Failed to send 'checkimage' RPC!\n"
-	if (!SendRPCData($chout, 
+	if (!SendRPCData($rpcout, 
 			 EncodeCall("checkimage",
 				    {
 					IMG_PROJ => $imgpid,
@@ -176,7 +202,7 @@ sub cmd_loadimage($@) {
 				    })));
     my $pdu;
     die "tbadb::cmd_loadimage: Failed to receive valid response for 'checkimage'\n"
-	if (RecvRPCData($chin, \$pdu, $TBADB_CHECKIMAGE_TMO) != 1);
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_CHECKIMAGE_TMO) != 1);
     my $data = DecodeRPCData($pdu);
     die "tbadb::cmd_loadimage: Could not decode RPC response from 'checkimage'"
 	if (!$data);
@@ -197,7 +223,7 @@ sub cmd_loadimage($@) {
     # Now that the image is (ostensibly) in place on the remote side,
     # ask the remote host to load it onto the device.
     die "tbadb::cmd_loadimage: Failed to send 'loadimage' RPC!\n"
-	if (!SendRPCData($chout, 
+	if (!SendRPCData($rpcout, 
 			 EncodeCall("loadimage",
 				    {
 					IMG_PROJ => $imgpid,
@@ -205,7 +231,7 @@ sub cmd_loadimage($@) {
 					NODE_ID  => $node_id,
 				    })));
     die "tbadb::cmd_loadimage: Failed to receive response for 'loadimage'\n"
-	if (RecvRPCData($chin, \$pdu, $TBADB_LOADIMAGE_TMO) != 1);
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_LOADIMAGE_TMO) != 1);
     $data = DecodeRPCData($pdu);
     die "tbadb::cmd_loadimage: Could not decode RPC response from 'loadimage'\n"
 	if (!$data);
@@ -217,15 +243,39 @@ sub cmd_loadimage($@) {
 
     # Done!
     print "tbadb: Successfully loaded $imagepath to $node_id\n";
-    exit 0;
+    return 0;
 }
 
+#
+# Forward ADB to a target host and port.  Must provide a valid device
+# node_id, target host, and target port.
+#
+sub cmd_forward($@) {
+    my ($node_id, $thost, $tport);
 
+    # Check and untaint arguments
+    die "tbadb::cmd_forward: missing arguments! (need: <node_id> <target_host> <target_port>\n"
+	if (!$node_id || !$thost || !$tport);
+    die "tbadb::cmd_forward: malformed target host!"
+	if ($thost !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
+    $thost = $1;
+    die "tbadb::cmd_forward: malformed target port!"
+	if ($tport !~ /^\d+$/ || $1 < 1 || $1 > 65535);
+    $tport = $1;
+    
+    # Done!
+    return 0;
+}
+
+#
+# Given a valid node_id, reboot a device.
+#
 sub cmd_reboot($;@) {
-    my ($rhost, $node_id) = @_;
+    my ($node_id) = @_;
 
-    die "tbadb::cmd_reboot: node_id or rhost arguments missing!\n"
-	if (!$rhost || !$node_id);
+    # Check and untaint arguments;
+    die "tbadb::cmd_reboot: node_id argument missing!\n"
+	if (!$node_id);
 
     # Make sure user has access to requested node
     my $node = Node->Lookup($node_id);
@@ -234,87 +284,115 @@ sub cmd_reboot($;@) {
     die("tbadb::cmd_reboot: You do not have permission to reboot $node\n")
 	if (!$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
 
-    my ($chin, $chout) = GetPipe();
+    # Grab the RPC pipe.
+    my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
     die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
-	if (!$chin || !$chout);
+	if (!$rpcin || !$rpcout);
 
+    # Request device reboot via remote host.
     die "tbadb::cmd_reboot: Failed to send 'reboot' RPC!\n"
-	if (!SendRPCData($chout, 
+	if (!SendRPCData($rpcout, 
 			 EncodeCall("reboot", { NODE_ID => $node_id })));
 
+    # Wait for reboot and grab returned result.
     my $pdu;
     die "tbadb::cmd_reboot: Failed to receive valid response for 'reboot'\n"
-	if (RecvRPCData($chin, \$pdu, $TBADB_REBOOT_TMO) != 1);
-
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_REBOOT_TMO) != 1);
     my $data = DecodeRPCData($pdu);
-    die "tbadb::cmd_loadimage: Could not decode RPC response from 'reboot'"
+    die "tbadb::cmd_reboot: Could not decode RPC response from 'reboot'"
 	if (!$data);
 
+    # Check returned result.
     if (exists($data->{ERROR}) || !exists($data->{RESULT}->{SUCCESS})) {
-	warn "tbadb::cmd_loadimage: Received error from 'reboot':\n";
+	warn "tbadb::cmd_reboot: Received error from 'reboot':\n";
 	warn "". Dumper($data);
-	exit 1;
+	return 1;
     }
-    
+
+    # Done!
     print "tbadb: Successfully rebooted $node_id\n";
-    exit 0;
+    return 0;
 }
 
-sub GetPipe() {
-    my ($chin, $chout);
+# Helper that returns the RPC in/out pipe pair.  Establishes the remote
+# connection if necessary.  Argument is a node object.
+sub GetRPCPipeHandles($) {
+    my ($node) = @_;
+    my ($rpcin, $rpcout);
 
-    if (!$SSHPIPE->isopen()) {
+    # Lookup the node's control server and create SSH pipe object if we
+    # don't have one yet.
+    my $conserver;
+    $node->TipServer(\$conserver);
+    die "tbadb::GetRPCPipeHandles: Could not lookup control server for $node!\n"
+	if (!$conserver);
+    if (!exists($SSHPIPES{$conserver})) {
+	$SSHPIPES{$conserver} = 
+	    TBADB::SSHPipe($conserver, $TBADB_PROXYCMD);
+    }
+    my $sshpipe = $SSHPIPES{$conserver};
+
+    # Open the SSH Pipe if necessary.
+    if (!$sshpipe->isopen()) {
 	my $pdu;
-	($chin, $chout) = $SSHPIPE->GetPipe();
-	my $res = RecvRPCData($chin, \$pdu, $TBADB_HELLO_TMO);
+	($rpcin, $rpcout) = $sshpipe->GetPipe();
+	my $res = RecvRPCData($rpcin, \$pdu, $TBADB_HELLO_TMO);
 	if ($res == -1) {
 	    die "tbadb: Timeout while opening SSH Pipe!\n";
 	}
 	elsif ($res == 0) {
 	    die "tbadb: Error encountered while opening SSH Pipe!\n";
 	}
+	# Look for the hello.
 	my $hello = DecodeRPCData($pdu);
 	die "tbadb: Unexpected data received when opening SSH Pipe!\n"
 	    if (!$hello);
 	die "tbadb: Did not receive valid 'hello' from remote end!\n"
 	    if (!exists($hello->{RESULT}->{HELLO}));
+    } else {
+	($rpcin, $rpcout) = $sshpipe->GetPipe();
     }
 
-    return ($chin, $chout);
+    return ($rpcin, $rpcout);
 }
 
+# This subroutine is called via any exit path to ensure the RPC
+# Pipe (and associated child process) are terminated/closed.
 sub cleanexit($) {
     my $exval = shift;
 
-    if ($SSHPIPE && $SSHPIPE->child()) {
-	warn "tbadb: Killing SSH pipe process\n";
-	$SIG{CHLD} = "IGNORE";
-	my $stime = time();
-	while (1) {
-	    kill("TERM", $SSHPIPE->child());
-	    select(undef,undef,undef,0.25); # Sleep for a quarter of a second.
-	    my $pid = waitpid($SSHPIPE->child(), WNOHANG);
-	    last
-		if ($pid == $SSHPIPE->child() || $pid < 0);
-	    if (time() - $stime > $CHWAITTMO) {
-		warn "tbadb: Timed out waiting for SSH pipe child to exit!\n";
-		last;
-	    }
-	    sleep 1;
+    my @tokill = ();
+    while (my ($cs_node_id, $sshpipe) = each %SSHPIPES) {
+	if ($sshpipe->child()) {
+	    push @tokill, $sshpipe->child();
+	} else {
+	    delete $SSHPIPES{$cs_node_id};
 	}
-	$SSHPIPE = undef;
     }
-
+    warn "tbadb: Killing SSH pipe processes: @tokill\n";
+    kill("TERM", @tokill);
+    
+    my $stime = time();
+    while (keys %SSHPIPES) {
+	if (time() - $stime > $CHILD_WAIT_TMO) {
+	    warn "tbadb: Timed out waiting for SSH pipe children!\n";
+	    last;
+	}
+	sleep 1;
+    }
+    
     exit $exval;
 }
 
 sub chldhandler($) {
     my $pid = wait();
-    if (!$SSHPIPE || $pid != $SSHPIPE->child()) {
-	warn "tbadb: SIGCHLD handler: wait() did not return our child's PID!\n";
-    } else {
-	print "tbadb: SSH Pipe exited...\n";
-	$SSHPIPE = undef;
+    while (my ($cs_node_id, $sshpipe) = each %SSHPIPES) {
+	if ($sshpipe->child() == $pid) {
+	    print "tbadb: SSH Pipe exited for $cs_node_id\n"
+		if $debug;
+	    delete $SSHPIPES{$cs_node_id};
+	    last;
+	}
     }
 }
 
@@ -322,6 +400,7 @@ sub genhandler($) {
     cleanexit(1);
 }
 
+# XXX: This needs different handling.
 sub mysystem($) {
     my ($cmd) = @_;
 
@@ -334,12 +413,14 @@ END {
 }
 
 #
-# SSHPipe session class
+# SSHPipe session wrapper class
 #
 package TBADB::SSHPipe;
 
 use IPC::Open2;
 
+# We don't immediately open the pipe. Wait until the pipe file handles
+# are requested.
 sub New($$$) {
     my ($class, $rhost, $rcmd) = @_;
 
@@ -348,7 +429,7 @@ sub New($$$) {
     $self->{RCMD}  = $rcmd;
     $self->{CHIN}  = undef;
     $self->{CHOUT} = undef;
-    $self->{CHILD} = 0;
+    $self->{CHPID} = 0;
     bless($self, $class);
 
     return $self;
@@ -358,20 +439,23 @@ sub DESTROY($) {
     my $self = shift;
     $self->{CHIN}  = undef;
     $self->{CHOUT} = undef;
-    $self->{CHILD} = 0;
+    $self->{CHPID} = 0;
 }
 
-sub child($)  { return $_[0]->{CHILD}; }
+sub child($)  { return $_[0]->{CHPID}; }
 
+# Test to see if the SSH pipe is open, including testing to see if the
+# SSH pipe process is still running (if it has been started).
 sub isopen($) {
     my ($self) = @_;
     my $isopen = 0;
 
-    if ($self->{CHILD}) {
-	if (kill("ZERO", $self->{CHILD})) {
+    if ($self->{CHPID}) {
+	if (kill("ZERO", $self->{CHPID})) {
 	    $isopen = 1;
 	} else {
-	    $self->{CHILD} = undef;
+	    # Zap stale SSH child info.
+	    $self->{CHPID} = undef;
 	    $self->{CHIN}  = undef;
 	    $self->{CHOUT} = undef;
 	}
@@ -380,18 +464,20 @@ sub isopen($) {
     return $isopen;
 }
 
+# Return the SSH Pipe file handles, first opening the connection to
+# thre remote host if necessary.
 sub GetPipe($) {
     my ($self) = @_;
     my ($chin, $chout);
 
-    if (!$self->{CHILD}) {
+    if (!$self->{CHPID}) {
 	my $chpid = open2($chin, $chout, $SSHTB, @SSH_ARGS,
 			  "-host", $self->{RHOST}, $self->{RCMD});
 	if ($chpid < 1) {
 	    warn "TBADB: Failed to open SSH pipe process!\n";
 	}
 
-	$self->{CHILD} = $chpid;
+	$self->{CHPID} = $chpid;
 	$self->{CHIN}  = $chin;
 	$self->{CHOUT} = $chout;
     }
