@@ -50,9 +50,13 @@ function (_, sup, myaccountString, verifyString, oopsString, waitwaitString)
 	    id: 'verify_modal',
 	    label: "Confirm",
 	});
+	var generror = '';
+	if (errors && errors.error) {
+	    generror = errors.error;
+	}
 	var myaccount = Formatter(myaccountTemplate({
 	    formfields: formfields,
-	    general_error: (errors.error || ''),
+	    general_error: generror,
 	    verify_modal: verify,
 	    nopassword: window.APT_OPTIONS.nopassword,
 	}), errors);
