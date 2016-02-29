@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1206,6 +1206,7 @@ foreach $node (@nodenames) {
 #    next
 #	if ($current->is_remote());
 
+    my $nodeobj = Node->Lookup($node);
     my $type  = $nodes{$node};
     my $class = $typemap{$type}->{'CLASS'};
     my $delay_capacity = $typemap{$type}->{'DELAYCAP'};
@@ -1255,9 +1256,14 @@ foreach $node (@nodenames) {
     if ($type ne $class) {
 	push(@types, "$class:1");
     }
-
     my $explicit =
 	$typemap{$type}->{'TYPEINFO'}->GetAttribute("explicit_request");
+    if (!defined($explicit) && defined($nodeobj)) {
+	#
+	# Look on the node itself.
+	#
+	$nodeobj->NodeAttribute("explicit_request", \$explicit);
+    }
     if (defined($explicit)) {
 	push(@features, "$type-explicit:1");
     }
