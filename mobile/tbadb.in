@@ -138,6 +138,27 @@ exit $DISPATCH{$CMD}->($node_id, @ARGS);
 
 
 #
+# "setup" is a compound command.  We just separate out the arguments
+# and call the respective individual commands.
+#
+sub cmd_setup($@) {
+    my ($node_id, $imagepid, $imagename, $thost, $tport) = @_;
+
+    # Brief check for correct number of arguments.  The individual
+    # commands will do a more thorough check.
+    die "tbadb::cmd_setup: missing one or more arguments (need: <node_id> <project> <image_name> <target_adb_host> <target_adb_port>)!\n"
+	if (!$node_id || !$imagepid || !$imagename || !$thost || !$tport);
+
+    # Individual commands will die() if they fail, so subsequent calls
+    # will not happen if prior ones fail.
+    cmd_loadimage($node_id, $imagepid, $imagename);
+    cmd_forward($node_id, $thost, $tport);
+
+    # Done!
+    return 0;
+}
+
+#
 # Given a valid image identifier (name, osid), project (to scope
 # image) and node_id, load an image onto a remote device.  Check with
 # the remote side to ensure the image is there, and tranfer it first
@@ -258,8 +279,31 @@ sub cmd_forward($@) {
 	if ($thost !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
     $thost = $1;
     die "tbadb::cmd_forward: malformed target port!"
-	if ($tport !~ /^\d+$/ || $1 < 1 || $1 > 65535);
+	if ($tport !~ /^(\d+)$/ || $1 < 1 || $1 > 65535);
     $tport = $1;
+
+    # Request adb port forwarding on device's control host.
+    die "tbadb::cmd_forward: Failed to send 'forward' RPC!\n"
+	if (!SendRPCData($rpcout, 
+			 EncodeCall("forward", {
+			     NODE_ID     => $node_id,
+			     TARGET_HOST => $thost,
+			     TARGET_PORT => $tport,})));
+
+    # Grab remote result.
+    my $pdu;
+    die "tbadb::cmd_forward: Failed to receive valid response for 'forward'\n"
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_FORWARD_TMO) != 1);
+    my $data = DecodeRPCData($pdu);
+    die "tbadb::cmd_forward: Could not decode RPC response from 'forward'"
+	if (!$data);
+
+    # Check returned result.
+    if (exists($data->{ERROR}) || !exists($data->{RESULT}->{SUCCESS})) {
+	warn "tbadb::cmd_forward: Received error from 'forward':\n";
+	warn "". Dumper($data);
+	exit 1;
+    }
     
     # Done!
     return 0;
@@ -304,7 +348,7 @@ sub cmd_reboot($;@) {
     if (exists($data->{ERROR}) || !exists($data->{RESULT}->{SUCCESS})) {
 	warn "tbadb::cmd_reboot: Received error from 'reboot':\n";
 	warn "". Dumper($data);
-	return 1;
+	exit 1;
     }
 
     # Done!
