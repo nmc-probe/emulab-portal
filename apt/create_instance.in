@@ -67,7 +67,6 @@ sub SnapShot($$$);
 sub CreateDatasetCreds($$$$$);
 sub CreateSlivers();
 sub RunStitcher();
-sub GetSSHKeys($$$);
 
 #
 # Configure variables
@@ -396,7 +395,7 @@ if ($localuser) {
 	$emulab_user->GenEncryptedCert()) {
 	fatal("Could not (re)generate encrypted certificate");
     }
-    # Now this will work; without a certificate, this would fail.
+    # Now this will work; without a certificate, above line would fail.
     if (defined($emulab_user)) {
 	$geniuser = GeniUser::LocalUser->Create($emulab_user);
     }
@@ -1640,73 +1639,6 @@ sub RunStitcher()
 #    system("/bin/rm -rf $tmpdir")
 #	if (!$debug && defined($tmpdir) && -e $tmpdir);
     return $errcode;
-}
-
-#
-# Build a set of sshkeys.
-#
-sub GetSSHKeys($$$)
-{
-    my ($geniuser, $project, $pref) = @_;
-    my $rval;
-    my @keys;
-
-    if ($geniuser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
-	print STDERR "No ssh keys for $geniuser\n";
-	return -1;
-    }
-
-    #
-    # CM format.
-    #
-    $rval = [{'urn'   => $geniuser->urn(),
-	      'login' => $geniuser->uid(),
-	      'keys'  => [ @keys ]
-	     }];
-
-    if (! ($project->pid() eq $APT_HOLDINGPROJECT ||
-	   $project->pid() eq $CLOUD_HOLDINGPROJECT)) {
-	#
-	# Get other users from the project. Real local users are easy,
-	# nonlocal users from the GPO portal are messy.
-	#
-	my @members;
-	if ($project->GetProjectGroup()->MemberList(\@members)) {
-	    print STDERR "Error getting memberlist for $project\n";
-	}
-	else {
-	    foreach my $member (@members) {
-		next
-		    if ($member->SameUser($geniuser->emulab_user()));
-	    
-		my $guser = GeniUser->CreateFromLocal($member);
-		next
-		    if (!defined($guser));
-
-		#
-		# So, users coming in from the trusted signer have their keys
-		# at their home portal. We download those keys whenever they
-		# log in, and cache them in their local stub account, but they
-		# could be out of date. But in order to refresh those keys, we
-		# would need a valid (not expired) speaks-for credential, which
-		# we might have, but typically not since they have short expire
-		# times. So, lets not worry about this right now, just use the
-		# cached keys and see who complains.
-		#
-		@keys = ();
-		if ($guser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
-		    print STDERR "No ssh keys for $guser\n";
-		    next;
-		}
-		push(@{$rval}, {'urn'   => $guser->urn(),
-				'login' => $guser->uid(),
-				'keys'  => [ @keys ]
-		               });
-	    }
-	}
-    }
-    $$pref = $rval;
-    return 0;
 }
 
 sub fatal($) {
