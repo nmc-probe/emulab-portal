@@ -44,7 +44,6 @@ sub GetSSHPipe();
 sub chldhandler($);
 sub genhandler($);
 sub cleanexit($);
-sub mysystem($);
 
 # Global variables
 my $TB = "@prefix@";
@@ -130,10 +129,9 @@ $CMD = $1;
 die "$0: unknown command: $CMD\n"
     if (!exists($DISPATCH{$CMD}));
 
-# Setup stuff for the SSH Pipe.
+# Setup signal handler stuff.
 $SIG{CHLD} = \&chldhandler;
 $SIG{HUP} = $SIG{TERM} = $SIG{INT} = \&genhandler;
-$SSHPIPE = TBADB::SSHPipe->New($TBADB_PROXYCMD);
 
 # Execute!
 exit $DISPATCH{$CMD}->($node_id, @ARGS);
@@ -217,7 +215,7 @@ sub cmd_loadimage($@) {
 	print "tbadb: Sending $imagepath to $rhost\n";
 	my $rpath = $data->{RESULT}->{REMOTE_PATH};
 	die "tbadb::cmd_loadimage: Failed to transfer image to $rhost: $imagepath\n"
-	    if (mysystem("$SCP -q -B -p $imagepath $rhost:$rpath") != 0);
+	    if (system("$SCP -q -B -p $imagepath $rhost:$rpath") != 0);
     }
 
     # Now that the image is (ostensibly) in place on the remote side,
@@ -369,23 +367,28 @@ sub cleanexit($) {
 	    delete $SSHPIPES{$cs_node_id};
 	}
     }
-    warn "tbadb: Killing SSH pipe processes: @tokill\n";
-    kill("TERM", @tokill);
-    
-    my $stime = time();
-    while (keys %SSHPIPES) {
-	if (time() - $stime > $CHILD_WAIT_TMO) {
-	    warn "tbadb: Timed out waiting for SSH pipe children!\n";
-	    last;
+
+    if (@tokill) {
+	warn "tbadb: Killing SSH pipe processes: @tokill\n";
+	kill("TERM", @tokill);
+
+	my $stime = time();
+	while (keys %SSHPIPES) {
+	    if (time() - $stime > $CHILD_WAIT_TMO) {
+		warn "tbadb: Timed out waiting for SSH pipe children to exit!\n";
+		last;
+	    }
+	    sleep 1;
 	}
-	sleep 1;
     }
     
     exit $exval;
 }
 
 sub chldhandler($) {
-    my $pid = wait();
+    local ($!, $?);  # Don't let issues in the handler affect these globals.
+    my $pid = waitpid(-1, WNOHANG);
+    return if ($pid < 1);
     while (my ($cs_node_id, $sshpipe) = each %SSHPIPES) {
 	if ($sshpipe->child() == $pid) {
 	    print "tbadb: SSH Pipe exited for $cs_node_id\n"
@@ -400,16 +403,8 @@ sub genhandler($) {
     cleanexit(1);
 }
 
-# XXX: This needs different handling.
-sub mysystem($) {
-    my ($cmd) = @_;
-
-    local $SIG{CHLD} = 'DEFAULT';
-    return system($cmd);
-}
-
 END {
-    cleanexit($?) if $SSHPIPE;
+    cleanexit($?) if (keys %SSHPIPES);
 }
 
 #
