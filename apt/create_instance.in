@@ -212,6 +212,10 @@ my $sa_authority = GeniAuthority->Lookup($sa_certificate->urn());
 if (!defined($sa_authority)) {
     fatal("Could not load SA authority object");
 }
+# Guest users default to the APT cluster on the Mothership.
+if ($MAINSITE && !$localuser) {
+    $default_aggregate_urn = $GUEST_URN;
+}
 
 #
 # We use the normal XMLRPC route, so need a context.

@@ -311,7 +311,8 @@ function Do_GetSSHAuthObject()
     }
     
     $nodeid = $ajax_args["nodeid"];
-    $auth   = SSHAuthObject($this_user->uid(), $hostport);
+    $auth   = SSHAuthObject(isset($this_user) ?
+                            $this_user->uid() : $creator->uid(), $hostport);
     if (!$auth) {
 	SPITAJAX_ERROR(1, "Could not create authentication object");
 	return;
