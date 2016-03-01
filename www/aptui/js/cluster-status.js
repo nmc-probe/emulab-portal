@@ -67,6 +67,17 @@ function (_, sup, moment, mainString)
 		});
 		$('#' + name + '-tbody').html(html);
 		InitTable(name);
+
+		// These are the totals.
+		html = "";
+		
+		_.each(json.value.totals, function(value, type) {
+		    html = html + "<tr>" +
+			"<td>" + type + "</td>" +
+			"<td>" + value.inuse + "</td>" +
+			"<td>" + value.free + "</td>" + "</tr>";
+		});
+		$('#counts-' + name + '-tbody').html(html);
 	    }
 	    var xmlthing = sup.CallServerMethod(null, "cluster-status",
 						"GetStatus",
@@ -80,11 +91,13 @@ function (_, sup, moment, mainString)
 	var tablename  = "#inuse-table-" + name;
 	var searchname = "#inuse-search-" + name;
 	var countname  = "#inuse-count-" + name;
+	var clickname  = "#inuse-click-" + name;
+	var panelname  = "#inuse-panel-" + name;
 	
 	var table = $(tablename)
 		.tablesorter({
 		    theme : 'green',
-		    widgets: ["filter", "resizable"],
+		    widgets: ["filter"],
 
 		    widgetOptions: {
 			// include child row content while filtering, if true
@@ -98,8 +111,8 @@ function (_, sup, moment, mainString)
 			// Set this option to false for case sensitive search
 			filter_ignoreCase : true,
 			// Only one search box.
-			filter_columnFilters : false,
-		    }
+			filter_columnFilters : true,
+			}
 		});
 
 	table.bind('filterEnd', function(e, filter) {
@@ -111,7 +124,24 @@ function (_, sup, moment, mainString)
 	// Allows using filter_liveSearch or delayed search &
 	// pressing escape to cancel the search
 	$.tablesorter.filter.bindSearch(table, $(searchname));
+	$.tablesorter.filter.bindSearch(table, $('#inuse-search-all'));
 	$(tablename).removeClass("hidden");
+
+	/*
+	 * This is the expand/collapse button for an individual table.
+	 */
+	$('#inuse-collapse-button-' + name).click(function () {
+	    if ($(panelname).data("status") == "minimized") {
+		$(panelname).removeClass("inuse-panel");
+		$('#counts-panel-' + name).removeClass("counts-panel");
+		$(panelname).data("status", "maximized");
+	    }
+	    else {
+		$(panelname).addClass("inuse-panel");
+		$('#counts-panel-' + name).addClass("counts-panel");
+		$(panelname).data("status", "minimized");
+	    }
+	})
     }
     
     $(document).ready(initialize);

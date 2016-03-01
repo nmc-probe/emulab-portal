@@ -180,8 +180,8 @@ caption {
 .tablesorter-green .tablesorter-filter {
 	width: 98%;
 	height: auto;
-	margin: 4px;
-	padding: 4px;
+	margin: 1px;
+	padding: 1px;
 	background-color: #fff;
 	border: 1px solid #bbb;
 	color: #333;

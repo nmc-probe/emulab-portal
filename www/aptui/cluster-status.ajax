@@ -52,15 +52,30 @@ function Do_GetStatus()
     }
     pclose($fp);
     $inuse = json_decode($string);
+    if (gettype($inuse) == "object") {
+        $inuse = $inuse->details;
+    }
 
     #
     # We want to convert slice_urns to local instances so that we
     # convert the uid/pids to local names and provide links to the
     # instances. 
     #
-    $instances = array();
+    $instances    = array();
+    $typecounts   = array();
 
     foreach ($inuse as $details) {
+        $type = $details->type;
+        if (!array_key_exists($type, $typecounts)) {
+            $typecounts[$type] = array("inuse" => 0, "free" => 0);
+        }
+        if ($details->pid != "") {
+            $typecounts[$type]["inuse"] += 1;
+        }
+        else {
+            $typecounts[$type]["free"] += 1;
+        }
+        
         if (property_exists($details, "slice_uuid") &&
             $details->slice_uuid != "") {
 
@@ -75,10 +90,12 @@ function Do_GetStatus()
                 $details->pid = $instance->pid();
                 $details->instance_uuid = $instance->uuid();
                 $details->instance_name = $instance->name();
+                $details->uid = $instance->creator();
             }
         }
     }
-    $dashboard["inuse"] = $inuse;
+    $dashboard["totals"] = $typecounts;
+    $dashboard["inuse"]  = $inuse;
     SPITAJAX_RESPONSE($dashboard);
 }
 
