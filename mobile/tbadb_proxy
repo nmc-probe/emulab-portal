@@ -25,13 +25,12 @@
 
 use strict;
 use English;
-use libjsonrpc;
-use tbadb_rpc;
-
 
 # Drag in Emulab clientside path stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
+use libjsonrpc;
+use tbadb_rpc;
 
 # Function prototypes
 sub send_error($$$);
@@ -70,6 +69,7 @@ my $ADB = "/usr/bin/adb";
 my $FASTBOOT = "/usr/bin/fastboot";
 my $TOUCH = "/usr/bin/touch";
 my $IPTABLES = "/sbin/iptables";
+my $HOST = "/usr/bin/host";
 my $TBADB_IMAGE_CACHE_DIR = "/z/adb_img_cache";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
@@ -82,7 +82,7 @@ $| = 1;
 #
 # Only allow root to run the script.
 #
-die("tbadb_proxy: May only be run as root!\n");
+die("tbadb_proxy: May only be run as root!\n")
     if ($UID != 0);
 
 # Read in the node_id -> serial number map.
@@ -237,7 +237,7 @@ sub rpc_loadimage($) {
     my $node_id = $data->{ARGS}->{NODE_ID};
     my $imgname = $data->{ARGS}->{IMG_NAME};
     my $proj    = $data->{ARGS}->{IMG_PROJ};
-    if (!$imgname || !$node || !$proj) {
+    if (!$imgname || !$node_id || !$proj) {
 	warn "tbadb_proxy::rpc_loadimage: missing RPC arguments!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
 	exit 1;
@@ -268,7 +268,7 @@ sub rpc_loadimage($) {
     my $userdata_image = "$sysdir/pnet-userdata.img";
     my $cache_image = "$sysdir/pnet-cache.img";
     if (!-r $recovery_image || !-r $boot_image || 
-	!-r $userdata_image || !-r $cache_image || ) {
+	!-r $userdata_image || !-r $cache_image ) {
 	warn "tbadb_proxy::rpc_loadimage: one or more core images missing!\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, "Missing core images.");
 	exit 1;
@@ -373,8 +373,8 @@ sub rpc_forward($) {
 	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
 	exit 1;
     }
-    if ($dport < 1 || $dport > 65535) {
-	warn "tbadb_proxy::rpc_forwardadb: requested port is out of range: $dport!\n";
+    if ($tport < 1 || $tport > 65535) {
+	warn "tbadb_proxy::rpc_forwardadb: requested port is out of range: $tport!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Requested port is out of range.");
 	exit 1;
     }
@@ -543,7 +543,7 @@ sub enter_fastboot($) {
 	    sleep 5;
 	    $state = `$FASTBOOT devices 2>&1`;
 	    return 1 if $state =~ /$serial\s+fastboot/;
-	    if ($time() - $stime > $FASTBOOT_TMO) {
+	    if (time() - $stime > $FASTBOOT_TMO) {
 		warn "tbadb_proxy::enter_fastboot: timed out waiting for $node_id\n";
 		return 0;
 	    }

@@ -244,6 +244,7 @@ AC_SUBST(MIN_UNIX_UID)
 AC_SUBST(MIN_UNIX_GID)
 AC_SUBST(DELAYTHRESH)
 AC_SUBST(PELABSUPPORT)
+AC_SUBST(MOBILESUPPORT)
 AC_SUBST(ELVIN_COMPAT)
 AC_SUBST(ISOLATEADMINS)
 AC_SUBST(DYNAMICROOTPASSWORDS)
@@ -408,6 +409,7 @@ MIN_UNIX_UID=10000
 MIN_UNIX_GID=6000
 DELAYTHRESH=2
 PELABSUPPORT=0
+MOBILESUPPORT=0
 ELVIN_COMPAT=0
 ISOLATEADMINS=1
 DYNAMICROOTPASSWORDS=1
@@ -1000,6 +1002,16 @@ else
 fi
 
 #
+# Mobile networking support.
+#
+if test $MOBILESUPPORT -eq 0; then
+	mobilefiles="";
+else
+	mobilefiles="mobile/GNUmakefile";
+	optional_subdirs="$optional_subdirs mobile";
+fi
+
+#
 # Enable Windows support.
 # Right now this means NTFS support in imagezip, maybe more things later.
 # Relies on Linux NTFS library.
@@ -1361,6 +1373,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	$eventfiles \
 	$winfiles \
 	$pelabfiles \
+	$mobilefiles \
 	apache/GNUmakefile apache/php.ini \
         xmlrpc/GNUmakefile xmlrpc/emulabclient.py xmlrpc/emulabserver.py \
 	xmlrpc/sshxmlrpc_client.py xmlrpc/sshxmlrpc_server.py \

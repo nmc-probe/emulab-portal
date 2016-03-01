@@ -45,7 +45,7 @@ all:	$(BIN_SCRIPTS) $(LIB_FILES)
 include $(TESTBED_SRCDIR)/GNUmakerules
 
 install: \
-	$(addprefix $(INSTALL_BINDIR)/, $(BIN_SCRIPTS))
+	$(addprefix $(INSTALL_BINDIR)/, $(BIN_SCRIPTS)) \
 	$(addprefix $(INSTALL_LIBDIR)/, $(LIB_FILES))
 
 post-install:

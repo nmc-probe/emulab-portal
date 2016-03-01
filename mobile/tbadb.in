@@ -32,8 +32,10 @@ use Data::Dumper;
 use lib "@prefix@/lib";
 use libjsonrpc;
 use EmulabConstants;
-use Image;
 use User;
+use Node;
+use Image;
+
 
 # Func prototypes
 sub cmd_setup($@);
@@ -56,6 +58,7 @@ my $TBADB_PROXYCMD = "/usr/testbed/sbin/tbadb_proxy";
 my $TBADB_HELLO_TMO      = 10;
 my $TBADB_CHECKIMAGE_TMO = 30;
 my $TBADB_LOADIMAGE_TMO  = 120;
+my $TBADB_FORWARD_TMO    = 15;
 my $TBADB_REBOOT_TMO     = 60;
 my $CHILD_WAIT_TMO       = 10;
 my $SCP = "/usr/bin/scp";
@@ -88,8 +91,7 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 # We don't want to run this script unless it's the real version.
 #
 if ($EUID != 0) {
-    die("*** $0:\n".
-	"    Must be setuid! Maybe it's a development version?\n");
+    die("$0: Must be setuid! Maybe it's a development version?\n");
 }
 
 #
@@ -114,7 +116,7 @@ $libjsonrpc::debug = 1 if $debug;
 my $node_id = $opts{'n'} ? $opts{'n'} : "";
 if ($node_id) {
     die "$0: malformed node_id argument!\n"
-	if ($node_id !~ /^([-\w]{$MINHLEN, $MAXHLEN})$/);
+	if ($node_id !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
     $node_id = $1;    
 }
 
@@ -122,8 +124,8 @@ if ($node_id) {
 my ($CMD, @ARGS) = @ARGV;
 
 # Untaint command
-die "$tbadb: malformed command!\n"
-    if (!$CMD =~ /^([-\w]{$MINCMDLEN,$MAXCMDLEN})$/);
+die "$0: malformed command!\n"
+    if ($CMD !~ /^([-\w]{$MINCMDLEN,$MAXCMDLEN})$/);
 $CMD = $1;
 
 die "$0: unknown command: $CMD\n"
@@ -214,7 +216,7 @@ sub cmd_loadimage($@) {
 	if (!SendRPCData($rpcout, 
 			 EncodeCall("checkimage",
 				    {
-					IMG_PROJ => $imgpid,
+					IMG_PROJ => $imagepid,
 					IMG_NAME => $imagename,
 					IMG_TIME => $mtime,
 					IMG_SIZE => $size,
@@ -233,6 +235,10 @@ sub cmd_loadimage($@) {
 
     # Transfer the image to the remote host if necessary (SCP).
     if ($data->{RESULT}->{NEED_IMG} == 1) {
+	my $rhost;
+	$node->TipServer(\$rhost);
+	die "tbadb::cmd_loadimage: Could not lookup control server for $node!\n"
+	    if (!$rhost);
 	print "tbadb: Sending $imagepath to $rhost\n";
 	my $rpath = $data->{RESULT}->{REMOTE_PATH};
 	die "tbadb::cmd_loadimage: Failed to transfer image to $rhost: $imagepath\n"
@@ -245,8 +251,8 @@ sub cmd_loadimage($@) {
 	if (!SendRPCData($rpcout, 
 			 EncodeCall("loadimage",
 				    {
-					IMG_PROJ => $imgpid,
-					IMG_NAME => $imgname,
+					IMG_PROJ => $imagepid,
+					IMG_NAME => $imagename,
 					NODE_ID  => $node_id,
 				    })));
     die "tbadb::cmd_loadimage: Failed to receive response for 'loadimage'\n"
@@ -282,6 +288,18 @@ sub cmd_forward($@) {
 	if ($tport !~ /^(\d+)$/ || $1 < 1 || $1 > 65535);
     $tport = $1;
 
+    # Make sure user has access to requested node
+    my $node = Node->Lookup($node_id);
+    die "tbadb::cmd_forward: Invalid node name $node_id!\n"
+	if (!defined($node));
+    die("tbadb::cmd_forward: You do not have permission to reboot $node\n")
+	if (!$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
+    
+    # Grab the RPC pipe.
+    my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
+    die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
+	if (!$rpcin || !$rpcout);
+    
     # Request adb port forwarding on device's control host.
     die "tbadb::cmd_forward: Failed to send 'forward' RPC!\n"
 	if (!SendRPCData($rpcout, 
@@ -370,14 +388,17 @@ sub GetRPCPipeHandles($) {
 	if (!$conserver);
     if (!exists($SSHPIPES{$conserver})) {
 	$SSHPIPES{$conserver} = 
-	    TBADB::SSHPipe($conserver, $TBADB_PROXYCMD);
+	    TBADB::SSHPipe->New($conserver, $TBADB_PROXYCMD);
     }
     my $sshpipe = $SSHPIPES{$conserver};
 
     # Open the SSH Pipe if necessary.
     if (!$sshpipe->isopen()) {
-	my $pdu;
+	my $SAVEUID = $UID; 
+	$EUID = $UID = 0; # Flip to root to run!
 	($rpcin, $rpcout) = $sshpipe->GetPipe();
+	$EUID = $UID = $SAVEUID; # Flip back.
+	my $pdu;
 	my $res = RecvRPCData($rpcin, \$pdu, $TBADB_HELLO_TMO);
 	if ($res == -1) {
 	    die "tbadb: Timeout while opening SSH Pipe!\n";
@@ -414,7 +435,10 @@ sub cleanexit($) {
 
     if (@tokill) {
 	warn "tbadb: Killing SSH pipe processes: @tokill\n";
+	my $SAVEUID = $UID; 
+	$EUID = $UID = 0; # Flip to root to kill!
 	kill("TERM", @tokill);
+	$EUID = $UID = $SAVEUID; # Flip back.
 
 	my $stime = time();
 	while (keys %SSHPIPES) {
