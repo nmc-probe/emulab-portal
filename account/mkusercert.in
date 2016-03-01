@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -207,21 +207,18 @@ if (defined($options{"c"}) || defined($options{"C"})) {
     if (defined($options{"c"})) {
 	$old_password = $options{"c"};
     }
-    else {
-	$target_user->SSLPassPhrase(1, \$old_password) == 0
-	    or fatal("No password for encrypted SSL key");
+    elsif ($target_user->SSLPassPhrase(1, \$old_password) == 0) {
+	#
+	# Make sure its all escaped since any printable char is allowed.
+	#
+	if ($old_password =~ /^([\040-\176]*)$/) {
+	    $old_password = $1;
+	}
+	else {
+	    fatal("Tainted password: $old_password");
+	}
+	$old_password =~ s/\'/\'\\\'\'/g;
     }
-
-    #
-    # Make sure its all escaped since any printable char is allowed.
-    #
-    if ($old_password =~ /^([\040-\176]*)$/) {
-	$old_password = $1;
-    }
-    else {
-	die("Tainted argument: $old_password\n");
-    }
-    $old_password =~ s/\'/\'\\\'\'/g;
 }
 
 
