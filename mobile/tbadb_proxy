@@ -29,6 +29,10 @@ use libjsonrpc;
 use tbadb_rpc;
 
 
+# Drag in Emulab clientside path stuff.
+BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
+
+
 # Function prototypes
 sub send_error($$$);
 sub do_lru_cleanup();
@@ -36,9 +40,14 @@ sub rpc_checkimage($);
 sub rpc_loadimage($);
 sub rpc_captureimage($);
 sub rpc_reboot($);
-sub rpc_forwardadb($);
+sub rpc_forward($);
 sub rpc_ping($);
 sub rpc_exit($);
+sub enter_fastboot($);
+sub load_android_image($$$);
+sub reboot_android($);
+sub wait_for_android($);
+sub setup_adb_forward($$$);
 
 
 # Dispatch table
@@ -47,7 +56,7 @@ my %DISPATCH = (
     'loadimage'    => \&rpc_loadimage,
     'captureimage' => \&rpc_captureimage,
     'reboot'       => \&rpc_reboot,
-    'forwardadb'   => \&rpc_forwardadb,
+    'forward'      => \&rpc_forward,
     'ping'         => \&rpc_ping,
     'exit'         => \&rpc_exit,
 );
@@ -55,14 +64,41 @@ my %DISPATCH = (
 
 # Global variables
 my $debug = 1;
+my $MAPFILE = "$ETCDIR/adbmap";
+my %NMAP = ();
 my $ADB = "/usr/bin/adb";
+my $FASTBOOT = "/usr/bin/fastboot";
 my $TOUCH = "/usr/bin/touch";
+my $IPTABLES = "/sbin/iptables";
 my $TBADB_IMAGE_CACHE_DIR = "/z/adb_img_cache";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
+my $FASTBOOT_TMO = 15;
+my $ANDROID_BOOT_TMO = 60;
 
 # AUTOFLUSH!
 $| = 1;
+
+#
+# Only allow root to run the script.
+#
+die("tbadb_proxy: May only be run as root!\n");
+    if ($UID != 0);
+
+# Read in the node_id -> serial number map.
+die "tbadb_proxy: Cannot run without node_id-to-serialno map file: $MAPFILE\n"
+    if (!-r $MAPFILE);
+open(MFILE, "<$MAPFILE")
+    or die "tbadb_proxy: Can't open map file: $MAPFILE: $!\n";
+while (my $ln = <MFILE>) {
+    chomp $ln;
+    next if (!$ln || $ln =~ /^#$/);
+    warn "tbadb_proxy: malformed node mapping line: $ln\n"
+	if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/);
+    $NMAP{$1} = $2;
+    $NMAP{$2} = $1;
+}
+close(MFILE);
 
 # Send "hello" To let remote end know we are ready.
 die "tbadb_proxy: Could not send hello to caller!\n"
@@ -104,14 +140,293 @@ while (1) {
     }
 }
 
+##############################################################################
+#
+# RPC dispatch functions follow.
+#
 
+sub rpc_checkimage($) {
+    my ($data) = @_;
+    my $proj    = $data->{ARGS}->{IMG_PROJ};
+    my $srcname = $data->{ARGS}->{IMG_NAME};
+    my $srctime = $data->{ARGS}->{IMG_TIME};
+    my $srcsize = $data->{ARGS}->{IMG_SIZE};
+
+    if (!$proj || !$srcname || !$srctime || !defined($srcsize)) {
+	warn "tbadb_proxy::rpc_checkimage: Argument(s) missing from RPC!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
+	exit 1;
+    }
+
+    warn "tbadb_proxy::rpc_checkimage: Image check requested for $proj/$srcname\n";
+
+    my $projdir = "$TBADB_IMAGE_CACHE_DIR/$proj";
+    if (!-d $projdir) {
+	if (!mkdir($projdir, 0750)) {
+	    warn "tbadb_proxy::rpc_checkimage: Failed to create project image directory: $projdir: $1\n";
+	    send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
+	    exit 1;
+	}
+    }
+
+    my $lrufile = "$projdir/.$srcname.lru";
+    my $imgfile = "$projdir/$srcname";
+    if (-f $imgfile) {
+	# Was the cached image placed (created) more recently than the
+	# timestamp provided for the upstream version? Is the size different?
+	my @imstats = stat($imgfile);
+	my $imtime = $imstats[9];
+	my $imsize = $imstats[7];
+	warn "rpc_checkimage: UPSTREAM stats: $srcname, $srctime, $srcsize\n"
+	    if $debug;
+	warn "rpc_checkimage: LOCAL stats:    $srcname, $imtime, $imsize\n"
+	    if $debug;
+	if ($imtime >= $srctime && $imsize == $srcsize) {
+	    if (!SendRPCData(*STDOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
+		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+		exit 1;
+	    }
+	    return;
+	} else {
+	    # Delete older existing image to make way for new version.
+	    if (!unlink($imgfile)) {
+		warn "tbadb_proxy::rpc_checkimage: Could not remove old image: $imgfile\n";
+		send_error($data->{FID}, RPCERR_INTERNAL, "Failed to remove older version of image.");
+		exit 1;
+	    }
+	}
+    }
+
+    # Touch image's LRU file (even though the image may not have been
+    # transferred yet; presumably it will be shortly).
+    if (system($TOUCH, "$lrufile") != 0) {
+	warn "tbadb_proxy::rpc_checkimage: Could not update timestamp on $lrufile!\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
+	exit 1;
+    }
+
+    # Check to see if we are over quota, and LRU prune if so.
+    if (!do_lru_cleanup()) {
+	warn "tbadb_proxy::rpc_loadimage: Error cleaning up cache. Exiting!\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, 
+		   "Failed while cleaning up image cache.");
+	exit 1;
+    }
+
+    # If we need/want to enforce some concurrency limits from this side,
+    # we could send back a "WAIT" result here, which would tell the caller
+    # to wait for some amount of time (maybe we specify), then call again.
+
+    # Request that the image be transferred over (scp from boss)
+    if (!SendRPCData(*STDOUT,
+	     EncodeResult($data->{FID}, 
+			  { NEED_IMG => 1, 
+			    REMOTE_PATH => "$projdir" }))) {
+	warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+	exit 1;
+    }
+
+    return;
+}
+
+
+sub rpc_loadimage($) {
+    my ($data) = @_;
+
+    # Check arguments
+    my $node_id = $data->{ARGS}->{NODE_ID};
+    my $imgname = $data->{ARGS}->{IMG_NAME};
+    my $proj    = $data->{ARGS}->{IMG_PROJ};
+    if (!$imgname || !$node || !$proj) {
+	warn "tbadb_proxy::rpc_loadimage: missing RPC arguments!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
+	exit 1;
+    }
+    if (!exists($NMAP{$node_id})) {
+	warn "tbadb::rpc_loadimage: unknown/bad node_id: $node_id\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
+	exit 1;
+    }
+    my $serial = $NMAP{$node_id};
+    my $fname = "$TBADB_IMAGE_CACHE_DIR/$proj/$imgname";
+    if (!-f $fname) {
+	warn "tbadb_proxy::rpc_loadimage: no such image file: $fname\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "No such image.");
+	exit 1;
+    }
+
+
+    # Load image on to unit and report success/fail to caller.
+    warn "tbadb_proxy::rpc_loadimage: loading image $proj/$imgname on to $node_id\n";
+
+    # Step 1: reload the recovery, boot, cache, and userdata
+    # partitions with our default stuff.  Probably need to revisit for
+    # the boot partition which contains the kernel and related stuff...
+    my $sysdir = "$TBADB_IMAGE_CACHE_DIR/PNSYSTEM";
+    my $recovery_image = "$sysdir/pnet-recovery.img";
+    my $boot_image = "$sysdir/pnet-boot.img";
+    my $userdata_image = "$sysdir/pnet-userdata.img";
+    my $cache_image = "$sysdir/pnet-cache.img";
+    if (!-r $recovery_image || !-r $boot_image || 
+	!-r $userdata_image || !-r $cache_image || ) {
+	warn "tbadb_proxy::rpc_loadimage: one or more core images missing!\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, "Missing core images.");
+	exit 1;
+    }
+    if (!enter_fastboot($node_id)) {
+	warn "tbadb_proxy::rpc_loadimage: failed to boot $node_id into fastboot!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "Node failed to load into fastboot.");
+	exit 1;
+    }
+    if (!(   load_android_image($node_id, IMG_RECOVERY, $recovery_image)
+	  && load_android_image($node_id, IMG_BOOT,     $boot_image)
+	  && load_android_image($node_id, IMG_USERDATA, $userdata_image)
+	  && load_android_image($node_id, IMG_CACHE,    $cache_image))) {
+	warn "tbadb_proxy::rpc_loadimage: failed to load a core image on $node_id!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load core image.");
+	exit 1;
+    }
+
+    # Step 2: load specified image onto system partition
+    if (!load_android_image($node_id, IMG_SYSTEM, $fname)) {
+	warn "tbadb_proxy::rpc_loadimage: failed to load requested image on $node_id!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load requested image.");
+	exit 1;
+    }
+
+    # Step 3: reboot into newly loaded image
+    if (!reboot_android($node_id)) {
+	warn "tbadb_proxy::rpc_loadimage: newly loaded image failed to boot!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.");
+	exit 1;
+    }
+
+    # Send success result back to caller.
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    return;
+}
+
+
+sub rpc_captureimage($) {
+    my ($data) = @_;
+
+    # XXX: fill me in!
+    warn "tbadb_proxy::rpc_captureimage: Called...\n";
+    send_error($data->{FID}, RPCERR_NOTIMPL, "captureimage not implemented yet.");
+    return;
+}
+
+
+sub rpc_reboot($) {
+    my ($data) = @_;
+
+    my $node_id = $data->{ARGS}->{NODE_ID};
+    my $dowait  = $data->{ARGS}->{WAIT};
+
+    # Do a bit of arg checking.
+    $dowait = defined($dowait) && int($dowait) ? 1 : 0;
+    if (!$node_id) {
+	warn "tbadb_proxy::rpc_reboot: No node_id provided in RPC args!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "node_id missing.");
+	exit 1;
+    }
+    if (!exists($NMAP{$node_id})) {
+	warn "tbadb::rpc_loadimage: unknown/bad node_id: $node_id\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
+	exit 1;
+    }
+    my $serial = $NMAP{$node_id};
+
+    # Reboot the unit.
+    warn "tbadb_proxy::rpc_reboot: rebooting node $node_id\n";
+    if (!reboot_android($node_id)) {
+	warn "tbadb_proxy::rpc_reboot: failed to reboot $node_id!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "Reboot failed.");
+	exit 1;
+    }
+
+    # Wait for device to boot up, if requested to do so.
+    if ($dowait) {
+	warn "tbadb_proxy::rpc_reboot: waiting for $node_id to come up.\n";
+	if (!wait_for_node($node_id)) {
+	    warn "tbadb_proxy::rpc_reboot: failed waiting for $node_id to boot!\n";
+	    send_error($data->{FID}, RPCERR_NODE_ERR, "Boot failed.");
+	    exit 1;
+	}
+    }
+
+    # Report success.
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    return;
+}
+
+
+sub rpc_forward($) {
+    my ($data) = @_;
+
+    my $node_id  = $data->{ARGS}->{NODE_ID};
+    my $thost    = $data->{ARGS}->{TARGET_HOST};
+    my $tport    = $data->{ARGS}->{TARGET_PORT};
+
+    if (!$node_id || !$thost || !$tport) {
+	warn "tbadb_proxy::rpc_forward: Missing RPC args!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
+	exit 1;
+    }
+    if ($dport < 1 || $dport > 65535) {
+	warn "tbadb_proxy::rpc_forwardadb: requested port is out of range: $dport!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Requested port is out of range.");
+	exit 1;
+    }
+    if (!exists($NMAP{$node_id})) {
+	warn "tbadb::rpc_loadimage: unknown/bad node_id: $node_id\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
+	exit 1;
+    }
+    my $serial = $NMAP{$node_id};
+
+    # Setup forwarding from the ADB daemon on the unit to the
+    # destionation port, and report back to caller!
+    warn "tbadb_proxy::rpc_forward: fowarding ADB on node $node_id to destination host $thost port $tport\n";
+    if (!setup_android_forward($node_id, $thost, $tport)) {
+	warn "tbadb_proxy::rpc_forward: failed to setup adb port forwarding for $node_id to $thost on port $tport!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "adb forwarding failed.");
+	exit 1;
+    }
+
+    # Report success.
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    return;
+}
+
+
+sub rpc_ping($) {
+    my ($data) = @_;
+
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { PONG => 1 }));
+    return;
+}
+
+sub rpc_exit($) {
+    my ($data) = @_;
+
+    # Send acknowledgement and exit.  No arguments expected.
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    exit 0;
+}
+
+##############################################################################
+#
+# Helper functions follow.
+#
+
+# Simple shorthand wrapper that sends an error back to the caller.
 sub send_error($$$) {
     my ($fid, $code, $message) = @_;
 
     # Send failure result back.
     return SendRPCData(*STDOUT, EncodeError($fid, $code, $message));
 }
-
 
 # Helper that does LRU on our image cache
 sub do_lru_cleanup() {
@@ -134,6 +449,7 @@ sub do_lru_cleanup() {
     while (my $ent = readdir($dh)) {
 	my $dname = "$TBADB_IMAGE_CACHE_DIR/$ent";
 	next if ($ent =~ /^\..*$/ || !-d $dname);
+	next if ($ent eq "PNSYSTEM"); # Skip system dir.
 	my $subdh;
 	if (!opendir($subdh, $dname)) {
 	    warn "tbadb_proxy::do_lru_cleanup: Could not descend into $dname\n";
@@ -199,186 +515,164 @@ sub do_lru_cleanup() {
     return 1;
 }
 
+# Put a given android device into fastboot mode.
+sub enter_fastboot($) {
+    my ($node_id) = @_;
 
-sub rpc_checkimage($) {
-    my ($data) = @_;
-    my $proj    = $data->{ARGS}->{IMG_PROJ};
-    my $srcname = $data->{ARGS}->{IMG_NAME};
-    my $srctime = $data->{ARGS}->{IMG_TIME};
-    my $srcsize = $data->{ARGS}->{IMG_SIZE};
-
-    if (!$proj || !$srcname || !$srctime || !defined($srcsize)) {
-	warn "tbadb_proxy::rpc_checkimage: Argument(s) missing from RPC!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
-	exit 1;
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "tbadb_proxy::enter_fastboot: No serial number for $node_id!\n";
+	return 0;
     }
 
-    warn "tbadb_proxy::rpc_checkimage: Image check requested for $proj/$srcname\n";
+    # First see if it is already sitting in fastboot.
+    my $state = `$FASTBOOT devices 2>&1`;
+    return 1 if $state =~ /$serial\s+fastboot/;
 
-    my $projdir = "$TBADB_IMAGE_CACHE_DIR/$proj";
-    if (!-d $projdir) {
-	if (!mkdir($projdir, 0750)) {
-	    warn "tbadb_proxy::rpc_checkimage: Failed to create project image directory: $projdir: $1\n";
-	    send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
-	    exit 1;
+    # Next try to reboot via adb if adbd is running on the device.
+    $state = `$ADB -s $serial get-state 2>&1`;
+    chomp $state;
+    if ($state ne "unknown") {
+	if (system("$ADB -s $serial reboot-bootloader > /dev/null 2>&1") != 0) {
+	    warn "Failed to reboot $node_id via adb!\n";
+	    return 0;
+	}
+	# Now wait for fastboot to see it
+	my $stime = time();
+	while (1) {
+	    sleep 5;
+	    $state = `$FASTBOOT devices 2>&1`;
+	    return 1 if $state =~ /$serial\s+fastboot/;
+	    if ($time() - $stime > $FASTBOOT_TMO) {
+		warn "tbadb_proxy::enter_fastboot: timed out waiting for $node_id\n";
+		return 0;
+	    }
 	}
     }
 
-    my $lrufile = "$projdir/.$srcname.lru";
-    my $imgfile = "$projdir/$srcname";
-    if (-f $imgfile) {
-	# Was the cached image placed (created) more recently than the
-	# timestamp provided for the upstream version? Is the size different?
-	my @imstats = stat($imgfile);
-	my $imtime = $imstats[9];
-	my $imsize = $imstats[7];
-	warn "rpc_checkimage: UPSTREAM stats: $srcname, $srctime, $srcsize\n";
-	warn "rpc_checkimage: LOCAL stats:    $srcname, $imtime, $imsize\n";
-	if ($imtime >= $srctime && $imsize == $srcsize) {
-	    if (!SendRPCData(*STDOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
-		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
-		exit 1;
+    warn "tbadb_proxy::enter_fastboot: Could not find device!\n";
+    return 0;
+}
+
+# Flash an image to a device on the given partition.
+sub load_android_image($$$) {
+    my ($node_id, $partition, $impath) = @_;
+
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	return 0;
+    }
+
+    my $state = `$FASTBOOT devices 2>&1`;
+    if ($state !~ /$serial\s+fastboot/) {
+	warn "tbadb_proxy::load_android_image: device $node_id is not in fastboot. Can't flash image!";
+	return 0;
+    }
+
+    my $imgout = `$FASTBOOT -u -s $serial flash $partition $impath 2>&1`;
+    if ($?) {
+	warn "tbadb_proxy::load_android_image: fastboot failed to flash $partition with $impath on $node_id!\n";
+	warn "Output:\n$imgout\n";
+	return 0;
+    }
+
+    return 1;
+}
+
+# Reboot a device, but don't wait for it to come up.
+sub reboot_android($) {
+    my ($node_id) = @_;
+
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	return 0;
+    }
+
+    # Figure out if node is setting in fastboot or regular boot, and reboot.
+    my $state = `$FASTBOOT devices 2>&1`;
+    if ($state =~ /$serial\s+fastboot/) {
+	if (system("$FASTBOOT -s $serial reboot >/dev/null 2>&1") != 0) {
+	    warn "tbadb_proxy::reboot_android: fastboot failed to reboot $node_id!\n";
+	    return 0;
+	}
+    } else {
+	$state = `$ADB -s $serial get-state 2>&1`;
+	if ($state ne "unknown") {
+	    if (system("$ADB -s $serial reboot") != 0) {
+		warn "tbadb_proxy::reboot_android: adb failed to reboot $node_id!\n";
+		return 0;
 	    }
-	    return;
 	} else {
-	    # Delete older existing image to make way for new version.
-	    if (!unlink($imgfile)) {
-		warn "tbadb_proxy::rpc_checkimage: Could not remove old image: $imgfile\n";
-		send_error($data->{FID}, RPCERR_INTERNAL, "Failed to remove older version of image.");
-		exit 1;
-	    }
+	    warn "tbadb_proxy::reboot_android: could not find device $node_id!\n";
+	    return 0;
 	}
     }
 
-    # Touch image's LRU file (even though the image may not have been
-    # transferred yet; presumably it will be shortly).
-    if (system($TOUCH, "$lrufile") != 0) {
-	warn "tbadb_proxy::rpc_checkimage: Could not update timestamp on $lrufile!\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
-	exit 1;
-    }
-
-    # Check to see if we are over quota, and LRU prune if so.
-    if (!do_lru_cleanup()) {
-	warn "tbadb_proxy::rpc_loadimage: Error cleaning up cache. Exiting!\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, 
-		   "Failed while cleaning up image cache.");
-	exit 1;
-    }
-
-    # If we need/want to enforce some concurrency limits from this side,
-    # we could send back a "WAIT" result here, which would tell the caller
-    # to wait for some amount of time (maybe we specify), then call again.
-
-    # Request that the image be transferred over (scp from boss)
-    if (!SendRPCData(*STDOUT,
-	     EncodeResult($data->{FID}, 
-			  { NEED_IMG => 1, 
-			    REMOTE_PATH => "$projdir" }))) {
-	warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
-	exit 1;
-    }
-
-    return;
+    # We don't wait for the node to come up...
+    return 1;
 }
 
+# Helper that waits (bounded by a timeout) for a device to become available
+# via adb.
+sub wait_for_android($) {
+    my ($node_id) = @_;
 
-sub rpc_loadimage($) {
-    my ($data) = @_;
-
-    # Check arguments
-    my $imgname = $data->{ARGS}->{IMG_NAME};
-    my $node    = $data->{ARGS}->{NODE_ID};
-    my $proj    = $data->{ARGS}->{IMG_PROJ};
-    if (!$imgname || !$node || !$proj) {
-	warn "tbadb_proxy::rpc_loadimage: missing RPC arguments!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
-	exit 1;
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	return 0;
     }
-    my $fname = "$TBADB_IMAGE_CACHE_DIR/$proj/$imgname";
-    if (!-f $fname) {
-	warn "tbadb_proxy::rpc_loadimage: no such image file: $fname\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "No such image.");
-	exit 1;
+
+    my $stime = time();
+    while (1) {
+	my $state = `$ADB -s $serial get-state 2>&1`;
+	if ($state eq "device") {
+	    last;
+	}
+	if (time() - $stime > $ANDROID_BOOT_TMO) {
+	    warn "tbadb_proxy::wait_for_android: timed out waiting for $node_id to boot!\n";
+	    return 0;
+	}
+	sleep 5;
     }
-    # XXX: Check validity of node id!
 
-    # XXX: Load image on to unit and report success/fail to caller!
-    warn "tbadb_proxy::rpc_loadimage: Loading image $proj/$imgname on to $node\n";
-    send_error($data->{FID}, RPCERR_NOTIMPL, "loadimage not implemented yet.");
-
-    return;
+    return 1;
 }
 
+# Helper that sets up listener port for a device
+sub setup_adb_forward($$$) {
+    my ($node_id, $thost, $tport) = @_;
 
-sub rpc_captureimage($) {
-    my ($data) = @_;
-
-    # XXX: fill me in!
-    warn "tbadb_proxy::rpc_captureimage: Called...\n";
-    send_error($data->{FID}, RPCERR_NOTIMPL, "captureimage not implemented yet.");
-    return;
-}
-
-
-sub rpc_reboot($) {
-    my ($data) = @_;
-
-    my $node = $data->{ARGS}->{NODE_ID};
-    if (!$node) {
-	warn "tbadb_proxy::rpc_reboot: No node_id provided in RPC args!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "node_id missing.");
-	exit 1;
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	return 0;
     }
-    # XXX: Check vailidity of node_id!
 
-    # XXX: Reboot the unit and report back to caller!
-    warn "tbadb_proxy::rpc_reboot: rebooting node $node\n";
-    send_error($data->{FID}, RPCERR_NOTIMPL, "reboot not implemented yet.");
-
-    return;
-}
-
-
-sub rpc_forwardadb($) {
-    my ($data) = @_;
-
-    my $node  = $data->{ARGS}->{NODE_ID};
-    my $dhost = $data->{ARGS}->{DEST_HOST};
-    my $dport = $data->{ARGS}->{DEST_PORT};
-
-    if (!$node || !$dhost || !$dport) {
-	warn "tbadb_proxy::rpc_forwardadb: Missing RPC args!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
-	exit 1;
+    # Resolve the IP address for the target host if necessary
+    if ($thost !~ /^\d+\.\d+\.\d+\.\d+$/) {
+	my $tres = `$HOST -t A $thost 2>&1`;
+	if ($tres =~ /has address ([\.\d]+)/) {
+	    $thost = $1;
+	} else {
+	    warn "tbadb_proxy::setup_adb_forward: could not lookup ip for host $thost\n";
+	    return 0;
+	}
     }
-    if ($dport < 1 || $dport > 65535) {
-	warn "tbadb_proxy::rpc_forwardadb: requested port is out of range: $dport!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Requested port is out of range.");
-	exit 1;
+
+    # Setup iptables rule to only allow connections from target
+    if (system("$IPTABLES -A INPUT ! -s $thost -p tcp --dport $tport -j DROP >/dev/null 2>&1") != 0) {
+	warn "tbadb_proxy::setup_adb_forward: could not setup iptables rule to limit connections for $node_id via port $tport to target host IP $thost\n";
+	return 0;
     }
-    # XXX: Check vailidity of node_id!
 
-    # XXX: Setup forwarding from the ADB daemon on the unit to the
-    #      destionation port, and report back to caller!
-    warn "tbadb_proxy::rpc_forwardadb: fowarding ADB on node $node to destination host $dhost port $dport\n";
-    send_error($data->{FID}, RPCERR_NOTIMPL, "forwardadb not implemented yet.");
+    # Forward!
+    if (system("ADB -s $serial forward tcp:$tport tcp:5555") != 0) {
+	warn "tbadb_proxy::setup_adb_forward: could not forward adbd port on node_id to local port $tport!\n";
+	return 0;
+    }
 
-    return;
-}
-
-
-sub rpc_ping($) {
-    my ($data) = @_;
-
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { PONG => 1 }));
-    return;
-}
-
-sub rpc_exit($) {
-    my ($data) = @_;
-
-    # Send acknowledgement and exit.  No arguments expected.
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
-    exit 0;
+    return 1
 }

@@ -36,8 +36,14 @@ use English;
 sub RPCERR_BADARGS  { return 2; }
 sub RPCERR_BADFUNC  { return 3; }
 sub RPCERR_NOTIMPL  { return 4; }
+sub RPCERR_NODE_ERR { return 5; }
 sub RPCERR_INTERNAL { return 13; }
 
+sub IMG_RECOVERY    { return "recovery"; }
+sub IMG_BOOT        { return "boot"; }
+sub IMG_USERDATA    { return "userdata"; }
+sub IMG_CACHE       { return "cache"; }
+sub IMG_SYSTEM      { return "system"; }
 
 # End with "true"
 1;
