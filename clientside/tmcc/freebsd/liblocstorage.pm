@@ -75,6 +75,12 @@ my $TUNEFS	= "/sbin/tunefs";
 my $EXT_TUNEFS	= "/usr/local/sbin/tune2fs";
 
 #
+# Force the use of GVINUM.
+# XXX mostly for testing.
+#
+my $USE_GVINUM	= 0;
+
+#
 # We orient the FS blocksize toward larger files.
 # (64K/8K is the largest that UFS supports).
 #
@@ -927,7 +933,7 @@ sub os_init_storage($)
 
 	# we use ZFS only on 64-bit versions of the OS
 	my $usezfs = 0;
-	if (-x "$ZPOOL") {
+	if (!$USE_GVINUM && -x "$ZPOOL") {
 	    my $un = `uname -rm`;
 	    if ($un =~ /^(\d+)\.\S+\s+(\S+)/) {
 		$usezfs = 1 if ($1 >= 8 && $2 eq "amd64");
@@ -1756,13 +1762,15 @@ sub os_create_storage_slice($$$)
 
 		if (exists($so->{'VINUM_DRIVES'})) {
 		    foreach my $vdev (get_vinum_drives()) {
-			if ($vdev =~ /^(.*)s(\d+)$/) {
-			    $spacemap{$1}{'pnum'} = $2;
+			if ($vdev =~ /^(.*\d+)([ps])(\d+)$/) {
+			    $spacemap{$1}{'pchr'} = $2;
+			    $spacemap{$1}{'pnum'} = $3;
 			}
 		    }
 		}
 		else {
 		    if ($bsid eq "ANY") {
+			$spacemap{$bdisk}{'pchr'} = "s";
 			$spacemap{$bdisk}{'pnum'} = 4;
 		    }
 		    foreach my $dev (keys %$dinfo) {
@@ -1781,18 +1789,25 @@ sub os_create_storage_slice($$$)
 		    #
 		    foreach my $disk (keys %spacemap) {
 			my $pnum = $spacemap{$disk}{'pnum'};
+			my $ptype = "freebsd";
 
 			#
 			# If pnum==0, we need an MBR first
 			#
 			if ($pnum == 0) {
-			    if (mysystem("$GPART create -s mbr $disk $redir")) {
+			    if (mysystem("$GPART create -s gpt $disk $redir")) {
 				warn("*** $lv: could not create MBR on $disk$logmsg\n");
 				return 0;
 			    }
 			    $pnum = $spacemap{$disk}{'pnum'} = 1;
+			    $spacemap{$disk}{'pchr'} = "p";
+			    if ($so->{'USEZFS'}) {
+				$ptype = "freebsd-zfs";
+			    } else {
+				$ptype = "freebsd-vinum";
+			    }
 			}
-			if (mysystem("$GPART add -i $pnum -a 2048 -t freebsd $disk $redir")) {
+			if (mysystem("$GPART add -i $pnum -a 2048 -t $ptype $disk $redir")) {
 			    warn("*** $lv: could not create ${disk}s${pnum}$logmsg\n");
 			    return 0;
 			}
@@ -1810,7 +1825,7 @@ sub os_create_storage_slice($$$)
 		my $total_size = 0;
 		my ($min_s,$max_s);
 		foreach my $disk (keys %spacemap) {
-		    my $part = $disk . "s" . $spacemap{$disk}{'pnum'};
+		    my $part = $disk . $spacemap{$disk}{'pchr'} . $spacemap{$disk}{'pnum'};
 		    if (!exists($dinfo->{$part}) ||
 			$dinfo->{$part}->{'type'} ne "PART") {
 			warn("*** $lv: created partitions are wrong!?\n");
@@ -1873,7 +1888,7 @@ sub os_create_storage_slice($$$)
 		if (!exists($so->{'ZFS_POOLCREATED'})) {
 		    my @parts = ();
 		    foreach my $disk (sort keys %$space) {
-			my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
+			my $pdev = $disk . $space->{$disk}->{'pchr'} . $space->{$disk}->{'pnum'};
 			push(@parts, $pdev);
 		    }
 		    if (mysystem("$ZPOOL create -f -m none emulab @parts $redir")) {
@@ -1994,14 +2009,14 @@ sub os_create_storage_slice($$$)
 		}
 		if (!exists($so->{'VINUM_DRIVES'})) {
 		    foreach my $disk (keys %$space) {
-			my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
+			my $pdev = $disk . $space->{$disk}->{'pchr'} . $space->{$disk}->{'pnum'};
 			print FD "drive emulab_$pdev device /dev/$pdev\n";
 		    }
 		}
 		print FD "volume $lv\n";
 		print FD "  plex org $style\n";
 		foreach my $disk (keys %$space) {
-		    my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
+		    my $pdev = $disk . $space->{$disk}->{'pchr'} . $space->{$disk}->{'pnum'};
 		    my $sdsize = $space->{$disk}->{'vsize'};
 		    print FD "    sd length ${sdsize}m drive emulab_$pdev\n";
 		}
@@ -2194,16 +2209,18 @@ sub os_remove_storage_slice($$$)
 	    }
 	}
 
-	# if the device does not exist, we have a problem!
-	if (!exists($dinfo->{$dev})) {
-	    warn("*** $lv: device '$dev' does not exist\n");
-	    return 0;
-	}
-	# ditto if it exists but is of the wrong type
-	my $atype = $dinfo->{$dev}->{'type'};
-	if ($atype ne $devtype) {
-	    warn("*** $lv: actual type ($atype) != expected type ($devtype)\n");
-	    return 0;
+	if ($teardown != 2) {
+	    # if the device does not exist, we have a problem!
+	    if (!exists($dinfo->{$dev})) {
+		warn("*** $lv: device '$dev' does not exist\n");
+		return 0;
+	    }
+	    # ditto if it exists but is of the wrong type
+	    my $atype = $dinfo->{$dev}->{'type'};
+	    if ($atype ne $devtype) {
+		warn("*** $lv: actual type ($atype) != expected type ($devtype)\n");
+		return 0;
+	    }
 	}
 
 	# record all the output for debugging
@@ -2344,7 +2361,7 @@ sub os_remove_storage_slice($$$)
 			if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
-		    } elsif ($slice =~ /^(.*)s1$/) {
+		    } elsif ($slice =~ /^(.*)[ps]1$/) {
 			my $disk = $1;
 			if ($disk eq $bdisk ||
 			    mysystem("$GPART destroy -F $disk $redir")) {
@@ -2396,7 +2413,7 @@ sub os_remove_storage_slice($$$)
 			if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
-		    } elsif ($slice =~ /^(.*)s1$/) {
+		    } elsif ($slice =~ /^(.*)[ps]1$/) {
 			my $disk = $1;
 			if ($disk eq $bdisk ||
 			    mysystem("$GPART destroy -F $disk $redir")) {
