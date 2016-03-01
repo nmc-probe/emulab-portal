@@ -934,15 +934,11 @@ function Do_Refresh()
     #
     # Guest users can do this.
     #
-    if (StatusSetupAjax(1)) {
+    if (StatusSetupAjax(0)) {
 	return;
     }
     $this_idx = $this_user->uid_idx();
     $uuid = $ajax_args["uuid"];
-    if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
-	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
-	return;
-    }
     #
     # Call out to the backend.
     #
@@ -1014,7 +1010,7 @@ function Do_RebootOrReload($which)
     # Call out to the backend.
     #
     $webtask_id = WebTask::GenerateID();
-    $retval = SUEXEC($this_user->uid(), "nobody",
+    $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t $webtask_id -- ".
                      "  $which $uuid " . escapeshellarg($node_id), 
 		     SUEXEC_ACTION_IGNORE);
@@ -1243,7 +1239,7 @@ function Do_Linktest()
             return;
         }
         $webtask_id = WebTask::GenerateID();
-        $retval = SUEXEC($this_user->uid(), "nobody",
+        $retval = SUEXEC("nobody", "nobody",
                          "webmanage_instance -t $webtask_id -- ".
                          "linktest $uuid $level",
                          SUEXEC_ACTION_IGNORE);
@@ -1296,7 +1292,7 @@ function Do_Linktest()
             return;
         }
         $webtask_id = WebTask::GenerateID();
-        $retval = SUEXEC($this_user->uid(), "nobody",
+        $retval = SUEXEC("nobody", "nobody",
                          "webmanage_instance -t $webtask_id -- ".
                          "linktest $uuid -k",
                          SUEXEC_ACTION_IGNORE);

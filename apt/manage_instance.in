@@ -56,6 +56,8 @@ my $debug       = 0;
 my $silent      = 0;
 my $webtask_id;
 my $webtask;
+my $this_user;
+my $geniuser;
 
 #
 # Configure variables
@@ -101,6 +103,7 @@ use EmulabFeatures;
 
 # Protos
 sub fatal($);
+sub UserError($);
 sub DoSnapshot();
 sub DoConsole();
 sub DoTerminate();
@@ -146,6 +149,16 @@ if (!defined($instance)) {
 }
 if (!defined($instance)) {
     fatal("No such instance $uuid");
+}
+if (getpwuid($UID) eq "nobody") {
+    $this_user = User->ImpliedUser();
+}
+else  {
+    $this_user = User->ThisUser();
+}
+# If a guest user, we will not have an actual user, which is okay.
+if (defined($this_user)) {
+    $geniuser = GeniUser->CreateFromLocal($this_user);
 }
 
 if ($action eq "snapshot") {
@@ -250,15 +263,6 @@ sub DoSnapshot()
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
 	fatal("No slice for quick VM: $uuid");
-    }
-    
-    # The web interface (and in the future the xmlrpc interface) sets this.
-    my $this_user = User->ImpliedUser();
-    if (! defined($this_user)) {
-	$this_user = User->ThisUser();
-	if (!defined($this_user)) {
-	    fatal("You ($UID) do not exist!");
-	}
     }
     
     #
@@ -1183,11 +1187,6 @@ sub DoExtend()
     if (!defined($slice)) {
 	fatal("No slice for instance!");
     }
-    # The web interface (and in the future the xmlrpc interface) sets this.
-    my $this_user = User->ImpliedUser();
-    if (! defined($this_user)) {
-	$this_user = User->ThisUser();
-    }
 
     #
     # Lock the slice in case it is doing something else, like taking
@@ -1795,12 +1794,6 @@ sub DoLockdownInternal($$)
 {
     my ($setclr,$which) = @_;
 
-    # The web interface (and in the future the xmlrpc interface) sets this.
-    my $this_user = User->ImpliedUser();
-    if (! defined($this_user)) {
-	$this_user = User->ThisUser();
-    }
-    
     my $slice = $instance->GetGeniSlice();
     if (!defined($slice)) {
 	fatal("No slice for instance");
@@ -2021,11 +2014,6 @@ sub DoLinktest()
     if (!defined($slice)) {
 	fatal("No slice for instance!");
     }
-    # The web interface (and in the future the xmlrpc interface) sets this.
-    my $this_user = User->ImpliedUser();
-    if (! defined($this_user)) {
-	$this_user = User->ThisUser();
-    }
 
     #
     # Lock the slice in case it is doing something else, like taking
@@ -2232,11 +2220,6 @@ sub DoUpdateKeys()
     if (!defined($slice)) {
 	fatal("No slice for instance!");
     }
-    # The web interface (and in the future the xmlrpc interface) sets this.
-    my $this_user = User->ImpliedUser();
-    if (! defined($this_user)) {
-	$this_user = User->ThisUser();
-    }
 
     # This returns in CM format.
     my $sshkeys;
@@ -2367,6 +2350,19 @@ sub fatal($)
 	         "    $mesg\n";
     # Exit with negative status so web interface treats it as system error.
     exit(-1);
+}
+
+sub UserError($)
+{
+    my ($mesg) = @_;
+
+    if (defined($webtask)) {
+	$webtask->output($mesg);
+	$webtask->code(1);
+    }
+    print STDERR "*** $0:\n".
+	         "    $mesg\n";
+    exit(1);
 }
 
 sub escapeshellarg($)

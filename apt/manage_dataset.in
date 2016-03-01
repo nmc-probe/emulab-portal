@@ -46,6 +46,8 @@ my $optlist     = "dt:";
 my $debug       = 0;
 my $webtask_id;
 my $webtask;
+my $this_user;
+my $geniuser;
 
 #
 # Configure variables
@@ -80,6 +82,7 @@ use WebTask;
 use Blockstore;
 use GeniResponse;
 use GeniXML;
+use GeniUser;
 
 # Protos
 sub fatal($);
@@ -117,16 +120,19 @@ if (defined($options{"t"})) {
 if (@ARGV < 1) {
     usage();
 }
-
-# The web interface (and in the future the xmlrpc interface) sets this.
-my $this_user = User->ImpliedUser();
-if (! defined($this_user)) {
-    $this_user = User->ThisUser();
-    if (!defined($this_user)) {
-	fatal("You ($UID) do not exist!");
-    }
-}
 my $action = shift(@ARGV);
+
+if (getpwuid($UID) eq "nobody") {
+    $this_user = User->ImpliedUser();
+}
+else  {
+    $this_user = User->ThisUser();
+}
+# No guests allowed.
+if (! defined($this_user)) {
+    fatal("You ($UID) do not exist!");
+}
+$geniuser = GeniUser->CreateFromLocal($this_user);
 
 if ($action eq "create") {
     exit(DoCreate());

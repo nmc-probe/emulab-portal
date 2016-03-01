@@ -682,7 +682,7 @@ if ($tmp) {
 # Generate credentials we need.
 #
 my ($slice_credential, $speaksfor_credential) =
-    APT_Geni::GenCredentials($slice, $geniuser);
+    APT_Geni::GenCredentials($slice, $geniuser, undef, 0);
 if (! (defined($speaksfor_credential) &&
        defined($slice_credential))) {
     fatal("Could not generate credentials");

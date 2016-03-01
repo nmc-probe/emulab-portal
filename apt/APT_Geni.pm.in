@@ -56,10 +56,10 @@ my $USEABACCREDS  = 0;
 #
 # Generate the credentials we need. 
 #
-sub GenCredentials($$;$)
+sub GenCredentials($$;$$)
 {
-    my ($target, $geniuser, $privs) = @_;
-    my ($speaksfor, $credential);
+    my ($target, $geniuser, $privs, $allowexpiredspeaksfor) = @_;
+    my ($speaksfor, $credential, $oldexpires);
     # If the caller does not want a speaksfor, do not generate.
     my $wantspeaksfor = wantarray;
 
@@ -72,11 +72,21 @@ sub GenCredentials($$;$)
     if (!$geniuser->IsLocal() && $MAINSITE) {
 	$speaker_signer = "/usr/testbed/etc/utah-apt.sa";
     }
-
+    my $cachetag = $target->urn() . "::" . $geniuser->urn();
+    
+    #
+    # If the target is a slice, and expired, change the expiration so
+    # that the credential we generate is not also expired (and invalid).
+    #
+    if (ref($target) eq "GeniSlice" && $target->IsExpired()) {
+	$oldexpires = $target->expires();
+	$target->SetExpiration(time() + 600);
+	delete($credcache{$cachetag})
+	    if (exists($credcache{$cachetag}));
+    }
     #
     # Check cache.
     #
-    my $cachetag = $target->urn() . "::" . $geniuser->urn();
     if (exists($credcache{$cachetag})) {
 	($credential,$speaksfor) = @{ $credcache{$cachetag} };
 	goto cached;
@@ -101,6 +111,25 @@ sub GenCredentials($$;$)
 		print STDERR "Could not create speaksfor credential\n";
 		goto bad;
 	    }
+	}
+	#
+	# Ick, if the speaks for credential has expired, we cannot
+	# operate as the user. We have no choice but to throw away
+	# these credentials and generate a new one issued to the local
+	# SA instead of the user and not bother with a speaksfor.
+	#
+	if ($speaksfor->IsExpired()) {
+	    print STDERR "speaksfor credential for $geniuser has expired\n";
+	    goto bad
+		if (!$allowexpiredspeaksfor);
+	    
+	    print STDERR "-> Generating an SA credential instead\n";
+	    $credential = APT_Geni::GenAuthCredential($target, $privs);
+	    if (!defined($credential)) {
+		print STDERR "-> Could not generate SA credential!\n";
+		goto bad;
+	    }
+	    goto cached;
 	}
 	my $certificate =
 	    GeniCertificate->LoadFromString($certificate_string);
@@ -167,11 +196,15 @@ sub GenCredentials($$;$)
 	$credcache{$cachetag} = [$credential, $speaksfor];
     }
   cached:
+    $target->SetExpiration($oldexpires)
+	if (defined($oldexpires));
     if (wantarray) {
 	return ($credential, $speaksfor);
     }
     return $credential;
   bad:
+    $target->SetExpiration($oldexpires)
+	if (defined($oldexpires));
     return ();
 }
 
@@ -212,16 +245,25 @@ sub GeniContext()
 sub GenAuthCredential($;$)
 {
     my ($target, $privs) = @_;
+    my $oldexpires;
 
     my $owner = GeniCertificate->LoadFromFile($SACERT);
     if (!defined($owner)) {
 	print STDERR "Could not load certificate from $SACERT\n";
 	return undef;
     }
+    #
+    # If the target is a slice, and expired, change the expiration so
+    # that the credential we generate is not also expired (and invalid).
+    #
+    if (ref($target) eq "GeniSlice" && $target->IsExpired()) {
+	$oldexpires = $target->expires();
+	$target->SetExpiration(time() + 600);
+    }
     my $credential = GeniCredential->Create($target, $owner);
     if (!defined($credential)) {
 	print STDERR "Could not create credential for $target\n";
-	return undef;
+	goto bad;
     }
     # Add optional privs.
     if (defined($privs)) {
@@ -233,9 +275,15 @@ sub GenAuthCredential($;$)
     if ($credential->Sign($GeniCredential::LOCALSA_FLAG) != 0) {
 	$credential->Delete();
 	print STDERR "Could not sign $target credential\n";
-	return undef
+	goto bad;
     }
+    $target->SetExpiration($oldexpires)
+	if (defined($oldexpires));
     return $credential;
+  bad:
+    $target->SetExpiration($oldexpires)
+	if (defined($oldexpires));
+    return undef;
 }
 
 #

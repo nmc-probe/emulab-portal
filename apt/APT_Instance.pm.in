@@ -57,6 +57,7 @@ use Genixmlrpc;
 use GeniResponse;
 use GeniCertificate;
 use GeniCredential;
+use GeniUser;
 use GeniHRN;
 use GeniXML;
 use WebTask;
@@ -67,6 +68,7 @@ use overload ('""' => 'Stringify');
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $GENEXTENDCRED = "$TB/sbin/protogeni/genextendcred";
+my $GENIUSER      = "geniuser";
 
 # Cache of instances to avoid regenerating them.
 my %instances  = ();
@@ -80,7 +82,7 @@ sub devurl($)
 
     if ($usemydevtree) {
 	$cmurl =~ s/protogeni/protogeni\/stoller/;
-	$cmurl =~ s/12369/12396/;
+#	$cmurl =~ s/12369/12396/;
     }
     return $cmurl;
 }
@@ -1333,18 +1335,11 @@ sub Terminate($)
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
+
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    #
-    # If the slice is expired, it is most likely gone at the cluster,
-    # but we want to make sure, so change the expiration so that the
-    # credential we generate is not also expired. 
-    #
-    if ($slice->IsExpired()) {
-	$slice->SetExpiration(time() + 3600);
-    }
     # We might change this below.
     my $cmurl = $authority->url();
 
@@ -1360,30 +1355,13 @@ sub Terminate($)
     else {
 	my $credentials;
 	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
+	    APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
 	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
-	#
-	# Special case; if the speaksfor_credential has expired cause it
-	# was for a nonlocal user, we have no choice but to throw away
-	# these credentials and generate a new one issued to the local SA
-	# instead of the user. 
-	#
-	if ($speaksfor_credential->IsExpired()) {
-	    print STDERR
-		"speaksfor credential has expired, generating a new one\n";
+	    if (!defined($slice_credential));
 
-	    $slice_credential = APT_Geni::GenAuthCredential($slice);
-	    if (!defined($slice_credential)) {
-		print STDERR "Could not generate slice credential\n";
-		return undef;
-	    }
-	    $credentials = [$slice_credential->asString()];
-	}
-	else {
-	    $credentials = [$slice_credential->asString(),
-			    $speaksfor_credential->asString()];
+	$credentials = [$slice_credential->asString()];
+	if (defined($speaksfor_credential)) {
+	    $credentials = [@$credentials, $speaksfor_credential->asString()];
 	}
 	$method = "DeleteSliver";
 	@params = ($slice->urn(), $credentials,
@@ -1464,31 +1442,15 @@ sub Extend($$)
     }
     else {
 	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
+	    APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
 	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
-	
-	#
-	# Special case; if the speaksfor_credential has expired cause it
-	# was for a nonlocal user, we have no choice but to throw away
-	# these credentials and generate a new one issued to the local SA
-	# instead of the user. 
-	#
-	if ($speaksfor_credential->IsExpired()) {
-	    print STDERR "speaksfor credential expired, generating a new one\n";
+	    if (!defined($slice_credential));
 
-	    $slice_credential = APT_Geni::GenAuthCredential($slice);
-	    if (!defined($slice_credential)) {
-		print STDERR "Could not generate slice credential\n";
-		return undef;
-	    }
-	    $credentials = [$slice_credential->asString()];
+	$credentials = [$slice_credential->asString()];
+	if (defined($speaksfor_credential)) {
+	    $credentials = [@$credentials, $speaksfor_credential->asString()];
 	}
-	else {
-	    $credentials = [$slice_credential->asString(),
-			    $speaksfor_credential->asString()];
-	}
+	
 	#
 	# We need a special credentential in case the aggregate is enforcing
 	# limits (as do Utah aggregates).
@@ -1502,10 +1464,11 @@ sub Extend($$)
 	# But if a nonlocal user from Geni, then the user we have in
 	# the database is not in the same domain as the speaksfor, so
 	# we use the geni certificate that the trusted signer gave us
-	# and is stored in the DB.
-	#
+	# and is stored in the DB. Note that of the speaksfor was
+	# expired, it will not be defined (see above).
+	# 
 	if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal() &&
-	    !$speaksfor_credential->IsExpired()) {	
+	    defined($speaksfor_credential)) {
 	    my (undef, $certificate_string) =
 		$geniuser->emulab_user()->GetStoredCredential();
 	    if (! defined($certificate_string)) {
@@ -1583,28 +1546,25 @@ sub SliceStatus($)
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
+    
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
+    #
+    # Use an SA credential here so that we can always get status.
+    #
+    my $slice_credential = APT_Geni::GenAuthCredential($slice);
+    if (!defined($slice_credential)) {
+	print STDERR "Could not generate slice credential\n";
+	return undef;
+    }
     if ($self->isAL2S()) {
-	my $slice_credential = APT_Geni::GenAuthCredential($slice);
-	if (!defined($slice_credential)) {
-	    print STDERR "Could not generate slice credential\n";
-	    return undef;
-	}
 	@params = ($slice->urn(), [$slice_credential->asString()], {});
     }
     else {
-	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
-	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
-
 	@params = ({"slice_urn"   => $slice->urn(),
-		    "credentials" => [$slice_credential->asString(),
-				      $speaksfor_credential->asString()],
+		    "credentials" => [$slice_credential->asString()],
 		   });
     }
     my $cmurl = $authority->url();
@@ -1639,8 +1599,8 @@ sub GetManifest($)
     my $method;
     my @params;
     my $authority = $self->GetGeniAuthority();
-    my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
@@ -1664,16 +1624,20 @@ sub GetManifest($)
 		   });
     }
     else {
-	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
-	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
+	my $credentials;
 
+	my ($slice_credential, $speaksfor_credential) =
+	    APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
+	return undef
+	    if (!defined($slice_credential));
+
+	$credentials = [$slice_credential->asString()];
+	if (defined($speaksfor_credential)) {
+	    $credentials = [@$credentials, $speaksfor_credential->asString()];
+	}
 	$method = "Resolve";
 	@params = ({"urn"   => $slice->urn(),
-		    "credentials" => [$slice_credential->asString(),
-				      $speaksfor_credential->asString()]});
+		    "credentials" => $credentials});
     }
     my $cmurl = $authority->url();
     $cmurl = devurl($cmurl) if ($usemydevtree);
@@ -1721,7 +1685,7 @@ sub Provision($$$$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 0);
     return -1
 	if (! (defined($speaksfor_credential) &&
 	       defined($slice_credential)));
@@ -1786,24 +1750,26 @@ sub ConsoleInfo($$)
 {
     my ($self, $sliver_urn) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
+    my $geniuser  = $self->instance()->GetGeniUser();
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (! defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"slice_urn"   => $slice->urn(),
 	"sliver_urn"  => $sliver_urn,
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
     $cmurl = devurl($cmurl) if ($usemydevtree);
@@ -1826,16 +1792,18 @@ sub ConsoleURL($$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (!defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"slice_urn"   => $slice->urn(),
 	"sliver_urn"  => $sliver_urn,
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
     $cmurl = devurl($cmurl) if ($usemydevtree);
@@ -1851,15 +1819,19 @@ sub CreateImage($$$$;$$$)
     my ($self, $sliver_urn, $imagename, $update_prepare,
 	$copyback_uuid, $bsname) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $geniuser  = $self->instance()->GetGeniUser();
+    my$geniuser   = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
+    #
+    # Only the creator is allowed to do this, so if the speaksfor is
+    # expired, a permission check went wrong.
+    #
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 0);
     return undef
 	if (! (defined($speaksfor_credential) &&
 	       defined($slice_credential)));
@@ -1888,14 +1860,14 @@ sub CreateImage($$$$;$$$)
 #
 # Reboot some nodes
 #
-sub SliverAction($$$@)
+sub SliverAction($$$;@)
 {
     my ($self, $perrmsg, $which, @slivers) = @_;
     my $method    = ($which eq "reboot" ? "RestartSliver" :
 		     ($which eq "start" ? "StartSliver" : "ReloadSliver"));
     my $authority = $self->GetGeniAuthority();
-    my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
@@ -1903,14 +1875,16 @@ sub SliverAction($$$@)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (!defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     if (@slivers) {
 	$args->{"sliver_urns"} = \@slivers;
@@ -1960,15 +1934,6 @@ sub Lockdown($$)
 	if (! (defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    #
-    # If the slice is expired, then the credential we generate will
-    # not be valid. So extend the slice so we can clear the lockdown.
-    #
-    if ($clear && $slice->IsExpired()) {
-	$oldexpires = $slice->expires();
-	$slice->SetExpiration(time() + 3600);
-    }
-
     my $slice_credential = APT_Geni::GenAuthCredential($slice);
     goto bad
 	if (! defined($slice_credential));
@@ -2001,22 +1966,12 @@ sub Panic($$)
     my $authority = $self->GetGeniAuthority();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
-    my $oldexpires;
     return undef
 	if (! (defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    #
-    # If the slice is expired, then the credential we generate will
-    # not be valid. So extend the slice so we can clear the panic.
-    #
-    if ($clear && $slice->IsExpired()) {
-	$oldexpires = $slice->expires();
-	$slice->SetExpiration(time() + 3600);
-    }
-
     my $slice_credential = APT_Geni::GenAuthCredential($slice);
-    goto bad
+    return undef
 	if (! defined($slice_credential));
 
     my $args = {
@@ -2029,13 +1984,7 @@ sub Panic($$)
     $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context, "Panic", $args);
-    $slice->SetExpiration($oldexpires)
-	if (defined($oldexpires));
     return $response;
-  bad:
-    $slice->SetExpiration($oldexpires)
-	if (defined($oldexpires));
-    return undef;
 }
 
 #
@@ -2045,8 +1994,8 @@ sub RunLinktest($$$)
 {
     my ($self, $action, $level) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
@@ -2054,15 +2003,17 @@ sub RunLinktest($$$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
-
+	if (!defined($slice_credential));
+    
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"slice_urn"   => $slice->urn(),
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     if ($action eq "stop") {
 	$args->{"action"} = "stop";
@@ -2100,15 +2051,17 @@ sub ImageInfo($$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (!defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"image_urn"   => $image_urn,
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
     $cmurl = devurl($cmurl) if ($usemydevtree);
@@ -2123,8 +2076,8 @@ sub UpdateKeys($$)
 {
     my ($self, $users) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return -1
@@ -2132,28 +2085,30 @@ sub UpdateKeys($$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return -1
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (!defined($slice_credential));
+
+    my $options = {"geni_users" => $users};
+    my $credentials = [{"geni_type" => "geni_sfa",
+			"geni_version" => 3,
+			"geni_value" => $slice_credential->asString()}];
+    if (defined($speaksfor_credential)) {
+	$credentials = [{"geni_type" => "geni_sfa",
+			 "geni_version" => 3,
+			 "geni_value" => $speaksfor_credential->asString()},
+			@$credentials];
+	$options->{"speaking_for"} = $geniuser->urn();
+	$options->{"geni_speaking_for"} = $geniuser->urn();
+    }
 
     #
     # AM V3 API.
     #
     my @params = ([$slice->urn()],
-		  [{"geni_type" => "geni_sfa",
-		    "geni_version" => 3,
-		    "geni_value" => $speaksfor_credential->asString()},
-		   {"geni_type" => "geni_sfa",
-		    "geni_version" => 3,
-		    "geni_value" => $slice_credential->asString()},
-		  ],
+		  $credentials,
 		  "geni_update_users",
-		  # Options array.
-		  {"speaking_for" => $geniuser->urn(),
-		   "geni_speaking_for" => $geniuser->urn(),
-		   "geni_users"       => $users,
-		  });
+		  $options);
  
     my $cmurl = $authority->url();
     # Convert URL.
