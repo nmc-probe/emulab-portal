@@ -239,6 +239,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
        if (ISADMIN() || ISFOREIGN_ADMIN()) {
            echo "  <li class='divider'></li>\n";
            echo "  <li><a href='dashboard.php'>DashBoard</a></li>";
+           echo "  <li><a href='cluster-status.php'>Cluster Status</a></li>";
            $then = time() - (30 * 3600 * 24);
            echo "  <li><a href='activity.php?min=$then'>
                             History Data</a></li>
