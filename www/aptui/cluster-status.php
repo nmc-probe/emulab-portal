@@ -69,13 +69,10 @@ echo "<script type='text/plain' id='agglist-json'>\n";
 echo htmlentities(json_encode($aggregates)) . "\n";
 echo "</script>\n";
 
-echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
-echo "<script src='js/lib/jquery.tablesorter.min.js'></script>\n";
-echo "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>\n";
-echo "<script src='js/lib/sugar.min.js'></script>\n";
-echo "<script src='js/lib/jquery.tablesorter.parser-date.js'></script>\n";
-echo "<script src='js/lib/bootstrap.js'></script>\n";
-echo "<script src='js/lib/require.js' data-main='js/cluster-status'></script>\n";
-
+SPITREQUIRE("cluster-status",
+            "<script src='js/lib/jquery.tablesorter.min.js'></script>".
+            "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>".
+            "<script src='js/lib/sugar.min.js'></script>".
+            "<script src='js/lib/jquery.tablesorter.parser-date.js'></script>");
 SPITFOOTER();
 ?>
