@@ -2075,6 +2075,9 @@ sub CreateOneVlan($$$@)
 		return 1;
 	    }
 	    $otherargs{"ofenabled"} = 1;
+	    # XXX: Some internal calls to snmpit_stack::createVlan()
+	    # still need to get special vlan arguments this way.
+	    $stack->{VLAN_SPECIALARGS}->{$vlanid}->{"ofenabled"} = 1;
 	}
 
 	my $vlan_number = $stack->createVlan($vlanid, $vlanid, 

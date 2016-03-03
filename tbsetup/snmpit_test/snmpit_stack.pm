@@ -106,6 +106,11 @@ sub new($$$@) {
     $self->{PRUNE_VLANS} = 1;
     $self->{VTP} = 0;
 
+    #
+    # A place to stash special VLAN arguments
+    #
+    $self->{VLAN_SPECIALARGS} = {};
+
     # must do this before spawning each device object, which forks().
     bless($self,$class);
 
@@ -366,18 +371,16 @@ sub setPortVlan($$@) {
                 }
             } else {
                 #
-                # Check to see if we had any special arguments saved up for
-                # this VLAN
+                # Grab any special arguments saved up for this VLAN.
+                # The value may be undefined. That's OK since the
+                # "otherargs" argument is an optional parameter.
                 #
-                my @otherargs = ();
-                if (exists $self->{VLAN_SPECIALARGS}{$vlan_id}) {
-                    @otherargs = @{$self->{VLAN_SPECIALARGS}{$vlan_id}}
-                }
+                my $otherargs = $self->{VLAN_SPECIALARGS}->{$vlan_id};
 
                 #
                 # Create the VLAN
                 #
-                my $res = $dev->createVlan($vlan_id,$vlan_number);
+                my $res = $dev->createVlan($vlan_id,$vlan_number,$otherargs);
                 if ($res == 0) {
                     warn "Error: Failed to create VLAN $vlan_id ($vlan_number)".
                          " on $switch\n";
