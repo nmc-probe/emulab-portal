@@ -1900,10 +1900,20 @@ sub getChannelIfIndex($@) {
 	    # Chop up membership list into individual members.  The stupid
 	    # thing is returned as a string that looks like this:
 	    # "Fo 0/52 Fo 0/56 ...". So, we must hop over the port type
-	    # identifiers, and grab the port numbers.
+	    # identifiers, and grab the port numbers. Do the nybble conversion 
+	    # nonsense if necessary on this switch.
 	    my @elements = split(/\s+/, $members);
 	    for (my $i = 0; $i < @elements; $i += 2) {
-		my $membmodport = join(".", split(/\//, $elements[$i+1]));
+		my @melts = split(/\//, $elements[$i+1]);
+		my $membmodport;
+		if ($ChassisInfo->{$self->{TYPE}}->{nybbleEncoded} == 1) {
+		    my $mod = int($melts[0]) - 1;
+		    my $subport = defined($melts[2]) ? (int($melts[2]) - 1) : 0;
+		    my $port = ($melts[1] - 1)*4 + $subport;
+		    $membmodport = "$mod.$port";
+		} else {
+		    $membmodport = join(".", @melts);
+		}
 		foreach my $modport (@modports) {
 		    if ($modport eq $membmodport && 
 			exists($self->{POIFINDEX}{"Po$channelid"})) {
@@ -2105,6 +2115,9 @@ sub createOFVlan($$$) {
     my $vlan_id = shift;
     my $vlan_number = shift;
     my $ofid = -1;
+    my $id = "$self->{NAME}::createOFVlan";
+
+    $self->debug("$id: Creating OF-enabled VLAN ($vlan_number)\n");
 
     # Find a free OFID
     my $ofmap = $self->getOFInstances();
