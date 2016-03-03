@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2014-2015 University of Utah and the Flux Group.
+# Copyright (c) 2014-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -76,7 +76,7 @@ my $dosig      = 0;
 my $nouser     = 0;
 my %validate   = ();
 my @images     = ();
-my $userperm   = TB_IMAGEID_READINFO();
+my $userperm;
 my $newhash;
 
 #
@@ -138,6 +138,9 @@ if (defined($options{"f"})) {
 if (defined($options{"u"})) {
     $update = 1;
     $userperm = TB_IMAGEID_MODIFYINFO();
+}
+else {
+    $userperm = TB_IMAGEID_READINFO();
 }
 if (defined($options{"p"})) {
     $showinfo = 1;
