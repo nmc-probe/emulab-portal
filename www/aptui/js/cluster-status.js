@@ -75,7 +75,11 @@ function (_, sup, moment, mainString)
 		    html = html + "<tr>" +
 			"<td>" + type + "</td>" +
 			"<td>" + value.inuse + "</td>" +
-			"<td>" + value.free + "</td>" + "</tr>";
+			"<td>" + value.free;
+		    if (value.preres) {
+			html += " (" + value.preres + ")";
+		    }
+		    html += "</td>" + "</tr>";		    
 		});
 		$('#counts-' + name + '-tbody').html(html);
 	    }
