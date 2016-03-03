@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2015 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,6 +43,7 @@ sub usage()
     print STDERR " -t       - Do not call snmpit to set trunk mode\n";
     print STDERR " -r       - Delete interface\n";
     print STDERR " -f       - (with -r) force deletion, even if iface used\n";
+    print STDERR "          - (with -t) force, no interface_state update\n";
     print STDERR " -b speed - Interface speed; 100Mb,1Gb,10Gb,40Gb,100Gb\n";
     print STDERR " -s info  - switchname,switchcard,switchport\n";
     print STDERR " iface_id - eth0, eth1, etc (must end in an integer)\n";
@@ -195,6 +196,16 @@ my $nodecard;
 my $switchid;
 my $switchcard;
 my $switchport;
+
+if (!$impotent && $node->IsReserved() &&
+    $node->erole() eq "sharedhost" && $notrunk && !$force) {
+    print STDERR
+	"Using -t will create an inconsistency in the interface_state table!\n".
+	"The next time snmpit runs on the port, it might try to put the port\n".
+	"into trunk mode, which might remove all existing vlans on the port.\n".
+	"And that might be VERY BAD! Use the force (-f) option.\n";
+    exit(1);
+}
 
 #
 # Derive a card number form the iface number. 
