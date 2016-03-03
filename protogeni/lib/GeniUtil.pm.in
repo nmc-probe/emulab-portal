@@ -240,6 +240,9 @@ sub LookupNode($)
     if ($nodeid =~ /\./) {
 	($nodeid) = ($nodeid =~ /\.([-\w]*)$/);
 
+	return undef
+	    if (!defined($nodeid));
+
 	return Node->Lookup($nodeid);
     }
     
