@@ -22,6 +22,7 @@
 # }}}
 #
 chdir("..");
+include_once("geni_defs.php");
 chdir("apt");
 include_once("instance_defs.php");
 
@@ -32,6 +33,7 @@ function Do_GetStatus()
 {
     global $ajax_args, $geni_response_codes, $urn_mapping, $TBBASE;
     global $TBSUEXEC_PATH;
+    $autoextend_maxage  = TBGetSiteVar("aptui/autoextend_maxage");
 
     if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
         SPITAJAX_ERROR(1, "Not enough permission");
@@ -62,22 +64,29 @@ function Do_GetStatus()
     # instances. 
     #
     $instances    = array();
+    $maxttls      = array();
     $typecounts   = array();
 
     foreach ($inuse as $details) {
         $type = $details->type;
         if (!array_key_exists($type, $typecounts)) {
-            $typecounts[$type] = array("inuse"  => 0,
-                                       "free"   => 0,
-                                       "preres" => 0);
+            $typecounts[$type] = array("inuse"        => 0,
+                                       "preres"       => 0,
+                                       "free"         => 0,
+                                       "free_preres"  => 0);
+        }
+        if ($details->reserved_pid != "") {
+            $typecounts[$type]["preres"] += 1;
         }
         if ($details->pid != "") {
             $typecounts[$type]["inuse"] += 1;
         }
         else {
-            $typecounts[$type]["free"] += 1;
             if ($details->reserved_pid != "") {
-                $typecounts[$type]["preres"] += 1;
+                $typecounts[$type]["free_preres"] += 1;
+            }
+            else {
+                $typecounts[$type]["free"] += 1;
             }
         }
         
@@ -86,16 +95,53 @@ function Do_GetStatus()
 
             if (array_key_exists($details->slice_uuid, $instances)) {
                 $instance = $instances[$details->slice_uuid];
+                $maxttl   = $maxttls[$details->slice_uuid];
             }
             else {
                 $instance = Instance::LookupBySlice($details->slice_uuid);
+                if (!$instance) {
+                    continue;
+                }
                 $instances[$details->slice_uuid] = $instance;
+                $slice = GeniSlice::Lookup("sa", $details->slice_uuid);
+
+                #
+                # We can generate the maxttl here, ignoring whatever the
+                # cluster might think. We need the slice though.
+                #
+                $maxttl = "";
+                if ($slice && 
+                    !($instance->admin_lockdown() ||
+                      $instance->user_lockdown())) {
+
+                    $slice_expires = strtotime($slice->expires());
+                    $slice_created = strtotime($slice->created());
+                    $diff  = $slice_expires - time();
+                    $cdiff = time() - $slice_created;
+
+                    if ($instance->extension_lockout() ||
+                        ($cdiff > (3600 * 24 * $autoextend_maxage))) {
+                        $maxttl = $slice_expires - time();
+                    }
+                    else {
+                        #
+                        # This is the amount of free time the user can
+                        # get, plus we add two days, since a denied extension
+                        # automatically grants two days to avoid termination
+                        # before we get a chance to look at it. 
+                        #
+                        $maxttl = ($slice_created + (3600 * 24 * 2) +
+                                   (3600 * 24 * $autoextend_maxage)) - time();
+                    }
+                }
+                $maxttls[$details->slice_uuid] = $maxttl;
             }
             if ($instance) {
                 $details->pid = $instance->pid();
                 $details->instance_uuid = $instance->uuid();
                 $details->instance_name = $instance->name();
                 $details->uid = $instance->creator();
+                $details->maxttl = $maxttl;
             }
         }
     }

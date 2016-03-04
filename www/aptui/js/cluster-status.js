@@ -46,6 +46,13 @@ function (_, sup, moment, mainString)
 			    expires = moment().add(ttl, 'seconds').fromNow();
 			}
 		    }
+		    var allowed = "";
+		    if (_.has(value, "maxttl")) {
+			var maxttl = value.maxttl;
+			if (maxttl != "") {
+			    allowed = moment().add(maxttl, 'seconds').fromNow();
+			}
+		    }
 		    var uid = "";
 		    if (_.has(value, "uid")) {
 			uid = value.uid;
@@ -63,6 +70,7 @@ function (_, sup, moment, mainString)
 			"<td>" + eid + "</td>" +
 			"<td>" + uid + "</td>" +
 			"<td>" + expires + "</td>" +
+			"<td>" + allowed + "</td>" +
 			"<td>" + value.reserved_pid + "</td>" + "</tr>";
 		});
 		$('#' + name + '-tbody').html(html);
@@ -75,9 +83,10 @@ function (_, sup, moment, mainString)
 		    html = html + "<tr>" +
 			"<td>" + type + "</td>" +
 			"<td>" + value.inuse + "</td>" +
+			"<td>" + value.preres + "</td>" +
 			"<td>" + value.free;
-		    if (value.preres) {
-			html += " (" + value.preres + ")";
+		    if (value.free_preres) {
+			html += " (" + value.free_preres + ")";
 		    }
 		    html += "</td>" + "</tr>";		    
 		});
