@@ -74,9 +74,11 @@ sub CheckPermission()
 	if (!defined($hrn));
     
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
-			"Only the Mothership can access this interface")
-	if (! ($hrn->authority() eq "emulab.net" &&
-	       $hrn->IsAuthority() && $hrn->IsRoot()));
+				"Only the Mothership or local cluster ".
+				"can access this interface")
+	if (! ($hrn->IsAuthority() && $hrn->IsRoot() &&
+	       ($hrn->authority() eq "emulab.net" ||
+		$hrn->authority() eq $OURDOMAIN)));
 
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 			"Only Cloudlab clusters permit this interface")
@@ -111,6 +113,12 @@ sub InUse()
     my $hasperm = CheckPermission();
     return $hasperm
 	if (GeniResponse::IsError($hasperm));
+    my $autoswap_max;
+    if (!GetSiteVar("general/autoswap_max", \$autoswap_max)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    # sitevar in hours, convert to seconds
+    $autoswap_max *= 3600;
 
     my @blob = ();
 
@@ -120,7 +128,8 @@ sub InUse()
 		    "  (e.autoswap_timeout - ".
 		    "   ((unix_timestamp(now()) - ".
 		    "     unix_timestamp(stats.swapin_last))/60)) as ttl, ".
-		    "  u.uid,stats.slice_uuid,cert.urn ".
+		    "  u.uid,stats.slice_uuid,cert.urn,e.swappable, ".
+		    "  s.lockdown,unix_timestamp(stats.swapin_last) ".
 		    "  from nodes as n ".
 		    "left join reserved as r on r.node_id=n.node_id ".
 		    "left join node_types as t on t.type=n.type ".
@@ -135,17 +144,38 @@ sub InUse()
 		    "where n.role='testnode' and t.class='pc' ".
 		    "order by n.node_id");
     while (my ($node_id,$type,$pid,$eid,$reserved_pid,$expires,
-	       $autoswap,$ttl,$uid,$slice_uuid,$slice_urn) =
+	       $autoswap,$ttl,$uid,$slice_uuid,$slice_urn,
+	       $swappable,$slice_lockdown,$swapin_time) =
 	   $query_result->fetchrow_array()) {
+	my $maxttl;
+	
 	#
 	# Try and compute a time the node will be released. This is a guess
 	# at best, lots of things can change as soon as we calculate it.
 	#
 	if (defined($expires)) {
-	    $ttl = $expires - time();
+	    if ($slice_lockdown) {
+		$ttl = "";
+	    }
+	    else {
+		$ttl = $expires - time();
+	    }
 	}
-	elsif (defined($eid) && $autoswap && defined($ttl)) {
-	    $ttl = $ttl * 60;
+	elsif (defined($eid)) {
+	    if (!$swappable) {
+		$ttl = "";
+	    }
+	    elsif ($autoswap && defined($ttl)) {
+		$ttl = $ttl * 60;
+		$maxttl = $autoswap_max - (time() - $swapin_time);
+		if ($ttl > $maxttl) {
+		    # Admin override.
+		    $maxttl = $ttl;
+		}
+	    }
+	    else {
+		$ttl = "";
+	    }
 	}
 	else {
 	    $ttl = "";
@@ -156,11 +186,15 @@ sub InUse()
 		     "eid"          => $eid || "",
 		     "uid"          => $uid || "",
 		     "ttl"          => $ttl,
+		     "maxttl"       => $maxttl || "",
 		     "slice_urn"    => $slice_urn || "",
 		     "slice_uuid"   => $slice_uuid || "",
 		     "reserved_pid" => $reserved_pid || ""});
     }
-    return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@blob);
+    my $results = {"api_version"  => $API_VERSION,
+		   "details"      => \@blob};
+		  
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
 }    
 
 # _Always_ make sure that this 1 is at the end of the file...
