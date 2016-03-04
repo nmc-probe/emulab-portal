@@ -84,12 +84,12 @@ my $FRISBEE     = "/usr/local/bin/frisbee";
 #
 #   iscsiadm -m node -T <iqn> -p <storage-host>
 #
-# Here are the commands to add a remote iSCSI target, set it to be
-# mounted at startup, and startup a session (login):
+# Here are the commands to add a remote iSCSI target, set it to NOT be
+# mounted automatically at startup, and startup a session (login):
 # 
 #   iscsiadm -m node -T <iqn> -p <storage-host> -o new
 #   iscsiadm -m node -T <iqn> -p <storage-host> -o update \
-#              -n node.startup -v automatic
+#              -n node.startup -v manual
 #   iscsiadm -m node -T <iqn> -p <storage-host> -l
 # 
 # To show active sessions:
@@ -1313,7 +1313,7 @@ sub os_create_storage_element($$$)
 	# Perform one time iSCSI operations
 	#
 	if (mysystem("$ISCSI -m node -T $uuid -p $hostip -o new $redir") ||
-	    mysystem("$ISCSI -m node -T $uuid -p $hostip -o update -n node.startup -v automatic $redir") ||
+	    mysystem("$ISCSI -m node -T $uuid -p $hostip -o update -n node.startup -v manual $redir") ||
 	    mysystem("$ISCSI -m node -T $uuid -p $hostip -l $redir")) {
 	    warn("*** Could not perform first-time initialization of block store $bsid (uuid=$uuid)$logmsg\n");
 	    return 0;
