@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -256,13 +256,18 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
            </div>
          </div>\n";
 
-    #
-    # Put the special message, if any, right below the header. Note that the
-    # negative margin is to put it flush below the navbar without having to
-    # permanently remove the bottom margin on the navbar
-    #
-    $message = TBGetSiteVar($PORTAL_MOTD_SITEVAR);
-    if ($message != "") {
+    if (NOLOGINS) {
+        $message = TBGetSiteVar("web/message");
+    }
+    else {
+        #
+        # Put the special message, if any, right below the header. Note that
+        # the  negative margin is to put it flush below the navbar without
+        # having to permanently remove the bottom margin on the navbar
+        #
+        $message = TBGetSiteVar($PORTAL_MOTD_SITEVAR);
+    }
+    if ($message && $message != "") {
         echo "<div class='alert alert-warning alert-dismissible'
                  role='alert' style='margin-top: -10px; padding: 5px;'>
                 <center>$message</center>
