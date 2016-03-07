@@ -98,8 +98,13 @@ hbis() {
 		[[ $x -ge $bytes ]] && break
 	    done
 #echo ${FUNCNAME[0]}:${LINENO} base:$base number:$number bytes=$bytes c=$c
-	    # gt 32G then make sure num is a multi of 4
-	    if [[ $c -gt 30 ]] ; then
+            # make sure it a mult of 4
+            cd4=$(( c /4 ))
+            cd4m4=$(( cd4 * 4 ))                                              
+            if [[ $c -eq $cd4m4 ]] ; then                                     
+                :                      
+	    # ok then if more then 30 count up make sure num is a multi of 4
+	    elif [[ $c -gt 30 ]] ; then
 		c4=0
 		while [ $c -ne $c4 ] ; do
 		    ((++c))
