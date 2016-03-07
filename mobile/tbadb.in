@@ -74,7 +74,7 @@ my %DISPATCH = (
 );
 
 sub showhelp() {
-    print "Usage: $0 <cmd> <cmd_args>\n\n";
+    print "Usage: $0 -n <node_id> <cmd> <cmd_args>\n\n";
     print "<cmd>:       TBADB command to run (see list below).\n".
 	  "<cmd_args>:  set of arguments specific to <cmd>\n";
     print "Command list: ". join(", ", keys %DISPATCH) ."\n";
@@ -170,7 +170,7 @@ sub cmd_loadimage($@) {
     my ($node_id, $imagepid, $imagename) = @_;
 
     # Check and untaint arguments.
-    die "tbadb::cmd_loadimage: missing one or more arguments (need: <node_id> <project> <image_name>)!\n"
+    die "tbadb::cmd_loadimage: missing one or more arguments (need: <project> <image_name>)!\n"
 	if (!$node_id || !$imagepid || !$imagename);
     die "tbadb::cmd_loadimage: malformed project id!"
 	if ($imagepid !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
@@ -239,10 +239,15 @@ sub cmd_loadimage($@) {
 	$node->TipServer(\$rhost);
 	die "tbadb::cmd_loadimage: Could not lookup control server for $node!\n"
 	    if (!$rhost);
+	die "tbadb::cmd_loadimage: Malformed remote image path!\n"
+	    if ($data->{RESULT}->{REMOTE_PATH} !~ /^([-\/\w]+)$/);
+	my $rpath = $1;
 	print "tbadb: Sending $imagepath to $rhost\n";
-	my $rpath = $data->{RESULT}->{REMOTE_PATH};
+	my $SAVEUID = $UID; 
+	$EUID = $UID = 0; # Flip to root to run!
 	die "tbadb::cmd_loadimage: Failed to transfer image to $rhost: $imagepath\n"
 	    if (system("$SCP -q -B -p $imagepath $rhost:$rpath") != 0);
+	$EUID = $UID = $SAVEUID; # Flip back.
     }
 
     # Now that the image is (ostensibly) in place on the remote side,

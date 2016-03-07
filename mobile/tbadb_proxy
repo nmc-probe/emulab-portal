@@ -29,12 +29,11 @@ use English;
 # Drag in Emulab clientside path stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
+use libtestbed;
 use libjsonrpc;
 use tbadb_rpc;
 
 # Function prototypes
-sub send_error($$$);
-sub do_lru_cleanup();
 sub rpc_checkimage($);
 sub rpc_loadimage($);
 sub rpc_captureimage($);
@@ -42,12 +41,14 @@ sub rpc_reboot($);
 sub rpc_forward($);
 sub rpc_ping($);
 sub rpc_exit($);
+sub send_error($$$);
+sub do_lru_cleanup();
+sub unpack_image($$);
 sub enter_fastboot($);
 sub load_android_image($$$);
 sub reboot_android($);
 sub wait_for_android($);
 sub setup_adb_forward($$$);
-
 
 # Dispatch table
 my %DISPATCH = (
@@ -60,9 +61,9 @@ my %DISPATCH = (
     'exit'         => \&rpc_exit,
 );
 
-
 # Global variables
 my $debug = 1;
+my $g_imglock;
 my $MAPFILE = "$ETCDIR/adbmap";
 my %NMAP = ();
 my $ADB = "/usr/bin/adb";
@@ -70,11 +71,17 @@ my $FASTBOOT = "/usr/bin/fastboot";
 my $TOUCH = "/usr/bin/touch";
 my $IPTABLES = "/sbin/iptables";
 my $HOST = "/usr/bin/host";
+my $FILE = "/usr/bin/file";
+my $RM = "/bin/rm";
+my $UNZIP = "/usr/bin/unzip";
 my $TBADB_IMAGE_CACHE_DIR = "/z/adb_img_cache";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
 my $FASTBOOT_TMO = 15;
 my $ANDROID_BOOT_TMO = 60;
+my $IMGLOCK_TMO = 300;
+my $LRULOCK_TMO = 60;
+my $UNPACKLOCK_TMO = 30;
 
 # AUTOFLUSH!
 $| = 1;
@@ -160,6 +167,28 @@ sub rpc_checkimage($) {
 
     warn "tbadb_proxy::rpc_checkimage: Image check requested for $proj/$srcname\n";
 
+    # Grab the lock for this image.
+    my $lres = TBScriptLock("${proj}_${srcname}", $IMGLOCK_TMO, 
+			    TBSCRIPTLOCK_GLOBALWAIT, \$g_imglock);
+    LOCKSW: for ($lres) {
+	TBSCRIPTLOCK_IGNORE && do {
+	    # Another process just did the check/transfer, so we're done.
+	    if (!SendRPCData(*STDOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
+		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+		exit 1;
+	    }
+	    return;
+	};
+	TBSCRIPTLOCK_OKAY && do {
+	    # Got the lock, just bail out of here and proceed.
+	    last LOCKSW;
+	};
+	# Default case (error condition)
+	warn "tbadb_proxy::rpc_checkimage: Failed to get lock for: $proj/$srcname\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
+	exit 1;	
+    }
+
     my $projdir = "$TBADB_IMAGE_CACHE_DIR/$proj";
     if (!-d $projdir) {
 	if (!mkdir($projdir, 0750)) {
@@ -186,6 +215,7 @@ sub rpc_checkimage($) {
 		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
 		exit 1;
 	    }
+	    TBScriptUnlock($g_imglock);
 	    return;
 	} else {
 	    # Delete older existing image to make way for new version.
@@ -226,6 +256,9 @@ sub rpc_checkimage($) {
 	exit 1;
     }
 
+    # Note: We will unlock later in a subsequent rpc_loadimage call. If
+    # that call never comes, we will eventually timeout while waiting for it
+    # and exit, thus releasing the lock as well.
     return;
 }
 
@@ -248,6 +281,9 @@ sub rpc_loadimage($) {
 	exit 1;
     }
     my $serial = $NMAP{$node_id};
+    # Let anyone blocked on the transfer of this image proceed now.
+    TBScriptUnlock($g_imglock)
+	if fileno($g_imglock);
     my $fname = "$TBADB_IMAGE_CACHE_DIR/$proj/$imgname";
     if (!-f $fname) {
 	warn "tbadb_proxy::rpc_loadimage: no such image file: $fname\n";
@@ -255,22 +291,42 @@ sub rpc_loadimage($) {
 	exit 1;
     }
 
-
     # Load image on to unit and report success/fail to caller.
     warn "tbadb_proxy::rpc_loadimage: loading image $proj/$imgname on to $node_id\n";
-
-    # Step 1: reload the recovery, boot, cache, and userdata
-    # partitions with our default stuff.  Probably need to revisit for
-    # the boot partition which contains the kernel and related stuff...
+    
+    # Step 1: Make sure all required image files are present.
+    my $image_staging_dir = "$fname.work";
     my $sysdir = "$TBADB_IMAGE_CACHE_DIR/PNSYSTEM";
     my $recovery_image = "$sysdir/pnet-recovery.img";
-    my $boot_image = "$sysdir/pnet-boot.img";
     my $userdata_image = "$sysdir/pnet-userdata.img";
-    my $cache_image = "$sysdir/pnet-cache.img";
+    my $cache_image = 
+	-r "$image_staging_dir/cache.img" 
+	? "$image_staging_dir/cache.img" 
+	: "$sysdir/pnet-cache.img";
+    my $boot_image = "$image_staging_dir/boot.img";
+    # This may block.
+    if (!unpack_image($fname, $image_staging_dir)) {
+	warn "tbadb_proxy::rpc_loadimage: Could not unpack image bundle!\n";
+	send_args($data->{FID}, RPCERR_INTERNAL, "Image unpack failed.");
+	exit 1;
+    }
+    if (!-r $boot_image) {
+	warn "tbadb_proxy::rpc_loadimage: boot.img missing from bundle!\n";
+	send_args($data->{FID}, RPCERR_BADARGS, "boot.img missing from bundle.");
+	exit 1;
+    }
+    my $system_image = "$image_staging_dir/system.img";
+    if (!-r $system_image) {
+	warn "tbadb_proxy::rpc_loadimage: system.img missing from bundle!\n";
+	send_args($data->{FID}, RPCERR_BADARGS, "system.img missing from bundle.");
+	exit 1;
+    }
+
+    # Step 2: Reload the partitions based on the images we setup above.
     if (!-r $recovery_image || !-r $boot_image || 
-	!-r $userdata_image || !-r $cache_image ) {
-	warn "tbadb_proxy::rpc_loadimage: one or more core images missing!\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, "Missing core images.");
+	!-r $userdata_image || !-r $cache_image || !-r $system_image ) {
+	warn "tbadb_proxy::rpc_loadimage: one or more images missing!\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, "Missing images.");
 	exit 1;
     }
     if (!enter_fastboot($node_id)) {
@@ -278,19 +334,14 @@ sub rpc_loadimage($) {
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Node failed to load into fastboot.");
 	exit 1;
     }
-    if (!(   load_android_image($node_id, IMG_RECOVERY, $recovery_image)
-	  && load_android_image($node_id, IMG_BOOT,     $boot_image)
-	  && load_android_image($node_id, IMG_USERDATA, $userdata_image)
-	  && load_android_image($node_id, IMG_CACHE,    $cache_image))) {
-	warn "tbadb_proxy::rpc_loadimage: failed to load a core image on $node_id!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load core image.");
-	exit 1;
-    }
-
-    # Step 2: load specified image onto system partition
-    if (!load_android_image($node_id, IMG_SYSTEM, $fname)) {
-	warn "tbadb_proxy::rpc_loadimage: failed to load requested image on $node_id!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load requested image.");
+    if (!(load_android_image($node_id, IMG_RECOVERY, $recovery_image) &&
+	  load_android_image($node_id, IMG_BOOT,     $boot_image) &&
+	  load_android_image($node_id, IMG_USERDATA, $userdata_image) &&
+	  load_android_image($node_id, IMG_CACHE,    $cache_image) &&
+	  load_android_image($node_id, IMG_SYSTEM,   $system_image)
+	)) {
+	warn "tbadb_proxy::rpc_loadimage: failed to load images on $node_id!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load images.");
 	exit 1;
     }
 
@@ -407,6 +458,7 @@ sub rpc_ping($) {
     return;
 }
 
+
 sub rpc_exit($) {
     my ($data) = @_;
 
@@ -433,6 +485,7 @@ sub do_lru_cleanup() {
     my $tot = 0;
     my @files = ();
     my $err = 0;
+    my $lru_lock;
 
     # Make sure the cache dir actually exists.
     if (!-d $TBADB_IMAGE_CACHE_DIR) {
@@ -440,11 +493,29 @@ sub do_lru_cleanup() {
 	return 0;
     }
 
+    # Grab the global LRU lock.
+    # XXX: We should also skip this process if we did it recently.
+    my $lock_res = TBScriptLock("lrulock", $LRULOCK_TMO, 
+				TBSCRIPTLOCK_GLOBALWAIT, \$lru_lock);
+    LOCKSW: for ($lock_res) {
+	TBSCRIPTLOCK_IGNORE && do {
+	    # Another process just did the LRU, so let's not do it again.
+	    return 1;
+	};
+	TBSCRIPTLOCK_OKAY && do {
+	    # Got the lock, just bail out of here and proceed.
+	    last LOCKSW;
+	};
+	# Default case (error condition)
+	warn "tbadb_proxy::do_lru_cleanup: Failed to get the LRU lock!\n";
+	return 0;
+    }
+
     # Read entries in cache dir and tally size
     my $dh;
     if (!opendir($dh, $TBADB_IMAGE_CACHE_DIR)) {
 	warn "tbadb_proxy::do_lru_cleanup: Failed to clean up img dir!\n";
-	return 0;
+	goto BADLRU;
     }
     while (my $ent = readdir($dh)) {
 	my $dname = "$TBADB_IMAGE_CACHE_DIR/$ent";
@@ -489,7 +560,7 @@ sub do_lru_cleanup() {
 	last if $err;
     }
     close $dh;
-    return 0 if $err;
+    goto BADLRU if $err;
 
     # Prune?
     if ($tot > $WM_HIGH) {
@@ -501,18 +572,71 @@ sub do_lru_cleanup() {
 	    my $lrufile = "$1/.$2.lru";
 	    if (!unlink($imfile, $lrufile)) {
 		warn "tbadb_proxy::do_lru_cleanup: Could not remove $imfile: $!\n";
-		return 0;
+		goto BADLRU;
 	    }
 	    warn "tbadb_proxy::do_lru_cleanup: removed file $imfile\n";
 	    $tot -= $imsize;
 	}
 	if ($tot > $WM_LOW) {
 	    warn "Unable to prune enough images to get under low watermark ($WM_LOW)!\n";
-	    return 0;
+	    goto BADLRU;
 	}
     }
 
+    TBScriptUnlock($lru_lock);
     return 1;
+
+  BADLRU:
+    TBScriptUnlock($lru_lock);
+    return 0;
+}
+
+# Unpack a zip bundle containting one or more android image files. Do NOT
+# call this function without a lock!  It should not run in parallel across
+# tbadb_proxy processes for the same image bundle.
+sub unpack_bundle($$) {
+    my ($fname, $destdir) = @_;
+    my $unpack_lock;
+
+    # Grab the unpack lock.
+    if (TBScriptLock("unpacklock", $UNPACKLOCK_TMO, 
+		     undef, \$unpack_lock) != TBSCRIPTLOCK_OKAY) {
+	warn "tbadb_proxy::unpack_bundle: Failed to get the unpack lock!\n";
+	return 0;
+    }
+
+    # Make sure image is a zip bundle
+    my $ftype = `$FILE -b -i $fname 2>&1`;
+    if ($ftype !~ /application\/zip/) {
+	warn "tbadb_proxy::unpack_bundle: file is not a zip bundle: $fname\n";
+	goto BADUNPACK;
+    }
+    # Delete the old destdir if it exists and is older than the image.
+    if (-d $destdir &&
+	(stat($destdir))[9] < (stat($fname))[9]) {
+	if (system("$RM -rf $destdir >/dev/null 2>&1") != 0) {
+	    warn "tbadb_proxy::unpack_bundle: could not remove existing workdir for image bundle: $fname\n";
+	    goto BADUNPACK;
+	}
+    }
+    # If the image directory doesn't exist, we must unpack!
+    if (!-d $destdir) {
+	if (!mkdir($destdir, 0750)) {
+	    warn "tbadb_proxy::unpack_bundle: could not create workdir for image bundle: $fname: $!\n";
+	    goto BADUNPACK;
+	}
+	if (system("$UNZIP -d $destdir $fname >/dev/null 2>&1") != 0) {
+	    warn "tbadb_proxy::unpack_bundle: failed to unpack image bundle: $fname\n";
+	    goto BADUNPACK;
+	}
+    }
+
+    TBScriptUnlock($unpack_lock);
+    return 1;
+
+  BADUNPACK:
+    TBScriptUnlock($unpack_lock);
+    return 0;
 }
 
 # Put a given android device into fastboot mode.
