@@ -43,12 +43,13 @@ sub rpc_ping($);
 sub rpc_exit($);
 sub send_error($$$);
 sub do_lru_cleanup();
-sub unpack_image($$);
+sub unpack_bundle($$);
 sub enter_fastboot($);
 sub load_android_image($$$);
 sub reboot_android($);
 sub wait_for_android($);
-sub setup_adb_forward($$$);
+sub setup_android_forward($$$);
+sub remove_android_forward($);
 
 # Dispatch table
 my %DISPATCH = (
@@ -99,9 +100,11 @@ open(MFILE, "<$MAPFILE")
     or die "tbadb_proxy: Can't open map file: $MAPFILE: $!\n";
 while (my $ln = <MFILE>) {
     chomp $ln;
-    next if (!$ln || $ln =~ /^#$/);
-    warn "tbadb_proxy: malformed node mapping line: $ln\n"
-	if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/);
+    next if (!$ln || $ln =~ /^#.*$/);
+    if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/) {
+	warn "tbadb_proxy: malformed node mapping line: $ln\n";
+	next;
+    }
     $NMAP{$1} = $2;
     $NMAP{$2} = $1;
 }
@@ -168,10 +171,10 @@ sub rpc_checkimage($) {
     warn "tbadb_proxy::rpc_checkimage: Image check requested for $proj/$srcname\n";
 
     # Grab the lock for this image.
-    my $lres = TBScriptLock("${proj}_${srcname}", $IMGLOCK_TMO, 
-			    TBSCRIPTLOCK_GLOBALWAIT, \$g_imglock);
+    my $lres = TBScriptLock("${proj}_${srcname}", TBSCRIPTLOCK_GLOBALWAIT,
+			    $IMGLOCK_TMO, \$g_imglock);
     LOCKSW: for ($lres) {
-	TBSCRIPTLOCK_IGNORE && do {
+	$_ == TBSCRIPTLOCK_IGNORE && do {
 	    # Another process just did the check/transfer, so we're done.
 	    if (!SendRPCData(*STDOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
 		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
@@ -179,7 +182,7 @@ sub rpc_checkimage($) {
 	    }
 	    return;
 	};
-	TBSCRIPTLOCK_OKAY && do {
+	$_ == TBSCRIPTLOCK_OKAY && do {
 	    # Got the lock, just bail out of here and proceed.
 	    last LOCKSW;
 	};
@@ -192,7 +195,7 @@ sub rpc_checkimage($) {
     my $projdir = "$TBADB_IMAGE_CACHE_DIR/$proj";
     if (!-d $projdir) {
 	if (!mkdir($projdir, 0750)) {
-	    warn "tbadb_proxy::rpc_checkimage: Failed to create project image directory: $projdir: $1\n";
+	    warn "tbadb_proxy::rpc_checkimage: Failed to create project image directory: $projdir: $!\n";
 	    send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
 	    exit 1;
 	}
@@ -237,7 +240,7 @@ sub rpc_checkimage($) {
 
     # Check to see if we are over quota, and LRU prune if so.
     if (!do_lru_cleanup()) {
-	warn "tbadb_proxy::rpc_loadimage: Error cleaning up cache. Exiting!\n";
+	warn "tbadb_proxy::rpc_checkimage: Error cleaning up cache. Exiting!\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, 
 		   "Failed while cleaning up image cache.");
 	exit 1;
@@ -305,26 +308,26 @@ sub rpc_loadimage($) {
 	: "$sysdir/pnet-cache.img";
     my $boot_image = "$image_staging_dir/boot.img";
     # This may block.
-    if (!unpack_image($fname, $image_staging_dir)) {
+    if (!unpack_bundle($fname, $image_staging_dir)) {
 	warn "tbadb_proxy::rpc_loadimage: Could not unpack image bundle!\n";
-	send_args($data->{FID}, RPCERR_INTERNAL, "Image unpack failed.");
+	send_error($data->{FID}, RPCERR_INTERNAL, "Image unpack failed.");
 	exit 1;
     }
     if (!-r $boot_image) {
 	warn "tbadb_proxy::rpc_loadimage: boot.img missing from bundle!\n";
-	send_args($data->{FID}, RPCERR_BADARGS, "boot.img missing from bundle.");
+	send_error($data->{FID}, RPCERR_BADARGS, "boot.img missing from bundle.");
 	exit 1;
     }
     my $system_image = "$image_staging_dir/system.img";
     if (!-r $system_image) {
 	warn "tbadb_proxy::rpc_loadimage: system.img missing from bundle!\n";
-	send_args($data->{FID}, RPCERR_BADARGS, "system.img missing from bundle.");
+	send_error($data->{FID}, RPCERR_BADARGS, "system.img missing from bundle.");
 	exit 1;
     }
 
     # Step 2: Reload the partitions based on the images we setup above.
-    if (!-r $recovery_image || !-r $boot_image || 
-	!-r $userdata_image || !-r $cache_image || !-r $system_image ) {
+    if (!-r $recovery_image || !-r $boot_image || #!-r $userdata_image ||
+	!-r $cache_image || !-r $system_image ) {
 	warn "tbadb_proxy::rpc_loadimage: one or more images missing!\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, "Missing images.");
 	exit 1;
@@ -334,9 +337,9 @@ sub rpc_loadimage($) {
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Node failed to load into fastboot.");
 	exit 1;
     }
-    if (!(load_android_image($node_id, IMG_RECOVERY, $recovery_image) &&
+    if (!(#load_android_image($node_id, IMG_RECOVERY, $recovery_image) &&
 	  load_android_image($node_id, IMG_BOOT,     $boot_image) &&
-	  load_android_image($node_id, IMG_USERDATA, $userdata_image) &&
+	  #load_android_image($node_id, IMG_USERDATA, $userdata_image) &&
 	  load_android_image($node_id, IMG_CACHE,    $cache_image) &&
 	  load_android_image($node_id, IMG_SYSTEM,   $system_image)
 	)) {
@@ -495,14 +498,14 @@ sub do_lru_cleanup() {
 
     # Grab the global LRU lock.
     # XXX: We should also skip this process if we did it recently.
-    my $lock_res = TBScriptLock("lrulock", $LRULOCK_TMO, 
-				TBSCRIPTLOCK_GLOBALWAIT, \$lru_lock);
+    my $lock_res = TBScriptLock("lrulock", TBSCRIPTLOCK_GLOBALWAIT,
+				$LRULOCK_TMO, \$lru_lock);
     LOCKSW: for ($lock_res) {
-	TBSCRIPTLOCK_IGNORE && do {
+	$_ == TBSCRIPTLOCK_IGNORE && do {
 	    # Another process just did the LRU, so let's not do it again.
 	    return 1;
 	};
-	TBSCRIPTLOCK_OKAY && do {
+	$_ == TBSCRIPTLOCK_OKAY && do {
 	    # Got the lock, just bail out of here and proceed.
 	    last LOCKSW;
 	};
@@ -599,8 +602,8 @@ sub unpack_bundle($$) {
     my $unpack_lock;
 
     # Grab the unpack lock.
-    if (TBScriptLock("unpacklock", $UNPACKLOCK_TMO, 
-		     undef, \$unpack_lock) != TBSCRIPTLOCK_OKAY) {
+    if (TBScriptLock("unpacklock", undef, 
+		     $UNPACKLOCK_TMO, \$unpack_lock) != TBSCRIPTLOCK_OKAY) {
 	warn "tbadb_proxy::unpack_bundle: Failed to get the unpack lock!\n";
 	return 0;
     }
@@ -684,7 +687,7 @@ sub load_android_image($$$) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	warn "tbadb_proxy::load_android_image: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -745,7 +748,7 @@ sub wait_for_android($) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	warn "tbadb_proxy::wait_for_android: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -766,12 +769,12 @@ sub wait_for_android($) {
 }
 
 # Helper that sets up listener port for a device
-sub setup_adb_forward($$$) {
+sub setup_android_forward($$$) {
     my ($node_id, $thost, $tport) = @_;
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	warn "tbadb_proxy::setup_android_forward: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -781,22 +784,76 @@ sub setup_adb_forward($$$) {
 	if ($tres =~ /has address ([\.\d]+)/) {
 	    $thost = $1;
 	} else {
-	    warn "tbadb_proxy::setup_adb_forward: could not lookup ip for host $thost\n";
+	    warn "tbadb_proxy::setup_android_forward: could not lookup ip for host $thost\n";
 	    return 0;
 	}
     }
 
+    # Scour any existing forwarding setup for the device
+    if (remove_android_forward($node_id)) {
+	warn "tbadb_proxy::setup_android_forward: could not remove old forwarding setup for $node_id!\n";
+	return 0;
+    }
+
     # Setup iptables rule to only allow connections from target
-    if (system("$IPTABLES -A INPUT ! -s $thost -p tcp --dport $tport -j DROP >/dev/null 2>&1") != 0) {
-	warn "tbadb_proxy::setup_adb_forward: could not setup iptables rule to limit connections for $node_id via port $tport to target host IP $thost\n";
+    if (system("$IPTABLES -A INPUT ! -s $thost -p tcp --dport $tport -m comment --comment '$serial' -j DROP >/dev/null 2>&1") != 0) {
+	warn "tbadb_proxy::setup_android_forward: could not setup iptables rule to limit connections for $node_id via port $tport to target host IP $thost\n";
 	return 0;
     }
 
     # Forward!
-    if (system("ADB -s $serial forward tcp:$tport tcp:5555") != 0) {
-	warn "tbadb_proxy::setup_adb_forward: could not forward adbd port on node_id to local port $tport!\n";
+    if (system("$ADB -s $serial forward tcp:$tport tcp:5555 >/dev/null 2>&1") != 0) {
+	warn "tbadb_proxy::setup_android_forward: could not forward adbd port on node_id to local port $tport!\n";
 	return 0;
     }
 
-    return 1
+    return 1;
+}
+
+
+sub remove_android_forward($) {
+    my ($node_id) = @_;
+
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "tbadb_proxy::remove_android_forward: No serial number for $node_id!\n";
+	return 0;
+    }
+
+    # Clear the adb forwarding.
+    my $adb_fwd_list = `$ADB forward --list 2>&1`;
+    if ($? != 0) {
+	warn "tbadb_proxy::remove_android_forward: unable to list adb forwarded ports!\n";
+	return 0;
+    }
+    my $portnum = 0;
+    foreach my $fwd (split(/\n/, $adb_fwd_list)) {
+	if ($fwd =~ /^$serial\s+tcp:(\d+)\s+/i) {
+	    $portnum = $1;
+	    last;
+	}
+    }
+    if ($portnum && system("$ADB -s $serial forward --remove tcp:$portnum >/dev/null 2>&1") != 0) {
+	warn "tbadb_proxy::remove_android_forward: unable to remove adb forward for $node_id!\n";
+	return 0;
+    }
+
+    # Clear the iptables rule.
+    my $ipt_rules = `$IPTABLES -L INPUT --line-numbers 2>&1`;
+    if ($? != 0) {
+	warn "tbadb_proxy::remove_android_forward: unable to list iptables rules!\n";
+	return 0;
+    }
+
+    my $rulenum = 0;
+    foreach my $rule (split(/\n/, $ipt_rules)) {
+	if ($rule =~ /^(\d+)\s+.+\/\* $serial \*\//i) {
+	    $rulenum = $1;
+	    last;
+	}
+    }
+    if ($rulenum && system("$IPTABLES -D INPUT $rulenum >/dev/null 2>&1") != 0) {
+	warn "tbadb_proxy::remove_android_forward: unable to clear iptables rule for $node_id!\n";
+	return 0;
+    }
 }

@@ -43,7 +43,7 @@ sub cmd_loadimage($@);
 sub cmd_forward($@);
 sub cmd_reboot($;@);
 sub GetSSHPipe();
-sub chldhandler($);
+sub chldhandler(;$);
 sub genhandler($);
 sub cleanexit($);
 
@@ -186,6 +186,9 @@ sub cmd_loadimage($@) {
     my $imageid = $image->imageid();
     my $imagepath = $image->path();
     $imagename  = $image->imagename(); # strip any version
+    my $size  = $image->size();
+    my $mtime;
+    $image->GetUpdate(\$mtime);
 
     # Check user's access to the image.
     die "tbadb::cmd_loadimage: You do not have permission to use imageid $imageid!\n"
@@ -205,11 +208,6 @@ sub cmd_loadimage($@) {
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
     die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
 	if (!$rpcin || !$rpcout);
-    
-    # Get stats from the image file.
-    my @fstats = stat($imagepath);
-    my $mtime = $fstats[9];
-    my $size  = $fstats[7];
 
     # Have remote side check for this image in its cache.
     die "tbadb::cmd_loadimage: Failed to send 'checkimage' RPC!\n"
@@ -246,7 +244,8 @@ sub cmd_loadimage($@) {
 	my $SAVEUID = $UID; 
 	$EUID = $UID = 0; # Flip to root to run!
 	die "tbadb::cmd_loadimage: Failed to transfer image to $rhost: $imagepath\n"
-	    if (system("$SCP -q -B -p $imagepath $rhost:$rpath") != 0);
+	    if (mysystem($SCP, '-q', '-B', '-p', 
+			 "$imagepath", "$rhost:$rpath/$imagename") != 0);
 	$EUID = $UID = $SAVEUID; # Flip back.
     }
 
@@ -281,13 +280,13 @@ sub cmd_loadimage($@) {
 # node_id, target host, and target port.
 #
 sub cmd_forward($@) {
-    my ($node_id, $thost, $tport);
+    my ($node_id, $thost, $tport) = @_;
 
     # Check and untaint arguments
-    die "tbadb::cmd_forward: missing arguments! (need: <node_id> <target_host> <target_port>\n"
+    die "tbadb::cmd_forward: missing arguments! (need: <target_host> <target_port>\n"
 	if (!$node_id || !$thost || !$tport);
     die "tbadb::cmd_forward: malformed target host!"
-	if ($thost !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
+	if ($thost !~ /^([-\.\w]{$MINHLEN,$MAXHLEN})$/);
     $thost = $1;
     die "tbadb::cmd_forward: malformed target port!"
 	if ($tport !~ /^(\d+)$/ || $1 < 1 || $1 > 65535);
@@ -297,7 +296,7 @@ sub cmd_forward($@) {
     my $node = Node->Lookup($node_id);
     die "tbadb::cmd_forward: Invalid node name $node_id!\n"
 	if (!defined($node));
-    die("tbadb::cmd_forward: You do not have permission to reboot $node\n")
+    die("tbadb::cmd_forward: You do not have permission to access $node\n")
 	if (!$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
     
     # Grab the RPC pipe.
@@ -447,8 +446,10 @@ sub cleanexit($) {
 
 	my $stime = time();
 	while (keys %SSHPIPES) {
+	    chldhandler();
 	    if (time() - $stime > $CHILD_WAIT_TMO) {
-		warn "tbadb: Timed out waiting for SSH pipe children to exit!\n";
+		warn "tbadb: Timed out waiting for SSH RPC pipes to exit!\n".
+		     "Remaining: ". join(", ", keys %SSHPIPES) ."\n";
 		last;
 	    }
 	    sleep 1;
@@ -458,17 +459,21 @@ sub cleanexit($) {
     exit $exval;
 }
 
-sub chldhandler($) {
+sub chldhandler(;$) {
     local ($!, $?);  # Don't let issues in the handler affect these globals.
-    my $pid = waitpid(-1, WNOHANG);
-    return if ($pid < 1);
-    while (my ($cs_node_id, $sshpipe) = each %SSHPIPES) {
-	if ($sshpipe->child() == $pid) {
-	    print "tbadb: SSH Pipe exited for $cs_node_id\n"
-		if $debug;
-	    delete $SSHPIPES{$cs_node_id};
-	    last;
+    while ((my $pid = waitpid(-1, WNOHANG)) > 0) {
+	my $found = 0;
+	while (my ($cs_node_id, $sshpipe) = each %SSHPIPES) {
+	    if ($sshpipe->child() == $pid) {
+		print "tbadb: SSH Pipe exited for $cs_node_id\n"
+		    if $debug;
+		delete $SSHPIPES{$cs_node_id};
+		$found = 1;
+		last;
+	    }
 	}
+	warn "tbadb: Non-pipe child process exited: $pid\n"
+	    if (!$found && $debug);
     }
 }
 
@@ -476,7 +481,15 @@ sub genhandler($) {
     cleanexit(1);
 }
 
+sub mysystem(@) {
+    local $SIG{CHLD} = 'DEFAULT';
+    my $retcode = system(@_);
+    chldhandler();
+    return $retcode;
+}
+
 END {
+    warn "This is the end...\n" if $debug;
     cleanexit($?) if (keys %SSHPIPES);
 }
 
