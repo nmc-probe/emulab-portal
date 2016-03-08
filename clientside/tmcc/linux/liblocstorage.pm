@@ -66,6 +66,7 @@ my $FSCK	= "/sbin/e2fsck";
 my $DOSTYPE	= "$BINDIR/dostype";
 my $ISCSI	= "/sbin/iscsiadm";
 my $ISCSI_ALT	= "/usr/bin/iscsiadm";
+my $ISCSINAME	= "/etc/iscsi/initiatorname.iscsi";
 my $SMARTCTL	= "/usr/sbin/smartctl";
 my $BLKID	= "/sbin/blkid";
 my $SFDISK	= "/sbin/sfdisk";
@@ -603,6 +604,52 @@ sub checkfs($$$)
     return 1;
 }
 
+sub set_iname($$)
+{
+    my ($iqn,$redir) = @_;
+
+    if (!defined($iqn)) {
+	warn("*** storage: could not determine IQN prefix, initiator name is not unique!\n");
+	return 0;
+    }
+
+    my $hname = `hostname 2>/dev/null`;
+    chomp($hname);
+
+    # See if the existing initiator name is correct
+    my $iname = "$iqn:$hname";
+    if (open(FD, "<$ISCSINAME")) {
+	while (<FD>) {
+	    if (/^InitiatorName=(.*)/) {
+		# existing name is correct
+		if ($1 eq $iname) {
+		    close(FD);
+		    return 1;
+		}
+	    }
+	}
+	close(FD);
+    }
+
+    # name is incorrect, try setting it
+    if (!open(FD, ">$ISCSINAME")) {
+	warn("*** storage: unable to set unique initiator name!\n");
+	return 0;
+    }
+
+    print FD "# Created by Emulab liblocstorage.pm\n";
+    print FD "InitiatorName=$iname\n";
+    close(FD);
+
+    # restart iscsid
+    if (mysystem("service open-iscsi restart $redir")) {
+	warn("*** storage: could not restart iscsid!\n");
+	return 0;
+    }
+
+    return 1;
+}
+
 #
 # Handle one-time operations.
 # Return a cookie (object) with current state of storage subsystem.
@@ -619,6 +666,7 @@ sub os_init_storage($)
     my $gotiscsi = 0;
     my $needavol = 0;
     my $needall = 0;
+    my $iqn;
 
     my %so = ();
 
@@ -640,6 +688,11 @@ sub os_init_storage($)
 	    $gotnonlocal++;
 	    if ($href->{'PROTO'} eq "iSCSI") {
 		$gotiscsi++;
+		if (!defined($iqn) && defined($href->{'UUID'})) {
+		    if ($href->{'UUID'} =~ /^([^:]+):/) {
+			$iqn = $1;
+		    }
+		}
 	    }
 	}
     }
@@ -691,6 +744,11 @@ sub os_init_storage($)
     }
 
     if ($gotiscsi) {
+	#
+	# Make sure client has the correct initiator IQN, otherwise fix it.
+	#
+	set_iname($iqn, $redir);
+
 	if (! -x "$ISCSI") {
 	    if (! -x "$ISCSI_ALT") {
 		warn("*** storage: $ISCSI does not exist, cannot continue\n");
