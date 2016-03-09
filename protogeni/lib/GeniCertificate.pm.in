@@ -211,6 +211,9 @@ sub Create($$;$)
     my $url      = (exists($argref->{'url'})     ? $argref->{'url'}     :undef);
     my $showuuid = (exists($argref->{'showuuid'})? $argref->{'showuuid'}:undef);
     my $nostore  = (exists($argref->{'nostore'}) ? $argref->{'nostore'} :0);
+    my $keyfile  = (exists($argref->{'keyfile'}) ? $argref->{'keyfile'} :undef);
+
+    print STDERR Dumper($argref);
 
     # Let mkcert generate a new one.
     $uuid = ""
@@ -227,7 +230,9 @@ sub Create($$;$)
 	    $altcaopt = "-d -a /usr/testbed/etc/utah-apt.ca";
 	}
     }
-    my $cmd = "$MKCERT $altcaopt $caflag ".
+    my $keyarg = (defined($keyfile) ? "-k $keyfile" : "");
+
+    my $cmd = "$MKCERT $keyarg $altcaopt $caflag ".
 	"-i \"$urn\" $url -e \"$email\" $hrn $showuuidflag$uuid";
     print STDERR "$cmd\n";
     
