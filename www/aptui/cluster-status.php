@@ -47,11 +47,11 @@ SPITHEADER(1);
 # now it is always the local cluster
 #
 $aggregates =
-    array("Emulab"    => "urn:publicid:IDN+emulab.net+authority+cm");
-#          "APT"       => "urn:publicid:IDN+apt.emulab.net+authority+cm",
-#          "Wisconsin" => "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
-#          "Clemson"   => "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
-#          "Utah"      => "urn:publicid:IDN+utah.cloudlab.us+authority+cm");
+    array("Emulab"    => "urn:publicid:IDN+emulab.net+authority+cm",
+          "APT"       => "urn:publicid:IDN+apt.emulab.net+authority+cm",
+          "Wisconsin" => "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
+          "Clemson"   => "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
+          "Utah"      => "urn:publicid:IDN+utah.cloudlab.us+authority+cm");
           
 
 echo "<link rel='stylesheet'
