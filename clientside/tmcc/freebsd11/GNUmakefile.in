@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,7 +22,7 @@
 #
 
 #
-# XXX ONLY RUN THIS INSTALL ON A FREEBSD 6 TESTBED NODE!
+# XXX ONLY RUN THIS INSTALL ON A FREEBSD 11.x TESTBED NODE!
 #
 # Trivial. These things just need to be installed into the right place
 # on a testbed node before cutting an image.
@@ -50,7 +50,8 @@ JAILDIR		= $(SYSETCDIR)/jail
 ETCDIR		= $(DESTDIR)$(CLIENT_ETCDIR)
 BINDIR		= $(DESTDIR)$(CLIENT_BINDIR)
 VARDIR		= $(DESTDIR)$(CLIENT_VARDIR)
-RCDIR		= $(DESTDIR)/usr/local/etc/rc.d
+LETCDIR		= $(DESTDIR)/usr/local/etc
+RCDIR		= $(LETCDIR)/rc.d
 ISMFS		= $(ETCDIR)/ismfs
 INSTALL		= /usr/bin/install -c
 
@@ -72,10 +73,18 @@ subboss-install:	bincheck basefbsd-subboss-install etc-install \
 
 simple-install:	script-install bin-install
 
+#
+# XXX make sure the isc-dhcpd port is installed,
+# XXX as of June 2015, the FreeBSD port no longer maintains the
+#     /usr/bin/perl symlink which we rely on, so it may be wrong or missing.
+#
 bincheck:
 	@if [ ! -x /usr/local/sbin/dhclient ]; then \
 		echo "Need to install net/isc-dhcp3-client port"; \
 		false; \
+	fi
+	@if [ ! -x /usr/bin/perl ]; then \
+		ln -sf /usr/local/bin/perl5 /usr/bin/perl; \
 	fi
 
 dir-install:
@@ -85,6 +94,7 @@ dir-install:
 	$(INSTALL) -m 755 -o root -g wheel -d $(SYSETCDIR)/rc.conf.d
 	$(INSTALL) -m 755 -o root -g wheel -d $(ETCDIR)
 	$(INSTALL) -m 755 -o root -g wheel -d $(BINDIR)
+	$(INSTALL) -m 755 -o root -g wheel -d $(LETCDIR)/sudoers.d
 	$(INSTALL) -m 755 -o root -g wheel -d $(RCDIR)
 	$(INSTALL) -m 755 -o root -g wheel -d $(VARDIR)
 	$(INSTALL) -m 755 -o root -g wheel -d $(VARDIR)/db
@@ -95,22 +105,24 @@ dir-install:
 	$(INSTALL) -m 755 -o root -g wheel -d $(VARDIR)/lock
 	-rm -rf $(DESTDIR)/etc/testbed
 	ln -s emulab $(DESTDIR)/etc/testbed
-	-rm -rf $(DESTDIR)/usr/local/etc/testbed
-	ln -s emulab $(DESTDIR)/usr/local/etc/testbed
+	-rm -rf $(LETCDIR)/testbed
+	ln -s emulab $(LETCDIR)/testbed
 
 basefbsd-install: dir-install
 	(cd ../freebsd5; $(MAKE) all install)
 	rm -rf $(SYSETCDIR)/rc.conf.d
-	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
-	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
+	rm -f $(LETCDIR)/dhclient*
+	ln -s /etc/dhclient-enter-hooks $(LETCDIR)/
+	ln -s /etc/dhclient-exit-hooks $(LETCDIR)/
+	$(INSTALL) -m 644 $(SRCDIR)/sudoers.emulab $(LETCDIR)/sudoers.d/emulab
 
 basefbsd-subboss-install: dir-install
 	(cd ../freebsd5; $(MAKE) all subboss-install)
 	rm -rf $(SYSETCDIR)/rc.conf.d
-	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
-	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
+	rm -f $(LETCDIR)/dhclient*
+	ln -s /etc/dhclient-enter-hooks $(LETCDIR)/
+	ln -s /etc/dhclient-exit-hooks $(LETCDIR)/
+	$(INSTALL) -m 644 $(SRCDIR)/sudoers.emulab $(LETCDIR)/sudoers.d/emulab
 
 tweak-syslog:
 	@if [ -f $(SYSETCDIR)/newsyslog.conf ]; then \
@@ -149,9 +161,9 @@ script-install:	dir-install
 frisbee-mfs-install: destdircheck
 	(cd ../freebsd5; $(MAKE) all frisbee-mfs-install)
 	rm -f $(SYSETCDIR)/testbed/dhclient
-	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
-	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
+	rm -f $(LETCDIR)/dhclient*
+	ln -s /etc/dhclient-enter-hooks $(LETCDIR)/
+	ln -s /etc/dhclient-exit-hooks $(LETCDIR)/
 	@if [ -r $(SRCDIR)/master.passwd ]; then \
 	    $(INSTALL) -m 600 $(SRCDIR)/master.passwd $(SYSETCDIR); \
 	    pwd_mkdb -d $(SYSETCDIR) $(SYSETCDIR)/master.passwd; \
@@ -163,9 +175,9 @@ frisbee-mfs-install: destdircheck
 mfs-install:
 	(cd ../freebsd5; $(MAKE) all mfs-install)
 	rm -f $(SYSETCDIR)/testbed/dhclient
-	rm -f $(DESTDIR)/usr/local/etc/dhclient*
-	ln -s /etc/dhclient-enter-hooks $(DESTDIR)/usr/local/etc/
-	ln -s /etc/dhclient-exit-hooks $(DESTDIR)/usr/local/etc/
+	rm -f $(LETCDIR)/dhclient*
+	ln -s /etc/dhclient-enter-hooks $(LETCDIR)/
+	ln -s /etc/dhclient-exit-hooks $(LETCDIR)/
 	@if [ -r $(SRCDIR)/master.passwd ]; then \
 	    $(INSTALL) -m 600 $(SRCDIR)/master.passwd $(SYSETCDIR); \
 	    pwd_mkdb -d $(SYSETCDIR) $(SYSETCDIR)/master.passwd; \
