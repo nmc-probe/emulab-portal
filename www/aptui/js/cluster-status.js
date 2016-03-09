@@ -26,7 +26,7 @@ function (_, sup, moment, mainString)
     {
 	_.each(amlist, function(urn, name) {
 	    var callback = function(json) {
-		console.log(json);
+		//console.log(json);
 		if (json.code) {
 		    console.log("Could not get cluster data: " + json.value);
 		    return;
@@ -97,6 +97,110 @@ function (_, sup, moment, mainString)
 						{"cluster" : urn});
 	    xmlthing.done(callback);
 	});
+	_.each(amlist, function(urn, name) {
+	    var callback = function(json) {
+		console.log(json);
+		if (json.code) {
+		    console.log("Could not get prereserve data: " + json.value);
+		    return;
+		}
+		var prereserve = json.value;
+		var html = "";
+
+		prereserve.forEach(function(value, index) {
+		    var created = moment(value.created).format("ll");
+		    var expando = "";
+
+		    if (value.prereserved.length) {
+			var target = "#" + value.pid + "-collapse";
+
+			expando =
+			    "<a data-target='" + target + "' class=expando>" +
+			    "  <span " +
+			    "    class='glyphicon glyphicon-chevron-right'>" +
+			    "  </span></a> ";
+		    }
+		    html = html + "<tr> " +
+			"<td>" + expando + value.pid + "</td>" +
+			"<td>" + value.name + "</td>" +
+			"<td>" + value.priority + "</td>" +
+			"<td>" + value.count + "</td>" +
+			"<td>" + value.prereserved.length + "</td>" +
+			"<td>" + value.types + "</td>" +
+			"<td>" + value.creator + "</td>" +
+			"<td>" + created + "</td>" + "</tr>";
+		    if (value.prereserved.length) {
+			html = html +
+			    " <tr><td class=hiddenRow></td> " +
+			    "  <td colspan=7 class=hiddenRow>" +
+			    "   <div class='collapse' " +
+			    "        id='" +  value.pid + "-collapse'>" +
+			    "    <center class=text-center>Pre Reserved</center>"+
+			    "    <table class='tablesorter tablesorter-green'>"+
+			    "     <thead> " +
+			    "      <th>Node</th><th>Type</th> " +
+			    "     </thead>";
+			
+			for (var i=0; i < value.prereserved.length; i++) {
+			    var pre = value.prereserved[i];
+
+			    html = html + "<tr>" +
+				"<td>" + pre.node_id + "</td>" +
+				"<td>" + pre.type + "</td>" + "</tr>";
+			}
+			html = html + "</table></div></td>" +
+			    "</tr>";
+		    }
+		});
+		$('#prereserve-' + name + '-tbody').html(html);
+
+		/*
+		 * Expand/collapse for all the prereserve rows.
+		 */
+		$('.expando').click(function () {
+		    var rowname = $(this).data("target");
+
+		    if (! $(rowname).hasClass("in")) {
+			$(rowname).collapse('show');
+			$(this).find('span')
+			    .removeClass("glyphicon-chevron-right");
+			$(this).find('span')
+			    .addClass("glyphicon-chevron-down");
+		    }
+		    else {
+			$(rowname).collapse('hide');
+			$(this).find('span')
+			    .removeClass("glyphicon-chevron-down");
+			$(this).find('span')
+			    .addClass("glyphicon-chevron-right");
+		    }
+		});
+		 
+		/*
+		 * Expand/Collapse the prereserve table
+		 */
+		$('#prereserve-collapse-button-' + name).click(function () {
+		    var panelname = '#prereserve-panel-' + name;
+
+		    if (! $(panelname).hasClass("in")) {
+			$(panelname).collapse('show');
+			$(this).removeClass("glyphicon-chevron-right");
+			$(this).addClass("glyphicon-chevron-down");
+		    }
+		    else {
+			$(panelname).collapse('hide');
+			$(this).removeClass("glyphicon-chevron-down");
+			$(this).addClass("glyphicon-chevron-right");
+		    }
+		});
+		// Show the panel.
+		$('#prereserve-row-' + name).removeClass("hidden");
+	    }
+	    var xmlthing = sup.CallServerMethod(null, "cluster-status",
+						"GetPreReservations",
+						{"cluster" : urn});
+	    xmlthing.done(callback);
+	});
     }
 
     function InitTable(name)
@@ -148,11 +252,15 @@ function (_, sup, moment, mainString)
 		$(panelname).removeClass("inuse-panel");
 		$('#counts-panel-' + name).removeClass("counts-panel");
 		$(panelname).data("status", "maximized");
+		$(this).removeClass("glyphicon-chevron-right");
+		$(this).addClass("glyphicon-chevron-down");
 	    }
 	    else {
 		$(panelname).addClass("inuse-panel");
 		$('#counts-panel-' + name).addClass("counts-panel");
 		$(panelname).data("status", "minimized");
+		$(this).removeClass("glyphicon-chevron-down");
+		$(this).addClass("glyphicon-chevron-right");
 	    }
 	})
     }

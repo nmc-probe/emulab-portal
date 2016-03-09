@@ -150,6 +150,37 @@ function Do_GetStatus()
     SPITAJAX_RESPONSE($dashboard);
 }
 
+function Do_GetPreReservations()
+{
+    global $ajax_args, $geni_response_codes, $urn_mapping, $TBBASE;
+    global $TBSUEXEC_PATH;
+
+    if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
+        SPITAJAX_ERROR(1, "Not enough permission");
+        return;
+    }
+    if (Instance::ValidURN($ajax_args["cluster"])) {
+        $cluster = $ajax_args["cluster"];
+    }
+    else {
+        $cluster = $ajax_args["cluster"] . ".cm";
+    }
+    $inuse = array();
+    $fp = popen("$TBSUEXEC_PATH elabman tbadmin ".
+                "webportal_xmlrpc -a $cluster PreReservations", "r");
+    $string = "";
+    while (!feof($fp)) {
+        $string .= fgets($fp, 1024);
+    }
+    pclose($fp);
+    $inuse = json_decode($string);
+    if (gettype($inuse) == "object") {
+        $inuse = $inuse->details;
+    }
+
+    SPITAJAX_RESPONSE($inuse);
+}
+
 # Local Variables:
 # mode:php
 # End:

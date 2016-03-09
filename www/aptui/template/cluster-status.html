@@ -28,8 +28,12 @@
 	max-height:385px;
 	overflow-y:scroll;
 }
-.glyphicon-chevron-right {
-	cursor: pointer;
+.prereserve-panel {
+	max-height:250px;
+	overflow-y:scroll;
+}
+.hiddenRow {
+        padding: 0 !important;
 }
 </style>
 <div class='row' style="margin-bottom: 5px">
@@ -69,8 +73,10 @@
 	<div class="panel-heading" id='inuse-click-<%- name %>'>
 	  <h5>
 	    <center>InUse <%- name %>
-	      <span id="inuse-collapse-button-<%- name %>"
+	      <a href="#inuse-panel-<%- name %>"">
+		<span id="inuse-collapse-button-<%- name %>"
 		    class="glyphicon glyphicon-chevron-right pull-right"></span>
+	      </a>
 	    </center>
 	  </h5>
 	</div>
@@ -104,6 +110,45 @@
 		</tr>
 	      </thead>
 	      <tbody id='<%- name %>-tbody'>
+	      </tbody>
+	    </table>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </div>
+  <div class='row hidden' id="prereserve-row-<%- name %>">
+    <div class='col-sm-9 col-sm-offset-3'>
+      <div class='panel panel-default'>
+	<div class="panel-heading" id='prereserve-click-<%- name %>'>
+	  <h5>
+	    <center>Pre Reservations <%- name %>
+	      <a href="#prereserve-panel-<%- name %>"">
+		<span id="prereserve-collapse-button-<%- name %>"
+		      class="glyphicon glyphicon-chevron-right pull-right">
+		</span>
+	      </a>
+	    </center>
+	  </h5>
+	</div>
+	<div class='panel-body panel-body-dashboard'>
+	  <div class="collapse" id='prereserve-panel-<%- name %>'
+	       data-status="minimized">
+	    <table class="tablesorter tablesorter-green"
+		   id='prereserve-table-<%- name %>'>
+	      <thead>
+		<tr>
+		  <th>Pid</th>
+		  <th>Name</th>
+		  <th>Pri</th>
+		  <th>Need</th>
+		  <th>Got</th>
+		  <th>Types</th>
+		  <th>Creator</th>
+		  <th>Created</th>
+		</tr>
+	      </thead>
+	      <tbody id='prereserve-<%- name %>-tbody'>
 	      </tbody>
 	    </table>
 	  </div>
