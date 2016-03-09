@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -117,7 +117,7 @@ function Do_GetStats()
         $creator     = $row["creator"];
         $creator_idx = $row["creator_idx"];
         $pcount      = $row["physnode_count"];
-        $created     = $row["created"];
+        $created     = DateStringGMT($row["created"]);
         $profile_uuid = $row["profile_uuid"];
         $profile_name = $row["profile_name"];
         $aggregate_urn= $row["aggregate_urn"];
@@ -230,7 +230,7 @@ function Do_GetStats()
         $logfileid  = $row["logfileid"];
         $active     = $row["active"] ? 1 : 0;
         $uuid       = $row["uuid"];
-        $created    = $row["created"];
+        $created    = DateStringGMT($row["created"]);
         $creator    = $row["creator"];
         $message    = $row["exitmessage"];
         $reason     = $exitcode;
@@ -310,8 +310,8 @@ function Do_GetStats()
         $name       = $row["name"];
         $uuid       = $row["uuid"];
         $pid        = $row["pid"];
-        $expires    = $row["expires"];
-        $created    = $row["created"];
+        $expires    = DateStringGMT($row["expires"]);
+        $created    = DateStringGMT($row["created"]);
         $creator    = $row["creator"];
 
         $extension_details[$uuid] = array("name"     => $name,
@@ -322,7 +322,52 @@ function Do_GetStats()
                                           "expires"  => $expires);
     }
     $dashboard["extension_requests"] = $extension_details;
-    
+
+    #
+    # List of all locked down experiments.
+    #
+    $lockdown = array();
+
+    $query_result =
+        DBQueryFatal("select i.name,i.uuid,i.creator,i.creator_idx,".
+                     "  i.physnode_count,i.created,i.aggregate_urn,s.expires, ".
+                     "  p.uuid as profile_uuid,p.name as profile_name ".
+                     "from apt_instances as i ".
+                     "left join apt_profiles as p on ".
+                     "     p.profileid=i.profile_id ".
+                     "left join geni.geni_slices as s on ".
+                     "     s.uuid=i.slice_uuid ".
+                     "where i.admin_lockdown!=0 ".
+                     "order by created desc");
+    while ($row = mysql_fetch_array($query_result)) {
+        $name        = $row["name"];
+        $uuid        = $row["uuid"];
+        $creator     = $row["creator"];
+        $creator_idx = $row["creator_idx"];
+        $pcount      = $row["physnode_count"];
+        $created     = DateStringGMT($row["created"]);
+        $expires     = DateStringGMT($row["expires"]);
+        $profile_uuid = $row["profile_uuid"];
+        $profile_name = $row["profile_name"];
+        $aggregate_urn= $row["aggregate_urn"];
+        $cluster      = "N/A";
+
+        if ($aggregate_urn && $aggregate_urn != "") {
+            $cluster = $urn_mapping[$aggregate_urn];
+        }
+        $lockdown[$uuid] = array("uuid" => $uuid,
+                               "name" => $name,
+                               "creator_idx" => $creator_idx,
+                               "creator" => $creator,
+                               "physnode_count" => $pcount,
+                               "created" => $created,
+                               "expires" => $expires,
+                               "cluster"  => $cluster,
+                               "profile_uuid" => $profile_uuid,
+                               "profile_name" => $profile_name);
+    }
+    $dashboard["lockdown"] = $lockdown;
+
     SPITAJAX_RESPONSE($dashboard);
 }
 

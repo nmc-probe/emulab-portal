@@ -303,7 +303,52 @@
   </div>
 </div>
 <div class='row'>
+  <div class='col-sm-10 col-sm-offset-1'>
+    <div class='panel panel-default' id='experiments-lockdown-panel'>
+      <div class="panel-heading">
+	<h5><center>Locked Down Experiments</center></h5>
+      </div>
+      <div class='panel-body panel-body-dashboard'>
+	<table class="table table-condensed table-bordered table-dashboard"
+	       id='experiments-lockdown-table'>
+	  <thead>
+	    <tr>
+	      <th>Name</th>
+	      <th>Creator</th>
+	      <th>Profile</th>
+	      <th>Cluster</th>
+	      <th>PCs</th>
+	      <th>Created</th>
+	      <th>Expires</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+	    <% _.each(dashboard.lockdown, function(value, key) { %>
+	      <tr>
+		<td><a href="status.php?uuid=<%- value.uuid %>">
+		  <%- value.name %></a></td>
+		<% if (!isadmin) { %>
+		  <td><%- value.creator %></td>
+		<% } %>
+		<% if (isadmin) { %>
+		  <td><a href="https://www.emulab.net/showuser.php3?user=<%- value.creator_idx %>"><%- value.creator %></a></td>
+   		<% } %>
+		<td><a href="show-profile.php?uuid=<%- value.profile_uuid %>">
+		  <%- value.profile_name %></a></td>
+		<td><%- value.cluster %></td>
+		<td><%- value.physnode_count %></td>
+		<td class="format-date-month"><%- value.created %></td>
+		<td class="format-date-relative"><%- value.expires %></td>
+	      </tr>
+	    <% }); %>
+	  </tbody>
+	</table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='row'>
   <div class="col-xs-4">
-    Last updated: <span class="format-date-relative" id="last-refresh"></span>
+    Last updated: <span class="format-date-last-refresh" id="last-refresh"></span>
   </div>
 </div>
