@@ -105,19 +105,21 @@ function (_, sup, moment, mainString)
 		    return;
 		}
 		var prereserve = json.value;
+		var expando_class = "expando-" + name;
 		var html = "";
 
 		prereserve.forEach(function(value, index) {
 		    var created = moment(value.created).format("ll");
+		    var expando_target = name + "-" + value.pid + "-collapse";
 		    var expando = "";
 
 		    if (value.prereserved.length) {
-			var target = "#" + value.pid + "-collapse";
-
 			expando =
-			    "<a data-target='" + target + "' class=expando>" +
+			    "<a>" +
 			    "  <span " +
-			    "    class='glyphicon glyphicon-chevron-right'>" +
+			    "    data-target='#" + expando_target + "' class=" +
+			    "    'glyphicon glyphicon-chevron-right " +
+			          expando_class + "'>" +
 			    "  </span></a> ";
 		    }
 		    html = html + "<tr> " +
@@ -134,7 +136,7 @@ function (_, sup, moment, mainString)
 			    " <tr><td class=hiddenRow></td> " +
 			    "  <td colspan=7 class=hiddenRow>" +
 			    "   <div class='collapse' " +
-			    "        id='" +  value.pid + "-collapse'>" +
+			    "        id='" + expando_target  + "'>" +
 			    "    <center class=text-center>Pre Reserved</center>"+
 			    "    <table class='tablesorter tablesorter-green'>"+
 			    "     <thead> " +
@@ -157,22 +159,18 @@ function (_, sup, moment, mainString)
 		/*
 		 * Expand/collapse for all the prereserve rows.
 		 */
-		$('.expando').click(function () {
+		$('.' + expando_class).click(function () {
 		    var rowname = $(this).data("target");
 
 		    if (! $(rowname).hasClass("in")) {
 			$(rowname).collapse('show');
-			$(this).find('span')
-			    .removeClass("glyphicon-chevron-right");
-			$(this).find('span')
-			    .addClass("glyphicon-chevron-down");
+			$(this).removeClass("glyphicon-chevron-right");
+			$(this).addClass("glyphicon-chevron-down");
 		    }
 		    else {
 			$(rowname).collapse('hide');
-			$(this).find('span')
-			    .removeClass("glyphicon-chevron-down");
-			$(this).find('span')
-			    .addClass("glyphicon-chevron-right");
+			$(this).removeClass("glyphicon-chevron-down");
+			$(this).addClass("glyphicon-chevron-right");
 		    }
 		});
 		 

@@ -257,13 +257,15 @@ sub PreReservations()
 		  "type"    => $row->{'node_type'}});
 	    
 	    $row = $query_result->fetchrow_hashref();
+	    last
+		if (!defined($row));
 	}
 	push(@blob, {"nodes"        => \@nodes,
 		     "pid"          => $pid,
 		     "name"         => $name,
 		     "count"        => $count,
 		     "prereserved"  => \@prereserved,
-		     "types"        => $types,
+		     "types"        => $types || "",
 		     "priority"     => $priority,
 		     "created"      => $created,
 		     "creator"      => $creator,
@@ -272,6 +274,9 @@ sub PreReservations()
 		     "active"       => $active,
 		     "terminal"     => $terminal,
 	     });
+	# We ate the last row.
+	last
+	    if (!defined($row));
 	# We ate the first row of the next reservation.
 	goto nextpid
 	    if (! ($row->{'pid'} eq $pid && $row->{'name'} eq $name));
