@@ -43,6 +43,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var lockdown          = 0;
     var lockdown_code     = "";
     var consolenodes      = {};
+    var showlinktest      = false;
+    var hidelinktest      = false;
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
@@ -63,6 +65,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	lockdown     = window.APT_OPTIONS.lockdown;
 	lockdown_code= uuid.substr(2, 5);
 	instanceStatus = window.APT_OPTIONS.instanceStatus;
+	hidelinktest   = window.APT_OPTIONS.hidelinktest;
 	var errorURL = window.HELPFORUM;
 
 	// Generate the templates.
@@ -1530,6 +1533,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    FindEncryptionBlocks(xml);
 		}
 
+		/*
+		 * No point in showing linktest if no links at any site.
+		 * For the moment, we do not count links if they span sites
+		 * since linktest does not work across stitched links.
+		 */
+		$(xml).find("link").each(function() {
+		    var managers = $(this).find("component_manager");
+		    if (managers.length == 1)
+			showlinktest++;
+		});
 	    }
 
 	    /*
@@ -1554,6 +1567,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    NewSSHTab(hostport, nodename);
 		};
 	    }
+	    
 	    // There is enough asynchrony that we have to watch for the
 	    // case that we went ready before we got this done, and so the
 	    // buttons won't be correct.
@@ -2180,6 +2194,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Linktest support.
     //
     function SetupLinktest(status) {
+	if (hidelinktest || !showlinktest) {
+	    return;
+	}
 	require(['js/lib/text!template/linktest.md'],
 		function(md) {
 		    console.info(md);
@@ -2205,6 +2222,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	ToggleLinktestButtons(status);
     }
     function ToggleLinktestButtons(status) {
+	if (hidelinktest || !showlinktest) {
+	    return;
+	}
 	if (status == "ready") {
 	    $('#linktest-stop-button').addClass("hidden");
 	    $('#linktest-modal-button').removeClass("hidden");
