@@ -54,7 +54,9 @@ $routing = array("myprofiles" =>
 			array("file"    => "cluster-status.ajax",
 			      "guest"   => false,
 			      "methods" => array("GetStatus" =>
-						      "Do_GetStatus")),
+                                                    "Do_GetStatus",
+                                                 "GetPreReservations" =>
+						      "Do_GetPreReservations")),
 		 "sumstats" =>
 			array("file"    => "sumstats.ajax",
 			      "guest"   => false,
@@ -228,6 +230,32 @@ function CheckLoginForAjax($guestokay = false)
 	SPITAJAX_ERROR(2, "You are not logged in");	
 	exit(2);
     }
+}
+
+#
+# So we can capture stderr. Sheesh.
+# 
+function myexec($cmd)
+{
+    ignore_user_abort(1);
+
+    $myexec_output_array = array();
+    $myexec_output       = "";
+    $myexec_retval       = 0;
+    
+    exec("$cmd 2>&1", $myexec_output_array, $myexec_retval);
+    if ($myexec_retval) {
+	for ($i = 0; $i < count($myexec_output_array); $i++) {
+	    $myexec_output .= "$myexec_output_array[$i]\n";
+	}
+	$foo  = "Shell Program Error. Exit status: $myexec_retval\n";
+	$foo .= "  '$cmd'\n";
+	$foo .= "\n";
+	$foo .= $myexec_output;
+	TBERROR($foo, 0);
+	return 1;
+    }
+    return 0;
 }
 
 #
