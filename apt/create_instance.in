@@ -43,7 +43,7 @@ sub usage()
     print "Usage: quickvm [-u uuid] [--site site:1=aggregate ...] <xmlfile>\n";
     exit(1);
 }
-my @optlist = ('d', 'v', 'u=s', 'a=s', 'S');
+my @optlist = ('d', 'v', 'u=s', 'a=s', 'S', 'k=s');
 my $debug   = 0;
 my $verbose = 1;
 my $xmlfile;
@@ -55,6 +55,7 @@ my $quickuuid;
 my $this_user;
 my $xmlparse;
 my $instance;
+my $privkeyfile;
 my $slice;
 my $sitemap;
 my $usetracker = 0;
@@ -140,6 +141,9 @@ if (! GetOptions(\%options, @optlist, "site=s%" => \$sitemap)) {
 }
 if (defined($options{"a"})) {
     $default_aggregate_urn = $options{"a"};
+}
+if (defined($options{"k"})) {
+    $privkeyfile = $options{"k"};
 }
 if (defined($options{"d"})) {
     $debug = 1;
@@ -664,6 +668,7 @@ my $altblob = {"urn"      => $alt_urn,
 	       "uuid"     => $slice_uuid,
 	       "email"    => $user_email,
 	       "nostore"  => 1,
+               "keyfile"  => $privkeyfile,
 	       "useaptca" => 1,
 	       "showuuid" => 1};
 my $alt_certificate = GeniCertificate->Create($altblob);

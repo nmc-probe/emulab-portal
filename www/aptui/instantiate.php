@@ -509,11 +509,10 @@ if (!isset($create)) {
 	    $defaults["sshkey"]   = $geniuser->SSHKey();
 	}
     }
-    if (!$this_user) {
-        # We use a session. in case we need to do verification
-        session_start();
-        session_unset();
-    }
+    # We use a session, in case we need to do verification or other things.
+    session_start();
+    session_unset();
+
     SPITFORM($defaults, false, array());
     echo "<div style='display: none'><div id='jacks-dummy'></div></div>\n";
     SPITFOOTER();

@@ -554,6 +554,7 @@ function CheckStep2()
     $am_array   = Instance::DefaultAggregateList();
     $errors     = array();
 
+    session_start();
     #
     # The initial page load did profile checking, this is just a
     # secondary check, so if there are failures, we can show them
@@ -578,7 +579,6 @@ function CheckStep2()
         #
         # Need to make sure we got verified.
         #
-        session_start();
         if (!isset($_SESSION["verified"]) || !$_SESSION["verified"]) {
             $errors["error"] = "Your verification step failed";
         }
@@ -722,8 +722,6 @@ function Do_Submit()
                          $this_user->email() : $formfields["email"]);
     $args["profile"]  = $formfields["profile"];
     if (!$this_user) {
-        session_start();
-
         if (isset($_SESSION["verified"])) {
             $args["auth_token"] = $_SESSION["auth_token"];
         }
@@ -744,6 +742,15 @@ function Do_Submit()
             $options .= "--site 'site:${siteid}=${urn}' ";
         }
     }
+    if (isset($_SESSION["privkey"])) {
+        $keyname = tempnam("/tmp", "genilibkey");
+        $fp = fopen($keyname, "w");
+        fwrite($fp, $_SESSION["privkey"]);
+        fclose($fp);
+        chmod($keyname, 0666);
+        $options .= " -k $keyname";
+    }
+    
     #
     # Invoke the backend.
     #
@@ -752,8 +759,14 @@ function Do_Submit()
 
     if (!$instance) {
 	SPITAJAX_ERROR(2, $errors);
+        if (isset($keyname)) {
+            unlink($keyname);
+        }
         return;
     }
+    if (isset($keyname)) {
+        unlink($keyname);
+    }    
     $blob = array("redirect" => "status.php?uuid=" . $instance->uuid());
 
     #
@@ -776,8 +789,8 @@ function Do_Submit()
                                  array("value"   => $creator->auth_token(),
                                        "expires" => $expires,
                                        "domain"  => $cookiedomain));
-        session_destroy();
     }
+    session_destroy();
     SPITAJAX_RESPONSE($blob);
     return;
 }

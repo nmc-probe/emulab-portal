@@ -414,6 +414,9 @@ function Do_BindParameters()
 	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
 	return;
     }
+    # See instantiate.php; this code should probably move into instantiate.ajax
+    session_start();
+    
     if (Do_CheckForm($formfields, $profile, $rval)) {
         # Special return value for JS code.
 	SPITAJAX_ERROR(2, $rval);
@@ -448,7 +451,8 @@ function Do_BindParameters()
     # Invoke the backend.
     #
     $retval = SUEXEC($this_uid, "nobody",
-		     "webrungenilib $warningsfatal -b $parmfname -o $outfname $infname",
+		     "webrungenilib $warningsfatal -b $parmfname ".
+                     "  -o $outfname $infname",
 		     SUEXEC_ACTION_IGNORE);
     
     if ($retval != 0) {
@@ -504,7 +508,15 @@ function Do_CheckForm($formfields, $profile, &$rval)
 	    $defval  = $def->defaultValue;
 	    $options = $def->legalValues;
 
-	    if ($type == "integer") {
+	    if ($type == "pubkey") {
+                if (GenGenilibKey()) {
+                    $errors[$name] = "Could not create key pair";
+                }
+                else {
+                    $result[$name] = $_SESSION["pubkey"];
+                }
+            }
+	    elseif ($type == "integer") {
 		if (!preg_match("/^\d*$/", $val)) {
 		    $errors[$name] = "Invalid value; must be an integer";
 		}
@@ -539,6 +551,41 @@ function Do_CheckForm($formfields, $profile, &$rval)
 	return -1;
     }
     $rval = $result;
+    return 0;
+}
+
+function GenGenilibKey()
+{
+    $keyname  = tempnam("/tmp", "genilibkey");
+    $pubname  = tempnam("/tmp", "genilibpub");
+
+    chmod($keyname, 0666);
+    chmod($pubname, 0666);
+
+    #
+    # First generate the private key.
+    #
+    $retval = myexec("/usr/bin/openssl genrsa -rand /dev/urandom ".
+                     "   -out $keyname 1024");
+    if ($retval) {
+        unlink($keyname);
+        unlink($pubname);
+	return -1;
+    }
+    #
+    # Now extract the public portion.
+    #
+    $retval = myexec("/usr/bin/openssl rsa -in $keyname -pubout -out $pubname");
+    if ($retval) {
+        unlink($keyname);
+        unlink($pubname);
+	return -1;
+    }
+    $_SESSION["privkey"] = file_get_contents($keyname);
+    $_SESSION["pubkey"]  = file_get_contents($pubname);
+    session_commit();
+    unlink($keyname);
+    unlink($pubname);
     return 0;
 }
  
