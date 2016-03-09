@@ -1,12 +1,15 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
-	 'js/lib/text!template/cluster-status.html'],
-function (_, sup, moment, mainString)
+	 'js/lib/text!template/cluster-status.html',
+	 'js/lib/text!template/cluster-status-templates.html'],
+function (_, sup, moment, mainString, templateString)
 {
     'use strict';
-    var isadmin      = 0;
-    var mainTemplate = _.template(mainString);
-    var amlist       = null;
+    var isadmin        = 0;
+    var mainTemplate   = _.template(mainString);
+    var countsTemplate = null;
+    var preresTemplate = null;
+    var amlist         = null;
 
     function initialize()
     {
@@ -19,6 +22,13 @@ function (_, sup, moment, mainString)
 	});
 	$('#page-body').html(html);
 
+	/*
+	 * The template file has several different sections inside
+	 * script tags. We need to compile each one separately.
+	 */
+	var html   = $.parseHTML(templateString, document, true);
+	countsTemplate = _.template($('#counts-template', html).html());
+	preresTemplate = _.template($('#preres-template', html).html());
 	LoadData();
     }
 
@@ -77,20 +87,8 @@ function (_, sup, moment, mainString)
 		InitTable(name);
 
 		// These are the totals.
-		html = "";
-		
-		_.each(json.value.totals, function(value, type) {
-		    html = html + "<tr>" +
-			"<td>" + type + "</td>" +
-			"<td>" + value.inuse + "</td>" +
-			"<td>" + value.preres + "</td>" +
-			"<td>" + value.free;
-		    if (value.free_preres) {
-			html += " (" + value.free_preres + ")";
-		    }
-		    html += "</td>" + "</tr>";		    
-		});
-		$('#counts-' + name + '-tbody').html(html);
+		html = countsTemplate({"totals" : json.value.totals});
+		$('#counts-panel-' + name).html(html);
 	    }
 	    var xmlthing = sup.CallServerMethod(null, "cluster-status",
 						"GetStatus",
@@ -104,60 +102,18 @@ function (_, sup, moment, mainString)
 		    console.log("Could not get prereserve data: " + json.value);
 		    return;
 		}
-		var prereserve = json.value;
-		var expando_class = "expando-" + name;
-		var html = "";
-
-		prereserve.forEach(function(value, index) {
-		    var created = moment(value.created).format("ll");
-		    var expando_target = name + "-" + value.pid + "-collapse";
-		    var expando = "";
-
-		    if (value.prereserved.length) {
-			expando =
-			    "<a>" +
-			    "  <span " +
-			    "    data-target='#" + expando_target + "' class=" +
-			    "    'glyphicon glyphicon-chevron-right " +
-			          expando_class + "'>" +
-			    "  </span></a> ";
-		    }
-		    html = html + "<tr> " +
-			"<td>" + expando + value.pid + "</td>" +
-			"<td>" + value.name + "</td>" +
-			"<td>" + value.priority + "</td>" +
-			"<td>" + value.count + "</td>" +
-			"<td>" + value.prereserved.length + "</td>" +
-			"<td>" + value.types + "</td>" +
-			"<td>" + value.creator + "</td>" +
-			"<td>" + created + "</td>" + "</tr>";
-		    if (value.prereserved.length) {
-			html = html +
-			    " <tr><td class=hiddenRow></td> " +
-			    "  <td colspan=7 class=hiddenRow>" +
-			    "   <div class='collapse' " +
-			    "        id='" + expando_target  + "'>" +
-			    "    <center class=text-center>Pre Reserved</center>"+
-			    "    <table class='tablesorter tablesorter-green'>"+
-			    "     <thead> " +
-			    "      <th>Node</th><th>Type</th> " +
-			    "     </thead>";
-			
-			for (var i=0; i < value.prereserved.length; i++) {
-			    var pre = value.prereserved[i];
-
-			    html = html + "<tr>" +
-				"<td>" + pre.node_id + "</td>" +
-				"<td>" + pre.type + "</td>" + "</tr>";
-			}
-			html = html + "</table></div></td>" +
-			    "</tr>";
-		    }
+		var expando_class  = "expando-" + name;
+		
+		var html = preresTemplate({
+		    "cluster_name"  : name,
+		    "expando_class" : expando_class,
+		    "prereslist"    : json.value,
+		    "moment"        : moment,
 		});
-		$('#prereserve-' + name + '-tbody').html(html);
+		$('#prereserve-panel-' + name).html(html);
 
 		/*
-		 * Expand/collapse for all the prereserve rows.
+		 * Expand/collapse for each prereserve child (hidden) rows.
 		 */
 		$('.' + expando_class).click(function () {
 		    var rowname = $(this).data("target");
@@ -175,7 +131,7 @@ function (_, sup, moment, mainString)
 		});
 		 
 		/*
-		 * Expand/Collapse the prereserve table
+		 * Expand/Collapse the extire prereserve table.
 		 */
 		$('#prereserve-collapse-button-' + name).click(function () {
 		    var panelname = '#prereserve-panel-' + name;
