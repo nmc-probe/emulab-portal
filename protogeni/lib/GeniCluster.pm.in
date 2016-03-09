@@ -195,7 +195,92 @@ sub InUse()
 		   "details"      => \@blob};
 		  
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
-}    
+}
+
+#
+# Return pre-reservation details.
+#
+sub PreReservations()
+{
+    my @blob = ();
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+
+    my $query_result =
+	DBQueryWarn("select p.*,nr.node_id,n.type as node_type".
+		    "  from project_reservations as p ".
+		    "left join node_reservations as nr on ".
+		    "     nr.pid_idx=p.pid_idx and ".
+		    "     nr.reservation_name=p.name ".
+		    "left join nodes as n on n.node_id=nr.node_id ".
+		    "order by p.pid,p.name,n.node_id");
+
+    return GeniResponse->Create(GENIRESPONSE_ERROR)
+	if (!$query_result);
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+      nextpid:
+	my @nodes    = ();
+	my $pid      = $row->{'pid'};
+	my $name     = $row->{'name'};
+	my $count    = $row->{'count'};
+	my $priority = $row->{'priority'};
+	my $active   = $row->{'active'};
+	my $terminal = $row->{'terminal'};
+	my $types    = $row->{'types'};
+	my $creator  = $row->{'creator'};
+	my $created  = TBDateStringGMT($row->{'created'});
+	my $start    = TBDateStringGMT($row->{'start'})
+	    if (defined($row->{'start'}));
+	my $end      = TBDateStringGMT($row->{'end'})
+	    if (defined($row->{'end'}));
+	my @prereserved = ();
+
+	# Which nodes have actually been pre-reserved.
+	my $current_result =
+	    DBQueryWarn("select node_id,type from nodes ".
+			"where reserved_pid='$pid'");
+	return GeniResponse->Create(GENIRESPONSE_ERROR)
+	    if (!$current_result);
+	while (my ($node_id, $ntype) = $current_result->fetchrow_array()) {
+	    push(@prereserved,
+		 {"node_id" => $node_id, "type" => $ntype});
+	}
+	#
+	# If this is a reservation for specific node(s), eat those rows.
+	#
+	while (defined($row->{'node_id'}) &&
+	       $row->{'pid'} eq $pid && $row->{'name'} eq $name) {
+	    push(@nodes,
+		 {"node_id" => $row->{'node_id'},
+		  "type"    => $row->{'node_type'}});
+	    
+	    $row = $query_result->fetchrow_hashref();
+	}
+	push(@blob, {"nodes"        => \@nodes,
+		     "pid"          => $pid,
+		     "name"         => $name,
+		     "count"        => $count,
+		     "prereserved"  => \@prereserved,
+		     "types"        => $types,
+		     "priority"     => $priority,
+		     "created"      => $created,
+		     "creator"      => $creator,
+		     "start"        => $start || "",
+		     "end"          => $end || "",
+		     "active"       => $active,
+		     "terminal"     => $terminal,
+	     });
+	# We ate the first row of the next reservation.
+	goto nextpid
+	    if (! ($row->{'pid'} eq $pid && $row->{'name'} eq $name));
+    }
+    my $results = {"api_version"  => $API_VERSION,
+		   "details"      => \@blob};
+		  
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
+}
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

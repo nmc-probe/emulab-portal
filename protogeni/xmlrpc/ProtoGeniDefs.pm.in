@@ -238,6 +238,7 @@ ProtoGeniDefs::AddModule("cluster",
 	      "METHODS"    => {"1.0" => {
 		  "GetVersion"        => \&GeniCluster::GetVersion,
 		  "InUse"             => \&GeniCluster::InUse,
+		  "PreReservations"   => \&GeniCluster::PreReservations,
 	      }},
 	  });
 
