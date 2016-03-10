@@ -290,7 +290,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
           </div>
          </div>\n";
 
-    if (NOLOGINS) {
+    if (NOLOGINS()) {
         $message = TBGetSiteVar("web/message");
     }
     else {
