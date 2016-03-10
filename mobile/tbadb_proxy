@@ -66,7 +66,6 @@ my %DISPATCH = (
 );
 
 # Constants
-my $LISTENPORT = 8888;
 my $DEF_LOGLEVEL = 2;
 my $PIDFILE = "/var/run/tbadb_proxy.pid";
 my $LOGFILE = "$LOGDIR/tbadb_proxy.log";
@@ -95,7 +94,7 @@ my $debug = 0;
 
 # Invoke the parent Net::Server class' run routine.
 TBADBProxy::Server->run({
-    port       => $LISTENPORT,
+    port       => TBADB_PORT,
     log_file   => $LOGFILE,
     log_level  => $DEF_LOGLEVEL,
     ipv        => 4,
@@ -128,7 +127,7 @@ sub options($$) {
 #
 # Do some overriding of config variables when debugging is requested
 #
-sub configure_hook($) {
+sub post_configure {
     my $self = shift;
     my $prop = $self->{'server'};
 
@@ -140,11 +139,16 @@ sub configure_hook($) {
 	$prop->{'background'} = 0;
 	$prop->{'setsid'} = 0;
 	$prop->{'log_level'} = 4;
+	$prop->{'log_file'} = undef;
     }
+
+    $self->SUPER::post_configure(@_);
 }
 
 #
-# Do a bit of post-processing/checking after internal Net::Server arg parsing
+# Do a bit of post-processing/checking after internal Net::Server
+# configuration stage (which includes going into the background,
+# setting up logging, etc.)
 #
 sub post_configure_hook($) {
     my $self = shift;
@@ -189,7 +193,7 @@ sub process_request($) {
     $| = 1;
 
     # Send "hello" To let remote end know we are ready.
-    die "tbadb_proxy: Could not send hello to caller!\n"
+    die "tbadb_proxy: Could not send hello to caller. Terminating connection.\n"
 	if !SendRPCData(*STDOUT, EncodeResult(-1, { HELLO => 1 }));
 
     while (1) {
@@ -197,18 +201,18 @@ sub process_request($) {
 	my $pdu;
 	my $rcode = RecvRPCData(*STDIN, \$pdu);
 	if ($rcode == -1) {
-	    warn "tbadb_proxy: Timed out waiting for RPC data. Exiting!\n";
+	    warn "tbadb_proxy: timed out waiting for RPC data. Terminating connection\n";
 	    exit 1;
 	}
 	elsif ($rcode == 0) {
-	    warn "tbadb_proxy: Error receiving RPC data. Exiting!\n";
+	    warn "tbadb_proxy: EOF from RPC pipe. Terminating connection\n";
 	    exit 1;
 	}
     
 	# Decode PDU
 	my $data = DecodeRPCData($pdu);
 	if (!$data) {
-	    warn "tbadb_proxy: Unable to decode RPC data. Exiting!\n";
+	    warn "tbadb_proxy: unable to decode RPC data. Terminating connection.\n";
 	    exit 1;
 	}
 
@@ -216,13 +220,13 @@ sub process_request($) {
 	my $func = $data->{FUNCTION};
 	if (defined($func)) {
 	    if (!exists($DISPATCH{$func})) {
-		warn "Unkown RPC called: $func. Exiting!\n";
+		warn "tbadb_proxy: Unkown RPC: $func. Sending error and terminating connection.\n";
 		send_error($data->{FID}, RPCERR_BADFUNC, "Unknown function: $func");
 		exit 1;
 	    }
 	    $DISPATCH{$func}->($data);
 	} else {
-	    warn "tbadb_proxy: Received RPC data that was not a function call. Exiting!\n";
+	    warn "tbadb_proxy: Received RPC data that was not a function call. Terminating connection.\n";
 	    exit 1;
 	}
     }
@@ -240,11 +244,24 @@ sub rpc_checkimage($) {
     my $srctime = $data->{ARGS}->{IMG_TIME};
     my $srcsize = $data->{ARGS}->{IMG_SIZE};
 
+    # Arg checking and untainting.
     if (!$proj || !$srcname || !$srctime || !defined($srcsize)) {
 	warn "tbadb_proxy::rpc_checkimage: Argument(s) missing from RPC!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
 	exit 1;
     }
+    if ($proj !~ /^([-\w]+)$/) {
+	warn "tbadb_proxy::rpc_checkimage: Malformed project argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
+	exit 1;
+    }
+    $proj = $1;
+    if ($srcname !~ /^([-\.\w]+)$/) {
+	warn "tbadb_proxy::rpc_checkimage: Malformed image name argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
+	exit 1;
+    }
+    $srcname = $1;
 
     warn "tbadb_proxy::rpc_checkimage: Image check requested for $proj/$srcname\n";
 
@@ -347,7 +364,7 @@ sub rpc_checkimage($) {
 sub rpc_loadimage($) {
     my ($data) = @_;
 
-    # Check arguments
+    # Check and untaint arguments
     my $node_id = $data->{ARGS}->{NODE_ID};
     my $imgname = $data->{ARGS}->{IMG_NAME};
     my $proj    = $data->{ARGS}->{IMG_PROJ};
@@ -356,6 +373,24 @@ sub rpc_loadimage($) {
 	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
 	exit 1;
     }
+    if ($proj !~ /^([-\w]+)$/) {
+	warn "tbadb_proxy::rpc_loadimage: Malformed project argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
+	exit 1;
+    }
+    $proj = $1;
+    if ($imgname !~ /^([-\.\w]+)$/) {
+	warn "tbadb_proxy::rpc_loadimage: Malformed image name argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
+	exit 1;
+    }
+    $imgname = $1;
+    if ($node_id !~ /^([-\w]+)$/) {
+	warn "tbadb_proxy::rpc_loadimage: Malformed node_id argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
+	exit 1;
+    }
+    $node_id = $1;
     if (!exists($NMAP{$node_id})) {
 	warn "tbadb::rpc_loadimage: unknown/bad node_id: $node_id\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
@@ -434,6 +469,7 @@ sub rpc_loadimage($) {
     }
 
     # Send success result back to caller.
+    warn "tbadb::rpc_loadimage: finished loading $proj/$imgname on $node_id\n";
     SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
@@ -488,6 +524,7 @@ sub rpc_reboot($) {
     }
 
     # Report success.
+    warn "tbadb_proxy::rpc_reboot: reboot of $node_id finished.\n";
     SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
@@ -505,13 +542,26 @@ sub rpc_forward($) {
 	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
 	exit 1;
     }
-    if ($tport < 1 || $tport > 65535) {
-	warn "tbadb_proxy::rpc_forwardadb: requested port is out of range: $tport!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Requested port is out of range.");
+    if ($node_id !~ /^([-\w]+)$/) {
+	warn "tbadb_proxy::rpc_forward: Malformed node_id argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
 	exit 1;
     }
+    $node_id = $1;
+    if ($thost !~ /^([-\.\w]+)$/) {
+	warn "tbadb_proxy::rpc_forward: Malformed target host argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed target host argument.");
+	exit 1;
+    }
+    $thost = $1;
+    if ($tport !~ /^(\d+)$/ || $tport < 1 || $tport > 65534) {
+	warn "tbadb_proxy::rpc_forward: Malformed target port argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed target port argument.");
+	exit 1;
+    }
+    $tport = $1;
     if (!exists($NMAP{$node_id})) {
-	warn "tbadb::rpc_loadimage: unknown/bad node_id: $node_id\n";
+	warn "tbadb::rpc_forward: unknown/bad node_id: $node_id\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
 	exit 1;
     }
@@ -527,6 +577,7 @@ sub rpc_forward($) {
     }
 
     # Report success.
+    warn "tbadb_proxy::rpc_forward: forwarding setup for $node_id finished.\n";
     SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }

@@ -28,7 +28,9 @@ use Exporter;
 
 @ISA = "Exporter";
 @EXPORT =
-    qw ( RPCERR_BADARGS RPCERR_BADFUNC RPCERR_NOTIMPL 
+    qw ( TBADB_PORT
+
+         RPCERR_BADARGS RPCERR_BADFUNC RPCERR_NOTIMPL 
          RPCERR_NODE_ERR RPCERR_INTERNAL 
 
          IMG_RECOVERY IMG_BOOT IMG_USERDATA IMG_CACHE
@@ -36,6 +38,8 @@ use Exporter;
 
 use strict;
 use English;
+
+sub TBADB_PORT      { return 8888; }
 
 sub RPCERR_BADARGS  { return 2; }
 sub RPCERR_BADFUNC  { return 3; }

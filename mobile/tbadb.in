@@ -28,9 +28,11 @@ use English;
 use POSIX ":sys_wait_h";
 use Getopt::Std;
 use Data::Dumper;
+use IO::Socket::INET;
 
 use lib "@prefix@/lib";
 use libjsonrpc;
+use tbadb_rpc;
 use EmulabConstants;
 use User;
 use Node;
@@ -42,10 +44,8 @@ sub cmd_setup($@);
 sub cmd_loadimage($@);
 sub cmd_forward($@);
 sub cmd_reboot($;@);
-sub GetSSHPipe();
-sub chldhandler(;$);
-sub genhandler($);
-sub cleanexit($);
+sub GetRPCPipeHandles($);
+sub ConnectRPCHost($);
 
 # Global variables
 my $TB = "@prefix@";
@@ -53,7 +53,7 @@ my $MINHLEN   = 2;
 my $MAXHLEN   = 32;
 my $MINCMDLEN = 2;
 my $MAXCMDLEN = 32;
-my %SSHPIPES = ();
+my %RPCPIPES = ();
 my $TBADB_PROXYCMD = "/usr/testbed/sbin/tbadb_proxy";
 my $TBADB_HELLO_TMO      = 10;
 my $TBADB_CHECKIMAGE_TMO = 30;
@@ -62,9 +62,6 @@ my $TBADB_FORWARD_TMO    = 15;
 my $TBADB_REBOOT_TMO     = 60;
 my $CHILD_WAIT_TMO       = 10;
 my $SCP = "/usr/bin/scp";
-my $SSHTB = "$TB/bin/sshtb";
-my @SSH_ARGS = ('-o','BatchMode=yes','-o','StrictHostKeyChecking=no',
-		'-o','ConnectTimeout=10');
 
 my %DISPATCH = (
     'setup'     => \&cmd_setup,
@@ -384,184 +381,50 @@ sub GetRPCPipeHandles($) {
     my ($node) = @_;
     my ($rpcin, $rpcout);
 
-    # Lookup the node's control server and create SSH pipe object if we
-    # don't have one yet.
+    # Look up the node's control (console) server and connect to it if
+    # we haven't done so yet.  Otherwise grab and return the open pipe.
     my $conserver;
     $node->TipServer(\$conserver);
     die "tbadb::GetRPCPipeHandles: Could not lookup control server for $node!\n"
 	if (!$conserver);
-    if (!exists($SSHPIPES{$conserver})) {
-	$SSHPIPES{$conserver} = 
-	    TBADB::SSHPipe->New($conserver, $TBADB_PROXYCMD);
+    if (!exists($RPCPIPES{$conserver})) {
+	$RPCPIPES{$conserver} = ConnectRPCHost($conserver);
     }
-    my $sshpipe = $SSHPIPES{$conserver};
+    my $rpcpipe = $RPCPIPES{$conserver};
+    die "tbadb::GetRPCPipeHandles: RPC pipe for $conserver closed unexpectedly!"
+	if (!$rpcpipe->connected());
 
-    # Open the SSH Pipe if necessary.
-    if (!$sshpipe->isopen()) {
-	my $SAVEUID = $UID; 
-	$EUID = $UID = 0; # Flip to root to run!
-	($rpcin, $rpcout) = $sshpipe->GetPipe();
-	$EUID = $UID = $SAVEUID; # Flip back.
-	my $pdu;
-	my $res = RecvRPCData($rpcin, \$pdu, $TBADB_HELLO_TMO);
-	if ($res == -1) {
-	    die "tbadb: Timeout while opening SSH Pipe!\n";
-	}
-	elsif ($res == 0) {
-	    die "tbadb: Error encountered while opening SSH Pipe!\n";
-	}
-	# Look for the hello.
-	my $hello = DecodeRPCData($pdu);
-	die "tbadb: Unexpected data received when opening SSH Pipe!\n"
-	    if (!$hello);
-	die "tbadb: Did not receive valid 'hello' from remote end!\n"
-	    if (!exists($hello->{RESULT}->{HELLO}));
-    } else {
-	($rpcin, $rpcout) = $sshpipe->GetPipe();
+    return ($rpcpipe, $rpcpipe);
+}
+
+# Helper that connects to a remote TBADB RPC proxy service.
+sub ConnectRPCHost($) {
+    my ($host) = @_;
+
+    # Connect and read in expected "hello" message.
+    my $socket = 
+	IO::Socket::INET->new(
+	    PeerAddr => $host,
+	    PeerPort => TBADB_PORT,
+	    Proto    => 'tcp'
+	);
+    die "tbadb::ConnectRPCHost: Could not connect to tbadb proxy on host $host: $!\n"
+	if (!$socket);
+    $socket->autoflush(1);
+    my $pdu;
+    my $res = RecvRPCData($socket, \$pdu, $TBADB_HELLO_TMO);
+    if ($res == -1) {
+	die "tbadb::ConnectRPCHost: Timeout while opening RPC Pipe!\n";
     }
-
-    return ($rpcin, $rpcout);
-}
-
-# This subroutine is called via any exit path to ensure the RPC
-# Pipe (and associated child process) are terminated/closed.
-sub cleanexit($) {
-    my $exval = shift;
-
-    my @tokill = ();
-    while (my ($cs_node_id, $sshpipe) = each %SSHPIPES) {
-	if ($sshpipe->child()) {
-	    push @tokill, $sshpipe->child();
-	} else {
-	    delete $SSHPIPES{$cs_node_id};
-	}
+    elsif ($res == 0) {
+	die "tbadb::ConnectRPCHost: Error encountered while opening RPC Pipe!\n";
     }
+    # Look for the hello.
+    my $hello = DecodeRPCData($pdu);
+    die "tbadb::ConnectRPCHost: Unexpected data received when opening RPC Pipe!\n"
+	if (!$hello);
+    die "tbadb::ConnectRPCHost: Did not receive valid 'hello' from remote end!\n"
+	if (!exists($hello->{RESULT}->{HELLO}));
 
-    if (@tokill) {
-	warn "tbadb: Killing SSH pipe processes: @tokill\n";
-	my $SAVEUID = $UID; 
-	$EUID = $UID = 0; # Flip to root to kill!
-	kill("TERM", @tokill);
-	$EUID = $UID = $SAVEUID; # Flip back.
-
-	my $stime = time();
-	while (keys %SSHPIPES) {
-	    chldhandler();
-	    if (time() - $stime > $CHILD_WAIT_TMO) {
-		warn "tbadb: Timed out waiting for SSH RPC pipes to exit!\n".
-		     "Remaining: ". join(", ", keys %SSHPIPES) ."\n";
-		last;
-	    }
-	    sleep 1;
-	}
-    }
-    
-    exit $exval;
-}
-
-sub chldhandler(;$) {
-    local ($!, $?);  # Don't let issues in the handler affect these globals.
-    while ((my $pid = waitpid(-1, WNOHANG)) > 0) {
-	my $found = 0;
-	while (my ($cs_node_id, $sshpipe) = each %SSHPIPES) {
-	    if ($sshpipe->child() == $pid) {
-		print "tbadb: SSH Pipe exited for $cs_node_id\n"
-		    if $debug;
-		delete $SSHPIPES{$cs_node_id};
-		$found = 1;
-		last;
-	    }
-	}
-	warn "tbadb: Non-pipe child process exited: $pid\n"
-	    if (!$found && $debug);
-    }
-}
-
-sub genhandler($) {
-    cleanexit(1);
-}
-
-sub mysystem(@) {
-    local $SIG{CHLD} = 'DEFAULT';
-    my $retcode = system(@_);
-    chldhandler();
-    return $retcode;
-}
-
-END {
-    warn "This is the end...\n" if $debug;
-    cleanexit($?) if (keys %SSHPIPES);
-}
-
-#
-# SSHPipe session wrapper class
-#
-package TBADB::SSHPipe;
-
-use IPC::Open2;
-
-# We don't immediately open the pipe. Wait until the pipe file handles
-# are requested.
-sub New($$$) {
-    my ($class, $rhost, $rcmd) = @_;
-
-    my $self = {};
-    $self->{RHOST} = $rhost;
-    $self->{RCMD}  = $rcmd;
-    $self->{CHIN}  = undef;
-    $self->{CHOUT} = undef;
-    $self->{CHPID} = 0;
-    bless($self, $class);
-
-    return $self;
-}
-
-sub DESTROY($) {
-    my $self = shift;
-    $self->{CHIN}  = undef;
-    $self->{CHOUT} = undef;
-    $self->{CHPID} = 0;
-}
-
-sub child($)  { return $_[0]->{CHPID}; }
-
-# Test to see if the SSH pipe is open, including testing to see if the
-# SSH pipe process is still running (if it has been started).
-sub isopen($) {
-    my ($self) = @_;
-    my $isopen = 0;
-
-    if ($self->{CHPID}) {
-	if (kill("ZERO", $self->{CHPID})) {
-	    $isopen = 1;
-	} else {
-	    # Zap stale SSH child info.
-	    $self->{CHPID} = undef;
-	    $self->{CHIN}  = undef;
-	    $self->{CHOUT} = undef;
-	}
-    }
-
-    return $isopen;
-}
-
-# Return the SSH Pipe file handles, first opening the connection to
-# thre remote host if necessary.
-sub GetPipe($) {
-    my ($self) = @_;
-    my ($chin, $chout);
-
-    if (!$self->{CHPID}) {
-	my $chpid = open2($chin, $chout, $SSHTB, @SSH_ARGS,
-			  "-host", $self->{RHOST}, $self->{RCMD});
-	if ($chpid < 1) {
-	    warn "TBADB: Failed to open SSH pipe process!\n";
-	}
-
-	$self->{CHPID} = $chpid;
-	$self->{CHIN}  = $chin;
-	$self->{CHOUT} = $chout;
-    }
-
-    return ($self->{CHIN}, $self->{CHOUT});
+    return $socket;
 }
