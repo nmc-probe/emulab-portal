@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl -wT
 
 #
 # Copyright (c) 2016 University of Utah and the Flux Group.
@@ -22,18 +22,21 @@
 # 
 # }}}
 #
+package TBADBProxy::Server;
 
 use strict;
 use English;
+use base qw(Net::Server::Fork);
 
 # Drag in Emulab clientside path stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
 use libtestbed;
+use libtmcc qw(tmccbossinfo);
 use libjsonrpc;
 use tbadb_rpc;
 
-# Function prototypes
+# Function prototypes for non-object procedures.
 sub rpc_checkimage($);
 sub rpc_loadimage($);
 sub rpc_captureimage($);
@@ -51,7 +54,7 @@ sub wait_for_android($);
 sub setup_android_forward($$$);
 sub remove_android_forward($);
 
-# Dispatch table
+# RPC function dispatch table
 my %DISPATCH = (
     'checkimage'   => \&rpc_checkimage,
     'loadimage'    => \&rpc_loadimage,
@@ -62,11 +65,12 @@ my %DISPATCH = (
     'exit'         => \&rpc_exit,
 );
 
-# Global variables
-my $debug = 1;
-my $g_imglock;
+# Constants
+my $LISTENPORT = 8888;
+my $DEF_LOGLEVEL = 2;
+my $PIDFILE = "/var/run/tbadb_proxy.pid";
+my $LOGFILE = "$LOGDIR/tbadb_proxy.log";
 my $MAPFILE = "$ETCDIR/adbmap";
-my %NMAP = ();
 my $ADB = "/usr/bin/adb";
 my $FASTBOOT = "/usr/bin/fastboot";
 my $TOUCH = "/usr/bin/touch";
@@ -75,7 +79,7 @@ my $HOST = "/usr/bin/host";
 my $FILE = "/usr/bin/file";
 my $RM = "/bin/rm";
 my $UNZIP = "/usr/bin/unzip";
-my $TBADB_IMAGE_CACHE_DIR = "/z/adb_img_cache";
+my $IMAGE_CACHE = "/z/tbadb_img_cache";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
 my $FASTBOOT_TMO = 15;
@@ -84,69 +88,143 @@ my $IMGLOCK_TMO = 300;
 my $LRULOCK_TMO = 60;
 my $UNPACKLOCK_TMO = 30;
 
-# AUTOFLUSH!
-$| = 1;
+# Global variables
+my %NMAP = ();
+my $g_imglock;
+my $debug = 0;
+
+# Invoke the parent Net::Server class' run routine.
+TBADBProxy::Server->run({
+    port       => $LISTENPORT,
+    log_file   => $LOGFILE,
+    log_level  => $DEF_LOGLEVEL,
+    ipv        => 4,
+    pid_file   => $PIDFILE,
+    user       => "root",
+    group      => "root",
+    background => 1,
+    setsid     => 1,
+});
+
+##############################################################################
+#
+# Our Net::Server subclass override methods follow
+#
 
 #
-# Only allow root to run the script.
+# Add custom options to Net::Server object
 #
-die("tbadb_proxy: May only be run as root!\n")
-    if ($UID != 0);
+sub options($$) {
+    my ($self, $template) = @_;
+    my $prop = $self->{'server'};
 
-# Read in the node_id -> serial number map.
-die "tbadb_proxy: Cannot run without node_id-to-serialno map file: $MAPFILE\n"
-    if (!-r $MAPFILE);
-open(MFILE, "<$MAPFILE")
-    or die "tbadb_proxy: Can't open map file: $MAPFILE: $!\n";
-while (my $ln = <MFILE>) {
-    chomp $ln;
-    next if (!$ln || $ln =~ /^#.*$/);
-    if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/) {
-	warn "tbadb_proxy: malformed node mapping line: $ln\n";
-	next;
-    }
-    $NMAP{$1} = $2;
-    $NMAP{$2} = $1;
+    # Let parent class setup its options.
+    $self->SUPER::options($template);
+
+    $prop->{'debug'} ||= undef;
+    $template->{'debug'} = \ $prop->{'debug'};
 }
-close(MFILE);
 
-# Send "hello" To let remote end know we are ready.
-die "tbadb_proxy: Could not send hello to caller!\n"
-    if !SendRPCData(*STDOUT, EncodeResult(-1, { HELLO => 1 }));
+#
+# Do some overriding of config variables when debugging is requested
+#
+sub configure_hook($) {
+    my $self = shift;
+    my $prop = $self->{'server'};
 
-# Main RPC processing loop.
-while (1) {
-    # Get PDU
-    my $pdu;
-    my $rcode = RecvRPCData(*STDIN, \$pdu);
-    if ($rcode == -1) {
-	warn "tbadb_proxy: Timed out waiting for RPC data. Exiting!\n";
-	exit 1;
+    # Don't go into the background if debugging was requested.  
+    # Increase log level.
+    if ($prop->{'debug'}) {
+	warn "tbadb_proxy: debug mode requested.  Staying in foreground.\n";
+	$debug = $prop->{'debug'};  # XXX global var for non-OO funcs.
+	$prop->{'background'} = 0;
+	$prop->{'setsid'} = 0;
+	$prop->{'log_level'} = 4;
     }
-    elsif ($rcode == 0) {
-	warn "tbadb_proxy: Error receiving RPC data. Exiting!\n";
-	exit 1;
-    }
-    
-    # Decode PDU
-    my $data = DecodeRPCData($pdu);
-    if (!$data) {
-	warn "tbadb_proxy: Unable to decode RPC. Exiting!\n";
-	exit 1;
-    }
+}
 
-    # Dispatch function calls
-    my $func = $data->{FUNCTION};
-    if (defined($func)) {
-	if (!exists($DISPATCH{$func})) {
-	    warn "Unkown RPC called: $func. Exiting!\n";
-	    send_error($data->{FID}, RPCERR_BADFUNC, "Unknown function: $func");
+#
+# Do a bit of post-processing/checking after internal Net::Server arg parsing
+#
+sub post_configure_hook($) {
+    my $self = shift;
+    my $prop = $self->{'server'};
+
+    # Get IP for boss server and add it to the allowed list.
+    my (undef, $bossip) = tmccbossinfo();
+    die "tbadb_proxy: Could not get IP address for boss server!\n"
+	if (!$bossip || $bossip !~ /^(\d+\.\d+\.\d+\.\d+)$/);
+    push @{$prop->{'cidr_allow'}}, "${1}/32";
+
+    # Only allow root to run the script.
+    die("tbadb_proxy: May only be run as root!\n")
+	if ($UID != 0);
+
+    # Read in the node_id -> serial number map (used by non-OO funcs).
+    die "tbadb_proxy: Cannot run without serial number mapping file: $MAPFILE\n"
+	if (!-r $MAPFILE);
+    open(MFILE, "<$MAPFILE")
+	or die "tbadb_proxy: Can't open map file: $MAPFILE: $!\n";
+    while (my $ln = <MFILE>) {
+	chomp $ln;
+	next if (!$ln || $ln =~ /^\s*#.*$/);
+	if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/) {
+	    warn "tbadb_proxy: malformed node mapping line: $ln\n";
+	    next;
+	}
+	$NMAP{$1} = $2;
+	$NMAP{$2} = $1;
+    }
+    close(MFILE);
+}
+
+#
+# Connection data handler called in the child worker processes forked by
+# the parent Net::Server::Fork process.
+#
+sub process_request($) {
+    my $self = shift;
+
+    # AUTOFLUSH!
+    $| = 1;
+
+    # Send "hello" To let remote end know we are ready.
+    die "tbadb_proxy: Could not send hello to caller!\n"
+	if !SendRPCData(*STDOUT, EncodeResult(-1, { HELLO => 1 }));
+
+    while (1) {
+	# Get PDU
+	my $pdu;
+	my $rcode = RecvRPCData(*STDIN, \$pdu);
+	if ($rcode == -1) {
+	    warn "tbadb_proxy: Timed out waiting for RPC data. Exiting!\n";
 	    exit 1;
 	}
-	$DISPATCH{$func}->($data);
-    } else {
-	warn "tbadb_proxy: Received RPC data that was not a function call. Exiting!\n";
-	exit 1;
+	elsif ($rcode == 0) {
+	    warn "tbadb_proxy: Error receiving RPC data. Exiting!\n";
+	    exit 1;
+	}
+    
+	# Decode PDU
+	my $data = DecodeRPCData($pdu);
+	if (!$data) {
+	    warn "tbadb_proxy: Unable to decode RPC data. Exiting!\n";
+	    exit 1;
+	}
+
+	# Dispatch function calls
+	my $func = $data->{FUNCTION};
+	if (defined($func)) {
+	    if (!exists($DISPATCH{$func})) {
+		warn "Unkown RPC called: $func. Exiting!\n";
+		send_error($data->{FID}, RPCERR_BADFUNC, "Unknown function: $func");
+		exit 1;
+	    }
+	    $DISPATCH{$func}->($data);
+	} else {
+	    warn "tbadb_proxy: Received RPC data that was not a function call. Exiting!\n";
+	    exit 1;
+	}
     }
 }
 
@@ -192,7 +270,7 @@ sub rpc_checkimage($) {
 	exit 1;	
     }
 
-    my $projdir = "$TBADB_IMAGE_CACHE_DIR/$proj";
+    my $projdir = "$IMAGE_CACHE/$proj";
     if (!-d $projdir) {
 	if (!mkdir($projdir, 0750)) {
 	    warn "tbadb_proxy::rpc_checkimage: Failed to create project image directory: $projdir: $!\n";
@@ -287,7 +365,7 @@ sub rpc_loadimage($) {
     # Let anyone blocked on the transfer of this image proceed now.
     TBScriptUnlock($g_imglock)
 	if fileno($g_imglock);
-    my $fname = "$TBADB_IMAGE_CACHE_DIR/$proj/$imgname";
+    my $fname = "$IMAGE_CACHE/$proj/$imgname";
     if (!-f $fname) {
 	warn "tbadb_proxy::rpc_loadimage: no such image file: $fname\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "No such image.");
@@ -299,7 +377,7 @@ sub rpc_loadimage($) {
     
     # Step 1: Make sure all required image files are present.
     my $image_staging_dir = "$fname.work";
-    my $sysdir = "$TBADB_IMAGE_CACHE_DIR/PNSYSTEM";
+    my $sysdir = "$IMAGE_CACHE/PNSYSTEM";
     my $recovery_image = "$sysdir/pnet-recovery.img";
     my $userdata_image = "$sysdir/pnet-userdata.img";
     my $cache_image = 
@@ -491,8 +569,8 @@ sub do_lru_cleanup() {
     my $lru_lock;
 
     # Make sure the cache dir actually exists.
-    if (!-d $TBADB_IMAGE_CACHE_DIR) {
-	warn "tbadb_proxy::do_lru_cleanup: Image dir is not valid: $TBADB_IMAGE_CACHE_DIR\n";
+    if (!-d $IMAGE_CACHE) {
+	warn "tbadb_proxy::do_lru_cleanup: Image dir is not valid: $IMAGE_CACHE\n";
 	return 0;
     }
 
@@ -516,12 +594,12 @@ sub do_lru_cleanup() {
 
     # Read entries in cache dir and tally size
     my $dh;
-    if (!opendir($dh, $TBADB_IMAGE_CACHE_DIR)) {
+    if (!opendir($dh, $IMAGE_CACHE)) {
 	warn "tbadb_proxy::do_lru_cleanup: Failed to clean up img dir!\n";
 	goto BADLRU;
     }
     while (my $ent = readdir($dh)) {
-	my $dname = "$TBADB_IMAGE_CACHE_DIR/$ent";
+	my $dname = "$IMAGE_CACHE/$ent";
 	next if ($ent =~ /^\..*$/ || !-d $dname);
 	next if ($ent eq "PNSYSTEM"); # Skip system dir.
 	my $subdh;
