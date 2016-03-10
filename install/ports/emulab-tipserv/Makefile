@@ -25,12 +25,16 @@ BATCH=		yes
 LIB_DEPENDS=	\
 	libtelnet.so:${PORTSDIR}/misc/libtelnet
 
-#
-# XXX this is a newer version of ipmitool than what the FreeBSD port
-# currently uses.
-#
+##
+## XXX this is a newer version of ipmitool than what the FreeBSD port
+## currently uses.
+##
+#RUN_DEPENDS=	\
+#	ipmitool:${PORTSDIR}/misc/ipmitool-devel
+
+# Use the standard version as of 2016Q1 ports.
 RUN_DEPENDS=	\
-	ipmitool:${PORTSDIR}/misc/ipmitool-devel
+	ipmitool:${PORTSDIR}/sysutils/ipmitool
 
 RUN_DEPENDS+=	\
 	git:${PORTSDIR}/devel/git \
