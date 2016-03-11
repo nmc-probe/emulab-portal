@@ -42,6 +42,7 @@ sub rpc_loadimage($);
 sub rpc_captureimage($);
 sub rpc_reboot($);
 sub rpc_forward($);
+sub rpc_unforward($);
 sub rpc_ping($);
 sub rpc_exit($);
 sub send_error($$$);
@@ -61,6 +62,7 @@ my %DISPATCH = (
     'captureimage' => \&rpc_captureimage,
     'reboot'       => \&rpc_reboot,
     'forward'      => \&rpc_forward,
+    'unforward'    => \&rpc_unforward,
     'ping'         => \&rpc_ping,
     'exit'         => \&rpc_exit,
 );
@@ -89,6 +91,7 @@ my $UNPACKLOCK_TMO = 30;
 
 # Global variables
 my %NMAP = ();
+my %FWDPORTS = ();
 my $g_imglock;
 my $debug = 0;
 
@@ -583,6 +586,39 @@ sub rpc_forward($) {
 }
 
 
+sub rpc_unforward($) {
+    my ($data) = @_;
+
+    my $node_id  = $data->{ARGS}->{NODE_ID};
+
+    if (!$node_id) {
+	warn "tbadb_proxy::rpc_unforward: Missing node_id argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "node_id argument missing.");
+	exit 1;
+    }
+    if ($node_id !~ /^([-\w]+)$/) {
+	warn "tbadb_proxy::rpc_unforward: Malformed node_id argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
+	exit 1;
+    }
+    $node_id = $1;
+
+    # Setup forwarding from the ADB daemon on the unit to the
+    # destionation port, and report back to caller!
+    warn "tbadb_proxy::rpc_unforward: removing ADB forwarding setup for node $node_id\n";
+    if (!remove_android_forward($node_id)) {
+	warn "tbadb_proxy::rpc_unforward: failed to clear adb port forwarding for $node_id!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "adb forwarding removal failed.");
+	exit 1;
+    }
+
+    # Report success.
+    warn "tbadb_proxy::rpc_unforward: forwarding cleared for $node_id\n";
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    return;
+}
+
+
 sub rpc_ping($) {
     my ($data) = @_;
 
@@ -898,8 +934,8 @@ sub wait_for_android($) {
 }
 
 # Helper that sets up listener port for a device
-sub setup_android_forward($$$) {
-    my ($node_id, $thost, $tport) = @_;
+sub setup_android_forward($$) {
+    my ($node_id, $thost) = @_;
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
@@ -924,15 +960,31 @@ sub setup_android_forward($$$) {
 	return 0;
     }
 
+    # Pick an available port
+    my $pnum;
+    for ($pnum = $MINPORT; $pnum < $MAXPORT; $pnum++) {
+	next if (exists(%FWDPORTS{$pnum}));
+	my $tsock = IO::Socket::INET->new(LocalHost => "*:$pnum", Listen => 5, 
+					  Proto => "tcp");
+	next if (!$tsock);
+	close($tsock);
+	%FWDPORTS{$pnum} = $node_id;
+	last;
+    }
+    if ($pnum >= $MAXPORT) {
+	warn "tbadb_proxy::setup_android_forward: No available ports!\n";
+	return 0;
+    }
+
     # Setup iptables rule to only allow connections from target
-    if (system("$IPTABLES -A INPUT ! -s $thost -p tcp --dport $tport -m comment --comment '$serial' -j DROP >/dev/null 2>&1") != 0) {
-	warn "tbadb_proxy::setup_android_forward: could not setup iptables rule to limit connections for $node_id via port $tport to target host IP $thost\n";
+    if (system("$IPTABLES -A INPUT ! -s $thost -p tcp --dport $pnum -m comment --comment '$serial' -j DROP >/dev/null 2>&1") != 0) {
+	warn "tbadb_proxy::setup_android_forward: could not setup iptables rule to limit connections for $node_id via port $pnum to target host IP $thost\n";
 	return 0;
     }
 
     # Forward!
-    if (system("$ADB -s $serial forward tcp:$tport tcp:5555 >/dev/null 2>&1") != 0) {
-	warn "tbadb_proxy::setup_android_forward: could not forward adbd port on node_id to local port $tport!\n";
+    if (system("$ADB -s $serial forward tcp:$pnum tcp:5555 >/dev/null 2>&1") != 0) {
+	warn "tbadb_proxy::setup_android_forward: could not forward adbd port on node_id to local port $pnum!\n";
 	return 0;
     }
 
@@ -985,4 +1037,14 @@ sub remove_android_forward($) {
 	warn "tbadb_proxy::remove_android_forward: unable to clear iptables rule for $node_id!\n";
 	return 0;
     }
+
+    # Remove all entries for device from forwarding table hash
+    while (my ($pnum, $nid) = each %FWDPORTS) {
+	if ($nid eq $node_id) {
+	    delete $FWDPORTS{$pnum};
+	}
+    }
+
+    # Done.
+    return 1;
 }

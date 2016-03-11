@@ -43,6 +43,7 @@ use Image;
 sub cmd_setup($@);
 sub cmd_loadimage($@);
 sub cmd_forward($@);
+sub cmd_unforward($@);
 sub cmd_reboot($;@);
 sub GetRPCPipeHandles($);
 sub ConnectRPCHost($);
@@ -67,6 +68,7 @@ my %DISPATCH = (
     'setup'     => \&cmd_setup,
     'loadimage' => \&cmd_loadimage,
     'forward'   => \&cmd_forward,
+    'unforward' => \&cmd_unforward,
     'reboot'    => \&cmd_reboot,
 );
 
@@ -320,6 +322,52 @@ sub cmd_forward($@) {
     # Check returned result.
     if (exists($data->{ERROR}) || !exists($data->{RESULT}->{SUCCESS})) {
 	warn "tbadb::cmd_forward: Received error from 'forward':\n";
+	warn "". Dumper($data);
+	exit 1;
+    }
+    
+    # Done!
+    return 0;
+}
+
+#
+# Clear a forwarding setup.  Must provide a valid device node_id
+#
+sub cmd_unforward($@) {
+    my ($node_id) = @_;
+
+    # Check and untaint arguments
+    die "tbadb::cmd_unforward: missing node_id argument!"
+	if (!$node_id);
+
+    # Make sure user has access to requested node
+    my $node = Node->Lookup($node_id);
+    die "tbadb::cmd_unforward: Invalid node name $node_id!\n"
+	if (!defined($node));
+    die("tbadb::cmd_unforward: You do not have permission to modify $node\n")
+	if (!$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
+    
+    # Grab the RPC pipe.
+    my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
+    die "tbadb::cmd_unforward: Failed to get valid SSH pipe filehandles!\n"
+	if (!$rpcin || !$rpcout);
+    
+    # Clear adb port forwarding for the device via control host.
+    die "tbadb::cmd_unforward: Failed to send 'unforward' RPC!\n"
+	if (!SendRPCData($rpcout, 
+			 EncodeCall("unforward", { NODE_ID => $node_id })));
+
+    # Grab remote result.
+    my $pdu;
+    die "tbadb::cmd_unforward: Failed to receive valid response for 'unforward'\n"
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_FORWARD_TMO) != 1);
+    my $data = DecodeRPCData($pdu);
+    die "tbadb::cmd_unforward: Could not decode RPC response from 'unforward'"
+	if (!$data);
+
+    # Check returned result.
+    if (exists($data->{ERROR}) || !exists($data->{RESULT}->{SUCCESS})) {
+	warn "tbadb::cmd_unforward: Received error from 'unforward':\n";
 	warn "". Dumper($data);
 	exit 1;
     }
