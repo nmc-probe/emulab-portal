@@ -43,12 +43,13 @@ use vars qw(@ISA @EXPORT);
 use GeniDB;
 use GeniResponse;
 use GeniHRN;
-use emutil qw(TBGetUniqueIndex);
+use emutil;
 use English;
 use XML::Simple;
 use XML::LibXML;
 use Crypt::X509;
 use Crypt::OpenSSL::X509;
+use Date::Parse;
 use Data::Dumper;
 use File::Temp qw(tempfile);
 use Carp qw(cluck);
@@ -651,6 +652,9 @@ sub LoadFromArray($$@)
     $self->{'CERT'}->{'created'}   = undef;
     $self->{'CERT'}->{'uri'}       = $url;
     $self->{'CERT'}->{'urn'}       = $urn;
+    $self->{'CERT'}->{'startdate'} = undef;
+    $self->{'CERT'}->{'enddate'}   = undef;
+    $self->{'CERT'}->{'serial'}    = undef;
     # Convert URNs to objects.
     $self->{'CERT'}->{'urnOBJ'}    = GeniHRN->new($urn)	if (defined($urn));
 
@@ -760,6 +764,9 @@ sub LoadFromStringFast($$)
     $self->{'CERT'}->{'uri'}       = undef;;
     $self->{'CERT'}->{'urn'}       = $urn;
     $self->{'CERT'}->{'certfile'}  = undef;
+    $self->{'CERT'}->{'startdate'} = TBDateStringGMT($x509->notBefore());
+    $self->{'CERT'}->{'enddate'}   = TBDateStringGMT($x509->notAfter());
+    $self->{'CERT'}->{'serial'}    = $x509->serial();
     # Convert URNs to objects.
     $self->{'CERT'}->{'urnOBJ'}    = GeniHRN->new($urn);
 
@@ -1085,6 +1092,59 @@ sub SubjectHash($)
     }
     print STDERR "Bad sha1 value for $self\n";
     return undef;
+}
+
+#
+# We load these when requested, which is not often.
+#
+sub startdate($)
+{
+    my ($self) = @_;
+
+    if (!defined($self->{'CERT'}->{'startdate'})) {
+	$self->LoadAdditionalStuff();
+    }
+    return $self->{'CERT'}->{'startdate'};
+}
+sub enddate($)
+{
+    my ($self) = @_;
+
+    if (!defined($self->{'CERT'}->{'enddate'})) {
+	$self->LoadAdditionalStuff();
+    }
+    return $self->{'CERT'}->{'enddate'};
+}
+sub serial($)
+{
+    my ($self) = @_;
+
+    if (!defined($self->{'CERT'}->{'serial'})) {
+	$self->LoadAdditionalStuff();
+    }
+    return $self->{'CERT'}->{'serial'};
+}
+sub LoadAdditionalStuff($)
+{
+    my ($self) = @_;
+
+    my @result = $self->PipeTo(0, "$OPENSSL x509 -dates -serial -noout", 0);
+    if (! @result) {
+	print STDERR "Could not convert $self to dates and serial\n";
+ 	return -1;
+    }
+    foreach my $line (@result) {
+	if ($line =~ /^serial=(\w*)$/) {
+	    $self->{'CERT'}->{'serial'} = $1;
+	}
+	elsif ($line =~ /^notBefore=(.*)$/) {
+	    $self->{'CERT'}->{'startdate'} = TBDateStringGMT($1);
+	}
+	elsif ($line =~ /^notAfter=(.*)$/) {
+	    $self->{'CERT'}->{'enddate'} = TBDateStringGMT($1);
+	}
+    }
+    return 0;
 }
 
 sub CommonName($)
@@ -1439,6 +1499,41 @@ sub VerifyGeniChain($$@)
 	$certificate = $signer;
     }
     return 0;
+}
+
+#
+# Split up a bundle and return list of certs.
+#
+sub SplitCertBundle($)
+{
+    my ($filename) = @_;
+    my @certs = ();
+    my $certstr;
+
+    if (open(BUNDLE, $filename)) {
+	while (<BUNDLE>) {
+	    if ($_ =~ /^-----BEGIN CERT/) {
+		$certstr = $_;
+		next;
+	    }
+	    if ($_ =~ /^-----END CERT/) {
+		$certstr .= $_;
+		push(@certs, $certstr);
+		$certstr = undef;
+		next;
+	    }
+	    if ($certstr) {
+		$certstr .= $_;
+		next;
+	    }
+	}
+	# If the file is properly terminated, there should be no certificate in
+	# progress. Hopefully the file is not trashed at a boundry.
+	fatal("Trashed bundle file: $filename")
+	    if ($certstr);
+	close(BUNDLE);
+    }
+    return @certs;
 }
 
 ############################################################################

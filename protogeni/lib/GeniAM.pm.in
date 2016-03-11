@@ -232,6 +232,24 @@ sub GetVersion()
 	     "geni_version" => $coder->string("3")}
 	    ];
     }
+    if (defined($options) && exists($options->{'geni_trustroots'})) {
+	my @roots = ();
+	my @certs = GeniCertificate::SplitCertBundle("$TB/etc/genica.bundle");
+	foreach my $root (@certs) {
+	    my $cert = GeniCertificate->LoadFromString($root);
+	    next
+		if (!defined($cert));
+	    next
+		if (!defined($cert->urn()));
+
+	    push(@roots, {"CN"      => $cert->CommonName(),
+			  "Serial"  => $cert->serial(),
+			  "Expires" => $cert->enddate(),
+			  "SubjAltNameURIs" => [$cert->urn()],
+		 });
+	}
+	$blob->{"geni_trustroots"} = \@roots;
+    }
     my $response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
     if ($API_VERSION > 1) {
 	$response->{"geni_api"} = $API_VERSION;
