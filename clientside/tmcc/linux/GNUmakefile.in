@@ -396,6 +396,8 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 	fi
 	$(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
 		/usr/lib/xen-default/lib/python/grub/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/topd $(BINDIR)/
+	$(INSTALL) -m 755 $(SRCDIR)/xen/topd-init $(SYSETCDIR)/init.d/topd
 
 genirack-install:
 	$(INSTALL) -m 755 $(SRCDIR)/xen/restorevm.pl $(BINDIR)/restorevm.pl
