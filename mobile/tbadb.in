@@ -143,17 +143,17 @@ exit $DISPATCH{$CMD}->($node_id, @ARGS);
 # and call the respective individual commands.
 #
 sub cmd_setup($@) {
-    my ($node_id, $imagepid, $imagename, $thost, $tport) = @_;
+    my ($node_id, $imagepid, $imagename, $thost) = @_;
 
     # Brief check for correct number of arguments.  The individual
     # commands will do a more thorough check.
-    die "tbadb::cmd_setup: missing one or more arguments (need: <node_id> <project> <image_name> <target_adb_host> <target_adb_port>)!\n"
-	if (!$node_id || !$imagepid || !$imagename || !$thost || !$tport);
+    die "tbadb::cmd_setup: missing one or more arguments (need: <project> <image_name> <target_adb_host>)!\n"
+	if (!$node_id || !$imagepid || !$imagename || !$thost);
 
     # Individual commands will die() if they fail, so subsequent calls
-    # will not happen if prior ones fail.
+    # will not happen.
     cmd_loadimage($node_id, $imagepid, $imagename);
-    cmd_forward($node_id, $thost, $tport);
+    cmd_forward($node_id, $thost);
 
     # Done!
     return 0;
@@ -276,20 +276,17 @@ sub cmd_loadimage($@) {
 
 #
 # Forward ADB to a target host and port.  Must provide a valid device
-# node_id, target host, and target port.
+# node_id and target host
 #
 sub cmd_forward($@) {
-    my ($node_id, $thost, $tport) = @_;
+    my ($node_id, $thost) = @_;
 
     # Check and untaint arguments
-    die "tbadb::cmd_forward: missing arguments! (need: <target_host> <target_port>\n"
-	if (!$node_id || !$thost || !$tport);
+    die "tbadb::cmd_forward: missing arguments! (need: <target_host>)\n"
+	if (!$node_id || !$thost);
     die "tbadb::cmd_forward: malformed target host!"
 	if ($thost !~ /^([-\.\w]{$MINHLEN,$MAXHLEN})$/);
     $thost = $1;
-    die "tbadb::cmd_forward: malformed target port!"
-	if ($tport !~ /^(\d+)$/ || $1 < 1 || $1 > 65535);
-    $tport = $1;
 
     # Make sure user has access to requested node
     my $node = Node->Lookup($node_id);
@@ -308,8 +305,7 @@ sub cmd_forward($@) {
 	if (!SendRPCData($rpcout, 
 			 EncodeCall("forward", {
 			     NODE_ID     => $node_id,
-			     TARGET_HOST => $thost,
-			     TARGET_PORT => $tport,})));
+			     TARGET_HOST => $thost})));
 
     # Grab remote result.
     my $pdu;
@@ -320,13 +316,21 @@ sub cmd_forward($@) {
 	if (!$data);
 
     # Check returned result.
-    if (exists($data->{ERROR}) || !exists($data->{RESULT}->{SUCCESS})) {
+    if (exists($data->{ERROR})) {
 	warn "tbadb::cmd_forward: Received error from 'forward':\n";
 	warn "". Dumper($data);
 	exit 1;
     }
+
+    my $portnum = $data->{RESULT}->{PORT};
+    if (!$portnum) {
+	warn "tbadb::cmd_forward: Did not receive a port number from 'forward'!\n";
+	exit 1;
+    }
     
     # Done!
+    print "tbadb::cmd_forward: successfully setup adb port: $portnum\n";
+    # XXX: insert into DB somewhere, along with console host.
     return 0;
 }
 
@@ -373,6 +377,7 @@ sub cmd_unforward($@) {
     }
     
     # Done!
+    print "tbadb::cmd_unforward: successfully removed adb fowarding for $node_id\n";
     return 0;
 }
 

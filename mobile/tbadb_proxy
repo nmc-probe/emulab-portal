@@ -26,6 +26,8 @@ package TBADBProxy::Server;
 
 use strict;
 use English;
+use DB_File;
+use IO::Socket::INET;
 use base qw(Net::Server::Fork);
 
 # Drag in Emulab clientside path stuff.
@@ -52,8 +54,8 @@ sub enter_fastboot($);
 sub load_android_image($$$);
 sub reboot_android($);
 sub wait_for_android($);
-sub setup_android_forward($$$);
-sub remove_android_forward($);
+sub setup_android_forward($$);
+sub remove_android_forward($;$);
 
 # RPC function dispatch table
 my %DISPATCH = (
@@ -71,7 +73,8 @@ my %DISPATCH = (
 my $DEF_LOGLEVEL = 2;
 my $PIDFILE = "/var/run/tbadb_proxy.pid";
 my $LOGFILE = "$LOGDIR/tbadb_proxy.log";
-my $MAPFILE = "$ETCDIR/adbmap";
+my $MAPFILE = "$ETCDIR/tbadbmap";
+my $FWDDBFILE = "$BOOTDIR/tbadbfwd.db";
 my $ADB = "/usr/bin/adb";
 my $FASTBOOT = "/usr/bin/fastboot";
 my $TOUCH = "/usr/bin/touch";
@@ -83,11 +86,14 @@ my $UNZIP = "/usr/bin/unzip";
 my $IMAGE_CACHE = "/z/tbadb_img_cache";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
+my $MINPORT = 8001;
+my $MAXPORT = 8100;
 my $FASTBOOT_TMO = 15;
 my $ANDROID_BOOT_TMO = 60;
 my $IMGLOCK_TMO = 300;
 my $LRULOCK_TMO = 60;
 my $UNPACKLOCK_TMO = 30;
+my $FWDLOCK_TMO = 30;
 
 # Global variables
 my %NMAP = ();
@@ -538,9 +544,8 @@ sub rpc_forward($) {
 
     my $node_id  = $data->{ARGS}->{NODE_ID};
     my $thost    = $data->{ARGS}->{TARGET_HOST};
-    my $tport    = $data->{ARGS}->{TARGET_PORT};
 
-    if (!$node_id || !$thost || !$tport) {
+    if (!$node_id || !$thost) {
 	warn "tbadb_proxy::rpc_forward: Missing RPC args!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
 	exit 1;
@@ -557,12 +562,6 @@ sub rpc_forward($) {
 	exit 1;
     }
     $thost = $1;
-    if ($tport !~ /^(\d+)$/ || $tport < 1 || $tport > 65534) {
-	warn "tbadb_proxy::rpc_forward: Malformed target port argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed target port argument.");
-	exit 1;
-    }
-    $tport = $1;
     if (!exists($NMAP{$node_id})) {
 	warn "tbadb::rpc_forward: unknown/bad node_id: $node_id\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
@@ -572,16 +571,17 @@ sub rpc_forward($) {
 
     # Setup forwarding from the ADB daemon on the unit to the
     # destionation port, and report back to caller!
-    warn "tbadb_proxy::rpc_forward: fowarding ADB on node $node_id to destination host $thost port $tport\n";
-    if (!setup_android_forward($node_id, $thost, $tport)) {
-	warn "tbadb_proxy::rpc_forward: failed to setup adb port forwarding for $node_id to $thost on port $tport!\n";
+    warn "tbadb_proxy::rpc_forward: fowarding ADB on node $node_id to destination host $thost\n";
+    my $port = setup_android_forward($node_id, $thost);
+    if (!$port) {
+	warn "tbadb_proxy::rpc_forward: failed to setup adb port forwarding for $node_id to $thost\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "adb forwarding failed.");
 	exit 1;
     }
 
     # Report success.
     warn "tbadb_proxy::rpc_forward: forwarding setup for $node_id finished.\n";
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { PORT => $port }));
     return;
 }
 
@@ -933,9 +933,10 @@ sub wait_for_android($) {
     return 1;
 }
 
-# Helper that sets up listener port for a device
+# Helper that sets up adb listener port for a device
 sub setup_android_forward($$) {
     my ($node_id, $thost) = @_;
+    my $fwd_lock;
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
@@ -954,46 +955,71 @@ sub setup_android_forward($$) {
 	}
     }
 
-    # Scour any existing forwarding setup for the device
-    if (remove_android_forward($node_id)) {
-	warn "tbadb_proxy::setup_android_forward: could not remove old forwarding setup for $node_id!\n";
+    # Grab forwarding lock
+    if (TBScriptLock("fwdports", undef, 
+		     $FWDLOCK_TMO, \$fwd_lock) != TBSCRIPTLOCK_OKAY) {
+	warn "tbadb_proxy::setup_android_forward: Failed to get the forwarding lock!\n";
 	return 0;
+    }
+
+    # Tie to the forwarding ports DB file.
+    if (!tie(%FWDPORTS, 'DB_File', $FWDDBFILE, 
+	     O_RDWR | O_CREAT, 0755, $DB_HASH)) {
+	warn "tbadb::setup_android_forward: unable to load forwarding database!\n";
+	goto BADFWD;
+    }
+
+    # Scour any existing forwarding setup for the device
+    if (!remove_android_forward($node_id, 0)) {
+	warn "tbadb_proxy::setup_android_forward: could not remove old forwarding setup for $node_id!\n";
+	goto BADFWD;
     }
 
     # Pick an available port
     my $pnum;
     for ($pnum = $MINPORT; $pnum < $MAXPORT; $pnum++) {
-	next if (exists(%FWDPORTS{$pnum}));
-	my $tsock = IO::Socket::INET->new(LocalHost => "*:$pnum", Listen => 5, 
+	next if (exists($FWDPORTS{$pnum}));
+	my $tsock = IO::Socket::INET->new(LocalPort => $pnum, Listen => 5, 
 					  Proto => "tcp");
 	next if (!$tsock);
 	close($tsock);
-	%FWDPORTS{$pnum} = $node_id;
+	$FWDPORTS{$pnum} = $node_id;
 	last;
     }
     if ($pnum >= $MAXPORT) {
 	warn "tbadb_proxy::setup_android_forward: No available ports!\n";
-	return 0;
+	goto BADFWD;
     }
 
     # Setup iptables rule to only allow connections from target
     if (system("$IPTABLES -A INPUT ! -s $thost -p tcp --dport $pnum -m comment --comment '$serial' -j DROP >/dev/null 2>&1") != 0) {
 	warn "tbadb_proxy::setup_android_forward: could not setup iptables rule to limit connections for $node_id via port $pnum to target host IP $thost\n";
-	return 0;
+	goto BADFWD;
     }
 
     # Forward!
     if (system("$ADB -s $serial forward tcp:$pnum tcp:5555 >/dev/null 2>&1") != 0) {
 	warn "tbadb_proxy::setup_android_forward: could not forward adbd port on node_id to local port $pnum!\n";
-	return 0;
+	goto BADFWD;
     }
 
-    return 1;
+    untie(%FWDPORTS);
+    TBScriptUnlock($fwd_lock);
+    return $pnum;
+
+  BADFWD:
+    untie(%FWDPORTS);
+    TBScriptUnlock($fwd_lock);
+    return 0;
 }
 
+# Helper that removes the adb forwading setup for a device.
+sub remove_android_forward($;$) {
+    my ($node_id, $locknload) = @_;
+    my $fwd_lock;
 
-sub remove_android_forward($) {
-    my ($node_id) = @_;
+    # We lock-n-load unless told not to!
+    $locknload = defined($locknload) ? $locknload : 1;
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
@@ -1001,11 +1027,27 @@ sub remove_android_forward($) {
 	return 0;
     }
 
+    # Lock-n-load bro!
+    if ($locknload) {
+	# Grab forwarding lock
+	if (TBScriptLock("fwdports", undef, 
+			 $FWDLOCK_TMO, \$fwd_lock) != TBSCRIPTLOCK_OKAY) {
+	    warn "tbadb_proxy::remove_android_forward: Failed to get the forwarding lock!\n";
+	    return 0;
+	}
+	# Tie to the forwarding ports DB file.
+	if (!tie(%FWDPORTS, 'DB_File', $FWDDBFILE, 
+		 O_RDWR | O_CREAT, 0755, $DB_HASH)) {
+	    warn "tbadb::remove_android_forward: unable to load forwarding database!\n";
+	    goto BADFWD;
+	}
+    }
+
     # Clear the adb forwarding.
     my $adb_fwd_list = `$ADB forward --list 2>&1`;
     if ($? != 0) {
 	warn "tbadb_proxy::remove_android_forward: unable to list adb forwarded ports!\n";
-	return 0;
+	goto BADFWD;
     }
     my $portnum = 0;
     foreach my $fwd (split(/\n/, $adb_fwd_list)) {
@@ -1016,14 +1058,14 @@ sub remove_android_forward($) {
     }
     if ($portnum && system("$ADB -s $serial forward --remove tcp:$portnum >/dev/null 2>&1") != 0) {
 	warn "tbadb_proxy::remove_android_forward: unable to remove adb forward for $node_id!\n";
-	return 0;
+	goto BADFWD;
     }
 
     # Clear the iptables rule.
     my $ipt_rules = `$IPTABLES -L INPUT --line-numbers 2>&1`;
     if ($? != 0) {
 	warn "tbadb_proxy::remove_android_forward: unable to list iptables rules!\n";
-	return 0;
+	goto BADFWD;
     }
 
     my $rulenum = 0;
@@ -1035,7 +1077,7 @@ sub remove_android_forward($) {
     }
     if ($rulenum && system("$IPTABLES -D INPUT $rulenum >/dev/null 2>&1") != 0) {
 	warn "tbadb_proxy::remove_android_forward: unable to clear iptables rule for $node_id!\n";
-	return 0;
+	goto BADFWD;
     }
 
     # Remove all entries for device from forwarding table hash
@@ -1046,5 +1088,16 @@ sub remove_android_forward($) {
     }
 
     # Done.
+    if ($locknload) {
+	untie(%FWDPORTS);
+	TBScriptUnlock($fwd_lock);
+    }
     return 1;
+
+  BADFWD:
+    if ($locknload) {
+	untie(%FWDPORTS);
+	TBScriptUnlock($fwd_lock);
+    }
+    return 0;
 }
