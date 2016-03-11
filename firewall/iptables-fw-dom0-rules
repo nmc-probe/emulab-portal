@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2005-2014 University of Utah and the Flux Group.
+# Copyright (c) 2005-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -141,6 +141,11 @@ iptables -A OUTPUT -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT # BAS
 #
 iptables -A INPUT -p gre -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 iptables -A OUTPUT -p gre -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
+
+#
+# TOPD monitoring port.
+#
+iptables -A INPUT -p tcp -d me --dport 4097 -m conntrack --ctstate NEW -j ACCEPT # BASIC,CLOSED
 
 #
 # Event Proxy. So we do not actually need this on XEN dom0, but we use these
