@@ -45,6 +45,7 @@ sub rpc_captureimage($);
 sub rpc_reboot($);
 sub rpc_forward($);
 sub rpc_unforward($);
+sub rpc_nodewait($);
 sub rpc_ping($);
 sub rpc_exit($);
 sub send_error($$$);
@@ -65,6 +66,7 @@ my %DISPATCH = (
     'reboot'       => \&rpc_reboot,
     'forward'      => \&rpc_forward,
     'unforward'    => \&rpc_unforward,
+    'nodewait'     => \&rpc_nodewait,
     'ping'         => \&rpc_ping,
     'exit'         => \&rpc_exit,
 );
@@ -89,7 +91,7 @@ my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
 my $MINPORT = 8001;
 my $MAXPORT = 8100;
 my $FASTBOOT_TMO = 15;
-my $ANDROID_BOOT_TMO = 60;
+my $ANDROID_BOOT_TMO = 90;
 my $IMGLOCK_TMO = 300;
 my $LRULOCK_TMO = 60;
 my $UNPACKLOCK_TMO = 30;
@@ -619,6 +621,38 @@ sub rpc_unforward($) {
 }
 
 
+sub rpc_nodewait($) {
+    my ($data) = @_;
+
+    my $node_id  = $data->{ARGS}->{NODE_ID};
+
+    if (!$node_id) {
+	warn "tbadb_proxy::rpc_nodewait: Missing node_id argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "node_id argument missing.");
+	exit 1;
+    }
+    if ($node_id !~ /^([-\w]+)$/) {
+	warn "tbadb_proxy::rpc_nodewait: Malformed node_id argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
+	exit 1;
+    }
+    $node_id = $1;
+
+    # Wait for a while for the node to appear in adb.
+    warn "tbadb_proxy::rpc_nodewait: waiting for $node_id to become available.\n";
+    if (!wait_for_android($node_id)) {
+	warn "tbadb_proxy::rpc_nodewait: failed while waiting for $node_id!\n";
+	send_error($data->{FID}, RPCERR_NODE_ERR, "node wait failed.");
+	exit 1;
+    }
+
+    # Report success.
+    warn "tbadb_proxy::rpc_nodewait: $node_id is now ready.\n";
+    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    return;
+}
+
+
 sub rpc_ping($) {
     my ($data) = @_;
 
@@ -891,6 +925,7 @@ sub reboot_android($) {
 	}
     } else {
 	$state = `$ADB -s $serial get-state 2>&1`;
+	chomp $state;
 	if ($state ne "unknown") {
 	    if (system("$ADB -s $serial reboot") != 0) {
 		warn "tbadb_proxy::reboot_android: adb failed to reboot $node_id!\n";
@@ -920,6 +955,7 @@ sub wait_for_android($) {
     my $stime = time();
     while (1) {
 	my $state = `$ADB -s $serial get-state 2>&1`;
+	chomp $state;
 	if ($state eq "device") {
 	    last;
 	}

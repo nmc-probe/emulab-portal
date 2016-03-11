@@ -45,6 +45,7 @@ sub cmd_loadimage($@);
 sub cmd_forward($@);
 sub cmd_unforward($@);
 sub cmd_reboot($;@);
+sub cmd_nodewait($;@);
 sub GetRPCPipeHandles($);
 sub ConnectRPCHost($);
 
@@ -61,6 +62,7 @@ my $TBADB_CHECKIMAGE_TMO = 30;
 my $TBADB_LOADIMAGE_TMO  = 120;
 my $TBADB_FORWARD_TMO    = 15;
 my $TBADB_REBOOT_TMO     = 60;
+my $TBADB_NODEWAIT_TMO   = 60;
 my $CHILD_WAIT_TMO       = 10;
 my $SCP = "/usr/bin/scp";
 
@@ -70,6 +72,7 @@ my %DISPATCH = (
     'forward'   => \&cmd_forward,
     'unforward' => \&cmd_unforward,
     'reboot'    => \&cmd_reboot,
+    'nodewait'  => \&cmd_nodewait,
 );
 
 sub showhelp() {
@@ -153,6 +156,7 @@ sub cmd_setup($@) {
     # Individual commands will die() if they fail, so subsequent calls
     # will not happen.
     cmd_loadimage($node_id, $imagepid, $imagename);
+    cmd_nodewait($node_id);
     cmd_forward($node_id, $thost);
 
     # Done!
@@ -413,7 +417,7 @@ sub cmd_reboot($;@) {
     die "tbadb::cmd_reboot: Failed to receive valid response for 'reboot'\n"
 	if (RecvRPCData($rpcin, \$pdu, $TBADB_REBOOT_TMO) != 1);
     my $data = DecodeRPCData($pdu);
-    die "tbadb::cmd_reboot: Could not decode RPC response from 'reboot'"
+    die "tbadb::cmd_reboot: Could not decode RPC response from 'reboot'\n"
 	if (!$data);
 
     # Check returned result.
@@ -425,6 +429,56 @@ sub cmd_reboot($;@) {
 
     # Done!
     print "tbadb: Successfully rebooted $node_id\n";
+    return 0;
+}
+
+#
+# Given a valid node_id, wait for it to become available via adb.
+#
+sub cmd_nodewait($;@) {
+    my ($node_id) = @_;
+
+    # Check and untaint arguments;
+    die "tbadb::cmd_nodewait: node_id argument missing!\n"
+	if (!$node_id);
+
+    # Make sure user has access to requested node
+    my $node = Node->Lookup($node_id);
+    die "tbadb::cmd_nodewait: Invalid node name $node_id!\n"
+	if (!defined($node));
+    die("tbadb::cmd_nodewait: You do not have permission to access $node\n")
+	if (!$node->AccessCheck($this_user, TB_NODEACCESS_READINFO));
+
+    # Grab the RPC pipe.
+    my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
+    die "tbadb::cmd_nodewait: Failed to get valid SSH pipe filehandles!\n"
+	if (!$rpcin || !$rpcout);
+
+    # Call nodewait RPC on device's console host.
+    die "tbadb::cmd_nodewiat: 'nodewait' RPC failed for $node!\n"
+	if (!SendRPCData($rpcout, 
+			 EncodeCall("nodewait", { NODE_ID => $node_id })));
+
+    # Wait for node.
+    my $pdu;
+    my $wres = RecvRPCData($rpcin, \$pdu, $TBADB_NODEWAIT_TMO);
+    die "tbadb::cmd_nodewait: invalid response from 'nodewait'\n"
+	if ($wres == 0);
+    die "tbadb::cmd_nodewait: 'nodewait' timed out for $node_id\n"
+	if ($wres == -1);
+    my $data = DecodeRPCData($pdu);
+    die "tbadb::cmd_nodewait: Could not decode RPC response from 'nodewait'\n"
+	if (!$data);
+
+    # Check returned result.
+    if (exists($data->{ERROR}) || !exists($data->{RESULT}->{SUCCESS})) {
+	warn "tbadb::cmd_nodewait: Received error from 'nodewait':\n";
+	warn "". Dumper($data);
+	exit 1;
+    }
+
+    # Done!
+    print "tbadb::cmd_nodewait: $node_id is ready.\n";
     return 0;
 }
 
