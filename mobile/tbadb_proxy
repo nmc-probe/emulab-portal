@@ -100,6 +100,8 @@ my $FWDLOCK_TMO = 30;
 # Global variables
 my %NMAP = ();
 my %FWDPORTS = ();
+my $RPCIN;
+my $RPCOUT;
 my $g_imglock;
 my $debug = 0;
 
@@ -114,6 +116,7 @@ TBADBProxy::Server->run({
     group      => "root",
     background => 1,
     setsid     => 1,
+    no_client_stdout => 1,
 });
 
 ##############################################################################
@@ -200,17 +203,18 @@ sub post_configure_hook($) {
 sub process_request($) {
     my $self = shift;
 
-    # AUTOFLUSH!
-    $| = 1;
+    # Setup the RPC handles;
+    $RPCIN  = $self->{'server'}->{'client'};
+    $RPCOUT = $RPCIN;
 
     # Send "hello" To let remote end know we are ready.
     die "tbadb_proxy: Could not send hello to caller. Terminating connection.\n"
-	if !SendRPCData(*STDOUT, EncodeResult(-1, { HELLO => 1 }));
+	if !SendRPCData($RPCOUT, EncodeResult(-1, { HELLO => 1 }));
 
     while (1) {
 	# Get PDU
 	my $pdu;
-	my $rcode = RecvRPCData(*STDIN, \$pdu);
+	my $rcode = RecvRPCData($RPCIN, \$pdu);
 	if ($rcode == -1) {
 	    warn "tbadb_proxy: timed out waiting for RPC data. Terminating connection\n";
 	    exit 1;
@@ -282,7 +286,7 @@ sub rpc_checkimage($) {
     LOCKSW: for ($lres) {
 	$_ == TBSCRIPTLOCK_IGNORE && do {
 	    # Another process just did the check/transfer, so we're done.
-	    if (!SendRPCData(*STDOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
+	    if (!SendRPCData($RPCOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
 		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
 		exit 1;
 	    }
@@ -320,7 +324,7 @@ sub rpc_checkimage($) {
 	warn "rpc_checkimage: LOCAL stats:    $srcname, $imtime, $imsize\n"
 	    if $debug;
 	if ($imtime >= $srctime && $imsize == $srcsize) {
-	    if (!SendRPCData(*STDOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
+	    if (!SendRPCData($RPCOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
 		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
 		exit 1;
 	    }
@@ -357,7 +361,7 @@ sub rpc_checkimage($) {
     # to wait for some amount of time (maybe we specify), then call again.
 
     # Request that the image be transferred over (scp from boss)
-    if (!SendRPCData(*STDOUT,
+    if (!SendRPCData($RPCOUT,
 	     EncodeResult($data->{FID}, 
 			  { NEED_IMG => 1, 
 			    REMOTE_PATH => "$projdir" }))) {
@@ -481,7 +485,7 @@ sub rpc_loadimage($) {
 
     # Send success result back to caller.
     warn "tbadb::rpc_loadimage: finished loading $proj/$imgname on $node_id\n";
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
 
@@ -536,7 +540,7 @@ sub rpc_reboot($) {
 
     # Report success.
     warn "tbadb_proxy::rpc_reboot: reboot of $node_id finished.\n";
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
 
@@ -583,7 +587,7 @@ sub rpc_forward($) {
 
     # Report success.
     warn "tbadb_proxy::rpc_forward: forwarding setup for $node_id finished.\n";
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { PORT => $port }));
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { PORT => $port }));
     return;
 }
 
@@ -616,7 +620,7 @@ sub rpc_unforward($) {
 
     # Report success.
     warn "tbadb_proxy::rpc_unforward: forwarding cleared for $node_id\n";
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
 
@@ -648,7 +652,7 @@ sub rpc_nodewait($) {
 
     # Report success.
     warn "tbadb_proxy::rpc_nodewait: $node_id is now ready.\n";
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
 
@@ -656,7 +660,7 @@ sub rpc_nodewait($) {
 sub rpc_ping($) {
     my ($data) = @_;
 
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { PONG => 1 }));
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { PONG => 1 }));
     return;
 }
 
@@ -665,7 +669,7 @@ sub rpc_exit($) {
     my ($data) = @_;
 
     # Send acknowledgement and exit.  No arguments expected.
-    SendRPCData(*STDOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     exit 0;
 }
 
@@ -679,7 +683,7 @@ sub send_error($$$) {
     my ($fid, $code, $message) = @_;
 
     # Send failure result back.
-    return SendRPCData(*STDOUT, EncodeError($fid, $code, $message));
+    return SendRPCData($RPCOUT, EncodeError($fid, $code, $message));
 }
 
 # Helper that does LRU on our image cache
