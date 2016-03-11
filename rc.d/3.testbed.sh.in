@@ -152,7 +152,7 @@ case "$1" in
 			@prefix@/sbin/attend
 		fi
 
-		if /usr/local/bin/mysql monitoring < /dev/null; then
+		if /usr/local/bin/mysql monitoring </dev/null >/dev/null 2>&1; then
 			if [ -x @prefix@/sbin/protogeni/mondbd ]; then
 			       echo -n " mondbd"
 			       @prefix@/sbin/protogeni/mondbd
