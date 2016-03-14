@@ -352,6 +352,10 @@ REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NETBOOT','SHUTDO
 REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NORMAL','SHUTDOWN','');
 REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NORMALv1','SHUTDOWN','');
 REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NORMALv2','SHUTDOWN','');
+REPLACE INTO mode_transitions VALUES ('ALWAYSUP','SHUTDOWN','RELOAD-UE','SHUTDOWN','ReloadStart');
+REPLACE INTO mode_transitions VALUES ('ALWAYSUP','ISUP','RELOAD-UE','SHUTDOWN','ReloadStart');
+REPLACE INTO mode_transitions VALUES ('ALWAYSUP','ISUP','RELOAD-UE','ISUP','ReloadStart');
+REPLACE INTO mode_transitions VALUES ('RELOAD-UE','SHUTDOWN','ALWAYSUP','ISUP','ReloadDone');
 
 --
 -- Dumping data for table `priorities`
@@ -701,6 +705,8 @@ REPLACE INTO state_transitions VALUES ('RELOAD','RELOADFAILED','SHUTDOWN','');
 REPLACE INTO state_transitions VALUES ('RELOAD-PCVM','RELOADSETUP','RELOADFAILED','');
 REPLACE INTO state_transitions VALUES ('RELOAD-PCVM','RELOADING','RELOADFAILED','');
 REPLACE INTO state_transitions VALUES ('RELOAD-PCVM','RELOADFAILED','SHUTDOWN','');
+REPLACE INTO state_transitions VALUES ('RELOAD-UE','RELOADING','RELOADDONE','ReloadDone');
+REPLACE INTO state_transitions VALUES ('RELOAD-UE','SHUTDOWN','RELOADING','Booting');
 
 --
 -- Dumping data for table `state_triggers`
@@ -734,6 +740,7 @@ REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','RELOADDONE','PXERESET, RESE
 REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','PXEBOOTING','REBOOT');
 REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','BOOTING','REBOOT');
 REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','ISUP','REBOOT');
+REPLACE INTO state_triggers VALUES ('*','RELOAD-UE','RELOADDONE','RELOADDONE');
 
 --
 -- Dumping data for table `table_regex`
