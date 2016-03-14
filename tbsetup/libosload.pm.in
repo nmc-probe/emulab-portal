@@ -43,6 +43,7 @@ use NodeType;
 use Image;
 use User;
 use OSinfo;
+use EmulabConstants;
 use English;
 use event;
 use Data::Dumper;
@@ -1274,14 +1275,14 @@ sub SetupReloadUE($)
 {
     my $reload_info   = $_[0];
     my $node          = $reload_info->{'node'};
-    my $imageid       = $reload_info->{'imageid'};
+    my $image         = (@{$reload_info->{'images'}})[0];
     my $osid          = $reload_info->{'osid'};
 
     #
-    # Get the path to the image
+    # Get some image details for tbadb
     #
-    my $img = Image->Lookup($imageid);
-    my $path = $img->path();
+    my $imgpid  = $image->pid();
+    my $imgname = $image->imagename();
 
     #
     # Tell stated that we're about to start reloading
@@ -1298,9 +1299,9 @@ sub SetupReloadUE($)
     # Invoke local script that calls the remote end that
     # actually does the work.
     #
-    my $rv = system("$TBADB upload $path $node");
+    my $rv = system("$TBADB -n $node loadimage $imgpid $imgname");
     if ($rv) {
-	tberror "$node: tbadb failed";
+	tberror "$node: tbadb loadimage failed!";
 	return -1;
     }
 
@@ -1312,7 +1313,7 @@ sub SetupReloadUE($)
     system("$osselect $osid $node");
     if ($?) {
 	tberror "os_select $osid failed!";
-	goto failednode;
+	return -1;
     }
 
     #

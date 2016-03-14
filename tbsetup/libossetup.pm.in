@@ -2190,7 +2190,7 @@ sub AddNode($$)
 # libosload will handle the alternate way images need to be loaded.
 #
 package libossetup_ue;
-use base qw(libossetup_handler);
+use base qw(libossetup_pc);
 
 use libdb;
 use libtestbed;
@@ -2201,17 +2201,5 @@ use English;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
 
-sub New($$) {
-    my ($class, $parent) = @_;
-
-    my $self = $class->SUPER::New("ue", $parent);
-    bless($self, $class);
-    return $self;
-}
-
-sub AddNode($$)
-{
-    my ($self, $node) = @_;
-
-    return $self->SUPER::AddNode($node);
-}
+# This needs to be the last thing in the file.
+1;

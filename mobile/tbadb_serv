@@ -91,6 +91,7 @@ my $GREP = "/bin/grep";
 my $IMAGE_CACHE = "/z/tbadb_img_cache";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
+my $ADBD_LISTENPORT = 5555;
 my $MINPORT = 8001;
 my $MAXPORT = 8100;
 my $HOUSEKEEPING_INTERVAL = 60;
@@ -526,36 +527,48 @@ sub rpc_reboot($) {
 
     my $node_id = $data->{ARGS}->{NODE_ID};
     my $dowait  = $data->{ARGS}->{WAIT};
+    my $fastboot = $data->{ARGS}->{FASTBOOT};
 
     # Do a bit of arg checking.
     $dowait = defined($dowait) && int($dowait) ? 1 : 0;
+    $fastboot = defined($fastboot) && int($fastboot) ? 1 : 0;
     if (!$node_id) {
 	warn "tbadb_serv::rpc_reboot: No node_id provided in RPC args!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "node_id missing.");
 	exit 1;
     }
     if (!exists($NMAP{$node_id})) {
-	warn "tbadb::rpc_loadimage: unknown/bad node_id: $node_id\n";
+	warn "tbadb_serv::rpc_reboot: unknown/bad node_id: $node_id\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
 	exit 1;
     }
     my $serial = $NMAP{$node_id};
 
-    # Reboot the unit.
-    warn "tbadb_serv::rpc_reboot: rebooting node $node_id\n";
-    if (!reboot_android($node_id)) {
-	warn "tbadb_serv::rpc_reboot: failed to reboot $node_id!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "Reboot failed.");
-	exit 1;
-    }
-
-    # Wait for device to boot up, if requested to do so.
-    if ($dowait) {
-	warn "tbadb_serv::rpc_reboot: waiting for $node_id to come up.\n";
-	if (!wait_for_node($node_id)) {
-	    warn "tbadb_serv::rpc_reboot: failed waiting for $node_id to boot!\n";
-	    send_error($data->{FID}, RPCERR_NODE_ERR, "Boot failed.");
+    # Reboot the unit as directed.
+    if ($fastboot) {
+	warn "tbadb_serv::rpc_reboot: rebooting node into fastboot: $node_id\n";
+	if (!enter_fastboot($node_id)) {
+	    warn "tbadb_serv::rpc_reboot: failed to enter fastboot: $node_id!\n";
+	    send_error($data->{FID}, RPCERR_NODE_ERR, "Reboot (fastboot) failed.");
 	    exit 1;
+	}
+    }
+    else {
+	warn "tbadb_serv::rpc_reboot: rebooting node $node_id\n";
+	if (!reboot_android($node_id)) {
+	    warn "tbadb_serv::rpc_reboot: failed to reboot $node_id!\n";
+	    send_error($data->{FID}, RPCERR_NODE_ERR, "Reboot failed.");
+	    exit 1;
+	}
+
+	# Wait for device to boot up, if requested to do so.
+	if ($dowait) {
+	    warn "tbadb_serv::rpc_reboot: waiting for $node_id to come up.\n";
+	    if (!wait_for_node($node_id)) {
+		warn "tbadb_serv::rpc_reboot: failed waiting for $node_id to boot!\n";
+		send_error($data->{FID}, RPCERR_NODE_ERR, "Boot failed.");
+		exit 1;
+	    }
 	}
     }
 
@@ -1064,9 +1077,15 @@ sub setup_android_forward($$;$$) {
 	goto BADFWD;
     }
 
+    # Restart adbd on the UE listening on tcpip port 5555
+    if (system("$ADB -s $serial tcpip $ADBD_LISTENPORT") != 0) {
+	warn "tbadb_serv::setup_android_forward: could not restart adbd on $node_id to listen on tcpip port $ADBD_LISTENPORT!\n";
+	goto BADFWD;
+    }
+
     # Forward!
-    if (system("$ADB -s $serial forward tcp:$port tcp:5555 >/dev/null 2>&1") != 0) {
-	warn "tbadb_serv::setup_android_forward: could not forward adbd port on node_id to local port $port!\n";
+    if (system("$ADB -s $serial forward tcp:$port tcp:$ADBD_LISTENPORT >/dev/null 2>&1") != 0) {
+	warn "tbadb_serv::setup_android_forward: could not forward adbd port on $node_id to local port $port!\n";
 	goto BADFWD;
     }
 

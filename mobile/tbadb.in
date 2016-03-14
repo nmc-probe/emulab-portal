@@ -389,11 +389,25 @@ sub cmd_unforward($@) {
 # Given a valid node_id, reboot a device.
 #
 sub cmd_reboot($;@) {
-    my ($node_id) = @_;
+    my ($node_id, $suplcmd) = @_;
 
     # Check and untaint arguments;
     die "tbadb::cmd_reboot: node_id argument missing!\n"
 	if (!$node_id);
+
+    if ($suplcmd) {
+        SW1: for ($suplcmd) {
+	    /^wait$/ && do {
+		$suplcmd = "WAIT";
+		last SW1;
+	    };
+	    /^fastboot$/ && do {
+		$suplcmd = "FASTBOOT";
+		last SW1;
+	    };
+	    die "tbadb::cmd_reboot: Unknown supplementary command: $suplcmd\n";
+	}
+    }
 
     # Make sure user has access to requested node
     my $node = Node->Lookup($node_id);
@@ -408,9 +422,13 @@ sub cmd_reboot($;@) {
 	if (!$rpcin || !$rpcout);
 
     # Request device reboot via remote host.
+    my $arghash = { NODE_ID => $node_id };
+    if ($suplcmd) {
+	$arghash->{$suplcmd} = 1;
+    }
     die "tbadb::cmd_reboot: Failed to send 'reboot' RPC!\n"
 	if (!SendRPCData($rpcout, 
-			 EncodeCall("reboot", { NODE_ID => $node_id })));
+			 EncodeCall("reboot", $arghash)));
 
     # Wait for reboot and grab returned result.
     my $pdu;
