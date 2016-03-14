@@ -51,16 +51,11 @@ function (_, sup, aptforms,
 	    id: 'verify_modal',
 	    label: "Confirm",
 	});
-	var generror = '';
-	if (errors && errors.error) {
-	    generror = errors.error;
-	}
 	var myaccount = aptforms.FormatFormFields(myaccountTemplate({
 	    formfields: formfields,
-	    general_error: generror,
 	    verify_modal: verify,
 	    nopassword: window.APT_OPTIONS.nopassword,
-	});
+	}));
 	
 	$('#page-body').html(myaccount);
 	$('#signup_countries').bfhcountries({ country: formfields.country,
