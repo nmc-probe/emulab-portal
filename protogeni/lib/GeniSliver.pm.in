@@ -821,6 +821,7 @@ sub AnnotateManifest($)
     my $vhostname     = GeniUtil::FindVHostname($experiment, $node);
     my $component_urn = GeniHRN::Generate("@OURDOMAIN@", "node",
 					  $node->phys_nodeid());
+    my $ipv4;
     
     if ($node->isvirtnode()) {
 	my $vname = $node->vname();
@@ -830,12 +831,22 @@ sub AnnotateManifest($)
 	if( defined( $public_control ) && $public_control eq "true" ) {
 	    # we've assigned a public address to this one
 	    $sshdhost = $hostname;
+
+	    my $interface = Interface->LookupControl($node);
+	    $ipv4 = $interface->IP()
+		if (defined($interface));
+	    
 	} else {
 	    # this node has no public control address of its own -- give the
 	    # sshd port on the physical host's address
 	    $sshdport = $node->sshdport();
 	    $sshdhost = GeniUtil::FindHostname($node->phys_nodeid());
 	}
+    }
+    else {
+	my $interface = Interface->LookupControl($node);
+	$ipv4 = $interface->IP()
+	    if (defined($interface));
     }
 
     #
@@ -856,6 +867,8 @@ sub AnnotateManifest($)
 	    $host = GeniXML::AddElement("host", $rspec);
 	}
 	GeniXML::SetText("name", $host, $vhostname);
+	GeniXML::SetText("ipv4", $host, $ipv4)
+	    if (defined($ipv4));
     }
     my $services = GeniXML::FindFirst("n:services", $rspec);
     
