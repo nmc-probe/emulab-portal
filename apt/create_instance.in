@@ -1421,6 +1421,10 @@ sub RunStitcher()
 		while (<SLOG>) {
 		    if ($_ =~ /^Allocation of slivers in .* failed:/) {
 			$morestuff = $_;
+
+			if ($_ =~ /protogeni AM code: (\d*):/) {
+			    $errcode = $1;
+			}
 		    }
 		    elsif (defined($morestuff)) {
 			if ($_ =~ /^Allocate slivers in slice .* failed/) {
