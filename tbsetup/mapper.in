@@ -288,6 +288,8 @@ my $real_user = User->RealUser();
 # multiplex_factor default.
 $mfactor = $experiment->multiplex_factor()
     if (!defined($mfactor) && defined($experiment->multiplex_factor()));
+$packoption = $experiment->packing_strategy()
+    if (!defined($packoption) && defined($experiment->packing_strategy()));
 # NS file can say to run the prepass.
 my $useprepass = $experiment->useprepass();
 

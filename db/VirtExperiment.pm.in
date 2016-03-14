@@ -112,6 +112,7 @@ my $debug	      = 0;
 # be updated.
 #
 %experiment_fields = ("multiplex_factor"	=> 1,
+		      "packing_strategy"        => 1,
 		      "forcelinkdelays"		=> 1,
 		      "uselinkdelays"		=> 1,
 		      "usewatunnels"		=> 1,
