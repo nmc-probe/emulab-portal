@@ -128,6 +128,19 @@ define(['underscore', 'js/quickvm_sup'],
 		    }
 		}
 	    });
+	    /*
+	     * Deal with a "general" error. Some of the forms have a specific
+	     * spot for this.
+	     */
+	    if (errors && _.has(errors, "error")) {
+		if ($('#general_error').length()) {
+		    $('#general_error').html(_.escape(errors["error"]));
+		}
+		else {
+		    console.info("General error: " + errors["error"]);
+		    alert(errors["error"]);
+		}
+	    }
 	}
 
 	function ClearFormErrors(form) {
@@ -175,7 +188,9 @@ define(['underscore', 'js/quickvm_sup'],
 	    var xmlthing =
 		sup.CallServerMethod(null, route, method,
 				     {"formfields" : formfields,
-				      "checkonly"  : 1});
+				      "checkonly"  : 1,
+				      "embedded"   : window.EMBEDDED,
+				     });
 	    xmlthing.done(checkonly_callback);
 	}
 
@@ -202,7 +217,9 @@ define(['underscore', 'js/quickvm_sup'],
 	    var xmlthing =
 		sup.CallServerMethod(null, route, method,
 				     {"formfields" : formfields,
-				      "checkonly"  : 0});
+				      "checkonly"  : 0,
+				      "embedded"   : window.EMBEDDED,
+				     });
 	    xmlthing.done(submit_callback);
 	}
 
