@@ -1648,6 +1648,7 @@ CREATE TABLE `experiments` (
   `uselinkdelays` tinyint(4) NOT NULL default '0',
   `forcelinkdelays` tinyint(4) NOT NULL default '0',
   `multiplex_factor` smallint(5) default NULL,
+  `packing_strategy` enum('pack','balance') default NULL,
   `uselatestwadata` tinyint(4) NOT NULL default '0',
   `usewatunnels` tinyint(4) NOT NULL default '1',
   `wa_delay_solverweight` float default '0',
