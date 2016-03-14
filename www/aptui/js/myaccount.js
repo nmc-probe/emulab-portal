@@ -1,12 +1,13 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup',
+	['underscore', 'js/quickvm_sup', 'js/aptforms',
 	 'js/lib/text!template/myaccount.html',
 	 'js/lib/text!template/verify-modal.html',
 	 'js/lib/text!template/oops-modal.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 // jQuery modules
 	 'formhelpers'],
-function (_, sup, myaccountString, verifyString, oopsString, waitwaitString)
+function (_, sup, aptforms,
+	  myaccountString, verifyString, oopsString, waitwaitString)
 {
     'use strict';
 
@@ -44,7 +45,7 @@ function (_, sup, myaccountString, verifyString, oopsString, waitwaitString)
 	$('#submit_button').removeAttr("disabled");
     }
 
-    function renderForm(formfields, errors)
+    function renderForm(formfields)
     {
 	var verify = verifyTemplate({
 	    id: 'verify_modal',
@@ -54,12 +55,12 @@ function (_, sup, myaccountString, verifyString, oopsString, waitwaitString)
 	if (errors && errors.error) {
 	    generror = errors.error;
 	}
-	var myaccount = Formatter(myaccountTemplate({
+	var myaccount = aptforms.FormatFormFields(myaccountTemplate({
 	    formfields: formfields,
 	    general_error: generror,
 	    verify_modal: verify,
 	    nopassword: window.APT_OPTIONS.nopassword,
-	}), errors);
+	});
 	
 	$('#page-body').html(myaccount);
 	$('#signup_countries').bfhcountries({ country: formfields.country,
@@ -78,7 +79,7 @@ function (_, sup, myaccountString, verifyString, oopsString, waitwaitString)
 	    event.preventDefault();
 	    // Disable the Stay on Page alert above.
 	    window.onbeforeunload = null;
-	    SubmitForm(1);
+	    SubmitForm();
 	    return false;
 	});
 	$('#verify_modal_submit').click(function (event) {
@@ -86,92 +87,40 @@ function (_, sup, myaccountString, verifyString, oopsString, waitwaitString)
 	    // Disable the Stay on Page alert above.
 	    window.onbeforeunload = null;
 	    sup.HideModal('#verify_modal');
-	    SubmitForm(1);
+	    SubmitForm();
 	    return false;
 	});
     }
     
-    function Formatter(fieldString, errors)
-    {
-	var root   = $(fieldString);
-	var list   = root.find('.format-me');
-	list.each(function (index, item) {
-	    if (item.dataset)
-	    {
-  		var key = item.dataset['key'];
-		var wrapper = $('<div></div>');
-		var placeholder = item.placeholder;
-		if (!placeholder) {
-		    placeholder = item.dataset['placeholder'];
-		}
-		wrapper.append('<label class="control-label"> ' +
-			       _.escape(placeholder) + '</label>');
-		wrapper.append($(item).clone());
-
-		if (errors && _.has(errors, key))
-		{
-		    wrapper.addClass('has-error');
-		    wrapper.append('<label class="control-label" ' +
-				   'for="inputError">' + _.escape(errors[key]) +
-				   '</label>');
-		}
-		$(item).after(wrapper);
-		$(item).remove();
-	    }
-	});
-	return root;
-    }
-
     //
     // Submit the form.
     //
-    function SubmitForm(checkonly)
+    function SubmitForm()
     {
-	// Current form contents as formfields array.
-	var formfields  = {};
-	
-	var callback = function(json) {
-	    if (!checkonly) {
-		sup.HideModal("#waitwait-modal");
-	    }
-	    console.info(json);
-
+	var submit_callback = function(json) {
 	    if (json.code) {
-		if (json.code == 2) {
-		    // Regenerate with errors.
-		    renderForm(formfields, json.value);
-		    return;
-		}
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	    window.location.reload();	    
+	};
+	var checkonly_callback = function(json) {
+	    if (json.code) {
 		// Email not verified, throw up form.
 		if (json.code == 3) {
 		    sup.ShowModal('#verify_modal');
 		    return;
 		}
-		sup.SpitOops("oops", json.value);
+		else if (json.code != 2) {
+		    sup.SpitOops("oops", json.value);		    
+		}
 		return;
 	    }
-	    // Now do the actual create.
-	    if (checkonly) {
-		SubmitForm(0);
-	    }
-	    else {
-		window.location.reload();
-	    }
-	}
-	// Convert form data into formfields array, like all our
-	// form handler pages expect.
-	var fields = $('#myaccount_form').serializeArray();
-	$.each(fields, function(i, field) {
-	    formfields[field.name] = field.value;
-	});
-	if (!checkonly) {
-	    sup.ShowModal("#waitwait-modal");
-	}
-	var xmlthing =
-	    sup.CallServerMethod(null, "myaccount", "update",
-				 {"formfields" : formfields,
-				  "checkonly"  : checkonly});
-	xmlthing.done(callback);
+	    aptforms.SubmitForm('#myaccount_form', "myaccount", "update",
+				submit_callback);
+	};
+	aptforms.CheckForm('#myaccount_form', "myaccount", "update",
+			   checkonly_callback);
     }
     $(document).ready(initialize);
 });

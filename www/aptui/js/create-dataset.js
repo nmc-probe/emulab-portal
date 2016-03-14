@@ -1,8 +1,11 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment',
+	['underscore', 'js/quickvm_sup', 'moment', 'js/aptforms',
 	 'js/lib/text!template/create-dataset.html',
-	 'js/lib/text!template/dataset-help.html'],
-function (_, sup, moment, mainString, helpString)
+	 'js/lib/text!template/dataset-help.html',
+	 'js/lib/text!template/oops-modal.html',
+	 'js/lib/text!template/waitwait-modal.html'],
+function (_, sup, moment, aptforms,
+	  mainString, helpString, oopsString, waitwaitString)
 {
     'use strict';
 
@@ -36,14 +39,18 @@ function (_, sup, moment, mainString, helpString)
 		amlist = JSON.parse(_.unescape($('#amlist-json')[0].textContent));
 	    }
 	}
-	GeneratePageBody(fields, null);
+	GeneratePageBody(fields);
+
+	// Now we can do this. 
+	$('#oops_div').html(oopsString);	
+	$('#waitwait_div').html(waitwaitString);	
     }
 
     //
     // Moved into a separate function since we want to regen the form
     // after each submit, which happens via ajax on this page. 
     //
-    function GeneratePageBody(formfields, errors)
+    function GeneratePageBody(formfields)
     {
 	// Generate the template.
 	var html = mainTemplate({
@@ -57,7 +64,7 @@ function (_, sup, moment, mainString, helpString)
 	    editing:		editing,
 	    isadmin:		isadmin,
 	});
-	html = formatter(html, errors).html();
+	html = aptforms.FormatFormFieldsHorizontal(html);
 	$('#main-body').html(html);
 
 	// This activates the popover subsystem.
@@ -166,120 +173,41 @@ function (_, sup, moment, mainString, helpString)
 	//
 	$('#dataset_submit_button').click(function (event) {
 	    event.preventDefault();
-	    HandleSubmit();
+	    SubmitForm();
 	});
     }
     
-    // Formatter for the form. This did not work out nicely at all!
-    function formatter(fieldString, errors)
-    {
-	var root   = $(fieldString);
-	var list   = root.find('.format-me');
-	list.each(function (index, item) {
-	    if (item.dataset) {
-		var key     = item.dataset['key'];
-		var margin  = 15;
-		var colsize = 12;
-
-		var outerdiv = $("<div class='form-group' " +
-				 "     style='margin-bottom: " + margin +
-				 "px;'></div>");
-
-		if ($(item).attr('data-label')) {
-		    var label_text =
-			"<label for='" + key + "' " +
-			" class='col-sm-3 control-label'> " +
-			item.dataset['label'];
-		    
-		    if ($(item).attr('data-help')) {
-			label_text = label_text +
-			    "<a href='#' class='btn btn-xs' " +
-			    " data-toggle='popover' " +
-			    " data-html='true' " +
-			    " data-delay='{\"hide\":1000}' " +
-			    " data-content='" + item.dataset['help'] + "'>" +
-			    "<span class='glyphicon glyphicon-question-sign'>" +
-			    " </span></a>";
-		    }
-		    label_text = label_text + "</label>";
-		    outerdiv.append($(label_text));
-		    colsize = 6;
-		}
-		var innerdiv = $("<div class='col-sm-" + colsize + "'></div>");
-		innerdiv.html($(item).clone());
-		
-		if (errors && _.has(errors, key)) {
-		    outerdiv.addClass('has-error');
-		    innerdiv.append('<label class="control-label" ' +
-				    'for="inputError">' +
-				    _.escape(errors[key]) + '</label>');
-		}
-		outerdiv.append(innerdiv);
-		$(item).after(outerdiv);
-		$(item).remove();
-	    }
-	});
-	return root;
-    }
-
-    function HandleSubmit()
-    {
-	// Submit with check only at first, since this will return
-	// very fast, so no need to throw up a waitwait.
-	SubmitForm(1);
-    }
-
     //
     // Submit the form.
     //
-    function SubmitForm(checkonly)
+    function SubmitForm()
     {
-	// Current form contents as formfields array.
-	var formfields  = {};
-	
-	var callback = function(json) {
-	    console.info(json);
-	    if (!checkonly) {
-		sup.HideModal("#waitwait");
-	    }
+	var submit_callback = function(json) {
 	    if (json.code) {
-		if (checkonly && json.code == 2) {
-		    // Regenerate page with errors.
-		    GeneratePageBody(formfields, json.value);
-		    return;
-		}
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    // Now do the actual create.
-	    if (checkonly) {
-		sup.ShowModal("#waitwait");
-		SubmitForm(0);
+	    if (embedded) {
+		window.parent.location.replace("../" + json.value);
 	    }
 	    else {
-		if (embedded) {
-		    window.parent.location.replace("../" + json.value);
-		}
-		else {
-		    window.location.replace(json.value);
-		}
+		window.location.replace(json.value);
 	    }
-	}
-	// Convert form data into formfields array, like all our
-	// form handler pages expect.
-	var fields = $('#create_dataset_form').serializeArray();
-	$.each(fields, function(i, field) {
-	    formfields[field.name] = field.value;
-	});
-	// This clears any errors before new submit. Needs more thought.
-	GeneratePageBody(formfields, null);
-
-	var xmlthing = sup.CallServerMethod(null, "dataset",
-					    (editing ? "modify" : "create"),
-					    {"formfields" : formfields,
-					     "checkonly"  : checkonly,
-					     "embedded"   : window.EMBEDDED});
-	xmlthing.done(callback);
+	};
+	var checkonly_callback = function(json) {
+	    if (json.code) {
+		if (json.code != 2) {
+		    sup.SpitOops("oops", json.value);		    
+		}
+		return;
+	    }
+	    aptforms.SubmitForm('#create_dataset_form', "dataset",
+				(editing ? "modify" : "create"),
+				submit_callback);
+	};
+	aptforms.CheckForm('#create_dataset_form', "dataset",
+			   (editing ? "modify" : "create"),
+			   checkonly_callback);
     }
 
     /*

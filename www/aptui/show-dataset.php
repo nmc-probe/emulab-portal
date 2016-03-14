@@ -157,9 +157,6 @@ if ($cansnapshot && !$embedded) {
     echo "</script>\n";
 }
 
-SpitOopsModal("oops");
-SpitWaitModal("waitwait");
-
 echo "<script type='text/javascript'>\n";
 echo "    window.TITLE      = '$page_title';\n";
 echo "    window.UUID       = '$uuid';\n";

@@ -237,6 +237,7 @@ echo "  window.APT_OPTIONS.isfadmin = $isfadmin;\n";
 echo "  window.APT_OPTIONS.cansnap = $cansnap;\n";
 echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
+echo "  window.APT_OPTIONS.hidelinktest = false;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.dossh = $dossh;\n";
 echo "  window.APT_OPTIONS.ispprofile = $ispprofile;\n";

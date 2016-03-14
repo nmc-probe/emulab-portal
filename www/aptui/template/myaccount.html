@@ -8,9 +8,7 @@
         <h3 class='panel-title'>My Account</h3>
       </div>
       <div class='panel-body'>
-	<% if (general_error) { %>
-	  <font color=red><%- general_error %></font>
-	<% } %>
+	<span id="general_error" style="color:red;"></span>
 	<form id='myaccount_form'
               role='form'
               enctype='multipart/form-data'
@@ -20,23 +18,30 @@
 	  <fieldset>
 	    <div class="form-group">
 	      <input name="ignore" value="<%- formfields.uid %>"
-		     class="form-control format-me" data-key="uid"
-		     placeholder="Username"
+		     class="form-control format-me"
+		     data-key="uid"
+		     data-label="Username"
 		     readonly type="text">
 	    </div>
 	    <div class="form-group">
 	      <input name="name" value="<%- formfields.name %>"
 		     class="form-control format-me" data-key="name"
-		     placeholder="Full Name" type="text">
+		     placeholder="Alpha Numeric, no spaces"
+		     data-label="Full Name"
+		     type="text">
 	    </div>
 	    <div class="form-group">
 	      <input name="email" value="<%- formfields.email %>"
-		     class="form-control format-me" data-key="email"
+		     class="form-control format-me"
+		     data-key="email"
+		     data-label="Email"
 		     placeholder="Email" type="text">
 	    </div>
 	    <div class="form-group">
 	      <input name="affiliation" value="<%- formfields.affiliation %>"
-		     class="form-control format-me" data-key="affiliation"
+		     class="form-control format-me"
+		     data-key="affiliation"
+		     data-label="Institutional Affiliation"
 		     placeholder="Institutional Affiliation" type="text">
 	    </div>
 	    <div class="form-group">
@@ -44,6 +49,7 @@
 		      class="form-control format-me bfh-countries"
 		      data-country="<%- formfields.country %>"
 		      data-placeholder="Country"
+		      data-label="Country"
 		      data-blank="false" data-ask="true" data-key="country">
 	      </select>
 	    </div>
@@ -53,20 +59,28 @@
 		       data-state="<%- formfields.state %>"
 		       data-country="signup_countries" data-ask="true"
 		       data-placeholder="State" data-blank="false"
+		       data-label="State"
 		       data-key="state">
 	      </select>
 	    </div>
 	    <div class="form-group">
 	      <input name="city" value="<%- formfields.city %>"
-		     class="form-control format-me" data-key="city"
-		     placeholder="City" type="text">
+		     class="form-control format-me"
+		     data-key="city"
+		     data-label="City"
+		     placeholder="City"
+		     type="text">
 	      
 	    </div>
 	    <% if (!nopassword) { %>
 	      <div class="form-group">
+		<label class='control-label'>
+		  Change your password
+		</label><br>
 		<div class="col-sm-5" style="padding:0;">
 		  <input name="password1" value="<%- formfields.password1 %>"
-			 class="form-control format-me" data-key="password1"
+			 class="form-control format-me"
+			 data-key="password1"
 			 placeholder="Password" type="password">
 		</div>
 		<div class="col-sm-5 col-sm-offset-2" style="padding:0;">

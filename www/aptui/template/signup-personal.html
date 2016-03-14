@@ -1,42 +1,62 @@
-<input name="formfields[uid]" value="<%- formfields.uid %>"
-       class="form-control" data-key="uid"
-       placeholder="Username"
-       <% if (promoting) { %>readonly<% } else { %>autofocus<% } %>
-       type="text">
-<input name="formfields[fullname]" value="<%- formfields.fullname %>"
-       class="form-control" data-key="fullname"
-       placeholder="Full Name" type="text">
-<input name="formfields[email]" value="<%- formfields.email %>"
-       class="form-control" data-key="email"
-       <% if (promoting) { %>readonly<% } %>
-       placeholder="Email" type="text">
-<input name="formfields[affiliation]" value="<%- formfields.affiliation %>"
-       class="form-control" data-key="affiliation"
-       placeholder="Institutional Affiliation" type="text">
-<select id="signup_countries" name="formfields[country]"
-        class="form-control bfh-countries"
-        data-country="<%- formfields.country %>"
-        data-blank="false" data-ask="true" data-key="country">
-</select>
-<select  id="signup_states" name="formfields[state]"
-         class="form-control bfh-states"
-	 data-state="<%- formfields.state %>"
-	 data-country="signup_countries" data-ask="true"
-         placeholder="State" data-blank="false" data-key="state">
-</select>
-<input name="formfields[city]" value="<%- formfields.city %>"
-       class="form-control" data-key="city"
-       placeholder="City" type="text">
-<% if (!promoting) { %>
-<div data-key="keyfile">
-  <span class="help-block">SSH Public Key file</span>
-  <input type="file" name="keyfile"
-         placeholder="SSH Public Key File">
+<div class="form-group sidebyside-form" >
+  <input name="formfields[uid]" value="<%- formfields.uid %>"
+	 class="form-control format-me" data-key="uid"
+	 placeholder="Username"
+	 <% if (promoting) { %>readonly<% } else { %>autofocus<% } %>
+	 type="text">
+</div>  
+<div class="form-group sidebyside-form" >
+  <input name="formfields[fullname]" value="<%- formfields.fullname %>"
+	 class="form-control format-me" data-key="fullname"
+	 placeholder="Full Name" type="text">
 </div>
-<input name="formfields[password1]" value="<%- formfields.password1 %>"
-       class="form-control" data-key="password1"
-       placeholder="Password" type="password">
-<input name="formfields[password2]" value="<%- formfields.password2 %>"
-       class="form-control" data-key="password2"
-       placeholder="Confirm Password" type="password">
+<div class="form-group sidebyside-form" >
+  <input name="formfields[email]" value="<%- formfields.email %>"
+	 class="form-control format-me" data-key="email"
+	 <% if (promoting) { %>readonly<% } %>
+	 placeholder="Email" type="text">
+</div>
+<div class="form-group sidebyside-form" >
+  <input name="formfields[affiliation]" value="<%- formfields.affiliation %>"
+	 class="form-control format-me" data-key="affiliation"
+	 placeholder="Institutional Affiliation" type="text">
+</div>
+<div class="form-group sidebyside-form" >
+  <select id="signup_countries" name="formfields[country]"
+          class="form-control format-me bfh-countries"
+          data-country="<%- formfields.country %>"
+          data-blank="false" data-ask="true" data-key="country">
+  </select>
+</div>
+<div class="form-group sidebyside-form" >
+  <select id="signup_states" name="formfields[state]"
+          class="form-control format-me bfh-states"
+	  data-state="<%- formfields.state %>"
+	  data-country="signup_countries" data-ask="true"
+          placeholder="State" data-blank="false" data-key="state">
+  </select>
+</div>
+<div class="form-group sidebyside-form" >
+  <input name="formfields[city]" value="<%- formfields.city %>"
+	 class="form-control format-me" data-key="city"
+	 placeholder="City" type="text">
+</div>
+<% if (!promoting) { %>
+  <div class="form-group sidebyside-form" >
+    <div class="format-me" data-key="keyfile">
+      <span class="help-block">SSH Public Key file</span>
+      <input type="file" name="keyfile"
+             placeholder="SSH Public Key File">
+    </div>
+  </div>
+  <div class="form-group sidebyside-form" >
+    <input name="formfields[password1]" value="<%- formfields.password1 %>"
+	   class="form-control format-me" data-key="password1"
+	   placeholder="Password" type="password">
+  </div>
+  <div class="form-group sidebyside-form" >
+    <input name="formfields[password2]" value="<%- formfields.password2 %>"
+	   class="form-control format-me" data-key="password2"
+	   placeholder="Confirm Password" type="password">
+  </div>
 <% } %>

@@ -1,6 +1,6 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'filesize', 'js/JacksEditor',
-	 'js/image', 'moment', 'js/ppstart',
+	 'js/image', 'moment', 'js/aptforms',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
@@ -13,7 +13,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/share-modal.html',
 	 // jQuery modules
 	 'filestyle','marked'],
-function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
+function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,
 	  guestInstantiateString, publishString, instantiateString,
@@ -116,8 +116,10 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    versions:	        versions,
 	    withpublishing:     window.WITHPUBLISHING,
 	});
-	manage_html = formatter(manage_html, errors).html();
+	manage_html = aptforms.FormatFormFieldsHorizontal(manage_html,
+							  {"wide" : true});
 	$('#manage-body').html(manage_html);
+	aptforms.GenerateFormErrors('#quickvm_create_profile_form', errors);
 	
     	var waitwait_html = waitwaitTemplate({});
 	$('#waitwait_div').html(waitwait_html);
@@ -400,25 +402,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	});
 
 	/*
-	 * The instantiate button. If a plain profile, throw up the
-	 * confirm modal. If a parameterized profile, hand off to the
-	 * ppstart js code.
+	 * The instantiate button.
 	 */
 	$('#profile_instantiate_button').click(function (event) {
-	    if (true) {
-		window.location.replace("instantiate.php?profile=" +
-					version_uuid);
-		return;
-	    }
-	    if (isppprofile) {
-		ppstart({uuid       : version_uuid,
-			 registered : true,
-			 amlist     : amlist,
-			 amdefault  : window.AMDEFAULT,
-			});
-		return;
-	    }
-	    sup.ShowModal('#instantiate_modal');
+	    window.location.replace("instantiate.php?profile=" +
+				    version_uuid);
 	});
 	
 	/*
@@ -507,61 +495,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    DisableButtons();
 	    EnableButton("profile_submit_button");
 	}
-    }
-
-    // Formatter for the form. This did not work out nicely at all!
-    function formatter(fieldString, errors)
-    {
-	var root   = $(fieldString);
-	var list   = root.find('.format-me');
-	list.each(function (index, item) {
-	    if (item.dataset) {
-		var key     = item.dataset['key'];
-		var margin  = 15;
-		var colsize = 12;
-
-		if ($(item).attr('data-compact')) {
-		    margin = 5;
-		}
-		var outerdiv = $("<div class='form-group' " +
-				 "     style='margin-bottom: " + margin +
-				 "px;'></div>");
-
-		if ($(item).attr('data-label')) {
-		    var label_text =
-			"<label for='" + key + "' " +
-			" class='col-sm-2 control-label'> " +
-			item.dataset['label'];
-		    
-		    if ($(item).attr('data-help')) {
-			label_text = label_text +
-			    "<a href='#' class='btn btn-xs' " +
-			    " data-toggle='popover' " +
-			    " data-html='true' " +
-			    " data-delay='{\"hide\":1000}' " +
-			    " data-content='" + item.dataset['help'] + "'>" +
-			    "<span class='glyphicon glyphicon-question-sign'>" +
-			    " </span></a>";
-		    }
-		    label_text = label_text + "</label>";
-		    outerdiv.append($(label_text));
-		    colsize = 10;
-		}
-		var innerdiv = $("<div class='col-sm-" + colsize + "'></div>");
-		innerdiv.html($(item).clone());
-		
-		if (_.has(errors, key)) {
-		    outerdiv.addClass('has-error');
-		    innerdiv.append('<label class="control-label" ' +
-				    'for="inputError">' +
-				    _.escape(errors[key]) + '</label>');
-		}
-		outerdiv.append(innerdiv);
-		$(item).after(outerdiv);
-		$(item).remove();
-	    }
-	});
-	return root;
     }
 
     /*
