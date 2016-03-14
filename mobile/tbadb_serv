@@ -22,7 +22,7 @@
 # 
 # }}}
 #
-package TBADBProxy::Server;
+package TBADB::Server;
 
 use strict;
 use English;
@@ -57,6 +57,7 @@ sub reboot_android($);
 sub wait_for_android($);
 sub setup_android_forward($$;$$);
 sub remove_android_forward($;$);
+sub check_adb();
 
 # RPC function dispatch table
 my %DISPATCH = (
@@ -73,8 +74,8 @@ my %DISPATCH = (
 
 # Constants
 my $DEF_LOGLEVEL = 2;
-my $PIDFILE = "/var/run/tbadb_proxy.pid";
-my $LOGFILE = "$LOGDIR/tbadb_proxy.log";
+my $PIDFILE = "/var/run/tbadb_serv.pid";
+my $LOGFILE = "$LOGDIR/tbadb_serv.log";
 my $MAPFILE = "$ETCDIR/tbadbmap";
 my $FWDDBFILE = "$BOOTDIR/tbadbfwd.db";
 my $ADB = "/usr/bin/adb";
@@ -85,6 +86,8 @@ my $HOST = "/usr/bin/host";
 my $FILE = "/usr/bin/file";
 my $RM = "/bin/rm";
 my $UNZIP = "/usr/bin/unzip";
+my $PS = "/bin/ps";
+my $GREP = "/bin/grep";
 my $IMAGE_CACHE = "/z/tbadb_img_cache";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
@@ -107,7 +110,7 @@ my $g_imglock;
 my $debug = 0;
 
 # Invoke the parent Net::Server class' run routine.
-TBADBProxy::Server->run({
+TBADB::Server->run({
     port       => TBADB_PORT,
     log_file   => $LOGFILE,
     log_level  => $DEF_LOGLEVEL,
@@ -151,7 +154,7 @@ sub post_configure {
     # Don't go into the background if debugging was requested.  
     # Increase log level.
     if ($prop->{'debug'}) {
-	warn "tbadb_proxy: debug mode requested.  Staying in foreground.\n";
+	warn "tbadb_serv: debug mode requested.  Staying in foreground.\n";
 	$debug = $prop->{'debug'};  # XXX global var for non-OO funcs.
 	$prop->{'background'} = 0;
 	$prop->{'setsid'} = 0;
@@ -173,24 +176,24 @@ sub post_configure_hook($) {
 
     # Get IP for boss server and add it to the allowed list.
     my (undef, $bossip) = tmccbossinfo();
-    die "tbadb_proxy: Could not get IP address for boss server!\n"
+    die "tbadb_serv: Could not get IP address for boss server!\n"
 	if (!$bossip || $bossip !~ /^(\d+\.\d+\.\d+\.\d+)$/);
     push @{$prop->{'cidr_allow'}}, "${1}/32";
 
     # Only allow root to run the script.
-    die("tbadb_proxy: May only be run as root!\n")
+    die("tbadb_serv: May only be run as root!\n")
 	if ($UID != 0);
 
     # Read in the node_id -> serial number map (used by non-OO funcs).
-    die "tbadb_proxy: Cannot run without serial number mapping file: $MAPFILE\n"
+    die "tbadb_serv: Cannot run without serial number mapping file: $MAPFILE\n"
 	if (!-r $MAPFILE);
     open(MFILE, "<$MAPFILE")
-	or die "tbadb_proxy: Can't open map file: $MAPFILE: $!\n";
+	or die "tbadb_serv: Can't open map file: $MAPFILE: $!\n";
     while (my $ln = <MFILE>) {
 	chomp $ln;
 	next if (!$ln || $ln =~ /^\s*#.*$/);
 	if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/) {
-	    warn "tbadb_proxy: malformed node mapping line: $ln\n";
+	    warn "tbadb_serv: malformed node mapping line: $ln\n";
 	    next;
 	}
 	$NMAP{$1} = $2;
@@ -198,8 +201,9 @@ sub post_configure_hook($) {
     }
     close(MFILE);
 
-    # Fix up adb forwarding first thing.
-    fixup_adb_forwarding();
+    # Check/fix adb server and forwarding rules.
+    die "tbadb_serv: Startup checks failed!\n"
+	if !check_adb();
 }
 
 #
@@ -214,7 +218,7 @@ sub process_request($) {
     $RPCOUT = $RPCIN;
 
     # Send "hello" To let remote end know we are ready.
-    die "tbadb_proxy: Could not send hello to caller. Terminating connection.\n"
+    die "tbadb_serv: Could not send hello to caller. Terminating connection.\n"
 	if !SendRPCData($RPCOUT, EncodeResult(-1, { HELLO => 1 }));
 
     while (1) {
@@ -222,18 +226,18 @@ sub process_request($) {
 	my $pdu;
 	my $rcode = RecvRPCData($RPCIN, \$pdu);
 	if ($rcode == -1) {
-	    warn "tbadb_proxy: timed out waiting for RPC data. Terminating connection\n";
+	    warn "tbadb_serv: timed out waiting for RPC data. Terminating connection\n";
 	    exit 1;
 	}
 	elsif ($rcode == 0) {
-	    warn "tbadb_proxy: EOF from RPC pipe. Terminating connection\n";
+	    warn "tbadb_serv: EOF from RPC pipe. Terminating connection\n";
 	    exit 1;
 	}
     
 	# Decode PDU
 	my $data = DecodeRPCData($pdu);
 	if (!$data) {
-	    warn "tbadb_proxy: unable to decode RPC data. Terminating connection.\n";
+	    warn "tbadb_serv: unable to decode RPC data. Terminating connection.\n";
 	    exit 1;
 	}
 
@@ -241,13 +245,13 @@ sub process_request($) {
 	my $func = $data->{FUNCTION};
 	if (defined($func)) {
 	    if (!exists($DISPATCH{$func})) {
-		warn "tbadb_proxy: Unkown RPC: $func. Sending error and terminating connection.\n";
+		warn "tbadb_serv: Unkown RPC: $func. Sending error and terminating connection.\n";
 		send_error($data->{FID}, RPCERR_BADFUNC, "Unknown function: $func");
 		exit 1;
 	    }
 	    $DISPATCH{$func}->($data);
 	} else {
-	    warn "tbadb_proxy: Received RPC data that was not a function call. Terminating connection.\n";
+	    warn "tbadb_serv: Received RPC data that was not a function call. Terminating connection.\n";
 	    exit 1;
 	}
     }
@@ -260,8 +264,8 @@ sub process_request($) {
 sub run_dequeue($) {
     my $self = shift;
 
-    warn "tbadb_proxy: ADB forwarding fixup task failed!\n"
-	if (!fixup_adb_forwarding());
+    warn "tbadb_serv: ADB server check failed!\n"
+	if (!check_adb());
 }
 
 ##############################################################################
@@ -278,24 +282,24 @@ sub rpc_checkimage($) {
 
     # Arg checking and untainting.
     if (!$proj || !$srcname || !$srctime || !defined($srcsize)) {
-	warn "tbadb_proxy::rpc_checkimage: Argument(s) missing from RPC!\n";
+	warn "tbadb_serv::rpc_checkimage: Argument(s) missing from RPC!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
 	exit 1;
     }
     if ($proj !~ /^([-\w]+)$/) {
-	warn "tbadb_proxy::rpc_checkimage: Malformed project argument!\n";
+	warn "tbadb_serv::rpc_checkimage: Malformed project argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
 	exit 1;
     }
     $proj = $1;
     if ($srcname !~ /^([-\.\w]+)$/) {
-	warn "tbadb_proxy::rpc_checkimage: Malformed image name argument!\n";
+	warn "tbadb_serv::rpc_checkimage: Malformed image name argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
 	exit 1;
     }
     $srcname = $1;
 
-    warn "tbadb_proxy::rpc_checkimage: Image check requested for $proj/$srcname\n";
+    warn "tbadb_serv::rpc_checkimage: Image check requested for $proj/$srcname\n";
 
     # Grab the lock for this image.
     my $lres = TBScriptLock("${proj}_${srcname}", TBSCRIPTLOCK_GLOBALWAIT,
@@ -304,7 +308,7 @@ sub rpc_checkimage($) {
 	$_ == TBSCRIPTLOCK_IGNORE && do {
 	    # Another process just did the check/transfer, so we're done.
 	    if (!SendRPCData($RPCOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
-		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+		warn "tbadb_serv::rpc_checkimage: Error sending RPC result. Exiting!\n";
 		exit 1;
 	    }
 	    return;
@@ -314,7 +318,7 @@ sub rpc_checkimage($) {
 	    last LOCKSW;
 	};
 	# Default case (error condition)
-	warn "tbadb_proxy::rpc_checkimage: Failed to get lock for: $proj/$srcname\n";
+	warn "tbadb_serv::rpc_checkimage: Failed to get lock for: $proj/$srcname\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
 	exit 1;	
     }
@@ -322,7 +326,7 @@ sub rpc_checkimage($) {
     my $projdir = "$IMAGE_CACHE/$proj";
     if (!-d $projdir) {
 	if (!mkdir($projdir, 0750)) {
-	    warn "tbadb_proxy::rpc_checkimage: Failed to create project image directory: $projdir: $!\n";
+	    warn "tbadb_serv::rpc_checkimage: Failed to create project image directory: $projdir: $!\n";
 	    send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
 	    exit 1;
 	}
@@ -342,7 +346,7 @@ sub rpc_checkimage($) {
 	    if $debug;
 	if ($imtime >= $srctime && $imsize == $srcsize) {
 	    if (!SendRPCData($RPCOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
-		warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+		warn "tbadb_serv::rpc_checkimage: Error sending RPC result. Exiting!\n";
 		exit 1;
 	    }
 	    TBScriptUnlock($g_imglock);
@@ -350,7 +354,7 @@ sub rpc_checkimage($) {
 	} else {
 	    # Delete older existing image to make way for new version.
 	    if (!unlink($imgfile)) {
-		warn "tbadb_proxy::rpc_checkimage: Could not remove old image: $imgfile\n";
+		warn "tbadb_serv::rpc_checkimage: Could not remove old image: $imgfile\n";
 		send_error($data->{FID}, RPCERR_INTERNAL, "Failed to remove older version of image.");
 		exit 1;
 	    }
@@ -360,14 +364,14 @@ sub rpc_checkimage($) {
     # Touch image's LRU file (even though the image may not have been
     # transferred yet; presumably it will be shortly).
     if (system($TOUCH, "$lrufile") != 0) {
-	warn "tbadb_proxy::rpc_checkimage: Could not update timestamp on $lrufile!\n";
+	warn "tbadb_serv::rpc_checkimage: Could not update timestamp on $lrufile!\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
 	exit 1;
     }
 
     # Check to see if we are over quota, and LRU prune if so.
     if (!do_lru_cleanup()) {
-	warn "tbadb_proxy::rpc_checkimage: Error cleaning up cache. Exiting!\n";
+	warn "tbadb_serv::rpc_checkimage: Error cleaning up cache. Exiting!\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, 
 		   "Failed while cleaning up image cache.");
 	exit 1;
@@ -382,7 +386,7 @@ sub rpc_checkimage($) {
 	     EncodeResult($data->{FID}, 
 			  { NEED_IMG => 1, 
 			    REMOTE_PATH => "$projdir" }))) {
-	warn "tbadb_proxy::rpc_checkimage: Error sending RPC result. Exiting!\n";
+	warn "tbadb_serv::rpc_checkimage: Error sending RPC result. Exiting!\n";
 	exit 1;
     }
 
@@ -401,24 +405,24 @@ sub rpc_loadimage($) {
     my $imgname = $data->{ARGS}->{IMG_NAME};
     my $proj    = $data->{ARGS}->{IMG_PROJ};
     if (!$imgname || !$node_id || !$proj) {
-	warn "tbadb_proxy::rpc_loadimage: missing RPC arguments!\n";
+	warn "tbadb_serv::rpc_loadimage: missing RPC arguments!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
 	exit 1;
     }
     if ($proj !~ /^([-\w]+)$/) {
-	warn "tbadb_proxy::rpc_loadimage: Malformed project argument!\n";
+	warn "tbadb_serv::rpc_loadimage: Malformed project argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
 	exit 1;
     }
     $proj = $1;
     if ($imgname !~ /^([-\.\w]+)$/) {
-	warn "tbadb_proxy::rpc_loadimage: Malformed image name argument!\n";
+	warn "tbadb_serv::rpc_loadimage: Malformed image name argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
 	exit 1;
     }
     $imgname = $1;
     if ($node_id !~ /^([-\w]+)$/) {
-	warn "tbadb_proxy::rpc_loadimage: Malformed node_id argument!\n";
+	warn "tbadb_serv::rpc_loadimage: Malformed node_id argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
 	exit 1;
     }
@@ -434,13 +438,13 @@ sub rpc_loadimage($) {
 	if fileno($g_imglock);
     my $fname = "$IMAGE_CACHE/$proj/$imgname";
     if (!-f $fname) {
-	warn "tbadb_proxy::rpc_loadimage: no such image file: $fname\n";
+	warn "tbadb_serv::rpc_loadimage: no such image file: $fname\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "No such image.");
 	exit 1;
     }
 
     # Load image on to unit and report success/fail to caller.
-    warn "tbadb_proxy::rpc_loadimage: loading image $proj/$imgname on to $node_id\n";
+    warn "tbadb_serv::rpc_loadimage: loading image $proj/$imgname on to $node_id\n";
     
     # Step 1: Make sure all required image files are present.
     my $image_staging_dir = "$fname.work";
@@ -454,18 +458,18 @@ sub rpc_loadimage($) {
     my $boot_image = "$image_staging_dir/boot.img";
     # This may block.
     if (!unpack_bundle($fname, $image_staging_dir)) {
-	warn "tbadb_proxy::rpc_loadimage: Could not unpack image bundle!\n";
+	warn "tbadb_serv::rpc_loadimage: Could not unpack image bundle!\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, "Image unpack failed.");
 	exit 1;
     }
     if (!-r $boot_image) {
-	warn "tbadb_proxy::rpc_loadimage: boot.img missing from bundle!\n";
+	warn "tbadb_serv::rpc_loadimage: boot.img missing from bundle!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "boot.img missing from bundle.");
 	exit 1;
     }
     my $system_image = "$image_staging_dir/system.img";
     if (!-r $system_image) {
-	warn "tbadb_proxy::rpc_loadimage: system.img missing from bundle!\n";
+	warn "tbadb_serv::rpc_loadimage: system.img missing from bundle!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "system.img missing from bundle.");
 	exit 1;
     }
@@ -473,12 +477,12 @@ sub rpc_loadimage($) {
     # Step 2: Reload the partitions based on the images we setup above.
     if (!-r $recovery_image || !-r $boot_image || #!-r $userdata_image ||
 	!-r $cache_image || !-r $system_image ) {
-	warn "tbadb_proxy::rpc_loadimage: one or more images missing!\n";
+	warn "tbadb_serv::rpc_loadimage: one or more images missing!\n";
 	send_error($data->{FID}, RPCERR_INTERNAL, "Missing images.");
 	exit 1;
     }
     if (!enter_fastboot($node_id)) {
-	warn "tbadb_proxy::rpc_loadimage: failed to boot $node_id into fastboot!\n";
+	warn "tbadb_serv::rpc_loadimage: failed to boot $node_id into fastboot!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Node failed to load into fastboot.");
 	exit 1;
     }
@@ -488,14 +492,14 @@ sub rpc_loadimage($) {
 	  load_android_image($node_id, IMG_CACHE,    $cache_image) &&
 	  load_android_image($node_id, IMG_SYSTEM,   $system_image)
 	)) {
-	warn "tbadb_proxy::rpc_loadimage: failed to load images on $node_id!\n";
+	warn "tbadb_serv::rpc_loadimage: failed to load images on $node_id!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load images.");
 	exit 1;
     }
 
     # Step 3: reboot into newly loaded image
     if (!reboot_android($node_id)) {
-	warn "tbadb_proxy::rpc_loadimage: newly loaded image failed to boot!\n";
+	warn "tbadb_serv::rpc_loadimage: newly loaded image failed to boot!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.");
 	exit 1;
     }
@@ -511,7 +515,7 @@ sub rpc_captureimage($) {
     my ($data) = @_;
 
     # XXX: fill me in!
-    warn "tbadb_proxy::rpc_captureimage: Called...\n";
+    warn "tbadb_serv::rpc_captureimage: Called...\n";
     send_error($data->{FID}, RPCERR_NOTIMPL, "captureimage not implemented yet.");
     return;
 }
@@ -526,7 +530,7 @@ sub rpc_reboot($) {
     # Do a bit of arg checking.
     $dowait = defined($dowait) && int($dowait) ? 1 : 0;
     if (!$node_id) {
-	warn "tbadb_proxy::rpc_reboot: No node_id provided in RPC args!\n";
+	warn "tbadb_serv::rpc_reboot: No node_id provided in RPC args!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "node_id missing.");
 	exit 1;
     }
@@ -538,25 +542,25 @@ sub rpc_reboot($) {
     my $serial = $NMAP{$node_id};
 
     # Reboot the unit.
-    warn "tbadb_proxy::rpc_reboot: rebooting node $node_id\n";
+    warn "tbadb_serv::rpc_reboot: rebooting node $node_id\n";
     if (!reboot_android($node_id)) {
-	warn "tbadb_proxy::rpc_reboot: failed to reboot $node_id!\n";
+	warn "tbadb_serv::rpc_reboot: failed to reboot $node_id!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Reboot failed.");
 	exit 1;
     }
 
     # Wait for device to boot up, if requested to do so.
     if ($dowait) {
-	warn "tbadb_proxy::rpc_reboot: waiting for $node_id to come up.\n";
+	warn "tbadb_serv::rpc_reboot: waiting for $node_id to come up.\n";
 	if (!wait_for_node($node_id)) {
-	    warn "tbadb_proxy::rpc_reboot: failed waiting for $node_id to boot!\n";
+	    warn "tbadb_serv::rpc_reboot: failed waiting for $node_id to boot!\n";
 	    send_error($data->{FID}, RPCERR_NODE_ERR, "Boot failed.");
 	    exit 1;
 	}
     }
 
     # Report success.
-    warn "tbadb_proxy::rpc_reboot: reboot of $node_id finished.\n";
+    warn "tbadb_serv::rpc_reboot: reboot of $node_id finished.\n";
     SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
@@ -569,18 +573,18 @@ sub rpc_forward($) {
     my $thost    = $data->{ARGS}->{TARGET_HOST};
 
     if (!$node_id || !$thost) {
-	warn "tbadb_proxy::rpc_forward: Missing RPC args!\n";
+	warn "tbadb_serv::rpc_forward: Missing RPC args!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
 	exit 1;
     }
     if ($node_id !~ /^([-\w]+)$/) {
-	warn "tbadb_proxy::rpc_forward: Malformed node_id argument!\n";
+	warn "tbadb_serv::rpc_forward: Malformed node_id argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
 	exit 1;
     }
     $node_id = $1;
     if ($thost !~ /^([-\.\w]+)$/) {
-	warn "tbadb_proxy::rpc_forward: Malformed target host argument!\n";
+	warn "tbadb_serv::rpc_forward: Malformed target host argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed target host argument.");
 	exit 1;
     }
@@ -594,16 +598,16 @@ sub rpc_forward($) {
 
     # Setup forwarding from the ADB daemon on the unit to the
     # destionation port, and report back to caller!
-    warn "tbadb_proxy::rpc_forward: fowarding ADB on node $node_id to destination host $thost\n";
+    warn "tbadb_serv::rpc_forward: fowarding ADB on node $node_id to destination host $thost\n";
     my $port = setup_android_forward($node_id, $thost);
     if (!$port) {
-	warn "tbadb_proxy::rpc_forward: failed to setup adb port forwarding for $node_id to $thost\n";
+	warn "tbadb_serv::rpc_forward: failed to setup adb port forwarding for $node_id to $thost\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "adb forwarding failed.");
 	exit 1;
     }
 
     # Report success.
-    warn "tbadb_proxy::rpc_forward: forwarding setup for $node_id finished.\n";
+    warn "tbadb_serv::rpc_forward: forwarding setup for $node_id finished.\n";
     SendRPCData($RPCOUT, EncodeResult($data->{FID}, { PORT => $port }));
     return;
 }
@@ -615,12 +619,12 @@ sub rpc_unforward($) {
     my $node_id  = $data->{ARGS}->{NODE_ID};
 
     if (!$node_id) {
-	warn "tbadb_proxy::rpc_unforward: Missing node_id argument!\n";
+	warn "tbadb_serv::rpc_unforward: Missing node_id argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "node_id argument missing.");
 	exit 1;
     }
     if ($node_id !~ /^([-\w]+)$/) {
-	warn "tbadb_proxy::rpc_unforward: Malformed node_id argument!\n";
+	warn "tbadb_serv::rpc_unforward: Malformed node_id argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
 	exit 1;
     }
@@ -628,15 +632,15 @@ sub rpc_unforward($) {
 
     # Setup forwarding from the ADB daemon on the unit to the
     # destionation port, and report back to caller!
-    warn "tbadb_proxy::rpc_unforward: removing ADB forwarding setup for node $node_id\n";
+    warn "tbadb_serv::rpc_unforward: removing ADB forwarding setup for node $node_id\n";
     if (!remove_android_forward($node_id)) {
-	warn "tbadb_proxy::rpc_unforward: failed to clear adb port forwarding for $node_id!\n";
+	warn "tbadb_serv::rpc_unforward: failed to clear adb port forwarding for $node_id!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "adb forwarding removal failed.");
 	exit 1;
     }
 
     # Report success.
-    warn "tbadb_proxy::rpc_unforward: forwarding cleared for $node_id\n";
+    warn "tbadb_serv::rpc_unforward: forwarding cleared for $node_id\n";
     SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
@@ -648,27 +652,27 @@ sub rpc_nodewait($) {
     my $node_id  = $data->{ARGS}->{NODE_ID};
 
     if (!$node_id) {
-	warn "tbadb_proxy::rpc_nodewait: Missing node_id argument!\n";
+	warn "tbadb_serv::rpc_nodewait: Missing node_id argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "node_id argument missing.");
 	exit 1;
     }
     if ($node_id !~ /^([-\w]+)$/) {
-	warn "tbadb_proxy::rpc_nodewait: Malformed node_id argument!\n";
+	warn "tbadb_serv::rpc_nodewait: Malformed node_id argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
 	exit 1;
     }
     $node_id = $1;
 
     # Wait for a while for the node to appear in adb.
-    warn "tbadb_proxy::rpc_nodewait: waiting for $node_id to become available.\n";
+    warn "tbadb_serv::rpc_nodewait: waiting for $node_id to become available.\n";
     if (!wait_for_android($node_id)) {
-	warn "tbadb_proxy::rpc_nodewait: failed while waiting for $node_id!\n";
+	warn "tbadb_serv::rpc_nodewait: failed while waiting for $node_id!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "node wait failed.");
 	exit 1;
     }
 
     # Report success.
-    warn "tbadb_proxy::rpc_nodewait: $node_id is now ready.\n";
+    warn "tbadb_serv::rpc_nodewait: $node_id is now ready.\n";
     SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
@@ -712,7 +716,7 @@ sub do_lru_cleanup() {
 
     # Make sure the cache dir actually exists.
     if (!-d $IMAGE_CACHE) {
-	warn "tbadb_proxy::do_lru_cleanup: Image dir is not valid: $IMAGE_CACHE\n";
+	warn "tbadb_serv::do_lru_cleanup: Image dir is not valid: $IMAGE_CACHE\n";
 	return 0;
     }
 
@@ -730,14 +734,14 @@ sub do_lru_cleanup() {
 	    last LOCKSW;
 	};
 	# Default case (error condition)
-	warn "tbadb_proxy::do_lru_cleanup: Failed to get the LRU lock!\n";
+	warn "tbadb_serv::do_lru_cleanup: Failed to get the LRU lock!\n";
 	return 0;
     }
 
     # Read entries in cache dir and tally size
     my $dh;
     if (!opendir($dh, $IMAGE_CACHE)) {
-	warn "tbadb_proxy::do_lru_cleanup: Failed to clean up img dir!\n";
+	warn "tbadb_serv::do_lru_cleanup: Failed to clean up img dir!\n";
 	goto BADLRU;
     }
     while (my $ent = readdir($dh)) {
@@ -746,7 +750,7 @@ sub do_lru_cleanup() {
 	next if ($ent eq "PNSYSTEM"); # Skip system dir.
 	my $subdh;
 	if (!opendir($subdh, $dname)) {
-	    warn "tbadb_proxy::do_lru_cleanup: Could not descend into $dname\n";
+	    warn "tbadb_serv::do_lru_cleanup: Could not descend into $dname\n";
 	    $err = 1;
 	    last;
 	}
@@ -755,9 +759,9 @@ sub do_lru_cleanup() {
 	    my $imfile  = "$dname/$subent";
 	    my $lrufile = "$dname/.$subent.lru";
 	    if (!-e $lrufile) {
-		warn "tbadb_proxy::do_lru_cleanup: creating missing LRU file for: $imfile";
+		warn "tbadb_serv::do_lru_cleanup: creating missing LRU file for: $imfile";
 		if (system($TOUCH, "$lrufile") != 0) {
-		    warn "tbadb_proxy::do_lru_cleanup: could not create LRU file: $lrufile\n";
+		    warn "tbadb_serv::do_lru_cleanup: could not create LRU file: $lrufile\n";
 		    $err = 1;
 		    last;
 		}
@@ -765,16 +769,16 @@ sub do_lru_cleanup() {
 	    my $lutime  = (stat($lrufile))[9];
 	    my $imsize  = (stat($imfile))[7];
 	    if (!defined($lutime) || $lutime < 0) {
-		warn "tbadb_proxy::do_lru_cleanup: Something weird happened while trying to stat $lrufile!\n";
+		warn "tbadb_serv::do_lru_cleanup: Something weird happened while trying to stat $lrufile!\n";
 		$err = 1;
 		last;
 	    }
 	    if (!defined($imsize) || $imsize < 0) {
-		warn "tbadb_proxy::do_lru_cleanup: Something weird happened while trying to stat $imfile!\n";
+		warn "tbadb_serv::do_lru_cleanup: Something weird happened while trying to stat $imfile!\n";
 		$err = 1;
 		last;
 	    }
-	    warn "tbadb_proxy::do_lru_cleanup: image file found: $ent/$subent:$lutime:$imsize\n"
+	    warn "tbadb_serv::do_lru_cleanup: image file found: $ent/$subent:$lutime:$imsize\n"
 		if $debug;
 	    push @files, [$imfile, $lutime, $imsize];
 	    $tot += $imsize;
@@ -787,17 +791,17 @@ sub do_lru_cleanup() {
 
     # Prune?
     if ($tot > $WM_HIGH) {
-	warn "tbadb_proxy::do_lru_cleanup: Invoking LRU cleanup ($tot)\n";
+	warn "tbadb_serv::do_lru_cleanup: Invoking LRU cleanup ($tot)\n";
 	my @sortedfiles = sort { $a->[1] <=> $b->[1] } @files;
 	while ($tot > $WM_LOW && scalar(@sortedfiles)) {
 	    my ($imfile, undef, $imsize) = @{shift(@sortedfiles)};
 	    $imfile =~ /^(.+)\/(.+)$/;
 	    my $lrufile = "$1/.$2.lru";
 	    if (!unlink($imfile, $lrufile)) {
-		warn "tbadb_proxy::do_lru_cleanup: Could not remove $imfile: $!\n";
+		warn "tbadb_serv::do_lru_cleanup: Could not remove $imfile: $!\n";
 		goto BADLRU;
 	    }
-	    warn "tbadb_proxy::do_lru_cleanup: removed file $imfile\n";
+	    warn "tbadb_serv::do_lru_cleanup: removed file $imfile\n";
 	    $tot -= $imsize;
 	}
 	if ($tot > $WM_LOW) {
@@ -816,7 +820,7 @@ sub do_lru_cleanup() {
 
 # Unpack a zip bundle containting one or more android image files. Do NOT
 # call this function without a lock!  It should not run in parallel across
-# tbadb_proxy processes for the same image bundle.
+# tbadb_serv processes for the same image bundle.
 sub unpack_bundle($$) {
     my ($fname, $destdir) = @_;
     my $unpack_lock;
@@ -824,32 +828,32 @@ sub unpack_bundle($$) {
     # Grab the unpack lock.
     if (TBScriptLock("unpacklock", undef, 
 		     $UNPACKLOCK_TMO, \$unpack_lock) != TBSCRIPTLOCK_OKAY) {
-	warn "tbadb_proxy::unpack_bundle: Failed to get the unpack lock!\n";
+	warn "tbadb_serv::unpack_bundle: Failed to get the unpack lock!\n";
 	return 0;
     }
 
     # Make sure image is a zip bundle
     my $ftype = `$FILE -b -i $fname 2>&1`;
     if ($ftype !~ /application\/zip/) {
-	warn "tbadb_proxy::unpack_bundle: file is not a zip bundle: $fname\n";
+	warn "tbadb_serv::unpack_bundle: file is not a zip bundle: $fname\n";
 	goto BADUNPACK;
     }
     # Delete the old destdir if it exists and is older than the image.
     if (-d $destdir &&
 	(stat($destdir))[9] < (stat($fname))[9]) {
 	if (system("$RM -rf $destdir >/dev/null 2>&1") != 0) {
-	    warn "tbadb_proxy::unpack_bundle: could not remove existing workdir for image bundle: $fname\n";
+	    warn "tbadb_serv::unpack_bundle: could not remove existing workdir for image bundle: $fname\n";
 	    goto BADUNPACK;
 	}
     }
     # If the image directory doesn't exist, we must unpack!
     if (!-d $destdir) {
 	if (!mkdir($destdir, 0750)) {
-	    warn "tbadb_proxy::unpack_bundle: could not create workdir for image bundle: $fname: $!\n";
+	    warn "tbadb_serv::unpack_bundle: could not create workdir for image bundle: $fname: $!\n";
 	    goto BADUNPACK;
 	}
 	if (system("$UNZIP -d $destdir $fname >/dev/null 2>&1") != 0) {
-	    warn "tbadb_proxy::unpack_bundle: failed to unpack image bundle: $fname\n";
+	    warn "tbadb_serv::unpack_bundle: failed to unpack image bundle: $fname\n";
 	    goto BADUNPACK;
 	}
     }
@@ -868,7 +872,7 @@ sub enter_fastboot($) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::enter_fastboot: No serial number for $node_id!\n";
+	warn "tbadb_serv::enter_fastboot: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -891,13 +895,13 @@ sub enter_fastboot($) {
 	    $state = `$FASTBOOT devices 2>&1`;
 	    return 1 if $state =~ /$serial\s+fastboot/;
 	    if (time() - $stime > $FASTBOOT_TMO) {
-		warn "tbadb_proxy::enter_fastboot: timed out waiting for $node_id\n";
+		warn "tbadb_serv::enter_fastboot: timed out waiting for $node_id\n";
 		return 0;
 	    }
 	}
     }
 
-    warn "tbadb_proxy::enter_fastboot: Could not find device!\n";
+    warn "tbadb_serv::enter_fastboot: Could not find device!\n";
     return 0;
 }
 
@@ -907,19 +911,19 @@ sub load_android_image($$$) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::load_android_image: No serial number for $node_id!\n";
+	warn "tbadb_serv::load_android_image: No serial number for $node_id!\n";
 	return 0;
     }
 
     my $state = `$FASTBOOT devices 2>&1`;
     if ($state !~ /$serial\s+fastboot/) {
-	warn "tbadb_proxy::load_android_image: device $node_id is not in fastboot. Can't flash image!";
+	warn "tbadb_serv::load_android_image: device $node_id is not in fastboot. Can't flash image!";
 	return 0;
     }
 
     my $imgout = `$FASTBOOT -u -s $serial flash $partition $impath 2>&1`;
     if ($?) {
-	warn "tbadb_proxy::load_android_image: fastboot failed to flash $partition with $impath on $node_id!\n";
+	warn "tbadb_serv::load_android_image: fastboot failed to flash $partition with $impath on $node_id!\n";
 	warn "Output:\n$imgout\n";
 	return 0;
     }
@@ -933,7 +937,7 @@ sub reboot_android($) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::reboot_android: No serial number for $node_id!\n";
+	warn "tbadb_serv::reboot_android: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -941,7 +945,7 @@ sub reboot_android($) {
     my $state = `$FASTBOOT devices 2>&1`;
     if ($state =~ /$serial\s+fastboot/) {
 	if (system("$FASTBOOT -s $serial reboot >/dev/null 2>&1") != 0) {
-	    warn "tbadb_proxy::reboot_android: fastboot failed to reboot $node_id!\n";
+	    warn "tbadb_serv::reboot_android: fastboot failed to reboot $node_id!\n";
 	    return 0;
 	}
     } else {
@@ -949,11 +953,11 @@ sub reboot_android($) {
 	chomp $state;
 	if ($state ne "unknown") {
 	    if (system("$ADB -s $serial reboot") != 0) {
-		warn "tbadb_proxy::reboot_android: adb failed to reboot $node_id!\n";
+		warn "tbadb_serv::reboot_android: adb failed to reboot $node_id!\n";
 		return 0;
 	    }
 	} else {
-	    warn "tbadb_proxy::reboot_android: could not find device $node_id!\n";
+	    warn "tbadb_serv::reboot_android: could not find device $node_id!\n";
 	    return 0;
 	}
     }
@@ -969,7 +973,7 @@ sub wait_for_android($) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::wait_for_android: No serial number for $node_id!\n";
+	warn "tbadb_serv::wait_for_android: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -981,7 +985,7 @@ sub wait_for_android($) {
 	    last;
 	}
 	if (time() - $stime > $ANDROID_BOOT_TMO) {
-	    warn "tbadb_proxy::wait_for_android: timed out waiting for $node_id to boot!\n";
+	    warn "tbadb_serv::wait_for_android: timed out waiting for $node_id to boot!\n";
 	    return 0;
 	}
 	sleep 5;
@@ -999,7 +1003,7 @@ sub setup_android_forward($$;$$) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::setup_android_forward: No serial number for $node_id!\n";
+	warn "tbadb_serv::setup_android_forward: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -1009,7 +1013,7 @@ sub setup_android_forward($$;$$) {
 	if ($tres =~ /has address ([\.\d]+)/) {
 	    $thost = $1;
 	} else {
-	    warn "tbadb_proxy::setup_android_forward: could not lookup ip for host $thost\n";
+	    warn "tbadb_serv::setup_android_forward: could not lookup ip for host $thost\n";
 	    return 0;
 	}
     }
@@ -1018,7 +1022,7 @@ sub setup_android_forward($$;$$) {
     if ($locknload) {
 	if (TBScriptLock("fwdports", undef, 
 			 $FWDLOCK_TMO, \$fwd_lock) != TBSCRIPTLOCK_OKAY) {
-	    warn "tbadb_proxy::setup_android_forward: Failed to get the forwarding lock!\n";
+	    warn "tbadb_serv::setup_android_forward: Failed to get the forwarding lock!\n";
 	    return 0;
 	}
 	# Tie to the forwarding ports DB file.
@@ -1031,7 +1035,7 @@ sub setup_android_forward($$;$$) {
 
     # Scour any existing forwarding setup for the device
     if (!remove_android_forward($node_id, 0)) {
-	warn "tbadb_proxy::setup_android_forward: could not remove old forwarding setup for $node_id!\n";
+	warn "tbadb_serv::setup_android_forward: could not remove old forwarding setup for $node_id!\n";
 	goto BADFWD;
     }
 
@@ -1047,7 +1051,7 @@ sub setup_android_forward($$;$$) {
 	    last;
 	}
 	if ($pnum >= $MAXPORT) {
-	    warn "tbadb_proxy::setup_android_forward: No available ports!\n";
+	    warn "tbadb_serv::setup_android_forward: No available ports!\n";
 	    goto BADFWD;
 	}
 	$port = $pnum;
@@ -1056,13 +1060,13 @@ sub setup_android_forward($$;$$) {
 
     # Setup iptables rule to only allow connections from target
     if (system("$IPTABLES -A INPUT ! -s $thost -p tcp --dport $port -m comment --comment '$serial' -j DROP >/dev/null 2>&1") != 0) {
-	warn "tbadb_proxy::setup_android_forward: could not setup iptables rule to limit connections for $node_id via port $port to target host IP $thost\n";
+	warn "tbadb_serv::setup_android_forward: could not setup iptables rule to limit connections for $node_id via port $port to target host IP $thost\n";
 	goto BADFWD;
     }
 
     # Forward!
     if (system("$ADB -s $serial forward tcp:$port tcp:5555 >/dev/null 2>&1") != 0) {
-	warn "tbadb_proxy::setup_android_forward: could not forward adbd port on node_id to local port $port!\n";
+	warn "tbadb_serv::setup_android_forward: could not forward adbd port on node_id to local port $port!\n";
 	goto BADFWD;
     }
 
@@ -1090,7 +1094,7 @@ sub remove_android_forward($;$) {
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
-	warn "tbadb_proxy::remove_android_forward: No serial number for $node_id!\n";
+	warn "tbadb_serv::remove_android_forward: No serial number for $node_id!\n";
 	return 0;
     }
 
@@ -1099,7 +1103,7 @@ sub remove_android_forward($;$) {
 	# Grab forwarding lock
 	if (TBScriptLock("fwdports", undef, 
 			 $FWDLOCK_TMO, \$fwd_lock) != TBSCRIPTLOCK_OKAY) {
-	    warn "tbadb_proxy::remove_android_forward: Failed to get the forwarding lock!\n";
+	    warn "tbadb_serv::remove_android_forward: Failed to get the forwarding lock!\n";
 	    return 0;
 	}
 	# Tie to the forwarding ports DB file.
@@ -1113,7 +1117,7 @@ sub remove_android_forward($;$) {
     # Clear the adb forwarding.
     my $adb_fwd_list = `$ADB forward --list 2>&1`;
     if ($? != 0) {
-	warn "tbadb_proxy::remove_android_forward: unable to list adb forwarded ports!\n";
+	warn "tbadb_serv::remove_android_forward: unable to list adb forwarded ports!\n";
 	goto BADFWD;
     }
     my $portnum = 0;
@@ -1124,14 +1128,14 @@ sub remove_android_forward($;$) {
 	}
     }
     if ($portnum && system("$ADB -s $serial forward --remove tcp:$portnum >/dev/null 2>&1") != 0) {
-	warn "tbadb_proxy::remove_android_forward: unable to remove adb forward for $node_id!\n";
+	warn "tbadb_serv::remove_android_forward: unable to remove adb forward for $node_id!\n";
 	goto BADFWD;
     }
 
     # Clear the iptables rule.
     my $ipt_rules = `$IPTABLES -L INPUT --line-numbers 2>&1`;
     if ($? != 0) {
-	warn "tbadb_proxy::remove_android_forward: unable to list iptables rules!\n";
+	warn "tbadb_serv::remove_android_forward: unable to list iptables rules!\n";
 	goto BADFWD;
     }
 
@@ -1143,7 +1147,7 @@ sub remove_android_forward($;$) {
 	}
     }
     if ($rulenum && system("$IPTABLES -D INPUT $rulenum >/dev/null 2>&1") != 0) {
-	warn "tbadb_proxy::remove_android_forward: unable to clear iptables rule for $node_id!\n";
+	warn "tbadb_serv::remove_android_forward: unable to clear iptables rule for $node_id!\n";
 	goto BADFWD;
     }
 
@@ -1170,36 +1174,71 @@ sub remove_android_forward($;$) {
     return 0;
 }
 
-# Helper that iterates over forwarding database on disk and fixes
-# things up to match.
-sub fixup_adb_forwarding() {
+# Helper that ensures adb server is running, fowarding is setup,
+# and iptables rules are in place.
+sub check_adb() {
     my $fwd_lock;
     my %adb_p2s = ();
     my %ipt_p2s = ();
     my %ipt_p2h = ();
 
-    warn "tbadb_proxy::fix_adb_forwarding: Checking forwarding setup.\n"
+    warn "tbadb_serv::check_adb: Running check.\n"
 	if $debug;
 
-    # Grab forwarding lock
+    # Grab forwarding lock (doubles as IPT lock).
     if (TBScriptLock("fwdports", undef, 
 		     $FWDLOCK_TMO, \$fwd_lock) != TBSCRIPTLOCK_OKAY) {
-	warn "tbadb_proxy::fixup_adb_forwarding: Failed to get the forwarding lock!\n";
+	warn "tbadb_serv::check_adb: Failed to get the forwarding lock!\n";
 	return 0;
+    }
+
+    # Ensure rule to block remote traffic to adb server is in place.
+    my $rules = `$IPTABLES -L INPUT -n`;
+    if ($? != 0) {
+	warn "tbadb_serv::check_adb: failed to list ipt rules!\n";
+	goto BADCHK;
+    }
+    my $srvfound = 0;
+    foreach my $rule (split(/\n/, $rules)) {
+	$srvfound = 1 if ($rule =~ /^DROP.*dpt:5037/);
+	if ($rule =~ /^DROP\s+tcp\s+--\s+!([\.\d]+)\s.+dpt:(\d+)\s+\/\* (\w+) \*\//i) {
+	    my ($thost, $port, $serial) = ($1, $2, $3);
+	    $ipt_p2s{$port} = $serial;
+	    $ipt_p2h{$port} = $thost;
+	}
+    }
+    if (!$srvfound) {
+	warn "tbadb_serv::check_adb: adding ipt block rule for adb server.\n";
+	if(system("$IPTABLES -A INPUT ! -s localhost -p tcp -m tcp --dport 5037 -j DROP") != 0) {
+	    warn "tbadb_serv::check_adb: failed to add ipt rule to block traffic to adb server!\n";
+	    goto BADCHK;
+	}
+    }
+
+    # Make sure the adb server is running.
+    my $isrunning = 
+	system("$PS auxwww | $GREP 'adb.*fork-server' | $GREP -qv grep") == 0;
+    if (!$isrunning) {
+	warn "tbadb_serv::check_adb: (re)starting adb server.\n";
+	if (system("$ADB -a -P 5037 fork-server server &") != 0) {
+	    warn "tbadb_serv::check_adb_server: could not start adb server!\n";
+	    goto BADCHK;
+	}
+	sleep 2;
     }
 
     # Tie to the forwarding ports DB file.
     if (!tie(%FWDPORTS, 'DB_File', $FWDDBFILE, 
 	     O_RDWR | O_CREAT, 0755, $DB_HASH)) {
-	warn "tbadb_proxy::fixup_adb_forwarding: unable to load forwarding database!\n";
-	goto BADFWD;
+	warn "tbadb_serv::check_adb: unable to load forwarding database!\n";
+	goto BADCHK;
     }
 
     # Get the set of ADB forwarded ports.
     my $adb_fwd_list = `$ADB forward --list 2>&1`;
     if ($? != 0) {
-	warn "tbadb_proxy::fixup_adb_forwarding: unable to list adb forwarded ports!\n";
-	goto BADFWD;
+	warn "tbadb_serv::check_adb: unable to list adb forwarded ports!\n";
+	goto BADCHK;
     }
     foreach my $fwd (split(/\n/, $adb_fwd_list)) {
 	if ($fwd =~ /^(\w+)\s+tcp:(\d+)\s+/i) {
@@ -1208,27 +1247,13 @@ sub fixup_adb_forwarding() {
 	}
     }
 
-    # Get the current list of iptables rules.
-    my $ipt_rules = `$IPTABLES -L INPUT -n 2>&1`;
-    if ($? != 0) {
-	warn "tbadb_proxy::fixup_adb_forwarding: unable to list iptables rules!\n";
-	goto BADFWD;
-    }
-    foreach my $rule (split(/\n/, $ipt_rules)) {
-	if ($rule =~ /^DROP\s+tcp\s+--\s+!([\.\d]+)\s.+dpt:(\d+)\s+\/\* (\w+) \*\//i) {
-	    my ($thost, $port, $serial) = ($1, $2, $3);
-	    $ipt_p2s{$port} = $serial;
-	    $ipt_p2h{$port} = $thost;
-	}
-    }
-
     # First, sync up entries for devices in the forwarding database.
     my @todo = ();
-    FWPORTS: while (my ($port, $val) = each %FWDPORTS) {
+    while (my ($port, $val) = each %FWDPORTS) {
 	my ($node_id, $thost) = split(/,/, $val);
 	my $serial = $NMAP{$node_id};
 	if (!$serial) {
-	    warn "tbadb_proxy::fixup_adb_forwarding: no serial number found for $node_id!\n";
+	    warn "tbadb_serv::check_adb: no serial number found for $node_id!\n";
 	    delete $FWDPORTS{$port};
 	    next;
 	}
@@ -1257,22 +1282,22 @@ sub fixup_adb_forwarding() {
     # earlier in this function.
     while (my ($port, $serial) = each %adb_p2s) {
 	system("$ADB -s $serial forward --remove tcp:$port >/dev/null 2>&1") == 0 
-	    or warn "tbadb_proxy::fixup_adb_forwarding: Could not remove stale ADB forwarding entry: $serial,$port\n";
+	    or warn "tbadb_serv::check_adb: Could not remove stale ADB forwarding entry: $serial,$port\n";
     }
     while (my ($port, $serial) = each %ipt_p2s) {
 	my $thost = $ipt_p2h{$port};
 	system("$IPTABLES -D INPUT ! -s $thost -p tcp --dport $port -m comment --comment '$serial' -j DROP >/dev/null 2>&1") == 0
-	    or warn "tbadb_proxy::fixup_adb_forwarding: Could not remove stale IPT filter rule: $thost,$port,$serial\n";
+	    or warn "tbadb_serv::check_adb: Could not remove stale IPT filter rule: $thost,$port,$serial\n";
     }
 
-    warn "tbadb_proxy::fix_adb_forwarding: Done checking.\n"
+    warn "tbadb_serv::check_adb: Done checking.\n"
 	if $debug;
 
     untie(%FWDPORTS);
     TBScriptUnlock($fwd_lock);
     return 1;
 
-  BADFWD:
+  BADCHK:
     untie(%FWDPORTS);
     TBScriptUnlock($fwd_lock);
     return 0;
