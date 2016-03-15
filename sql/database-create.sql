@@ -66,6 +66,7 @@ CREATE TABLE `apt_aggregates` (
   `abbreviation` varchar(16) NOT NULL default '',
   `adminonly` tinyint(1) NOT NULL default '0',
   `isfederate` tinyint(1) NOT NULL default '0',
+  `disabled` tinyint(1) NOT NULL default '0',
   `noupdate` tinyint(1) NOT NULL default '0',
   `updated` datetime NOT NULL default '0000-00-00 00:00:00',
   `weburl` tinytext,
