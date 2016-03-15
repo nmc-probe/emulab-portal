@@ -42,6 +42,7 @@ LIB_DEPENDS= libxml2.so:${PORTSDIR}/textproc/libxml2
 
 # apps
 RUN_DEPENDS+=	\
+	abac:${PORTSDIR}/misc/abac \
 	xmlsec1:${PORTSDIR}/security/xmlsec1
 
 # perl packages
