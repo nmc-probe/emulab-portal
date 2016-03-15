@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -108,7 +108,8 @@ class Aggregate
 
         $query_result =
             DBQueryFatal("select urn,name,adminonly from apt_aggregates ".
-                         "where FIND_IN_SET('$PORTAL_GENESIS', portals)");
+                         "where disabled=0 and ".
+                         "      FIND_IN_SET('$PORTAL_GENESIS', portals)");
         
 	while ($row = mysql_fetch_array($query_result)) {
             $urn       = $row["urn"];
