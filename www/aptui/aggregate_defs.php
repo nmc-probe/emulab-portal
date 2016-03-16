@@ -85,7 +85,7 @@ class Aggregate
 
 	$query_result =
 	    DBQueryFatal("select urn from apt_aggregates ".
-			 "where has_datasets!=0");
+			 "where has_datasets!=0 and disabled=0");
 
 	while ($row = mysql_fetch_array($query_result)) {
 	    $urn = $row["urn"];
