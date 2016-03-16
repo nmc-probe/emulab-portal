@@ -750,6 +750,13 @@ foreach my $aggregate_urn (@aggregate_urns) {
     if (!defined($aggobj)) {
 	fatal("Could not create aggregate object for $aggregate_urn");
     }
+    # Check for disabled/adminonly aggregates.
+    if ($aggobj->disabled()) {
+        UserError("$aggregate_urn is currently offline, try again later");
+    }
+    if ($aggobj->adminonly()) {
+        UserError("Only administrators may use $aggregate_urn");
+    }
     $aggobj->_authority($authority);
     push(@aggregate_list, $aggobj);
 }
