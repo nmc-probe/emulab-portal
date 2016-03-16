@@ -398,6 +398,7 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 		/usr/lib/xen-default/lib/python/grub/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/topd $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/topd-init $(SYSETCDIR)/init.d/topd
+	/usr/bin/update-rc.d topd defaults
 
 genirack-install:
 	$(INSTALL) -m 755 $(SRCDIR)/xen/restorevm.pl $(BINDIR)/restorevm.pl
