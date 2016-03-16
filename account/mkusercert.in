@@ -207,7 +207,10 @@ if (defined($options{"c"}) || defined($options{"C"})) {
     if (defined($options{"c"})) {
 	$old_password = $options{"c"};
     }
-    elsif ($target_user->SSLPassPhrase(1, \$old_password) == 0) {
+    elsif ($target_user->SSLPassPhrase(1, \$old_password)) {
+	$old_password = undef;
+    }
+    if (defined($old_password)) {
 	#
 	# Make sure its all escaped since any printable char is allowed.
 	#
