@@ -1,0 +1,28 @@
+<div>
+  <table class='tablesorter' id='members_table'>
+    <thead>
+      <tr>
+	<th>UID</th>
+	<th>Name</th>
+	<th>Email</th>
+	<th>Joined</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% _.each(members, function(value, uid) { %>
+	<tr>
+	  <td><a href='user-dashboard.php?user=<%- uid %>'><%= uid %></a></td>
+	  <td><%= value.name %></td>
+	  <td><a href="mailto:<%= value.email %>"><%= value.email %></a></td>
+	  <td>
+	    <span class="format-date
+			 <% if (!value.approved) { %>text-danger<% } %>">
+	      <%- value.joined %></span>
+	  </td>
+	</tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+

@@ -56,7 +56,7 @@
 	      <td class='border-none'>Creator:</td>
 	      <td class='border-none'>
 		<% if (registered) { %>
-		  <a href="https://www.emulab.net/showuser.php3?user=<%- creatorUid %>">
+		  <a href="user-dashboard.php?user=<%- creatorUid %>">
 		    <%- creatorUid %></a>
 		<% } else { %>
 	          <a href="mailto:<%- creatorEmail %>"><%- creatorEmail %></a>
@@ -67,7 +67,7 @@
 	      <tr>
 		<td class='border-none'>Project:</td>
 		<td class='border-none'>
-		  <a href="https://www.emulab.net/showproject.php3?pid=<%- project %>">
+		  <a href="show-project.php?pid=<%- project %>">
 		    <%- project %></a>
 		</td>
 	      </tr>

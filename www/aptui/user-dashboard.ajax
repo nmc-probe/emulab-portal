@@ -1,0 +1,150 @@
+<?php
+#
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+chdir("..");
+chdir("apt");
+include_once("profile_defs.php");
+include_once("instance_defs.php");
+include_once("ajax-routines.ajax");
+
+# We set this in CheckPageArgs
+$target_user = null;
+
+#
+# Need to check the permission, since we allow admins to mess with
+# other accounts.
+#
+function CheckPageArgs()
+{
+    global $this_user, $target_user;
+    global $ajax_args;
+    global $TB_USERINFO_READINFO;
+
+    if (!isset($ajax_args["uid"])) {
+	SPITAJAX_ERROR(-1, "Missing target uid");
+	return -1;
+    }
+    $uid = $ajax_args["uid"];
+    
+    if (!TBvalid_uid($uid)) {
+	SPITAJAX_ERROR(-1, "Invalid target uid");
+        return -1;
+    }
+    $target_user = User::Lookup($uid);
+    if (!$target_user) {
+        sleep(2);
+	SPITAJAX_ERROR(-1, "Unknown target uid");
+        return -1;
+    }
+    if ($uid == $this_user->uid())
+        return 0;
+    
+    if (!ISADMIN() && 
+        !$target_user->AccessCheck($this_user, $TB_USERINFO_READINFO)) {
+	SPITAJAX_ERROR(-1, "Not enough permission");
+	return -1;
+    }
+    return 0;
+}
+
+function Do_ExperimentList()
+{
+    global $this_user, $target_user;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $results = ExperimentList("user", $target_user);
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_ProfileList()
+{
+    global $this_user, $target_user;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $results = ProfileList("user", $target_user);
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_ProjectList()
+{
+    global $this_user, $target_user;
+    global $TB_PROJECT_CREATEEXPT;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $target_idx  = $target_user->uid_idx();
+    $target_uuid = $target_user->uuid();
+    $results     = array();
+    $projlist    = $target_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
+
+    #
+    # Cull out the nonlocal projects, we do not want to show those
+    # since they are just the holding projects.
+    #
+    while (list($pid) = each($projlist)) {
+        $proj = Project::Lookup($pid);
+        if ($proj && !$proj->IsNonLocal()) {
+            $blob = array();
+            $blob["pid"] = $proj->pid();
+            $blob["description"] = $proj->name();
+            $leader = $proj->GetLeader();
+            $blob["leader"] = $leader->name();
+            
+            $results[$pid] = $blob;
+        }
+    }
+
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_AccountDetails()
+{
+    global $this_user, $target_user;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $target_idx  = $target_user->uid_idx();
+    $target_uuid = $target_user->uuid();
+    $results     = array();
+
+    $results["uid"]          = $target_user->uid();
+    $results["name"]         = $target_user->name();
+    $results["email"]        = $target_user->email();
+    $results["affiliation"]  = $target_user->affil();
+    $results["country"]      = $target_user->country();
+    $results["state"]        = $target_user->state();
+    $results["city"]         = $target_user->city();
+
+    SPITAJAX_RESPONSE($results);
+}
+
+# Local Variables:
+# mode:php
+# End:
+?>

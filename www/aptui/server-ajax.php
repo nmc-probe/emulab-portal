@@ -168,8 +168,30 @@ $routing = array("myprofiles" =>
 			array("file"    => "myaccount.ajax",
 			      "guest"   => false,
 			      "methods" => array("update" =>
-						      "Do_Update")),
-    );
+                                                 "Do_Update")),
+		 "user-dashboard" =>
+			array("file"    => "user-dashboard.ajax",
+			      "guest"   => false,
+			      "methods" => array("ExperimentList" =>
+						      "Do_ExperimentList",
+                                                 "ProjectList" =>
+                                                      "Do_ProjectList",
+                                                 "ProfileList" =>
+                                                      "Do_ProfileList",
+                                                 "AccountDetails" =>
+                                                      "Do_AccountDetails")),
+		 "show-project" =>
+			array("file"    => "show-project.ajax",
+			      "guest"   => false,
+			      "methods" => array("ExperimentList" =>
+						      "Do_ExperimentList",
+                                                 "ProfileList" =>
+                                                      "Do_ProfileList",
+                                                 "MemberList" =>
+                                                      "Do_MemberList",
+                                                 "ProjectDetails" =>
+                                                      "Do_ProjectDetails")),
+);
 
 #
 # Redefine this so we return XML instead of html for all errors.
