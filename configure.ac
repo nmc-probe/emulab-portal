@@ -315,6 +315,7 @@ AC_SUBST(BS_IQN_PREFIX)
 AC_SUBST(ATTENUATOR)
 AC_SUBST(CLUSTER_PORTAL)
 AC_SUBST(CLUSTER_PUBSUBD_PORT)
+AC_SUBST(EXPIRE_PASSWORDS)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -480,6 +481,7 @@ BS_IQN_PREFIX=iqn.2000-10.net.emulab
 ATTENUATOR=""
 CLUSTER_PORTAL=""
 CLUSTER_PUBSUBD_PORT=""
+EXPIRE_PASSWORDS=1
 
 #
 # XXX You really don't want to change these!

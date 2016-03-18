@@ -70,6 +70,7 @@ my $BUGDBSUPPORT= @BUGDBSUPPORT@;
 my $OPSDBSUPPORT= @OPSDBSUPPORT@;
 my $CHATSUPPORT = @CHATSUPPORT@;
 my $MAILMANSUPPORT= @MAILMANSUPPORT@;
+my $EXPIRE_PASSWORDS = @EXPIRE_PASSWORDS@;
 my $THISHOMEBASE= "@THISHOMEBASE@";
 my $PROTOUSER   = 'elabman';
 my $ELABINELAB  = @ELABINELAB@;
@@ -682,7 +683,7 @@ sub UpdatePassword()
     if (! $target_user->SameUser($this_user)) {
 	$expires = "now()";
     }
-    else {
+    elsif ($EXPIRE_PASSWORDS) {
 	$expires = "date_add(now(), interval 1 year)";
     }
 

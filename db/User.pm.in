@@ -60,6 +60,7 @@ my $MIN_UNIX_UID   = @MIN_UNIX_UID@;
 my $MIN_UNIX_GID   = @MIN_UNIX_GID@;
 my $tbacct	   = "$TB/sbin/tbacct";
 my $MKUSERCERT     = "$TB/sbin/mkusercert";
+my $EXPIRE_PASSWORDS = @EXPIRE_PASSWORDS@;
 
 # Create() flags.
 $NEWUSER_FLAGS_PROJLEADER	= 0x01;
@@ -1476,8 +1477,14 @@ sub SetPassword($$;$)
 
     my $uid_idx = $self->uid_idx();
 
-    $expires = "date_add(now(), interval 1 year)"
-	if (!defined($expires));
+    if (!defined($expires)) {
+	if ($EXPIRE_PASSWORDS) {
+	    $expires = "date_add(now(), interval 1 year)";
+	}
+	else {
+	    $expires = "null";
+	}
+    }
 
     # Clear the chpasswd stuff anytime passwd is set.
     return -1
