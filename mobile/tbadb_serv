@@ -49,7 +49,7 @@ sub rpc_unforward($$);
 sub rpc_nodewait($$);
 sub rpc_ping($$);
 sub rpc_exit($$);
-sub send_error($$$);
+sub error_exit($$$);
 sub do_lru_cleanup($);
 sub unpack_bundle($$$);
 sub enter_fastboot($$);
@@ -120,7 +120,6 @@ my %NMAP = ();
 my %FWDPORTS = ();
 my $RPCIN;
 my $RPCOUT;
-my $g_imglock;
 my $debug = 0;
 
 # Invoke the parent Net::Server class' run routine.
@@ -267,14 +266,11 @@ sub process_request($) {
 	# Dispatch function calls
 	my $func = $data->{FUNCTION};
 	if (defined($func)) {
-	    if (!exists($DISPATCH{$func})) {
-		warn "Unkown RPC: $func. Sending error and terminating connection.\n";
-		send_error($data->{FID}, RPCERR_BADFUNC, "Unknown function: $func");
-		exit 1;
-	    }
+	    error_exit($data->{FID}, RPCERR_BADFUNC, "Unknown function: $func")
+		if (!exists($DISPATCH{$func}));
 	    $DISPATCH{$func}->($self,$data);
 	} else {
-	    warn "Received RPC data that was not a function call. Terminating connection.\n";
+	    warn "Received RPC data that was not a function call.\n";
 	    exit 1;
 	}
     }
@@ -301,22 +297,15 @@ sub rpc_lockimage($$) {
     my $srcname = $data->{ARGS}->{IMG_NAME};
 
     # Arg checking and untainting.
-    if (!$proj || !$srcname) {
-	warn "Argument(s) missing from RPC!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
-	exit 1;
-    }
-    if ($proj !~ /^([-\w]+)$/) {
-	warn "Malformed project argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.")
+	if (!$proj || !$srcname);
+
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed project argument.")
+	if ($proj !~ /^([-\w]+)$/);
     $proj = $1;
-    if ($srcname !~ /^([-\.\w]+)$/) {
-	warn "Malformed image name argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
-	exit 1;
-    }
+
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed image argument.")
+	if ($srcname !~ /^([-\.\w]+)$/);
     $srcname = $1;
 
     warn "Locking image: $proj/$srcname\n";
@@ -325,11 +314,8 @@ sub rpc_lockimage($$) {
     while (1) {
 	last
 	    if (sysopen(LOCK, $lockfile, O_RDWR|O_CREAT|O_EXCL));
-	if (time() - $start > $IMGLOCK_TMO) {
-	    warn "timed out trying to get image lock for $proj/$srcname!\n";
-	    send_error($data->{FID}, RPCERR_BADARGS, "Timed out waiting to acquire image lock.");
-	    exit 1;
-	}
+	error_exit($data->{FID}, RPCERR_BADARGS, "Timed out waiting to acquire image lock.")
+	    if (time() - $start > $IMGLOCK_TMO);
 	sleep 5;
     }
     close(LOCK);
@@ -347,31 +333,19 @@ sub rpc_unlockimage($$) {
     my $srcname = $data->{ARGS}->{IMG_NAME};
 
     # Arg checking and untainting.
-    if (!$proj || !$srcname) {
-	warn "Argument(s) missing from RPC!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
-	exit 1;
-    }
-    if ($proj !~ /^([-\w]+)$/) {
-	warn "Malformed project argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.")
+	if (!$proj || !$srcname);
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed project argument.")
+	if ($proj !~ /^([-\w]+)$/);
     $proj = $1;
-    if ($srcname !~ /^([-\.\w]+)$/) {
-	warn "Malformed image name argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.")
+	if ($srcname !~ /^([-\.\w]+)$/);
     $srcname = $1;
 
     warn "Unlocking image: $proj/$srcname\n";
     my $lockfile = "/tmp/${proj}-${srcname}.imglock";
-    if (!unlink($lockfile)) {
-	warn "Could not remove image lock file: $lockfile: $!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Could not remove image lock file.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Could not remove image lock file.")
+	if (!unlink($lockfile));
 
     # Send success result back to caller.
     warn "finished unlocking image: $proj/$srcname\n";
@@ -388,22 +362,13 @@ sub rpc_checkimage($$) {
     my $srcsize = $data->{ARGS}->{IMG_SIZE};
 
     # Arg checking and untainting.
-    if (!$proj || !$srcname || !$srctime || !defined($srcsize)) {
-	warn "Argument(s) missing from RPC!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
-	exit 1;
-    }
-    if ($proj !~ /^([-\w]+)$/) {
-	warn "Malformed project argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.")
+	if (!$proj || !$srcname || !$srctime || !defined($srcsize));
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed project argument.")
+	if ($proj !~ /^([-\w]+)$/);
     $proj = $1;
-    if ($srcname !~ /^([-\.\w]+)$/) {
-	warn "Malformed image name argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.")
+	if ($srcname !~ /^([-\.\w]+)$/);
     $srcname = $1;
 
     # Caller should have called the "lockimage" RPC already before calling
@@ -411,11 +376,8 @@ sub rpc_checkimage($$) {
     warn "Image check requested for $proj/$srcname\n";
     my $projdir = "$IMAGE_CACHE/$proj";
     if (!-d $projdir) {
-	if (!mkdir($projdir, 0750)) {
-	    warn "Failed to create project image directory: $projdir: $!\n";
-	    send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
-	    exit 1;
-	}
+	error_exit($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.")
+	    if (!mkdir($projdir, 0750));
     }
 
     my $lrufile = "$projdir/.$srcname.lru";
@@ -438,29 +400,19 @@ sub rpc_checkimage($$) {
 	    return;
 	} else {
 	    # Delete older existing image to make way for new version.
-	    if (!unlink($imgfile)) {
-		warn "Could not remove old image: $imgfile\n";
-		send_error($data->{FID}, RPCERR_INTERNAL, "Failed to remove older version of image.");
-		exit 1;
-	    }
+	    error_exit($data->{FID}, RPCERR_INTERNAL, "Failed to remove older version of image.")
+		if (!unlink($imgfile));
 	}
     }
 
     # Touch image's LRU file (even though the image may not have been
     # transferred yet; presumably it will be shortly).
-    if (system($TOUCH, "$lrufile") != 0) {
-	warn "Could not update timestamp on $lrufile!\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.")
+	if (system($TOUCH, "$lrufile") != 0);
 
     # Check to see if we are over quota, and LRU prune if so.
-    if (!$self->do_lru_cleanup()) {
-	warn "Error cleaning up cache. Exiting!\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, 
-		   "Failed while cleaning up image cache.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_INTERNAL, "Failed while cleaning up image cache.")
+	if (!$self->do_lru_cleanup());
 
     # If we need/want to enforce some concurrency limits from this side,
     # we could send back a "WAIT" result here, which would tell the caller
@@ -485,40 +437,22 @@ sub rpc_loadimage($$) {
     my $proj        = $data->{ARGS}->{IMG_PROJ};
 
     # Check and untaint arguments
-    if (!$bundle_name || !$node_id || !$proj) {
-	warn "missing RPC arguments!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
-	exit 1;
-    }
-    if ($proj !~ /^([-\w]+)$/) {
-	warn "Malformed project argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Missing arguments.")
+	if (!$bundle_name || !$node_id || !$proj);
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed project argument.")
+	if ($proj !~ /^([-\w]+)$/);
     $proj = $1;
-    if ($bundle_name !~ /^([-\.\w]+)$/) {
-	warn "Malformed image bundle argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image bundle argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed image bundle argument.")
+	if ($bundle_name !~ /^([-\.\w]+)$/);
     $bundle_name = $1;
     my $bundle_path = "$IMAGE_CACHE/$proj/$bundle_name";
-    if (!-f $bundle_path) {
-	warn "no such bundle image: $bundle_path\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "No such image bundle.");
-	exit 1;
-    }
-    if ($node_id !~ /^([-\w]+)$/) {
-	warn "Malformed node_id argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "No such image bundle.")
+	if (!-f $bundle_path);
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.")
+	if ($node_id !~ /^([-\w]+)$/);
     $node_id = $1;
-    if (!exists($NMAP{$node_id})) {
-	warn "unknown/bad node_id: $node_id\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.")
+	if (!exists($NMAP{$node_id}));
     my $serial = $NMAP{$node_id};
 
     # Load image on to unit and report success/fail to caller.
@@ -526,11 +460,8 @@ sub rpc_loadimage($$) {
 
     # Step 1: Unpack image bundle (if necessary). This may block.
     my $bundle_staging_dir = "$bundle_path.work";
-    if (!$self->unpack_bundle($bundle_path, $bundle_staging_dir)) {
-	warn "Could not unpack image bundle: $bundle_path\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, "Bundle unpack failed.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_INTERNAL, "Bundle unpack failed.")
+	if (!$self->unpack_bundle($bundle_path, $bundle_staging_dir));
     
     # Step 2: Make sure all required image files are present.
     my @todo_imgs = ();
@@ -542,9 +473,7 @@ sub rpc_loadimage($$) {
 		$imgpath = $defaultpath;
 	    } 
 	    elsif ($required) {
-		warn "${imgpart}.img missing from bundle!\n";
-		send_error($data->{FID}, RPCERR_BADARGS, "${imgpart}.img missing from bundle.");
-		exit 1;
+		error_exit($data->{FID}, RPCERR_BADARGS, "${imgpart}.img missing from bundle.");
 	    }
 	    else {
 		next;
@@ -554,30 +483,21 @@ sub rpc_loadimage($$) {
     }
 
     # Step 3: Reboot the device into fastboot mode.
-    if (!$self->enter_fastboot($node_id)) {
-	warn "failed to boot $node_id into fastboot!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "Node failed to load into fastboot.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_NODE_ERR, "Node failed to load into fastboot.")
+	if (!$self->enter_fastboot($node_id));
 
     # Step 4: Reload the partitions based on the images we setup above.
     foreach my $imgdata (@todo_imgs) {
 	my ($imgpart, $imgpath) = @{$imgdata};
 	warn "loading $imgpart partition on $node_id\n"
 	    if $debug;
-	if (!$self->load_android_image($node_id, $imgpart, $imgpath)) {
-	    warn "failed to load $imgpart on $node_id!\n";
-	    send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load $imgpart.");
-	    exit 1;
-	}
+	error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to load $imgpart.")
+	    if (!$self->load_android_image($node_id, $imgpart, $imgpath));
     }
 
     # Step 5: reboot into newly loaded image
-    if (!$self->reboot_android($node_id)) {
-	warn "newly loaded image failed to boot!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.")
+	if (!$self->reboot_android($node_id));
 
     # Send success result back to caller.
     warn "finished loading $proj/$bundle_name on $node_id\n";
@@ -591,8 +511,7 @@ sub rpc_captureimage($$) {
 
     # XXX: fill me in!
     warn "Called...\n";
-    send_error($data->{FID}, RPCERR_NOTIMPL, "captureimage not implemented yet.");
-    return;
+    error_exit($data->{FID}, RPCERR_NOTIMPL, "captureimage not implemented yet.");
 }
 
 
@@ -606,43 +525,28 @@ sub rpc_reboot($$) {
     # Do a bit of arg checking.
     $dowait = defined($dowait) && int($dowait) ? 1 : 0;
     $fastboot = defined($fastboot) && int($fastboot) ? 1 : 0;
-    if (!$node_id) {
-	warn "No node_id provided in RPC args!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "node_id missing.");
-	exit 1;
-    }
-    if (!exists($NMAP{$node_id})) {
-	warn "unknown/bad node_id: $node_id\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "node_id missing.")
+	if (!$node_id);
+    error_exit($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.")
+	if (!exists($NMAP{$node_id}));
     my $serial = $NMAP{$node_id};
 
     # Reboot the unit as directed.
     if ($fastboot) {
 	warn "rebooting node into fastboot: $node_id\n";
-	if (!$self->enter_fastboot($node_id)) {
-	    warn "failed to enter fastboot: $node_id!\n";
-	    send_error($data->{FID}, RPCERR_NODE_ERR, "Reboot (fastboot) failed.");
-	    exit 1;
-	}
+	error_exit($data->{FID}, RPCERR_NODE_ERR, "Reboot (fastboot) failed.")
+	    if (!$self->enter_fastboot($node_id));
     }
     else {
 	warn "rebooting node $node_id\n";
-	if (!$self->reboot_android($node_id)) {
-	    warn "failed to reboot $node_id!\n";
-	    send_error($data->{FID}, RPCERR_NODE_ERR, "Reboot failed.");
-	    exit 1;
-	}
+	error_exit($data->{FID}, RPCERR_NODE_ERR, "Reboot failed.")
+	    if (!$self->reboot_android($node_id));
 
 	# Wait for device to boot up, if requested to do so.
 	if ($dowait) {
 	    warn "waiting for $node_id to come up.\n";
-	    if (!wait_for_node($node_id)) {
-		warn "failed waiting for $node_id to boot!\n";
-		send_error($data->{FID}, RPCERR_NODE_ERR, "Boot failed.");
-		exit 1;
-	    }
+	    error_exit($data->{FID}, RPCERR_NODE_ERR, "Boot failed.")
+		if (!wait_for_node($node_id));
 	}
     }
 
@@ -659,39 +563,24 @@ sub rpc_forward($$) {
     my $node_id  = $data->{ARGS}->{NODE_ID};
     my $thost    = $data->{ARGS}->{TARGET_HOST};
 
-    if (!$node_id || !$thost) {
-	warn "Missing RPC args!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.");
-	exit 1;
-    }
-    if ($node_id !~ /^([-\w]+)$/) {
-	warn "Malformed node_id argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "One or more arguments missing.")
+	if (!$node_id || !$thost);
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.")
+	if ($node_id !~ /^([-\w]+)$/);
     $node_id = $1;
-    if ($thost !~ /^([-\.\w]+)$/) {
-	warn "Malformed target host argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed target host argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed target host argument.")
+	if ($thost !~ /^([-\.\w]+)$/);
     $thost = $1;
-    if (!exists($NMAP{$node_id})) {
-	warn "Unknown/bad node_id: $node_id\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "Unknown/bad node_id.")
+	if (!exists($NMAP{$node_id}));
     my $serial = $NMAP{$node_id};
 
     # Setup forwarding from the ADB daemon on the unit to the
     # destionation port, and report back to caller!
     warn "fowarding ADB on node $node_id to destination host $thost\n";
     my $port = $self->setup_android_forward($node_id, $thost);
-    if (!$port) {
-	warn "failed to setup adb port forwarding for $node_id to $thost\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "adb forwarding failed.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_NODE_ERR, "adb forwarding failed.")
+	if (!$port);
 
     # Report success.
     warn "forwarding setup for $node_id finished.\n";
@@ -705,26 +594,17 @@ sub rpc_unforward($$) {
 
     my $node_id  = $data->{ARGS}->{NODE_ID};
 
-    if (!$node_id) {
-	warn "Missing node_id argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "node_id argument missing.");
-	exit 1;
-    }
-    if ($node_id !~ /^([-\w]+)$/) {
-	warn "Malformed node_id argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "node_id argument missing.")
+	if (!$node_id);
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.")
+	if ($node_id !~ /^([-\w]+)$/);
     $node_id = $1;
 
     # Setup forwarding from the ADB daemon on the unit to the
     # destionation port, and report back to caller!
     warn "removing ADB forwarding setup for node $node_id\n";
-    if (!$self->remove_android_forward($node_id)) {
-	warn "failed to clear adb port forwarding for $node_id!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "adb forwarding removal failed.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_NODE_ERR, "adb forwarding removal failed.")
+	if (!$self->remove_android_forward($node_id));
 
     # Report success.
     warn "forwarding cleared for $node_id\n";
@@ -738,25 +618,16 @@ sub rpc_nodewait($$) {
 
     my $node_id  = $data->{ARGS}->{NODE_ID};
 
-    if (!$node_id) {
-	warn "Missing node_id argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "node_id argument missing.");
-	exit 1;
-    }
-    if ($node_id !~ /^([-\w]+)$/) {
-	warn "Malformed node_id argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_BADARGS, "node_id argument missing.")
+	if (!$node_id);
+    error_exit($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.")
+	if ($node_id !~ /^([-\w]+)$/);
     $node_id = $1;
 
     # Wait for a while for the node to appear in adb.
     warn "waiting for $node_id to become available.\n";
-    if (!$self->wait_for_android($node_id)) {
-	warn "failed while waiting for $node_id!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "node wait failed.");
-	exit 1;
-    }
+    error_exit($data->{FID}, RPCERR_NODE_ERR, "node wait failed.")
+	if (!$self->wait_for_android($node_id));
 
     # Report success.
     warn "$node_id is now ready.\n";
@@ -786,9 +657,12 @@ sub rpc_exit($$) {
 # Helper functions follow.
 #
 
-# Simple shorthand wrapper that sends an error back to the caller.
-sub send_error($$$) {
+# Simple shorthand wrapper that logs and sends an error back to the caller.
+sub error_exit($$$) {
     my ($fid, $code, $message) = @_;
+
+    # log the error locally.
+    warn "$message\n";
 
     # Send failure result back.
     return SendRPCData($RPCOUT, EncodeError($fid, $code, $message));
