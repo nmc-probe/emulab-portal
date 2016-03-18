@@ -61,6 +61,8 @@ sub check_adb();
 
 # RPC function dispatch table
 my %DISPATCH = (
+    'lockimage'    => \&rpc_lockimage,
+    'unlockimage'  => \&rpc_unlockimage,
     'checkimage'   => \&rpc_checkimage,
     'loadimage'    => \&rpc_loadimage,
     'captureimage' => \&rpc_captureimage,
@@ -89,6 +91,7 @@ my $UNZIP = "/usr/bin/unzip";
 my $PS = "/bin/ps";
 my $GREP = "/bin/grep";
 my $IMAGE_CACHE = "/z/tbadb_img_cache";
+my $IMAGE_SYSDIR = "$IMAGE_CACHE/PNSYSTEM";
 my $WM_HIGH = 50 * 1000 * 1000 * 1000;  # 50 GB
 my $WM_LOW  = 40 * 1000 * 1000 * 1000;  # 40 GB
 my $ADBD_LISTENPORT = 5555;
@@ -101,6 +104,15 @@ my $IMGLOCK_TMO = 300;
 my $LRULOCK_TMO = 60;
 my $UNPACKLOCK_TMO = 30;
 my $FWDLOCK_TMO = 30;
+
+# Android partition info
+my @ANDROID_PARTITIONS = (
+    ["recovery", undef, 0],
+    ["boot", undef, 1],
+    ["system", undef, 1],
+    ["userdata", "$IMAGE_SYSDIR/empty-userdata.img", 1],
+    ["cache", "$IMAGE_SYSDIR/empty-cache.img", 1],
+);
 
 # Global variables
 my %NMAP = ();
@@ -273,6 +285,90 @@ sub run_dequeue($) {
 #
 # RPC dispatch functions follow.
 #
+sub rpc_lockimage($) {
+    my ($data) = @_;
+    my $proj    = $data->{ARGS}->{IMG_PROJ};
+    my $srcname = $data->{ARGS}->{IMG_NAME};
+
+    # Arg checking and untainting.
+    if (!$proj || !$srcname) {
+	warn "tbadb_serv::rpc_lockimage: Argument(s) missing from RPC!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
+	exit 1;
+    }
+    if ($proj !~ /^([-\w]+)$/) {
+	warn "tbadb_serv::rpc_lockimage: Malformed project argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
+	exit 1;
+    }
+    $proj = $1;
+    if ($srcname !~ /^([-\.\w]+)$/) {
+	warn "tbadb_serv::rpc_lockimage: Malformed image name argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
+	exit 1;
+    }
+    $srcname = $1;
+
+    warn "tbadb_serv::rpc_lockimage: Locking image: $proj/$srcname\n";
+    my $lockfile = "/tmp/${proj}-${srcname}.imglock";
+    my $start = time();
+    while (1) {
+	last
+	    if (sysopen(LOCK, $lockfile, O_RDWR|O_CREAT|O_EXCL));
+	if (time() - $start > $IMGLOCK_TMO) {
+	    warn "tbadb_serv::rpc_lockimage: timed out trying to get image lock for $proj/$srcname!\n";
+	    send_error($data->{FID}, RPCERR_BADARGS, "Timed out waiting to acquire image lock.");
+	    exit 1;
+	}
+	sleep 5;
+    }
+    close(LOCK);
+
+    # Send success result back to caller.
+    warn "tbadb_serv::rpc_lockimage: finished locking image: $proj/$srcname\n";
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    return;
+}
+
+
+sub rpc_unlockimage($) {
+    my ($data) = @_;
+    my $proj    = $data->{ARGS}->{IMG_PROJ};
+    my $srcname = $data->{ARGS}->{IMG_NAME};
+
+    # Arg checking and untainting.
+    if (!$proj || !$srcname) {
+	warn "tbadb_serv::rpc_unlockimage: Argument(s) missing from RPC!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Argument(s) missing.");
+	exit 1;
+    }
+    if ($proj !~ /^([-\w]+)$/) {
+	warn "tbadb_serv::rpc_unlockimage: Malformed project argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed project argument.");
+	exit 1;
+    }
+    $proj = $1;
+    if ($srcname !~ /^([-\.\w]+)$/) {
+	warn "tbadb_serv::rpc_unlockimage: Malformed image name argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
+	exit 1;
+    }
+    $srcname = $1;
+
+    warn "tbadb_serv::rpc_unlockimage: Unlocking image: $proj/$srcname\n";
+    my $lockfile = "/tmp/${proj}-${srcname}.imglock";
+    if (!unlink($lockfile)) {
+	warn "tbadb_serv::rpc_unlockimage: Could not remove image lock file: $lockfile: $!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Could not remove image lock file.");
+	exit 1;
+    }
+
+    # Send success result back to caller.
+    warn "tbadb_serv::rpc_unlockimage: finished unlocking image: $proj/$srcname\n";
+    SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
+    return;
+}
+
 
 sub rpc_checkimage($) {
     my ($data) = @_;
@@ -300,30 +396,9 @@ sub rpc_checkimage($) {
     }
     $srcname = $1;
 
+    # Caller should have called the "lockimage" RPC already before calling
+    # checkimage().  XXX: Maybe we should require a token to prove this.
     warn "tbadb_serv::rpc_checkimage: Image check requested for $proj/$srcname\n";
-
-    # Grab the lock for this image.
-    my $lres = TBScriptLock("${proj}_${srcname}", TBSCRIPTLOCK_GLOBALWAIT,
-			    $IMGLOCK_TMO, \$g_imglock);
-    LOCKSW: for ($lres) {
-	$_ == TBSCRIPTLOCK_IGNORE && do {
-	    # Another process just did the check/transfer, so we're done.
-	    if (!SendRPCData($RPCOUT, EncodeResult($data->{FID}, { NEED_IMG => 0 }))) {
-		warn "tbadb_serv::rpc_checkimage: Error sending RPC result. Exiting!\n";
-		exit 1;
-	    }
-	    return;
-	};
-	$_ == TBSCRIPTLOCK_OKAY && do {
-	    # Got the lock, just bail out of here and proceed.
-	    last LOCKSW;
-	};
-	# Default case (error condition)
-	warn "tbadb_serv::rpc_checkimage: Failed to get lock for: $proj/$srcname\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, "Internal file handling error.");
-	exit 1;	
-    }
-
     my $projdir = "$IMAGE_CACHE/$proj";
     if (!-d $projdir) {
 	if (!mkdir($projdir, 0750)) {
@@ -350,7 +425,6 @@ sub rpc_checkimage($) {
 		warn "tbadb_serv::rpc_checkimage: Error sending RPC result. Exiting!\n";
 		exit 1;
 	    }
-	    TBScriptUnlock($g_imglock);
 	    return;
 	} else {
 	    # Delete older existing image to make way for new version.
@@ -382,7 +456,7 @@ sub rpc_checkimage($) {
     # we could send back a "WAIT" result here, which would tell the caller
     # to wait for some amount of time (maybe we specify), then call again.
 
-    # Request that the image be transferred over (scp from boss)
+    # Tell caller that we need the image.
     if (!SendRPCData($RPCOUT,
 	     EncodeResult($data->{FID}, 
 			  { NEED_IMG => 1, 
@@ -390,22 +464,18 @@ sub rpc_checkimage($) {
 	warn "tbadb_serv::rpc_checkimage: Error sending RPC result. Exiting!\n";
 	exit 1;
     }
-
-    # Note: We will unlock later in a subsequent rpc_loadimage call. If
-    # that call never comes, we will eventually timeout while waiting for it
-    # and exit, thus releasing the lock as well.
     return;
 }
 
 
 sub rpc_loadimage($) {
     my ($data) = @_;
+    my $node_id     = $data->{ARGS}->{NODE_ID};
+    my $bundle_name = $data->{ARGS}->{IMG_NAME};
+    my $proj        = $data->{ARGS}->{IMG_PROJ};
 
     # Check and untaint arguments
-    my $node_id = $data->{ARGS}->{NODE_ID};
-    my $imgname = $data->{ARGS}->{IMG_NAME};
-    my $proj    = $data->{ARGS}->{IMG_PROJ};
-    if (!$imgname || !$node_id || !$proj) {
+    if (!$bundle_name || !$node_id || !$proj) {
 	warn "tbadb_serv::rpc_loadimage: missing RPC arguments!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Missing arguments.");
 	exit 1;
@@ -416,12 +486,18 @@ sub rpc_loadimage($) {
 	exit 1;
     }
     $proj = $1;
-    if ($imgname !~ /^([-\.\w]+)$/) {
-	warn "tbadb_serv::rpc_loadimage: Malformed image name argument!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image name argument.");
+    if ($bundle_name !~ /^([-\.\w]+)$/) {
+	warn "tbadb_serv::rpc_loadimage: Malformed image bundle argument!\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "Malformed image bundle argument.");
 	exit 1;
     }
-    $imgname = $1;
+    $bundle_name = $1;
+    my $bundle_path = "$IMAGE_CACHE/$proj/$bundle_name";
+    if (!-f $bundle_path) {
+	warn "tbadb_serv::rpc_loadimage: no such bundle image: $bundle_path\n";
+	send_error($data->{FID}, RPCERR_BADARGS, "No such image bundle.");
+	exit 1;
+    }
     if ($node_id !~ /^([-\w]+)$/) {
 	warn "tbadb_serv::rpc_loadimage: Malformed node_id argument!\n";
 	send_error($data->{FID}, RPCERR_BADARGS, "Malformed node_id argument.");
@@ -434,71 +510,59 @@ sub rpc_loadimage($) {
 	exit 1;
     }
     my $serial = $NMAP{$node_id};
-    # Let anyone blocked on the transfer of this image proceed now.
-    TBScriptUnlock($g_imglock)
-	if fileno($g_imglock);
-    my $fname = "$IMAGE_CACHE/$proj/$imgname";
-    if (!-f $fname) {
-	warn "tbadb_serv::rpc_loadimage: no such image file: $fname\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "No such image.");
-	exit 1;
-    }
 
     # Load image on to unit and report success/fail to caller.
-    warn "tbadb_serv::rpc_loadimage: loading image $proj/$imgname on to $node_id\n";
+    warn "tbadb_serv::rpc_loadimage: loading image $proj/$bundle_name on to $node_id\n";
+
+    # Step 1: Unpack image bundle (if necessary). This may block.
+    my $bundle_staging_dir = "$bundle_path.work";
+    if (!unpack_bundle($bundle_path, $bundle_staging_dir)) {
+	warn "tbadb_serv::rpc_loadimage: Could not unpack image bundle: $bundle_path\n";
+	send_error($data->{FID}, RPCERR_INTERNAL, "Bundle unpack failed.");
+	exit 1;
+    }
     
-    # Step 1: Make sure all required image files are present.
-    my $image_staging_dir = "$fname.work";
-    my $sysdir = "$IMAGE_CACHE/PNSYSTEM";
-    my $recovery_image = "$sysdir/pnet-recovery.img";
-    my $userdata_image = "$sysdir/pnet-userdata.img";
-    my $cache_image = 
-	-r "$image_staging_dir/cache.img" 
-	? "$image_staging_dir/cache.img" 
-	: "$sysdir/pnet-cache.img";
-    my $boot_image = "$image_staging_dir/boot.img";
-    # This may block.
-    if (!unpack_bundle($fname, $image_staging_dir)) {
-	warn "tbadb_serv::rpc_loadimage: Could not unpack image bundle!\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, "Image unpack failed.");
-	exit 1;
-    }
-    if (!-r $boot_image) {
-	warn "tbadb_serv::rpc_loadimage: boot.img missing from bundle!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "boot.img missing from bundle.");
-	exit 1;
-    }
-    my $system_image = "$image_staging_dir/system.img";
-    if (!-r $system_image) {
-	warn "tbadb_serv::rpc_loadimage: system.img missing from bundle!\n";
-	send_error($data->{FID}, RPCERR_BADARGS, "system.img missing from bundle.");
-	exit 1;
+    # Step 2: Make sure all required image files are present.
+    my @todo_imgs = ();
+    foreach my $partinfo (@ANDROID_PARTITIONS) {
+	my ($imgpart, $defaultpath, $required) = @{$partinfo};
+	my $imgpath = "$bundle_staging_dir/${imgpart}.img";
+	if (!-r $imgpath) {
+	    if (defined($defaultpath) && -r $defaultpath) {
+		$imgpath = $defaultpath;
+	    } 
+	    elsif ($required) {
+		warn "tbadb_serv::rpc_loadimage: ${imgpart}.img missing from bundle!\n";
+		send_error($data->{FID}, RPCERR_BADARGS, "${imgpart}.img missing from bundle.");
+		exit 1;
+	    }
+	    else {
+		next;
+	    }
+	}
+	push @todo_imgs, [$imgpart, $imgpath];
     }
 
-    # Step 2: Reload the partitions based on the images we setup above.
-    if (!-r $recovery_image || !-r $boot_image || #!-r $userdata_image ||
-	!-r $cache_image || !-r $system_image ) {
-	warn "tbadb_serv::rpc_loadimage: one or more images missing!\n";
-	send_error($data->{FID}, RPCERR_INTERNAL, "Missing images.");
-	exit 1;
-    }
+    # Step 3: Reboot the device into fastboot mode.
     if (!enter_fastboot($node_id)) {
 	warn "tbadb_serv::rpc_loadimage: failed to boot $node_id into fastboot!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Node failed to load into fastboot.");
 	exit 1;
     }
-    if (!(#load_android_image($node_id, IMG_RECOVERY, $recovery_image) &&
-	  load_android_image($node_id, IMG_BOOT,     $boot_image) &&
-	  #load_android_image($node_id, IMG_USERDATA, $userdata_image) &&
-	  load_android_image($node_id, IMG_CACHE,    $cache_image) &&
-	  load_android_image($node_id, IMG_SYSTEM,   $system_image)
-	)) {
-	warn "tbadb_serv::rpc_loadimage: failed to load images on $node_id!\n";
-	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load images.");
-	exit 1;
+
+    # Step 4: Reload the partitions based on the images we setup above.
+    foreach my $imgdata (@todo_imgs) {
+	my ($imgpart, $imgpath) = @{$imgdata};
+	warn "tbadb_serv::rpc_loadimage: loading $imgpart partition on $node_id\n"
+	    if $debug;
+	if (!load_android_image($node_id, $imgpart, $imgpath)) {
+	    warn "tbadb_serv::rpc_loadimage: failed to load $imgpart on $node_id!\n";
+	    send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to load $imgpart.");
+	    exit 1;
+	}
     }
 
-    # Step 3: reboot into newly loaded image
+    # Step 5: reboot into newly loaded image
     if (!reboot_android($node_id)) {
 	warn "tbadb_serv::rpc_loadimage: newly loaded image failed to boot!\n";
 	send_error($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.");
@@ -506,7 +570,7 @@ sub rpc_loadimage($) {
     }
 
     # Send success result back to caller.
-    warn "tbadb::rpc_loadimage: finished loading $proj/$imgname on $node_id\n";
+    warn "tbadb::rpc_loadimage: finished loading $proj/$bundle_name on $node_id\n";
     SendRPCData($RPCOUT, EncodeResult($data->{FID}, { SUCCESS => 1 }));
     return;
 }
@@ -758,9 +822,10 @@ sub do_lru_cleanup() {
 	goto BADLRU;
     }
     while (my $ent = readdir($dh)) {
+	next if ($ent !~ /^(\w[-\w]+)$/);
+	$ent = $1;
 	my $dname = "$IMAGE_CACHE/$ent";
-	next if ($ent =~ /^\..*$/ || !-d $dname);
-	next if ($ent eq "PNSYSTEM"); # Skip system dir.
+	next if (!-d $dname || $ent eq "PNSYSTEM");
 	my $subdh;
 	if (!opendir($subdh, $dname)) {
 	    warn "tbadb_serv::do_lru_cleanup: Could not descend into $dname\n";
@@ -768,8 +833,10 @@ sub do_lru_cleanup() {
 	    last;
 	}
 	while (my $subent = readdir($subdh)) {
-	    next if ($subent =~ /^\..*$/);
+	    next if ($subent !~ /^(\w[-\.\w]+)$/);
+	    $subent = $1;
 	    my $imfile  = "$dname/$subent";
+	    next if (!-f $imfile);
 	    my $lrufile = "$dname/.$subent.lru";
 	    if (!-e $lrufile) {
 		warn "tbadb_serv::do_lru_cleanup: creating missing LRU file for: $imfile";
@@ -814,7 +881,11 @@ sub do_lru_cleanup() {
 		warn "tbadb_serv::do_lru_cleanup: Could not remove $imfile: $!\n";
 		goto BADLRU;
 	    }
-	    warn "tbadb_serv::do_lru_cleanup: removed file $imfile\n";
+	    if (system("$RM -rf ${imfile}.work") != 0) {
+		warn "tbadb_serv::do_lru_cleanup: Could not remove unpacked bundle dir for $imfile\n";
+		goto BADLRU;
+	    }
+	    warn "tbadb_serv::do_lru_cleanup: removed image $imfile\n";
 	    $tot -= $imsize;
 	}
 	if ($tot > $WM_LOW) {
@@ -1078,8 +1149,13 @@ sub setup_android_forward($$;$$) {
     }
 
     # Restart adbd on the UE listening on tcpip port 5555
-    if (system("$ADB -s $serial tcpip $ADBD_LISTENPORT") != 0) {
+    if (system("$ADB -s $serial tcpip $ADBD_LISTENPORT >/dev/null 2>&1") != 0) {
 	warn "tbadb_serv::setup_android_forward: could not restart adbd on $node_id to listen on tcpip port $ADBD_LISTENPORT!\n";
+	goto BADFWD;
+    }
+
+    if (!wait_for_android($node_id)) {
+	warn "tbadb_serv::setup_android_forward: failed while waiting for device to become ready!\n";
 	goto BADFWD;
     }
 
@@ -1294,7 +1370,14 @@ sub check_adb() {
 	delete $ipt_p2s{$port};
 	delete $ipt_p2h{$port};
     }
-    map { my ($n,$th,$p) = @{$_}; setup_android_forward($n,$th,$p,0) } @todo;
+    foreach my $ent (@todo) {
+	my ($n,$th,$p) = @{$ent};
+	warn "tbadb_serv::check_adb: fixing forwarding for node $n\n"
+	    if $debug;
+	setup_android_forward($n,$th,$p,0);
+	warn "tbadb_serv::check_adb: done fixing node $n\n"
+	    if $debug;
+    }
 
     # Now get rid of entries we don't have a fowarding record
     # for. These will be all records left in the hashes built up

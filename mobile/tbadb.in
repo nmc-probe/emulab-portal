@@ -58,8 +58,10 @@ my $MAXCMDLEN = 32;
 my %RPCPIPES = ();
 my $TBADB_PROXYCMD = "/usr/testbed/sbin/tbadb_proxy";
 my $TBADB_HELLO_TMO      = 10;
-my $TBADB_CHECKIMAGE_TMO = 30;
-my $TBADB_LOADIMAGE_TMO  = 120;
+my $TBADB_LOCKIMAGE_TMO  = 300;
+my $TBADB_UNLOCKIMAGE_TMO = 10;
+my $TBADB_CHECKIMAGE_TMO = 60;
+my $TBADB_LOADIMAGE_TMO  = 300;
 my $TBADB_FORWARD_TMO    = 15;
 my $TBADB_REBOOT_TMO     = 60;
 my $TBADB_NODEWAIT_TMO   = 60;
@@ -132,10 +134,6 @@ $CMD = $1;
 
 die "$0: unknown command: $CMD\n"
     if (!exists($DISPATCH{$CMD}));
-
-# Setup signal handler stuff.
-$SIG{CHLD} = \&chldhandler;
-$SIG{HUP} = $SIG{TERM} = $SIG{INT} = \&genhandler;
 
 # Execute!
 exit $DISPATCH{$CMD}->($node_id, @ARGS);
@@ -212,6 +210,26 @@ sub cmd_loadimage($@) {
     die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
 	if (!$rpcin || !$rpcout);
 
+    # Grab a lock for this image on remote side first.
+    die "tbadb::cmd_loadimage: Failed to send 'lockimage' RPC!\n"
+	if (!SendRPCData($rpcout, 
+			 EncodeCall("lockimage",
+				    {
+					IMG_PROJ => $imagepid,
+					IMG_NAME => $imagename,
+				    })));
+    my $pdu;
+    die "tbadb::cmd_loadimage: Failed to receive valid response for 'checkimage'\n"
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_LOCKIMAGE_TMO) != 1);
+    my $data = DecodeRPCData($pdu);
+    die "tbadb::cmd_loadimage: Could not decode RPC response from 'lockimage'"
+	if (!$data);
+    if (exists($data->{ERROR})) {
+	warn "tbadb::cmd_loadimage: Received error from 'lockimage':\n";
+	warn "". Dumper($data);
+	exit 1;
+    }
+
     # Have remote side check for this image in its cache.
     die "tbadb::cmd_loadimage: Failed to send 'checkimage' RPC!\n"
 	if (!SendRPCData($rpcout, 
@@ -222,10 +240,9 @@ sub cmd_loadimage($@) {
 					IMG_TIME => $mtime,
 					IMG_SIZE => $size,
 				    })));
-    my $pdu;
     die "tbadb::cmd_loadimage: Failed to receive valid response for 'checkimage'\n"
 	if (RecvRPCData($rpcin, \$pdu, $TBADB_CHECKIMAGE_TMO) != 1);
-    my $data = DecodeRPCData($pdu);
+    $data = DecodeRPCData($pdu);
     die "tbadb::cmd_loadimage: Could not decode RPC response from 'checkimage'"
 	if (!$data);
     if (exists($data->{ERROR})) {
@@ -243,13 +260,33 @@ sub cmd_loadimage($@) {
 	die "tbadb::cmd_loadimage: Malformed remote image path!\n"
 	    if ($data->{RESULT}->{REMOTE_PATH} !~ /^([-\/\w]+)$/);
 	my $rpath = $1;
-	print "tbadb: Sending $imagepath to $rhost\n";
+	print "tbadb::cmd_loadimage: Transferring $imagename to $rhost\n";
 	my $SAVEUID = $UID; 
 	$EUID = $UID = 0; # Flip to root to run!
 	die "tbadb::cmd_loadimage: Failed to transfer image to $rhost: $imagepath\n"
-	    if (mysystem($SCP, '-q', '-B', '-p', 
-			 "$imagepath", "$rhost:$rpath/$imagename") != 0);
+	    if (system($SCP, '-q', '-B', '-p', 
+		       "$imagepath", "$rhost:$rpath/$imagename") != 0);
 	$EUID = $UID = $SAVEUID; # Flip back.
+	print "tbadb::cmd_loadimage: Transfer complete\n";
+    }
+
+    # Release our lock on the image.
+    die "tbadb::cmd_loadimage: Failed to send 'unlockimage' RPC!\n"
+	if (!SendRPCData($rpcout, 
+			 EncodeCall("unlockimage",
+				    {
+					IMG_PROJ => $imagepid,
+					IMG_NAME => $imagename,
+				    })));
+    die "tbadb::cmd_loadimage: Failed to receive valid response for 'unlockimage'\n"
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_UNLOCKIMAGE_TMO) != 1);
+    $data = DecodeRPCData($pdu);
+    die "tbadb::cmd_loadimage: Could not decode RPC response from 'unlockimage'"
+	if (!$data);
+    if (exists($data->{ERROR})) {
+	warn "tbadb::cmd_loadimage: Received error from 'unlockimage':\n";
+	warn "". Dumper($data);
+	exit 1;
     }
 
     # Now that the image is (ostensibly) in place on the remote side,
@@ -274,7 +311,7 @@ sub cmd_loadimage($@) {
     }
 
     # Done!
-    print "tbadb: Successfully loaded $imagepath to $node_id\n";
+    print "tbadb::cmd_loadimage: Successfully loaded $imagename onto $node_id\n";
     return 0;
 }
 
