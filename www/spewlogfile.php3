@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -55,6 +55,7 @@ if (!isset($isajax) && $logfile->isopen()) {
    header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
    header("Cache-Control: no-cache, must-revalidate");
    header("Pragma: no-cache");
+   header("Access-Control-Allow-Origin: *");
    echo "<html>\n";
    echo "<script src='$TBBASE/apt/js/lib/jquery-2.0.3.min.js'></script>\n";
    echo "<script src='$TBBASE/apt/js/lib/underscore-min.js'></script>\n";
@@ -89,6 +90,7 @@ if ($fp =
     header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
     header("Cache-Control: no-cache, must-revalidate");
     header("Pragma: no-cache");
+    header("Access-Control-Allow-Origin: *");
     flush();
 
     while (!feof($fp)) {
