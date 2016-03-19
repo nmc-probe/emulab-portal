@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1097,12 +1097,16 @@ class Image
 	$version = $this->version();
 	
 	if ($does) {
-	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
-						 "XEN43-64-STD");
+            if (TBSiteVarExists("general/default_xen_parentosid")) {
+                $xenname = TBGetSiteVar("general/default_xen_parentosid");
+            }
+            else {
+                $xenname = "emulab-ops,XEN43-64-STD";
+            }
+	    list($pid,$osname) = preg_split('/,/', $xenname);
+	    $parentosinfo = OSinfo::LookupByName($pid,$osname);
 	    if (!$parentosinfo) {
-		$parentosinfo = OSinfo::LookupByName("emulab-ops",
-						     "XEN41-64-STD");
-		return -1;
+                return -1;
 	    }
 	    $parentosid = $parentosinfo->osid();
 
@@ -1113,14 +1117,6 @@ class Image
 			 "  osid='$imageid', parent_osid='$parentosid'");
 	    DBQueryFatal("replace into osidtoimageid set ".
 			 " osid='$imageid', type='pcvm', imageid='$imageid'");
-	    
-	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
-						 "XEN44-64-BIGFS");
-	    if ($parentosinfo) {
-		$parentosid = $parentosinfo->osid();
-		DBQueryFatal("replace into os_submap set ".
-			     "  osid='$imageid', parent_osid='$parentosid'");
-	    }
 	}
 	else {
 	    DBQueryFatal("delete from osidtoimageid ".
