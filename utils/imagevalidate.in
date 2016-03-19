@@ -44,6 +44,7 @@ sub usage()
     print("Usage: imagevalidate [-dfupqRS] [-H hash] [-V str] <imageid> ...\n".
 	  "       imagevalidate [-dfupqRS] [-H hash] [-V str] -P pid\n".
 	  "       imagevalidate [-dfupqRS] [-H hash] [-V str] -a\n".
+	  "Validate image information in the DB.\n".
 	  "Options:\n".
 	  "       -d      Turn on debug mode\n".
 	  "       -f      Only update if DB says an image is out of date\n".
@@ -56,11 +57,11 @@ sub usage()
 	  "       -U      Do not modify updater_uid in DB\n".
 	  "       -H hash Use the provided hash rather than recalculating\n".
 	  "       -V str  Comma separated list of fields to validate/update\n".
-	  "               valid values: 'hash', 'range', 'size', 'all'\n".
-	  "               default is 'all'\n".
+	  "               fields: 'hash', 'range', 'size', 'all', 'sig'; default is 'all'\n".
+	  "               NOTE: 'sig' is special as it is not a DB field and\n".
+	  "               thus is not included in the 'all' option.\n".
 	  "       -S      Validate/update the image signature\n".
-	  "               (this is not a DB field so is not included in the\n".
-	  "               default or \"-V all\" validate/update\n");
+	  "               This is the same as specifying \"-V sig\".\n");
     exit(-1);
 }
 my $optlist    = "dfnupqRaP:UH:V:FS";
@@ -95,7 +96,7 @@ sub doimage($);
 sub makehashfile($$$$);
 sub removehashfile($$);
 sub checksigfile($$$);
-sub makesigfile($$$);
+sub makesigfile($$$$);
 sub removesigfile($$);
 sub removeoldsigfile($);
 sub fatal($);
@@ -180,7 +181,7 @@ if (defined($options{"V"})) {
 } else {
     $validate{"all"} = 1;
 }
-if (defined($options{"S"})) {
+if (defined($options{"S"}) || $validate{"sig"}) {
     $dosig = 1;
 }
 @images = @ARGV;
@@ -348,7 +349,7 @@ sub doimage($)
 	}
 	makehashfile($pidimage, $path, $hash, $fuid);
 	if ($dosig && checksigfile($pidimage, $path, $isdelta)) {
-	    makesigfile($pidimage, $path, $isdelta);
+	    makesigfile($pidimage, $path, $isdelta, $fuid);
 	}
 	return 0;
     }
@@ -579,7 +580,7 @@ sub doimage($)
 	    if ($update) {
 		print("$pidimage: sig: ")
 		    if (!$quiet);
-		if (makesigfile($pidimage, $path, $isdelta) == 0) {
+		if (makesigfile($pidimage, $path, $isdelta, $fuid) == 0) {
 		    $changed = 1;
 		    print "[FIXED]\n"
 			if (!$quiet);
@@ -644,9 +645,9 @@ sub checksigfile($$$)
 }
 
 # Return 0 if action is successful
-sub makesigfile($$$)
+sub makesigfile($$$$)
 {
-    my ($pidimage,$imagepath,$isdelta) = @_;
+    my ($pidimage,$imagepath,$isdelta,$fuid) = @_;
     my $sigfile = "$imagepath.sig";
 
     # XXX get rid of old sigfile
@@ -675,6 +676,10 @@ sub makesigfile($$$)
 	    "$pidimage: WARNING: could not create signature for $imagepath\n";
 	unlink($sigfile);
 	return 1;
+    }
+    if (defined($fuid) && system("chown $fuid $sigfile >/dev/null 2>&1")) {
+	print STDERR
+	    "$pidimage: WARNING: could not chown $sigfile to $fuid\n";
     }
 
     return 0;
