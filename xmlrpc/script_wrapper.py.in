@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2004-2015 University of Utah and the Flux Group.
+# Copyright (c) 2004-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -386,8 +386,10 @@ class reboot:
 	print "where:";
 	print "    -w    - Wait for nodes is come back up";
 	print "    -c    - Reconfigure nodes instead of rebooting";
-	print "    -f    - Force power cycle of nodes (skip reboot!)";
-	print "    -s    - Slow power cycle of nodes (power off; sleep 10; power on)";
+	print "    -f    - Force power cycle of nodes (skip OS reboot)";
+	print "    -s    - Force a 'slow' power cycle of nodes (power off, pause, power on)";
+        print "            Try this if a node does not respond to a normal reboot";
+        print "            or if you have accidentally powered off a node.";
  	print "    -e    - Reboot all nodes in an experiment";
 	print "  node    - Node to reboot (pcXXX)";
         wrapperoptions();
