@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -34,14 +34,15 @@ use POSIX qw(mktime strftime);
 sub usage()
 {
     print STDERR
-	"Usage: spewimage [-h] [-t timestamp] -k access_key <imageid>\n".
+	"Usage: spewimage [-h] [-t timestamp] [-e] -k access_key <imageid>\n".
 	"Spew an image file to a (widearea) node.\n";
     exit(-1);
 }
-my $optlist   = "t:k:hsd";
+my $optlist   = "t:k:hsde";
 my $debug     = 0;
 my $headonly  = 0;
 my $sigfile   = 0;
+my $delta     = 0;
 my $access_key;
 my $timestamp;			# GM Time.
 
@@ -102,6 +103,9 @@ if (defined($options{"h"})) {
 if (defined($options{"d"})) {
     $debug = 1;
 }
+if (defined($options{"e"})) {
+    $delta = 1;
+}
 if (defined($options{"s"})) {
     $sigfile = 1;
 }
@@ -147,8 +151,11 @@ exit(0);
 #
 sub SpewImage()
 {
-    my $file = ($sigfile ?
-		$image->FullImageSigFile() : $image->FullImageFile());
+    my $file = ($delta ?
+		($sigfile ?
+		 $image->DeltaImageSigFile() : $image->DeltaImageFile()) :
+		($sigfile ?
+		 $image->FullImageSigFile() : $image->FullImageFile()));
 
     open(FD, "< $file")
 	or fatal("Could not open $file!\n");
@@ -212,8 +219,11 @@ sub VerifyImage()
     # The current user needs to be able to read the image file and must
     # have provided proper access key. 
     #
-    my $file = ($sigfile ?
-		$image->FullImageSigFile() : $image->FullImageFile());
+    my $file = ($delta ?
+		($sigfile ?
+		 $image->DeltaImageSigFile() : $image->DeltaImageFile()) :
+		($sigfile ?
+		 $image->FullImageSigFile() : $image->FullImageFile()));
     
     if (! -r $file) {
 	if ($debug) {
