@@ -1,0 +1,35 @@
+<div>
+  <table class='table table-condensed table-bordered' id="admin_table">
+    <tr>
+      <td>PID</td>
+      <td><%- fields.pid %> (<%- fields.pid_idx%>)</td>
+    </tr>
+    <tr>
+      <td>Description</td>
+      <td><%= fields.description %></td>
+    </tr>
+    <tr>
+      <td>URL</td>
+      <td><a href='<%- fields.url %>'><%= fields.url %></td>
+    </tr>
+    <tr>
+      <td>Leader</td>
+      <td><a href='user-dashboard.php?user=<%- fields.leader %>'>
+	<%= fields.leader %></a></td>
+    </tr>
+    <tr>
+      <td>Created</td>
+      <td class="format-date"><%= fields.created %></td>
+    </tr>
+    <tr>
+      <td>Approved</td>
+      <td><% if (fields.approved) { %>Yes<% } else { %>No<% } %></td>
+    </tr>
+    <tr>
+      <td colspan="2"><center>Long Description</center></td>
+    </tr>
+    <tr>
+      <td colspan="2"><%= fields.why %></td>
+    </tr>
+  </table>
+</div>

@@ -4,9 +4,10 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/experiment-list.html',
 	 'js/lib/text!template/profile-list.html',
 	 'js/lib/text!template/member-list.html',
+	 'js/lib/text!template/project-profile.html',
 	],
 function (_, sup, moment, mainString,
-	  experimentString, profileString, memberString)
+	  experimentString, profileString, memberString, detailsString)
 {
     'use strict';
     var mainTemplate    = _.template(mainString);
@@ -26,6 +27,7 @@ function (_, sup, moment, mainString,
 	LoadExperimentTab();
 	LoadProfileTab();
 	LoadMembersTab();
+	LoadProjectTab();
     }
 
     function LoadExperimentTab()
@@ -165,6 +167,37 @@ function (_, sup, moment, mainString,
 	}
 	var xmlthing = sup.CallServerMethod(null,
 					    "show-project", "MemberList",
+					    {"pid" : window.TARGET_PROJECT});
+	xmlthing.done(callback);
+    }
+
+    function LoadProjectTab()
+    {
+	var callback = function(json) {
+	    console.info(json);
+
+	    if (json.code) {
+		console.info(json.value);
+		return;
+	    }
+	    if (json.value.length == 0) {
+		return;
+	    }
+	    var template = _.template(detailsString);
+
+	    $('#admin_content')
+		.html(template({"fields" : json.value}));
+	    
+	    // Format dates with moment before display.
+	    $('#admin_table .format-date').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html()).format("ll"));
+		}
+	    });
+	}
+	var xmlthing = sup.CallServerMethod(null,
+					    "show-project", "ProjectProfile",
 					    {"pid" : window.TARGET_PROJECT});
 	xmlthing.done(callback);
     }

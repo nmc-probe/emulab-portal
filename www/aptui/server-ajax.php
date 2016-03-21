@@ -178,6 +178,8 @@ $routing = array("myprofiles" =>
                                                       "Do_ProjectList",
                                                  "ProfileList" =>
                                                       "Do_ProfileList",
+                                                 "Toggle" =>
+                                                     "Do_Toggle",
                                                  "AccountDetails" =>
                                                       "Do_AccountDetails")),
 		 "show-project" =>
@@ -189,8 +191,8 @@ $routing = array("myprofiles" =>
                                                       "Do_ProfileList",
                                                  "MemberList" =>
                                                       "Do_MemberList",
-                                                 "ProjectDetails" =>
-                                                      "Do_ProjectDetails")),
+                                                 "ProjectProfile" =>
+                                                      "Do_ProjectProfile")),
 );
 
 #

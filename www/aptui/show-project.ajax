@@ -112,6 +112,31 @@ function Do_MemberList()
     SPITAJAX_RESPONSE($results);
 }
 
+function Do_ProjectProfile()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    if (!ISADMIN()) {
+	SPITAJAX_ERROR(-1, "Not enough permission");
+        return;
+    }
+    $results = array();
+
+    $results["pid"]         = $target_project->pid();
+    $results["pid_idx"]     = $target_project->pid_idx();
+    $results["leader"]      = $target_project->head_uid();
+    $results["created"]     = DateStringGMT($target_project->created());
+    $results["approved"]    = $target_project->approved();
+    $results["url"]         = $target_project->URL();
+    $results["description"] = $target_project->name();
+    $results["why"]         = $target_project->why();
+
+    SPITAJAX_RESPONSE($results);
+}
+
 # Local Variables:
 # mode:php
 # End:

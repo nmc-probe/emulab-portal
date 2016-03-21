@@ -141,7 +141,84 @@ function Do_AccountDetails()
     $results["state"]        = $target_user->state();
     $results["city"]         = $target_user->city();
 
+    if (ISADMIN()) {
+        $results["uid_idx"]       = $target_user->uid_idx();
+        $results["created"]       = DateStringGMT($target_user->created());
+        $results["status"]        = $target_user->status();
+        $results["stud"]          = $target_user->stud() ? true : false;
+        $results["admin"]         = $target_user->admin() ? true : false;
+        $results["foreign_admin"] = $target_user->foreign_admin() ? true:false;
+        $results["web_frozen"]    = $target_user->weblogin_frozen()? true:false;
+    }
+
     SPITAJAX_RESPONSE($results);
+}
+
+#
+# Toggle flags.
+#
+function Do_Toggle()
+{
+    global $this_user, $target_user;
+    global $ajax_args;
+    global $TBMAIL_OPS, $TBMAIL_AUDIT, $TBMAIL_WWW, $TBADMINGROUP;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    if (!ISADMIN()) {
+	SPITAJAX_ERROR(-1, "Not enough permission");
+        return;
+    }
+    if ($target_user->status() != TBDB_USERSTATUS_ACTIVE) {
+	SPITAJAX_ERROR(-1, "User not been activated yet!");
+        return;
+    }
+    $target_idx  = $target_user->uid_idx();
+    $target_uid  = $target_user->uid();
+    $this_uid    = $this_user->uid();
+
+    if (!isset($ajax_args["toggle"])) {
+	SPITAJAX_ERROR(-1, "Missing toggle name");
+	return -1;
+    }
+    $toggle = $ajax_args["toggle"];
+
+    if ($toggle == "admin") {
+        $target_user->SetAdminFlag($target_user->admin() ? 0 : 1);
+        if ($target_user->admin()) {
+            TBMAIL($TBMAIL_OPS,
+                   "Admin Flag enabled for '$target_uid'",
+                   "$this_uid has enabled the admin flag for $target_uid!\n\n",
+                   "From: $TBMAIL_OPS\n".
+                   "Bcc: $TBMAIL_AUDIT\n".
+                   "Errors-To: $TBMAIL_WWW");
+        }
+        if (SUEXEC($this_uid, $TBADMINGROUP,
+                   "webtbacct mod $target_uid", SUEXEC_ACTION_CONTINUE)) {
+            SPITAJAX_ERROR(-1, $suexec_output);
+            return -1;
+        }
+        if (SUEXEC($this_uid, $TBADMINGROUP,
+                   "webmodgroups $target_uid", SUEXEC_ACTION_CONTINUE)) {
+            SPITAJAX_ERROR(-1, $suexec_output);
+            return -1;
+        }
+    }
+    elseif ($toggle == "foreign_admin") {
+        $target_user->SetForeignAdmin($target_user->foreign_admin() ? 0 : 1);
+    }
+    elseif ($toggle == "stud") {
+        $target_user->SetStudly($target_user->stud() ? 0 : 1);
+    }
+    elseif ($toggle == "web_frozen") {
+        $target_user->SetWebFreeze($target_user->weblogin_frozen() ? 0 : 1);
+    }
+    else {
+	SPITAJAX_ERROR(-1, "Unknown toggle name: $toggle");
+        return;
+    }
+    SPITAJAX_RESPONSE(1);
 }
 
 # Local Variables:
