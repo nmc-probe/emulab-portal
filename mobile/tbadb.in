@@ -379,7 +379,7 @@ sub cmd_forward($@) {
 
     # Done!
     my $chost;
-    $node->TipServer(\$rhost);
+    $node->TipServer(\$chost);
     print "tbadb::cmd_forward: successfully setup adb port: $chost:$portnum\n";
     return 0;
 }
