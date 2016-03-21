@@ -804,6 +804,7 @@ sub AnnotateManifest($)
 	print STDERR "Could not map node $self to its object\n";
 	return undef;
     }
+    my $vname = $node->vname();
     my $user = GeniUser->Lookup($self->creator_uuid(), 1);
     if (!defined($user)) {
 	print STDERR "Could not map sliver $self to its creator\n";
@@ -824,7 +825,6 @@ sub AnnotateManifest($)
     my $ipv4;
     
     if ($node->isvirtnode()) {
-	my $vname = $node->vname();
 	my $public_control;
 	$experiment->GetVirtNodeAttribute( $vname, "routable_control_ip",
 					   \$public_control );
@@ -916,6 +916,18 @@ sub AnnotateManifest($)
 			 (defined($tipserver) ? $tipserver : $sshdhost));
     }
 
+    my $adb_port;
+    $experiment->GetVirtNodeAttribute( $vname, "adb_port",
+				       \$adb_port );
+    GeniXML::SetText( "adb_port", $rspec, $adb_port )
+	if( defined( $adb_port ) );
+    
+    my $adb_target;
+    $experiment->GetVirtNodeAttribute( $vname, "adb_target",
+				       \$adb_target );
+    GeniXML::SetText( "adb_target", $rspec, $adb_target )
+	if( defined( $adb_target ) );
+    
     if ($self->UpdateRspec($rspec)) {
 	print STDERR "Could not insert annotated manifest for node $self ".
 	    "into database";

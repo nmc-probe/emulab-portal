@@ -32,6 +32,7 @@ PELABSUPPORT	= @PELABSUPPORT@
 PGENISUPPORT    = @PROTOGENI_SUPPORT@
 ISMAINSITE	= @TBMAINSITE@
 SPEWFROMOPS	= @SPEWFROMOPS@
+MOBILESUPPORT   = @MOBILESUPPORT@
 SYSTEM	       := $(shell uname -s)
 
 include Makeconf
@@ -53,7 +54,7 @@ SUBDIRS = \
 	db assign www @optional_subdirs@ clientside ipod security sensors \
 	pxe tbsetup account tmcd utils backend tip ipod vis \
 	sensors os xmlrpc autofs install/newnode_sshkeys \
-	tools/svn wiki collab/exp-vis node_usage install
+	tools/svn collab/exp-vis node_usage install
 ifeq ($(ISMAINSITE),1)
 SUBDIRS += tools/rmanage tools/whol
 endif
@@ -128,8 +129,10 @@ post-install:
 ifeq ($(EVENTSYS),1)
 	@$(MAKE) -C event post-install
 endif
+ifeq ($(MOBILESUPPORT),1)
+	@$(MAKE) -C mobile
+endif
 	@$(MAKE) -C tools post-install
-	@$(MAKE) -C wiki post-install
 	@$(MAKE) -C collab post-install
 	@$(MAKE) -C utils post-install
 ifeq ($(NODE_USAGE_SUPPORT),1)

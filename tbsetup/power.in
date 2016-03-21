@@ -54,6 +54,7 @@ use power_ilo;
 use power_icebox;
 use power_apc;
 use power_racktivity;
+use power_ue;
 use libtestbed;
 use User;
 use Node;
@@ -364,7 +365,7 @@ foreach my $power_id (keys %outlets) {
     if ($power_id eq "mail" || $power_id =~ /^whol-/ 
 	|| $power_id=~ /^rmcp-/
 	|| $power_id eq 'ipmi15' || $power_id eq 'ipmi20'
-	|| $power_id eq 'drac'
+	|| $power_id eq 'drac' || $power_id eq 'ue'
 	|| $power_id eq 'ilo' || $power_id eq 'ilo2' || $power_id eq 'ilo3') {
 	$type = $power_id;
 	$IP = "";
@@ -456,6 +457,11 @@ foreach my $power_id (keys %outlets) {
 	# XXX: 'garcia' is temporary until stargates are subnodes of
 	# garcias
 	if (sgmotectrl($op,@nodes)) {
+	    print "Control of $nodestr failed.\n"; $exitval++;
+	    $errors++;
+	}
+    } elsif ($type eq "ue") {
+	if (uectrl($op,@nodes)) {
 	    print "Control of $nodestr failed.\n"; $exitval++;
 	    $errors++;
 	}

@@ -2184,4 +2184,22 @@ sub AddNode($$)
     return $self->SUPER::AddNode($node);
 }
 
+#####################################################################
+#
+# PhantomNet mobile handsets (UEs).  Treat as regular cluster nodes.
+# libosload will handle the alternate way images need to be loaded.
+#
+package libossetup_ue;
+use base qw(libossetup_pc);
+
+use libdb;
+use libtestbed;
+use libossetup;
+use libtblog;
+use Node;
+use English;
+use Data::Dumper;
+use overload ('""' => 'Stringify');
+
+# This needs to be the last thing in the file.
 1;
