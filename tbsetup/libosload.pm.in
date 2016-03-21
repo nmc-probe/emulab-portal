@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1170,7 +1170,7 @@ sub SetupReloadFrisbee($)
 	# only prepare on first image
 	my $prepare0 = $idx == 1 && $prepare ? 1 : 0;
 	# only zero on full images
-	my $zerofree0 = $image->isdelta() ? 0 : $zerofree;
+	my $zerofree0 = $image->HaveFullImage() ? $zerofree : 0;
 
 	my $query_result = 
 	    DBQueryWarn("insert into current_reloads ".

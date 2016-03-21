@@ -451,7 +451,6 @@ class Image
     function logfileid()	{ return $this->field("logfileid"); }
     function noexport()		{ return $this->field("noexport"); }
     function ready()		{ return $this->field("ready"); }
-    function isdelta()		{ return $this->field("isdelta"); }
     function isdataset()	{ return $this->field("isdataset"); }
     function nodelta()		{ return $this->field("nodelta"); }
     function released()		{ return $this->field("released"); }
@@ -906,7 +905,7 @@ class Image
 	if ($DOPROVENANCE) {
 	    $released = $this->released();
 	    $ready    = $this->ready();
-	    $isdelta  = $this->isdelta();
+	    $isdelta  = $this->size() ? 0 : 1;
 	    $nodelta  = $this->nodelta();
 	    
 	    echo "<tr>
