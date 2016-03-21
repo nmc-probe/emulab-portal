@@ -167,7 +167,8 @@ function (_, sup, moment, aptforms,
 				     formfields.dataset_bsname);
 	    }
 	}
-	
+	aptforms.EnableUnsavedWarning('#create_dataset_form');
+
 	//
 	// Handle submit button.
 	//

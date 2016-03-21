@@ -99,12 +99,14 @@ function (_, sup, aptforms,
 	$('#signup_states').bfhstates({ country: 'signup_countries',
 					state: formfields.state,
 					blank: false, ask: true });
+	
+	aptforms.EnableUnsavedWarning('#quickvm_signup_form');
+	
+	// Handle submit button.
+	$('#submit_button').click(function (event) {
+	    aptforms.DisableUnsavedWarning('#quickvm_signup_form');
+	});
     }
     
-    function clearForm($form)
-    {
-	$form.find('input:text, input:password, select, textarea').val('');
-    }
-
     $(document).ready(initialize);
 });

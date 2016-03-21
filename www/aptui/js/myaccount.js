@@ -13,7 +13,6 @@ function (_, sup, aptforms,
 
     var myaccountTemplate = _.template(myaccountString);
     var verifyTemplate    = _.template(verifyString);
-    var modified          = false;
 
     function initialize()
     {
@@ -30,19 +29,6 @@ function (_, sup, aptforms,
 	    fields.country = "US";
 	}
 	renderForm(fields, null);
-	
-	// Warn user if they have not saved changes.
-	window.onbeforeunload = function() {
-	    if (! modified)
-		return null;
-	    return "You have unsaved changes!";
-	}
-    }
-
-    function Modified()
-    {
-	modified = true;
-	$('#submit_button').removeAttr("disabled");
     }
 
     function renderForm(formfields)
@@ -64,23 +50,16 @@ function (_, sup, aptforms,
 					state: formfields.state,
 					blank: false, ask: true });
 
-	/*
-	 * We have to attached the event handlers after we update the DOM.
-	 */
-	$('#myaccount_form').find(".format-me").each(function() {
-	    $(this).change(function() { Modified(); });
+	aptforms.EnableUnsavedWarning('#myaccount_form', function () {
+	    $('#submit_button').removeAttr("disabled");
 	});
 	$('#submit_button').click(function (event) {
 	    event.preventDefault();
-	    // Disable the Stay on Page alert above.
-	    window.onbeforeunload = null;
 	    SubmitForm();
 	    return false;
 	});
 	$('#verify_modal_submit').click(function (event) {
 	    event.preventDefault();
-	    // Disable the Stay on Page alert above.
-	    window.onbeforeunload = null;
 	    sup.HideModal('#verify_modal');
 	    SubmitForm();
 	    return false;
@@ -104,7 +83,6 @@ function (_, sup, aptforms,
 		// Email not verified, throw up form.
 		if (json.code == 3) {
 		    sup.ShowModal('#verify_modal');
-		    return;
 		}
 		else if (json.code != 2) {
 		    sup.SpitOops("oops", json.value);		    

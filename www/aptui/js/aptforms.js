@@ -143,6 +143,33 @@ define(['underscore', 'js/quickvm_sup'],
 	    }
 	}
 
+	/*
+	 * Enable a warning if the form is modified and we try to leave
+	 * the page. Only allows a single form, but that would be easy
+	 * to change if we needed it.
+	 */
+	function EnableUnsavedWarning(form, modified_callback) {
+	    var modified = false;
+
+	    $(form + ' :input').change(function () {
+		console.info("changed");
+		if (modified_callback) {
+		    modified_callback();
+		}
+		modified = true;
+	    });
+
+	    // Warn user if they have not saved changes.
+	    window.onbeforeunload = function() {
+		if (! modified)
+		    return null;
+		return "You have unsaved changes!";
+	    }
+	}
+	function DisableUnsavedWarning(form) {
+	    window.onbeforeunload = null;
+	}
+
 	function ClearFormErrors(form) {
 	    $(form).find(".format-me").each(function () {
 		if (this.dataset) {
@@ -211,6 +238,7 @@ define(['underscore', 'js/quickvm_sup'],
 	    var submit_callback = function(json) {
 		console.info(json);
 		sup.HideModal("#waitwait-modal");
+		DisableUnsavedWarning(form);
 		callback(json);
 	    };
 	    sup.ShowModal("#waitwait-modal");
@@ -225,11 +253,13 @@ define(['underscore', 'js/quickvm_sup'],
 
 	// Exports from this module.
 	return {
-	    "FormatFormFields"    : FormatFormFields,
+	    "FormatFormFields"           : FormatFormFields,
 	    "FormatFormFieldsHorizontal" : FormatFormFieldsHorizontal,
-	    "CheckForm"           : CheckForm,
-	    "SubmitForm"          : SubmitForm,
-	    "GenerateFormErrors"  : GenerateFormErrors,
+	    "CheckForm"                  : CheckForm,
+	    "SubmitForm"                 : SubmitForm,
+	    "GenerateFormErrors"         : GenerateFormErrors,
+	    "EnableUnsavedWarning"       : EnableUnsavedWarning,
+	    "DisableUnsavedWarning"      : DisableUnsavedWarning,
 	};
     }
 );

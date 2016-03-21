@@ -21,7 +21,14 @@ function (_, sup, aptforms, inviteString)
 	    general_error:      (errors.error || '')
 	});
 	$('#invite-body').html(aptforms.FormatFormFields(invite_html));
+
+	// Handle submit button.
+	$('#invite-submit-button').click(function (event) {
+	    aptforms.DisableUnsavedWarning('#invite_form');
+	});
+	
 	aptforms.GenerateFormErrors('#invite_form', errors);
+	aptforms.EnableUnsavedWarning('#invite_form');
     }
 
     $(document).ready(initialize);
