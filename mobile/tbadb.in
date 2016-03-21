@@ -102,7 +102,12 @@ if ($EUID != 0) {
 # Verify user and get user's DB uid and other info for later.
 #
 my $this_user = User->ThisUser();
-if (! defined($this_user)) {
+my $isroot = 0;
+# Special case for root, for when invoked by the reload_daemon...
+if ($UID == 0) {
+    $isroot = 1;
+}
+elsif (!defined($this_user)) {
     die("You ($UID) do not exist!\n");
 }
 
@@ -193,7 +198,7 @@ sub cmd_loadimage($@) {
 
     # Check user's access to the image.
     die "tbadb::cmd_loadimage: You do not have permission to use imageid $imageid!\n"
-	if (!$this_user->IsAdmin() &&
+	if (!$isroot && !$this_user->IsAdmin() &&
 	    !$image->AccessCheck($this_user, TB_IMAGEID_ACCESS));
     die "tbadb::cmd_loadimage: Cannot access image file: $imagepath\n"
 	if (!-r $imagepath);
@@ -203,7 +208,8 @@ sub cmd_loadimage($@) {
     die "tbadb::cmd_loadimage: Invalid node name $node_id!\n"
 	if (!defined($node));
     die("tbadb::cmd_loadimage: You do not have permission to load an image onto $node\n")
-	if (!$node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE));
+	if (!$isroot && !$this_user->IsAdmin() && 
+	    !$node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE));
     
     # Grab the RPC pipe.
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
@@ -334,7 +340,8 @@ sub cmd_forward($@) {
     die "tbadb::cmd_forward: Invalid node name $node_id!\n"
 	if (!defined($node));
     die "tbadb::cmd_forward: You do not have permission to access $node\n"
-	if (!$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
+	if (!$isroot && !$this_user->IsAdmin() &&
+	    !$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
 
     # Node must be in an experiment. We store the returned port number
     # in the virt_node_attributes table.
@@ -399,7 +406,8 @@ sub cmd_unforward($@) {
     die "tbadb::cmd_unforward: Invalid node name $node_id!\n"
 	if (!defined($node));
     die("tbadb::cmd_unforward: You do not have permission to modify $node\n")
-	if (!$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
+	if (!$isroot && !$this_user->IsAdmin() &&
+	    !$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
     
     # Grab the RPC pipe.
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
@@ -460,7 +468,8 @@ sub cmd_reboot($;@) {
     die "tbadb::cmd_reboot: Invalid node name $node_id!\n"
 	if (!defined($node));
     die("tbadb::cmd_reboot: You do not have permission to reboot $node\n")
-	if (!$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
+	if (!$isroot && !$this_user->IsAdmin() &&
+	    !$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
 
     # Grab the RPC pipe.
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
@@ -511,7 +520,8 @@ sub cmd_nodewait($;@) {
     die "tbadb::cmd_nodewait: Invalid node name $node_id!\n"
 	if (!defined($node));
     die("tbadb::cmd_nodewait: You do not have permission to access $node\n")
-	if (!$node->AccessCheck($this_user, TB_NODEACCESS_READINFO));
+	if (!$isroot && !$this_user->IsAdmin() &&
+	    !$node->AccessCheck($this_user, TB_NODEACCESS_READINFO));
 
     # Grab the RPC pipe.
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
