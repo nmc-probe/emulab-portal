@@ -700,7 +700,7 @@ sub doimage($)
 	    }
 
 	    if ($update && !$dpath) {
-		$image->SetDeltaHash(0);
+		$image->SetDeltaHash(undef);
 	    }
 	}
 
@@ -747,7 +747,7 @@ sub doimage($)
 	    }
 
 	    if ($update && !$path) {
-		$image->SetHash(0);
+		$image->SetHash(undef);
 	    }
 	}
     }
