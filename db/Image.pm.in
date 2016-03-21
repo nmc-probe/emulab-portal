@@ -519,7 +519,7 @@ sub Refresh($)
     my $version = $self->version();
     
     my $query_result =
-	DBQueryWarn("select v.*,i.uuid as image_uuid ".
+	DBQueryWarn("select v.*,i.uuid as image_uuid,i.locked,i.locker_pid ".
 		    "  from image_versions as v ".
 		    "left join images as i on ".
 		    "     v.imageid=i.imageid ".
