@@ -95,7 +95,7 @@ sub mysystem($)
 sub BlessRow($$)
 {
     my ($class, $row) = @_;
-    
+
     my $self           = {};
     my $imageid        = $row->{"imageid"};
     $self->{'IMAGE'}   = $row;
@@ -656,7 +656,9 @@ sub Create($$$$$$$$)
     $query .= ",created=now()";
     $query .= ",description=$desc";
     $query .= ",hash=" . DBQuoteSpecial($argref->{'hash'})
-	if (exists($argref->{'hash'}));
+	if (exists($argref->{'hash'}) && $argref->{'hash'} ne '');
+    $query .= ",deltahash=" . DBQuoteSpecial($argref->{'deltahash'})
+	if (exists($argref->{'deltahash'}) && $argref->{'deltahash'} ne '');
 
     #
     # If this is set in the environment, we use it. This allows
@@ -884,6 +886,7 @@ sub NewVersion($$$$)
 		"  parent_version=$parent_version, ".
 		"  origin_neednotify=0,origin_needupdate=0, ".
 		"  origin_uuid=NULL,origin_name=NULL, ".
+		"  hash=null,deltahash=null, ".
 		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
 	or goto bad;
@@ -1260,8 +1263,7 @@ sub Delete($;$)
     }
     else {
 	# Set deleted on all of the versions.
-	DBQueryWarn("update image_versions set ".
-		    "    deleted=now(),locked=null,locker_pid=0 ".
+	DBQueryWarn("update image_versions set deleted=now() ".
 		    "where imageid='$imageid'")
 	    or goto bad;
     }
