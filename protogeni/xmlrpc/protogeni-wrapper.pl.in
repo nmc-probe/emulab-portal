@@ -663,7 +663,7 @@ push(@metadata, ["Module", $MODULE]);
 push(@metadata, ["Method", $method]);
 push(@metadata, ["Version", $GENI_VERSION]) if (defined($GENI_VERSION));
 push(@metadata, ["StartTime", TBTimeStamp()]);
-push(@metadata, ["Project", $PROJECT] if (defined($PROJECT));
+push(@metadata, ["Project", $PROJECT]) if (defined($PROJECT));
 
 my $starttime = [gettimeofday()];
 eval { $result = &{ $GENI_METHODS->{$method} }(@{ $call->{'value'} }) };
