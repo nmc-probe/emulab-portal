@@ -227,6 +227,27 @@ if test -n ${WINDOWS_KEY_7PRO_X86}; then
    winfiles="$winfiles tmcc/cygwinseven/unattend-7pro-x86.xml"
 fi
 
+# Mobile networking support
+AC_SUBST(MOBILESUPPORT)
+MOBILESUPPORT=0
+
+AC_ARG_ENABLE(mobile,
+[  --enable-mobile[[=yes/no]]  Enable mobile support (PhantomNet) [[default=no]]])
+
+if test "$enable_mobile" = "no"; then
+	MOBILESUPPORT=0;
+elif test "$enable_mobile" = "yes"; then
+	MOBILESUPPORT=1;
+fi
+
+if test $MOBILESUPPORT -eq 0; then
+	mobilefiles=""
+else
+	mobilefiles="mobile/GNUmakefile"
+        AC_DEFINE_UNQUOTED(MOBILESUPPORT, 1, [Support mobile networking])
+fi
+
+
 outfiles="Makeconf GNUmakefile setversion \
 	  lib/GNUmakefile \
           lib/libtb/GNUmakefile \
@@ -303,7 +324,8 @@ outfiles="Makeconf GNUmakefile setversion \
 	  os/imagezip/extfs/GNUmakefile \
 	  $winfiles \
 	  os/imagezip/hashmap/GNUmakefile \
-	  protogeni/GNUmakefile"
+	  protogeni/GNUmakefile \
+	  $mobilefiles"
 
 #
 # Do this for easy distclean.

@@ -23,6 +23,7 @@
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
 OBJDIR		= @top_builddir@
+MOBILESUPPORT   = @MOBILESUPPORT@
 SUBDIR		= $(subst $(TESTBED_SRCDIR)/,,$(SRCDIR))
 SYSTEM	       := $(shell uname -s)
 ARCH	       := $(shell uname -p)
@@ -33,6 +34,9 @@ include $(OBJDIR)/Makeconf
 SUBDIRS         = lib tools os sensors protogeni
 ifneq ($(EVENTSYS),0)
 SUBDIRS += event
+endif
+ifeq ($(MOBILESUPPORT),1)
+SUBDIRS += mobile
 endif
 # tmcc should be last as the freenas* install targets mess with the hierarchy
 SUBDIRS += tmcc

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -20,38 +20,54 @@
 # 
 # }}}
 #
-
 SRCDIR		= @srcdir@
 TESTBED_SRCDIR	= @top_srcdir@
-OBJDIR		= ..
-SUBDIR		= mobile
-CLIENT_SRCDIR   = ${TESTBED_SRCDIR}/clientside/mobile
+OBJDIR		= @top_builddir@
+SUBDIR		= $(subst $(TESTBED_SRCDIR)/,,$(SRCDIR))
+TB_SBIN_DIR     = $(DESTDIR)/usr/testbed/sbin
+LIB_DIR         = $(DESTDIR)$(CLIENT_BINDIR)
+
+LIBSTUFF	= libjsonrpc.pm tbadb_rpc.pm
+SBINSTUFF	= tbadb_serv
 
 include $(OBJDIR)/Makeconf
 
-BIN_SCRIPTS	 = tbadb
-
-# CLIENT_LIB stuff is just here to show an explicit dependency.  It
-# is installed via the Makefile in the corresponding directory.
-CLIENT_LIB_FILES = libjsonrpc.pm tbadb_rpc.pm
-CLIENT_LIBS      = $(addprefix $(CLIENT_SRCDIR)/, $(CLIENT_LIB_FILES))
-
-# These scripts installed setuid, with sudo. 
-SETUID_BIN_SCRIPTS = tbadb
-
-#
-# Force dependencies on the scripts so that they will be rerun through
-# configure if the .in file is changed.
-# 
-all:	$(BIN_SCRIPTS) $(CLIENT_LIBS)
+all: 
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
-install: $(BIN_SCRIPTS) \
-	$(addprefix $(INSTALL_BINDIR)/, $(BIN_SCRIPTS))
+client: $(LIBSTUFF) $(SBINSTUFF)
+
+client-install: client
+	-mkdir -p $(LIB_DIR) $(TB_SBIN_DIR)
+	$(INSTALL_PROGRAM) $(SRCDIR)/tbadb_serv $(TB_SBIN_DIR)
+	$(INSTALL) $(SRCDIR)/libjsonrpc.pm $(LIB_DIR)
+	$(INSTALL) $(SRCDIR)/tbadb_rpc.pm $(LIB_DIR)
+
+boss-install: $(addprefix $(INSTALL_LIBDIR)/,$(LIBSTUFF))
+
+control-install: 
+
+fs-install:
+
+subboss:
+
+subboss-install:
 
 post-install:
-	chown root $(INSTALL_BINDIR)/tbadb
-	chmod u+s $(INSTALL_BINDIR)/tbadb
 
 clean:
+
+distclean:
+
+mfs:
+
+mfs-install:
+
+frisbee-mfs:
+
+frisbee-mfs-install:
+
+newnode-mfs:
+
+newnode-mfs-install:

@@ -1007,7 +1007,8 @@ fi
 if test $MOBILESUPPORT -eq 0; then
 	mobilefiles="";
 else
-	mobilefiles="mobile/GNUmakefile";
+	mobilefiles="mobile/GNUmakefile \
+	             clientside/mobile/GNUmakefile";
 	optional_subdirs="$optional_subdirs mobile";
 fi
 
