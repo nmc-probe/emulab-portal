@@ -2211,8 +2211,6 @@ CREATE TABLE `image_versions` (
   `lba_high` bigint(20) unsigned NOT NULL default '0',
   `lba_size` int(10) unsigned NOT NULL default '512',
   `relocatable` tinyint(1) NOT NULL default '0',
-  `locked` datetime default NULL,
-  `locker_pid` int(11) default '0',
   `metadata_url` tinytext,
   `imagefile_url` tinytext,
   `origin_urn` varchar(128) default NULL,
