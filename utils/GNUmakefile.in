@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -54,7 +54,8 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  update_sitevars delete_image sitecheckin sitecheckin_client \
 		  mktestbedtest fixrootcert addservers poolmonitor \
 		  node_exclude managetaint shutdown-shared imagerelease \
-		  runsonxen pxelinux_makeconf imagetodir attend atten
+		  runsonxen pxelinux_makeconf imagetodir attend atten \
+		  image_import-new
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
                   webwanodecheckin webspewimage webdumpdescriptor \
@@ -72,7 +73,7 @@ CTRLSBIN_SCRIPTS= opsdb_control.proxy daemon_wrapper ec2import.proxy \
 SETUID_BIN_SCRIPTS   = create_image
 SETUID_SBIN_SCRIPTS  = grabwebcams checkquota spewconlog opsdb_control suchown \
                        anonsendmail readblob image_import delete_image \
-                       pxelinux_makeconf imageinfo
+                       pxelinux_makeconf imageinfo image_import-new
 
 SETUID_SUEXEC_SCRIPTS  = xlogin
 
