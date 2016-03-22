@@ -36,8 +36,13 @@ use File::stat;
 #  * file size is correct
 #  * SHA1 hash is correct
 #  * covered sector range is correct
+#  * (optional) the signature file exists and is correct
 #
 # The update option will fix all but the first.
+#
+# Note that any of the existence checks requires that the caller be able
+# to access the project's image directory. That may not always be true
+# if validating a shared image!
 #
 sub usage()
 {
@@ -81,6 +86,7 @@ my %validate   = ();
 my @images     = ();
 my $userperm;
 my $newhash;
+my $accessfs   = 1;
 
 #
 # Configure variables
@@ -100,6 +106,8 @@ sub removehashfile($$);
 sub checksigfile($$$);
 sub makesigfile($$$);
 sub removesigfile($$);
+sub havefullimage($);
+sub havedeltaimage($);
 sub fatal($);
 
 #
@@ -280,7 +288,7 @@ if ($allvers) {
 	    next;
 	}
 
-	if ($vers == 0 && ! -e $imobj->FullImageFile()) {
+	if ($vers == 0 && !havefullimage($imobj)) {
 	    print STDERR "$iname: no full initial version!\n";
 	    $errs++;
 	}
@@ -309,10 +317,34 @@ sub doimage($)
     }
     my $imageid = $image->imageid();
 
+    #
     # If the user is not an admin, must have perm on the image.
-    if ($UID && !$user->IsAdmin() && !$image->AccessCheck($user, $userperm)) {
-	print STDERR "$pidimage: insufficient privilege\n";
-	return 1;
+    #
+    # We also test to see if the user can access the directory in which
+    # images, etc. reside. This will not always be the case, a user may
+    # have DB access to an image without being able to directly access
+    # the image file. This can affect the way we do tests below.
+    #
+    if ($UID) {
+	if (!$user->IsAdmin() && !$image->AccessCheck($user, $userperm)) {
+	    print STDERR "$pidimage: insufficient privilege\n";
+	    return 1;
+	}
+
+	my $statme;
+	if ($image->IsDirPath()) {
+	    $statme = $image->path();
+	} elsif ($image->path() =~ /^(.*\/)[^\/]*$/) {
+	    $statme = $1;
+	}
+	if ($statme && -e "$statme") {
+	    $accessfs = 1;
+	} else {
+	    print STDERR "$pidimage: WARNING: cannot access image directory '$statme', some validations disabled.\n";
+	    $accessfs = 0;
+	}
+    } else {
+	$accessfs = 1;
     }
 
     #
@@ -322,26 +354,50 @@ sub doimage($)
     if ($image->IsDirPath()) {
 	$isdir = 1;
 	#
-	# XXX we check for image file existence rather than using
-	# Have{Full,Delta}Image() since the latter uses the size/deltasize
-	# fields which may not be initialized yet.
+	# XXX We prefer to use image file existence as the type
+	# differentiator rather than using the Have{Full,Delta}Image()
+	# methods since they use the size/deltasize fields which may not
+	# be initialized yet. However, we may not always be able to access
+	# the image in the filesystem, so we may have to fall back on the
+	# standard methods. This is all hidden in our haveXXXimage functions.
 	#
-	if (-e $image->FullImageFile()) {
+	if (havefullimage($image)) {
 	    $path = $image->FullImageFile();
 	}
-	if (-e $image->DeltaImageFile()) {
+	if (havedeltaimage($image)) {
 	    $dpath = $image->DeltaImageFile();
 	}
 	$hash = $image->hash();
 	$dhash = $image->deltahash();
     } else {
 	$isdir = 0;
+	#
+	# XXX backward compat I
+	# Originally, isdelta signified that the path (always .ndz)
+	# represented a delta image and not a full image.
+	#
 	if ($image->isdelta()) {
 	    $dpath = $image->DeltaImageFile();
 	    $dhash = $image->deltahash();
-	} else {
-	    $path = $image->FullImageFile();
-	    $hash = $image->hash();
+	}
+	#
+	# XXX backward compat II
+	# Then we introduced separate size/hash fields to differentiate
+	# deltas from fulls and to allow both to exist at once. However,
+	# we never finished that (by making the path a prefix to which
+        # we appended .ndz or .ddz) so the path is always .ndz and only
+	# one of full or delta will exist. So we have to trust the size
+	# (via HaveXXXImage()) to determine whether the path represents
+	# a full or delta image.
+	#
+	else {
+	    if ($image->HaveFullImage()) {
+		$path = $image->FullImageFile();
+		$hash = $image->hash();
+	    } elsif ($image->HaveDeltaImage()) {
+		$dpath = $image->DeltaImageFile();
+		$dhash = $image->deltahash();
+	    }
 	}
     }
     $path = ""
@@ -395,17 +451,21 @@ sub doimage($)
 	}
 	# XXX report on ancillary files
 	my @afiles = ();
-	if (-e $image->FullImageSHA1File()) {
-	    push(@afiles, "full-SHA1");
-	}
-	if (-e $image->DeltaImageSHA1File()) {
-	    push(@afiles, "delta-SHA1");
-	}
-	if (-e $image->FullImageSigFile()) {
-	    push(@afiles, "full-sig");
-	}
-	if (-e $image->DeltaImageSigFile()) {
-	    push(@afiles, "delta-sig");
+	if ($accessfs) {
+	    if ($path && -e $image->FullImageSHA1File()) {
+		push(@afiles, "full-SHA1");
+	    }
+	    if ($dpath && -e $image->DeltaImageSHA1File()) {
+		push(@afiles, "delta-SHA1");
+	    }
+	    if ($path && -e $image->FullImageSigFile()) {
+		push(@afiles, "full-sig");
+	    }
+	    if ($dpath && -e $image->DeltaImageSigFile()) {
+		push(@afiles, "delta-sig");
+	    }
+	} else {
+	    push(@afiles, "<cannot access directory>");
 	}
 	if (@afiles > 0) {
 	    print "$pidimage: files: ", join(", ", @afiles), "\n";
@@ -473,6 +533,10 @@ sub doimage($)
     # Take care of one-off fix to hash and sig files
     #
     if ($fixit) {
+	if (!$accessfs) {
+	    print STDERR "$pidimage: hash: cannot access hash/sig files\n";
+	    return 1;
+	}
 	if ($path) {
 	    print "$pidimage: fixing hash file\n";
 	    if ($hash eq "") {
@@ -551,26 +615,6 @@ sub doimage($)
     my $changed = 0;
 
     #
-    # Compat: make sure isdelta is set rationally in the directory image world.
-    # If full image exists, clear isdelta.
-    # If just delta image exists, set isdelta.
-    #
-    if ($isdir && $update) {
-	my $nisdelta = $isdelta;
-	if ($path && $isdelta) {
-	    $nisdelta = 0;
-	} elsif (!$path && !$isdelta) {
-	    $nisdelta = 1;
-	}
-	if ($nisdelta != $isdelta) {
-	    $isdelta = $nisdelta;
-	    print("$pidimage: isdelta: " .
-		  ($isdelta ? "setting" : "clearing") . "\n");
-	    $image->SetDelta($isdelta);
-	}
-    }
-
-    #
     # Check/fix mtime.
     #
     if ((!$path || $stamp == $ftime) && (!$dpath || $stamp == $dftime)) {
@@ -632,7 +676,7 @@ sub doimage($)
 		if ($update) {
 		    print("$pidimage: dsize: ")
 			if (!$quiet);
-		    if ($image->SetDeltaSize($fsize) == 0) {
+		    if ($image->SetDeltaSize($dfsize) == 0) {
 			$changed = 1;
 			print "[FIXED]\n"
 			    if (!$quiet);
@@ -649,6 +693,16 @@ sub doimage($)
 	    if ($update && !$path) {
 		$image->SetSize(0);
 	    }
+	}
+
+	#
+	# XXX isdelta is history, clear it if set.
+	#
+	# We do this after updating the size fields since those are now used
+	# to distinguish full/delta.
+	#
+	if ($update && $isdelta) {
+	    $image->SetDelta(0);
 	}
     }
 
@@ -863,6 +917,10 @@ sub doimage($)
     # Check/fix signature file.
     #
     if ($dosig) {
+	if (!$accessfs) {
+	    print STDERR "$pidimage: sig: cannot access signature file\n";
+	    return 1;
+	}
 	if ($path) {
 	    if (checksigfile($pidimage, $path, 0)) {
 		print("$pidimage: sig: image does not match signature\n")
@@ -939,6 +997,12 @@ sub checksigfile($$$)
 
     print STDERR "$pidimage: sig: checking signature of '$imagepath' ...\n"
 	if ($debug);
+
+    if (!$accessfs) {
+	print STDERR "$pidimage: sig: cannot access signature file\n";
+	return 0;
+    }
+
     if (! -e "$sigfile") {
 	# XXX the old stateful swapout path puts sigs in a sigs/ subdir
 	if ($imagepath =~ /^(.*)\/([^\/]+)$/) {
@@ -1076,6 +1140,43 @@ sub removehashfile($$)
 	my $oldhashfile = "$1.sha1";
 	unlink($oldhashfile);
     }
+}
+
+#
+# XXX our versions of image existence checks.
+# We don't want to have to rely on DB state if we don't have to since
+# we are probably the ones initializing that state!
+#
+sub havefullimage($)
+{
+    my ($image) = @_;
+
+    if ($accessfs) {
+	if (-e $image->FullImagePath()) {
+	    return 1;
+	}
+    } else {
+	if ($image->HaveFullImage()) {
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+sub havedeltaimage($)
+{
+    my ($image) = @_;
+
+    if ($accessfs) {
+	if (-e $image->DeltaImagePath()) {
+	    return 1;
+	}
+    } else {
+	if ($image->HaveDeltaImage()) {
+	    return 1;
+	}
+    }
+    return 0;
 }
 
 sub fatal($)
