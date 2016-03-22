@@ -254,8 +254,17 @@ sub DumpImage($)
 		
 		$xmlfields{'image_version'}  = $image->version();
 		$xmlfields{"deltahash"}      = $image->deltahash()
-		    if ($export && defined($image->deltahash()) &&
+		    if (defined($image->deltahash()) &&
 			$image->deltahash() ne "");
+
+		if ($clientvers > 4) {
+		    $xmlfields{'size'} = $image->size()
+			if ($image->size());
+		    $xmlfields{'deltasize'} = $image->deltasize()
+			if ($image->deltasize());
+		    $xmlfields{'notes'} = $image->notes()
+			if (defined($image->notes()) and $image->notes() ne '');
+		}
 
 		#
 		# We need to send the parent info too, for the delta chain
