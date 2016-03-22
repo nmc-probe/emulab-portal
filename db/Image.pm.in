@@ -659,6 +659,12 @@ sub Create($$$$$$$$)
 	if (exists($argref->{'hash'}) && $argref->{'hash'} ne '');
     $query .= ",deltahash=" . DBQuoteSpecial($argref->{'deltahash'})
 	if (exists($argref->{'deltahash'}) && $argref->{'deltahash'} ne '');
+    $query .= ",size=" . DBQuoteSpecial($argref->{'size'})
+	if (exists($argref->{'size'}));
+    $query .= ",deltasize=" . DBQuoteSpecial($argref->{'deltasize'})
+	if (exists($argref->{'deltasize'}));
+    $query .= ",notes=" . DBQuoteSpecial($argref->{'notes'})
+	if (exists($argref->{'notes'}) && $argref->{'notes'} ne '');
 
     #
     # If this is set in the environment, we use it. This allows
@@ -886,7 +892,7 @@ sub NewVersion($$$$)
 		"  parent_version=$parent_version, ".
 		"  origin_neednotify=0,origin_needupdate=0, ".
 		"  origin_uuid=NULL,origin_name=NULL, ".
-		"  hash=null,deltahash=null, ".
+		"  hash=null,deltahash=null,size=0,deltasize=0, ".
 		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
 	or goto bad;
@@ -1181,9 +1187,11 @@ sub DBData($)
 #
 # Perform some updates ...
 #
-sub Update($$)
+sub Update($;$)
 {
-    my ($self, $argref) = @_;
+    my ($self, $argref, $allvers) = @_;
+    $allvers = 0
+	if (!defined($allvers));
 
     # Must be a real reference. 
     return -1
@@ -1195,7 +1203,8 @@ sub Update($$)
     my $query = 
 	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
 
-    $query .= " where imageid='$imageid' and version='$version'";
+    $query .= " where imageid='$imageid'";
+    $query .= " and version='$version'" if (!$allvers);
 
     return -1
 	if (! DBQueryWarn("update image_versions set $query"));
