@@ -94,7 +94,7 @@ my $doimagedirs   = $DOIMAGEDIRS;
 # version of the software we are so it gives something we can handle.
 # Be sure to update this if you change the version in dumpdescriptor.
 #
-my $METADATA_CLIENTVERSION = 4;
+my $METADATA_CLIENTVERSION = 5;
 
 #
 # Untaint the path
@@ -495,6 +495,17 @@ if ($update) {
 		        if (exists($attributes->{"hash"}));
 		    my $dhash = $attributes->{"deltahash"}->{'value'}
 		        if (exists($attributes->{"hash"}));
+
+		    if (defined($clone->hash()) &&
+			(!defined($hash) || $clone->hash() ne $hash)) {
+			$image->Unlock();
+			fatal("Image out of sync wrt hash at version $i");
+		    }
+		    if (defined($clone->deltahash()) &&
+			!(defined($dhash) || $clone->deltahash() ne $dhash)) {
+			$image->Unlock();
+			fatal("Image out of sync wrt deltahash at version $i");
+		    }
 		}
 		$image = $clone;
 	    }
@@ -619,7 +630,7 @@ if ($getimage) {
 	    #
 	    # When provenance is enabled, we also have to consider deltas.
 	    # This needs more thought. At the moment, we always get the
-	    # delta if it exists.
+	    # delta if it exists (and we have deltas enabled).
 	    #
 	    if ($imget->deltahash()) {
 		if ($dodeltas) {
@@ -627,7 +638,7 @@ if ($getimage) {
 		}
 		elsif (! $imget->hash()) {
 		    fatal("This image has only deltas, but deltas are ".
-			  "not enabled");
+			  "not enabled locally");
 		}
 	    }
 	    my $rval = maybeGetImage($imget, $dodelta);
@@ -1051,7 +1062,8 @@ sub UpdateImageFromMetadata($$)
     return -1
 	if (!defined($osinfo));
     
-    my @imslots = ("imagefile_url", "metadata_url", "hash", "deltahash");
+    my @imslots = ("imagefile_url", "metadata_url", "hash", "deltahash",
+		   "size", "deltasize");
     foreach my $key (@imslots) {
 	next
 	    if (!exists($xmlparse->{'attribute'}->{$key}));
