@@ -86,6 +86,8 @@ my $WITHDELTAS    = @IMAGEDELTAS@;
 my $DOIMAGEDIRS   = @IMAGEDIRECTORIES@;
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
 my $doprovenance  = $WITHPROVENANCE;
+my $dodeltas      = $WITHDELTAS;
+my $doimagedirs   = $DOIMAGEDIRS;
 
 #
 # When fetching the metadata, we now tell the server what client
@@ -343,10 +345,17 @@ if ($WITHPROVENANCE) {
     # But allow feature override.
     if (EmulabFeatures->Lookup("ImageProvenance")) {
 	$doprovenance =
-	    EmulabFeatures->FeatureEnabled("ImageProvenance", $user, $group);
+	    EmulabFeatures->FeatureEnabled("ImageProvenance", undef, $group);
     }
-    if (!$doprovenance && $getallimages) {
-	fatal("-G option requires IMAGE_PROVENANCE to be enabled");
+}
+if (!$doprovenance && $getallimages) {
+    fatal("-G option requires IMAGE_PROVENANCE to be enabled");
+}
+if ($DOIMAGEDIRS) {
+    # But allow feature override.
+    if (EmulabFeatures->Lookup("ImageDirectories")) {
+	$doimagedirs =
+	    EmulabFeatures->FeatureEnabled("ImageDirectories", undef, $group);
     }
 }
 
@@ -470,9 +479,22 @@ if ($update) {
 			$image->Unlock();
 			fatal("Could not clone image descriptor $image");
 		    }
+		}
+		else {
+		    my $attributes = $versions[$i]->{'attribute'};
+		    
 		    #
-		    # XXX Should we check intermediate hashes?
+		    # If the image has diverged locally we are screwed.
 		    #
+		    if ($clone->metadata_url() ne
+			$attributes->{"metadata_url"}->{'value'}) {
+			$image->Unlock();
+			fatal("Image out of sync wrt url at version $i");
+		    }
+		    my $hash = $attributes->{"hash"}->{'value'}
+		        if (exists($attributes->{"hash"}));
+		    my $dhash = $attributes->{"deltahash"}->{'value'}
+		        if (exists($attributes->{"hash"}));
 		}
 		$image = $clone;
 	    }
@@ -600,7 +622,13 @@ if ($getimage) {
 	    # delta if it exists.
 	    #
 	    if ($imget->deltahash()) {
-		$dodelta = 1;
+		if ($dodeltas) {
+		    $dodelta = 1;
+		}
+		elsif (! $imget->hash()) {
+		    fatal("This image has only deltas, but deltas are ".
+			  "not enabled");
+		}
 	    }
 	    my $rval = maybeGetImage($imget, $dodelta);
 	    if ($rval < 0) {
@@ -677,7 +705,7 @@ sub maybeGetImage($$)
     
     # Run as root to access /proj
     $EUID = $UID = 0;
-    if (! -e $imagefile || !$image->ready() || $force) {
+    if (! -e $imagefile || !$image->ready() || $force) { 
 	$EUID = $UID = $SAVEUID;
 
 	if (DownLoadImage($image, $dodelta, $user, $group)) {
@@ -840,11 +868,15 @@ sub CreateImage($$$$$)
     if ($global && $user->IsAdmin()) {
 	$xmlparse->{'attribute'}->{"path"}->{'value'} = "$TB/images/";
     }
-    else {
+    elsif ($group->pid() eq $group->gid() || $global) {
 	$xmlparse->{'attribute'}->{"path"}->{'value'} =
 	    "$TBPROJ_DIR/" . $group->pid() . "/images/";
     }
-    if ($DOIMAGEDIRS) {
+    else {
+	$xmlparse->{'attribute'}->{"path"}->{'value'} =
+	    "$TBPROJ_DIR/" . $group->pid() . "/" . $group->gid() . "/images/";
+    }
+    if ($doimagedirs) {
 	$xmlparse->{'attribute'}->{"path"}->{'value'} .= "${imagename}/";
     }
     else {
@@ -954,6 +986,14 @@ sub CreateImage($$$$$)
 	    }
 	    $image = $clone;
 	}
+    }
+
+    #
+    # newimageid_ez is not setuid, so it cannot create the new directory.
+    #
+    if ($image->CreateImageDir()) {
+	$image->Unlock();
+	fatal("Could not create image directory");
     }
     return $image;
 }
@@ -1096,7 +1136,7 @@ sub DownLoadImage($$$$)
     # Now rename the image files and update the hash file.
     #
     my $hashfile = ($dodelta ?
-		    $image->FullImageSHA1File() : $image->DeltaImageSHA1File());
+		    $image->DeltaImageSHA1File() : $image->FullImageSHA1File());
     my $ndzfile  = ($dodelta ?
 		    $image->DeltaImageFile() : $image->FullImageFile());
     unlink($hashfile)
