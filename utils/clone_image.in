@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -84,8 +84,8 @@ my $CREATEIMAGE  = "$TB/bin/create_image";
 my $NEWIMAGEEZ   = "$TB/bin/newimageid_ez";
 my $DOPROVENANCE = @IMAGEPROVENANCE@;
 my $DOIMAGEDIRS  = @IMAGEDIRECTORIES@;
-my $doprovenance = 0;
-my $doimagedirs  = 0;
+my $doprovenance = $DOPROVENANCE;
+my $doimagedirs  = $DOIMAGEDIRS;
 
 #
 # Untaint the path
@@ -244,9 +244,11 @@ else {
 
 # See if enabled.
 if ($DOPROVENANCE) {
-    $doprovenance = 
-	EmulabFeatures->FeatureEnabled("ImageProvenance", $this_user, $group);
-
+    # But allow feature override.
+    if (EmulabFeatures->Lookup("ImageProvenance")) {
+	$doprovenance =
+	    EmulabFeatures->FeatureEnabled("ImageProvenance", undef, $group);
+    }
     # Temporary override for all geni projects until we can export deltas.
     if ($project->IsNonLocal()) {
 	$nodelta = 1;
@@ -254,9 +256,12 @@ if ($DOPROVENANCE) {
 }
 
 # See if enabled. 
-if ($DOIMAGEDIRS ||
-    EmulabFeatures->FeatureEnabled("ImageDirectories", $this_user, $group)) {
-    $doimagedirs = 1;
+if ($DOIMAGEDIRS) {
+    # But allow feature override.
+    if (EmulabFeatures->Lookup("ImageDirectories")) {
+	$doimagedirs =
+	    EmulabFeatures->FeatureEnabled("ImageDirectories", undef, $group);
+    }
 }
 
 #
