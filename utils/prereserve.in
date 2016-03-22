@@ -230,7 +230,9 @@ if ($list) {
 	my $current = 0;
 
 	my $current_result =
-	    DBQueryFatal("select count(*) from nodes where reserved_pid='$pid'");
+	    DBQueryFatal("select count(*) from nodes ".
+			 "where reserved_pid='$pid' and ".
+			 "      reservation_name='$name'");
 
 	($current) = $current_result->fetchrow_array()
 	    if ($current_result && $current_result->numrows);
@@ -340,7 +342,8 @@ if ($info) {
     }
     my $noderes_result =
 	DBQueryFatal("select node_id from node_reservations ".
-		     "where pid_idx='$pid_idx'");
+		     "where pid_idx='$pid_idx' and ".
+		     "      reservation_name='$resname'");
     if ($noderes_result->numrows) {
 	print "-------------------------------------------------------------\n";
 	print "Still waiting for these nodes\n";
@@ -711,12 +714,12 @@ sub StartReservation($$)
 
     DBQueryFatal("update project_reservations set ".
 		 "       count='$count',active=1 ".
-		 "where pid='$pid'");
+		 "where pid='$pid' and name='$resname'");
     DBQueryFatal("unlock tables");
 
     if ($count == 0 && $sendmail) {
-	SENDMAIL($TBOPS, "Pre Reservation for $pid has completed",
-		 "The pre reservation request for project $pid, ".
+	SENDMAIL($TBOPS, "Pre Reservation for $pid,$resname has completed",
+		 "The pre reservation request for $pid,$resname ".
 		 "has been fullfilled\n", $TBOPS);
     }
     return 0
