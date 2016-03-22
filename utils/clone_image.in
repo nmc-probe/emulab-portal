@@ -675,6 +675,13 @@ if ($nosnapshot) {
 	if ($debug);
     exit(0);
 }
+
+#
+# XXX right now, don't create cross-image deltas.
+# Makes image import easier.
+#
+$nodelta = 1;
+
 my $opts = "-p $pid ";
 $opts   .= "-w " if ($waitmode);
 $opts   .= "-F " if ($nodelta);
