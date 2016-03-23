@@ -1362,10 +1362,10 @@ if ($delta && $deltapct > 0 && defined($logfile)) {
 # stay in /proj. More succintly, we always move the new files to the
 # hackprefix location.
 #
-if (system("/bin/mv -f $filename $hackprefix" . 
-	   basename(($delta ?
-		     $image->DeltaImageFile() :
-		     $image->FullImageFile())))) {
+my $hfilename = $hackprefix .
+    basename(($delta ? $image->DeltaImageFile() : $image->FullImageFile()));
+
+if (system("/bin/mv -f $filename $hfilename")) {
     fatal("Could not move new image file into place");
 }
 if ($dstsigfile &&
@@ -1375,11 +1375,15 @@ if ($dstsigfile &&
 		     $image->FullImageSigFile())))) {
     fatal("Could not move new signature file into place");
 }
-# We use this below for email.
-$filename = $hackprefix . 
-    basename(($delta ?
-	      $image->DeltaImageFile() :
-	      $image->FullImageFile()));
+
+#
+# In the new world, we can have both a full and delta image.
+# If the other version exists for the image we just created, we need to
+# get rid of it as it is now stale.
+#
+
+# Use this filename from here on out
+$filename = $hfilename;
 
 #
 # Update fields in the DB related to the image.
@@ -1393,6 +1397,23 @@ my $cname = "$imagepid/$imagename";
 $cname .= ":$version"
     if ($doprovenance);
 my $tbopsmsg = "";
+
+#
+# isdelta be gone! We now key off the individual size fields to tell
+# whether one or both of a delta and full image exist.
+#
+my $fsize = (stat($filename))[7];
+if (!defined($fsize)) {
+    #
+    # XXX exact value doesn't matter since imagevalidate will fix it.
+    # Just has to be non-zero for full/delta differentiation to work.
+    $fsize = 1;
+}
+if ($isdelta) {
+    $image->SetDeltaSize($fsize);
+} else {
+    $image->SetFullSize($fsize);
+}
 
 #
 # User and nonglobal images are immediately marked as "released", and
@@ -1428,7 +1449,7 @@ print "$cname: ";
 print "delta "
     if ($delta);
 print "image creation succeeded, written to $filename.\n";
-#      "Final size: " . (stat($filename))[7] . " bytes.\n";
+#      "Final size: $fsize bytes.\n";
 
 # Append bootlog (which has prepare output)
 if (defined($bootlog)) {
@@ -1455,10 +1476,6 @@ if (defined($webtask)) {
     $webtask->status("ready");
     $webtask->Exited(0);
 }
-#
-# Set the delta flag in the DB to reflect what we really did.
-#
-$image->SetDelta($delta ? 1 : 0);
 
 #
 # Normal images are immediately marked as "released" (and ready),
