@@ -48,14 +48,14 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  archive-expinfo grantfeature emulabfeature addblob readblob \
 		  prereserve grantimage getimages localize_mfs \
 		  management_iface sharevlan check-shared-bw \
-		  addspecialdevice addspecialiface imagehash clone_image \
-		  addvpubaddr imageinfo imagevalidate ctrladdr image_import \
+		  addspecialdevice addspecialiface addvpubaddr ctrladdr \
+		  imagehash clone_image imageinfo imagevalidate image_import \
+		  image_import-new imagetodir imagecompress \
 		  prereserve_check tcppd addexternalnetwork \
 		  update_sitevars delete_image sitecheckin sitecheckin_client \
 		  mktestbedtest fixrootcert addservers poolmonitor \
 		  node_exclude managetaint shutdown-shared imagerelease \
-		  runsonxen pxelinux_makeconf imagetodir attend atten \
-		  image_import-new
+		  runsonxen pxelinux_makeconf attend atten
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
                   webwanodecheckin webspewimage webdumpdescriptor \
