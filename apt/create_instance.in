@@ -1590,7 +1590,7 @@ sub RunStitcher()
 	$aggobj->SetManifest($manifest);
 	
 	print "Forcing correct slice expiration\n";
-	my $response = $aggobj->Extend($slice->ExpirationGMT());
+	my $response = $aggobj->Extend($slice->ExpirationGMT(), $this_user);
 	if (!defined($response) ||
 	    $response->code() != GENIRESPONSE_SUCCESS) {
 	    $aggobj->SetStatus("failed");

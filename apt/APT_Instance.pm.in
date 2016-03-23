@@ -1415,9 +1415,9 @@ sub Terminate($)
 #
 # Ask to extend. 
 #
-sub Extend($$)
+sub Extend($$$)
 {
-    my ($self, $new_expires) = @_;
+    my ($self, $new_expires, $this_user) = @_;
     my $credentials;
     my $method;
     my @params;
@@ -1441,8 +1441,12 @@ sub Extend($$)
 		   $new_expires, {});
     }
     else {
+	my @privs = ();
+	if ($this_user->IsAdmin()) {
+	    @privs = ("control", "admin");
+	}
 	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
+	    APT_Geni::GenCredentials($slice, $geniuser, \@privs, 1);
 	return undef
 	    if (!defined($slice_credential));
 

@@ -1162,6 +1162,7 @@ sub DoExtend()
 {
     my $force = 0;
     my $lockdown = 0;
+    my $errcode = -1;
     
     usage()
 	if (!@ARGV);
@@ -1190,10 +1191,12 @@ sub DoExtend()
 
     #
     # Lock the slice in case it is doing something else, like taking
-    # a disk image.
+    # a disk image. This happens all the time, users are silly. Lets
+    # stop the email about it.
     #
     if ($slice->Lock()) {
-	fatal("Slice is busy, cannot lock it");
+	print STDERR "Experiment is busy, cannot lock it. Try again later.\n";
+	exit(GENIRESPONSE_BUSY);
     }
     # Save in case of error.
     my $oldexpires = $slice->expires();
@@ -1214,7 +1217,7 @@ sub DoExtend()
 	my $domain   = $sliver->domain();
 	my $errmsg;
 
-	my $response = $sliver->Extend($new_expires);
+	my $response = $sliver->Extend($new_expires, $this_user);
 	if (!defined($response)) {
 	    $errmsg = "Internal error calling Renew at $domain";
 	    goto bad;
@@ -1222,11 +1225,12 @@ sub DoExtend()
 	if ($response->code() != GENIRESPONSE_SUCCESS) {
 	    # This is something the user should see.
 	    if ($response->code() == GENIRESPONSE_REFUSED ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
 		$response->code() == GENIRESPONSE_BUSY) {
 		print STDERR $response->output() . "\n";
 		# For web interface.
 		$webtask->output($response->output());
-		$webtask->Exited(1);
+		$webtask->Exited($response->code());
 		return 1;
 	    }
 	    $errmsg = "Failed to extend slice at $domain: ".
@@ -1255,9 +1259,13 @@ sub DoExtend()
     #
     # Check the exit codes. 
     #
-    foreach my $code (@return_codes) {
+    foreach my $agg (@agglist) {
+	my $code = shift(@return_codes);
+
 	if ($code) {
-	    print STDERR "Some slivers could not be extended\n";
+	    $agg->webtask()->Refresh();
+	    print STDERR "Some slivers could not be extended.\n";
+	    $errcode = $agg->webtask()->exitcode();
 	    goto bad;
 	}
     }
@@ -1278,7 +1286,7 @@ sub DoExtend()
     # Reset back to original expiration, sorry.
     $slice->SetExpiration($oldexpires);
     $slice->UnLock();
-    exit(-1);
+    exit($errcode);
 }
 
 #
@@ -1374,6 +1382,7 @@ sub DoRefresh()
 	my $code = shift(@return_codes);
 	
 	if ($code) {
+	    $agg->webtask()->Refresh();
 	    $errmsg = "Some slivers could not be refreshed";
 	    if ($agg->webtask()->output()) {
 		$errmsg .= ": " . $agg->webtask()->output();
@@ -2101,6 +2110,7 @@ sub DoLinktest()
     #
     foreach my $agg (@agglist) {
 	my $code = shift(@return_codes);
+	$agg->webtask()->Refresh();
 	if ($code) {
 	    $errmsg = "Could not $action linktest on some slivers";
 	    if ($agg->webtask()->output()) {
@@ -2298,6 +2308,7 @@ sub DoUpdateKeys()
     #
     foreach my $agg (@agglist) {
 	my $code = shift(@return_codes);
+	$agg->webtask()->Refresh();
 	if ($code) {
 	    $errmsg = "Could not update keys on some slivers";
 	    if ($agg->webtask()->output()) {

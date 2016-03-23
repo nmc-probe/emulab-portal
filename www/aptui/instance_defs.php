@@ -56,6 +56,7 @@ $geni_response_codes =
           "No Mapping Possible",
     );
 define("GENIRESPONSE_BADARGS",   	       1);
+define("GENIRESPONSE_REFUSED",                 7);
 define("GENIRESPONSE_TIMEDOUT",                8);
 define("GENIRESPONSE_VLAN_UNAVAILABLE",        24);
 define("GENIRESPONSE_INSUFFICIENT_BANDWIDTH",  25);

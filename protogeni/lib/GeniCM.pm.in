@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -4792,14 +4792,33 @@ sub RenewSliverAux($$$)
 	
 	if (defined($pnode->reserved_pid()) &&
 	    $pnode->reserved_pid() ne $slice_experiment->pid()) {
-	    $slice->UnLock();
-	    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Refused cause $pnodeid is pre-reserved");
+	    if ($credential->HasActualPrivilege("admin")) {
+		SENDMAIL($TBOPS, "Admin override on pre-reserved node!",
+			 "Admin override on pre-reserved node $pnodeid\n".
+			 "while extending $slice\n",
+			 $TBOPS);
+		print STDERR "Admin override on pre-reserved node $pnodeid!\n";
+	    }
+	    else {
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				"Refused cause $pnodeid is pre-reserved.");
+	    }
 	}
 	if (defined($pnode->NextReservation())) {
-	    $slice->UnLock();
-	    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Refused cause $pnodeid is sched-reserved");
+	    if ($credential->HasActualPrivilege("admin")) {
+		SENDMAIL($TBOPS, "Admin override on sched-reserved node!",
+			 "Admin override on sched-reserved node $pnodeid\n".
+			 "while extending $slice\n",
+			 $TBOPS);
+		print STDERR "Admin override on sched-reserved ".
+		    "node $pnodeid!\n";
+	    }
+	    else {
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				"Refused cause $pnodeid is sched-reserved.");
+	    }
 	}
     }
 
