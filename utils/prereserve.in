@@ -401,9 +401,13 @@ if ($clear) {
     # If we are revoking the reservation, lets see if any nodes can be
     # moved to a another prereserve instead of going into the free pool.
     #
-    # If NOT revoking the reservation, then we need to clear the reservation
-    # name in the nodes table, since the prereserve setting is no longer
-    # associated with a pre-reserve.
+    # If NOT revoking the reservation, then we need to leave the reserved_pid
+    # set, but we have to do something with the reservation_name since we
+    # need to be able to reuse the reservation name in a new one. We cannot
+    # clear it, since a NULL reservation_name means it was reserved via the
+    # web interface and not allowed to be messed with by the pre-reservation
+    # code. Look at Node::CheckPreReserve() to see what I mean. So instead,
+    # we set it to something not likely to be an actual reservation name.
     #
     if ($revoke) {
 	my $query_result =
@@ -420,7 +424,7 @@ if ($clear) {
 		     "      reservation_name='$resname'");
     }
     else {
-	DBQueryFatal("update nodes set reservation_name=null ".
+	DBQueryFatal("update nodes set reservation_name='__${resname}__' ".
 		     "where reserved_pid='$pid' and ".
 		     "      reservation_name='$resname'");
     }
