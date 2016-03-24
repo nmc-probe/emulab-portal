@@ -1978,7 +1978,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	}
 
 	if( my $protocol_attr = GeniXML::GetText( "protocol", $linkref ) ) {
-	    if( !( $protocol_attr =~ /^\w+/ ) ) {
+	    if( !( $protocol_attr =~ /^\w+$/ ) ) {
 		$response = 
 		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 					 "Bad protocol for $lanname");
