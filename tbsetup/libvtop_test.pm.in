@@ -3204,10 +3204,10 @@ sub GenVirtLans($)
 		next;
 	    }
 	}
-	if ($protocol !~ /^ethernet/) {
+	if ($protocol !~ /^ethernet/ && $protocol !~ /^P2PLTE/ ) {
 	    #
 	    # This arrangement is temporary. For now, if its not a
-	    # regular ethernet, then create a lan attached to a fake
+	    # regular ethernet or LTE, then create a lan attached to a fake
 	    # switch. See ptopgen.  We label them differently though,
 	    # since these do not get vlans.  Some other special
 	    # treatment applies as well.
