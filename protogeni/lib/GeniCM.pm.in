@@ -1913,6 +1913,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	my $ifacenum   = 1;
 	my $vindex     = 0;
 	my $trivial_ok = 1;
+	my $protocol   = "ethernet";
 
 	if (!defined($lanname)) {
 	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1976,6 +1977,16 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    }
 	}
 
+	if( my $protocol_attr = GeniXML::GetText( "protocol", $linkref ) ) {
+	    if( !( $protocol_attr =~ /^\w+/ ) ) {
+		$response = 
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "Bad protocol for $lanname");
+		goto bad;
+	    }
+	    $protocol = $protocol_attr;
+	}
+	
 	#
 	# Ick. Before we create the virt_lan_lans entry, we have to check
 	# inside to see if one of the interfaces is connected to a lan
@@ -2509,6 +2520,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					  "encap_style" => $encap,
 					  "fixed_iface" => $iface_name,
 					  "uselinkdelay"=> $uselinkdelay,
+					  "protocol"    => $protocol
 					 });
 	    if ($ofcontroller && $ofcontroller ne "" && !$ignore_openflow) {
 		if ($no_openflow) {
