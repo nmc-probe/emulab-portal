@@ -1275,7 +1275,7 @@ sub SetupReloadUE($)
 {
     my $reload_info   = $_[0];
     my $nodeobject    = $reload_info->{'nodeobj'};
-    my $node_id       = $reload_info->{'node'};
+    my $node          = $reload_info->{'node'};
     my $image         = (@{$reload_info->{'images'}})[0];
     my $osid          = $reload_info->{'osid'};
 
@@ -1286,56 +1286,36 @@ sub SetupReloadUE($)
     my $imgname = $image->imagename();
 
     #
-    # Grab the target adb host if specified by the user. Adjust the
-    # tbadb command as appropriate.
-    #
-    my $thost;
-    my $experiment = $nodeobject->Reservation();
-    if ($experiment) {
-	$experiment->GetVirtNodeAttribute($nodeobject->vname(),
-					  "adb_target", \$thost);
-    }
-    my $adbcmd = 
-	$thost ? "setup $imgpid $imgname $thost" : 
-	         "loadimage $imgpid $imgname";
-
-    #
     # Tell stated that we're about to start reloading
     #
-    TBSetNodeNextOpMode($node_id,TBDB_NODEOPMODE_RELOADUE);
+    TBSetNodeNextOpMode($node,TBDB_NODEOPMODE_RELOADUE);
 
     #
     # The mote goes 'down', then starts to reload
     #
-    TBSetNodeEventState($node_id,TBDB_NODESTATE_SHUTDOWN);
-    TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADING);
+    TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
+    TBSetNodeEventState($node,TBDB_NODESTATE_RELOADING);
 
     #
     # Invoke local script that calls the remote end that
     # actually does the work.
     #
-    my $rv = system("$TBADB -n $node_id $adbcmd");
+    my $rv = system("$TBADB -n $node loadimage $imgpid $imgname nowait");
     if ($rv) {
-	tberror "$node_id: tbadb failed!";
+	tberror "$node: tbadb failed!";
 	return -1;
     }
 
     #
-    # Tell stated that we've finished reloading the node
+    # Set the boot OSID.  Not that the UEs will check in via bootinfo,
+    # but perhaps something else will care that this is correct/consistent.
     #
-    TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADDONE);
-
-    system("$osselect $osid $node_id");
-    if ($?) {
+    my $osinfo = OSinfo->Lookup($osid);
+    if (!defined($osinfo) ||
+	$nodeobject->OSSelect($osinfo, "next_boot_osid", 0)) {
 	tberror "os_select $osid failed!";
 	return -1;
     }
-
-    #
-    # 'Reboot' the node (from stated's perspective, anyway)
-    # has been shutdown, so that the os_select will take effect
-    #
-    TBSetNodeEventState($node_id,TBDB_NODESTATE_SHUTDOWN);
 
     return 0;
 }

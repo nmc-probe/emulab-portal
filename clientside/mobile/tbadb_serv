@@ -664,8 +664,9 @@ sub error_exit($$$) {
     # log the error locally.
     warn "$message\n";
 
-    # Send failure result back.
-    return SendRPCData($RPCOUT, EncodeError($fid, $code, $message));
+    # Send failure result back to caller and exit.
+    SendRPCData($RPCOUT, EncodeError($fid, $code, $message));
+    exit 1;
 }
 
 # Helper that does LRU on our image cache

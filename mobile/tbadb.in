@@ -29,15 +29,17 @@ use POSIX ":sys_wait_h";
 use Getopt::Std;
 use Data::Dumper;
 use IO::Socket::INET;
+use File::Temp qw(tempfile);
 
 use lib "@prefix@/lib";
+use libdb;
+use libtestbed;
 use libjsonrpc;
 use tbadb_rpc;
-use EmulabConstants;
 use User;
 use Node;
 use Image;
-
+use EmulabConstants;
 
 # Func prototypes
 sub cmd_setup($@);
@@ -173,9 +175,10 @@ sub cmd_setup($@) {
 # if necessary.  The remote end keeps an LRU cache of images.
 #
 sub cmd_loadimage($@) {
-    my ($node_id, $imagepid, $imagename) = @_;
+    my ($node_id, $imagepid, $imagename, @extra) = @_;
+    my $nowait = 0;
 
-    # Check and untaint arguments.
+    # Process and untaint arguments.
     die "tbadb::cmd_loadimage: missing one or more arguments (need: <project> <image_name>)!\n"
 	if (!$node_id || !$imagepid || !$imagename);
     die "tbadb::cmd_loadimage: malformed project id!"
@@ -184,6 +187,16 @@ sub cmd_loadimage($@) {
     die "tbadb::cmd_loadimage: malformed image id/name!"
 	if ($imagename !~ /^([-\w]{$MINHLEN,$MAXHLEN})$/);
     $imagename = $1;
+    foreach my $arg (@extra) {
+	ARGS: for ($arg) {
+	    /^nowait$/i && do {
+		$nowait = 1;
+		last ARGS;
+	    };
+	    # Default
+	    die "tbadb::cmd_loadimage: unknown argument: $arg!\n";
+	}
+    }
 
     # Lookup image and extract some info.
     my $image = Image->Lookup($imagepid, $imagename);
@@ -210,7 +223,17 @@ sub cmd_loadimage($@) {
     die("tbadb::cmd_loadimage: You do not have permission to load an image onto $node\n")
 	if (!$isroot && !$this_user->IsAdmin() && 
 	    !$node->AccessCheck($this_user, TB_NODEACCESS_LOADIMAGE));
-    
+
+    # If told not to wait, fork into the background.
+    my $logname;
+    if ($nowait) {
+	(undef, $logname) = tempfile("tbadb-XXXXXX", TMPDIR => 1);
+	die "tbadb::cmd_loadimage: Could not create temp logging file: $!\n"
+	    if !$logname;
+	return 0
+	    if (TBBackGround($logname));
+    }
+
     # Grab the RPC pipe.
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
     die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
@@ -316,8 +339,22 @@ sub cmd_loadimage($@) {
 	exit 1;
     }
 
+    #
+    # Tell stated that we've finished reloading the node if the node
+    # is in the RELOADUE opmode.
+    #
+    my $opmode;
+    if (TBGetNodeOpMode($node_id,\$opmode) && 
+	$opmode eq TBDB_NODEOPMODE_RELOADUE) {
+	TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADDONE);
+	TBSetNodeEventState($node_id,TBDB_NODESTATE_SHUTDOWN);
+    }
+
     # Done!
     print "tbadb::cmd_loadimage: Successfully loaded $imagename onto $node_id\n";
+    if ($nowait && $logname) {
+	unlink($logname);
+    }
     return 0;
 }
 
