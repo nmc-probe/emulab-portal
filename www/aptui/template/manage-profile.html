@@ -32,11 +32,13 @@
 	  </tr>
 	  <tr>
 	    <td>Project:</td>
-	    <td><%- formfields.profile_pid %></td>
+	    <td><a href='show-project.php?pid=<%= formfields.profile_pid %>'>
+	      <%- formfields.profile_pid %></a></td>
 	  </tr>
 	  <tr>
 	    <td>Creator:</td>
-	    <td><%- formfields.profile_creator %></td>
+	    <td><a href='user-dashboard.php?user=<%= formfields.profile_creator %>'>
+	      <%- formfields.profile_creator %></a></td>
 	  </tr>
 	  <tr>
 	    <td>Created:</td>
@@ -387,7 +389,13 @@
 			   <%- formfields.profile_disabled %>
 			   data-key='profile_disabled'
 			   id='profile_disabled' value='checked'
-			   type='checkbox'>Disable this version.
+			   type='checkbox'>Disable profile.
+		  </label>
+                  <label>
+		    <input name=formfields[profile_disable_all]
+			   data-key='profile_disable_all'
+			   value='checked'
+			   type='checkbox'>Apply to all versions.
 		  </label>
 		</div>
 	      </div>
@@ -409,6 +417,7 @@
 	  </fieldset>
 	  
 	  <!-- Buttons -->
+	  <div style="margin-top: 10px;"></div>
 	  <div class='form-group'>
             <div class='col-sm-offset-2 col-sm-10'>
 	      <% if (!viewing || canmodify) { %>
@@ -515,10 +524,18 @@
 	  <center><h4>Confirm to Delete</h4></center>
 	</div>
 	<div class='modal-body'>
-	 <p><em>Warning; deleting a profile cannot be undone!</em> In
-	 addition, if you have published links to this profile, or sent
-	 links to collaborators, those links <b>will no longer be valid</b>.
+	 <p>
+	   <em>Warning; deleting a profile cannot be undone!</em> In
+	   addition, if you have published links to this profile
+	   (version), or sent links to collaborators, those links
+	   <b>will no longer be valid</b>. If you want to delete
+	   <em><b>all versions</b></em> of
+	   this profile, please check the box.
 	 </p>
+	 <center>
+	   <input id='delete-all-versions' value='checked'
+		type='checkbox'> Delete all versions of this profile.
+	 </center>
 	 <br>
 	 <center>
            <button class='btn btn-danger btn-sm'
