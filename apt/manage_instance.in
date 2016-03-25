@@ -948,6 +948,14 @@ sub DoConsole()
 	}
 	exit($response->code());
     }
+    if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+	print STDERR "Server says $node_id has been deallocated\n";
+	if (defined($webtask)) {
+	    $webtask->output("Sorry, $node_id has been deallocated");
+	    $webtask->Exited($response->code());
+	}
+	exit($response->code());
+    }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	$response = $sliver->ConsoleURL($sliver_urn);
 	if (!defined($response)) {
