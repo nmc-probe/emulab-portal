@@ -66,7 +66,7 @@ define(['underscore', 'js/quickvm_sup'],
 		     * name to the wrapper so we can find it later to
 		     * add the error stuff. 
 		     */
-		    var wrapper = $("<div id='form-wrapper-' + key " +
+		    var wrapper = $("<div id='form-wrapper-" + key + "' " +
 				    "style='margin-bottom: " + margin +
 				    "px;'></div>");
 		    
