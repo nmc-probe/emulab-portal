@@ -1409,7 +1409,7 @@ if (!defined($fsize)) {
     # Just has to be non-zero for full/delta differentiation to work.
     $fsize = 1;
 }
-if ($isdelta) {
+if ($delta) {
     $image->SetDeltaSize($fsize);
 } else {
     $image->SetFullSize($fsize);
