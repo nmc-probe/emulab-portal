@@ -950,6 +950,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
     //
     function DeleteProfile()
     {
+	var delete_all = $('#delete-all-versions').is(':checked') ? 1 : 0;
+	
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
 	    //console.info(json.value);
@@ -965,7 +967,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "manage_profile",
 					    "DeleteProfile",
-					    {"uuid"   : version_uuid});
+					    {"uuid"   : version_uuid,
+					     "all"    : delete_all});
 	xmlthing.done(callback);
     }
 

@@ -130,7 +130,11 @@ function Do_DeleteProfile()
 	SPITAJAX_ERROR(1, "Not enough permission");
 	return;
     }
-    
+    $opt = "";
+    if (isset($ajax_args["all"]) && $ajax_args["all"]) {
+        $opt = "all";
+    }
+
     $webtask = WebTask::CreateAnonymous();
     if (!$webtask) {
 	SPITAJAX_ERROR(-1, "Internal webtask Error");
@@ -138,7 +142,7 @@ function Do_DeleteProfile()
     }
     $retval = SUEXEC($this_uid, $profile->pid(),
 		     "webmanage_profile delete -t " . $webtask->task_id() . 
-                     " " . $profile->uuid(),
+                     " " . $profile->uuid() . " $opt",
 		     SUEXEC_ACTION_IGNORE);
 
     if ($retval != 0) {

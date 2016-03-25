@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -586,6 +586,15 @@ else {
 	fwrite($fp, "<attribute name='profile_disabled'><value>");
 	if (isset($formfields["profile_disabled"]) &&
 	    $formfields["profile_disabled"] == "checked") {
+	    fwrite($fp, "1");
+	}
+	else {
+	    fwrite($fp, "0");
+	}
+	fwrite($fp, "</value></attribute>\n");
+	fwrite($fp, "<attribute name='profile_disable_all'><value>");
+	if (isset($formfields["profile_disable_all"]) &&
+	    $formfields["profile_disable_all"] == "checked") {
 	    fwrite($fp, "1");
 	}
 	else {
