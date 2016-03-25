@@ -106,6 +106,8 @@ hbis() {
 	    # ok then if more then 30 count up make sure num is a multi of 4
 	    elif [[ $c -gt 30 ]] ; then
 		c4=0
+	    # why does anything over report memory, talking about you d430
+		((--c))
 		while [ $c -ne $c4 ] ; do
 		    ((++c))
 		    cd4=$(( c / 4 ))
