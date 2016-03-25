@@ -167,7 +167,7 @@ function CheckForm()
     # we go any further. We use a session variable to store the
     # key we send to the user in email.
     #
-    if ($formfields["email"] != $target_user->email()) {
+    if ($formfields["email"] != $target_user->email() && !ISADMIN()) {
         if (!isset($_SESSION["verify_key"])) {
             $_SESSION["verify_key"] = substr(GENHASH(), 0, 16);
             $_SESSION["verified"]   = 0;
