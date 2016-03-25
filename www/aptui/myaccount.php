@@ -39,26 +39,17 @@ if (isset($this_user)) {
 #
 # Verify page arguments.
 #
-$optargs = OptionalPageArguments("uid", PAGEARG_STRING);
+$optargs = OptionalPageArguments("target_user", PAGEARG_USER);
 
-if (!isset($uid)) {
-    $uid = $this_user->uid();
+if (! isset($target_user)) {
     $target_user = $this_user;
 }
-elseif (!ISADMIN()) {
+$uid = $target_user->uid();
+
+if ($target_user->uid() != $this_user->uid() && !ISADMIN()) {
+    sleep(2);
     SPITUSERERROR("Not enough permission");
     return;
-}
-elseif (!TBvalid_uid($uid)) {
-    SPITUSERERROR("Invalid user");
-}
-else {
-    $target_user = User::LookupByUid($uid);
-    if (!$target_user) {
-        sleep(2);
-        SPITUSERERROR("No such user");
-        return;
-    }
 }
 
 # We use a session. in case we need to do verification
