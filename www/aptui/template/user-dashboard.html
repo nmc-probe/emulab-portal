@@ -61,20 +61,23 @@
 		  <li role="presentation">
 		    <a href="#admin" role="tab" data-toggle="tab">
 		      Admin</a></li>
-		  <li role="presentation">
-		    <a href='<%- emulablink %>'>
-		      Emulab User Page</a></li>
-		<li role="presentation"
-		    class="dropdown">
-		  <a class="dropdown-toggle" data-toggle="dropdown"
-		     href="#" role="button">
-		    Mockup Menu<span class="caret"></span></a>
-		  <ul class="dropdown-menu">
-		    <li><a href="#">Menu Item 1</a></li>
-		    <li><a href="#">Menu Item 2</a></li>
-		    <li><a href="#">Do you like this Menu?</a></li>
-		  </ul>		
-		</li>
+		  <li role="presentation"
+		      class="dropdown">
+		    <a class="dropdown-toggle" data-toggle="dropdown"
+		       href="#" role="button">
+		      Admin Menu<span class="caret"></span></a>
+		    <ul class="dropdown-menu">
+		      <li><a href="ssh-keys.php?user=<%= target_user %>">
+			Manage SSH Keys</a></li>
+		      <li><a href="myaccount.php?user=<%= target_user %>">
+			Manage Account</a></li>
+		      <li><a href="list-datasets.php?user=<%= target_user %>">
+			List Datasets</a></li>
+		      <li role="presentation">
+			<a href='<%- emulablink %>'>
+			  Emulab User Page</a></li>
+		    </ul>
+		  </li>
 		<% } %>
 	      </ul>
 	      <!-- Tab panes -->
