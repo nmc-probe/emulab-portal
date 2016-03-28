@@ -39,27 +39,6 @@ use libtmcc qw(tmccbossinfo);
 use libjsonrpc;
 use tbadb_rpc;
 
-# Function prototypes for non-object procedures.
-sub rpc_checkimage($$);
-sub rpc_loadimage($$);
-sub rpc_captureimage($$);
-sub rpc_reboot($$);
-sub rpc_forward($$);
-sub rpc_unforward($$);
-sub rpc_nodewait($$);
-sub rpc_ping($$);
-sub rpc_exit($$);
-sub error_exit($$$);
-sub do_lru_cleanup($);
-sub unpack_bundle($$$);
-sub enter_fastboot($$);
-sub load_android_image($$$$);
-sub reboot_android($$);
-sub wait_for_android($$);
-sub setup_android_forward($$$;$$);
-sub remove_android_forward($$;$);
-sub check_adb($);
-
 # RPC function dispatch table
 my %DISPATCH = (
     'lockimage'    => \&rpc_lockimage,
@@ -497,7 +476,11 @@ sub rpc_loadimage($$) {
 
     # Step 5: reboot into newly loaded image
     error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.")
-	if (!$self->reboot_android($node_id));
+	if (!$self->reboot_android($node_id,1));
+
+    # Step 6: restart adbd on device as root
+    error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to restart adbd on device as root.")
+	if (!$self->root_adbd($node_id));
 
     # Send success result back to caller.
     warn "finished loading $proj/$bundle_name on $node_id\n";
@@ -540,14 +523,7 @@ sub rpc_reboot($$) {
     else {
 	warn "rebooting node $node_id\n";
 	error_exit($data->{FID}, RPCERR_NODE_ERR, "Reboot failed.")
-	    if (!$self->reboot_android($node_id));
-
-	# Wait for device to boot up, if requested to do so.
-	if ($dowait) {
-	    warn "waiting for $node_id to come up.\n";
-	    error_exit($data->{FID}, RPCERR_NODE_ERR, "Boot failed.")
-		if (!wait_for_node($node_id));
-	}
+	    if (!$self->reboot_android($node_id, $dowait));
     }
 
     # Report success.
@@ -903,8 +879,9 @@ sub load_android_image($$$$) {
 }
 
 # Reboot a device, but don't wait for it to come up.
-sub reboot_android($$) {
-    my ($self, $node_id) = @_;
+sub reboot_android($$;$) {
+    my ($self, $node_id, $wait) = @_;
+    $wait ||= 0;
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
@@ -933,7 +910,10 @@ sub reboot_android($$) {
 	}
     }
 
-    # We don't wait for the node to come up...
+    if ($wait) {
+	return $self->wait_for_android($node_id);
+    }
+
     return 1;
 }
 
@@ -956,13 +936,31 @@ sub wait_for_android($$) {
 	    last;
 	}
 	if (time() - $stime > $ANDROID_BOOT_TMO) {
-	    warn "timed out waiting for $node_id to boot!\n";
+	    warn "timed out waiting for adbd on $node_id!\n";
 	    return 0;
 	}
 	sleep 5;
     }
 
     return 1;
+}
+
+# Helper to restart adbd on device as root
+sub root_adbd($$) {
+    my ($self, $node_id) = @_;
+
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "No serial number for $node_id!\n";
+	return 0;
+    }
+
+    if (system("$ADB -s $serial root >/dev/null 2>&1") != 0) {
+	warn "Failed to restart adbd on $node_id as root";
+	return 0;
+    }
+    
+    return $self->wait_for_android($node_id);
 }
 
 # Helper that sets up adb listener port for a device
