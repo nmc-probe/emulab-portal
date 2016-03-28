@@ -348,6 +348,7 @@ sub cmd_loadimage($@) {
     if (TBGetNodeOpMode($node_id,\$opmode) && 
 	$opmode eq TBDB_NODEOPMODE_RELOADUE) {
 	TBSetNodeEventState($node_id,TBDB_NODESTATE_RELOADDONE);
+	$node->ResetNextOpMode();
 	TBSetNodeEventState($node_id,TBDB_NODESTATE_SHUTDOWN);
     }
 
