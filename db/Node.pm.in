@@ -2223,7 +2223,7 @@ sub CreateVnodes($$$)
 	$nodenum    = "$2$3";
 	$ipbase     = $nodenum;
     }
-    elsif ($pnode =~ /^(.*\D)(\d+)$/) {
+    elsif ($pnode =~ /^(.*\D)(\d{1,3})$/) {
 	$nodeprefix = $1;
 	$nodenum    = $2;
 	$ipbase     = $nodenum;
