@@ -230,6 +230,7 @@ function Do_Update()
         return;
     }
     $formfields = $ajax_args["formfields"];
+    $target_uid = $target_user->uid();
     $args   = array();
     $errors = array();
 
@@ -247,13 +248,26 @@ function Do_Update()
 	SPITAJAX_ERROR(2, $errors);
         return;
     }
+    if (isset($formfields["password1"]) && $formfields["password1"] != "") {
+        # Change the passphrase on the SSL key.
+        $safe_password = escapeshellarg($formfields["password1"]);
+
+        # Do not send email, mkusercert sends email and hides the password.
+        $retval = SUEXEC($target_uid, "nobody",
+                         "webmkusercert -C -p $safe_password $target_uid",
+                         SUEXEC_ACTION_IGNORE);
+        if ($retval) {
+            SPITAJAX_ERROR(-1, "Could not reset password on SSL private key");
+            return;
+        }
+    }
+    
     #
     # The user can change their email on this pass, but the backend
     # does not allow that, so have to call tbacct directly with an
     # extra option to tell it to skip the admin check.
     #
     if ($formfields["email"] != $target_user->email()) {
-        $target_uid = $target_user->uid();
         $safe_email = $formfields["email"];
     
         if (!HASREALACCOUNT($target_uid)) {
