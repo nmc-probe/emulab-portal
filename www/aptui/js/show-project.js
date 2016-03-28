@@ -24,6 +24,16 @@ function (_, sup, moment, mainString,
 	});
 	$('#main-body').html(html);
 
+        // Javascript to enable link to tab
+        var hash = document.location.hash;
+        if (hash) {
+            $('.nav-tabs a[href='+hash+']').tab('show');
+        }
+        // Change hash for page-reload
+        $('a[data-toggle="tab"]').on('show.bs.tab', function (e) {
+            window.location.hash = e.target.hash;
+        });
+
 	LoadExperimentTab();
 	LoadProfileTab();
 	LoadMembersTab();
@@ -151,7 +161,8 @@ function (_, sup, moment, mainString,
 	    var template = _.template(memberString);
 
 	    $('#members_content')
-		.html(template({"members"     : json.value}));
+		.html(template({"members" : json.value,
+				"pid"     : window.TARGET_PROJECT}));
 	    
 	    // Format dates with moment before display.
 	    $('#members_table .format-date').each(function() {
