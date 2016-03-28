@@ -18,6 +18,12 @@
 	    <span class="format-date
 			 <% if (!value.approved) { %>text-danger<% } %>">
 	      <%- value.joined %></span>
+	    <% if (!value.approved && canapprove) { %>
+	      <span>
+		(<a href='approveuser.php?action=approve&pid=<%= pid %>&uid=<%= uid %>'>Approve</a> or 
+		<a href='approveuser.php?action=approve&pid=<%= pid %>&uid=<%= uid %>'>Reject</a>)
+	      </span>
+	    <% } %>
 	  </td>
 	</tr>
       <% }); %>

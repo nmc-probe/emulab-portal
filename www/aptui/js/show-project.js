@@ -161,8 +161,9 @@ function (_, sup, moment, mainString,
 	    var template = _.template(memberString);
 
 	    $('#members_content')
-		.html(template({"members" : json.value,
-				"pid"     : window.TARGET_PROJECT}));
+		.html(template({"members"    : json.value,
+				"pid"        : window.TARGET_PROJECT,
+				"canapprove" : window.CANAPPROVE}));
 	    
 	    // Format dates with moment before display.
 	    $('#members_table .format-date').each(function() {
