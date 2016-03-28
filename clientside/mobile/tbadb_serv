@@ -78,8 +78,9 @@ my $ADBD_LISTENPORT = 5555;
 my $MINPORT = 8001;
 my $MAXPORT = 8100;
 my $HOUSEKEEPING_INTERVAL = 60;
-my $FASTBOOT_TMO = 15;
+my $FASTBOOT_TMO = 17; # Not an interval of 5 seconds...
 my $ANDROID_BOOT_TMO = 90;
+my $FASTBOOTLOCK_TMO = 120;
 my $IMGLOCK_TMO = 300;
 my $LRULOCK_TMO = 60;
 my $UNPACKLOCK_TMO = 30;
@@ -816,6 +817,8 @@ sub unpack_bundle($$$) {
 # Put a given android device into fastboot mode.
 sub enter_fastboot($$) {
     my ($self, $node_id) = @_;
+    my $fastboot_lock;
+    my $retval = 0;
 
     my $serial = $NMAP{$node_id};
     if (!$serial) {
@@ -823,9 +826,20 @@ sub enter_fastboot($$) {
 	return 0;
     }
 
+    # Grab the fastboot lock.
+    if (TBScriptLock("enter_fastboot", undef, 
+		     $FASTBOOTLOCK_TMO, \$fastboot_lock) != TBSCRIPTLOCK_OKAY) {
+	warn "Failed to get the enter_fastboot lock!\n";
+	return 0;
+    }
+
     # First see if it is already sitting in fastboot.
     my $state = `$FASTBOOT devices 2>&1`;
-    return 1 if $state =~ /$serial\s+fastboot/;
+    if ($state =~ /$serial\s+fastboot/) {
+	warn "$node_id is already in bootloader.\n";
+	$retval = 1;
+	goto FBDONE;
+    }
 
     # Next try to reboot via adb if adbd is running on the device.
     $state = `$ADB -s $serial get-state 2>&1`;
@@ -833,23 +847,31 @@ sub enter_fastboot($$) {
     if ($state ne "unknown") {
 	if (system("$ADB -s $serial reboot-bootloader > /dev/null 2>&1") != 0) {
 	    warn "Failed to reboot $node_id via adb!\n";
-	    return 0;
+	    goto FBDONE;
 	}
 	# Now wait for fastboot to see it
 	my $stime = time();
 	while (1) {
 	    sleep 5;
 	    $state = `$FASTBOOT devices 2>&1`;
-	    return 1 if $state =~ /$serial\s+fastboot/;
+	    if ($state =~ /$serial\s+fastboot/) {
+		warn "$node_id now in bootloader\n";
+		$retval = 1;
+		last;
+	    }
 	    if (time() - $stime > $FASTBOOT_TMO) {
-		warn "timed out waiting for $node_id\n";
-		return 0;
+		warn "Timed out waiting for $node_id\n";
+		last;
 	    }
 	}
+    } else {
+	warn "$node_id is in an unknown state!\n";
+	# XXX: need to send email.
     }
 
-    warn "Could not find device!\n";
-    return 0;
+  FBDONE:
+    TBScriptUnlock($fastboot_lock);
+    return $retval;
 }
 
 # Flash an image to a device on the given partition.
