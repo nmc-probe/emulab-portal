@@ -341,7 +341,8 @@ sub cmd_loadimage($@) {
 
     #
     # Tell stated that we've finished reloading the node if the node
-    # is in the RELOADUE opmode.
+    # is in the RELOADUE opmode.  This will push it along in the
+    # reloading processes.
     #
     my $opmode;
     if (TBGetNodeOpMode($node_id,\$opmode) && 

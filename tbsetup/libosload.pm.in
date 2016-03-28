@@ -1277,13 +1277,28 @@ sub SetupReloadUE($)
     my $nodeobject    = $reload_info->{'nodeobj'};
     my $node          = $reload_info->{'node'};
     my $image         = (@{$reload_info->{'images'}})[0];
-    my $osid          = $reload_info->{'osid'};
 
     #
-    # Get some image details for tbadb
+    # Clear any pending reload entries.
+    #
+    $nodeobject->ClearCurrentReload();
+
+    #
+    # Get some image details for setting up the reload.
     #
     my $imgpid  = $image->pid();
     my $imgname = $image->imagename();
+    my $imageid = $image->imageid();
+    my $version = $image->version();
+
+    my $query_result = 
+	DBQueryWarn("insert into current_reloads ".
+		    "(node_id, idx, image_id, imageid_version,".
+		    " mustwipe, prepare) values ".
+		    "('$node', 1, '$imageid', '$version',".
+		    " 0, 0)");
+    return -1
+	if (!$query_result);
 
     #
     # Tell stated that we're about to start reloading
@@ -1291,29 +1306,18 @@ sub SetupReloadUE($)
     TBSetNodeNextOpMode($node,TBDB_NODEOPMODE_RELOADUE);
 
     #
-    # The mote goes 'down', then starts to reload
+    # The device goes 'down', then starts to reload
     #
     TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
     TBSetNodeEventState($node,TBDB_NODESTATE_RELOADING);
 
     #
     # Invoke local script that calls the remote end that
-    # actually does the work.
+    # actually does the work.  This will go into the background.
     #
     my $rv = system("$TBADB -n $node loadimage $imgpid $imgname nowait");
     if ($rv) {
 	tberror "$node: tbadb failed!";
-	return -1;
-    }
-
-    #
-    # Set the boot OSID.  Not that the UEs will check in via bootinfo,
-    # but perhaps something else will care that this is correct/consistent.
-    #
-    my $osinfo = OSinfo->Lookup($osid);
-    if (!defined($osinfo) ||
-	$nodeobject->OSSelect($osinfo, "next_boot_osid", 0)) {
-	tberror "os_select $osid failed!";
 	return -1;
     }
 
