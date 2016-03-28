@@ -2937,6 +2937,25 @@ COMMAND_PROTOTYPE(doaccounts)
 #ifdef ISOLATEADMINS
 		sprintf(adminclause, "and u.admin=%d", reqp->swapper_isadmin);
 #endif
+		/*
+		 * An experiment in a subgroup gets only the users in the
+		 * subgroup.
+		 */
+		char subclause[MYBUFSIZE];
+
+		if (strcmp(reqp->pid, reqp->gid)) {
+			sprintf(subclause,
+				"join groups as g on "
+				"     p.pid=g.pid "
+				"where (p.pid='%s' and p.gid='%s') ",
+				reqp->pid, reqp->gid);
+		}
+		else {
+			sprintf(subclause,
+				"join groups as g on "
+				"     p.pid=g.pid and p.gid=g.gid "
+				"where ((p.pid='%s')) ", reqp->pid);
+		}
 		res = mydb_query("select distinct "
 				 "  u.uid,%s,u.unix_uid,u.usr_name, "
 				 "  p.trust,g.pid,g.gid,g.unix_gid,u.admin, "
@@ -2947,15 +2966,14 @@ COMMAND_PROTOTYPE(doaccounts)
 				 "  u.usr_w_pswd,u.uid_idx "
 				 "from group_membership as p "
 				 "join users as u on p.uid_idx=u.uid_idx "
-				 "join groups as g on "
-				 "     p.pid=g.pid and p.gid=g.gid "
-				 "where ((p.pid='%s')) and p.trust!='none' "
+				 "%s "
+				 "      and p.trust!='none' "
 				 "      and u.status='active' "
 				 "      and u.webonly=0 "
 				 "      %s "
                                  "      and g.unix_gid is not NULL "
 				 "order by u.uid",
-				 18, passwdfield, reqp->pid, adminclause);
+				 18, passwdfield, subclause, adminclause);
 	}
 	else if (! reqp->islocal) {
 		/*
