@@ -956,7 +956,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     // Request a node reboot from the backend cluster.
     //
-    function DoReboot(node_id)
+    function DoReboot(nodeList)
     {
 	var callback = function(json) {
 	    sup.HideModal('#waitwait-modal');
@@ -972,15 +972,15 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
 					    "Reboot",
-					     {"uuid"    : uuid,
-					      "node_id" : node_id});
+					     {"uuid"     : uuid,
+					      "node_ids" : nodeList});
 	xmlthing.done(callback);
     }
 	
     //
     // Request a node reload from the backend cluster.
     //
-    function DoReload(node_id)
+    function DoReload(nodeList)
     {
 	// Handler for hide modal to unbind the click handler.
 	$('#confirm_reload_modal').on('hidden.bs.modal', function (event) {
@@ -1007,8 +1007,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
 						"status",
 						"Reload",
-						{"uuid"    : uuid,
-						 "node_id" : node_id});
+						{"uuid"     : uuid,
+						 "node_ids" : nodeList});
 	    xmlthing.done(callback);
 	});
 	sup.ShowModal('#confirm_reload_modal');
@@ -1185,57 +1185,80 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    target: '#' + cid, 
 	    onItem: function(context,e) {
 		$('#context').contextmenu('closemenu');
-
-		if ($(e.target).text() == "Shell") {
-		    NewSSHTab(hostportList[client_id], client_id);
-		}
-		else if ($(e.target).text() == "Console") {
-		    if (!_.has(consolenodes, client_id)) {
-			e.preventDefault();
-			return false;
-		    }
-		    if (isguest) {
-			alert("Only registered users can access the console");
-			return;
-		    }
-		    NewConsoleTab(client_id);
-		}
-		else if ($(e.target).text() == "Console Log") {
-		    if (!_.has(consolenodes, client_id)) {
-			e.preventDefault();
-			return false;
-		    }
-		    if (isguest) {
-			alert("Only registered users can access the console");
-			return;
-		    }
-		    ConsoleLog(client_id);
-		}
-		else if ($(e.target).text() == "Reboot") {
-		    if (isguest) {
-			alert("Only registered users can reboot nodes");
-			return;
-		    }
-		    DoReboot(client_id);
-		}
-		else if ($(e.target).text() == "Reload") {
-		    if (isguest) {
-			alert("Only registered users can reload nodes");
-			return;
-		    }
-		    DoReload(client_id);
-		}
-		else if ($(e.target).text() == "Snapshot") {
-		    if (isguest) {
-			alert("Only registered users can snapshot nodes");
-			return;
-		    }
-		    DoSnapshotNode(client_id);
-		}
 		$('#context').contextmenu('destroy');
+		ActionHandler($(e.target).attr("name"), [client_id]);
 	    }
 	})
 	$('#context').contextmenu('show', event);
+    }
+
+    //
+    // Common handler for both the context menu and the listview menu.
+    //
+    function ActionHandler(action, clientList)
+    {
+	//
+	// Do not show in the terminating or terminated state.
+	//
+	if (lastStatus == "terminated" || lastStatus == "terminating" ||
+	    lastStatus == "unknown") {
+	    alert("Your experiment is no longer active.");
+	    return;
+	}
+
+	/*
+	 * While shell and console can handle a list, I am not actually
+	 * doing that, since its a dubious thing to do, and because the
+	 * shellinabox code is not very happy trying to start a bunch all
+	 * once. 
+	 */
+	if (action == "shell") {
+	    // Do not want to fire off a whole bunch of ssh commands at once.
+	    for (var i = 0; i < clientList.length; i++) {
+		(function (i) {
+		    setTimeout(function () {
+			var client_id = clientList[i];
+			NewSSHTab(hostportList[client_id], client_id);
+		    }, i * 1500);
+		})(i);
+	    }
+	    return;
+	}
+	if (isguest) {
+	    alert("Only registered users can use the " + action + " command.");
+	    return;
+	}
+	if (action == "console") {
+	    // Do not want to fire off a whole bunch of console
+	    // commands at once.
+	    var haveConsoles = [];
+	    for (var i = 0; i < clientList.length; i++) {
+		if (_.has(consolenodes, clientList[i])) {
+		    haveConsoles.push(clientList[i]);
+		}
+	    }
+	    for (var i = 0; i < haveConsoles.length; i++) {
+		(function (i) {
+		    setTimeout(function () {
+			var client_id = haveConsoles[i];
+			NewConsoleTab(client_id);
+		    }, i * 1500);
+		})(i);
+	    }
+	    return;
+	}
+	else if (action == "consolelog") {
+	    ConsoleLog(clientList[0]);
+	}
+	else if (action == "reboot") {
+	    DoReboot(clientList);
+	}
+	else if (action == "reload") {
+	    DoReload(clientList);
+	}
+	else if (action == "snapshot") {
+	    DoSnapshotNode(clientList[0]);
+	}
     }
 
     // For autostarting ssh on single node experiments.
@@ -1254,6 +1277,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	" <td name='node_id'>n/a</td>" +
 	" <td name='type'>n/a</td>" +
 	" <td name='sshurl'>n/a</td>" +
+	" <td align=left><input name='select' type=checkbox>" +
 	" <td name='menu' align=center> " +
 	"  <div name='action-menu' class='dropdown'>" +
 	"  <button id='action-menu-button' type='button' " +
@@ -1265,8 +1289,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
 	"    <li><a href='#' name='consolelog'>Console Log</a></li> " +
-	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
-	"    <li><a href='#' name='reload'>Reload</a></li> " +
 	"    <li><a href='#' name='snapshot'>Snapshot</a></li> " +
 	"  </ul>" +
 	"  </div>" +
@@ -1354,6 +1376,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#listview-row-' + node + " [name=type]")
 			.html($(vnode).attr("hardware_type"));
 		}
+		// Convenience.
+		$('#listview-row-' + node + " [name=select]").attr("id", node);
 
 		if (stype.length &&
 		    $(stype).attr("name") === "emulab-blockstore") {
@@ -1375,12 +1399,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 		    // Update the row.
 		    $('#listview-row-' + node + ' [name=sshurl]').html(href);
-
+		    
 		    // Attach handler to the menu button.
 		    $('#listview-row-' + node + ' [name=shell]')
 			.click(function (e) {
 			    e.preventDefault();
-			    NewSSHTab(hostport, node);
+			    ActionHandler("shell", [node]);
 			    return false;
 			});		    
 		}
@@ -1401,26 +1425,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    // Attach handler to the menu button.
 		    $('#listview-row-' + node + ' [name=console]')
 			.click(function (e) {
-			    e.preventDefault();
-			    if (isguest) {
-				alert("Only registered users can access " +
-				      "the console");
-				return false;
-			    }
-			    NewConsoleTab(node);
-			    return false;
+			    ActionHandler("console", [node]);
 			});
 		    $('#listview-row-' + node + ' [name=consolelog]')
 			.click(function (e) {
-			    e.preventDefault();
-			    if (isguest) {
-				alert("Only registered users can access " +
-				      "the console log");
-				return false;
-			    }
-			    $('#action-menu-button').dropdown('toggle');
-			    ConsoleLog(node);
-			    return false;
+			    ActionHandler("consolelog", [node]);
 			});
 		    // Remember we have a console, for the context menu.
 		    consolenodes[node] = node;
@@ -1432,49 +1441,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#listview-row-' + node + ' [name=console]')
 			.parent().addClass('disabled');		    
 		}
-		
-		//
-		// And a handler for the reboot action.
-		//
-		$('#listview-row-' + node + ' [name=reboot]')
-		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can reboot nodes");
-			    return false;
-			}
-			DoReboot(node);
-			return false;
-		    });
-		
-		//
-		// And a handler for the reload action.
-		//
-		$('#listview-row-' + node + ' [name=reload]')
-		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can reload nodes");
-			    return false;
-			}
-			DoReload(node);
-			return false;
-		    });
-		
 		//
 		// And a handler for the snapshot action.
 		//
 		$('#listview-row-' + node + ' [name=snapshot]')
 		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can snapshot nodes");
-			    return false;
-			}
-			DoSnapshotNode(node);
-			return false;
+			ActionHandler("snapshot", [node]);
 		    });
-
 
 		/*
 		 * Make a copy of the master context menu and init.
@@ -1526,6 +1499,41 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		ProcessNodes(aggregate_urn, xml);
 	    });
 
+	    // Handler for select/deselect all rows in the list view.
+	    $('#select-all').change(function () {
+		if ($(this).prop("checked")) {
+		    $('#listview_table [name=select]')
+			.prop("checked", true);
+		}
+		else {
+		    $('#listview_table [name=select]')
+			.prop("checked", false);
+		}
+	    });
+	    //
+	    // Handler for the action menu next to the select mention above.
+	    // Foreign admins do not get a menu, but easier to just hide it.
+	    //
+	    if (isfadmin) {
+		$('#listview-action-menu').addClass("invisible");
+	    }
+	    else {
+		$('#listview-action-menu li a')
+		    .click(function (e) {
+			var checked = [];
+
+			// Get the list of checked nodes.
+			$('#listview_table [name=select]').each(function() {
+			    if ($(this).prop("checked")) {
+				checked.push($(this).attr("id"));
+			    }
+			});
+			if (checked.length) {
+			    ActionHandler($(this).text(), checked);
+			}
+		    });
+	    }
+	    
 	    if (xml != null) {
 		UpdateInstructions(xml,uridata);
 		// Do not show secrets if viewing using foreign admin creds

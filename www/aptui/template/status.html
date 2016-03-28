@@ -286,7 +286,23 @@
                       <th>SSH command <small>
 			  (if you provided your own key)</small>
                       </th>
-                      <th style='text-align: center;'>Actions</th>
+                      <th style='text-align: left;'>
+			<div id='listview-action-menu' class='dropdown'>
+			  <input type="checkbox" id="select-all">
+			  <button id='action-menu-button' type='button'
+				  class='btn btn-primary btn-sm dropdown-toggle'
+				  data-toggle='dropdown'>
+			    <span class='glyphicon glyphicon-cog'></span>
+			  </button>
+			  <ul class='dropdown-menu text-left' role='menu'>
+			    <li><a href='#' name='reboot'>Reboot Selected</a>
+			    </li>
+			    <li><a href='#' name='reload'>Reload Selected</a>
+			    </li>
+			  </ul>
+			</div>
+		      </th>
+		      <th style='text-align: center;'>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -380,12 +396,12 @@
     <div id="context-menu">
       <ul class="dropdown-menu" role="menu"
 	  style='cursor: pointer; cursor: hand'>
-	<li id="shell"><a tabindex="-1">Shell</a></li>
-	<li id="console"><a tabindex="-1">Console</a></li>
-	<li id="consolelog"><a tabindex="-1">Console Log</a></li>
-	<li id="reboot"><a tabindex="-1">Reboot</a></li>
-	<li id="reload"><a tabindex="-1">Reload</a></li>
-	<li id="snapshot"><a tabindex="-1">Snapshot</a></li>
+	<li id="shell"><a name="shell">Shell</a></li>
+	<li id="console"><a name="console">Console</a></li>
+	<li id="consolelog"><a name="consolelog">Console Log</a></li>
+	<li id="reboot"><a name="reboot">Reboot</a></li>
+	<li id="reload"><a name="reload">Reload</a></li>
+	<li id="snapshot"><a name="snapshot">Snapshot</a></li>
       </ul>
     </div>
   </div>

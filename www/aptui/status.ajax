@@ -970,13 +970,17 @@ function Do_RebootOrReload($which)
     $this_idx = $this_user->uid_idx();
     $uuid = $ajax_args["uuid"];
 
-    if (!isset($ajax_args["node_id"])) {
-	SPITAJAX_ERROR(1, "Missing node_id");
+    if (!isset($ajax_args["node_ids"])) {
+	SPITAJAX_ERROR(1, "Missing node_id list");
 	return;
     }
-    $node_id = $ajax_args["node_id"];
-    if (!preg_match("/^[-\w]+$/", $node_id)) {
-        SPITAJAX_ERROR(1, "Illegal characters in node_id");
+    $nodelist = "";
+    foreach ($ajax_args["node_ids"] as $node_id) {
+        if (!preg_match("/^[-\w]+$/", $node_id)) {
+            SPITAJAX_ERROR(1, "Illegal characters in node_id");
+            return;
+        }
+        $nodelist .= " " . escapeshellarg($node_id);
     }
     if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
@@ -993,7 +997,7 @@ function Do_RebootOrReload($which)
     $webtask_id = WebTask::GenerateID();
     $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t $webtask_id -- ".
-                     "  $which $uuid " . escapeshellarg($node_id), 
+                     "  $which $uuid $nodelist",
 		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
 
