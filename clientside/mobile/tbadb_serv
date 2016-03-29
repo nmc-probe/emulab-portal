@@ -86,6 +86,12 @@ my $LRULOCK_TMO = 60;
 my $UNPACKLOCK_TMO = 30;
 my $FWDLOCK_TMO = 30;
 
+# List of helper calls
+my @HELPERS = ("do_lru_cleanup", "reboot_android", "unpack_bundle",
+	       "load_android_image", "root_adbd", "wait_for_android",
+	       "setup_android_forward", "remove_android_forward", 
+	       "enter_fastboot", "check_adb");
+
 # Android partition info
 my @ANDROID_PARTITIONS = (
     ["recovery", undef, 0],
@@ -101,6 +107,30 @@ my %FWDPORTS = ();
 my $RPCIN;
 my $RPCOUT;
 my $debug = 0;
+
+sub showhelp() {
+    print "Usage: $0 [--debug] [--command <cmd> <cmd_args>]\n\n";
+    print "<cmd>:       helper command to run (see list below).\n".
+	  "<cmd_args>:  set of arguments specific to <cmd>\n";
+    print "Command list: @HELPERS\n";
+}
+
+# Read in the node_id -> serial number map.
+die "tbadb_serv: Cannot run without serial number mapping file: $MAPFILE\n"
+    if (!-r $MAPFILE);
+open(MFILE, "<$MAPFILE")
+    or die "tbadb_serv: Can't open map file: $MAPFILE: $!\n";
+while (my $ln = <MFILE>) {
+    chomp $ln;
+    next if (!$ln || $ln =~ /^\s*#.*$/);
+    if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/) {
+	warn "tbadb_serv: malformed node mapping line: $ln\n";
+	next;
+    }
+    $NMAP{$1} = $2;
+    $NMAP{$2} = $1;
+}
+close(MFILE);
 
 # Invoke the parent Net::Server class' run routine.
 tbadb_serv->run({
@@ -134,7 +164,11 @@ sub options($$) {
     $self->SUPER::options($template);
 
     $prop->{'debug'} ||= undef;
+    $prop->{'command'} ||= undef;
+    $prop->{'help'} ||= undef;
     $template->{'debug'} = \ $prop->{'debug'};
+    $template->{'command'} = \ $prop->{'command'};
+    $template->{'help'} = \ $prop->{'help'};
 }
 
 #
@@ -144,15 +178,34 @@ sub post_configure {
     my $self = shift;
     my $prop = $self->{'server'};
 
+    # Show help now and exit - no need to go further.
+    if ($prop->{'help'}) {
+	showhelp();
+	exit 1;
+    }
+
+    # Only allow root to run the script.
+    die("tbadb_serv: May only be run as root!\n")
+	if ($UID != 0);
+
     # Don't go into the background if debugging was requested.  
     # Increase log level.
     if ($prop->{'debug'}) {
-	warn "tbadb_serv: debug mode requested.  Staying in foreground.\n";
+	warn "tbadb_serv: debug mode requested.\n";
 	$debug = $prop->{'debug'};  # XXX global var for non-OO funcs.
+	$libjsonrpc::debug = 1;
 	$prop->{'background'} = 0;
 	$prop->{'setsid'} = 0;
 	$prop->{'log_level'} = 4;
 	$prop->{'log_file'} = undef;
+    }
+
+    # Dispatch directly if requested.
+    if ($prop->{'command'}) {
+	my ($runcmd,) = grep {/^$prop->{'command'}$/} @HELPERS;
+	die "$0: Unknown helper command: $prop->{'command'}\n"
+	    if (!$runcmd);
+	exit (! $self->${runcmd}(@ARGV));
     }
 
     $self->SUPER::post_configure(@_);
@@ -172,27 +225,6 @@ sub post_configure_hook($) {
     die "tbadb_serv: Could not get IP address for boss server!\n"
 	if (!$bossip || $bossip !~ /^(\d+\.\d+\.\d+\.\d+)$/);
     push @{$prop->{'cidr_allow'}}, "${1}/32";
-
-    # Only allow root to run the script.
-    die("tbadb_serv: May only be run as root!\n")
-	if ($UID != 0);
-
-    # Read in the node_id -> serial number map (used by non-OO funcs).
-    die "tbadb_serv: Cannot run without serial number mapping file: $MAPFILE\n"
-	if (!-r $MAPFILE);
-    open(MFILE, "<$MAPFILE")
-	or die "tbadb_serv: Can't open map file: $MAPFILE: $!\n";
-    while (my $ln = <MFILE>) {
-	chomp $ln;
-	next if (!$ln || $ln =~ /^\s*#.*$/);
-	if ($ln !~ /^\s*([-\w]+)\s+([a-zA-Z0-9]+)\s*$/) {
-	    warn "tbadb_serv: malformed node mapping line: $ln\n";
-	    next;
-	}
-	$NMAP{$1} = $2;
-	$NMAP{$2} = $1;
-    }
-    close(MFILE);
 
     # Setup a warn "signal" handler to redirect "warn" for now.
     $SIG{__WARN__} = sub {
