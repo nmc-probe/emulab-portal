@@ -80,7 +80,7 @@ sub GenCredentials($$;$$)
     #
     if (ref($target) eq "GeniSlice" && $target->IsExpired()) {
 	$oldexpires = $target->expires();
-	$target->SetExpiration(time() + 600);
+	$target->SetExpiration(time() + (24 * 3600));
 	delete($credcache{$cachetag})
 	    if (exists($credcache{$cachetag}));
     }
@@ -106,7 +106,7 @@ sub GenCredentials($$;$$)
 	    goto bad;
 	}
 	if ($wantspeaksfor) {
-	    $speaksfor = GeniCredential->CreateFromSigned($speaksfor_string);
+	    $speaksfor = GeniCredential->CreateFromSigned($speaksfor_string, 1);
 	    if (!defined($speaksfor)) {
 		print STDERR "Could not create speaksfor credential\n";
 		goto bad;
@@ -122,6 +122,9 @@ sub GenCredentials($$;$$)
 	    print STDERR "speaksfor credential for $geniuser has expired\n";
 	    goto bad
 		if (!$allowexpiredspeaksfor);
+
+	    # Be careful not to return this.
+	    $speaksfor = undef;
 	    
 	    print STDERR "-> Generating an SA credential instead\n";
 	    $credential = APT_Geni::GenAuthCredential($target, $privs);
