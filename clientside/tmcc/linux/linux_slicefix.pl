@@ -865,8 +865,12 @@ sub fix_console
 
     print STDERR "Setting console device to $console\n";
 
-    # XXX should be passed in
+    # parse off speed if present
     my $sspeed = 115200;
+    if ($console =~ /^([^,]+),(\d+)$/) {
+	$console = $1;
+	$sspeed = $2;
+    }
 
     my $sunit = -1;
     if ($console =~ /^sio(\d+)$/) {

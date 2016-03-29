@@ -148,6 +148,18 @@ fi
 # NOTE: we change "sio" to "sio1" and "vga" to "vid" for convenience later
 #
 CONSOLE=${SLICEFIX_CONSOLE:-'unknown'}
+
+# If CONSOLE has optional ",speed" parse it off and use that, ow 115200.
+case $CONSOLE in
+*,*)
+    SPEED=${CONSOLE##*,}
+    CONSOLE=${CONSOLE%%,*}
+    ;;
+*)
+    SPEED=115200
+    ;;
+esac
+
 case $CONSOLE in
 sio)
     CONSOLE=sio1
@@ -688,15 +700,12 @@ EOF1
 		    fi
 		fi
 
-		# XXX should be passed in
-		speed=115200
-
 		# only change things if there were hints found
 		if [ $drv != "none" ]; then
 		    # put in the new info
 		    cat <<EOF2 >>/mnt/boot/loader.conf
 comconsole_port="$port"
-comconsole_speed="$speed"
+comconsole_speed="$SPEED"
 hint.$drv.0.flags="0x0"
 hint.$drv.1.flags="0x0"
 hint.$drv.2.flags="0x0"
@@ -1150,8 +1159,7 @@ dolinux() {
 		;;
 	    sio*)
 		u=`expr ${CONSOLE#sio} - 1`
-		# XXX should be passed in
-		s=115200
+		s=$SPEED
 
 		# put back the "serial" line
 		sstr="serial --unit=$u --speed=$s"
@@ -1279,8 +1287,7 @@ EOF6
 		;;
 	    sio*)
 		u=`expr ${CONSOLE#sio} - 1`
-		# XXX should be passed in
-		s=115200
+		s=$SPEED
 		cat <<EOF7 >>$gdef
 GRUB_CMDLINE_LINUX="console=ttyS$u,$s"
 GRUB_TERMINAL=serial
