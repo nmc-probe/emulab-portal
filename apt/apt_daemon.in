@@ -392,8 +392,11 @@ sub UpdateAggregateGraphs()
     foreach my $file ($NOFED, $FEDONLY) {
 	if (-e $file) {
 	    my $data = `/bin/cat $file`;
-	    my $obj  = decode_json($data);
-	    if (!defined($obj)) {
+	    my $obj  = eval { decode_json($data); };
+	    if ($@ || !defined($obj)) {
+		if ($@) {
+		    print STDERR $@;
+		}
 		print STDERR "Could not decide json in $file\n";
 		next;
 	    }
