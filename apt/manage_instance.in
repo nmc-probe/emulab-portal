@@ -1846,7 +1846,7 @@ sub DoLockdownInternal($$)
 	# We cannot do lockdown at AL2S. More generally, it only works at
 	# Emulab based aggregates, but we do not talk to other aggregates.
 	#
-	if ($sliver->ISAL2S()) {
+	if ($sliver->isAL2S()) {
 	    return 0
 		if ($clear);
 	    
