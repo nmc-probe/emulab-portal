@@ -392,7 +392,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    if (json.code == 12) {
 		instanceStatus = "terminated";
 	    }
-	    elsif (lastStatus != "terminated") {
+	    else if (lastStatus != "terminated") {
 		instanceStatus = "unknown";
 	    }
 	}
