@@ -388,7 +388,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
             StatusWatchCallBack.active = 0;
 	}
 	if (json.code) {
-	    instanceStatus = "unknown";
+	    // GENIRESPONSE_SEARCHFAILED
+	    if (json.code == 12) {
+		instanceStatus = "terminated";
+	    }
+	    elsif (lastStatus != "terminated") {
+		instanceStatus = "unknown";
+	    }
 	}
 	else {
 	    instanceStatus = json.value.status;

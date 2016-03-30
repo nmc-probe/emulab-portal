@@ -47,7 +47,8 @@ function StatusSetupAjax($needmodify)
     $uuid = $ajax_args["uuid"];
     $instance = Instance::Lookup($uuid);
     if (!$instance) {
-	SPITAJAX_ERROR(1, "no such instance uuid: $uuid");
+	SPITAJAX_ERROR(GENIRESPONSE_SEARCHFAILED,
+                       "no such instance uuid: $uuid");
 	return 1;
     }
     $creator = GeniUser::Lookup("sa", $instance->creator_uuid());
