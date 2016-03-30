@@ -146,7 +146,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	// runs at page load, and so the filestyle'd button in the
 	// form is not as it should be.
 	//
-	$('#sourcefile').each(function() {
+	$('#sourcefile, #rspec_modal_upload_button').each(function() {
 	    $(this).filestyle({input      : false,
 			       buttonText : $(this).attr('data-buttonText'),
 			       classButton: $(this).attr('data-classButton')});
@@ -170,19 +170,34 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	//
 	// File upload handler.
 	// 
-	$('#sourcefile').change(function() {
-		var reader = new FileReader();
-		reader.onload = function(event) {
-		    var newrspec = event.target.result;
-		    /*
-		     * Clear the file so that the change handler will
-		     * run if the same file is selected again (say, after
-		     * fixing a script error).
-		     */
-		    $("#sourcefile").filestyle('clear');
+	$('#sourcefile, #rspec_modal_upload_button').change(function() {
+	    var reader = new FileReader();
+	    var button = $(this);
+
+	    reader.onload = function(event) {
+		var newrspec = event.target.result;
+		    
+		/*
+		 * Clear the file so that the change handler will
+		 * run if the same file is selected again (say, after
+		 * fixing a script error).
+		 */
+		$("#sourcefile, #rspec_modal_upload_button").filestyle('clear');
+
+		/*
+		 * If the modal upload button is used, we want to change the
+		 * contents of the modal only. User has to accept the change.
+		 */
+		if ($(button).attr("id") == "rspec_modal_upload_button") {
+		    $('#modal_profile_rspec_textarea').val(newrspec);
+		    // The modal shown event updates the code in the modal.
+		    $('#rspec_modal').trigger('shown.bs.modal');
+		}
+		else {
 		    changeRspec(newrspec);
-		};
-		reader.readAsText(this.files[0]);
+		}
+	    };
+	    reader.readAsText(this.files[0]);
 	});
 
 	// Handler for all paths to rspec change (file upload, jacks, edit).
@@ -212,9 +227,18 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    // is no script.
 	    //
 	    var source = $.trim($('#profile_script_textarea').val());
+	    var href   = "show-profile.php?uuid=" + profile_uuid;
+	    
 	    if (!source.length) {
 		source = $.trim($('#profile_rspec_textarea').val());
+		$('#rspec_modal_download_button')
+		    .attr("href", href + "&rspec=true");
 	    }
+	    else {
+		$('#rspec_modal_download_button')
+		    .attr("href", href + "&source=true");
+	    }
+	    $('#rspec_modal_upload_span').removeClass("hidden");
 	    $('#rspec_modal_editbuttons').removeClass("hidden");
 	    $('#rspec_modal_viewbuttons').addClass("hidden");
 	    $('#modal_profile_rspec_textarea').prop("readonly", false);	    
@@ -230,6 +254,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    // XML, but it is not intended to be edited.
 	    //
 	    var source = $.trim($('#profile_rspec_textarea').val());
+	    var href   = "show-profile.php?uuid=" + profile_uuid +
+		"&rspec=true";
+	    $('#rspec_modal_download_button')
+		.attr("href", href + "&rspec=true");
+	    $('#rspec_modal_upload_span').addClass("hidden");
 	    $('#rspec_modal_editbuttons').addClass("hidden");
 	    $('#rspec_modal_viewbuttons').removeClass("hidden");
 	    $('#modal_profile_rspec_textarea').val(source);
@@ -249,6 +278,10 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    if (myRe.test(source)) {
 		mode = "text/x-python";
 	    }
+	    // In case we got here via the modal upload button, need to
+	    // kill the current contents. 
+	    $('.CodeMirror').remove();
+	    
 	    myCodeMirror = CodeMirror(function(elt) {
 		$('#modal_profile_rspec_div').prepend(elt);
 	    }, {
