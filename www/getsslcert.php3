@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2012, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,6 +46,11 @@ if (!isset($ssh)) {
 if (!isset($pub)) {
     $pub = 0;
 }
+# We use this in the aptui directory, so watch for this already
+# being set.
+if (!isset($FILENAME)) {
+    $FILENAME = "emulab";
+}
 
 # Default to current user if not provided.
 if (!isset($target_user)) {
@@ -67,8 +72,8 @@ if (!$isadmin && !$target_user->SameUser($this_user)) {
 if ($p12) {
     if ($fp = popen("$TBSUEXEC_PATH $target_uid nobody webspewcert", "r")) {
 	header("Content-Type: application/octet-stream;".
-	       "filename=\"emulab.p12\";");
-	header("Content-Disposition: inline; filename=\"emulab.p12\";");
+	       "filename=\"${FILENAME}.p12\";");
+        header("Content-Disposition: attachment; filename='${FILENAME}.p12'");
 	header("Cache-Control: no-cache, must-revalidate");
 	header("Pragma: no-cache");
 #       header("Content-Type: application/x-x509-user-cert");
@@ -108,6 +113,7 @@ if ($ssh) {
     $pubkey = $row['pubkey'];
     
     header("Content-Type: text/plain");
+    header("Content-Disposition: attachment; filename='${FILENAME}.pem'");
     echo "-----BEGIN RSA PRIVATE KEY-----\n";
     echo $key;
     echo "-----END RSA PRIVATE KEY-----\n";
@@ -119,6 +125,7 @@ if ($ssh) {
 }
 else {
     header("Content-Type: text/plain");
+    header("Content-Disposition: attachment; filename='${FILENAME}.pem'");
     echo "-----BEGIN RSA PRIVATE KEY-----\n";
     echo $key;
     echo "-----END RSA PRIVATE KEY-----\n";
