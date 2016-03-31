@@ -153,19 +153,21 @@ exit $DISPATCH{$CMD}->($node_id, @ARGS);
 # "setup" is a compound command.  We just separate out the arguments
 # and call the respective individual commands.
 #
+# Note: assumes cmd_reserveport() has already been called for device!
+#
 sub cmd_setup($@) {
-    my ($node_id, $imagepid, $imagename, $thost) = @_;
+    my ($node_id, $imagepid, $imagename) = @_;
 
     # Brief check for correct number of arguments.  The individual
     # commands will do a more thorough check.
-    die "tbadb::cmd_setup: missing one or more arguments (need: <project> <image_name> <target_adb_host>)!\n"
-	if (!$node_id || !$imagepid || !$imagename || !$thost);
+    die "tbadb::cmd_setup: missing one or more arguments (need: <project> <image_name>)!\n"
+	if (!$node_id || !$imagepid || !$imagename);
 
     # Individual commands will die() if they fail, so subsequent calls
     # will not happen.
     cmd_loadimage($node_id, $imagepid, $imagename);
     cmd_nodewait($node_id);
-    cmd_forward($node_id, $thost);
+    cmd_forward($node_id); 
 
     # Done!
     return 0;
