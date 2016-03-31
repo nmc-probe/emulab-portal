@@ -150,30 +150,6 @@ exit $DISPATCH{$CMD}->($node_id, @ARGS);
 
 
 #
-# "setup" is a compound command.  We just separate out the arguments
-# and call the respective individual commands.
-#
-# Note: assumes cmd_reserveport() has already been called for device!
-#
-sub cmd_setup($@) {
-    my ($node_id, $imagepid, $imagename) = @_;
-
-    # Brief check for correct number of arguments.  The individual
-    # commands will do a more thorough check.
-    die "tbadb::cmd_setup: missing one or more arguments (need: <project> <image_name>)!\n"
-	if (!$node_id || !$imagepid || !$imagename);
-
-    # Individual commands will die() if they fail, so subsequent calls
-    # will not happen.
-    cmd_loadimage($node_id, $imagepid, $imagename);
-    cmd_nodewait($node_id);
-    cmd_forward($node_id); 
-
-    # Done!
-    return 0;
-}
-
-#
 # Given a valid image identifier (name, osid), project (to scope
 # image) and node_id, load an image onto a remote device.  Check with
 # the remote side to ensure the image is there, and tranfer it first
@@ -182,6 +158,7 @@ sub cmd_setup($@) {
 sub cmd_loadimage($@) {
     my ($node_id, $imagepid, $imagename, @extra) = @_;
     my $nowait = 0;
+    my $doforward = 0;
 
     # Process and untaint arguments.
     die "tbadb::cmd_loadimage: missing one or more arguments (need: <project> <image_name>)!\n"
@@ -196,6 +173,10 @@ sub cmd_loadimage($@) {
 	ARGS: for ($arg) {
 	    /^nowait$/i && do {
 		$nowait = 1;
+		last ARGS;
+	    };
+	    /^doforward$/i && do {
+		$doforward = 1;
 		last ARGS;
 	    };
 	    # Default
@@ -344,11 +325,9 @@ sub cmd_loadimage($@) {
 	exit 1;
     }
 
-    #
     # Tell stated that we've finished reloading the node if the node
     # is in the RELOADUE opmode.  This will push it along in the
     # reloading processes.
-    #
     my $opmode;
     if (TBGetNodeOpMode($node_id,\$opmode) && 
 	$opmode eq TBDB_NODEOPMODE_RELOADUE) {
@@ -357,11 +336,19 @@ sub cmd_loadimage($@) {
 	TBSetNodeEventState($node_id,TBDB_NODESTATE_SHUTDOWN);
     }
 
-    # Done!
+    # Done with loading!
     print "tbadb::cmd_loadimage: Successfully loaded $imagename onto $node_id\n";
+
+    # Activate forwarding if requested.  Will die() on error.
+    if ($doforward) {
+	cmd_forward($node_id);
+    }
+
+    # Remove log (if running in background) since there were no problems.
     if ($nowait && $logname) {
 	unlink($logname);
     }
+
     return 0;
 }
 
