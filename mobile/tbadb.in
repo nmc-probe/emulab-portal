@@ -383,12 +383,6 @@ sub cmd_reserveport($@) {
     die("tbadb::cmd_reserveport: You do not have permission to modify $node\n")
 	if (!$isroot && !$this_user->IsAdmin() &&
 	    !$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
-
-    # Node must be in an experiment. We store the returned port number
-    # in the virt_node_attributes table.
-    my $experiment = $node->Reservation();
-    die "tbadb::cmd_forward: $node_id does not belong to an experiment!\n"
-	if (!$experiment);
     
     # Grab the RPC pipe.
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
@@ -423,7 +417,12 @@ sub cmd_reserveport($@) {
 	warn "tbadb::cmd_reserveport: Did not receive a port number from 'reserveport'!\n";
 	exit 1;
     }
-    $experiment->SetVirtNodeAttribute($node->vname(), "adb_port", $portnum);
+
+    # We store the returned port number in the virt_node_attributes table if
+    # the node is currently allocated to an experiment.
+    my $experiment = $node->Reservation();
+    $experiment->SetVirtNodeAttribute($node->vname(), "adb_port", $portnum)
+	if $experiment;
 
     # Done!
     my $chost;
@@ -531,6 +530,17 @@ sub cmd_unforward($@) {
 	warn "tbadb::cmd_unforward: Received error from 'unforward':\n";
 	warn "". Dumper($data);
 	exit 1;
+    }
+
+    # Clear the virt_node_attributes entry, if there is one.
+    my $experiment = $node->Reservation();
+    if ($experiment) {
+	my $pid = $experiment->pid();
+	my $eid = $experiment->eid();
+	my $vname = $node->vname();
+	DBQueryWarn("delete from virt_node_attributes".
+		    " where pid='$pid' and eid='$eid'".
+		    "       and vname='$vname' and attrkey='adb_port'");
     }
     
     # Done!
