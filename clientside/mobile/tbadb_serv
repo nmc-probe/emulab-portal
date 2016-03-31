@@ -92,7 +92,8 @@ my $FWDLOCK_TMO = 30;
 my @HELPERS = ("do_lru_cleanup", "reboot_android", "unpack_bundle",
 	       "load_android_image", "root_adbd", "wait_for_android",
 	       "activate_android_forwarding", "remove_android_forward", 
-	       "reserve_adb_port", "enter_fastboot", "check_adb");
+	       "reserve_adb_port", "enter_fastboot", "check_adb",
+               "add_apn_profile");
 
 # Android partition info
 my @ANDROID_PARTITIONS = (
@@ -523,13 +524,17 @@ sub rpc_loadimage($$) {
 	    if (!$self->load_android_image($node_id, $imgpart, $imgpath));
     }
 
-    # Step 5: reboot into newly loaded image
+    # Step 5: Reboot into newly loaded image
     $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.")
 	if (!$self->reboot_android($node_id,1));
 
-    # Step 6: restart adbd on device as root
+    # Step 6: Restart adbd on device as root
     $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to restart adbd on device as root.")
 	if (!$self->root_adbd($node_id));
+
+    # Step 7: Add PhantomNet APN profile and set it as default
+    $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to add APN profile.")
+	if (!$self->add_apn_profile($node_id));
 
     # Send success result back to caller.
     warn "finished loading $proj/$bundle_name on $node_id\n";
@@ -1020,6 +1025,35 @@ sub wait_for_android($$) {
     return 1;
 }
 
+# Helper that waits (bounded by a timeout) for the APN profile query to succeed
+sub wait_for_apn_query($$$) {
+    my ($self, $node_id) = @_;
+
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "No serial number for $node_id!\n";
+	return 0;
+    }
+
+    my $stime = time();
+    while (1) {
+	my $state = `$ADB -s $serial shell content query --uri content://telephony/carriers --where "name=\\'phantomnet\\'"`;
+	$state =~ s/\s+$//;
+	if ($state eq "No result found.") {
+	    last;
+	} elsif  ($state =~ /.*_id=([0-9]+),.*/) {
+	    last;
+	}
+	if (time() - $stime > $ANDROID_BOOT_TMO) {
+	    warn "Timed out waiting for APN query on $node_id!\n";
+	    return 0;
+	}
+	sleep 5;
+    }
+
+    return 1;
+}
+
 # Helper to restart adbd on device as root
 sub root_adbd($$) {
     my ($self, $node_id) = @_;
@@ -1036,6 +1070,70 @@ sub root_adbd($$) {
     }
     
     return $self->wait_for_android($node_id);
+}
+
+# Helper to add PhantomNet APN profile and set it as default
+sub add_apn_profile($$) {
+    my ($self, $node_id) = @_;
+    warn "Adding APN Profile\n";
+
+    # Find serial number to target
+    my $serial = $NMAP{$node_id};
+    if (! $serial) {
+	warn "No serial number for $node_id!\n";
+	return 0;
+    }
+
+    # Wait for query provider to initialize
+    my $contentstatus = $self->wait_for_apn_query($node_id);
+    if ($contentstatus == 0) {
+	warn "Waiting for telephony.registry service timed out while adding APN profile\n";
+    }
+
+    # Check for existing APN profile. If found, use that.
+    my $newapn = `$ADB -s $serial shell content query --uri content://telephony/carriers --where "name=\\'phantomnet\\'"`;
+    if ($?) {
+	warn "Failed when checking for existing APN profile\n";
+	return 0;
+    }
+    $newapn =~ s/\s+$//;
+
+    # If no existing APN profile, insert one and use that.
+    if ($newapn eq "No result found.") {
+	my $status = system("$ADB -s $serial shell content insert --uri content://telephony/carriers --bind name:s:\"phantomnet\" --bind numeric:s:\"00101\" --bind mcc:s:\"001\" --bind mnc:s:\"01\" --bind apn:s:\"internet\" --bind mmsc:s:\"\" --bind type:s:\"\" --bind current:i:1");
+	if ($status) {
+	    warn "Could not insert APN profile\n";
+	    return 0;
+	}
+	$newapn = `$ADB -s $serial shell content query --uri content://telephony/carriers --where "name=\\'phantomnet\\'"`;
+	if ($?) {
+	    warn "Failed when checking for newly created APN profile\n";
+	    return 0;
+	}
+	$newapn =~ s/\s+$//;
+	if ($newapn eq "No result found.") {
+	    warn "After inserting new APN, it was not found. $serial\n";
+	    return 0;
+	}
+    }
+
+    # Extract the id of the APN profile so we can set the preferred APN using it.
+    my $apnid;
+    if ($newapn =~ /.*_id=([0-9]+),.*/) {
+	$apnid = $1;
+    } else {
+	warn "Could not find APN id in profile result: $newapn\n";
+	return 0;
+    }
+
+    # Set the preferred APN profile to the newly created one (or pre-existing one).
+    my $status = system("$ADB -s $serial shell content insert --uri content://telephony/carriers/preferapn --bind apn_id:i:$apnid");
+    if ($status) {
+	warn "Could not set preferred APN profile to the new one with id: $apnid\n";
+	return 0;
+    }
+
+    return 1;
 }
 
 # Lock and load the forwarding port database.
@@ -1126,6 +1224,7 @@ sub reserve_adb_port($$$) {
 # will return an error.
 sub activate_android_forwarding($$;$) {
     my ($self, $node_id, $locknload) = @_;
+
     my $fwd_lock;
     my $port = 0;
     my $thost;
