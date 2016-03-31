@@ -44,7 +44,8 @@ use EmulabConstants;
 # Func prototypes
 sub cmd_setup($@);
 sub cmd_loadimage($@);
-sub cmd_forward($@);
+sub cmd_reserveport($@);
+sub cmd_forward($;@);
 sub cmd_unforward($@);
 sub cmd_reboot($;@);
 sub cmd_nodewait($;@);
@@ -64,7 +65,8 @@ my $TBADB_LOCKIMAGE_TMO  = 300;
 my $TBADB_UNLOCKIMAGE_TMO = 10;
 my $TBADB_CHECKIMAGE_TMO = 60;
 my $TBADB_LOADIMAGE_TMO  = 300;
-my $TBADB_FORWARD_TMO    = 15;
+my $TBADB_RESERVEPORT_TMO = 10;
+my $TBADB_FORWARD_TMO    = 20;
 my $TBADB_REBOOT_TMO     = 60;
 my $TBADB_NODEWAIT_TMO   = 60;
 my $CHILD_WAIT_TMO       = 10;
@@ -73,6 +75,7 @@ my $SCP = "/usr/bin/scp";
 my %DISPATCH = (
     'setup'     => \&cmd_setup,
     'loadimage' => \&cmd_loadimage,
+    'resvport'  => \&cmd_reserveport,
     'forward'   => \&cmd_forward,
     'unforward' => \&cmd_unforward,
     'reboot'    => \&cmd_reboot,
@@ -361,24 +364,23 @@ sub cmd_loadimage($@) {
 }
 
 #
-# Forward ADB to a target host and port.  Must provide a valid device
-# node_id and target host
+# Reserve a port for adb forwarding.  Must provide a valid device node_id
 #
-sub cmd_forward($@) {
+sub cmd_reserveport($@) {
     my ($node_id, $thost) = @_;
 
     # Check and untaint arguments
-    die "tbadb::cmd_forward: missing arguments! (need: <target_host>)\n"
+    die "tbadb::cmd_reserveport: missing arguments! (Need: <target_host>)\n"
 	if (!$node_id || !$thost);
-    die "tbadb::cmd_forward: malformed target host!"
+    die "tbadb::cmd_reserveport: malformed target host!"
 	if ($thost !~ /^([-\.\w]{$MINHLEN,$MAXHLEN})$/);
     $thost = $1;
 
     # Make sure user has access to requested node
     my $node = Node->Lookup($node_id);
-    die "tbadb::cmd_forward: Invalid node name $node_id!\n"
+    die "tbadb::cmd_reserveport: Invalid node name $node_id!\n"
 	if (!defined($node));
-    die "tbadb::cmd_forward: You do not have permission to access $node\n"
+    die("tbadb::cmd_reserveport: You do not have permission to modify $node\n")
 	if (!$isroot && !$this_user->IsAdmin() &&
 	    !$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
 
@@ -390,15 +392,74 @@ sub cmd_forward($@) {
     
     # Grab the RPC pipe.
     my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
-    die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
+    die "tbadb::cmd_reserveport: Failed to get valid SSH pipe filehandles!\n"
 	if (!$rpcin || !$rpcout);
     
+    # Call adb port reservation RPC.
+    die "tbadb::cmd_reserveport: Failed to send 'reserveport' RPC!\n"
+	if (!SendRPCData($rpcout,
+			 EncodeCall("reserveport", {
+			     NODE_ID => $node_id,
+			     TARGET_HOST => $thost})));
+
+    # Grab RPC result.
+    my $pdu;
+    die "tbadb::cmd_reserveport: Failed to receive valid response for 'reserveport'\n"
+	if (RecvRPCData($rpcin, \$pdu, $TBADB_RESERVEPORT_TMO) != 1);
+    my $data = DecodeRPCData($pdu);
+    die "tbadb::cmd_reserveport: Could not decode RPC response from 'reserveport'"
+	if (!$data);
+
+    # Check for error.
+    if (exists($data->{ERROR})) {
+	warn "tbadb::cmd_reserveport: Received error from 'reserveport':\n";
+	warn "". Dumper($data);
+	exit 1;
+    }
+
+    # Grab the returned port number and store it.
+    my $portnum = $data->{RESULT}->{PORT};
+    if (!$portnum) {
+	warn "tbadb::cmd_reserveport: Did not receive a port number from 'reserveport'!\n";
+	exit 1;
+    }
+    $experiment->SetVirtNodeAttribute($node->vname(), "adb_port", $portnum);
+
+    # Done!
+    my $chost;
+    $node->TipServer(\$chost);
+    print "tbadb::cmd_reserveport: successfully reserved adb port for $node_id: $chost:$portnum\n";
+    return 0;
+}
+
+#
+# Activate ADB forwarding for a device.  A prior 'reserveport' RPC must
+# have been done first!
+#
+sub cmd_forward($;@) {
+    my ($node_id) = @_;
+
+    # Check and untaint arguments
+    die "tbadb::cmd_forward: missing node_id argument!\n"
+	if (!$node_id);
+
+    # Make sure user has access to requested node
+    my $node = Node->Lookup($node_id);
+    die "tbadb::cmd_forward: Invalid node name $node_id!\n"
+	if (!defined($node));
+    die "tbadb::cmd_forward: You do not have permission to access $node\n"
+	if (!$isroot && !$this_user->IsAdmin() &&
+	    !$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
+
+    # Grab the RPC pipe.
+    my ($rpcin, $rpcout) = GetRPCPipeHandles($node);
+    die "tbadb::cmd_reboot: Failed to get valid SSH pipe filehandles!\n"
+	if (!$rpcin || !$rpcout);
+
     # Request adb port forwarding on device's control host.
     die "tbadb::cmd_forward: Failed to send 'forward' RPC!\n"
 	if (!SendRPCData($rpcout, 
-			 EncodeCall("forward", {
-			     NODE_ID     => $node_id,
-			     TARGET_HOST => $thost})));
+			 EncodeCall("forward", { NODE_ID => $node_id })));
 
     # Grab remote result.
     my $pdu;
@@ -421,7 +482,6 @@ sub cmd_forward($@) {
 	warn "tbadb::cmd_forward: Did not receive a port number from 'forward'!\n";
 	exit 1;
     }
-    $experiment->SetVirtNodeAttribute($node->vname(), "adb_port", $portnum);
 
     # Done!
     my $chost;

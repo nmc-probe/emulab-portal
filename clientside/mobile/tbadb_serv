@@ -595,7 +595,7 @@ sub rpc_reserveport($$) {
     $thost = $1;
 
     # Request port reservation.
-    my $port = $self->reserve_adb_port($node_id);
+    my $port = $self->reserve_adb_port($node_id, $thost);
     $self->error_exit($data->{FID}, RPCERR_INTERNAL, "port reservation failed.")
 	if (!$port);
 
@@ -1383,13 +1383,15 @@ sub check_adb($) {
 	    delete $FWDPORTS{$port};
 	    next;
 	}
-	push(@todo, $node_id)
-	    if (!exists($adb_p2s{$port}) ||
-		!exists($ipt_p2s{$port}) ||
-		$thost ne $ipt_p2h{$port});
-	delete $adb_p2s{$port};
-	delete $ipt_p2s{$port};
-	delete $ipt_p2h{$port};
+	if ($enabled) {
+	    push(@todo, $node_id)
+		if (!exists($adb_p2s{$port}) ||
+		    !exists($ipt_p2s{$port}) ||
+		    $thost ne $ipt_p2h{$port});
+	    delete $adb_p2s{$port};
+	    delete $ipt_p2s{$port};
+	    delete $ipt_p2h{$port};
+	}
     }
     foreach my $node_id (@todo) {
 	warn "fixing forwarding for $node_id\n"
@@ -1399,7 +1401,7 @@ sub check_adb($) {
 	    if $debug;
     }
 
-    # Now get rid of entries we don't have a fowarding record
+    # Now get rid of entries we don't have an active fowarding record
     # for. These will be all records left in the hashes built up
     # earlier in this function.
     while (my ($port, $serial) = each %adb_p2s) {
