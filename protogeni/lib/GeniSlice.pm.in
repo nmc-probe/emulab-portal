@@ -431,6 +431,27 @@ sub LookupByExperiment($$)
 }
 
 #
+# Lookup all slice(s) in a specified project (name, not urn).
+#
+sub LookupByProject($$)
+{
+    my ($class, $project_name) = @_;
+
+    my $query_result =
+        DBQueryWarn("select s.idx from geni_slices s JOIN geni_certificates c ON s.uuid=c.uuid ".
+                    "where c.urn LIKE '%:$project_name+slice+%'");
+    return undef unless defined($query_result);
+
+    my @result = ();
+    while (my ($idx) = $query_result->fetchrow_array()) {
+	my $slice = GeniSlice->Lookup($idx);
+	push(@result, $slice)
+	    if (defined($slice));
+    }
+    return @result;
+}
+
+#
 # Lookup all slice(s) of a specified creator.
 #
 sub LookupByCreator($$)

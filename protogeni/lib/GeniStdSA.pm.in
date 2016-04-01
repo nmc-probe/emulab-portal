@@ -431,9 +431,9 @@ sub LookupSlices()
 
     #Note: CheckXXXAllowed args: $methodname, $match or $fields, $allowed, $forbidden, $unimplemented
     my $checkRes = GeniStd::CheckMatchAllowed('lookup SLICE', $match, 
-        ['SLICE_URN', 'SLICE_EXPIRED'],
+        ['SLICE_URN', 'SLICE_EXPIRED', 'SLICE_PROJECT_URN'],
         ['SLICE_CREATION', 'SLICE_EXPIRATION', 'SLICE_NAME', 'SLICE_DESCRIPTION'], 
-        ['SLICE_UID', 'SLICE_PROJECT_URN', '_EMULAB_SLICE_HRN']); 
+        ['SLICE_UID', '_EMULAB_SLICE_HRN']); 
     return $checkRes if (GeniResponse::IsError($checkRes));
 
     my $match_is_expired = 0;
@@ -452,40 +452,62 @@ sub LookupSlices()
             }
         }
     }
-    if (!$match_is_expired && !$match_is_not_expired) {
-        $match_is_expired = 1;
-        $match_is_not_expired = 1;
+
+    # do a first search, using only a limited filter
+    my @initial_match_slices;
+    if (defined($match)) {
+        if (defined($match->{'SLICE_URN'})) {
+            my $match_slice_urns = $match->{'SLICE_URN'};
+            @initial_match_slices = ();
+            foreach my $key (@$match_slice_urns) {
+                my $slice = GeniSlice->Lookup($key);
+                if (defined($slice)) {
+                    push(@initial_match_slices, $slice);
+                }
+            }
+        } else {
+            if (defined($match->{'SLICE_PROJECT_URN'})) {
+                my $match_project_urns = $match->{'SLICE_PROJECT_URN'};
+                foreach my $key (@$match_project_urns) {
+                    my ($project_authority, $project_type, $project_name) = GeniHRN::Parse( $key );
+                    if (defined($project_name)) {
+                        @initial_match_slices = GeniSlice->LookupByProject($project_name);
+                    } else {
+                        print STDOUT "lookup SLICE -> invalid SLICE_PROJECT_URN ignored: \"$key\"\n";
+                    }
+                }
+            } else {
+                return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+                    'lookup SLICE does not implement lookup without SLICE_URN or SLICE_PROJECT_URN match');
+            }
+        }
+    } else {
+        print STDOUT "lookup SLICE -> no match filters set, will return empty reply\n";
     }
 
     my $members = {};
-    if (defined($match) && defined($match->{'SLICE_URN'})) {
-        my $match_slice_urns = $match->{'SLICE_URN'};
-        foreach my $key (@$match_slice_urns) {
-	    my $slice = GeniSlice->Lookup($key);
-
-            #check if user is allowed to access slice
-            my $allowed = 0;
-	    if (defined($slice)) {
-               if ($slice->creator_urn() ne $this_user->urn() && !$slice->IsBound($this_user)) {
-                   #user is not allowed to access this slice
-                   $allowed = 0; 
-               } else {
-                   $allowed = 1; 
-		}
-		}
-
-            my $matches_expired = 0;
+    if (defined(@initial_match_slices)) {
+        foreach my $slice (@initial_match_slices) {
             if (defined($slice)) {
-                my $slice_expired = $slice->IsExpired() ? 1 : 0;
-                if ($match_is_not_expired && !$slice_expired) {
-                    $matches_expired = 1;
+                #check if user is allowed to access slice
+                my $allowed = 0;
+                if ($slice->creator_urn() ne $this_user->urn() && !$slice->IsBound($this_user)) {
+                    #user is not allowed to access this slice
+                    $allowed = 0; 
+                } else {
+                    $allowed = 1; 
                 }
-                if ($match_is_expired && $slice_expired) {
-                    $matches_expired = 1;
-                }
-           }
 
-            if (defined($slice) && $matches_expired) {
+                my $matches_all_filters = 1;
+
+                my $slice_expired = $slice->IsExpired() ? 1 : 0;
+                if ($match_is_not_expired && $slice_expired) {
+                    $matches_all_filters = 0;
+                }
+                if ($match_is_expired && !$slice_expired) {
+                    $matches_all_filters = 0;
+                }
+
                 my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
                 return GeniResponse->Create(GENIRESPONSE_SERVERERROR, undef, 'internal error: got invalid slice urn "' . $slice->urn() . '"') unless defined( $slice_name );
                 my @slice_auth_parts = split(':', $slice_authority);
@@ -495,28 +517,43 @@ sub LookupSlices()
                     $project_urn = GeniHRN::Generate($slice_auth_parts[0], 'project', $slice_auth_parts[1]);
                 }
 
-                #We always allow access to slice name. The other slice info is not for everyone.
-		my $completeblob = {
-		    "SLICE_URN"         => $slice->urn(),
-                    "SLICE_NAME"        => $slice_name,
-                    "_EMULAB_SLICE_HRN"         => $slice->hrn(),
-                    "SLICE_PROJECT_URN" => $project_urn
-                };
-                if ($allowed) {
-                    my $extrablob = {
-		    "SLICE_UID"         => $slice->uuid(),
-                        "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
-                        "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
-                        "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
-#                    "SLICE_EXPIRED"     => ($slice->IsExpired() ? 'True' : 'False'),
-                        "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
-		};
-                    @$completeblob{keys %$extrablob} = values %$extrablob;
+                if (defined($match) && defined($match->{'SLICE_PROJECT_URN'})) {
+                    my $match_any_project = 0;
+                    my $match_project_urns = $match->{'SLICE_PROJECT_URN'};
+                    foreach my $key (@$match_project_urns) {
+                        if ($project_urn eq $key) {
+                            $match_any_project = 1;
+                        }
+                    }
+                    if (!$match_any_project) {
+                        $matches_all_filters = 0;
+                    }
                 }
-		my $blob = GeniStd::FilterFields($completeblob, $filter);
-		$members->{$slice->urn()} = $blob;
-	    }
-	}
+
+                if ($matches_all_filters) {
+                    #We always allow access to slice name. The other slice info is not for everyone.
+                    my $completeblob = {
+                        "SLICE_URN"         => $slice->urn(),
+                        "SLICE_NAME"        => $slice_name,
+                        "_EMULAB_SLICE_HRN"         => $slice->hrn(),
+                        "SLICE_PROJECT_URN" => $project_urn
+                    };
+                    if ($allowed) {
+                        my $extrablob = {
+                            "SLICE_UID"         => $slice->uuid(),
+                            "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
+                            "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
+                            "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
+#                    "SLICE_EXPIRED"     => ($slice->IsExpired() ? 'True' : 'False'),
+                            "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
+                        };
+                        @$completeblob{keys %$extrablob} = values %$extrablob;
+                    }
+                    my $blob = GeniStd::FilterFields($completeblob, $filter);
+                    $members->{$slice->urn()} = $blob;
+                }
+            }
+        }
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $members);
 }
