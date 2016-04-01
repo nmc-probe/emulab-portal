@@ -1892,7 +1892,7 @@ sub LoadVirtLans($)
 	$virtlan->_implemented_by($implemented_by);
 	$virtlan->_vpath(undef);
 	$virtlan->_bridged(0);
-	$virtlan->_wiretype("ethernet");
+	$virtlan->_wiretype( $protocol eq "P2PLTE" ? $protocol : "ethernet");
 	if ($vlanmember->ofenabled()) {
 	    $virtlan->_ofenabled(1);
 	    $virtlan->_ofcontroller($vlanmember->ofcontroller());
