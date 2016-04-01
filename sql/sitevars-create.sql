@@ -162,6 +162,8 @@ INSERT INTO sitevariables VALUES ('images/default_typelist',NULL,'','List of typ
 INSERT INTO sitevariables VALUES ('protogeni/use_imagetracker',NULL,'0','Enable use of the image tracker.',0);
 INSERT INTO sitevariables VALUES ('general/no_openflow',NULL,'0','Disallow topologies that specify openflow controllers, there is no local support for it.',0);
 INSERT INTO sitevariables VALUES ('phantomnet/message',NULL,'','Message to display at the top of the PhantomNet portal.',0);
+INSERT INTO sitevariables VALUES ('ue/sim_sequence_default',NULL,'1000000','Default initial sequence number for PhantomNet UE SIMs',0);
+INSERT INTO sitevariables VALUES ('ue/sim_sequence_increment',NULL,'1000000','Sequence number increment amount for PhantomNet UE SIMs',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
