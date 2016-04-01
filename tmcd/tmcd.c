@@ -407,6 +407,7 @@ COMMAND_PROTOTYPE(dogenisliverstatus);
 COMMAND_PROTOTYPE(dogenistatus);
 COMMAND_PROTOTYPE(dogenicommands);
 COMMAND_PROTOTYPE(dogeniall);
+COMMAND_PROTOTYPE(dogeniparam);
 COMMAND_PROTOTYPE(dogeniinvalid);
 #endif
 
@@ -543,6 +544,7 @@ struct command {
 	{ "geni_status", FULLCONFIG_NONE, 0, dogenistatus },
 	{ "geni_commands", FULLCONFIG_NONE, 0, dogenicommands },
 	{ "geni_all",     FULLCONFIG_NONE, 0, dogeniall },
+	{ "geni_param",   FULLCONFIG_NONE, 0, dogeniparam },
 	/* A rather ugly hack to avoid making error handling a special case.
 	   THIS MUST BE THE LAST ENTRY IN THE ARRAY! */
 	{ "geni_invalid", FULLCONFIG_NONE, 0, dogeniinvalid }
@@ -13117,6 +13119,56 @@ COMMAND_PROTOTYPE(dogeniall)
     
     client_writeback( sock, buf, 1 + strlen( buf + 1 ), tcp );
 
+    return 0;
+}
+
+COMMAND_PROTOTYPE(dogeniparam)
+{
+    char *p;
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
+    for( p = rdata; *p; p++ )
+	if( isspace( *p ) ) {
+	    *p = 0;
+	    break;
+	} else if( ( *p < 'a' || *p > 'z' ) &&
+	    ( *p < 'A' || *p > 'Z' ) &&
+	    ( *p < '0' || *p >= '9' ) &&
+	    *p != '_' && *p != '-' ) {
+	    static char error_msg[] = "\0\0illegal parameter\n";
+
+	    client_writeback( sock, error_msg, sizeof error_msg - 1, tcp );
+	    
+	    return 1;
+	}
+
+    res = mydb_query( "SELECT value FROM virt_profile_parameters "
+		      "WHERE exptidx=%d AND name='%s'", 1, reqp->exptidx,
+		      rdata );
+    if( !res ) {
+	error( "PARAM: error retrieving value\n" );
+	return 1;
+    }
+
+    if( mysql_num_rows( res ) < 1 ) {
+	static char error_msg[] = "\0\0undefined parameter\n";
+
+	client_writeback( sock, error_msg, sizeof error_msg - 1, tcp );
+	    
+	mysql_free_result( res );
+	
+	return 1;
+    }
+
+    row = mysql_fetch_row( res );
+
+    client_writeback( sock, "", 1, tcp ); /* single NUL */
+    client_writeback( sock, row[ 0 ], strlen( row[ 0 ] ), tcp );
+    client_writeback( sock, "\n", 1, tcp ); /* single NUL */
+
+    mysql_free_result( res );
+    
     return 0;
 }
 
