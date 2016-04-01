@@ -12841,11 +12841,11 @@ static char *getgenigetversion( tmcdreq_t *reqp ) {
 			 "\"1\":\"" TBBASE ":12369/protogeni/xmlrpc/am/1.0\","
 			 "\"2\":\"" TBBASE ":12369/protogeni/xmlrpc/am/2.0\","
 			 "\"3\":\"" TBBASE ":12369/protogeni/xmlrpc/am/3.0\"},"
-			 "\"geni_credential_types\":{"
+			 "\"geni_credential_types\":["
 			 "{\"geni_type\":\"geni_sfa\","
 			 "\"geni_version\":\"2\"},"
 			 "{\"geni_type\":\"geni_sfa\","
-			 "\"geni_version\":\"3\"}}}",
+			 "\"geni_version\":\"3\"}]}",
 			 row[ 0 ] );
 	}
 			 
