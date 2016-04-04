@@ -927,6 +927,16 @@ sub AnnotateManifest($)
 				       \$adb_target );
     GeniXML::SetText( "adb_target", $rspec, $adb_target )
 	if( defined( $adb_target ) );
+
+    my $sim_sequence_number;
+    $node->NodeAttribute( "sim_sequence_number", \$sim_sequence_number );
+    GeniXML::SetText( "sim_sequence_number", $rspec, $sim_sequence_number )
+	if( defined( $sim_sequence_number ) );
+    
+    my $sim_imsi;
+    $node->NodeAttribute( "sim_imsi", \$sim_imsi );
+    GeniXML::SetText( "sim_imsi", $rspec, $sim_imsi )
+	if( defined( $sim_imsi ) );
     
     if ($self->UpdateRspec($rspec)) {
 	print STDERR "Could not insert annotated manifest for node $self ".
