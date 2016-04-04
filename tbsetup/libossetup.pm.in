@@ -2205,7 +2205,8 @@ use overload ('""' => 'Stringify');
 # Enable the ADB port forwarding we reserved previously via the mapper.
 sub LightUpNodes($@) {
     my ($self, @nodelist) = @_;
-    my $experiment = $self->parent()->experiment();
+    my $parent = $self->parent();
+    my $experiment = $parent->experiment();
 
     foreach my $node (@nodelist) {
 	my $node_id = $node->node_id();
@@ -2213,7 +2214,9 @@ sub LightUpNodes($@) {
 	$experiment->GetVirtNodeAttribute($node->vname(),"adb_target",
 					  \$adb_target);
 	if (system("$TBADB -n $node_id forward") != 0) {
-	    die_noretry("Could not setup adb forwarding for $node_id!");
+	    print STDERR "Could not setup adb forwarding for $node_id!\n";
+	    $parent->noretry(1);
+	    return -1;
 	}
     }
 

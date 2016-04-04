@@ -1181,7 +1181,7 @@ sub reserve_adb_port($$$) {
     # Get an IP address for the specified target host (if not already an IP).
     $thost = _resolve_host($thost);
     if (!$thost) {
-	warn "could not lookup IP for target host $thost\n";
+	warn "could not lookup IP for target host!\n";
 	return 0
     }
 
