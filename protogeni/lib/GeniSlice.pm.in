@@ -437,10 +437,16 @@ sub LookupByProject($$)
 {
     my ($class, $project_name) = @_;
 
+    if (! TBcheck_dbslot($project_name, "projects", "pid",
+            TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)){
+        print STDERR "project has an invalid name: \"$project_name\"";
+        return ();
+    }
+
     my $query_result =
         DBQueryWarn("select s.idx from geni_slices s JOIN geni_certificates c ON s.uuid=c.uuid ".
                     "where c.urn LIKE '%:$project_name+slice+%'");
-    return undef unless defined($query_result);
+    return () unless defined($query_result);
 
     my @result = ();
     while (my ($idx) = $query_result->fetchrow_array()) {

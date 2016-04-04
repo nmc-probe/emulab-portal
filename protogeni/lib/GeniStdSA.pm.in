@@ -486,7 +486,7 @@ sub LookupSlices()
     }
 
     my $members = {};
-    if (defined(@initial_match_slices)) {
+    if (@initial_match_slices) {
         foreach my $slice (@initial_match_slices) {
             if (defined($slice)) {
                 #check if user is allowed to access slice
