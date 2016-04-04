@@ -178,6 +178,8 @@ sub InvalidApi($$)
 sub CheckSliceUrn($) {
     my ($slice_urn) = @_;
 
+    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not valid') unless GeniHRN::IsValid($slice_urn);
+
     my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice_urn );
     return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not valid') unless defined( $slice_name );
     return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not a slice URN') unless $slice_type eq 'slice';
