@@ -4179,8 +4179,22 @@ sub UEConfig($) {
     $self->FlushReserved();
     $experiment->GetVirtNodeAttribute($self->vname(), "adb_target", 
 				      \$adb_target);
-    system("$TBADB -n $node_id resvport $adb_target")
-	if ($adb_target);
+    if ($adb_target) {
+	my $tnode = $experiment->VnameToNode($adb_target);
+	if ($tnode) {
+	    my $c_iface = Interface->LookupControl($tnode);
+	    if ($c_iface && $c_iface->IP()) {
+		$adb_target = $c_iface->IP();
+	    } else {
+		print STDERR "*** Could not find control network interface for $tnode!\n";
+		return -1;
+	    }
+	}
+	if (system("$TBADB -n $node_id resvport $adb_target") != 0) {
+	    print STDERR "*** Failed to reserve ADB port for $node_id!\n";
+	    return -1;
+	}
+    }
 
     # Get current USIM sequence number, increment and save, and add
     # as virt_node_attribute to be picked up and put in manifest.
