@@ -175,6 +175,17 @@ sub InvalidApi($$)
         ' This URL ("'. $url .'/'.$api_version.'") is for version '. $api_version . ' of the API.');
 }
 
+sub CheckSliceUrn($) {
+    my ($slice_urn) = @_;
+
+    my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice_urn );
+    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not valid') unless defined( $slice_name );
+    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not a slice URN') unless $slice_type eq 'slice';
+    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not a valid slice urn') unless Experiment->ValidEID($slice_name);
+
+    return undef;
+}
+
 # Create in v2 of the API works for different objects.
 sub Create($$)
 {
@@ -311,6 +322,9 @@ sub CreateSlice($$)
     return $checkRes if (GeniResponse::IsError($checkRes));
 
     my $hrn = $fields->{'SLICE_NAME'};
+    if (! Experiment->ValidEID($hrn)) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_NAME "' . $hrn . '" is not a valid slice name');
+    }
     my $args = {
 	"credentials" => GeniStd::FilterCredentials($credential_args),
 	"hrn" => $hrn,
@@ -325,6 +339,9 @@ sub CreateSlice($$)
         my $project_urn = $fields->{'SLICE_PROJECT_URN'};
 	    my ($authority, $type, $project_name) = GeniHRN::Parse( $project_urn );
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'project urn "' . $project_urn . '" not valid') unless defined( $project_name );
+        if (! TBcheck_dbslot($project_name, "projects", "pid", TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+            return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'project name "' . $project_name . '" in SLICE_PROJECT_URN is not valid');
+        }
         my $project = Project->Lookup( $project_name );
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'project "' . $project_urn . '" not found') unless defined( $project );
         my ($server_auth, $server_type, $server_authname) = GeniHRN::Parse( $ENV{'MYURN'} );
@@ -461,6 +478,9 @@ sub LookupSlices()
     if (defined($match) && defined($match->{'SLICE_URN'})) {
         my $match_slice_urns = $match->{'SLICE_URN'};
         foreach my $key (@$match_slice_urns) {
+            my $slice_urn_check_reply = CheckSliceUrn($key); 
+            if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+
 	    my $slice = GeniSlice->Lookup($key);
 
             #check if user is allowed to access slice
@@ -525,6 +545,9 @@ sub UpdateSlice()
 {
     my ($slice_urn, $credential_args, $options) = @_;
 
+    my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
+    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+
     my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
     return $credential if (GeniResponse::IsResponse($credential));
@@ -578,13 +601,8 @@ sub GetCredentials()
         return GeniResponse->MalformedArgsResponse('get_credentials requires a slice urn, a list of credentials, and an options field');
     }
 
-    if(! GeniHRN::IsValid( $slice_urn ) ) {
-        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid slice URN: "'. $slice_urn . '"');
-    }
-    my ($slice_urn_auth, $slice_urn_type, $sliceurn_name) = GeniHRN::Parse( $slice_urn );
-    if ($slice_urn_type ne 'slice') {
-        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a slice URN: "'. $slice_urn . '"');
-    }
+    my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
+    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
 
     #check if speaksfor, and if so, if need to add user cred
     my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
@@ -623,6 +641,9 @@ sub ModifySliceMembership()
     {
 	return GeniResponse->MalformedArgsResponse('modify membership for SLICE requires a slice urn, a list of credentials, and an options field');
     }
+
+    my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
+    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
 
     my $adding = $options->{'members_to_add'};
     my $removing = $options->{'members_to_remove'};
@@ -668,6 +689,9 @@ sub LookupSliceMembers()
     {
         return GeniResponse->MalformedArgsResponse('lookup members for SLICE requires a slice urn, a list of credentials, and an options field');
     }
+
+    my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
+    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
 
     my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     return $credential if (GeniResponse::IsResponse($credential));
@@ -798,6 +822,9 @@ sub CreateSliverInfo($$$$)
     return $checkRes if (GeniResponse::IsError($checkRes));
 
     my $slice_urn = $fields->{'SLIVER_INFO_SLICE_URN'};
+
+    my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
+    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
 
     my ($creator_authority, $creator_type, $creator_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_CREATOR_URN'} );
     my ($sliver_authority_authority, $sliver_authority_type, $sliver_authority_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_AGGREGATE_URN'} );
@@ -1135,6 +1162,9 @@ sub LookupSliverInfo($$)
     if (defined($match) && defined($match->{'SLIVER_INFO_SLICE_URN'})) {
         my $match_slice_urns = $match->{'SLIVER_INFO_SLICE_URN'};
         foreach my $slice_urn (@$match_slice_urns) {
+            my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
+            if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+
             my $slice = GeniSlice->Lookup($slice_urn);
             if (defined($slice)) {
                 my $is_slice_member = CheckIfUserIsSliceMember($this_user, $slice);
@@ -1235,6 +1265,9 @@ sub LookupProjectMembers()
     if ( ($type ne "project") || !defined($pid)) {
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid project URN: "'. $project_urn . '"');
     }
+    if (! TBcheck_dbslot($pid, "projects", "pid", TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'project name "' . $pid . '" is not valid');
+    }
 
     my $query_result =  DBQueryWarn("select uid,trust from group_membership ".
         "where pid='$pid'");
@@ -1317,6 +1350,10 @@ sub LookupProjectsForMember()
 
     if ( ($type ne "user") || !defined($username)) {
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid user URN "'.$member_urn . '"');
+    }
+
+    if (! TBcheck_dbslot($username, "users", "uid", TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'member_urn "' . $member_urn . '" has invalid username');
     }
 
     if ($this_user->urn() ne $member_urn) {

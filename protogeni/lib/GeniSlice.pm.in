@@ -97,16 +97,18 @@ sub Lookup($$)
 	    # transform the name for direct lookup.  This method is
 	    # very general, and will even resolve a URN to a (deprecated)
 	    # pre-URN slice.
+	    my $safe_id = DBQuoteSpecial($id);
 	    $query_result =
 		DBQueryWarn("select idx from geni_slices ".
-			    "where hrn='@PROTOGENI_DOMAIN@.$id'");
+			    "where hrn='@PROTOGENI_DOMAIN@.$safe_id'");
 	} else {
 	    # Somebody else's slice.  We'll have to look up the slice
 	    # by its certificate, which will work only for post-URN slices.
+	    my $safe_token = DBQuoteSpecial($token);
 	    $query_result = DBQueryWarn(
 		"SELECT geni_slices.idx FROM geni_slices, geni_certificates " .
 		"WHERE geni_slices.uuid = geni_certificates.uuid AND " .
-		"geni_certificates.urn='$token';" );
+		"geni_certificates.urn='$safe_token';" );
 	}
 
 	return undef if (! $query_result || !$query_result->numrows);
