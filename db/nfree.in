@@ -76,6 +76,7 @@ my $nodereboot      = "$TB/bin/node_reboot";
 my $makeconf        = "$TB/sbin/dhcpd_makeconf";
 my $snmpit          = "$TB/bin/snmpit";
 my $dynmfssetup     = "$TB/sbin/nfsmfs_setup";
+my $tbadb           = "$TB/bin/tbadb";
 my $reloadpid	    = "emulab-ops";
 my $pendingeid      = "reloadpending";
 my $rppendingeid    = "repositionpending";
@@ -568,7 +569,16 @@ foreach my $node (@freed_nodes) {
 	    }
 	}
     }
+
+    # If it's a UE, clear any existing ADB port forwarding setup.
+    if ($node->class() eq "ue") {
+	system("$tbadb -n $node_id unforward") == 0
+	    or warn "Could not clear ADB forwarding on $node_id!";
+    }
+
+    ###
     # Now its safe to change the reservation.
+    ###
 
     # If the node has a next_reserve entry, change the reservation.
     my $next_reservation = $node->NextReservation();
