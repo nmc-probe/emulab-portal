@@ -315,7 +315,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
  	    $('#profile_status_collapse').trigger('hide.bs.collapse');
 	}
 
-	SetupLinktest(instanceStatus);
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
 	StartStatusWatch();
 	if (window.APT_OPTIONS.oneonly) {
@@ -1557,6 +1556,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    if (managers.length == 1)
 			showlinktest++;
 		});
+		SetupLinktest(instanceStatus);
 	    }
 
 	    /*
