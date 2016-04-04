@@ -31,13 +31,14 @@ use vars qw(@ISA @EXPORT $AUTOLOAD @EXPORT_OK);
 
 # Configure variables
 use vars qw($TB $BOSSNODE $WOL $OSSELECT $IPOD $ISUTAH $CONTROL_NETMASK
-            $TBOPS $JAILIPMASK $TBBASE);
+            $TBOPS $JAILIPMASK $TBBASE $TBADB);
 $TB	     = "@prefix@";
 $BOSSNODE    = "@BOSSNODE@";
 $TBOPS       = "@TBOPSEMAIL@";
 $WOL         = "$TB/sbin/whol";
 $OSSELECT    = "$TB/bin/os_select";
 $IPOD	     = "$TB/sbin/ipod";
+$TBADB       = "$TB/bin/tbadb";
 # XXX stinky hack detection
 $ISUTAH	     = @TBMAINSITE@;
 # Need this for jail ip assignment.
@@ -1428,6 +1429,36 @@ sub GetNodeAttributes($)
     }
 
     return $self->{"ATTRS"};
+}
+
+#
+# Set an attribute for a node, overwriting the same attribute if it
+# already exists.
+#
+sub SetNodeAttribute($$$) {
+    my ($self, $attrkey, $attrval) = @_;
+    my $node_id = $self->node_id();
+
+    return -1
+	if (!$attrkey || !$attrval);
+
+    $attrkey = DBQuoteSpecial($attrkey);
+    $attrval = DBQuoteSpecial($attrval);
+
+    return -1
+	if (!DBQueryWarn("replace into node_attributes set".
+			 "  node_id='$node_id',".
+			 "  attrkey=$attrkey,".
+			 "  attrvalue=$attrval"));
+
+    if (!defined($self->{"ATTRS"})) {
+	if ($self->LoadNodeAttributes()) {
+	    return -1;
+	}
+    }
+    $self->{"ATTRS"}->{$attrkey} = $attrval;
+
+    return 0;
 }
 
 #
@@ -4121,6 +4152,71 @@ sub HaveRoutableIPs($$)
 	if( $count < $needed );
 
     return 1;
+}
+
+#
+# For performing a bit of early UE (mobile) device configuration
+#
+sub UEConfig($) {
+    my ($self) = @_;
+
+    my $node_id = $self->node_id();
+    my $experiment = $self->Reservation();
+
+    if (!$experiment) {
+	print STDERR "*** Cannot call UEConfig() unless node is in an ".
+	             "experiment!\n";
+	return -1;
+    }
+
+    if ($self->class() ne "ue") {
+	print STDERR "*** DO NOT call UEConfig() for nodes that are not of class 'ue'!\n";
+	return -1;
+    }
+
+    # Request forwarding port if adb_host virt_node_attribute is set.
+    my $adb_target;
+    $self->FlushReserved();
+    $experiment->GetVirtNodeAttribute($self->vname(), "adb_target", 
+				      \$adb_target);
+    if ($adb_target) {
+	my $tnode = $experiment->VnameToNode($adb_target);
+	if ($tnode) {
+	    my $c_iface = Interface->LookupControl($tnode);
+	    if ($c_iface && $c_iface->IP()) {
+		$adb_target = $c_iface->IP();
+	    } else {
+		print STDERR "*** Could not find control network interface for $tnode!\n";
+		return -1;
+	    }
+	}
+	if (system("$TBADB -n $node_id resvport $adb_target") != 0) {
+	    print STDERR "*** Failed to reserve ADB port for $node_id!\n";
+	    return -1;
+	}
+    }
+
+    # Get current USIM sequence number, increment and save, and add
+    # as virt_node_attribute to be picked up and put in manifest.
+    my $seqdef;
+    my $seqincr;
+    TBGetSiteVar("ue/sim_sequence_default", \$seqdef);
+    TBGetSiteVar("ue/sim_sequence_increment", \$seqincr);
+    if (!$seqdef || !$seqincr) {
+	print STDERR "*** Could not get UE sequence number site variables!\n";
+    } else {
+	my $seqnum;
+	$self->NodeAttribute("sim_sequence_number", \$seqnum);
+	if (!$seqnum) {
+	    print STDERR "Warning: No sequence number for UE $node_id.  Setting to sitevar default: $seqdef\n";
+	    $self->SetNodeAttribute("sim_sequence_number", $seqdef);
+	} else {
+	    $seqnum += int($seqincr);
+	    $self->SetNodeAttribute("sim_sequence_number", $seqnum);
+	}
+    }
+
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
