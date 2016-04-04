@@ -178,12 +178,24 @@ sub InvalidApi($$)
 sub CheckSliceUrn($) {
     my ($slice_urn) = @_;
 
-    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not valid') unless GeniHRN::IsValid($slice_urn);
+    my $error_msg = undef;
+    if (!GeniHRN::IsValid($slice_urn)) {
+        $error_msg = 'not a valid URN';
+    } else {
+        my ($s_auth, $s_type, $s_name) = GeniHRN::Parse( $slice_urn );
+        if (!defined( $s_name )) {
+            $error_msg = 'not a valid slice URN';
+        } elsif ($s_type ne 'slice') {
+            $error_msg = 'not a slice URN';
+        } elsif (!Experiment->ValidEID($s_name)) {
+            $error_msg = 'not a valid slice urn';
+        }
+    }
 
-    my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice_urn );
-    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not valid') unless defined( $slice_name );
-    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not a slice URN') unless $slice_type eq 'slice';
-    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'SLICE_URN "' . $slice_urn . '" is not a valid slice urn') unless Experiment->ValidEID($slice_name);
+    if (defined($error_msg)) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 
+            'SLICE_URN "' . $slice_urn . '" is ' . $error_msg);
+    }
 
     return undef;
 }
@@ -481,7 +493,9 @@ sub LookupSlices()
         my $match_slice_urns = $match->{'SLICE_URN'};
         foreach my $key (@$match_slice_urns) {
             my $slice_urn_check_reply = CheckSliceUrn($key); 
-            if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+            if (defined($slice_urn_check_reply)) { 
+                return $slice_urn_check_reply; 
+            }
 
 	    my $slice = GeniSlice->Lookup($key);
 
