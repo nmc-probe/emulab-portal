@@ -1315,7 +1315,8 @@ sub SetupReloadUE($)
     # Invoke local script that calls the remote end that
     # actually does the work.  This will go into the background.
     #
-    my $rv = system("$TBADB -n $node loadimage $imgpid $imgname nowait");
+    my $rv = system("$TBADB -n $node loadimage $imgpid $imgname ".
+		    "nowait doforward");
     if ($rv) {
 	tberror "$node: tbadb failed!";
 	return -1;
