@@ -304,7 +304,7 @@ function Do_GetStats()
                      "  from apt_instances as a ".
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
-                     "where a.extension_requested=1 order by a.creator");
+                     "where a.extension_requested=1 order by s.expires asc");
 
     while ($row = mysql_fetch_array($query_result)) {
         $name       = $row["name"];
