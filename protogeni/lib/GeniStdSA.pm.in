@@ -493,7 +493,7 @@ sub LookupSlices()
         my $match_slice_urns = $match->{'SLICE_URN'};
         foreach my $key (@$match_slice_urns) {
             my $slice_urn_check_reply = CheckSliceUrn($key); 
-            if (defined($slice_urn_check_reply)) { 
+            if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
                 return $slice_urn_check_reply; 
             }
 
@@ -562,7 +562,9 @@ sub UpdateSlice()
     my ($slice_urn, $credential_args, $options) = @_;
 
     my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
-    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+    if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
+        return $slice_urn_check_reply; 
+    }
 
     my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor);
@@ -618,7 +620,9 @@ sub GetCredentials()
     }
 
     my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
-    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+    if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
+        return $slice_urn_check_reply; 
+    }
 
     #check if speaksfor, and if so, if need to add user cred
     my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
@@ -659,7 +663,9 @@ sub ModifySliceMembership()
     }
 
     my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
-    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+    if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
+        return $slice_urn_check_reply; 
+    }
 
     my $adding = $options->{'members_to_add'};
     my $removing = $options->{'members_to_remove'};
@@ -707,7 +713,9 @@ sub LookupSliceMembers()
     }
 
     my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
-    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+    if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
+        return $slice_urn_check_reply; 
+    }
 
     my ($credential, $speaksfor) = GeniStd::CheckCredentials(GeniStd::FilterCredentials($credential_args));
     return $credential if (GeniResponse::IsResponse($credential));
@@ -840,7 +848,9 @@ sub CreateSliverInfo($$$$)
     my $slice_urn = $fields->{'SLIVER_INFO_SLICE_URN'};
 
     my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
-    if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+    if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
+        return $slice_urn_check_reply; 
+    }
 
     my ($creator_authority, $creator_type, $creator_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_CREATOR_URN'} );
     my ($sliver_authority_authority, $sliver_authority_type, $sliver_authority_name) = GeniHRN::Parse( $fields->{'SLIVER_INFO_AGGREGATE_URN'} );
@@ -1179,7 +1189,9 @@ sub LookupSliverInfo($$)
         my $match_slice_urns = $match->{'SLIVER_INFO_SLICE_URN'};
         foreach my $slice_urn (@$match_slice_urns) {
             my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
-            if (defined($slice_urn_check_reply)) { return $slice_urn_check_reply; }
+            if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
+                return $slice_urn_check_reply; 
+            }
 
             my $slice = GeniSlice->Lookup($slice_urn);
             if (defined($slice)) {
