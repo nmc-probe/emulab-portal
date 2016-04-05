@@ -1616,6 +1616,20 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				      "weight"   => 0.95})
 	    if ($MAINSITE && (!defined($exclusive) || !$exclusive));
 
+	my $adb_target = GeniXML::GetADBTarget( $ref );
+	if( defined( $adb_target ) ) {
+	    if( $adb_target !~ /^[a-zA-Z0-9.-]+$/ ) {
+		$response = GeniResponse->Create( GENIRESPONSE_BADARGS,
+						  undef,
+						  "Invalid ADB target" );
+		goto bad;
+	    }
+	    $virtexperiment->NewTableRow( "virt_node_attributes",
+					  { "vname"     => $node_nickname,
+					    "attrkey"   => "adb_target",
+					    "attrvalue" => $adb_target } );
+	}
+	
 	#
 	# Special hack for allocating from a specific chassis.
 	#
