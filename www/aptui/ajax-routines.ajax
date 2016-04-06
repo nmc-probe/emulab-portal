@@ -124,20 +124,8 @@ function ExperimentList($which, $target)
             $cluster = $urn_mapping[$row["aggregate_urn"]];
         }
         $blob["cluster"] = $cluster;
-
-        if (ISADMIN() || ISFOREIGN_ADMIN() || $which == "project") {
-            $blob["name"] = "<a href='status.php?uuid=$uuid'>$name</a>";
-        }
-        else {
-            $blob["name"] = $name;
-        }
-        if (ISADMIN() || $which == "user") {
-            $blob["project"] = "<a href='show-project.php?project=$pid'>".
-                "$pid</a>";
-        }
-        else {
-            $blob["project"] = $pid;
-        }
+        $blob["name"] = "<a href='status.php?uuid=$uuid'>$name</a>";
+        $blob["project"] = "<a href='show-project.php?project=$pid'>$pid</a>";
         $blob["pcount"]   = $pcount;
         $blob["phours"]   = $phours;
         $blob["vcount"]   = $vcount;
