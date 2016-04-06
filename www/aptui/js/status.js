@@ -45,6 +45,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var consolenodes      = {};
     var showlinktest      = false;
     var hidelinktest      = false;
+    var changingtopo      = false;
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
@@ -109,24 +110,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$(this).html(moment($(this).html()).format("lll"));
 	    }
 	});
+	ProgressBarUpdate();
 
-	//
-	// Look at initial status to determine if we show the progress bar.
-	//
-	var spinwidth = 0;
-	if (instanceStatus == "created" ||
-	    instanceStatus == "provisioning" ||
-	    instanceStatus == "stitching") {
-	    spinwidth = "33";
-	}
-	else if (instanceStatus == "provisioned") {
-	    spinwidth = "66";
-	}
-	if (spinwidth) {
-	    $("#status_progress_bar").width(spinwidth + "%");
-	    $('#status_progress_outerdiv').removeClass("hidden");
-	}
-	
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
@@ -373,19 +358,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	});
 	xmlthing.done(callback);
     }
+    // Flag for StatusWatchCallBack()
+    var seenmanifests = false;
 
     // Call back for above.
     function StatusWatchCallBack(json)
     {
 	console.info(json);
 	
-	// Flag to indicate that we have seen ready and do not
-	// need to do initial stuff. We need this cause the
-	// the status can change later, back to busy for a while.
-	if (typeof StatusWatchCallBack.active == 'undefined') {
-            // It has not... perform the initilization
-            StatusWatchCallBack.active = 0;
-	}
 	if (json.code) {
 	    // GENIRESPONSE_SEARCHFAILED
 	    if (json.code == 12) {
@@ -409,9 +389,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    //
 	    // As soon as we have a manifest, show the topology.
 	    // 
-	    if (! StatusWatchCallBack.active && json.value.havemanifests) {
-		ShowTopo(uuid);
-		StatusWatchCallBack.active = 1;
+	    if (instanceStatus != "provisioning" &&
+		json.value.havemanifests && !seenmanifests) {
+		seenmanifests = true;
+		ShowTopo(false);
 	    }
 	    // Ditto the publicURL.
 	    if (_.has(json.value, "sliverurls")) {
@@ -427,9 +408,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 	    else if (instanceStatus == 'provisioning') {
 		status_html = "provisioning";
+		DisableButtons();
+		ProgressBarUpdate();
+		if (seenmanifests) {
+		    changingtopo = true;
+		}
 	    }
 	    else if (instanceStatus == 'provisioned') {
-		$("#status_progress_bar").width("66%");
+		ProgressBarUpdate();
 		status_html = "booting";
 		if (json.value.canceled) {
 		    status_html += " (but canceled)";
@@ -437,6 +423,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		else {
 		    // So the user can cancel. 
 		    EnableButton("terminate");
+		}
+		// If we were in the process of changing the topology,
+		// then need to update from the new manifests.
+		if (changingtopo) {
+		    ShowTopo(true);
 		}
 	    }
 	    else if (instanceStatus == 'ready') {
@@ -450,13 +441,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		else {
 		    status_html = "<font color=green>ready</font>";
 		}
-		if ($("#status_progress_div").length) {
-		    $("#status_progress_div").removeClass("progress-striped");
-		    $("#status_progress_div").removeClass("active");
-		    $("#status_progress_div").addClass("progress-bar-success");
-		    $("#status_progress_bar").width("100%");
-		}
-		$('#error_panel').addClass("hidden");
+		ProgressBarUpdate();
 		EnableButtons();
 		// We should be looking at the node status instead.
 		if (lastStatus != "imaging") {
@@ -476,12 +461,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			"We've been notified.";
 		}
 		status_html = "<font color=red>failed</font>";
-		if ($("#status_progress_div").length) {
-		    $("#status_progress_div").removeClass("progress-striped");
-		    $("#status_progress_div").removeClass("active");
-		    $("#status_progress_div").addClass("progress-bar-danger");
-		    $("#status_progress_bar").width("100%");
-		}
+		ProgressBarUpdate();
 		DisableButtons();
 		EnableButton("terminate");
 		EnableButton("refresh");
@@ -1020,6 +1000,46 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     }
 	
     //
+    // Request a node reboot from the backend cluster.
+    //
+    function DoDeleteNodes(nodeList)
+    {
+	// Handler for hide modal to unbind the click handler.
+	$('#deletenode_modal').on('hidden.bs.modal', function (event) {
+	    $(this).unbind(event);
+	    $('button#deletenode_confirm').unbind("click.deletenode");
+	});
+	
+	// Throw up a confirmation modal, with handler bound to confirm.
+	$('button#deletenode_confirm').bind("click.deletenode", function (event) {
+	    sup.HideModal('#deletenode_modal');
+	
+	    var callback = function(json) {
+		console.info(json);
+		sup.HideModal('#waitwait-modal');
+	    
+		if (json.code) {
+		    sup.SpitOops("oops", "Failed to delete nodes");
+		    $('#error_panel_text').text(json.value);
+		    $('#error_panel').removeClass("hidden");
+		    return;
+		}
+		changingtopo = true;
+		// Trigger status to change the nodes.
+		GetStatus();
+	    }
+	    sup.ShowModal('#waitwait-modal');
+	    var xmlthing = sup.CallServerMethod(ajaxurl,
+						"status",
+						"DeleteNodes",
+						{"uuid"     : uuid,
+						 "node_ids" : nodeList});
+	    xmlthing.done(callback);
+	});
+	sup.ShowModal('#deletenode_modal');
+    }
+	
+    //
     // Fire up the backend of the ssh tab.
     //
     function StartSSH(id, authobject)
@@ -1258,6 +1278,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	else if (action == "reboot") {
 	    DoReboot(clientList);
 	}
+	else if (action == "delete") {
+	    DoDeleteNodes(clientList);
+	}
 	else if (action == "reload") {
 	    DoReload(clientList);
 	}
@@ -1304,7 +1327,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Show the topology inside the topo container. Called from the status
     // watchdog and the resize wachdog. Replaces the current topo drawing.
     //    
-    function ShowTopo(uuid)
+    function ShowTopo(isupdate)
     {
 	//
 	// Maybe this should come from rspec? Anyway, we might have
@@ -1505,16 +1528,19 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    });
 
 	    // Handler for select/deselect all rows in the list view.
-	    $('#select-all').change(function () {
-		if ($(this).prop("checked")) {
-		    $('#listview_table [name=select]')
-			.prop("checked", true);
-		}
-		else {
-		    $('#listview_table [name=select]')
-			.prop("checked", false);
-		}
-	    });
+	    if (!isupdate) {
+		$('#select-all').change(function () {
+		    if ($(this).prop("checked")) {
+			$('#listview_table [name=select]')
+			    .prop("checked", true);
+		    }
+		    else {
+			$('#listview_table [name=select]')
+			    .prop("checked", false);
+		    }
+		});
+	    }
+	    
 	    //
 	    // Handler for the action menu next to the select mention above.
 	    // Foreign admins do not get a menu, but easier to just hide it.
@@ -2218,6 +2244,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#linktest-help').html(marked(md));
 		});
 
+	console.info("foo");
 	// Handler for the linktest modal button
 	$('button#linktest-modal-button').click(function (event) {
 	    event.preventDefault();
@@ -2237,6 +2264,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     }
     function ToggleLinktestButtons(status) {
 	if (hidelinktest || !showlinktest) {
+	    DisableButton("start-linktest");
 	    return;
 	}
 	if (status == "ready") {
@@ -2334,5 +2362,48 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					     "uuid" : uuid});
 	xmlthing.done(callback);
     }
+
+    function ProgressBarUpdate()
+    {
+	//
+	// Look at initial status to determine if we show the progress bar.
+	//
+	var spinwidth = null;
+	
+	if (instanceStatus == "created" ||
+	    instanceStatus == "provisioning" ||
+	    instanceStatus == "stitching") {
+	    spinwidth = "33";
+	}
+	else if (instanceStatus == "provisioned") {
+	    spinwidth = "66";
+	}
+	else if (instanceStatus == "ready" || instanceStatus == "failed") {
+	    spinwidth = null;
+	}
+	if (spinwidth) {
+	    $('#profile_status_collapse').collapse("show");
+	    $('#status_progress_outerdiv').removeClass("hidden");
+	    $("#status_progress_bar").width(spinwidth + "%");	
+	    $("#status_progress_div").addClass("progress-striped");
+	    $("#status_progress_div").removeClass("progress-bar-success");
+	    $("#status_progress_div").removeClass("progress-bar-danger");
+	    $("#status_progress_div").addClass("active");
+	}
+	else {
+	    if (! $('#status_progress_outerdiv').hasClass("hidden")) {
+		$("#status_progress_div").removeClass("progress-striped");
+		$("#status_progress_div").removeClass("active");
+		if (instanceStatus == "ready") {
+		    $("#status_progress_div").addClass("progress-bar-success");
+		}
+		else {
+		    $("#status_progress_div").addClass("progress-bar-danger");
+		}
+		$("#status_progress_bar").width("100%");
+	    }
+	}
+    }
+    
     $(document).ready(initialize);
 });

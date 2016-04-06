@@ -1038,6 +1038,83 @@ function Do_Reload()
 }
 
 #
+# Delete nodes from an experiment
+#
+function Do_DeleteNodes()
+{
+    global $this_user, $instance, $suexec_output;
+    global $ajax_args;
+
+    if (StatusSetupAjax(1)) {
+	return;
+    }
+    if (!isset($this_user)) {
+	SPITAJAX_ERROR(1, "Only registered users can delete nodes");
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+    $uuid = $ajax_args["uuid"];
+
+    if (!isset($ajax_args["node_ids"])) {
+	SPITAJAX_ERROR(1, "Missing node_id list");
+	return;
+    }
+    $nodelist = "";
+    foreach ($ajax_args["node_ids"] as $node_id) {
+        if (!preg_match("/^[-\w]+$/", $node_id)) {
+            SPITAJAX_ERROR(1, "Illegal characters in node_id");
+            return;
+        }
+        $nodelist .= " " . escapeshellarg($node_id);
+    }
+    if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
+    if ($instance->status() != "ready") {
+	SPITAJAX_ERROR(1, "Experiment is currently busy");
+	return;
+    }
+
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t $webtask_id -- ".
+                     "  deletenodes $uuid $nodelist",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+        else {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    if ($webtask) {
+	$webtask->Delete();
+    }
+    SPITAJAX_RESPONSE("Success");
+}
+
+#
 # Decrypt the blocks using the per-instance private key.
 #
 function Do_DecryptBlocks()

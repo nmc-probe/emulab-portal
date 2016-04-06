@@ -75,7 +75,7 @@ my %instances  = ();
 my $debug      = 0;
 
 # Debugging
-my $usemydevtree  = 0;
+my $usemydevtree  = 1;
 sub devurl($)
 {
     my ($cmurl) = @_;
@@ -958,6 +958,7 @@ sub UpdateImageStatus($$)
 package APT_Instance::Aggregate;
 use emdb;
 use WebTask;
+use libtestbed;
 use Carp;
 use POSIX qw(tmpnam);
 use English;
@@ -2143,6 +2144,223 @@ sub UpdateKeys($$)
 	last;
     }
     return $response;
+}
+
+#
+# Delete some nodes
+#
+sub DeleteNodes($$@)
+{
+    my ($self, $perrmsg, @nodes) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
+    my $slice     = $self->instance()->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
+    return undef
+	if (!defined($slice_credential));
+
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"credentials" => $credentials,
+	"nodes"       => \@nodes,
+    };
+    my $cmurl = $authority->url();
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+
+    my $response;
+    my $tries = 5;
+    while ($tries) {
+	$response = Genixmlrpc::CallMethod($cmurl, $context,
+					   "DeleteNodes", $args);
+	
+	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	    if (defined($response) &&
+		($response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		 $response->code() == GENIRESPONSE_BUSY) &&
+		$tries >= 0) {
+		print STDERR "Server for $urn reports too busy or slice busy, ".
+		    "waiting a while ...\n";
+		sleep(int(rand(20)) + 10);
+		$tries--;
+		next;
+	    }
+	    $$perrmsg = $response->output()
+		if (defined($response));
+	    return $response;
+	}
+	last;
+    }
+    return $response;
+}
+
+sub WaitForSliver($)
+{
+    my ($self)    = @_;
+    my $aggobj    = $self;
+    $aggobj->Refresh();
+    my $webtask   = $aggobj->webtask();
+    my $authority = $aggobj->GetGeniAuthority();
+    my $cmurl     = $authority->url();
+    my $urn       = $authority->urn();
+    $webtask->Refresh();
+    $webtask->output("");
+    $webtask->exitcode(0);
+
+    # Debugging
+    $cmurl = APT_Instance::devurl($cmurl);
+
+    my $seconds  = 900;
+    my $interval = 15;
+    my $ready    = 0;
+    my $failed   = 0;
+    my $rpcfail  = 0;
+    my $public_url;
+    my $repblob;
+    my $laststatus;
+
+    while ($seconds > 0) {
+	sleep($interval);
+	$seconds -= $interval;
+    
+	my $response = $aggobj->SliceStatus();
+	if (!defined($response) || !defined($response->value()) ||
+	    ($response->code() != GENIRESPONSE_SUCCESS &&
+	     $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
+	     $response->code() != GENIRESPONSE_BUSY &&
+	     $response->code() != GENIRESPONSE_RPCERROR)) {
+	    print STDERR "SliverStatus failed";
+	    
+	    if (defined($response)) {
+		print STDERR ": " . $response->output();
+		print STDERR Dumper($response);
+		if ($response->output() =~ /read timeout/) {
+		    $webtask->output("Lost contact with the aggregate. " .
+				     "Possibly a network failure, ".
+				     "please try again later.");
+		}
+		else {
+		    $webtask->output($response->output());
+		}
+	    }
+	    print STDERR "\n";
+	    $failed = 1;
+	    last;
+	}
+	if ($response->code() == GENIRESPONSE_RPCERROR) {
+	    if ($rpcfail > 10) {
+		if ($response->output() =~ /read timeout/) {
+		    $webtask->output("Lost contact with the aggregate. " .
+				     "Possibly a network failure, ".
+				     "please try again later.");
+		}
+		else {
+		    $webtask->output($response->output());
+		}
+		$failed = 1;
+		last;
+	    }
+	    $rpcfail++;
+	    next;
+	}
+	$rpcfail = 0;
+	next
+	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE);
+
+	$repblob = $response->value();
+	#
+	# Convert to something smaller, with info the web interface
+	# cares about. We get this on each loop, update so the web
+	# interface can show changes.
+	#
+	my $statusblob = $aggobj->UpdateWebStatus($repblob->{'details'});
+	
+	my $changed = 0;
+	foreach my $urn (keys(%{$repblob->{'details'}})) {
+	    my $details = $repblob->{'details'}->{$urn};
+	    my $node_id = $details->{'client_id'};
+
+	    #
+	    # Look at the last blob. If we changed, view that as progress.
+	    #
+	    # The idea is that as long as progress is being made we keep
+	    # waiting, by resetting the waittime if it gets below a
+	    # threshold. That way, if we go too long with nothing happening,
+	    # we will stop. The user can always use the Refresh button on
+	    # the status page.
+	    #
+	    if (defined($laststatus)) {
+		if (!exists($laststatus->{$node_id})) {
+		    $seconds = 600
+			if ($seconds < 600);
+		}
+		else {
+		    if (exists($details->{"rawstate"}) &&
+			$laststatus->{$node_id}->{"rawstate"} ne
+			$details->{"rawstate"}) {
+			# This is IG specific.
+			$seconds = 300
+			    if ($seconds < 300);
+		    }
+		    elsif ($laststatus->{$node_id}->{"status"} ne
+			   $details->{"status"}) {
+			$seconds = 450
+			    if ($seconds < 450);
+		    }
+		}
+	    }
+	}
+	$laststatus = $statusblob;
+
+	if (exists($repblob->{'public_url'})) {
+	    $public_url = $repblob->{'public_url'};
+	    $aggobj->SetPublicURL($public_url);
+	}
+	if ($repblob->{'status'} eq "ready") {
+	    $ready = 1;
+	    last;
+	}
+	elsif ($repblob->{'status'} eq "failed") {
+	    $failed = 1;
+	    print STDERR "*** $urn failed\n";
+	    $webtask->output("Experiment setup on $urn failed");
+	    last;
+	}
+	elsif ($aggobj->instance()->IsCanceled()) {
+	    last;
+	}
+    }
+    if ($aggobj->instance()->IsCanceled()) {
+	$webtask->Exited(0);
+	return 0;
+    }
+    if ($failed || !$ready) {
+	$aggobj->SetStatus("failed");
+	if (!$ready) {
+	    # XXX Need better handling for timeout.
+	    print STDERR "*** $urn timed out.\n";
+	    $webtask->output("Experiment setup on $urn timed out");
+	    $webtask->Exited(GENIRESPONSE_TIMEDOUT);
+	}
+	else {
+	    $webtask->Exited(1);
+	}
+	return $webtask->exitcode();
+    }
+    $aggobj->SetStatus("ready");
+    $webtask->Exited(0);
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
