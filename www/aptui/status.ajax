@@ -1085,7 +1085,6 @@ function Do_DeleteNodes()
                      "  deletenodes $uuid $nodelist",
 		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
-    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 
     if ($retval != 0) {
 	if ($retval < 0) {
