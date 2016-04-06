@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -111,7 +111,9 @@ function SHOWSTATS($mini = 0)
 #
 function ShowStatus()
 {
-    $freepcs = TBFreePCs();
+    global $this_user;
+    
+    $freepcs = TBFreePCs($this_user);
     $reload  = TBReloadingPCs();
     $users   = TBLoggedIn();
     $active  = TBActiveExperiments();
@@ -138,13 +140,38 @@ function ShowStatus()
 #
 function SHOWFREENODES()
 {
+    global $this_user;
     $freecounts = array();
+    $findinset  = "";
+    $pids       = array();
+    $clause     = "0";
+    
+    if ($this_user) {
+        $uid_idx = $this_user->uid_idx();
+        $query_result =
+            DBQueryFatal("select distinct pid from group_membership ".
+                         "where uid_idx='$uid_idx'");
+        if (mysql_num_rows($query_result)) {
+            $clauses = array();
+            while ($row = mysql_fetch_row($query_result)) {
+                $pid = $row[0];
+                $pids[] = $pid;
+                $clauses[] = "p.pid='$pid'";
+            }
+        }
+        $clause = "p.pid is null or " . join(" or ", $clauses);
+        $findinset = "or FIND_IN_SET(n.reserved_pid, '" . join(",", $pids)."')";
+    }
     
     # Get typelist and set freecounts to zero.
     $query_result =
 	DBQueryFatal("select n.type from nodes as n ".
 		     "left join node_types as nt on n.type=nt.type ".
-		     "where (role='testnode') and class='pc' ");
+                     "left join node_type_attributes as attr on ".
+                     "     attr.type=n.type and ".
+                     "     attr.attrkey='noshowfreenodes' ".
+		     "where (role='testnode') and class='pc' and ".
+                     "      attr.attrvalue is null");
     while ($row = mysql_fetch_array($query_result)) {
 	$type              = $row[0];
 	$freecounts[$type] = 0;
@@ -159,8 +186,13 @@ function SHOWFREENODES()
 	DBQueryFatal("select n.eventstate,n.type,count(*) from nodes as n ".
 		     "left join node_types as nt on n.type=nt.type ".
 		     "left join reserved as r on r.node_id=n.node_id ".
-		     "where (role='testnode') and class='pc' ".
-		     "      and r.pid is null and n.reserved_pid is null ".
+                     "left join node_type_attributes as attr on ".
+                     "     attr.type=n.type and ".
+                     "     attr.attrkey='noshowfreenodes' ".
+		     "where (role='testnode') and class='pc' and ".
+		     "      r.pid is null and ".
+                     "      attr.attrvalue is null and ".
+                     "      (n.reserved_pid is null $findinset) ".
 		     "group BY n.eventstate,n.type");
 
     while ($row = mysql_fetch_array($query_result)) {
@@ -171,12 +203,24 @@ function SHOWFREENODES()
 	    ($row[0] == TBDB_NODESTATE_PXEWAIT) ||
 	    ($row[0] == TBDB_NODESTATE_ALWAYSUP) ||
 	    ($row[0] == TBDB_NODESTATE_POWEROFF)) {
+
+            $policy_result =
+                DBQueryFatal("select max(count) from group_policies as p ".
+                             "where p.policy='type' and p.auxdata='$type' and ".
+                             "      (p.pid='-' or $clause)");
+        
+            if (mysql_num_rows($policy_result)) {
+                $row = mysql_fetch_row($policy_result);
+                if ($count > $row[0]) {
+                    $count = $row[0];
+                }
+            }
 	    $freecounts[$type] += $count;
 	}
     }
     $output = "";
 
-    $freepcs   = TBFreePCs();
+    $freepcs   = TBFreePCs($this_user);
     $reloading = TBReloadingPCs();
 
     $output .= "<table valign=top align=center width=100% height=100% border=1

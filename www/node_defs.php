@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2014 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1744,48 +1744,19 @@ function ShowFreeNodes($user, $group)
     $query_result =
 	DBQueryFatal("select n.type from nodes as n ".
 		     "left join node_types as nt on n.type=nt.type ".
-		     "where (role='testnode') and class='pc' ");
+                     "left join node_type_attributes as attr on ".
+                     "     attr.type=n.type and ".
+                     "     attr.attrkey='noshowfreenodes' ".
+		     "where (role='testnode') and class='pc' and ".
+                     "      attr.attrvalue is null");
     while ($row = mysql_fetch_array($query_result)) {
 	$type              = $row[0];
 	$freecounts[$type] = 0;
-	$perms[$type]      = 1;
+        $perms[$type]      = 1;
     }
 
     if (!count($freecounts)) {
 	return "";
-    }
-
-    #
-    # Anything listed in the perm tables is restricted. 
-    #
-    $query_result =
-	DBQueryFatal("select distinct type from nodetypeXpid_permissions");
-
-    while ($row = mysql_fetch_array($query_result)) {
-	$perms[$row[0]] = 0;
-    }
-
-    #
-    # Want to restrict the actual free counts to what the current user
-    # is allowed to use, within the project the experiment belongs too.
-    # The wrinkle is if the person looking at the experiment is not a
-    # member of the project, in which case its probably an admin person.
-    # In that case just use the nodes the project has access to.
-    #
-    if ($group->IsMember($user, $ignored)) {
-	$query_result =
-	    DBQueryFatal("select distinct type from group_membership as g ".
-			 "left join nodetypeXpid_permissions as p ".
-			 "     on g.pid=p.pid ".
-			 "where uid_idx='$uid_idx' and g.pid_idx='$pid_idx'");
-    }
-    else {
-	$query_result =
-	    DBQueryFatal("select distinct type from nodetypeXpid_permissions ".
-			 "where pid_idx='$pid_idx'");
-    }
-    while ($row = mysql_fetch_array($query_result)) {
-	$perms[$row[0]] = 1;
     }
 
     # Get free totals by type.
@@ -1793,8 +1764,12 @@ function ShowFreeNodes($user, $group)
 	DBQueryFatal("select n.eventstate,n.type,count(*) from nodes as n ".
 		     "left join node_types as nt on n.type=nt.type ".
 		     "left join reserved as r on r.node_id=n.node_id ".
-		     "where (role='testnode') and class='pc' ".
-		     "      and r.pid is null and ".
+                     "left join node_type_attributes as attr on ".
+                     "     attr.type=n.type and ".
+                     "     attr.attrkey='noshowfreenodes' ".
+		     "where (role='testnode') and class='pc' and ".
+		     "      r.pid is null and ".
+                     "      attr.attrvalue is null and ".
 		     "      (n.reserved_pid is null or ".
 		     "       n.reserved_pid='$pid') ".
 		     "group BY n.eventstate,n.type");
@@ -1807,6 +1782,18 @@ function ShowFreeNodes($user, $group)
 	    ($row[0] == TBDB_NODESTATE_PXEWAIT) ||
 	    ($row[0] == TBDB_NODESTATE_ALWAYSUP) ||
 	    ($row[0] == TBDB_NODESTATE_POWEROFF)) {
+
+            $policy_result =
+                DBQueryFatal("select max(count) from group_policies as p ".
+                             "where p.policy='type' and p.auxdata='$type' and ".
+                             "      (p.pid='-' or p.pid='$pid')");
+        
+            if (mysql_num_rows($policy_result)) {
+                $row = mysql_fetch_row($policy_result);
+                if ($count > $row[0]) {
+                    $count = $row[0];
+                }
+            }
 	    $freecounts[$type] = $count;
 	}
     }
@@ -1823,7 +1810,7 @@ function ShowFreeNodes($user, $group)
 	}
     }
 
-    $freepcs   = TBFreePCs();
+    $freepcs   = TBFreePCs($group);
     $reloading = TBReloadingPCs();
 
     $output .= "<table valign=top align=center width=100% height=100% border=1
