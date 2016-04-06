@@ -7342,7 +7342,6 @@ sub InitializePhysNode($$$)
 	# because they are now handled by tarfiles_setup
 	#
 	%nodesets = ("def_boot_cmd_line" => $cmdline,
-		     "startstatus"       => 'none',
 		     "bootstatus"        => 'unknown',
 		     # This is no longer used for anything.
 		     "deltas"            => '', 
@@ -7351,7 +7350,9 @@ sub InitializePhysNode($$$)
 		     "loadlist"          => $loadlist || '',
 		     "failureaction"     => $failureaction,
 		     "routertype"        => $routertype);
-
+	$nodesets{"startstatus"} = 'none'
+	    if (!exists($self->oldreservednodes()->{$pnodename}));
+		
 	%rsrvsets = ("vname"             => $vnodename,
 		     "erole"             => $role,
 		     "plab_role"         => $plab_role);
@@ -7359,6 +7360,7 @@ sub InitializePhysNode($$$)
 	    if (defined($inner_elab_role));
 	$rsrvsets{"sharing_mode"} = $sharing_mode
 	    if (defined($sharing_mode));
+
 
     }
     $self->printdb("InitPnode: Storing info for $pnodename,$vnodename\n");
