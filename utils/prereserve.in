@@ -614,15 +614,17 @@ sub StartReservation($$)
 		#
 		# Someone else still has it, skip.
 		#
-		print "$node_id is still reserved to project $curpid\n"
+		print "$node_id is still reserved to project $curpid, will".
+		    "be done later.\n"
 		    if (defined($curpid));
-		print "$node_id is still pre-reserved to project $rpid\n"
+		print "$node_id is still pre-reserved to project $rpid, will".
+		    "be done later.\n"
 		    if (defined($rpid));
 		next;
 	    }
 	    # Free or we already have it. Note that we do not allow a
 	    # specific node to be in more then one reservation in the
-	    # same project/ See note above.
+	    # same project. See note above.
 	    $current++;
 	    DBQueryFatal("delete from node_reservations ".
 			 "where node_id='$node_id'");
