@@ -527,7 +527,7 @@ struct command {
 	{ "tiplineinfo",  FULLCONFIG_NONE,  F_ALLOCATED, dotiplineinfo},
 	{ "imageinfo",      FULLCONFIG_NONE,  F_ALLOCATED, doimageid},
 	{ "imagesize",   FULLCONFIG_NONE,  F_ALLOCATED, doimagesize},
-	{ "pnet_nodeattrs", FULLCONFIG_NONE, F_ALLOCATED, dopnetnodeattrs},
+	{ "pnetnodeattrs", FULLCONFIG_NONE, F_ALLOCATED, dopnetnodeattrs},
 #if PROTOGENI_SUPPORT
 	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
 	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
@@ -13584,7 +13584,7 @@ COMMAND_PROTOTYPE(dopnetnodeattrs)
 		val     = row[2];
 
 		bufp += OUTPUT(bufp, ebufp-bufp,
-			       "NODE_ID=%s, KEY=%s, VALUE=%s\n",
+			       "NODE_ID=%s KEY=%s VALUE=%s\n",
 			       node_id, key, val);
 
 		nrows--;
