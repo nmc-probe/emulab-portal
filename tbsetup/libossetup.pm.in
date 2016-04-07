@@ -2213,6 +2213,7 @@ sub LightUpNodes($@) {
 	my $adb_target;
 	$experiment->GetVirtNodeAttribute($node->vname(),"adb_target",
 					  \$adb_target);
+	next if !$adb_target;
 	if (system("$TBADB -n $node_id forward") != 0) {
 	    print STDERR "Could not setup adb forwarding for $node_id!\n";
 	    $parent->noretry(1);
