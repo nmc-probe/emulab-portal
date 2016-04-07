@@ -62,6 +62,7 @@ my $piper          = "$TBROOT/sbin/locpiper";
 my $mapper         = "$TBROOT/bin/mapper";
 my $wrapper        = "$TBROOT/libexec/assign_wrapper";
 my $SNMPIT	   = "$TBROOT/bin/snmpit";
+my $RFLINKS	   = "$TBROOT/bin/rflinks";
 my $IMAGESETUP     = "$TBROOT/sbin/image_setup";
 my $portstats	   = "$TBROOT/bin/portstats";
 my $TCPP           = "$TBROOT/sbin/tcpp";
@@ -568,6 +569,12 @@ sub doSwapout($) {
 	    $experiment->ReleasePublicAddrPools();
 	}
 
+	if( $type >= CLEANUP ) {
+	    if( system( "$RFLINKS -r $pid $eid" ) ) {
+		tbwarn( "Failed to remove RF links" );
+	    }
+	}
+	
 	#
 	# Grab our per-experiment switch stack name.
 	#
@@ -1557,6 +1564,12 @@ sub doSwapin($) {
 	    return 1;
 	}
 	TBDebugTimeStamp("snmpit finished");
+    }
+    
+    if( $type != MODIFY ) {
+	if( system( "$RFLINKS $pid $eid" ) ) {
+	    tbwarn( "Failed to add RF links" );
+	}
     }
 
     #
