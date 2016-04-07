@@ -390,6 +390,7 @@ COMMAND_PROTOTYPE(dohwinfo);
 COMMAND_PROTOTYPE(dotiplineinfo);
 COMMAND_PROTOTYPE(doimageid);
 COMMAND_PROTOTYPE(doimagesize);
+COMMAND_PROTOTYPE(dopnetnodeattrs);
 #if PROTOGENI_SUPPORT
 COMMAND_PROTOTYPE(dogeniclientid);
 COMMAND_PROTOTYPE(dogenisliceurn);
@@ -526,6 +527,7 @@ struct command {
 	{ "tiplineinfo",  FULLCONFIG_NONE,  F_ALLOCATED, dotiplineinfo},
 	{ "imageinfo",      FULLCONFIG_NONE,  F_ALLOCATED, doimageid},
 	{ "imagesize",   FULLCONFIG_NONE,  F_ALLOCATED, doimagesize},
+	{ "pnet_nodeattrs", FULLCONFIG_NONE, F_ALLOCATED, dopnetnodeattrs},
 #if PROTOGENI_SUPPORT
 	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
 	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
@@ -13542,3 +13544,53 @@ COMMAND_PROTOTYPE(doimagesize)
 	return 0;
 }
 
+/* Return attributes relevant to PhantomNet experiments. */
+COMMAND_PROTOTYPE(dopnetnodeattrs)
+{
+	MYSQL_RES   *res;
+	MYSQL_ROW   row;
+	int         nrows = 0;
+	char	    buf[MYBUFSIZE];
+	char	    *bufp = buf, *ebufp = &buf[sizeof(buf)];
+	char        *pnet_nattr_keys = "('sim_imsi', 'sim_sequence_number')";
+
+	res = mydb_query( "SELECT na.node_id,na.attrkey,na.attrvalue "
+			  " from reserved as r"
+			  " left join node_attributes as na "
+			  "  on r.node_id=na.node_id"
+			  "       where r.pid='%s' and r.eid='%s'"
+			  "       and na.attrkey in %s",
+			  3, reqp->pid, reqp->eid, pnet_nattr_keys );
+
+	if( !res ) {
+		error( "dopnetnodeattrs: %s: DB error getting node_attrs!\n",
+		       reqp->nodeid );
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	while (nrows > 0) {
+		char *node_id, *key, *val;
+
+		row = mysql_fetch_row(res);
+		if (!(row[0] && *row[0]
+		      && row[1] && *row[1]
+		      && row[2] && *row[2] )) {
+			continue;
+		}
+
+		node_id = row[0];
+		key     = row[1];
+		val     = row[2];
+
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       "NODE_ID=%s, KEY=%s, VALUE=%s\n",
+			       node_id, key, val);
+
+		nrows--;
+	}
+
+	mysql_free_result(res);
+	client_writeback(sock, buf, strlen(buf), tcp);
+	return 0;
+}
