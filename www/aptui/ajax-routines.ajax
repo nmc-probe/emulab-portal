@@ -116,7 +116,7 @@ function ExperimentList($which, $target)
             $cluster = $urn_mapping[$row["aggrow_urn"]];
 
             for ($i = 1; $i < $row["aggrows"]; $i++) {
-                $row = mysql_fetch_array($result);
+                $row = mysql_fetch_array($query_result);
                 $cluster .= "," . $urn_mapping[$row["aggrow_urn"]];
             }
         }
