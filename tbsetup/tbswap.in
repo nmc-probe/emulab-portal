@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1017,10 +1017,12 @@ sub doSwapin($) {
 			 "     vn.eid=e.eid and vn.vname=vl.vnode ".
 			 "left join os_info as o on o.osname=vn.osname and ".
 			 "  (o.pid=vl.pid or o.pid='" . TBOPSPID() . "') ".
+			 "left join os_info_versions as ov on ".
+			 "     ov.osid=o.osid and ov.vers=o.version ".
 			 "where (vl.uselinkdelay!=0 or e.uselinkdelays!=0 or ".
 			 "       e.forcelinkdelays!=0) and ".
-			 "     (o.os is NULL or o.os='Linux' or ".
-			 "      o.os='Fedora') and ".
+			 "     (ov.os is NULL or ov.os='Linux' or ".
+			 "      ov.os='Fedora') and ".
 			 "     e.pid='$pid' and e.eid='$eid'");
 
 	    if ($db_result->numrows) {
