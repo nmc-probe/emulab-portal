@@ -54,6 +54,7 @@ use Exporter;
 	     TMCCCMD_TPMBLOB TMCCCMD_TPMPUB TMCCCMD_DHCPDCONF TMCCCMD_MANIFEST
 	     TMCCCMD_NODEUUID TMCCCMD_NODEATTRIBUTES TMCCCMD_DISKS
 	     TMCCCMD_ARPINFO TMCCCMD_STORAGE TMCCCMD_IMAGESIZE
+             TMCCCMD_PNETNODEATTRS
 	     );
 
 # Must come after package declaration!
@@ -220,6 +221,7 @@ my %commandset =
       "arpinfo"		=> {TAG => "arpinfo"},
       "storageconfig"	=> {TAG => "storageconfig"},
       "imagesize"	=> {TAG => "imagesize"},
+      "pnetnodeattrs"	=> {TAG => "pnetnodeattrs"},
     );
 
 #
@@ -296,6 +298,7 @@ sub TMCCCMD_DISKS()     { $commandset{"disks"}->{TAG}; }
 sub TMCCCMD_ARPINFO()   { $commandset{"arpinfo"}->{TAG}; }
 sub TMCCCMD_STORAGE()	{ $commandset{"storageconfig"}->{TAG}; }
 sub TMCCCMD_IMAGESIZE()	{ $commandset{"imagesize"}->{TAG}; }
+sub TMCCCMD_PNETNODEATTRS() {$commandset{"pnetnodeattrs"}->{TAG}; }
 
 #
 # Caller uses this routine to set configuration of this library
