@@ -8915,6 +8915,8 @@ sub UploadVlans($)
 		#
 		if (! $speed) {
 		    $speed = $self->interfacespeedmbps($interface->type(),
+						       $interface->type() eq
+						       "P2PLTE" ? "P2PLTE" :
 						       "ethernet");
 		}
 		else {
