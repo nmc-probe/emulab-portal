@@ -1560,7 +1560,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			    }
 			});
 			if (checked.length) {
-			    ActionHandler($(this).text(), checked);
+			    ActionHandler($(e.target).attr("name"), checked);
 			}
 		    });
 	    }
