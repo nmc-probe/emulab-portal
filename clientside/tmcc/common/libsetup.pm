@@ -3696,7 +3696,7 @@ sub getpnetnodeattrs($)
     foreach my $line (@tmccresults) {
 	chomp $line;
 	if ($line =~ /^NODE_ID=(.+) KEY=(.+) VALUE=(.+)$/) {
-	    push @{$result{$1}}, [$2, $3];
+	    $result{$1}->{$2} = $3;
 	}
     }
 
