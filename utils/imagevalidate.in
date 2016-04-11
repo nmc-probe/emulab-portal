@@ -398,6 +398,17 @@ sub doimage($)
 		$dpath = $image->DeltaImageFile();
 		$dhash = $image->deltahash();
 	    }
+	    #
+	    # XXX backward compat III
+	    # We may be called from image_import with neither size set (size
+	    # being the value used by HaveXImage to determine existence),
+	    # so we have to fall back on stating the image if we can and
+	    # assuming it is a full image!
+	    #
+	    elsif ($accessfs && -e $image->FullImagePath()) {
+		$path = $image->FullImageFile();
+		$hash = $image->hash();
+	    }
 	}
     }
     $path = ""
@@ -478,7 +489,7 @@ sub doimage($)
     # The image files have to exist.
     #
     if (!$path && !$dpath) {
-	print STDERR "$pidimage: no image file found\n";
+	print STDERR "$pidimage: no image file found or cannot access\n";
 	return 1;
     }
     my ($ftime,$fsize,$fuid,$dftime,$dfsize,$dfuid);
