@@ -1,0 +1,164 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use Data::Dumper;
+
+#
+# Run Medusa account checker.
+#
+sub usage()
+{
+    print STDERR "Usage: $0\n";
+    exit(1);
+}
+my $optlist   = "";
+my %nodes     = ();
+my %pools     = ();
+
+# Configure ...
+my $TB		  = "@prefix@";
+my $TBOPS         = "@TBOPSEMAIL@";
+my $MEDUSA	  = "/usr/local/bin/medusa";
+
+# Medusa options.
+my $HOSTFILE	  = "/tmp/medusahosts.$$";
+my $USERFILE      = "/usr/local/etc/medusa/userlist.txt";
+my $WORDFILE      = "/usr/local/etc/medusa/wordlist.txt";
+my $MEDUSAOPTS    = "-H $HOSTFILE -U $USERFILE -P $WORDFILE ".
+    "-M ssh -R 1 -T 10 -b -v 4 -w 2";
+
+use lib '@prefix@/lib';
+use emdb;
+use emutil;
+use libtestbed;
+use User;
+
+# Protos
+
+sub fatal($)
+{
+    my ($msg) = @_;
+    
+    unlink($HOSTFILE)
+	if (-e $HOSTFILE);
+
+    SENDMAIL($TBOPS,
+	     "Medusa failed!",
+	     $msg,
+	     $TBOPS);
+    
+    die("*** $0:\n".
+	"    $msg\n");
+}
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+
+my $query_result =
+    DBQueryFatal("select r.node_id,i.IP from reserved as r ".
+		 "left join nodes as n on n.node_id=r.node_id ".
+		 "left join node_types as t on t.type=n.type ".
+		 "left join interfaces as i on ".
+		 "     i.node_id=r.node_id and i.role='ctrl' ".
+		 "where t.isremotenode=0 and ".
+		 "      (n.role='testnode' or n.role='virtnode') and ".
+		 "      (t.class='pc' or t.class='pcvm') and ".
+		 "      i.IP is not null and n.type!='blockstore' ");
+
+
+
+#
+# Generate the hosts list.
+#
+open(HOSTS, ">$HOSTFILE")
+    or fatal("Could not open $HOSTFILE for writing");
+
+while (my ($node_id,$IP) = $query_result->fetchrow_array()) {
+    print HOSTS "$IP\n";
+    $nodes{$IP} = $node_id;
+}
+
+#
+# Ah, we also look at the address pools, since we do not have those
+# in our nodes table.
+#
+$query_result =
+    DBQueryFatal("select pool_id,IP from virt_node_public_addr ".
+		 "where pool_id is not null");
+
+while (my ($pool_id,$IP) = $query_result->fetchrow_array()) {
+    print HOSTS "$IP\n";
+    $pools{$IP} = $pool_id;
+}
+close(HOSTS);
+
+#
+# Medusa spits out offending accounts line by line. 
+#
+my $output   = "";
+my $warnings = "";
+
+open(MEDU, "$MEDUSA $MEDUSAOPTS |")
+    or fatal("Could not start up $MEDUSA");
+while (<MEDU>) {
+    $output .= $_;
+
+    if ($_ =~ /^ACCOUNT FOUND:[^\d]+([\d\.]+)\s+(.*)$/) {
+	if (exists($nodes{$1})) {
+	    $warnings .= "Node: ". $nodes{$1} . ":$1 $2\n";
+	}
+	elsif (exists($pools{$1})) {
+	    $warnings .= "Pool: ". $pools{$1} . ":$1 $2\n";
+	}
+	else {
+	    $warnings .= $_;
+	}
+    }
+}
+close(MEDU);
+if ($output ne "") {
+    SENDMAIL($TBOPS,
+	     "Medusa found bogus passwords!",
+	     $warnings . "\n" . $output,
+	     $TBOPS);
+}
+if ($?) {
+    fatal("$MEDUSA exited with status $?");
+}
+unlink($HOSTFILE);
+exit(0);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2015 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -390,6 +390,7 @@ COMMAND_PROTOTYPE(dohwinfo);
 COMMAND_PROTOTYPE(dotiplineinfo);
 COMMAND_PROTOTYPE(doimageid);
 COMMAND_PROTOTYPE(doimagesize);
+COMMAND_PROTOTYPE(dopnetnodeattrs);
 #if PROTOGENI_SUPPORT
 COMMAND_PROTOTYPE(dogeniclientid);
 COMMAND_PROTOTYPE(dogenisliceurn);
@@ -407,6 +408,7 @@ COMMAND_PROTOTYPE(dogenisliverstatus);
 COMMAND_PROTOTYPE(dogenistatus);
 COMMAND_PROTOTYPE(dogenicommands);
 COMMAND_PROTOTYPE(dogeniall);
+COMMAND_PROTOTYPE(dogeniparam);
 COMMAND_PROTOTYPE(dogeniinvalid);
 #endif
 
@@ -525,6 +527,7 @@ struct command {
 	{ "tiplineinfo",  FULLCONFIG_NONE,  F_ALLOCATED, dotiplineinfo},
 	{ "imageinfo",      FULLCONFIG_NONE,  F_ALLOCATED, doimageid},
 	{ "imagesize",   FULLCONFIG_NONE,  F_ALLOCATED, doimagesize},
+	{ "pnetnodeattrs", FULLCONFIG_NONE, F_ALLOCATED, dopnetnodeattrs},
 #if PROTOGENI_SUPPORT
 	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
 	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
@@ -543,6 +546,7 @@ struct command {
 	{ "geni_status", FULLCONFIG_NONE, 0, dogenistatus },
 	{ "geni_commands", FULLCONFIG_NONE, 0, dogenicommands },
 	{ "geni_all",     FULLCONFIG_NONE, 0, dogeniall },
+	{ "geni_param",   FULLCONFIG_NONE, 0, dogeniparam },
 	/* A rather ugly hack to avoid making error handling a special case.
 	   THIS MUST BE THE LAST ENTRY IN THE ARRAY! */
 	{ "geni_invalid", FULLCONFIG_NONE, 0, dogeniinvalid }
@@ -2805,6 +2809,31 @@ COMMAND_PROTOTYPE(doaccounts)
 		error("ACCOUNTS: %s: DB Error setting exit update_accounts!\n",
 		      reqp->nodeid);
 	}
+#ifdef EVENTSYS
+	if (reqp->update_accounts) {
+		address_tuple_t tuple;
+		char buf[BUFSIZ];
+
+		tuple = address_tuple_alloc();
+		if (tuple == NULL) {
+			error("ACCOUNTS: Unable to allocate address tuple!\n");
+		}
+		else {
+			tuple->host      = BOSSNODE;
+			tuple->objtype   = "TBUPDATEACCOUNTS";
+			tuple->objname	 = reqp->nodeid;
+			sprintf(buf, "%d", reqp->update_accounts);
+			tuple->eventtype = buf;
+
+			if (myevent_send(tuple)) {
+				error("Error sending event\n");
+				info("%s: STARTSTAT: sendevent failed!\n",
+				     reqp->nodeid);
+			}
+			address_tuple_free(tuple);
+		}
+	}
+#endif /* EVENTSYS */
 
 	/*
 	 * Now onto the users in the project.
@@ -2912,6 +2941,25 @@ COMMAND_PROTOTYPE(doaccounts)
 #ifdef ISOLATEADMINS
 		sprintf(adminclause, "and u.admin=%d", reqp->swapper_isadmin);
 #endif
+		/*
+		 * An experiment in a subgroup gets only the users in the
+		 * subgroup.
+		 */
+		char subclause[MYBUFSIZE];
+
+		if (strcmp(reqp->pid, reqp->gid)) {
+			sprintf(subclause,
+				"join groups as g on "
+				"     p.pid=g.pid "
+				"where (p.pid='%s' and p.gid='%s') ",
+				reqp->pid, reqp->gid);
+		}
+		else {
+			sprintf(subclause,
+				"join groups as g on "
+				"     p.pid=g.pid and p.gid=g.gid "
+				"where ((p.pid='%s')) ", reqp->pid);
+		}
 		res = mydb_query("select distinct "
 				 "  u.uid,%s,u.unix_uid,u.usr_name, "
 				 "  p.trust,g.pid,g.gid,g.unix_gid,u.admin, "
@@ -2922,15 +2970,14 @@ COMMAND_PROTOTYPE(doaccounts)
 				 "  u.usr_w_pswd,u.uid_idx "
 				 "from group_membership as p "
 				 "join users as u on p.uid_idx=u.uid_idx "
-				 "join groups as g on "
-				 "     p.pid=g.pid and p.gid=g.gid "
-				 "where ((p.pid='%s')) and p.trust!='none' "
+				 "%s "
+				 "      and p.trust!='none' "
 				 "      and u.status='active' "
 				 "      and u.webonly=0 "
 				 "      %s "
                                  "      and g.unix_gid is not NULL "
 				 "order by u.uid",
-				 18, passwdfield, reqp->pid, adminclause);
+				 18, passwdfield, subclause, adminclause);
 	}
 	else if (! reqp->islocal) {
 		/*
@@ -4241,6 +4288,33 @@ COMMAND_PROTOTYPE(dostartstat)
 		      reqp->nodeid);
 		return 1;
 	}
+#ifdef EVENTSYS
+	address_tuple_t tuple;
+	char buf[BUFSIZ];
+
+	/*
+	 * Send an event with the command status.
+	 */
+	/* XXX: Maybe we don't need to alloc a new tuple every time through */
+	tuple = address_tuple_alloc();
+	if (tuple == NULL) {
+		error("dostate: Unable to allocate address tuple!\n");
+	}
+	else {
+		tuple->host      = BOSSNODE;
+		tuple->objtype   = "TBSTARTSTATUS";
+		tuple->objname	 = reqp->nodeid;
+		sprintf(buf, "%d", exitstatus);
+		tuple->eventtype = buf;
+
+		if (myevent_send(tuple)) {
+			error("Error sending event\n");
+			info("%s: STARTSTAT: %d failed!\n",
+			     reqp->nodeid, exitstatus);
+		}
+		address_tuple_free(tuple);
+	}
+#endif /* EVENTSYS */
 	return 0;
 }
 
@@ -5442,7 +5516,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	char		*disktype, *useacpi, *useasf, *noclflush, *dom0mem;
 	char		*vgaonly, *consoletype, *disableif, *attrclause;
 	int		disknum, biosdisknum, dotrim;
-	unsigned int	trimtime;
+	unsigned int	trimiv, trimtime;
 
 	res2 = mydb_query("select IP "
 			  " from interfaces as i, subbosses as s "
@@ -5472,6 +5546,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	disknum = DISKNUM;
 	biosdisknum = -1;
 	dotrim = 0;
+	trimiv = 0;
 	trimtime = 0;
 	useacpi = NULL;
 	useasf = NULL;
@@ -5505,6 +5580,7 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 		"(attrkey='bootdisk_unit' or "
 		" attrkey='bootdisk_bios_id' or "
 		" attrkey='bootdisk_trim' or "
+		" attrkey='bootdisk_trim_interval' or "
 		" attrkey='bootdisk_lasttrim' or "
 		" attrkey='disktype' or "
 		" attrkey='use_acpi' or "
@@ -5557,6 +5633,10 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 				}
 				else if (strcmp(row2[0], "bootdisk_trim") == 0) {
 					dotrim = atoi(attrstr);
+					free(attrstr);
+				}
+				else if (strcmp(row2[0], "bootdisk_trim_interval") == 0) {
+					trimiv = (unsigned int)atoi(attrstr);
 					free(attrstr);
 				}
 				else if (strcmp(row2[0], "bootdisk_lasttrim") == 0) {
@@ -5614,32 +5694,78 @@ get_node_loadinfo(tmcdreq_t *reqp, char **serverp, char **disktypep,
 	if (res2)
 		mysql_free_result(res2);
 
+	/*
+	 * Disk TRIMing. Originally, we had it so that a per node (nodetype)
+	 * attribute 'bootdisk_trim' determined whether the boot disk should
+	 * be TRIMed and the 'disk_trim_interval' site-variable specifying the
+	 * interval between trims.
+	 *
+	 * That really too coarse-grained for the interval, so now we have
+	 * the per node (nodetype) 'bootdisk_trim_interval' attribute which
+	 * if non-zero specifies the interval. Thus, it is now a three-level
+	 * hierarcy: system-wide, per-nodetype, per-node.
+	 *
+	 * To disable trim system-wide, set the site-variable to zero.
+	 * Otherwise (if you are going to do any trimming at all), set it to
+	 * some reasonable default value.
+	 *
+	 * To set a system-wide value, set the site-variable to the interval
+	 * and set the bootdisk_trim attribute non-zero for nodetypes and/or
+	 * nodes that should be trimmed.
+	 *
+	 * To set different per-nodetype (per node) trim intervals, set
+	 * the site-variable non-zero, set the per-nodetype (per-node)
+	 * bootdisk_trim attribute non-zero, and then set per-nodetype
+	 * (per-node) 'bootdisk_trim_interval' values as desired.
+	 *
+	 * To disable trim for a particular node, just set its bootdisk_trim
+	 * attribute to zero. To disable it for a nodetype, you will have to
+	 * set the per-node bootdisk_trim attribute to zero for all nodes of
+	 * that type.
+	 */
 	if (dotrim > 0) {
 		struct timeval now;
-		unsigned int trimiv = 0;
+		unsigned int gtrimiv = 0;
 
-		gettimeofday(&now, NULL);
+		/* default to no trim */
+		dotrim = 0;
 
+		/* XXX super conservative: only trim if going through reload */
+		if (strcmp(reqp->pid, RELOADPID) != 0 ||
+		    strcmp(reqp->eid, RELOADEID) != 0)
+			goto trimdone;
+
+		/* Get global trim interval. Trim disabled if == 0 */
 		res2 = mydb_query("select value,defaultvalue from sitevariables "
 				  "where name='general/disk_trim_interval'", 2);
 		if (res2 && (int)mysql_num_rows(res2) > 0) {
 			row2 = mysql_fetch_row(res2);
 			if (row2[0] && row2[0][0])
-				trimiv = (unsigned int)atoi(row2[0]);
+				gtrimiv = (unsigned int)atoi(row2[0]);
 			else if (row2[1] && row2[1][0])
-				trimiv = (unsigned int)atoi(row2[1]);
+				gtrimiv = (unsigned int)atoi(row2[1]);
 		}
 		if (res2)
 			mysql_free_result(res2);
 
-		if (trimiv && now.tv_sec > (time_t)(trimtime + trimiv)) {
+		/* if globally disabled, skip */
+		if (!gtrimiv)
+			goto trimdone;
+
+		/* use global val if no node(type) specific trim interval */
+		if (!trimiv)
+			trimiv = gtrimiv;
+
+		/* time to trim! */
+		gettimeofday(&now, NULL);
+		if (now.tv_sec > (time_t)(trimtime + trimiv)) {
 			mydb_update("replace into node_attributes values "
-				    "('%s', 'bootdisk_lasttrim', '%u')",
+				    "('%s','bootdisk_lasttrim','%u')",
 				    reqp->nodeid, (unsigned)now.tv_sec);
 			dotrim = 1;
-		} else
-			dotrim = 0;
+		}
 	}
+ trimdone:
 	*dotrimp = dotrim;
 
 	return 0;
@@ -7827,7 +7953,37 @@ COMMAND_PROTOTYPE(doisalive)
 {
 	int		doaccounts = 0;
 	char		buf[MYBUFSIZE];
+#ifdef EVENTSYS
+	MYSQL_RES	*res;
+	MYSQL_ROW	row;
+	address_tuple_t tuple;
 
+	/*
+	 * Get current status. We want to send an event if it changes.
+	 */
+	res = mydb_query("select status from node_status where node_id='%s'",
+			 1, reqp->nodeid);
+	if (res) {
+		if (mysql_num_rows(res)) {
+			row = mysql_fetch_row(res);
+			if (row[0] && row[0][0] && strcmp(row[0], "up")) {
+				tuple = address_tuple_alloc();
+				if (tuple != NULL) {
+					tuple->host      = BOSSNODE;
+					tuple->objtype   = "TBNODESTATUS";
+					tuple->objname	 = reqp->nodeid;
+					tuple->eventtype = "up";
+
+					if (myevent_send(tuple)) {
+						error("Error sending event\n");
+					}
+					address_tuple_free(tuple);
+				}
+			}
+		}
+		mysql_free_result(res);
+	}
+#endif /* EVENTSYS */
 	/*
 	 * See db/node_status script, which uses this info (timestamps)
 	 * to determine when nodes are down.
@@ -12475,7 +12631,7 @@ static char *getgeniuseremail( tmcdreq_t *reqp ) {
 static char *getgenimanifest( tmcdreq_t *reqp ) {
     
 	MYSQL_RES	*res;
-	char		buf[ MAXTMCDPACKET ];
+	char		*buf;
 
 	res = mydb_query( "SELECT m.manifest FROM `geni-cm`.geni_slivers AS s, "
 			  "`geni-cm`.geni_manifests AS m WHERE "
@@ -12491,15 +12647,16 @@ static char *getgenimanifest( tmcdreq_t *reqp ) {
 	if( mysql_num_rows( res ) ) {
 		MYSQL_ROW row = mysql_fetch_row( res );
 
-		GOUTPUT( buf, sizeof buf, "%s", row[ 0 ] );
-	}
+		buf = strdup( row[ 0 ] );
+	} else
+	        buf = strdup( "" );
 
 	mysql_free_result( res );
 
 	if( verbose )
 		info( "%s: geni_slice_urn: %s", reqp->nodeid, buf );
 	
-	return strdup( buf );
+	return buf;
 }
 
 static char *getgenicert( tmcdreq_t *reqp ) {
@@ -12688,11 +12845,11 @@ static char *getgenigetversion( tmcdreq_t *reqp ) {
 			 "\"1\":\"" TBBASE ":12369/protogeni/xmlrpc/am/1.0\","
 			 "\"2\":\"" TBBASE ":12369/protogeni/xmlrpc/am/2.0\","
 			 "\"3\":\"" TBBASE ":12369/protogeni/xmlrpc/am/3.0\"},"
-			 "\"geni_credential_types\":{"
+			 "\"geni_credential_types\":["
 			 "{\"geni_type\":\"geni_sfa\","
 			 "\"geni_version\":\"2\"},"
 			 "{\"geni_type\":\"geni_sfa\","
-			 "\"geni_version\":\"3\"}}}",
+			 "\"geni_version\":\"3\"}]}",
 			 row[ 0 ] );
 	}
 			 
@@ -12964,6 +13121,56 @@ COMMAND_PROTOTYPE(dogeniall)
     
     client_writeback( sock, buf, 1 + strlen( buf + 1 ), tcp );
 
+    return 0;
+}
+
+COMMAND_PROTOTYPE(dogeniparam)
+{
+    char *p;
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
+    for( p = rdata; *p; p++ )
+	if( isspace( *p ) ) {
+	    *p = 0;
+	    break;
+	} else if( ( *p < 'a' || *p > 'z' ) &&
+	    ( *p < 'A' || *p > 'Z' ) &&
+	    ( *p < '0' || *p >= '9' ) &&
+	    *p != '_' && *p != '-' ) {
+	    static char error_msg[] = "\0\0illegal parameter\n";
+
+	    client_writeback( sock, error_msg, sizeof error_msg - 1, tcp );
+	    
+	    return 1;
+	}
+
+    res = mydb_query( "SELECT value FROM virt_profile_parameters "
+		      "WHERE exptidx=%d AND name='%s'", 1, reqp->exptidx,
+		      rdata );
+    if( !res ) {
+	error( "PARAM: error retrieving value\n" );
+	return 1;
+    }
+
+    if( mysql_num_rows( res ) < 1 ) {
+	static char error_msg[] = "\0\0undefined parameter\n";
+
+	client_writeback( sock, error_msg, sizeof error_msg - 1, tcp );
+	    
+	mysql_free_result( res );
+	
+	return 1;
+    }
+
+    row = mysql_fetch_row( res );
+
+    client_writeback( sock, "", 1, tcp ); /* single NUL */
+    client_writeback( sock, row[ 0 ], strlen( row[ 0 ] ), tcp );
+    client_writeback( sock, "\n", 1, tcp ); /* single NUL */
+
+    mysql_free_result( res );
+    
     return 0;
 }
 
@@ -13337,3 +13544,53 @@ COMMAND_PROTOTYPE(doimagesize)
 	return 0;
 }
 
+/* Return attributes relevant to PhantomNet experiments. */
+COMMAND_PROTOTYPE(dopnetnodeattrs)
+{
+	MYSQL_RES   *res;
+	MYSQL_ROW   row;
+	int         nrows = 0;
+	char	    buf[MYBUFSIZE];
+	char	    *bufp = buf, *ebufp = &buf[sizeof(buf)];
+	char        *pnet_nattr_keys = "('sim_imsi', 'sim_sequence_number')";
+
+	res = mydb_query( "SELECT na.node_id,na.attrkey,na.attrvalue "
+			  " from reserved as r"
+			  " left join node_attributes as na "
+			  "  on r.node_id=na.node_id"
+			  "       where r.pid='%s' and r.eid='%s'"
+			  "       and na.attrkey in %s",
+			  3, reqp->pid, reqp->eid, pnet_nattr_keys );
+
+	if( !res ) {
+		error( "dopnetnodeattrs: %s: DB error getting node_attrs!\n",
+		       reqp->nodeid );
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	while (nrows > 0) {
+		char *node_id, *key, *val;
+
+		row = mysql_fetch_row(res);
+		if (!(row[0] && *row[0]
+		      && row[1] && *row[1]
+		      && row[2] && *row[2] )) {
+			continue;
+		}
+
+		node_id = row[0];
+		key     = row[1];
+		val     = row[2];
+
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       "NODE_ID=%s KEY=%s VALUE=%s\n",
+			       node_id, key, val);
+
+		nrows--;
+	}
+
+	mysql_free_result(res);
+	client_writeback(sock, buf, strlen(buf), tcp);
+	return 0;
+}

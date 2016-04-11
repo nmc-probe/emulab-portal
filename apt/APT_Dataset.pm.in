@@ -39,6 +39,7 @@ use emdb;
 use emutil;
 use libtestbed;
 use APT_Geni;
+use APT_Aggregate;
 use GeniHRN;
 use Genixmlrpc;
 use GeniResponse;
@@ -132,17 +133,11 @@ sub DESTROY {
 sub ValidBlockstoreBackend($)
 {
     my ($authority) = @_;
-    my $hrn = GeniHRN->new($authority);
+    my $aggregate   = APT_Aggregate->Lookup($authority);
     return -1
-	if (!defined($hrn));
-    my $domain = $hrn->domain();
-    
-    return 1
-	if ($domain eq "emulab.net" ||
-	    $domain eq "apt.emulab.net" ||
-	    $domain eq "clemson.cloudlab.us");
+	if (!defined($aggregate));
 
-    return 0;
+    return $aggregate->has_datasets();
 }
 
 #

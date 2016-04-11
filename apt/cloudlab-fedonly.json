@@ -32,8 +32,10 @@
 		 },
 		 { "name": "d710", "size": 33, "howfull": 5,
 		 "url": "https://wiki.emulab.net/Emulab/wiki/UtahHardware#tbd710"
-		 }
-	       ]
+		 },
+		 { "name": "d430", "size": 33, "howfull": 5,
+		 "url": "https://wiki.emulab.net/Emulab/wiki/UtahHardware#tbd430"
+		 } ]
   }
  ]
 }

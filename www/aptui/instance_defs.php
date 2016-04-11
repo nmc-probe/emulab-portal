@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,30 +22,7 @@
 # }}}
 #
 #
-
-$urn_mapping =
-    array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      => "Utah",
-          "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      => "Wisc",
-          "urn:publicid:IDN+clemson.cloudlab.us+authority+cm"   => "Clem",
-          "urn:publicid:IDN+apt.emulab.net+authority+cm"        => "APT",
-          "urn:publicid:IDN+emulab.net+authority+cm"            => "Emulab",
-          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm" => "DDC",
-          "urn:publicid:IDN+stitch.geniracks.net+authority+cm"  => "UStitch",
-          "urn:publicid:IDN+al2s.internet2.edu+authority+am"    => "AL2S",
-          "urn:publicid:IDN+uky.emulab.edu+authority+cm"        => "UKY",
-          "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm" => "Wall2");
-
-$freenodes_mapping =
-    array("urn:publicid:IDN+utah.cloudlab.us+authority+cm"      =>
-          "https://www.utah.cloudlab.us/node_usage/freenodes.svg",
-          "urn:publicid:IDN+wisc.cloudlab.us+authority+cm"      =>
-          "https://www.wisc.cloudlab.us/node_usage/freenodes.svg",
-          "urn:publicid:IDN+clemson.cloudlab.us+authority+cm"   =>
-          "https://www.clemson.cloudlab.us/node_usage/freenodes.svg",
-          "urn:publicid:IDN+apt.emulab.net+authority+cm"        =>
-          "https://www.apt.emulab.net/node_usage/freenodes.svg",
-          "urn:publicid:IDN+emulab.net+authority+cm"            =>
-          "https://www.emulab.net/node_usage/freenodes.svg");
+include_once("aggregate_defs.php");
 
 $geni_response_codes =
     array("Success",
@@ -79,7 +56,9 @@ $geni_response_codes =
           "No Mapping Possible",
     );
 define("GENIRESPONSE_BADARGS",   	       1);
+define("GENIRESPONSE_REFUSED",                 7);
 define("GENIRESPONSE_TIMEDOUT",                8);
+define("GENIRESPONSE_SEARCHFAILED",            12);
 define("GENIRESPONSE_VLAN_UNAVAILABLE",        24);
 define("GENIRESPONSE_INSUFFICIENT_BANDWIDTH",  25);
 define("GENIRESPONSE_INSUFFICIENT_NODES",      26);
@@ -183,6 +162,21 @@ class Instance
 	$query_result =
 	    DBQueryFatal("select uuid from apt_instances ".
 			 "where creator_uuid='$safe_token'");
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$uuid = $row[0];
+ 	return Instance::Lookup($uuid);
+    }
+
+    function LookupBySlice($token) {
+	$safe_token = addslashes($token);
+
+	$query_result =
+	    DBQueryFatal("select uuid from apt_instances ".
+			 "where slice_uuid='$safe_token'");
 
 	if (! ($query_result && mysql_num_rows($query_result))) {
 	    return null;
@@ -349,49 +343,9 @@ class Instance
     # Return aggregate based on the current user.
     #
     function DefaultAggregateList() {
-        global $ISAPT, $ISCLOUD, $ISPNET, $ISEMULAB;
-	if ($ISAPT) {
-          $am_array = array(
-                          'Cloudlab Utah' =>
-                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-                          'APT Utah' =>
-                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
-                          'IG UtahDDC' =>
-                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Emulab'  =>
-                          "urn:publicid:IDN+emulab.net+authority+cm"
-          );
-        }
-        elseif ($ISCLOUD) {
-          $am_array = array(
-                          'Cloudlab Utah' =>
-                          "urn:publicid:IDN+utah.cloudlab.us+authority+cm",
-			  'Cloudlab Wisconsin' =>
-			  "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
-			  'Cloudlab Clemson' =>
-			  "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
-                          'APT Utah' =>
-                          "urn:publicid:IDN+apt.emulab.net+authority+cm",
-                          'IG UtahDDC' =>
-                          "urn:publicid:IDN+utahddc.geniracks.net+authority+cm",
-                          'Emulab'  =>
-                          "urn:publicid:IDN+emulab.net+authority+cm"
-          );
-          if (ISADMIN() || ISFOREIGN_ADMIN()) {
-              $am_array["iMinds Virt Wall 2"] =
-                  "urn:publicid:IDN+wall2.ilabt.iminds.be+authority+cm";
-              $am_array["UKY Emulab"] =
-                  "urn:publicid:IDN+uky.emulab.net+authority+cm";
-          }
-        } 
-	elseif ($ISPNET || $ISEMULAB) {
-          $am_array = array(
-                          'Emulab'  =>
-                          "urn:publicid:IDN+emulab.net+authority+cm"
-          );
-        }
-        return $am_array;
+        return Aggregate::DefaultAggregateList();
     }
+
     # helper
     function ParseURN($urn)
     {
@@ -469,6 +423,32 @@ class Instance
 	if ($this->creator_idx() == $user->uid_idx()) {
 	    return 1;
 	}
+        return 0;
+    }
+    function CanDoSSH($user) {
+	if ($this->creator_idx() == $user->uid_idx()) {
+	    return 1;
+	}
+        #
+        # These are the guest projects.
+        #
+        $APT_HOLDINGPROJECT   = "aptguests";
+        $CLOUD_HOLDINGPROJECT = "CloudLab";
+        
+        if ($this->pid() == $APT_HOLDINGPROJECT ||
+            $this->pid() == $CLOUD_HOLDINGPROJECT) {
+            return 0;
+        }
+        
+        # Otherwise a project membership test.
+        $project = Project::Lookup($this->pid_idx());
+        if (!$project) {
+            return 0;
+        }
+        $isapproved = 0;
+        if ($project->IsMember($user, $isapproved) && $isapproved) {
+            return 1;
+        }
         return 0;
     }
 
@@ -642,6 +622,11 @@ class InstanceSliver
     # Constructor by lookup on unique index.
     #
     function InstanceSliver($instance, $urn) {
+        if (!$instance) {
+            TBMAIL("stoller", "undefined instance", $urn);
+	    $this->sliver = null;
+	    return;
+        }
 	$uuid = $instance->uuid();
 
 	$query_result =
@@ -665,6 +650,8 @@ class InstanceSliver
     function public_url()   { return $this->field('public_url'); }
     function webtask_id()   { return $this->field('webtask_id'); }
     function manifest()	    { return $this->field('manifest'); }
+    function physnode_count() { return $this->field('physnode_count'); }
+    function virtnode_count() { return $this->field('virtnode_count'); }
     function aggregate_name() {
         global $urn_mapping;
         return $urn_mapping[$this->aggregate_urn()];

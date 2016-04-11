@@ -98,13 +98,21 @@ hbis() {
 		[[ $x -ge $bytes ]] && break
 	    done
 #echo ${FUNCNAME[0]}:${LINENO} base:$base number:$number bytes=$bytes c=$c
-	    # gt 32G then make sure num is a multi of 4
-	    if [[ $c -gt 30 ]] ; then
-		c4=0
-		while [ $c -ne $c4 ] ; do
+            # make sure it a mult of 4
+            cd8=$(( c / 8 ))
+            cd8m8=$(( cd8 * 8 ))                                              
+            if [[ $c -eq $cd8m8 ]] ; then                                     
+                :                      
+	    # ok then if more then 30 count up make sure num is a multi of 8
+	    elif [[ $c -gt 30 ]] ; then
+		c8=0
+	    # why does anything over report memory, talking about you d430
+		# subtract half the size of the multiple 
+		c=$(( c - 4 ))
+		while [ $c -ne $c8 ] ; do
 		    ((++c))
-		    cd4=$(( c / 4 ))
-		    c4=$(( cd4 * 4 ))
+		    cd8=$(( c / 8 ))
+		    c8=$(( cd8 * 8 ))
 		done
 	    fi
 	    echo ${c}GiB

@@ -10,11 +10,13 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/snapshot-help.html',
 	 'js/lib/text!template/oneonly-modal.html',
 	 'js/lib/text!template/approval-modal.html',
+	 'js/lib/text!template/linktest-modal.html',
 	 'contextmenu'],
 function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	  ShowExtendModal, statusString, waitwaitString, oopsString,
 	  registerString, terminateString,
-	  cloneHelpString, snapshotHelpString, oneonlyString, approvalString)
+	  cloneHelpString, snapshotHelpString, oneonlyString,
+	  approvalString, linktestString)
 {
     'use strict';
     var nodecount   = 0;
@@ -34,12 +36,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var status_message    = "";
     var statusTemplate    = _.template(statusString);
     var terminateTemplate = _.template(terminateString);
+    var instanceStatus    = "";
     var lastStatus        = "";
     var paniced           = 0;
     var lockout           = 0;
     var lockdown          = 0;
     var lockdown_code     = "";
     var consolenodes      = {};
+    var showlinktest      = false;
+    var hidelinktest      = false;
+    var changingtopo      = false;
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
@@ -59,7 +65,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	lockout      = window.APT_OPTIONS.lockout;
 	lockdown     = window.APT_OPTIONS.lockdown;
 	lockdown_code= uuid.substr(2, 5);
-	var instanceStatus = window.APT_OPTIONS.instanceStatus;
+	instanceStatus = window.APT_OPTIONS.instanceStatus;
+	hidelinktest   = window.APT_OPTIONS.hidelinktest;
 	var errorURL = window.HELPFORUM;
 
 	// Generate the templates.
@@ -79,6 +86,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    isfadmin:           window.APT_OPTIONS.isfadmin,
 	    errorURL:           errorURL,
 	    paniced:            paniced,
+	    project:            window.APT_OPTIONS.project,
 	    lockout:            lockout,
 	    lockdown:           lockdown,
 	    lockdown_code:      lockdown_code,
@@ -93,6 +101,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('#terminate_div').html(terminateTemplate(template_args));
 	$('#oneonly_div').html(oneonlyString);
 	$('#approval_div').html(approvalString);
+	$('#linktest_div').html(linktestString);
 
 	// Format dates with moment before display.
 	$('.format-date').each(function() {
@@ -101,23 +110,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$(this).html(moment($(this).html()).format("lll"));
 	    }
 	});
+	ProgressBarUpdate();
 
-	//
-	// Look at initial status to determine if we show the progress bar.
-	//
-	var spinwidth = 0;
-	if (instanceStatus == "created" ||
-	    instanceStatus == "stitching") {
-	    spinwidth = "33";
-	}
-	else if (instanceStatus == "provisioned") {
-	    spinwidth = "66";
-	}
-	if (spinwidth) {
-	    $("#status_progress_bar").width(spinwidth + "%");
-	    $('#status_progress_outerdiv').removeClass("hidden");
-	}
-	
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
@@ -178,7 +172,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    event.preventDefault();
 	    DoRefresh();
 	});
-	
 	// Handler for the Clone button.
 	$('button#clone_button').click(function (event) {
 	    event.preventDefault();
@@ -308,7 +301,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
 
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
-	GetStatus(uuid);
+	StartStatusWatch();
 	if (window.APT_OPTIONS.oneonly) {
 	    sup.ShowModal('#oneonly-modal');
 	}
@@ -325,49 +318,69 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
     }
 
-    // Periodically ask the server for the status and update the display.
-    // We sometimes want to trigger this before the next wakeup, so use
-    // a flag to prevent more then one at a time.
-    var statusbusy = 0;
-    
-    function GetStatus(uuid)
+    //
+    // The status watch is a periodic timer, but we sometimes want to
+    // hold off running it for a while, and other times we want to run
+    // it before the next time comes up. We use flags for both of these
+    // cases.
+    //
+    var statusBusy = 0;
+    var statusHold = 0;
+    var statusID;
+
+    function StartStatusWatch()
     {
-	// One at a time
-	if (statusbusy)
+	GetStatus();
+	statusID = setInterval(GetStatus, 4000);
+    }
+    
+    function GetStatus()
+    {
+	// Clearly not thread safe, but its okay.
+	if (statusBusy || statusHold)
 	    return;
-	statusbusy = 1;
+	statusBusy = 1;
 	
 	var callback = function(json) {
-	    StatusWatchCallBack(uuid, json);
-	    statusbusy = 0;
+	    StatusWatchCallBack(json);
+	    if (instanceStatus == 'terminated') {
+		clearInterval(statusID);
+	    }
+	    statusBusy = 0;
 	}
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
 					    "GetInstanceStatus",
 					     {"uuid" : uuid});
+	xmlthing.fail(function(jqXHR, textStatus) {
+	    console.info("GetStatus failed: " + textStatus);
+	    statusBusy = 0;
+	});
 	xmlthing.done(callback);
     }
+    // Flag for StatusWatchCallBack()
+    var seenmanifests = false;
 
     // Call back for above.
-    function StatusWatchCallBack(uuid, json)
+    function StatusWatchCallBack(json)
     {
 	console.info(json);
 	
-	// Flag to indicate that we have seen ready and do not
-	// need to do initial stuff. We need this cause the
-	// the staus can change later, back to busy for a while.
-	if (typeof StatusWatchCallBack.active == 'undefined') {
-            // It has not... perform the initilization
-            StatusWatchCallBack.active = 0;
-	}
-	var status = json.value.status;
 	if (json.code) {
-	    alert("The server has returned an error: " + json.value);
-	    status = "unknown";
+	    // GENIRESPONSE_SEARCHFAILED
+	    if (json.code == 12) {
+		instanceStatus = "terminated";
+	    }
+	    else if (lastStatus != "terminated") {
+		instanceStatus = "unknown";
+	    }
+	}
+	else {
+	    instanceStatus = json.value.status;
 	}
 	var status_html = "";
     
-	if (status != lastStatus) {
+	if (instanceStatus != lastStatus) {
 	    status_html = status;
 
 	    var bgtype = "panel-info";
@@ -376,9 +389,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    //
 	    // As soon as we have a manifest, show the topology.
 	    // 
-	    if (! StatusWatchCallBack.active && json.value.havemanifests) {
-		ShowTopo(uuid);
-		StatusWatchCallBack.active = 1;
+	    if (instanceStatus != "provisioning" &&
+		json.value.havemanifests && !seenmanifests) {
+		seenmanifests = true;
+		ShowTopo(false);
 	    }
 	    // Ditto the publicURL.
 	    if (_.has(json.value, "sliverurls")) {
@@ -389,11 +403,19 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		ShowLogfile(json.value.logfile_url);
 	    }
 
-	    if (status == 'stitching') {
+	    if (instanceStatus == 'stitching') {
 		status_html = "stitching";
 	    }
-	    else if (status == 'provisioned') {
-		$("#status_progress_bar").width("66%");
+	    else if (instanceStatus == 'provisioning') {
+		status_html = "provisioning";
+		DisableButtons();
+		ProgressBarUpdate();
+		if (seenmanifests) {
+		    changingtopo = true;
+		}
+	    }
+	    else if (instanceStatus == 'provisioned') {
+		ProgressBarUpdate();
 		status_html = "booting";
 		if (json.value.canceled) {
 		    status_html += " (but canceled)";
@@ -402,8 +424,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    // So the user can cancel. 
 		    EnableButton("terminate");
 		}
+		// If we were in the process of changing the topology,
+		// then need to update from the new manifests.
+		if (changingtopo) {
+		    ShowTopo(true);
+		}
 	    }
-	    else if (status == 'ready') {
+	    else if (instanceStatus == 'ready') {
 		bgtype = "panel-success";
 		status_message = "Your experiment is ready!";
 
@@ -414,20 +441,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		else {
 		    status_html = "<font color=green>ready</font>";
 		}
-		if ($("#status_progress_div").length) {
-		    $("#status_progress_div").removeClass("progress-striped");
-		    $("#status_progress_div").removeClass("active");
-		    $("#status_progress_div").addClass("progress-bar-success");
-		    $("#status_progress_bar").width("100%");
-		}
-		$('#error_panel').addClass("hidden");
+		ProgressBarUpdate();
 		EnableButtons();
 		// We should be looking at the node status instead.
 		if (lastStatus != "imaging") {
 		    AutoStartSSH();
 		}
 	    }
-	    else if (status == 'failed') {
+	    else if (instanceStatus == 'failed') {
 		bgtype = "panel-danger";
 
 		if (_.has(json.value, "reason")) {
@@ -440,24 +461,26 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			"We've been notified.";
 		}
 		status_html = "<font color=red>failed</font>";
-		if ($("#status_progress_div").length) {
-		    $("#status_progress_div").removeClass("progress-striped");
-		    $("#status_progress_div").removeClass("active");
-		    $("#status_progress_div").addClass("progress-bar-danger");
-		    $("#status_progress_bar").width("100%");
-		}
+		ProgressBarUpdate();
 		DisableButtons();
 		EnableButton("terminate");
 		EnableButton("refresh");
 	    }
-	    else if (status == 'imaging') {
+	    else if (instanceStatus == 'imaging') {
 		bgtype = "panel-warning";
 		status_message = "Your experiment is busy while we  " +
 		    "copy your disk";
 		status_html = "<font color=red>imaging</font>";
 		DisableButtons();
 	    }
-	    else if (status == 'imaging-failed') {
+	    else if (instanceStatus == 'linktest') {
+		bgtype = "panel-warning";
+		status_message = "Your experiment is busy while we  " +
+		    "run linktest";
+		status_html = "<font color=red>linktest</font>";
+		DisableButtons();
+	    }
+	    else if (instanceStatus == 'imaging-failed') {
 		bgtype = "panel-danger";
 		status_message = "Your disk image request failed!";
 		status_html = "<font color=red>imaging-failed</font>";
@@ -465,12 +488,19 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		EnableButton("terminate");
 		EnableButton("refresh");
 	    }
-	    else if (status == 'terminating' || status == 'terminated') {
-		status_html = "<font color=red>" + status + "</font>";
+	    else if (instanceStatus == 'terminating' ||
+		     instanceStatus == 'terminated') {
+		status_html = "<font color=red>" + instanceStatus + "</font>";
 		bgtype = "panel-danger";
 		status_message = "Your experiment has been terminated!";
 		DisableButtons();
 		StartCountdownClock.stop = 1;
+	    }
+	    else if (instanceStatus == "unknown") {
+		status_html = "<font color=red>" + instanceStatus + "</font>";
+		bgtype = "panel-warning";
+		status_message = "The server is temporarily unavailable!";
+		DisableButtons();
 	    }
 	    if (!status_collapsed) {
 		$("#status_message").html(status_message);
@@ -481,7 +511,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		.addClass(bgtype);
 	    $("#quickvm_status").html(status_html);
 	}
-	else if (lastStatus == "ready" && status == "ready") {
+	else if (lastStatus == "ready" && instanceStatus == "ready") {
 	    if (servicesExecuting(json.value)) {
 		status_html = "<font color=green>booted</font>";
 		status_html += " (startup services are still running)";
@@ -498,11 +528,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	if (json.value.havemanifests && _.has(json.value, "sliverstatus")) {
 	    UpdateSliverStatus(json.value.sliverstatus);
 	}
-	lastStatus = status;
-	if (! (status == 'terminating' || status == 'terminated' ||
-	       status == 'unknown')) {
-	    setTimeout(function f() { GetStatus(uuid) }, 5000);
-	}
+	lastStatus = instanceStatus;
     }
 
     //
@@ -515,6 +541,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	EnableButton("extend");
 	EnableButton("clone");
 	EnableButton("snapshot");
+	ToggleLinktestButtons(instanceStatus);	
     }
     function DisableButtons()
     {
@@ -523,6 +550,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	DisableButton("extend");
 	DisableButton("clone");
 	DisableButton("snapshot");
+	ToggleLinktestButtons(instanceStatus);	
     }
     function EnableButton(button)
     {
@@ -544,6 +572,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    button = "#clone_button";
 	else if (button == "snapshot" && nodecount == 1)
 	    button = "#snapshot_button";
+	else if (button == "start-linktest")
+	    button = "#linktest-modal-button";
+	else if (button == "stop-linktest")
+	    button = "#linktest-stop-button";
 	else
 	    return;
 
@@ -742,7 +774,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		return;
 	    }
 	    // Trigger status update.
-	    GetStatus(uuid);
+	    GetStatus();
 	}
 	sup.ShowModal('#waitwait-modal');
 	var xmlthing = sup.CallServerMethod(ajaxurl,
@@ -909,31 +941,31 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     // Request a node reboot from the backend cluster.
     //
-    function DoReboot(node_id)
+    function DoReboot(nodeList)
     {
 	var callback = function(json) {
 	    sup.HideModal('#waitwait-modal');
 	    
 	    if (json.code) {
-		Sup.spitoops("oops", "Failed to reboot: " + json.value);
+		sup.SpitOops("oops", "Failed to reboot: " + json.value);
 		return;
 	    }
 	    // Trigger status to change the nodes.
-	    GetStatus(uuid);
+	    GetStatus();
 	}
 	sup.ShowModal('#waitwait-modal');
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
 					    "Reboot",
-					     {"uuid"    : uuid,
-					      "node_id" : node_id});
+					     {"uuid"     : uuid,
+					      "node_ids" : nodeList});
 	xmlthing.done(callback);
     }
 	
     //
     // Request a node reload from the backend cluster.
     //
-    function DoReload(node_id)
+    function DoReload(nodeList)
     {
 	// Handler for hide modal to unbind the click handler.
 	$('#confirm_reload_modal').on('hidden.bs.modal', function (event) {
@@ -954,17 +986,57 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    return;
 		}
 		// Trigger status update.
-		GetStatus(uuid);
+		GetStatus();
 	    }
 	    sup.ShowModal('#waitwait-modal');
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
 						"status",
 						"Reload",
-						{"uuid"    : uuid,
-						 "node_id" : node_id});
+						{"uuid"     : uuid,
+						 "node_ids" : nodeList});
 	    xmlthing.done(callback);
 	});
 	sup.ShowModal('#confirm_reload_modal');
+    }
+	
+    //
+    // Request a node reboot from the backend cluster.
+    //
+    function DoDeleteNodes(nodeList)
+    {
+	// Handler for hide modal to unbind the click handler.
+	$('#deletenode_modal').on('hidden.bs.modal', function (event) {
+	    $(this).unbind(event);
+	    $('button#deletenode_confirm').unbind("click.deletenode");
+	});
+	
+	// Throw up a confirmation modal, with handler bound to confirm.
+	$('button#deletenode_confirm').bind("click.deletenode", function (event) {
+	    sup.HideModal('#deletenode_modal');
+	
+	    var callback = function(json) {
+		console.info(json);
+		sup.HideModal('#waitwait-modal');
+	    
+		if (json.code) {
+		    sup.SpitOops("oops", "Failed to delete nodes");
+		    $('#error_panel_text').text(json.value);
+		    $('#error_panel').removeClass("hidden");
+		    return;
+		}
+		changingtopo = true;
+		// Trigger status to change the nodes.
+		GetStatus();
+	    }
+	    sup.ShowModal('#waitwait-modal');
+	    var xmlthing = sup.CallServerMethod(ajaxurl,
+						"status",
+						"DeleteNodes",
+						{"uuid"     : uuid,
+						 "node_ids" : nodeList});
+	    xmlthing.done(callback);
+	});
+	sup.ShowModal('#deletenode_modal');
     }
 	
     //
@@ -975,13 +1047,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var jsonauth = $.parseJSON(authobject);
 	
 	var callback = function(stuff) {
+	    console.info(stuff);
             var split   = stuff.split(':');
             var session = split[0];
     	    var port    = split[1];
 
             var url   = jsonauth.baseurl + ':' + port + '/' + '#' +
 		encodeURIComponent(document.location.href) + ',' + session;
-//            console.info(url);
+            console.info(url);
 	    var iwidth = "100%";
             var iheight = 400;
 
@@ -1006,7 +1079,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
 	var xmlthing = $.ajax({
 	    // the URL for the request
-     	    url: jsonauth.baseurl + '/d77e8041d1ad',
+	    url: jsonauth.baseurl + '/d77e8041d1ad',
+	    //url: jsonauth.baseurl + '/myshbox',
 	    
      	    // the data to send (will be converted to a query string)
 	    data: {
@@ -1027,6 +1101,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // the ssh tab with a panel in it, and then call StartSSH above
     // to get things going.
     //
+    var sshtabcounter = 0;
+    
     function NewSSHTab(hostport, client_id)
     {
 	var pair = hostport.split(":");
@@ -1037,7 +1113,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Need to create the tab before we can create the topo, since
 	// we need to know the dimensions of the tab.
 	//
-	var tabname = client_id + "_tab";
+	var tabname = client_id + "_" + sshtabcounter++ + "_tab";
+	console.info(tabname);
+	
 	if (! $("#" + tabname).length) {
 	    // The tab.
 	    var html = "<li><a href='#" + tabname + "' data-toggle='tab'>" +
@@ -1080,10 +1158,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Ask the server for an authentication object that allows
 	// to start an ssh shell.
 	var callback = function(json) {
-//	    console.info(json.value);
+	    console.info(json.value);
 
 	    if (json.code) {
-		alert("Failed to gain authentication for ssh.");
+		sup.SpitOops("oops", "Failed to get ssh auth object: " +
+			     json.value);
+		return;
 	    }
 	    else {
 		StartSSH(tabname, json.value);
@@ -1130,57 +1210,83 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    target: '#' + cid, 
 	    onItem: function(context,e) {
 		$('#context').contextmenu('closemenu');
-
-		if ($(e.target).text() == "Shell") {
-		    NewSSHTab(hostportList[client_id], client_id);
-		}
-		else if ($(e.target).text() == "Console") {
-		    if (!_.has(consolenodes, client_id)) {
-			e.preventDefault();
-			return false;
-		    }
-		    if (isguest) {
-			alert("Only registered users can access the console");
-			return;
-		    }
-		    NewConsoleTab(client_id);
-		}
-		else if ($(e.target).text() == "Console Log") {
-		    if (!_.has(consolenodes, client_id)) {
-			e.preventDefault();
-			return false;
-		    }
-		    if (isguest) {
-			alert("Only registered users can access the console");
-			return;
-		    }
-		    ConsoleLog(client_id);
-		}
-		else if ($(e.target).text() == "Reboot") {
-		    if (isguest) {
-			alert("Only registered users can reboot nodes");
-			return;
-		    }
-		    DoReboot(client_id);
-		}
-		else if ($(e.target).text() == "Reload") {
-		    if (isguest) {
-			alert("Only registered users can reload nodes");
-			return;
-		    }
-		    DoReload(client_id);
-		}
-		else if ($(e.target).text() == "Snapshot") {
-		    if (isguest) {
-			alert("Only registered users can snapshot nodes");
-			return;
-		    }
-		    DoSnapshotNode(client_id);
-		}
 		$('#context').contextmenu('destroy');
+		ActionHandler($(e.target).attr("name"), [client_id]);
 	    }
 	})
 	$('#context').contextmenu('show', event);
+    }
+
+    //
+    // Common handler for both the context menu and the listview menu.
+    //
+    function ActionHandler(action, clientList)
+    {
+	//
+	// Do not show in the terminating or terminated state.
+	//
+	if (lastStatus == "terminated" || lastStatus == "terminating" ||
+	    lastStatus == "unknown") {
+	    alert("Your experiment is no longer active.");
+	    return;
+	}
+
+	/*
+	 * While shell and console can handle a list, I am not actually
+	 * doing that, since its a dubious thing to do, and because the
+	 * shellinabox code is not very happy trying to start a bunch all
+	 * once. 
+	 */
+	if (action == "shell") {
+	    // Do not want to fire off a whole bunch of ssh commands at once.
+	    for (var i = 0; i < clientList.length; i++) {
+		(function (i) {
+		    setTimeout(function () {
+			var client_id = clientList[i];
+			NewSSHTab(hostportList[client_id], client_id);
+		    }, i * 1500);
+		})(i);
+	    }
+	    return;
+	}
+	if (isguest) {
+	    alert("Only registered users can use the " + action + " command.");
+	    return;
+	}
+	if (action == "console") {
+	    // Do not want to fire off a whole bunch of console
+	    // commands at once.
+	    var haveConsoles = [];
+	    for (var i = 0; i < clientList.length; i++) {
+		if (_.has(consolenodes, clientList[i])) {
+		    haveConsoles.push(clientList[i]);
+		}
+	    }
+	    for (var i = 0; i < haveConsoles.length; i++) {
+		(function (i) {
+		    setTimeout(function () {
+			var client_id = haveConsoles[i];
+			NewConsoleTab(client_id);
+		    }, i * 1500);
+		})(i);
+	    }
+	    return;
+	}
+	else if (action == "consolelog") {
+	    ConsoleLog(clientList[0]);
+	}
+	else if (action == "reboot") {
+	    DoReboot(clientList);
+	}
+	else if (action == "delete") {
+	    DoDeleteNodes(clientList);
+	}
+	else if (action == "reload") {
+	    DoReload(clientList);
+	}
+	else if (action == "snapshot") {
+	    DoSnapshotNode(clientList[0]);
+	}
     }
 
     // For autostarting ssh on single node experiments.
@@ -1199,6 +1305,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	" <td name='node_id'>n/a</td>" +
 	" <td name='type'>n/a</td>" +
 	" <td name='sshurl'>n/a</td>" +
+	" <td align=left><input name='select' type=checkbox>" +
 	" <td name='menu' align=center> " +
 	"  <div name='action-menu' class='dropdown'>" +
 	"  <button id='action-menu-button' type='button' " +
@@ -1210,8 +1317,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
 	"    <li><a href='#' name='consolelog'>Console Log</a></li> " +
-	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
-	"    <li><a href='#' name='reload'>Reload</a></li> " +
 	"    <li><a href='#' name='snapshot'>Snapshot</a></li> " +
 	"  </ul>" +
 	"  </div>" +
@@ -1222,7 +1327,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Show the topology inside the topo container. Called from the status
     // watchdog and the resize wachdog. Replaces the current topo drawing.
     //    
-    function ShowTopo(uuid)
+    function ShowTopo(isupdate)
     {
 	//
 	// Maybe this should come from rspec? Anyway, we might have
@@ -1245,6 +1350,15 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					"renderer": instructionRenderer });
 		
 		    var text = $(this).text();
+		    // Search the instructions for {host-foo} pattern.
+		    var regex   = /\{host-.*\}/gi;
+		    var needed  = text.match(regex);
+		    if (needed && needed.length) {
+			_.each(uridata, function(host, key) {
+			    regex = new RegExp("\{" + key + "\}", "gi");
+			    text = text.replace(regex, host);
+			});
+		    }
 		    // Stick the text in
 		    $('#instructions_text').html(marked(text));
 		    // Make the div visible.
@@ -1290,6 +1404,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#listview-row-' + node + " [name=type]")
 			.html($(vnode).attr("hardware_type"));
 		}
+		// Convenience.
+		$('#listview-row-' + node + " [name=select]").attr("id", node);
 
 		if (stype.length &&
 		    $(stype).attr("name") === "emulab-blockstore") {
@@ -1298,7 +1414,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		
 		if (login.length && dossh) {
-		    var user   = login.attr("username");
+		    var user   = window.APT_OPTIONS.thisUid;
 		    var host   = login.attr("hostname");
 		    var port   = login.attr("port");
 		    var url    = "ssh://" + user + "@" + host + ":" + port +"/";
@@ -1311,12 +1427,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 		    // Update the row.
 		    $('#listview-row-' + node + ' [name=sshurl]').html(href);
-
+		    
 		    // Attach handler to the menu button.
 		    $('#listview-row-' + node + ' [name=shell]')
 			.click(function (e) {
 			    e.preventDefault();
-			    NewSSHTab(hostport, node);
+			    ActionHandler("shell", [node]);
 			    return false;
 			});		    
 		}
@@ -1337,26 +1453,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    // Attach handler to the menu button.
 		    $('#listview-row-' + node + ' [name=console]')
 			.click(function (e) {
-			    e.preventDefault();
-			    if (isguest) {
-				alert("Only registered users can access " +
-				      "the console");
-				return false;
-			    }
-			    NewConsoleTab(node);
-			    return false;
+			    ActionHandler("console", [node]);
 			});
 		    $('#listview-row-' + node + ' [name=consolelog]')
 			.click(function (e) {
-			    e.preventDefault();
-			    if (isguest) {
-				alert("Only registered users can access " +
-				      "the console log");
-				return false;
-			    }
-			    $('#action-menu-button').dropdown('toggle');
-			    ConsoleLog(node);
-			    return false;
+			    ActionHandler("consolelog", [node]);
 			});
 		    // Remember we have a console, for the context menu.
 		    consolenodes[node] = node;
@@ -1368,49 +1469,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#listview-row-' + node + ' [name=console]')
 			.parent().addClass('disabled');		    
 		}
-		
-		//
-		// And a handler for the reboot action.
-		//
-		$('#listview-row-' + node + ' [name=reboot]')
-		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can reboot nodes");
-			    return false;
-			}
-			DoReboot(node);
-			return false;
-		    });
-		
-		//
-		// And a handler for the reload action.
-		//
-		$('#listview-row-' + node + ' [name=reload]')
-		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can reload nodes");
-			    return false;
-			}
-			DoReload(node);
-			return false;
-		    });
-		
 		//
 		// And a handler for the snapshot action.
 		//
 		$('#listview-row-' + node + ' [name=snapshot]')
 		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can snapshot nodes");
-			    return false;
-			}
-			DoSnapshotNode(node);
-			return false;
+			ActionHandler("snapshot", [node]);
 		    });
-
 
 		/*
 		 * Make a copy of the master context menu and init.
@@ -1462,12 +1527,62 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		ProcessNodes(aggregate_urn, xml);
 	    });
 
+	    // Handler for select/deselect all rows in the list view.
+	    if (!isupdate) {
+		$('#select-all').change(function () {
+		    if ($(this).prop("checked")) {
+			$('#listview_table [name=select]')
+			    .prop("checked", true);
+		    }
+		    else {
+			$('#listview_table [name=select]')
+			    .prop("checked", false);
+		    }
+		});
+	    }
+	    
+	    //
+	    // Handler for the action menu next to the select mention above.
+	    // Foreign admins do not get a menu, but easier to just hide it.
+	    //
+	    if (isfadmin) {
+		$('#listview-action-menu').addClass("invisible");
+	    }
+	    else {
+		$('#listview-action-menu li a')
+		    .click(function (e) {
+			var checked = [];
+
+			// Get the list of checked nodes.
+			$('#listview_table [name=select]').each(function() {
+			    if ($(this).prop("checked")) {
+				checked.push($(this).attr("id"));
+			    }
+			});
+			if (checked.length) {
+			    ActionHandler($(e.target).attr("name"), checked);
+			}
+		    });
+	    }
+	    
 	    if (xml != null) {
 		UpdateInstructions(xml,uridata);
 		// Do not show secrets if viewing using foreign admin creds
 		if (!isfadmin) {
 		    FindEncryptionBlocks(xml);
 		}
+
+		/*
+		 * No point in showing linktest if no links at any site.
+		 * For the moment, we do not count links if they span sites
+		 * since linktest does not work across stitched links.
+		 */
+		$(xml).find("link").each(function() {
+		    var managers = $(this).find("component_manager");
+		    if (managers.length == 1)
+			showlinktest++;
+		});
+		SetupLinktest(instanceStatus);
 	    }
 
 	    /*
@@ -1492,6 +1607,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    NewSSHTab(hostport, nodename);
 		};
 	    }
+	    
 	    // There is enough asynchrony that we have to watch for the
 	    // case that we went ready before we got this done, and so the
 	    // buttons won't be correct.
@@ -2040,5 +2156,254 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$("#logfile_button").removeClass("hidden");
     }
 
+    //
+    // Create a new tab to show linktest results. Cause of multisite, there
+    // can be more then one. 
+    //
+    function NewLinktestTab(name, results, url)
+    {
+	// Replace spaces with underscore. Silly. 
+	var site = name.split(' ').join('_');
+	    
+	//
+	// Need to create the tab before we can create the topo, since
+	// we need to know the dimensions of the tab.
+	//
+	var tabname = site + "_linktest";
+	if (! $("#" + tabname).length) {
+	    // The tab.
+	    var html = "<li><a href='#" + tabname + "' data-toggle='tab'>" +
+		name + "" +
+		"<button class='close' type='button' " +
+		"        id='" + tabname + "_kill'>x</button>" +
+		"</a>" +
+		"</li>";	
+
+	    // Append to end of tabs
+	    $("#quicktabs_ul").append(html);
+
+	    // Install a click handler for the X button.
+	    $("#" + tabname + "_kill").click(function(e) {
+		e.preventDefault();
+		// remove the li from the ul.
+		$(this).parent().parent().remove();
+		// Remove the content div.
+		$("#" + tabname).remove();
+		// Activate the "profile" tab.
+		$('#quicktabs_ul a[href="#profile"]').tab('show');
+	    });
+
+	    // The content div.
+	    html = "<div class='tab-pane' id='" + tabname + "'></div>";
+
+	    // Add the tab content wrapper to the DOM,
+	    $("#quicktabs_content").append(html);
+
+	    // And make it active
+	    $('#quicktabs_ul a:last').tab('show') // Select last tab
+	}
+	else {
+	    // Switch back to it.
+	    $('#quicktabs_ul a[href="#' + tabname + '"]').tab('show');
+	}
+
+	//
+	// Inside tab content is either the results or an iframe to
+	// spew the the log file.
+	//
+	var html;
+	
+	if (results) {
+	    html = "<div style='overflow-y: scroll;'><pre>" +
+		results + "</pre></div>";
+	}
+	else if (url) {
+	    // Create the iframe inside the new tab
+	    var iwidth = "100%";
+	    var iheight = 400;
+		
+	    html = '<iframe id="' + tabname + '_iframe" ' +
+		'width=' + iwidth + ' ' +
+		'height=' + iheight + ' ' +
+		'src=\'' + url + '\'>';
+	}		
+	$('#' + tabname).html(html);
+    }
+
+    //
+    // Linktest support.
+    //
+    function SetupLinktest(status) {
+	if (hidelinktest || !showlinktest) {
+	    return;
+	}
+	require(['js/lib/text!template/linktest.md'],
+		function(md) {
+		    console.info(md);
+		    console.info(marked(md));
+		    $('#linktest-help').html(marked(md));
+		});
+
+	console.info("foo");
+	// Handler for the linktest modal button
+	$('button#linktest-modal-button').click(function (event) {
+	    event.preventDefault();
+	    sup.ShowModal('#linktest-modal');
+	});
+	// And for the start button in the modal.
+	$('button#linktest-start-button').click(function (event) {
+	    event.preventDefault();
+	    StartLinktest();
+	});
+	// Stop button for a running or wedged linktest.
+	$('button#linktest-stop-button').click(function (event) {
+	    event.preventDefault();
+	    StopLinktest();
+	});
+	ToggleLinktestButtons(status);
+    }
+    function ToggleLinktestButtons(status) {
+	if (hidelinktest || !showlinktest) {
+	    DisableButton("start-linktest");
+	    return;
+	}
+	if (status == "ready") {
+	    $('#linktest-stop-button').addClass("hidden");
+	    $('#linktest-modal-button').removeClass("hidden");
+	    EnableButton("start-linktest");
+	    DisableButton("stop-linktest");
+	}
+	else if (status == "linktest") {
+	    DisableButton("start-linktest");
+	    EnableButton("stop-linktest");
+	    $('#linktest-modal-button').addClass("hidden");
+	    $('#linktest-stop-button').removeClass("hidden");
+	}
+	else {
+	    DisableButton("start-linktest");
+	}
+    }
+
+    //
+    // Fire off linktest and put results into tabs.
+    //
+    function StartLinktest() {
+	sup.HideModal('#linktest-modal');
+	var level = $('#linktest-level option:selected').val();
+	
+	var callback = function(json) {
+	    console.log("Linktest Startup");
+	    console.log(json);
+
+	    sup.HideWaitWait();
+	    statusHold = 0;
+	    GetStatus();
+	    if (json.code) {
+		sup.SpitOops("oops", "Could not start linktest: " + json.value);
+		EnableButton("start-linktest");
+		return;
+	    }
+	    $.each(json.value , function(site, details) {
+		var name = "Linktest";
+		if (Object.keys(json.value).length > 1) {
+		    name = name + " " + site;
+		}
+		
+		if (details.status == "stopped") {
+		    //
+		    // We have the output right away.
+		    //
+		    NewLinktestTab(name, details.results, null);
+		}
+		else {
+		    NewLinktestTab(name, null, details.url);
+		}
+	    });
+	};
+	statusHold = 1;
+	DisableButton("start-linktest");
+	sup.ShowWaitWait("We are starting linktest ... patience please");
+    	var xmlthing = sup.CallServerMethod(null,
+					    "status",
+					    "LinktestControl",
+					    {"action" : "start",
+					     "level"  : level,
+					     "uuid" : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Stop a running linktest.
+    //
+    function StopLinktest() {
+	// If linktest completed, we will not be in the linktest state,
+	// so nothing to stop. But if the user killed the tab while it
+	// is still running, we will want to stop it.
+	if (instanceStatus != "linktest")
+	    return;
+	
+	var callback = function(json) {
+	    sup.HideWaitWait();
+	    statusHold = 0;
+	    GetStatus();
+	    if (json.code) {
+		sup.SpitOops("oops", "Could not stop linktest: " + json.value);
+		EnableButton("stop-linktest");
+		return;
+	    }
+	};
+	statusHold = 1;
+	DisableButton("stop-linktest");
+	sup.ShowWaitWait("We are shutting down linktest ... patience please");
+    	var xmlthing = sup.CallServerMethod(null,
+					    "status",
+					    "LinktestControl",
+					    {"action" : "stop",
+					     "uuid" : uuid});
+	xmlthing.done(callback);
+    }
+
+    function ProgressBarUpdate()
+    {
+	//
+	// Look at initial status to determine if we show the progress bar.
+	//
+	var spinwidth = null;
+	
+	if (instanceStatus == "created" ||
+	    instanceStatus == "provisioning" ||
+	    instanceStatus == "stitching") {
+	    spinwidth = "33";
+	}
+	else if (instanceStatus == "provisioned") {
+	    spinwidth = "66";
+	}
+	else if (instanceStatus == "ready" || instanceStatus == "failed") {
+	    spinwidth = null;
+	}
+	if (spinwidth) {
+	    $('#profile_status_collapse').collapse("show");
+	    $('#status_progress_outerdiv').removeClass("hidden");
+	    $("#status_progress_bar").width(spinwidth + "%");	
+	    $("#status_progress_div").addClass("progress-striped");
+	    $("#status_progress_div").removeClass("progress-bar-success");
+	    $("#status_progress_div").removeClass("progress-bar-danger");
+	    $("#status_progress_div").addClass("active");
+	}
+	else {
+	    if (! $('#status_progress_outerdiv').hasClass("hidden")) {
+		$("#status_progress_div").removeClass("progress-striped");
+		$("#status_progress_div").removeClass("active");
+		if (instanceStatus == "ready") {
+		    $("#status_progress_div").addClass("progress-bar-success");
+		}
+		else {
+		    $("#status_progress_div").addClass("progress-bar-danger");
+		}
+		$("#status_progress_bar").width("100%");
+	    }
+	}
+    }
+    
     $(document).ready(initialize);
 });

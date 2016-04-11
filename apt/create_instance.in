@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -43,27 +43,23 @@ sub usage()
     print "Usage: quickvm [-u uuid] [--site site:1=aggregate ...] <xmlfile>\n";
     exit(1);
 }
-my @optlist = ('d', 'v', 'u=s', 'a=s', 'S');
+my @optlist = ('d', 'v', 'u=s', 'a=s', 'S', 'k=s');
 my $debug   = 0;
 my $verbose = 1;
-my $DEFAULT_URN  = "urn:publicid:IDN+apt.emulab.net+authority+cm";
 my $xmlfile;
 my $webtask;
 my $webtask_id;
 my $localuser  = 0;
 my $usestitcher= 0;
 my $quickuuid;
-my $default_aggregate_urn = $DEFAULT_URN;
 my $this_user;
 my $xmlparse;
 my $instance;
+my $privkeyfile;
 my $slice;
 my $sitemap;
 my $usetracker = 0;
 my @aggregate_urns = ();
-
-# Debugging
-my $usemydevtree  = 0;
 
 # Protos
 sub fatal($);
@@ -72,7 +68,6 @@ sub SnapShot($$$);
 sub CreateDatasetCreds($$$$$);
 sub CreateSlivers();
 sub RunStitcher();
-sub GetSSHKeys($$$);
 
 #
 # Configure variables
@@ -93,6 +88,9 @@ my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
 my $MANAGEINSTANCE= "$TB/bin/manage_instance";
+my $DEFAULT_URN   = "urn:publicid:IDN+${OURDOMAIN}+authority+cm";
+my $GUEST_URN     = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+my $default_aggregate_urn = $DEFAULT_URN;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -143,6 +141,9 @@ if (! GetOptions(\%options, @optlist, "site=s%" => \$sitemap)) {
 }
 if (defined($options{"a"})) {
     $default_aggregate_urn = $options{"a"};
+}
+if (defined($options{"k"})) {
+    $privkeyfile = $options{"k"};
 }
 if (defined($options{"d"})) {
     $debug = 1;
@@ -213,6 +214,10 @@ if (!defined($sa_certificate)) {
 my $sa_authority = GeniAuthority->Lookup($sa_certificate->urn());
 if (!defined($sa_authority)) {
     fatal("Could not load SA authority object");
+}
+# Guest users default to the APT cluster on the Mothership.
+if ($MAINSITE && !$localuser) {
+    $default_aggregate_urn = $GUEST_URN;
 }
 
 #
@@ -315,6 +320,13 @@ my $tmp = APT_Profile::SetSites(\$rspecstr, $sitemap, $default_aggregate_urn,
 if ($tmp) {
     ($tmp < 0 ? fatal($errmsg) : UserError($errmsg));
 }
+#
+# Yep, this can happen when users do not put any nodes in their rspec.
+#
+if (!@aggregate_urns) {
+    UserError("There are no nodes in your experiment, syntax error?");
+}
+
 # but do not override command line force.
 $usestitcher = 1 if ($needstitcher);
 
@@ -387,7 +399,7 @@ if ($localuser) {
 	$emulab_user->GenEncryptedCert()) {
 	fatal("Could not (re)generate encrypted certificate");
     }
-    # Now this will work; without a certificate, this would fail.
+    # Now this will work; without a certificate, above line would fail.
     if (defined($emulab_user)) {
 	$geniuser = GeniUser::LocalUser->Create($emulab_user);
     }
@@ -399,9 +411,14 @@ else {
     # In Utah, check for alternate SA
     #
     if (!defined($geniuser) && $MAINSITE) {
+	foreach my $urn (@aggregate_urns) {
+	    if ($urn ne $GUEST_URN) {
+		UserError("Guests are not allowed to use cluster: $urn");
+	    }
+	}
 	$user_urn = GeniHRN::Generate("aptlab.net", "user", $user_uid);
 	$user_hrn = "aptlab.${user_uid}";
-	$geniuser = GeniUser->Lookup($user_urn, 0);
+	$geniuser = GeniUser->LookupGuestOnly($user_urn);
     }
 }
 if (!defined($geniuser)) {
@@ -651,6 +668,7 @@ my $altblob = {"urn"      => $alt_urn,
 	       "uuid"     => $slice_uuid,
 	       "email"    => $user_email,
 	       "nostore"  => 1,
+               "keyfile"  => $privkeyfile,
 	       "useaptca" => 1,
 	       "showuuid" => 1};
 my $alt_certificate = GeniCertificate->Create($altblob);
@@ -669,7 +687,7 @@ if ($tmp) {
 # Generate credentials we need.
 #
 my ($slice_credential, $speaksfor_credential) =
-    APT_Geni::GenCredentials($slice, $geniuser);
+    APT_Geni::GenCredentials($slice, $geniuser, undef, 0);
 if (! (defined($speaksfor_credential) &&
        defined($slice_credential))) {
     fatal("Could not generate credentials");
@@ -731,6 +749,13 @@ foreach my $aggregate_urn (@aggregate_urns) {
     my $aggobj = $instance->AddAggregate($aggregate_urn);
     if (!defined($aggobj)) {
 	fatal("Could not create aggregate object for $aggregate_urn");
+    }
+    # Check for disabled/adminonly aggregates.
+    if ($aggobj->disabled()) {
+        UserError("$aggregate_urn is currently offline, try again later");
+    }
+    if ($aggobj->adminonly()) {
+        UserError("Only administrators may use $aggregate_urn");
     }
     $aggobj->_authority($authority);
     push(@aggregate_list, $aggobj);
@@ -824,169 +849,13 @@ $instance->ComputeNodeCounts();
 #
 Genixmlrpc->SetTimeout(60);
 
-sub WaitForSliver($)
-{
-    my ($ref) = @_;
-    my $aggobj = $ref;
-    $aggobj->Refresh();
-    my $webtask   = $aggobj->webtask();
-    my $authority = $aggobj->_authority();
-    my $cmurl     = $authority->url();
-    my $urn       = $authority->urn();
-    $webtask->Refresh();
-
-    # Debugging
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
-
-    my $seconds  = 900;
-    my $interval = 15;
-    my $ready    = 0;
-    my $failed   = 0;
-    my $rpcfail  = 0;
-    my $public_url;
-    my $repblob;
-    my $laststatus;
-
-    while ($seconds > 0) {
-	sleep($interval);
-	$seconds -= $interval;
-    
-	my $response = $aggobj->SliceStatus();
-	if (!defined($response) || !defined($response->value()) ||
-	    ($response->code() != GENIRESPONSE_SUCCESS &&
-	     $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
-	     $response->code() != GENIRESPONSE_BUSY &&
-	     $response->code() != GENIRESPONSE_RPCERROR)) {
-	    print STDERR "SliverStatus failed";
-	    
-	    if (defined($response)) {
-		print STDERR ": " . $response->output();
-		print STDERR Dumper($response);
-		if ($response->output() =~ /read timeout/) {
-		    $webtask->output("Lost contact with the aggregate. " .
-				     "Possibly a network failure, ".
-				     "please try again later.");
-		}
-		else {
-		    $webtask->output($response->output());
-		}
-	    }
-	    print STDERR "\n";
-	    $failed = 1;
-	    last;
-	}
-	if ($response->code() == GENIRESPONSE_RPCERROR) {
-	    if ($rpcfail > 10) {
-		if ($response->output() =~ /read timeout/) {
-		    $webtask->output("Lost contact with the aggregate. " .
-				     "Possibly a network failure, ".
-				     "please try again later.");
-		}
-		else {
-		    $webtask->output($response->output());
-		}
-		$failed = 1;
-		last;
-	    }
-	    $rpcfail++;
-	    next;
-	}
-	$rpcfail = 0;
-	next
-	    if ($response->code() == GENIRESPONSE_BUSY ||
-		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE);
-
-	$repblob = $response->value();
-	#
-	# Convert to something smaller, with info the web interface
-	# cares about. We get this on each loop, update so the web
-	# interface can show changes.
-	#
-	my $changed = 0;
-	my $statusblob = {};
-	foreach my $urn (keys(%{$repblob->{'details'}})) {
-	    my $details = $repblob->{'details'}->{$urn};
-	    my $node_id = $details->{'client_id'};
-	    $statusblob->{$node_id} = $details;
-	    #
-	    # Look at the last blob. If we changed, view that as progress.
-	    #
-	    # The idea is that as long as progress is being made we keep
-	    # waiting, by resetting the waittime if it gets below a
-	    # threshold. That way, if we go too long with nothing happening,
-	    # we will stop. The user can always use the Refresh button on
-	    # the status page.
-	    #
-	    if (defined($laststatus)) {
-		if (!exists($laststatus->{$node_id})) {
-		    $seconds = 600
-			if ($seconds < 600);
-		}
-		else {
-		    if (exists($details->{"rawstate"}) &&
-			$laststatus->{$node_id}->{"rawstate"} ne
-			$details->{"rawstate"}) {
-			# This is IG specific.
-			$seconds = 300
-			    if ($seconds < 300);
-		    }
-		    elsif ($laststatus->{$node_id}->{"status"} ne
-			   $details->{"status"}) {
-			$seconds = 450
-			    if ($seconds < 450);
-		    }
-		}
-	    }
-	}
-	$webtask->sliverstatus($statusblob);
-	$laststatus = $statusblob;
-
-	if (exists($repblob->{'public_url'})) {
-	    $public_url = $repblob->{'public_url'};
-	    $aggobj->SetPublicURL($public_url);
-	}
-	if ($repblob->{'status'} eq "ready") {
-	    $ready = 1;
-	    last;
-	}
-	elsif ($repblob->{'status'} eq "failed") {
-	    $failed = 1;
-	    print STDERR "*** $urn failed\n";
-	    $webtask->output("Experiment setup on $urn failed");
-	    last;
-	}
-	elsif ($instance->IsCanceled()) {
-	    last;
-	}
-    }
-    if ($instance->IsCanceled()) {
-	$webtask->Exited(0);
-	return 0;
-    }
-    if ($failed || !$ready) {
-	$aggobj->SetStatus("failed");
-	if (!$ready) {
-	    # XXX Need better handling for timeout.
-	    print STDERR "*** $urn timed out.\n";
-	    $webtask->output("Experiment setup on $urn timed out");
-	    $webtask->Exited(GENIRESPONSE_TIMEDOUT);
-	}
-	else {
-	    $webtask->Exited(1);
-	}
-	return $webtask->exitcode();
-    }
-    $aggobj->SetStatus("ready");
-    $webtask->Exited(0);
-    return 0;
-}
-
 #
 # Okay, fire off the waits for each aggregate
 #
 my @return_codes = ();
 if (ParRun({"maxwaittime" => 99999, "maxchildren" => scalar(@aggregate_list)},
-	    \@return_codes, \&WaitForSliver, @aggregate_list)) {
+	    \@return_codes,
+	    \&APT_Instance::Aggregate::WaitForSliver, @aggregate_list)) {
     #
     # The parent caught a signal. Leave things intact so that we can
     # kill things cleanly later.
@@ -1000,9 +869,6 @@ if (ParRun({"maxwaittime" => 99999, "maxchildren" => scalar(@aggregate_list)},
 }
 print "$slice_urn\n";
 
-# Count up nodes running a startup service.
-my $startuprunning = 0;
-
 #
 # If we were canceled, then none of the stuff below matters, we
 # are going to do a terminate.
@@ -1014,6 +880,9 @@ if ($instance->IsCanceled()) {
     system("$MANAGEINSTANCE -t $webtask_id terminate $quickvm_uuid");
     exit(0);
 }
+
+# Count up nodes running a startup service.
+my $startuprunning = 0;
 
 #
 # Check the exit codes; any failure is a total failure (for now).
@@ -1179,7 +1048,7 @@ sub CreateSliver($)
     $webtask->Refresh();
 
     # Debugging
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = APT_Instance::devurl($cmurl);
 
     Genixmlrpc->SetTimeout(900);
 
@@ -1256,6 +1125,8 @@ sub CreateSlivers()
 {
     my ($perrmsg) = @_;
 
+    $instance->SetStatus("provisioning");
+    
     my @return_codes = ();
     if (ParRun({"maxwaittime" => 99999,
 		"maxchildren" => scalar(@aggregate_list)},
@@ -1401,6 +1272,10 @@ sub RunStitcher()
 		while (<SLOG>) {
 		    if ($_ =~ /^Allocation of slivers in .* failed:/) {
 			$morestuff = $_;
+
+			if ($_ =~ /protogeni AM code: (\d*):/) {
+			    $errcode = $1;
+			}
 		    }
 		    elsif (defined($morestuff)) {
 			if ($_ =~ /^Allocate slivers in slice .* failed/) {
@@ -1559,7 +1434,7 @@ sub RunStitcher()
 	$aggobj->SetManifest($manifest);
 	
 	print "Forcing correct slice expiration\n";
-	my $response = $aggobj->Extend($slice->ExpirationGMT());
+	my $response = $aggobj->Extend($slice->ExpirationGMT(), $this_user);
 	if (!defined($response) ||
 	    $response->code() != GENIRESPONSE_SUCCESS) {
 	    $aggobj->SetStatus("failed");
@@ -1624,73 +1499,6 @@ sub RunStitcher()
 #    system("/bin/rm -rf $tmpdir")
 #	if (!$debug && defined($tmpdir) && -e $tmpdir);
     return $errcode;
-}
-
-#
-# Build a set of sshkeys.
-#
-sub GetSSHKeys($$$)
-{
-    my ($geniuser, $project, $pref) = @_;
-    my $rval;
-    my @keys;
-
-    if ($geniuser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
-	print STDERR "No ssh keys for $geniuser\n";
-	return -1;
-    }
-
-    #
-    # CM format.
-    #
-    $rval = [{'urn'   => $geniuser->urn(),
-	      'login' => $geniuser->uid(),
-	      'keys'  => [ @keys ]
-	     }];
-
-    if (! ($project->pid() eq $APT_HOLDINGPROJECT ||
-	   $project->pid() eq $CLOUD_HOLDINGPROJECT)) {
-	#
-	# Get other users from the project. Real local users are easy,
-	# nonlocal users from the GPO portal are messy.
-	#
-	my @members;
-	if ($project->GetProjectGroup()->MemberList(\@members)) {
-	    print STDERR "Error getting memberlist for $project\n";
-	}
-	else {
-	    foreach my $member (@members) {
-		next
-		    if ($member->SameUser($geniuser->emulab_user()));
-	    
-		my $guser = GeniUser->CreateFromLocal($member);
-		next
-		    if (!defined($guser));
-
-		#
-		# So, users coming in from the trusted signer have their keys
-		# at their home portal. We download those keys whenever they
-		# log in, and cache them in their local stub account, but they
-		# could be out of date. But in order to refresh those keys, we
-		# would need a valid (not expired) speaks-for credential, which
-		# we might have, but typically not since they have short expire
-		# times. So, lets not worry about this right now, just use the
-		# cached keys and see who complains.
-		#
-		@keys = ();
-		if ($guser->GetKeyBundle(\@keys, 1) < 0 || !@keys) {
-		    print STDERR "No ssh keys for $guser\n";
-		    next;
-		}
-		push(@{$rval}, {'urn'   => $guser->urn(),
-				'login' => $guser->uid(),
-				'keys'  => [ @keys ]
-		               });
-	    }
-	}
-    }
-    $$pref = $rval;
-    return 0;
 }
 
 sub fatal($) {

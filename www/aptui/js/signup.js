@@ -1,5 +1,5 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup',
+	['underscore', 'js/quickvm_sup', 'js/aptforms',
 	 'js/lib/text!template/about-account.html',
 	 'js/lib/text!template/verify-modal.html',
 	 'js/lib/text!template/signup-personal.html',
@@ -8,7 +8,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/toomany-modal.html',
 	 // jQuery modules
 	 'formhelpers'],
-function (_, sup,
+function (_, sup, aptforms,
 	  aboutString, verifyString, personalString,
 	  projectString, signupString, toomanyString)
 {
@@ -27,6 +27,10 @@ function (_, sup,
 
 	var fields = JSON.parse(_.unescape($('#form-json')[0].textContent));
 	var errors = JSON.parse(_.unescape($('#error-json')[0].textContent));
+
+	console.info(fields);
+	console.info(errors);
+	
 	renderForm(fields, errors,
 		   window.APT_OPTIONS.joinproject,
 		   window.APT_OPTIONS.ShowVerifyModal,
@@ -64,14 +68,14 @@ function (_, sup,
 	    id: 'verify_modal',
 	    label: buttonLabel
 	});
-	var personal = formatter(personalTemplate({
+	var personal_html = personalTemplate({
 	    formfields: formfields,
-	    promoting: promoting,
-	}), errors);
-	var project = Newformatter(projectTemplate({
+	    promoting: promoting
+	});
+	var project_html = projectTemplate({
 	    joinproject: joinproject,
 	    formfields: formfields
-	}), errors);
+	});
 	var signup = signupTemplate({
 	    button_label: buttonLabel,
 	    general_error: (errors.error || ''),
@@ -81,10 +85,11 @@ function (_, sup,
 	    joinproject: joinproject,
 	    verify_modal: verify,
 	    pubkey: formfields.pubkey,
-	    personal_fields: personal.html(),
-	    project_fields: project.html()
+	    personal_fields: personal_html,
+	    project_fields: project_html,
 	});
-	$('#signup-body').html(signup);
+	$('#signup-body').html(aptforms.FormatFormFields(signup));
+	aptforms.GenerateFormErrors('#quickvm_signup_form', errors);
 	if (showVerify)
 	{
 	    sup.ShowModal('#verify_modal');
@@ -94,65 +99,14 @@ function (_, sup,
 	$('#signup_states').bfhstates({ country: 'signup_countries',
 					state: formfields.state,
 					blank: false, ask: true });
+	
+	aptforms.EnableUnsavedWarning('#quickvm_signup_form');
+	
+	// Handle submit button.
+	$('#submit_button').click(function (event) {
+	    aptforms.DisableUnsavedWarning('#quickvm_signup_form');
+	});
     }
     
-    function clearForm($form)
-    {
-	$form.find('input:text, input:password, select, textarea').val('');
-    }
-
-    function formatter(fieldString, errors)
-    {
-	var result = $('<div/>');
-	var fields = $(fieldString);
-	fields.each(function (index, item) {
-	    if (item.dataset)
-	    {
-  		var key = item.dataset['key'];
-		var wrapper = $('<div>');
-		wrapper.addClass('sidebyside-form');
-		wrapper.addClass('form-group');
-		wrapper.append(item);
-
-		if (_.has(errors, key))
-		{
-		    wrapper.addClass('has-error');
-		    wrapper.append('<label class="control-label" ' +
-				   'for="inputError">' + _.escape(errors[key]) +
-				   '</label>');
-		}
-		result.append(wrapper);
-	    }
-	});
-	return result;
-    }
-
-    // Better version.
-    function Newformatter(fieldString, errors)
-    {
-	var root   = $(fieldString);
-	var list   = root.find('.format-me');
-	list.each(function (index, item) {
-	    if (item.dataset) {
-		var key     = item.dataset['key'];
-		var wrapper = $('<div></div>');
-		wrapper.addClass('sidebyside-form');
-		wrapper.addClass('form-group');
-		wrapper.html($(item).clone());
-
-		if (_.has(errors, key))
-		{
-		    wrapper.addClass('has-error');
-		    wrapper.append('<label class="control-label" ' +
-				   'for="inputError">' + _.escape(errors[key]) +
-				   '</label>');
-		}
-		$(item).after(wrapper);
-		$(item).remove();
-	    }
-	});
-	return root;
-    }
-
     $(document).ready(initialize);
 });

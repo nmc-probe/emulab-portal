@@ -1,24 +1,24 @@
 <div>
   <div id='about_div'
        class='col-lg-8  col-lg-offset-2
-              col-md-8  col-md-offset-2
-              col-sm-10 col-sm-offset-1
-              col-xs-12 col-xs-offset-0'>
+	      col-md-8  col-md-offset-2
+	      col-sm-10 col-sm-offset-1
+	      col-xs-12 col-xs-offset-0'>
   </div>
   <div id='stepsContainer'>
     <h3>Select a Profile</h3>
     <div class='col-lg-8  col-lg-offset-2
-                col-md-8  col-md-offset-2
-                col-sm-10  col-sm-offset-1
-                col-xs-12 col-xs-offset-0'>
+		col-md-8  col-md-offset-2
+		col-sm-10  col-sm-offset-1
+		col-xs-12 col-xs-offset-0'>
       <form id='step0-form' role='form' class="step-forms"
 	    enctype='multipart/form-data'
-            method='post' action='instantiate.php'>
+	    method='post' action='instantiate.php'>
 	<!-- Guest users see the first wizard step in a panel -->
 	<div <% if (!registered) { %>class='panel panel-default'<% } %>>
 	  <% if (!registered) { %>
-            <div class='panel-heading'>
-              <h3 class='panel-title'>
+	    <div class='panel-heading'>
+	      <h3 class='panel-title'>
 		<center>Start Experiment
 		  <% if (profilename) { %>
 		    using profile '<%= profilename %>'
@@ -46,7 +46,7 @@
 		  using this profile:
 		</p>
 	      <% } %>
-              <blockquote>
+	      <blockquote>
 		<p><span id='selected_profile_description'></span></p>
 	      </blockquote>
 	      <p>
@@ -86,7 +86,7 @@
    	      var expand_text = "";
 	      if (formfields.sshkey == "") {
 		title_text = "<span class='text-warning'>" +
-   	              "No SSH key, browser shell only!<span>";
+   		      "No SSH key, browser shell only!<span>";
 		expand_text = "Add Key";
 	      }
 	      else {
@@ -94,11 +94,11 @@
 		expand_text = "Update";
 	      }
 	      %>
-              <div class='form-group row' style='margin-bottom: 0px;'>
+	      <div class='form-group row' style='margin-bottom: 0px;'>
 		<div class='col-md-12'>
 		  <div class='panel panel-default'>
 		    <div class='panel-heading'><%= title_text %>
-                      <a class='pull-right'
+		      <a class='pull-right'
 			 data-toggle='collapse' href='#mysshkey'>
 			<%- expand_text %>
 		      </a>
@@ -213,10 +213,10 @@
 		col-sm-10 col-sm-offset-1
 		col-xs-12 col-xs-offset-0'>
       <!-- Each step needs its own form cause we might put another
-           form into step2 for a parameterized profile, and cannot nest
-           forms -->
+	   form into step2 for a parameterized profile, and cannot nest
+	   forms -->
       <form id='step2-form' role='form' class="step-forms"
-            method='post' action='instantiate.php'>
+	    method='post' action='instantiate.php'>
 	<!-- JS code sets this after selection change. -->
 	<input id='selected_profile'
 	       type='hidden'
@@ -367,26 +367,26 @@
   <div class='modal-dialog'>
     <div class='modal-content'>
       <div class='modal-header'>
-        <h3>Important</h3>
+	<h3>Important</h3>
       </div>
       <div class='modal-body'>
-        <p>Check your email for a verification code, and
-          enter it here:</p>
-        <div class='form-group'>
-          <input name='verify' class='form-control'
+	<p>Check your email for a verification code, and
+	  enter it here:</p>
+	<div class='form-group'>
+	  <input name='verify' class='form-control'
 		 id="verification_token"
-                 placeholder='Verification code'
-                 autofocus type='text' />
+		 placeholder='Verification code'
+		 autofocus type='text' />
 	  <label class='control-label control-error hidden'
 		 id="verification_token_error"
 		 for='verification_token'></label>
-        </div>
-        <div class='form-group'>
-          <button class='btn btn-primary form-control'
-                  id='verify_modal_submit'
-                  type='submit'>
-            Continue</button>
-        </div>
+	</div>
+	<div class='form-group'>
+	  <button class='btn btn-primary form-control'
+		  id='verify_modal_submit'
+		  type='submit'>
+	    Continue</button>
+	</div>
       </div>
     </div>
   </div>
@@ -396,44 +396,44 @@
   <div class='modal-dialog'  id='showtopo_dialog'>
     <div class='modal-content'>
       <div class='modal-header'>
-        <button type='button' class='close' data-dismiss='modal'
-                aria-hidden='true'>
-          &times;</button>
-        <h3>Select a Profile</h3>
+	<button type='button' class='close' data-dismiss='modal'
+		aria-hidden='true'>
+	  &times;</button>
+	<h3>Select a Profile</h3>
       </div>
       <div class='modal-body'>
-        <!-- This topo diagram goes inside this div -->
-        <div class='row' id='showtopo_container'>
-          <div class='form-group col-md-3 col-sm-3 col-xs-3'>
-            <input type='text' class='form-control'
+	<!-- This topo diagram goes inside this div -->
+	<div class='row' id='showtopo_container'>
+	  <div class='form-group col-md-3 col-sm-3 col-xs-3'>
+	    <input type='text' class='form-control'
 		   placeholder='Search'
-                   id='profile_picker_search'>
-            <ul class='list-group' id='profile_name'
-                name='profile'>
+		   id='profile_picker_search'>
+	    <ul class='list-group' id='profile_name'
+		name='profile'>
 	      <% _.each(profiles, function(value, key) { %>
 		<li class='list-group-item profile-item'
 		    value='<%- key %>'><%- value.name %>
 		</li>
 	      <% }); %>
 	    </ul>
-          </div> 
-          <div class='col-md-9 col-sm-9 col-xs-9'>
-            <div class='panel-body'>
+	  </div> 
+	  <div class='col-md-9 col-sm-9 col-xs-9'>
+	    <div class='panel-body'>
 	      <span id='showtopo_title'></span>
-              <div id='showtopo_div' class='jacks'></div>
-              <span class='pull-left' id='showtopo_description'></span>
-            </div>
-          </div>
-        </div>
-        <div id='showtopo_buttons' class='pull-right'>
-          <button id='showtopo_select'
-                  class='btn btn-primary btn-sm'
-                  type='submit' name='select'>
-            Select Profile</button>
-          <button type='button' class='btn btn-default btn-sm' 
-                  data-dismiss='modal' aria-hidden='true'>
-            Cancel</button>
-        </div>
+	      <div id='showtopo_div' class='jacks'></div>
+	      <span class='pull-left' id='showtopo_description'></span>
+	    </div>
+	  </div>
+	</div>
+	<div id='showtopo_buttons' class='pull-right'>
+	  <button id='showtopo_select'
+		  class='btn btn-primary btn-sm'
+		  type='submit' name='select'>
+	    Select Profile</button>
+	  <button type='button' class='btn btn-default btn-sm' 
+		  data-dismiss='modal' aria-hidden='true'>
+	    Cancel</button>
+	</div>
       </div>
     </div>
   </div>

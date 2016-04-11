@@ -118,6 +118,7 @@ elsif ($GENI_VERSION eq "2.0") {
 	"AddNodes"          => \&GeniCMV2::AddNodes,
 	"DeleteNodes"       => \&GeniCMV2::DeleteNodes,
 	"Panic"             => \&GeniCMV2::Panic,
+	"RunLinktest"       => \&GeniCMV2::RunLinktest,
     };
 }
 

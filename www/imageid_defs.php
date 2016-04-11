@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -451,7 +451,6 @@ class Image
     function logfileid()	{ return $this->field("logfileid"); }
     function noexport()		{ return $this->field("noexport"); }
     function ready()		{ return $this->field("ready"); }
-    function isdelta()		{ return $this->field("isdelta"); }
     function isdataset()	{ return $this->field("isdataset"); }
     function nodelta()		{ return $this->field("nodelta"); }
     function released()		{ return $this->field("released"); }
@@ -906,7 +905,7 @@ class Image
 	if ($DOPROVENANCE) {
 	    $released = $this->released();
 	    $ready    = $this->ready();
-	    $isdelta  = $this->isdelta();
+	    $isdelta  = $this->size() ? 0 : 1;
 	    $nodelta  = $this->nodelta();
 	    
 	    echo "<tr>
@@ -1097,12 +1096,16 @@ class Image
 	$version = $this->version();
 	
 	if ($does) {
-	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
-						 "XEN43-64-STD");
+            if (TBSiteVarExists("general/default_xen_parentosid")) {
+                $xenname = TBGetSiteVar("general/default_xen_parentosid");
+            }
+            else {
+                $xenname = "emulab-ops,XEN43-64-STD";
+            }
+	    list($pid,$osname) = preg_split('/,/', $xenname);
+	    $parentosinfo = OSinfo::LookupByName($pid,$osname);
 	    if (!$parentosinfo) {
-		$parentosinfo = OSinfo::LookupByName("emulab-ops",
-						     "XEN41-64-STD");
-		return -1;
+                return -1;
 	    }
 	    $parentosid = $parentosinfo->osid();
 
@@ -1113,14 +1116,6 @@ class Image
 			 "  osid='$imageid', parent_osid='$parentosid'");
 	    DBQueryFatal("replace into osidtoimageid set ".
 			 " osid='$imageid', type='pcvm', imageid='$imageid'");
-	    
-	    $parentosinfo = OSinfo::LookupByName("emulab-ops",
-						 "XEN44-64-BIGFS");
-	    if ($parentosinfo) {
-		$parentosid = $parentosinfo->osid();
-		DBQueryFatal("replace into os_submap set ".
-			     "  osid='$imageid', parent_osid='$parentosid'");
-	    }
 	}
 	else {
 	    DBQueryFatal("delete from osidtoimageid ".

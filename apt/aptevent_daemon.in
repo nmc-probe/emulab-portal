@@ -1,0 +1,278 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use Data::Dumper;
+use JSON;
+
+#
+# Look for APT things that need to be dealt with.
+#
+sub usage()
+{
+    print "Usage: aptevent_daemon [-d] [-s] [-n]\n";
+    exit(1);
+}
+my $optlist   = "dns";
+my $debug     = 0;
+my $impotent  = 0;
+
+#
+# Configure variables
+#
+my $TB		     = "@prefix@";
+my $TBOPS            = "@TBOPSEMAIL@";
+my $TBLOGS           = "@TBLOGSEMAIL@";
+my $MAINSITE         = @TBMAINSITE@;
+my $LOGFILE          = "$TB/log/aptevent_daemon.log";
+# Portal pubsubd running on this port.
+my $PSDPORT          = 16507;
+	  
+# un-taint path
+$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+# Protos
+sub HandleSliverStatus($$$);
+sub HandleImageStatus($$$);
+sub fatal($);
+	  
+#
+# Turn off line buffering on output
+#
+$| = 1; 
+
+if ($UID != 0) {
+    fatal("Must be root to run this script\n");
+}
+if (! $MAINSITE) {
+    exit(0);
+}
+
+#
+# Check args early so we get the right DB.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"n"})) {
+    $impotent = 1;
+}
+
+# Do this early so that we talk to the right DB.
+use vars qw($GENI_DBNAME);
+$GENI_DBNAME = "geni-cm";
+
+# Load the Testbed support stuff.
+use lib "@prefix@/lib";
+use emdb;
+require GeniDB;
+require GeniSlice;
+require GeniSliver;
+use libtestbed;
+use emutil;
+use libEmulab;
+use APT_Instance;
+use event;
+
+if (!$impotent) {
+    if (CheckDaemonRunning("aptevent_daemon")) {
+	fatal("Not starting another aptevent daemon!");
+    }
+    # Go to ground.
+    if (! $debug) {
+	if (TBBackGround($LOGFILE)) {
+	    exit(0);
+	}
+    }
+    if (MarkDaemonRunning("aptevent_daemon")) {
+	fatal("Could not mark daemon as running!");
+    }
+}
+
+#
+# Capture all events from the local pubsubd.
+#
+my $localhandle = event_register("elvin://localhost:$PSDPORT", 0);
+if (!$localhandle) {
+    fatal("Unable to register with event system");
+}
+
+#
+# Subscribe to all events.
+#
+my $tuple = address_tuple_alloc();
+if (!$tuple) {
+    fatal("Could not allocate an address tuple");
+}
+if (!event_subscribe($localhandle, \&callback, $tuple)) {
+    fatal("Could not subscribe to all events");
+}
+
+#
+# Flag to know when there are no more events to process. 
+#
+my $gotone;
+
+sub callback($$$)
+{
+    my ($handle, $note, $data) = @_;
+    $gotone++;
+
+    my $time      = time();
+    my $site      = event_notification_get_site($handle, $note);
+    my $urn       = event_notification_get_string($handle, $note, "urn");
+    my $slice     = event_notification_get_string($handle, $note, "slice");
+    my $type      = event_notification_get_string($handle, $note, "type");
+    my $details   = event_notification_get_string($handle, $note, "details");
+
+    if ($debug) {
+	print "Event: $time $site $type $urn $slice $details\n";
+    }
+    my $instance = APT_Instance->LookupBySlice($slice);
+    return
+	if (!defined($instance));
+
+    if ($type eq "SLIVERSTATUS") {
+	HandleSliverStatus($site, $instance, $details);
+	goto done;
+    }
+    elsif ($type eq "IMAGESTATUS") {
+	HandleImageStatus($site, $instance, $details);
+	goto done;
+    }
+done:
+    $instance->Flush();
+}
+
+#
+# Handle an Sliverstatus event.
+#
+sub HandleSliverStatus($$$)
+{
+    my ($site, $instance, $details) = @_;
+
+    if (exists($instance->AggregateHash()->{$site})) {
+	my $sliver = $instance->AggregateHash()->{$site};
+	if ($impotent) {
+	    print "Would update sliver status for $sliver from details\n";
+	}
+	else {
+	    if ($debug) {
+		print "Updating sliver status for sliver from $details\n";
+	    }
+	    $details = eval { decode_json($details) };
+	    if ($@) {
+		print STDERR "Could not decode json data: $details\n";
+		return;
+	    }
+	    $sliver->UpdateWebStatus({$site => $details});
+	}
+    }
+}
+
+#
+# Handle an IMAGESTATUS event.
+#
+sub HandleImageStatus($$$)
+{
+    my ($site, $instance, $details) = @_;
+
+    if (exists($instance->AggregateHash()->{$site})) {
+	if ($impotent) {
+	    print "Would update image status for $instance from details\n";
+	}
+	else {
+	    if ($debug) {
+		print "Updating image status for instance from $details\n";
+	    }
+	    $details = eval { decode_json($details) };
+	    if ($@) {
+		print STDERR "Could not decode json data: $details\n";
+		return;
+	    }
+	    $instance->UpdateImageStatus($details);
+	}
+    }
+}
+
+#
+# Loop processing events.
+#
+while (1)
+{
+    $gotone = 1;
+    while ($gotone) {
+	$gotone = 0;
+	event_poll($localhandle);
+    }
+    event_poll_blocking($localhandle, 1000);
+}
+
+#
+# Setup a signal handler for newsyslog.
+#
+sub handler()
+{
+    my $SAVEEUID = $EUID;
+    
+    $EUID = 0;
+    ReOpenLog($LOGFILE);
+    $EUID = $SAVEEUID;
+}
+$SIG{HUP} = \&handler
+    if (! ($debug || $impotent));
+
+exit(0);
+
+sub fatal($)
+{
+    my ($msg) = @_;
+
+    if (! ($debug || $impotent)) {
+	#
+	# Send a message to the testbed list. 
+	#
+	SENDMAIL($TBOPS,
+		 "APT Event daemon died",
+		 $msg,
+		 $TBOPS);
+    }
+    MarkDaemonStopped("aptevent_daemon")
+	if (!$impotent);
+
+    die("*** $0:\n".
+	"    $msg\n");
+}

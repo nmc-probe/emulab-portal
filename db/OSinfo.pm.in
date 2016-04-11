@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2015 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -442,9 +442,11 @@ sub Stringify($)
 #
 # Perform some updates ...
 #
-sub Update($$)
+sub Update($$;$)
 {
-    my ($self, $argref) = @_;
+    my ($self, $argref, $allvers) = @_;
+    $allvers = 0
+	if (!defined($allvers));
 
     # Must be a real reference. 
     return -1
@@ -455,7 +457,8 @@ sub Update($$)
     
     my $query = "update os_info_versions set ".
 	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
-    $query .= " where osid='$osid' and vers='$vers'";
+    $query .= " where osid='$osid'";
+    $query .= " and vers='$vers'" if (!$allvers);
 
     return -1
 	if (! DBQueryWarn($query));

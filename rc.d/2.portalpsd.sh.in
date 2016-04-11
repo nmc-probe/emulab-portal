@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+# Start a pubsubd on local boss that accepts SSL connections.
+# This is an alternate pubsubd, we cannot send events from other
+# clusters into our real pubsubd.
+#
+
+# PROVIDE: portalpsd
+# REQUIRE: pubsub
+# KEYWORD: shutdown
+
+TBROOT="@prefix@"
+MAINSITE="@TBMAINSITE@"
+PROTOGENI="@PROTOGENI_SUPPORT@"
+
+if [ $PROTOGENI == "0" ]; then
+    exit 0
+fi
+if [ $MAINSITE == "0" ]; then
+    exit 0
+fi
+
+pubsubd=/usr/local/libexec/pubsubd
+pidfile=/var/run/portalpsd.pid
+certfile=$TBROOT/etc/emulab.pem
+keyfile=$TBROOT/etc/emulab.key
+bundlefile=$TBROOT/etc/genica.bundle
+sslport=@CLUSTER_PUBSUBD_PORT@
+localport=16507
+args="-T 10 -K $keyfile -C $certfile -A $bundlefile -S -P $sslport -p $localport"
+
+case "$1" in
+    start|faststart|quietstart|onestart|forcestart)
+	if [ -x $clusterd ]; then
+	    $pubsubd -e $pidfile $args
+	    echo -n "portalpsd";
+	fi
+	;;
+    stop|faststop|quietstop|onestop|forcestop)
+	if [ -r $pidfile ]; then
+	    kill `cat $pidfile`
+	fi
+	;;
+    *)
+	echo ""
+	echo "Usage: `basename $0` { start | stop }"
+	echo ""
+	exit 64
+	;;
+esac
+exit 0

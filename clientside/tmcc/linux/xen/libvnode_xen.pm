@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1742,15 +1742,24 @@ sub vnodePreConfig($$$$$){
 	
 	my $ldisk = "da0s1";
 	if (-e "$vnoderoot/etc/dumpdates") {
-	    mysystem2("sed -i.bak -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
+	    mysystem2("sed -i.bak -e 's;^/dev/\\(ada\\|ad\\|da\\)[0-9]s1;/dev/$ldisk;' ".
 		      "  $vnoderoot/etc/dumpdates");
 	    goto bad
 		if ($?);
 	}
-	mysystem2("sed -i.bak -e 's;^/dev/[ad][da][04]s1;/dev/$ldisk;' ".
+	mysystem2("sed -i.bak -e 's;^/dev/\\(ada\\|ad\\|da\\)[0-9]s1;/dev/$ldisk;' ".
 		  "  $vnoderoot/etc/fstab");
 	goto bad
 	    if ($?);
+
+	#
+	# Put out the /boot/loader.conf header we look for in prepare
+	#
+	if (open(LC, ">>$vnoderoot/boot/loader.conf")) {
+	    print LC "# The remaining lines were added by Emulab slicefix.\n";
+	    print LC "# DO NOT ADD ANYTHING AFTER THIS POINT AS IT WILL GET REMOVED.\n";
+	    close(LC);
+	}
 
 	#
 	# In HVM the emulated RTC is UTC.
@@ -1768,6 +1777,10 @@ sub vnodePreConfig($$$$$){
 	    mysystem("echo 'vfs.unmapped_buf_allowed=0' ".
 		     ">> $vnoderoot/boot/loader.conf");
 	}
+	#
+	# Make sure console is comconsole
+	#
+	mysystem("echo 'console=comconsole' >> $vnoderoot/boot/loader.conf");
     }
 
     #
@@ -1785,8 +1798,13 @@ sub vnodePreConfig($$$$$){
     # By putting FS=/ in there, we can force libsetup's os_mkextrafs to
     # use the root filesystem.
     #
+    # XXX note the check for the existence of /var/emulab/boot. In older
+    # FreeBSD images, /var is a separate filesystem which we don't mount
+    # here. Just use the extra FS in that case.
+    #
     if (!exists($vnconfig->{'attributes'}->{'XEN_EXTRAFS'}) &&
-	!exists($vnconfig->{'attributes'}->{'XEN_EXTRADISKS'})) {
+	!exists($vnconfig->{'attributes'}->{'XEN_EXTRADISKS'}) &&
+	-d "$vnoderoot/var/emulab/boot") {
 	mysystem("echo 'FS=/' > $vnoderoot/var/emulab/boot/extrafs");
     } else {
 	unlink("$vnoderoot/var/emulab/boot/extrafs");
@@ -2076,6 +2094,17 @@ sub vnodePreConfigExpNetwork($$$$)
 		createExpNetworkScript($vmid, $interface, $brname,
 				       $ldinfo, "ifb$ifb", $script, $sh, $log);
 	    }
+	}
+	#
+	# We must always create a script to do XEN bridge stuff.
+	#
+	if ($script eq "") {
+	    $script = "$VMDIR/$vnode_id/enet-$mac";
+	    my $sh  = "${script}.sh";
+	    my $log = "${script}.log";
+
+	    createExpNetworkScript($vmid, $interface, $brname,
+				   undef, undef, $script, $sh, $log);
 	}
 
 	# add interface to config file line
@@ -4105,6 +4134,9 @@ sub createExpNetworkScript($$$$$$$$)
     print FILE "if [ \$STAT -ne 0 -o \"\$OP\" != \"online\" ]; then\n";
     print FILE "    exit \$STAT\n";
     print FILE "fi\n";
+    goto skipshaping
+	if (!defined($info));
+	
     print FILE "# XXX redo what vif-bridge does to get named interface\n";
     print FILE "vifname=`xenstore-read \$XENBUS_PATH/vifname`\n";
     print FILE "echo \"Configuring shaping for \$vifname (MAC ",
@@ -4231,6 +4263,7 @@ sub createExpNetworkScript($$$$$$$$)
 	print FILE "echo \"$cmd\"\n";
 	print FILE "$cmd\n\n";
     }
+  skipshaping:
     print FILE "exit 0\n";
 
     close(FILE);

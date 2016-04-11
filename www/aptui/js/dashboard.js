@@ -45,6 +45,19 @@ function (_, sup, moment, dashboardString)
 				 .format("MMM D h:mm A"));
 		}
 	    });
+	    $('.format-date-month').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html())
+				 .format("ll"));
+		}
+	    });
+	    $('.format-date-relative').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html()).fromNow());
+		}
+	    });
 	    $('[data-toggle="popover"]').popover({
 		trigger: 'hover',
 		placement: 'auto',
@@ -65,7 +78,7 @@ function (_, sup, moment, dashboardString)
 
     function UpdateTimes()
     {
-        $('.format-date-relative').each(function() {
+        $('.format-date-last-refresh').each(function() {
             var date = $(this).data("time");
             if (date != "") {
                 $(this).html(moment(date).fromNow());

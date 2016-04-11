@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -256,7 +256,7 @@ else {
         # Do not send email, mkusercert sends email and hides the password.
         $retval = SUEXEC($target_uid, "nobody",
                          "webmkusercert -C -p $safe_password $target_uid",
-                         SUEXEC_ACTION_CONTINUE);
+                         SUEXEC_ACTION_IGNORE);
     }
 }
 echo "<script>HideWaitModal('waitwait');</script>\n";

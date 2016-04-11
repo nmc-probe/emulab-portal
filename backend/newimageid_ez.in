@@ -216,6 +216,7 @@ my %xmlfields =
      "origin_urn",	=> ["origin_urn",	$SLOT_ADMINONLY],
      "reboot_waittime",	=> ["reboot_waittime",	$SLOT_OPTIONAL],
      "hash",		=> ["hash",		$SLOT_ADMINONLY],
+     "deltahash",	=> ["deltahash",	$SLOT_ADMINONLY],
      "nextosid",	=> ["nextosid",		$SLOT_ADMINONLY],
      "def_parentosid",	=> ["def_parentosid",	$SLOT_OPTIONAL],
      "isdataset",	=> ["isdataset",	$SLOT_OPTIONAL],

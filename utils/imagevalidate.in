@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2014-2015 University of Utah and the Flux Group.
+# Copyright (c) 2014-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,14 +36,20 @@ use File::stat;
 #  * file size is correct
 #  * SHA1 hash is correct
 #  * covered sector range is correct
+#  * (optional) the signature file exists and is correct
 #
 # The update option will fix all but the first.
+#
+# Note that any of the existence checks requires that the caller be able
+# to access the project's image directory. That may not always be true
+# if validating a shared image!
 #
 sub usage()
 {
     print("Usage: imagevalidate [-dfupqRS] [-H hash] [-V str] <imageid> ...\n".
 	  "       imagevalidate [-dfupqRS] [-H hash] [-V str] -P pid\n".
 	  "       imagevalidate [-dfupqRS] [-H hash] [-V str] -a\n".
+	  "Validate image information in the DB.\n".
 	  "Options:\n".
 	  "       -d      Turn on debug mode\n".
 	  "       -f      Only update if DB says an image is out of date\n".
@@ -52,18 +58,19 @@ sub usage()
 	  "       -q      Update quietly, no messages about mismatches\n".
 	  "       -R      Set the relocatable flag if image file has relocations\n".
 	  "       -a      Validate/update all images\n".
+	  "       -A      Validate/update all versions of an image\n".
 	  "       -P pid  Validate/update all images for a specific pid\n".
 	  "       -U      Do not modify updater_uid in DB\n".
 	  "       -H hash Use the provided hash rather than recalculating\n".
 	  "       -V str  Comma separated list of fields to validate/update\n".
-	  "               valid values: 'hash', 'range', 'size', 'all'\n".
-	  "               default is 'all'\n".
+	  "               fields: 'hash', 'range', 'size', 'all', 'sig'; default is 'all'\n".
+	  "               NOTE: 'sig' is special as it is not a DB field and\n".
+	  "               thus is not included in the 'all' option.\n".
 	  "       -S      Validate/update the image signature\n".
-	  "               (this is not a DB field so is not included in the\n".
-	  "               default or \"-V all\" validate/update\n");
+	  "               This is the same as specifying \"-V sig\".\n");
     exit(-1);
 }
-my $optlist    = "dfnupqRaP:UH:V:FS";
+my $optlist    = "dfnupqRaP:UH:V:FSA";
 my $debug      = 0;
 my $showinfo   = 0;
 my $update     = 0;
@@ -72,12 +79,14 @@ my $setreloc   = 0;
 my $quiet      = 0;
 my $doall      = 0;
 my $doallpid;
+my $allvers    = 0;
 my $dosig      = 0;
 my $nouser     = 0;
 my %validate   = ();
 my @images     = ();
-my $userperm   = TB_IMAGEID_READINFO();
+my $userperm;
 my $newhash;
+my $accessfs   = 1;
 
 #
 # Configure variables
@@ -97,7 +106,8 @@ sub removehashfile($$);
 sub checksigfile($$$);
 sub makesigfile($$$);
 sub removesigfile($$);
-sub removeoldsigfile($);
+sub havefullimage($);
+sub havedeltaimage($);
 sub fatal($);
 
 #
@@ -139,6 +149,9 @@ if (defined($options{"u"})) {
     $update = 1;
     $userperm = TB_IMAGEID_MODIFYINFO();
 }
+else {
+    $userperm = TB_IMAGEID_READINFO();
+}
 if (defined($options{"p"})) {
     $showinfo = 1;
 }
@@ -151,6 +164,9 @@ if (defined($options{"R"})) {
 }
 if (defined($options{"a"})) {
     $doall = 1;
+}
+if (defined($options{"A"})) {
+    $allvers = 1;
 }
 if (defined($options{"P"})) {
     if ($options{"P"} =~ /^([-\w]+)$/) {
@@ -177,7 +193,7 @@ if (defined($options{"V"})) {
 } else {
     $validate{"all"} = 1;
 }
-if (defined($options{"S"})) {
+if (defined($options{"S"}) || $validate{"sig"}) {
     $dosig = 1;
 }
 @images = @ARGV;
@@ -222,8 +238,67 @@ if (!$doall && @images == 0) {
 if (defined($newhash) && @images > 1) {
     fatal("-H option can only be used with a single image");
 }
+if ($allvers && @images > 1) {
+    fatal("-A option can only be used with a single image");
+}
 
 my $errs = 0;
+
+#
+# Check all versions of a single image.
+#
+# In addition to putting all the versions in our list to check
+# individually, perform some aggregate checks:
+#
+# - make sure there is SOME version of the image
+# - all versions from 0 to current must exist in DB
+# - version 0 must be a full image
+#
+if ($allvers) {
+    my $image = Image->Lookup($images[0]);
+    if (!$image) {
+	print STDERR "$images[0]: no such image\n";
+	exit(1);
+    }
+
+    my @iversions;
+    $image->AllVersions(\@iversions);
+
+    # Get the canonical name, sans version, for reporting.
+    my $iname = $image->pid() . "/" . $image->imagename();
+
+    if (@iversions == 0) {
+	print STDERR "$iname: no version exists!\n";
+	exit(1);
+    }
+    my $vers = 0;
+    my @nimages = ();
+    @iversions = reverse @iversions;
+    foreach my $imobj (@iversions) {
+	my $fqname = "$iname:$vers";
+	if ($imobj->version() != $vers) {
+	    my $ivers = $imobj->version() - 1;
+	    if ($vers == $ivers) {
+		print STDERR "$iname: version $vers missing\n";
+	    } else {
+		print STDERR "$iname: versions $vers-$ivers missing\n";
+	    }
+	    $vers = $imobj->version();
+	    $errs++;
+	    next;
+	}
+
+	if ($vers == 0 && !havefullimage($imobj)) {
+	    print STDERR "$iname: no full initial version!\n";
+	    $errs++;
+	}
+
+	push @nimages, $fqname;
+	$vers++;
+    }
+    @images = @nimages;
+}
+
 foreach my $pidimage (@images) {
     $errs += doimage($pidimage);
 }
@@ -233,6 +308,8 @@ sub doimage($)
 {
     my ($pidimage) = @_;
 
+    print STDERR "Checking image '$pidimage' ...\n"
+	if ($debug);
     my $image = Image->Lookup($pidimage);
     if (!defined($image)) {
 	print STDERR "$pidimage: no such image\n";
@@ -240,19 +317,97 @@ sub doimage($)
     }
     my $imageid = $image->imageid();
 
+    #
     # If the user is not an admin, must have perm on the image.
-    if ($UID && !$user->IsAdmin() && !$image->AccessCheck($user, $userperm)) {
-	print STDERR "$pidimage: insufficient privilege\n";
-	return 1;
+    #
+    # We also test to see if the user can access the directory in which
+    # images, etc. reside. This will not always be the case, a user may
+    # have DB access to an image without being able to directly access
+    # the image file. This can affect the way we do tests below.
+    #
+    if ($UID) {
+	if (!$user->IsAdmin() && !$image->AccessCheck($user, $userperm)) {
+	    print STDERR "$pidimage: insufficient privilege\n";
+	    return 1;
+	}
+
+	my $statme;
+	if ($image->IsDirPath()) {
+	    $statme = $image->path();
+	} elsif ($image->path() =~ /^(.*\/)[^\/]*$/) {
+	    $statme = $1;
+	}
+	if ($statme && -e "$statme") {
+	    $accessfs = 1;
+	} else {
+	    print STDERR "$pidimage: WARNING: cannot access image directory '$statme', some validations disabled.\n";
+	    $accessfs = 0;
+	}
+    } else {
+	$accessfs = 1;
     }
 
-    my $path = $image->FullImageFile();
+    #
+    # Determine whether the image has a delta or a full image file or both!
+    #
+    my ($path,$dpath,$hash,$dhash,$isdir);
+    if ($image->IsDirPath()) {
+	$isdir = 1;
+	#
+	# XXX We prefer to use image file existence as the type
+	# differentiator rather than using the Have{Full,Delta}Image()
+	# methods since they use the size/deltasize fields which may not
+	# be initialized yet. However, we may not always be able to access
+	# the image in the filesystem, so we may have to fall back on the
+	# standard methods. This is all hidden in our haveXXXimage functions.
+	#
+	if (havefullimage($image)) {
+	    $path = $image->FullImageFile();
+	}
+	if (havedeltaimage($image)) {
+	    $dpath = $image->DeltaImageFile();
+	}
+	$hash = $image->hash();
+	$dhash = $image->deltahash();
+    } else {
+	$isdir = 0;
+	#
+	# XXX backward compat I
+	# Originally, isdelta signified that the path (always .ndz)
+	# represented a delta image and not a full image.
+	#
+	if ($image->isdelta()) {
+	    $dpath = $image->DeltaImageFile();
+	    $dhash = $image->deltahash();
+	}
+	#
+	# XXX backward compat II
+	# Then we introduced separate size/hash fields to differentiate
+	# deltas from fulls and to allow both to exist at once. However,
+	# we never finished that (by making the path a prefix to which
+        # we appended .ndz or .ddz) so the path is always .ndz and only
+	# one of full or delta will exist. So we have to trust the size
+	# (via HaveXXXImage()) to determine whether the path represents
+	# a full or delta image.
+	#
+	else {
+	    if ($image->HaveFullImage()) {
+		$path = $image->FullImageFile();
+		$hash = $image->hash();
+	    } elsif ($image->HaveDeltaImage()) {
+		$dpath = $image->DeltaImageFile();
+		$dhash = $image->deltahash();
+	    }
+	}
+    }
     $path = ""
 	if (!defined($path));
-
-    my $hash = $image->hash();
+    $dpath = ""
+	if (!defined($dpath));
     $hash = ""
 	if (!defined($hash));
+    $dhash = ""
+	if (!defined($dhash));
 
     my $size = $image->size();
     my $lbalo = $image->lba_low();
@@ -260,80 +415,198 @@ sub doimage($)
     my $lbasize = $image->lba_size();
     my $relocatable = $image->relocatable();
     my $isdelta = $image->isdelta();
+    my $dsize = $image->deltasize();
     my $stamp;
     $image->GetUpdate(\$stamp);
     $stamp = 0
 	if (!defined($stamp));
 
     if ($showinfo) {
-	print "$pidimage: path: $path\n";
 	print "$pidimage: mtime: $stamp\n";
+	print "$pidimage: path: $path\n"
+	    if ($path);
+	print "$pidimage: deltapath: $dpath\n"
+	    if ($dpath);
 	if ($validate{"all"} || $validate{"size"}) {
-	    my $chunks = int(($size + (1024*1024-1)) / (1024*1024));
-	    print "$pidimage: size: $size ($chunks chunks)\n";
+	    my $chunks;
+	    if ($size) {
+		$chunks = int(($size + (1024*1024-1)) / (1024*1024));
+		print "$pidimage: size: $size ($chunks chunks)\n";
+	    }
+	    if ($dsize) {
+		$chunks = int(($dsize + (1024*1024-1)) / (1024*1024));
+		print "$pidimage: deltasize: $dsize ($chunks chunks)\n";
+	    }
 	}
 	if ($validate{"all"} || $validate{"hash"}) {
-	    print "$pidimage: hash: $hash\n";
+	    print "$pidimage: hash: $hash\n"
+		if ($hash);
+	    print "$pidimage: deltahash: $dhash\n"
+		if ($dhash);
 	}
 	# XXX do sector range
 	if ($validate{"all"} || $validate{"range"}) {
 	    print "$pidimage: range: [$lbalo-$lbahi] (ssize: $lbasize), ".
 		  "relocatable=$relocatable\n";
 	}
+	# XXX report on ancillary files
+	my @afiles = ();
+	if ($accessfs) {
+	    if ($path && -e $image->FullImageSHA1File()) {
+		push(@afiles, "full-SHA1");
+	    }
+	    if ($dpath && -e $image->DeltaImageSHA1File()) {
+		push(@afiles, "delta-SHA1");
+	    }
+	    if ($path && -e $image->FullImageSigFile()) {
+		push(@afiles, "full-sig");
+	    }
+	    if ($dpath && -e $image->DeltaImageSigFile()) {
+		push(@afiles, "delta-sig");
+	    }
+	} else {
+	    push(@afiles, "<cannot access directory>");
+	}
+	if (@afiles > 0) {
+	    print "$pidimage: files: ", join(", ", @afiles), "\n";
+	}
 
 	return 0;
     }
 
     #
-    # The image file has to exist for us to check hash or sector range.
+    # The image files have to exist.
     #
-    if (!$path) {
-	print STDERR "$pidimage: path: NULL image path\n";
+    if (!$path && !$dpath) {
+	print STDERR "$pidimage: no image file found\n";
 	return 1;
     }
-    if (! -r "$path") {
-	print STDERR "$pidimage: path: image path '$path' cannot be read\n";
-	#
-	# If root and cannot read it, it doesn't exist so get rid of
-	# hash and signature files too
-	#
-	if ($UID == 0 && ($update || $fixit)) {
-	    removehashfile($pidimage, $path);
-	    removesigfile($pidimage, $path);
+    my ($ftime,$fsize,$fuid,$dftime,$dfsize,$dfuid);
+    if ($path) {
+	if (! -r "$path") {
+	    print STDERR "$pidimage: path: image path '$path' cannot be read\n";
+	    #
+	    # If root and cannot read it, it doesn't exist so get rid of
+	    # hash and signature files too
+	    #
+	    if ($UID == 0 && ($update || $fixit)) {
+		removehashfile($pidimage, $path);
+		removesigfile($pidimage, $path);
+	    }
+	    return 1;
 	}
-	return 1;
+	$ftime = stat($path)->mtime;
+	$fuid = stat($path)->uid;
+	$fsize = stat($path)->size;
+
+	# XXX image file size must be non-zero
+	if ($fsize == 0) {
+	    print STDERR "$pidimage: full image file is zero-length, no can do!\n";
+	    return 1;
+	}
     }
-    my $mtime = stat($path)->mtime;
-    my $fsize = stat($path)->size;
-    my $fuid = stat($path)->uid;
-    if (!defined($mtime) || !defined($fsize) || !defined($fuid)) {
-	print STDERR "$pidimage: path: cannot stat '$path'\n";
-	return 1;
+    if ($dpath) {
+	if (! -r "$dpath") {
+	    print STDERR "$pidimage: path: deltaimage path '$dpath' cannot be read\n";
+	    #
+	    # If root and cannot read it, it doesn't exist so get rid of
+	    # hash and signature files too
+	    #
+	    if ($UID == 0 && ($update || $fixit)) {
+		removehashfile($pidimage, $dpath);
+		removesigfile($pidimage, $dpath);
+	    }
+	    return 1;
+	}
+	$dftime = stat($dpath)->mtime;
+	$dfuid = stat($dpath)->uid;
+	$dfsize = stat($dpath)->size;
+
+	# XXX image file size must be non-zero
+	if ($dfsize == 0) {
+	    print STDERR "$pidimage: delta image file is zero-length, no can do!\n";
+	    return 1;
+	}
     }
 
+    #
+    # Take care of one-off fix to hash and sig files
+    #
     if ($fixit) {
-	print "$pidimage: fixing hash file\n";
-	if ($hash eq "") {
-	    $hash = `$SHA1 $path`;
-	    if ($?) {
-		print("$pidimage: hash: could not generate SHA1 hash of '$path'\n");
-		return 1;
-	    } else {
-		if ($hash =~ /^SHA1.*= ([\da-fA-F]+)$/) {
-		    $hash = lc($1);
+	if (!$accessfs) {
+	    print STDERR "$pidimage: hash: cannot access hash/sig files\n";
+	    return 1;
+	}
+	if ($path) {
+	    print "$pidimage: fixing hash file\n";
+	    if ($hash eq "") {
+		$hash = `$SHA1 $path`;
+		if ($?) {
+		    print("$pidimage: hash: could not generate SHA1 hash of '$path'\n");
+		    return 1;
 		} else {
-		    print("$pidimage: hash: could not parse sha1 hash: '$hash'\n");
+		    if ($hash =~ /^SHA1.*= ([\da-fA-F]+)$/) {
+			$hash = lc($1);
+		    } else {
+			print("$pidimage: hash: could not parse sha1 hash: '$hash'\n");
+			return 1;
+		    }
+		}
+		if ($image->SetHash($hash) != 0) {
+		    print("$pidimage: hash: could not store new hash: '$hash'\n");
 		    return 1;
 		}
 	    }
-	    if ($image->SetHash($hash) != 0) {
-		print("$pidimage: hash: could not store new hash: '$hash'\n");
-		return 1;
+	    makehashfile($pidimage, $path, $hash, $fuid);
+
+	    if ($dosig && checksigfile($pidimage, $path, 0)) {
+		makesigfile($pidimage, $path, $fuid);
 	    }
 	}
-	makehashfile($pidimage, $path, $hash, $fuid);
-	if ($dosig && checksigfile($pidimage, $path, $isdelta)) {
-	    makesigfile($pidimage, $path, $isdelta);
+	if ($dpath) {
+	    print "$pidimage: fixing delta hash file\n";
+	    if ($dhash eq "") {
+		$dhash = `$SHA1 $dpath`;
+		if ($?) {
+		    print("$pidimage: hash: could not generate SHA1 hash of '$path'\n");
+		    return 1;
+		} else {
+		    if ($dhash =~ /^SHA1.*= ([\da-fA-F]+)$/) {
+			$dhash = lc($1);
+		    } else {
+			print("$pidimage: hash: could not parse sha1 hash: '$dhash'\n");
+			return 1;
+		    }
+		}
+		if ($image->SetDeltaHash($dhash) != 0) {
+		    print("$pidimage: hash: could not store new delta hash: '$dhash'\n");
+		    return 1;
+		}
+	    }
+	    makehashfile($pidimage, $dpath, $dhash, $dfuid);
+
+	    #
+	    # XXX cannot check the signature of a delta image since the
+	    # signature is for the full image. Here we just make sure that
+	    # the delta signature is the same as that of the full image.
+	    #
+	    if ($dosig) {
+		my $dsfile = $image->DeltaImageSigFile();
+		if ($path) {
+		    my $sfile = $image->FullImageSigFile();
+		    if (system("ln -f $sfile $dsfile")) {
+			print STDERR
+			    "$pidimage: WARNING: could not link $sfile to $dsfile\n";
+		    }
+		} elsif (-e "$dsfile") {
+		    print STDERR
+			"$pidimage: WARNING: could not verify signature for '$dpath'\n";
+		} else {
+		    print STDERR
+			"$pidimage: no signature file for '$dpath'!\n";
+		    return 1;
+		}
+	    }
 	}
 	return 0;
     }
@@ -344,17 +617,26 @@ sub doimage($)
     #
     # Check/fix mtime.
     #
-    if ($stamp == $mtime) {
+    if ((!$path || $stamp == $ftime) && (!$dpath || $stamp == $dftime)) {
 	if ($fastupdate) {
 	    print STDERR "$pidimage: skipping due to time stamp\n"
 		if ($debug);
 	    return 0;
 	}
     } else {
-	print("$pidimage: mtime: DB timestamp ($stamp) != mtime ($mtime)\n")
-	    if (!$update || !$quiet);
-	if ($update) {
-	    $changed = 1;
+	if ($path && $stamp != $ftime) {
+	    print("$pidimage: mtime: DB timestamp ($stamp) != mtime ($ftime)\n")
+		if (!$update || !$quiet);
+	    if ($update) {
+		$changed = 1;
+	    }
+	}
+	if ($dpath && $stamp != $dftime) {
+	    print("$pidimage: mtime: DB timestamp ($stamp) != delta mtime ($dftime)\n")
+		if (!$update || !$quiet);
+	    if ($update) {
+		$changed = 1;
+	    }
 	}
     }
 
@@ -362,24 +644,65 @@ sub doimage($)
     # Check/fix file size.
     #
     if ($validate{"all"} || $validate{"size"}) {
-	if ($fsize != $size) {
-	    print("$pidimage: size: DB size ($size) != file size ($fsize)\n")
-		if (!$update || !$quiet);
-	    if ($update) {
-		print("$pidimage: size: ")
-		    if (!$quiet);
-		if ($image->SetSize($fsize) == 0) {
-		    $changed = 1;
-		    print "[FIXED]\n"
+	if ($path) {
+	    if ($fsize != $size) {
+		print("$pidimage: size: DB size ($size) != file size ($fsize)\n")
+		    if (!$update || !$quiet);
+		if ($update) {
+		    print("$pidimage: size: ")
 			if (!$quiet);
+		    if ($image->SetSize($fsize) == 0) {
+			$changed = 1;
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FAILED]\n"
+			    if (!$quiet);
+			$rv = 1;
+		    }
 		} else {
-		    print "[FAILED]\n"
-			if (!$quiet);
 		    $rv = 1;
 		}
-	    } else {
-		$rv = 1;
 	    }
+	    # XXX backward compat, only one of size/deltasize should be set
+	    if ($update && !$dpath) {
+		$image->SetDeltaSize(0);
+	    }
+	}
+	if ($dpath) {
+	    if ($dfsize != $dsize) {
+		print("$pidimage: size: DB deltasize ($dsize) != file size ($dfsize)\n")
+		    if (!$update || !$quiet);
+		if ($update) {
+		    print("$pidimage: dsize: ")
+			if (!$quiet);
+		    if ($image->SetDeltaSize($dfsize) == 0) {
+			$changed = 1;
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FAILED]\n"
+			    if (!$quiet);
+			$rv = 1;
+		    }
+		} else {
+		    $rv = 1;
+		}
+	    }
+	    # XXX backward compat, only one of size/deltasize should be set
+	    if ($update && !$path) {
+		$image->SetSize(0);
+	    }
+	}
+
+	#
+	# XXX isdelta is history, clear it if set.
+	#
+	# We do this after updating the size fields since those are now used
+	# to distinguish full/delta.
+	#
+	if ($update && $isdelta) {
+	    $image->SetDelta(0);
 	}
     }
 
@@ -388,21 +711,22 @@ sub doimage($)
     #
     if ($validate{"all"} || $validate{"hash"}) {
 	my $filehash = $newhash;
-	if (!defined($filehash)) {
-	    $filehash = `$SHA1 $path`;
-	    if ($?) {
-		print("$pidimage: hash: could not generate SHA1 hash of '$path'\n");
-		$filehash = "";
-		$rv = 1;
-	    } else {
-		if ($filehash =~ /^SHA1.*= ([\da-fA-F]+)$/) {
-		    $filehash = lc($1);
-		} else {
-		    print("$pidimage: hash: could not parse sha1 hash: '$filehash'\n");
+	if ($path) {
+	    if (!defined($filehash)) {
+		$filehash = `$SHA1 $path`;
+		if ($?) {
+		    print("$pidimage: hash: could not generate SHA1 hash of '$path'\n");
 		    $filehash = "";
+		    $rv = 1;
+		} else {
+		    if ($filehash =~ /^SHA1.*= ([\da-fA-F]+)$/) {
+			$filehash = lc($1);
+		    } else {
+			print("$pidimage: hash: could not parse sha1 hash: '$filehash'\n");
+			$filehash = "";
+		    }
 		}
 	    }
-
 	    if ($filehash && ($hash ne $filehash)) {
 		print("$pidimage: hash: DB hash ('$hash') != file hash ('$filehash')\n")
 		    if (!$update || !$quiet);
@@ -428,13 +752,65 @@ sub doimage($)
 		    makehashfile($pidimage, $path, $filehash, $fuid);
 		}
 	    }
+
+	    if ($update && !$dpath) {
+		$image->SetDeltaHash(undef);
+	    }
+	}
+
+	if ($dpath) {
+	    if (!defined($filehash)) {
+		$filehash = `$SHA1 $dpath`;
+		if ($?) {
+		    print("$pidimage: hash: could not generate SHA1 hash of '$dpath'\n");
+		    $filehash = "";
+		    $rv = 1;
+		} else {
+		    if ($filehash =~ /^SHA1.*= ([\da-fA-F]+)$/) {
+			$filehash = lc($1);
+		    } else {
+			print("$pidimage: hash: could not parse sha1 hash: '$filehash'\n");
+			$filehash = "";
+		    }
+		}
+	    }
+	    if ($filehash && ($dhash ne $filehash)) {
+		print("$pidimage: hash: DB deltahash ('$dhash') != delta file hash ('$filehash')\n")
+		    if (!$update || !$quiet);
+		if ($update) {
+		    print("$pidimage: hash: ")
+			if (!$quiet);
+		    if ($image->SetDeltaHash($filehash) == 0) {
+			makehashfile($pidimage, $dpath, $filehash, $dfuid);
+			$changed = 1;
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FAILED]\n"
+			    if (!$quiet);
+			$rv = 1;
+		    }
+		} else {
+		    $rv = 1;
+		}
+	    } elsif ($filehash) {
+		# even if the DB is correct, make sure .sha1 file is correct
+		if ($update) {
+		    makehashfile($pidimage, $dpath, $filehash, $dfuid);
+		}
+	    }
+
+	    if ($update && !$path) {
+		$image->SetHash(undef);
+	    }
 	}
     }
 
     #
     # Check/fix sector range.
+    # We can only do this if we have a full image.
     #
-    if ($validate{"all"} || $validate{"range"}) {
+    if ($path && ($validate{"all"} || $validate{"range"})) {
 	my ($lo,$hi,$ssize) = (-1,0,0);
 	my $isreloc = $relocatable;
 	my $out = `imageinfo -r $pidimage 2>&1`;
@@ -502,9 +878,12 @@ sub doimage($)
     }
 
     #
-    # Set update time to match mtime of image
+    # Set update time to match mtime of image.
+    # If there is both a full and delta image, set DB to full image time.
     #
     if ($changed) {
+	my $mtime = ($path ? $ftime : $dftime);
+
 	print("$pidimage: mtime: ")
 	    if (!$quiet);
 
@@ -522,32 +901,83 @@ sub doimage($)
 		if (!$quiet);
 	    $rv = 1;
 	}
+
+	#
+	# If both full and delta images, make sure delta matches full.
+	#
+	if ($path && $dpath && $ftime != $dftime) {
+	    if (system("touch -r $path $dpath >/dev/null 2>&1")) {
+		print STDERR
+		    "$pidimage: WARNING: could not set modtime of $dpath\n";
+	    }
+	}
     }
 
     #
     # Check/fix signature file.
     #
     if ($dosig) {
-	if (checksigfile($pidimage, $path, $isdelta)) {
-	    print("$pidimage: sig: image does not match signature\n")
-		if (!$update || !$quiet);
-	    if ($update) {
-		print("$pidimage: sig: ")
-		    if (!$quiet);
-		if (makesigfile($pidimage, $path, $isdelta) == 0) {
-		    $changed = 1;
-		    print "[FIXED]\n"
+	if (!$accessfs) {
+	    print STDERR "$pidimage: sig: cannot access signature file\n";
+	    return 1;
+	}
+	if ($path) {
+	    if (checksigfile($pidimage, $path, 0)) {
+		print("$pidimage: sig: image does not match signature\n")
+		    if (!$update || !$quiet);
+		if ($update) {
+		    print("$pidimage: sig: ")
 			if (!$quiet);
+		    if (makesigfile($pidimage, $path, $fuid) == 0) {
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FAILED]\n"
+			    if (!$quiet);
+			$rv = 1;
+		    }
 		} else {
-		    print "[FAILED]\n"
-			if (!$quiet);
 		    $rv = 1;
 		}
+	    }
+	}
+	#
+	# XXX cannot check the signature of a delta image since the signature
+	# is for the full image. Here we just make sure that the delta
+	# signature is the same as that of the full image.
+	#
+	# There is also no old sigfile to worry about.
+	#
+	if ($dpath) {
+	    my $dsfile = $image->DeltaImageSigFile();
+	    if ($path) {
+		my $sfile = $image->FullImageSigFile();
+		if (! -e "$dsfile" || system("cmp -s $sfile $dsfile")) {
+		    print("$pidimage: dsig: delta signature missing or not the same as full\n")
+			if (!$update || !$quiet);
+		    if ($update) {
+			print("$pidimage: dsig: ")
+			    if (!$quiet);
+			if (system("ln -f $sfile $dsfile") == 0) {
+			    print "[FIXED]\n"
+				if (!$quiet);
+			} else {
+			    print "[FAILED]\n"
+				if (!$quiet);
+			    $rv = 1;
+			}
+		    } else {
+			$rv = 1;
+		    }
+		}
+	    } elsif (-e "$dsfile") {
+		print STDERR
+		    "$pidimage: dsig: WARNING: could not verify signature for '$dpath'\n";
 	    } else {
+		print STDERR
+		    "$pidimage: dsig: no signature file for '$dpath'!\n";
 		$rv = 1;
 	    }
-	} elsif ($update) {
-	    removeoldsigfile($path);
 	}
     }
 
@@ -564,6 +994,14 @@ sub checksigfile($$$)
 {
     my ($pidimage,$imagepath,$isdelta) = @_;
     my $sigfile = "$imagepath.sig";
+
+    print STDERR "$pidimage: sig: checking signature of '$imagepath' ...\n"
+	if ($debug);
+
+    if (!$accessfs) {
+	print STDERR "$pidimage: sig: cannot access signature file\n";
+	return 0;
+    }
 
     if (! -e "$sigfile") {
 	# XXX the old stateful swapout path puts sigs in a sigs/ subdir
@@ -595,13 +1033,16 @@ sub checksigfile($$$)
 	    "$pidimage: WARNING: $imagepath does not match signature\n";
 	return 1;
     }
+
+    print STDERR "$pidimage: sig: signature OK\n"
+	if ($debug);
     return 0;
 }
 
 # Return 0 if action is successful
 sub makesigfile($$$)
 {
-    my ($pidimage,$imagepath,$isdelta) = @_;
+    my ($pidimage,$imagepath,$fuid) = @_;
     my $sigfile = "$imagepath.sig";
 
     # XXX get rid of old sigfile
@@ -615,21 +1056,16 @@ sub makesigfile($$$)
 	}
     }
 
-    # XXX delta images should have full-image signatures
-    if ($isdelta) {
-	print STDERR
-	    "$pidimage: WARNING: cannot create signature for delta image ".
-	    "$imagepath\n";
-
-	return 1;
-    }
-
     unlink($sigfile);
     if (system("$IMAGEHASH -cXq $imagepath")) {
 	print STDERR
 	    "$pidimage: WARNING: could not create signature for $imagepath\n";
 	unlink($sigfile);
 	return 1;
+    }
+    if (defined($fuid) && system("chown $fuid $sigfile >/dev/null 2>&1")) {
+	print STDERR
+	    "$pidimage: WARNING: could not chown $sigfile to $fuid\n";
     }
 
     return 0;
@@ -645,27 +1081,13 @@ sub removesigfile($$)
 	return 1;
     }
 
-    # XXX get rid of old sigfile
-    removeoldsigfile($imagepath);
-
     return 0;
-}
-
-sub removeoldsigfile($)
-{
-    my ($imagepath) = @_;
-
-    if ($imagepath =~ /^(.*)\/([^\/]+)$/) {
-	my ($idir,$iname) = ($1,$2);
-	my $osigfile = "$idir/sigs/$iname.sig";
-	unlink($osigfile);
-    }
 }
 
 #
 # XXX Over time, we have used two different conventions for sha1 files.
 #
-# Old format is <image>.sig. New format is <image>.ndz.sig, possibly
+# Old format is <image>.sha1. New format is <image>.ndz.sha1, possibly
 # with a version number. We take it upon ourselves to force everything
 # into the new format.
 #
@@ -718,6 +1140,43 @@ sub removehashfile($$)
 	my $oldhashfile = "$1.sha1";
 	unlink($oldhashfile);
     }
+}
+
+#
+# XXX our versions of image existence checks.
+# We don't want to have to rely on DB state if we don't have to since
+# we are probably the ones initializing that state!
+#
+sub havefullimage($)
+{
+    my ($image) = @_;
+
+    if ($accessfs) {
+	if (-e $image->FullImagePath()) {
+	    return 1;
+	}
+    } else {
+	if ($image->HaveFullImage()) {
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+sub havedeltaimage($)
+{
+    my ($image) = @_;
+
+    if ($accessfs) {
+	if (-e $image->DeltaImagePath()) {
+	    return 1;
+	}
+    } else {
+	if ($image->HaveDeltaImage()) {
+	    return 1;
+	}
+    }
+    return 0;
 }
 
 sub fatal($)

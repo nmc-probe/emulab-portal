@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -96,10 +96,13 @@ function SPITFORM($formfields, $errors)
         echo htmlentities(json_encode($instance_array));
         echo "</script>\n";
 
+        #
+        # Ask the DB for the list of aggregates that do datasets.
+        #
         $amlist = array();
-        $amlist["urn:publicid:IDN+apt.emulab.net+authority+cm"] = "APT";
-        $amlist["urn:publicid:IDN+emulab.net+authority+cm"] = "Emulab";
-        $amlist["urn:publicid:IDN+clemson.cloudlab.us+authority+cm"] = "Clemson";
+        foreach (Aggregate::SupportsDatasetsList() as $aggregate) {
+            $amlist[$aggregate->urn()] = $aggregate->nickname();
+        }
 	echo "<script type='text/plain' id='amlist-json'>\n";
 	echo htmlentities(json_encode($amlist));
 	echo "</script>\n";
@@ -127,9 +130,6 @@ function SPITFORM($formfields, $errors)
     echo "    window.BUTTONLABEL = '$button_label';\n";
     echo "</script>\n";
 
-    SpitOopsModal("oops");
-    SpitWaitModal("waitwait");
-    
     SPITREQUIRE("create-dataset",
                 "<script src='js/lib/jquery-ui.js'></script>");
     SPITFOOTER();

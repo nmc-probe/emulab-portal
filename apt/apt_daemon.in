@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -234,7 +234,8 @@ sub FixFailedImaging()
 	}
 	$genislice->UnLock();
       skip:
-	$genislice->Flush();
+	$genislice->Flush()
+	    if (defined($genislice));
 	next;
     }
 }
@@ -391,8 +392,11 @@ sub UpdateAggregateGraphs()
     foreach my $file ($NOFED, $FEDONLY) {
 	if (-e $file) {
 	    my $data = `/bin/cat $file`;
-	    my $obj  = decode_json($data);
-	    if (!defined($obj)) {
+	    my $obj  = eval { decode_json($data); };
+	    if ($@ || !defined($obj)) {
+		if ($@) {
+		    print STDERR $@;
+		}
 		print STDERR "Could not decide json in $file\n";
 		next;
 	    }
@@ -448,6 +452,67 @@ sub UpdateAggregateGraphs()
     return 0;
 }
 
+#
+# Push out updates.
+#
+sub PushUpdates()
+{
+    my $query_result =
+	DBQueryWarn("select uuid from apt_instances ".
+		    "where status='ready' and needupdate!=0");
+    return
+	if (!$query_result);
+
+    while (my ($uuid) = $query_result->fetchrow_array()) {
+	my $instance = APT_Instance->Lookup($uuid);
+	if (!defined($instance)) {
+	    print STDERR "No such instance $uuid\n";
+	    next;
+	}
+	print STDERR "$instance needs update.\n";
+	next
+	    if ($impotent);
+
+	#
+	# If its locked, then do not bother trying; wait till next time
+	# through the loop. 
+	#
+	my $genislice = $instance->GetGeniSlice();
+	next
+	    if (!defined($genislice));
+	goto skip
+	    if ($genislice->Lock() != 0);
+
+	#
+	# Clear the needupdate flag now. If a user comes along and
+	# adds a new key during this update, the next time through the
+	# loop we will get it. If it results in doing the same thing
+	# twice, no big deal. 
+	#
+	$instance->Update({"needupdate" => 0}) == 0
+	    or goto skip;
+
+	#
+	# Unlock before we call out to do the update; if someone else
+	# locks it, the update will fail and we will reset the needupdate
+	# flag for next time through the loop. No one else clears it
+	# so this is safe for now. 
+	#	
+	$genislice->UnLock();
+	system("$SUDO -u $PROTOUSER $MANAGEINSTANCE updatekeys $uuid");
+	if ($?) {
+	    $instance->Update({"needupdate" => 1});
+	}
+      skip:
+	$genislice->Flush();
+    }
+}
+
+if ($oneshot) {
+    PushUpdates();
+    exit(0);
+}
+
 my $reportcounter = 0;
 
 # Do this once at startup
@@ -469,6 +534,7 @@ while (1) {
     FixFailedImaging();
     ExpireInstances();
     UpdateAggregateGraphs();
+    PushUpdates();
 
     # Do this once every 24 hours.
     if ($reportcounter >= (24 * 60 * 60)) {

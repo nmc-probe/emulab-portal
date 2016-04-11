@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -40,17 +40,19 @@ sub usage()
 	  "-k   - Kill a currently running linktest.\n".
 	  "-t   - Specify timeout in seconds.\n".
 	  "-o   - Specify output file for linktest results.\n".
+	  "-e   - Tell linktest to send error output to stdout or -o file\n".
 	  "-m   - Send email to swapper if linktest fails.\n".
 	  "-r   - Report results only, don't flag errors.\n".
 	  "-d   - Turn on debugging output.\n");
     exit(-1);
 }
-my $optlist  = "dkl:o:t:mfr";
-my $debug    = 2;
+my $optlist  = "dkl:o:t:mfre";
+my $debug    = 1;
 my $cancel   = 0;
 my $sendmail = 0;
 my $forcerun = 0;
 my $reportonly = 0;
+my $noerrlog = 0;
 my $timeout;
 my $level;
 my $output;
@@ -143,6 +145,9 @@ if (defined($options{"o"})) {
 	die("Bad data in output file: $output\n");
     }
 }
+if (defined($options{"e"})) {
+    $noerrlog = 1;
+}
 if (@ARGV != 2) {
     usage();
 }
@@ -223,8 +228,8 @@ if (defined($linktest_pid) && $linktest_pid) {
     }
 }
 elsif ($cancel) {
-    die("*** $0:\n".
-	"    Linktest is not running on experiment $pid/$eid!\n")
+    print "Linktest is not running on experiment $pid/$eid!\n";
+    exit(0);
 }
 
 my @hosed = ();
@@ -348,12 +353,13 @@ push(@cmdargs, ("-g", $unix_gidname));
 push(@cmdargs, ("-p", $unix_pidname));
 push(@cmdargs, ("-u", $dbuid));
 push(@cmdargs, ("-e", "$pid/$eid"));
-push(@cmdargs, ("-o", $errlog));
+push(@cmdargs, ("-o", $errlog))
+    if (!$noerrlog);
 push(@cmdargs, "-r")
     if ($reportonly);
 
 print "Running '@cmdargs'\n"
-    if ($debug);
+    if ($debug > 1);
 
 # For sshtb
 $UID=0;

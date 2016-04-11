@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -469,6 +469,18 @@ function SUEXEC($uid, $gid, $cmdandargs, $action) {
     # Yikes! Something is not doing integer conversion properly!
     if ($suexec_retval == 255) {
 	$suexec_retval = -1;
+    }
+    #
+    # suexec.c puts its error message between 101 and 125. Convert that
+    # to an internal error and generate an error that says something useful.
+    #
+    # XXX Ignore 101, something in the geni-lib path uses it.
+    #
+    if (0 && $suexec_retval > 101 && $suexec_retval <= 125 &&
+        !count($suexec_output_array)) {
+        $suexec_output_array[0] =
+            "Internal suexec error $suexec_retval. See the suexec log";
+        $suexec_retval = -1;
     }
 
     if (count($suexec_output_array)) {

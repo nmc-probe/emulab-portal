@@ -7,7 +7,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/aboutpnet.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/rspectextview-modal.html',
-         'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
+	 'formhelpers', 'filestyle', 'marked', 'jacks', 'jquery-steps'],
 function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	  instantiateString, aboutaptString, aboutcloudString, aboutpnetString,
 	  waitwaitString, rspecviewString)
@@ -48,7 +48,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     {
     // Get context for constraints
 	var contextUrl = 'https://www.emulab.net/protogeni/jacks-context/cloudlab-utah.json';
-        $.get(contextUrl).then(contextReady, contextFail);
+	$.get(contextUrl).then(contextReady, contextFail);
 
 	window.APT_OPTIONS.initialize(sup);
 	window.APT_OPTIONS.initialize(ppstart);
@@ -86,6 +86,40 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    clustername:        window.PORTAL_NAME,
 	});
 	$('#main-body').html(html);
+
+
+	// TEMPORARY BUTTON FOR CLASSIC PICKER
+	// To be removed when the new picker becomes default
+	
+	// Quick and dirty
+	var btntext = 'Use Classic Picker';
+	var btnhtml = window.location.href;
+	var whichchar = (btnhtml.indexOf('?') > -1) ? '&' : '?';
+
+	if (window.CLASSIC === undefined || window.CLASSIC) {
+	    btntext = 'Try the New Picker!';
+	    btnhtml = btnhtml.replace('classic=true','');
+	    btnhtml += whichchar + 'classic=false';
+	}
+	else {
+	    btnhtml = btnhtml.replace('classic=false','');
+	    btnhtml += whichchar + 'classic=true';
+	}
+	btnhtml = btnhtml.replace('&&','&').replace('?&','?');
+	btnhtml.replace('#','');
+	
+	$('#quickvm_topomodal #showtopo_dialog .modal-header').append('<a '+
+		' href="'+btnhtml+'"'+
+		'>'+
+		'<button'+
+		' id="whichPicker"'+
+		' class="btn btn-info btn-sm"'+
+		' style="position: absolute;top:14px;right:40px"'+
+		'>'+btntext+'</button>'+
+		'</a>');
+
+	// END TEMPORARY BUTTON
+	
 
 	var jqxhr =
 	    $.get('https://ops.emulab.net/servicemon/?names=urn')
@@ -135,9 +169,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		SwitchJacks('large');
 	});
 
-        $('#quickvm_topomodal').on('shown.bs.modal', function() {
-            ShowProfileSelection($('#profile_name .current'))
-        });
+	$('#quickvm_topomodal').on('shown.bs.modal', function() {
+	    ShowProfileSelection($('#profile_name .current'))
+	});
 
 	$('button#reset-form').click(function (event) {
 	    event.preventDefault();
@@ -268,7 +302,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	}
 	    
 	var startProfile = $('#profile_name li[value = ' + window.PROFILE + ']')
-        ChangeProfileSelection(startProfile);
+	ChangeProfileSelection(startProfile);
 	_.delay(function () {$('.dropdown-toggle').dropdown();}, 500);
     }
 
@@ -309,7 +343,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 			isadmin      : isadmin,
 			callback     : ConfigureDone,
 			rspec        : null,
-		        multisite    : multisite
+			multisite    : multisite
 		    });
 		    loaded_uuid = selected_uuid;
 		    ppchanged = true;
@@ -632,18 +666,18 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    }
 	    $(this).addClass("pickered");
 	    
-            var resourceTypes = ["PC"];
-            // Have to do look this up based off of the site name since that's 
-            // the only hook Jacks is giving.
-            var label = $(this).find('.control-label').attr('name');
-            if (types && label && types[label]) {
-                if (types[label]['emulab-xen']) {
-                    if (Object.keys(types[label]).length == 1) {
-                        resourceTypes = [];
-                    }
-                    resourceTypes.push("VM");
-                }
-            }
+	    var resourceTypes = ["PC"];
+	    // Have to do look this up based off of the site name since that's 
+	    // the only hook Jacks is giving.
+	    var label = $(this).find('.control-label').attr('name');
+	    if (types && label && types[label]) {
+		if (types[label]['emulab-xen']) {
+		    if (Object.keys(types[label]).length == 1) {
+			resourceTypes = [];
+		    }
+		    resourceTypes.push("VM");
+		}
+	    }
 	    var which = $(this).parent().attr('id');
 
 	    var html = wt.ClusterStatusHTML($('#'+which+' .form-control option'), window.FEDERATEDLIST);
@@ -672,29 +706,29 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		}
 	    });
 
-            var sort = function (a, b) {
-                var aHealth = Math.ceil((+a.dataset.health)/50);
-                var bHealth = Math.ceil((+b.dataset.health)/50);
+	    var sort = function (a, b) {
+		var aHealth = Math.ceil((+a.dataset.health)/50);
+		var bHealth = Math.ceil((+b.dataset.health)/50);
 
-                if (aHealth > bHealth) {
-                    return -1;
-                }
-                else if (aHealth < bHealth) {
-                    return 1;
-                }
-                return +b.dataset.rating - +a.dataset.rating;
-            };
+		if (aHealth > bHealth) {
+		    return -1;
+		}
+		else if (aHealth < bHealth) {
+		    return 1;
+		}
+		return +b.dataset.rating - +a.dataset.rating;
+	    };
 
 	    $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.native').sort(sort).prependTo($('#'+which+' .cluster_picker_status .dropdown-menu'));
-            $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('#'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
+	    $('#'+which+' .cluster_picker_status .dropdown-menu').find('.enabled.federated').sort(sort).insertAfter($('#'+which+' .cluster_picker_status .dropdown-menu .federatedDivider'));
 
-            var pickerStatus = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a');
-            if (pickerStatus.length == 2) {
-            	pickerStatus[1].click();
-            }
-            else {
+	    var pickerStatus = $('#'+which+' .cluster_picker_status .dropdown-menu .enabled a');
+	    if (pickerStatus.length == 2) {
+	    	pickerStatus[1].click();
+	    }
+	    else {
 	    	pickerStatus[0].click();
-            }
+	    }
     	});
 	
 	$('[data-toggle="tooltip"]').tooltip();
@@ -813,7 +847,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		// Find and select new option.
 		$('#profile_where option')
 		    .filter('[value="'+ amdefault + '"]')
-                    .prop('selected', true);		
+		    .prop('selected', true);		
 	    }
 	};
 	GetProfile($(selectedElement).attr('value'), continuation);
@@ -889,7 +923,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	var html   = "";
 	var bound  = 0;
 	var count  = 0;
-        sites = {};
+	sites = {};
 
 	//console.info("CreateAggregateSelectors");
 
@@ -1067,10 +1101,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     function onFoundTypes(t) 
     {
-        types = {};
-        _.each(t, function(item) {
-            types[item.name] = item.types;
-        });
+	types = {};
+	_.each(t, function(item) {
+	    types[item.name] = item.types;
+	});
     }
 
     /*
@@ -1095,7 +1129,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    constraints.addPossibles({ images: foundImages });
 	    allowWithSites(json.value[0].images, json.value[0].constraints);
 	    CreateAggregateSelectors(selected_rspec);
-            $('#stepsContainer .actions a[href="#finish"]')
+	    $('#stepsContainer .actions a[href="#finish"]')
 		.removeAttr('disabled');
 	};
 	/*
@@ -1106,7 +1140,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 				 "instantiate", "GetImageInfo",
 				 {"images"  : foundImages,
 				  "project" : $('#project_selector #profile_pid')
-				                  .val()});
+						  .val()});
 	$xmlthing.done(callback);
 	return true;
     }
@@ -1187,8 +1221,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     function contextFail(fail1, fail2)
     {
-        console.log('Failed to fetch context', fail1, fail2);
-        alert('Failed to fetch context from ' + contextUrl + '\n\n' + 'Check your network connection and try again or contact testbed support with this message and the URL of this webpage.');
+	console.log('Failed to fetch context', fail1, fail2);
+	alert('Failed to fetch context from ' + contextUrl + '\n\n' + 'Check your network connection and try again or contact testbed support with this message and the URL of this webpage.');
     }
 
     function updateWhere()
@@ -1238,9 +1272,9 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
       if (0) {
 	console.info("updateSiteConstraints");
 	console.info(domNode);
-        console.info(bound);
-        console.info(allowed);
-        console.info(rejected);
+	console.info(bound);
+	console.info(allowed);
+	console.info(rejected);
       }
 	
       if (allowed.length == 0)
@@ -1296,3 +1330,4 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     $(document).ready(initialize);
 });
+	

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2012-2015 University of Utah and the Flux Group.
+# Copyright (c) 2012-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,7 +41,7 @@ sub usage()
     exit(-1);
 }
 my $optlist   = "qna";
-my $impotent  = 1;
+my $impotent  = 0;
 my $quiet     = 0;
 my $doall     = 0;
 
@@ -101,6 +101,8 @@ if (defined($options{"q"})) {
 }
 if (defined($options{"a"})) {
     $doall = 1;
+    # XXX for now
+    $impotent = 1;
 }
 usage() 
     if (!$doall && @ARGV != 1);
@@ -179,9 +181,9 @@ sub ConvertImage($)
 
 	push(@todelete, "$filename.bak");
 	push(@todelete, "$filename.tmp");
-	$torename{$filename} = "$newpath/${basename}";
-	$torename{$filename . ".sig"}  = "$newpath/${basename}.sig";
-	$torename{$filename . ".sha1"} = "$newpath/${basename}.sha1";
+	$torename{$filename} = "${newpath}${basename}";
+	$torename{$filename . ".sig"}  = "${newpath}${basename}.sig";
+	$torename{$filename . ".sha1"} = "${newpath}${basename}.sha1";
 
 	foreach my $file (@todelete) {
 	    if (-e $file) {

@@ -19,54 +19,65 @@
 	</p>
 	<form id='snapshot_dataset_form'
 	      class='form-horizontal' role='form'>
+	  <input type='hidden' name='dataset_uuid' value='<%- dataset_uuid %>'>
 	  <div class='row'>
 	    <div class='col-sm-12'>
 	      <% if (instancelist) { %>
-	      <select name="dataset_instance"
-		      id="dataset_instance"
-		      class='form-control format-me'
-		      data-key="dataset_instance"
-		      data-label="Instance"
-		      placeholder='Please Select'>
-		<option value=''>Please Select</option>
-		<% _.each(instancelist, function(instance) { %>
-		<option
-		   <% if (instance.uuid == formfields.dataset_instance) { %>
-	           selected
-		   <% } %>
-		   value='<%= instance.uuid %>'><%= instance.name %>
-		</option>
-		<% }); %>
-	      </select>
-	      <select name="dataset_node"
-		      id="dataset_node"
-		      class='form-control format-me'
-		      data-key="dataset_node"
-		      data-label="Node"
-		      placeholder='Please Select'>
-	      </select>
-	      <select name="dataset_bsname"
-		      id="dataset_bsname"
-		      class='form-control format-me'
-		      data-key="dataset_bsname"
-		      data-label="BS Name"
-		      placeholder='Please Select'>
-	      </select>
+		<div class="form-group">
+		  <select name="dataset_instance"
+			  id="dataset_instance"
+			  class='form-control format-me'
+			  data-key="dataset_instance"
+			  data-label="Instance"
+			  placeholder='Please Select'>
+		    <option value=''>Please Select</option>
+		    <% _.each(instancelist, function(instance) { %>
+		      <option
+			  <% if (instance.uuid == formfields.dataset_instance) { %>
+			  selected
+			  <% } %>
+			  value='<%= instance.uuid %>'><%= instance.name %>
+		      </option>
+		    <% }); %>
+		  </select>
+		</div>
+		<div class="form-group">
+		  <select name="dataset_node"
+			  id="dataset_node"
+			  class='form-control format-me'
+			  data-key="dataset_node"
+			  data-label="Node"
+			  placeholder='Please Select'>
+		  </select>
+		</div>
+		<div class="form-group">
+		  <select name="dataset_bsname"
+			  id="dataset_bsname"
+			  class='form-control format-me'
+			  data-key="dataset_bsname"
+			  data-label="BS Name"
+			  placeholder='Please Select'>
+		  </select>
+		</div>
 	      <% } else if (embedded) { %>
-	      <input name="dataset_node" id='dataset_node'
-		     value="<%- formfields.dataset_node %>"
-		     class="form-control format-me"
-		     data-key="dataset_node"
-		     data-label="Node"
-		     placeholder="Node to snapshot dataset from"
-		     type="text">
-	      <input name="dataset_bsname" id='dataset_bsname'
-		     value="<%- formfields.dataset_bsname %>"
-		     class="form-control format-me"
-		     data-key="dataset_bsname"
-		     data-label="BS Name"
-		     placeholder="Blockstore name on the node"
-		     type="text">
+	        <div class="form-group">
+		  <input name="dataset_node" id='dataset_node'
+			 value="<%- formfields.dataset_node %>"
+			 class="form-control format-me"
+			 data-key="dataset_node"
+			 data-label="Node"
+			 placeholder="Node to snapshot dataset from"
+			 type="text">
+		</div>
+		<div class="form-group">
+		  <input name="dataset_bsname" id='dataset_bsname'
+			 value="<%- formfields.dataset_bsname %>"
+			 class="form-control format-me"
+			 data-key="dataset_bsname"
+			 data-label="BS Name"
+			 placeholder="Blockstore name on the node"
+			 type="text">
+		</div>
 	      <% } %>
 	    </div>
 	    <br><br>

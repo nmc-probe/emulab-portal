@@ -10,6 +10,7 @@
 	</div>
       <% } %>
       <div class='panel-body'>
+	<span id="general_error" style="color:red;"></span>
 	<form id='create_dataset_form'
               class='form-horizontal' role='form'
               method='post' action=create_dataset.php'>
@@ -17,112 +18,129 @@
 	    <div class='col-sm-12'>
 	      <% if (1 || projects) { %>
 	        <% if (editing || projects.length == 1) { %>
-	          <input name="dataset_pid" readonly
+		  <div class="form-group">
+		    <input name="dataset_pid" readonly
 			 id="dataset_pid"
 			 value="<%- formfields.dataset_pid %>"
 			 class="form-control format-me"
 			 data-label="Project"
 			 data-key="dataset_pid">
+		  </div>
 		<% } else { %>
-		  <select name="dataset_pid"
-			  id="dataset_pid"
-			  class='form-control format-me'
-			  data-key="dataset_pid"
-			  data-label="Project"
-			  placeholder='Please Select'>
-		    <% _.each(projects, function(name) { %>
-	              <option 
-			 <% if (_.has(formfields, 'dataset_pid') &&
-			         formfields.dataset_pid == name) { %>
-			     selected
-			 <% } %>
-			 value='<%= name %>'><%= name %>
-		      </option>
-		    <% }); %>
-		  </select>
-		<% } %>
+		  <div class="form-group">
+		    <select name="dataset_pid"
+			    id="dataset_pid"
+			    class='form-control format-me'
+			    data-key="dataset_pid"
+			    data-label="Project"
+			    placeholder='Please Select'>
+		      <% _.each(projects, function(name) { %>
+			<option 
+			    <% if (_.has(formfields, 'dataset_pid') &&
+			      formfields.dataset_pid == name) { %>
+			    selected
+			    <% } %>
+			    value='<%= name %>'><%= name %>
+			</option>
+		      <% }); %>
+		    </select>
+		  </div>
+	        <% } %>
 	      <% } %>
-	      <input name="dataset_name"
+	      <div class="form-group">
+		<input name="dataset_name"
 		     value="<%- formfields.dataset_name %>"
 		     class="form-control format-me"
 		     data-key="dataset_name"
 		     data-label="Name"
 		     <% if (editing) { %> readonly <% } %>
 		     placeholder="alphanumeric, no spaces" type="text">
+	      </div>
 	      <% if (editing) { %>
-	      <input name="dataset_type" type='hidden'
-		     value="<%- formfields.dataset_type %>">
-	      <input name='ignored'
-		     value=<% if (formfields.dataset_type == "stdataset")
-			      { %>'Short Term'<% }
-		              else if (formfields.dataset_type == "ltdataset")
-		              { %>'Long Term'<% } else { %>Image Backed'<% } %>
-		     class="form-control format-me"
-		     data-key="dataset_type"
-		     data-label="Type"
-		     readonly
-		     type="text">
+		<input name="dataset_type" type='hidden'
+		       value="<%- formfields.dataset_type %>">
+		<div class="form-group">
+		  <input name='ignored'
+			 value=<% if (formfields.dataset_type == "stdataset")
+			       { %>'Short Term'<% }
+			       else if (formfields.dataset_type == "ltdataset")
+			       { %>'Long Term'<% } else { %>Image Backed'<% } %>
+			 class="form-control format-me"
+			 data-key="dataset_type"
+			 data-label="Type"
+			 readonly
+			 type="text">
+		</div>
 	      <% } else { %>
-	      <div class='format-me' data-key='dataset_type'
-		   data-label="Type">
-                  <label class='radio'>
-                    <input type='radio' name='dataset_type'
-			   id='dataset_type_stdataset'
+	        <div class="form-group">
+	          <div class='format-me' data-key='dataset_type'
+		       data-label="Type">
+                    <label class='radio-inline'>
+                      <input type='radio' name='dataset_type'
+			     id='dataset_type_stdataset'
 		             <% if (formfields.dataset_type == "stdataset") {
 				%>checked<% } %>
 			     value='stdataset'>Short term
-    	          </label>
-                  <label class='radio'>
-                    <input type='radio' name='dataset_type'
-			   id='dataset_type_ltdataset'
+		    </label>
+		    <div></div>
+                    <label class='radio-inline'>
+                      <input type='radio' name='dataset_type'
+			     id='dataset_type_ltdataset'
 		             <% if (formfields.dataset_type == "ltdataset") {
-				%>checked<% } %>
+			     %>checked<% } %>
 			     value='ltdataset'>Long term
-    	          </label>
-                  <label class='radio'>
-                    <input type='radio' name='dataset_type'
-			   id='dataset_type_imagedataset'
+		    </label>
+		    <div></div>
+                    <label class='radio-inline'>
+                      <input type='radio' name='dataset_type'
+			     id='dataset_type_imagedataset'
 		             <% if (formfields.dataset_type == "imdataset") {
-				%>checked<% } %>
+			     %>checked<% } %>
 			     value='imdataset'>Image backed
-    	          </label>
-		  <a href='#' id='dataset_help_link'>
-		    <span>What type should I pick?</span></a>
+		    </label>
+		    <div></div>
+		    <a href='#' id='dataset_help_link'>
+		      <span>What type should I pick?</span></a>
+		  </div>
 	      </div>
 	      <% } %>
 	      <div id='dataset_size_div'
 		   <% if (formfields.dataset_type == "imdataset") {
 		      %> class='hidden' <% } %> >
-		<input name="dataset_size"
-		       value="<%- formfields.dataset_size %>"
-		       class="form-control format-me"
-		       data-key="dataset_size"
-		       data-label="Size"
-		       placeholder="eg: NNN(MB|GB|TB)"
-		       <% if (editing) { %> readonly <% } %>
-		       type="text">
+		<div class="form-group">
+		  <input name="dataset_size"
+			 value="<%- formfields.dataset_size %>"
+			 class="form-control format-me"
+			 data-key="dataset_size"
+			 data-label="Size"
+			 placeholder="eg: NNN(MB|GB|TB)"
+			 <% if (editing) { %> readonly <% } %>
+			 type="text">
+		</div>
 	      </div>
 	      <% if (! embedded) { %>
 	      <div id='dataset_cluster_div'
 		   <% if (formfields.dataset_type == "imdataset") {
 		      %> class='hidden' <% } %> >
 		<% if (! editing) { %>
-		<select name="dataset_cluster"
+		  <div class="form-group">
+		    <select name="dataset_cluster"
 			id="dataset_cluster"
 			class='form-control format-me'
 			data-key="dataset_cluster"
 			data-label="Cluster"
 			placeholder='Please Select'>
-		  <option value=''>Please Select</option>
-		  <% _.each(amlist, function(name, value) { %>
-		  <option
-		     <% if (value == formfields.dataset_cluster) { %>
-	             selected
-		     <% } %>
-		     value='<%= value %>'><%= name %>
-		  </option>
-		  <% }); %>
-		</select>
+		      <option value=''>Please Select</option>
+		      <% _.each(amlist, function(name, value) { %>
+			<option
+			    <% if (value == formfields.dataset_cluster) { %>
+			    selected
+			    <% } %>
+			    value='<%= value %>'><%= name %>
+			</option>
+		      <% }); %>
+		    </select>
+		  </div>
 		<% } %>
 	      </div>
 	      <% } %>
@@ -131,51 +149,61 @@
 		   <% if (formfields.dataset_type != "imdataset") {
 		      %> class='hidden' <% } %> >
 		<% if (instancelist) { %>
-		  <select name="dataset_instance"
+		  <div class="form-group">
+		    <select name="dataset_instance"
 			  id="dataset_instance"
 			  class='form-control format-me'
 			  data-key="dataset_instance"
 			  data-label="Instance"
 			  placeholder='Please Select'>
-		    <option value=''>Please Select</option>
-		    <% _.each(instancelist, function(instance) { %>
-		    <option
-		       <% if (instance.uuid == formfields.dataset_instance) { %>
-	               selected
-		       <% } %>
-		       value='<%= instance.uuid %>'><%= instance.name %>
-		    </option>
-		    <% }); %>
-		  </select>
-		  <select name="dataset_node"
+		      <option value=''>Please Select</option>
+		      <% _.each(instancelist, function(instance) { %>
+			<option
+			    <% if (instance.uuid == formfields.dataset_instance) { %>
+			    selected
+			    <% } %>
+			    value='<%= instance.uuid %>'><%= instance.name %>
+			</option>
+		      <% }); %>
+		    </select>
+		  </div>
+		  <div class="form-group">
+		    <select name="dataset_node"
 			  id="dataset_node"
 			  class='form-control format-me'
 			  data-key="dataset_node"
 			  data-label="Node"
 			  placeholder='Please Select'>
-		  </select>
-		  <select name="dataset_bsname"
+		    </select>
+		  </div>
+		  <div class="form-group">
+		    <select name="dataset_bsname"
 			  id="dataset_bsname"
 			  class='form-control format-me'
 			  data-key="dataset_bsname"
 			  data-label="BS Name"
 			  placeholder='Please Select'>
-		  </select>
+		    </select>
+		  </div>
 	        <% } else if (embedded) { %>
-		  <input name="dataset_node" id='dataset_node'
+		  <div class="form-group">
+		    <input name="dataset_node" id='dataset_node'
 			 value="<%- formfields.dataset_node %>"
 			 class="form-control format-me"
 			 data-key="dataset_node"
 			 data-label="Node"
 			 placeholder="Node to snapshot dataset from"
 			 type="text">
-		  <input name="dataset_bsname" id='dataset_bsname'
+		  </div>
+		  <div class="form-group">
+		    <input name="dataset_bsname" id='dataset_bsname'
 			 value="<%- formfields.dataset_bsname %>"
 			 class="form-control format-me"
 			 data-key="dataset_bsname"
 			 data-label="BS Name"
 			 placeholder="Blockstore name on the node"
 			 type="text">
+		  </div>
 		<% } %>
 	      </div>
 	      <% } %>
@@ -183,7 +211,8 @@
 		   <% if (formfields.dataset_type == "ltdataset" ||
 		          formfields.dataset_type == "imdataset") {
 		      %> class='hidden' <% } %> >
-		<input name="dataset_expires"
+		<div class="form-group">
+		  <input name="dataset_expires"
 		       style='position: relative; z-index:1000;'
 		       id='dataset_expires'
 		       <% if (editing) { %> readonly <% } %>
@@ -193,33 +222,38 @@
 		       data-label="Expires"
 		       placeholder="MM/DD/YYYY"
 		       type="text">
+		</div>
 	      </div>
 	      <div id='dataset_fstype_div'
 		   <% if (formfields.dataset_type == "imdataset") {
 		      %> class='hidden' <% } %> >
 		<% if (editing) { %>
-		<input name="dataset_fstype"
+		  <div class="form-group">
+		    <input name="dataset_fstype"
 		       value="<%- formfields.dataset_fstype %>"
 		       class="form-control format-me"
 		       data-key="dataset_fstype"
 		       data-label="FS Type"
 		       readonly
 		       type="text">
+		  </div>
 		<% } else { %>
-		<select name="dataset_fstype"
+		  <div class="form-group">
+		    <select name="dataset_fstype"
 			class="form-control format-me"
 			data-key="dataset_fstype"
 			data-label="FS Type">
-		  <% _.each(fstypes, function(name) { %>
-	            <option 
-		       <% if (_.has(formfields, 'dataset_fstype') &&
-		  	formfields.dataset_fstype == name) { %>
-		       selected
-		     <% } %>
-		     value='<%= name %>'><%= name %>
-		    </option>
-		  <% }); %>
-		</select>
+		      <% _.each(fstypes, function(name) { %>
+			<option 
+			    <% if (_.has(formfields, 'dataset_fstype') &&
+		  	      formfields.dataset_fstype == name) { %>
+			    selected
+			    <% } %>
+			    value='<%= name %>'><%= name %>
+			</option>
+		      <% }); %>
+		    </select>
+		  </div>
 		<% } %>
 	      </div>
 	      <!-- Permission checkboxes. -->
@@ -230,29 +264,31 @@
 	      </div>
 	      <div class='row'>
 		<div class='col-sm-8 col-sm-offset-4'>
-		  <div class='format-me' data-key='dataset_read'>
-		    <div class='radio'>
-                      <label>
-			<input type='radio' name='dataset_read'
+		  <div class="form-group">
+		    <div class='format-me' data-key='dataset_read'>
+		      <div class='radio'>
+			<label>
+			  <input type='radio' name='dataset_read'
 			       id='dataset_read_public'
 		               <% if (formfields.dataset_read == "global") {
 				  %>checked<% } %>
 			       value='global'>
-			<em>Anyone</em>
-    	              </label>
-                    </div>
-                    <div class='radio'>
-                      <label>
-			<input type='radio' name='dataset_read'
+			  <em>Anyone</em>
+    			</label>
+                      </div>
+                      <div class='radio'>
+			<label>
+			  <input type='radio' name='dataset_read'
 			       id='dataset_read_private'
 		               <% if (formfields.dataset_read == "project") {
 				  %>checked<% } %>
 			       value='project'>
-			Only members of 
-			<span name="project_name">your project</span>
-    	              </label>
+			  Only members of 
+			  <span name="project_name">your project</span>
+    			</label>
+                      </div>
                     </div>
-                  </div>
+		  </div>
 		</div>
               </div>
 	      <div class='row'>
@@ -262,29 +298,31 @@
 	      </div>
 	      <div class='row'>
 		<div class='col-sm-8 col-sm-offset-4'>
-		  <div class='format-me' data-key='dataset_modify'>
-                    <div class='radio'>
-                      <label>
-			<input type='radio' name='dataset_modify'
+		  <div class="form-group">
+		    <div class='format-me' data-key='dataset_modify'>
+                      <div class='radio'>
+			<label>
+			  <input type='radio' name='dataset_modify'
 			       id='dataset_modify_registered'
 		               <% if (formfields.dataset_modify == "creator") {
 				  %>checked<% } %>
 			       value='creator'>
-			Only you
-    	              </label>
-                    </div>
-                    <div class='radio'>
-                      <label>
-			<input type='radio' name='dataset_modify'
+			  Only you
+    			</label>
+                      </div>
+                      <div class='radio'>
+			<label>
+			  <input type='radio' name='dataset_modify'
 			       id='dataset_modify_private'
 		               <% if (formfields.dataset_modify == "project") {
 				  %>checked<% } %>
 			       value='project'>
-			You and members of
-			<span name="project_name">your project</span>
-    	              </label>
+			  You and members of
+			  <span name="project_name">your project</span>
+    			</label>
+                      </div>
                     </div>
-                  </div>
+		  </div>
 		</div>
               </div>
 	      
@@ -304,18 +342,7 @@
       </div>
     </div>
     <!-- place to hang the modals for now -->
-    <!-- This is the Please Wait modal -->
-    <div id='waitwait-modal' class='modal fade'>
-      <div class='modal-dialog'>
-	<div class='modal-content'>
-	  <div class='modal-header'>
-            <center><h3>Please Wait</h3></center>
-	  </div>
-	  <div class='modal-body'>
-            <center><img src='images/spinner.gif' /></center>
-	  </div>
-	</div>
-      </div>
-    </div>
   </div>
+  <div id='oops_div'></div>
+  <div id='waitwait_div'></div>
 </div>

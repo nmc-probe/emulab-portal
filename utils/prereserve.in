@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2014 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,15 +31,16 @@ use Date::Parse;
 #
 sub usage()
 {
-    print STDERR "Usage: prereserve [-t typelist] [-n priority] ".
-	"[-s start] [-e end [-r]] pid count\n";
-    print STDERR "       prereserve -c [-r] pid\n";
-    print STDERR "       prereserve -i pid\n";
-    print STDERR "       prereserve -a pid\n";
+    print STDERR "Usage: prereserve [-t typelist] [-p priority] ".
+	"[-s start] [-e end [-r]] [-n resname] pid [count | node_id ...\n";
+    print STDERR "       prereserve -c [-r] -n resname pid\n";
+    print STDERR "       prereserve -i -n resname pid\n";
+    print STDERR "       prereserve -a -n resname pid\n";
     print STDERR "       prereserve -l\n";
     print STDERR "   -h   This message\n";
     print STDERR "   -t   Comma separated list of node types\n";
-    print STDERR "   -n   Priority. Defaults to zero (least priority)\n";
+    print STDERR "   -p   Priority. Defaults to zero (least priority)\n";
+    print STDERR "   -n   Reservation name; defaults to 'default'\n";
     print STDERR "   -c   Clear pending prereserve for project\n";
     print STDERR "   -r   Revoke current prereserve for project (use with -c)\n";
     print STDERR "   -i   Show pending prereserve for project\n";
@@ -50,7 +51,7 @@ sub usage()
     print STDERR "   -a   Activate a pending reservation (internal option)\n";
     exit(-1);
 }
-my $optlist  = "hdct:n:ilre:s:ma";
+my $optlist  = "hdct:n:ilre:s:map:";
 my $priority = 0;
 my $debug    = 0;
 my $info     = 0;
@@ -59,15 +60,18 @@ my $clear    = 0;
 my $revoke   = 0;
 my $sendmail = 0;
 my $activate = 0;
+my @nodelist = ();
+my $resname;
 my $starttime;
 my $endtime;
 my $typelist;
 my $pid;
 my $count;
+my $project;
 
 # Protos
 sub fatal($);
-sub StartReservation($);
+sub StartReservation($$);
 
 #
 # Configure variables
@@ -108,8 +112,11 @@ if (! getopts($optlist, \%options)) {
 if (defined($options{h})) {
     usage();
 }
+if (defined($options{p})) {
+    $priority = $options{p};
+}
 if (defined($options{n})) {
-    $priority = $options{n};
+    $resname = $options{n};
 }
 if (defined($options{c})) {
     $clear = 1;
@@ -152,6 +159,8 @@ if (defined($options{"s"})) {
 if ($info || $clear || ($revoke && !$endtime)) {
     usage()
 	if (@ARGV != 1 || ($revoke && !$clear));
+    usage()
+	if (!defined($resname));
     
     $pid = $ARGV[0];
 }
@@ -161,16 +170,32 @@ elsif ($list) {
 }
 elsif ($activate) {
     usage()
-	if (@ARGV != 1);
+	if (@ARGV != 1 || !defined($resname));
 
-    exit(StartReservation($ARGV[0]));
+    exit(StartReservation($ARGV[0], $resname));
 }
 else {
     usage()
-	if (@ARGV != 2);
+	if (@ARGV < 2);
     
-    $pid   = $ARGV[0];
-    $count = $ARGV[1];
+    $pid     = shift(@ARGV);
+    $count   = shift(@ARGV);
+    $resname = "default" if (!defined($resname));
+
+    if ($count !~ /^\d+$/) {
+	if (defined($typelist)) {
+	    fatal("Not allowed to specify types and a node list together");
+	}
+	@nodelist = ($count, @ARGV);
+	$count    = scalar(@nodelist);
+
+	foreach my $nodeid (@nodelist) {
+	    my $node = Node->Lookup($nodeid);
+	    if (!defined($node)) {
+		fatal("No such node $nodeid");
+	    }
+	}
+    }
 
     if ($priority && ! ($priority =~ /^\d*$/)) {
 	usage();
@@ -182,17 +207,18 @@ else {
 #
 if ($list) {
     my $query_result = 
-	DBQueryFatal("select *,(count>0) as needed from node_reservations ".
+	DBQueryFatal("select *,(count>0) as needed from project_reservations ".
 		     "order by needed desc, priority desc, created asc");
 
     if ($query_result->numrows) {
-	printf("%-18s %-4s  %-3s  %-10s %-18s %-3s %s\n",
-	       "Project", "Need", "Got", "Creator", "Created", "Pri", "Types");
+	printf("%-18s %-12s %-4s  %-3s  %-10s %-18s %-3s %s\n",
+	       "Project", "ResName", "Need", "Got", "Creator", "Created", "Pri", "Types");
 	print "---------------------------------------------------------------------\n";
     }
     
     while (my $row = $query_result->fetchrow_hashref()) {
 	my $pid     = $row->{'pid'};
+	my $name    = $row->{'name'};
 	my $count   = $row->{'count'};
 	my $created = $row->{'created'};
 	my $creator = $row->{'creator'};
@@ -202,15 +228,17 @@ if ($list) {
 	my $endtime   = $row->{'end'};
 	my $active    = $row->{'active'};
 	my $current = 0;
-    
+
 	my $current_result =
-	    DBQueryFatal("select count(*) from nodes where reserved_pid='$pid'");
+	    DBQueryFatal("select count(*) from nodes ".
+			 "where reserved_pid='$pid' and ".
+			 "      reservation_name='$name'");
 
 	($current) = $current_result->fetchrow_array()
 	    if ($current_result && $current_result->numrows);
 
-	printf("%-20s %-4d %-3d %-10s %-18s %-3d %s\n",
-	       $pid, $count, $current, $creator, $created,
+	printf("%-20s %-12s %-4d %-3d %-10s %-18s %-3d %s\n",
+	       $pid, $name, $count, $current, $creator, $created,
 	       $priority, $types);
 
 	if (defined($starttime)) {
@@ -227,9 +255,23 @@ if ($list) {
     exit(0);
 }
 
-my $project = Project->Lookup($pid);
-if (!defined($project)) {
-    fatal("No such project $pid\n");
+if ($pid =~ /^(.*):(.*)$/) {
+    require GeniHRN;
+
+    my $urn = GeniHRN::Generate($pid, "authority", "sa");
+
+    $project = Project->LookupNonLocal($urn);
+    if (!defined($project)) {
+	fatal("No such nonlocal project $pid\n");
+    }
+    $pid = $project->pid();
+}
+else {
+    $project = Project->Lookup($pid);
+
+    if (!defined($project)) {
+	fatal("No such project $pid\n");
+    }
 }
 my $pid_idx = $project->pid_idx();
 
@@ -238,16 +280,19 @@ my $pid_idx = $project->pid_idx();
 #
 if ($info) {
     my $current = 0;
+    my $pending = 0;
     
     my $nodes_result =
-	DBQueryFatal("select node_id from nodes where reserved_pid='$pid'");
+	DBQueryFatal("select node_id from nodes ".
+		     "where reserved_pid='$pid' and ".
+		     "      reservation_name='$resname'");
 
     ($current) = $nodes_result->numrows
 	if ($nodes_result && $nodes_result->numrows);
     
     my $query_result =
-	DBQueryFatal("select * from node_reservations ".
-		     "where pid_idx='$pid_idx'");
+	DBQueryFatal("select * from project_reservations ".
+		     "where pid_idx='$pid_idx' and name='$resname'");
 
     if ($query_result->numrows) {
 	my $row = $query_result->fetchrow_hashref();
@@ -295,6 +340,28 @@ if ($info) {
 	    printf("%-15s %-10s %-32s\n", $node_id, $type, $pideid);
 	}
     }
+    my $noderes_result =
+	DBQueryFatal("select node_id from node_reservations ".
+		     "where pid_idx='$pid_idx' and ".
+		     "      reservation_name='$resname'");
+    if ($noderes_result->numrows) {
+	print "-------------------------------------------------------------\n";
+	print "Still waiting for these nodes\n";
+	printf("%-15s %-10s %-32s\n",
+	       "NodeID", "Type", "Pid/Eid");
+	print "-------------------------------------------------------------\n";
+
+	while (my ($node_id) = $noderes_result->fetchrow_array()) {
+	    my $node   = Node->Lookup($node_id);
+	    my $type   = $node->type();
+	    my $pideid = "--";
+
+	    if ($node->IsReserved()) {
+		$pideid = $node->pid() . "/" . $node->eid();
+	    }
+	    printf("%-15s %-10s %-32s\n", $node_id, $type, $pideid);
+	}
+    }
     exit(0);
 }
 
@@ -316,11 +383,56 @@ if ($UID) {
 # Clear and exit.
 #
 if ($clear) {
-    DBQueryFatal("delete from node_reservations where pid_idx='$pid_idx'");
-    if ($revoke) {
-	DBQueryFatal("update nodes set reserved_pid=null ".
-		     "where reserved_pid='$pid'");
+    my $query_result =
+	DBQueryFatal("select name from project_reservations ".
+		     "where pid_idx='$pid_idx' and name='$resname'");
+    if (!$query_result->numrows) {
+	fatal("No such prereserve $pid,$resname");
     }
+
+    #
+    # Mark reservation as terminal to prevent it from being used.
+    # Turning off active is no good, it will just get turned on.
+    #
+    DBQueryFatal("update project_reservations set terminal=1 ".
+		 "where pid_idx='$pid_idx' and name='$resname'");
+
+    #
+    # If we are revoking the reservation, lets see if any nodes can be
+    # moved to a another prereserve instead of going into the free pool.
+    #
+    # If NOT revoking the reservation, then we need to leave the reserved_pid
+    # set, but we have to do something with the reservation_name since we
+    # need to be able to reuse the reservation name in a new one. We cannot
+    # clear it, since a NULL reservation_name means it was reserved via the
+    # web interface and not allowed to be messed with by the pre-reservation
+    # code. Look at Node::CheckPreReserve() to see what I mean. So instead,
+    # we set it to something not likely to be an actual reservation name.
+    #
+    if ($revoke) {
+	my $query_result =
+	    DBQueryFatal("select node_id from nodes ".
+			 "where reserved_pid='$pid' and ".
+			 "      reservation_name='$resname'");
+	while (my ($node_id) = $query_result->fetchrow_array()) {
+	    my $node = Node->Lookup($node_id);
+	    $node->CheckPreReserve(0, 0);
+	}
+	DBQueryFatal("update nodes set reserved_pid=null, ".
+		     "   reservation_name=null ".
+		     "where reserved_pid='$pid' and ".
+		     "      reservation_name='$resname'");
+    }
+    else {
+	DBQueryFatal("update nodes set reservation_name='__${resname}__' ".
+		     "where reserved_pid='$pid' and ".
+		     "      reservation_name='$resname'");
+    }
+    DBQueryFatal("delete from node_reservations ".
+		 "where pid_idx='$pid_idx' and reservation_name='$resname'");
+    DBQueryFatal("delete from project_reservations ".
+		 "where pid_idx='$pid_idx' and name='$resname'");
+    
     exit(0);
 }
 
@@ -347,11 +459,36 @@ if (defined($typelist)) {
 # 
 # Lets say that a current request is an error. delete and recreate.
 #
+DBQueryFatal("lock tables project_reservations write, ".
+	     "            node_reservations write");
 my $query_result =
-    DBQueryFatal("select * from node_reservations where pid_idx='$pid_idx'");
-
+    DBQueryFatal("select * from project_reservations ".
+		 "where pid_idx='$pid_idx' and name='$resname'");
 if ($query_result->numrows) {
-    fatal("Already have a reservation request for $pid, please clear it first");
+    fatal("Already have a reservation request $pid,$resname; ".
+	  "please clear it first");
+}
+
+#
+# It would be odd to allow the same node to be in more then one
+# reservation in the same project. Well, I can imagine a scenario; we
+# have a bunch of pcXXXs in a pre-reserve, some already allocated.  We
+# want to revoke that pre-reserve, but keep some subset of the pcXXXs
+# in that project. If there was another pre-reserve in the same
+# project, we would never allow that subset to get back into the
+# wild. It might be useful to support this at some point, I think it
+# can be done. Lets see if its needed.
+#
+if (@nodelist) {
+    foreach my $node_id (@nodelist) {
+	my $query_result =
+	    DBQueryFatal("select node_id from node_reservations ".
+			 "where node_id='$node_id' and pid_idx='$pid_idx'");
+	if ($query_result->numrows) {
+	    fatal("There is already a pre-reservation for $node_id in\n".
+		  "this project; this is not allowed");
+	}
+    }
 }
 
 #
@@ -369,10 +506,26 @@ if ($endtime) {
     my $tmp = str2time($endtime);
     $endarg = ",end=FROM_UNIXTIME($tmp)";
 }
-DBQueryFatal("insert into node_reservations set ".
-	     "  pid='$pid', pid_idx='$pid_idx', count='$count', ".
-	     "  creator='$uid', creator_idx='$uid_idx', ".
+DBQueryFatal("insert into project_reservations set ".
+	     "  pid='$pid', pid_idx='$pid_idx', name='$resname',".
+	     "  count='$count', creator='$uid', creator_idx='$uid_idx', ".
 	     "  created=now(),active=0 $typearg $startarg $endarg");
+if (@nodelist) {
+    foreach my $node_id (@nodelist) {
+	if (!DBQueryWarn("insert into node_reservations set ".
+			 "  pid='$pid', pid_idx='$pid_idx', ".
+			 "  reservation_name='$resname', ".
+			 "  node_id='$node_id'")) {
+	    DBQueryWarn("delete from node_reservations ".
+			"where pid_idx='$pid_idx' and ".
+			"      reservation_name='$resname'");
+	    DBQueryWarn("delete from project_reservations ".
+			"where pid_idx='$pid_idx' and name='$resname'");
+	    exit(-1);
+	}
+    }
+}
+DBQueryFatal("unlock tables");
 print "Node reservation request for $count nodes has been created.\n";
 
 #
@@ -380,7 +533,7 @@ print "Node reservation request for $count nodes has been created.\n";
 # have beat us to it already. We check the active bit below.
 #
 if (!defined($starttime) || str2time($starttime) <= time()) {
-    exit(StartReservation($pid));
+    exit(StartReservation($pid, $resname));
 }
 exit(0);
 
@@ -388,17 +541,23 @@ exit(0);
 # Activate a reservation request; find as many nodes as possible,
 # and then mark it as active. 
 #
-sub StartReservation($)
+sub StartReservation($$)
 {
-    my ($pid) = @_;
+    my ($pid, $resname) = @_;
 
     DBQueryFatal("lock tables nodes write, node_types read, ".
-		 " node_reservations write, reserved read");
-    
+		 " project_reservations write, ".
+		 " node_reservations write, reserved write");
+
+    my $noderes_result =
+	DBQueryFatal("select node_id from node_reservations ".
+		     "where pid='$pid' and reservation_name='$resname'");
+
     my $query_result =
-	DBQueryFatal("select * from node_reservations where pid='$pid'");
+	DBQueryFatal("select * from project_reservations ".
+		     "where pid='$pid' and name='$resname'");
     if (!$query_result->numrows) {
-	fatal("No reservation defined for project");
+	fatal("No reservation $resname defined for project");
     }
     my $row = $query_result->fetchrow_hashref();
     my $active = $row->{'active'};
@@ -417,7 +576,9 @@ sub StartReservation($)
     # prereserve, from nodes already prereserved.
     #
     $query_result =
-	DBQueryFatal("select node_id from nodes where reserved_pid='$pid'");
+	DBQueryFatal("select node_id from nodes ".
+		     "where reserved_pid='$pid' and ".
+		     "      reservation_name='$resname'");
 
     my $current = $query_result->numrows;
 
@@ -426,6 +587,50 @@ sub StartReservation($)
 	    "for project $pid.\n";
 	if ($current >= $count) {
 	    goto done;
+	}
+    }
+
+    #
+    # If we have a node list, then we do not do any type stuff, we
+    # operate on specific nodes only.
+    #
+    if ($noderes_result->numrows) {
+	@types = ();
+
+	while (my ($node_id) = $noderes_result->fetchrow_array()) {
+	    my $query_result =
+		DBQueryFatal("select pid,reserved_pid from nodes ".
+			     "left join reserved on ".
+			     "   reserved.node_id=nodes.node_id ".
+			     "where nodes.node_id='$node_id'");
+
+	    next
+		if (!$query_result->numrows);
+
+	    my ($curpid,$rpid) = $query_result->fetchrow_array();
+
+	    if ((defined($curpid) && $curpid ne $pid) ||
+		(defined($rpid) && $rpid ne $pid)) {
+		#
+		# Someone else still has it, skip.
+		#
+		print "$node_id is still reserved to project $curpid, will".
+		    "be done later.\n"
+		    if (defined($curpid));
+		print "$node_id is still pre-reserved to project $rpid, will".
+		    "be done later.\n"
+		    if (defined($rpid));
+		next;
+	    }
+	    # Free or we already have it. Note that we do not allow a
+	    # specific node to be in more then one reservation in the
+	    # same project. See note above.
+	    $current++;
+	    DBQueryFatal("delete from node_reservations ".
+			 "where node_id='$node_id'");
+	    DBQueryFatal("update nodes set reserved_pid='$pid', ".
+			 "   reservation_name='$resname' ".
+			 "where node_id='$node_id'");
 	}
     }
 
@@ -443,24 +648,30 @@ sub StartReservation($)
 	}
 
 	#
-	# check for nodes already reserved to the project, but without
-	# reserved_pid set; they count against a prereserve request and
-	# also need to be updated.
+	# check for nodes already reserved to the project; they count
+	# against the prereserve request. If the reserved_pid is not
+	# set, we set it to indicate that they are attached to this
+	# pre-reserve.
 	#
 	$query_result =
-	    DBQueryFatal("select reserved.node_id from reserved ".
+	    DBQueryFatal("select reserved.node_id,nodes.reserved_pid, ".
+			 "       nodes.reservation_name ".
+			 "  from reserved ".
 			 "left join nodes on nodes.node_id=reserved.node_id ".
 			 "left join node_types on node_types.type=nodes.type ".
 			 "where nodes.role='testnode' and ".
 			 "      node_types.class='pc' and ".
-			 "      nodes.reserved_pid is null and ".
 			 "      reserved.pid='$pid' $tclause");
 	
-	while (my ($node_id) = $query_result->fetchrow_array()) {
-	    DBQueryFatal("update nodes set reserved_pid='$pid' ".
-			 "where node_id='$node_id'");
+	while (my ($node_id,$reserved_pid,
+		   $reservation_name) = $query_result->fetchrow_array()) {
 	    $current++;
-	    $tcount++;
+	    if (!defined($reserved_pid)) {
+		DBQueryFatal("update nodes set reserved_pid='$pid', ".
+			     "   reservation_name='$resname' ".
+			     "where node_id='$node_id'");
+		$tcount++;
+	    }
 	    last
 		if ($current >= $count);
 	}
@@ -484,7 +695,8 @@ sub StartReservation($)
 
 	$tcount = 0;
 	while (my ($node_id) = $query_result->fetchrow_array()) {
-	    DBQueryFatal("update nodes set reserved_pid='$pid' ".
+	    DBQueryFatal("update nodes set reserved_pid='$pid', ".
+			 "   reservation_name='$resname' ".
 			 "where node_id='$node_id'");
 	    $current++;
 	    $tcount++;
@@ -506,14 +718,14 @@ sub StartReservation($)
     $count -= $current;
     $count = 0 if ($count < 0);
 
-    DBQueryFatal("update node_reservations set ".
+    DBQueryFatal("update project_reservations set ".
 		 "       count='$count',active=1 ".
-		 "where pid='$pid'");
+		 "where pid='$pid' and name='$resname'");
     DBQueryFatal("unlock tables");
 
     if ($count == 0 && $sendmail) {
-	SENDMAIL($TBOPS, "Pre Reservation for $pid has completed",
-		 "The pre reservation request for project $pid, ".
+	SENDMAIL($TBOPS, "Pre Reservation for $pid,$resname has completed",
+		 "The pre reservation request for $pid,$resname ".
 		 "has been fullfilled\n", $TBOPS);
     }
     return 0

@@ -352,6 +352,10 @@ REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NETBOOT','SHUTDO
 REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NORMAL','SHUTDOWN','');
 REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NORMALv1','SHUTDOWN','');
 REPLACE INTO mode_transitions VALUES ('WIMRELOAD','RELOADDONE','NORMALv2','SHUTDOWN','');
+REPLACE INTO mode_transitions VALUES ('ALWAYSUP','SHUTDOWN','RELOAD-UE','SHUTDOWN','ReloadStart');
+REPLACE INTO mode_transitions VALUES ('ALWAYSUP','ISUP','RELOAD-UE','SHUTDOWN','ReloadStart');
+REPLACE INTO mode_transitions VALUES ('ALWAYSUP','ISUP','RELOAD-UE','ISUP','ReloadStart');
+REPLACE INTO mode_transitions VALUES ('RELOAD-UE','SHUTDOWN','ALWAYSUP','ISUP','ReloadDone');
 
 --
 -- Dumping data for table `priorities`
@@ -701,6 +705,8 @@ REPLACE INTO state_transitions VALUES ('RELOAD','RELOADFAILED','SHUTDOWN','');
 REPLACE INTO state_transitions VALUES ('RELOAD-PCVM','RELOADSETUP','RELOADFAILED','');
 REPLACE INTO state_transitions VALUES ('RELOAD-PCVM','RELOADING','RELOADFAILED','');
 REPLACE INTO state_transitions VALUES ('RELOAD-PCVM','RELOADFAILED','SHUTDOWN','');
+REPLACE INTO state_transitions VALUES ('RELOAD-UE','RELOADING','RELOADDONE','ReloadDone');
+REPLACE INTO state_transitions VALUES ('RELOAD-UE','SHUTDOWN','RELOADING','Booting');
 
 --
 -- Dumping data for table `state_triggers`
@@ -734,6 +740,7 @@ REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','RELOADDONE','PXERESET, RESE
 REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','PXEBOOTING','REBOOT');
 REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','BOOTING','REBOOT');
 REPLACE INTO state_triggers VALUES ('*','WIMRELOAD','ISUP','REBOOT');
+REPLACE INTO state_triggers VALUES ('*','RELOAD-UE','RELOADDONE','RELOADDONE');
 
 --
 -- Dumping data for table `table_regex`
@@ -975,6 +982,7 @@ REPLACE INTO table_regex VALUES ('experiments','ipassign_args','text','regex','^
 REPLACE INTO table_regex VALUES ('experiments','expt_name','text','redirect','default:fulltext',1,255,NULL);
 REPLACE INTO table_regex VALUES ('experiments','dpdb','int','redirect','default:tinyint',0,1,NULL);
 REPLACE INTO table_regex VALUES ('experiments','nonfsmounts','int','redirect','default:tinyint',0,1,NULL);
+REPLACE INTO table_regex VALUES ('experiments','packing_strategy','text','regex','^(pack|balance)$',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('experiments','description','text','redirect','default:fulltext',1,256,NULL);
 REPLACE INTO table_regex VALUES ('experiments','idle_ignore','int','redirect','default:boolean',0,0,NULL);
@@ -1080,6 +1088,7 @@ REPLACE INTO table_regex VALUES ('images','format','text','regex','^[-\\w]+$',1,
 REPLACE INTO table_regex VALUES ('images','hash','text','regex','^[\\w]+$',16,64,NULL);
 REPLACE INTO table_regex VALUES ('images','deltahash','text','regex','^[\\w]+$',16,64,NULL);
 REPLACE INTO `table_regex` VALUES ('images','size','int','redirect','default:bigint',0,0,NULL);
+REPLACE INTO `table_regex` VALUES ('images','deltasize','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_low','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_high','int','redirect','default:bigint',0,0,NULL);
 REPLACE INTO `table_regex` VALUES ('images','lba_size','int','redirect','default:int',0,0,NULL);

@@ -64,9 +64,14 @@ CREATE TABLE `apt_aggregates` (
   `name` varchar(32) NOT NULL default '',
   `nickname` varchar(32) NOT NULL default '',
   `abbreviation` varchar(16) NOT NULL default '',
+  `adminonly` tinyint(1) NOT NULL default '0',
+  `isfederate` tinyint(1) NOT NULL default '0',
+  `disabled` tinyint(1) NOT NULL default '0',
   `noupdate` tinyint(1) NOT NULL default '0',
   `updated` datetime NOT NULL default '0000-00-00 00:00:00',
   `weburl` tinytext,
+  `has_datasets` tinyint(1) NOT NULL default '0',
+  `portals` set('emulab','aptlab','cloudlab','phantomnet') default NULL,
   `jsondata` text,
   PRIMARY KEY  (`urn`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -233,12 +238,15 @@ CREATE TABLE `apt_instances` (
   `extension_history` mediumtext,
   `extension_adminonly` tinyint(1) NOT NULL default '0',
   `extension_requested` tinyint(1) NOT NULL default '0',
+  `extension_denied` tinyint(1) NOT NULL default '0',
+  `extension_denied_reason` mediumtext,
   `extension_count` smallint(5) unsigned NOT NULL default '0',
   `extension_days` smallint(5) unsigned NOT NULL default '0',
   `physnode_count` smallint(5) unsigned NOT NULL default '0',
   `virtnode_count` smallint(5) unsigned NOT NULL default '0',
   `servername` tinytext,
   `monitor_pid` int(11) default '0',
+  `needupdate` tinyint(3) NOT NULL default '0',
   `logfileid` varchar(40) default NULL,
   `cert` mediumtext,
   `privkey` mediumtext,
@@ -1643,6 +1651,7 @@ CREATE TABLE `experiments` (
   `uselinkdelays` tinyint(4) NOT NULL default '0',
   `forcelinkdelays` tinyint(4) NOT NULL default '0',
   `multiplex_factor` smallint(5) default NULL,
+  `packing_strategy` enum('pack','balance') default NULL,
   `uselatestwadata` tinyint(4) NOT NULL default '0',
   `usewatunnels` tinyint(4) NOT NULL default '1',
   `wa_delay_solverweight` float default '0',
@@ -2204,8 +2213,6 @@ CREATE TABLE `image_versions` (
   `lba_high` bigint(20) unsigned NOT NULL default '0',
   `lba_size` int(10) unsigned NOT NULL default '512',
   `relocatable` tinyint(1) NOT NULL default '0',
-  `locked` datetime default NULL,
-  `locker_pid` int(11) default '0',
   `metadata_url` tinytext,
   `imagefile_url` tinytext,
   `origin_urn` varchar(128) default NULL,
@@ -2305,7 +2312,7 @@ DROP TABLE IF EXISTS `interface_state`;
 CREATE TABLE `interface_state` (
   `node_id` varchar(32) NOT NULL default '',
   `card` tinyint(3) unsigned NOT NULL default '0',
-  `port` tinyint(3) unsigned NOT NULL default '0',
+  `port` smallint(5) unsigned NOT NULL default '0',
   `iface` varchar(32) NOT NULL,
   `enabled` tinyint(1) default '1',
   `tagged` tinyint(1) default '0',
@@ -2325,7 +2332,7 @@ CREATE TABLE `interface_types` (
   `full_duplex` tinyint(1) default NULL,
   `manufacturer` varchar(30) default NULL,
   `model` varchar(30) default NULL,
-  `ports` tinyint(4) default NULL,
+  `ports` smallint(5) unsigned default NULL,
   `connector` varchar(30) default NULL,
   PRIMARY KEY  (`type`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
@@ -2338,7 +2345,7 @@ DROP TABLE IF EXISTS `interfaces`;
 CREATE TABLE `interfaces` (
   `node_id` varchar(32) NOT NULL default '',
   `card` tinyint(3) unsigned NOT NULL default '0',
-  `port` tinyint(3) unsigned NOT NULL default '0',
+  `port` smallint(5) unsigned NOT NULL default '0',
   `mac` varchar(12) NOT NULL default '000000000000',
   `guid` varchar(16) default NULL,
   `IP` varchar(15) default NULL,
@@ -2657,6 +2664,7 @@ CREATE TABLE `login` (
   `timeout` varchar(10) NOT NULL default '',
   `adminon` tinyint(1) NOT NULL default '0',
   `opskey` varchar(64) NOT NULL,
+  `portal` enum('emulab','aptlab','cloudlab','phantomnet') NOT NULL default 'emulab',
   PRIMARY KEY  (`uid_idx`,`hashkey`),
   UNIQUE KEY `hashhash` (`uid_idx`,`hashhash`),
   UNIQUE KEY `uidkey` (`uid`,`hashkey`)
@@ -2760,13 +2768,13 @@ CREATE TABLE `new_interfaces` (
   `new_interface_id` int(11) NOT NULL auto_increment,
   `new_node_id` int(11) NOT NULL default '0',
   `card` int(11) NOT NULL default '0',
-  `port` tinyint(3) unsigned default NULL,
+  `port` smallint(5) unsigned default NULL,
   `mac` varchar(12) NOT NULL default '',
   `guid` varchar(16) default NULL,
   `interface_type` varchar(15) default NULL,
   `switch_id` varchar(32) default NULL,
   `switch_card` tinyint(3) default NULL,
-  `switch_port` tinyint(3) default NULL,
+  `switch_port` smallint(5) unsigned default NULL,
   `cable` smallint(6) default NULL,
   `len` tinyint(4) default NULL,
   `role` tinytext,
@@ -2786,7 +2794,7 @@ CREATE TABLE `new_interface_types` (
   `full_duplex` tinyint(1) default NULL,
   `manufacturer` varchar(30) default NULL,
   `model` varchar(30) default NULL,
-  `ports` tinyint(4) default NULL,
+  `ports` smallint(5) unsigned default NULL,
   `connector` varchar(30) default NULL,
   PRIMARY KEY  (`new_interface_type_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=8 DEFAULT CHARSET=latin1;
@@ -2828,10 +2836,10 @@ CREATE TABLE `new_wires` (
   `type` enum('Node','Serial','Power','Dnard','Control','Trunk','OuterControl','Unused','Management') default NULL,
   `node_id1` char(32) default NULL,
   `card1` tinyint(3) unsigned default NULL,
-  `port1` tinyint(3) unsigned default NULL,
+  `port1` smallint(5) unsigned default NULL,
   `node_id2` char(32) default NULL,
   `card2` tinyint(3) unsigned default NULL,
-  `port2` tinyint(3) unsigned default NULL,
+  `port2` smallint(5) unsigned default NULL,
   PRIMARY KEY  (`new_wire_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -3027,18 +3035,11 @@ CREATE TABLE `node_licensekeys` (
 
 DROP TABLE IF EXISTS `node_reservations`;
 CREATE TABLE `node_reservations` (
+  `node_id` varchar(32) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
-  `priority` smallint(5) NOT NULL default '0',
-  `count` smallint(5) NOT NULL default '0',
-  `types` varchar(128) default NULL,
-  `creator` varchar(8) NOT NULL default '',
-  `creator_idx` mediumint(8) unsigned NOT NULL default '0',
-  `created` datetime default NULL,
-  `start` datetime default NULL,
-  `end` datetime default NULL,
-  `active` tinyint(1) NOT NULL default '0',
-  PRIMARY KEY (`pid_idx`)
+  `reservation_name` varchar(48) NOT NULL default 'default',
+  PRIMARY KEY (`node_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -3250,6 +3251,7 @@ CREATE TABLE `nodes` (
   `destination_y` float default NULL,
   `destination_orientation` float default NULL,
   `reserved_pid` varchar(48) default NULL,
+  `reservation_name` varchar(48) default NULL,
   `uuid` varchar(40) NOT NULL default '',
   `reserved_memory` int(10) unsigned default '0',
   `nonfsmounts` tinyint(1) NOT NULL default '0',
@@ -3875,7 +3877,7 @@ DROP TABLE IF EXISTS `port_counters`;
 CREATE TABLE `port_counters` (
   `node_id` char(32) NOT NULL default '',
   `card` tinyint(3) unsigned NOT NULL default '0',
-  `port` tinyint(3) unsigned NOT NULL default '0',
+  `port` smallint(5) unsigned NOT NULL default '0',
   `ifInOctets` int(10) unsigned NOT NULL default '0',
   `ifInUcastPkts` int(10) unsigned NOT NULL default '0',
   `ifInNUcastPkts` int(10) unsigned NOT NULL default '0',
@@ -3991,6 +3993,28 @@ CREATE TABLE `project_quotas` (
   `notes` tinytext,
   PRIMARY KEY (`quota_idx`),
   UNIQUE KEY `qpid` (`pid`,`quota_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `project_reservations`
+--
+
+DROP TABLE IF EXISTS `project_reservations`;
+CREATE TABLE `project_reservations` (
+  `pid` varchar(48) NOT NULL default '',
+  `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `name` varchar(48) NOT NULL default 'default',
+  `priority` smallint(5) NOT NULL default '0',
+  `count` smallint(5) NOT NULL default '0',
+  `types` varchar(128) default NULL,
+  `creator` varchar(8) NOT NULL default '',
+  `creator_idx` mediumint(8) unsigned NOT NULL default '0',
+  `created` datetime default NULL,
+  `start` datetime default NULL,
+  `end` datetime default NULL,
+  `active` tinyint(1) NOT NULL default '0',
+  `terminal` tinyint(1) NOT NULL default '0',
+  PRIMARY KEY (`pid_idx`,`name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
@@ -5288,7 +5312,7 @@ CREATE TABLE `virt_node_public_addr` (
   `mask` varchar(15) default NULL,
   `node_id` varchar(32) default NULL,
   `card` tinyint(3) unsigned default '0',
-  `port` tinyint(3) unsigned default '0',
+  `port` smallint(5) unsigned default '0',
   `pool_id` varchar(32) default NULL,
   `pid` varchar(48) default NULL,
   `eid` varchar(32) default NULL,
@@ -5851,10 +5875,10 @@ CREATE TABLE `wires` (
   `type` enum('Node','Serial','Power','Dnard','Control','Trunk','OuterControl','Unused','Management') NOT NULL default 'Node',
   `node_id1` char(32) NOT NULL default '',
   `card1` tinyint(3) unsigned NOT NULL default '0',
-  `port1` tinyint(3) unsigned NOT NULL default '0',
+  `port1` smallint(5) unsigned NOT NULL default '0',
   `node_id2` char(32) NOT NULL default '',
   `card2` tinyint(3) unsigned NOT NULL default '0',
-  `port2` tinyint(3) unsigned NOT NULL default '0',
+  `port2` smallint(5) unsigned NOT NULL default '0',
   `logical` tinyint(1) unsigned NOT NULL default '0',
   `trunkid` mediumint(4) unsigned NOT NULL default '0',
   `external_interface` tinytext,

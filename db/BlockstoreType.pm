@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012,2013 University of Utah and the Flux Group.
+# Copyright (c) 2012,2013,2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,6 +38,7 @@ use overload ('""' => 'Stringify');
 
 # Cache of instances to avoid regenerating them.
 my %bstypes	= ();
+BEGIN { use emutil; emutil::AddCache(\%bstypes); }
 my $debug	= 0;
 
 # Little helper and debug function.

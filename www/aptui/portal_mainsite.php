@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,6 +32,7 @@
 #
 if ($_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     $ISVSERVER    = 1;
+    $ISEMULAB     = 0;
     $ISAPT        = 1;
     $TBAUTHDOMAIN = ".aptlab.net";
     $COOKDIEDOMAIN= ".aptlab.net";
@@ -51,14 +52,15 @@ if ($_SERVER["SERVER_NAME"] == "www.aptlab.net") {
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
         $APTBASE .= "/" . $matches[1];
     }
-    $PORTAL_MANUAL       = "http://docs.aptlab.net";
-    $PORTAL_MOTD_SITEVAR = "aptlab/message";
-    $PORTAL_HELPFORUM    = "apt-users";
-    $PORTAL_PASSWORD_HELP= "Aptlab.net or Emulab.net Username";
-    $PORTAL_NSFNUMBER    = "CNS-1338155";
-    $DEFAULT_AGGREGATE   = "Utah APT";
-    $PORTAL_GENESIS      = "aptlab";
-    $PORTAL_NAME         = "APT";
+    $PORTAL_MANUAL         = "http://docs.aptlab.net";
+    $PORTAL_MOTD_SITEVAR   = "aptlab/message";
+    $PORTAL_HELPFORUM      = "apt-users";
+    $PORTAL_PASSWORD_HELP  = "Aptlab.net or Emulab.net Username";
+    $PORTAL_NSFNUMBER      = "CNS-1338155";
+    $DEFAULT_AGGREGATE     = "Utah APT";
+    $DEFAULT_AGGREGATE_URN = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+    $PORTAL_GENESIS        = "aptlab";
+    $PORTAL_NAME           = "APT";
 }
 elseif ($_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
     $ISVSERVER    = 1;
@@ -72,6 +74,7 @@ elseif ($_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
     $FAVICON      = "cloudlab.ico";
     $APTLOGO      = "cloudlogo.png";
     $APTSTYLE     = "cloudlab.css";
+    $ISEMULAB     = 0;
     $ISCLOUD      = 1;
     $GOOGLEUA     = 'UA-42844769-2';
     $TBMAILTAG    = "cloudlab.us";
@@ -82,7 +85,7 @@ elseif ($_SERVER["SERVER_NAME"] == "www.cloudlab.us") {
 	$APTBASE .= "/" . $matches[1];
     }
     $PORTAL_MANUAL       = "http://docs.cloudlab.us";
-    $PORTAL_MOTD_SITEVAR = "aptlab/message";
+    $PORTAL_MOTD_SITEVAR = "cloudlab/message";
     $PORTAL_HELPFORUM    = "cloudlab-users";
     $PORTAL_PASSWORD_HELP= "CloudLab.us or Emulab.net Username";
     $PORTAL_NSFNUMBER    = "CNS-1302688";
@@ -102,6 +105,7 @@ elseif ($ISALTDOMAIN && $_SERVER["SERVER_NAME"] == "www.phantomnet.org") {
     $FAVICON      = "phantomnet.ico";
     $APTLOGO      = "phantomlogo.png";
     $APTSTYLE     = "phantomnet.css";
+    $ISEMULAB     = 0;
     $ISPNET       = 1;
     #$GOOGLEUA     = 'UA-42844769-2';
     $TBMAILTAG    = "phantomnet.org";

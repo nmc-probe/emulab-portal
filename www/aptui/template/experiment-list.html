@@ -1,0 +1,55 @@
+<div>
+  <table class='tablesorter' id='experiments_table'>
+    <thead>
+      <tr>
+	<th>Name</th>
+	<th>Profile</th>
+	<% if (showCreator) { %>
+	  <th>Creator</th>
+	<% } %>
+	<% if (showProject) { %>
+	  <th>Project</th>
+	<% } %>
+	<th>Status</th>
+	<th>Cluster</th>
+	<th>PCs</th>
+	<th>PHours<b>[1]</b></th>
+	<th>VMs</th>
+	<th>Created</th>
+	<th>Expires</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% _.each(experiments, function(value, name) { %>
+	<tr>
+	  <td><%= value.name %></td>
+	  <% if (value.profile_uuid) { %>
+	    <td><a href='show-profile.php?uuid=<%- value.profile_uuid %>'>
+              <%- value.profile_name %></a></td>
+	  <% } else { %>
+	    <td>&nbsp;</td>
+          <% } %>
+	  <% if (showCreator) { %>
+	    <td><%= value.creator %></td>
+	  <% } %>
+	  <% if (showProject) { %>
+	    <td><%= value.project %></td>
+	  <% } %>
+	  <td><%- value.status %></td>
+	  <td><%- value.cluster %></td>
+	  <td><%- value.pcount %></td>
+	  <td><%- value.phours %></td>
+	  <td><%- value.vcount %></td>
+	  <td class="format-date"><%- value.created %></td>
+	  <td class="format-date"
+	      <% if (value.lockdown) { %>style='color: red;'<% } %>>
+	    <%- value.expires %>
+	  </td>
+	</tr>
+      <% }); %>
+    </tbody>
+  </table>
+  [1] <b>PHours</b>: Number of nodes times number of hours in use.<br>
+</div>
+
+

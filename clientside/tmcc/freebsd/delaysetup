@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -101,7 +101,7 @@ sub checkkernel($$);
 
 $FBSD_VERSION = `uname -v`;
 
-if ($FBSD_VERSION =~ /FreeBSD ([0-9]).*/) {
+if ($FBSD_VERSION =~ /FreeBSD ([0-9]+).*/) {
     $FBSD_VERSION = int($1);
 }
 else {
@@ -230,6 +230,43 @@ sub DelaySetup
 	return -1;
     }
 
+    #
+    # Determine the native speed of the interfaces. We use this to decide
+    # whether we need to set the BW in dummynet.
+    #
+    my %nativebw = ();
+    my @ifinfo;
+    if (tmcc(TMCCCMD_IFC, undef, \@ifinfo) >= 0) {
+	#
+	# Don't need fancy parsing ala getifconfig, we just need the
+	# mac/name/speed.
+	#
+	foreach my $str (@ifinfo) {
+	    if ($str =~ /^INTERFACE .*MAC=(\w+) SPEED=(\w+)/) {
+		my $ifname = findiface($1);
+		my $speed = $2;
+		if ($speed =~ /(\d+)(\D*)/) {
+		    if ($2 eq "Kbps") {
+			$nativebw{$ifname} = $1;
+		    } elsif ($2 eq "Mbps") {
+			$nativebw{$ifname} = $1 * 1000;
+		    }
+		}
+	    }
+	}
+    } else {
+	warn("*** WARNING: Could not get interface config from server!\n");
+    }
+
+    # If we have any 10Gb interfaces, we may need to tweak some settings
+    my $using10g = 0;
+    foreach my $nif (keys %nativebw) {
+	if ($nativebw{$nif} >= 10000) {
+	    $using10g = 1;
+	    last;
+	}
+    }
+
     if (@delays) {
 	my $mindelay = 10000;
 	my @bridges  = ();
@@ -287,6 +324,9 @@ sub DelaySetup
 	    }
 	    print DEL "    sysctl -w net.link.bridge.ipfw=0\n";
 	    print DEL "    sysctl -w net.link.bridge.ipfw_arp=0\n";
+	    if ($FBSD_VERSION >= 10) {
+		print DEL "    sysctl -w net.link.ether.ipfw=0\n";
+	    }
 	}
 
 	# ipfw pipes
@@ -391,6 +431,9 @@ sub DelaySetup
 	    # Turn these off before setting bridge_cfg.
 	    print DEL "sysctl -w net.link.bridge.ipfw=0\n";
 	    print DEL "sysctl -w net.link.bridge.ipfw_arp=0\n";
+	    if ($FBSD_VERSION >= 10) {
+		print DEL "sysctl -w net.link.ether.ipfw=0\n";
+	    }
 	    
 	    foreach my $bridge (@bridges) {
 		my ($bix,$if1,$if2) = @$bridge;
@@ -408,6 +451,9 @@ sub DelaySetup
 	    # Now turn them back on.
 	    print DEL "sysctl -w net.link.bridge.ipfw=1\n";
 	    print DEL "sysctl -w net.link.bridge.ipfw_arp=1\n";
+	    if ($FBSD_VERSION >= 10) {
+		print DEL "sysctl -w net.link.ether.ipfw=1\n";
+	    }
 	} else {
 	    # Turn these off before setting bridge_cfg.
 	    if ($FBSD_VERSION <= 4) {
@@ -450,6 +496,12 @@ sub DelaySetup
 	# globally.
  	#
 	if ($FBSD_VERSION >= 8) {
+
+	    # XXX just in case we don't support polling
+	    if ($using10g) {
+		print DEL "    sysctl hw.intr_storm_threshold=0\n";
+	    }
+
 	    print DEL "    if [ -n \"`sysctl kern.polling.phase 2>/dev/null`\" ]; then\n";
 	} else {
 	    print DEL "if [ -n \"`sysctl kern.polling.enable 2>/dev/null`\" ]; then\n";
@@ -560,6 +612,17 @@ sub DelaySetup
 	    my $backfill1  = $41;
 	    my $backfill2  = $42;
 
+	    #
+	    # Noshaping. All we wanted was to set up the bridge (above).
+	    # We do not want to actually delay the packets via a pipe,
+	    # and we do not want a queuing!
+	    #
+	    next
+		if ($noshaping);
+
+	    #
+	    # Set backfill if specified.
+	    #
 	    my $bf1arg = $bf2arg = "";
 	    if ($backfill1 > 0) {
 		$bf1arg = "backfill ${backfill1}Kbits/s";
@@ -572,12 +635,16 @@ sub DelaySetup
 	    }
 
 	    #
-	    # Noshaping. All we wanted was to set up the bridge (above).
-	    # We do not want to actually delay the packets via a pipe,
-	    # and we do not want a queuing!
+	    # If the specified BW matches the native speed of the
+	    # receive interface, leave the pipe bw arg as unlimited.
 	    #
-	    next
-		if ($noshaping);
+	    my $bw1arg = $bw2arg = "";
+	    if (!exists($nativebw{$iface1}) || $bandw1 != $nativebw{$iface1}) {
+		$bw1arg = "bw ${bandw1}Kbit/s";
+	    }
+	    if (!exists($nativebw{$iface2}) || $bandw2 != $nativebw{$iface2}) {
+		$bw2arg = "bw ${bandw2}Kbit/s";
+	    }
 
 	    #
 	    # Delays are floating point numbers (unit is ms). ipfw does not
@@ -678,15 +745,15 @@ sub DelaySetup
 		print DEL "ipfw add $p2 pipe $p2 ip from any to any out recv $iface2\n";
 	    }
 	    print DEL "ipfw pipe $p1 config delay ${delay1}ms ";
-	    print DEL "bw ${bandw1}Kbit/s $bf1arg plr $plr1 $queue1 $redparams1\n";
+	    print DEL "$bw1arg $bf1arg plr $plr1 $queue1 $redparams1\n";
 	    print DEL "ipfw pipe $p2 config delay ${delay2}ms ";
-	    print DEL "bw ${bandw2}Kbit/s $bf2arg plr $plr2 $queue2 $redparams2\n";
+	    print DEL "$bw2arg $bf2arg plr $plr2 $queue2 $redparams2\n";
 
 	    print STDOUT "  $iface1/$iface2 pipe $p1 config delay ";
-	    print STDOUT "${delay1}ms bw ${bandw1}Kbit/s plr $plr1 ";
+	    print STDOUT "${delay1}ms $bw1arg plr $plr1 ";
 	    print STDOUT "$queue1 $redparams1\n";
 	    print STDOUT "  $iface1/$iface2 pipe $p2 config delay ";
-	    print STDOUT "${delay2}ms bw ${bandw2}Kbit/s plr $plr2 ";
+	    print STDOUT "${delay2}ms $bw2arg plr $plr2 ";
 	    print STDOUT "$queue2 $redparams2\n";
 
 	    print MAP "$linkname duplex $vnode0 $vnode1 ".

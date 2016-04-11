@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2015 University of Utah and the Flux Group.
+# Copyright (c) 2010-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -572,7 +572,7 @@ sub DropFile()
     # We want the file to have the proper mode before we try to write it,
     # to avoid a race that allows someone to see the contents.
     #
-    if (-e $file && mysystem("$MV $file ${file}.save")) {
+    if (-e $file && mysystem("$MV -f $file ${file}.save")) {
 	fatal("Could not rename $file to ${file}.save");
     }
     sysopen(HANDLE, $file, O_WRONLY|O_CREAT|O_EXCL, 0600)

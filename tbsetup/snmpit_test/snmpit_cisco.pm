@@ -2083,10 +2083,11 @@ sub readifIndex($) {
 
         foreach my $rowref (@$rows) {
             my ($name,$iid,$descr) = @$rowref;
-            if ($descr =~ /(\D*)(\d+)\/(\d+)$/) {
+            if ($descr =~ /(\D*)(\d+)\/(\d+)(\/(\d+))?$/) {
+		my $hassubmod = defined($4) ? 1 : 0;
                 my $type = $1;
-                my $module = $2;
-                my $port = $3;
+                my $module = $hassubmod ? int($2)-1 : $2; # XXX: disgusting backward compat
+                my $port = $hassubmod ? $5 : $3;
 
                 $self->debug("IFINDEX: $descr ($type,$module,$port)\n", 2);
 
@@ -2095,10 +2096,15 @@ sub readifIndex($) {
                     # Hack for non-modular switches with both 100Mbps and
                     # gigabit ports - consider gigabit ports to be on module 1
                     #
-                    if (($module == 0) && ($type =~ /^gi/i)) {
+                    if (!$hassubmod && ($module == 0) && ($type =~ /^gi/i)) {
                         $module = 1;
                         $self->debug("NON_MODULAR_HACK: Moving $descr to mod $module\n");
                     }
+		    # XXX: Horrible hack for gi/te port mix on, e.g., 2960-ios
+		    elsif ($hassubmod && ($module == 0) && ($type =~ /^te/i)) {
+			$module = 1;
+                        $self->debug("NON_MODULAR_HACK: Moving $descr to mod $module\n");
+		    }
                 }
                 my $modport = "$module.$port";
                 my $ifindex;

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2013-2014 University of Utah and the Flux Group.
+# Copyright (c) 2013-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -528,6 +528,7 @@ sub graceify($$)
     my ($lease,$expired) = @_;
     my $ltype = $lease->type();
     my $grace = $vars{$ltype}->{'graceperiod'};
+    my $extend = $vars{$ltype}->{'extendperiod'};
 
     if (changestate($lease, LEASE_STATE_GRACE())) {
 	return 1;
@@ -546,10 +547,16 @@ sub graceify($$)
 	    "or move your data out of Emulab within this time period.\n".
 	    "If you do not, the dataset will be destroyed and\n".
 	    "THE DATA WILL NOT BE RECOVERABLE.\n\n";
-	$msg .=
-	    "To extend the dataset, ssh into $OPSNODE and run:\n".
-	    "  $TB/bin/extenddataset $name\n".
-	    "If that fails, contact $TBOPS\n";
+	if ($extend) {
+	    $msg .=
+		"To extend the dataset, ssh into $OPSNODE and run:\n".
+		"  $TB/bin/extenddataset $name\n".
+		"If that fails, contact $TBOPS\n";
+	} else {
+	    $msg .=
+		"To extend the dataset, you will need to contact $TBOPS\n".
+		"and request an extension for $name.\n";
+	}
 	notifyuser($lease->owner(), $msg);
     }
 

@@ -45,6 +45,7 @@ def usage():
     print "    -c, --client-version  display client version"
     print "    -h, --help            show this message"
     print "    -n, --no-cache        disable reading cached results"
+    print "    -s, --server          specify server name/address"
     print "    -p, --port            specify server port"
     print "    -v, --version         display server version"
     print ""
@@ -60,12 +61,13 @@ def dump( sock ):
     sock.close()
 
 try:
-    opts, args = getopt.getopt( sys.argv[ 1: ], "achnp:v", [ "all", "client-version", "help", "no-cache", "port=", "version" ] )
+    opts, args = getopt.getopt( sys.argv[ 1: ], "achns:p:v", [ "all", "client-version", "help", "no-cache", "server=", "port=", "version" ] )
 except getopt.GetoptError as err:
     print str( err )
     usage()
     sys.exit( 1 )
 
+server = None
 port = PORT
 command = None
 
@@ -81,6 +83,8 @@ for opt, param in opts:
     elif opt in ( "-n", "--no-cache" ):
         # Ignored; we don't currently cache anyway...
         pass
+    elif opt in ( "-s", "--server" ):
+        server = param
     elif opt in ( "-p", "--port" ):
         port = int( param )
     elif opt in ( "-v", "--version" ):
@@ -94,17 +98,20 @@ if command == None:
         sys.exit( 1 )
 
 # Our tmcd server is also our DNS server, so that's how we find it.
-resolv_conf = open( "/etc/resolv.conf", "r" )
-for line in resolv_conf.readlines():
-    match = re.search( r"nameserver\s+([0-9.]+)", line )
-    if match:
-        server = match.group( 1 )
-        break
-else:
-    print >> sys.stderr, sys.argv[ 0 ] + ": unable to find server address"
-    sys.exit( 1 )
+if not server:
+    resolv_conf = open( "/etc/resolv.conf", "r" )
+    for line in resolv_conf.readlines():
+        match = re.search( r"nameserver\s+([0-9.]+)", line )
+        if match:
+            server = match.group( 1 )
+            break
+    else:
+        print >> sys.stderr, sys.argv[ 0 ] + ": unable to find server address"
+        sys.exit( 1 )
+    resolv_conf.close()
 
-resolv_conf.close()
+# This is a no-op if 'server' is an IP address.
+server = socket.gethostbyname(server)
 
 sock = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
 sock.connect( (server, port) )

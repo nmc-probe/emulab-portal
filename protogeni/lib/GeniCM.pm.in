@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -124,6 +124,7 @@ my $TARINSTALL     = "/usr/local/bin/install-tarfile";
 my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $IMAGE_IMPORT   = "$TB/sbin/image_import";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
+my $RFLINKS	   = "$TB/bin/rflinks";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
 my $PROTOGENI_LOCALUSER   = @PROTOGENI_LOCALUSER@;
@@ -791,6 +792,10 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				 {"vnode"      => "*",
 				  "vname"      => "ns",
 				  "objecttype" => "6"});
+    $virtexperiment->NewTableRow("virt_agents",
+				 {"vnode"      => "*",
+				  "vname"      => "linktest",
+				  "objecttype" => "7"});
 
     #
     # Look for toplevel address pools
@@ -853,6 +858,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     my %external_vportmap = ();
     my %external_lanrefs  = ();
     my $routable_ip_count = 0;
+    my $sync_server = ($isupdate ? $slice_experiment->sync_server() : undef);
 
     # Always do this to avoid buildup.
     $slice_experiment->ClearBackupState();
@@ -1078,12 +1084,28 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		    #
 		    if (! ($osinfo->shared() ||
 			   $osinfo->pid() eq $slice_experiment->pid())) {
-			$response =
-			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
-				 "Insufficient permission to use $osinfo");
-			goto bad;
+			if ($PROTOGENI_LOCALUSER && $user->IsLocal()) {
+			    require Image;
+			    my $image = Image->Lookup($ospid,$os,$vers);
+			    if (!defined($image)) {
+				$response =
+				    GeniResponse->Create(GENIRESPONSE_BADARGS,
+							 undef,
+							 "No image: $dname");
+				goto bad;
+			    }
+			    goto noperm
+				if (!$image->AccessCheck($user->emulab_user(),
+							 TB_IMAGEID_READINFO));
+			}
+			else {
+			  noperm:
+			    $response =
+				GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				 "Insufficient permission to use $dname");
+			    goto bad;			
+			}
 		    }
-		
 		    #
 		    # This is only going to be used in raw mode. 
 		    #
@@ -1595,6 +1617,20 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				      "weight"   => 0.95})
 	    if ($MAINSITE && (!defined($exclusive) || !$exclusive));
 
+	my $adb_target = GeniXML::GetADBTarget( $ref );
+	if( defined( $adb_target ) ) {
+	    if( $adb_target !~ /^[a-zA-Z0-9.-]+$/ ) {
+		$response = GeniResponse->Create( GENIRESPONSE_BADARGS,
+						  undef,
+						  "Invalid ADB target" );
+		goto bad;
+	    }
+	    $virtexperiment->NewTableRow( "virt_node_attributes",
+					  { "vname"     => $node_nickname,
+					    "attrkey"   => "adb_target",
+					    "attrvalue" => $adb_target } );
+	}
+	
 	#
 	# Special hack for allocating from a specific chassis.
 	#
@@ -1856,6 +1892,18 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				 "Not enough free routable IP addresses");
 	goto bad;
     }
+    #
+    # Set the sync server.
+    #
+    if ($isupdate && defined($sync_server) && exists($nodemap{$sync_server})) {
+	$virtexperiment->sync_server($sync_server);
+    }
+    else {
+	# Any node in the topology will do. What about multisite?
+	($sync_server) = keys(%nodemap);
+	$virtexperiment->sync_server($sync_server);
+    }
+    
     goto skiplinks
 	if (!defined(GeniXML::FindFirst("n:link", $rspec)));
 
@@ -1880,6 +1928,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	my $ifacenum   = 1;
 	my $vindex     = 0;
 	my $trivial_ok = 1;
+	my $protocol   = "ethernet";
 
 	if (!defined($lanname)) {
 	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
@@ -1943,6 +1992,16 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    }
 	}
 
+	if( my $protocol_attr = GeniXML::GetText( "protocol", $linkref ) ) {
+	    if( !( $protocol_attr =~ /^\w+$/ ) ) {
+		$response = 
+		    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "Bad protocol for $lanname");
+		goto bad;
+	    }
+	    $protocol = $protocol_attr;
+	}
+	
 	#
 	# Ick. Before we create the virt_lan_lans entry, we have to check
 	# inside to see if one of the interfaces is connected to a lan
@@ -2300,15 +2359,20 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    $mask   = "255.255.255.0" if (!defined($mask));
 	    my $member    = "$node_nickname:$iface_vport";
 	    my $bandwidth = $default_bandwidth;
+	    my $rbandwidth= $default_bandwidth;
 	    my $latency   = 0.0;
+	    my $rlatency  = 0.0;
 	    my $lossrate  = 0.0;
+	    my $rlossrate = 0.0;
 	    my $estbw     = undef;
+	    my $restbw    = undef;
 	    my $uselinkdelay = 0;
 
 	    # Let user override.
 	    my $user_bandwidth = GeniXML::GetBandwidth($linkref);
 	    if (defined($user_bandwidth)) {
-		$bandwidth = $user_bandwidth;
+		$bandwidth  = $user_bandwidth;
+		$rbandwidth = $user_bandwidth;
 	    }
 
 	    # Look for a link to a bridge.
@@ -2323,49 +2387,128 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		# And then if the bridge is a shaping bridge (delay node).
 		#
 		if (defined($bblob->{'capacity'})) {
-		    $bandwidth = $bblob->{'capacity'};
+		    $bandwidth  = $bblob->{'capacity'};
+		    $rbandwidth = $bandwidth;
 		}
 		# XXX original bw spec goes here for now, for the mapper.
-		$estbw = $bandwidth;
+		$estbw  = $bandwidth;
+		$restbw = $bandwidth;
 		
-		$lossrate = $bblob->{'lossrate'}
-		    if (defined($bblob->{'lossrate'}));
-		$latency = $bblob->{'latency'}
-		    if (defined($bblob->{'latency'}));
+		if (defined($bblob->{'lossrate'})) {
+		    my $loss = $bblob->{'lossrate'};
+		    if ($loss > 1.0 || $loss < 0.000005) {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "$lanname: Bad lossrate: $loss");
+			goto bad;
+		    }
+		    if (0) {
+			$lossrate  = 1.0 - sqrt(1.0 - $loss);
+			$rlossrate = $lossrate;
+		    }
+		    else {
+			$lossrate  = $loss;
+			$rlossrate = 0.0;
+		    }
+		}
+		if (defined($bblob->{'latency'})) {
+		    my $delay = $bblob->{'latency'};
+		    if ($delay < 0) {
+			$response =
+			    GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "$lanname: Bad latency: $delay");
+			goto bad;
+		    }
+		    if (0) {
+			$latency  = $delay / 2.0;
+			$rlatency = $latency;
+		    }
+		    else {
+			$latency  = $delay;
+			$rlatency = 0.0;
+		    }
+		}
 		$bridge_vname = $bblob->{'name'};
 	    }
-	    else {
+	    elsif (GeniXML::GetLinkProperties($linkref)) {
 		my @properties = GeniXML::GetLinkProperties($linkref);
-		foreach my $property (@properties) {
-		    $uselinkdelay = 1;
+		$uselinkdelay = 1;
+		
+		#
+		# Links (two nodes) and Lans (more then two nodes) are very
+		# different wrt traffic shaping in Emulab. To lower confusion,
+		# let do them independently below.
+		#
+		if (@interfaces == 2) {
+		    foreach my $property (@properties) {
+			#
+			# Need to make sure we get the correct direction.
+			#
+			my $source   = GetText("source_id", $property);
 		    
-		    #
-		    # Need to make sure we get the correct direction.
-		    #
-		    my $source   = GetText("source_id", $property);
-		    
-		    if ($source eq $iface_id) {
-			$bandwidth = GetText("capacity", $property)
-			    if (defined(GetText("capacity", $property)));
-			$latency   = GetText("latency", $property)
-			    if (defined(GetText("latency", $property)));
-			$lossrate  = GetText("packet_loss", $property)
-			    if (defined(GetText("packet_loss", $property)));
-			last;
+			if ($source eq $iface_id) {
+			    $bandwidth = GetText("capacity", $property)
+				if (defined(GetText("capacity", $property)));
+			    if (defined(GetText("latency", $property))) {
+				$latency = GetText("latency", $property) / 2.0;
+			    }
+			    if (defined(GetText("packet_loss", $property))) {
+				$lossrate = GetText("packet_loss", $property);
+				$lossrate = 1.0 - sqrt(1.0 - $lossrate);
+			    }
+			}
+			else {
+			    $rbandwidth = GetText("capacity", $property)
+				if (defined(GetText("capacity", $property)));
+			    if (defined(GetText("latency", $property))) {
+				$rlatency = GetText("latency", $property) / 2.0;
+			    }
+			    if (defined(GetText("packet_loss", $property))) {
+				$rlossrate = GetText("packet_loss", $property);
+				$rlossrate = 1.0 - sqrt(1.0 - $rlossrate);
+			    }
+			}
+		    }
+		}
+		else {
+		    foreach my $property (@properties) {
+			my $source = GetText("source_id", $property);
+			my $dest   = GetText("dest_id", $property);
+
+			if ($source eq $iface_id && $dest eq $lanname) {
+			    if (defined(GetText("capacity", $property))) {
+				$bandwidth  = GetText("capacity", $property);
+				$rbandwidth = $bandwidth;
+			    }
+			    if (defined(GetText("latency", $property))) {
+				$latency  = GetText("latency", $property);
+				$rlatency = $latency;
+			    }
+			    if (defined(GetText("packet_loss", $property))) {
+				$lossrate  = GetText("packet_loss", $property);
+				$rlossrate = $lossrate;
+			    }
+			}
 		    }
 		}
 	    }
 	    if ($isshared) {
 		# Clear all this on "shared" vlans. Maybe later.
-		$bandwidth = 0;
-		$latency   = 0.0;
-		$lossrate  = 0.0;
+		$bandwidth  = 0;
+		$rbandwidth = 0;
+		$latency    = 0.0;
+		$rlatency   = 0.0;
+		$lossrate   = 0.0;
+		$rlossrate  = 0.0;
 	    }
 	    if ($besteffort) {
 		# Best effort traffic.
-		$bandwidth = 10;
-		$latency   = 0.0;
-		$lossrate  = 0.0;
+		$bandwidth  = 10;
+		$rbandwidth = 10;
+		$latency    = 0.0;
+		$rlatency   = 0.0;
+		$lossrate   = 0.0;
+		$rlossrate  = 0.0;
 	    }
 	    
 	    my $virtlan =
@@ -2384,14 +2527,15 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					  "lossrate"    => $lossrate,
 					  "member"      => $member,
 					  "mask"        => $mask,
-					  "rdelay"      => 0.0,
-					  "rbandwidth"  => $bandwidth, # kbps
-					  "rest_bandwidth" => $estbw,
-					  "rlossrate"   => 0.0,
+					  "rdelay"      => $rlatency,
+					  "rbandwidth"  => $rbandwidth, # kbps
+					  "rest_bandwidth" => $restbw,
+					  "rlossrate"   => $rlossrate,
 					  "bridge_vname"=> $bridge_vname,
 					  "encap_style" => $encap,
 					  "fixed_iface" => $iface_name,
 					  "uselinkdelay"=> $uselinkdelay,
+					  "protocol"    => $protocol
 					 });
 	    if ($ofcontroller && $ofcontroller ne "" && !$ignore_openflow) {
 		if ($no_openflow) {
@@ -4403,7 +4547,13 @@ sub SliverWorkAux($$$$$$$$)
 	}
 	GeniXML::SetText("vlantag", $linkref, $tag);
     }
-	
+
+    if( !$isupdate ) {
+	if( system( "$RFLINKS $pid $eid" ) ) {
+	    print STDERR "Failed to add RF links!\n";
+	}
+    }
+    
     # Set up plab nodes all at once. 
     if ($needplabslice && @plabnodes && !$impotent) {
 	my @node_ids = map { $_->node_id() } @plabnodes;
@@ -4587,6 +4737,11 @@ sub SliverWorkAux($$$$$$$$)
 	    print STDERR "Could not tear down vlans\n";
 	}
 
+	system( "$RFLINKS -r $pid $eid" );
+	if( $? ) {
+	    print STDERR "Failed to remove RF links\n";
+	}
+	
 	# Remove any residual state.
 	if ($experiment->RemovePhysicalState(1)) {
 	    print STDERR "Could not remove physical state!\n";
@@ -4662,15 +4817,34 @@ sub RenewSliverAux($$$)
 	my $pnodeid = $pnode->node_id();
 	
 	if (defined($pnode->reserved_pid()) &&
-	    $pnode->reserved_pid() ne $slice_experiment->pid()) {
-	    $slice->UnLock();
-	    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Refused cause $pnodeid is pre-reserved");
+	    lc($pnode->reserved_pid()) ne lc($slice_experiment->pid())) {
+	    if ($credential->HasActualPrivilege("admin")) {
+		SENDMAIL($TBOPS, "Admin override on pre-reserved node!",
+			 "Admin override on pre-reserved node $pnodeid\n".
+			 "while extending $slice\n",
+			 $TBOPS);
+		print STDERR "Admin override on pre-reserved node $pnodeid!\n";
+	    }
+	    else {
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				"Refused cause $pnodeid is pre-reserved.");
+	    }
 	}
 	if (defined($pnode->NextReservation())) {
-	    $slice->UnLock();
-	    return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
-				"Refused cause $pnodeid is sched-reserved");
+	    if ($credential->HasActualPrivilege("admin")) {
+		SENDMAIL($TBOPS, "Admin override on sched-reserved node!",
+			 "Admin override on sched-reserved node $pnodeid\n".
+			 "while extending $slice\n",
+			 $TBOPS);
+		print STDERR "Admin override on sched-reserved ".
+		    "node $pnodeid!\n";
+	    }
+	    else {
+		$slice->UnLock();
+		return GeniResponse->Create(GENIRESPONSE_REFUSED, undef,
+				"Refused cause $pnodeid is sched-reserved.");
+	    }
 	}
     }
 
@@ -4924,6 +5098,11 @@ sub DeleteSliverAux($$$)
     my $eid = $experiment->eid();
 
     if (!$impotent) {
+	system("$RFLINKS -r $pid $eid");
+	if ($?) {
+	    print STDERR "Could not tear down RF links!\n";
+	}
+	
 	system("$SNMPIT -C -r $pid $eid");
 	if ($?) {
 	    print STDERR "Could not tear down vlans\n";

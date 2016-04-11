@@ -12,57 +12,64 @@
 	  <font color=red><%- general_error %></font>
 	<% } %>
 	<form id='invite_form'
-              class='form-horizontal' role='form'
+              role='form'
 	      method='post' action='invite.php'>
 	      <fieldset>
               <div class='row'>   
 		<div class="col-xs-5 col-xs-offset-1">
-		  <% if (projects.length == 1) { %>
-	            <input name="formfields[pid]" readonly
-			   value="<%- formfields.pid %>"
-			   class="form-control format-me"
-			   data-key="pid">
-		  <% } else { %>
-		    <select name="formfields[pid]"
-			    id='pid' 
-			    class='form-control format-me'
-			    data-key="pid"
-			    placeholder='Please Select Project'>
-		      <option value=''>Please Select Project</option>
-		      <% _.each(projects, function(name) { %>
-	              <option 
-			 <% if (_.has(formfields, 'pid') &&
-			    formfields.pid == name) { %>
-			   selected
-			 <% } %>
-			 value='<%= name %>'><%= name %>
-		      </option>
-		      <% }); %>
-		    </select>
-		  <% } %>
+		  <div class="form-group">
+		    <% if (projects.length == 1) { %>
+	              <input name="formfields[pid]" readonly
+			     value="<%- formfields.pid %>"
+			     class="form-control format-me"
+			     data-key="pid">
+		    <% } else { %>
+		      <select name="formfields[pid]"
+			      id='pid' 
+			      class='form-control format-me'
+			      data-key="pid"
+			      placeholder='Please Select Project'>
+			<option value=''>Please Select Project</option>
+			<% _.each(projects, function(name) { %>
+			  <option 
+			      <% if (_.has(formfields, 'pid') &&
+				formfields.pid == name) { %>
+			      selected
+			      <% } %>
+			      value='<%= name %>'><%= name %>
+			  </option>
+			<% }); %>
+		      </select>
+		    <% } %>
+		  </div>
 		</div>
 	      </div>
               <div class='row'>   
 		<div class="col-xs-5 col-xs-offset-1">
-		  <input name="formfields[email]"
-			 value="<%- formfields.email %>"
-			 class="form-control format-me" data-key="email"
-			 placeholder="Email Address" type="text">
+		  <div class="form-group">
+		    <input name="formfields[email]"
+			   value="<%- formfields.email %>"
+			   class="form-control format-me" data-key="email"
+			   placeholder="Email Address" type="text">
+		  </div>
 		</div>
 	      </div>
               <div class='row'>   
 		<div class="col-xs-10 col-xs-offset-1">
- 	          <textarea name="formfields[message]"
-		            rows=5
-                            class='form-control format-me'
-                            type='textarea'
-			    data-key='profile_rspec'
-			    placeholder='Optional message to invitee'
-			    ><%- formfields.message %></textarea>
+		  <div class="form-group">
+ 	            <textarea name="formfields[message]"
+		              rows=5
+                              class='form-control format-me'
+                              type='textarea'
+			      data-key='message'
+			      placeholder='Optional message to invitee'
+		    ><%- formfields.message %></textarea>
+		  </div>
 		</div>
 	      </div>
 	      </fieldset>
            <button class='btn btn-primary btm-sm pull-right'
+		   id="invite-submit-button"
                    type='submit' name='invite'>Invite</button>
 	</form>
       </div>

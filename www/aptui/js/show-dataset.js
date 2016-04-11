@@ -1,9 +1,11 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment',
+	['underscore', 'js/quickvm_sup', 'moment', 'js/aptforms', 'js/image',
 	 'js/lib/text!template/show-dataset.html',
 	 'js/lib/text!template/snapshot-dataset.html',
-	 'js/image'],
-function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
+	 'js/lib/text!template/oops-modal.html',
+	 'js/lib/text!template/waitwait-modal.html'],
+function (_, sup, moment, aptforms, ShowImagingModal,
+	  mainString, snapshotString, oopsString, waitwaitString)
 {
     'use strict';
     var mainTemplate    = _.template(mainString);
@@ -39,6 +41,10 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	    title:		window.TITLE,
 	});
 	$('#main-body').html(html);
+
+	// Now we can do this. 
+	$('#oops_div').html(oopsString);	
+	$('#waitwait_div').html(waitwaitString);	
 
 	// Initialize the popover system.
 	$('[data-toggle="popover"]').popover({
@@ -171,7 +177,7 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
     function DeleteDataset()
     {
 	var callback = function(json) {
-	    sup.HideModal('#waitwait');
+	    sup.HideModal('#waitwait-modal');
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
 		return;
@@ -184,7 +190,7 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	    }
 	}
 	sup.HideModal('#delete_modal');
-	sup.ShowModal("#waitwait");
+	sup.ShowModal("#waitwait-modal");
 	var xmlthing = sup.CallServerMethod(null,
 					    "dataset",
 					    "delete",
@@ -198,14 +204,14 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
     function RefreshDataset()
     {
 	var callback = function(json) {
-	    sup.HideModal('#waitwait');
+	    sup.HideModal('#waitwait-modal');
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
 	    window.location.reload(true);
 	}
-	sup.ShowModal("#waitwait");
+	sup.ShowModal("#waitwait-modal");
 	var xmlthing = sup.CallServerMethod(null,
 					    "dataset",
 					    "refresh",
@@ -218,7 +224,7 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
     function ApproveDataset()
     {
 	var callback = function(json) {
-	    sup.HideModal('#waitwait');
+	    sup.HideModal('#waitwait-modal');
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
 		return;
@@ -231,7 +237,7 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	    }
 	}
 	sup.HideModal('#approve_modal');
-	sup.ShowModal("#waitwait");
+	sup.ShowModal("#waitwait-modal");
 	var xmlthing = sup.CallServerMethod(null,
 					    "dataset",
 					    "approve",
@@ -244,7 +250,7 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
     function ExtendDataset()
     {
 	var callback = function(json) {
-	    sup.HideModal('#waitwait');
+	    sup.HideModal('#waitwait-modal');
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
 		return;
@@ -257,7 +263,7 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	    }
 	}
 	sup.HideModal('#extend_modal');
-	sup.ShowModal("#waitwait");
+	sup.ShowModal("#waitwait-modal");
 	var xmlthing = sup.CallServerMethod(null,
 					    "dataset",
 					    "extend",
@@ -265,62 +271,10 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	xmlthing.done(callback);
     }
 
-    // Formatter for the form. This did not work out nicely at all!
-    function formatter(fieldString, errors)
-    {
-	var root   = $(fieldString);
-	var list   = root.find('.format-me');
-	list.each(function (index, item) {
-	    if (item.dataset) {
-		var key     = item.dataset['key'];
-		var margin  = 15;
-		var colsize = 12;
-
-		var outerdiv = $("<div class='form-group' " +
-				 "     style='margin-bottom: " + margin +
-				 "px;'></div>");
-
-		if ($(item).attr('data-label')) {
-		    var label_text =
-			"<label for='" + key + "' " +
-			" class='col-sm-3 control-label'> " +
-			item.dataset['label'];
-		    
-		    if ($(item).attr('data-help')) {
-			label_text = label_text +
-			    "<a href='#' class='btn btn-xs' " +
-			    " data-toggle='popover' " +
-			    " data-html='true' " +
-			    " data-delay='{\"hide\":1000}' " +
-			    " data-content='" + item.dataset['help'] + "'>" +
-			    "<span class='glyphicon glyphicon-question-sign'>" +
-			    " </span></a>";
-		    }
-		    label_text = label_text + "</label>";
-		    outerdiv.append($(label_text));
-		    colsize = 6;
-		}
-		var innerdiv = $("<div class='col-sm-" + colsize + "'></div>");
-		innerdiv.html($(item).clone());
-		
-		if (errors && _.has(errors, key)) {
-		    outerdiv.addClass('has-error');
-		    innerdiv.append('<label class="control-label" ' +
-				    'for="inputError">' +
-				    _.escape(errors[key]) + '</label>');
-		}
-		outerdiv.append(innerdiv);
-		$(item).after(outerdiv);
-		$(item).remove();
-	    }
-	});
-	return root;
-    }
-
     /*
      * Show the snapshot modal/form for imdatasets.
      */
-    function ShowSnapshotModal(formfields, errors)
+    function ShowSnapshotModal(formfields)
     {
 	if (formfields === null) {
 	    formfields = {};
@@ -328,10 +282,11 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	// Generate the main template.
 	var html   = snapTemplate({
 	    formfields:         formfields,
+	    dataset_uuid:       dataset_uuid,
 	    embedded:		embedded,
 	    instancelist:	instances,
 	});
-	html = formatter(html, errors).html();
+	html = aptforms.FormatFormFieldsHorizontal(html);
 	$('#snapshot_div').html(html);
 
 	// Handler for instance change.
@@ -353,67 +308,40 @@ function (_, sup, moment, mainString, snapshotString, ShowImagingModal)
 	//
 	$('#snapshot_submit_button').click(function (event) {
 	    event.preventDefault();
-	    HandleSubmit();
+	    SubmitForm();
 	});
 	sup.ShowModal("#snapshot_modal");
-    }
-
-    function HandleSubmit()
-    {
-	// Submit with check only at first, since this will return
-	// very fast, so no need to throw up a waitwait.
-	SubmitForm(1);
     }
 
     //
     // Submit the form.
     //
-    function SubmitForm(checkonly)
+    function SubmitForm()
     {
-	// Current form contents as formfields array.
-	var formfields  = {};
-	
-	var callback = function(json) {
-	    console.info(json);
-
+	var submit_callback = function(json) {
 	    if (json.code) {
-		sup.HideModal("#waitwait");
-		if (checkonly && json.code == 2) {
-		    // Regenerate with errors.
-		    ShowSnapshotModal(formfields, json.value);
-		    return;
-		}
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    // Now do the actual create.
-	    if (checkonly) {
-		SubmitForm(0);
+	    if (embedded) {
+		window.parent.location.replace("../" + json.value);
 	    }
 	    else {
-		if (embedded) {
-		    window.parent.location.replace("../" + json.value);
-		}
-		else {
-		    window.location.replace(json.value);
-		}
+		window.location.replace(json.value);
 	    }
-	}
-	// Convert form data into formfields array, like all our
-	// form handler pages expect.
-	var fields = $('#snapshot_dataset_form').serializeArray();
-	$.each(fields, function(i, field) {
-	    formfields[field.name] = field.value;
-	});
-	formfields["dataset_uuid"] = dataset_uuid;
-	console.info(formfields);
-	sup.HideModal('#snapshot_modal');
-	sup.ShowModal('#waitwait');
-	var xmlthing = sup.CallServerMethod(null, "dataset", "modify",
-					    {"formfields" : formfields,
-					     "checkonly"  : checkonly,
-					     "embedded"   : window.EMBEDDED});
-	xmlthing.done(callback);
+	};
+	var checkonly_callback = function(json) {
+	    if (json.code) {
+		if (json.code != 2) {
+		    sup.SpitOops("oops", json.value);		    
+		}
+		return;
+	    }
+	    aptforms.SubmitForm('#snapshot_dataset_form', "dataset", "modify",
+				submit_callback);
+	};
+	aptforms.CheckForm('#snapshot_dataset_form', "dataset", "modify",
+			   checkonly_callback);
     }
 
     /*

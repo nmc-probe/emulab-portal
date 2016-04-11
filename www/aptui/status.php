@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -177,15 +177,16 @@ $extension_reason= ($instance->extension_reason() ?
                     CleanString($instance->extension_reason()) : "");
 $extension_history= ($instance->extension_history() ?
                     CleanString($instance->extension_history()) : "");
-$freenodes_url   = $freenodes_mapping[$instance->aggregate_urn()];
+$freenodes_url   = Aggregate::Lookup($instance->aggregate_urn())->FreeNodesURL();
 $lockout         = $instance->extension_lockout();
 $paniced         = $instance->paniced();
+$project         = $instance->pid();
 
 #
 # We give ssh to the creator (real user or guest user).
 #
 $dossh =
-    (((isset($this_user) && $this_user->SameUser($creator)) ||
+    (((isset($this_user) && $instance->CanDoSSH($this_user)) ||
       (isset($_COOKIE['quickvm_user']) &&
        $_COOKIE['quickvm_user'] == $creator->uuid())) ? 1 : 0);
 
@@ -224,12 +225,19 @@ echo "  window.APT_OPTIONS.sliceExpiresText = '" . $slice_expires_text . "';\n";
 echo "  window.APT_OPTIONS.sliceCreated = '" . $slice_created . "';\n";
 echo "  window.APT_OPTIONS.creatorUid = '" . $creator_uid . "';\n";
 echo "  window.APT_OPTIONS.creatorEmail = '" . $creator_email . "';\n";
+if (isset($this_user)) {
+    echo "  window.APT_OPTIONS.thisUid = '" . $this_user->uid() . "';\n";
+}
+else {
+    echo "  window.APT_OPTIONS.thisUid = '" . $creator_uid . "';\n";
+}
 echo "  window.APT_OPTIONS.registered = $registered;\n";
 echo "  window.APT_OPTIONS.isadmin = $isadmin;\n";
 echo "  window.APT_OPTIONS.isfadmin = $isfadmin;\n";
 echo "  window.APT_OPTIONS.cansnap = $cansnap;\n";
 echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";
+echo "  window.APT_OPTIONS.hidelinktest = false;\n";
 echo "  window.APT_OPTIONS.oneonly = $oneonly;\n";
 echo "  window.APT_OPTIONS.dossh = $dossh;\n";
 echo "  window.APT_OPTIONS.ispprofile = $ispprofile;\n";
@@ -237,6 +245,7 @@ echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.lockout = $lockout;\n";
 echo "  window.APT_OPTIONS.paniced = $paniced;\n";
+echo "  window.APT_OPTIONS.project = '$project';\n";
 echo "  window.APT_OPTIONS.extension_requested = " .
     $instance->extension_requested() . ";\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";

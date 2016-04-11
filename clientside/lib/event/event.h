@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2010 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -109,6 +109,8 @@ int		address_tuple_free(address_tuple_t);
 #ifndef NO_EVENT_MACROS
 #define event_notification_get_site(handle, note, buf, len) \
         event_notification_get_string(handle, note, "SITE", buf, len)
+#define event_notification_put_site(handle, note, buf) \
+        event_notification_put_string(handle, note, "SITE", buf)
 #define event_notification_get_expt(handle, note, buf, len) \
         event_notification_get_string(handle, note, "EXPT", buf, len)
 #define event_notification_get_group(handle, note, buf, len) \
@@ -131,6 +133,8 @@ int		address_tuple_free(address_tuple_t);
 /*
  * For dynamic events.
  */
+#define event_notification_clear_site(handle, note) \
+	event_notification_remove(handle, note, "SITE")
 #define event_notification_clear_host(handle, note) \
 	event_notification_remove(handle, note, "HOST")
 #define event_notification_set_host(handle, note, buf) \

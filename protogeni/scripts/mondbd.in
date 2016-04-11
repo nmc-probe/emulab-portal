@@ -53,7 +53,7 @@ my $DOMAIN       = "@OURDOMAIN@";
 my $URL          = "https://www.$DOMAIN:5001";
 my $PGENISUPPORT = @PROTOGENI_SUPPORT@;
 my $NICKNAME	 = "@PROTOGENI_NICKNAME@";
-my $LOGFILE      = "$TB/log/expire_daemon.log";
+my $LOGFILE      = "$TB/log/mondbd.log";
 my $PORTSTATS    = "$TB/bin/portstats";
 
 my $INTERVAL     = 120;
@@ -272,6 +272,31 @@ while (1) {
     my $ts = time() . "000000";
     my $expire = ( time() - 24 * 60 * 60 ) . "000000";
 
+    # Trim old timeseries data.
+    foreach my $table (
+	"ops_interface_rx_bps",
+	"ops_interface_rx_dps",
+	"ops_interface_rx_eps",
+	"ops_interface_rx_pps",
+	"ops_interface_tx_bps",
+	"ops_interface_tx_dps",
+	"ops_interface_tx_eps",
+	"ops_interfacevlan_rx_bps",
+	"ops_interfacevlan_rx_dps",
+	"ops_interfacevlan_rx_eps",
+	"ops_interfacevlan_rx_pps",
+	"ops_interfacevlan_tx_bps",
+	"ops_interfacevlan_tx_dps",
+	"ops_interfacevlan_tx_eps",
+	"ops_interfacevlan_tx_pps",
+	"ops_node_cpu_util",
+	"ops_node_disk_part_max_used",
+	"ops_node_mem_used_kb",
+	"ops_node_num_vms_allocated",
+	"ops_node_swap_free" ) {
+	emdbi::DBQueryWarnN( $db, "DELETE FROM $table WHERE ts < $expire" );
+    }    
+    
     # Add the local CM.
     # FIXME would be nice to add routable_ip_poolsize
     emdbi::DBQueryWarnN( $db, "LOCK TABLES ops_aggregate WRITE" );

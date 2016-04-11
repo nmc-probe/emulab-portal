@@ -55,12 +55,15 @@ $PORTAL_PASSWORD_HELP   = "Emulab Username or Email";
 $PORTAL_NSFNUMBER       = "CNS-58502134";
 $PORTAL_GENESIS         = "emulab";
 $DEFAULT_AGGREGATE      = "Emulab";
-$DEFAULT_AGGREGATE_URN	= "urn:publicid:IDN+emulab.net+authority+cm";
+$DEFAULT_AGGREGATE_URN	= "urn:publicid:IDN+${OURDOMAIN}+authority+cm";
 $PORTAL_NAME            = "Emulab";
 
 #
-# The Utah MotherShip defines alternate portals. 
+# The Utah MotherShip defines alternate portals. This needs to be split
+# out into per-domain files at some point. 
 #
-include_once("portal_mainsite.php");
+if ($TBMAINSITE || $ISALTDOMAIN) {
+    include_once("portal_mainsite.php");
+}
 
 ?>

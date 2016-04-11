@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -85,6 +85,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     global $GOOGLEUA, $ISCLOUD, $ISPNET, $ISEMULAB, $TBBASE, $ISEMULAB;
     global $login_user, $login_status;
     global $disable_accounts, $page_title, $drewheader, $embedded;
+    $showmenus = 0;
     $title = $APTTITLE;
     if (isset($page_title)) {
 	$title .= " - $page_title";
@@ -99,7 +100,9 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	$login_status = $status;
 	$login_uid    = $login_user->uid();
     }
-
+    if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
+        $showmenus = 1;
+    }
     echo "<html>
       <head>
         <title>$title</title>
@@ -143,82 +146,107 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	goto embed;
     }
 
-    echo "
-         <div class='navbar navbar-static-top' style='margin-bottom: 10px'
-              role='navigation'>
-           <div class='navbar-inner'>
-             <div class='brand'>
-                 <img src='images/$APTLOGO'/>
-             </div>
-             <ul class='nav navbar-nav navbar-right apt-right'>";
+    #
+    # This is the stuff to the right of the logo.
+    # 
+    $navbar_status = "";
+    $navbar_right  = "";
+
     if (!$disable_accounts) {
-	if ($login_user && ISADMINISTRATOR()) {
+        if ($login_user && ISADMINISTRATOR()) {
 	    # Extra top margin to align with the rest of the buttons.
-	    echo "<li class='apt-left' style='margin-top:7px'>\n";
+            $navbar_status .= 
+                "<li class='apt-left' style='margin-top:7px'>\n";
+            
 	    if (ISADMIN()) {
 		$url = CreateURL("toggle", $login_user,
 				 "type", "adminon", "value", 0);
-		
-		echo "<a href='/$url'>
-                             <img src='images/redball.gif'
-                                  style='height: 10px;'
-                                  border='0' alt='Admin On'></a>\n";
+
+                $navbar_status .=
+                    "<a href='/$url'>
+                          <img src='images/redball.gif'
+                               style='height: 10px;'
+                               border='0' alt='Admin On'></a>\n";
 	    }
 	    else {
 		$url = CreateURL("toggle", $login_user,
 				 "type", "adminon", "value", 1);
 
-		echo "<a href='/$url'>
-                              <img src='images/greenball.gif'
-                                   style='height: 10px;'
-                                   border='0' alt='Admin Off'></a>\n";
+                $navbar_status .=
+                    "<a href='/$url'>
+                          <img src='images/greenball.gif'
+                               style='height: 10px;'
+                               border='0' alt='Admin Off'></a>\n";
 	    }
-	    echo "</li>\n";
+            $navbar_status .= "</li>\n";
 	}
         # Extra top margin to align with the rest of the buttons.
-	echo "<li id='loginstatus' class='apt-left' style='margin-top:7px'>".
-	    ($login_user ? "<p class='navbar-text'>".
-	     "$login_uid logged in</p>" : "") . "</li>\n";
+	$navbar_status .=
+            "<li id='loginstatus' class='apt-left' style='margin-top:7px'>".
+	       ($login_user ? "<p class='navbar-text'>".
+                 "$login_uid logged in</p>" : "") . "</li>\n";
 
 	if (!NOLOGINS()) {
 	    if (!$login_user) {
-		echo "<li id='signupitem' class='apt-left'>" .
-                        "<form><a class='btn btn-primary navbar-btn'
+                $navbar_right .=
+                    "<li id='signupitem' class='apt-left'>" .
+                    "  <a class='btn btn-primary navbar-btn apt-navbar-btn'
                                 id='signupbutton'
-                                href='signup.php'>
-                              Sign Up</a></form></li>
-                     \n";
+                                href='signup.php'>Sign Up</a></li>\n";
 		if ($page_title != "Login") {
-		    echo "<li id='loginitem' class='apt-left'>" .
-			   "<form><a class='btn btn-primary navbar-btn'
-                              id='loginbutton'>
-                            Login</a></form></li>
-                          \n";
+                    $navbar_right .=
+                        "<li id='loginitem' class='apt-left'>" .
+                        "  <a class='btn btn-primary navbar-btn apt-navbar-btn'
+                                    id='loginbutton'>Login</a></li>\n";
 		}
 	    }
 	    else {
-		echo "<li class='apt-left'>" .
-		         "<form><a class='btn btn-primary navbar-btn'
-                              href='logout.php'>
-                            Logout</a></form></li>
-                      \n";
+                $navbar_right .=
+                    "<li class='apt-left hidden-xs'>" .
+                    "  <a class='btn btn-primary navbar-btn apt-navbar-btn'
+                                href='logout.php'>Logout</a></li>\n";
 	    }
 	}
     }
-    echo "   </ul>
+    # This is for dealing with the narowest window class; we hide some of
+    # the buttons when a logged in user shrinks the window the window down,
+    # and turn them on inside the action menu.
+    $hiddenxs = ($showmenus ? "hidden-xs" : "");
+    
+    echo "
+         <div class='navbar navbar-static-top' style='margin-bottom: 10px'
+              role='navigation'>
+            <div class='navbar-inner'>
+             <div class='brand'>
+                 <img src='images/$APTLOGO'/>
+             </div>
+             <ul class='nav navbar-nav navbar-right apt-right'>
+              $navbar_status
+              $navbar_right
+             </ul>
              <ul class='nav navbar-nav navbar-left apt-left'>
-                <li class='apt-left'><form><a class='btn btn-quickvm-home navbar-btn'
-                       href='landing.php'>Home</a></form></li>\n";
-    echo "      <li class='apt-left'><form>".
+                <li class='apt-left $hiddenxs'>
+                    <a class='btn btn-quickvm-home navbar-btn'
+                       href='landing.php'>Home</a></li>\n";
+    echo "      <li class='apt-left $hiddenxs'>".
         "           <a class='btn btn-quickvm-home navbar-btn' ".
         "              href='$PORTAL_MANUAL' target='_blank'> ".
-        ($ISEMULAB || $ISPNET ? "Wiki" : "Manual") . "</a></form></li>\n";
+        ($ISEMULAB || $ISPNET ? "Wiki" : "Manual") . "</a></li>\n";
 
     if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
-	         "<a href='#' class='dropdown-toggle' data-toggle='dropdown'>
+	         "<a href='#'
+                    class='dropdown-toggle btn btn-quickvm-home navbar-btn'
+                       data-toggle='dropdown'>
                     Actions <b class='caret'></b></a>
                   <ul class='dropdown-menu'>
+                   <li class='visible-xs navbar-nav-shortcuts'>
+                       <a href='landing.php'>Home</a></li>
+                   <li class='visible-xs navbar-nav-shortcuts'>
+                       <a href='$PORTAL_MANUAL' target='_blank'> ".
+                      ($ISEMULAB || $ISPNET ? "Wiki" : "Manual") . "</a></li>
+                   <li class='visible-xs navbar-nav-shortcuts'>
+                       <a href='logout.php'>Logout</a></li>
                    <li><a href='myprofiles.php'>My Profiles</a></li>
                    <li><a href='myexperiments.php'>My Experiments</a></li>
                    <li><a href='manage_profile.php'>Create Profile</a></li>
@@ -226,21 +254,26 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li class='divider'></li>
                    <li><a href='getcreds.php'>Download Credentials</a></li>
                    <li><a href='ssh-keys.php'>Manage SSH Keys</a></li>
-                   <li><a href='signup.php'>Start/Join Project</a></li>\n";
-       if (!$login_user->IsNonLocal()) {
-           echo "  <li><a href='changepswd.php'>Change Password</a></li>";
-       }
-       echo "      <li><a href='logout.php'>Logout</a></li>
+                   <li><a href='myaccount.php'>Manage Account</a></li>
+                   <li><a href='signup.php'>Start/Join Project</a></li>
                    <li class='divider'></li>
 	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
-       echo "  <li class='divider'></li>\n";
+       echo "      <li class='divider'></li>\n";
        $then = time() - (90 * 3600 * 24);
-       echo "  <li><a href='activity.php?user=$login_uid&min=$then'>
+       echo "      <li><a href='activity.php?user=$login_uid&min=$then'>
                             My History</a></li>\n";
+       echo "    </ul>
+                </li>\n";
        if (ISADMIN() || ISFOREIGN_ADMIN()) {
-           echo "  <li class='divider'></li>\n";
+           echo "<li id='quickvm_actions_menu' class='dropdown apt-left'>
+	            <a href='#'
+                        class='dropdown-toggle btn btn-quickvm-home navbar-btn'
+                        data-toggle='dropdown'>
+                    Admin <b class='caret'></b></a>
+                  <ul class='dropdown-menu'>\n";
            echo "  <li><a href='dashboard.php'>DashBoard</a></li>";
+           echo "  <li><a href='cluster-status.php'>Cluster Status</a></li>";
            $then = time() - (30 * 3600 * 24);
            echo "  <li><a href='activity.php?min=$then'>
                             History Data</a></li>
@@ -249,21 +282,26 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                             All Experiments</a></li>
 	             <li><a href='myprofiles.php?all=1'>
                             All Profiles</a></li>";
-       }
-       echo "     </ul>
+           echo " </ul>
                 </li>\n";
+       }
     }
     echo "   </ul>
-           </div>
+          </div>
          </div>\n";
 
-    #
-    # Put the special message, if any, right below the header. Note that the
-    # negative margin is to put it flush below the navbar without having to
-    # permanently remove the bottom margin on the navbar
-    #
-    $message = TBGetSiteVar($PORTAL_MOTD_SITEVAR);
-    if ($message != "") {
+    if (NOLOGINS()) {
+        $message = TBGetSiteVar("web/message");
+    }
+    else {
+        #
+        # Put the special message, if any, right below the header. Note that
+        # the  negative margin is to put it flush below the navbar without
+        # having to permanently remove the bottom margin on the navbar
+        #
+        $message = TBGetSiteVar($PORTAL_MOTD_SITEVAR);
+    }
+    if ($message && $message != "") {
         echo "<div class='alert alert-warning alert-dismissible'
                  role='alert' style='margin-top: -10px; padding: 5px;'>
                 <center>$message</center>

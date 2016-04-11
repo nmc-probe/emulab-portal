@@ -1,5 +1,6 @@
+#!/bin/sh
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,10 +29,10 @@
 #
 
 # PROVIDE: netif-emulab
-# REQUIRE: atm1 ipfilter mountcritlocal serial sppp sysctl
-# REQUIRE: adjkerntz hostname ipfs ipnat kldxref random
+# REQUIRE: atm1 FILESYSTEMS iovctl serial sppp sysctl
+# REQUIRE: ipfilter ipfs
 # BEFORE: netif
-# KEYWORD: nojail
+# KEYWORD: nojailvnet
 
 . /etc/rc.subr
 . /etc/network.subr
@@ -174,6 +175,23 @@ cnet_start()
 	esac
 	done
 
+	#
+	# XXX yow! If we don't come up with anything, we have to reconsider
+	# some of those interface types we skipped. For now, just ix interfaces
+	# because Clemson has an ix control network.
+	#
+	if [ -z "$_ifs" ]; then
+	    for _if in $network_interfaces; do
+	    case $_if in
+	    ix[0-9])
+		_ifs="$_ifs $_if"
+		;;
+	    *)
+		;;
+	    esac
+	    done
+	fi
+
 	# 
 	# For the widearea case: decide if we want static or dynamic 
 	# network configuration based on a config file.
@@ -218,6 +236,13 @@ cnet_start()
 		WA_BOOTMETHOD="dhcp"
 	fi
 
+	#
+	# Let's always bring up lo0 first.
+	# Needed for the static configuration case (else clause).
+	# Also needed for newer dhclients which need some interface to bind to.
+	#
+	ifconfig lo0 inet 127.0.0.1 up
+
 	if [ "$WA_BOOTMETHOD" = "dhcp" ]; then
 	        #
 	        # use good ol' Emulab dhcp!
@@ -253,10 +278,6 @@ cnet_start()
 		echo "Emulab statically configuring control net on $cnetif ..."
 		ifconfig "$cnetif" inet "$WA_IP_ADDR" netmask "$WA_IP_NETMASK" up
 		route add default "$WA_IP_GATEWAY"
-
-		# bring up lo0 too, since we neuter netif
-		ifconfig lo0 inet 127.0.0.1 up
-		route add 127.0.0.1 -interface lo0
 
 		# setup resolv.conf
 		echo "search $WA_DOMAIN" > /etc/resolv.conf

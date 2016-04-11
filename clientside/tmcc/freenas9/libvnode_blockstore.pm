@@ -706,9 +706,9 @@ sub exportSlice($$$$) {
     # XXX we lowercase the IQN since the ist_assoc will blow up with caps!
     my $iqn = lc($1);
 
-    my $perm = "rw";
+    my $isro = "false";
     if (exists($sconf->{'PERMS'}) && $sconf->{'PERMS'} eq "RO") {
-	$perm = "ro";
+	$isro = "true";
     }
 
     #
@@ -717,7 +717,7 @@ sub exportSlice($$$$) {
     # If the mapping to a persistent store is RO, then we will create
     # an ephemeral clone for each such mapping.
     #
-    if ($volume =~ /^lease-\d+$/ && $perm eq "ro") {
+    if ($volume =~ /^lease-\d+$/ && $isro eq "true") {
 	#
 	# If no snapshot exists, create one. VolumeClone must have
 	# a snapshot to hang the clone on. If a snapshot already exists
@@ -792,7 +792,8 @@ sub exportSlice($$$$) {
 				 {"iscsi_target_extent_name" => $iqn,
 				  "iscsi_target_extent_serial" => genSerial(),
 				  "iscsi_target_extent_type" => "Disk",
-				  "iscsi_target_extent_disk" => "zvol/$pool/$volume"});
+				  "iscsi_target_extent_disk" => "zvol/$pool/$volume",
+				  "iscsi_target_extent_ro" => $isro});
 	if (!$res) {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Failed to create iSCSI extent: $@");
@@ -830,11 +831,7 @@ sub exportSlice($$$$) {
 	#
 	# Create iSCSI target.
 	#
-	# XXX ugh, FreeNAS 9.3 no longer supports RO iSCSI targets?
-	# This is not just an API thing, you cannot do it through the
-	# GUI either!
-	#
-	# XXX ugh2, this used to all be done with iscsi/target, but now
+	# XXX ugh, this used to all be done with iscsi/target, but now
 	# they have broken it into two pieces: create the target, create
 	# a target group.
 	#
@@ -890,7 +887,7 @@ sub exportSlice($$$$) {
 	return -1;
 
 	# Check requested perms.
-	if ($perm ne "ro") {
+	if ($isro eq "false") {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Cannot re-export in-use dataset as RW!");
 	    return -1;
@@ -902,13 +899,6 @@ sub exportSlice($$$$) {
 	if (!exists($targets->{$iqn})) {
 	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
 		 "Couldn't find the iSCSI target while attempting re-export!");
-	    return -1;
-	}
-	# XXX should check for RO vs RW, but that is not exposed by
-	# FreeNAS as of 9.3
-	if (0) {
-	    warn("*** ERROR: blockstore_exportSlice: $volname: ".
-		 "Cannot re-export in-use RW dataset!");
 	    return -1;
 	}
 

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,11 +41,10 @@ $isadmin   = (ISADMIN() ? 1 : 0);
 #
 # Verify page arguments.
 #
-$reqargs = RequiredPageArguments("uuid", PAGEARG_STRING);
+$reqargs = RequiredPageArguments("uuid",   PAGEARG_STRING);
+$optargs = OptionalPageArguments("source", PAGEARG_BOOLEAN,
+                                 "rspec",  PAGEARG_BOOLEAN);
 
-SPITHEADER(1);
-
-echo "<div id='ppviewmodal_div'></div>\n";
 if (!isset($uuid)) {
     SPITUSERERROR("Must provide uuid!");
 }
@@ -56,6 +55,23 @@ if (!$profile) {
 if (!$profile->CanView($this_user) && !(ISADMIN() || ISFOREIGN_ADMIN())) {
     SPITUSERERROR("Not enough permission!");
 }
+# For the download source button.
+if ($source || $rspec) {
+    $filename = $profile->name() . ".xml";
+    $stuff    = $profile->rspec();
+
+    if ($source && $profile->script() && $profile->script() != "") {
+        $stuff = $profile->script();
+        $filename = $profile->name() . ".py";
+    }
+    header("Content-Type: text/plain");
+    header("Content-Disposition: attachment; filename='${filename}'");
+    echo $stuff;
+    return;
+}
+SPITHEADER(1);
+echo "<div id='ppviewmodal_div'></div>\n";
+
 $profile_uuid = $profile->profile_uuid();
 $version_uuid = $profile->uuid();
 $ispp         = ($profile->isParameterized() ? 1 : 0);

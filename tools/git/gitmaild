@@ -162,13 +162,19 @@ while (my $connection = $listen_socket->accept()) {
             my $rv = run_gitmail(decode_json($request->content()),\%get_vars);
 
             if ($rv == 0) {
+                if ($verbose) {
+                    print "Returing status code " . RC_INTERNAL_SERVER_ERROR .  "\n";
+                }
                 $connection->send_error(RC_INTERNAL_SERVER_ERROR);
                 $connection->close();
                 exit 1;
             } else {
                 # This means it worked, but we are not going to return any
                 # content to the caller
-                $connection->send_status_line(RC_NO_CONTENT);
+                if ($verbose) { 
+                    print "Returing status code " . RC_OK .  "\n";
+                }
+                $connection->send_status_line(RC_OK);
                 $connection->close();
                 exit 0;
             }

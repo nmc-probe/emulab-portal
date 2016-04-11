@@ -1,5 +1,5 @@
 <!--
-   Copyright (c) 2005-2015 University of Utah and the Flux Group.
+   Copyright (c) 2005-2016 University of Utah and the Flux Group.
    
    {{{EMULAB-LICENSE
    
@@ -25,13 +25,17 @@
 </center>
 
 <center>
-<a href=topo.pdf><img src=topo.jpg></a>
+<div style="height: auto; width: 100%">
+<a href=topo.svg><img src=topo.jpg style="height: auto; width: 100%;"></a>
 </center>
 <br>
-<center>
-<a href=uen.pdf><img src=ddc.jpg></a>
+<a href=phantomnet.svg><img src=phantomnet.jpg
+			    style="height: auto; width: 100%;"></a>
+<br>
+<a href=ddc.svg><img src=ddc.jpg style="height: auto; width: 100%;"></a>
 </center>
 <br>
+</div>
 <center>
 <font size=+1>Current node to switch assignments (and number of interfaces)
 </font>
@@ -45,37 +49,16 @@
 </tr>
 <tr></tr>
 <tr>
-  <td>pc1 - pc84</td><td>cisco1</td><td>4 x 100Mb</td>
+  <td>pc201 - pc205<br>pc228 - pc240</td><td>cisco8</td><td>4 x Gb</td>
 </tr>
 <tr>
-  <td>pc85  - pc128</td><td>cisco3</td><td>4 x 100Mb</td>
+  <td>pc206, pc210<br>pc241 - pc251<br>pc254, pc255</td><td>cisco8, cisco5</td><td>3 x Gb, 1 x 100Mb</td>
 </tr>
 <tr>
-  <td>pc129 - pc141</td><td>cisco4</td><td>4 x 100Mb</td>
+  <td>pc207 - pc209<br>pc211 - pc220<br>pc222 - pc227<br>pc252, pc253<br>pc256 - pc259<br>pc281 - pc320</td><td>cisco8, cisco5</td><td>2 x Gb, 2 x 100Mb</td>
 </tr>
 <tr>
-  <td>pc142 - pc168</td><td>cisco3</td><td>4 x 100Mb</td>
-</tr>
-<tr>
-  <td>pc170 - pc178</td><td>cisco4</td><td>4 x 100Mb</td>
-</tr>
-<tr>
-  <td>pc201 - pc210</td><td>cisco5/cisco8</td><td>1 x 100Mb, 3 x Gb</td>
-</tr>
-<tr>
-  <td>pc211 - pc240</td><td>cisco8</td><td>4 x Gb</td>
-</tr>
-<tr>
-  <td>pc241 - pc260</td><td>cisco5/cisco8</td><td>1 x 100Mb, 3 x Gb</td>
-</tr>
-<tr>
-  <td>pc261 - pc280</td><td>cisco5/cisco8</td><td>3 x 100Mb, 1 x Gb</td>
-</tr>
-<tr>
-  <td>pc281 - pc320</td><td>cisco5/cisco8</td><td>2 x 100Mb, 2 x Gb</td>
-</tr>
-<tr>
-  <td>pc321 - pc360</td><td>cisco5/cisco8</td><td>3 x 100Mb, 1 x Gb</td>
+  <td>pc260<br>pc263 - pc280<br>pc321 - pc360</td><td>cisco8, cisco5</td><td>1 x Gb, 3 x 100Mb</td>
 </tr>
 <tr>
   <td>pc401 - pc520</td><td>procurve3-5</td><td>4 x 1Gb</td>
@@ -84,7 +67,31 @@
   <td>pc521 - pc560</td><td>procurve3-5</td><td>5 x 1Gb</td>
 </tr>
 <tr>
-  <td>pc601 - pc616</td><td>arista1</td><td>3 x 10Gb</td>
+  <td>pc601 - pc616</td><td>arista1</td><td>4 x 10Gb</td>
+</tr>
+<tr>
+  <td>pc701 - pc716</td><td>z9500, dellexpt1-3</td><td>4 x 10Gb, 2 x Gb</td>
+</tr>
+<tr>
+  <td>pc717 - pc740</td><td>z9500, dellexpt1-3</td><td>2 x 10Gb, 4 x Gb</td>
+</tr>
+<tr>
+  <td>pc741 - pc756</td><td>z9500, dellexpt4-6</td><td>4 x 10Gb, 2 x Gb</td>
+</tr>
+<tr>
+  <td>pc757 - pc780</td><td>z9500, dellexpt4-6</td><td>2 x 10Gb, 4 x Gb</td>
+</tr>
+<tr>
+  <td>pc781 - pc796</td><td>z9500, dellexpt7-9</td><td>4 x 10Gb, 2 x Gb</td>
+</tr>
+<tr>
+  <td>pc797 - pc820</td><td>z9500, dellexpt7-9</td><td>2 x 10Gb, 4 x Gb</td>
+</tr>
+<tr>
+  <td>pc821 - pc836</td><td>z9500, dellexpt10-12</td><td>4 x 10Gb, 2 x Gb</td>
+</tr>
+<tr>
+  <td>pc837 - pc860</td><td>z9500, dellexpt10-12</td><td>2 x 10Gb, 4 x Gb</td>
 </tr>
 </table>
 </center>

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -133,6 +133,7 @@ open(KEY, "/usr/testbed/etc/sshauth.key") or
     fatal("Could not open sshauth.key");
 my $sshauthkey = <KEY>;
 chomp($sshauthkey);
+close(KEY);
 
 #
 # Dig out the authentication object. It is a json object.
@@ -224,15 +225,17 @@ if (exists($auth->{'console'})) {
     $command = "$CONSOLEBIN -e -a $tempfile $nodeid";
 }
 else {
-    my $sshopts  = "";
+    # Cause of stateful firewall idle timeout. 
+    my $sshopts  = "-o ServerAliveInterval=300 -o ServerAliveCountMax=3 ";
+    # Guest users have no home dir, and we are deprecating ops anyway.
+    $sshopts    .= "-q -o BatchMode=yes -o StrictHostKeyChecking=no ";
     my $username = $uid;
     
     # No gid, see if a phony user.
     if (!defined($gid)) {
 	if (-e "$APTDIR/$uid") {
-	    $sshopts  = "-i $APTDIR/$uid/id_rsa ";
-	    $sshopts .= "-q -o BatchMode=yes -o StrictHostKeyChecking=no ";
-	    $sshopts .= "-o UserKnownHostsFile=${APTDIR}/$uid/known_hosts";
+	    $sshopts .= "-i $APTDIR/$uid/id_rsa ";
+	    $sshopts .= "-o UserKnownHostsFile=${APTDIR}/$uid/known_hosts ";
 	    $where    = "$APTDIR/$uid";
 	    # Switch to nobody for below.
 	    $uid = "nobody";
@@ -271,45 +274,25 @@ if ($debug) {
 # The point of this is to capture the initial STDERR of shellinaboxd
 # and send it out to syslog or file.
 #
-pipe(READER, WRITER);
-WRITER->autoflush(1);
-my $pid = fork();
-if ($pid) {
-    close WRITER;
-    close STDOUT;
-    close STDIN;
-    #
-    # The read seems to get stuck, leaving a defunct child and this
-    # script hanging out. Not sure why, so cancel the read after a
-    # a bit and go on. 
-    #
-    local $SIG{ALRM} = sub {
-	info("Timed out waiting for $pid to say something");
-	waitpid($pid, 0);
-	info("After waitpid: $?");
-	unlink($tempfile)
-	    if (defined($tempfile));
-	exit($? >> 0);
-    };
-    alarm 30;
-    while (<READER>) {
+open(PIPE,"$cmd 2>&1 |") or
+    fatal("Could not start '$cmd'");
+#
+# We better see these two lines, or something went wrong.
+#
+while (<PIPE>) {
+    if ($_ =~ /^(.*:\d+)\r$/) {
+	# This line means good startup, send the session:port to the browser.
+	print "Content-type: text/plain\n\n";
+	print $1 . "\n";
+	close(PIPE);
+	exit(0);
+    }
+    else {
 	info($_);
     }
-    alarm 0;
-    info("Before waitpid for $pid");
-    waitpid($pid, 0);
-    info("After waitpid: $?");
-    unlink($tempfile)
-	if (defined($tempfile));
-    exit($? >> 0);
 }
-else {
-    # Need the parent to run first so it can close STDOUT. Better
-    # ways to do this of course.
-    select(undef, undef, undef, 0.2);
-    close READER;
-    close STDERR;
-    open(STDERR, ">&WRITER") || fatal("can't dup to stderr");
-    close WRITER;
-}
-exec($cmd);
+close(PIPE)
+    or fatal(($! ?
+	      "Error closing shellinaboxd pipe: $!" :
+	      "Exit status $? from shellinaboxd"));
+exit($? >> 0);

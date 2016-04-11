@@ -1,0 +1,74 @@
+<style>
+.toggle {
+	cursor: pointer;
+}
+</style>
+<div>
+  <table class='table table-condensed table-bordered'>
+    <tr>
+      <td>Username</td>
+      <td><%- fields.uid %>
+	<% if (isadmin) { %> (<%- fields.uid_idx %>)<% } %></td>
+    </tr>
+    <tr>
+      <td>Name</td>
+      <td><%= fields.name %></td>
+    </tr>
+    <tr>
+      <td>Email</td>
+      <td><a href="mailto:<%= fields.email %>"><%= fields.email %></a></td>
+    </tr>
+    <tr>
+      <td>Affiliation</td>
+      <td><%= fields.affiliation %></td>
+    </tr>
+    <tr>
+      <td>Country</td>
+      <td><%= fields.country %></td>
+    </tr>
+    <tr>
+      <td>State</td>
+      <td><%= fields.state %></td>
+    </tr>
+    <tr>
+      <td>City</td>
+      <td><%= fields.city %></td>
+    </tr>
+    <% if (isadmin) { %>
+      <tr>
+	<td>Created</td>
+	<td class="format-date"><%= fields.created %></td>
+      </tr>
+      <tr>
+	<td>Status</td>
+	<td><%= fields.status %></td>
+      </tr>
+      <tr>
+	<td>Administrator</td>
+	<td><% if (fields.admin) { %>
+	  <span class="text-danger">Yes</span><% } else { %>No<% } %>
+	  (Be very careful with this
+	  <a class="toggle" data-name="admin">Toggle</a>)
+	</td>
+      </tr>
+      <tr>
+	<td>Foreign Admin</td>
+	<td><% if (fields.foreign_admin) { %>Yes<% } else { %>No<% } %>
+	  (<a class="toggle" data-name="foreign_admin">Toggle</a>)
+	</td>
+      </tr>
+      <tr>
+	<td>Studly</td>
+	<td><% if (fields.stud) { %>Yes<% } else { %>No<% } %>
+	  (<a class="toggle" data-name="stud">Toggle</a>)
+	</td>
+      </tr>
+      <tr>
+	<td>Web Frozen</td>
+	<td><% if (fields.web_frozen) { %>Yes<% } else { %>No<% } %>
+	  (<a class="toggle" data-name="web_frozen">Toggle</a>)
+	</td>
+      </tr>
+    <% } %>
+  </table>
+</div>

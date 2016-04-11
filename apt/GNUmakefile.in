@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,11 +32,12 @@ SUBDIRS		=
 
 BIN_SCRIPTS	= manage_profile manage_instance manage_dataset \
                   create_instance rungenilib
-SBIN_SCRIPTS	= apt_daemon
-LIB_SCRIPTS     = APT_Profile.pm APT_Instance.pm APT_Dataset.pm APT_Geni.pm
+SBIN_SCRIPTS	= apt_daemon aptevent_daemon portal_xmlrpc
+LIB_SCRIPTS     = APT_Profile.pm APT_Instance.pm APT_Dataset.pm APT_Geni.pm \
+		  APT_Aggregate.pm APT_Utility.pm
 WEB_BIN_SCRIPTS = webmanage_profile webmanage_instance webmanage_dataset \
-                  webcreate_instance webrungenilib
-WEB_SBIN_SCRIPTS=
+                  webcreate_instance webrungenilib 
+WEB_SBIN_SCRIPTS= webportal_xmlrpc
 LIBEXEC_SCRIPTS	= $(WEB_BIN_SCRIPTS) $(WEB_SBIN_SCRIPTS)
 USERLIBEXEC     = rungenilib.proxy genilib-jail genilib-iocage
 

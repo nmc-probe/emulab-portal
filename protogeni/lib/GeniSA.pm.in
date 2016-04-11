@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -42,6 +42,7 @@ use vars qw(@ISA @EXPORT);
 
 # Must come after package declaration!
 use libtestbed;
+use EmulabConstants;
 use libEmulab;
 use GeniDB;
 use Genixmlrpc;
@@ -276,6 +277,63 @@ sub GetCredential($)
 	$slice->UnLock();
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
 				    $slice_credential->asString());
+    }
+    if (lc($type) eq "project") {
+	if (!CheckMembershipByProjectId($geniuser, $id)) {
+	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+					"You are not a member of this project");
+	}
+	my $project = Project->Lookup($id);
+	return GeniResponse->Create(GENIRESPONSE_ERROR)
+	    if (!defined($project));
+	#
+	# We need a certificate to create a credential. Not storing these
+	# yet, but might need to.
+	#
+	my $error;
+	my $certificate =
+	    GeniCertificate->Create({'urn'  => $urn,
+				     'hrn'  => "${PGENIDOMAIN}.project.${id}",
+				     'email'=> $TBOPS,
+				     "nostore" => 1,
+				    }, \$error);
+	if (!defined($certificate)) {
+	    if (defined($error)) {
+		return GeniResponse->Create($error, undef,
+					    GENIRESPONSE_STRING($error));
+	    }
+	    print STDERR "Could not create new certificate for slice\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"Could not create project certificate.");
+	}
+	my $project_credential =
+	    GeniCredential->Create($certificate,
+				   $geniuser);
+	if (!defined($project_credential)) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Could not create project credential.");
+	}
+	my $trust = $project->Trust($geniuser->emulab_user());
+	my $priv  = "none";
+	if ($trust eq PROJMEMBERTRUST_PROJROOT() ||
+	    $trust eq PROJMEMBERTRUST_GROUPROOT()) {
+	    $priv = "pi";
+	}
+	elsif ($trust eq PROJMEMBERTRUST_LOCALROOT() ||
+	       $trust eq PROJMEMBERTRUST_USER()) {
+	    $priv = "user";
+	}
+	$project_credential->AddCapability($priv, 0);
+	
+	if ($project_credential->Sign($main::PROJECT ?
+				      $authority->GetCertificate() :
+				      $GeniCredential::LOCALSA_FLAG) != 0) {
+	    $project_credential->Delete();
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"Error signing project credential");
+	}
+	return GeniResponse->Create(GENIRESPONSE_SUCCESS,
+				    $project_credential->asString());
     }
     
     return GeniResponse->Create(GENIRESPONSE_UNSUPPORTED);

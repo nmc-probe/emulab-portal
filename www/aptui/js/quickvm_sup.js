@@ -12,8 +12,22 @@ function HideModal(which)
 //   console.log('Hide modal ' + which);
     $( which ).modal('hide');
 }
+
+function ShowWaitWait(message)
+{
+    if (message === undefined)
+	message = "";
     
-function CallServerMethod(url, route, method, args)
+    $('#waitwait-modal-withmessage-message').html(message);
+    ShowModal('#waitwait-modal-withmessage');
+}
+function HideWaitWait()
+{
+    $('#waitwait-modal-withmessage-message').html("");
+    HideModal('#waitwait-modal-withmessage');
+}
+    
+function CallServerMethod(url, route, method, args, callback)
 {
     // ignore url now.
     url = 'https://' + window.location.host + '/apt/server-ajax.php';
@@ -25,6 +39,7 @@ function CallServerMethod(url, route, method, args)
     return $.ajax({
 	// the URL for the request
 	url: url,
+	success: callback,
  
 	// the data to send (will be converted to a query string)
 	data: {
@@ -271,6 +286,8 @@ function VerifySpeaksfor(speaksfor, signature)
 return {
     ShowModal: ShowModal,
     HideModal: HideModal,
+    ShowWaitWait: ShowWaitWait,
+    HideWaitWait: HideWaitWait,
     CallServerMethod: CallServerMethod,
     maketopmap: maketopmap,
     SpitOops: SpitOops,

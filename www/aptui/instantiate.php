@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -57,6 +57,7 @@ $optargs = OptionalPageArguments("create",        PAGEARG_STRING,
 				 "project",       PAGEARG_PROJECT,
 				 "asguest",       PAGEARG_BOOLEAN,
 				 "default",       PAGEARG_STRING,
+                                 "classic",       PAGEARG_STRING,
 				 "formfields",    PAGEARG_ARRAY);
 
 if ($ISAPT && !$this_user) {
@@ -78,6 +79,30 @@ if ($ISAPT && !$this_user) {
 	}
     }
 }
+
+#
+# Alternate version of the picker, temporary.
+#
+if (isset($classic)) {
+    #
+    # This file is the default picker.
+    #
+    if ($classic == "true") {
+        setcookie("picker", "classic", 0, "/", $TBAUTHDOMAIN, 0);
+        $classic = 1;
+    }
+    else {
+        setcookie("picker", "new", 0, "/", $TBAUTHDOMAIN, 0);
+        $classic = 0;
+    }
+}
+elseif (isset($_COOKIE['picker'])) {
+    $classic = ($_COOKIE['picker'] == "classic" ? 1 : 0);
+}
+else {
+    $classic = 0;
+}
+
 if ($this_user) {
     $projlist = $this_user->ProjectAccessList($TB_PROJECT_CREATEEXPT);
     #
@@ -267,6 +292,9 @@ while (list ($uuid, $title) = each ($profile_array)) {
     $tmp = Profile::Lookup($uuid);
     if ($tmp) {
         list ($lastused, $count) = $tmp->UsageInfo($this_user);
+        if ($lastused == 0) {
+            list ($unused, $count) = $tmp->UsageInfo(null);
+        }
         
         $tmp_array[$uuid] =
             array("name"     => $tmp->name(),
@@ -302,8 +330,9 @@ function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $APTMAIL, $ISAPT, $ISCLOUD, $ISPNET, $PORTAL_NAME;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
-    global $projlist;
+    global $projlist, $classic;
     $amlist     = array();
+    $fedlist    = array();
     $showabout  = ($ISAPT && !$this_user ? 1 : 0);
     $registered = (isset($this_user) ? "true" : "false");
     # We use webonly to mark users that have no project membership
@@ -323,6 +352,10 @@ function SPITFORM($formfields, $newuser, $errors)
         $profilevers = "null";
     }
     SPITHEADER(1);
+
+    if (!$classic) {
+        echo "<link rel='stylesheet' href='css/picker.css'>\n";
+    }
 
     # I think this will take care of XSS prevention?
     echo "<script type='text/plain' id='form-json'>\n";
@@ -366,18 +399,21 @@ function SPITFORM($formfields, $newuser, $errors)
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $amlist[$urn] = $am;
+            #
+            # We need to mark federated sites for the cluster dropdown.
+            #
+            $aggregate = Aggregate::Lookup($urn);
+            if ($aggregate && $aggregate->isfederate()) {
+                $fedlist[] = "'" . $aggregate->name() . "'";
+            }
         }
 	echo "<script type='text/plain' id='amlist-json'>\n";
 	echo htmlentities(json_encode($amlist));
 	echo "</script>\n";
-    }
-    #TEMPORARILY HARD CODED. Used to separate federated sites
-    if ($ISCLOUD) {
         echo "<script type='text/javascript'>\n";
-        echo "    window.FEDERATEDLIST  = ['IG UtahDDC', 'Emulab', 'APT Utah', 'iMinds Virt Wall 2', 'UKY Emulab'];\n";
+        echo "    window.FEDERATEDLIST  = [". implode(",", $fedlist) . "];\n";
         echo "</script>\n";
     }
-
     SpitOopsModal("oops");
     echo "<script type='text/javascript'>\n";
     echo "    window.PROFILE    = '" . $formfields["profile"] . "';\n";
@@ -399,10 +435,13 @@ function SPITFORM($formfields, $newuser, $errors)
                       (ISADMINISTRATOR() || STUDLY()) ? 1 : 0);
     echo "    window.DOCONSTRAINTS = 1;\n";
     echo "    window.PORTAL_NAME = '$PORTAL_NAME';\n";
+    echo "    window.CLASSIC = " . ($classic ? "true" : "false") . ";\n";
     echo "</script>\n";
     echo "<script src='js/lib/jquery-2.0.3.min.js?nocache=asdfasdf'></script>\n";
     echo "<script src='js/lib/bootstrap.js?nocache=asdfasdf'></script>\n";
-    echo "<script src='js/lib/require.js?nocache=asdfasdf' data-main='js/instantiate.js?nocache=asdfasdf'></script>";
+    echo "<script src='js/lib/require.js?nocache=asdfasdf' ".
+        "data-main='js/instantiate" . ($classic ? "" : "-new") .
+        ".js?nocache=asdfasdf'></script>";
 }
 
 if (!isset($create)) {
@@ -470,11 +509,10 @@ if (!isset($create)) {
 	    $defaults["sshkey"]   = $geniuser->SSHKey();
 	}
     }
-    if (!$this_user) {
-        # We use a session. in case we need to do verification
-        session_start();
-        session_unset();
-    }
+    # We use a session, in case we need to do verification or other things.
+    session_start();
+    session_unset();
+
     SPITFORM($defaults, false, array());
     echo "<div style='display: none'><div id='jacks-dummy'></div></div>\n";
     SPITFOOTER();

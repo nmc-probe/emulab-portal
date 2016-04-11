@@ -1,0 +1,215 @@
+<?php
+#
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+
+function ExperimentList($which, $target)
+{
+    global $urn_mapping, $TBBASE;
+    global $this_user;
+
+    if ($which == "user") {
+        $target_uuid = $target->uuid();
+        $whereclause = "where a.creator_uuid='$target_uuid'";
+    }
+    else {
+        $target_pid = $target->pid();
+        $whereclause = "where a.pid='$target_pid'";
+    }
+    $results = array();
+
+    $query_result =
+        DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
+                     " (UNIX_TIMESTAMP(now()) > ".
+                     "  UNIX_TIMESTAMP(s.expires)) as expired, ".
+                     "  truncate(a.physnode_count * ".
+                     "   ((UNIX_TIMESTAMP(now()) - ".
+                     "     UNIX_TIMESTAMP(a.created)) / 3600.0),2) as phours, ".
+                     " IFNULL(aggs.count,0) as aggrows, ".
+                     " agg.aggregate_urn as aggrow_urn".
+                     "  from apt_instances as a ".
+                     "left join (".
+                     "    select uuid, COUNT(*) AS count ".
+                     "    from apt_instance_aggregates group by uuid) AS aggs ".
+                     "  on aggs.uuid=a.uuid ".
+                     "left join apt_instance_aggregates as agg ".
+                     "     on agg.uuid=a.uuid ".
+                     "left join geni.geni_slices as s on ".
+                     "     s.uuid=a.slice_uuid ".
+                     "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
+                     "$whereclause");
+
+    while ($row = mysql_fetch_array($query_result)) {
+        $profile_id   = $row["profile_id"];
+        $version      = $row["profile_version"];
+        $uuid         = $row["uuid"];
+        $name         = $row["name"];
+        $status       = $row["status"];
+        $canceled     = $row["canceled"];
+        $created      = DateStringGMT($row["created"]);
+        $expires      = DateStringGMT($row["expires"]);
+        $creator_idx  = $row["creator_idx"];
+        $profile_name = "$profile_id:$version";
+        $creator_uid  = $row["creator"];
+        $pid          = $row["pid"];
+        $pcount       = $row["physnode_count"];
+        $vcount       = $row["virtnode_count"];
+        $lockdown     = $row["admin_lockdown"] || $row["user_lockdown"] ? 1 : 0;
+        $phours       = $row["phours"];
+        $email        = $row["email"];
+        $blob         = array();
+
+        # If a guest user, use email instead.
+        if (isset($email)) {
+            $blob["creator"] = $email;
+        }
+        elseif (ISADMIN() || $which == "project") {
+            $blob["creator"] =
+                "<a href='user-dashboard.php?user=$creator_uid'>".
+                "$creator_uid</a>";
+        }
+        else {
+            $blob["creator"] = $creator_uid;
+        }
+        if ($row["expired"]) {
+            $status = "expired";
+        }
+        elseif ($canceled) {
+            $status = "canceled";
+        }
+        $blob["status"] = $status;
+        
+        $profile = Profile::Lookup($profile_id, $version);
+        if ($profile) {
+            $blob["profile_name"] = $profile->name();
+            $blob["profile_uuid"] = $profile->uuid();
+        }
+        else {
+            $blob["profile_name"] = $profile_name;
+        }
+        
+        #
+        # If arows non-zero, then we use that for aggregate_urn,
+        # and if its more then 1, we need to consume the extras rows
+        # to get the rest of the aggregate urns.
+        #
+        if ($row["aggrows"] > 0) {
+            $cluster = $urn_mapping[$row["aggrow_urn"]];
+
+            for ($i = 1; $i < $row["aggrows"]; $i++) {
+                $row = mysql_fetch_array($query_result);
+                $cluster .= "," . $urn_mapping[$row["aggrow_urn"]];
+            }
+        }
+        else {
+            $cluster = $urn_mapping[$row["aggregate_urn"]];
+        }
+        $blob["cluster"] = $cluster;
+        $blob["name"] = "<a href='status.php?uuid=$uuid'>$name</a>";
+        $blob["project"] = "<a href='show-project.php?project=$pid'>$pid</a>";
+        $blob["pcount"]   = $pcount;
+        $blob["phours"]   = $phours;
+        $blob["vcount"]   = $vcount;
+        $blob["created"]  = $created;
+        $blob["expires"]  = $expires;
+        $blob["lockdown"] = $lockdown;
+        $results["$pid:$name"] = $blob;
+    }
+    return $results;
+}
+
+function ProfileList($which, $target)
+{
+    global $urn_mapping, $TBBASE;
+    global $this_user;
+
+    if ($which == "user") {
+        $target_idx  = $target->uid_idx();
+        $whereclause = "where v.creator_idx='$target_idx'";
+    }
+    else {
+        $target_idx  = $target->pid_idx();
+        $whereclause = "where v.pid_idx='$target_idx'";
+    }
+    $results = array();
+
+    $query_result =
+        DBQueryFatal("select p.*,v.*,DATE(v.created) as created ".
+                     "   from apt_profiles as p ".
+                     "left join apt_profile_versions as v on ".
+                     "     v.profileid=p.profileid and ".
+                     "     v.version=p.version ".
+                     "$whereclause");
+
+    while ($row = mysql_fetch_array($query_result)) {
+        $idx     = $row["profileid"];
+        $uuid    = $row["uuid"];
+        $version = $row["version"];
+        $name    = $row["name"];
+        $pid     = $row["pid"];
+        $desc    = $row["description"];
+        $created = DateStringGMT($row["created"]);
+        $public  = $row["public"];
+        $listed  = $row["listed"];
+        $creator = $row["creator"];
+        $rspec   = $row["rspec"];
+        $privacy = ($public ? "Public" : "Project");
+        $desc    = "";
+
+        $parsed_xml = simplexml_load_string($rspec);
+        if ($parsed_xml &&
+            $parsed_xml->rspec_tour && $parsed_xml->rspec_tour->description) {
+            $desc = $parsed_xml->rspec_tour->description;
+            # Convert to array to get the one element. 
+            $desc = (array)$desc;
+            $desc = $desc[0];
+        }
+        $blob = array();
+        $blob["profile_name"] = $name;
+        $blob["profile_uuid"] = $uuid;
+        $blob["privacy"]      = $privacy;
+        $blob["description"]  = $desc;
+        $blob["created"]      = $created;
+        $blob["listed"]       = ($listed ? "Yes" : "No");
+        $blob["created"]      = $created;
+        $blob["project"]      = $pid;
+        $blob["creator"]      = $creator;
+
+        if (ISADMIN() ||
+            ($which == "user" && $creator == $target->uid()) ||
+            ($which == "project" && $creator == $this_user->uid())) {
+            $blob["link"] =
+                "<a href='manage_profile.php?action=edit&uuid=$uuid'>$name</a>";
+        }
+        else {
+            $blob["link"] =
+                "<a href='show-profile.php?uuid=$uuid'>$name</a>";
+        }
+        $results["$pid:$name"] = $blob;
+    }
+    return $results;
+}
+
+# Local Variables:
+# mode:php
+# End:
+?>

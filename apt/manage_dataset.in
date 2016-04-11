@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -46,6 +46,8 @@ my $optlist     = "dt:";
 my $debug       = 0;
 my $webtask_id;
 my $webtask;
+my $this_user;
+my $geniuser;
 
 #
 # Configure variables
@@ -80,6 +82,7 @@ use WebTask;
 use Blockstore;
 use GeniResponse;
 use GeniXML;
+use GeniUser;
 
 # Protos
 sub fatal($);
@@ -117,16 +120,19 @@ if (defined($options{"t"})) {
 if (@ARGV < 1) {
     usage();
 }
-
-# The web interface (and in the future the xmlrpc interface) sets this.
-my $this_user = User->ImpliedUser();
-if (! defined($this_user)) {
-    $this_user = User->ThisUser();
-    if (!defined($this_user)) {
-	fatal("You ($UID) do not exist!");
-    }
-}
 my $action = shift(@ARGV);
+
+if (getpwuid($UID) eq "nobody") {
+    $this_user = User->ImpliedUser();
+}
+else  {
+    $this_user = User->ThisUser();
+}
+# No guests allowed.
+if (! defined($this_user)) {
+    fatal("You ($UID) do not exist!");
+}
+$geniuser = GeniUser->CreateFromLocal($this_user);
 
 if ($action eq "create") {
     exit(DoCreate());
@@ -160,10 +166,10 @@ sub DoCreate()
 	print STDERR "Usage: manage_dataset create ".
 	    "[-t type] [-f fstype] [-e expiration] ".
 	    "[-R global|project] [-W creator|project] ".
-	    "[-a am_urn] -s size pid/name\n";
+	    "-a am_urn -s size pid/name\n";
 	exit(-1);
     };
-    my $aggregate_urn = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+    my $aggregate_urn;
     my $errmsg;
     my $pid;
     my $expires;
@@ -183,14 +189,17 @@ sub DoCreate()
     if (defined($options{"d"})) {
 	$debug = 1;
     }
-    if (defined($options{"a"})) {
-	$aggregate_urn = $options{"a"};
-    }
     if (defined($options{"t"})) {
 	$type = $options{"t"};
 	&$usage()
 	    if (! ($type eq "stdataset" || $type eq "ltdataset" ||
 		   $type eq "imdataset"));
+    }
+    if (defined($options{"a"})) {
+	$aggregate_urn = $options{"a"};
+    }
+    elsif ($type ne "imdataset") {
+	&$usage();
     }
     if ($type eq "imdataset") {
 	if (!exists($options{"i"})) {

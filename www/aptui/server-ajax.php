@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -47,9 +47,16 @@ $routing = array("myprofiles" =>
 						      "Do_VerifySpeaksfor")),
 		 "dashboard" =>
 			array("file"    => "dashboard.ajax",
-			      "guest"   => true,
+			      "guest"   => false,
 			      "methods" => array("GetStats" =>
 						      "Do_GetStats")),
+		 "cluster-status" =>
+			array("file"    => "cluster-status.ajax",
+			      "guest"   => false,
+			      "methods" => array("GetStatus" =>
+                                                    "Do_GetStatus",
+                                                 "GetPreReservations" =>
+						      "Do_GetPreReservations")),
 		 "sumstats" =>
 			array("file"    => "sumstats.ajax",
 			      "guest"   => false,
@@ -104,6 +111,8 @@ $routing = array("myprofiles" =>
 						    "Do_GetSSHAuthObject",
 						 "ConsoleURL" =>
 						     "Do_ConsoleURL",
+						 "DeleteNodes" =>
+						     "Do_DeleteNodes",
 						 "RequestExtension" =>
 						     "Do_RequestExtension",
 						 "DenyExtension" =>
@@ -123,7 +132,9 @@ $routing = array("myprofiles" =>
 						 "Lockout" =>
                                                      "Do_Lockout",
 						 "Quarantine" =>
-						     "Do_Quarantine")),
+						     "Do_Quarantine",
+						 "LinktestControl" =>
+						     "Do_Linktest")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,
@@ -155,7 +166,38 @@ $routing = array("myprofiles" =>
 						      "Do_AddKey",
 						 "deletekey" =>
                                                       "Do_DeleteKey")),
-    );
+		 "myaccount" =>
+			array("file"    => "myaccount.ajax",
+			      "guest"   => false,
+			      "methods" => array("update" =>
+                                                 "Do_Update")),
+		 "user-dashboard" =>
+			array("file"    => "user-dashboard.ajax",
+			      "guest"   => false,
+			      "methods" => array("ExperimentList" =>
+						      "Do_ExperimentList",
+                                                 "ProjectList" =>
+                                                      "Do_ProjectList",
+                                                 "ProfileList" =>
+                                                      "Do_ProfileList",
+                                                 "Toggle" =>
+                                                     "Do_Toggle",
+                                                 "SendTestMessage" =>
+                                                     "Do_SendTestMessage",
+                                                 "AccountDetails" =>
+                                                      "Do_AccountDetails")),
+		 "show-project" =>
+			array("file"    => "show-project.ajax",
+			      "guest"   => false,
+			      "methods" => array("ExperimentList" =>
+						      "Do_ExperimentList",
+                                                 "ProfileList" =>
+                                                      "Do_ProfileList",
+                                                 "MemberList" =>
+                                                      "Do_MemberList",
+                                                 "ProjectProfile" =>
+                                                      "Do_ProjectProfile")),
+);
 
 #
 # Redefine this so we return XML instead of html for all errors.
@@ -216,6 +258,32 @@ function CheckLoginForAjax($guestokay = false)
 	SPITAJAX_ERROR(2, "You are not logged in");	
 	exit(2);
     }
+}
+
+#
+# So we can capture stderr. Sheesh.
+# 
+function myexec($cmd)
+{
+    ignore_user_abort(1);
+
+    $myexec_output_array = array();
+    $myexec_output       = "";
+    $myexec_retval       = 0;
+    
+    exec("$cmd 2>&1", $myexec_output_array, $myexec_retval);
+    if ($myexec_retval) {
+	for ($i = 0; $i < count($myexec_output_array); $i++) {
+	    $myexec_output .= "$myexec_output_array[$i]\n";
+	}
+	$foo  = "Shell Program Error. Exit status: $myexec_retval\n";
+	$foo .= "  '$cmd'\n";
+	$foo .= "\n";
+	$foo .= $myexec_output;
+	TBERROR($foo, 0);
+	return 1;
+    }
+    return 0;
 }
 
 #

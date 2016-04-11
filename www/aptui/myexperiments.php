@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -198,7 +198,7 @@ function SPITROWS($showall, $name, $result)
             $creator = $email;
         }
         elseif (ISADMIN()) {
-            $creator = "<a href='$TBBASE/showuser.php3?user=$creator_idx'>".
+            $creator = "<a href='user-dashboard.php?user=$creator_uid'>".
                 "$creator_uid</a>";
         }
         else {
@@ -259,7 +259,7 @@ function SPITROWS($showall, $name, $result)
             echo "<td>$creator</td>";
         }
         if (ISADMIN()) {
-            echo "  <td><a href='$TBBASE/showproject.php3?pid=$pid'>".
+            echo "  <td><a href='show-project.php?pid=$pid'>".
                 "$pid</a></td>";
         }
         else {
