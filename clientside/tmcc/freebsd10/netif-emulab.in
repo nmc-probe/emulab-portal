@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -174,6 +174,24 @@ cnet_start()
 		;;
 	esac
 	done
+
+	#
+	# XXX yow! If we don't come up with anything, we have to reconsider
+	# some of those interface types we skipped:
+	#  ix    because Clemson has an ix control network,
+	#  mlxen because Utah (will have) x86 Moonshot cartridges
+	#
+	if [ -z "$_ifs" ]; then
+	    for _if in $network_interfaces; do
+	    case $_if in
+	    ix[01]|mlxen[01])
+		_ifs="$_ifs $_if"
+		;;
+	    *)
+		;;
+	    esac
+	    done
+	fi
 
 	# 
 	# For the widearea case: decide if we want static or dynamic 

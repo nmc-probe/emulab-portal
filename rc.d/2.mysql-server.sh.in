@@ -6,6 +6,7 @@
 # KEYWORD: shutdown
 
 MAINSITE="@TBMAINSITE@"
+BIGDB="@BIGDB@"
 
 # On FreeBSD 6.X we need to wrap the wrapper with daemon to prevent HUP signal
 fbsdvers=`uname -v | sed -e 's/FreeBSD \([0-9][0-9]*\).*/FreeBSD\1/'`
@@ -16,15 +17,15 @@ major=${majmin%%.*}
 minor=${majmin##*.}
 
 opts="-O long_query_time=2 --skip-innodb"
-if [ $MAINSITE == "0" ]; then
-    opts="-O key_buffer=32M -O table_cache=128 -O sort_buffer=2M"
+if [ $MAINSITE == "0" -a $BIGDB == "0" ]; then
+    opts="$opts -O key_buffer=32M -O table_cache=128 -O sort_buffer=2M"
     opts="$opts -O record_buffer=1M -O max_connections=250"
 else
-    opts="-O key_buffer=256M -O table_cache=256 -O sort_buffer=4M"
+    opts="$opts -O key_buffer=256M -O table_cache=256 -O sort_buffer=4M"
     opts="$opts -O record_buffer=1M -O query_cache_size=16M"
     opts="$opts -O join_buffer_size=256K -O thread_cache_size=4"
     opts="$opts -O tmp_table_size=32M -O max_heap_table_size=32M"
-    opts="$opts -O max_connections=350"
+    opts="$opts -O max_connections=500"
 fi
 
 logopt="--log-long-format --log=@prefix@/log/mysql/base --log-bin=@prefix@/log/mysql/update --log-slow-queries=@prefix@/log/mysql/slowqueries"
@@ -38,7 +39,7 @@ if [ $major -eq 5 ]; then
 
 	    # XXX awkward: no -O, a couple of name changes
 	    opts="--default-storage-engine=MyISAM --long_query_time=2"
-	    if [ $MAINSITE == "0" ]; then
+	    if [ $MAINSITE == "0" -a $BIGDB == "0" ]; then
 		opts="$opts --key_buffer_size=32M --table_open_cache=128"
 		opts="$opts --sort_buffer_size=2M"
 		opts="$opts --read_buffer_size=1M --max_connections=250"
@@ -48,7 +49,7 @@ if [ $major -eq 5 ]; then
 		opts="$opts --read_buffer_size=1M --query_cache_size=16M"
 		opts="$opts --join_buffer_size=256K --thread_cache_size=4"
 		opts="$opts --tmp_table_size=32M --max_heap_table_size=32M"
-		opts="$opts --max_connections=350"
+		opts="$opts --max_connections=500"
 	    fi
 	fi
 else
@@ -67,7 +68,7 @@ case "$1" in
 				# its grant tables, even though it was started
 				# with --skip-grant-tables. Breaks everything.
 				#
-				daemon -f $safeprog $options
+				/usr/sbin/daemon -f $safeprog $options
 			else
 				$safeprog $options > /dev/null 2>&1 &
 			fi

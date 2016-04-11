@@ -70,7 +70,7 @@ else {
     my $osclause;
     if ($type eq "xen") {
 	$osclause = "(o.osname='XEN43-64-STD' or o.osname='XEN44-64-BIGFS' or ".
-	    "o.osname='XEN44-64-GENIRACK')";
+	    "o.osname='XEN44-64-GENIRACK' or o.osname='XEN44-64-STD')";
     }
     else {
 	$osclause = "o.osname='FEDORA15-OPENVZ-STD'";

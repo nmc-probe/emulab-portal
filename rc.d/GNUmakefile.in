@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,22 +31,31 @@ WINSUPPORT      = @WINSUPPORT@
 PELABSUPPORT    = @PELABSUPPORT@
 ELVINCOMPAT	= @ELVIN_COMPAT@
 TBMAINSITE	= @TBMAINSITE@
+PROTOGENI       = @PROTOGENI_SUPPORT@
+CLUSTER_PORTAL  = @CLUSTER_PORTAL@
+
 SYSTEM         := $(shell uname -s)
 
 include $(OBJDIR)/Makeconf
 
 RC_SCRIPTS	= 2.mysql-server.sh 3.mfrisbeed.sh 3.testbed.sh \
-		  2.dhcpd.sh 1.mysql-client.sh 2.tbdbcheck.sh
+		  2.dhcpd.sh 1.mysql-client.sh 2.tbdbcheck.sh 
 SUBBOSS_SCRIPTS	= 2.dhcpd.sh 3.mfrisbeed-subboss.sh arplock.sh
 OPS_SCRIPTS     = 3.and.sh 1.mysql-client.sh 1.mysql-server.sh arplock-opsfs.sh
 ifeq ($(TBMAINSITE),1)
 OPS_SCRIPTS    += cluster-status.sh
+RC_SCRIPTS     += 2.portalpsd.sh
 endif
 ifeq ($(ELVINCOMPAT),1)
 OPS_SCRIPTS    += 2.elvind.sh 3.elvin_gateway.sh
 endif
 FS_SCRIPTS	= arplock-opsfs.sh
 TIP_SCRIPTS	=
+ifeq ($(PROTOGENI),1)
+ifneq ($(CLUSTER_PORTAL),)
+RC_SCRIPTS     += 4.igforwarder.sh
+endif
+endif
 
 ifeq ($(SYSTEM),FreeBSD)
 FBSDVERSION   := $(shell uname -v | sed -e 's/FreeBSD \([0-9][0-9]*\).*/FreeBSD\1/')

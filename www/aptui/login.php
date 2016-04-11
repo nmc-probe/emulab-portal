@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -213,6 +213,12 @@ if (!$ajax_request && !isset($login)) {
     if ($this_user) {
 	header("Location: $APTBASE/landing.php");
 	return;
+    }
+    if (NOLOGINS()) {
+        SPITHEADER();
+        SPITUSERERROR("Sorry, logins are temporarily disabled, ".
+                      "please try again later.");
+        return;
     }
     SPITFORM(REMEMBERED_ID(), $referrer, null);
     return;

@@ -865,8 +865,12 @@ sub fix_console
 
     print STDERR "Setting console device to $console\n";
 
-    # XXX should be passed in
+    # parse off speed if present
     my $sspeed = 115200;
+    if ($console =~ /^([^,]+),(\d+)$/) {
+	$console = $1;
+	$sspeed = $2;
+    }
 
     my $sunit = -1;
     if ($console =~ /^sio(\d+)$/) {
@@ -920,6 +924,7 @@ sub fix_console
 sub fix_grub_console
 {
 	my ($imageroot, $file, $console, $sunit, $sspeed) = @_;
+	my $comunit = $sunit + 1;
 
 	open FILE, "+<$imageroot/$file" ||
 	     die "Couldn't open $imageroot/$file: $!\n";
@@ -981,6 +986,20 @@ sub fix_grub_console
 		next;
 	    }
 	    #
+	    # Xen command lines with VGA (vga)
+	    #
+	    if (/console=vga\s/) {
+		# get rid of any existing serial console clauses
+		s#console=com\d\S*##g;
+		s#com\d=\S+##g;
+		if ($sunit >= 0) {
+		    # change vga to appropriate serial device
+		    s#console=vga#console=com$comunit com$comunit=$sspeed#;
+		}
+		push @buffer, $_;
+		next;
+	    }
+	    #
 	    # Kernel and initrd command lines with serial (ttyS*)
 	    #
 	    if (/console=ttyS(\d+)/) {
@@ -992,6 +1011,24 @@ sub fix_grub_console
 		} else {
 		    # fixup serial lines
 		    s#console=ttyS\S+#console=ttyS$sunit,$sspeed#g;
+		}
+		push @buffer, $_;
+		next;
+	    }
+	    #
+	    # Xen command lines with serial (console=comN, comN=<speed>)
+	    #
+	    if (/console=com(\d)/) {
+		# get rid of any existing VGA clause
+		s#console=vga##g;
+		if ($sunit < 0) {
+		    # replace serial with VGA
+		    s#console=com\d\S*#console=vga#g;
+		    s#com\d=\S+##g;
+		} else {
+		    # fixup serial lines
+		    s#console=com\d\S*#console=com$comunit#g;
+		    s#com\d=\S+#com$comunit=$sspeed#g;
 		}
 		push @buffer, $_;
 		next;

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -130,9 +130,6 @@ function SPITFORM($formfields, $errors)
     echo "    window.BUTTONLABEL = '$button_label';\n";
     echo "</script>\n";
 
-    SpitOopsModal("oops");
-    SpitWaitModal("waitwait");
-    
     SPITREQUIRE("create-dataset",
                 "<script src='js/lib/jquery-ui.js'></script>");
     SPITFOOTER();

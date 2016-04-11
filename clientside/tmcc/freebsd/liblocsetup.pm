@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -107,8 +107,10 @@ my $IFALIAS     = "$IFCONFIGBIN %s alias %s netmask %s";
 my $IFC_1000MBS = "media 1000baseTX";
 my $IFC_100MBS  = "media 100baseTX";
 my $IFC_10MBS   = "media 10baseT/UTP";
+my $IFC_AUTO	= "";
 my $IFC_FDUPLEX = "mediaopt full-duplex";
 my $IFC_HDUPLEX = "mediaopt half-duplex";
+my $IFC_ADUPLEX = "";
 my $MKDIR	= "/bin/mkdir";
 my $GATED	= "/usr/local/sbin/gated";
 my $ROUTE	= "/sbin/route";
@@ -177,7 +179,7 @@ sub os_ifconfig_line($$$$$$$$;$$%)
 	    }
 	    if ($speed == 10000) {
 		# 10G is 10G, take it or leave it
-		$media = "";
+		$media = $IFC_AUTO;
 	    }
 	    elsif ($speed == 1000) {
 		$media = $IFC_1000MBS;
@@ -188,28 +190,35 @@ sub os_ifconfig_line($$$$$$$$;$$%)
 	    elsif ($speed == 10) {
 		$media = $IFC_10MBS;
 	    }
+	    elsif ($speed == 0) {
+		$media = $IFC_AUTO;
+	    }
 	    else {
-		warn("*** Bad Speed $speed in ifconfig, default to 100Mbps\n");
-		$speed = 100;
-		$media = $IFC_100MBS;
+		warn("*** Bad Speed $speed in ifconfig, default to autoconfig\n");
+		$speed = 0;
+		$media = $IFC_AUTO;
 	    }
 	}
 
-	if ($duplex eq "full") {
-	    if ($speed == 10000) {
-		# 10G is always full duplex, no need to set
-		$mediaopt = "";
-	    } else {
+	if ($media eq $IFC_AUTO) {
+	    $mediaopt = $IFC_ADUPLEX;
+	} else {
+	    if ($duplex eq "full") {
+		if ($speed == 10000) {
+		    # 10G is always full duplex, no need to set
+		    $mediaopt = $IFC_ADUPLEX;
+		} else {
+		    $mediaopt = $IFC_FDUPLEX;
+		}
+	    }
+	    elsif ($duplex eq "half") {
+		$mediaopt = $IFC_HDUPLEX;
+	    }
+	    else {
+		warn("*** Bad duplex $duplex in ifconfig, default to full\n");
+		$duplex = "full";
 		$mediaopt = $IFC_FDUPLEX;
 	    }
-	}
-	elsif ($duplex eq "half") {
-	    $mediaopt = $IFC_HDUPLEX;
-	}
-	else {
-	    warn("*** Bad duplex $duplex in ifconfig, default to full\n");
-	    $duplex = "full";
-	    $mediaopt = $IFC_FDUPLEX;
 	}
     }
 

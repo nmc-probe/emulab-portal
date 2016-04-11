@@ -57,6 +57,7 @@ use Genixmlrpc;
 use GeniResponse;
 use GeniCertificate;
 use GeniCredential;
+use GeniUser;
 use GeniHRN;
 use GeniXML;
 use WebTask;
@@ -67,6 +68,7 @@ use overload ('""' => 'Stringify');
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
 my $GENEXTENDCRED = "$TB/sbin/protogeni/genextendcred";
+my $GENIUSER      = "geniuser";
 
 # Cache of instances to avoid regenerating them.
 my %instances  = ();
@@ -74,6 +76,16 @@ my $debug      = 0;
 
 # Debugging
 my $usemydevtree  = 0;
+sub devurl($)
+{
+    my ($cmurl) = @_;
+
+    if ($usemydevtree) {
+	$cmurl =~ s/protogeni/protogeni\/stoller/;
+#	$cmurl =~ s/12369/12396/;
+    }
+    return $cmurl;
+}
 
 #
 # Lookup by uuid.
@@ -161,6 +173,16 @@ sub DESTROY {
     $self->{'BRAND'}      = undef;
     $self->{'AGGREGATES'} = undef;
     $self->{'HASH'}       = undef;
+}
+
+#
+# Flush from our little cache, as for the expire daemon.
+#
+sub Flush($)
+{
+    my ($self) = @_;
+
+    delete($instances{$self->uuid()});
 }
 
 #
@@ -808,13 +830,13 @@ sub WriteCredentials($$)
 #
 # Build a set of sshkeys.
 #
-sub GetSSHKeys($$)
+sub GetSSHKeys($$;$)
 {
-    my ($self, $pref) = @_;
+    my ($self, $pref, $target_user) = @_;
     my $rval;
     my @keys;
 
-    my $geniuser = $self->GetGeniUser();
+    my $geniuser = $target_user || $self->GetGeniUser();
     return -1
 	if (!defined($geniuser));
     my $project  = $self->GetProject();
@@ -833,6 +855,10 @@ sub GetSSHKeys($$)
 	      'login' => $geniuser->uid(),
 	      'keys'  => [ @keys ]
 	     }];
+
+    # Want keys for single user.
+    goto done
+	if (defined($target_user));
 
     if (! ($project->pid() eq $APT_HOLDINGPROJECT ||
 	   $project->pid() eq $CLOUD_HOLDINGPROJECT)) {
@@ -875,7 +901,56 @@ sub GetSSHKeys($$)
 	    }
 	}
     }
+  done:
     $$pref = $rval;
+    return 0;
+}
+
+#
+# Update the image status in the webtask for the instance. This is not
+# clean at all, need a better way to do this.
+#
+sub UpdateImageStatus($$)
+{
+    my ($self, $details) = @_;
+
+    DBQueryWarn("lock tables web_tasks write, apt_instances write, ".
+		"            apt_instance_aggregates write")
+	or return {};
+
+    $self->Refresh();
+    if ($self->status() ne "imaging") {
+	goto done;
+    }
+    my $webtask = WebTask->LookupByObject($self->uuid());
+    if (!defined($webtask)) {
+	goto done;
+    }
+    #
+    # This will need to change; we can get updates from polling or
+    # from the event stream. The events are processed out of band from
+    # from the polling, so we have a consistency problem. In addition,
+    # the event stream is sending status for just a single node since
+    # events are bounded in size.
+    #
+    # In other words, the new image status has to be merged into the
+    # existing status. We have use some kind of lock to avoid scrambling
+    # the json data, and for now it is a table lock.
+    #
+    # Also, the blob has a timestamp in it, so we can sorta tell which
+    # is most recent (not perfect, but does not really need to be).
+    #
+    if (defined($webtask->image_stamp()) &&
+	defined($details->{'utc'}) &&
+	$details->{'utc'} < $webtask->image_stamp()) {
+	goto done;
+    }
+    $webtask->image_size($details->{'size'});
+    $webtask->image_status($details->{'status'});
+    $webtask->image_stamp($details->{'utc'});
+    $webtask->Store();
+  done:
+    DBQueryWarn("unlock tables");
     return 0;
 }
 
@@ -883,6 +958,7 @@ sub GetSSHKeys($$)
 package APT_Instance::Aggregate;
 use emdb;
 use WebTask;
+use libtestbed;
 use Carp;
 use POSIX qw(tmpnam);
 use English;
@@ -894,6 +970,7 @@ use APT_Geni;
 use Data::Dumper;
 use vars qw($AUTOLOAD);
 use overload ('""' => 'Stringify');
+sub devurl($) { return APT_Instance::devurl($_[0]); }
 
 #
 # Lookup and create a class instance to return.
@@ -1202,6 +1279,52 @@ sub GetGeniAuthority($)
 }
 
 #
+# Update the sliverstatus in the webtask. 
+#
+sub UpdateWebStatus($$)
+{
+    my ($self, $hash) = @_;
+
+    DBQueryWarn("lock tables web_tasks write")
+	or return {};
+
+    $self->webtask()->Refresh();
+    my $current = $self->webtask()->sliverstatus();
+    if (!defined($current)) {
+	$current = {};
+    }
+
+    #
+    # This will need to change; we can get updates from polling or
+    # from the event stream. The events are processed out of band from
+    # from the polling, so we have a consistency problem. In addition,
+    # the event stream is sending status for just a single node since
+    # events are bounded in size.
+    #
+    # In other words, the new node state has to be merged into the
+    # existing status. We have use some kind of lock to avoid scrambling
+    # the json data, and for now it is a table lock.
+    #
+    # Also, the blob has a timestamp in it, so we can sorta tell which
+    # is most recent (not perfect, but does not really need to be).
+    #
+    foreach my $urn (keys(%{ $hash })) {
+	my $details = $hash->{$urn};
+	my $node_id = $details->{'client_id'};
+	
+	if (!exists($current->{$node_id}) ||
+	    !exists($current->{$node_id}->{"utc"}) ||
+	    !exists($details->{"utc"}) ||
+	    $details->{"utc"} >= $current->{$node_id}->{"utc"}) {
+	    $current->{$node_id} = $details;
+	}
+    }
+    $self->webtask()->sliverstatus($current);
+    DBQueryWarn("unlock tables");
+    return $current;
+}
+
+#
 # Ask aggregate to terminate a sliver.
 #
 sub Terminate($)
@@ -1213,18 +1336,11 @@ sub Terminate($)
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
+
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    #
-    # If the slice is expired, it is most likely gone at the cluster,
-    # but we want to make sure, so change the expiration so that the
-    # credential we generate is not also expired. 
-    #
-    if ($slice->IsExpired()) {
-	$slice->SetExpiration(time() + 3600);
-    }
     # We might change this below.
     my $cmurl = $authority->url();
 
@@ -1240,30 +1356,13 @@ sub Terminate($)
     else {
 	my $credentials;
 	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
+	    APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
 	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
-	#
-	# Special case; if the speaksfor_credential has expired cause it
-	# was for a nonlocal user, we have no choice but to throw away
-	# these credentials and generate a new one issued to the local SA
-	# instead of the user. 
-	#
-	if ($speaksfor_credential->IsExpired()) {
-	    print STDERR
-		"speaksfor credential has expired, generating a new one\n";
+	    if (!defined($slice_credential));
 
-	    $slice_credential = APT_Geni::GenAuthCredential($slice);
-	    if (!defined($slice_credential)) {
-		print STDERR "Could not generate slice credential\n";
-		return undef;
-	    }
-	    $credentials = [$slice_credential->asString()];
-	}
-	else {
-	    $credentials = [$slice_credential->asString(),
-			    $speaksfor_credential->asString()];
+	$credentials = [$slice_credential->asString()];
+	if (defined($speaksfor_credential)) {
+	    $credentials = [@$credentials, $speaksfor_credential->asString()];
 	}
 	$method = "DeleteSliver";
 	@params = ($slice->urn(), $credentials,
@@ -1272,7 +1371,7 @@ sub Terminate($)
 	
 	# Convert URL to use AM interface.
 	$cmurl =~ s/\/cm$/\/am/;
-	$cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+	$cmurl = devurl($cmurl) if ($usemydevtree);
     }
 
     #
@@ -1317,9 +1416,9 @@ sub Terminate($)
 #
 # Ask to extend. 
 #
-sub Extend($$)
+sub Extend($$$)
 {
-    my ($self, $new_expires) = @_;
+    my ($self, $new_expires, $this_user) = @_;
     my $credentials;
     my $method;
     my @params;
@@ -1343,32 +1442,20 @@ sub Extend($$)
 		   $new_expires, {});
     }
     else {
+	my @privs = ();
+	if ($this_user->IsAdmin()) {
+	    @privs = ("control", "admin");
+	}
 	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
+	    APT_Geni::GenCredentials($slice, $geniuser, \@privs, 1);
 	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
-	
-	#
-	# Special case; if the speaksfor_credential has expired cause it
-	# was for a nonlocal user, we have no choice but to throw away
-	# these credentials and generate a new one issued to the local SA
-	# instead of the user. 
-	#
-	if ($speaksfor_credential->IsExpired()) {
-	    print STDERR "speaksfor credential expired, generating a new one\n";
+	    if (!defined($slice_credential));
 
-	    $slice_credential = APT_Geni::GenAuthCredential($slice);
-	    if (!defined($slice_credential)) {
-		print STDERR "Could not generate slice credential\n";
-		return undef;
-	    }
-	    $credentials = [$slice_credential->asString()];
+	$credentials = [$slice_credential->asString()];
+	if (defined($speaksfor_credential)) {
+	    $credentials = [@$credentials, $speaksfor_credential->asString()];
 	}
-	else {
-	    $credentials = [$slice_credential->asString(),
-			    $speaksfor_credential->asString()];
-	}
+	
 	#
 	# We need a special credentential in case the aggregate is enforcing
 	# limits (as do Utah aggregates).
@@ -1382,10 +1469,11 @@ sub Extend($$)
 	# But if a nonlocal user from Geni, then the user we have in
 	# the database is not in the same domain as the speaksfor, so
 	# we use the geni certificate that the trusted signer gave us
-	# and is stored in the DB.
-	#
+	# and is stored in the DB. Note that of the speaksfor was
+	# expired, it will not be defined (see above).
+	# 
 	if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal() &&
-	    !$speaksfor_credential->IsExpired()) {	
+	    defined($speaksfor_credential)) {
 	    my (undef, $certificate_string) =
 		$geniuser->emulab_user()->GetStoredCredential();
 	    if (! defined($certificate_string)) {
@@ -1426,8 +1514,8 @@ sub Extend($$)
 	$method = "RenewSlice";
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
-
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+    
     my $tries = 10;
     my $response;
     while ($tries) {
@@ -1463,32 +1551,29 @@ sub SliceStatus($)
     my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
+    
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
+    #
+    # Use an SA credential here so that we can always get status.
+    #
+    my $slice_credential = APT_Geni::GenAuthCredential($slice);
+    if (!defined($slice_credential)) {
+	print STDERR "Could not generate slice credential\n";
+	return undef;
+    }
     if ($self->isAL2S()) {
-	my $slice_credential = APT_Geni::GenAuthCredential($slice);
-	if (!defined($slice_credential)) {
-	    print STDERR "Could not generate slice credential\n";
-	    return undef;
-	}
 	@params = ($slice->urn(), [$slice_credential->asString()], {});
     }
     else {
-	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
-	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
-
 	@params = ({"slice_urn"   => $slice->urn(),
-		    "credentials" => [$slice_credential->asString(),
-				      $speaksfor_credential->asString()],
+		    "credentials" => [$slice_credential->asString()],
 		   });
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response =
 	Genixmlrpc::CallMethod($cmurl, $context, "SliverStatus", @params);
@@ -1503,6 +1588,9 @@ sub SliceStatus($)
 		"status"  => (exists($response->value()->{'geni_status'}) ?
 			      $response->value()->{'geni_status'} : "unknown"),
     };
+    if ($debug) {
+	print STDERR "$cmurl :\n" . Dumper($blob) . "\n";
+    }
     return GeniResponse->new($response->code(), $blob);
 }
 
@@ -1516,8 +1604,8 @@ sub GetManifest($)
     my $method;
     my @params;
     my $authority = $self->GetGeniAuthority();
-    my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
@@ -1541,19 +1629,23 @@ sub GetManifest($)
 		   });
     }
     else {
-	my ($slice_credential, $speaksfor_credential) =
-	    APT_Geni::GenCredentials($slice, $geniuser);
-	return undef
-	    if (! (defined($speaksfor_credential) &&
-		   defined($slice_credential)));
+	my $credentials;
 
+	my ($slice_credential, $speaksfor_credential) =
+	    APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
+	return undef
+	    if (!defined($slice_credential));
+
+	$credentials = [$slice_credential->asString()];
+	if (defined($speaksfor_credential)) {
+	    $credentials = [@$credentials, $speaksfor_credential->asString()];
+	}
 	$method = "Resolve";
 	@params = ({"urn"   => $slice->urn(),
-		    "credentials" => [$slice_credential->asString(),
-				      $speaksfor_credential->asString()]});
+		    "credentials" => $credentials});
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $tries = 10;
     my $response;
@@ -1598,7 +1690,7 @@ sub Provision($$$$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 0);
     return -1
 	if (! (defined($speaksfor_credential) &&
 	       defined($slice_credential)));
@@ -1625,7 +1717,7 @@ sub Provision($$$$)
     my $cmurl = $authority->url();
     # Convert URL.
     $cmurl =~ s/\/cm$/\/am/;
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
     $cmurl .= "/3.0";
 
     my $tries = 10;
@@ -1663,27 +1755,29 @@ sub ConsoleInfo($$)
 {
     my ($self, $sliver_urn) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
+    my $geniuser  = $self->instance()->GetGeniUser();
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (! defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"slice_urn"   => $slice->urn(),
 	"sliver_urn"  => $sliver_urn,
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ConsoleInfo", $args);
 }
@@ -1703,19 +1797,21 @@ sub ConsoleURL($$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (!defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"slice_urn"   => $slice->urn(),
 	"sliver_urn"  => $sliver_urn,
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ConsoleURL", $args);
 }
@@ -1728,15 +1824,19 @@ sub CreateImage($$$$;$$$)
     my ($self, $sliver_urn, $imagename, $update_prepare,
 	$copyback_uuid, $bsname) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $geniuser  = $self->instance()->GetGeniUser();
+    my$geniuser   = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
 
+    #
+    # Only the creator is allowed to do this, so if the speaksfor is
+    # expired, a permission check went wrong.
+    #
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 0);
     return undef
 	if (! (defined($speaksfor_credential) &&
 	       defined($slice_credential)));
@@ -1757,7 +1857,7 @@ sub CreateImage($$$$;$$$)
 	if (defined($copyback_uuid));
 
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
     
     return Genixmlrpc::CallMethod($cmurl, $context, "CreateImage", $args);
 }
@@ -1765,14 +1865,14 @@ sub CreateImage($$$$;$$$)
 #
 # Reboot some nodes
 #
-sub SliverAction($$$@)
+sub SliverAction($$$;@)
 {
     my ($self, $perrmsg, $which, @slivers) = @_;
     my $method    = ($which eq "reboot" ? "RestartSliver" :
 		     ($which eq "start" ? "StartSliver" : "ReloadSliver"));
     my $authority = $self->GetGeniAuthority();
-    my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
@@ -1780,14 +1880,16 @@ sub SliverAction($$$@)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (!defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     if (@slivers) {
 	$args->{"sliver_urns"} = \@slivers;
@@ -1796,7 +1898,7 @@ sub SliverAction($$$@)
 	$args->{"slice_urn"} = $slice->urn();
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response;
     my $tries = 5;
@@ -1837,15 +1939,6 @@ sub Lockdown($$)
 	if (! (defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    #
-    # If the slice is expired, then the credential we generate will
-    # not be valid. So extend the slice so we can clear the lockdown.
-    #
-    if ($clear && $slice->IsExpired()) {
-	$oldexpires = $slice->expires();
-	$slice->SetExpiration(time() + 3600);
-    }
-
     my $slice_credential = APT_Geni::GenAuthCredential($slice);
     goto bad
 	if (! defined($slice_credential));
@@ -1857,7 +1950,7 @@ sub Lockdown($$)
     $args->{"clear"} = 1
 	if ($clear);
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context, "Lockdown", $args);
     $slice->SetExpiration($oldexpires)
@@ -1878,22 +1971,12 @@ sub Panic($$)
     my $authority = $self->GetGeniAuthority();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
-    my $oldexpires;
     return undef
 	if (! (defined($authority) &&
 	       defined($slice) && defined($context)));
 
-    #
-    # If the slice is expired, then the credential we generate will
-    # not be valid. So extend the slice so we can clear the panic.
-    #
-    if ($clear && $slice->IsExpired()) {
-	$oldexpires = $slice->expires();
-	$slice->SetExpiration(time() + 3600);
-    }
-
     my $slice_credential = APT_Geni::GenAuthCredential($slice);
-    goto bad
+    return undef
 	if (! defined($slice_credential));
 
     my $args = {
@@ -1903,16 +1986,10 @@ sub Panic($$)
     $args->{"clear"} = 1
 	if ($clear);
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context, "Panic", $args);
-    $slice->SetExpiration($oldexpires)
-	if (defined($oldexpires));
     return $response;
-  bad:
-    $slice->SetExpiration($oldexpires)
-	if (defined($oldexpires));
-    return undef;
 }
 
 #
@@ -1922,8 +1999,8 @@ sub RunLinktest($$$)
 {
     my ($self, $action, $level) = @_;
     my $authority = $self->GetGeniAuthority();
-    my $urn       = $self->aggregate_urn();
     my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef
@@ -1931,15 +2008,17 @@ sub RunLinktest($$$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
-
+	if (!defined($slice_credential));
+    
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"slice_urn"   => $slice->urn(),
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     if ($action eq "stop") {
 	$args->{"action"} = "stop";
@@ -1953,7 +2032,7 @@ sub RunLinktest($$$)
 	$args->{"level"}  = $level;
     }
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     my $response = Genixmlrpc::CallMethod($cmurl,
 					  $context, "RunLinktest", $args);
@@ -1977,20 +2056,311 @@ sub ImageInfo($$)
 	       defined($slice) && defined($context)));
 
     my ($slice_credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($slice, $geniuser);
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($slice_credential)));
+	if (!defined($slice_credential));
 
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"image_urn"   => $image_urn,
-	"credentials" => [$slice_credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
-    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+    $cmurl = devurl($cmurl) if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "ImageInfo", $args);
+}
+
+#
+# Update ssh keys.
+#
+sub UpdateKeys($$)
+{
+    my ($self, $users) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
+    my $slice     = $self->instance()->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return -1
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
+    return -1
+	if (!defined($slice_credential));
+
+    my $options = {"geni_users" => $users};
+    my $credentials = [{"geni_type" => "geni_sfa",
+			"geni_version" => 3,
+			"geni_value" => $slice_credential->asString()}];
+    if (defined($speaksfor_credential)) {
+	$credentials = [{"geni_type" => "geni_sfa",
+			 "geni_version" => 3,
+			 "geni_value" => $speaksfor_credential->asString()},
+			@$credentials];
+	$options->{"speaking_for"} = $geniuser->urn();
+	$options->{"geni_speaking_for"} = $geniuser->urn();
+    }
+
+    #
+    # AM V3 API.
+    #
+    my @params = ([$slice->urn()],
+		  $credentials,
+		  "geni_update_users",
+		  $options);
+ 
+    my $cmurl = $authority->url();
+    # Convert URL.
+    $cmurl =~ s/\/cm$/\/am/;
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+    $cmurl .= "/3.0";
+
+    my $tries = 10;
+    my $response;
+    while ($tries) {
+	$response =
+	    Genixmlrpc::CallMethod($cmurl, $context,
+				   "PerformOperationalAction", @params);
+
+	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	    if (defined($response) &&
+		($response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		 $response->code() == GENIRESPONSE_BUSY) &&
+		$tries >= 0) {
+		print STDERR "Server for $urn reports too busy or slice busy, ".
+		    "waiting a while ...\n";
+		sleep(int(rand(20)) + 10);
+		$tries--;
+		next;
+	    }
+	    return $response;
+	}
+	last;
+    }
+    return $response;
+}
+
+#
+# Delete some nodes
+#
+sub DeleteNodes($$@)
+{
+    my ($self, $perrmsg, @nodes) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->instance()->GetGeniUser();
+    my $urn       = $self->aggregate_urn();
+    my $slice     = $self->instance()->GetGeniSlice();
+    my $context   = APT_Geni::GeniContext();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($slice) && defined($context)));
+
+    my ($slice_credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($slice, $geniuser, undef, 1);
+    return undef
+	if (!defined($slice_credential));
+
+    my $credentials = [$slice_credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"credentials" => $credentials,
+	"nodes"       => \@nodes,
+    };
+    my $cmurl = $authority->url();
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+
+    my $response;
+    my $tries = 5;
+    while ($tries) {
+	$response = Genixmlrpc::CallMethod($cmurl, $context,
+					   "DeleteNodes", $args);
+	
+	if (!defined($response) || $response->code() != GENIRESPONSE_SUCCESS) {
+	    if (defined($response) &&
+		($response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		 $response->code() == GENIRESPONSE_BUSY) &&
+		$tries >= 0) {
+		print STDERR "Server for $urn reports too busy or slice busy, ".
+		    "waiting a while ...\n";
+		sleep(int(rand(20)) + 10);
+		$tries--;
+		next;
+	    }
+	    $$perrmsg = $response->output()
+		if (defined($response));
+	    return $response;
+	}
+	last;
+    }
+    return $response;
+}
+
+sub WaitForSliver($)
+{
+    my ($self)    = @_;
+    my $aggobj    = $self;
+    $aggobj->Refresh();
+    my $webtask   = $aggobj->webtask();
+    my $authority = $aggobj->GetGeniAuthority();
+    my $cmurl     = $authority->url();
+    my $urn       = $authority->urn();
+    $webtask->Refresh();
+    $webtask->output("");
+    $webtask->exitcode(0);
+
+    # Debugging
+    $cmurl = APT_Instance::devurl($cmurl);
+
+    my $seconds  = 900;
+    my $interval = 15;
+    my $ready    = 0;
+    my $failed   = 0;
+    my $rpcfail  = 0;
+    my $public_url;
+    my $repblob;
+    my $laststatus;
+
+    while ($seconds > 0) {
+	sleep($interval);
+	$seconds -= $interval;
+    
+	my $response = $aggobj->SliceStatus();
+	if (!defined($response) || !defined($response->value()) ||
+	    ($response->code() != GENIRESPONSE_SUCCESS &&
+	     $response->code() != GENIRESPONSE_SERVER_UNAVAILABLE &&
+	     $response->code() != GENIRESPONSE_BUSY &&
+	     $response->code() != GENIRESPONSE_RPCERROR)) {
+	    print STDERR "SliverStatus failed";
+	    
+	    if (defined($response)) {
+		print STDERR ": " . $response->output();
+		print STDERR Dumper($response);
+		if ($response->output() =~ /read timeout/) {
+		    $webtask->output("Lost contact with the aggregate. " .
+				     "Possibly a network failure, ".
+				     "please try again later.");
+		}
+		else {
+		    $webtask->output($response->output());
+		}
+	    }
+	    print STDERR "\n";
+	    $failed = 1;
+	    last;
+	}
+	if ($response->code() == GENIRESPONSE_RPCERROR) {
+	    if ($rpcfail > 10) {
+		if ($response->output() =~ /read timeout/) {
+		    $webtask->output("Lost contact with the aggregate. " .
+				     "Possibly a network failure, ".
+				     "please try again later.");
+		}
+		else {
+		    $webtask->output($response->output());
+		}
+		$failed = 1;
+		last;
+	    }
+	    $rpcfail++;
+	    next;
+	}
+	$rpcfail = 0;
+	next
+	    if ($response->code() == GENIRESPONSE_BUSY ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE);
+
+	$repblob = $response->value();
+	#
+	# Convert to something smaller, with info the web interface
+	# cares about. We get this on each loop, update so the web
+	# interface can show changes.
+	#
+	my $statusblob = $aggobj->UpdateWebStatus($repblob->{'details'});
+	
+	my $changed = 0;
+	foreach my $urn (keys(%{$repblob->{'details'}})) {
+	    my $details = $repblob->{'details'}->{$urn};
+	    my $node_id = $details->{'client_id'};
+
+	    #
+	    # Look at the last blob. If we changed, view that as progress.
+	    #
+	    # The idea is that as long as progress is being made we keep
+	    # waiting, by resetting the waittime if it gets below a
+	    # threshold. That way, if we go too long with nothing happening,
+	    # we will stop. The user can always use the Refresh button on
+	    # the status page.
+	    #
+	    if (defined($laststatus)) {
+		if (!exists($laststatus->{$node_id})) {
+		    $seconds = 600
+			if ($seconds < 600);
+		}
+		else {
+		    if (exists($details->{"rawstate"}) &&
+			$laststatus->{$node_id}->{"rawstate"} ne
+			$details->{"rawstate"}) {
+			# This is IG specific.
+			$seconds = 300
+			    if ($seconds < 300);
+		    }
+		    elsif ($laststatus->{$node_id}->{"status"} ne
+			   $details->{"status"}) {
+			$seconds = 450
+			    if ($seconds < 450);
+		    }
+		}
+	    }
+	}
+	$laststatus = $statusblob;
+
+	if (exists($repblob->{'public_url'})) {
+	    $public_url = $repblob->{'public_url'};
+	    $aggobj->SetPublicURL($public_url);
+	}
+	if ($repblob->{'status'} eq "ready") {
+	    $ready = 1;
+	    last;
+	}
+	elsif ($repblob->{'status'} eq "failed") {
+	    $failed = 1;
+	    print STDERR "*** $urn failed\n";
+	    $webtask->output("Experiment setup on $urn failed");
+	    last;
+	}
+	elsif ($aggobj->instance()->IsCanceled()) {
+	    last;
+	}
+    }
+    if ($aggobj->instance()->IsCanceled()) {
+	$webtask->Exited(0);
+	return 0;
+    }
+    if ($failed || !$ready) {
+	$aggobj->SetStatus("failed");
+	if (!$ready) {
+	    # XXX Need better handling for timeout.
+	    print STDERR "*** $urn timed out.\n";
+	    $webtask->output("Experiment setup on $urn timed out");
+	    $webtask->Exited(GENIRESPONSE_TIMEDOUT);
+	}
+	else {
+	    $webtask->Exited(1);
+	}
+	return $webtask->exitcode();
+    }
+    $aggobj->SetStatus("ready");
+    $webtask->Exited(0);
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

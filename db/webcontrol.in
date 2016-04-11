@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2003, 2007 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -30,7 +30,8 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print STDOUT "Usage: webcontrol [-m message] [-l login | nologin]\n";
+    print STDOUT "Usage: webcontrol [-m message | -] [-l login | nologin]\n";
+    print STDOUT "Specify '-' for the message, to use the default message\n";
     exit(-1);
 }
 my  $optlist = "m:l:";
@@ -42,6 +43,8 @@ use lib "@prefix@/lib";
 use libdb;
 
 my $TBROOT         = "@prefix@";
+my $DEFMESSAGE     = "Testbed going offline for maintenance; ".
+    "back in a little while";
 
 # Untaint the path
 $ENV{'PATH'} = "/usr/bin:$TBROOT/libexec:$TBROOT/sbin:$TBROOT/bin";
@@ -67,6 +70,9 @@ my $message = "";
 if (defined($options{"m"})) {
     $setmesg = 1;
     $message = $options{"m"};
+    if ($message eq "-") {
+	$message = $DEFMESSAGE;
+    }
 }
 my $setlogin = 0;
 my $logins   = 1;

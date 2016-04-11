@@ -47,7 +47,8 @@ function StatusSetupAjax($needmodify)
     $uuid = $ajax_args["uuid"];
     $instance = Instance::Lookup($uuid);
     if (!$instance) {
-	SPITAJAX_ERROR(1, "no such instance uuid: $uuid");
+	SPITAJAX_ERROR(GENIRESPONSE_SEARCHFAILED,
+                       "no such instance uuid: $uuid");
 	return 1;
     }
     $creator = GeniUser::Lookup("sa", $instance->creator_uuid());
@@ -87,32 +88,6 @@ function StatusSetupAjax($needmodify)
 }
 
 #
-# So we can capture stderr. Sheesh.
-# 
-function myexec($cmd)
-{
-    ignore_user_abort(1);
-
-    $myexec_output_array = array();
-    $myexec_output       = "";
-    $myexec_retval       = 0;
-    
-    exec("$cmd 2>&1", $myexec_output_array, $myexec_retval);
-    if ($myexec_retval) {
-	for ($i = 0; $i < count($myexec_output_array); $i++) {
-	    $myexec_output .= "$myexec_output_array[$i]\n";
-	}
-	$foo  = "Shell Program Error. Exit status: $myexec_retval\n";
-	$foo .= "  '$cmd'\n";
-	$foo .= "\n";
-	$foo .= $myexec_output;
-	TBERROR($foo, 0);
-	return 1;
-    }
-    return 0;
-}
-
-#
 # Status/
 #
 function Do_GetInstanceStatus()
@@ -137,7 +112,7 @@ function Do_GetInstanceStatus()
     # If we have all of our manifests, the client can request them
     # and show the topology.
     #
-    $havemanifests = 1;
+    $havemanifests = $instance->slivers() ? 1 : 0;
 
     foreach ($instance->slivers() as $sliver) {
         if (!$sliver->manifest()) {
@@ -311,7 +286,8 @@ function Do_GetSSHAuthObject()
     }
     
     $nodeid = $ajax_args["nodeid"];
-    $auth   = SSHAuthObject($this_user->uid(), $hostport);
+    $auth   = SSHAuthObject(isset($this_user) ?
+                            $this_user->uid() : $creator->uid(), $hostport);
     if (!$auth) {
 	SPITAJAX_ERROR(1, "Could not create authentication object");
 	return;
@@ -491,7 +467,7 @@ function Do_RequestExtension()
         $seconds = 3600 * 24 * $granted;
         $retval = SUEXEC("nobody", "nobody",
                          "webmanage_instance extend $uuid $seconds",
-                         SUEXEC_ACTION_CONTINUE);
+                         SUEXEC_ACTION_IGNORE);
     }
 
     if ($retval == 0) {
@@ -551,10 +527,17 @@ function Do_RequestExtension()
         $instance->BumpExtensionCount($granted);
     }
     elseif ($retval > 0) {
+        #
+        # This is an important error, tell tbops.
+        #
+        if ($retval == GENIRESPONSE_REFUSED) {
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
 	SPITAJAX_ERROR(1, $suexec_output);
 	goto bad;
     }
     else {
+        SUEXECERROR(SUEXEC_ACTION_CONTINUE);
 	SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
 	goto bad;
     }
@@ -886,10 +869,29 @@ function Do_SnapshotStatus()
     else {
 	$blob["image_size"] = 0;
     }
-    $blob["node_status"]  = $taskdata["rawstate"];
-    $blob["image_status"] = $taskdata["image_status"];
     if (isset($taskdata["copyback_uuid"])) {
         $blob["copyback_uuid"] = $taskdata["copyback_uuid"];
+    }
+    $blob["image_status"] = $taskdata["image_status"];
+    
+    #
+    # Lets put the node status in too. The backend has helpfully told us
+    # the aggregate and node to track down the status.
+    #
+    if (isset($taskdata["aggregate_urn"]) && isset($taskdata["client_id"])) {
+        $sliver = InstanceSliver::Lookup($instance, $taskdata["aggregate_urn"]);
+        if ($sliver) {
+            $slwebtask = WebTask::Lookup($sliver->webtask_id());
+            $sliverstatus = $slwebtask->TaskValue("sliverstatus");
+            if ($sliverstatus) {
+                foreach ($sliverstatus as $node_id => $node_status) {
+                    if ($node_id == $taskdata["client_id"]) {
+                        $blob["node_status"] = $node_status["rawstate"];
+                        break;
+                    }
+                }
+            }
+        }
     }
     if ($webtask->exited()) {
 	# Success, but not sure what to report. Come back to this later.
@@ -914,15 +916,11 @@ function Do_Refresh()
     #
     # Guest users can do this.
     #
-    if (StatusSetupAjax(1)) {
+    if (StatusSetupAjax(0)) {
 	return;
     }
     $this_idx = $this_user->uid_idx();
     $uuid = $ajax_args["uuid"];
-    if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
-	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
-	return;
-    }
     #
     # Call out to the backend.
     #
@@ -973,13 +971,17 @@ function Do_RebootOrReload($which)
     $this_idx = $this_user->uid_idx();
     $uuid = $ajax_args["uuid"];
 
-    if (!isset($ajax_args["node_id"])) {
-	SPITAJAX_ERROR(1, "Missing node_id");
+    if (!isset($ajax_args["node_ids"])) {
+	SPITAJAX_ERROR(1, "Missing node_id list");
 	return;
     }
-    $node_id = $ajax_args["node_id"];
-    if (!preg_match("/^[-\w]+$/", $node_id)) {
-        SPITAJAX_ERROR(1, "Illegal characters in node_id");
+    $nodelist = "";
+    foreach ($ajax_args["node_ids"] as $node_id) {
+        if (!preg_match("/^[-\w]+$/", $node_id)) {
+            SPITAJAX_ERROR(1, "Illegal characters in node_id");
+            return;
+        }
+        $nodelist .= " " . escapeshellarg($node_id);
     }
     if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
 	SPITAJAX_ERROR(1, "Not enough permission. Maybe Clone instead?");
@@ -994,9 +996,9 @@ function Do_RebootOrReload($which)
     # Call out to the backend.
     #
     $webtask_id = WebTask::GenerateID();
-    $retval = SUEXEC($this_user->uid(), "nobody",
+    $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t $webtask_id -- ".
-                     "  $which $uuid " . escapeshellarg($node_id), 
+                     "  $which $uuid $nodelist",
 		     SUEXEC_ACTION_IGNORE);
     $webtask = WebTask::Lookup($webtask_id);
 
@@ -1033,6 +1035,82 @@ function Do_Reboot()
 function Do_Reload()
 {
     Do_RebootOrReload("reload");
+}
+
+#
+# Delete nodes from an experiment
+#
+function Do_DeleteNodes()
+{
+    global $this_user, $instance, $suexec_output;
+    global $ajax_args;
+
+    if (StatusSetupAjax(1)) {
+	return;
+    }
+    if (!isset($this_user)) {
+	SPITAJAX_ERROR(1, "Only registered users can delete nodes");
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+    $uuid = $ajax_args["uuid"];
+
+    if (!isset($ajax_args["node_ids"])) {
+	SPITAJAX_ERROR(1, "Missing node_id list");
+	return;
+    }
+    $nodelist = "";
+    foreach ($ajax_args["node_ids"] as $node_id) {
+        if (!preg_match("/^[-\w]+$/", $node_id)) {
+            SPITAJAX_ERROR(1, "Illegal characters in node_id");
+            return;
+        }
+        $nodelist .= " " . escapeshellarg($node_id);
+    }
+    if ($this_idx != $instance->creator_idx() && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
+    if ($instance->status() != "ready") {
+	SPITAJAX_ERROR(1, "Experiment is currently busy");
+	return;
+    }
+
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t $webtask_id -- ".
+                     "  deletenodes $uuid $nodelist",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+        else {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    if ($webtask) {
+	$webtask->Delete();
+    }
+    SPITAJAX_RESPONSE("Success");
 }
 
 #
@@ -1223,7 +1301,7 @@ function Do_Linktest()
             return;
         }
         $webtask_id = WebTask::GenerateID();
-        $retval = SUEXEC($this_user->uid(), "nobody",
+        $retval = SUEXEC("nobody", "nobody",
                          "webmanage_instance -t $webtask_id -- ".
                          "linktest $uuid $level",
                          SUEXEC_ACTION_IGNORE);
@@ -1276,7 +1354,7 @@ function Do_Linktest()
             return;
         }
         $webtask_id = WebTask::GenerateID();
-        $retval = SUEXEC($this_user->uid(), "nobody",
+        $retval = SUEXEC("nobody", "nobody",
                          "webmanage_instance -t $webtask_id -- ".
                          "linktest $uuid -k",
                          SUEXEC_ACTION_IGNORE);

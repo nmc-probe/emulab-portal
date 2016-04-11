@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2015 University of Utah and the Flux Group.
+# Copyright (c) 2010-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -251,7 +251,7 @@ elsif ($server eq "boss") {
 	      'boss/dhcpd', 'boss/named', 'boss/flyspray',
 	      'boss/firstuser', 'boss/checkupuser', 'boss/wikidocs',
 	      'boss/updatesitevars', 'boss/logdirs',
-	      'boss/mfs', 'boss/images', 'boss/openvz', 'boss/xen',
+	      'boss/mfs', 'boss/images', 'boss/xen',
 	      'boss/experiments',
 	      'boss/protogeni', 'boss/firewall', 'boss/servers'
 	     );

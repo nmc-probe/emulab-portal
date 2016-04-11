@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -22,5 +22,8 @@
 # }}}
 #
 chdir("..");
+# See this variable in getsslcert.php3
+$FILENAME = "cloudlab";
+
 include("getsslcert.php3");
 ?>

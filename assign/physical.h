@@ -1,23 +1,23 @@
 /*
  * Copyright (c) 2000-2010 University of Utah and the Flux Group.
- * 
+ *
  * {{{EMULAB-LICENSE
- * 
+ *
  * This file is part of the Emulab network testbed software.
- * 
+ *
  * This file is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or (at
  * your option) any later version.
- * 
+ *
  * This file is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
  * License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * }}}
  */
 
@@ -111,7 +111,7 @@ extern tb_sgraph_edge_pmap sedge_pmap;
  */
 class tb_ptype {
     public:
-	tb_ptype(fstring _name) : users(0), max_users(0), my_name(_name), slots(0)
+	tb_ptype(fstring _name) : users(0), max_users(-1), my_name(_name), slots(0)
 	    { ; }
 	inline fstring name() const { return my_name; };
 	inline int pnode_slots() const { return slots; };
@@ -119,7 +119,7 @@ class tb_ptype {
 	inline int add_users(int count = 1) {
 	    int oldusers = users;
 	    users = users + count;
-	    if (max_users && (oldusers <= max_users) && (users > max_users)) {
+	    if ((max_users >= 0) && (oldusers <= max_users) && (users > max_users)) {
 		return 1;
 	    } else {
 		return 0;
@@ -129,7 +129,7 @@ class tb_ptype {
 	    int oldusers = users;
 	    users = users - count;
 	    assert(users >= 0);
-	    if (max_users && (oldusers > max_users) && (users <= max_users)) {
+	    if ((max_users >= 0) && (oldusers > max_users) && (users <= max_users)) {
 		return 1;
 	    } else {
 		return 0;
@@ -140,7 +140,7 @@ class tb_ptype {
 	}
 	inline void add_slots(int additional_slots) {
 	    //cerr << "Adding " << additional_slots << " to " << my_name
-            //<< endl; 
+            //<< endl;
 	    slots += additional_slots;
 	}
 	inline void remove_slots(int slots_to_remove) {
@@ -181,31 +181,31 @@ public:
 	  bool operator==(const type_record &b) {
 	      return ((max_load == b.max_load) && (static_type == b.static_type));
 	  }
-      
+
 	  tb_ptype *get_ptype() const {
 	      return(ptype);
           }
-      
+
           bool is_static() const {
    	      return(static_type);
           }
-      
+
           int get_max_load() const {
 	      return(max_load);
           }
-      
+
           int get_current_load() const {
 	      return(current_load);
           }
-      
+
           void add_load(int howmuch) {
               current_load += howmuch;
 	  }
-      
+
           void remove_load(int howmuch) {
 	      current_load -= howmuch;
           }
-      
+
 	  friend ostream &operator<<(ostream &o, const type_record& node)
 	  {
 	      return (o << "max_load = " << node.max_load <<
@@ -216,10 +216,10 @@ public:
           int max_load;		// maximum load for this type
           int current_load;	// how many vnodes are assigned of this type
           bool static_type;	// whether this type is static or dynamic
-      
+
           tb_ptype *ptype;	// Pointer to the global ptype strucutre for
 	     		        // type
-      
+
   };
 
   // Contains max nodes for each type
@@ -281,13 +281,13 @@ public:
   bool is_switch;		// Indicates whether or not this pnode is a
                                 // switch
 				// XXX: Should go away soon!
-				
+
   forwarding_info forwarding;	// Records the set of protocols this node can
                                 // forward
-    
+
   link_type_count_map link_counts; // Counts how many links of each type this
-  				   // node has 
-	
+  				   // node has
+
   bool set_current_type(fstring type) {
       if (types.find(type) == types.end()) {
 	  //cout << "Failed to find type " << type << endl;
@@ -311,11 +311,11 @@ public:
       o << "tb_pnode: " << node.name << " (" << &node << ")" << endl;
       o << "  Types:" << endl;
       for (types_map::const_iterator it = node.types.begin();
-	   it!=node.types.end();it++) 
+	   it!=node.types.end();it++)
 	o << "    " << (*it).first << " -> " << *((*it).second) << endl;
       o << "  Features:" << endl;
       for (node_feature_set::const_iterator it = node.features.begin();
-	   it != node.features.end(); it++) 
+	   it != node.features.end(); it++)
 	cout << "    " << it->name() << " -> " << it->cost() << endl;
       /* o << "  Current Type: " << node.current_type << endl; <<
 	" (" << node.current_load << "/" << node.max_load << ")" <<  endl; */
@@ -340,13 +340,13 @@ public:
     o << "  mate=" << node.mate << endl;
     return o;
   }
-  
+
   tb_switch() {;}
   pvertex mate;			// match in PG
 };
 
 // Hasher for pairs
-template <class T> struct pairhash { 
+template <class T> struct pairhash {
     size_t operator()(pair<T,T> const &A) const {
 #ifdef NEW_GCC
 	__gnu_cxx::hash<T> H;
@@ -404,7 +404,7 @@ public:
 				        // of the types supported by this link
     return(types.find(type) != types.end());
   }
-    
+
   friend ostream &operator<<(ostream &o, const tb_plink& link)
   {
     o << "tb_plink: " << link.name << " (" << &link << ")" << endl;
@@ -426,7 +426,7 @@ public:
 	  case tb_plink::PLINK_LAN:
 	      o << "lan" << endl;
 	      break;
-      }      
+      }
     o << "  bw_used=" << link.bw_used <<
       " srcmac=" << link.srcmac << " dstmac=" << link.dstmac <<
       " emulated=" << link.emulated << " nonemulated=" <<
@@ -441,7 +441,7 @@ public:
   // we only care about bandwidth
   const bool is_equiv(const tb_plink& link) {
 #ifdef PCLASS_DEBUG_TONS
-      cerr << "        Comparing " << delay_info.bandwidth 
+      cerr << "        Comparing " << delay_info.bandwidth
           << " and " << link.delay_info.bandwidth << endl;
 #endif
       if (types != link.types) {

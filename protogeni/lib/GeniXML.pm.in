@@ -1397,5 +1397,12 @@ sub SetJacksSiteManagerId($$)
     return SetManagerId($site, $urn);
 }
 
+sub GetADBTarget($)
+{
+    my ($node) = @_;
+
+    return GetText( "adb_target", $node );
+}
+
 # _Always_ make sure that this 1 is at the end of the file...
 1;

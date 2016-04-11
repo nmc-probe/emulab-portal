@@ -1,0 +1,291 @@
+#!/usr/bin/perl -wT
+#
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+package GeniCluster;
+
+#
+# Portal stuff.
+#
+use strict;
+use Exporter;
+use vars qw(@ISA @EXPORT);
+
+@ISA    = "Exporter";
+@EXPORT = qw ( );
+
+# Must come after package declaration!
+use emdb;
+use emutil;
+use libtestbed;
+use libEmulab;
+use GeniResponse;
+use GeniHRN;
+use English;
+use Data::Dumper;
+use Date::Parse;
+use POSIX qw(strftime);
+use Time::Local;
+use Project;
+
+# Configure variables
+my $TB		   = "@prefix@";
+my $TBOPS          = "@TBOPSEMAIL@";
+my $MAINSITE 	   = @TBMAINSITE@;
+my $OURDOMAIN      = "@OURDOMAIN@";
+my $API_VERSION    = 1.0;
+
+#
+# Check permission. At the moment, only the Mothership can issue requests
+# and only the Cloudlab clusters will accept them.
+#
+sub CheckPermission()
+{
+    my $myurn = $ENV{"MYURN"};
+
+    my $hrn = GeniHRN->new($ENV{"GENIURN"});
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"Could not parse GENIURN")
+	if (!defined($hrn));
+    
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+				"Only the Mothership or local cluster ".
+				"can access this interface")
+	if (! ($hrn->IsAuthority() && $hrn->IsRoot() &&
+	       ($hrn->authority() eq "emulab.net" ||
+		$hrn->authority() eq $OURDOMAIN)));
+
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+			"Only Cloudlab clusters permit this interface")
+	if (! ($OURDOMAIN eq "emulab.net" ||
+	       $OURDOMAIN eq "apt.emulab.net" ||
+	       $OURDOMAIN eq "utah.cloudlab.us" ||
+	       $OURDOMAIN eq "wisc.cloudlab.us" ||
+	       $OURDOMAIN eq "clemson.cloudlab.us"));
+
+    return 0;
+}
+
+#
+# Tell the client what API revision we support.  The correspondence
+# between revision numbers and API features is to be specified elsewhere.
+# No credentials are required.
+#
+sub GetVersion()
+{
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+	    
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $API_VERSION);
+}
+
+#
+# Return the InUse info, which includes the pre-reserve info.
+#
+sub InUse()
+{
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+    my $autoswap_max;
+    if (!GetSiteVar("general/autoswap_max", \$autoswap_max)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    # sitevar in hours, convert to seconds
+    $autoswap_max *= 3600;
+
+    my @blob = ();
+
+    my $query_result =
+	DBQueryWarn("select n.node_id,n.type,r.pid,r.eid,n.reserved_pid,".
+		    "  unix_timestamp(s.expires),e.autoswap, ".
+		    "  (e.autoswap_timeout - ".
+		    "   ((unix_timestamp(now()) - ".
+		    "     unix_timestamp(stats.swapin_last))/60)) as ttl, ".
+		    "  u.uid,stats.slice_uuid,cert.urn,e.swappable, ".
+		    "  s.lockdown,unix_timestamp(stats.swapin_last) ".
+		    "  from nodes as n ".
+		    "left join reserved as r on r.node_id=n.node_id ".
+		    "left join node_types as t on t.type=n.type ".
+		    "left join experiments as e on e.idx=r.exptidx ".
+		    "left join experiment_stats as stats on ".
+		    "     stats.exptidx=e.idx ".
+		    "left join `geni-cm`.geni_slices as s on ".
+		    "     s.uuid=stats.slice_uuid ".
+		    "left join `geni-cm`.geni_certificates as cert on ".
+		    "     cert.uuid=stats.slice_uuid ".
+		    "left join users as u on u.uid_idx=e.swapper_idx ".
+		    "where n.role='testnode' and t.class='pc' ".
+		    "order by n.node_id");
+    while (my ($node_id,$type,$pid,$eid,$reserved_pid,$expires,
+	       $autoswap,$ttl,$uid,$slice_uuid,$slice_urn,
+	       $swappable,$slice_lockdown,$swapin_time) =
+	   $query_result->fetchrow_array()) {
+	my $maxttl;
+	
+	#
+	# Try and compute a time the node will be released. This is a guess
+	# at best, lots of things can change as soon as we calculate it.
+	#
+	if (defined($expires)) {
+	    if ($slice_lockdown) {
+		$ttl = "";
+	    }
+	    else {
+		$ttl = $expires - time();
+	    }
+	}
+	elsif (defined($eid)) {
+	    if (!$swappable) {
+		$ttl = "";
+	    }
+	    elsif ($autoswap && defined($ttl)) {
+		$ttl = $ttl * 60;
+		$maxttl = $autoswap_max - (time() - $swapin_time);
+		if ($ttl > $maxttl) {
+		    # Admin override.
+		    $maxttl = $ttl;
+		}
+	    }
+	    else {
+		$ttl = "";
+	    }
+	}
+	else {
+	    $ttl = "";
+	}
+	push(@blob, {"node_id"      => $node_id,
+		     "type"         => $type,
+		     "pid"          => $pid || "",
+		     "eid"          => $eid || "",
+		     "uid"          => $uid || "",
+		     "ttl"          => $ttl,
+		     "maxttl"       => $maxttl || "",
+		     "slice_urn"    => $slice_urn || "",
+		     "slice_uuid"   => $slice_uuid || "",
+		     "reserved_pid" => $reserved_pid || ""});
+    }
+    my $results = {"api_version"  => $API_VERSION,
+		   "details"      => \@blob};
+		  
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
+}
+
+#
+# Return pre-reservation details.
+#
+sub PreReservations()
+{
+    my @blob = ();
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+
+    my $query_result =
+	DBQueryWarn("select p.*,nr.node_id,n.type as node_type".
+		    "  from project_reservations as p ".
+		    "left join node_reservations as nr on ".
+		    "     nr.pid_idx=p.pid_idx and ".
+		    "     nr.reservation_name=p.name ".
+		    "left join nodes as n on n.node_id=nr.node_id ".
+		    "order by p.pid,p.name,n.node_id");
+
+    return GeniResponse->Create(GENIRESPONSE_ERROR)
+	if (!$query_result);
+
+    while (my $row = $query_result->fetchrow_hashref()) {
+      nextpid:
+	my @nodes    = ();
+	my $pid      = $row->{'pid'};
+	my $name     = $row->{'name'};
+	my $count    = $row->{'count'};
+	my $priority = $row->{'priority'};
+	my $active   = $row->{'active'};
+	my $terminal = $row->{'terminal'};
+	my $types    = $row->{'types'};
+	my $creator  = $row->{'creator'};
+	my $created  = TBDateStringGMT($row->{'created'});
+	my $start    = TBDateStringGMT($row->{'start'})
+	    if (defined($row->{'start'}));
+	my $end      = TBDateStringGMT($row->{'end'})
+	    if (defined($row->{'end'}));
+	my @prereserved = ();
+
+	# Which nodes have actually been pre-reserved.
+	my $current_result =
+	    DBQueryWarn("select node_id,type from nodes ".
+			"where reserved_pid='$pid'");
+	return GeniResponse->Create(GENIRESPONSE_ERROR)
+	    if (!$current_result);
+	while (my ($node_id, $ntype) = $current_result->fetchrow_array()) {
+	    push(@prereserved,
+		 {"node_id" => $node_id, "type" => $ntype});
+	}
+	#
+	# If this is a reservation for specific node(s), eat those rows.
+	#
+	while (defined($row->{'node_id'}) &&
+	       $row->{'pid'} eq $pid && $row->{'name'} eq $name) {
+	    push(@nodes,
+		 {"node_id" => $row->{'node_id'},
+		  "type"    => $row->{'node_type'}});
+	    
+	    $row = $query_result->fetchrow_hashref();
+	    last
+		if (!defined($row));
+	}
+	push(@blob, {"nodes"        => \@nodes,
+		     "pid"          => $pid,
+		     "name"         => $name,
+		     "count"        => $count,
+		     "prereserved"  => \@prereserved,
+		     "types"        => $types || "",
+		     "priority"     => $priority,
+		     "created"      => $created,
+		     "creator"      => $creator,
+		     "start"        => $start || "",
+		     "end"          => $end || "",
+		     "active"       => $active,
+		     "terminal"     => $terminal,
+	     });
+	# We ate the last row.
+	last
+	    if (!defined($row));
+	# We ate the first row of the next reservation.
+	goto nextpid
+	    if (! ($row->{'pid'} eq $pid && $row->{'name'} eq $name));
+    }
+    my $results = {"api_version"  => $API_VERSION,
+		   "details"      => \@blob};
+		  
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
+}
+
+# _Always_ make sure that this 1 is at the end of the file...
+1;

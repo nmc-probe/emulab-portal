@@ -43,6 +43,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var lockdown          = 0;
     var lockdown_code     = "";
     var consolenodes      = {};
+    var showlinktest      = false;
+    var hidelinktest      = false;
+    var changingtopo      = false;
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
     function initialize()
@@ -63,6 +66,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	lockdown     = window.APT_OPTIONS.lockdown;
 	lockdown_code= uuid.substr(2, 5);
 	instanceStatus = window.APT_OPTIONS.instanceStatus;
+	hidelinktest   = window.APT_OPTIONS.hidelinktest;
 	var errorURL = window.HELPFORUM;
 
 	// Generate the templates.
@@ -82,6 +86,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    isfadmin:           window.APT_OPTIONS.isfadmin,
 	    errorURL:           errorURL,
 	    paniced:            paniced,
+	    project:            window.APT_OPTIONS.project,
 	    lockout:            lockout,
 	    lockdown:           lockdown,
 	    lockdown_code:      lockdown_code,
@@ -105,24 +110,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$(this).html(moment($(this).html()).format("lll"));
 	    }
 	});
+	ProgressBarUpdate();
 
-	//
-	// Look at initial status to determine if we show the progress bar.
-	//
-	var spinwidth = 0;
-	if (instanceStatus == "created" ||
-	    instanceStatus == "provisioning" ||
-	    instanceStatus == "stitching") {
-	    spinwidth = "33";
-	}
-	else if (instanceStatus == "provisioned") {
-	    spinwidth = "66";
-	}
-	if (spinwidth) {
-	    $("#status_progress_bar").width(spinwidth + "%");
-	    $('#status_progress_outerdiv').removeClass("hidden");
-	}
-	
 	// This activates the popover subsystem.
 	$('[data-toggle="popover"]').popover({
 	    trigger: 'hover',
@@ -311,7 +300,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
  	    $('#profile_status_collapse').trigger('hide.bs.collapse');
 	}
 
-	SetupLinktest(instanceStatus);
 	StartCountdownClock(window.APT_OPTIONS.sliceExpires);
 	StartStatusWatch();
 	if (window.APT_OPTIONS.oneonly) {
@@ -343,7 +331,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     function StartStatusWatch()
     {
 	GetStatus();
-	statusID = setInterval(GetStatus, 5000);
+	statusID = setInterval(GetStatus, 4000);
     }
     
     function GetStatus()
@@ -364,23 +352,28 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					    "status",
 					    "GetInstanceStatus",
 					     {"uuid" : uuid});
+	xmlthing.fail(function(jqXHR, textStatus) {
+	    console.info("GetStatus failed: " + textStatus);
+	    statusBusy = 0;
+	});
 	xmlthing.done(callback);
     }
+    // Flag for StatusWatchCallBack()
+    var seenmanifests = false;
 
     // Call back for above.
     function StatusWatchCallBack(json)
     {
 	console.info(json);
 	
-	// Flag to indicate that we have seen ready and do not
-	// need to do initial stuff. We need this cause the
-	// the status can change later, back to busy for a while.
-	if (typeof StatusWatchCallBack.active == 'undefined') {
-            // It has not... perform the initilization
-            StatusWatchCallBack.active = 0;
-	}
 	if (json.code) {
-	    instanceStatus = "unknown";
+	    // GENIRESPONSE_SEARCHFAILED
+	    if (json.code == 12) {
+		instanceStatus = "terminated";
+	    }
+	    else if (lastStatus != "terminated") {
+		instanceStatus = "unknown";
+	    }
 	}
 	else {
 	    instanceStatus = json.value.status;
@@ -396,9 +389,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    //
 	    // As soon as we have a manifest, show the topology.
 	    // 
-	    if (! StatusWatchCallBack.active && json.value.havemanifests) {
-		ShowTopo(uuid);
-		StatusWatchCallBack.active = 1;
+	    if (instanceStatus != "provisioning" &&
+		json.value.havemanifests && !seenmanifests) {
+		seenmanifests = true;
+		ShowTopo(false);
 	    }
 	    // Ditto the publicURL.
 	    if (_.has(json.value, "sliverurls")) {
@@ -414,9 +408,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    }
 	    else if (instanceStatus == 'provisioning') {
 		status_html = "provisioning";
+		DisableButtons();
+		ProgressBarUpdate();
+		if (seenmanifests) {
+		    changingtopo = true;
+		}
 	    }
 	    else if (instanceStatus == 'provisioned') {
-		$("#status_progress_bar").width("66%");
+		ProgressBarUpdate();
 		status_html = "booting";
 		if (json.value.canceled) {
 		    status_html += " (but canceled)";
@@ -424,6 +423,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		else {
 		    // So the user can cancel. 
 		    EnableButton("terminate");
+		}
+		// If we were in the process of changing the topology,
+		// then need to update from the new manifests.
+		if (changingtopo) {
+		    ShowTopo(true);
 		}
 	    }
 	    else if (instanceStatus == 'ready') {
@@ -437,13 +441,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		else {
 		    status_html = "<font color=green>ready</font>";
 		}
-		if ($("#status_progress_div").length) {
-		    $("#status_progress_div").removeClass("progress-striped");
-		    $("#status_progress_div").removeClass("active");
-		    $("#status_progress_div").addClass("progress-bar-success");
-		    $("#status_progress_bar").width("100%");
-		}
-		$('#error_panel').addClass("hidden");
+		ProgressBarUpdate();
 		EnableButtons();
 		// We should be looking at the node status instead.
 		if (lastStatus != "imaging") {
@@ -463,12 +461,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			"We've been notified.";
 		}
 		status_html = "<font color=red>failed</font>";
-		if ($("#status_progress_div").length) {
-		    $("#status_progress_div").removeClass("progress-striped");
-		    $("#status_progress_div").removeClass("active");
-		    $("#status_progress_div").addClass("progress-bar-danger");
-		    $("#status_progress_bar").width("100%");
-		}
+		ProgressBarUpdate();
 		DisableButtons();
 		EnableButton("terminate");
 		EnableButton("refresh");
@@ -948,13 +941,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     // Request a node reboot from the backend cluster.
     //
-    function DoReboot(node_id)
+    function DoReboot(nodeList)
     {
 	var callback = function(json) {
 	    sup.HideModal('#waitwait-modal');
 	    
 	    if (json.code) {
-		Sup.spitoops("oops", "Failed to reboot: " + json.value);
+		sup.SpitOops("oops", "Failed to reboot: " + json.value);
 		return;
 	    }
 	    // Trigger status to change the nodes.
@@ -964,15 +957,15 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
 					    "Reboot",
-					     {"uuid"    : uuid,
-					      "node_id" : node_id});
+					     {"uuid"     : uuid,
+					      "node_ids" : nodeList});
 	xmlthing.done(callback);
     }
 	
     //
     // Request a node reload from the backend cluster.
     //
-    function DoReload(node_id)
+    function DoReload(nodeList)
     {
 	// Handler for hide modal to unbind the click handler.
 	$('#confirm_reload_modal').on('hidden.bs.modal', function (event) {
@@ -999,11 +992,51 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
 						"status",
 						"Reload",
-						{"uuid"    : uuid,
-						 "node_id" : node_id});
+						{"uuid"     : uuid,
+						 "node_ids" : nodeList});
 	    xmlthing.done(callback);
 	});
 	sup.ShowModal('#confirm_reload_modal');
+    }
+	
+    //
+    // Request a node reboot from the backend cluster.
+    //
+    function DoDeleteNodes(nodeList)
+    {
+	// Handler for hide modal to unbind the click handler.
+	$('#deletenode_modal').on('hidden.bs.modal', function (event) {
+	    $(this).unbind(event);
+	    $('button#deletenode_confirm').unbind("click.deletenode");
+	});
+	
+	// Throw up a confirmation modal, with handler bound to confirm.
+	$('button#deletenode_confirm').bind("click.deletenode", function (event) {
+	    sup.HideModal('#deletenode_modal');
+	
+	    var callback = function(json) {
+		console.info(json);
+		sup.HideModal('#waitwait-modal');
+	    
+		if (json.code) {
+		    sup.SpitOops("oops", "Failed to delete nodes");
+		    $('#error_panel_text').text(json.value);
+		    $('#error_panel').removeClass("hidden");
+		    return;
+		}
+		changingtopo = true;
+		// Trigger status to change the nodes.
+		GetStatus();
+	    }
+	    sup.ShowModal('#waitwait-modal');
+	    var xmlthing = sup.CallServerMethod(ajaxurl,
+						"status",
+						"DeleteNodes",
+						{"uuid"     : uuid,
+						 "node_ids" : nodeList});
+	    xmlthing.done(callback);
+	});
+	sup.ShowModal('#deletenode_modal');
     }
 	
     //
@@ -1177,57 +1210,83 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    target: '#' + cid, 
 	    onItem: function(context,e) {
 		$('#context').contextmenu('closemenu');
-
-		if ($(e.target).text() == "Shell") {
-		    NewSSHTab(hostportList[client_id], client_id);
-		}
-		else if ($(e.target).text() == "Console") {
-		    if (!_.has(consolenodes, client_id)) {
-			e.preventDefault();
-			return false;
-		    }
-		    if (isguest) {
-			alert("Only registered users can access the console");
-			return;
-		    }
-		    NewConsoleTab(client_id);
-		}
-		else if ($(e.target).text() == "Console Log") {
-		    if (!_.has(consolenodes, client_id)) {
-			e.preventDefault();
-			return false;
-		    }
-		    if (isguest) {
-			alert("Only registered users can access the console");
-			return;
-		    }
-		    ConsoleLog(client_id);
-		}
-		else if ($(e.target).text() == "Reboot") {
-		    if (isguest) {
-			alert("Only registered users can reboot nodes");
-			return;
-		    }
-		    DoReboot(client_id);
-		}
-		else if ($(e.target).text() == "Reload") {
-		    if (isguest) {
-			alert("Only registered users can reload nodes");
-			return;
-		    }
-		    DoReload(client_id);
-		}
-		else if ($(e.target).text() == "Snapshot") {
-		    if (isguest) {
-			alert("Only registered users can snapshot nodes");
-			return;
-		    }
-		    DoSnapshotNode(client_id);
-		}
 		$('#context').contextmenu('destroy');
+		ActionHandler($(e.target).attr("name"), [client_id]);
 	    }
 	})
 	$('#context').contextmenu('show', event);
+    }
+
+    //
+    // Common handler for both the context menu and the listview menu.
+    //
+    function ActionHandler(action, clientList)
+    {
+	//
+	// Do not show in the terminating or terminated state.
+	//
+	if (lastStatus == "terminated" || lastStatus == "terminating" ||
+	    lastStatus == "unknown") {
+	    alert("Your experiment is no longer active.");
+	    return;
+	}
+
+	/*
+	 * While shell and console can handle a list, I am not actually
+	 * doing that, since its a dubious thing to do, and because the
+	 * shellinabox code is not very happy trying to start a bunch all
+	 * once. 
+	 */
+	if (action == "shell") {
+	    // Do not want to fire off a whole bunch of ssh commands at once.
+	    for (var i = 0; i < clientList.length; i++) {
+		(function (i) {
+		    setTimeout(function () {
+			var client_id = clientList[i];
+			NewSSHTab(hostportList[client_id], client_id);
+		    }, i * 1500);
+		})(i);
+	    }
+	    return;
+	}
+	if (isguest) {
+	    alert("Only registered users can use the " + action + " command.");
+	    return;
+	}
+	if (action == "console") {
+	    // Do not want to fire off a whole bunch of console
+	    // commands at once.
+	    var haveConsoles = [];
+	    for (var i = 0; i < clientList.length; i++) {
+		if (_.has(consolenodes, clientList[i])) {
+		    haveConsoles.push(clientList[i]);
+		}
+	    }
+	    for (var i = 0; i < haveConsoles.length; i++) {
+		(function (i) {
+		    setTimeout(function () {
+			var client_id = haveConsoles[i];
+			NewConsoleTab(client_id);
+		    }, i * 1500);
+		})(i);
+	    }
+	    return;
+	}
+	else if (action == "consolelog") {
+	    ConsoleLog(clientList[0]);
+	}
+	else if (action == "reboot") {
+	    DoReboot(clientList);
+	}
+	else if (action == "delete") {
+	    DoDeleteNodes(clientList);
+	}
+	else if (action == "reload") {
+	    DoReload(clientList);
+	}
+	else if (action == "snapshot") {
+	    DoSnapshotNode(clientList[0]);
+	}
     }
 
     // For autostarting ssh on single node experiments.
@@ -1246,6 +1305,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	" <td name='node_id'>n/a</td>" +
 	" <td name='type'>n/a</td>" +
 	" <td name='sshurl'>n/a</td>" +
+	" <td align=left><input name='select' type=checkbox>" +
 	" <td name='menu' align=center> " +
 	"  <div name='action-menu' class='dropdown'>" +
 	"  <button id='action-menu-button' type='button' " +
@@ -1257,8 +1317,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"    <li><a href='#' name='shell'>Shell</a></li> " +
 	"    <li><a href='#' name='console'>Console</a></li> " +
 	"    <li><a href='#' name='consolelog'>Console Log</a></li> " +
-	"    <li><a href='#' name='reboot'>Reboot</a></li> " +
-	"    <li><a href='#' name='reload'>Reload</a></li> " +
 	"    <li><a href='#' name='snapshot'>Snapshot</a></li> " +
 	"  </ul>" +
 	"  </div>" +
@@ -1269,7 +1327,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Show the topology inside the topo container. Called from the status
     // watchdog and the resize wachdog. Replaces the current topo drawing.
     //    
-    function ShowTopo(uuid)
+    function ShowTopo(isupdate)
     {
 	//
 	// Maybe this should come from rspec? Anyway, we might have
@@ -1292,6 +1350,15 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					"renderer": instructionRenderer });
 		
 		    var text = $(this).text();
+		    // Search the instructions for {host-foo} pattern.
+		    var regex   = /\{host-.*\}/gi;
+		    var needed  = text.match(regex);
+		    if (needed && needed.length) {
+			_.each(uridata, function(host, key) {
+			    regex = new RegExp("\{" + key + "\}", "gi");
+			    text = text.replace(regex, host);
+			});
+		    }
 		    // Stick the text in
 		    $('#instructions_text').html(marked(text));
 		    // Make the div visible.
@@ -1337,6 +1404,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#listview-row-' + node + " [name=type]")
 			.html($(vnode).attr("hardware_type"));
 		}
+		// Convenience.
+		$('#listview-row-' + node + " [name=select]").attr("id", node);
 
 		if (stype.length &&
 		    $(stype).attr("name") === "emulab-blockstore") {
@@ -1358,12 +1427,12 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 
 		    // Update the row.
 		    $('#listview-row-' + node + ' [name=sshurl]').html(href);
-
+		    
 		    // Attach handler to the menu button.
 		    $('#listview-row-' + node + ' [name=shell]')
 			.click(function (e) {
 			    e.preventDefault();
-			    NewSSHTab(hostport, node);
+			    ActionHandler("shell", [node]);
 			    return false;
 			});		    
 		}
@@ -1384,26 +1453,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    // Attach handler to the menu button.
 		    $('#listview-row-' + node + ' [name=console]')
 			.click(function (e) {
-			    e.preventDefault();
-			    if (isguest) {
-				alert("Only registered users can access " +
-				      "the console");
-				return false;
-			    }
-			    NewConsoleTab(node);
-			    return false;
+			    ActionHandler("console", [node]);
 			});
 		    $('#listview-row-' + node + ' [name=consolelog]')
 			.click(function (e) {
-			    e.preventDefault();
-			    if (isguest) {
-				alert("Only registered users can access " +
-				      "the console log");
-				return false;
-			    }
-			    $('#action-menu-button').dropdown('toggle');
-			    ConsoleLog(node);
-			    return false;
+			    ActionHandler("consolelog", [node]);
 			});
 		    // Remember we have a console, for the context menu.
 		    consolenodes[node] = node;
@@ -1415,49 +1469,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#listview-row-' + node + ' [name=console]')
 			.parent().addClass('disabled');		    
 		}
-		
-		//
-		// And a handler for the reboot action.
-		//
-		$('#listview-row-' + node + ' [name=reboot]')
-		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can reboot nodes");
-			    return false;
-			}
-			DoReboot(node);
-			return false;
-		    });
-		
-		//
-		// And a handler for the reload action.
-		//
-		$('#listview-row-' + node + ' [name=reload]')
-		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can reload nodes");
-			    return false;
-			}
-			DoReload(node);
-			return false;
-		    });
-		
 		//
 		// And a handler for the snapshot action.
 		//
 		$('#listview-row-' + node + ' [name=snapshot]')
 		    .click(function (e) {
-			e.preventDefault();
-			if (isguest) {
-			    alert("Only registered users can snapshot nodes");
-			    return false;
-			}
-			DoSnapshotNode(node);
-			return false;
+			ActionHandler("snapshot", [node]);
 		    });
-
 
 		/*
 		 * Make a copy of the master context menu and init.
@@ -1509,12 +1527,62 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		ProcessNodes(aggregate_urn, xml);
 	    });
 
+	    // Handler for select/deselect all rows in the list view.
+	    if (!isupdate) {
+		$('#select-all').change(function () {
+		    if ($(this).prop("checked")) {
+			$('#listview_table [name=select]')
+			    .prop("checked", true);
+		    }
+		    else {
+			$('#listview_table [name=select]')
+			    .prop("checked", false);
+		    }
+		});
+	    }
+	    
+	    //
+	    // Handler for the action menu next to the select mention above.
+	    // Foreign admins do not get a menu, but easier to just hide it.
+	    //
+	    if (isfadmin) {
+		$('#listview-action-menu').addClass("invisible");
+	    }
+	    else {
+		$('#listview-action-menu li a')
+		    .click(function (e) {
+			var checked = [];
+
+			// Get the list of checked nodes.
+			$('#listview_table [name=select]').each(function() {
+			    if ($(this).prop("checked")) {
+				checked.push($(this).attr("id"));
+			    }
+			});
+			if (checked.length) {
+			    ActionHandler($(e.target).attr("name"), checked);
+			}
+		    });
+	    }
+	    
 	    if (xml != null) {
 		UpdateInstructions(xml,uridata);
 		// Do not show secrets if viewing using foreign admin creds
 		if (!isfadmin) {
 		    FindEncryptionBlocks(xml);
 		}
+
+		/*
+		 * No point in showing linktest if no links at any site.
+		 * For the moment, we do not count links if they span sites
+		 * since linktest does not work across stitched links.
+		 */
+		$(xml).find("link").each(function() {
+		    var managers = $(this).find("component_manager");
+		    if (managers.length == 1)
+			showlinktest++;
+		});
+		SetupLinktest(instanceStatus);
 	    }
 
 	    /*
@@ -1539,6 +1607,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    NewSSHTab(hostport, nodename);
 		};
 	    }
+	    
 	    // There is enough asynchrony that we have to watch for the
 	    // case that we went ready before we got this done, and so the
 	    // buttons won't be correct.
@@ -2165,6 +2234,9 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Linktest support.
     //
     function SetupLinktest(status) {
+	if (hidelinktest || !showlinktest) {
+	    return;
+	}
 	require(['js/lib/text!template/linktest.md'],
 		function(md) {
 		    console.info(md);
@@ -2172,6 +2244,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#linktest-help').html(marked(md));
 		});
 
+	console.info("foo");
 	// Handler for the linktest modal button
 	$('button#linktest-modal-button').click(function (event) {
 	    event.preventDefault();
@@ -2190,6 +2263,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	ToggleLinktestButtons(status);
     }
     function ToggleLinktestButtons(status) {
+	if (hidelinktest || !showlinktest) {
+	    DisableButton("start-linktest");
+	    return;
+	}
 	if (status == "ready") {
 	    $('#linktest-stop-button').addClass("hidden");
 	    $('#linktest-modal-button').removeClass("hidden");
@@ -2285,5 +2362,48 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 					     "uuid" : uuid});
 	xmlthing.done(callback);
     }
+
+    function ProgressBarUpdate()
+    {
+	//
+	// Look at initial status to determine if we show the progress bar.
+	//
+	var spinwidth = null;
+	
+	if (instanceStatus == "created" ||
+	    instanceStatus == "provisioning" ||
+	    instanceStatus == "stitching") {
+	    spinwidth = "33";
+	}
+	else if (instanceStatus == "provisioned") {
+	    spinwidth = "66";
+	}
+	else if (instanceStatus == "ready" || instanceStatus == "failed") {
+	    spinwidth = null;
+	}
+	if (spinwidth) {
+	    $('#profile_status_collapse').collapse("show");
+	    $('#status_progress_outerdiv').removeClass("hidden");
+	    $("#status_progress_bar").width(spinwidth + "%");	
+	    $("#status_progress_div").addClass("progress-striped");
+	    $("#status_progress_div").removeClass("progress-bar-success");
+	    $("#status_progress_div").removeClass("progress-bar-danger");
+	    $("#status_progress_div").addClass("active");
+	}
+	else {
+	    if (! $('#status_progress_outerdiv').hasClass("hidden")) {
+		$("#status_progress_div").removeClass("progress-striped");
+		$("#status_progress_div").removeClass("active");
+		if (instanceStatus == "ready") {
+		    $("#status_progress_div").addClass("progress-bar-success");
+		}
+		else {
+		    $("#status_progress_div").addClass("progress-bar-danger");
+		}
+		$("#status_progress_bar").width("100%");
+	    }
+	}
+    }
+    
     $(document).ready(initialize);
 });

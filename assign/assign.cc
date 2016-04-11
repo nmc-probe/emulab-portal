@@ -1,23 +1,23 @@
 /*
  * Copyright (c) 2000-2010 University of Utah and the Flux Group.
- * 
+ *
  * {{{EMULAB-LICENSE
- * 
+ *
  * This file is part of the Emulab network testbed software.
- * 
+ *
  * This file is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or (at
  * your option) any later version.
- * 
+ *
  * This file is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
  * License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * }}}
  */
 
@@ -87,7 +87,7 @@ name_list_map vclasses;
 
 // A list of all pclasses.
 pclass_list pclasses;
- 	
+
 // Map from a pnode* to the the corresponding pvertex.
 pnode_pvertex_map pnode2vertex;
 
@@ -104,7 +104,7 @@ pclass_types vnode_type_table;
 // the shortest paths for the given vertex.
 switch_pred_map_map switch_preds;
 
-// Same, but for distances 
+// Same, but for distances
 switch_dist_map_map switch_dist;
 
 // Time started, finished, and the time limit
@@ -222,11 +222,11 @@ void read_physical_topology(char *filename) {
       cout << "*** Unable to open ptop file " << filename << endl;
       exit(EXIT_FATAL);
   }
-  
+
 #ifdef WITH_XML
   if (ptop_xml_input) {
 	cout << "Physical Graph: " << parse_ptop_xml(PG,SG,filename) << endl;
-  } 
+  }
   else if (ptop_rspec_input) {
 	cout << "Physical Graph: " << parse_advertisement(PG, SG, filename) << endl;
 	}
@@ -240,15 +240,15 @@ void read_physical_topology(char *filename) {
 #ifdef DUMP_GRAPH
   {
     cout << "Physical Graph:" << endl;
-    
+
     pvertex_iterator vit,vendit;
     tie(vit,vendit) = vertices(PG);
-    
+
     for (;vit != vendit;vit++) {
       tb_pnode *p = get(pvertex_pmap,*vit);
       cout << *vit << "\t" << *p;
     }
-    
+
     pedge_iterator eit,eendit;
     tie(eit,eendit) = edges(PG);
 
@@ -263,16 +263,16 @@ void read_physical_topology(char *filename) {
 #ifdef GRAPH_DEBUG
   {
     cout << "Switch Graph:" << endl;
-    
+
 
     svertex_iterator vit,vendit;
     tie(vit,vendit) = vertices(SG);
-    
+
     for (;vit != vendit;vit++) {
       tb_switch *p = get(svertex_pmap,*vit);
       cout << *vit << "\t" << *p;
     }
-    
+
     sedge_iterator eit,eendit;
     tie(eit,eendit) = edges(SG);
 
@@ -343,8 +343,8 @@ void read_virtual_topology(char *filename) {
       cout << "*** Unable to open top file " << filename << endl;
       exit(EXIT_FATAL);
   }
-  
-#ifdef WITH_XML  
+
+#ifdef WITH_XML
   if (vtop_xml_input) {
 	cout << "Virtual Graph: " << parse_vtop_xml(VG,filename) << endl;
   }
@@ -361,16 +361,16 @@ void read_virtual_topology(char *filename) {
 #ifdef DUMP_GRAPH
   {
     cout << "Virtual Graph:" << endl;
-    
+
 
     vvertex_iterator vit,vendit;
     tie(vit,vendit) = vertices(VG);
-    
+
     for (;vit != vendit;vit++) {
       tb_vnode *p = get(vvertex_pmap,*vit);
       cout << *vit << "\t" << *p;
     }
-    
+
     vedge_iterator eit,eendit;
     tie(eit,eendit) = edges(VG);
 
@@ -379,7 +379,7 @@ void read_virtual_topology(char *filename) {
       cout << *eit << " (" << source(*eit,VG) << " <-> " <<
 	target(*eit,VG) << ")\t" << *p;
     }
-  }  
+  }
 #endif
 }
 /*
@@ -503,7 +503,7 @@ void print_help() {
        << endl;
   exit(EXIT_FATAL);
 }
- 
+
 // Perfrom a pre-cehck to make sure that there are enough free nodes of the
 // proper types. Returns 1 if the proper types exist, 0 if they do not.
 // TODO - move away from using global variables
@@ -544,7 +544,7 @@ int type_precheck(int round) {
 		ok = false;
 	    }
 	    // Okay, there are enough - but are we allowed to use them?
-	    if (ptype_it->second->maxusers() &&
+	    if ((ptype_it->second->maxusers() >= 0) &&
 		    (ptype_it->second->maxusers() < vtype_it->second)) {
 		cout << "  *** " << vtype_it->second << " nodes of type " <<
 		    vtype_it->first << " requested, but you are only " <<
@@ -733,7 +733,7 @@ int mapping_precheck() {
 			}
 		    }
 		}
-		
+
 		// Check link types - right now, we treat LANs specially, which
                 // I am not happy about, but it seems to be necessary.
                 // Otherwise, we can get a false negative when there are few
@@ -777,7 +777,7 @@ int mapping_precheck() {
 	    }
 
 nosuchtype:
-	    if (vclass) { 
+	    if (vclass) {
 		mit++;
 		if (mit == vclass->get_members().end()) {
 		    break;
@@ -791,7 +791,7 @@ nosuchtype:
 	if (vnode_type_table[v->name].first == 0) {
 	    cout << "  *** No possible mapping for " << v->name << endl;
 	    // Make an attempt to figure out why it didn't match
-	    
+
 	    // Check all of its link types
 	    tb_vnode::link_counts_map::iterator lit;
 	    for (lit = v->link_counts.begin(); lit != v->link_counts.end();
@@ -859,7 +859,7 @@ int policy_precheck() {
     cout << "*** Policy precheck failed!" << endl;
     return 0;
   }
-}  
+}
 
 // Signal handler - add a convneint way to kill assign and make it return an
 // unretryable error
@@ -887,12 +887,12 @@ int main(int argc,char **argv) {
 #endif
   bool scoring_selftest = false;
   bool prechecks_only = false;
-  
+
   // Handle command line
   char ch;
   timelimit = 0.0;
   timetarget = 0.0;
-  
+
   char* ptopFilename = "";
   char* vtopFilename = "";
   char* vtopOutputFilename = 0;
@@ -904,8 +904,8 @@ int main(int argc,char **argv) {
 	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:W:FDf:RS:";
 #else
 	char* flags = "s:v:l:t:rpPTdH:oguc:nx:y:FDRS:";
-#endif	
-	
+#endif
+
   while ((ch = getopt(argc,argv,flags)) != -1) {
     switch (ch) {
     case 's':
@@ -981,7 +981,7 @@ int main(int argc,char **argv) {
 	  }
 	  ptopFilename = optarg;
       break;
-    
+
 		case 'y':
 #ifdef WITH_XML
       vtop_xml_input = false;
@@ -1008,7 +1008,7 @@ int main(int argc,char **argv) {
 		if (strcmp(optarg, "") == 0) {
 			print_help();
 		}
-		
+
 		ptopFileFormat = strtok(optarg, delims);
 		vtopFileFormat = strtok(NULL, delims);
 		if (strcmp(ptopFileFormat, "text") == 0) {
@@ -1023,13 +1023,13 @@ int main(int argc,char **argv) {
 		else {
 			print_help();
 		}
-		
+
 		if (vtopFileFormat == NULL)
 		{
 			vtop_xml_input = ptop_xml_input;
 			vtop_rspec_input = ptop_rspec_input;
 		}
-		else 
+		else
 		{
 			if (strcmp(vtopFileFormat, "text") == 0) {
 				vtop_xml_input = false;
@@ -1044,7 +1044,7 @@ int main(int argc,char **argv) {
 				print_help();
 			}
 		}
-		
+
 		break;
 #endif
 	case 'R':
@@ -1060,7 +1060,7 @@ int main(int argc,char **argv) {
               print_help();
           }
           break;
-		
+
 	default:
       print_help();
     }
@@ -1083,20 +1083,20 @@ int main(int argc,char **argv) {
       argc -= 1;
       argv += 1;
   }
-  
+
   if (argc > 0)
   {
       // If there are still more options, they must be from the common.h
       // parameters.
       parse_options(argv, options, noptions);
   }
-  
+
   if (strcmp(ptopFilename, "") == 0)
 	  print_help();
-  	
+
   if (strcmp(vtopFilename, "") == 0)
-	  print_help();	
-  
+	  print_help();
+
   if (seed == 0) {
     if (getenv("ASSIGN_SEED") != NULL) {
       sscanf(getenv("ASSIGN_SEED"),"%d",&seed);
@@ -1132,8 +1132,8 @@ int main(int argc,char **argv) {
   action2.sa_flags = 0;
 #ifdef __FreeBSD__
   sigaction(SIGINFO,&action2,NULL);
-#endif 
-  
+#endif
+
 #ifdef GNUPLOT_OUTPUT
   scoresout = fopen("scores.out","w");
   tempout = fopen("temp.out","w");
@@ -1160,7 +1160,7 @@ int main(int argc,char **argv) {
 
   // Time while we make pclasses and do the type prechecks
   timestart = used_time();
-  
+
   cout << "Generating physical equivalence classes:";
   generate_pclasses(PG,disable_pclasses,dynamic_pclasses,randomize_order);
   cout << pclasses.size() << endl;
@@ -1196,7 +1196,7 @@ int main(int argc,char **argv) {
    * basically assumes that the type precheck has already run, so it doesn't
    * have to worry about nodes which cannot map due to type.
    */
-  
+
   // Run the type precheck
   if (!type_precheck(1)) {
       exit(EXIT_UNRETRYABLE);
@@ -1221,13 +1221,13 @@ int main(int argc,char **argv) {
       }
   }
 #endif
-    
+
   // Run the policy precheck - the idea behind running this last is that some
   // policy violations might become more clear after doing pruning
     if (!policy_precheck()) {
 	exit(EXIT_UNRETRYABLE);
     }
-    
+
   // Bomb out early if we're only doing the prechecks
   if (prechecks_only) {
       exit(EXIT_SUCCESS);
@@ -1260,7 +1260,7 @@ int main(int argc,char **argv) {
   } else {
     initial_temperature_pointer = NULL;
   }
- 
+
   // Note, time is started earlier now, up by where we make pclasses
   anneal(scoring_selftest, check_fixed_nodes, scale_neighborhood,
           initial_temperature_pointer, use_connected_pnode_find);
@@ -1278,7 +1278,7 @@ int main(int argc,char **argv) {
       " violated:" << violated << " best_violated:" <<
       best_violated << endl;
   }
-  
+
   cout << "   BEST SCORE:  " << get_score() << " in " << iters <<
     " iters and " << timeend-timestart << " seconds" << endl;
   cout << "With " << violated << " violations" << endl;
@@ -1317,7 +1317,7 @@ int main(int argc,char **argv) {
     afile.close();
   }
 #endif
-  
+
   if (violated != 0) {
       exit(EXIT_RETRYABLE);
   } else {

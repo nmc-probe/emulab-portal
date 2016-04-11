@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -101,6 +101,9 @@ use libaudit;
 use libdb;
 use libtestbed;
 use User;
+if (@PROTOGENI_SUPPORT@) {
+    require APT_Utility;
+}
 
 #
 # Function prototypes
@@ -471,7 +474,9 @@ sub ParseKey($) {
     # Mark user record as modified so nodes are updated.
     #
     TBNodeUpdateAccountsByUID($user_uid);
-
+    if (@PROTOGENI_SUPPORT@) {
+	APT_Utility::UpdateInstancesByUser($target_user);
+    }
     my $chunked = "";
 
     while (length($key)) {

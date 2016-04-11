@@ -27,7 +27,7 @@ function HideWaitWait()
     HideModal('#waitwait-modal-withmessage');
 }
     
-function CallServerMethod(url, route, method, args)
+function CallServerMethod(url, route, method, args, callback)
 {
     // ignore url now.
     url = 'https://' + window.location.host + '/apt/server-ajax.php';
@@ -39,6 +39,7 @@ function CallServerMethod(url, route, method, args)
     return $.ajax({
 	// the URL for the request
 	url: url,
+	success: callback,
  
 	// the data to send (will be converted to a query string)
 	data: {

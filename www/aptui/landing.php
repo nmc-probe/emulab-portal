@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -58,7 +58,7 @@ if ($this_user) {
 		  1, HTTP_403_FORBIDDEN);
     }
     elseif (Instance::UserHasInstances($this_user)) {
-	header("Location: $APTBASE/myexperiments.php");
+	header("Location: $APTBASE/user-dashboard.php");
     }
     else {
 	header("Location: $APTBASE/instantiate.php");

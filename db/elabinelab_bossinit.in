@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -113,8 +113,8 @@ else {
 # At this point they have the values of the outer Emulab so they need
 # to be reset to reflect the newly minted version here.
 #
-my @PIDGIDTABLES = ("group_membership", "images");
-my @PIDONLYTABLES = ("os_info");
+my @PIDGIDTABLES = ("group_membership", "images", "image_versions");
+my @PIDONLYTABLES = ("os_info", "os_info_versions");
 
 my $q = DBQueryFatal("select pid_idx from projects ".
 		     "where pid='$TBOPSPID'");

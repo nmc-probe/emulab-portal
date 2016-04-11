@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -44,6 +44,24 @@ use Time::Local;
 
 # Configure variables.
 my $TB          = "@prefix@";
+
+#
+# Store up the list of caches to flush
+#
+my @ourcaches = ();
+
+sub AddCache($)
+{
+    my ($ref) = @_;
+
+    push(@ourcaches, $ref);
+}
+sub FlushCaches()
+{
+    foreach my $ref (@ourcaches) {
+	%$ref = ();
+    }
+}
 
 #
 # Support for checking field values against what is specified.
@@ -585,7 +603,7 @@ sub PipeCommand($$$)
 
 	exec($command);
 	die("*** $0:\n".
-	    "    exec '$string' failed: $!\n");
+	    "    exec '$command' failed: $!\n");
     }
     close PARENT;
 
@@ -882,6 +900,7 @@ sub waitForMount($;$)
     }
     return -1;
 }
+
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

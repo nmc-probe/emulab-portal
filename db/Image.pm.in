@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2015 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -95,7 +95,7 @@ sub mysystem($)
 sub BlessRow($$)
 {
     my ($class, $row) = @_;
-    
+
     my $self           = {};
     my $imageid        = $row->{"imageid"};
     $self->{'IMAGE'}   = $row;
@@ -120,7 +120,8 @@ sub Lookup($$;$$)
     if (!defined($arg2)) {
 	if ($arg1 =~ /^(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
@@ -135,7 +136,8 @@ sub Lookup($$;$$)
 	    # This will get deleted images, but that is okay.
 	    #
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from image_versions as v ".
 			    "left join images as i on ".
 			    "     v.imageid=i.imageid ".
@@ -148,7 +150,8 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*)$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
@@ -161,7 +164,8 @@ sub Lookup($$;$$)
 	elsif ($arg1 =~ /^([-\w]*),([-\w\.\+]*):(\d*)$/ ||
 		$arg1 =~ /^([-\w]*)\/([-\w\.\+]*):(\d*)$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
@@ -179,7 +183,8 @@ sub Lookup($$;$$)
 	    # version with the uuid.
 	    #
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
@@ -190,7 +195,8 @@ sub Lookup($$;$$)
 		if ($result->numrows);
 
 	    $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from image_versions as v ".
 			    "left join images as i on ".
 			    "     v.imageid=i.imageid ".
@@ -209,7 +215,8 @@ sub Lookup($$;$$)
 	    # This will get deleted images, but that is okay.
 	    #
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from image_versions as v ".
 			    "left join images as i on ".
 			    "     v.imageid=i.imageid ".
@@ -221,7 +228,8 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^([-\w\.\+]*):(\d+)$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
@@ -234,7 +242,8 @@ sub Lookup($$;$$)
 	}
 	elsif ($arg1 =~ /^[-\w]*$/ && $arg2 =~ /^[-\w\.\+]*$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid and v.version=i.version ".
@@ -250,7 +259,8 @@ sub Lookup($$;$$)
 	if ($arg1 =~ /^[-\w]*$/ &&
 	    $arg2 =~ /^[-\w\.\+]*$/ && $arg3 =~ /^\d+$/) {
 	    my $result =
-		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid ".
+		DBQueryWarn("select i.*,v.*,i.uuid as image_uuid, ".
+			    "   i.metadata_url as image_metadata_url ".
 			    "  from images as i ".
 			    "left join image_versions as v on ".
 			    "     v.imageid=i.imageid ".
@@ -312,18 +322,35 @@ sub LookupByURL($$)
 	if (! ($url =~ /^(ftp|http|https):/));
 
     my $safe_url = DBQuoteSpecial($url);
-    
+
+    #
+    # First check for a non version specific URL (latest version).
+    #
     my $query_result =
-	DBQueryWarn("select pid,imagename from image_versions ".
-		    "where metadata_url=$safe_url and deleted is null");
+	DBQueryWarn("select pid,imagename from images ".
+		    "where metadata_url=$safe_url");
     return undef
 	if (!$query_result);
 
     if ($query_result->numrows) {
 	my ($pid,$imagename) = $query_result->fetchrow_array();
 	
-	# Want latest version.
 	return Image->Lookup($pid, $imagename);
+    }
+    
+    #
+    # Then a version specific URL.
+    #
+    $query_result =
+	DBQueryWarn("select pid,imagename,version from image_versions ".
+		    "where metadata_url=$safe_url and deleted is null");
+    return undef
+	if (!$query_result);
+
+    if ($query_result->numrows) {
+	my ($pid,$imagename,$version) = $query_result->fetchrow_array();
+	
+	return Image->Lookup($pid, $imagename, $version);
     }
     else {
 	#
@@ -363,6 +390,26 @@ sub LookupByName($$)
     my ($class, $imagename) = @_;
 
     return Image->Lookup(TBOPSPID(), $imagename);
+}
+
+#
+# Lookup by Origin UUID.
+#
+sub LookupByOriginUUID($$$)
+{
+    my ($class, $pid, $uuid) = @_;
+    my $safe_uuid = DBQuoteSpecial($uuid);
+    my $safe_pid = DBQuoteSpecial($pid);
+
+    my $query_result =
+	DBQueryWarn("select imageid from image_versions ".
+		    "where pid=$safe_pid ".
+		    "      origin_uuid=$safe_uuid and deleted is null");
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my ($imageid) = $query_result->fetchrow_array();
+    return Image->Lookup($imageid);
 }
 
 #
@@ -472,7 +519,7 @@ sub Refresh($)
     my $version = $self->version();
     
     my $query_result =
-	DBQueryWarn("select v.*,i.uuid as image_uuid ".
+	DBQueryWarn("select v.*,i.uuid as image_uuid,i.locked,i.locker_pid ".
 		    "  from image_versions as v ".
 		    "left join images as i on ".
 		    "     v.imageid=i.imageid ".
@@ -609,7 +656,15 @@ sub Create($$$$$$$$)
     $query .= ",created=now()";
     $query .= ",description=$desc";
     $query .= ",hash=" . DBQuoteSpecial($argref->{'hash'})
-	if (exists($argref->{'hash'}));
+	if (exists($argref->{'hash'}) && $argref->{'hash'} ne '');
+    $query .= ",deltahash=" . DBQuoteSpecial($argref->{'deltahash'})
+	if (exists($argref->{'deltahash'}) && $argref->{'deltahash'} ne '');
+    $query .= ",size=" . DBQuoteSpecial($argref->{'size'})
+	if (exists($argref->{'size'}));
+    $query .= ",deltasize=" . DBQuoteSpecial($argref->{'deltasize'})
+	if (exists($argref->{'deltasize'}));
+    $query .= ",notes=" . DBQuoteSpecial($argref->{'notes'})
+	if (exists($argref->{'notes'}) && $argref->{'notes'} ne '');
 
     #
     # If this is set in the environment, we use it. This allows
@@ -837,6 +892,7 @@ sub NewVersion($$$$)
 		"  parent_version=$parent_version, ".
 		"  origin_neednotify=0,origin_needupdate=0, ".
 		"  origin_uuid=NULL,origin_name=NULL, ".
+		"  hash=null,deltahash=null,size=0,deltasize=0, ".
 		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
 	or goto bad;
@@ -1131,9 +1187,11 @@ sub DBData($)
 #
 # Perform some updates ...
 #
-sub Update($$)
+sub Update($;$)
 {
-    my ($self, $argref) = @_;
+    my ($self, $argref, $allvers) = @_;
+    $allvers = 0
+	if (!defined($allvers));
 
     # Must be a real reference. 
     return -1
@@ -1145,7 +1203,8 @@ sub Update($$)
     my $query = 
 	join(",", map("$_=" . DBQuoteSpecial($argref->{$_}), keys(%{$argref})));
 
-    $query .= " where imageid='$imageid' and version='$version'";
+    $query .= " where imageid='$imageid'";
+    $query .= " and version='$version'" if (!$allvers);
 
     return -1
 	if (! DBQueryWarn("update image_versions set $query"));
@@ -1213,8 +1272,7 @@ sub Delete($;$)
     }
     else {
 	# Set deleted on all of the versions.
-	DBQueryWarn("update image_versions set ".
-		    "    deleted=now(),locked=null,locker_pid=0 ".
+	DBQueryWarn("update image_versions set deleted=now() ".
 		    "where imageid='$imageid'")
 	    or goto bad;
     }
@@ -2337,6 +2395,25 @@ sub SetNoVersioning($$)
     return 0;
 }
 
+sub SetImageMetadataURL($$)
+{
+    my ($self, $url) = @_;
+    $url = DBQuoteSpecial($url);
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $imageid = $self->imageid();
+
+    return -1
+	if (! DBQueryWarn("update images set metadata_url=$url " .
+			  "where imageid='$imageid'"));
+	    
+    $self->{'IMAGE'}->{'image_metadata_url'} = $url;
+    return 0;
+}
+
 sub LocalURL($)
 {
     my ($self) = @_;
@@ -2448,6 +2525,19 @@ sub HaveDeltaImage($)
 {
     my ($self) = @_;
     return $self->deltasize() ? 1 : 0;
+}
+sub CreateImageDir($)
+{
+    my ($self) = @_;
+    
+    return 0
+	if (!$self->IsDirPath() || -e $self->path());
+
+    if (!mkdir($self->path(), 0775)) {
+	print STDERR "Could not mkdir " . $self->path() . ": $!";
+	return -1;
+    }
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

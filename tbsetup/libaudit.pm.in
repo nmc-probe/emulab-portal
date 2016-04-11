@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,7 +38,7 @@ use Exporter;
 
 # After package decl.
 use English;
-use POSIX qw(isatty setsid dup2);
+use POSIX qw(isatty setsid dup2 dup);
 use File::Basename;
 use IO::Handle;
 use Carp;
@@ -222,13 +222,10 @@ sub AuditStart($;$$)
     chmod(0666, $logfile);
 
     # Save old stderr and stdout.
-    if (!$daemon && $PERL_VERSION >= 5.008) {
-	eval("open(OLDOUT, \">&\", \*STDOUT); ".
-	     "\$libaudit::SAVE_STDOUT = *OLDOUT; ".
-	     "open(OLDERR, \">&\", \*STDERR); ".
-	     "\$libaudit::SAVE_STDERR = *OLDERR;");
+    if (!$daemon) {
+	$libaudit::SAVE_STDOUT = POSIX::dup(fileno(STDOUT));
+	$libaudit::SAVE_STDERR = POSIX::dup(fileno(STDERR));
     }
-
     open(STDOUT, ">> $logfile") or
 	die("opening $logfile for STDOUT: $!");
     open(STDERR, ">> $logfile") or
@@ -314,13 +311,13 @@ sub AuditGetARGV()
 sub AuditDisconnect()
 {
     if ($auditing) {
-	if (!$daemon && $PERL_VERSION >= 5.008 && $libaudit::SAVE_STDOUT) {
-	    close($libaudit::SAVE_STDOUT);
-	    close($libaudit::SAVE_STDERR);
+	if (!$daemon && $libaudit::SAVE_STDOUT) {
+	    POSIX::close($libaudit::SAVE_STDOUT);
+	    POSIX::close($libaudit::SAVE_STDERR);
 
 	    open(FOO, "> /dev/null");
-	    $libaudit::SAVE_STDOUT = *FOO;
-	    $libaudit::SAVE_STDERR = *FOO;
+	    $libaudit::SAVE_STDOUT = fileno(FOO);
+	    $libaudit::SAVE_STDERR = fileno(FOO);
 	}
     }
 }
@@ -333,9 +330,9 @@ sub AuditAbort()
     if ($auditing) {
 	$auditing = 0;
 
-	if (!$daemon && $PERL_VERSION >= 5.008 && $libaudit::SAVE_STDOUT) {
-	    eval("open(STDOUT, \">&\", \$libaudit::SAVE_STDOUT); ".
-		 "open(STDERR, \">&\", \$libaudit::SAVE_STDERR);");
+	if (!$daemon && $libaudit::SAVE_STDOUT) {
+	    POSIX::dup2($libaudit::SAVE_STDOUT, fileno(STDOUT));
+	    POSIX::dup2($libaudit::SAVE_STDERR, fileno(STDERR));
 	}
 
 	if (defined($logfile)) {
@@ -411,15 +408,13 @@ sub AuditFork()
     # Need to close these so that this side of the fork is disconnected.
     # Do NOT close the saved STDOUT/STDERR descriptors until the new
     # ones are open and dup'ed into fileno 1 and 2, and the LOG descriptor
-    # closed. This was causing SelfLoader to get confused abut something!
+    # closed. This was causing SelfLoader to get confused about something!
     #
-    if (!$daemon && $PERL_VERSION >= 5.008) {
-	close($libaudit::SAVE_STDOUT)
-	    if ($libaudit::SAVE_STDOUT &&
-		fileno($libaudit::SAVE_STDOUT) != 1);
-	close($libaudit::SAVE_STDERR)
-	    if ($libaudit::SAVE_STDERR &&
-		fileno($libaudit::SAVE_STDERR) != 2);
+    if (!$daemon) {
+	POSIX::close($libaudit::SAVE_STDOUT)
+	    if ($libaudit::SAVE_STDOUT && $libaudit::SAVE_STDOUT != 1);
+	POSIX::close($libaudit::SAVE_STDERR)
+	    if ($libaudit::SAVE_STDERR && $libaudit::SAVE_STDERR != 2);
 	$libaudit::SAVE_STDOUT = 0;
 	$libaudit::SAVE_STDERR = 0;
     }
@@ -465,9 +460,9 @@ sub SendAuditMail($)
 	    &libtblog::tblog_find_error(); 
 	}
 
-	if (!$daemon && $PERL_VERSION >= 5.008 && $libaudit::SAVE_STDOUT) {
-	    eval("open(STDOUT, \">&\", \$libaudit::SAVE_STDOUT); ".
-		 "open(STDERR, \">&\", \$libaudit::SAVE_STDERR);");
+	if (!$daemon && $libaudit::SAVE_STDOUT) {
+	    POSIX::dup2($libaudit::SAVE_STDOUT, fileno(STDOUT));
+	    POSIX::dup2($libaudit::SAVE_STDERR, fileno(STDERR));
 	}
 
 	my $subject  = "$SCRIPTNAME @SAVEARGV";

@@ -1,0 +1,154 @@
+<style type="text/css">
+/* make sidebar nav vertical */ 
+@media (min-width: 768px) {
+	.sidebar-nav .navbar .navbar-collapse {
+		padding: 0;
+		max-height: none;
+	}
+	.sidebar-nav .navbar ul {
+		float: none;
+	}
+	.sidebar-nav .navbar ul:not {
+		display: block;
+
+	}
+	.sidebar-nav .navbar li {
+		float: none;
+		display: block;
+	}
+	.sidebar-nav .navbar li a {
+		padding-top: 0px;
+		padding-bottom: 0px;
+		margin-top: 5px;
+	}
+}
+.sidebar-nav .navbar-header{ float: none; }
+</style>
+<div class='row'>
+  <div class="col-sm-2 hidden-sm hidden-xs hidden">
+    <div class="sidebar-nav">
+      <div class="navbar navbar-default" role="navigation">
+          <ul class="nav navbar-nav">
+            <li><a href="#">Longer Menu Item 1</a></li>
+            <li><a href="#">Menu Item 2</a></li>
+            <li><a href="#">Menu Item 3</a></li>
+            <li><a href="#">Menu Item 4</a></li>
+          </ul>
+      </div>
+    </div>
+  </div>
+  <div class='col-xs-12 col-sm-12 col-md-12'>
+    <div class='panel panel-default'>
+      <div class='panel-body'>
+	<div class='row'>
+	  <div class='col-sm-12'>
+	    <div>
+	      <!-- Nav tabs -->
+	      <ul class="nav nav-tabs" role="tablist">
+		<li role="presentation" class="active">
+		  <a href="#experiments" role="tab" data-toggle="tab">
+		    Experiments</a></li>
+		<li role="presentation">
+		  <a href="#profiles" role="tab" data-toggle="tab">
+		    Profiles</a></li>
+		<li role="presentation">
+		  <a href="#membership" role="tab" data-toggle="tab">
+		    Membership</a></li>
+		<li role="presentation">
+		  <a href="#myprofile" role="tab" data-toggle="tab">
+		    Account</a></li>
+		<% if (isadmin) { %>
+		  <li role="presentation">
+		    <a href="#admin" role="tab" data-toggle="tab">
+		      Admin</a></li>
+		  <li role="presentation"
+		      class="dropdown">
+		    <a class="dropdown-toggle" data-toggle="dropdown"
+		       href="#" role="button">
+		      Admin Menu<span class="caret"></span></a>
+		    <ul class="dropdown-menu">
+		      <li><a href="ssh-keys.php?user=<%= target_user %>">
+			Manage SSH Keys</a></li>
+		      <li><a href="myaccount.php?user=<%= target_user %>">
+			Manage Account</a></li>
+		      <li><a href="list-datasets.php?user=<%= target_user %>">
+			List Datasets</a></li>
+		      <li role="presentation">
+			<a href='<%- emulablink %>'>
+			  Emulab User Page</a></li>
+		    </ul>
+		  </li>
+		<% } %>
+	      </ul>
+	      <!-- Tab panes -->
+	      <div class="tab-content">
+		<div role="tabpanel" class="tab-pane active" id="experiments">
+		  <div id="experiments_content">
+		    <div id="experiments_loading">
+		      <br>
+		      <br>
+		      <center>Loading
+			<div>
+			  <img src='images/spinner.gif' />
+			</div>
+		      </center>
+		    </div>
+		    <div class="hidden" id="experiments_noexperiments">
+		      <br>
+		      No experiments to show you. Maybe you want to
+		      <b><a href='instantiate.php'>start one?</a></b>
+		    </div>
+		  </div>
+		</div>
+		<div role="tabpanel" class="tab-pane" id="profiles">
+		  <div id="profiles_content">
+	      	    <div class="hidden" id="profiles_noprofiles">
+		      <br>
+		      No profiles to show you. Maybe you want to
+		      <b><a href='manage_profile.php'>create one?</a></b>
+		    </div>
+		  </div>
+		</div>
+		<div role="tabpanel" class="tab-pane" id="membership">
+		  <div id="membership_content"></div>
+		</div>
+		<div role="tabpanel" class="tab-pane" id="myprofile">
+		  <div id="myprofile_content"></div>
+		</div>
+		<% if (isadmin) { %>
+		  <div role="tabpanel" class="tab-pane" id="admin">
+		    <div id="admin_content"></div>
+		  </div>
+		<% } %>
+	      </div>
+	    </div>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- This is the topology view modal -->
+<div id='quickvm_topomodal' class='modal fade'>
+  <div class='modal-dialog' id='showtopo_dialog'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <button type='button' class='close' data-dismiss='modal'
+                aria-hidden='true'>
+          &times;</button>
+        <h3>Topology Viewer</h3>
+      </div>
+      <div class='modal-body'>
+        <!-- This topo diagram goes inside this div -->
+        <div class='panel panel-default'
+             id='showtopo_container'>
+          <div class='panel-body'>
+            <div id='showtopo_nopicker' class='jacks'></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id='waitwait_div'></div>
+<div id='oops_div'></div>

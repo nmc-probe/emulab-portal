@@ -1,6 +1,6 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'filesize', 'js/JacksEditor',
-	 'js/image', 'moment', 'js/ppstart',
+	 'js/image', 'moment', 'js/aptforms',
 	 'js/lib/text!template/manage-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
@@ -13,7 +13,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/share-modal.html',
 	 // jQuery modules
 	 'filestyle','marked'],
-function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
+function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	  manageString, waitwaitString, 
 	  rendererString, showtopoString, oopsString, rspectextviewString,
 	  guestInstantiateString, publishString, instantiateString,
@@ -116,8 +116,10 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    versions:	        versions,
 	    withpublishing:     window.WITHPUBLISHING,
 	});
-	manage_html = formatter(manage_html, errors).html();
+	manage_html = aptforms.FormatFormFieldsHorizontal(manage_html,
+							  {"wide" : true});
 	$('#manage-body').html(manage_html);
+	aptforms.GenerateFormErrors('#quickvm_create_profile_form', errors);
 	
     	var waitwait_html = waitwaitTemplate({});
 	$('#waitwait_div').html(waitwait_html);
@@ -144,7 +146,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	// runs at page load, and so the filestyle'd button in the
 	// form is not as it should be.
 	//
-	$('#sourcefile').each(function() {
+	$('#sourcefile, #rspec_modal_upload_button').each(function() {
 	    $(this).filestyle({input      : false,
 			       buttonText : $(this).attr('data-buttonText'),
 			       classButton: $(this).attr('data-classButton')});
@@ -168,19 +170,34 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	//
 	// File upload handler.
 	// 
-	$('#sourcefile').change(function() {
-		var reader = new FileReader();
-		reader.onload = function(event) {
-		    var newrspec = event.target.result;
-		    /*
-		     * Clear the file so that the change handler will
-		     * run if the same file is selected again (say, after
-		     * fixing a script error).
-		     */
-		    $("#sourcefile").filestyle('clear');
+	$('#sourcefile, #rspec_modal_upload_button').change(function() {
+	    var reader = new FileReader();
+	    var button = $(this);
+
+	    reader.onload = function(event) {
+		var newrspec = event.target.result;
+		    
+		/*
+		 * Clear the file so that the change handler will
+		 * run if the same file is selected again (say, after
+		 * fixing a script error).
+		 */
+		$("#sourcefile, #rspec_modal_upload_button").filestyle('clear');
+
+		/*
+		 * If the modal upload button is used, we want to change the
+		 * contents of the modal only. User has to accept the change.
+		 */
+		if ($(button).attr("id") == "rspec_modal_upload_button") {
+		    $('#modal_profile_rspec_textarea').val(newrspec);
+		    // The modal shown event updates the code in the modal.
+		    $('#rspec_modal').trigger('shown.bs.modal');
+		}
+		else {
 		    changeRspec(newrspec);
-		};
-		reader.readAsText(this.files[0]);
+		}
+	    };
+	    reader.readAsText(this.files[0]);
 	});
 
 	// Handler for all paths to rspec change (file upload, jacks, edit).
@@ -210,9 +227,22 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    // is no script.
 	    //
 	    var source = $.trim($('#profile_script_textarea').val());
+	    var type   = "source";
+	    
 	    if (!source.length) {
 		source = $.trim($('#profile_rspec_textarea').val());
+		type = "rspec";
 	    }
+	    if (profile_uuid) {
+		$('#rspec_modal_download_button')
+		    .attr("href",
+			  "show-profile.php?uuid=" + profile_uuid +
+			  "&" + type + "=true");
+	    }
+	    else {
+		$('#rspec_modal_download_button').addClass("hidden");
+	    }	    
+	    $('#rspec_modal_upload_span').removeClass("hidden");
 	    $('#rspec_modal_editbuttons').removeClass("hidden");
 	    $('#rspec_modal_viewbuttons').addClass("hidden");
 	    $('#modal_profile_rspec_textarea').prop("readonly", false);	    
@@ -228,6 +258,17 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    // XML, but it is not intended to be edited.
 	    //
 	    var source = $.trim($('#profile_rspec_textarea').val());
+
+	    if (profile_uuid) {
+		$('#rspec_modal_download_button')
+		    .attr("href",
+			  "show-profile.php?uuid=" + profile_uuid +
+			  "&rspec=true");
+	    }
+	    else {
+		$('#rspec_modal_download_button').addClass("hidden");
+	    }	    
+	    $('#rspec_modal_upload_span').addClass("hidden");
 	    $('#rspec_modal_editbuttons').addClass("hidden");
 	    $('#rspec_modal_viewbuttons').removeClass("hidden");
 	    $('#modal_profile_rspec_textarea').val(source);
@@ -247,6 +288,10 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    if (myRe.test(source)) {
 		mode = "text/x-python";
 	    }
+	    // In case we got here via the modal upload button, need to
+	    // kill the current contents. 
+	    $('.CodeMirror').remove();
+	    
 	    myCodeMirror = CodeMirror(function(elt) {
 		$('#modal_profile_rspec_div').prepend(elt);
 	    }, {
@@ -400,25 +445,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	});
 
 	/*
-	 * The instantiate button. If a plain profile, throw up the
-	 * confirm modal. If a parameterized profile, hand off to the
-	 * ppstart js code.
+	 * The instantiate button.
 	 */
 	$('#profile_instantiate_button').click(function (event) {
-	    if (true) {
-		window.location.replace("instantiate.php?profile=" +
-					version_uuid);
-		return;
-	    }
-	    if (isppprofile) {
-		ppstart({uuid       : version_uuid,
-			 registered : true,
-			 amlist     : amlist,
-			 amdefault  : window.AMDEFAULT,
-			});
-		return;
-	    }
-	    sup.ShowModal('#instantiate_modal');
+	    window.location.replace("instantiate.php?profile=" +
+				    version_uuid);
 	});
 	
 	/*
@@ -507,61 +538,6 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	    DisableButtons();
 	    EnableButton("profile_submit_button");
 	}
-    }
-
-    // Formatter for the form. This did not work out nicely at all!
-    function formatter(fieldString, errors)
-    {
-	var root   = $(fieldString);
-	var list   = root.find('.format-me');
-	list.each(function (index, item) {
-	    if (item.dataset) {
-		var key     = item.dataset['key'];
-		var margin  = 15;
-		var colsize = 12;
-
-		if ($(item).attr('data-compact')) {
-		    margin = 5;
-		}
-		var outerdiv = $("<div class='form-group' " +
-				 "     style='margin-bottom: " + margin +
-				 "px;'></div>");
-
-		if ($(item).attr('data-label')) {
-		    var label_text =
-			"<label for='" + key + "' " +
-			" class='col-sm-2 control-label'> " +
-			item.dataset['label'];
-		    
-		    if ($(item).attr('data-help')) {
-			label_text = label_text +
-			    "<a href='#' class='btn btn-xs' " +
-			    " data-toggle='popover' " +
-			    " data-html='true' " +
-			    " data-delay='{\"hide\":1000}' " +
-			    " data-content='" + item.dataset['help'] + "'>" +
-			    "<span class='glyphicon glyphicon-question-sign'>" +
-			    " </span></a>";
-		    }
-		    label_text = label_text + "</label>";
-		    outerdiv.append($(label_text));
-		    colsize = 10;
-		}
-		var innerdiv = $("<div class='col-sm-" + colsize + "'></div>");
-		innerdiv.html($(item).clone());
-		
-		if (_.has(errors, key)) {
-		    outerdiv.addClass('has-error');
-		    innerdiv.append('<label class="control-label" ' +
-				    'for="inputError">' +
-				    _.escape(errors[key]) + '</label>');
-		}
-		outerdiv.append(innerdiv);
-		$(item).after(outerdiv);
-		$(item).remove();
-	    }
-	});
-	return root;
     }
 
     /*
@@ -1017,6 +993,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
     //
     function DeleteProfile()
     {
+	var delete_all = $('#delete-all-versions').is(':checked') ? 1 : 0;
+	
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
 	    //console.info(json.value);
@@ -1032,7 +1010,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, ppstart,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "manage_profile",
 					    "DeleteProfile",
-					    {"uuid"   : version_uuid});
+					    {"uuid"   : version_uuid,
+					     "all"    : delete_all});
 	xmlthing.done(callback);
     }
 

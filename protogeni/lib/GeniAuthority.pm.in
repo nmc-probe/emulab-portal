@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -41,14 +41,13 @@ use vars qw(@ISA @EXPORT);
 
 # Must come after package declaration!
 use GeniDB;
-use GeniRegistry;
 use GeniHRN;
 use Genixmlrpc;
 use GeniResponse;
+use GeniCertificate;
 use emutil qw(TBGetUniqueIndex);
 use English;
 use overload ('""' => 'Stringify');
-use XML::Simple;
 use Date::Parse;
 use Data::Dumper;
 
@@ -355,6 +354,7 @@ sub CheckExisting($$)
 sub CreateFromRegistry($$$)
 {
     my ($class, $type, $name) = @_;
+    require GeniRegistry;
 
     my $authority = GeniAuthority->Lookup($name);
     if (defined($authority)) {
@@ -613,6 +613,7 @@ sub UpdateCertificate($$)
 sub Resolve($$)
 {
     my ($self, $urn) = @_;
+    require GeniRegistry;
 
     my $manager_version = $self->Version();
     return undef

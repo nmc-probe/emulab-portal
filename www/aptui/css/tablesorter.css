@@ -80,7 +80,6 @@
 /* hovered row colors
  you'll need to add additional lines for
  rows with more than 2 child rows
- */
 .tablesorter-green tbody > tr:hover > td,
 .tablesorter-green tbody > tr:hover + tr.tablesorter-childRow > td,
 .tablesorter-green tbody > tr:hover + tr.tablesorter-childRow + tr.tablesorter-childRow > td,
@@ -94,6 +93,7 @@
 .tablesorter-green tbody > tr.odd:hover + tr.tablesorter-childRow + tr.tablesorter-childRow > td {
 	background: #bfbfbf;
 }
+ */
 
 /* table processing indicator */
 .tablesorter-green .tablesorter-processing {
@@ -180,8 +180,8 @@ caption {
 .tablesorter-green .tablesorter-filter {
 	width: 98%;
 	height: auto;
-	margin: 4px;
-	padding: 4px;
+	margin: 1px;
+	padding: 1px;
 	background-color: #fff;
 	border: 1px solid #bbb;
 	color: #333;

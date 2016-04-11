@@ -44,10 +44,18 @@ body {
   width: 100%;
 }
 
+.navbar-nav {
+  margin: 0;
+}
+
 .navbar-nav > li > a,
 .navbar-nav > li > p {
   color: #000000;
   margin-top: 20px;
+}
+
+.navbar-nav-shortcuts {
+    background-color: #FAFAFA;
 }
 
 .navbar-btn.btn-xs,
@@ -55,11 +63,19 @@ body {
   margin-top: 20px;
 }
 
+.apt-navbar-btn {
+  color: #FFFFFF !important;
+}
+.apt-navbar-btn:hover {
+  background-color: #337ab7 !important;
+}
+
 .btn-quickvm-home, .btn-quickvm-home:hover {
   color: #000000;
   background-color: #D3D3D3;
   border-color: #357ebd;
   margin-right: 10px;
+  margin-bottom: 0px;
 }
 
 .navbar-right li .navbar-btn {
@@ -91,7 +107,7 @@ body {
 
 /* So that containers have some top room */
 .container {
-    margin-top: 15px; !important;
+    margin-top: 15px !important;
 }
 
 
@@ -327,7 +343,7 @@ body {
   color: red;
 }
 .border-none {
-  border: none;
+  border: none !important;
 }
 
 /*
@@ -409,7 +425,7 @@ blockquote #selected_profile_description {
 
 .popover
 {
-    min-width: 350px ! important;
+    min-width: 350px !important;
 }
 
 /* Update for better cross browser compat */

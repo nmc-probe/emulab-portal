@@ -5,13 +5,32 @@ use strict;
 use libinstall;
 use installvars;
 use EmulabConstants;
+use Image;
+use OSinfo;
 
 my $UTAHURL       = "http://www.emulab.net/downloads";
-my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-v3.xml";
+my $DESCRIPTORS   = "$TOP_SRCDIR/install/descriptors-v4.xml";
 my $GENDEV        = "$TOP_SRCDIR/install/descriptors-gendev.xml";
-my @STDIMAGES     = ("FBSD83-STD", "UBUNTU12-64-STD");
 my @MBRS          = ("emulab-mbr.dd", "emulab-mbr2.dd", "emulab-mbr3.dd");
-my $STDIMAGESURL  = "$UTAHURL/images-STD";
+my $DEFAULTIMAGE  = "UBUNTU14-64-STD";
+
+#
+# We now use image import.
+#
+my %STDIMAGES     = (
+    $DEFAULTIMAGE      => "https://www.emulab.net/image_metadata.php?uuid=0a29c738-32b3-11e4-b30a-001143e453fe",
+    "CENTOS71-64-STD"  => "https://www.emulab.net/image_metadata.php?uuid=c74d9fc1-e54b-11e4-97ea-38eaa71273fa",
+    "FBSD102-64-STD"   => "https://www.emulab.net/image_metadata.php?uuid=57e6bf53-4376-11e5-bf03-38eaa71273fa",
+    "XEN44-64-STD"     => "https://www.emulab.net/image_metadata.php?uuid=6f5e573e-83f3-11e5-bf03-38eaa71273fa",
+);
+
+#
+# Old style mappings, but probably still in use someplace.
+#
+my %STDMAPPINGS = (
+    "RHL-STD"   => $DEFAULTIMAGE,
+    "FBSD-STD"  => "FBSD102-64-STD",
+);
 
 sub Install($$$)
 {
@@ -20,15 +39,6 @@ sub Install($$$)
     # Replace if this script does an update for ip/domain.
     return 0
 	if ($isupdate);
-
-    # Others for the rack.
-    if ($PROTOGENI_GENIRACK) {
-	push(@STDIMAGES, "UBUNTU14-64-STD");
-	push(@STDIMAGES, "FBSD100-64-STD");
-    }
-    else {
-	$DESCRIPTORS = "$TOP_SRCDIR/install/descriptors-v4.xml";
-    }
 
     Phase "IDs", "Setting up Images and OSs", sub {
 	if ($PROTOGENI_GENIRACK) {
@@ -66,39 +76,16 @@ sub Install($$$)
 			   "   $SUDO -u $PROTOUSER $WAP ".
 			   "   perl load-descriptors $GENDEV");
 	};
-	foreach my $imagename (@STDIMAGES) {
-	    my $localfile = "$PREFIX/images/${imagename}.ndz";
-	    my $url       = "$STDIMAGESURL/${imagename}.ndz";
+	foreach my $imagename (keys(%STDIMAGES)) {
+	    my $url = $STDIMAGES{$imagename};
 	    
 	    Phase "$imagename", "Fetching $imagename. Patience!", sub {
-		DoneIfExists($localfile);
-		FetchFileFatal($url, $localfile);
-	    };
-	    
-	    $localfile = "$PREFIX/images/${imagename}.xml";
-	    $url       = "$STDIMAGESURL/${imagename}.xml";
-	    
-	    Phase "${imagename}_xml", "Fetching $imagename metadata", sub {
-		DoneIfExists($localfile);
-		FetchFileFatal($url, $localfile);
-	    };
+		my $image = Image->Lookup(TBOPSPID(), $imagename);
+		PhaseSkip("already fetched")
+		    if (defined($image));
 
-	    Phase "${imagename}_load", "Loading the image descriptor.", sub {
-		ExecQuietFatal("cd $TOP_OBJDIR/install; ".
-			       "   $SUDO -u $PROTOUSER $WAP ".
-			       "   perl load-descriptors -a $localfile");
-	    };
-
-	    #
-	    # XXX the metadata file may not contain any or all of the newer
-	    # DB state. So we update the metadata using imagevalidate.
-	    #
-	    Phase "${imagename}_validate", "Validating DB info for image.",sub {
-		my $iname = TBOPSPID() . "/" . $imagename;
 		ExecQuietFatal("$SUDO -u $PROTOUSER ".
-			       "$PREFIX/sbin/imagerelease -f -m $iname");
-		ExecQuietFatal("$SUDO -u $PROTOUSER ".
-			       "$PREFIX/sbin/imagevalidate -uq $iname");
+			       "         $WAP $IMAGEIMPORT -g '$url'");
 	    };
 	}
 	foreach my $mbr (@MBRS) {
@@ -110,15 +97,31 @@ sub Install($$$)
 		FetchFileFatal($url, $localfile);
 	    };
 	}
+	foreach my $osname (keys(%STDMAPPINGS)) {
+	    my $nextosname = $STDMAPPINGS{$osname};
+
+	    Phase "$osname", "Mapping $osname to $nextosname", sub {
+		my $osinfo = OSinfo->LookupByName($osname);
+		PhaseFail("Could not look up $osname osid")
+		    if (!defined($osinfo));
+		PhaseSkip("already set")
+		    if (defined($osinfo->nextosid()));
+	    
+		my $nextosinfo = OSinfo->LookupByName($nextosname);
+		PhaseFail("Could not look up $nextosname osid")
+		    if (!defined($nextosinfo));
+		$osinfo->SetNextOS($nextosinfo) == 0
+		    or PhaseFail("Could not set the nextosid");
+	    };
+	}
+	
 	#
 	# The sitevar is how the reload daemon knows what to reload nodes
-	# with, by default. Now a comma separated list.
+	# with, by default.
 	#
-	my $idlist = join(",", @STDIMAGES);
-	
 	Phase "sitevar", "Setting sitevar $DEFAULTIMAGESITEVAR", sub {
 	    ExecQuietFatal("$PREFIX/sbin/setsitevar ".
-			   "'$DEFAULTIMAGESITEVAR' '$idlist'");
+			   "'$DEFAULTIMAGESITEVAR' '$DEFAULTIMAGE'");
 	};
 
 	if ($PROTOGENI_GENIRACK) {

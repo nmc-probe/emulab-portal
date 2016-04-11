@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2015 University of Utah and the Flux Group.
+# Copyright (c) 2015-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -197,6 +197,15 @@ foreach my $he (@$history) {
     my $e = $he->{'end'};
     my $eix = $he->{'expt_idx'};
     my $eeix = $he->{'emulab_exptidx'};
+
+    #
+    # If there was something wrong with a node's DB info, we will not
+    # have assigned an index. Skip it.
+    #
+    if (!$nix) {
+	next;
+    }
+
     #
     # In summary form, just the info that is needed for student project:
     # [time range]: node: user,...
@@ -323,10 +332,12 @@ sub nodehistory($$;$)
 	push(@mynodes, $dnode);
 	$nodelist = "node_id='$dnode'";
     } else {
+	# XXX only look at nodes that existed at the end of the time window
 	my $query =
 	    DBQueryFatal("SELECT n.node_id FROM nodes AS n, node_types AS t ".
 			 "WHERE n.type=t.type AND n.role='testnode' ".
-			 "  AND t.class='pc' ORDER BY n.priority");
+			 "  AND t.class='pc' AND UNIX_TIMESTAMP(n.inception)<$etime ".
+			 "ORDER BY n.priority");
 	if (!$query) {
 	    return undef;
 	}
@@ -335,6 +346,8 @@ sub nodehistory($$;$)
 	}
 	$nodelist = "node_id in ('" . join("','", @mynodes) . "')";
     }
+    print STDERR "Working with ", scalar(@mynodes), " nodes\n"
+	if ($debug); 
 
     my %allocstart = ();
     my %allocexpt = ();
@@ -346,13 +359,13 @@ sub nodehistory($$;$)
     foreach my $node (@mynodes) {
 	my $query =
 	    DBQueryFatal("SELECT op,exptidx FROM node_history ".
-			 "WHERE stamp<$starttime AND $nodelist ".
+			 "WHERE stamp<$stime AND node_id='$node' ".
 			 "ORDER BY stamp DESC LIMIT 1");
 	if ($query && $query->numrows) {
 	    my %row = $query->fetchhash();
 	    my $op = $row{'op'};
 	    if ($op eq "alloc" || $op eq "move") {
-		$allocstart{$node} = $starttime;
+		$allocstart{$node} = $stime;
 		$allocexpt{$node} = $row{'exptidx'};
 	    }
 	}
@@ -365,7 +378,7 @@ sub nodehistory($$;$)
     my $query =
 	DBQueryFatal("SELECT node_id,op,exptidx,stamp,phys_nodeid ".
 		     "FROM node_history ".
-		     "WHERE stamp>=$starttime AND stamp<$endtime ".
+		     "WHERE stamp>=$stime AND stamp<$etime ".
 		     "    AND $nodelist ".
 		     "ORDER by history_id");
     if (!$query) {
@@ -381,8 +394,10 @@ sub nodehistory($$;$)
 
 	if ($op eq "alloc") {
 	    if (exists($allocstart{$node})) {
+		my $ostart = $allocstart{$node};
+		my $oexpt = $allocexpt{$node};
 		print STDERR
-		    "*** inconsistant data: $node already allocated\n";
+		    "*** inconsistant data: $node alloc at $stamp to $exptidx: already allocated at $ostart by expt $oexpt\n";
 	    }
 	    $allocstart{$node} = $stamp;
 	    $allocexpt{$node} = $exptidx;
@@ -422,7 +437,7 @@ sub nodehistory($$;$)
 	my $he = {
 	    'node' => $node,
 	    'start' => $allocstart{$node},
-	    'end' => $endtime,
+	    'end' => $etime,
 	    'emulab_exptidx' => $allocexpt{$node}
 	};
 	push(@history, $he);
@@ -447,18 +462,18 @@ sub nodes($)
 	    # make sure the node still exists
 	    my $nobj = Node->Lookup($n);
 	    if (!$nobj) {
-		print STDERR "*** bad node: no such node: $n\n";
+		print STDERR "*** bad node: $n: no such node\n";
 		next;
 	    }
 	    my $iobj = Interface->LookupControl($nobj);
 	    if (!$iobj) {
-		print STDERR "*** bad node: no control interface\n";
+		print STDERR "*** bad node: $n: no control interface\n";
 		next;
 	    }
 	    my $ip = $iobj->IP();
 	    my $mac = $iobj->mac();
 	    if (!$ip || !$mac) {
-		print STDERR "*** bad node: no cnet IP/MAC\n";
+		print STDERR "*** bad node: $n: no cnet IP/MAC\n";
 		next;
 	    }
 	    my $ne = {

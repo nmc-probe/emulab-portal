@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2014 University of Utah and the Flux Group.
+# Copyright (c) 2005-2014, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,6 +43,10 @@ my $BOSSNODE    = "@BOSSNODE@";
 # Cache of instances to avoid regenerating them.
 my %nodetypes	= ();
 my %nodeclasses = ();
+BEGIN { use emutil;
+	emutil::AddCache(\%nodetypes);
+	emutil::AddCache(\%nodeclasses); }
+
 my $debug	= 0;
 
 # Little helper and debug function.

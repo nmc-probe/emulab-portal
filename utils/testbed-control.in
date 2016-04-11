@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2014 University of Utah and the Flux Group.
+# Copyright (c) 2010-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -172,7 +172,7 @@ $SIG{INT} = 'IGNORE';
 print "** Putting the testbed to sleep ...\n";
 print "-> Turning off the web interface and disallowing swaps.\n";
 
-my $msg = "Testbed going offline; back in a little while";
+my $msg = "Testbed going offline for maintenance; back in a little while";
 $msg =~ s|\&|&amp;|g;
 $msg =~ s|\<|&lt;|g;
 system("$SETSITEVAR","web/message", $msg);

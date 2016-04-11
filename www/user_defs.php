@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1127,6 +1127,17 @@ class User
 		     "   stud='$onoff' ".
 		     "where uid_idx='$idx'");
 	$this->user["stud"] = $onoff;
+	return 0;
+    }
+    function SetForeignAdmin($onoff) {
+	$idx   = $this->uid_idx();
+
+	$onoff = ($onoff ? 1 : 0);
+			    
+	DBQueryFatal("update users set ".
+		     "   foreign_admin='$onoff' ".
+		     "where uid_idx='$idx'");
+	$this->user["foreign_admin"] = $onoff;
 	return 0;
     }
     function SetAdminFlag($onoff) {

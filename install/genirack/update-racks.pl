@@ -71,6 +71,7 @@ my %CLOUDCLUSTERS = ("apt"     => [ $APTBOSS, $APTCTRL ],
 		     "utah"    => [ $UTAHCLOUDBOSS, $UTAHCLOUDCTRL ],
 		     "wisc"    => [ $WISCCLOUDBOSS, $WISCCLOUDCTRL ],
 		     "clemson" => [ $CLEMCLOUDBOSS, $CLEMCLOUDCTRL ],
+		     "utahddc" => [ $DDCBOSS, $DDCCTRL ],
 );
 my %UTAHCLUSTERS =  ("utahig"  => [ $UTAHBOSS, $UTAHCTRL ],
 		     "utahddc" => [ $DDCBOSS, $DDCCTRL ],
@@ -87,15 +88,14 @@ my %G7RACKS  = (
 				 "uky.control-nodes.geniracks.net" ],
 		"kettering" => [ "boss.geni.kettering.edu",
 				 "kettering.control-nodes.geniracks.net"],
-		"gatech"    => [ "boss.instageni.rnoc.gatech.edu",
-				 "gatech.control-nodes.geniracks.net" ],
+#		"gatech"    => [ "boss.instageni.rnoc.gatech.edu",
+#				 "gatech.control-nodes.geniracks.net" ],
 		"princeton" => [ "boss.instageni.cs.princeton.edu",
 				 "princeton.control-nodes.geniracks.net" ],
 		"clemson"   => [ "boss.instageni.clemson.edu",
 				 "clemson.control-nodes.geniracks.net" ],
-# Off the air.
-#		"kansas"    => [ "boss.instageni.ku.gpeni.net",
-#				 "kansas.control-nodes.geniracks.net" ],
+		"kansas"    => [ "boss.instageni.ku.gpeni.net",
+				 "kansas.control-nodes.geniracks.net" ],
 		"nyu"       => [ "boss.genirack.nyu.edu",
 				 "nyu.control-nodes.geniracks.net" ],
 # Off the air.
@@ -106,8 +106,8 @@ my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
 				 "max.control-nodes.geniracks.net" ],
 	       "nysernet"   => [ "boss.instageni.nysernet.org",
 				 "nysernet.control-nodes.geniracks.net" ],
-	       "sox"        => [ "boss.instageni.sox.net",
-				 "sox.control-nodes.geniracks.net" ],
+#	       "sox"        => [ "boss.instageni.sox.net",
+#				 "sox.control-nodes.geniracks.net" ],
 	       "urbana"     => [ "boss.instageni.illinois.edu",
 				 "urbana.control-nodes.geniracks.net" ],
 	       "missouri"   => [ "boss.instageni.rnet.missouri.edu",
@@ -132,11 +132,11 @@ my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
 				 "dublin.control-nodes.geniracks.net" ],
 	       "nps"        => [ "boss.instageni.nps.edu",
 				 "nps.control-nodes.geniracks.net" ],
-	       "ohio"       => [ "boss.instageni.osu.edu",
-				 "ohio.control-nodes.geniracks.net" ],
-#	       Broken fan.
-#	       "umkc"       => [ "boss.instageni.umkc.edu",
-#				 "umkc.control-nodes.geniracks.net" ],
+# Off the air
+#	       "ohio"       => [ "boss.instageni.osu.edu",
+#				 "ohio.control-nodes.geniracks.net" ],
+	       "umkc"       => [ "boss.instageni.umkc.edu",
+				 "umkc.control-nodes.geniracks.net" ],
 	       "ucla"	    => [ "boss.instageni.idre.ucla.edu",
 				 "ucla.control-nodes.geniracks.net" ],
 	       "uky2"       => [ "boss.pks2.sdn.uky.edu",
@@ -153,6 +153,8 @@ my %G8RACKS = ("max"        => [ "boss.instageni.maxgigapop.net",
 				 "utc.control-nodes.geniracks.net" ],
 	       "vt"         => [ "boss.instageni.arc.vt.edu",
 				 "vt.control-nodes.geniracks.net" ],
+	      "umich"       => [ "boss.instageni.research.umich.edu",
+				 "umich.control-nodes.geniracks.net" ],
 );
 
 sub fatal($)
@@ -190,12 +192,12 @@ my @G7RACKS  = map { $G7RACKS{$_}[$which] } keys(%G7RACKS);
 my @G8RACKS  = map { $G8RACKS{$_}[$which] } keys(%G8RACKS);
 my @ALLCLOUD = map { $CLOUDCLUSTERS{$_}[$which] } keys(%CLOUDCLUSTERS);
 my @ALLRACKS = (@G7RACKS, @G8RACKS);
-my @TODO     = ($UTAHRACK, $DDCRACK, @ALLRACKS);
+my @TODO     = @ALLRACKS;
 my %SKIP     = ();
 
 # Default.
 my $HOME     = $ENV{"HOME"};
-my $TBSRC    = "$HOME/testbed-noelvin";
+my $TBSRC    = "$HOME/emulab-devel";
 
 if (defined($options{"i"})) {
     $install = 1;
@@ -250,15 +252,9 @@ if (defined($options{"u"}) || defined($options{"d"}) ||
 }
 elsif (defined($options{"7"})) {
     @TODO = @G7RACKS;
-    if (! defined($options{"U"})) {
-	@TODO = ($UTAHRACK, @TODO);
-    }
 }
 elsif (defined($options{"8"})) {
     @TODO = @G8RACKS;
-    if (! defined($options{"D"})) {
-	@TODO = ($DDCRACK, @TODO);
-    }
 }
 elsif (defined($options{"C"})) {
     if (@ARGV) {
@@ -299,18 +295,12 @@ elsif (@ARGV) {
 }
 else {
     @TODO = @ALLRACKS;
-    if (! defined($options{"D"})) {
-	@TODO = ($DDCRACK, @TODO);
-    }
-    if (! defined($options{"U"})) {
-	@TODO = ($UTAHRACK, @TODO);
-    }
 }
 
 if (! -e $TBSRC) {
     fatal("$TBSRC does not appear to exist. Use the -S option?");
 }
-foreach my $file ("emulab-devel", "pubsub", "shellinabox", ".rsyncignore") {
+foreach my $file ("emulab-devel", "pubsub", ".rsyncignore") {
     fatal("$file does not exist in $TBSRC")
 	if (! -e "$TBSRC/$file");
 }
@@ -340,6 +330,8 @@ if ($dofunc && !$install) {
 	$rackops =~ s/^boss/ops/;
 	my $devel  = "emulab-devel/emulab-devel";
 	my $devobj = "emulab-devel/obj";
+	my $wap    = "/usr/testbed/sbin/withadminprivs";
+	my $import = "/usr/testbed/sbin/image_import";
 	
 	print "-> Running function ...\n";
 	my $command = "";
@@ -459,6 +451,10 @@ if ($dofunc && !$install) {
 	    $command = "cd emulab-devel/obj/protogeni/lib; ".
 		"gmake; sudo gmake install";
 	}
+	elsif (1) {
+	    $command = "/usr/testbed/sbin/addpubkey -f -u elabman ".
+		"$devel/stuff/nasir-elabman.pub";
+	}
 	elsif (0) {
 	    $command = "cd emulab-devel/obj/node_usage; sudo gmake install";
 	}
@@ -478,11 +474,11 @@ if ($dofunc && !$install) {
 	elsif (0) {
 	    $command = "sudo /usr/testbed/sbin/protogeni/getcacerts ";
 	}
-	elsif (1) {
+	elsif (0) {
 	    $command = "/usr/testbed/sbin/wap ".
 	      "/usr/testbed/sbin/delete_image -p -F emulab-ops,CENTOS63-64-STD";
 	}
-	elsif (1) {
+	elsif (0) {
 	    $command = "/usr/testbed/sbin/wap ".
 	      "/usr/testbed/sbin/grantimage -a -x emulab-ops,CENTOS66-64-STD";
 	}
@@ -504,7 +500,8 @@ if ($dofunc && !$install) {
 	}	    
 	elsif (0) {
 	    $command = "/usr/testbed/sbin/wap /usr/testbed/sbin/setsitevar ".
-		"protogeni/default_osname UBUNTU14-64-STD";
+		"protogeni/default_osname UBUNTU14-64-STD; ".
+		"$wap /usr/testbed/bin/editnodetype $devel/stuff/defimage.xml";
 	}	    
 	elsif (0) {
 		$command = "sudo /usr/testbed/sbin/getimages";
@@ -513,6 +510,16 @@ if ($dofunc && !$install) {
 	    $command =
 		"cat emulab-devel/emulab-devel/stuff/novz.sql | ".
 		"   mysql tbdb";
+	}
+	elsif (0) {
+	    $command = 
+		"$wap $import -g -r emulab-ops,UBUNTU14-10-64-OSCP; ".
+		"$wap $import -g -r emulab-ops,UBUNTU14-10-64-OSCN; ".
+		"$wap $import -g -r emulab-ops,UBUNTU14-10-64-OSNM; ".
+		"$wap $import -g -r emulab-ops,UBUNTU15-04-64-OSCP; ".
+		"$wap $import -g -r emulab-ops,UBUNTU15-04-64-OSCN; ".
+		"$wap $import -g -r emulab-ops,UBUNTU15-04-64-OSNM; ".
+		"$wap $import -g -r emulab-ops,UBUNTU15-04-64-STD ";
 	}
 	elsif (0) {
 	    $command = 
@@ -662,13 +669,15 @@ if ($rsync) {
 	    print STDERR "** $rack: error rsyncing pubsub\n";
 	    return 1;
 	}
-	print "-> rsyncing shellinabox\n";
-	system("rsync -a --timeout=60 --delete ".
-	       "--exclude-from $TBSRC/.rsyncignore ".
-	       "     $TBSRC/shellinabox elabman\@${rack}:");
-	if ($?) {
-	    print STDERR "** $rack: error rsyncing shellinabox\n";
-	    return 1;
+	if (-e "$TBSRC/shellinabox") {
+	    print "-> rsyncing shellinabox\n";
+	    system("rsync -a --timeout=60 --delete ".
+		   "--exclude-from $TBSRC/.rsyncignore ".
+		   "     $TBSRC/shellinabox elabman\@${rack}:");
+	    if ($?) {
+		print STDERR "** $rack: error rsyncing shellinabox\n";
+		return 1;
+	    }
 	}
 	return 0;
     };

@@ -28,6 +28,7 @@ use strict;
 use IO::Select;
 use IO::Socket::INET;
 use POSIX;
+use Getopt::Std;
 
 #
 # Configure variables
@@ -38,7 +39,7 @@ my $SETUPPORT           = 0x11db; # 11 dB hex = 4571 decimal
 my $ATTEN_ADDR		= "@ATTENUATOR@";
 my $ATTEN_PORT		= 3001;
 my $VERSION		= 1;
-my $pidfile             = "/var/run/attend.pid";
+my $LOGFILE      	= "$TB/log/attend.log";
 
 #
 # Socket state constants
@@ -72,7 +73,24 @@ use lib "@prefix@/lib";
 use libdb;
 use libtestbed;
 
+sub usage()
+{
+    print "Usage: mondbd [-d] [-i]\n";
+    exit(1);
+}
+
 $ATTEN_ADDR or die "No attenuator defined!\n";
+
+my $optlist   = "d";
+my $debug     = 0;
+
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug++;
+}
 
 $SIG{PIPE} = 'IGNORE';
 
@@ -92,14 +110,20 @@ my $setup = new IO::Socket::INET( LocalAddr => '127.0.0.1',
 
 my $atten;
 
-# Write our PID to a known location (to assist those who would kill us).
-# Don't bother attempting to use the PID file as a lock -- the sockets
-# we just listened on make a better mutex than a file would.
+if (CheckDaemonRunning("attend")) {
+    fatal("Not starting another attenuator daemon!");
+}
 
-sysopen( PIDFILE, $pidfile, O_WRONLY | O_CREAT)
-    or die "Couldn't create '$pidfile': $? $!\n";
-print PIDFILE "$$";
-close PIDFILE;
+if( !$debug) {
+    # Go to background.
+    if (TBBackGround($LOGFILE)) {
+	exit(0);
+    }
+}
+
+if (MarkDaemonRunning("attend")) {
+    fatal("Could not mark daemon as running!");
+}
 
 my $selectlist = IO::Select->new( $rt, $setup )
     or die "select: $!\n";

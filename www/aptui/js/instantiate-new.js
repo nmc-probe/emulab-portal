@@ -95,13 +95,13 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
 	_.each(recentlist, function(obj, key) {
 	    if (window.ISPNET) {
-		if (_.contains(psysprojlist, obj.project)) {
-		    obj.project = "System";
+		if (_.contains(psysprojlist, obj[1].project)) {
+		    obj[1].project = "System";
 		}
 	    }
 	    else {
-		if (_.contains(sysprojlist, obj.project)) {
-		    obj.project = "System";
+		if (_.contains(sysprojlist, obj[1].project)) {
+		    obj[1].project = "System";
 		}
 	    }
 	});

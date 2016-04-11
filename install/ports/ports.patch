@@ -4,7 +4,7 @@
      SUBDIR += ytree
      SUBDIR += zaptel
      SUBDIR += zoneinfo
-+    SUBDIR += emulab-abac
++    SUBDIR += abac
 +    SUBDIR += emulab-boss
 +    SUBDIR += emulab-clrhouse
 +    SUBDIR += emulab-extras

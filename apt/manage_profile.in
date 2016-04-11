@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -39,7 +39,7 @@ sub usage()
     print("Usage: manage_profile create [-s uuid | -c uuid] <xmlfile>\n");
     print("Usage: manage_profile update <profile> <xmlfile>\n");
     print("Usage: manage_profile publish <profile>\n");
-    print("Usage: manage_profile delete <profile>\n");
+    print("Usage: manage_profile delete <profile> [all]\n");
     exit(-1);
 }
 my $optlist     = "ds:t:c:";
@@ -147,10 +147,10 @@ if ($action eq "update") {
     $uuid = shift(@ARGV);
 }
 elsif ($action eq "delete") {
-    exit(DeleteProfile($ARGV[0]));
+    exit(DeleteProfile(shift(@ARGV)));
 }
 elsif ($action eq "publish") {
-    exit(PublishProfile($ARGV[0]));
+    exit(PublishProfile(shift(@ARGV)));
 }
 elsif ($action ne "create") {
     usage();
@@ -189,6 +189,7 @@ my $SLOT_OPTIONAL	= 0x1;	# The field is not required.
 my $SLOT_REQUIRED	= 0x2;  # The field is required and must be non-null.
 my $SLOT_ADMINONLY	= 0x4;  # Only admins can set this field.
 my $SLOT_UPDATE 	= 0x8;  # Allowed to update.
+my $SLOT_MODIFIER 	= 0x10; # Allowed to update.
 #
 # XXX We should encode all of this in the DB so that we can generate the
 # forms on the fly, as well as this checking code.
@@ -204,6 +205,8 @@ my %xmlfields =
      "profile_topdog"      => ["topdog",	$SLOT_OPTIONAL|
 			                          $SLOT_UPDATE|$SLOT_ADMINONLY],
      "profile_disabled"    => ["disabled",	$SLOT_OPTIONAL|
+			                          $SLOT_UPDATE|$SLOT_ADMINONLY],
+     "profile_disable_all" => ["disable_all",	$SLOT_OPTIONAL|$SLOT_MODIFIER,
 			                          $SLOT_UPDATE|$SLOT_ADMINONLY],
      "rspec"		   => ["rspec",		$SLOT_REQUIRED|$SLOT_UPDATE],
      "script"		   => ["script",	$SLOT_OPTIONAL|$SLOT_UPDATE],
@@ -243,8 +246,9 @@ UserError()
 #
 # We build up an array of arguments to create.
 #
-my %new_args = ();
+my %new_args    = ();
 my %update_args = ();
+my %modifiers   = ();
 
 foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
     my $value = $xmlparse->{'attribute'}->{"$key"}->{'value'};
@@ -281,6 +285,10 @@ foreach $key (keys(%{ $xmlparse->{'attribute'} })) {
 	# Admin implies optional, but thats probably not correct approach.
 	$errors{$key} = "Administrators only"
 	    if (! $this_user->IsAdmin());
+    }
+    if ($required & $SLOT_MODIFIER) {
+	$modifiers{$dbslot} = $value;
+	next;
     }
 	
     # Now check that the value is legal.
@@ -442,10 +450,13 @@ if ($update) {
 	fatal("Could not update profile record");
 
     #
-    # Disabled is version specific right now.
+    # Disable operates on current version or all versions.
     #
     if ($this_user->IsAdmin() &&
 	exists($update_args{"disabled"})) {
+	if (exists($modifiers{"disable_all"}) && $modifiers{"disable_all"}) {
+	    $profile->UpdateAll({"disabled" => $update_args{"disabled"}});
+	}
 	$profile->UpdateVersion({"disabled" => $update_args{"disabled"}});
     }
 
@@ -669,6 +680,10 @@ sub DeleteProfile($)
 {
     my ($name)  = @_;
     my $errmsg;
+    #
+    # Extra flag; user is allowed to delete the entire profile, all versions.
+    # 
+    my $all = (@ARGV && $ARGV[0] eq "all" ? 1 : 0);
     
     my $profile = APT_Profile->Lookup($name);
     if (!defined($profile)) {
@@ -692,7 +707,7 @@ sub DeleteProfile($)
     #
     # Version zero is special of course.
     #
-    if ($profile->version()) {
+    if ($profile->version() && !$all) {
 	$profile->DeleteVersion() == 0 or
 	    fatal("Could not delete profile version");
     }

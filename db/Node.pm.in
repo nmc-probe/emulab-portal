@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2005-2015 University of Utah and the Flux Group.
+# Copyright (c) 2005-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,13 +31,14 @@ use vars qw(@ISA @EXPORT $AUTOLOAD @EXPORT_OK);
 
 # Configure variables
 use vars qw($TB $BOSSNODE $WOL $OSSELECT $IPOD $ISUTAH $CONTROL_NETMASK
-            $TBOPS $JAILIPMASK $TBBASE);
+            $TBOPS $JAILIPMASK $TBBASE $TBADB);
 $TB	     = "@prefix@";
 $BOSSNODE    = "@BOSSNODE@";
 $TBOPS       = "@TBOPSEMAIL@";
 $WOL         = "$TB/sbin/whol";
 $OSSELECT    = "$TB/bin/os_select";
 $IPOD	     = "$TB/sbin/ipod";
+$TBADB       = "$TB/bin/tbadb";
 # XXX stinky hack detection
 $ISUTAH	     = @TBMAINSITE@;
 # Need this for jail ip assignment.
@@ -64,6 +65,7 @@ $NODEROLE_TESTNODE	= 'testnode';
 
 # Cache of instances to avoid regenerating them.
 %nodes = ();
+BEGIN { use emutil; emutil::AddCache(\%nodes); }
 
 # Little helper and debug function.
 sub mysystem($)
@@ -1323,6 +1325,7 @@ sub sharing_mode($)	{ return L__reservation($_[0], 'sharing_mode'); }
 sub erole($)		{ return L__reservation($_[0], 'erole'); }
 sub eid($)              { return L__reservation($_[0], 'eid'); }
 sub pid($)              { return L__reservation($_[0], 'pid'); }
+sub genisliver_idx($)   { return L__reservation($_[0], 'genisliver_idx'); }
 sub external_resource_index($) {
     return L__reservation($_[0], 'external_resource_index'); }
 sub external_resource_id($) {
@@ -1426,6 +1429,36 @@ sub GetNodeAttributes($)
     }
 
     return $self->{"ATTRS"};
+}
+
+#
+# Set an attribute for a node, overwriting the same attribute if it
+# already exists.
+#
+sub SetNodeAttribute($$$) {
+    my ($self, $attrkey, $attrval) = @_;
+    my $node_id = $self->node_id();
+
+    return -1
+	if (!$attrkey || !$attrval);
+
+    $attrkey = DBQuoteSpecial($attrkey);
+    $attrval = DBQuoteSpecial($attrval);
+
+    return -1
+	if (!DBQueryWarn("replace into node_attributes set".
+			 "  node_id='$node_id',".
+			 "  attrkey=$attrkey,".
+			 "  attrvalue=$attrval"));
+
+    if (!defined($self->{"ATTRS"})) {
+	if ($self->LoadNodeAttributes()) {
+	    return -1;
+	}
+    }
+    $self->{"ATTRS"}->{$attrkey} = $attrval;
+
+    return 0;
 }
 
 #
@@ -2221,7 +2254,7 @@ sub CreateVnodes($$$)
 	$nodenum    = "$2$3";
 	$ipbase     = $nodenum;
     }
-    elsif ($pnode =~ /^(.*\D)(\d+)$/) {
+    elsif ($pnode =~ /^(.*\D)(\d{1,3})$/) {
 	$nodeprefix = $1;
 	$nodenum    = $2;
 	$ipbase     = $nodenum;
@@ -3169,11 +3202,6 @@ sub GetGeniSliverInfo($$;$)
 sub SetStatus($$)
 {
     my ($self, $status) = @_;
-
-    # Must be a real reference. 
-    return -1
-	if (! ref($self));
-
     my $node_id = $self->node_id();
 
     return -1
@@ -3181,6 +3209,25 @@ sub SetStatus($$)
 			  "where node_id='$node_id'"));
     $self->{"DBROW"}->{'node_status'} = $status;
     return 0;
+}
+
+#
+# Get the status slot for a node.
+#
+sub GetStatus($)
+{
+    my ($self) = @_;
+    my $node_id = $self->node_id();
+
+    my $query_result =
+	DBQueryWarn("select status,status_timestamp from node_status ".
+		    "where node_id='$node_id'");
+    return undef
+	if (! (defined($query_result) && $query_result->numrows));
+
+    my ($status,$stamp) = $query_result->fetchrow_array();
+    $self->{"DBROW"}->{'node_status'} = $status;
+    return $status;
 }
 
 #
@@ -3653,9 +3700,9 @@ sub SetJailIPFromVnode($$$)
 #
 # Check for, and update a node pre reservation.
 #
-sub CheckPreReserve($$)
+sub CheckPreReserve($$$)
 {
-    my ($self, $quiet) = @_;
+    my ($self, $isfree, $quiet) = @_;
     my $result = undef;
 
     #
@@ -3664,33 +3711,60 @@ sub CheckPreReserve($$)
     my $type = $self->type();
     my $node_id = $self->node_id();
     
-    DBQueryWarn("lock tables node_reservations write, nodes write")
+    DBQueryWarn("lock tables project_reservations write, nodes write, ".
+		"            node_reservations write, reserved read")
 	or return undef;
+
+    #
+    # isfree is a flag that says we are coming from nfree or stated,
+    # and the node is going into the free pool. When not set (as from
+    # prereserve) we have to check the reserved table to see if it is
+    # free; we do not mess with an allocated node. We do this here with
+    # the rest of the locked tables.
+    #
+    if (!$isfree) {
+	my $query_result =
+	    DBQueryWarn("select pid,eid from reserved ".
+			"where node_id='$node_id'");
+	goto done
+	    if (!$query_result || $query_result->numrows);
+    }
 
     #
     # Need to check for existing reserved_pid, but have to go to the DB,
     # not look in the object ($self) since it might be stale.
     #
     my $query_result =
-	DBQueryWarn("select reserved_pid,count,active from nodes ".
-		    "left join node_reservations on ".
-		    "     node_reservations.pid=nodes.reserved_pid ".
+	DBQueryWarn("select reserved_pid,reservation_name, ".
+		    "  count,active,terminal from nodes ".
+		    "left join project_reservations on ".
+		    "     project_reservations.pid=nodes.reserved_pid and ".
+		    "     project_reservations.name=nodes.reservation_name ".
 		    "where nodes.node_id='$node_id'");
 
+    # numrows would be zero if the node was suddenly deleted.
     goto done
 	if (!defined($query_result) || !$query_result->numrows);
 
     #
     # If there is a reserved pid already set for this node, check to see
-    # if the reervation request is still active. If not, we can clear it,
+    # if the reservation request is still active. If not, we can clear it,
     # which will allow it to be set again below, if needed.
     #
-    my ($pid,$count,$active) = $query_result->fetchrow_array();
+    my ($pid,$resname,$count,$active,$terminal) =
+	$query_result->fetchrow_array();
     if (defined($pid)) {
+	# There is an active pre-reserve for this node.
 	goto done
-	    if (defined($count) && $active);
+	    if (defined($count) && $active && !$terminal);
+	# If the reservation_name is null, the node was prereserved
+	# via the web page, not by a prereserve command line. Do not
+	# mess with it.
+	goto done
+	    if (!defined($resname));
 	
-	DBQueryWarn("update nodes set reserved_pid=null ".
+	DBQueryWarn("update nodes set reserved_pid=null, ".
+		    "  reservation_name=null ".
 		    "where node_id='$node_id'");
 
 	if (!$quiet) {
@@ -3700,38 +3774,75 @@ sub CheckPreReserve($$)
 
     # Find only active unfilled reservations.
     $query_result =
-	DBQueryWarn("select pid,count from node_reservations ".
-		    "where active=1 and count>0 and ".
+	DBQueryWarn("select pid,count,name from project_reservations ".
+		    "where active=1 and terminal=0 and count>0 and ".
 		    "       (types is null or ".
 		    "        FIND_IN_SET('$type', types)) ".
-		    "order by priority desc, created asc ".
-		    "limit 1");
+		    "order by priority desc, created asc ");
 
     goto done
 	if (!$query_result);
-    
-    if ($query_result->numrows) {
-	my ($pid,$count) = $query_result->fetchrow_array();
 
-	if (DBQueryWarn("update nodes set reserved_pid='$pid' ".
+    while (my ($pid,$count,$resname) = $query_result->fetchrow_array()) {
+	#
+	# See if this is fullfulling a specific node reservation request.
+	# Need to delete that row if so. 
+	#
+	my $noderes_result =
+	    DBQueryWarn("select node_id from node_reservations ".
+			"where pid='$pid' and ".
+			"      reservation_name='$resname'");
+	goto done
+	    if (!$noderes_result);
+
+	#
+	# Note that if there any entries in the node_reservations table,
+	# then only those specific nodes can fulfill the request. Search
+	# the list for the node_id we are freeing.
+	#
+	if ($noderes_result->numrows) {
+	    my $okay = 0;
+	    
+	    while (my ($id) = $noderes_result->fetchrow_array()) {
+		if ($node_id eq $id) {
+		    $okay = 1;
+		    last;
+		}
+	    }
+	    #
+	    # We cannot use this node for this pre-reserve, but maybe the
+	    # next one.
+	    #
+	    next
+		if (!$okay);
+	}
+
+	if (DBQueryWarn("update nodes set reserved_pid='$pid', ".
+			"    reservation_name='$resname' ".
 			"where node_id='$node_id'")) {
 	    
-	    DBQueryWarn("update node_reservations set count=count-1 ".
-			"where pid='$pid'");
-	    
+	    DBQueryWarn("update project_reservations set count=count-1 ".
+			"where pid='$pid' and name='$resname'");
+	    if ($noderes_result->numrows) {
+		DBQueryWarn("delete from node_reservations ".
+			    "where node_id='$node_id' and pid='$pid' and ".
+			    "      reservation_name='$resname'");
+	    }
 	    $result = $pid;
 
 	    if ($count == 1) {
-		SENDMAIL($TBOPS, "Pre Reservation for $pid has completed",
-			 "The pre reservation request for project $pid, ".
-			 "has been fullfilled\n", $TBOPS);
+		SENDMAIL($TBOPS,
+			 "Pre Reservation $pid,$resname has completed",
+			 "The pre reservation request for project ".
+			 "$pid,$resname has been fullfilled\n", $TBOPS);
 	    }
+	    last;
 	}
     }
   done:
     DBQueryWarn("unlock tables");
     if (defined($result) && !$quiet) {
-	print "Setting pre reserve for $node_id to $result\n";
+	print "Setting pre-reserve for $node_id to $result\n";
     }
     return $result;
 }
@@ -4034,9 +4145,78 @@ sub HaveRoutableIPs($$)
 	DBQueryWarn("select count(ip) from virt_node_public_addr ".
 		    "where node_id is null and eid is null");
     return 0
-	if (!$query_result || $query_result->numrows < $needed);
+	if (!$query_result || $query_result->numrows < 1);
+
+    my( $count ) = $query_result->fetchrow_array();
+    return 0
+	if( $count < $needed );
 
     return 1;
+}
+
+#
+# For performing a bit of early UE (mobile) device configuration
+#
+sub UEConfig($) {
+    my ($self) = @_;
+
+    my $node_id = $self->node_id();
+    my $experiment = $self->Reservation();
+
+    if (!$experiment) {
+	print STDERR "*** Cannot call UEConfig() unless node is in an ".
+	             "experiment!\n";
+	return -1;
+    }
+
+    if ($self->class() ne "ue") {
+	print STDERR "*** DO NOT call UEConfig() for nodes that are not of class 'ue'!\n";
+	return -1;
+    }
+
+    # Request forwarding port if adb_host virt_node_attribute is set.
+    my $adb_target;
+    $self->FlushReserved();
+    $experiment->GetVirtNodeAttribute($self->vname(), "adb_target", 
+				      \$adb_target);
+    if ($adb_target) {
+	my $tnode = $experiment->VnameToNode($adb_target);
+	if ($tnode) {
+	    my $c_iface = Interface->LookupControl($tnode);
+	    if ($c_iface && $c_iface->IP()) {
+		$adb_target = $c_iface->IP();
+	    } else {
+		print STDERR "*** Could not find control network interface for $tnode!\n";
+		return -1;
+	    }
+	}
+	if (system("$TBADB -n $node_id resvport $adb_target") != 0) {
+	    print STDERR "*** Failed to reserve ADB port for $node_id!\n";
+	    return -1;
+	}
+    }
+
+    # Get current USIM sequence number, increment and save, and add
+    # as virt_node_attribute to be picked up and put in manifest.
+    my $seqdef;
+    my $seqincr;
+    TBGetSiteVar("ue/sim_sequence_default", \$seqdef);
+    TBGetSiteVar("ue/sim_sequence_increment", \$seqincr);
+    if (!$seqdef || !$seqincr) {
+	print STDERR "*** Could not get UE sequence number site variables!\n";
+    } else {
+	my $seqnum;
+	$self->NodeAttribute("sim_sequence_number", \$seqnum);
+	if (!$seqnum) {
+	    print STDERR "Warning: No sequence number for UE $node_id.  Setting to sitevar default: $seqdef\n";
+	    $self->SetNodeAttribute("sim_sequence_number", $seqdef);
+	} else {
+	    $seqnum += int($seqincr);
+	    $self->SetNodeAttribute("sim_sequence_number", $seqnum);
+	}
+    }
+
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

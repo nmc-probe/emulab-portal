@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -79,6 +79,7 @@ sub SetGeniVersion($)
 	$API_VERSION = 4;
     }
 }
+sub InitModule($) { SetGeniVersion($_[0]); }
 
 #
 # Tell the client what API revision we support.  The correspondence
@@ -230,6 +231,24 @@ sub GetVersion()
 	    {"geni_type" => "geni_sfa",
 	     "geni_version" => $coder->string("3")}
 	    ];
+    }
+    if (defined($options) && exists($options->{'trustroots'})) {
+	my @roots = ();
+	my @certs = GeniCertificate::SplitCertBundle("$TB/etc/genica.bundle");
+	foreach my $root (@certs) {
+	    my $cert = GeniCertificate->LoadFromString($root);
+	    next
+		if (!defined($cert));
+	    next
+		if (!defined($cert->urn()));
+
+	    push(@roots, {"CN"      => $cert->CommonName(),
+			  "Serial"  => $cert->serial(),
+			  "Expires" => $cert->enddate(),
+			  "SubjAltNameURIs" => [$cert->urn()],
+		 });
+	}
+	$blob->{"trustroots"} = \@roots;
     }
     my $response = GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
     if ($API_VERSION > 1) {
@@ -686,6 +705,82 @@ sub ListImages()
     };
     my $response = GeniCMV2::ListImages($args);
     return $response;
+}
+
+#----------------------------------------------------------------------
+# Morph the ProtoGENI response (a hash with three keys; a
+# GeniResponse) into a GENI AMv1 response (a single value or a fault if
+# there is an error).
+#
+# $geni_response is an XML RPC response, which is a three element hash. The
+# value element is the GeniResponse hash.
+#----------------------------------------------------------------------
+sub ConvertResponseV1($)
+{
+    my ($geni_response) = @_;
+
+    my $decoder = Frontier::RPC2->new();
+    my $response;
+    
+    if (GeniResponse::IsError($geni_response)) {
+	# An error result gets mapped to an XML RPC fault
+	$response =
+	    $decoder->encode_fault(GeniResponse::code($geni_response),
+				   GeniResponse::output($geni_response));
+    } else {
+	# A successful result means return the value
+	$response =
+	    $decoder->encode_response(GeniResponse::value($geni_response));
+    }
+    return $response;
+}
+
+#----------------------------------------------------------------------
+# Morph the ProtoGENI response (a hash with three keys; a
+# GeniResponse) into a GENI AMv2 response (same value and output, but
+# more complex code format).
+#
+# $geni_response is an XML RPC response, which is a three element hash. The
+# value element is the GeniResponse hash.
+#----------------------------------------------------------------------
+sub ConvertResponseV2($)
+{
+    my ($geni_response) = @_;
+
+    my $decoder = Frontier::RPC2->new();
+    my $version = $geni_response->{"geni_api"};
+    my $am_code = GeniResponse::code($geni_response);
+    # For standard GENI errors, the geni_code is the same as our am_code
+    my $geni_code = $am_code;
+    if ($am_code < GeniResponse::GENIRESPONSE_SUCCESS() ||
+	$am_code > GeniResponse::GENIRESPONSE_ALREADYEXISTS()) {
+	# If the code is outside of the standard GENI code range, set
+	# the geni_code to ERROR
+	$geni_code = GeniResponse::GENIRESPONSE_ERROR();
+    }
+    my $blob = {
+	"value" => GeniResponse::value($geni_response),
+	"output" => GeniResponse::output($geni_response),
+	"code" => {
+	    "geni_code" => $geni_code,
+	    "am_code" => $am_code,
+	    "am_type" => "protogeni"
+	}
+    };
+    if (exists($geni_response->{'protogeni_error_log'})) {
+	$blob->{'code'}->{'protogeni_error_log'} =
+	    $geni_response->{'protogeni_error_log'};
+    }
+    if (exists($geni_response->{'protogeni_error_url'})) {
+	$blob->{'code'}->{'protogeni_error_url'} =
+	    $geni_response->{'protogeni_error_url'};
+    }
+
+    if (defined($version)) {
+	$blob->{"geni_api"} = $version;
+    }
+
+    return $decoder->encode_response($blob);
 }
 
 ###############################################################################

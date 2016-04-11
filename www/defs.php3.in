@@ -471,10 +471,12 @@ function SUEXEC($uid, $gid, $cmdandargs, $action) {
 	$suexec_retval = -1;
     }
     #
-    # suexec.c puts its error message between 100 and 125. Convert that
+    # suexec.c puts its error message between 101 and 125. Convert that
     # to an internal error and generate an error that says something useful.
     #
-    if ($suexec_retval >= 100 && $suexec_retval <= 125 &&
+    # XXX Ignore 101, something in the geni-lib path uses it.
+    #
+    if (0 && $suexec_retval > 101 && $suexec_retval <= 125 &&
         !count($suexec_output_array)) {
         $suexec_output_array[0] =
             "Internal suexec error $suexec_retval. See the suexec log";
