@@ -124,6 +124,7 @@ my $TARINSTALL     = "/usr/local/bin/install-tarfile";
 my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $IMAGE_IMPORT   = "$TB/sbin/image_import";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
+my $RFLINKS	   = "$TB/bin/rflinks";
 my $FWNAME	   = "fw";
 my $API_VERSION    = 1;
 my $PROTOGENI_LOCALUSER   = @PROTOGENI_LOCALUSER@;
@@ -1616,6 +1617,20 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				      "weight"   => 0.95})
 	    if ($MAINSITE && (!defined($exclusive) || !$exclusive));
 
+	my $adb_target = GeniXML::GetADBTarget( $ref );
+	if( defined( $adb_target ) ) {
+	    if( $adb_target !~ /^[a-zA-Z0-9.-]+$/ ) {
+		$response = GeniResponse->Create( GENIRESPONSE_BADARGS,
+						  undef,
+						  "Invalid ADB target" );
+		goto bad;
+	    }
+	    $virtexperiment->NewTableRow( "virt_node_attributes",
+					  { "vname"     => $node_nickname,
+					    "attrkey"   => "adb_target",
+					    "attrvalue" => $adb_target } );
+	}
+	
 	#
 	# Special hack for allocating from a specific chassis.
 	#
@@ -4532,7 +4547,13 @@ sub SliverWorkAux($$$$$$$$)
 	}
 	GeniXML::SetText("vlantag", $linkref, $tag);
     }
-	
+
+    if( !$isupdate ) {
+	if( system( "$RFLINKS $pid $eid" ) ) {
+	    print STDERR "Failed to add RF links!\n";
+	}
+    }
+    
     # Set up plab nodes all at once. 
     if ($needplabslice && @plabnodes && !$impotent) {
 	my @node_ids = map { $_->node_id() } @plabnodes;
@@ -4716,6 +4737,11 @@ sub SliverWorkAux($$$$$$$$)
 	    print STDERR "Could not tear down vlans\n";
 	}
 
+	system( "$RFLINKS -r $pid $eid" );
+	if( $? ) {
+	    print STDERR "Failed to remove RF links\n";
+	}
+	
 	# Remove any residual state.
 	if ($experiment->RemovePhysicalState(1)) {
 	    print STDERR "Could not remove physical state!\n";
@@ -4791,7 +4817,7 @@ sub RenewSliverAux($$$)
 	my $pnodeid = $pnode->node_id();
 	
 	if (defined($pnode->reserved_pid()) &&
-	    $pnode->reserved_pid() ne $slice_experiment->pid()) {
+	    lc($pnode->reserved_pid()) ne lc($slice_experiment->pid())) {
 	    if ($credential->HasActualPrivilege("admin")) {
 		SENDMAIL($TBOPS, "Admin override on pre-reserved node!",
 			 "Admin override on pre-reserved node $pnodeid\n".
@@ -5072,6 +5098,11 @@ sub DeleteSliverAux($$$)
     my $eid = $experiment->eid();
 
     if (!$impotent) {
+	system("$RFLINKS -r $pid $eid");
+	if ($?) {
+	    print STDERR "Could not tear down RF links!\n";
+	}
+	
 	system("$SNMPIT -C -r $pid $eid");
 	if ($?) {
 	    print STDERR "Could not tear down vlans\n";

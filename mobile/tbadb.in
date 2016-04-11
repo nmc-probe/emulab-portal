@@ -492,8 +492,13 @@ sub cmd_unforward($@) {
     my $node = Node->Lookup($node_id);
     die "tbadb::cmd_unforward: Invalid node name $node_id!\n"
 	if (!defined($node));
+    # Fine to unforward if we are cleaning up inside of nfree.
+    my $experiment = $node->Reservation();
+    my $isholding = (defined($experiment)
+		     && $experiment->pid() eq NFREELOCKED_PID
+		     && $experiment->eid() eq NFREELOCKED_EID);
     die("tbadb::cmd_unforward: You do not have permission to modify $node\n")
-	if (!$isroot && !$this_user->IsAdmin() &&
+	if (!$isroot && !$isholding &&
 	    !$node->AccessCheck($this_user, TB_NODEACCESS_REBOOT));
     
     # Grab the RPC pipe.
@@ -522,7 +527,6 @@ sub cmd_unforward($@) {
     }
 
     # Clear the virt_node_attributes entry, if there is one.
-    my $experiment = $node->Reservation();
     if ($experiment) {
 	my $pid = $experiment->pid();
 	my $eid = $experiment->eid();

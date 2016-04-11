@@ -390,6 +390,7 @@ COMMAND_PROTOTYPE(dohwinfo);
 COMMAND_PROTOTYPE(dotiplineinfo);
 COMMAND_PROTOTYPE(doimageid);
 COMMAND_PROTOTYPE(doimagesize);
+COMMAND_PROTOTYPE(dopnetnodeattrs);
 #if PROTOGENI_SUPPORT
 COMMAND_PROTOTYPE(dogeniclientid);
 COMMAND_PROTOTYPE(dogenisliceurn);
@@ -407,6 +408,7 @@ COMMAND_PROTOTYPE(dogenisliverstatus);
 COMMAND_PROTOTYPE(dogenistatus);
 COMMAND_PROTOTYPE(dogenicommands);
 COMMAND_PROTOTYPE(dogeniall);
+COMMAND_PROTOTYPE(dogeniparam);
 COMMAND_PROTOTYPE(dogeniinvalid);
 #endif
 
@@ -525,6 +527,7 @@ struct command {
 	{ "tiplineinfo",  FULLCONFIG_NONE,  F_ALLOCATED, dotiplineinfo},
 	{ "imageinfo",      FULLCONFIG_NONE,  F_ALLOCATED, doimageid},
 	{ "imagesize",   FULLCONFIG_NONE,  F_ALLOCATED, doimagesize},
+	{ "pnetnodeattrs", FULLCONFIG_NONE, F_ALLOCATED, dopnetnodeattrs},
 #if PROTOGENI_SUPPORT
 	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
 	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
@@ -543,6 +546,7 @@ struct command {
 	{ "geni_status", FULLCONFIG_NONE, 0, dogenistatus },
 	{ "geni_commands", FULLCONFIG_NONE, 0, dogenicommands },
 	{ "geni_all",     FULLCONFIG_NONE, 0, dogeniall },
+	{ "geni_param",   FULLCONFIG_NONE, 0, dogeniparam },
 	/* A rather ugly hack to avoid making error handling a special case.
 	   THIS MUST BE THE LAST ENTRY IN THE ARRAY! */
 	{ "geni_invalid", FULLCONFIG_NONE, 0, dogeniinvalid }
@@ -12841,11 +12845,11 @@ static char *getgenigetversion( tmcdreq_t *reqp ) {
 			 "\"1\":\"" TBBASE ":12369/protogeni/xmlrpc/am/1.0\","
 			 "\"2\":\"" TBBASE ":12369/protogeni/xmlrpc/am/2.0\","
 			 "\"3\":\"" TBBASE ":12369/protogeni/xmlrpc/am/3.0\"},"
-			 "\"geni_credential_types\":{"
+			 "\"geni_credential_types\":["
 			 "{\"geni_type\":\"geni_sfa\","
 			 "\"geni_version\":\"2\"},"
 			 "{\"geni_type\":\"geni_sfa\","
-			 "\"geni_version\":\"3\"}}}",
+			 "\"geni_version\":\"3\"}]}",
 			 row[ 0 ] );
 	}
 			 
@@ -13117,6 +13121,56 @@ COMMAND_PROTOTYPE(dogeniall)
     
     client_writeback( sock, buf, 1 + strlen( buf + 1 ), tcp );
 
+    return 0;
+}
+
+COMMAND_PROTOTYPE(dogeniparam)
+{
+    char *p;
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
+    for( p = rdata; *p; p++ )
+	if( isspace( *p ) ) {
+	    *p = 0;
+	    break;
+	} else if( ( *p < 'a' || *p > 'z' ) &&
+	    ( *p < 'A' || *p > 'Z' ) &&
+	    ( *p < '0' || *p >= '9' ) &&
+	    *p != '_' && *p != '-' ) {
+	    static char error_msg[] = "\0\0illegal parameter\n";
+
+	    client_writeback( sock, error_msg, sizeof error_msg - 1, tcp );
+	    
+	    return 1;
+	}
+
+    res = mydb_query( "SELECT value FROM virt_profile_parameters "
+		      "WHERE exptidx=%d AND name='%s'", 1, reqp->exptidx,
+		      rdata );
+    if( !res ) {
+	error( "PARAM: error retrieving value\n" );
+	return 1;
+    }
+
+    if( mysql_num_rows( res ) < 1 ) {
+	static char error_msg[] = "\0\0undefined parameter\n";
+
+	client_writeback( sock, error_msg, sizeof error_msg - 1, tcp );
+	    
+	mysql_free_result( res );
+	
+	return 1;
+    }
+
+    row = mysql_fetch_row( res );
+
+    client_writeback( sock, "", 1, tcp ); /* single NUL */
+    client_writeback( sock, row[ 0 ], strlen( row[ 0 ] ), tcp );
+    client_writeback( sock, "\n", 1, tcp ); /* single NUL */
+
+    mysql_free_result( res );
+    
     return 0;
 }
 
@@ -13490,3 +13544,53 @@ COMMAND_PROTOTYPE(doimagesize)
 	return 0;
 }
 
+/* Return attributes relevant to PhantomNet experiments. */
+COMMAND_PROTOTYPE(dopnetnodeattrs)
+{
+	MYSQL_RES   *res;
+	MYSQL_ROW   row;
+	int         nrows = 0;
+	char	    buf[MYBUFSIZE];
+	char	    *bufp = buf, *ebufp = &buf[sizeof(buf)];
+	char        *pnet_nattr_keys = "('sim_imsi', 'sim_sequence_number')";
+
+	res = mydb_query( "SELECT na.node_id,na.attrkey,na.attrvalue "
+			  " from reserved as r"
+			  " left join node_attributes as na "
+			  "  on r.node_id=na.node_id"
+			  "       where r.pid='%s' and r.eid='%s'"
+			  "       and na.attrkey in %s",
+			  3, reqp->pid, reqp->eid, pnet_nattr_keys );
+
+	if( !res ) {
+		error( "dopnetnodeattrs: %s: DB error getting node_attrs!\n",
+		       reqp->nodeid );
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	while (nrows > 0) {
+		char *node_id, *key, *val;
+
+		row = mysql_fetch_row(res);
+		if (!(row[0] && *row[0]
+		      && row[1] && *row[1]
+		      && row[2] && *row[2] )) {
+			continue;
+		}
+
+		node_id = row[0];
+		key     = row[1];
+		val     = row[2];
+
+		bufp += OUTPUT(bufp, ebufp-bufp,
+			       "NODE_ID=%s KEY=%s VALUE=%s\n",
+			       node_id, key, val);
+
+		nrows--;
+	}
+
+	mysql_free_result(res);
+	client_writeback(sock, buf, strlen(buf), tcp);
+	return 0;
+}

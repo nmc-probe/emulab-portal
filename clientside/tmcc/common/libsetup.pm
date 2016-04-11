@@ -43,7 +43,7 @@ use Exporter;
 	 copyfilefromnfs getnodeuuid getarpinfo
 	 getstorageconfig getstoragediskinfo getimagesize
          getmanifest fetchmanifestblobs runbootscript runhooks 
-         build_fake_macs getenvvars
+         build_fake_macs getenvvars getpnetnodeattrs
 
 	 TBDebugTimeStamp TBDebugTimeStampWithDate
 	 TBDebugTimeStampsOn TBDebugTimeStampsOff
@@ -3676,6 +3676,34 @@ sub getimagesize($$;$) {
     $$rptr = \%res;
     return 0;
 }
+
+#
+# Return set of node attributes relevant for PhantomNet experiments.
+#
+sub getpnetnodeattrs($)
+{
+    my ($rptr) = @_;
+    my @tmccresults = ();
+    my %result = ();
+    my %tmccopts = ();
+
+    if (tmcc(TMCCCMD_PNETNODEATTRS, undef, \@tmccresults, %tmccopts) < 0) {
+	warn("*** WARNING: Could not get PhantomNet node attrs from server!\n");
+	%$rptr = ();
+	return -1;
+    }
+
+    foreach my $line (@tmccresults) {
+	chomp $line;
+	if ($line =~ /^NODE_ID=(.+) KEY=(.+) VALUE=(.+)$/) {
+	    $result{$1}->{$2} = $3;
+	}
+    }
+
+    %$rptr = %result;
+    return 0;
+}
+
 
 #
 # Fork a process to exec a command. Return the pid to wait on.

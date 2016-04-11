@@ -55,6 +55,7 @@ my $TBOPS       = "@TBOPSEMAIL@";
 my $NODEREBOOT  = "$TB/bin/node_reboot";
 my $VNODESETUP  = "$TB/sbin/vnode_setup";
 my $ELABINELAB  = "$TB/sbin/elabinelab";
+my $TBADB       = "$TB/bin/tbadb";
 
 # Setup Operation Flags
 $NOSTATE    = 0x00;
@@ -2200,6 +2201,28 @@ use Node;
 use English;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
+
+# Enable the ADB port forwarding we reserved previously via the mapper.
+sub LightUpNodes($@) {
+    my ($self, @nodelist) = @_;
+    my $parent = $self->parent();
+    my $experiment = $parent->experiment();
+
+    foreach my $node (@nodelist) {
+	my $node_id = $node->node_id();
+	my $adb_target;
+	$experiment->GetVirtNodeAttribute($node->vname(),"adb_target",
+					  \$adb_target);
+	next if !$adb_target;
+	if (system("$TBADB -n $node_id forward") != 0) {
+	    print STDERR "Could not setup adb forwarding for $node_id!\n";
+	    $parent->noretry(1);
+	    return -1;
+	}
+    }
+
+    return $self->SUPER::LightUpNodes(@nodelist);
+}
 
 # This needs to be the last thing in the file.
 1;

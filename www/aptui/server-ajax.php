@@ -111,6 +111,8 @@ $routing = array("myprofiles" =>
 						    "Do_GetSSHAuthObject",
 						 "ConsoleURL" =>
 						     "Do_ConsoleURL",
+						 "DeleteNodes" =>
+						     "Do_DeleteNodes",
 						 "RequestExtension" =>
 						     "Do_RequestExtension",
 						 "DenyExtension" =>
@@ -180,6 +182,8 @@ $routing = array("myprofiles" =>
                                                       "Do_ProfileList",
                                                  "Toggle" =>
                                                      "Do_Toggle",
+                                                 "SendTestMessage" =>
+                                                     "Do_SendTestMessage",
                                                  "AccountDetails" =>
                                                       "Do_AccountDetails")),
 		 "show-project" =>

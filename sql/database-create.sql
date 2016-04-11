@@ -238,6 +238,8 @@ CREATE TABLE `apt_instances` (
   `extension_history` mediumtext,
   `extension_adminonly` tinyint(1) NOT NULL default '0',
   `extension_requested` tinyint(1) NOT NULL default '0',
+  `extension_denied` tinyint(1) NOT NULL default '0',
+  `extension_denied_reason` mediumtext,
   `extension_count` smallint(5) unsigned NOT NULL default '0',
   `extension_days` smallint(5) unsigned NOT NULL default '0',
   `physnode_count` smallint(5) unsigned NOT NULL default '0',
@@ -2662,6 +2664,7 @@ CREATE TABLE `login` (
   `timeout` varchar(10) NOT NULL default '',
   `adminon` tinyint(1) NOT NULL default '0',
   `opskey` varchar(64) NOT NULL,
+  `portal` enum('emulab','aptlab','cloudlab','phantomnet') NOT NULL default 'emulab',
   PRIMARY KEY  (`uid_idx`,`hashkey`),
   UNIQUE KEY `hashhash` (`uid_idx`,`hashhash`),
   UNIQUE KEY `uidkey` (`uid`,`hashkey`)

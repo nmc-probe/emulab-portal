@@ -392,6 +392,32 @@
       </div>
     </div>
   </div>
+  <div id='deletenode_modal' class='modal fade'>
+    <div class='modal-dialog'>
+      <div class='modal-content'>
+	<div class='modal-header'>
+          <center><h3>Confirm to Delete Nodes</h3>
+	</div>
+	<div class='modal-body'>
+          <p>
+	    Are you <b>sure</b> you want to delete nodes from your
+            experiment?  This operation cannot be stopped once it is
+            started!
+
+	  </p>
+	  <center>
+            <button style='margin-right: 20px;'
+                    class='btn btn-primary btn-sm' 
+                    data-dismiss='modal' aria-hidden='true'>
+	      Cancel</button>
+            <button class='btn btn-danger btn-sm'; type='button'
+		    id='deletenode_confirm'>
+	      Confirm</button>
+	  </center>
+	</div>
+      </div>
+    </div>
+  </div>
   <div id="context">
     <div id="context-menu">
       <ul class="dropdown-menu" role="menu"
@@ -402,6 +428,9 @@
 	<li id="reboot"><a name="reboot">Reboot</a></li>
 	<li id="reload"><a name="reload">Reload</a></li>
 	<li id="snapshot"><a name="snapshot">Snapshot</a></li>
+	<% if (isadmin) { %>
+	<li id="delete"><a name="delete">Delete Node</a></li>
+	<% } %>
       </ul>
     </div>
   </div>

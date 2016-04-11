@@ -1973,11 +1973,17 @@ while (($node1,$card1,$port1,$node2,$card2,$port2) =
 	}
 
 	# This comes from the switch info, unless its a direct link
-	# between two nodes; use ethernet in this case.
+	# between two nodes.  Default to ethernet in the direct case unless
+	# there's an LTE interface.
 	my $basetype;
 
 	if (!defined($switchobj)) {
-	    $basetype = "ethernet";
+	    if( $interfacetypes{ "$node1:$card1:$port1" } eq "P2PLTE" ||
+		$interfacetypes{ "$node2:$card2:$port2" } eq "P2PLTE" ) {
+		$basetype = "P2PLTE";
+	    } else {
+		$basetype = "ethernet";
+	    }
 	}
 	elsif ($switchobj->NodeTypeAttribute("forwarding_protocols",
 					     \$basetype) ||

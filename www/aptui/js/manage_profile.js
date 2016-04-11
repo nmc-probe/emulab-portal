@@ -227,17 +227,21 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    // is no script.
 	    //
 	    var source = $.trim($('#profile_script_textarea').val());
-	    var href   = "show-profile.php?uuid=" + profile_uuid;
+	    var type   = "source";
 	    
 	    if (!source.length) {
 		source = $.trim($('#profile_rspec_textarea').val());
+		type = "rspec";
+	    }
+	    if (profile_uuid) {
 		$('#rspec_modal_download_button')
-		    .attr("href", href + "&rspec=true");
+		    .attr("href",
+			  "show-profile.php?uuid=" + profile_uuid +
+			  "&" + type + "=true");
 	    }
 	    else {
-		$('#rspec_modal_download_button')
-		    .attr("href", href + "&source=true");
-	    }
+		$('#rspec_modal_download_button').addClass("hidden");
+	    }	    
 	    $('#rspec_modal_upload_span').removeClass("hidden");
 	    $('#rspec_modal_editbuttons').removeClass("hidden");
 	    $('#rspec_modal_viewbuttons').addClass("hidden");
@@ -254,10 +258,16 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    // XML, but it is not intended to be edited.
 	    //
 	    var source = $.trim($('#profile_rspec_textarea').val());
-	    var href   = "show-profile.php?uuid=" + profile_uuid +
-		"&rspec=true";
-	    $('#rspec_modal_download_button')
-		.attr("href", href + "&rspec=true");
+
+	    if (profile_uuid) {
+		$('#rspec_modal_download_button')
+		    .attr("href",
+			  "show-profile.php?uuid=" + profile_uuid +
+			  "&rspec=true");
+	    }
+	    else {
+		$('#rspec_modal_download_button').addClass("hidden");
+	    }	    
 	    $('#rspec_modal_upload_span').addClass("hidden");
 	    $('#rspec_modal_editbuttons').addClass("hidden");
 	    $('#rspec_modal_viewbuttons').removeClass("hidden");

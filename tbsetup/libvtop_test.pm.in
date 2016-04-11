@@ -1892,7 +1892,7 @@ sub LoadVirtLans($)
 	$virtlan->_implemented_by($implemented_by);
 	$virtlan->_vpath(undef);
 	$virtlan->_bridged(0);
-	$virtlan->_wiretype("ethernet");
+	$virtlan->_wiretype( $protocol eq "P2PLTE" ? $protocol : "ethernet");
 	if ($vlanmember->ofenabled()) {
 	    $virtlan->_ofenabled(1);
 	    $virtlan->_ofcontroller($vlanmember->ofcontroller());
@@ -7342,7 +7342,6 @@ sub InitializePhysNode($$$)
 	# because they are now handled by tarfiles_setup
 	#
 	%nodesets = ("def_boot_cmd_line" => $cmdline,
-		     "startstatus"       => 'none',
 		     "bootstatus"        => 'unknown',
 		     # This is no longer used for anything.
 		     "deltas"            => '', 
@@ -7351,7 +7350,9 @@ sub InitializePhysNode($$$)
 		     "loadlist"          => $loadlist || '',
 		     "failureaction"     => $failureaction,
 		     "routertype"        => $routertype);
-
+	$nodesets{"startstatus"} = 'none'
+	    if (!exists($self->oldreservednodes()->{$pnodename}));
+		
 	%rsrvsets = ("vname"             => $vnodename,
 		     "erole"             => $role,
 		     "plab_role"         => $plab_role);
@@ -7359,6 +7360,7 @@ sub InitializePhysNode($$$)
 	    if (defined($inner_elab_role));
 	$rsrvsets{"sharing_mode"} = $sharing_mode
 	    if (defined($sharing_mode));
+
 
     }
     $self->printdb("InitPnode: Storing info for $pnodename,$vnodename\n");
@@ -7382,6 +7384,13 @@ sub InitializePhysNode($$$)
     }
     $pnode->ModifyReservation(\%rsrvsets) == 0
 	or return -1 if (! ($self->impotent() || $self->alloconly()));
+
+    # Do some limited early setup for UE class nodes to get necessary
+    # information into the PG manifest.
+    if ($pnode->class eq "ue") {
+	$pnode->UEConfig() == 0
+	    or return -1;
+    }
     
     #
     # Now call os_select.
@@ -8906,6 +8915,8 @@ sub UploadVlans($)
 		#
 		if (! $speed) {
 		    $speed = $self->interfacespeedmbps($interface->type(),
+						       $interface->type() eq
+						       "P2PLTE" ? "P2PLTE" :
 						       "ethernet");
 		}
 		else {

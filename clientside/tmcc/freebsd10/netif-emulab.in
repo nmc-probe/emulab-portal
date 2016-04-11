@@ -177,13 +177,14 @@ cnet_start()
 
 	#
 	# XXX yow! If we don't come up with anything, we have to reconsider
-	# some of those interface types we skipped. For now, just ix interfaces
-	# because Clemson has an ix control network.
+	# some of those interface types we skipped:
+	#  ix    because Clemson has an ix control network,
+	#  mlxen because Utah (will have) x86 Moonshot cartridges
 	#
 	if [ -z "$_ifs" ]; then
 	    for _if in $network_interfaces; do
 	    case $_if in
-	    ix[0-9])
+	    ix[01]|mlxen[01])
 		_ifs="$_ifs $_if"
 		;;
 	    *)
