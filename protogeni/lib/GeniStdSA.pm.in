@@ -47,6 +47,7 @@ use GeniSA;
 use GeniSlice;
 use GeniUser;
 use User;
+use Experiment;
 use GeniResponse;
 use GeniCredential;
 use GeniRegistry;
@@ -187,7 +188,7 @@ sub CheckSliceUrn($) {
             $error_msg = 'not a valid slice URN';
         } elsif ($s_type ne 'slice') {
             $error_msg = 'not a slice URN';
-        } elsif (!Experiment->ValidEID($s_name)) {
+        } elsif (! Experiment->ValidEID($s_name)) {
             $error_msg = 'not a valid slice urn';
         }
     }
