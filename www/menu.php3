@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -887,7 +887,7 @@ function WRITESIDEBAR() {
     if (0 && $login_user) {
 	NavMenuSection("Status", "Status");
 	
-	$freepcs = TBFreePCs();
+	$freepcs = TBFreePCs($login_user);
 	$reload  = TBReloadingPCs();
 	$users   = TBLoggedIn();
 	$active  = TBActiveExperiments();

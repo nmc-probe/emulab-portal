@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -252,7 +252,8 @@ my %curusage =
 			    "group"   =>  0},
      "nodes"    	=> {"user"    =>  0,
 			    "project" =>  0,
-			    "group"   =>  0},
+			    "group"   =>  0,
+			    "expt"   =>   0},
      # Arrays of user/project/group counts, indexed by type and class. 
      "class"		=> {},
      "type"		=> {},
@@ -277,10 +278,23 @@ sub Debug($)
 }
 
 # Update assign number.
-sub UpdateForAssign($$)
+sub UpdateForAssign($$$$)
 {
-    my ($typeclass, $count) = @_;
+    my ($policy, $typeclass, $maximum, $current) = @_;
+    my $count;
 
+    #
+    # Check for current usage by the experiment (we are a swapmod).
+    # They were allowed to swap in, but we do not want to yank them
+    # just cause a policy changed, that would be unfriendly.
+    #
+    if (exists($curusage{$policy}->{$typeclass}) &&
+	$curusage{$policy}->{$typeclass}->{'expt'}) {
+	$count = max($maximum, $curusage{$policy}->{$typeclass}->{'expt'});
+    }
+    else {
+	$count = $maximum - $current;
+    }
     $count = 0
 	if ($count < 0);
 
@@ -344,7 +358,7 @@ sub TestUserPolicy($$$$$)
 	    if (exists($curusage{"class"}->{$auxdata}));
 	
 	if ($assignflag) {
-	    UpdateForAssign($auxdata, $count - $current);
+	    UpdateForAssign($policy, $auxdata, $count, $current);
 	    return 1;
 	}
 	
@@ -376,7 +390,7 @@ sub TestUserPolicy($$$$$)
 	    if (exists($curusage{"type"}->{$auxdata}));
 
 	if ($assignflag) {
-	    UpdateForAssign($auxdata, $count - $current);
+	    UpdateForAssign($policy, $auxdata, $count, $current);
 	    return 1;
 	}
 	
@@ -469,7 +483,7 @@ sub TestGroupPolicy($$$$$$)
 	    if (exists($curusage{"class"}->{$auxdata}));
 	
 	if ($assignflag) {
-	    UpdateForAssign($auxdata, $count - $current);
+	    UpdateForAssign($policy, $auxdata, $count, $current);
 	    return 1;
 	}
 	
@@ -502,14 +516,14 @@ sub TestGroupPolicy($$$$$$)
 		    $curusage{"type"}->{$auxdata}->{'project'} :
 		    $curusage{"type"}->{$auxdata}->{'group'})
 	    if (exists($curusage{"type"}->{$auxdata}));
-	
+
 	if ($assignflag) {
-	    UpdateForAssign($auxdata, $count - $current);
+	    UpdateForAssign($policy, $auxdata, $count, $current);
 	    return 1;
 	}
 	
 	#
-	# Check first to see if the experiment even wants this class.
+	# Check first to see if the experiment even wants this type
 	#
 	return 1
 	    if (! $virt_types{$auxdata});
@@ -647,7 +661,7 @@ sub TestGlobalPolicy($$$$$)
 	      "global limit is $count");
 	
 	if ($assignflag) {
-	    UpdateForAssign($auxdata, $count - $current);
+	    UpdateForAssign($policy, $auxdata, $count, $current);
 	    return 1;
 	}
 	
@@ -692,7 +706,7 @@ sub TestGlobalPolicy($$$$$)
 	      "global limit is $count");
 	
 	if ($assignflag) {
-	    UpdateForAssign($auxdata, $count - $current);
+	    UpdateForAssign($policy, $auxdata, $count, $current);
 	    return 1;
 	}
 	
@@ -1083,7 +1097,6 @@ sub TBAdmissionControlCheck($$$)
     
     #
     # Admin people do not get checks (when in admin mode of course).
-
     #
     return 1
 	if (TBAdmin($uid));
@@ -1110,7 +1123,7 @@ sub TBAdmissionControlCheck($$$)
 
     LoadNodeTypes();
     LoadVirtNodeTypes($pid, $eid);
-    LoadCurrent($uid, $pid, $gid);
+    LoadCurrent($uid, $pid, $gid, $eid);
 
     my $rval = TestPolicies($uid, $pid, $eid, $gid);
     
@@ -1227,9 +1240,9 @@ sub LoadVirtNodeTypes($$)
 #
 # Load Current physical usage. 
 #
-sub LoadCurrent($$$)
+sub LoadCurrent($$$$)
 {
-    my ($uid, $pid, $gid) = @_;
+    my ($uid, $pid, $gid, $eid) = @_;
 
     #
     # Experiment counts,
@@ -1267,8 +1280,8 @@ sub LoadCurrent($$$)
     # Node stuff.
     #
     $query_result =
-	DBQueryFatal("select e.expt_swap_uid,e.pid,e.gid,n.type,nt.class ".
-		     "  from reserved as r ".
+	DBQueryFatal("select e.expt_swap_uid,e.pid,e.gid,n.type,nt.class, ".
+		     "  r.eid from reserved as r ".
 		     "left join nodes as n on n.node_id=r.node_id ".
 		     "left join node_types as nt on nt.type=n.type ".
 		     "left join experiments as e on ".
@@ -1280,17 +1293,19 @@ sub LoadCurrent($$$)
     return undef
 	if (!$query_result);
 
-    while (my ($c_uid,$c_pid,$c_gid,$c_type,$c_class) =
+    while (my ($c_uid,$c_pid,$c_gid,$c_type,$c_class,$r_eid) =
 	   $query_result->fetchrow_array()) {
 	if (!exists($curusage{"class"}->{$c_class})) {
 	    $curusage{"class"}->{$c_class} = {"user"    =>  0,
 					      "project" =>  0,
-					      "group"   =>  0};
+					      "group"   =>  0,
+					      "expt"    =>  0};
 	}
 	if (!exists($curusage{"type"}->{$c_type})) {
 	    $curusage{"type"}->{$c_type} = {"user"    =>  0,
 					    "project" =>  0,
-					    "group"   =>  0};
+					    "group"   =>  0,
+					    "expt"    =>  0};
 	}
 	if ($c_uid eq $uid) {
 	    $curusage{"nodes"}->{'user'} += 1;
@@ -1307,23 +1322,33 @@ sub LoadCurrent($$$)
 	    $curusage{"class"}->{$c_class}->{'group'} += 1;
 	    $curusage{"type"}->{$c_type}->{'group'} += 1;
 	}
+	if ($r_eid eq $eid) {
+	    $curusage{"nodes"}->{'expt'} += 1;
+	    $curusage{"class"}->{$c_class}->{'expt'} += 1;
+	    $curusage{"type"}->{$c_type}->{'expt'} += 1;
+	}
     }
     if ($debug) {
-	printf("Node usage: user:%d, project:%d, group:%d\n",
+	printf("Node usage: user:%d, project:%d, group:%d, expt:%d\n",
 	       $curusage{"nodes"}->{'user'},
 	       $curusage{"nodes"}->{'project'},
-	       $curusage{"nodes"}->{'group'});
+	       $curusage{"nodes"}->{'group'},
+	       $curusage{"nodes"}->{'expt'});
 	foreach my $class (keys(%{$curusage{"class"}})) {
-	    printf("Node class usage: $class user:%d, project:%d, group:%d\n",
+	    printf("Node class usage: ".
+		   "$class user:%d, project:%d, group:%d, expt:%d\n",
 		   $curusage{"class"}->{$class}->{'user'},
 		   $curusage{"class"}->{$class}->{'project'},
-		   $curusage{"class"}->{$class}->{'group'});
+		   $curusage{"class"}->{$class}->{'group'},
+		   $curusage{"class"}->{$class}->{'expt'});
 	}
 	foreach my $type (keys(%{$curusage{"type"}})) {
-	    printf("Node type usage: $type user:%d, project:%d, group:%d\n",
+	    printf("Node type usage: ".
+		   "$type user:%d, project:%d, group:%d, expt:%d\n",
 		   $curusage{"type"}->{$type}->{'user'},
 		   $curusage{"type"}->{$type}->{'project'},
-		   $curusage{"type"}->{$type}->{'group'});
+		   $curusage{"type"}->{$type}->{'group'},
+		   $curusage{"type"}->{$type}->{'expt'});
 	}
     }
     

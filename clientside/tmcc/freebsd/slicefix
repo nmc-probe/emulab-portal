@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -148,6 +148,18 @@ fi
 # NOTE: we change "sio" to "sio1" and "vga" to "vid" for convenience later
 #
 CONSOLE=${SLICEFIX_CONSOLE:-'unknown'}
+
+# If CONSOLE has optional ",speed" parse it off and use that, ow 115200.
+case $CONSOLE in
+*,*)
+    SPEED=${CONSOLE##*,}
+    CONSOLE=${CONSOLE%%,*}
+    ;;
+*)
+    SPEED=115200
+    ;;
+esac
+
 case $CONSOLE in
 sio)
     CONSOLE=sio1
@@ -181,6 +193,7 @@ if [ $CONSOLE = "unknown" ]; then
     echo "WARNING: console type not set, assuming \"sio1\""
     CONSOLE=sio1
 fi
+
 # DOM0MEM is optional
 DOM0MEM=$SLICEFIX_DOM0MEM
 
@@ -260,7 +273,7 @@ dofreebsd() {
 	#
 	# This is clearly not a solution.
 	#
-	vers=`uname -v | sed -e 's/FreeBSD \([0-9]\).*/\1/'`
+	vers=`uname -v | sed -e 's/FreeBSD \([0-9][0-9]*\).*/\1/'`
 
 	# see if there is a root ('a') partition on this BSD slice
 	`disklabel ${disk}s${part} 2>&1 | grep -s -E '^[ ]+a:' >/dev/null` || {
@@ -687,15 +700,12 @@ EOF1
 		    fi
 		fi
 
-		# XXX should be passed in
-		speed=115200
-
 		# only change things if there were hints found
 		if [ $drv != "none" ]; then
 		    # put in the new info
 		    cat <<EOF2 >>/mnt/boot/loader.conf
 comconsole_port="$port"
-comconsole_speed="$speed"
+comconsole_speed="$SPEED"
 hint.$drv.0.flags="0x0"
 hint.$drv.1.flags="0x0"
 hint.$drv.2.flags="0x0"
@@ -873,6 +883,12 @@ dolinux() {
 		dunit=`echo $disk | sed -e 's/ada\([0-9][0-9]*\)$/\1/'`
 		lrootdev="8${dunit}${part}"
 		;;
+	# NVM disks
+	nvd[0-9])
+		dtype="sd"
+		dunit=`echo $disk | sed -e 's/nvd\([0-9][0-9]*\)$/\1/'`
+		lrootdev="8${dunit}${part}"
+		;;
 	# SCSI
 	da[0-7])
 		dtype="sd"
@@ -985,6 +1001,7 @@ dolinux() {
 	
 	#
 	# If there's a GRUB config file, update all root=X kernel params.
+	# Also fix up console parameters.
 	#
 	needfsck=0
 	fgconf=""
@@ -1082,6 +1099,7 @@ dolinux() {
 
 	    #
 	    # Console.
+	    #
 	    # For vid or null, comment out terminal/serial lines and
 	    # fix up any terminal_{input,output} lines (for grub2).
 	    #
@@ -1147,8 +1165,7 @@ dolinux() {
 		;;
 	    sio*)
 		u=`expr ${CONSOLE#sio} - 1`
-		# XXX should be passed in
-		s=115200
+		s=$SPEED
 
 		# put back the "serial" line
 		sstr="serial --unit=$u --speed=$s"
@@ -1231,6 +1248,60 @@ dolinux() {
 		fi
 		rm -f $tgconf
 	    fi
+	fi
+
+	#
+	# Handle default settings file for grub since package installation
+	# might cause the grub.cfg file to get recreated.
+	#
+	# We just append variable definitions to the end of the file and
+	# override any existing settings. This would only adversely affect the
+	# GRUB_CMDLINE_LINUX param if it was being used for some other options.
+	# For vid or null we add:
+	#
+	# GRUB_CMDLINE_LINUX="console=tty0"
+	# GRUB_TERMINAL=console
+	# GRUB_SERIAL_COMMAND=""
+	#
+	# and for sio[1-3] we add:
+	#
+	# GRUB_CMDLINE_LINUX="console=ttySN,S"
+	# GRUB_TERMINAL=serial
+	# GRUB_SERIAL_COMMAND="serial --speed=S --unit=N"
+	#
+	gdef="/mnt/etc/default/grub"
+	if [ -e "$gdef" ]; then
+	    echo "  updating /etc/default/grub"
+	    echo "    setting console to $CONSOLE"
+	    esig="# The remaining lines were added by Emulab slicefix"
+	    if ! grep -q "^$esig" $gdef; then
+		cp -p $gdef $gdef.preemulab
+	    else
+		sed -i '' -e "/^$esig/,$$d" $gdef
+	    fi
+	    cat <<EOF5 >>$gdef
+$esig
+# DO NOT ADD ANYTHING AFTER THIS POINT AS IT WILL GET REMOVED.
+EOF5
+	    case $CONSOLE in
+	    null|vid)
+		cat <<EOF6 >>$gdef
+GRUB_CMDLINE_LINUX="console=tty0"
+GRUB_TERMINAL=console
+GRUB_SERIAL_COMMAND=""
+EOF6
+		;;
+	    sio*)
+		u=`expr ${CONSOLE#sio} - 1`
+		s=$SPEED
+		cat <<EOF7 >>$gdef
+GRUB_CMDLINE_LINUX="console=ttyS$u,$s"
+GRUB_TERMINAL=serial
+GRUB_SERIAL_COMMAND="serial --speed=$s --unit=$u"
+EOF7
+		;;
+	    esac
+	    needfsck=1
 	fi
 
 	#

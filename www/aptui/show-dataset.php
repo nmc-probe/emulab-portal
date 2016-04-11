@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -147,16 +147,15 @@ if ($cansnapshot && !$embedded) {
         $instance     = Instance::Lookup($row["uuid"]);
         $profile      = Profile::Lookup($instance->profile_id(),
                                         $instance->profile_version());
-        $instance_array[] =
-            array("uuid" => $instance->uuid(), "name" => $profile->name());
+        if ($instance && $profile) {
+            $instance_array[] =
+                array("uuid" => $instance->uuid(), "name" => $profile->name());
+        }
     }
     echo "<script type='text/plain' id='instances-json'>\n";
     echo htmlentities(json_encode($instance_array));
     echo "</script>\n";
 }
-
-SpitOopsModal("oops");
-SpitWaitModal("waitwait");
 
 echo "<script type='text/javascript'>\n";
 echo "    window.TITLE      = '$page_title';\n";

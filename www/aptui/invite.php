@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -25,6 +25,7 @@ chdir("..");
 include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
+$page_title = "Invite a User";
 
 #
 # Get current user.

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -46,6 +46,7 @@ use GeniAggregate;
 use GeniUsage;
 use GeniHRN;
 use GeniXML;
+use GeniEvent;
 use emutil;
 use Node;
 use English;
@@ -141,7 +142,6 @@ sub Lookup($$)
     $self->{'AGGREGATE'}   = undef;	# server
     $self->{'RSPEC'}       = undef;	# server
     $self->{'CERTIFICATE'} = undef;
-    $self->{'RAWSTATE'}    = undef;
 
     my $rspec_string = $self->{'SLIVER'}->{'rspec_string'};
     if (defined($rspec_string) && $rspec_string ne "") {
@@ -191,6 +191,16 @@ sub Stringify($)
     my $idx  = $self->idx();
 
     return "[GeniSliver: $uuid, IDX: $idx]";
+}
+
+#
+# Flush from our little cache, as for the expire daemon.
+#
+sub Flush($)
+{
+    my ($self) = @_;
+
+    delete($slivers{$self->idx()});
 }
 
 #
@@ -301,7 +311,6 @@ sub aggregate_uuid($)	{ return field($_[0], "aggregate_uuid"); }
 sub rspec_string($)     { return field($_[0], "rspec_string"); }
 sub status($)		{ return field($_[0], "status"); }
 sub state($)		{ return field($_[0], "state"); }
-sub rawstate($)		{ return $_[0]->{'RAWSTATE'}; }
 sub ErrorLog($)		{ return field($_[0], "errorlog"); }
 sub cert($)		{ return GetCertificate($_[0])->cert(); }
 sub rspec($)            { return $_[0]->{'RSPEC'}; }
@@ -533,6 +542,14 @@ sub SetState($$)
 }
 
 #
+# Generate the blob for status. Redefined below.
+#
+sub GenerateStatusBlob($)
+{
+    return undef;
+}
+
+#
 # And the ErrorLog. These are intended to be short ...
 #
 sub SetErrorLog($$)
@@ -687,6 +704,7 @@ use GeniCertificate;
 use GeniUtil;
 use emutil;
 use XML::Simple;
+use Data::Dumper;
 use libdb qw(TBDB_ALLOCSTATE_RES_INIT_DIRTY TBDB_NODESTATE_SHUTDOWN
 	     TBResolveNextOSID TBDB_NODESTATE_ISUP TBDB_NODESTATE_TBFAILED
              TBDB_NODESTATE_RELOADFAILED TBDB_NODESTATE_PXEWAIT);
@@ -786,6 +804,7 @@ sub AnnotateManifest($)
 	print STDERR "Could not map node $self to its object\n";
 	return undef;
     }
+    my $vname = $node->vname();
     my $user = GeniUser->Lookup($self->creator_uuid(), 1);
     if (!defined($user)) {
 	print STDERR "Could not map sliver $self to its creator\n";
@@ -803,21 +822,31 @@ sub AnnotateManifest($)
     my $vhostname     = GeniUtil::FindVHostname($experiment, $node);
     my $component_urn = GeniHRN::Generate("@OURDOMAIN@", "node",
 					  $node->phys_nodeid());
+    my $ipv4;
     
     if ($node->isvirtnode()) {
-	my $vname = $node->vname();
 	my $public_control;
 	$experiment->GetVirtNodeAttribute( $vname, "routable_control_ip",
 					   \$public_control );
 	if( defined( $public_control ) && $public_control eq "true" ) {
 	    # we've assigned a public address to this one
 	    $sshdhost = $hostname;
+
+	    my $interface = Interface->LookupControl($node);
+	    $ipv4 = $interface->IP()
+		if (defined($interface));
+	    
 	} else {
 	    # this node has no public control address of its own -- give the
 	    # sshd port on the physical host's address
 	    $sshdport = $node->sshdport();
 	    $sshdhost = GeniUtil::FindHostname($node->phys_nodeid());
 	}
+    }
+    else {
+	my $interface = Interface->LookupControl($node);
+	$ipv4 = $interface->IP()
+	    if (defined($interface));
     }
 
     #
@@ -838,6 +867,8 @@ sub AnnotateManifest($)
 	    $host = GeniXML::AddElement("host", $rspec);
 	}
 	GeniXML::SetText("name", $host, $vhostname);
+	GeniXML::SetText("ipv4", $host, $ipv4)
+	    if (defined($ipv4));
     }
     my $services = GeniXML::FindFirst("n:services", $rspec);
     
@@ -885,6 +916,28 @@ sub AnnotateManifest($)
 			 (defined($tipserver) ? $tipserver : $sshdhost));
     }
 
+    my $adb_port;
+    $experiment->GetVirtNodeAttribute( $vname, "adb_port",
+				       \$adb_port );
+    GeniXML::SetText( "adb_port", $rspec, $adb_port )
+	if( defined( $adb_port ) );
+    
+    my $adb_target;
+    $experiment->GetVirtNodeAttribute( $vname, "adb_target",
+				       \$adb_target );
+    GeniXML::SetText( "adb_target", $rspec, $adb_target )
+	if( defined( $adb_target ) );
+
+    my $sim_sequence_number;
+    $node->NodeAttribute( "sim_sequence_number", \$sim_sequence_number );
+    GeniXML::SetText( "sim_sequence_number", $rspec, $sim_sequence_number )
+	if( defined( $sim_sequence_number ) );
+    
+    my $sim_imsi;
+    $node->NodeAttribute( "sim_imsi", \$sim_imsi );
+    GeniXML::SetText( "sim_imsi", $rspec, $sim_imsi )
+	if( defined( $sim_imsi ) );
+    
     if ($self->UpdateRspec($rspec)) {
 	print STDERR "Could not insert annotated manifest for node $self ".
 	    "into database";
@@ -1305,7 +1358,7 @@ sub Stop($$)
     return 0;
 }
 
-sub ComputeStatus($$)
+sub ComputeStatus($;$)
 {
     my ($self, $pref) = @_;
     my $status = undef;
@@ -1318,7 +1371,8 @@ sub ComputeStatus($$)
     # but if the node actually came up okay later, we set it back to okay.
     #
     if ($self->status() eq "broken" || $self->status() eq "canceled") {
-	$$pref = "failed";
+	$$pref = "failed"
+	    if ($pref);
 	return 0;
     }
 
@@ -1335,8 +1389,6 @@ sub ComputeStatus($$)
 	print STDERR "$node was already released from $self\n";
 	return -1;
     }
-    # Stash this away. 
-    $self->{'RAWSTATE'} = $node->eventstate();
     
     #
     # Special state for updating user accounts. We never go into the
@@ -1353,7 +1405,7 @@ sub ComputeStatus($$)
 	    $self->SetState("started");
 	}
     }
-    elsif ($self->state() eq "imaging") {
+    if ($self->state() eq "imaging") {
 	$status = "changing";
 	goto done;
     }
@@ -1400,8 +1452,144 @@ sub ComputeStatus($$)
     }
   done:
     $self->SetStatus($status);
-    $$pref = $status;
+    $$pref = $status
+	if (defined($pref));
     return 0;
+}
+
+#
+# Set the status for the sliver.
+#
+sub SetStatus($$)
+{
+    my ($self, $status) = @_;
+    my $idx = $self->idx();
+
+    #
+    # We want to know if the DB actually changed, and if so, we send
+    # out an event indicating a change.
+    #
+    my $query_result =
+	DBQueryWarn("update geni_slivers set status='$status' ".
+		    "where idx='$idx' and status!='$status'");
+    return -1
+	if (!$query_result);
+    
+    $self->{'SLIVER'}->{'status'} = $status;
+    # No change.
+    return 0
+	if (!$query_result->affectedrows);
+
+    return $self->SendStatusEvent();
+}
+
+#
+# Set the state for the sliver.
+#
+sub SetState($$)
+{
+    my ($self, $state) = @_;
+    my $idx = $self->idx();
+
+    #
+    # We want to know if the DB actually changed, and if so, we send
+    # out an event indicating a change. It would not be incorrect, but
+    # lets avoid the extra noise.
+    #
+    my $query_result =
+	DBQueryWarn("update geni_slivers set state='$state' ".
+		    "where idx='$idx' and state!='$state'");
+    return -1
+	if (!$query_result);
+    
+    $self->{'SLIVER'}->{'state'} = $state;
+    # No change.
+    return 0
+	if (!$query_result->affectedrows);
+    
+    return $self->SendStatusEvent();
+}
+
+#
+# Send a status event. The status might not be any different then the last
+# time we sent it; it is up to the consumer to deal with that. 
+#
+sub SendStatusEvent($)
+{
+    my ($self) = @_;
+
+    my $slice = $self->GetSlice();
+    return -1
+	if (!defined($slice));
+
+    my $blob = $self->GenerateStatusBlob();
+    if (defined($blob)) {
+	GeniEvent->SendEvent({"type"    => "SLIVERSTATUS",
+			      "slice"   => $slice->urn(),
+			      "urn"     => $self->sliver_urn(),
+			      "details" => $blob});
+    }
+    return 0;
+}
+
+#
+# Generate the blob for status. 
+#
+sub GenerateStatusBlob($)
+{
+    my ($self) = @_;
+
+    my $sliver_urn    = $self->sliver_urn();
+    my $resource_id   = $self->resource_id();
+    my $state         = $self->state();
+    my $status        = $self->status();
+    my $nickname      = $self->nickname() || "";
+
+    my $node = Node->LookupSync($resource_id);
+    if (!defined($node)) {
+	print STDERR "Could not map node $resource_id to its object\n";
+	return -1;
+    }
+    my $nodestatus    = $node->GetStatus() || "unknown";
+
+    # New is the same as stopped. Separate state is handy.
+    $state = "stopped"
+	if ($state eq "new");
+
+    my $blob = {
+	"component_urn" => $resource_id,
+	"client_id"     => $nickname,
+	"state"         => $state,
+	"status"        => $status,
+	# We do not put this unless its for SliverStatus. Too big.
+	"error"         => "",
+	"rawstate"      => $node->eventstate(),
+	"nodestatus"    => $nodestatus,
+	"utc"           => time(),
+    };
+
+    #
+    # Startup command info.
+    #
+    if (defined($node) &&
+	defined($node->startupcmd()) && $node->startupcmd() ne "") {
+	if (defined($node->startstatus()) &&
+	    $node->startstatus() ne "none") {
+	    $blob->{'execute_state'}   = "exited";
+	    $blob->{'execute_status'}  = $node->startstatus();
+	}
+	else {
+	    if ($node->eventstate() eq "ISUP") {
+		$blob->{'execute_state'}   = "running";
+		$blob->{'execute_status'}  = "unknown";
+	    }
+	    else {
+		$blob->{'execute_state'}   = "n/a";
+		$blob->{'execute_status'}  = "n/a";
+	    }
+	}
+    }
+    return $blob;
 }
 
 ##########################################################################

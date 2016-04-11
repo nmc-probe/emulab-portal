@@ -38,7 +38,9 @@ www_apache22_SET=	SUEXEC
 BATCH=		yes
 .MAKEFLAGS+=	-DBATCH
 
-LIB_DEPENDS= libxml2.so:${PORTSDIR}/textproc/libxml2
+LIB_DEPENDS=	\
+	libabac.so:${PORTSDIR}/misc/abac \
+	libxml2.so:${PORTSDIR}/textproc/libxml2
 
 # apps
 RUN_DEPENDS+=	\
@@ -63,7 +65,9 @@ RUN_DEPENDS+=	\
 
 # apache related ports
 RUN_DEPENDS+=	\
-	${LOCALBASE}/libexec/apache22/mod_wsgi.so:${PORTSDIR}/www/mod_wsgi3
+	${LOCALBASE}/libexec/apache22/mod_wsgi.so:${PORTSDIR}/www/mod_wsgi4 \
+	${LOCALBASE}/libexec/apache22/mod_fcgid.so:${PORTSDIR}/www/mod_fcgid \
+	p5-FCGI>=0.74:${PORTSDIR}/www/p5-FCGI
 
 USE_PERL5=	yes
 USES=		python:2.7

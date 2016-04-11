@@ -584,7 +584,7 @@ function VerifyPageArguments($argspec, $required)
 		$yep    = 1;
 
 		if (ValidateArgument($name, PAGEARG_UUID, $imageid, 0)) {
-		    $object = Image::LookupByUUID($imageid);
+		    $object = Image::LookupByUUID($imageid, $version);
 		}
 		elseif (ValidateArgument($name, PAGEARG_IMAGE, $imageid)) {
 		    $object = Image::Lookup($imageid, $version);

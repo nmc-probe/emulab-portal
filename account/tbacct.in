@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -42,15 +42,16 @@ use Getopt::Std;
 #
 sub usage()
 {
-    print("Usage: tbacct [-f] [-b] [-u] ".
+    print("Usage: tbacct [-f] [-b] [-u] [-v] ".
 	  "<add|del|mod|passwd|wpasswd|email|freeze|thaw|verify|revoke|dots> ".
 	  "<user> [args]\n");
     exit(-1);
 }
-my $optlist = "fbu";
+my $optlist = "fbuv";
 my $force   = 0;
 my $batch   = 0;
 my $update  = 0;
+my $verified= 0;
 
 #
 # Configure variables
@@ -69,6 +70,7 @@ my $BUGDBSUPPORT= @BUGDBSUPPORT@;
 my $OPSDBSUPPORT= @OPSDBSUPPORT@;
 my $CHATSUPPORT = @CHATSUPPORT@;
 my $MAILMANSUPPORT= @MAILMANSUPPORT@;
+my $EXPIRE_PASSWORDS = @EXPIRE_PASSWORDS@;
 my $THISHOMEBASE= "@THISHOMEBASE@";
 my $PROTOUSER   = 'elabman';
 my $ELABINELAB  = @ELABINELAB@;
@@ -202,6 +204,9 @@ if (defined($options{"b"})) {
 }
 if (defined($options{"u"})) {
     $update = 1;
+}
+if (defined($options{"v"})) {
+    $verified = 1;
 }
 if (@ARGV < 2) {
     usage();
@@ -678,7 +683,7 @@ sub UpdatePassword()
     if (! $target_user->SameUser($this_user)) {
 	$expires = "now()";
     }
-    else {
+    elsif ($EXPIRE_PASSWORDS) {
 	$expires = "date_add(now(), interval 1 year)";
     }
 
@@ -926,7 +931,7 @@ sub UpdateEmail()
     #
     # Only admin people can do this.
     #
-    if (! TBAdmin($UID)) {
+    if (!TBAdmin($UID) && !$verified) {
 	fatal("You do not have permission to update email for user $user.");
     }
 

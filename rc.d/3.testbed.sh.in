@@ -107,6 +107,11 @@ case "$1" in
 			@prefix@/sbin/protogeni/ch_daemon
 		fi
 
+		if [ -x @prefix@/sbin/protogeni/igevent_daemon ]; then
+			echo -n " igevent_daemon"
+			@prefix@/sbin/protogeni/igevent_daemon
+		fi
+
 		if [ -x @prefix@/sbin/checknodes_daemon  ]; then
 			echo -n " checknodes_daemon"
 			@prefix@/sbin/checknodes_daemon
@@ -137,17 +142,22 @@ case "$1" in
 			@prefix@/sbin/apt_daemon
 		fi
 
-		if [ -n "@ATTENUATOR@" -a -x @prefix@/sbin/attend ]; then
-			echo -n " attend"
-			@prefix@/sbin/attend &
+		if [ -x @prefix@/sbin/aptevent_daemon ]; then
+			echo -n " aptevent_daemon"
+			@prefix@/sbin/aptevent_daemon
 		fi
 
-		if /usr/local/bin/mysql monitoring < /dev/null; then
-			if [ -x @prefix@/sbin/protogeni/mondbd; then
+		if [ -n "@ATTENUATOR@" -a -x @prefix@/sbin/attend ]; then
+			echo -n " attend"
+			@prefix@/sbin/attend
+		fi
+
+		if /usr/local/bin/mysql monitoring </dev/null >/dev/null 2>&1; then
+			if [ -x @prefix@/sbin/protogeni/mondbd ]; then
 			       echo -n " mondbd"
 			       @prefix@/sbin/protogeni/mondbd
 			fi
-			if [ -x @prefix@/sbin/protogeni/shared-node-listener; then
+			if [ -x @prefix@/sbin/protogeni/shared-node-listener ]; then
 			       echo -n " shared-node-listener"
 			       @prefix@/sbin/protogeni/shared-node-listener &
 			fi
@@ -217,6 +227,9 @@ case "$1" in
 		if [ -r /var/run/ch_daemon.pid ]; then
 			kill `cat /var/run/ch_daemon.pid`
 		fi
+		if [ -r /var/run/igevent_daemon.pid ]; then
+			kill `cat /var/run/igevent_daemon.pid`
+		fi
 		if [ -r /var/run/checknodes.pid ]; then
 			kill `cat /var/run/checknodes.pid`
 		fi
@@ -240,6 +253,9 @@ case "$1" in
 		fi
 		if [ -r /var/run/apt_daemon.pid ]; then
 			kill `cat /var/run/apt_daemon.pid`
+		fi
+		if [ -r /var/run/aptevent_daemon.pid ]; then
+			kill `cat /var/run/aptevent_daemon.pid`
 		fi
 		if [ -r /var/run/attend.pid ]; then
 			kill `cat /var/run/attend.pid`

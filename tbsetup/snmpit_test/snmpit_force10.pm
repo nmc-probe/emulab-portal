@@ -60,42 +60,56 @@ my $ChassisInfo = {
         "maxPortsPerModule"     => 48,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 224, # Number of bits per module
 	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 0,   # Nybble-per-phy-port PortSet encoding
     },
     "force10e1200" => {
         "moduleSlots"           => 14,  # Max # of modules in chassis
         "maxPortsPerModule"     => 48,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 96,  # Number of bits per module
 	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 0,   # Nybble-per-phy-port PortSet encoding
     },
     "force10s55" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 64,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 768, # Number of bits per module
 	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 0,   # Nybble-per-phy-port PortSet encoding
     },
     "force10-z9000" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 128, # Max # of ports in any module
         "bitmaskBitsPerModule"  => 1024, # Number of bits per module
 	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 0,   # Nybble-per-phy-port PortSet encoding
     },
     "force10-z9500" => {
         "moduleSlots"           => 3,   # Max # of modules in chassis
         "maxPortsPerModule"     => 192, # Max # of ports in any module
         "bitmaskBitsPerModule"  => 192, # Number of bits per module
 	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 0,   # Nybble-per-phy-port PortSet encoding
     },
     "force10-s6000" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 128, # Max # of ports in any module
         "bitmaskBitsPerModule"  => 1024, # Number of bits per module
 	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 0,   # Nybble-per-phy-port PortSet encoding
     },
     "force10-s3048" => {
         "moduleSlots"           => 1,   # Max # of modules in chassis
         "maxPortsPerModule"     => 52,  # Max # of ports in any module
         "bitmaskBitsPerModule"  => 1024, # Number of bits per module
 	"zeroBased"             => 0,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 0,   # Nybble-per-phy-port PortSet encoding
+    },
+    "force10-z9100" => {
+        "moduleSlots"           => 1,   # Max # of modules in chassis
+        "maxPortsPerModule"     => 128, # Max # of ports in any module
+        "bitmaskBitsPerModule"  => 512, # Number of bits per module
+	"zeroBased"             => 1,   # Whether ports/mods are 0 or 1-based
+	"nybbleEncoded"         => 1,   # Nybble-per-phy-port PortSet encoding
     },
 };
 
@@ -340,6 +354,19 @@ sub readifIndex($) {
 	    my $type = $1;
 	    my $module = $2;
 	    my $port = defined($4) ? $4 : $3;
+	    # Handle nybble-based encoding. I've only seen this on
+	    # Z9100 switches so far.  The port numbering scheme on the
+	    # z9100 is also one-based, but that doesn't work well when
+	    # converting to this nybble scheme, so just force to
+	    # zero-based. The DB must list these ports according to
+	    # the converted value anyway (vs. what the switch reports
+	    # directly).
+	    if ($ChassisInfo->{$self->{TYPE}}->{nybbleEncoded} == 1) {
+		my $base   = (int($3) - 1)*4;
+		my $offset = defined($4) ? (int($4) - 1) : 0;
+		$port = $base + $offset;
+		$module--; # Force module to be zero-based.
+	    }
 	    # Note: Some Force10 switches (versions?) use zero-based
 	    #       modules and ports, while others use 1-based. The
 	    #       "ChassisInfo" defs above have a variable that
@@ -1873,10 +1900,20 @@ sub getChannelIfIndex($@) {
 	    # Chop up membership list into individual members.  The stupid
 	    # thing is returned as a string that looks like this:
 	    # "Fo 0/52 Fo 0/56 ...". So, we must hop over the port type
-	    # identifiers, and grab the port numbers.
+	    # identifiers, and grab the port numbers. Do the nybble conversion 
+	    # nonsense if necessary on this switch.
 	    my @elements = split(/\s+/, $members);
 	    for (my $i = 0; $i < @elements; $i += 2) {
-		my $membmodport = join(".", split(/\//, $elements[$i+1]));
+		my @melts = split(/\//, $elements[$i+1]);
+		my $membmodport;
+		if ($ChassisInfo->{$self->{TYPE}}->{nybbleEncoded} == 1) {
+		    my $mod = int($melts[0]) - 1;
+		    my $subport = defined($melts[2]) ? (int($melts[2]) - 1) : 0;
+		    my $port = ($melts[1] - 1)*4 + $subport;
+		    $membmodport = "$mod.$port";
+		} else {
+		    $membmodport = join(".", @melts);
+		}
 		foreach my $modport (@modports) {
 		    if ($modport eq $membmodport && 
 			exists($self->{POIFINDEX}{"Po$channelid"})) {
@@ -2078,6 +2115,9 @@ sub createOFVlan($$$) {
     my $vlan_id = shift;
     my $vlan_number = shift;
     my $ofid = -1;
+    my $id = "$self->{NAME}::createOFVlan";
+
+    $self->debug("$id: Creating OF-enabled VLAN ($vlan_number)\n");
 
     # Find a free OFID
     my $ofmap = $self->getOFInstances();

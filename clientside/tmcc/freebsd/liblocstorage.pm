@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013-2015 University of Utah and the Flux Group.
+# Copyright (c) 2013-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -73,6 +73,12 @@ my $ZFS		= "/sbin/zfs";
 
 my $TUNEFS	= "/sbin/tunefs";
 my $EXT_TUNEFS	= "/usr/local/sbin/tune2fs";
+
+#
+# Force the use of GVINUM.
+# XXX mostly for testing.
+#
+my $USE_GVINUM	= 0;
 
 #
 # We orient the FS blocksize toward larger files.
@@ -454,6 +460,27 @@ sub get_zpool_datasets($)
 }
 
 #
+# Return a list of names of active (mounted) datasets in the given pool.
+# Returns an empty list if there is not such pool or no datasets.
+#
+sub get_zpool_active_datasets($)
+{
+    my ($pool) = @_;
+    my @dsets = ();
+
+    if (open(FD, "$ZFS get -Hr -o name,value mounted $pool 2>/dev/null|")) {
+	while (<FD>) {
+	    if (/^($pool\/\S+)\s+yes/) {
+		push(@dsets, $1);
+	    }
+	}
+	close(FD);
+    }
+
+    return @dsets;
+}
+
+#
 # Returns 1 if the volume manager has been initialized.
 # For ZFS this means that the "emulab" zpool exists.
 # For gvinum this means that the emulab_* drives exist.
@@ -464,6 +491,15 @@ sub is_lvm_initialized($)
 
     if ($usezfs) {
 	if (mysystem("$ZPOOL list emulab >/dev/null 2>&1") == 0) {
+	    return 1;
+	}
+
+	#
+	# zpool may not exist if we are rebooting after a "reset";
+	# in that case the pool will have been exported.
+	# Try an import to bring it back.
+	#
+	if (mysystem("$ZPOOL import emulab >/dev/null 2>&1") == 0) {
 	    return 1;
 	}
     } else {
@@ -625,6 +661,7 @@ sub get_diskinfo($)
     #
     if ($usezfs) {
 	my @vdevs = get_zpool_vdevs("emulab");
+
 	foreach my $dev (@vdevs) {
 	    if (exists($geominfo{$dev}) && $geominfo{$dev}{'type'} eq "DISK") {
 		$geominfo{$dev}{'inuse'} = 1;
@@ -692,9 +729,9 @@ sub get_diskinfo($)
 # See if this is a filesystem type we can deal with.
 # If so, return the type suitable for use by fsck and mount.
 #
-sub get_fstype($$;$)
+sub get_fstype($$;$$)
 {
-    my ($href,$dev,$rwref) = @_;
+    my ($href,$dev,$rwref,$silent) = @_;
     my $type = "";
 
     #
@@ -767,16 +804,68 @@ sub get_fstype($$;$)
 	if ($rwref) {
 	    $$rwref = 0;
 	}
-	if ($FBSD_VERSION < 10) {
-	    return undef;
+	if ($FBSD_VERSION >= 10) {
+	    return "ext2fs";
 	}
-	return "ext2fs";
     }
 
+    if (!$silent) {
+	my $lv = $href->{'VOLNAME'};
+	if ($type) {
+	    warn("*** $lv: unsupported FS ($type) on $dev\n");
+	} else {
+	    warn("*** $lv: unknown or no FS on $dev\n");
+	}
+    }
     if ($rwref) {
 	$$rwref = 0;
     }
     return undef;
+}
+
+#
+# Check that the device for a blockstore has a valid filesystem by
+# fscking it. If $fixit is zero, run the fsck RO just to report if
+# the filesystem is there and consistent, otherwise attempt to fix it.
+# $redir is a redirect string for output of the fsck command.
+#
+# Returns 1 if all is well, 0 otherwise.
+#
+sub checkfs($$$)
+{
+    my ($href,$fixit,$redir) = @_;
+    my $lv = $href->{'VOLNAME'};
+    my $mdev = $href->{'LVDEV'};
+
+    # determine the filesystem type
+    my $fstype = get_fstype($href, $mdev);
+    if (!$fstype) {
+	return 0;
+    }
+
+    my $fopt = "-p";
+    if (!$fixit || $href->{'PERMS'} eq "RO") {
+	$fopt = "-n";
+    }
+
+    #
+    # Note that we invoke EXT fsck directly as the FBSD 10.x
+    # era port does not install everything correctly for use
+    # by "fsck -t ext2fs".
+    #
+    my $FSCK = $BSD_FSCK;
+    if ($fstype eq "ext2fs" && -x "$EXT_FSCK") {
+	$FSCK = $EXT_FSCK;
+    } else {
+	$fopt .= " -t $fstype";
+    }
+
+    if (mysystem("$FSCK $fopt $mdev $redir")) {
+	warn("*** $lv: fsck of $mdev failed\n");
+	return 0;
+    }
+
+    return 1;
 }
 
 #
@@ -844,7 +933,7 @@ sub os_init_storage($)
 
 	# we use ZFS only on 64-bit versions of the OS
 	my $usezfs = 0;
-	if (-x "$ZPOOL") {
+	if (!$USE_GVINUM && -x "$ZPOOL") {
 	    my $un = `uname -rm`;
 	    if ($un =~ /^(\d+)\.\S+\s+(\S+)/) {
 		$usezfs = 1 if ($1 >= 8 && $2 eq "amd64");
@@ -1132,34 +1221,26 @@ sub os_check_storage_element($$)
 	#
 	my $mpoint = $href->{'MOUNTPOINT'};
 	if ($mpoint) {
-	    my $line = `$MOUNT | grep '^/dev/$dev on '`;
-	    if (!$line) {
-		my $mopt = "";
-		my $fopt = "-p";
+	    my $mdev = $href->{'LVDEV'};
+	    my $mopt = "";
 
+	    my $line = `$MOUNT | grep '^$mdev on '`;
+	    if (!$line) {
 		# determine the filesystem type
 		my $rw = 0;
-		my $fstype = get_fstype($href, "/dev/$dev", \$rw);
+		my $fstype = get_fstype($href, $mdev, \$rw);
 		if (!$fstype) {
-		    if (exists($href->{'FSTYPE'})) {
-			warn("*** $bsid: unsupported FS (".
-			     $href->{'FSTYPE'}.
-			     ") on /dev/$dev\n");
-		    } else {
-			warn("*** $bsid: unknown FS on /dev/$dev\n");
-		    }
 		    return -1;
 		}
 
 		# check for RO export and adjust options accordingly
 		if ($href->{'PERMS'} eq "RO") {
 		    $mopt = "-o ro";
-		    $fopt = "-n";
 		}
 		# OS only supports RO mounting, right now we just fail
 		elsif ($rw == 0) {
 		    warn("*** $bsid: OS only supports RO mounting of ".
-			 $href->{'FSTYPE'}. " FSes\n");
+			 "$fstype FSes\n");
 		    return -1;
 		}
 
@@ -1169,33 +1250,26 @@ sub os_check_storage_element($$)
 		    return -1;
 		}
 
-		#
-		# fsck it in case of an abrupt shutdown.
-		#
-		# Note that we invoke EXT fsck directly as the FBSD 10.x
-		# era port does not install everything correctly for use
-		# by "fsck -t ext2fs".
-		#
-		my $FSCK = $BSD_FSCK;
-		if ($fstype eq "ext2fs" && -x "$EXT_FSCK") {
-		    $FSCK = $EXT_FSCK;
-		} else {
-		    $fopt .= " -t $fstype";
-		}
-
-		if (mysystem("$FSCK $fopt /dev/$dev $redir")) {
-		    warn("*** $bsid: fsck of /dev/$dev failed\n");
+		# fsck the filesystem in case of an abrupt shutdown.
+		if (!checkfs($href, 1, $redir)) {
 		    return -1;
 		}
-		if (mysystem("$MOUNT $mopt -t $fstype /dev/$dev $mpoint $redir")) {
-		    warn("*** $bsid: could not mount /dev/$dev on $mpoint\n");
+
+		# and mount it
+		if (mysystem("$MOUNT $mopt -t $fstype $mdev $mpoint $redir")) {
+		    warn("*** $bsid: could not mount $mdev on $mpoint\n");
 		    return -1;
 		}
 	    }
-	    elsif ($line !~ /^\/dev\/$dev on (\S+) / || $1 ne $mpoint) {
+	    elsif ($line !~ /^${mdev} on (\S+) / || $1 ne $mpoint) {
 		warn("*** $bsid: mounted on $1, should be on $mpoint\n");
 		return -1;
 	    }
+	}
+
+	# XXX set the fstype for reporting
+	if (!exists($href->{'FSTYPE'})) {
+	    get_fstype($href, "/dev/$dev");
 	}
 
 	return 1;
@@ -1329,24 +1403,65 @@ sub os_check_storage_slice($$)
 		    return -1;
 		}
 		$href->{'FSTYPE'} = "zfs";
-	    } else {
-		my $line = `$MOUNT | grep '^/dev/$mdev on '`;
-		if (!$line && mysystem("$MOUNT $mpoint")) {
+		goto done;
+	    }
+	    my $line = `$MOUNT | grep '^/dev/$mdev on '`;
+	    if (!$line) {
+		#
+		# See if the mount exists in /etc/fstab.
+		#
+		# XXX Right now if it does not, it might be because we
+		# removed it prior to creating an image. So we make some
+		# additional sanity checks (right now fsck'ing the alleged FS)
+		# and if it passes, re-add the mount line.
+		#
+		$line = `grep '^/dev/$mdev\[\[:space:\]\]' /etc/fstab`;
+		if (!$line) {
+		    warn("*** $lv: mount of /dev/$mdev missing from fstab; sanity checking and re-adding\n");
+		    my $fstype = get_fstype($href, "/dev/$mdev");
+		    if (!$fstype) {
+			return -1;
+		    }
+
+		    # XXX sanity check, is there a recognized FS on the dev?
+		    # XXX checkfs needs LVDEV set
+		    $href->{'LVDEV'} = "/dev/$mdev";
+		    if (!checkfs($href, 0, "")) {
+			undef $href->{'LVDEV'};
+			return -1;
+		    }
+		    undef $href->{'LVDEV'};
+		    if (!open(FD, ">>/etc/fstab")) {
+			warn("*** $lv: could not add mount to /etc/fstab\n");
+			return -1;
+		    }
+		    print FD "# /dev/$mdev added by $BINDIR/rc/rc.storage\n";
+		    print FD "/dev/$mdev\t$mpoint\t$fstype\trw\t2\t2\n";
+		    close(FD);
+		}
+
+		if (mysystem("$MOUNT $mpoint")) {
 		    warn("*** $lv: is not mounted, should be on $mpoint\n");
 		    return -1;
 		}
-		if ($line && ($line !~ /^\/dev\/$mdev on (\S+) / || $1 ne $mpoint)) {
+	    } else {
+		if ($line !~ /^\/dev\/$mdev on (\S+) / || $1 ne $mpoint) {
 		    warn("*** $lv: mounted on $1, should be on $mpoint\n");
 		    return -1;
 		}
-		$href->{'FSTYPE'} = "ufs";
 	    }
+	    $href->{'FSTYPE'} = "ufs";
 	}
 
 	if ($devtype ne "ZFS") {
 	    $mdev = "/dev/$mdev";
 	}
-	$href->{'LVDEV'} = "$mdev";
+done:
+	# XXX set the fstype for reporting
+	if (!exists($href->{'FSTYPE'})) {
+	    get_fstype($href, $mdev);
+	}
+	$href->{'LVDEV'} = $mdev;
 	return 1;
     }
 
@@ -1403,46 +1518,27 @@ sub os_create_storage($$)
 	#
 	if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI" &&
 	    $href->{'PERSIST'} != 0) {
-	    # determine the filesystem type
+
+	    # check for the easy errors first, before time consuming fsck
 	    my $rw = 0;
 	    $fstype = get_fstype($href, $mdev, \$rw);
 	    if (!$fstype) {
-		if (exists($href->{'FSTYPE'})) {
-		    warn("*** $lv: unsupported FS (".
-			 $href->{'FSTYPE'}.
-			 ") on $mdev\n");
-		} else {
-		    warn("*** $lv: unknown FS on $mdev\n");
-		}
 		return 0;
 	    }
 
-	    # check for RO export and adjust options accordingly
+	    # check for RO export and adjust mount options accordingly
 	    if ($href->{'PERMS'} eq "RO") {
 		$mopt = "-o ro";
-		$fopt = "-n";
 	    }
 	    # OS only supports RO mounting, right now we just fail
 	    elsif ($rw == 0) {
 		warn("*** $lv: OS only supports RO mounting of ".
-		     $href->{'FSTYPE'}. " FSes\n");
+		     "$fstype FSes\n");
 		return 0;
 	    }
 
-	    #
-	    # Note that we invoke EXT fsck directly as the FBSD 10.x
-	    # era port does not install everything correctly for use
-	    # by "fsck -t ext2fs".
-	    #
-	    my $FSCK = $BSD_FSCK;
-	    if ($fstype eq "ext2fs" && -x "$EXT_FSCK") {
-		$FSCK = $EXT_FSCK;
-	    } else {
-		$fopt .= " -t $fstype";
-	    }
-
-	    if (mysystem("$FSCK $fopt $mdev $redir")) {
-		warn("*** $lv: fsck ($fstype) of persistent store $mdev failed\n");
+	    # finally do the fsck, fixing errors if possible
+	    if (!checkfs($href, 1, $redir)) {
 		return 0;
 	    }
 	}
@@ -1451,9 +1547,21 @@ sub os_create_storage($$)
 	#
 	else {
 	    if (mysystem("$MKFS -b $UFSBS $mdev $redir")) {
+		#
+		# XXX hmm...apparently the iSCSI device node can appear 
+		# before it is ready for I/O, so we can get here before the
+		# device is really ready. So wait a second and try again.
+		#
+		if ($href->{'CLASS'} eq "SAN" && $href->{'PROTO'} eq "iSCSI") {
+		    sleep(1);
+		    if (mysystem("$MKFS -b $UFSBS $mdev $redir") == 0) {
+			goto isok;
+		    }
+		}
 		warn("*** $lv: could not create FS$logmsg\n");
 		return 0;
 	    }
+	  isok:
 	    $href->{'FSTYPE'} = "ufs";
 	}
 
@@ -1654,13 +1762,15 @@ sub os_create_storage_slice($$$)
 
 		if (exists($so->{'VINUM_DRIVES'})) {
 		    foreach my $vdev (get_vinum_drives()) {
-			if ($vdev =~ /^(.*)s(\d+)$/) {
-			    $spacemap{$1}{'pnum'} = $2;
+			if ($vdev =~ /^(.*\d+)([ps])(\d+)$/) {
+			    $spacemap{$1}{'pchr'} = $2;
+			    $spacemap{$1}{'pnum'} = $3;
 			}
 		    }
 		}
 		else {
 		    if ($bsid eq "ANY") {
+			$spacemap{$bdisk}{'pchr'} = "s";
 			$spacemap{$bdisk}{'pnum'} = 4;
 		    }
 		    foreach my $dev (keys %$dinfo) {
@@ -1679,18 +1789,25 @@ sub os_create_storage_slice($$$)
 		    #
 		    foreach my $disk (keys %spacemap) {
 			my $pnum = $spacemap{$disk}{'pnum'};
+			my $ptype = "freebsd";
 
 			#
 			# If pnum==0, we need an MBR first
 			#
 			if ($pnum == 0) {
-			    if (mysystem("$GPART create -s mbr $disk $redir")) {
+			    if (mysystem("$GPART create -s gpt $disk $redir")) {
 				warn("*** $lv: could not create MBR on $disk$logmsg\n");
 				return 0;
 			    }
 			    $pnum = $spacemap{$disk}{'pnum'} = 1;
+			    $spacemap{$disk}{'pchr'} = "p";
+			    if ($so->{'USEZFS'}) {
+				$ptype = "freebsd-zfs";
+			    } else {
+				$ptype = "freebsd-vinum";
+			    }
 			}
-			if (mysystem("$GPART add -i $pnum -a 2048 -t freebsd $disk $redir")) {
+			if (mysystem("$GPART add -i $pnum -a 2048 -t $ptype $disk $redir")) {
 			    warn("*** $lv: could not create ${disk}s${pnum}$logmsg\n");
 			    return 0;
 			}
@@ -1708,7 +1825,7 @@ sub os_create_storage_slice($$$)
 		my $total_size = 0;
 		my ($min_s,$max_s);
 		foreach my $disk (keys %spacemap) {
-		    my $part = $disk . "s" . $spacemap{$disk}{'pnum'};
+		    my $part = $disk . $spacemap{$disk}{'pchr'} . $spacemap{$disk}{'pnum'};
 		    if (!exists($dinfo->{$part}) ||
 			$dinfo->{$part}->{'type'} ne "PART") {
 			warn("*** $lv: created partitions are wrong!?\n");
@@ -1771,7 +1888,7 @@ sub os_create_storage_slice($$$)
 		if (!exists($so->{'ZFS_POOLCREATED'})) {
 		    my @parts = ();
 		    foreach my $disk (sort keys %$space) {
-			my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
+			my $pdev = $disk . $space->{$disk}->{'pchr'} . $space->{$disk}->{'pnum'};
 			push(@parts, $pdev);
 		    }
 		    if (mysystem("$ZPOOL create -f -m none emulab @parts $redir")) {
@@ -1892,14 +2009,14 @@ sub os_create_storage_slice($$$)
 		}
 		if (!exists($so->{'VINUM_DRIVES'})) {
 		    foreach my $disk (keys %$space) {
-			my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
+			my $pdev = $disk . $space->{$disk}->{'pchr'} . $space->{$disk}->{'pnum'};
 			print FD "drive emulab_$pdev device /dev/$pdev\n";
 		    }
 		}
 		print FD "volume $lv\n";
 		print FD "  plex org $style\n";
 		foreach my $disk (keys %$space) {
-		    my $pdev = $disk . "s" . $space->{$disk}->{'pnum'};
+		    my $pdev = $disk . $space->{$disk}->{'pchr'} . $space->{$disk}->{'pnum'};
 		    my $sdsize = $space->{$disk}->{'vsize'};
 		    print FD "    sd length ${sdsize}m drive emulab_$pdev\n";
 		}
@@ -2058,6 +2175,9 @@ sub os_remove_storage_element($$$)
 #
 # teardown==0 means we are rebooting: unmount and shutdown gvinum
 # teardown==1 means we are reconfiguring and will be destroying everything
+# teardown==2 means the same as 1 but we ignore errors and alway plow ahead
+# teardown==3 means we are taking an image and we recoverably remove
+#             blockstore state from the root filesystem.
 #
 sub os_remove_storage_slice($$$)
 {
@@ -2089,16 +2209,18 @@ sub os_remove_storage_slice($$$)
 	    }
 	}
 
-	# if the device does not exist, we have a problem!
-	if (!exists($dinfo->{$dev})) {
-	    warn("*** $lv: device '$dev' does not exist\n");
-	    return 0;
-	}
-	# ditto if it exists but is of the wrong type
-	my $atype = $dinfo->{$dev}->{'type'};
-	if ($atype ne $devtype) {
-	    warn("*** $lv: actual type ($atype) != expected type ($devtype)\n");
-	    return 0;
+	if ($teardown != 2) {
+	    # if the device does not exist, we have a problem!
+	    if (!exists($dinfo->{$dev})) {
+		warn("*** $lv: device '$dev' does not exist\n");
+		return 0;
+	    }
+	    # ditto if it exists but is of the wrong type
+	    my $atype = $dinfo->{$dev}->{'type'};
+	    if ($atype ne $devtype) {
+		warn("*** $lv: actual type ($atype) != expected type ($devtype)\n");
+		return 0;
+	    }
 	}
 
 	# record all the output for debugging
@@ -2135,6 +2257,42 @@ sub os_remove_storage_slice($$$)
 	    }
 	}
 
+	#
+	# Teardown for imaging (3).
+	# Here we just want to clear blockstore related state from the
+	# root filesystem so that we get a clean image:
+	#
+	# For SYSVOL, there is nothing further to do. If they are taking
+	# a full disk image, then the blockstore will be included in the
+	# image unless the imagezip called explicitly ignores the partition.
+	# We can live with this as full images are discouraged now.
+	#
+	# For NONSYSVOL, aka a ZFS zpool on the extra disks, we try
+	# exporting the pool once all the blockstores have been unmounted.
+	#
+	# For ANY, we treat it the same as NONSYSVOL. There is a potential
+	# problem that a full disk image would include sda4 which would
+	# appear as part of an incomplete zpool when the image is loaded
+	# elsewhere. This will cause lots of warnings, but again, we don't
+	# care so much about full images.
+	#
+	if ($teardown == 3) {
+	    if (get_zpool_active_datasets("emulab") == 0 &&
+		mysystem("$ZPOOL export emulab $redir")) {
+		    warn("*** $lv: could not export zpool 'emulab'\n");
+	    }
+	    #
+	    # If we are the one that enabled ZFS, disable it
+	    #
+	    if (!mysystem("grep -q '^# zfs_enable added by.*rc.storage' /etc/rc.conf")) {
+		if (mysystem("sed -i -e '/^# zfs_enable added by.*rc.storage/,+1d' /etc/rc.conf")) {
+		    warn("*** $lv: could not remove zfs_enable from /etc/rc.conf\n");
+		}
+	    }
+
+	    return 1;
+	}
+	
 	#
 	# Remove LV
 	#
@@ -2203,7 +2361,7 @@ sub os_remove_storage_slice($$$)
 			if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
-		    } elsif ($slice =~ /^(.*)s1$/) {
+		    } elsif ($slice =~ /^(.*)[ps]1$/) {
 			my $disk = $1;
 			if ($disk eq $bdisk ||
 			    mysystem("$GPART destroy -F $disk $redir")) {
@@ -2255,7 +2413,7 @@ sub os_remove_storage_slice($$$)
 			if (mysystem("$GPART delete -i 4 $bdisk $redir")) {
 			    warn("*** $lv: could not destroy $slice$logmsg\n");
 			}
-		    } elsif ($slice =~ /^(.*)s1$/) {
+		    } elsif ($slice =~ /^(.*)[ps]1$/) {
 			my $disk = $1;
 			if ($disk eq $bdisk ||
 			    mysystem("$GPART destroy -F $disk $redir")) {

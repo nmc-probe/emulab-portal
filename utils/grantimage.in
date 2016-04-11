@@ -43,12 +43,13 @@ sub usage()
     print STDERR "	-x   Also grant access to protogeni users\n";
     print STDERR "      -c   Set the noclone flag. Clear with -r\n";
     print STDERR "      -p   Set the noexport flag. Clear with -r\n";
+    print STDERR "      -V   Apply mods to all image Versions\n";
     print STDERR "Alternate form for permissions:\n";
     print STDERR "  -R acl   Grant project|global read-only access\n";
     print STDERR "  -W acl   Grant creator|project write access\n";
     exit(-1);
 }
-my $optlist  = "hg:dnru:wlaxR:W:cp";
+my $optlist  = "hg:dnru:wlaxR:W:cpV";
 my $impotent = 0;
 my $debug    = 0;
 my $revoke   = 0;
@@ -58,6 +59,7 @@ my $global   = 0;
 my $protogeni= 0;
 my $noclone  = 0;
 my $noexport = 0;
+my $allvers  = 0;
 my $gid;
 my $uid;
 my $target;
@@ -142,6 +144,9 @@ if (defined($options{c})) {
 if (defined($options{p})) {
     $noexport = 1;
 }
+if (defined($options{V})) {
+    $allvers = 1;
+}
 if (defined($options{g})) {
     $gid = $options{g};
 }
@@ -219,9 +224,9 @@ if ($listonly) {
 elsif ($noclone || $noexport) {
     my $val = ($revoke ? 0 : 1);
     
-    $image->Update({"noclone" => $val})
+    $image->Update({"noclone" => $val}, $allvers)
 	if ($noclone);
-    $image->Update({"noexport" => $val})
+    $image->Update({"noexport" => $val}, $allvers)
 	if ($noexport);
     exit(0);
 }
@@ -230,17 +235,17 @@ elsif ($global || defined($read_access)) {
 	$revoke = 1;
     }
     my $val = ($revoke ? 0 : 1);
-    $image->Update({"global" => $val}) == 0
+    $image->Update({"global" => $val}, $allvers) == 0
 	or fatal("Could not update global flag");
     
     if ($image->ezid()) {
 	my $osinfo = OSinfo->Lookup($image->imageid());
 	if (defined($osinfo)) {
-	    $osinfo->Update({"shared" => $val}) == 0
+	    $osinfo->Update({"shared" => $val}, $allvers) == 0
 		or fatal("Could not update shared flag");
 
 	    if ($protogeni) {
-		$osinfo->Update({"protogeni_export" => '1'}) == 0
+		$osinfo->Update({"protogeni_export" => '1'}, $allvers) == 0
 		    or fatal("Could not update protogeni flag");
 	    }
 	}
@@ -256,7 +261,7 @@ elsif ($revoke) {
     if ($image->ezid() && $protogeni) {
 	my $osinfo = OSinfo->Lookup($image->imageid());
 	if (defined($osinfo)) {
-	    $osinfo->Update({"protogeni_export" => '0'}) == 0
+	    $osinfo->Update({"protogeni_export" => '0'}, $allvers) == 0
 		or fatal("Could not update protogeni flag");
 	}
 	else {
@@ -285,7 +290,7 @@ else {
     if ($image->ezid() && $protogeni) {
 	my $osinfo = OSinfo->Lookup($image->imageid());
 	if (defined($osinfo)) {
-	    $osinfo->Update({"protogeni_export" => '1'}) == 0
+	    $osinfo->Update({"protogeni_export" => '1'}, $allvers) == 0
 		or fatal("Could not update protogeni flag");
 	}
 	else {

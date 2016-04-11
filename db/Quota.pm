@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012-2015 University of Utah and the Flux Group.
+# Copyright (c) 2012-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -47,6 +47,7 @@ my $UNLIMITED    = -1;
 
 # cache of instances to avoid regenerating them.
 my %quotas	= ();
+BEGIN { use emutil; emutil::AddCache(\%quotas); }
 my $debug	= 0;
 
 # Little helper and debug function.

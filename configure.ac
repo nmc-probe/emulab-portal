@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -244,6 +244,7 @@ AC_SUBST(MIN_UNIX_UID)
 AC_SUBST(MIN_UNIX_GID)
 AC_SUBST(DELAYTHRESH)
 AC_SUBST(PELABSUPPORT)
+AC_SUBST(MOBILESUPPORT)
 AC_SUBST(ELVIN_COMPAT)
 AC_SUBST(ISOLATEADMINS)
 AC_SUBST(DYNAMICROOTPASSWORDS)
@@ -273,6 +274,7 @@ AC_SUBST(NOSHAREDFS)
 AC_SUBST(IMPORT_TMPDIR)
 AC_SUBST(SELFLOADER_DATA)
 AC_SUBST(TBUSEDBI)
+AC_SUBST(BIGDB)
 AC_SUBST(NEEDMCQUERIER)
 AC_SUBST(OPSVM_ENABLE)
 AC_SUBST(OPSVM_MOUNTPOINT)
@@ -312,6 +314,9 @@ AC_SUBST(WITHAMD)
 AC_SUBST(AMD_ROOT)
 AC_SUBST(BS_IQN_PREFIX)
 AC_SUBST(ATTENUATOR)
+AC_SUBST(CLUSTER_PORTAL)
+AC_SUBST(CLUSTER_PUBSUBD_PORT)
+AC_SUBST(EXPIRE_PASSWORDS)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -359,6 +364,7 @@ CLIENT_MANDIR="/usr/local/man"
 TBSECURECOOKIES=1
 TBMAINSITE=0
 TBUSEDBI=0
+BIGDB=0
 FANCYBANNER=0
 VIRTNODE_NETWORK=172.16.0.0
 VIRTNODE_NETMASK=255.240.0.0
@@ -404,6 +410,7 @@ MIN_UNIX_UID=10000
 MIN_UNIX_GID=6000
 DELAYTHRESH=2
 PELABSUPPORT=0
+MOBILESUPPORT=0
 ELVIN_COMPAT=0
 ISOLATEADMINS=1
 DYNAMICROOTPASSWORDS=1
@@ -430,7 +437,7 @@ NOSTACKMIB=0
 NOSHAREDFS=0
 IMPORT_TMPDIR="/q"
 NFSRACY=1
-SELFLOADER_DATA="__DATA__"
+SELFLOADER_DATA=""
 NEEDMCQUERIER=0
 OPSVM_ENABLE=0
 OPSVM_MOUNTPOINT="/ops"
@@ -474,6 +481,9 @@ WITHAMD=0
 AMD_ROOT=/.amd_mnt
 BS_IQN_PREFIX=iqn.2000-10.net.emulab
 ATTENUATOR=""
+CLUSTER_PORTAL=""
+CLUSTER_PUBSUBD_PORT=""
+EXPIRE_PASSWORDS=1
 
 #
 # XXX You really don't want to change these!
@@ -994,6 +1004,17 @@ else
 fi
 
 #
+# Mobile networking support.
+#
+if test $MOBILESUPPORT -eq 0; then
+	mobilefiles="";
+else
+	mobilefiles="mobile/GNUmakefile \
+	             clientside/mobile/GNUmakefile";
+	optional_subdirs="$optional_subdirs mobile";
+fi
+
+#
 # Enable Windows support.
 # Right now this means NTFS support in imagezip, maybe more things later.
 # Relies on Linux NTFS library.
@@ -1355,6 +1376,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	$eventfiles \
 	$winfiles \
 	$pelabfiles \
+	$mobilefiles \
 	apache/GNUmakefile apache/php.ini \
         xmlrpc/GNUmakefile xmlrpc/emulabclient.py xmlrpc/emulabserver.py \
 	xmlrpc/sshxmlrpc_client.py xmlrpc/sshxmlrpc_server.py \
@@ -1381,6 +1403,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
         protogeni/xmlrpc/GNUmakefile protogeni/lib/GNUmakefile \
         protogeni/scripts/GNUmakefile protogeni/etc/GNUmakefile \
         protogeni/test/GNUmakefile protogeni/pubxmlrpc/GNUmakefile \
+	protogeni/event/GNUmakefile \
 	protogeni/rspec-emulab/GNUmakefile \
         protogeni/rspec-emulab/0.1/GNUmakefile \
 	protogeni/rspec-emulab/0.2/GNUmakefile \

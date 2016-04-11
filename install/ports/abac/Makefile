@@ -9,8 +9,12 @@ MAINTAINER=	testbed-ops@flux.utah.edu
 COMMENT=	"Attribute-Based Access Control library, as adopted by GENI"
 
 GNU_CONFIGURE=	yes
-USES=		gettext gmake libtool
+USE_AUTOTOOLS=	autoconf
+USES=		gettext gmake libtool perl5 python
 CPPFLAGS+=	-I${LOCALBASE}/include
 LDFLAGS+=	-L${LOCALBASE}/lib
+
+BUILD_DEPENDS=	swig2.0:${PORTSDIR}/devel/swig20 \
+		xmlsec1:${PORTSDIR}/security/xmlsec1
 
 .include <bsd.port.mk>

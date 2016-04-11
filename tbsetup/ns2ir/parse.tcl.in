@@ -1,7 +1,7 @@
 #!/usr/local/bin/otclsh
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -226,6 +226,9 @@ namespace eval GLOBALS {
 
     # Control multiplex_factor for the experiment. Crude.
     variable multiplex_factor {}
+
+    # Control packing strategy for the experiment. pack or balance.
+    variable packing_strategy {}
 
     # The name of the sync_server
     variable sync_server {}

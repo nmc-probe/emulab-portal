@@ -636,7 +636,7 @@ sub freebsd_get_disksize {
 	#
 	# Take the first disk of a recognized type
 	#
-	if (/^((ad|da|ar|aacd|amrd|mfid|mfisyspd)\d+): (\d+)MB/) {
+	if (/^((ad|da|ar|aacd|amrd|mfid|mfisyspd|nvd)\d+): (\d+)MB/) {
 	    $diskdev = $1;
 	    $disksize = $3;
 	    last;

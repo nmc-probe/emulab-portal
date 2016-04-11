@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2011-2013 University of Utah and the Flux Group.
+# Copyright (c) 2011-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -61,7 +61,6 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 
 # Protos
 sub fatal($);
-sub SplitCertBundle($);
 
 #
 # Turn off line buffering on output
@@ -82,6 +81,7 @@ if ($TB ne "/usr/testbed") {
 
 use lib '@prefix@/lib';
 use libaudit;
+use GeniCertificate;
 
 # For error log.
 my $errors = 0;
@@ -130,9 +130,10 @@ system("/bin/mv -f /tmp/wwwbundle.$$ $WWWBUNDLE") == 0
 #
 # Split up the extra certs.
 #
-my @certs = SplitCertBundle("$TB/etc/extracerts.bundle");
+my @certs = GeniCertificate::SplitCertBundle("$TB/etc/extracerts.bundle");
 if (-s "$TB/etc/unapproved.bundle") {
-    @certs = (@certs, SplitCertBundle("$TB/etc/unapproved.bundle"));
+    @certs = (@certs,
+	      GeniCertificate::SplitCertBundle("$TB/etc/unapproved.bundle"));
 }
 
 mkdir("/tmp/extracerts.$$", 0755) or
@@ -173,40 +174,5 @@ sub fatal($)
 
     die("*** $0:\n".
 	"    $msg\n");
-}
-
-#
-# Split up a bundle and return list of certs.
-#
-sub SplitCertBundle($)
-{
-    my ($filename) = @_;
-    my @certs = ();
-    my $certstr;
-
-    if (open(BUNDLE, $filename)) {
-	while (<BUNDLE>) {
-	    if ($_ =~ /^-----BEGIN CERT/) {
-		$certstr = $_;
-		next;
-	    }
-	    if ($_ =~ /^-----END CERT/) {
-		$certstr .= $_;
-		push(@certs, $certstr);
-		$certstr = undef;
-		next;
-	    }
-	    if ($certstr) {
-		$certstr .= $_;
-		next;
-	    }
-	}
-	# If the file is properly terminated, there should be no certificate in
-	# progress. Hopefully the file is not trashed at a boundry.
-	fatal("Trashed bundle file: $filename")
-	    if ($certstr);
-	close(BUNDLE);
-    }
-    return @certs;
 }
 

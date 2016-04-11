@@ -1,5 +1,5 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment', 'js/ppstart',
+	['underscore', 'js/quickvm_sup', 'moment',
 	 'js/lib/text!template/show-profile.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/renderer-modal.html',
@@ -11,7 +11,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/share-modal.html',
 	 // jQuery modules
 	 'marked'],
-function (_, sup, moment, ppstart,
+function (_, sup, moment,
 	  showString, waitwaitString, 
 	  rendererString, showtopoString, rspectextviewString,
 	  guestInstantiateString, instantiateString, oopsString, shareString)
@@ -99,12 +99,17 @@ function (_, sup, moment, ppstart,
 	$('#show_source_modal_button, #show_xml_modal_button')
 	    .click(function (event) {
 		var source = null;
+		var href   = "show-profile.php?uuid=" + profile_uuid;
 
 		if ($(this).attr("id") == "show_source_modal_button") {
 		    source = $.trim($('#profile_script_textarea').val());
+		    $('#rspec_modal_download_button')
+			.attr("href", href + "&source=true");
 		}
 		if (!source || !source.length) {
 		    source = $.trim($('#profile_rspec_textarea').val());
+		    $('#rspec_modal_download_button')
+			.attr("href", href + "&rspec=true");
 		}
 		$('#rspec_modal_editbuttons').addClass("hidden");
 		$('#rspec_modal_viewbuttons').removeClass("hidden");
@@ -141,24 +146,11 @@ function (_, sup, moment, ppstart,
 	});
 
 	/*
-	 * The instantiate button. If a plain profile, throw up the
-	 * confirm modal. If a parameterized profile, hand off to the
-	 * ppstart js code.
+	 * The instantiate button.
 	 */
 	$('#profile_instantiate_button').click(function (event) {
-	    if (true) {
-		window.location.replace("instantiate.php?profile=" +
-					version_uuid);
-		return;
-	    }
-	    if (isppprofile) {
-		ppstart({uuid       : version_uuid,
-			 registered : true,
-			 amlist     : amlist,
-			 amdefault  : window.AMDEFAULT});
-		return;
-	    }
-	    sup.ShowModal('#instantiate_modal');
+	    window.location.replace("instantiate.php?profile=" +
+				    version_uuid);
 	});
 	// Handler for normal instantiate submit button, which is in
 	// the modal.

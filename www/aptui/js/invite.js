@@ -1,7 +1,7 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup',
+	['underscore', 'js/quickvm_sup', 'js/aptforms',
 	 'js/lib/text!template/invite.html'],
-function (_, sup, inviteString)
+function (_, sup, aptforms, inviteString)
 {
     'use strict';
     var inviteTemplate    = _.template(inviteString);
@@ -20,33 +20,16 @@ function (_, sup, inviteString)
 	    projects:		projlist,
 	    general_error:      (errors.error || '')
 	});
-	$('#invite-body').html(formatter(invite_html, errors).html());
-    }
+	$('#invite-body').html(aptforms.FormatFormFields(invite_html));
 
-    function formatter(fieldString, errors)
-    {
-	var root   = $(fieldString);
-	var list   = root.find('.format-me');
-	list.each(function (index, item) {
-	    if (item.dataset) {
-		var key     = item.dataset['key'];
-		var wrapper = $('<div></div>');
-		wrapper.addClass('sidebyside-form');
-		wrapper.addClass('form-group');
-		wrapper.html($(item).clone());
-
-		if (_.has(errors, key))
-		{
-		    wrapper.addClass('has-error');
-		    wrapper.append('<label class="control-label" ' +
-				   'for="inputError">' + _.escape(errors[key]) +
-				   '</label>');
-		}
-		$(item).after(wrapper);
-		$(item).remove();
-	    }
+	// Handle submit button.
+	$('#invite-submit-button').click(function (event) {
+	    aptforms.DisableUnsavedWarning('#invite_form');
 	});
-	return root;
+	
+	aptforms.GenerateFormErrors('#invite_form', errors);
+	aptforms.EnableUnsavedWarning('#invite_form');
     }
+
     $(document).ready(initialize);
 });

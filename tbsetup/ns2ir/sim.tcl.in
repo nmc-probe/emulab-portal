@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -501,6 +501,7 @@ Simulator instproc run {} {
     var_import ::GLOBALS::uselinkdelays
     var_import ::GLOBALS::forcelinkdelays
     var_import ::GLOBALS::multiplex_factor
+    var_import ::GLOBALS::packing_strategy
     var_import ::GLOBALS::sync_server
     var_import ::GLOBALS::use_ipassign
     var_import ::GLOBALS::ipassign_args
@@ -741,6 +742,10 @@ Simulator instproc run {} {
     if { $multiplex_factor != {} } {
 	lappend fields "multiplex_factor"
 	lappend values $multiplex_factor
+    }
+    if { $packing_strategy != {} } {
+	lappend fields "packing_strategy"
+	lappend values $packing_strategy
     }
     
     if { $sync_server != {} } {

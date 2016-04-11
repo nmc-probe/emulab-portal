@@ -1,6 +1,6 @@
 #!/usr/local/bin/python
 #
-# Copyright (c) 2005-2015 University of Utah and the Flux Group.
+# Copyright (c) 2005-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,6 +28,7 @@ import pwd
 import traceback
 import syslog
 import string
+import socket
 
 import BaseHTTPServer
 
@@ -479,6 +480,13 @@ class MyServer(SSL.ForkingSSLServer, SimpleXMLRPCDispatcher):
             # This must never return, hence os._exit()!
             try:
                 self.setupuser(request, client_address);
+
+                #
+                # New stateful firewall kills long term connections, as
+                # for state waiting.
+                #
+                request.socket.setsockopt(socket.SOL_SOCKET,
+                                          socket.SO_KEEPALIVE, 1);
 
                 # Remove the old path since the user can request a different
                 # one.

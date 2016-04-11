@@ -54,6 +54,7 @@ if (!isset($_SERVER["SSL_PROTOCOL"])) {
 $reqargs = RequiredPageArguments("image",	PAGEARG_IMAGE,
 				 "access_key",	PAGEARG_STRING);
 $optargs = OptionalPageArguments("stamp",       PAGEARG_INTEGER,
+                                 "delta",       PAGEARG_BOOLEAN,
                                  "sigfile",     PAGEARG_BOOLEAN);
 
 #
@@ -84,6 +85,7 @@ $access_key = escapeshellarg($access_key);
 $arg        = "";
 $arg       .= (isset($stamp) ? "-t " . escapeshellarg($stamp) : "");
 $arg       .= (isset($sigfile) && $sigfile ? "-s " : "");
+$arg       .= (isset($delta) && $delta ? "-e " : "");
 $group      = $image->Group();
 $pid        = $group->pid();
 $unix_gid   = $group->unix_gid();

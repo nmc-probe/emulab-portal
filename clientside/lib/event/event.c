@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2014 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -476,9 +476,10 @@ event_main(event_handle_t handle)
     if (handle->mainloop(handle->server, &handle->do_loop, &handle->status)) {
         ERROR("Event mainloop failed: ");
         pubsub_error_fprintf(stderr, &handle->status);
+	handle->do_loop = 0;
         return 0;
     }
-
+    handle->do_loop = 0;
     return 1;
 }
 

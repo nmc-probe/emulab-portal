@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2010-2015 University of Utah and the Flux Group.
+# Copyright (c) 2010-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -144,6 +144,9 @@ sub DumpImage($)
     # Array of string values to print. 
     my %xmlfields = ();
 
+    # For version info.
+    my @imagelist = ();
+
     $xmlfields{"imagename"}    = $image->imagename();
     if (!$export) {
 	$xmlfields{"pid"}      = $image->pid();
@@ -222,15 +225,73 @@ sub DumpImage($)
 	    $xmlfields{'havedelta'} = $image->HaveDeltaImage();
 	    $xmlfields{'havefull'}  = $image->HaveFullImage();
 
+	    # Tell the caller some extras for debugging image tracking (IMS).
+	    $xmlfields{'origin_uuid'} = $image_uuid;
+	    $xmlfields{'origin_name'} = $image->versname();
+	    
 	    if ($PGENISUPPORT) {
-		# Tell the caller some extras for debugging image tracking (IMS).
-		$xmlfields{'origin_uuid'} = $image_uuid;
-		$xmlfields{'origin_name'} = $image->versname();
 		# And the URN is required for image tracking.
 		require GeniHRN;
 		
 		$xmlfields{'origin_urn'}  =
 		    GeniHRN::Generate($OURDOMAIN, "authority", "cm");
+	    }
+	    #
+	    # Send along the history so that the caller can get all
+	    # the versions, which is important for delta based images.
+	    #
+	    if ($clientvers > 3) {
+		#
+		# Send the non-version metadata url so that the other side
+		# can have it for when an experiment wants whatever the
+		# latest version is. This allows different users to ask for
+		# different versions or just latest version, and have them
+		# come from the same image, instead of making new independent
+		# shadow images.
+		#
+		$xmlfields{'image_metadata_url'} = $image->LocalURL();
+		$xmlfields{'metadata_url'}       = $image->LocalVersionURL();
+		
+		$xmlfields{'image_version'}  = $image->version();
+		$xmlfields{"deltahash"}      = $image->deltahash()
+		    if (defined($image->deltahash()) &&
+			$image->deltahash() ne "");
+
+		if ($clientvers > 4) {
+		    $xmlfields{'size'} = $image->size()
+			if ($image->size());
+		    $xmlfields{'deltasize'} = $image->deltasize()
+			if ($image->deltasize());
+		    $xmlfields{'notes'} = $image->notes()
+			if (defined($image->notes()) and $image->notes() ne '');
+		}
+
+		#
+		# We need to send the parent info too, for the delta chain
+		# to be constructed. 
+		#
+		if (defined($image->parent_imageid())) {
+		    $xmlfields{'parent_imageid'} = $image->parent_imageid();
+		    $xmlfields{'parent_version'} = $image->parent_version();
+		}
+		
+		if ($image->version()) {
+		    my @tmp;
+		    
+		    # This returns a reverse ordered list.
+		    if ($image->AllVersions(\@tmp)) {
+			fatal("Could not get image version list");
+		    }
+		    #
+		    # But just the history prior to this image.
+		    #		
+		    foreach my $im (@tmp) {
+			next
+			    if ($im->version() >= $image->version());
+			
+			$imagelist[$im->version()] = $im;
+		    }
+		}
 	    }
 	}
     }
@@ -322,6 +383,16 @@ sub DumpImage($)
 	print " <attribute name=\"$key\">";
 	print "<value>" . CGI::escapeHTML($val) . "</value>";
 	print "</attribute>\n";
+    }
+    if (@imagelist) {
+	foreach my $im (@imagelist) {
+	    my $version = $im->version();
+	    my $url     = $im->LocalVersionURL();
+
+	    print " <version_history name='$version'>";
+	    print CGI::escapeHTML($url);
+	    print "</version_history>\n";
+	}
     }
     print "</image>\n";
 

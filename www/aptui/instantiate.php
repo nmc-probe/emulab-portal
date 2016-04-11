@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -100,7 +100,7 @@ elseif (isset($_COOKIE['picker'])) {
     $classic = ($_COOKIE['picker'] == "classic" ? 1 : 0);
 }
 else {
-    $classic = 1;
+    $classic = 0;
 }
 
 if ($this_user) {
@@ -292,6 +292,9 @@ while (list ($uuid, $title) = each ($profile_array)) {
     $tmp = Profile::Lookup($uuid);
     if ($tmp) {
         list ($lastused, $count) = $tmp->UsageInfo($this_user);
+        if ($lastused == 0) {
+            list ($unused, $count) = $tmp->UsageInfo(null);
+        }
         
         $tmp_array[$uuid] =
             array("name"     => $tmp->name(),
@@ -506,11 +509,10 @@ if (!isset($create)) {
 	    $defaults["sshkey"]   = $geniuser->SSHKey();
 	}
     }
-    if (!$this_user) {
-        # We use a session. in case we need to do verification
-        session_start();
-        session_unset();
-    }
+    # We use a session, in case we need to do verification or other things.
+    session_start();
+    session_unset();
+
     SPITFORM($defaults, false, array());
     echo "<div style='display: none'><div id='jacks-dummy'></div></div>\n";
     SPITFOOTER();

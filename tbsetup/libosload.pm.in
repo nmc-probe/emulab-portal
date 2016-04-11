@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -43,6 +43,7 @@ use NodeType;
 use Image;
 use User;
 use OSinfo;
+use EmulabConstants;
 use English;
 use event;
 use Data::Dumper;
@@ -69,6 +70,7 @@ my $TBLOADWAIT  = (10 * 60);
 
 my $osselect	    = "$TB/bin/os_select";
 my $TBUISP	    = "$TB/bin/tbuisp";
+my $TBADB           = "$TB/bin/tbadb";
 
 # Locals
 my $debug           = 0;
@@ -641,6 +643,12 @@ sub osload ($$) {
 	    $reload_func = \&SetupReloadUISP;
 	    $reboot_required = 0; # We don't reboot motes to reload them
 	    $zeronode = 0; # and we don't zero "the disk"
+	}
+	elsif ($class eq "ue") {
+	    $reload_mode = "UE";
+	    $reload_func = \&SetupReloadUE;
+	    $reboot_required = 0; # We don't reboot UEs to reload them
+	    $zeronode = 0; # and we don't zero "the disk"
 	} else {
 	    $reload_mode = "Frisbee";
 	    $reload_func = \&SetupReloadFrisbee;
@@ -1162,7 +1170,7 @@ sub SetupReloadFrisbee($)
 	# only prepare on first image
 	my $prepare0 = $idx == 1 && $prepare ? 1 : 0;
 	# only zero on full images
-	my $zerofree0 = $image->isdelta() ? 0 : $zerofree;
+	my $zerofree0 = $image->HaveFullImage() ? $zerofree : 0;
 
 	my $query_result = 
 	    DBQueryWarn("insert into current_reloads ".
@@ -1254,6 +1262,64 @@ sub SetupReloadUISP($)
     # has been shutdown, so that the os_select will take effect
     #
     TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
+
+    return 0;
+}
+
+#
+# Setup a UE (mobile handset) reload via ADB rather than Frisbee. This
+# calls a script on the UE's "console" server that then pulls across
+# the image (if necessary) and loads it on the specified device.
+#
+sub SetupReloadUE($)
+{
+    my $reload_info   = $_[0];
+    my $nodeobject    = $reload_info->{'nodeobj'};
+    my $node          = $reload_info->{'node'};
+    my $image         = (@{$reload_info->{'images'}})[0];
+
+    #
+    # Clear any pending reload entries.
+    #
+    $nodeobject->ClearCurrentReload();
+
+    #
+    # Get some image details for setting up the reload.
+    #
+    my $imgpid  = $image->pid();
+    my $imgname = $image->imagename();
+    my $imageid = $image->imageid();
+    my $version = $image->version();
+
+    my $query_result = 
+	DBQueryWarn("insert into current_reloads ".
+		    "(node_id, idx, image_id, imageid_version,".
+		    " mustwipe, prepare) values ".
+		    "('$node', 1, '$imageid', '$version',".
+		    " 0, 0)");
+    return -1
+	if (!$query_result);
+
+    #
+    # Tell stated that we're about to start reloading
+    #
+    TBSetNodeNextOpMode($node,TBDB_NODEOPMODE_RELOADUE);
+
+    #
+    # The device goes 'down', then starts to reload
+    #
+    TBSetNodeEventState($node,TBDB_NODESTATE_SHUTDOWN);
+    TBSetNodeEventState($node,TBDB_NODESTATE_RELOADING);
+
+    #
+    # Invoke local script that calls the remote end that
+    # actually does the work.  This will go into the background.
+    #
+    my $rv = system("$TBADB -n $node loadimage $imgpid $imgname nowait");
+    if ($rv) {
+	tberror "$node: tbadb failed!";
+	return -1;
+    }
 
     return 0;
 }

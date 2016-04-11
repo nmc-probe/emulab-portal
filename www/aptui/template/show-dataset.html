@@ -19,7 +19,8 @@
 	      </tr>
 	      <tr>
 		<td>Project</td>
-		<td><%- formfields.dataset_pid %></td>
+		<td><a href='show-project.php?pid=<%= formfields.dataset_pid %>'>
+		  <%- formfields.dataset_pid %></a></td>
 	      </tr>
 	      <% if (formfields.dataset_pid != formfields.dataset_gid) { %>
 	        <tr>
@@ -29,7 +30,8 @@
 	      <% } %>
 	      <tr>
 		<td>Creator</td>
-		<td><%- formfields.dataset_creator %></td>
+		<td><a href='user-dashboard.php?user=<%= formfields.dataset_creator %>'>
+		  <%- formfields.dataset_creator %></a></td>
 	      </tr>
 	      <tr>
 		<td>Size</td>
@@ -230,4 +232,6 @@
   </div>
   <div id='imaging_div'></div>
   <div id='snapshot_div'></div>
+  <div id='oops_div'></div>
+  <div id='waitwait_div'></div>
 </div>

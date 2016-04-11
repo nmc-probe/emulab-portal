@@ -97,6 +97,7 @@ RUN_DEPENDS+=	\
 	rsync:${PORTSDIR}/net/rsync \
 	swig2.0:${PORTSDIR}/devel/swig20 \
 	sudo:${PORTSDIR}/security/sudo \
+	medusa:${PORTSDIR}/security/medusa \
 	wget:${PORTSDIR}/ftp/wget \
 	xvcg:${PORTSDIR}/graphics/vcg \
 	${LOCALBASE}/libexec/mysqld:${PORTSDIR}/databases/mysql${MYSQL_VER}-server \
@@ -147,12 +148,8 @@ RUN_DEPENDS+=	\
 
 # Port versions of current or former "core" utilties
 RUN_DEPENDS+=	\
-	dhcpd:${PORTSDIR}/net/isc-dhcp42-server \
+	dhcpd:${PORTSDIR}/net/isc-dhcp43-server \
 	${LOCALBASE}/sbin/rndc:${PORTSDIR}/dns/bind99
-
-## For reasons lost in the mists of time, we install this
-#RUN_DEPENDS+=	\
-#	${LOCALBASE}/libdata/pkgconfig/x11.pc:${PORTSDIR}/x11/xorg-libraries
 
 USE_PERL5=	yes
 USES=		python:2.7

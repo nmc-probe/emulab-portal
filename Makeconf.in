@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -44,6 +44,7 @@ export JAR	= @JAR@
 prefix		= @prefix@
 exec_prefix	= @exec_prefix@
 
+ISMAINSITE	= @TBMAINSITE@
 TBROOT		= @prefix@
 TBDEFS		= @TBDEFS@
 TBDBNAME	= @TBDBNAME@

@@ -1226,6 +1226,7 @@ sub SliverStatus($)
     my $blob = {
 	"state"   => $aggregate->state(),
 	"status"  => $aggregate->status(),
+	"utc"     => time(),
 	"details" => {},
     };
     $blob->{'public_url'} =
@@ -1242,54 +1243,15 @@ sub SliverStatus($)
 	elsif ($sliver->resource_type() ne "Node") {
 	    next;
 	}
-
-	my $sliver_urn    = $sliver->sliver_urn();
-	my $resource_id   = $sliver->resource_id();
-	my $state         = $sliver->state();
-	my $status        = $sliver->status();
-	my $nickname      = $sliver->nickname() || "";
-	my $error         = "";
-
-	# New is the same as stopped. Separate state is handy.
-	$state = "stopped"
-	    if ($state eq "new");
-
-	if ($status eq "failed") {
-	    $error = $sliver->ErrorLog();
+	my $sliver_urn = $sliver->sliver_urn();
+	my $details = $sliver->GenerateStatusBlob();
+	next
+	    if (!defined($details));
+	
+	if ($details->{'status'} eq "failed") {
+	    $details->{'error'} = $sliver->ErrorLog();
 	}
-	$blob->{'details'}->{$sliver_urn} = {
-	    "component_urn" => $resource_id,
-	    "client_id" => $nickname,
-	    "state"  => $state,
-	    "status" => $status,
-	    "error"  => $error,
-	};
-	if (ref($sliver) eq "GeniSliver::Node") {
-	    my $details = $blob->{'details'}->{$sliver_urn};
-		
-	    if (defined($sliver->rawstate())) {
-		$details->{'rawstate'} = $sliver->rawstate();
-	    }
-	    my $node = Node->Lookup($sliver->resource_id());
-	    if (defined($node) &&
-		defined($node->startupcmd()) && $node->startupcmd() ne "") {
-		if (defined($node->startstatus()) &&
-		    $node->startstatus() ne "none") {
-		    $details->{'execute_state'}   = "exited";
-		    $details->{'execute_status'}  = $node->startstatus();
-		}
-		else {
-		    if ($node->eventstate() eq "ISUP") {
-			$details->{'execute_state'}   = "running";
-			$details->{'execute_status'}  = "unknown";
-		    }
-		    else {
-			$details->{'execute_state'}   = "n/a";
-			$details->{'execute_status'}  = "n/a";
-		    }
-		}
-	    }
-	}
+	$blob->{'details'}->{$sliver_urn} = $details;
     }
     $slice->UnLock();
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
@@ -2190,7 +2152,7 @@ sub DeleteNodes($)
     if ($PID == $mypid) {
 	$slice->UnLock();
     }
-    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $sliver_manifest);
+    return 0;
 }
 
 #
@@ -2312,19 +2274,16 @@ sub BindToSlice($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN(), undef,
 				    "Credential does not match the URN");
     }
-    
-    #
-    # Find or create the user.
-    #
-    my $user = GeniCM::CreateUserFromCertificate($credential);
-    return $user
-	if (GeniResponse::IsResponse($user));
-    
+    my $creator = GeniUser->Lookup($slice->creator_uuid(), 1);
+    if (!defined($creator)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR(), undef,
+				    "Could not lookup slice creator");
+    }
     if ($slice->Lock() != 0) {
 	return GeniResponse->BusyResponse();
     }
     if (defined($keys)) {
-	my $response = GeniCM::AddKeys($slice, $user, $keys);
+	my $response = GeniCM::AddKeys($slice, $creator, $keys);
 	if (GeniResponse::IsResponse($response)) {
 	    $slice->UnLock();
 	    return $response;
@@ -3016,6 +2975,7 @@ sub CreateImage($)
     require EmulabConstants;
     require Image;
     require WebTask;
+    require GeniEvent;
     
     if (! (defined($credentials) && defined($imagename) &&
 	   defined($slice_urn) && defined($sliver_urn))) {
@@ -3121,7 +3081,8 @@ sub CreateImage($)
     my $image = Image->Lookup($experiment->pid(), $imagename);
     if (defined($image)) {
 	if (!((defined($image->creator_urn()) &&
-	       $image->creator_urn() eq $user->urn()) ||
+	       ($image->creator_urn() eq $user->urn() ||
+		$image->creator_urn() eq $ENV{'REALGENIURN'})) ||
 	      ($user->IsLocal() &&
 	       $image->AccessCheck($user->emulab_user(),
 				   EmulabConstants::TB_IMAGEID_ACCESS())))) {
@@ -3240,7 +3201,7 @@ dataset:
 	return GeniResponse->Create(GENIRESPONSE_SUCCESS, \@blob);
     }
     $slice->UnLock();
-    
+
     #
     # Do the snapshot.
     #
@@ -3252,7 +3213,47 @@ dataset:
     # After clone_image, we can determine the new image name. Versioning
     # was handled in clone_image.
     $imagename = $image->imagename() . ":" . $image->version();
-    
+
+    #
+    # Okay we are going to fork again and watch the webtask for
+    # size changes (and exit of course) and generate Geni style
+    # events.
+    #
+    $mypid = main::WrapperFork();
+    if ($mypid) {
+	my $lastsize = 0;
+	my $laststatus = "";
+	
+	do {
+	    sleep(5);
+	    # Probably deleted.
+	    $webtask->Refresh() == 0
+		or last;
+	    # Check the child, if it is gone we want to stop too.
+	    if (kill(0, $mypid) == 0) {
+		last
+		    if ($!{ESRCH});
+	    }
+	    if ($webtask->imagesize() != $lastsize ||
+		$webtask->status() ne $laststatus) {
+		GeniEvent->SendEvent({"type"    => "IMAGESTATUS",
+				      "slice"   => $slice->urn(),
+				      "urn"     => $image_urn,
+				      "details" =>
+				          { "utc"    => time(),
+					    "size"   => $webtask->imagesize(),
+					    "status" => $webtask->status()}});
+		$lastsize   = $webtask->imagesize();
+		$laststatus = $webtask->status();
+	    }
+	} while (!$webtask->HasExited());
+	# Sleep a little while to give the caller time to pick up status
+	# since it is polling. Then delete the webtask.
+	sleep(30);
+	$webtask->Delete();
+	waitpid($mypid, &WNOHANG);
+	return 0;
+    }
     $output =
 	GeniUtil::ExecQuiet("$CREATEIMAGE -F -e -f $opt ".
 			    "   -p $pid $imagename $node_id");
@@ -3377,7 +3378,9 @@ sub DeleteImage($)
     # accidental removal of images not belonging to current user.
     # Note that not all images have the creator_urn set (yet).
     #
-    if (defined($creator_urn) && $creator_urn ne $user->urn()) {
+    if (defined($creator_urn) &&
+	!($creator_urn eq $user->urn() ||
+	  $creator_urn eq $ENV{'REALGENIURN'})) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 		    "Not your image; please specify original creator urn")
 	    if (!defined($overide_urn) || $overide_urn ne $creator_urn);
@@ -3460,12 +3463,14 @@ sub ImageInfo($)
     }
 
     if (! ($image->global() ||
-	   (defined($creator_urn) && $creator_urn eq $user->urn()) ||
+	   (defined($creator_urn) &&
+	    ($creator_urn eq $user->urn() ||
+	     $creator_urn eq $ENV{'REALGENIURN'})) ||
 	   GeniHRN::SameDomain($project->nonlocal_id(), $authority->urn()))) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 		    "Not enough permission to access image");
     }
-    my $blob = { "size" => 0, "status" => "ready" };
+    my $blob = { "size" => 0, "status" => "ready", "utc" => time() };
     
     #
     # Is there an active webtask, then we are taking a snapshot, so
@@ -3475,15 +3480,6 @@ sub ImageInfo($)
     if (defined($webtask)) {
 	$blob->{'size'}   = $webtask->imagesize() . "KB";
 	$blob->{'status'} = $webtask->status();
-
-	#
-	# We have reported status, kill it. So if two parties are
-	# trying to determine the status, one gets nothing. Maybe
-	# we need a notion of staleness.
-	#
-	if ($webtask->HasExited()) {
-	    $webtask->Delete();
-	}
     }
     else {
 	my $path = ($image->HaveDeltaImage() ?
@@ -4376,7 +4372,9 @@ sub DeleteDataset($)
 	#
 	my $lease_owner = $lease->GetAttribute("creator_urn");
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
+	    if (! (defined($lease_owner) &&
+		   !($lease_owner eq $user->urn() ||
+		     $lease_owner eq $ENV{'REALGENIURN'})));
 
 	$cmd = "$DELETEDATASET -b -f " .
 	    $group->pid() . "/" . $group->gid() . "/" . $dataset;
@@ -4389,7 +4387,8 @@ sub DeleteDataset($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	    if (!$image->isdataset() ||
 		!defined($image->creator_urn()) ||
-		$image->creator_urn() ne $user->urn());
+		($image->creator_urn() ne $user->urn() &&
+		 $image->creator_urn() ne $ENV{'REALGENIURN'}));
 	
 	$cmd = "$DELETEIMAGE -p ". $image->imageid();
     }
@@ -4451,8 +4450,9 @@ sub ModifyDataset($)
 	#
 	my $lease_owner = $lease->GetAttribute("creator_urn");
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
-
+	    if (! (defined($lease_owner) &&
+		   ($lease_owner eq $user->urn() ||
+		    $lease_owner eq $ENV{'REALGENIURN'})));
 	$islease = 1;
     }
     else {
@@ -4463,7 +4463,8 @@ sub ModifyDataset($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	    if (!$image->isdataset() ||
 		!defined($image->creator_urn()) ||
-		$image->creator_urn() ne $user->urn());
+		($image->creator_urn() ne $user->urn() &&
+		 $image->creator_urn() ne $ENV{'REALGENIURN'}));
 	$islease = 0;
     }
 
@@ -4571,8 +4572,9 @@ sub DescribeDataset($)
 	#
 	my $lease_owner = $lease->GetAttribute("creator_urn");
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (! (defined($lease_owner) && $lease_owner eq $user->urn()));
-
+	    if (! (defined($lease_owner) &&
+		   ($lease_owner eq $user->urn() ||
+		    $lease_owner eq $ENV{'REALGENIURN'})));
 	$blob->{'state'}    = $lease->state();
 	$blob->{'type'}     = $lease->type();
 	$blob->{"busy"}     = $lease->locked() ? 1 : 0;
@@ -4593,7 +4595,8 @@ sub DescribeDataset($)
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	    if (!$image->isdataset() ||
 		!defined($image->creator_urn()) ||
-		$image->creator_urn() ne $user->urn());
+		($image->creator_urn() ne $user->urn() &&
+		 $image->creator_urn() ne $ENV{'REALGENIURN'}));
 
 	$blob->{'state'}    = "valid";
 	$blob->{'type'}     = "imdataset";
@@ -4897,7 +4900,7 @@ sub RunLinktest($)
 	$output = GeniUtil::ExecQuiet("$LINKTEST -k $pid $eid");
     }
     else {
-	my $command = "$LINKTEST -l $level ";
+	my $command = "$LINKTEST -e -l $level -t 3600 ";
 	$command .= "-o " . $logfile->filename() . " "
 	    if (defined($async));
 	$command .= "$pid $eid";
@@ -4912,7 +4915,7 @@ sub RunLinktest($)
 	# This is a pain; if linktest bailed early, the log file will
 	# be empty, and the user will not see any output cause we have
 	# forked and so there is no way to return the output. So stuff it
-	# into the logfile.
+	# into the logfile for it to be spewed to the user. 
 	#
 	if ($exitval && -z $fname) {
 	    if (open(LOG, ">" . $logfile->filename())) {

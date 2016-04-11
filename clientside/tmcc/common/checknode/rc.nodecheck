@@ -129,6 +129,10 @@ if [ -f "/etc/emulab/ismfs" ] ; then
 	umount $mountpoint
     fi
     exit 0
+else
+    # just don't run if not in a mfs
+    :
+    exit 0
 fi
 
 action=""

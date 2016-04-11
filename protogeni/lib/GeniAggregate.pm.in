@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -50,6 +50,7 @@ use GeniUtil;
 use GeniUser;
 use GeniComponent;
 use GeniHRN;
+use GeniEvent;
 use GeniXML;
 use emutil;
 use EmulabConstants;
@@ -591,24 +592,44 @@ sub IsMember($$)
 }
 
 #
-# Set the status for the aggregate
+# Set the state and status for the aggregate. The goal here is to send
+# just a single event when both state/status are being updated.
 #
-sub SetStatus($$)
+sub SetStateStatus($$$)
 {
-    my ($self, $status) = @_;
+    my ($self, $state, $status) = @_;
 
     return undef
 	if (! ref($self));
 
     my $idx = $self->idx();
-    
+
+    my $query_result =
+	DBQueryWarn("update geni_aggregates set ".
+		    "  status='$status',state='$state' ".
+		    "where idx='$idx' and ".
+		    "      (status!='$status' or state!='$state')");
     return -1
-	if (!DBQueryWarn("update geni_aggregates set ".
-			 "  status='$status' ".
-			 "where idx='$idx'"));
+	if (!defined($query_result));
     
+    $self->{'AGGREGATE'}->{'state'}  = $state;
     $self->{'AGGREGATE'}->{'status'} = $status;
+
+    # Any change, send the event.
+    $self->SendStatusEvent()
+	if ($self->type() eq "Aggregate" && $query_result->affectedrows);
+
     return 0;
+}
+
+#
+# Set the status for the aggregate.
+#
+sub SetStatus($$)
+{
+    my ($self, $status) = @_;
+
+    return $self->SetStateStatus($self->state(), $status);
 }
 
 #
@@ -618,17 +639,26 @@ sub SetState($$)
 {
     my ($self, $state) = @_;
 
-    return undef
-	if (! ref($self));
+    return $self->SetStateStatus($state, $self->status());
+}
 
-    my $idx = $self->idx();
-    
+sub SendStatusEvent($)
+{
+    my ($self) = @_;
+
+    my $slice = $self->GetSlice();
     return -1
-	if (!DBQueryWarn("update geni_aggregates set ".
-			 "  state='$state' ".
-			 "where idx='$idx'"));
+	if (!defined($slice));
     
-    $self->{'AGGREGATE'}->{'state'} = $state;
+    my $blob = {
+	"state"   => $self->state(),
+	"status"  => $self->status(),
+	"utc"     => time(),
+    };
+    GeniEvent->SendEvent({"type"    => "SLICESTATUS",
+			  "slice"   => $slice->urn(),
+			  "urn"     => $slice->urn(),
+			  "details" => $blob});
     return 0;
 }
 
@@ -2366,33 +2396,36 @@ sub ComputeState($)
 
 	}
     }
+    my ($newstate,$newstatus);
+    
     if ($stopped == $count) {
-	$self->SetState("stopped");
+	$newstate = "stopped";
     }
     elsif ($started == $count) {
-	$self->SetState("started");
+	$newstate = "started";
     }
     else {
-	$self->SetState("mixed");
+	$newstate = "mixed";
     }
     if ($ready == $count) {
-	$self->SetStatus("ready");
+	$newstatus = "ready";
     }
     elsif ($notready == $count) {
-	$self->SetStatus("notready");
+	$newstatus = "notready";
     }
     elsif ($changing == $count) {
-	$self->SetStatus("changing");
+	$newstatus = "changing";
     }
     elsif ($failed) {
-	$self->SetStatus("failed");
+	$newstatus = "failed";
     }
     else {
-	$self->SetStatus("mixed");
+	$newstatus = "mixed";
     }
     if ($boot_failure == 1) {
-	$self->SetStatus("failed");
+	$newstatus = "failed";
     }
+    $self->SetStateStatus($newstate, $newstatus);
     return 0;
 }
 
@@ -2473,6 +2506,34 @@ sub CancelUpdateAccounts($)
 	if ($self->state() eq "updating_users");
 
     return 0;
+}
+
+#
+# Generate the blob for status. 
+#
+sub GenerateStatusBlob($)
+{
+    my ($self) = @_;
+
+    my $sliver_urn    = $self->sliver_urn();
+    my $resource_id   = $self->resource_id();
+    my $state         = $self->state();
+    my $status        = $self->status();
+    my $nickname      = $self->nickname() || "";
+
+    # New is the same as stopped. Separate state is handy.
+    $state = "stopped"
+	if ($state eq "new");
+
+    my $blob = {
+	"component_urn" => $resource_id,
+	"client_id"     => $nickname,
+	"state"         => $state,
+	"status"        => $status,
+	"error"         => "",
+	"utc"           => time(),
+    };
+    return $blob;
 }
 
 ############################################################################

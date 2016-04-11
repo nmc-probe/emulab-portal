@@ -56,7 +56,9 @@ $geni_response_codes =
           "No Mapping Possible",
     );
 define("GENIRESPONSE_BADARGS",   	       1);
+define("GENIRESPONSE_REFUSED",                 7);
 define("GENIRESPONSE_TIMEDOUT",                8);
+define("GENIRESPONSE_SEARCHFAILED",            12);
 define("GENIRESPONSE_VLAN_UNAVAILABLE",        24);
 define("GENIRESPONSE_INSUFFICIENT_BANDWIDTH",  25);
 define("GENIRESPONSE_INSUFFICIENT_NODES",      26);
@@ -160,6 +162,21 @@ class Instance
 	$query_result =
 	    DBQueryFatal("select uuid from apt_instances ".
 			 "where creator_uuid='$safe_token'");
+
+	if (! ($query_result && mysql_num_rows($query_result))) {
+	    return null;
+	}
+	$row = mysql_fetch_row($query_result);
+	$uuid = $row[0];
+ 	return Instance::Lookup($uuid);
+    }
+
+    function LookupBySlice($token) {
+	$safe_token = addslashes($token);
+
+	$query_result =
+	    DBQueryFatal("select uuid from apt_instances ".
+			 "where slice_uuid='$safe_token'");
 
 	if (! ($query_result && mysql_num_rows($query_result))) {
 	    return null;
@@ -413,19 +430,24 @@ class Instance
 	    return 1;
 	}
         #
-        # IsNonLocal() is not the correct test, since we now allow geni users
-        # to start/join real projects. Need to think about this.
+        # These are the guest projects.
         #
-        if (!$user->IsNonLocal()) {
-            # Otherwise a project membership test.
-            $project = Project::Lookup($this->pid_idx());
-            if (!$project) {
-                return 0;
-            }
-            $isapproved = 0;
-            if ($project->IsMember($user, $isapproved) && $isapproved) {
-                return 1;
-            }
+        $APT_HOLDINGPROJECT   = "aptguests";
+        $CLOUD_HOLDINGPROJECT = "CloudLab";
+        
+        if ($this->pid() == $APT_HOLDINGPROJECT ||
+            $this->pid() == $CLOUD_HOLDINGPROJECT) {
+            return 0;
+        }
+        
+        # Otherwise a project membership test.
+        $project = Project::Lookup($this->pid_idx());
+        if (!$project) {
+            return 0;
+        }
+        $isapproved = 0;
+        if ($project->IsMember($user, $isapproved) && $isapproved) {
+            return 1;
         }
         return 0;
     }
@@ -600,6 +622,11 @@ class InstanceSliver
     # Constructor by lookup on unique index.
     #
     function InstanceSliver($instance, $urn) {
+        if (!$instance) {
+            TBMAIL("stoller", "undefined instance", $urn);
+	    $this->sliver = null;
+	    return;
+        }
 	$uuid = $instance->uuid();
 
 	$query_result =

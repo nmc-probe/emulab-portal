@@ -52,15 +52,26 @@
 	  </tr>
 	  <% } %>
 	  <% if (isadmin) { %>
-	    <td class='border-none'>Creator:</td>
-	    <td class='border-none'>
-	      <% if (registered) { %>
-		<a href="https://www.emulab.net/showuser.php3?user=<%- creatorUid %>">
-		  <%- creatorUid %></a>
-	      <% } else { %>
-	        <a href="mailto:<%- creatorEmail %>"><%- creatorEmail %></a>
-	      <% } %>
-	    </td>
+	    <tr>
+	      <td class='border-none'>Creator:</td>
+	      <td class='border-none'>
+		<% if (registered) { %>
+		  <a href="user-dashboard.php?user=<%- creatorUid %>">
+		    <%- creatorUid %></a>
+		<% } else { %>
+	          <a href="mailto:<%- creatorEmail %>"><%- creatorEmail %></a>
+	        <% } %>
+	      </td>
+	    </tr>
+	    <% if (project) { %>
+	      <tr>
+		<td class='border-none'>Project:</td>
+		<td class='border-none'>
+		  <a href="show-project.php?pid=<%- project %>">
+		    <%- project %></a>
+		</td>
+	      </tr>
+	    <% } %>
 	  <% } %>
 	  <tr>
 	    <td class='border-none'>Created:</td>
@@ -255,7 +266,7 @@
 			data-toggle='popover'
 			data-content='Ask cluster for updated node status'>
 		  Refresh Status</button>
-		<button class='btn btn-xs btn-success pull-right' disabled
+		<button class='btn btn-xs btn-success pull-right hidden' disabled
 			style='margin-right: 10px;'
 			id='linktest-modal-button' type=button
  			data-toggle='popover'
@@ -275,7 +286,23 @@
                       <th>SSH command <small>
 			  (if you provided your own key)</small>
                       </th>
-                      <th style='text-align: center;'>Actions</th>
+                      <th style='text-align: left;'>
+			<div id='listview-action-menu' class='dropdown'>
+			  <input type="checkbox" id="select-all">
+			  <button id='action-menu-button' type='button'
+				  class='btn btn-primary btn-sm dropdown-toggle'
+				  data-toggle='dropdown'>
+			    <span class='glyphicon glyphicon-cog'></span>
+			  </button>
+			  <ul class='dropdown-menu text-left' role='menu'>
+			    <li><a href='#' name='reboot'>Reboot Selected</a>
+			    </li>
+			    <li><a href='#' name='reload'>Reload Selected</a>
+			    </li>
+			  </ul>
+			</div>
+		      </th>
+		      <th style='text-align: center;'>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -365,16 +392,45 @@
       </div>
     </div>
   </div>
+  <div id='deletenode_modal' class='modal fade'>
+    <div class='modal-dialog'>
+      <div class='modal-content'>
+	<div class='modal-header'>
+          <center><h3>Confirm to Delete Nodes</h3>
+	</div>
+	<div class='modal-body'>
+          <p>
+	    Are you <b>sure</b> you want to delete nodes from your
+            experiment?  This operation cannot be stopped once it is
+            started!
+
+	  </p>
+	  <center>
+            <button style='margin-right: 20px;'
+                    class='btn btn-primary btn-sm' 
+                    data-dismiss='modal' aria-hidden='true'>
+	      Cancel</button>
+            <button class='btn btn-danger btn-sm'; type='button'
+		    id='deletenode_confirm'>
+	      Confirm</button>
+	  </center>
+	</div>
+      </div>
+    </div>
+  </div>
   <div id="context">
     <div id="context-menu">
       <ul class="dropdown-menu" role="menu"
 	  style='cursor: pointer; cursor: hand'>
-	<li id="shell"><a tabindex="-1">Shell</a></li>
-	<li id="console"><a tabindex="-1">Console</a></li>
-	<li id="consolelog"><a tabindex="-1">Console Log</a></li>
-	<li id="reboot"><a tabindex="-1">Reboot</a></li>
-	<li id="reload"><a tabindex="-1">Reload</a></li>
-	<li id="snapshot"><a tabindex="-1">Snapshot</a></li>
+	<li id="shell"><a name="shell">Shell</a></li>
+	<li id="console"><a name="console">Console</a></li>
+	<li id="consolelog"><a name="consolelog">Console Log</a></li>
+	<li id="reboot"><a name="reboot">Reboot</a></li>
+	<li id="reload"><a name="reload">Reload</a></li>
+	<li id="snapshot"><a name="snapshot">Snapshot</a></li>
+	<% if (isadmin) { %>
+	<li id="delete"><a name="delete">Delete Node</a></li>
+	<% } %>
       </ul>
     </div>
   </div>

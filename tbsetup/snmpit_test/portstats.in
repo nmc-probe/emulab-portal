@@ -368,6 +368,11 @@ DEVICE: foreach my $name (keys %portMap) {
 	    $device = new snmpit_force10($name);
  	    last;
 	};
+	/comware/ && do {
+	    require snmpit_h3c;
+	    $device = new snmpit_h3c($name);
+	    last;
+	};
 
 	# 'default' case
 	warn "WARNING: Unknown switch type ($type) for $name, skipping some ports\n";

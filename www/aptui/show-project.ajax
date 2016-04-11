@@ -1,0 +1,143 @@
+<?php
+#
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+chdir("..");
+chdir("apt");
+include_once("profile_defs.php");
+include_once("instance_defs.php");
+include_once("ajax-routines.ajax");
+
+# We set this in CheckPageArgs
+$target_project = null;
+
+#
+# Need to check the permission, since we allow admins to mess with
+# other accounts.
+#
+function CheckPageArgs()
+{
+    global $this_user, $target_project;
+    global $ajax_args;
+    global $TB_PROJECT_READINFO;
+
+    if (!isset($ajax_args["pid"])) {
+	SPITAJAX_ERROR(-1, "Missing target pid");
+	return -1;
+    }
+    $pid = $ajax_args["pid"];
+    
+    if (!TBvalid_pid($pid)) {
+	SPITAJAX_ERROR(-1, "Invalid target pid");
+        return -1;
+    }
+    $target_project = Project::Lookup($pid);
+    if (!$target_project) {
+        sleep(2);
+	SPITAJAX_ERROR(-1, "Unknown target pid");
+        return -1;
+    }
+    if (!ISADMIN() && 
+        !$target_project->AccessCheck($this_user, $TB_PROJECT_READINFO)) {
+	SPITAJAX_ERROR(-1, "Not enough permission");
+	return -1;
+    }
+    return 0;
+}
+
+function Do_ExperimentList()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $results = ExperimentList("project", $target_project);
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_ProfileList()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $results = ProfileList("project", $target_project);
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_MemberList()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $target_idx  = $target_project->pid_idx();
+    $target_pid  = $target_project->pid();
+    $results     = array();
+    $members     = $target_project->MemberList();
+
+    foreach ($members as $user) {
+        $blob = array();
+        $blob["uid"]      = $user->uid();
+        $blob["name"]     = $user->name();
+        $blob["email"]    = $user->email();
+        $blob["joined"]   = DateStringGMT($user->created());
+        $blob["approved"] = ($target_project->UserTrust($user) ==
+                             TBDB_TRUSTSTRING_NONE ? 0 : 1);
+
+        $results[$user->uid()] = $blob;
+    }
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_ProjectProfile()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    if (!ISADMIN()) {
+	SPITAJAX_ERROR(-1, "Not enough permission");
+        return;
+    }
+    $results = array();
+
+    $results["pid"]         = $target_project->pid();
+    $results["pid_idx"]     = $target_project->pid_idx();
+    $results["leader"]      = $target_project->head_uid();
+    $results["created"]     = DateStringGMT($target_project->created());
+    $results["approved"]    = $target_project->approved();
+    $results["url"]         = $target_project->URL();
+    $results["description"] = $target_project->name();
+    $results["why"]         = $target_project->why();
+
+    SPITAJAX_RESPONSE($results);
+}
+
+# Local Variables:
+# mode:php
+# End:
+?>
