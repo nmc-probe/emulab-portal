@@ -619,8 +619,9 @@ sub GetCredentials()
         return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid slice URN: "'. $slice_urn . '"');
     }
     my ($slice_urn_auth, $slice_urn_type, $sliceurn_name) = GeniHRN::Parse( $slice_urn );
-    if ($slice_urn_type ne 'slice') {
-        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a slice URN: "'. $slice_urn . '"');
+    if ($slice_urn_type ne 'slice' && $slice_urn_type ne 'project') {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 
+            'Not a slice or project URN: "'. $slice_urn . '"');
     }
 
     #check if speaksfor, and if so, if need to add user cred
