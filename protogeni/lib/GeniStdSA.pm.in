@@ -634,7 +634,12 @@ sub GetCredentials()
             });
         return (WrapResponse($credential, 'Error when GetCredentials tried to request user credential: '), $speaksfor) if (GeniResponse::IsError($credential));
         #$credential_args = [ $credential->{"value"}, $speaksfor->asString() ];
-        $credential_args = [ $credential->{"value"}, @$credential_args ];
+        my $usercred_blob = {
+            "geni_type" => "geni_sfa",
+            "geni_version" => "3",
+            "geni_value" => $credential->{"value"}
+        };
+        $credential_args = [ $usercred_blob , @$credential_args ];
     }
 
     $credential = GeniSA::GetCredential({
