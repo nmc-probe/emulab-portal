@@ -59,7 +59,7 @@ SBIN_SCRIPTS	= vlandiff vlansync withadminprivs export_tables cvsupd.pl \
 		  addrfdevice addrfpath
 
 WEB_SBIN_SCRIPTS= webnewnode webdeletenode webspewconlog webarchive_list \
-                  webwanodecheckin webspewimage webdumpdescriptor \
+                  webwanodecheckin webspewimage webdumpdescriptor webemulabfeature \
 		  webdelete_image websitecheckin webclone_image webgrantimage
 WEB_BIN_SCRIPTS = webcreate_image websetdest weblinkmon_ctl webspewevents \
 		  webdelay_config webcreatedataset webdeletelease \
