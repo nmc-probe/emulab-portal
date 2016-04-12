@@ -7387,7 +7387,7 @@ sub InitializePhysNode($$$)
 
     # Do some limited early setup for UE class nodes to get necessary
     # information into the PG manifest.
-    if ($pnode->class eq "ue") {
+    if ($pnode->class eq "ue" && !( $self->impotent() ) ) {
 	$pnode->UEConfig() == 0
 	    or return -1;
     }
