@@ -6,7 +6,9 @@ function (_, sup, moment, dashboardString)
     'use strict';
     var isadmin           = 0;
     var dashboardTemplate = _.template(dashboardString);
-
+    var clusterFiles      = ["cloudlab-nofed.json", "cloudlab-fedonly.json"];
+    var clusterStats      = {};
+    
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
@@ -70,6 +72,7 @@ function (_, sup, moment, dashboardString)
 		}
 	    });
 	    UpdateTimes();
+	    UpdateClusterSummary();
 	}
 	var xmlthing = sup.CallServerMethod(null, "dashboard",
 					    "GetStats", null);
@@ -85,6 +88,57 @@ function (_, sup, moment, dashboardString)
             }
         });
 
+    }
+
+    /*
+     * Grab the JSON files and reduce it down.
+     */
+    function UpdateClusterSummary()
+    {
+	var UpdateTable = function() {
+	    var html = "";
+	    
+	    $.each(clusterStats, function(name, site) {
+		html = html +
+		    "<tr>" +
+		    "<td>" + name + "</td>" +
+		    "<td>" + site.ratio + "%" + "</td>" +
+		    "<td>" + site.inuse + "</td>" +
+		    "<td>" + site.total + "</td>" +
+		    "</tr>";
+	    });
+	    console.info(html);
+	    $('#cluster-status-tbody').html(html);
+	};
+	
+	for (var index = 0; index < clusterFiles.length; index++) {
+	    var jqxhr = $.getJSON(clusterFiles[index], function(blob) {
+		$.each(blob.children, function(idx, site) {
+		    var stats = {"total" : 0,
+				 "inuse" : 0,
+				 "ratio" : 0,
+				 "types" : {}};
+		
+		    $.each(site.children, function(idx, type) {
+			stats.types[type.name] =
+			    {"total" : type.size,
+			     "inuse" : type.howfull,
+			     "ratio" : Math.round((type.howfull /
+						   type.size) * 100)}; 
+						  
+			stats.total += type.size;
+			stats.inuse += type.howfull;
+			stats.ratio = Math.round((stats.inuse /
+						  stats.total) * 100);
+		    });
+		    clusterStats[site.name] = stats;
+		});
+		UpdateTable();
+	    })
+	    .fail(function() {
+		console.log( "error" );
+	    });
+	}
     }
 
     $(document).ready(initialize);
