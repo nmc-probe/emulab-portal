@@ -34,10 +34,60 @@ function (_, sup, moment, mainString,
             window.location.hash = e.target.hash;
         });
 
+	LoadUsage();
 	LoadExperimentTab();
 	LoadProfileTab();
 	LoadMembersTab();
 	LoadProjectTab();
+    }
+
+    function LoadUsage()
+    {
+	var callback = function(json) {
+	    console.info(json);
+
+	    if (json.code) {
+		console.info(json.value);
+		return;
+	    }
+	    var blob = json.value;
+	    var html = "";
+
+	    if (! (blob.pnodes || blob.monthpnodes || blob.weekpnodes)) {
+		return;
+	    }
+	    if (blob.pnodes) {
+		html = "<div>Current Usage: " +
+		    blob.pnodes + " Node" + (blob.pnodes > 1 ? "s, " : ", ") +
+		    blob.phours + " Node Hours</div>";
+	    }
+	    if (blob.weekpnodes) {
+		html = html +
+		    "<div>Previous Week: " +
+		    blob.weekpnodes + " Node" +
+		    (blob.weekpnodes > 1 ? "s, " : ", ") +
+		    blob.weekphours + " Node Hours</div>";
+	    }
+	    if (blob.monthpnodes) {
+		html = html +
+		    "<div>Previous Month: " +
+		    blob.monthpnodes + " Node" +
+		    (blob.monthpnodes > 1 ? "s, " : ", ") +
+		    blob.monthphours + " Node Hours</div>";
+	    }
+	    if (blob.rank) {
+		html = html +
+		    "<div>" + blob.rankdays + " Project Usage Ranking: #" +
+		    blob.rank + " of " + blob.ranktotal + " active projects" +
+		    "</div>";
+	    }
+	    $('#usage-summary').html(html);
+	}
+	var xmlthing = sup.CallServerMethod(null,
+					    "show-project", "UsageSummary",
+					    {"pid" : window.TARGET_PROJECT});
+	xmlthing.done(callback);
+	
     }
 
     function LoadExperimentTab()
@@ -115,7 +165,25 @@ function (_, sup, moment, mainString,
 	    var table = $('#profiles_table')
 		.tablesorter({
 		    theme : 'green',
+		    widgets: ["filter"],
+		    widgetOptions: {
+			// include child row content while filtering, if true
+			filter_childRows  : true,
+			// include all columns in the search.
+			filter_anyMatch   : true,
+			// class name applied to filter row and each input
+			filter_cssFilter  : 'form-control',
+			// search from beginning
+			filter_startsWith : false,
+			// Set this option to false for case sensitive search
+			filter_ignoreCase : true,
+			// Only one search box.
+			filter_columnFilters : false,
+			// Search as typing
+			filter_liveSearch : true,
+		    },
 		});
+	    $.tablesorter.filter.bindSearch(table, $('#profile_search'));
 	}
 	var xmlthing = sup.CallServerMethod(null,
 					    "show-project", "ProfileList",
@@ -125,9 +193,8 @@ function (_, sup, moment, mainString,
 
     function ShowTopology(profile)
     {
-	var profile;
 	var index;
-    
+
 	var callback = function(json) {
 	    if (json.code) {
 		alert("Failed to get rspec for topology viewer: " + json.value);

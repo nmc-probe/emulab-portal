@@ -137,6 +137,54 @@ function Do_ProjectProfile()
     SPITAJAX_RESPONSE($results);
 }
 
+#
+# Usage for the user, in pnode hours. 
+#
+function Do_UsageSummary()
+{
+    global $this_user, $target_project;
+    global $ajax_args;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    list($pcount, $phours)           = Instance::CurrentUsage($target_project);
+    list($weekpcount, $weekphours)   = Instance::WeeksUsage($target_project);
+    list($monthpcount, $monthphours) = Instance::MonthsUsage($target_project);
+    list($rank, $ranktotal)          = Instance::Ranking($target_project, 30);
+
+    if ($phours < 2) {
+        $phours = sprintf("%.1f", $phours);
+    }
+    else {
+        $phours = sprintf("%.0f", $phours);
+    }
+    if ($weekphours < 2) {
+        $weekphours = sprintf("%.1f", $weekphours);
+    }
+    else {
+        $weekphours = sprintf("%.0f", $weekphours);
+    }
+    if ($monthphours < 2) {
+        $monthphours = sprintf("%.1f", $monthphours);
+    }
+    else {
+        $monthphours = sprintf("%.0f", $monthphours);
+    }
+    $blob = array("pnodes"      => $pcount,
+                  "phours"      => $phours,
+                  "weekpnodes"  => $weekpcount,
+                  "weekphours"  => $weekphours,
+                  "monthpnodes" => $monthpcount,
+                  "monthphours" => $monthphours,
+                  "rankdays"    => 30,
+                  "rank"        => $rank,
+                  "ranktotal"   => $ranktotal
+    );
+    
+    SPITAJAX_RESPONSE($blob);
+}
+
 # Local Variables:
 # mode:php
 # End:
