@@ -121,6 +121,9 @@ class Instance
     function extension_history() { return $this->field('extension_history'); }
     function extension_lockout() { return $this->field('extension_adminonly'); }
     function extension_requested(){return $this->field('extension_requested');}
+    function extension_denied()  { return $this->field('extension_denied');}
+    function extension_denied_reason(){
+        return $this->field('extension_denied_reason');}
     function physnode_count()    { return $this->field('physnode_count'); }
     function virtnode_count()    { return $this->field('virtnode_count'); }
     function servername()   { return $this->field('servername'); }
@@ -455,18 +458,32 @@ class Instance
     #
     # Determine user current usage.
     #
-    function CurrentUsage($user) {
-        $user_idx = $user->idx();
+    function CurrentUsage($target) {
         $pcount = 0;
         $phours = 0;
 
-        $query_result =
-            DBQueryFatal("select sum(physnode_count), ".
+        if (get_class($target) == "User") {
+            $user_idx = $target->idx();
+            
+            $query_result =
+                DBQueryFatal("select sum(physnode_count), ".
                          " truncate(sum(physnode_count * ".
                          "  ((UNIX_TIMESTAMP(now()) - ".
                          "    UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
                          "  from apt_instances ".
                          "where creator_idx='$user_idx' and physnode_count>0");
+        }
+        else {
+            $pid_idx = $target->pid_idx();
+
+            $query_result =
+                DBQueryFatal("select sum(physnode_count), ".
+                         " truncate(sum(physnode_count * ".
+                         "  ((UNIX_TIMESTAMP(now()) - ".
+                         "    UNIX_TIMESTAMP(created)) / 3600.0)),2) as phours ".
+                         "  from apt_instances ".
+                         "where pid_idx='$pid_idx' and physnode_count>0");
+        }
 
         $row = mysql_fetch_array($query_result);
         $pcount = $row[0] ? $row[0] : 0;
@@ -477,10 +494,20 @@ class Instance
     #
     # Usage over the last week. Just phours, cause pcount is not very useful.
     #
-    function WeeksUsage($user) {
-        $user_idx = $user->idx();
+    function WeeksUsage($target) {
         $weekago  = time() - (3600 * 24 * 7);
         $phours   = 0;
+        $pcount   = 0;
+        $clause   = "";
+
+        if (get_class($target) == "User") {
+            $user_idx = $target->idx();
+            $clause = "creator_idx='$user_idx'";
+        }
+        else {
+            $pid_idx = $target->pid_idx();
+            $clause = "pid_idx='$pid_idx'";
+        }
 
         #
         # This gets existing experiments back one week.
@@ -488,8 +515,7 @@ class Instance
         $query_result =
             DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created) ".
                          "  from apt_instances ".
-                         "where creator_idx='$user_idx' and ".
-                         "      physnode_count>0");
+                         "where $clause and physnode_count>0");
 
 	while ($row = mysql_fetch_array($query_result)) {
             $pnodes   = $row[0];
@@ -500,6 +526,7 @@ class Instance
             else
                 $diff = time() - $created;
 
+            $pcount += $pnodes;
             $phours += $pnodes * ($diff / 3600.0);
         }
 
@@ -510,8 +537,7 @@ class Instance
             DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created), ".
                          "       UNIX_TIMESTAMP(destroyed) ".
                          "  from apt_instance_history ".
-                         "where creator_idx='$user_idx' and ".
-                         "      physnode_count>0 and " .
+                         "where $clause and physnode_count>0 and " .
                          "      destroyed>DATE_SUB(curdate(), INTERVAL 1 WEEK)");
 
 	while ($row = mysql_fetch_array($query_result)) {
@@ -527,18 +553,29 @@ class Instance
             if ($diff < 0)
                 $diff = 0;
 
+            $pcount += $pnodes;
             $phours += $pnodes * ($diff / 3600.0);
         }
-        return $phours;
+        return array ($pcount, $phours);
     }
 
     #
     # Usage over the last months Just phours, cause pcount is not very useful.
     #
-    function MonthsUsage($user) {
-        $user_idx = $user->idx();
+    function MonthsUsage($target) {
         $monthago = time() - (3600 * 24 * 28);
+        $pcount   = 0;
         $phours   = 0;
+        $clause   = "";
+
+        if (get_class($target) == "User") {
+            $user_idx = $target->idx();
+            $clause = "creator_idx='$user_idx'";
+        }
+        else {
+            $pid_idx = $target->pid_idx();
+            $clause = "pid_idx='$pid_idx'";
+        }
 
         #
         # This gets existing experiments back one week.
@@ -546,8 +583,7 @@ class Instance
         $query_result =
             DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created) ".
                          "  from apt_instances ".
-                         "where creator_idx='$user_idx' and ".
-                         "      physnode_count>0");
+                         "where $clause and physnode_count>0");
 
 	while ($row = mysql_fetch_array($query_result)) {
             $pnodes   = $row[0];
@@ -558,6 +594,7 @@ class Instance
             else
                 $diff = time() - $created;
 
+            $pcount += $pnodes;
             $phours += $pnodes * ($diff / 3600.0);
         }
 
@@ -568,8 +605,7 @@ class Instance
             DBQueryFatal("select physnode_count,UNIX_TIMESTAMP(created), ".
                          "       UNIX_TIMESTAMP(destroyed) ".
                          "  from apt_instance_history ".
-                         "where creator_idx='$user_idx' and ".
-                         "      physnode_count>0 and " .
+                         "where $clause and physnode_count>0 and " .
                          "      destroyed>DATE_SUB(curdate(), INTERVAL 1 MONTH)");
 
 	while ($row = mysql_fetch_array($query_result)) {
@@ -585,9 +621,62 @@ class Instance
             if ($diff < 0)
                 $diff = 0;
 
+            $pcount += $pnodes;
             $phours += $pnodes * ($diff / 3600.0);
         }
-        return $phours;
+        return array($pcount, $phours);
+    }
+
+    #
+    # Ranking of usage over the last N days. Just by phours, cause pcount
+    # is not very useful.
+    #
+    function Ranking($target, $days) {
+        $daysago  = time() - (3600 * 24 * days);
+        $rank     = null;
+        $ranktotal= 0;
+
+        if (get_class($target) == "User") {
+            $which = "creator_idx";
+            $who   = $target->uid_idx();
+        }
+        else {
+            $which = "pid_idx";
+            $who   = $target->pid_idx();
+        }
+        $query_result =
+            DBQueryFatal("select $which,SUM(physnode_count) as physnode_count,".
+                         "   SUM(phours) as phours from ".
+                         " ((select $which,physnode_count,created,NULL, ".
+                         "   physnode_count * (TIMESTAMPDIFF(HOUR, ".
+                         "    IF(created > DATE_SUB(now(), INTERVAL 30 DAY), ".
+                         "       created, DATE_SUB(now(), INTERVAL 30 DAY)), now())) ".
+                         "    as phours ".
+                         "   from apt_instances ".
+                         "   where physnode_count>0) ".
+                         "  union ".
+                         "  (select $which,physnode_count,created,destroyed, ".
+                         "   physnode_count * (TIMESTAMPDIFF(HOUR, ".
+                         "    IF(created > DATE_SUB(now(), INTERVAL 30 DAY), ".
+                         "       created, DATE_SUB(now(), INTERVAL 30 DAY)), destroyed)) ".
+                         "    as phours ".
+                         "   from apt_instance_history ".
+                         "   where physnode_count>0 and ".
+                         "         destroyed>DATE_SUB(now(),INTERVAL 30 DAY)))".
+                         "   as combined ".
+                         "group by $which ".
+                         "order by phours desc");
+
+        $ranktotal = mysql_num_rows($query_result);
+        $count = 1;
+	while ($row = mysql_fetch_array($query_result)) {
+            if ($who == $row[0]) {
+                $rank = $count;
+                break;
+            }
+            $count++;
+        }
+        return array($rank, $ranktotal);
     }
 
     #
