@@ -337,6 +337,25 @@
 		    <div id='cluster_selector' class='hidden'></div>
 		  </div>
 		<% } %>
+		<% if (admin) { %>
+		  <div class='form-horizontal experiment_option'>
+		    <div class='form-group format-me'>
+		      <div class="row">
+			<label class='col-sm-4 control-label'
+			       style='text-align: right;'>Ignore Failures:</label>
+			<div class='col-sm-2'>
+			  <input id='failure_okay' type="checkbox" value="checked"
+				 class=''
+				 data-key='failure_okay'
+				 name='failure_okay'
+				 <%= formfields.failure_okay %>>
+			</div>
+		      </div>
+		      <label class='control-label control-error hidden'
+			     for='failure_okay'></label>
+		    </div>
+		  </div>
+		<% } %>
 	      </div>
 	      <div id="cluster_status_link"><center>
 		<a target="_blank" href="cluster-graphs.php">

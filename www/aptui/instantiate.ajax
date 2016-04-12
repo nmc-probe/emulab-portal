@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -749,6 +749,10 @@ function Do_Submit()
         fclose($fp);
         chmod($keyname, 0666);
         $options .= " -k $keyname";
+    }
+    if (isset($formfields["failure_okay"]) &&
+        $formfields["failure_okay"] == "checked" && ISADMIN()) {
+        $options .= " -i ";
     }
     
     #
