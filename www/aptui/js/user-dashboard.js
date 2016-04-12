@@ -39,11 +39,46 @@ function (_, sup, moment, mainString,
             window.location.hash = e.target.hash;
         });
 
+	LoadUsage();
 	LoadExperimentTab();
 	// Should we do these on demand?
 	LoadProfileListTab();
 	LoadProjectsTab();
 	LoadProfileTab();
+
+	/*
+	 * Handlers for inline operations.
+	 */
+	$('#sendtestmessage').click(function () {
+	    SendTestMessage();
+	});
+    }
+
+    function LoadUsage()
+    {
+	var callback = function(json) {
+	    console.info(json);
+
+	    if (json.code) {
+		console.info(json.value);
+		return;
+	    }
+	    var blob = json.value;
+
+	    if (blob.rank) {
+		var html = 
+		    "<div>" + blob.rankdays + " Day Usage Ranking: #" +
+		    blob.rank + " of " + blob.ranktotal + " active users" +
+		    "</div>";
+		
+		$('#usage-summary').html(html);		
+	    }
+	}
+	var xmlthing = sup.CallServerMethod(null,
+					    "user-dashboard", "UsageSummary",
+					    {"uid" : window.TARGET_USER});
+	xmlthing.done(callback);
+	
     }
 
     function LoadExperimentTab()
@@ -121,7 +156,25 @@ function (_, sup, moment, mainString,
 	    var table = $('#profiles_table')
 		.tablesorter({
 		    theme : 'green',
+		    widgets: ["filter"],
+		    widgetOptions: {
+			// include child row content while filtering, if true
+			filter_childRows  : true,
+			// include all columns in the search.
+			filter_anyMatch   : true,
+			// class name applied to filter row and each input
+			filter_cssFilter  : 'form-control',
+			// search from beginning
+			filter_startsWith : false,
+			// Set this option to false for case sensitive search
+			filter_ignoreCase : true,
+			// Only one search box.
+			filter_columnFilters : false,
+			// Search as typing
+			filter_liveSearch : true,
+		    },
 		});
+	    $.tablesorter.filter.bindSearch(table, $('#profile_search'));
 	}
 	var xmlthing = sup.CallServerMethod(null,
 					    "user-dashboard", "ProfileList",
@@ -131,7 +184,6 @@ function (_, sup, moment, mainString,
 
     function ShowTopology(profile)
     {
-	var profile;
 	var index;
     
 	var callback = function(json) {
@@ -242,6 +294,21 @@ function (_, sup, moment, mainString,
 			     {"uid" : window.TARGET_USER,
 			      "toggle" : name},
 			     callback);
+    }
+
+    function SendTestMessage()
+    {
+	var callback = function(json) {
+	    if (json.code) {
+		alert("Test message could not be sent!");
+		return;
+	    }
+	    alert("Test message has been sent");
+	}
+	var xmlthing = sup.CallServerMethod(null,
+					    "user-dashboard", "SendTestMessage",
+					    {"uid" : window.TARGET_USER});
+	xmlthing.done(callback);
     }
 
     $(document).ready(initialize);

@@ -155,6 +155,54 @@ function Do_AccountDetails()
 }
 
 #
+# Usage for the user, in pnode hours. 
+#
+function Do_UsageSummary()
+{
+    global $this_user, $target_user;
+    global $ajax_args;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    list($pcount, $phours)           = Instance::CurrentUsage($target_user);
+    list($weekpcount, $weekphours)   = Instance::WeeksUsage($target_user);
+    list($monthpcount, $monthphours) = Instance::MonthsUsage($target_user);
+    list($rank, $ranktotal)          = Instance::Ranking($target_user, 30);
+
+    if ($phours < 2) {
+        $phours = sprintf("%.1f", $phours);
+    }
+    else {
+        $phours = sprintf("%.0f", $phours);
+    }
+    if ($weekphours < 2) {
+        $weekphours = sprintf("%.1f", $weekphours);
+    }
+    else {
+        $weekphours = sprintf("%.0f", $weekphours);
+    }
+    if ($monthphours < 2) {
+        $monthphours = sprintf("%.1f", $monthphours);
+    }
+    else {
+        $monthphours = sprintf("%.0f", $monthphours);
+    }
+    $blob = array("pnodes"      => $pcount,
+                  "phours"      => $phours,
+                  "weekpnodes"  => $weekpcount,
+                  "weekphours"  => $weekphours,
+                  "monthpnodes" => $monthpnodes,
+                  "monthphours" => $monthphours,
+                  "rankdays"    => 30,
+                  "rank"        => $rank,
+                  "ranktotal"   => $ranktotal
+    );
+    
+    SPITAJAX_RESPONSE($blob);
+}
+
+#
 # Toggle flags.
 #
 function Do_Toggle()
@@ -218,6 +266,42 @@ function Do_Toggle()
 	SPITAJAX_ERROR(-1, "Unknown toggle name: $toggle");
         return;
     }
+    SPITAJAX_RESPONSE(1);
+}
+
+function Do_SendTestMessage()
+{
+    global $this_user, $target_user;
+    global $APTMAIL;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    if (!ISADMIN()) {
+	SPITAJAX_ERROR(1, "Only administrators can do this.");
+        return;
+    }
+    $target_idx   = $target_user->uid_idx();
+    $target_uuid  = $target_user->uuid();
+    $target_email = $target_user->email();
+    $target_name  = $target_user->name();
+    $target_uid   = $target_user->uid();
+    $adminemail   = $target_user->adminEmail();
+
+    TBMAIL("$target_name '$target_uid' <$target_email>",
+           "This is a test",
+           "\n".
+           "Dear $target_name ($target_uid):\n".
+           "\n".
+           "This is a test message to validate the email address that we\n".
+           "have in our database. Please respond to this message\n".
+           "as soon as you receive it. If we do not hear back from you, we\n".
+           "may be forced to freeze your account.\n".
+           "\n".
+           "Thank you very much!\n",
+           "From: $adminemail\n".
+           "Bcc: stoller");
+           
     SPITAJAX_RESPONSE(1);
 }
 

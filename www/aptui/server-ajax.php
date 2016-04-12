@@ -134,7 +134,9 @@ $routing = array("myprofiles" =>
 						 "Quarantine" =>
 						     "Do_Quarantine",
 						 "LinktestControl" =>
-						     "Do_Linktest")),
+						     "Do_Linktest",
+						 "dismissExtensionDenied" =>
+						     "Do_DismissExtensionDenied")),
 		 "approveuser" =>
 			array("file"    => "approveuser.ajax",
 			      "guest"   => false,
@@ -178,6 +180,8 @@ $routing = array("myprofiles" =>
 						      "Do_ExperimentList",
                                                  "ProjectList" =>
                                                       "Do_ProjectList",
+                                                 "UsageSummary" =>
+                                                      "Do_UsageSummary",
                                                  "ProfileList" =>
                                                       "Do_ProfileList",
                                                  "Toggle" =>
@@ -195,6 +199,8 @@ $routing = array("myprofiles" =>
                                                       "Do_ProfileList",
                                                  "MemberList" =>
                                                       "Do_MemberList",
+                                                 "UsageSummary" =>
+                                                      "Do_UsageSummary",
                                                  "ProjectProfile" =>
                                                       "Do_ProjectProfile")),
 );

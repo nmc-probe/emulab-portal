@@ -42,6 +42,7 @@
       <div class='panel-body'>
 	<div class='row'>
 	  <div class='col-sm-12'>
+	    <center id="usage-summary"></center>
 	    <div>
 	      <!-- Nav tabs -->
 	      <ul class="nav nav-tabs" role="tablist">
@@ -73,6 +74,9 @@
 			Manage Account</a></li>
 		      <li><a href="list-datasets.php?user=<%= target_user %>">
 			List Datasets</a></li>
+                      <li class='divider'></li>
+		      <li><a role="button" id="sendtestmessage">
+			Send Test Message</a></li>
 		      <li role="presentation">
 			<a href='<%- emulablink %>'>
 			  Emulab User Page</a></li>
