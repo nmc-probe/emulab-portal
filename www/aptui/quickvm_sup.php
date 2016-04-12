@@ -310,8 +310,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 
     if ($login_user) {
         list($pcount, $phours) = Instance::CurrentUsage($login_user);
-        $weeksusage = Instance::WeeksUsage($login_user);
-        $monthsusage = Instance::MonthsUsage($login_user);
+        list($foo, $weeksusage) = Instance::WeeksUsage($login_user);
+        list($foo, $monthsusage) = Instance::MonthsUsage($login_user);
         if ($phours || $weeksusage || $monthsusage) {
             echo "<center style='margin-bottom: 5px; margin-top: -8px'>";
             if ($phours) 
