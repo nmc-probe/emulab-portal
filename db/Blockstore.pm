@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012-2015 University of Utah and the Flux Group.
+# Copyright (c) 2012-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -513,21 +513,20 @@ sub Reserve($$$$$)
 	    if ($current_size);
     }
 
-    # Leases do not require any further size accounting updates.
-    goto done
-	if ($self->lease_idx() > 0);
-
     #
     # Now do an atomic update that changes both tables.
+    # Note: leases do not require this.
     #
-    if (!DBQueryWarn("update blockstore_state,reserved_blockstores set ".
-		"     remaining_capacity=remaining_capacity-${bs_size}, ".
-		"     size='$bs_size' ".
-		"where blockstore_state.bsidx=reserved_blockstores.bsidx and ".
-		"      blockstore_state.bs_id=reserved_blockstores.bs_id and ".
-		"      reserved_blockstores.bsidx='$bsidx' and ".
-		"      reserved_blockstores.exptidx='$exptidx' and ".
-		"      reserved_blockstores.vnode_id='$vnode_id'")) {
+    if ($self->lease_idx() == 0 &&
+	!DBQueryWarn("update blockstore_state,reserved_blockstores set ".
+		     "     remaining_capacity=remaining_capacity-${bs_size}, ".
+		     "     size='$bs_size' ".
+		     "where ".
+		     "  blockstore_state.bsidx=reserved_blockstores.bsidx and".
+		     "  blockstore_state.bs_id=reserved_blockstores.bs_id and".
+		     "  reserved_blockstores.bsidx='$bsidx' and ".
+		     "  reserved_blockstores.exptidx='$exptidx' and ".
+		     "  reserved_blockstores.vnode_id='$vnode_id'")) {
 	goto bad;
     }
 done:
@@ -766,6 +765,7 @@ sub IsReadOnly($) {
 #
 sub HowUsed($) {
     my ($self) = @_;
+    require VirtExperiment;
 
     my $rethash = {
 	'readonly' => 0,
@@ -845,18 +845,32 @@ sub Release($)
     }
 
     #
-    # We want to atomically uupdate update remaining_capacity and
+    # See if there is an associated lease.
+    #
+    my $lease_idx = 0;
+    $query_result =
+	DBQueryWarn("select lease_idx from blockstores ".
+		    "where bsidx='$bsidx'");
+    if ($query_result && $query_result->numrows) {
+	$lease_idx = $query_result->fetchrow_array();
+    }
+
+    #
+    # We want to atomically update remaining_capacity and
     # set the size in the reservation to zero, so that if we fail,
     # nothing has changed.
+    # Note: leases do not require this.
     #
-    if (!DBQueryWarn("update blockstore_state,reserved_blockstores set ".
-		"     remaining_capacity=remaining_capacity+size, ".
-		"     size=0 ".
-		"where blockstore_state.bsidx=reserved_blockstores.bsidx and ".
-		"      blockstore_state.bs_id=reserved_blockstores.bs_id and ".
-		"      reserved_blockstores.bsidx='$bsidx' and ".
-		"      reserved_blockstores.exptidx='$exptidx' and ".
-		"      reserved_blockstores.vnode_id='$vnode_id'")) {
+    if ($lease_idx == 0 &&
+	!DBQueryWarn("update blockstore_state,reserved_blockstores set ".
+		     "     remaining_capacity=remaining_capacity+size, ".
+		     "     size=0 ".
+		     "where ".
+		     "  blockstore_state.bsidx=reserved_blockstores.bsidx and".
+		     "  blockstore_state.bs_id=reserved_blockstores.bs_id and".
+		     "  reserved_blockstores.bsidx='$bsidx' and".
+		     "  reserved_blockstores.exptidx='$exptidx' and".
+		     "  reserved_blockstores.vnode_id='$vnode_id'")) {
 	goto bad;
     }
     # That worked, so now we can delete the reservation row.
@@ -874,19 +888,15 @@ sub Release($)
     # of the lease.
     #
     # XXX currently, we also create a new snapshot of the blockstore
-    # if the blockstore is marked as "multiuse".
+    # if the blockstore is marked as "multiuse" and is mapped RW.
     #
-    $query_result =
-	DBQueryWarn("select lease_idx from blockstores ".
-		    "where bsidx='$bsidx'");
-    if ($query_result && $query_result->numrows) {
+    if ($lease_idx != 0) {
 	require Lease;
 
-	my ($lidx) = $query_result->fetchrow_array();
-	my $lease = Lease->Lookup($lidx);
+	my $lease = Lease->Lookup($lease_idx);
 	if ($lease) {
 	    $lease->BumpLastUsed();
-	    if (!$lease->IsExclusiveUse() &&
+	    if (!$lease->IsExclusiveUse() && !$self->IsReadOnly() &&
 		$lease->CreateResourceSnapshot(1)) {
 		print STDERR "Blockstore->Release: ".
 		    "Could not create snapshot for $bsidx ($lease); ".
