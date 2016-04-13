@@ -207,7 +207,8 @@ function SHOWFREENODES()
             $policy_result =
                 DBQueryFatal("select max(count) from group_policies as p ".
                              "where p.policy='type' and p.auxdata='$type' and ".
-                             "      (p.pid='-' or $clause)");
+                             "      (p.pid='-' or $clause) ".
+                             "having max(count)>=0");
         
             if (mysql_num_rows($policy_result)) {
                 $row = mysql_fetch_row($policy_result);
