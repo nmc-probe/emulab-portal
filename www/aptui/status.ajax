@@ -308,8 +308,8 @@ function Do_RequestExtension()
         $project = Project::Lookup($instance->pid_idx());
         if ($project) {
             $group = $project->DefaultGroup();
-            if (ISADMINISTRATOR() ||
-                !FeatureEnabled("NewPortalExtend", $this_user, $group)) {
+            if (!(ISADMINISTRATOR() ||
+                  FeatureEnabled("NewPortalExtend", $this_user, $group))) {
                 TBERROR("Using old extension code", 0);
                 return Do_RequestExtensionOld();
             }
@@ -373,7 +373,6 @@ function Do_RequestExtension()
     if (isset($filename)) {
         unlink($filename);
     }
-                SUEXECERROR(SUEXEC_ACTION_CONTINUE);    
     if ($retval != 0) {
         if ($webtask->exited()) {
             SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
