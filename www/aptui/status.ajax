@@ -310,7 +310,6 @@ function Do_RequestExtension()
             $group = $project->DefaultGroup();
             if (!(ISADMINISTRATOR() ||
                   FeatureEnabled("NewPortalExtend", $this_user, $group))) {
-                TBERROR("Using old extension code", 0);
                 return Do_RequestExtensionOld();
             }
         }
