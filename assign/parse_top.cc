@@ -292,6 +292,7 @@ int parse_top(tb_vgraph &vg, istream& input)
 	l->allow_trivial = false;
 #endif
 	l->emulated = false;
+	l->allow_interswitch = true;
 	l->fix_src_iface = false;
 	l->fix_dst_iface = false;
 		
@@ -304,6 +305,8 @@ int parse_top(tb_vgraph &vg, istream& input)
 	    l->emulated = true;
 	  } else if (parsed_line[i] == string("trivial_ok")) {
 	    l->allow_trivial = true;
+	  } else if (parsed_line[i] == string("no_interswitch")) {
+	    l->allow_interswitch = false;
 	  } else if (stag == string("fixsrciface")) {
             l->fix_src_iface = true;
 	    l->src_iface = svalue;
