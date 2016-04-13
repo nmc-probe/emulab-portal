@@ -1840,6 +1840,7 @@ sub LoadVirtLans($)
 	my $isemulated     = $vlanmember->emulated();
 	my $uselinkdelay   = $vlanmember->uselinkdelay();
 	my $nobwshaping    = $vlanmember->nobwshaping();
+	my $nointerswitch  = $vlanmember->nointerswitch();
 	my $trivial_ok     = $vlanmember->trivial_ok();
 	my $protocol       = $vlanmember->protocol();
 	my $mustdelay      = $vlanmember->mustdelay();
@@ -1876,6 +1877,7 @@ sub LoadVirtLans($)
 	$virtlan->_encapstyle($encap);
 	# User has said that colocating is okay. Not typical.
 	$virtlan->_trivial_ok($trivial_ok);
+	$virtlan->_nointerswitch($nointerswitch);
 	# Link is connected to a remote node, and gets a tunnel.
 	$virtlan->_tunnel(0);
 	# Netmask for the entire lan.
@@ -2743,6 +2745,7 @@ sub GenVirtLans($)
         my $uselinkdelay = $vlan->_uselinkdelay();
 	my $mustdelay    = $vlan->_mustdelay();
 	my $nobwshaping  = $vlan->_nobwshaping();
+	my $nointerswitch= $vlan->_nointerswitch();
 	my $protocol     = $vlan->_protocol();
 	my $linkencap    = $vlan->_encapstyle();
 	my $layer        = $vlan->_layer();
@@ -2894,7 +2897,7 @@ sub GenVirtLans($)
 	# Just a wire.
 	#
 	if ($layer == 1 &&
-	    ($trivial_ok || $emulated || $uselinkdelay ||
+	    ($trivial_ok || $emulated || $uselinkdelay || $nointerswitch ||
 	     $mustdelay || $nobwshaping || $sharednodes || $simnodes)) {
 	    tberror("$vname is a layer 1 link, no options please.\n");
 	    return -1;
@@ -3481,6 +3484,9 @@ sub GenVirtLans($)
 		    if ($trivial_ok) {
 			$others->{'trivial_ok'} = 1;
 		    }
+		    if ($nointerswitch) {
+			$others->{'nointerswitch'} = 1;
+		    }
 		    #
 		    # If the virtnode is a VM and it has been fixed to
 		    # a topology node, then we have to use that node
@@ -3624,6 +3630,9 @@ sub GenVirtLans($)
 			    [$delay,$bw,$backfill,$loss,
 			     $rdelay,$rbw,$rbackfill,$rloss,1.000000];
 		    }
+		}
+		if ($nointerswitch) {
+		    $others->{'nointerswitch'} = 1;
 		}
 		if (defined($vlan->_implemented_by())) {
 		    #
@@ -3817,6 +3826,9 @@ sub GenVirtLans($)
 			if ($trivial_ok) {
 			    $others->{'trivial_ok'} = 1;
 			}
+			if ($nointerswitch) {
+			    $others->{'nointerswitch'} = 1;
+			}
 			#
 			# If the virtnode is a VM and it has been fixed to
 			# a topology node, then we have to use that node
@@ -3921,6 +3933,9 @@ sub GenVirtLans($)
 		    }
 		    if ($trivial_ok) {
 			$others->{'trivial_ok'} = 1;
+		    }
+		    if ($nointerswitch) {
+			$others->{'nointerswitch'} = 1;
 		    }
 		    #
 		    # If the virtnode is a VM and it has been fixed to
@@ -4039,6 +4054,9 @@ sub PrintTop($;$)
 	}
 	if (exists($link->{'trivial_ok'})) {
 	    $output .= 'trivial_ok' . ' ';
+	}
+	if (exists($link->{'nointerswitch'})) {
+	    $output .= 'no_interswitch' . ' ';
 	}
 	if (exists($link->{'interface_ref'}->[0]->{'virtual_interface_id'})) {
 	    my $if1 = $link->{'interface_ref'}->[0]->{'virtual_interface_id'};

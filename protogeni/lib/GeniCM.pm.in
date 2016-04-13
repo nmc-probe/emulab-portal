@@ -2116,6 +2116,8 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	if (GeniXML::HasBestEffortSetting($linkref)) {
 	    $besteffort = 1;
 	}
+	# Ditto for new direct link option.
+	my $nointerswitch = GeniXML::NoInterSwitch($linkref);
 
 	#
 	# Look for general link attributes. We cannot use the
@@ -2520,6 +2522,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					  "trivial_ok"  => $trivial_ok,
 					  "emulated"    => $emulated,
 					  "nobwshaping" => $besteffort,
+					  "nointerswitch" => $nointerswitch,
 					  "ip"          => $ip,
 					  "delay"       => $latency,
 					  "bandwidth"   => $bandwidth, # kbps
