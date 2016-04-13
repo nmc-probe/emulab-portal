@@ -77,7 +77,7 @@ function (_, sup, moment, mainString,
 	    }
 	    if (blob.rank) {
 		html = html +
-		    "<div>" + blob.rankdays + " Project Usage Ranking: #" +
+		    "<div>" + blob.rankdays + " Day Project Usage Ranking: #" +
 		    blob.rank + " of " + blob.ranktotal + " active projects" +
 		    "</div>";
 	    }
