@@ -13,6 +13,9 @@ sub DoUpdate($$$)
 		     " `nointerswitch` tinyint(1) default '0' ".
 		     "after nobwshaping");
     }
+    DBQueryFatal("REPLACE INTO table_regex VALUES ".
+		 "  ('virt_lans','nointerswitch','int', ".
+		 "   'redirect','default:boolean',0,0,NULL)");
     return 0;
 }
 1;
