@@ -5210,6 +5210,7 @@ CREATE TABLE `virt_lans` (
   `emulated` tinyint(4) default '0',
   `uselinkdelay` tinyint(4) default '0',
   `nobwshaping` tinyint(4) default '0',
+  `nointerswitch` tinyint(1) default '0',
   `mustdelay` tinyint(1) default '0',
   `usevethiface` tinyint(4) default '0',
   `encap_style` enum('alias','veth','veth-ne','vlan','vtun','egre','gre','default') NOT NULL default 'default',

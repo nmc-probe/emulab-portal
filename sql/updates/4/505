@@ -1,0 +1,22 @@
+#
+# Add nointerswitch to virt_lans.
+#
+use strict;
+use libdb;
+
+sub DoUpdate($$$)
+{
+    my ($dbhandle, $dbname, $version) = @_;
+
+    if (!DBSlotExists("virt_lans", "nointerswitch")) {
+        DBQueryFatal("alter table virt_lans add ".
+		     " `nointerswitch` tinyint(1) default '0' ".
+		     "after nobwshaping");
+    }
+    return 0;
+}
+1;
+
+# Local Variables:
+# mode:perl
+# End:
