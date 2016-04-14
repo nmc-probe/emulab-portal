@@ -1206,7 +1206,6 @@ sub DoExtend()
     my $message;
     my $reason;
     my $errmsg;
-    $extensions = "stoller";
     
     usage()
 	if (!@ARGV);
@@ -1648,7 +1647,6 @@ sub DenyExtensionInternal($)
     my $now       = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z", localtime());
     my $url       = $instance->webURL();
     my $extensions= $instance->Brand()->ExtensionsEmailAddress();
-    $extensions = "stoller";
 
     #
     # We store each extension request in an ongoing text field.
@@ -3066,7 +3064,7 @@ sub DoUpdateKeys()
 	$webtask->output($errmsg);
 	$webtask->Exited($errcode);
     }
-    exit(1);
+    exit($errcode);
 }
 
 #
