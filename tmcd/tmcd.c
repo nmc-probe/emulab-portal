@@ -9145,8 +9145,6 @@ COMMAND_PROTOTYPE(dodoginfo)
 		iv_isalive = 0;
 	else if (reqp->sharing_mode[0] && !reqp->isvnode)
 		iv_rusage = 60;
-	else
-		iv_rusage = 0;
 
 	bp = buf;
 	bp += OUTPUT(bp, sizeof(buf),
