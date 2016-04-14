@@ -445,7 +445,6 @@ function Do_DenyExtension()
     if (isset($filename)) {
         unlink($filename);
     }
-                SUEXECERROR(SUEXEC_ACTION_CONTINUE);    
     if ($retval != 0) {
         if ($webtask->exited()) {
             SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
