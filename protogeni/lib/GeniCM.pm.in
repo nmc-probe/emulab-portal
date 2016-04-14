@@ -3012,6 +3012,12 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	goto bad;
     }
 
+    # Save a local copy of any profile parameters.
+    foreach my $param ( @{ GeniXML::GetProfileParameters( $rspec ) } ) {
+	$slice_experiment->AddProfileParameter( $param->{ 'name' },
+						$param->{ 'value' } );
+    }
+    
     #
     # Now contact external CMs to coordinate vlans. 
     #

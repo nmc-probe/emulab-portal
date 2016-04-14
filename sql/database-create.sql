@@ -5427,6 +5427,20 @@ CREATE TABLE `virt_paths` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `virt_profile_parameters`
+--
+
+DROP TABLE IF EXISTS `virt_profile_parameters`;
+CREATE TABLE `virt_profile_parameters` (
+  `pid` varchar(48) NOT NULL DEFAULT '',
+  `eid` varchar(32) NOT NULL DEFAULT '',
+  `exptidx` int(11) NOT NULL DEFAULT '0',
+  `name` varchar(255) NOT NULL,
+  `value` text NOT NULL,
+  PRIMARY KEY (`exptidx`,`name`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `virt_programs`
 --
 

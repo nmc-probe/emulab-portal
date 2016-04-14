@@ -43,7 +43,8 @@ GetVirtualizationType SetVirtualizationSubtype GetVirtualizationSubtype
 GetExclusive SetExclusive GetLinkManager SetText GetText Serialize
 CreateDocument AddElement RemoveChild PolicyExists GetMask
 GetDiskImage IsUntaggedLan IsTaggedLan GetAddressPools GetHopLinkID GetCapabilitySection
-GetSuggestedVlanFromHop GetAvailableVlanFromHop SetVlanTagInHop);
+GetSuggestedVlanFromHop GetAvailableVlanFromHop SetVlanTagInHop
+GetProfileParamaters);
 
 use English;
 use Data::Dumper;
@@ -60,7 +61,8 @@ use vars qw($RSPEC_0_1 $RSPEC_0_2 $RSPEC_2 $RSPEC_3
             $RSPEC_0_1_NS $RSPEC_0_2_NS $RSPEC_2_NS
             $EMULAB_NS $JACKS_NS $XSI_NS $STITCH_NS $SHAREDVLAN_NS $SITEINFO_NS
             $REQUEST_2_URL $MANIFEST_2_URL
-            $REQUEST_3_URL $MANIFEST_3_URL);
+            $REQUEST_3_URL $MANIFEST_3_URL
+	    $PROFILE_PARAMETERS_NS);
 $RSPEC_0_1 = "0.1";
 $RSPEC_0_2 = "0.2";
 $RSPEC_2 = "2";
@@ -77,6 +79,7 @@ our $XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
 our $STITCH_NS = "http://hpn.east.isi.edu/rspec/ext/stitch/0.1/";
 our $SHAREDVLAN_NS = "http://www.geni.net/resources/rspec/ext/shared-vlan/1";
 our $SHAREDVLAN_PG_NS = "http://www.protogeni.net/resources/rspec/ext/shared-vlan/1";
+our $PROFILE_PARAMETERS_NS = "http://www.protogeni.net/resources/rspec/ext/profile-parameters/1";
 
 $REQUEST_2_URL = "http://www.protogeni.net/resources/rspec/2/request.xsd";
 $MANIFEST_2_URL = "http://www.protogeni.net/resources/rspec/2/manifest.xsd";
@@ -1415,6 +1418,23 @@ sub GetADBTarget($)
     my ($node) = @_;
 
     return GetText( "adb_target", $node );
+}
+
+sub GetProfileParameters($)
+{
+    my ($rspec) = @_;
+    my $result = [];
+    my @parameters = FindNodesNS("n:parameter", $rspec,
+			    $PROFILE_PARAMETERS_NS)->get_nodelist();
+    foreach my $parameter (@parameters) {
+	my $name = GetText( "name", $parameter );
+	my $value = GetText( "value", $parameter );
+	push( @{ $result }, {
+	    "name" => $name,
+	    "value" => $value
+	      } );
+    }
+    return $result;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...
