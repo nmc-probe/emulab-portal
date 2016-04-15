@@ -158,9 +158,9 @@ function SHOWFREENODES()
                 $pids[] = $pid;
                 $clauses[] = "p.pid='$pid'";
             }
+            $clause = "p.pid is null or " . join(" or ", $clauses);
+            $findinset = "or FIND_IN_SET(n.reserved_pid, '" . join(",", $pids)."')";
         }
-        $clause = "p.pid is null or " . join(" or ", $clauses);
-        $findinset = "or FIND_IN_SET(n.reserved_pid, '" . join(",", $pids)."')";
     }
     
     # Get typelist and set freecounts to zero.
