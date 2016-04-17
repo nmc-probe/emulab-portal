@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -530,8 +530,8 @@ if [ -x /usr/sbin/ntpdate ]; then
 fi
 
 # Enable IPoD
-if [ -r $BINDIR/rc.ipod ]; then
-    . $BINDIR/rc.ipod
+if [ -x $BINDIR/rc.ipod ]; then
+	$BINDIR/rc.ipod
 fi
 
 #
