@@ -576,24 +576,9 @@ sub RegisterInternal($$)
     }
     my ($credential, $speaksfor);
     if (defined($cred)) {
-        if (defined($project_name)) {
-            #don't check sub authority when project_name is defined
-            $credential = GeniCredential::CheckCredential($cred);
-        } else {
 	$credential = GeniCredential::CheckCredential($cred, $authority);
-    }
-    }
-    else {
-        if (defined($project_name)) {
-            #don't check sub authority when project_name is defined
-            ($credential,$speaksfor) = GeniStd::CheckCredentials($creds);
-
-            #wvdemeer: AddUserCredWhenSpeaksForOnly automatically adds a user credential when only speaksfor is present and it is needed, allowed and possible.
-            #          note on error handling: if the credential provided to it is a response, it will just return that response.
-            ($credential, $speaksfor) = GeniStd::AddUserCredWhenSpeaksForOnly($credential, $speaksfor, $creds);
-        } else {
+    } else {
 	($credential,$speaksfor) = GeniStd::CheckCredentials($creds, $authority);
-    }
     }
     
     return $credential
