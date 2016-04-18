@@ -4913,6 +4913,30 @@ sub ReadTextSolution($$)
 		$nodeportB =~ s/\//:/;
 		($nodeB,$portB) = split(":", $nodeportB);
 	    }
+	    
+	    if( $direct ) {
+		# Ensure the mapping of direct links is in the same order
+		# as the virt members...
+		my ($vlinktype, $vlinkname, $vlinkmembers) = split( "/", $vlink );
+		my ($vmem0, $vmem1) = split( ",", $vlinkmembers );
+		my ($vmem0node, $vmem0port) = split( ":", $vmem0 );
+
+		my $mapped0 = $self->solution_v2p()->{ $vmem0node };
+		
+		if( $mapped0 eq $nodeB ) {
+		    # It isn't.  Flip the order of the nodes to avoid
+		    # horrible confusion later.
+		    my ($nodeT, $portT);
+
+		    $nodeT = $nodeB;
+		    $portT = $portB;
+		    $nodeB = $nodeA;
+		    $portB = $portA;
+		    $nodeA = $nodeT;
+		    $portA = $portT;
+		}
+	    }
+	    
 	}
 	$self->AddLinkToSolution($vlink, $trivial, $direct,
 				 $nodeA, $portA, $nodeB, $portB, $swpath);
