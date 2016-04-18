@@ -1503,7 +1503,7 @@ function Do_DismissExtensionDenied()
     global $this_user;
     global $ajax_args;
 
-    if (!isset($this_user) || !ISADMIN()) {
+    if (!isset($this_user)) {
 	SPITAJAX_ERROR(1, "Not enough permission.");
 	return;
     }
