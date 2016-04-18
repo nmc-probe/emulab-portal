@@ -400,7 +400,7 @@ sub CreateSlice($$)
         "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
         "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
 #       "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($sliceCred->expires())
-        "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
+        "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired() ? 1 : 0),
         "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
 #too bad the API doesn't let you return the credential(s) when using create.
 #	,"SLICE_CREDENTIAL" => GeniResponse::value($response)
@@ -543,7 +543,7 @@ sub LookupSlices()
                             "SLICE_UID"         => $slice->uuid(),
                             "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
                             "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
-                            "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
+                            "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired() ? 1 : 0),
 #                    "SLICE_EXPIRED"     => ($slice->IsExpired() ? 'True' : 'False'),
                             "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
                         };
@@ -809,7 +809,7 @@ sub addSlicesToMemberList($$)
 	my $blob = {
 	    'SLICE_URN' => $slice->urn(),
             'SLICE_ROLE' => 'MEMBER', #on emulab, there is only a 'MEMBER' role for slices
-            'EXPIRED' => $coder->boolean($slice->IsExpired())
+            'EXPIRED' => $coder->boolean($slice->IsExpired() ? 1 : 0)
 	};
 	push(@{ $result }, $blob);
     }
