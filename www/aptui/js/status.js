@@ -305,6 +305,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	if (window.APT_OPTIONS.oneonly) {
 	    sup.ShowModal('#oneonly-modal');
 	}
+	if (window.APT_OPTIONS.thisUid == window.APT_OPTIONS.creatorUid &&
+	    window.APT_OPTIONS.extension_denied) {
+	    ShowExtensionDeniedModal();
+	}
 	else if (window.APT_OPTIONS.snapping) {
 	    ShowProgressModal();
 	}
@@ -1016,8 +1020,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	
 	    var callback = function(json) {
 		console.info(json);
-		sup.HideModal('#waitwait-modal');
-	    
+		sup.HideWaitWait();
+		
 		if (json.code) {
 		    sup.SpitOops("oops", "Failed to delete nodes");
 		    $('#error_panel_text').text(json.value);
@@ -1028,7 +1032,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// Trigger status to change the nodes.
 		GetStatus();
 	    }
-	    sup.ShowModal('#waitwait-modal');
+	    sup.ShowWaitWait("This will take 30-60 seconds. " +
+			     "Patience please.");
 	    var xmlthing = sup.CallServerMethod(ajaxurl,
 						"status",
 						"DeleteNodes",
@@ -2403,6 +2408,20 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$("#status_progress_bar").width("100%");
 	    }
 	}
+    }
+
+    function ShowExtensionDeniedModal()
+    {
+	if ($('#extension_denied_reason').length) {
+	    $("#extension-denied-modal-reason")
+		.text($('#extension_denied_reason').text());
+	}
+	$('#extension-denied-modal-dismiss').click(function () {
+	    sup.HideModal("#extension-denied-modal");
+	    sup.CallServerMethod(null, "status", "dismissExtensionDenied",
+				 {"uuid" : uuid});	    
+	});
+	sup.ShowModal("#extension-denied-modal");
     }
     
     $(document).ready(initialize);

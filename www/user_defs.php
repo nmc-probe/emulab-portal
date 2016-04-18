@@ -363,6 +363,16 @@ class User
 	return $this->tempdata;
     }
 
+    function adminEmail() {
+        global $TBMAIL_APPROVAL;
+        
+        return 
+            ($this->isAPT() ? "aptlab-approval@aptlab.net" :
+             ($this->isCloud() ? "cloudlab-approval@cloudlab.us" :
+              ($this->isPNet() ? "phantomnet-approval@phantomnet.org" :
+               $TBMAIL_APPROVAL)));
+    }
+
     #
     # Class function to create new user and return object.
     #

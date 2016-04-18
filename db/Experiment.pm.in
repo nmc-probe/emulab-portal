@@ -182,7 +182,8 @@ $EXPT_RESOURCESHOSED    = 0;
 		   "virt_client_service_opts",
 		   "virt_blockstores",
 		   "virt_blockstore_attributes",
-		   "virt_address_allocation");
+		   "virt_address_allocation",
+		   "virt_profile_parameters");
 
 %physicalTables = ("delays"     => ["node_id", "vname", "vnode0", "vnode1"],
 		   "v2pmap"        => ["node_id", "vname"],
@@ -6417,6 +6418,41 @@ sub LookupAddressPools($$)
 	     { "ip" => $ip, "netmask" => $mask });
     }
     return $result;
+}
+
+#
+# Add a profile parameter.
+#
+sub AddProfileParameter($$$)
+{
+    my ($self, $name, $value) = @_;
+
+    # Must be a real reference. 
+    return -1
+	if (! ref($self));
+
+    my $pid = $self->pid();
+    my $eid = $self->eid();
+    my $exptidx = $self->idx();
+
+    if (defined($name)) {
+	$name = DBQuoteSpecial($name);
+    } else {
+	return -1;
+    }
+
+    if (defined($value)) {
+	$value = DBQuoteSpecial($value);
+    } else {
+	$value = "''";
+    }
+
+    DBQueryWarn( "REPLACE INTO virt_profile_parameters SET pid='$pid', " .
+		 "eid='$eid', exptidx='$exptidx', name=$name, " .
+		 "value=$value" )
+	or return -1;
+    
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

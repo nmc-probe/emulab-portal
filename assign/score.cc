@@ -359,6 +359,13 @@ float find_link_resolutions(resolution_vector &resolutions, pvertex pv,
           <<                     endl);
     }
   }
+
+  // If we're not allowed to use interswitch links for this vlink, just
+  // skip all of the attempts to find interswitch links
+  if (!vlink->allow_interswitch){
+      // Bad Rob, no GOTO
+      goto skip_interswitch_links;
+  }
   for (pvertex_set::iterator source_switch_it = pnode->switches.begin();
       source_switch_it != pnode->switches.end();
       ++source_switch_it) {
@@ -486,6 +493,8 @@ float find_link_resolutions(resolution_vector &resolutions, pvertex pv,
       }
     }
   }
+
+skip_interswitch_links:
 
   return total_weight;
 

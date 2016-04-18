@@ -489,14 +489,14 @@ sub LookupSlices()
     my @initial_match_slices;
     if (defined($match)) {
         if (defined($match->{'SLICE_URN'})) {
-        my $match_slice_urns = $match->{'SLICE_URN'};
+            my $match_slice_urns = $match->{'SLICE_URN'};
             @initial_match_slices = ();
-        foreach my $key (@$match_slice_urns) {
+            foreach my $key (@$match_slice_urns) {
 	        my $slice_urn_check_reply = CheckSliceUrn($key); 
 	        if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
 	            return $slice_urn_check_reply; 
 	        }
-	    my $slice = GeniSlice->Lookup($key);
+                my $slice = GeniSlice->Lookup($key);
                 if (defined($slice)) {
                     push(@initial_match_slices, $slice);
                 }
@@ -525,14 +525,14 @@ sub LookupSlices()
     if (@initial_match_slices) {
         foreach my $slice (@initial_match_slices) {
             if (defined($slice)) {
-            #check if user is allowed to access slice
-            my $allowed = 0;
-               if ($slice->creator_urn() ne $this_user->urn() && !$slice->IsBound($this_user)) {
-                   #user is not allowed to access this slice
-                   $allowed = 0; 
-               } else {
-                   $allowed = 1; 
-		}
+                #check if user is allowed to access slice
+                my $allowed = 0;
+                if ($slice->creator_urn() ne $this_user->urn() && !$slice->IsBound($this_user)) {
+                    #user is not allowed to access this slice
+                    $allowed = 0; 
+                } else {
+                    $allowed = 1; 
+                }
 
                 my $matches_all_filters = 1;
 
@@ -542,7 +542,7 @@ sub LookupSlices()
                 }
                 if ($match_is_expired && !$slice_expired) {
                     $matches_all_filters = 0;
-           }
+                }
 
                 my ($slice_authority, $slice_type, $slice_name) = GeniHRN::Parse( $slice->urn() );
                 return GeniResponse->Create(GENIRESPONSE_SERVERERROR, undef, 'internal error: got invalid slice urn "' . $slice->urn() . '"') unless defined( $slice_name );
@@ -567,29 +567,29 @@ sub LookupSlices()
                 }
 
                 if ($matches_all_filters) {
-                #We always allow access to slice name. The other slice info is not for everyone.
-		my $completeblob = {
-		    "SLICE_URN"         => $slice->urn(),
-                    "SLICE_NAME"        => $slice_name,
-                    "_EMULAB_SLICE_HRN"         => $slice->hrn(),
-                    "SLICE_PROJECT_URN" => $project_urn
-                };
-                if ($allowed) {
-                    my $extrablob = {
-		    "SLICE_UID"         => $slice->uuid(),
-                        "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
-                        "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
-                        "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
+                    #We always allow access to slice name. The other slice info is not for everyone.
+                    my $completeblob = {
+                        "SLICE_URN"         => $slice->urn(),
+                        "SLICE_NAME"        => $slice_name,
+                        "_EMULAB_SLICE_HRN"         => $slice->hrn(),
+                        "SLICE_PROJECT_URN" => $project_urn
+                    };
+                    if ($allowed) {
+                        my $extrablob = {
+                            "SLICE_UID"         => $slice->uuid(),
+                            "SLICE_CREATION"    => GeniStd::DateTimeStringToRFC3339String($slice->created()),
+                            "SLICE_EXPIRATION"  => GeniStd::DateTimeStringToRFC3339String($slice->expires()),
+                            "SLICE_EXPIRED"     => $coder->boolean($slice->IsExpired()),
 #                    "SLICE_EXPIRED"     => ($slice->IsExpired() ? 'True' : 'False'),
-                        "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
-		};
-                    @$completeblob{keys %$extrablob} = values %$extrablob;
+                            "SLICE_DESCRIPTION" => (defined($slice->description()) ? $slice->description() : ''),
+                        };
+                        @$completeblob{keys %$extrablob} = values %$extrablob;
+                    }
+                    my $blob = GeniStd::FilterFields($completeblob, $filter);
+                    $members->{$slice->urn()} = $blob;
                 }
-		my $blob = GeniStd::FilterFields($completeblob, $filter);
-		$members->{$slice->urn()} = $blob;
-                }
-	    }
-	}
+            }
+        }
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $members);
 }
@@ -656,9 +656,19 @@ sub GetCredentials()
         return GeniResponse->MalformedArgsResponse('get_credentials requires a slice urn, a list of credentials, and an options field');
     }
 
-    my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
-    if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
-        return $slice_urn_check_reply; 
+    if(! GeniHRN::IsValid( $slice_urn ) ) {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 'Not a valid slice URN: "'. $slice_urn . '"');
+    }
+    my ($slice_urn_auth, $slice_urn_type, $sliceurn_name) = GeniHRN::Parse( $slice_urn );
+    if ($slice_urn_type ne 'slice' && $slice_urn_type ne 'project') {
+        return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, 
+            'Not a slice or project URN: "'. $slice_urn . '"');
+    }
+    if ($slice_urn_type eq 'slice') {
+       my $slice_urn_check_reply = CheckSliceUrn($slice_urn); 
+       if (GeniResponse::IsResponse($slice_urn_check_reply)) { 
+           return $slice_urn_check_reply; 
+       }
     }
 
     #check if speaksfor, and if so, if need to add user cred
@@ -671,7 +681,12 @@ sub GetCredentials()
             });
         return (WrapResponse($credential, 'Error when GetCredentials tried to request user credential: '), $speaksfor) if (GeniResponse::IsError($credential));
         #$credential_args = [ $credential->{"value"}, $speaksfor->asString() ];
-        $credential_args = [ $credential->{"value"}, @$credential_args ];
+        my $usercred_blob = {
+            "geni_type" => "geni_sfa",
+            "geni_version" => "3",
+            "geni_value" => $credential->{"value"}
+        };
+        $credential_args = [ $usercred_blob , @$credential_args ];
     }
 
     $credential = GeniSA::GetCredential({

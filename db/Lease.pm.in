@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2012-2015 University of Utah and the Flux Group.
+# Copyright (c) 2012-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -475,10 +475,13 @@ sub InUseReadWrite() {
 	if (!ref($self));
 
     my $resvref = $self->GetReservations();
-    if ($resvref && @$resvref) {
-	# We only need to check the first reservation in the list since no
-	# concurrent mix of RO and RW is allowed.
-	$rw = $resvref->[0]->IsReadOnly() ? 0 : 1;
+    if ($resvref) {
+	foreach my $ref (@$resvref) {
+	    if (!$ref->IsReadOnly()) {
+		$rw = 1;
+		last;
+	    }
+	}
     }
 
     return $rw;

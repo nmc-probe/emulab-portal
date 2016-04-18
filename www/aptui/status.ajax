@@ -295,10 +295,189 @@ function Do_GetSSHAuthObject()
     SPITAJAX_RESPONSE($auth);
 }
 
+function Do_RequestExtension()
+{
+    global $instance, $creator, $this_user, $suexec_output;
+    global $ajax_args;
+    $autoextend_maximum = TBGetSiteVar("aptui/autoextend_maximum");
+
+    if (StatusSetupAjax(1)) {
+	goto bad;
+    }
+    if (isset($this_user)) {
+        $project = Project::Lookup($instance->pid_idx());
+        if ($project) {
+            $group = $project->DefaultGroup();
+            if (!(ISADMINISTRATOR() ||
+                  FeatureEnabled("NewPortalExtend", $this_user, $group))) {
+                return Do_RequestExtensionOld();
+            }
+        }
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	goto bad;
+    }
+
+    if ($autoextend_maximum == 0 && !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Extensions are currenly disabled; please ".
+                       "contact us if you need to make special arrangements.");
+	goto bad;
+    }
+
+    if (!isset($ajax_args["howlong"]) || $ajax_args["howlong"] == "") {
+	SPITAJAX_ERROR(1, "Missing number of days");
+	goto bad;
+    }
+    $wanted = $ajax_args["howlong"];
+    if (! preg_match("/^\d+$/", $wanted)) {
+	SPITAJAX_ERROR(1, "Invalid characters in days");
+	goto bad;
+    }
+    if (ISADMIN()) {
+	if ($wanted < 1 || $wanted > 365) {
+	    SPITAJAX_ERROR(1, "Must be an integer 1 <= days <= 365");
+	    goto bad;
+	}
+	if (isset($ajax_args["reason"]) && $ajax_args["reason"] != "") {
+            $reason = $ajax_args["reason"];
+        }
+    }
+    else {
+	if (!isset($ajax_args["reason"]) || $ajax_args["reason"] == "") {
+	    SPITAJAX_ERROR(1, "Missing reason");
+	    goto bad;
+	}
+	$reason = $ajax_args["reason"];
+    }
+    if (isset($reason)) {
+        if (!TBvalid_fulltext($reason)) {
+	    SPITAJAX_ERROR(1, "Illegal characters in reason");
+	    goto bad;
+        }
+        $filename = tempnam("/tmp", "extension");
+        $fp = fopen($filename, "w");
+        fwrite($fp, $reason);
+        fclose($fp);
+    }        
+    $webtask = WebTask::CreateAnonymous();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
+                     "  extend $uuid $wanted ".
+                        (isset($filename) ? $filename : ""),
+		     SUEXEC_ACTION_IGNORE);
+    $webtask->Refresh();
+    if (isset($filename)) {
+        unlink($filename);
+    }
+    if ($retval != 0) {
+        if ($webtask->exited()) {
+            SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
+
+            #
+            # This is an important error, tell tbops.
+            #
+            if ($webtask->exitcode() == GENIRESPONSE_REFUSED) {
+                SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+            }
+        }
+        elseif ($retval < 0) {
+            SPITAJAX_ERROR($retval, "Internal error, cannot proceed.");
+            # Notify tbops.
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            SPITAJAX_ERROR($retval, $suexec_output);
+        }
+        $webtask->Delete();
+        goto bad;
+    }
+    # Refresh. 
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    $new_expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
+    
+    $webtask->Delete();
+    SPITAJAX_RESPONSE($new_expires);
+bad:
+delay:
+    sleep(1);
+}
+
+function Do_DenyExtension()
+{
+    global $instance, $creator, $this_user, $suexec_output;
+    global $ajax_args;
+
+    if (StatusSetupAjax(1)) {
+	goto bad;
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	goto bad;
+    }
+    if (!ISADMIN()) {
+	SPITAJAX_ERROR(1, "You do not have permission to do this.");
+	goto bad;
+    }
+    if (isset($ajax_args["message"]) && $ajax_args["message"] != "") {
+        $message = $ajax_args["message"];
+        
+        if (!TBvalid_fulltext($message)) {
+	    SPITAJAX_ERROR(1, "Illegal characters in message");
+	    goto bad;
+        }
+        $filename = tempnam("/tmp", "extension");
+        $fp = fopen($filename, "w");
+        fwrite($fp, $message);
+        fclose($fp);
+    }        
+    $webtask = WebTask::CreateAnonymous();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
+                     "  denyextension $uuid " .
+                        (isset($filename) ? $filename : ""),
+		     SUEXEC_ACTION_IGNORE);
+    $webtask->Refresh();
+    if (isset($filename)) {
+        unlink($filename);
+    }
+    if ($retval != 0) {
+        if ($webtask->exited()) {
+            SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
+
+            #
+            # This is an important error, tell tbops.
+            #
+            if ($webtask->exitcode() == GENIRESPONSE_REFUSED) {
+                SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+            }
+        }
+        elseif ($retval < 0) {
+            SPITAJAX_ERROR($retval, "Internal error, cannot proceed.");
+            # Notify tbops.
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            SPITAJAX_ERROR($retval, $suexec_output);
+        }
+        $webtask->Delete();
+        goto bad;
+    }
+    $webtask->Delete();
+    SPITAJAX_RESPONSE("Success");
+bad:
+    $webtask->Delete();
+    sleep(1);
+}
+
 #
 # Request automatic extension.
 #
-function Do_RequestExtension()
+function Do_RequestExtensionOld()
 {
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
@@ -310,9 +489,6 @@ function Do_RequestExtension()
     $needapproval = 0;
     $granted = 0;
 
-    if (StatusSetupAjax(1)) {
-	goto bad;
-    }
     $uuid = $instance->uuid();
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
     if (!slice) {
@@ -466,7 +642,7 @@ function Do_RequestExtension()
     if ($granted > 0) {
         $seconds = 3600 * 24 * $granted;
         $retval = SUEXEC("nobody", "nobody",
-                         "webmanage_instance extend $uuid $seconds",
+                         "webmanage_instance extendold $uuid $seconds",
                          SUEXEC_ACTION_IGNORE);
     }
 
@@ -542,72 +718,6 @@ function Do_RequestExtension()
 	goto bad;
     }
     return;
-bad:
-delay:
-    sleep(1);
-}
-
-#
-# Deny extension,
-#
-function Do_DenyExtension()
-{
-    global $instance, $creator, $this_user, $suexec_output;
-    global $ajax_args;
-    global $TBMAIL_OPS, $APTMAIL, $EXTENSIONS, $APTBASE;
-    $reason  = "";
-    $message = "";
-
-    if (StatusSetupAjax(1)) {
-	goto bad;
-    }
-    $uuid = $instance->uuid();
-    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-    if (!slice) {
-	SPITAJAX_ERROR(1, "no slice for instance");
-	goto bad;
-    }
-    $instance_name = $instance->name();
-    # Until old instances are gone.
-    if (!$instance_name) {
-        list ($a,$b,$instance_name) = Instance::ParseURN($slice->urn());
-    }
-    if (!ISADMIN()) {
-	SPITAJAX_ERROR(1, "You do not have permission to do this.");
-	goto bad;
-    }
-    $reason = "Your extension was denied by the site administrator!\n";
-    if (isset($ajax_args["message"]) && $ajax_args["message"] != "") {
-        $reason .= "\n" . $ajax_args["message"];
-    }
-
-    $expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
-    $created = date("Y-m-d H:i:s T", strtotime($instance->created()));
-    $now     = date("Y-m-d H:i:s T", time());
-
-    #
-    # We store each extension request in an ongoing text field.
-    #
-    $text =
-        "Date: $now\n".
-        "Expires: $expires\n".
-        "Reason:\n".
-        $reason . "\n\n".
-        "-----------------------------------------------\n";
-    $instance->AddExtensionHistory($text);
-
-    $instance->SendEmail($creator->email(),
-	       "Experiment Extension Denied: $instance_name",
-               $reason .
-               "\n\n".
-               "Your experiment was started on $created\n".
- 	       "Your experiment expires at $expires\n".
-               "$APTBASE/status.php?uuid=$uuid\n",
-	       "From: $EXTENSIONS\n" .
-	       "BCC: $EXTENSIONS");
-
-    $instance->SetExtensionRequested(0);
-    SPITAJAX_RESPONSE("Success");
 bad:
 delay:
     sleep(1);
@@ -1383,6 +1493,38 @@ function Do_Linktest()
     else {
        SPITAJAX_ERROR(-1, "Improper lintest action"); 
     }
+}
+
+#
+# Clea the extension denied flag; user has seen it and dismissed it.
+#
+function Do_DismissExtensionDenied()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($this_user) || !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing instance uuid");
+	return;
+    }
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "Unknown instance uuid");
+	return;
+    }
+    if (!DBQueryWarn("update apt_instances set extension_denied='0' ".
+                     "where uuid='$uuid'")) {
+	SPITAJAX_ERROR(1, "Database failure.");
+	return;
+    }
+    SPITAJAX_RESPONSE("Success");
 }
 
 # Local Variables:

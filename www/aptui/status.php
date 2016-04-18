@@ -177,6 +177,9 @@ $extension_reason= ($instance->extension_reason() ?
                     CleanString($instance->extension_reason()) : "");
 $extension_history= ($instance->extension_history() ?
                     CleanString($instance->extension_history()) : "");
+$extension_denied_reason= ($instance->extension_denied_reason() ?
+                    CleanString($instance->extension_denied_reason()) : "");
+$extension_denied= $instance->extension_denied();
 $freenodes_url   = Aggregate::Lookup($instance->aggregate_urn())->FreeNodesURL();
 $lockout         = $instance->extension_lockout();
 $paniced         = $instance->paniced();
@@ -248,6 +251,7 @@ echo "  window.APT_OPTIONS.paniced = $paniced;\n";
 echo "  window.APT_OPTIONS.project = '$project';\n";
 echo "  window.APT_OPTIONS.extension_requested = " .
     $instance->extension_requested() . ";\n";
+echo "  window.APT_OPTIONS.extension_denied = $extension_denied;\n";
 echo "  window.APT_OPTIONS.AJAXURL = 'server-ajax.php';\n";
 echo "  window.APT_OPTIONS.physnode_count = " .
     $instance->physnode_count() . ";\n";
@@ -273,8 +277,11 @@ echo "<link rel='stylesheet'
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
 echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
 echo "<div class='hidden'><textarea id='extension_reason'>$extension_reason</textarea></div>\n";
-if ($extension_reason != "") {
+if ($extension_history != "") {
    echo "<pre class='hidden' id='extension_history'>$extension_history</pre>\n";
+}
+if ($extension_denied_reason != "") {
+   echo "<pre class='hidden' id='extension_denied_reason'>$extension_denied_reason</pre>\n";
 }
 
 SPITFOOTER();

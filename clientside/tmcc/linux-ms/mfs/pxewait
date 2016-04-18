@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2014 University of Utah and the Flux Group.
+# Copyright (c) 2014-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,8 +36,8 @@ else
 fi
 
 # Enable IPoD
-if [ -r $BINDIR/rc.ipod ]; then
-    . $BINDIR/rc.ipod
+if [ -x $BINDIR/rc.ipod ]; then
+    $BINDIR/rc.ipod
 fi
 
 if [ "$1" = "fail" ]; then

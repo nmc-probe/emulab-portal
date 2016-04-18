@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -79,3 +79,4 @@ fi
 sysctl -w net.ipv4.icmp_ipod_enabled=1 >/dev/null
 
 echo "$str IPOD enabled from $IPOD_HOST_IP/$IPOD_MASK_IP"
+exit 0

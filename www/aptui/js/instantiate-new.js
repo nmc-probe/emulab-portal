@@ -125,7 +125,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    showpicker:         showpicker,
 	    cancopy:            window.CANCOPY,
 	    clustername:        window.PORTAL_NAME,
-
+	    admin:		isadmin,
 	});
 	$('#main-body').html(html);
 

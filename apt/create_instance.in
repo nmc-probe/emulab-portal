@@ -43,9 +43,10 @@ sub usage()
     print "Usage: quickvm [-u uuid] [--site site:1=aggregate ...] <xmlfile>\n";
     exit(1);
 }
-my @optlist = ('d', 'v', 'u=s', 'a=s', 'S', 'k=s');
+my @optlist = ('d', 'v', 'u=s', 'a=s', 'S', 'k=s', 'i');
 my $debug   = 0;
 my $verbose = 1;
+my $ignorefailures = 0;
 my $xmlfile;
 my $webtask;
 my $webtask_id;
@@ -147,6 +148,9 @@ if (defined($options{"k"})) {
 }
 if (defined($options{"d"})) {
     $debug = 1;
+}
+if (defined($options{"i"})) {
+    $ignorefailures = 1;
 }
 if (defined($options{"v"})) {
     $verbose = 1;
@@ -932,7 +936,12 @@ foreach my $aggobj (@aggregate_list) {
 $slice->UnLock();
 
 if ($failed) {
-    $instance->SetStatus("failed");
+    if ($ignorefailures) {
+        $instance->SetStatus("ready");
+    }
+    else {
+        $instance->SetStatus("failed");
+    }
     # Webtask exit status set above.
     $instance->RecordError($webtask->exitcode(),
 			   (defined($webtask->output()) ?

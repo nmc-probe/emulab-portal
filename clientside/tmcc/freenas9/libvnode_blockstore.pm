@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013-2015 University of Utah and the Flux Group.
+# Copyright (c) 2013-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -621,16 +621,15 @@ sub allocSlice($$$$) {
 	    return -1;
 	}
 
+	#
 	# For possible later cloning, find the highest numbered snapshot
+	# Note that the 'snapshots' list returned by freenasVolumeList is
+	# already sorted from newest to oldest, so we just grab the first one.
+	#
 	if (exists($vref->{'snapshots'})) {
-	    my $lastsnap = 0;
-	    foreach my $snap (split(',', $vref->{'snapshots'})) {
-		if ($snap =~ /@(\d+)$/ && $1 > $lastsnap) {
-		    $lastsnap = $1;
-		}
-	    }
-	    if ($lastsnap) {
-		$priv->{'lastsnapshot'} = $lastsnap;
+	    my $snap = (split(',', $vref->{'snapshots'}))[0];
+	    if ($snap =~ /@(\d+)$/) {
+		$priv->{'lastsnapshot'} = $1;
 	    }
 	}
 
@@ -1434,18 +1433,30 @@ sub deallocSlice($$$$) {
 	# Check for clone volumes. A clone will have our (vnode_id)
 	# name and be a "cloneof" a snapshot of this lease.
 	#
-	# N.B. we now call Destroy rather than Declone, leaving our
-	# caller responsible for cleaning up snapshots.
-	#
 	if (exists($volumes->{$vnode_id})) {
 	    my $vref = $volumes->{$vnode_id};
 	    my $pool = $vref->{'pool'};
-	    if (exists($vref->{'cloneof'}) &&
-		$vref->{'cloneof'} =~ /^$bsid\@\d+/) {
-		return freenasVolumeDestroy($pool, $vnode_id);
+	    my $cloneof = $vref->{'cloneof'};
+	    if (defined($cloneof) && $cloneof =~ /^$bsid\@\d+/ &&
+		exists($volumes->{$bsid})) {
+		my $snaps = $volumes->{$bsid}->{'snapshots'};
+
+		#
+		# If we are a clone of the most recent snapshot, just Destroy
+		# which leaves the clone; otherwise Declone and attempt to
+		# remove the old snapshot.
+		#
+		# Note that we do not use the cached 'lastsnapshot' in our
+		# private data since that was saved back when we were created
+		# which could be a long time ago (and hence very stale).
+		#
+		if (defined($snaps) && $cloneof eq (split(',', $snaps))[0]) {
+		    return freenasVolumeDestroy($pool, $vnode_id);
+		}
+		return freenasVolumeDeclone($pool, $vnode_id);
 	    }
 	    warn("*** WARNING: blockstore_deallocSlice: $volname: ".
-		 "Found stale ephemeral volume '$pool/$vnode_id'");
+		 "Found stale clone volume '$pool/$vnode_id'");
 	}
 
 	if (exists($volumes->{$bsid})) {
@@ -1457,10 +1468,12 @@ sub deallocSlice($$$$) {
     }
 
     #
-    # We use Declone here which will remove the origin snapshot
-    # as well (if we are the last user) when invoked on a cloned volume.
+    # Ephemeral volume. We use Declone here rather than Destroy since someday
+    # we will have clones of ephemeral volumes. In that case we will not have
+    # to worry about keeping the latest snapshot as there will only be one
+    # and it should go away on last use.
     #
-    return freenasVolumeDestroy($bsid, $vnode_id);
+    return freenasVolumeDeclone($bsid, $vnode_id);
 }
 
 # Required perl foo

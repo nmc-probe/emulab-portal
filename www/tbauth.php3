@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -994,6 +994,7 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
     global $BUGDBSUPPORT, $BUGDBCOOKIENAME, $TRACSUPPORT, $TRACCOOKIENAME;
     global $TBLIBEXEC_DIR, $EXP_VIS, $TBMAINSITE;
     global $WITHZFS, $ZFS_NOEXPORT;
+    global $PORTAL_GENESIS;
 
     $flushtime = time() - 1000000;
     
@@ -1063,6 +1064,10 @@ function DOLOGIN_MAGIC($uid, $uid_idx, $email = null,
                  " values ".
 		 "  ('$uid', $uid_idx, '$hashkey', '$crc', '$timeout', ".
                  "    $adminon, '$opskey')");
+    if (isset($PORTAL_GENESIS)) {
+        DBQueryFatal("update login set portal='$PORTAL_GENESIS' ".
+                     "where uid_idx='$uid_idx' and hashkey='$hashkey'");
+    }
 
     DBQueryFatal("update users set ".
 		 "       weblogin_failcount=0,weblogin_failstamp=0 ".

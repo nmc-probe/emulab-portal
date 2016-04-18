@@ -5210,6 +5210,7 @@ CREATE TABLE `virt_lans` (
   `emulated` tinyint(4) default '0',
   `uselinkdelay` tinyint(4) default '0',
   `nobwshaping` tinyint(4) default '0',
+  `nointerswitch` tinyint(1) default '0',
   `mustdelay` tinyint(1) default '0',
   `usevethiface` tinyint(4) default '0',
   `encap_style` enum('alias','veth','veth-ne','vlan','vtun','egre','gre','default') NOT NULL default 'default',
@@ -5423,6 +5424,20 @@ CREATE TABLE `virt_paths` (
   UNIQUE KEY `segidx` (`exptidx`,`pathname`,`segmentindex`),
   KEY `pid` (`pid`,`eid`,`pathname`),
   KEY `pideid` (`pid`,`eid`,`pathname`,`segmentname`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `virt_profile_parameters`
+--
+
+DROP TABLE IF EXISTS `virt_profile_parameters`;
+CREATE TABLE `virt_profile_parameters` (
+  `pid` varchar(48) NOT NULL DEFAULT '',
+  `eid` varchar(32) NOT NULL DEFAULT '',
+  `exptidx` int(11) NOT NULL DEFAULT '0',
+  `name` varchar(255) NOT NULL,
+  `value` text NOT NULL,
+  PRIMARY KEY (`exptidx`,`name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

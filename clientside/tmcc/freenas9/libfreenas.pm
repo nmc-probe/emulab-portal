@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2013-2015 University of Utah and the Flux Group.
+# Copyright (c) 2013-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -464,7 +464,17 @@ sub freenasVolumeList($;$)
 	    if ($snapinfo) {
 		my $sref = $snaps{$zvol->{'path'}};
 		if ($sref && @$sref > 0) {
-		    $vol->{'snapshots'} = join(',', @$sref);
+		    #
+		    # For convenience of the caller, who typically only cares
+		    # about the most recent snapshot, we sort the snapshot
+		    # list from newest to oldest.
+		    #
+		    # XXX note that we can just (reverse) sort lexically since
+		    # the timestamp suffix is fixed in length. Well technically
+		    # it is not fixed-length, but it won't go to 11 digits for
+		    # another 270 years or so...
+		    #
+		    $vol->{'snapshots'} = join(',', sort {$b cmp $a} @$sref);
 		}
 		my $sname = $clones{$zvol->{'path'}};
 		if ($sname) {

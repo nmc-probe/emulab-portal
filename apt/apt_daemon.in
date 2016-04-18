@@ -112,6 +112,7 @@ use Node;
 use libtestbed;
 use emutil;
 use libEmulab;
+use GeniResponse;
 use APT_Instance;
 use POSIX qw(strftime ceil);
 
@@ -501,7 +502,9 @@ sub PushUpdates()
 	$genislice->UnLock();
 	system("$SUDO -u $PROTOUSER $MANAGEINSTANCE updatekeys $uuid");
 	if ($?) {
-	    $instance->Update({"needupdate" => 1});
+	    if ($? >> 8 != GENIRESPONSE_REFUSED) {
+		$instance->Update({"needupdate" => 1});
+	    }
 	}
       skip:
 	$genislice->Flush();

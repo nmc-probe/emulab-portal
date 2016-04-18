@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2003-2011 University of Utah and the Flux Group.
+# Copyright (c) 2003-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,6 +38,7 @@ sub usage()
     print STDERR "  disable  Globally disable feature. Provide onoff flag.\n";
     print STDERR "  show     Show details of feature.\n";
     print STDERR "  list     List of all features.\n";
+    print STDERR "  check    Check a feature for a user/group (-u/-g).\n";
     exit(-1);
 }
 my $optlist  = "h";
@@ -67,6 +68,8 @@ use emdb;
 use EmulabFeatures;
 use libtestbed;
 use User;
+use Group;
+$EmulabFeatures::verbose = 0;
 
 #
 # Turn off line buffering on output
@@ -90,21 +93,9 @@ if (defined($options{h})) {
     usage();
 }
 usage()
-    if (@ARGV < 1 || @ARGV > 3);
+    if (@ARGV < 1);
 
-my $action = $ARGV[0];
-
-#
-# Verify user, must be admin.
-#
-my $this_user = User->ThisUser();
-if (! defined($this_user)) {
-    fatal("You ($UID) do not exist!");
-}
-if (!$this_user->IsAdmin()) {
-    fatal("You are not a testbed administrator!");
-
-}
+my $action = shift(@ARGV);
 
 sub ShowFeature($)
 {
@@ -141,18 +132,18 @@ if ($action eq "list") {
 # Everything else needs a featurename.
 #
 usage()
-    if (@ARGV < 2);
+    if (@ARGV < 1);
 
-my $featurename = $ARGV[1];
+my $featurename = shift(@ARGV);
 my $feature = EmulabFeatures->Lookup($featurename);
 
 if ($action eq "create") {
     usage()
-	if (@ARGV != 3);
+	if (@ARGV != 1);
     
     fatal("Feature $featurename already exists!")
 	if (defined($feature));
-    my $description = $ARGV[2];
+    my $description = shift(@ARGV);
 
     $feature = EmulabFeatures->Create($featurename, $description);
     fatal("Could not create new feature $featurename!")
@@ -175,7 +166,7 @@ elsif ($action eq "enable" || $action eq "disable") {
     # By default, we are setting the global enable/disable flag.
     # Override on command line.
     #
-    my $onoff = (@ARGV == 3 ? ($ARGV[2] ? 1 : 0) : 1);
+    my $onoff = (@ARGV ? ($ARGV[0] ? 1 : 0) : 1);
     
     if ($action eq "enable") {
 	$result = $feature->SetGlobalEnable($onoff);
@@ -220,6 +211,40 @@ elsif ($action eq "show") {
 	}
 	print "\n";
     }
+}
+elsif ($action eq "check") {
+    fatal("Feature $featurename does not exist!")
+	if (!defined($feature));
+    usage()
+	if (!@ARGV);
+
+    my $user;
+    my $group;
+
+    while (@ARGV) {
+	my $opt = shift(@ARGV);
+	usage()
+	    if (!@ARGV);
+	my $val = shift(@ARGV);
+
+	if ($opt eq "-u") {
+	    $user = User->Lookup($val);
+	    fatal("No such user")
+		if (!defined($user));
+	}
+	elsif ($opt eq "-g") {
+	    $group = Group->Lookup($val);
+	    fatal("No such group")
+		if (!defined($group));
+	}
+	else {
+	    usage();
+	}
+    }
+    my $enabled = EmulabFeatures->FeatureEnabled($featurename,
+						 $user, $group, undef);
+    print "Feature is " . ($enabled ? "enabled" : "disabled") . "\n";
+    exit($enabled);
 }
 else {
     fatal("Unknown action $action!");

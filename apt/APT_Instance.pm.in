@@ -52,6 +52,7 @@ use emdb;
 use libtestbed;
 use Brand;
 use APT_Profile;
+use APT_Aggregate;
 use APT_Geni;
 use Genixmlrpc;
 use GeniResponse;
@@ -954,6 +955,62 @@ sub UpdateImageStatus($$)
     return 0;
 }
 
+sub AddExtensionHistory($$)
+{
+    my ($self, $reason) = @_;
+    my $uuid = $self->uuid();
+    my $safe_text = DBQuoteSpecial($reason);
+
+    return DBQueryWarn("update apt_instances set ".
+		       "  extension_history=CONCAT($safe_text,".
+		       "                     IFNULL(extension_history,'')) ".
+		       "where uuid='$uuid'");
+}
+
+sub ExtensionRequested($$$)
+{
+    my ($self, $reason, $granted) = @_;
+    my $uuid = $self->uuid();
+    my $safe_text = DBQuoteSpecial($reason);
+
+    return DBQueryWarn("update apt_instances set ".
+		       "  extension_reason=$safe_text,".
+		       "  extension_requested=1, ".
+		       "  extension_count=extension_count+1, ".
+		       "  extension_days=extension_days+${granted} ".
+		       "where uuid='$uuid'");
+}
+
+sub BumpExtensionCount($$)
+{
+    my ($self, $granted) = @_;
+    my $uuid = $self->uuid();
+
+    return DBQueryWarn("update apt_instances set ".
+		       "  extension_count=extension_count+1, ".
+		       "  extension_days=extension_days+${granted} ".
+		       "where uuid='$uuid'");
+}
+
+#
+# Return the list APT_Aggregate objects for an instance.
+#
+sub AptAggregateList($)
+{
+    my ($self)  = @_;
+    my @results = ();
+
+    foreach my $agg ($self->AggregateList()) {
+	my $aptagg = APT_Aggregate->Lookup($agg->aggregate_urn());
+	if (!defined($aptagg)) {
+	    print STDERR "Could not get APT_Aggregate object for $agg\n";
+	    return ();
+	}
+	push(@results, $aptagg);
+    }
+    return @results;
+}
+
 ###################################################################
 package APT_Instance::Aggregate;
 use emdb;
@@ -1824,7 +1881,7 @@ sub CreateImage($$$$;$$$)
     my ($self, $sliver_urn, $imagename, $update_prepare,
 	$copyback_uuid, $bsname) = @_;
     my $authority = $self->GetGeniAuthority();
-    my$geniuser   = $self->instance()->GetGeniUser();
+    my $geniuser  = $self->instance()->GetGeniUser();
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     return undef

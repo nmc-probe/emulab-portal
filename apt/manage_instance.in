@@ -28,7 +28,8 @@ use XML::Simple;
 use Data::Dumper;
 use CGI;
 use POSIX ":sys_wait_h";
-use POSIX qw(setsid close);
+use POSIX qw(setsid close strftime ceil floor);
+use Date::Parse;
 
 #
 # Back-end script to manage APT profiles.
@@ -38,7 +39,6 @@ sub usage()
     print("Usage: manage_instance snapshot instance ".
 	  "[-n node_id] [-i imagename] [-u node|all]\n");
     print("Usage: manage_instance consoleurl instance node\n");
-    print("Usage: manage_instance extend instance [-f] seconds\n");
     print("Usage: manage_instance terminate instance\n");
     print("Usage: manage_instance refresh instance\n");
     print("Usage: manage_instance reboot instance node_id ...\n");
@@ -50,6 +50,9 @@ sub usage()
     print("Usage: manage_instance linktest instance [-k | level]\n");
     print("Usage: manage_instance writecreds instance directory\n");
     print("Usage: manage_instance updatekeys instance [uid] \n");
+    print("Usage: manage_instance extend instance [-m message] days [filename]\n");
+    print("Usage: manage_instance denyextension instance [-m message] [filename]\n");
+    print("Usage: manage_instance extendold instance [-f] seconds\n");
     exit(-1);
 }
 my $optlist     = "dt:s";
@@ -109,6 +112,8 @@ sub DoSnapshot();
 sub DoConsole();
 sub DoTerminate();
 sub DoExtend();
+sub DoExtendOld();
+sub DoDenyExtension();
 sub DoRefresh();
 sub DoReboot();
 sub DoReload();
@@ -122,6 +127,8 @@ sub WriteCredentials();
 sub StartMonitor();
 sub StartMonitorInternal(;$@);
 sub DoImageTrackerStuff($$$$$$);
+sub DenyExtensionInternal($);
+sub ExtendInternal($$$$);
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -168,6 +175,12 @@ if ($action eq "snapshot") {
 }
 if ($action eq "extend") {
     DoExtend();
+}
+if ($action eq "extendold") {
+    DoExtendOld();
+}
+elsif ($action eq "denyextension") {
+    DoDenyExtension()
 }
 elsif ($action eq "consoleurl") {
     DoConsole()
@@ -1169,9 +1182,504 @@ sub DoTerminate()
 }
 
 #
-# Extend.
+# Request an extension; all this code used to be in PHP, that was silly.
 #
 sub DoExtend()
+{
+    my $force = 0;
+    my $lockdown = 0;
+    my $errcode  = 1;
+    my $autoextend_maximum = GetSiteVar("aptui/autoextend_maximum");
+    my $autoextend_maxage  = GetSiteVar("aptui/autoextend_maxage");
+    my $autoextend_freedays= 2;
+    my $creator       = $instance->GetGeniUser();
+    my $slice         = $instance->GetGeniSlice();
+    my $name          = $instance->name();
+    my $url           = $instance->webURL();
+    my $clusters      = join(",", map { $_->domain() }
+			     $instance->AggregateList());
+    my $expires_time  = str2time($slice->expires());
+    my $created_time  = str2time($instance->created());
+    my $extensions    = $instance->Brand()->ExtensionsEmailAddress();
+    my $granted       = 0;
+    my $needapproval  = 0;
+    my $message;
+    my $reason;
+    my $errmsg;
+    
+    usage()
+	if (!@ARGV);
+    my $wanted = shift(@ARGV);
+
+    if (@ARGV == 2) {
+	my $arg = shift(@ARGV);
+	if ($arg eq "-m") {
+	    $reason = shift(@ARGV);
+	}
+	else {
+	    usage();
+	}
+    }
+    elsif (@ARGV == 1) {
+	my $filename = shift(@ARGV);
+	if (! -e $filename) {
+	    fatal("$filename does not exist");
+	}
+	open(my $MSG, $filename) or
+	    fatal("Could not open $filename");
+	
+	$reason = "";
+	while (<$MSG>) {
+	    $reason .= $_;
+	}
+	close($MSG);
+    }
+    #
+    # Create the webtask object; the web interface gave us an anonymous
+    # webtask, so we can use it before lock.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	fatal("Could not lookup webtask object")
+	    if (!defined($webtask));
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+    #
+    # Lock the slice in case it is doing something else, like taking
+    # a disk image.
+    #
+    if ($slice->Lock()) {
+	$errcode = GENIRESPONSE_BUSY;
+	$errmsg  ="Experiment is busy, cannot lock it. Try again later.";
+	if (defined($webtask)) {
+	    $webtask->output($errmsg);
+	    $webtask->Exited($errcode);
+	}
+	print STDERR "$errmsg\n";
+	exit($errcode);
+    }
+    if (defined($reason) &&
+	!TBcheck_dbslot($reason, "default", "fulltext",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	$errmsg  = "Illegal characters in your reason";
+	$errcode = 1;
+	goto bad;
+    }
+    if (!TBcheck_dbslot($wanted, "default", "int",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	$errmsg  = "Illegal integer for length";
+	$errcode = 1;
+	goto bad;
+    }
+    # Helper function.
+    my $needAdminApproval = sub {
+	my ($wanted, $granted, $reason, $message) = @_;
+	# Subtract out the extra free time we added.
+	my $howlong = $wanted - $granted;
+	my $new_expires = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+					  localtime(str2time($slice->expires())+
+						    ($howlong * 3600 * 24)));
+	my $created     = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				  localtime(str2time($instance->created())));
+
+	$instance->Brand()->SendEmail($extensions,
+		"Experiment Extension Request: $name",
+		"A request to extend this experiment was made but requires\n".
+                "administrator approval" .
+                ($message ? " $message" : "") . ".\n\n" .
+                "The request was for $wanted days, we granted $granted days, ".
+                "the reason given is:\n\n".
+                $reason . "\n\n".
+                "This experiment was started on $created\n".
+                "Granting the request would set the expiration to $new_expires\n".
+                "It is running on $clusters\n".
+                "\n\n". $url . "\n\n",
+                "From: " . $creator->email());
+
+	$instance->ExtensionRequested($reason, $granted);
+
+	# Need to return this to the web interface via the webtask.
+	return "Your request requires admininstrator approval".
+	    ($message ? " because $message" : "") . ". " .
+	    "You will receive email if/when your ".
+	    "request is granted (or denied). Thanks!";
+    };
+
+    #
+    # If no physical nodes (only VMs), double the maximums.
+    #
+    if (!$instance->physnode_count()) {
+        $autoextend_maxage *= 2;
+    }
+
+    #
+    # Guest users are treated differently.
+    #
+    if (!defined($this_user)) {
+	# Only extend for 24 hours. 
+	$granted = 1;
+
+	if ($expires_time > time() + (3600 * 24 * $granted)) {
+	    $errmsg  = "You still have a day left. Try again tomorrow";
+	    $errcode = 1;
+	    goto bad;
+	}
+    }
+    #
+    # Admin user, we do whatever it says to do.
+    #
+    elsif ($this_user->IsAdmin()) {
+	$reason  = "Your experiment was extended by the site administrator.\n".
+	    (defined($reason) ? "\n" . $reason : "");
+	$granted = $wanted;
+    }
+    else {
+	my $diff  = $expires_time - time();
+	my $cdiff = time() - $created_time;
+
+	if (! (defined($reason) || $this_user->IsAdmin())) {
+	    fatal("You must supply a reason for this extension");
+	}
+
+	#
+	# If admin lockout, we are refusing any more free time.
+	#
+	if ($instance->extension_adminonly()) {
+	    $message = "because you are not allowed any more extensions";
+	    $granted = 0;
+	}
+	#
+	# After maxage, all extension requests require admin approval.
+	#
+	elsif ($cdiff > (3600 * 24 * $autoextend_maxage)) {
+	    #
+	    # Well, if they asked for less then the free grant, and
+	    # the experiment is going to expire very soon, we give
+	    # them some extra time. This is a nice loophole people will
+	    # probably notice.
+	    #
+	    my $mindiff = $autoextend_freedays * 3600 * 24;
+	    
+	    if ($diff < $mindiff) {
+		$granted = POSIX::ceil(($mindiff - $diff) / (3600 * 24));
+	    }
+	    else {
+		$granted = 0;
+	    }
+	    if ($wanted > $granted) {
+		$needapproval = 1;
+		$message = "because it was started more then ".
+		    "$autoextend_maxage days ago";
+	    }
+	}
+	#
+	# Temporary for GEC23, this should be generalized next time.
+	#
+	elsif (0 && (time() + ($wanted * 3600 * 24) >
+		     str2time("2015-06-15 12:00:00"))) {
+	    $granted = 1;
+	    $needapproval = 1;
+	    $message = "because the testbed is mostly reserved for GEC23";
+	}
+	#
+	# Registered users are granted up to the autoextend_maximum
+	# automatically. Beyond that, requires approval, but we still
+	# give them whatever the free extension is, since we want to
+	# give them extra time until the next meeting of the "resource
+	# management committee."
+	#
+	elsif ($wanted > $autoextend_maxage) {
+	    $needapproval = 1;
+	    $message = "because it was for longer then $autoextend_maximum days";
+	    #
+	    # Plenty of time left, no extension just a message.
+	    #
+	    if ($diff > (3600 * 24 * 5)) {
+		$granted = 0;
+	    }
+	    else {
+                $granted = $autoextend_maximum;
+	    }
+	}
+	elsif ($diff > (3600 * 24 * 7)) {
+	    my $days = POSIX::ceil($diff / (3600 * 24.0));
+	    $errmsg  = "You still have $days day(s) left before expiration!";
+	    $errcode = 1;
+	    goto bad;
+	}
+	else {
+	    $granted = $wanted;
+	}
+	#
+	# The most we allow is the autoextend_maximum out, no
+	# matter what they asked for. So, if the autoextend_maximum
+	# is a week and there are five days left and they asked
+	# for seven, we give them two.
+	#
+	if ($expires_time + ($granted * 3600 * 24) >
+	    time() + (3600 * 24 * $autoextend_maximum)) {
+	    $granted =
+		POSIX::ceil(((3600 * 24 * $autoextend_maximum) - $diff) /
+			     (3600 * 24.0));
+	}
+    }
+    #
+    # Do the extension.
+    #
+    if ($granted) {
+	if ($errcode = ExtendInternal($slice,
+				      $granted * 3600 * 24, 0, \$errmsg)) {
+	    goto bad;
+	}
+    }
+    my $expires = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				  localtime(str2time($slice->expires())));
+    my $created = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				  localtime(str2time($instance->created())));
+    my $now     = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z", localtime());
+    my $before  = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				  localtime($expires_time));
+
+    #
+    # We store each extension request in an ongoing text field.
+    #
+    my $text =
+	"Date: $now\n".
+	"Wanted: $wanted, Granted: $granted\n".
+	"Before: $before\n".
+	"After $expires\n".
+	"Reason:\n".
+	$reason . "\n\n".
+	"-----------------------------------------------\n";
+    $instance->AddExtensionHistory($text);
+
+    if ($needapproval) {
+	$errmsg  = &$needAdminApproval($wanted, $granted, $reason, $message);
+	# The web interface (JS code) uses this error code. 
+	$errcode = 2;
+	goto bad;
+    }
+    $instance->Brand()->SendEmail($creator->email(),
+		"Experiment Extension: $name",
+               ($this_user->IsAdmin() ? $reason :
+                "A request to extend your experiment was made and ".
+                "granted.\n".
+                "Your reason was:\n\n". $reason) .
+               "\n\n".
+               "Your experiment was started on $created\n".
+ 	       "Your experiment will now expire at $expires\n".
+               "It is running on $clusters\n\n\n".
+               "$url\n",
+	       "From: $extensions\n" .
+	       "BCC: $extensions");
+    #
+    # We do not want to overwrite the reason in the DB if this
+    # was an admin extension, we want to keep whatever the user
+    # has written previously.
+    #
+    if (!$this_user->IsAdmin()) {
+	$instance->Update({"extension_reason" => $reason});
+    }
+    else {
+	$instance->Update({"extension_requested" => 0});
+    }
+    $instance->BumpExtensionCount($granted);
+    if (defined($webtask)) {
+	$webtask->Exited(0);
+    }
+    $slice->UnLock();
+    exit(0);
+    
+  bad:
+    $slice->UnLock();
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited($errcode);
+    }
+    exit($errcode);
+}
+sub ExtendInternal($$$$)
+{
+    my ($slice, $seconds, $force, $perrmsg) = @_;
+    my $lockdown = 0;
+    my $errcode = -1;
+    my $errmsg;
+    
+    # Save in case of error.
+    my $oldexpires = $slice->expires();
+
+    # Lockdown on admin extensions longer then XX days. 
+    if (defined($this_user) && $this_user->IsAdmin() &&
+	($seconds / (24 * 60 * 60)) > 10) {
+	$lockdown = 1
+    }
+    # Need to update slice before creating new credential. 
+    $slice->AddToExpiration($seconds);
+    my $new_expires = $slice->ExpirationGMT();
+
+    my $coderef = sub {
+	my ($sliver) = @_;
+	my $webtask  = $sliver->webtask();
+	my $domain   = $sliver->domain();
+	my $errmsg;
+
+	my $response = $sliver->Extend($new_expires, $this_user);
+	if (!defined($response)) {
+	    $errmsg = "Internal error calling Renew at $domain";
+	    goto bad;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    $errmsg = "Failed to extend slice at $domain: ".
+		$response->output();
+	    
+	    # This is something the user should see.
+	    if ($response->code() == GENIRESPONSE_REFUSED ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		$response->code() == GENIRESPONSE_BUSY) {
+		# For web interface.
+		$webtask->output($errmsg);
+		$webtask->Exited($response->code());
+		return 1;
+	    }
+	    goto bad;
+	}
+	return 0;
+      bad:
+	print STDERR "$errmsg\n";
+	$webtask->output($errmsg);
+	$webtask->Exited(-1);
+	return -1;
+    };
+    my @return_codes = ();
+    my @agglist =      $instance->AggregateList();
+    if (ParRun({"maxwaittime" => 99999,
+		"maxchildren" => scalar(@agglist)},
+	    \@return_codes, $coderef, @agglist)) {
+	#
+	# The parent caught a signal. Leave things intact so that we can
+	# kill things cleanly later.
+	#
+	$errmsg = "Internal error calling Extend\n";
+	goto bad;
+    }
+    #
+    # Check the exit codes. 
+    #
+    foreach my $agg (@agglist) {
+	my $code = shift(@return_codes);
+
+	if ($code) {
+	    $agg->webtask()->Refresh();
+	    $errmsg  = $agg->webtask()->output();
+	    $errcode = $agg->webtask()->exitcode();
+	    goto bad;
+	}
+    }
+    # Lockdown.
+    if ($lockdown) {
+	if (DoLockdownInternal("set", "admin")) {
+	    SENDMAIL($TBOPS,
+		     "Failed to lock down APT Instance",
+		     "Failed to lock down $instance\n".
+		     $instance->webURL() . "\n",
+		     $TBOPS);
+	}
+    }
+    return 0;
+
+  bad:
+    # Reset back to original expiration, sorry.
+    $slice->SetExpiration($oldexpires);
+    $$perrmsg = $errmsg;
+    return $errcode;
+}
+
+#
+# Deny extension, sending optional email to user (which is also saved in
+# the extension history). We used to do this in PHP, which was silly.
+#
+sub DoDenyExtension()
+{
+    my $errcode = -1;
+    my $message;
+
+    if (! $this_user->IsAdmin()) {
+	fatal("Only administrators can deny extensions");
+    }
+    if (@ARGV == 2) {
+	my $arg = shift(@ARGV);
+	if ($arg eq "-m") {
+	    $message = shift(@ARGV);
+	}
+	else {
+	    usage();
+	}
+    }
+    elsif (@ARGV == 1) {
+	my $filename = shift(@ARGV);
+	if (! -e $filename) {
+	    fatal("$filename does not exist");
+	}
+	open(my $MSG, $filename) or
+	    fatal("Could not open $filename");
+	
+	$message = "";
+	while (<$MSG>) {
+	    $message .= $_;
+	}
+	close($MSG);
+    }
+    return DenyExtensionInternal($message);
+}
+
+sub DenyExtensionInternal($)
+{
+    my ($message) = @_;
+    my $creator   = $instance->GetGeniUser();
+    my $slice     = $instance->GetGeniSlice();
+    my $name      = $instance->name();
+    my $expires   = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				    localtime(str2time($slice->expires())));
+    my $created   = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				    localtime(str2time($instance->created())));
+    my $now       = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z", localtime());
+    my $url       = $instance->webURL();
+    my $extensions= $instance->Brand()->ExtensionsEmailAddress();
+
+    #
+    # We store each extension request in an ongoing text field.
+    #
+    my $text =
+        "Date: $now\n".
+        "Expires: $expires\n".
+        "Reason:\n".
+	"Your extension was denied by the site administrator!\n\n".
+        $message . "\n\n".
+        "-----------------------------------------------\n";
+    $instance->Brand()->SendEmail($creator->email(),
+	       "Experiment Extension Denied: $name",
+	       "Your extension was denied by the site administrator!\n\n".
+               $message .
+               "\n\n".
+               "Your experiment was started on $created\n".
+ 	       "Your experiment expires at $expires\n".
+               "$url\n",
+	       "From: $extensions\n" .
+	       "BCC: $extensions");
+
+    $instance->AddExtensionHistory($text);
+    $instance->Update({"extension_requested" => 0,
+		       "extension_denied"    => 1,
+		       "extension_denied_reason" => $message});
+    return 0;
+}
+
+#
+# Old Extend.
+#
+sub DoExtendOld()
 {
     my $force = 0;
     my $lockdown = 0;
@@ -2556,7 +3064,7 @@ sub DoUpdateKeys()
 	$webtask->output($errmsg);
 	$webtask->Exited($errcode);
     }
-    exit(1);
+    exit($errcode);
 }
 
 #
