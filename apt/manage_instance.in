@@ -1348,6 +1348,7 @@ sub DoExtend()
 	if ($instance->extension_adminonly()) {
 	    $message = "because you are not allowed any more extensions";
 	    $granted = 0;
+	    $needapproval = 1;
 	}
 	#
 	# After maxage, all extension requests require admin approval.
