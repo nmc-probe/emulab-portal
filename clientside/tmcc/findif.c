@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001-2014 University of Utah and the Flux Group.
+ * Copyright (c) 2001-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -197,7 +197,8 @@ find_iface(char *macaddr)
 		}
 		
 		cp = (char *)LLADDR(sdl);
-		if ((n = sdl->sdl_alen) <= 0 || sdl->sdl_type != IFT_ETHER)
+		if ((n = sdl->sdl_alen) <= 0 ||
+		    (sdl->sdl_type != IFT_ETHER && sdl->sdl_type != IFT_L2VLAN))
 			continue;
 		memcpy(name, sdl->sdl_data,
 		    sizeof(name) < sdl->sdl_nlen ?
