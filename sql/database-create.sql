@@ -149,6 +149,27 @@ CREATE TABLE `apt_instance_aggregates` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `apt_instance_extension_info`
+--
+
+DROP TABLE IF EXISTS `apt_instance_extension_info`;
+CREATE TABLE `apt_instance_extension_info` (
+  `uuid` varchar(40) NOT NULL default '',
+  `idx` int(10) unsigned NOT NULL auto_increment,
+  `name` varchar(16) NOT NULL default '',
+  `tstamp` datetime default NULL,
+  `uid` varchar(8) NOT NULL default '',
+  `uid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `action` enum('request','deny') NOT NULL default 'request',
+  `wanted` smallint(5) unsigned NOT NULL default '0',
+  `granted` smallint(5) unsigned default NULL,
+  `admin` tinyint(1) NOT NULL default '0',
+  `reason` mediumtext,
+  `message` mediumtext,
+  PRIMARY KEY (`uuid`,`idx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `apt_instance_failures`
 --
 
