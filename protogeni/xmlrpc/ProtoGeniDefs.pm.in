@@ -236,9 +236,10 @@ ProtoGeniDefs::AddModule("cluster",
 	      "PEMFILE"    => "@prefix@/etc/genicm.pem",
 	      "DEFVERSION" => "1.0",
 	      "METHODS"    => {"1.0" => {
-		  "GetVersion"        => \&GeniCluster::GetVersion,
-		  "InUse"             => \&GeniCluster::InUse,
-		  "PreReservations"   => \&GeniCluster::PreReservations,
+		  "GetVersion"           => \&GeniCluster::GetVersion,
+		  "InUse"                => \&GeniCluster::InUse,
+		  "PreReservations"      => \&GeniCluster::PreReservations,
+		  "SliceUtilizationData" => \&GeniCluster::SliceUtilizationData,
 	      }},
 	  });
 

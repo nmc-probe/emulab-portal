@@ -45,6 +45,7 @@ use emutil;
 use libtestbed;
 use libEmulab;
 use GeniResponse;
+use GeniSlice;
 use GeniHRN;
 use English;
 use Data::Dumper;
@@ -52,6 +53,7 @@ use Date::Parse;
 use POSIX qw(strftime);
 use Time::Local;
 use Project;
+use NodeType;
 
 # Configure variables
 my $TB		   = "@prefix@";
@@ -284,6 +286,100 @@ sub PreReservations()
     my $results = {"api_version"  => $API_VERSION,
 		   "details"      => \@blob};
 		  
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
+}
+
+#
+# Return utilization data for the nodes in a slice.
+#
+sub SliceUtilizationData($)
+{
+    my ($argref)  = @_;
+    my $slice_urn = $argref->{'slice_urn'};
+    my %blob      = ();
+    
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+
+    my $slice = GeniSlice->Lookup($slice_urn);    
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
+	if (!defined($slice));
+    
+    my $experiment = $slice->GetExperiment();
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"No experiment for $slice")
+	if (!defined($experiment));
+
+    my @nodes = $experiment->NodeList(0, 1);
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"No nodes is $slice")
+	if (!@nodes);
+
+    #
+    # Build up a per-type summary count, to which we will add the
+    # current total/free counts. 
+    #
+    my %typelist = ();
+    
+    foreach my $node (@nodes) {
+	my %stats = ();
+	$stats{"nodetype"} = $node->type();
+
+	# Type counts.
+	if (!exists($typelist{$node->type()})) {
+	    $typelist{$node->type()} = {"count" => 0};
+	}
+	$typelist{$node->type()}->{"count"}++;
+	
+	my ($idletime, $staleness, $stale) = $node->IdleData();
+	if (defined($idletime)) {
+	    $stats{"idledata"} = {
+		"idletime"   => $idletime,
+		"staleness"  => $staleness,
+		"stale"      => $stale,
+	    };
+	}
+	$stats{"eventstate"} = $node->eventstate();
+
+	my $rusage = $node->RusageData();
+	if (defined($rusage)) {
+	    $stats{"rusage"} = $rusage;
+	}
+	my ($status,$status_stamp) = $node->GetStatus();
+	if (defined($status)) {
+	    $stats{"status"} = {
+		"status"    => $status,
+		"timestamp" => $status_stamp,
+	    };
+	}
+	$blob{$node->node_id()} = \%stats;
+    }
+    #
+    # Finish up the per-type info, adding total/inuse/preserved.
+    #
+    foreach my $type (keys(%typelist)) {
+	my $typeinfo = NodeType->Lookup($type);
+	next
+	    if (!defined($typeinfo));
+
+	if ($typeinfo->isvirtnode()) {
+	    $typelist{$typeinfo->type()}->{"total"} = 0;
+	    $typelist{$typeinfo->type()}->{"free"}  = 0;
+	    next;
+	}
+	
+	my $counts = $typeinfo->Counts();
+	if (defined($counts)) {
+	    $typelist{$typeinfo->type()}->{"total"} = $counts->{"total"};
+	    $typelist{$typeinfo->type()}->{"free"}  = $counts->{"free"};
+	}
+    }
+    my $results = {"api_version"  => $API_VERSION,
+		   "typeinfo"     => \%typelist,
+		   "details"      => {
+		       "nodes" => \%blob,
+		   }};
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
 }
 
