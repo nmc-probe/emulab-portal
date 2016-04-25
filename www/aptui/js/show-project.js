@@ -33,6 +33,14 @@ function (_, sup, moment, mainString,
         $('a[data-toggle="tab"]').on('show.bs.tab', function (e) {
             window.location.hash = e.target.hash;
         });
+	// Set the correct tab when a user uses their back/forward button
+        $(window).on('hashchange', function (e) {
+	    var hash = window.location.hash;
+	    if (hash == "") {
+		hash = "#experiments";
+	    }
+	    $('.nav-tabs a[href='+hash+']').tab('show');
+	});
 
 	LoadUsage();
 	LoadExperimentTab();
