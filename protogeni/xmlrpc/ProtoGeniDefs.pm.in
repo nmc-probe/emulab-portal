@@ -234,6 +234,7 @@ use GeniCluster;
 ProtoGeniDefs::AddModule("cluster",
 	  {
 	      "PEMFILE"    => "@prefix@/etc/genicm.pem",
+	      "DBNAME"     => "geni-cm",
 	      "DEFVERSION" => "1.0",
 	      "METHODS"    => {"1.0" => {
 		  "GetVersion"           => \&GeniCluster::GetVersion,
