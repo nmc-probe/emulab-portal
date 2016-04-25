@@ -343,6 +343,28 @@ class Instance
     }
 
     #
+    # Number of active experiments a user or project has.
+    #
+    function CurrentInstanceCount($target) {
+        if (get_class($target) == "Project") {
+            $pid = $target->pid();
+        
+            $query_result =
+                DBQueryFatal("select count(uuid) from apt_instances as i ".
+                             "where i.pid='$pid'");
+        }
+        else {
+            $uid = $target->uid();
+        
+            $query_result =
+                DBQueryFatal("select count(uuid) from apt_instances as i ".
+                             "where i.creator='$uid'");
+        }
+	$row = mysql_fetch_row($query_result);
+	return $row[0];
+    }
+
+    #
     # Return aggregate based on the current user.
     #
     function DefaultAggregateList() {
@@ -632,7 +654,6 @@ class Instance
     # is not very useful.
     #
     function Ranking($target, $days) {
-        $daysago  = time() - (3600 * 24 * days);
         $rank     = null;
         $ranktotal= 0;
 
@@ -649,20 +670,20 @@ class Instance
                          "   SUM(phours) as phours from ".
                          " ((select $which,physnode_count,created,NULL, ".
                          "   physnode_count * (TIMESTAMPDIFF(HOUR, ".
-                         "    IF(created > DATE_SUB(now(), INTERVAL 30 DAY), ".
-                         "       created, DATE_SUB(now(), INTERVAL 30 DAY)), now())) ".
+                         "    IF(created > DATE_SUB(now(), INTERVAL $days DAY), ".
+                         "       created, DATE_SUB(now(), INTERVAL $days DAY)), now())) ".
                          "    as phours ".
                          "   from apt_instances ".
                          "   where physnode_count>0) ".
                          "  union ".
                          "  (select $which,physnode_count,created,destroyed, ".
                          "   physnode_count * (TIMESTAMPDIFF(HOUR, ".
-                         "    IF(created > DATE_SUB(now(), INTERVAL 30 DAY), ".
-                         "       created, DATE_SUB(now(), INTERVAL 30 DAY)), destroyed)) ".
+                         "    IF(created > DATE_SUB(now(), INTERVAL $days DAY), ".
+                         "       created, DATE_SUB(now(), INTERVAL $days DAY)), destroyed)) ".
                          "    as phours ".
                          "   from apt_instance_history ".
                          "   where physnode_count>0 and ".
-                         "         destroyed>DATE_SUB(now(),INTERVAL 30 DAY)))".
+                         "         destroyed>DATE_SUB(now(),INTERVAL $days DAY)))".
                          "   as combined ".
                          "group by $which ".
                          "order by phours desc");
@@ -792,6 +813,78 @@ class InstanceSliver
             $sliver = InstanceSliver::Lookup($instance, $row['aggregate_urn']);
             if ($sliver) {
                 $result[] = $sliver;
+            }
+        }
+        return $result;
+    }
+}
+
+class ExtensionInfo
+{
+    var	$info;
+    
+    function ExtensionInfo($instance, $idx) {
+	$uuid = $instance->uuid();
+        $idx  = addslashes($idx);
+
+	$query_result =
+	    DBQueryWarn("select * from apt_instance_extension_info ".
+			"where uuid='$uuid' and idx='$idx'");
+
+	if (!$query_result || !mysql_num_rows($query_result)) {
+	    $this->info = null;
+	    return;
+	}
+	$this->info = mysql_fetch_assoc($query_result);
+        $this->info["reason"]  = trim(CleanString($this->info["reason"]));
+        $this->info["message"] = trim(CleanString($this->info["message"]));
+    }
+    # accessors
+    function field($name) {
+	return (is_null($this->info) ? -1 : $this->info[$name]);
+    }
+    function uuid()	    { return $this->field('uuid'); }
+    function name()	    { return $this->field('name'); }
+    function idx()          { return $this->field('idx'); }
+    function tstamp()       { return $this->field('tstamp'); }
+    function uid()          { return $this->field('uid'); }
+    function uid_idx()      { return $this->field('uid_idx'); }
+    function action()       { return $this->field('action'); }
+    function wanted()       { return $this->field('wanted'); }
+    function granted()      { return $this->field('granted'); }
+    function admin()        { return $this->field('admin'); }
+    function reason()       { return $this->field('reason'); }
+    function message()      { return $this->field('message'); }
+
+    # Hmm, how does one cause an error in a php constructor?
+    function IsValid() {
+	return !is_null($this->info);
+    }
+
+    function Lookup($instance, $idx) {
+	$foo = new ExtensionInfo($instance, $idx);
+
+	if ($foo->IsValid()) {
+            return $foo;
+        }
+        return $foo;
+    }
+
+    #
+    # Lookup all extensions for an instance
+    #
+    function LookupForInstance($instance) {
+        $result = array();
+        $uuid   = $instance->uuid();
+
+        $query_result =
+            DBQueryFatal("select idx from apt_instance_extension_info ".
+                         "where uuid='$uuid' order by idx desc");
+
+	while ($row = mysql_fetch_array($query_result)) {
+            $info = ExtensionInfo::Lookup($instance, $row['idx']);
+            if ($info) {
+                $result[] = $info;
             }
         }
         return $result;
