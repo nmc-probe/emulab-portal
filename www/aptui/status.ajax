@@ -1570,7 +1570,7 @@ function Do_ExpInfo()
 function Do_Utilization()
 {
     global $instance, $creator;
-    global $urn_mapping;
+    global $urn_mapping, $TBADMINGROUP;
 
     if (StatusSetupAjax(0)) {
 	return;
@@ -1582,12 +1582,13 @@ function Do_Utilization()
 	return 1;
     }
     $webtask = WebTask::CreateAnonymous();
-    $retval = SUEXEC("elabman", "nobody",
+    # XXX Need to do this as elabman cause of emulab.key. Pondering.
+    $retval = SUEXEC("elabman", $TBADMINGROUP,
 		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
                      "  utilization $uuid",
 		     SUEXEC_ACTION_IGNORE);
     $webtask->Refresh();
-    
+
     if ($retval != 0) {
         if ($webtask->exited()) {
             SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
