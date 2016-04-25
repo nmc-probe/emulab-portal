@@ -1329,6 +1329,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	"    <li><a href='#' name='console'>Console</a></li> " +
 	"    <li><a href='#' name='consolelog'>Console Log</a></li> " +
 	"    <li><a href='#' name='snapshot'>Snapshot</a></li> " +
+	"    <li><a href='#' name='delete'>Delete Node</a></li> " +
 	"  </ul>" +
 	"  </div>" +
 	" </td>" +
@@ -1486,6 +1487,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$('#listview-row-' + node + ' [name=snapshot]')
 		    .click(function (e) {
 			ActionHandler("snapshot", [node]);
+		    });
+		//
+		// Ditto the delete button,
+		//
+		$('#listview-row-' + node + ' [name=delete]')
+		    .click(function (e) {
+			ActionHandler("delete", [node]);
 		    });
 
 		/*
