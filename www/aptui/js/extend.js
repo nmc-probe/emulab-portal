@@ -415,8 +415,12 @@ define(['underscore', 'js/quickvm_sup',
 		    $("#why_extend").val($('#extension_reason').val());
 		    $("#why_extend_div").removeClass("hidden");
 		}
-		if (admin && $('#extension_history').length) {
-		    $("#extend_history").text($('#extension_history').text());
+		if (admin && $('#extensions-json').length) {
+		    var extensions =
+			JSON.parse(_.unescape($('#extensions-json')[0].textContent));
+		    var template = _.template($('#history-template', html).html());
+		    var html = template({"extensions" : extensions});
+		    $("#extend_history").html(html);
 		    $("#extend_history_div").removeClass("hidden");
 		}
 		if (admin && url) {
