@@ -1985,6 +1985,12 @@ sub WaitForNodes($$@)
 
 	    $image->RecordImageStatus($experiment, $node,
 				      $node->_bootstatus());
+
+	    #
+	    # NOTE: We do not mark the nodes for hwcheckup, since they
+	    # have to go through reloading anyway, and the reload daemon
+	    # will problem nodes. Might want revisit this.
+	    #
 	}
 	
 	#
