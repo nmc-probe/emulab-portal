@@ -32,6 +32,7 @@ use vars qw(@ISA @EXPORT);
 
 use libdb;
 use libtestbed;
+use EmulabConstants;
 use English;
 use Data::Dumper;
 use overload ('""' => 'Stringify');
@@ -395,6 +396,40 @@ sub SetAttribute($$$;$)
     $self->{"ATTRS"}->{$attrkey} = $attrvalue;
     return 0;
 }
+
+#
+# Free/Inuse count for a type.
+#
+sub Counts($)
+{
+    my ($self) = @_;
+    my $type   = $self->type();
+    my $total  = 0;
+    my $free   = 0;
+    
+    my $query_result =
+	DBQueryWarn("select count(*) from nodes where type='$type'");
+    return undef
+	if (!defined($query_result));
+    if ($query_result->numrows) {
+	($total) = $query_result->fetchrow_array();
+    }
+    $query_result =
+	DBQueryWarn("select count(a.node_id) from nodes as a ".
+		     "left join reserved as b on a.node_id=b.node_id ".
+		     "where b.node_id is null and a.type='$type' and ".
+                     "    a.reserved_pid is null and ".
+                     "    (a.eventstate='" . TBDB_NODESTATE_ISUP . "' or ".
+                     "     a.eventstate='" . TBDB_NODESTATE_POWEROFF . "' or ".
+                     "     a.eventstate='" . TBDB_NODESTATE_ALWAYSUP . "' or ".
+                     "     a.eventstate='" . TBDB_NODESTATE_PXEWAIT . "')");
+    return undef
+	if (!defined($query_result));
+    if ($query_result->numrows) {
+	($free) = $query_result->fetchrow_array();
+    }
+    return {"total" => $total, "free" => $free};
+}    
 
 # _Always_ make sure that this 1 is at the end of the file...
 
