@@ -1206,7 +1206,6 @@ sub DoExtend()
     my $expires_time  = str2time($slice->expires());
     my $created_time  = str2time($instance->created());
     my $extensions    = $instance->Brand()->ExtensionsEmailAddress();
-    $extensions = "stoller";
     my $granted       = 0;
     my $needapproval  = 0;
     my $message;
@@ -1688,7 +1687,6 @@ sub DenyExtensionInternal($)
     my $url       = $instance->webURL();
     my $extensions= $instance->Brand()->ExtensionsEmailAddress();
     my $message   = "Your extension was denied by the site administrator!\n";
-    $extensions = "stoller";
 
     #
     # New extension mechanism
