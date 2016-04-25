@@ -36,7 +36,7 @@ use JSON;
 
 sub usage()
 {
-    print "Usage: portal_xmlrpc [-d] [-a urn] method\n";
+    print "Usage: portal_xmlrpc [-d] [-a urn] method [PARAM=VALUE ...]\n";
     exit(1);
 }
 my $optlist   = "da:";
@@ -75,6 +75,7 @@ $| = 1;
 use lib '@prefix@/lib';
 use GeniHRN;
 use Genixmlrpc;
+use GeniResponse;
 use GeniAuthority;
 
 my %options = ();
@@ -91,7 +92,7 @@ else {
     $aggurn = $MYURN;
 }
 usage()
-    if (@ARGV != 1);
+    if (!@ARGV);
 my $method = shift(@ARGV);
 
 my $context = Genixmlrpc->Context($EMCERT, $EMKEY);
@@ -111,11 +112,36 @@ $cmurl =~ s/\/cm$/\/cluster/;
 if ($usemydevtree) {
     $cmurl =~ s/protogeni/protogeni\/stoller/;
 }
+my @args = ();
+if (@ARGV) {
+    my $args = {};
+
+    while (@ARGV) {
+	my $opt = shift(@ARGV);
+	if ($opt =~ /^(.*)=(.*)$/) {
+	    $args->{$1} = $2;
+	}
+	else {
+	    fatal("Bad option: $opt");
+	}
+    }
+    @args = ($args);
+}
 my $starttime = [gettimeofday()];
-my $response  = Genixmlrpc::CallMethod($cmurl, undef, $method);
+my $response  = Genixmlrpc::CallMethod($cmurl, undef, $method, @args);
 my $elapsed   = tv_interval($starttime);
 
+if ($response->code() != GENIRESPONSE_SUCCESS) {
+    if ($response->output()) {
+	print STDERR $response->output() . "\n";
+    }
+    else {
+	print STDERR "Operation failed, returned " . $response->code() . "\n";
+    }
+    exit($response->code());
+}
 print encode_json($response->value());
+exit(0);
 
 sub fatal($)
 {
