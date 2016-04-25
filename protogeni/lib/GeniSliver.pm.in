@@ -1550,7 +1550,7 @@ sub GenerateStatusBlob($)
 	print STDERR "Could not map node $resource_id to its object\n";
 	return -1;
     }
-    my $nodestatus    = $node->GetStatus() || "unknown";
+    my ($nodestatus) = $node->GetStatus() || "unknown";
 
     # New is the same as stopped. Separate state is handy.
     $state = "stopped"
