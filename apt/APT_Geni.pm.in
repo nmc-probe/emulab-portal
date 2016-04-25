@@ -45,6 +45,8 @@ my $TB		  = "@prefix@";
 my $MAINSITE      = @TBMAINSITE@;
 my $TBOPS         = "@TBOPSEMAIL@";
 my $SACERT	  = "$TB/etc/genisa.pem";
+my $EMCERT	  = "$TB/etc/emulab.pem";
+my $EMKEY	  = "$TB/etc/emulab.key";
 
 # Cache credentials so we do not keep regenerating down inside the
 # libraries that make the XMLRPC calls.
@@ -240,6 +242,11 @@ sub GeniContext()
 	return undef;
     }
     return Genixmlrpc->Context($certificate);
+}
+
+sub RootContext()
+{
+    return Genixmlrpc->Context($EMCERT, $EMKEY);
 }
 
 #
