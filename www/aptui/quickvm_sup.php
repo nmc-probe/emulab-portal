@@ -277,7 +277,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
            $then = time() - (30 * 3600 * 24);
            echo "  <li><a href='activity.php?min=$then'>
                             History Data</a></li>
-	           <li><a href='sumstats.php?min=$then'>Summary Stats</a></li>";
+	           <li><a href='sumstats.php?min=$then'>Summary Stats</a></li>
+	           <li><a href='ranking.php'>User/Proj Ranking</a></li>";
            echo "<li><a href='myexperiments.php?all=1'>
                             All Experiments</a></li>
 	             <li><a href='myprofiles.php?all=1'>
@@ -312,6 +313,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         list($pcount, $phours) = Instance::CurrentUsage($login_user);
         list($foo, $weeksusage) = Instance::WeeksUsage($login_user);
         list($foo, $monthsusage) = Instance::MonthsUsage($login_user);
+        list($rank, $ranktotal) = Instance::Ranking($login_user, 30);
         if ($phours || $weeksusage || $monthsusage) {
             echo "<center style='margin-bottom: 5px; margin-top: -8px'>";
             if ($phours) 
@@ -329,12 +331,16 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                 echo ", ";
                 echo "<span class='text-danger'>
                        Prev Month: $monthsusage</span>";
+                if ($rank) {
+                    echo "<span class='text-info'>
+                          (30 day rank: $rank of $ranktotal users)</span>";
+                }
             }
             echo "<a href='#' class='btn btn-xs' data-toggle='modal' ".
                 "data-target='#myusage_modal'> ".
                 "<span class='glyphicon glyphicon-question-sign' ".
                 "      style='margin-bottom: 4px;'></span> ".
-                "</a>\n";
+                "</a>";
             echo "</center>\n";
         }
         readfile("template/myusage.html");
