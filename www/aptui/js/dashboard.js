@@ -4,7 +4,6 @@ require(window.APT_OPTIONS.configObject,
 function (_, sup, moment, dashboardString)
 {
     'use strict';
-    var isadmin           = 0;
     var dashboardTemplate = _.template(dashboardString);
     var clusterFiles      = ["cloudlab-nofed.json", "cloudlab-fedonly.json"];
     var clusterStats      = {};
@@ -12,7 +11,6 @@ function (_, sup, moment, dashboardString)
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
-	isadmin = window.ISADMIN;
 
 	DashboardLoop();
 	setInterval(DashboardLoop,30000);
@@ -28,7 +26,8 @@ function (_, sup, moment, dashboardString)
 		return;
 	    }
 	    var dashboard_html = dashboardTemplate({"dashboard": json.value,
-						    "isadmin": isadmin});
+						    "isadmin"  : window.ISADMIN,
+						    "isfadmin" : window.ISFADMIN});
 	    $('#page-body').html(dashboard_html);
 	    $('#last-refresh').data("time",new Date());
 	    

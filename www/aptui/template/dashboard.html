@@ -122,12 +122,8 @@
 	      <tr>
 		<td><a href="status.php?uuid=<%- value.uuid %>">
 		  <%- value.name %></a></td>
-		<% if (!isadmin) { %>
-		  <td><%- value.creator %></td>
-		<% } %>
-		<% if (isadmin) { %>
-		  <td><a href="user-dashboard.php?user=<%- value.creator %>"><%- value.creator %></a></td>
-   	        <% } %>
+		<td><a href="user-dashboard.php?user=<%- value.creator %>">
+		  <%- value.creator %></a></td>
 		<td><a href="show-profile.php?uuid=<%- value.profile_uuid %>">
 		  <%- value.profile_name %></a></td>
 		<td><%- value.cluster %></td>
@@ -160,12 +156,7 @@
 	  <tbody>
 	    <% _.each(dashboard.heaviest_users, function(value, key) { %>
 	      <tr>
-		<% if (!isadmin) { %>
-		  <td><%- key %></td>
-		<% } %>
-		<% if (isadmin) { %>
-		  <td><a href="user-dashboard.php?user=<%- key %>"><%- key %></a></td>
-   	        <% } %>
+		<td><a href="user-dashboard.php?user=<%- key %>"><%- key %></a></td>
 		<td><%- value.physnode_count %></td>
 		<td><%- value.experiment_count %></td>
 	      </tr>
@@ -193,12 +184,7 @@
 	  <tbody>
 	    <% _.each(dashboard.heaviest_projects, function(value, key) { %>
 	      <tr>
-		<% if (!isadmin) { %>
-		  <td><%- key %></td>
-		<% } %>
-		<% if (isadmin) { %>
-		  <td><a href="show-project.php?pid=<%- key %>"><%- key %></a></td>
-   	        <% } %>
+		<td><a href="show-project.php?pid=<%- key %>"><%- key %></a></td>
 		<td><%- value.physnode_count %></td>
 		<td><%- value.experiment_count %></td>
 	      </tr>
