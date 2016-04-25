@@ -814,6 +814,8 @@ CREATE TABLE `delays` (
   `q1_gentle` tinyint(4) default '0',
   `iface0` varchar(8) NOT NULL default '',
   `iface1` varchar(8) NOT NULL default '',
+  `viface_unit0` int(10) default NULL,
+  `viface_unit1` int(10) default NULL,
   `exptidx` int(11) NOT NULL default '0',
   `eid` varchar(32) default NULL,
   `pid` varchar(48) default NULL,
@@ -826,7 +828,7 @@ CREATE TABLE `delays` (
   `card1` tinyint(3) unsigned default NULL,
   `noshaping` tinyint(1) default '0',
   `isbridge` tinyint(1) default '0',
-  PRIMARY KEY  (`node_id`,`iface0`,`iface1`),
+  PRIMARY KEY  (`node_id`,`iface0`,`iface1`,`vlan0`,`vlan1`,`vnode0`,`vnode1`),
   KEY `pid` (`pid`,`eid`),
   KEY `exptidx` (`exptidx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;

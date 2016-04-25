@@ -1276,6 +1276,8 @@ foreach $node (@nodenames) {
 	
 	push @types, "delay:$delay_capacity";
 	push @types, "delay-${type}:$delay_capacity";
+	push @types, "bridge:100";
+	push @types, "bridge-${type}:100";
     }
 
     #

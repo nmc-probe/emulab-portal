@@ -1956,6 +1956,7 @@ sub LoadVirtLans($)
 	$vlanmember->_shaped(0);
 	$virtlan->_delayed(0);
 	$vlanmember->_bridged(0);
+	$vlanmember->_virtiface(undef);
 
 	#
 	# Look for a sharedvlan setting, which is the name of the
@@ -1989,7 +1990,7 @@ sub LoadVirtLans($)
 	#       resets this to 100Mbs.
 	#
 	my $portbw = $self->getbandwidth($vlanmember, $virtlan, $bandwidth);
-	$self->portbw()->{"$vlanmember"} = $portbw;
+	$self->portbw()->{"$vlanmember"} = 0;
 	
 	$self->printdb("  $vlanname $vlanmember portbw:$portbw - ".
 		       "$delay $bandwidth $lossrate ".
@@ -2481,7 +2482,7 @@ sub GenVirtNodes($)
 	    }
 	}
 	elsif ($vnode->_isbridge()) {
-	    $type = ($type eq "pc" ? "delay" : "delay-" . $type);
+	    $type = ($type eq "pc" ? "bridge" : "bridge-" . $type);
 	}
 	if ($vnode->_explicit_type_request()) {
 	    $desires->{"$type" . "-explicit"} = ['', 1.0];
@@ -3286,7 +3287,7 @@ sub GenVirtLans($)
 				  $bw, $vlan->_wiretype(), $others);
 	    }
 	}
-	elsif (@members == 2 && !$vlan->_bridged()) {
+	elsif (@members == 2) {
 	    #
 	    # We treat LANs with two members specially - they are just links
 	    #
@@ -3366,6 +3367,8 @@ sub GenVirtLans($)
 		 $mustdelay ||
 		 # Global force, or per-link force. 
 		 $self->option('forcelinkdelays') || $uselinkdelay) &&
+		# No shaping on bridged lans.
+		!$vlan->_bridged() &&
 		# No shaping of geni nodes.
 		$vlan->_geninodes() == 0) {
 		# Need a delay node and its really a shaped link.
@@ -3459,6 +3462,8 @@ sub GenVirtLans($)
 	    if (($shaped ||
 		 (($traced || $rtraced) &&
 		  !($trace_endnode && $rtrace_endnode))) &&
+		# Ignore for bridged links.
+		!$vlan->_bridged() &&
 		# XXX simulated nodes hack. We don't want to put delay nodes
 		# between simulated nodes. If there is a link between a
 		# simulated and a real node, we might need to put in delay
@@ -3584,10 +3589,10 @@ sub GenVirtLans($)
 		# could not tell earlier if the link was going to get a real
 		# delay node or just a delaywithswitch.
 		#
-		$self->portbw()->{$member0} =
-		    $self->getbandwidth($member0,$vlan,$bandwidth);
-		$self->portbw()->{$member1} =
-		    $self->getbandwidth($member1,$vlan,$rbandwidth);
+		#$self->portbw()->{$member0} =
+		#    $self->getbandwidth($member0,$vlan,$bandwidth);
+		#$self->portbw()->{$member1} =
+		#    $self->getbandwidth($member1,$vlan,$rbandwidth);
 	    }
 	    else {
 		my $plink = "linksimple/$vname/$member0,$member1";
@@ -3916,7 +3921,7 @@ sub GenVirtLans($)
 		    # going to get a real delay node or just a
 		    # delaywithswitch.
 		    #
-		    $self->portbw()->{$member} = $bandwidth;	    
+		    #$self->portbw()->{$member} = $bandwidth;	    
 		}
 		else {
 		    my $plink = "linklan/$vname/$member";
@@ -8043,6 +8048,16 @@ sub AddBridge($$$$)
     $rbandwidth = 0
 	if ($member1->nobwshaping());
 
+    # We now allow bridges to work with vinterfaces (vlan encap).
+    my $viface_unit0 = "null";
+    my $viface_unit1 = "null";
+    if (defined($member0->_virtiface())) {
+	$viface_unit0 = $member0->_virtiface()->unit();
+    }
+    if (defined($member1->_virtiface())) {
+	$viface_unit1 = $member1->_virtiface()->unit();
+    }
+
     #
     # We are inserting the bridge, but it might not be for shaping.
     # Maybe for tracing. We use the estimated bandwidth field to
@@ -8057,7 +8072,7 @@ sub AddBridge($$$$)
     
     DBQueryWarn("insert into delays " .
 		" (pid,eid,exptidx,node_id,vname,noshaping,iface0,iface1" .
-		",vlan0,vlan1,isbridge".
+		",vlan0,vlan1,isbridge,viface_unit0,viface_unit1".
 		",vnode0,pipe0,delay0,bandwidth0,backfill0,lossrate0" .
 		",vnode1,pipe1,delay1,bandwidth1,backfill1,lossrate1" .
 		",q0_limit,q0_maxthresh,q0_minthresh,q0_weight,q0_linterm" .
@@ -8068,6 +8083,7 @@ sub AddBridge($$$$)
 		",q1_droptail,q1_red,q1_gentle)" .
 		" values ('$pid','$eid','$idx','$pnodename','$vname' ".
 		",$noshaping,'$iface0','$iface1','$lan0','$lan1',1".
+		",$viface_unit0,$viface_unit1".
 		",'$vnodename0',$pipe0,$delay,$bandwidth,$backfill,$lossrate".
 		",'$vnodename1',$pipe1,$rdelay,$rbandwidth,$rbackfill".
 		",$rlossrate".
@@ -8149,6 +8165,9 @@ sub AddBridge($$$$)
     my $speed1 =
 	$self->interfacespeedmbps(physinterfacetype($pnode, $iface1),
 				  "ethernet");
+
+    $self->portbw()->{$member0} = $speed0;
+    $self->portbw()->{$member1} = $speed1;
 
     $self->printdb("  Setting port speeds on $pnodename: ".
 		   "$iface0:$speed0 $iface1:$speed1\n");

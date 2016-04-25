@@ -3478,21 +3478,27 @@ COMMAND_PROTOTYPE(dodelay)
 	res = mydb_query("select i.MAC,j.MAC, "
 		 "pipe0,delay0,bandwidth0,lossrate0,q0_red, "
 		 "pipe1,delay1,bandwidth1,lossrate1,q1_red, "
-		 "vname, "
+		 "d.vname, "
 		 "q0_limit,q0_maxthresh,q0_minthresh,q0_weight,q0_linterm, "
 		 "q0_qinbytes,q0_bytes,q0_meanpsize,q0_wait,q0_setbit, "
 		 "q0_droptail,q0_gentle, "
 		 "q1_limit,q1_maxthresh,q1_minthresh,q1_weight,q1_linterm, "
 		 "q1_qinbytes,q1_bytes,q1_meanpsize,q1_wait,q1_setbit, "
 		 "q1_droptail,q1_gentle,vnode0,vnode1,noshaping, "
-		 "backfill0,backfill1,isbridge,vlan0,vlan1"
+		 "backfill0,backfill1,isbridge,vlan0,vlan1,v1.mac,v2.mac "
                  " from delays as d "
 		 "left join interfaces as i on "
 		 " i.node_id=d.node_id and i.iface=iface0 "
 		 "left join interfaces as j on "
 		 " j.node_id=d.node_id and j.iface=iface1 "
+		 "left join vinterfaces as v1 on "
+		 "   v1.node_id=d.node_id and v1.exptidx=d.exptidx and "
+		 "   v1.unit=d.viface_unit0 "
+		 "left join vinterfaces as v2 on "
+		 "   v2.node_id=d.node_id and v2.exptidx=d.exptidx and "
+		 "   v2.unit=d.viface_unit1 "
 		 " where d.node_id='%s'",
-		 45, reqp->nodeid);
+		 47, reqp->nodeid);
 	if (!res) {
 		error("DELAY: %s: DB Error getting delays!\n", reqp->nodeid);
 		return 1;
@@ -3545,7 +3551,8 @@ COMMAND_PROTOTYPE(dodelay)
 			"VNODE0=%s VNODE1=%s "
 			"NOSHAPING=%s "
 			"BACKFILL0=%s BACKFILL1=%s\n",
-			row[0], row[1],
+			(row[45] ? row[45] : row[0]),
+			(row[46] ? row[46] : row[1]),
 			row[2], row[3], row[4], row[5],
 			row[7], row[8], row[9], row[10],
 			row[12],
