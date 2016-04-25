@@ -298,8 +298,10 @@ sub os_ifconfig_veth($$$$$;$$$$$)
 	    warn("No vtag in veth config\n");
 	    return "";
 	}
-
-	$uplines = "$IFCONFIGBIN vlan${id} create link " .
+	if ($vmac =~ /^(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})(\w{2})$/) {
+	    $vmac = "$1:$2:$3:$4:$5:$6";
+	}
+	$uplines = "$IFCONFIGBIN vlan${id} create link $vmac " .
 		   "vlan $vtag vlandev $iface\n    ";
 
 	$encap = 1;
