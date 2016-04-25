@@ -53,41 +53,35 @@ function (_, sup, moment, mainString,
 	    var blob = json.value;
 	    var html = "";
 
-	    if (! (blob.pnodes || blob.monthpnodes || blob.weekpnodes)) {
-		return;
-	    }
 	    if (blob.pnodes) {
-		html = "<div>Current Usage: " +
+		html = "<tr><td>Current Usage:</td><td>" +
 		    blob.pnodes + " Node" + (blob.pnodes > 1 ? "s, " : ", ") +
-		    blob.phours + " Node Hours</div>";
+		    blob.phours + " Node Hours</td></tr>";
 	    }
 	    if (blob.weekpnodes) {
-		html = html +
-		    "<div>Previous Week: " +
+		html = html + "<tr><td>Previous Week:</td><td>" +
 		    blob.weekpnodes + " Node" +
 		    (blob.weekpnodes > 1 ? "s, " : ", ") +
-		    blob.weekphours + " Node Hours</div>";
+		    blob.weekphours + " Node Hours</td></tr>";
 	    }
 	    if (blob.monthpnodes) {
-		html = html +
-		    "<div>Previous Month: " +
+		html = html + "<tr><td>Previous Month:</td><td> " +
 		    blob.monthpnodes + " Node" +
 		    (blob.monthpnodes > 1 ? "s, " : ", ") +
-		    blob.monthphours + " Node Hours</div>";
+		    blob.monthphours + " Node Hours</td></tr>";
 	    }
 	    if (blob.rank) {
 		html = html +
-		    "<div>" + blob.rankdays + " Day Project Usage Ranking: #" +
+		    "<tr><td>" + blob.rankdays + " Day Usage Ranking:</td><td>#" +
 		    blob.rank + " of " + blob.ranktotal + " active projects" +
-		    "</div>";
+		    "</td></tr>";
 	    }
-	    $('#usage-summary').html(html);
+	    $('#usage_table tbody').html(html);
 	}
 	var xmlthing = sup.CallServerMethod(null,
 					    "show-project", "UsageSummary",
 					    {"pid" : window.TARGET_PROJECT});
 	xmlthing.done(callback);
-	
     }
 
     function LoadExperimentTab()

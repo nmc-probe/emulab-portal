@@ -42,7 +42,6 @@
       <div class='panel-body'>
 	<div class='row'>
 	  <div class='col-sm-12'>
-	    <center id="usage-summary"></center>
 	    <div>
 	      <!-- Nav tabs -->
 	      <ul class="nav nav-tabs" role="tablist">
@@ -55,6 +54,9 @@
 		<li role="presentation">
 		  <a href="#members" role="tab"
 		     data-toggle="tab">Members</a></li>
+		<li role="presentation">
+		  <a href="#usage" role="tab"
+		     data-toggle="tab">Usage</a></li>
 		<% if (isadmin) { %>
 		  <li role="presentation">
 		    <a href="#admin" role="tab" data-toggle="tab">
@@ -93,6 +95,14 @@
 		</div>
 		<div role="tabpanel" class="tab-pane" id="members">
 		  <div id="members_content"></div>
+		</div>
+		<div role="tabpanel" class="tab-pane" id="usage">
+		  <div id="usage_content">
+		      <table class='table table-condensed table-bordered'
+			     id='usage_table'>
+			<tbody></tbody>
+		      </table>
+		  </div>
 		</div>
 		<% if (isadmin) { %>
 		  <div role="tabpanel" class="tab-pane" id="admin">

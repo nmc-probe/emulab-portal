@@ -42,7 +42,6 @@
       <div class='panel-body'>
 	<div class='row'>
 	  <div class='col-sm-12'>
-	    <center id="usage-summary"></center>
 	    <div>
 	      <!-- Nav tabs -->
 	      <ul class="nav nav-tabs" role="tablist">
@@ -55,6 +54,9 @@
 		<li role="presentation">
 		  <a href="#membership" role="tab" data-toggle="tab">
 		    Membership</a></li>
+		<li role="presentation">
+		  <a href="#usage" role="tab"
+		     data-toggle="tab">Usage</a></li>
 		<li role="presentation">
 		  <a href="#myprofile" role="tab" data-toggle="tab">
 		    Account</a></li>
@@ -115,6 +117,14 @@
 		</div>
 		<div role="tabpanel" class="tab-pane" id="membership">
 		  <div id="membership_content"></div>
+		</div>
+		<div role="tabpanel" class="tab-pane" id="usage">
+		  <div id="usage_content">
+		    <table class='table table-condensed table-bordered'
+			   id='usage_table'>
+		      <tbody></tbody>
+		    </table>
+		  </div>
 		</div>
 		<div role="tabpanel" class="tab-pane" id="myprofile">
 		  <div id="myprofile_content"></div>

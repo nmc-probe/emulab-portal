@@ -64,15 +64,32 @@ function (_, sup, moment, mainString,
 		return;
 	    }
 	    var blob = json.value;
+	    var html = "";
 
-	    if (blob.rank) {
-		var html = 
-		    "<div>" + blob.rankdays + " Day Usage Ranking: #" +
-		    blob.rank + " of " + blob.ranktotal + " active users" +
-		    "</div>";
-		
-		$('#usage-summary').html(html);		
+	    if (blob.pnodes) {
+		html = "<tr><td>Current Usage:</td><td>" +
+		    blob.pnodes + " Node" + (blob.pnodes > 1 ? "s, " : ", ") +
+		    blob.phours + " Node Hours</td></tr>";
 	    }
+	    if (blob.weekpnodes) {
+		html = html + "<tr><td>Previous Week:</td><td>" +
+		    blob.weekpnodes + " Node" +
+		    (blob.weekpnodes > 1 ? "s, " : ", ") +
+		    blob.weekphours + " Node Hours</td></tr>";
+	    }
+	    if (blob.monthpnodes) {
+		html = html + "<tr><td>Previous Month:</td><td> " +
+		    blob.monthpnodes + " Node" +
+		    (blob.monthpnodes > 1 ? "s, " : ", ") +
+		    blob.monthphours + " Node Hours</td></tr>";
+	    }
+	    if (blob.rank) {
+		html = html +
+		    "<tr><td>" + blob.rankdays + " Day Usage Ranking:</td><td>#" +
+		    blob.rank + " of " + blob.ranktotal + " active users" +
+		    "</td></tr>";
+	    }
+	    $('#usage_table tbody').html(html);
 	}
 	var xmlthing = sup.CallServerMethod(null,
 					    "user-dashboard", "UsageSummary",
