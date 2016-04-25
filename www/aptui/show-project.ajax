@@ -179,7 +179,8 @@ function Do_UsageSummary()
                   "monthphours" => $monthphours,
                   "rankdays"    => 30,
                   "rank"        => $rank,
-                  "ranktotal"   => $ranktotal
+                  "ranktotal"   => $ranktotal,
+                  "expcount"    => Instance::CurrentInstanceCount($target_project),
     );
     
     SPITAJAX_RESPONSE($blob);
