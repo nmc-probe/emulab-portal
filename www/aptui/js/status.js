@@ -45,6 +45,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var consolenodes      = {};
     var showlinktest      = false;
     var hidelinktest      = false;
+    var extensions        = null;
     var changingtopo      = false;
     var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
@@ -68,6 +69,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	instanceStatus = window.APT_OPTIONS.instanceStatus;
 	hidelinktest   = window.APT_OPTIONS.hidelinktest;
 	var errorURL = window.HELPFORUM;
+
+	if ($('#extensions-json').length) {
+	    extensions = decodejson('#extensions-json');
+	    console.info(extensions);
+	}
 
 	// Generate the templates.
 	var template_args = {
@@ -160,11 +166,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		return;
 	    }
-	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin,
-			    isguest, null, window.APT_OPTIONS.freenodesurl,
-			    window.APT_OPTIONS.extension_requested,
-			    window.APT_OPTIONS.physnode_count,
-			    window.APT_OPTIONS.physnode_hours);
+	    window.location.replace("adminextend.php?uuid=" + uuid);
 	});
 	
 	// Handler for the refresh button
@@ -313,6 +315,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    ShowProgressModal();
 	}
 	else if (window.APT_OPTIONS.extend) {
+	    if (isadmin) {
+		window.location.replace("adminextend.php?uuid=" + uuid);
+		return;
+	    }
 	    ShowExtendModal(uuid, RequestExtensionCallback, isadmin, isguest,
 			    window.APT_OPTIONS.extend,
 			    window.APT_OPTIONS.freenodesurl,
@@ -2418,10 +2424,22 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	}
 	$('#extension-denied-modal-dismiss').click(function () {
 	    sup.HideModal("#extension-denied-modal");
-	    sup.CallServerMethod(null, "status", "dismissExtensionDenied",
-				 {"uuid" : uuid});	    
+	    var callback = function(json) {
+		if (json.code) {
+		    console.info("Could not dismsss: " + json.value);
+		    return;
+		}
+	    };
+	    var xmlthing =
+		sup.CallServerMethod(null, "status", "dismissExtensionDenied",
+				     {"uuid" : uuid});
+	    xmlthing.done(callback);
 	});
 	sup.ShowModal("#extension-denied-modal");
+    }
+    // Helper.
+    function decodejson(id) {
+	return JSON.parse(_.unescape($(id)[0].textContent));
     }
     
     $(document).ready(initialize);

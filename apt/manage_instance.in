@@ -53,6 +53,7 @@ sub usage()
     print("Usage: manage_instance extend instance [-m message] days [filename]\n");
     print("Usage: manage_instance denyextension instance [-m message] [filename]\n");
     print("Usage: manage_instance extendold instance [-f] seconds\n");
+    print("Usage: manage_instance utilization instance\n");
     exit(-1);
 }
 my $optlist     = "dt:s";
@@ -123,6 +124,7 @@ sub DoManifests();
 sub DoLinktest();
 sub DoUpdateKeys();
 sub DoDeleteNodes();
+sub DoUtilization();
 sub WriteCredentials();
 sub StartMonitor();
 sub StartMonitorInternal(;$@);
@@ -220,6 +222,9 @@ elsif ($action eq "getmanifests") {
 }
 elsif ($action eq "deletenodes") {
     DoDeleteNodes()
+}
+elsif ($action eq "utilization") {
+    DoUtilization()
 }
 else {
     usage();
@@ -1201,6 +1206,7 @@ sub DoExtend()
     my $expires_time  = str2time($slice->expires());
     my $created_time  = str2time($instance->created());
     my $extensions    = $instance->Brand()->ExtensionsEmailAddress();
+    $extensions = "stoller";
     my $granted       = 0;
     my $needapproval  = 0;
     my $message;
@@ -1297,6 +1303,7 @@ sub DoExtend()
                 "\n\n". $url . "\n\n",
                 "From: " . $creator->email());
 
+	# Flag for the dashboard page. 
 	$instance->ExtensionRequested($reason, $granted);
 
 	# Need to return this to the web interface via the webtask.
@@ -1330,15 +1337,14 @@ sub DoExtend()
     # Admin user, we do whatever it says to do.
     #
     elsif ($this_user->IsAdmin()) {
-	$reason  = "Your experiment was extended by the site administrator.\n".
-	    (defined($reason) ? "\n" . $reason : "");
+	$message = "Your experiment was extended by the site administrator.";
 	$granted = $wanted;
     }
     else {
 	my $diff  = $expires_time - time();
 	my $cdiff = time() - $created_time;
 
-	if (! (defined($reason) || $this_user->IsAdmin())) {
+	if (! defined($reason)) {
 	    fatal("You must supply a reason for this extension");
 	}
 
@@ -1348,7 +1354,6 @@ sub DoExtend()
 	if ($instance->extension_adminonly()) {
 	    $message = "because you are not allowed any more extensions";
 	    $granted = 0;
-	    $needapproval = 1;
 	}
 	#
 	# After maxage, all extension requests require admin approval.
@@ -1390,7 +1395,7 @@ sub DoExtend()
 	# give them extra time until the next meeting of the "resource
 	# management committee."
 	#
-	elsif ($wanted > $autoextend_maxage) {
+	elsif ($wanted > $autoextend_maximum) {
 	    $needapproval = 1;
 	    $message = "because it was for longer then $autoextend_maximum days";
 	    #
@@ -1441,6 +1446,34 @@ sub DoExtend()
     my $now     = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z", localtime());
     my $before  = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
 				  localtime($expires_time));
+    #
+    # New extension mechanism
+    #
+    my $extensionargs = {
+	"action"   => "request",
+	"wanted"   => $wanted,
+	"granted"  => $granted,
+	"admin"    => $this_user->IsAdmin() ? 1 : 0};
+    if (defined($message)) {
+	$extensionargs->{"message"} = $message;
+    }
+    if (defined($reason)) {
+	$extensionargs->{"reason"} = $reason;
+    }
+    if (defined($this_user)) {
+    	$extensionargs->{"uid"}     = $this_user->uid();
+	$extensionargs->{"uid_idx"} = $this_user->uid_idx();
+    }
+    else {
+	# A guest user, only the creator can request an extension.
+    	$extensionargs->{"uid"}     = $instance->creator();
+	$extensionargs->{"uid_idx"} = $instance->creator_idx();
+    }
+    my $extensioninfo =
+	APT_Instance::ExtensionInfo->Create($instance, $extensionargs);
+    if (!defined($extensioninfo)) {
+	print STDERR "Could not create extension info object\n";
+    }
 
     #
     # We store each extension request in an ongoing text field.
@@ -1474,15 +1507,21 @@ sub DoExtend()
                "$url\n",
 	       "From: $extensions\n" .
 	       "BCC: $extensions");
-    #
-    # We do not want to overwrite the reason in the DB if this
-    # was an admin extension, we want to keep whatever the user
-    # has written previously.
-    #
+    
     if (!$this_user->IsAdmin()) {
+	#
+	# We do not want to overwrite the reason in the DB if this
+	# was an admin extension, we want to keep whatever the user
+	# has written previously. This currently used by the web interface
+	# to show the latest reason.
+	#
 	$instance->Update({"extension_reason" => $reason});
     }
     else {
+	#
+	# Any time an admin issues an extension, we clear the flag that tells
+	# the dashboard page there is an oustanding request.
+	#
 	$instance->Update({"extension_requested" => 0});
     }
     $instance->BumpExtensionCount($granted);
@@ -1604,7 +1643,7 @@ sub ExtendInternal($$$$)
 sub DoDenyExtension()
 {
     my $errcode = -1;
-    my $message;
+    my $reason;
 
     if (! $this_user->IsAdmin()) {
 	fatal("Only administrators can deny extensions");
@@ -1612,7 +1651,7 @@ sub DoDenyExtension()
     if (@ARGV == 2) {
 	my $arg = shift(@ARGV);
 	if ($arg eq "-m") {
-	    $message = shift(@ARGV);
+	    $reason = shift(@ARGV);
 	}
 	else {
 	    usage();
@@ -1626,18 +1665,18 @@ sub DoDenyExtension()
 	open(my $MSG, $filename) or
 	    fatal("Could not open $filename");
 	
-	$message = "";
+	$reason = "";
 	while (<$MSG>) {
-	    $message .= $_;
+	    $reason .= $_;
 	}
 	close($MSG);
     }
-    return DenyExtensionInternal($message);
+    return DenyExtensionInternal($reason);
 }
 
 sub DenyExtensionInternal($)
 {
-    my ($message) = @_;
+    my ($reason) = @_;
     my $creator   = $instance->GetGeniUser();
     my $slice     = $instance->GetGeniSlice();
     my $name      = $instance->name();
@@ -1648,6 +1687,27 @@ sub DenyExtensionInternal($)
     my $now       = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z", localtime());
     my $url       = $instance->webURL();
     my $extensions= $instance->Brand()->ExtensionsEmailAddress();
+    my $message   = "Your extension was denied by the site administrator!\n";
+    $extensions = "stoller";
+
+    #
+    # New extension mechanism
+    #
+    my $extensionargs = {
+	"action"   => "deny",
+	"uid"      => $this_user->uid(),
+	"uid_idx"  => $this_user->uid_idx(),
+	"message"  => $message,
+	"admin"    => $this_user->IsAdmin() ? 1 : 0};
+    if (defined($reason)) {
+	$extensionargs->{"reason"} = $reason;
+    }
+    my $extensioninfo =
+	APT_Instance::ExtensionInfo->Create($instance, $extensionargs);
+    if (!defined($extensioninfo)) {
+	print STDERR "Could not create extension info object\n";
+	return -1;
+    }
 
     #
     # We store each extension request in an ongoing text field.
@@ -1656,13 +1716,13 @@ sub DenyExtensionInternal($)
         "Date: $now\n".
         "Expires: $expires\n".
         "Reason:\n".
-	"Your extension was denied by the site administrator!\n\n".
-        $message . "\n\n".
+	$message . "\n".
+        $reason . "\n\n".
         "-----------------------------------------------\n";
     $instance->Brand()->SendEmail($creator->email(),
 	       "Experiment Extension Denied: $name",
-	       "Your extension was denied by the site administrator!\n\n".
-               $message .
+	       $message . "\n" .
+               $reason .
                "\n\n".
                "Your experiment was started on $created\n".
  	       "Your experiment expires at $expires\n".
@@ -1671,9 +1731,10 @@ sub DenyExtensionInternal($)
 	       "BCC: $extensions");
 
     $instance->AddExtensionHistory($text);
+    # For the dashboard and status page.
     $instance->Update({"extension_requested" => 0,
 		       "extension_denied"    => 1,
-		       "extension_denied_reason" => $message});
+		       "extension_denied_reason" => $reason});
     return 0;
 }
 
@@ -3052,14 +3113,127 @@ sub DoUpdateKeys()
 	    }
 	    goto bad;
 	}
-	if (!defined($webtask) && $agg->webtask()->results()) {
-	    print $agg->webtask()->results();
-	}
     }
     $slice->UnLock();
     exit(0);
   bad:
     $slice->UnLock();
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited($errcode);
+    }
+    exit($errcode);
+}
+
+#
+# Get utilization info from the the clusters.
+# 
+sub DoUtilization()
+{
+    my $errmsg;
+    my $errcode = 1;
+    
+    #
+    # Create the webtask object; the web interface gave us an anonymous
+    # webtask, so we can use it before lock.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	fatal("Could not lookup webtask object")
+	    if (!defined($webtask));
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
+    #
+    # Get the nodeid to client id mapping
+    #
+    my %client_ids = ();
+    foreach my $obj ($instance->AggregateList()) {
+	my $manifest = GeniXML::Parse($obj->manifest());
+	if (! defined($manifest)) {
+	    fatal("Could not parse manifest");
+	}
+	$client_ids{$obj->aggregate_urn()} = {};
+	
+	my @nodes = GeniXML::FindNodes("n:node", $manifest)->get_nodelist();
+	foreach my $node (@nodes) {
+	    my $client_id = GeniXML::GetVirtualId($node);
+	    my $node_id   = GeniXML::GetVnodeId($node);
+
+	    $client_ids{$obj->aggregate_urn()}->{$node_id} = $client_id;
+	}
+    }
+
+    #
+    # And tell the backend clusters to do the update.
+    #
+    my $coderef = sub {
+	my ($sliver) = @_;
+	my $webtask  = $sliver->webtask();
+
+	my $response = $sliver->Utilization();
+	if (!defined($response)) {
+	    print STDERR "RPC Error calling utilization on $sliver\n";
+	    return -1;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    print STDERR "Could not get utilization for sliver: ".
+		$response->output() . "\n";
+	    $webtask->output($response->output());
+	    $webtask->Exited($response->code());
+	    return $response->code();
+	}
+	$webtask->results($response->value());
+	return 0;
+    };
+    my @return_codes = ();
+    my @agglist      = ();
+    #
+    # Cull out any aggregates with no nodes.
+    #
+    foreach my $agg ($instance->AggregateList()) {
+	push(@agglist, $agg)
+	    if ($agg->physnode_count() || $agg->virtnode_count());
+    }
+    
+    if (ParRun({"maxwaittime" => 99999,
+		"maxchildren" => scalar(@agglist)},
+	       \@return_codes, $coderef, @agglist)) {
+	$errmsg = "Internal error calling UpdateKeys()";
+	goto bad;
+    }
+    #
+    # Check the exit codes. 
+    #
+    foreach my $agg (@agglist) {
+	my $code = shift(@return_codes);
+	$agg->webtask()->Refresh();
+	if ($code) {
+	    $errmsg = "Could not get utilization from some slivers";
+	    if ($agg->webtask()->output()) {
+		$errmsg .= ": " . $agg->webtask()->output();
+		$errcode = $agg->webtask()->output();
+	    }
+	    goto bad;
+	}
+	#
+	# Annotate the result with some extra info for the web UI.
+	#
+	my $blob = $agg->webtask()->results();
+	foreach my $node_id (keys(%{ $blob->{'details'}->{'nodes'} })) {
+	    $blob->{'details'}->{'nodes'}->{$node_id}->{"client_id"} =
+		$client_ids{$agg->aggregate_urn()}->{$node_id};
+	}
+	if ($debug) {
+	    print Dumper($agg->webtask()->results());
+	}
+	$agg->webtask()->results($blob);
+	$agg->webtask()->Store();
+    }
+    exit(0);
+  bad:
     print STDERR $errmsg . "\n";
     if (defined($webtask)) {
 	$webtask->output($errmsg);

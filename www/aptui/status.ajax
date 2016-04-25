@@ -1496,7 +1496,7 @@ function Do_Linktest()
 }
 
 #
-# Clea the extension denied flag; user has seen it and dismissed it.
+# Clear the extension denied flag; user has seen it and dismissed it.
 #
 function Do_DismissExtensionDenied()
 {
@@ -1525,6 +1525,99 @@ function Do_DismissExtensionDenied()
 	return;
     }
     SPITAJAX_RESPONSE("Success");
+}
+
+#
+# Blob of experiment info
+#
+function Do_ExpInfo()
+{
+    global $instance, $creator;
+
+    if (StatusSetupAjax(0)) {
+	return;
+    }
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	return 1;
+    }
+    $profile = Profile::Lookup($instance->profile_id(),
+			       $instance->profile_version());
+    
+    $blob = array();
+    $blob["expires"]      = DateStringGMT($slice->expires());
+    $blob["created"]      = DateStringGMT($instance->created());
+    $blob["creator"]      = $creator->uid();
+    $blob["project"]      = $instance->pid();
+    $blob["name"]         = $instance->name();
+    if (isset($profile)) {
+        $blob["profile_name"] = $profile->name();
+        $blob["profile_uuid"] = $profile->uuid();
+    }
+    else {
+        $blob["profile_name"] = "unknown";
+        $blob["profile_uuid"] = null;
+    }
+    $blob["lockdown"]     = $instance->admin_lockdown() ? true : false;
+    $blob["lockout"]      = $instance->extension_lockout() ? true : false;
+    SPITAJAX_RESPONSE($blob);
+}
+
+#
+# utilization
+#
+function Do_Utilization()
+{
+    global $instance, $creator;
+    global $urn_mapping;
+
+    if (StatusSetupAjax(0)) {
+	return;
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	return 1;
+    }
+    $webtask = WebTask::CreateAnonymous();
+    $retval = SUEXEC("elabman", "nobody",
+		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
+                     "  utilization $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask->Refresh();
+    
+    if ($retval != 0) {
+        if ($webtask->exited()) {
+            SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
+        }
+        elseif ($retval < 0) {
+            SPITAJAX_ERROR($retval, "Internal error, cannot proceed.");
+            # Notify tbops.
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            SPITAJAX_ERROR($retval, $suexec_output);
+        }
+        $webtask->Delete();
+        return;
+    }
+    
+    $webtask->Delete();
+    $blob = array();
+    # Look at per sliver.
+    foreach ($instance->slivers() as $sliver) {
+        if ($sliver->webtask_id() &&
+            $webtask = WebTask::Lookup($sliver->webtask_id())) {
+            if (!($sliver->physnode_count() || $sliver->virtnode_count())) {
+                continue;
+            }
+            $blob[$urn_mapping[$sliver->aggregate_urn()]] =
+                $webtask->TaskValue("results");
+        }
+    }
+    SPITAJAX_RESPONSE($blob);
 }
 
 # Local Variables:

@@ -175,8 +175,6 @@ $lockdown        = ($instance->admin_lockdown() ||
                     $instance->user_lockdown() ? 1 : 0);
 $extension_reason= ($instance->extension_reason() ?
                     CleanString($instance->extension_reason()) : "");
-$extension_history= ($instance->extension_history() ?
-                    CleanString($instance->extension_history()) : "");
 $extension_denied_reason= ($instance->extension_denied_reason() ?
                     CleanString($instance->extension_denied_reason()) : "");
 $extension_denied= $instance->extension_denied();
@@ -184,6 +182,7 @@ $freenodes_url   = Aggregate::Lookup($instance->aggregate_urn())->FreeNodesURL()
 $lockout         = $instance->extension_lockout();
 $paniced         = $instance->paniced();
 $project         = $instance->pid();
+$extensions      = ExtensionInfo::LookupForInstance($instance);
 
 #
 # We give ssh to the creator (real user or guest user).
@@ -277,6 +276,15 @@ echo "<link rel='stylesheet'
 echo "<link rel='stylesheet' href='css/progress.css'>\n";
 echo "<link rel='stylesheet' href='css/codemirror.css'>\n";
 echo "<div class='hidden'><textarea id='extension_reason'>$extension_reason</textarea></div>\n";
+if (count($extensions)) {
+    $foo = array();
+    foreach ($extensions as $extension) {
+        $foo[$extension->idx()] = $extension->info;
+    }
+    echo "<script type='text/plain' id='extensions-json'>\n";
+    echo json_encode($foo);
+    echo "</script>\n";
+}
 if ($extension_history != "") {
    echo "<pre class='hidden' id='extension_history'>$extension_history</pre>\n";
 }
