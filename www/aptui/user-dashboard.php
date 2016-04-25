@@ -49,7 +49,7 @@ if (! isset($target_user)) {
 # Verify that this uid is a member of one of the projects that the
 # target_uid is in. Must have proper permission in that group too. 
 #
-if (!$isadmin && 
+if (!$isadmin && !ISFOREIGN_ADMIN() &&
     !$target_user->AccessCheck($this_user, $TB_USERINFO_READINFO)) {
     SPITUSERERROR("You do not have permission to view this information!");
     return;

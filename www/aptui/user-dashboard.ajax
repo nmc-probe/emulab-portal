@@ -59,7 +59,7 @@ function CheckPageArgs()
     if ($uid == $this_user->uid())
         return 0;
     
-    if (!ISADMIN() && 
+    if (!ISADMIN() && !ISFOREIGN_ADMIN() &&
         !$target_user->AccessCheck($this_user, $TB_USERINFO_READINFO)) {
 	SPITAJAX_ERROR(-1, "Not enough permission");
 	return -1;
@@ -192,7 +192,7 @@ function Do_UsageSummary()
                   "phours"      => $phours,
                   "weekpnodes"  => $weekpcount,
                   "weekphours"  => $weekphours,
-                  "monthpnodes" => $monthpnodes,
+                  "monthpnodes" => $monthpcount,
                   "monthphours" => $monthphours,
                   "rankdays"    => 30,
                   "rank"        => $rank,

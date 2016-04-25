@@ -44,7 +44,7 @@ $optargs = RequiredPageArguments("project", PAGEARG_PROJECT);
 
 SPITHEADER(1);
 
-if (!ISADMIN() && 
+if (!ISADMIN() && !ISFOREIGN_ADMIN() &&
     !$project->AccessCheck($this_user, $TB_PROJECT_READINFO)) {
     SPITUSERERROR("You do not have permission to view this information!");
     return;
