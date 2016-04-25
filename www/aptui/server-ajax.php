@@ -103,6 +103,10 @@ $routing = array("myprofiles" =>
 			      "guest"   => true,
 			      "methods" => array("GetInstanceStatus" =>
 						   "Do_GetInstanceStatus",
+						 "ExpInfo" =>
+						    "Do_ExpInfo",
+						 "Utilization" =>
+						    "Do_Utilization",
 						 "TerminateInstance" =>
 						    "Do_TerminateInstance",
 						 "GetInstanceManifest" =>
@@ -203,6 +207,11 @@ $routing = array("myprofiles" =>
                                                       "Do_UsageSummary",
                                                  "ProjectProfile" =>
                                                       "Do_ProjectProfile")),
+		 "ranking" =>
+			array("file"    => "ranking.ajax",
+			      "guest"   => false,
+			      "methods" => array("RankList" =>
+                                                     "Do_RankList")),
 );
 
 #
