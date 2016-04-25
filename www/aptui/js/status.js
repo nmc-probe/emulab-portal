@@ -166,7 +166,15 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		return;
 	    }
-	    window.location.replace("adminextend.php?uuid=" + uuid);
+	    if (isadmin) {
+		window.location.replace("adminextend.php?uuid=" + uuid);
+		return;
+	    }
+            ShowExtendModal(uuid, RequestExtensionCallback, isadmin,
+                            isguest, null, window.APT_OPTIONS.freenodesurl,
+                            window.APT_OPTIONS.extension_requested,
+                            window.APT_OPTIONS.physnode_count,
+                            window.APT_OPTIONS.physnode_hours);
 	});
 	
 	// Handler for the refresh button
