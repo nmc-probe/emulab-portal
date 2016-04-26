@@ -11,7 +11,7 @@ sub DoUpdate($$$)
         DBQueryFatal("alter table delays add ".
 		     "  `viface_unit1` int(10) default NULL after viface_unit0");
 	DBQueryFatal("alter table delays drop primary key");
-	DBQueryFatal("alter table delays add primary key ".
+	DBQueryFatal("alter table delays add ".
 		     "  PRIMARY KEY (`node_id`,`iface0`,`iface1`,".
 		     "               `vlan0`,`vlan1`,`vnode0`,`vnode1`)");
     }
