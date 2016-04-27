@@ -238,7 +238,12 @@ function SPITROWS($showall, $name, $result)
         echo " <tr><td>\n";
         if ($all || $extend) {
             if (ISADMIN() || ISFOREIGN_ADMIN()) {
-                echo "<a href='status.php?uuid=$uuid'>$name</a>";
+                if ($all) {
+                    echo "<a href='status.php?uuid=$uuid'>$name</a>";
+                }
+                else {
+                    echo "<a href='adminextend.php?uuid=$uuid'>$name</a>";
+                }
             }
             else {
                 echo $name;

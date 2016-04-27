@@ -57,6 +57,11 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 		$("#history-panel-content").scrollTop(10000);
 	    });
 	}
+	if ($('#extension-reason').length) {
+	    $("#extension-reason-row pre").text($('#extension-reason').text());
+	    $("#extension-reason-row").removeClass("hidden");
+	}
+	
 	// Default number of days.
 	if (window.DAYS) {
 	    $('#days').val(window.DAYS);

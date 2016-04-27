@@ -108,8 +108,12 @@ SPITREQUIRE("adminextend",
             "<script src='js/lib/sugar.min.js'></script>".
             "<script src='js/lib/jquery.tablesorter.parser-date.js'></script>");
 
-echo "<pre class='hidden'
-           id='extension_reason'>$extension_reason</pre>\n";
+if ($instance->extension_reason() && $instance->extension_reason() != "") {
+    echo "<pre class='hidden' id='extension-reason'>";
+    echo CleanString($instance->extension_reason());
+    echo "</pre>\n";
+}
+
 if (count($extensions)) {
     $foo = array();
     foreach ($extensions as $extension) {
@@ -118,10 +122,6 @@ if (count($extensions)) {
     echo "<script type='text/plain' id='extensions-json'>\n";
     echo json_encode($foo);
     echo "</script>\n";
-}
-if ($extension_denied_reason != "") {
-   echo "<pre class='hidden'
-              id='extension_denied_reason'>$extension_denied_reason</pre>\n";
 }
 SPITFOOTER();
 ?>
