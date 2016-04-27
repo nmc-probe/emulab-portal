@@ -1316,7 +1316,8 @@ sub DoExtend()
     # If no physical nodes (only VMs), double the maximums.
     #
     if (!$instance->physnode_count()) {
-        $autoextend_maxage *= 2;
+        $autoextend_maxage  *= 2;
+        $autoextend_maximum *= 2;
     }
 
     #
@@ -1400,7 +1401,7 @@ sub DoExtend()
 	    #
 	    # Plenty of time left, no extension just a message.
 	    #
-	    if ($diff > (3600 * 24 * 5)) {
+	    if ($diff > (3600 * 24 * 3)) {
 		$granted = 0;
 	    }
 	    else {
