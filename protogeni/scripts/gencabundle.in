@@ -54,6 +54,7 @@ my $ISCLRHOUSE    = @PROTOGENI_ISCLEARINGHOUSE@;
 my $WWWBUNDLE	  = "$TB/www/genica.bundle";
 my $BUNDLE	  = "$TB/etc/genica.bundle";
 my $APACHE_START  = "@APACHE_START_COMMAND@";
+my $SAVEUID	  = $UID;
 
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
@@ -113,6 +114,9 @@ if ($?) {
     system("/bin/mv -f /tmp/cabundle.$$ $BUNDLE") == 0
 	or fatal("Could not copy to $BUNDLE!");
 
+    # Need to be real root for this, cause of mod_fcgid
+    $UID = 0;
+
     #
     # Something whacky is going on; httpd refuses to die!
     #
@@ -122,6 +126,8 @@ if ($?) {
     system("killall httpd");
     system("$APACHE_START start") == 0
 	or fatal("Could not start apache!");
+    
+    $UID  = $SAVEUID;
 }
 
 system("/bin/mv -f /tmp/wwwbundle.$$ $WWWBUNDLE") == 0
