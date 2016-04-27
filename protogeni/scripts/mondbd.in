@@ -624,7 +624,7 @@ while (1) {
 	while( @result = $query_result->fetchrow_array() ) {
 	    my ($idx, $uuid, $slice_uuid, $created, $expires, $slice_urn, $creator_urn, $node_id) = @result;
 
-	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver SET " .
+	    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_sliver SET " .
 				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/sliver#', " .
 				 "id='${DOMAIN}_sliver_$idx'," .
 				 "selfRef='$URL/info/sliver/${DOMAIN}_sliver_$idx'," .
@@ -640,13 +640,13 @@ while (1) {
 				 "expires='$expires'," .
 				 "node_id='${DOMAIN}_node_${node_id}';" );
 
-	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_sliver SET " .
+	    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_aggregate_sliver SET " .
 				 "id='${DOMAIN}_sliver_${idx}'," .
 				 "aggregate_id='$NICKNAME'," .
 				 "urn='urn:publicid:IDN+$DOMAIN+sliver+$idx'," .
 				 "selfRef='$URL/info/sliver/${DOMAIN}_sliver_$idx'" );
 	    
-	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_node SET " .
+	    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_node SET " .
 				 "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/node#', " .
 				 "id='${DOMAIN}_node_${node_id}'," .
 				 "selfRef='$URL/info/node/${DOMAIN}_node_${node_id}'," .
@@ -654,7 +654,7 @@ while (1) {
 				 "ts='$ts'," .
 				 "node_type='server'" );
 
-	    emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_resource SET " .
+	    emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_aggregate_resource SET " .
 				 "id='${DOMAIN}_node_${node_id}'," .
 				 "aggregate_id='$NICKNAME'," .
 				 "urn='urn:publicid:IDN+$DOMAIN+node+$node_id'," .
@@ -679,7 +679,7 @@ while (1) {
 		my $lanid;
 		($lanid) = $pquery_result->fetchrow_array();
 		
-		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_sliver SET " .
+		emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_sliver SET " .
 				     "\$schema='http://www.gpolab.bbn.com/monitoring/schema/20140828/sliver#', " .
 				     "id='${DOMAIN}_sliver_$idx'," .
 				     "selfRef='$URL/info/sliver/${DOMAIN}_sliver_$idx'," .
@@ -695,7 +695,7 @@ while (1) {
 				     "expires='$expires'," .
 				     "link_id='${DOMAIN}_link_${lanid}i';" );
 	    
-		emdbi::DBQueryWarnN( $db, "INSERT INTO ops_aggregate_sliver SET " .
+		emdbi::DBQueryWarnN( $db, "REPLACE INTO ops_aggregate_sliver SET " .
 				     "id='${DOMAIN}_sliver_${idx}'," .
 				     "aggregate_id='$NICKNAME'," .
 				     "urn='urn:publicid:IDN+$DOMAIN+sliver+$idx'," .
