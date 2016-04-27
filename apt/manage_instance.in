@@ -1496,7 +1496,7 @@ sub DoExtend()
     }
     $instance->Brand()->SendEmail($creator->email(),
 		"Experiment Extension: $name",
-               ($this_user->IsAdmin() ? $reason :
+               ($this_user->IsAdmin() ? "$message\n\n$reason" :
                 "A request to extend your experiment was made and ".
                 "granted.\n".
                 "Your reason was:\n\n". $reason) .
