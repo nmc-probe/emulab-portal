@@ -51,7 +51,7 @@ int parse_args(int argc, char **argv) {
   char ch;
 
   /* setup defaults. */
-  opts->dostats = 0;
+  opts->dostats = DOSTATS;
   opts->debug = 0;
   opts->port = SDCOLLECTD_PORT;
 
@@ -59,7 +59,6 @@ int parse_args(int argc, char **argv) {
     switch (ch) {
 
     case 's':
-      info("Populating statistics tables/files");
       opts->dostats = 1;
       break;
 
@@ -110,6 +109,10 @@ int main(int argc, char **argv) {
   if (!parse_args(argc, argv)) {
     error("Error processing arguments, exiting.\n");
     exit(1);
+  }
+
+  if (opts->dostats) {
+    info("Populating statistics tables/files");
   }
   
   /* clear, and initialize inet sockaddr */
@@ -491,11 +494,7 @@ void UpdateDBRecord(IDLE_DATA *iddata) {
 void PutDBStats(IDLE_DATA *iddata) {
   int i;
   time_t now = time(NULL);
-  char curstamp[100];
-  char tmpstr[(NUMACTTYPES+1)*sizeof(curstamp)];
-  char *actstr[] = ACTSTRARRAY;
 
-  sprintf(curstamp, "FROM_UNIXTIME(%lu)", (long unsigned int)now);
   if (!mydb_update("INSERT INTO node_idlestats VALUES ('%s', FROM_UNIXTIME(%lu), FROM_UNIXTIME(%lu), %f, %f, %f)", 
 		   iddata->id, 
 		   now,
@@ -528,6 +527,7 @@ void PutRRDStats(IDLE_DATA *iddata) {
   time_t now = time(NULL);
   char rrdfile[sizeof(SD_RRD_STORAGEDIR) + TBDB_FLEN_NODEID + MACADDRLEN + 7];
   char updstr[100];
+  const char *updarr[] = {updstr};
   
   rrd_clear_error(); /* Precautionary */
   
@@ -538,7 +538,7 @@ void PutRRDStats(IDLE_DATA *iddata) {
       if (rrd_create_r(rrdfile,
 		       SD_RRD_STEPSIZE,
 		       now - 10,
-		       sizeof(SD_RRD_NODE_LAYOUT),
+		       sizeof(SD_RRD_NODE_LAYOUT)/sizeof(char*),
 		       SD_RRD_NODE_LAYOUT) != 0) {
 	error("Failed to create RRD file for node %s: %s",
 	      iddata->id,
@@ -554,8 +554,8 @@ void PutRRDStats(IDLE_DATA *iddata) {
   /* Update RRD with new data. */
   sprintf(updstr, "N:%lu:%f:%f:%f",
 	  iddata->mis, iddata->l1m, iddata->l5m, iddata->l15m);
-  if (rrd_update_r(rrdfile, NULL, 1, &updstr) != 0) {
-    error("Failed to update RRD file for node: %s: %s",
+  if (rrd_update_r(rrdfile, NULL, 1, updarr) != 0) {
+    error("Failed to update RRD file for node %s: %s",
 	  iddata->id,
 	  rrd_get_error());
     return;
@@ -570,7 +570,7 @@ void PutRRDStats(IDLE_DATA *iddata) {
 	if (rrd_create_r(rrdfile,
 			 SD_RRD_STEPSIZE,
 			 now - 10,
-			 sizeof(SD_RRD_IFACE_LAYOUT),
+			 sizeof(SD_RRD_IFACE_LAYOUT)/sizeof(char*),
 			 SD_RRD_IFACE_LAYOUT) != 0) {
 	  error("Failed to create RRD file for node/iface %s/%s: %s",
 		iddata->id, iddata->ifaces[i],
@@ -586,9 +586,9 @@ void PutRRDStats(IDLE_DATA *iddata) {
 
     sprintf(updstr, "N:%lu:%lu",
 	    iddata->ifaces[i].ipkts, iddata->ifaces[i].opkts);
-    if (rrd_update_r(rrdfile, NULL, 1, &updstr) != 0) {
-      error("Failed to update RRD file for node: %s: %s",
-	    iddata->id,
+    if (rrd_update_r(rrdfile, NULL, 1, updarr) != 0) {
+      error("Failed to update RRD file for node/iface %s/%s: %s",
+	    iddata->id, iddata->ifaces[i].mac,
 	    rrd_get_error());
       return;
     }

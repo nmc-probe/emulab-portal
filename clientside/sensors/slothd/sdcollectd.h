@@ -42,16 +42,15 @@
 #include <syslog.h>
 #include <pwd.h>
 #include <grp.h>
+#include "config.h"
 #include "tbdb.h"
 #include "log.h"
 
 #define SDPROTOVERS 2
-#define SDCOLLECTD_PORT 8509
 #define NODENAMESIZE 100
 #define BUFSIZE 1500
 #define MAXNUMIFACES 10
 #define MACADDRLEN 12
-#define RUNASUSER "nobody"
 
 #define MAXKEYSIZE 10
 #define MAXVALUESIZE 40
@@ -67,30 +66,40 @@
 #define NUMACTTYPES 4
 #define ACTSTRARRAY {"last_tty_act", "last_cpu_act", "last_net_act", "last_ext_act"}
 
+#ifndef SDCOLLECTD_PORT
+#define SDCOLLECTD_PORT 8509
+#endif
+
+#ifndef RUNASUSER
+#define RUNASUSER "nobody"
+#endif
+
+#ifndef DOSTATS
+#define DOSTATS 0
+#endif
+
 #ifdef USE_RRDTOOL
 #include <rrd.h>
 
-#define SD_RRD_STORAGEDIR TBROOT "/slothd_rrd"
+#define SD_RRD_STORAGEDIR TBROOT "/data/slothd_rrd"
 #define SD_RRD_STEPSIZE 300  /* five minutes. */
 
-char *SD_RRD_NODE_LAYOUT[] = {
+const char *SD_RRD_NODE_LAYOUT[] = {
   "DS:last_tty:DERIVE:600:0:U",
   "DS:load_1min:GAUGE:600:0:U",
   "DS:load_5min:GAUGE:600:0:U",
   "DS:load_15min:GAUGE:600:0:U",
-  "RRA:MAX:0.5:5m:1d",
-  "RRA:AVERAGE:0.5:5m:1d",
-  "RRA:MAX:0.5:1h:1w",
-  "RRA:AVERAGE:0.5:1h:1w"
+  "RRA:AVERAGE:0.5:1:288",       /* 5m samples for a day. */
+  "RRA:MAX:0.5:12:168",          /* Max of 12 x 5m samples (1 hr), keep 1w. */
+  "RRA:AVERAGE:0.5:12:168"       /* Avg of 12 x 5m samples (1 hr), keep 1w. */
 };
 
-char *SD_RRD_IFACE_LAYOUT[] = {
+const char *SD_RRD_IFACE_LAYOUT[] = {
   "DS:ipkts:DERIVE:600:0:U",
   "DS:opkts:DERIVE:600:0:U",
-  "RRA:MAX:0.5:5m:1d",
-  "RRA:AVERAGE:0.5:5m:1d",
-  "RRA:MAX:0.5:1h:1w",
-  "RRA:AVERAGE:0.5:1h:1w"
+  "RRA:AVERAGE:0.5:1:288",       /* 5m samples for a day. */
+  "RRA:MAX:0.5:12:168",          /* Max of 12 x 5m samples (1 hr), keep 1w. */
+  "RRA:AVERAGE:0.5:12:168"       /* Avg of 12 x 5m samples (1 hr), keep 1w. */
 };
 #endif
 
