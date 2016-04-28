@@ -282,11 +282,8 @@ if (count($extensions)) {
         $foo[$extension->idx()] = $extension->info;
     }
     echo "<script type='text/plain' id='extensions-json'>\n";
-    echo json_encode($foo);
+    echo json_encode($foo, JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_TAG|JSON_HEX_TAG);
     echo "</script>\n";
-}
-if ($extension_history != "") {
-   echo "<pre class='hidden' id='extension_history'>$extension_history</pre>\n";
 }
 if ($extension_denied_reason != "") {
    echo "<pre class='hidden' id='extension_denied_reason'>$extension_denied_reason</pre>\n";

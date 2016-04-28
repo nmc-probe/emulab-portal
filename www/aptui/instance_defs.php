@@ -836,8 +836,8 @@ class ExtensionInfo
 	    return;
 	}
 	$this->info = mysql_fetch_assoc($query_result);
-        $this->info["reason"]  = trim(CleanString($this->info["reason"]));
-        $this->info["message"] = trim(CleanString($this->info["message"]));
+        $this->info["reason"]  = trim($this->info["reason"]);
+        $this->info["message"] = trim($this->info["message"]);
     }
     # accessors
     function field($name) {
