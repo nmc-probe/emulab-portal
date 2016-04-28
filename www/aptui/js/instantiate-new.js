@@ -476,7 +476,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 			multisite    : multisite
 		    });
 		    loaded_uuid = selected_uuid;
-		    ppchanged = true;
+		    ppchanged = true; 
 		}
 	    }
 	    else {
@@ -538,6 +538,32 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    $('#pp_form select').change(function() {
 		ppchanged = true;
 	    });
+
+	    // TEMPORARY STOPGAP
+	    // Refer to Issue #71
+	    // https://gitlab.flux.utah.edu/emulab/emulab-devel/issues/71
+	    if ($('#pp_form #hwinfo').length == 0) {
+		$('#pp_form select[data-key=osNodeType]').parent().append(''+
+		    '<a href="http://docs.cloudlab.us/hardware.html" style="'+
+			'position:absolute;'+
+			'right:21px;'+
+			'top: 8.5px;'+
+		    '" target="_blank">'+
+		    '<span id="hwinfo" class="glyphicon glyphicon-info-sign" style="font-size:16px;"'+
+			'data-toggle="popover" data-trigger="hover"'+
+			'data-content="Click here to see what hardware types are available">'+
+		    '</span>'+
+		    '</a>'+
+		'');
+	    }
+
+	    $('#hwinfo').popover({
+		trigger: 'hover',
+		placement: 'auto',
+		container: 'body',
+	    });
+
+	    // END STOPGAP
 	}
 	else if (currentIndex == 2 && priorIndex == 1) {
 	    // Keep the two panes the same height
