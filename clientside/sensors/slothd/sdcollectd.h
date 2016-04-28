@@ -67,8 +67,35 @@
 #define NUMACTTYPES 4
 #define ACTSTRARRAY {"last_tty_act", "last_cpu_act", "last_net_act", "last_ext_act"}
 
+#ifdef USE_RRDTOOL
+#include <rrd.h>
+
+#define SD_RRD_STORAGEDIR TBROOT "/slothd_rrd"
+#define SD_RRD_STEPSIZE 300  /* five minutes. */
+
+char *SD_RRD_NODE_LAYOUT[] = {
+  "DS:last_tty:DERIVE:600:0:U",
+  "DS:load_1min:GAUGE:600:0:U",
+  "DS:load_5min:GAUGE:600:0:U",
+  "DS:load_15min:GAUGE:600:0:U",
+  "RRA:MAX:0.5:5m:1d",
+  "RRA:AVERAGE:0.5:5m:1d",
+  "RRA:MAX:0.5:1h:1w",
+  "RRA:AVERAGE:0.5:1h:1w"
+};
+
+char *SD_RRD_IFACE_LAYOUT[] = {
+  "DS:ipkts:DERIVE:600:0:U",
+  "DS:opkts:DERIVE:600:0:U",
+  "RRA:MAX:0.5:5m:1d",
+  "RRA:AVERAGE:0.5:5m:1d",
+  "RRA:MAX:0.5:1h:1w",
+  "RRA:AVERAGE:0.5:1h:1w"
+};
+#endif
+
 typedef struct {
-  u_char popold;
+  u_char dostats;
   u_char debug;
   u_short port;
 } SDCOLLECTD_OPTS;
@@ -96,7 +123,10 @@ extern int errno;
 
 int CollectData(int, IDLE_DATA*);
 int ParseRecord(IDLE_DATA*);
-void PutDBRecord(IDLE_DATA*);
+void PrintRecord(IDLE_DATA*);
+void UpdateDBRecord(IDLE_DATA*);
+void PutDBStats(IDLE_DATA*);
+void PutRRDStats(IDLE_DATA*);
 
 char *tbmac(char*, char**);
 

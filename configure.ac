@@ -317,6 +317,7 @@ AC_SUBST(ATTENUATOR)
 AC_SUBST(CLUSTER_PORTAL)
 AC_SUBST(CLUSTER_PUBSUBD_PORT)
 AC_SUBST(EXPIRE_PASSWORDS)
+AC_SUBST(SD_USE_RRDTOOL)
 
 #
 # Offer both versions of the email addresses that have the @ escaped
@@ -484,6 +485,7 @@ ATTENUATOR=""
 CLUSTER_PORTAL=""
 CLUSTER_PUBSUBD_PORT=""
 EXPIRE_PASSWORDS=1
+SD_USE_RRDTOOL=0
 
 #
 # XXX You really don't want to change these!

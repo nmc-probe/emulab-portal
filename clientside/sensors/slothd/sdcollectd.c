@@ -39,7 +39,7 @@ void usage(void) {
   printf("Usage:\tslothd -h\n"
          "\tslothd [-d] [-p <port>]\n"
          "\t -h\t This message.\n"
-         "\t -o\t DO populate old idlestats tables.\n"
+         "\t -s\t Populate statistics tables/files.\n"
          "\t -d\t Debug mode; do not fork into background.\n"
          "\t -p <port>\t Listen on port <port> (default is %d).\n", 
          SDCOLLECTD_PORT);
@@ -51,16 +51,16 @@ int parse_args(int argc, char **argv) {
   char ch;
 
   /* setup defaults. */
-  opts->popold = 0;
+  opts->dostats = 0;
   opts->debug = 0;
   opts->port = SDCOLLECTD_PORT;
 
-  while ((ch = getopt(argc, argv, "odp:h")) != -1) {
+  while ((ch = getopt(argc, argv, "sdp:h")) != -1) {
     switch (ch) {
 
-    case 'o':
-      info("Populating old node_idlestats, and iface_counters tables");
-      opts->popold = 1;
+    case 's':
+      info("Populating statistics tables/files");
+      opts->dostats = 1;
       break;
 
     case 'd':
@@ -201,7 +201,17 @@ int main(int argc, char **argv) {
     bzero(&iddata, sizeof(IDLE_DATA)); /* cleanse out old values, if any */
     if (CollectData(sd, &iddata)) {
       if (ParseRecord(&iddata)) {
-        PutDBRecord(&iddata);
+	if (opts->debug) {
+	  PrintRecord(&iddata);
+	}
+	UpdateDBRecord(&iddata);
+	if (opts->dostats) {
+#ifdef USE_RRDTOOL
+	  PutRRDStats(&iddata);
+#else
+	  PutDBStats(&iddata);
+#endif
+	}
       }
     }
   }
@@ -422,8 +432,63 @@ int ParseRecord(IDLE_DATA *iddata) {
 }
 
 
-void PutDBRecord(IDLE_DATA *iddata) {
+void PrintRecord(IDLE_DATA *iddata) {
+  int i;
+  
+  printf("Received and parsed packet. Contents:\n"
+	 "Version: %u\n"
+	 "Node: %s\n"
+	 "Last TTY: %s"
+	 "Load averages (1, 5, 15): %f, %f, %f\n"
+	 "Active bits: 0x%04x\n",
+	 iddata->version,
+	 iddata->id,
+	 ctime(&iddata->mis),
+	 iddata->l1m,
+	 iddata->l5m,
+	 iddata->l15m,
+	 iddata->actbits);
+  for (i = 0; i < iddata->ifcnt; ++i) {
+    printf("Interface %s: ipkts: %lu  opkts: %lu\n",
+	   iddata->ifaces[i].mac,
+	   iddata->ifaces[i].ipkts,
+	   iddata->ifaces[i].opkts);
+  }
+  printf("\n\n");
 
+  return;
+}
+
+
+void UpdateDBRecord(IDLE_DATA *iddata) {
+  int i;
+  time_t now = time(NULL);
+  char curstamp[100];
+  char tmpstr[(NUMACTTYPES+1)*sizeof(curstamp)];
+  char *actstr[] = ACTSTRARRAY;
+
+  sprintf(curstamp, "FROM_UNIXTIME(%lu)", (long unsigned int)now);  
+  sprintf(tmpstr, "last_report=%s", curstamp);
+  for (i = 0; i < NUMACTTYPES; ++i) {
+    if (iddata->actbits & (1<<i)) {
+      sprintf(tmpstr, "%s, %s=%s",
+	      tmpstr,
+	      actstr[i], 
+	      curstamp);
+    }
+  }
+
+  if(!mydb_update("UPDATE node_activity SET %s WHERE node_id = '%s'",
+		  tmpstr,
+		  iddata->id)) {
+    error("Error updating stamps in node_activity table");
+  }
+
+  return;
+}
+
+
+void PutDBStats(IDLE_DATA *iddata) {
   int i;
   time_t now = time(NULL);
   char curstamp[100];
@@ -431,72 +496,105 @@ void PutDBRecord(IDLE_DATA *iddata) {
   char *actstr[] = ACTSTRARRAY;
 
   sprintf(curstamp, "FROM_UNIXTIME(%lu)", (long unsigned int)now);
-
-  printf("now: %s\n", ctime(&now));
-
-  if (opts->debug) {
-    printf("\nReceived and parsed packet. Contents:\n"
-           "Version: %u\n"
-           "Node: %s\n"
-           "Last TTY: %s"
-           "Load averages (1, 5, 15): %f, %f, %f\n"
-           "Active bits: 0x%04x\n",
-           iddata->version,
-           iddata->id,
-           ctime(&iddata->mis),
-           iddata->l1m,
-           iddata->l5m,
-           iddata->l15m,
-           iddata->actbits);
-    for (i = 0; i < iddata->ifcnt; ++i) {
-      printf("Interface %s: ipkts: %lu  opkts: %lu\n",
-             iddata->ifaces[i].mac,
-             iddata->ifaces[i].ipkts,
-             iddata->ifaces[i].opkts);
-    }
-    printf("\n\n");
+  if (!mydb_update("INSERT INTO node_idlestats VALUES ('%s', FROM_UNIXTIME(%lu), FROM_UNIXTIME(%lu), %f, %f, %f)", 
+		   iddata->id, 
+		   now,
+		   iddata->mis, 
+		   iddata->l1m, 
+		   iddata->l5m, 
+		   iddata->l15m)) {
+    error("Error inserting data into node_idlestats table");
   }
-
-  if (opts->popold) {
-    if (!mydb_update("INSERT INTO node_idlestats VALUES ('%s', FROM_UNIXTIME(%lu), FROM_UNIXTIME(%lu), %f, %f, %f)", 
-                     iddata->id, 
-                     now,
-                     iddata->mis, 
-                     iddata->l1m, 
-                     iddata->l5m, 
-                     iddata->l15m)) {
-      error("Error inserting data into node_idlestats table");
-    }
     
-    for (i = 0; i < iddata->ifcnt; ++i) {
-      if (!mydb_update("INSERT INTO iface_counters VALUES ('%s', FROM_UNIXTIME(%lu), '%s', %lu, %lu)",
-                       iddata->id,
-                       now,
-                       iddata->ifaces[i].mac,
-                       iddata->ifaces[i].ipkts,
-                       iddata->ifaces[i].opkts)) {
-        error("Error inserting data into iface_counters table");
-      }
+  for (i = 0; i < iddata->ifcnt; ++i) {
+    if (!mydb_update("INSERT INTO iface_counters VALUES ('%s', FROM_UNIXTIME(%lu), '%s', %lu, %lu)",
+		     iddata->id,
+		     now,
+		     iddata->ifaces[i].mac,
+		     iddata->ifaces[i].ipkts,
+		     iddata->ifaces[i].opkts)) {
+      error("Error inserting data into iface_counters table");
     }
   }
   
-  if (iddata->version >= 2) {
-    sprintf(tmpstr, "last_report=%s", curstamp);
-    for (i = 0; i < NUMACTTYPES; ++i) {
-      if (iddata->actbits & (1<<i)) {
-          sprintf(tmpstr, "%s, %s=%s",
-                  tmpstr,
-                  actstr[i], 
-                  curstamp);
-      }
-    }
+  return;
+}
 
-    if(!mydb_update("UPDATE node_activity SET %s WHERE node_id = '%s'",
-                    tmpstr,
-                    iddata->id)) {
-      error("Error updating stamps in node_activity table");
+
+#ifdef USE_RRDTOOL
+
+void PutRRDStats(IDLE_DATA *iddata) {
+  int i;
+  time_t now = time(NULL);
+  char rrdfile[sizeof(SD_RRD_STORAGEDIR) + TBDB_FLEN_NODEID + MACADDRLEN + 7];
+  char updstr[100];
+  
+  rrd_clear_error(); /* Precautionary */
+  
+  /* Create the RRD file if it doesn't exist. */
+  sprintf(rrdfile, "%s/%s.rrd", SD_RRD_STORAGEDIR, iddata->id);
+  if (access(rrdfile, F_OK) == -1) {
+    if (errno == ENOENT) {
+      if (rrd_create_r(rrdfile,
+		       SD_RRD_STEPSIZE,
+		       now - 10,
+		       sizeof(SD_RRD_NODE_LAYOUT),
+		       SD_RRD_NODE_LAYOUT) != 0) {
+	error("Failed to create RRD file for node %s: %s",
+	      iddata->id,
+	      rrd_get_error());
+	return;
+      }
+    } else {
+      errorc("RRD file check failed for node %s", iddata->id);
+      return;
     }
   }
 
+  /* Update RRD with new data. */
+  sprintf(updstr, "N:%lu:%f:%f:%f",
+	  iddata->mis, iddata->l1m, iddata->l5m, iddata->l15m);
+  if (rrd_update_r(rrdfile, NULL, 1, &updstr) != 0) {
+    error("Failed to update RRD file for node: %s: %s",
+	  iddata->id,
+	  rrd_get_error());
+    return;
+  }
+
+  /* Now do the same for each network interface. One RRD for each iface. */
+  for (i = 0; i < iddata->ifcnt; i++) {
+    sprintf(rrdfile, "%s/%s-%s.rrd", SD_RRD_STORAGEDIR,
+	    iddata->id, iddata->ifaces[i].mac);
+    if (access(rrdfile, F_OK) == -1) {
+      if (errno == ENOENT) {
+	if (rrd_create_r(rrdfile,
+			 SD_RRD_STEPSIZE,
+			 now - 10,
+			 sizeof(SD_RRD_IFACE_LAYOUT),
+			 SD_RRD_IFACE_LAYOUT) != 0) {
+	  error("Failed to create RRD file for node/iface %s/%s: %s",
+		iddata->id, iddata->ifaces[i],
+		rrd_get_error());
+	  return;
+	}
+      } else {
+	errorc("RRD file check failed for node/iface %s/%s",
+	       iddata->id, iddata->ifaces[i]);
+	return;
+      }
+    }
+
+    sprintf(updstr, "N:%lu:%lu",
+	    iddata->ifaces[i].ipkts, iddata->ifaces[i].opkts);
+    if (rrd_update_r(rrdfile, NULL, 1, &updstr) != 0) {
+      error("Failed to update RRD file for node: %s: %s",
+	    iddata->id,
+	    rrd_get_error());
+      return;
+    }
+  }
+  
   return;
 }
+
+#endif
