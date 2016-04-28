@@ -780,7 +780,7 @@ sub _deletetablerow($$)
 	push(@newrows, $rowref)
 	    if (! ($rowref->SameRow($row)));
     }
-    $self->{'TABLES'}->{$tablename} = \@newrows;
+    $self->{'TABLELIST'} = \@newrows;
 
     my @keys = keys(%{ $self->{'TABLEHASH'} });
     foreach my $key (@keys) {
