@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2014 University of Utah and the Flux Group.
+# Copyright (c) 2008-2014, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -207,7 +207,7 @@ else {
     # a different list since we do not want to aggregate them like trunks.
     #
     @interconnects = Node->LookupByType("interconnect");
-    if ($MAINSITE) {
+    if (0 && $MAINSITE) {
 	foreach my $node_id ("of-losa", "of-atla", "ion") {
 	    my $node = Node->Lookup($node_id);
 	    push(@interconnects, $node)
