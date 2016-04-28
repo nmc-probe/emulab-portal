@@ -334,12 +334,20 @@ function Do_CheckScript()
 	SPITAJAX_ERROR(1, "Missing script");
 	return;
     }
+    if (preg_match("/^import/m", $ajax_args["script"])) {
+        $command = "webrungenilib";
 
-    $warningsfatal = "";
-    if (isset($ajax_args["warningsfatal"]) && $ajax_args["warningsfatal"]) {
-	$warningsfatal = "-W";
+        if (isset($ajax_args["warningsfatal"]) && $ajax_args["warningsfatal"]) {
+            $command .= " -W";
+        }
     }
-
+    elseif (preg_match("/^source tb_compat/m", $ajax_args["script"])) {
+        $command = "webns2rspec";
+    }
+    else {
+	SPITAJAX_ERROR(1, "Unknown script type");
+	return;
+    }
     $infname  = tempnam("/tmp", "genilibin");
     $outfname = tempnam("/tmp", "genilibout");
 
@@ -352,8 +360,7 @@ function Do_CheckScript()
     #
     # Invoke the backend.
     #
-    $retval = SUEXEC($this_uid, "nobody",
-		     "webrungenilib $warningsfatal -o $outfname $infname",
+    $retval = SUEXEC($this_uid, "nobody", "$command -o $outfname $infname",
 		     SUEXEC_ACTION_IGNORE);
     
     if ($retval != 0) {

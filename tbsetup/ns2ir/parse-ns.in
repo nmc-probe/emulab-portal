@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -40,16 +40,17 @@ use POSIX ":sys_wait_h";
 sub usage()
 {
     print STDOUT
-	"Usage: parse-ns [options] pid gid eid nsfile\n".
+	"Usage: parse-ns [options] [pid gid eid] nsfile\n".
         "Where options and arguments are those required by parse.tcl\n";
  
     exit(-1);
 }
-my $optlist  = "nqap";
+my $optlist  = "nqapc";
 my $anonmode = 0;
 my $passmode = 0;
 my $impotent = 0;
 my $debug    = 0;
+my $catout   = 0;
 
 #
 # Configure variables
@@ -135,6 +136,9 @@ if (defined($options{"n"})) {
 }
 if (defined($options{"p"})) {
     $passmode = 1;
+}
+if (defined($options{"c"})) {
+    $catout = 1;
 }
 if (@ARGV != 4 && @ARGV != 1) {
     usage();
@@ -342,8 +346,14 @@ if ($?) {
 	   error => ['ns_parse_failed']},
 	  "Parsing failed (error code $exit_status)!");
 }
-exit(0)
-    if ($impotent);
+if ($catout) {
+    system("/bin/cat $outfile");
+}
+if ($impotent) {
+    unlink($infile);
+    unlink($outfile);
+    exit(0);
+}
 
 #
 # Run the XML converter on the output. 

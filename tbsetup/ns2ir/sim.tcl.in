@@ -133,6 +133,9 @@ Simulator instproc init {args} {
     $self instvar new_node_config;
     array set new_node_config {}
     $self node-config
+
+    $self set description ""
+    $self set instructions ""
 }
 
 # renaming the simulator instance
@@ -485,6 +488,8 @@ Simulator instproc run {} {
     $self instvar parameter_descriptions
     $self instvar simulated
     $self instvar nseconfig
+    $self instvar description
+    $self instvar instructions
     var_import ::GLOBALS::pid
     var_import ::GLOBALS::eid
     var_import ::GLOBALS::errors
@@ -661,6 +666,10 @@ Simulator instproc run {} {
     if {$impotent == 1 && $passmode == 0} {return}
     
     $self spitxml_init
+
+    if { $description != "" || $instructions != "" } {
+	$self spitxml_data "portal" [list "description" "instructions" ] [list $description $instructions ]
+    }
 
     # update the global nseconfigs using a bogus vname
     # i.e. instead of the node on which nse is gonna run
@@ -2157,6 +2166,21 @@ Simulator instproc make-simulated {args} {
     append nseconfig \n
 
     set simulated 0
+}
+
+#
+# Portal Stuff
+#
+Simulator instproc description {text} {
+    $self instvar description
+
+    set description $text
+}
+
+Simulator instproc instructions {text} {
+    $self instvar instructions
+
+    set instructions $text
 }
 
 #

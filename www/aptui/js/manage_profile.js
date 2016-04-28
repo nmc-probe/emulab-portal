@@ -45,6 +45,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
     var shareTemplate     = _.template(shareString);
     var stepsInitialized  = false;
 
+    var pythonRe = /^import/m;
+    var tclRe    = /^source tb_compat/m;
+
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
@@ -203,8 +206,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	// Handler for all paths to rspec change (file upload, jacks, edit).
 	function changeRspec(newRspec)
 	{
-	    var myRe = /^import/m;
-	    if (myRe.test(newRspec)) {
+	    if (pythonRe.test(newRspec) || tclRe.test(newRspec)) {
 		//
 		// A geni-lib script. We are going to pass the script to
 		// the server to be "run", which returns XML.
@@ -284,9 +286,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 		$('#modal_profile_rspec_textarea').prop("readonly");
 
 	    // Need to determine the mode.
-	    var myRe = /^import/m;
-	    if (myRe.test(source)) {
+	    if (pythonRe.test(source)) {
 		mode = "text/x-python";
+	    }
+	    else if (tclRe.test(source)) {
+		mode = "text/x-tcl";
 	    }
 	    // In case we got here via the modal upload button, need to
 	    // kill the current contents. 
@@ -314,9 +318,11 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 		    setTimeout(function() {
 			var source = myCodeMirror.getValue();
 			
-			var myRe = /^import/m;
-			if (myRe.test(source)) {
+			if (pythonRe.test(source)) {
 			    myCodeMirror.setOption("mode", "text/x-python");
+			}
+			else if (tclRe.test(source)) {
+			    myCodeMirror.setOption("mode", "text/x-tcl");
 			}
 		    }, 500);
 	    });

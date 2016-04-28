@@ -334,9 +334,9 @@ if (defined($rspec)) {
 
 #
 # See if this is a Parameterized Profile. Generate and store the form
-# data if it is.
+# data if it is. Only python scripts of course.
 #
-if (defined($script) && $script ne "") {
+if (defined($script) && $script ne "" && $script =~ /^import/m) {
     my ($fh, $filename) = tempfile();
     fatal("Could not open temporary file for script")
 	if (!defined($fh));

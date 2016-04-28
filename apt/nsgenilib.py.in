@@ -1,0 +1,249 @@
+#!/usr/local/bin/python
+#
+# Copyright (c) 2005-2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+import sys
+import getopt
+import os, os.path
+import pwd
+import traceback
+import string
+import socket
+import re
+import HTMLParser
+
+# Configure stuff.
+OURDOMAIN = "@OURDOMAIN@";
+
+# Testbed specific stuff
+sys.path.append("/usr/local/lib/geni-lib")
+
+# Geni lib stuff.
+import geni.portal as portal
+import geni.rspec.pg as RSpec
+import geni.rspec.igext as IG
+import geni.urn as URN
+import geni.namespaces as GNS
+
+pc = portal.Context() 
+rspec = RSpec.Request()
+tour = IG.Tour()
+
+# This is how we read the NS parser output XML.
+from lxml import etree
+
+def Fatal(message):
+    print >> sys.stderr, message
+    sys.exit(1)
+
+def Usage():
+    print "usage: " + sys.argv[0] + " [option...] irfile"
+    sys.exit(-1);
+    pass
+
+if len(sys.argv) < 2:
+    Usage();
+    pass
+
+NSfile = sys.argv[1];
+
+try:
+    tree = etree.parse(NSfile);
+except err:
+    Fatal("Could not parse IR file: " + str(err))
+    pass
+
+#
+# First find the nodes and links. Do the nodes first so we build the interfaces
+# we need for the links.
+#
+nodes  = {};
+lans   = {};
+ifaces = {};
+
+for child in tree.getroot():
+    if child.tag == "virt_nodes":
+        row = child.find("row")
+        vname = row.find("vname").text
+        # We might end up changing this later, if we determine its a VM.
+        node = RSpec.RawPC(vname)
+        for element in row:
+            #
+            # We handle a subset of node things.
+            #
+            if element.tag == "type":
+                node.hardware_type = element.text
+                if element.text == "pcvm" or re.match(r".*\-vm$", element.text):
+                    node.type = RSpec.NodeType.XEN
+                    pass
+            elif element.tag == "osname":
+                #
+                # Convert NS project/osname to rspec project//osname.
+                # But if no project, add emulab-ops (clearly wrong).
+                osname = element.text
+                if osname.find("/") < 0:
+                    osname = "emulab-ops//" + osname
+                elif osname.find("//") < 0:
+                    osname = osname.replace("/", "//");
+                    pass
+                node.disk_image = "urn:publicid:IDN+" + OURDOMAIN + "+image+" + osname
+            elif element.tag == "fixed":
+                node.component_id = URN.Node(OURDOMAIN, element.text)
+            elif element.tag == "ips":
+                ips = element.text.split()
+                for token in ips:
+                    vport,ip = token.split(":")
+                    iface = node.addInterface("eth" + vport);
+                    iface.addAddress(RSpec.IPv4Address(ip, "255.255.255.0"))
+                    # This is the "member" field in virt_lan.
+                    ifaces[vname + ":" + vport] = iface
+                    pass
+            elif element.tag == "tarfiles" and element.text:
+                tarfiles = element.text.split(";")
+                for token in tarfiles:
+                    directory,filename = token.split()
+                    node.addService(RSpec.Install(filename,directory))
+                    pass
+                pass
+            elif element.tag == "failureaction" and element.text == "nonfatal":
+                raw = etree.Element("{%s}failure_action" %
+                                    (RSpec.Namespaces.EMULAB.name))
+                raw.attrib["action"] = "nonfatal"
+                node.addRawElement(raw)
+                pass
+            pass
+        nodes[vname] = node
+        rspec.addResource(node)
+        pass
+    if child.tag == "virt_lan_lans":
+        row = child.find("row")
+        vname = row.find("vname").text
+        lan = RSpec.LAN(vname);
+        lans[vname] = lan;
+        rspec.addResource(lan)
+        pass
+    pass
+
+#
+# Now we can do the virt_lans, with the links and interfaces we created
+# above.
+#
+for child in tree.getroot():
+    if child.tag == "virt_lans":
+        row = child.find("row")
+        vname  = row.find("vname").text
+        member = row.find("member").text
+        lan    = lans[vname]
+        iface  = ifaces[member]
+        mask   = row.find("member").text
+        lan.addInterface(iface)
+        #
+        # A lot of these things are per virt_lan, but they are really
+        # for the entire lan. 
+        #
+        mask = row.find("member").text
+        iface.netmask = mask;
+
+        if row.find("trivial_ok") != None:
+            trivial_ok = int(row.find("trivial_ok").text)
+            if trivial_ok:
+                lan.trivial_ok = True
+                pass
+            pass
+        if row.find("encap_style") != None:
+            encap_style = row.find("encap_style").text
+            if encap_style == "vlan":
+                lan.vlan_tagging = True
+                pass
+            pass
+        if row.find("emulated") != None:
+            emulated = int(row.find("emulated").text)
+            if emulated:
+                lan.link_multiplexing = True;
+                pass
+            pass
+        pass
+    pass
+
+#
+# Other various things that are in the NS file, that we can handle.
+#
+for child in tree.getroot():
+    if child.tag == "portal":
+        row = child.find("row")
+        for element in row:
+            if element.tag == "description":
+                tour.Description(tour.TEXT, element.text)
+            elif element.tag == "instructions":
+                tour.Instructions(tour.TEXT, element.text)
+                pass
+            pass
+        rspec.addTour(tour)
+        pass
+    if child.tag == "experiments":
+        row = child.find("row")
+        for element in row:
+            if row.find("encap_style") != None:
+                encap_style = row.find("encap_style").text
+                if encap_style == "vlan":
+                    for name,lan in lans.iteritems():
+                        lan.vlan_tagging = True
+                        pass
+                    pass
+                pass
+            if row.find("multiplex_factor") != None:
+                factor = int(row.find("multiplex_factor").text)
+                rspec.setCollocateFactor(factor)
+                pass
+            pass
+        pass
+    #
+    # We only do the startup command right now, since there is no
+    # event mechanism.
+    #
+    if child.tag == "virt_programs":
+        row = child.find("row")
+        vnode = row.find("vnode").text
+        vname = row.find("vname").text
+        cmd   = row.find("command").text
+        if vname == vnode + "_startcmd":
+            foo = re.match(r"^\((.*) ; /usr/local/etc/emulab.*\)", cmd);
+            if foo:
+                parser = HTMLParser.HTMLParser()
+                cmd = parser.unescape(foo.group(1));
+                nodes[vnode].addService(RSpec.Execute("sh", cmd))
+            pass
+        pass
+    #
+    # Watch for desires that specify a shared node.
+    #
+    if child.tag == "virt_node_desires":
+        row = child.find("row")
+        vname  = row.find("vname").text
+        desire = row.find("desire").text
+        if desire == "pcshared":
+            nodes[vname].exclusive = False
+            pass
+        pass
+    pass
+
+pc.printRequestRSpec(rspec)

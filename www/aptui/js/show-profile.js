@@ -27,6 +27,8 @@ function (_, sup, moment,
     var showTemplate      = _.template(showString);
     var InstTemplate      = _.template(instantiateString);
     var shareTemplate     = _.template(shareString);
+    var pythonRe = /^import/m;
+    var tclRe    = /^source tb_compat/m;
 
     function initialize()
     {
@@ -123,9 +125,11 @@ function (_, sup, moment,
 	    var mode   = "text/xml";
 
 	    // Need to determine the mode.
-	    var myRe = /^import/m;
-	    if (myRe.test(source)) {
+	    if (pythonRe.test(source)) {
 		mode = "text/x-python";
+	    }
+	    else if (tclRe.test(source)) {
+		mode = "text/x-tcl";
 	    }
 	    myCodeMirror = CodeMirror(function(elt) {
 		$('#modal_profile_rspec_div').prepend(elt);

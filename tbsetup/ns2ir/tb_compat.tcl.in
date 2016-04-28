@@ -811,34 +811,32 @@ proc tb-proc-tarfiles {cmd args0} { ; # args has special meaning that we
 	    return
 	}
 
-	# Skip the rest in passmode.
-	if {${GLOBALS::anonymous} || ${GLOBALS::passmode}} {
-	    return
-	}
-
-	# Check the tar file to make sure it exists, is readable, etc...
-	if {[string match "*://*" $tarfile]} {
-	    # It is a URL, check for a valid protocol.
-	    if {![::TBCOMPAT::verify-url $tarfile]} {
-		perror "\[$cmd] '$tarfile' is not an http, https, or ftp URL."
+	# Skip verification in passmode.
+	if { !${GLOBALS::anonymous} && !${GLOBALS::passmode}} {
+	    # Check the tar file to make sure it exists, is readable, etc...
+	    if {[string match "*://*" $tarfile]} {
+		# It is a URL, check for a valid protocol.
+		if {![::TBCOMPAT::verify-url $tarfile]} {
+		    perror "\[$cmd] '$tarfile' is not an http, https, or ftp URL."
+		    return
+		}
+	    } elseif {![string match "${::TBCOMPAT::PROJROOT}/*" $tarfile] &&
+		      ![string match "${::TBCOMPAT::GROUPROOT}/*" $tarfile] &&
+		      ![string match "${::TBCOMPAT::USERROOT}/*" $tarfile] &&
+		      (${::TBCOMPAT::SCRATCHROOT} == "" ||
+		       ![string match "${::TBCOMPAT::SCRATCHROOT}/*" $tarfile])} {
+		perror "\[$cmd] '$tarfile' is not in an allowed directory"
+		return
+	    } elseif {![file exists $tarfile]} {
+		perror "\[$cmd] '$tarfile' does not exist."
+		return
+	    } elseif {![file isfile $tarfile]} {
+		perror "\[$cmd] '$tarfile' is not a file."
+		return
+	    } elseif {![file readable $tarfile]} {
+		perror "\[$cmd] '$tarfile' is not readable."
 		return
 	    }
-	} elseif {![string match "${::TBCOMPAT::PROJROOT}/*" $tarfile] &&
-	          ![string match "${::TBCOMPAT::GROUPROOT}/*" $tarfile] &&
-	          ![string match "${::TBCOMPAT::USERROOT}/*" $tarfile] &&
-	          (${::TBCOMPAT::SCRATCHROOT} == "" ||
-	           ![string match "${::TBCOMPAT::SCRATCHROOT}/*" $tarfile])} {
-	    perror "\[$cmd] '$tarfile' is not in an allowed directory"
-	    return
-	} elseif {![file exists $tarfile]} {
-	    perror "\[$cmd] '$tarfile' does not exist."
-	    return
-	} elseif {![file isfile $tarfile]} {
-	    perror "\[$cmd] '$tarfile' is not a file."
-	    return
-	} elseif {![file readable $tarfile]} {
-	    perror "\[$cmd] '$tarfile' is not readable."
-	    return
 	}
 
 	# Make sure the tarfile has a valid extension.
