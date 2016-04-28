@@ -412,7 +412,7 @@ define(['underscore', 'js/quickvm_sup',
 		    }
 		}
 		if ($('#extension_reason').length) {
-		    $("#why_extend").val($('#extension_reason').val());
+		    $("#why_extend").text($('#extension_reason').val());
 		    $("#why_extend_div").removeClass("hidden");
 		}
 		if (admin && $('#extensions-json').length) {
