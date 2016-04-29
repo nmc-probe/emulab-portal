@@ -834,9 +834,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		
 		var html =
-		    "<table class='table table-condensed'><tbody> " +
+		    "<table class='table table-condensed border-none'><tbody> " +
 		    "<tr><td>Node:</td><td>" +
 		        details.component_urn + "</td></tr>" +
+		    "<tr><td>ID:</td><td>" +
+		        details.client_id + "</td></tr>" +
 		    "<tr><td>Status:</td><td>" +
 		        details.status + "</td></tr>" +
 		    "<tr><td>Raw State:</td><td>" +
