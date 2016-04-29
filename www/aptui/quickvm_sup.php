@@ -247,8 +247,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                       ($ISEMULAB || $ISPNET ? "Wiki" : "Manual") . "</a></li>
                    <li class='visible-xs navbar-nav-shortcuts'>
                        <a href='logout.php'>Logout</a></li>
-                   <li><a href='myprofiles.php'>My Profiles</a></li>
-                   <li><a href='myexperiments.php'>My Experiments</a></li>
+                   <li><a href='user-dashboard.php#profiles'>My Profiles</a></li>
+                   <li><a href='user-dashboard.php#experiments'>My Experiments</a></li>
                    <li><a href='manage_profile.php'>Create Profile</a></li>
                    <li><a href='instantiate.php'>Start Experiment</a></li>
                    <li class='divider'></li>
