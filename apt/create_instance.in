@@ -1160,7 +1160,6 @@ sub CreateSlivers()
 	my $code = shift(@return_codes);
 	if ($code) {
 	    $slice->UnLock();
-	    $instance->SetStatus("failed");
 	    # Promote the log up to the instance so that so its easy to find.
 	    $instance->SetPublicURL($aggobj->public_url())
 		if (defined($aggobj->public_url()));
@@ -1170,6 +1169,9 @@ sub CreateSlivers()
 	    # This will be the createsliver exit code if we got one, or -1.
 	    $code = $aggobj->webtask()->exitcode()
 		if (defined($aggobj->webtask()->exitcode()));
+	    # Do this last so that the web interface does not see failed
+	    # before the reason is in the webtask.
+	    $instance->SetStatus("failed");
 	    return $code;
 	}
     }
