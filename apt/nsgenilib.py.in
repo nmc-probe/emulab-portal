@@ -76,26 +76,35 @@ except err:
 # First find the nodes and links. Do the nodes first so we build the interfaces
 # we need for the links.
 #
-nodes  = {};
-lans   = {};
-ifaces = {};
+nodes     = {}
+lans      = {}
+ifaces    = {}
+lanifaces = {}
 
 for child in tree.getroot():
     if child.tag == "virt_nodes":
         row = child.find("row")
         vname = row.find("vname").text
-        # We might end up changing this later, if we determine its a VM.
-        node = RSpec.RawPC(vname)
+        #
+        # We have to figure out first if we have a XEN VM, so look
+        # at the type.
+        #
+        ntype = row.find("type").text
+        if ntype == "pcvm" or re.match(r".*\-vm$", ntype):
+            node = IG.XenVM(vname)
+            if ntype != "pcvm":
+                node.xen_ptype = ntype;
+                pass
+        else:
+            node = RSpec.RawPC(vname)
+            node.hardware_type = ntype
+            pass
+
         for element in row:
             #
             # We handle a subset of node things.
             #
-            if element.tag == "type":
-                node.hardware_type = element.text
-                if element.text == "pcvm" or re.match(r".*\-vm$", element.text):
-                    node.type = RSpec.NodeType.XEN
-                    pass
-            elif element.tag == "osname":
+            if element.tag == "osname":
                 #
                 # Convert NS project/osname to rspec project//osname.
                 # But if no project, add emulab-ops (clearly wrong).
@@ -106,7 +115,7 @@ for child in tree.getroot():
                     osname = osname.replace("/", "//");
                     pass
                 node.disk_image = "urn:publicid:IDN+" + OURDOMAIN + "+image+" + osname
-            elif element.tag == "fixed":
+            elif element.tag == "fixed" and element.text != None:
                 node.component_id = URN.Node(OURDOMAIN, element.text)
             elif element.tag == "ips":
                 ips = element.text.split()
@@ -130,6 +139,9 @@ for child in tree.getroot():
                 raw.attrib["action"] = "nonfatal"
                 node.addRawElement(raw)
                 pass
+            elif element.tag in ["loadlist"]:
+                Fatal("Unsupported request on node " + vname + ": " + element.tag)
+                pass
             pass
         nodes[vname] = node
         rspec.addResource(node)
@@ -144,8 +156,12 @@ for child in tree.getroot():
     pass
 
 #
-# Now we can do the virt_lans, with the links and interfaces we created
-# above.
+# Now we process virt_lans, with the links and interfaces we created
+# above. But the wrinkle is that we have to treat links and lans
+# differently, since the rspec format wants the original source/dest
+# parameters for each direction, which was lost when the links were
+# converted into virt_lans. We end having to gather up all the interfaces,
+# and then doing a bit of what libvtop does.
 #
 for child in tree.getroot():
     if child.tag == "virt_lans":
@@ -160,8 +176,16 @@ for child in tree.getroot():
         # A lot of these things are per virt_lan, but they are really
         # for the entire lan. 
         #
-        mask = row.find("member").text
+        mask = row.find("mask").text
         iface.netmask = mask;
+
+        #
+        # Gather up interfaces per lan.
+        #
+        if not vname in lanifaces:
+            lanifaces[vname] = {}
+            pass
+        lanifaces[vname][member] = row;
 
         if row.find("trivial_ok") != None:
             trivial_ok = int(row.find("trivial_ok").text)
@@ -178,14 +202,103 @@ for child in tree.getroot():
         if row.find("emulated") != None:
             emulated = int(row.find("emulated").text)
             if emulated:
-                lan.link_multiplexing = True;
+                lan.link_multiplexing = True
                 pass
+            pass
+        if row.find("nobwshaping") != None:
+            nobwshaping = int(row.find("nobwshaping").text)
+            if nobwshaping:
+                lan.best_effort = True
+                pass
+            pass
+        if row.find("protocol") != None:
+            protocol = row.find("protocol").text
+            if protocol != "ethernet":
+                lan.protocol = protocol
+                pass
+            pass
+        if row.find("fixed_iface") != None:
+            fixed_iface = row.find("fixed_iface").text
+            fixed_urn = "urn:publicid:IDN+" + OURDOMAIN + "+ignore+" + fixed_iface
+            iface.component_id = fixed_iface
+            pass
+        if row.find("ip_aliases") != None:
+            Fatal("Unsupported use of ip aliases in lan " + vname)
+            pass
+        pass
+    pass
+
+for lanname,lifaces in lanifaces.iteritems():
+    if len(lifaces.keys()) == 2:
+        lan = lans[lanname]
+        member0_key = lifaces.keys()[0]
+        member1_key = lifaces.keys()[1]
+        member0     = lifaces[member0_key]
+        member1     = lifaces[member1_key]
+        iface0      = ifaces[member0_key]
+        iface1      = ifaces[member1_key]
+        bw0         = int(member0.find("bandwidth").text)
+        rbw0        = int(member0.find("rbandwidth").text)
+        delay0      = float(member0.find("delay").text)
+        rdelay0     = float(member0.find("rdelay").text)
+        loss0       = float(member0.find("lossrate").text)
+        rloss0      = float(member0.find("rlossrate").text)
+        bw1         = int(member1.find("bandwidth").text)
+        rbw1        = int(member1.find("rbandwidth").text)
+        delay1      = float(member1.find("delay").text)
+        rdelay1     = float(member1.find("rdelay").text)
+        loss1       = float(member1.find("lossrate").text)
+        rloss1      = float(member1.find("rlossrate").text)
+
+        # These are the bi-directional numbers.
+        delay       = delay0+rdelay1
+        loss        = 1-(1-loss0)*(1-rloss1)
+	bw          = min(bw0,rbw1)
+        rdelay      = rdelay0+delay1
+	rloss       = 1-(1-rloss0)*(1-loss1)
+	rbw         = min(rbw0,bw1)
+
+        # geni-lib puts shaping params on both ifaces and links.
+        iface0.bandwidth = bw
+        iface0.latency   = delay
+        iface0.plr       = loss
+        iface1.bandwidth = rbw
+        iface1.latency   = rdelay
+        iface1.plr       = rloss
+    else:
+        #
+        # A symmetrically shaped lan is the most common and easiest to deal
+        # with. Note that rspecs are more like the virt_lan representation,
+        # in that each member specifies shaping params *to the lan*. However,
+        # rspecs do not support shaping params *from the lan*. So bottom line
+        # is that we can do fully symmetric and per-node, but not asymmetric
+        # on an individual node basis.
+        #
+        lan = lans[lanname]
+        for member_key in lifaces.keys():
+            member   = lifaces[member_key]
+            iface    = ifaces[member_key]
+            bw       = int(member.find("bandwidth").text)
+            rbw      = int(member.find("rbandwidth").text)
+            delay    = float(member.find("delay").text)
+            rdelay   = float(member.find("rdelay").text)
+            loss     = float(member.find("lossrate").text)
+            rloss    = float(member.find("rlossrate").text)
+
+            if bw != rbw or delay != rdelay or loss != rloss:
+                Fatal("asymmetric shaping not supported on lan " + lanname);
+                pass
+
+            # geni-lib puts shaping params on both ifaces and links.
+            iface.bandwidth = bw
+            iface.latency   = delay
+            iface.plr       = loss
             pass
         pass
     pass
 
 #
-# Other various things that are in the NS file, that we can handle.
+# Other various things that are in the NS file, that we can handle (or not).
 #
 for child in tree.getroot():
     if child.tag == "portal":
@@ -201,18 +314,36 @@ for child in tree.getroot():
         pass
     if child.tag == "experiments":
         row = child.find("row")
-        for element in row:
-            if row.find("encap_style") != None:
-                encap_style = row.find("encap_style").text
-                if encap_style == "vlan":
-                    for name,lan in lans.iteritems():
-                        lan.vlan_tagging = True
-                        pass
+        if row.find("encap_style") != None:
+            encap_style = row.find("encap_style").text
+            if encap_style == "vlan":
+                for name,lan in lans.iteritems():
+                    lan.vlan_tagging = True
                     pass
                 pass
-            if row.find("multiplex_factor") != None:
-                factor = int(row.find("multiplex_factor").text)
-                rspec.setCollocateFactor(factor)
+            pass
+        if row.find("multiplex_factor") != None:
+            factor = int(row.find("multiplex_factor").text)
+            rspec.setCollocateFactor(factor)
+            pass
+        if row.find("packing_strategy") != None:
+            strategy = row.find("packing_strategy").text
+            rspec.setPackingStrategy(strategy)
+            pass
+        #
+        # A bunch of things we do not support yet.
+        #
+        for tag in ["jail_osname", "delay_osname", "security_level"]:
+            if row.find(tag) != None:
+                Fatal("Unsupported use of " + tag)
+                pass
+            pass
+        for tag in ["forcelinkdelays", "nonfsmounts"]:
+            if row.find(tag) != None:
+                tmp = int(row.find(tag).text)
+                if tmp:
+                    Fatal("Unsupported use of " + tag)
+                    pass
                 pass
             pass
         pass
@@ -240,9 +371,26 @@ for child in tree.getroot():
         row = child.find("row")
         vname  = row.find("vname").text
         desire = row.find("desire").text
+        weight = row.find("weight").text
         if desire == "pcshared":
             nodes[vname].exclusive = False
+        else:
+            raw = etree.Element("{%s}fd" % (RSpec.Namespaces.EMULAB.name))
+            raw.attrib["name"]   = desire
+            raw.attrib["weight"] = weight
+            nodes[vname].addRawElement(raw)
             pass
+        pass
+    if child.tag == "virt_node_attributes":
+        row = child.find("row")
+        vname  = row.find("vname").text
+        key    = row.find("attrkey").text
+        val    = row.find("attrvalue").text
+        raw    = etree.Element("{%s}node_attribute" %
+                               (RSpec.Namespaces.EMULAB.name))
+        raw.attrib["attrkey"]   = key
+        raw.attrib["attrvalue"] = val
+        nodes[vname].addRawElement(raw)
         pass
     pass
 
