@@ -181,6 +181,8 @@ close(ERR);
 if ($?) {
     my $tmp = $?;
     print STDERR $errs;
+    system("/bin/cat $xmlfile")
+	if (-s $xmlfile);
     system("/bin/rm -rf $tmpdir");
     # This error is shown to the user.
     if (defined($ofile)) {
