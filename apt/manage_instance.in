@@ -28,7 +28,7 @@ use XML::Simple;
 use Data::Dumper;
 use CGI;
 use POSIX ":sys_wait_h";
-use POSIX qw(setsid close strftime ceil floor);
+use POSIX qw(setsid strftime ceil floor);
 use Date::Parse;
 
 #
@@ -1230,14 +1230,14 @@ sub DoExtend()
 	if (! -e $filename) {
 	    fatal("$filename does not exist");
 	}
-	open(my $MSG, $filename) or
+	open(MSG, $filename) or
 	    fatal("Could not open $filename");
 	
 	$reason = "";
-	while (<$MSG>) {
+	while (<MSG>) {
 	    $reason .= $_;
 	}
-	close($MSG);
+	close(MSG);
     }
     #
     # Create the webtask object; the web interface gave us an anonymous
@@ -1662,14 +1662,14 @@ sub DoDenyExtension()
 	if (! -e $filename) {
 	    fatal("$filename does not exist");
 	}
-	open(my $MSG, $filename) or
+	open(MSG, $filename) or
 	    fatal("Could not open $filename");
 	
 	$reason = "";
-	while (<$MSG>) {
+	while (<MSG>) {
 	    $reason .= $_;
 	}
-	close($MSG);
+	close(MSG);
     }
     return DenyExtensionInternal($reason);
 }
