@@ -423,16 +423,16 @@ function Do_DenyExtension()
 	SPITAJAX_ERROR(1, "You do not have permission to do this.");
 	goto bad;
     }
-    if (isset($ajax_args["message"]) && $ajax_args["message"] != "") {
-        $message = $ajax_args["message"];
+    if (isset($ajax_args["reason"]) && $ajax_args["reason"] != "") {
+        $reason = $ajax_args["reason"];
         
-        if (!TBvalid_fulltext($message)) {
+        if (!TBvalid_fulltext($reason)) {
 	    SPITAJAX_ERROR(1, "Illegal characters in message");
 	    goto bad;
         }
         $filename = tempnam("/tmp", "extension");
         $fp = fopen($filename, "w");
-        fwrite($fp, $message);
+        fwrite($fp, $reason);
         fclose($fp);
     }        
     $webtask = WebTask::CreateAnonymous();
