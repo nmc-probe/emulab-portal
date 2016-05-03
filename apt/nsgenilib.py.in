@@ -68,18 +68,20 @@ NSfile = sys.argv[1];
 
 try:
     tree = etree.parse(NSfile);
-except err:
-    Fatal("Could not parse IR file: " + str(err))
+except etree.XMLSyntaxError:
+    print traceback.format_exc()
+    Fatal("Could not parse IR file")
     pass
 
 #
-# First find the nodes and links. Do the nodes first so we build the interfaces
-# we need for the links.
+# First find the nodes and links and other things we need to start.
 #
-nodes     = {}
-lans      = {}
-ifaces    = {}
-lanifaces = {}
+nodes       = {}
+lans        = {}
+ifaces      = {}
+blockstores = {}
+lanifaces   = {}
+ifacecounts = {}
 
 for child in tree.getroot():
     if child.tag == "virt_nodes":
@@ -95,6 +97,9 @@ for child in tree.getroot():
             if ntype != "pcvm":
                 node.xen_ptype = ntype;
                 pass
+        elif ntype == "blockstore":
+            node = IG.RemoteBlockstore(vname, "/mnt")
+            node.exclusive = True
         else:
             node = RSpec.RawPC(vname)
             node.hardware_type = ntype
@@ -117,7 +122,7 @@ for child in tree.getroot():
                 node.disk_image = "urn:publicid:IDN+" + OURDOMAIN + "+image+" + osname
             elif element.tag == "fixed" and element.text != None:
                 node.component_id = URN.Node(OURDOMAIN, element.text)
-            elif element.tag == "ips":
+            elif element.tag == "ips" and element.text != None:
                 ips = element.text.split()
                 for token in ips:
                     vport,ip = token.split(":")
@@ -146,12 +151,100 @@ for child in tree.getroot():
         nodes[vname] = node
         rspec.addResource(node)
         pass
+    #
+    # We need to know how many members, so we can create a geni-lib Link or LAN.
+    # This seems totally wrong.
+    #
+    if child.tag == "virt_lans":
+        row = child.find("row")
+        vname  = row.find("vname").text
+        member = row.find("member").text
+        if not vname in ifacecounts:
+            ifacecounts[vname] = 0
+            pass
+        ifacecounts[vname] = ifacecounts[vname] + 1
+        pass
+    pass
+
+#
+# Now we can create Link or LANs cause we know the iface counts. Dumb.
+#
+for child in tree.getroot():
     if child.tag == "virt_lan_lans":
         row = child.find("row")
         vname = row.find("vname").text
-        lan = RSpec.LAN(vname);
+        if ifacecounts[vname] == 2:
+            lan = RSpec.Link(vname)
+        else:
+            lan = RSpec.LAN(vname)
+            pass
         lans[vname] = lan;
         rspec.addResource(lan)
+        pass
+    pass
+
+#
+# Look for blockstores, to attach to nodes.
+# 
+for child in tree.getroot():
+    if child.tag == "virt_blockstores":
+        row = child.find("row")
+        vname = row.find("vname").text
+        size  = row.find("size").text
+        fixed = row.find("fixed").text
+        node  = nodes[fixed];
+        if node.type and node.type == "emulab-blockstore":
+            #
+            # A remote blockstore.
+            #
+            bs = node._bs
+        else:
+            #
+            # A local blockstore.
+            #
+            bs = node.Blockstore(vname, "/mnt")
+            pass
+        blockstores[vname] = bs
+        bs.size = str(size) + "MiB"
+        pass
+    pass
+
+#
+# Now we can do the blockstore attributes.
+#
+for child in tree.getroot():
+    if child.tag == "virt_blockstore_attributes":
+        row = child.find("row")
+        vname = row.find("vname").text
+        bs    = blockstores[vname]
+        key   = row.find("attrkey").text
+        val   = row.find("attrvalue").text
+        if key == "readonly" and val == "1":
+            bs.readonly = True;
+            pass
+        if key == "class":
+            # XXX The CM turns remote into whatever it should be.
+            if val != "local":
+                val = "remote"
+                pass
+            bs.where = val;
+            pass
+        if key == "dataset":
+            #XXX
+            val = val.replace("/", ":");
+            bs.dataset = "urn:publicid:IDN+" + OURDOMAIN + "+dataset+" + val
+            pass
+        if key == "leasename":
+            #XXX
+            val = val.replace("/", ":");
+            bs.dataset = "urn:publicid:IDN+" + OURDOMAIN + "+dataset+" + val
+            pass
+        if key == "mountpoint":
+            bs.mount = val;
+            pass
+        if key == "placement":
+            bs.placement = val;
+            pass
         pass
     pass
 
@@ -229,6 +322,21 @@ for child in tree.getroot():
     pass
 
 for lanname,lifaces in lanifaces.iteritems():
+    skip = 0
+    #
+    # Yuck, the parser spits out a min bw for blockstore links/lans.
+    # But we want to kill that and let the best effort setting take care of it.
+    #
+    for member_key in lifaces.keys():
+        # Really, a row.
+        member = lifaces[member_key]
+        vnode  = member.find("vnode").text
+        node   = nodes[vnode]
+        if node.type and node.type == "emulab-blockstore":
+            skip = 1
+        pass
+    if skip:
+        continue
     if len(lifaces.keys()) == 2:
         lan = lans[lanname]
         member0_key = lifaces.keys()[0]
@@ -349,15 +457,20 @@ for child in tree.getroot():
         pass
     #
     # We only do the startup command right now, since there is no
-    # event mechanism.
+    # event mechanism. We trigger on the time=0 to determine which ones
+    # to consider, which might get more then just the startup command,
+    # but that is fine.
     #
-    if child.tag == "virt_programs":
+    if child.tag == "eventlist":
         row = child.find("row")
+        time  = row.find("time").text
+        otype = row.find("objecttype").text
+        etype = row.find("eventtype").text
         vnode = row.find("vnode").text
         vname = row.find("vname").text
-        cmd   = row.find("command").text
-        if vname == vnode + "_startcmd":
-            foo = re.match(r"^\((.*) ; /usr/local/etc/emulab.*\)", cmd);
+        cmd   = row.find("arguments").text
+        if otype == "4" and etype == "1" and time == "0":
+            foo = re.match(r"^COMMAND=\((.*) ; /usr/local/etc/emulab.*\)", cmd);
             if foo:
                 parser = HTMLParser.HTMLParser()
                 cmd = parser.unescape(foo.group(1));
