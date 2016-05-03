@@ -47,6 +47,7 @@ $this_idx  = $this_user->uid_idx();
 $optargs = OptionalPageArguments("create",      PAGEARG_STRING,
 				 "action",      PAGEARG_STRING,
 				 "uuid",        PAGEARG_STRING,
+                                 "fromexp",      PAGEARG_STRING,
 				 "copyuuid",    PAGEARG_STRING,
 				 "snapuuid",    PAGEARG_STRING,
 				 "finished",    PAGEARG_BOOLEAN,
@@ -59,7 +60,7 @@ function SPITFORM($formfields, $errors)
 {
     global $this_user, $projlist, $action, $profile, $DEFAULT_AGGREGATE;
     global $notifyupdate, $notifyclone, $copyuuid, $snapuuid, $am_array;
-    global $ISCLOUD;
+    global $ISCLOUD, $fromexp;
     global $version_array, $WITHPUBLISHING;
     $viewing    = 0;
     $candelete  = 0;
@@ -200,6 +201,9 @@ function SPITFORM($formfields, $errors)
     }
     elseif (isset($snapuuid)) {
 	echo "    window.SNAPUUID = '$snapuuid';\n";
+    }
+    if (isset($fromexp)) {
+	echo "    window.EXPUUID = '$fromexp';\n";
     }
     echo "</script>\n";
     echo "<script src='js/lib/jquery-ui.js'></script>\n";
@@ -409,6 +413,39 @@ if (! isset($create)) {
 	    $defaults["profile_pid"] = $project;
 	}
 	$defaults["profile_who"]   = "private";
+
+        #
+        # If coming from a classic emulab experiment, then do permission checks
+        # and then use the NS file for the script. Also set the project.
+        #
+        if (isset($fromexp) && $fromexp != "") {
+            $experiment = Experiment::LookupByUUID($fromexp);
+            if (!$experiment) {
+                SPITUSERERROR("No such classic emulab experiment!");
+            }
+            if (!$experiment->AccessCheck($this_user, $TB_EXPT_MODIFY)) {
+                SPITUSERERROR("Not enough permission to create a profile from ".
+                              "this classic emulab experiment");
+            }
+	    $defaults["profile_pid"] = $experiment->pid();
+
+            #
+            # Blech. We want to add an NS statement that sets the description
+            # since it is not metadata in a profile, it is part of the source.
+            #
+            $script = "";
+            $lines  = preg_split("/\n/", $experiment->NSFile());
+            foreach ($lines as $line) {
+                $script .= "$line\n";
+
+                if (preg_match("/^set\s+(.*)\s+\[new Simulator/",
+                               $line, $matches)) {
+                    $script .= "\$" . $matches[1] . " description \"" .
+                        CleanString($experiment->description()) . "\"\n";
+                }
+            }
+            $defaults["profile_script"] = $script;
+        }
     }
     SPITFORM($defaults, $errors);
     return;

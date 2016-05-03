@@ -513,8 +513,14 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    if (window.UPDATED) {
 		initNotifyUpdate();
 	    }
-	    else if (gotscript && window.CLONING) {
-		sup.ShowModal('#warn_pp_modal');
+	    else if (gotscript) {
+		if (window.CLONING) {				
+		    sup.ShowModal('#warn_pp_modal');
+		}
+		else if (_.has(window, "EXPUUID")) {
+		    modified = true;
+		    checkScript($('#profile_script_textarea').val());
+		}
 	    }
 	}
     }
@@ -1090,11 +1096,19 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 		$('#show_xml_modal_button').removeClass("hidden");
 	    }
 	}
+	/*
+	 * Send along the project if one is selected; only makes sense
+	 * for NS files, which need to do project based checks on a few
+	 * things (images and blockstores being the most important).
+	 * If this is a modification to an existing profile, we still
+	 * have the project name in the same variable.
+	 */
 	sup.ShowModal("#waitwait-modal");
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "manage_profile",
 					    "CheckScript",
-					    {"script"   : script});
+					    {"script"   : script,
+					     "pid"      : $('#profile_pid').val()});
 	xmlthing.done(callback);
     }
 	

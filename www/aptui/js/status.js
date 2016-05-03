@@ -835,13 +835,14 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		
 		var html =
 		    "<table class='table table-condensed border-none'><tbody> " +
-		    "<tr><td>Node:</td><td>" +
+		    "<tr><td class='border-none'>Node:</td><td class='border-none'>" +
 		        details.component_urn + "</td></tr>" +
-		    "<tr><td>ID:</td><td>" +
+		    "<tr><td class='border-none'>ID:</td><td class='border-none'>" +
 		        details.client_id + "</td></tr>" +
-		    "<tr><td>Status:</td><td>" +
+		    "<tr><td class='border-none'>Status:</td><td class='border-none'>" +
 		        details.status + "</td></tr>" +
-		    "<tr><td>Raw State:</td><td>" +
+		    "<tr><td class='border-none'>Raw State:</td>" +
+		        "<td class='border-none'>" +
 		        details.rawstate + "</td></tr>";
 
 		if (_.has(details, "execute_state")) {
@@ -866,8 +867,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 			tag  = "Pending";
 			icon = "button14.svg"
 		    }
-		    html += "<tr><td>Startup Service:</td><td>" +
-			tag + "</td></tr>";
+		    html += "<tr><td class='border-none'>Startup Service:</td>" +
+			"<td class='border-none'>" + tag + "</td></tr>";
 		    
 		    $('#' + jacksIDs[node_id] + ' .node .node-status')
 		        .css("visibility", "visible");
