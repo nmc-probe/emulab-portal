@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2012-2015 University of Utah and the Flux Group.
+# Copyright (c) 2012-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -329,6 +329,7 @@ Blockstore instproc finalize {} {
 	# XXX
 	set attributes(class) "SAN"
 	set attributes(protocol) "iSCSI"
+	set attributes(leasename) $leasename
     }
 
     # Make sure the blockstore has class...

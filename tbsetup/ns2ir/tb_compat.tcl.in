@@ -710,6 +710,7 @@ proc tb-set-node-os {node os {parentos 0}} {
     if {! ${GLOBALS::anonymous} && ! ${GLOBALS::passmode} &&
         ([regexp {^(ftp|http|https):} $os] == 0) } {
 	var_import ::TBCOMPAT::osids
+	var_import ::GLOBALS::pid
 
 	# Look for :version in the name.
 	set osid $os
@@ -719,6 +720,22 @@ proc tb-set-node-os {node os {parentos 0}} {
 	if {! [info exists osids($osid)]} {
 	    perror "\[tb-set-node-os] Invalid osid $os."
 	    return
+	}
+	#
+	# Always qualify the name if there is one in the current project.
+	#
+	if { ${GLOBALS::rspecmode} } {
+	    if { ! [regexp {/} $os] } {
+		set pos = "$pid/$osid"
+		if { [info exists osids($pos)]} {
+		    $osid = $pos
+		} else {
+		    set pos = "emulab-ops/$osid"
+		    if { [info exists osids($pos)]} {
+			$osid = $pos
+		    }
+		}
+	    }
 	}
 	if {$parentos != {} && $parentos != 0} {
 	    # Look for :version in the name.

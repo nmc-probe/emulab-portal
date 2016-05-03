@@ -45,10 +45,11 @@ sub usage()
  
     exit(-1);
 }
-my $optlist  = "nqapc";
+my $optlist  = "nqapcr";
 my $anonmode = 0;
 my $passmode = 0;
 my $impotent = 0;
+my $rspecmode= 0;
 my $debug    = 0;
 my $catout   = 0;
 
@@ -140,18 +141,19 @@ if (defined($options{"p"})) {
 if (defined($options{"c"})) {
     $catout = 1;
 }
-if (@ARGV != 4 && @ARGV != 1) {
-    usage();
+if (defined($options{"r"})) {
+    $rspecmode = 1;
 }
-
 if (@ARGV == 1) {
     $nsfile = $ARGV[0];
 }
 else {
-    $pid   = $ARGV[0];
-    $gid   = $ARGV[1];
-    $eid   = $ARGV[2];
-    $nsfile= $ARGV[3];
+    $pid   = shift(@ARGV);
+    $gid   = shift(@ARGV);
+    if (@ARGV == 2) {
+	$eid  = shift(@ARGV);
+    }
+    $nsfile= shift(@ARGV);
 }
 
 #
@@ -171,12 +173,6 @@ if (defined($pid)) {
     else {
 	die("Bad data in argument: $pid.");
     }
-    if ($eid =~ /^([-\w]+)$/) {
-	$eid = $1;
-    }
-    else {
-	die("Bad data in argument: $eid.");
-    }
     if ($gid =~ /^([-\w]+)$/) {
 	$gid = $1;
     }
@@ -184,12 +180,22 @@ if (defined($pid)) {
 	die("Bad data in argument: $gid.");
     }
 
-    # Slowly convert to new libraries ...
-    $experiment = Experiment->Lookup($pid, $eid);
-    if (! defined($experiment)) {
-	tbdie("Cannot find the experiment object for $pid/$eid");
+    if (defined($eid)) {
+	if ($eid =~ /^([-\w]+)$/) {
+	    $eid = $1;
+	}
+	else {
+	    die("Bad data in argument: $eid.");
+	}
+	$experiment = Experiment->Lookup($pid, $eid);
+	if (! defined($experiment)) {
+	    tbdie("Cannot find the experiment object for $pid/$eid");
+	}
+	$exptidx = $experiment->idx();
     }
-    $exptidx = $experiment->idx();
+    else {
+	$eid = "ignore";
+    }
 }
 
 # Remove temps cause of swapin by alternates.
@@ -245,6 +251,8 @@ $cmdargs .= " -q"
     if (defined($options{"q"}));
 $cmdargs .= " -p"
     if ($passmode);
+$cmdargs .= " -r"
+    if ($rspecmode);
 $cmdargs .= " $pid $gid $eid"
     if (!$anonmode);
 
