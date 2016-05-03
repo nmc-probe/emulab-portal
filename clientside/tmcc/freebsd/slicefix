@@ -885,7 +885,7 @@ dolinux() {
 		;;
 	# NVM disks
 	nvd[0-9])
-		dtype="sd"
+		dtype="nvme0n1"
 		dunit=`echo $disk | sed -e 's/nvd\([0-9][0-9]*\)$/\1/'`
 		lrootdev="8${dunit}${part}"
 		;;

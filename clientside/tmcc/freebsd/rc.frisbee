@@ -142,7 +142,7 @@ find_disks() {
     _DISKS=""
     for d in `sed -n 's/^\([a-z]*[0-9][0-9]*\): [0-9][0-9]*MB/\1/p' /var/run/dmesg.boot`; do
 	case $d in
-	    ad*|da*|ar*|aacd*|amrd*|mfid*|mfisyspd*) _DISKS="$_DISKS $d"
+	    ad*|da*|ar*|aacd*|amrd*|mfid*|mfisyspd*|nvd*) _DISKS="$_DISKS $d"
 	esac
     done
 
