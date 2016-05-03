@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -536,8 +536,12 @@ if (! $instance) {
 if (!$geniflags) {
     WRITESUBMENUBUTTON("Duplicate Experiment",
 		       "beginexp.php?copyid=$expindex");
+    if ($isadmin) {
+        $uuid = $experiment->uuid();
+        WRITESUBMENUBUTTON("Create Profile from Experiment",
+                           "portal/manage_profile.php?fromexp=$uuid");
+    }
 }
-
 if ($EXPOSEARCHIVE && !$instance && !$geniflags) {
     WRITESUBMENUBUTTON("Experiment File Archive",
 		       "archive_view.php3?experiment=$expindex");
