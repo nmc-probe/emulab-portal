@@ -499,10 +499,10 @@ sub DelaySetup
 
 	    # XXX just in case we don't support polling
 	    if ($using10g) {
-		print DEL "    sysctl hw.intr_storm_threshold=0\n";
+		print DEL "sysctl hw.intr_storm_threshold=0\n";
 	    }
 
-	    print DEL "    if [ -n \"`sysctl kern.polling.phase 2>/dev/null`\" ]; then\n";
+	    print DEL "if [ -n \"`sysctl kern.polling.phase 2>/dev/null`\" ]; then\n";
 	} else {
 	    print DEL "if [ -n \"`sysctl kern.polling.enable 2>/dev/null`\" ]; then\n";
 	}
