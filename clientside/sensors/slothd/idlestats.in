@@ -1,0 +1,244 @@
+#!/usr/bin/perl -wT
+#
+# Copyright (c) 2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use Date::Parse;
+use POSIX (ceil floor);
+use RRDs;
+#use JSON;
+use Data::Dumper;
+
+my $TB = "@prefix@";
+
+use lib "$TB/lib";
+use libdb;
+use libtestbed;
+use EmulabConstants;
+use Experiment;
+use Node;
+use User;
+
+# Constants
+my $STEP = 3600; # 1 hour (in seconds).  This should be an RRA epoch.
+my $MAXWINDOW = 86400 * 14; # two weeks (in seconds).
+my $MINTIMESPECLEN = 6;
+my $MAXTIMESPECLEN = 100;
+my $SD_STATSDIR = "$TB/data/slothd_rrd";
+
+# Globals
+my $now = time();
+my $end = floor($now/$STEP)*$STEP; # Now, normalized to STEP.
+my $start = $end - floor($MAXWINDOW/$STEP)*$STEP;  # Maximum window, normalized.
+my $experiment;
+my @nodelist = ();
+
+sub usage() {
+    print STDERR
+	"Usage: $0 [-d] [-S <start_time>] [-E <end_time>] node [node ...]\n" .
+	"       $0 [-d] [-S <start_time>] [-E <end_time>] -e <pid>,<eid>\n".
+	"-d:              turn on debugging.\n" .
+	"-e <pid>,<eid>:  request data for nodes in an experiment.\n".
+	"-S <start_time>: bound the start of the returned data.\n".
+	"                 Default is beginning of available data for a list of nodes,\n".
+	"                 or the beginning of the specified experiment.\n".
+	"-E <end_time>:   bound the end of the returned data. Default is 'now'.\n "
+	"\n".
+	"Start/end times can be specified as anything recognized by the Date::Parse module.\n"
+	"When requesting experiment data, start times prior to the start of the experiment will be truncated to the beginning of the experiment (with a warning).\n";
+    exit 1;
+}
+
+# un-taint path
+$ENV{'PATH'} = '/bin:/sbin:/usr/bin:/usr/local/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+# Turn off line buffering on output
+$| = 1;
+
+#
+# Verify user and get his DB uid and other info for later.
+#
+my $user;
+if ($UID) {
+    $user = User->ThisUser();
+    if (! defined($user)) {
+	die("*** $0:\n".
+	    "    You ($UID) do not exist!\n");
+    }
+}
+
+my %opts = ();
+
+if (!getopts("dhS:E:e:", \%opts) || $opts{'h'}) {
+    usage();
+}
+
+if ($opts{'e'}) {
+    # Lookup will untaint the argument.
+    $experiment = Experiment->Lookup($opts{'e'});
+    if (!$experiment) {
+	warn "No such experiment: $opts{'e'}\n";
+	exit 1;
+    }
+    if ($UID &&
+	!$experiment->AccessCheck($user, TB_EXPT_READINFO)) {
+	warn "You ($user) do not have access to experiment $experiment\n";
+	exit 1;
+    }
+    if ($experiment->state() ne EXPTSTATE_ACTIVE) {
+	warn "Experiment $experiment is not active!\n";
+	exit 1;
+    }
+    @nodelist = $experiment->NodeList(1,1);
+    # Bump start time to the beginning of this experiment plus one
+    # step.  Adding one step epoch prevents us from grabbing stastics
+    # that incorporate data from prior to the start of the experiment.
+    $start = ceil($experiment->swapin_time()/$STEP)*$STEP + $STEP;
+}
+
+if (@ARGV) {
+    if ($experiment) {
+	warn "You may request stats for an experiment, or a list of nodes, but not both!\n";
+	exit 1;
+    }
+
+    foreach my $node_id (@ARGV) {
+	# Lookup will untaint arguments
+	my $node = Node->Lookup($node_id);
+	if (!$node) {
+	    warn "Unknown node: $node_id\n";
+	    exit 1;
+	}
+	if ($UID &&
+	    !$node->AccessCheck($user, TB_NODEACCESS_READINFO)) {
+	    warn "You ($user) do not have access to $node\n";
+	    exit 1;
+	}
+	push @nodelist, $node->node_id();
+    }
+}
+
+if (!@nodelist) {
+    warn "No nodes to operate on (no nodes in experiment, or no nodes listed on command line)!\n";
+    exit 1;
+}
+
+if ($opts{'E'}) {
+    if ($opts{'E'} !~ /^([-.:\/,\w\s]{$MINTIMESPECLEN,$MAXTIMESPECLEN})$/) {
+	warn "Illegal end time spec!\n";
+	exit 1;
+    }
+    my $etime = str2time($1);
+    if (!defined($etime)) {
+	warn "End time could not be parsed!\n";
+	exit 1;
+    }
+    $etime = floor($etime/$STEP)*$STEP;
+    if ($etime < $start) {
+	warn "End time is too early!\n";
+	exit 1;
+    }
+    if ($etime > $now) {
+	warn "End time is in the future!\n";
+	exit 1;
+    }
+    $end = $etime;
+}
+
+if ($opts{'S'}) {
+    if ($opts{'S'} !~ /^([-.:\/,\w\s]{$MINTIMESPECLEN,$MAXTIMESPECLEN})$/) {
+	warn "Illegal start time spec!\n";
+	exit 1;
+    }
+    my $stime = str2time($1);
+    if (!defined($stime)) {
+	warn "Start time could not be parsed!\n";
+	exit 1;
+    }
+    $stime = floor($stime/$STEP)*$STEP;
+    if ($stime < $start) {
+	warn "Start time is too early!\n";
+	exit 1;
+    }
+    $start = $stime;
+}
+
+if ($start > $end) {
+    warn "Start time must be less than or equal to end time!\n";
+    exit 1;
+}
+
+if ($start < $now-$MAXWINDOW || $end < $now-$MAXWINDOW) {
+    warn "Either the start time or the end time (or both) is before the maximum window of $MAXWINDOW seconds ago.\n";
+    exit 1;
+}
+
+# Finally do some real work!
+my @results = ();
+foreach my $node_id (@nodelist) {
+    my $nobj = {};
+    $nobj->{'node_id'} = $node_id;
+    my $mainrrd = "$SD_STATSDIR/${node_id}.rrd";
+    if (!-f $mainrrd) {
+	warn "Could not find main rrd file ($mainrrd) for $node_id\n";
+	next;
+    }
+    my ($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
+	RRDs::fetch($mainrrd, "MAX", "--start=$start", "--end=$end", 
+		    "--resolution=$STEP");
+    if (RRDs::error) {
+	warn "Could not get data for $node_id from $mainrrd: ". RRDs::error ."\n";
+	next;
+    }
+    foreach my $rrd_line (@$rrd_data) {
+	push @{$nobj->{'main'}}, [$rrd_stamp, @$rrd_line];
+	$rrd_stamp += $rrd_step;
+    }
+
+    my @intfrrds = glob "$SD_STATSDIR/${node_id}-*.rrd";
+    foreach my $intfrrd (@intfrrds) {
+	$intfrrd =~ /^$node_id-([0-9a-f]{12}).rrd$/i;
+	my $maddr = $1;
+	if (!$maddr) {
+	    warn "Malformed interface MAC in $node_id RRD file: $intfrrd\n";
+	    next;
+	}
+	($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
+	    RRDs::fetch($intfrrd, "MAX", "--start=$start", "--end=$end", 
+			"--resolution=$STEP");
+	if (RRDs::error) {
+	    warn "Could not get interface data for $node_id from $intfrrd: ". RRDs::error ."\n";
+	    next;
+	}
+	foreach my $rrd_line (@$rrd_data) {
+	    push @{$nobj->{'interfaces'}->{$maddr}}, [$rrd_stamp, @$rrd_line];
+	    $rrd_stamp += $rrd_step;
+	}
+    }
+    push @results, $nobj;
+}
+
+print Dumper(@results);
+exit 0;
