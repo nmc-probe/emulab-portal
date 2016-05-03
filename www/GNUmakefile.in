@@ -275,6 +275,9 @@ apt-install: 	$(addprefix $(INSTALL_WWWDIR)/apt/, $(ALLAPTUI)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/css/, $(ALLAPTCSS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/fonts/, $(ALLAPTFONTS)) \
 	$(addprefix $(INSTALL_WWWDIR)/apt/images/, $(ALLAPTIMAGES))
+	cd $(INSTALL_WWWDIR) && \
+		rm -f portal; \
+		ln -s apt portal;
 
 post-install:
 

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -27,7 +27,7 @@ $APTHOST	= "$WWWHOST";
 # Not sure why tbauth uses WWWHOST for the login cookies, but it
 # causes confusion in geni-login.ajax. 
 $COOKDIEDOMAIN  = "$WWWHOST";
-$APTBASE	= "$TBBASE/apt";
+$APTBASE	= "$TBBASE/portal";
 $APTMAIL        = $TBMAIL_OPS;
 $EXTENSIONS     = $TBMAIL_OPS;
 $APTTITLE       = "Emulab";
