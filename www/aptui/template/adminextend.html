@@ -188,11 +188,13 @@ pre {
 	      </tr>
 	      <tr>
 		<td>Lockout:</td>
-		<td><% if (expinfo.lockout) { %>
-		  <span class="text-danger">Yes</span><% } else { %>No<% } %></td>
+		<td><input type="checkbox" id="lockout-checkbox"
+			   <% if (expinfo.lockout) { %>checked<% } %> >
+		</td>
 		<td>Lockdown:</td>
 		<td><% if (expinfo.lockdown) { %>
 		  <span class="text-danger">Yes</span><% } else { %>No<% } %></td>
+		</td>
 	    </tbody>
 	  </table>
 	</div>
@@ -200,7 +202,7 @@ pre {
     </div>
   </script>
 </div>
-<div>
+<div>app
   <script id="secondrow-template" type="text/template">
     <div class='col-sm-6'>
       <div class='panel panel-default'>

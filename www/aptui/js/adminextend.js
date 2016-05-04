@@ -87,7 +87,7 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 	var howlong = $('#days').val();
 	var reason  = $("#reason").val();
 	var method  = (action == "extend" ? "RequestExtension" : "DenyExtension");
-	
+	xf
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
 
@@ -129,6 +129,10 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 							  .format("MMM D h:mm A"));
 					 }
 				     });
+				     // lockout change event handler.
+				     $('#lockout-checkbox').change(function() {
+					 DoLockout($(this).is(":checked"));
+				     });	
 				 }
 			     });
     }
@@ -177,6 +181,25 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 			filter_columnFilters : false,
 		    }
 		});
+    }
+
+    //
+    // Request lockout set/clear.
+    //
+    function DoLockout(lockout)
+    {
+	lockout = (lockout ? 1 : 0);
+	
+	var callback = function(json) {
+	    if (json.code) {
+		alert("Failed to change lockout: " + json.value);
+		return;
+	    }
+	}
+	var xmlthing = sup.CallServerMethod(null, "status", "Lockout",
+					     {"uuid" : window.UUID,
+					      "lockout" : lockout});
+	xmlthing.done(callback);
     }
 
     // Helper.
