@@ -87,7 +87,7 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 	var howlong = $('#days').val();
 	var reason  = $("#reason").val();
 	var method  = (action == "extend" ? "RequestExtension" : "DenyExtension");
-	xf
+
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
 
