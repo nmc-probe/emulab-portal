@@ -3043,7 +3043,7 @@ sub CreateImage($)
 				    "Could not compute status for sliver");
     }
     if ($status ne "ready") {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 				    "sliver is not ready");
     }
     my $node_id = $sliver->resource_id();
