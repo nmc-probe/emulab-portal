@@ -201,41 +201,55 @@ foreach my $node (@nodelist) {
     my $nobj = {};
     $nobj->{'node_id'} = $node_id;
 
+    #
     # Process top-level node stats.
+    #
+    # Track whether or not there are data points in the time query range.
+    # If not, return an empty array instead of a list of undefined values.
+    #
     my $mainrrd = "$SD_STATSDIR/${node_id}.rrd";
     if (!-f $mainrrd) {
 	warn "Could not find main rrd file ($mainrrd) for $node_id\n";
-	next;
-    }
-    my ($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
-	RRDs::fetch($mainrrd, "MAX", "--start=$start", "--end=$end", 
-		    "--resolution=$STEP");
-    if (RRDs::error) {
-	warn "Could not get data for $node_id from $mainrrd: ". RRDs::error ."\n";
-	next;
-    }
-    my $hasvalues = 0;
-    my @main_tmp = ();
-    push @main_tmp,
-         ['timestamp', 'tty_active', 'load_1min', 'load_5min', 'load_15min'];
-    foreach my $rrd_line (@$rrd_data) {
-	my ($last_tty, $load_1m, $load_5m, $load_15m) = @$rrd_line;
-	$last_tty = ($last_tty > 0) ? 1 : 0
-	    if defined($last_tty);
-	$hasvalues = 1
-	    if (defined($last_tty) && defined($load_1m) 
-		&& defined($load_5m) && defined($load_15m));
-	push @main_tmp,
-	     [$rrd_stamp, $last_tty, $load_1m, $load_5m, $load_15m];
-	$rrd_stamp += $rrd_step;
-    }
-    if ($hasvalues) {
-	@{$nobj->{'main'}} = @main_tmp;
+	$nobj->{'main'} = []; # Indicate that no data was found.
     } else {
-	$nobj->{'main'} = [];
+	my ($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
+	    RRDs::fetch($mainrrd, "MAX", "--start=$start", "--end=$end", 
+			"--resolution=$STEP");
+	if (RRDs::error) {
+	    warn "Could not get data for $node_id from $mainrrd: ". RRDs::error ."\n";
+	    next;
+	}
+	my $hasvalues = 0;
+	my @main_tmp = ();
+	push @main_tmp,
+	     ['timestamp', 'tty_active', 'load_1min', 'load_5min', 'load_15min'];
+	foreach my $rrd_line (@$rrd_data) {
+	    my ($last_tty, $load_1m, $load_5m, $load_15m) = @$rrd_line;
+	    $last_tty = ($last_tty > 0) ? 1 : 0
+		if defined($last_tty);
+	    $hasvalues = 1
+		if (defined($last_tty) && defined($load_1m) 
+		    && defined($load_5m) && defined($load_15m));
+	    push @main_tmp,
+	         [$rrd_stamp, $last_tty, $load_1m, $load_5m, $load_15m];
+	    $rrd_stamp += $rrd_step;
+	}
+	if ($hasvalues) {
+	    @{$nobj->{'main'}} = @main_tmp;
+	} else {
+	    $nobj->{'main'} = []; # Indicate that no data was found.
+	}
     }
 
+    #
     # Process interface statistics.
+    #
+    # Get the set of known interfaces for this node.  We only consider
+    # control and experimental interfaces.  We elide oddball interfaces
+    # with an all-zero MAC address.  Track whether or not we find statistics
+    # for each interface.  We will mark interfaces with no stats by returning
+    # an empty array for them.
+    #
     my @interfaces = ();
     my %ifmap = ();
     my $ctrlmac = "*unknown*";
@@ -252,22 +266,22 @@ foreach my $node (@nodelist) {
 	    $intf->{'SEEN'} = 0;
 	}
     }
-    $nobj->{'interfaces'}->{'ctrl_iface'} = $ctrlmac;
-    my @intfrrds = glob "$SD_STATSDIR/${node_id}-*.rrd";
+    $nobj->{'interfaces'}->{'ctrl_iface'} = $ctrlmac; # communicate ctrl iface.
+    my @intfrrds = glob "$SD_STATSDIR/${node_id}-*.rrd"; # iface stats files.
     foreach my $intfrrd (@intfrrds) {
 	$intfrrd =~ /${node_id}-([0-9a-f]{12}).rrd$/i;	
-	next if (!$1);
+	next if (!$1); # skip if mac addr in filename is malformed.
 	my $mac = uc($1);
-	next if (!exists($ifmap{$mac}));
-	$ifmap{$mac}->{'SEEN'} = 1;
-	($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
+	next if (!exists($ifmap{$mac})); # skip if iface is not in DB.
+	$ifmap{$mac}->{'SEEN'} = 1; # mark.
+	my ($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
 	    RRDs::fetch($intfrrd, "MAX", "--start=$start", "--end=$end", 
 			"--resolution=$STEP");
 	if (RRDs::error) {
 	    warn "Could not get interface data for $node_id from $intfrrd: ". RRDs::error ."\n";
 	    next;
 	}
-	my $hasvalues = 0;
+	my $hasvalues = 0; # track whether or not data exists for iface.
 	my @intf_tmp = (['timestamp', 'ipkt_rate', 'opkt_rate'],);
 	foreach my $rrd_line (@$rrd_data) {
 	    my ($ipkt_rate, $opkt_rate) = @$rrd_line;
@@ -279,14 +293,20 @@ foreach my $node (@nodelist) {
 	if ($hasvalues) {
 	    @{$nobj->{'interfaces'}->{$mac}} = @intf_tmp;
 	} else {
+	    # No data found for iface, so return empty array rather than
+	    # a list of undefined data points.
 	    $nobj->{'interfaces'}->{$mac} = [];
 	}
     }
+    # Indicate no data found for interfaces where there is no
+    # RRD stats file.
     foreach my $mac (keys %ifmap) {
 	if (!$ifmap{$mac}->{'SEEN'}) {
 	    $nobj->{'interfaces'}->{$mac} = [];
 	}
     }
+
+    # Add node data structure to results set.
     push @results, $nobj;
 }
 
