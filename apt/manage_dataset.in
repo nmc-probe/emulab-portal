@@ -425,6 +425,10 @@ sub DoDelete()
 	uerror("dataset is busy, cannot lock it");
     }
     my $response = $dataset->DeleteDataset();
+    if (!defined($response)) {
+	$errmsg = "RPC Error calling DeleteDataset";
+	goto failed;
+    }
     if ($response->code() != GENIRESPONSE_SUCCESS &&
 	$response->code() != GENIRESPONSE_SEARCHFAILED &&
 	$response->code() != GENIRESPONSE_BUSY) {
@@ -479,6 +483,10 @@ sub DoRefreshInternal($$)
     my ($dataset, $pmesg) = @_;
     
     my $response = $dataset->DescribeDataset();
+    if (!defined($response)) {
+	$$pmesg = "RPC Error calling DescribeDataset";
+	return -1;
+    }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
 	    $$pmesg = "Dataset no longer exists at the remote cluster\n";
@@ -568,6 +576,10 @@ sub DoModify()
 	}
     }
     my $response = $dataset->ModifyDataset();
+    if (!defined($response)) {
+	$errmsg = "RPC Error calling ModifyDataset";
+	goto failed;
+    }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
 	    $errmsg = "Dataset no longer exists at the target\n";
@@ -613,6 +625,10 @@ sub DoExtend()
 	uerror("dataset is busy, cannot lock it");
     }
     my $response = $dataset->ExtendDataset();
+    if (!defined($response)) {
+	$errmsg = "RPC Error calling ExtendDataset";
+	goto failed;
+    }
     if ($response->code() != GENIRESPONSE_SUCCESS) {
 	if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
 	    $errmsg = "Dataset no longer exists at the target\n";
