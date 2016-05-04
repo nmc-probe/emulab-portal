@@ -461,9 +461,12 @@ sub Regenerate($$)
 	# Child runs this. 
 	system("$GENCABUNDLE") == 0
 	    or fatal("$GENCABUNDLE failed");
-	# Must do this too since a crl might no longer be valid.
-	system("$GENCRLBUNDLE") == 0
-	    or fatal("$GENCRLBUNDLE failed");
+	# When called from web UI, we are not root.
+	if ($UID == 0) {
+	    # Must do this too since a crl might no longer be valid.
+	    system("$GENCRLBUNDLE") == 0
+		or fatal("$GENCRLBUNDLE failed");
+	}
     }
     return 0;
 }
