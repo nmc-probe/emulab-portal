@@ -257,7 +257,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li><a href='myaccount.php'>Manage Account</a></li>
                    <li><a href='signup.php'>Start/Join Project</a></li>
                    <li class='divider'></li>
-	           <li><a href='list-datasets.php?all=1'>List Datasets</a></li>
+	           <li><a href='list-datasets.php'>List Datasets</a></li>
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
        echo "      <li class='divider'></li>\n";
        $then = time() - (90 * 3600 * 24);
@@ -284,7 +284,10 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
            echo "<li><a href='myexperiments.php?all=1'>
                             All Experiments</a></li>
 	             <li><a href='myprofiles.php?all=1'>
-                            All Profiles</a></li>";
+                            All Profiles</a></li>
+	             <li><a href='list-datasets.php?all=1'>
+                            All Datasets</a></li>";
+           
            echo " </ul>
                 </li>\n";
        }
