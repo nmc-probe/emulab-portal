@@ -536,7 +536,7 @@ if (! $instance) {
 if (!$geniflags) {
     WRITESUBMENUBUTTON("Duplicate Experiment",
 		       "beginexp.php?copyid=$expindex");
-    if ($isadmin) {
+    if (STUDLY()) {
         $uuid = $experiment->uuid();
         WRITESUBMENUBUTTON("Create Profile from Experiment",
                            "portal/manage_profile.php?fromexp=$uuid");
