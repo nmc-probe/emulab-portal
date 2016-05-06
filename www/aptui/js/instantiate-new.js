@@ -543,7 +543,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    // Refer to Issue #71
 	    // https://gitlab.flux.utah.edu/emulab/emulab-devel/issues/71
 	    if ($('#pp_form #hwinfo').length == 0) {
-		$('#pp_form select[data-key=osNodeType]').parent().append(''+
+		$('#pp_form input[data-key=osNodeType]').parent().append(''+
 		    '<a href="http://docs.cloudlab.us/hardware.html" style="'+
 			'position:absolute;'+
 			'right:21px;'+
