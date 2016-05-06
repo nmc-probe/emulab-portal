@@ -14,7 +14,7 @@ function (_, sup, waitwaitString)
 	// We share code with the modal version of login, and the
 	// handler for the button is installed in initialize().
 	// See comment there.
-	if (window.ISCLOUD) {
+	if (window.ISCLOUD || window.ISPNET) {
 	    sup.InitGeniLogin(embedded);
 	}
 	window.APT_OPTIONS.initialize(sup);

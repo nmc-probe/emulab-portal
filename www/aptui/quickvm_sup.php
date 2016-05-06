@@ -508,7 +508,7 @@ function SpitVerifyModal($id, $label)
 function SpitLoginModal($id)
 {
     global $PORTAL_PASSWORD_HELP;
-    global $APTTITLE, $ISCLOUD;
+    global $APTTITLE, $ISCLOUD, $ISPNET;
     $referrer = CleanString($_SERVER['REQUEST_URI']);
 ?>
     <!-- This is the login modal -->
@@ -547,7 +547,7 @@ function SpitLoginModal($id)
              <div class='form-group'>
                <div class='col-sm-offset-2 col-sm-10'>
 <?php
-    if ($ISCLOUD) {
+    if ($ISCLOUD || $ISPNET) {
 	?>
                  <button class='btn btn-info btn-sm pull-left' disabled
 		    type='button'

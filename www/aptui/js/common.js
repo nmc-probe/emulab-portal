@@ -94,7 +94,7 @@ window.APT_OPTIONS.initialize = function (sup)
 	$('#loginbutton').click(function (event) {
 	    event.preventDefault();
 	    sup.ShowModal('#quickvm_login_modal');
-	    if (window.ISCLOUD) {
+	    if (window.ISCLOUD || window.ISPNET) {
 		console.info("Loading geni auth code");
 		sup.InitGeniLogin(embedded);
 		require([geniauth], function() {
