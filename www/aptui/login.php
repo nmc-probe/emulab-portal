@@ -89,7 +89,7 @@ function SPITFORM($uid, $referrer, $error)
 {
     global $PORTAL_PASSWORD_HELP;
     global $TBDB_UIDLEN, $TBBASE, $refer;
-    global $ISAPT, $ISCLOUD, $showguestlogin;
+    global $ISAPT, $ISCLOUD, $ISPNET, $showguestlogin;
 
     header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
     header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
@@ -163,7 +163,7 @@ function SPITFORM($uid, $referrer, $error)
                     style='margin-right: 10px;'>
                     Forgot Password?</a>
 <?php
-    if ($ISCLOUD) {
+    if ($ISCLOUD || $ISPNET) {
 	?>
                  <button class='btn btn-info btn-sm pull-left'
 		    type='button'
@@ -194,7 +194,7 @@ function SPITFORM($uid, $referrer, $error)
         </div>
         </div>\n";
 
-    if ($ISCLOUD) {
+    if ($ISCLOUD || $ISPNET) {
 	echo "<script
                 src='https://www.emulab.net/protogeni/speaks-for/geni-auth.js'>
               </script>\n";
