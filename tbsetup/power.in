@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -477,8 +477,48 @@ foreach my $power_id (keys %outlets) {
 	    print "Control of $nodestr failed.\n"; ++$exitval;
 	    ++$errors;
 	}
+    } elsif ($type eq 'ipmi15' || $type eq 'ipmi20') {
+	#
+	# XXX a "cycle" operation on IPMI will fail if the node is off.
+	# I can see reasons why you would want that behavior, but it means
+	# that if someone powers the node off from the OS (i.e., such that
+	# Emulab doesn't know about it) and then we attempt to power cycle
+	# it because it appears down, it will fail. We get a lot of nodes
+	# stuck in reloading or hwdown because of this.
+	#
+	# To allow either, we add a node attribute, "cyclewhenoff", that
+	# will cause us to do an "on" if a "cycle" fails. This is signified
+	# here by a "forcecycle" op passed to iloctrl.
+	# 
+	my (@forcenodes, @unforcenodes);
+	if ($op eq "cycle") {
+	    foreach my $nodeid (@nodes) {
+		my $node = $nodes{$nodeid};
+		if ($node->cyclewhenoff()) {
+		    push @forcenodes, $nodeid;
+		} else {
+		    push @unforcenodes, $nodeid;
+		}
+	    }
+	} else {
+	    @unforcenodes = @nodes;
+	}
+	if (@forcenodes) {
+	    $nodestr = join(',', @forcenodes);
+	    if (iloctrl($type,"forcecycle",@forcenodes)) {
+		print "Control of $nodestr failed.\n"; ++$exitval;
+		++$errors;
+	    }
+	}
+	if (@unforcenodes) {
+	    $nodestr = join(',', @unforcenodes);
+	    if (iloctrl($type,$op,@unforcenodes)) {
+		print "Control of $nodestr failed.\n"; ++$exitval;
+		++$errors;
+	    }
+	}
     } elsif ($type eq 'ilo3' || $type eq 'ilo2' || $type eq 'ilo' ||
-	     $type eq 'drac' || $type eq 'ipmi15' || $type eq 'ipmi20') {
+	     $type eq 'drac') {
 	if (iloctrl($type,$op,@nodes)) {
 	    print "Control of $nodestr failed.\n"; ++$exitval;
             ++$errors;

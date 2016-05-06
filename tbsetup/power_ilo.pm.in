@@ -1,7 +1,7 @@
 #!/usr/bin/perl -wT
 
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -77,12 +77,16 @@ my %portinfo = ();
 sub iloctrl($$@) {
     my ($type,$cmd,@nodes) = @_;
     my $exitval = 0;
+    my $force = 0;
 
     if ($debug) {
 	print "iloctrl called with $type,$cmd,(" . join(',',@nodes) . ")\n";
     }
 
-    if ($cmd ne "cycle" && $cmd ne "on" && $cmd ne "off") {
+    if ($cmd eq "forcecycle") {
+	$force = 1;
+	$cmd = "cycle";
+    } elsif ($cmd ne "cycle" && $cmd ne "on" && $cmd ne "off") {
 	warn "invalid power command '$cmd'; \n" . 
 	    "  valid commands are 'cycle, 'off', and 'on'.\n";
 	return scalar(@nodes);
@@ -164,7 +168,7 @@ sub iloctrl($$@) {
 	    my $tret;
 	    eval {
 		if ($type =~ /^ipmi/) {
-		    $tret = ipmiexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$kgkey,$kprivlvl,$timeout);
+		    $tret = ipmiexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$kgkey,$kprivlvl,$timeout,$force);
 		} else {
 		    $tret = iloexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$timeout);
 		}
@@ -414,8 +418,8 @@ sub iloexec($$$$$$$;$) {
 #
 # Arguments: $node_id,$type,$cmd,$IP,$key_role,$key_uid,$key[,$kgkey,$privlvl,$timeout]
 #
-sub ipmiexec($$$$$$$;$$$) {
-    my ($node_id,$type,$cmd,$IP,$key_role,$key_uid,$key,$kgkey,$privlvl,$timeout) = @_;
+sub ipmiexec($$$$$$$;$$$$) {
+    my ($node_id,$type,$cmd,$IP,$key_role,$key_uid,$key,$kgkey,$privlvl,$timeout,$force) = @_;
 
     if ($debug) {
 	print "ipmiexec called with (" . join(',',@_) . ")\n";
@@ -468,6 +472,7 @@ sub ipmiexec($$$$$$$;$$$) {
     # XXX IPMI takes about 40 seconds to timeout and doesn't
     # have an option to control?!
 
+again:
     my $privlvl_args = ($privlvl) ? " -L $privlvl" : '';
     my $ipmicmd = "ipmitool -I $iface -H $IP -U $key_uid $privlvl_args -E -K power $cmd";
     print "*** Executing '$ipmicmd', output:\n"
@@ -484,6 +489,23 @@ sub ipmiexec($$$$$$$;$$$) {
     # And clear them again
     delete $ENV{'IPMI_PASSWORD'};
     delete $ENV{'IPMI_KGKEY'};
+
+    #
+    # XXX check for failured due to power cycle of a node that is turned off
+    # and turn it on if desired.
+    #
+    if ($stat && $cmd eq "cycle" &&
+	$output =~ /Command not supported in present state/) {
+	if ($force) {
+	    print "*** Cycle failed, trying power on instead.\n"
+		if ($debug > 1);
+	    $cmd = "on";
+	    $force = 0;
+	    goto again;
+	}
+	# XXX we should maybe do a POWEROFF state transition here?
+	$output = "Node is powered off, use 'power on' instead.\n";
+    }
 
     if ($stat || $debug > 1) {
 	print "*** '$ipmicmd' failed (stat=$stat):\n"
