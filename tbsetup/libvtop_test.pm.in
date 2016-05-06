@@ -7222,6 +7222,27 @@ sub InitializePhysNodes($)
 	    return -1;
 	}
     }
+
+    #
+    # XXX Similarly, all of the vnames need to be setup before this
+    # config step for UE nodes can run since we allow vnames to be used
+    # as the adb target.  This probably isn't the greatest place for
+    # this, but I'm not sure where is better.  This task has to happen
+    # inside the mapper run so that the result is picked up when the
+    # GENI manifest is created.
+    #
+    if (!($self->impotent() || $self->alloconly())) {
+	foreach my $pnodename (keys(%{ $self->solution_p2v() })) {
+	    my $pnode = $self->pnodes()->{$pnodename};
+	    # Do some limited early setup for UE class nodes to get necessary
+	    # information into the PG manifest.
+	    if ($pnode->class eq "ue") {
+		$pnode->UEConfig() == 0
+		    or return -1;
+	    }
+	}
+    }
+
     return 0;
 }
 
@@ -7431,13 +7452,6 @@ sub InitializePhysNode($$$)
     }
     $pnode->ModifyReservation(\%rsrvsets) == 0
 	or return -1 if (! ($self->impotent() || $self->alloconly()));
-
-    # Do some limited early setup for UE class nodes to get necessary
-    # information into the PG manifest.
-    if ($pnode->class eq "ue" && !( $self->impotent() ) ) {
-	$pnode->UEConfig() == 0
-	    or return -1;
-    }
     
     #
     # Now call os_select.
