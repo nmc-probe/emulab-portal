@@ -67,7 +67,7 @@ echo "<b>Tabular views: <a href='nodecontrol_list.php3?showtype=summary'>summary
                <a href='nodecontrol_list.php3?showtype=pcs'>pcs</a>,
                <a href='nodecontrol_list.php3?showtype=wireless'>
                                                         wireless</a>,";
-if ($TBMAINSITE) {
+if ($TBMAINSITE && !$ISALTDOMAIN) {
     echo "     <a href='nodecontrol_list.php3?showtype=widearea&typefilter=pcpg,pcpg-i2'>protogeni</a>,";
 }
 echo "         <a href='nodecontrol_list.php3?showtype=widearea'>widearea</a>";
