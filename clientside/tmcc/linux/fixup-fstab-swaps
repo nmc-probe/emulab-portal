@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2007, 2011 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -126,7 +126,9 @@ sub findswaps()
     my @swapdevs;
     my $rdisk;
     my $rootfs = `df / | grep /dev/`;
-    if ($rootfs =~ /^(\/dev\/[a-z]+)\d+/) {
+    if ($rootfs =~ /^(\/dev\/nvme\d+n\d+)p\d+/) {
+	$rdisk = $1;
+    } elsif ($rootfs =~ /^(\/dev\/[a-z]+)\d+/) {
 	$rdisk = $1;
     }
     elsif ($rootfs =~ /^(\/dev\/[^\s]+)\s/) {
