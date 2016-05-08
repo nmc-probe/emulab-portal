@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2014 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -51,6 +51,7 @@ static void	log_bootwhat(struct in_addr, boot_what_t *, int);
 static void	onhup(int sig);
 static char	*progname;
 static char     pidfile[MAXPATHLEN];
+int		noevents = 0;
 int		debug = 0;
 
 void
@@ -59,6 +60,7 @@ usage()
 	fprintf(stderr,
 		"Usage: %s <options> [-d]\n"
 		"options:\n"
+		"-E         - Do not send BOOTING events\n"
 		"-d         - Turn on debugging\n"
 		"-p port    - Specify port number to listen on\n",
 		progname);
@@ -85,8 +87,11 @@ main(int argc, char **argv)
 
 	progname = argv[0];
 
-	while ((c = getopt(argc, argv, "p:dhv")) != -1) {
+	while ((c = getopt(argc, argv, "Ep:dhv")) != -1) {
 		switch (c) {
+		case 'E':
+			noevents = 1;
+			break;
 		case 'd':
 			debug++;
 			break;
@@ -168,7 +173,7 @@ main(int argc, char **argv)
 			exit(1);
 		}
 		err = bootinfo(client.sin_addr, (char *) NULL,
-			       &boot_info, (void *) NULL, 0, &esent);
+			       &boot_info, (void *) NULL, noevents, &esent);
 		if (err < 0)
 			continue;
 		if (boot_info.status == BISTAT_SUCCESS)
