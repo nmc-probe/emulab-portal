@@ -83,11 +83,6 @@ shared-network emulab {
 		#
 		%%nodetype=pc
 	}
-
-	# stargates
-	group {
-		%%nodetype=sg
-	}
  }
 
  %%management
