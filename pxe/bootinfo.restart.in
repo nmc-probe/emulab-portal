@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2004 University of Utah and the Flux Group.
+# Copyright (c) 2004-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -23,9 +23,16 @@
 #
 
 DIR=@prefix@/sbin
+BOOTINFO_EVENTS=@BOOTINFO_EVENTS@
+
+# BOOTINFO_EVENTS must explicitly be set to zero to suppress
+opt=""
+if [ -n "$BOOTINFO_EVENTS" -a $BOOTINFO_EVENTS = "0" ]; then
+    opt="-E"
+fi
 
 if [ -e /var/run/bootinfo.pid ]; then
     kill `cat /var/run/bootinfo.pid`;
 fi
-${DIR}/bootinfo
-
+${DIR}/bootinfo $opt
+exit $?
