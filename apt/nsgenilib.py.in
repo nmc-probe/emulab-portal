@@ -469,12 +469,20 @@ for child in tree.getroot():
         vnode = row.find("vnode").text
         vname = row.find("vname").text
         cmd   = row.find("arguments").text
-        if otype == "4" and etype == "1" and time == "0":
+        if otype == "4":
+            if etype != "1" and etype != "20":
+                Fatal("Unsupported program object event for " + vname)
+                pass
+            if time != "0":
+                Fatal("Unsupported program object event time!=0 for " + vname)
+                pass
             foo = re.match(r"^COMMAND=\((.*) ; /usr/local/etc/emulab.*\)", cmd);
             if foo:
                 parser = HTMLParser.HTMLParser()
                 cmd = parser.unescape(foo.group(1));
                 nodes[vnode].addService(RSpec.Execute("sh", cmd))
+        else:
+            Fatal("Unsupported event type for " + vname)
             pass
         pass
     #
@@ -504,6 +512,19 @@ for child in tree.getroot():
         raw.attrib["attrkey"]   = key
         raw.attrib["attrvalue"] = val
         nodes[vname].addRawElement(raw)
+        pass
+    if child.tag == "virt_trafgens":
+        Fatal("Trafgens are not supported anymore")
+        pass
+    if child.tag in ["virt_lan_settings",
+                     "virt_lan_member_settings", "virt_routes",
+                     "virt_node_disks", "virt_user_environment",
+                     "virt_firewalls", "firewall_rules",
+                     "virt_tiptunnels", "elabinelab_attributes",
+                     "virt_paths", "experiment_blobs", "virt_blobs",
+                     "virt_client_service_ctl", "virt_client_service_hooks",
+                     "virt_client_service_opts", "virt_address_allocation"]:
+        Fatal("Unsupported use of " + child.tag)
         pass
     pass
 
