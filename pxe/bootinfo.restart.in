@@ -27,9 +27,9 @@ BOOTINFO_EVENTS=@BOOTINFO_EVENTS@
 
 # BOOTINFO_EVENTS must explicitly be set to zero to suppress
 opt=""
-if [ -n "$BOOTINFO_EVENTS" -a $BOOTINFO_EVENTS = "0" ]; then
-    opt="-E"
-fi
+#if [ -n "$BOOTINFO_EVENTS" -a $BOOTINFO_EVENTS = "0" ]; then
+#    opt="-E"
+#fi
 
 if [ -e /var/run/bootinfo.pid ]; then
     kill `cat /var/run/bootinfo.pid`;
