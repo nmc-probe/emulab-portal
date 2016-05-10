@@ -8180,8 +8180,8 @@ sub AddBridge($$$$)
 	$self->interfacespeedmbps(physinterfacetype($pnode, $iface1),
 				  "ethernet");
 
-    $self->portbw()->{$member0} = $speed0;
-    $self->portbw()->{$member1} = $speed1;
+    $self->portbw()->{$member0} = $speed0 * 1000;
+    $self->portbw()->{$member1} = $speed1 * 1000;
 
     $self->printdb("  Setting port speeds on $pnodename: ".
 		   "$iface0:$speed0 $iface1:$speed1\n");
