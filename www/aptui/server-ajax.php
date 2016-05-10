@@ -212,6 +212,13 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("RankList" =>
                                                      "Do_RankList")),
+                 "announcement" =>
+                        array("file"    => "announcement.ajax",
+                              "guest"   => false,
+                              "methods" => array("Dismiss" =>
+                                                     "Do_Dismiss",
+                                                 "Click" =>
+                                                     "Do_Click"))
 );
 
 #

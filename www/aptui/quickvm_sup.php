@@ -103,6 +103,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
         $showmenus = 1;
     }
+
     echo "<html>
       <head>
         <title>$title</title>
@@ -296,6 +297,21 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
           </div>
          </div>\n";
 
+    # Put announcements, if any, right below the header.
+    if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
+        $announcements = GET_ANNOUNCEMENTS($login_user->uid_idx());
+        for ($i = 0; $i < count($announcements); $i++) {
+          $current = $announcements[$i];
+          echo "<div class='alert ".$current['style']." alert-dismissible'
+                     role='alert' style='margin-top: -10px; margin-left: 40px; margin-right: 40px;'>";
+          echo "  <button type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true' onclick='APT_OPTIONS.announceDismiss(" . $current['aid'] . ")'>&times;</span></button>";
+          echo "  <span>" . $current["text"] . "</span>";
+          if ($current["url"]) {
+	    echo "  <a href='" . $current["url"] . "' class='btn btn-default' onclick='APT_OPTIONS.announceClick(" . $current["aid"] . ")' target='_blank'>" . $current["label"] . "</a>";
+          }
+          echo "  </div>";
+        }
+    }
     if (NOLOGINS()) {
         $message = TBGetSiteVar("web/message");
     }
@@ -366,6 +382,40 @@ function SPITHEADER($thinheader = 0,
     global $PAGEHEADER_FUNCTION;
 
     $PAGEHEADER_FUNCTION($thinheader, $ignore1, $ignore2, $ignore3);
+}
+
+function GET_ANNOUNCEMENTS($uid_idx)
+{
+  global $PORTAL_GENESIS;
+  $dblink = DBConnect("tbdb");
+  # Add an apt_announcement_info entry for any announcements which don't have one
+  $query_result = DBQueryWarn('select a.idx from apt_announcements as a left join apt_announcement_info as i on a.idx=i.aid and ((a.uid_idx is NULL and i.uid_idx="'.$uid_idx.'") or (a.uid_idx is not NULL and a.uid_idx=i.uid_idx)) where a.genesis="'.$PORTAL_GENESIS.'" and a.retired=0 and i.uid_idx is NULL and (a.uid_idx is NULL or a.uid_idx="'.$uid_idx.'")');
+  while ($row = mysql_fetch_array($query_result, MYSQL_NUM)) {
+      DBQueryWarn('insert into apt_announcement_info set aid="'.$row[0].'", uid_idx="'.$uid_idx.'",seen_count=0');
+  }
+
+  $query_result = DBQueryWarn('select a.idx, a.text, a.link_label, a.link_url, i.seen_count, a.style '.
+                               'from apt_announcements as a '.
+			       'left join apt_announcement_info as i on a.idx=i.aid '.
+			       'where (a.uid_idx is NULL or a.uid_idx="'.$uid_idx.'") and '.
+			       'a.retired = 0 and a.genesis="'.$PORTAL_GENESIS.'" and '. 
+			       'i.uid_idx="'.$uid_idx.'" and '.
+			       'i.dismissed = 0 and i.clicked = 0 and '.
+              		       'i.seen_count < 5', $dblink);
+  $result = array();
+  while ($row = mysql_fetch_array($query_result, MYSQL_NUM)) {
+    $item = array('text' => $row[1],
+                  'style' => $row[5],
+                  'label' => $row[2],
+                  'aid' => $row[0],
+                  'url' => $row[3]);
+    if ($row[3]) {
+      $item['url'] = preg_replace('/\{uid_idx\}/', $uid_idx, $row[3]);
+    }
+    array_push($result, $item);
+    DBQueryWarn('update apt_announcement_info set seen_count='.($row[4]+1).' where aid="'.$row[0].'" and uid_idx="'.$uid_idx.'"');
+  }
+  return $result;
 }
 
 $PAGEFOOTER_FUNCTION = function($ignored = NULL) {
