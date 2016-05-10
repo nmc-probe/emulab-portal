@@ -353,10 +353,10 @@ CREATE TABLE `apt_announcements` (
   `uid_idx` int(10) default NULL,
   `genesis` varchar(64) NOT NULL default 'emulab',
   `retired` tinyint(1) NOT NULL default '0',
-  `text` mediumtext NOT NULL default '',
+  `text` mediumtext,
   `style` varchar(64) NOT NULL default 'alert-info',
-  `link_label` tinytext NOT NULL default '',
-  `link_url` tinytext NOT NULL default '',
+  `link_label` tinytext,
+  `link_url` tinytext,
   PRIMARY KEY (`idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
