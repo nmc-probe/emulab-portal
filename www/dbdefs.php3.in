@@ -812,6 +812,9 @@ function DateStringGMT($date)
     if (is_null($date) || $date == "" || $date == "0000-00-00 00:00:00") {
         return null;
     }
+    elseif (is_int($date)) {
+        gmdate("Y-m-d\TH:i:s\Z", $date);
+    }
     return gmdate("Y-m-d\TH:i:s\Z", strtotime($date));
 }
 
