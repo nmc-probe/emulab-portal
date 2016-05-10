@@ -341,6 +341,40 @@ CREATE TABLE `apt_profiles` (
   UNIQUE KEY `pidname` (`pid_idx`,`name`,`version`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
+
+--
+-- Table structure for table `apt_announcements`
+--
+
+DROP TABLE IF EXISTS `apt_announcements`;
+CREATE TABLE `apt_announcements` (
+  `idx` int(10) unsigned NOT NULL auto_increment,
+  `created` datetime default NULL,
+  `uid_idx` int(10) default NULL,
+  `genesis` varchar(64) NOT NULL default 'emulab',
+  `retired` tinyint(1) NOT NULL default '0',
+  `text` mediumtext NOT NULL default '',
+  `style` varchar(64) NOT NULL default 'alert-info',
+  `link_label` tinytext NOT NULL default '',
+  `link_url` tinytext NOT NULL default '',
+  PRIMARY KEY (`idx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Table structure for table `apt_announcement_info`
+-- 
+
+DROP TABLE IF EXISTS `apt_announcement_info`;
+CREATE TABLE `apt_announcement_info` (
+  `idx` int(10) unsigned NOT NULL auto_increment,
+  `aid` int(10) NOT NULL default '0',
+  `uid_idx` int(10) default NULL,
+  `dismissed` tinyint(1) NOT NULL default '0',
+  `clicked` tinyint(1) NOT NULL default '0',
+  `seen_count` int(8) NOT NULL default '0',
+  PRIMARY KEY (`idx`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
 --
 -- Table structure for table `archive_revisions`
 --
