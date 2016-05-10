@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2014 University of Utah and the Flux Group.
+# Copyright (c) 2014-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -38,15 +38,20 @@ sub usage()
     print("Options:\n");
     print(" -b      - Run in the background\n");
     print(" -d      - Turn on debugging\n");
-    print(" -C      - Combine PXEBOOTING/BOOTING on the PXE event\n");
+    print(" -C      - Combine PXEBOOTING/BOOTING on PXE or U-boot boots;\n");
+    print("           Send nothing on an OS boot.");
     print(" -D      - Record event times in a DB to moderate send rate\n");
+    print(" -U      - Combine PXEBOOTING/BOOTING on U-boot boots only;\n");
+    print("           Send nothing on an PXE or OS boot.");
+    print("boot-type is one of OS, PXE, UBOOT.\n");
  
     exit(1);
 }
-my $optlist    = "bdCD";
+my $optlist    = "bdCDU";
 my $background = 0;
 my $debug      = 0;
 my $combined   = 0;
+my $ubootonly  = 0;
 my $usedb      = 0;
 
 #
@@ -105,6 +110,11 @@ if (! getopts($optlist, \%options)) {
 }
 if (defined($options{"C"})) {
     $combined = 1;
+    $ubootonly = 0;
+}
+if (defined($options{"U"})) {
+    $combined = 1;
+    $ubootonly = 1;
 }
 if (defined($options{"D"})) {
     $usedb = 1;
@@ -134,10 +144,10 @@ if ($MAC =~ /^([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):([0-9a
     print STDERR "'$ARGV[1]' is not a MAC address\n";
     usage();
 }
-if ($ARGV[2] =~ /^(PXE|OS)$/) {
+if ($ARGV[2] =~ /^(PXE|OS|UBOOT)$/) {
     $boottype = $1;
 } else {
-    print STDERR "'$ARGV[2]' must be one of PXE or OS\n";
+    print STDERR "Invalid boot-type '$ARGV[2]'\n";
     usage();
 }
 
@@ -203,23 +213,23 @@ if ($usedb) {
 # Note that this is essentially the same as what bootinfo does.
 #
 if ($combined) {
-    if ($boottype eq "PXE") {
+    if ($boottype eq "UBOOT" || ($boottype eq "PXE" && !$ubootonly)) {
 	if (sendevent($nodeid, "PXEBOOTING") ||
 	    sendevent($nodeid, "BOOTING")) {
 	    logit("$nodeid: could not send PXEBOOTING/BOOTING events");
 	    exit(1);
 	}
-	logit("$nodeid: sent PXEBOOTING and BOOTING events");
+	logit("$nodeid: $boottype: sent PXEBOOTING and BOOTING events");
     } else {
-	logit("$nodeid: NOT sending BOOTING event (combo mode)");
+	logit("$nodeid: $boottype: NOT sending BOOTING event (combo mode)");
     }
 } else {
     my $event = ($boottype eq "OS") ? "BOOTING" : "PXEBOOTING";
     if (sendevent($nodeid, $event)) {
-	logit("$nodeid: could not send $event event");
+	logit("$nodeid: $boottype: could not send $event event");
 	exit(1);
     }
-    logit("$nodeid: sent $event event");
+    logit("$nodeid: $boottype: sent $event event");
 }
 
 exit(0);
