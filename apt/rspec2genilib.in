@@ -125,7 +125,8 @@ my $genilib =
     "Portal = geni.portal.Context()\n" .
     "Nodes  = {}\n" .
     "Ifaces = {}\n" .
-    "Links = {}\n\n";
+    "Links = {}\n".
+    "Blockstores = {}\n\n";
 
 sub Add($)
 {
@@ -184,6 +185,13 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	    Add("Nodes['${client_id}'].xen_ptype = '$ptype'");
 	}
     }
+    elsif ($sliver_type eq "emulab-blockstore") {
+	# We will reset the mountpoint below when we process blockst
+	Add("Nodes['$client_id'] = " .
+	    "IG.RemoteBlockstore('$client_id', '/fixme')");
+	# And this created an interface internally.
+	Add("Ifaces['${client_id}:eth0'] = Nodes['$client_id'].interface");
+    }
     else {
 	Add("Nodes['${client_id}'] = PG.RawPC(\"$client_id\")");
     }
@@ -236,12 +244,12 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
     }
     
     #
-    # Interfaces.
+    # Interfaces. Skip interfaces on blockstore nodes, one was added when
+    # the RemoteBlockstore was created. 
     #
-    my @interfaces = GeniXML::FindNodes("n:interface",
-					$noderef)->get_nodelist();
-    if (@interfaces) {
-	foreach my $ifaceref (@interfaces) {
+    if ($sliver_type ne "emulab-blockstore") {
+	foreach my $ifaceref (GeniXML::FindNodes("n:interface",
+					     $noderef)->get_nodelist()) {
 	    my $virtual_id = GeniXML::GetInterfaceId($ifaceref);
 	    my ($vnode,$iface_id) = split(":", $virtual_id);
 	    my $ip   = GeniXML::GetIp($ifaceref, $noderef);
@@ -257,6 +265,42 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 		Add("Ifaces['$virtual_id'].component_id = '" .
 		    GeniXML::GetManagerId($ifaceref) . "'");
 	    }
+	}
+    }
+    #
+    # Blockstores. 
+    #
+    foreach my $blockref (GeniXML::FindNodesNS("n:blockstore", $noderef,
+				       $GeniXML::EMULAB_NS)->get_nodelist()) {
+	my $bsname    = GeniXML::GetText("name", $blockref);
+	my $class     = GeniXML::GetText("class", $blockref);
+	my $mount     = GeniXML::GetText("mountpoint", $blockref);
+	my $readonly  = GeniXML::GetText("readonly", $blockref);
+	my $dataset   = GeniXML::GetText("dataset", $blockref);
+	my $placement = GeniXML::GetText("placement", $blockref);
+	my $size      = GeniXML::GetText("size", $blockref);
+
+	if ($class eq "remote") {
+	    Add("Blockstores['$bsname'] = Nodes['$client_id']");
+	    
+	    # Reset cause we did not know it above.
+	    Add("Blockstores['$bsname'].mountpount = '$mount'");
+	}
+	else {
+	    Add("Blockstores['$bsname'] = " .
+		"IG.Blockstore('$bsname', '$mount')");
+	}
+	if (defined($readonly) && $readonly) {
+	    Add("Blockstores['$bsname'].readonly = True");
+	}
+	if (defined($size)) {
+	    Add("Blockstores['$bsname'].size = '$size'");
+	}
+	if (defined($placement)) {
+	    Add("Blockstores['$bsname'].placement = '$placement'");
+	}
+	if (defined($dataset)) {
+	    Add("Blockstores['$bsname'].dataset = '$dataset'");
 	}
     }
     Add("Rspec.addResource(Nodes['${client_id}'])\n");
