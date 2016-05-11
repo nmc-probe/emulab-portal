@@ -611,6 +611,70 @@ function GenGenilibKey()
     return 0;
 }
  
+#
+# Convert classic experiment to geni-lib script.
+#
+function Do_ConvertClassic()
+{
+    global $this_user;
+    global $ajax_args, $TB_EXPT_MODIFY;
+    
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing experiment uuid");
+	return;
+    }
+    $experiment = Experiment::LookupByUUID($ajax_args["uuid"]);
+    if (!$experiment) {
+	SPITAJAX_ERROR(1, "No such experiment.");
+	return;
+    }
+    if (!$experiment->AccessCheck($this_user, $TB_EXPT_MODIFY)) {
+	SPITAJAX_ERROR(1, "Not enough permission to create a profile from ".
+                       "this classic emulab experiment");
+        return;
+    }
+    $command = "webns2genilib";
+    #
+    # We want to parse in the context of the project, so we can do
+    # project based checks. 
+    #
+    if (isset($ajax_args["pid"]) && $ajax_args["pid"] != "") {
+        if (! TBvalid_pid($ajax_args["pid"])) {
+            SPITAJAX_ERROR(1, "Bad project name");
+            return;
+        }
+        $command .= " -p " . $ajax_args["pid"];
+    }
+    $outfname = tempnam("/tmp", "genilibout");
+    chmod($outfname, 0666);
+
+    #
+    # Invoke the backend.
+    #
+    $retval = SUEXEC($this_uid, "nobody", "$command -o $outfname ".
+                     "-e " . $experiment->pid() . "," . $experiment->eid(),
+		     SUEXEC_ACTION_IGNORE);
+    
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal error, we have been notified");
+	}
+	else {
+	    $errors = file_get_contents($outfname);
+	    SPITAJAX_ERROR(1, $errors);
+	}
+    }
+    else {
+	$script = file_get_contents($outfname);
+	SPITAJAX_RESPONSE(array("script"  => $script));
+    }
+    unlink($outfname);
+}
+
 # Local Variables:
 # mode:php
 # End:

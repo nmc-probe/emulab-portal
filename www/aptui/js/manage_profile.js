@@ -517,10 +517,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 		if (window.CLONING) {				
 		    sup.ShowModal('#warn_pp_modal');
 		}
-		else if (_.has(window, "EXPUUID")) {
-		    modified = true;
-		    checkScript($('#profile_script_textarea').val());
-		}
+	    }
+	    else if (_.has(window, "EXPUUID")) {
+		ConvertFromExperiment();
 	    }
 	}
     }
@@ -1109,6 +1108,47 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 					    "CheckScript",
 					    {"script"   : script,
 					     "pid"      : $('#profile_pid').val()});
+	xmlthing.done(callback);
+    }
+
+    /*
+     * Convert from an NS file. The server will do the conversion and spit
+     * back a genilib script.
+     */
+    function ConvertFromExperiment()
+    {
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    console.info(json.value);
+
+	    if (json.code) {
+		sup.SpitOops("oops",
+			     "<pre><code>" +
+			     $('<div/>').text(json.value).html() +
+			     "</code></pre>");
+		return;
+	    }
+	    $('#rspec_modal_download_button').addClass("hidden");
+	    $('#rspec_modal_editbuttons').removeClass("hidden");
+	    $('#rspec_modal_viewbuttons').addClass("hidden");
+	    $('#modal_profile_rspec_textarea').prop("readonly", false);	    
+	    $('#modal_profile_rspec_textarea').val(json.value.script);
+	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
+	    $('#rspec_modal').modal('show');
+	}
+	/*
+	 * Send along the project if one is selected; only makes sense
+	 * for NS files, which need to do project based checks on a few
+	 * things (images and blockstores being the most important).
+	 * If this is a modification to an existing profile, we still
+	 * have the project name in the same variable.
+	 */
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "manage_profile",
+					    "ConvertClassic",
+					    {"uuid"   : window.EXPUUID,
+					     "pid"    : $('#profile_pid').val()});
 	xmlthing.done(callback);
     }
 	

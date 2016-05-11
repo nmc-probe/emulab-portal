@@ -1,0 +1,376 @@
+#!/usr/bin/perl -w
+
+#
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use File::Temp qw(tempfile :mktemp :POSIX );
+use POSIX qw(:signal_h);
+use POSIX ":sys_wait_h";
+use File::stat;
+use Data::Dumper;
+
+#
+# Convert rspec to geni lib.
+#
+sub usage()
+{
+    print STDERR "Usage: rspec2genilib [-o filename] rspec\n";
+    print STDERR "Options:\n";
+    print STDERR"  -o file  : Specify output file\n";
+    exit(-1);
+}
+my $optlist    = "do:";
+my $debug      = 0;
+my $ofile;
+
+#
+# Configure variables
+#
+my $TB       = "@prefix@";
+my $TBOPS    = "@TBOPSEMAIL@";
+my $XMLLINT  = "/usr/local/bin/xmllint";
+
+# Locals
+my $rspecfile;
+
+# Protos
+sub fatal($);
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "$TB/bin:$TB/sbin:/bin:/usr/bin:/sbin:/usr/sbin";
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+if ($UID == 0) {
+    die("Please do not run this as root!");
+}
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use GeniXML;
+
+#
+# Parse command arguments. Once we return from getopts, all that should
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"o"})) {
+    $ofile = $options{"o"};
+}
+if (@ARGV != 1) {
+    usage();
+}
+$rspecfile = $ARGV[0];
+
+#
+# Must taint check!
+#
+if ($rspecfile =~ /^([-\w\/\.]+)$/) {
+    $rspecfile = $1;
+}
+else {
+    die("Bad data in argument: $rspecfile.");
+}
+my $xmlerrors = `$XMLLINT --noout $rspecfile 2>&1`;
+if ($?) {
+    print STDERR $xmlerrors;
+    Fatal("rspec is not well formed");
+}
+my $rspec = GeniXML::ParseFile($rspecfile);
+if (! defined($rspec)) {
+    Fatal("Could not parse rspec");
+}
+my $genilib =
+    "import geni.portal\n" .
+    "import geni.rspec.pg as PG\n" .
+    "import geni.rspec.igext as IG\n" .
+    "\n" .
+    "Rspec = PG.Request()\n" .
+    "Portal = geni.portal.Context()\n" .
+    "Nodes  = {}\n" .
+    "Ifaces = {}\n" .
+    "Links = {}\n\n";
+
+sub Add($)
+{
+    $genilib .= $_[0] . "\n";
+}
+
+#
+# Tour description and instructions.
+#
+my ($rspec_tour) = GeniXML::FindNodesNS("n:rspec_tour", $rspec,
+					$GeniXML::RSPEC_TOUR)->get_nodelist();
+if (defined($rspec_tour)) {
+    my $description  = GeniXML::FindFirst("n:description", $rspec_tour);
+    my $instructions = GeniXML::FindFirst("n:instructions", $rspec_tour);
+
+    Add("Tour = IG.Tour()");
+    if (defined($description)) {
+	my $text = $description->textContent();
+
+	Add("Tour.Description(IG.Tour.TEXT, '$text')");
+    }
+    if (defined($instructions)) {
+	my $text = $instructions->textContent();
+
+	Add("Tour.Instructions(IG.Tour.TEXT, '$text')");
+    }
+    Add("Rspec.addTour(Tour)\n");
+}
+
+foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
+    my $client_id   = GeniXML::GetVirtualId($noderef);
+    my $sliver_type = GeniXML::GetVirtualizationSubtype($noderef);
+    my $exclusive   = GeniXML::GetExclusive($noderef);
+    
+    if ($sliver_type eq "emulab-xen") {
+	Add("Nodes['${client_id}'] = IG.XenVM(\"$client_id\")");
+	if (GeniXML::HasXenSettings($noderef)) {
+	    my $xensettings = GeniXML::GetXenSettings($noderef);
+	    
+	    foreach my $setting (keys(%$xensettings)) {
+		my $value = $xensettings->{$setting};
+		if ($setting eq "ram") {
+		    Add("Nodes['${client_id}'].ram = $value");
+		}
+		elsif ($setting eq "cores") {
+		    Add("Nodes['${client_id}'].cores = $value");
+		}
+		elsif ($setting eq "disk") {
+		    Add("Nodes['${client_id}'].disk = $value");
+		}
+	    }
+	}
+	# xen_ptype is how we force to a node type.
+	if (defined(GeniXML::XenPtype($noderef))) {
+	    my $ptype = GeniXML::XenPtype($noderef);
+	    Add("Nodes['${client_id}'].xen_ptype = '$ptype'");
+	}
+    }
+    else {
+	Add("Nodes['${client_id}'] = PG.RawPC(\"$client_id\")");
+    }
+    if (defined($exclusive)) {
+	Add("Nodes['${client_id}'].exclusive = " . ($exclusive ? "True" : "False"));
+    }
+    if (GeniXML::GetNodeId($noderef)) {
+	Add("Nodes['${client_id}'].component_id = '" .
+	    GeniXML::GetNodeId($noderef) . "'");
+    }
+    if (GeniXML::GetManagerId($noderef)) {
+	Add("Nodes['${client_id}'].component_manager_id = '" .
+	    GeniXML::GetManagerId($noderef) . "'");
+    }
+    if (GeniXML::FindFirst("n:hardware_type", $noderef)) {
+	my $element = GeniXML::FindFirst("n:hardware_type", $noderef);
+	my $htype   = GeniXML::GetText("name", $element);
+	Add("Nodes['${client_id}'].hardware_type = '$htype'");
+    }
+    if (GeniXML::RoutableControlIP($noderef)) {
+	Add("Nodes['${client_id}'].routable_control_ip = True");
+    }
+    
+    #
+    # Disk image.
+    #
+    my $diskref = GeniXML::GetDiskImage($noderef);
+    if (defined($diskref)) {
+	my $name  = GeniXML::GetText("name", $diskref);
+	Add("Nodes['${client_id}'].disk_image = '$name'");
+    }
+    #
+    # Services.
+    #
+    foreach my $service (GeniXML::GetServices($noderef)) {
+	my $type = $service->{'type'};
+	
+	if ($type eq "execute") {
+	    my $shell = $service->{'shell'};
+	    my $cmd   = $service->{'cmd'};
+	    	
+	    Add("Nodes['${client_id}'].addService(PG.Execute('$shell','$cmd'))");
+	}
+	elsif ($type eq "install") {
+	    my $url  =  $service->{'url'};
+	    my $path =  $service->{'dir'};
+		
+	    Add("Nodes['${client_id}'].addService(PG.Install('$url','$path'))");
+	}
+    }
+    
+    #
+    # Interfaces.
+    #
+    my @interfaces = GeniXML::FindNodes("n:interface",
+					$noderef)->get_nodelist();
+    if (@interfaces) {
+	foreach my $ifaceref (@interfaces) {
+	    my $virtual_id = GeniXML::GetInterfaceId($ifaceref);
+	    my ($vnode,$iface_id) = split(":", $virtual_id);
+	    my $ip   = GeniXML::GetIp($ifaceref, $noderef);
+	    my $mask = GeniXML::GetMask($ifaceref, $noderef);
+
+	    Add("Ifaces['$virtual_id'] = " .
+		"Nodes['${client_id}'].addInterface('$iface_id')");
+
+	    if ($ip && $mask) {
+		Add("Ifaces['$virtual_id'].addAddress(PG.IPv4Address('$ip','$mask'))");
+	    }
+	    if (GeniXML::GetVnodeId($ifaceref)) {
+		Add("Ifaces['$virtual_id'].component_id = '" .
+		    GeniXML::GetManagerId($ifaceref) . "'");
+	    }
+	}
+    }
+    Add("Rspec.addResource(Nodes['${client_id}'])\n");
+}
+#
+# Links ...
+#
+foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
+    my $client_id   = GeniXML::GetVirtualId($linkref);
+    my $linktype    = GeniXML::LinkType($linkref);
+
+    if (defined($linktype) && $linktype eq "lan") {
+	Add("Links['$client_id'] = PG.LAN('$client_id')");
+    }
+    else {
+	Add("Links['$client_id'] = PG.Link('$client_id')");
+    }
+
+    #
+    # Link properties
+    #
+    if (GeniXML::GetManagerId($linkref)) {
+	Add("Links['${client_id}'].component_manager_id = '" .
+	    GeniXML::GetManagerId($linkref) . "'");
+    }
+    if (GeniXML::HasBestEffortSetting($linkref)) {
+	Add("Links['${client_id}'].best_effort = True");
+    }
+    if (GeniXML::HasTrivialSetting($linkref)) {
+	my $istrivial = (GeniXML::TrivialOkay($linkref) ? "True" : "False");
+	Add("Links['${client_id}'].trivial_ok = $istrivial");
+    }
+    if (GeniXML::HasTagSetting($linkref)) {
+	my $istagged = (GeniXML::IsTaggedLan($linkref) ? "True" : "False");
+	Add("Links['${client_id}'].vlan_tagging = $istagged");
+    }
+    if (GeniXML::IsMultiplexedLan($linkref)) {
+	Add("Links['${client_id}'].link_multiplexing = True");
+    }
+    if (GeniXML::GetText("protocol", $linkref)) {
+	my $protocol = GeniXML::GetText("protocol", $linkref);
+	Add("Links['${client_id}'].protocol = '$protocol'");
+    }
+    #
+    # Shaping.
+    #
+    my @properties = GeniXML::GetLinkProperties($linkref);
+    if (@properties) {
+	foreach my $property (@properties) {
+	    my $source   = GetText("source_id", $property);
+	    my $dest     = GetText("dest_id", $property);
+	    my $capacity = GetText("capacity", $property);
+	    my $plr      = GetText("packet_loss", $property);
+	    my $latency  = GetText("latency", $property);
+
+	    if (defined($capacity)) {
+		Add("Ifaces['${source}'].bandwidth = $capacity");
+	    }
+	    if (defined($latency)) {
+		Add("Ifaces['${source}'].latency = $latency");
+	    }
+	    if (defined($plr)) {
+		Add("Ifaces['${source}'].plr = $plr");
+	    }
+	}
+    }
+    #
+    # Interfaces.
+    #
+    my @interfaces = GeniXML::FindNodes("n:interface_ref",
+					$linkref)->get_nodelist();
+    if (@interfaces) {
+	foreach my $ifaceref (@interfaces) {
+	    my $virtual_id = GeniXML::GetInterfaceId($ifaceref);
+
+	    Add("Links['${client_id}'].addInterface(Ifaces['${virtual_id}'])");
+	}
+    }
+    Add("Rspec.addResource(Links['${client_id}'])\n");
+}
+
+#
+# Special top level elements.
+#
+if (GeniXML::MultiplexFactor($rspec)) {
+    my $factor = GeniXML::MultiplexFactor($rspec);
+    Add("Rspec.setCollocateFactor($factor)");
+}
+if (GeniXML::PackingStrategy($rspec)) {
+    my $packing_option = GeniXML::PackingStrategy($rspec);
+    Add("Rspec.setPackingStrategy($packing_option)");
+}
+foreach my $pool (@{ GeniXML::GetAddressPools($rspec) }) {
+    my $name  = $pool->{'client_id'};
+    my $count = $pool->{'count'};
+    my $cmurn = $pool->{'cmurn'};
+
+    Add("pool = IG.AddressPool('$name', $count)");
+    if (defined($cmurn)) {
+	Add("pool.component_manager_id = '$cmurn'");
+    }
+    Add("Rspec.addResource(pool)");
+}
+Add("Portal.printRequestRSpec(Rspec)");
+
+print "$genilib";
+
+exit(0);
+
+sub fatal($) {
+    my ($mesg) = $_[0];
+
+    print STDERR "*** $0:\n".
+	         "    $mesg\n";
+
+    exit(-1);
+}
