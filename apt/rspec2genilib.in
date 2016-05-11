@@ -283,12 +283,13 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	if ($class eq "remote") {
 	    Add("Blockstores['$bsname'] = Nodes['$client_id']");
 	    
-	    # Reset cause we did not know it above.
-	    Add("Blockstores['$bsname'].mountpount = '$mount'");
+	    # Reset cause we did not know it above. Note that the setter
+	    # is not working, not sure why.
+	    Add("Blockstores['$bsname']._bs.mount = '$mount'");
 	}
 	else {
 	    Add("Blockstores['$bsname'] = " .
-		"IG.Blockstore('$bsname', '$mount')");
+		"Nodes['$client_id'].Blockstore('$bsname', '$mount')");
 	}
 	if (defined($readonly) && $readonly) {
 	    Add("Blockstores['$bsname'].readonly = True");
@@ -302,6 +303,16 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	if (defined($dataset)) {
 	    Add("Blockstores['$bsname'].dataset = '$dataset'");
 	}
+    }
+    #
+    # Desires.
+    #
+    foreach my $desire (GeniXML::FindNodesNS("n:fd", $noderef,
+				       $GeniXML::EMULAB_NS)->get_nodelist()) {
+	my $name    = GeniXML::GetText("name", $desire);
+	my $weight  = GeniXML::GetText("weight", $desire);
+
+	Add("Nodes['${client_id}'].Desire('$name','$weight')");
     }
     Add("Rspec.addResource(Nodes['${client_id}'])\n");
 }
