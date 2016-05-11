@@ -75,6 +75,28 @@ function Do_ExperimentList()
     SPITAJAX_RESPONSE($results);
 }
 
+function Do_ClassicExperimentList()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $results = ClassicExperimentList("project", $target_project);
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_ClassicProfileList()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $results = ClassicExperimentList("project", $target_project, "inactive");
+    SPITAJAX_RESPONSE($results);
+}
+
 function Do_ProfileList()
 {
     global $this_user, $target_project;
@@ -128,6 +150,7 @@ function Do_ProjectProfile()
     $results["pid"]         = $target_project->pid();
     $results["pid_idx"]     = $target_project->pid_idx();
     $results["leader"]      = $target_project->head_uid();
+    $results["genesis"]     = $target_project->genesis();
     $results["created"]     = DateStringGMT($target_project->created());
     $results["approved"]    = $target_project->approved();
     $results["url"]         = $target_project->URL();

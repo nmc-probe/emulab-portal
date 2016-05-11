@@ -22,6 +22,76 @@
 # }}}
 #
 
+function ClassicExperimentList($which, $target, $state = "active")
+{
+    global $urn_mapping, $TBBASE;
+    global $this_user;
+
+    if ($state == "active") {
+        $stateclause = "and (e.state='active' or e.state='activating')";
+    }
+    elseif ($state == "inactive") {
+        $stateclause = "and (e.state='swapped')";
+    }
+
+    if ($which == "user") {
+        $target_idx = $target->uid_idx();
+        $whereclause = "where e.swapper_idx='$target_idx'";
+    }
+    else {
+        $target_pid = $target->pid();
+        $whereclause = "where e.pid='$target_pid'";
+    }
+    $results = array();
+
+    $query_result =
+        DBQueryFatal("select idx from experiments as e ".
+                     "$whereclause $stateclause");
+
+    while ($row = mysql_fetch_array($query_result)) {
+        $idx = $row["idx"];
+        $experiment = Experiment::Lookup($idx);
+        $resources  = $experiment->GetResources();
+        $stats      = $experiment->GetStats();
+
+        $url          = $TBBASE . "/" . CreateURL("showexp", $experiment);
+        $creator_uid  = $experiment->creator();
+        $pid          = $experiment->pid();
+        $eid          = $experiment->eid();
+        $swapped      = DateStringGMT($stats->swapin_last());
+        $created      = DateStringGMT($experiment->created());
+        $pcount       = $experiment->PCCount();
+        $phours       = sprintf("%.2f",(($pcount * $experiment->SwapSeconds()) /
+                                        3600.0));
+        
+        $blob             = array();
+        $blob["idx"]      = $idx;
+        $blob["pid"]      = "<a href='show-project.php?project=$pid'>$pid</a>";
+        $blob["eid"]      = "<a href='$url'>$eid</a>";
+
+        if (ISADMIN() || $which == "project") {
+            $blob["creator"] =
+                "<a href='user-dashboard.php?user=$creator_uid'>".
+                "$creator_uid</a>";
+        }
+        else {
+            $blob["creator"] = $creator_uid;
+        }
+        $cluster = "Emulab";
+
+        $blob["cluster"]      = "Emulab";
+        $blob["pcount"]       = $pcount;
+        $blob["phours"]       = $phours;
+        $blob["vcount"]       = $resources->vnodes();
+        $blob["swapped"]      = $swapped;
+        $blob["created"]      = $created;
+        $blob["state"]        = $experiment->state();
+        $blob["description"]  = CleanString($experiment->description());
+        $results["$pid:$eid"] = $blob;
+    }
+    return $results;
+}
+
 function ExperimentList($which, $target)
 {
     global $urn_mapping, $TBBASE;

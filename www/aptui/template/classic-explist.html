@@ -1,0 +1,53 @@
+<div>
+  <h4 class="text-center">Classic Emulab Experiments</h4>
+  <table class='tablesorter'>
+    <thead>
+      <tr>
+	<th>Name</th>
+	<% if (showCreator) { %>
+	  <th>Creator</th>
+	<% } %>
+	<% if (showProject) { %>
+	  <th>Project</th>
+	<% } %>
+	<% if (asProfiles) { %>
+	  <th>Description</th>
+	<% } else { %>
+	  <th>State</th>
+	  <th>Cluster</th>
+	  <th>PCs</th>
+	  <th>PHours<b>[1]</b></th>
+	  <th>VMs</th>
+	<% } %>
+	<th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% _.each(experiments, function(value, name) { %>
+	<tr>
+	  <td><%= value.eid %></td>
+	  <% if (showCreator) { %>
+	    <td><%= value.creator %></td>
+	  <% } %>
+	  <% if (showProject) { %>
+	    <td><%= value.pid %></td>
+	  <% } %>
+	  <% if (asProfiles) { %>
+	    <td><%- value.description %></td>
+	    <td class="format-date"><%- value.created %></td>
+	  <% } else { %>
+	    <td><%- value.state %></td>
+	    <td><%- value.cluster %></td>
+	    <td><%- value.pcount %></td>
+	    <td><%- value.phours %></td>
+	    <td><%- value.vcount %></td>
+	    <td class="format-date"><%- value.swapped %></td>
+	  <% } %>
+	</tr>
+      <% }); %>
+    </tbody>
+  </table>
+  [1] <b>PHours</b>: Number of nodes times number of hours in use.<br>
+</div>
+
+

@@ -7,10 +7,11 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/user-profile.html',
 	 'js/lib/text!template/oops-modal.html',
 	 'js/lib/text!template/waitwait-modal.html',
+	 'js/lib/text!template/classic-explist.html',
 	],
 function (_, sup, moment, mainString,
 	  experimentString, profileListString, projectString,
-	  profileString, oopsString, waitwaitString)
+	  profileString, oopsString, waitwaitString, classicString)
 {
     'use strict';
     var mainTemplate = _.template(mainString);
@@ -49,8 +50,10 @@ function (_, sup, moment, mainString,
 
 	LoadUsage();
 	LoadExperimentTab();
+	LoadClassicExperiments();
 	// Should we do these on demand?
 	LoadProfileListTab();
+	LoadClassicProfiles();
 	LoadProjectsTab();
 	LoadProfileTab();
 
@@ -145,6 +148,41 @@ function (_, sup, moment, mainString,
 	xmlthing.done(callback);
     }
 
+    function LoadClassicExperiments()
+    {
+	var callback = function(json) {
+	    console.info("classic", json);
+
+	    if (json.code) {
+		console.info(json.value);
+		return;
+	    }
+	    var template = _.template(classicString);
+
+	    $('#classic_experiments_content')
+		.html(template({"experiments" : json.value,
+				"showCreator" : false,
+				"showProject" : true,
+				"asProfiles"  : false}));				
+	    
+	    // Format dates with moment before display.
+	    $('#classic_experiments_content .format-date').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html()).format("ll"));
+		}
+	    });
+	    var table = $('#classic_experiments_content .tablesorter')
+		.tablesorter({
+		    theme : 'green',
+		});
+	};
+	var xmlthing = sup.CallServerMethod(null,
+					    "user-dashboard", "ClassicExperimentList",
+					    {"uid" : window.TARGET_USER});
+	xmlthing.done(callback);
+    }
+
     function LoadProfileListTab()
     {
 	var callback = function(json) {
@@ -203,6 +241,40 @@ function (_, sup, moment, mainString,
 	}
 	var xmlthing = sup.CallServerMethod(null,
 					    "user-dashboard", "ProfileList",
+					    {"uid" : window.TARGET_USER});
+	xmlthing.done(callback);
+    }
+
+    function LoadClassicProfiles()
+    {
+	var callback = function(json) {
+	    console.info("classic profiles", json);
+
+	    if (json.code) {
+		console.info(json.value);
+		return;
+	    }
+	    var template = _.template(classicString);
+
+	    $('#classic_profiles_content')
+		.html(template({"experiments" : json.value,
+				"showCreator" : false,
+				"showProject" : true,
+				"asProfiles"  : true}));
+	    
+	    $('#classic_profiles_content .format-date').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html()).format("ll"));
+		}
+	    });
+	    var table = $('#classic_profiles_content .tablesorter')
+		.tablesorter({
+		    theme : 'green',
+		});
+	};
+	var xmlthing = sup.CallServerMethod(null,
+					    "user-dashboard", "ClassicProfileList",
 					    {"uid" : window.TARGET_USER});
 	xmlthing.done(callback);
     }

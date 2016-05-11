@@ -287,7 +287,9 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 	             <li><a href='myprofiles.php?all=1'>
                             All Profiles</a></li>
 	             <li><a href='list-datasets.php?all=1'>
-                            All Datasets</a></li>";
+                            All Datasets</a></li>
+	             <li><a href='lists.php'>
+                            Users/Projects</a></li>";
            
            echo " </ul>
                 </li>\n";
