@@ -109,7 +109,7 @@ for child in tree.getroot():
             #
             # We handle a subset of node things.
             #
-            if element.tag == "osname":
+            if element.tag == "osname" and element.text:
                 #
                 # Convert NS project/osname to rspec project//osname.
                 # But if no project, add emulab-ops (clearly wrong).
