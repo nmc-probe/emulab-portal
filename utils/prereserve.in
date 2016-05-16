@@ -665,12 +665,18 @@ sub StartReservation($$)
 	
 	while (my ($node_id,$reserved_pid,
 		   $reservation_name) = $query_result->fetchrow_array()) {
-	    $current++;
 	    if (!defined($reserved_pid)) {
 		DBQueryFatal("update nodes set reserved_pid='$pid', ".
 			     "   reservation_name='$resname' ".
 			     "where node_id='$node_id'");
 		$tcount++;
+	    }
+	    #
+	    # It is unlikely this will happen, unless someone mucks with
+	    # the database directly. 
+	    #
+	    elsif ($reserved_pid eq $pid && $reservation_name eq $resname) {
+		$current++;
 	    }
 	    last
 		if ($current >= $count);
