@@ -4240,6 +4240,16 @@ CREATE TABLE `reposition_status` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `reservation_version`
+--
+
+DROP TABLE IF EXISTS `reservation_version`;
+CREATE TABLE `reservation_version` (
+  `version` int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`version`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `reserved`
 --
 
