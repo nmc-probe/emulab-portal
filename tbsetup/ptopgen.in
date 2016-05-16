@@ -1156,7 +1156,7 @@ while (($node,$type,$physnode,$class,$issubnode,$def_boot_osid,$reserved,
 	$storage_node{$node} = 1;
     }
 
-    if (defined($prereserved) && !(defined($pid) && $prereserved eq $pid)) {
+    if (defined($prereserved) && (defined($pid) && $prereserved eq $pid)) {
 	$is_prereserved{$node} = $prereserved;
     }
 
@@ -1540,7 +1540,7 @@ foreach $node (@nodenames) {
     }
 
     if (exists($is_prereserved{$node})) {
-	push(@features,"prereserved:0.9");
+	push(@features,"prereserved:0");
     }
 
     # For robots, prefer ones that are already powered on and/or won't need to

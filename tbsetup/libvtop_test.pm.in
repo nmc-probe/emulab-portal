@@ -2367,6 +2367,9 @@ sub GenVirtNodes($)
 	if (defined($vnode->_startloc())) {
 	    $desires->{"area-" . $vnode->_startloc()} = ['', 1.000000];
 	}
+	# Tell assign to favor nodes that are pre-reserved to the project.
+	$desires->{'prereserved'} = ['', 0.2];
+	
 	# Require that this vnode be placed onto a pnode that supports
 	# the OS it is going to run. However, if the OS is one with a
 	# 'path' (like an OSKit kernel), we don't have an entry in
