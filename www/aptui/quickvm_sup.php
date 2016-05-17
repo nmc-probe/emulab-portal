@@ -301,7 +301,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
 
     # Put announcements, if any, right below the header.
     if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
-        $announcements = GET_ANNOUNCEMENTS($login_user->uid_idx());
+        $announcements = GET_ANNOUNCEMENTS($login_user);
         for ($i = 0; $i < count($announcements); $i++) {
           $current = $announcements[$i];
           echo "<div class='alert ".$current['style']." alert-dismissible'
@@ -386,9 +386,11 @@ function SPITHEADER($thinheader = 0,
     $PAGEHEADER_FUNCTION($thinheader, $ignore1, $ignore2, $ignore3);
 }
 
-function GET_ANNOUNCEMENTS($uid_idx)
+function GET_ANNOUNCEMENTS($user)
 {
   global $PORTAL_GENESIS;
+  $uid = $user->uid();
+  $uid_idx = $user->uid_idx();
   $dblink = DBConnect("tbdb");
   # Add an apt_announcement_info entry for any announcements which don't have one
   $query_result = DBQueryWarn('select a.idx from apt_announcements as a left join apt_announcement_info as i on a.idx=i.aid and ((a.uid_idx is NULL and i.uid_idx="'.$uid_idx.'") or (a.uid_idx is not NULL and a.uid_idx=i.uid_idx)) where a.genesis="'.$PORTAL_GENESIS.'" and a.retired=0 and i.uid_idx is NULL and (a.uid_idx is NULL or a.uid_idx="'.$uid_idx.'")');
@@ -403,7 +405,7 @@ function GET_ANNOUNCEMENTS($uid_idx)
 			       'a.retired = 0 and a.genesis="'.$PORTAL_GENESIS.'" and '. 
 			       'i.uid_idx="'.$uid_idx.'" and '.
 			       'i.dismissed = 0 and i.clicked = 0 and '.
-              		       'i.seen_count < 5', $dblink);
+              		       '(a.max_seen = 0 or i.seen_count < a.max_seen)', $dblink);
   $result = array();
   while ($row = mysql_fetch_array($query_result, MYSQL_NUM)) {
     $item = array('text' => $row[1],
@@ -412,7 +414,8 @@ function GET_ANNOUNCEMENTS($uid_idx)
                   'aid' => $row[0],
                   'url' => $row[3]);
     if ($row[3]) {
-      $item['url'] = preg_replace('/\{uid_idx\}/', $uid_idx, $row[3]);
+      $item['url'] = preg_replace('/\{uid_idx\}/', $uid_idx, $item['url']);
+      $item['url'] = preg_replace('/\{uid\}/', $uid, $item['url']);
     }
     array_push($result, $item);
     DBQueryWarn('update apt_announcement_info set seen_count='.($row[4]+1).' where aid="'.$row[0].'" and uid_idx="'.$uid_idx.'"');
