@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -321,6 +321,7 @@ sub needsfirewall($)	{ return field($_[0], "needsfirewall"); }
 sub name($)		{ return field($_[0], "name"); }
 sub registered($)	{ return field($_[0], "registered"); }
 sub lockdown($)		{ return field($_[0], "lockdown"); }
+sub locked($)		{ return field($_[0], "locked"); }
 sub isplaceholder($)	{ return field($_[0], "isplaceholder"); }
 sub monitor_pid($)	{ return field($_[0], "monitor_pid"); }
 sub speaksfor_urn($)	{ return field($_[0], "speaksfor_urn"); }
