@@ -65,7 +65,7 @@ foreach my $switch (@ARGV) {
     #
     # Is it a Cisco or maybe an HP
     my $type = getDeviceType($switch);
-    if ($type !~ /cisco/ && $type !~ /catalyst/ && $type !~ /hp/ ) {
+    if ($type !~ /cisco/ && $type !~ /catalyst/ && $type !~ /hp/ && $type !~ /force10/ ) {
 	die " *** $0:\n" .
 	    "     only Cisco and Procurves supported NOT (type $type)\n";
     }
@@ -78,6 +78,14 @@ foreach my $switch (@ARGV) {
     if ($type =~ /hp/ ) {
 	system "scp $switch:/cfg/running-config $BACKUPDIR/$switch-$datestr\n"
 	    and die "Unable to grab and save config for $switch\n"
+    }
+    if ($type =~ /force10/ ) {
+	system "ssh toor\@$switch write terminal \> $BACKUPDIR/$switch.in\n"
+	    and die "Unable to grab and save config for $switch\n";
+        system "egrep -v \\#\\|Current $BACKUPDIR/$switch.in \> $BACKUPDIR/$switch-$datestr\n"
+	    and die "Unable to strip first and last lines for $switch\n";
+	system "rm -f  $BACKUPDIR/$switch.in\n"
+	        and die "rm $BACKUPDIR/$switch.in failed\n"
     }
 }
 
