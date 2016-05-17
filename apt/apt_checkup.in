@@ -1,0 +1,241 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
+# 
+# {{{GENIPUBLIC-LICENSE
+# 
+# GENI Public License
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and/or hardware specification (the "Work") to
+# deal in the Work without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Work, and to permit persons to whom the Work
+# is furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Work.
+# 
+# THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+# IN THE WORK.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use Data::Dumper;
+use JSON;
+use File::Basename;
+
+#
+# Look for APT things that need to be dealt with.
+#
+sub usage()
+{
+    print "Usage: apt_checkup [-d] [-s]\n";
+    exit(1);
+}
+my $optlist   = "dns";
+my $debug     = 0;
+my $oneshot   = 0;
+
+#
+# Configure variables
+#
+my $TB		     = "@prefix@";
+my $TBOPS            = "@TBOPSEMAIL@";
+my $TBLOGS           = "@TBLOGSEMAIL@";
+my $MAINSITE         = @TBMAINSITE@;
+my $LOGFILE          = "$TB/log/apt_checkup.log";
+my $MANAGEINSTANCE   = "$TB/bin/manage_instance";
+my $PROTOUSER	     = "elabman";
+my $SUDO	     = "/usr/local/bin/sudo";
+my $SLEEP_INTERVAL   = 600;
+
+# un-taint path
+$ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
+delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
+
+# Protos
+sub fatal($);
+	  
+#
+# Turn off line buffering on output
+#
+$| = 1; 
+
+if ($UID != 0) {
+    fatal("Must be root to run this script\n");
+}
+if (! $MAINSITE) {
+    exit(0);
+}
+
+#
+# Check args early so we get the right DB.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"d"})) {
+    $debug = 1;
+}
+if (defined($options{"s"})) {
+    $oneshot = 1;
+}
+
+# Load the Testbed support stuff.
+use lib "@prefix@/lib";
+use emdb;
+use Experiment;
+use Node;
+use libtestbed;
+use emutil;
+use libEmulab;
+use GeniResponse;
+use APT_Instance;
+use POSIX qw(strftime ceil);
+
+if (!$oneshot) {
+    if (CheckDaemonRunning("apt_checkup")) {
+	fatal("Not starting another apt checkup!");
+    }
+    # Go to ground.
+    if (! $debug) {
+	if (TBBackGround($LOGFILE)) {
+	    exit(0);
+	}
+    }
+    if (MarkDaemonRunning("apt_checkup")) {
+	fatal("Could not mark daemon as running!");
+    }
+}
+
+#
+# Setup a signal handler for newsyslog.
+#
+sub handler()
+{
+    my $SAVEEUID = $EUID;
+    
+    $EUID = 0;
+    ReOpenLog($LOGFILE);
+    $EUID = $SAVEEUID;
+}
+$SIG{HUP} = \&handler
+    if (! ($debug || $oneshot));
+
+#
+# We call this function on each instance.
+#
+sub CheckInstanceStatus($)
+{
+    my ($uuid) = @_;
+    my $instance = APT_Instance->Lookup($uuid);
+    if (!defined($instance)) {
+	print STDERR "$instance no longer exists\n";
+	return 0;
+    }
+    $instance->Flush();
+    
+    my $slice = $instance->GetGeniSlice();
+    if (!defined($slice)) {
+	print STDERR "No slice for instance $uuid\n";
+	return 0;
+    }
+    $slice->Flush();
+    
+    # Do not bother if the slice is locked, try again next interval.
+    if (defined($slice->locked())) {
+	print STDERR "Slice is locked for instance $uuid\n";
+	return 0;
+    }
+    print STDERR "Checking instance " . $instance->name() . "\n"
+	if ($debug);
+    
+    # Use debug option to keep it from going into the background.
+    my $output = emutil::ExecQuiet("$SUDO -u $PROTOUSER ".
+				   "$MANAGEINSTANCE -d refresh $uuid");
+    # We do not care about failure here.
+    if ($?) {
+	print STDERR "Failure for instance " . $instance->name() . ":\n" .
+	    $output . "\n";
+    }
+    print STDERR "Done checking instance " . $instance->name() . "\n"
+	if ($debug);
+    return 0;
+}
+
+#
+# Check status for all instances.
+#
+sub CheckAllInstances()
+{
+    my @return_codes = ();
+    my @instances    = ();
+    
+    my $query_result =
+	DBQueryWarn("select uuid from apt_instances " .
+		    "where status='ready' and ".
+		    "      (UNIX_TIMESTAMP(now()) - ".
+		    "       UNIX_TIMESTAMP(created) > 300)");
+    return
+	if (!$query_result || !$query_result->numrows);
+
+    while (my ($uuid) = $query_result->fetchrow_array()) {
+	push(@instances, $uuid);
+    }
+    if (ParRun({"maxwaittime" => 1000,
+		"maxchildren" => 10},
+	    \@return_codes, \&CheckInstanceStatus, @instances)) {
+	return;
+    }
+}
+
+#
+# Loop, asking for status for every instance.
+#
+while (1) {
+    if (NoLogins()) {
+	sleep(5);
+	next;
+    }
+    print "Running at ".
+	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
+
+    CheckAllInstances();
+
+    exit(0)
+	if ($oneshot);
+    
+    sleep($SLEEP_INTERVAL);
+}
+exit(0);
+
+sub fatal($)
+{
+    my ($msg) = @_;
+
+    if (! ($oneshot || $debug)) {
+	#
+	# Send a message to the testbed list. 
+	#
+	SENDMAIL($TBOPS,
+		 "APT checkup died",
+		 $msg,
+		 $TBOPS);
+    }
+    MarkDaemonStopped("apt_checkup")
+	if (!$oneshot);
+
+    die("*** $0:\n".
+	"    $msg\n");
+}
