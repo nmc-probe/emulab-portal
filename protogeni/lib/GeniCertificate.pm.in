@@ -1147,6 +1147,19 @@ sub LoadAdditionalStuff($)
     return 0;
 }
 
+sub IsExpired($)
+{
+    my ($self) = @_;
+
+    my $expires = $self->enddate();
+    return 0
+	if (!defined($expires));
+    
+    $expires = str2time($expires);
+
+    return (time() >= $expires);
+}
+
 sub CommonName($)
 {
     my ($self) = @_;
