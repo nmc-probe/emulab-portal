@@ -1118,7 +1118,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
     function ConvertFromExperiment()
     {
 	var callback = function(json) {
-	    sup.HideModal("#waitwait-modal");
+	    sup.HideWaitWait();
 	    console.info(json.value);
 
 	    if (json.code) {
@@ -1143,7 +1143,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	 * If this is a modification to an existing profile, we still
 	 * have the project name in the same variable.
 	 */
-	sup.ShowModal("#waitwait-modal");
+	sup.ShowWaitWait("We are converting your NS file to geni-lib");
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "manage_profile",
 					    "ConvertClassic",
