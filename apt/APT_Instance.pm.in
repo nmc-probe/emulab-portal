@@ -1737,6 +1737,9 @@ sub SliceStatus($)
     my $slice     = $self->instance()->GetGeniSlice();
     my $context   = APT_Geni::GeniContext();
     
+    # Shorten default timeout
+    Genixmlrpc->SetTimeout(30);
+
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($slice) && defined($context)));
