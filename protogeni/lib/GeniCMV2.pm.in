@@ -4355,7 +4355,10 @@ sub DeleteDataset($)
     # Only real local users can do blockstores, or the credential
     # must include the correct priv.
     #
-    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
+    my $user = GeniCM::CreateUserFromCertificate($credential);
+    return $user
+	if (GeniResponse::IsResponse($user));
+
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	if (! ((defined($user) && $user->IsLocal()) ||
 	       $credential->HasActualPrivilege("blockstores")));
@@ -4373,8 +4376,8 @@ sub DeleteDataset($)
 	my $lease_owner = $lease->GetAttribute("creator_urn");
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	    if (! (defined($lease_owner) &&
-		   !($lease_owner eq $user->urn() ||
-		     $lease_owner eq $ENV{'REALGENIURN'})));
+		   ($lease_owner eq $user->urn() ||
+		    $lease_owner eq $ENV{'REALGENIURN'})));
 
 	$cmd = "$DELETEDATASET -b -f " .
 	    $group->pid() . "/" . $group->gid() . "/" . $dataset;
