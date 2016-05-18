@@ -297,6 +297,24 @@ if ($?) {
     exit($tmp >> 8);
 }
 
+#
+# Append original NS file.
+#
+open(PY, ">>$pyfile") or
+    fatal("Could not open $pyfile for appending: $!");
+open(NS, "$nsfile") or
+    fatal("Could not open $nsfile: $!");
+print PY "\n";
+print PY "#\n";
+print PY "# Here is the original NS file.\n";
+print PY "#\n";
+while (<NS>) {
+    print PY "# $_";
+}
+print PY "\n";
+close(NS);
+close(PY);
+
 if (defined($ofile)) {
     system("cat $pyfile > $ofile");
 }
