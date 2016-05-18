@@ -82,23 +82,30 @@ ifaces      = {}
 blockstores = {}
 lanifaces   = {}
 ifacecounts = {}
+bridged     = {}
 
 for child in tree.getroot():
     if child.tag == "virt_nodes":
         row = child.find("row")
         vname = row.find("vname").text
+        role  = ""
+        if row.find("role") is not None:
+            role = row.find("role").text
         #
         # We have to figure out first if we have a XEN VM, so look
         # at the type.
         #
         ntype = row.find("type").text
-        if ntype == "pcvm" or re.match(r".*\-vm$", ntype):
+        if role == "bridge":
+            node = IG.Bridge(vname, "eth0", "eth1");
+            pass  
+        elif ntype == "pcvm" or re.match(r".*\-vm$", ntype):
             node = IG.XenVM(vname)
             if ntype != "pcvm":
                 node.xen_ptype = ntype;
                 pass
         elif ntype == "blockstore":
-            node = IG.RemoteBlockstore(vname, "/mnt")
+            node = IG.RemoteBlockstore(vname, "/mnt", "eth0")
             node.exclusive = True
         else:
             node = RSpec.RawPC(vname)
@@ -126,7 +133,14 @@ for child in tree.getroot():
                 ips = element.text.split()
                 for token in ips:
                     vport,ip = token.split(":")
-                    iface = node.addInterface("eth" + vport);
+                    # Bridges create interfaces internally, we want to use those.
+                    if role == "bridge":
+                        iface = node.interface("eth" + vport)
+                    elif ntype == "blockstore":
+                        iface = node.interface
+                    else:
+                        iface = node.addInterface("eth" + vport)
+                    
                     iface.addAddress(RSpec.IPv4Address(ip, "255.255.255.0"))
                     # This is the "member" field in virt_lan.
                     ifaces[vname + ":" + vport] = iface
@@ -180,6 +194,14 @@ for child in tree.getroot():
             pass
         lans[vname] = lan;
         rspec.addResource(lan)
+        pass
+    if child.tag == "virt_bridges":
+        row = child.find("row")
+        vname = row.find("vname").text
+        vlink = row.find("vlink").text
+        vport = row.find("vport").text
+        # record that these links are bridged by bridge
+        bridged[vlink] = {"bridge" : vname, "vport" : vport}
         pass
     pass
 
@@ -358,6 +380,30 @@ for lanname,lifaces in lanifaces.iteritems():
         loss1       = float(member1.find("lossrate").text)
         rloss1      = float(member1.find("rlossrate").text)
 
+        #
+        # The virt lans for bridges is done differently. 
+        #
+        if bridged.has_key(lanname):
+            bname  = bridged[lanname]["bridge"]
+            bport  = bridged[lanname]["vport"]
+            bridge = nodes[bname]
+            memb   = bname + ":" + bport
+            pipe   = bridge.pipe("eth" + bport)
+
+            #print bname,bport,memb,str(pipe),member0_key,member1_key
+
+            if member0_key == memb:
+                pipe.bandwidth = bw0
+                pipe.latency   = delay0
+                pipe.lossrate  = loss0
+                pass
+            if member1_key == memb:
+                pipe.bandwidth = bw1
+                pipe.latency   = delay1
+                pipe.lossrate  = loss1
+                pass
+            continue;
+        
         # These are the bi-directional numbers.
         delay       = delay0+rdelay1
         loss        = 1-(1-loss0)*(1-rloss1)
