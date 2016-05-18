@@ -142,12 +142,14 @@
 	  <% } %>
 	  <div class='pull-right'>
 	    <% if (registered && !isfadmin) { %>
-	    <button class='btn btn-xs btn-success hidden' disabled
-		    style='margin-right: 10px;'
-		    id='linktest-stop-button' type=button
- 		    data-toggle='popover'
-		    data-content='Stop a running or wedged linktest'>
-	      Stop Linktest</button>
+	      <span>
+		<button class='btn btn-xs btn-success hidden' disabled
+			style='margin-right: 10px;'
+			id='linktest-stop-button' type=button
+			data-toggle='popover'
+			data-content='Stop a running or wedged linktest'>
+ 		  Stop Linktest</button>
+	      </span>
 	    <button class='btn btn-xs btn-primary hidden' disabled
 		    id='clone_button' type=button>
               Clone</button>
@@ -266,12 +268,14 @@
 			data-toggle='popover'
 			data-content='Ask cluster for updated node status'>
 		  Refresh Status</button>
-		<button class='btn btn-xs btn-success pull-right hidden' disabled
-			style='margin-right: 10px;'
-			id='linktest-modal-button' type=button
- 			data-toggle='popover'
-			data-content='Run linktest on the topology'>
-		  Run Linktest</button>
+		<span>
+		  <button class='btn btn-xs btn-success pull-right hidden' disabled
+			  data-toggle='popover'
+			  data-content='Run linktest on the topology'
+			  style='margin-right: 10px;'
+			  id='linktest-modal-button' type=button>
+		    Run Linktest</button>
+		</span>
 	    <% } %>
 	    </div>
             <div class='tab-pane' id='listview'>
@@ -418,8 +422,7 @@
       </div>
     </div>
   </div>
-  <div id="context">
-    <div id="context-menu">
+  <div id="context-menu">
       <ul class="dropdown-menu" role="menu"
 	  style='cursor: pointer; cursor: hand'>
 	<li id="shell"><a name="shell">Shell</a></li>
@@ -430,8 +433,9 @@
 	<li id="snapshot"><a name="snapshot">Snapshot</a></li>
 	<li id="delete"><a name="delete">Delete Node</a></li>
       </ul>
-    </div>
   </div>
+  <div id="context"></div>
+  <div id="context-menus"></div>
   <div id='console_password_modal' class='modal fade'>
     <div class='modal-dialog'>
       <div class='modal-content'>
