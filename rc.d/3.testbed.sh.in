@@ -165,6 +165,7 @@ case "$1" in
 			if [ -x @prefix@/sbin/protogeni/shared-node-listener ]; then
 			       echo -n " shared-node-listener"
 			       @prefix@/sbin/protogeni/shared-node-listener &
+                               echo $! > /var/run/shared-node-listener.pid
 			fi
 		fi
 		
