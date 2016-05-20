@@ -125,10 +125,10 @@ my $genilib =
     "#       write code like this!\n".
     "#\n" .
     "import geni.portal\n" .
-    "import geni.rspec.pg as RSPEC\n" .
-    "import geni.rspec.igext as IG\n" .
+    "import geni.rspec.pg as pg\n" .
+    "import geni.rspec.emulab as emulab\n" .
     "\n" .
-    "rspec  = RSPEC.Request()\n" .
+    "rspec  = pg.Request()\n" .
     "portal = geni.portal.Context()\n\n";
 
 sub AddStatement($)
@@ -336,14 +336,14 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	    my $cmd   = $service->{'cmd'};
 
 	    AddNodeStatement($client_id,
-			     "addService(RSPEC.Execute('$shell','$cmd'))");
+			     "addService(pg.Execute('$shell','$cmd'))");
 	}
 	elsif ($type eq "install") {
 	    my $url  =  $service->{'url'};
 	    my $path =  $service->{'dir'};
 
 	    AddNodeStatement($client_id,
-			     "addService(RSPEC.Install('$url','$path'))");
+			     "addService(pg.Install('$url','$path'))");
 	}
     }
     #
@@ -519,16 +519,16 @@ if (defined($rspec_tour)) {
     my $description  = GeniXML::FindFirst("n:description", $rspec_tour);
     my $instructions = GeniXML::FindFirst("n:instructions", $rspec_tour);
 
-    AddStatement("Tour = IG.Tour()");
+    AddStatement("Tour = emulab.Tour()");
     if (defined($description)) {
 	my $text = $description->textContent();
 
-	AddStatement("Tour.Description(IG.Tour.TEXT, '$text')");
+	AddStatement("Tour.Description(emulab.Tour.TEXT, '$text')");
     }
     if (defined($instructions)) {
 	my $text = $instructions->textContent();
 
-	AddStatement("Tour.Instructions(IG.Tour.TEXT, '$text')");
+	AddStatement("Tour.Instructions(emulab.Tour.TEXT, '$text')");
     }
     AddStatement("rspec.addTour(Tour)\n");
 }
@@ -543,7 +543,7 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
     my @code        = ("# Node $client_id");
 
     if ($node->{'type'} eq "emulab-xen") {
-	push(@code, "$ntag = IG.XenVM('$client_id')");
+	push(@code, "$ntag = emulab.XenVM('$client_id')");
     }
     elsif ($node->{'type'} eq "emulab-blockstore") {
 	my $mount = $node->{'blockstores'}->{$client_id}->{'mount'};
@@ -559,7 +559,8 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	my ($iface) = values(%{$node->{'ifaces'}});
 	my (undef,$if) = split(":", $iface->{'client_id'});
 	
-	push(@code, "$ntag = IG.RemoteBlockstore('$client_id', '$mount', '$if')");
+	push(@code, "$ntag = emulab.RemoteBlockstore('$client_id', ".
+	     "'$mount', '$if')");
     }
     elsif ($node->{'type'} eq "delay") {
 	#
@@ -569,7 +570,7 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	my (undef,$if0) = split(":", $iface0->{'client_id'});
 	my (undef,$if1) = split(":", $iface1->{'client_id'});
 	
-	push(@code, "$ntag = IG.Bridge('$client_id', '$if0', '$if1')");
+	push(@code, "$ntag = emulab.Bridge('$client_id', '$if0', '$if1')");
 
 	#
 	# And the pipes. Just two of them.
@@ -587,7 +588,7 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	}
     }
     else {
-	push(@code, "$ntag = RSPEC.RawPC('$client_id')");
+	push(@code, "$ntag = pg.RawPC('$client_id')");
     }
     foreach my $statement (@{$node->{'statements'}}) {
 	push(@code, "${ntag}." . $statement);
@@ -599,7 +600,8 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	my $ip   = $interface->{'ip'};
 	my $mask = $interface->{'mask'};
 	my (undef,$iface_id) = split(":", $client_id);
-	my $addr = ($ip && $mask ? "RSPEC.IPv4Address('$ip','$mask')" : undef);
+	my $addr = ($ip && $mask ?
+		    "pg.IPv4Address('$ip','$mask')" : undef);
 
 	#
 	# Again, bridges and blockstores are special. We have to find
@@ -651,10 +653,10 @@ foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
     my @code        = ("# Link $client_id");
 
     if (defined($link->{'type'}) && $link->{'type'} eq "lan") {
-	push(@code, "$ltag = RSPEC.LAN('$client_id')");
+	push(@code, "$ltag = pg.LAN('$client_id')");
     }
     else {
-	push(@code, "$ltag = RSPEC.Link('$client_id')");
+	push(@code, "$ltag = pg.Link('$client_id')");
     }
     foreach my $statement (@{$link->{'statements'}}) {
 	push(@code, "${ltag}." . $statement);
@@ -696,7 +698,7 @@ foreach my $pool (@{ GeniXML::GetAddressPools($rspec) }) {
     my $count = $pool->{'count'};
     my $cmurn = $pool->{'cmurn'};
 
-    AddStatement("pool = IG.AddressPool('$name', $count)");
+    AddStatement("pool = emulab.AddressPool('$name', $count)");
     if (defined($cmurn)) {
 	AddStatement("pool.component_manager_id = '$cmurn'");
     }
