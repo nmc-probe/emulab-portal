@@ -1556,7 +1556,13 @@ sub ExtendInternal($$$$)
 	$lockdown = 1
     }
     # Need to update slice before creating new credential. 
-    $slice->AddToExpiration($seconds);
+    # Need to update slice before creating new credential.
+    if ($slice->IsExpired()) {
+	$slice->SetExpiration(time() + $seconds);
+    }
+    else {
+	$slice->AddToExpiration($seconds);
+    }
     my $new_expires = $slice->ExpirationGMT();
 
     my $coderef = sub {
