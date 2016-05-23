@@ -473,3 +473,8 @@ blockquote #selected_profile_description {
   line-height: 1.24;
   border-radius: 2px;
 }
+
+.form-horizontal .form-group .row .col-sm-2 input {
+    height: 33px;
+    margin: 1px 0 0 5px;
+}
