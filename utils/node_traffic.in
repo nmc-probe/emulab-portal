@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -232,6 +232,7 @@ my %expcounts = ();
 
 # weed out bad boys
 my @list = ();
+my @zeros = (0, 0, 0, 0, 0, 0);
 foreach my $node (keys %pcs) {
     if (!exists($after{$node}{'counts'})) {
 	print STDERR "*** $node: got no portstats, not an admin?\n";
@@ -240,35 +241,61 @@ foreach my $node (keys %pcs) {
 
     # XXX
     if (!exists($before{$node})) {
-	$before{$node}{'totals'} = [ 0, 0, 0, 0 ];
+	$before{$node}{'counts'} = \@zeros;
     }
 
     if (!$doall && $pcs{$node}{'state'} ne "ISUP") {
 	print STDERR "*** $node: not up (", $pcs{$node}{'state'}, ")\n";
 	next;
     }
-    my $total = $after{$node}{'totals'}->[3] - $before{$node}{'totals'}->[3];
-    if ($total <= 0) {
-	print STDERR "*** $node: negative packet count (",
-	             $before{$node}{'totals'}->[3], " to ",
-		     $after{$node}{'totals'}->[3], " ($total)\n"
-			 if ($total < 0);
-	next;
+
+    #
+    # Calculate totals, taking into account wrap around of counters...
+    #
+    my @counts = ();
+    my $bcs = $before{$node}{'counts'};
+    my $acs = $after{$node}{'counts'};
+    foreach my $i (0..5) {
+	if ($acs->[$i] < $bcs->[$i]) {
+	    $counts[$i] = $acs->[$i] + (2**32 - $bcs->[$i]);
+	} else {
+	    $counts[$i] = $acs->[$i] - $bcs->[$i];
+	}
     }
-    $pcs{$node}{'total'} = $total;
+    #
+    # ...and the aggregated counts we put out currently
+    #
+    my $oct = 0;
+    my $upkts = 0;
+    my $npkts = 0;
+    if ($send) {
+	$oct += $counts[0];
+	$upkts += $counts[1];
+	$npkts += $counts[2];
+    }
+    if ($recv) {
+	$oct += $counts[3];
+	$upkts += $counts[4];
+	$npkts += $counts[5];
+    }
+    $pcs{$node}{'totals'} =
+	[ $oct, $upkts, $npkts, $upkts + $npkts ];
+    #
+    # ...and the sort key (total packets)
+    #
+    $pcs{$node}{'total'} = $upkts + $npkts;
     push(@list, $node);
 
     if ($byexpt) {
-	my $cb = $before{$node}{'totals'};
-	my $ca = $after{$node}{'totals'};
+	my $tot = $pcs{$node}{'totals'};
 	my $exp = $pcs{$node}{'exp'};
 	if (!exists($expcounts{$exp})) {
 	    $expcounts{$exp} = [ 0, 0, 0, 0 ];
 	}
-	$expcounts{$exp}->[0] += ($ca->[0] - $cb->[0]);
-	$expcounts{$exp}->[1] += ($ca->[1] - $cb->[1]);
-	$expcounts{$exp}->[2] += ($ca->[2] - $cb->[2]);
-	$expcounts{$exp}->[3] += ($ca->[3] - $cb->[3]);
+	$expcounts{$exp}->[0] += $tot->[0];
+	$expcounts{$exp}->[1] += $tot->[1];
+	$expcounts{$exp}->[2] += $tot->[2];
+	$expcounts{$exp}->[3] += $tot->[3];
     }
 }
 
@@ -288,15 +315,12 @@ if ($byexpt) {
     printf("%12s %25s %12s %12s %12s %12s\n",
 	   "Node", "Experiment", "Tot Pkts", "Unicast", "Non-Uni", "Tot Bytes");
     foreach my $node (@list) {
-	my $cb = $before{$node}{'totals'};
-	my $ca = $after{$node}{'totals'};
+	my $tot = $pcs{$node}{'totals'};
 	my $exp = $pcs{$node}{'exp'};
 	my $s = $pcs{$node}{'state'};
 
 	printf("%12s %25s %12d %12d %12d %12d\n",
-	       $node, $exp,
-	       $ca->[3]-$cb->[3], $ca->[1]-$cb->[1],
-	       $ca->[2]-$cb->[2], $ca->[0]-$cb->[0]);
+	       $node, $exp, $tot->[3], $tot->[1], $tot->[2], $tot->[0]);
     }
 }
 
@@ -324,7 +348,8 @@ sub gather($$)
 
     foreach my $switch (keys %switches) {
 	my $slist = join(' ', @{$switches{$switch}});
-	open(PS, "$portstats -p $slist 2>&1 |") or
+	my $arg = $byexpt ? "" : "-c";
+	open(PS, "$portstats $arg -p $slist 2>&1 |") or
 	    die "Could not get portstats\n";
 	while (<PS>) {
 	    next if ($_ !~ /^\w+:\d/);
@@ -346,22 +371,7 @@ sub gather($$)
 		print STDERR "*** $node: no stats returned!?\n"; 
 		next;
 	    }
-	    $resref->{$node}{'counts'} = @counts;
-	    my $oct = 0;
-	    my $upkts = 0;
-	    my $npkts = 0;
-	    if ($send) {
-		$oct += $counts[0];
-		$upkts += $counts[1];
-		$npkts += $counts[2];
-	    }
-	    if ($recv) {
-		$oct += $counts[3];
-		$upkts += $counts[4];
-		$npkts += $counts[5];
-	    }
-	    $resref->{$node}{'totals'} =
-		[ $oct, $upkts, $npkts, $upkts + $npkts ];
+	    $resref->{$node}{'counts'} = \@counts;
 	}
 	close(PS);
     }
