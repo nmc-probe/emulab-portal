@@ -758,7 +758,7 @@ function SetDomainDefs()
 	    }
 
 	    # Given that this is an alternate domain, clear TBMAINSITE
-	    $TBMAINSITE = 0;
+	    #$TBMAINSITE = 0;
 	    
 	    # Bail after the first domain match.
 	    return 1;

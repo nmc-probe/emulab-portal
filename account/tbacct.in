@@ -62,6 +62,7 @@ my $TBLOGS	= "@TBLOGSEMAIL@";
 my $TBAUDIT	= "@TBAUDITEMAIL@";
 my $CONTROL	= "@USERNODE@";
 my $BOSSNODE	= "@BOSSNODE@";
+my $WINSUPPORT  = @WINSUPPORT@;
 my $WITHZFS     = @WITHZFS@;
 my $ZFS_NOEXPORT= @ZFS_NOEXPORT@;
 my $WIKISUPPORT = @WIKISUPPORT@;
@@ -811,6 +812,12 @@ sub UpdateWindowsPassword()
     #
     return 0
 	if (! ($status eq USERSTATUS_ACTIVE || $status eq USERSTATUS_FROZEN));
+
+    #
+    # Do nothing if we are not even doing windoze.
+    #
+    return 0
+	if (! $WINSUPPORT);
 
     #
     # Change on ops for Samba only if there is a real account there.

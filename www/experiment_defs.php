@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -328,6 +328,7 @@ class Experiment
     function created()      { return $this->field('expt_created'); }
     function swapper()      { return $this->field('expt_swap_uid');}
     function swapper_idx()  { return $this->field('swapper_idx');}
+    function swapped()      { return $this->field('expt_swapped');}
     function swappable()    { return $this->field('swappable');}
     function idleswap()     { return $this->field('idleswap');}
     function autoswap()     { return $this->field('autoswap');}
@@ -353,6 +354,7 @@ class Experiment
     function paniced()          { return $this->field('paniced'); }
     function panic_date()       { return $this->field('panic_date'); }
     function geniflags()        { return $this->field('geniflags'); }
+    function virtnode_count()   { return $this->field('virtnode_count'); }
 
     #
     # Access Check. Project level check since this might not be a current
@@ -1365,6 +1367,7 @@ class ExperimentStats
     function gid_idx()      { return $this->field('gid_idx'); }
     function archive_idx()  { return $this->field('archive_idx'); }
     function slice_uuid()   { return $this->field('slice_uuid'); }
+    function swapin_last()  { return $this->field('swapin_last'); }
 
     function Project() {
 	return Project::Lookup($this->pid_idx());
@@ -1443,6 +1446,8 @@ class ExperimentResources
     function lastidx()        { return $this->field('lastidx'); }
     function wirelesslans()   { return $this->field('wirelesslans'); }
     function input_data_idx() { return $this->field('input_data_idx'); }
+    function vnodes()         { return $this->field('vnodes'); }
+    function swapin_time()    { return $this->field('swapin_time'); }
 
     function GetStats() {
 	return ExperimentStats::Lookup($this->exptidx());

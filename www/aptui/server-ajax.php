@@ -97,7 +97,9 @@ $routing = array("myprofiles" =>
 						 "CheckScript" =>
 						     "Do_CheckScript",
 						 "BindParameters" =>
-						     "Do_BindParameters")),
+						     "Do_BindParameters",
+						 "ConvertClassic" =>
+                                                     "Do_ConvertClassic")),
 		 "status" =>
 			array("file"    => "status.ajax",
 			      "guest"   => true,
@@ -177,11 +179,22 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("update" =>
                                                  "Do_Update")),
+		 "lists" =>
+			array("file"    => "lists.ajax",
+			      "guest"   => false,
+			      "methods" => array("SearchUsers" =>
+                                                     "Do_SearchUsers",
+                                                 "SearchProjects" =>
+                                                     "Do_SearchProjects")),
 		 "user-dashboard" =>
 			array("file"    => "user-dashboard.ajax",
 			      "guest"   => false,
 			      "methods" => array("ExperimentList" =>
 						      "Do_ExperimentList",
+                                                 "ClassicExperimentList" =>
+						      "Do_ClassicExperimentList",
+                                                 "ClassicProfileList" =>
+						      "Do_ClassicProfileList",
                                                  "ProjectList" =>
                                                       "Do_ProjectList",
                                                  "UsageSummary" =>
@@ -199,6 +212,10 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("ExperimentList" =>
 						      "Do_ExperimentList",
+                                                 "ClassicExperimentList" =>
+						      "Do_ClassicExperimentList",
+                                                 "ClassicProfileList" =>
+						      "Do_ClassicProfileList",
                                                  "ProfileList" =>
                                                       "Do_ProfileList",
                                                  "MemberList" =>
@@ -212,6 +229,13 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("RankList" =>
                                                      "Do_RankList")),
+                 "announcement" =>
+                        array("file"    => "announcement.ajax",
+                              "guest"   => false,
+                              "methods" => array("Dismiss" =>
+                                                     "Do_Dismiss",
+                                                 "Click" =>
+                                                     "Do_Click"))
 );
 
 #

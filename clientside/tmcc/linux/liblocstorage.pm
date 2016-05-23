@@ -122,9 +122,9 @@ sub iscsi_to_dev($)
     #
     # XXX this is a total hack and maybe distro dependent?
     #
-    my @lines = `ls -l /sys/block/sd? 2>&1`;
+    my @lines = `ls -l /sys/block/sd[a-z] /sys/block/sd[a-z][a-z] 2>&1`;
     foreach (@lines) {
-	if (m#/sys/block/(sd.) -> ../devices/platform/host\d+/session(\d+)#) {
+	if (m#/sys/block/(sd[a-z][a-z]?) -> ../devices/platform/host\d+/session(\d+)#) {
 	    if ($2 == $session) {
 		return $1;
 	    }
@@ -174,7 +174,7 @@ sub find_serial($)
     #
     @lines = `ls -l /dev/disk/by-id/ 2>&1`;
     foreach (@lines) {
-	if (m#.*_([^_\s]+) -> ../../(sd.)$#) {
+	if (m#.*_([^_\s]+) -> ../../(sd[a-z][a-z]?)$#) {
 	    if ($2 eq $dev) {
 		return $1;
 	    }
@@ -195,12 +195,12 @@ sub init_serial_map()
     # XXX this is a total hack and maybe distro dependent?
     #
     my %snmap = ();
-    my @lines = `ls -l /sys/block/sd? 2>&1`;
+    my @lines = `ls -l /sys/block/sd[a-z] /sys/block/sd[a-z][a-z] 2>&1`;
     foreach (@lines) {
 	# XXX if a pci device, assume a local disk
 	# XXX for moonshots (arm64), it is different
-	if (m#/sys/block/(sd.) -> ../devices/pci\d+# ||
-	    m#/sys/block/(sd.) -> ../devices/soc.\d+#) {
+	if (m#/sys/block/(sd[a-z][a-z]?) -> ../devices/pci\d+# ||
+	    m#/sys/block/(sd[a-z][a-z]?) -> ../devices/soc.\d+#) {
 	    my $dev = $1;
 	    $sn = find_serial($dev);
 	    if ($sn) {
@@ -282,7 +282,7 @@ sub get_partsize($)
 	return $size;
     }
     while (<FD>) {
-	if (/^\s+\d+\s+\d+\s+(\d+)\s+(sd[a-z](?:\d+)?)/) {
+	if (/^\s+\d+\s+\d+\s+(\d+)\s+(sd[a-z][a-z]?(?:\d+)?)/) {
 	    my ($_size,$_dev) = ($1,$2);
 
 	    if ($dev eq $_dev) {
@@ -387,7 +387,7 @@ sub get_diskinfo()
 	return undef;
     }
     while (<FD>) {
-	if (/^\s+\d+\s+\d+\s+(\d+)\s+((xvd|sd)[a-z])(\d+)?/) {
+	if (/^\s+\d+\s+\d+\s+(\d+)\s+((xvd|sd)[a-z][a-z]?)(\d+)?/) {
 	    my ($size,$dev,$part) = ($1,$2,$4);
 	    # DOS partition
 	    if (defined($part)) {

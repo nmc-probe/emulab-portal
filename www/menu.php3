@@ -616,7 +616,7 @@ function WRITEEXPERIMENTMENU($firstinitstate) {
 
 function WRITEADMINMENU() {
     global $TBBASE, $TBDOCBASE, $TBMAINSITE;
-    global $PROTOGENI;
+    global $PROTOGENI, $ISALTDOMAIN;
     global $login_status;
 
     # Do we have a storage pool? The we support datasets.
@@ -643,7 +643,7 @@ function WRITEADMINMENU() {
 	NavMenuButton("Edit Site Variables",
 		      "$TBBASE/editsitevars.php3");
 
-	if ($TBMAINSITE) {
+	if ($TBMAINSITE && !$ISALTDOMAIN) {
 	    NavMenuButton("Emulab Site List",
 			  "$TBBASE/showsite_list.php");
 	}
@@ -742,7 +742,7 @@ function WRITESIDEBAR() {
     global $login_status, $login_user, $pid, $gid;
     global $TBBASE, $TBDOCBASE, $BASEPATH, $WIKISUPPORT, $MAILMANSUPPORT;
     global $BUGDBSUPPORT, $BUGDBURL, $CVSSUPPORT, $CHATSUPPORT, $TRACSUPPORT;
-    global $CHECKLOGIN_WIKINAME, $TBMAINSITE;
+    global $CHECKLOGIN_WIKINAME, $TBMAINSITE, $ISALTDOMAIN;
     global $THISHOMEBASE;
     global $currentusage, $FANCYBANNER, $ELABINELAB, $PLABSUPPORT;
     global $WIKIDOCURL, $FORUMURL;
@@ -794,7 +794,7 @@ function WRITESIDEBAR() {
     else {
 	NavMenuButton("Projects on Emulab", "$TBDOCBASE/projectlist.php3");
     }
-    if ($TBMAINSITE) {
+    if ($TBMAINSITE && !$ISALTDOMAIN) {
 	NavMenuButton("<font color=red>In Memoriam</font>",
 		      "$TBDOCBASE/jay.php");
     }
@@ -933,7 +933,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 			$extra_headers = NULL, $view = NULL ) {
     global $BASEPATH, $TBMAINSITE, $THISHOMEBASE, $ELABINELAB, $FANCYBANNER;
     global $TBDIR, $WWW;
-    global $MAINPAGE;
+    global $MAINPAGE, $ISALTDOMAIN;
     global $TBDOCBASE, $GENIRACK;
     global $autorefresh, $currentusage, $javascript_debug, $login_user;
     global $noAnalytics;
@@ -968,7 +968,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
     echo "<!-- [if gt IE 6.0]><style type=\"text/css\">".
 	".menu ul li a:hover ul { top: 18px; }</style><![endif]> -->\n";
 
-    if ($TBMAINSITE) {
+    if ($TBMAINSITE && !$ISALTDOMAIN) {
 	echo "<meta name=\"keywords\" ".
 	           "content=\"network, emulation, internet, emulator, ".
 	           "mobile, wireless, robotic\">\n";
@@ -1047,7 +1047,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
             # NOTE: This has to come before any images in the div for the
 	    # float to work correctly.
 	    #
-	    if (!$TBMAINSITE) {
+	    if (!$TBMAINSITE || $ISALTDOMAIN) {
 		echo "<a class='rightsidebuiltwith' ".
 		    "href='http://www.emulab.net'>";
 		echo "<img src='$BASEPATH/fancy-builtwith.png'></a>\n";
@@ -1129,9 +1129,10 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 function FINISHSIDEBAR($nocontent = 0)
 {
     global $TBMAINSITE, $TBBASE, $BASEPATH, $currentusage, $login_user;
+    global $ISALTDOMAIN;
 
     if (!$nocontent) {
-	if (!$TBMAINSITE) {
+	if (!$TBMAINSITE || $ISALTDOMAIN) {
 	    #
 	    # It is a violation of Emulab licensing restrictions to remove
 	    # this logo!

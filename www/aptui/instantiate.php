@@ -395,7 +395,7 @@ function SPITFORM($formfields, $newuser, $errors)
     #
     # And AM list if that is allowed.
     #
-    if (isset($this_user) && !$this_user->webonly() && $ISCLOUD) {
+    if (isset($this_user) && !$this_user->webonly() && !$ISAPT && !$ISPNET) {
 	$am_options = "";
 	while (list($am, $urn) = each($am_array)) {
 	    $amlist[$urn] = $am;

@@ -428,23 +428,6 @@ if (! isset($create)) {
                               "this classic emulab experiment");
             }
 	    $defaults["profile_pid"] = $experiment->pid();
-
-            #
-            # Blech. We want to add an NS statement that sets the description
-            # since it is not metadata in a profile, it is part of the source.
-            #
-            $script = "";
-            $lines  = preg_split("/\n/", $experiment->NSFile());
-            foreach ($lines as $line) {
-                $script .= "$line\n";
-
-                if (preg_match("/^set\s+(.*)\s+\[new Simulator/",
-                               $line, $matches)) {
-                    $script .= "\$" . $matches[1] . " description \"" .
-                        CleanString($experiment->description()) . "\"\n";
-                }
-            }
-            $defaults["profile_script"] = $script;
         }
     }
     SPITFORM($defaults, $errors);
@@ -719,7 +702,7 @@ if ($profile) {
     $uuid = $profile->uuid();
 }
 else {
-    header("Location: $APTBASE/myprofiles.php");
+    header("Location: $APTBASE/user-dashboard.php#profiles");
 }
 if ($action == "edit") {
     $_SESSION["notifyupdate"] = 1;

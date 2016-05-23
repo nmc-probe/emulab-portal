@@ -5,9 +5,11 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/profile-list.html',
 	 'js/lib/text!template/member-list.html',
 	 'js/lib/text!template/project-profile.html',
+	 'js/lib/text!template/classic-explist.html',
 	],
 function (_, sup, moment, mainString,
-	  experimentString, profileString, memberString, detailsString)
+	  experimentString, profileString, memberString, detailsString,
+	  classicString)
 {
     'use strict';
     var mainTemplate    = _.template(mainString);
@@ -44,7 +46,9 @@ function (_, sup, moment, mainString,
 
 	LoadUsage();
 	LoadExperimentTab();
+	LoadClassicExperiments();
 	LoadProfileTab();
+	LoadClassicProfiles();
 	LoadMembersTab();
 	LoadProjectTab();
     }
@@ -131,6 +135,41 @@ function (_, sup, moment, mainString,
 	xmlthing.done(callback);
     }
 
+    function LoadClassicExperiments()
+    {
+	var callback = function(json) {
+	    console.info("classic", json);
+
+	    if (json.code) {
+		console.info(json.value);
+		return;
+	    }
+	    var template = _.template(classicString);
+
+	    $('#classic_experiments_content')
+		.html(template({"experiments" : json.value,
+				"showCreator" : true,
+				"showProject" : false,
+				"asProfiles"  : false}));
+	    
+	    // Format dates with moment before display.
+	    $('#classic_experiments_content .format-date').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html()).format("ll"));
+		}
+	    });
+	    var table = $('#classic_experiments_content .tablesorter')
+		.tablesorter({
+		    theme : 'green',
+		});
+	};
+	var xmlthing = sup.CallServerMethod(null,
+					    "show-project", "ClassicExperimentList",
+					    {"pid" : window.TARGET_PROJECT});
+	xmlthing.done(callback);
+    }
+
     function LoadProfileTab()
     {
 	var callback = function(json) {
@@ -189,6 +228,41 @@ function (_, sup, moment, mainString,
 	}
 	var xmlthing = sup.CallServerMethod(null,
 					    "show-project", "ProfileList",
+					    {"pid" : window.TARGET_PROJECT});
+	xmlthing.done(callback);
+    }
+
+    function LoadClassicProfiles()
+    {
+	var callback = function(json) {
+	    console.info("classic profiles", json);
+
+	    if (json.code) {
+		console.info(json.value);
+		return;
+	    }
+	    var template = _.template(classicString);
+
+	    $('#classic_profiles_content')
+		.html(template({"experiments" : json.value,
+				"showCreator" : true,
+				"showProject" : false,
+				"asProfiles"  : true}));
+	    
+	    // Format dates with moment before display.
+	    $('#classic_profiles_content .format-date').each(function() {
+		var date = $.trim($(this).html());
+		if (date != "") {
+		    $(this).html(moment($(this).html()).format("ll"));
+		}
+	    });
+	    var table = $('#classic_profiles_content .tablesorter')
+		.tablesorter({
+		    theme : 'green',
+		});
+	};
+	var xmlthing = sup.CallServerMethod(null,
+					    "show-project", "ClassicProfileList",
 					    {"pid" : window.TARGET_PROJECT});
 	xmlthing.done(callback);
     }

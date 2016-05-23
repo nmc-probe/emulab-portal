@@ -29,31 +29,8 @@ function HideWaitWait()
     
 function CallServerMethod(url, route, method, args, callback)
 {
-    // ignore url now.
-    url = 'https://' + window.location.host + '/apt/server-ajax.php';
-    url = 'server-ajax.php';
-
-    if (args == null) {
-	args = {"noargs" : "noargs"};
-    }
-    return $.ajax({
-	// the URL for the request
-	url: url,
-	success: callback,
- 
-	// the data to send (will be converted to a query string)
-	data: {
-	    ajax_route:     route,
-	    ajax_method:    method,
-	    ajax_args:      args,
-	},
- 
-	// whether this is a POST or GET request
-	type: "POST",
- 
-	// the type of data we expect back
-	dataType : "json",
-    });
+  // Main body of function moved to common.js
+  return APT_OPTIONS.CallServerMethod(url, route, method, args, callback);
 }
 
 var jacksInstance;

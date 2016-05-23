@@ -855,7 +855,7 @@ sub update_random_seed
 
 sub fix_console
 {
-    my ($imageroot, $file) = @_;
+    my ($imageroot, $bloader, $file) = @_;
 
     my $console = $ENV{"SLICEFIX_CONSOLE"};
     if (!$console) {
@@ -873,11 +873,18 @@ sub fix_console
     }
 
     my $sunit = -1;
+    my $sport = "";
     if ($console =~ /^sio(\d+)$/) {
 	$sunit = ($1 > 1) ? $1 - 1 : 0;
+
+	if ($bloader eq 'grub2' && $sunit < 4) {
+	    my @smap = ("0x3F8", "0x2F8", "0x3E8", "0x2E8");
+	    $sport = $smap[$sunit];
+	}
     }
 
-    fix_grub_console($imageroot, $file, $console, $sunit, $sspeed);
+    fix_grub_console($imageroot, $file, $console, $sunit, $sspeed, $sport);
+    fix_grub_defaults($imageroot, $console, $sunit, $sspeed, $sport);
 
     # XXX we don't bother with /etc/inittab, only RHLnn-STD used it
 
@@ -921,9 +928,79 @@ sub fix_console
     }
 }
 
+#
+# Handle default settings file for grub since package installation
+# might cause the grub.cfg file to get recreated.
+#
+# We just append variable definitions to the end of the file and
+# override any existing settings. This would only adversely affect the
+# GRUB_CMDLINE_LINUX param if it was being used for some other options.
+# For vid or null we add:
+#
+# GRUB_CMDLINE_LINUX="console=tty0"
+# GRUB_TERMINAL=console
+# GRUB_SERIAL_COMMAND=""
+#
+# and for sio[1-3] we add:
+#
+# GRUB_CMDLINE_LINUX="console=ttySN,S"
+# GRUB_TERMINAL=serial
+# GRUB_SERIAL_COMMAND="serial --speed=S --unit=N"
+#
+sub fix_grub_defaults
+{
+    my ($imageroot, $console, $sunit, $sspeed, $sport) = @_;
+    my $gdef = "$imageroot/etc/default/grub";
+
+    if (! -e $gdef) {
+	return;
+    }
+    if (! -e "$gdef.preemulab") {
+	system("cp -p $gdef $gdef.preemulab");
+    }
+
+    if (!open(FILE, "+<$gdef")) {
+	return;
+    }
+
+    my $esig = "# The remaining lines were added by Emulab slicefix";
+
+    my @buffer = ();
+    while (<FILE>) {
+	if (/^$esig/) {
+	    last;
+	}
+	push @buffer, $_;
+    }
+
+    # append our info
+    push @buffer, "$esig\n";
+    push @buffer, "# DO NOT ADD ANYTHING AFTER THIS POINT AS IT WILL GET REMOVED.\n";
+    if ($sunit < 0) {
+	push @buffer, "GRUB_CMDLINE_LINUX=\"console=tty0\"\n";
+	push @buffer, "GRUB_TERMINAL=console\n";
+	push @buffer, "GRUB_SERIAL_COMMAND=\"\"\n";
+    } else {
+	push @buffer, "GRUB_CMDLINE_LINUX=\"console=ttyS$sunit,$sspeed\"\n";
+	push @buffer, "GRUB_TERMINAL=serial\n";
+	if ($sport) {
+	    push @buffer, "GRUB_SERIAL_COMMAND=\"serial --unit=$sunit --port=$sport --speed=$sspeed\"\n";
+	} else {
+	    push @buffer, "GRUB_SERIAL_COMMAND=\"serial --unit=$sunit --speed=$sspeed\"\n";
+	}
+    }
+
+    seek FILE, 0, 0;
+    truncate FILE, 0;
+
+    print FILE @buffer;
+
+    close FILE;
+}
+
 sub fix_grub_console
 {
-	my ($imageroot, $file, $console, $sunit, $sspeed) = @_;
+	my ($imageroot, $file, $console, $sunit, $sspeed, $sport) = @_;
 	my $comunit = $sunit + 1;
 
 	open FILE, "+<$imageroot/$file" ||
@@ -944,6 +1021,8 @@ sub fix_grub_console
 		    } else {
 			push @buffer, "#$_";
 		    }
+		} elsif ($sport) {
+		    push @buffer, "serial --unit=$sunit --port=$sport --speed=$sspeed\n";
 		} else {
 		    push @buffer, "serial --unit=$sunit --speed=$sspeed\n";
 		}
@@ -1360,7 +1439,7 @@ sub main
 		set_grub2_root_device($imageroot, $grub_config, $root);
 	}
 	fix_grub_dom0mem($imageroot, $grub_config);
-	fix_console($imageroot, $grub_config);
+	fix_console($imageroot, $bootloader, $grub_config);
 
 	fix_swap_partitions($imageroot, $root,
 		$kernel_has_ide ? $old_root : undef );

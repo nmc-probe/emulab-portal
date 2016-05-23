@@ -71,7 +71,7 @@ if ($message != "") {
     echo "</font></center><br>\n";
 }
 
-if ($TBMAINSITE) {
+if ($TBMAINSITE && !$ISALTDOMAIN) {
     echo "<span class='picture'>
             <center><font size=-1>In Memoriam</font></center><a href=jay.php>
             <img width=80 height=85 src=jay.jpg></a><br clear=left>
@@ -108,7 +108,7 @@ if ($TBMAINSITE) {
 $sitefile = "index-" . strtolower($THISHOMEBASE) . ".html";
 
 if (!file_exists($sitefile)) {
-    if ($TBMAINSITE)
+    if ($TBMAINSITE && !$ISALTDOMAIN)
 	$sitefile = "index-mainsite.html";
     else
 	$sitefile = "index-nonmain.html";

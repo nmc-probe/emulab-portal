@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -104,14 +104,14 @@ my $server = getlocalevserver();
 my $args = "-s $server -l $logfile -i $pidfile -k $keyfile -u $swapper";
 
 #
-# Only wait for 60 seconds, to avoid pointless wait forever.
+# Only wait for a couple of minutes, to avoid pointless wait forever.
 # We will report an error.
 #
 my $childpid = fork();
 if ($childpid) {
     my $timedout = 0;
     local $SIG{ALRM} = sub { kill("TERM", $childpid); $timedout = 1; };
-    alarm 90;
+    alarm 120;
     waitpid($childpid, 0);
     alarm 0;
 
@@ -120,7 +120,7 @@ if ($childpid) {
     #
     if ($? || $timedout) {
 	print STDERR "*** ERROR: linktest daemon failed to start. ";
-	print STDERR ($? ? "Status: $?" : "Timed out.") . "\n";
+	print STDERR ($timedout ? "Timed out" : "Status: $?") . ".\n";
 	exit(-1);
     }
     exit(0);

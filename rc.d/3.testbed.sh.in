@@ -147,6 +147,11 @@ case "$1" in
 			@prefix@/sbin/aptevent_daemon
 		fi
 
+		if [ -x @prefix@/sbin/apt_checkup ]; then
+			echo -n " apt_checkup"
+			@prefix@/sbin/apt_checkup
+		fi
+
 		if [ -n "@ATTENUATOR@" -a -x @prefix@/sbin/attend ]; then
 			echo -n " attend"
 			@prefix@/sbin/attend
@@ -160,6 +165,7 @@ case "$1" in
 			if [ -x @prefix@/sbin/protogeni/shared-node-listener ]; then
 			       echo -n " shared-node-listener"
 			       @prefix@/sbin/protogeni/shared-node-listener &
+                               echo $! > /var/run/shared-node-listener.pid
 			fi
 		fi
 		
@@ -256,6 +262,9 @@ case "$1" in
 		fi
 		if [ -r /var/run/aptevent_daemon.pid ]; then
 			kill `cat /var/run/aptevent_daemon.pid`
+		fi
+		if [ -r /var/run/apt_checkup.pid ]; then
+			kill `cat /var/run/apt_checkup.pid`
 		fi
 		if [ -r /var/run/attend.pid ]; then
 			kill `cat /var/run/attend.pid`

@@ -1207,6 +1207,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Per node context menus.
     var contextMenus = {};
 
+    // Global current showing contect menu. Some kind of bug is leaving them
+    // around, so keep the last one around so we can try to kill it.
+    var currentContextMenu = null;
+
     //
     // Show a context menu over nodes in the topo viewer.
     //
@@ -1220,6 +1224,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var client_id = jacksevent.client_id;
 	var cid = "context-menu-" + client_id;
 
+	if (currentContextMenu) {
+	    $('#context').contextmenu('closemenu');
+	    $('#context').contextmenu('destroy');
+	}
 	if (!_.has(contextMenus, client_id)) {
 	    return;
 	}
@@ -1236,6 +1244,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		ActionHandler($(e.target).attr("name"), [client_id]);
 	    }
 	})
+	currentContextMenu = cid;
+	$('#' + cid).one('hidden.bs.context', function (event) {
+	    currentContextMenu = null;
+	});
 	$('#context').contextmenu('show', event);
     }
 
@@ -1515,8 +1527,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// Change the ID of the clone so its unique.
 		clone.attr('id', "context-menu-" + node);
 	    
-		// Insert into the context div.
-		$('#context').append(clone);
+		// Insert into the context-menus div.
+		$('#context-menus').append(clone);
 
 		// If no console, then grey out the options.
 		if (!_.has(consolenodes, node)) {
@@ -2278,6 +2290,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Handler for the linktest modal button
 	$('button#linktest-modal-button').click(function (event) {
 	    event.preventDefault();
+	    // Make the popover go away when button clicked. 
+	    $('button#linktest-modal-button').popover('hide');
 	    sup.ShowModal('#linktest-modal');
 	});
 	// And for the start button in the modal.
@@ -2288,7 +2302,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	// Stop button for a running or wedged linktest.
 	$('button#linktest-stop-button').click(function (event) {
 	    event.preventDefault();
-	    StopLinktest();
+	    // Gack, we have to confirm popover hidden, or it sticks around.
+	    // Probably cause we disable the button before popover is hidden?
+	    $('button#linktest-stop-button')
+		.one('hidden.bs.popover', function (event) {
+		    StopLinktest();		    
+		});
+	    $('button#linktest-stop-button').popover('hide');
 	});
 	ToggleLinktestButtons(status);
     }

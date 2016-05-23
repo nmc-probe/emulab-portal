@@ -2367,6 +2367,9 @@ sub GenVirtNodes($)
 	if (defined($vnode->_startloc())) {
 	    $desires->{"area-" . $vnode->_startloc()} = ['', 1.000000];
 	}
+	# Tell assign to favor nodes that are pre-reserved to the project.
+	$desires->{'prereserved'} = ['', 0.2];
+	
 	# Require that this vnode be placed onto a pnode that supports
 	# the OS it is going to run. However, if the OS is one with a
 	# 'path' (like an OSKit kernel), we don't have an entry in
@@ -7222,6 +7225,27 @@ sub InitializePhysNodes($)
 	    return -1;
 	}
     }
+
+    #
+    # XXX Similarly, all of the vnames need to be setup before this
+    # config step for UE nodes can run since we allow vnames to be used
+    # as the adb target.  This probably isn't the greatest place for
+    # this, but I'm not sure where is better.  This task has to happen
+    # inside the mapper run so that the result is picked up when the
+    # GENI manifest is created.
+    #
+    if (!($self->impotent() || $self->alloconly())) {
+	foreach my $pnodename (keys(%{ $self->solution_p2v() })) {
+	    my $pnode = $self->pnodes()->{$pnodename};
+	    # Do some limited early setup for UE class nodes to get necessary
+	    # information into the PG manifest.
+	    if ($pnode->class eq "ue") {
+		$pnode->UEConfig() == 0
+		    or return -1;
+	    }
+	}
+    }
+
     return 0;
 }
 
@@ -7431,13 +7455,6 @@ sub InitializePhysNode($$$)
     }
     $pnode->ModifyReservation(\%rsrvsets) == 0
 	or return -1 if (! ($self->impotent() || $self->alloconly()));
-
-    # Do some limited early setup for UE class nodes to get necessary
-    # information into the PG manifest.
-    if ($pnode->class eq "ue" && !( $self->impotent() ) ) {
-	$pnode->UEConfig() == 0
-	    or return -1;
-    }
     
     #
     # Now call os_select.
@@ -8166,8 +8183,8 @@ sub AddBridge($$$$)
 	$self->interfacespeedmbps(physinterfacetype($pnode, $iface1),
 				  "ethernet");
 
-    $self->portbw()->{$member0} = $speed0;
-    $self->portbw()->{$member1} = $speed1;
+    $self->portbw()->{$member0} = $speed0 * 1000;
+    $self->portbw()->{$member1} = $speed1 * 1000;
 
     $self->printdb("  Setting port speeds on $pnodename: ".
 		   "$iface0:$speed0 $iface1:$speed1\n");

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2013-2014 University of Utah and the Flux Group.
+# Copyright (c) 2013-2014, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -184,7 +184,8 @@ if ($lease->state() ne LEASE_STATE_GRACE()) {
 #
 # See if we have already hit the extension limit
 #
-if ($vars->{'maxextend'} > 0 && $lease->renewals() >= $vars->{'maxextend'}) {
+if (!$this_user->IsAdmin() &&
+    $vars->{'maxextend'} > 0 && $lease->renewals() >= $vars->{'maxextend'}) {
     fatal("$pid/$lname: already extended maximum number of times");
 }
 

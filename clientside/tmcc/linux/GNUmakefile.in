@@ -159,6 +159,11 @@ dir-install:
 	-rm -rf $(DESTDIR)/usr/local/etc/testbed
 	ln -s emulab $(DESTDIR)/usr/local/etc/testbed
 
+systemd-dir-install: dir-install
+	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(SYSETCDIR)/systemd
+	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(SYSETCDIR)/systemd/system
+	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(SYSETCDIR)/systemd/system/multi-user.target.wants
+
 common-install:	dir-install
 	(cd ../common; $(MAKE) DESTDIR=$(DESTDIR) local-install)
 
@@ -227,7 +232,7 @@ sysetc-remove: sysetc-remove-$(INITTYPE)
 sysetc-remove-sysv:
 	-rm -f $(RCDIR)/*/S95anacron $(RCDIR)/*/K05anacron 
 
-sysetc-install-systemd:
+sysetc-install-systemd: systemd-dir-install
 	touch $(SYSETCDIR)/emulab/uses-systemd
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(BINDIR)/initscripts
 	# Install our "helper" scripts
@@ -393,14 +398,19 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/gc-xen-images $(BINDIR)/
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(BINDIR)/grub
 	$(INSTALL) -m 755 $(SRCDIR)/xen/pygrub $(BINDIR)/
+	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.5" ]; then \
+	    ln -sf xen-4.5 /usr/lib/xen-default; \
+	fi
 	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.4" ]; then \
 	    ln -sf xen-4.4 /usr/lib/xen-default; \
 	fi
 	$(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
 		/usr/lib/xen-default/lib/python/grub/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/topd $(BINDIR)/
-	$(INSTALL) -m 755 $(SRCDIR)/xen/topd-init $(SYSETCDIR)/init.d/topd
-	/usr/bin/update-rc.d topd defaults
+	@if [ -x "/usr/bin/update-rc.d" -a -d "$(SYSETCDIR)/init.d" ]; then \
+	    $(INSTALL) -m 755 $(SRCDIR)/xen/topd-init $(SYSETCDIR)/init.d/topd; \
+	    /usr/bin/update-rc.d topd defaults; \
+	fi
 
 genirack-install:
 	$(INSTALL) -m 755 $(SRCDIR)/xen/restorevm.pl $(BINDIR)/restorevm.pl

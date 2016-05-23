@@ -111,6 +111,7 @@ use APT_Profile;
 use APT_Instance;
 use APT_Geni;
 use APT_Dataset;
+use APT_Aggregate;
 use User;
 use Project;
 use Group;
@@ -743,6 +744,17 @@ if ($instance->GetSSHKeys(\$sshkeys) < 0 || !@{$sshkeys}) {
 # We use this list of references for ParRun below.
 my @aggregate_list = ();
 foreach my $aggregate_urn (@aggregate_urns) {
+    my $aptaggregate = APT_Aggregate->Lookup($aggregate_urn);
+    if (!defined($aptaggregate)) {
+        UserError("$aggregate_urn is not a valid (known) aggregate");
+    }
+    # Check for disabled/adminonly aggregates.
+    if ($aptaggregate->disabled()) {
+        UserError("$aggregate_urn is currently offline, try again later");
+    }
+    if ($aptaggregate->adminonly()) {
+        UserError("Only administrators may use $aggregate_urn");
+    }
     my $authority = GeniAuthority->Lookup($aggregate_urn);
     if (!defined($authority)) {
 	$authority = GeniAuthority->CreateFromRegistry("cm", $aggregate_urn);
@@ -753,13 +765,6 @@ foreach my $aggregate_urn (@aggregate_urns) {
     my $aggobj = $instance->AddAggregate($aggregate_urn);
     if (!defined($aggobj)) {
 	fatal("Could not create aggregate object for $aggregate_urn");
-    }
-    # Check for disabled/adminonly aggregates.
-    if ($aggobj->disabled()) {
-        UserError("$aggregate_urn is currently offline, try again later");
-    }
-    if ($aggobj->adminonly()) {
-        UserError("Only administrators may use $aggregate_urn");
     }
     $aggobj->_authority($authority);
     push(@aggregate_list, $aggobj);

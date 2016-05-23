@@ -54,7 +54,7 @@ my $HOSTFILE	  = "/tmp/medusahosts.$$";
 my $USERFILE      = "/usr/local/etc/medusa/userlist.txt";
 my $WORDFILE      = "/usr/local/etc/medusa/wordlist.txt";
 my $MEDUSAOPTS    = "-H $HOSTFILE -U $USERFILE -P $WORDFILE ".
-    "-M ssh -R 1 -T 10 -b -v 4 -w 2";
+    "-M ssh -R 1 -T 5 -t 5 -b -v 4 -w 2";
 
 use lib '@prefix@/lib';
 use emdb;

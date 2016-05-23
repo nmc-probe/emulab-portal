@@ -94,7 +94,7 @@ window.APT_OPTIONS.initialize = function (sup)
 	$('#loginbutton').click(function (event) {
 	    event.preventDefault();
 	    sup.ShowModal('#quickvm_login_modal');
-	    if (window.ISCLOUD) {
+	    if (window.ISCLOUD || window.ISPNET) {
 		console.info("Loading geni auth code");
 		sup.InitGeniLogin(embedded);
 		require([geniauth], function() {
@@ -106,4 +106,41 @@ window.APT_OPTIONS.initialize = function (sup)
 	});
     }
     $('body').show();
-}
+};
+
+APT_OPTIONS.CallServerMethod = function (url, route, method, args, callback)
+{
+    // ignore url now.
+    url = 'https://' + window.location.host + '/apt/server-ajax.php';
+    url = 'server-ajax.php';
+
+    if (args == null) {
+        args = {"noargs" : "noargs"};
+    }
+    return $.ajax({
+        // the URL for the request
+        url: url,
+        success: callback,
+ 
+        // the data to send (will be converted to a query string)
+        data: {
+            ajax_route:     route,
+            ajax_method:    method,
+            ajax_args:      args,
+        },
+ 
+        // whether this is a POST or GET request
+        type: "POST",
+ 
+        // the type of data we expect back
+        dataType : "json",
+    });
+};
+
+window.APT_OPTIONS.announceDismiss = function (aid) {
+  APT_OPTIONS.CallServerMethod('', 'announcement', 'Dismiss', {'aid': aid}, function(){});
+};
+
+window.APT_OPTIONS.announceClick = function (aid) {
+  APT_OPTIONS.CallServerMethod('', 'announcement', 'Click', {'aid': aid}, function(){});
+};

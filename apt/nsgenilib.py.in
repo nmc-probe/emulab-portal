@@ -82,23 +82,30 @@ ifaces      = {}
 blockstores = {}
 lanifaces   = {}
 ifacecounts = {}
+bridged     = {}
 
 for child in tree.getroot():
     if child.tag == "virt_nodes":
         row = child.find("row")
         vname = row.find("vname").text
+        role  = ""
+        if row.find("role") is not None:
+            role = row.find("role").text
         #
         # We have to figure out first if we have a XEN VM, so look
         # at the type.
         #
         ntype = row.find("type").text
-        if ntype == "pcvm" or re.match(r".*\-vm$", ntype):
+        if role == "bridge":
+            node = IG.Bridge(vname, "eth0", "eth1");
+            pass  
+        elif ntype == "pcvm" or re.match(r".*\-vm$", ntype):
             node = IG.XenVM(vname)
             if ntype != "pcvm":
                 node.xen_ptype = ntype;
                 pass
         elif ntype == "blockstore":
-            node = IG.RemoteBlockstore(vname, "/mnt")
+            node = IG.RemoteBlockstore(vname, "/mnt", "eth0")
             node.exclusive = True
         else:
             node = RSpec.RawPC(vname)
@@ -109,7 +116,7 @@ for child in tree.getroot():
             #
             # We handle a subset of node things.
             #
-            if element.tag == "osname":
+            if element.tag == "osname" and element.text:
                 #
                 # Convert NS project/osname to rspec project//osname.
                 # But if no project, add emulab-ops (clearly wrong).
@@ -126,7 +133,14 @@ for child in tree.getroot():
                 ips = element.text.split()
                 for token in ips:
                     vport,ip = token.split(":")
-                    iface = node.addInterface("eth" + vport);
+                    # Bridges create interfaces internally, we want to use those.
+                    if role == "bridge":
+                        iface = node.interface("eth" + vport)
+                    elif ntype == "blockstore":
+                        iface = node.interface
+                    else:
+                        iface = node.addInterface("eth" + vport)
+                    
                     iface.addAddress(RSpec.IPv4Address(ip, "255.255.255.0"))
                     # This is the "member" field in virt_lan.
                     ifaces[vname + ":" + vport] = iface
@@ -180,6 +194,14 @@ for child in tree.getroot():
             pass
         lans[vname] = lan;
         rspec.addResource(lan)
+        pass
+    if child.tag == "virt_bridges":
+        row = child.find("row")
+        vname = row.find("vname").text
+        vlink = row.find("vlink").text
+        vport = row.find("vport").text
+        # record that these links are bridged by bridge
+        bridged[vlink] = {"bridge" : vname, "vport" : vport}
         pass
     pass
 
@@ -358,6 +380,30 @@ for lanname,lifaces in lanifaces.iteritems():
         loss1       = float(member1.find("lossrate").text)
         rloss1      = float(member1.find("rlossrate").text)
 
+        #
+        # The virt lans for bridges is done differently. 
+        #
+        if bridged.has_key(lanname):
+            bname  = bridged[lanname]["bridge"]
+            bport  = bridged[lanname]["vport"]
+            bridge = nodes[bname]
+            memb   = bname + ":" + bport
+            pipe   = bridge.pipe("eth" + bport)
+
+            #print bname,bport,memb,str(pipe),member0_key,member1_key
+
+            if member0_key == memb:
+                pipe.bandwidth = bw0
+                pipe.latency   = delay0
+                pipe.lossrate  = loss0
+                pass
+            if member1_key == memb:
+                pipe.bandwidth = bw1
+                pipe.latency   = delay1
+                pipe.lossrate  = loss1
+                pass
+            continue;
+        
         # These are the bi-directional numbers.
         delay       = delay0+rdelay1
         loss        = 1-(1-loss0)*(1-rloss1)
@@ -469,12 +515,20 @@ for child in tree.getroot():
         vnode = row.find("vnode").text
         vname = row.find("vname").text
         cmd   = row.find("arguments").text
-        if otype == "4" and etype == "1" and time == "0":
+        if otype == "4":
+            if etype != "1" and etype != "20":
+                Fatal("Unsupported program object event for " + vname)
+                pass
+            if time != "0":
+                Fatal("Unsupported program object event time!=0 for " + vname)
+                pass
             foo = re.match(r"^COMMAND=\((.*) ; /usr/local/etc/emulab.*\)", cmd);
             if foo:
                 parser = HTMLParser.HTMLParser()
                 cmd = parser.unescape(foo.group(1));
                 nodes[vnode].addService(RSpec.Execute("sh", cmd))
+        else:
+            Fatal("Unsupported event type for " + vname)
             pass
         pass
     #
@@ -504,6 +558,19 @@ for child in tree.getroot():
         raw.attrib["attrkey"]   = key
         raw.attrib["attrvalue"] = val
         nodes[vname].addRawElement(raw)
+        pass
+    if child.tag == "virt_trafgens":
+        Fatal("Trafgens are not supported anymore")
+        pass
+    if child.tag in ["virt_lan_settings",
+                     "virt_lan_member_settings", "virt_routes",
+                     "virt_node_disks", "virt_user_environment",
+                     "virt_firewalls", "firewall_rules",
+                     "virt_tiptunnels", "elabinelab_attributes",
+                     "virt_paths", "experiment_blobs", "virt_blobs",
+                     "virt_client_service_ctl", "virt_client_service_hooks",
+                     "virt_client_service_opts", "virt_address_allocation"]:
+        Fatal("Unsupported use of " + child.tag)
         pass
     pass
 
