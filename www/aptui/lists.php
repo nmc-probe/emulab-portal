@@ -82,7 +82,7 @@ function SpitUserList($days)
     echo json_encode($results);
     echo "</script>\n";
 }
-function SpitProjectList($target, $days)
+function SpitProjectList($days)
 {
     global $PORTAL_GENESIS, $APTHOST;
     
