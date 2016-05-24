@@ -58,9 +58,10 @@ sub usage()
     print STDERR "   -G         Attempt to assign Lat/Lon info to users\n";
     print STDERR "   -N         Print in normalized CSV format\n";
     print STDERR "   -S         Print in summary form\n";
+    print STDERR "   -U         Filter out users not valid/active at the time\n";
 }
 
-my $optlist = "adhAGNSs:e:n:";
+my $optlist = "adhAGNSUs:e:n:";
 my $debug = 0;
 my $anonymize = 0;
 my $normalize = 0;
@@ -69,6 +70,7 @@ my $starttime;
 my $endtime;
 my $allnodes = 0;
 my $dogeo = 0;
+my $noinactive = 0;
 my $node;
 
 sub nodehistory($$;$);
@@ -132,6 +134,9 @@ if (defined($options{N})) {
 if (defined($options{S})) {
     $summary = 1;
     $normalize = 0;
+}
+if (defined($options{U})) {
+    $noinactive = 1;
 }
 if (defined($options{n})) {
     if ($options{n} =~ /^([-\w]+)$/) {
@@ -292,36 +297,39 @@ foreach my $ue (@$users) {
     my $state = $ue->{'state'};
     my $country = $ue->{'country'};
     my $zip = $ue->{'zip'};
+    my $last = $ue->{'lastactive'};
     my $lat = $ue->{'latitude'};
     my $lng = $ue->{'longitude'};
+    my $loc = $ue->{'location'};
     if ($summary) {
-	$affil =~ s/^\s+//; $affil =~ s/'//g;
-	$city =~ s/^\s+//; $city =~ s/'//g;
-	$state =~ s/^\s+//; $state =~ s/'//g;
-	$country =~ s/^\s+//; $country =~ s/'//g;
-	$zip =~ s/^\s+//; $zip =~ s/'//g;
-	print "index='$uix', name='$name', affil='$affil', city='$city', state='$state', country='$country', zip='$zip'";
+	$affil =~ s/^\s+//; $affil =~ s/\'//g;
+	$city =~ s/^\s+//; $city =~ s/\'//g;
+	$state =~ s/^\s+//; $state =~ s/\'//g;
+	$country =~ s/^\s+//; $country =~ s/\'//g;
+	$zip =~ s/^\s+//; $zip =~ s/\'//g;
+	print "index='$uix', name='$name', affil='$affil', city='$city', state='$state', country='$country', zip='$zip', lastactive='$last'";
 	if ($dogeo) {
-	    print ", latitude='$lat', longitude='$lng'";
+	    print ", latitude='$lat', longitude='$lng', location='$loc'";
 	}
 	print "\n";
     } elsif ($normalize) {
 	if ($uix == 1) {
-	    print "user_index,name,affil,city,state,country,zip";
+	    print "user_index,name,affil,city,state,country,zip,lastactive";
 	    if ($dogeo) {
-		print ",latitude,longitude";
+		print ",latitude,longitude,location";
 	    }
 	    print "\n";
 	}
-	print "$uix,$name,$affil,$city,$state,$country,$zip";
+	print "$uix,$name,$affil,$city,$state,$country,$zip,$last";
 	if ($dogeo) {
-	    print ",$lat,$lng";
+	    $loc =~ s/,/;/g;
+	    print ",$lat,$lng,$loc";
 	}
 	print "\n";
     } else {
-	print "$uix: name='$name', affil='$affil', city='$city', state='$state', country='$country', zip='$zip'";
+	print "$uix: name='$name', affil='$affil', city='$city', state='$state', country='$country', zip='$zip', lastactive='$last'";
 	if ($dogeo) {
-	    print ", latitude='$lat', longitude='$lng'";
+	    print ", latitude='$lat', longitude='$lng', location='$loc'";
 	}
 	print "\n";
     }
@@ -610,27 +618,56 @@ sub users($)
 	my @pusers = ();
 	foreach my $obj (@$uobjs) {
 	    my $name = $obj->uid();
-	    if (!$obj->active() || $obj->webonly()) {
-		#print STDERR "Skip inactive/webonly user '$name'\n";
+
+	    #
+	    # Make sure they existed by the end of the time window.
+	    #
+	    my $ctime = str2time($obj->created());
+	    if ($ctime && $ctime >= $endtime) {
+		print STDERR "Skip user '$name' created on " .
+		    $obj->created() . "\n"
+		    if (0);
 		next;
 	    }
-	    my $affil = $obj->affil();
-	    $affil ="" if !defined($affil);
-	    $affil =~ tr/,/ /s if ($normalize);
-	    my $city = $obj->city();
-	    $city ="" if !defined($city);
-	    $city =~ tr/,/ /s if ($normalize);
-	    my $state = $obj->state();
-	    $state ="" if !defined($state);
-	    $state =~ tr/,/ /s if ($normalize);
-	    my $country = $obj->country();
-	    $country ="" if !defined($country);
-	    $country =~ tr/,/ /s if ($normalize);
-	    my $zip = $obj->zip();
-	    $zip ="" if !defined($zip);
-	    $zip =~ tr/,/ /s if ($normalize);
+
+	    #
+	    # Filter web-only or never approved users.
+	    #
+	    if (!($obj->active() || $obj->frozen() || $obj->archived()) ||
+		$obj->webonly()) {
+		print STDERR "Skip inactive/webonly user '$name'\n"
+		    if (0);
+		next;
+	    }
+
+	    #
+	    # See if they were active since the start of the time window.
+	    # XXX since this is inexact, it is an option.
+	    #
+	    my ($astamp,$atime) = lastactive($name);
+	    if ($noinactive && $astamp < $starttime) {
+		print STDERR "Skip user '$name' last active on $atime\n"
+		    if (1);
+		next;
+	    }
 
 	    if (!exists($userix{$name})) {
+		my $affil = $obj->affil();
+		$affil ="" if !defined($affil);
+		$affil =~ tr/,/ /s if ($normalize);
+		my $city = $obj->city();
+		$city ="" if !defined($city);
+		$city =~ tr/,/ /s if ($normalize);
+		my $state = $obj->state();
+		$state ="" if !defined($state);
+		$state =~ tr/,/ /s if ($normalize);
+		my $country = $obj->country();
+		$country ="" if !defined($country);
+		$country =~ tr/,/ /s if ($normalize);
+		my $zip = $obj->zip();
+		$zip ="" if !defined($zip);
+		$zip =~ tr/,/ /s if ($normalize);
+
 		my $ue = {
 		    'user_idx' => $uix,
 		    'name' => $name,
@@ -638,11 +675,18 @@ sub users($)
 		    'city' => $city,
 		    'state' => $state,
 		    'country' => $country,
-		    'zip' => $zip
+		    'zip' => $zip,
+		    'lastactive' => $astamp
 		};
 		push(@users, $ue);
 		$userix{$name} = $uix;
 		$uix++;
+	    } else {
+		# recorded idx is 1-based, array is 0-based
+		my $idx = $userix{$name} - 1;
+		if ($astamp > $users[$idx]->{'lastactive'}) {
+		    $users[$idx]->{'lastactive'} = $astamp;
+		}
 	    }
 	    push(@pusers, $userix{$name});
 	}
@@ -655,6 +699,54 @@ sub users($)
     }
 
     return \@users;
+}
+
+#
+# Determine as best we can the last activity of a user.
+# 
+sub lastactive($)
+{
+    my ($user) = @_;
+    my $last = "";
+    my $laststamp = 0;
+
+    # Find the last login
+    my $query =
+	DBQueryFatal("SELECT date,time FROM uidnodelastlogin ".
+		     "WHERE uid='$user'");
+    if ($query && $query->numrows > 0) {
+	my %row = $query->fetchhash();
+	my $tstamp = str2time($row{'date'} . " " . $row{'time'});
+	if ($tstamp > $laststamp) {
+	    $laststamp = $tstamp;
+	    $last = $row{'date'} . " " . $row{'time'};
+	}
+    }
+
+    # Find last weblogin and activity
+    $query =
+	DBQueryFatal("SELECT weblogin_last,last_activity FROM ".
+		     "users AS u, user_stats AS s ".
+		     "WHERE s.uid_idx=u.uid_idx AND u.uid='$user'");
+    if ($query && $query->numrows > 0) {
+	my %row = $query->fetchhash();
+	if ($row{'weblogin_last'}) {
+	    my $tstamp = str2time($row{'weblogin_last'});
+	    if ($tstamp && $tstamp > $laststamp) {
+		$laststamp = $tstamp;
+		$last = $row{'weblogin_last'};
+	    }
+	}
+	if ($row{'last_activity'}) {
+	    $tstamp = str2time($row{'last_activity'});
+	    if ($tstamp && $tstamp > $laststamp) {
+		$laststamp = $tstamp;
+		$last = $row{'last_activity'};
+	    }
+	}
+    }
+
+    return ($laststamp, $last);
 }
 
 #
@@ -719,8 +811,6 @@ sub geoize($)
 	my $city = $user->{'city'};
 	my $state = $user->{'state'};
 	my $country = $user->{'country'};
-	my $key;
-
 	$city =~ s/^\s+//;
 	$city =~ s/\s+$//;
 	$state =~ s/^\s+//;
@@ -732,6 +822,7 @@ sub geoize($)
 	$state = lc($state);
 	$country = lc($country);
 
+	my $key;
 	if ($country ne "usa" && $country ne "us" &&
 	    $country ne "" && $country ne "NULL") {
 	    $key = "$city-$country";
@@ -754,7 +845,8 @@ again:
 		"': could not find geo info for '$key' (city='".
 		$user->{'city'} . "', state='" .
 		$user->{'state'} . "', country='" .
-		$user->{'country'} . "')\n";
+		$user->{'country'} . "')\n"
+		if (0);
 	    $user->{'latitude'} = "";
 	    $user->{'longitude'} = "";
 	    $user->{'location'} = "";
