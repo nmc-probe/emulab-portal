@@ -1621,6 +1621,64 @@ function Do_Utilization()
     SPITAJAX_RESPONSE($blob);
 }
 
+#
+# idledata
+#
+function Do_IdleData()
+{
+    global $instance, $creator;
+    global $urn_mapping, $TBADMINGROUP;
+
+    if (StatusSetupAjax(0)) {
+	return;
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	return 1;
+    }
+    $webtask = WebTask::CreateAnonymous();
+    # XXX Need to do this as elabman cause of emulab.key. Pondering.
+    $retval = SUEXEC("elabman", $TBADMINGROUP,
+		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
+                     "  idledata $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask->Refresh();
+
+    if ($retval != 0) {
+        if ($webtask->exited()) {
+            SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
+        }
+        elseif ($retval < 0) {
+            SPITAJAX_ERROR($retval, "Internal error, cannot proceed.");
+            # Notify tbops.
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            SPITAJAX_ERROR($retval, $suexec_output);
+        }
+        $webtask->Delete();
+        return;
+    }
+    
+    $webtask->Delete();
+    $blob = array();
+    # Look at per sliver.
+    foreach ($instance->slivers() as $sliver) {
+        if ($sliver->webtask_id() &&
+            $webtask = WebTask::Lookup($sliver->webtask_id())) {
+            if (!($sliver->physnode_count() || $sliver->virtnode_count())) {
+                continue;
+            }
+            # Send back the raw json. 
+            $blob[$urn_mapping[$sliver->aggregate_urn()]] =
+                $webtask->TaskValue("idledata");
+        }
+    }
+    SPITAJAX_RESPONSE($blob);
+}
+
 # Local Variables:
 # mode:php
 # End:
