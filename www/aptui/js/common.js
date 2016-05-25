@@ -144,3 +144,20 @@ window.APT_OPTIONS.announceDismiss = function (aid) {
 window.APT_OPTIONS.announceClick = function (aid) {
   APT_OPTIONS.CallServerMethod('', 'announcement', 'Click', {'aid': aid}, function(){});
 };
+
+window.APT_OPTIONS.nagPI = function (pid) {
+  APT_OPTIONS.CallServerMethod('', 'nag', 'NagPI', {"pid" : pid},
+			       function(json) {
+				   if (json.code) {
+				       console.info("nagged", json);
+				       if (json.code > 0) {
+					   alert(json.value);
+				       }
+				       return;
+				   }
+				   alert("The Project Leader for project '" +
+					 pid + "' " +
+					 "has been sent a reminder message.");
+			       });
+  return false;
+};
