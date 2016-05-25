@@ -50,6 +50,11 @@ $routing = array("myprofiles" =>
 			      "guest"   => false,
 			      "methods" => array("GetStats" =>
 						      "Do_GetStats")),
+		 "rspec2genilib" =>
+			array("file"    => "rspec2genilib.ajax",
+			      "guest"   => false,
+			      "methods" => array("Convert" =>
+						      "Do_Convert")),
 		 "cluster-status" =>
 			array("file"    => "cluster-status.ajax",
 			      "guest"   => false,
@@ -107,6 +112,8 @@ $routing = array("myprofiles" =>
 						   "Do_GetInstanceStatus",
 						 "ExpInfo" =>
 						    "Do_ExpInfo",
+						 "IdleData" =>
+						    "Do_IdleData",
 						 "Utilization" =>
 						    "Do_Utilization",
 						 "TerminateInstance" =>
@@ -177,6 +184,7 @@ $routing = array("myprofiles" =>
 		 "myaccount" =>
 			array("file"    => "myaccount.ajax",
 			      "guest"   => false,
+                              "unapproved" => true,
 			      "methods" => array("update" =>
                                                  "Do_Update")),
 		 "lists" =>
@@ -205,8 +213,16 @@ $routing = array("myprofiles" =>
                                                      "Do_Toggle",
                                                  "SendTestMessage" =>
                                                      "Do_SendTestMessage",
+                                                 "NagPI" =>
+                                                     "Do_NagPI",
                                                  "AccountDetails" =>
-                                                      "Do_AccountDetails")),
+                                                     "Do_AccountDetails")),
+		 "nag" =>
+			array("file"    => "user-dashboard.ajax",
+                              "unapproved" => true,
+			      "guest"   => false,
+			      "methods" => array("NagPI" =>
+                                                     "Do_NagPI",)),
 		 "show-project" =>
 			array("file"    => "show-project.ajax",
 			      "guest"   => false,
@@ -259,9 +275,18 @@ $this_user = CheckLogin($check_status);
 # way to let guest users pass through when allowed, without
 # duplicating the code in each file.
 #
-function CheckLoginForAjax($guestokay = false)
+function CheckLoginForAjax($route)
 {
     global $this_user, $check_status;
+    $guestokay = false;
+    $unapprovedokay = false;
+    
+    if (array_key_exists("guest", $route)) {
+        $guestokay = $route["guest"];
+    }
+    if (array_key_exists("unapproved", $route)) {
+        $unapprovedokay = $route["unapproved"];
+    }
 
     # Known user, but timed out.
     if ($check_status & CHECKLOGIN_TIMEDOUT) {
@@ -274,16 +299,23 @@ function CheckLoginForAjax($guestokay = false)
 	    SPITAJAX_ERROR(2, "Your login cannot be verified. Cookie problem?");
 	    exit(2);
 	}
-        # Known user, but not approved.
-	if ($check_status & CHECKLOGIN_UNAPPROVED) {
-	    SPITAJAX_ERROR(2, "Your account has not been approved yet");
-	    exit(2);
-	}
-	# Known user, but not active.
-	if (! ($check_status & CHECKLOGIN_ACTIVE)) {
-	    SPITAJAX_ERROR(2, "Your account is no longer active");
-	    exit(2);
-	}
+        # Known user, but not frozen.
+        if ($check_status & CHECKLOGIN_FROZEN) {
+            SPITAJAX_ERROR(2, "Your account has been frozen");
+            exit(2);
+        }
+        if (! $unapprovedokay) {
+            # Known user, but not approved.
+            if ($check_status & CHECKLOGIN_UNAPPROVED) {
+	        SPITAJAX_ERROR(2, "Your account has not been approved yet");
+                exit(2);
+            }
+            # Known user, but not active.
+            if (! ($check_status & CHECKLOGIN_ACTIVE)) {
+                SPITAJAX_ERROR(2, "Your account is no longer active");
+                exit(2);
+            }
+        }
         # Kludge, still thinking about it. If a geni user has no project
         # permissions at their SA, then we mark the acount as WEBONLY, and
         # deny access to anything that is not marked as guest okay. 
@@ -343,7 +375,7 @@ if (! array_key_exists($ajax_method, $routing[$ajax_route]["methods"])) {
     SPITAJAX_ERROR(1, "Invalid method: $ajax_route,$ajax_method");
     exit(1);
 }
-CheckLoginForAjax($routing[$ajax_route]["guest"]);
+CheckLoginForAjax($routing[$ajax_route]);
 include($routing[$ajax_route]["file"]);
 call_user_func($routing[$ajax_route]["methods"][$ajax_method]);
 
