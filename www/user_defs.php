@@ -354,7 +354,9 @@ class User
     function IsNonLocal() {
 	return ($this->field("nonlocal_id") ? 1 : 0);
     }
-
+    function IsActive() {
+        return ($this->status() == TBDB_USERSTATUS_ACTIVE ? 1 : 0);
+    }
     # Temporary data storage ... useful.
     function SetTempData($value) {
 	$this->tempdata = $value;
@@ -1319,6 +1321,15 @@ class User
 	    $result[] = $project;
 	}
 	return $result;
+    }
+
+    #
+    # Return list of unapproved membership in projects. This will not
+    # include projects for which the user is the leader, that is a
+    # different set.
+    #
+    function PendingMembership() {
+        return $this->ProjectMembershipList(TBDB_TRUSTSTRING_NONE);
     }
 
     #
