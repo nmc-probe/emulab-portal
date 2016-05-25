@@ -306,7 +306,7 @@ open(NS, "$nsfile") or
     fatal("Could not open $nsfile: $!");
 print PY "\n";
 print PY "#\n";
-print PY "# Here is the original NS file.\n";
+print PY "# Here is the original NS file from the Emulab experiment.\n";
 print PY "#\n";
 while (<NS>) {
     print PY "# $_";
