@@ -851,6 +851,7 @@ sub ModUserInfo($$$$)
     my $target_name = $target_user->name();
     my $target_email = $target_user->email();
     my $wikionly = $target_user->wikionly();
+    my $status = $target_user->status();
 
     my %mods;
     my $noreport;
@@ -1023,8 +1024,12 @@ sub ModUserInfo($$$$)
 
 	#
 	# "tbacct mod" updates the user gecos field (usr_name) and shell.
+	# But do not want to do this if the user is unapproved, since there
+	# is no account to operate on until the user is approved. Really,
+	# we need a better test for actual user account.
 	#
-	if ($mods{"usr_name"} || $mods{"usr_shell"}) {
+	if ($status ne $USERSTATUS_UNAPPROVED &&
+	    ($mods{"usr_name"} || $mods{"usr_shell"})) {
 	    my $cmd = "$tbacct mod $target_uid";
 	    ##print $cmd;
 	    my $cmd_out = `$cmd`;
