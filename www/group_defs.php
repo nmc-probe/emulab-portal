@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -661,13 +661,48 @@ class Group
     #
     # Notify leaders of new (and verified) group member.
     #
-    function NewMemberNotify($user) {
+    function NewMemberNotify($user, $nag = false) {
 	global $TBWWW, $APTBASE,
 	       $TBMAIL_APPROVAL, $TBMAIL_AUDIT, $TBMAIL_WWW, $TBMAIL_NOREPLY;
 	
 	if (! $this->project) {
 	    $this->LoadProject();
 	}
+        $uid_idx = $user->uid_idx();
+        $pid_idx = $this->project()->pid_idx();
+        $gid_idx = $this->gid_idx();
+        
+        #
+        # In nag mode, we want to check the last time we nagged, to
+        # avoid annoying the project leader too much. We do this locked
+        # to avoid double click sends.
+        #
+        if ($nag) {
+            DBQueryFatal("lock tables group_membership write");
+            $membership = $this->MemberShipInfo($user);
+            $date_approved = $membership["date_approved"];
+            $date_nagged   = $membership["date_nagged"];
+
+            # Nothing to do.
+            if ($date_approved) {
+                DBQueryFatal("unlock tables");
+                return 1;
+            }
+            # Nagged recently?
+            if ($date_nagged) {
+                $nagged = strtotime($date_nagged);
+                if (time() - $nagged < 3600 * 24) {
+                    DBQueryFatal("unlock tables");
+                    return 1;
+                }
+            }
+            # Okay, we want to nag. Update the table first.
+            DBQueryFatal("update group_membership set date_nagged=now() ".
+                         "where uid_idx='$uid_idx' and ".
+                         "      pid_idx='$pid_idx' and ".
+                         "      gid_idx='$gid_idx'");
+            DBQueryFatal("unlock tables");
+        }
 	$project	= $this->project;
 	$pid            = $project->pid();
 	$gid            = $this->gid();
@@ -691,48 +726,65 @@ class Group
 	$usr_URL	= $user->URL();
 	$url            = $project->wwwBase();
 	
-	if ($project->isAPT() || $project->isCloud() || $project->isPNet()) {
+	if (1 ||
+            $project->isAPT() || $project->isCloud() || $project->isPNet()) {
 	    $url .= "/approveuser.php?uid=$joining_uid&pid=$pid";
-	    $message =
+            $message =
+                "$usr_name is trying to join your group $gid ".
+                "in project $pid.\n";
+	    $instructions =
 		"You can approve or reject this user:\n\n".
 		"Approve:  ${url}&action=approve\n".
 		"or\n".
 		"Deny:     ${url}&action=deny\n";
 	    $from = $project->ApprovalEmailAddress();
+            $fields =
+                "Name:            $usr_name\n".
+                "Login ID:        $joining_uid\n".
+                "Email:           $usr_email\n" .
+                "Affiliation:     $usr_affil\n".
+                "City:            $usr_city\n".
+                "State:           $usr_state\n".
+                "Country:         $usr_country\n";
 	}
 	else {
-	    $message =
-		"Please return to $url,\n".
-		"log in, and select the 'New User Approval' page to enter your\n".
-		"decision regarding $usr_name's membership in your project.\n\n";
+            $message =
+                "$usr_name is trying to join your group $gid ".
+                "in project $pid.\n";
+	    $instructions =
+	      "Please return to $url,\n".
+	      "log in, and select the 'New User Approval' page to enter your\n".
+	      "decision regarding $usr_name's membership in your project.\n\n";
 	    $from = "$usr_name '$joining_uid' <$usr_email>";
+            $fields = 
+                "Name:            $usr_name\n".
+                "Emulab ID:       $joining_uid\n".
+                "Email:           $usr_email\n" .
+                "Affiliation:     $usr_affil\n".
+                "User URL:        $usr_URL\n".
+                "Job Title:       $usr_title\n".
+                "Address 1:       $usr_addr\n".
+                "Address 2:       $usr_addr2\n" .
+                "City:            $usr_city\n".
+                "State:           $usr_state\n".
+                "ZIP/Postal Code: $usr_zip\n".
+                "Country:         $usr_country\n".
+                "Phone:           $usr_phone\n";
 	}
 	TBMAIL("$leader_name '$leader_uid' <$leader_email>",
-	   "$joining_uid $pid Project Join Request",
-	   "$usr_name is trying to join your group $gid in project $pid.\n".
-	   "\n".
-	   "Contact Info:\n".
-	   "Name:            $usr_name\n".
-	   "Emulab ID:       $joining_uid\n".
-	   "Email:           $usr_email\n" .
-	   "Affiliation:     $usr_affil\n".
-	   "User URL:        $usr_URL\n".
-	   "Job Title:       $usr_title\n".
-	   "Address 1:       $usr_addr\n".
-	   "Address 2:       $usr_addr2\n" .
-	   "City:            $usr_city\n".
-	   "State:           $usr_state\n".
-	   "ZIP/Postal Code: $usr_zip\n".
-	   "Country:         $usr_country\n".
-	   "Phone:           $usr_phone\n".
-	   "\n".
-	   $message .
-	   "\n".
-	   "Thanks!\n",
-           "From: $from\n".
-	   "Cc: $allleaders\n".
-	   "Bcc: $TBMAIL_AUDIT\n".
-	   "Errors-To: $TBMAIL_WWW");
+               "$joining_uid $pid Project Join Request",
+               $message . 
+               "\n".
+               "Contact Info:\n".
+               $fields . 
+               "\n".
+               $instructions .
+               "\n".
+               "Thanks!\n",
+               "From: $from\n".
+               "Cc: $allleaders\n".
+               "Bcc: $TBMAIL_AUDIT\n".
+               "Errors-To: $TBMAIL_WWW");
 
 	return 0;
     }
@@ -962,14 +1014,14 @@ class Group
     }
 
     #
-    # Hmm, this is really a grooup_membership query. Needs different treatment.
+    # Hmm, this is really a group_membership query. Needs different treatment.
     #
-    function MemberShipInfo($user, &$trust, &$date_applied, &$date_approved) {
+    function MemberShipInfo($user) {
 	$uid_idx = $user->uid_idx();
 	$gid_idx = $this->gid_idx();
 
 	$query_result =
-	    DBQueryFatal("select trust,date_applied,date_approved ".
+	    DBQueryFatal("select trust,date_applied,date_approved,date_nagged ".
 			 "  from group_membership ".
 			 "where uid_idx='$uid_idx' and gid_idx='$gid_idx'");
 
@@ -978,11 +1030,11 @@ class Group
 		    "Lookup failed for $uid_idx/$gid_idx", 1);
 	}
 	$row      = mysql_fetch_row($query_result);
-	$trust    = $row[0];
-	$date_applied  = $row[1];
-	$date_approved = $row[2];
-	
-	return 0;
+        $result   = array("trust"         => $row[0],
+                          "date_applied"  => $row[1],
+                          "date_approved" => $row[2],
+                          "date_nagged"   => $row[3]);
+	return $result;
     }
 
     #
