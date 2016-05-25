@@ -234,22 +234,42 @@ function Do_Update()
     $args   = array();
     $errors = array();
 
-    $args["name"]	   = $formfields["name"];
-    $args["city"]          = $formfields["city"];
-    $args["state"]         = $formfields["state"];
-    $args["country"]       = $formfields["country"];
-    $args["affiliation"]   = $formfields["affiliation"];
+    #
+    # If the info has not changed, do not send it through, the backend
+    # will consider that a change (its stupid) and might try to do things
+    # that are not allowed on unapproved users. Need to fix this.
+    #
+    if ($formfields["name"] != $target_user->name()) {
+        $args["name"] = $formfields["name"];
+    }
+    if ($formfields["city"] != $target_user->city()) {
+        $args["city"] = $formfields["city"];
+    }
+    if ($formfields["state"] != $target_user->state()) {
+        $args["state"] = $formfields["state"];
+    }
+    if ($formfields["country"] != $target_user->country()) {
+        $args["country"] = $formfields["country"];
+    }
+    if ($formfields["affiliation"] != $target_user->affil()) {
+        $args["affiliation"] = $formfields["affiliation"];
+    }
     if (isset($formfields["password1"]) && $formfields["password1"] != "") {
         $args["password1"] = $formfields["password1"];
         $args["password2"] = $formfields["password2"];
     }
-    if (! User::ModUserInfo($target_user,
-                            $target_user->uid(), $args, $errors)) {
+    if (count($args) &&
+        !User::ModUserInfo($target_user,
+                           $target_user->uid(), $args, $errors)) {
 	SPITAJAX_ERROR(2, $errors);
         return;
     }
-    if (isset($formfields["password1"]) && $formfields["password1"] != "") {
-        # Change the passphrase on the SSL key.
+    #
+    # Change the passphrase on the SSL key. If not an active user, it will
+    # happen when the user is approved. 
+    # 
+    if ($target_user->IsActive() &&
+        isset($formfields["password1"]) && $formfields["password1"] != "") {
         $safe_password = escapeshellarg($formfields["password1"]);
 
         # Do not send email, mkusercert sends email and hides the password.
