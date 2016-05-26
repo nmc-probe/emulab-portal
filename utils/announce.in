@@ -1,0 +1,178 @@
+#!/usr/bin/perl -w
+#
+# Copyright (c)-2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+use strict;
+use English;
+use Getopt::Std;
+use Date::Parse;
+
+#
+# Set up and clear node pre-reservations.
+#
+sub usage()
+{
+    print STDERR "Usage: announce -a <-g genesis> [-s alert_style] [-b button_label] [-u action_url] [-m max_seen_count] <announcement_text>\n";
+    print STDERR "       announce -l \n";
+    print STDERR "       announce -r idx\n";
+    print STDERR "       announce -h\n";
+    print STDERR "   -h   This message\n";
+    print STDERR "   -a   Create a new announcement with the given announcement text.\n";
+    print STDERR "   -g   Set the genesis to be the one given. Should be one of 'cloudlab', 'emulab', 'aptlab', 'phantomnet'.\n";
+    print STDERR "   -s   Set the style of the overall announcement box. Should normally be one of bootstraps alert-* classes. Defaults to 'alert-info'.\n";
+    print STDERR "   -b   If there is an action associated with this announcement, this is the text which goes into the action button. Can include HTML. If it is unset, there is no action button.\n";
+    print STDERR "   -u   URL of action associated with this announcement. {uid_idx} and {uid} can be used as URL templates to generate a different URL on a per-user basis. If it is unset, there is no action button.\n";
+    print STDERR "   -m   The maximum number of times that this announcement will appear to a user. Every page view (even those in a single session) counts. A value of '0' indicates that the announcement should keep appearing indefinitely until dismissed by the user or an action is taken. Defaults to 20.\n";
+    print STDERR "   -l   List all active global announcements.\n";
+    print STDERR "   -r   Retire announcement with the given idx. A retired announcement will no longer be displayed to users.\n";
+    exit(-1);
+}
+my $optlist  = "hag:s:b:u:m:lr:";
+my $add_mode = 0;
+my $list_mode = 0;
+my $retire_mode = 0;
+my $genesis = undef;
+my $style = "alert-info";
+my $button = undef;
+my $url = undef;
+my $max_seen = 20;
+my $retire_idx = undef;
+my $text = undef;
+
+# Protos
+sub fatal($);
+
+#
+# Configure variables
+#
+my $TB		 = "@prefix@";
+my $TBOPS        = "@TBOPSEMAIL@";
+
+#
+# Testbed Support libraries
+#
+use lib "@prefix@/lib";
+use emdb;
+use libtestbed;
+use User;
+
+#
+# Turn off line buffering on output
+#
+$| = 1;
+
+#
+# Untaint the path
+# 
+$ENV{'PATH'} = "/bin:/sbin:/usr/bin:";
+
+#
+# Parse command arguments. Once we return from getopts, all that should be
+# left are the required arguments.
+#
+my %options = ();
+if (! getopts($optlist, \%options)) {
+    usage();
+}
+if (defined($options{"h"})) {
+    usage();
+}
+if (defined($options{"a"})) {
+    $add_mode = 1;
+}
+if (defined($options{"l"})) {
+    $list_mode = 1;
+}
+if (defined($options{"r"})) {
+    $retire_mode = 1;
+    $retire_idx = $options{"r"};
+}
+if (defined($options{"g"})) {
+    $genesis = $options{"g"};
+}
+if (defined($options{"s"})) {
+    $style = $options{"s"};
+}
+if (defined($options{"b"})) {
+    $button = $options{"b"};
+}
+if (defined($options{"u"})) {
+    $url = $options{"u"};
+}
+if (defined($options{"m"})) {
+    $max_seen = $options{"m"};
+}
+
+if ($add_mode + $list_mode + $retire_mode != 1) {
+    usage();
+}
+
+if ($add_mode and ! defined($genesis)) {
+    usage();
+}
+
+if ($add_mode) {
+    $text = join(' ', @ARGV);
+}
+if (! $add_mode && scalar(@ARGV) > 0) {
+    usage();
+}
+
+if ($add_mode) {
+    my $query = "insert into apt_announcements set ";
+    $query .= "created=NOW()";
+    $query .= ", genesis=" . DBQuoteSpecial($genesis);
+    $query .= ", max_seen=" . DBQuoteSpecial($max_seen);
+    $query .= ", text=" . DBQuoteSpecial($text);
+    $query .= ", style=" . DBQuoteSpecial($style);
+    if (defined($button) && defined($url)) {
+	$query .= ", link_label=" . DBQuoteSpecial($button);
+	$query .= ", link_url=" . DBQuoteSpecial($url);
+    }
+    DBQueryFatal($query);
+} elsif ($list_mode) {
+    my $query_result = 
+	DBQueryFatal("select idx, genesis, text from apt_announcements where retired = 0 and uid_idx is NULL");
+    print "idx\tGenesis    Text\n";
+    print "---\t-------    ----\n";
+    while (my ($idx, $genesis, $text) = $query_result->fetchrow_array()) {
+	my $textbit = substr($text, 0, 55);
+	if (length($text) > 55) {
+	    $textbit = $textbit . "...";
+	}
+	my $genesispad = sprintf("%-10s", $genesis);
+	print "$idx\t$genesispad $textbit\n"
+    }
+} elsif ($retire_mode) {
+    my $query_result =
+	DBQueryFatal("update apt_announcements set retired=1 where idx=".DBQuoteSpecial($retire_idx));
+}
+
+
+sub fatal($)
+{
+    my ($mesg) = $_[0];
+
+    die("*** $0:\n".
+	"    $mesg\n");
+}
+
