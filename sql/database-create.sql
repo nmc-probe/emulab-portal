@@ -268,12 +268,14 @@ CREATE TABLE `apt_instances` (
   `servername` tinytext,
   `monitor_pid` int(11) default '0',
   `needupdate` tinyint(3) NOT NULL default '0',
+  `isopenstack` tinyint(1) NOT NULL default '0',
   `logfileid` varchar(40) default NULL,
   `cert` mediumtext,
   `privkey` mediumtext,
   `rspec` mediumtext,
   `params` mediumtext,
   `manifest` mediumtext,
+  `openstack_utilization` mediumtext,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
