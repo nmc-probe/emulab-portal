@@ -32,8 +32,9 @@ use Date::Parse;
 sub usage()
 {
     print STDERR "Usage: announce -a <-g genesis> [-s alert_style] [-b button_label] [-u action_url] [-m max_seen_count] <announcement_text>\n";
-    print STDERR "       announce -l \n";
+    print STDERR "       announce -l [active|retired|all]\n";
     print STDERR "       announce -r idx\n";
+    print STDERR "       announce -i idx\n";
     print STDERR "       announce -h\n";
     print STDERR "   -h   This message\n";
     print STDERR "   -a   Create a new announcement with the given announcement text.\n";
@@ -42,21 +43,27 @@ sub usage()
     print STDERR "   -b   If there is an action associated with this announcement, this is the text which goes into the action button. Can include HTML. If it is unset, there is no action button.\n";
     print STDERR "   -u   URL of action associated with this announcement. {uid_idx} and {uid} can be used as URL templates to generate a different URL on a per-user basis. If it is unset, there is no action button.\n";
     print STDERR "   -m   The maximum number of times that this announcement will appear to a user. Every page view (even those in a single session) counts. A value of '0' indicates that the announcement should keep appearing indefinitely until dismissed by the user or an action is taken. Defaults to 20.\n";
-    print STDERR "   -l   List all active global announcements.\n";
+    print STDERR "   -l   List global announcements. Defaults to listing active announcements.\n";
     print STDERR "   -r   Retire announcement with the given idx. A retired announcement will no longer be displayed to users.\n";
+    print STDERR "   -i   Info about a particular announcement.\n";
     exit(-1);
 }
-my $optlist  = "hag:s:b:u:m:lr:";
+my $optlist  = "hag:s:b:u:m:lr:i:";
 my $add_mode = 0;
 my $list_mode = 0;
 my $retire_mode = 0;
+my $info_mode = 0;
 my $genesis = undef;
 my $style = "alert-info";
 my $button = undef;
 my $url = undef;
 my $max_seen = 20;
 my $retire_idx = undef;
+my $info_idx = undef;
 my $text = undef;
+my $list_type = "active";
+
+my $query_result;
 
 # Protos
 sub fatal($);
@@ -106,6 +113,10 @@ if (defined($options{"r"})) {
     $retire_mode = 1;
     $retire_idx = $options{"r"};
 }
+if (defined($options{"i"})) {
+    $info_mode = 1;
+    $info_idx = $options{"i"};
+}
 if (defined($options{"g"})) {
     $genesis = $options{"g"};
 }
@@ -122,7 +133,7 @@ if (defined($options{"m"})) {
     $max_seen = $options{"m"};
 }
 
-if ($add_mode + $list_mode + $retire_mode != 1) {
+if ($add_mode + $list_mode + $retire_mode + $info_mode != 1) {
     usage();
 }
 
@@ -133,11 +144,19 @@ if ($add_mode and ! defined($genesis)) {
 if ($add_mode) {
     $text = join(' ', @ARGV);
 }
-if (! $add_mode && scalar(@ARGV) > 0) {
+
+if (! $list_mode && ! $add_mode && scalar(@ARGV) > 0) {
     usage();
 }
 
+if ($list_mode && scalar(@ARGV) > 0) {
+    $list_type = $ARGV[0];
+}
+
 if ($add_mode) {
+    #
+    # Add a new announcement
+    #
     my $query = "insert into apt_announcements set ";
     $query .= "created=NOW()";
     $query .= ", genesis=" . DBQuoteSpecial($genesis);
@@ -150,8 +169,17 @@ if ($add_mode) {
     }
     DBQueryFatal($query);
 } elsif ($list_mode) {
-    my $query_result = 
-	DBQueryFatal("select idx, genesis, text from apt_announcements where retired = 0 and uid_idx is NULL");
+    #
+    # List announcements
+    #
+    my $condition = "retired=0 and ";
+    if ($list_type eq "all") {
+	$condition = "";
+    } elsif ($list_type eq "retired") {
+	$condition = "retired=1 and ";
+    }
+    $query_result = 
+	DBQueryFatal("select idx, genesis, text from apt_announcements where ".$condition."uid_idx is NULL");
     print "idx\tGenesis    Text\n";
     print "---\t-------    ----\n";
     while (my ($idx, $genesis, $text) = $query_result->fetchrow_array()) {
@@ -163,10 +191,66 @@ if ($add_mode) {
 	print "$idx\t$genesispad $textbit\n"
     }
 } elsif ($retire_mode) {
-    my $query_result =
-	DBQueryFatal("update apt_announcements set retired=1 where idx=".DBQuoteSpecial($retire_idx));
-}
+    #
+    # Retire an announcement
+    #
+    $query_result =
+	DBQueryFatal("update apt_announcements ".
+		     "set retired=1 where idx=".
+		     DBQuoteSpecial($retire_idx));
+} elsif ($info_mode) {
+    #
+    # Details about an announcement
+    #
+    $query_result =
+	DBQueryFatal("select count(*) from apt_announcement_info where aid=".DBQuoteSpecial($info_idx));
+    my ($seen) = $query_result->fetchrow_array();
 
+    $query_result =
+	DBQueryFatal("select count(*) from apt_announcement_info where clicked=1 and aid=".DBQuoteSpecial($info_idx));
+    my ($clicked) = $query_result->fetchrow_array();
+
+    $query_result =
+	DBQueryFatal("select count(*) from apt_announcement_info where dismissed=1 and aid=".DBQuoteSpecial($info_idx));
+    my ($dismissed) = $query_result->fetchrow_array();
+    $query_result =
+	DBQueryFatal("select idx, created, uid_idx, genesis, retired, max_seen, text, style, link_label, link_url from apt_announcements where idx=".DBQuoteSpecial($info_idx));
+    if (my ($idx, $created, $uid_idx, $genesis, $retired,
+	    $max_seen, $text, $style, $link_label,
+	    $link_url) = $query_result->fetchrow_array())
+    {
+	print "-----------------------------\n";
+	print "Details for announcement $idx\n";
+	print "-----------------------------\n\n";
+	print "Created:\t$created\n";
+	print "Genesis:\t$genesis\n\n";
+	if (defined($link_label) && defined($link_url)) {
+	    print "Button Label:\t$link_label\n";
+	    print "Button URL:\t$link_url\n";
+	}
+	print "Style:\t\t$style\n";
+	if ($max_seen == 0) {
+	    print "Shown until dismissed or clicked\n";
+	} else {
+	    print "Shown a maximum of $max_seen times\n";
+	}
+	print "\n";
+
+	if ($retired) {
+	    print "* Announcement is retired\n";
+	} else {
+	    print "* Announcement is active\n";
+	}
+	print "* Seen by $seen users\n";
+	if (defined($link_label) && defined($link_url)) {
+	    print "* Clicked by $clicked users\n";
+	}
+	print "* Dismissed by $dismissed users\n";
+
+	print "\nText of announcement:\n\n";
+	print "$text\n\n";
+    }
+}
 
 sub fatal($)
 {
