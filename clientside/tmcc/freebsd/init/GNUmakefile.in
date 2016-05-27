@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -28,7 +28,8 @@ SUBDIR		= $(subst $(TESTBED_SRCDIR)/,,$(SRCDIR))
 include $(OBJDIR)/Makeconf
 
 # To decide what directory
-FBSDVERSION   := $(shell uname -v | sed -e 's/FreeBSD \([0-9][0-9]*\).*/FreeBSD\1/')
+FBSDREL	    := $(shell uname -r | sed -e 's/\([^-][^-]*\)-.*/\1/')
+FBSDVERSION := FreeBSD$(basename $(FBSDREL))
 
 ifeq ($(FBSDVERSION),FreeBSD4)
 FSUBDIR	       = 4
@@ -49,7 +50,11 @@ ifeq ($(FBSDVERSION),FreeBSD9)
 FSUBDIR	       = 9
 endif
 ifeq ($(FBSDVERSION),FreeBSD10)
+ifeq ($(FBSDREL),10.3)
+FSUBDIR	       = 10.3
+else
 FSUBDIR	       = 10
+endif
 endif
 ifeq ($(FBSDVERSION),FreeBSD11)
 FSUBDIR	       = 11
