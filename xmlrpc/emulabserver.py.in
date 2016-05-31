@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# Copyright (c) 2004-2015 University of Utah and the Flux Group.
+# Copyright (c) 2004-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -2867,6 +2867,11 @@ class experiment:
             elif opt == "physnames":
                 if xbool(val):
                     argstr += " -p "
+                    pass
+                pass
+            elif opt == "control-net":
+                if xbool(val):
+                    argstr += " -C "
                     pass
                 pass
             elif opt == "proj":
