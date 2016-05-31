@@ -103,6 +103,8 @@ int
 main(int argc, char **argv)
 {
 	int ch;
+	char *addr;
+	char macstr[13];
 
 	while ((ch = getopt(argc, argv, "im")) != -1) {
 		switch (ch) {
@@ -121,7 +123,30 @@ main(int argc, char **argv)
 	if (argc != 1)
 		usage();
 
-	exit(find_iface(argv[0]));
+	addr = argv[0];
+
+	/*
+	 * XXX accept MACs in a variety of flavors:
+	 *   3cfdfe027864
+	 *   3c:fd:fe:02:78:64
+	 *   3c-fd-fe-02-78-64
+	 *   3cfd.fe02.7864
+	 */
+	if (addrtype == ADDR_MAC) {
+		char *cp;
+		int n = 0;
+
+		for (cp = addr; *cp && n < sizeof(macstr)-1; cp++) {
+			if (*cp == ':' || *cp == '-' || *cp == '.')
+				continue;
+			macstr[n] = *cp;
+			n++;
+		}
+		macstr[n] = '\0';
+		addr = macstr;
+	}
+
+	exit(find_iface(addr));
 }
 
 #ifdef __FreeBSD__
