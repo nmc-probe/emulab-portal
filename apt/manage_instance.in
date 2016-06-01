@@ -1149,7 +1149,7 @@ sub DoTerminate()
 	print STDERR "$urn: $errmsg\n";
 	return -1;
     };
-    print STDERR Dumper($instance);
+    #print STDERR Dumper($instance);
     
     my @return_codes = ();
     my @agglist =      $instance->AggregateList();
