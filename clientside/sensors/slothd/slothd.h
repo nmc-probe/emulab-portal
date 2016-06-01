@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -148,6 +148,10 @@ int get_active_bits(SLOTHD_PACKET*, SLOTHD_PACKET*);
 
 int get_counters(char*,void*);
 int grab_cifname(char*,void*);
+#ifdef USE_TMCCINFO
+int grab_eifname(char*,void*);
+int grab_eifmacs(char*,void*);
+#endif
 int clear_ttys(void);
 int add_tty(char*);
 int enum_ttys(void);
