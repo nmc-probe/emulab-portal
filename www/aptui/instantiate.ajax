@@ -70,6 +70,7 @@ function Do_GetProfile()
                             'creator'     => $profile->creator(),
                             'created'     => $profile->created(),
 			    'ispprofile'  => $ispp,
+                            'isscript'    => ($profile->script() ? 1 : 0),
 			    'amdefault'   => $amdefault));
 }
 
@@ -638,6 +639,82 @@ function CheckStep2()
 	return -1;
     }
     return 0;
+}
+
+#
+# Run geni-lib script. This is a no parameters script, we just want to
+# do the conversion to get the rspec.
+#
+function Do_RunScript()
+{
+    global $this_user;
+    global $ajax_args;
+    global $suexec_output, $suexec_output_array;
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    $profile = Profile::Lookup($ajax_args["uuid"]);
+    if (!$profile) {
+	SPITAJAX_ERROR(1, "Unknown profile uuid");
+	return;
+    }
+    if (!$profile->script()) {
+	SPITAJAX_ERROR(1, "Not a geni-lib script");
+	return;
+    }
+    # Guest users do not run geni-lib; return the rspec or error.
+    if (!isset($this_user)) {
+	if ($profile->rspec() && $profile->rspec() != "") {
+	    SPITAJAX_RESPONSE($profile->rspec());
+	}
+	else {
+	    SPITAJAX_ERROR(1, "No rspec for guest user");
+	}
+    }
+    $this_idx = $this_user->uid_idx();
+    $this_uid = $this_user->uid();
+    
+    if (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
+	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	return;
+    }
+    $infname   = tempnam("/tmp", "genilibin");
+    $outfname  = tempnam("/tmp", "genilibout");
+
+    $fp = fopen($infname, "w");
+    fwrite($fp, $profile->script());
+    fclose($fp);
+    chmod($infname, 0666);
+    chmod($outfname, 0666);
+
+    #
+    # Invoke the backend.
+    #
+    $retval = SUEXEC($this_uid, "nobody",
+		     "webrungenilib -o $outfname $infname",
+		     SUEXEC_ACTION_IGNORE);
+    
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal error, we have been notified");
+	}
+	else {
+            # This might be a json structure, the JS code looks for it. 
+	    $errors = file_get_contents($outfname);
+	    SPITAJAX_ERROR(1, $errors);
+	}
+	unlink($infname);
+	unlink($outfname);
+	return;
+    }
+    $rspec = file_get_contents($outfname);
+
+    unlink($infname);
+    unlink($outfname);
+    SPITAJAX_RESPONSE($rspec);
 }
 
 #
