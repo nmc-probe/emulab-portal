@@ -160,7 +160,7 @@ CREATE TABLE `apt_instance_extension_info` (
   `tstamp` datetime default NULL,
   `uid` varchar(8) NOT NULL default '',
   `uid_idx` mediumint(8) unsigned NOT NULL default '0',
-  `action` enum('request','deny') NOT NULL default 'request',
+  `action` enum('request','deny','info') NOT NULL default 'request',
   `wanted` smallint(5) unsigned NOT NULL default '0',
   `granted` smallint(5) unsigned default NULL,
   `admin` tinyint(1) NOT NULL default '0',
