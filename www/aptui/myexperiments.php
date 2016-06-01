@@ -75,7 +75,7 @@ $query_result2 = null;
 if (($all || $extend) && (ISADMIN() || ISFOREIGN_ADMIN())) {
     $where = "";
     if ($extend) {
-        $where = "where a.extension_requested=1";
+        $where  = "where a.extension_requested=1 or a.admin_lockdown=1";
     }
     $query_result1 = 
         DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
@@ -96,7 +96,7 @@ if (($all || $extend) && (ISADMIN() || ISFOREIGN_ADMIN())) {
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
-                     "$where order by a.creator");
+                     "$where order by expired,a.name");
 }
 else {
     $query_result1 =
@@ -183,16 +183,24 @@ function SPITROWS($showall, $name, $result)
         $canceled     = $row["canceled"];
         $created      = DateStringGMT($row["created"]);
         $expires      = DateStringGMT($row["expires"]);
+        $expired      = $row["expired"];
         $creator_idx  = $row["creator_idx"];
         $profile_name = "$profile_id:$version";
         $creator_uid  = $row["creator"];
         $pid          = $row["pid"];
         $pcount       = $row["physnode_count"];
         $vcount       = $row["virtnode_count"];
+        $extending    = $row["extension_requested"];
         $lockdown     = $row["admin_lockdown"] || $row["user_lockdown"] ? 1 : 0;
         $phours       = $row["phours"];
         list($foo,$hrn) = preg_split("/\./", $row["hrn"]);
         $email        = $row["email"];
+
+        if ($extend) {
+            if (! ($extending || $expired)) {
+                continue;
+            }
+        }
         # If a guest user, use email instead.
         if (isset($email)) {
             $creator = $email;
