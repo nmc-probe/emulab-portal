@@ -129,6 +129,10 @@ class Instance
     function servername()   { return $this->field('servername'); }
     function aggregate_urn(){ return $this->field('aggregate_urn'); }
     function private_key()  { return $this->field('privkey'); }
+    function isopenstack()  { return $this->field('isopenstack'); }
+    function openstack_utilization() {
+        return $this->field('openstack_utilization');
+    }
     function IsAPT() {
 	return preg_match('/aptlab/', $this->servername());
     }

@@ -61,13 +61,9 @@ my $PROTOUSER	     = "elabman";
 my $SUDO	     = "/usr/local/bin/sudo";
 my $WGET             = "/usr/local/bin/wget";
 my $SLEEP_INTERVAL   = 300;
-my $UPDATE_INTERVAL  = (60 * 60 * 24);
+my $REPORT_INTERVAL  = 24 * 3600;
+my $OPENSTACK_INTERVAL = 600;
 
-#
-# Update interval countdown. Set to zero so it runs right away.
-#
-my $update_countdown = 0;
-	  
 # un-taint path
 $ENV{'PATH'} = '/bin:/usr/bin:/usr/local/bin:/usr/site/bin';
 delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
@@ -511,12 +507,69 @@ sub PushUpdates()
     }
 }
 
+#
+# Gather the Openstack utilization file.
+#
+my %openstackfailures = ();
+
+sub GatherOpenstackUtilization()
+{
+    my $query_result =
+	DBQueryWarn("select uuid from apt_instances ".
+		    "where status='ready' and isopenstack!=0");
+    return
+	if (!$query_result);
+
+    while (my ($uuid) = $query_result->fetchrow_array()) {
+	my $instance = APT_Instance->Lookup($uuid);
+	if (!defined($instance)) {
+	    print STDERR "No such instance $uuid\n";
+	    next;
+	}
+	print STDERR "$instance is running openstack\n"
+	    if ($debug);
+	next
+	    if ($impotent);
+
+	system("$SUDO -u $PROTOUSER $MANAGEINSTANCE openstackstats $uuid");
+	if ($?) {
+	    my $stat = $? >> 8;
+	    print STDERR "Request for openstackstats returned $stat\n"
+		if ($debug);
+		
+	    #
+	    # We want to look for openstack instances that are not running
+	    # the stats gathering code, there will not be a file. But it is
+	    # not going to show up for a while, so we let it fail for a
+	    # while before clearing the openstack flag in the DB.
+	    #
+	    if ($stat == GENIRESPONSE_SEARCHFAILED) {
+		$openstackfailures{"$uuid"} = 0
+		    if (!exists($openstackfailures{"$uuid"}));
+
+		if ($openstackfailures{"$uuid"} > 10) {
+		    print STDERR
+			"Failed to get openstack stats too many times. " .
+			"Clearing the flag.\n";
+		    
+		    $instance->Update({"isopenstack" => 0});
+		}
+		else {
+		    $openstackfailures{"$uuid"}++;
+		}
+	    }
+	}
+	$instance->Flush();
+    }
+}
+
 if ($oneshot) {
-    PushUpdates();
+    GatherOpenstackUtilization();
     exit(0);
 }
 
-my $reportcounter = 0;
+my $reportcounter    = 0;
+my $openstackcounter = 0;
 
 # Do this once at startup
 if (! NoLogins()) {
@@ -529,6 +582,7 @@ while (1) {
 	next;
     }
     $reportcounter += $SLEEP_INTERVAL;
+    $openstackcounter += $SLEEP_INTERVAL;
 
     print "Running at ".
 	POSIX::strftime("20%y-%m-%d %H:%M:%S", localtime()) . "\n";
@@ -539,9 +593,12 @@ while (1) {
     UpdateAggregateGraphs();
     PushUpdates();
 
-    # Do this once every 24 hours.
-    if ($reportcounter >= (24 * 60 * 60)) {
+    if ($reportcounter >= $REPORT_INTERVAL) {
 	ReportLockdownExpired();
+	$reportcounter = 0;
+    }
+    if ($reportcounter >= $OPENSTACK_INTERVAL) {
+	GatherOpenstackUtilization();
 	$reportcounter = 0;
     }
     

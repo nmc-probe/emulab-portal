@@ -113,6 +113,9 @@ function Do_GetInstanceStatus()
     # and show the topology.
     #
     $havemanifests = $instance->slivers() ? 1 : 0;
+    # Do we have openstack stats for the web UI?
+    $haveopenstack = ($instance->isopenstack() &&
+                      $instance->openstack_utilization() ? 1 : 0);
 
     foreach ($instance->slivers() as $sliver) {
         if (!$sliver->manifest()) {
@@ -134,6 +137,7 @@ function Do_GetInstanceStatus()
         }
     }
     $blob["havemanifests"] = $havemanifests;
+    $blob["haveopenstackstats"] = $haveopenstack;
 
     # Reflect errors back to the user.
     $webtask = WebTask::LookupByObject($instance->uuid());
@@ -405,10 +409,11 @@ delay:
     sleep(1);
 }
 
-function Do_DenyExtension()
+function Do_DenyOrMoreinfo($action)
 {
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
+    $action = ($action == "deny" ? "denyextension" : "moreinfo");
 
     if (StatusSetupAjax(1)) {
 	goto bad;
@@ -438,7 +443,7 @@ function Do_DenyExtension()
     $webtask = WebTask::CreateAnonymous();
     $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
-                     "  denyextension $uuid " .
+                     "  $action $uuid " .
                         (isset($filename) ? $filename : ""),
 		     SUEXEC_ACTION_IGNORE);
     $webtask->Refresh();
@@ -472,6 +477,15 @@ function Do_DenyExtension()
 bad:
     $webtask->Delete();
     sleep(1);
+}
+
+function Do_DenyExtension()
+{
+    Do_DenyOrMoreinfo("deny");
+}
+function Do_MoreInfo()
+{
+    Do_DenyOrMoreinfo("info");
 }
 
 #
@@ -1634,7 +1648,7 @@ function Do_IdleData()
     }
     $uuid = $instance->uuid();
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-    if (!slice) {
+    if (!$slice) {
 	SPITAJAX_ERROR(1, "no slice for instance");
 	return 1;
     }
@@ -1677,6 +1691,27 @@ function Do_IdleData()
         }
     }
     SPITAJAX_RESPONSE($blob);
+}
+
+#
+# Openstack stats.
+#
+function Do_OpenstackStats()
+{
+    global $instance;
+
+    if (StatusSetupAjax(0)) {
+	return;
+    }
+    if (!$instance->isopenstack()) {
+	SPITAJAX_ERROR(1, "Not an Openstack experiment");
+	return 1;
+    }
+    if (!$instance->openstack_utilization()) {
+	SPITAJAX_ERROR(1, "No Openstack utilization info");
+	return 1;
+    }
+    SPITAJAX_RESPONSE($instance->openstack_utilization());
 }
 
 # Local Variables:

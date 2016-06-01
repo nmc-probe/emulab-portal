@@ -1,6 +1,7 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
 	 'marked', 'js/lib/uritemplate', 'js/image', 'js/extend',
+	 'js/idlegraphs',
 	 'js/lib/text!template/status.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',
@@ -13,7 +14,8 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/linktest-modal.html',
 	 'contextmenu'],
 function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
-	  ShowExtendModal, statusString, waitwaitString, oopsString,
+	  ShowExtendModal, ShowIdleGraphs,
+	  statusString, waitwaitString, oopsString,
 	  registerString, terminateString,
 	  cloneHelpString, snapshotHelpString, oneonlyString,
 	  approvalString, linktestString)
@@ -538,6 +540,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		status_html = "<font color=green>ready</font>";
 	    }
 	    $("#quickvm_status").html(status_html);
+
+	    ShowIdleDataTab();
+	    if (json.value.haveopenstackstats) {
+		CreateOpenstackTab();
+	    }
 	}
 		 
 	//
@@ -2476,6 +2483,110 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	});
 	sup.ShowModal("#extension-denied-modal");
     }
+
+    //
+    // Create a new tab to show openstack utilization json file.
+    //
+    function CreateOpenstackTab()
+    {
+	var tabname = "Openstack";
+
+	// Not updating the content yet, so just return if we have it.
+	if ($("#" + tabname).length) {
+	    return;
+	}
+
+	var callback = function(json) {
+	    console.log(json);
+	    
+	    if (! $("#" + tabname).length) {
+		// The tab.
+		var html = "<li><a href='#" + tabname + "' data-toggle='tab'>" +
+		    tabname + "" +
+		    "<button class='close' type='button' " +
+		    "        id='" + tabname + "_kill'>x</button>" +
+		    "</a>" +
+		    "</li>";	
+
+		// Append to end of tabs
+		$("#quicktabs_ul").append(html);
+
+		// Install a click handler for the X button.
+		$("#" + tabname + "_kill").click(function(e) {
+		    e.preventDefault();
+		    // remove the li from the ul.
+		    $(this).parent().parent().remove();
+		    // Remove the content div.
+		    $("#" + tabname).remove();
+		    // Activate the "profile" tab.
+		    $('#quicktabs_ul a[href="#profile"]').tab('show');
+		});
+
+		// The content div.
+		html = "<div class='tab-pane' id='" + tabname + "'></div>";
+
+		// Add the tab content wrapper to the DOM,
+		$("#quicktabs_content").append(html);
+	    }
+	    else {
+		// Switch back to it.
+		$('#quicktabs_ul a[href="#' + tabname + '"]').tab('show');
+	    }
+	    //
+	    // Inside tab content is just a big string.
+	    //
+	    var html = "<div style='overflow-y: scroll;'><pre>" +
+		json.value + "</pre></div>";
+	    $('#' + tabname).html(html);
+	};
+    	var xmlthing = sup.CallServerMethod(null, "status", "OpenstackStats",
+					    {"uuid" : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Slothd graphs. The tab already exists but is invisible (not hidden).
+    //
+    function ShowIdleDataTab()
+    {
+	if (! $('#show_idlegraphs_li').hasClass("hidden")) {
+	    return;
+	}
+	$('#show_idlegraphs_li').removeClass("hidden");
+	$("#Idlegraphs").removeClass("hidden");
+
+	/*
+	 * We cannot draw the graphs until the tab is actually visible,
+	 * D3 cannot handle drawing if there is no actual space allocated.
+	 * So lets just wait till the user clicks on the tab. 
+	 */
+	var handler = function () {
+	    $('#show_idlegraphs_tab').off("shown.bs.tab", handler);
+	    LoadIdleData();
+	};
+	$('#show_idlegraphs_tab').on("shown.bs.tab", handler);
+    }
+
+    function LoadIdleData()
+    {
+	/*
+	 * This callback is to let us know if there is any actual data,
+	 * and to hide the waiting modal.
+	 */
+	var callback = function (gotdata) {
+	    sup.HideWaitWait();
+	    if (!gotdata) {
+		$('#Idlegraphs #nodata').removeClass("hidden");
+	    }
+	};
+	sup.ShowWaitWait("We are gathering data from the cluster(s)");
+	ShowIdleGraphs({"uuid"     : uuid,
+			"loadavID" : "#loadavg-panel-div",
+			"ctrlID"   : "#ctrl-traffic-panel-div",
+			"exptID"   : "#expt-traffic-panel-div",
+			"callback" : callback});
+    }
+
     // Helper.
     function decodejson(id) {
 	return JSON.parse(_.unescape($(id)[0].textContent));

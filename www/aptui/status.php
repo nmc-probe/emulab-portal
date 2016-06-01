@@ -180,6 +180,7 @@ $extension_denied_reason= ($instance->extension_denied_reason() ?
 $extension_denied= $instance->extension_denied();
 $freenodes_url   = Aggregate::Lookup($instance->aggregate_urn())->FreeNodesURL();
 $lockout         = $instance->extension_lockout();
+$isopenstack     = $instance->isopenstack();
 $paniced         = $instance->paniced();
 $project         = $instance->pid();
 $extensions      = ExtensionInfo::LookupForInstance($instance);
@@ -210,6 +211,9 @@ if ($instance_status == "imaging") {
 }
 
 SPITHEADER(1);
+
+echo "<link rel='stylesheet'
+            href='css/nv.d3.css'>\n";
 
 # Place to hang the toplevel template.
 echo "<div id='status-body'></div>\n";
@@ -246,6 +250,7 @@ echo "  window.APT_OPTIONS.ispprofile = $ispprofile;\n";
 echo "  window.APT_OPTIONS.publicURL = $public_url;\n";
 echo "  window.APT_OPTIONS.lockdown = $lockdown;\n";
 echo "  window.APT_OPTIONS.lockout = $lockout;\n";
+echo "  window.APT_OPTIONS.isopenstack = $isopenstack;\n";
 echo "  window.APT_OPTIONS.paniced = $paniced;\n";
 echo "  window.APT_OPTIONS.project = '$project';\n";
 echo "  window.APT_OPTIONS.extension_requested = " .
@@ -265,6 +270,8 @@ if (isset($extend) && $extend != "") {
 }
 echo "var FOO = null;\n";
 echo "</script>\n";
+echo "<script src='js/lib/d3.v3.js'></script>\n";
+echo "<script src='js/lib/nv.d3.js'></script>\n";
 echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
 echo "<script src='js/lib/jquery-ui.js'></script>\n";
 echo "<script src='js/lib/codemirror-min.js'></script>\n";

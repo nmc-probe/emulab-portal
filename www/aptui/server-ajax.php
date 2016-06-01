@@ -74,6 +74,8 @@ $routing = array("myprofiles" =>
 						     "Do_GetProfile",
 						 "CheckForm" =>
 						     "Do_CheckForm",
+						 "RunScript" =>
+						     "Do_RunScript",
 						 "VerifyEmail" =>
 						     "Do_VerifyEmail",
 						 "Submit" =>
@@ -130,6 +132,8 @@ $routing = array("myprofiles" =>
 						     "Do_RequestExtension",
 						 "DenyExtension" =>
 						     "Do_DenyExtension",
+						 "MoreInfo" =>
+						     "Do_MoreInfo",
 						 "SnapShot" =>
 						     "Do_Snapshot",
 						 "SnapshotStatus" =>
@@ -148,6 +152,8 @@ $routing = array("myprofiles" =>
 						     "Do_Quarantine",
 						 "LinktestControl" =>
 						     "Do_Linktest",
+						 "OpenstackStats" =>
+						     "Do_OpenstackStats",
 						 "dismissExtensionDenied" =>
 						     "Do_DismissExtensionDenied")),
 		 "approveuser" =>

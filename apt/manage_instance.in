@@ -52,9 +52,11 @@ sub usage()
     print("Usage: manage_instance updatekeys instance [uid] \n");
     print("Usage: manage_instance extend instance [-m message] days [filename]\n");
     print("Usage: manage_instance denyextension instance [-m message] [filename]\n");
+    print("Usage: manage_instance moreinfo instance [-m message] [filename]\n");
     print("Usage: manage_instance extendold instance [-f] seconds\n");
     print("Usage: manage_instance utilization instance\n");
     print("Usage: manage_instance idledata instance\n");
+    print("Usage: manage_instance openstackstats instance\n");
     exit(-1);
 }
 my $optlist     = "dt:s";
@@ -115,7 +117,7 @@ sub DoConsole();
 sub DoTerminate();
 sub DoExtend();
 sub DoExtendOld();
-sub DoDenyExtension();
+sub DoDenyOrMoreInfo($);
 sub DoRefresh();
 sub DoReboot();
 sub DoReload();
@@ -127,6 +129,7 @@ sub DoUpdateKeys();
 sub DoDeleteNodes();
 sub DoUtilization();
 sub DoIdleData();
+sub DoOpenstack();
 sub WriteCredentials();
 sub StartMonitor();
 sub StartMonitorInternal(;$@);
@@ -184,7 +187,10 @@ if ($action eq "extendold") {
     DoExtendOld();
 }
 elsif ($action eq "denyextension") {
-    DoDenyExtension()
+    DoDenyOrMoreInfo("deny")
+}
+elsif ($action eq "moreinfo") {
+    DoDenyOrMoreInfo("info")
 }
 elsif ($action eq "consoleurl") {
     DoConsole()
@@ -230,6 +236,9 @@ elsif ($action eq "utilization") {
 }
 elsif ($action eq "idledata") {
     DoIdleData()
+}
+elsif ($action eq "openstackstats") {
+    DoOpenstack()
 }
 else {
     usage();
@@ -1208,6 +1217,7 @@ sub DoExtend()
     my $url           = $instance->webURL();
     my $clusters      = join(",", map { $_->domain() }
 			     $instance->AggregateList());
+    my $pcount        = $instance->physnode_count();
     my $expires_time  = str2time($slice->expires());
     my $created_time  = str2time($instance->created());
     my $extensions    = $instance->Brand()->ExtensionsEmailAddress();
@@ -1508,7 +1518,8 @@ sub DoExtend()
                "\n\n".
                "Your experiment was started on $created\n".
  	       "Your experiment will now expire at $expires\n".
-               "It is running on $clusters\n\n\n".
+	       "You are using $pcount physical nodes.\n".
+               "It is running on $clusters\n\n".
                "$url\n",
 	       "From: $extensions\n" .
 	       "BCC: $extensions");
@@ -1651,13 +1662,14 @@ sub ExtendInternal($$$$)
 # Deny extension, sending optional email to user (which is also saved in
 # the extension history). We used to do this in PHP, which was silly.
 #
-sub DoDenyExtension()
+sub DoDenyOrMoreInfo($)
 {
+    my ($action) = @_;
     my $errcode = -1;
     my $reason;
 
     if (! $this_user->IsAdmin()) {
-	fatal("Only administrators can deny extensions");
+	fatal("Only administrators can deny extensions or request info");
     }
     if (@ARGV == 2) {
 	my $arg = shift(@ARGV);
@@ -1682,12 +1694,6 @@ sub DoDenyExtension()
 	}
 	close(MSG);
     }
-    return DenyExtensionInternal($reason);
-}
-
-sub DenyExtensionInternal($)
-{
-    my ($reason) = @_;
     my $creator   = $instance->GetGeniUser();
     my $slice     = $instance->GetGeniSlice();
     my $name      = $instance->name();
@@ -1697,14 +1703,25 @@ sub DenyExtensionInternal($)
 				    localtime(str2time($instance->created())));
     my $now       = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z", localtime());
     my $url       = $instance->webURL();
+    my $pcount    = $instance->physnode_count();
     my $extensions= $instance->Brand()->ExtensionsEmailAddress();
-    my $message   = "Your extension was denied by the site administrator!\n";
+    my $clusters  = join(",", map { $_->domain() }
+			 $instance->AggregateList());
+    my ($message,$subject);
+    if ($action eq "deny") {
+	$message = "Your extension was denied by the site administrator!";
+	$subject = "Experiment Extension Denied: $name";
+    }
+    else {
+	$message = "Hi, we need more information about your experiment: $name";
+	$subject = "Information request for Experiment: $name";
+    }
 
     #
     # New extension mechanism
     #
     my $extensionargs = {
-	"action"   => "deny",
+	"action"   => ($action eq "deny" ? "deny" : "info"),
 	"uid"      => $this_user->uid(),
 	"uid_idx"  => $this_user->uid_idx(),
 	"message"  => $message,
@@ -1726,25 +1743,27 @@ sub DenyExtensionInternal($)
         "Date: $now\n".
         "Expires: $expires\n".
         "Reason:\n".
-	$message . "\n".
+	$message . "\n\n".
         $reason . "\n\n".
         "-----------------------------------------------\n";
-    $instance->Brand()->SendEmail($creator->email(),
-	       "Experiment Extension Denied: $name",
-	       $message . "\n" .
-               $reason .
-               "\n\n".
+    $instance->Brand()->SendEmail($creator->email(), $subject,
+	       $message . "\n\n" .
+               $reason . "\n\n".
                "Your experiment was started on $created\n".
  	       "Your experiment expires at $expires\n".
+	       "You are using $pcount physical nodes.\n".
+               "It is running on $clusters\n\n".
                "$url\n",
 	       "From: $extensions\n" .
 	       "BCC: $extensions");
 
     $instance->AddExtensionHistory($text);
     # For the dashboard and status page.
-    $instance->Update({"extension_requested" => 0,
-		       "extension_denied"    => 1,
-		       "extension_denied_reason" => $reason});
+    if ($action eq "deny") {
+	$instance->Update({"extension_requested" => 0,
+			   "extension_denied"    => 1,
+			   "extension_denied_reason" => $reason});
+    }
     return 0;
 }
 
@@ -3242,6 +3261,96 @@ sub DoUtilization()
 	$agg->webtask()->results($blob);
 	$agg->webtask()->Store();
     }
+    exit(0);
+  bad:
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited($errcode);
+    }
+    exit($errcode);
+}
+
+#
+# Grab the openstack utilization file and stick it into the DB.
+# 
+sub DoOpenstack()
+{
+    my $errmsg;
+    my $errcode = 1;
+    
+    #
+    # Create the webtask object; the web interface gave us an anonymous
+    # webtask, so we can use it before lock.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	fatal("Could not lookup webtask object")
+	    if (!defined($webtask));
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
+    #
+    # Need to look inside the rspec to find the name of the controller node.
+    #
+    if (scalar($instance->AggregateList()) > 1) {
+	$errmsg = "Too many aggregates, ".
+	    "is this really an Openstack experiment?";
+	goto bad;
+    }
+    my ($aggregate) = $instance->AggregateList();
+    if (!defined($aggregate->manifest())) {
+	$errmsg = "Mo manifest for experiment";
+	goto bad;
+    }
+    my $manifest = GeniXML::Parse($aggregate->manifest());
+    if (! defined($manifest)) {
+	$errmsg = "Could not parse manifest for $aggregate";
+	goto bad;
+    }
+    #
+    # We have to look inside the parameters to find the controller node.
+    #
+    my $NS = "http://www.protogeni.net/resources/rspec/ext/johnsond/1";
+    my $controller;
+    foreach my $param (GeniXML::FindNodesNS("n:profile_parameters/n:parameter",
+					    $manifest, $NS)->get_nodelist()) {
+	my $value = $param->textContent();
+	if ($value =~ /^([^=]+)="(.+)"$/) {
+	    if (lc($1) eq "controller") {
+		$controller = $2;
+		print "Controller = $controller\n"
+		    if ($debug);
+		last;
+	    }
+	}
+    }
+    if (!defined($controller)) {
+	$errmsg = "Could not find the CONTROLLER parameter";
+	goto bad;
+    }
+    #
+    # So now we can ask the aggregate to grab the file from the proper
+    # node in the topology; we do not want the cluster to have to figure
+    # that part out. Hmm, maybe we should tell the cluster what file too?
+    #
+    my $response = $aggregate->OpenstackData($controller);
+    if (!defined($response)) {
+	$errmsg   = "RPC Error calling GetOpenstackStats on $aggregate\n";
+	$errcode = -1;
+	goto bad;
+    }
+    if ($response->code() != GENIRESPONSE_SUCCESS) {
+	$errmsg  = "Could not get openstack json file for sliver: ".
+	    $response->output();
+	$errcode = $response->code();
+	goto bad;
+    }
+    if ($debug) {
+	print $response->value() . "\n";
+    }
+    $instance->Update({"openstack_utilization" => $response->value()});
     exit(0);
   bad:
     print STDERR $errmsg . "\n";

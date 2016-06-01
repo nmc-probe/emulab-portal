@@ -76,7 +76,7 @@ my %instances  = ();
 my $debug      = 0;
 
 # Debugging
-my $usemydevtree  = 0;
+my $usemydevtree  = 1;
 sub devurl($)
 {
     my ($cmurl) = @_;
@@ -2600,6 +2600,34 @@ sub IdleData($)
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context,
 					  "SliceIdleData", $args);
+    return $response;
+  bad:
+    return undef;
+}
+
+#
+# Openstack
+#
+sub OpenstackData($$)
+{
+    my ($self, $client_id) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $context   = APT_Geni::RootContext();
+    my $slice     = $self->instance()->GetGeniSlice();
+    return undef
+	if (! (defined($authority) && defined($context) &&
+	       defined($slice)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"client_id"   => $client_id,
+    };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/\/cm$/\/cluster/;
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+
+    my $response = Genixmlrpc::CallMethod($cmurl, $context,
+					  "SliceOpenstackData", $args);
     return $response;
   bad:
     return undef;

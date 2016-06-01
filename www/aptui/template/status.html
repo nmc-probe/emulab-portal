@@ -1,3 +1,9 @@
+<style>
+.fixedsize-panel {
+	max-height:350px;
+	height:350px;
+}
+</style>
 <div class='row'>
   <div class='col-lg-6  col-lg-offset-3
        col-md-8  col-md-offset-2
@@ -256,6 +262,10 @@
               <a href='#manifest' id='show_manifest_tab'
 		 data-toggle='tab'>Manifest</a>
             </li>
+	    <li class="hidden" id="show_idlegraphs_li">
+              <a href='#Idlegraphs' id='show_idlegraphs_tab'
+		 data-toggle='tab'>Graphs</a>
+            </li>
 	  </ul>
 	  <div id='quicktabs_content' class='tab-content'>
             <div class='tab-pane active' id='profile'>
@@ -316,6 +326,56 @@
             </div>
 	    <div class='tab-pane' id='manifest'>
               <div id='manifest_textarea' style='width: 100%;'></div>
+	    </div>
+	    <div class='tab-pane hidden' id='Idlegraphs'>
+	      <div class="hidden"id="nodata">
+		<br>
+		<center>
+		  There is insufficient data to graph, please check back later.
+		</center>
+	      </div>
+	      <div class='row'>
+		<div class='panel panel-default hidden'
+		     id="loadavg-panel-div">
+		  <div class="panel-heading">
+		    <h5>Load Average Graph</h5>
+		  </div>
+		  <div class='panel-body'>
+		    <div id="loadavg-chart"
+			class='fixedsize-panel with-3d-shadow with-transitions'>
+		      <svg></svg>
+		    </div>
+		  </div>
+		</div>
+	      </div>
+	      <div class='row'>
+		<div class='panel panel-default hidden'
+		     id="ctrl-traffic-panel-div">
+		  <div class="panel-heading">
+		    <h5>Control Traffic Graph</h5>
+		  </div>
+		  <div class='panel-body'>
+		    <div id="ctrl-traffic-chart"
+			class='fixedsize-panel with-3d-shadow with-transitions'>
+		      <svg></svg>
+		    </div>
+		  </div>
+		</div>
+	      </div>
+	      <div class='row'>
+		<div class='panel panel-default hidden'
+		     id="expt-traffic-panel-div">
+		  <div class="panel-heading">
+		    <h5>Experiment Traffic Graph</h5>
+		  </div>
+		  <div class='panel-body'>
+		    <div id="expt-traffic-chart"
+			class='fixedsize-panel with-3d-shadow with-transitions'>
+		      <svg></svg>
+		    </div>
+		  </div>
+		</div>
+	      </div>
 	    </div>
 	  </div>
 	</div>
