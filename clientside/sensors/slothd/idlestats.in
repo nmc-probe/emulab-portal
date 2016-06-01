@@ -48,6 +48,7 @@ my $SD_STATSDIR = "$TB/data/slothd_rrd";
 my $ALLZEROMAC = "000000000000";
 
 # Globals
+my $valtype = "MAX";
 my $now = time();
 my $end = floor($now/$STEP)*$STEP - $STEP; # Now, normalized to STEP.
 my $start = $end - floor($DEFWINDOW/$STEP)*$STEP + 2*$STEP;  # Default window, normalized.
@@ -57,9 +58,10 @@ my @nodelist = ();
 sub usage() {
     print STDERR
 	"Return JSON-encoded node activity stastics.\n\n".
-	"Usage: $0 [-d] [-S <start_time>] [-E <end_time>] node [node ...]\n" .
-	"       $0 [-d] [-S <start_time>] [-E <end_time>] -e <pid>,<eid>\n".
+	"Usage: $0 [-d] [-A] [-S <start_time>] [-E <end_time>] node [node ...]\n" .
+	"       $0 [-d] [-A] [-S <start_time>] [-E <end_time>] -e <pid>,<eid>\n".
 	"-d:              turn on debugging.\n" .
+	"-A:              return averages instead of maximums.\n".
 	"-e <pid>,<eid>:  request data for nodes in an experiment.\n".
 	"-S <start_time>: bound the start of the returned data.\n".
 	"                 Default is beginning of available data for a list of nodes,\n".
@@ -97,8 +99,12 @@ if ($UID) {
 
 my %opts = ();
 
-if (!getopts("dhS:E:e:", \%opts) || $opts{'h'}) {
+if (!getopts("dhAS:E:e:", \%opts) || $opts{'h'}) {
     usage();
+}
+
+if ($opts{'A'}) {
+    $valtype = "AVERAGE";
 }
 
 if ($opts{'e'}) {
@@ -213,7 +219,7 @@ foreach my $node (@nodelist) {
 	$nobj->{'main'} = []; # Indicate that no data was found.
     } else {
 	my ($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
-	    RRDs::fetch($mainrrd, "MAX", "--start=$start", "--end=$end", 
+	    RRDs::fetch($mainrrd, $valtype, "--start=$start", "--end=$end", 
 			"--resolution=$STEP");
 	if (RRDs::error) {
 	    warn "Could not get data for $node_id from $mainrrd: ". RRDs::error ."\n";
@@ -275,7 +281,7 @@ foreach my $node (@nodelist) {
 	next if (!exists($ifmap{$mac})); # skip if iface is not in DB.
 	$ifmap{$mac}->{'SEEN'} = 1; # mark.
 	my ($rrd_stamp,$rrd_step,$rrd_names,$rrd_data) = 
-	    RRDs::fetch($intfrrd, "MAX", "--start=$start", "--end=$end", 
+	    RRDs::fetch($intfrrd, $valtype, "--start=$start", "--end=$end", 
 			"--resolution=$STEP");
 	if (RRDs::error) {
 	    warn "Could not get interface data for $node_id from $intfrrd: ". RRDs::error ."\n";
