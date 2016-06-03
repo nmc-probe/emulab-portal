@@ -30,9 +30,10 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 
 		    //
 		    // If idlestats finds no data, the main array is
-		    // zero length. Skip.
+		    // zero length. Skip. Okay, 1 point is not interesing
+		    // either, so lets wait for two data points.
 		    //
-		    if (obj.main.length == 0) {
+		    if (obj.main.length < 2) {
 			console.info("No idledata for " + node_id);
 			continue;
 		    }
@@ -66,10 +67,14 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 			    for (var j = 1;
 				 j < obj.interfaces[mac].length; j++) {
 				var data = obj.interfaces[mac][j];
+				var y = data[1] + data[2];
+				// No 0.X packets please.
+				if (y > 0.0 && y < 1.0)
+				    y = 1.0;
 
 				trafficvalues[j - 1] = {
 				    "x" : data[0] * 1000,
-				    "y" : data[1] + data[2]
+				    "y" : y
 				};
 			    }
 			    var datum = {
