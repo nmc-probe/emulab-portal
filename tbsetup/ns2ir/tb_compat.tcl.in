@@ -712,6 +712,12 @@ proc tb-set-node-os {node os {parentos 0}} {
 	var_import ::TBCOMPAT::osids
 	var_import ::GLOBALS::pid
 
+	# Do not allow RHL-STD or FBSD-STD anymore.
+	if { $os == "RHL-STD" || $os == "FBSD-STD" } {
+	    perror "\[tb-set-node-os] $os is no longer supported; remove this statement if you really do not care what OS you get."
+	    return
+	}
+
 	# Look for :version in the name.
 	set osid $os
         if { [regexp {:} $os] } {
