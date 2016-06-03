@@ -134,6 +134,8 @@ $routing = array("myprofiles" =>
 						     "Do_DenyExtension",
 						 "MoreInfo" =>
 						     "Do_MoreInfo",
+						 "SchedTerminate" =>
+						     "Do_SchedTerminate",
 						 "SnapShot" =>
 						     "Do_Snapshot",
 						 "SnapshotStatus" =>

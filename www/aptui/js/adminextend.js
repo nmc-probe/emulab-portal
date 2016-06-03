@@ -27,6 +27,7 @@ function (_, sup, moment, ShowIdleGraphs,
 	LoadUtilization();
 	LoadIdleData();
 	LoadFirstRow();
+	LoadOpenStack();
 
 	// Second row is the user/project usage summarys. We make two calls
 	// and use jquery "when" to wait for both to finish before running
@@ -84,6 +85,11 @@ function (_, sup, moment, ShowIdleGraphs,
 	    Action("moreinfo");
 	    return false;
 	});
+	$('#do-terminate').click(function (event) {
+	    event.preventDefault();
+	    Action("terminate");
+	    return false;
+	});
     }
 
     //
@@ -96,7 +102,9 @@ function (_, sup, moment, ShowIdleGraphs,
 	var method  = (action == "extend" ?
 		       "RequestExtension" :
 		       (action == "moreinfo" ?
-			"MoreInfo" : "DenyExtension"));
+			"MoreInfo" :
+			(action == "terminate" ?
+			 "SchedTerminate" : "DenyExtension")));
 
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
@@ -223,6 +231,29 @@ function (_, sup, moment, ShowIdleGraphs,
 			"loadavID" : "#loadavg-panel-div",
 			"ctrlID"   : "#ctrl-traffic-panel-div",
 			"exptID"   : "#expt-traffic-panel-div"});
+    }
+
+    //
+    // Openstacks stats.
+    //
+    function LoadOpenStack()
+    {
+	var callback = function(json) {
+	    if (json.code) {
+		return;
+	    }
+	    // Might not be any.
+	    if (!json.value || json.value == "") {
+		return;
+	    }
+	    var html = "<pre>" + json.value + "</pre>";
+	    $("#openstack-panel-div").removeClass("hidden");
+	    $("#openstack-panel-content").html(html);
+	};
+    	var xmlthing = sup.CallServerMethod(null, "status", "OpenstackStats",
+					    {"uuid" : window.UUID});
+	xmlthing.done(callback);
+
     }
 
     // Helper.

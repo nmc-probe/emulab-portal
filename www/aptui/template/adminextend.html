@@ -55,6 +55,10 @@ pre {
 		class='form-control'
 		rows=5></textarea>
       <div style="margin-top: 10px;">
+	<button class='btn btn-primary btn-sm'
+		style='margin-right: 20px;'
+		id='do-terminate'
+		type='submit' name='moreinfo'>Terminate</button>
 	<button class='btn btn-danger btn-sm'
 		style='margin-right: 20px;'
 		id='deny-extension'
@@ -65,7 +69,7 @@ pre {
 		id='do-extension'
 		type='submit' name='request'>Extend</button>
 	<button class='btn btn-primary btn-sm'
-		style='margin-left: 20px;'
+		style='margin-left: 30px;'
 		id='do-moreinfo'
 		type='submit' name='moreinfo'>More Info</button>
       </div>
@@ -115,6 +119,29 @@ pre {
 	<div class='panel-body'>
 	  <div class="scrollable-panel"
 	       id="history-panel-content"
+	       data-status="minimized"></div>
+	</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='row'>
+  <div class='col-sm-10 col-sm-offset-1
+	      col-xs-12 col-xs-offset-0'>
+    <div class='panel panel-default hidden' id="openstack-panel-div">
+      <div class="panel-heading">
+	<h5>
+	  <a data-toggle="collapse" id="openstack-toggle"
+	     href="#openstack-collapse"><span>Openstack Stats</span>
+	    <span class="glyphicon glyphicon-chevron-right pull-right"></span>
+	  </a>
+	</h5>
+      </div>
+      <div id="openstack-collapse"
+	   class="panel-collapse collapse">
+	<div class='panel-body'>
+	  <div class="scrollable-panel"
+	       id="openstack-panel-content"
 	       data-status="minimized"></div>
 	</div>
       </div>
