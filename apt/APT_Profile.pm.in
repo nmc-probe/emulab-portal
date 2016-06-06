@@ -50,6 +50,7 @@ use APT_Dataset;
 use GeniXML;
 use GeniHRN;
 use libtestbed;
+use Lease;
 use English;
 use Data::Dumper;
 use File::Temp qw(tempfile :mktemp tmpnam :POSIX);
@@ -58,8 +59,8 @@ use overload ('""' => 'Stringify');
 # Configure variables
 my $TB		  = "@prefix@";
 my $TBOPS         = "@TBOPSEMAIL@";
-
-my $debug = 0;
+my $OURDOMAIN     = "@OURDOMAIN@";
+my $MYURN         = "urn:publicid:IDN+${OURDOMAIN}+authority+cm";
 
 # Concat id/vers.
 sub versid($)
@@ -1004,8 +1005,16 @@ sub CheckDatasets($$$)
 	    if (!defined($dataset)) {
 		$dataset = APT_Dataset->LookupByRemoteURN($dataset_urn);
 		if (!defined($dataset)) {
-		    $$pmsg = "Persistent dataset '$pid/$id' does not exist";
-		    return 1;
+		    # If it is for a local dataset, see if it plain lease
+		    # created via the classic interface or command line.
+		    # The backend can find those.
+		    if ($dataset_domain eq $OURDOMAIN) {
+			$dataset = Lease->Lookup($pid, $id);
+		    }
+		    if (!defined($dataset)) {
+			$$pmsg = "Persistent dataset '$pid/$id' does not exist";
+			return 1;
+		    }
 		}
 	    }
 	    #
