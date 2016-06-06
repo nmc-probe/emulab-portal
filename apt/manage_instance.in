@@ -3608,7 +3608,7 @@ sub DoSchedTerminate()
 			"You are using $pcount physical nodes.\n".
 			"It is running on $clusters\n\n".
 			"$url\n",
-			"From: $extensions\n" .
+			"From: $extensions",
 			"BCC: $extensions");
     
     if (defined($webtask)) {
