@@ -150,6 +150,8 @@ $routing = array("myprofiles" =>
 						     "Do_DecryptBlocks",
 						 "Lockout" =>
                                                      "Do_Lockout",
+						 "Lockdown" =>
+                                                     "Do_Lockdown",
 						 "Quarantine" =>
 						     "Do_Quarantine",
 						 "LinktestControl" =>

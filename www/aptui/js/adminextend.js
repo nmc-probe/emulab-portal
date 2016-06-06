@@ -153,6 +153,15 @@ function (_, sup, moment, ShowIdleGraphs,
 				     $('#lockout-checkbox').change(function() {
 					 DoLockout($(this).is(":checked"));
 				     });	
+				     // lockdown change event handler.
+				     $('#lockdown-checkbox').change(function() {
+					 DoLockdown($(this).is(":checked"));
+				     });
+				     // This activates the popover subsystem.
+				     $('[data-toggle="popover"]').popover({
+					 trigger: 'hover',
+					 placement: 'auto',
+				     });
 				 }
 			     });
     }
@@ -219,6 +228,27 @@ function (_, sup, moment, ShowIdleGraphs,
 	var xmlthing = sup.CallServerMethod(null, "status", "Lockout",
 					     {"uuid" : window.UUID,
 					      "lockout" : lockout});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Request lockdown set/clear.
+    //
+    function DoLockdown(lockdown)
+    {
+	lockdown = (lockdown ? 1 : 0);
+	
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    if (json.code) {
+		alert("Failed to change lockdown: " + json.value);
+		return;
+	    }
+	}
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(null, "status", "Lockdown",
+					     {"uuid" : window.UUID,
+					      "lockdown" : lockdown});
 	xmlthing.done(callback);
     }
 

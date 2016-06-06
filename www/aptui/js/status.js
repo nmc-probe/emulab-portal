@@ -1,7 +1,7 @@
 require(window.APT_OPTIONS.configObject,
 	['underscore', 'js/quickvm_sup', 'moment',
 	 'marked', 'js/lib/uritemplate', 'js/image', 'js/extend',
-	 'js/idlegraphs',
+	 'js/idlegraphs', 'js/openstackgraphs',
 	 'js/lib/text!template/status.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',
@@ -14,7 +14,7 @@ require(window.APT_OPTIONS.configObject,
 	 'js/lib/text!template/linktest-modal.html',
 	 'contextmenu'],
 function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
-	  ShowExtendModal, ShowIdleGraphs,
+	  ShowExtendModal, ShowIdleGraphs, ShowOpenstackGraphs,
 	  statusString, waitwaitString, oopsString,
 	  registerString, terminateString,
 	  cloneHelpString, snapshotHelpString, oneonlyString,
@@ -285,6 +285,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('#lockout_checkbox').change(function() {
 	    DoLockout($(this).is(":checked"));
 	});	
+	// lockdown change event handler.
+	$('#lockdown_checkbox').change(function() {
+	    DoLockdown($(this).is(":checked"));
+	});	
 	// Quarantine change event handler.
 	$('#quarantine_checkbox').change(function() {
 	    DoQuarantine($(this).is(":checked"));
@@ -384,8 +388,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     // Call back for above.
     function StatusWatchCallBack(json)
     {
-	console.info(json);
-	
 	if (json.code) {
 	    // GENIRESPONSE_SEARCHFAILED
 	    if (json.code == 12) {
@@ -401,6 +403,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var status_html = "";
     
 	if (instanceStatus != lastStatus) {
+	    console.info(json);
+	
 	    status_html = status;
 
 	    var bgtype = "panel-info";
@@ -759,6 +763,27 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var xmlthing = sup.CallServerMethod(ajaxurl, "status", "Lockout",
 					     {"uuid" : uuid,
 					      "lockout" : lockout});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Request lockdown set/clear.
+    //
+    function DoLockdown(lockdown)
+    {
+	lockdown = (lockdown ? 1 : 0);
+	
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    if (json.code) {
+		alert("Failed to change lockdown: " + json.value);
+		return;
+	    }
+	}
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(ajaxurl, "status", "Lockdown",
+					     {"uuid" : uuid,
+					      "lockdown" : lockdown});
 	xmlthing.done(callback);
     }
 
@@ -2489,22 +2514,20 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //
     function CreateOpenstackTab()
     {
-	var tabname = "Openstack";
-
 	// Not updating the content yet, so just return if we have it.
-	if ($("#" + tabname).length) {
+	if ($("#Openstack").length) {
 	    return;
 	}
-
 	var callback = function(json) {
 	    console.log(json);
 	    
-	    if (! $("#" + tabname).length) {
+	    if (! $("#Openstack").length) {
 		// The tab.
-		var html = "<li><a href='#" + tabname + "' data-toggle='tab'>" +
-		    tabname + "" +
+		var html = "<li><a href='#Openstack' " +
+		    "id='show_Openstack_tab' data-toggle='tab'>" +
+		    "Openstack Data" +
 		    "<button class='close' type='button' " +
-		    "        id='" + tabname + "_kill'>x</button>" +
+		    "        id='Openstack_kill'>x</button>" +
 		    "</a>" +
 		    "</li>";	
 
@@ -2512,32 +2535,50 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		$("#quicktabs_ul").append(html);
 
 		// Install a click handler for the X button.
-		$("#" + tabname + "_kill").click(function(e) {
+		$("#Openstack_kill").click(function(e) {
 		    e.preventDefault();
 		    // remove the li from the ul.
 		    $(this).parent().parent().remove();
 		    // Remove the content div.
-		    $("#" + tabname).remove();
+		    $("#Openstack").remove();
 		    // Activate the "profile" tab.
 		    $('#quicktabs_ul a[href="#profile"]').tab('show');
 		});
 
 		// The content div.
-		html = "<div class='tab-pane' id='" + tabname + "'></div>";
+		html = "<div class='tab-pane' id='Openstack'></div>";
 
 		// Add the tab content wrapper to the DOM,
 		$("#quicktabs_content").append(html);
 	    }
 	    else {
 		// Switch back to it.
-		$('#quicktabs_ul a[href="#' + tabname + '"]').tab('show');
+		$('#quicktabs_ul a[href="#Openstack"]').tab('show');
 	    }
 	    //
 	    // Inside tab content is just a big string.
 	    //
-	    var html = "<div style='overflow-y: scroll;'><pre>" +
-		json.value + "</pre></div>";
-	    $('#' + tabname).html(html);
+	    var html =
+		"<div> " +
+		" <div id='Openstack_chart_div' class='hidden'></div>" +
+		" <pre>" + json.value + "</pre></div>";
+	    
+	    $('#Openstack').html(html);
+
+	    /*
+	     * We cannot draw the graphs until the tab is actually visible,
+	     * D3 cannot handle drawing if there is no actual space allocated.
+	     * So lets just wait till the user clicks on the tab. 
+	     */
+	    var handler = function () {
+		$('#show_Openstack_tab').off("shown.bs.tab", handler);
+
+		ShowOpenstackGraphs({"uuid"  : uuid,
+				     "divID" : '#Openstack_chart_div'});
+	    };
+	    if (0) {
+	    $('#show_Openstack_tab').on("shown.bs.tab", handler);
+	    }
 	};
     	var xmlthing = sup.CallServerMethod(null, "status", "OpenstackStats",
 					    {"uuid" : uuid});

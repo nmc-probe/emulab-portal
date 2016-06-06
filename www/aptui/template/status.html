@@ -95,9 +95,6 @@
 		  <%- sliceExpires %></span>
 		(<span id='quickvm_countdown'></span>)
 	      </span>
-	      <% if (isadmin && lockdown) { %>
-	      <span class='text-danger'><small>locked down</small></span>
-	      <% } %>
 	    </td>
 	  </tr>
 	  </table>
@@ -137,6 +134,19 @@
 	    <label class="checkbox-inline" style='margin-right: 10px;'>
 	      <input type="checkbox" id="lockout_checkbox"
 		     <% if (lockout) { %>checked<% } %> >Lockout</label>
+	  </div>
+	  <div class='pull-left'
+	       data-toggle='popover'
+	       data-delay='{"hide":1000, "show":500}'
+	       data-content="When checked, the experiment 
+			     cannot be terminated until the lockdown bit
+			     is cleared by an admininstrator, or if the user
+			     verifies 
+			     the lockdown code when clicking the Terminate
+			     button."> 
+	    <label class="checkbox-inline" style='margin-right: 10px;'>
+	      <input type="checkbox" id="lockdown_checkbox"
+		     <% if (lockdown) { %>checked<% } %> >Lockdown</label>
 	  </div>
 	  <div class='pull-left'
 	       data-toggle='popover'

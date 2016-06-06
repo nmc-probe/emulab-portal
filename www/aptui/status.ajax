@@ -413,7 +413,7 @@ function Do_DenyOrMoreinfo($action)
 {
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
-    $action = ($action == "deny" ? "denyextension" : "moreinfo");
+    $extrargs = "";
 
     if (StatusSetupAjax(1)) {
 	goto bad;
@@ -439,11 +439,25 @@ function Do_DenyOrMoreinfo($action)
         $fp = fopen($filename, "w");
         fwrite($fp, $reason);
         fclose($fp);
-    }        
+    }
+    if ($action == "terminate") {
+        if (!isset($ajax_args["howlong"]) || $ajax_args["howlong"] == "") {
+            SPITAJAX_ERROR(1, "Missing number of days");
+            goto bad;
+        }
+        $days = $ajax_args["howlong"];
+        if (! preg_match("/^\d+$/", $days)) {
+            SPITAJAX_ERROR(1, "Invalid characters in days");
+            goto bad;
+        }
+        $extrargs = $days;
+    }
+    $action = ($action == "deny" ? "denyextension" :
+               ($action == "terminate" ? "schedterminate": "moreinfo"));
     $webtask = WebTask::CreateAnonymous();
     $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
-                     "  $action $uuid " .
+                     "  $action $uuid $extrargs " .
                         (isset($filename) ? $filename : ""),
 		     SUEXEC_ACTION_IGNORE);
     $webtask->Refresh();
@@ -486,6 +500,10 @@ function Do_DenyExtension()
 function Do_MoreInfo()
 {
     Do_DenyOrMoreinfo("info");
+}
+function Do_SchedTerminate()
+{
+    Do_DenyOrMoreinfo("terminate");
 }
 
 #
@@ -1328,6 +1346,73 @@ function Do_Lockout()
                      "where uuid='$uuid'")) {
 	SPITAJAX_ERROR(1, "Database failure.");
 	return;
+    }
+    SPITAJAX_RESPONSE("Success");
+}
+
+#
+# Set or clear the lockdown flag
+#
+function Do_Lockdown()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($this_user) || !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    if (!isset($ajax_args["lockdown"])) {
+	SPITAJAX_ERROR(1, "Missing lockdown value");
+	return;
+    }
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "Unknown instance uuid");
+	return;
+    }
+    $action = ($ajax_args["lockdown"] ? "set" : "clear");
+
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t $webtask_id -- ".
+                     "  lockdown $uuid $action admin ",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+        else {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    if ($webtask) {
+	$webtask->Delete();
     }
     SPITAJAX_RESPONSE("Success");
 }
