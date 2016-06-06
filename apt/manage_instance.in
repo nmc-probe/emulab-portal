@@ -1320,7 +1320,7 @@ sub DoExtend()
                 "Granting the request would set the expiration to $new_expires\n".
                 "It is running on $clusters\n".
                 "\n\n". $url . "\n\n",
-                "From: " . $creator->email());
+                $creator->email());
 
 	# Flag for the dashboard page. 
 	$instance->ExtensionRequested($reason, $granted);
@@ -1526,7 +1526,7 @@ sub DoExtend()
 	       "You are using $pcount physical nodes.\n".
                "It is running on $clusters\n\n".
                "$url\n",
-	       "From: $extensions",
+	       "$extensions",
 	       "BCC: $extensions");
     
     if (!$this_user->IsAdmin()) {
@@ -1758,7 +1758,7 @@ sub DoDenyOrMoreInfo($)
 	       "You are using $pcount physical nodes.\n".
                "It is running on $clusters\n\n".
                "$url\n",
-	       "From: $extensions",
+	       "$extensions",
 	       "BCC: $extensions");
 
     $instance->AddExtensionHistory($text);
@@ -3608,7 +3608,7 @@ sub DoSchedTerminate()
 			"You are using $pcount physical nodes.\n".
 			"It is running on $clusters\n\n".
 			"$url\n",
-			"From: $extensions",
+			"$extensions",
 			"BCC: $extensions");
     
     if (defined($webtask)) {
