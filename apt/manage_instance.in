@@ -3560,6 +3560,9 @@ sub DoSchedTerminate()
 	    goto bad;
 	}
     }
+    else {
+	$slice->SetExpiration(time() + ($days * 3600 * 24));
+    }
     # Now we can clear this.
     if ($instance->admin_lockdown()) {
 	if (DoLockdownInternal("clear", "all")) {
@@ -3568,10 +3571,10 @@ sub DoSchedTerminate()
 		     "Failed to clear lock down $instance\n".
 		     $instance->webURL() . "\n",
 		     $TBOPS);
+	    $errmsg  = "Failed to clear lockdown";
+	    $errcode = -1;
+	    goto bad;
 	}
-	$errmsg  = "Failed to clear lockdown";
-	$errcode = -1;
-	goto bad;
     }
     my $expires = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
 				  localtime(str2time($slice->expires())));
