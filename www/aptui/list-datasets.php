@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -156,7 +156,7 @@ echo "<a id='embedded-anchors'
                Create a new dataset?</a>
           <br>";
 
-echo "<input class='form-control search' type='search'
+echo "<input class='form-control search' type='search' data-column='all'
              id='dataset_search' placeholder='Search'>\n";
 
 echo "  <table class='tablesorter'>
