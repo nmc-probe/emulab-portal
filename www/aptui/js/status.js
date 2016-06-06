@@ -92,6 +92,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
 	    isfadmin:           window.APT_OPTIONS.isfadmin,
+	    extensions:         extensions,
 	    errorURL:           errorURL,
 	    paniced:            paniced,
 	    project:            window.APT_OPTIONS.project,
@@ -161,11 +162,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	$('button#extend_button').click(function (event) {
 	    event.preventDefault();
 	    if (isfadmin) {
-		if ($('#extension_history').length) {
-		    $("#fadmin_extend_history")
-			.text($('#extension_history').text());
-		    sup.ShowModal("#extend_history_modal");
-		}
+		sup.ShowModal("#extend_history_modal");
 		return;
 	    }
 	    if (isadmin) {
