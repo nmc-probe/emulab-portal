@@ -407,6 +407,7 @@ sub createfull($$$)
 	    if (open(FD, ">$shafile")) {
 		print FD "$hash\n";
 		close(FD);
+		system("touch -r $file $shafile");
 	    }
 	} else {
 	    print("$iname: WARNING: could not generate or parse SHA1 hash of '$file'\n");
@@ -593,6 +594,7 @@ sub createdelta($$$)
 	    if (open(FD, ">$shafile")) {
 		print FD "$hash\n";
 		close(FD);
+		system("touch -r $dfile $shafile");
 	    }
 	} else {
 	    print("$iname: WARNING: could not generate or parse SHA1 hash of '$dfile'\n");
