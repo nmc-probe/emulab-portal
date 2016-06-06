@@ -61,7 +61,7 @@ SPITHEADER(1);
 echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
-$whereclause1 = "where l.owner_uid='$target_uid'";
+$whereclause1 = "where l.owner_uid='$target_uid' and ad.uuid is null";
 $whereclause2 = "where v.creator='$target_uid' and v.isdataset=1";
 $whereclause3 = "where d.creator_uid='$target_uid'";
 $orderclause1 = "order by l.owner_uid";
@@ -74,7 +74,7 @@ $joinclause3  = "";
 
 if (isset($all)) {
     if (ISADMIN()) {
-	$whereclause1 = "";
+	$whereclause1 = "where ad.uuid is null";
 	$whereclause2 = "where v.isdataset=1";
 	$whereclause3 = "";
     }
@@ -98,138 +98,127 @@ if (isset($all)) {
 	    "where (v.creator='$target_uid' or ".
 	    "       g.uid_idx is not null) and v.isdataset=1 ";
 	$whereclause3 =
-	    "where d.creator_uid='$target_uid' or ".
-	    "      g.uid_idx is not null ";
+	    "where (d.creator_uid='$target_uid' or ".
+	    "       g.uid_idx is not null) ";
     }
 }
-
-if ($embedded) {
-    $query_result =
-	DBQueryFatal("(select l.uuid,'lease' as type from project_leases as l ".
-		     " $joinclause1 ".
-		     " $whereclause1 $orderclause1) ".
-                     "union ".
-                     "(select i.uuid,'image' as type from images as i ".
-		     " $joinclause2 ".
-		     " $whereclause2 $orderclause2)");
-}
-else {
-    $query_result =
-	DBQueryFatal("select d.uuid,'dataset' as type from apt_datasets as d ".
-		     "$joinclause3 ".
-		     "$whereclause3 $orderclause3");
+#
+# In the main portal, we show only those datasets on the local cluster.
+#
+if ($ISEMULAB) {
+    $whereclause3 .= "and agg.urn='$DEFAULT_AGGREGATE_URN'";
 }
 
-if (mysql_num_rows($query_result) == 0) {
-    $message = "<b>No datasets to show you. Maybe you want to ".
-	"<a id='embedded-anchors'
-             href='create-dataset.php?embedded=$embedded'>
-               create one?</a></b>
-          <br><br>";
-    if ($all == 0) {
-        if (ISADMIN()) {
-            $message .=
-                "<a id='embedded-anchors'
-                href='list-datasets.php?all=1&embedded=$embedded'>
-                 Show all datasets</a>";
-        }
-        else {
-            $message .=
-                "<a id='embedded-anchors'".
-                "   href='list-datasets.php?all=1&embedded=$embedded'>".
-                "Show all datasets you can use</a>\n";
-        }
-    }
-    echo $message;
-    SPITREQUIRE("list-datasets");
-    SPITFOOTER();
-    exit();
-}
+$classic_result =
+    DBQueryFatal("(select l.uuid,'lease' as type from project_leases as l ".
+                 " $joinclause1 ".
+                 " left join apt_datasets as ad on ad.remote_uuid=l.uuid ".
+                 " $whereclause1 $orderclause1) ".
+                 "union ".
+                 "(select i.uuid,'image' as type from images as i ".
+                 " $joinclause2 ".
+                 " $whereclause2 $orderclause2)");
+
+$portal_result =
+    DBQueryFatal("select d.uuid,'dataset' as type from apt_datasets as d ".
+                 "left join apt_aggregates as agg on agg.urn=d.aggregate_urn ".
+                 "$joinclause3 ".
+                 "$whereclause3 $orderclause3");
+
 echo "<div class='row'>
        <div class='col-lg-12 col-lg-offset-0
                    col-md-12 col-md-offset-0
                    col-sm-12 col-sm-offset-0
                    col-xs-12 col-xs-offset-0'>\n";
 
-echo "<a id='embedded-anchors'
-             href='create-dataset.php?embedded=$embedded'>
-               Create a new dataset?</a>
-          <br>";
+function SPITTABLE($which, $results) {
+    global $all,$embedded;
 
-echo "<input class='form-control search' type='search' data-column='all'
+    if ($which == "main") {
+        echo "<input class='form-control search' type='search' data-column='all'
              id='dataset_search' placeholder='Search'>\n";
+    }
+    echo "  <table class='tablesorter' id='${which}_table'>
+             <thead>
+              <tr>
+               <th>Name</th>";
+        if (isset($all) && ISADMIN()) {
+            echo " <th>Creator</th>";
+        }
+        echo "     <th>Project</th>
+                   <th>Type</th>
+                   <th>Expires</th>
+                   <th>URN</th>
+              </tr>
+            </thead>
+          <tbody>\n";
 
-echo "  <table class='tablesorter'>
-         <thead>
-          <tr>
-           <th>Name</th>";
-if (isset($all) && ISADMIN()) {
-    echo " <th>Creator</th>";
+        while ($row = mysql_fetch_array($results)) {
+            $uuid    = $row["uuid"];
+            $type    = $row["type"];
+
+            if ($type == "image") {
+                $dataset = ImageDataset::Lookup($uuid);
+            }
+            elseif ($type == "lease") {
+                $dataset = Lease::Lookup($uuid);
+            }     
+            elseif ($type == "dataset") {
+                $dataset = Dataset::Lookup($uuid);
+            }
+            $idx     = $dataset->idx();
+            $name    = $dataset->id();
+            $dtype   = $dataset->type();
+            $pid     = $dataset->pid();
+            $creator = $dataset->owner_uid();
+            $expires = $dataset->expires();
+            $urn     = $dataset->URN();
+            
+            echo " <tr>
+                <td><a href='show-dataset.php?uuid=$uuid&embedded=$embedded'>
+                $name</a></td>\n";
+
+            if (isset($all) && ISADMIN()) {
+                echo "<td>$creator</td>";
+            }
+            echo "  <td style='white-space:nowrap'>$pid</td>
+                    <td>$dtype</td>
+                    <td class='format-date'>$expires</td>
+                   <td>$urn</td>
+                 </tr>\n";
+        }
+        echo "   </tbody>
+             </table>\n";
 }
-echo "     <th>Project</th>
-           <th>Type</th>
-           <th>Expires</th>
-           <th>URN</th>
-          </tr>
-         </thead>
-         <tbody>\n";
 
-while ($row = mysql_fetch_array($query_result)) {
-    $uuid    = $row["uuid"];
-    $type    = $row["type"];
+$message = "<b>No datasets to show you. Maybe you want to ".
+    "<a id='embedded-anchors'
+        href='create-dataset.php?embedded=$embedded'>create one?</a></b>
+      <br><br>";
 
-    if ($type == "image") {
-        $dataset = ImageDataset::Lookup($uuid);
-    }
-    elseif ($type == "lease") {
-        $dataset = Lease::Lookup($uuid);
-    }     
-    elseif ($type == "dataset") {
-        $dataset = Dataset::Lookup($uuid);
-    }
-    $idx     = $dataset->idx();
-    $name    = $dataset->id();
-    $dtype   = $dataset->type();
-    $pid     = $dataset->pid();
-    $creator = $dataset->owner_uid();
-    $expires = $dataset->expires();
-    $urn     = $dataset->URN();
-    
-    echo " <tr>
-            <td><a href='show-dataset.php?uuid=$uuid&embedded=$embedded'>
-             $name</a></td>\n";
-
-    if (isset($all) && ISADMIN()) {
-	echo "<td>$creator</td>";
-    }
-    echo "  <td style='white-space:nowrap'>$pid</td>
-            <td>$dtype</td>
-            <td class='format-date'>$expires</td>
-            <td>$urn</td>
-           </tr>\n";
-}
-echo "   </tbody>
-        </table>\n";
-
-if (!isset($all)) {
-    if (ISADMIN()) {
-	echo "<a id='embedded-anchors'
-             href='list-datasets.php?all=1&embedded=$embedded'>
-             Show all user datasets</a>\n";
+if ($embedded) {
+    if (!mysql_num_rows($classic_result)) {
+        echo $message;
     }
     else {
-	echo "<a id='embedded-anchors'
-             href='list-datasets.php?all=1&embedded=$embedded'>
-             Show all datasets you can use</a>\n";
+        SPITTABLE("main", $classic_result);
     }
 }
 else {
-    echo "<a id='embedded-anchors'
-             href='list-datasets.php?all=0&embedded=$embedded'>
-             Show only my datasets</a>\n";
+    if (!mysql_num_rows($portal_result)) {
+        echo $message;
+    }
+    else {
+        SPITTABLE("main", $portal_result);
+    }
+    if (mysql_num_rows($classic_result)) {
+        echo "<br>\n";
+        echo "<center><h4>Classic Emulab Datasets</h4></center>\n";
+        SPITTABLE("classic", $classic_result);
+        echo "<br>\n";
+    }
 }
-echo "   </div>
-      </div>\n";
+echo "</div></div>\n";
 
 echo "<script type='text/javascript'>\n";
 echo "    window.AJAXURL  = 'server-ajax.php';\n";

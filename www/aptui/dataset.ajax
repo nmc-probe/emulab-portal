@@ -354,7 +354,7 @@ function Do_ModifyDataSet()
                 }
             }
             if (!count($errors)) {
-                if ($embedded) {
+                if ($embedded || $dataset->islocal()) {
                     if ($node = Node::Lookup($nodeid)) {
                         $reservation = $node->Reservation();
                         if (!$reservation ||
@@ -438,7 +438,7 @@ function Do_ModifyDataSet()
         $dname       = $dataset->id();
         $pid         = $dataset->pid();
 
-        if ($embedded) {
+        if ($embedded || $dataset->islocal()) {
                     $retval = SUEXEC($this_uid, $dataset->pid(),
                              "webclone_image -b $safe_bsname ".
                              "$dname $safe_nodeid",

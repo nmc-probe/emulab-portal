@@ -58,6 +58,12 @@ if ($embedded) {
 }
 else {
     $dataset = Dataset::Lookup($uuid);
+    if (!$dataset) {
+        $dataset = Lease::Lookup($uuid);
+        if (!$dataset) {
+            $dataset = ImageDataset::Lookup($uuid);
+        }
+    }
 }
 if (!$dataset) {
     SPITUSERERROR("No such dataset!");
@@ -89,7 +95,7 @@ function SPITFORM($formfields, $errors)
     echo htmlentities(json_encode($errors));
     echo "</script>\n";
 
-    if (!$embedded) {
+    if (!$embedded || $dataset->islocal()) {
         $query_result =
             DBQueryFatal("select uuid from apt_instances as a ".
                          "where creator_idx='$this_idx'");
