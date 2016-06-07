@@ -1434,7 +1434,17 @@ sub GetADBTarget($)
 {
     my ($node) = @_;
 
-    return GetText( "adb_target", $node );
+    my $target = GetText( "adb_target", $node );
+
+    return $target
+	if( defined( $target ) );
+
+    my $node = FindNodesNS( "n:adb_target", $node, $EMULAB_NS )->pop();
+
+    return $node->getAttribute( "target_id" )
+	if( defined( $node ) );
+
+    return undef;
 }
 
 sub GetProfileParameters($)
