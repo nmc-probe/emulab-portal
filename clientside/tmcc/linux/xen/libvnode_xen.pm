@@ -1626,6 +1626,19 @@ sub vnodePreConfig($$$$$){
 	mysystem("mount $dev $vnoderoot");
     }
 
+    #
+    # XXX If the VM appears to be a server in an elabinelab, don't do
+    # anything else. Our standard setup of keys and certs will clobber
+    # the custom elabinelab setup.
+    #
+    if (-e "$vnoderoot/etc/emulab/outer_bossnode") {
+	print STDERR
+	    "vnodePreConfig: WARNING: $vnode_id appears to be a configured ".
+	    "elabinelab server; skipping localizations\n";
+	mysystem("umount $dev");
+	return 0;
+    }
+
     # XXX We need to get rid of this or get it from tmcd!
     if (! -e "$vnoderoot/etc/emulab/genvmtype") {
 	mysystem2("echo 'xen' > $vnoderoot/etc/emulab/genvmtype");
