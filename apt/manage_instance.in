@@ -1443,8 +1443,8 @@ sub DoExtend()
 	# is a week and there are five days left and they asked
 	# for seven, we give them two.
 	#
-	if ($expires_time + ($granted * 3600 * 24) >
-	    time() + (3600 * 24 * $autoextend_maximum)) {
+	if ($granted && ($expires_time + ($granted * 3600 * 24)) >
+	    (time() + (3600 * 24 * $autoextend_maximum))) {
 	    $granted =
 		POSIX::ceil(((3600 * 24 * $autoextend_maximum) - $diff) /
 			     (3600 * 24.0));
