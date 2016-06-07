@@ -1766,6 +1766,7 @@ CREATE TABLE `experiments` (
   `nonlocal_user_id` varchar(128) default NULL,
   `nonlocal_type` tinytext,
   `nonfsmounts` tinyint(1) NOT NULL default '0',
+  `nfsmounts` enum('emulabdefault','genidefault','all','none') NOT NULL default 'emulabdefault',
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `pideid` (`pid`,`eid`),
   UNIQUE KEY `pididxeid` (`pid_idx`,`eid`),
@@ -3336,6 +3337,7 @@ CREATE TABLE `nodes` (
   `uuid` varchar(40) NOT NULL default '',
   `reserved_memory` int(10) unsigned default '0',
   `nonfsmounts` tinyint(1) NOT NULL default '0',
+  `nfsmounts` enum('emulabdefault','genidefault','all','none') default NULL,
   `taint_states` set('useronly','blackbox','dangerous') default NULL,
   PRIMARY KEY  (`node_id`),
   KEY `phys_nodeid` (`phys_nodeid`),
@@ -5478,6 +5480,7 @@ CREATE TABLE `virt_nodes` (
   `role` enum('node','bridge') NOT NULL default 'node',
   `firewall_style` tinytext,
   `firewall_log` tinytext,
+  `nfsmounts` enum('emulabdefault','genidefault','all','none') default NULL,  
   PRIMARY KEY  (`exptidx`,`vname`),
   UNIQUE KEY `pideid` (`pid`,`eid`,`vname`),
   KEY `pid` (`pid`,`eid`,`vname`)
