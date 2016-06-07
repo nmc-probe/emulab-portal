@@ -67,10 +67,20 @@ sub mysystem($)
 sub LookupAll($$$)
 {
     my ($class, $nodeid, $pref) = @_;
+    my $node;
 
-    $nodeid = $nodeid->node_id()
-	if (ref($nodeid));
-
+    if (ref($nodeid)) {
+	$node   = $nodeid;
+	$nodeid = $node->node_id();
+    }
+    else {
+	require Node;
+	$node = Node->Lookup($nodeid);
+	if (!defined($node)) {
+	    print STDERR "No such node in the DB: $nodeid\n";
+	    return -1;
+	}
+    }
     # Look in cache first
     if (exists($node_interfaces{$nodeid})) {
 	@$pref = @{ $node_interfaces{$nodeid} };
@@ -78,9 +88,16 @@ sub LookupAll($$$)
     }
     @$pref = ();
 
+    #
+    # Interfaces on dynamic virtnodes are marked with the logical flag.
+    # We want those. But we want to ignore them on physical nodes, since
+    # those refer to MLE interfaces.
+    #
+    my $logical_clause = ($node->isvirtnode() ? "" : "and logical=0");
+
     my $query_result =
 	DBQueryWarn("select * from interfaces ".
-		    "where node_id='$nodeid' and logical=0");
+		    "where node_id='$nodeid' $logical_clause");
 
     return -1
 	if (!$query_result);
