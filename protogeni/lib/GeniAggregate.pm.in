@@ -2003,10 +2003,9 @@ sub WaitForNodes($$@)
 	    my $adb_target;
 	    $experiment->GetVirtNodeAttribute($node->vname(), "adb_target",
 					      \$adb_target);
-	    next if
-		(!$adb_target);
-	    
-	    if (system("$TBADB -n $node_id forward") != 0) {
+
+	    if ($adb_target && 
+		system("$TBADB -n $node_id forward")) {
 		print STDERR "Could not setup adb forwarding for $node_id!\n";
 	    }
 	}
