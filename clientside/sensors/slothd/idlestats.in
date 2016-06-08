@@ -294,19 +294,18 @@ foreach my $node (@g_nodelist) {
 
     if (!-f $mainrrd) {
 	warn "Could not find main rrd file ($mainrrd) for $node_id\n";
-	if ($g_doboth) {
-	    $nobj->{'main'}->{'AVERAGE'} = []; # Indicate no data found.
-	    $nobj->{'main'}->{'MAX'} = []; # Indicate no data found.
-	} else {
-	    $nobj->{'main'} = []; # Indicate no data found.
-	}
+	$nobj->{'main'} = []; # Indicate no data found.
     }
     else {
 	if ($g_doboth) {
-	    $nobj->{'main'}->{'AVERAGE'} = 
-		get_stats($mainrrd, "AVERAGE", $mheader, $f_main);
-	    $nobj->{'main'}->{'MAX'} = 
-		get_stats($mainrrd, "MAX", $mheader, $f_main);
+	    my $avg = get_stats($mainrrd, "AVERAGE", $mheader, $f_main);
+	    my $max = get_stats($mainrrd, "MAX", $mheader, $f_main);
+	    if (@$avg || @$max) {
+		$nobj->{'main'}->{'AVG'} = $avg;
+		$nobj->{'main'}->{'MAX'} = $max;
+	    } else {
+		$nobj->{'main'} = [];
+	    }
 	} else {
 	    $nobj->{'main'} = 
 		get_stats($mainrrd, $g_valtype, $mheader, $f_main);
@@ -348,10 +347,14 @@ foreach my $node (@g_nodelist) {
 	next if (!exists($ifmap{$mac})); # skip if iface is not in DB.
 	$ifmap{$mac}->{'SEEN'} = 1; # mark.
 	if ($g_doboth) {
-	    $nobj->{'interfaces'}->{$mac}->{"AVERAGE"} = 
-		get_stats($intfrrd, "AVERAGE", $iheader);
-	    $nobj->{'interfaces'}->{$mac}->{"MAX"} = 
-		get_stats($intfrrd, "MAX", $iheader);
+	     my $avg = get_stats($intfrrd, "AVERAGE", $iheader);
+	     my $max = get_stats($intfrrd, "MAX", $iheader);
+	     if (@$avg || @$max) {
+		 $nobj->{'interfaces'}->{$mac}->{"AVG"} = $avg;
+		 $nobj->{'interfaces'}->{$mac}->{"MAX"} = $max;
+	     } else {
+		 $nobj->{'interfaces'}->{$mac} = [];
+	     }
 	} else {
 	    $nobj->{'interfaces'}->{$mac} =
 		get_stats($intfrrd, $g_valtype, $iheader);
@@ -361,12 +364,7 @@ foreach my $node (@g_nodelist) {
     # RRD stats file.
     foreach my $mac (keys %ifmap) {
 	if (!$ifmap{$mac}->{'SEEN'}) {
-	    if ($g_doboth) {
-		$nobj->{'interfaces'}->{$mac}->{"AVERAGE"} = [];
-		$nobj->{'interfaces'}->{$mac}->{"MAX"} = [];
-	    } else {
-		$nobj->{'interfaces'}->{$mac} = [];
-	    }
+	    $nobj->{'interfaces'}->{$mac} = [];
 	}
     }
 
