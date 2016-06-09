@@ -55,7 +55,7 @@ my $g_doboth = 0;
 my $g_doraw = 0;
 my $g_valtype = "MAX";
 my $g_now = time();
-my $g_end = floor($g_now/$STEP)*$STEP; # Now, normalized to STEP.
+my $g_end = floor($g_now/$STEP)*$STEP + $STEP; # Now, normalized to STEP.
 my $g_start = $g_end - floor($DEFWINDOW/$STEP)*$STEP + 2*$STEP;  # Default window, normalized.
 my $g_experiment;
 my @g_nodelist = ();
