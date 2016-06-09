@@ -420,7 +420,7 @@ sub SliceIdleData($)
     $limit = emutil::TBDateStringLocal($limit);
 
     GeniUtil::FlipToElabMan();
-    if (! open(IDLE, "$WAP $IDLESTATS -S '$limit' -e $pid,$eid |")) {
+    if (! open(IDLE, "$WAP $IDLESTATS -s -R -B -S '$limit' -e $pid,$eid |")) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Could not start idlestats")
     }
