@@ -910,6 +910,40 @@ sub MultiplexFactor($)
     return undef;
 }
 
+sub FromEmulabPortal($)
+{
+    my ($rspec) = @_;
+    
+    my $element = FindNodesNS("n:portal", $rspec, $EMULAB_NS)->pop();
+    if (defined($element)) {
+	my $which = GetText("name", $element);
+	return 1
+	    if (defined($which) && $which eq "emulab");
+    }
+    return 0;
+}
+sub SetPortal($$)
+{
+    my ($rspec, $portal) = @_;
+    
+    my $element = FindNodesNS("n:portal", $rspec, $EMULAB_NS)->pop();
+    if (!defined($element)) {
+	$element = AddElement("portal", $rspec, $EMULAB_NS);	
+    }
+    SetText("name", $element, $portal);
+    return 0;
+}
+sub ClearPortal($)
+{
+    my ($rspec) = @_;
+    
+    my $element = FindNodesNS("n:portal", $rspec, $EMULAB_NS)->pop();
+    if (defined($element)) {
+	$rspec->removeChild($element);
+    }
+    return 0;
+}
+
 sub PackingStrategy($)
 {
     my ($rspec) = @_;

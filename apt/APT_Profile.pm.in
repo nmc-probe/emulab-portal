@@ -1178,6 +1178,36 @@ sub EncryptBlocks($$$)
     return 0;
 }
 
+#
+# Add a portal element.
+#
+sub AddPortalTag($$$)
+{
+    my ($pxml, $tag, $pmsg) = @_;
+    
+    my $rspec = GeniXML::Parse($$pxml);
+    if (! defined($rspec)) {
+	$$pmsg = "AddPortalTag: Could not parse rspec";
+	return -1;
+    }
+    GeniXML::SetPortal($rspec, $tag);
+    $$pxml = GeniXML::Serialize($rspec);
+    return 0;
+}
+sub ClearPortalTag($$)
+{
+    my ($pxml, $pmsg) = @_;
+    
+    my $rspec = GeniXML::Parse($$pxml);
+    if (! defined($rspec)) {
+	$$pmsg = "AddPortalTag: Could not parse rspec";
+	return -1;
+    }
+    GeniXML::ClearPortal($rspec);
+    $$pxml = GeniXML::Serialize($rspec);
+    return 0;
+}
+
 sub IsHead($)
 {
     my ($self) = @_;

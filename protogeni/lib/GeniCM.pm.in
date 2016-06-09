@@ -771,6 +771,13 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     my $packing_option = GeniXML::PackingStrategy($rspec);
 
     #
+    # Look for top level NFS mounts directive, which is used to maintain
+    # compatibility with Emulab Classic users; when we receive this
+    # directive *and* PROTOGENI_LOCALUSER=1, then we can do mounts the
+    # way Emulab users expect (they get a shared home directory).
+    #
+
+    #
     # Add global vtypes.
     #
     my $vtypes_result =
@@ -834,8 +841,29 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    $virtexperiment->multiplex_factor(2);
 	}
     }
+    #
+    # Note that we set the mounts to "genidefault" when we create the
+    # container experiment. So this overrides.
+    #
     if ($PROTOGENI_NONFSMOUNTS) {
 	$virtexperiment->nonfsmounts(1);
+	# This is the new way of doing things.
+	$virtexperiment->nfsmounts("none");
+    }
+    elsif (GeniXML::FromEmulabPortal($rspec) && $PROTOGENI_LOCALUSER) {
+	#
+	# By not setting, we get standard emulab mounts which include
+	# /users. Not sure if I want to explictly set this.
+	#
+	# But we do not let anyone do this, at the moment only the local
+	# SA can do that, which means the authority that contacted us
+	# must be our SA. Not even users from our SA can specify this.
+	#
+	my $hrn = GeniHRN->new($ENV{"GENIURN"});
+	if (defined($hrn) &&
+	    $hrn->domain() eq $OURDOMAIN && $hrn->IsSA()) {
+	    $virtexperiment->nfsmounts("emulabdefault");
+	}
     }
 
     #
@@ -1743,6 +1771,8 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 		#
 		if ($fwsettings->{'style'} eq "closed") {
 		    $virtexperiment->nonfsmounts(1);
+		    # This is the new way of doing things.
+		    $virtexperiment->nfsmounts("none");
 		}
 		my $ruleno = 0;
 		foreach my $exception (@{ $fwsettings->{'exceptions'} }) {
@@ -6700,7 +6730,8 @@ sub GeniExperiment($;$)
     }
     $experiment = Experiment->Lookup($uuid);
     $experiment->SetState(EXPTSTATE_SWAPPED());
-    $experiment->Update({"geniflags"  => $Experiment::EXPT_GENIFLAGS_EXPT});
+    $experiment->Update({"geniflags"  => $Experiment::EXPT_GENIFLAGS_EXPT,
+			 "nfsmounts"  => "genidefault"});
     $experiment->TableUpdate("experiment_stats",
 			     "geniflags='$Experiment::EXPT_GENIFLAGS_EXPT', ".
 			     "slice_uuid='$uuid'");
