@@ -818,8 +818,12 @@ Simulator instproc run {} {
 	lappend values $security_level
     }
 
-    lappend fields "nonfsmounts"
-    lappend values $nonfs
+    if {$nonfs} {
+	lappend fields "nonfsmounts"
+	lappend values $nonfs
+	lappend fields "nfsmounts"
+	lappend values "none"
+    }
 
     if {$dpdb} {
 	lappend fields "dpdb"

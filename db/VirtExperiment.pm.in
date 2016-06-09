@@ -139,7 +139,8 @@ my $debug	      = 0;
 		      "security_level"		=> 1,
 		      "delay_capacity"		=> 1,
 		      "dpdb"			=> 1,
-		      "nonfsmounts"		=> 1);
+		      "nonfsmounts"		=> 1,
+		      "nfsmounts"		=> 1);
 
 #
 # Grab the virtual topo for an experiment.

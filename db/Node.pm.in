@@ -1813,7 +1813,7 @@ sub ClearBootAttributes($)
 		"sfshostid=NULL,allocstate='$allocFreeState',boot_errno=0, ".
 		"destination_x=NULL,destination_y=NULL, ".
 		"destination_orientation=NULL,reserved_memory=0,".
-		"nonfsmounts=0 ".
+		"nonfsmounts=0,nfsmounts=NULL ".
 		"where node_id='$node_id'")
 	or return -1;
 
@@ -3468,7 +3468,8 @@ sub NoNFSMounts($)
     
     my $node_id = $self->node_id();
     
-    DBQueryWarn("update nodes set nonfsmounts='1' where node_id='$node_id'")
+    DBQueryWarn("update nodes set nonfsmounts='1',nfsmounts='none' ".
+		"where node_id='$node_id'")
 	or return -1;
 
     return 0;

@@ -3150,7 +3150,8 @@ sub NoNFSMounts($)
     my $idx   = $self->idx();
     
     return -1
-	if (!DBQueryWarn("update experiments set nonfsmounts=1 ".
+	if (!DBQueryWarn("update experiments set ".
+			 "  nonfsmounts=1,nfsmounts='none' ".
 			 "where idx='$idx'"));
     return 0;
 }

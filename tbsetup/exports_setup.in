@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -251,7 +251,8 @@ if ($WINSUPPORT) {
 $nodes_result =
     DBQueryFatal("select r.node_id,r.pid,r.eid,e.gid,".
 		 "       e.nonfsmounts as enonfs,n.nonfsmounts as nnonfs,".
-		 "       i.IP,u.admin,r.sharing_mode,r.erole,nt.isvirtnode ".
+		 "       i.IP,u.admin,r.sharing_mode,r.erole,nt.isvirtnode, ".
+		 "       e.nfsmounts as e_nfsmounts,n.nfsmounts as n_nfsmounts".
 		 "from reserved as r ".
 		 "left join experiments as e on r.pid=e.pid and r.eid=e.eid ".
 		 "left join nodes as n on r.node_id=n.node_id ".
@@ -360,6 +361,8 @@ while ($row = $nodes_result->fetchrow_hashref) {
     my $erole   = $row->{'erole'};
     my $enonfs  = $row->{'enonfs'};
     my $nnonfs  = $row->{'nnonfs'};
+    my $enfs    = $row->{'e_nfsmounts'};
+    my $nnfs    = $row->{'n_nfsmounts'};
     my %fslist = ();
     my @dirlist = ();
     my @smbshares = ();
@@ -375,7 +378,7 @@ while ($row = $nodes_result->fetchrow_hashref) {
 
     # Skip nodes that belong to a "no nfs" experiment or are marked "no nfs".
     next
-	if ($enonfs || $nnonfs);
+	if ($enonfs || $nnonfs || $enfs == "none" || $nnfs == "none");
 
     # Skip non-shared virtnode nodes; NFS mounts are handled differently.
     next
