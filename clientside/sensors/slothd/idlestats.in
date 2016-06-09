@@ -59,6 +59,7 @@ my $g_end = floor($g_now/$STEP)*$STEP + $STEP; # Now, normalized to STEP.
 my $g_start = $g_end - floor($DEFWINDOW/$STEP)*$STEP + 2*$STEP;  # Default window, normalized.
 my $g_experiment;
 my @g_nodelist = ();
+my $g_silent = 0;
 
 sub usage() {
     print STDERR
@@ -66,6 +67,7 @@ sub usage() {
 	"Usage: $0 [-d] [-A|-B] [-R] [-S <start_time>] [-E <end_time>] node [node ...]\n" .
 	"       $0 [-d] [-A|-B] [-R] [-S <start_time>] [-E <end_time>] -e <pid>,<eid>\n".
 	"-d:              turn on debugging.\n" .
+	"-s:              silent mode, no warnings\n" .
 	"-A:              return averages instead of maximums.\n".
 	"-B:              return both average and maximum data points.\n".
 	"-R:              include the latest day's raw 5 minute samples.\n".
@@ -106,12 +108,16 @@ if ($UID) {
 
 my %opts = ();
 
-if (!getopts("dhABRS:E:e:", \%opts) || $opts{'h'}) {
+if (!getopts("dhABRS:E:e:s", \%opts) || $opts{'h'}) {
     usage();
 }
 
 if ($opts{'A'}) {
     $g_valtype = "AVERAGE";
+}
+
+if ($opts{'s'}) {
+    $g_silent = 1;
 }
 
 if ($opts{'B'}) {
@@ -185,7 +191,8 @@ if ($opts{'S'}) {
     $stime = floor($stime/$STEP)*$STEP;
     if ($g_experiment && $stime < $g_start) {
 	warn "Specified start time is prior to start of experiment!\n".
-	     "Truncating to: $g_start\n";
+	     "Truncating to: $g_start\n"
+	     if (!$g_silent);
     } else {
 	$g_start = $stime;
     }
@@ -203,7 +210,8 @@ if ($opts{'E'}) {
     }
     $etime = floor($etime/$STEP)*$STEP;
     if ($etime > $g_now) {
-	warn "End time is in the future! Truncated to: $g_now\n";
+	warn "End time is in the future! Truncated to: $g_now\n"
+	    if (!$g_silent);
     }
     else {
 	$g_end = $etime;
@@ -245,7 +253,8 @@ sub get_stats($$$;$) {
 	RRDs::fetch($rrdfile, $dtype, "--start=$start", "--end=$end", 
 		    "--resolution=$step");
     if (RRDs::error) {
-	warn "Could not get interface data from $rrdfile: ". RRDs::error ."\n";
+	warn "Could not get interface data from $rrdfile: ". RRDs::error ."\n"
+	    if (!$g_silent);
 	next;
     }
     my $hasvalues = 0; # track whether or not any data exists.
@@ -293,7 +302,8 @@ foreach my $node (@g_nodelist) {
     };
 
     if (!-f $mainrrd) {
-	warn "Could not find main rrd file ($mainrrd) for $node_id\n";
+	warn "Could not find main rrd file ($mainrrd) for $node_id\n"
+	    if (!$g_silent);
 	$nobj->{'main'} = []; # Indicate no data found.
     }
     else {
@@ -307,7 +317,7 @@ foreach my $node (@g_nodelist) {
 		$nobj->{'main'} = [];
 	    }
 	} else {
-	    $nobj->{'main'} = 
+	    $nobj->{'main'}->{($g_valtype eq "MAX" ? "MAX" : "AVG")} = 
 		get_stats($mainrrd, $g_valtype, $mheader, $f_main);
 	}
     }
@@ -356,7 +366,8 @@ foreach my $node (@g_nodelist) {
 		 $nobj->{'interfaces'}->{$mac} = [];
 	     }
 	} else {
-	    $nobj->{'interfaces'}->{$mac} =
+	    $nobj->{'interfaces'}->{$mac}->{($g_valtype eq
+					     "MAX" ? "MAX" : "AVG")} =
 		get_stats($intfrrd, $g_valtype, $iheader);
 	}
     }
