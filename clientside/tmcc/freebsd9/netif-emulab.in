@@ -172,8 +172,8 @@ cnet_start()
 	case $_if in
 	lo*|gif*|faith*|tun*|plip*|usbus*|ipfw*)
 		;;
-	# XXX skip IPoIB and Mellanox IB as eth
-	ib[0-9]|mlxen*)
+	# XXX skip IPoIB
+	ib[0-9])
 		;;
 	# XXX skip Intel 10Gb for now; they require huge numbers of mbufs
 	ix[0-9]|ixl[0-9])
@@ -194,12 +194,11 @@ cnet_start()
 	# XXX yow! If we don't come up with anything, we have to reconsider
 	# some of those interface types we skipped:
 	#  ix    because Clemson has an ix control network,
-	#  mlxen because Utah (will have) x86 Moonshot cartridges
 	#
 	if [ -z "$_ifs" ]; then
 	    for _if in $network_interfaces; do
 	    case $_if in
-	    ix[01]|mlxen[01])
+	    ix[01])
 		_ifs="$_ifs $_if"
 		;;
 	    *)
