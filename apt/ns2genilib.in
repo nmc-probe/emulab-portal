@@ -177,8 +177,11 @@ if (defined($experiment)) {
 	$ns .= "$line\n";
 
 	if ($line =~ /^set\s+(.*)\s+\[new Simulator/) {
-	    $ns .= "\$" . $1 . " description \"" .
-		$experiment->description() . "\"\n";
+	    my $text = $experiment->description();
+	    my $nsn  = $1;
+	    $text =~ s/\"/\\"/g;
+	    
+	    $ns .= "\$" . $nsn . " description \"$text\"\n";
 	}
     }
     open(NS, ">$nsfile")

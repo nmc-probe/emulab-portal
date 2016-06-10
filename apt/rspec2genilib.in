@@ -521,6 +521,7 @@ if (defined($rspec_tour)) {
     AddStatement("Tour = emulab.Tour()");
     if (defined($description)) {
 	my $text = $description->textContent();
+	$text =~ s/\'/\\'/g;
 
 	AddStatement("Tour.Description(emulab.Tour.TEXT, '$text')");
     }
