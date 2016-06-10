@@ -677,6 +677,8 @@ sub doimage($)
 	    }
 	    # XXX backward compat, only one of size/deltasize should be set
 	    if ($update && !$dpath) {
+		print("$pidimage: size: no delta image, clearing deltasize\n")
+		    if (!$quiet && $dsize);
 		$image->SetDeltaSize(0);
 	    }
 	}
@@ -702,6 +704,8 @@ sub doimage($)
 	    }
 	    # XXX backward compat, only one of size/deltasize should be set
 	    if ($update && !$path) {
+		print("$pidimage: size: no full image, clearing size\n")
+		    if (!$quiet && $size);
 		$image->SetSize(0);
 	    }
 	}
@@ -765,6 +769,8 @@ sub doimage($)
 	    }
 
 	    if ($update && !$dpath) {
+		print("$pidimage: hash: no delta image, clearing deltahash\n")
+		    if (!$quiet && $dhash);
 		$image->SetDeltaHash(undef);
 	    }
 	    $filehash = undef;
@@ -813,6 +819,8 @@ sub doimage($)
 	    }
 
 	    if ($update && !$path) {
+		print("$pidimage: hash: no full image, clearing hash\n")
+		    if (!$quiet && $hash);
 		$image->SetHash(undef);
 	    }
 	}
