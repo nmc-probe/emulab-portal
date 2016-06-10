@@ -44,6 +44,7 @@ sub get_stats($$$;$);
 # Constants
 my $TB = "@prefix@";
 my $STEP = 3600; # 1 hour (in seconds).  This should be an RRA epoch.
+my $RAWSTEP = 300; # periodicity of raw samples.
 my $DEFWINDOW = 86400 * 14; # two weeks (in seconds).
 my $MINTIMESPECLEN = 6;
 my $MAXTIMESPECLEN = 100;
@@ -148,7 +149,11 @@ if ($opts{'e'}) {
     # Bump start time to the beginning of this experiment.  Note that the
     # first data point may include data from prior to the start of the
     # experiment!
-    $g_start = ceil($g_experiment->swapin_time()/$STEP)*$STEP;
+    if ($g_doraw) {
+	$g_start = ceil($g_experiment->swapin_time()/$RAWSTEP)*$RAWSTEP;
+    } else {
+	$g_start = ceil($g_experiment->swapin_time()/$STEP)*$STEP;
+    }
 }
 
 if (@ARGV) {
@@ -229,7 +234,7 @@ sub get_stats($$$;$) {
     my $rawvals;
 
     if ($dtype eq "RAW") {
-	$step = 300; # 5 minutes;
+	$step = $RAWSTEP;
 	$end = floor($g_now/$step)*$step; # now, normalized to step.
 	$start = $end - 86400; # a day's worth of samples, but...
 	# Snap to the start time if it is less than a day prior to now.
