@@ -724,6 +724,7 @@ function Do_Submit()
 {
     global $this_user;
     global $ajax_args;
+    global $PORTAL_GENESIS;
     global $TBAUTHDOMAIN, $ISAPT, $ISPNET, $ISEMULAB, $DEFAULT_AGGREGATE_URN;
 
     if (!isset($ajax_args["formfields"])) {
@@ -743,7 +744,7 @@ function Do_Submit()
     $formfields = $ajax_args["formfields"];
     $am_array   = Instance::DefaultAggregateList();
     $errors     = array();
-    $args       = array();
+    $args       = array("portal" => $PORTAL_GENESIS);
     $profile    = Profile::Lookup($formfields["profile"]);
 
     #
