@@ -166,17 +166,6 @@ iptables -P INPUT DROP # BASIC,CLOSED,ELABINELAB
 iptables -P OUTPUT DROP # BASIC,CLOSED,ELABINELAB
 
 #
-# Block port 111 (rpcbind) from reaching the nodes. 
-#
-#iptables -A FORWARD -s 127.0.0.1/32 -p tcp -m physdev --physdev-in eth0 -m tcp --dport 111 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-#iptables -A FORWARD -s EMULAB_VCNET -p tcp -m physdev --physdev-in eth0 -m tcp --dport 111 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-#iptables -A FORWARD -s EMULAB_VCNET -p udp -m physdev --physdev-in eth0 -m udp --dport 111 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-#iptables -A FORWARD -s EMULAB_CNET  -p tcp -m physdev --physdev-in eth0 -m tcp --dport 111 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-#iptables -A FORWARD -s EMULAB_CNET  -p udp -m physdev --physdev-in eth0 -m udp --dport 111 -j ACCEPT # BASIC,CLOSED,ELABINELAB
-#iptables -A FORWARD -p tcp -m physdev --physdev-in eth0 -m tcp --dport 111 -j DROP # BASIC,CLOSED,ELABINELAB
-#iptables -A FORWARD -p udp -m physdev --physdev-in eth0 -m udp --dport 111 -j DROP # BASIC,CLOSED,ELABINELAB
-
-#
 # Drop some logging in for debugging.
 #
 #iptables -A INPUT -j LOG --log-prefix "INPUT: " --log-level 5 # BASIC,CLOSED,ELABINELAB
