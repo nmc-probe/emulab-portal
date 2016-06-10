@@ -7579,7 +7579,8 @@ sub HandleBlockstore($$$$$$@)
 		}
 		$dataset_id = $id;
 
-		if ($dataset_id =~ /^(.*)\/\/(.*)$/) {
+		if ($dataset_id =~ /^(.*)\/\/(.*)$/ ||
+		    $dataset_id =~ /^(.*):(.*)$/) {
 		    $gid = $1;
 		    $dataset_id = $2;
 		}
@@ -7594,7 +7595,7 @@ sub HandleBlockstore($$$$$$@)
 		#
 		# Dataset must already exist.
 		#
-		$message = "No such dataset for $bsname: $dataset_id";
+		$message = "No such dataset for $bsname: $pid/$gid/$dataset_id";
 		goto bad;
 	    }
 	    if ($PROTOGENI_LOCALUSER) {
