@@ -1028,6 +1028,7 @@ sub CreateDatasetCreds($$$$$)
 		if ($class eq "local");
 	    
 	    my ($authority, $type, $id) = GeniHRN::Parse($dataset_id);
+	    my ($dataset_domain) = split(":", $authority);
 	    #
 	    # Separate project from name; this is how the rspec specifies
 	    # the dataset they want, since it might be in another project
@@ -1039,6 +1040,18 @@ sub CreateDatasetCreds($$$$$)
 	    my $dataset = APT_Dataset->Lookup("$pid/$id");
 	    if (!defined($dataset)) {
 		$dataset = APT_Dataset->LookupByRemoteURN($dataset_id);
+		if (!defined($dataset)) {
+		    # If it is for a local dataset, see if it plain lease
+		    # created via the classic interface or command line.
+		    # The backend can find those.
+		    if ($dataset_domain eq $OURDOMAIN) {
+			$dataset = Lease->Lookup($pid, $id);
+			if (defined($dataset)) {
+			    # No need for a credential.
+			    next;
+			}
+		    }
+		}
 		if (!defined($dataset)) {
 		    $$pmsg = "Persistent dataset '$pid/$id' does not exist";
 		    return 1;
