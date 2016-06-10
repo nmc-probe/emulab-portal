@@ -252,7 +252,8 @@ $nodes_result =
     DBQueryFatal("select r.node_id,r.pid,r.eid,e.gid,".
 		 "       e.nonfsmounts as enonfs,n.nonfsmounts as nnonfs,".
 		 "       i.IP,u.admin,r.sharing_mode,r.erole,nt.isvirtnode, ".
-		 "       e.nfsmounts as e_nfsmounts,n.nfsmounts as n_nfsmounts".
+		 "       e.nfsmounts as e_nfsmounts, ".
+		 "       n.nfsmounts as n_nfsmounts ".
 		 "from reserved as r ".
 		 "left join experiments as e on r.pid=e.pid and r.eid=e.eid ".
 		 "left join nodes as n on r.node_id=n.node_id ".
@@ -378,7 +379,8 @@ while ($row = $nodes_result->fetchrow_hashref) {
 
     # Skip nodes that belong to a "no nfs" experiment or are marked "no nfs".
     next
-	if ($enonfs || $nnonfs || $enfs == "none" || $nnfs == "none");
+	if ($enonfs || $nnonfs || $enfs eq "none" ||
+	    (defined($nnfs) && $nnfs eq "none"));
 
     # Skip non-shared virtnode nodes; NFS mounts are handled differently.
     next
