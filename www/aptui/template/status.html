@@ -19,6 +19,9 @@
 pre {
 	white-space: pre-wrap;
 }
+.panel-body-nopad {
+	padding: 5px;
+}
 </style>
 <div class='row'>
   <div class='col-lg-6  col-lg-offset-3
@@ -366,10 +369,29 @@ pre {
 		  <div class="panel-heading">
 		    <h5>Load Average Graph</h5>
 		  </div>
-		  <div class='panel-body'>
-		    <div id="loadavg-chart"
+		  <div class='panel-body panel-body-nopad'>
+		    <!-- The col setting gives us a "relative" position div -->
+		    <div class='col-xs-12 col-xs-offset-0'
+			 style="padding:0px;">
+		      <!-- So now we can use an "absolute" position to put
+		           the radio button in the upper left of the graph
+		           where it will not overwrite anything.
+		      -->
+		      <div class="hidden toggles"
+			   style='position:absolute;left:5px;top:0px'>
+			<label class="radio-inline">
+			  <input type="radio" name="loadav-radio"
+				 checked="checked" value="max"> Max
+			</label>
+			<label class="radio-inline">
+			  <input type="radio" name="loadav-radio"
+				 value="avg"> Avg
+			</label>
+		      </div>
+		      <div id="loadavg-chart"
 			class='fixedsize-panel with-3d-shadow with-transitions'>
-		      <svg></svg>
+			<svg></svg>
+		      </div>
 		    </div>
 		  </div>
 		</div>
@@ -380,10 +402,29 @@ pre {
 		  <div class="panel-heading">
 		    <h5>Control Traffic Graph</h5>
 		  </div>
-		  <div class='panel-body'>
-		    <div id="ctrl-traffic-chart"
+		  <div class='panel-body panel-body-nopad'>
+		    <!-- The col setting gives us a "relative" position div -->
+		    <div class='col-xs-12 col-xs-offset-0'
+			 style="padding:0px;">
+		      <!-- So now we can use an "absolute" position to put
+		      the radio button in the upper left of the graph
+		      where it will not overwrite anything.
+		      -->
+		      <div class="hidden toggles"
+			   style='position:absolute;left:5px;top:0px'>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 checked="checked" value="max"> Max
+			</label>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 value="avg"> Avg
+			</label>
+		      </div>
+		      <div id="ctrl-traffic-chart"
 			class='fixedsize-panel with-3d-shadow with-transitions'>
-		      <svg></svg>
+			<svg></svg>
+		      </div>
 		    </div>
 		  </div>
 		</div>
@@ -394,10 +435,27 @@ pre {
 		  <div class="panel-heading">
 		    <h5>Experiment Traffic Graph</h5>
 		  </div>
-		  <div class='panel-body'>
-		    <div id="expt-traffic-chart"
+		  <div class='panel-body panel-body-nopad'>
+		    <!-- The col setting gives us a "relative" position div -->
+		    <div class='col-xs-12 col-xs-offset-0'
+			 style="padding:0px;">
+		      <!-- So now we can use an "absolute" position to put
+		      the radio button in the upper left of the graph
+		      where it will not overwrite anything.
+		      -->
+		      <div class="hidden toggles"
+			   style='position:absolute;left:5px;top:0px'>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 checked="checked" value="max"> Max</label>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 value="avg"> Avg</label>
+		      </div>
+		      <div id="expt-traffic-chart"
 			class='fixedsize-panel with-3d-shadow with-transitions'>
-		      <svg></svg>
+			<svg></svg>
+		      </div>
 		    </div>
 		  </div>
 		</div>

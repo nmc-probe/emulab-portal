@@ -6,27 +6,36 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
     {
 	'use strict';
 	var uuid       = null;
-	var loadavID   = null;
+	var rawData    = {};
+	var loadID     = null;
 	var ctrlID     = null;
 	var exptID     = null;
 	var C_callback = null;
 
-	function LoadIdleData() {
-	    var exptTraffic  = [];
-	    var ctrlTraffic  = [];
-	    var loadavs      = [];
+	/*
+	 * Process data for one type (loadav, ctrl, expt) and return it.
+	 *
+	 * NOTE: This function mostly about converting the json data that
+	 * we get from the cluster, into arrays of objects that NVD3 uses
+	 * for generating the line graphs.
+	 *
+	 * If there are multiple streams (MAX, AVERAGE) we store that
+	 * inside the NVD3 data objects, it does not care about that. This
+	 * make it easy to find and shuffle things when the user clicks on
+	 * the radio buttons to switch between the stream types.
+	 */
+	function ProcessData(which) {
+	    var result = [];
+	    var index  = 0;
 
 	    var ProcessSite = function(idledata) {
 		/*
 		 * Array of objects, one per node. But some nodes might not
 		 * have any data (main array is zero), so need to skip those.
 		 */
-		var index = 0;
-		
 		for (var i in idledata) {
 		    var obj = idledata[i];
 		    var node_id = obj.node_id;
-		    var loadvalues = [];
 
 		    //
 		    // If idlestats finds no data, the main array is
@@ -37,63 +46,201 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 			console.info("No idledata for " + node_id);
 			continue;
 		    }
-		    // The main array is the load average data.
-		    for (var j = 1; j < obj.main.length; j++) {
-			var loads = obj.main[j];
 
-			loadvalues[j - 1] = {
-			    // convert seconds to milliseconds.
-			    "x" : loads[0] * 1000,
-			    "y" : loads[3],
+		    if (which == "load") {
+			var datum = {
+			    "key"    : node_id,
+			    "area"   : 0,
+			    "arrays" : {},
 			};
-		    }	    
-		    loadavs[index] = {
-			"key"    : node_id,
-			"area"   : 0,
-			"values" : loadvalues,
-		    };
-		    var control_iface = obj.interfaces.ctrl_iface;
-
-		    for (var mac in obj.interfaces) {
-			//console.info(mac, obj.interfaces[mac]);
-
-			if (mac == "ctrl_iface") {
-			    continue;
+			/*
+			 * Backwards compat. Flush soon.
+			 */
+			if (Array.isArray(obj.main)) {
+			    obj.main = {"MAX" : obj.main};
 			}
 			
-			if (obj.interfaces[mac].length) {
-			    var trafficvalues = [];
-			    
-			    for (var j = 1;
-				 j < obj.interfaces[mac].length; j++) {
-				var data = obj.interfaces[mac][j];
-				var y = data[1] + data[2];
-				// No 0.X packets please.
-				if (y > 0.0 && y < 1.0)
-				    y = 1.0;
+			for (var type in obj.main) {
+			    var loadvalues = [];
+			    var array = obj.main[type];
+			
+			    for (var j = 1; j < array.length; j++) {
+				var loads = array[j];
 
-				trafficvalues[j - 1] = {
-				    "x" : data[0] * 1000,
-				    "y" : y
+				loadvalues[j - 1] = {
+				    // convert seconds to milliseconds.
+				    "x" : loads[0] * 1000,
+				    "y" : loads[3],
 				};
 			    }
-			    var datum = {
-				"key"    : node_id,
-				"area"   : 0,
-				"values" : trafficvalues,
-			    };
-			    if (mac == control_iface) {
-				ctrlTraffic[index] = datum;
+			    datum.arrays[type] = loadvalues;
+			}
+			// Default to MAX;
+			datum["values"] = datum.arrays["MAX"];
+			result[index++] = datum;
+			continue;
+		    }
+		    if (which == "ctrl" || which == "expt") {
+			var control_iface = obj.interfaces.ctrl_iface;
+
+			/*
+			 * On the expermental networks, we can have
+			 * multiple interfaces per nodes, but we want to
+			 * aggregate those into a single line for the
+			 * node. So we have to create a datum for the node
+			 * now, and add the pkt counts to it.
+			 */
+			var datum = {
+			    "key"    : node_id,
+			    "area"   : 0,
+			    "arrays" : {"MAX" : []}
+			};
+			// Default to MAX in initial graph.
+			datum["values"] = datum.arrays["MAX"];
+
+			for (var mac in obj.interfaces) {
+			    //console.info(mac, obj.interfaces[mac]);
+
+			    if (mac == "ctrl_iface") {
+				continue;
+			    }
+			    var thismac;
+
+			    /*
+			     * If we want the control network graph, skip
+			     * all interfaces that are not the control net.
+			     * Or if we want the expt graph, skip the control
+			     * net mac.
+			     */
+			    if (which == "ctrl") {
+				if (mac != control_iface)
+				    continue;
+				thismac = "ctrl";
 			    }
 			    else {
-				exptTraffic[index] = datum;
+				if (mac == control_iface)
+				    continue;
+				thismac = "expt";
+			    }
+
+			    /*
+			     * Backwards compat. Flush soon.
+			     */
+			    if (Array.isArray(obj.interfaces[mac])) {
+				obj.interfaces[mac] =
+				    {"MAX" : obj.interfaces[mac]}
+			    }
+			    
+			    for (var type in obj.interfaces[mac]) {
+				var array  = datum.arrays[type];
+			    	var values = obj.interfaces[mac][type];
+
+				//console.info(mac,type,values);
+
+				if (! values.length) {
+				    //console.info("no info");
+				    continue;
+				}
+				if (array === undefined) {
+				    array = datum.arrays[type] = [];
+				}
+
+				for (var j = 1; j < values.length; j++) {
+				    var netdata = values[j];
+				    var x = netdata[0] * 1000;
+				    var y = netdata[1] + netdata[2];
+
+				    /*
+				     * If we already have a data point for
+				     * this index, add the new data to the
+				     * totals. 
+				     */
+				    var item = array[j - 1];
+				    if (item === undefined) {
+					// New data point.
+					item = {
+					    "x" : x,
+					    "y" : 0,
+					    // Samples, for AVG.
+					    "samples" : []
+					};
+					array[j - 1] = item;
+				    }
+				    if (type == "MAX") {
+					item.y += y;
+				    }
+				    else {
+					item.samples.push(y);
+
+					var sum = 0;
+					for (var k = 0; k <
+					     item.samples.length; k++) {
+					    sum += item.samples[k];
+					}
+					item.y = sum / item.samples.length;
+				    }
+				}
 			    }
 			}
+			/*
+			 * If after all that, there is no actual data,
+			 * then we do not add the datum to results.
+			 */
+			if (datum.values.length) {
+			    result[index++] = datum;
+			}
 		    }
-		    index++;
 		}
 	    };
-	    
+	    _.each(rawData, function(idledata, name) {
+		ProcessSite(idledata);
+	    });
+	    return result;
+	}
+
+	function CreateOneGraph(id, datums, args) {
+	    $(id).removeClass("hidden");
+	    $(id + " .collapse").addClass("in");
+
+	    window.nv.addGraph(function() {
+		var chart = window.nv.models.lineWithFocusChart();
+		CreateIdleChart(id + ' svg', chart, datums, args);
+		/*
+		 * Look to see if we have multiple strearms (max/avg).
+		 * If so we want to unhide the radio buttons to switch
+		 * between them, and setup a handler to inject the alt
+		 * data in the NVD3 chart.
+		 */
+		if (Object.keys(datums[0].arrays).length > 1) {
+		    $(id + ' .toggles').removeClass("hidden");
+		    $(id + ' .toggles input[type=radio][value=max]')
+			.prop('checked', true);
+		    
+		    $(id + ' .toggles input[type=radio]').change(function() {
+			var which = this.value;
+
+			_.each(datums, function(datum) {
+			    if (which == "max") {
+				datum.values = datum.arrays["MAX"];
+			    }
+			    else {
+				datum.values = datum.arrays["AVG"];
+			    }
+			});
+			//console.info(datums);
+			d3.select(id + ' svg')
+			    .datum(datums)
+			    .call(chart);
+		    });
+		}
+	    });
+	}
+
+	function LoadIdleData() {
+	    var exptTraffic  = [];
+	    var ctrlTraffic  = [];
+	    var loadavs      = [];
+
 	    var callback = function(json) {
 		if (json.code) {
 		    console.info("Failed to get idledata: " + json.value);
@@ -101,52 +248,78 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 		}
 		_.each(json.value, function(data, name) {
 		    var idledata = JSON.parse(data);
-		    ProcessSite(idledata);
+		    rawData[name] = idledata;
 		});
-		console.info(loadavs);
-		console.info(ctrlTraffic);
-		console.info(exptTraffic);
+		var load = ProcessData("load", "avg");
+		var ctrl = ProcessData("ctrl", "avg");
+		var expt = ProcessData("expt", "avg");
+		
+		console.info(load);
+		console.info(ctrl);
+		console.info(expt);
 
 		// We want to tell the caller if there is any actual data
 		if (C_callback) {
-		    C_callback(loadavs.length + ctrlTraffic.length +
-			       exptTraffic.length);
+		    C_callback(load.length + ctrl.length + expt.length);
 		}
 
-		if (loadavs.length) {
-		    $(loadavID).removeClass("hidden");
-		    $(loadavID + " .collapse").addClass("in");
-		    
-		    window.nv.addGraph(function() {
-			var chart = window.nv.models.lineWithFocusChart();
-			CreateIdleGraph(loadavID + ' svg',
-					chart, loadavs, "float");
-			chart.yAxis.axisLabel("Unix Load Average")
-			chart.update();
+		if (load.length) {
+		    CreateOneGraph(loadID, load,
+				   {"ytype"  : "float",
+				    "ylabel" : "Unix Load Average"});
+		    $(loadID + ' .toggles').popover({
+			trigger: 'hover',
+			placement: 'auto',
+			delay : {"hide": 500, "show": 500},
+			html: true,
+			content: "MAX is the maximum load average " +
+			    "during the interval, while AVG is the average "+
+			    "load during the interval. The " +
+			    "reported interval in the graph is five minutes "+
+			    "for the most recent 24 hours, and then every "+
+			    "hour after that. During the first 24 hours MAX "+
+			    "and AVG will be the same since the interval is "+
+			    "so short."
 		    });
 		}
-		if (ctrlTraffic.length) {
-		    $(ctrlID).removeClass("hidden");
-		    $(ctrlID + " .collapse").addClass("in");
-		    
-		    window.nv.addGraph(function() {
-			var chart = window.nv.models.lineWithFocusChart();
-			CreateIdleGraph(ctrlID + ' svg',
-					chart, ctrlTraffic, "int");
-			chart.yAxis.axisLabel("Packets Per Second")
-			chart.update();
+		if (ctrl.length) {
+		    CreateOneGraph(ctrlID, ctrl,
+				   {"ytype"  : "int",
+				    "ylabel" : "Packets Per Second"});
+
+		    $(ctrlID + ' .toggles').popover({
+			trigger: 'hover',
+			placement: 'auto',
+			delay : {"hide": 500, "show": 500},
+			html: true,
+			content: "MAX is the maximum number of packets sent " +
+			    "within the interval, while AVG is the average "+
+			    "number of packets sent in the interval. The " +
+			    "reported interval in the graph is five minutes "+
+			    "for the most recent 24 hours, and then every "+
+			    "hour after that. During the first 24 hours MAX "+
+			    "and AVG will be the same since the interval is "+
+			    "so short."
 		    });
 		}
-		if (exptTraffic.length) {
-		    $(exptID).removeClass("hidden");
-		    $(exptID + " .collapse").addClass("in");
+		if (expt.length) {
+		    CreateOneGraph(exptID, expt,
+				   {"ytype"  : "int",
+				    "ylabel" : "Packets Per Second"});
 		    
-		    window.nv.addGraph(function() {
-			var chart = window.nv.models.lineWithFocusChart();
-			CreateIdleGraph(exptID + ' svg',
-					chart, exptTraffic, "int");
-			chart.yAxis.axisLabel("Packets Per Second")
-			chart.update();
+		    $(exptID + ' .toggles').popover({
+			trigger: 'hover',
+			placement: 'auto',
+			delay : {"hide": 500, "show": 500},
+			html: true,
+			content: "MAX is the maximum number of packets sent " +
+			    "within the interval, while AVG is the average "+
+			    "number of packets sent in the interval. The " +
+			    "reported interval in the graph is five minutes "+
+			    "for the most recent 24 hours, and then every "+
+			    "hour after that. During the first 24 hours MAX "+
+			    "and AVG will be the same since the interval is "+
+			    "so short."
 		    });
 		}
 	    };
@@ -165,7 +338,10 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 	    chart.update();
 	}
 
-	function CreateIdleGraph(id, chart, datums, ytype) {
+	function CreateIdleChart(id, chart, datums, args) {
+	    var ytype  = args.ytype;
+	    var ylabel = args.ylabel;
+	    
             var tickMultiFormat = d3.time.format.multi([
 		// not the beginning of the hour
 		["%-I:%M%p", function(d) { return d.getMinutes(); }],
@@ -200,6 +376,7 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 	    // to figure out.
 	    chart.lines.scatter.yScale(d3.scale.sqrt());
 	    chart.yAxis.scale(d3.scale.sqrt());
+	    chart.yAxis.axisLabel(ylabel);
 
 	    chart.xAxis.tickFormat(function (d) {
 		return tickMultiFormat(new Date(d));
@@ -212,14 +389,24 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 		chart.y2Axis.tickFormat(d3.format(',.2f'));
 	    }
 	    else {
-		chart.yAxis.tickFormat(d3.format(',.0f'));
-		chart.y2Axis.tickFormat(d3.format(',.0f'));
+		var intformater = d3.format(',.0f');
+		var floatformater = d3.format(',.2f');
+		var formatter = function (d) {
+		    if (d < 1.0) {
+			return floatformater(d);
+		    }
+		    else {
+			return intformater(d);
+		    }
+		}
+		chart.yAxis.tickFormat(formatter)
+		chart.y2Axis.tickFormat(formatter);
 	    }
 	    chart.useInteractiveGuideline(true);
 	    d3.select(id)
 		.datum(datums)
 		.call(chart);
-	    
+
 	    UpdateXaxisLabel(chart);
 
             // set up the tooltip to display full dates
@@ -241,7 +428,7 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 
 	return function(args) {
 	    uuid       = args.uuid;
-	    loadavID   = args.loadavID;
+	    loadID     = args.loadID;
 	    ctrlID     = args.ctrlID;
 	    exptID     = args.exptID;
 	    C_callback = args.callback;

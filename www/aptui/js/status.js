@@ -468,6 +468,10 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		if (lastStatus != "imaging") {
 		    AutoStartSSH();
 		}
+		ShowIdleDataTab();
+		if (json.value.haveopenstackstats) {
+		    CreateOpenstackTab();
+		}
 	    }
 	    else if (instanceStatus == 'failed') {
 		bgtype = "panel-danger";
@@ -541,11 +545,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		status_html = "<font color=green>ready</font>";
 	    }
 	    $("#quickvm_status").html(status_html);
-
-	    ShowIdleDataTab();
-	    if (json.value.haveopenstackstats) {
-		CreateOpenstackTab();
-	    }
 	}
 		 
 	//
@@ -2619,7 +2618,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	};
 	sup.ShowWaitWait("We are gathering data from the cluster(s)");
 	ShowIdleGraphs({"uuid"     : uuid,
-			"loadavID" : "#loadavg-panel-div",
+			"loadID"   : "#loadavg-panel-div",
 			"ctrlID"   : "#ctrl-traffic-panel-div",
 			"exptID"   : "#expt-traffic-panel-div",
 			"callback" : callback});
