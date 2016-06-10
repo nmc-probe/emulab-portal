@@ -827,7 +827,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    if (site) {
 		sites[site[1]] = field.value;
 	    }
-	    else {
+	    else if (! (field.name == "where" && field.value == "(any)")) {
 		formfields[field.name] = field.value;
 	    }
 	});
