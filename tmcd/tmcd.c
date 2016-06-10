@@ -6136,6 +6136,12 @@ COMMAND_PROTOTYPE(doloadinfo)
 		/* Tack on the newline, finally */
 		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
 
+		/* Output line at a time in case we have a lot of images */
+		if (nrows > 1) {
+			client_writeback(sock, buf, strlen(buf), tcp);
+			bufp = buf;
+		}
+
 		nrows--;
 	}
 	if (res)
@@ -6160,6 +6166,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 	if (disableif)
 		free(disableif);
 
+	/* Output the final (or only, or null) line */
 	client_writeback(sock, buf, strlen(buf), tcp);
 	if (verbose)
 		info("doloadinfo: %s", buf);
