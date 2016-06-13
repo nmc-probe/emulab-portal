@@ -1096,6 +1096,51 @@ function Do_Refresh()
 }
 
 #
+# Reload rhe manifests.
+#
+function Do_ReloadTopology()
+{
+    global $this_user, $instance, $suexec_output;
+    global $ajax_args;
+
+    if (StatusSetupAjax(1)) {
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+    $uuid = $ajax_args["uuid"];
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t $webtask_id -- getmanifests $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+	else {
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    SPITAJAX_RESPONSE("Success");
+}
+
+#
 # Ask the backend to reboot or reload a node.
 #
 function Do_RebootOrReload($which)

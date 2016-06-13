@@ -58,6 +58,7 @@ sub usage()
     print("Usage: manage_instance schedterminate instance [-m message] days [filename]\n");
     print("Usage: manage_instance idledata instance\n");
     print("Usage: manage_instance openstackstats instance\n");
+    print("Usage: manage_instance getmanifests instance\n");
     exit(-1);
 }
 my $optlist     = "dt:s";
@@ -2191,16 +2192,53 @@ sub DoManifests()
 	goto killit;
     }
 
+    #
+    # Lock the slice in case it is doing something else, like taking
+    # a disk image.
+    #
+    if ($slice->Lock()) {
+	$errmsg = "Experiment is busy, cannot lock it. Please try again later";
+	goto bad;
+    }
+    #
+    # Create the webtask object, but AFTER locking the slice so we do
+    # not destroy one in use.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
     my $coderef = sub {
 	my ($sliver) = @_;
 	my $webtask  = $sliver->webtask();
 	my $errmsg;
 
-	my $response = $sliver->GetManifest();
-	if (!defined($response)) {
+	my $manifest = $sliver->GetManifest();
+	if (!defined($manifest)) {
 	    $errmsg = "RPC Error calling GetManifest";
 	    goto bad;
 	}
+	my $response = $sliver->SliceStatus();
+	if (!defined($response)) {
+	    $errmsg = "RPC Error calling SliceStatus";
+	    goto bad;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+		$errmsg = "Slice is gone";
+		goto bad;
+	    }
+	    if ($response->code() == GENIRESPONSE_BUSY) {
+		$errmsg = "Slice is busy; try again later";
+		goto bad;
+	    }
+	    $errmsg = "Could not get slice status: ". $response->output();
+	    goto bad;
+	}
+	$sliver->SetManifest($manifest);
+	$sliver->UpdateWebStatus($response->value()->{'details'});
 	return 0;
       bad:
 	return 1;
@@ -2227,9 +2265,16 @@ sub DoManifests()
 	    goto bad;
 	}
     }
+    $instance->ComputeNodeCounts();
+    $slice->UnLock();
     exit(0);
   bad:
+    $slice->UnLock();
     print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited(1);
+    }
     exit(1);
 }
 

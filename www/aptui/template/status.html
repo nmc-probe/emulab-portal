@@ -196,7 +196,7 @@ pre {
 		    href='manage_profile.php?action=copy&uuid=<%= profileUUID %>'
 		    id='copy_button' type=button
 		    data-toggle='popover'
-		    data-delay='{"hide":1500, "show":500}'
+	            data-delay='{"hide":1500, "show":500}'
 		    data-html='true'
 		    data-content="When you <em>copy</em> (instead of
 		    clone), you are creating a new profile that
@@ -293,7 +293,12 @@ pre {
             </li>
 	    <li class="hidden" id="show_idlegraphs_li">
               <a href='#Idlegraphs' id='show_idlegraphs_tab'
-		 data-toggle='tab'>Graphs</a>
+		 data-toggle='tab'>Graphs
+		<button class='close hidden'
+			style="margin-top:0px;"
+			type='button' id="graphs-refresh-button">
+		  <span class='glyphicon glyphicon-repeat'></span></button>
+	      </a>
             </li>
 	  </ul>
 	  <div id='quicktabs_content' class='tab-content'>
@@ -305,17 +310,33 @@ pre {
 		<button class='btn btn-xs btn-success pull-right' disabled
 			id='refresh_button' type=button
 			data-toggle='popover'
+			data-delay='{"hide":1000, "show":500}'
 			data-content='Ask cluster for updated node status'>
 		  Refresh Status</button>
 		<span>
-		  <button class='btn btn-xs btn-success pull-right hidden' disabled
+		  <button class='btn btn-xs btn-success pull-right hidden'
+			  disabled
 			  data-toggle='popover'
+			  data-delay='{"hide":1000, "show":500}'
 			  data-content='Run linktest on the topology'
 			  style='margin-right: 10px;'
 			  id='linktest-modal-button' type=button>
 		    Run Linktest</button>
 		</span>
-	    <% } %>
+		<% if (isadmin || isstud || isfadmin) { %>
+		  <span>
+		    <button class='btn btn-xs btn-success pull-right'
+			    disabled
+			    data-toggle='popover'
+			    data-delay='{"hide":1000, "show":500}'
+			    data-content='Reload the topology in case it has
+					  changed at the cluster'
+			    style='margin-right: 10px;'
+			    id='reload-topology-button' type=button>
+		      Reload Topo</button>
+		  </span>
+		<% } %>
+	      <% } %>
 	    </div>
             <div class='tab-pane' id='listview'>
 	      <div id='showtopo_listview'>

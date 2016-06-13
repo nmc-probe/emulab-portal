@@ -28,6 +28,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     var isadmin     = 0;
     var isfadmin    = 0;
     var isguest     = 0;
+    var isstud      = 0;
     var ispprofile  = 0;
     var dossh       = 1;
     var profile_uuid= null;
@@ -59,6 +60,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	oneonly = window.APT_OPTIONS.oneonly;
 	isadmin = window.APT_OPTIONS.isadmin;
 	isfadmin= window.APT_OPTIONS.isfadmin;
+	isstud  = window.APT_OPTIONS.isstud;
 	isguest = (window.APT_OPTIONS.registered ? false : true);
 	dossh   = window.APT_OPTIONS.dossh;
 	extend  = window.APT_OPTIONS.extend || null;
@@ -92,6 +94,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    registered:		window.APT_OPTIONS.registered,
 	    isadmin:            window.APT_OPTIONS.isadmin,
 	    isfadmin:           window.APT_OPTIONS.isfadmin,
+	    isstud:             window.APT_OPTIONS.isstud,
 	    extensions:         extensions,
 	    errorURL:           errorURL,
 	    paniced:            paniced,
@@ -186,6 +189,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    event.preventDefault();
 	    window.location.replace('manage_profile.php?action=clone' +
 				    '&snapuuid=' + uuid);
+	});
+	// Handler for the reload topology button
+	$('button#reload-topology-button').click(function (event) {
+	    event.preventDefault();
+	    DoReloadTopology();
 	});
 
 	//
@@ -490,6 +498,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		DisableButtons();
 		EnableButton("terminate");
 		EnableButton("refresh");
+		EnableButton("reloadtopo");
 	    }
 	    else if (instanceStatus == 'imaging') {
 		bgtype = "panel-warning";
@@ -512,6 +521,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		DisableButtons();
 		EnableButton("terminate");
 		EnableButton("refresh");
+		EnableButton("reloadtopo");
 	    }
 	    else if (instanceStatus == 'terminating' ||
 		     instanceStatus == 'terminated') {
@@ -563,6 +573,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     {
 	EnableButton("terminate");
 	EnableButton("refresh");
+	EnableButton("reloadtopo");
 	EnableButton("extend");
 	EnableButton("clone");
 	EnableButton("snapshot");
@@ -572,6 +583,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     {
 	DisableButton("terminate");
 	DisableButton("refresh");
+	DisableButton("reloadtopo");
 	DisableButton("extend");
 	DisableButton("clone");
 	DisableButton("snapshot");
@@ -593,6 +605,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    button = "#extend_button";
 	else if (button == "refresh")
 	    button = "#refresh_button";
+	else if (button == "reloadtopo")
+	    button = "#reload-topology-button";
 	else if (button == "clone" && nodecount == 1)
 	    button = "#clone_button";
 	else if (button == "snapshot" && nodecount == 1)
@@ -826,6 +840,38 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	var xmlthing = sup.CallServerMethod(ajaxurl,
 					    "status",
 					    "Refresh",
+					     {"uuid" : uuid});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Request a reload of the manifests (and thus the topology) from the
+    // backend clusters.
+    //
+    function DoReloadTopology()
+    {
+	var callback = function(json) {
+	    //console.info(json);
+	    EnableButtons();
+	    
+	    if (json.code) {
+		statusHold = 0;
+		sup.HideModal('#waitwait-modal');
+		sup.SpitOops("oops", "Failed to reload topo: " + json.value);
+		return;
+	    }
+	    changingtopo = true;	    
+	    statusHold = 0;
+	    // Trigger status update.
+	    GetStatus();
+	    sup.HideModal('#waitwait-modal');
+	}
+	statusHold = 1;
+	DisableButtons();
+	sup.ShowModal('#waitwait-modal');
+	var xmlthing = sup.CallServerMethod(ajaxurl,
+					    "status",
+					    "ReloadTopology",
 					     {"uuid" : uuid});
 	xmlthing.done(callback);
     }
@@ -2611,16 +2657,16 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	 * and to hide the waiting modal.
 	 */
 	var callback = function (gotdata) {
-	    sup.HideWaitWait();
 	    if (!gotdata) {
 		$('#Idlegraphs #nodata').removeClass("hidden");
 	    }
 	};
-	sup.ShowWaitWait("We are gathering data from the cluster(s)");
 	ShowIdleGraphs({"uuid"     : uuid,
+			"showwait" : true,
 			"loadID"   : "#loadavg-panel-div",
 			"ctrlID"   : "#ctrl-traffic-panel-div",
 			"exptID"   : "#expt-traffic-panel-div",
+			"refreshID": "#graphs-refresh-button",
 			"callback" : callback});
     }
 

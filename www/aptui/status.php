@@ -184,6 +184,7 @@ $isopenstack     = $instance->isopenstack();
 $paniced         = $instance->paniced();
 $project         = $instance->pid();
 $extensions      = ExtensionInfo::LookupForInstance($instance);
+$isstud          = (isset($this_user) && $this_user->stud() ? 1 : 0);
 
 #
 # We give ssh to the creator (real user or guest user).
@@ -240,6 +241,7 @@ else {
 echo "  window.APT_OPTIONS.registered = $registered;\n";
 echo "  window.APT_OPTIONS.isadmin = $isadmin;\n";
 echo "  window.APT_OPTIONS.isfadmin = $isfadmin;\n";
+echo "  window.APT_OPTIONS.isstud = $isstud;\n";
 echo "  window.APT_OPTIONS.cansnap = $cansnap;\n";
 echo "  window.APT_OPTIONS.canclone = $canclone;\n";
 echo "  window.APT_OPTIONS.snapping = $snapping;\n";

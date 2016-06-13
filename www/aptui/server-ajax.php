@@ -146,6 +146,8 @@ $routing = array("myprofiles" =>
                                                      "Do_Reload",
 						 "Refresh" =>
 						     "Do_Refresh",
+						 "ReloadTopology" =>
+						     "Do_ReloadTopology",
 						 "DecryptBlocks" =>
 						     "Do_DecryptBlocks",
 						 "Lockout" =>

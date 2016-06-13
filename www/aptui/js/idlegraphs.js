@@ -10,7 +10,9 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 	var loadID     = null;
 	var ctrlID     = null;
 	var exptID     = null;
+	var refreshID  = null;
 	var C_callback = null;
+	var showWait   = false;
 
 	/*
 	 * Process data for one type (loadav, ctrl, expt) and return it.
@@ -262,6 +264,9 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 		if (C_callback) {
 		    C_callback(load.length + ctrl.length + expt.length);
 		}
+		if (showWait) {
+		    sup.HideWaitWait();
+		}
 
 		if (load.length) {
 		    CreateOneGraph(loadID, load,
@@ -323,6 +328,9 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 		    });
 		}
 	    };
+	    if (showWait) {
+		sup.ShowWaitWait("We are gathering data from the cluster(s)");
+	    }
 	    var xmlthing = sup.CallServerMethod(null, "status", "IdleData",
 						{"uuid" : uuid});
 	    xmlthing.done(callback);	
@@ -432,6 +440,17 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 	    ctrlID     = args.ctrlID;
 	    exptID     = args.exptID;
 	    C_callback = args.callback;
+	    showWait   = args.showwait;
+	    if (_.has(args, "refreshID")) {
+		refreshID = args.refreshID;
+
+		$(refreshID).removeClass("hidden");
+		$(refreshID).click(function () {
+		    d3.selectAll("svg > *").remove();
+		    $('.toggles').addClass("hidden");
+		    LoadIdleData();
+		});
+	    }
 	    LoadIdleData();
 	}
     }

@@ -258,6 +258,7 @@ function (_, sup, moment, ShowIdleGraphs,
     function LoadIdleData()
     {
 	ShowIdleGraphs({"uuid"     : window.UUID,
+			"showwait" : false,
 			"loadID"   : "#loadavg-panel-div",
 			"ctrlID"   : "#ctrl-traffic-panel-div",
 			"exptID"   : "#expt-traffic-panel-div"});
