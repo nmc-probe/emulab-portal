@@ -457,6 +457,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		// then need to update from the new manifests.
 		if (changingtopo) {
 		    ShowTopo(true);
+		    changingtopo = false;
 		}
 	    }
 	    else if (instanceStatus == 'ready') {
@@ -555,6 +556,13 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		status_html = "<font color=green>ready</font>";
 	    }
 	    $("#quickvm_status").html(status_html);
+
+	    // This will happen when the user clicks the Reload Topology
+	    // button, ww want to redraw with the new manifests.
+	    if (changingtopo) {
+		ShowTopo(true);
+		changingtopo = false;
+	    }
 	}
 		 
 	//
@@ -1438,6 +1446,8 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     //    
     function ShowTopo(isupdate)
     {
+	//console.info("ShowTopo", isupdate);
+	
 	//
 	// Maybe this should come from rspec? Anyway, we might have
 	// multiple manifests, but only need to do this once, on any
@@ -2360,7 +2370,6 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		    $('#linktest-help').html(marked(md));
 		});
 
-	console.info("foo");
 	// Handler for the linktest modal button
 	$('button#linktest-modal-button').click(function (event) {
 	    event.preventDefault();
