@@ -258,9 +258,9 @@ sub get_stats($$$;$) {
 	RRDs::fetch($rrdfile, $dtype, "--start=$start", "--end=$end", 
 		    "--resolution=$step");
     if (RRDs::error) {
-	warn "Could not get interface data from $rrdfile: ". RRDs::error ."\n"
+	warn "Could not get data from $rrdfile: ". RRDs::error ."\n"
 	    if (!$g_silent);
-	next;
+	return [];
     }
     my $hasvalues = 0; # track whether or not any data exists.
     my @tmpvals = ($header,);
