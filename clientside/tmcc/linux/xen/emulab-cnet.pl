@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -345,6 +345,30 @@ sub Online()
 	     "-o $bridge");
     }
 
+    #
+    # rpcbind port restrictions. Probably need a better way to handle
+    # these cases.
+    #
+    if (isRoutable($vnode_ip)) {
+	push(@rules,
+	     "-A $INCOMING_CHAIN -s $network/$cnet_mask -p tcp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-A $INCOMING_CHAIN -s $network/$cnet_mask -p udp  ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask -p tcp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask -p udp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
+	     "  -p tcp --dport 111 -j DROP");
+	push(@rules,
+	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
+	     "  -p udp --dport 111 -j DROP");
+    }
     # 
     # Watch for a vnode with a public IP, no need to nat. 
     #
@@ -487,6 +511,29 @@ sub Offline()
 	     "-o $bridge");
     }
 
+    #
+    # Remove rpcbind port restrictions
+    #
+    if (isRoutable($vnode_ip)) {
+	push(@rules,
+	     "-D $INCOMING_CHAIN -s $network/$cnet_mask -p tcp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-D $INCOMING_CHAIN -s $network/$cnet_mask -p udp  ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-D $INCOMING_CHAIN -s $jail_network/$jail_netmask -p tcp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-D $INCOMING_CHAIN -s $jail_network/$jail_netmask -p udp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-D $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
+	     "  -p tcp --dport 111 -j DROP");
+	push(@rules,
+	     "-D $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
+	     "  -p udp --dport 111 -j DROP");
+    }
     # 
     # Watch for a vnode with a public IP, no need to nat. 
     #
