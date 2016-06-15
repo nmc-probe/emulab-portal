@@ -52,12 +52,13 @@ my $SD_STATSDIR = "$TB/data/slothd_rrd";
 my $ALLZEROMAC = "000000000000";
 
 # Globals
+my $g_step = $STEP;
 my $g_doboth = 0;
 my $g_doraw = 0;
 my $g_valtype = "MAX";
 my $g_now = time();
-my $g_end = floor($g_now/$STEP)*$STEP + $STEP; # Now, normalized to STEP.
-my $g_start = $g_end - floor($DEFWINDOW/$STEP)*$STEP + 2*$STEP;  # Default window, normalized.
+my $g_end;
+my $g_start;
 my $g_experiment;
 my @g_nodelist = ();
 my $g_silent = 0;
@@ -127,7 +128,12 @@ if ($opts{'B'}) {
 
 if ($opts{'R'}) {
     $g_doraw = 1;
+    $g_step = $RAWSTEP;
 }
+
+# Set default start and end times now that we know the step size.
+$g_end = floor($g_now/$g_step)*$g_step;
+$g_start = $g_end - $DEFWINDOW;
 
 if ($opts{'e'}) {
     # Lookup will untaint the argument.
@@ -149,11 +155,7 @@ if ($opts{'e'}) {
     # Bump start time to the beginning of this experiment.  Note that the
     # first data point may include data from prior to the start of the
     # experiment!
-    if ($g_doraw) {
-	$g_start = ceil($g_experiment->swapin_time()/$RAWSTEP)*$RAWSTEP;
-    } else {
-	$g_start = ceil($g_experiment->swapin_time()/$STEP)*$STEP;
-    }
+    $g_start = floor($g_experiment->swapin_time()/$g_step)*$g_step;
 }
 
 if (@ARGV) {
@@ -193,7 +195,7 @@ if ($opts{'S'}) {
 	warn "Start time could not be parsed!\n";
 	exit 1;
     }
-    $stime = floor($stime/$STEP)*$STEP;
+    $stime = floor($stime/$g_step)*$g_step;
     if ($g_experiment && $stime < $g_start) {
 	warn "Specified start time is prior to start of experiment!\n".
 	     "Truncating to: $g_start\n"
@@ -213,9 +215,9 @@ if ($opts{'E'}) {
 	warn "End time could not be parsed!\n";
 	exit 1;
     }
-    $etime = floor($etime/$STEP)*$STEP;
-    if ($etime > $g_now) {
-	warn "End time is in the future! Truncated to: $g_now\n"
+    $etime = floor($etime/$g_step)*$g_step;
+    if ($etime > $g_end) {
+	warn "End time is in the future! Truncated to: $g_end\n"
 	    if (!$g_silent);
     }
     else {
@@ -235,7 +237,6 @@ sub get_stats($$$;$) {
 
     if ($dtype eq "RAW") {
 	$step = $RAWSTEP;
-	$end = floor($g_now/$step)*$step; # now, normalized to step.
 	$start = $end - 86400; # a day's worth of samples, but...
 	# Snap to the start time if it is less than a day prior to now.
 	# It should already be aligned to five minutes.
@@ -246,7 +247,7 @@ sub get_stats($$$;$) {
     }
     elsif ($g_doraw) {
 	$rawvals = get_stats($rrdfile, "RAW", $header, $filter);
-	my $rawstart = floor(($g_now-86400)/$STEP)*$STEP - $STEP;
+	my $rawstart = floor($g_now/$STEP)*$STEP - 86400;
 	if ($start <= $rawstart) {
 	    $end = $rawstart;
 	} else {
@@ -305,7 +306,7 @@ foreach my $node (@g_nodelist) {
     my $f_main = sub {
 	my ($tstamp, $vals) = @_;
 	shift @$vals; # remove the 'last_tty' timestamp.
-	@$vals = map { defined($_) ? sprintf("%.2f", $_) : undef } @$vals;
+	@$vals = map { defined($_) ? sprintf("%.2f", $_)/1 : undef } @$vals;
     };
 
     if (!-f $mainrrd) {
@@ -359,7 +360,7 @@ foreach my $node (@g_nodelist) {
     # anonymous func to process entries returned by rrd.
     my $f_intf = sub {
 	my ($tstamp, $vals) = @_;
-	@$vals = map { defined($_) ? sprintf("%.2f", $_) : undef } @$vals;
+	@$vals = map { defined($_) ? sprintf("%.2f", $_)/1 : undef } @$vals;
     };
     my @intfrrds = glob "$SD_STATSDIR/${node_id}-*.rrd"; # iface stats files.
     my $iheader = ["timestamp","ipkt_rate","opkt_rate"];
