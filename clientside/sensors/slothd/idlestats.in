@@ -265,7 +265,7 @@ sub get_stats($$$;$) {
     my $hasvalues = 0; # track whether or not any data exists.
     my @tmpvals = ($header,);
     foreach my $rrd_line (@$rrd_data) {
-	$rrd_line = $filter->($rrd_stamp, $rrd_line)
+	$filter->($rrd_stamp, $rrd_line)
 	    if $filter;
 	foreach my $val (@$rrd_line) {
 	    $hasvalues = 1
@@ -300,10 +300,12 @@ foreach my $node (@g_nodelist) {
     #
     my $mainrrd = "$SD_STATSDIR/${node_id}.rrd";
     my $mheader = ["timestamp","load_1min","load_5min","load_15min"];
+
+    # anonymous func to process entries returned by rrd.
     my $f_main = sub {
 	my ($tstamp, $vals) = @_;
 	shift @$vals; # remove the 'last_tty' timestamp.
-	return $vals;
+	@$vals = map { defined($_) ? sprintf("%.2f", $_) : undef } @$vals;
     };
 
     if (!-f $mainrrd) {
@@ -353,6 +355,12 @@ foreach my $node (@g_nodelist) {
 	}
     }
     $nobj->{'interfaces'}->{'ctrl_iface'} = $ctrlmac; # communicate ctrl iface.
+
+    # anonymous func to process entries returned by rrd.
+    my $f_intf = sub {
+	my ($tstamp, $vals) = @_;
+	@$vals = map { defined($_) ? sprintf("%.2f", $_) : undef } @$vals;
+    };
     my @intfrrds = glob "$SD_STATSDIR/${node_id}-*.rrd"; # iface stats files.
     my $iheader = ["timestamp","ipkt_rate","opkt_rate"];
     foreach my $intfrrd (@intfrrds) {
@@ -362,8 +370,8 @@ foreach my $node (@g_nodelist) {
 	next if (!exists($ifmap{$mac})); # skip if iface is not in DB.
 	$ifmap{$mac}->{'SEEN'} = 1; # mark.
 	if ($g_doboth) {
-	     my $avg = get_stats($intfrrd, "AVERAGE", $iheader);
-	     my $max = get_stats($intfrrd, "MAX", $iheader);
+	     my $avg = get_stats($intfrrd, "AVERAGE", $iheader, $f_intf);
+	     my $max = get_stats($intfrrd, "MAX", $iheader, $f_intf);
 	     if (@$avg || @$max) {
 		 $nobj->{'interfaces'}->{$mac}->{"AVG"} = $avg;
 		 $nobj->{'interfaces'}->{$mac}->{"MAX"} = $max;
@@ -373,7 +381,7 @@ foreach my $node (@g_nodelist) {
 	} else {
 	    $nobj->{'interfaces'}->{$mac}->{($g_valtype eq
 					     "MAX" ? "MAX" : "AVG")} =
-		get_stats($intfrrd, $g_valtype, $iheader);
+		get_stats($intfrrd, $g_valtype, $iheader, $f_intf);
 	}
     }
     # Indicate no data found for interfaces where there is no
