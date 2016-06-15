@@ -3481,7 +3481,7 @@ sub DoIdleData()
 	    $errmsg = "Could not get idledata from some slivers";
 	    if ($agg->webtask()->output()) {
 		$errmsg .= ": " . $agg->webtask()->output();
-		$errcode = $agg->webtask()->output();
+		$errcode = $code;
 	    }
 	    goto bad;
 	}
