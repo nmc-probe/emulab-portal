@@ -26,6 +26,7 @@ else
     opts="$opts -O join_buffer_size=256K -O thread_cache_size=4"
     opts="$opts -O tmp_table_size=32M -O max_heap_table_size=32M"
     opts="$opts -O max_connections=500"
+    opts="$opts -O max_allowed_packet=16M"
 fi
 
 logopt="--log-long-format --log=@prefix@/log/mysql/base --log-bin=@prefix@/log/mysql/update --log-slow-queries=@prefix@/log/mysql/slowqueries"
