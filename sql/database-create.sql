@@ -1922,19 +1922,19 @@ CREATE TABLE `fs_resources` (
 
 DROP TABLE IF EXISTS `future_reservations`;
 CREATE TABLE `future_reservations` (
+  `idx` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
   `pid` varchar(48) NOT NULL DEFAULT '',
   `pid_idx` mediumint(8) unsigned NOT NULL DEFAULT '0',
   `nodes` smallint(5) unsigned NOT NULL DEFAULT '0',
   `type` varchar(30) NOT NULL DEFAULT '',
-  `start` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `end` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `start` datetime DEFAULT NULL,
+  `end` datetime DEFAULT NULL,
   `uid` varchar(8) NOT NULL DEFAULT '',
   `uid_idx` mediumint(8) unsigned NOT NULL DEFAULT '0',
   `notes` mediumtext,
   `admin_notes` mediumtext,
-  PRIMARY KEY (`pid_idx`,`start`,`end`,`type`,`nodes`)
+  PRIMARY KEY (`idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
-
 
 --
 -- Table structure for table `global_ipalloc`
