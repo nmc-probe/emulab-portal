@@ -1917,6 +1917,18 @@ CREATE TABLE `fs_resources` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `future_reservation_attributes`
+--
+
+DROP TABLE IF EXISTS `future_reservation_attributes`;
+CREATE TABLE `future_reservation_attributes` (
+  `reservation_idx` mediumint(8) unsigned NOT NULL,
+  `attrkey` varchar(32) NOT NULL,
+  `attrvalue` tinytext,
+  PRIMARY KEY (`reservation_idx`,`attrkey`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `future_reservations`
 --
 
