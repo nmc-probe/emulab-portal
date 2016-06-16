@@ -134,6 +134,7 @@ sub Lookup($$$$$$)
     my $record = $query_result->fetchrow_hashref();
     
     my $self               = {};
+    $self->{'IDX'}         = $record->{'idx'};
     $self->{'PID'}         = $pid;
     $self->{'PID_IDX'}     = $pid_idx;
     $self->{'EID'}         = $record->{'eid'};
@@ -151,6 +152,7 @@ sub Lookup($$$$$$)
     return $self;
 }
 
+sub idx($)         { return $_[0]->{"IDX"}; }
 sub pid($)         { return $_[0]->{"PID"}; }
 sub pid_idx($)     { return $_[0]->{"PID_IDX"}; }
 sub eid($)         { return $_[0]->{"EID"}; }
@@ -260,18 +262,22 @@ sub Book($)
     my $notes = DBQuoteSpecial( $self->notes() );
     my $admin_notes = DBQuoteSpecial( $self->admin_notes() );
 
-    DBQueryWarn( "REPLACE INTO future_reservations SET " .
-		 "pid='$pid', " .
-		 "pid_idx='$pid_idx', " .
-		 "nodes='$nodes', " .
-		 "type='$type', " .
-		 "start=FROM_UNIXTIME($start), " .
-		 "end=FROM_UNIXTIME($end), " .
-		 "uid='$uid', " .
-		 "uid_idx='$uid_idx' " .
-		 ( defined( $notes ) ? ", notes='$notes'" : "" ) .
-		 ( defined( $admin_notes ) ? ", admin_notes='$admin_notes'" : "" ) )
+    my $query_result =
+	DBQueryWarn( "INSERT INTO future_reservations SET " .
+		     "pid='$pid', " .
+		     "pid_idx='$pid_idx', " .
+		     "nodes='$nodes', " .
+		     "type='$type', " .
+		     "start=FROM_UNIXTIME($start), " .
+		     "end=FROM_UNIXTIME($end), " .
+		     "uid='$uid', " .
+		     "uid_idx='$uid_idx' " .
+		     ( defined( $notes ) ? ", notes='$notes'" : "" ) .
+		     ( defined( $admin_notes ) ?
+		       ", admin_notes='$admin_notes'" : "" ) )
 	or return -1;
+
+    $self->{'IDX'} = $query_result->insertid();
 
     delete $cache{$type};
     
@@ -285,23 +291,55 @@ sub Cancel($)
 {
     my ($self) = @_;
 
-    my $pid_idx = $self->pid_idx();
-    my $nodes = $self->nodes();
+    my $idx = $self->idx();
     my $type = $self->type();
-    my $start = $self->start();
-    my $end = $self->end();
     
-    DBQueryWarn( "DELETE FROM future_reservations WHERE " .
-		 "pid_idx='$pid_idx' AND " .
-		 "nodes='$nodes' AND " .
-		 "type='$type' AND " .
-		 "start=FROM_UNIXTIME( $start ) AND " .
-		 "end=FROM_UNIXTIME( $end )" )		 
+    DBQueryWarn( "DELETE FROM future_reservations WHERE idx=$idx" )
+	or return -1;
+
+    DBQueryWarn( "DELETE FROM future_reservation_attributes WHERE " . 
+		 "reservation_idx=$idx" )
 	or return -1;
 
     delete $cache{$type};
     
     return 0;
+}
+
+sub SetAttribute($$$)
+{
+    my ($self, $key, $value) = @_;
+
+    my $idx = $self->idx();
+    $key = DBQuoteSpecial( $key );
+    $value = DBQuoteSpecial( $value );
+    
+    DBQueryWarn( "REPLACE INTO future_reservation_attributes SET " .
+		 "reservation_idx='$idx', " .
+		 "attrkey='$key', " .
+		 "attrvalue='$value'" )
+	or return -1;
+
+    return 0;
+}
+
+sub GetAttribute($$)
+{
+    my ($self, $key) = @_;
+
+    my $idx = $self->idx();
+    $key = DBQuoteSpecial( $key );
+
+    my $query_result = DBQueryWarn( "SELECT attrvalue FROM " .
+				    "future_reservation_attributes WHERE " .
+				    "reservation_idx='$idx' AND " .
+				    "attrkey='$key'" );
+    return undef
+	if( !$query_result || !$query_result->numrows );
+
+    my ($value) = $query_result->fetchrow_array();
+
+    return $value;
 }
 
 sub LookupAll($$)

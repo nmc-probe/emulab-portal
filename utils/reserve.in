@@ -197,7 +197,7 @@ if ($list) {
 	my $start = $row->{'start'};
 	my $end = $row->{'end'};
 
-	printf( "%20s %20s %-20s %5d %s\n", $start, $end, $pid, $nodes, $type );
+	printf( "%19s %19s %-19s %5d %s\n", $start, $end, $pid, $nodes, $type );
     }
     
     exit(0);
