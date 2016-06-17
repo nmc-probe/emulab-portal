@@ -179,6 +179,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
 	$('#waitwait_div').html(waitwaitString);
 	$('#rspecview_div').html(rspecviewString);
+	$('#rspec_modal_download_button').addClass("hidden");
+	
 	// The about panel.
 	if (window.SHOWABOUT) {
 	    $('#about_div').html(window.ISCLOUD ? aboutcloudString :
