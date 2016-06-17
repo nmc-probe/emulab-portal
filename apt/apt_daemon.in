@@ -597,7 +597,7 @@ while (1) {
 	ReportLockdownExpired();
 	$reportcounter = 0;
     }
-    if ($reportcounter >= $OPENSTACK_INTERVAL) {
+    if (0 && $reportcounter >= $OPENSTACK_INTERVAL) {
 	GatherOpenstackUtilization();
 	$reportcounter = 0;
     }
