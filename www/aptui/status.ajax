@@ -113,9 +113,8 @@ function Do_GetInstanceStatus()
     # and show the topology.
     #
     $havemanifests = $instance->slivers() ? 1 : 0;
-    # Do we have openstack stats for the web UI?
-    $haveopenstack = ($instance->isopenstack() &&
-                      $instance->openstack_utilization() ? 1 : 0);
+    # Openstack experiment?
+    $haveopenstack = $instance->isopenstack();
 
     foreach ($instance->slivers() as $sliver) {
         if (!$sliver->manifest()) {
@@ -1824,24 +1823,42 @@ function Do_IdleData()
 }
 
 #
-# Openstack stats.
+# openstack stats
 #
 function Do_OpenstackStats()
 {
-    global $instance;
+    global $instance, $creator, $TBADMINGROUP;
 
     if (StatusSetupAjax(0)) {
 	return;
     }
-    if (!$instance->isopenstack()) {
-	SPITAJAX_ERROR(1, "Not an Openstack experiment");
-	return 1;
+    $uuid = $instance->uuid();
+    $webtask = WebTask::CreateAnonymous();
+    # XXX Need to do this as elabman cause of emulab.key. Pondering.
+    $retval = SUEXEC("elabman", $TBADMINGROUP,
+		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
+                     "  openstackstats $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask->Refresh();
+
+    if ($retval != 0) {
+        if ($webtask->exited()) {
+            SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
+        }
+        elseif ($retval < 0) {
+            SPITAJAX_ERROR($retval, "Internal error, cannot proceed.");
+            # Notify tbops.
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            SPITAJAX_ERROR($retval, $suexec_output);
+        }
+        $webtask->Delete();
+        return;
     }
-    if (!$instance->openstack_utilization()) {
-	SPITAJAX_ERROR(1, "No Openstack utilization info");
-	return 1;
-    }
-    SPITAJAX_RESPONSE($instance->openstack_utilization());
+    $blob = $webtask->TaskValue("openstackstats");
+    $webtask->Delete();
+    SPITAJAX_RESPONSE($blob);
 }
 
 # Local Variables:

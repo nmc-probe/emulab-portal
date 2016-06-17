@@ -479,7 +479,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 		}
 		ShowIdleDataTab();
 		if (json.value.haveopenstackstats) {
-		    CreateOpenstackTab();
+		    ShowOpenstackTab();
 		}
 	    }
 	    else if (instanceStatus == 'failed') {
@@ -2561,79 +2561,48 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     }
 
     //
-    // Create a new tab to show openstack utilization json file.
+    // Show the openstack tab.
     //
-    function CreateOpenstackTab()
+    function ShowOpenstackTab()
     {
-	// Not updating the content yet, so just return if we have it.
-	if ($("#Openstack").length) {
+	if (! $('#show_openstack_li').hasClass("hidden")) {
 	    return;
 	}
-	var callback = function(json) {
-	    console.log(json);
-	    
-	    if (! $("#Openstack").length) {
-		// The tab.
-		var html = "<li><a href='#Openstack' " +
-		    "id='show_Openstack_tab' data-toggle='tab'>" +
-		    "Openstack Data" +
-		    "<button class='close' type='button' " +
-		    "        id='Openstack_kill'>x</button>" +
-		    "</a>" +
-		    "</li>";	
+	$('#show_openstack_li').removeClass("hidden");
+	$("#Openstack").removeClass("hidden");
 
-		// Append to end of tabs
-		$("#quicktabs_ul").append(html);
+	/*
+	 * We cannot draw the graphs until the tab is actually visible,
+	 * D3 cannot handle drawing if there is no actual space allocated.
+	 * So lets just wait till the user clicks on the tab. 
+	 */
+	var handler = function () {
+	    $('#show_openstack_tab').off("shown.bs.tab", handler);
+	    LoadOpenstackTab();
+	};
+	$('#show_openstack_tab').on("shown.bs.tab", handler);
+    }
 
-		// Install a click handler for the X button.
-		$("#Openstack_kill").click(function(e) {
-		    e.preventDefault();
-		    // remove the li from the ul.
-		    $(this).parent().parent().remove();
-		    // Remove the content div.
-		    $("#Openstack").remove();
-		    // Activate the "profile" tab.
-		    $('#quicktabs_ul a[href="#profile"]').tab('show');
-		});
-
-		// The content div.
-		html = "<div class='tab-pane' id='Openstack'></div>";
-
-		// Add the tab content wrapper to the DOM,
-		$("#quicktabs_content").append(html);
-	    }
-	    else {
-		// Switch back to it.
-		$('#quicktabs_ul a[href="#Openstack"]').tab('show');
-	    }
-	    //
-	    // Inside tab content is just a big string.
-	    //
-	    var html =
-		"<div> " +
-		" <div id='Openstack_chart_div' class='hidden'></div>" +
-		" <pre>" + json.value + "</pre></div>";
-	    
-	    $('#Openstack').html(html);
-
-	    /*
-	     * We cannot draw the graphs until the tab is actually visible,
-	     * D3 cannot handle drawing if there is no actual space allocated.
-	     * So lets just wait till the user clicks on the tab. 
-	     */
-	    var handler = function () {
-		$('#show_Openstack_tab').off("shown.bs.tab", handler);
-
-		ShowOpenstackGraphs({"uuid"  : uuid,
-				     "divID" : '#Openstack_chart_div'});
-	    };
-	    if (0) {
-	    $('#show_Openstack_tab').on("shown.bs.tab", handler);
+    //
+    // Load the openstack tab.
+    //
+    function LoadOpenstackTab()
+    {
+	if ($('#show_openstack_li').hasClass("hidden")) {
+	    return;
+	}
+	/*
+	 * This callback is to let us know if there is any actual data.
+	 */
+	var callback = function (gotdata) {
+	    if (!gotdata) {
+		$('#Openstack #nodata').removeClass("hidden");
 	    }
 	};
-    	var xmlthing = sup.CallServerMethod(null, "status", "OpenstackStats",
-					    {"uuid" : uuid});
-	xmlthing.done(callback);
+	ShowOpenstackGraphs({"uuid"      : uuid,
+			     "divID"     : '#openstack-div',
+			     "refreshID" : '#openstack-refresh-button',
+			     "callback"  : callback});
     }
 
     //
@@ -2662,8 +2631,7 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
     function LoadIdleData()
     {
 	/*
-	 * This callback is to let us know if there is any actual data,
-	 * and to hide the waiting modal.
+	 * This callback is to let us know if there is any actual data.
 	 */
 	var callback = function (gotdata) {
 	    if (!gotdata) {
