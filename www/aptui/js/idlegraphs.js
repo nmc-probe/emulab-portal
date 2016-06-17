@@ -7,12 +7,14 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 	'use strict';
 	var uuid       = null;
 	var rawData    = {};
+	var nodeMap    = {};
 	var loadID     = null;
 	var ctrlID     = null;
 	var exptID     = null;
 	var refreshID  = null;
 	var C_callback = null;
 	var showWait   = false;
+	var EMULAB_NS = "http://www.protogeni.net/resources/rspec/ext/emulab/1";
 
 	/*
 	 * Process data for one type (loadav, ctrl, expt) and return it.
@@ -238,10 +240,46 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 	    });
 	}
 
+	/*
+	 * Ask for the manifests so we can map physical names to client ids.
+	 */
+	function GetManifests()
+	{
+	    var callback = function(json) {
+		_.each(json.value, function(manifest, aggregate_urn) {
+		    var xmlDoc = $.parseXML(manifest);
+		    var xml = $(xmlDoc);
+
+		    $(xml).find("node").each(function() {
+			// Only nodes that match the aggregate being processed,
+			// since we send the same rspec to every aggregate.
+			var manager_urn = $(this).attr("component_manager_id");
+			if (!manager_urn.length ||
+			    manager_urn != aggregate_urn) {
+			    return;
+			}
+			var client_id = $(this).attr("client_id");
+			var vnode     = this.getElementsByTagNameNS(EMULAB_NS,
+								    'vnode');
+			if (vnode.length) {
+			    nodeMap[$(vnode).attr("name")] = client_id;
+			}
+		    });
+		});
+	    };
+	    var xmlthing = sup.CallServerMethod(null, "status",
+						"GetInstanceManifest",
+						{"uuid" : uuid});
+	    xmlthing.done(callback);
+	}
+
 	function LoadIdleData() {
 	    var exptTraffic  = [];
 	    var ctrlTraffic  = [];
 	    var loadavs      = [];
+
+	    // This will be done before we get the data from the cluster.
+	    GetManifests();
 
 	    var callback = function(json) {
 		if (json.code) {
@@ -428,6 +466,10 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
             tooltip.headerFormatter(function (d) {
 		return tsFormat(new Date(d));
 	    });
+            tooltip.keyFormatter(function (d) {
+		return d + " (" + nodeMap[d] + ")";
+	    });
+	    
 	    tooltip.classes("tooltip-font");
 	    window.nv.utils.windowResize(chart.update);
 
@@ -446,7 +488,9 @@ define(['underscore', 'js/quickvm_sup', 'moment'],
 
 		$(refreshID).removeClass("hidden");
 		$(refreshID).click(function () {
-		    d3.selectAll("svg > *").remove();
+		    d3.selectAll(loadID + " svg > *").remove();
+		    d3.selectAll(ctrlID + " svg > *").remove();
+		    d3.selectAll(exptID + " svg > *").remove();
 		    $('.toggles').addClass("hidden");
 		    LoadIdleData();
 		});
