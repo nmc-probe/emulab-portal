@@ -6909,6 +6909,9 @@ nv.models.lineChart = function() {
                         var currentValues = series.values.filter(function(d,i) {
                             return lines.x()(d,i) >= extent[0] && lines.x()(d,i) <= extent[1];
                         });
+			if (currentValues.length == 0) {
+			    return;
+			}
 
                         pointIndex = nv.interactiveBisect(currentValues, e.pointXValue, lines.x());
                         var point = currentValues[pointIndex];
@@ -6926,6 +6929,8 @@ nv.models.lineChart = function() {
                             data: point
                         });
                     });
+		if (allData.length == 0)
+		    return;
                 //Highlight the tooltip entry based on which point the mouse is closest to.
                 if (allData.length > 2) {
                     var yValue = chart.yScale().invert(e.mouseY);
