@@ -3399,7 +3399,12 @@ sub DoOpenstack()
     if ($debug) {
 	print $response->value() . "\n";
     }
-    $instance->Update({"openstack_utilization" => $response->value()});
+    if (defined($webtask)) {
+	$webtask->openstackstats($response->value());
+    }
+    else {
+	$instance->Update({"openstack_utilization" => $response->value()});
+    }
     exit(0);
   bad:
     print STDERR $errmsg . "\n";
