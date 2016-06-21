@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2016 University of Utah and the Flux Group.
+# Copyright (c) 2008-2015 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -1432,12 +1432,10 @@ while (1) {
 	WarnSlices();
 	goto loop;
     }
-
+    
     ExpireTickets();
-    if (0) {
-	WarnSlices();
-	ExpireSlices();
-    }
+    WarnSlices();
+    ExpireSlices();
 
     #
     # Run the idle check periodically. 
@@ -1456,9 +1454,7 @@ while (1) {
 	ReportOrphanedCerts();
 	$reportcounter = 0;
     }
-    if (0) {
-	HandleImageTracking();
-    }
+    HandleImageTracking();
 
     # Be certain stale info is gone.
     Experiment->FlushAll();
