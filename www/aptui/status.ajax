@@ -114,7 +114,7 @@ function Do_GetInstanceStatus()
     #
     $havemanifests = $instance->slivers() ? 1 : 0;
     # Openstack experiment?
-    $haveopenstack = $instance->isopenstack();
+    $haveopenstack = $instance->isopenstack() ? 1 : 0;
 
     foreach ($instance->slivers() as $sliver) {
         if (!$sliver->manifest()) {
