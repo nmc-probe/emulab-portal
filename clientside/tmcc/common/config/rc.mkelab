@@ -155,12 +155,6 @@ my $TBDIR = "/usr/testbed";
 my $WINSUPPORT = 1;
 
 #
-# Whether installation of all collab tools should be disabled.
-# XXX here for compat; replaced by emulabconfig option.
-#
-my $NOCOLLAB   = 1;
-
-#
 # Enable elvin compatibility.
 # XXX here for compat; replaced by emulabconfig option.
 #
@@ -222,13 +216,6 @@ my %emulabconfig = (
     #   CONFIG_SINGLECNET use the real cnet as the inner cnet.
     #	CONFIG_ELVIN	support Elvin compatibility
     #	CONFIG_WINDOWS	support Windows OS on nodes
-    #   CONFIG_COLLAB	install/configure for collaboration tools support.
-    #	CONFIG_ARCHIVE	support integrated archival via svn (part of COLLAB)
-    #   CONFIG_BUGSDB	support integrated bug database (part of COLLAB)
-    #   CONFIG_CVS	support integrated CVS SCM (part of COLLAB)
-    #   CONFIG_MAILMAN	support integrated mailman lists (part of COLLAB)
-    #	CONFIG_USERDB	support integrated MySQL DB (part of COLLAB)
-    #   CONFIG_WIKI	support integrated wiki (part of COLLAB)
     #	CONFIG_SHAREDFS	support shared filesystem	    
     #	CONFIG_QUERIER	configure mfrisbeed to act as IGMP querier
     #
@@ -237,13 +224,6 @@ my %emulabconfig = (
     "CONFIG_SINGLECNET" => $SINGLE_CONTROLNET,
     "CONFIG_ELVIN"      => $ELVIN_COMPAT,
     "CONFIG_WINDOWS"    => $WINSUPPORT,
-    "CONFIG_COLLAB"     => !$NOCOLLAB,
-    "CONFIG_ARCHIVE"    => !$NOCOLLAB,
-    "CONFIG_BUGSDB"     => !$NOCOLLAB,
-    "CONFIG_CVS"        => !$NOCOLLAB,
-    "CONFIG_MAILMAN"    => !$NOCOLLAB,
-    "CONFIG_USERDB"     => !$NOCOLLAB,
-    "CONFIG_WIKI"       => !$NOCOLLAB,
     "CONFIG_SHAREDFS"	=> $SHAREDFS,
     "CONFIG_NFSRACY"	=> $NFSRACY,
     "CONFIG_QUERIER"	=> $NEEDQUERIER,
@@ -463,19 +443,6 @@ sub doboot()
 	    }
 
 	    $emulabconfig{$key} = $val;
-
-	    #
-	    # Handle ordered setting/clearing of aggregate options.
-	    # These may be later overridden by individual options.
-	    # 
-	    if ($key eq "CONFIG_COLLAB") {
-		$emulabconfig{"CONFIG_ARCHIVE"} = $val;
-		$emulabconfig{"CONFIG_BUGSDB"} = $val;
-		$emulabconfig{"CONFIG_CVS"} = $val;
-		$emulabconfig{"CONFIG_MAILMAN"} = $val;
-		$emulabconfig{"CONFIG_USERDB"} = $val;
-		$emulabconfig{"CONFIG_WIKI"} = $val;
-	    }
 	}
     }
 
@@ -1716,9 +1683,6 @@ sub SetupOpsNode($)
 
     print RC "inetd_enable=\"YES\"\n";
     print RC "sendmail_enable=\"YES\"\n";
-    if ($emulabconfig{"CONFIG_MAILMAN"}) {
-	print RC "mailman_enable=\"YES\"\n";
-    }
     print RC "sshd_enable=\"YES\"\n";
 
     print RC "ntpdate_enable=\"YES\"\n";
@@ -3077,9 +3041,6 @@ sub SetupOpsJail()
 	SetupFatal("Could not open /etc/rc.conf for writing: $!");
 
     print RC "sendmail_enable=\"YES\"\n";
-    if ($emulabconfig{"CONFIG_MAILMAN"}) {
-	print RC "mailman_enable=\"YES\"\n";
-    }
     print RC "linux_enable=\"YES\"\n";
     print RC "accounting_enable=\"YES\"\n";
     print RC "nfs_client_enable=\"YES\"\n";
@@ -3400,60 +3361,6 @@ sub CreateDefsFile($)
 		#
 		# Configurable options
 		#
-		/^MAILMANSUPPORT$/ && do {
-		    if ($emulabconfig{"CONFIG_MAILMAN"} && $FBSD_VERSION >= 6) {
-			print OUTDEFS "MAILMANSUPPORT=1\n";
-		    }
-		    else {
-			print OUTDEFS "MAILMANSUPPORT=0\n";
-		    }
-		    last SWITCH;
-		};
-		/^CVSSUPPORT$/ && do {
-		    if ($emulabconfig{"CONFIG_CVS"} && $FBSD_VERSION >= 6) {
-			print OUTDEFS "CVSSUPPORT=1\n";
-		    }
-		    else {
-			print OUTDEFS "CVSSUPPORT=0\n";
-		    }
-		    last SWITCH;
-		};
-		/^BUGDBSUPPORT$/ && do {
-		    if ($emulabconfig{"CONFIG_BUGSDB"} && $FBSD_VERSION >= 6) {
-			print OUTDEFS "BUGDBSUPPORT=1\n";
-		    }
-		    else {
-			print OUTDEFS "BUGDBSUPPORT=0\n";
-		    }
-		    last SWITCH;
-		};
-		/^OPSDBSUPPORT$/ && do {
-		    if ($emulabconfig{"CONFIG_USERDB"} && $FBSD_VERSION >= 6) {
-			print OUTDEFS "OPSDBSUPPORT=1\n";
-		    }
-		    else {
-			print OUTDEFS "OPSDBSUPPORT=0\n";
-		    }
-		    last SWITCH;
-		};
-		/^WIKISUPPORT$/ && do {
-		    if ($emulabconfig{"CONFIG_WIKI"} && $FBSD_VERSION >= 6) {
-			print OUTDEFS "WIKISUPPORT=1\n";
-		    }
-		    else {
-			print OUTDEFS "WIKISUPPORT=0\n";
-		    }
-		    last SWITCH;
-		};
-		/^ARCHIVESUPPORT$/ && do {
-		    if ($emulabconfig{"CONFIG_ARCHIVE"} && $FBSD_VERSION >= 6.1) {
-			print OUTDEFS "ARCHIVESUPPORT=1\n";
-		    }
-		    else {
-			print OUTDEFS "ARCHIVESUPPORT=0\n";
-		    }
-		    last SWITCH;
-		};
 		/^FSDIR_SCRATCH$/ && do {
 		    if ($emulabconfig{"CONFIG_SCRATCHFS"}) {
 			print OUTDEFS "FSDIR_SCRATCH=$FSMOUNTDIR/scratch\n";

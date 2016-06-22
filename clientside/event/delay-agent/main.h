@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -35,12 +35,14 @@
 /*************************INCLUDES******************************************/
 /* for setsockopt and stuff */
 #include <sys/param.h>
-#include <sys/mbuf.h>
 #include <sys/socket.h>
-#include <sys/sockio.h>
 #include <sys/sysctl.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#ifndef linux
+#include <sys/mbuf.h>
+#include <sys/sockio.h>
+#endif
 
 #include <paths.h>
 #include <ctype.h>
@@ -63,9 +65,11 @@
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#ifndef linux
 #include <netinet/ip_fw.h>
 #include <net/route.h> /* def. of struct route */
 #include <netinet/ip_dummynet.h>
+#endif
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 /* for setsockopt and stuff */
@@ -79,11 +83,13 @@
 /*
  * After 8.0, everything changed!
  */
+#ifndef linux
 #if __FreeBSD_version < 800000
 #define USESOCKET 1
 #else
 #define IPFW "ipfw"
 extern int kern_hz;
+#endif
 #endif
 
 #if 0
@@ -146,7 +152,9 @@ typedef struct {
   double plr; /* queue loss rate*/
   int q_size; /* queuq size in slots/bytes*/
   structRed_params red_gred_params; /* red/gred params*/
+#ifdef USESOCKET
   struct ipfw_flow_id id ; /* flow mask of the pipe*/
+#endif
   int buckets;  /* number of buckets*/
   int n_qs; /* number of dynamic queues */
   u_short flags_p;

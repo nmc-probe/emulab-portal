@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -114,7 +114,10 @@ void handle_pipes (char *objname, char *eventtype,
   else error("unknown link event type\n");
 
   if(debug){
+#ifdef linux
+#else
     system("ipfw pipe show");
+#endif
   }
 }
 
@@ -582,6 +585,165 @@ void set_link_params(int l_index, int blackhole, int p_which)
     }
 }
 #else
+#if defined(linux)
+int get_link_params(int l_index)
+{
+	char _buf[BUFSIZ], bwspec[16];
+	char *linkname = link_map[l_index].linkname;
+	FILE *cfd;
+	int  delay, qlen, bw;
+	float plr;
+	bzero(bwspec, sizeof(bwspec));
+	
+	/*
+	 * Call out to perl script to get the actual params.
+	 */
+	sprintf(_buf, "%s/%s %s", CLIENT_BINDIR, "getdelayinfo", linkname);
+
+	if ((cfd = popen(_buf, "r")) == NULL) {
+		error("Could not start getdelayinfo for link %s\n", linkname);
+		return -1;
+	}
+	/*
+	 * First line:
+	 *
+	 *  bw:1500000 kbit delay:10000 plr:0.0 qlen:50
+	 */
+	if (fgets(_buf, sizeof _buf, cfd) == NULL) {
+		error("No first line from getdelayinfo for link %s\n",
+		      linkname);
+		return -1;
+	}
+	if (sscanf(_buf, "bw:%d %s delay:%d plr:%f qlen:%d",
+		   &bw, bwspec, &delay, &plr, &qlen) != 5) {
+		error("Could not parse '%s'\n", _buf);
+		return -1;
+	}
+	/*
+	 * Well this is funny; it will display "bit" but not accept "bit".
+	 * But that is default, so just clear it.
+	 */
+	if (strcmp(bwspec, "bit") == 0) {
+		strcpy(bwspec, "");
+	}
+	structpipe_params *p_params = &(link_map[l_index].params[0]);
+	p_params->delay = delay;
+	p_params->bw = bw;
+	strcpy(p_params->bwspec, bwspec);
+	p_params->plr = (double) plr;
+	p_params->q_size = qlen;
+
+	/*
+	 * Second line will be the reverse params, if duplex.
+	 */
+	if (link_map[l_index].numpipes == 2) {
+		structpipe_params *p_params = &(link_map[l_index].params[1]);
+		bzero(bwspec, sizeof(bwspec));
+		
+		/*
+		 * Second line:
+		 *
+		 *  rbw:1500000 kbit rdelay:10000 rplr:0.0
+		 */
+		if (fgets(_buf, sizeof _buf, cfd) == NULL) {
+			error("No second line from getdelayinfo for link %s\n",
+			      linkname);
+			return -1;
+		}
+		if (sscanf(_buf, "rbw:%d %s rdelay:%d rplr:%f",
+			   &bw, bwspec, &delay, &plr) != 4) {
+			error("Could not parse '%s'\n", _buf);
+			return -1;
+		}
+		/*
+		 * Well this is funny; it will display "bit" but not
+		 * accept "bit".  But that is default, so just clear
+		 * it.
+		 */
+		if (strcmp(bwspec, "bit") == 0) {
+			strcpy(bwspec, "");
+		}
+		p_params->delay = delay;
+		p_params->bw = bw;
+		strcpy(p_params->bwspec, bwspec);
+		p_params->plr = (double) plr;
+	}
+	pclose(cfd);
+	return 1;
+}
+void set_link_params(int l_index, int blackhole, int p_which)
+{
+	structpipe_params *p_params = &(link_map[l_index].params[0]);
+	int pipeno = link_map[l_index].pipes[0];
+	char *iface = link_map[l_index].interfaces[0];
+	char cmd[BUFSIZ];
+
+	// Qsize only on pipe1 (outgoing) side and only for slots.
+	if (p_params->flags_p & PIPE_QSIZE_IN_BYTES) {
+		error("Refusing to set qsize, since its in bytes not slots\n");
+	}
+	else {
+		sprintf(cmd, "ifconfig %s txqueuelen %d",
+			iface, p_params->q_size);
+		if (debug)
+			info("%s\n", cmd);
+		if (system(cmd)) {
+			error("tc failed: '%s'\n", cmd);
+		}
+	}
+
+	// Bandwidth by itself.
+	sprintf(cmd, "tc class change dev %s classid %d:1 htb "
+		"rate %d %s ceil %d %s",
+		iface, pipeno, (int) p_params->bw, p_params->bwspec,
+		(int) p_params->bw, p_params->bwspec);
+	
+	if (debug)
+		info("%s\n", cmd);
+	if (system(cmd)) {
+		error("tc failed: '%s'\n", cmd);
+	}
+	// Now loss and delay. loss is in percent.
+	sprintf(cmd, "tc qdisc change "
+		"dev %s handle %d netem drop %.2f delay %dms",
+		iface, pipeno + 10,
+		p_params->plr * 100, p_params->delay);
+	
+	if (debug)
+		info("%s\n", cmd);
+	if (system(cmd)) {
+		error("tc failed: '%s'\n", cmd);
+	}
+	// And the reverse pipe in duplex mode.
+	if (link_map[l_index].numpipes == 2) {
+		p_params = &(link_map[l_index].params[1]);
+		pipeno = link_map[l_index].pipes[1];
+		iface = link_map[l_index].interfaces[1];
+
+		// Bandwidth by itself.
+		sprintf(cmd, "tc class change dev %s classid 2:1 htb "
+			"rate %d %s ceil %d %s",
+			iface, (int) p_params->bw, p_params->bwspec,
+			(int) p_params->bw, p_params->bwspec);
+	
+		if (debug)
+			info("%s\n", cmd);
+		if (system(cmd)) {
+			error("tc failed: '%s'\n", cmd);
+		}
+		// Now loss and delay. loss is in percent.
+		sprintf(cmd, "tc qdisc change "
+			"dev %s handle 3 netem drop %.2f delay %dms",
+		iface, p_params->plr * 100, p_params->delay);
+	
+		if (debug)
+			info("%s\n", cmd);
+		if (system(cmd)) {
+			error("tc failed: '%s'\n", cmd);
+		}
+	}
+}
+#else
 int get_link_params(int l_index)
 {
 	int p_index = 0;
@@ -763,6 +925,7 @@ void set_link_params(int l_index, int blackhole, int p_which)
 	}
 }
 #endif
+#endif
 
 /********* get_new_link_params ***************************
   For a modify event, this function gets the parameters
@@ -812,19 +975,28 @@ int get_new_link_params(int l_index, event_handle_t handle,
 #endif
     if(strcmp(argtype,"BANDWIDTH")== 0){
 	int newbw = atoi(argvalue);
+	char *rate = "Kbits/s";	
 #ifdef USESOCKET
 	/* Convert to bits/s */
 	newbw = newbw * 1000;
 #endif	    
 	info("Bandwidth = %d\n", newbw);
+#ifdef linux
+	/*
+	 * The BW is a pain cause tc uses Kbit to mean 1024 while
+	 * we take it to mean 1000. So convert to bits. Overflow?
+	 */
+	rate = "";
+	newbw = newbw * 1000;
+#endif	
 	link_map[l_index].params[p_num].bw = newbw;
 	if (! gotpipe) {
 	  link_map[l_index].params[1].bw = link_map[l_index].params[0].bw;
 	}
 #ifndef USESOCKET
-	strcpy(link_map[l_index].params[p_num].bwspec, "Kbits/s");
+	strcpy(link_map[l_index].params[p_num].bwspec, rate);
 	if (! gotpipe) {
-		strcpy(link_map[l_index].params[1].bwspec, "Kbits/s");
+		strcpy(link_map[l_index].params[1].bwspec, rate);
 	}
 #endif
       }
@@ -872,7 +1044,11 @@ int get_new_link_params(int l_index, event_handle_t handle,
 	   link_map[l_index].params[p_num].flags_p &= ~PIPE_QSIZE_IN_BYTES;
 	 }
 	 else {
+#ifdef linux
+	   error("QSize in bytes is not supported on linux!\n");
+#else
 	   info("QSize in bytes\n");
+#endif
 	   link_map[l_index].params[p_num].flags_p |= PIPE_QSIZE_IN_BYTES;
 	 }
 	 gotqib = 1;

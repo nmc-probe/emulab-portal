@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -31,7 +31,7 @@ include $(OBJDIR)/Makeconf
 
 SUBDIRS		= program-agent link-agent tevc proxy bs-agent linktest
 ifeq ($(SYSTEM),Linux)
-SUBDIRS        += disk-agent
+SUBDIRS        += disk-agent delay-agent
 endif
 ifneq ($(SYSTEM),CYGWIN_NT-5.1)
 ifneq ($(ARCH),aarch64)
