@@ -74,8 +74,10 @@ $query_result2 = null;
 
 if (($all || $extend) && (ISADMIN() || ISFOREIGN_ADMIN())) {
     $where = "";
+    $order = "order by expired,a.name";
     if ($extend) {
         $where  = "where a.extension_requested=1 or a.admin_lockdown=1";
+        $order  = "order by s.expires asc";
     }
     $query_result1 = 
         DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
@@ -96,7 +98,7 @@ if (($all || $extend) && (ISADMIN() || ISFOREIGN_ADMIN())) {
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
-                     "$where order by expired,a.name");
+                     "$where $order");
 }
 else {
     $query_result1 =
