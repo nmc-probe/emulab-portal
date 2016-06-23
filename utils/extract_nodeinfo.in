@@ -298,6 +298,8 @@ foreach my $ue (@$users) {
     my $country = $ue->{'country'};
     my $zip = $ue->{'zip'};
     my $last = $ue->{'lastactive'};
+    $last = $endtime
+	if ($last > $endtime);
     my $lat = $ue->{'latitude'};
     my $lng = $ue->{'longitude'};
     my $loc = $ue->{'location'};
@@ -826,7 +828,12 @@ sub geoize($)
 	if ($country ne "usa" && $country ne "us" &&
 	    $country ne "" && $country ne "NULL") {
 	    $key = "$city-$country";
-	} else {
+	}
+	# XXX Google does not consider Peurto Rico part of the US?
+	elsif ($country eq "usa" && $state eq "pr") {
+	    $key = "$city-$state";
+	}
+	else {
 	    $key = "$city-$state-$country";
 	}
 	$key =~ s/\s+/-/g;
