@@ -1,24 +1,25 @@
-Making boss/ops/fs/etc. packages:
+Making boss/ops/fs/etc. packages. This is only for the latest FreeBSD
+(as of this writing, 10.2/10.3). If you need help with older packages,
+check out the initial version of this document.
 
-[ Updated 11/05/2013 for 9.2 and 9.2 64-bit packages. ]
-[ Updated 03/28/2014 for 10.0 64-bit packages. ]
-[ Updated 6/17/2015 for 10.1 64-bit packages. ]
-[ Updated 8/17/2015 for 10.2 64-bit packages. ]
+As of FreeBSD 10, I started using the quarterly ports release at the time
+of the OS release and then update the packages quarterly. E.g., 10.2 shipped
+with 2015Q3 and I have updated through 2016Q2.
 
 0a. Make sure the ports tree in /share/freebsd/X.Y/ports has the current
    Emulab ports. They are all in the "misc" subdir. If they are out of
    date, update them and remake the ports.tar.gz tarball.
 
 0b. Allocate a node on which to build everything and load the appropriate
-   OS on it. Pick a d710 if possible, both for the speed and the second disk.
-   I try to use pc599 if available because it has more processors and RAM than
-   the other d710s. I now have an experiment "emulab-ops/package-builder"
-   that allocates a d820 with three local blockstores to take care of step 1
-   below. If you use that, skip to step 2.
+   OS on it. Pick a d430 if possible, for the speed and for the SSD. If you
+   don't have an SSD, pick a node with multiple disks. I have an experiment
+   "emulab-ops/package-builder" that allocates a d820 with three local
+   blockstores to take care of step 1 below. If you use that, skip to step 2.
+   Or, if you use an SSD, skip step 1 as well and just keep everything on
+   the root disk (which should be large enough) in /usr/{src,ports}.
 
-0c. Useful package commands:
-
-   To tell what options a FreeBSD package was built with:
+   RANDOM USEFUL PACKAGE COMMAND: to tell what options a FreeBSD package was
+   built with:
 
        pkg query -e "%n=apache22" "%n-%v %Ok %Ov"
 
@@ -57,25 +58,16 @@ Making boss/ops/fs/etc. packages:
 
 2. Install the src and ports trees. From the node do:
 
-       scp fs:/share/freebsd/9.2/src.tar.gz /local/tmp/
-       scp fs:/share/freebsd/9.2/ports.tar.gz /local/tmp/
-       cd /local
-       sudo tar xzf tmp/src.tar.gz
-       sudo tar xzf tmp/ports.tar.gz
+       cd /usr
+       sudo tar xzf /share/freebsd/10.2/src.tar.gz
+       sudo tar xzf /share/freebsd/10.2/ports.tar.gz
 
-   Note that we avoid using NFS do to the race condition. We scp instead.
-
-   Note also that the FreeBSD source tree (/usr/src) is really only needed
+   Note that the FreeBSD source tree (/usr/src) is really only needed
    to build the "lsof" package in emulab-extras.
 
 3. Deinstall all existing ports. You will want to make sure you are root first,
-   since this will get rid of "sudo". Note that starting in our 10.x images,
-   pkg_* has been replaced by the next generation pkg tool:
+   since this will get rid of "sudo":
 
-       # FBSD < 10
-       pkg_delete -a
-
-       # FBSD 10
        setenv ASSUME_ALWAYS_YES true
        pkg delete -af
 
@@ -85,134 +77,30 @@ Making boss/ops/fs/etc. packages:
    settings (well, they were standard at the time!) like no threads for
    Perl. If these old options get propagated, you might not be able to
    mix these packages with official FreeBSD packages which use the default
-   options.
+   options. Clear out everything in /usr/local as well.
 
-   For FBSD < 10, look in /var/db/pkg. The only thing in that directory
-   after doing the "pkg_delete -a" should be the pkgdb.db file (and maybe
-   pkgdb.fixme?) If there is anything else, get rid of it.
-
-   For FBSD10, I bit the bullet and just removed everything in /usr/local:
-
-       cd /usr/local
-       rm -rf *
+       rm -rf /usr/local/*
        rm -rf /var/db/ports/*
 
-   For FBSD < 10, I was never been bold enough to remove everything, but
-   I did remove some stuff:
-
-       cd /usr/local/lib
-       rm -rf python* compat/pkg/* perl5* ruby* libruby* libpubsub*
-       cd /usr/local/libdata
-       rm -rf pkgconfig/*.pc
-       cd /usr/local/libexec
-       rm -rf cups pubsubd clusterd
-       cd /usr/local
-       rm -rf bin/* share/* man/* info/*
-
-   For FBSD 10, you need to reinstall the package manager "pkg". This will
-   happen when you do a pkg command, so just do:
+   Now you need to reinstall the package manager "pkg". This will happen
+   when you do a pkg command, so just do:
 
        pkg info
 
-       # FBSD < 10: get rid of obnoxious sysloging
-       echo 'SYSLOG: no' >> /etc/pkg/FreeBSD.conf
+   Edit /etc/make.conf and make sure that DEFAULT_VERSIONS exists and is
+   correctly set:
 
-   If you are building ports on 8.3 and above, edit /etc/make.conf and add:
-
-   # ...for 10.1 and beyond
+   # for 10.2
    DEFAULT_VERSIONS=perl5=5.20 python=2.7 php=5.6 mysql=5.5 apache=2.2 tcltk=8.6
 
-   # ...for 10
-   DEFAULT_VERSIONS=perl5=5.14 python=2.7 php=5.4 mysql=5.1 apache=2.2 tcltk=8.4
+5. Set non-standard options on some ports.
 
-   # For others
-   PYTHON_DEFAULT_VERSION=python2.7
-   # for 8.3, or...
-   PERL_VERSION=5.12.4
-   # ...for 9.2
-   PERL_VERSION=5.12.5
-
-5. Now begin the tedious, iterative process. First, do:
-
-       setenv PACKAGES /usr/obj/ports/packages
-       setenv TMPDIR /local/tmp
-
-   The former ensures that packages wind up in a single directory. The latter
-   will force the compiler (and other utilities) to use /local/tmp for
-   temporary files.
-
-   Now for each emulab-* port you install, you will need to perform the ritual
-   steps below. But before doing these for any port, FIRST CHECK FOR ANY
-   PORT-SPECIFIC NOTES BELOW (5a-5h). THIS MEANS YOU MIKE!
-
-   Note: as of 6/19/2015, we no longer need the emulab-mailman port. Yea!
-
-   The ritual:
-
-   For FBSD10.1 and beyond, we are brazen and don't clean up between:
-
-       # Make sure you have done the port-specific hacks below!
-
-       rm -f $PACKAGES/All/*
-       foreach d (boss ops fs protogeni tipserv extras)
-           (cd /usr/ports/misc/emulab-$d ; make clean all install)
-	   (cd /usr/ports/misc/emulab-$d ; make clean)
-       end
-       pkg create -a -o $PACKAGES/All/
-
-   For FBSD10:
-
-       rm -f /usr/obj/ports/packages/All/*
-
-       # This step appears to not be strictly necessary.
-       # If you are really paranoid (and have lots of time) you can do this.
-       pkg delete -af
-       pkg info
-
-       cd /usr/ports/misc/<emulab-port>
-       make clean
-       make DISABLE_VULNERABILITIES=1
-       make DISABLE_VULNERABILITIES=1 install
-       pkg create -a -o $PACKAGES/All/
-
-       # If you do the pkg delete, you MUST do the make clean or else
-       # the unclean tree can interfere with the next package build!
-       make clean
-
-   For other FBSD:
-
-       rm -f /usr/obj/ports/packages/All/*
-
-       # This step appears to not be strictly necessary.
-       # If you are really paranoid (and have lots of time) you can do this.
-       pkg_delete -a
-
-       cd /usr/ports/misc/<emulab-port>
-       make clean
-       make
-       make install
-       make clean
-       make deinstall
-       make package-recursive
-
-   For any FBSD, then from ops do:
-       mkdir /share/freebsd/x.x/packages/<emulab-port>
-       cd /share/freebsd/x.x/packages/<emulab-port>
-       scp -p pcXXX:/usr/obj/ports/packages/All/\* .
-
-   Note that the deinstall doesn't undo the effect of the install, it just
-   deinstalls (really, unregisters) the meta-port so that the package-recursive
-   will work. The "make clean" avoids complaints about work directories
-   existing.
-
-5a. Do emulab-boss. Notes:
-    * Perl. For FreeBSD 10.1 and above (perl 5.20) make sure that THREADS
-      is defined. It will not be if you have a left over /var/db/ports
-      directory for perl. So to be safe go into lang/perl5.20 and do
-      "make config".
+    * Perl. For perl 5.20 make sure that THREADS is defined. It should be,
+      but it can cause a lot of grief if not. To be safe go into lang/perl5.20
+      and do "make config" and make sure THREADS is checked.
     * Boost. We use the boost-all package which includes docs. I generally
       prefer not to drag around the docs, so I go into devel/boost-all, do
-      a "make config" and deselect the docs box. Now when you do the make
+      a "make config" and deselect the DOCS box. Now when you do the make
       in emulab-boss, it should use that config when it gets to boost.
     * Git. Go into the devel/git directory, do a "make config" and deselect
       the GUI box. Otherwise it will drag in possibly conflicting versions of
@@ -221,72 +109,16 @@ Making boss/ops/fs/etc. packages:
       and not through the port, then they will cause the port to not be
       installed as part of the emulab-boss port (since the dependency in the
       boss Makefile will be satisfied). This will cause an error when creating
-      packages. The easiest fix is to just remove /usr/local/lib/libpubsub*,
-      which is what the Makefile checks for.
-    * NEW IN 2016Q1 PORTS: in graphics/cairo, turn off OPENGL. Let's see if
-      that keeps it from dragging in llvm and clang.
-
-    Additional 9.2 issues:
-
-    * Curl. Defaults to building with GSSAPI which does not exist in the
-      base system. Should it? I don't know, but I just go into ftp/curl
-      and do "make config" to remove that option.
-    * When doing "make install", graphviz wanted pango which wanted cairo.
-      The pango build blew up because it claims to need cairo with glib
-      enabled. But the default config does have glib enabled and retrying
-      the make worked fine. I think this is a case of stale state where
-      something that was not true when the pango build started was true
-      later on. I fixed the Makefiles for this and another port with a
-      related problem, see /share/freebsd/9.2/README.ports for details.
-
-    Additional 10.0 issues:
-
-    * Curl is okay now.
-    * Pango problem still exists.
-    * GCC 4.6. We include this for now to build certain boss/ops SW.
-      You will probably want to go into lang/gcc46, "make config" and
-      uncheck java.
-    * Right now, you must build with DISABLE_VULNERABILITIES:
-
-      make DISABLE_VULNERABILITIES=1 ...
- 
-      FreeBSD did a hack where they applied a fix to print/freetype2 rather
-      than updating the version. The "pkg audit" doesn't know about this
-      hack and still claims there is a vulnerability.
-
-    Additional 10.1 issues:
-
-    * Curl is still ok.
-    * Pango (cairo) problem worked around with an early explicit dependency
-      in the boss/ops/extras Makefiles
-      
-    Additional 10.2 issues:
-
+      packages. If you have removed everything in /usr/local, you should be
+      okay. Otherwise, the easiest fix is to just remove
+      /usr/local/lib/libpubsub*, which is what the Makefile checks for.
+    * Cairo. In graphics/cairo, turn off OPENGL. Let's see if that keeps it
+      from dragging in llvm and clang.
     * Apache. The last couple of package sets I built did not have PROXY
       turned on. I have fixed this in the Makefile (I think) but you may
       also want to go into www/apache22 and set: SUEXEC, PROXY, PROXY_HTTP
       to be safe. The proxy code is needed on the mothership ops for the
       Wiki but should not hurt anywhere else.
-
-5b. Do emulab-ops.
-    * Assuming you built emulab-boss already, everything should be fine.
-      Otherwise you will need to deal with git and pubsub as above.
-
-5c. Do emulab-fs.
-
-5d. Do emulab-protogeni.
-
-5e. Do emulab-tipserv.
-
-5f. Do emulab-mailman.
-    * No longer needed, move along.
-
-5g. Do emulab-extras. Notes:
-    * We do this one last so that portaudit doesn't get installed til the
-      end. Otherwise, it would cause builds of vulnerable ports to fail.
-      See Step 6 below if installing vulnerable ports bothers you.
-      Note that this does not apply to FBSD10, which uses pkg and checks
-      vulnerabilities constantly; hence the DISABLE_VULNERABILITIES setting.
     * Emacs. I used to build the -nox11 varient so we didn't drag in a ton
       of crap, but Leigh prefers the real deal and came up with a reasonable
       set of options. These are now baked into the emulab-extras Makefile.
@@ -299,20 +131,45 @@ Making boss/ops/fs/etc. packages:
         SOUND, SVG, TIFF, XFT, XIM, XPM, GTK2
       and check:
         XAW
-    * Lsof. Remember to install the FreeBSD source in /usr/src as talked about
-      back on step #1. Otherwise, the build of lsof is going to fail.
-    * Vim. Yes, you are not imagining that, it really is downloading 683
-      (as of June 2015) patches. Swearing will make you feel better and pass
-      the time...
-    * If you wind up with the ruby+nopthreads port, then again you probably
-      have some left over /var/db/ports/*/option files. This isn't a show
-      stopper, so probably not worth fixing after the fact.
 
-5h. Painful post-port processing.
+6. Now begin the tedious, iterative process. First, do:
+
+       setenv PACKAGES /usr/obj/ports/packages
+       # if no SSD then...
+       setenv TMPDIR /local/tmp
+
+   The former ensures that packages wind up in a single directory. The latter
+   will force the compiler (and other utilities) to use /local/tmp for
+   temporary files if you don't have an SSD.
+
+   Now for each emulab-* port you install, you will need to perform the ritual
+   steps below:
+
+       rm -f $PACKAGES/All/*
+       setenv FLAGS ""
+       foreach d (boss ops fs protogeni tipserv extras)
+           (cd /usr/ports/misc/emulab-$d ; make $FLAGS clean all install)
+	   (cd /usr/ports/misc/emulab-$d ; make $FLAGS clean)
+       end
+       pkg create -a -o $PACKAGES/All/
+
+   If a build fails due to an outstanding vulnerability, first try updating the
+   ports with SVN to see if it has been addressed. If that doesn't work, you will
+   have to build with the vulnerability check disabled. Set:
+
+       setenv FLAGS DISABLE_VULNERABILITIES=1
+
+   and do the above loop again.
+
+   Then from ops do:
+       mkdir /share/freebsd/x.x/packages
+       cd /share/freebsd/x.x/packages
+       scp -p pcXXX:/usr/obj/ports/packages/All/\* .
+
+6b. Painful post-port processing.
     * I don't always do it, but after all the ports are installed run
-      portaudit (pkg audit for 10.1) and see what security vulnerabilities
-      there are. Manually update the ports and make notes in
-      /share/freebsd/x.x/README.ports.
+      pkg audit and see what security vulnerabilities there are. Manually
+      update the ports and make notes in /share/freebsd/x.x/README.ports.
       This is fraught with peril however. Some ports versions are assumed in
       various other ports and things can degenerate rapidly when you try to
       do this! See one of the existing README.ports files for examples.
@@ -320,40 +177,14 @@ Making boss/ops/fs/etc. packages:
       "pkg_libchk" to ensure that all the library dependencies of the ports
       are correctly resolved.
 
-6. After you have collected all the ports, you should have six directories
-   full of packages on ops: boss, ops, fs, protogeni, tipserv, extras;
-   which we will now aggregate into one set.
-
-   Most of the subdirs will include packages like perl which should in theory
-   be the same, and for certain will be if you don't do "pkg_delete -a" between
-   making each one. However, just in case there are differences, I use the
-   strategy I have always used, which is to favor the version built as part of
-   the "more important" package. So to create the aggregate package I do
-   (csh syntax):
-
-       cd /share/freebsd/x.x/packages
-       foreach d (extras tipserv protogeni fs ops boss)
-         mv $d/* .
-         rmdir $d
-       end
-
 7. Now you should have a fully functional set of packages. The last thing to
    do is make sure they install. ON YOUR BUILD NODE (NOT on boss or ops!) do
    the following and watch for any errors (there will be plenty of
-   informational messages).
-
-   Note: For 10.1 and above, see 9 below for an alternative testing method.
+   informational messages). See 9 below for an alternative testing method.
 
        sudo tcsh
        cd /share/freebsd/x.x/packages
 
-       # FBSD < 10...
-       alias PA pkg_add
-       alias PD "pkg_delete -a"
-       alias PC true
-       alias PL pkg_libchk
-
-       # ...or FBSD 10
        setenv ASSUME_ALWAYS_YES true
        alias PA "pkg add"
        alias PD "pkg delete -af ; pkg info"
@@ -399,27 +230,16 @@ Making boss/ops/fs/etc. packages:
        PC
        PL
 
-For FBSD10.0, the check of emulab-ops will give some errors about snort:
-
-pkg: (snort-2.9.5.5) /usr/local/bin/snort - shared library libdnet.1 not found
-pkg: (snort-2.9.5.5) /usr/local/bin/u2boat - shared library libdnet.1 not found
-pkg: (snort-2.9.5.5) /usr/local/bin/u2spewfoo - shared library libdnet.1 not found
-
-(as of 10.1, we no longer install snort).
-
-As far as I can tell, these are harmless (the shared library really is there
-and ldd can resolve it).
-
-8. Managing a package repository (for FBSD 10.1 and beyond).
+8. Managing the package repository.
 
 a. Out on boss:/usr/testbed/www/FreeBSD, make a directory for the FreeBSD release
-   (e.g., 10.1), and in that a directory called "packages". Copy all the .txz
+   (e.g., 10.2), and in that a directory called "packages". Copy all the .txz
    package files into that.
 
 b. On boss, run:
 
    # XXX we need to add pubkey or other authentication
-   sudo pkg repo /usr/testbed/www/FreeBSD/10.1/packages
+   sudo pkg repo /usr/testbed/www/FreeBSD/10.2/packages
 
    to create the metadata files needed.
 
@@ -427,7 +247,7 @@ c. As part of the boss/ops/etc. install, we will need to start creating a file
    /etc/pkg/Emulab.conf with:
 
    Emulab: {
-     url: "https://www.emulab.net/FreeBSD/10.1/packages",
+     url: "https://www.emulab.net/FreeBSD/10.2/packages",
      mirror_type: NONE,
      enabled: yes
    }
@@ -449,8 +269,8 @@ d. When packages are installed on boss/ops/etc., we need to make sure to use
 
 9. Alternative test method using Emulab repo.
 
-  Another way to verify in 10.1 and beyond, assuming you have setup the 
-  repository mentioned in #8 below.
+  Another way to verify packages, assuming you have setup the repository
+  mentioned in #8 above.
 
     sudo tcsh
 
@@ -478,7 +298,7 @@ d. When packages are installed on boss/ops/etc., we need to make sure to use
 
   Now create /etc/pkg/Emulab.conf with:
     Emulab: {
-      url: "https://www.emulab.net/FreeBSD/10.1/packages",
+      url: "https://www.emulab.net/FreeBSD/10.2/packages",
       mirror_type: NONE,
       enabled: yes
     }
@@ -524,6 +344,8 @@ d. When packages are installed on boss/ops/etc., we need to make sure to use
 
 10. Updating the Emulab package repo (10.2 specific).
 
+   [ This is a condensed version of the steps above. ]
+   
    Occasionally you will want to make sure the ports are up to date.
    We track the "quarterly" branch of ports, so within a three month
    period, it should only be updated for security fixes and critical
@@ -615,8 +437,9 @@ d. When packages are installed on boss/ops/etc., we need to make sure to use
 
 11. Client node packages.
 
-   Here are some notes from installing fresh a set of packages on the
-   FreeBSD 9.3 image (in case we want to make a meta-port someday):
+   Someday we will want to make an emulab-client meta port and packages.
+   Here are some notes from when I installed a fresh a set of packages on
+   the FreeBSD 9.3 image.
 
    a. Put in /etc/make.conf:
 
