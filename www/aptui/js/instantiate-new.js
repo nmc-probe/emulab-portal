@@ -592,6 +592,10 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    // Keep the two panes the same height
 	    $('#inline_container').css('height',
 				       $('#finalize_container').outerHeight());
+	// Chrome was having an issue where Jacks was not responding to
+	// the height change. Had to also add to Jacks root.
+	$('#inline_jacks').css('height',
+			      $('#finalize_container').outerHeight());
 	}
 	if (currentIndex < priorIndex) {
 	    // Disable going forward by clicking on the labels
