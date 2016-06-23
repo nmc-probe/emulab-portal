@@ -106,6 +106,11 @@ function (_, sup, aptforms,
 	$('#submit_button').click(function (event) {
 	    aptforms.DisableUnsavedWarning('#quickvm_signup_form');
 	});
+	if (showVerify) {
+	    $('#verify_modal_submit').click(function (event) {
+		aptforms.DisableUnsavedWarning('#quickvm_signup_form');
+	    });
+	}
     }
     
     $(document).ready(initialize);
