@@ -5724,7 +5724,8 @@ CREATE TABLE `vlantag_history` (
   `released` int(10) unsigned default NULL,
   PRIMARY KEY  (`history_id`),
   KEY `tag` (`tag`,`history_id`),
-  KEY `exptidx` (`exptidx`)
+  KEY `exptidx` (`exptidx`),
+  KEY `lanid` (`lanid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
