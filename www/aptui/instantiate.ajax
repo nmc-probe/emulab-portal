@@ -829,7 +829,7 @@ function Do_Submit()
         $options .= " -k $keyname";
     }
     if (isset($formfields["failure_okay"]) &&
-        $formfields["failure_okay"] == "checked" && ISADMIN()) {
+        $formfields["failure_okay"] == "checked") {
         $options .= " -i ";
     }
     
