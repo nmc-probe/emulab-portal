@@ -160,7 +160,7 @@ CREATE TABLE `apt_instance_extension_info` (
   `tstamp` datetime default NULL,
   `uid` varchar(8) NOT NULL default '',
   `uid_idx` mediumint(8) unsigned NOT NULL default '0',
-  `action` enum('request','deny') NOT NULL default 'request',
+  `action` enum('request','deny','info') NOT NULL default 'request',
   `wanted` smallint(5) unsigned NOT NULL default '0',
   `granted` smallint(5) unsigned default NULL,
   `admin` tinyint(1) NOT NULL default '0',
@@ -268,12 +268,14 @@ CREATE TABLE `apt_instances` (
   `servername` tinytext,
   `monitor_pid` int(11) default '0',
   `needupdate` tinyint(3) NOT NULL default '0',
+  `isopenstack` tinyint(1) NOT NULL default '0',
   `logfileid` varchar(40) default NULL,
   `cert` mediumtext,
   `privkey` mediumtext,
   `rspec` mediumtext,
   `params` mediumtext,
   `manifest` mediumtext,
+  `openstack_utilization` mediumtext,
   PRIMARY KEY (`uuid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
@@ -1764,6 +1766,7 @@ CREATE TABLE `experiments` (
   `nonlocal_user_id` varchar(128) default NULL,
   `nonlocal_type` tinytext,
   `nonfsmounts` tinyint(1) NOT NULL default '0',
+  `nfsmounts` enum('emulabdefault','genidefault','all','none') NOT NULL default 'emulabdefault',
   PRIMARY KEY  (`idx`),
   UNIQUE KEY `pideid` (`pid`,`eid`),
   UNIQUE KEY `pididxeid` (`pid_idx`,`eid`),
@@ -1914,24 +1917,36 @@ CREATE TABLE `fs_resources` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
+-- Table structure for table `future_reservation_attributes`
+--
+
+DROP TABLE IF EXISTS `future_reservation_attributes`;
+CREATE TABLE `future_reservation_attributes` (
+  `reservation_idx` mediumint(8) unsigned NOT NULL,
+  `attrkey` varchar(32) NOT NULL,
+  `attrvalue` tinytext,
+  PRIMARY KEY (`reservation_idx`,`attrkey`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
 -- Table structure for table `future_reservations`
 --
 
 DROP TABLE IF EXISTS `future_reservations`;
 CREATE TABLE `future_reservations` (
+  `idx` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
   `pid` varchar(48) NOT NULL DEFAULT '',
   `pid_idx` mediumint(8) unsigned NOT NULL DEFAULT '0',
   `nodes` smallint(5) unsigned NOT NULL DEFAULT '0',
   `type` varchar(30) NOT NULL DEFAULT '',
-  `start` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `end` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `start` datetime DEFAULT NULL,
+  `end` datetime DEFAULT NULL,
   `uid` varchar(8) NOT NULL DEFAULT '',
   `uid_idx` mediumint(8) unsigned NOT NULL DEFAULT '0',
   `notes` mediumtext,
   `admin_notes` mediumtext,
-  PRIMARY KEY (`pid_idx`,`start`,`end`,`type`,`nodes`)
+  PRIMARY KEY (`idx`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
-
 
 --
 -- Table structure for table `global_ipalloc`
@@ -2022,6 +2037,7 @@ CREATE TABLE `group_membership` (
   `trust` enum('none','user','local_root','group_root','project_root') default NULL,
   `date_applied` date default NULL,
   `date_approved` datetime default NULL,
+  `date_nagged` datetime default NULL,
   PRIMARY KEY  (`uid_idx`,`gid_idx`),
   UNIQUE KEY `uid` (`uid`,`pid`,`gid`),
   KEY `pid` (`pid`),
@@ -3333,6 +3349,7 @@ CREATE TABLE `nodes` (
   `uuid` varchar(40) NOT NULL default '',
   `reserved_memory` int(10) unsigned default '0',
   `nonfsmounts` tinyint(1) NOT NULL default '0',
+  `nfsmounts` enum('emulabdefault','genidefault','all','none') default NULL,
   `taint_states` set('useronly','blackbox','dangerous') default NULL,
   PRIMARY KEY  (`node_id`),
   KEY `phys_nodeid` (`phys_nodeid`),
@@ -4133,6 +4150,7 @@ CREATE TABLE `projects` (
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
   `created` datetime default NULL,
   `expires` date default NULL,
+  `nagged` datetime default NULL,
   `name` tinytext,
   `URL` tinytext,
   `funders` tinytext,
@@ -5474,6 +5492,7 @@ CREATE TABLE `virt_nodes` (
   `role` enum('node','bridge') NOT NULL default 'node',
   `firewall_style` tinytext,
   `firewall_log` tinytext,
+  `nfsmounts` enum('emulabdefault','genidefault','all','none') default NULL,  
   PRIMARY KEY  (`exptidx`,`vname`),
   UNIQUE KEY `pideid` (`pid`,`eid`,`vname`),
   KEY `pid` (`pid`,`eid`,`vname`)
@@ -5705,7 +5724,8 @@ CREATE TABLE `vlantag_history` (
   `released` int(10) unsigned default NULL,
   PRIMARY KEY  (`history_id`),
   KEY `tag` (`tag`,`history_id`),
-  KEY `exptidx` (`exptidx`)
+  KEY `exptidx` (`exptidx`),
+  KEY `lanid` (`lanid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --

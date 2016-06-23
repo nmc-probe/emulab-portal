@@ -494,7 +494,7 @@ if ($update) {
 		    my $hash = $attributes->{"hash"}->{'value'}
 		        if (exists($attributes->{"hash"}));
 		    my $dhash = $attributes->{"deltahash"}->{'value'}
-		        if (exists($attributes->{"hash"}));
+		        if (exists($attributes->{"deltahash"}));
 
 		    if (defined($clone->hash()) &&
 			(!defined($hash) || $clone->hash() ne $hash)) {

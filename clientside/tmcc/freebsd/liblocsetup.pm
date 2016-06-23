@@ -304,6 +304,10 @@ sub os_ifconfig_veth($$$$$;$$$$$)
 	$uplines = "$IFCONFIGBIN vlan${id} create link $vmac " .
 		   "vlan $vtag vlandev $iface\n    ";
 
+	# XXX we have to explicitly put the physical interface into
+	# promiscuous mode when the virtual device has a different MAC
+	$uplines .= "$IFCONFIGBIN $iface promisc\n    ";
+
 	$encap = 1;
     }
 

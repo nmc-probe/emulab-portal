@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -129,15 +129,18 @@ function Do_CreateDataSet()
         else {
             $command .= " -s " . $formfields["dataset_size"];
         }
-        if (! (isset($formfields["dataset_cluster"]) &&
-               $formfields["dataset_cluster"] != "")) {
-            $errors["dataset_cluster"] = "Missing field";
-        }
-        elseif (!array_key_exists($formfields["dataset_cluster"], $urn_mapping)) {
-            $errors["dataset_cluster"] = "Illegal value";
-        }
-        else {
-            $command .= " -a '" . $formfields["dataset_cluster"] . "' ";
+        if (!$embedded) {
+            if (! (isset($formfields["dataset_cluster"]) &&
+                   $formfields["dataset_cluster"] != "")) {
+                $errors["dataset_cluster"] = "Missing field";
+            }
+            elseif (!array_key_exists($formfields["dataset_cluster"],
+                                      $urn_mapping)) {
+                $errors["dataset_cluster"] = "Illegal value";
+            }
+            else {
+                $command .= " -a '" . $formfields["dataset_cluster"] . "' ";
+            }
         }
     }
     else {
@@ -351,7 +354,7 @@ function Do_ModifyDataSet()
                 }
             }
             if (!count($errors)) {
-                if ($embedded) {
+                if ($embedded || $dataset->islocal()) {
                     if ($node = Node::Lookup($nodeid)) {
                         $reservation = $node->Reservation();
                         if (!$reservation ||
@@ -435,7 +438,7 @@ function Do_ModifyDataSet()
         $dname       = $dataset->id();
         $pid         = $dataset->pid();
 
-        if ($embedded) {
+        if ($embedded || $dataset->islocal()) {
                     $retval = SUEXEC($this_uid, $dataset->pid(),
                              "webclone_image -b $safe_bsname ".
                              "$dname $safe_nodeid",

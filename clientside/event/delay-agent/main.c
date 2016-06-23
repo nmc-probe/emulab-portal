@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2015 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -140,8 +140,10 @@ int main(int argc, char **argv)
      loginit(0, log_file);
   else {
       /* Become a daemon */
-      daemon(0, 0);
-      
+      if (daemon(0, 0)) {
+	      fprintf(stderr, "failed to daemonize\n");
+	  exit(-1);
+      }
       if (log_file)
 	  loginit(0, log_file);
       else
@@ -433,7 +435,7 @@ void dump_link_map(){
       info("bw = %.3f %s, ", link_map[i].params[j].bw,
 	   link_map[i].params[j].bwspec);
 #endif
-      info("plr = %d\n", link_map[i].params[j].plr);
+      info("plr = %f\n", link_map[i].params[j].plr);
       info("q_size = %d buckets = %d n_qs = %d flags_p = %d\n",
 	   link_map[i].params[j].q_size, link_map[i].params[j].buckets,
 	   link_map[i].params[j].n_qs, link_map[i].params[j].flags_p);

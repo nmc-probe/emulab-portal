@@ -329,6 +329,48 @@ function Do_SendTestMessage()
     SPITAJAX_RESPONSE(1);
 }
 
+function Do_NagPI()
+{
+    global $this_user, $ajax_args;
+
+    if (!isset($ajax_args["pid"])) {
+	SPITAJAX_ERROR(-1, "Missing project name");
+	return -1;
+    }
+    if (!TBvalid_pid($ajax_args["pid"])) {
+	SPITAJAX_ERROR(-1, "Invalid project name");
+	return -1;
+    }
+    $project = Project::Lookup($ajax_args["pid"]);
+    if (!$project) {
+	SPITAJAX_ERROR(-1, "No such project");
+	return -1;
+    }
+    $group = $project->DefaultGroup();
+    if (!$group) {
+	SPITAJAX_ERROR(-1, "Internal error getting group");
+	return -1;
+    }
+    $membership = $group->MemberShipInfo($this_user);
+    if ($membership["date_approved"]) {
+        SPITAJAX_ERROR(1, "You have already been approved, please refresh ".
+                       "the page to see your updated status.");
+        return -1;
+    }
+    if ($membership["date_nagged"]) {
+        $nagged = strtotime($membership["date_nagged"]);
+        if (time() - $nagged < 3600 * 24) {
+            SPITAJAX_ERROR(1, "You recently reminded the project leader, ".
+                           "lets give him/her a chance to respond before ".
+                           "sending another reminder.");
+            return -1;
+        }
+    }
+    # Chalk an error up to a double click, do not bother to do anything.
+    $group->NewMemberNotify($this_user, true);
+    SPITAJAX_RESPONSE("nagged");
+}
+
 # Local Variables:
 # mode:php
 # End:

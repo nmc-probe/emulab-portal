@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2012 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -161,8 +161,9 @@ while (list ($uid_idx, $grouplist) = each ($approvelist)) {
     $gid_idx      = $group->gid_idx();
     $pid          = $group->pid();
     $pid_idx      = $group->pid_idx();
-
-    $group->MemberShipInfo($user, $trust, $date_applied, $date_approved);
+    $membership   = $group->MemberShipInfo($user);
+    $trust        = $membership["trust"];
+    $date_applied = $membership["date_applied"];
 
     #
     # Cause this field was added late and might be null.

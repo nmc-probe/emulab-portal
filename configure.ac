@@ -1264,7 +1264,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	db/update_permissions \
 	db/grabron db/stategraph db/readycount \
 	db/idletimes db/idlemail db/xmlconvert \
-	db/libdb.py db/elabinelab_bossinit \
+	db/libdb.py db/elabinelab_bossinit db/Reservation.pm \
 	ipod/GNUmakefile \
 	os/GNUmakefile os/split-image.sh \
 	pxe/GNUmakefile pxe/bootinfo.restart \
@@ -1364,7 +1364,7 @@ outfiles="$outfiles Makeconf GNUmakefile \
 	utils/mkblob utils/rmblob utils/ctrladdr utils/tcppd \
 	utils/mktestbedtest utils/pxelinux_makeconf \
 	utils/addvpubaddr utils/attend utils/atten utils/addrfdevice \
-	utils/addrfpath \
+	utils/addrfpath utils/reserve \
 	www/GNUmakefile www/defs.php3 www/dbdefs.php3 www/xmlrpc.php3 \
 	www/xmlrpcpipe.php3 \
 	www/swish.conf www/websearch \
@@ -1466,6 +1466,7 @@ outfiles="$outfiles clientside/GNUmakefile clientside/setversion \
  clientside/tmcc/freebsd/init/8/GNUmakefile \
  clientside/tmcc/freebsd/init/9/GNUmakefile \
  clientside/tmcc/freebsd/init/10/GNUmakefile \
+ clientside/tmcc/freebsd/init/10.3/GNUmakefile \
  clientside/tmcc/freebsd/init/11/GNUmakefile \
  clientside/tmcc/freebsd/supfile clientside/tmcc/freebsd/sethostname \
  clientside/tmcc/linux/GNUmakefile clientside/tmcc/linux/supfile \

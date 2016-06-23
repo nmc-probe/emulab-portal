@@ -28,7 +28,8 @@ function ClassicExperimentList($which, $target, $state = "active")
     global $this_user;
 
     if ($state == "active") {
-        $stateclause = "and (e.state='active' or e.state='activating')";
+        $stateclause = "and (e.state='active' or ".
+            "e.state='activating' or e.state='swapping')";
     }
     elseif ($state == "inactive") {
         $stateclause = "and (e.state='swapped')";
@@ -42,11 +43,12 @@ function ClassicExperimentList($which, $target, $state = "active")
         $target_pid = $target->pid();
         $whereclause = "where e.pid='$target_pid'";
     }
+    $whereclause .= " and e.geniflags=0";
     $results = array();
 
     $query_result =
         DBQueryFatal("select idx from experiments as e ".
-                     "$whereclause $stateclause");
+                     "$whereclause $stateclause order by e.eid");
 
     while ($row = mysql_fetch_array($query_result)) {
         $idx = $row["idx"];

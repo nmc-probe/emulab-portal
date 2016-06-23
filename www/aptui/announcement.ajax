@@ -24,6 +24,7 @@
 chdir("..");
 include_once("webtask.php");
 include_once("geni_defs.php");
+include_once("dbcheck.php3");
 chdir("apt");
 include_once("profile_defs.php");
 include_once("instance_defs.php");
@@ -37,7 +38,9 @@ function Do_Dismiss()
   $uid_idx = $this_user->uid_idx();
   $aid = $ajax_args['aid'];
   $dblink = DBConnect("tbdb");
-  DBQueryWarn('update apt_announcement_info set dismissed=1 where aid="'.$aid.'" and uid_idx="'.$uid_idx.'"', $dblink);
+  if (TBvalid_integer($aid)) {
+    DBQueryWarn('update apt_announcement_info set dismissed=1 where aid="'.$aid.'" and uid_idx="'.$uid_idx.'"', $dblink);
+  }
 }
 
 #
@@ -49,5 +52,7 @@ function Do_Click()
   $uid_idx = $this_user->uid_idx();
   $aid = $ajax_args['aid'];
   $dblink = DBConnect("tbdb");
-  DBQueryWarn('update apt_announcement_info set clicked=1 where aid="'.$aid.'" and uid_idx="'.$uid_idx.'"', $dblink);
+  if (TBvalid_integer($aid)) {
+    DBQueryWarn('update apt_announcement_info set clicked=1 where aid="'.$aid.'" and uid_idx="'.$uid_idx.'"', $dblink);
+  }
 }

@@ -51,11 +51,9 @@ $optargs = OptionalPageArguments("asguest", PAGEARG_BOOLEAN,
 #
 if ($this_user) {
     if ($CHECKLOGIN_STATUS & CHECKLOGIN_UNAPPROVED) {
-        USERERROR("Your account has not been approved yet! ".
-                  "<br>Please wait till ".
-                  "your account is approved (you will receive email) and then ".
-                  "reload this page.",
-		  1, HTTP_403_FORBIDDEN);
+        # Take them to the myaccount page, they will see a banner
+        # message there.
+	header("Location: $APTBASE/myaccount.php");
     }
     elseif (Instance::UserHasInstances($this_user)) {
 	header("Location: $APTBASE/user-dashboard.php");

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2011 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -36,6 +36,7 @@ CFLAGS	 += -O -g -Wall
 CFLAGS   += -I. -I$(TESTBED_LIBSRCDIR)/libtb
 CFLAGS   += -I$(TESTBED_LIBSRCDIR)/event
 CFLAGS   += -I/usr/local/include
+CFLAGS   += -DCLIENT_BINDIR='"$(CLIENT_BINDIR)"'
 
 LDFLAGS  += $(LDSTATIC)
 LDFLAGS  += -L${TESTBED_LIBOBJDIR}/libtb -L${TESTBED_LIBOBJDIR}/event

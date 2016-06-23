@@ -1,3 +1,28 @@
+<style>
+.scrollable-panel {
+	max-height:350px;
+	overflow-y:scroll;
+}
+.fixedsize-panel {
+	max-height:350px;
+	height:350px;
+}
+.smalldiv {
+	max-height:400px;
+	height:400px;
+}
+.history-tstamp {
+	min-width: 100px;
+	width:100px;
+	max-width: 100px;
+}
+pre {
+	white-space: pre-wrap;
+}
+.panel-body-nopad {
+	padding: 5px;
+}
+</style>
 <div class='row'>
   <div class='col-lg-6  col-lg-offset-3
        col-md-8  col-md-offset-2
@@ -85,9 +110,6 @@
 		  <%- sliceExpires %></span>
 		(<span id='quickvm_countdown'></span>)
 	      </span>
-	      <% if (isadmin && lockdown) { %>
-	      <span class='text-danger'><small>locked down</small></span>
-	      <% } %>
 	    </td>
 	  </tr>
 	  </table>
@@ -131,6 +153,19 @@
 	  <div class='pull-left'
 	       data-toggle='popover'
 	       data-delay='{"hide":1000, "show":500}'
+	       data-content="When checked, the experiment 
+			     cannot be terminated until the lockdown bit
+			     is cleared by an admininstrator, or if the user
+			     verifies 
+			     the lockdown code when clicking the Terminate
+			     button."> 
+	    <label class="checkbox-inline" style='margin-right: 10px;'>
+	      <input type="checkbox" id="lockdown_checkbox"
+		     <% if (lockdown) { %>checked<% } %> >Lockdown</label>
+	  </div>
+	  <div class='pull-left'
+	       data-toggle='popover'
+	       data-delay='{"hide":1000, "show":500}'
 	       data-content="When checked, the experiment is put into
 			     Quarantine (emulab panic) mode.">
 	    <label class="checkbox-inline" style='margin-right: 10px;'>
@@ -161,7 +196,7 @@
 		    href='manage_profile.php?action=copy&uuid=<%= profileUUID %>'
 		    id='copy_button' type=button
 		    data-toggle='popover'
-		    data-delay='{"hide":1500, "show":500}'
+	            data-delay='{"hide":1500, "show":500}'
 		    data-html='true'
 		    data-content="When you <em>copy</em> (instead of
 		    clone), you are creating a new profile that
@@ -256,6 +291,24 @@
               <a href='#manifest' id='show_manifest_tab'
 		 data-toggle='tab'>Manifest</a>
             </li>
+	    <li class="hidden" id="show_idlegraphs_li">
+              <a href='#Idlegraphs' id='show_idlegraphs_tab'
+		 data-toggle='tab'>Graphs
+		<button class='close hidden'
+			style="margin-top:0px;"
+			type='button' id="graphs-refresh-button">
+		  <span class='glyphicon glyphicon-repeat'></span></button>
+	      </a>
+            </li>
+	    <li class="hidden" id="show_openstack_li">
+              <a href='#Openstack' id='show_openstack_tab'
+		 data-toggle='tab'>Openstack Data
+		<button class='close hidden'
+			style="margin-top:0px;"
+			type='button' id="openstack-refresh-button">
+		  <span class='glyphicon glyphicon-repeat'></span></button>
+	      </a>
+            </li>
 	  </ul>
 	  <div id='quicktabs_content' class='tab-content'>
             <div class='tab-pane active' id='profile'>
@@ -266,17 +319,33 @@
 		<button class='btn btn-xs btn-success pull-right' disabled
 			id='refresh_button' type=button
 			data-toggle='popover'
+			data-delay='{"hide":1000, "show":500}'
 			data-content='Ask cluster for updated node status'>
 		  Refresh Status</button>
 		<span>
-		  <button class='btn btn-xs btn-success pull-right hidden' disabled
+		  <button class='btn btn-xs btn-success pull-right hidden'
+			  disabled
 			  data-toggle='popover'
+			  data-delay='{"hide":1000, "show":500}'
 			  data-content='Run linktest on the topology'
 			  style='margin-right: 10px;'
 			  id='linktest-modal-button' type=button>
 		    Run Linktest</button>
 		</span>
-	    <% } %>
+		<% if (isadmin || isstud || isfadmin) { %>
+		  <span>
+		    <button class='btn btn-xs btn-success pull-right'
+			    disabled
+			    data-toggle='popover'
+			    data-delay='{"hide":1000, "show":500}'
+			    data-content='Reload the topology in case it has
+					  changed at the cluster'
+			    style='margin-right: 10px;'
+			    id='reload-topology-button' type=button>
+		      Reload Topo</button>
+		  </span>
+		<% } %>
+	      <% } %>
 	    </div>
             <div class='tab-pane' id='listview'>
 	      <div id='showtopo_listview'>
@@ -316,6 +385,170 @@
             </div>
 	    <div class='tab-pane' id='manifest'>
               <div id='manifest_textarea' style='width: 100%;'></div>
+	    </div>
+	    <div class='tab-pane hidden' id='Idlegraphs'>
+	      <div class="hidden"id="nodata">
+		<br>
+		<center>
+		  There is insufficient data to graph, please check back later.
+		</center>
+	      </div>
+	      <div class='row'>
+		<div class='panel panel-default hidden'
+		     id="loadavg-panel-div">
+		  <div class="panel-heading">
+		    <h5>Load Average Graph</h5>
+		  </div>
+		  <div class='panel-body panel-body-nopad'>
+		    <!-- The col setting gives us a "relative" position div -->
+		    <div class='col-xs-12 col-xs-offset-0'
+			 style="padding:0px;">
+		      <!-- So now we can use an "absolute" position to put
+		           the radio button in the upper left of the graph
+		           where it will not overwrite anything.
+		      -->
+		      <div class="hidden toggles"
+			   style='position:absolute;left:5px;top:0px'>
+			<label class="radio-inline">
+			  <input type="radio" name="loadav-radio"
+				 checked="checked" value="max"> Max
+			</label>
+			<label class="radio-inline">
+			  <input type="radio" name="loadav-radio"
+				 value="avg"> Avg
+			</label>
+		      </div>
+		      <div id="loadavg-chart"
+			class='fixedsize-panel with-3d-shadow with-transitions'>
+			<svg></svg>
+		      </div>
+		    </div>
+		  </div>
+		</div>
+	      </div>
+	      <div class='row'>
+		<div class='panel panel-default hidden'
+		     id="ctrl-traffic-panel-div">
+		  <div class="panel-heading">
+		    <h5>Control Traffic Graph</h5>
+		  </div>
+		  <div class='panel-body panel-body-nopad'>
+		    <!-- The col setting gives us a "relative" position div -->
+		    <div class='col-xs-12 col-xs-offset-0'
+			 style="padding:0px;">
+		      <!-- So now we can use an "absolute" position to put
+		      the radio button in the upper left of the graph
+		      where it will not overwrite anything.
+		      -->
+		      <div class="hidden toggles"
+			   style='position:absolute;left:5px;top:0px'>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 checked="checked" value="max"> Max
+			</label>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 value="avg"> Avg
+			</label>
+		      </div>
+		      <div id="ctrl-traffic-chart"
+			class='fixedsize-panel with-3d-shadow with-transitions'>
+			<svg></svg>
+		      </div>
+		    </div>
+		  </div>
+		</div>
+	      </div>
+	      <div class='row'>
+		<div class='panel panel-default hidden'
+		     id="expt-traffic-panel-div">
+		  <div class="panel-heading">
+		    <h5>Experiment Traffic Graph</h5>
+		  </div>
+		  <div class='panel-body panel-body-nopad'>
+		    <!-- The col setting gives us a "relative" position div -->
+		    <div class='col-xs-12 col-xs-offset-0'
+			 style="padding:0px;">
+		      <!-- So now we can use an "absolute" position to put
+		      the radio button in the upper left of the graph
+		      where it will not overwrite anything.
+		      -->
+		      <div class="hidden toggles"
+			   style='position:absolute;left:5px;top:0px'>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 checked="checked" value="max"> Max</label>
+			<label class="radio-inline">
+			  <input type="radio" name="ctrl-radio"
+				 value="avg"> Avg</label>
+		      </div>
+		      <div id="expt-traffic-chart"
+			class='fixedsize-panel with-3d-shadow with-transitions'>
+			<svg></svg>
+		      </div>
+		    </div>
+		  </div>
+		</div>
+	      </div>
+	    </div>
+	    <div class='tab-pane hidden' id='Openstack'>
+	      <div class="hidden" id="nodata">
+		<br>
+		<center>
+		  There is no Openstack data (yet), please check back later.
+		</center>
+	      </div>
+	      <div id="openstack-div" class="hidden">
+		<ul id='chart-tabs' class='nav nav-tabs'>
+		  <li class="active">
+		    <a href='#jsondata' data-toggle='tab'>Raw Data</a>
+		  </li>
+		  <li>
+		    <a href='#activity' id="activity-tab"
+		       data-toggle='tab'>Activity</a>
+		  </li>
+		</ul>
+		<div id='chart-contents' class='tab-content'>
+		  <div class='tab-pane active' id='jsondata'></div>
+		  <div class='tab-pane' id='activity'>
+		    <div class='smalldiv with-3d-shadow with-transitions'>
+		      <svg></svg>
+		    </div>
+		  </div>
+		  <div class='tab-pane hidden' id='template'>
+		    <div class='panel panel-default cpu'>
+		      <div class="panel-heading">
+			<h5>CPU Utilization</h5>
+		      </div>
+		      <div class='panel-body panel-body-nopad'>
+			<div class='smalldiv with-3d-shadow with-transitions'>
+			  <svg></svg>
+			</div>
+		      </div>
+		    </div>
+		    <div class='panel panel-default netout'>
+		      <div class="panel-heading">
+			<h5>Outgoing Traffic</h5>
+		      </div>
+		      <div class='panel-body panel-body-nopad'>
+			<div class='smalldiv with-3d-shadow with-transitions'>
+			  <svg></svg>
+			</div>
+		      </div>
+		    </div>
+		    <div class='panel panel-default netin'>
+		      <div class="panel-heading">
+			<h5>Incoming Traffic</h5>
+		      </div>
+		      <div class='panel-body panel-body-nopad'>
+			<div class='smalldiv with-3d-shadow with-transitions'>
+			  <svg></svg>
+			</div>
+		      </div>
+		    </div>
+		  </div>
+		</div>
+	      </div>
 	    </div>
 	  </div>
 	</div>
@@ -487,13 +720,43 @@
 	<div class='modal-header'>
           <button type='button' class='close' data-dismiss='modal'
                   aria-hidden='true'>&times;</button>
-	  <h5>
-	    <a data-toggle="collapse"
-	       href="#history">Extension History</a>
-	  </h5>
+	  <h5>Extension History</h5>
 	</div>
-	<div class='modal-body'>
-	  <pre id="fadmin_extend_history"></pre>
+	<div class='modal-body scrollable-panel'>
+	  <table class="table table-condensed">
+	    <thead>
+	      <tr>
+		<th>Date</th>
+		<th>Action</th>
+		<th>Wanted</th>
+		<th>Granted</th>
+	      </tr>
+	    </thead>
+	    <tbody>
+	      <%  _.each(extensions, function(extension, idx) { %>
+		<tr>
+		  <td rowspan="2" class="history-tstamp">
+		    <%- extension.tstamp %></td>
+		  <td>
+		    <% if (extension.action == "request" && extension.admin == "1") { %>
+		      admin<% } else { %><%- extension.action %><% } %>
+		  </td>
+		  <% if (extension.action == "request") { %>
+		    <td><%- extension.wanted %></td>
+		    <td><%- extension.granted %></td>
+		  <% } else { %>
+		    <td>n/a</td>
+		    <td>n/a</td>
+ 	          <% } %>
+		</tr>
+		<tr>
+		  <td colspan="3">
+		    <pre class="history-reason"><%- extension.reason %></pre>
+		  </td>
+		</tr>
+  	      <% }); %>
+	    </tbody>
+	  </table>
 	</div>
       </div>
     </div>
@@ -534,3 +797,4 @@
   <div id='approval_div'></div>
   <div id='linktest_div'></div>
 </div>
+

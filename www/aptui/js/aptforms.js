@@ -133,7 +133,7 @@ define(['underscore', 'js/quickvm_sup'],
 	     * spot for this.
 	     */
 	    if (errors && _.has(errors, "error")) {
-		if ($('#general_error').length()) {
+		if ($('#general_error').length) {
 		    $('#general_error').html(_.escape(errors["error"]));
 		}
 		else {

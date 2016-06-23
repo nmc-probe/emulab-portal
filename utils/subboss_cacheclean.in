@@ -304,7 +304,7 @@ sub find_images($$)
 	if ($path =~ /^(.*),sig$/) {
 	    my $ifile = $1;
 	    my (undef,$iino) = stat($ifile);
-	    if (exists($images{$iino})) {
+	    if ($iino && exists($images{$iino})) {
 		print STDERR "$path: sigfile for '$ifile'\n" if ($debug);
 		$images{$iino}{'sigfile'} = $path;
 		next;

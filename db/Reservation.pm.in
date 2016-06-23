@@ -1,0 +1,495 @@
+#!/usr/bin/perl -wT
+#
+# Copyright (c) 2016 University of Utah and the Flux Group.
+# 
+# {{{EMULAB-LICENSE
+# 
+# This file is part of the Emulab network testbed software.
+# 
+# This file is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at
+# your option) any later version.
+# 
+# This file is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this file.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# }}}
+#
+package Reservation;
+
+use strict;
+use Exporter;
+use vars qw(@ISA @EXPORT);
+
+@ISA    = "Exporter";
+@EXPORT = qw ( );
+
+use English;
+use emdb;
+use libtestbed;
+use Project;
+use User;
+use overload ('""' => 'Stringify');
+
+# Configure variables
+my $TB		= "@prefix@";
+
+my %cache = ();
+
+sub CreateCommon($$$$$$$$)
+{
+    my ($class, $pid, $eid, $uid, $start, $end, $type, $nodes) = @_;
+
+    my $project;
+    
+    if( defined( $pid ) ) {
+	$project = Project->Lookup( $pid );
+	if( !defined( $project ) ) {
+	    return undef;
+	}
+    }
+
+    my $user;
+    if( defined( $uid ) ) {
+	$user = User->Lookup( $uid );
+    } else {
+	$user = User->ThisUser();
+    }
+    if( !defined( $user ) ) {
+	return undef;
+    }
+    
+    my $self               = {};
+    $self->{'PID'}         = $pid;
+    $self->{'PID_IDX'}     = defined( $pid ) ? $project->pid_idx() : undef;
+    $self->{'EID'}         = $eid;
+    $self->{'START'}       = $start;
+    $self->{'END'}         = $end;
+    $self->{'TYPE'}        = $type;
+    $self->{'NODES'}       = $nodes;
+    $self->{'UID'}         = $user->uid();
+    $self->{'UID_IDX'}     = $user->uid_idx();
+    $self->{'NOTES'}       = undef;
+    $self->{'ADMIN_NOTES'} = undef;
+	
+    bless($self, $class);
+    
+    return $self;
+}
+
+#
+# Return an object representing a hypothetical future reservation.
+#
+# This DOES NOT actually check the feasibility of, guarantee,
+# or record the reservation.
+#
+sub Create($$$$$$$)
+{
+    my ($class, $pid, $uid, $start, $end, $type, $nodes) = @_;
+
+    return CreateCommon( $class, $pid, undef, $uid, $start, $end, $type,
+			 $nodes );
+}
+
+#
+# Return an object representing a hypothetical immediate reservation.    
+#
+# This DOES NOT actually check the feasibility of, guarantee,
+# or record the reservation.
+#
+sub CreateImmediate($$$$$$$)
+{
+    my ($class, $pid, $eid, $uid, $end, $type, $nodes) = @_;
+
+    return CreateCommon( $class, $pid, $eid, $uid, 0, $end, $type, $nodes );
+}
+    
+sub Lookup($$$$$$)
+{
+    my ($class, $pid, $start, $end, $type, $nodes) = @_;
+
+    my $project = Project->Lookup( $pid );
+    if( !defined( $project ) ) {
+	return undef;
+    }
+
+    my $pid_idx = $project->pid_idx();
+    
+    my $query_result = DBQueryWarn( "SELECT * FROM future_reservations WHERE " .
+				    "pid_idx='$pid_idx' AND " .
+				    "nodes='$nodes' AND " .
+				    "type='$type' AND " .
+				    "start=FROM_UNIXTIME($start) AND " .
+				    "end=FROM_UNIXTIME($end)" );
+
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my $record = $query_result->fetchrow_hashref();
+    
+    my $self               = {};
+    $self->{'IDX'}         = $record->{'idx'};
+    $self->{'PID'}         = $pid;
+    $self->{'PID_IDX'}     = $pid_idx;
+    $self->{'EID'}         = $record->{'eid'};
+    $self->{'START'}       = $start;
+    $self->{'END'}         = $end;
+    $self->{'TYPE'}        = $type;
+    $self->{'NODES'}       = $nodes;
+    $self->{'UID'}         = $record->{'uid'};
+    $self->{'UID_IDX'}     = $record->{'uid_idx'};
+    $self->{'NOTES'}       = $record->{'notes'};
+    $self->{'ADMIN_NOTES'} = $record->{'admin_notes'};
+	
+    bless($self, $class);
+    
+    return $self;
+}
+
+sub idx($)         { return $_[0]->{"IDX"}; }
+sub pid($)         { return $_[0]->{"PID"}; }
+sub pid_idx($)     { return $_[0]->{"PID_IDX"}; }
+sub eid($)         { return $_[0]->{"EID"}; }
+sub start($)       { return $_[0]->{"START"}; }
+sub end($)         { return $_[0]->{"END"}; }
+sub type($)        { return $_[0]->{"TYPE"}; }
+sub nodes($)       { return $_[0]->{"NODES"}; }
+sub uid($)         { return $_[0]->{"UID"}; }
+sub uid_idx($)     { return $_[0]->{"UID_IDX"}; }
+sub notes($)       { return $_[0]->{"NOTES"}; }
+sub admin_notes($) { return $_[0]->{"ADMIN_NOTES"}; }
+
+sub Stringify($)
+{
+    my ($self) = @_;
+    
+    my $pid = $self->pid();
+    my $nodes = $self->nodes();
+    my $type = $self->type();
+    my $start = localtime( $self->start() );
+    my $end = localtime( $self->end() );
+
+    return "[Reservation: $pid, ${nodes}x${type}, ${start}-${end}]";
+}
+
+sub SetNotes($$)
+{
+    my ($self, $notes) = @_;
+
+    $self->{'NOTES'} = $notes;
+}
+
+sub SetAdminNotes($$)
+{
+    my ($self, $notes) = @_;
+
+    $self->{'ADMIN_NOTES'} = $notes;
+}
+
+# Retrieve the current reservation database version.  This version must
+# be retrieved and saved before validity checks on attempted updates,
+# and then the same version supplied to BeginTransaction() before making
+# any changes.
+sub GetVersion($)
+{
+    my $query_result = DBQueryFatal( "SELECT * FROM reservation_version" );
+    my $version;
+    
+    if( ($version) = $query_result->fetchrow_array() ) {
+	return $version;
+    }
+
+    return undef;
+}
+
+# Attempt to commit database changes.  GetVersion() must have been called
+# previously, and whatever version was obtained supplied as the parameter
+# here.  Any necessary availability checks must have been performed
+# after GetVersion() and BeginTransaction().  If BeginTransaction()
+# returned undef, then concurrent modifications have been detected,
+# possibly invalidating the checks already made, and the entire operation
+# must be retried from the beginning.  Otherwise, the caller is free
+# to proceed with the updates and then complete with EndTransaction().
+sub BeginTransaction($$)
+{
+    my ($self, $old_version) = @_;
+    
+    DBQueryFatal( "LOCK TABLES future_reservations WRITE, " .
+		  "reservation_version WRITE" );
+    
+    my $version = GetVersion( $self );
+
+    if( $old_version != $version ) {
+	# Reservations have been altered by a concurrent operation.
+	# Can't continue: the caller will have to retry.
+	DBQueryFatal( "UNLOCK TABLES" );
+	return undef;
+    }
+
+    # We're good.
+    return 0;
+}
+
+sub EndTransaction($$)
+{
+    DBQueryFatal( "UPDATE reservation_version SET version=version+1" );
+    DBQueryFatal( "UNLOCK TABLES" );
+}
+
+# Add a reservation record to the database (therefore committing ourselves
+# to the guarantee it represents).  Because of the consequences and
+# consistency requirements, this is permitted ONLY inside a
+# BeginTransaction()/EndTransaction() pair, following either
+# admission control satisfaction or admin override.
+sub Book($)
+{
+    my ($self) = @_;
+
+    my $pid = $self->pid();
+    my $pid_idx = $self->pid_idx();
+    my $nodes = $self->nodes();
+    my $type = $self->type();
+    my $start = $self->start();
+    my $end = $self->end();
+    my $uid = $self->uid();
+    my $uid_idx = $self->uid_idx();
+    my $notes = DBQuoteSpecial( $self->notes() );
+    my $admin_notes = DBQuoteSpecial( $self->admin_notes() );
+
+    my $query_result =
+	DBQueryWarn( "INSERT INTO future_reservations SET " .
+		     "pid='$pid', " .
+		     "pid_idx='$pid_idx', " .
+		     "nodes='$nodes', " .
+		     "type='$type', " .
+		     "start=FROM_UNIXTIME($start), " .
+		     "end=FROM_UNIXTIME($end), " .
+		     "uid='$uid', " .
+		     "uid_idx='$uid_idx' " .
+		     ( defined( $notes ) ? ", notes='$notes'" : "" ) .
+		     ( defined( $admin_notes ) ?
+		       ", admin_notes='$admin_notes'" : "" ) )
+	or return -1;
+
+    $self->{'IDX'} = $query_result->insertid();
+
+    delete $cache{$type};
+    
+    return 0;
+}
+
+# Cancel a future reservation.  This could be enclosed within a transaction,
+# but since cancellations can never cause concurrent operations to fail,
+# the transaction is not mandatory.
+sub Cancel($)
+{
+    my ($self) = @_;
+
+    my $idx = $self->idx();
+    my $type = $self->type();
+    
+    DBQueryWarn( "DELETE FROM future_reservations WHERE idx=$idx" )
+	or return -1;
+
+    DBQueryWarn( "DELETE FROM future_reservation_attributes WHERE " . 
+		 "reservation_idx=$idx" )
+	or return -1;
+
+    delete $cache{$type};
+    
+    return 0;
+}
+
+sub SetAttribute($$$)
+{
+    my ($self, $key, $value) = @_;
+
+    my $idx = $self->idx();
+    $key = DBQuoteSpecial( $key );
+    $value = DBQuoteSpecial( $value );
+    
+    DBQueryWarn( "REPLACE INTO future_reservation_attributes SET " .
+		 "reservation_idx='$idx', " .
+		 "attrkey='$key', " .
+		 "attrvalue='$value'" )
+	or return -1;
+
+    return 0;
+}
+
+sub GetAttribute($$)
+{
+    my ($self, $key) = @_;
+
+    my $idx = $self->idx();
+    $key = DBQuoteSpecial( $key );
+
+    my $query_result = DBQueryWarn( "SELECT attrvalue FROM " .
+				    "future_reservation_attributes WHERE " .
+				    "reservation_idx='$idx' AND " .
+				    "attrkey='$key'" );
+    return undef
+	if( !$query_result || !$query_result->numrows );
+
+    my ($value) = $query_result->fetchrow_array();
+
+    return $value;
+}
+
+sub LookupAll($$)
+{
+    my ($class, $type) = @_;
+    
+    return $cache{$type} if( exists( $cache{$type} ) );
+
+    my @reservations = ();
+
+    my $query_result = DBQueryWarn( "SELECT COUNT(*), e.pid, e.eid, " .
+				    "e.expt_swap_uid, " .
+				    "UNIX_TIMESTAMP( e.expt_swapped ) + " .
+				    "e.autoswap_timeout * 60, e.autoswap, " .
+				    "nr.pid, UNIX_TIMESTAMP( s.expires ), " .
+				    "s.lockdown FROM nodes AS n " .
+				    "LEFT OUTER JOIN " .
+				    "reserved AS r ON n.node_id=r.node_id " .
+				    "LEFT OUTER JOIN experiments AS e ON " .
+				    "r.pid=e.pid AND r.eid=e.eid LEFT " .
+				    "OUTER JOIN next_reserve AS nr ON " .
+				    "n.node_id=nr.node_id LEFT OUTER JOIN " .
+				    "`geni-cm`.geni_slices AS s ON " .
+				    "e.eid_uuid=s.uuid " .
+				    "WHERE n.type='$type' GROUP BY " .
+				    "e.pid, e.eid" );
+    while( my($count, $pid, $eid, $uid, $end, $autoswap, $next_reserve,
+	      $slice_expire, $slice_lockdown ) =
+	   $query_result->fetchrow_array() ) {	
+	# If a node has an outstanding next_reserve, assume it's
+	# unavailable until further notice -- treat it as if it doesn't
+	# exist.
+	next if( defined( $next_reserve ) );
+
+	if( defined( $slice_expire ) ) {
+	    # A GENI slice: its end time is the slice expiration...
+	    $end = $slice_expire;
+
+	    # ...unless it's locked down, in which we consider the
+	    # node unavailable:
+	    next if( $slice_lockdown );
+	} else {
+	    # Not a GENI slice... if it's not marked autoswap, assume
+	    # the nodes aren't coming back (hwdown looks like this, for
+	    # example).
+	    next if( defined( $pid ) && !$autoswap );
+	}
+	
+	if( defined( $pid ) ) {
+	    # Handle the case where an experiment is swapped in.  The
+	    # nodes aren't free right now, but at some time in the
+	    # future they will become so.
+	    my $res = CreateImmediate( $class, $pid, $eid, $uid, $end, $type,
+				       $count );
+	    push( @reservations, $res );
+	} else {
+	    # Physical nodes with no reservations whatsoever... treat
+	    # them as free since the beginning of time.
+	    my $res = CreateCommon( $class, undef, undef, undef, -1, undef,
+				    $type, $count );
+	    push( @reservations, $res );
+	}
+    }
+    
+    $query_result = DBQueryWarn( "SELECT pid, uid, UNIX_TIMESTAMP( start ), " .
+				 "UNIX_TIMESTAMP( end ), nodes FROM " .
+				 "future_reservations WHERE type='$type'" );
+    while( my ($pid, $uid, $start, $end, $nodes) =
+	   $query_result->fetchrow_array() ) {
+	my $res = Create( $class, $pid, $uid, $start, $end, $type, $nodes );
+	push( @reservations, $res );
+    }
+
+    $cache{$type} = \@reservations;
+    
+    return $cache{$type};
+}
+
+sub IsFeasible($$;$)
+{
+    my ($class, $reservations, $error) = @_;
+
+    my @timeline = ();
+    my $free;
+
+    foreach my $reservation ( @$reservations ) {
+	my $start;
+	my $end;
+
+	if( defined( $reservation->eid() ) ) {
+	    # A swapped-in experiment.  Already using nodes (so no
+	    # need to save a start event), and Will later release real nodes.
+	    $end = { 'pid' => $reservation->pid(),
+		     't' => $reservation->end(),
+		     'used' => -$reservation->nodes(),
+		     'reserved' => 0 };
+	} elsif( defined( $reservation->pid() ) ) {
+	    # A reservation.  Uses then releases reserved nodes.
+	    $start = { 'pid' => $reservation->pid(),
+		       't' => $reservation->start(),
+		       'used' => 0,
+		       'reserved' => $reservation->nodes() };
+	    $end = { 'pid' => $reservation->pid(),
+		     't' => $reservation->end(),
+		     'used' => 0,
+		     'reserved' => -$reservation->nodes() };
+	} else {
+	    # Available resources.  Provides nodes for all time.
+	    $free = $reservation->nodes();
+	}
+
+	push( @timeline, $start ) if( defined( $start->{'t'} ) );
+	push( @timeline, $end ) if( defined( $end->{'t'} ) );
+    }
+
+    my @events = sort { $a->{'t'} <=> $b->{'t'} } @timeline;
+    my %used = ();
+    my %reserved = ();
+    
+    foreach my $event ( @events ) {
+	my $pid = $event->{'pid'};
+	if( !exists( $used{ $pid } ) ) {
+	    $used{ $pid } = 0;
+	    $reserved{ $pid } = 0;
+	}
+
+	my $oldsum = $used{ $pid } + $reserved{ $pid };
+
+	$used{ $pid } += $event->{ 'used' };
+	$reserved{ $pid } += $event->{ 'reserved' };
+
+	my $newsum = $used{ $pid } + $reserved{ $pid };
+
+	$free += $oldsum - $newsum;
+
+	if( $free < 0 ) {
+	    # Insufficient resources.
+	    if( ref( $error ) ) {
+		my $time = localtime( $event->{'t'} );
+		my $needed = -$free;
+		$$error = "Insufficient free nodes at $time " .
+		    "($needed more needed).";
+	    }
+	    
+	    return 0;
+	}
+    }
+    
+    return 1;
+}
+
+# _Always_ make sure that this 1 is at the end of the file...
+1;

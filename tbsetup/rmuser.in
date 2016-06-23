@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -390,6 +390,7 @@ if ($nuke) {
     print "$target_user has been removed!\n";
 }
 else {
+    $target_user->Update({'admin' => 0, "stud" => 0});
     $target_user->SetStatus($User::USERSTATUS_ARCHIVED) == 0
 	or fatal("Could not archive $target_user");
     

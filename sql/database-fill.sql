@@ -936,6 +936,7 @@ REPLACE INTO table_regex VALUES ('virt_nodes','fixed','text','redirect','default
 REPLACE INTO table_regex VALUES ('virt_nodes','sharing_mode','text','regex','^[-\\w]+$',1,32,NULL);
 REPLACE INTO table_regex VALUES ('virt_nodes','osname','text','regex','^((([-\\w]+\\/{0,1})[-\\w\\.+]+(:\\d+){0,1})|((http|https|ftp)\\:\\/\\/[-\\w\\.\\/\\@\\:\\~\\?\\=\\&]*))$',2,128,NULL);
 REPLACE INTO table_regex VALUES ('virt_nodes','parent_osname','text','redirect','virt_nodes:osname',2,128,NULL);
+REPLACE INTO table_regex VALUES ('virt_nodes','nfsmounts','text','redirect','experiments:nfsmounts',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_programs','pid','text','redirect','projects:pid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_programs','eid','text','redirect','experiments:eid',0,0,NULL);
 REPLACE INTO table_regex VALUES ('virt_programs','vnode','text','redirect','virt_nodes:vname',0,0,NULL);
@@ -983,6 +984,7 @@ REPLACE INTO table_regex VALUES ('experiments','ipassign_args','text','regex','^
 REPLACE INTO table_regex VALUES ('experiments','expt_name','text','redirect','default:fulltext',1,255,NULL);
 REPLACE INTO table_regex VALUES ('experiments','dpdb','int','redirect','default:tinyint',0,1,NULL);
 REPLACE INTO table_regex VALUES ('experiments','nonfsmounts','int','redirect','default:tinyint',0,1,NULL);
+REPLACE INTO table_regex VALUES ('experiments','nfsmounts','text','regex','^(emulabdefault|genidefault|all|none)$',0,0,NULL);
 REPLACE INTO table_regex VALUES ('experiments','packing_strategy','text','regex','^(pack|balance)$',0,0,NULL);
 
 REPLACE INTO table_regex VALUES ('experiments','description','text','redirect','default:fulltext',1,256,NULL);

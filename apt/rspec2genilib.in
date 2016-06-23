@@ -112,16 +112,15 @@ else {
 my $xmlerrors = `$XMLLINT --noout $rspecfile 2>&1`;
 if ($?) {
     print STDERR $xmlerrors;
-    Fatal("rspec is not well formed");
+    fatal("rspec is not well formed");    
 }
 my $rspec = GeniXML::ParseFile($rspecfile);
 if (! defined($rspec)) {
-    Fatal("Could not parse rspec");
+    fatal("Could not parse rspec");
 }
 my $genilib =
     "#\n" .
-    "# NOTE: This code was machine converted from an Emulab experiment that\n".
-    "#       was originally written in NS syntax. An actual human would never\n".
+    "# NOTE: This code was machine converted. An actual human would never\n".
     "#       write code like this!\n".
     "#\n" .
     "import geni.portal\n" .
@@ -522,6 +521,7 @@ if (defined($rspec_tour)) {
     AddStatement("Tour = emulab.Tour()");
     if (defined($description)) {
 	my $text = $description->textContent();
+	$text =~ s/\'/\\'/g;
 
 	AddStatement("Tour.Description(emulab.Tour.TEXT, '$text')");
     }
@@ -706,8 +706,15 @@ foreach my $pool (@{ GeniXML::GetAddressPools($rspec) }) {
 }
 AddStatement("portal.printRequestRSpec(rspec)");
 
-print "$genilib";
-
+if (defined($ofile)) {
+    open(GENI, ">$ofile") or
+	fatal("Could not open output file");
+    print GENI $genilib;
+    close(GENI);
+}
+else {
+    print "$genilib";
+}
 exit(0);
 
 sub fatal($) {
@@ -715,6 +722,5 @@ sub fatal($) {
 
     print STDERR "*** $0:\n".
 	         "    $mesg\n";
-
     exit(-1);
 }

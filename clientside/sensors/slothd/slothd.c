@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2005, 2011 University of Utah and the Flux Group.
+ * Copyright (c) 2000-2016 University of Utah and the Flux Group.
  * 
  * {{{EMULAB-LICENSE
  * 
@@ -26,6 +26,16 @@
 
 SLOTHD_OPTS   *opts;
 SLOTHD_PARAMS *parms;
+
+#ifdef USE_TMCCINFO
+/* XXX just make this a static array for now, the size is small */
+struct interface {
+  char name[MAXIFNAMELEN];
+  int namelen;
+  char mac[MACADDRLEN];
+} interfaces[MAXNUMIFACES];
+int numinterfaces = 0;
+#endif
 
 void lerror(const char* msgstr) {
   if (msgstr) {
@@ -335,6 +345,40 @@ int init_slothd(void) {
     lwarn("Failed to get control net iface name");
   }
 
+#ifdef USE_TMCCINFO
+  {
+    char *tmccinfo = "/var/emulab/boot/tmcc/ifconfig";
+    char *eiprog[] = {"cat", tmccinfo, NULL};
+    int i;
+
+    /* Plug in control net for convenience */
+    strncpy(interfaces[0].name, parms->cifname, MAXIFNAMELEN-1);
+    interfaces[0].namelen = strlen(interfaces[0].name);
+    /* XXX don't care about the mac */
+    interfaces[0].mac[0] = '\0';
+    numinterfaces = 1;
+
+    /* Grab experiment net iface MACs */
+    if (access(tmccinfo, R_OK) || procpipe(eiprog, &grab_eifmacs, NULL)) {
+      lwarn("Failed to get experiment net iface MACs");
+    }
+
+    /* And use findif to get the names */
+    for (i = 1; i < numinterfaces; i++) {
+      char *prog[] = {"findif", interfaces[i].mac, NULL};
+      if (procpipe(prog, &grab_eifname, &i))
+        lwarn("Failed to get experiment net iface name for MAC");
+    }
+
+    if (opts->debug) {
+      for (i = 0; i < numinterfaces; i++) {
+        fprintf(stderr, "IF%d: name='%s', mac='%s'\n", 
+		i, interfaces[i].name, interfaces[i].mac);
+      }
+    }
+  }
+#endif
+
 #ifdef __linux__
   /* Open socket for SIOCGHWADDR ioctl (to get mac addresses) */
   parms->ifd = socket(PF_INET, SOCK_DGRAM, 0);
@@ -429,7 +473,7 @@ int grab_cifname(char *buf, void *data) {
     /* Trim trailing whitespace from the cifname. */
   if (buf && isalpha(buf[0])) {
     tmpptr = myparms->cifname = strdup(buf);
-    while (isalnum(*tmpptr)) tmpptr++;
+    while (isalnum(*tmpptr) || *tmpptr == '-') tmpptr++;
     *tmpptr = '\0';
 #endif /* __CYGWIN__ */
 
@@ -442,6 +486,60 @@ int grab_cifname(char *buf, void *data) {
   return retval;
 }
 
+#ifdef USE_TMCCINFO
+int grab_eifmacs(char *buf, void *data) {
+  char *mac = NULL, *cp;
+  int i;
+
+  if (buf)
+    mac = strstr(buf, "MAC=");
+  if (mac == NULL)
+    return 0;
+  mac += 4;
+  for (cp = mac; *cp && *cp != ' ' && *cp != '\t' && *cp != '\n'; cp++)
+    ;
+  *cp = '\0';
+  if (strlen(mac) > 12) {
+    lwarn("Warning! Bad interface MAC '%s', ignored");
+    return 0;
+  }
+  if (numinterfaces >= MAXNUMIFACES) {
+    lwarn("Warning! Too many experiment interfaces, ignored");
+    return 0;
+  }
+
+  /* colon-ize the MAC addresses; we use these to report on linux */
+  i = 0;
+  cp = interfaces[numinterfaces].mac;
+  while (i < 12) {
+    *cp++ = mac[i++];
+    *cp++ = mac[i++];
+    if (i < 12)
+      *cp++ = ':';
+  }
+  *cp = '\0';
+
+  numinterfaces++;
+  return 0;
+}
+
+int grab_eifname(char *buf, void *data) {
+  int ix = *(int *)data;
+  char *cp;
+
+  if ((cp = index(buf, '\n')) != NULL)
+    *cp = '\0';
+  if (ix < MAXNUMIFACES) {
+    if (strlen(buf) > MAXIFNAMELEN-1) {
+      buf[MAXIFNAMELEN-1] = '\0';
+      lwarn("Warning! Interface name too long, truncated");
+    }
+    strncpy(interfaces[ix].name, buf, MAXIFNAMELEN-1);
+    interfaces[ix].namelen = strlen(interfaces[ix].name);
+  }
+  return 0;
+}
+#endif
 
 int add_tty(char *path) {
 
@@ -747,20 +845,65 @@ void get_packet_counts(SLOTHD_PACKET *pkt) {
   return;
 }
 
+#ifdef USE_TMCCINFO
+/*
+ * Determines if the first field of buf is a valid interface.
+ * Returns NULL if not, a pointer to the MAC address string otherwise.
+ */
+char *validif(char *buf) {
+  int i, len;
+
+  len = strlen(buf);
+  for (i = 0; i < numinterfaces; i++) {
+    if (len > interfaces[i].namelen &&
+	strncmp(buf, interfaces[i].name, interfaces[i].namelen) == 0 &&
+	buf[interfaces[i].namelen] == ' ')
+      return interfaces[i].mac;
+  }
+  return NULL;
+}
+#endif
+
 #ifdef __FreeBSD__
 int get_counters(char *buf, void *data) {
 
   SLOTHD_PACKET *pkt = (SLOTHD_PACKET*)data;
+  static int hasidrops;
+
+  /*
+   * XXX oh the hack-ery...
+   *
+   * netstat output changed at some point, adding the Idrops column.
+   * We parse the header line to see if it exists so we can use the
+   * right sscanf string.
+   */
+  if (strstr(buf, "Name")) {
+    if (strstr(buf, "Idrop"))
+      hasidrops = 1;
+    else
+      hasidrops = 0;
+    if (opts->debug)
+      printf("parsed netstat header, hasidrops=%d\n", hasidrops);
+  }
 
   if (pkt->ifcnt < MAXNUMIFACES
+#ifdef USE_TMCCINFO
+      && validif(buf)
+#else
       && !strstr(buf, "lo")
 #if __FreeBSD__ >= 5
       && !strstr(buf, "plip")
 #endif
+#endif
       && !strstr(buf, "*")
-      && strstr(buf, "<Link"))
-  {
-    if (sscanf(buf, "%s %*s %*s %s %lu %*s %lu",
+      && strstr(buf, "<Link")) {
+    char *fmt;
+    if (hasidrops)
+      fmt = "%s %*s %*s %s %lu %*s %*s %lu";
+    else
+      fmt = "%s %*s %*s %s %lu %*s %lu";
+
+      if (sscanf(buf, fmt,
                pkt->ifaces[pkt->ifcnt].ifname,
                pkt->ifaces[pkt->ifcnt].addr,
                &pkt->ifaces[pkt->ifcnt].ipkts,
@@ -778,29 +921,61 @@ int get_counters(char *buf, void *data) {
 int get_counters(char *buf, void *data) {
 
   SLOTHD_PACKET *pkt = (SLOTHD_PACKET*)data;
-  struct ifreq ifr;
-  bzero(&ifr, sizeof(struct ifreq));
+  char *mac = NULL;
+  static int hasmetric;
+
+  /*
+   * XXX oh the hack-ery...
+   *
+   * netstat output changed at some point to either add or remove the
+   * "Metric" column. We parse the header line to see if it exists so we
+   * can use the right sscanf string.
+   */
+  if (strstr(buf, "Iface")) {
+    if (strstr(buf, "Met"))
+      hasmetric = 1;
+    else
+      hasmetric = 0;
+    if (opts->debug)
+      printf("parsed netstat header, hasmetric=%d\n", hasmetric);
+  }
 
   if (pkt->ifcnt < MAXNUMIFACES
+#ifdef USE_TMCCINFO
+      && (mac = validif(buf))
+#else
       && !strstr(buf, "lo")
-      && (strstr(buf, "eth") || strstr(buf, "wlan") || strstr(buf, "ath"))) {
+      && (strstr(buf, "eth") || strstr(buf, "wlan") || strstr(buf, "ath"))
+#endif
+  ) {
+    char *fmt;
+    if (hasmetric)
+      fmt = "%s %*s %*s %lu %*s %*s %*s %lu";
+    else
+      fmt = "%s %*s %lu %*s %*s %*s %lu";
 
-    if (sscanf(buf, "%s %*s %*s %lu %*s %*s %*s %lu",
+    if (sscanf(buf, fmt,
                pkt->ifaces[pkt->ifcnt].ifname,
                &pkt->ifaces[pkt->ifcnt].ipkts,
                &pkt->ifaces[pkt->ifcnt].opkts) != 3) {
       printf("Failed to parse netinfo output.\n");
       return -1;
     }
-    strcpy(ifr.ifr_name, pkt->ifaces[pkt->ifcnt].ifname);
-    if (ioctl(parms->ifd, SIOCGIFHWADDR, &ifr) < 0) {
-      perror("error getting HWADDR");
-      return -1;
+
+    if (mac && mac[0]) {
+      strcpy(pkt->ifaces[pkt->ifcnt].addr, mac);
+    } else {
+      struct ifreq ifr;
+
+      bzero(&ifr, sizeof(struct ifreq));
+      strcpy(ifr.ifr_name, pkt->ifaces[pkt->ifcnt].ifname);
+      if (ioctl(parms->ifd, SIOCGIFHWADDR, &ifr) < 0) {
+        perror("error getting HWADDR");
+	return -1;
+      }
+      strcpy(pkt->ifaces[pkt->ifcnt].addr, 
+	     ether_ntoa((struct ether_addr*)&ifr.ifr_hwaddr.sa_data[0]));
     }
-
-    strcpy(pkt->ifaces[pkt->ifcnt].addr, 
-           ether_ntoa((struct ether_addr*)&ifr.ifr_hwaddr.sa_data[0]));
-
     if (opts->debug) {
       printf("macaddr: %s\n", pkt->ifaces[pkt->ifcnt].addr);
     }

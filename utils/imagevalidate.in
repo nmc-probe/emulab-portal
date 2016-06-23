@@ -677,6 +677,8 @@ sub doimage($)
 	    }
 	    # XXX backward compat, only one of size/deltasize should be set
 	    if ($update && !$dpath) {
+		print("$pidimage: size: no delta image, clearing deltasize\n")
+		    if (!$quiet && $dsize);
 		$image->SetDeltaSize(0);
 	    }
 	}
@@ -702,6 +704,8 @@ sub doimage($)
 	    }
 	    # XXX backward compat, only one of size/deltasize should be set
 	    if ($update && !$path) {
+		print("$pidimage: size: no full image, clearing size\n")
+		    if (!$quiet && $size);
 		$image->SetSize(0);
 	    }
 	}
@@ -765,8 +769,11 @@ sub doimage($)
 	    }
 
 	    if ($update && !$dpath) {
+		print("$pidimage: hash: no delta image, clearing deltahash\n")
+		    if (!$quiet && $dhash);
 		$image->SetDeltaHash(undef);
 	    }
+	    $filehash = undef;
 	}
 
 	if ($dpath) {
@@ -812,6 +819,8 @@ sub doimage($)
 	    }
 
 	    if ($update && !$path) {
+		print("$pidimage: hash: no full image, clearing hash\n")
+		    if (!$quiet && $hash);
 		$image->SetHash(undef);
 	    }
 	}
@@ -920,6 +929,96 @@ sub doimage($)
 	    if (system("touch -r $path $dpath >/dev/null 2>&1")) {
 		print STDERR
 		    "$pidimage: WARNING: could not set modtime of $dpath\n";
+	    } else {
+		$dftime = $ftime;
+	    }
+	}
+    }
+
+    #
+    # Make sure hash and signature file times match the image.
+    #
+    if ($path) {
+	my $hfile = $image->FullImageSHA1File();
+	if (-e $hfile) {
+	    my $hftime = stat($hfile)->mtime;
+	    if ($hftime != $ftime) {
+		if ($update) {
+		    print "$pidimage: SHA1 mtime: "
+			if (!$quiet);
+		    if (system("touch -r $path $hfile >/dev/null 2>&1")) {
+			print "[FAILED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    }
+		} else {
+		    print "$pidimage: image mtime ($ftime) != SHA1 mtime ($hftime)\n"
+			if (!$quiet);
+		}
+	    }
+	}
+	my $sfile = $image->FullImageSigFile();
+	if (-e $sfile) {
+	    my $sftime = stat($sfile)->mtime;
+	    if ($sftime != $ftime) {
+		if ($update) {
+		    print "$pidimage: SIG mtime: "
+			if (!$quiet);
+		    if (system("touch -r $path $sfile >/dev/null 2>&1")) {
+			print "[FAILED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    }
+		} else {
+		    print "$pidimage: image mtime ($ftime) != sig mtime ($sftime)\n"
+			if (!$quiet);
+		}
+	    }
+	}
+    }
+    if ($dpath) {
+	my $hfile = $image->DeltaImageSHA1File();
+	if (-e $hfile) {
+	    my $hftime = stat($hfile)->mtime;
+	    if ($hftime != $dftime) {
+		if ($update) {
+		    print "$pidimage: delta SHA1 mtime: "
+			if (!$quiet);
+		    if (system("touch -r $dpath $hfile >/dev/null 2>&1")) {
+			print "[FAILED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    }
+		} else {
+		    print "$pidimage: delta image mtime ($dftime) != SHA1 mtime ($hftime)\n"
+			if (!$quiet);
+		}
+	    }
+	}
+	my $sfile = $image->DeltaImageSigFile();
+	if (-e $sfile) {
+	    my $sftime = stat($sfile)->mtime;
+	    if ($sftime != $dftime) {
+		if ($update) {
+		    print "$pidimage: delta SIG mtime: "
+			if (!$quiet);
+		    if (system("touch -r $dpath $sfile >/dev/null 2>&1")) {
+			print "[FAILED]\n"
+			    if (!$quiet);
+		    } else {
+			print "[FIXED]\n"
+			    if (!$quiet);
+		    }
+		} else {
+		    print "$pidimage: delta image mtime ($dftime) != sig mtime ($sftime)\n"
+			if (!$quiet);
+		}
 	    }
 	}
     }

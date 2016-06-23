@@ -3,6 +3,10 @@
 	max-height:350px;
 	overflow-y:scroll;
 }
+.fixedsize-panel {
+	max-height:350px;
+	height:350px;
+}
 td textarea {
 	width: 100%;
 	height: 100%;
@@ -51,6 +55,10 @@ pre {
 		class='form-control'
 		rows=5></textarea>
       <div style="margin-top: 10px;">
+	<button class='btn btn-primary btn-sm'
+		style='margin-right: 20px;'
+		id='do-terminate'
+		type='submit' name='moreinfo'>Terminate</button>
 	<button class='btn btn-danger btn-sm'
 		style='margin-right: 20px;'
 		id='deny-extension'
@@ -60,6 +68,10 @@ pre {
 		style='margin-left: 20px;'
 		id='do-extension'
 		type='submit' name='request'>Extend</button>
+	<button class='btn btn-primary btn-sm'
+		style='margin-left: 30px;'
+		id='do-moreinfo'
+		type='submit' name='moreinfo'>More Info</button>
       </div>
     </center>
   </div>
@@ -112,8 +124,158 @@ pre {
       </div>
     </div>
   </div>
-  <div id='waitwait_div'></div>
-  <div id='oops_div'></div>
+</div>
+<div class='row'>
+  <div class='col-sm-10 col-sm-offset-1
+	      col-xs-12 col-xs-offset-0'>
+    <div class='panel panel-default hidden' id="openstack-panel-div">
+      <div class="panel-heading">
+	<h5>
+	  <a data-toggle="collapse" id="openstack-toggle"
+	     href="#openstack-collapse"><span>Openstack Stats</span>
+	    <span class="glyphicon glyphicon-chevron-right pull-right"></span>
+	  </a>
+	</h5>
+      </div>
+      <div id="openstack-collapse"
+	   class="panel-collapse collapse">
+	<div class='panel-body'>
+	  <div class="scrollable-panel"
+	       id="openstack-panel-content"
+	       data-status="minimized"></div>
+	</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='row'>
+  <div class='col-sm-10 col-sm-offset-1
+	      col-xs-12 col-xs-offset-0'>
+    <div class='panel panel-default hidden' id="loadavg-panel-div">
+      <div class="panel-heading">
+	<h5>
+	  <a data-toggle="collapse" id="loadavg-toggle"
+	     href="#loadavg-collapse"><span>Load Average Graph</span>
+	    <span class="glyphicon glyphicon-chevron-right pull-right"></span>
+	  </a>
+	</h5>
+      </div>
+      <div id="loadavg-collapse"
+	   class="panel-collapse collapse">
+	<div style="padding-top:5px;" class='panel-body'>
+	  <!-- The col setting gives us a "relative" position div -->
+	  <div class='col-xs-12 col-xs-offset-0'
+	       style="padding:0px;">
+	    <!--
+	    So now we can use an "absolute" position to put
+	    the radio button in the upper left of the graph
+	    where it will not overwrite anything.
+	    -->
+	    <div class="hidden toggles"
+		 style='position:absolute;left:5px;top:0px'>
+	      <label class="radio-inline">
+		<input type="radio" name="loadav-radio"
+		       checked="checked" value="max"> Max
+	      </label>
+	      <label class="radio-inline">
+		<input type="radio" name="loadav-radio"
+		       value="avg"> Avg
+	      </label>
+	    </div>
+	    <div id="loadavg-chart"
+		 class='fixedsize-panel with-3d-shadow with-transitions'>
+	      <svg></svg>
+	    </div>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='row'>
+  <div class='col-sm-10 col-sm-offset-1
+	      col-xs-12 col-xs-offset-0'>
+    <div class='panel panel-default hidden' id="ctrl-traffic-panel-div">
+      <div class="panel-heading">
+	<h5>
+	  <a data-toggle="collapse" class="traffic-toggle"
+	     id="ctrl-traffic-toggle" 
+	     href="#ctrl-traffic-collapse"><span>Control Traffic Graph</span>
+	    <span class="glyphicon glyphicon-chevron-right pull-right"></span>
+	  </a>
+	</h5>
+      </div>
+      <div id="ctrl-traffic-collapse"
+	   class="panel-collapse collapse traffic-collapse">
+	<div class='panel-body' style="padding-top:5px;">
+	  <!-- The col setting gives us a "relative" position div -->
+	  <div class='col-xs-12 col-xs-offset-0'
+	       style="padding:0px;">
+	    <!-- So now we can use an "absolute" position to put
+	    the radio button in the upper left of the graph
+	    where it will not overwrite anything.
+	    -->
+	    <div class="hidden toggles"
+		 style='position:absolute;left:5px;top:0px'>
+	      <label class="radio-inline">
+		<input type="radio" name="ctrl-radio"
+		       checked="checked" value="max"> Max
+	      </label>
+	      <label class="radio-inline">
+		<input type="radio" name="ctrl-radio"
+		       value="avg"> Avg
+	      </label>
+	    </div>
+	    <div id="ctrl-traffic-chart"
+		 class='fixedsize-panel with-3d-shadow with-transitions'>
+	      <svg></svg>
+	    </div>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='row'>
+  <div class='col-sm-10 col-sm-offset-1
+	      col-xs-12 col-xs-offset-0'>
+    <div class='panel panel-default hidden' id="expt-traffic-panel-div">
+      <div class="panel-heading">
+	<h5>
+	  <a data-toggle="collapse" id="expt-traffic-toggle"
+	     href="#expt-traffic-collapse"><span>Experiment Traffic Graph</span>
+	    <span class="glyphicon glyphicon-chevron-right pull-right"></span>
+	  </a>
+	</h5>
+      </div>
+      <div id="expt-traffic-collapse"
+	   class="panel-collapse collapse">
+	<div class='panel-body' style="padding-top:5px;">
+	  <!-- The col setting gives us a "relative" position div -->
+	  <div class='col-xs-12 col-xs-offset-0'
+	       style="padding:0px;">
+	    <!-- So now we can use an "absolute" position to put
+	    the radio button in the upper left of the graph
+	    where it will not overwrite anything.
+	    -->
+	    <div class="hidden toggles"
+		 style='position:absolute;left:5px;top:0px'>
+	      <label class="radio-inline">
+		<input type="radio" name="ctrl-radio"
+		       checked="checked" value="max"> Max</label>
+		<label class="radio-inline">
+		  <input type="radio" name="ctrl-radio"
+			 value="avg"> Avg</label>
+	    </div>
+	    <div id="expt-traffic-chart"
+		 class='fixedsize-panel with-3d-shadow with-transitions'>
+	      <svg></svg>
+	    </div>
+	  </div>
+	</div>
+      </div>
+    </div>
+  </div>
 </div>
 <div>
   <script id="history-template" type="text/template">
@@ -187,13 +349,26 @@ pre {
 		<td class="format-date"><%- expinfo.expires %></td>
 	      </tr>
 	      <tr>
-		<td>Lockout:</td>
+		<td>
+		  <span data-toggle='popover'
+		   data-delay='{"hide":1000, "show":500}'
+		   data-content="When checked, only administrator can extend
+				 this experiment. No free time is granted to
+				 user at all.">Lockout:</span></td>
 		<td><input type="checkbox" id="lockout-checkbox"
 			   <% if (expinfo.lockout) { %>checked<% } %> >
 		</td>
-		<td>Lockdown:</td>
-		<td><% if (expinfo.lockdown) { %>
-		  <span class="text-danger">Yes</span><% } else { %>No<% } %></td>
+		<td>
+		  <span data-toggle='popover'
+		    data-delay='{"hide":1000, "show":500}'
+		    data-content="When checked, the experiment 
+				  cannot be terminated until the lockdown bit
+				  is cleared by an admininstrator, or if the 
+				  user verifies 
+				  the lockdown code when clicking the Terminate
+				  button.">Lockdown:</span></td>
+		<td><input type="checkbox" id="lockdown-checkbox"
+			   <% if (expinfo.lockdown) { %>checked<% } %> >
 		</td>
 	    </tbody>
 	  </table>
@@ -202,7 +377,7 @@ pre {
     </div>
   </script>
 </div>
-<div>app
+<div>
   <script id="secondrow-template" type="text/template">
     <div class='col-sm-6'>
       <div class='panel panel-default'>

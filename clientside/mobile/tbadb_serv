@@ -28,6 +28,7 @@ use strict;
 use English;
 use DB_File;
 use IO::Socket::INET;
+use File::Temp;
 use POSIX qw(strftime);
 use base qw(Net::Server::Fork);
 
@@ -90,10 +91,10 @@ my $FWDLOCK_TMO = 30;
 
 # List of helper calls
 my @HELPERS = ("do_lru_cleanup", "reboot_android", "unpack_bundle",
-	       "load_android_image", "root_adbd", "wait_for_android",
+	       "load_android_image", "root_adbd", "wait_for_adbd",
 	       "activate_android_forwarding", "remove_android_forward", 
 	       "reserve_adb_port", "enter_fastboot", "check_adb",
-               "add_apn_profile");
+               "add_apn_profile", "wait_for_boot", "config_device");
 
 # Android partition info
 my @ANDROID_PARTITIONS = (
@@ -518,23 +519,18 @@ sub rpc_loadimage($$) {
     # Step 4: Reload the partitions based on the images we setup above.
     foreach my $imgdata (@todo_imgs) {
 	my ($imgpart, $imgpath) = @{$imgdata};
-	warn "loading $imgpart partition on $node_id\n"
-	    if $debug;
+	warn "loading $imgpart partition on $node_id\n";
 	$self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to load $imgpart.")
 	    if (!$self->load_android_image($node_id, $imgpart, $imgpath));
     }
 
     # Step 5: Reboot into newly loaded image
     $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to boot newly loaded image.")
-	if (!$self->reboot_android($node_id,1));
+	if (!$self->reboot_android($node_id));
 
-    # Step 6: Restart adbd on device as root
-    $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to restart adbd on device as root.")
-	if (!$self->root_adbd($node_id));
-
-    # Step 7: Add PhantomNet APN profile and set it as default
-    $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to add APN profile.")
-	if (!$self->add_apn_profile($node_id));
+    # Step 6: Configure the device.
+    $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "Failed to configure device.")
+	if (!$self->config_device($node_id));
 
     # Send success result back to caller.
     warn "finished loading $proj/$bundle_name on $node_id\n";
@@ -674,7 +670,7 @@ sub rpc_nodewait($$) {
     # Wait for a while for the node to appear in adb.
     warn "waiting for $node_id to become available.\n";
     $self->error_exit($data->{FID}, RPCERR_NODE_ERR, "node wait failed.")
-	if (!$self->wait_for_android($node_id));
+	if (!$self->wait_for_adbd($node_id));
 
     # Report success.
     warn "$node_id is now ready.\n";
@@ -958,7 +954,7 @@ sub load_android_image($$$$) {
     return 1;
 }
 
-# Reboot a device, but don't wait for it to come up.
+# Reboot a device, optionally waiting for it to come up.
 sub reboot_android($$;$) {
     my ($self, $node_id, $wait) = @_;
     $wait ||= 0;
@@ -991,7 +987,7 @@ sub reboot_android($$;$) {
     }
 
     if ($wait) {
-	return $self->wait_for_android($node_id);
+	return $self->wait_for_adbd($node_id);
     }
 
     return 1;
@@ -999,7 +995,7 @@ sub reboot_android($$;$) {
 
 # Helper that waits (bounded by a timeout) for a device to become available
 # via adb.
-sub wait_for_android($$) {
+sub wait_for_adbd($$) {
     my ($self, $node_id) = @_;
 
     my $serial = $NMAP{$node_id};
@@ -1025,8 +1021,9 @@ sub wait_for_android($$) {
     return 1;
 }
 
-# Helper that waits (bounded by a timeout) for the APN profile query to succeed
-sub wait_for_apn_query($$$) {
+# Helper that waits (bounded by a timeout) for the device to become available.
+# It does this by checking for a content query to succeed.
+sub wait_for_boot($$) {
     my ($self, $node_id) = @_;
 
     my $serial = $NMAP{$node_id};
@@ -1038,14 +1035,11 @@ sub wait_for_apn_query($$$) {
     my $stime = time();
     while (1) {
 	my $state = `$ADB -s $serial shell content query --uri content://telephony/carriers --where "name=\\'phantomnet\\'"`;
-	$state =~ s/\s+$//;
-	if ($state eq "No result found.") {
+	if ($state =~ /name=phantomnet/ || $state =~ /No result found/) {
 	    last;
-	} elsif  ($state =~ /.*_id=([0-9]+),.*/) {
-	    last;
-	}
+	} 
 	if (time() - $stime > $ANDROID_BOOT_TMO) {
-	    warn "Timed out waiting for APN query on $node_id!\n";
+	    warn "Timed out waiting for $node_id to boot!\n";
 	    return 0;
 	}
 	sleep 5;
@@ -1064,18 +1058,25 @@ sub root_adbd($$) {
 	return 0;
     }
 
+    # Make sure adbd is up
+    if (!$self->wait_for_adbd($node_id)) {
+	# Already complained to the log.
+	return 0;
+    }
+
     if (system("$ADB -s $serial root >/dev/null 2>&1") != 0) {
 	warn "Failed to restart adbd on $node_id as root";
 	return 0;
     }
-    
-    return $self->wait_for_android($node_id);
+    warn "adbd restarted as root on $node_id\n";
+
+    return $self->wait_for_adbd($node_id);
 }
 
-# Helper to add PhantomNet APN profile and set it as default
+# Helper to add PhantomNet APN profile and set it as default.
 sub add_apn_profile($$) {
     my ($self, $node_id) = @_;
-    warn "Adding APN Profile\n";
+    warn "Adding APN Profile on $node_id\n";
 
     # Find serial number to target
     my $serial = $NMAP{$node_id};
@@ -1084,16 +1085,16 @@ sub add_apn_profile($$) {
 	return 0;
     }
 
-    # Wait for query provider to initialize
-    my $contentstatus = $self->wait_for_apn_query($node_id);
-    if ($contentstatus == 0) {
-	warn "Waiting for telephony.registry service timed out while adding APN profile\n";
+    # Wait for device to fully boot up (if it hasn't).
+    if (!$self->wait_for_boot($node_id)) {
+	# Already complained to the log.
+	return 0;
     }
 
     # Check for existing APN profile. If found, use that.
     my $newapn = `$ADB -s $serial shell content query --uri content://telephony/carriers --where "name=\\'phantomnet\\'"`;
     if ($?) {
-	warn "Failed when checking for existing APN profile\n";
+	warn "Failed when checking for existing APN profile on $node_id\n";
 	return 0;
     }
     $newapn =~ s/\s+$//;
@@ -1135,6 +1136,62 @@ sub add_apn_profile($$) {
 
     return 1;
 }
+
+# Helper that performs various setup steps on the device.  Some actions
+# are non-fatal if they fail.  We emit an error to the log and move on.
+sub config_device($$) {
+    my ($self, $node_id) = @_;
+
+    my $serial = $NMAP{$node_id};
+    if (!$serial) {
+	warn "No serial number for $node_id!\n";
+	return 0;
+    }
+
+    # Restart adbd to run as root.
+    if (!$self->root_adbd($node_id)) {
+	# Already complained to the log.
+	return 0;
+    }
+
+    # Add the APN profile.
+    if (!$self->add_apn_profile($node_id)) {
+	# Already complained to the log.
+	return 0;
+    }
+
+    # Note: node should be up and fully booted after add_apn_profile().
+
+    # Disable the screen lock.
+    if (system("$ADB -s $serial shell sqlite3 /data/system/locksettings.db \"UPDATE locksettings SET value = '1' WHERE name = 'lockscreen.disabled'\"")) {
+	warn "Could not disable the screen lock on $node_id!\n";
+    }
+
+    # Set the screen to stay on for 10 minutes.  We don't really want it
+    # to stay on indefinitely...
+    if (system("$ADB -s $serial shell settings put system screen_off_timeout 600000")) {
+	warn "Could not set screen timeout on $node_id!\n";
+    }
+
+    # Disable the stupid startup welcome screen
+    my $prefspath = "/data/data/com.android.launcher3/shared_prefs/com.android.launcher3.prefs.xml";
+    my $fobj = File::Temp->new(TEMPLATE => "foo-XXXXXX", DIR => "/tmp", 
+			       SUFFIX => ".tmp");
+    print $fobj <<'THISXML';
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="cling_gel.first_run.dismissed" value="true" />
+    <boolean name="cling_gel.workspace.dismissed" value="true" />
+</map>
+THISXML
+    if (system("$ADB -s $serial push $fobj $prefspath")) {
+	warn "Failed to copy welcome screen disable prefs to $node_id!\n";
+    }
+
+    # Reboot!
+    return $self->reboot_android($node_id);
+}
+
 
 # Lock and load the forwarding port database.
 sub _lock_n_load($) {
@@ -1281,7 +1338,7 @@ sub activate_android_forwarding($$;$) {
     }
 
     # Wait for adbd on the device to become ready
-    if (!$self->wait_for_android($node_id)) {
+    if (!$self->wait_for_adbd($node_id)) {
 	warn "failed while waiting for device to become ready!\n";
 	goto BADFWD;
     }
@@ -1493,8 +1550,7 @@ sub check_adb($) {
 	}
     }
     foreach my $node_id (@todo) {
-	warn "fixing forwarding for $node_id\n"
-	    if $debug;
+	warn "fixing forwarding for $node_id\n";
 	$self->activate_android_forwarding($node_id,0);
 	warn "done fixing $node_id\n"
 	    if $debug;

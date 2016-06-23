@@ -52,8 +52,13 @@ sub usage()
     print("Usage: manage_instance updatekeys instance [uid] \n");
     print("Usage: manage_instance extend instance [-m message] days [filename]\n");
     print("Usage: manage_instance denyextension instance [-m message] [filename]\n");
+    print("Usage: manage_instance moreinfo instance [-m message] [filename]\n");
     print("Usage: manage_instance extendold instance [-f] seconds\n");
     print("Usage: manage_instance utilization instance\n");
+    print("Usage: manage_instance schedterminate instance [-m message] days [filename]\n");
+    print("Usage: manage_instance idledata instance\n");
+    print("Usage: manage_instance openstackstats instance\n");
+    print("Usage: manage_instance getmanifests instance\n");
     exit(-1);
 }
 my $optlist     = "dt:s";
@@ -112,9 +117,10 @@ sub UserError($);
 sub DoSnapshot();
 sub DoConsole();
 sub DoTerminate();
+sub DoSchedTerminate();
 sub DoExtend();
 sub DoExtendOld();
-sub DoDenyExtension();
+sub DoDenyOrMoreInfo($);
 sub DoRefresh();
 sub DoReboot();
 sub DoReload();
@@ -125,6 +131,8 @@ sub DoLinktest();
 sub DoUpdateKeys();
 sub DoDeleteNodes();
 sub DoUtilization();
+sub DoIdleData();
+sub DoOpenstack();
 sub WriteCredentials();
 sub StartMonitor();
 sub StartMonitorInternal(;$@);
@@ -182,13 +190,19 @@ if ($action eq "extendold") {
     DoExtendOld();
 }
 elsif ($action eq "denyextension") {
-    DoDenyExtension()
+    DoDenyOrMoreInfo("deny")
+}
+elsif ($action eq "moreinfo") {
+    DoDenyOrMoreInfo("info")
 }
 elsif ($action eq "consoleurl") {
     DoConsole()
 }
 elsif ($action eq "terminate") {
     DoTerminate()
+}
+elsif ($action eq "schedterminate") {
+    DoSchedTerminate()
 }
 elsif ($action eq "refresh") {
     DoRefresh()
@@ -225,6 +239,12 @@ elsif ($action eq "deletenodes") {
 }
 elsif ($action eq "utilization") {
     DoUtilization()
+}
+elsif ($action eq "idledata") {
+    DoIdleData()
+}
+elsif ($action eq "openstackstats") {
+    DoOpenstack()
 }
 else {
     usage();
@@ -1135,7 +1155,7 @@ sub DoTerminate()
 	print STDERR "$urn: $errmsg\n";
 	return -1;
     };
-    print STDERR Dumper($instance);
+    #print STDERR Dumper($instance);
     
     my @return_codes = ();
     my @agglist =      $instance->AggregateList();
@@ -1203,6 +1223,7 @@ sub DoExtend()
     my $url           = $instance->webURL();
     my $clusters      = join(",", map { $_->domain() }
 			     $instance->AggregateList());
+    my $pcount        = $instance->physnode_count();
     my $expires_time  = str2time($slice->expires());
     my $created_time  = str2time($instance->created());
     my $extensions    = $instance->Brand()->ExtensionsEmailAddress();
@@ -1300,7 +1321,7 @@ sub DoExtend()
                 "Granting the request would set the expiration to $new_expires\n".
                 "It is running on $clusters\n".
                 "\n\n". $url . "\n\n",
-                "From: " . $creator->email());
+                $creator->email());
 
 	# Flag for the dashboard page. 
 	$instance->ExtensionRequested($reason, $granted);
@@ -1423,8 +1444,8 @@ sub DoExtend()
 	# is a week and there are five days left and they asked
 	# for seven, we give them two.
 	#
-	if ($expires_time + ($granted * 3600 * 24) >
-	    time() + (3600 * 24 * $autoextend_maximum)) {
+	if ($granted && ($expires_time + ($granted * 3600 * 24)) >
+	    (time() + (3600 * 24 * $autoextend_maximum))) {
 	    $granted =
 		POSIX::ceil(((3600 * 24 * $autoextend_maximum) - $diff) /
 			     (3600 * 24.0));
@@ -1503,9 +1524,10 @@ sub DoExtend()
                "\n\n".
                "Your experiment was started on $created\n".
  	       "Your experiment will now expire at $expires\n".
-               "It is running on $clusters\n\n\n".
+	       "You are using $pcount physical nodes.\n".
+               "It is running on $clusters\n\n".
                "$url\n",
-	       "From: $extensions\n" .
+	       "$extensions",
 	       "BCC: $extensions");
     
     if (!$this_user->IsAdmin()) {
@@ -1556,7 +1578,6 @@ sub ExtendInternal($$$$)
 	$lockdown = 1
     }
     # Need to update slice before creating new credential. 
-    # Need to update slice before creating new credential.
     if ($slice->IsExpired()) {
 	$slice->SetExpiration(time() + $seconds);
     }
@@ -1646,13 +1667,14 @@ sub ExtendInternal($$$$)
 # Deny extension, sending optional email to user (which is also saved in
 # the extension history). We used to do this in PHP, which was silly.
 #
-sub DoDenyExtension()
+sub DoDenyOrMoreInfo($)
 {
+    my ($action) = @_;
     my $errcode = -1;
     my $reason;
 
     if (! $this_user->IsAdmin()) {
-	fatal("Only administrators can deny extensions");
+	fatal("Only administrators can deny extensions or request info");
     }
     if (@ARGV == 2) {
 	my $arg = shift(@ARGV);
@@ -1677,12 +1699,6 @@ sub DoDenyExtension()
 	}
 	close(MSG);
     }
-    return DenyExtensionInternal($reason);
-}
-
-sub DenyExtensionInternal($)
-{
-    my ($reason) = @_;
     my $creator   = $instance->GetGeniUser();
     my $slice     = $instance->GetGeniSlice();
     my $name      = $instance->name();
@@ -1692,14 +1708,25 @@ sub DenyExtensionInternal($)
 				    localtime(str2time($instance->created())));
     my $now       = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z", localtime());
     my $url       = $instance->webURL();
+    my $pcount    = $instance->physnode_count();
     my $extensions= $instance->Brand()->ExtensionsEmailAddress();
-    my $message   = "Your extension was denied by the site administrator!\n";
+    my $clusters  = join(",", map { $_->domain() }
+			 $instance->AggregateList());
+    my ($message,$subject);
+    if ($action eq "deny") {
+	$message = "Your extension was denied by the site administrator!";
+	$subject = "Experiment Extension Denied: $name";
+    }
+    else {
+	$message = "Hi, we need more information about your experiment: $name";
+	$subject = "Information request for Experiment: $name";
+    }
 
     #
     # New extension mechanism
     #
     my $extensionargs = {
-	"action"   => "deny",
+	"action"   => ($action eq "deny" ? "deny" : "info"),
 	"uid"      => $this_user->uid(),
 	"uid_idx"  => $this_user->uid_idx(),
 	"message"  => $message,
@@ -1721,25 +1748,27 @@ sub DenyExtensionInternal($)
         "Date: $now\n".
         "Expires: $expires\n".
         "Reason:\n".
-	$message . "\n".
+	$message . "\n\n".
         $reason . "\n\n".
         "-----------------------------------------------\n";
-    $instance->Brand()->SendEmail($creator->email(),
-	       "Experiment Extension Denied: $name",
-	       $message . "\n" .
-               $reason .
-               "\n\n".
+    $instance->Brand()->SendEmail($creator->email(), $subject,
+	       $message . "\n\n" .
+               $reason . "\n\n".
                "Your experiment was started on $created\n".
  	       "Your experiment expires at $expires\n".
+	       "You are using $pcount physical nodes.\n".
+               "It is running on $clusters\n\n".
                "$url\n",
-	       "From: $extensions\n" .
+	       "$extensions",
 	       "BCC: $extensions");
 
     $instance->AddExtensionHistory($text);
     # For the dashboard and status page.
-    $instance->Update({"extension_requested" => 0,
-		       "extension_denied"    => 1,
-		       "extension_denied_reason" => $reason});
+    if ($action eq "deny") {
+	$instance->Update({"extension_requested" => 0,
+			   "extension_denied"    => 1,
+			   "extension_denied_reason" => $reason});
+    }
     return 0;
 }
 
@@ -2163,16 +2192,53 @@ sub DoManifests()
 	goto killit;
     }
 
+    #
+    # Lock the slice in case it is doing something else, like taking
+    # a disk image.
+    #
+    if ($slice->Lock()) {
+	$errmsg = "Experiment is busy, cannot lock it. Please try again later";
+	goto bad;
+    }
+    #
+    # Create the webtask object, but AFTER locking the slice so we do
+    # not destroy one in use.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->LookupOrCreate($instance->uuid(), $webtask_id);
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
     my $coderef = sub {
 	my ($sliver) = @_;
 	my $webtask  = $sliver->webtask();
 	my $errmsg;
 
-	my $response = $sliver->GetManifest();
-	if (!defined($response)) {
+	my $manifest = $sliver->GetManifest();
+	if (!defined($manifest)) {
 	    $errmsg = "RPC Error calling GetManifest";
 	    goto bad;
 	}
+	my $response = $sliver->SliceStatus();
+	if (!defined($response)) {
+	    $errmsg = "RPC Error calling SliceStatus";
+	    goto bad;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+		$errmsg = "Slice is gone";
+		goto bad;
+	    }
+	    if ($response->code() == GENIRESPONSE_BUSY) {
+		$errmsg = "Slice is busy; try again later";
+		goto bad;
+	    }
+	    $errmsg = "Could not get slice status: ". $response->output();
+	    goto bad;
+	}
+	$sliver->SetManifest($manifest);
+	$sliver->UpdateWebStatus($response->value()->{'details'});
 	return 0;
       bad:
 	return 1;
@@ -2199,9 +2265,16 @@ sub DoManifests()
 	    goto bad;
 	}
     }
+    $instance->ComputeNodeCounts();
+    $slice->UnLock();
     exit(0);
   bad:
+    $slice->UnLock();
     print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited(1);
+    }
     exit(1);
 }
 
@@ -3237,6 +3310,364 @@ sub DoUtilization()
 	$agg->webtask()->results($blob);
 	$agg->webtask()->Store();
     }
+    exit(0);
+  bad:
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited($errcode);
+    }
+    exit($errcode);
+}
+
+#
+# Grab the openstack utilization file and stick it into the DB.
+# 
+sub DoOpenstack()
+{
+    my $errmsg;
+    my $errcode = 1;
+    
+    #
+    # Create the webtask object; the web interface gave us an anonymous
+    # webtask, so we can use it before lock.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	fatal("Could not lookup webtask object")
+	    if (!defined($webtask));
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
+    #
+    # Need to look inside the rspec to find the name of the controller node.
+    #
+    if (scalar($instance->AggregateList()) > 1) {
+	$errmsg = "Too many aggregates, ".
+	    "is this really an Openstack experiment?";
+	goto bad;
+    }
+    my ($aggregate) = $instance->AggregateList();
+    if (!defined($aggregate->manifest())) {
+	$errmsg = "Mo manifest for experiment";
+	goto bad;
+    }
+    my $manifest = GeniXML::Parse($aggregate->manifest());
+    if (! defined($manifest)) {
+	$errmsg = "Could not parse manifest for $aggregate";
+	goto bad;
+    }
+    #
+    # We have to look inside the parameters to find the controller node.
+    #
+    my $NS = "http://www.protogeni.net/resources/rspec/ext/johnsond/1";
+    my $controller;
+    foreach my $param (GeniXML::FindNodesNS("n:profile_parameters/n:parameter",
+					    $manifest, $NS)->get_nodelist()) {
+	my $value = $param->textContent();
+	if ($value =~ /^([^=]+)="(.+)"$/) {
+	    if (lc($1) eq "controller") {
+		$controller = $2;
+		print "Controller = $controller\n"
+		    if ($debug);
+		last;
+	    }
+	}
+    }
+    if (!defined($controller)) {
+	$errmsg = "Could not find the CONTROLLER parameter";
+	goto bad;
+    }
+    #
+    # So now we can ask the aggregate to grab the file from the proper
+    # node in the topology; we do not want the cluster to have to figure
+    # that part out. Hmm, maybe we should tell the cluster what file too?
+    #
+    my $response = $aggregate->OpenstackData($controller);
+    if (!defined($response)) {
+	$errmsg   = "RPC Error calling GetOpenstackStats on $aggregate\n";
+	$errcode = -1;
+	goto bad;
+    }
+    if ($response->code() != GENIRESPONSE_SUCCESS) {
+	$errmsg  = "Could not get openstack json file for sliver: ".
+	    $response->output();
+	$errcode = $response->code();
+	goto bad;
+    }
+    if ($debug) {
+	print $response->value() . "\n";
+    }
+    if (defined($webtask)) {
+	$webtask->openstackstats($response->value());
+    }
+    else {
+	$instance->Update({"openstack_utilization" => $response->value()});
+    }
+    exit(0);
+  bad:
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited($errcode);
+    }
+    exit($errcode);
+}
+
+#
+# Get idledata info from the clusters.
+# 
+sub DoIdleData()
+{
+    my $errmsg;
+    my $errcode = 1;
+    
+    #
+    # Create the webtask object; the web interface gave us an anonymous
+    # webtask, so we can use it before lock.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	fatal("Could not lookup webtask object")
+	    if (!defined($webtask));
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+
+    #
+    # And ask the backend clusters for the data.
+    #
+    my $coderef = sub {
+	my ($sliver) = @_;
+	my $webtask  = $sliver->webtask();
+
+	my $response = $sliver->IdleData();
+	if (!defined($response)) {
+	    print STDERR "RPC Error calling idledata on $sliver\n";
+	    return -1;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    print STDERR "Could not get idledata for sliver: ".
+		$response->output() . "\n";
+	    $webtask->output($response->output());
+	    $webtask->Exited($response->code());
+	    return $response->code();
+	}
+	if ($debug) {
+	    print Dumper($response->value());
+	}
+	$webtask->idledata($response->value());
+	return 0;
+    };
+    my @return_codes = ();
+    my @agglist      = ();
+    #
+    # Cull out any aggregates with no nodes.
+    #
+    foreach my $agg ($instance->AggregateList()) {
+	push(@agglist, $agg)
+	    if ($agg->physnode_count() || $agg->virtnode_count());
+    }
+    
+    if (ParRun({"maxwaittime" => 99999,
+		"maxchildren" => scalar(@agglist)},
+	       \@return_codes, $coderef, @agglist)) {
+	$errmsg = "Internal error calling IdleData()";
+	goto bad;
+    }
+    #
+    # Check the exit codes. 
+    #
+    foreach my $agg (@agglist) {
+	my $code = shift(@return_codes);
+	$agg->webtask()->Refresh();
+	if ($code) {
+	    $errmsg = "Could not get idledata from some slivers";
+	    if ($agg->webtask()->output()) {
+		$errmsg .= ": " . $agg->webtask()->output();
+		$errcode = $code;
+	    }
+	    goto bad;
+	}
+	if ($debug) {
+	    print Dumper($agg->webtask()->idledata());
+	}
+    }
+    exit(0);
+  bad:
+    print STDERR $errmsg . "\n";
+    if (defined($webtask)) {
+	$webtask->output($errmsg);
+	$webtask->Exited($errcode);
+    }
+    exit($errcode);
+}
+
+#
+# Schedule slice to terminate. This is an admin action. The lockdown bit
+# is cleared, and the lockout bit is set (no more free extensions). The
+# expiration is set, and we send email.
+#
+sub DoSchedTerminate()
+{
+    my $errcode  = 1;
+    my $errmsg;
+    my $days;
+    my $reason;
+    my $creator       = $instance->GetGeniUser();
+    my $slice         = $instance->GetGeniSlice();
+    my $name          = $instance->name();
+    my $url           = $instance->webURL();
+    my $clusters      = join(",", map { $_->domain() }
+			     $instance->AggregateList());
+    my $pcount        = $instance->physnode_count();
+    my $expires_time  = str2time($slice->expires());
+    my $created_time  = str2time($instance->created());
+    my $extensions    = $instance->Brand()->ExtensionsEmailAddress();
+    
+    usage()
+	if (!@ARGV);
+    $days = shift(@ARGV);
+
+    if (@ARGV == 2) {
+	my $arg = shift(@ARGV);
+	if ($arg eq "-m") {
+	    $reason = shift(@ARGV);
+	}
+	else {
+	    usage();
+	}
+    }
+    elsif (@ARGV == 1) {
+	my $filename = shift(@ARGV);
+	if (! -e $filename) {
+	    fatal("$filename does not exist");
+	}
+	open(MSG, $filename) or
+	    fatal("Could not open $filename");
+	
+	$reason = "";
+	while (<MSG>) {
+	    $reason .= $_;
+	}
+	close(MSG);
+    }
+    #
+    # Create the webtask object; the web interface gave us an anonymous
+    # webtask, so we can use it before lock.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	fatal("Could not lookup webtask object")
+	    if (!defined($webtask));
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
+    #
+    # Lock the slice in case it is doing something else, like taking
+    # a disk image.
+    #
+    if ($slice->Lock()) {
+	$errcode = GENIRESPONSE_BUSY;
+	$errmsg  ="Experiment is busy, cannot lock it. Try again later.";
+	if (defined($webtask)) {
+	    $webtask->output($errmsg);
+	    $webtask->Exited($errcode);
+	}
+	print STDERR "$errmsg\n";
+	exit($errcode);
+    }
+    if (defined($reason) &&
+	!TBcheck_dbslot($reason, "default", "fulltext",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	$errmsg  = "Illegal characters in your reason";
+	$errcode = 1;
+	goto bad;
+    }
+    if (!TBcheck_dbslot($days, "default", "int",
+			 TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
+	$errmsg  = "Illegal integer for length";
+	$errcode = 1;
+	goto bad;
+    }
+    # No free time.
+    $instance->Update({"extension_adminonly" => 1});
+
+    #
+    # Need to set the new expiration before we clear the lockdown bit,
+    # else it might get terminated at the cluster. But, if the
+    # expiration is already beyond the desired termination point,
+    # leave it alone, all we need to do is set our local expiration,
+    # the daemon will take care of it. The reason we do this, is cause
+    # it is unclear if setting the expiration backwards (at the CM) is
+    # a legal thing to do (although our CM actually permits this).
+    #
+    if ($expires_time < time() + ($days * 3600 * 24)) {
+	my $seconds = (time() + ($days * 3600 * 24)) - $expires_time;
+	
+	if ($errcode = ExtendInternal($slice, $seconds, 1, \$errmsg)) {
+	    goto bad;
+	}
+    }
+    else {
+	$slice->SetExpiration(time() + ($days * 3600 * 24));
+    }
+    # Now we can clear this.
+    if ($instance->admin_lockdown()) {
+	if (DoLockdownInternal("clear", "all")) {
+	    SENDMAIL($TBOPS,
+		     "Failed to clear lock down on APT Instance",
+		     "Failed to clear lock down $instance\n".
+		     $instance->webURL() . "\n",
+		     $TBOPS);
+	    $errmsg  = "Failed to clear lockdown";
+	    $errcode = -1;
+	    goto bad;
+	}
+    }
+    my $expires = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				  localtime(str2time($slice->expires())));
+    my $created = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				  localtime(str2time($instance->created())));
+    my $message = "The site administrator has scheduled this experiment\n".
+	"to terminate in $days days.";
+    my $subject = "Experiment Termination Warning: $name";
+
+    #
+    # New extension mechanism
+    #
+    my $extensionargs = {
+	"action"   => "request",
+	"wanted"   => $days,
+	"granted"  => $days,
+	"admin"    => 1,
+	"uid"      => $this_user->uid(),
+	"uid_idx"  => $this_user->uid_idx(),
+	"message"  => $message,
+    };
+    if (defined($reason)) {
+	$extensionargs->{"reason"} = $reason;
+    }
+    if (!defined(APT_Instance::ExtensionInfo->Create($instance,
+						     $extensionargs))) {
+	print STDERR "Could not create extension info object\n";
+    }
+    $instance->Brand()->SendEmail($creator->email(), $subject,
+			$message . "\n\n" .
+			(defined($reason) ? $reason . "\n\n" : "") .
+			"Your experiment was started on $created\n".
+			"Your experiment will now expire at $expires\n".
+			"You are using $pcount physical nodes.\n".
+			"It is running on $clusters\n\n".
+			"$url\n",
+			"$extensions",
+			"BCC: $extensions");
+    
+    if (defined($webtask)) {
+	$webtask->Exited(0);
+    }
+    $slice->UnLock();
     exit(0);
   bad:
     print STDERR $errmsg . "\n";

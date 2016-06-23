@@ -26,6 +26,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     var selected_rspec   = null;
     var selected_version = null;
     var ispprofile    = 0;
+    var isscript      = 0;
+    var rerunscripts  = 0;
     var webonly       = 0;
     var isadmin       = 0;
     var multisite     = 0;
@@ -177,6 +179,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
 	$('#waitwait_div').html(waitwaitString);
 	$('#rspecview_div').html(rspecviewString);
+	$('#rspec_modal_download_button').addClass("hidden");
+	
 	// The about panel.
 	if (window.SHOWABOUT) {
 	    $('#about_div').html(window.ISCLOUD ? aboutcloudString :
@@ -442,6 +446,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
     }
 
     var doingformcheck = 0;
+    var doingrunscript = 0;
     
     // Step is changing
     function StepChanging(step, event, currentIndex, newIndex) {
@@ -460,6 +465,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		    // Here to avoid recursion.
 		    doingformcheck = 0;
 		});
+		// Prevent step from advancing until check is finished.
 		return false;
 	    } 
 	    if (ispprofile) {
@@ -478,6 +484,23 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 		    loaded_uuid = selected_uuid;
 		    ppchanged = true; 
 		}
+	    }
+	    else if (isscript && rerunscripts && !doingrunscript) {
+		// Run the genilib script to get an updated rspec.
+		doingrunscript = 1;
+		RunScript(selected_uuid, function (success) {
+		    if (success) {
+			$('#stepsContainer-t-0').parent().removeClass('error');
+			$('#stepsContainer').steps('next');
+		    }
+		    else {
+			$('#stepsContainer-t-0').parent().addClass('error');
+		    }
+		    // Here to avoid recursion.
+		    doingrunscript = 0;
+		});
+		// Prevent step from advancing until check is finished.
+		return false;
 	    }
 	    else {
 		$('#stepsContainer-p-1 > div').attr('style','display:none');
@@ -651,6 +674,34 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	});
     }
 
+    /*
+     * Run the genilib script.
+     */
+    function RunScript(uuid, step_callback)
+    {
+	var callback = function(json) {
+	    $("#waitwait-modal").modal('hide');
+	    console.info(json);
+
+	    if (json.code == 0) {
+		selected_rspec = json.value;
+		step_callback(true);
+		return;
+	    }
+	    // Internal error.
+	    if (json.code) {
+		step_callback(false);
+		sup.SpitOops("oops", json.value);
+		return;
+	    }
+	};
+	$("#waitwait-modal").modal('show');
+	var xmlthing = sup.CallServerMethod(null, "instantiate",
+					    "RunScript",
+					    {"uuid" : uuid});
+	xmlthing.done(callback);
+    };
+
     function Instantiate()
     {
 	if (webonly != 0) {
@@ -778,7 +829,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    if (site) {
 		sites[site[1]] = field.value;
 	    }
-	    else {
+	    else if (! (field.name == "where" && field.value == "(any)")) {
 		formfields[field.name] = field.value;
 	    }
 	});
@@ -969,25 +1020,27 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    });
 	    $(selectedElement).addClass('selected');
 	}
+	console.info("ShowProfileSelection: " +
+		     $(selectedElement).attr('value'));
 	
-	var continuation = function(rspec, description, name, version,
-				    creator, created, amdefault, ispp) {        
+	var continuation = function(profile_blob) {
 	    var profileInfo = profilelist[$(selectedElement).attr('value')]
 	    var isFavorite = profileInfo.favorite;
 
 	    // Add title name and favorite button
-	    $('#showtopo_title').html("<h3>" + name + "</h3>" +
+	    $('#showtopo_title').html("<h3>" + profile_blob.name + "</h3>" +
 		"<button id='favorite_button' class='btn btn-default btn-sm'>" + 
 		"<span id='set_favorite' class='glyphicon glyphicon-star" + ((isFavorite == 1) ? " favorite" : "") + "'></span>" + 
 		"</button>");
 
-	    $('#showtopo_author').html(creator);
+	    $('#showtopo_author').html(profile_blob.creator);
 	    $('#showtopo_project').html(profileInfo.project);  
-	    $('#showtopo_version').html(version); 
-	    $('#showtopo_last_updated').html(created);
-	    $('#showtopo_description').html(description);
+	    $('#showtopo_version').html(profile_blob.version); 
+	    $('#showtopo_last_updated').html(profile_blob.created);
+	    $('#showtopo_description').html(profile_blob.description);
 
-	    sup.maketopmap('#showtopo_div', rspec, false, !multisite);
+	    sup.maketopmap('#showtopo_div',
+			   profile_blob.rspec, false, !multisite);
 
 	    // Set favorite toggle click event
 	    $('#favorite_button').click(function() {
@@ -1038,18 +1091,14 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 
     // Used to generate the topology on Tab 3 of the wizard for non-pp profiles
     function ShowProfileSelectionInline(selectedElement, root, selectionPane) {
+	console.info("ShowProfileSelectionInline: " +
+		     $(selectedElement).attr('value'));
+	
 	editor = new JacksEditor(root, true, true,
 				 selectionPane, true, !multisite);
-	var continuation = function(rspec, description, name, version,
-				    creator, created, amdefault, ispp) {
-	  if (rspec)
-	  {
-	    editor.show(rspec);
-	  }
-	};
-	GetProfile($(selectedElement).attr('value'), continuation);
+	editor.show(selected_rspec);
     }
-    
+
     function ChangeProfileSelection(selectedElement) {
 	if (!$(selectedElement).hasClass('current')) {
 	    $('#profile_name li').each(function() {
@@ -1057,27 +1106,29 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    });
 	    $(selectedElement).addClass('current');
 	}
-
+	console.info("ChangeProfileSelection: " +
+		     $(selectedElement).attr('value'));
+	
 	var profile_name = $(selectedElement).attr('name');
 	var profile_value = $(selectedElement).attr('value');
 	$('#selected_profile').attr('value', profile_value);
 	$('#selected_profile_text').html("" + profile_name);
 	
-	var continuation = function(rspec, description, name, version,
-				    creator, created, amdef, ispp) {
-	    $('#showtopo_title').html("<h3>" + name + "</h3>");
-	    $('#showtopo_description').html(description);
-	    $('#selected_profile_description').html(description);
-	    $('#finalize_profile_name').text(name);
-	    $('#finalize_profile_version').text(version);
+	var continuation = function(profile_blob) {
+	    $('#showtopo_title').html("<h3>" + profile_blob.name + "</h3>");
+	    $('#showtopo_description').html(profile_blob.description);
+	    $('#selected_profile_description').html(profile_blob.description);
+	    $('#finalize_profile_name').text(profile_blob.name);
+	    $('#finalize_profile_version').text(profile_blob.version);
 
-	    ispprofile    = ispp;
-	    selected_uuid = profile_value;
-	    selected_rspec   = rspec;
-	    selected_version = version;
-	    amdefault        = amdef;
+	    ispprofile       = profile_blob.ispprofile;
+	    isscript         = profile_blob.isscript;
+	    selected_uuid    = profile_value;
+	    selected_rspec   = profile_blob.rspec;
+	    selected_version = profile_blob.version;
+	    amdefault        = profile_blob.amdefault;
 
-	    CreateAggregateSelectors(rspec);
+	    CreateAggregateSelectors(selected_rspec);
 	    
 	    // Set the default aggregate.
 	    if ($('#profile_where').length) {
@@ -1119,11 +1170,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    if (!description || description == "") {
 		description = "Hmm, no description for this profile";
 	    }
-	    continuation(json.value.rspec, description,
-			 json.value.name, json.value.version,
-			 json.value.creator, json.value.created,
-			 json.value.amdefault,
-			 json.value.ispprofile);
+	    json.value.description = description;
+	    continuation(json.value);
 	}
 	var $xmlthing = sup.CallServerMethod(ajaxurl,
 					     "instantiate", "GetProfile",

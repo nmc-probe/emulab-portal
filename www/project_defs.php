@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -136,6 +136,7 @@ class Project
     function pid()	     { return $this->field("pid"); }
     function created()       { return $this->field("created"); }
     function expires()       { return $this->field("expires"); }
+    function nagged()        { return $this->field("nagged"); }
     function name()          { return $this->field("name"); }
     function URL()           { return $this->field("URL"); }
     function funders()       { return $this->field("funders"); }
@@ -172,20 +173,20 @@ class Project
     }
 
     function wwwBase() {
-	global $TBWWW;
+	global $TBBASE;
 	
 	return ($this->isAPT() ? "https://www.aptlab.net" :
 		($this->isCloud() ? "https://www.cloudlab.us" : 
 		 ($this->isPNet() ? "https://www.phantomnet.org" :
-		  $TBWWW)));
+		  $TBBASE)));
     }
     function ApprovalEmailAddress() {
-	global $TBMAIL_APPROVAL;
+	global $TBMAILADDR_APPROVAL;
 
 	return ($this->isAPT() ? "aptlab-approval@aptlab.net" :
 		($this->isCloud() ? "cloudlab-approval@cloudlab.us" :
 		 ($this->isPNet() ? "phantomnet-approval@phantomnet.org" :
-		  $TBMAIL_APPROVAL)));
+		  $TBMAILADDR_APPROVAL)));
     }
     function EmailTag() {
 	global $THISHOMEBASE;
@@ -391,6 +392,13 @@ class Project
 	$group = $this->DefaultGroup();
 	
 	return $group->UserTrust($user);
+    }
+
+    # Return membership info in the default group.
+    function MemberShipInfo($user) {
+	$group = $this->DefaultGroup();
+
+        return $group->MemberShipInfo($user);
     }
 
     #

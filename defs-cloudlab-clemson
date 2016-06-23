@@ -155,3 +155,7 @@ BS_IQN_PREFIX=iqn.2015-03.us.cloudlab.clemson
 #   http://users.emulab.net/trac/emulab/wiki/NodeUsageInstall
 #
 NODE_USAGE_SUPPORT=1
+
+# Enable idle stats collection (RRD files)
+SDCOLLECTD_DOSTATS=1
+SDCOLLECTD_USE_RRDTOOL=1

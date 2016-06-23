@@ -47,6 +47,7 @@ use libEmulab;
 use GeniResponse;
 use GeniSlice;
 use GeniHRN;
+use GeniUtil;
 use English;
 use Data::Dumper;
 use Date::Parse;
@@ -60,6 +61,10 @@ my $TB		   = "@prefix@";
 my $TBOPS          = "@TBOPSEMAIL@";
 my $MAINSITE 	   = @TBMAINSITE@;
 my $OURDOMAIN      = "@OURDOMAIN@";
+my $IDLESTATS      = "$TB/bin/idlestats";
+my $SUDO           = "/usr/local/bin/sudo";
+my $SSH            = "/usr/bin/ssh";
+my $WAP            = "$TB/sbin/withadminprivs";
 my $API_VERSION    = 1.0;
 
 #
@@ -381,6 +386,118 @@ sub SliceUtilizationData($)
 		       "nodes" => \%blob,
 		   }};
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $results);
+}
+
+#
+# Return utilization data for the nodes in a slice.
+#
+sub SliceIdleData($)
+{
+    my ($argref)  = @_;
+    my $slice_urn = $argref->{'slice_urn'};
+    my %blob      = ();
+    
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+
+    my $slice = GeniSlice->Lookup($slice_urn);    
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
+	if (!defined($slice));
+    
+    my $experiment = $slice->GetExperiment();
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"No experiment for $slice")
+	if (!defined($experiment));
+
+    my $pid  = $experiment->pid();
+    my $eid  = $experiment->eid();
+    my $swapped = str2time($experiment->swapin_last());
+    my $limit   = time() - (3600 * 24 * 3);
+    if ($limit < $swapped) {
+	$limit = $swapped;
+    }
+    $limit = emutil::TBDateStringLocal($limit);
+
+    GeniUtil::FlipToElabMan();
+    if (! open(IDLE, "$WAP $IDLESTATS -s -R -B -S '$limit' -e $pid,$eid |")) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Could not start idlestats")
+    }
+    my $output = "";
+    while (<IDLE>) {
+	$output .= $_;
+    }
+    if (! close(IDLE)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    ($! ? "Pipe error running idlestats: $!" :
+				     "idlestats exited with $?") .
+				    "\n" . $output);
+    }
+    #
+    # We get a giant json encoded string back.
+    #
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $output);
+}
+
+#
+# Return openstack data for the nodes in a slice.
+#
+sub SliceOpenstackData($)
+{
+    my ($argref)  = @_;
+    my $slice_urn = $argref->{'slice_urn'};
+    my $client_id = $argref->{'client_id'};
+    my %blob      = ();
+
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+
+    if ($client_id !~ /^[-\w]+$/) {
+	return GeniResponse->Create(GENIRESPONSE_BADARGS)
+    }
+
+    my $slice = GeniSlice->Lookup($slice_urn);    
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
+	if (!defined($slice));
+    
+    my $experiment = $slice->GetExperiment();
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"No experiment for $slice")
+	if (!defined($experiment));
+    my $node = $experiment->VnameToNode($client_id);
+    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"No such controller node for $slice")
+	if (!defined($node));
+    my $node_id = $node->node_id();
+
+    my $sshopts  = "-o ServerAliveInterval=10 -o ServerAliveCountMax=1 ";
+    $sshopts    .= "-o ConnectTimeout=10 ";
+    $sshopts    .= "-o BatchMode=yes -o StrictHostKeyChecking=no ";
+    my $sshcmd   = "cat /root/setup/cloudlab-openstack-stats.json";
+
+    $EUID = $UID = 0;
+    my $output = GeniUtil::ExecQuiet("$SUDO $SSH $sshopts $node_id '$sshcmd'");
+    if ($?) {
+	GeniUtil::FlipToGeniUser();
+	print STDERR "Error getting json from $node_id: $output\n";
+	#
+	# See if it is cause the file does not exist, we want to tell
+	# the caller so it does not keep asking.
+	#
+	if ($output =~ /No such file/im) {
+	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+					"No json file on $node_id");
+	}
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+			    "Error getting json from $node_id: $output");
+    }
+    GeniUtil::FlipToGeniUser();    
+    #
+    # We get a json encoded string back.
+    #
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS, $output);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

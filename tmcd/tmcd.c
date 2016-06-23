@@ -257,7 +257,7 @@ typedef struct {
 	int		swapper_isadmin;
         int		genisliver_idx;
         int		geniflags;
-        int		nonfsmounts;
+	char            nfsmounts[TBDB_FLEN_TINYTEXT];
 	unsigned int    taintstates;
 	char		nodeid[TBDB_FLEN_NODEID];
 	char		vnodeid[TBDB_FLEN_NODEID];
@@ -3250,15 +3250,15 @@ COMMAND_PROTOTYPE(doaccounts)
 			goto skipkeys;
 
 		/*
-		 * Skip pubkeys locally unless the node/experiment has
-		 * no shared mounts (nonfsmounts), is a GENI sliver
-		 * (genisliver_idx), is running Windows ("windows" arg),
-		 * or explicitly asks for them ("pubkeys" arg).
+		 * Skip pubkeys locally unless the node/experiment has no
+		 * shared mounts, is a GENI sliver (no /users mounts).  is
+		 * running Windows ("windows" arg), or explicitly asks for
+		 * them ("pubkeys" arg).
 		 */
 #ifndef NOSHAREDFS
 		if (reqp->islocal &&
-		    ! reqp->nonfsmounts &&
-		    ! reqp->genisliver_idx &&
+		    ! (strcmp(reqp->nfsmounts, "none") == 0 ||
+		       strcmp(reqp->nfsmounts, "genidefault") == 0) &&
 		    ! reqp->sharing_mode[0] &&
 		    ! (strncmp(rdata, "pubkeys", 7) == 0
 		       || strncmp(rdata, "windows", 7) == 0))
@@ -3417,8 +3417,10 @@ COMMAND_PROTOTYPE(doaccounts)
 	 * on a pnode, but lets be careful.
 	 * 
 	 * No more accounts will be added if the node has 'blackbox' taint.
+	 * If nfsmounts=emulabdefault, then we use the local users only.
 	 */
 	if (reqp->genisliver_idx && !didnonlocal &&
+	    strcmp(reqp->nfsmounts, "emulabdefault") &&
 	    (reqp->isvnode || !reqp->sharing_mode[0]) &&
 	    !HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 	        didnonlocal = 1;
@@ -3980,7 +3982,7 @@ COMMAND_PROTOTYPE(dorpms)
 #ifdef NOVIRTNFSMOUNTS
 	useweb = 1;
 #endif
-	if (reqp->nonfsmounts ||
+	if ((strcmp(reqp->nfsmounts, "none") == 0) ||
 	    (reqp->sharing_mode[0] && reqp->isvnode)) {
 		useweb = 1;
 	}
@@ -4059,7 +4061,7 @@ COMMAND_PROTOTYPE(dotarballs)
 #ifdef NOVIRTNFSMOUNTS
 	useweb = 1;
 #endif
-	if (reqp->nonfsmounts ||
+	if ((strcmp(reqp->nfsmounts, "none") == 0) ||
 	    (reqp->sharing_mode[0] && reqp->isvnode)) {
 		useweb = 1;
 	}
@@ -4861,12 +4863,14 @@ COMMAND_PROTOTYPE(domounts)
 	char		buf[MYBUFSIZE];
 	char		*bufp, *ebufp = &buf[sizeof(buf)];
 	int		nrows, usesfs;
-	int		nomounts = reqp->nonfsmounts;
+	int		nomounts = 0;
 	char		*fsnode = FSNODE;
 #ifdef  ISOLATEADMINS
 	int		isadmin;
 #endif
-
+	if (strcmp(reqp->nfsmounts, "none") == 0) {
+		nomounts = 1;
+	}
 	/*
 	 * Do we export filesystems at all?
 	 */
@@ -5234,10 +5238,11 @@ COMMAND_PROTOTYPE(domounts)
 	}
 	/*
 	 * Remote nodes do not get per-user mounts.
-	 * ProtoGeni nodes do not get them either.
+	 * Geni nodes do not get them either.
 	 * Nodes tainted with 'blackbox' do not get them either.
 	 */
-	if (!reqp->islocal || reqp->genisliver_idx ||
+	if (!reqp->islocal ||
+	    !strcmp(reqp->nfsmounts, "genidefault") ||
 	    HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX))
 	        return 0;
 
@@ -6131,6 +6136,12 @@ COMMAND_PROTOTYPE(doloadinfo)
 		/* Tack on the newline, finally */
 		bufp += OUTPUT(bufp, ebufp - bufp, "\n");
 
+		/* Output line at a time in case we have a lot of images */
+		if (nrows > 1) {
+			client_writeback(sock, buf, strlen(buf), tcp);
+			bufp = buf;
+		}
+
 		nrows--;
 	}
 	if (res)
@@ -6155,6 +6166,7 @@ COMMAND_PROTOTYPE(doloadinfo)
 	if (disableif)
 		free(disableif);
 
+	/* Output the final (or only, or null) line */
 	client_writeback(sock, buf, strlen(buf), tcp);
 	if (verbose)
 		info("doloadinfo: %s", buf);
@@ -7416,7 +7428,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
 				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
-				 " r.erole, n.taint_states "
+				 " r.erole, n.taint_states, "
+				 " n.nfsmounts,e.nfsmounts AS enfsmounts "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON "
 				 "  r.node_id=n.node_id "
@@ -7445,7 +7458,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "     (SELECT node_id FROM widearea_nodeinfo "
 				 "      WHERE privkey='%s') "
 				 "  AND notmcdinfo_types.attrvalue IS NULL",
-				 39, nodekey);
+				 41, nodekey);
 	}
 	else if (reqp->isvnode) {
 		char	clause[BUFSIZ];
@@ -7482,7 +7495,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,nv.uuid, "
 				 " nv.nonfsmounts,e.nonfsmounts AS enonfs, "
-				 " r.erole, nv.taint_states "
+				 " r.erole, nv.taint_states, "
+				 " nv.nfsmounts,e.nfsmounts AS enfsmounts "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
@@ -7503,7 +7517,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "left join users as u on "
 				 " u.uid_idx=e.swapper_idx "
 				 "where nv.node_id='%s' and (%s)",
-				 39, reqp->vnodeid, clause);
+				 41, reqp->vnodeid, clause);
 	}
 	else {
 		char	clause[BUFSIZ];
@@ -7533,7 +7547,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.genisliver_idx,r.tmcd_redirect, "
 				 " r.sharing_mode,e.geniflags,n.uuid, "
 				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
-				 " r.erole, n.taint_states "
+				 " r.erole, n.taint_states, "
+				 " n.nfsmounts,e.nfsmounts AS enfsmounts "
 				 "from interfaces as i "
 				 "left join nodes as n on n.node_id=i.node_id "
 				 "left join reserved as r on "
@@ -7561,7 +7576,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "  on n.type=dedicated_wa_types.type "
 				 "where (%s) "
 				 "  and notmcdinfo_types.attrvalue is NULL",
-				 39, clause);
+				 41, clause);
 	}
 
 	if (!res) {
@@ -7686,13 +7701,13 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 
 	reqp->iscontrol = (! strcasecmp(row[10], "ctrlnode") ? 1 : 0);
 
-	/* nonfsmounts - per-experiment disable overrides per-node setting */
-	if (row[36] && atoi(row[36]) != 0)
-		reqp->nonfsmounts = atoi(row[36]);
-	else if (row[35])
-		reqp->nonfsmounts = atoi(row[35]);
+	/* nfsmounts - per-experiment disable overrides per-node setting */
+	if (strcmp(row[40], "none") == 0)
+		strcpy(reqp->nfsmounts, "none");
+	else if (row[39])
+		strcpy(reqp->nfsmounts, row[39]);
 	else
-		reqp->nonfsmounts = 0;
+		strcpy(reqp->nfsmounts, row[40]);
 
         /* taintstates - find the strings and set the bits.  */
         reqp->taintstates = 0;

@@ -1,9 +1,10 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment',
+	['underscore', 'js/quickvm_sup', 'moment', 'js/idlegraphs',
 	 'js/lib/text!template/adminextend.html',
 	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html'],
-function (_, sup, moment, mainString, waitwaitString, oopsString)
+function (_, sup, moment, ShowIdleGraphs,
+	  mainString, waitwaitString, oopsString)
 {
     'use strict';
     var extensions         = null;
@@ -24,7 +25,9 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 	extensionsTemplate = _.template($('#history-template', html).html());
 
 	LoadUtilization();
+	LoadIdleData();
 	LoadFirstRow();
+	LoadOpenStack();
 
 	// Second row is the user/project usage summarys. We make two calls
 	// and use jquery "when" to wait for both to finish before running
@@ -77,6 +80,16 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 	    Action("extend");
 	    return false;
 	});
+	$('#do-moreinfo').click(function (event) {
+	    event.preventDefault();
+	    Action("moreinfo");
+	    return false;
+	});
+	$('#do-terminate').click(function (event) {
+	    event.preventDefault();
+	    Action("terminate");
+	    return false;
+	});
     }
 
     //
@@ -86,17 +99,24 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
     {
 	var howlong = $('#days').val();
 	var reason  = $("#reason").val();
-	var method  = (action == "extend" ? "RequestExtension" : "DenyExtension");
+	var method  = (action == "extend" ?
+		       "RequestExtension" :
+		       (action == "moreinfo" ?
+			"MoreInfo" :
+			(action == "terminate" ?
+			 "SchedTerminate" : "DenyExtension")));
 
 	var callback = function(json) {
 	    sup.HideModal("#waitwait-modal");
 
 	    if (json.code) {
+		var message;
+		
 		if (json.code < 0) {
-		    message = "Could not extend experiment!";
+		    message = "Operation failed!";
 		}
 		else {
-		    message = "Could not extend experiment: " + json.value;
+		    message = "Operation failed: " + json.value;
 		}
 		sup.SpitOops("oops", message);
 		return;
@@ -133,6 +153,15 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 				     $('#lockout-checkbox').change(function() {
 					 DoLockout($(this).is(":checked"));
 				     });	
+				     // lockdown change event handler.
+				     $('#lockdown-checkbox').change(function() {
+					 DoLockdown($(this).is(":checked"));
+				     });
+				     // This activates the popover subsystem.
+				     $('[data-toggle="popover"]').popover({
+					 trigger: 'hover',
+					 placement: 'auto',
+				     });
 				 }
 			     });
     }
@@ -200,6 +229,62 @@ function (_, sup, moment, mainString, waitwaitString, oopsString)
 					     {"uuid" : window.UUID,
 					      "lockout" : lockout});
 	xmlthing.done(callback);
+    }
+
+    //
+    // Request lockdown set/clear.
+    //
+    function DoLockdown(lockdown)
+    {
+	lockdown = (lockdown ? 1 : 0);
+	
+	var callback = function(json) {
+	    sup.HideModal("#waitwait-modal");
+	    if (json.code) {
+		alert("Failed to change lockdown: " + json.value);
+		return;
+	    }
+	}
+	sup.ShowModal("#waitwait-modal");
+	var xmlthing = sup.CallServerMethod(null, "status", "Lockdown",
+					     {"uuid" : window.UUID,
+					      "lockdown" : lockdown});
+	xmlthing.done(callback);
+    }
+
+    //
+    // Slothd graphs.
+    //
+    function LoadIdleData()
+    {
+	ShowIdleGraphs({"uuid"     : window.UUID,
+			"showwait" : false,
+			"loadID"   : "#loadavg-panel-div",
+			"ctrlID"   : "#ctrl-traffic-panel-div",
+			"exptID"   : "#expt-traffic-panel-div"});
+    }
+
+    //
+    // Openstacks stats.
+    //
+    function LoadOpenStack()
+    {
+	var callback = function(json) {
+	    if (json.code) {
+		return;
+	    }
+	    // Might not be any.
+	    if (!json.value || json.value == "") {
+		return;
+	    }
+	    var html = "<pre>" + json.value + "</pre>";
+	    $("#openstack-panel-div").removeClass("hidden");
+	    $("#openstack-panel-content").html(html);
+	};
+    	var xmlthing = sup.CallServerMethod(null, "status", "OpenstackStats",
+					    {"uuid" : window.UUID});
+	xmlthing.done(callback);
+
     }
 
     // Helper.

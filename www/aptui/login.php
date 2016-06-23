@@ -284,7 +284,7 @@ if ($ajax_request) {
     SPITAJAX_RESPONSE("login sucessful");
     exit();
 }
-elseif (isset($referrer)) {
+elseif (isset($referrer) && $CHECKLOGIN_USER->IsActive()) {
     #
     # Zap back to page that started the login request.
     #

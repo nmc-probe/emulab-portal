@@ -50,14 +50,14 @@ $optargs = RequiredPageArguments("uuid", PAGEARG_UUID);
 #
 # Either a local lease or a remote dataset. 
 #
-if ($embedded) {
+if (!$embedded) {
+    $dataset = Dataset::Lookup($uuid);
+}
+if (!$dataset) {
     $dataset = Lease::Lookup($uuid);
     if (!$dataset) {
         $dataset = ImageDataset::Lookup($uuid);
     }
-}
-else {
-    $dataset = Dataset::Lookup($uuid);
 }
 if (!$dataset) {
     SPITUSERERROR("No such dataset!");
@@ -69,7 +69,7 @@ if (!$dataset->AccessCheck($this_user, $LEASE_ACCESS_READINFO)) {
 $candelete  = (ISADMIN() || $dataset->owner_uid() == $this_uid ? 1 : 0);
 
 # An admin can approve an unapproved lease.
-$canapprove = ($embedded && ISADMIN() &&
+$canapprove = ($dataset->islocal() && ISADMIN() &&
 	       $dataset->state() == "unapproved" ? 1 : 0);
 
 # Remote datasets can be refreshed.

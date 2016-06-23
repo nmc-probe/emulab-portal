@@ -152,7 +152,7 @@ my %all_nodes = ();
 foreach my $n (0..$#machines) {
     $all_nodes{"\L$machines[$n]"} = 1; # Lowercase it and use as hash key
 }
-@machines= sort keys %all_nodes;
+@machines= sort byname keys %all_nodes;
 
 #
 # Dump the args
@@ -641,6 +641,7 @@ sub dostatus(@) {
     # XXX this is not very efficient.
     #
     my @nwanted = ();
+    my %pernode = ();
     for my $node (@wanted) {    
 	my $ctrl;
 
@@ -653,6 +654,13 @@ sub dostatus(@) {
 		next;
 	    } else {
 		($ctrl, $outlet) = $result->fetchrow();
+
+		# XXX hack for IPMI/iLo nodes
+		if ($ctrl =~ /^(ipmi15|ipmi20|ilo|ilo2|ilo3|drac)$/) {
+		    push(@{$pernode{$ctrl}}, $node);
+		    next;
+		}
+
 		print "$node is $ctrl outlet $outlet...\n";
 	    }
 	} else {
@@ -740,6 +748,30 @@ sub dostatus(@) {
 	    $errors++;
 	}
     }
+
+    #
+    # Now handle all IPMI/iLo nodes
+    #
+    foreach my $ctrl (keys %pernode) {
+	my @cnodes = @{$pernode{$ctrl}};
+
+	my %status = ();
+	$errors += ilostatus($ctrl, \%status, @cnodes);
+	foreach my $node (@cnodes) {
+	    my $state;
+	    if (!exists($status{$node})) {
+		$state = "<unknown>";
+	    } elsif ($status{$node} == 1) {
+		$state = "on";
+	    } elsif ($status{$node} == 0) {
+		$state = "off";
+	    } else {
+		$state = "<unknown>";
+	    }
+	    print "$node: $state\n";
+	}
+    }
+
     return $errors;
 }
 

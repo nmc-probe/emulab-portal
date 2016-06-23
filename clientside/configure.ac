@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -284,6 +284,7 @@ outfiles="Makeconf GNUmakefile setversion \
 	  tmcc/freebsd/init/8/GNUmakefile \
 	  tmcc/freebsd/init/9/GNUmakefile \
 	  tmcc/freebsd/init/10/GNUmakefile \
+	  tmcc/freebsd/init/10.3/GNUmakefile \
 	  tmcc/freebsd/init/11/GNUmakefile \
 	  tmcc/freebsd/supfile tmcc/freebsd/sethostname \
 	  tmcc/linux/GNUmakefile tmcc/linux/supfile \

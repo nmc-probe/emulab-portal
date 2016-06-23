@@ -45,7 +45,7 @@ use warnings;
 
 use Exporter;
 our @ISA = ("Exporter");
-our @EXPORT = qw( iloctrl );
+our @EXPORT = qw( iloctrl ilostatus );
 
 use lib "@prefix@/lib";
 use libdb;
@@ -66,16 +66,41 @@ $| = 1;
 
 my %portinfo = ();
 
+sub ilostatus($$@) {
+    my ($type,$statusp,@nodes) = @_;
+
+    return iloaction($type, "status", $statusp, @nodes);
+}
+
 #
 # usage: iloctrl(type, cmd, nodes)
 # type = { "ilo" | "ilo2" | "ilo3" | "drac" | "ipmi15" | "ipmi20" }
-# cmd = { "cycle" | "on" | "off" }
+# cmd = { "forcecycle" | "cycle" | "on" | "off" | "status" }
 # nodes = list of one or more physical node names
 #
 # Returns 0 on success. Non-zero on failure.
 # 
 sub iloctrl($$@) {
     my ($type,$cmd,@nodes) = @_;
+
+    # XXX it would be useful to propagate the individual node status here too
+    my %status = ();
+    return iloaction($type, $cmd, \%status, @nodes);
+}
+
+#
+# Internal command to do the work.
+#
+# usage: iloaction(type, cmd, status, nodes)
+# type = { "ilo" | "ilo2" | "ilo3" | "drac" | "ipmi15" | "ipmi20" }
+# cmd = { "forcecycle" | "cycle" | "on" | "off" | "status" }
+# status = hash ref keyed by node with value of per-node return status
+# nodes = list of one or more physical node names
+#
+# Returns 0 on success. Non-zero on failure.
+# 
+sub iloaction($$$@) {
+    my ($type,$cmd,$statusp,@nodes) = @_;
     my $exitval = 0;
     my $force = 0;
 
@@ -86,9 +111,12 @@ sub iloctrl($$@) {
     if ($cmd eq "forcecycle") {
 	$force = 1;
 	$cmd = "cycle";
-    } elsif ($cmd ne "cycle" && $cmd ne "on" && $cmd ne "off") {
+    } elsif ($cmd !~ /^(cycle|on|off|status)$/) {
 	warn "invalid power command '$cmd'; \n" . 
-	    "  valid commands are 'cycle, 'off', and 'on'.\n";
+	    "  valid commands are 'cycle, 'off', 'on', and 'status'.\n";
+	foreach my $n (@nodes) {
+	    $statusp->{$n} = -1;
+	}
 	return scalar(@nodes);
     }
 
@@ -102,6 +130,7 @@ sub iloctrl($$@) {
 			       "   and interface_type='$type'");
 	if (!defined($res) || !$res || $res->num_rows() == 0) {
 	    warn "No $type interface for $n; cannot find $type IP!\n";
+	    $statusp->{$n} = -1;
 	    ++$exitval;
 	    next;
 	}
@@ -114,6 +143,7 @@ sub iloctrl($$@) {
 			    " where node_id='$n' and key_type='$type'");
 	if (!defined($res) || !$res || $res->num_rows() == 0) {
 	    warn "No $type remote auth info for $n!\n";
+	    $statusp->{$n} = -1;
 	    ++$exitval;
 	    next;
 	}
@@ -188,19 +218,34 @@ sub iloctrl($$@) {
 	}
 	#
 	# Check the exit codes. 
+	# Is this awkward or what?
 	#
-	foreach my $result (@results) {
-	    ++$exitval
-		if ($result != 0);
+	for (my $i = 0; $i < @ilos; $i++) {
+	    my $n = $ilos[$i]->[0];
+	    my $rv = ($results[$i] >> 8);
+	    $statusp->{$n} = $rv;
+	    if ($cmd eq "status") {
+		$exitval++
+		    if ($rv < 0);
+	    } else {
+		++$exitval
+		    if ($rv != 0);
+	    }
 	}
     }
     else {
 	for my $key (keys(%ilo_nodeinfo)) {
-	    my ($n,$IP,$krole,$kuid,$kkey) = @{$ilo_nodeinfo{$key}};
+	    my ($n,$IP,$krole,$kuid,$kkey,$kgkey,$kprivlvl) = @{$ilo_nodeinfo{$key}};
 
-	    if (iloexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$timeout)) {
-		++$exitval;
+	    my $rv;
+	    if ($type =~ /^ipmi/) {
+		$rv = ipmiexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$kgkey,$kprivlvl,$timeout,$force);
+	    } else {
+		$rv = iloexec($n,$type,$cmd,$IP,$krole,$kuid,$kkey,$timeout);
 	    }
+	    $statusp->{$n} = $rv;
+	    ++$exitval
+		if ($rv < 0);
 	}
     }
     return $exitval;
@@ -208,6 +253,8 @@ sub iloctrl($$@) {
 
 #
 # Arguments: $node_id,$type,$cmd,$IP,$key_role,$key_uid,$key[,$timeout]
+# on/off/cycle returns: 0 for success, < 0 otherwise
+# status returns: 0 for off, 1 for on, -1 for error
 #
 sub iloexec($$$$$$$;$) {
     my ($node_id,$type,$cmd,$IP,$key_role,$key_uid,$key,$timeout) = @_;
@@ -240,6 +287,10 @@ sub iloexec($$$$$$$;$) {
     elsif ($cmd eq 'off') {
 	$power_cmd = ($type eq "drac" ?
 		      'racadm serveraction powerdown' : 'power off');
+    }
+    elsif ($cmd eq 'status') {
+	$power_cmd = ($type eq "drac" ?
+		      'racadm serveraction powerstatus' : 'power');
     }
     else {
 	warn "Bad iLO power command $cmd";
@@ -411,12 +462,27 @@ sub iloexec($$$$$$$;$) {
     }
     kill('KILL',$pid) if (!$dead);
 
+    if ($cmd eq "status") {
+	foreach my $line (@lines) {
+	    if ($line =~ /server power is currently:\s+(\S+)/) {
+		return ($1 eq "Off") ? 0 : 1;
+	    }
+	}
+	print "iLO unexpected power status:\n";
+	foreach my $line (@lines) {
+	    print "'$line'\n";
+	}
+	return -1;
+    }
+
     # if we get here, things probably went ok...
     return 0;
 }
 
 #
 # Arguments: $node_id,$type,$cmd,$IP,$key_role,$key_uid,$key[,$kgkey,$privlvl,$timeout]
+# on/off/cycle returns: 0 for success, <0 on error
+# status returns: 0 for off, 1 for on, <0 for error
 #
 sub ipmiexec($$$$$$$;$$$$) {
     my ($node_id,$type,$cmd,$IP,$key_role,$key_uid,$key,$kgkey,$privlvl,$timeout,$force) = @_;
@@ -433,7 +499,7 @@ sub ipmiexec($$$$$$$;$$$$) {
 	return -1;
     }
 
-    if ($cmd =~ /^(cycle|reset|on|off)$/) {
+    if ($cmd =~ /^(cycle|reset|on|off|status)$/) {
 	$cmd = $1;
     }
     else {
@@ -513,7 +579,16 @@ again:
 	print $output;
     }
 
-    return $stat;
+    if (!$stat && $cmd eq "status") {
+	if ($output =~ /power is (off|on)/i) {
+	    return ($1 eq "off") ? 0 : 1;
+	}
+	print "IPMI unexpected power status:\n";
+	print $output;
+	return -1;
+    }
+
+    return ($stat ? -1 : 0);
 }
 
 1;

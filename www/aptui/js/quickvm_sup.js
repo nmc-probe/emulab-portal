@@ -15,16 +15,19 @@ function HideModal(which)
 
 function ShowWaitWait(message)
 {
-    if (message === undefined)
-	message = "";
-    
-    $('#waitwait-modal-withmessage-message').html(message);
-    ShowModal('#waitwait-modal-withmessage');
+    if (message === undefined) {
+	ShowModal('#waitwait-modal');
+    }
+    else {
+	$('#waitwait-modal-withmessage-message').html(message);
+	ShowModal('#waitwait-modal-withmessage');
+    }
 }
 function HideWaitWait()
 {
     $('#waitwait-modal-withmessage-message').html("");
     HideModal('#waitwait-modal-withmessage');
+    HideModal('#waitwait-modal');
 }
     
 function CallServerMethod(url, route, method, args, callback)

@@ -113,6 +113,8 @@ function Do_GetInstanceStatus()
     # and show the topology.
     #
     $havemanifests = $instance->slivers() ? 1 : 0;
+    # Openstack experiment?
+    $haveopenstack = $instance->isopenstack() ? 1 : 0;
 
     foreach ($instance->slivers() as $sliver) {
         if (!$sliver->manifest()) {
@@ -134,6 +136,7 @@ function Do_GetInstanceStatus()
         }
     }
     $blob["havemanifests"] = $havemanifests;
+    $blob["haveopenstackstats"] = $haveopenstack;
 
     # Reflect errors back to the user.
     $webtask = WebTask::LookupByObject($instance->uuid());
@@ -405,10 +408,11 @@ delay:
     sleep(1);
 }
 
-function Do_DenyExtension()
+function Do_DenyOrMoreinfo($action)
 {
     global $instance, $creator, $this_user, $suexec_output;
     global $ajax_args;
+    $extrargs = "";
 
     if (StatusSetupAjax(1)) {
 	goto bad;
@@ -434,11 +438,25 @@ function Do_DenyExtension()
         $fp = fopen($filename, "w");
         fwrite($fp, $reason);
         fclose($fp);
-    }        
+    }
+    if ($action == "terminate") {
+        if (!isset($ajax_args["howlong"]) || $ajax_args["howlong"] == "") {
+            SPITAJAX_ERROR(1, "Missing number of days");
+            goto bad;
+        }
+        $days = $ajax_args["howlong"];
+        if (! preg_match("/^\d+$/", $days)) {
+            SPITAJAX_ERROR(1, "Invalid characters in days");
+            goto bad;
+        }
+        $extrargs = $days;
+    }
+    $action = ($action == "deny" ? "denyextension" :
+               ($action == "terminate" ? "schedterminate": "moreinfo"));
     $webtask = WebTask::CreateAnonymous();
     $retval = SUEXEC("nobody", "nobody",
 		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
-                     "  denyextension $uuid " .
+                     "  $action $uuid $extrargs " .
                         (isset($filename) ? $filename : ""),
 		     SUEXEC_ACTION_IGNORE);
     $webtask->Refresh();
@@ -472,6 +490,19 @@ function Do_DenyExtension()
 bad:
     $webtask->Delete();
     sleep(1);
+}
+
+function Do_DenyExtension()
+{
+    Do_DenyOrMoreinfo("deny");
+}
+function Do_MoreInfo()
+{
+    Do_DenyOrMoreinfo("info");
+}
+function Do_SchedTerminate()
+{
+    Do_DenyOrMoreinfo("terminate");
 }
 
 #
@@ -1064,6 +1095,51 @@ function Do_Refresh()
 }
 
 #
+# Reload rhe manifests.
+#
+function Do_ReloadTopology()
+{
+    global $this_user, $instance, $suexec_output;
+    global $ajax_args;
+
+    if (StatusSetupAjax(1)) {
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+    $uuid = $ajax_args["uuid"];
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t $webtask_id -- getmanifests $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+	else {
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    SPITAJAX_RESPONSE("Success");
+}
+
+#
 # Ask the backend to reboot or reload a node.
 #
 function Do_RebootOrReload($which)
@@ -1314,6 +1390,73 @@ function Do_Lockout()
                      "where uuid='$uuid'")) {
 	SPITAJAX_ERROR(1, "Database failure.");
 	return;
+    }
+    SPITAJAX_RESPONSE("Success");
+}
+
+#
+# Set or clear the lockdown flag
+#
+function Do_Lockdown()
+{
+    global $this_user;
+    global $ajax_args;
+
+    if (!isset($this_user) || !ISADMIN()) {
+	SPITAJAX_ERROR(1, "Not enough permission.");
+	return;
+    }
+    $this_idx = $this_user->uid_idx();
+
+    if (!isset($ajax_args["uuid"])) {
+	SPITAJAX_ERROR(1, "Missing profile uuid");
+	return;
+    }
+    if (!isset($ajax_args["lockdown"])) {
+	SPITAJAX_ERROR(1, "Missing lockdown value");
+	return;
+    }
+    $uuid = $ajax_args["uuid"];
+    $instance = Instance::Lookup($uuid);
+    if (!$instance) {
+	SPITAJAX_ERROR(1, "Unknown instance uuid");
+	return;
+    }
+    $action = ($ajax_args["lockdown"] ? "set" : "clear");
+
+    #
+    # Call out to the backend.
+    #
+    $webtask_id = WebTask::GenerateID();
+    $retval = SUEXEC("nobody", "nobody",
+		     "webmanage_instance -t $webtask_id -- ".
+                     "  lockdown $uuid $action admin ",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask = WebTask::Lookup($webtask_id);
+
+    if ($retval != 0) {
+	if ($retval < 0) {
+	    SPITAJAX_ERROR(-11, "Internal error, cannot proceed.");
+	    # Notify tbops.
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	}
+	elseif ($webtask) {
+	    SPITAJAX_ERROR(1, $webtask->TaskValue("output"));
+	}
+	elseif ($suexec_output != "") {
+	    SPITAJAX_ERROR(1, $suexec_output);
+        }
+        else {
+	    SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+	    SPITAJAX_ERROR(-1, "Internal Error. Please try again later");
+	}
+	if ($webtask) {
+	    $webtask->Delete();
+	}
+	return;
+    }
+    if ($webtask) {
+	$webtask->Delete();
     }
     SPITAJAX_RESPONSE("Success");
 }
@@ -1618,6 +1761,103 @@ function Do_Utilization()
                 $webtask->TaskValue("results");
         }
     }
+    SPITAJAX_RESPONSE($blob);
+}
+
+#
+# idledata
+#
+function Do_IdleData()
+{
+    global $instance, $creator;
+    global $urn_mapping, $TBADMINGROUP;
+
+    if (StatusSetupAjax(0)) {
+	return;
+    }
+    $uuid = $instance->uuid();
+    $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
+    if (!$slice) {
+	SPITAJAX_ERROR(1, "no slice for instance");
+	return 1;
+    }
+    $webtask = WebTask::CreateAnonymous();
+    # XXX Need to do this as elabman cause of emulab.key. Pondering.
+    $retval = SUEXEC("elabman", $TBADMINGROUP,
+		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
+                     "  idledata $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask->Refresh();
+
+    if ($retval != 0) {
+        if ($webtask->exited()) {
+            SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
+        }
+        elseif ($retval < 0) {
+            SPITAJAX_ERROR($retval, "Internal error, cannot proceed.");
+            # Notify tbops.
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            SPITAJAX_ERROR($retval, $suexec_output);
+        }
+        $webtask->Delete();
+        return;
+    }
+    
+    $webtask->Delete();
+    $blob = array();
+    # Look at per sliver.
+    foreach ($instance->slivers() as $sliver) {
+        if ($sliver->webtask_id() &&
+            $webtask = WebTask::Lookup($sliver->webtask_id())) {
+            if (!($sliver->physnode_count() || $sliver->virtnode_count())) {
+                continue;
+            }
+            # Send back the raw json. 
+            $blob[$urn_mapping[$sliver->aggregate_urn()]] =
+                $webtask->TaskValue("idledata");
+        }
+    }
+    SPITAJAX_RESPONSE($blob);
+}
+
+#
+# openstack stats
+#
+function Do_OpenstackStats()
+{
+    global $instance, $creator, $TBADMINGROUP;
+
+    if (StatusSetupAjax(0)) {
+	return;
+    }
+    $uuid = $instance->uuid();
+    $webtask = WebTask::CreateAnonymous();
+    # XXX Need to do this as elabman cause of emulab.key. Pondering.
+    $retval = SUEXEC("elabman", $TBADMINGROUP,
+		     "webmanage_instance -t " . $webtask->task_id() . " -- ".
+                     "  openstackstats $uuid",
+		     SUEXEC_ACTION_IGNORE);
+    $webtask->Refresh();
+
+    if ($retval != 0) {
+        if ($webtask->exited()) {
+            SPITAJAX_ERROR($webtask->exitcode(), $webtask->TaskValue("output"));
+        }
+        elseif ($retval < 0) {
+            SPITAJAX_ERROR($retval, "Internal error, cannot proceed.");
+            # Notify tbops.
+            SUEXECERROR(SUEXEC_ACTION_CONTINUE);
+        }
+        else {
+            SPITAJAX_ERROR($retval, $suexec_output);
+        }
+        $webtask->Delete();
+        return;
+    }
+    $blob = $webtask->TaskValue("openstackstats");
+    $webtask->Delete();
     SPITAJAX_RESPONSE($blob);
 }
 

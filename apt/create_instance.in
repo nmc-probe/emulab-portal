@@ -247,7 +247,7 @@ fatal($@)
 #
 # Make sure all the required arguments were provided.
 #
-foreach my $key ("username", "email", "profile") {
+foreach my $key ("username", "email", "profile", "portal") {
     fatal("Missing required attribute '$key'")
 	if (! (exists($xmlparse->{'attribute'}->{"$key"}) &&
 	       defined($xmlparse->{'attribute'}->{"$key"}) &&
@@ -258,7 +258,11 @@ foreach my $key ("username", "email", "profile") {
 # Gather up args and sanity check.
 #
 my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $project, $pid,
-    $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg, $userslice_id);
+    $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg,
+    $userslice_id, $portal);
+
+# This is used internally to determine which portal was used.
+$portal = $xmlparse->{'attribute'}->{"portal"}->{'value'};
 
 #
 # Username and email has to be acceptable to Emulab user system.
@@ -687,6 +691,20 @@ $tmp = APT_Profile::EncryptBlocks(\$rspecstr, $alt_certificate, \$errmsg);
 if ($tmp) {
     ($tmp < 0 ? fatal($errmsg) : UserError($errmsg));
 }
+#
+# Tell the CM to do normal NFS mounts if this is the "Emulab" portal
+# making the request. The CM is of course free to ignore this.
+#
+# XXX Need to handle this differently if we use the stitcher.
+#
+if ($portal ne "emulab") {
+    if (APT_Profile::ClearPortalTag(\$rspecstr, $errmsg)) {
+        fatal($errmsg);
+    }
+}
+elsif (APT_Profile::AddPortalTag(\$rspecstr, $portal, $errmsg)) {
+    fatal($errmsg);
+}
 
 #
 # Generate credentials we need.
@@ -1010,6 +1028,7 @@ sub CreateDatasetCreds($$$$$)
 		if ($class eq "local");
 	    
 	    my ($authority, $type, $id) = GeniHRN::Parse($dataset_id);
+	    my ($dataset_domain) = split(":", $authority);
 	    #
 	    # Separate project from name; this is how the rspec specifies
 	    # the dataset they want, since it might be in another project
@@ -1021,6 +1040,18 @@ sub CreateDatasetCreds($$$$$)
 	    my $dataset = APT_Dataset->Lookup("$pid/$id");
 	    if (!defined($dataset)) {
 		$dataset = APT_Dataset->LookupByRemoteURN($dataset_id);
+		if (!defined($dataset)) {
+		    # If it is for a local dataset, see if it plain lease
+		    # created via the classic interface or command line.
+		    # The backend can find those.
+		    if ($dataset_domain eq $OURDOMAIN) {
+			$dataset = Lease->Lookup($pid, $id);
+			if (defined($dataset)) {
+			    # No need for a credential.
+			    next;
+			}
+		    }
+		}
 		if (!defined($dataset)) {
 		    $$pmsg = "Persistent dataset '$pid/$id' does not exist";
 		    return 1;

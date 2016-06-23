@@ -177,8 +177,11 @@ if (defined($experiment)) {
 	$ns .= "$line\n";
 
 	if ($line =~ /^set\s+(.*)\s+\[new Simulator/) {
-	    $ns .= "\$" . $1 . " description \"" .
-		$experiment->description() . "\"\n";
+	    my $text = $experiment->description();
+	    my $nsn  = $1;
+	    $text =~ s/\"/\\"/g;
+	    
+	    $ns .= "\$" . $nsn . " description \"$text\"\n";
 	}
     }
     open(NS, ">$nsfile")
@@ -306,7 +309,7 @@ open(NS, "$nsfile") or
     fatal("Could not open $nsfile: $!");
 print PY "\n";
 print PY "#\n";
-print PY "# Here is the original NS file.\n";
+print PY "# Here is the original NS file from the Emulab experiment.\n";
 print PY "#\n";
 while (<NS>) {
     print PY "# $_";

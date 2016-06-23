@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2013 University of Utah and the Flux Group.
+# Copyright (c) 2000-2013, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -230,11 +230,14 @@ sub LinkDelaySetup()
 #	print DEL "ipfw -f flush\n";
 
 	if ($useifb) {
-	    print DEL "modprobe ifb numifbs=10\n";
+	    print DEL "modprobe ifb numifbs=20\n";
 	}
 	else {
-	    print DEL "modprobe imq numdevs=10\n";
+	    print DEL "modprobe imq numdevs=20\n";
 	}
+	# We have to dole out the ifb/imqs
+	my $nextifbimq = 0;
+	
         print DEL "sysctl -w net.core.rmem_max=8388608\n";
         print DEL "sysctl -w net.core.wmem_max=8388608\n";
         print DEL "sysctl -w net.core.netdev_max_backlog=2048\n";
@@ -382,18 +385,18 @@ sub LinkDelaySetup()
 		# shaping should be performed).
 		#
 		if ($bandw != 0) {
-		    print DEL "$TC qdisc add dev $iface handle ". ($pipeno+20) .
+		    print DEL "$TC qdisc add dev $iface handle ". $pipeno .
 			" root htb default 1\n";
 		    print DEL "$TC class add dev $iface classid ".
-			($pipeno+20) .":1 parent " . ($pipeno+20) .
+			$pipeno .":1 parent " . $pipeno .
 			" htb rate ${bandw} ceil ${bandw}\n";
 		    print DEL "$TC qdisc add dev $iface handle ".
-			($pipeno+10) . " parent " . ($pipeno+20) . ":1 " .
+			($pipeno+10) . " parent " . $pipeno . ":1 " .
 			"netem drop $plr delay ${delay}us\n";
 		}
 		else {
 		    print DEL "$TC qdisc add dev $iface handle ".
-			($pipeno+10) . " root " .
+			$pipeno . " root " .
 			"netem drop $plr delay ${delay}us\n";
 		}
 	    }
@@ -414,10 +417,10 @@ sub LinkDelaySetup()
 		    print DEL "ceil ${bandw}\n";
 		}
 	    }
-            $iface =~ /\D+(\d+)/;
-	    my $inum = $1;
-	    my $idev = ($useifb ? "ifb" : "imq") . "$inum";
 	    if ($type eq "duplex") {
+		my $inum = $nextifbimq++;
+		my $idev = ($useifb ? "ifb" : "imq") . $inum;
+		
 		if ($usenetem) {
 		    # packet loss in netem is percent
 		    $rplr *= 100;

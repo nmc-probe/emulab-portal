@@ -91,6 +91,7 @@ my $IMAGE_SETUP    = "$TB/sbin/image_setup";
 my $ARPLOCKDOWN    = "$TB/sbin/arplockdown";
 my $TARFILES_SETUP = "$TB/bin/tarfiles_setup";
 my $ELAB_SETUP     = "$TB/sbin/elabinelab";
+my $TBADB          = "$TB/bin/tbadb";
 
 # Cache of instances to avoid regenerating them.
 my %aggregates     = ();
@@ -1972,11 +1973,13 @@ sub WaitForNodes($$@)
     
     foreach my $node (@nodes) {
 	my $node_id = $node->node_id();
+	my $failed  = 0;
 
-	push(@failed, $node)
-	    if (defined($node->_sliver()) &&
-		$node->_sliver()->status() eq "failed");
-
+	if (defined($node->_sliver()) &&
+	    $node->_sliver()->status() eq "failed") {
+	    push(@failed, $node);
+	    $failed = 1;
+	}
 	$node->_bootlog(undef);
 
 	if (defined($node->_image()) && defined($node->_sliver()) &&
@@ -1991,6 +1994,20 @@ sub WaitForNodes($$@)
 	    # have to go through reloading anyway, and the reload daemon
 	    # will problem nodes. Might want revisit this.
 	    #
+	}
+
+	#
+	# Special for Kirk, need to work on handling this more generally
+	#
+	if (!$failed) {
+	    my $adb_target;
+	    $experiment->GetVirtNodeAttribute($node->vname(), "adb_target",
+					      \$adb_target);
+
+	    if ($adb_target && 
+		system("$TBADB -n $node_id forward")) {
+		print STDERR "Could not setup adb forwarding for $node_id!\n";
+	    }
 	}
 	
 	#

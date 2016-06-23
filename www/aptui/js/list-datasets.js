@@ -18,15 +18,11 @@ function (sup, moment)
 	    }
 	});
 
-	if ($(".tablesorter").length) {
-	    var table = $(".tablesorter")
-		.tablesorter({
+	var inittable = function(id) {
+	    var table = $(id).tablesorter({
 		    theme : 'green',
-		    
-		    //cssChildRow: "tablesorter-childRow",
-
 		    // initialize zebra and filter widgets
-		    widgets: ["zebra", "filter", "resizable"],
+		    widgets: ["zebra", "filter"],
 
 		    widgetOptions: {
 			// include child row content while filtering, if true
@@ -45,12 +41,14 @@ function (sup, moment)
 
 		    headers: { 1: { sorter: false}, 2: {sorter: false} }
 		});
-
-	    // Target the $('.search') input using built in functioning
-	    // this binds to the search using "search" and "keyup"
-	    // Allows using filter_liveSearch or delayed search &
-	    // pressing escape to cancel the search
+	    return table;
+	};
+	if ($("#main_table").length) {
+	    var table = inittable('#main_table');
 	    $.tablesorter.filter.bindSearch( table, $('#dataset_search') );
+	}
+	if ($("#classic_table").length) {
+	    var table = inittable('#classic_table');
 	}
 	//
 	// When embedded, we want the Show link to go through the outer

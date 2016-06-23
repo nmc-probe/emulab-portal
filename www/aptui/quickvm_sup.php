@@ -58,6 +58,7 @@ $PAGEERROR_HANDLER = function($msg, $status_code = 0) {
     if (! $drewheader) {
 	SPITHEADER();
     }
+    echo "<br>";
     echo $msg;
     echo "<script type='text/javascript'>\n";
     echo "    window.ISEMULAB  = " . ($ISEMULAB ? "1" : "0") . ";\n";
@@ -247,26 +248,32 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                        <a href='$PORTAL_MANUAL' target='_blank'> ".
                       ($ISEMULAB || $ISPNET ? "Wiki" : "Manual") . "</a></li>
                    <li class='visible-xs navbar-nav-shortcuts'>
-                       <a href='logout.php'>Logout</a></li>
-                   <li><a href='user-dashboard.php#profiles'>My Profiles</a></li>
-                   <li><a href='user-dashboard.php#experiments'>My Experiments</a></li>
+                       <a href='logout.php'>Logout</a></li>";
+        if ($login_user->IsActive()) {
+            echo " <li><a href='user-dashboard.php#profiles'>
+                         My Profiles</a></li>
+                   <li><a href='user-dashboard.php#experiments'>
+                         My Experiments</a></li>
                    <li><a href='manage_profile.php'>Create Profile</a></li>
                    <li><a href='instantiate.php'>Start Experiment</a></li>
                    <li class='divider'></li>
                    <li><a href='getcreds.php'>Download Credentials</a></li>
-                   <li><a href='ssh-keys.php'>Manage SSH Keys</a></li>
-                   <li><a href='myaccount.php'>Manage Account</a></li>
-                   <li><a href='signup.php'>Start/Join Project</a></li>
-                   <li class='divider'></li>
+                   <li><a href='ssh-keys.php'>Manage SSH Keys</a></li>";
+        }
+        echo "     <li><a href='myaccount.php'>Manage Account</a></li>
+                   <li><a href='signup.php'>Start/Join Project</a></li>";
+        if ($login_user->IsActive()) {
+            echo " <li class='divider'></li>
 	           <li><a href='list-datasets.php'>List Datasets</a></li>
 	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
-       echo "      <li class='divider'></li>\n";
-       $then = time() - (90 * 3600 * 24);
-       echo "      <li><a href='activity.php?user=$login_uid&min=$then'>
+            echo "      <li class='divider'></li>\n";
+            $then = time() - (90 * 3600 * 24);
+            echo "      <li><a href='activity.php?user=$login_uid&min=$then'>
                             My History</a></li>\n";
-       echo "    </ul>
+        }
+        echo "    </ul>
                 </li>\n";
-       if (ISADMIN() || ISFOREIGN_ADMIN()) {
+        if ($login_user->IsActive() && (ISADMIN() || ISFOREIGN_ADMIN())) {
            echo "<li id='quickvm_actions_menu' class='dropdown apt-left'>
 	            <a href='#'
                         class='dropdown-toggle btn btn-quickvm-home navbar-btn'
@@ -293,14 +300,15 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
            
            echo " </ul>
                 </li>\n";
-       }
+        }
     }
     echo "   </ul>
           </div>
          </div>\n";
 
     # Put announcements, if any, right below the header.
-    if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
+    if ($login_user && $login_user->IsActive() &&
+        !($login_status & CHECKLOGIN_WEBONLY)) {
         $announcements = GET_ANNOUNCEMENTS($login_user);
         for ($i = 0; $i < count($announcements); $i++) {
           $current = $announcements[$i];
@@ -333,6 +341,42 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     }
 
     if ($login_user) {
+        $pending = $login_user->PendingMembership();
+
+        if (count($pending)) {
+            # Just deal with the first, that is enough.
+            $unproj = $pending[0];
+            $leader = $unproj->GetLeader();
+            $pid    = $unproj->pid();
+            $mailto = "mailto:" . $unproj->ApprovalEmailAddress() .
+                "?Subject=Pending Project $pid";
+                
+            echo "<div class=alert-danger ";
+            echo "     style='margin-bottom: 6px; margin-top: -10px'>";
+            echo "<center><span>";
+
+            if ($login_user->SameUser($leader)) {
+                echo "Your project application is still under review. ";
+                echo "<a href='$mailto' class=alert-link>";
+                echo "Contact the Review Committee.</a>";
+            }
+            else {
+                echo "Your request for membership in project '$pid' has not ";
+                echo "yet been approved by the project leader. ";
+                #
+                # Lets not nag the PI for at least a day.
+                #
+                $membership = $unproj->MemberShipInfo($login_user);
+                $applied = strtotime($membership["date_applied"]);
+                if (time() - $applied > 3600 * 18) {
+                    echo "<a href='#' class=alert-link ";
+                    echo "   onclick=\"APT_OPTIONS.nagPI(" . "'$pid'" . ")\"";
+                    echo "   style='text-decoration: underline'>";
+                    echo "Remind the Project Leader.</a>";
+                }
+            }
+            echo "</span></center></div>";
+        }
         list($pcount, $phours) = Instance::CurrentUsage($login_user);
         list($foo, $weeksusage) = Instance::WeeksUsage($login_user);
         list($foo, $monthsusage) = Instance::MonthsUsage($login_user);
