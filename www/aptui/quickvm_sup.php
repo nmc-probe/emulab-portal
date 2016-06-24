@@ -314,10 +314,10 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
           $current = $announcements[$i];
           echo "<div class='alert ".$current['style']." alert-dismissible'
                      role='alert' style='margin-top: -10px; margin-left: 40px; margin-right: 40px;'>";
-          echo "  <button type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true' onclick='APT_OPTIONS.announceDismiss(" . $current['aid'] . ")'>&times;</span></button>";
+          echo "  <button onclick='window.APT_OPTIONS.announceDismiss(" . $current['aid'] . ")' type='button' class='close' data-dismiss='alert' aria-label='Close'><span aria-hidden='true'>&times;</span></button>";
           echo "  <span>" . $current["text"] . "</span>";
           if ($current["url"]) {
-	    echo "  <a href='" . $current["url"] . "' class='btn btn-default' onclick='APT_OPTIONS.announceClick(" . $current["aid"] . ")' target='_blank'>" . $current["label"] . "</a>";
+	    echo "  <a href='" . $current["url"] . "' class='btn btn-default' onclick='window.APT_OPTIONS.announceClick(" . $current["aid"] . ")' target='_blank'>" . $current["label"] . "</a>";
           }
           echo "  </div>";
         }
