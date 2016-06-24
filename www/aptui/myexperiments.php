@@ -80,7 +80,7 @@ if (($all || $extend) && (ISADMIN() || ISFOREIGN_ADMIN())) {
         $order  = "order by s.expires asc";
     }
     $query_result1 = 
-        DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
+        DBQueryFatal("select a.*,s.expires,s.hrn,u.email,users.usr_name, ".
                      " (UNIX_TIMESTAMP(now()) > ".
                      "  UNIX_TIMESTAMP(s.expires)) as expired, ".
                      "  truncate(a.physnode_count * ".
@@ -98,11 +98,12 @@ if (($all || $extend) && (ISADMIN() || ISFOREIGN_ADMIN())) {
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
+                     "left join users on users.uid_idx=a.creator_idx ".
                      "$where $order");
 }
 else {
     $query_result1 =
-        DBQueryFatal("select a.*,s.expires,s.hrn,u.email, ".
+        DBQueryFatal("select a.*,s.expires,s.hrn,u.email,users.usr_name, ".
                      " (UNIX_TIMESTAMP(now()) > ".
                      "  UNIX_TIMESTAMP(s.expires)) as expired, ".
                      "  truncate(a.physnode_count * ".
@@ -120,10 +121,12 @@ else {
                      "left join geni.geni_slices as s on ".
                      "     s.uuid=a.slice_uuid ".
                      "left join geni.geni_users as u on u.uuid=a.creator_uuid ".
+                     "left join users on users.uid_idx=a.creator_idx ".
                      "where a.creator_uuid='$target_uuid'");
 
     $query_result2 =
         DBQueryFatal("select distinct a.*,s.expires,s.hrn,u.email, ".
+                     " users.usr_name,  ".
                      " (UNIX_TIMESTAMP(now()) > ".
                      "  UNIX_TIMESTAMP(s.expires)) as expired, ".
                      "  truncate(a.physnode_count * ".
@@ -144,6 +147,7 @@ else {
                      "left join group_membership as g on ".
                      "     g.uid_idx='$target_idx' and  ".
                      "     g.pid_idx=a.pid_idx ".
+                     "left join users on users.uid_idx=a.creator_idx ".
                      "where a.creator_uuid='$target_uuid' or ".
                      "      g.uid_idx is not null ".
                      "order by a.creator");
@@ -189,6 +193,7 @@ function SPITROWS($showall, $name, $result)
         $creator_idx  = $row["creator_idx"];
         $profile_name = "$profile_id:$version";
         $creator_uid  = $row["creator"];
+        $creator_name = $row["usr_name"];
         $pid          = $row["pid"];
         $pcount       = $row["physnode_count"];
         $vcount       = $row["virtnode_count"];
@@ -209,7 +214,7 @@ function SPITROWS($showall, $name, $result)
         }
         elseif (ISADMIN()) {
             $creator = "<a href='user-dashboard.php?user=$creator_uid'>".
-                "$creator_uid</a>";
+                "$creator_name</a>";
         }
         else {
             $creator = $creator_uid;
