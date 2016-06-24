@@ -147,7 +147,7 @@ sub Lookup($$)
     $self->{'USER'}  = $query_result->fetchrow_hashref();
 
     bless($self, $class);
-    $self->{'BRAND'}   = Brand->Create($self->genesis());
+    $self->{'BRAND'}   = Brand->Create($self->portal());
     
     # Add to cache. 
     $users{$self->{'USER'}->{'uid_idx'}} = $self;
@@ -217,7 +217,7 @@ sub nonlocal_id($)	{ return field($_[0], "nonlocal_id"); }
 sub nonlocal_type($)	{ return field($_[0], "nonlocal_type"); }
 sub IsLocal($)		{ return (defined($_[0]->nonlocal_id()) ? 0 : 1); };
 sub IsNonLocal($)	{ return (defined($_[0]->nonlocal_id()) ? 1 : 0); };
-sub genesis($)		{ return field($_[0], "genesis"); }
+sub portal($)		{ return field($_[0], "portal"); }
 sub Brand($)		{ return $_[0]->{'BRAND'}; }
 sub isAPT($)	        { return $_[0]->Brand()->isAPT() ? 1 : 0; }
 sub isCloud($)	        { return $_[0]->Brand()->isCloud() ? 1 : 0; }

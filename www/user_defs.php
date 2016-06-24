@@ -346,10 +346,17 @@ class User
     function wikionly()		{ return $this->field("wikionly"); }
     function mailman_password() { return $this->field("mailman_password"); }
     function nonlocal_id()	{ return $this->field("nonlocal_id"); }
-    function genesis()	     { return $this->field("genesis"); }
-    function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
-    function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
-    function isPNet()	     { return $this->genesis() == "phantomnet" ? 1 : 0; }
+    function portal()	     { return $this->field("portal"); }
+    function isAPT()	     { return ($this->portal() &&
+                                       $this->portal() == "aptlab" ? 1 : 0); }
+    function isCloud()	     { return ($this->portal() &&
+                                       $this->portal() == "cloudlab" ? 1 : 0); }
+    function isPNet()	     { return ($this->portal() &&
+                                       $this->portal() == "phantomnet" ? 1 : 0);}
+    function isEmulab()	     { return ($this->portal() &&
+                                       $this->portal() == "emulab" ? 1 : 0); }
+    # Not via the Portal interface.
+    function isClassic()     { return ($this->portal() ? 0 : 1); }
 
     function IsNonLocal() {
 	return ($this->field("nonlocal_id") ? 1 : 0);
@@ -738,7 +745,7 @@ class User
 	$wikionly    = $user->wikionly();
 	$stud        = $user->stud();
 	$uuid        = $user->uuid();
-	$genesis     = $user->genesis();
+	$portal      = $user->portal();
         $nonlocal_id = $user->nonlocal_id();
 
 	if (!strcmp($usr_addr2, ""))
@@ -921,10 +928,10 @@ class User
                     <td class=left>$uuid</td>
                   </tr>\n";
 
-	    if ($genesis != "emulab") {
+	    if (isset($portal)) {
 		echo "<tr>
-                      <td>Genesis: </td>
-                      <td class=left>$genesis</td>
+                      <td>Portal: </td>
+                      <td class=left>$portal</td>
                    </tr>\n";
 	    }
 	}

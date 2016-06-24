@@ -726,7 +726,7 @@ class Group
 	$usr_URL	= $user->URL();
 	$url            = $project->wwwBase();
 	
-	if (1 ||
+	if ($project->isEmulab() ||
             $project->isAPT() || $project->isCloud() || $project->isPNet()) {
 	    $url .= "/approveuser.php?uid=$joining_uid&pid=$pid";
             $message =

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -41,8 +41,7 @@ my $debug   = 0;
 my $impotent= 0;
 my $type    = "";
 my $silent  = 0;
-my $portal  = 0;
-my $genesis;
+my $portal;
 my @keyfiles = ();
 
 #
@@ -212,12 +211,12 @@ print STDERR Dumper($xmlparse)
     if ($debug);
 
 # APT flag. Notice and delete.
-if (exists($xmlparse->{'attribute'}->{"genesis"})) {
-    $genesis = $xmlparse->{'attribute'}->{"genesis"}->{'value'};
-    delete($xmlparse->{'attribute'}->{"genesis"});
-    if (! ($genesis eq "aptlab" || $genesis eq "cloudlab" || 
-	   $genesis eq "phantomnet")) {
-	fatal("Bad genesis: $genesis");
+if (exists($xmlparse->{'attribute'}->{"portal"})) {
+    $portal = $xmlparse->{'attribute'}->{"portal"}->{'value'};
+    delete($xmlparse->{'attribute'}->{"portal"});
+    if (! ($portal eq "aptlab" || $portal eq "cloudlab" || 
+	   $portal eq "phantomnet" || $portal eq "emulab")) {
+	fatal("Bad portal: $portal");
     }
     # Remove these, we do not require them on the APT path.
     delete($required{"affiliation_abbreviation"});
@@ -435,9 +434,9 @@ if (exists($newuser_args{'uid'})) {
     $new_uid = $newuser_args{'uid'};
     delete($newuser_args{'uid'});
 }
-# Genesis (APT, CloudLab or PhantomNet)
-$newuser_args{'genesis'} = $genesis
-    if (defined($genesis));
+# Portal (Emulab, APT, CloudLab or PhantomNet)
+$newuser_args{'portal'} = $portal
+    if (defined($portal));
 
 #
 # The type modifier comes in on the command line since this is available
@@ -461,7 +460,7 @@ my $newuser = User->Create($new_uid, $flags, \%newuser_args);
 if (!defined($newuser)) {
     fatal("Could not create new user!");
 }
-if (defined($genesis)) {
+if (defined($portal)) {
     $newuser->SetStatus(USERSTATUS_UNAPPROVED());
 }
 my $key       = $newuser->verify_key();
@@ -532,7 +531,7 @@ SENDMAIL("$usr_name '$usr_uid' <$usr_email>",
 	 "Testbed Operations\n",
 	 "$TBAPPROVAL",
 	 "Bcc: $TBAUDIT")
-    if (!($silent || defined($genesis)));
+    if (!($silent || defined($portal)));
 
 #
 # Do we have a keyfile? If so, rerun addpubkey for real now that the

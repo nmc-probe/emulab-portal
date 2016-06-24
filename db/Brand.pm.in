@@ -49,7 +49,11 @@ sub Create($$)
 {
     my ($class, $brand) = @_;
 
-    if ($brand =~ /aptlab/) {
+    # No brand means the classic interface.
+    if (!defined($brand)) {
+	$brand = "classic";
+    }
+    elsif ($brand =~ /aptlab/) {
 	$brand = "aptlab";
     }
     elsif ($brand =~ /cloudlab/) {
@@ -59,6 +63,7 @@ sub Create($$)
 	$brand = "phantomnet";
     }
     else {
+	# This means the new Portal interface.
 	$brand = "emulab";
     }
     my $self           = {};
@@ -72,6 +77,7 @@ sub isAPT($)	        { return $_[0]->brand() eq "aptlab" ? 1 : 0; }
 sub isCloud($)	        { return $_[0]->brand() eq "cloudlab" ? 1 : 0; }
 sub isPNet($)           { return $_[0]->brand() eq "phantomnet" ? 1 : 0; }
 sub isEmulab($)         { return $_[0]->brand() eq "emulab" ? 1 : 0; }
+sub isClassic($)        { return $_[0]->brand() eq "classic" ? 1 : 0; }
 
 sub wwwBase($)
 {
@@ -80,6 +86,7 @@ sub wwwBase($)
     return ($self->isAPT() ? "https://www.aptlab.net" :
 	    $self->isCloud() ? "https://www.cloudlab.us" :
 	    $self->isPNet() ? "https://www.phantomnet.org" :
+	    $self->isEmulab() ?	"@TBBASE@" . "/portal" :
 	    "@TBBASE@");
 }
 
@@ -139,7 +146,8 @@ sub SignupURL($$)
     my $wwwbase = $self->wwwBase();
     my $pid     = $project->pid();
 
-    return ($self->isAPT() || $self->isCloud() || $self->isPNet() ?
+    return ($self->isAPT() || $self->isCloud() ||
+	    $self->isPNet() || $self->isEmulab() ? 
 	    "${wwwbase}/signup.php?pid=$pid" :
 	    "${wwwbase}/joinproject.php3?target_pid=$pid");
 }

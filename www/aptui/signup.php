@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -419,7 +419,7 @@ if (!$this_user) {
     # Force initial SSL cert generation.
     $args["passphrase"]    = $formfields["password1"];
     # Flag to the backend.
-    $args["genesis"]	   = $PORTAL_GENESIS;
+    $args["portal"]	   = $PORTAL_GENESIS;
 
     #
     # Backend verifies pubkey and returns error. We first look for a 
@@ -517,7 +517,7 @@ $args["ron"]               = 0;
 $args["funders"]           = "None";
 $args["whynotpublic"]      = $PORTAL_GENESIS;
 # Flag to the backend.
-$args["genesis"]	   = $PORTAL_GENESIS;
+$args["portal"] 	   = $PORTAL_GENESIS;
 
 if (! ($project = Project::NewNewProject($args, $error))) {
     $errors["error"] = $error;

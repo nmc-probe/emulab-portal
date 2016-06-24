@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -61,7 +61,7 @@ if ($query_result) {
 #
 $query_result =
     DBQueryFatal("select count(pid) from projects ".
-                 "where approved=1 and genesis='cloudlab'");
+                 "where approved=1 and portal='cloudlab'");
 if ($query_result) {
     $row = mysql_fetch_array($query_result);
     $blob["projects"] = $row[0];

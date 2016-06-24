@@ -164,10 +164,18 @@ class Project
     function cvsrepo_public(){ return $this->field("cvsrepo_public"); }
     function allow_workbench(){ return $this->field("allow_workbench"); }
     function nonlocal_id()   { return $this->field("nonlocal_id"); }
-    function genesis()	     { return $this->field("genesis"); }
-    function isAPT()	     { return $this->genesis() == "aptlab" ? 1 : 0; }
-    function isCloud()	     { return $this->genesis() == "cloudlab" ? 1 : 0; }
-    function isPNet()	     { return $this->genesis() == "phantomnet" ? 1 : 0; }
+    function portal()	     { return $this->field("portal"); }
+    function isAPT()	     { return ($this->portal() &&
+                                       $this->portal() == "aptlab" ? 1 : 0); }
+    function isCloud()	     { return ($this->portal() &&
+                                       $this->portal() == "cloudlab" ? 1 : 0); }
+    function isPNet()	     { return ($this->portal() &&
+                                       $this->portal() == "phantomnet" ? 1 : 0);}
+    function isEmulab()	     { return ($this->portal() &&
+                                       $this->portal() == "emulab" ? 1 : 0); }
+    # Not via the Portal interface.
+    function isClassic()     { return ($this->portal() ? 0 : 1); }
+    
     function IsNonLocal() {
 	return ($this->field("nonlocal_id") ? 1 : 0);
     }
@@ -699,7 +707,7 @@ class Project
 	$wikiname		= $group->wikiname();
 	$cvsrepo_public		= $this->cvsrepo_public();
 	$allow_workbench	= $this->allow_workbench();
-	$genesis                = $this->genesis();
+	$portal                 = $this->portal();
         $nonlocal_id            = $this->nonlocal_id();
 
 	# Before project approval, display ron/plab request status.
@@ -763,10 +771,10 @@ class Project
                       <a href='$proj_URL'>$proj_URL</a></td>
               </tr>\n";
 
-	if ($genesis != "emulab") {
+	if (isset($portal)) {
 	    echo "<tr>
-                  <td>Genesis: </td>
-                  <td class=\"left\">$genesis</td>
+                  <td>Portal: </td>
+                  <td class=\"left\">$portal</td>
               </tr>\n";
 	}
 

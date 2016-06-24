@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2011, 2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2011, 2014, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -42,7 +42,7 @@ my $debug   = 0;
 my $nonlocal= 0;
 my $impotent= 0;
 my $silent  = 0;
-my $genesis;
+my $portal;
 my $resend;
 
 #
@@ -224,12 +224,12 @@ fatal($@)
     if ($@);
 
 # APT flag. Notice and delete.
-if (exists($xmlparse->{'attribute'}->{"genesis"})) {
-    $genesis = $xmlparse->{'attribute'}->{"genesis"}->{'value'};
-    delete($xmlparse->{'attribute'}->{"genesis"});
-    if (! ($genesis eq "aptlab" || $genesis eq "cloudlab" || 
-	   $genesis eq "phantomnet")) {
-	fatal("Bad genesis: $genesis");
+if (exists($xmlparse->{'attribute'}->{"portal"})) {
+    $portal = $xmlparse->{'attribute'}->{"portal"}->{'value'};
+    delete($xmlparse->{'attribute'}->{"portal"});
+    if (! ($portal eq "aptlab" || $portal eq "cloudlab" || 
+	   $portal eq "phantomnet" || $portal eq "emulab")) {
+	fatal("Bad portal: $portal");
     }
 }
 
@@ -375,9 +375,9 @@ exit(0)
 my $new_pid = $newproj_args{'pid'};
 delete($newproj_args{'pid'});
 delete($newproj_args{'head_uid'});
-# Genesis (APT, CloudLab, or PhantomNet)
-$newproj_args{'genesis'} = $genesis
-    if (defined($genesis));
+# Portal (Emulab, APT, CloudLab, or PhantomNet)
+$newproj_args{'portal'} = $portal
+    if (defined($portal));
 
 my $newproj = Project->Create($new_pid, $leader, \%newproj_args);
 if (!defined($newproj)) {

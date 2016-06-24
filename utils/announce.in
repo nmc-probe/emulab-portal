@@ -31,14 +31,14 @@ use Date::Parse;
 #
 sub usage()
 {
-    print STDERR "Usage: announce -a <-g genesis> [-s alert_style] [-b button_label] [-u action_url] [-m max_seen_count] <announcement_text>\n";
+    print STDERR "Usage: announce -a <-p portal> [-s alert_style] [-b button_label] [-u action_url] [-m max_seen_count] <announcement_text>\n";
     print STDERR "       announce -l [active|retired|all]\n";
     print STDERR "       announce -r idx\n";
     print STDERR "       announce -i idx\n";
     print STDERR "       announce -h\n";
     print STDERR "   -h   This message\n";
     print STDERR "   -a   Create a new announcement with the given announcement text.\n";
-    print STDERR "   -g   Set the genesis to be the one given. Should be one of 'cloudlab', 'emulab', 'aptlab', 'phantomnet'.\n";
+    print STDERR "   -p   Set the portal to be the one given. Should be one of 'cloudlab', 'emulab', 'aptlab', 'phantomnet'.\n";
     print STDERR "   -s   Set the style of the overall announcement box. Should normally be one of bootstraps alert-* classes. Defaults to 'alert-info'.\n";
     print STDERR "   -b   If there is an action associated with this announcement, this is the text which goes into the action button. Can include HTML. If it is unset, there is no action button.\n";
     print STDERR "   -u   URL of action associated with this announcement. {uid_idx} and {uid} can be used as URL templates to generate a different URL on a per-user basis. If it is unset, there is no action button.\n";
@@ -48,12 +48,12 @@ sub usage()
     print STDERR "   -i   Info about a particular announcement.\n";
     exit(-1);
 }
-my $optlist  = "hag:s:b:u:m:lr:i:";
+my $optlist  = "hap:s:b:u:m:lr:i:";
 my $add_mode = 0;
 my $list_mode = 0;
 my $retire_mode = 0;
 my $info_mode = 0;
-my $genesis = undef;
+my $portal = undef;
 my $style = "alert-info";
 my $button = undef;
 my $url = undef;
@@ -117,8 +117,8 @@ if (defined($options{"i"})) {
     $info_mode = 1;
     $info_idx = $options{"i"};
 }
-if (defined($options{"g"})) {
-    $genesis = $options{"g"};
+if (defined($options{"p"})) {
+    $portal = $options{"p"};
 }
 if (defined($options{"s"})) {
     $style = $options{"s"};
@@ -137,7 +137,7 @@ if ($add_mode + $list_mode + $retire_mode + $info_mode != 1) {
     usage();
 }
 
-if ($add_mode and ! defined($genesis)) {
+if ($add_mode and ! defined($portal)) {
     usage();
 }
 
@@ -159,7 +159,7 @@ if ($add_mode) {
     #
     my $query = "insert into apt_announcements set ";
     $query .= "created=NOW()";
-    $query .= ", genesis=" . DBQuoteSpecial($genesis);
+    $query .= ", portal=" . DBQuoteSpecial($portal);
     $query .= ", max_seen=" . DBQuoteSpecial($max_seen);
     $query .= ", text=" . DBQuoteSpecial($text);
     $query .= ", style=" . DBQuoteSpecial($style);
@@ -179,16 +179,16 @@ if ($add_mode) {
 	$condition = "retired=1 and ";
     }
     $query_result = 
-	DBQueryFatal("select idx, genesis, text from apt_announcements where ".$condition."uid_idx is NULL");
-    print "idx\tGenesis    Text\n";
+	DBQueryFatal("select idx, portal, text from apt_announcements where ".$condition."uid_idx is NULL");
+    print "idx\tPortal    Text\n";
     print "---\t-------    ----\n";
-    while (my ($idx, $genesis, $text) = $query_result->fetchrow_array()) {
+    while (my ($idx, $portal, $text) = $query_result->fetchrow_array()) {
 	my $textbit = substr($text, 0, 55);
 	if (length($text) > 55) {
 	    $textbit = $textbit . "...";
 	}
-	my $genesispad = sprintf("%-10s", $genesis);
-	print "$idx\t$genesispad $textbit\n"
+	my $portalpad = sprintf("%-10s", $portal);
+	print "$idx\t$portalpad $textbit\n"
     }
 } elsif ($retire_mode) {
     #
@@ -214,8 +214,8 @@ if ($add_mode) {
 	DBQueryFatal("select count(*) from apt_announcement_info where dismissed=1 and aid=".DBQuoteSpecial($info_idx));
     my ($dismissed) = $query_result->fetchrow_array();
     $query_result =
-	DBQueryFatal("select idx, created, uid_idx, genesis, retired, max_seen, text, style, link_label, link_url from apt_announcements where idx=".DBQuoteSpecial($info_idx));
-    if (my ($idx, $created, $uid_idx, $genesis, $retired,
+	DBQueryFatal("select idx, created, uid_idx, portal, retired, max_seen, text, style, link_label, link_url from apt_announcements where idx=".DBQuoteSpecial($info_idx));
+    if (my ($idx, $created, $uid_idx, $portal, $retired,
 	    $max_seen, $text, $style, $link_label,
 	    $link_url) = $query_result->fetchrow_array())
     {
@@ -223,7 +223,7 @@ if ($add_mode) {
 	print "Details for announcement $idx\n";
 	print "-----------------------------\n\n";
 	print "Created:\t$created\n";
-	print "Genesis:\t$genesis\n\n";
+	print "Portal:\t$portal\n\n";
 	if (defined($link_label) && defined($link_url)) {
 	    print "Button Label:\t$link_label\n";
 	    print "Button URL:\t$link_url\n";

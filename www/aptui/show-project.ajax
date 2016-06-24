@@ -150,7 +150,7 @@ function Do_ProjectProfile()
     $results["pid"]         = $target_project->pid();
     $results["pid_idx"]     = $target_project->pid_idx();
     $results["leader"]      = $target_project->head_uid();
-    $results["genesis"]     = $target_project->genesis();
+    $results["portal"]      = $target_project->portal();
     $results["created"]     = DateStringGMT($target_project->created());
     $results["approved"]    = $target_project->approved();
     $results["url"]         = $target_project->URL();

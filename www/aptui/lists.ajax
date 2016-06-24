@@ -66,8 +66,8 @@ function Do_SearchUsers()
 	return -1;
     }
     $query_result =
-        DBQueryFatal("select uid,usr_name,usr_affil,genesis from users ".
-                     "where genesis='$PORTAL_GENESIS' and ".
+        DBQueryFatal("select uid,usr_name,usr_affil,portal from users ".
+                     "where portal='$PORTAL_GENESIS' and ".
                      "      (uid like '%${text}%' or ".
                      "       usr_name like '%${text}%') ".
                      "order by uid");
@@ -103,10 +103,10 @@ function Do_SearchProjects()
 	return -1;
     }
     $query_result =
-        DBQueryFatal("select pid,u.uid,u.usr_name,u.usr_affil,p.genesis ".
+        DBQueryFatal("select pid,u.uid,u.usr_name,u.usr_affil,p.portal ".
                      "  from projects as p ".
                      "left join users as u on u.uid_idx=p.head_idx ".
-                     "where p.genesis='$PORTAL_GENESIS' and ".
+                     "where p.portal='$PORTAL_GENESIS' and ".
                      "      (pid like '%${text}%' or ".
                      "       u.usr_name like '%${text}%' or ".
                      "       u.usr_affil like '%${text}%') ".

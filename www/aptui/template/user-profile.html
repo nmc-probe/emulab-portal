@@ -35,10 +35,12 @@
       <td><%= fields.city %></td>
     </tr>
     <% if (isadmin) { %>
-      <tr>
-	<td>Genesis</td>
-	<td><%= fields.genesis %></td>
-      </tr>
+      <% if (fields.portal) { %>
+	<tr>
+	  <td>Portal</td>
+	  <td><%= fields.portal %></td>
+	</tr>
+      <% } %>
       <tr>
 	<td>Created</td>
 	<td class="format-date"><%= fields.created %></td>

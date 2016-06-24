@@ -21,10 +21,12 @@
       <td>Created</td>
       <td class="format-date"><%= fields.created %></td>
     </tr>
-    <tr>
-      <td>Genesis</td>
-      <td><%= fields.genesis %></td>
-    </tr>
+    <% if (fields.portal) { %>
+      <tr>
+	<td>Portal</td>
+	<td><%= fields.portal %></td>
+      </tr>
+    <% } %>
     <tr>
       <td>Approved</td>
       <td><% if (fields.approved) { %>Yes<% } else { %>No<% } %></td>
