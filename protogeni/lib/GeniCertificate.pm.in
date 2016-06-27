@@ -1420,7 +1420,7 @@ sub VerifySSLChain($@)
 	# We should always get something back.
 	# Okay, this changed in FreeBSD 10, which returns exit(2)
 	# when the certificate cannot be verified. See next comment.
-	return -1
+	goto bad
 	    if (!@result);
 
 	# Stupid openssl programs; always exit with zero status.
@@ -1432,16 +1432,25 @@ sub VerifySSLChain($@)
     }
     if (!defined($rootpem)) {
 	print STDERR "Could not verify $self\n";
-	return -1;
+	goto bad;
     }
     my $rootcert = GeniCertificate->LoadFromFile($rootpem);
     if (!defined($rootcert)) {
 	print STDERR "Could not load CA cert from $rootpem\n";
-	return -1;
+	goto bad;
     }
-    
     $self->{'ROOTCERT'} = $rootcert;
+    close($tempfile)
+	if (defined($tempfile));
+    unlink($filename)
+	if (defined($filename) && -e $filename);
     return 0;
+  bad:
+    close($tempfile)
+	if (defined($tempfile));
+    unlink($filename)
+	if (defined($filename) && -e $filename);
+    return -1;
 }
 
 #
