@@ -28,12 +28,14 @@
 # For each node we create a series of records reflecting its allocation
 # history over the given time range.
 #
-# Each history record looks like:
-#   (hist_ix,node_ix,start,end,expt_ix)
+# Each node history record looks like:
+#   (nhist_ix,node_ix,start,end,expt_ix,ehist_ix)
 # Each node record look like:
 #   (node_ix,name,IP,MAC)
+# Each experiment history record looks like:
+#   (ehist_ix,expt_ix,start,end)
 # Each experiment record looks like:
-#   (expt_ix,name,proj_ix,start,end)
+#   (expt_ix,name,proj_ix)
 # Each user record looks like:
 #   (user_ix,name,affil,city,state,country,zip)
 # Each project record looks like:
@@ -54,17 +56,20 @@ sub usage()
     print STDERR "   -d         Print additional debug info\n";
     print STDERR "   -a		Get info for all nodes\n";
     print STDERR "   -n node    Get info for a specific node\n";
+    print STDERR "   -t type    Get info for a specific node type\n";
     print STDERR "   -A         Anonymize info\n";
     print STDERR "   -G         Attempt to assign Lat/Lon info to users\n";
     print STDERR "   -N         Print in normalized CSV format\n";
+    print STDERR "   -R         Report number of experiments, nodes, and node hours\n";
     print STDERR "   -S         Print in summary form\n";
     print STDERR "   -U         Filter out users not valid/active at the time\n";
 }
 
-my $optlist = "adhAGNSUs:e:n:";
+my $optlist = "adhAGNRSUs:e:n:t:";
 my $debug = 0;
 my $anonymize = 0;
 my $normalize = 0;
+my $report = 0;
 my $summary = 0;
 my $starttime;
 my $endtime;
@@ -72,12 +77,14 @@ my $allnodes = 0;
 my $dogeo = 0;
 my $noinactive = 0;
 my $node;
+my $nodetype;
 
-sub nodehistory($$;$);
+sub nodehistory($$;$$);
 sub nodes($);
 sub experiments($);
 sub projects($);
 sub users($);
+sub doreport();
 
 #
 # Configure variables
@@ -90,6 +97,7 @@ my $TB		 = "@prefix@";
 use lib "@prefix@/lib";
 use libdb;
 use Node;
+use NodeType;
 use Interface;
 use Group;
 use User;
@@ -120,6 +128,8 @@ if (defined($options{d})) {
 }
 if (defined($options{a})) {
     $allnodes++;
+    $nodetype = undef;
+    $node = undef;
 }
 if (defined($options{A})) {
     $anonymize++;
@@ -129,6 +139,10 @@ if (defined($options{G})) {
 }
 if (defined($options{N})) {
     $normalize = 1;
+    $summary = 0;
+}
+if (defined($options{R})) {
+    $report = 1;
     $summary = 0;
 }
 if (defined($options{S})) {
@@ -148,6 +162,19 @@ if (defined($options{n})) {
        die("Invalid node name.");
     }
     $allnodes = 0;
+    $nodetype = undef;
+}
+if (defined($options{t})) {
+    if ($options{t} =~ /^([-\w]+)$/) {
+	$nodetype = $1;
+	if (!NodeType->Lookup($1)) {
+	    die("Not a valid node type.");
+	}
+    } else {
+       die("Invalid node type name.");
+    }
+    $allnodes = 0;
+    $node = undef;
 }
 if (defined($options{s})) {
    $starttime = str2time($options{s});
@@ -166,14 +193,14 @@ if (!$starttime || !$endtime) {
     die("Must specify a start and end time.");
 }
 
-if (!$allnodes && !$node) {
-    die("Must specify a node name or -a.");
+if (!$allnodes && !$nodetype && !$node) {
+    die("Must specify a node name (-n), node type (-t), or -a.");
 }
 
 #
 # Phase 1: build up the node history records
 #
-my $history = nodehistory($starttime, $endtime, $node);
+my $history = nodehistory($starttime, $endtime, $node, $nodetype);
 if (!$history) {
     die("Could not get node history records.");
 }
@@ -184,9 +211,10 @@ if (!$history) {
 my $nodes = nodes($history);
 
 #
-# Phase 3: use history records to build up experiment list
+# Phase 3: use history records to build up experiment and experiment
+# history lists
 # 
-my $expts = experiments($history);
+my ($expts, $expthistory) = experiments($history);
 
 #
 # Phase 4: use experiment records to build up project list
@@ -198,6 +226,14 @@ my $projects = projects($expts);
 # 
 my $users = users($projects);
 
+#
+# Special Emulab annual report info report.
+#
+if ($report) {
+    doreport();
+    exit(0);
+}
+
 print "History [$starttime-$endtime]:\n";
 my $ix = 1;
 foreach my $he (@$history) {
@@ -207,6 +243,7 @@ foreach my $he (@$history) {
     my $e = $he->{'end'};
     my $eix = $he->{'expt_idx'};
     my $eeix = $he->{'emulab_exptidx'};
+    my $ehix = $he->{'ehist_idx'};
 
     #
     # If there was something wrong with a node's DB info, we will not
@@ -227,11 +264,11 @@ foreach my $he (@$history) {
 	my $ulist = join(',', @{$pe->{'users'}});	
 	print "node='$node', start='$s', end='$e', ulist='$ulist'\n";
     } elsif ($normalize) {
-	print "index,node_index,start,end,expt_index\n"
+	print "index,node_index,start,end,expt_index,ehist_index\n"
 	    if ($ix == 1);
-	print "$ix,$nix,$s,$e,$eix\n";
+	print "$ix,$nix,$s,$e,$eix,$ehix\n";
     } else {
-	print "$ix: node=$nix ($node), time=[$s-$e], expt=$eix ($eeix)\n";
+	print "$ix: node=$nix ($node), time=[$s-$e], expt=$eix ($eeix), ehist=$ehix\n";
     }
     $ix++;
 }
@@ -268,6 +305,22 @@ foreach my $ee (@$expts) {
 	print "$eix,$name,$pix\n";
     } else {
 	print "$eix: name=$name, proj=$pix ($proj), emulab_idx=$eeix\n";
+    }
+}
+
+print "\nExperiment History (instances):\n";
+foreach my $eh (@$expthistory) {
+    my $ehix = $eh->{'ehist_idx'};
+    my $eix = $eh->{'expt_idx'};
+    my $s = $eh->{'start'};
+    my $e = $eh->{'end'};
+
+    if ($normalize) {
+	print "ehist_index,expt_index,start,end\n"
+	    if ($ehix == 1);
+	print "$ehix,$eix,$s,$e\n";
+    } else {
+	print "$ehix: expt_idx=$eix, start=$s, end=$e\n";
     }
 }
 
@@ -350,9 +403,9 @@ if ($normalize) {
 
 exit(0);
 
-sub nodehistory($$;$)
+sub nodehistory($$;$$)
 {
-    my ($stime,$etime,$dnode) = @_;
+    my ($stime,$etime,$dnode,$dnodetype) = @_;
     my @history = ();
     my %validnode = ();
 
@@ -365,6 +418,20 @@ sub nodehistory($$;$)
     if ($dnode) {
 	push(@mynodes, $dnode);
 	$nodelist = "node_id='$dnode'";
+    } elsif ($dnodetype) {
+	# XXX only look at nodes that existed at the end of the time window
+	my $query =
+	    DBQueryFatal("SELECT n.node_id FROM nodes AS n ".
+			 "WHERE n.type='$nodetype' AND n.role='testnode' ".
+			 "  AND UNIX_TIMESTAMP(n.inception)<$etime ".
+			 "ORDER BY n.priority");
+	if (!$query) {
+	    return undef;
+	}
+	while (my %row = $query->fetchhash()) {
+	    push(@mynodes, $row{'node_id'});
+	}
+	$nodelist = "node_id in ('" . join("','", @mynodes) . "')";
     } else {
 	# XXX only look at nodes that existed at the end of the time window
 	my $query =
@@ -392,15 +459,18 @@ sub nodehistory($$;$)
     #
     foreach my $node (@mynodes) {
 	my $query =
-	    DBQueryFatal("SELECT op,exptidx FROM node_history ".
+	    DBQueryFatal("SELECT op,exptidx,stamp FROM node_history ".
 			 "WHERE stamp<$stime AND node_id='$node' ".
 			 "ORDER BY stamp DESC LIMIT 1");
 	if ($query && $query->numrows) {
 	    my %row = $query->fetchhash();
 	    my $op = $row{'op'};
 	    if ($op eq "alloc" || $op eq "move") {
+		$allocrstart{$node} = $row{'stamp'};
 		$allocstart{$node} = $stime;
 		$allocexpt{$node} = $row{'exptidx'};
+	    } elsif ($op ne "free") {
+		print STDERR "$node: op=$op for expt=", $row{'exptidx'}, "\n";
 	    }
 	}
 	$validnode{$node} = 1;
@@ -433,6 +503,7 @@ sub nodehistory($$;$)
 		print STDERR
 		    "*** inconsistant data: $node alloc at $stamp to $exptidx: already allocated at $ostart by expt $oexpt\n";
 	    }
+	    delete $allocrstart{$node};
 	    $allocstart{$node} = $stamp;
 	    $allocexpt{$node} = $exptidx;
 	    next;
@@ -446,18 +517,76 @@ sub nodehistory($$;$)
 			$exptidx != 3205);  # hwdown
 		next;
 	    }
+
+	    my $inexptidx = $allocexpt{$node};
+	    if ($op eq "free" && $exptidx != $inexptidx) {
+		print STDERR
+		    "*** $node: $op from wrong expt? ".
+		    "($exptidx instead of $inexptidx)\n";
+	    } elsif ($op eq "move" &&
+		     !($exptidx == 3210 || $exptidx == 3204 ||
+		       $exptidx == 3205 || $exptidx == 48116)) {
+		print STDERR
+		    "*** $node: unexpected $op from $inexptidx to $exptidx\n";
+	    }
+
 	    if ($stamp < $allocstart{$node}) {
 		print STDERR
 		    "*** inconsistant data: bogus start/stop times\n";
-	    } else {
-		my $he = {
-		    'node' => $node,
-		    'start' => $allocstart{$node},
-		    'end' => $stamp,
-		    'emulab_exptidx' => $allocexpt{$node}
-		};
-		push(@history, $he);
 	    }
+	    # don't record entries for system experiments
+	    elsif ($inexptidx == 3210 || $inexptidx == 3204 ||
+		   $inexptidx == 3205 || $inexptidx == 48116) {
+		;
+	    }
+	    else {
+		#
+		# XXX argh! We can wind up here with a successful node
+		# allocation even if the corresponding swapin failed;
+		# i.e., the node was allocated but failed to boot/configue.
+		# We attempt to weed those out by checking the testbed_stats
+		# table entry in which the node allocation occurred.
+		#
+		my $doit = 1;
+		my $estart = exists($allocrstart{$node}) ?
+		    $allocrstart{$node} : $allocstart{$node};
+		my $query2 =
+		    DBQueryFatal("SELECT action,exitcode FROM testbed_stats ".
+				 "WHERE exptidx=$inexptidx AND ".
+				 "UNIX_TIMESTAMP(start_time)<=$estart AND ".
+				 "UNIX_TIMESTAMP(end_time)>=$estart");
+		if ($query2 && $query2->numrows) {
+		    my ($act, $ec) = $query2->fetchrow_array();
+		    if ($act =~ /^(start|swapin|swapmod)$/) {
+			if ($ec != 0) {
+			    print STDERR
+				localtime($estart) . ": *** $node: ignoring allocation as part of failed start/swapin/swapmod\n"
+				if (0);
+			    $doit = 0;
+			}
+		    } else {
+			print STDERR
+			    "*** $node: testbed_stats entry for expt $inexptidx not an alloc! (action=$act,exitcode=$ec)\n";
+		    }
+		} else {
+		    if (!exists($allocrstart{$node})) {
+			print STDERR
+			    "*** $node: could not find testbed_stats entry for expt $inexptidx at $estart\n"
+			    if (0);
+		    }
+		}
+		    
+		if ($doit) {
+		    my $he = {
+			'node' => $node,
+			'start' => $allocstart{$node},
+			'end' => $stamp,
+			'emulab_exptidx' => $inexptidx
+		    };
+		    push(@history, $he);
+		}
+	    }
+	    delete $allocrstart{$node};
 	    delete $allocstart{$node};
 	    delete $allocexpt{$node};
 	    next;
@@ -468,15 +597,59 @@ sub nodehistory($$;$)
     # Add records for any node still allocated at the end of the range
     #
     foreach my $node (keys %allocstart) {
-	my $he = {
-	    'node' => $node,
-	    'start' => $allocstart{$node},
-	    'end' => $etime,
-	    'emulab_exptidx' => $allocexpt{$node}
-	};
-	push(@history, $he);
+	#
+	# XXX argh! We can wind up here with a successful node
+	# allocation even if the corresponding swapin failed;
+	# i.e., the node was allocated but failed to boot/configue.
+	# We attempt to weed those out by checking the testbed_stats
+	# table entry in which the node allocation occurred.
+	#
+	my $doit = 1;
+	my $estart = exists($allocrstart{$node}) ?
+	    $allocrstart{$node} : $allocstart{$node};
+	my $inexptidx = $allocexpt{$node};
+	my $query2 =
+	    DBQueryFatal("SELECT action,exitcode FROM testbed_stats ".
+			 "WHERE exptidx=$inexptidx AND ".
+			 "UNIX_TIMESTAMP(start_time)<=$estart AND ".
+			 "UNIX_TIMESTAMP(end_time)>=$estart");
+	if ($query2 && $query2->numrows) {
+	    my ($act, $ec) = $query2->fetchrow_array();
+	    if ($act =~ /^(start|swapin|swapmod)$/) {
+		if ($ec != 0) {
+		    print STDERR
+			localtime($estart) . ": *** $node: ignoring allocation as part of failed start/swapin/swapmod\n"
+			if (0);
+		    $doit = 0;
+		}
+	    } else {
+		print STDERR
+		    "*** $node: testbed_stats entry for expt $inexptidx not an alloc! (action=$act,exitcode=$ec)\n";
+	    }
+	} else {
+	    if (!exists($allocrstart{$node})) {
+		print STDERR
+		    "*** $node: could not find testbed_stats entry for expt $inexptidx at $estart\n"
+		    if (0);
+	    }
+	}
+
+	if ($doit) {
+	    my $he = {
+		'node' => $node,
+		'start' => $allocstart{$node},
+		'end' => $etime,
+		'emulab_exptidx' => $allocexpt{$node}
+	    };
+	    push(@history, $he);
+	}	    
     }
 
+    # Make sure we are sorted by start time, end time
+    @history = sort {
+	$a->{'start'} <=> $b->{'start'} || $a->{'end'} <=> $b->{'end'}
+    } @history;
+    
     return \@history;
 }
 
@@ -530,8 +703,11 @@ sub experiments($)
 {
     my ($history) = @_;
     my @expts = ();
+    my @ehistory = ();
     my $eix = 1;
+    my $ehix = 1;
     my %exptix = ();
+    my %expthix = ();
 
     foreach my $he (@$history) {
 	my $eeix = $he->{'emulab_exptidx'};
@@ -565,9 +741,113 @@ sub experiments($)
 	    $eix++;
 	}
 	$he->{'expt_idx'} = $exptix{$eeix};
+
+	#
+	# Compute experiment instances.
+	#
+	# Unfortunately, the node [start-end] times do not match exactly
+	# with experiment instance [start-end] times, so we cannot just
+	# find all node_history records that have the same start time or
+	# the same end time to identify an instance and all its nodes.
+	#
+	# So instead we identify an instance as follows. The first time
+	# we see a node_history record for a particular exptidx, we record
+	# the start/end times as defining the "current instance". For every
+	# subsequent node_history record we see for that exptidx in which
+	# the start time is less than the "current instance" end time, we
+	# consider it part of the current instance. If we find a record in
+	# which the start time exceeds the end time of the current instance,
+	# we know we have started a new instance.
+	#
+	# I tried getting this out of the DB instead but...its complicated.
+	#
+	my $ix = $he->{'expt_idx'};
+	my $s = $he->{'start'};
+	my $e = $he->{'end'};
+	if (!exists($expthix{$ix})) {
+	    $expthix{$ix}{'start'} = $s;
+	    $expthix{$ix}{'end'} = $e;
+	    @{$expthix{$ix}{'nodes'}} = ();
+	} elsif ($s < $expthix{$ix}{'end'}) {
+	    if ($s < $expthix{$ix}{'start'}) {
+		$expthix{$ix}{'start'} = $s;
+	    }
+	    if ($e > $expthix{$ix}{'end'}) {
+		$expthix{$ix}{'end'} = $e;
+	    }
+	} else {
+	    my $ehe = {
+		'ehist_idx' => $ehix,
+		'expt_idx' => $ix,
+		'start' => $expthix{$ix}{'start'},
+		'end' => $expthix{$ix}{'end'}
+	    };
+	    push(@ehistory, $ehe);
+	    my %sawnode = ();
+	    foreach my $e (@{$expthix{$ix}{'nodes'}}) {
+		my $n = $e->{'node'};
+
+		#
+		# XXX sanity check that a node only appears once per instance
+		# XXX looks like it can appear multiple times, as the result
+		# of a swap modify. Just warn, it does not cause any harm for
+		# what we are doing right now (just reporting).
+		#
+		if (0 && exists($sawnode{$n})) {
+		    my $ee = $expts[$ix - 1];
+		    my $pid = $ee->{'proj'};
+		    my $eid = $ee->{'name'};
+		    print STDERR "WARNING: $n already in $pid/$eid ($ix/$eeix)\n";
+		} else {
+		    $sawnode{$n} = 1;
+		}
+		$e->{'ehist_idx'} = $ehix;
+	    }
+	    $ehix++;
+
+	    $expthix{$ix}{'start'} = $s;
+	    $expthix{$ix}{'end'} = $e;
+	    @{$expthix{$ix}{'nodes'}} = ();
+	}
+	push(@{$expthix{$ix}{'nodes'}}, $he);
     }
 
-    return \@expts;
+    # Dump outstanding instances
+    foreach my $ix (keys %expthix) {
+	my $ehe = {
+	    'ehist_idx' => $ehix,
+	    'expt_idx' => $ix,
+	    'start' => $expthix{$ix}{'start'},
+	    'end' => $expthix{$ix}{'end'}
+	};
+	push(@ehistory, $ehe);
+	my %sawnode = ();
+	my $nodestr = "";
+	foreach my $e (@{$expthix{$ix}{'nodes'}}) {
+	    my $n = $e->{'node'};
+	    $nodestr .= " $n";
+
+	    #
+	    # XXX sanity check that a node only appears once per instance
+	    # XXX looks like it can appear multiple times, as the result
+	    # of a swap modify. Just warn, it does not cause any harm for
+	    # what we are doing right now (just reporting).
+	    #
+	    if (0 && exists($sawnode{$n})) {
+		my $ee = $expts[$ix - 1];
+		my $pid = $ee->{'proj'};
+		my $eid = $ee->{'name'};
+		my $_eeix = $e->{'emulab_exptidx'};
+		print STDERR "WARNING: $n already in $pid/$eid ($ix/$_eeix): $nodestr\n";
+	    } else {
+		$sawnode{$n} = 1;
+	    }
+	    $e->{'ehist_idx'} = $ehix;
+	}
+	$ehix++;
+    }
+
+    return (\@expts, \@ehistory);
 }
 
 sub projects($)
@@ -581,17 +861,16 @@ sub projects($)
 	my $pid = $ee->{'proj'};
 	if (!exists($projix{$pid})) {
 	    # Look up the projects main group
+	    my @users = ();
 	    my $gobj = Group->Lookup($pid, $pid);
 	    if (!$gobj) {
-		print STDERR "*** bad project: no project or group\n";
-		next;
+		print STDERR
+		    "*** $pid: project no longer exists, cannot get users.\n";
+	    } else {
+		if ($gobj->MemberList(\@users) != 0) {
+		    print STDERR "*** $pid: could not get user list.\n";
+		}
 	    }
-	    my @users = ();
-	    if ($gobj->MemberList(\@users) != 0) {
-		print STDERR "*** bad project: could not get user list\n";
-		next;
-	    }
-
 	    my $pe = {
 		'proj_idx' => $pix,
 		'name' => $pid,
@@ -857,6 +1136,148 @@ again:
 	    $user->{'latitude'} = "";
 	    $user->{'longitude'} = "";
 	    $user->{'location'} = "";
+	}
+    }
+}
+
+my %pactivity;
+
+sub sortem() {
+    return $pactivity{$a}{'projref'}->{'name'} cmp
+	$pactivity{$b}{'projref'}->{'name'};
+}
+
+#
+# Calculate how many projects created how many experiments.
+# Calculate node allocations and node hours allocated per project.
+# Calculate total node allocations and node hours allocated.
+#
+# Note that by convention, we have never counted emulab-ops.
+#
+sub doreport()
+{
+    my ($pcount, $ecount);
+    my %ignoreproj = (
+	'emulab-ops' => 1,
+    );
+
+    #
+    # Calculate how many projects created how many experiments.
+    #
+    my $total_projects = 0;
+    my $total_experiments = 0;
+    my $total_instances = 0;
+
+    foreach my $proj (@$projects) {
+	if (!$ignoreproj{$proj->{'name'}}) {
+	    $total_projects++;
+	}
+    }
+    foreach my $expt (@$expts) {
+	my $pix = $expt->{'proj_idx'};
+	my $proj = $projects->[$pix-1];
+	if (!$ignoreproj{$proj->{'name'}}) {
+	    $total_experiments++;
+	}
+    }
+    foreach my $eh (@$expthistory) {
+	my $eix = $eh->{'expt_idx'};
+	my $expt = $expts->[$eix-1];
+	my $pix = $expt->{'proj_idx'};
+	my $proj = $projects->[$pix-1];
+	if (!$ignoreproj{$proj->{'name'}}) {
+	    $total_instances++;
+	}
+    }
+
+    my $startstr = localtime($starttime);
+    my $endstr = localtime($endtime);
+    print "$startstr to $endstr:\n";
+    print "$total_projects projects started $total_instances instances of $total_experiments experiments\n";
+
+    foreach my $eh (@$expthistory) {
+	my $hix = $eh->{'ehist_idx'};
+	my $eix = $eh->{'expt_idx'};
+	my $expt = $expts->[$eix-1];
+	my $pix = $expt->{'proj_idx'};
+	my $proj = $projects->[$pix-1];
+
+	if ($expt->{'expt_idx'} != $eix ||
+	    $eh->{'ehist_idx'} != $hix ||
+	    $eh->{'expt_idx'} != $eix ||
+	    $proj->{'proj_idx'} != $pix) {
+	    die("Bogons in the data!");
+	}
+
+	if (!exists($pactivity{$pix})) {
+	    $pactivity{$pix}{'projref'} = $proj;
+	    $pactivity{$pix}{'experiments'} = 1;
+	} else {
+	    $pactivity{$pix}{'experiments'}++;
+	}
+
+
+    }
+
+    #
+    # Calculate node allocations and node hours allocated per project.
+    #
+    my $total_nodes = 0;
+    my $total_nodeseconds = 0;
+
+    foreach my $he (@$history) {
+	my $node = $he->{'node'};
+	my $nix = $he->{'node_idx'};
+	my $s = $he->{'start'};
+	my $e = $he->{'end'};
+	my $eix = $he->{'expt_idx'};
+	my $eeix = $he->{'emulab_exptidx'};
+	my $hix = $he->{'ehist_idx'};
+
+	#
+	# If there was something wrong with a node's DB info, we will not
+	# have assigned an index. Skip it.
+	#
+	if (!$nix) {
+	    next;
+	}
+
+	# Clip the start and end times. XXX should already be done.
+	$s = $starttime if ($s < $starttime);
+	$e = $endtime if ($e > $endtime);
+
+	my $ehist = $expthistory->[$hix-1];
+	my $expt = $expts->[$eix-1];
+	my $pix = $expt->{'proj_idx'};
+	my $proj = $projects->[$pix-1];
+
+	if ($ignoreproj{$proj->{'name'}}) {
+	    next;
+	}
+
+	if (!exists($pactivity{$pix})) {
+	    $pactivity{$pix}{'projref'} = $proj;
+	    $pactivity{$pix}{'nodes'} = 0;
+	    $pactivity{$pix}{'nodeseconds'} = 0;
+	}
+	$pactivity{$pix}{'nodes'}++;
+	$pactivity{$pix}{'nodeseconds'} += ($e - $s);
+
+	$total_nodes++;
+	$total_nodeseconds += ($e - $s);
+    }
+
+    printf("%d total nodes allocated (%.2f node days)\n",
+	   $total_nodes, $total_nodeseconds / (24*3600));
+    foreach my $pix (sort sortem keys %pactivity) {
+	my $proj = $projects->[$pix-1];
+	my $pname = $proj->{'name'};
+	if (!$ignoreproj{$proj->{'name'}}) {
+	    my $nodes = $pactivity{$pix}{'nodes'};
+	    my $nodehours = $pactivity{$pix}{'nodeseconds'} / 3600;
+
+	    printf("  %s: %d nodes (%.2f node days)\n",
+		   $pname, $nodes, $nodehours/24);
 	}
     }
 }
