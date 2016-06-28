@@ -35,6 +35,9 @@ if (isset($this_user)) {
     # Allow unapproved users to edit their profile ...
     CheckLoginOrDie(CHECKLOGIN_UNAPPROVED);
 }
+else {
+    CheckLoginOrRedirect();
+}
 
 #
 # Verify page arguments.
