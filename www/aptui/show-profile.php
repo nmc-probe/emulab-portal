@@ -41,14 +41,20 @@ $isadmin   = (ISADMIN() ? 1 : 0);
 #
 # Verify page arguments.
 #
-$reqargs = RequiredPageArguments("uuid",   PAGEARG_STRING);
-$optargs = OptionalPageArguments("source", PAGEARG_BOOLEAN,
+$optargs = OptionalPageArguments("uuid",   PAGEARG_STRING,
+                                 "profile",PAGEARG_STRING,
+                                 "project",PAGEARG_PROJECT,
+                                 "source", PAGEARG_BOOLEAN,
                                  "rspec",  PAGEARG_BOOLEAN);
-
-if (!isset($uuid)) {
-    SPITUSERERROR("Must provide uuid!");
+if (isset($uuid))  {
+    $profile = Profile::Lookup($uuid);
 }
-$profile = Profile::Lookup($uuid);
+elseif (isset($project) && isset($profile)) {
+    $profile = Profile::LookupByName($project, $profile);
+}    
+else {
+    SPITUSERERROR("Must provide a uuid or project/profile name!");
+}
 if (!$profile) {
     SPITUSERERROR("No such profile!");
 }
