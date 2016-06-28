@@ -69,6 +69,8 @@ function Do_SearchUsers()
         DBQueryFatal("select uid,usr_name,usr_affil,portal from users ".
                      "where portal='$PORTAL_GENESIS' and ".
                      "      (uid like '%${text}%' or ".
+                     "       usr_affil like '%${text}%' or ".
+                     "       LCASE(usr_email) like '%${text}%' or ".
                      "       usr_name like '%${text}%') ".
                      "order by uid");
 
