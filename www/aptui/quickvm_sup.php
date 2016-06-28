@@ -233,7 +233,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     echo "      <li class='apt-left $hiddenxs'>".
         "           <a class='btn btn-quickvm-home navbar-btn' ".
         "              href='$PORTAL_MANUAL' target='_blank'> ".
-        ($ISEMULAB || $ISPNET ? "Wiki" : "Manual") . "</a></li>\n";
+        ($ISEMULAB ? "Wiki" : "Manual") . "</a></li>\n";
 
     if ($login_user && !($login_status & CHECKLOGIN_WEBONLY)) {
 	echo "  <li id='quickvm_actions_menu' class='dropdown apt-left'> ".
