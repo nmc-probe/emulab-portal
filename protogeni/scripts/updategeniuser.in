@@ -475,6 +475,7 @@ sub ProjectMembership()
     else {
 	$url = $certificate->url();
 	$url =~ s/sa$/geni-sa/;
+	@params = ($user_urn, @params);
     }
     my $response =
 	Genixmlrpc::CallMethod($url, $context, $method, @params);
@@ -505,8 +506,6 @@ sub ProjectMembership()
 #
 sub UpdatePersonalData()
 {
-    my $isportal = 0;
-    
     #
     # Load the SA cert to act as caller context.
     #
@@ -570,7 +569,6 @@ sub UpdatePersonalData()
 			       '_GENI_MEMBER_DISPLAYNAME',
 			       'MEMBER_LASTNAME'];
 	@params = ("MEMBER", $param1, $param2);
-	$isportal = 1;
     }
     elsif ($auth =~ /iminds\.be/) {
 	$url = $certificate->url();
@@ -581,12 +579,12 @@ sub UpdatePersonalData()
 			       '_EMULAB_MEMBER_FULLNAME',
 			       'MEMBER_LASTNAME'];
 	@params = ("MEMBER", $param1, $param2);
-	$isportal = 1;
     }
     else {
 	$url = $certificate->url();
 	$url =~ s/sa$/geni-ma/;
 	$method = "lookup";
+	@params = ("MEMBER", $param1, $param2);
     }
     my $response =
 	Genixmlrpc::CallMethod($url, $context, $method, @params);
