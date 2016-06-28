@@ -115,7 +115,7 @@ elseif ($ISALTDOMAIN && $_SERVER["SERVER_NAME"] == "www.phantomnet.org") {
     if (preg_match("/\/([\w\/]+)$/", $WWW, $matches)) {
 	$APTBASE .= "/" . $matches[1];
     }
-    $PORTAL_MANUAL         = "http://wiki.phantomnet.org";
+    $PORTAL_MANUAL         = "http://docs.phantomnet.org";
     $PORTAL_MOTD_SITEVAR   = "phantomnet/message";
     $PORTAL_HELPFORUM      = "phantomnet-users";
     $PORTAL_PASSWORD_HELP  = "PhantomNet.org or Emulab.net Username";
