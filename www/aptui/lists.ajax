@@ -50,7 +50,7 @@ function Do_SearchUsers()
 {
     global $this_user;
     global $ajax_args;
-    global $PORTAL_GENESIS;
+    global $PORTAL_GENESIS, $ISEMULAB;
     $results = array();
 
     if (CheckPageArgs()) {
@@ -65,9 +65,13 @@ function Do_SearchUsers()
 	SPITAJAX_ERROR(-1, "Illegal text to search for");
 	return -1;
     }
+    $portal_test = "portal='$PORTAL_GENESIS'";
+    if ($ISEMULAB) {
+        $portal_test = "(portal is null or $portal_test)";
+    }
     $query_result =
         DBQueryFatal("select uid,usr_name,usr_affil,portal from users ".
-                     "where portal='$PORTAL_GENESIS' and ".
+                     "where $portal_test and ".
                      "      (uid like '%${text}%' or ".
                      "       usr_affil like '%${text}%' or ".
                      "       LCASE(usr_email) like '%${text}%' or ".
@@ -89,7 +93,7 @@ function Do_SearchProjects()
 {
     global $this_user;
     global $ajax_args;
-    global $PORTAL_GENESIS;
+    global $PORTAL_GENESIS, $ISEMULAB;
     $results = array();
 
     if (CheckPageArgs()) {
@@ -104,11 +108,15 @@ function Do_SearchProjects()
 	SPITAJAX_ERROR(-1, "Illegal text to search for");
 	return -1;
     }
+    $portal_test = "p.portal='$PORTAL_GENESIS'";
+    if ($ISEMULAB) {
+        $portal_test = "(p.portal is null or $portal_test)";
+    }
     $query_result =
         DBQueryFatal("select pid,u.uid,u.usr_name,u.usr_affil,p.portal ".
                      "  from projects as p ".
                      "left join users as u on u.uid_idx=p.head_idx ".
-                     "where p.portal='$PORTAL_GENESIS' and ".
+                     "where $portal_test and ".
                      "      (pid like '%${text}%' or ".
                      "       u.usr_name like '%${text}%' or ".
                      "       u.usr_affil like '%${text}%') ".
