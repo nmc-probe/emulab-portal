@@ -122,13 +122,18 @@ my $genilib =
     "#\n" .
     "# NOTE: This code was machine converted. An actual human would never\n".
     "#       write code like this!\n".
-    "#\n" .
-    "import geni.portal\n" .
+    "#\n\n" .
+    "# Import the Portal object.\n" .
+    "import geni.portal as portal\n" .
+    "# Import the ProtoGENI library.\n" .
     "import geni.rspec.pg as pg\n" .
+    "# Import the Emulab specific extensions.\n" .
     "import geni.rspec.emulab as emulab\n" .
     "\n" .
-    "rspec  = pg.Request()\n" .
-    "portal = geni.portal.Context()\n\n";
+    "# Create a portal object,\n".
+    "pc = portal.Context()\n\n".
+    "# Create a Request object to start building the RSpec.\n".
+    "request = pc.makeRequestRSpec()\n\n";
 
 sub AddStatement($)
 {
@@ -141,6 +146,8 @@ sub AddStatement($)
 my %Nodes       = ();
 my %Ifaces      = ();
 my %Links       = ();
+my $Description;
+my $Instructions;
 
 sub AddNode($$) {
     my ($client_id, $type) = @_;
@@ -515,22 +522,17 @@ foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
 my ($rspec_tour) = GeniXML::FindNodesNS("n:rspec_tour", $rspec,
 					$GeniXML::RSPEC_TOUR)->get_nodelist();
 if (defined($rspec_tour)) {
-    my $description  = GeniXML::FindFirst("n:description", $rspec_tour);
-    my $instructions = GeniXML::FindFirst("n:instructions", $rspec_tour);
+    $Description  = GeniXML::FindFirst("n:description", $rspec_tour);
+    $Instructions = GeniXML::FindFirst("n:instructions", $rspec_tour);
 
-    AddStatement("Tour = emulab.Tour()");
-    if (defined($description)) {
-	my $text = $description->textContent();
-	$text =~ s/\'/\\'/g;
-
-	AddStatement("Tour.Description(emulab.Tour.TEXT, '$text')");
+    if (defined($Description)) {
+	$Description = $Description->textContent();
+	$Description =~ s/\"/\\"/g;
     }
-    if (defined($instructions)) {
-	my $text = $instructions->textContent();
-
-	AddStatement("Tour.Instructions(emulab.Tour.TEXT, '$text')");
+    if (defined($Instructions)) {
+	$Instructions = $Instructions->textContent();
+	$Instructions =~ s/\"/\\"/g;
     }
-    AddStatement("rspec.addTour(Tour)\n");
 }
 
 #
@@ -588,7 +590,7 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	}
     }
     else {
-	push(@code, "$ntag = pg.RawPC('$client_id')");
+	push(@code, "$ntag = request.RawPC('$client_id')");
     }
     foreach my $statement (@{$node->{'statements'}}) {
 	push(@code, "${ntag}." . $statement);
@@ -642,7 +644,6 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	    }
 	}
     }
-    push(@code, "rspec.addResource($ntag)");
     AddStatement(join("\n", @code));
     AddStatement("");
 }
@@ -653,10 +654,10 @@ foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
     my @code        = ("# Link $client_id");
 
     if (defined($link->{'type'}) && $link->{'type'} eq "lan") {
-	push(@code, "$ltag = pg.LAN('$client_id')");
+	push(@code, "$ltag = request.LAN('$client_id')");
     }
     else {
-	push(@code, "$ltag = pg.Link('$client_id')");
+	push(@code, "$ltag = request.Link('$client_id')");
     }
     foreach my $statement (@{$link->{'statements'}}) {
 	push(@code, "${ltag}." . $statement);
@@ -677,7 +678,6 @@ foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
 	}
 	push(@code, "${ltag}.addInterface($itag)");
     }
-    push(@code, "rspec.addResource($ltag)");
     AddStatement(join("\n", @code));
     AddStatement("");
 }
@@ -687,11 +687,19 @@ foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
 #
 if (GeniXML::MultiplexFactor($rspec)) {
     my $factor = GeniXML::MultiplexFactor($rspec);
-    AddStatement("rspec.setCollocateFactor($factor)");
+    AddStatement("request.setCollocateFactor($factor)");
 }
 if (GeniXML::PackingStrategy($rspec)) {
     my $packing_option = GeniXML::PackingStrategy($rspec);
-    AddStatement("rspec.setPackingStrategy($packing_option)");
+    AddStatement("request.setPackingStrategy('$packing_option')");
+}
+if (GeniXML::RoutingStyle($rspec)) {
+    my $style = GeniXML::RoutingStyle($rspec);
+    AddStatement("request.setRoutingStyle('$style')");
+}
+if (GeniXML::DelayImage($rspec)) {
+    my $urn = GeniXML::DelayImage($rspec);
+    AddStatement("request.setDelayImage('$urn')");
 }
 foreach my $pool (@{ GeniXML::GetAddressPools($rspec) }) {
     my $name  = $pool->{'client_id'};
@@ -702,9 +710,23 @@ foreach my $pool (@{ GeniXML::GetAddressPools($rspec) }) {
     if (defined($cmurn)) {
 	AddStatement("pool.component_manager_id = '$cmurn'");
     }
-    AddStatement("rspec.addResource(pool)");
 }
-AddStatement("portal.printRequestRSpec(rspec)");
+AddStatement("pc.printRequestRSpec(request)");
+
+#
+# Prepend the description and instructions using the doc string format.
+#
+if (defined($Description) || defined($Instructions)) {
+    $Description = "This script has no description."
+	if (!defined($Description));
+
+    my $docstring = '"""' . $Description;
+    if (defined($Instructions)) {
+	$docstring .= "\n\n" . "Instructions:" . "\n" . $Instructions;
+    }
+    $docstring .= '"""';
+    $genilib = $docstring . "\n\n" . $genilib;
+}
 
 if (defined($ofile)) {
     open(GENI, ">$ofile") or
