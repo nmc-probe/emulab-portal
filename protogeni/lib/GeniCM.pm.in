@@ -771,11 +771,46 @@ sub GetTicketAuxAux($$$$$$$$$$$)
     my $packing_option = GeniXML::PackingStrategy($rspec);
 
     #
-    # Look for top level NFS mounts directive, which is used to maintain
-    # compatibility with Emulab Classic users; when we receive this
-    # directive *and* PROTOGENI_LOCALUSER=1, then we can do mounts the
-    # way Emulab users expect (they get a shared home directory).
+    # User can turn off routing.
     #
+    my $routertype = GeniXML::RoutingStyle($rspec);
+    if (!defined($routertype)) {
+	$routertype = "static-ddijk";
+    }
+    elsif ($routertype eq "static") {
+	$routertype = "static-ddijk";
+    }
+    elsif ($routertype ne "none") {
+	$response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					 "Bad routing style: $routertype");
+	goto bad;
+    }
+    #
+    # User can set the delay image. 
+    #
+    if (defined(GeniXML::DelayImage($rspec))) {
+	my $delayurn = GeniXML::DelayImage($rspec);
+	
+	if (!GeniHRN::IsValid($delayurn)) {
+	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					     "Invalid URN: $delayurn");
+	    goto bad;
+	}
+	my $hrn = GeniHRN->new($delayurn);
+	my (undef,$ospid,$os,$vers) = $hrn->ParseImage();
+	if ($hrn->type() ne "image" || !defined($ospid) || !defined($os)) {
+	    $response = GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					     "Malformed image URN: $delayurn");
+	    goto bad;
+	}
+	my $delayname = $os;
+	$delayname = "${ospid}/" . $delayname
+	    if (defined($ospid));
+	$delayname .= ":${vers}"
+	    if (defined($vers));
+	
+	$virtexperiment->delay_osname($delayname);
+    }
 
     #
     # Add global vtypes.
@@ -1415,7 +1450,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 			"osname"  => $osname,
 			"ips"     => '', # deprecated
 			"cmd_line"=> '', # bogus
-			"routertype" => "static-ddijk",
+			"routertype" => $routertype,
 			"fixed"   => (defined($subnode_of) ? $subnode_of :
 				      defined($node) ? $node->node_id() : ""),
 			    
