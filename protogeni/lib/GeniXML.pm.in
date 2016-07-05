@@ -1186,6 +1186,28 @@ sub GetAddressPools($)
     return $result;
 }
 
+sub RoutingStyle($)
+{
+    my ($rspec) = @_;
+    my $result  = undef;
+    my $element = FindNodesNS("n:routing_style", $rspec, $EMULAB_NS)->pop();
+    if (defined($element)) {
+	$result = GetText("style", $element);
+    }
+    return $result;
+}
+
+sub DelayImage($)
+{
+    my ($rspec) = @_;
+    my $result  = undef;
+    my $element = FindNodesNS("n:delay_image", $rspec, $EMULAB_NS)->pop();
+    if (defined($element)) {
+	$result = GetText("urn", $element);
+    }
+    return $result;
+}
+
 sub GetSharedLanName($)
 {
     my ($iface) = @_;
