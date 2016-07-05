@@ -32,21 +32,27 @@ import re
 import HTMLParser
 
 # Configure stuff.
+TB        = "@prefix@";
 OURDOMAIN = "@OURDOMAIN@";
 
 # Testbed specific stuff
-sys.path.append("/usr/local/lib/geni-lib")
+if False:
+    sys.path.append(TB + "/opsdir/lib/geni-lib")
+else:
+    sys.path.append("/usr/local/lib/geni-lib")
 
 # Geni lib stuff.
 import geni.portal as portal
 import geni.rspec.pg as RSpec
 import geni.rspec.igext as IG
+import geni.rspec.emulab
 import geni.urn as URN
 import geni.namespaces as GNS
 
 pc = portal.Context() 
 rspec = RSpec.Request()
 tour = IG.Tour()
+routertype = None
 
 # This is how we read the NS parser output XML.
 from lxml import etree
@@ -54,6 +60,9 @@ from lxml import etree
 def Fatal(message):
     print >> sys.stderr, message
     sys.exit(1)
+
+def Warn(message):
+    print >> sys.stderr, message
 
 def Usage():
     print "usage: " + sys.argv[0] + " [option...] irfile"
@@ -158,6 +167,12 @@ for child in tree.getroot():
                 raw.attrib["action"] = "nonfatal"
                 node.addRawElement(raw)
                 pass
+            elif element.tag == "routertype" and element.text:
+                routertype = element.text
+                if routertype == "static-ddijk":
+                    routertype = "static"
+                    pass
+                pass
             elif element.tag in ["loadlist"]:
                 Fatal("Unsupported request on node " + vname + ": " + element.tag)
                 pass
@@ -179,6 +194,12 @@ for child in tree.getroot():
         ifacecounts[vname] = ifacecounts[vname] + 1
         pass
     pass
+
+#
+# There is only one of these, at top level.
+#
+if routertype:
+    rspec.setRoutingStyle(routertype)
 
 #
 # Now we can create Link or LANs cause we know the iface counts. Dumb.
@@ -484,10 +505,23 @@ for child in tree.getroot():
             strategy = row.find("packing_strategy").text
             rspec.setPackingStrategy(strategy)
             pass
+        if row.find("delay_osname") != None:
+            #
+            # Convert NS project/osname to rspec project//osname.
+            # But if no project, add emulab-ops (clearly wrong).
+            osname = row.find("delay_osname").text
+            if osname.find("/") < 0:
+                osname = "emulab-ops//" + osname
+            elif osname.find("//") < 0:
+                osname = osname.replace("/", "//");
+                pass
+            disk_image = "urn:publicid:IDN+" + OURDOMAIN + "+image+" + osname
+            rspec.setDelayImage(disk_image)
+            pass
         #
         # A bunch of things we do not support yet.
         #
-        for tag in ["jail_osname", "delay_osname", "security_level"]:
+        for tag in ["jail_osname", "security_level"]:
             if row.find(tag) != None:
                 Fatal("Unsupported use of " + tag)
                 pass
@@ -526,7 +560,19 @@ for child in tree.getroot():
             if foo:
                 parser = HTMLParser.HTMLParser()
                 cmd = parser.unescape(foo.group(1));
-                nodes[vnode].addService(RSpec.Execute("sh", cmd))
+                #
+                # Watch for access to builting Emulab ENV variables, those
+                # are not supported when converting.
+                #
+                for var in ["PID", "EID", "EXPDIR", "NODE", "NODEIP",
+                            "NODECNET", "NODECNETIP"]:
+                    if (re.search("\$" + var + "[^\w]", cmd, re.MULTILINE) or
+                        re.search("\$" + var + "$", cmd, re.MULTILINE)):
+                        Fatal("Unsupported use of environment variable $" +
+                              var + " in startup command")
+                        pass
+                    pass
+                nodes[vnode].addService(RSpec.Execute("csh", cmd))
         else:
             Fatal("Unsupported event type for " + vname)
             pass
@@ -562,9 +608,12 @@ for child in tree.getroot():
     if child.tag == "virt_trafgens":
         Fatal("Trafgens are not supported anymore")
         pass
+    if child.tag == "virt_user_environment":
+        Fatal("opt variables are not supported when converting to geni-lib")
+        pass
     if child.tag in ["virt_lan_settings",
                      "virt_lan_member_settings", "virt_routes",
-                     "virt_node_disks", "virt_user_environment",
+                     "virt_node_disks",
                      "virt_firewalls", "firewall_rules",
                      "virt_tiptunnels", "elabinelab_attributes",
                      "virt_paths", "experiment_blobs", "virt_blobs",
