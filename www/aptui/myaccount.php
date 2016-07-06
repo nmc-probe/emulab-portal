@@ -33,7 +33,7 @@ RedirectSecure();
 $this_user = CheckLogin($check_status);
 if (isset($this_user)) {
     # Allow unapproved users to edit their profile ...
-    CheckLoginOrDie(CHECKLOGIN_UNAPPROVED);
+    CheckLoginOrDie(CHECKLOGIN_UNAPPROVED|CHECKLOGIN_NONLOCAL);
 }
 else {
     CheckLoginOrRedirect();

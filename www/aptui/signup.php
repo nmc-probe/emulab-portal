@@ -147,6 +147,7 @@ if (! isset($create)) {
 
     if ($this_user && $promoting) {
         $defaults["uid"]         = $this_user->uid();
+        $defaults["fullname"]    = $this_user->name();
         $defaults["email"]       = $this_user->email();
         $defaults["city"]        = $this_user->city();
         $defaults["state"]       = $this_user->state();
