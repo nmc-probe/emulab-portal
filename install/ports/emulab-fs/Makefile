@@ -17,7 +17,7 @@ COMMENT=	"Meta-port for an Emulab fs node"
 #
 # For samba, so that it doesn't suck in everything under the sun
 #
-.MAKEFLAGS+=	-DWITHOUT_WINBIND -DWITHOUT_LDAP -DWITHOUT_POPT -DWITHOUT_CUPS -DWITHOUT_IPV6
+.MAKEFLAGS+=	-DWITHOUT_WINBIND -DWITHOUT_LDAP -DWITHOUT_POPT -DWITHOUT_CUPS -DWITHOUT_IPV6 -DWITHOUT_AVAHI
 
 #
 # This prevents any ports from trying to configure interactively.

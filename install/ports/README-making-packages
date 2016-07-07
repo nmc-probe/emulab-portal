@@ -81,6 +81,7 @@ with 2015Q3 and I have updated through 2016Q2.
 
        rm -rf /usr/local/*
        rm -rf /var/db/ports/*
+       rm -rf /usr/obj/ports/usr/ports/*
 
    Now you need to reinstall the package manager "pkg". This will happen
    when you do a pkg command, so just do:
@@ -131,6 +132,9 @@ with 2015Q3 and I have updated through 2016Q2.
         SOUND, SVG, TIFF, XFT, XIM, XPM, GTK2
       and check:
         XAW
+    * Samba. This should be handled by the emulab-fs/Makefile, but to be
+      safe, you can "make config" in net/samba36 and uncheck:
+        AVAHI, CUPS, IPV6, LDAP, POPT, WINBIND
 
 6. Now begin the tedious, iterative process. First, do:
 
@@ -145,9 +149,10 @@ with 2015Q3 and I have updated through 2016Q2.
    Now for each emulab-* port you install, you will need to perform the ritual
    steps below:
 
+       mkdir -p $PACKAGES/All
        rm -f $PACKAGES/All/*
        setenv FLAGS ""
-       foreach d (boss ops fs protogeni tipserv extras)
+       foreach d (boss ops fs protogeni genilib tipserv extras)
            (cd /usr/ports/misc/emulab-$d ; make $FLAGS clean all install)
 	   (cd /usr/ports/misc/emulab-$d ; make $FLAGS clean)
        end
@@ -209,9 +214,8 @@ with 2015Q3 and I have updated through 2016Q2.
        PD
        PA emulab-ops*
        PA emulab-fs*
+       PA emulab-genilib*
        PA emulab-tipserv*
-       # may already be installed
-       PA adodb*
        PA emulab-extras*
        PC
        PL
@@ -321,9 +325,8 @@ d. When packages are installed on boss/ops/etc., we need to make sure to use
        PD
        PA emulab-ops
        PA emulab-fs
+       PA emulab-genilib
        PA emulab-tipserv
-       # may already be installed
-       PA adodb
        PA emulab-extras
        PC
        PL
