@@ -37,25 +37,21 @@
 		  </center>
 		</h3>
 	      <% } %>
-	    <% } %>
-	    <!-- If linked to a specific profile, description goes here -->
-	    <% if (profilename) { %>
-	      <% if (!registered) { %>
+	      <!-- If linked to a specific profile, description goes here -->
+	      <% if (profilename) { %>
 		<p>
 		  Fill out the form below to run an experiment
 		  using this profile:
 		</p>
+		<blockquote>
+		  <p><span id='selected_profile_description'></span></p>
+		</blockquote>
+		<p>
+		  When you click the 'Create' button, the virtual or
+		  physical machines described in the profile will be booted
+		  on <%= clustername %>'s hardware
+		</p>
 	      <% } %>
-	      <blockquote>
-		<p><span id='selected_profile_description'></span></p>
-	      </blockquote>
-	      <p>
-		When you click the 'Create' button, the virtual or
-		physical machines described in the profile will be booted
-		on <%= clustername %>'s hardware
-	      </p>
-	    <% } %>
-	    <% if (!registered) { %>
 	      <div class='form-group format-me'>
 		<input name="username"
 		       id='input_username'
@@ -146,54 +142,56 @@
 		  </div>
 		</div>
 	      </div>
-	      <% } %>
-	      <!-- Profile selection box -->
-	      <% if (showpicker) { %>
-		<div class='form-group row' style='margin-bottom: 0px;'>
-		  <div class='col-md-12'>
-		    <div class='panel panel-default'>
-		      <div class='panel-heading'>
-			<span class='panel-title'>
-			  <strong>Selected Profile:</strong> 
-			  <span id='selected_profile_text'></span>
-			</span>
-		      </div>
-		      <div class='panel-body'>
-			<div id='selected_profile_description'></div>
-		      </div>
-		      <div class='panel-footer'>
-			<% if (cancopy) { %>
-			  <button class='btn btn-default btn-sm pull-left' 
-				  type='button' id='profile_copy_button'
-				  style='margin-right: 10px;'
-				  data-toggle='popover'
-				  data-delay='{hide:1500, show:500}'
-				  data-html='true'
-				  data-content='When you copy a profile you are
+	    <% } %>
+	    <% if (registered || !profilename) { %>
+	      <div class='form-group row' style='margin-bottom: 0px;'>
+		<div class='col-md-12'>
+		  <div class='panel panel-default'>
+		    <div class='panel-heading'>
+		      <span class='panel-title'>
+			<strong>Selected Profile:</strong> 
+			<span id='selected_profile_text'></span>
+		      </span>
+		    </div>
+		    <div class='panel-body'>
+		      <div id='selected_profile_description'></div>
+		    </div>
+		    <div class='panel-footer'>
+		      <% if (cancopy) { %>
+			<button class='btn btn-default btn-sm pull-left' 
+				type='button' id='profile_copy_button'
+				style='margin-right: 10px;'
+				data-toggle='popover'
+				data-delay='{hide:1500, show:500}'
+				data-html='true'
+				data-content='When you copy a profile you are
 				  creating a new profile that uses the same
 				  source code and metadata (description,
 				  instructions) as the original profile, but
 				  without creating a new disk image. Instead,
 				  the new profile uses whatever images the
 				  original profile uses.'>
-			    Copy Profile
-			  </button>
-			  <button class='btn btn-default btn-sm pull-left'
-				  type='button' id='profile_show_button'>
-			    Show Profile
-			  </button>
-			<% } %>
+			  Copy Profile
+			</button>
+			<button class='btn btn-default btn-sm pull-left'
+				type='button' id='profile_show_button'>
+			  Show Profile
+			</button>
+		      <% } %>
+		      <!-- Profile selection box -->
+		      <% if (showpicker) { %>
 			<button id='profile'
 				class='btn btn-primary btn-sm pull-right' 
 				type='button' name='profile_button'>
 			  Change Profile
 			</button>
-			<div class='clearfix'></div>
-		      </div>
+		      <% } %>
+		      <div class='clearfix'></div>
 		    </div>
 		  </div>
 		</div>
-	      <% } %>
+	      </div>
+	    <% } %>
 	  </div>
 	</div>
       </form>
