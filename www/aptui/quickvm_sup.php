@@ -265,7 +265,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         if ($login_user->IsActive()) {
             echo " <li class='divider'></li>
 	           <li><a href='list-datasets.php'>List Datasets</a></li>
-	           <li><a href='create-dataset.php'>Create Dataset</a></li>";
+	           <li><a href='create-dataset.php'>Create Dataset</a></li>
+	           <li><a href='images.php'>List Images</a></li>";
             echo "      <li class='divider'></li>\n";
             $then = time() - (90 * 3600 * 24);
             echo "      <li><a href='activity.php?user=$login_uid&min=$then'>
@@ -295,6 +296,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                             All Profiles</a></li>
 	             <li><a href='list-datasets.php?all=1'>
                             All Datasets</a></li>
+	             <li><a href='images.php?all=1'>
+                            All Images</a></li>
 	             <li><a href='lists.php'>
                             Users/Projects</a></li>";
            
