@@ -70,10 +70,17 @@ $extensions = ExtensionInfo::LookupForInstance($instance);
 $days = "null";
 
 if ($instance->extension_requested()) {
-    $extension = $extensions[0];
-    if ($extension->action() == "request" &&
-        $extension->granted() < $extension->wanted()) {
-        $days = $extension->wanted() - $extension->granted();
+    #
+    # Find the last extension request, we might have sent an info
+    # request out.
+    #
+    foreach ($extensions as $extension) {
+        if ($extension->action() == "request") {
+            if ($extension->granted() < $extension->wanted()) {
+                $days = $extension->wanted() - $extension->granted();
+            }
+            break;
+        }
     }
 }
 $pid = $instance->pid();
@@ -121,6 +128,7 @@ if ($instance->extension_reason() && $instance->extension_reason() != "") {
 
 if (count($extensions)) {
     $foo = array();
+    reset($extensions);
     foreach ($extensions as $extension) {
         $foo[$extension->idx()] = $extension->info;
     }

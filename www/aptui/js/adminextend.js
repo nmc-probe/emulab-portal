@@ -87,6 +87,7 @@ function (_, sup, moment, ShowIdleGraphs,
 	});
 	$('#do-terminate').click(function (event) {
 	    event.preventDefault();
+	    sup.HideModal("#confirm-terminate-modal");
 	    Action("terminate");
 	    return false;
 	});
