@@ -88,19 +88,19 @@
 	      <% _.each(images, function(value, imageid) { %>
 		<tr>
 		  <% if (isadmin) { %>
-		    <td><a href="<%- value.url %>"><%= value.imagename %></td>
+		    <td><a href="<%- value.url %>"><%= value.imagename %></a></td>
 		  <% } else { %>
 		    <td><%= value.imagename %></td>
 	          <% } %>
 		  <% if (isadmin || value.filter.search(creator_re) >= 0) { %>
 		    <td><a href='user-dashboard.php?uid=<%- value.creator_idx %>'>
-		      <%= value.creator %></td>
+		      <%= value.creator %></a></td>
 		  <% } else { %>
 		      <td><%= value.creator %></td>
                   <% } %>
 		  <% if (isadmin || value.filter.search(project_re) >= 0) { %>
 		    <td><a href='show-project.php?pid=<%- value.pid_idx %>'>
-		      <%= value.pid %></td>
+		      <%= value.pid %></a></td>
 		  <% } else { %>
 		     <td><%= value.pid %></td>
                   <% } %>
