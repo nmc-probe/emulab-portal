@@ -118,6 +118,8 @@ function Do_SearchProjects()
                      "left join users as u on u.uid_idx=p.head_idx ".
                      "where $portal_test and ".
                      "      (pid like '%${text}%' or ".
+                     "       p.name like '%${text}%' or ".
+                     "       p.why like '%${text}%' or ".
                      "       u.usr_name like '%${text}%' or ".
                      "       u.usr_affil like '%${text}%') ".
                      "order by pid");
