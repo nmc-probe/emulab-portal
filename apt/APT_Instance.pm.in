@@ -592,6 +592,7 @@ sub RecordHistory($$)
     DBQueryWarn("replace into apt_instance_history ".
 		"select uuid,name,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
+		"       gid,gid_idx, ".
 		"       aggregate_urn,public_url,logfileid, ".
 		"       created,now(),$expired, ".
 		"       extension_count,extension_days, ".
@@ -612,6 +613,7 @@ sub RecordError($$$)
     DBQueryWarn("replace into apt_instance_failures ".
 		"select uuid,name,profile_id,profile_version,slice_uuid, ".
 		"       creator,creator_idx,creator_uuid,pid,pid_idx, ".
+		"       gid,gid_idx, ".
 		"       created,'$exitcode',$safe_message,public_url, ".
 		"       logfileid ".
 		" from apt_instances where uuid='$uuid'")
