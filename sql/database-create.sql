@@ -55,7 +55,7 @@ CREATE TABLE `active_checkups` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 --
--- Table structure for table `apt_datasets`
+-- Table structure for table `apt_aggregates`
 --
 
 DROP TABLE IF EXISTS `apt_aggregates`;
@@ -87,6 +87,8 @@ CREATE TABLE `apt_datasets` (
   `uuid` varchar(40) NOT NULL default '',
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `gid` varchar(32) NOT NULL default '',
+  `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `creator_uid` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `aggregate_urn` varchar(128) default NULL,
@@ -185,6 +187,8 @@ CREATE TABLE `apt_instance_failures` (
   `creator_uuid` varchar(40) NOT NULL default '',
   `pid` varchar(48) default NULL,
   `pid_idx` mediumint(8) unsigned default NULL,
+  `gid` varchar(32) NOT NULL default '',
+  `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `created` datetime default NULL,
   `exitcode` int(10) default '0',
   `exitmessage` mediumtext,
@@ -209,6 +213,8 @@ CREATE TABLE `apt_instance_history` (
   `creator_uuid` varchar(40) NOT NULL default '',
   `pid` varchar(48) default NULL,
   `pid_idx` mediumint(8) unsigned default NULL,
+  `gid` varchar(32) NOT NULL default '',
+  `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `aggregate_urn` varchar(128) default NULL,
   `public_url` tinytext,
   `logfileid` varchar(40) default NULL,
@@ -243,6 +249,8 @@ CREATE TABLE `apt_instances` (
   `creator_uuid` varchar(40) NOT NULL default '',
   `pid` varchar(48) default NULL,
   `pid_idx` mediumint(8) unsigned default NULL,
+  `gid` varchar(32) NOT NULL default '',
+  `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `aggregate_urn` varchar(128) default NULL,
   `public_url` tinytext,
   `created` datetime default NULL,
@@ -303,6 +311,8 @@ CREATE TABLE `apt_profile_versions` (
   `version` int(8) unsigned NOT NULL default '0',
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `gid` varchar(32) NOT NULL default '',
+  `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `creator` varchar(8) NOT NULL default '',
   `creator_idx` mediumint(8) unsigned NOT NULL default '0',
   `created` datetime default NULL,
@@ -331,6 +341,8 @@ CREATE TABLE `apt_profiles` (
   `version` int(8) unsigned NOT NULL default '0',
   `pid` varchar(48) NOT NULL default '',
   `pid_idx` mediumint(8) unsigned NOT NULL default '0',
+  `gid` varchar(32) NOT NULL default '',
+  `gid_idx` mediumint(8) unsigned NOT NULL default '0',
   `uuid` varchar(40) NOT NULL,
   `public` tinyint(1) NOT NULL default '0',
   `shared` tinyint(1) NOT NULL default '0',
