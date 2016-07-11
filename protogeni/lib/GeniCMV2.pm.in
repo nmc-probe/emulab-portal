@@ -645,6 +645,7 @@ sub DeleteSliver($)
     my $authority = GeniCertificate->LoadFromFile($EMULAB_PEMFILE);
     if (!defined($authority)) {
 	print STDERR " Could not load $EMULAB_PEMFILE\n";
+	$slice->UnLock();
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
 	
     }
@@ -652,12 +653,16 @@ sub DeleteSliver($)
     # We need the user to sign the new ticket to. 
     #
     my $user = GeniCM::CreateUserFromCertificate($credential);
-    return $user
-	if (GeniResponse::IsResponse($user));
+    if (GeniResponse::IsResponse($user)) {
+	$slice->UnLock();
+	return $user;
+    }
     
     my $response = GeniCM::DeleteSliverAux($credential, $impotent, 1);
-    return $response
-	if (GeniResponse::IsResponse($response));
+    if (GeniResponse::IsResponse($response)) {
+	$slice->UnLock();
+	return $response;
+    }
 
     #
     # In the v2 API, return a new ticket for the resources
