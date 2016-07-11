@@ -243,6 +243,7 @@ ProtoGeniDefs::AddModule("cluster",
 		  "SliceUtilizationData" => \&GeniCluster::SliceUtilizationData,
 		  "SliceIdleData"        => \&GeniCluster::SliceIdleData,
 		  "SliceOpenstackData"   => \&GeniCluster::SliceOpenstackData,
+		  "SliceCheckReservation"=> \&GeniCluster::SliceCheckReservation,
 	      }},
 	  });
 

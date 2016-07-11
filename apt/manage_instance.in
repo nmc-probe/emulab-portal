@@ -133,6 +133,8 @@ sub DoDeleteNodes();
 sub DoUtilization();
 sub DoIdleData();
 sub DoOpenstack();
+sub DoCheckReservation();
+sub CheckReservationInternal($$$);
 sub WriteCredentials();
 sub StartMonitor();
 sub StartMonitorInternal(;$@);
@@ -245,6 +247,9 @@ elsif ($action eq "idledata") {
 }
 elsif ($action eq "openstackstats") {
     DoOpenstack()
+}
+elsif ($action eq "checkreservation") {
+    DoCheckReservation()
 }
 else {
     usage();
@@ -1586,6 +1591,16 @@ sub ExtendInternal($$$$)
     }
     my $new_expires = $slice->ExpirationGMT();
 
+    #
+    # Do a reservation check first. We do not care if it fails (yet),
+    # just keep going.
+    #
+    if (CheckReservationInternal($slice, $new_expires, \$errmsg)) {
+	if ($debug) {
+	    print "Reservation denied! $errmsg\n";
+	}
+    }
+
     my $coderef = sub {
 	my ($sliver) = @_;
 	my $webtask  = $sliver->webtask();
@@ -1659,6 +1674,111 @@ sub ExtendInternal($$$$)
   bad:
     # Reset back to original expiration, sorry.
     $slice->SetExpiration($oldexpires);
+    $$perrmsg = $errmsg;
+    return $errcode;
+}
+#
+# Check with the reservation system.
+#
+sub DoCheckReservation()
+{
+    my $slice = $instance->GetGeniSlice();
+    my $errmsg;
+
+    usage()
+	if (!@ARGV);
+    my $wanted = shift(@ARGV);
+
+    my $expiration = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
+				     localtime(str2time($slice->expires()) +
+					       3600 * 24 * $wanted));
+
+    if ($slice->Lock()) {
+	print STDERR "Experiment is busy, cannot lock it. Try again later.\n";
+	exit(GENIRESPONSE_BUSY);
+    }
+    if (CheckReservationInternal($slice, $expiration, \$errmsg)) {
+	if ($debug) {
+	    print "Reservation denied! $errmsg\n";
+	}
+	$slice->UnLock();
+	exit(1);
+    }
+    if ($debug) {
+	print "Reservation allowed!\n";
+    }
+    $slice->UnLock();
+    exit(0);
+}
+sub CheckReservationInternal($$$)
+{
+    my ($slice, $expiration, $perrmsg) = @_;
+    my $errcode = -1;
+    my $errmsg;
+
+    my $coderef = sub {
+	my ($sliver) = @_;
+	my $webtask  = $sliver->webtask();
+	my $domain   = $sliver->domain();
+	my $errmsg;
+
+	return 0
+	    if ($sliver->isAL2S());
+
+	my $response = $sliver->CheckReservation($expiration);
+	if (!defined($response)) {
+	    $errmsg = "Internal error calling CheckReservation at $domain";
+	    goto bad;
+	}
+	if ($response->code() != GENIRESPONSE_SUCCESS) {
+	    $errmsg = "Failed to check reservation at $domain: ".
+		$response->output();
+	    
+	    # This is something the user should see.
+	    if ($response->code() == GENIRESPONSE_REFUSED ||
+		$response->code() == GENIRESPONSE_SERVER_UNAVAILABLE ||
+		$response->code() == GENIRESPONSE_BUSY) {
+		$webtask->output($errmsg);
+		$webtask->Exited($response->code());
+		return 1;
+	    }
+	    goto bad;
+	}
+	return 0;
+      bad:
+	print STDERR "$errmsg\n";
+	$webtask->output($errmsg);
+	$webtask->Exited(-1);
+	return -1;
+    };
+    my @return_codes = ();
+    my @agglist =      $instance->AggregateList();
+    if (ParRun({"maxwaittime" => 99999,
+		"maxchildren" => scalar(@agglist)},
+	    \@return_codes, $coderef, @agglist)) {
+	#
+	# The parent caught a signal. Leave things intact so that we can
+	# kill things cleanly later.
+	#
+	$errmsg = "Internal error calling Extend\n";
+	goto bad;
+    }
+    #
+    # Check the exit codes. 
+    #
+    foreach my $agg (@agglist) {
+	my $code = shift(@return_codes);
+
+	if ($code) {
+	    $agg->webtask()->Refresh();
+	    $errmsg  = $agg->webtask()->output();
+	    $errcode = $agg->webtask()->exitcode();
+	    goto bad;
+	}
+    }
+    return 0;
+
+  bad:
     $$perrmsg = $errmsg;
     return $errcode;
 }
@@ -3631,7 +3751,7 @@ sub DoSchedTerminate()
     my $created = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
 				  localtime(str2time($instance->created())));
     my $message = "The site administrator has scheduled this experiment\n".
-	"to terminate in $days days.";
+	($days ? "to terminate in $days days." : "for immediate termination!");
     my $subject = "Experiment Termination Warning: $name";
 
     #

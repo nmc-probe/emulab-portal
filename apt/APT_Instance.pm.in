@@ -96,7 +96,25 @@ sub Lookup($$)
     my ($class, $token) = @_;
     my $query_result;
 
-    if ($token =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
+    if ($token =~ /^([-\w]*),([-\w]*)$/ ||
+	$token =~ /^([-\w]*)\/([-\w]*)$/) {
+
+	$query_result =
+	    DBQueryWarn("select uuid from apt_instances ".
+			"where pid='$1' and name='$2'");
+	return undef
+	    if (! (defined($query_result) && $query_result->numrows));
+
+	my ($uuid) = $query_result->fetchrow_array();
+	
+	# Look in cache first
+	return $instances{$uuid}
+	    if (exists($instances{$uuid}));
+	
+	$query_result =
+	    DBQueryWarn("select * from apt_instances where uuid='$uuid'");
+    }
+    elsif ($token =~ /^\w+\-\w+\-\w+\-\w+\-\w+$/) {
 	# Look in cache first
 	return $instances{$token}
             if (exists($instances{$token}));
@@ -2628,6 +2646,34 @@ sub OpenstackData($$)
 
     my $response = Genixmlrpc::CallMethod($cmurl, $context,
 					  "SliceOpenstackData", $args);
+    return $response;
+  bad:
+    return undef;
+}
+
+#
+# Check to see if we can extend a slice.
+#
+sub CheckReservation($$)
+{
+    my ($self, $new_expires) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $context   = APT_Geni::RootContext();
+    my $slice     = $self->instance()->GetGeniSlice();
+    return undef
+	if (! (defined($authority) && defined($context) &&
+	       defined($slice)));
+
+    my $args = {
+	"slice_urn"   => $slice->urn(),
+	"expiration"  => $new_expires,
+    };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/\/cm$/\/cluster/;
+    $cmurl = devurl($cmurl) if ($usemydevtree);
+
+    my $response = Genixmlrpc::CallMethod($cmurl, $context,
+					  "SliceCheckReservation", $args);
     return $response;
   bad:
     return undef;

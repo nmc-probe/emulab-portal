@@ -48,6 +48,7 @@ use GeniResponse;
 use GeniSlice;
 use GeniHRN;
 use GeniUtil;
+use Reservation;
 use English;
 use Data::Dumper;
 use Date::Parse;
@@ -500,5 +501,44 @@ sub SliceOpenstackData($)
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $output);
 }
 
+#
+# Check Reservation request for a slice. 
+#
+sub SliceCheckReservation($)
+{
+    my ($argref)  = @_;
+    my $slice_urn = $argref->{'slice_urn'};
+    my $expiration= $argref->{'expiration'};
+    my %blob      = ();
+    my $reserror;
+
+    my $hasperm = CheckPermission();
+    return $hasperm
+	if (GeniResponse::IsError($hasperm));
+
+    # Gack, why does Frontier do this. It is stupid.
+    if (ref($expiration) eq 'Frontier::RPC2::DateTime::ISO8601') {
+	$expiration = $expiration->value;
+    }
+    # Convert to a localtime.
+    $expiration = eval { timegm(strptime($expiration)); };
+    if ($@) {
+	return GeniResponse->Create(GENIRESPONSE_BADARGS, undef, $@);
+    }
+    if (!defined($expiration)) {
+	GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+			     "Could not parse expiration");
+    }
+    my $slice = GeniSlice->Lookup($slice_urn);    
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
+	if (!defined($slice));
+
+    if (Reservation->ExtendSlice($slice, $expiration, \$reserror, 1)) {
+	Reservation->FlushAll();
+	return GeniResponse->Create(GENIRESPONSE_REFUSED, undef, $reserror);
+    }
+    Reservation->FlushAll();
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS);
+}
 # _Always_ make sure that this 1 is at the end of the file...
 1;
