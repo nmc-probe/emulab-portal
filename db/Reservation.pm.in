@@ -34,6 +34,7 @@ use English;
 use Date::Parse;
 use emdb;
 use libtestbed;
+use emutil;
 use Project;
 use User;
 use Experiment;
@@ -43,6 +44,14 @@ use overload ('""' => 'Stringify');
 my $TB		= "@prefix@";
 
 my %cache = ();
+BEGIN { use emutil; emutil::AddCache(\%cache); }
+
+sub FlushAll($)
+{
+    my ($class) = @_;
+
+    %cache = ();
+}
 
 sub CreateCommon($$$$$$$$)
 {
