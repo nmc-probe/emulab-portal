@@ -327,7 +327,7 @@ sub get_parttype($$$)
     }
 
     my $ptype = `$SFDISK /dev/$dev -c $pnum 2>/dev/null`;
-    if ($? == 0 && defined($ptype)) {
+    if ($? == 0 && $ptype ne "") {
 	chomp($ptype);
 	if ($ptype =~ /^\s*([\da-fA-F]+)$/) {
 	    $ptype = hex($1);

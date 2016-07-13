@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -228,12 +228,18 @@ if (system("parted -s $diskdev print >/dev/null 2>&1")) {
     }
 }
 
-my $stype = `sfdisk $diskdev -c $slice`;
-if ($stype ne "") {
+my $stype = `sfdisk $diskdev -c $slice 2>/dev/null`;
+if ($? == 0 && $stype ne "") {
     chomp($stype);
-    $stype = hex($stype);
+    if ($stype =~ /^\s*([\da-fA-F]+)$/) {
+	$stype = hex($stype);
+    } else {
+	$stype = -1;
+    }
+} else {
+    $stype = -1;
 }
-else {
+if ($stype == -1) {
     die("*** $0:\n".
 	"    Could not parse slice $slice fdisk entry!\n");
 }
