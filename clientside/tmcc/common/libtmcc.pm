@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -761,7 +761,7 @@ sub hash($) {
 
     return undef unless defined( $struct->{'existing'} );
 
-    my $digest = Digest::SHA1->new;
+    my $digest = Digest::SHA->new(1);
     my $hex;
 
     $digest->addfile( $struct->{'existing'} );
@@ -848,7 +848,7 @@ sub getblob($$;\@$) {
 	);
 
     $debug = 1 if( $options ); # the only option right now
-    require Digest::SHA1;
+    require Digest::SHA;
     require LWP::UserAgent;
 
     open NICKNAME, $NICKNAMEFILE or die "$NICKNAMEFILE: $!";
