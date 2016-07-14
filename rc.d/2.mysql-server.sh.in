@@ -53,7 +53,7 @@ if [ $major -eq 5 ]; then
 		opts="$opts --join_buffer_size=256K --thread_cache_size=4"
 		opts="$opts --tmp_table_size=32M --max_heap_table_size=32M"
 		opts="$opts --max_connections=500"
-		opts="$opts -O max_allowed_packet=16M"
+		opts="$opts --max_allowed_packet=16M"
 	    fi
 	fi
 else
