@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2015 University of Utah and the Flux Group.
+# Copyright (c) 2015-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -95,6 +95,7 @@ my $action = 4;
 sub start_jail($$);
 sub run_jail($$$$);
 sub msg(@);
+sub mysystem($);
 
 #
 # Configure variables
@@ -139,7 +140,7 @@ END {
 	if ($action != 1 || $ecode) {
 	    if ($jailstate == 2) {
 		msg("Stopping jail");
-		if (system("jail -qr $jailtag")) {
+		if (mysystem("jail -qr $jailtag")) {
 		    print STDERR "*** could not stop jail $jailtag\n";
 		}
 		msg("Stopping done");
@@ -149,15 +150,15 @@ END {
 		msg("Destroying jail FS");
 
 		# XXX make sure special FSes get unmounted 
-		system("umount $JAILROOT/$jailtag/dev/fd >/dev/null 2>&1");
-		system("umount $JAILROOT/$jailtag/dev >/dev/null 2>&1");
-		system("umount $JAILROOT/$jailtag$GENILIB_MNT >/dev/null 2>&1");
+		mysystem("umount $JAILROOT/$jailtag/dev/fd >/dev/null 2>&1");
+		mysystem("umount $JAILROOT/$jailtag/dev >/dev/null 2>&1");
+		mysystem("umount $JAILROOT/$jailtag$GENILIB_MNT >/dev/null 2>&1");
 
-		if (system("zfs destroy -f $ZFSBASE/$jailtag")) {
+		if (mysystem("zfs destroy -f $ZFSBASE/$jailtag")) {
 		    print STDERR
 			"*** could not destroy jail FS for $jailtag\n";
 		}
-		if ($snapshot && system("zfs destroy -f $snapshot")) {
+		if ($snapshot && mysystem("zfs destroy -f $snapshot")) {
 		    print STDERR
 			"*** could not destroy snapshot $snapshot\n";
 		}
@@ -287,14 +288,14 @@ if ($action == 2) {
 # Create a filesystem
 #
 msg("Snapshotting base FS");
-if (system("zfs snapshot $ZFSBASE/$jailuuid/root\@$jailname")) {
+if (mysystem("zfs snapshot $ZFSBASE/$jailuuid/root\@$jailname")) {
     print STDERR "Could not create geni-lib jail snapshot\n";
     exit(-1);
 }
 msg("Snapshotting done");
 $snapshot = "$ZFSBASE/$jailuuid/root\@$jailname";
 msg("Cloning py-cage FS");
-if (system("zfs clone $zfsattrs $snapshot $ZFSBASE/$jailname")) {
+if (mysystem("zfs clone $zfsattrs $snapshot $ZFSBASE/$jailname")) {
     print STDERR "Could not create geni-lib jail FS\n";
     exit(-1);
 }
@@ -308,7 +309,11 @@ my $jailrootdir = "$JAILROOT/$jailtag";
 # This way we don't have to copy in the geni-lib files and they
 # will always be up-to-date. Also make dev trees work.
 #
-if (system("mount -t nullfs -o ro $GENILIB $jailrootdir$GENILIB_MNT")) {
+# Note that we avoid gratuitous mountd HUP'ing by invoking mount_nullfs
+# directly instead of using mount. Alas, the jail command still does a
+# couple of "mount" commands, so we are still HUP happy.
+#
+if (mysystem("mount_nullfs -o ro $GENILIB $jailrootdir$GENILIB_MNT")) {
     print STDERR "Could not mount $GENILIB in $jailtag\n";
     exit(-1);
 }
@@ -332,9 +337,9 @@ if ($action != 1) {
 	if ($pfile);
 
     msg("Stashing files");
-    if (system("cp -p $ifile $jailrootdir$j_ifile") ||
-	($pfile && system("cp -p $pfile $jailrootdir$j_pfile")) ||
-	system("chown -R $uid:$gid $jailrootdir$tempdir")) {
+    if (mysystem("cp -p $ifile $jailrootdir$j_ifile") ||
+	($pfile && mysystem("cp -p $pfile $jailrootdir$j_pfile")) ||
+	mysystem("chown -R $uid:$gid $jailrootdir$tempdir")) {
 	print STDERR "Could not populate jail\n";
 	exit(-1);
     }
@@ -391,7 +396,7 @@ if ($USEJAILRUN && $action != 1) {
     #
     if ($action != 1) {
 	msg("Execing command");
-	$status = system("jexec -u $user $jailtag $INTERP $j_ifile");
+	$status = mysystem("jexec -u $user $jailtag $INTERP $j_ifile");
 	msg("Execing done");
     } else {
 	$status = 0;
@@ -436,7 +441,7 @@ if ($action != 1) {
     }
     if (-e "$jailrootdir$j_ofile") {
 	if (-l "$jailrootdir$j_ofile" ||
-	    system("cp $jailrootdir$j_ofile $ofile")) {
+	    mysystem("cp $jailrootdir$j_ofile $ofile")) {
 	    print STDERR "Could not copy back results of command\n";
 	    exit(-1);
 	}
@@ -476,7 +481,7 @@ sub start_jail($$)
     # other stuff
     $args .= "allow.dying persist";
 
-    return system("jail -qc $args >/dev/null 2>&1");
+    return mysystem("jail -qc $args >/dev/null 2>&1");
 }
 
 sub run_jail($$$$)
@@ -509,7 +514,7 @@ sub run_jail($$$$)
     # other stuff
     $args .= "allow.dying";
 
-    return system("jail -qc $args >/dev/null 2>&1");
+    return mysystem("jail -qc $args >/dev/null 2>&1");
 }
 
 sub msg(@)
@@ -519,4 +524,14 @@ sub msg(@)
 	printf STDERR "[%3d] ", $stamp;
 	print STDERR @_, "\n";
     }
+}
+
+sub mysystem($)
+{
+    my $cmd = shift;
+    
+    if (0) {
+	print STDERR "Doing: '$cmd'\n";
+    }
+    return system($cmd);
 }
