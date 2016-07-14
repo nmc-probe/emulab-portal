@@ -770,7 +770,8 @@ foreach my $aggregate_urn (@aggregate_urns) {
     if ($aptaggregate->disabled()) {
         UserError("$aggregate_urn is currently offline, try again later");
     }
-    if ($aptaggregate->adminonly()) {
+    if ($aptaggregate->adminonly() &&
+        !(defined($this_user) && $this_user->IsAdmin())) {
         UserError("Only administrators may use $aggregate_urn");
     }
     my $authority = GeniAuthority->Lookup($aggregate_urn);
