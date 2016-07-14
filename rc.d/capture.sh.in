@@ -28,6 +28,7 @@ fi
 
 case "$1" in
 start|faststart|quietstart|onestart|forcestart)
+    echo -n ' capture'
     ;;
 restart|fastrestart|quietrestart|onerestart|forcerestart)
     killall capture
