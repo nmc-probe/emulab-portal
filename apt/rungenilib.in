@@ -59,6 +59,7 @@ my $warningsfatal = 0;
 my $TB       = "@prefix@";
 my $TBOPS    = "@TBOPSEMAIL@";
 my $CONTROL  = "@USERNODE@";
+my $MAINSITE = @TBMAINSITE@;
 
 # Locals
 my $SAVEUID  = $UID;
@@ -191,7 +192,9 @@ system("touch $outfile") == 0 or
 my $cmdargs = "$TB/libexec/rungenilib.proxy";
 
 # lets try out the python jail
-$cmdargs .= " -J";
+if ($MAINSITE) {
+    $cmdargs .= " -J";
+}
 
 $cmdargs .= " -u " . $this_user->uid();
 $cmdargs .= ($getparams ? " -p " : "");
