@@ -122,8 +122,7 @@ $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
 $instance_status = $instance->status();
 $creator_uid     = $creator->uid();
 $creator_email   = $creator->email();
-if ($instance->profile_id() &&
-    $profile = Profile::Lookup($instance->profile_id(),
+if ($profile = Profile::Lookup($instance->profile_id(),
 			       $instance->profile_version())) {
     $profile_name   = $profile->name();
     $profile_uuid   = $profile->uuid();
