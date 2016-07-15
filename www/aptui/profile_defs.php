@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -156,7 +156,12 @@ class Profile
     }
 
     function LookupByName($project, $name, $version = null) {
-	$pid = $project->pid();
+        if (is_object($project)) {
+            $pid = $project->pid();
+        }
+        else {
+            $pid = addslashes($project);
+        }
 	$safe_name = addslashes($name);
 
 	if (preg_match("/^\w+\-\w+\-\w+\-\w+\-\w+$/", $name)) {
