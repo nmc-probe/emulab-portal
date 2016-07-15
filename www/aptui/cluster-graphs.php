@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -32,6 +32,7 @@ echo "<script type='text/javascript' src='js/lib/d3.v3.js'></script>";
 echo "<script type='text/javascript' src='js/lib/d3.tip.v0.6.3.js'></script>";
 echo "<script type='text/javascript'>\n";
 echo "   window.JACKS_LOADER = { params: { source: 'devel' } };\n";
+echo "   window.MAINSITE = $TBMAINSITE;\n";
 echo "</script>\n";
 
 # Place to hang the toplevel template.

@@ -1,22 +1,30 @@
 require(window.APT_OPTIONS.configObject,
-	['js/quickvm_sup',
+	['underscore', 'js/quickvm_sup',
 	 'js/lib/text!template/cluster-graphs.html',
 	 'js/bilevel', 'js/liquidFillGauge'],
-function (sup, clusterString)
+function (_, sup, clusterString)
 {
     'use strict';
+    var mainsite = false;
+    var template = _.template(clusterString);
 
     function initialize()
     {
 	window.APT_OPTIONS.initialize(sup);
+	mainsite = window.MAINSITE;
 
-	$('#cluster-graphs').html(clusterString);
+	$('#cluster-graphs')
+	    .html(template({"mainsite" : mainsite}));
 
-	bilevelAsterGraph("/cloudlab-nofed.json",
-			  "#status-nofed","auto","large");
-	bilevelAsterGraph("/cloudlab-fedonly.json",
-			  "#status-fedonly","auto","large");
-
+	if (mainsite) {
+	    bilevelAsterGraph("/cloudlab-nofed.json",
+			      "#status-nofed","auto","large");
+	    bilevelAsterGraph("/cloudlab-fedonly.json",
+			      "#status-fedonly","auto","large");
+	}
+	else {
+	    $('#status-local').load("/node_usage/freenodes.svg");
+	}
 	setTimeout(function f() { Refresh() }, 30000);
     }
 
@@ -25,15 +33,20 @@ function (sup, clusterString)
      */
     function Refresh()
     {
-	$('#status-fedonly').html("");
-	$('#status-nofed').html("");
-	$("div").remove(".d3-tip");
+	if (mainsite) {
+	    $('#status-fedonly').html("");
+	    $('#status-nofed').html("");
+	    $("div").remove(".d3-tip");
 	
-	bilevelAsterGraph("/cloudlab-nofed.json",
-			  "#status-nofed","auto","large");
-	bilevelAsterGraph("/cloudlab-fedonly.json",
-			  "#status-fedonly","auto","large");
-
+	    bilevelAsterGraph("/cloudlab-nofed.json",
+			      "#status-nofed","auto","large");
+	    bilevelAsterGraph("/cloudlab-fedonly.json",
+			      "#status-fedonly","auto","large");
+	}
+	else {
+	    $('#status-local').html("");
+	    $('#status-local').load("/node_usage/freenodes.svg");
+	}
 	setTimeout(function f() { Refresh() }, 30000);
     }
 	
