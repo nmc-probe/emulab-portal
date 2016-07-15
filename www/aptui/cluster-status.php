@@ -27,6 +27,7 @@ include_once("geni_defs.php");
 chdir("apt");
 include("quickvm_sup.php");
 include_once("instance_defs.php");
+include_once("aggregate_defs.php");
 $page_title = "Cluster Status";
 
 #
@@ -38,7 +39,7 @@ $isadmin   = (ISADMIN() ? 1 : 0);
 $isfadmin  = (ISFOREIGN_ADMIN() ? 1 : 0);
 
 if (! (ISADMIN() || ISFOREIGN_ADMIN())) {
-    SPITUSERERROR("You do not have permission to view the dashboard");
+    SPITUSERERROR("You do not have permission to view this page!");
 }
 SPITHEADER(1);
 
@@ -46,14 +47,17 @@ SPITHEADER(1);
 # The apt_aggregates table should tell us what clusters, but for
 # now it is always the local cluster
 #
-$aggregates =
-    array("Emulab"    => "urn:publicid:IDN+emulab.net+authority+cm",
-          "APT"       => "urn:publicid:IDN+apt.emulab.net+authority+cm",
-          "Wisconsin" => "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
-          "Clemson"   => "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
-          "Utah"      => "urn:publicid:IDN+utah.cloudlab.us+authority+cm");
-          
-
+if ($TBMAINSITE) {
+    $aggregates =
+        array("Emulab"    => "urn:publicid:IDN+emulab.net+authority+cm",
+              "APT"       => "urn:publicid:IDN+apt.emulab.net+authority+cm",
+              "Wisconsin" => "urn:publicid:IDN+wisc.cloudlab.us+authority+cm",
+              "Clemson"   => "urn:publicid:IDN+clemson.cloudlab.us+authority+cm",
+              "Utah"      => "urn:publicid:IDN+utah.cloudlab.us+authority+cm");
+}
+else {
+    $aggregates = array_keys($urn_mapping);
+}
 echo "<link rel='stylesheet'
             href='css/tablesorter.css'>\n";
 
