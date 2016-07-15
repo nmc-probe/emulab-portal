@@ -1265,11 +1265,15 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	siteIdToSiteNum = {};
 	var sitenum = 0;
 
-	// Create the dropdown selection lists.
+	// Create the dropdown selection lists. If only one, then force
+	// that one to be selected.
 	var options = "";
 	_.each(amlist, function(name, key) {
-	    options = options +
-		"<option value='" + name + "'>" + name + "</option>";
+	    options = options + "<option value='" + name + "'";
+	    if (amlist.count == 1) {
+		options = options + " selected";
+	    }
+	    options = options + ">" + name + "</option>";
 	});
 
 	// If multisite is disabled for the user, or no sites or 1 site.
