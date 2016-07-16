@@ -127,16 +127,19 @@ if ($this_user) {
     }
 }
 if ($ISCLOUD) {
-    $profile_default     = "OpenStack";
-    $profile_default_pid = "emulab-ops";
+    $portal_default_profile = TBGetSiteVar("cloudlab/default_profile");
+    list ($profile_default_pid,
+          $profile_default) = explode(',', $portal_default_profile);
 }
 elseif ($ISPNET) {
-    $profile_default     = "OneVM";
-    $profile_default_pid = $TBOPSPID;
+    $portal_default_profile = TBGetSiteVar("phantomnet/default_profile");
+    list ($profile_default_pid,
+          $profile_default) = explode(',', $portal_default_profile);
 }
 else {
-    $profile_default     = "OneVM";
-    $profile_default_pid = $TBOPSPID;
+    $portal_default_profile = TBGetSiteVar("portal/default_profile");
+    list ($profile_default_pid,
+          $profile_default) = explode(',', $portal_default_profile);
 }
 $profile_array  = array();
 $am_array       = Instance::DefaultAggregateList();
@@ -330,7 +333,8 @@ function SPITFORM($formfields, $newuser, $errors)
 {
     global $TBBASE, $APTMAIL, $ISAPT, $ISCLOUD, $ISPNET, $PORTAL_NAME;
     global $profile_array, $this_user, $profilename, $profile, $am_array;
-    global $projlist, $classic;
+    global $projlist, $classic, $TBMAINSITE;
+    
     $amlist     = array();
     $fedlist    = array();
     $showabout  = ($ISAPT && !$this_user ? 1 : 0);

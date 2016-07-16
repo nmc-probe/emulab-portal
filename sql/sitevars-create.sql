@@ -164,6 +164,9 @@ INSERT INTO sitevariables VALUES ('general/no_openflow',NULL,'0','Disallow topol
 INSERT INTO sitevariables VALUES ('phantomnet/message',NULL,'','Message to display at the top of the PhantomNet portal.',0);
 INSERT INTO sitevariables VALUES ('ue/sim_sequence_default',NULL,'1000000','Default initial sequence number for PhantomNet UE SIMs',0);
 INSERT INTO sitevariables VALUES ('ue/sim_sequence_increment',NULL,'1000000','Sequence number increment amount for PhantomNet UE SIMs',0);
+INSERT INTO sitevariables VALUES ('portal/default_profile',NULL,'emulab-ops,OneVM','Default profile for portal instantiate page.',0);
+INSERT INTO sitevariables VALUES ('cloudlab/default_profile',NULL,'emulab-ops,OpenStack','Default profile for portal instantiate page.',0);
+INSERT INTO sitevariables VALUES ('phantomnet/default_profile',NULL,'emulab-ops,OneVM','Default profile for portal instantiate page.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
