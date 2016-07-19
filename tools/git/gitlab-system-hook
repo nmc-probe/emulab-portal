@@ -111,7 +111,9 @@ while (my $connection = $listen_socket->accept()) {
             my %get_vars = $request->uri->query_form;
             if ($verbose) {
                 print "Request URL is " . $request->uri. "\n";
-                print "Query part is " . $request->uri->query . "\n";
+                if ($request->uri->query) {
+                    print "Query part is " . $request->uri->query . "\n";
+                }
                 print "GET vars are: " . join(",",keys %get_vars) . "\n";
             }
 
@@ -146,6 +148,26 @@ while (my $connection = $listen_socket->accept()) {
 
 sub send_mail($$) {
     my ($data,$get_vars) = @_;
+
+    my $json = JSON->new->allow_nonref;
+    my $mailto = $get_vars->{'mailto'};
+    my $body = $json->pretty->encode( $data );
+    my $subject = "GitLab System Event: ". $data->{'event_name'};
+    if ($data->{'name'}) {
+        $subject .= " (" . $data->{'name'} . ")";
+    }
+    if ($data->{'user_email'}) {
+        $subject .= " <" . $data->{'user_email'} . ">";
+    }
+     
+
+    if ($verbose) {
+        print "Will mail to $mailto\n";
+        print "Subject: $subject\n";
+        print "Contents:\n";
+        print $json->pretty->encode( $data );
+        print "\n\n";
+    }
 
     return 1;
 
