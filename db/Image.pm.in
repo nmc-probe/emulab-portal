@@ -301,6 +301,14 @@ AUTOLOAD {
     carp("No such slot '$name' field in class $type");
     return undef;
 }
+sub field($$) {
+    my ($self, $name) = @_;
+    
+    if (exists($self->{'IMAGE'}->{$name})) {
+	return $self->{'IMAGE'}->{$name};
+    }
+    return undef;
+}
 
 # Break circular reference someplace to avoid exit errors.
 sub DESTROY {
