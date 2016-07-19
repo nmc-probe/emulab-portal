@@ -74,9 +74,6 @@ $| = 1;
 if ($UID != 0) {
     fatal("Must be root to run this script\n");
 }
-if (! $MAINSITE) {
-    exit(0);
-}
 
 #
 # Check args early so we get the right DB.
