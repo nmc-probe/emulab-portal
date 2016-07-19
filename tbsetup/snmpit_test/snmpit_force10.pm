@@ -1959,7 +1959,9 @@ sub setChannelVlan($$$;$) {
     my $vlifname = "vlan$vlanid";
     my ($res, $out) = $self->{EXP_OBJ}->doCLICmd($cmd, $isconfig, $vlifname);
     if ($res) {
-	warn "$id: Error adding vlan to channel: $out\n";
+	my $msg = $remove ? "Error removing vlan $vlanid from channel $poname" :
+	                    "Error adding vlan $vlanid to channel $poname";
+	warn "$id: $msg: $out\n";
     }
     return $res;
 }
