@@ -587,7 +587,9 @@ while (1) {
     KillFailedInstances();
     FixFailedImaging();
     ExpireInstances();
-    UpdateAggregateGraphs();
+    if ($MAINSITE) {
+	UpdateAggregateGraphs();
+    }
     PushUpdates();
 
     if ($reportcounter >= $REPORT_INTERVAL) {
