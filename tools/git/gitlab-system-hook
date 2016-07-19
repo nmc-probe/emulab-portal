@@ -37,12 +37,6 @@ use strict;
 # Port to run on - made up crap
 my $PORT = 4579;
 
-# URL used to make gitlab API calls
-my $BASEURL = "https://gitlab.flux.utah.edu/";
-
-# Path where logging info will be sent
-my $LOGFILE = "/var/log/gitlab/gitmaild/gitmaild.log";
-
 #
 # End settable options
 #
@@ -86,7 +80,8 @@ $SIG{CHLD}="IGNORE";
 if (!$debug) {
     chdir("/")                      || die "can't chdir to /: $!";
     open(STDIN,  "< /dev/null")     || die "can't read /dev/null: $!";
-    open(STDOUT, ">> $LOGFILE")      || die "can't write to $LOGFILE: $!";
+    open(STDOUT, "> /dev/null")      || die "can't write to /dev/null: $!";
+
     defined(my $pid = fork())       || die "can't fork: $!";
     exit if $pid;                   # non-zero now means I am the parent
     (setsid() != -1)                || die "Can't start a new session: $!";
