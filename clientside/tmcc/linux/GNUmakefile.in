@@ -399,6 +399,9 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/gc-xen-images $(BINDIR)/
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(BINDIR)/grub
 	$(INSTALL) -m 755 $(SRCDIR)/xen/pygrub $(BINDIR)/
+	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.6" ]; then \
+	    ln -sf xen-4.6 /usr/lib/xen-default; \
+	fi
 	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.5" ]; then \
 	    ln -sf xen-4.5 /usr/lib/xen-default; \
 	fi
