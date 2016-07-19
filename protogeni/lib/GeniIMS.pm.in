@@ -82,7 +82,7 @@ my $SERVERVERSION = 1;
 #
 my @X86TYPES = ("C240M4","C220M4","pcvm","r320","c6220","dl360","r720",
 		"c8220","c8220x","d2100","d710","d820","d430","pc3000",
-		"c220g1", "c220g2", "c6320");
+		"c220g2", "c6320");
 
 # We are using a different DB.
 my $DB;
@@ -299,7 +299,11 @@ sub VerifyBlob($)
     return GeniResponse->MalformedArgsResponse("Illegal created")
 	if (!defined(str2time($blob->{'created'})));
     return GeniResponse->MalformedArgsResponse("Illegal arch")
-	if ($blob->{'arch'} !~ /^(i386|x86_64|aarch64)$/);
+	if (!$blob->{'isdataset'} &&
+	    $blob->{'arch'} !~ /^(i386|x86_64|aarch64)$/);
+    return GeniResponse->MalformedArgsResponse("Illegal virtualization")
+	if (!exists($blob->{'virtualizaton'}) &&
+	    $blob->{'virtualizaton'} !~ /^[-\w]+$/);
     return GeniResponse->MalformedArgsResponse("Illegal visibility")
 	if ($blob->{'visibility'} !~ /^(project|public)$/);
     # We allow an empty list here.
@@ -483,7 +487,7 @@ sub NewImage($)
 	    "aggregate_urn" => $ENV{'GENIURN'},
 	    "project_urn" => $blob->{'project_urn'},
 	    "image_uuid" => $image_uuid,
-	    "isdataset" => 0,
+	    "isdataset" => $blob->{'isdataset'},
 	    "issystem" => $blob->{'issystem'},
 	    "isversioned" => $blob->{'isversioned'},
 	);
@@ -501,13 +505,17 @@ sub NewImage($)
 	}
     }
     my %types_known_working = ();
-    foreach my $type (split(",", $blob->{'types_known_working'})) {
-	$types_known_working{$type} = $type;
-    }
-    # Until we have image testing.
-    if ($blob->{'arch'} ne "aarch64") {
-	foreach my $type (@X86TYPES) {
+
+    # Datasets are not type specific.
+    if (!$blob->{'isdataset'}) {
+	foreach my $type (split(",", $blob->{'types_known_working'})) {
 	    $types_known_working{$type} = $type;
+	}
+	# Until we have image testing.
+	if ($blob->{'arch'} ne "aarch64") {
+	    foreach my $type (@X86TYPES) {
+		$types_known_working{$type} = $type;
+	    }
 	}
     }
     
@@ -689,6 +697,7 @@ sub GetImageInfo($)
 		"image_uuid"     => $row->{'image_uuid'},
 		"metadata_url"   => $row->{'metadata_url'},
 		"sha1hash"	 => $row->{'hash'},
+		"isdataset"      => $row->{'isdataset'},
 		"isversioned"    => $row->{'isversioned'},
 		"issystem"       => $row->{'issystem'},
 		"project_urn"    => $row->{'project_urn'},
