@@ -157,6 +157,8 @@ function (_, sup, moment, mainString,
 		console.info(json.value);
 		return;
 	    }
+	    if (json.value.length == 0)
+		return;
 	    var template = _.template(classicString);
 
 	    $('#classic_experiments_content')

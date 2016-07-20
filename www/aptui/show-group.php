@@ -26,7 +26,7 @@ include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
-$page_title = "Show Project";
+$page_title = "Show Group";
 
 #
 # Get current user.
@@ -40,35 +40,43 @@ $isadmin   = (ISADMIN() ? 1 : 0);
 #
 # Verify page arguments.
 #
-$optargs = RequiredPageArguments("project", PAGEARG_PROJECT);
+$optargs = RequiredPageArguments("group", PAGEARG_GROUP);
 
 SPITHEADER(1);
 
 if (!ISADMIN() && !ISFOREIGN_ADMIN() &&
-    !$project->AccessCheck($this_user, $TB_PROJECT_READINFO)) {
+    !$group->AccessCheck($this_user, $TB_PROJECT_READINFO)) {
     SPITUSERERROR("You do not have permission to view this information!");
     return;
 }
-$emulablink = "$TBBASE/showproject.php3?project=" . $project->pid();
-$canapprove = $project->AccessCheck($this_user, $TB_PROJECT_ADDUSER) ? 1 : 0;
+$emulablink = "$TBBASE/showgroup.php3?group=" . $group->gid_idx();
+$canapprove = $group->AccessCheck($this_user, $TB_PROJECT_ADDUSER) ? 1 : 0;
+$candelete  = $group->AccessCheck($this_user, $TB_PROJECT_DELGROUP) ? 1 : 0;
+$canedit    = $group->AccessCheck($this_user, $TB_PROJECT_EDITGROUP) ? 1 : 0;
 
 echo "<link rel='stylesheet'
             href='css/tablesorter-blue.css'>\n";
+echo "<link rel='stylesheet'
+            href='css/jquery.smartmenus.bootstrap.css'>\n";
 
 echo "<script type='text/javascript'>\n";
 echo "  window.ISADMIN        = $isadmin;\n";
 echo "  window.CANAPPROVE     = $canapprove;\n";
+echo "  window.CANDELETE      = $candelete;\n";
+echo "  window.CANEDIT        = $canedit;\n";
 echo "  window.EMULAB_LINK    = '$emulablink';\n";
-echo "  window.TARGET_PROJECT = '" . $project->pid() . "';\n";
+echo "  window.TARGET_PROJECT = '" . $group->pid() . "';\n";
+echo "  window.TARGET_GROUP   = '" . $group->gid() . "';\n";
 echo "</script>\n";
 
 # Place to hang the toplevel template.
 echo "<div id='main-body'></div>\n";
 
-SPITREQUIRE("show-project",
+SPITREQUIRE("show-group",
             "<script src='js/lib/jquery.tablesorter.min.js'></script>".
             "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>".
             "<script src='js/lib/sugar.min.js'></script>".
             "<script src='js/lib/jquery.tablesorter.parser-date.js'></script>");
+            
 SPITFOOTER();
 ?>

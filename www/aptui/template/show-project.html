@@ -39,7 +39,10 @@
 <div class='row'>
   <div class='col-sm-12'>
     <div class='panel panel-default'>
-      <div class='panel-body'>
+      <div class='panel-heading'>
+	<h4 class="text-center">Project <%- target_project %></h4>
+      </div>
+	<div class='panel-body'>
 	<div class='row'>
 	  <div class='col-sm-12'>
 	    <div>
@@ -54,6 +57,9 @@
 		<li role="presentation">
 		  <a href="#members" role="tab"
 		     data-toggle="tab">Members</a></li>
+		<li role="presentation">
+		  <a href="#groups" role="tab"
+		     data-toggle="tab">Groups</a></li>
 		<li role="presentation">
 		  <a href="#usage" role="tab"
 		     data-toggle="tab">Usage</a></li>
@@ -100,6 +106,9 @@
 		<div role="tabpanel" class="tab-pane" id="members">
 		  <div id="members_content"></div>
 		</div>
+		<div role="tabpanel" class="tab-pane" id="groups">
+		  <div id="groups_content"></div>
+		</div>
 		<div role="tabpanel" class="tab-pane" id="usage">
 		  <div id="usage_content">
 		      <table class='table table-condensed table-bordered'
@@ -121,3 +130,5 @@
     </div>
   </div>
 </div>
+<div id='waitwait_div'></div>
+<div id='oops_div'></div>

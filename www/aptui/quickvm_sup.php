@@ -250,7 +250,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
                    <li class='visible-xs navbar-nav-shortcuts'>
                        <a href='logout.php'>Logout</a></li>";
         if ($login_user->IsActive()) {
-            echo " <li><a href='user-dashboard.php#profiles'>
+            echo " <li><a href='user-dashboard.php'>Dashboard</a></li>
+                   <li><a href='user-dashboard.php#profiles'>
                          My Profiles</a></li>
                    <li><a href='user-dashboard.php#experiments'>
                          My Experiments</a></li>

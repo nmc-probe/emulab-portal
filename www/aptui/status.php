@@ -182,6 +182,7 @@ $lockout         = $instance->extension_lockout();
 $isopenstack     = $instance->isopenstack();
 $paniced         = $instance->paniced();
 $project         = $instance->pid();
+$group           = $instance->gid();
 $extensions      = ExtensionInfo::LookupForInstance($instance);
 $isstud          = (isset($this_user) && $this_user->stud() ? 1 : 0);
 
@@ -254,6 +255,7 @@ echo "  window.APT_OPTIONS.lockout = $lockout;\n";
 echo "  window.APT_OPTIONS.isopenstack = $isopenstack;\n";
 echo "  window.APT_OPTIONS.paniced = $paniced;\n";
 echo "  window.APT_OPTIONS.project = '$project';\n";
+echo "  window.APT_OPTIONS.group = '$group';\n";
 echo "  window.APT_OPTIONS.extension_requested = " .
     $instance->extension_requested() . ";\n";
 echo "  window.APT_OPTIONS.extension_denied = $extension_denied;\n";

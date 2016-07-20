@@ -819,7 +819,7 @@ class Group
     #
     # Return list of approved members in this group. 
     #
-    function &MemberList($exclude_leader = 1) {
+    function &MemberList($exclude_leader = 1, $include_trustnone = 0) {
 	$gid_idx    = $this->gid_idx();
 	$pid_idx    = $this->pid_idx();
 	$trust_none = TBDB_TRUSTSTRING_NONE;
@@ -832,8 +832,9 @@ class Group
 			 "left join groups as g on ".
 			 "     g.pid=m.pid and g.gid=m.gid ".
 			 "where m.pid_idx='$pid_idx' and ".
-			 "      m.gid_idx='$gid_idx' and ".
-			 "      m.trust!='$trust_none' ".
+			 "      m.gid_idx='$gid_idx' ".
+                         (!$include_trustnone ?
+                          "and m.trust!='$trust_none' " : " ").
 			 "order by m.uid");
 
 	while ($row = mysql_fetch_array($query_result)) {

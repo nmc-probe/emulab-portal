@@ -1,18 +1,16 @@
 require(window.APT_OPTIONS.configObject,
-	['underscore', 'js/quickvm_sup', 'moment',
-	 'js/lib/text!template/show-project.html',
+	['underscore', 'js/quickvm_sup', 'moment', 'js/aptforms',
+	 'js/lib/text!template/show-group.html',
 	 'js/lib/text!template/experiment-list.html',
-	 'js/lib/text!template/profile-list.html',
 	 'js/lib/text!template/member-list.html',
-	 'js/lib/text!template/project-profile.html',
+	 'js/lib/text!template/group-profile.html',
 	 'js/lib/text!template/classic-explist.html',
-	 'js/lib/text!template/group-list.html',
-	 'js/lib/text!template/waitwait-modal.html',
 	 'js/lib/text!template/oops-modal.html',
+	 'js/lib/text!template/waitwait-modal.html',
 	],
-function (_, sup, moment, mainString,
-	  experimentString, profileString, memberString, detailsString,
-	  classicString, groupsString, waitString, oopsString)
+function (_, sup, moment, aptforms, mainString,
+	  experimentString, memberString, detailsString,
+	  classicString, oopsString, waitString)
 {
     'use strict';
     var mainTemplate    = _.template(mainString);
@@ -26,6 +24,7 @@ function (_, sup, moment, mainString,
 	    emulablink     : window.EMULAB_LINK,
 	    isadmin        : window.ISADMIN,
 	    target_project : window.TARGET_PROJECT,
+	    target_group   : window.TARGET_GROUP,
 	});
 	$('#main-body').html(html);
 	$('#waitwait_div').html(waitString);
@@ -49,57 +48,10 @@ function (_, sup, moment, mainString,
 	    $('.nav-tabs a[href='+hash+']').tab('show');
 	});
 
-	LoadUsage();
 	LoadExperimentTab();
 	LoadClassicExperiments();
-	LoadProfileTab();
-	LoadClassicProfiles();
 	LoadMembersTab();
-	LoadGroupsTab();
-	LoadProjectTab();
-    }
-
-    function LoadUsage()
-    {
-	var callback = function(json) {
-	    console.info(json);
-
-	    if (json.code) {
-		console.info(json.value);
-		return;
-	    }
-	    var blob = json.value;
-	    var html = "";
-
-	    if (blob.pnodes) {
-		html = "<tr><td>Current Usage:</td><td>" +
-		    blob.pnodes + " Node" + (blob.pnodes > 1 ? "s, " : ", ") +
-		    blob.phours + " Node Hours</td></tr>";
-	    }
-	    if (blob.weekpnodes) {
-		html = html + "<tr><td>Previous Week:</td><td>" +
-		    blob.weekpnodes + " Node" +
-		    (blob.weekpnodes > 1 ? "s, " : ", ") +
-		    blob.weekphours + " Node Hours</td></tr>";
-	    }
-	    if (blob.monthpnodes) {
-		html = html + "<tr><td>Previous Month:</td><td> " +
-		    blob.monthpnodes + " Node" +
-		    (blob.monthpnodes > 1 ? "s, " : ", ") +
-		    blob.monthphours + " Node Hours</td></tr>";
-	    }
-	    if (blob.rank) {
-		html = html +
-		    "<tr><td>" + blob.rankdays + " Day Usage Ranking:</td><td>#" +
-		    blob.rank + " of " + blob.ranktotal + " active projects" +
-		    "</td></tr>";
-	    }
-	    $('#usage_table tbody').html(html);
-	}
-	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "UsageSummary",
-					    {"pid" : window.TARGET_PROJECT});
-	xmlthing.done(callback);
+	LoadInfoTab();
     }
 
     function LoadExperimentTab()
@@ -136,8 +88,9 @@ function (_, sup, moment, mainString,
 		});
 	}
 	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "ExperimentList",
-					    {"pid" : window.TARGET_PROJECT});
+					    "groups", "ExperimentList",
+					    {"pid" : window.TARGET_PROJECT,
+					     "gid" : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 
@@ -152,6 +105,7 @@ function (_, sup, moment, mainString,
 	    }
 	    if (json.value.length == 0)
 		return;
+	    
 	    var template = _.template(classicString);
 
 	    $('#classic_experiments_content')
@@ -173,105 +127,9 @@ function (_, sup, moment, mainString,
 		});
 	};
 	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "ClassicExperimentList",
-					    {"pid" : window.TARGET_PROJECT});
-	xmlthing.done(callback);
-    }
-
-    function LoadProfileTab()
-    {
-	var callback = function(json) {
-	    console.info(json);
-
-	    if (json.code) {
-		console.info(json.value);
-		return;
-	    }
-	    if (json.value.length == 0) {
-		$('#profiles_noprofiles').removeClass("hidden");
-		return;
-	    }
-	    var template = _.template(profileString);
-
-	    $('#profiles_content')
-		.html(template({"profiles"    : json.value,
-				"showCreator" : true,
-				"showProject" : false}));
-	    
-	    // Format dates with moment before display.
-	    $('#profiles_table .format-date').each(function() {
-		var date = $.trim($(this).html());
-		if (date != "") {
-		    $(this).html(moment($(this).html()).format("ll"));
-		}
-	    });
-	    // Display the topo.
-	    $('.showtopo_modal_button').click(function (event) {
-		event.preventDefault();
-		ShowTopology($(this).data("profile"));
-	    });
-	    
-	    var table = $('#profiles_table')
-		.tablesorter({
-		    theme : 'blue',
-		    widgets: ["filter"],
-		    widgetOptions: {
-			// include child row content while filtering, if true
-			filter_childRows  : true,
-			// include all columns in the search.
-			filter_anyMatch   : true,
-			// class name applied to filter row and each input
-			filter_cssFilter  : 'form-control',
-			// search from beginning
-			filter_startsWith : false,
-			// Set this option to false for case sensitive search
-			filter_ignoreCase : true,
-			// Only one search box.
-			filter_columnFilters : false,
-			// Search as typing
-			filter_liveSearch : true,
-		    },
-		});
-	    $.tablesorter.filter.bindSearch(table, $('#profile_search'));
-	}
-	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "ProfileList",
-					    {"pid" : window.TARGET_PROJECT});
-	xmlthing.done(callback);
-    }
-
-    function LoadClassicProfiles()
-    {
-	var callback = function(json) {
-	    console.info("classic profiles", json);
-
-	    if (json.code) {
-		console.info(json.value);
-		return;
-	    }
-	    var template = _.template(classicString);
-
-	    $('#classic_profiles_content')
-		.html(template({"experiments" : json.value,
-				"showCreator" : true,
-				"showProject" : false,
-				"asProfiles"  : true}));
-	    
-	    // Format dates with moment before display.
-	    $('#classic_profiles_content .format-date').each(function() {
-		var date = $.trim($(this).html());
-		if (date != "") {
-		    $(this).html(moment($(this).html()).format("ll"));
-		}
-	    });
-	    var table = $('#classic_profiles_content .tablesorter')
-		.tablesorter({
-		    theme : 'blue',
-		});
-	};
-	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "ClassicProfileList",
-					    {"pid" : window.TARGET_PROJECT});
+					    "groups", "ClassicExperimentList",
+					    {"pid" : window.TARGET_PROJECT,
+					     "gid" : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 
@@ -297,10 +155,16 @@ function (_, sup, moment, mainString,
 	$xmlthing.done(callback);
     }
 
+    // We want to warn just once.
+    var WarnedAboutUserPrivs = false;
+
     function LoadMembersTab()
     {
+	// Watch for form modifications.
+	var modified = false;
+	
 	var callback = function(json) {
-	    console.info(json);
+	    console.info("members", json);
 
 	    if (json.code) {
 		console.info(json.value);
@@ -312,11 +176,11 @@ function (_, sup, moment, mainString,
 	    var template = _.template(memberString);
 
 	    $('#members_content')
-		.html(template({"members"    : json.value,
-				"nonmembers" : {},
+		.html(template({"members"    : json.value.members,
+				"nonmembers" : json.value.nonmembers,
 				"pid"        : window.TARGET_PROJECT,
-				"gid"        : window.TARGET_PROJECT,
-				"canedit"    : window.CANAPPROVE,
+				"gid"        : window.TARGET_GROUP,
+				"canedit"    : window.CANEDIT,
 				"canapprove" : window.CANAPPROVE}));
 	    
 	    // Format dates with moment before display.
@@ -326,39 +190,7 @@ function (_, sup, moment, mainString,
 		    $(this).html(moment($(this).html()).format("ll"));
 		}
 	    });
-	    // Bind approve/deny buttons.
-	    $('#members_table .approveuser')
-		.click(function () {
-		    DoApproval($(this).data("uid"), "approve");
-		});
-	    $('#members_table .denyuser')
-		.click(function () {
-		    DoApproval($(this).data("uid"), "deny");
-		});
-	    // Bind edit privs selection
-	    $('#members_table .editprivs')
-		.on('focusin', function() {
-		    // Remember trust before change.
-		    $(this).data('val', $(this).val());
-		})
-		.change(function () {
-		    if ($(this).val() == "user" && !WarnedAboutUserPrivs) {
-			sup.ShowModal('#confirm-user-privs-modal');
-			WarnedAboutUserPrivs = true;
-			var which = $(this);
-			$('#cancel-user-privs').click(function () {
-			    // Restore old trust we saved above.
-			    $(which).val($(which).data('val'));
-			});
-			$('#confirm-user-privs').click(function () {
-			    DoEditPrivs($(which).data("uid"), $(which).val());
-			});
-			return;
-		    }
-		    DoEditPrivs($(this).data("uid"), $(this).val());
-		});
-	    
-	    var table = $('#members_table')
+	    $('#members_table, #nonmembers_table')
 		.tablesorter({
 		    theme : 'blue',
 		});
@@ -373,21 +205,73 @@ function (_, sup, moment, mainString,
 		trigger: 'hover',
 		placement: 'auto',
 	    });
-	    
+
+	    // Bind edit privs selection
+	    $('#members_table .editprivs')
+		.on('focusin', function() {
+		    // Remember trust before change.
+		    $(this).data('val', $(this).val());
+		})
+		.change(function () {
+		    if ($(this).val() == "user" && !WarnedAboutUserPrivs) {
+			sup.ShowModal('#confirm-user-privs-modal');
+			WarnedAboutUserPrivs = true;
+			var which = $(this);
+			$('#cancel-user-privs').click(function () {
+			    $(which).val($(which).data('val'));
+			});
+			$('#confirm-user-privs').click(function () {
+			    DoEditPrivs($(which).data("uid"), $(which).val());
+			});
+			return;
+		    }
+		    DoEditPrivs($(this).data("uid"), $(this).val());
+		});
+
 	    // Enable the remove button when users are selected.
-	    $('#members_table .subgroup-checkbox').change(function () {
-		$('#subgroup-delete-button').removeAttr("disabled");
+	    $('#members_table .remove-checkbox').change(function () {
+		$('#remove-users-button').removeAttr("disabled");
 	    });
-	    // Handler for the remove button.
+	    // Handler for the remove confirm button.
 	    $('#confirm-remove-users').click(function () {
 		sup.HideModal('#confirm-remove-users-modal');
 		DoRemoveUsers();
 	    });
-	    
+	    // Enable the update button when permissions are changed.
+	    $('#nonmembers_table .editprivs')
+		.change(function () {
+		    $('#add-users-button').removeAttr("disabled");
+		    if ($(this).val() == "user" && !WarnedAboutUserPrivs) {
+			sup.ShowModal('#confirm-user-privs-modal');
+			WarnedAboutUserPrivs = true;
+			var which = $(this);
+			$('#cancel-user-privs').click(function () {
+			    $(which).val("none");
+			});
+		    }
+		});
+	    // Handler for the add confirm button.
+	    $('#confirm-add-users').click(function () {
+		sup.HideModal('#confirm-add-users-modal');
+		DoAddUsers();
+	    });
+	    // Watch for unsaved modifications.
+	    $('#nonmembers_table .editprivs, #members_table .remove-checkbox')
+		.change(function () {
+		    console.info("changed");
+		    modified = true;
+		});
+	    // Warn user if they have not saved changes.
+	    window.onbeforeunload = function() {
+		if (! modified)
+		    return null;
+		return "You have unsaved changes!";
+	    }
 	}
 	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "MemberList",
-					    {"pid" : window.TARGET_PROJECT});
+					    "groups", "MemberList",
+					    {"pid" : window.TARGET_PROJECT,
+					     "gid" : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 
@@ -405,11 +289,13 @@ function (_, sup, moment, mainString,
 	    }
 	    LoadMembersTab();
 	}
-	sup.ShowWaitWait("We are approving (or denying) ... patience please");
+	sup.ShowWaitWait();
 	var xmlthing =
-	    sup.CallServerMethod(null, "approveuser", action,
-				 {"user_uid" : uid,
-                                  "pid"      : window.TARGET_PROJECT});
+	    sup.CallServerMethod(null, "groups", "EditMembership",
+				 {"users"    : [uid],
+				  "action"   : action,
+                                  "pid"      : window.TARGET_PROJECT,
+                                  "gid"      : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 
@@ -433,7 +319,7 @@ function (_, sup, moment, mainString,
 				 {"user_uid" : uid,
 				  "priv"     : priv,
                                   "pid"      : window.TARGET_PROJECT,
-                                  "gid"      : window.TARGET_PROJECT});
+                                  "gid"      : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 
@@ -447,7 +333,7 @@ function (_, sup, moment, mainString,
 	    if ($(this).is(":checked")) {
 		var uid = $(this).data("uid");
 		
-		selected_users[uid] = uid;
+		selected_users[uid] = "none";
 	    }
 	});
 	if (! Object.keys(selected_users).length) {
@@ -463,48 +349,57 @@ function (_, sup, moment, mainString,
 	    }
 	    LoadMembersTab();
 	}
-	sup.ShowWaitWait("We are removing users from this project ... " +
+	sup.ShowWaitWait("We are removing users from this group ... " +
 			 "patience please");
 	var xmlthing =
 	    sup.CallServerMethod(null, "groups", "EditMembership",
 				 {"users"  : selected_users,
 				  "action" : "remove",
                                   "pid"    : window.TARGET_PROJECT,
-                                  "gid"    : window.TARGET_PROJECT});
-
+                                  "gid"    : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 
-    function LoadGroupsTab()
+    function DoAddUsers(checkonly)
     {
+	// Find list of selected users.
+	var selected_users = {};
+
+	$('#nonmembers_table .editprivs').each(function () {
+	    var uid  = $(this).data("uid");
+	    var priv = $(this).val();
+
+	    if (priv != "none") {
+		selected_users[uid] = priv;
+	    }
+	});
+	if (! Object.keys(selected_users).length) {
+	    return 1;
+	}
+	console.info("addusers", selected_users);
+
 	var callback = function(json) {
-	    console.info(json);
+	    sup.HideWaitWait();
 
 	    if (json.code) {
-		console.info(json.value);
+		sup.SpitOops("oops", json.value);
+		LoadMembersTab();
 		return;
 	    }
-	    if (json.value.length == 0) {
-		return;
-	    }
-	    var template = _.template(groupsString);
-
-	    $('#groups_content')
-		.html(template({"groups"  : json.value,
-				"pid"     : window.TARGET_PROJECT}));
-	    
-	    var table = $('#groups_table')
-		.tablesorter({
-		    theme : 'blue',
-		});
+	    LoadMembersTab();
 	}
-	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "GroupList",
-					    {"pid" : window.TARGET_PROJECT});
+	sup.ShowWaitWait("We are adding users to this group ... " +
+			 "patience please");
+	var xmlthing =
+	    sup.CallServerMethod(null, "groups", "EditMembership",
+				 {"users"  : selected_users,
+				  "action" : "add",
+                                  "pid"    : window.TARGET_PROJECT,
+                                  "gid"    : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 
-    function LoadProjectTab()
+    function LoadInfoTab()
     {
 	var callback = function(json) {
 	    console.info(json);
@@ -518,20 +413,52 @@ function (_, sup, moment, mainString,
 	    }
 	    var template = _.template(detailsString);
 
+	    $('#info_content')
+	    	.html(template({"fields"     : json.value,
+				"candelete"  : window.CANDELETE}));
 	    $('#admin_content')
-		.html(template({"fields" : json.value}));
+		.html(template({"fields"     : json.value,
+				"candelete"  : window.CANDELETE}));
 	    
 	    // Format dates with moment before display.
-	    $('#admin_table .format-date').each(function() {
+	    $('#profile_table .format-date').each(function() {
 		var date = $.trim($(this).html());
 		if (date != "") {
 		    $(this).html(moment($(this).html()).format("ll"));
 		}
 	    });
+	    // Hook up the delete (confirm) button.
+	    if (window.CANDELETE) {
+		$('#confirm-delete-group')
+		    .click(function () {
+			DoDeleteGroup();
+		    });
+	    }
 	}
 	var xmlthing = sup.CallServerMethod(null,
-					    "show-project", "ProjectProfile",
-					    {"pid" : window.TARGET_PROJECT});
+					    "groups", "GroupProfile",
+					    {"pid" : window.TARGET_PROJECT,
+					     "gid" : window.TARGET_GROUP});
+	xmlthing.done(callback);
+    }
+
+    function DoDeleteGroup()
+    {
+	var callback = function(json) {
+	    sup.HideWaitWait();
+	    if (json.code) {
+		console.info(json.value);
+		sup.SpitOops("oops", "Failed to delete group: " + json.value);
+		return;
+	    }
+	    window.location.replace(json.value);
+	}
+	sup.HideModal("#confirm-delete-modal");
+	sup.ShowWaitWait("Removing group, this will take a minute ... or two");
+	var xmlthing = sup.CallServerMethod(null,
+					    "groups", "Delete",
+					    {"pid" : window.TARGET_PROJECT,
+					     "gid" : window.TARGET_GROUP});
 	xmlthing.done(callback);
     }
 

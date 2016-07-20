@@ -26,7 +26,7 @@ include("defs.php3");
 chdir("apt");
 include("quickvm_sup.php");
 # Must be after quickvm_sup.php since it changes the auth domain.
-$page_title = "Show Project";
+$page_title = "Create Group";
 
 #
 # Get current user.
@@ -40,35 +40,42 @@ $isadmin   = (ISADMIN() ? 1 : 0);
 #
 # Verify page arguments.
 #
-$optargs = RequiredPageArguments("project", PAGEARG_PROJECT);
+$reqargs = RequiredPageArguments("project", PAGEARG_PROJECT);
+$optargs = OptionalPageArguments("leader",  PAGEARG_USER);
+
+if (!$project->AccessCheck($this_user, $TB_PROJECT_MAKEGROUP)) {
+    SPITUSERERROR("You do not have permission to create groups in ".
+                  "project " . $project->pid());
+}
+if (isset($leader)) {
+    $isapproved = 0;
+    if (! ($project->IsMember($leader, $isapproved) && $isapproved)) {
+        SPITUSERERROR($leader->uid(). " is not a member of project " .
+                      $project->uid());
+    }
+}
 
 SPITHEADER(1);
-
-if (!ISADMIN() && !ISFOREIGN_ADMIN() &&
-    !$project->AccessCheck($this_user, $TB_PROJECT_READINFO)) {
-    SPITUSERERROR("You do not have permission to view this information!");
-    return;
-}
-$emulablink = "$TBBASE/showproject.php3?project=" . $project->pid();
-$canapprove = $project->AccessCheck($this_user, $TB_PROJECT_ADDUSER) ? 1 : 0;
-
-echo "<link rel='stylesheet'
-            href='css/tablesorter-blue.css'>\n";
-
-echo "<script type='text/javascript'>\n";
-echo "  window.ISADMIN        = $isadmin;\n";
-echo "  window.CANAPPROVE     = $canapprove;\n";
-echo "  window.EMULAB_LINK    = '$emulablink';\n";
-echo "  window.TARGET_PROJECT = '" . $project->pid() . "';\n";
-echo "</script>\n";
 
 # Place to hang the toplevel template.
 echo "<div id='main-body'></div>\n";
 
-SPITREQUIRE("show-project",
-            "<script src='js/lib/jquery.tablesorter.min.js'></script>".
-            "<script src='js/lib/jquery.tablesorter.widgets.min.js'></script>".
-            "<script src='js/lib/sugar.min.js'></script>".
-            "<script src='js/lib/jquery.tablesorter.parser-date.js'></script>");
+# Initial form contents.
+$formfields = array();
+$formfields["project"]      = $project->pid();
+$formfields["group_id"]     = "";
+$formfields["group_leader"] = (isset($leader) ? $leader->uid() : $this_uid);
+$formfields["group_description"] = "";
+
+echo "<script type='text/plain' id='form-json'>\n";
+echo htmlentities(json_encode($formfields)) . "\n";
+echo "</script>\n";
+
+echo "<script type='text/javascript'>\n";
+echo "    window.ISADMIN  = $isadmin;\n";
+echo "</script>\n";
+    
+SPITREQUIRE("create-group");
 SPITFOOTER();
+
 ?>

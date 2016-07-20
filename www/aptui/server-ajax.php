@@ -248,10 +248,31 @@ $routing = array("myprofiles" =>
                                                       "Do_ProfileList",
                                                  "MemberList" =>
                                                       "Do_MemberList",
+                                                 "GroupList" =>
+                                                      "Do_GroupList",
                                                  "UsageSummary" =>
                                                       "Do_UsageSummary",
                                                  "ProjectProfile" =>
                                                       "Do_ProjectProfile")),
+		 "groups" =>
+			array("file"    => "groups.ajax",
+			      "guest"   => false,
+			      "methods" => array("ExperimentList" =>
+						      "Do_ExperimentList",
+                                                 "ClassicExperimentList" =>
+						     "Do_ClassicExperimentList",
+                                                 "MemberList" =>
+                                                      "Do_MemberList",
+                                                 "EditMembership" =>
+                                                      "Do_EditMembership",
+                                                 "EditPrivs" =>
+                                                      "Do_EditPrivs",
+                                                 "Create" =>
+                                                      "Do_CreateGroup",
+                                                 "Delete" =>
+                                                      "Do_DeleteGroup",
+                                                 "GroupProfile" =>
+                                                      "Do_GroupProfile")),
 		 "ranking" =>
 			array("file"    => "ranking.ajax",
 			      "guest"   => false,

@@ -111,6 +111,7 @@ function Do_ProfileList()
 function Do_MemberList()
 {
     global $this_user, $target_project;
+    global $newTrustMap;
 
     if (CheckPageArgs()) {
         return;
@@ -121,15 +122,46 @@ function Do_MemberList()
     $members     = $target_project->MemberList();
 
     foreach ($members as $user) {
+        $membership = $target_project->MemberShipInfo($user);
+
         $blob = array();
         $blob["uid"]      = $user->uid();
         $blob["name"]     = $user->name();
         $blob["email"]    = $user->email();
         $blob["joined"]   = DateStringGMT($user->created());
+        $blob["trust"]    = $newTrustMap[$membership["trust"]];
         $blob["approved"] = ($target_project->UserTrust($user) ==
                              TBDB_TRUSTSTRING_NONE ? 0 : 1);
 
         $results[$user->uid()] = $blob;
+    }
+    SPITAJAX_RESPONSE($results);
+}
+
+function Do_GroupList()
+{
+    global $this_user, $target_project;
+
+    if (CheckPageArgs()) {
+        return;
+    }
+    $results     = array();
+    $groups      = $target_project->SubGroups();
+
+    foreach ($groups as $group) {
+        $blob = array();
+        $leader = $group->GetLeader();
+
+        $blob["pid"]          = $group->pid();
+        $blob["pid_idx"]      = $group->pid_idx();
+        $blob["gid"]          = $group->gid();
+        $blob["gid_idx"]      = $group->gid_idx();
+        $blob["description"]  = $group->description();
+        $blob["leader"]       = $group->leader();
+        $blob["leader_idx"]   = $group->leader_idx();
+        $blob["leader_name"]  = $leader->name();
+
+        $results[$group->gid()] = $blob;
     }
     SPITAJAX_RESPONSE($results);
 }
@@ -139,10 +171,6 @@ function Do_ProjectProfile()
     global $this_user, $target_project;
 
     if (CheckPageArgs()) {
-        return;
-    }
-    if (!ISADMIN()) {
-	SPITAJAX_ERROR(-1, "Not enough permission");
         return;
     }
     $results = array();

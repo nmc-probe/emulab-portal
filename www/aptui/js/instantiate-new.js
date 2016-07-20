@@ -130,7 +130,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    admin:		isadmin,
 	});
 	$('#main-body').html(html);
-
+	UpdateGroupSelector();
 
 	// TEMPORARY BUTTON FOR CLASSIC PICKER
 	// To be removed when the new picker becomes default
@@ -247,7 +247,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	 * is changed.
 	 */
 	$('#profile_pid').change(function (event) {
-	  console.log('profile-pid change');
+	    console.log('profile-pid change');
+	    UpdateGroupSelector();
 	    UpdateImageConstraints();
 	    return true;
 	});
@@ -432,7 +433,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    if (isSystem) {
 	      result.sysproj[key] = obj;
 	    }
-	    if (_.contains(projlist, obj.project)) {
+	    if (_.has(projlist, obj.project)) {
 	      if (!result.inproj[obj.project]) {
 		result.inproj[obj.project] = {};
 	      }
@@ -1622,6 +1623,40 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	  $(this).prop('selected', false);
 	}
       });
+    }
+
+    // When the project is changed, look to see if the new project includes
+    // multiple subgroups. If only one subgroup, hide the group selector.
+    // Otherwise build/show a group selector.
+    function UpdateGroupSelector()
+    {
+	var pid = $('#project_selector #profile_pid').val();
+	var glist = projlist[pid];
+	console.info(pid, glist);
+
+	if (glist.length == 1) {
+	    var gid = glist[0];
+	    // No need to show it.
+	    $('#group_selector').addClass("hidden");
+
+	    // But need to add an option so we can select it for submit.
+	    var html = "<option selected value=" + gid + ">" + gid + "</option>";
+	    $('#group_selector #profile_gid').html(html);
+	    $('#group_selector #profile_gid').val(gid);
+	    return;
+	}
+	var html = "";
+	_.each(glist, function(gid) {
+	    var selected = "";
+	    // Select the project group by default.
+	    if (gid == pid) {
+		selected = "selected";
+	    }
+	    html = html +
+		"<option " + selected + " value=" + gid + ">" + gid + "</option>";
+	});
+	$('#group_selector #profile_gid').html(html);
+	$('#group_selector').removeClass("hidden");
     }
 
     $(document).ready(initialize);

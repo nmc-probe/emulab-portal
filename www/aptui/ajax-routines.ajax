@@ -39,6 +39,11 @@ function ClassicExperimentList($which, $target, $state = "active")
         $target_idx = $target->uid_idx();
         $whereclause = "where e.swapper_idx='$target_idx'";
     }
+    elseif ($which == "group") {
+        $target_pid  = $target->pid();
+        $target_gid  = $target->gid();
+        $whereclause = "where e.pid='$target_pid' and e.gid='$target_gid'";
+    }
     else {
         $target_pid = $target->pid();
         $whereclause = "where e.pid='$target_pid'";
@@ -102,6 +107,11 @@ function ExperimentList($which, $target)
     if ($which == "user") {
         $target_uuid = $target->uuid();
         $whereclause = "where a.creator_uuid='$target_uuid'";
+    }
+    elseif ($which == "group") {
+        $target_pid = $target->pid();
+        $target_gid = $target->gid();
+        $whereclause = "where a.pid='$target_pid' and a.gid='$target_gid'";
     }
     else {
         $target_pid = $target->pid();
@@ -217,6 +227,11 @@ function ProfileList($which, $target)
     if ($which == "user") {
         $target_idx  = $target->uid_idx();
         $whereclause = "where v.creator_idx='$target_idx'";
+    }
+    elseif ($which == "group") {
+        $target_pid  = $target->pid();
+        $target_gid  = $target->gid();
+        $whereclause = "where v.pid='$target_pid' and v.gid='$target_gid'";
     }
     else {
         $target_idx  = $target->pid_idx();

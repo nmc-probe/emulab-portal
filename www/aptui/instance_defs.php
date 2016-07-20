@@ -110,6 +110,8 @@ class Instance
     function paniced()	    { return $this->field('paniced'); }
     function pid()	    { return $this->field('pid'); }
     function pid_idx()	    { return $this->field('pid_idx'); }
+    function gid()	    { return $this->field('gid'); }
+    function gid_idx()	    { return $this->field('gid_idx'); }
     function public_url()   { return $this->field('public_url'); }
     function logfileid()    { return $this->field('logfileid'); }
     function manifest()	    { return $this->field('manifest'); }
@@ -266,11 +268,14 @@ class Instance
 	# 
 	# With a real user, run as that user. 
 	#
-	$uid = ($creator ? $creator->uid() : "nobody");
-	$pid = "nobody";
-	if ($creator && $creator->FirstApprovedProject()) {
-	    $pid = $creator->FirstApprovedProject()->pid();
-	}
+        if ($creator) {
+            $uid = $creator->uid();
+            $pid = $args["pid"];
+        }
+        else {
+            $uid = "nobody";
+            $pid = "nobody";
+        }
 	if (isset($_SERVER['REMOTE_ADDR'])) { 
 	    putenv("REMOTE_ADDR=" . $_SERVER['REMOTE_ADDR']);
 	}

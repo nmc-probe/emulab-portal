@@ -90,11 +90,17 @@ pre {
 	    </tr>
 	    <% if (project) { %>
 	      <tr>
-		<td class='border-none'>Project:</td>
-		<td class='border-none'>
-		  <a href="show-project.php?pid=<%- project %>">
-		    <%- project %></a>
-		</td>
+		<% if (project == group) { %>
+		  <td class='border-none'>Project:</td>
+		  <td class='border-none'>
+		    <a href="show-project.php?pid=<%- project %>">
+		      <%- project %></a></td>
+		<% } else { %>
+		  <td class='border-none'>Group:</td>
+		  <td class='border-none'>
+		    <a href="show-group.php?pid=<%- project %>&gid=<%- group %>">
+		      <%- project %>:<%- group %></a></td>
+		<% } %>
 	      </tr>
 	    <% } %>
 	  <% } %>

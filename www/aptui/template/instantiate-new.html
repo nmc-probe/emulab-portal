@@ -292,8 +292,8 @@
 		    </div>
 		  </div>
 		<% } %>
-		<% if (projects) { %>
-		  <% if (projects.length == 1) { %>
+		<% if (projects && Object.keys(projects).length) { %>
+		  <% if (Object.keys(projects).length == 1) { %>
 		    <!-- We need this to look like the selector below,
 		    for the JS code. -->
 		    <div class='hidden' id='project_selector'>
@@ -301,8 +301,7 @@
 			     name='pid'
 			     value='<%- formfields.pid %>'>
 		    </div>
-		  <% } %>
-		  <% if (projects.length > 1) { %>
+		  <% } else { %>
 		    <div class='form-horizontal experiment_option'
 			 id='project_selector'>
 		      <div class='form-group format-me'>
@@ -313,7 +312,7 @@
 				  data-key='pid'
 				  id='profile_pid'
 				  class='form-control'>
-			    <% _.each(projects, function(name) { %>
+			    <% _.each(projects, function(gids, name) { %>
 			      <option 
 				  <% if (formfields.pid == name) { %>
 				  selected
@@ -328,6 +327,21 @@
 		      </div>
 		    </div>
 		  <% } %>
+		  <div class='form-horizontal experiment_option hidden'
+		       id='group_selector'>
+		    <div class='form-group format-me'>
+		      <label class='col-sm-4 control-label'
+			     style='text-align: right;'>Group:</label>
+		      <div class='col-sm-6'>
+			<select name="gid"
+				data-key='gid'
+				id='profile_gid'
+				class='form-control'></select>
+			<label class='control-label control-error hidden'
+			       for='profile_gid'></label>
+		      </div>
+		    </div>
+		  </div>
 		<% } %>
 		<% if (amlist) { %>
 		  <div id='aggregate_selector'>

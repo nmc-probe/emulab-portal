@@ -388,12 +388,8 @@ function SPITFORM($formfields, $newuser, $errors)
     # Spit out a project selection list if a real user.
     #
     if ($this_user && !$this_user->webonly()) {
-        $plist = array();
-        while (list($project) = each($projlist)) {
-            $plist[] = $project;
-        }
         echo "<script type='text/plain' id='projects-json'>\n";
-        echo htmlentities(json_encode($plist));
+        echo htmlentities(json_encode($projlist));
         echo "</script>\n";
     }
     #
@@ -459,10 +455,12 @@ if (!isset($create)) {
     if ($this_user && count($projlist)) {
 	list($project, $grouplist) = each($projlist);
         $defaults["pid"] = $project;
+        $defaults["gid"] = $project;
         reset($projlist);
     }
     else {
         $defaults["pid"] = "";
+        $defaults["gid"] = "";
     }
 
     # 

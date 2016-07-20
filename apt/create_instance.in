@@ -89,7 +89,7 @@ my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
 my $MANAGEINSTANCE= "$TB/bin/manage_instance";
-my $DEFAULT_URN   = "urn:publicid:IDN+${OURDOMAIN}+authority+cm";
+my $DEFAULT_URN   = "urn:publicid:IDN+$OURDOMAIN+authority+cm";
 my $GUEST_URN     = "urn:publicid:IDN+apt.emulab.net+authority+cm";
 my $default_aggregate_urn = $DEFAULT_URN;
 
@@ -100,7 +100,7 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 #
 # Turn off line buffering on output
 #
-$| = 1; 
+$| = 1;
 
 # Load the Testbed support stuff.
 use lib "@prefix@/lib";
@@ -258,7 +258,7 @@ foreach my $key ("username", "email", "profile", "portal") {
 # Gather up args and sanity check.
 #
 my ($value, $user_urn, $user_uid, $user_hrn, $user_email, $project, $pid,
-    $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg,
+    $gid, $group, $sshkey, $profile, $profileid, $version, $rspecstr, $errmsg,
     $userslice_id, $portal);
 
 # This is used internally to determine which portal was used.
@@ -561,6 +561,21 @@ if ($localuser) {
     }
     $pid = $project->pid();
 
+    # Option subgroup.
+    if (exists($xmlparse->{'attribute'}->{"gid"}) &&
+	$xmlparse->{'attribute'}->{"gid"}->{"value"} ne "" &&
+	$xmlparse->{'attribute'}->{"gid"}->{"value"} ne $pid) {
+	my $val = $xmlparse->{'attribute'}->{"gid"}->{"value"};
+	$group = $project->LookupGroup($val);
+	if (!defined($group)) {
+	    fatal("Group $val does not exist in project $pid");
+	}
+    }
+    else {
+	$group = $project->GetProjectGroup();
+    }
+    $gid = $group->gid();
+
     # Use of the Image Tracker is a Portal directive at the moment.
     $usetracker = 1
 	if (GetSiteVar("protogeni/use_imagetracker") &&	
@@ -579,6 +594,7 @@ elsif (!$localuser) {
     # Guest users get a holding project.
     $pid = $APT_HOLDINGPROJECT;
     $project = Project->Lookup($pid);
+    $group = $project->GetProjectGroup();
     if (!defined($project)) {
 	fatal("Project $pid does not exist");
     }
@@ -613,7 +629,9 @@ if (defined($profile)) {
 my $safe_uid    = $user_uid; $safe_uid =~ s/_/-/;
 my $slice_id    = (defined($userslice_id) ? $userslice_id :
 		   $safe_uid . "-QV" . TBGetUniqueIndex('next_quickvm', 1));
-my $slice_urn   = GeniHRN::Generate("${OURDOMAIN}:${pid}", "slice", $slice_id);
+my $slice_auth  = ($pid eq $gid ? $pid : "${pid}:${gid}");
+my $slice_urn   = GeniHRN::Generate("${OURDOMAIN}:${slice_auth}",
+				    "slice", $slice_id);
 my $slice_hrn   = "${PGENIDOMAIN}.${pid}.${slice_id}";
 my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
 
@@ -630,7 +648,7 @@ if (GeniSlice->Lookup($slice_hrn) || GeniSlice->Lookup($slice_urn)) {
 	fatal("Could not form a unique slice name");
     }
 }
-	    
+
 #
 # Generate a certificate for this new slice.
 #
@@ -667,7 +685,7 @@ my $slice_uuid = $slice->uuid();
 # nodes, hence the alternate CA, and the XMLRPC server will not allow
 # this certificate to do anything, except at the portal RPC server.
 #
-my $alt_urn = GeniHRN::Generate("aptlab.net:${pid}", "slice", $slice_id);
+my $alt_urn = GeniHRN::Generate("aptlab.net:${slice_auth}", "slice", $slice_id);
 my $alt_hrn = "aptlab.${pid}.${slice_id}";
 my $alt_url = "$PROTOGENI_URL/portal";
 
@@ -740,6 +758,8 @@ my $blob = {'uuid'         => $quickvm_uuid,
 if (defined($project)) {
     $blob->{"pid"}     = $project->pid();
     $blob->{"pid_idx"} = $project->pid_idx();
+    $blob->{"gid"}     = $group->gid();
+    $blob->{"gid_idx"} = $group->gid_idx();
 }
 $errmsg = undef;
 $instance = APT_Instance->Create($blob, \$errmsg);

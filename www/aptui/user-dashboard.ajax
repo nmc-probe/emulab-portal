@@ -135,8 +135,31 @@ function Do_ProjectList()
             $blob["pid"] = $proj->pid();
             $blob["description"] = $proj->name();
             $leader = $proj->GetLeader();
-            $blob["leader"] = $leader->name();
+            $blob["leader"]      = $leader->uid();
+            $blob["leader_name"] = $leader->name();
+            $blob["leader_idx"]  = $leader->idx();
+
+            #
+            # User membership in subgroups
+            #
+            $blob["subgroups"] = array();
             
+            $groups = $proj->GroupList($target_user);
+            if (count($groups)) {
+                foreach ($groups as $group) {
+                    $glob = array();
+                    $leader = $group->GetLeader();
+
+                    $glob["gid"]          = $group->gid();
+                    $glob["gid_idx"]      = $group->gid_idx();
+                    $glob["description"]  = $group->description();
+                    $glob["leader"]       = $leader->uid();
+                    $glob["leader_idx"]   = $leader->idx();
+                    $glob["leader_name"]  = $leader->name();
+
+                    $blob["subgroups"][] = $glob;
+                }
+            }
             $results[$pid] = $blob;
         }
     }

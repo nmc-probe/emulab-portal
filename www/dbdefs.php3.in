@@ -108,6 +108,18 @@ define("TBDB_TRUSTSTRING_GROUPROOT",	"group_root");
 define("TBDB_TRUSTSTRING_PROJROOT",	"project_root");
 
 #
+# Map to new names
+#
+$newTrustMap = array("none"         => "none",
+                     "user"         => "user",
+                     "local_root"   => "root",
+                     "group_root"   => "manager",
+                     "project_root" => "leader",
+                     "root"         => "local_root",
+                     "manager"      => "group_root",
+                     "leader"       => "project_root");
+
+#
 # These are the permission types. Different operations for the varying
 # types of things we need to control access to.
 #

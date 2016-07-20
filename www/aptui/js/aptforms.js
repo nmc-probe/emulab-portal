@@ -224,7 +224,7 @@ define(['underscore', 'js/quickvm_sup'],
 	/*
 	 * Submit form.
 	 */
-	function SubmitForm(form, route, method, callback) {
+	function SubmitForm(form, route, method, callback, message) {
 	    /*
 	     * Convert form data into formfields array, like all our
 	     * form handler pages expect.
@@ -241,7 +241,7 @@ define(['underscore', 'js/quickvm_sup'],
 		DisableUnsavedWarning(form);
 		callback(json);
 	    };
-	    sup.ShowModal("#waitwait-modal");
+	    sup.ShowWaitWait(message);
 	    var xmlthing =
 		sup.CallServerMethod(null, route, method,
 				     {"formfields" : formfields,

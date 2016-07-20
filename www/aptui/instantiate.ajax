@@ -546,6 +546,7 @@ function CheckStep2()
     global $this_user;
     global $ajax_args;
     global $ISAPT, $ISPNET, $ISCLOUD, $ISEMULAB;
+    global $TB_PROJECT_CREATEEXPT;
 
     if (!isset($ajax_args["formfields"])) {
 	SPITAJAX_ERROR(-1, "Missing formfields");
@@ -609,8 +610,10 @@ function CheckStep2()
         #
         # Project has to exist.  
         #
-        $project = Project::LookupByPid($formfields["pid"]);
-        if (!$project) {
+        if (!isset($formfields["pid"])) {
+            $errors["pid"] = "Must select a project";
+        }
+        elseif (! ($project = Project::LookupByPid($formfields["pid"]))) {
             $errors["pid"] = "No such project";
         }
         # User better be a member.
@@ -618,6 +621,23 @@ function CheckStep2()
                 (!$project->IsMember($this_user, $isapproved) ||
                  !$isapproved)) {
             $errors["pid"] = "Illegal project";
+        }
+        elseif ($formfields["pid"] != $formfields["gid"]) {
+            $group = $project->LookupSubgroupByName($formfields["gid"]);
+            if (!$group) {
+                $errors["gid"] = "No such group in selected project";
+            }
+            elseif (!$group->AccessCheck($this_user, $TB_PROJECT_CREATEEXPT)) {
+                $errors["gid"] = "No permission to create experiments in ".
+                               "selected group";
+            }
+        }
+        else {
+            $group = $project->DefaultGroup();
+            if (!$group->AccessCheck($this_user, $TB_PROJECT_CREATEEXPT)) {
+                $errors["pid"] = "No permission to create experiments in ".
+                               "selected project";
+            }
         }
 
         # Experiment name is optional, we generate one later.
@@ -787,6 +807,7 @@ function Do_Submit()
         }
         # Required for real users.
         $args["pid"] = $formfields["pid"];
+        $args["gid"] = $formfields["gid"];
 
         # Experiment name is optional, we generate one later.
         if (isset($formfields["name"]) && $formfields["name"] != "") {
