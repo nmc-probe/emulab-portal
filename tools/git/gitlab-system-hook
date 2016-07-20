@@ -37,6 +37,13 @@ use strict;
 # Port to run on - made up crap
 my $PORT = 4579;
 
+# Who the mail should claim to come from
+my $FROM =  getpwuid( $< ) . "@" . `hostname -A`;
+chomp($FROM);
+
+# Path to sendmail
+my $SENDMAIL = "/usr/sbin/sendmail";
+
 #
 # End settable options
 #
@@ -165,9 +172,18 @@ sub send_mail($$) {
         print "Will mail to $mailto\n";
         print "Subject: $subject\n";
         print "Contents:\n";
-        print $json->pretty->encode( $data );
+        print $body;
         print "\n\n";
     }
+
+    open(MAIL, "| $SENDMAIL -odb -oem -f'$FROM' -t");
+    print MAIL "From: $FROM\n";
+    print MAIL "To:  $mailto\n";
+    print MAIL "Subject: $subject\n";
+    print MAIL "\n";
+    print MAIL $body;
+    print MAIL "\n";
+    close(MAIL);
 
     return 1;
 
