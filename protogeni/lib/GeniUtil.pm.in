@@ -317,18 +317,30 @@ sub GetHoldingProject($$)
 		# Local user. Confirm a member of the project, and if so
 		# operate in that project (as that user).
 		#
-		$project = Project->Lookup($subauth);
+		my $pid = $hrn->project();
+		my $gid = $hrn->group();
+		
+		$project = Project->Lookup($pid);
 		if (!defined($project)) {
 		    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 						"local project does not exist");
 		}
+		if (defined($gid)) {
+		    $group = $project->LookupGroup($gid);
+		}
+		else {
+		    $group = $project->GetProjectGroup();
+		}
+		if (!defined($group)) {
+		    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+						"local group does not exist");
+		}
 		if ($creator->IsLocal() &&
 		    $creator->emulab_user()->IsLocal() &&
-		    defined($project->LookupUser($creator->emulab_user()))) {
-		    $group = $project->GetProjectGroup();
+		    defined($group->LookupUser($creator->emulab_user()))) {
 		    goto done;
 		}
-		# Fall through.
+		# XXX Need to do something here.
 	    }
 	    
 	    #
@@ -337,13 +349,24 @@ sub GetHoldingProject($$)
 	    # to form a unique name. Also, in an attempt to avoid conflict
 	    # with future local project names, always append to the name.
 	    #
-	    $project_urn = GeniHRN::Generate($domainsubauth, "authority", "sa");
-	    $project_id  = $subauth;
+	    $project_urn =
+		GeniHRN::Generate($hrn->domain() . ":" . $hrn->project(),
+				  "authority", "sa");
+	    $project_id  = $hrn->project();
 	    $project_id  =~ s/\./-/g;
 
 	    if (! (defined($project_urn) && Project->ValidPID($project_id))) {
 		return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
 			"Not a valid local project name for $domainsubauth");
+	    }
+	    if (defined($hrn->group())) {
+		$group_id  = $hrn->group();
+		$group_id  =~ s/\./-/g;
+
+		if (! Group->ValidGID($group_id)) {
+		    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+			"Not a valid local group name: $group_id");
+		}
 	    }
 	}
 	else {
@@ -356,7 +379,7 @@ sub GetHoldingProject($$)
 	    #
 	    $project_urn = GeniHRN::Generate($domain, "authority", "sa");
 	    $project_id  = $domain;
-	    $group_id    = $subauth;
+	    $group_id    = $hrn->project();
 	    #
 	    # For now, lets assume that the domain has legal chars, except
 	    # of course for the dots, which we transform to dashes cause

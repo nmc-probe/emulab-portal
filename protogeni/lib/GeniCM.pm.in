@@ -6746,7 +6746,7 @@ sub GeniExperiment($;$)
     # a member. That means we have to run as the local user.
     #
     if ($project->IsLocal()) {
-	$creator->FlipTo($project->unix_gid());
+	$creator->FlipTo($group->unix_gid());
     }
     elsif (defined($group)) {
 	GeniUtil::FlipToGeniUser($group->unix_gid());
@@ -6800,7 +6800,7 @@ sub FlipToUser($$)
     my $project = $experiment->GetProject();
     return undef
 	if (!defined($project));
-    my $group   = $project;
+    my $group   = $experiment->GetGroup();
     my $creator = $experiment->GetCreator();
     return undef
 	if (!defined($creator));
@@ -6811,10 +6811,6 @@ sub FlipToUser($$)
     # XXX watch for Legacy GeniSlices project.
     #
     if ($project->IsNonLocal() || $project->pid() eq "GeniSlices") {
-	$group = $experiment->GetGroup();
-	return undef
-	    if (!defined($group));
-
 	$creator = User->Lookup("geniuser");
 	return undef
 	    if (!defined($creator));
@@ -6845,7 +6841,7 @@ sub FlipToUser($$)
     }
   flip:
     return undef
-	if ($user->FlipTo($project->unix_gid()));
+	if ($user->FlipTo($group->unix_gid()));
     return $user;
 }
 
