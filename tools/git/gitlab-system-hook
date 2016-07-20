@@ -161,10 +161,16 @@ sub send_mail($$) {
     my $body = $json->pretty->encode( $data );
     my $subject = "GitLab System Event: ". $data->{'event_name'};
     if ($data->{'name'}) {
-        $subject .= " (" . $data->{'name'} . ")";
+        $subject .= " " . $data->{'name'};
+    }
+    if ($data->{'user_name'}) {
+        $subject .= " (" . $data->{'user_name'} . ")";
     }
     if ($data->{'user_email'}) {
         $subject .= " <" . $data->{'user_email'} . ">";
+    }
+    if ($data->{'owner_email'}) {
+        $subject .= " <" . $data->{'owner_email'} . ">";
     }
      
 
