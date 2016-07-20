@@ -694,7 +694,7 @@ void set_link_params(int l_index, int blackhole, int p_which)
 
 	// Bandwidth by itself.
 	sprintf(cmd, "tc class change dev %s classid %d:1 htb "
-		"rate %d %s ceil %d %s",
+		"rate %d%s ceil %d%s",
 		iface, pipeno, (int) p_params->bw, p_params->bwspec,
 		(int) p_params->bw, p_params->bwspec);
 	
