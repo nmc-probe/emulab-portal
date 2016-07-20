@@ -157,6 +157,29 @@ sub SetTimeout($$)
     return 0;
 }
 
+BEGIN {
+    require Frontier::Responder;
+    require Frontier::RPC2;
+
+    # Original version of traversal function.
+    my $rpc2_item = \&Frontier::RPC2::_item;
+
+    {
+	no warnings 'redefine';
+
+	# Redefine to handle the URN object. It would be nice if this was
+	# a builtin feature (being able to handle arbitrary classes).
+	*Frontier::RPC2::_item = sub {
+	    my ($self,$item) = @_;
+	    if (ref($item) eq "GeniHRN") {
+		# Just a string.
+		return Frontier::RPC2::_scalar($self,$item->urn());
+	    }
+	    return &$rpc2_item($self, $item);
+	};
+    }
+}
+
 #
 # Call to a non-Emulab xmlrpc server.  
 # If there was an HTTP error, the hash also contains the keys
@@ -260,16 +283,16 @@ sub CallMethod($$$@)
 	    $ENV{'HTTPS_PKCS12_PASSWORD'} = $context->password();
 	}
     }
-    my $request = new RPC::XML::request($method, @args);
+    my $encoder = Frontier::RPC2->new();
+    my $reqstr  = $encoder->encode_call($method, @args);
     if ($debug > 1) {
-	print STDERR "xml request: $httpURL:" . $request->as_string();
+	print STDERR "xml request: $httpURL:" . $reqstr;
 	print STDERR "\n";
     }
     
     #
     # Send an http post.
     #
-    my $reqstr = $request->as_string();
     my $ua = LWP::UserAgent->new();
     $ua->timeout($timeout)
 	if ($timeout > 0);

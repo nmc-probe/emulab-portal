@@ -37,14 +37,35 @@ package ClusterWrapper;
 use strict;
 use English;
 use POSIX;
-use Frontier::Responder;
-use Frontier::RPC2;
 use Crypt::X509;
 use Crypt::OpenSSL::X509;
 use Data::Dumper;
 use Time::HiRes qw( gettimeofday tv_interval );
 use Carp qw(cluck confess);
 use FCGI;
+
+BEGIN {
+    require Frontier::Responder;
+    require Frontier::RPC2;
+
+    # Original version of traversal function.
+    my $rpc2_item = \&Frontier::RPC2::_item;
+
+    {
+	no warnings 'redefine';
+
+	# Redefine to handle the URN object. It would be nice if this was
+	# a builtin feature (being able to handle arbitrary classes).
+	*Frontier::RPC2::_item = sub {
+	    my ($self,$item) = @_;
+	    if (ref($item) eq "GeniHRN") {
+		# Just a string.
+		return Frontier::RPC2::_scalar($self,$item->urn());
+	    }
+	    return &$rpc2_item($self, $item);
+	};
+    }
+}
 
 # Configure variables
 my $TB               = "@prefix@";
@@ -166,12 +187,12 @@ sub Initialize()
 	    print STDERR "Could not load CA cert from $file\n";
 	    next;
 	}
-	if (!defined($certificate->urnOBJ())) {
+	if (!defined($certificate->urn())) {
 	    print STDERR "Could not load URN for $file";
 	    next;
 	}
 	push(@CACERTS, $certificate);
-	if ($certificate->urnOBJ()->domain() eq $OURDOMAIN) {
+	if ($certificate->urn()->domain() eq $OURDOMAIN) {
 	    $OURCACERT = $certificate;
 	}
     }
@@ -618,6 +639,7 @@ sub Start($$)
 		$response = &$foo($result);
 	    }
 	    else {
+		print STDERR Dumper($result);
 		$response = $decoder->encode_response($result);
 	    }
 	}
