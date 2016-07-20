@@ -1722,11 +1722,6 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				      "timeout" => 0,
 				      "expected_exit_code" => 0});
 	
-	$virtexperiment->NewTableRow("virt_agents",
-				     {"vnode"     => $node_nickname,
-				      "vname"     => "${node_nickname}-program",
-				      "objecttype" => "4"});
-
 	# Store reference so we can munge it below. 
 	$nodemap{$node_nickname} = {"rspec"    => $ref,
 				    "virtnode" => $virtnode,
@@ -3076,7 +3071,19 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef);
 	goto bad;
     }
-
+    # Now we can setup the agents.
+    if ($slice_experiment->SetupProgramAgents()) {
+	print STDERR "Could not setup program agent support\n";
+	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					 "Could not setup program agent support");
+	goto bad;
+    }
+    if ($slice_experiment->SetupNetworkAgents()) {
+	print STDERR "Could not setup network agent support\n";
+	$response = GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					 "Could not setup network agent support");
+	goto bad;
+    }
     # Save a local copy of any profile parameters.
     foreach my $param ( @{ GeniXML::GetProfileParameters( $rspec ) } ) {
 	$slice_experiment->AddProfileParameter( $param->{ 'name' },
