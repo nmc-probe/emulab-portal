@@ -1,0 +1,10 @@
+#
+# Emulab version to block rpcbind amplification attacks. Put this
+# in /etc on both boss and ops.
+#
+rpcbind : 127.0.0.1 : allow
+rpcbind : @CONTROL_NETWORK@/@CONTROL_NETMASK@ : allow
+rpcbind : 172.16.0.0/255.240.0.0 : allow
+rpcbind : ALL : deny
+
+ALL : ALL : allow
