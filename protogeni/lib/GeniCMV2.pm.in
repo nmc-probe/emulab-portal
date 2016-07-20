@@ -4696,7 +4696,7 @@ sub Lockdown($)
     #
     my $caller = GeniHRN->new($credential->owner_urn());
     if (! ($caller->IsSA() && 
-	   $caller->domain() eq $slice->urnOBJ()->domain())) {
+	   $caller->domain() eq $slice->urn()->domain())) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 			    "Not enough permission to set/clr lockdown");
     }
@@ -4750,7 +4750,7 @@ sub Panic($)
     #
     my $caller = GeniHRN->new($credential->owner_urn());
     if (! ($caller->IsSA() && 
-	   $caller->domain() eq $slice->urnOBJ()->domain())) {
+	   $caller->domain() eq $slice->urn()->domain())) {
 	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
 			    "Not enough permission to turn on/off panic mode");
     }

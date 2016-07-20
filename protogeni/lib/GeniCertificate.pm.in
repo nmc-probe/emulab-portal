@@ -119,8 +119,8 @@ sub Lookup($$)
     bless($self, $class);
     my $cert = $self->cert();
 
-    # Convert urn to object now.
-    $self->{'CERT'}->{'urnOBJ'} = GeniHRN->new($self->{'CERT'}->{'urn'})
+    # Convert urn to object. Stringify overload will allow old code to work.
+    $self->{'CERT'}->{'urn'} = GeniHRN->new($self->{'CERT'}->{'urn'})
 	if (defined($self->{'CERT'}->{'urn'}));
 
     # Add to cache. 
@@ -159,7 +159,6 @@ sub certfile($)		{ return field($_[0], "certfile"); }
 sub passphrase($)	{ return undef; }
 sub uri($)              { return field($_[0], "uri"); }
 sub urn($)              { return field($_[0], "urn"); }
-sub urnOBJ($)           { return field($_[0], "urnOBJ"); }
 sub rootcert($)	        { return $_[0]->{'ROOTCERT'}; }
 sub GetCertificate($)   { return $_[0]; }
 
@@ -656,7 +655,7 @@ sub LoadFromArray($$@)
     $self->{'CERT'}->{'enddate'}   = undef;
     $self->{'CERT'}->{'serial'}    = undef;
     # Convert URNs to objects.
-    $self->{'CERT'}->{'urnOBJ'}    = GeniHRN->new($urn)	if (defined($urn));
+    $self->{'CERT'}->{'urn'}       = GeniHRN->new($urn)	if (defined($urn));
 
     return $self;
 }
@@ -768,7 +767,7 @@ sub LoadFromStringFast($$)
     $self->{'CERT'}->{'enddate'}   = TBDateStringGMT($x509->notAfter());
     $self->{'CERT'}->{'serial'}    = $x509->serial();
     # Convert URNs to objects.
-    $self->{'CERT'}->{'urnOBJ'}    = GeniHRN->new($urn);
+    $self->{'CERT'}->{'urn'}       = GeniHRN->new($urn);
 
     return $self;
 }
@@ -1592,7 +1591,7 @@ sub Create($$)
     bless($self, $class);
 
     # Convert URNs to objects.
-    $self->{'CERT'}->{'urnOBJ'} = GeniHRN->new($self->urn());
+    $self->{'CERT'}->{'urn'} = GeniHRN->new($self->urn());
 
     return $self;
 }
@@ -1606,7 +1605,6 @@ sub revoked($)		{ return field($_[0], "revoked"); }
 sub passphrase($)	{ return field($_[0], "password"); }
 sub uri($)              { return undef; }
 sub urn($)              { return field($_[0], "urn"); }
-sub urnOBJ($)           { return field($_[0], "urnOBJ"); }
 sub URL($)              { return undef; }
 sub URN($)              { return field($_[0], "urn"); }
 sub certfile($)		{ return undef; }
