@@ -130,6 +130,13 @@ my $debug  = 0;
 my $lockdebug = 0;
 
 #
+# Some commands/subsystems have evolved in incompatible ways over time,
+# these vars keep track of such things.
+#
+my $newsfdisk = 0;
+my $newlvm = 0;
+
+#
 # Serial console handling. We fire up a capture per active vnode.
 # We use a fine assortment of capture options:
 #
@@ -364,11 +371,34 @@ sub init($)
     makeIfaceMaps();
     makeBridgeMaps();
 
-    my $toolstack = `grep TOOLSTACK /etc/default/xen`;
+    my $toolstack;
+    if (-x "/usr/lib/xen-common/bin/xen-toolstack") {
+	$toolstack = `/usr/lib/xen-common/bin/xen-toolstack`;
+    } else {
+	$toolstack = `grep TOOLSTACK /etc/default/xen`;
+    }
     if ($toolstack =~ /xl$/) {
 	$XM = "/usr/sbin/xl";
     }
     getXenInfo();
+
+    # See which sfdisk we have. Version 2.26 removed some options we used.
+    my $out = `sfdisk -v`;
+    if (defined($out) && $out =~ /2\.(\d+)(\.\d+)$/) {
+	if (int($1) >= 26) {
+	    $newsfdisk = 1;
+	}
+    }
+
+    # See what version of LVM we have. Again, some commands are different.
+    $out = `lvm version | grep 'LVM version'`;
+    if (defined($out) && $out =~ /LVM version:\s+(\d+)\.(\d+)\.(\d+)/) {
+	if (int($1) > 2 ||
+	    (int($1) == 2 && int($2) > 2) ||
+	    (int($1) == 2 && int($2) == 2 && int($3) >= 99)) {
+	    $newlvm = 1;
+	}
+    }
 
     # Compute the strip size for new lvms.
     if (-e "/var/run/xen.ready") {
@@ -1415,7 +1445,7 @@ okay:
 	    #
 	    # Mark it as a linux swap partition. 
 	    #
-	    if (mysystem2("echo ',,S' | sfdisk $vndisk -N0")) {
+	    if (mysystem2("echo ',,S' | sfdisk --force $vndisk -N0")) {
 		fatal("libvnode_xen: could not partition swap disk");
 	    }
 	}
@@ -3089,8 +3119,14 @@ sub CreatePrimaryDisk($$$$;$)
 
 	close(FILE);
 		    
-	if (mysystem2("cat $partfile | ".
-		      "    sfdisk --force -x -D -u S $rootvndisk")) {
+	my $sfdopts;
+	if ($newsfdisk) {
+	    $sfdopts = "--force";
+	} else {
+	    $sfdopts = "--force -x -D -u S";
+	}
+
+	if (mysystem2("cat $partfile | sfdisk $sfdopts $rootvndisk")) {
 	    print STDERR "libvnode_xen: could not partition root disk\n";
 	    goto fail;
 	}
@@ -3252,7 +3288,13 @@ sub cloneGoldenImage($$)
 	print STDERR "$imagename: could not clone golden image!?\n";
 	return -1;
     }
-    if (mysystem2("lvchange -ay $VGNAME/$lvname")) {
+    my $opts;
+    if ($newlvm) {
+	$opts = "-kn -ay";
+    } else {
+	$opts = "-ay";
+    }
+    if (mysystem2("lvchange $opts $VGNAME/$lvname")) {
 	print STDERR "$imagename: WARNING: ".
 	    "could not activate $VGNAME/$lvname\n";
     }
