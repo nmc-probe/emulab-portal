@@ -2589,6 +2589,7 @@ sub createOFInstance($$) {
     $cmdstr .= "classification vlan $vlan\n";
     $cmdstr .= "flow-table mac-ip 100 extensibility 200\n";
     $cmdstr .= "fail-open mode secure\n";
+    $cmdstr .= "mac-learning forbidden\n";
 
     my $clires = $self->doH3CNetconfCLI($cmdstr);
     if (!defined($clires)) {
