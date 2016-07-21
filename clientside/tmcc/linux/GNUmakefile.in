@@ -58,6 +58,20 @@ DEFRUNLVLDIR	?= $(RCDIR)/rc3.d
 ISMFS		= $(ETCDIR)/ismfs
 
 #
+# If we are installing in Xen dom0, see what version of Xen
+#
+XENVERS	= 0
+ifneq ($(wildcard /usr/lib/xen-4.4),)
+XENVERS	= 4.4
+endif
+ifneq ($(wildcard /usr/lib/xen-4.5),)
+XENVERS	= 4.5
+endif
+ifneq ($(wildcard /usr/lib/xen-4.6),)
+XENVERS	= 4.6
+endif
+
+#
 # If callers set the USES_SYSTEMD var to 1, we do the systemd sysetc-install and
 # sysetc-remove targets; else, use the LSB/SYSV ones.
 #
@@ -369,7 +383,11 @@ xen-upstart-install:
 		$(INSTALL) -m 644 $$f /etc/init/; \
 	    done; \
 	fi
+	@if [ ! -e /etc/init/plymouth-upstart-bridge.conf ]; then \
+		rm /etc/init/plymouth-upstart-bridge.override; \
+	fi
 
+# NOTE: Custom /etc/xen/xen not needed on Xen 4.6.
 xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/../common/vnodesetup $(BINDIR)/
 	$(INSTALL) -m 755 $(SRCDIR)/../common/mkvnode.pl $(BINDIR)/
@@ -386,7 +404,9 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/xl.conf $(SYSETCDIR)/xen/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/30-emulab.conf $(SYSETCDIR)/sysctl.d/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/rsyslog $(SYSETCDIR)/logrotate.d/
-	$(INSTALL) -m 755 $(SRCDIR)/xen/xen $(SYSETCDIR)/init.d/
+	@if [ "$(XENVERS)" = "4.4" ]; then \
+		$(INSTALL) -m 755 $(SRCDIR)/xen/xen $(SYSETCDIR)/init.d/; \
+	fi
 	$(INSTALL) -m 755 $(SRCDIR)/xen/interfaces $(SYSETCDIR)/network/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-cnet.pl $(SYSETCDIR)/xen/scripts/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/emulab-enet.pl $(SYSETCDIR)/xen/scripts/
@@ -399,15 +419,7 @@ xen-install:	dir-install xen-udev-install xen-upstart-install
 	$(INSTALL) -m 755 $(SRCDIR)/xen/gc-xen-images $(BINDIR)/
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(BINDIR)/grub
 	$(INSTALL) -m 755 $(SRCDIR)/xen/pygrub $(BINDIR)/
-	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.6" ]; then \
-	    ln -sf xen-4.6 /usr/lib/xen-default; \
-	fi
-	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.5" ]; then \
-	    ln -sf xen-4.5 /usr/lib/xen-default; \
-	fi
-	@if [ ! -e "/usr/lib/xen-default" -a -d "/usr/lib/xen-4.4" ]; then \
-	    ln -sf xen-4.4 /usr/lib/xen-default; \
-	fi
+	ln -sf xen-$(XENVERS) /usr/lib/xen-default
 	$(INSTALL) -m 755 $(SRCDIR)/xen/GrubConf.py \
 		/usr/lib/xen-default/lib/python/grub/
 	$(INSTALL) -m 755 $(SRCDIR)/xen/topd $(BINDIR)/
