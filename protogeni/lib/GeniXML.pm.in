@@ -1094,6 +1094,14 @@ sub HasBestEffortSetting($)
     return scalar(@tagged);
 }
 
+sub HasForceShapingSetting($)
+{
+    my ($link) = @_;
+    my @foo = FindNodesNS("n:force_shaping", $link,
+			  $EMULAB_NS)->get_nodelist();
+    return scalar(@foo);
+}
+
 sub HasTrivialSetting($)
 {
     my ($link) = @_;

@@ -347,6 +347,12 @@ for child in tree.getroot():
                 lan.best_effort = True
                 pass
             pass
+        if row.find("mustdelay") != None:
+            mustdelay = int(row.find("mustdelay").text)
+            if mustdelay:
+                lan.setForceShaping()
+                pass
+            pass
         if row.find("protocol") != None:
             protocol = row.find("protocol").text
             if protocol != "ethernet":

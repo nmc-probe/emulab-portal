@@ -432,6 +432,9 @@ foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
     if (GeniXML::HasBestEffortSetting($linkref)) {
 	AddLinkStatement($client_id, "best_effort = True");
     }
+    if (GeniXML::HasForceShapingSetting($linkref)) {
+	AddLinkStatement($client_id, "setForceShaping()");
+    }
     if (GeniXML::HasTrivialSetting($linkref)) {
 	my $istrivial = (GeniXML::TrivialOkay($linkref) ? "True" : "False");
 	AddLinkStatement($client_id, "trivial_ok = $istrivial");

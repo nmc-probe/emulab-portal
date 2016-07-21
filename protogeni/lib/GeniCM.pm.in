@@ -785,6 +785,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 					 "Bad routing style: $routertype");
 	goto bad;
     }
+    
     #
     # User can set the delay image. 
     #
@@ -2169,12 +2170,16 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	}
 
 	#
-	# Allow user to specify best effort.
+	# Allow user to specify best effort and force delays.
 	#
 	my $besteffort = 0;
+	my $forcedelay = 0;
 	
 	if (GeniXML::HasBestEffortSetting($linkref)) {
 	    $besteffort = 1;
+	}
+	if (GeniXML::HasForceShapingSetting($linkref)) {
+	    $forcedelay = 1;
 	}
 	# Ditto for new direct link option.
 	my $nointerswitch = GeniXML::NoInterSwitch($linkref);
@@ -2428,7 +2433,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	    my $rlossrate = 0.0;
 	    my $estbw     = undef;
 	    my $restbw    = undef;
-	    my $uselinkdelay = 0;
+	    my $uselinkdelay = $forcedelay;
 
 	    # Let user override.
 	    my $user_bandwidth = GeniXML::GetBandwidth($linkref);
