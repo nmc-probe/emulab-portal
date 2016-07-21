@@ -144,7 +144,7 @@ sub SendEvent($$)
     foreach my $key (keys(%{ $hash })) {
 	my $val = $hash->{$key};
 	if (ref($val)) {
-	    $val = eval { encode_json($val); };
+	    $val = eval { $json->encode($val); };
 	    if ($@) {
 		print STDERR "Could not json encode event data: $@\n";
 		print STDERR Dumper($hash->{$key});
