@@ -671,40 +671,55 @@ function Do_RunScript()
     global $ajax_args;
     global $suexec_output, $suexec_output_array;
 
-    if (!isset($ajax_args["uuid"])) {
+    $script = "";
+    if (isset($ajax_args["script"])) {
+      if (!isset($this_user)) {
+	    SPITAJAX_ERROR(1, "Guest users cannot run genilib scripts");
+	    return;
+      }
+      $this_idx = $this_user->uid_idx();
+      $this_uid = $this_user->uid();
+      $script = $ajax_args["script"];
+    } else {
+
+      if (!isset($ajax_args["uuid"])) {
 	SPITAJAX_ERROR(1, "Missing profile uuid");
 	return;
-    }
-    $profile = Profile::Lookup($ajax_args["uuid"]);
-    if (!$profile) {
+      }
+      $profile = Profile::Lookup($ajax_args["uuid"]);
+      if (!$profile) {
 	SPITAJAX_ERROR(1, "Unknown profile uuid");
 	return;
-    }
-    if (!$profile->script()) {
+      }
+      if (!$profile->script()) {
 	SPITAJAX_ERROR(1, "Not a geni-lib script");
 	return;
-    }
-    # Guest users do not run geni-lib; return the rspec or error.
-    if (!isset($this_user)) {
+      }
+      $script = $profile->script();
+
+      # Guest users do not run geni-lib; return the rspec or error.
+      if (!isset($this_user)) {
 	if ($profile->rspec() && $profile->rspec() != "") {
 	    SPITAJAX_RESPONSE($profile->rspec());
 	}
 	else {
 	    SPITAJAX_ERROR(1, "No rspec for guest user");
 	}
-    }
-    $this_idx = $this_user->uid_idx();
-    $this_uid = $this_user->uid();
+      }
+      $this_idx = $this_user->uid_idx();
+      $this_uid = $this_user->uid();
     
-    if (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
+      if (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
 	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
 	return;
+      }
     }
+    
     $infname   = tempnam("/tmp", "genilibin");
     $outfname  = tempnam("/tmp", "genilibout");
 
     $fp = fopen($infname, "w");
-    fwrite($fp, $profile->script());
+    fwrite($fp, $script);
     fclose($fp);
     chmod($infname, 0666);
     chmod($outfname, 0666);
@@ -724,7 +739,7 @@ function Do_RunScript()
 	else {
             # This might be a json structure, the JS code looks for it. 
 	    $errors = file_get_contents($outfname);
-	    SPITAJAX_ERROR(1, $errors);
+	    SPITAJAX_ERROR(2, $errors);
 	}
 	unlink($infname);
 	unlink($outfname);
