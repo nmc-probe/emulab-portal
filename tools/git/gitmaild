@@ -261,6 +261,9 @@ sub run_gitmail($$) {
     # gitlab's URL for this project
     $options{'weburl'} = $repoinfo->{web_url};
 
+    # This enables us to put in a link to diffs as well
+    $options{'gitlaburl'} = $repoinfo->{web_url};
+
     # Turn all of this into a string to pass on the command line
     my $optionstr = format_options(%options);
     if ($verbose) {
