@@ -4942,7 +4942,7 @@ CREATE TABLE `users` (
   `usr_pswd` tinytext NOT NULL,
   `usr_w_pswd` tinytext,
   `unix_uid` smallint(5) unsigned NOT NULL default '0',
-  `status` enum('newuser','unapproved','unverified','active','frozen','archived','nonlocal','other') NOT NULL default 'newuser',
+  `status` enum('newuser','unapproved','unverified','active','frozen','archived','nonlocal','inactive','other') NOT NULL default 'newuser',
   `admin` tinyint(4) default '0',
   `foreign_admin` tinyint(4) default '0',
   `dbedit` tinyint(4) default '0',
