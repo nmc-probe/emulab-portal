@@ -673,46 +673,44 @@ function Do_RunScript()
 
     $script = "";
     if (isset($ajax_args["script"])) {
-      if (!isset($this_user)) {
+        if (!isset($this_user)) {
 	    SPITAJAX_ERROR(1, "Guest users cannot run genilib scripts");
 	    return;
-      }
-      $this_idx = $this_user->uid_idx();
-      $this_uid = $this_user->uid();
-      $script = $ajax_args["script"];
+        }
+        $this_idx = $this_user->uid_idx();
+        $this_uid = $this_user->uid();
+        $script = $ajax_args["script"];
     } else {
+        if (!isset($ajax_args["uuid"])) {
+	    SPITAJAX_ERROR(1, "Missing profile uuid");
+	    return;
+        }
+        $profile = Profile::Lookup($ajax_args["uuid"]);
+        if (!$profile) {
+	    SPITAJAX_ERROR(1, "Unknown profile uuid");
+	    return;
+        }
+        if (!$profile->script()) {
+	    SPITAJAX_ERROR(1, "Not a geni-lib script");
+	    return;
+        }
+        $script = $profile->script();
 
-      if (!isset($ajax_args["uuid"])) {
-	SPITAJAX_ERROR(1, "Missing profile uuid");
-	return;
-      }
-      $profile = Profile::Lookup($ajax_args["uuid"]);
-      if (!$profile) {
-	SPITAJAX_ERROR(1, "Unknown profile uuid");
-	return;
-      }
-      if (!$profile->script()) {
-	SPITAJAX_ERROR(1, "Not a geni-lib script");
-	return;
-      }
-      $script = $profile->script();
-
-      # Guest users do not run geni-lib; return the rspec or error.
-      if (!isset($this_user)) {
-	if ($profile->rspec() && $profile->rspec() != "") {
-	    SPITAJAX_RESPONSE($profile->rspec());
-	}
-	else {
-	    SPITAJAX_ERROR(1, "No rspec for guest user");
-	}
-      }
-      $this_idx = $this_user->uid_idx();
-      $this_uid = $this_user->uid();
+        # Guest users do not run geni-lib; return the rspec or error.
+        if (!isset($this_user)) {
+	    if ($profile->rspec() && $profile->rspec() != "") {
+	        SPITAJAX_RESPONSE($profile->rspec());
+	    } else {
+	        SPITAJAX_ERROR(1, "No rspec for guest user");
+	    }
+        }
+        $this_idx = $this_user->uid_idx();
+        $this_uid = $this_user->uid();
     
-      if (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
-	SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
-	return;
-      }
+        if (! ($profile->CanInstantiate($this_user) || ISADMIN())) {
+	    SPITAJAX_ERROR(1, "Not enough permission to instantiate profile");
+	    return;
+        }
     }
     
     $infname   = tempnam("/tmp", "genilibin");
