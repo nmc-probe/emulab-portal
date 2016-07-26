@@ -242,12 +242,28 @@ else {
 	sleep(1);
 
 	SPITHEADER();
-	echo "<h3>
+	echo "<h4>
               Your account has been frozen due to earlier login attempt
               failures. You must contact $TBMAILADDR to have your account
               restored. <br> <br>
               Please do not attempt to login again; it will not work!
-              </h3>\n";
+              </h4>\n";
+        echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
+        echo "<script src='js/lib/bootstrap.js'></script>\n";
+        echo "<script src='js/lib/require.js' data-main='js/main'></script>";
+	SPITFOOTER();
+	return;
+    }
+    else if ($dologin_status == DOLOGIN_STATUS_INACTIVE) {
+	# Short delay.
+	sleep(1);
+
+	SPITHEADER();
+	echo "<h4>
+              Your account has gone <b>inactive</b>. Please contact $TBMAILADDR 
+              to have your account restored. <br> <br>
+              Please do not attempt to login again; it will not work!
+              </h4>\n";
         echo "<script src='js/lib/jquery-2.0.3.min.js'></script>\n";
         echo "<script src='js/lib/bootstrap.js'></script>\n";
         echo "<script src='js/lib/require.js' data-main='js/main'></script>";

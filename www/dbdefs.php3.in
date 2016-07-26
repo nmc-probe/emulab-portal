@@ -77,6 +77,7 @@ define("TBDB_USERSTATUS_UNVERIFIED",	"unverified");
 define("TBDB_USERSTATUS_FROZEN",	"frozen");
 define("TBDB_USERSTATUS_ARCHIVED",	"archived");
 define("TBDB_USERSTATUS_NONLOCAL",	"nonlocal");
+define("TBDB_USERSTATUS_INACTIVE",	"inactive");
 
 #
 # Type of new account.
@@ -108,7 +109,7 @@ define("TBDB_TRUSTSTRING_GROUPROOT",	"group_root");
 define("TBDB_TRUSTSTRING_PROJROOT",	"project_root");
 
 #
-# Map to new names
+# Map to new names in the UI, the old ones are nonsensical.
 #
 $newTrustMap = array("none"         => "none",
                      "user"         => "user",

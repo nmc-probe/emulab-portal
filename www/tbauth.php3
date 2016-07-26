@@ -69,6 +69,7 @@ define("CHECKLOGIN_WIKIONLY",		0x0200000);
 define("CHECKLOGIN_OPSGUY",		0x0400000);  # Member of emulab-ops.
 define("CHECKLOGIN_ISFOREIGN_ADMIN",	0x0800000);  # Admin of another Emulab.
 define("CHECKLOGIN_NONLOCAL",		0x1000000);
+define("CHECKLOGIN_INACTIVE",		0x2000000);
 
 #
 # Constants for tracking possible login attacks.
@@ -82,6 +83,7 @@ define("DOLOGIN_STATUS_OKAY",		0);
 define("DOLOGIN_STATUS_ERROR",		-1);
 define("DOLOGIN_STATUS_IPFREEZE",	-2);
 define("DOLOGIN_STATUS_WEBFREEZE",	-3);
+define("DOLOGIN_STATUS_INACTIVE",	-4);
 
 # So we can redefine this in the APT pages.
 $CHANGEPSWD_PAGE = "moduserinfo.php3";
@@ -448,6 +450,8 @@ function LoginStatus() {
 	$CHECKLOGIN_STATUS |= CHECKLOGIN_UNVERIFIED;
     if (strcmp($status, TBDB_USERSTATUS_ACTIVE) == 0)
 	$CHECKLOGIN_STATUS |= CHECKLOGIN_ACTIVE;
+    if (strcmp($status, TBDB_USERSTATUS_INACTIVE) == 0)
+	$CHECKLOGIN_STATUS |= CHECKLOGIN_INACTIVE;
     if (isset($wikiname) && $wikiname != "")
 	$CHECKLOGIN_WIKINAME = $wikiname;
     if ($opsguy)
@@ -572,7 +576,7 @@ function LOGGEDINORDIE($uid, $modifier = 0, $login_url = NULL) {
 #
 function CheckLoginConditions($status)
 {
-    global $CHANGEPSWD_PAGE;
+    global $CHANGEPSWD_PAGE, $TBMAILADDR;
     
     if ($status & CHECKLOGIN_PSWDEXPIRED)
         USERERROR("Your password has expired. ".
@@ -580,6 +584,10 @@ function CheckLoginConditions($status)
 		  1, HTTP_403_FORBIDDEN);
     if ($status & CHECKLOGIN_FROZEN)
         USERERROR("Your account has been frozen!",
+		  1, HTTP_403_FORBIDDEN);
+    if ($status & CHECKLOGIN_INACTIVE)
+        USERERROR("Your account has gone inactive. ".
+                  "Please contact $TBMAILADDR to restore it.",
 		  1, HTTP_403_FORBIDDEN);
     if ($status & (CHECKLOGIN_UNVERIFIED|CHECKLOGIN_NEWUSER))
         USERERROR("You have not verified your account yet!",
@@ -882,6 +890,10 @@ function DOLOGIN($token, $password, $adminmode = 0, $nopassword = 0) {
 	if ($frozen) {
 	    $user->UpdateWebLoginFail();
 	    return DOLOGIN_STATUS_WEBFREEZE;
+	}
+        # inactive users need special handling for now.
+	if ($user->status() == TBDB_USERSTATUS_INACTIVE) {
+	    return DOLOGIN_STATUS_INACTIVE;
 	}
 
 	if (!$nopassword) {

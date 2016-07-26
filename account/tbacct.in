@@ -171,6 +171,8 @@ sub UpdateWindowsPassword();
 sub UpdateUser(;$);
 sub FreezeUser();
 sub ThawUser();
+sub DeactivateUser();
+sub ReactivateUser();
 sub VerifyUser();
 sub UpdateEmail();
 sub CheckDotFiles();
@@ -225,7 +227,7 @@ else {
     die("Tainted argument: $user\n");
 }
 if ($cmd =~
-    /^(add|del|mod|freeze|passwd|wpasswd|thaw|email|verify|revoke|dots)$/) {
+    /^(add|del|mod|freeze|passwd|wpasswd|thaw|email|verify|revoke|dots|deactivate|reactivate)$/) {
     $cmd = $1;
 }
 else {
@@ -348,6 +350,14 @@ SWITCH: for ($cmd) {
     };
     /^thaw$/ && do {
 	ThawUser();
+	last SWITCH;
+    };
+    /^deactivate$/ && do {
+	DeactivateUser();
+	last SWITCH;
+    };
+    /^reactivate$/ && do {
+	ReactivateUser();
 	last SWITCH;
     };
     /^revoke$/ && do {
@@ -862,8 +872,8 @@ sub UpdateUser(;$)
 	# If doing a modification to a frozen user, then just ignore
 	# it; the modification will happen later when the user is thawed.
 	#
-	if ($status eq USERSTATUS_FROZEN) {
-	    print "Ignoring update of frozen user $user\n";
+	if ($status eq USERSTATUS_FROZEN || $status eq USERSTATUS_INACTIVE) {
+	    print "Ignoring update of frozen/inactive user $user\n";
 	    return 0;
 	}
 	fatal("$user is not active! Cannot update the account!");
@@ -1067,6 +1077,88 @@ sub ThawUser()
 	UpdateUser(0) == 0
 	    or fatal("Cannot thaw $user");
     }
+
+    #
+    # Invoke as real user for auditing.
+    #
+    $EUID = $UID;
+    system("$SETGROUPS $user");
+    $EUID = 0;
+    
+    return 0;
+}
+
+#
+# Deactivate a user.
+#
+sub DeactivateUser()
+{
+    #
+    # Only admin people can do this.
+    #
+    if (! TBAdmin($UID)) {
+	fatal("You do not have permission to deactivate user $user.");
+    }
+    #
+    # Check status.
+    #
+    if ($status ne USERSTATUS_INACTIVE) {
+	fatal("$user is still active! Cannot deactivate the account!")
+	    if (!$update);
+
+	$target_user->SetStatus(USERSTATUS_INACTIVE());
+	$status = USERSTATUS_INACTIVE();
+    }
+    #
+    # Shell goes to nologin on the CONTROL node.
+    #
+    $UID = 0;
+    if (system("$USERMOD $user -s $NOLOGIN")) {
+	fatal("Could not set shell to $NOLOGIN for $user on local node.");
+    }
+    if ($CONTROL ne $BOSSNODE) {
+	print "Deactivating user $user ($user_number) on $CONTROL\n";
+
+	if (system("$SSH -host $CONTROL '$ACCOUNTPROXY deactivateuser $user'")){
+	    fatal("Could not deactivate $user on $CONTROL.");
+	}
+    }
+    $UID = $SAVEUID;
+    return 0;
+}
+
+#
+# Reactivate a user.
+#
+sub ReactivateUser()
+{
+    #
+    # Only admin people can do this.
+    #
+    if (! TBAdmin($UID)) {
+	fatal("You do not have permission to reactivate user $user.");
+    }
+    #
+    # Check status.
+    #
+    if ($status ne USERSTATUS_ACTIVE) {
+	fatal("$user is not active! Cannot reactivate the account!")
+	    if (!$update);
+	$target_user->SetStatus(USERSTATUS_ACTIVE());
+	$status = USERSTATUS_ACTIVE();
+    }
+    $UID = 0;
+    if ($CONTROL ne $BOSSNODE) {
+	print "Reactivating user $user ($user_number) on $CONTROL\n";
+
+	if (system("$SSH -host $CONTROL '$ACCOUNTPROXY reactivateuser $user'")){
+	    fatal("Could not reactivate $user on $CONTROL.");
+	}
+    }
+    $UID = $SAVEUID;
+    # Similar to freeze/thaw for our purposes.
+    UpdateUser(0) == 0
+	or fatal("Cannot reactivate $user");
 
     #
     # Invoke as real user for auditing.

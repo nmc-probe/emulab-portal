@@ -188,7 +188,7 @@ function Do_VerifySpeaksfor()
     global $ajax_args;
     global $TBDIR, $COOKDIEDOMAIN, $TBMAINSITE, $PROTOGENI_GENIWEBLOGIN;
     global $TBAUTHCOOKIE, $TBLOGINCOOKIE, $TBAUTHTIMEOUT, $TBNAMECOOKIE;
-    global $OURDOMAIN;
+    global $OURDOMAIN, $TBMAILADDR;
     $embedded = 0;
 
     if (! ($TBMAINSITE || $PROTOGENI_GENIWEBLOGIN)) {
@@ -339,6 +339,13 @@ function Do_VerifySpeaksfor()
                     $project->AddNewMember($this_user,
                                            TBDB_TRUSTSTRING_LOCALROOT);
                 }
+            }
+            if ($this_user->status() == TBDB_USERSTATUS_INACTIVE) {
+                SPITAJAX_ERROR(1, "Your account has gone inactive. Please ".
+                               "contact $TBMAILADDR to have your ".
+                               "account restored.");
+                session_destroy();
+                return;
             }
         }
     }

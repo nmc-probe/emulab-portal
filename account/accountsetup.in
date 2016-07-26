@@ -49,6 +49,8 @@ sub usage()
     print "       accountsetup checkdotfiles ...\n";
     print "       accountsetup createsshkey ...\n";
     print "       accountsetup dropfile ...\n";
+    print "       accountsetup deactivateuser ...\n";
+    print "       accountsetup reactivateuser ...\n";
     exit(1);
 }
 my $optlist    = "dnf";
@@ -80,6 +82,7 @@ my $CHPASS	      = "/usr/bin/chpass";
 my $CHOWN	      = "/usr/sbin/chown";
 my $CHMOD	      = "/bin/chmod";
 my $MKDIR	      = "/bin/mkdir";
+my $NOLOGIN	      = "/sbin/nologin";
 my $MV		      = "/bin/mv";
 my $ZFS		      = "/sbin/zfs";
 my $KEYGEN	      = "/usr/bin/ssh-keygen";
@@ -128,6 +131,8 @@ sub DelGroup();
 sub DropFile();
 sub CheckDotFiles();
 sub CreateSSHKey();
+sub ReactivateUser();
+sub DeactivateUser();
 sub fatal($);
 sub ZFSexists($);
 sub MakeDir($$);
@@ -197,6 +202,14 @@ SWITCH: for ($cmd) {
     };
     /^createsshkey$/ && do {
 	CreateSSHKey();
+	last SWITCH;
+    };
+    /^deactivateuser$/ && do {
+	DeactivateUser();
+	last SWITCH;
+    };
+    /^reactivateuser$/ && do {
+	ReactivateUser();
 	last SWITCH;
     };
     # Default
@@ -349,6 +362,53 @@ sub ModifyUser()
 	}
     }
 
+    return 0;
+}
+
+#
+# Usage: deactivate username
+#
+sub DeactivateUser()
+{
+    if (@ARGV != 1) {
+	fatal("deactivateuser: Wrong number of arguments");
+    }
+    my $user = shift(@ARGV);
+
+    if ($WITHZFS) {
+	my $zfsdir = $ZFS_ROOT . USERROOT() . "/$user";
+	if (ZFSexists($zfsdir) &&
+	    mysystem("$ZFS set mountpoint=none $zfsdir")) {
+	    fatal("Could not set ZFS dir $zfsdir to mountpoint=none");
+	}
+    }
+    if (mysystem("$USERMOD $user -s $NOLOGIN")) {
+	fatal("Could not set shell to $NOLOGIN");
+    }
+    return 0;
+}
+
+#
+# Usage: reactivate username
+#
+# The shell is changed via ModifyUser (we do not know the correct
+# shell here), this is just for ZFS.
+#
+sub ReactivateUser()
+{
+    if (@ARGV != 1) {
+	fatal("reactivateuser: Wrong number of arguments");
+    }
+    my $user = shift(@ARGV);
+
+    if ($WITHZFS) {
+	my $zfsdir = $ZFS_ROOT . USERROOT() . "/$user";
+	my $hdir   = USERROOT() . "/$user";
+	if (ZFSexists($zfsdir) &&
+	    mysystem("$ZFS set mountpoint=$hdir $zfsdir")) {
+	    fatal("Could not set ZFS dir $zfsdir to mountpoint=$hdir");
+	}
+    }
     return 0;
 }
 
