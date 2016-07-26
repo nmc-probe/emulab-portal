@@ -752,6 +752,15 @@ function SpitNSFModal()
          </div>\n";
 }
 
+function SpitPageReplace($newpage, $when = 0) {
+    $when = $when * 1000;
+    
+    echo "<script type='text/javascript' language='javascript'>\n";
+    echo "setTimeout(function f() { ";
+    echo "   window.location.replace('$newpage'); }, $when)\n";
+    echo "</script>\n";
+}
+
 #
 # Generate an authentication object to pass to the browser that
 # is passed to the web server on boss. This is used to grant
