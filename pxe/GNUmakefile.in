@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -55,9 +55,9 @@ CFLAGS	+= -Wall \
 	-DCONFPATH='"$(INSTALL_ETCDIR)/"' -DTBDBNAME='"$(TBDBNAME)"' \
 	-DFALLBACK_HOST='"$(BOSSNODE)"' -DBOSSNODE='"$(BOSSNODE)"' \
 	-DDEFAULT_PATH='"/tftpboot/pxeboot.newnode"' \
-	-DLOG_TESTBED=$(LOG_TESTBED)
+	-DLOG_TESTBED=$(LOG_TESTBED) -DLIBWRAP
 
-LFLAGS	=  ${TESTBED_LIBOBJDIR}/libtb/libtb.a
+LFLAGS	= -lwrap ${TESTBED_LIBOBJDIR}/libtb/libtb.a
 
 ifeq ($(EVENTSYS),1)
 BI_DBSRC += event-support.c

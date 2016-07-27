@@ -7,4 +7,9 @@ rpcbind : @CONTROL_NETWORK@/@CONTROL_NETMASK@ : allow
 rpcbind : 172.16.0.0/255.240.0.0 : allow
 rpcbind : ALL : deny
 
+bootinfo : 127.0.0.1 : allow
+bootinfo : @CONTROL_NETWORK@/@CONTROL_NETMASK@ : allow
+bootinfo : 172.16.0.0/255.240.0.0 : allow
+bootinfo : ALL : deny
+
 ALL : ALL : allow
