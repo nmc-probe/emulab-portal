@@ -1774,8 +1774,8 @@ sub CheckReservationInternal($$$)
 	    $agg->webtask()->Refresh();
 	    $errmsg  = $agg->webtask()->output();
 	    $errcode = $agg->webtask()->exitcode();
-	    if ($code == GENIRESPONSE_REFUSED) {
-		system("/bin/echo 'DENIED: $slice, $expiration, $agg' ".
+	    if ($errcode == GENIRESPONSE_REFUSED) {
+		system("/bin/echo 'DENIED: $slice, $expiration, $agg, $errmsg'".
 		       "  >> $rescheck");
 	    }
 	    goto bad;
