@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -221,6 +221,15 @@ sub findSpareDisks($;$) {
     # convert minsize to 1K blocks
     $minsize *= 1024;
 
+    # XXX figure out what command to give to sfdisk
+    my $sfcmd = "--print-id";
+    my $out = `sfdisk -v`;
+    if (defined($out) && $out =~ /2\.(\d+)(\.\d+)$/) {
+	if (int($1) >= 26) {
+	    $sfcmd = "--part-type";
+	}
+    }
+    
     open (MFD,"/proc/mounts") 
 	or die "open(/proc/mounts): $!";
     while (my $line = <MFD>) {
@@ -269,10 +278,12 @@ sub findSpareDisks($;$) {
 	#
 	# XXX weed out special cases:
 	#    SCSI CDROM (srN),
+	#    RAM disks (ramN),
 	#    device mapper files (dm-N),
 	#    LVM PVs
 	#
 	if ($devpart =~ /^sr\d+$/ ||
+	    $devpart =~ /^ram\d+$/ ||
 	    $devpart =~ /^dm-\d+$/ ||
 	    exists($pvs{$devpart})) {
 	    next;
@@ -342,10 +353,10 @@ sub findSpareDisks($;$) {
 		}
 
 		# one final check: partition id
-		my $output = `sfdisk --print-id /dev/$dev $part 2>/dev/null`;
+		my $output = `sfdisk $sfcmd /dev/$dev $part 2>/dev/null`;
 		chomp($output);
 		if ($?) {
-		    print STDERR "WARNING: findSpareDisks: error running 'sfdisk --print-id /dev/$dev $part': $! ... ignoring /dev/$devpart\n";
+		    print STDERR "WARNING: findSpareDisks: error running 'sfdisk $sfcmd /dev/$dev $part': $! ... ignoring /dev/$devpart\n";
 		}
 		elsif ($output eq "0" && $size >= $minsize) {
 		    $retval{$dev}{$part}{"size"} = $BLKSIZE * $size;
