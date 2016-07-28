@@ -881,6 +881,19 @@ sub HasXenSettings($)
     return 0;
 }
 
+sub UseTypeDefaultImage($)
+{
+    my ($node) = @_;
+    my $result = 0;
+    my @foo    = FindNodesNS("n:use_type_default_image", $node,
+			     $EMULAB_NS)->get_nodelist();
+    if (scalar(@foo) > 0) {
+	my $enabled = GetText("enabled", $foo[0]);
+	$result = defined($enabled) && $enabled eq "true";
+    }
+    return $result;
+}
+
 sub XenPtype($)
 {
     my ($node) = @_;

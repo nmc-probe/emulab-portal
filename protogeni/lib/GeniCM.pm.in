@@ -1419,7 +1419,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 	#
 	# If no osname, check for protogeni default osname
 	#
-	if (! defined($osname)) {
+	if (! defined($osname) && !GeniXML::UseTypeDefaultImage($ref)) {
 	    my $protogeni_os = undef;
 	    if (GetSiteVar('protogeni/default_osname', \$protogeni_os)
 		&& $protogeni_os ne ""
