@@ -294,8 +294,13 @@ my $LVM_LARGEPARTPCT = 10;
 my $LVM_ONEPARTPERDISK = 1;
 
 # Use openvswitch for gre tunnels.
+# Use a custom version if present, the standard version otherwise.
 my $OVSCTL   = "/usr/local/bin/ovs-vsctl";
 my $OVSSTART = "/usr/local/share/openvswitch/scripts/ovs-ctl";
+if (! -x "$OVSCTL") {
+    $OVSCTL   = "/usr/bin/ovs-vsctl";
+    $OVSSTART = "/usr/share/openvswitch/scripts/ovs-ctl";
+}
 
 my $ISREMOTENODE = REMOTEDED();
 my $BRIDGENAME   = "xenbr0";
@@ -1512,7 +1517,8 @@ okay:
 
     if ($os eq "FreeBSD") {
 	if ($ishvm) {
-	    addConfig($vninfo, "extra = 'boot_verbose=1'", 2);
+	    # XXX newer xen tools disallow command line params with direct boot
+	    #addConfig($vninfo, "extra = 'boot_verbose=1'", 2);
 
 	    addConfig($vninfo, "builder='hvm'", 2);
 	    addConfig($vninfo, "xen_platform_pci=1", 2);
