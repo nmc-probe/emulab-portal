@@ -1713,6 +1713,7 @@ sub DoCheckReservation()
 sub CheckReservationInternal($$$)
 {
     my ($slice, $expiration, $perrmsg) = @_;
+    my $rescheck = "$TB/etc/rescheck.txt";
     my $errcode = -1;
     my $errmsg;
 
@@ -1773,7 +1774,15 @@ sub CheckReservationInternal($$$)
 	    $agg->webtask()->Refresh();
 	    $errmsg  = $agg->webtask()->output();
 	    $errcode = $agg->webtask()->exitcode();
+	    if ($code == GENIRESPONSE_REFUSED) {
+		system("/bin/echo 'DENIED: $slice, $expiration, $agg' ".
+		       "  >> $rescheck");
+	    }
 	    goto bad;
+	}
+	else {
+	    system("/bin/echo 'ACCEPT: $slice, $expiration, $agg' ".
+		   " >> $rescheck");
 	}
     }
     return 0;
