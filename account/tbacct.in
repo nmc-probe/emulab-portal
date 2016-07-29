@@ -47,11 +47,12 @@ sub usage()
 	  "<user> [args]\n");
     exit(-1);
 }
-my $optlist = "fbuv";
+my $optlist = "fbuvs";
 my $force   = 0;
 my $batch   = 0;
 my $update  = 0;
 my $verified= 0;
+my $silent  = 0;
 
 #
 # Configure variables
@@ -211,6 +212,9 @@ if (defined($options{"u"})) {
 if (defined($options{"v"})) {
     $verified = 1;
 }
+if (defined($options{"s"})) {
+    $silent = 1;
+}
 if (@ARGV < 2) {
     usage();
 }
@@ -267,7 +271,7 @@ else {
 #
 # This script is always audited. Mail is sent automatically upon exit.
 #
-if (AuditStart(0)) {
+if (!$silent && AuditStart(0)) {
     #
     # Parent exits normally
     #
