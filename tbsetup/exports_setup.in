@@ -630,7 +630,7 @@ if ($bosslistonly) {
 # Spit out smb shares!
 #
 if ($WINSUPPORT) {
-    foreach my $share ( keys(%globalsmbshares) ) {
+    foreach my $share (sort(keys(%globalsmbshares))) {
         my @iplist = sort sortbyip @{ $globalsmbshares{$share}->{iplist} };
         my $path   = $globalsmbshares{$share}->{path};
 
@@ -684,8 +684,10 @@ if (!$TESTMODE) {
 
       # Next the SMB shares
       if ($WINSUPPORT) {
+	  TBDebugTimeStamp("Invoking exports_setup.proxy (samba)...");
 	  system("$SSH $PROG -S < $smbconftail") == 0 or
 	      fatal("Failed: $SSH $PROG < $smbconftail: $?");
+	  TBDebugTimeStamp("exports_setup.proxy (samba) done");
 	  unlink("$smbconftail");
       }
 
