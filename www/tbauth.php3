@@ -891,11 +891,6 @@ function DOLOGIN($token, $password, $adminmode = 0, $nopassword = 0) {
 	    $user->UpdateWebLoginFail();
 	    return DOLOGIN_STATUS_WEBFREEZE;
 	}
-        # inactive users need special handling for now.
-	if ($user->status() == TBDB_USERSTATUS_INACTIVE) {
-	    return DOLOGIN_STATUS_INACTIVE;
-	}
-
 	if (!$nopassword) {
 	    $encoding = crypt("$password", $db_encoding);
 	    if (strcmp($encoding, $db_encoding)) {
@@ -923,6 +918,16 @@ function DOLOGIN($token, $password, $adminmode = 0, $nopassword = 0) {
 	#
 	# Pass!
 	#
+        
+        # But inactive users need special handling.
+	if ($user->status() == TBDB_USERSTATUS_INACTIVE) {
+            # Try to reactivate the user. If we fail for some reason, fall
+            # back to just telling them they are inactive. Otherwise we can
+            # proceed with login.
+            if (ReactivateUser($user)) {
+                return DOLOGIN_STATUS_INACTIVE;
+            }
+	}
 
 	#
 	# Set adminmode off on new logins, unless user requested to be
@@ -1370,6 +1375,22 @@ function BumpLogoutTime()
 	DBQueryFatal("UPDATE login set timeout='$timeout' ".
 		     "where uid_idx='$CHECKLOGIN_IDX' and ".
 		     "      hashkey='$CHECKLOGIN_HASHKEY'");
+    }
+    return 0;
+}
+
+#
+# Reactivate user.
+#
+function ReactivateUser($user)
+{
+    $user->SetStatus(TBDB_USERSTATUS_ACTIVE);
+    $uid = $user->uid();
+
+    if (SUEXEC($uid, "nobody",
+               "webtbacct reactivate $uid", SUEXEC_ACTION_CONTINUE)) {
+        $user->SetStatus(TBDB_USERSTATUS_INACTIVE);
+        return -1;
     }
     return 0;
 }

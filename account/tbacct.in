@@ -1133,9 +1133,13 @@ sub DeactivateUser()
 sub ReactivateUser()
 {
     #
-    # Only admin people can do this.
+    # Only admin people can do this to another user, but we do allow a
+    # user to reactivate themselves, as from the web interface when they
+    # log in and the account has been deactivated for lack of use.
     #
-    if (! TBAdmin($UID)) {
+    if (! (TBAdmin($UID) ||
+	   ($target_user->SameUser($this_user) &&
+	    $status eq USERSTATUS_ACTIVE))) {
 	fatal("You do not have permission to reactivate user $user.");
     }
     #
@@ -1160,13 +1164,6 @@ sub ReactivateUser()
     UpdateUser(0) == 0
 	or fatal("Cannot reactivate $user");
 
-    #
-    # Invoke as real user for auditing.
-    #
-    $EUID = $UID;
-    system("$SETGROUPS $user");
-    $EUID = 0;
-    
     return 0;
 }
 
