@@ -49,6 +49,12 @@
 	<td>Status</td>
 	<td><%= fields.status %></td>
       </tr>
+      <% if (fields.nonlocal_id != "") { %>
+	<tr>
+	  <td>Nonlocal ID</td>
+	  <td><%= fields.nonlocal_id %></td>
+	</tr>
+      <% } %>
       <tr>
 	<td>Administrator</td>
 	<td><% if (fields.admin) { %>
