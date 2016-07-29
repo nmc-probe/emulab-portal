@@ -545,7 +545,7 @@ sub sortbyip {
 #
 # Now spit out each group!
 #
-foreach my $str ( keys(%ipgroups) ) {
+foreach my $str (sort(keys(%ipgroups))) {
     my @iplist = sort sortbyip @{ $ipgroups{$str} };
 
     if ($LINUX_FSNODE) {
@@ -564,7 +564,7 @@ if ($ZFS_NOEXPORT) {
     # Iterate through directory list dividing it according to filesystem.
     my %bosslists = ();
     
-    foreach my $dir (keys(%bossexports)) {
+    foreach my $dir (sort(keys(%bossexports))) {
 	my $fs = fsof($dir);
 	if (!$fs) {
 	    print "WARNING: no filesystem for '$dir', ignored\n";
@@ -578,7 +578,7 @@ if ($ZFS_NOEXPORT) {
 	    push(@{ $bosslists{$fs} }, $dir);
 	}
     }
-    foreach my $fs (keys(%bosslists)) {
+    foreach my $fs (sort(keys(%bosslists))) {
 	my $str  = join(" ", @{ $bosslists{$fs} });
 
 	if ($LINUX_FSNODE) {
@@ -598,7 +598,7 @@ if ($ZFS_NOEXPORT) {
 	}
     }
 }
-
+print "foo\n";
 close(MAP);
 
 #
