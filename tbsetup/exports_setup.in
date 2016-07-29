@@ -231,18 +231,6 @@ if (!$TESTMODE) {
   }
 }
 
-my $maphdr = 
-    "\n".
-    "#\n".
-    "# DO NOT EDIT below this point. Auto generated entries!\n".
-    "#\n".
-    "\n";
-
-print MAP $maphdr;
-if ($WINSUPPORT) {
-    print SMBMAP $maphdr;
-}
-
 #
 # First gather up all the nodes that are reserved and the required info.
 # Order by pid,gid,admin first so that they're all grouped together and we
@@ -598,7 +586,6 @@ if ($ZFS_NOEXPORT) {
 	}
     }
 }
-print "foo\n";
 close(MAP);
 
 #
@@ -684,11 +671,15 @@ if (!$TESTMODE) {
       }
   }
   else {
+      TBDebugTimeStampsOn();
+
       my $arg = ($incremental ? "-i" : "");
 
       # First do the NFS exports
+      TBDebugTimeStamp("Invoking exports_setup.proxy...");
       system("$SSH $PROG $arg < $exportstail") == 0 or
 	  fatal("Failed: $SSH $PROG < $exportstail: $?");
+      TBDebugTimeStamp("exports_setup.proxy done");
       unlink("$exportstail");
 
       # Next the SMB shares
@@ -705,7 +696,6 @@ if (!$TESTMODE) {
       #
       if ($waittildone) {
 	  my $testdir = "/proj/" . TBOPSPID();
-	  TBDebugTimeStampsOn();
 	  TBDebugTimeStamp("Waiting for mountd to finish...");
 	  my $tries = 10;
 	  while ($tries-- > 0) {
