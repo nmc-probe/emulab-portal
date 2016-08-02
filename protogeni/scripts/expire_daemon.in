@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2008-2015 University of Utah and the Flux Group.
+# Copyright (c) 2008-2016 University of Utah and the Flux Group.
 # 
 # {{{GENIPUBLIC-LICENSE
 # 
@@ -1368,6 +1368,10 @@ sub HandleImageTracking()
 	}
 	if ($impotent) {
 	    print "Would import new version of $image\n";
+	    next;
+	}
+	if ($image->isdataset()) {
+	    print "Skipping dataset for now\n";
 	    next;
 	}
 	my $output = emutil::ExecQuiet("$IMPORTER -d -g -r -c $imageid");

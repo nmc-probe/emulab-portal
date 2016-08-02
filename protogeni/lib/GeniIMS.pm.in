@@ -620,10 +620,10 @@ sub GetImageInfo($)
 	    if (!defined($hrn));
     
 	return GeniResponse->MalformedArgsResponse("Not an image URN")
-	    if ($hrn->type() ne "image");
+	    if ($hrn->type() !~ /^(image|imdataset)$/);
 
 	# The id might be version specific.
-	my (undef,$pid,$imagename,$version) = $hrn->ParseImage();
+	my (undef,undef,undef,$version) = $hrn->ParseImage();
 
 	if (defined($version)) {
 	    if ($version !~ /^\d+$/) {
@@ -764,9 +764,9 @@ sub DeleteImageInfo($)
 	if (!defined($hrn));
     
     return GeniResponse->MalformedArgsResponse("Not an image URN")
-	if ($hrn->type() ne "image");
+	if ($hrn->type() !~ /^(image|imdataset)$/);
 
-    return  GeniResponse->MalformedArgsResponse("Not a UUID")
+    return GeniResponse->MalformedArgsResponse("Not a UUID")
 	if ($uuid !~ /^\w+\-\w+\-\w+\-\w+\-\w+$/);
 
     #
@@ -779,7 +779,7 @@ sub DeleteImageInfo($)
 	if ($hrn->domain() ne $caller_hrn->domain());
 
     # The id might be version specific.
-    my (undef,$pid,$imagename,$version) = $hrn->ParseImage();
+    my (undef,undef,undef,$version) = $hrn->ParseImage();
 
     if (defined($version)) {
 	return GeniResponse->MalformedArgsResponse("Not allowed to delete ".
