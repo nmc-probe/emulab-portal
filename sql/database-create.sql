@@ -2329,6 +2329,7 @@ CREATE TABLE `image_versions` (
   `origin_neednotify` tinyint(1) NOT NULL default '0',
   `origin_needupdate` tinyint(1) NOT NULL default '0',
   `authority_urn` varchar(128) default NULL,
+  `credential_string` text,
   `logfileid` varchar(40) default NULL,
   `noexport` tinyint(1) NOT NULL default '0',
   `noclone` tinyint(1) NOT NULL default '0',
@@ -2360,6 +2361,7 @@ CREATE TABLE `image_updates` (
   `updater_idx` mediumint(8) unsigned NOT NULL default '0',
   `updater_urn` varchar(128) default NULL,
   `url` varchar(255) NOT NULL default '',
+  `credential_string` text,
   PRIMARY KEY  (`imageid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
