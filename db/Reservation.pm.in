@@ -183,8 +183,9 @@ sub Stringify($)
     my $pid = $self->pid();
     my $nodes = $self->nodes();
     my $type = $self->type();
-    my $start = localtime( $self->start() );
-    my $end = localtime( $self->end() );
+    my $start = defined( $self->start() ) ? localtime( $self->start() ) :
+	"epoch";
+    my $end = defined( $self->end() ) ? localtime( $self->end() ) : "forever";
 
     return "[Reservation: $pid, ${nodes}x${type}, ${start}-${end}]";
 }

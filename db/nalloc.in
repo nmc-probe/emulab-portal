@@ -61,6 +61,7 @@ use Project;
 use User;
 use Node;
 use EmulabFeatures;
+use Reservation;
 
 #
 # Turn off line buffering on output
@@ -162,8 +163,10 @@ foreach my $n (@node_names) {
 }
 TBDebugTimeStamp("nalloc checked all node permissions");
 
-# Must lock this table!
-DBQueryFatal("lock tables reserved write");
+# Argh, MySQL locking rules are horrendous!  These locks are required by
+# low-level library routines; this is a horrible violation of abstraction;
+# and it's all MySQL's fault...
+DBQueryFatal("lock tables reserved write, users read, groups read, projects read, future_reservations read, nodes as n read, reserved as r read, experiments as e read, next_reserve as nr read, `geni-cm`.geni_slices as s read");
 TBDebugTimeStamp("nalloc locked tables");
 
 # Make a list of nodes to reserve.
@@ -216,6 +219,49 @@ TBDebugTimeStamp("nalloc checked all nodes");
 if ($debug) {
     print "List Ready: @nodes\nError=$error\n";
 }
+
+# Admission control check -- advisory only, for now.
+
+if ($debug) {
+    print "Running advisory admission control verification...\n";
+}
+
+my %types = ();
+foreach my $node (@nodes) {
+    $types{ $node->type() } = 1;
+}
+foreach my $type ( keys( %types ) ) {
+    my $reservations = Reservation->LookupAll( $type );
+    if( !Reservation->IsFeasible( $reservations, \$error ) ) {
+	print "Existing admission control violation for type $type: $error\n";
+	print "Omitting admission control verification.\n";
+	goto admissionfailure;
+    }
+}
+
+my $endtime = $experiment->autoswap() ?
+    time() + $experiment->autoswap_timeout * 60 : undef;
+
+foreach my $type ( keys( %types ) ) {
+    my $reservations = Reservation->LookupAll( $type );
+    foreach my $node (@nodes) {
+	if( $node->type() eq $type ) {
+	    my $res = Reservation->CreateImmediate( $pid, undef,
+						    $this_user->uid(),
+						    $endtime, $type, 1 );
+	    if ($debug) {
+		print "$res\n";
+	    }
+	    push( @$reservations, $res );
+	}
+    }
+    if( !Reservation->IsFeasible( $reservations, \$error ) ) {
+	print "Admission control violation for type $type: $error\n";
+	goto admissionfailure;
+    }
+}
+
+ admissionfailure:
 
 # Now make the reservations in the DB.
 if ((!$noalloc || $partial) && (@nodes || @oldnodes)) {
