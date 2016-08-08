@@ -42,6 +42,7 @@ use overload ('""' => 'Stringify');
 
 # Configure variables
 my $TB		= "@prefix@";
+my $PGENISUPPORT= @PROTOGENI_SUPPORT@;
 
 my %cache = ();
 BEGIN { use emutil; emutil::AddCache(\%cache); }
@@ -362,22 +363,37 @@ sub LookupAll($$)
 
     my @reservations = ();
 
-    my $query_result = DBQueryWarn( "SELECT COUNT(*), e.pid, e.eid, " .
-				    "e.expt_swap_uid, " .
-				    "UNIX_TIMESTAMP( e.expt_swapped ) + " .
-				    "e.autoswap_timeout * 60, e.autoswap, " .
-				    "nr.pid, UNIX_TIMESTAMP( s.expires ), " .
-				    "s.lockdown FROM nodes AS n " .
-				    "LEFT OUTER JOIN " .
-				    "reserved AS r ON n.node_id=r.node_id " .
-				    "LEFT OUTER JOIN experiments AS e ON " .
-				    "r.pid=e.pid AND r.eid=e.eid LEFT " .
-				    "OUTER JOIN next_reserve AS nr ON " .
-				    "n.node_id=nr.node_id LEFT OUTER JOIN " .
-				    "`geni-cm`.geni_slices AS s ON " .
-				    "e.eid_uuid=s.uuid " .
-				    "WHERE n.type='$type' GROUP BY " .
-				    "e.pid, e.eid" );
+    my $query = $PGENISUPPORT ? "SELECT COUNT(*), e.pid, e.eid, " .
+				"e.expt_swap_uid, " .
+				"UNIX_TIMESTAMP( e.expt_swapped ) + " .
+				"e.autoswap_timeout * 60, e.autoswap, " .
+				"nr.pid, UNIX_TIMESTAMP( s.expires ), " .
+				"s.lockdown FROM nodes AS n " .
+				"LEFT OUTER JOIN " .
+				"reserved AS r ON n.node_id=r.node_id " .
+				"LEFT OUTER JOIN experiments AS e ON " .
+				"r.pid=e.pid AND r.eid=e.eid LEFT " .
+				"OUTER JOIN next_reserve AS nr ON " .
+				"n.node_id=nr.node_id LEFT OUTER JOIN " .
+				"`geni-cm`.geni_slices AS s ON " .
+				"e.eid_uuid=s.uuid " .
+				"WHERE n.type='$type' GROUP BY " .
+				"e.pid, e.eid" :
+				"SELECT COUNT(*), e.pid, e.eid, " .
+				"e.expt_swap_uid, " .
+				"UNIX_TIMESTAMP( e.expt_swapped ) + " .
+				"e.autoswap_timeout * 60, e.autoswap, " .
+				"nr.pid, NULL, " .
+				"NULL FROM nodes AS n " .
+				"LEFT OUTER JOIN " .
+				"reserved AS r ON n.node_id=r.node_id " .
+				"LEFT OUTER JOIN experiments AS e ON " .
+				"r.pid=e.pid AND r.eid=e.eid LEFT " .
+				"OUTER JOIN next_reserve AS nr ON " .
+				"n.node_id=nr.node_id WHERE n.type='$type' " .
+				"GROUP BY e.pid, e.eid";
+    my $query_result = DBQueryWarn( $query );
+    
     while( my($count, $pid, $eid, $uid, $end, $autoswap, $next_reserve,
 	      $slice_expire, $slice_lockdown ) =
 	   $query_result->fetchrow_array() ) {	

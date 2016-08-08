@@ -49,6 +49,7 @@ my $partial = 0;
 my $TB          = "@prefix@";
 my $consetup    = "$TB/libexec/console_setup";
 my $makeconf    = "$TB/sbin/dhcpd_makeconf";
+my $PGENISUPPORT= @PROTOGENI_SUPPORT@;
 
 #
 # Testbed Support libraries
@@ -166,7 +167,11 @@ TBDebugTimeStamp("nalloc checked all node permissions");
 # Argh, MySQL locking rules are horrendous!  These locks are required by
 # low-level library routines; this is a horrible violation of abstraction;
 # and it's all MySQL's fault...
-DBQueryFatal("lock tables reserved write, users read, groups read, projects read, future_reservations read, nodes as n read, reserved as r read, experiments as e read, next_reserve as nr read, `geni-cm`.geni_slices as s read");
+if( $PGENISUPPORT ) {
+    DBQueryFatal("lock tables reserved write, users read, groups read, projects read, future_reservations read, nodes as n read, reserved as r read, experiments as e read, next_reserve as nr read, `geni-cm`.geni_slices as s read");
+} else {
+    DBQueryFatal("lock tables reserved write, users read, groups read, projects read, future_reservations read, nodes as n read, reserved as r read, experiments as e read, next_reserve as nr read");
+}
 TBDebugTimeStamp("nalloc locked tables");
 
 # Make a list of nodes to reserve.
