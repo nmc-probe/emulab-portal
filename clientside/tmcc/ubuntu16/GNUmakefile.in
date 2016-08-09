@@ -54,6 +54,8 @@ RRCDIR		= /etc
 INSTALL		= /usr/bin/install -c 
 COMMON		= $(SRCDIR)/../common
 DEFRUNLVLDIR   ?= $(SYSETCDIR)/rc3.d
+# group to use for directories (dir-install)
+DIRGROUP	?= root
 
 install client-install:	common-install etc-install \
 			script-install bin-install sysetc-fixup sysetc-install \
