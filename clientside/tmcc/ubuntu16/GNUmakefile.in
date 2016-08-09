@@ -80,6 +80,8 @@ common-install:	dir-install
 bin-install:	dir-install
 	(cd ../linux; $(MAKE) DESTDIR=$(DESTDIR) RCDIR=$(RCDIR) USES_SYSTEMD=1 bin-install)
 	$(INSTALL) -m 755 $(SRCDIR)/findcnet $(BINDIR)/findcnet
+	$(INSTALL) -m 755 $(SRCDIR)/emulab-udev-network-interfaces-handler \
+		$(BINDIR)/emulab-udev-network-interfaces-handler
 
 etc-install:	dir-install common-sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group
@@ -110,6 +112,8 @@ sysetc-install:	dir-install
 	$(INSTALL) -m 644 $(SRCDIR)/ntp.conf $(SYSETCDIR)/ntp.conf
 	$(INSTALL) -m 644 -o ntp -g ntp /dev/null /etc/ntp.drift
 	ln -sf /etc/ntp.drift /var/lib/ntp/ntp.drift
+	$(INSTALL) -m 644 $(SRCDIR)/99-emulab-control-network.rules \
+		$(SYSETCDIR)/udev/rules.d/99-emulab-control-network.rules
 
 systemd-install: dir-install
 	$(INSTALL) -m 644 $(SRCDIR)/ifup-wait-emulab-cnet.service \

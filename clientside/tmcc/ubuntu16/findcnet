@@ -117,6 +117,23 @@ lockdir=/var/lock/findcnet
 
 . /etc/emulab/paths.sh
 
+#
+# NB: if we're being invoked by a udevd trigger, skip.  We want to be
+# invoked by ifup.  This happens with systemd on Ubuntu 16 because a
+# couple of the udevd rules (/lib/udev/bridge-network-interface and
+# /lib/udev/vlan-network-interface call ifquery without the
+# --no-mappings argument).
+#
+if [ -n "$SUBSYSTEM" ]; then
+    echo "Skipping systemd udevd triggered action '$ACTION' subsystem '$SUBSYSTEM' device '$INTERFACE' ..." >>$LOGDIR/dhclient.log
+    echo $iface
+    exit 0
+elif [ -n "$SYSTEMD_ALIAS" ]; then
+    echo "Skipping systemd udevd triggered SYSTEMD_ALIAS '$SYSTEMD_ALIAS' ..." >>$LOGDIR/dhclient.log
+    echo $iface
+    exit 0
+fi
+
 while ! mkdir $lockdir 2> /dev/null; do
 	sleep 1
 done
