@@ -74,6 +74,7 @@ dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/network-online.target.wants
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/networking.service.wants
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/multi-user.target.wants
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/udev
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/udev/rules.d
@@ -127,6 +128,12 @@ systemd-install: dir-install
 	rm -f $(SYSETCDIR)/systemd/system/network-online.target.wants/ifup-wait-all-auto.service
 	ln -sf ../ifup-wait-emulab-cnet.service \
 		$(SYSETCDIR)/systemd/system/network-online.target.wants/ifup-wait-emulab-cnet.service
+	$(INSTALL) -m 644 $(SRCDIR)/networking-emulab.service \
+		$(SYSETCDIR)/systemd/system/networking-emulab.service
+	ln -sf ../networking-emulab.service \
+		$(SYSETCDIR)/systemd/system/networking.service.wants/networking-emulab.service
+	ln -sf ../networking-emulab.service \
+		$(SYSETCDIR)/systemd/system/network-online.target.wants/networking-emulab.service
 	$(INSTALL) -m 644 $(SRCDIR)/ntp.service $(SYSETCDIR)/systemd/system
 	ln -sf $(SYSETCDIR)/systemd/system/ntp.service \
 		$(SYSETCDIR)/systemd/system/multi-user.target.wants/ntp.service
