@@ -209,6 +209,14 @@ if (-x "/etc/cron.pend/slocate.cron") {
 }
 
 #
+# Remove old swap lines from /etc/fstab
+#
+if (-e $FSTAB) {
+    print "Removing auto-generated $FSTAB swap line ...\n";
+    system("sed -i -e '/^# the following swap devices added by /,+1d' $FSTAB");
+}
+
+#
 # Generate a dumpdates file. Use fstab to find out what filesystems
 # need entries, and then put in entries for each filesystem using
 # the current date.
