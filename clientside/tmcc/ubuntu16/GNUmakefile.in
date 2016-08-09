@@ -126,6 +126,12 @@ systemd-install: dir-install
 	$(INSTALL) -m 644 $(SRCDIR)/ntp.service $(SYSETCDIR)/systemd/system
 	ln -sf $(SYSETCDIR)/systemd/system/ntp.service \
 		$(SYSETCDIR)/systemd/system/multi-user.target.wants/ntp.service
+	$(INSTALL) -m 644 -o root -g $(DIRGROUP) \
+		$(SRCDIR)/emulab-fstab-fixup.service $(SYSETCDIR)/systemd/system
+	ln -sf $(SYSETCDIR)/systemd/system/emulab-fstab-fixup.service \
+		$(SYSETCDIR)/systemd/system/multi-user.target.wants/emulab-fstab-fixup.service
+	# Kick the init process to read our newly-installed unit files
+	# (i.e., so an immediate tbprepare will work...)
 	@if [ -z "$(DESTDIR)" ]; then \
 	    systemctl daemon-reload; \
 	fi
