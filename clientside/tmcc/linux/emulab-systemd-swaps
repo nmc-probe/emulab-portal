@@ -45,7 +45,7 @@ use strict;
 # Drag in path stuff so we can find emulab stuff.
 BEGIN { require "/etc/emulab/paths.pm"; import emulabpaths; }
 
-my $FIXER = "$BINDIR/fixup-fstab-swaps -E";
+my $FIXER = "$BINDIR/fixup-fstab-swaps";
 
 # Turn off line buffering on output
 $| = 1;
