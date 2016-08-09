@@ -167,6 +167,10 @@ INSERT INTO sitevariables VALUES ('ue/sim_sequence_increment',NULL,'1000000','Se
 INSERT INTO sitevariables VALUES ('portal/default_profile',NULL,'emulab-ops,OneVM','Default profile for portal instantiate page.',0);
 INSERT INTO sitevariables VALUES ('cloudlab/default_profile',NULL,'emulab-ops,OpenStack','Default profile for portal instantiate page.',0);
 INSERT INTO sitevariables VALUES ('phantomnet/default_profile',NULL,'emulab-ops,OneVM','Default profile for portal instantiate page.',0);
+INSERT INTO sitevariables VALUES ('reload/retrytime',NULL,'20','If a node has been in reloading for longer than this period (minutes), try rebooting it. If zero, never try reboot.',0);
+INSERT INTO sitevariables VALUES ('reload/failtime',NULL,'0','If a node has been in reloading for longer than this period (minutes), send it to hwdown. If zero, leave nodes in reloading.',0);
+INSERT INTO sitevariables VALUES ('reload/warnonretry',NULL,'1','If non-zero send e-mail to testbed-ops when a retry is attempted.',0);
+INSERT INTO sitevariables VALUES ('reload/hwdownaction',NULL,'nothing','What to do when nodes are moved to hwdown. One of: poweroff, adminmode, or nothing.',0);
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
