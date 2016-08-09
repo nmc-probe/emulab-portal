@@ -75,6 +75,8 @@ dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/network-online.target.wants
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/multi-user.target.wants
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/udev
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/udev/rules.d
 
 common-install:	dir-install
 	(cd ../common; $(MAKE) DESTDIR=$(DESTDIR) local-install)
