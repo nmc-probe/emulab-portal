@@ -486,8 +486,15 @@ foreach my $linkref (GeniXML::FindNodes("n:link", $rspec)->get_nodelist()) {
     foreach my $ifaceref (GeniXML::FindNodes("n:interface_ref",
 					     $linkref)->get_nodelist()) {
 	my $virtual_id = GeniXML::GetInterfaceId($ifaceref);
-	my ($node_id,$iface_id) = split(":", $virtual_id);
-	my $node = $Nodes{$node_id};
+	my $node_id    = $Ifaces{$virtual_id}->{'node_id'};
+	my $node       = $Nodes{$node_id};
+	#
+	# geni-lib is going to name the interfaces as node_id:iface_id
+	# so we have to careful to strip existing node_id from the id
+	# in case the rspec came from a geni-lib script.
+	#
+	my ($tmp,$iface_id) = split(":", $virtual_id);
+	$iface_id = $tmp if (!defined($iface_id));
 
 	if ($node->{'type'} eq "emulab-blockstore") {
 	    $link->{'isbslink'} = $isbslink = 1;
@@ -604,7 +611,13 @@ foreach my $noderef (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
 	my $itag = $interface->{'tag'};
 	my $ip   = $interface->{'ip'};
 	my $mask = $interface->{'mask'};
-	my (undef,$iface_id) = split(":", $client_id);
+	#
+	# geni-lib is going to name the interfaces as node_id:iface_id
+	# so we have to careful to strip existing node_id from the id
+	# in case the rspec came from a geni-lib script.
+	#
+	my ($tmp,$iface_id) = split(":", $client_id);
+	$iface_id = $tmp if (!defined($iface_id));
 	my $addr = ($ip && $mask ?
 		    "pg.IPv4Address('$ip','$mask')" : undef);
 
