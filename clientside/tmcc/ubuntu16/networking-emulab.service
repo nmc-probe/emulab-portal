@@ -13,7 +13,7 @@ WantedBy=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'udevadm settle'
+ExecStart=/bin/sh -c 'while true; do udevadm settle && [ -n "`ifquery -a -l --exclude=lo --no-mappings`" ] && break || (echo "Waiting for network interfaces..." ; sleep 2); done'
 ExecStop=
 RemainAfterExit=false
 TimeoutStartSec=2min
