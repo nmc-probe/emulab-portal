@@ -76,6 +76,7 @@ dir-install:
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/network-online.target.wants
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/networking.service.wants
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/multi-user.target.wants
+	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/systemd/system/swap.target.wants
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/udev
 	$(INSTALL) -m 755 -o root -g root -d $(SYSETCDIR)/udev/rules.d
 
@@ -87,6 +88,7 @@ bin-install:	dir-install
 	$(INSTALL) -m 755 $(SRCDIR)/findcnet $(BINDIR)/findcnet
 	$(INSTALL) -m 755 $(SRCDIR)/emulab-udev-network-interfaces-handler \
 		$(BINDIR)/emulab-udev-network-interfaces-handler
+	$(INSTALL) -m 755 $(SRCDIR)/fixup-fstab-swaps $(BINDIR)
 
 etc-install:	dir-install common-sysetc-install
 	$(INSTALL) -m 644 $(SRCDIR)/group $(ETCDIR)/group
@@ -140,7 +142,7 @@ systemd-install: dir-install
 	$(INSTALL) -m 644 -o root -g $(DIRGROUP) \
 		$(SRCDIR)/emulab-fstab-fixup.service $(SYSETCDIR)/systemd/system
 	ln -sf $(SYSETCDIR)/systemd/system/emulab-fstab-fixup.service \
-		$(SYSETCDIR)/systemd/system/multi-user.target.wants/emulab-fstab-fixup.service
+		$(SYSETCDIR)/systemd/system/swap.target.wants/emulab-fstab-fixup.service
 	# Kick the init process to read our newly-installed unit files
 	# (i.e., so an immediate tbprepare will work...)
 	@if [ -z "$(DESTDIR)" ]; then \

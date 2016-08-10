@@ -4,6 +4,7 @@ Before=swap.target
 After=systemd-remount-fs.service
 DefaultDependencies=no
 Conflicts=shutdown.target
+Conflicts=swap.target
 
 [Service]
 Type=oneshot
@@ -12,4 +13,4 @@ ExecStart=/usr/local/etc/emulab/initscripts/emulab-systemd-swaps
 Restart=no
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=swap.target
