@@ -18,6 +18,9 @@ function (_, sup, moment,
 {
     'use strict';
     var profile_uuid = null;
+    var profile_name = '';
+    var profile_pid = '';
+    var profile_version = '';
     var version_uuid = null;
     var gotscript    = 0;
     var ajaxurl      = "";
@@ -45,6 +48,17 @@ function (_, sup, moment,
 	    gotscript = 1;
 	}
 	
+        // If this is an existing profile, stash the name/project
+        if (_.has(fields, "profile_name")) {
+	    profile_name = fields['profile_name'];
+        }
+        if (_.has(fields, "profile_pid")) {
+	    profile_pid = fields['profile_pid'];
+        }
+        if (_.has(fields, "profile_version")) {
+	    profile_version = fields['profile_version'];
+        }
+      
 	// Generate the templates.
 	var show_html   = showTemplate({
 	    fields:		fields,
@@ -103,22 +117,28 @@ function (_, sup, moment,
 		var source = null;
 		var href   = "show-profile.php?uuid=" + profile_uuid;
 
-		if ($(this).attr("id") == "show_source_modal_button") {
+	        if ($(this).attr("id") == "show_source_modal_button") {
+		/*
 		    source = $.trim($('#profile_script_textarea').val());
 		    $('#rspec_modal_download_button')
 			.attr("href", href + "&source=true");
+		*/
+		    openEditor();
 		}
-		if (!source || !source.length) {
-		    source = $.trim($('#profile_rspec_textarea').val());
-		    $('#rspec_modal_download_button')
-			.attr("href", href + "&rspec=true");
+	        else
+	        {
+		    if (!source || !source.length) {
+		        source = $.trim($('#profile_rspec_textarea').val());
+		        $('#rspec_modal_download_button')
+			    .attr("href", href + "&rspec=true");
+		    }
+		    $('#rspec_modal_editbuttons').addClass("hidden");
+		    $('#rspec_modal_viewbuttons').removeClass("hidden");
+		    $('#modal_profile_rspec_textarea').prop("readonly", true);
+		    $('#modal_profile_rspec_textarea').val(source);
+		    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
+		    $('#rspec_modal').modal('show');
 		}
-		$('#rspec_modal_editbuttons').addClass("hidden");
-		$('#rspec_modal_viewbuttons').removeClass("hidden");
-		$('#modal_profile_rspec_textarea').prop("readonly", true);
-		$('#modal_profile_rspec_textarea').val(source);
-		$('#rspec_modal').modal({'backdrop':'static','keyboard':false});
-		$('#rspec_modal').modal('show');
 	    });
         $('#rspec_modal').on('shown.bs.modal', function() {
 	    var source = $('#modal_profile_rspec_textarea').val();
@@ -240,6 +260,11 @@ function (_, sup, moment,
 	    alert("Could not parse XML!");
 	    return -1;
 	}
+    }
+
+    function openEditor()
+    {
+      window.location.href = 'genilib-editor.php?profile=' + profile_name + '&project=' + profile_pid + '&version=' + profile_version;
     }
 
     $(document).ready(initialize);

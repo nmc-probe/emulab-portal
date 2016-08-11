@@ -1,19 +1,24 @@
 require(window.APT_OPTIONS.configObject,
-['underscore', 'js/quickvm_sup',
+['underscore', 'js/quickvm_sup', 'js/aptforms',
  'js/lib/text!template/genilib-editor.html',	 
  'js/lib/text!template/oops-modal.html',
  'js/lib/text!template/waitwait-modal.html',
+ 'js/lib/text!template/manage-profile.html',
  'jacks'],
-function (_, sup, pageString, oopsString, waitwaitString)
+function (_, sup, aptforms,
+	  pageString, oopsString, waitwaitString, manageString)
 {
   'use strict';
   var editor;
   var isWaiting = false;
+  var isSplit = false;
   var settingsShown = false;
+  var createShown = false;
   var rspec = '';
   var jacks = null;
   var jacksInput = null;
   var jacksOutput = null;
+  var manageTemplate = _.template(manageString);
 
   function initialize()
   {
@@ -26,18 +31,63 @@ function (_, sup, pageString, oopsString, waitwaitString)
     editor = ace.edit('editor');
     editor.setTheme('ace/theme/chrome');
     editor.getSession().setMode('ace/mode/python');
+    editor.getSession().on('change', editorChanged);
+
+    removeSplit();
 
     loadSettings();
 
+    var source = document.getElementById('source').innerHTML;
+    editor.setValue(atob(source));
+    editor.selection.clearSelection();
+
     $('#saveButton').on('click', save);
     $('#loadButton').on('click', load);
-    $('#runButton').on('click', run);
+    $('#runButton').on('click', clickRun);
     $('#settingsButton').on('click', toggleSettings);
-    $('#closeErrorButton').on('click', closeError);
-    $('#closeSettingsButton').on('click', closeSettings);
+    $('#closeErrorButton').on('click', removeSplit);
+    $('#closeSettingsButton').on('click', removeSplit);
+    $('#closeJacksButton').on('click', removeSplit);
     $('#settings-root select').on('change', onChangeSettings);
+    $('#createButton').on('click', clickCreate);
+    $('#closeCreateButton').on('click', removeSplit);
+    if (window.PROFILE_CANEDIT && window.PROFILE_NAME && window.PROFILE_PROJECT &&
+	window.PROFILE_VERSION_UUID && window.PROFILE_LATEST_UUID)
+    {
+      $('#updateButton').on('click', clickEdit);
+      $('#updateButton').removeClass('hidden');
+    }
   }
 
+  function removeSplit()
+  {
+    $('#jacks-root').hide();
+    $('#error-root').hide();
+    $('#create-root').hide();
+    $('#settings-root').hide();
+    settingsShown = false;
+    createShown = false;
+    $('#editor-container')
+      .removeClass('col-lg-6 col-md-6')
+      .addClass('col-lg-12 col-md-12');
+    editor.resize();
+  }
+
+  function addSplit()
+  {
+    $('#editor-container')
+      .removeClass('col-lg-12 col-md-12')
+      .addClass('col-lg-6 col-md-6');
+    editor.resize();
+  }
+
+  function editorChanged()
+  {
+    if (createShown)
+    {
+      removeSplit();
+    }
+  }
 
   function save()
   {
@@ -67,8 +117,8 @@ function (_, sup, pageString, oopsString, waitwaitString)
           reader.onload = function (e) {
             var contents = e.target.result;
 	    editor.setValue(contents);
-	    $('#jacks-root').hide();
-	    $('#error-root').hide();
+	    editor.selection.clearSelection();
+	    removeSplit();
 //            jacksInput.trigger('change-topology', [{ rspec: contents }]);
           };
           reader.readAsText(file);
@@ -78,13 +128,19 @@ function (_, sup, pageString, oopsString, waitwaitString)
     }
   }
 
-  function run()
+  function clickRun()
+  {
+    run('test');
+  }
+
+  var runOption = 'test';
+
+  function run(newRunOption)
   {
     if (! isWaiting)
     {
-      $('#jacks-root').hide();
-      $('#error-root').hide();
-      closeSettings();
+      runOption = newRunOption;
+      removeSplit();
       $('#waitwait-modal').modal('show');
       isWaiting = true;
 
@@ -103,9 +159,22 @@ function (_, sup, pageString, oopsString, waitwaitString)
 
     if (json.code == 0)
     {
-      $('#jacks-root').show();
       rspec = json.value;
+      if (runOption == 'create')
+      {
+	$('#create-root').show();
+	createShown = true;
+	updateCreateBody();
+      }
+      else if (runOption == 'edit')
+      {
+	$('#create-root').show();
+	createShown = true;
+	updateEditBody();
+      }
+      $('#jacks-root').show();
       _.defer(jacksUpdate);
+      addSplit();
     }
     else if (json.code == 2)
     {
@@ -128,6 +197,7 @@ function (_, sup, pageString, oopsString, waitwaitString)
       }
 //      $('#error-message').html(_.escape(json.value));
       $('#error-root').show();
+      addSplit();
     }
     else
     {
@@ -144,9 +214,14 @@ function (_, sup, pageString, oopsString, waitwaitString)
     return button;
   }
 
-  function closeError()
+  function clickCreate()
   {
-    $('#error-root').hide();
+    run('create');
+  }
+
+  function clickEdit()
+  {
+    run('edit');
   }
 
   function onChangeSettings()
@@ -155,17 +230,12 @@ function (_, sup, pageString, oopsString, waitwaitString)
     updateSettings(settings);
   }
 
-  function closeSettings()
-  {
-    $('#settings-root').hide();
-    settingsShown = false;
-  }
 
   function toggleSettings()
   {
     if (settingsShown)
     {
-      closeSettings();
+      removeSplit();
     }
     else
     {
@@ -173,6 +243,9 @@ function (_, sup, pageString, oopsString, waitwaitString)
       $('#settings-root').show();
       $('#jacks-root').hide();
       $('#error-root').hide();
+      $('#create-root').hide();
+      createShown = false;
+      addSplit();
     }
   }
 
@@ -291,6 +364,142 @@ function (_, sup, pageString, oopsString, waitwaitString)
     jacksOutput = output;
     jacksInput.trigger('change-topology',
 		       [{ rspec: rspec }]);
+  }
+
+  function updateCreateBody()
+  {
+    var projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+    var fields = {
+      profile_script: editor.getValue(),
+      profile_rspec: rspec,
+      profile_who: 'private'
+    };
+    var manage_html = manageTemplate({
+      formfields: fields,
+      projects: projlist,
+      title: 'Create Profile',
+      notifyupdate: false,
+      viewing: false,
+      action: 'create',
+      button_label: 'Create',
+      candelete: false,
+      canmodify: false,
+      canpublish: false,
+      isadmin: false,
+      history: false,
+      activity: false,
+      manual: false,
+      copyuuid: null,
+      snapuuid: null,
+      general_error: '',
+      isapt: window.ISAPT,
+      disabled: true,
+      versions: [],
+      withpublishing: false,
+      genilib_editor: true
+    });
+    manage_html = aptforms.FormatFormFieldsHorizontal(manage_html,
+						      {"wide": false });
+    $('#create-body').html(manage_html);
+    $('#profile_instructions').prop("readonly", true);
+    $('#profile_description').prop("readonly", true);
+    $('#profile_submit_button').removeAttr('disabled');
+    $('#profile_submit_button').on('click', submitCreate);
+    parseRspec();
+  }
+
+  function updateEditBody()
+  {
+    var projlist = [window.PROFILE_NAME];
+    var fields = {
+      profile_name: window.PROFILE_NAME,
+      profile_pid: window.PROFILE_PROJECT,
+      profile_script: editor.getValue(),
+      profile_rspec: rspec,
+      profile_who: window.PROFILE_WHO
+    };
+    var manage_html = manageTemplate({
+      formfields: fields,
+      projects: projlist,
+      title: 'Update Profile',
+      notifyupdate: false,
+      viewing: false,
+      version_uuid: window.PROFILE_VERSION_UUID,
+      latest_uuid: window.PROFILE_LATEST_UUID,
+      action: 'edit',
+      button_label: 'Update',
+      candelete: false,
+      canmodify: false,
+      canpublish: false,
+      isadmin: false,
+      history: false,
+      activity: false,
+      manual: false,
+      copyuuid: null,
+      snapuuid: null,
+      general_error: '',
+      isapt: window.ISAPT,
+      disabled: true,
+      versions: [],
+      withpublishing: false,
+      genilib_editor: true
+    });
+    manage_html = aptforms.FormatFormFieldsHorizontal(manage_html,
+						      {'wide': false });
+    $('#create-body').html(manage_html);
+    $('#profile_name').prop('readonly', true);
+    $('#profile_instructions').prop('readonly', true);
+    $('#profile_description').prop('readonly', true);
+    $('#profile_pid').prop('readonly', true);
+    $('.permission-checkbox').hide();
+    $('#profile_submit_button').removeAttr('disabled');
+    $('#profile_submit_button').on('click', submitEdit);
+    $('#quickvm_create_profile_form').attr('action', 'manage_profile.php?uuid=' + window.PROFILE_LATEST_UUID);
+    parseRspec();
+  }
+
+  function parseRspec()
+  {
+    var xmlDoc = null;
+    try
+    {
+      xmlDoc = $.parseXML(rspec);
+    }
+    catch (err)
+    {
+      console.log('Could not parse XML', err);
+      $('#profile_description').parent().parent().parent().hide();
+      $('#profile_instructions').parent().parent().parent().hide();
+    }
+    if (xmlDoc)
+    {
+      var xml    = $(xmlDoc);
+	
+      $('#profile_description').val("");
+      $(xml).find("rspec_tour > description").each(function() {
+	var text = $(this).text();
+	$('#profile_description').val(text);
+      });
+      $('#profile_instructions').val("");
+      $(xml).find("rspec_tour > instructions").each(function() {
+	var text = $(this).text();
+	$('#profile_instructions').val(text);
+      });
+    }
+  }
+
+  function submitEdit(event)
+  {
+    window.onbeforeunload = null;
+    $('#waitwait-modal').modal('show');
+    return true;
+  }
+
+  function submitCreate(event)
+  {
+    window.onbeforeunload = null;
+    $('#waitwait-modal').modal('show');
+    return true;
   }
   
   $(document).ready(initialize);

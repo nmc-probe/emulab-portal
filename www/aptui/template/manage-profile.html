@@ -197,6 +197,7 @@
 	  </fieldset>
 	  <% } %>
 	  <fieldset>
+	    <% if (! genilib_editor) { %>
 	    <div class="form-group">
 	      <div class='format-me'
 		   data-key='profile_rspec' data-label='Your rspec'
@@ -223,6 +224,11 @@
 			  id='show_source_modal_button'>
 		      <% if (viewing && canmodify) { %>Edit <% } %>Source
 		    </button>
+		    <button class='btn btn-primary btn-xs pull-right hidden'
+			    type='button'
+			    id='edit_copy_button'>
+		      Edit a Copy
+		    </button>
 		    <button class='btn btn-primary btn-xs hidden'
 			  type='button'
 			  style='margin-right: 10px;'
@@ -232,6 +238,7 @@
 		</div>
 	      </div>
 	    </div>
+	    <% } %>
  	    <textarea name="formfields[profile_rspec]"
 		      id='profile_rspec_textarea'
                       class='form-control hidden'
@@ -270,7 +277,7 @@
  		                 to see a rendering.'
                       type='textarea'></textarea>
 	    </div>
-	    
+
 	    <!-- Tour Table; hidden until the table is initialized
 	         from the rspec. -->
 	    <div class='row hidden' id='profile_steps_div'>

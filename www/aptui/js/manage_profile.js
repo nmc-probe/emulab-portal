@@ -21,6 +21,9 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 {
     'use strict';
     var profile_uuid = null;
+    var profile_name = '';
+    var profile_pid = '';
+    var profile_version = '';
     var version_uuid = null;
     var snapping     = 0;
     var gotrspec     = 0;
@@ -77,6 +80,17 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	if (_.has(fields, "profile_script") && fields["profile_script"] != "") {
 	    gotscript = 1;
 	}
+
+        // If this is an existing profile, stash the name/project
+        if (_.has(fields, "profile_name")) {
+	    profile_name = fields['profile_name'];
+        }
+        if (_.has(fields, "profile_pid")) {
+	    profile_pid = fields['profile_pid'];
+        }
+        if (_.has(fields, "profile_version")) {
+	    profile_version = fields['profile_version'];
+        }
 	
 	// no place to show rspec errors, so convert to general error.
 	if (_.has(errors, "rspec")) {
@@ -118,6 +132,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    disabled:           window.DISABLED,
 	    versions:	        versions,
 	    withpublishing:     window.WITHPUBLISHING,
+	    genilib_editor:     false
 	});
 	manage_html = aptforms.FormatFormFieldsHorizontal(manage_html,
 							  {"wide" : true});
@@ -231,27 +246,36 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    //
 	    var source = $.trim($('#profile_script_textarea').val());
 	    var type   = "source";
-	    
-	    if (!source.length) {
-		source = $.trim($('#profile_rspec_textarea').val());
-		type = "rspec";
+
+	    if (source.length > 0 && false) {
+	      if (modified)
+	      {
+		$('#modified_modal').modal('show');
+	      } else {
+		openEditor();
+	      }
+	    } else {
+	        if (source.length === 0) {
+		    source = $.trim($('#profile_rspec_textarea').val());
+		  type = "rspec";
+		}
+	        if (profile_uuid) {
+		    $('#rspec_modal_download_button')
+		        .attr("href",
+			      "show-profile.php?uuid=" + profile_uuid +
+			      "&" + type + "=true");
+	        }
+	        else {
+		    $('#rspec_modal_download_button').addClass("hidden");
+	        }	    
+	        $('#rspec_modal_upload_span').removeClass("hidden");
+	        $('#rspec_modal_editbuttons').removeClass("hidden");
+	        $('#rspec_modal_viewbuttons').addClass("hidden");
+	        $('#modal_profile_rspec_textarea').prop("readonly", false);	    
+	        $('#modal_profile_rspec_textarea').val(source);
+	        $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
+	        $('#rspec_modal').modal('show');
 	    }
-	    if (profile_uuid) {
-		$('#rspec_modal_download_button')
-		    .attr("href",
-			  "show-profile.php?uuid=" + profile_uuid +
-			  "&" + type + "=true");
-	    }
-	    else {
-		$('#rspec_modal_download_button').addClass("hidden");
-	    }	    
-	    $('#rspec_modal_upload_span').removeClass("hidden");
-	    $('#rspec_modal_editbuttons').removeClass("hidden");
-	    $('#rspec_modal_viewbuttons').addClass("hidden");
-	    $('#modal_profile_rspec_textarea').prop("readonly", false);	    
-	    $('#modal_profile_rspec_textarea').val(source);
-	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
-	    $('#rspec_modal').modal('show');
 	});
 	// The Show XML button.
 	$('#show_xml_modal_button').click(function (event) {
@@ -278,6 +302,10 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    $('#modal_profile_rspec_textarea').prop("readonly", true);
 	    $('#rspec_modal').modal({'backdrop':'static','keyboard':false});
 	    $('#rspec_modal').modal('show');
+	});
+
+        $('#edit_copy_button').click(function (event) {
+	    openEditor();
 	});
 	
         $('#rspec_modal').on('shown.bs.modal', function() {
@@ -469,7 +497,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    ExtractFromRspec();
 	    // We also got a geni-lib script, so show the XML button.
 	    if (gotscript) {
-		$('#show_xml_modal_button').removeClass("hidden");
+	        $('#show_xml_modal_button').removeClass("hidden");
+	        $('#edit_copy_button').removeClass("hidden");
 		$('#profile_instructions').prop("readonly", true);
 		$('#profile_description').prop("readonly", true);
 	    }
@@ -1152,6 +1181,12 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 					     "pid"    : $('#profile_pid').val()});
 	xmlthing.done(callback);
     }
-	
+
+
+    function openEditor()
+    {
+      window.location.href = 'genilib-editor.php?profile=' + profile_name + '&project=' + profile_pid + '&version=' + profile_version;
+    }
+
     $(document).ready(initialize);
 });
