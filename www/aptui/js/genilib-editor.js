@@ -40,6 +40,7 @@ function (_, sup, aptforms,
     var source = document.getElementById('source').innerHTML;
     editor.setValue(atob(source));
     editor.selection.clearSelection();
+    window.onbeforeunload = null;
 
     $('#waitwait-modal').modal({ backdrop: 'static', keyboard: false, show: false });
     $('#saveButton').on('click', save);
