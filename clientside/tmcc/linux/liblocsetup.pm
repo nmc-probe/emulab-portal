@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1508,6 +1508,9 @@ sub os_fwconfig_line($@) {
 		}
 	}
 
+	# Sort the rules by provided rule number (tmcd doesn't order them).
+	@fwrules = sort { $a->{RULENO} <=> $b->{RULENO}} @fwrules;
+
 	# XXX This is ugly.  Older version of iptables can't handle source or
 	# destination hosts or nets in the format a,b,c,d.  Newer versions of
 	# iptables automatically expand this to separate rules for each host/net,
@@ -1567,8 +1570,10 @@ sub os_fwconfig_line($@) {
 	}
 	@fwrules = @new_rules;
 
-	# For now, if a rule fails to load we want to fail open, not closed.  Otherwise
-	# it may be difficult to debug things.
+	#
+	# For now, if a rule fails to load we fail partially open.
+	# We allow all access to the FW itself but nothing inside.
+	#
 	foreach my $rulestr (@fwrules) {
 		if ($rulestr =~ /^iptables\s+/) {
 			$upline .= "    $rulestr || {\n";
@@ -1576,6 +1581,7 @@ sub os_fwconfig_line($@) {
 			$upline .= "        echo '  $rulestr'\n";
 			$upline .= "        iptables -F\n"
 			    if ($fwinfo->{TYPE} ne "iptables-dom0");
+			$upline .= "        iptables -P FORWARD DROP\n";
 			$upline .= "        iptables -P INPUT ACCEPT\n";
 			$upline .= "        iptables -P OUTPUT ACCEPT\n";
 			$upline .= "        exit 1\n";
@@ -1586,6 +1592,7 @@ sub os_fwconfig_line($@) {
 			$upline .= "        echo '  $rulestr'\n";
 			$upline .= "        ebtables -F\n"
 			    if ($fwinfo->{TYPE} ne "iptables-dom0");
+			$upline .= "        ebtables -P FORWARD DROP\n";
 			$upline .= "        ebtables -P INPUT ACCEPT\n";
 			$upline .= "        ebtables -P OUTPUT ACCEPT\n";
 			$upline .= "        exit 1\n";

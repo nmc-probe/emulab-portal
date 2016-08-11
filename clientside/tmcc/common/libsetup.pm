@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 #
-# Copyright (c) 2000-2015 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -1155,6 +1155,10 @@ sub runbootscript($$$$;@)
 	    if (exists($manifest->{$script}) 
 		&& exists($manifest->{$script}{'FATAL'}) 
 		&& $manifest->{$script}{'FATAL'} == 1) {
+		fatal("  Failed running $script ($?)!");
+	    }
+	    # XXX failure of the firewall script is always fatal
+	    elsif ($script eq "rc.firewall") {
 		fatal("  Failed running $script ($?)!");
 	    }
 	    else {
