@@ -41,6 +41,7 @@ function (_, sup, aptforms,
     editor.setValue(atob(source));
     editor.selection.clearSelection();
 
+    $('#waitwait-modal').modal({ backdrop: 'static', keyboard: false, show: false });
     $('#saveButton').on('click', save);
     $('#loadButton').on('click', load);
     $('#runButton').on('click', clickRun);
@@ -87,6 +88,7 @@ function (_, sup, aptforms,
     {
       removeSplit();
     }
+    window.onbeforeunload = beforeUnload;
   }
 
   function save()
@@ -100,7 +102,9 @@ function (_, sup, aptforms,
       a.href = window.URL.createObjectURL(file); 
       a.download = 'saved.py';
       document.body.appendChild(a);
-      a.click(); $('a').last().remove();
+      a.click();
+      $('a').last().remove();
+      window.onbeforeunload = null;
     }
   }
 
@@ -118,6 +122,7 @@ function (_, sup, aptforms,
             var contents = e.target.result;
 	    editor.setValue(contents);
 	    editor.selection.clearSelection();
+	    window.onbeforeunload = null;
 	    removeSplit();
 //            jacksInput.trigger('change-topology', [{ rspec: contents }]);
           };
@@ -405,6 +410,12 @@ function (_, sup, aptforms,
     $('#profile_description').prop("readonly", true);
     $('#profile_submit_button').removeAttr('disabled');
     $('#profile_submit_button').on('click', submitCreate);
+    // This activates the popover subsystem.
+    $('[data-toggle="popover"]').popover({
+      trigger: 'hover',
+      placement: 'auto',
+      container: 'body',
+    });
     parseRspec();
   }
 
@@ -455,6 +466,12 @@ function (_, sup, aptforms,
     $('#profile_submit_button').removeAttr('disabled');
     $('#profile_submit_button').on('click', submitEdit);
     $('#quickvm_create_profile_form').attr('action', 'manage_profile.php?uuid=' + window.PROFILE_LATEST_UUID);
+    // This activates the popover subsystem.
+    $('[data-toggle="popover"]').popover({
+      trigger: 'hover',
+      placement: 'auto',
+      container: 'body',
+    });
     parseRspec();
   }
 
@@ -486,6 +503,11 @@ function (_, sup, aptforms,
 	$('#profile_instructions').val(text);
       });
     }
+  }
+
+  function beforeUnload()
+  {
+    return 'You have unsaved changes!';
   }
 
   function submitEdit(event)

@@ -247,13 +247,8 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    var source = $.trim($('#profile_script_textarea').val());
 	    var type   = "source";
 
-	    if (source.length > 0 && false) {
-	      if (modified)
-	      {
-		$('#modified_modal').modal('show');
-	      } else {
+	    if (source.length > 0 && window.ACTION === 'edit') {
 		openEditor();
-	      }
 	    } else {
 	        if (source.length === 0) {
 		    source = $.trim($('#profile_rspec_textarea').val());
@@ -498,7 +493,7 @@ function (_, sup, filesize, JacksEditor, ShowImagingModal, moment, aptforms,
 	    // We also got a geni-lib script, so show the XML button.
 	    if (gotscript) {
 	        $('#show_xml_modal_button').removeClass("hidden");
-	        $('#edit_copy_button').removeClass("hidden");
+	        //$('#edit_copy_button').removeClass("hidden");
 		$('#profile_instructions').prop("readonly", true);
 		$('#profile_description').prop("readonly", true);
 	    }
