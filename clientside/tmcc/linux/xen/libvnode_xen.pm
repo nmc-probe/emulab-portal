@@ -1652,7 +1652,7 @@ sub vnodePreConfig($$$$$){
     # deal with FBSD filesystems. 
     #
     if ($vninfo->{'os'} eq "FreeBSD") {
-	mysystem2("mount -t ufs -o ufstype=44bsd $dev $vnoderoot");
+	mysystem2("mount -t ufs -o ufstype=44bsd $dev $vnoderoot >/dev/null 2>&1");
 	if ($?) {
 	    # try UFS2
 	    mysystem("mount -t ufs -o ufstype=ufs2 $dev $vnoderoot");
@@ -1687,7 +1687,10 @@ sub vnodePreConfig($$$$$){
     goto bad
 	if ($?);
 
-    # Use the physical host pubsub daemon
+    #
+    # Use the physical host pubsub daemon. If the vnode has a routable IP
+    # use the physical host's routable IP, otherwise use the jail net IP.
+    #
     my (undef, $ctrlip) = findControlNet();
     if (!$ctrlip || $ctrlip !~ /^(\d+\.\d+\.\d+\.\d+)$/) {
 	if ($?) {
@@ -1696,21 +1699,25 @@ sub vnodePreConfig($$$$$){
 	    goto bad;
 	}
     }
+    #
+    # XXX directory existence check is for old MBR2 FreeBSD images
+    # where /var is a separate FS.
+    #
+    if (-d "$vnoderoot/var/emulab/boot" &&
+	! -e "$vnoderoot/var/emulab/boot/localevserver") {
+	my $evip;
+	if (isRoutable($vnconfig->{'config'}->{'CTRLIP'})) {
+	    $evip = $ctrlip;
+	}
+	else {
+	    ($evip) = domain0ControlNet();
+	}
+	mysystem2("echo '$evip' > $vnoderoot/var/emulab/boot/localevserver");
+	goto bad
+	    if ($?);
+    }
 
     if ($vninfo->{'os'} ne "FreeBSD") {
-	# Should be handled in libsetup.pm, but just in case
-	if (! -e "$vnoderoot/var/emulab/boot/localevserver" ) {
-	    my $evip;
-	    if (isRoutable($vnconfig->{'config'}->{'CTRLIP'})) {
-		$evip = $ctrlip;
-	    }
-	    else {
-		($evip) = domain0ControlNet();
-	    }
-	    mysystem2("echo '$evip' > $vnoderoot/var/emulab/boot/localevserver");
-	    goto bad
-		if ($?);
-	}
 	# XXX We need this for libsetup to know it is in a XENVM.
 	if (! -e "$vnoderoot/var/emulab/boot/vmname" ) {
 	    mysystem2("echo '$vnode_id' > $vnoderoot/var/emulab/boot/vmname");
@@ -4135,9 +4142,16 @@ sub createControlNetworkScript($$$)
 
     open(FILE, ">$file") or die $!;
     print FILE "#!/bin/sh\n";
-    print FILE "/bin/mv -f ${file}.debug ${file}.debug.old\n";
-    print FILE "/etc/xen/scripts/emulab-cnet.pl $vmid $host_ip $name $ip $mac ".
-	" \$* >${file}.debug 2>&1\n";
+    print FILE "if [ -e \"$file.debug.2\" ]; then ".
+	"mv -f $file.debug.2 $file.debug.3; fi\n";
+    print FILE "if [ -e \"$file.debug.1\" ]; then ".
+	"mv -f $file.debug.1 $file.debug.2; fi\n";
+    print FILE "if [ -e \"$file.debug.0\" ]; then ".
+	"mv -f $file.debug.0 $file.debug.1; fi\n";
+    print FILE "if [ -e \"$file.debug\" ]; then ".
+	"mv -f $file.debug $file.debug.0; fi\n";
+    print FILE "/etc/xen/scripts/emulab-cnet.pl ".
+	"$vmid $host_ip $name $ip $mac \$* >$file.debug 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0555, $file);
@@ -4158,7 +4172,14 @@ sub createTunnelScript($$$$$)
 	or return -1;
     
     print FILE "#!/bin/sh\n";
-    print FILE "/bin/mv -f ${file}.debug ${file}.debug.old\n";
+    print FILE "if [ -e \"$file.debug.2\" ]; then ".
+	"mv -f $file.debug.2 $file.debug.3; fi\n";
+    print FILE "if [ -e \"$file.debug.1\" ]; then ".
+	"mv -f $file.debug.1 $file.debug.2; fi\n";
+    print FILE "if [ -e \"$file.debug.0\" ]; then ".
+	"mv -f $file.debug.0 $file.debug.1; fi\n";
+    print FILE "if [ -e \"$file.debug\" ]; then ".
+	"mv -f $file.debug $file.debug.0; fi\n";
     print FILE "/etc/xen/scripts/emulab-tun.pl ".
 	"$vmid $mac $vbr $veth \$* >${file}.debug 2>&1\n";
     print FILE "exit \$?\n";
@@ -4177,8 +4198,16 @@ sub createExpNetworkScript($$$$$$$$)
 	return -1;
     }
     print FILE "#!/bin/sh\n";
-    print FILE "/bin/mv -f ${lfile} ${lfile}.old\n";
-    print FILE "/etc/xen/scripts/emulab-enet.pl $file \$* >${lfile} 2>&1\n";
+    print FILE "if [ -e \"$lfile.2\" ]; then ".
+	"mv -f $lfile.2 $lfile.3; fi\n";
+    print FILE "if [ -e \"$lfile.1\" ]; then ".
+	"mv -f $lfile.1 $lfile.2; fi\n";
+    print FILE "if [ -e \"$lfile.0\" ]; then ".
+	"mv -f $lfile.0 $lfile.1; fi\n";
+    print FILE "if [ -e \"$lfile\" ]; then ".
+	"mv -f $lfile $lfile.0; fi\n";
+    print FILE "/etc/xen/scripts/emulab-enet.pl ".
+	"$file \$* >${lfile} 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0554, $wrapper);
@@ -5365,7 +5394,7 @@ sub ExtractKernelFromFreeBSDImage($$$)
     return undef
 	if (! -e $mntpath && mysystem2("mkdir -p $mntpath"));
 
-    mysystem2("mount -t ufs -o ro,ufstype=44bsd $lvmpath $mntpath");
+    mysystem2("mount -t ufs -o ro,ufstype=44bsd $lvmpath $mntpath >/dev/null 2>&1");
     if ($?) {
 	# try UFS2
 	mysystem2("mount -t ufs -o ro,ufstype=ufs2 $lvmpath $mntpath");
