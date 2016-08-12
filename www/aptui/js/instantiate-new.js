@@ -178,6 +178,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    });
 
 	$('#waitwait_div').html(waitwaitString);
+        $('#waitwait-modal').modal({ backdrop: 'static', keyboard: false, show: false });
 	$('#rspecview_div').html(rspecviewString);
 	$('#rspec_modal_download_button').addClass("hidden");
 	
@@ -707,74 +708,80 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	xmlthing.done(callback);
     };
 
-    function Instantiate()
-    {
-	if (webonly != 0) {
-	    event.preventDefault();
-	    sup.SpitOops("oops",
-			 "You do not belong to any projects at your Portal, " +
-			 "so you have have very limited capabilities. Please " +
-			 "join or create a project at your " +
-			 (portal && portal != "" ?
-			  "<a href='" + portal + "'>Portal</a>" : "Portal") +
-			 " to enable more capabilities. Thanks!")
-	    return false;
-	}
-	// Prevent double click.
-	if ($(this).data('submitted') === true) {
-	    // Previously submitted - don't submit again
-	    console.info("Ignoring double submit");
-	    event.preventDefault();
-	    return false;
-	}
-	else {
-	    // See if all cluster selections have been made. Seems
-	    // to be a common problem.
-	    if (!AllClustersSelected()) {
-		alert("Please make all your cluster selections!");
-		event.preventDefault();
-		return false;
+    var Instantiate = function () {
+        var submitted = false;
+
+        return function (dom, event)
+        {
+	    if (webonly != 0) {
+	        event.preventDefault();
+	        sup.SpitOops("oops",
+			     "You do not belong to any projects at your Portal, " +
+			     "so you have have very limited capabilities. Please " +
+			     "join or create a project at your " +
+			     (portal && portal != "" ?
+			     "<a href='" + portal + "'>Portal</a>" : "Portal") +
+			     " to enable more capabilities. Thanks!")
+	        return false;
 	    }
-	    // Mark it so that the next submit can be ignored
-	    $(this).data('submitted', true);
-	}
-	
-	// Submit with checkonly first, then for real
-	SubmitForm(1, 2, function (json) {
-	    console.info(json);
-	    // Internal error.
-	    if (json.code < 0) {
-		sup.SpitOops("oops", json.value);
-		return;
+	    // Prevent double click.
+	    if (submitted === true) {
+	        // Previously submitted - don't submit again
+	        console.info("Ignoring double submit");
+	        event.preventDefault();
+	        return false;
+	    } else {
+	        // See if all cluster selections have been made. Seems
+	        // to be a common problem.
+	        if (!AllClustersSelected()) {
+		    alert("Please make all your cluster selections!");
+		    event.preventDefault();
+		    return false;
+	        }
+	        // Mark it so that the next submit can be ignored
+	        submitted = true;
 	    }
-	    // Form error
-	    if (json.code == 2) {
-		ShowFormErrors(json.value);
-		return;
-	    }
-	    $("#waitwait-modal").modal('show');
-	    SubmitForm(0, 2, function(json) {
-		$("#waitwait-modal").modal('hide');
-		if (json.code) {
-		    console.info(json);
-		    if (json.code == 2) {
-			ShowFormErrors(json.value);
-			return;
+
+            // Submit with checkonly first, then for real
+	    SubmitForm(1, 2, function (json) {
+	        console.info(json);
+	        // Internal error.
+	        if (json.code < 0) {
+		    sup.SpitOops("oops", json.value);
+		    submitted = false;
+		    return;
+	        }
+	        // Form error
+	        if (json.code == 2) {
+	            ShowFormErrors(json.value);
+	            submitted = false;
+		    return;
+	        }
+	        $("#waitwait-modal").modal('show');
+	        SubmitForm(0, 2, function(json) {
+		    $("#waitwait-modal").modal('hide');
+		    if (json.code) {
+		        console.info(json);
+		        if (json.code == 2) {
+		            ShowFormErrors(json.value);
+		            submitted = false;
+			    return;
+		        }
+		        sup.SpitOops("oops", json.value);               
 		    }
-		    sup.SpitOops("oops", json.value);               
-		}
-		/*
-		 * The return value will have a redirect url in it,
-		 * and some optional cookies.
-		 */
-		if (_.has(json.value, "cookies")) {
-		    SetCookies(json.value.cookies);
-		}
-		window.location.replace(json.value.redirect);
+		    /*
+		     * The return value will have a redirect url in it,
+		     * and some optional cookies.
+		     */
+		    if (_.has(json.value, "cookies")) {
+		        SetCookies(json.value.cookies);
+		    }
+		    window.location.replace(json.value.redirect);
+	        });
 	    });
-	});
-	return true;
-    }
+	    return true;
+        };
+    }();
 
     function ShowFormErrors(errors) {
 	$('.step-forms').find('.format-me').each(function () {
