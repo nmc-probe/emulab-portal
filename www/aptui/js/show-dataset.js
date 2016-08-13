@@ -108,10 +108,14 @@ function (_, sup, moment, aptforms, ShowImagingModal,
 	 * If the state is busy, then lets poll watching for it to
 	 * go valid.
 	 */
-	if (cansnapshot &&
-	    (fields.dataset_state == "busy" ||
-	     fields.dataset_state == "allocating")) {
-	    ShowProgressModal();
+	if (fields.dataset_state == "busy" ||
+	    fields.dataset_state == "allocating") {
+	    if (cansnapshot) {
+		ShowProgressModal();
+	    }
+	    else {
+		StateWatch();
+	    }
 	}
     }
 
@@ -307,6 +311,7 @@ function (_, sup, moment, aptforms, ShowImagingModal,
 	// Handle submit button.
 	//
 	$('#snapshot_submit_button').click(function (event) {
+	    sup.HideModal("#snapshot_modal");
 	    event.preventDefault();
 	    SubmitForm();
 	});
