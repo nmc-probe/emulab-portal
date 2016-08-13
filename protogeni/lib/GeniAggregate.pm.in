@@ -1059,8 +1059,9 @@ sub Action($$$;$)
     my $output = 
 	GeniUtil::ExecuteQuietAsGeniUser("$IMAGE_SETUP ".
 					 "-d -g -p GeniSlices $pid,$eid");
+    print STDERR $output;
     if ($?) {
-	$msg = "Could not setup images:\n$output";
+	$msg = "Could not setup images";
 	goto bad;
     }
     # The nodes will not boot locally unless there is a DNS record,
