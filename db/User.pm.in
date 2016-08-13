@@ -40,7 +40,7 @@ use overload ('""' => 'Stringify');
 use vars qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
 	    $NEWUSER_FLAGS_WEBONLY $NEWUSER_FLAGS_ARCHIVED
 	    $NEWUSER_FLAGS_NOUUID $NEWUSER_FLAGS_NONLOCAL
-	    $USERSTATUS_ACTIVE $USERSTATUS_FROZEN
+	    $USERSTATUS_ACTIVE $USERSTATUS_FROZEN $USERSTATUS_INACTIVE
 	    $USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
 	    $USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL
 	    @EXPORT_OK);
@@ -53,6 +53,9 @@ my $TBAUDIT   	   = "@TBAUDITEMAIL@";
 my $TBBASE         = "@TBBASE@";
 my $TBWWW          = "@TBWWW@";
 my $WIKISUPPORT    = @WIKISUPPORT@;
+my $WITHZFS        = @WITHZFS@;
+my $ZFS_NOEXPORT   = @ZFS_NOEXPORT@;
+my $WITHAMD        = @WITHAMD@;
 my $BOSSNODE       = "@BOSSNODE@";
 my $CONTROL	   = "@USERNODE@";
 my $OURDOMAIN      = "@OURDOMAIN@";
@@ -61,6 +64,7 @@ my $MIN_UNIX_GID   = @MIN_UNIX_GID@;
 my $tbacct	   = "$TB/sbin/tbacct";
 my $MKUSERCERT     = "$TB/sbin/mkusercert";
 my $EXPIRE_PASSWORDS = @EXPIRE_PASSWORDS@;
+my $EXPORTS_SETUP  = "$TB/sbin/exports_setup";
 
 # Create() flags.
 $NEWUSER_FLAGS_PROJLEADER	= 0x01;
@@ -78,12 +82,13 @@ $USERSTATUS_UNVERIFIED		= "unverified";
 $USERSTATUS_NEWUSER	        = "newuser";
 $USERSTATUS_ARCHIVED	        = "archived";
 $USERSTATUS_NONLOCAL	        = "nonlocal";
+$USERSTATUS_INACTIVE	        = "inactive";
 
 # Why, why, why?
 @EXPORT_OK = qw($NEWUSER_FLAGS_PROJLEADER $NEWUSER_FLAGS_WIKIONLY
 		$NEWUSER_FLAGS_WEBONLY $NEWUSER_FLAGS_ARCHIVED
 		$NEWUSER_FLAGS_NOUUID
-		$USERSTATUS_ACTIVE $USERSTATUS_FROZEN
+		$USERSTATUS_ACTIVE $USERSTATUS_FROZEN $USERSTATUS_INACTIVE
 		$USERSTATUS_UNAPPROVED $USERSTATUS_UNVERIFIED
 		$USERSTATUS_NEWUSER $USERSTATUS_ARCHIVED $USERSTATUS_NONLOCAL);
 
@@ -2208,6 +2213,53 @@ sub GetStoredCredential($)
     
     my ($cred, $cert) = $query_result->fetchrow_array();
     return ($cred, $cert);
+}
+
+#
+# Do an exports setup if needed (ZFS). See exports_setup, when ZFS is on
+# we do not export all users, only recently active ones. 
+#
+sub UpdateExports($)
+{
+    my ($self) = @_;
+    my $uid_idx = $self->uid_idx();
+
+    return 0
+	if (! ($WITHZFS && ($ZFS_NOEXPORT || !$WITHAMD)));
+
+    my $query_result =
+	DBQueryWarn("select UNIX_TIMESTAMP(weblogin_last) from users as u ".
+		    "left join user_stats as s on s.uid_idx=u.uid_idx ".
+		    "where u.uid_idx='$uid_idx'");
+    # Hmm.
+    return 0
+	if (!$query_result->numrows);
+
+    my ($lastlogin) = $query_result->fetchrow_array();
+	
+    if (!defined($lastlogin) ||
+	time() - $lastlogin > (24 * 3600)) {
+	# Update weblogin_last first so exports_setup will do something.
+	DBQueryWarn("update user_stats set ".
+		    " weblogin_last=now() ".
+		    "where uid_idx='$uid_idx'")
+	    or return -1;
+
+	if ($ZFS_NOEXPORT) {
+	    mysystem($EXPORTS_SETUP);
+	}
+	elsif (!$WITHAMD) {
+	    mysystem($EXPORTS_SETUP . " -B");
+	}
+	# failed, reset the timestamp
+	if ($? && defined($lastlogin)) {
+	    DBQueryWarn("update user_stats set ".
+			" weblogin_last=FROM_UNIXTIME($lastlogin) ".
+			"where uid_idx='$uid_idx'");
+	    return -1;
+	}
+    }
+    return 0;
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

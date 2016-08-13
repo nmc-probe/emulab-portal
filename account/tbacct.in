@@ -1151,9 +1151,11 @@ sub ReactivateUser()
     #
     if ($status ne USERSTATUS_ACTIVE) {
 	fatal("$user is not active! Cannot reactivate the account!")
-	    if (!$update);
-	$target_user->SetStatus(USERSTATUS_ACTIVE());
-	$status = USERSTATUS_ACTIVE();
+	    if (! ($update || $force));
+	if ($update) {
+	    $target_user->SetStatus(USERSTATUS_ACTIVE());
+	    $status = USERSTATUS_ACTIVE();
+	}
     }
     $UID = 0;
     if ($CONTROL ne $BOSSNODE) {

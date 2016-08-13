@@ -134,6 +134,7 @@ sub CreateSSHKey();
 sub ReactivateUser();
 sub DeactivateUser();
 sub fatal($);
+sub SetDotGroup($$);
 sub ZFSexists($);
 sub MakeDir($$);
 sub WhackDir($$);
@@ -338,30 +339,10 @@ sub ModifyUser()
     if (@ARGV > 0) {
 	$grouplist = "-G '" . join(',', @ARGV) . "'";
     }
-
     if (mysystem("$USERMOD $user -g $pgroup $grouplist")) {
 	fatal("Could not modify user $user to add groups!\n");
     }
-
-    #
-    # Make sure the users dot files and other critical files/dirs
-    # are in the correct group. I looked at the source code to
-    # chown, and it does not do anything to files that are already
-    # set correctly. Thank you chown.
-    #
-    my @dots = (".login", ".profile", ".cshrc", ".ssl", ".ssh");
-    my $homedir = USERROOT() . "/$user";
-
-    mysystem("$CHOWN $user:$pgroup $homedir") == 0
-	or fatal("Could not chown home dir to $user:$pgroup");
-
-    foreach my $dot (@dots) {
-	if (-e "$homedir/$dot") {
-	    mysystem("$CHOWN -R $user:$pgroup $homedir/$dot") == 0
-		or fatal("Could not chown $homedir/$dot to $user:$pgroup");
-	}
-    }
-
+    SetDotGroup($user, $pgroup);
     return 0;
 }
 
@@ -412,6 +393,16 @@ sub ReactivateUser()
     if (mysystem("$USERMOD $user -d $hdir")) {
 	fatal("Could not set home directory back to $hdir");
     }
+    #
+    # Make dot files are in the right group, since while the user was
+    # inactive, we skipped doing that cause the home dir was unmounted
+    # (ZFS). Need the current default group for that.
+    #
+    my (undef,undef,undef,$gid) = getpwnam($user);
+    if (!defined($gid)) {
+	fatal("Could not get gid for $user");
+    }
+    SetDotGroup($user,$gid);
     return 0;
 }
 
@@ -751,6 +742,36 @@ sub CreateSSHKey()
 }
 
 #
+# Make sure the users dot files and other critical files/dirs
+# are in the correct group. I looked at the source code to
+# chown, and it does not do anything to files that are already
+# set correctly. Thank you chown.
+#
+sub SetDotGroup($$)
+{
+    my ($user, $gid) = @_;
+
+    my @dots = (".login", ".profile", ".cshrc", ".ssl", ".ssh");
+    my $homedir = USERROOT() . "/$user";
+
+    if (! -e $homedir) {
+	print STDERR "$homedir does not exist, skipping dots chown\n";
+	return 0;
+    }
+    print "Changing dot files group for $user to $gid\n";
+    
+    mysystem("$CHOWN $user:$gid $homedir") == 0
+	or fatal("Could not chown home dir to $user:$gid");
+
+    foreach my $dot (@dots) {
+	if (-e "$homedir/$dot") {
+	    mysystem("$CHOWN -R $user:$gid $homedir/$dot") == 0
+		or fatal("Could not chown $homedir/$dot to $user:$gid");
+	}
+    }
+}
+
+#
 # Check for ZFS existence.
 #
 sub ZFSexists($)
@@ -883,7 +904,15 @@ sub WhackDir($$)
 	# Since we reuse uid/gids let's make the dir root/0700
 	$path = "$fs/$dir$suffix";
 	if (!chown(0, 0, $path) || !chmod(0700, $path)) {
-	    print STDERR "WARNING: could not chown/chmod '$path'!\n";
+	    print STDERR "WARNING: could not chown/chmod '$path': $!\n";
+	}
+	#
+	# And then unmount, we do not need it around. The empty subdir
+	# will still be there, so we have some clue ... maybe we should
+	# drop a file into the empty dir?
+	#
+	if ($zfsfs && mysystem("$ZFS set mountpoint=none $npath")) {
+	    print STDERR "Could not set ZFS dir $npath to mountpoint=none\n";
 	}
     }
     #

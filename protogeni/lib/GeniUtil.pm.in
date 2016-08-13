@@ -112,6 +112,7 @@ sub FlipToUser($$;$)
 	$default_gid = $unix_gid;
 	$glist = "$unix_gid $unix_gid";
     }
+    
     $GID            = $default_gid;
     $EGID           = $glist;
     $EUID = $UID    = $unix_uid;
@@ -564,27 +565,10 @@ sub GetHoldingProject($$)
 	$ENV{'EMULAB_REAL_USER'} = $creator->emulab_user()->uid_idx();
     }
   done:
-    if ($WITHZFS) {
-	if ($ZFS_NOEXPORT) {
-	    #
-	    # Have to force the new directories to be exported.
-	    # See ZFS code in exports_setup
-	    #
-	    $project->BumpActivity();
-	    system($EXPORTSSETUP) == 0 or
-		fatal("$EXPORTSSETUP failed");
-	} elsif (!$WITHAMD) {
-	    #
-	    # If we are using autofs, we need to recreate the local autofs
-	    # mapfile so it includes the newly created directories. Otherwise,
-	    # accesses to those new directories will not force a mount and
-	    # the waitForMount() calls below will always fail.
-	    #
-	    $project->BumpActivity();
-	    system("$EXPORTSSETUP -B") == 0 or
-		fatal("$EXPORTSSETUP -B failed");
-	}
+    if ($creator->IsLocal()) {
+	$creator->UpdateExports();
     }
+    $project->UpdateExports();
     return $group;
 }
 
