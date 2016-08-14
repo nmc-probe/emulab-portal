@@ -48,7 +48,8 @@ all:	Genixmlrpc.pm GeniResponse.pm \
 	protogeni-ch.pm protogeni-sa.pm protogeni-cm.pm protogeni-emulab.pm \
 	protogeni-ses.pm geni-am.pm geni-ma.pm geni-sa.pm \
 	protogeni-wrapper.pl protogeni-console.pl protogeni-portal.pm \
-	protogeni-ims.pm cluster-wrapper.pl ClusterWrapper.pm ProtoGeniDefs.pm
+	protogeni-ims.pm cluster-wrapper.pl ClusterWrapper.pm ProtoGeniDefs.pm \
+	protogeni-cluster.pm
 
 include $(TESTBED_SRCDIR)/GNUmakerules
 
@@ -61,6 +62,7 @@ install-libs: $(INSTALL_LIBDIR)/Genixmlrpc.pm \
          $(INSTALL_LIBDIR)/protogeni-ims.pm \
          $(INSTALL_LIBDIR)/protogeni-ses.pm \
          $(INSTALL_LIBDIR)/protogeni-emulab.pm \
+         $(INSTALL_LIBDIR)/protogeni-cluster.pm \
          $(INSTALL_LIBDIR)/ClusterWrapper.pm \
          $(INSTALL_LIBDIR)/ProtoGeniDefs.pm \
          $(INSTALL_LIBDIR)/geni-am.pm \

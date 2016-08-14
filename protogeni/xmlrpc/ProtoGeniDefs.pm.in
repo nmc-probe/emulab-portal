@@ -160,6 +160,7 @@ $V2_METHODS = {
     "DeleteDataset"     => \&GeniCMV2::DeleteDataset,
     "DescribeDataset"   => \&GeniCMV2::DescribeDataset,
     "ModifyDataset"     => \&GeniCMV2::ModifyDataset,
+    "GetDatasetCredential" => \&GeniCMV2::GetDatasetCredential,
     "Lockdown"          => \&GeniCMV2::Lockdown,
     "TriggerImageUpdate"=> \&GeniCMV2::TriggerImageUpdate,
     "AddNodes"          => \&GeniCMV2::AddNodes,

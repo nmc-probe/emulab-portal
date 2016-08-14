@@ -188,6 +188,20 @@ BEGIN {
 sub CallMethod($$$@)
 {
     my ($httpURL, $context, $method, @args) = @_;
+
+    return CallMethodInternal($httpURL, $context, undef, $method, @args);
+}
+sub CallMethodStream($$$$@)
+{
+    my ($httpURL, $context, $fp, $method, @args) = @_;
+
+
+    return CallMethodInternal($httpURL, $context, $fp, $method, @args);
+}
+sub CallMethodInternal($$$$@)
+{
+    my ($httpURL, $context, $fp, $method, @args) = @_;
+    my $xmlgoo;
     require RPC::XML;
     require RPC::XML::Parser;
     require HTTP::Request::Common;
@@ -204,6 +218,20 @@ sub CallMethod($$$@)
 	return GeniResponse->new(GENIRESPONSE_RPCERROR, -1,
 				 "Must provide an rpc context");
     }
+
+    # Callback to write the data, when streaming to a file.
+    my $callback = sub {
+	my ($data) = @_;
+	if ($data =~ /^\<\?xml/) {
+	    $xmlgoo = $data;
+	    return;
+	}
+	my $retval = syswrite($fp, $data);
+	if (!defined($retval)) {
+	    die("Error writing data to output stream");
+	}
+	print ".";
+    };
 
     my $FBSD_MAJOR = 4;
     my $FBSD_MINOR = 10;
@@ -300,7 +328,9 @@ sub CallMethod($$$@)
     $hreq->content_type('text/xml');
     $hreq->content($reqstr);
     $hreq->protocol('HTTP/1.0')	if ($FBSD_MAJOR >= 8);
-    my $hresp = $ua->request($hreq);
+    my $hresp = (defined($fp) ?
+		 $ua->request($hreq, $callback, 0x20000) :
+		 $ua->request($hreq));
 
     # Do this or the next call gets messed up.
     delete($ENV{'HTTPS_CERT_FILE'});
@@ -317,12 +347,17 @@ sub CallMethod($$$@)
 	return GeniResponse->new(GENIRESPONSE_RPCERROR,
 				 $hresp->code(), $hresp->message());
     }
+    # Streamed the data okay, we are done.
+    if (defined($fp) && !defined($xmlgoo)) {
+	return GeniResponse->new(GENIRESPONSE_SUCCESS);
+    }
 
     #
     # Read back the xmlgoo from the child.
     #
-    my $xmlgoo = $hresp->content();
-
+    if (!defined($xmlgoo)) {
+	$xmlgoo = $hresp->content();
+    }
     if ($debug > 1) {
 	print STDERR "xmlgoo: " . $xmlgoo;
 	print STDERR "\n";

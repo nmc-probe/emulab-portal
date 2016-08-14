@@ -130,6 +130,7 @@ my %GENI_MODULES = ( "cm"        => "@prefix@/lib/protogeni-cm.pm",
 		     "ses"       => "@prefix@/lib/protogeni-ses.pm",
 		     "portal"    => "@prefix@/lib/protogeni-portal.pm",
 		     "ims"       => "@prefix@/lib/protogeni-ims.pm",
+		     "cluster"   => "@prefix@/lib/protogeni-cluster.pm",
 		     # XXX This is temporary! 
 		     "instools"  =>
 		             "@prefix@/lib/instools/protogeni-instools.pm",
@@ -164,6 +165,7 @@ my $noanything = 0;
 # Flag for XMLERROR.
 my $logging    = 0;
 my $logforked  = 0;
+my $logaborted = 0;
 my $iserror    = 0;
 my $rpcerror   = 0;
 my $logfile    = undef;
@@ -501,6 +503,11 @@ sub AddLogfileMetaDataFromSpeaksFor($)
     AddLogfileMetaData("speaking_urn",   $speaksfor->owner_urn());
     AddLogfileMetaData("speaking_uuid",  $speaksfor->owner_uuid());
 }
+sub AbortLogging()
+{
+    LogEnd(0);
+    $logaborted = 1;
+}
 
 #
 # Okay, we want to catch warning, specifically uninitialized
@@ -730,20 +737,22 @@ else {
 	    push(@metadata, ["Code", $result->{'code'}])
 	}
     }
-    # Add first line of result output to metadata. Bigger stuff
-    # will land at the end of the file. 
-    if (ref($result) && defined($result->{'output'}) &&
-	$result->{'output'} ne "") {
-	push(@metadata, ["Output", ( split /\n/, $result->{'output'} )[0]]);
-    }
-    # Purge old data; if we forked we want latest. 
-    $logfile->SetMetadata(\@metadata, 1);
+    if (!$logaborted) {
+	# Add first line of result output to metadata. Bigger stuff
+	# will land at the end of the file. 
+	if (ref($result) && defined($result->{'output'}) &&
+	    $result->{'output'} ne "") {
+	    push(@metadata, ["Output", ( split /\n/, $result->{'output'} )[0]]);
+	}
+	# Purge old data; if we forked we want latest. 
+	$logfile->SetMetadata(\@metadata, 1);
     
-    foreach my $foo (@metadata) {
-	my ($key,$val) = @{$foo};
-	$message .= sprintf("%-15s: %s\n", $key, $val);
+	foreach my $foo (@metadata) {
+	    my ($key,$val) = @{$foo};
+	    $message .= sprintf("%-15s: %s\n", $key, $val);
+	}
+	AddAuditInfo("message", $message);
     }
-    AddAuditInfo("message", $message);
 
     # Do not send debugging mail for these two errors and do not save
     # the logfiles.
@@ -812,7 +821,8 @@ else {
 # Abort the log capture so that we can print the response to STDOUT
 # for the web server. But first deal with the email.
 #
-LogAbort();
+LogAbort()
+    if (!$logaborted);
 
 #
 # If nothing in the log and no error, then we just store the metadata
@@ -839,7 +849,7 @@ if (!$logforked) {
 }
 
 print "Content-Type: text/xml \n\n" . $response
-    if (defined($response));
+    if (defined($response) && !$logaborted);
 exit(0);
 
 #
