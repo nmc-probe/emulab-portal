@@ -89,8 +89,10 @@ my $UPDATEGENIUSER= "$TB/sbin/protogeni/updategeniuser";
 my $STITCHER      = "$TB/gcf/src/stitcher.py";
 my $OPENSSL       = "/usr/bin/openssl";
 my $MANAGEINSTANCE= "$TB/bin/manage_instance";
+my $MANAGEDATASET = "$TB/bin/manage_dataset";
 my $DEFAULT_URN   = "urn:publicid:IDN+$OURDOMAIN+authority+cm";
 my $GUEST_URN     = "urn:publicid:IDN+apt.emulab.net+authority+cm";
+my $PROTOGENI_LOCALUSER= @PROTOGENI_LOCALUSER@;
 my $default_aggregate_urn = $DEFAULT_URN;
 
 # un-taint path
@@ -112,6 +114,7 @@ use APT_Instance;
 use APT_Geni;
 use APT_Dataset;
 use APT_Aggregate;
+use Experiment;
 use User;
 use Project;
 use Group;
@@ -638,9 +641,12 @@ my $SERVER_NAME = (exists($ENV{"SERVER_NAME"}) ? $ENV{"SERVER_NAME"} : "");
 #
 # Make sure slice is unique. Probably retry here at some point. 
 #
-if (GeniSlice->Lookup($slice_hrn) || GeniSlice->Lookup($slice_urn)) {
+if (GeniSlice->Lookup($slice_hrn) || GeniSlice->Lookup($slice_urn) ||
+    ($PROTOGENI_LOCALUSER &&
+     (grep {$_ eq $DEFAULT_URN} @aggregate_urns) &&
+     Experiment->Lookup($project->pid(), $userslice_id))) {
     if (defined($userslice_id)) {
-	UserError("Slice name already in use, please use another. If you ".
+	UserError("Experiment name already in use, please use another. If you ".
 		  "just terminated an experiment with this name, it takes a ".
 		  "minute or two for the name to become available again.");
     }
