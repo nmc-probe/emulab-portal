@@ -4225,16 +4225,23 @@ sub CreateVtop($)
     # Allow override of delay osid.
     if (defined($self->virtexperiment()->delay_osname())) {
 	my $osname = $self->virtexperiment()->delay_osname();
-	my $osinfo = OSinfo->Lookup($pid, $osname);
-	if (!defined($osinfo)) {
-	    $osinfo = OSinfo->LookupByName($osname);
+	my $osinfo;
+
+	if ($osname =~ /^(.*)\/(.*)$/) {
+	    $osinfo = OSinfo->Lookup($osname);
+	}
+	else {
+	    $osinfo = OSinfo->Lookup($pid, $osname);
 	    if (!defined($osinfo)) {
-		tberror({cause => 'user',
-			 type => 'primary', severity => SEV_ERROR,
-			 error => ['invalid_os', 'delay', $osname, $pid]},
-			"Invalid OS $osname in project $pid!");
-		return -1;
+		$osinfo = OSinfo->LookupByName($osname);
 	    }
+	}
+	if (!defined($osinfo)) {
+	    tberror({cause => 'user',
+		     type => 'primary', severity => SEV_ERROR,
+		     error => ['invalid_os', 'delay', $osname, $pid]},
+		    "Invalid OS $osname in project $pid!");
+	    return -1;
 	}
 	my $osid = $osinfo->osid();
 	$self->options()->{'delay_osid'} = $osid;
@@ -7382,8 +7389,12 @@ sub InitializePhysNode($$$)
 		$cmdline = $self->osidbootcmd($osid, "linkdelay", "");
 	    }
 	    elsif ($virtnode->_isbridge()) {
-		$osid = ($self->option("delay_osid") || $pnode->delay_osid());
-		undef($osinfo);
+		# Allow user to override defaults on a per-node basis.
+		if (! defined($virtnode->_osinfo())) {
+		    $osid = ($self->option("delay_osid") ||
+			     $pnode->delay_osid());
+		    undef($osinfo);
+		}
 		$cmdline = $self->osidbootcmd($osid, "delay", "");
 		$role = TBDB_RSRVROLE_DELAYNODE();
 		$routertype = TBDB_ROUTERTYPE_NONE;
@@ -7479,10 +7490,26 @@ sub InitializePhysNode($$$)
 		tberror("Could not resolve specific osid for $osinfo on $pnode!\n");
 		return -1;
 	    }
-	    # If the specific OS is already loaded, go ahead and set to that
-	    # so that we do not cause a boot problem on the node.
-	    if ($pnode->IsOSLoaded($tmp)) {
-		$osinfo = $tmp;
+	    $osinfo = $tmp;
+	}
+	#
+	# If the node is in RES_READY (already in the experiment, this
+	# is a swapmod), check to see if the node is running an older
+	# version of the same OS. If it is, we do not want to change it,
+	# since then it will get reloaded. Consider, if a system image
+	# is updated and released (version number changes), any nodes
+	# running the previously released image in an experiment, will
+	# get reloaded during a swapmod, and 99.9 percent of the time,
+	# that is not what users expect or want.
+	#
+	if ($pnode->allocstate() eq TBDB_ALLOCSTATE_RES_READY()) {
+	    my ($curosinfo) = $pnode->RunningOsImage();
+	    if (defined($curosinfo) &&
+		$curosinfo->osid() == $osinfo->osid() &&
+		$curosinfo->vers() != $osinfo->vers()) {
+		$self->printdb("  Not changing to different version ".
+			       "of $curosinfo\n");
+		$osinfo = $curosinfo;
 	    }
 	}
 	
