@@ -204,7 +204,9 @@ function (_, sup, moment, aptforms,
 	    }
 	    aptforms.SubmitForm('#create_dataset_form', "dataset",
 				(editing ? "modify" : "create"),
-				submit_callback);
+				submit_callback,
+				"This will take a minute or two; " +
+				"please be patient!");
 	};
 	aptforms.CheckForm('#create_dataset_form', "dataset",
 			   (editing ? "modify" : "create"),
