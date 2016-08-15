@@ -180,7 +180,7 @@ function Do_ProjectProfile()
     $results["leader"]      = $target_project->head_uid();
     $results["portal"]      = $target_project->portal();
     $results["created"]     = DateStringGMT($target_project->created());
-    $results["approved"]    = $target_project->approved();
+    $results["approved"]    = $target_project->approved() ? true : false;
     $results["url"]         = $target_project->URL();
     $results["description"] = $target_project->name();
     $results["why"]         = $target_project->why();
