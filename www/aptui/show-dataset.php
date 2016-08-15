@@ -149,7 +149,8 @@ if ($cansnapshot && !$embedded) {
                                         $instance->profile_version());
         if ($instance && $profile) {
             $instance_array[] =
-                array("uuid" => $instance->uuid(), "name" => $profile->name());
+                array("uuid" => $instance->uuid(),
+                      "name" => $instance->name());
         }
     }
     echo "<script type='text/plain' id='instances-json'>\n";
