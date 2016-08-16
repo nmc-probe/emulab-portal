@@ -60,7 +60,7 @@ my $USEABACCREDS  = 0;
 #
 sub GenCredentials($$;$$)
 {
-    my ($target, $geniuser, $privs, $allowexpiredspeaksfor) = @_;
+    my ($target, $geniuser, $privs, $allowexpired) = @_;
     my ($speaksfor, $credential, $oldexpires);
     # If the caller does not want a speaksfor, do not generate.
     my $wantspeaksfor = wantarray;
@@ -114,17 +114,35 @@ sub GenCredentials($$;$$)
 		goto bad;
 	    }
 	}
+	my $certificate =
+	    GeniCertificate->LoadFromString($certificate_string);
+	if (!defined($certificate)) {
+	    print STDERR "Could not load certificate from string\n";
+	    goto bad;
+	}
+	
 	#
-	# Ick, if the speaks for credential has expired, we cannot
-	# operate as the user. We have no choice but to throw away
-	# these credentials and generate a new one issued to the local
-	# SA instead of the user and not bother with a speaksfor.
+	# We need to generate an SA credential if either the speaksfor or
+	# the user certificate is expired, and the caller is allowing the
+	# use of an SA credential instead (as for terminate, etc). 
 	#
-	if ($speaksfor->IsExpired()) {
+	my $gensacert = 0;
+
+	if ($certificate->IsExpired()) {
+	    print STDERR "certificate for $geniuser has expired\n";
+	    goto bad
+		if (!$allowexpired);
+	    
+	    $gensacert = 1;
+	}
+	if ($wantspeaksfor && $speaksfor->IsExpired()) {
 	    print STDERR "speaksfor credential for $geniuser has expired\n";
 	    goto bad
-		if (!$allowexpiredspeaksfor);
+		if (!$allowexpired);
 
+	    $gensacert = 1;
+	}
+	if ($gensacert) {
 	    # Be careful not to return this.
 	    $speaksfor = undef;
 	    
@@ -135,12 +153,6 @@ sub GenCredentials($$;$$)
 		goto bad;
 	    }
 	    goto cached;
-	}
-	my $certificate =
-	    GeniCertificate->LoadFromString($certificate_string);
-	if (!defined($certificate)) {
-	    print STDERR "Could not load certificate from string\n";
-	    goto bad;
 	}
 	$credential = GeniCredential->Create($target, $certificate);
     }
