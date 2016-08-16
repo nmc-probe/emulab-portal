@@ -52,6 +52,7 @@ sub usage()
     print("Usage: manage_instance updatekeys instance [uid] \n");
     print("Usage: manage_instance extend instance [-m message] days [filename]\n");
     print("Usage: manage_instance denyextension instance [-m message] [filename]\n");
+    print("Usage: manage_instance checkreservation instance days\n");
     print("Usage: manage_instance moreinfo instance [-m message] [filename]\n");
     print("Usage: manage_instance extendold instance [-f] seconds\n");
     print("Usage: manage_instance utilization instance\n");
@@ -1593,11 +1594,19 @@ sub ExtendInternal($$$$)
 
     #
     # Do a reservation check first. We do not care if it fails (yet),
-    # just keep going.
+    # just keep going. We want to report results back to the web interface.
     #
+    if (defined($webtask)) {
+	$webtask->CheckReservationResult(0);
+	$webtask->CheckReservationMessage("");
+    }
     if (CheckReservationInternal($slice, $new_expires, \$errmsg)) {
 	if ($debug) {
 	    print "Reservation denied! $errmsg\n";
+	}
+	if (defined($webtask)) {
+	    $webtask->CheckReservationMessage($errmsg);
+	    $webtask->CheckReservationResult(1);
 	}
     }
 
@@ -1692,7 +1701,17 @@ sub DoCheckReservation()
     my $expiration = POSIX::strftime("20%y-%m-%d %H:%M:%S %Z",
 				     localtime(str2time($slice->expires()) +
 					       3600 * 24 * $wanted));
-
+    #
+    # Create the webtask object; the web interface gave us an anonymous
+    # webtask, so we can use it before lock.
+    #
+    if (defined($webtask_id)) {
+	$webtask = WebTask->Lookup($webtask_id);
+	fatal("Could not lookup webtask object")
+	    if (!defined($webtask));
+	# Convenient.
+	$webtask->AutoStore(1);
+    }
     if ($slice->Lock()) {
 	print STDERR "Experiment is busy, cannot lock it. Try again later.\n";
 	exit(GENIRESPONSE_BUSY);
@@ -1701,11 +1720,18 @@ sub DoCheckReservation()
 	if ($debug) {
 	    print "Reservation denied! $errmsg\n";
 	}
+	if (defined($webtask)) {
+	    $webtask->output($errmsg);
+	    $webtask->Exited(1);
+	}
 	$slice->UnLock();
 	exit(1);
     }
     if ($debug) {
 	print "Reservation allowed!\n";
+    }
+    if (defined($webtask)) {
+	$webtask->Exited(0);
     }
     $slice->UnLock();
     exit(0);
