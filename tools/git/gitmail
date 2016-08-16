@@ -526,7 +526,7 @@ foreach my $refline (@reflines) {
     # Figure out which commits we're interested in based on reference type
     # and change type.
     #
-    if ($ref_type eq 'tag') {
+    if ($ref_type eq 'tag' || $ref_type eq 'note') {
 	if ($ct eq $CT_DELETE) {
 	    # We want to know where the tag used to point before deletion
 	    push @commits, $oldrev;
@@ -595,7 +595,7 @@ sub change_type($$$) {
         return $CT_CREATE;
     } elsif ($newrev eq $EMPTYREV) {
         return $CT_DELETE;
-    } elsif ($ref_type eq 'tag') {
+    } elsif ($ref_type eq 'tag' || $ref_type eq 'note') {
 	    return $CT_UPDATE;
     } else {
 	my $merge_base = get_merge_base($oldrev,$newrev);
@@ -631,6 +631,8 @@ sub ref_type($) {
 	    $type = 'branch';
     } elsif ($ref =~ m#^refs/tags/#) {
 	    $type = 'tag';
+    } elsif ($ref =~ m#^refs/notes/#) {
+	    $type = 'note';
     }
     return $type;
 }
