@@ -399,10 +399,10 @@ function Do_RequestExtension()
     }
     # Refresh. 
     $slice = GeniSlice::Lookup("sa", $instance->slice_uuid());
-    $new_expires = date("Y-m-d H:i:s T", strtotime($slice->expires()));
-    
+    $blob = array("expiration" => 
+                  date("Y-m-d H:i:s T", strtotime($slice->expires())));
     $webtask->Delete();
-    SPITAJAX_RESPONSE($new_expires);
+    SPITAJAX_RESPONSE(blob);
 bad:
 delay:
     sleep(1);

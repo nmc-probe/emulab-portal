@@ -760,10 +760,11 @@ function (_, sup, moment, marked, UriTemplate, ShowImagingModal,
 	    sup.SpitOops("oops", message);
 	    return;
 	}
-	$("#quickvm_expires").html(moment(json.value).format('lll'));
+	var expiration = json.value.expiration;
+	$("#quickvm_expires").html(moment(expiration).format('lll'));
 	
 	// Reset the countdown clock.
-	StartCountdownClock.reset = json.value;
+	StartCountdownClock.reset = expiration;
     }
 
     //
