@@ -264,6 +264,7 @@ if [ $haveemulabswap -eq 0 ]; then
     if [ -z "$uuid" ]; then
 	mkswap $emulabswapdev
 	uuid=`blkid $emulabswapdev | grep "TYPE=['\"]swap['\"]" | sed -n -r -e "s/^[^ \t]*[ \t]UUID=['\"]([^'\"]*)['\"].*$/\1/p"`
+	logit "Finished mkswap default Emulab swap partition $emulabswapdev (new uuid $uuid)!"
     fi
 
     if [ -z "$uuid" ]; then
