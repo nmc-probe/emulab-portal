@@ -1,0 +1,22 @@
+#!/bin/sh
+
+. /etc/emulab/paths.sh
+
+RUNDIR=/run/emulab
+FSTAB=/etc/fstab
+
+#
+# These are the things the Emulab version of the systemd-fstab-generator
+# could not do, since the root device isn't mounted read-write during
+# generator run.  So, do them now if necessary.
+#
+if [ -f $RUNDIR/generated_swaps ]; then
+    echo "Recording Emulab-generated swaps"
+    mv $RUNDIR/generated_swaps $BOOTDIR/
+    if [ -f $RUNDIR/generated_fstab ]; then
+    echo "Moving Emulab-generated fstab to /etc/fstab"
+    mv $RUNDIR/generated_fstab $FSTAB
+    fi
+fi
+
+exit 0

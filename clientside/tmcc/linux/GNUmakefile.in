@@ -177,6 +177,7 @@ systemd-dir-install: dir-install
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(SYSETCDIR)/systemd
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(SYSETCDIR)/systemd/system
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(SYSETCDIR)/systemd/system/multi-user.target.wants
+	$(INSTALL) -m 755 -o root -g $(DIRGROUP) -d $(SYSETCDIR)/systemd/system-generators
 
 common-install:	dir-install
 	(cd ../common; $(MAKE) DESTDIR=$(DESTDIR) local-install)
@@ -255,7 +256,11 @@ sysetc-install-systemd: systemd-dir-install
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) \
 		$(SRCDIR)/testbed $(BINDIR)/initscripts/
 	$(INSTALL) -m 755 -o root -g $(DIRGROUP) \
-		$(SRCDIR)/emulab-systemd-swaps $(BINDIR)/initscripts
+		$(SRCDIR)/fstab-generator-finish $(BINDIR)/initscripts
+	# Install our fstab generator wrapper
+	$(INSTALL) -m 755 -o root -g $(DIRGROUP) \
+		$(SRCDIR)/fstab-generator \
+		$(SYSETCDIR)/systemd/system-generators/systemd-fstab-generator
 	# Install the service unit files
 	$(INSTALL) -m 644 -o root -g $(DIRGROUP) \
 		$(SRCDIR)/testbed.service $(SYSETCDIR)/systemd/system
