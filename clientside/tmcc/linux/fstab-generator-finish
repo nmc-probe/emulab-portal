@@ -12,10 +12,16 @@ FSTAB=/etc/fstab
 #
 if [ -f $RUNDIR/generated_swaps ]; then
     echo "Recording Emulab-generated swaps"
-    mv $RUNDIR/generated_swaps $BOOTDIR/
-    if [ -f $RUNDIR/generated_fstab ]; then
-    echo "Moving Emulab-generated fstab to /etc/fstab"
-    mv $RUNDIR/generated_fstab $FSTAB
+    # NB: copy instead of mv, because systemd re-runs generators
+    # regularly, and we don't want to re-run the Emulab-specific part of
+    # the generator if anybody (i.e. prepare) cleans out
+    # /var/emulab/boot, as long as $RUNDIR state is still in place.
+    cp -p $RUNDIR/generated_swaps $BOOTDIR/
+    if [ -s $RUNDIR/generated_fstab ]; then
+        echo "Moving Emulab-generated fstab to /etc/fstab"
+        mv $RUNDIR/generated_fstab $FSTAB
+    elif [ -f $RUNDIR/generated_fstab ]; then
+	echo "Not Moving Emulab-generated fstab to /etc/fstab; 0 bytes!"
     fi
 fi
 

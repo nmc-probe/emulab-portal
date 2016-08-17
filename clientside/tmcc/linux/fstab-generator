@@ -88,7 +88,9 @@ fi
 
 # Ok, we are running this on a clean Emulab node.
 mkdir -p $RUNDIR
-touch $TMPFSTAB
+# Use truncate to either create or zero the file; we only append to it,
+# so it has to be empty.
+truncate -s 0 $TMPFSTAB
 
 # Get our configuration.
 NEVERMKSWAP=0
@@ -193,8 +195,10 @@ while read -r line ; do
 
 	if [ -n "$dev" ] ; then
 	    # Maybe it is already a sane swap partition.
-	    blkid "$dev" | grep -q "TYPE=['\"]swap['\"]"
+	    output=`blkid "$dev"`
+	    echo "$output" | grep -q "TYPE=['\"]swap['\"]"
 	    if [ ! $? -eq 0 ]; then
+		logit "$dev needs mkswap: blkid reports '$output'"
 		needsmkswap=1
 		# Needs a mkswap, so check partition type.
 		npdev=`echo "$dev" | sed -r -n -e 's/^(.*[^0-9])[0-9]+$/\1/p'`
