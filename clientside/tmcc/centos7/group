@@ -57,3 +57,4 @@ systemd-bus-proxy:x:189:
 dialout:x:18:
 tape:x:33:
 systemd-journal:x:190:
+radvd:x:75:
