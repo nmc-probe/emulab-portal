@@ -15,6 +15,7 @@ fi
 
 if [ "$command" = "add" ]; then
     echo "auto $iface" >$RUNDIR/$PREFIX-$iface-$stripaddr
+    ifconfig "$iface" up
 elif [ "$command" = "remove" ]; then
     if [ -f $RUNDIR/$PREFIX-$iface-$stripaddr ]; then
         rm -f $RUNDIR/$PREFIX-$iface-$stripaddr
