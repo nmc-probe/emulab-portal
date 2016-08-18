@@ -106,6 +106,8 @@ sysetc-fixup:
 	rm -f $(SYSETCDIR)/rc.local
 
 sysetc-install:	dir-install
+	$(INSTALL) -m 755 $(SRCDIR)/dhclient.conf \
+			$(SYSETCDIR)/dhcp/dhclient.conf
 	$(INSTALL) -m 755 $(SRCDIR)/dhclient-exit-hooks \
 			$(SYSETCDIR)/dhcp/dhclient-exit-hooks.d/emulab
 	$(INSTALL) -m 755 $(SRCDIR)/dhclient-enter-hooks \

@@ -173,10 +173,67 @@ elif static_widearea_config $iface; then
     fi
 else
     #
-    # Find a list of candidate interfaces
+    # Find a list of candidate interfaces and run dhclient on them all.
     #
-    _iflist=`ifconfig -a | grep -E '^(eth|en|sl)' | awk '{ print $1 }'`
-    echo "`date`: $iface: findcnet running dhclient on: $_iflist"
+    # Also wait until either the previous control net device is up, or
+    # until at least one is up (if this is first boot of the image and
+    # there is not yet a previous control net device), or a max amount
+    # of time.
+    #
+    MAXUPWAITTIME=6
+    LEASES="/var/lib/dhcp/dhclient.leases"
+    prevcnetdevs=
+    if [ -f $LEASES ]; then
+	prevcnetdevs=`cat $LEASES | sed -n -r -e 's/^[ \t]*interface[ \t]*"([^"]*)".*$/\1/p' | uniq | xargs`
+	echo "`date`: $iface: findcnet found '$prevcnetdevs' possible previous control net devices from old DHCP leases" >>$LOGDIR/dhclient.log
+    fi
+    _iflist=`ifconfig -a | grep -E '^(eth|en|sl)' | awk '{ print $1 }' | xargs`
+    lpc=0
+    while [ $lpc -lt $MAXUPWAITTIME ]; do
+	_iflist=`ifconfig -a | grep -E '^(eth|en|sl)' | awk '{ print $1 }' | xargs`
+	echo "`date`: $iface: findcnet checking $lpc for up devices: $_iflist" >>$LOGDIR/dhclient.log
+	downifs=0
+	upifs=0
+	upifaces=
+	foundprevcnet=0
+	for _if in $_iflist ; do
+	    ip link show "$_if" | grep -q LOWER_UP
+	    if [ $? -eq 0 ] ; then
+		upifs=`expr $upifs + 1`
+		upifaces="$upifaces $_if"
+		for _previf in $prevcnetdevs ; do
+		    if [ "$_previf" = "$_if" ]; then
+			echo "`date`: $iface: known cnet device $_if is up; stopping waiting" >>$LOGDIR/dhclient.log
+			foundprevcnet=1
+			break
+		    fi
+		done
+		if [ $foundprevcnet -eq 1 ]; then
+		    break
+		fi
+	    else
+		#ifconfig $_if up
+		downifs=`expr $downifs + 1`
+	    fi
+	done
+	if [ $foundprevcnet -eq 1 ]; then
+	    break
+	fi
+	if [ -z "$prevcnetdevs" -a $upifs -gt 0 ]; then
+	    echo "`date`: $iface: at least one iface is up ($upifaces) (no previous cnet yet, must be first boot); stopping waiting" >>$LOGDIR/dhclient.log
+	    break
+	fi
+	if [ $downifs -eq 0 ]; then
+	    echo "`date`: $iface: all '$_iflist' are up; stopping waiting" >>$LOGDIR/dhclient.log
+	    break
+	fi
+	
+	lpc=`expr $lpc + 1`
+	sleep 1
+    done
+
+    # Mark that we are running dhclient.
+    touch /var/run/cnet-dhlient-running
 
     #
     # If dhclient returns success, then it has configured the first interface
@@ -184,6 +241,7 @@ else
     # more and just kill it.  We also shutdown all the other interfaces (which
     # dhclient will leave "up").
     #
+    echo "`date`: $iface: findcnet running dhclient on: $_iflist"
     if [ -x /sbin/dhclient ] && /sbin/dhclient -q $_iflist ; then
         killall dhclient
 	rm -f /var/run/dhclient.pid
@@ -197,6 +255,9 @@ else
 	done
     fi
 
+    # We are done with dhclient.
+    rm -f /var/run/cnet-dhlient-running
+    
     # Emit this upstart event to allow boot to continue, even
     # if we couldn't get a dhcp lease.
     # Otherwise, if this is systemd, we have a special job that
