@@ -258,7 +258,7 @@ done < $FSTAB
 # Finally, if we didn't see the Emulab swap partition in fstab, add it
 # and a unit for it.  This is sub-optimal because we're not using the
 # systemd swap file template, but nothing else to do.
-if [ $haveemulabswap -eq 0 ]; then
+if [ $haveemulabswap -eq 0 -a -n "$emulabswapdev" ]; then
     # If it is already formatted, it will have a uuid.
     uuid=`blkid $emulabswapdev | grep "TYPE=['\"]swap['\"]" | sed -n -r -e "s/^[^ \t]*[ \t]UUID=['\"]([^'\"]*)['\"].*$/\1/p"`
     if [ -z "$uuid" ]; then
