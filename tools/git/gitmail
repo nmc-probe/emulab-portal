@@ -1159,7 +1159,11 @@ sub send_mail($$$@) {
                # -odb deliver mail in background
                # -t causes sendmail to look in the message for 'To:' 'Cc:' and
                #    'Bcc:' lines
-               open(MAIL, "| $SENDMAIL -odb -oem -f'$mailfrom' -t");
+               my $mailfrom_str = "";
+               if ($mailfrom) {
+                   $mailfrom_str = "-f$mailfrom";
+               }
+               open(MAIL, "| $SENDMAIL -odb -oem $mailfrom_str -t");
         }
 
         # If requested, set the From header
