@@ -205,23 +205,26 @@ if ($mounted =~ /^$fsdevice on (\S*)/) {
 # Used to use "sfdisk -V" but that seems to have quirks.
 #
 if (system("parted -s $diskdev print >/dev/null 2>&1")) {
+    if ($slice != 1) {
+	die("*** $0:\n".
+	    "    Disk $diskdev is unpartitioned, and you did not supply '-s 1' as arguments!\n");
+    }
     system("parted -s $diskdev mklabel msdos");
     if ($?) {
 	die("*** $0:\n".
 	    "    Could not write dos label to $diskdev!\n");
     }
-    # Grab size (in blocks); DOS cannot handle our huge disks.
-    my $disksize = `sfdisk -s $diskdev`;
+    # Grab size (in sectors); DOS cannot handle our huge disks.
+    # sfdisk can no longer handle units; must use sectors.
+    my $disksize = `fdisk -l $diskdev | sed -n -r -e "s/^.* ([0-9]+) sectors.*\$/\\1/p"`;
     if ($?) {
 	die("*** $0:\n".
 	    "    Could not get size of $diskdev!\n");
     }
     chomp($disksize);
-    if ($disksize > (1024 * 1024 * 1024)) {
-	$disksize = (1024 * 1024 * 1024);
-	print "Disk really big! cutting back to $disksize blocks.\n";
-    }
-    system("echo '0,$disksize' | sfdisk --force $diskdev -N$slice -u B");
+    # Must start at a sector offset; and sfdisk no longer tolerates -N <X>
+    # if partition X is undefined.
+    system("echo '2048,$disksize' | sfdisk --force $diskdev");
     if ($?) {
 	die("*** $0:\n".
 	    "    Could not initialize primary partition on $diskdev!\n");
