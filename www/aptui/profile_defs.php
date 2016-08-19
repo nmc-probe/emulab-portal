@@ -398,6 +398,9 @@ class Profile
     function CanInstantiate($user) {
 	$profileid = $this->profileid();
 
+        if (ISADMIN()) {
+            return 1;
+        }
 	if ($this->shared() || $this->ispublic() ||
 	    $this->creator_idx() == $user->uid_idx()) {
 	    return 1;
