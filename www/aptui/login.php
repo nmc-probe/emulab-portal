@@ -41,6 +41,8 @@ $optargs = OptionalPageArguments("login",       PAGEARG_STRING,
 				 "refer",       PAGEARG_BOOLEAN,
 				 "referrer",    PAGEARG_STRING,
 				 "from",        PAGEARG_STRING,
+				 "adminmode",   PAGEARG_BOOLEAN,
+                                 "cleanmode",   PAGEARG_BOOLEAN,
 				 "ajax_request",PAGEARG_BOOLEAN);
 				 
 # See if referrer page requested that it be passed along so that it can be
@@ -56,6 +58,19 @@ if (isset($refer) &&
 } else if (! isset($referrer)) {
     $referrer = null;
 }
+# Allow adminmode to be passed along to new login. Handy for letting admins
+# log in when NOLOGINS() is on.
+if (!isset($adminmode)) {
+    $adminmode = 0;
+}
+# For Rob to make screen shots. We do not want to use the cookie here,
+# just the url argument.
+if (isset($_GET['cleanmode']) && $_GET['cleanmode']) {
+    $cleanmode = 1;
+}
+else {
+    $cleanmode = 0;
+}
 
 #
 # We want to show guest login, when redirected from the landing page
@@ -67,7 +82,7 @@ if ($ISAPT && isset($from) &&
     $showguestlogin = 1;
 }
 
-if (NOLOGINS()) {
+if (NOLOGINS() && !$adminmode) {
     if ($ajax_request) {
 	SPITAJAX_ERROR(1, "logins are temporarily disabled");
 	exit();
@@ -90,6 +105,7 @@ function SPITFORM($uid, $referrer, $error)
     global $PORTAL_PASSWORD_HELP;
     global $TBDB_UIDLEN, $TBBASE, $refer;
     global $ISAPT, $ISCLOUD, $ISPNET, $showguestlogin;
+    global $adminmode, $cleanmode;
 
     header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
     header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
@@ -103,8 +119,20 @@ function SPITFORM($uid, $referrer, $error)
                       col-md-6  col-md-offset-3
                       col-sm-8  col-sm-offset-2
                       col-xs-12 col-xs-offset-0'>\n";
+    $action = "login.php";
+    if ($adminmode || $cleanmode) {
+        if ($adminmode && $cleanmode) {
+            $action .= "?adminmode=1&cleanmode=1";
+        }
+        elseif ($adminmode) {
+            $action .= "?adminmode=1";
+        }
+        elseif ($cleanmode) {
+            $action .= "?cleanmode=1";
+        }
+    }
     echo "<form id='quickvm_login_form' role='form'
-            method='post' action='login.php'>\n";
+            method='post' action='$action'>\n";
     echo "<div class='panel panel-default'>
            <div class='panel-heading'>
               <h3 class='panel-title'>
@@ -230,12 +258,14 @@ if (!$ajax_request && !isset($login)) {
 $STATUS_LOGGEDIN  = 1;
 $STATUS_LOGINFAIL = 2;
 $login_status     = 0;
+$adminmode        = (isset($adminmode) && $adminmode);
+$cleanmode        = (isset($cleanmode) && $cleanmode);
 
 if (!isset($uid) || $uid == "" || !isset($password) || $password == "") {
     $login_status = $STATUS_LOGINFAIL;
 }
 else {
-    $dologin_status = DOLOGIN($uid, $password);
+    $dologin_status = DOLOGIN($uid, $password, $adminmode);
 
     if ($dologin_status == DOLOGIN_STATUS_WEBFREEZE) {
 	# Short delay.
@@ -300,7 +330,13 @@ if ($ajax_request) {
     SPITAJAX_RESPONSE("login sucessful");
     exit();
 }
-elseif (isset($referrer) && $CHECKLOGIN_USER->IsActive()) {
+# We want to clear this in case the previous login was using it, but lets
+# not create a cookie for all users.
+if ($cleanmode || isset($_COOKIE['cleanmode'])) {
+    setcookie("cleanmode", ($cleanmode ? 1 : 0), 0, "/", $TBAUTHDOMAIN, 0);
+}
+
+if (isset($referrer) && $CHECKLOGIN_USER->IsActive()) {
     #
     # Zap back to page that started the login request.
     #

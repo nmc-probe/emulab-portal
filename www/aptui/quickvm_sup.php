@@ -86,6 +86,8 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     global $GOOGLEUA, $ISCLOUD, $ISPNET, $ISEMULAB, $TBBASE, $ISEMULAB;
     global $login_user, $login_status;
     global $disable_accounts, $page_title, $drewheader, $embedded;
+    $cleanmode = (isset($_COOKIE['cleanmode']) &&
+                  $_COOKIE['cleanmode'] == 1 ? 1 : 0);
     $showmenus = 0;
     $title = $APTTITLE;
     if (isset($page_title)) {
@@ -155,7 +157,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
     $navbar_right  = "";
 
     if (!$disable_accounts) {
-        if ($login_user && ISADMINISTRATOR()) {
+        if ($login_user && ISADMINISTRATOR() && !$cleanmode) {
 	    # Extra top margin to align with the rest of the buttons.
             $navbar_status .= 
                 "<li class='apt-left' style='margin-top:7px'>\n";
@@ -183,11 +185,12 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
             $navbar_status .= "</li>\n";
 	}
         # Extra top margin to align with the rest of the buttons.
-	$navbar_status .=
-            "<li id='loginstatus' class='apt-left' style='margin-top:7px'>".
-	       ($login_user ? "<p class='navbar-text'>".
-                 "$login_uid logged in</p>" : "") . "</li>\n";
-
+        if (!$cleanmode) {
+	    $navbar_status .=
+                "<li id='loginstatus' class='apt-left' style='margin-top:7px'>".
+	           ($login_user ? "<p class='navbar-text'>".
+                    "$login_uid logged in</p>" : "") . "</li>\n";
+        }
 	if (!NOLOGINS()) {
 	    if (!$login_user) {
                 $navbar_right .=
@@ -311,7 +314,7 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
          </div>\n";
 
     # Put announcements, if any, right below the header.
-    if ($login_user && $login_user->IsActive() &&
+    if (!$cleanmode && $login_user && $login_user->IsActive() &&
         !($login_status & CHECKLOGIN_WEBONLY)) {
         $announcements = GET_ANNOUNCEMENTS($login_user);
         for ($i = 0; $i < count($announcements); $i++) {
@@ -337,14 +340,14 @@ $PAGEHEADER_FUNCTION = function($thinheader = 0, $ignore1 = NULL,
         #
         $message = TBGetSiteVar($PORTAL_MOTD_SITEVAR);
     }
-    if ($message && $message != "") {
+    if ($message && $message != "" && !$cleanmode) {
         echo "<div class='alert alert-warning alert-dismissible'
                  role='alert' style='margin-top: -10px; padding: 5px;'>
                 <center>$message</center>
           </div>";
     }
 
-    if ($login_user) {
+    if ($login_user && !$cleanmode) {
         $pending = $login_user->PendingMembership();
 
         if (count($pending)) {
