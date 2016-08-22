@@ -102,6 +102,7 @@ common-sysetc-install:	dir-install
 sysetc-fixup:
 	rm -rf $(SYSETCDIR)/modules.conf $(SYSETCDIR)/cron.pend \
 		$(SYSETCDIR)/sysconfig $(SYSETCDIR)/init.d/ntpd
+	rm -f $(SYSETCDIR)/ntp.drift
 	rm -f $(SYSETCDIR)/dhclient-enter-hooks $(SYSETCDIR)/dhclient-exit-hooks
 	rm -f $(SYSETCDIR)/rc.local
 
@@ -117,8 +118,7 @@ sysetc-install:	dir-install
 	$(INSTALL) -m 644 $(SRCDIR)/interfaces $(SYSETCDIR)/network/interfaces
 	$(INSTALL) -m 644 $(SRCDIR)/sudoers $(SYSETCDIR)/sudoers.d/99-emulab
 	$(INSTALL) -m 644 $(SRCDIR)/ntp.conf $(SYSETCDIR)/ntp.conf
-	$(INSTALL) -m 644 -o ntp -g ntp /dev/null /etc/ntp.drift
-	ln -sf /etc/ntp.drift /var/lib/ntp/ntp.drift
+	$(INSTALL) -m 644 -o ntp -g ntp /dev/null /var/lib/ntp/ntp.drift
 	$(INSTALL) -m 644 $(SRCDIR)/99-emulab-control-network.rules \
 		$(SYSETCDIR)/udev/rules.d/99-emulab-control-network.rules
 
