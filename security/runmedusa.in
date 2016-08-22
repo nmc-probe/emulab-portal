@@ -37,10 +37,11 @@ use Data::Dumper;
 #
 sub usage()
 {
-    print STDERR "Usage: $0\n";
+    print STDERR "Usage: $0 [-d]\n";
     exit(1);
 }
-my $optlist   = "";
+my $optlist   = "d";
+my $debug     = 0;
 my %nodes     = ();
 my %pools     = ();
 
@@ -53,8 +54,9 @@ my $MEDUSA	  = "/usr/local/bin/medusa";
 my $HOSTFILE	  = "/tmp/medusahosts.$$";
 my $USERFILE      = "/usr/local/etc/medusa/userlist.txt";
 my $WORDFILE      = "/usr/local/etc/medusa/wordlist.txt";
-my $MEDUSAOPTS    = "-H $HOSTFILE -U $USERFILE -P $WORDFILE ".
-    "-M ssh -R 1 -T 5 -t 5 -b -v 4 -w 2";
+my $MEDUSAOPTS    = "-R 0 -T 10 -t 5 -b -e ns -w 3";
+my $SSHOPTS       = "-M ssh -H $HOSTFILE -U $USERFILE -P $WORDFILE";
+my $VNCOPTS       = "-M vnc -H $HOSTFILE -u admin -p vnc"; # Ports 5900-5902.
 
 use lib '@prefix@/lib';
 use emdb;
@@ -63,6 +65,7 @@ use libtestbed;
 use User;
 
 # Protos
+sub RunMedusa($$);
 
 sub fatal($)
 {
@@ -88,6 +91,9 @@ my %options = ();
 if (! getopts($optlist, \%options)) {
     usage();
 }
+if (defined($options{"d"})) {
+    $debug = 1;
+}
 
 my $query_result =
     DBQueryFatal("select r.node_id,i.IP from reserved as r ".
@@ -99,8 +105,6 @@ my $query_result =
 		 "      (n.role='testnode' or n.role='virtnode') and ".
 		 "      (t.class='pc' or t.class='pcvm') and ".
 		 "      i.IP is not null and n.type!='blockstore' ");
-
-
 
 #
 # Generate the hosts list.
@@ -127,38 +131,90 @@ while (my ($pool_id,$IP) = $query_result->fetchrow_array()) {
 }
 close(HOSTS);
 
-#
-# Medusa spits out offending accounts line by line. 
-#
-my $output   = "";
-my $warnings = "";
+RunMedusa("$SSHOPTS $MEDUSAOPTS", 900);
+RunMedusa("$VNCOPTS -n 5900 $MEDUSAOPTS", 500);
+RunMedusa("$VNCOPTS -n 5901 $MEDUSAOPTS", 500);
+RunMedusa("$VNCOPTS -n 5902 $MEDUSAOPTS", 500);
+exit(0);
 
-open(MEDU, "$MEDUSA $MEDUSAOPTS |")
-    or fatal("Could not start up $MEDUSA");
-while (<MEDU>) {
-    $output .= $_;
+#
+# Run medusa with limits
+#
+sub RunMedusa($$)
+{
+    my ($options, $timeout) = @_;
+    my $start = time();
+    if ($debug) {
+	print "Running with '$options'\n";
+    }
 
-    if ($_ =~ /^ACCOUNT FOUND:[^\d]+([\d\.]+)\s+(.*)$/) {
-	if (exists($nodes{$1})) {
-	    $warnings .= "Node: ". $nodes{$1} . ":$1 $2\n";
+    #
+    # Medusa spits out offending accounts line by line. 
+    #
+    my $output   = "";
+    my $warnings = "";
+
+    #
+    # This open implicitly forks a child, which goes on to execute the
+    # command. The parent is going to sit in this loop and capture the
+    # output of the child. We do this so that we have better control
+    # over the descriptors.
+    #
+    my $pid = open(PIPE, "-|");
+    if (!defined($pid)) {
+	print STDERR "popen failed!\n";
+	return -1;
+    }
+    if (!$pid) {
+	open(STDERR, ">&STDOUT");
+	exec("$MEDUSA $options");
+	die("Could not start up $MEDUSA $options\n");
+    }
+    local $SIG{ALRM} = sub {
+	print STDERR "Ran for too long, killing the run!\n";
+	kill("TERM", $pid);
+    };
+    alarm $timeout;
+    while (<PIPE>) {
+	$output .= $_;
+
+	if ($_ =~ /^ACCOUNT FOUND:[^\d]+([\d\.]+)\s+(.*)$/) {
+	    if (exists($nodes{$1})) {
+		$warnings .= "Node: ". $nodes{$1} . ":$1 $2\n";
+	    }
+	    elsif (exists($pools{$1})) {
+		$warnings .= "Pool: ". $pools{$1} . ":$1 $2\n";
+	    }
+	    else {
+		$warnings .= $_;
+	    }
+	    print $_;
 	}
-	elsif (exists($pools{$1})) {
-	    $warnings .= "Pool: ". $pools{$1} . ":$1 $2\n";
-	}
-	else {
-	    $warnings .= $_;
+	if ($debug > 1) {
+	    print $_;
 	}
     }
-}
-close(MEDU);
-if ($output ne "") {
-    SENDMAIL($TBOPS,
-	     "Medusa found bogus passwords!",
-	     $warnings . "\n" . $output,
-	     $TBOPS);
-}
-if ($?) {
-    fatal("$MEDUSA exited with status $?");
+    close(PIPE);
+    alarm 0;
+    if ($warnings ne "") {
+	SENDMAIL($TBOPS,
+		 "Medusa found bogus passwords!",
+		 $warnings . "\n\n" . "Command options: $options\n".
+		 $TBOPS);
+    }
+    if ($?) {
+	if ($? == 15) {
+	    fatal("$MEDUSA runaway was just killed!");
+	}
+	else {
+	    fatal("$MEDUSA exited with status $?");
+	}
+    }
+    if ($debug) {
+	my $end = time();
+	printf("User time: %d\n", $end - $start);
+    }
+    return 0;
 }
 unlink($HOSTFILE);
 exit(0);
