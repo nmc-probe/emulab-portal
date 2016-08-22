@@ -5655,6 +5655,14 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 fi
+if test $PROTOGENI_LOCALUSER -eq 1; then
+
+cat >>confdefs.h <<_ACEOF
+#define PROTOGENI_LOCALUSER 1
+_ACEOF
+
+fi
+
 if test $WITHAMD -eq 1; then
 
 cat >>confdefs.h <<_ACEOF

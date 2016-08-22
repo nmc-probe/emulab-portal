@@ -707,6 +707,9 @@ if test $WITHAMD -eq 1; then
     AC_DEFINE_UNQUOTED(WITHAMD, 1, [Run AMD on boss node to handle shared FS mounts])
     AC_DEFINE_UNQUOTED(AMD_ROOT, "$AMD_ROOT", [Actual FS mount directory for AMD])
 fi
+if test $PROTOGENI_LOCALUSER -eq 1; then
+    AC_DEFINE_UNQUOTED(PROTOGENI_LOCALUSER, 1, [Map geni users to local users,projects,groups])
+fi
 AC_DEFINE_UNQUOTED(IMPORT_TMPDIR, "$IMPORT_TMPDIR", [Directory to use for imported images])
 
 LOG_TESTBED=`echo "LOG_$TBLOGFACIL" | tr a-z A-Z`
