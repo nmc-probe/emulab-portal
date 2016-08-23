@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -57,7 +57,7 @@ localize_image() {
 	cmp -s $ETCDIR/emulab.pem $MNT/etc/emulab/emulab.pem
 	if [ $? -ne 0 ]; then
 	    echo "  updating $MNT/etc/emulab/emulab.pem"
-	    cp -p $ETCDIR/emulab.pem $MNT/etc/emulab/ || {
+	    cp -pf $ETCDIR/emulab.pem $MNT/etc/emulab/ || {
 		echo "Failed to create $ETCDIR/emulab.pem"
 		return 1
 	    }
@@ -67,7 +67,7 @@ localize_image() {
 	cmp -s $ETCDIR/client.pem $MNT/etc/emulab/client.pem
 	if [ $? -ne 0 ]; then
 	    echo "  updating $MNT/etc/emulab/client.pem"
-	    cp -p $ETCDIR/client.pem $MNT/etc/emulab/ || {
+	    cp -pf $ETCDIR/client.pem $MNT/etc/emulab/ || {
 		echo "Failed to create $ETCDIR/client.pem"
 		return 1
 	    }
@@ -86,11 +86,11 @@ localize_image() {
 		}
 	    fi
 	    # copy to both authorized_keys and _keys2
-	    cp -p /root/.ssh/authorized_keys2 $MNT/root/.ssh/authorized_keys || {
+	    cp -pf /root/.ssh/authorized_keys2 $MNT/root/.ssh/authorized_keys || {
 		echo "Failed to create /root/.ssh/authorized_keys"
 		return 1
 	    }
-	    cp -p /root/.ssh/authorized_keys2 $MNT/root/.ssh/ || {
+	    cp -pf /root/.ssh/authorized_keys2 $MNT/root/.ssh/ || {
 		echo "Failed to create /root/.ssh/authorized_keys2"
 		return 1
 	    }
@@ -126,7 +126,7 @@ localize_image() {
 		return 1
 	    }
 	fi
-	cp -p /etc/ssh/ssh_host_* $MNT/etc/ssh/ || {
+	cp -pf /etc/ssh/ssh_host_* $MNT/etc/ssh/ || {
 	    echo "Failed to create /etc/ssh/hostkeys"
 	    return 1
 	}
@@ -138,7 +138,7 @@ localize_image() {
 	if [ $? -ne 0 ]; then
 	    echo "  updating /etc/localtime"
 
-	    cp -p /etc/localtime $MNT/etc/localtime || {
+	    cp -pf /etc/localtime $MNT/etc/localtime || {
 		echo "Failed to create /etc/localtime"
 		return 1
 	    }
@@ -151,10 +151,15 @@ localize_image() {
 	if [ $? -ne 0 ]; then
 	    echo "  updating /etc/ntp.conf"
 
-	    cp -p /etc/ntp.conf $MNT/etc/ntp.conf || {
+	    cp -pf /etc/ntp.conf $MNT/etc/ntp.conf || {
 		echo "Failed to create /etc/ntp.conf"
 		return 1
 	    }
+	fi
+
+	# XXX cannot put drift in /etc/ntp.drift on Linux
+	if [ -d "$MNT/var/lib/ntp" ]; then
+	    sed -i '' -e 's;/etc/ntp.drift;/var/lib/ntp/ntp.drift;' $MNT/etc/ntp.conf
 	fi
     fi
 
