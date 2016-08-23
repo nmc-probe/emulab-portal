@@ -177,6 +177,7 @@ function (_, sup, aptforms,
 	$('#create-root').show();
 	createShown = true;
 	updateEditBody();
+	_.defer(function () { $('#profile_submit_button').click(); });
       }
       $('#jacks-root').show();
       _.defer(jacksUpdate);
