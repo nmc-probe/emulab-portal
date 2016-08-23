@@ -290,6 +290,8 @@ sub Create($$$$$$)
     my $name    = DBQuoteSpecial($argref->{'name'});
     my $pid     = $project->pid();
     my $pid_idx = $project->pid_idx();
+    my $gid     = $project->pid();
+    my $gid_idx = $project->pid_idx();
     my $uid     = $creator->uid();
     my $uid_idx = $creator->uid_idx();
 
@@ -911,12 +913,11 @@ sub CheckNodeConstraints($$$)
 }
 
 #
-# Check blockstores. 
+# Check dataset validity.
 #
-sub CheckDatasets($$$)
+sub CheckDatasets($$)
 {
-    my ($xml, $ppid, $pmsg) = @_;
-    my $pid = $ppid;
+    my ($xml, $pmsg) = @_;
     
     my $rspec = GeniXML::Parse($xml);
     if (! defined($rspec)) {
@@ -963,63 +964,60 @@ sub CheckDatasets($$$)
 		$$pmsg = "Persistent dataset is not a valid URN";
 		return 1;
 	    }
-	    my $dataset_urn = $dataset_id;
-	    my ($dataset_authority, $type, $id) = GeniHRN::Parse($dataset_urn);
-	    my ($dataset_domain) = split(":", $dataset_authority);
+	    my $dataset_urn = GeniHRN->new($dataset_id);
 	    
 	    #
-	    # Separate project from name; this is how the rspec specifies
-	    # the dataset they want, since it might be in another project
+	    # For leases, the domain of the dataset has to match the
+	    # domain of aggregate, but for image backed datasets, we now
+	    # to transfer them as needed.
 	    #
-	    if ($id =~ /^([-\w]+)\/\/(.+)$/) {
-		$pid = $1;
-		$id  = $2;
-	    }
-
-	    #
-	    # The domain of the dataset has to match the domain of aggregate.
-	    # We also use this when creating a profile, so rspec might not
-	    # be bound.
-	    #
-	    if (defined($manager_urn)) {
-		my ($manager_authority) = GeniHRN::Parse($manager_urn);
-		my ($manager_domain) = split(":", $manager_authority);
+	    if ($class ne "local") {
+		if (defined($manager_urn)) {
+		    $manager_urn = GeniHRN->new($manager_urn);
 		
-		if ($manager_domain ne $dataset_domain) {
-		    $$pmsg = "Dataset $id is not located on $manager_authority";
-		    return 1;
-		}
-	    }
-	    next
-		if ($class eq "local");
-	    
-	    #
-	    # Not all backends have blockstore support.
-	    #
-	    if (!APT_Dataset::ValidBlockstoreBackend($dataset_urn)) {
-		$$pmsg = "Dataset $id is not on a valid aggregate";
-		return 1;
-	    }
-
-	    my $dataset = APT_Dataset->Lookup("$pid/$id");
-	    if (!defined($dataset)) {
-		$dataset = APT_Dataset->LookupByRemoteURN($dataset_urn);
-		if (!defined($dataset)) {
-		    # If it is for a local dataset, see if it plain lease
-		    # created via the classic interface or command line.
-		    # The backend can find those.
-		    if ($dataset_domain eq $OURDOMAIN) {
-			$dataset = Lease->Lookup($pid, $id);
-		    }
-		    if (!defined($dataset)) {
-			$$pmsg = "Persistent dataset '$pid/$id' does not exist";
+		    if ($manager_urn->domain() ne $dataset_urn->domain()) {
+			$$pmsg = "$dataset_urn is not located on $manager_urn";
 			return 1;
 		    }
 		}
+		#
+		# Not all backends have blockstore (lease) support.
+		#
+		if (!APT_Dataset::ValidBlockstoreBackend($dataset_urn)) {
+		    $$pmsg = "Dataset $dataset_urn is not on a valid aggregate";
+		    return 1;
+		}
 	    }
 	    #
-	    # XXX Need basic frontend permission checks?
+	    # So the rspec will refer to the dataset by the remote URN.
+	    # And it might be a classic dataset (so not in the apt_datasets
+	    # table). We want to be able to handle either of these cases.
 	    #
+	    my $dataset = APT_Dataset->LookupByRemoteURN($dataset_urn);
+	    if (!defined($dataset)) {
+		#
+		# Local image backed dataset or lease.
+		#
+		if ($dataset_urn->domain() eq $OURDOMAIN) {
+		    my $pid = $dataset_urn->project();
+		    my $id  = $dataset_urn->id();
+
+		    if ($dataset_urn->type() eq "imdataset") {
+			$dataset = Image->Lookup($pid, $id);
+			if ($dataset && !$dataset->isdataset()) {
+			    $$pmsg = "$dataset_urn is an image not a dataset ";
+			    return 1;
+			}
+		    }
+		    else {
+			$dataset = Lease->Lookup($pid, $id);
+		    }
+		}
+	    }
+	    if (!defined($dataset)) {
+		$$pmsg = "Persistent dataset '$dataset_urn' does not exist";
+		return 1;
+	    }
 	}
     }
     return 0;

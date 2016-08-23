@@ -1,6 +1,6 @@
 #!/usr/bin/perl -wT
 #
-# Copyright (c) 2007-2015 University of Utah and the Flux Group.
+# Copyright (c) 2007-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -25,6 +25,7 @@ package APT_Dataset;
 
 use strict;
 use English;
+use Date::Parse;
 use Data::Dumper;
 use Carp;
 use Exporter;
@@ -54,7 +55,7 @@ my $TBOPS         = "@TBOPSEMAIL@";
 my $OURDOMAIN     = "@OURDOMAIN@";
 
 # Debugging
-my $usemydevtree  = 0;
+my $usemydevtree  = 1;
 
 #
 # Lookup by uuid.
@@ -81,6 +82,7 @@ sub Lookup($$;$)
 
     my $self            = {};
     $self->{'DATASET'}  = $query_result->fetchrow_hashref();
+    $self->{'HASH'}     = {};
 
     bless($self, $class);
     
@@ -118,6 +120,16 @@ AUTOLOAD {
     if (exists($self->{'DATASET'}->{$name})) {
 	return $self->{'DATASET'}->{$name};
     }
+    # Or it is for a local storage slot.
+    elsif ($name =~ /^_.*$/) {
+	if (scalar(@_) == 2) {
+	    return $self->{'HASH'}->{$name} = $_[1];
+	}
+	elsif (exists($self->{'HASH'}->{$name})) {
+	    return $self->{'HASH'}->{$name};
+	}
+	return undef;
+    }
     carp("No such slot '$name' field in class $type");
     return undef;
 }
@@ -127,6 +139,7 @@ sub DESTROY {
     my $self = shift;
 
     $self->{'DATASET'} = undef;
+    $self->{'HASH'}    = undef;
 }
 
 # Valid Blockstore backend.
@@ -294,6 +307,22 @@ sub SetStatus($$)
 }
 
 #
+# Is dataset expired?
+#
+sub IsExpired($)
+{
+    my ($self) = @_;
+
+    my $expires = $self->expires();
+    return 0
+	if (!defined($expires));
+    
+    $expires = str2time($expires);
+
+    return (time() >= $expires);
+}
+
+#
 # Load the project object for an experiment.
 #
 sub GetProject($)
@@ -421,8 +450,16 @@ sub CreateCertificate($)
 {
     my ($self) = @_;
     my $pid  = $self->pid();
+    my $gid  = $self->gid();
     my $id   = $self->dataset_id();
-    my $urn  = GeniHRN::Generate("$OURDOMAIN:$pid", "dataset", $id);
+    my $type = $self->type();
+
+    # New domain format for datasets.
+    my $domain = $OURDOMAIN;
+    $domain .= ":${pid}";
+    $domain .= ":${gid}" if ($pid ne $gid);
+    
+    my $urn  = GeniHRN::Generate($domain, $type, $id);
 
     # Kill stale certificate.
     my $certificate = GeniCertificate->Lookup($urn);
@@ -430,6 +467,7 @@ sub CreateCertificate($)
 	if (defined($certificate));
     
     $certificate = GeniCertificate->Create({"urn"   => $urn,
+					    "uuid"  => $self->uuid(),
 					    "email" => "$TBOPS",
 					    "hrn"   => "$OURDOMAIN.$pid.$id"});
     return -1
@@ -444,11 +482,15 @@ sub CreateCertificate($)
 sub GetCertificate($)
 {
     my ($self) = @_;
-    my $pid  = $self->pid();
-    my $id   = $self->dataset_id();
-    my $urn  = GeniHRN::Generate("$OURDOMAIN:$pid", "dataset", $id);
-
-    return GeniCertificate->Lookup($urn);
+    my $cert = GeniCertificate->Lookup($self->uuid());
+    # Old style
+    if (!defined($cert)) {
+	my $pid  = $self->pid();
+	my $id   = $self->dataset_id();
+	my $urn  = GeniHRN::Generate("$OURDOMAIN:$pid", "dataset", $id);
+	$cert = GeniCertificate->Lookup($urn);
+    }
+    return $cert;
 }
 
 #
@@ -473,10 +515,10 @@ sub CreateDataset($)
 
     my $args = {
 	"size"        => $self->size(),
-	"name"        => $self->dataset_id(),
 	"type"        => $self->type(),
 	"read_access" => $self->read_access(),
 	"write_access"=> $self->write_access(),
+	"dataset_urn" => $cert->urn(),
 	"credentials" => [$credential->asString(),
 			  $speaksfor_credential->asString()],
     };
@@ -512,7 +554,7 @@ sub DeleteDataset($)
 	       defined($credential)));
 
     my $args = {
-	"name"        => $self->dataset_id(),
+	"dataset_urn" => $cert->urn(),
 	"credentials" => [$credential->asString(),
 			  $speaksfor_credential->asString()],
     };
@@ -543,7 +585,7 @@ sub ModifyDataset($)
 	       defined($credential)));
 
     my $args = {
-	"name"        => $self->dataset_id(),
+	"dataset_urn" => $cert->urn(),
 	"read_access" => $self->read_access(),
 	"write_access"=> $self->write_access(),
 	"credentials" => [$credential->asString(),
@@ -576,7 +618,7 @@ sub ExtendDataset($)
 	       defined($credential)));
 
     my $args = {
-	"name"        => $self->dataset_id(),
+	"dataset_urn" => $cert->urn(),
 	"credentials" => [$credential->asString(),
 			  $speaksfor_credential->asString()],
 	"extend"      => 1,
@@ -602,20 +644,52 @@ sub DescribeDataset($)
 	       defined($context) && defined($cert)));
     
     my ($credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"]);
+	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"], 1);
     return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($credential)));
+	if (!defined($credential));
 
+    my $credentials = [$credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
-	"name"        => $self->dataset_id(),
-	"credentials" => [$credential->asString(),
-			  $speaksfor_credential->asString()],
+	"dataset_urn" => $cert->urn(),
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
 
     return Genixmlrpc::CallMethod($cmurl, $context, "DescribeDataset", $args);
+}
+
+#
+# Get a new credential so we can operate on the dataset.
+#
+sub GetCredential($)
+{
+    my ($self) = @_;
+    my $authority = $self->GetGeniAuthority();
+    my $geniuser  = $self->GetGeniUser();
+    my $context   = APT_Geni::GeniContext();
+    my $cert      = $self->GetCertificate();
+    return undef
+	if (! (defined($geniuser) && defined($authority) &&
+	       defined($context) && defined($cert)));
+    
+    my ($credential) =
+	APT_Geni::GenAuthCredential($cert, ["blockstores"]);
+    return undef
+	if (!defined($credential));
+
+    my $args = {
+	"dataset_urn" => $cert->urn(),
+	"credentials" => [$credential->asString()],
+    };
+    my $cmurl = $authority->url();
+    $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
+
+    return Genixmlrpc::CallMethod($cmurl, $context,
+				  "GetDatasetCredential", $args);
 }
 
 # _Always_ make sure that this 1 is at the end of the file...

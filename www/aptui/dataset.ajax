@@ -724,6 +724,9 @@ function Do_GetInfo()
             $blob["image_size"] = 0;
         }
         $blob["image_status"] = $taskdata["image_status"];
+        if (isset($taskdata["copyback_uuid"])) {
+            $blob["copyback_uuid"] = $taskdata["copyback_uuid"];
+        }
     }
     SPITAJAX_RESPONSE($blob);
 }

@@ -326,7 +326,7 @@ elsif (!$project->AccessCheck($this_user, TB_PROJECT_MAKEIMAGEID())) {
 # Check datasets.
 if (defined($rspec)) {
     my $errmsg = "Bad dataset";
-    if (APT_Profile::CheckDatasets($rspec, $project->pid(), \$errmsg)) {
+    if (APT_Profile::CheckDatasets($rspec, \$errmsg)) {
 	$errors{"error"} = $errmsg;
 	UserError();
     }

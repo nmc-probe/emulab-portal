@@ -1279,10 +1279,10 @@ sub HandleImageTracking()
     }
 
     #
-    # Look for images deletions.
+    # Look for images deletions. Process in order deleted.
     #
     my $query_result =
-	DBQueryWarn("select * from image_deletions");
+	DBQueryWarn("select * from image_deletions order by deleted asc");
     return
 	if (!$query_result);
     while (my $row = $query_result->fetchrow_hashref()) {

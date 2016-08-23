@@ -75,11 +75,23 @@ sub urn($)
     my ($self) = @_;
 
     return undef
-	if (! $PGENISUPPORT);
+	if (! $PGENISUPPORT);    
 
     require GeniHRN;
-    return GeniHRN::Generate($OURDOMAIN, "image",
-			     $self->pid() . "//" . $self->imagename());
+    my $pid    = $self->pid();
+    my $gid    = $self->gid();
+    my $name   = $self->imagename();
+    my $domain = $OURDOMAIN;
+
+    if ($self->isdataset()) {
+	$domain .= ":${pid}";
+	$domain .= ":${gid}" if ($pid ne $gid);
+	
+	return GeniHRN::Generate($domain, "imdataset", $name);
+    }
+    else {
+	return GeniHRN::Generate($domain, "image", $pid . "//" . $name);
+    }
 }    
 
 # Little helper and debug function.
@@ -411,13 +423,39 @@ sub LookupByOriginUUID($$$)
 
     my $query_result =
 	DBQueryWarn("select imageid from image_versions ".
-		    "where pid=$safe_pid ".
+		    "where pid=$safe_pid and ".
 		    "      origin_uuid=$safe_uuid and deleted is null");
     return undef
 	if (!$query_result || !$query_result->numrows);
 
     my ($imageid) = $query_result->fetchrow_array();
     return Image->Lookup($imageid);
+}
+
+#
+# Lookup by Origin URN.
+#
+sub LookupByOriginURN($$)
+{
+    my ($class, $urn) = @_;
+
+    return undef
+	if (! $PGENISUPPORT);    
+
+    require GeniHRN;
+    return undef
+	if (!GeniHRN::IsValid($urn));
+    
+    my $safe_urn = DBQuoteSpecial($urn);
+
+    my $query_result =
+	DBQueryWarn("select imageid,version from image_versions ".
+		    "where origin_urn=$safe_urn and deleted is null");
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my ($imageid,$version) = $query_result->fetchrow_array();
+    return Image->Lookup($imageid, $version);
 }
 
 #
@@ -899,7 +937,7 @@ sub NewVersion($$$$)
 		"  parent_imageid=$parent_imageid,".
 		"  parent_version=$parent_version, ".
 		"  origin_neednotify=0,origin_needupdate=0, ".
-		"  origin_uuid=NULL,origin_name=NULL, ".
+		"  origin_uuid=NULL,origin_name=NULL,credential_string=NULL, ".
 		"  hash=null,deltahash=null,size=0,deltasize=0, ".
 		"  updater='$uid',updater_idx='$uid_idx' $updater_urn ".
 		"where imageid='$osid'")
@@ -2436,6 +2474,35 @@ sub LocalVersionURL($)
     my $uuid = $self->uuid();
 
     return "$TBBASE/image_metadata.php?uuid=$uuid";
+}
+
+sub HasCredential($)
+{
+    my ($self) = @_;
+
+    return undef
+	if (! $PGENISUPPORT);
+
+    return $self->credential_string() && $self->credential_string() ne "";
+}
+sub GetCredential($)
+{
+    my ($self) = @_;
+
+    return undef
+	if (! ($PGENISUPPORT && $self->HasCredential()));
+
+    require GeniCredential;
+    return GeniCredential->CreateFromSigned($self->credential_string());
+}
+sub SetCredential($$)
+{
+    my ($self, $credstr) = @_;
+
+    return -1
+	if (! $PGENISUPPORT);
+
+    return $self->Update({"credential_string" => $credstr});
 }
 
 #

@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -233,12 +233,20 @@ class Lease
     }
 
     #
-    # Form a URN for the dataset.
+    # Form a URN for the dataset. No subgroup support yet.
     #
     function URN() {
 	global $OURDOMAIN;
+        $pid    = $this->pid();
+        $gid    = $this->gid();
+        $id     = $this->id();
+        $type   = $this->type();
+        $domain = $OURDOMAIN;
+        $domain .= ":${pid}";
+        if ($pid != $gid)
+            $domain .= ":${gid}";
 	
-	return "urn:publicid:IDN+${OURDOMAIN}+dataset+" . $this->idx();
+	return "urn:publicid:IDN+${domain}+${type}+${id}";
     }
 
     function deleteCommand() {
@@ -284,7 +292,7 @@ class ImageDataset
     # Lookup by name in a project
     function LookupByName($project, $name) {
         $image = Image::LookupByName($project, $name);
-        if (!$image || !$image->isdataset()) {
+        If (!$image || !$image->isdataset()) {
             return null;
         }
 	return ImageDataset::Lookup($image->image_uuid());
@@ -302,7 +310,6 @@ class ImageDataset
     function pid_idx()       { return $this->image->pid_idx(); }
     function gid()           { return $this->image->pid(); }
     function aggregate_urn() { return ""; }
-    function remote_urn()    { return ""; }
     function type()          { return "imdataset"; }
     function fstype()        { return "unknown"; }
     function created()       { return NullDate($this->image->created()); }
@@ -416,7 +423,17 @@ class ImageDataset
     # Form a URN for the dataset.
     #
     function URN() {
-        return $this->remote_urn();
+	global $OURDOMAIN;
+        $pid    = $this->pid();
+        $gid    = $this->gid();
+        $id     = $this->id();
+        $type   = $this->type();
+        $domain = $OURDOMAIN;
+        $domain .= ":${pid}";
+        if ($pid != $gid)
+            $domain .= ":${gid}";
+	
+	return "urn:publicid:IDN+${domain}+${type}+${id}";
     }
     function URL() {
         global $TBBASE;

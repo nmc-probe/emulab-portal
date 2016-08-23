@@ -344,15 +344,11 @@ $usestitcher = 1 if ($needstitcher);
 
 #
 # Look for datasets; need to verify that the datasets being referenced
-# still exist and are still permissible to use, and we have to generate
-# credentials for those datasets (if not a global dataset). The tricky
-# aspect is that while a dataset and a profile have project permissions,
-# the experiment has no project association, so if the profile/dataset
-# perms are okay, then we send over a credential that tells the CM to
-# allow this experiment to use that dataset in that project. 
+# actually exists, in so far as we can check. We check permissions
+# below when we generate the credentials.
 #
 $errmsg = "Bad dataset";
-if (APT_Profile::CheckDatasets($rspecstr, $profile->pid(), \$errmsg)) {
+if (APT_Profile::CheckDatasets($rspecstr, \$errmsg)) {
     UserError($errmsg);
 }
 
@@ -617,8 +613,7 @@ if (!$debug) {
 # can access the datasets.
 my @dataset_credentials = ();
 if (defined($profile)) {
-    my $retval = CreateDatasetCreds($rspecstr,
-				    $profile->pid(), $geniuser, 
+    my $retval = CreateDatasetCreds($rspecstr, $project, $geniuser, 
 				    \$errmsg, \@dataset_credentials);
     if ($retval) {
 	($retval < 0 ? fatal($errmsg) : UserError($errmsg));
@@ -1020,7 +1015,7 @@ exit(0);
 #
 sub CreateDatasetCreds($$$$$)
 {
-    my ($xml, $pid, $user, $pmsg, $pref) = @_;
+    my ($xml, $project, $geniuser, $pmsg, $pref) = @_;
     my @credentials = ();
     
     my $rspec = GeniXML::Parse($xml);
@@ -1029,8 +1024,9 @@ sub CreateDatasetCreds($$$$$)
 	return -1;
     }
     foreach my $ref (GeniXML::FindNodes("n:node", $rspec)->get_nodelist()) {
-	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore",
-						   $ref,
+	my $manager_urn  = GetManagerId($ref);
+	
+	foreach my $blockref (GeniXML::FindNodesNS("n:blockstore", $ref,
 				   $GeniXML::EMULAB_NS)->get_nodelist()) {
 	    my $dataset_id = GeniXML::GetText("persistent", $blockref);
 	    if (!defined($dataset_id)) {
@@ -1049,54 +1045,78 @@ sub CreateDatasetCreds($$$$$)
 	    if (!defined($class)) {
 		$class = "remote";
 	    }
-	    # Image backed. No checking since the image has to be global
-	    # anyway. Needs more thought. 
+	    # Image backed referenced by URL. No checking since the
+	    # image has to be global anyway. Needs more thought.
 	    next
-		if ($class eq "local");
-	    
-	    my ($authority, $type, $id) = GeniHRN::Parse($dataset_id);
-	    my ($dataset_domain) = split(":", $authority);
-	    #
-	    # Separate project from name; this is how the rspec specifies
-	    # the dataset they want, since it might be in another project
-	    #
-	    if ($id =~ /^([-\w]+)\/\/(.+)$/) {
-		$pid = $1;
-		$id  = $2;
-	    }
-	    my $dataset = APT_Dataset->Lookup("$pid/$id");
+		if ($class eq "local" && $dataset_id =~ /^(http|https):/);
+
+	    my $dataset_urn = GeniHRN->new($dataset_id);
+	    my $dataset = APT_Dataset->LookupByRemoteURN($dataset_urn);
 	    if (!defined($dataset)) {
-		$dataset = APT_Dataset->LookupByRemoteURN($dataset_id);
-		if (!defined($dataset)) {
-		    # If it is for a local dataset, see if it plain lease
-		    # created via the classic interface or command line.
-		    # The backend can find those.
-		    if ($dataset_domain eq $OURDOMAIN) {
-			$dataset = Lease->Lookup($pid, $id);
-			if (defined($dataset)) {
-			    # No need for a credential.
-			    next;
+		if ($dataset_urn->domain() eq $OURDOMAIN) {
+		    #
+		    # Local image backed dataset or lease.
+		    #
+		    my ($image,$lease);
+		    my $pid = $dataset_urn->project();
+		    my $id  = $dataset_urn->id();
+
+		    if ($dataset_urn->type() eq "imdataset") {
+			$image = Image->Lookup($pid, $id);
+			if ($image && !$image->isdataset()) {
+			    $$pmsg = "$dataset_urn is an image not a dataset ";
+			    return 1;
+			}
+			#
+			# Do a partial permission check here to catch
+			# errors early.  The CM will do its own check
+			# of course.
+			#
+			if (!$image->global() &&
+			    $PROTOGENI_LOCALUSER && $geniuser->IsLocal() &&
+			    !$image->AccessCheck($geniuser->emulab_user(),
+						   TB_IMAGEID_ACCESS())) {
+			    $$pmsg = "No permission to use $dataset_urn";
+			    return 1;
 			}
 		    }
+		    else {
+			$lease = Lease->Lookup($pid, $id);
+		    }
+		    # We cannot generate a credential for "legacy" datasets.
+		    # So if it is not global, it cannot be transferred. Maybe
+		    # this is okay, we will find out. We could generate a
+		    # credential if we needed to.
+		    next
+			if ($image || $lease);
 		}
-		if (!defined($dataset)) {
-		    $$pmsg = "Persistent dataset '$pid/$id' does not exist";
-		    return 1;
-		}
+		$$pmsg = "Dataset '$dataset_urn' does not exist";
+		return 1;
 	    }
-	    my $certificate = $dataset->GetCertificate();
-	    if (!defined($certificate)) {
-		$$pmsg = "No certificate for dataset '$pid/$id'";
+	    #
+	    # We do not need a credential for leases, only real users
+	    # can use those, and so standard emulab permission checks
+	    # are applied at the CM.
+	    #
+	    next
+		if ($dataset->type() ne "imdataset");
+
+	    #
+	    # For image backed datasets, we need to send along a credential
+	    # that allows the remote CM to securely download the dataset if
+	    # it does not already have it. To do that we need to send it a
+	    # credential from the CM where the dataset lives. We do that by
+	    # requesting a credential, and delegating it to the target CM.
+	    #
+	    my $pid = $dataset->pid();
+	    my $id  = $dataset->dataset_id();
+	    my $cmd = "$MANAGEDATASET getcredential -a $manager_urn $pid/$id";
+	    my $credential = `$cmd`;
+	    if ($?) {
+		$$pmsg = "Could not generate credential for $dataset_urn";
 		return -1;
 	    }
-	    my $credential =
-		APT_Geni::GenCredentials($certificate, $geniuser,
-					 ["blockstores"]);
-	    if (!defined($credential)) {
-		$$pmsg = "Could not create credential for dataset '$pid/$id'";
-		return -1;
-	    }
-	    push(@credentials, $credential->asString());
+	    push(@credentials, $credential);
 	}
     }
     @$pref = @credentials;

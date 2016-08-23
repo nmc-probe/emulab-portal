@@ -1858,6 +1858,7 @@ sub GetTicketAuxAux($$$$$$$$$$$)
 				   $GeniXML::EMULAB_NS)->get_nodelist()) {
 	    $response = HandleBlockstore($slice_experiment, $virtexperiment,
 					 $user, $slice, $ref,
+					 $use_imagetracker,
 					 $blockref, @$credentials);
 	    goto bad
 		if (GeniResponse::IsError($response));
@@ -6103,6 +6104,7 @@ sub CreateUserFromCertificate($)
 	if ($PROTOGENI_LOCALUSER && !$user->IsLocal()) {
 	    $user = User->LookupNonLocal($urn);
 	    if (defined($user)) {
+		$user->UpdateExports();
 		return GeniUser->CreateFromLocal($user);
 	    }
 	    # Already exists as a geni user, need to make a real user.
@@ -7416,10 +7418,10 @@ sub SetSliceExpiration($$$$@)
 #
 # Handle BlockStores. 
 #
-sub HandleBlockstore($$$$$$@)
+sub HandleBlockstore($$$$$$$@)
 {
-    my ($experiment, $virtexperiment,
-	$geniuser, $slice, $noderef, $blockref, @credentials) = @_;
+    my ($experiment, $virtexperiment, $geniuser,
+	$slice, $noderef, $use_imagetracker, $blockref, @credentials) = @_;
     my $errorcode = GENIRESPONSE_BADARGS;
     my $message   = "Unknown Error";
     my $nodename  = GeniXML::GetVirtualId($noderef);
@@ -7488,12 +7490,8 @@ sub HandleBlockstore($$$$$$@)
 	    }
 	}
 	else {
-	    # Default project to lookup.
-	    my $pid = $experiment->pid();
-	    my $gid = $pid;
-	    my $vers;
-	    my $image;
-	
+	    my ($image, $dataset_urn);
+	    
 	    #
 	    # Is it a url. We might not have the image locally, but
 	    # will later when image_setup runs. But lets do a check to
@@ -7509,6 +7507,7 @@ sub HandleBlockstore($$$$$$@)
 		$image = Image->LookupByURL($dataset_id);
 		if (!defined($image)) {
 		    my $safe_url = User::escapeshellarg($dataset_id);
+		    my $pid = $experiment->pid();
 
 		    print STDERR "$dataset_id is not here, trying to get it\n";
 		    system("$IMAGE_IMPORT -p $pid $safe_url");
@@ -7525,27 +7524,48 @@ sub HandleBlockstore($$$$$$@)
 		    }
 		}
 	    }
-	    elsif (GeniHRN::IsValid($dataset_id)) { 
-		my ($domainsubauth,$dtype,$id) = GeniHRN::Parse($dataset_id);
-		if ($dtype ne "dataset") {
-		    $message = "Illegal dataset urn for $dataset_id";
+	    elsif (GeniHRN::IsValid($dataset_id)) {
+		$dataset_urn = GeniHRN->new($dataset_id);
+		if ($dataset_urn->type() !~ /^(im)?dataset$/) {
+		    $message = "Illegal dataset type in $dataset_id";
 		    goto bad;
 		}
-		my ($domain,$subauth) = split(":", $domainsubauth);
-		if ($domain ne $OURDOMAIN) {
-		    $message = "This is not the correct site for this dataset";
+		if (!defined($dataset_urn->project())) {
+		    $message = "No project in $dataset_id";
 		    goto bad;
 		}
-		if (defined($subauth)) {
-		    $pid = $subauth;
+		if (!$use_imagetracker && $dataset_urn->domain() ne $OURDOMAIN){
+		    $message = "This is not the correct site for $dataset_id";
+		    goto bad;
 		}
-		if ($id =~ /^([^\/]+)\/\/([^\/]+)(\/\/(\d+))?$/) {
-		    $id  = $2;
-		    if (defined($4)) {
-			$vers = $4;
-		    }
+		
+		#
+		# Look for version;
+		#
+		if ($dataset_urn->id() =~ /\/\/(\d+)$/) {
+		    $message = "Not supporting dataset versions yet";
+		    goto bad;
 		}
-		$image = Image->Lookup($pid, $id, $vers);
+		#
+		# If the ID includes a project, strip it. We no longer
+		# put the project there, but old URNs might have it.
+		#
+		my ($ignore,$id) = split("//", $dataset_urn->id());
+		$id = $ignore if (!defined($id));
+
+		#
+		# Use the project from the URN for lookup, to make sure we
+		# get locally resident datasets regardless of the current
+		# slice project.  If it is not local we will import and
+		# grant permission to the the argument pid (the slice
+		# experiment project).
+		#
+		$image = Image->Lookup($dataset_urn->project(), $id);
+		if (!defined($image) && $use_imagetracker) {
+		    $image = GeniImage::MapToLocalDataset($dataset_urn,
+							  $experiment,
+							  @credentials);
+		}
 		if (!defined($image)) {
 		    $message = "Unknown dataset: $dataset_id";
 		    goto bad;
@@ -7569,14 +7589,33 @@ sub HandleBlockstore($$$$$$@)
 		    goto bad;
 		}
 	    }
-	    else {
+	    #
+	    # The image must be in the current project, or it must
+	    # be global (okay, shared).
+	    #
+	    elsif (! ($image->global() ||
+		      $image->pid() eq $experiment->pid())) {
 		#
-		# The image must be in the current project, or it must
-		# be global (okay, shared).
+		# Or we have a credential (in the urn case).
 		#
-		if (! ($image->global() ||
-		       $image->pid() eq $experiment->pid())) {
-		    $message = "Not enough permission to use $dataset_id";
+		my $okay = 0;
+
+		if (defined($dataset_urn)) {
+		    foreach my $credential (@credentials) {
+			next
+			    if (!$credential->HasActualPrivilege("blockstores"));
+
+			if ($credential->target_urn()->domain() eq
+			    $dataset_urn->domain() &&
+			    $credential->target_urn() eq $dataset_urn) {
+			    $okay = 1;
+			    last;
+			}
+		    }
+		}
+		if (!$okay) {
+		    # If we get here, its not allowed.
+		    $message = "No permission to use dataset $dataset_id";
 		    goto bad;
 		}
 	    }
@@ -7608,46 +7647,40 @@ sub HandleBlockstore($$$$$$@)
 	push(@attributes, ["protocol", "iSCSI", 1]);
 
 	if (defined($dataset_id)) {
-	    # Default project to lookup lease.
-	    my $pid = $experiment->pid();
-	    my $gid = $pid;
-	
-	    #
-	    # Look for a urn and possibly project/group qualified lease name.
-	    #
-	    if (GeniHRN::IsValid($dataset_id)) {
-		my ($domainsubauth,$ltype,$id) = GeniHRN::Parse($dataset_id);
-		if ($ltype ne "dataset") {
-		    $message = "Illegal dataset urn for $dataset_id";
-		    goto bad;
-		}
-		my ($domain,$subauth) = split(":", $domainsubauth);
-		if ($domain ne $OURDOMAIN) {
-		    $message = "This is not the correct site for this dataset";
-		    goto bad;
-		}
-		if (defined($subauth)) {
-		    $pid = $subauth;
-		}
-		$dataset_id = $id;
-
-		if ($dataset_id =~ /^(.*)\/\/(.*)$/ ||
-		    $dataset_id =~ /^(.*):(.*)$/) {
-		    $gid = $1;
-		    $dataset_id = $2;
-		}
-		if (!TBcheck_dbslot($dataset_id, "project_leases", "lease_id",
-				TBDB_CHECKDBSLOT_WARN|TBDB_CHECKDBSLOT_ERROR)) {
-		    $message = "Illegal dataset name: $dataset_id";
-		    goto bad;
-		}
+	    if (!GeniHRN::IsValid($dataset_id)) {
+		$message = "Invalid dataset urn for $dataset_id";
+		goto bad;
 	    }
-	    my $lease = Lease->Lookup($pid, $gid, $dataset_id);
+	    my $dataset_urn = GeniHRN->new($dataset_id);
+	    if ($dataset_urn->type() !~ /^(lt|st)?dataset$/) {
+		$message = "Illegal dataset type in $dataset_id";
+		goto bad;
+	    }
+	    if ($dataset_urn->domain() ne $OURDOMAIN) {
+		$message = "This is not the correct site for $dataset_id";
+		goto bad;
+	    }
+	    if (!defined($dataset_urn->project())) {
+		$message = "No project in $dataset_id";
+		goto bad;
+	    }
+	    my $pid = $dataset_urn->project();
+	    my $gid = $dataset_urn->group();
+	    $gid = $pid if (!defined($gid));
+
+	    #
+	    # If the ID includes a project, strip it. We no longer
+	    # put the project there, but old URNs might have it.
+	    #
+	    my ($ignore,$id) = split("//", $dataset_urn->id());
+	    $id = $ignore if (!defined($id));
+
+	    my $lease = Lease->Lookup($pid, $gid, $id);
 	    if (!defined($lease)) {
 		#
 		# Dataset must already exist.
 		#
-		$message = "No such dataset for $bsname: $pid/$gid/$dataset_id";
+		$message = "No such dataset for $bsname: $dataset_urn";
 		goto bad;
 	    }
 	    if ($PROTOGENI_LOCALUSER) {
@@ -7660,48 +7693,29 @@ sub HandleBlockstore($$$$$$@)
 		$message = "Not enough permission to use dataset: $dataset_id";
 		goto bad;
 	    }
-	    # Local user can use their own local lease. 
+	    #
+	    # Normal emulab permissions are going to be applied later,
+	    # so either it is the same user that created the lease, or
+	    # it is usable by anyone, or it has to be in the same
+	    # project (same SA) as the experiment being created (since
+	    # the user has permission to operate in the same project
+	    # as the lease).
+	    #
+	    # Lease access checks are for local users only, so we are
+	    # limited to local users for now, or the lease is public.
+	    #
 	    goto permokay
-		if ($geniuser->IsLocal() &&
-		    $lease->owner_uid() eq $geniuser->uid());
-	    
-	    #
-	    # Permission checks are a work in progress. Datasets created by
-	    # the same authority domain as the slice can be used. This is
-	    # explicit in the slice pid/gid and the lease pid/gid, which
-	    # reflect the domains.
-	    #
-	    if ($experiment->pid() ne $lease->pid()) {
-		$message = "Not allowed to use dataset from a ".
-		    "different SA: $dataset_id";
-		goto bad;
-	    }
-	    # Same SA, same project (subauth). Always allowed.
-	    goto permokay
-		if ($experiment->pid() eq $lease->pid() &&
-		    $experiment->gid() eq $lease->gid());
+		if (($geniuser->IsLocal() &&
+		     ($lease->IsPermRO() ||
+		      ($lease->pid() eq $experiment->pid() &&
+		       $lease->gid() eq $experiment->gid()))) ||
+		    $lease->IsAnonRO());
 
 	    #
-	    # Okay, same pid (SA) but different group (sub authority).
-	    # Must have a credential from the SA that says its okay.
+	    # XXX We used to look at credentials here, but that made no
+	    # difference, since we did not do anything with the lease
+	    # access. Maybe add that later.
 	    #
-	    my $manager_urn = $lease->GetAttribute("manager_urn");
-	    next
-		if (!defined($manager_urn));
-	    my ($manager_domain) = GeniHRN::Parse($manager_urn);
-	    
-	    foreach my $credential (@credentials) {
-		next
-		    if (!$credential->HasActualPrivilege("blockstores"));
-
-		my ($domain, undef, $id) =
-		    GeniHRN::Parse($credential->target_urn());
-
-		goto permokay
-		    if ($domain eq $manager_domain &&
-			$id eq $lease->lease_id());
-
-	    }
 	    # If we get here, its not allowed.
 	    $message = "No permission to use dataset $dataset_id";
 	    goto bad;

@@ -103,6 +103,11 @@ my $SNMPIT         = "$TB/bin/snmpit";
 my $CLONEIMAGE     = "$TB/sbin/clone_image";
 my $CREATEIMAGE    = "$TB/bin/create_image";
 my $DELETEIMAGE    = "$TB/sbin/delete_image";
+my $CREATEDATASET  = "$TB/bin/createdataset";
+my $DELETEDATASET  = "$TB/bin/deletelease";
+my $EXTENDDATASET  = "$TB/bin/extendlease";
+my $GRANTDATASET   = "$TB/bin/grantlease";
+my $GRANTIMAGE     = "$TB/sbin/grantimage";
 my $WAP            = "$TB/sbin/withadminprivs";
 my $SHAREVLAN      = "$TB/sbin/sharevlan";
 my $PANIC          = "$TB/sbin/panic";
@@ -2974,7 +2979,7 @@ sub CreateImage($)
     my $sliver_urn   = $argref->{'sliver_urn'};
     my $wholedisk    = 0;
     my $update_prepare = 0;
-    my $bsname;
+    my ($bsname,$blockstore);
     my $copyback_uuid;
 
     require EmulabConstants;
@@ -3072,6 +3077,23 @@ sub CreateImage($)
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "Node is not in the proper experiment");
     }
+    if (defined($bsname)) {
+	my @blockstores = $experiment->LookupBlockstoresForNode($node->vname());
+	if (!@blockstores) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"No such blockstore on node");
+	}
+	foreach my $bs (@blockstores) {
+	    if ($bs->vname() eq $bsname) {
+		$blockstore = $bs;
+		last;
+	    }
+	}
+	if (!defined($blockstore)) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+					"No such blockstore on node");
+	}
+    }
 
     #
     # On this path, we do not allow system images to be shadowed.
@@ -3100,12 +3122,65 @@ sub CreateImage($)
 	}
     }
     elsif (defined($bsname)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
-				    "Dataset for $bsname does not exist");
+	#
+	# For datasets, the image must always exist first, via CreateDataset.
+	# If we do not find it, it might be an imported dataset, which means
+	# we are taking a snapshot to overwrite that imported dataset
+	# All datasets are imported into the GeniSlices project, so we have to
+	# find it. But there is a complication; the imported dataset might have
+	# a different name cause of name collisions (between projects). So
+	# lets find it via the blockstore on the node we are taking the snapshot
+	# from. 
+	#
+	if (!exists($blockstore->{'attributes'}->{'dataset'})) {
+	    return GeniResponse->Create(GENIRESPONSE_BADARGS, undef,
+				"No dataset associated with $bsname on $node");
+	}
+	$image = Image->Lookup($blockstore->{'attributes'}->{'dataset'});
+	if (!defined($image)) {
+	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED, undef,
+				"Dataset for $bsname does not exist");
+	}
+	#
+	# For simplicity and consistency with how existing image snapshot
+	# works, lets create a new dataset in the current project so that
+	# we can just travel the imaging path as it exists, and take a
+	# snapshot to that new image descriptor. Ditto copyback to origin.
+	#
+	if (!defined(GeniCM::FlipToUser($slice, $user))) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+					"FlipToUser failed");
+	}
+	my $output =
+	    GeniUtil::ExecQuiet("$CREATEDATASET -t imdataset $pid/$imagename");
+	# Not a typical op, so always print debugging info;
+	print STDERR $output;
+	if ($?) {
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"Could not create new dataset descriptor");
+	}
+	my $clone = Image->Lookup("$pid/$imagename");
+	if (!defined($clone)) {
+	    print STDERR "Could not look up clone: $pid/$imagename\n";
+	    return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				"Could not look up clone $pid/$imagename");
+	}
+	# Need this for copyback. 
+	$clone->Update({"origin_urn" => $image->origin_urn()});
+	$image = $clone;
     }
     if (!defined(GeniCM::FlipToUser($slice, $user))) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
 				    "FlipToUser failed");
+    }
+    if (defined($bsname)) {
+	#
+	# These always go into the current project.
+	#
+	if ($image->pid() ne $pid) {
+	    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN, undef,
+					"Dataset not in same project as node");
+	}
     }
     
     #
@@ -3164,7 +3239,6 @@ sub CreateImage($)
 			    (defined($speaksfor) ?
 			     $speaksfor->target_urn() : $ENV{'GENIURN'})});
     }
-dataset:    
     #
     # Form an image URN so the user knows how to request the new image.
     #
@@ -3605,6 +3679,11 @@ sub TriggerImageUpdate($)
 	my $updater_idx = $update_user->idx();
 	
 	$update_fields = ", updater='$updater',updater_idx='$updater_idx'";
+    }
+    # We need the credential for secure download (datasets).
+    if (exists($blob->{"credential"})) {
+	$update_fields .= ", credential_string=" .
+	    DBQuoteSpecial($blob->{"credential"});
     }
     emdb::DBQueryWarn("insert into image_updates set ".
 		      "  imageid='$imageid',url=$safe_url, ".
@@ -4163,34 +4242,60 @@ sub ConsoleInfo($)
 #
 # Blockstore support.
 #
-my $CREATEDATASET   = "$TB/bin/createdataset";
-my $DELETEDATASET   = "$TB/bin/deletelease";
-my $EXTENDDATASET   = "$TB/bin/extendlease";
-my $GRANTDATASET    = "$TB/bin/grantlease";
-my $GRANTIMAGE      = "$TB/sbin/grantimage";
-
 sub CreateDataset($)
 {
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
-    my $dataset      = $argref->{'name'};
+    my $dataset_urn  = $argref->{'dataset_urn'};
     require Lease;
     require Image;
     require EmulabConstants;
+    require GeniImage;
 
-    if (! (defined($credentials) && defined($dataset))) {
+    if (! (defined($credentials) && defined($dataset_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    if ($dataset !~ /^[-\w]+$/) {
-	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    if (!GeniHRN::IsValid($dataset_urn)) {
+	return GeniResponse->MalformedArgsResponse("Invalid dataset urn");
+    }
+    $dataset_urn = GeniHRN->new($dataset_urn);
+    if ($dataset_urn->type() !~ /^(im|lt|st)?dataset$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset type");
     }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
     #
+    # The supplied dataset_urn must either match the credential target
+    # (say, coming from the portal), or the authority of the dataset_urn
+    # must match credential owner to ensure that the project/group
+    # match (say, a user talking directly to the CM).
+    #
+    return GeniResponse->MalformedArgsResponse("Credential does not match urn")
+	if (! ($dataset_urn->urn() eq $credential->target_urn() ||
+	       $dataset_urn->authority() eq
+	       $credential->owner_urn()->authority()));
+    #
+    # So we want to mark the dataset with urn of the dataset, as for the
+    # portal. This allows the portal itself to operate on the dataset, in
+    # addition to the user creating the dataset. If there is no portal,
+    # then only the creator or the MA of the user can operate on the
+    # dataset.  Why is that not good enough for the portal? Cause of the
+    # trusted signer and speaksfor; in that case the portal is not in the
+    # same domain space as the user (unlike the slice credential, with is
+    # always issued from the portal space, so in fact you could think of
+    # this URN like a slice URN in that it comes from a specially minted
+    # credential that bestows privs on the holder, and whoever holds such a
+    # a credential can do whatever they like).
+    #
+    my $authority_urn = $credential->target_urn()
+	if ($dataset_urn->urn() eq $credential->target_urn());
+    
+    #
     # Only real local users can do blockstores, or the credential
-    # must include the correct priv.
+    # must include the correct priv. Just a hack to prevent outsiders
+    # from using datasets until we are ready to open them up.
     #
     my $user = GeniCM::CreateUserFromCertificate($credential);
     return $user
@@ -4209,11 +4314,11 @@ sub CreateDataset($)
     return $group
 	if (GeniResponse::IsResponse($group));
 
-    my $image = Image->Lookup($group->pid(), $dataset);
+    my $image = Image->Lookup($group->pid(), $dataset_urn->id());
     if (defined($image)) {
 	GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS);
     }
-    my $lease = Lease->Lookup($group->pid(), $dataset);
+    my $lease = Lease->Lookup($group->pid(), $dataset_urn->id());
     if (defined($lease)) {
 	GeniResponse->Create(GENIRESPONSE_ALREADYEXISTS);
     }
@@ -4236,6 +4341,8 @@ sub CreateDataset($)
 	my $type = $argref->{'type'};
 	return GeniResponse->MalformedArgsResponse("Bad type")
 	    if ($type !~ /^[-\w]+$/);
+	return GeniResponse->MalformedArgsResponse("Mismatching type")
+	    if ($type ne $credential->target_urn()->type());
 	$cmd .= " -t $type";
     }
     if (exists($argref->{'fstype'})) {
@@ -4270,7 +4377,7 @@ sub CreateDataset($)
 	}
 	$cmd .= " -e '" . emutil::TBDateStringLocal($expiration) . "' ";
     }
-    $cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset;
+    $cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset_urn->id();
     my $output = GeniUtil::ExecQuiet($cmd);
     # Not a typical op, so always print debugging info;
     print STDERR $output;
@@ -4281,28 +4388,31 @@ sub CreateDataset($)
 	if ($PROTOGENI_LOCALUSER);
 
     # Stuff to put in the return blob.
-    my ($state,$uuid,$busy,$msg,$urn,$url);
+    my ($state,$uuid,$busy,$msg,$urn,$url,$cred);
 
     #
     # Grab the lease or image to see if its been created/approved, we want
     # to tell the user something.
     #
     if (exists($argref->{'type'}) && $argref->{'type'} eq "imdataset") {
-	my $image = Image->Lookup($group->pid(), $dataset);
+	my $image = Image->Lookup($group->pid(), $dataset_urn->id());
 	if (!defined($image)) {
 	    print STDERR "Could not lookup image after createdataset\n";
 	    GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
 	$image->Update({"creator_urn" => $user->urn()});
+	$image->Update({"authority_urn" => $authority_urn})
+	    if (defined($authority_urn));
 	$uuid  = $image->image_uuid();
 	$state = "new";
 	$busy  = 0;
-	$urn   = GeniHRN::Generate($OURDOMAIN . ":" . $image->pid(), "dataset",
-				   $image->gid() . "//" . $image->imagename());
+	$urn   = $image->urn();
 	$url   = $image->LocalURL();
+	$cred  = GeniImage::CreateDatasetCredential($image, $user);
     }
     else {
-	my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+	my $lease = Lease->Lookup($group->pid(),
+				  $group->gid(), $dataset_urn->id());
 	if (!defined($lease)) {
 	    print STDERR "Could not lookup lease after createdataset\n";
 	    GeniResponse->Create(GENIRESPONSE_ERROR);
@@ -4310,7 +4420,9 @@ sub CreateDataset($)
 	# Set the manager URN for same-SA permission checks.
 	$lease->SetAttribute("manager_urn", $credential->target_urn());
 	$lease->SetAttribute("creator_urn", $user->urn());
-    
+	$lease->SetAttribute("authority_urn", $authority_urn)
+	    if (defined($authority_urn));
+	    
 	if ($lease->state() eq "unapproved") {
 	    if ($lease->locked()) {
 		$msg = "Your dataset is being allocated.";
@@ -4323,14 +4435,15 @@ sub CreateDataset($)
 	$uuid  = $lease->uuid();
 	$state = $lease->state();
 	$busy  = $lease->locked() ? 1 : 0;
-	$urn   = GeniHRN::Generate($OURDOMAIN . ":" . $lease->pid(), "dataset",
-				   $lease->gid() . "//" . $lease->lease_id());
+	$urn   = $lease->urn();
+	$cred  = GeniImage::CreateDatasetCredential($lease, $user);
     }
     my $blob = {
 	"state" => $state,
 	"uuid"  => $uuid,
 	"urn"   => $urn,
 	"busy"  => $busy,
+	"credential" => $cred->asString(),
     };
     $blob->{'url'} = $url if (defined($url));
     
@@ -4340,17 +4453,18 @@ sub DeleteDataset($)
 {
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
-    my $dataset      = $argref->{'name'};
+    my $dataset_urn  = $argref->{'dataset_urn'};
     my $cmd;
     require Image;
     require Lease;
     require EmulabConstants;
 
-    if (! (defined($credentials) && defined($dataset))) {
+    if (! (defined($credentials) && defined($dataset_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    if ($dataset !~ /^[-\w]+$/) {
-	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    $dataset_urn = GeniHRN->new($dataset_urn);
+    if ($dataset_urn->type() !~ /^(im|lt|st)?dataset$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset type");
     }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
@@ -4358,7 +4472,8 @@ sub DeleteDataset($)
 
     #
     # Only real local users can do blockstores, or the credential
-    # must include the correct priv.
+    # must include the correct priv (this is a hack of course, any
+    # federation member can add this).
     #
     my $user = GeniCM::CreateUserFromCertificate($credential);
     return $user
@@ -4373,32 +4488,55 @@ sub DeleteDataset($)
     return $group
 	if (GeniResponse::IsResponse($group));
 
-    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
-    if (defined($lease)) {
-	#
-	# Only the creator until we are using credentials here.
-	#
-	my $lease_owner = $lease->GetAttribute("creator_urn");
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (! (defined($lease_owner) &&
-		   ($lease_owner eq $user->urn() ||
-		    $lease_owner eq $ENV{'REALGENIURN'})));
+    my ($lease, $image, $uuid, $authority_urn, $creator_urn);
 
+    #
+    # All datasets used to have the same type ...
+    #
+    if ($dataset_urn->type() eq "imdataset" ||
+	$dataset_urn->type() eq "dataset") {
+	$image = Image->Lookup($group->pid(), $dataset_urn->id());
+	if (defined($image)) {
+	    $creator_urn = $image->creator_urn();
+	    $authority_urn = $image->authority_urn();
+	}
+    }
+    if (!defined($image) ||
+	$dataset_urn->type() eq "stdataset" ||
+	$dataset_urn->type() eq "ltdataset") {
+	$lease = Lease->Lookup($group->pid(),
+			       $group->gid(), $dataset_urn->id());
+	if (defined($lease)) {
+	    $creator_urn = $lease->GetAttribute("creator_urn");
+	    $authority_urn = $lease->GetAttribute("authority_urn");
+	}
+    }
+    if (!defined($lease) && !defined($image)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    }
+    #
+    # The owner is allowed to operate on the dataset, or if there is an
+    # authority_urn set, then we had to get a dataset credential from
+    # the same authority.
+    #
+    $authority_urn = GeniHRN->new($authority_urn)
+	if (defined($authority_urn));
+    
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (!((defined($creator_urn) &&
+	       $creator_urn eq $credential->owner_urn()) ||
+	      (defined($authority_urn) &&
+	       $authority_urn->authority() eq
+	       $credential->owner_urn()->authority())));
+    
+    if (defined($lease)) {
 	$cmd = "$DELETEDATASET -b -f " .
-	    $group->pid() . "/" . $group->gid() . "/" . $dataset;
+	    $group->pid() . "/" . $group->gid() . "/" . $lease->lease_id();
+	$uuid = $lease->uuid();
     }
     else {
-	my $image = Image->Lookup($group->pid(), $dataset);
-	if (!defined($image)) {
-	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
-	}
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (!$image->isdataset() ||
-		!defined($image->creator_urn()) ||
-		($image->creator_urn() ne $user->urn() &&
-		 $image->creator_urn() ne $ENV{'REALGENIURN'}));
-	
 	$cmd = "$DELETEIMAGE -p ". $image->imageid();
+	$uuid = $image->image_uuid();
     }
     if ($PROTOGENI_LOCALUSER) {
 	$cmd = "$WAP $cmd";
@@ -4420,17 +4558,18 @@ sub ModifyDataset($)
 {
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
-    my $dataset      = $argref->{'name'};
+    my $dataset_urn  = $argref->{'dataset_urn'};
     my $islease      = 0;
     require Image;
     require Lease;
     require EmulabConstants;
 
-    if (! (defined($credentials) && defined($dataset))) {
+    if (! (defined($credentials) && defined($dataset_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    if ($dataset !~ /^[-\w]+$/) {
-	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    $dataset_urn = GeniHRN->new($dataset_urn);
+    if ($dataset_urn->type() !~ /^(im|lt|st)?dataset$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset type");
     }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
@@ -4450,32 +4589,50 @@ sub ModifyDataset($)
     return $group
 	if (GeniResponse::IsResponse($group));
 
-    my $image;
-    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+    my ($lease, $image, $uuid, $authority_urn, $creator_urn);
+
+    #
+    # All datasets used to have the same type ...
+    #
+    if ($dataset_urn->type() eq "imdataset" ||
+	$dataset_urn->type() eq "dataset") {
+	$image = Image->Lookup($group->pid(), $dataset_urn->id());
+	if (defined($image)) {
+	    $creator_urn = $image->creator_urn();
+	    $authority_urn = $image->authority_urn();
+	}
+    }
+    if (!defined($image) ||
+	$dataset_urn->type() eq "stdataset" ||
+	$dataset_urn->type() eq "ltdataset") {
+	$lease = Lease->Lookup($group->pid(),
+			       $group->gid(), $dataset_urn->id());
+	if (defined($lease)) {
+	    $creator_urn = $lease->GetAttribute("creator_urn");
+	    $authority_urn = $lease->GetAttribute("authority_urn");
+	}
+    }
+    if (!defined($lease) && !defined($image)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    }
+    #
+    # The owner is allowed to operate on the dataset, or if there is an
+    # authority_urn set, then we had to get a dataset credential from
+    # the same authority.
+    #
+    $authority_urn = GeniHRN->new($authority_urn)
+	if (defined($authority_urn));
+    
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (!((defined($creator_urn) &&
+	       $creator_urn eq $credential->owner_urn()) ||
+	      (defined($authority_urn) &&
+	       $authority_urn->authority() eq
+	       $credential->owner_urn()->authority())));
+    
     if (defined($lease)) {
-	#
-	# Only the creator until we are using credentials here.
-	#
-	my $lease_owner = $lease->GetAttribute("creator_urn");
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (! (defined($lease_owner) &&
-		   ($lease_owner eq $user->urn() ||
-		    $lease_owner eq $ENV{'REALGENIURN'})));
 	$islease = 1;
     }
-    else {
-	$image = Image->Lookup($group->pid(), $dataset);
-	if (!defined($image)) {
-	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
-	}
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (!$image->isdataset() ||
-		!defined($image->creator_urn()) ||
-		($image->creator_urn() ne $user->urn() &&
-		 $image->creator_urn() ne $ENV{'REALGENIURN'}));
-	$islease = 0;
-    }
-
     my $cmd;
     #
     # All we can handle is extend and modify permission bits.
@@ -4508,10 +4665,11 @@ sub ModifyDataset($)
 	return GeniResponse->MalformedArgsResponse("unknown operation");
     }
     if ($islease) {
-	$cmd .= " " . $group->pid() . "/" . $group->gid() . "/" . $dataset;
+	$cmd .= " " . $group->pid() . "/" . $group->gid() . "/" .
+	    $lease->lease_id();
     }
     else {
-	$cmd .= " " . $group->pid() . "," . $dataset;
+	$cmd .= " " . $group->pid() . "," . $image->imagename();
     }
     if ($PROTOGENI_LOCALUSER) {
 	$cmd = "$WAP $cmd";
@@ -4541,7 +4699,7 @@ sub DescribeDataset($)
 {
     my ($argref) = @_;
     my $credentials  = $argref->{'credentials'};
-    my $dataset      = $argref->{'name'};
+    my $dataset_urn  = $argref->{'dataset_urn'};
     my $blob = {};
     require Image;
     require Lease;
@@ -4549,11 +4707,12 @@ sub DescribeDataset($)
     require EmulabConstants;
     require WebTask;
 
-    if (! (defined($credentials) && defined($dataset))) {
+    if (! (defined($credentials) && defined($dataset_urn))) {
 	return GeniResponse->MalformedArgsResponse("Missing arguments");
     }
-    if ($dataset !~ /^[-\w]+$/) {
-	return GeniResponse->MalformedArgsResponse("Bad dataset name");
+    $dataset_urn = GeniHRN->new($dataset_urn);
+    if ($dataset_urn->type() !~ /^(im|lt|st)?dataset$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset type");
     }
     my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
     return $credential
@@ -4561,7 +4720,8 @@ sub DescribeDataset($)
 
     #
     # Only real local users can do blockstores, or the credential
-    # must include the correct priv.
+    # must include the correct priv. Just a hack to prevent outsiders
+    # from using datasets until we are ready to open them up.
     #
     my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
@@ -4573,16 +4733,48 @@ sub DescribeDataset($)
     return $group
 	if (GeniResponse::IsResponse($group));
 
-    my $lease = Lease->Lookup($group->pid(), $group->gid(), $dataset);
+    my ($lease, $image, $authority_urn, $creator_urn);
+
+    #
+    # All datasets used to have the same type ...
+    #
+    if ($dataset_urn->type() eq "imdataset" ||
+	$dataset_urn->type() eq "dataset") {
+	$image = Image->Lookup($group->pid(), $dataset_urn->id());
+	if (defined($image)) {
+	    $creator_urn = $image->creator_urn();
+	    $authority_urn = $image->authority_urn();
+	}
+    }
+    if (!defined($image) ||
+	$dataset_urn->type() eq "stdataset" ||
+	$dataset_urn->type() eq "ltdataset") {
+	$lease = Lease->Lookup($group->pid(),
+			       $group->gid(), $dataset_urn->id());
+	if (defined($lease)) {
+	    $creator_urn = $lease->GetAttribute("creator_urn");
+	    $authority_urn = $lease->GetAttribute("authority_urn");
+	}
+    }
+    if (!defined($lease) && !defined($image)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    }
+    #
+    # The owner is allowed to operate on the dataset, or if there is an
+    # authority_urn set, then we had to get a dataset credential from
+    # the same authority.
+    #
+    $authority_urn = GeniHRN->new($authority_urn)
+	if (defined($authority_urn));
+    
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (!((defined($creator_urn) &&
+	       $creator_urn eq $credential->owner_urn()) ||
+	      (defined($authority_urn) &&
+	       $authority_urn->authority() eq
+	       $credential->owner_urn()->authority())));
+    
     if (defined($lease)) {
-	#
-	# Only the creator until we are using credentials here.
-	#
-	my $lease_owner = $lease->GetAttribute("creator_urn");
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (! (defined($lease_owner) &&
-		   ($lease_owner eq $user->urn() ||
-		    $lease_owner eq $ENV{'REALGENIURN'})));
 	$blob->{'state'}    = $lease->state();
 	$blob->{'type'}     = $lease->type();
 	$blob->{"busy"}     = $lease->locked() ? 1 : 0;
@@ -4596,16 +4788,6 @@ sub DescribeDataset($)
 	}
     }
     else {
-	my $image = Image->Lookup($group->pid(), $dataset);
-	if (!defined($image)) {
-	    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
-	}
-	return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	    if (!$image->isdataset() ||
-		!defined($image->creator_urn()) ||
-		($image->creator_urn() ne $user->urn() &&
-		 $image->creator_urn() ne $ENV{'REALGENIURN'}));
-
 	$blob->{'state'}    = "valid";
 	$blob->{'type'}     = "imdataset";
 	$blob->{"busy"}     = 0;
@@ -4653,6 +4835,187 @@ sub DescribeDataset($)
 	print STDERR Dumper($blob);
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS, $blob);
+}
+
+sub GetDatasetCredential($)
+{
+    my ($argref) = @_;
+    my $credentials  = $argref->{'credentials'};
+    my $dataset_urn  = $argref->{'dataset_urn'};
+    my $blob = {};
+    require Image;
+    require Lease;
+    require EmulabConstants;
+    require GeniImage;
+
+    if (! (defined($credentials) && defined($dataset_urn))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    $dataset_urn = GeniHRN->new($dataset_urn);
+    if ($dataset_urn->type() !~ /^(im|lt|st)?dataset$/) {
+	return GeniResponse->MalformedArgsResponse("Bad dataset type");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my ($target, $authority_urn, $creator_urn);
+    
+    #
+    # All datasets used to have the same type ...
+    #
+    if ($dataset_urn->type() eq "imdataset" ||
+	$dataset_urn->type() eq "dataset") {
+	$target = Image->Lookup($dataset_urn->project(), $dataset_urn->id());
+	if (defined($target)) {
+	    $creator_urn = $target->creator_urn();
+	    $authority_urn = $target->authority_urn();
+	}
+    }
+    if (!defined($target) ||
+	$dataset_urn->type() eq "stdataset" ||
+	$dataset_urn->type() eq "ltdataset") {
+	$target = Lease->Lookup($dataset_urn->project(),
+				($dataset_urn->group() ?
+				$dataset_urn->group() : $dataset_urn->project()),
+			       $dataset_urn->id());
+	if (defined($target)) {
+	    $creator_urn = $target->GetAttribute("creator_urn");
+	    $authority_urn = $target->GetAttribute("authority_urn");
+	}
+    }
+    if (!defined($target)) {
+	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
+    }
+    #
+    # The owner is allowed to operate on the dataset, or if there is an
+    # authority_urn set, then we had to get a dataset credential from
+    # the same authority.
+    #
+    $authority_urn = GeniHRN->new($authority_urn)
+	if (defined($authority_urn));
+    
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if (!((defined($creator_urn) &&
+	       $creator_urn eq $credential->owner_urn()) ||
+	      (defined($authority_urn) &&
+	       $authority_urn->domain() eq $credential->owner_urn()->domain() &&
+	       $authority_urn eq $credential->target_urn())));
+    
+    my $dataset_credential =
+	GeniImage::CreateDatasetCredential($target, $credential->owner_cert());
+    if (!defined($dataset_credential)) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR);
+    }
+    return GeniResponse->Create(GENIRESPONSE_SUCCESS,
+				$dataset_credential->asString());
+}
+
+#
+# Secure image download, by credential.
+#
+sub SecureImageDownload($)
+{
+    my ($argref)  = @_;
+    my $credentials = $argref->{'credentials'};
+
+    if (! (defined($credentials))) {
+	return GeniResponse->MalformedArgsResponse("Missing arguments");
+    }
+    my ($credential,$speaksfor) = GeniStd::CheckCredentials($credentials);
+    return $credential
+	if (GeniResponse::IsResponse($credential));
+
+    my $image_urn = $credential->target_urn();
+    return GeniResponse->MalformedArgsResponse("Improper image type")
+	if ($image_urn->type() ne "imdataset");
+    return GeniResponse->MalformedArgsResponse("No project in URN")
+	if (!defined($image_urn->project()));
+
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if ($credential->target_urn()->domain() ne $OURDOMAIN);
+
+    #
+    # Use the UUID for lookup, since that will reference the correct
+    # image version. Not sure how we want to do versions yet.
+    #
+    my $image = Image->Lookup($credential->target_uuid());   
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
+	if (!defined($image));
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
+	if ($image->urn() ne $credential->target_urn());
+    my $group = $image->GetGroup();
+    return GeniResponse->Create(GENIRESPONSE_ERROR)
+	if (!defined($group));
+
+    # Better make sure we have project mounted.
+    $group->GetProject()->UpdateExports();
+
+    # Need to set our groups so we can read the file.
+    GeniUtil::FlipToUser("root", $group->pid(), $group->unix_gid());
+    my $file = $image->FullImageFile();
+    
+    if (! -r $file) {
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+			    "Image file does not exist or cannot be read");
+    }
+    #
+    # Stat the file to get the bytelen for spewing.
+    #
+    my (undef,undef,undef,undef,undef,undef,undef,$bytelen) = stat($file);
+
+    open(FD, "< $file") or
+	return GeniResponse->Create(GENIRESPONSE_ERROR, undef,
+				    "Could not open file for reading");
+
+    # This sets STDOUT back to apache.
+    main::AbortLogging();
+    print "Content-Type: application/octet-stream\n";
+    print "Cache-Control: no-cache, must-revalidate\n";
+    print "Pragma: no-cache\n\n";
+    
+    #
+    # Deal with NFS read failures
+    #
+    my $foffset = 0;
+    my $retries = 5;
+    my $buf;
+
+    while ($bytelen) {
+	my $rlen = sysread(FD, $buf, 8192);
+
+	if (! defined($rlen)) {
+	    #
+	    # Retry a few times on error to avoid the
+	    # changing-exports-file server problem.
+	    #
+	    if ($retries > 0 && sysseek(FD, $foffset, 0)) {
+		$retries--;
+		sleep(1);
+		next;
+	    }
+	    print STDERR "Error reading $file: $!\n";
+	    last;
+	}
+        if ($rlen == 0) {
+	    last;
+	}
+	if (! syswrite(STDOUT, $buf, $rlen)) {
+	    print STDERR "Error writing file to stdout: $!\n";
+	    last;
+	}
+	$foffset += $rlen;
+	$bytelen -= $rlen;
+	$retries = 5;
+    }
+    close(FD);
+    if ($bytelen) {
+	print STDERR "Did not get the entire file! $bytelen bytes left.\n";
+	# Cannot return XML at this point.
+	return -1;
+    }
+    # Cannot return XML at this point.
+    return 0;
 }
 
 #

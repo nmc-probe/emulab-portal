@@ -50,7 +50,7 @@ sub usage()
     print(" -c      - With -r update ndz file using the updates table\n");
     exit(-1);
 }
-my $optlist = "dvu:p:gi:Irsc";
+my $optlist = "dvu:p:gi:IrscR";
 my $debug   = 0;
 my $verify  = 0;
 my $getimage= 0;
@@ -63,6 +63,7 @@ my $group;
 my $image;
 my $imagename;
 my $copyback_urn;
+my $copyback_credential;
 
 #
 # Configure variables
@@ -83,6 +84,7 @@ my $SAVEUID	= $UID;
 my $IMAGEVALIDATE = "$TB/sbin/imagevalidate";
 my $DELETEIMAGE   = "$TB/sbin/delete_image";
 my $POSTIMAGEINFO = "$TB/sbin/protogeni/postimagedata";
+my $SECUREIMAGEGET= "$TB/sbin/protogeni/secureimageget";
 my $WITHPROVENANCE= @IMAGEPROVENANCE@;
 my $DOIMAGEDIRS   = @IMAGEDIRECTORIES@;
 my $PGENISUPPORT  = @PROTOGENI_SUPPORT@;
@@ -137,7 +139,7 @@ sub fatal($);
 sub FetchMetadata($);
 sub CreateImage($$$$$);
 sub DownLoadImage($$$$);
-sub FetchImageFile($$);
+sub FetchImageFile($$$);
 sub FetchSigFile($);
 
 #
@@ -178,6 +180,9 @@ if (defined($options{"r"})) {
 if (defined($options{"R"})) {
     $update = 1;
     $force  = 1;
+    if (defined($options{"c"})) {
+	$copyback = 1;
+    }
 }
 if (defined($options{"u"})) {
     $user = User->Lookup($options{"u"});
@@ -247,6 +252,17 @@ if ($update) {
 	$updater_uid  = $row->{'updater'};
 	$updater_idx  = $row->{'updater_idx'};
 	$copyback_urn = $row->{'updater_urn'};
+	if ($row->{'credential_string'} ne "") {
+	    require GeniCredential;
+	    
+	    $copyback_credential =
+		GeniCredential->CreateFromSigned($row->{'credential_string'});
+	    if (!defined($copyback_credential)) {
+		print STDERR "Image credential is not valid\n";
+		$image->Unlock();
+		exit(-1);
+	    }
+	}
 
 	#
 	# Also want the user doing the import to be the user who actually
@@ -671,10 +687,9 @@ sub CreateImage($$$$$)
 sub DownLoadImage($$$$)
 {
     my ($image, $newhash, $user, $group) = @_;
-    my $image_url = uri_unescape($image->imagefile_url());
     my $localfile = $image->FullImageFile() . ".new";
 
-    if (FetchImageFile($image_url, $localfile)) {
+    if (FetchImageFile($image, "", $localfile)) {
 	return -1;
     }
 
@@ -746,18 +761,48 @@ sub DownLoadImage($$$$)
 #
 # Fetch a file.
 #
-sub FetchImageFile($$)
+sub FetchImageFile($$$)
 {
-    my ($url, $localfile) = @_;
+    my ($image, $urlarg, $localfile) = @_;
+    my $url       = uri_unescape($image->imagefile_url()) . $urlarg;
     my $safe_url  = User::escapeshellarg($url);
     my $user_uid  = $user->uid();
-    
+
+    #
+    # If we have a credential, we use the secure image download path,
+    # which at the moment only runs on boss. And only for datasets.
+    #
+    if (defined($copyback_credential) || $image->HasCredential()) {
+	my $credarg = "";
+	
+	if ($copyback_credential) {
+	    # This will auto delete.
+	    my $credfile = $copyback_credential->WriteToFile();
+	    $credarg = "-c " . $credfile;
+	}
+	# We need to operate as the user since we are not calling
+	# over to ops.
+	$user->FlipTo($image->GetProject()->unix_gid());
+	
+	my $cmdargs = "$SECUREIMAGEGET $credarg -o $localfile ".
+	    $image->versname();
+
+	system($cmdargs);
+	return -1
+	    if ($?);
+
+	system("$SHA1 $localfile > ${localfile}.sha1");
+	if ($?) {
+	    print STDERR "Could not generate sha1 hash of $localfile\n";
+	    return -1;
+	}
+    }
     #
     # Build up a new command line to do the fetch on ops
     # But no reason to do this if an admin, which is important
     # when the image is going into /usr/testbed/images.
     #
-    if (!$user->IsAdmin()) {
+    elsif (!$user->IsAdmin()) {
 	my $cmdargs = "$TB/bin/fetchtar.proxy -h -u $user_uid";
 	my $glist = `/usr/bin/id -G $user_uid`;
 	if ($glist =~ /^([\d ]*)$/) {
@@ -854,11 +899,10 @@ sub FetchMetadata($)
 sub FetchSigFile($)
 {
     my ($image) = @_;
-    my $image_url  = uri_unescape($image->imagefile_url()) . "&sigfile=1";
     my $localfile  = $image->FullImageSigFile() . ".new";
     my $sigfile    = $image->FullImageSigFile();
     
-    if (! FetchImageFile($image_url, $localfile)) {
+    if (! FetchImageFile($image, "&sigfile=1", $localfile)) {
 	system("/bin/mv -f $localfile $sigfile");
 	# Do not need this.
 	unlink("${localfile}.sha1")
