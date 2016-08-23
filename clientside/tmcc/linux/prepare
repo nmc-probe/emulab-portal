@@ -42,6 +42,7 @@ my $HISTORY     = ".bash_history";
 my $MAILDIR     = "/var/spool/mail";
 my $NTPDRIFT1   = "/etc/ntp/drift";
 my $NTPDRIFT2   = "/var/lib/ntp/drift";
+my $NTPDRIFT3   = "/var/lib/ntp/ntp.drift";
 my $SFSUSERS    = "/etc/sfs/sfs_users";
 my $SFSHOSTKEY  = "/etc/sfs/sfs_host_key";
 my $SSHDCONFIG  = "/etc/ssh/sshd_config";
@@ -354,6 +355,9 @@ print "Resetting NTP drift ...\n";
 my $driftfile = $NTPDRIFT1;
 if (! -f $driftfile) {
     $driftfile = $NTPDRIFT2;
+    if (! -f $driftfile) {
+	$driftfile = $NTPDRIFT3;
+    }
 }
 if (-f $driftfile) {
     open(DRIFT, ">$driftfile") or
