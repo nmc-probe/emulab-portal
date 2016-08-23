@@ -139,7 +139,9 @@ with 2015Q3 and I have updated through 2016Q2.
 6. Now begin the tedious, iterative process. First, do:
 
        setenv PACKAGES /usr/obj/ports/packages
-       # if no SSD then...
+       # if SSD then...
+       setenv TMPDIR /tmp
+       # ...else if no SSD then...
        setenv TMPDIR /local/tmp
 
    The former ensures that packages wind up in a single directory. The latter
@@ -149,22 +151,25 @@ with 2015Q3 and I have updated through 2016Q2.
    Now for each emulab-* port you install, you will need to perform the ritual
    steps below:
 
-       mkdir -p $PACKAGES/All
-       rm -f $PACKAGES/All/*
-       setenv FLAGS ""
+       setenv myFLAGS ""
        foreach d (boss ops fs protogeni genilib tipserv extras)
-           (cd /usr/ports/misc/emulab-$d ; make $FLAGS clean all install)
-	   (cd /usr/ports/misc/emulab-$d ; make $FLAGS clean)
+           (cd /usr/ports/misc/emulab-$d ; make $myFLAGS clean all install)
+	   (cd /usr/ports/misc/emulab-$d ; make $myFLAGS clean)
        end
-       pkg create -a -o $PACKAGES/All/
 
-   If a build fails due to an outstanding vulnerability, first try updating the
-   ports with SVN to see if it has been addressed. If that doesn't work, you will
-   have to build with the vulnerability check disabled. Set:
+   If a build fails due to an outstanding vulnerability, first try updating
+   the ports with SVN to see if it has been addressed. If that doesn't work,
+   you will have to build with the vulnerability check disabled. Set:
 
-       setenv FLAGS DISABLE_VULNERABILITIES=1
+       setenv myFLAGS DISABLE_VULNERABILITIES=1
 
    and do the above loop again.
+
+   Now save off the packages:
+
+       mkdir -p $PACKAGES/All
+       rm -f $PACKAGES/All/*
+       pkg create -a -o $PACKAGES/All/
 
    Then from ops do:
        mkdir /share/freebsd/x.x/packages
@@ -199,6 +204,21 @@ with 2015Q3 and I have updated through 2016Q2.
        # make sure you are not on boss or ops!
        hostname -s | grep -Eq '^(boss|ops)$' && \
            (echo 'STOP! you are on boss or ops, ^C now!'; sleep 100000; exit)
+
+       # common boss-install
+       PD
+       PA emulab-boss*
+       PA emulab-extras*
+       PC
+       PL
+      
+       # common ops-install
+       PD
+       PA emulab-ops*
+       PA emulab-fs*
+       PA emulab-extras*
+       PC
+       PL
 
        # all possible boss-install packages
        PD
