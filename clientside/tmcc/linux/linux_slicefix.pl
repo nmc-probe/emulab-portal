@@ -1248,22 +1248,19 @@ sub localize
 
     # Check the NTP configuration.
     if (-e "/etc/ntp.conf") {
-	system("cmp -s /etc/ntp.conf $imageroot/etc/ntp.conf >/dev/null 2>&1");
+	print "Updating /etc/ntp.conf\n";
+
+	system("cp -pf /etc/ntp.conf $imageroot/etc/ntp.conf");
 	if ($?) {
-	    print "Updating /etc/ntp.conf\n";
+	    print STDERR "Failed to create /etc/ntp.conf\n";
+	    return;
+	}
 
-	    system("cp -pf /etc/ntp.conf $imageroot/etc/ntp.conf");
-	    if ($?) {
-		print STDERR "Failed to create /etc/ntp.conf\n";
-		return;
-	    }
-
-	    # XXX cannot use /etc/ntp.drift for Linux
-	    if (-d "/var/lib/ntp") {
-		file_replace_string($imageroot, "/etc/ntp.conf",
-				    "/etc/ntp.drift",
-				    "/var/lib/ntp/ntp.drift");
-	    }
+	# XXX cannot use /etc/ntp.drift for Linux
+	if (-d "$imageroot/var/lib/ntp") {
+	    file_replace_string($imageroot, "/etc/ntp.conf",
+				"/etc/ntp.drift",
+				"/var/lib/ntp/ntp.drift");
 	}
     }
 }

@@ -147,15 +147,12 @@ localize_image() {
 
     # Check the NTP configuration.
     if [ -e /etc/ntp.conf ]; then
-	cmp -s /etc/ntp.conf $MNT/etc/ntp.conf
-	if [ $? -ne 0 ]; then
-	    echo "  updating /etc/ntp.conf"
+	echo "  updating /etc/ntp.conf"
 
-	    cp -pf /etc/ntp.conf $MNT/etc/ntp.conf || {
-		echo "Failed to create /etc/ntp.conf"
-		return 1
-	    }
-	fi
+	cp -pf /etc/ntp.conf $MNT/etc/ntp.conf || {
+	    echo "Failed to create /etc/ntp.conf"
+	    return 1
+	}
 
 	# XXX cannot put drift in /etc/ntp.drift on Linux
 	if [ -d "$MNT/var/lib/ntp" ]; then
