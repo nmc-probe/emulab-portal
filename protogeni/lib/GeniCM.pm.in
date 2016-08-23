@@ -7349,6 +7349,15 @@ sub SetSliceExpiration($$$$@)
     else {
 	$when = $slice_expires;
     }
+    # The slice is already set correctly, skip the rest of this. This
+    # avoids an issue with ticket update, whereby the extra permission
+    # credential is not supplied.
+    my $current_slice_expiration = str2time($slice->expires());
+    if (defined($current_slice_expiration) &&
+	$current_slice_expiration == $when) {
+	print STDERR "Expiration does not need to be set\n";
+	return 0;
+    }
     my $diff = $when - time();
     
     if ($diff < (60 * 5)) {
