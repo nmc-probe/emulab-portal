@@ -1152,7 +1152,7 @@ sub localize
 	system("cmp -s $ETCDIR/emulab.pem $imageroot/etc/emulab/emulab.pem >/dev/null 2>&1");
 	if ($?) {
 	    print "Updating $imageroot/etc/emulab/emulab.pem\n";
-	    system("cp -p $ETCDIR/emulab.pem $imageroot/etc/emulab/");
+	    system("cp -pf $ETCDIR/emulab.pem $imageroot/etc/emulab/");
 	    if ($?) {
 		print STDERR "Failed to create $ETCDIR/emulab.pem\n";
 		return;
@@ -1163,7 +1163,7 @@ sub localize
 	system("cmp -s $ETCDIR/client.pem $imageroot/etc/emulab/client.pem >/dev/null 2>&1");
 	if ($?) {
 	    print "Updating $imageroot/etc/emulab/client.pem\n";
-	    system("cp -p $ETCDIR/client.pem $imageroot/etc/emulab/");
+	    system("cp -pf $ETCDIR/client.pem $imageroot/etc/emulab/");
 	    if ($?) {
 		print STDERR "Failed to create $ETCDIR/client.pem\n";
 		return;
@@ -1183,12 +1183,12 @@ sub localize
 		}
 	    }
 	    # copy to both authorized_keys and _keys2
-	    system("cp -p /root/.ssh/authorized_keys2 $imageroot/root/.ssh/authorized_keys");
+	    system("cp -pf /root/.ssh/authorized_keys2 $imageroot/root/.ssh/authorized_keys");
 	    if ($?) {
 		print STDERR "Failed to create /root/.ssh/authorized_keys\n";
 		return;
 	    }
-	    system("cp -p /root/.ssh/authorized_keys2 $imageroot/root/.ssh/");
+	    system("cp -pf /root/.ssh/authorized_keys2 $imageroot/root/.ssh/");
 	    if ($?) {
 		print STDERR "Failed to create /root/.ssh/authorized_keys2\n";
 		return;
@@ -1225,7 +1225,7 @@ sub localize
 		return;
 	    }
 	}
-	system("cp -p /etc/ssh/ssh_host_* $imageroot/etc/ssh/");
+	system("cp -pf /etc/ssh/ssh_host_* $imageroot/etc/ssh/");
 	if ($?) {
 	    print STDERR "Failed to create /etc/ssh/hostkeys\n";
 	    return;
@@ -1238,7 +1238,7 @@ sub localize
 	if ($?) {
 	    print "Updating /etc/localtime\n";
 
-	    system("cp -p /etc/localtime $imageroot/etc/localtime");
+	    system("cp -pf /etc/localtime $imageroot/etc/localtime");
 	    if ($?) {
 		print STDERR "Failed to create /etc/localtime\n";
 		return;
@@ -1252,10 +1252,17 @@ sub localize
 	if ($?) {
 	    print "Updating /etc/ntp.conf\n";
 
-	    system("cp -p /etc/ntp.conf $imageroot/etc/ntp.conf");
+	    system("cp -pf /etc/ntp.conf $imageroot/etc/ntp.conf");
 	    if ($?) {
 		print STDERR "Failed to create /etc/ntp.conf\n";
 		return;
+	    }
+
+	    # XXX cannot use /etc/ntp.drift for Linux
+	    if (-d "/var/lib/ntp") {
+		file_replace_string($imageroot, "/etc/ntp.conf",
+				    "/etc/ntp.drift",
+				    "/var/lib/ntp/ntp.drift");
 	    }
 	}
     }
