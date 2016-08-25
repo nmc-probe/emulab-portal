@@ -460,9 +460,9 @@ sub AssignLoop()
 	}
 	# Hack for Kirk.
 	if (!($impotent || $regression) &&
-	    ($pid eq "PNWorkshop" || $project->IsNonLocal())) {
+	    ($pid eq "SIGCOMMTutorial" || $project->IsNonLocal())) {
 	    while (1) {
-		if (libEmulab::EmulabCountLock("mapperlock", 4) == 0) {
+		if (libEmulab::EmulabCountLock("mapperlock", 3) == 0) {
 		    $seriallock = 1;
 		    last;
 		}
