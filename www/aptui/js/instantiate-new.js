@@ -130,7 +130,8 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    admin:		isadmin,
 	});
 	$('#main-body').html(html);
-	UpdateGroupSelector();
+	if (projlist)
+	    UpdateGroupSelector();
 
 	// TEMPORARY BUTTON FOR CLASSIC PICKER
 	// To be removed when the new picker becomes default
@@ -434,7 +435,7 @@ function (_, Constraints, sup, ppstart, JacksEditor, wt,
 	    if (isSystem) {
 	      result.sysproj[key] = obj;
 	    }
-	    if (_.has(projlist, obj.project)) {
+	    if (projlist && _.has(projlist, obj.project)) {
 	      if (!result.inproj[obj.project]) {
 		result.inproj[obj.project] = {};
 	      }

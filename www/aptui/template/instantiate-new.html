@@ -250,19 +250,26 @@
 	      </table>
 	    </div>
 	  </div>
-	  <div class='panel panel-default'>
-	    <div class='panel-heading'>
-	      Please review the selections below and then click Finish.
+	  <% if (!registered) { %>
+	    <!-- Show non-specific errors here. -->
+	    <div style='margin-bottom: 10px;'>
+	      <font color=red>
+		<center><span id="general_error"></span></center>
+	      </font>
 	    </div>
-	    <div class='panel-body'>
-	      <!-- Show non-specific errors here. -->
-	      <div style='margin-bottom: 10px;'>
-		<font color=red>
-		  <center><span id="general_error"></span></center>
-		</font>
+	  <% } else { %>
+	    <div class='panel panel-default'>
+	      <div class='panel-heading'>
+		Please review the selections below and then click Finish.
 	      </div>
-	      <div id='finalize_options'>
-		<% if (registered) { %>
+	      <div class='panel-body'>
+		<!-- Show non-specific errors here. -->
+		<div style='margin-bottom: 10px;'>
+		  <font color=red>
+		    <center><span id="general_error"></span></center>
+		  </font>
+		</div>
+		<div id='finalize_options'>
 		  <!-- Optional experiment name -->
 		  <div id='name_selector'
 		       class='form-horizontal experiment_option'>               
@@ -291,98 +298,99 @@
 		      </div>
 		    </div>
 		  </div>
-		<% } %>
-		<% if (projects && Object.keys(projects).length) { %>
-		  <% if (Object.keys(projects).length == 1) { %>
-		    <!-- We need this to look like the selector below,
-		    for the JS code. -->
-		    <div class='hidden' id='project_selector'>
-		      <input id='profile_pid' type='hidden'
-			     name='pid'
-			     value='<%- formfields.pid %>'>
-		    </div>
-		  <% } else { %>
-		    <div class='form-horizontal experiment_option'
-			 id='project_selector'>
+		  <% if (projects && Object.keys(projects).length) { %>
+		    <% if (Object.keys(projects).length == 1) { %>
+		      <!-- We need this to look like the selector below,
+			   for the JS code. -->
+		      <div class='hidden' id='project_selector'>
+			<input id='profile_pid' type='hidden'
+			       name='pid'
+			       value='<%- formfields.pid %>'>
+		      </div>
+		    <% } else { %>
+		      <div class='form-horizontal experiment_option'
+			   id='project_selector'>
+			<div class='form-group format-me'>
+			  <label class='col-sm-4 control-label'
+				 style='text-align: right;'>Project:</label>
+			  <div class='col-sm-6'>
+			    <select name="pid"
+				    data-key='pid'
+				    id='profile_pid'
+				    class='form-control'>
+			      <% _.each(projects, function(gids, name) { %>
+				<option 
+				    <% if (formfields.pid == name) { %>
+				    selected
+				    <% } %>
+				    value='<%- name %>'><%- name %>
+				</option>
+			      <% }); %>
+			    </select>
+			    <label class='control-label control-error hidden'
+				   for='profile_pid'></label>
+			  </div>
+			</div>
+		      </div>
+		    <% } %>
+		    <div class='form-horizontal experiment_option hidden'
+			 id='group_selector'>
 		      <div class='form-group format-me'>
 			<label class='col-sm-4 control-label'
-			       style='text-align: right;'>Project:</label>
+			       style='text-align: right;'>Group:</label>
 			<div class='col-sm-6'>
-			  <select name="pid"
-				  data-key='pid'
-				  id='profile_pid'
-				  class='form-control'>
-			    <% _.each(projects, function(gids, name) { %>
-			      <option 
-				  <% if (formfields.pid == name) { %>
-				  selected
-				  <% } %>
-				  value='<%- name %>'><%- name %>
-			      </option>
-			    <% }); %>
-			  </select>
+			  <select name='gid'
+				  data-key='gid'
+				  id='profile_gid'
+				  class='form-control'></select>
 			  <label class='control-label control-error hidden'
-				 for='profile_pid'></label>
+				 for='profile_gid'></label>
 			</div>
 		      </div>
 		    </div>
 		  <% } %>
-		  <div class='form-horizontal experiment_option hidden'
-		       id='group_selector'>
-		    <div class='form-group format-me'>
-		      <label class='col-sm-4 control-label'
-			     style='text-align: right;'>Group:</label>
-		      <div class='col-sm-6'>
-			<select name="gid"
-				data-key='gid'
-				id='profile_gid'
-				class='form-control'></select>
-			<label class='control-label control-error hidden'
-			       for='profile_gid'></label>
-		      </div>
+		  <% if (amlist) { %>
+		    <div id='aggregate_selector'>
+		      <!-- The JS code fills this in -->
+		      <div id='cluster_selector' class='hidden'></div>
 		    </div>
-		  </div>
-		<% } %>
-		<% if (amlist) { %>
-		  <div id='aggregate_selector'>
-		    <!-- The JS code fills this in -->
-		    <div id='cluster_selector' class='hidden'></div>
-		  </div>
-		<% } %>
-		<% if (1) { %>
-		  <div class='form-horizontal experiment_option'>
-		    <div class='form-group format-me'>
-		      <div class="row">
-			<label class='col-sm-4 control-label'
+		  <% } %>
+		  <% if (1) { %>
+		    <div class='form-horizontal experiment_option'>
+		      <div class='form-group format-me'>
+			<div class="row">
+			  <label class='col-sm-4 control-label'
 			       style='text-align: right;'>Ignore Failures:</label>
-			<div class='col-sm-2'>
-			  <input id='failure_okay' type="checkbox" value="checked"
-				 class=''
-				 data-key='failure_okay'
-				 name='failure_okay'
-				 <%= formfields.failure_okay %>>
+			  <div class='col-sm-2'>
+			    <input id='failure_okay' type="checkbox"
+				   value="checked"
+				   class=''
+				   data-key='failure_okay'
+				   name='failure_okay'
+				   <%= formfields.failure_okay %>>
+			  </div>
 			</div>
+			<label class='control-label control-error hidden'
+			       for='failure_okay'></label>
 		      </div>
-		      <label class='control-label control-error hidden'
-			     for='failure_okay'></label>
 		    </div>
-		  </div>
-		<% } %>
-	      </div>
-	      <div id="cluster_status_link"><center>
-		<a target="_blank" href="cluster-graphs.php">
-		  Check Cluster Status</a></center>
+		  <% } %>
+		</div>
+		<div id="cluster_status_link"><center>
+		  <a target="_blank" href="cluster-graphs.php">
+		    Check Cluster Status</a></center>
+		</div>
 	      </div>
 	    </div>
-	  </div>
+	  <% } %>
 	</div>
-	<div id='inline_container'
+	<div id='inline_container' style="min-height: 150px;"
 	     class='col-lg-4 col-md-4 col-sm-4 col-xs-12'>
 	  <a id='inline_overlay' href='#'>
 	    <span class='glyphicon glyphicon-fullscreen'
 		  aria-hidden='true'></span>
 	  </a> 
-	  <div id='inline_jacks'></div>
+	  <div id='inline_jacks' style="min-height: 150px;"></div>
 	</div>
 	<!-- This is for a PP rspec. -->
 	<textarea name='pp_rspec'
