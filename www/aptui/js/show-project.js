@@ -297,6 +297,9 @@ function (_, sup, moment, mainString,
 	$xmlthing.done(callback);
     }
 
+    // Warn only once for page load.
+    var WarnedAboutUserPrivs = false;
+
     function LoadMembersTab()
     {
 	var callback = function(json) {
