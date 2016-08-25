@@ -96,6 +96,7 @@ CREATE TABLE `apt_datasets` (
   `remote_uuid` varchar(40) NOT NULL default '',
   `remote_url` tinytext,
   `created` datetime default NULL,
+  `updated` datetime default NULL,
   `expires` datetime default NULL,
   `last_used` datetime default NULL,
   `state` enum('new','valid','unapproved','grace','locked','expired','busy') NOT NULL default 'new',  
