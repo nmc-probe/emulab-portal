@@ -1,6 +1,6 @@
 <?php
 #
-# Copyright (c) 2006-2015 University of Utah and the Flux Group.
+# Copyright (c) 2006-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -99,6 +99,7 @@ class Dataset
     function type()          { return $this->field("type"); }
     function fstype()        { return $this->field("fstype"); }
     function created()       { return NullDate($this->field("created")); }
+    function updated()       { return NullDate($this->field("updated")); }
     function expires()       { return NullDate($this->field("expires")); }
     function last_used()     { return NullDate($this->field("last_used")); }
     function state()	     { return $this->field("state"); }

@@ -97,6 +97,8 @@ $fields["dataset_size"]     = $dataset->size() ? $dataset->size() : "0";
 $fields["dataset_fstype"]   = ($dataset->fstype() ?
 			       $dataset->fstype() : "none");
 $fields["dataset_created"]  = DateStringGMT($dataset->created());
+$fields["dataset_updated"]  = ($dataset->updated() ?
+			       DateStringGMT($dataset->updated()) : "");
 $fields["dataset_expires"]  = ($dataset->expires() ?
 			       DateStringGMT($dataset->expires()) : "");
 $fields["dataset_lastused"] = ($dataset->last_used() ?
