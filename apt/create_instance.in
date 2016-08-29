@@ -609,6 +609,12 @@ if (!$debug) {
     }
 }
 
+# Check for expired certs and speaksfor.
+my $retval = APT_Geni::VerifyCredentials($geniuser, \$errmsg);
+if ($retval) {
+    ($retval < 0 ? fatal($errmsg) : UserError($errmsg));
+}
+
 # Generate the extra credentials that tells the backend this experiment
 # can access the datasets.
 my @dataset_credentials = ();
@@ -1615,7 +1621,7 @@ sub UserError($) {
 
     AuditAbort()
 	if (!$debug);
-    print $mesg;
+    print $mesg . "\n";
     exit(1);
 }
 

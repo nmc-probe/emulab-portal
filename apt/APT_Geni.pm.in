@@ -48,12 +48,81 @@ my $SACERT	  = "$TB/etc/genisa.pem";
 my $EMCERT	  = "$TB/etc/emulab.pem";
 my $EMKEY	  = "$TB/etc/emulab.key";
 
-# Cache credentials so we do not keep regenerating down inside the
-# libraries that make the XMLRPC calls.
-my %credcache = ();
+# Caches so we do not keep regenerating down inside the libraries that
+# make the XMLRPC calls.
+my %credcache  = ();
+my %certcache  = ();
+my %speakcache = ();
 
 # Use real abac credentials (which means we can do speaks-for at ALS2).
 my $USEABACCREDS  = 0;
+
+#
+# Check credential/certificate status early, looking for expired certs.
+#
+sub VerifyCredentials($$)
+{
+    my ($geniuser, $perrmsg) = @_;
+    my $urn = $geniuser->urn();
+    my $code = -1;
+    my $errmsg;
+    
+    #
+    # If a local user account, but a nonlocal id, then we should
+    # have a speaksfor credential stored, as well as a certificate
+    # for the user.
+    #
+    if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal()) {
+	#
+	# If we already have these cached, they are okay.
+	#
+	return 0
+	    if (exists($speakcache{$urn}));
+	    
+	my ($speaksfor_string, $certificate_string) =
+	    $geniuser->emulab_user()->GetStoredCredential();
+	
+	if (! (defined($speaksfor_string) &&
+	       defined($certificate_string))) {
+	    $errmsg = "No stored speaksfor/certificate";
+	    goto bad;
+	}
+	my $speaksfor = GeniCredential->CreateFromSigned($speaksfor_string, 1);
+	if (!defined($speaksfor)) {
+	    $errmsg = "Could not create speaksfor credential from string";
+	    goto bad;
+	}
+	my $certificate = GeniCertificate->LoadFromString($certificate_string);
+	if (!defined($certificate)) {
+	    $errmsg = "Could not load certificate from string";
+	    goto bad;
+	}
+	if ($certificate->IsExpired()) {
+	    $errmsg = "User certificate has expired";
+	    $code   = 1;
+	    goto bad;
+	}
+	if ($speaksfor->IsExpired()) {
+	    $errmsg = "User speaksfor credential has expired";
+	    $code   = 1;
+	    goto bad;
+	}
+	$speakcache{$urn} = $speaksfor;
+	$certcache{$urn}  = $certificate;
+    }
+    else {
+	# No need to cache this, GeniUser already does.
+	if ($geniuser->GetCertificate()->IsExpired()) {
+	    $errmsg = "User certificate has expired";
+	    $code   = 1;
+	    goto bad;
+	}
+    }
+    return 0;
+  bad:
+    $$perrmsg = $errmsg;
+    return $code;
+}
 
 #
 # Generate the credentials we need. 
@@ -61,7 +130,7 @@ my $USEABACCREDS  = 0;
 sub GenCredentials($$;$$)
 {
     my ($target, $geniuser, $privs, $allowexpired) = @_;
-    my ($speaksfor, $credential, $oldexpires);
+    my ($speaksfor, $credential, $certificate, $oldexpires);
     # If the caller does not want a speaksfor, do not generate.
     my $wantspeaksfor = wantarray;
 
@@ -87,11 +156,17 @@ sub GenCredentials($$;$$)
 	    if (exists($credcache{$cachetag}));
     }
     #
-    # Check cache.
+    # Check caches. We save a lot of time by not regenerating all this
+    # stuff every time in a long running poll!
     #
     if (exists($credcache{$cachetag})) {
-	($credential,$speaksfor) = @{ $credcache{$cachetag} };
-	goto cached;
+	$credential = $credcache{$cachetag};
+    }
+    if (exists($speakcache{$geniuser->urn()})) {
+	$speaksfor = $speakcache{$geniuser->urn()};
+    }
+    if (exists($certcache{$geniuser->urn()})) {
+	$certificate = $certcache{$geniuser->urn()};
     }
 
     #
@@ -100,27 +175,27 @@ sub GenCredentials($$;$$)
     # for the user.
     #
     if ($geniuser->IsLocal() && $geniuser->emulab_user()->IsNonLocal()) {
-	my ($speaksfor_string, $certificate_string) =
-	    $geniuser->emulab_user()->GetStoredCredential();
-	if (! (defined($speaksfor_string) &&
-	       defined($certificate_string))) {
-	    print STDERR "No stored speaksfor/certificate for $geniuser\n";
-	    goto bad;
-	}
-	if ($wantspeaksfor) {
+	if (! (defined($certificate) && defined($speaksfor))) {
+	    my ($speaksfor_string, $certificate_string) =
+		$geniuser->emulab_user()->GetStoredCredential();
+	    if (! (defined($speaksfor_string) &&
+		   defined($certificate_string))) {
+		print STDERR "No stored speaksfor/certificate for $geniuser\n";
+		goto bad;
+	    }
 	    $speaksfor = GeniCredential->CreateFromSigned($speaksfor_string, 1);
 	    if (!defined($speaksfor)) {
 		print STDERR "Could not create speaksfor credential\n";
 		goto bad;
 	    }
+	    $certificate = GeniCertificate->LoadFromString($certificate_string);
+	    if (!defined($certificate)) {
+		print STDERR "Could not load certificate from string\n";
+		goto bad;
+	    }
+	    $speakcache{$geniuser->urn()} = $speaksfor;
+	    $certcache{$geniuser->urn()}  = $certificate;
 	}
-	my $certificate =
-	    GeniCertificate->LoadFromString($certificate_string);
-	if (!defined($certificate)) {
-	    print STDERR "Could not load certificate from string\n";
-	    goto bad;
-	}
-	
 	#
 	# We need to generate an SA credential if either the speaksfor or
 	# the user certificate is expired, and the caller is allowing the
@@ -152,9 +227,12 @@ sub GenCredentials($$;$$)
 		print STDERR "-> Could not generate SA credential!\n";
 		goto bad;
 	    }
+	    # Would it make sense to put this in the cache?
 	    goto cached;
 	}
-	$credential = GeniCredential->Create($target, $certificate);
+	else {
+	    $credential = GeniCredential->Create($target, $certificate);
+	}
     }
     else {
 	if ($wantspeaksfor) {
@@ -190,6 +268,7 @@ sub GenCredentials($$;$$)
 		    goto bad;
 		}
 	    }
+	    $speakcache{$geniuser->urn()} = $speaksfor;
 	}
 	$credential = GeniCredential->Create($target, $geniuser);
     }
@@ -209,9 +288,7 @@ sub GenCredentials($$;$$)
 	print STDERR "Could not sign $target credential\n";
 	goto bad;
     }
-    if ($wantspeaksfor) {
-	$credcache{$cachetag} = [$credential, $speaksfor];
-    }
+    $credcache{$cachetag} = $credential;
   cached:
     $target->SetExpiration($oldexpires)
 	if (defined($oldexpires));
