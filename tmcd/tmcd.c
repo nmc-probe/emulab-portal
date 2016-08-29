@@ -257,6 +257,7 @@ typedef struct {
 	int		swapper_isadmin;
         int		genisliver_idx;
         int		geniflags;
+	int		isnonlocal_pid;
 	char            nfsmounts[TBDB_FLEN_TINYTEXT];
 	unsigned int    taintstates;
 	char		nodeid[TBDB_FLEN_NODEID];
@@ -2951,14 +2952,14 @@ COMMAND_PROTOTYPE(doaccounts)
 			sprintf(subclause,
 				"join groups as g on "
 				"     p.pid=g.pid "
-				"where (p.pid='%s' and p.gid='%s') ",
+				"where (p.pid='%s' and p.gid='%s')",
 				reqp->pid, reqp->gid);
 		}
 		else {
 			sprintf(subclause,
 				"join groups as g on "
 				"     p.pid=g.pid and p.gid=g.gid "
-				"where ((p.pid='%s')) ", reqp->pid);
+				"where (p.pid='%s')", reqp->pid);
 		}
 		res = mydb_query("select distinct "
 				 "  u.uid,%s,u.unix_uid,u.usr_name, "
@@ -3068,13 +3069,14 @@ COMMAND_PROTOTYPE(doaccounts)
 		MYSQL_RES	*pubkeys_res;
 		MYSQL_RES	*sfskeys_res;
 		int		pubkeys_nrows, sfskeys_nrows, i, root = 0;
-		int		auxgids[128], gcount = 0;
+		int		auxgids[128], gcount = 0, leader;
 		char		glist[BUFSIZ];
 		char		*bufp = buf, *ebufp = &buf[sizeof(buf)];
 		char		*pswd, *wpswd, wpswd_buf[9];
 
 		gidint     = -1;
 		tbadmin    = root = atoi(row[8]);
+		leader     = 0;
 		gcount     = 0;
 
 		while (1) {
@@ -3097,6 +3099,8 @@ COMMAND_PROTOTYPE(doaccounts)
 				    (strcmp(row[4], "group_root") == 0) ||
 				    (strcmp(row[4], "project_root") == 0))
 					root = 1;
+				if (strcmp(row[4], "project_root") == 0)
+					leader = 1;
 			}
 			else {
 				int k, newgid = atoi(row[7]);
@@ -3183,6 +3187,24 @@ COMMAND_PROTOTYPE(doaccounts)
 		 * then use one from the list. Then convert the rest of
 		 * the list for the GLIST argument below.
 		 */
+
+		/*
+		 * The point of this test it to make sure that we do not
+		 * return the project accounts in a geni experiment that is
+		 * started in a nonlocal project. Those accounts are just
+		 * stubs, the real accounts come from the ssh keys provided
+		 * in the Geni API call (see nonlocal_user_accounts below).
+		 * But we do need the project leader (geniuser), which is
+		 * why we are in this part of the code at all. There is a
+		 * corresponding test down below to make sure that we return
+		 * *only* the project accounts when it is a *local* project
+		 * (PROTOGENI_LOCALUSER=1); in this case we do not want any
+		 * of the ssh accounts that came in with the Geni API call.
+		 */
+		if (reqp->genisliver_idx && reqp->isnonlocal_pid &&
+		    !didnonlocal && !leader)
+			goto skipkeys;
+		
 		if (gidint == -1) {
 			gidint = auxgids[--gcount];
 		}
@@ -3419,12 +3441,12 @@ COMMAND_PROTOTYPE(doaccounts)
 	 * No more accounts will be added if the node has 'blackbox' taint.
 	 * If nfsmounts=emulabdefault, then we use the local users only.
 	 */
-	if (reqp->genisliver_idx && !didnonlocal &&
+	if (reqp->genisliver_idx && reqp->isnonlocal_pid && !didnonlocal &&
 	    strcmp(reqp->nfsmounts, "emulabdefault") &&
 	    (reqp->isvnode || !reqp->sharing_mode[0]) &&
 	    !HAS_TAINT(reqp->taintstates, TB_TAINTSTATE_BLACKBOX)) {
 	        didnonlocal = 1;
-		
+
 		/*
 		 * Within the nonlocal_user_accounts table, we do not
 		 * maintain globally unique unix_uid numbers, since these
@@ -7429,12 +7451,15 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.sharing_mode,e.geniflags,n.uuid, "
 				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
 				 " r.erole, n.taint_states, "
-				 " n.nfsmounts,e.nfsmounts AS enfsmounts "
+				 " n.nfsmounts,e.nfsmounts AS enfsmounts, "
+				 " p.nonlocal_id "
 				 "FROM nodes AS n "
 				 "LEFT JOIN reserved AS r ON "
 				 "  r.node_id=n.node_id "
 				 "LEFT JOIN experiments AS e ON "
 				 " e.pid=r.pid and e.eid=r.eid "
+				 "LEFT JOIN projects AS p ON "
+				 " p.pid=r.pid "
 				 "LEFT JOIN node_types AS t ON "
 				 " t.type=n.type "
 				 "LEFT JOIN node_hostkeys AS nk ON "
@@ -7458,7 +7483,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "     (SELECT node_id FROM widearea_nodeinfo "
 				 "      WHERE privkey='%s') "
 				 "  AND notmcdinfo_types.attrvalue IS NULL",
-				 41, nodekey);
+				 42, nodekey);
 	}
 	else if (reqp->isvnode) {
 		char	clause[BUFSIZ];
@@ -7496,7 +7521,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.sharing_mode,e.geniflags,nv.uuid, "
 				 " nv.nonfsmounts,e.nonfsmounts AS enonfs, "
 				 " r.erole, nv.taint_states, "
-				 " nv.nfsmounts,e.nfsmounts AS enfsmounts "
+				 " nv.nfsmounts,e.nfsmounts AS enfsmounts, "
+				 " p.nonlocal_id "
 				 "from nodes as nv "
 				 "left join nodes as np on "
 				 " np.node_id=nv.phys_nodeid "
@@ -7506,6 +7532,8 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.node_id=nv.node_id "
 				 "left join experiments as e on "
 				 "  e.pid=r.pid and e.eid=r.eid "
+				 "left join projects AS p ON "
+				 " p.pid=r.pid "
 				 "left join node_types as pt on "
 				 " pt.type=np.type "
 				 "left join node_types as vt on "
@@ -7517,7 +7545,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "left join users as u on "
 				 " u.uid_idx=e.swapper_idx "
 				 "where nv.node_id='%s' and (%s)",
-				 41, reqp->vnodeid, clause);
+				 42, reqp->vnodeid, clause);
 	}
 	else {
 		char	clause[BUFSIZ];
@@ -7548,13 +7576,16 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 " r.sharing_mode,e.geniflags,n.uuid, "
 				 " n.nonfsmounts,e.nonfsmounts AS enonfs, "
 				 " r.erole, n.taint_states, "
-				 " n.nfsmounts,e.nfsmounts AS enfsmounts "
+				 " n.nfsmounts,e.nfsmounts AS enfsmounts, "
+				 " p.nonlocal_id "
 				 "from interfaces as i "
 				 "left join nodes as n on n.node_id=i.node_id "
 				 "left join reserved as r on "
 				 "  r.node_id=i.node_id "
 				 "left join experiments as e on "
 				 " e.pid=r.pid and e.eid=r.eid "
+				 "left join projects AS p ON "
+				 " p.pid=r.pid "
 				 "left join node_types as t on "
 				 " t.type=n.type "
 				 "left join node_hostkeys as nk on "
@@ -7576,7 +7607,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 				 "  on n.type=dedicated_wa_types.type "
 				 "where (%s) "
 				 "  and notmcdinfo_types.attrvalue is NULL",
-				 41, clause);
+				 42, clause);
 	}
 
 	if (!res) {
@@ -7618,6 +7649,7 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 	reqp->singlenet    = (row[24] && strcasecmp(row[24], "0")) ? 1 : 0;
 	reqp->isdedicatedwa = (row[29] && !strncmp(row[29], "1", 1)) ? 1 : 0;
 	reqp->geniflags    = 0;
+	reqp->isnonlocal_pid = 0;
 
 	if (row[8])
 		strncpy(reqp->testdb, row[8], sizeof(reqp->testdb));
@@ -7688,6 +7720,9 @@ iptonodeid(struct in_addr ipaddr, tmcdreq_t *reqp, char* nodekey)
 			reqp->geniflags = 0;
 		if (row[37])
 			strcpy(reqp->erole, row[37]);
+		/* nonlocal project flag */
+		if (row[41])
+			reqp->isnonlocal_pid = 1;
 	}
 
 	if (row[9])
