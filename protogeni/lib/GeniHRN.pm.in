@@ -387,9 +387,12 @@ sub group($)		{ return field($_[0], "group"); }
 sub type($)		{ return field($_[0], "type"); }
 sub id($)		{ return field($_[0], "id"); }
 sub IsAuthority()       { return $_[0]->type() =~ /^authority$/i ? 1 : 0; }
-sub IsSA($)		{ return $_[0]->id() =~ /^SA$/i ? 1 : 0; }
-sub IsCM($)		{ return $_[0]->id() =~ /^CM$/i ? 1 : 0; }
-sub IsRoot($)		{ return $_[0]->id() =~ /^root$/i ? 1 : 0; }
+sub IsSA($)		{ return ($_[0]->IsAuthority() &&
+				  $_[0]->id() =~ /^SA$/i ? 1 : 0); }
+sub IsCM($)		{ return ($_[0]->IsAuthority() &&
+				  $_[0]->id() =~ /^CM$/i ? 1 : 0); }
+sub IsRoot($)		{ return ($_[0]->IsAuthority() &&
+				  $_[0]->id() =~ /^root$/i ? 1 : 0); }
 
 #
 # Stringify for text context.
