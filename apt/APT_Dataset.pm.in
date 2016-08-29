@@ -55,7 +55,7 @@ my $TBOPS         = "@TBOPSEMAIL@";
 my $OURDOMAIN     = "@OURDOMAIN@";
 
 # Debugging
-my $usemydevtree  = 1;
+my $usemydevtree  = 0;
 
 #
 # Lookup by uuid.
