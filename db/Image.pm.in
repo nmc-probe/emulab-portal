@@ -459,6 +459,32 @@ sub LookupByOriginURN($$)
 }
 
 #
+# Lookup by Authority URN. Only for datasets right now.
+#
+sub LookupByAuthorityURN($$)
+{
+    my ($class, $urn) = @_;
+
+    return undef
+	if (! $PGENISUPPORT);    
+
+    require GeniHRN;
+    return undef
+	if (!GeniHRN::IsValid($urn));
+    
+    my $safe_urn = DBQuoteSpecial($urn);
+
+    my $query_result =
+	DBQueryWarn("select distinct imageid from image_versions ".
+		    "where authority_urn=$safe_urn and deleted is null");
+    return undef
+	if (!$query_result || !$query_result->numrows);
+
+    my ($imageid) = $query_result->fetchrow_array();
+    return Image->Lookup($imageid);
+}
+
+#
 # Get a list of all running frisbee images.
 # XXX if this is actually used, it will have to be fixed; DB no longer
 # tracks running frisbee daemons.

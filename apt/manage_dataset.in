@@ -104,7 +104,7 @@ sub DoExtend();
 sub DoSnapshot();
 sub DoSnapShotInternal($$$$$);
 sub PollDatasetStatus($$$);
-sub DoImageTrackerStuff($$$$);
+sub DoImageTrackerStuff($$$$$);
 
 #
 # Parse command arguments. Once we return from getopts, all that should be
@@ -307,6 +307,13 @@ sub DoCreate()
 
     if (APT_Dataset->Lookup("$pid/$name")) {
 	fatal("Dataset already exists!");
+    }
+
+    # Check for expired certs and speaksfor.
+    if (my $retval = APT_Geni::VerifyCredentials($geniuser, \$errmsg)) {
+	if ($retval) {
+	    ($retval < 0 ? fatal($errmsg) : uerror($errmsg));
+	}
     }
 
     my $blob = {
@@ -514,6 +521,8 @@ sub DoRefreshInternal($$)
     
     $dataset->Update({"last_used" => TBDateStringLocal($blob->{"lastused"}),
 		      "expires"   => TBDateStringLocal($blob->{"expires"})});
+    $dataset->Update({"updated"   => TBDateStringLocal($blob->{"updated"})})
+	if ($blob->{"updated"});
 
     if ($blob->{"busy"}) {
 	$dataset->Update({"state" => "busy"});
@@ -705,7 +714,8 @@ sub DoSnapshot()
 	fatal("Could not find aggregate for $nodeid");
     }
     if (GetSiteVar("protogeni/use_imagetracker")) {
-	if (DoImageTrackerStuff($dataset,\$copyback_uuid,\$sha1hash,\$errmsg)) {
+	if (DoImageTrackerStuff($dataset, $aggregate,
+				\$copyback_uuid,\$sha1hash,\$errmsg)) {
 	    fatal("Could not get info from image tracker");
 	}
     }
@@ -968,9 +978,15 @@ sub DoGetCredential()
 	$dataset->Unlock();
 	uerror("dataset was busy at the remote cluster, try again later");
     }
+    if ($response->code() == GENIRESPONSE_SEARCHFAILED) {
+	$dataset->Unlock();
+	uerror("dataset could not be found at the remote cluster");
+    }
     $credential = GeniCredential->CreateFromSigned($response->value());
-    fatal("Could not parse new credential")
-	if (!defined($credential));
+    if (!defined($credential)) {
+	$dataset->Unlock();
+	fatal("Could not parse new credential")
+    }
     $dataset->Update({"credential_string" => $response->value()});
   haveit:
     if (defined($authority)) {
@@ -988,12 +1004,20 @@ sub DoGetCredential()
     fatal($errmsg);
 }
 
-sub DoImageTrackerStuff($$$$)
+sub DoImageTrackerStuff($$$$$)
 {
-    my ($dataset, $puuid, $phash, $perrmsg) = @_;
-    my $remote_urn = $dataset->remote_urn();
+    my ($dataset, $aggregate, $puuid, $phash, $perrmsg) = @_;
+    my $remote_urn = GeniHRN->new($dataset->remote_urn());
+    my $aggregate_urn = GeniHRN->new($aggregate->aggregate_urn());
     my $errmsg;
 
+    #
+    # If the dataset is being used on the cluster where it lives, then
+    # there is no need for any of this.
+    #
+    return 0
+	if (lc($remote_urn->domain()) eq lc($aggregate_urn->domain()));
+    
     Genixmlrpc->SetContext(APT_Geni::GeniContext());
     my $blob = GeniImage::GetImageData($remote_urn, \$errmsg);
     Genixmlrpc->SetContext(undef);
@@ -1003,6 +1027,7 @@ sub DoImageTrackerStuff($$$$)
 	    "$remote_urn:\n" . $errmsg;
 	    return 1;
     }
+
     $$puuid = $blob->{'version_uuid'} if (defined($puuid));
     $$phash = $blob->{'sha1hash'} if (defined($phash));
     return 0;
@@ -1021,7 +1046,8 @@ sub PollImageStatus($$$)
     if ($dataset->_copying()) {
 	my $sha1hash;
 	
-	if (DoImageTrackerStuff($dataset, undef, \$sha1hash, $perrmsg)) {
+	if (DoImageTrackerStuff($dataset, $aggregate,
+				undef, \$sha1hash, $perrmsg)) {
 	    print STDERR $perrmsg . "\n";
 	    # Give up.
 	    $dataset->Update({"state" => "valid"});

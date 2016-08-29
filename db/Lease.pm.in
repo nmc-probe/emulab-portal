@@ -2120,7 +2120,7 @@ sub GetProject($)
 #
 # Lookup by origin, as for portal created leases.
 #
-sub LookupByOriginURN($$)
+sub LookupByAuthorityURN($$)
 {
     my ($class, $urn) = @_;
 
@@ -2134,8 +2134,8 @@ sub LookupByOriginURN($$)
     my $safe_urn = DBQuoteSpecial($urn);
     
     my $query_result =
-	DBQueryWarn("select lease_idx from project_leases ".
-		    "where origin_urn=$safe_urn");
+	DBQueryWarn("select lease_idx from lease_attributes ".
+		    "where attrkey='authority_urn' and attrval=$safe_urn");
     return undef
 	if (!$query_result || !$query_result->numrows);
 

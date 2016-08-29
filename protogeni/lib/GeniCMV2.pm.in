@@ -4268,42 +4268,51 @@ sub CreateDataset($)
 
     #
     # The supplied dataset_urn must either match the credential target
-    # (say, coming from the portal), or the authority of the dataset_urn
-    # must match credential owner to ensure that the project/group
-    # match (say, a user talking directly to the CM).
+    # (say, coming from the portal with a minted credential), or the
+    # authority of the dataset_urn must match credential target to ensure
+    # that the project/group match (say, a user talking directly to the
+    # CM). This implies that the user has a project scoped self credential
+    # (which of course, Protogeni can issue). 
     #
     return GeniResponse->MalformedArgsResponse("Credential does not match urn")
 	if (! ($dataset_urn->urn() eq $credential->target_urn() ||
 	       $dataset_urn->authority() eq
-	       $credential->owner_urn()->authority()));
+	       $credential->target_urn()->authority()));
+
     #
-    # So we want to mark the dataset with urn of the dataset, as for the
-    # portal. This allows the portal itself to operate on the dataset, in
-    # addition to the user creating the dataset. If there is no portal,
-    # then only the creator or the MA of the user can operate on the
-    # dataset.  Why is that not good enough for the portal? Cause of the
-    # trusted signer and speaksfor; in that case the portal is not in the
-    # same domain space as the user (unlike the slice credential, with is
-    # always issued from the portal space, so in fact you could think of
-    # this URN like a slice URN in that it comes from a specially minted
-    # credential that bestows privs on the holder, and whoever holds such a
-    # a credential can do whatever they like).
+    # Check for project scoping. We know the credential matches cause
+    # of the previous check.
     #
-    my $authority_urn = $credential->target_urn()
-	if ($dataset_urn->urn() eq $credential->target_urn());
+    return GeniResponse->MalformedArgsResponse("No project specified")
+	if (!defined($dataset_urn->project()));
     
     #
-    # Only real local users can do blockstores, or the credential
-    # must include the correct priv. Just a hack to prevent outsiders
-    # from using datasets until we are ready to open them up.
+    # So we want to mark the dataset with urn of the dataset, as for the
+    # portal. This is how we can map from the urn at the portal to the
+    # local object. This allows the portal to get a credential from us to
+    # operate on the dataset. Sorta like a slice credential; whoever holds
+    # the minted credential has permission to operate on or use it.
+    #
+    # Otherwise, only real local users can create datasets, cause we have
+    # no way to verify their project membership without a minted credential
+    # from someone we trust (something like the slice credential). Anyway,
+    # normal users can still get a local credential since they own the
+    # dataset, and then can delegate that credential as needed. The
+    # difference though, is that the minted credential is usable just here
+    # (create) and in GetDatasetCredential() below, to get that local
+    # credential.
+    #
+    # Note also, that there are legacy datasets, and we want them to be
+    # usable by the portal. The minted credential allows that too.
     #
     my $user = GeniCM::CreateUserFromCertificate($credential);
     return $user
 	if (GeniResponse::IsResponse($user));
-
+    
     return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
 	if (! ((defined($user) && $user->IsLocal()) ||
-	       $credential->HasActualPrivilege("blockstores")));
+	       # minted credential
+	       $dataset_urn->urn() eq $credential->target_urn()));
 
     my $authority = GeniCM::CreateAuthorityFromCertificate($credential);
     return $authority
@@ -4401,8 +4410,7 @@ sub CreateDataset($)
 	    GeniResponse->Create(GENIRESPONSE_ERROR);
 	}
 	$image->Update({"creator_urn" => $user->urn()});
-	$image->Update({"authority_urn" => $authority_urn})
-	    if (defined($authority_urn));
+	$image->Update({"authority_urn" => $dataset_urn});
 	$uuid  = $image->image_uuid();
 	$state = "new";
 	$busy  = 0;
@@ -4420,8 +4428,7 @@ sub CreateDataset($)
 	# Set the manager URN for same-SA permission checks.
 	$lease->SetAttribute("manager_urn", $credential->target_urn());
 	$lease->SetAttribute("creator_urn", $user->urn());
-	$lease->SetAttribute("authority_urn", $authority_urn)
-	    if (defined($authority_urn));
+	$lease->SetAttribute("authority_urn", $dataset_urn);
 	    
 	if ($lease->state() eq "unapproved") {
 	    if ($lease->locked()) {
@@ -4470,73 +4477,16 @@ sub DeleteDataset($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
-    #
-    # Only real local users can do blockstores, or the credential
-    # must include the correct priv (this is a hack of course, any
-    # federation member can add this).
-    #
-    my $user = GeniCM::CreateUserFromCertificate($credential);
-    return $user
-	if (GeniResponse::IsResponse($user));
+    my $dataset = Credential2Dataset($dataset_urn, $credential);
+    return $dataset
+	if (GeniResponse::IsResponse($dataset));
 
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (! ((defined($user) && $user->IsLocal()) ||
-	       $credential->HasActualPrivilege("blockstores")));
-
-    # Get the project and group. This needs more thought. 
-    my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
-    return $group
-	if (GeniResponse::IsResponse($group));
-
-    my ($lease, $image, $uuid, $authority_urn, $creator_urn);
-
-    #
-    # All datasets used to have the same type ...
-    #
-    if ($dataset_urn->type() eq "imdataset" ||
-	$dataset_urn->type() eq "dataset") {
-	$image = Image->Lookup($group->pid(), $dataset_urn->id());
-	if (defined($image)) {
-	    $creator_urn = $image->creator_urn();
-	    $authority_urn = $image->authority_urn();
-	}
-    }
-    if (!defined($image) ||
-	$dataset_urn->type() eq "stdataset" ||
-	$dataset_urn->type() eq "ltdataset") {
-	$lease = Lease->Lookup($group->pid(),
-			       $group->gid(), $dataset_urn->id());
-	if (defined($lease)) {
-	    $creator_urn = $lease->GetAttribute("creator_urn");
-	    $authority_urn = $lease->GetAttribute("authority_urn");
-	}
-    }
-    if (!defined($lease) && !defined($image)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
-    }
-    #
-    # The owner is allowed to operate on the dataset, or if there is an
-    # authority_urn set, then we had to get a dataset credential from
-    # the same authority.
-    #
-    $authority_urn = GeniHRN->new($authority_urn)
-	if (defined($authority_urn));
-    
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (!((defined($creator_urn) &&
-	       $creator_urn eq $credential->owner_urn()) ||
-	      (defined($authority_urn) &&
-	       $authority_urn->authority() eq
-	       $credential->owner_urn()->authority())));
-    
-    if (defined($lease)) {
+    if (ref($dataset) eq "Lease") {
 	$cmd = "$DELETEDATASET -b -f " .
-	    $group->pid() . "/" . $group->gid() . "/" . $lease->lease_id();
-	$uuid = $lease->uuid();
+	    $dataset->pid() . "/" . $dataset->gid() . "/" . $dataset->lease_id();
     }
     else {
-	$cmd = "$DELETEIMAGE -p ". $image->imageid();
-	$uuid = $image->image_uuid();
+	$cmd = "$DELETEIMAGE -p ". $dataset->imageid();
     }
     if ($PROTOGENI_LOCALUSER) {
 	$cmd = "$WAP $cmd";
@@ -4560,6 +4510,7 @@ sub ModifyDataset($)
     my $credentials  = $argref->{'credentials'};
     my $dataset_urn  = $argref->{'dataset_urn'};
     my $islease      = 0;
+    my ($lease, $image);
     require Image;
     require Lease;
     require EmulabConstants;
@@ -4575,63 +4526,16 @@ sub ModifyDataset($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
-    #
-    # Only real local users can do blockstores, or the credential
-    # must include the correct priv.
-    #
-    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (! ((defined($user) && $user->IsLocal()) ||
-	       $credential->HasActualPrivilege("blockstores")));
+    my $dataset = Credential2Dataset($dataset_urn, $credential);
+    return $dataset
+	if (GeniResponse::IsResponse($dataset));
 
-    # Get the project and group. This needs more thought. 
-    my $group = GeniUtil::GetHoldingProject($credential->target_urn(), $user);
-    return $group
-	if (GeniResponse::IsResponse($group));
-
-    my ($lease, $image, $uuid, $authority_urn, $creator_urn);
-
-    #
-    # All datasets used to have the same type ...
-    #
-    if ($dataset_urn->type() eq "imdataset" ||
-	$dataset_urn->type() eq "dataset") {
-	$image = Image->Lookup($group->pid(), $dataset_urn->id());
-	if (defined($image)) {
-	    $creator_urn = $image->creator_urn();
-	    $authority_urn = $image->authority_urn();
-	}
-    }
-    if (!defined($image) ||
-	$dataset_urn->type() eq "stdataset" ||
-	$dataset_urn->type() eq "ltdataset") {
-	$lease = Lease->Lookup($group->pid(),
-			       $group->gid(), $dataset_urn->id());
-	if (defined($lease)) {
-	    $creator_urn = $lease->GetAttribute("creator_urn");
-	    $authority_urn = $lease->GetAttribute("authority_urn");
-	}
-    }
-    if (!defined($lease) && !defined($image)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
-    }
-    #
-    # The owner is allowed to operate on the dataset, or if there is an
-    # authority_urn set, then we had to get a dataset credential from
-    # the same authority.
-    #
-    $authority_urn = GeniHRN->new($authority_urn)
-	if (defined($authority_urn));
-    
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (!((defined($creator_urn) &&
-	       $creator_urn eq $credential->owner_urn()) ||
-	      (defined($authority_urn) &&
-	       $authority_urn->authority() eq
-	       $credential->owner_urn()->authority())));
-    
-    if (defined($lease)) {
+    if (ref($dataset) eq "Lease") {
+	$lease = $dataset;
 	$islease = 1;
+    }
+    else {
+	$image = $dataset;
     }
     my $cmd;
     #
@@ -4665,11 +4569,11 @@ sub ModifyDataset($)
 	return GeniResponse->MalformedArgsResponse("unknown operation");
     }
     if ($islease) {
-	$cmd .= " " . $group->pid() . "/" . $group->gid() . "/" .
+	$cmd .= " " . $lease->pid() . "/" . $lease->gid() . "/" .
 	    $lease->lease_id();
     }
     else {
-	$cmd .= " " . $group->pid() . "," . $image->imagename();
+	$cmd .= " " . $image->pid() . "," . $image->imagename();
     }
     if ($PROTOGENI_LOCALUSER) {
 	$cmd = "$WAP $cmd";
@@ -4718,63 +4622,12 @@ sub DescribeDataset($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
-    #
-    # Only real local users can do blockstores, or the credential
-    # must include the correct priv. Just a hack to prevent outsiders
-    # from using datasets until we are ready to open them up.
-    #
-    my $user = GeniUser->Lookup($credential->owner_cert()->urn(), 1);
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (! ((defined($user) && $user->IsLocal()) ||
-	       $credential->HasActualPrivilege("blockstores")));
+    my $dataset = Credential2Dataset($dataset_urn, $credential);
+    return $dataset
+	if (GeniResponse::IsResponse($dataset));
 
-    # Get the project and group. This needs more thought. 
-    my $group =  GeniUtil::GetHoldingProject($credential->target_urn(), $user);
-    return $group
-	if (GeniResponse::IsResponse($group));
-
-    my ($lease, $image, $authority_urn, $creator_urn);
-
-    #
-    # All datasets used to have the same type ...
-    #
-    if ($dataset_urn->type() eq "imdataset" ||
-	$dataset_urn->type() eq "dataset") {
-	$image = Image->Lookup($group->pid(), $dataset_urn->id());
-	if (defined($image)) {
-	    $creator_urn = $image->creator_urn();
-	    $authority_urn = $image->authority_urn();
-	}
-    }
-    if (!defined($image) ||
-	$dataset_urn->type() eq "stdataset" ||
-	$dataset_urn->type() eq "ltdataset") {
-	$lease = Lease->Lookup($group->pid(),
-			       $group->gid(), $dataset_urn->id());
-	if (defined($lease)) {
-	    $creator_urn = $lease->GetAttribute("creator_urn");
-	    $authority_urn = $lease->GetAttribute("authority_urn");
-	}
-    }
-    if (!defined($lease) && !defined($image)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
-    }
-    #
-    # The owner is allowed to operate on the dataset, or if there is an
-    # authority_urn set, then we had to get a dataset credential from
-    # the same authority.
-    #
-    $authority_urn = GeniHRN->new($authority_urn)
-	if (defined($authority_urn));
-    
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (!((defined($creator_urn) &&
-	       $creator_urn eq $credential->owner_urn()) ||
-	      (defined($authority_urn) &&
-	       $authority_urn->authority() eq
-	       $credential->owner_urn()->authority())));
-    
-    if (defined($lease)) {
+    if (ref($dataset) eq "Lease") {
+	my $lease = $dataset;
 	$blob->{'state'}    = $lease->state();
 	$blob->{'type'}     = $lease->type();
 	$blob->{"busy"}     = $lease->locked() ? 1 : 0;
@@ -4788,6 +4641,7 @@ sub DescribeDataset($)
 	}
     }
     else {
+	my $image = $dataset;
 	$blob->{'state'}    = "valid";
 	$blob->{'type'}     = "imdataset";
 	$blob->{"busy"}     = 0;
@@ -4859,56 +4713,143 @@ sub GetDatasetCredential($)
     return $credential
 	if (GeniResponse::IsResponse($credential));
 
-    my ($target, $authority_urn, $creator_urn);
-    
-    #
-    # All datasets used to have the same type ...
-    #
-    if ($dataset_urn->type() eq "imdataset" ||
-	$dataset_urn->type() eq "dataset") {
-	$target = Image->Lookup($dataset_urn->project(), $dataset_urn->id());
-	if (defined($target)) {
-	    $creator_urn = $target->creator_urn();
-	    $authority_urn = $target->authority_urn();
-	}
-    }
-    if (!defined($target) ||
-	$dataset_urn->type() eq "stdataset" ||
-	$dataset_urn->type() eq "ltdataset") {
-	$target = Lease->Lookup($dataset_urn->project(),
-				($dataset_urn->group() ?
-				$dataset_urn->group() : $dataset_urn->project()),
-			       $dataset_urn->id());
-	if (defined($target)) {
-	    $creator_urn = $target->GetAttribute("creator_urn");
-	    $authority_urn = $target->GetAttribute("authority_urn");
-	}
-    }
-    if (!defined($target)) {
-	return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED);
-    }
-    #
-    # The owner is allowed to operate on the dataset, or if there is an
-    # authority_urn set, then we had to get a dataset credential from
-    # the same authority.
-    #
-    $authority_urn = GeniHRN->new($authority_urn)
-	if (defined($authority_urn));
-    
-    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN)
-	if (!((defined($creator_urn) &&
-	       $creator_urn eq $credential->owner_urn()) ||
-	      (defined($authority_urn) &&
-	       $authority_urn->domain() eq $credential->owner_urn()->domain() &&
-	       $authority_urn eq $credential->target_urn())));
+    my $dataset = Credential2Dataset($dataset_urn, $credential);
+    return $dataset
+	if (GeniResponse::IsResponse($dataset));
     
     my $dataset_credential =
-	GeniImage::CreateDatasetCredential($target, $credential->owner_cert());
+	GeniImage::CreateDatasetCredential($dataset, $credential->owner_cert());
     if (!defined($dataset_credential)) {
 	return GeniResponse->Create(GENIRESPONSE_ERROR);
     }
     return GeniResponse->Create(GENIRESPONSE_SUCCESS,
 				$dataset_credential->asString());
+}
+
+#
+# Map a credential to a dataset and check basic permission to access it.
+#
+sub Credential2Dataset($$)
+{
+    my ($dataset_urn, $credential) = @_;
+    require Image;
+    require Lease;
+    require EmulabConstants;
+    require GeniImage;
+
+    #
+    # See comments in CreateDataset() about these checks. In addition, we also
+    # allow a local credential to be used (GetDatasetCredential()) since that
+    # can be delegated by the owner.
+    #
+    return GeniResponse->MalformedArgsResponse("Credential does not match urn")
+	if (! ($dataset_urn->urn() eq $credential->target_urn() ||
+	       # Self credential with subauth matching dataset subauth.
+	       $dataset_urn->authority() eq
+	       $credential->target_urn()->authority() ||
+	       # Locally issued credential with GetDatasetCredential().
+	       $credential->target_urn()->domain() eq $OURDOMAIN));
+    
+    return GeniResponse->MalformedArgsResponse("No project specified")
+	if (!defined($dataset_urn->project()));
+
+    # Locally issued credential, use the urn in the credential.
+    if ($credential->target_urn()->domain() eq $OURDOMAIN &&
+	$credential->target_urn()->type() =~ /^(im|lt|st)?dataset$/) {
+	$dataset_urn = $credential->target_urn();
+    }
+
+    my ($target, $authority_urn, $creator_urn, $creator_uid);
+
+    if ($dataset_urn->type() eq "imdataset" ||
+	$dataset_urn->type() eq "dataset") {
+
+	# Check for a locally created dataset (not via the geni path).
+	$target = Image->Lookup($dataset_urn->project(), $dataset_urn->id());
+	if (!defined($target)) {
+	    # Datasets created on the geni path have the authority_urn set
+	    # to the dataset_urn supplied to CreateSliver().
+	    $target = Image->LookupByAuthorityURN($dataset_urn);
+	}
+	# Sigh, backwards compat, we did not always save the urn in the table.
+	if (!defined($target)) {
+	    my $project_urn =
+		GeniHRN::Generate($dataset_urn->authority(), "authority", "sa");
+	    my $project = Project->LookupNonLocal($project_urn);
+	    if (defined($project)) {
+		$target = Image->Lookup($project->pid(), $dataset_urn->id());
+		if (defined($target) && !$target->isdataset()) {
+		    $target = undef;
+		}
+	    }
+	}
+	if (defined($target)) {
+	    $creator_uid   = $target->creator();
+	    $creator_urn   = $target->creator_urn();
+	    $authority_urn = $target->authority_urn();
+	}
+    }
+    # Datasets used to all have type "dataset";
+    if (!defined($target) && $dataset_urn->type() ne "imdataset") {
+	#
+	# Check for a locally created dataset (not via the geni path).
+	#
+	$target = Lease->Lookup($dataset_urn->project(),
+				($dataset_urn->group() ?
+				 $dataset_urn->group() :
+				 $dataset_urn->project()),
+				$dataset_urn->id());
+	if (!defined($target)) {
+	    # Datasets created on the geni path have the authority_urn set
+	    # to the dataset_urn supplied to CreateSliver().
+	    $target = Lease->LookupByAuthorityURN($dataset_urn);
+	}
+	# Sigh, backwards compat, we did not always save the urn in the table.
+	if (!defined($target)) {
+	    my $project_urn = GeniHRN::Generate($dataset_urn->authority(),
+						"authority", "sa");
+	    my $project = Project->LookupNonLocal($project_urn);
+	    if (defined($project)) {
+		$target = Lease->Lookup($project->pid(),
+					$project->pid(),
+					$dataset_urn->id());
+	    }
+	}
+	if (defined($target)) {
+	    $creator_uid   = $target->owner();
+	    $creator_urn   = $target->GetAttribute("creator_urn");
+	    $authority_urn = $target->GetAttribute("authority_urn");
+	}
+    }
+    return GeniResponse->Create(GENIRESPONSE_SEARCHFAILED)
+	if (!defined($target));
+
+    #
+    # Now we can do the permission checks.
+    #
+    # 1. The creator of the dataset is asking for a credential.
+    # 2. The caller has supplied a minted credential (say, the portal).
+    #
+    # Note that the portal might be the caller (cause the speaksfor is expired).
+    #
+    my $user = GeniUser->Lookup($credential->owner_urn(), 1)
+	if ($credential->owner_urn()->type() eq "user");
+
+    # This covers datasets created by this local user, on or off the geni path.
+    goto okay
+	if (defined($user) &&
+	    ($creator_urn eq $user->urn || $creator_uid eq $user->uid()));
+    
+    #
+    # Lastly, if the portal gave us a minted credential, it is allowed.
+    #
+    goto okay
+	if ($dataset_urn->urn() eq $credential->target_urn() &&
+	    $credential->owner_urn()->IsSA());
+    
+    return GeniResponse->Create(GENIRESPONSE_FORBIDDEN);
+  okay:
+    return $target;
 }
 
 #
