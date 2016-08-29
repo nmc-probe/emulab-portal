@@ -1327,10 +1327,6 @@ sub HandleImageTracking()
 	    print "Would trigger update for $image\n";
 	    next;
 	}
-	if ($image->isdataset()) {
-	    print "Skipping dataset for now\n";
-	    next;
-	}
 	
 	#
 	# Lets avoid needless errors cause the image is locked, take the
@@ -1372,10 +1368,6 @@ sub HandleImageTracking()
 	}
 	if ($impotent) {
 	    print "Would import new version of $image\n";
-	    next;
-	}
-	if ($image->isdataset()) {
-	    print "Skipping dataset for now\n";
 	    next;
 	}
 	my $output = emutil::ExecQuiet("$IMPORTER -d -g -r -c $imageid");
