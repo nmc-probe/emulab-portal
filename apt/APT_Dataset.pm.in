@@ -69,7 +69,8 @@ sub Lookup($$;$)
 	$query_result =
 	    DBQueryWarn("select * from apt_datasets where uuid='$token'");
     }
-    elsif ($token =~ /^([-\w]+)\/([-\w]+)$/) {
+    elsif ($token =~ /^([-\w]+)\/([-\w]+)$/ ||
+	   $token =~ /^([-\w]+),([-\w]+)$/) {
 	$query_result =
 	    DBQueryWarn("select * from apt_datasets ".
 			"where pid='$1' and dataset_id='$2'");
@@ -85,7 +86,7 @@ sub Lookup($$;$)
     $self->{'HASH'}     = {};
 
     bless($self, $class);
-    
+
     return $self;
 }
 
@@ -172,7 +173,6 @@ sub Refresh($)
 	if (!$query_result || !$query_result->numrows);
 
     $self->{'DATASET'} = $query_result->fetchrow_hashref();
-
     return 0;
 }
 
@@ -546,17 +546,19 @@ sub DeleteDataset($)
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($context) && defined($cert)));
-    
-    my ($credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"]);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($credential)));
 
+    my ($credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"], 1);
+    return undef
+	if (!defined($credential));
+
+    my $credentials = [$credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"dataset_urn" => $cert->urn(),
-	"credentials" => [$credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
     };
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
@@ -577,19 +579,21 @@ sub ModifyDataset($)
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($context) && defined($cert)));
-    
-    my ($credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"]);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($credential)));
 
+    my ($credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"], 1);
+    return undef
+	if (!defined($credential));
+
+    my $credentials = [$credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"dataset_urn" => $cert->urn(),
+	"credentials" => $credentials,
 	"read_access" => $self->read_access(),
 	"write_access"=> $self->write_access(),
-	"credentials" => [$credential->asString(),
-			  $speaksfor_credential->asString()],
     };
     my $cmurl = $authority->url();
     $cmurl =~ s/protogeni/protogeni\/stoller/ if ($usemydevtree);
@@ -610,17 +614,19 @@ sub ExtendDataset($)
     return undef
 	if (! (defined($geniuser) && defined($authority) &&
 	       defined($context) && defined($cert)));
-    
-    my ($credential, $speaksfor_credential) =
-	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"]);
-    return undef
-	if (! (defined($speaksfor_credential) &&
-	       defined($credential)));
 
+    my ($credential, $speaksfor_credential) =
+	APT_Geni::GenCredentials($cert, $geniuser, ["blockstores"], 1);
+    return undef
+	if (!defined($credential));
+
+    my $credentials = [$credential->asString()];
+    if (defined($speaksfor_credential)) {
+	$credentials = [@$credentials, $speaksfor_credential->asString()];
+    }
     my $args = {
 	"dataset_urn" => $cert->urn(),
-	"credentials" => [$credential->asString(),
-			  $speaksfor_credential->asString()],
+	"credentials" => $credentials,
 	"extend"      => 1,
     };
     my $cmurl = $authority->url();
