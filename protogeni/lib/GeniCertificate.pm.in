@@ -1562,6 +1562,8 @@ sub SplitCertBundle($)
 # Wrapper for local users.
 #
 package GeniCertificate::LocalUser;
+use vars qw(@ISA);
+@ISA = "GeniCertificate";
 
 use English;
 use GeniHRN;
@@ -1609,8 +1611,7 @@ sub URL($)              { return undef; }
 sub URN($)              { return field($_[0], "urn"); }
 sub certfile($)		{ return undef; }
 sub GetCertificate($)   { return $_[0]; }
-sub WriteToFile($$)     { return GeniCertificate::WriteToFile($_[0], $_[1]); }
-sub toString($)		{ return GeniCertificate::toString($_[0]); }
+
 #
 # Need to add DN to the emulab table.
 #
