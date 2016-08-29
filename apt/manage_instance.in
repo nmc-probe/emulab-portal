@@ -3434,7 +3434,7 @@ sub DoUtilization()
     if (ParRun({"maxwaittime" => 99999,
 		"maxchildren" => scalar(@agglist)},
 	       \@return_codes, $coderef, @agglist)) {
-	$errmsg = "Internal error calling UpdateKeys()";
+	$errmsg = "Internal error calling Utilization()";
 	goto bad;
     }
     #
