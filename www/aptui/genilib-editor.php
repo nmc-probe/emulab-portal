@@ -122,6 +122,8 @@ echo "<script src='https://cdn.jsdelivr.net/ace/1.2.3/noconflict/ace.js'></scrip
 echo "<script src='https://cdn.jsdelivr.net/ace/1.2.3/noconflict/keybinding-vim.js'></script>\n";
 echo "<script src='https://cdn.jsdelivr.net/ace/1.2.3/noconflict/keybinding-emacs.js'></script>\n";
 echo "<script src='js/lib/require.js' data-main='js/genilib-editor'></script>";
+
+EchoTemplateList(array("genilib-editor", "oops-modal", "waitwait-modal", "manage-profile"));
 SPITFOOTER();
 
 ?>

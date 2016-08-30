@@ -1,14 +1,20 @@
 require(window.APT_OPTIONS.configObject,
 ['underscore', 'js/quickvm_sup', 'js/aptforms',
- 'js/lib/text!template/genilib-editor.html',	 
- 'js/lib/text!template/oops-modal.html',
- 'js/lib/text!template/waitwait-modal.html',
- 'js/lib/text!template/manage-profile.html',
+// 'js/lib/text!template/genilib-editor.html',	 
+// 'js/lib/text!template/oops-modal.html',
+// 'js/lib/text!template/waitwait-modal.html',
+// 'js/lib/text!template/manage-profile.html',
  'jacks'],
-function (_, sup, aptforms,
-	  pageString, oopsString, waitwaitString, manageString)
+function (_, sup, aptforms)//,
+//	  pageString, oopsString, waitwaitString, manageString)
 {
   'use strict';
+
+  var pageString = APT_OPTIONS.fetchTemplate('genilib-editor');
+  var oopsString = APT_OPTIONS.fetchTemplate('oops-modal');
+  var waitwaitString = APT_OPTIONS.fetchTemplate('waitwait-modal');
+  var manageString = APT_OPTIONS.fetchTemplate('manage-profile');
+  
   var editor;
   var isWaiting = false;
   var isSplit = false;
@@ -376,10 +382,20 @@ function (_, sup, aptforms,
   function updateCreateBody()
   {
     var projlist = JSON.parse(_.unescape($('#projects-json')[0].textContent));
+    var project = undefined;
+    if (projlist.length == 1)
+    {
+      project = projlist[0];
+    }
+    else if (window.PROFILE_PROJECT && _.contains(projlist, window.PROFILE_PROJECT))
+    {
+      project = window.PROFILE_PROJECT;
+    }
     var fields = {
       profile_script: editor.getValue(),
       profile_rspec: rspec,
-      profile_who: 'private'
+      profile_who: 'private',
+      profile_pid: project
     };
     var manage_html = manageTemplate({
       formfields: fields,

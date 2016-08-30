@@ -161,3 +161,13 @@ window.APT_OPTIONS.nagPI = function (pid) {
 			       });
   return false;
 };
+
+window.APT_OPTIONS.fetchTemplate = function (name) {
+  var result = '';
+  var element = document.getElementById(name);
+  if (element)
+  {
+    result = atob(element.innerHTML);
+  }
+  return result;
+};

@@ -114,23 +114,29 @@ function (_, sup, moment,
 	// The Show Source button.
 	$('#show_source_modal_button, #show_xml_modal_button')
 	    .click(function (event) {
-		var source = null;
+	        var source = null;
+	        var isScript = true;
 		var href   = "show-profile.php?uuid=" + profile_uuid;
 
-	        if ($(this).attr("id") == "show_source_modal_button") {
-		/*
-		    source = $.trim($('#profile_script_textarea').val());
+	        source = $.trim($('#profile_script_textarea').val());
+	        $('#rspec_modal_download_button')
+		  .attr("href", href + "&source=true");
+	        if (! source || ! source.length) {
+		    isScript = false;
+		}
+	        if (isScript == false ||
+		    $(this).attr("id") != "show_source_modal_button") {
+		  
+		    source = $.trim($('#profile_rspec_textarea').val());
 		    $('#rspec_modal_download_button')
-			.attr("href", href + "&source=true");
-		*/
+		      .attr("href", href + "&rspec=true");
+		}
+	        if ($(this).attr("id") == "show_source_modal_button" && isScript) {
 		    openEditor();
 		}
 	        else
 	        {
 		    if (!source || !source.length) {
-		        source = $.trim($('#profile_rspec_textarea').val());
-		        $('#rspec_modal_download_button')
-			    .attr("href", href + "&rspec=true");
 		    }
 		    $('#rspec_modal_editbuttons').addClass("hidden");
 		    $('#rspec_modal_viewbuttons').removeClass("hidden");

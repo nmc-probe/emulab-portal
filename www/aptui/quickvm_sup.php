@@ -877,4 +877,23 @@ function CheckLoginOrRedirect($modifier = 0)
     return $this_user;
 }
 
+#
+# Echos a plaintext <script> tag with a base64-encoded template inside.
+# The <script> tag has an id of $baseName. The template is loaded from
+# the path 'template/$baseName.html'
+#
+function EchoTemplate($baseName)
+{
+    echo "\n<script type='text/plain' id='" . $baseName . "'>\n";
+    echo base64_encode(file_get_contents("template/" . $baseName . ".html")) . "\n";
+    echo "</script>\n";
+}
+
+function EchoTemplateList($nameList)
+{
+    foreach ($nameList as $index => $name) {
+        EchoTemplate($name);
+    }
+}
+
 ?>
