@@ -467,7 +467,8 @@ sub AddUser()
 	    $pswd =~ s/\*/\\\*/g;
 
 	    print "Initializing user $user password on $CONTROL.\n";
-	    if (system("$SSH -host $CONTROL $CHPASS -p '$pswd' $user")) {
+	    if (system("$SSH -host $CONTROL ".
+		       "  \"$ACCOUNTPROXY chpass $user '$pswd'\"")) {
 		fatal("Could not initialize password for $user on $CONTROL!");
 	    }
 	}
@@ -678,7 +679,7 @@ sub UpdatePassword()
     my $new_pswd  = shift(@ARGV);
 
     # Lets not do this if no changes.
-    if ($new_pswd eq $target_user->pswd()) {
+    if ($new_pswd eq $target_user->pswd() && !$force) {
 	print "Password has not changed ...\n";
 	return 0;
     }
@@ -752,9 +753,10 @@ sub UpdatePassword()
 	$UID = 0;
 	if ($CONTROL ne $BOSSNODE) {
 	    print "Updating user $user password on $CONTROL.\n";
-	    
-	    if (system("$SSH -host $CONTROL $CHPASS -p '$safe_pswd' $user")) {
-		fatal("Could not change password for user $user on $CONTROL!");
+
+	    if (system("$SSH -host $CONTROL ".
+		       "  \"$ACCOUNTPROXY chpass $user '$safe_pswd'\"")) {
+		fatal("Could not change password for $user on $CONTROL!");
 	    }
 	}
 	$UID = $SAVEUID;

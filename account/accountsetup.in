@@ -42,6 +42,7 @@ sub usage()
     print "Usage: accountsetup adduser ...\n";
     print "       accountsetup deluser ...\n";
     print "       accountsetup moduser ...\n";
+    print "       accountsetup chpass ...\n";
     print "       accountsetup addproject ...\n";
     print "       accountsetup addgroup ...\n";
     print "       accountsetup delproject ...\n";
@@ -124,6 +125,7 @@ my @GDIRLIST = ("exp", "images", "logs", "tarfiles", "rpms", "tiplogs");
 sub AddUser();
 sub DeleteUser();
 sub ModifyUser();
+sub ChangePassword();
 sub AddProject();
 sub AddGroup();
 sub DelProject();
@@ -175,6 +177,10 @@ SWITCH: for ($cmd) {
     };
     /^moduser$/ && do {
 	ModifyUser();
+	last SWITCH;
+    };
+    /^chpass$/ && do {
+	ChangePassword();
 	last SWITCH;
     };
     /^addproject$/ && do {
@@ -233,7 +239,6 @@ sub AddUser()
     my $hdir  = shift(@ARGV);
     my $gid   = shift(@ARGV);
     my $shell = shift(@ARGV);
-    my $hash  = (@ARGV ? shift(@ARGV) : undef);
 
     if (! -d "$hdir") {
 	# XXX we only handle homedirs of the form /users/$user here...
@@ -283,13 +288,6 @@ sub AddUser()
 
 	chmod(0700, "$hdir/$dir")
 	    or fatal("Could not chmod '$hdir/$dir' to 0700: $!");
-    }
-    #
-    # Finally, set any initial password hash
-    #
-    if (defined($hash) &&
-	mysystem("$CHPASS -p '$hash' $user")) {
-	fatal("Could not initialize password");
     }
     return 0;
 }
@@ -343,6 +341,20 @@ sub ModifyUser()
 	fatal("Could not modify user $user to add groups!\n");
     }
     SetDotGroup($user, $pgroup);
+    return 0;
+}
+
+sub ChangePassword()
+{
+    if (@ARGV != 2) {
+	fatal("chpass: Wrong number of arguments");
+    }
+    my $user  = shift(@ARGV);
+    my $hash  = shift(@ARGV);
+
+    if (mysystem("$CHPASS -p '$hash' $user")) {
+	fatal("Could not change password");
+    }
     return 0;
 }
 
