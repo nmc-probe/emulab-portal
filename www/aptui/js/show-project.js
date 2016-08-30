@@ -329,15 +329,6 @@ function (_, sup, moment, mainString,
 		    $(this).html(moment($(this).html()).format("ll"));
 		}
 	    });
-	    // Bind approve/deny buttons.
-	    $('#members_table .approveuser')
-		.click(function () {
-		    DoApproval($(this).data("uid"), "approve");
-		});
-	    $('#members_table .denyuser')
-		.click(function () {
-		    DoApproval($(this).data("uid"), "deny");
-		});
 	    // Bind edit privs selection
 	    $('#members_table .editprivs')
 		.on('focusin', function() {
@@ -394,28 +385,6 @@ function (_, sup, moment, mainString,
 	xmlthing.done(callback);
     }
 
-    // Approve or Deny.
-    function DoApproval(uid, action)
-    {
-	console.info(uid, action);
-
-	var callback = function(json) {
-	    sup.HideWaitWait();
-
-	    if (json.code) {
-		sup.SpitOops("oops", json.value);
-		return;
-	    }
-	    LoadMembersTab();
-	}
-	sup.ShowWaitWait("We are approving (or denying) ... patience please");
-	var xmlthing =
-	    sup.CallServerMethod(null, "approveuser", action,
-				 {"user_uid" : uid,
-                                  "pid"      : window.TARGET_PROJECT});
-	xmlthing.done(callback);
-    }
-
     // Edit privs
     function DoEditPrivs(uid, priv)
     {
@@ -424,11 +393,13 @@ function (_, sup, moment, mainString,
 	var callback = function(json) {
 	    sup.HideWaitWait();
 
+	    // Always reload.
+	    LoadMembersTab();
+	    
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    LoadMembersTab();
 	}
 	sup.ShowWaitWait("We are modifying privs ... patience please");
 	var xmlthing =
@@ -459,12 +430,13 @@ function (_, sup, moment, mainString,
 	var callback = function(json) {
 	    sup.HideWaitWait();
 
+	    // Always reload.
+	    LoadMembersTab();
+
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
-		LoadMembersTab();
 		return;
 	    }
-	    LoadMembersTab();
 	}
 	sup.ShowWaitWait("We are removing users from this project ... " +
 			 "patience please");

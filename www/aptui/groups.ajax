@@ -422,7 +422,7 @@ function Do_EditMembership()
 function Do_EditPrivs()
 {
     global $this_user, $target_group, $ajax_args;
-    global $newTrustMap, $TB_PROJECT_EDITGROUP;
+    global $newTrustMap, $TB_PROJECT_EDITGROUP, $TBADMINGROUP;
 
     if (CheckPageArgs()) {
         return;
@@ -453,11 +453,24 @@ function Do_EditPrivs()
 	return -1;
     }
     $this_uid = $this_user->uid();
-    $user_uid = $target_user->uid_idx();
+    $user_uid = $target_user->uid();
     $trust    = $newTrustMap[$ajax_args["priv"]];
     $pid      = $target_group->pid();
     $gid      = $target_group->gid();
 
+    # Create the user if it is not yet approved.
+    if ($target_user->status() == TBDB_USERSTATUS_UNAPPROVED) {
+	$target_user->SetStatus(TBDB_USERSTATUS_ACTIVE);
+
+	$retval = SUEXEC($this_uid, $TBADMINGROUP,
+			 "webtbacct add $user_uid",
+			 SUEXEC_ACTION_CONTINUE);
+	if ($retval) {
+            $target_user->SetStatus(TBDB_USERSTATUS_UNAPPROVED);
+	    SPITAJAX_ERROR(-1, "Internal error creating new user");
+	    return;
+	}
+    }
     $retval = SUEXEC($this_uid, $pid,
 		     "webmodgroups -m $pid:$gid:$trust $user_uid",
 		     SUEXEC_ACTION_CONTINUE);

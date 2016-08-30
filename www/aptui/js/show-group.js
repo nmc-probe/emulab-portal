@@ -283,11 +283,13 @@ function (_, sup, moment, aptforms, mainString,
 	var callback = function(json) {
 	    sup.HideWaitWait();
 
+	    // Always reload.
+	    LoadMembersTab();
+	    
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    LoadMembersTab();
 	}
 	sup.ShowWaitWait();
 	var xmlthing =
@@ -307,11 +309,13 @@ function (_, sup, moment, aptforms, mainString,
 	var callback = function(json) {
 	    sup.HideWaitWait();
 
+	    // Always reload.
+	    LoadMembersTab();
+	    
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
 		return;
 	    }
-	    LoadMembersTab();
 	}
 	sup.ShowWaitWait("We are modifying privs ... patience please");
 	var xmlthing =
@@ -342,12 +346,13 @@ function (_, sup, moment, aptforms, mainString,
 	var callback = function(json) {
 	    sup.HideWaitWait();
 
+	    // Always reload.
+	    LoadMembersTab();
+	    
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
-		LoadMembersTab();
 		return;
 	    }
-	    LoadMembersTab();
 	}
 	sup.ShowWaitWait("We are removing users from this group ... " +
 			 "patience please");
@@ -381,12 +386,13 @@ function (_, sup, moment, aptforms, mainString,
 	var callback = function(json) {
 	    sup.HideWaitWait();
 
+	    // Always reload.
+	    LoadMembersTab();
+	    
 	    if (json.code) {
 		sup.SpitOops("oops", json.value);
-		LoadMembersTab();
 		return;
 	    }
-	    LoadMembersTab();
 	}
 	sup.ShowWaitWait("We are adding users to this group ... " +
 			 "patience please");
