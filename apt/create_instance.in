@@ -594,6 +594,7 @@ elsif (!$localuser) {
     $pid = $APT_HOLDINGPROJECT;
     $project = Project->Lookup($pid);
     $group = $project->GetProjectGroup();
+    $gid = $group->gid();
     if (!defined($project)) {
 	fatal("Project $pid does not exist");
     }
