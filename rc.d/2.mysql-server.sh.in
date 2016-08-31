@@ -30,7 +30,7 @@ else
     
 fi
 
-logopt="--binlog-format=MIXED --log-long-format --log=@prefix@/log/mysql/base --log-bin=@prefix@/log/mysql/update --log-slow-queries=@prefix@/log/mysql/slowqueries"
+logopt="--log-long-format --log=@prefix@/log/mysql/base --log-bin=@prefix@/log/mysql/update --log-slow-queries=@prefix@/log/mysql/slowqueries"
 
 if [ $major -eq 5 ]; then
 	safeprog=/usr/local/bin/mysqld_safe
