@@ -1682,8 +1682,14 @@ sub vnodePreConfig($$$$$){
 	    if ($?);
     }
     # Kill off old sshd ports.
-    mysystem2("sed -i.bak -e '/^# EmulabJail/,\$d' ".
-	      "   $vnoderoot/etc/ssh/sshd_config");
+    if (system("grep -q EndEmulabJail $vnoderoot/etc/ssh/sshd_config") == 0) {
+	mysystem2("sed -i.bak -e '/^# EmulabJail/,/^# EndEmulabJail/d' ".
+		  "   $vnoderoot/etc/ssh/sshd_config");
+    }
+    else {
+	mysystem2("sed -i.bak -e '/^# EmulabJail/,\$d' ".
+		  "   $vnoderoot/etc/ssh/sshd_config");
+    }
     goto bad
 	if ($?);
 
@@ -1796,14 +1802,14 @@ sub vnodePreConfig($$$$$){
 	    goto bad
 		if ($?);
 	
-	my $ldisk = "da0s1";
+	my $ldisk = "da";
 	if (-e "$vnoderoot/etc/dumpdates") {
-	    mysystem2("sed -i.bak -e 's;^/dev/\\(ada\\|ad\\|da\\)[0-9]s1;/dev/$ldisk;' ".
+	    mysystem2("sed -i.bak -e 's;^/dev/\\(ada\\|ad\\);/dev/$ldisk;' ".
 		      "  $vnoderoot/etc/dumpdates");
 	    goto bad
 		if ($?);
 	}
-	mysystem2("sed -i.bak -e 's;^/dev/\\(ada\\|ad\\|da\\)[0-9]s1;/dev/$ldisk;' ".
+	mysystem2("sed -i.bak -e 's;^/dev/\\(ada\\|ad\\);/dev/$ldisk;' ".
 		  "  $vnoderoot/etc/fstab");
 	goto bad
 	    if ($?);

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# Copyright (c) 2009-2015 University of Utah and the Flux Group.
+# Copyright (c) 2009-2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -697,12 +697,11 @@ sub callback($)
 	my $sshdport = VNCONFIG('SSHDPORT');
 
 	mysystem2("echo '# EmulabJail' >> $path/etc/ssh/sshd_config");
-	mysystem2("echo '# DO NOT MAKE ANY CHANGES BELOW THIS LINE!' ".
-		  "      >> $path/etc/ssh/sshd_config");
 	mysystem2("echo 'Port $sshdport' >> $path/etc/ssh/sshd_config");
 	if (VNCONFIG('CTRLIP') ne $ext_ctrlip) {
 	    mysystem2("echo 'Port 22' >> $path/etc/ssh/sshd_config");
 	}
+	mysystem2("echo '# EndEmulabJail' >> $path/etc/ssh/sshd_config");
     }
     # Localize the timezone.
     mysystem2("cp -fp /etc/localtime $path/etc");
