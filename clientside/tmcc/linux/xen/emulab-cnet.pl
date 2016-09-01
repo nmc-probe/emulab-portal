@@ -347,27 +347,28 @@ sub Online()
 
     #
     # rpcbind port restrictions. Probably need a better way to handle
-    # these cases.
+    # these cases. Note the -I; these need to go at the beginning of
+    # the chain (and note that the rules are reversed cause of that). 
     #
     if (isRoutable($vnode_ip)) {
 	push(@rules,
-	     "-A $INCOMING_CHAIN -s $network/$cnet_mask -p tcp ".
-	     "  --dport 111 -j ACCEPT");
+	     "-I $INCOMING_CHAIN ".
+	     "  -p udp --dport 111 -j DROP");
 	push(@rules,
-	     "-A $INCOMING_CHAIN -s $network/$cnet_mask -p udp  ".
-	     "  --dport 111 -j ACCEPT");
-	push(@rules,
-	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask -p tcp ".
-	     "  --dport 111 -j ACCEPT");
-	push(@rules,
-	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask -p udp ".
-	     "  --dport 111 -j ACCEPT");
-	push(@rules,
-	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
+	     "-I $INCOMING_CHAIN ".
 	     "  -p tcp --dport 111 -j DROP");
 	push(@rules,
-	     "-A $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
-	     "  -p udp --dport 111 -j DROP");
+	     "-I $INCOMING_CHAIN -s $jail_network/$jail_netmask -p udp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-I $INCOMING_CHAIN -s $jail_network/$jail_netmask -p tcp ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-I $INCOMING_CHAIN -s $network/$cnet_mask -p udp  ".
+	     "  --dport 111 -j ACCEPT");
+	push(@rules,
+	     "-I $INCOMING_CHAIN -s $network/$cnet_mask -p tcp ".
+	     "  --dport 111 -j ACCEPT");
     }
     # 
     # Watch for a vnode with a public IP, no need to nat. 
@@ -528,10 +529,10 @@ sub Offline()
 	     "-D $INCOMING_CHAIN -s $jail_network/$jail_netmask -p udp ".
 	     "  --dport 111 -j ACCEPT");
 	push(@rules,
-	     "-D $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
+	     "-D $INCOMING_CHAIN ".
 	     "  -p tcp --dport 111 -j DROP");
 	push(@rules,
-	     "-D $INCOMING_CHAIN -s $jail_network/$jail_netmask ".
+	     "-D $INCOMING_CHAIN ".
 	     "  -p udp --dport 111 -j DROP");
     }
     # 
