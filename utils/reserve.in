@@ -165,7 +165,7 @@ else {
 	fatal( "Reservation must not end until after it starts." );
     }
 
-    if( $endtime <= time ) {
+    if( $endtime <= time && !$clear ) {
 	fatal( "Reservation end time has already passed." );
     }
 
