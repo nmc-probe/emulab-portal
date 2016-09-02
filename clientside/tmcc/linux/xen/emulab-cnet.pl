@@ -77,13 +77,14 @@ my $ARPING      = "/usr/bin/arping";
 my $VIFROUTING  = ((-e "$ETCDIR/xenvifrouting") ? 1 : 0);
 
 usage()
-    if (@ARGV < 5);
+    if (@ARGV < 6);
 
 my $vmid      = shift(@ARGV);
 my $host_ip   = shift(@ARGV);
 my $vnode_id  = shift(@ARGV);
 my $vnode_ip  = shift(@ARGV);
 my $vnode_mac = shift(@ARGV);
+my $elabinelab= shift(@ARGV);
 
 # The caller (xmcreate) puts this into the environment.
 my $vif         = $ENV{'vif'};
@@ -350,7 +351,7 @@ sub Online()
     # these cases. Note the -I; these need to go at the beginning of
     # the chain (and note that the rules are reversed cause of that). 
     #
-    if (isRoutable($vnode_ip)) {
+    if (isRoutable($vnode_ip) && !$elabinelab) {
 	push(@rules,
 	     "-I $INCOMING_CHAIN ".
 	     "  -p udp --dport 111 -j DROP");
@@ -515,7 +516,7 @@ sub Offline()
     #
     # Remove rpcbind port restrictions
     #
-    if (isRoutable($vnode_ip)) {
+    if (isRoutable($vnode_ip) && !$elabinelab) {
 	push(@rules,
 	     "-D $INCOMING_CHAIN -s $network/$cnet_mask -p tcp ".
 	     "  --dport 111 -j ACCEPT");

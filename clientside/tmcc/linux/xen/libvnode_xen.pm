@@ -334,7 +334,7 @@ sub subDHCP($$);
 sub restartDHCP();
 sub formatDHCP($$$);
 sub fixupMac($);
-sub createControlNetworkScript($$$);
+sub createControlNetworkScript($$$$);
 sub createExpNetworkScript($$$$$$$$);
 sub createTunnelScript($$$$$);
 sub createExpBridges($$$);
@@ -1927,7 +1927,7 @@ sub vnodePreConfigControlNetwork($$$$$$$$$$$$)
 		 'hip' => $gw,
 		 'fqdn', => $longdomain,
 		 'mac' => $fmac};
-    createControlNetworkScript($vmid, $stuff, $cscript);
+    createControlNetworkScript($vmid, $vnconfig, $stuff, $cscript);
 
     #
     # Set up the chains. We always create them, and if there is no
@@ -4138,13 +4138,15 @@ sub fixupMac($)
 #
 # XXX can we get rid of this stub by using environment variables?
 #
-sub createControlNetworkScript($$$)
+sub createControlNetworkScript($$$$)
 {
-    my ($vmid,$data,$file) = @_;
+    my ($vmid,$vnconfig,$data,$file) = @_;
     my $host_ip = $data->{'hip'};
     my $name = $data->{'name'};
     my $ip = $data->{'ip'};
     my $mac = $data->{'mac'};
+    my $elabinelab = (exists($vnconfig->{'config'}->{'ELABINELAB'}) ?
+		      $vnconfig->{'config'}->{'ELABINELAB'} : 0);
 
     open(FILE, ">$file") or die $!;
     print FILE "#!/bin/sh\n";
@@ -4157,7 +4159,7 @@ sub createControlNetworkScript($$$)
     print FILE "if [ -e \"$file.debug\" ]; then ".
 	"mv -f $file.debug $file.debug.0; fi\n";
     print FILE "/etc/xen/scripts/emulab-cnet.pl ".
-	"$vmid $host_ip $name $ip $mac \$* >$file.debug 2>&1\n";
+	"$vmid $host_ip $name $ip $mac $elabinelab \$* >$file.debug 2>&1\n";
     print FILE "exit \$?\n";
     close(FILE);
     chmod(0555, $file);
