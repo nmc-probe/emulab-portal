@@ -7357,7 +7357,6 @@ sub SetSliceExpiration($$$$@)
     my $current_slice_expiration = str2time($slice->expires());
     if (defined($current_slice_expiration) &&
 	$current_slice_expiration == $when) {
-	print STDERR "Expiration does not need to be set\n";
 	return 0;
     }
     my $diff = $when - time();
