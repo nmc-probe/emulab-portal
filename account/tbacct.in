@@ -383,6 +383,10 @@ SWITCH: for ($cmd) {
 # an account on.
 #
 TBNodeUpdateAccountsByUID($user);
+if ($PGENISUPPORT) {
+    require APT_Utility;
+    APT_Utility::UpdateInstancesByUser($target_user);
+}
 
 exit(0);
 
@@ -433,8 +437,8 @@ sub AddUser()
     if (system("egrep -q -s '^${user}:' /etc/passwd")) {
 	print "Adding user $user ($user_number) to local node.\n";
 
-	if (system("$USERADD $user -u $user_number -c \"$fullname\" ".
-		   "-h - -d $HOMEDIR/$user ".
+	if (runBusyLoop("$USERADD $user -u $user_number -c \"$fullname\" ".
+			"-h - -d $HOMEDIR/$user ".
 		   "-g $default_groupname -s $PBAG")) {
 	    fatal("Could not add user $user to local node.");
 	}
@@ -610,7 +614,7 @@ sub DelUser()
 
     $UID = 0;
 
-    if (system("$USERDEL $user")) {
+    if (runBusyLoop("$USERDEL $user")) {
 	if (($? >> 8) != $NOSUCHUSER) {
 	    fatal("Could not remove user $user from local node.");
 	}
@@ -888,7 +892,7 @@ sub UpdateUser(;$)
     # Shell is different on local vs control node.
     if ($freezeopt) {
 	$locshellarg = "-s $NOLOGIN";
-	$remshellarg = "-s $NOLOGIN";
+	$remshellarg = "$NOLOGIN";
     }
     else {
 	# Admin users get a local shell.
@@ -900,16 +904,16 @@ sub UpdateUser(;$)
 	}
 	if (!defined($usr_shell) ||
 	    !exists($shellpaths{$usr_shell})) {
-	    $remshellarg = "-s " . $shellpaths{"tcsh"};
+	    $remshellarg = $shellpaths{"tcsh"};
 	}
 	else  {
-	    $remshellarg = "-s " . $shellpaths{$usr_shell};
+	    $remshellarg = $shellpaths{$usr_shell};
 	}
     }
     print "Updating user $user ($user_number) on local node.\n";
 
     $UID = 0;
-    if (system("$USERMOD $user $locshellarg -c \"$fullname\" ")) {
+    if (runBusyLoop("$USERMOD $user $locshellarg -c \"$fullname\" ")) {
 	fatal("Could not modify user $user on local node.");
     }
 
@@ -923,7 +927,7 @@ sub UpdateUser(;$)
 	print "Updating user $user ($user_number) on $CONTROL\n";
 
 	if (system("$SSH -host $CONTROL ".
-		   "'$USERMOD $user $remshellarg -c \"$fullname\"'")) {
+		   "'$ACCOUNTPROXY moduser $user $remshellarg \"$fullname\"'")){
 	    fatal("Could not modify user $user record on $CONTROL.");
 	}
     }
@@ -1077,7 +1081,7 @@ sub ThawUser()
 	AddUser() == 0
 	    or fatal("Cannot thaw $user");
 
-	system("$USERMOD -n $user -s /bin/tcsh");
+	runBusyLoop("$USERMOD -n $user -s /bin/tcsh");
     }
     else {
 	UpdateUser(0) == 0
@@ -1119,7 +1123,7 @@ sub DeactivateUser()
     # Shell goes to nologin on the CONTROL node.
     #
     $UID = 0;
-    if (system("$USERMOD $user -s $NOLOGIN")) {
+    if (runBusyLoop("$USERMOD $user -s $NOLOGIN")) {
 	fatal("Could not set shell to $NOLOGIN for $user on local node.");
     }
     if ($CONTROL ne $BOSSNODE) {

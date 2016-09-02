@@ -33,7 +33,7 @@ use vars qw(@ISA @EXPORT);
 	     TBDB_CHECKDBSLOT_ERROR TBcheck_dbslot TBFieldErrorString
 	     TBGetUniqueIndex ParRun VersionInfo UpdateVersionInfo
 	     SpanningTree GenFakeMac BackTraceOnWarning PassWordHash
-             SSHwithTimeout TBDateStringGMT TBDateStringLocal
+             SSHwithTimeout TBDateStringGMT TBDateStringLocal runBusyLoop
 );
 
 use emdb;
@@ -901,6 +901,51 @@ sub waitForMount($;$)
     return -1;
 }
 
+#
+# Run pw/chpass, checking for a locked passwd/group file. The pw routines
+# exit with non specific error code 1 for everything, so there is no way
+# to tell that its a busy file except by looking at the error message. Then
+# wait for a bit and try again. Silly.
+#
+sub runBusyLoop($)
+{
+    my $command   = shift;
+    my $maxtries  = 10;
+
+    while ($maxtries--) {
+	my $output    = "";
+    
+	#
+	# This open implicitly forks a child, which goes on to execute the
+	# command. The parent is going to sit in this loop and capture the
+	# output of the child. We do this so that we have better control
+	# over the descriptors.
+	#
+	my $pid = open(PIPE, "-|");
+	if (!defined($pid)) {
+	    print STDERR "runBusyLoop; popen failed!\n";
+	    return -1;
+	}
+	if ($pid) {
+	    while (<PIPE>) {
+		$output .= $_;
+	    }
+	    close(PIPE);
+	    print $output;
+	    return 0
+		if (!$?);
+	    if ($output =~ /(group|db) file is busy/m) {
+		print "runBusyLoop; waiting a few seconds before trying again\n";
+		sleep(3);
+	    }
+	}
+	else {
+	    open(STDERR, ">&STDOUT");
+	    exec($command);
+	}
+    }
+    return -1;
+}
 
 # _Always_ make sure that this 1 is at the end of the file...
 1;

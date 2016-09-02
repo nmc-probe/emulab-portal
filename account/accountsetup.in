@@ -42,6 +42,7 @@ sub usage()
     print "Usage: accountsetup adduser ...\n";
     print "       accountsetup deluser ...\n";
     print "       accountsetup moduser ...\n";
+    print "       accountsetup setgroups ...\n";
     print "       accountsetup chpass ...\n";
     print "       accountsetup addproject ...\n";
     print "       accountsetup addgroup ...\n";
@@ -74,6 +75,7 @@ my $ZFS_ROOT          = "@ZFS_ROOT@";
 my $ZFS_QUOTA_USER    = "@ZFS_QUOTA_USER@";
 my $ZFS_QUOTA_PROJECT = "@ZFS_QUOTA_PROJECT@";
 my $ZFS_QUOTA_GROUP   = "@ZFS_QUOTA_GROUP@";
+my $PW		      = "/usr/sbin/pw";
 my $USERADD	      = "/usr/sbin/pw useradd";
 my $USERDEL	      = "/usr/sbin/pw userdel";
 my $USERMOD	      = "/usr/sbin/pw usermod";
@@ -124,6 +126,7 @@ my @GDIRLIST = ("exp", "images", "logs", "tarfiles", "rpms", "tiplogs");
 #
 sub AddUser();
 sub DeleteUser();
+sub SetGroups();
 sub ModifyUser();
 sub ChangePassword();
 sub AddProject();
@@ -141,6 +144,7 @@ sub ZFSexists($);
 sub MakeDir($$);
 sub WhackDir($$);
 sub mysystem($);
+sub runBusyLoop($);
 
 #
 # Check args.
@@ -177,6 +181,10 @@ SWITCH: for ($cmd) {
     };
     /^moduser$/ && do {
 	ModifyUser();
+	last SWITCH;
+    };
+    /^setgroups$/ && do {
+	SetGroups();
 	last SWITCH;
     };
     /^chpass$/ && do {
@@ -248,8 +256,8 @@ sub AddUser()
     }
 
     if (mysystem("egrep -q -s '^${user}:' /etc/passwd") &&
-	mysystem("$USERADD $user -u $uid -c \"$name\" ".
-	       "-k $SKEL -h - -d $hdir -g $gid -s $shell")) {
+	runBusyLoop("$USERADD $user -u $uid -c \"$name\" ".
+		    "-k $SKEL -h - -d $hdir -g $gid -s $shell")) {
 	if (($? >> 8) != $USEREXISTS) {
 	    fatal("$USERADD: could not add account");
 	}
@@ -307,7 +315,7 @@ sub DeleteUser()
     # Note that this does NOT remove the user's homedir.
     # We remove/rename it below...
     #
-    if (mysystem("$USERDEL $user")) {
+    if (runBusyLoop("$USERDEL $user")) {
 	if (($? >> 8) != $NOSUCHUSER) {
 	    fatal("Could not remove user $user");
 	}
@@ -323,13 +331,32 @@ sub DeleteUser()
 }
 
 #
-# Usage: username group1 [ group2 ... groupN ]
-# XXX this is specific to what is required by setgroups.
+# Usage: moduser username shell full_name
 #
 sub ModifyUser()
 {
-    if (@ARGV < 2) {
+    if (@ARGV != 3) {
 	fatal("moduser: Wrong number of arguments");
+    }
+    
+    my $user  = shift(@ARGV);
+    my $shell = shift(@ARGV);
+    my $name  = shift(@ARGV);
+
+    if (runBusyLoop("$USERMOD $user -c \"$name\" -s $shell")) {
+	fatal("$USERMOD: could not modify account");
+    }
+    return 0;
+}
+
+#
+# Usage: username group1 [ group2 ... groupN ]
+# XXX this is specific to what is required by setgroups.
+#
+sub SetGroups()
+{
+    if (@ARGV < 2) {
+	fatal("setgroups: Wrong number of arguments");
     }
     my $user  = shift(@ARGV);
     my $pgroup  = shift(@ARGV);
@@ -337,7 +364,7 @@ sub ModifyUser()
     if (@ARGV > 0) {
 	$grouplist = "-G '" . join(',', @ARGV) . "'";
     }
-    if (mysystem("$USERMOD $user -g $pgroup $grouplist")) {
+    if (runBusyLoop("$USERMOD $user -g $pgroup $grouplist")) {
 	fatal("Could not modify user $user to add groups!\n");
     }
     SetDotGroup($user, $pgroup);
@@ -352,7 +379,7 @@ sub ChangePassword()
     my $user  = shift(@ARGV);
     my $hash  = shift(@ARGV);
 
-    if (mysystem("$CHPASS -p '$hash' $user")) {
+    if (runBusyLoop("$CHPASS -p '$hash' $user")) {
 	fatal("Could not change password");
     }
     return 0;
@@ -375,7 +402,7 @@ sub DeactivateUser()
 	    fatal("Could not set ZFS dir $zfsdir to mountpoint=none");
 	}
     }
-    if (mysystem("$USERMOD $user -d /var/empty -s $NOLOGIN")) {
+    if (runBusyLoop("$USERMOD $user -d /var/empty -s $NOLOGIN")) {
 	fatal("Could not set shell to $NOLOGIN");
     }
     return 0;
@@ -402,7 +429,7 @@ sub ReactivateUser()
 	    fatal("Could not set ZFS dir $zfsdir to mountpoint=$hdir");
 	}
     }
-    if (mysystem("$USERMOD $user -d $hdir")) {
+    if (runBusyLoop("$USERMOD $user -d $hdir")) {
 	fatal("Could not set home directory back to $hdir");
     }
     #
@@ -435,7 +462,7 @@ sub AddProject()
     if (mysystem("egrep -q -s '^${unix_name}:' /etc/group")) {
 	print "Adding group $unix_name ...\n";
 
-	if (mysystem("$GROUPADD $unix_name -g $unix_gid")) {
+	if (runBusyLoop("$GROUPADD $unix_name -g $unix_gid")) {
 	    fatal("Could not add group $unix_name ($unix_gid)!\n");
 	}
     }
@@ -521,7 +548,7 @@ sub AddGroup()
     if (mysystem("egrep -q -s '^${unix_name}:' /etc/group")) {
 	print "Adding group $unix_name ...\n";
 
-	if (mysystem("$GROUPADD $unix_name -g $unix_gid")) {
+	if (runBusyLoop("$GROUPADD $unix_name -g $unix_gid")) {
 	    fatal("Could not add group $unix_name ($unix_gid)!\n");
 	}
     }
@@ -577,7 +604,7 @@ sub DelProject()
     if (mysystem("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting project $unix_name ...\n";
 
-	if (mysystem("$GROUPDEL $unix_name")) {
+	if (runBusyLoop("$GROUPDEL $unix_name")) {
 	    fatal("Could not delete group $unix_name!\n");
 	}
     }
@@ -608,7 +635,7 @@ sub DelGroup()
     if (mysystem("egrep -q -s '^${unix_name}:' /etc/group") == 0) {
 	print "Deleting group $unix_name ...\n";
 
-	if (mysystem("$GROUPDEL $unix_name")) {
+	if (runBusyLoop("$GROUPDEL $unix_name")) {
 	    fatal("Could not delete group $unix_name!\n");
 	}
     }
@@ -984,6 +1011,60 @@ sub mysystem($)
 	close(FD);
     }
     return system($cmd);
+}
+
+#
+# Run pw/chpass, checking for a locked passwd/group file. The pw routines
+# exit with non specific error code 1 for everything, so there is no way
+# to tell that its a busy file except by looking at the error message. Then
+# wait for a bit and try again. Silly.
+#
+sub runBusyLoop($)
+{
+    my $command   = shift;
+    my $maxtries  = 10;
+
+    print STDERR "accountsetup: '$command'\n";
+
+    if (open(FD, ">>/usr/testbed/log/accountsetup.log")) {
+	my $tstamp = POSIX::strftime("%b %e %H:%M:%S", localtime());
+	print FD "$tstamp: $command\n";
+	close(FD);
+    }
+
+    while ($maxtries--) {
+	my $output    = "";
+    
+	#
+	# This open implicitly forks a child, which goes on to execute the
+	# command. The parent is going to sit in this loop and capture the
+	# output of the child. We do this so that we have better control
+	# over the descriptors.
+	#
+	my $pid = open(PIPE, "-|");
+	if (!defined($pid)) {
+	    print STDERR "runBusyLoop; popen failed!\n";
+	    return -1;
+	}
+	if ($pid) {
+	    while (<PIPE>) {
+		$output .= $_;
+	    }
+	    close(PIPE);
+	    print $output;
+	    return 0
+		if (!$?);
+	    if ($output =~ /(group|db) file is busy/m) {
+		print "runBusyLoop; waiting a few seconds before trying again\n";
+		sleep(3);
+	    }
+	}
+	else {
+	    open(STDERR, ">&STDOUT");
+	    exec($command);
+	}
+    }
+    return -1;
 }
 
 sub fatal($) {
