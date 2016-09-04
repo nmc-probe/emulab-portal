@@ -392,6 +392,7 @@ COMMAND_PROTOTYPE(dotiplineinfo);
 COMMAND_PROTOTYPE(doimageid);
 COMMAND_PROTOTYPE(doimagesize);
 COMMAND_PROTOTYPE(dopnetnodeattrs);
+COMMAND_PROTOTYPE(doserviceinfo);
 #if PROTOGENI_SUPPORT
 COMMAND_PROTOTYPE(dogeniclientid);
 COMMAND_PROTOTYPE(dogenisliceurn);
@@ -529,6 +530,7 @@ struct command {
 	{ "imageinfo",      FULLCONFIG_NONE,  F_ALLOCATED, doimageid},
 	{ "imagesize",   FULLCONFIG_NONE,  F_ALLOCATED, doimagesize},
 	{ "pnetnodeattrs", FULLCONFIG_NONE, F_ALLOCATED, dopnetnodeattrs},
+	{ "serviceinfo",   FULLCONFIG_NONE, 0, doserviceinfo },
 #if PROTOGENI_SUPPORT
 	{ "geni_client_id", FULLCONFIG_NONE, 0, dogeniclientid },
 	{ "geni_slice_urn", FULLCONFIG_NONE, 0, dogenisliceurn },
@@ -13624,7 +13626,7 @@ COMMAND_PROTOTYPE(dopnetnodeattrs)
 	}
 
 	nrows = (int)mysql_num_rows(res);
-	while (nrows > 0) {
+	while (nrows-- > 0) {
 		char *node_id, *key, *val;
 
 		row = mysql_fetch_row(res);
@@ -13641,11 +13643,61 @@ COMMAND_PROTOTYPE(dopnetnodeattrs)
 		bufp += OUTPUT(bufp, ebufp-bufp,
 			       "NODE_ID=%s KEY=%s VALUE=%s\n",
 			       node_id, key, val);
-
-		nrows--;
 	}
 
 	mysql_free_result(res);
+	client_writeback(sock, buf, strlen(buf), tcp);
+	return 0;
+}
+
+/*
+ * Return service (subboss) into to a node/
+ */
+COMMAND_PROTOTYPE(doserviceinfo)
+{
+	MYSQL_RES   *res;
+	MYSQL_ROW   row;
+	int         nrows = 0;
+	char	    buf[MYBUFSIZE];
+	char        *tftp    = "boss";
+	char        *pubsub  = "boss";
+	char        *dhcp    = "boss";
+	char        *frisbee = "boss";
+
+	res = mydb_query("select service,subboss_id from subbosses "
+			 "where node_id='%s' and disabled=0",
+			 2, reqp->nodeid);
+
+	if (!res) {
+		error("doserviceinfo: %s: DB error getting serviceinfo!\n",
+		       reqp->nodeid);
+		return 1;
+	}
+
+	nrows = (int)mysql_num_rows(res);
+	while (nrows-- > 0) {
+		row = mysql_fetch_row(res);
+		if (!(row[0] && *row[0] &&
+		      row[1] && *row[1])) {
+			continue;
+		}
+		if (strcmp(row[0], "tftp") == 0) {
+			tftp = row[1];
+		}
+		else if (strcmp(row[0], "dhcp") == 0) {
+			dhcp = row[1];
+		}
+		else if (strcmp(row[0], "frisbee") == 0) {
+			frisbee = row[1];
+		}
+		else if (strcmp(row[0], "pubsub") == 0) {
+			pubsub = row[1];
+		}
+	}
+	mysql_free_result(res);
+
+	OUTPUT(buf, sizeof(buf), "TFTP=%s DHCP=%s FRISBEE=%s PUBSUB=%s\n",
+	       tftp, dhcp, frisbee, pubsub);
 	client_writeback(sock, buf, strlen(buf), tcp);
 	return 0;
 }
