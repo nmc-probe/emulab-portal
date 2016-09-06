@@ -1,6 +1,6 @@
 # -*- tcl -*-
 #
-# Copyright (c) 2000-2014 University of Utah and the Flux Group.
+# Copyright (c) 2000-2014, 2016 University of Utah and the Flux Group.
 # 
 # {{{EMULAB-LICENSE
 # 
@@ -271,7 +271,7 @@ Node instproc updatedb {DB} {
     # If we haven't specified a osid so far then we should fill it
     # with the id from the node_types table now.
     if {$osid == {}} {
-	if {$virthost == 0} {
+	if {$virthost == 0 && $role != "bridge" } {
 	    if {[info exists default_osids($type)]} {
 		set osid $default_osids($type)
 	    }
