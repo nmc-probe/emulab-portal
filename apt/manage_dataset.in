@@ -877,7 +877,8 @@ sub PollDatasetStatus($$$)
     
     while ($seconds > 0) {
 	$seconds -= $interval;
-	if ($aggregate->aggregate_urn() eq $dataset->aggregate_urn()) {
+	if (!defined($aggregate) ||
+	    $aggregate->aggregate_urn() eq $dataset->aggregate_urn()) {
 	    if (DoRefreshInternal($dataset, $perrmsg)) {
 		print STDERR $$perrmsg;
 		sleep($interval);
