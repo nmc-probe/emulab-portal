@@ -670,6 +670,7 @@ sub StartReservation($$)
 			     "   reservation_name='$resname' ".
 			     "where node_id='$node_id'");
 		$tcount++;
+		$current++;
 	    }
 	    #
 	    # It is unlikely this will happen, unless someone mucks with
