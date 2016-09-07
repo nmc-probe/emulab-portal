@@ -158,6 +158,14 @@ sub callback($$$)
     my $type      = event_notification_get_string($handle, $note, "type");
     my $details   = event_notification_get_string($handle, $note, "details");
 
+    #
+    # Not sure why this is happening, but sometime the slice urn has
+    # extra double quotes around it. Kill them so the instance lookup
+    # does not fail. Someday I will figure out why this is happening.
+    #
+    if ($slice =~ /^\"(.*)\"$/) {
+	$slice = $1;
+    }
     if ($debug) {
 	print "Event: $time $site $type $urn $slice $details\n";
     }
@@ -229,19 +237,6 @@ sub HandleImageStatus($$$)
 }
 
 #
-# Loop processing events.
-#
-while (1)
-{
-    $gotone = 1;
-    while ($gotone) {
-	$gotone = 0;
-	event_poll($localhandle);
-    }
-    event_poll_blocking($localhandle, 1000);
-}
-
-#
 # Setup a signal handler for newsyslog.
 #
 sub handler()
@@ -254,6 +249,19 @@ sub handler()
 }
 $SIG{HUP} = \&handler
     if (! ($debug || $impotent));
+
+#
+# Loop processing events.
+#
+while (1)
+{
+    $gotone = 1;
+    while ($gotone) {
+	$gotone = 0;
+	event_poll($localhandle);
+    }
+    event_poll_blocking($localhandle, 1000);
+}
 
 exit(0);
 
