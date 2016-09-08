@@ -29,6 +29,15 @@
 # XXX things the API cannot do yet:
 #
 # 1. create a zvol volume; no API exists,
+#
+#    Sometime between April and Sept 2016, they finally added an API
+#    to create zvols:
+#        storage/volume/<vol>/zvols/		POST w/name and volsize to create
+#        storage/volume/<vol>/zvols/<zvol>	GET for attributes
+#        storage/volume/<vol>/zvols/<zvol>	DELETE to destroy
+#    Have not converted to use this yet, will have to deal with backward
+#    compat on servers that don't support it.
+#
 # 2. create an authorized initiator (POST); always return 302 FOUND
 #
 # API also does not report an error for:
