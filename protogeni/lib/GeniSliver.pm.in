@@ -1001,11 +1001,17 @@ sub Provision($;$)
 
 	# Mark
 	$node->ModifyReservation({"genisliver_idx" => $self->idx()});
+	# This would typically happen in libvtop, but we call the mapper
+	# in a way that causes it to not happen.
+	$node->ResetStartStatus();
 
 	my $subtype = GeniXML::GetVirtualizationSubtype($self->rspec());
 	if (defined($subtype)) {
 	    if (!$pnode->sharing_mode()) {
 		$pnode->ModifyReservation({"genisliver_idx" => $self->idx()});
+		# This would typically happen in libvtop, but we call the mapper
+		# in a way that causes it to not happen.
+		$node->ResetStartStatus();
 	    }
 	}
     }
@@ -1017,6 +1023,9 @@ sub Provision($;$)
 	if ($node->ModifyReservation({"genisliver_idx" => $self->idx()})) {
 	    return -1;
 	}
+	# This would typically happen in libvtop, but we call the mapper
+	# in a way that causes it to not happen.
+	$node->ResetStartStatus();
     }
     return 0;
 }
