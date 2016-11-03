@@ -1,0 +1,194 @@
+#
+# This is the defaults definitions file for configure.
+# See doc/setup.txt for an explanation of these variables.
+#
+# Use the --with-TBDEFS=filename to specify your own file.
+# If you add a variable, be sure to go and update configure.in.
+#
+TBCOOKIESUFFIX="portal"
+TBDBNAME=tbdb
+TBADMINGROUP=tbadmin
+
+# this is for when people join nonexistent projects
+TBAPPROVALEMAIL=techsupport@newmexicoconsortium.org
+
+# spam generators
+TBOPSEMAIL=sysroot+TBOPSEMAIL@newmexicoconsortium.org
+TBLOGSEMAIL=sysroot+TBLOGSEMAIL@newmexicoconsortium.org
+TBROBOCOPSEMAIL=sysroot+TBROBOCOPSEMAIL@newmexicoconsortium.org
+TBWWWEMAIL=sysroot+TBWWWEMAIL@newmexicoconsortium.org
+TBAUDITEMAIL=sysroot+TBAUDITEMAIL@newmexicoconsortium.org
+TBSTATEDEMAIL=sysroot+TBSTATEDEMAIL@newmexicoconsortium.org
+TBTESTSUITEEMAIL=sysroot+TBTESTSUITEEMAIL@newmexicoconsortium.org
+TBAUTOMAILEMAIL=sysroot+TBAUTOMAILEMAIL@newmexicoconsortium.org
+TBACTIVEARCHIVE=sysroot+TBACTIVEARCHIVE@newmexicoconsortium.org
+TBUSERSARCHIVE=sysroot+TBUSERSARCHIVE@newmexicoconsortium.org
+TBERRORSEMAIL=sysroot+TBERRORSEMAIL@newmexicoconsortium.org
+
+# not used
+JAILIPBASE=10.255.255.0
+JAILIPMASK=255.255.255.0
+
+#?
+DELAYCAPACITY=0
+
+BOSSNODE=boss.portal.nx
+USERNODE=ops.portal.nx
+
+FSNODE=ops.portal.nx
+OURDOMAIN=portal.nx
+
+# /q is used as scratch space
+FSDIR_GROUPS=/groups
+FSDIR_PROJ=/proj
+# gotcha: this should be the actual dir, not a symlink
+FSDIR_USERS=/usr/home
+FSDIR_SHARE=
+FSDIR_SCRATCH=
+FS_WITH_QUOTAS=
+
+#web server
+WWWHOST=portal.nmc-probe.org
+TBMAINSITE=0
+
+# might sign SSL keys with this:
+THISHOMEBASE=Portal
+
+MIN_UNIX_UID=10000
+MIN_UNIX_GID=6000
+
+# 0=allow admins and non-admins to exist in the same emulab group
+ISOLATEADMINS=0
+
+#?
+WINSUPPORT=0
+
+#
+# This next group will not work outside of Utah (yet).
+#
+FANCYBANNER=0
+
+# trac
+WIKISUPPORT=0
+BUGDBSUPPORT=0
+
+MAILMANSUPPORT=0
+
+#not used
+SFSSUPPORT=0
+
+#not used
+CVSSUPPORT=0
+
+STAMPS=0
+CHATSUPPORT=0
+NFSTRACESUPPORT=0
+
+#?
+ARCHIVESUPPORT=0
+
+# db proxy on ops 
+OPSDBSUPPORT=0
+
+# planetlab support
+# is this a typo?
+PELABSUPPORT=0
+PLABSUPPORT=0
+PLAB_ROOTBALL="plabroot-20.tar.bz2"
+
+#
+# SSL Certificate stuff. Used to customize config files in ssl directory.
+# Note that OrganizationalUnit is set in the cnf file.
+# CommonName is typically set to BOSSNODE and emailAddress to TBOPSEMAIL
+#
+SSLCERT_COUNTRY="US"
+SSLCERT_STATE="New Mexico"
+SSLCERT_LOCALITY="Los Alamos"
+SSLCERT_ORGNAME="PRObE - Portal"
+
+#
+# Network config stuff. Used to generate initial named and dhcpd config files.
+#
+#
+# Boss and users node IP addresses on the control network.
+# For boss this is an address on the private segment of the control net.
+# For users this is an address on the public segment of the control net.
+# (USERNODE==ops)
+#
+BOSSNODE_IP=10.52.0.3
+USERNODE_IP=10.52.0.2
+FSNODE_IP=
+
+#
+# If your boss/ops nodes are multihomed (and typically, one of the
+# networks is a public routable network, and the other is an internal
+# unroutable network), then define the the external addresses here (and
+# the internal addresses above).
+#
+EXTERNAL_BOSSNODE_IP=10.0.5.48
+EXTERNAL_USERNODE_IP=10.0.5.49
+EXTERNAL_FSNODE_IP=
+
+#
+# Network definitions - see doc/setup-network.txt for a description of how
+# we recommend laying out your network
+#
+
+#
+# The overall control network range - this subnet should cover the
+# CONTROL, PRIVATE, and PUBLIC networks below.
+#
+TESTBED_NETWORK=10.52.0.0
+TESTBED_NETMASK=255.255.0.0
+
+#
+# As above, if you have internal and external networks, define the
+# external network here, and the internal network above.
+# 
+EXTERNAL_TESTBED_NETWORK=10.52.0.0
+EXTERNAL_TESTBED_NETMASK=255.255.0.0
+
+#
+# The node control network segment.
+#
+CONTROL_ROUTER_IP=10.52.0.1
+CONTROL_NETWORK=10.52.0.0
+CONTROL_NETMASK=255.255.0.0
+
+#
+# The private network segment.
+#
+PRIVATE_NETWORK=10.52.0.0
+PRIVATE_ROUTER=10.52.0.1
+PRIVATE_NETMASK=255.255.0.0
+
+#
+# The public network segment.
+#
+PUBLIC_NETWORK=10.52.0.0
+PUBLIC_ROUTER=10.52.0.1
+PUBLIC_NETMASK=255.255.0.0
+
+#
+# A range of addresses within the node control network segment
+# to use for new nodes being added to the testbed.
+# You need at least one.
+#
+DHCPD_DYNRANGE="10.52.101.1 10.52.105.255"
+
+#
+# If you have forwarders for your named, specify them here for named.conf
+# generation in the named directory.
+#
+NAMED_FORWARDERS=""
+
+# not for us
+PROTOGENI_SUPPORT=1
+PROTOGENI_DOMAIN="ProbePortal"
+
+# portal support
+PORTAL_ENABLE=1
+PORTAL_ISPRIMARY=1
+
+TBUSEDBI=1
+NSVERIFY=0
