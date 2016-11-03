@@ -1048,9 +1048,16 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 	    # float to work correctly.
 	    #
 	    if (!$TBMAINSITE || $ISALTDOMAIN) {
-		echo "<a class='rightsidebuiltwith' ".
+		echo "<p><a class='rightsidebuiltwith' ".
 		    "href='http://www.emulab.net'>";
 		echo "<img src='$BASEPATH/fancy-builtwith.png'></a>\n";
+                // The next bit looks very ugly, so it's commented out for now
+                //echo "<a class='rightsidebuiltwith' href='http://www.cmu.edu'> <img src='$BASEPATH/CMU_logo.jpg'></a>\n";
+                //echo "<a href='http://newmexicoconsortium.org/'><img src='$BASEPATH/nmc-logo.jpg'></a></p>\n";
+                //echo "<a href='http://www.pdl.cmu.edu'><img src='$BASEPATH/PDL-logo.jpg'></a>\n";
+                //echo "<a href='http://www.lanl.gov'><img src='$BASEPATH/lanl.jpg'></a>\n";
+                //echo "<a href='http://institute.lanl.gov/isti/irhpit'><img src='$BASEPATH/irhpitlogo.jpg'></a>\n";
+                //echo "<a href='http://institute.lanl.gov/isti'><img src='$BASEPATH/ISTI-logo.JPG'></a>\n";
 	    }
 	    echo "<table id=topcelltable ".
 		     "cellspacing=0 cellpadding=0 border=0><tr>";
@@ -1079,7 +1086,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 	else {
 	    if ($FANCYBANNER) {
 		echo "<a href='$TBDOCBASE/index.php3'>
-                        <img height='100px' width='365px' border='0' ";
+                        <img height='100px' width='100px' border='0' ";
 		echo "src='$BASEPATH/fancy-header-" .
 		    ($GENIRACK ? "genirack" : strtolower($THISHOMEBASE)) .
 		    ".png' ";
