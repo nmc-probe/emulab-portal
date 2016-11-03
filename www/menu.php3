@@ -1048,7 +1048,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 	    # float to work correctly.
 	    #
 	    if (!$TBMAINSITE || $ISALTDOMAIN) {
-		echo "<p><a class='rightsidebuiltwith' ".
+		echo "<a class='rightsidebuiltwith' ".
 		    "href='http://www.emulab.net'>";
 		echo "<img src='$BASEPATH/fancy-builtwith.png'></a>\n";
                 // The next bit looks very ugly, so it's commented out for now
@@ -1078,7 +1078,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 	    else {
 		echo "height='54' ";
 		echo "src='$BASEPATH/overlay." .
-			strtolower($THISHOMEBASE) . ".gif' ";
+			strtolower($THISHOMEBASE) . ".png' ";
 	    }
 	    echo "></a>\n";
 	    echo "</td>\n";
@@ -1086,7 +1086,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 	else {
 	    if ($FANCYBANNER) {
 		echo "<a href='$TBDOCBASE/index.php3'>
-                        <img height='100px' width='100px' border='0' ";
+                        <img height='100px' width='365px' border='0' ";
 		echo "src='$BASEPATH/fancy-header-" .
 		    ($GENIRACK ? "genirack" : strtolower($THISHOMEBASE)) .
 		    ".png' ";
@@ -1107,7 +1107,7 @@ function PAGEBEGINNING( $title, $nobanner = 0, $nocontent = 0,
 		else {
 		    echo "width='339' ";
 		    echo "src='$BASEPATH/overlay." .
-			strtolower($THISHOMEBASE) . ".gif' ";
+			strtolower($THISHOMEBASE) . ".png' ";
 		}
 		echo "alt='$THISHOMEBASE - the network testbed'>\n";
             }
